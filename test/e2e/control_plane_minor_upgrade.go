@@ -37,6 +37,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/upgradecontrollers"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/cincinnati"
+	"github.com/Azure/ARO-HCP/internal/ocm"
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
@@ -78,7 +79,47 @@ var _ = Describe("Customer", func() {
 			}
 			Expect(err).NotTo(HaveOccurred(), "failed to get versions in previous minor %s on channel %s", previousMinor.String(), channelGroup)
 
+			// Fast-fail: predict the exact install version the backend will use
+			// for a bare-minor request (e.g. "4.21") by calling the same helper
+			// the backend uses. This avoids a class of mismatch where Cincinnati
+			// has an upgrade path from some 4.y.z but not from the specific
+			// z-stream the backend pins (currently hardcoded in NewOpenShiftVersionXYZ).
+			// If the predicted install has no GA upgrade path to the target minor,
+			// skip before spending ~15 min creating a cluster that can't upgrade.
+			csVersion := ocm.NewOpenShiftVersionXYZ(previousMinorLine, channelGroup)
+			resolvedStr := strings.TrimPrefix(csVersion, api.OpenShiftVersionPrefix)
+			if channelGroup != "" && channelGroup != "stable" {
+				resolvedStr = strings.TrimSuffix(resolvedStr, "-"+channelGroup)
+			}
+			resolvedInstallVersion, err := semver.ParseTolerant(resolvedStr)
+			Expect(err).NotTo(HaveOccurred(), "failed to parse backend-predicted install version %q (from %q)", resolvedStr, csVersion)
+
+			resolvedUpgradeTargets, err := upgradecontrollers.FindAllUpgradeTargetVersionsInMinor(
+				ctx, cincinnatiClient, channelGroup, targetVer, []semver.Version{resolvedInstallVersion})
+			if err != nil {
+				if cincinnati.IsCincinnatiVersionNotFoundError(err) {
+					Skip(fmt.Sprintf("Cincinnati version not found checking upgrade from backend-predicted install %s to %s: %v",
+						resolvedInstallVersion, targetMinorLine, err))
+				}
+				Expect(err).NotTo(HaveOccurred(), "failed to check upgrade path from %s to %s",
+					resolvedInstallVersion, targetMinorLine)
+			}
+			hasGAUpgradeTarget := false
+			for _, v := range resolvedUpgradeTargets {
+				if len(v.Pre) == 0 {
+					hasGAUpgradeTarget = true
+					break
+				}
+			}
+			if !hasGAUpgradeTarget {
+				Skip(fmt.Sprintf("backend would resolve %q to install version %s, which has no GA upgrade path to %s in Cincinnati",
+					previousMinorLine, resolvedInstallVersion, targetMinorLine))
+			}
+
 			for _, possibleInstallVersion := range possibleInstallVersions {
+				if len(possibleInstallVersion.Pre) != 0 {
+					continue
+				}
 				possibleUpgradeVersions, err := upgradecontrollers.FindAllUpgradeTargetVersionsInMinor(ctx, cincinnatiClient, channelGroup, targetVer, []semver.Version{possibleInstallVersion})
 				if cincinnati.IsCincinnatiVersionNotFoundError(err) {
 					Skip(fmt.Sprintf("Cincinnati returned version not found for target minor %s on channel %s: %v",
@@ -88,6 +129,9 @@ var _ = Describe("Customer", func() {
 				Expect(err).NotTo(HaveOccurred(), "failed to find upgrade targets in minor %s for install version %s", targetVer.String(), possibleInstallVersion.String())
 
 				for _, possibleUpgradeVersion := range possibleUpgradeVersions {
+					if len(possibleUpgradeVersion.Pre) != 0 {
+						continue
+					}
 					possibleNextUpgradeVersions, err := upgradecontrollers.FindAllUpgradeTargetVersionsInMinor(ctx, cincinnatiClient, channelGroup, targetPlusOneVer, []semver.Version{possibleUpgradeVersion})
 					if cincinnati.IsCincinnatiVersionNotFoundError(err) {
 						// in this case we allow it because without a 4.y+2, we allow any 4.y+1
@@ -95,8 +139,14 @@ var _ = Describe("Customer", func() {
 						break
 					}
 					Expect(err).NotTo(HaveOccurred(), "failed to find upgrade targets in minor %s for upgrade version %s", targetPlusOneVer.String(), possibleUpgradeVersion.String())
-					if len(possibleNextUpgradeVersions) > 0 {
-						// in this case we allow it because the possibleInstallVersion has a possibleUpgradeVersion that can upgrade to 4.y+2
+					hasGANext := false
+					for _, v := range possibleNextUpgradeVersions {
+						if len(v.Pre) == 0 {
+							hasGANext = true
+							break
+						}
+					}
+					if hasGANext {
 						installVersion = &possibleInstallVersion
 						break
 					}
