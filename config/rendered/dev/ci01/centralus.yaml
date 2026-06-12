@@ -164,7 +164,7 @@ clustersService:
   deployDebugJobs: false
   environment: arohcpci01
   image:
-    digest: sha256:981fd281d7d5a0a1cf0d1b47ddf0a93f5f6ff42b473335f7c16267d85f7d5fe7
+    digest: sha256:546c6af88cf2dba74473f3b90d794839f43d771ed735da94fc368252b28124a0
     registry: quay.io
     repository: app-sre/aro-hcp-clusters-service
   k8s:
@@ -207,7 +207,7 @@ clustersService:
 customExporter:
   enabledCollectors: service-tag-usage,kusto-logs-current
   image:
-    digest: sha256:6c355647636685b68b1a1ab010d5c8933f0a0a416a1d5a6c22d8e2f47b4cb709
+    digest: sha256:335a5217890f8137c8bce97c212762dcf584ffb8d5c193499880dcbb4acd4673
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpmetrics
   k8s:
@@ -444,7 +444,7 @@ imageSync:
   ocMirror:
     enabled: true
     image:
-      digest: sha256:5bdd61f93657c1ecc3276e5e6915ecbb61ac947c2f3968861bf34bb398ec6e13
+      digest: sha256:bcaee76884f96be911ebd95825801c9b2629f9c4e7efaf8980f2c76da075a07b
       registry: arohcpsvcdev.azurecr.io
       repository: image-sync/oc-mirror
     jobNamePrefix: ""
@@ -645,7 +645,7 @@ mgmt:
           sha: 01038e7de14b78d702d2849c3aad72fd25903c4765af63cf16aa3398f5d5f2dd
     kubeStateMetrics:
       image:
-        digest: sha256:da37cee409f36646723cb140c107247155bb5d8258a6b45b44639992461dc688
+        digest: sha256:e39c4ef50f0558940d7cd4e956a48d1166ca960498f9baae03a4ecf848a85f00
         registry: mcr.microsoft.com/oss/v2
         repository: kubernetes/kube-state-metrics
     namespace: prometheus
@@ -965,7 +965,7 @@ svc:
           sha: 01038e7de14b78d702d2849c3aad72fd25903c4765af63cf16aa3398f5d5f2dd
     kubeStateMetrics:
       image:
-        digest: sha256:da37cee409f36646723cb140c107247155bb5d8258a6b45b44639992461dc688
+        digest: sha256:e39c4ef50f0558940d7cd4e956a48d1166ca960498f9baae03a4ecf848a85f00
         registry: mcr.microsoft.com/oss/v2
         repository: kubernetes/kube-state-metrics
     namespace: prometheus
