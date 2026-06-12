@@ -316,5 +316,7 @@ func (c *nodePoolChildResourcesCleanupController) ensureNodePoolScopedKubeApplie
 		return utils.TrackError(fmt.Errorf("error iterating nodepool-scoped kube-applier resources: %w", err))
 	}
 
+	logger.Info("all included nodepool cosmos child resources deleted")
+
 	return nil
 }

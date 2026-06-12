@@ -202,6 +202,8 @@ func (c *clusterChildResourcesCleanupController) SyncOnce(ctx context.Context, k
 		return utils.TrackError(err)
 	}
 
+	logger.Info("all included cluster cosmos child resources deleted")
+
 	return nil
 }
 
