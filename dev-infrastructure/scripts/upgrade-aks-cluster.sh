@@ -96,24 +96,89 @@ if [ -n "${NODE_POOLS}" ]; then
     done <<< "${NODE_POOLS}"
 fi
 
-if [ "${NEEDS_UPGRADE}" = "false" ]; then
-    echo "Cluster does not need upgrade - all components are at or above target version ${TARGET_VERSION}."
-    exit 0
+if [ "${NEEDS_UPGRADE}" = "true" ]; then
+    echo "Upgrading cluster '${CLUSTER_NAME}' in RG '${RESOURCE_GROUP}' to '${TARGET_VERSION}'..."
+
+    az aks upgrade \
+        --resource-group "${RESOURCE_GROUP}" \
+        --name "${CLUSTER_NAME}" \
+        --kubernetes-version "${TARGET_VERSION}" \
+        --yes
+
+    echo "Waiting for Kubernetes version upgrade to complete..."
+    az aks wait \
+        --resource-group "${RESOURCE_GROUP}" \
+        --name "${CLUSTER_NAME}" \
+        --updated \
+        --timeout 3600
+
+    echo "Kubernetes version upgrade completed successfully."
+else
+    echo "Control plane and node pools are at or above target version ${TARGET_VERSION} - no version upgrade needed."
 fi
 
-echo "Upgrading cluster '${CLUSTER_NAME}' in RG '${RESOURCE_GROUP}' to '${TARGET_VERSION}'..."
+# Node OS image upgrade.
+#
+# This replaces the AKS-managed nodeOSUpgradeChannel/auto-upgrade that used to
+# pull the latest node image (security patches) on a maintenance schedule. We
+# now drive it from the pipeline: for each node pool, compare the running node
+# image against the latest available one and run a node-image-only upgrade when
+# a newer image exists. A Kubernetes version upgrade above already reimages
+# nodes to the latest image for the target version, so this is typically a
+# no-op right after one and only does work when the image alone is stale.
+echo "Checking node image versions..."
+NODE_IMAGE_UPGRADE_NEEDED=false
 
-az aks upgrade \
+NODE_POOL_NAMES=$(az aks nodepool list \
     --resource-group "${RESOURCE_GROUP}" \
-    --name "${CLUSTER_NAME}" \
-    --kubernetes-version "${TARGET_VERSION}" \
-    --yes
+    --cluster-name "${CLUSTER_NAME}" \
+    --query '[].name' \
+    --output tsv)
 
-echo "Waiting for upgrade to complete..."
-az aks wait \
-    --resource-group "${RESOURCE_GROUP}" \
-    --name "${CLUSTER_NAME}" \
-    --updated \
-    --timeout 3600
+if [ -n "${NODE_POOL_NAMES}" ]; then
+    while IFS= read -r POOL_NAME; do
+        [ -z "${POOL_NAME}" ] && continue
 
-echo "Upgrade completed successfully."
+        CURRENT_IMAGE=$(az aks nodepool show \
+            --resource-group "${RESOURCE_GROUP}" \
+            --cluster-name "${CLUSTER_NAME}" \
+            --name "${POOL_NAME}" \
+            --query nodeImageVersion \
+            --output tsv)
+
+        LATEST_IMAGE=$(az aks nodepool get-upgrades \
+            --resource-group "${RESOURCE_GROUP}" \
+            --cluster-name "${CLUSTER_NAME}" \
+            --nodepool-name "${POOL_NAME}" \
+            --query latestNodeImageVersion \
+            --output tsv 2>/dev/null || true)
+
+        echo "  Node pool '${POOL_NAME}': image ${CURRENT_IMAGE} (latest available: ${LATEST_IMAGE:-unknown})"
+
+        if [ -n "${LATEST_IMAGE}" ] && [ "${CURRENT_IMAGE}" != "${LATEST_IMAGE}" ]; then
+            echo "  Node pool '${POOL_NAME}' has a newer node image available"
+            NODE_IMAGE_UPGRADE_NEEDED=true
+        fi
+    done <<< "${NODE_POOL_NAMES}"
+fi
+
+if [ "${NODE_IMAGE_UPGRADE_NEEDED}" = "true" ]; then
+    echo "Upgrading node images for cluster '${CLUSTER_NAME}' in RG '${RESOURCE_GROUP}'..."
+
+    az aks upgrade \
+        --resource-group "${RESOURCE_GROUP}" \
+        --name "${CLUSTER_NAME}" \
+        --node-image-only \
+        --yes
+
+    echo "Waiting for node image upgrade to complete..."
+    az aks wait \
+        --resource-group "${RESOURCE_GROUP}" \
+        --name "${CLUSTER_NAME}" \
+        --updated \
+        --timeout 3600
+
+    echo "Node image upgrade completed successfully."
+else
+    echo "Node images are up to date - no node image upgrade needed."
+fi
