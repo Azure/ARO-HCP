@@ -38,7 +38,7 @@ module infraRbac 'ci-bot-rbac-subscription.bicep' = [
     scope: subscription(sub.id)
     params: {
       botPrincipalId: botSp.id
-      isGlobalSubscription: sub.isGlobalSubscription
+      isGlobalSubscription: sub.?isGlobalSubscription ?? false
       grantAksRbac: grantAksRbac
     }
   }

@@ -42,35 +42,32 @@ resource rbacAdminAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01
   }
 }
 
-resource aksRbacClusterAdminAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' =
-  if (grantAksRbac) {
-    name: guid(subscription().id, botPrincipalId, aksRbacClusterAdminRole)
-    scope: subscription()
-    properties: {
-      principalId: botPrincipalId
-      principalType: 'ServicePrincipal'
-      roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', aksRbacClusterAdminRole)
-    }
+resource aksRbacClusterAdminAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (grantAksRbac) {
+  name: guid(subscription().id, botPrincipalId, aksRbacClusterAdminRole)
+  scope: subscription()
+  properties: {
+    principalId: botPrincipalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', aksRbacClusterAdminRole)
   }
+}
 
-resource keyVaultAdminAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' =
-  if (isGlobalSubscription) {
-    name: guid(subscription().id, botPrincipalId, keyVaultAdminRole)
-    scope: subscription()
-    properties: {
-      principalId: botPrincipalId
-      principalType: 'ServicePrincipal'
-      roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', keyVaultAdminRole)
-    }
+resource keyVaultAdminAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (isGlobalSubscription) {
+  name: guid(subscription().id, botPrincipalId, keyVaultAdminRole)
+  scope: subscription()
+  properties: {
+    principalId: botPrincipalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', keyVaultAdminRole)
   }
+}
 
-resource grafanaAdminAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' =
-  if (isGlobalSubscription) {
-    name: guid(subscription().id, botPrincipalId, grafanaAdminRole)
-    scope: subscription()
-    properties: {
-      principalId: botPrincipalId
-      principalType: 'ServicePrincipal'
-      roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', grafanaAdminRole)
-    }
+resource grafanaAdminAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (isGlobalSubscription) {
+  name: guid(subscription().id, botPrincipalId, grafanaAdminRole)
+  scope: subscription()
+  properties: {
+    principalId: botPrincipalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', grafanaAdminRole)
   }
+}

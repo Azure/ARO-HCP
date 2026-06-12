@@ -5,7 +5,7 @@ set -euo pipefail
 # Backfills any missing secrets without regenerating existing ones.
 #
 # Required environment variables:
-#   APP_NAME       - Entra application display name (uniqueName)
+#   APP_NAME       - Entra application display name (e.g. "OpenShift Release Bot - STG")
 #   ENV_NAME       - Environment label (e.g. "stg") used in KV secret names
 #   KEY_VAULT_NAME - Target Azure Key Vault name
 

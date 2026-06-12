@@ -46,21 +46,21 @@ environments:
       identity_container_count: 40
   int:
     deploy_envs:
-      - int
+    - int
     pools:
-      - subscription_name: "ARO SRE Team - INT (EA Subscription 3)"
-        region: uksouth
-        region_mode: fixed
-        resource_type: aro-hcp-int-shard0-slot
-        slot_count: 1
-        identity_container_prefix: aro-hcp-msi-container-int-shard0
-        identity_container_count: 20
+    - subscription_name: "ARO SRE Team - INT (EA Subscription 3)"
+      region: uksouth
+      region_mode: fixed
+      resource_type: aro-hcp-int-shard0-slot
+      slot_count: 1
+      identity_container_prefix: aro-hcp-msi-container-int-shard0
+      identity_container_count: 20
   stg:
     deploy_envs:
     - stg
     pools:
     # shard0: Stage-00 subscription, fixed uksouth region.
-    # identity_container_count set to 40 to support running the full E2E suite in parallel.
+    # identity_container_count set to 25 to support running the full E2E suite in parallel.
     - subscription_name: "ARO HCP E2E Hosted Clusters - Stage - 00"
       region: uksouth
       region_mode: fixed
@@ -69,8 +69,6 @@ environments:
       identity_container_prefix: aro-hcp-msi-container-stg-shard0
       # provisionShardClusterLimit is configured to 25 in STG
       identity_container_count: 25
-
-
 
 # prod:
 #   deploy_envs:
