@@ -889,3 +889,105 @@ func TestURL(t *testing.T) {
 		})
 	}
 }
+
+func TestValidateContainerRegistryProfile(t *testing.T) {
+	ctx := context.Background()
+	op := operation.Operation{Type: operation.Create}
+	fldPath := field.NewPath("platform", "containerRegistry")
+
+	validResourceID := api.Must(azcorearm.ParseResourceID(
+		"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/myRg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/acrPullMI",
+	))
+
+	tests := []struct {
+		name         string
+		newObj       *api.ContainerRegistryProfile
+		expectErrors []utils.ExpectedError
+	}{
+		{
+			name:         "nil profile - valid",
+			newObj:       nil,
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name: "valid ManagedIdentity - valid",
+			newObj: &api.ContainerRegistryProfile{
+				Credentials: api.ContainerRegistryCredentialProfile{
+					Type: api.ContainerRegistryCredentialTypeManagedIdentity,
+					ManagedIdentity: &api.UserAssignedManagedIdentity{
+						ResourceID: validResourceID,
+					},
+				},
+			},
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name: "ManagedIdentity without managedIdentity block - invalid",
+			newObj: &api.ContainerRegistryProfile{
+				Credentials: api.ContainerRegistryCredentialProfile{
+					Type: api.ContainerRegistryCredentialTypeManagedIdentity,
+				},
+			},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "platform.containerRegistry.credentials.managedIdentity.resourceId", Message: "Required"},
+			},
+		},
+		{
+			name: "ManagedIdentity with nil resourceId - invalid",
+			newObj: &api.ContainerRegistryProfile{
+				Credentials: api.ContainerRegistryCredentialProfile{
+					Type:            api.ContainerRegistryCredentialTypeManagedIdentity,
+					ManagedIdentity: &api.UserAssignedManagedIdentity{},
+				},
+			},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "platform.containerRegistry.credentials.managedIdentity.resourceId", Message: "Required"},
+			},
+		},
+		{
+			name: "invalid credential type - invalid",
+			newObj: &api.ContainerRegistryProfile{
+				Credentials: api.ContainerRegistryCredentialProfile{
+					Type: api.ContainerRegistryCredentialType("BadType"),
+				},
+			},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "platform.containerRegistry.credentials.type", Message: "Unsupported"},
+			},
+		},
+		{
+			name: "empty credential type - invalid",
+			newObj: &api.ContainerRegistryProfile{
+				Credentials: api.ContainerRegistryCredentialProfile{
+					Type: api.ContainerRegistryCredentialType(""),
+				},
+			},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "platform.containerRegistry.credentials.type", Message: "Unsupported"},
+			},
+		},
+		{
+			name: "wrong resource type - invalid",
+			newObj: &api.ContainerRegistryProfile{
+				Credentials: api.ContainerRegistryCredentialProfile{
+					Type: api.ContainerRegistryCredentialTypeManagedIdentity,
+					ManagedIdentity: &api.UserAssignedManagedIdentity{
+						ResourceID: api.Must(azcorearm.ParseResourceID(
+							"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/myRg/providers/Microsoft.Storage/storageAccounts/wrongType",
+						)),
+					},
+				},
+			},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "platform.containerRegistry.credentials.managedIdentity.resourceId", Message: "Microsoft.ManagedIdentity/userAssignedIdentities"},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			errs := validateContainerRegistryProfile(ctx, op, fldPath, tt.newObj, nil)
+			utils.VerifyErrorsMatch(t, tt.expectErrors, errs)
+		})
+	}
+}

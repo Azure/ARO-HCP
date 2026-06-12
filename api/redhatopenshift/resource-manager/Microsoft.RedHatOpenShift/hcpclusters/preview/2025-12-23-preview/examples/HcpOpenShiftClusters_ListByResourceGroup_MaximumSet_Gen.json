@@ -48,6 +48,14 @@
                     "serviceManagedIdentity": "/subscriptions/FDEA43EA-0230-4A7D-BDEE-F3AFF2183B1D/resourceGroups/rgopenapi/providers/Microsoft.ManagedIdentity/userAssignedIdentities/serviceMI"
                   }
                 },
+                "containerRegistry": {
+                  "credentials": {
+                    "type": "ManagedIdentity",
+                    "managedIdentity": {
+                      "resourceId": "/subscriptions/FDEA43EA-0230-4A7D-BDEE-F3AFF2183B1D/resourceGroups/rgopenapi/providers/Microsoft.ManagedIdentity/userAssignedIdentities/acrPullMI"
+                    }
+                  }
+                },
                 "issuerUrl": "https://oidc.contoso.com"
               },
               "autoscaling": {

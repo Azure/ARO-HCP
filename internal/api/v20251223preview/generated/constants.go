@@ -39,6 +39,21 @@ func PossibleClusterImageRegistryStateValues() []ClusterImageRegistryState {
 	}
 }
 
+// ContainerRegistryCredentialType - The credential type used for Azure Container Registry image pulls.
+type ContainerRegistryCredentialType string
+
+const (
+	// ContainerRegistryCredentialTypeManagedIdentity - Uses a user-assigned managed identity for container registry authentication.
+	ContainerRegistryCredentialTypeManagedIdentity ContainerRegistryCredentialType = "ManagedIdentity"
+)
+
+// PossibleContainerRegistryCredentialTypeValues returns the possible values for the ContainerRegistryCredentialType const type.
+func PossibleContainerRegistryCredentialTypeValues() []ContainerRegistryCredentialType {
+	return []ContainerRegistryCredentialType{
+		ContainerRegistryCredentialTypeManagedIdentity,
+	}
+}
+
 // CreatedByType - The type of identity that created the resource.
 type CreatedByType string
 
