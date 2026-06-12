@@ -95,10 +95,20 @@ var _ = Describe("Authorized CIDRs", func() {
 
 				By("deploying test VM")
 				vmName := fmt.Sprintf("%s-test-vm", clusterName)
+				// The test VM is a throwaway kubectl client: it only needs a public IP
+				// (used as the single authorized CIDR) and to make one API call to the
+				// cluster. We use the common general-purpose Standard_D2s_v5 (same 2-vCPU
+				// size as the old burstable Standard_B2s) because the burstable B-series
+				// is the SKU class most prone to regional SkuNotAvailable capacity
+				// restrictions, which is what flaked this test.
+				const vmSize = "Standard_D2s_v5"
 				var vmDeployment *armresources.DeploymentExtended
-				Eventually(func() error {
-					var err error
-					vmDeployment, err = tc.CreateBicepTemplateAndWait(ctx,
+				var deployErr error
+				// Bounded retry to absorb transient ARM errors, but fail fast on
+				// SkuNotAvailable: a regional capacity restriction is not transient, so
+				// re-submitting an identical request only burns the timeout budget.
+				for attempt := 0; attempt < 3; attempt++ {
+					vmDeployment, deployErr = tc.CreateBicepTemplateAndWait(ctx,
 						framework.WithTemplateFromFS(TestArtifactsFS, "test-artifacts/generated-test-artifacts/modules/test-vm.json"),
 						framework.WithDeploymentName("test-vm"),
 						framework.WithScope(framework.BicepDeploymentScopeResourceGroup),
@@ -108,11 +118,16 @@ var _ = Describe("Authorized CIDRs", func() {
 							"vnetName":     customerVnetName,
 							"subnetName":   customerVnetSubnetName,
 							"sshPublicKey": sshPublicKey,
+							"vmSize":       vmSize,
 						}),
 						framework.WithTimeout(30*time.Minute),
 					)
-					return err
-				}, 30*time.Minute, 20*time.Second).Should(Succeed())
+					if deployErr == nil || strings.Contains(deployErr.Error(), "SkuNotAvailable") {
+						break
+					}
+					time.Sleep(20 * time.Second)
+				}
+				Expect(deployErr).NotTo(HaveOccurred(), "failed to deploy test VM")
 
 				By("extracting VM public IP from deployment outputs")
 				vmPublicIP, err := framework.GetOutputValueString(vmDeployment, "publicIP")
