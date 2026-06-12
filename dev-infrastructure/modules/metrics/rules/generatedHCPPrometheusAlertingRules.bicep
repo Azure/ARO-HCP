@@ -1908,3 +1908,40 @@ This usually indicates critical operators (Network, API, etc.) are down.
     ]
   }
 }
+
+resource fakeAlertRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'fake-alert-rules'
+  location: location
+  properties: {
+    interval: 'PT1M'
+    rules: [
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'FakeHighErrorRate'
+        enabled: true
+        labels: {
+          severity: 'critical'
+        }
+        annotations: {
+          correlationId: 'FakeHighErrorRate/{{ $labels.cluster }}'
+          summary: 'High error rate detected'
+          title: 'High error rate detected'
+        }
+        expression: 'fake:error_rate:5m > 0.05'
+        for: 'PT5M'
+        severity: 2
+      }
+    ]
+    scopes: [
+      azureMonitoring
+    ]
+  }
+}
