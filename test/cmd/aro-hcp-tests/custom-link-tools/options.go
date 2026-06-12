@@ -26,7 +26,6 @@ import (
 	"os"
 	"path"
 	"sort"
-	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -133,38 +132,6 @@ func (o *RawOptions) Validate() (*ValidatedOptions, error) {
 	}, nil
 }
 
-// kustoGeoToRegion maps the geoShortId segment from a kusto cluster name
-// (format: hcp-<env>-<geoShortId>) to the Azure region it resides in.
-// Derived from ARO-Tools/pkg/config/ev2config/config.yaml geoShortId→region mapping.
-var kustoGeoToRegion = map[string]string{
-	"au": "australiaeast",
-	"br": "brazilsouth",
-	"ca": "canadacentral",
-	"ch": "switzerlandnorth",
-	"eu": "westeurope",
-	"in": "centralindia",
-	"uk": "uksouth",
-	"us": "eastus2",
-}
-
-// resolveKustoRegion determines the Azure region for a given kusto cluster name.
-// Dev environments (hcp-dev-*) all reside in eastus2.
-// Public cloud names follow the format hcp-<env>-<geoShortId>[optional-suffix] and are looked up
-// in kustoGeoToRegion. The geoShortId is always 2 characters; any trailing content
-// (e.g. hcp-prod-ch2, hcp-stg-br-5) is ignored.
-func resolveKustoRegion(kustoName string) (string, error) {
-	if strings.HasPrefix(kustoName, "hcp-dev-") {
-		return "eastus2", nil
-	}
-	parts := strings.SplitN(kustoName, "-", 3)
-	if len(parts) == 3 && len(parts[2]) >= 2 {
-		if region, ok := kustoGeoToRegion[parts[2][:2]]; ok {
-			return region, nil
-		}
-	}
-	return "", fmt.Errorf("cannot resolve kusto region for %q", kustoName)
-}
-
 func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 	cfg, err := testutil.LoadRenderedConfig(o.RenderedConfig)
 	if err != nil {
@@ -183,6 +150,10 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to get kusto name from config: %w", err)
 	}
+	kustoRegion, err := testutil.ConfigGetString(cfg, "kusto.location")
+	if err != nil {
+		return nil, fmt.Errorf("failed to get kusto location from config: %w", err)
+	}
 	serviceLogsDB, err := testutil.ConfigGetString(cfg, "kusto.serviceLogsDatabase")
 	if err != nil {
 		return nil, fmt.Errorf("failed to get service logs database from config: %w", err)
@@ -190,11 +161,6 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 	hcpLogsDB, err := testutil.ConfigGetString(cfg, "kusto.hostedControlPlaneLogsDatabase")
 	if err != nil {
 		return nil, fmt.Errorf("failed to get hosted control plane logs database from config: %w", err)
-	}
-
-	kustoRegion, err := resolveKustoRegion(kustoName)
-	if err != nil {
-		return nil, fmt.Errorf("failed to resolve kusto region: %w", err)
 	}
 
 	steps, err := timing.LoadSteps(ctx, o.TimingInputDir)
