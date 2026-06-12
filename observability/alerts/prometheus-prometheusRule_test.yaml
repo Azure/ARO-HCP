@@ -65,6 +65,10 @@ tests:
     - exp_labels:
         severity: critical
         cluster: test
+        job: prometheus/prometheus
+        namespace: prometheus
+        remote_name: rw1
+        url: http://rw1
       exp_annotations:
         correlationId: PrometheusFailedRate/test/prometheus/rw1/http://rw1
         summary: Prometheus failed sample rate to remote storage is above 10%.
@@ -490,6 +494,10 @@ tests:
     - exp_labels:
         severity: critical
         cluster: threshold-plus
+        job: prometheus/prometheus
+        namespace: prometheus
+        remote_name: rw1
+        url: http://rw1
       exp_annotations:
         correlationId: PrometheusFailedRate/threshold-plus/prometheus/rw1/http://rw1
         summary: Prometheus failed sample rate to remote storage is above 10%.
@@ -525,6 +533,10 @@ tests:
     - exp_labels:
         severity: critical
         cluster: legacy-failed-rate
+        job: prometheus/prometheus
+        namespace: prometheus
+        remote_name: legacy
+        url: http://legacy
       exp_annotations:
         correlationId: PrometheusFailedRate/legacy-failed-rate/prometheus/legacy/http://legacy
         summary: Prometheus failed sample rate to remote storage is above 10%.
@@ -699,6 +711,10 @@ tests:
     - exp_labels:
         severity: critical
         cluster: high-failure
+        job: prometheus/prometheus
+        namespace: prometheus
+        remote_name: rw1
+        url: http://rw1
       exp_annotations:
         correlationId: PrometheusFailedRate/high-failure/prometheus/rw1/http://rw1
         summary: Prometheus failed sample rate to remote storage is above 10%.

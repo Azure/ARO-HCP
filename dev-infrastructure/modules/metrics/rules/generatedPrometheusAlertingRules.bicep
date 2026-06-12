@@ -132,7 +132,7 @@ Investigate the health and performance of the remote storage endpoint, network l
           severity: 'critical'
         }
         annotations: {
-          correlationId: 'PrometheusFailedRate/{{ $labels.cluster }}'
+          correlationId: 'PrometheusFailedRate/{{ $labels.cluster }}/{{ $labels.namespace }}/{{ $labels.remote_name }}/{{ $labels.url }}'
           description: '''The failed sample rate for Prometheus remote storage has exceeded 10% over the past 15 minutes.
 This indicates that more than 10% of samples are not being successfully sent to remote storage, which could be caused by
 issues with the remote write endpoint, network instability, or Prometheus resource constraints.
@@ -149,7 +149,7 @@ Please check the health and performance of the remote storage endpoint, network 
           summary: 'Prometheus failed sample rate to remote storage is above 10%.'
           title: 'Prometheus failed sample rate to remote storage is above 10%.'
         }
-        expression: '( rate(prometheus_remote_storage_samples_failed_total[5m]) / rate(prometheus_remote_storage_samples_total[5m]) ) > 0.1'
+        expression: '( ( rate(prometheus_remote_storage_failed_samples_total{job="prometheus/prometheus",namespace="prometheus"}[5m]) or rate(prometheus_remote_storage_samples_failed_total{job="prometheus/prometheus",namespace="prometheus"}[5m]) ) / clamp_min( ( rate(prometheus_remote_storage_samples_total{job="prometheus/prometheus",namespace="prometheus"}[5m]) or ( rate(prometheus_remote_storage_failed_samples_total{job="prometheus/prometheus",namespace="prometheus"}[5m]) + rate(prometheus_remote_storage_succeeded_samples_total{job="prometheus/prometheus",namespace="prometheus"}[5m]) ) ), 1e-9 ) ) > 0.1'
         for: 'PT15M'
         severity: 3
       }
