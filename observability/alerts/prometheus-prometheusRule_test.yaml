@@ -735,6 +735,41 @@ tests:
   - eval_time: 10m
     alertname: PrometheusUptime
     exp_alerts: []
+# Test PrometheusUptimeSampleCount - data gap (dead 6h, no samples)
+# 18h of samples at 30s interval = 2160 samples. Threshold is 2736 (95% of 2880).
+# 2160 < 2736 so the alert fires due to the 6h gap, not interval mismatch.
+- interval: 30s
+  input_series:
+  - series: 'up{job="prometheus/prometheus",namespace="prometheus",cluster="gap-cluster"}'
+    values: "1+0x2160"
+  alert_rule_test:
+  - eval_time: 1450m
+    alertname: PrometheusUptimeSampleCount
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+        job: prometheus/prometheus
+        namespace: prometheus
+        cluster: gap-cluster
+      exp_annotations:
+        summary: Prometheus sample count below 95% SLO threshold for 24 hours.
+        description: |
+          Prometheus has delivered fewer than 95% of expected samples in the past 24 hours (expected 2880 at 30s interval, threshold 2736).
+          Unlike PrometheusUptime which averages existing samples, this alert treats data gaps as downtime.
+          A Prometheus outage that produces no samples at all will be caught by this alert.
+          Check the PrometheusAgent pod status, remote write pipeline, and PodMonitor configuration.
+        runbook_url: TBD
+# Test PrometheusUptimeSampleCount - healthy (full 24h of samples)
+# 2880 samples at 30s interval = 24h of continuous data. Threshold is 2736 (95% of 2880).
+# 2880 > 2736 so the alert should not fire.
+- interval: 30s
+  input_series:
+  - series: 'up{job="prometheus/prometheus",namespace="prometheus",cluster="healthy-cluster"}'
+    values: "1+0x2880"
+  alert_rule_test:
+  - eval_time: 1450m
+    alertname: PrometheusUptimeSampleCount
+    exp_alerts: []
 # Test multiple namespaces and jobs
 - interval: 1m
   input_series:

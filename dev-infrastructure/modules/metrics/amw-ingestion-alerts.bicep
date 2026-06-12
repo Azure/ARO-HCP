@@ -58,6 +58,43 @@ resource prometheusMetricsAbsent 'Microsoft.AlertsManagement/prometheusRuleGroup
   }
 }
 
+resource prometheusMetricsAbsentPerCluster 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'PrometheusMetricsAbsentPerCluster - ${workspaceLabel} - ${amwName}'
+  location: resourceGroup().location
+  properties: {
+    enabled: enabled
+    scopes: [
+      azureMonitorWorkspaceId
+    ]
+    rules: [
+      {
+        alert: 'PrometheusMetricsAbsentPerCluster'
+        expression: 'count by (cluster) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[7d])) unless count by (cluster) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[10m]))'
+        for: 'PT10M'
+        severity: 3
+        enabled: true
+        annotations: {
+          description: 'Prometheus on cluster {{ $labels.cluster }} has not reported any up metrics in the last 10 minutes, but was reporting within the last 7 days. This indicates the Prometheus agent on this specific cluster is dead or its remote write pipeline is broken. Check the PrometheusAgent pod status and remote write configuration on the affected cluster.'
+          runbook_url: prometheusRunbookUrl
+          summary: 'Prometheus metrics absent for cluster {{ $labels.cluster }}.'
+        }
+        labels: {
+          severity: 'critical'
+        }
+        resolveConfiguration: {
+          autoResolved: true
+          timeToResolve: 'PT10M'
+        }
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+          }
+        ]
+      }
+    ]
+  }
+}
+
 resource approachingActiveTimeSeries 'Microsoft.Insights/metricAlerts@2018-03-01' = {
   name: 'AMW Approaching Active TimeSeries Limit - ${workspaceLabel} - ${amwName}'
   location: 'global'
