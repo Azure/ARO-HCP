@@ -108,6 +108,7 @@ type RawAcquireOptions struct {
 	LeaseProxyTimeout    time.Duration
 	MaxWaitForLease      time.Duration
 	LeaseWaitInterval    time.Duration
+	Now                  func() time.Time
 }
 
 type validatedAcquireOptions struct {
@@ -219,7 +220,7 @@ func (o *ValidatedAcquireOptions) Complete(_ context.Context) (*AcquireOptions, 
 			RuntimeLocationOverride: o.SelectedLocation,
 			CandidatePools:          candidatePools,
 			PoolEnvironment:         environment,
-			Now:                     time.Now,
+			Now:                     o.Now,
 			Sleep:                   sleepContext,
 		},
 	}, nil
@@ -247,6 +248,7 @@ func (o *AcquireOptions) Run(ctx context.Context) error {
 	if now == nil {
 		now = time.Now
 	}
+	candidatePools := rotatedCandidatePools(o.CandidatePools, now())
 	sleep := o.Sleep
 	if sleep == nil {
 		sleep = sleepContext
@@ -258,9 +260,9 @@ func (o *AcquireOptions) Run(ctx context.Context) error {
 	}
 
 	for pass := 1; ; pass++ {
-		unavailablePools := make([]string, 0, len(o.CandidatePools))
+		unavailablePools := make([]string, 0, len(candidatePools))
 
-		for _, pool := range o.CandidatePools {
+		for _, pool := range candidatePools {
 			leasedName, err := slots.AcquireLease(ctx, o.LeaseProxyURL, pool.ResourceType, o.LeaseProxyTimeout)
 			if err != nil {
 				if errors.Is(err, slots.ErrLeasePoolUnavailableNow) {
@@ -311,7 +313,7 @@ func (o *AcquireOptions) Run(ctx context.Context) error {
 				waitMessage,
 				"pass", pass,
 				"environment", o.PoolEnvironment,
-				"candidatePoolCount", len(o.CandidatePools),
+				"candidatePoolCount", len(candidatePools),
 				"candidatePoolFailures", poolFailureSummary,
 				"sleepDuration", sleepDuration,
 				"leaseWaitInterval", o.LeaseWaitInterval,
@@ -328,7 +330,7 @@ func (o *AcquireOptions) Run(ctx context.Context) error {
 			waitMessage,
 			"pass", pass,
 			"environment", o.PoolEnvironment,
-			"candidatePoolCount", len(o.CandidatePools),
+			"candidatePoolCount", len(candidatePools),
 			"candidatePoolFailures", poolFailureSummary,
 			"sleepDuration", o.LeaseWaitInterval,
 			"leaseWaitInterval", o.LeaseWaitInterval,
@@ -338,6 +340,22 @@ func (o *AcquireOptions) Run(ctx context.Context) error {
 			return fmt.Errorf("waiting to retry candidate pool pass: %w", err)
 		}
 	}
+}
+
+func rotatedCandidatePools(pools []slots.Pool, now time.Time) []slots.Pool {
+	if len(pools) < 2 {
+		return pools
+	}
+
+	startIndex := int(now.UnixNano() % int64(len(pools)))
+	if startIndex == 0 {
+		return pools
+	}
+
+	rotated := make([]slots.Pool, 0, len(pools))
+	rotated = append(rotated, pools[startIndex:]...)
+	rotated = append(rotated, pools[:startIndex]...)
+	return rotated
 }
 
 func (o *AcquireOptions) runtimeRegionForPool(pool slots.Pool) string {
