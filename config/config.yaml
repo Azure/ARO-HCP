@@ -167,7 +167,7 @@ defaults:
     image:
       registry: arohcpsvcdev.azurecr.io
       repository: arohcpmetrics
-      digest: sha256:6c355647636685b68b1a1ab010d5c8933f0a0a416a1d5a6c22d8e2f47b4cb709 # 8755133 (2026-06-12 05:22)
+      digest: sha256:335a5217890f8137c8bce97c212762dcf584ffb8d5c193499880dcbb4acd4673 # b559012 (2026-06-12 19:17)
   # Mgmt Agent Controller
   mgmtAgent:
     managedIdentityName: mgmt-agent
@@ -527,7 +527,7 @@ defaults:
         image:
           registry: mcr.microsoft.com/oss/v2
           repository: kubernetes/kube-state-metrics
-          digest: sha256:da37cee409f36646723cb140c107247155bb5d8258a6b45b44639992461dc688 # v2.19.0 (2026-05-21 13:40)
+          digest: sha256:e39c4ef50f0558940d7cd4e956a48d1166ca960498f9baae03a4ecf848a85f00 # v2.19.0 (2026-06-12 06:08)
       admissionWebhook:
         patch:
           image:
@@ -655,7 +655,7 @@ defaults:
         image:
           registry: mcr.microsoft.com/oss/v2
           repository: kubernetes/kube-state-metrics
-          digest: sha256:da37cee409f36646723cb140c107247155bb5d8258a6b45b44639992461dc688 # v2.19.0 (2026-05-21 13:40)
+          digest: sha256:e39c4ef50f0558940d7cd4e956a48d1166ca960498f9baae03a4ecf848a85f00 # v2.19.0 (2026-06-12 06:08)
       admissionWebhook:
         patch:
           image:
@@ -952,7 +952,7 @@ defaults:
     image:
       registry: quay.io
       repository: app-sre/aro-hcp-clusters-service
-      digest: sha256:981fd281d7d5a0a1cf0d1b47ddf0a93f5f6ff42b473335f7c16267d85f7d5fe7 # f2727191ba0f0e78d25419b7fa69d5176d994a09 (2026-06-11 13:05)
+      digest: sha256:546c6af88cf2dba74473f3b90d794839f43d771ed735da94fc368252b28124a0 # a1349e36ee4b3b68a85bdc3c78656c773f9a9eb5 (2026-06-12 08:52)
     # controls how many HCPs can be placed on an MC, sadly not configurable per MC
     provisionShardClusterLimit: 100
     provisionShardStatus: active
@@ -1012,7 +1012,7 @@ defaults:
       image:
         registry: arohcpsvcdev.azurecr.io
         repository: image-sync/oc-mirror
-        digest: sha256:5bdd61f93657c1ecc3276e5e6915ecbb61ac947c2f3968861bf34bb398ec6e13 # 8755133 (2026-06-12 05:23)
+        digest: sha256:bcaee76884f96be911ebd95825801c9b2629f9c4e7efaf8980f2c76da075a07b # b559012 (2026-06-12 19:17)
       pullSecretName: ocmirror-pull-secret
       operatorVersionsToMirror: "4.18,4.19,4.20,4.21,4.22"
   # Automation Account
