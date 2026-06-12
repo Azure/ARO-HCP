@@ -92,7 +92,7 @@ spec:
           issues with the remote write endpoint, network instability, or Prometheus resource constraints.
           Persistent failures may result in increased memory usage and potential data loss if the buffer overflows.
           Please check the health and performance of the remote storage endpoint, network connectivity, and Prometheus resource utilization.
-        runbook_url: https://runbooks.prometheus-operator.dev/runbooks/prometheus/prometheusremotestoragefailures/
+        runbook_url: TBD
         summary: Prometheus failed sample rate to remote storage is above 10%.
   - name: prometheus-rules
     rules:

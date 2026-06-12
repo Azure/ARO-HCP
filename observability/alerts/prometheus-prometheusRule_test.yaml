@@ -74,7 +74,7 @@ tests:
           issues with the remote write endpoint, network instability, or Prometheus resource constraints.
           Persistent failures may result in increased memory usage and potential data loss if the buffer overflows.
           Please check the health and performance of the remote storage endpoint, network connectivity, and Prometheus resource utilization.
-        runbook_url: https://runbooks.prometheus-operator.dev/runbooks/prometheus/prometheusremotestoragefailures/
+        runbook_url: TBD
 # prometheus-rules group tests
 - interval: 1m
   input_series:
@@ -510,7 +510,7 @@ tests:
           issues with the remote write endpoint, network instability, or Prometheus resource constraints.
           Persistent failures may result in increased memory usage and potential data loss if the buffer overflows.
           Please check the health and performance of the remote storage endpoint, network connectivity, and Prometheus resource utilization.
-        runbook_url: https://runbooks.prometheus-operator.dev/runbooks/prometheus/prometheusremotestoragefailures/
+        runbook_url: TBD
 # Test PrometheusRemoteStorageFailures with legacy metrics
 - interval: 1m
   input_series:
@@ -684,7 +684,7 @@ tests:
           issues with the remote write endpoint, network instability, or Prometheus resource constraints.
           Persistent failures may result in increased memory usage and potential data loss if the buffer overflows.
           Please check the health and performance of the remote storage endpoint, network connectivity, and Prometheus resource utilization.
-        runbook_url: https://runbooks.prometheus-operator.dev/runbooks/prometheus/prometheusremotestoragefailures/
+        runbook_url: TBD
 # Test negative scenarios - metrics not present
 - interval: 1m
   input_series: [] # No metrics present
