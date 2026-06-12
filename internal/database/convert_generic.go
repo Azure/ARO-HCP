@@ -69,6 +69,10 @@ func CosmosGenericToInternal[InternalAPIType any](cosmosObj *GenericDocument[Int
 	cosmosData.ExistingCosmosUID = cosmosObj.ID
 	ret.SetEtag(cosmosObj.CosmosETag)
 
+	if defaulter, ok := ret.(Defaulter); ok {
+		defaulter.EnsureDefaults()
+	}
+
 	// this isn't pretty, but on balance it's a better choice so that we can share all the rest.
 	switch castObj := any(ret).(type) {
 	case *arm.Subscription:
@@ -92,4 +96,8 @@ func CosmosGenericToInternal[InternalAPIType any](cosmosObj *GenericDocument[Int
 	}
 
 	return &cosmosObj.Content, nil
+}
+
+type Defaulter interface {
+	EnsureDefaults()
 }
