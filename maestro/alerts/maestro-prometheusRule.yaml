@@ -116,3 +116,35 @@ spec:
         description: 'At least one maestro-server replica has been NotReady for 15 minutes (available {{ $value }} below desired). Readiness is gated on Postgres connectivity, so a persistently NotReady replica usually indicates database connectivity problems.'
         runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/maestro/index.html'
         summary: 'A maestro-server replica is not Ready'
+    - alert: MaestroPostgresNotificationQueueUsageHigh
+      # Fires when the PostgreSQL notification queue usage exceeds 50%.
+      # The notification queue is a fixed-size 8GB buffer shared across
+      # all connections. If it fills up, NOTIFY calls block, stalling
+      # event processing for both spec and status controllers. A
+      # sustained high usage indicates listeners are not draining
+      # notifications fast enough.
+      expr: |
+        max(postgres_notification_queue_usage{namespace="maestro"}) > 0.5
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        description: 'Maestro PostgreSQL notification queue usage is above 50% for the last 5 minutes. Current value: {{ $value | humanizePercentage }}. If the queue fills up, NOTIFY calls will block and event processing will stall.'
+        runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/maestro/index.html'
+        summary: 'Maestro PostgreSQL notification queue usage is high'
+    - alert: MaestroWorkqueueDepthHigh
+      # Fires when a maestro workqueue depth stays above 100 for 10
+      # minutes. The workqueues buffer events between NOTIFY receipt
+      # and controller reconciliation. A sustained high depth means
+      # the controller is not keeping up — possibly due to a burst
+      # of resynced events after a lost NOTIFY, slow reconciliation,
+      # or database contention.
+      expr: |
+        max by(queue_name) (workqueue_depth{namespace="maestro", queue_name!=""}) > 100
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        description: 'Maestro workqueue {{ $labels.queue_name }} depth is {{ $value }}, sustained above 100 for 10 minutes. Events are not being processed fast enough.'
+        runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/maestro/index.html'
+        summary: 'Maestro workqueue depth is high'

@@ -990,6 +990,60 @@ resource maestro 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = 
         for: 'PT15M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'MaestroPostgresNotificationQueueUsageHigh'
+        enabled: true
+        labels: {
+          severity: 'warning'
+        }
+        annotations: {
+          correlationId: 'MaestroPostgresNotificationQueueUsageHigh/{{ $labels.cluster }}'
+          description: 'Maestro PostgreSQL notification queue usage is above 50% for the last 5 minutes. Current value: {{ $value | humanizePercentage }}. If the queue fills up, NOTIFY calls will block and event processing will stall.'
+          info: 'Maestro PostgreSQL notification queue usage is above 50% for the last 5 minutes. Current value: {{ $value | humanizePercentage }}. If the queue fills up, NOTIFY calls will block and event processing will stall.'
+          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/maestro/index.html'
+          summary: 'Maestro PostgreSQL notification queue usage is high'
+          title: 'Maestro PostgreSQL notification queue usage is high'
+        }
+        expression: 'max(postgres_notification_queue_usage{namespace="maestro"}) > 0.5'
+        for: 'PT5M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'MaestroWorkqueueDepthHigh'
+        enabled: true
+        labels: {
+          severity: 'warning'
+        }
+        annotations: {
+          correlationId: 'MaestroWorkqueueDepthHigh/{{ $labels.cluster }}/{{ $labels.queue_name }}'
+          description: 'Maestro workqueue {{ $labels.queue_name }} depth is {{ $value }}, sustained above 100 for 10 minutes. Events are not being processed fast enough.'
+          info: 'Maestro workqueue {{ $labels.queue_name }} depth is {{ $value }}, sustained above 100 for 10 minutes. Events are not being processed fast enough.'
+          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/maestro/index.html'
+          summary: 'Maestro workqueue depth is high'
+          title: 'Maestro workqueue depth is high queue_name:{{ $labels.queue_name }}'
+        }
+        expression: 'max by (queue_name) (workqueue_depth{namespace="maestro",queue_name!=""}) > 100'
+        for: 'PT10M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
     ]
     scopes: [
       azureMonitoring

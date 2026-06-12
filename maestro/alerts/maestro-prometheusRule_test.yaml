@@ -180,4 +180,52 @@ tests:
   alert_rule_test:
   - eval_time: 16m
     alertname: MaestroServerReplicaNotReady
+# Test: MaestroPostgresNotificationQueueUsageHigh fires when usage > 50%
+- interval: 1m
+  input_series:
+  - series: 'postgres_notification_queue_usage{namespace="maestro"}'
+    values: "0.6x10" # 60% usage sustained for 10 minutes
+  alert_rule_test:
+  - eval_time: 6m
+    alertname: MaestroPostgresNotificationQueueUsageHigh
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+      exp_annotations:
+        description: 'Maestro PostgreSQL notification queue usage is above 50% for the last 5 minutes. Current value: 60%. If the queue fills up, NOTIFY calls will block and event processing will stall.'
+        runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/maestro/index.html'
+        summary: 'Maestro PostgreSQL notification queue usage is high'
+# Test: MaestroPostgresNotificationQueueUsageHigh does not fire when usage <= 50%
+- interval: 1m
+  input_series:
+  - series: 'postgres_notification_queue_usage{namespace="maestro"}'
+    values: "0.3x10" # 30% usage (within normal range)
+  alert_rule_test:
+  - eval_time: 6m
+    alertname: MaestroPostgresNotificationQueueUsageHigh
+    exp_alerts: []
+# Test: MaestroWorkqueueDepthHigh fires when depth > 100 for 10m
+- interval: 1m
+  input_series:
+  - series: 'workqueue_depth{namespace="maestro", queue_name="event-controller"}'
+    values: "150x15" # 150 items sustained for 15 minutes
+  alert_rule_test:
+  - eval_time: 11m
+    alertname: MaestroWorkqueueDepthHigh
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+        queue_name: event-controller
+      exp_annotations:
+        description: 'Maestro workqueue event-controller depth is 150, sustained above 100 for 10 minutes. Events are not being processed fast enough.'
+        runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/maestro/index.html'
+        summary: 'Maestro workqueue depth is high'
+# Test: MaestroWorkqueueDepthHigh does not fire when depth <= 100
+- interval: 1m
+  input_series:
+  - series: 'workqueue_depth{namespace="maestro", queue_name="event-controller"}'
+    values: "50x15" # 50 items (within normal range)
+  alert_rule_test:
+  - eval_time: 11m
+    alertname: MaestroWorkqueueDepthHigh
     exp_alerts: []
