@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -356,6 +357,60 @@ func createClusterAndComplete(
 
 	parsedID := api.Must(azcorearm.ParseResourceID(resourceID))
 	require.NoError(t, integrationutils.MarkOperationsCompleteForName(ctx, testInfo.ResourcesDBClient(), subscriptionID, parsedID.Name))
+
+	createServiceProviderClusterForTesting(t, ctx, testInfo, clusterName)
+}
+
+// createServiceProviderClusterForTesting inserts a serviceProviderCluster document
+// to simulate the backend controller populating active_versions
+func createServiceProviderClusterForTesting(
+	t *testing.T,
+	ctx context.Context,
+	testInfo *integrationutils.IntegrationTestInfo,
+	clusterName string,
+) {
+	t.Helper()
+
+	cosmosTestInfo, ok := testInfo.StorageIntegrationTestInfo.(*integrationutils.CosmosIntegrationTestInfo)
+	if !ok {
+		return
+	}
+
+	parsedID := api.Must(azcorearm.ParseResourceID(clusterResourceID(clusterName)))
+	subscriptionID := parsedID.SubscriptionID
+	resourceGroupName := parsedID.ResourceGroupName
+
+	spcResourceID := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/%s/serviceProviderClusters/default",
+		subscriptionID, resourceGroupName, clusterName)
+
+	spcDoc := map[string]interface{}{
+		"id":           strings.ReplaceAll(strings.ToLower(spcResourceID), "/", "|"),
+		"partitionKey": subscriptionID,
+		"resourceID":   spcResourceID,
+		"resourceType": "microsoft.redhatopenshift/hcpopenshiftclusters/serviceproviderclusters",
+		"properties": map[string]interface{}{
+			"resourceId": spcResourceID,
+			"spec": map[string]interface{}{
+				"control_plane_version": map[string]interface{}{
+					"desired_version": "4.20.0",
+				},
+			},
+			"status": map[string]interface{}{
+				"control_plane_version": map[string]interface{}{
+					"active_versions": []interface{}{
+						map[string]interface{}{
+							"version": "4.20.0",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	spcBytes, err := json.Marshal(spcDoc)
+	require.NoError(t, err)
+
+	require.NoError(t, cosmosTestInfo.LoadContent(ctx, spcBytes))
 }
 
 // testCrossVersionClusterPUT verifies that a v2024 GET-then-PUT preserves
