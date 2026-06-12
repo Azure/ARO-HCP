@@ -40,7 +40,7 @@ resolve_target_version() {
     resolved=$(printf '%s\n%s\n' "${current}" "${available}" \
         | grep -E "^${requested//./\\.}\.[0-9]+$" \
         | sort -V \
-        | tail -n1)
+        | tail -n1 || true)
 
     if [ -n "${resolved}" ]; then
         echo "${resolved}"
