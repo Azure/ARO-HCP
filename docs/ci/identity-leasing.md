@@ -254,7 +254,7 @@ The pool currently uses a mixed-management setup. `MSI_MOCK_POOL_SIZE` in `dev-i
 Typical maintainer flow:
 
 1. From `dev-infrastructure/`, run `make create-msi-mock-pool`.
-2. If any pooled principal object IDs changed, update `config/config-dev-ci.yaml` under `devCi.e2eSubscriptionRbac.msiMockPool.principals`.
+2. If any pooled principal object IDs changed, update `config/config-dev-ci.yaml` under `ci.dev.devMockIdentities.msiMockPool.principals`.
 3. From the repository root, run `make dev-ci-e2e-subscription-rbac-local-run`.
 4. From `dev-infrastructure/`, run `make populate-msi-mock-pool`.
 5. If the pool size or Boskos key set changed, update the release-side Boskos inventory and step-registry lease wiring as well.

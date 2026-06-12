@@ -337,31 +337,76 @@
             }
           }
         },
-        "devCi": {
-          "$ref": "#/$defs/DevCI"
+        "ci": {
+          "$ref": "#/$defs/CI"
         }
       },
       "additionalProperties": true
     },
-    "DevCI": {
+    "CI": {
       "type": "object",
-      "properties": {
-        "e2eSubscriptionRbac": {
-          "$ref": "#/$defs/E2ESubscriptionRBACConfig"
-        }
+      "description": "Per-environment CI bot identity and subscription inventory",
+      "additionalProperties": {
+        "$ref": "#/$defs/CIEnvironment"
       }
     },
-    "E2ESubscriptionRBACConfig": {
+    "CIEnvironment": {
       "type": "object",
+      "description": "CI configuration for a single target environment (dev, stg, prod, etc.)",
       "properties": {
-        "homeSubscription": {
-          "$ref": "#/$defs/SubscriptionReference"
+        "bot": {
+          "$ref": "#/$defs/CIBot"
         },
-        "customerSubscriptions": {
+        "e2eSubscriptions": {
           "type": "array",
+          "description": "Customer testing subscriptions where the bot gets RBAC and E2E tests run",
           "items": {
             "$ref": "#/$defs/SubscriptionReference"
           }
+        },
+        "infrastructureSubscriptions": {
+          "type": "array",
+          "description": "Infrastructure subscriptions where the bot gets RBAC (DEV-only)",
+          "items": {
+            "$ref": "#/$defs/InfraSubscriptionReference"
+          }
+        },
+        "devMockIdentities": {
+          "$ref": "#/$defs/DevMockIdentities"
+        }
+      },
+      "required": ["bot", "e2eSubscriptions"]
+    },
+    "CIBot": {
+      "type": "object",
+      "description": "CI service principal (OpenShift Release Bot) for this environment",
+      "properties": {
+        "applicationName": {
+          "type": "string",
+          "description": "Entra application display name and unique name"
+        }
+      },
+      "required": ["applicationName"]
+    },
+    "InfraSubscriptionReference": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "id": { "type": "string" },
+        "isGlobalSubscription": {
+          "type": "boolean",
+          "description": "Marks where shared infra lives; the bot gets extra data-plane roles (Key Vault Admin, Grafana Admin) here"
+        }
+      },
+      "required": ["name", "id"]
+    },
+    "DevMockIdentities": {
+      "type": "object",
+      "description": "DEV-only mock identities to simulate FPA behavior; absent from stg/prod",
+      "properties": {
+        "homeSubscriptionId": {
+          "type": "string",
+          "description": "Subscription ID where custom role definitions for mock identities are created"
         },
         "sharedPrincipals": {
           "type": "object",
@@ -388,7 +433,8 @@
             }
           }
         }
-      }
+      },
+      "required": ["homeSubscriptionId", "sharedPrincipals"]
     },
     "SubscriptionReference": {
       "type": "object",
