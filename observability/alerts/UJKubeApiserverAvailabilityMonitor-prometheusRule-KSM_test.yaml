@@ -1,0 +1,203 @@
+rule_files:
+- HCPkasRecord-prometheusRule-KSM.yaml
+- UJKubeApiserverAvailabilityRecord-prometheusRule-KSM.yaml
+- UJKubeApiserverAvailabilityMonitor-prometheusRule-KSM.yaml
+evaluation_interval: 1m
+tests:
+# Test 1: Normal operation - KubeAPIServer always available, no alerts should fire
+- interval: 1m
+  name: "Test 1: Normal operation - perfect availability, no alerts"
+  input_series:
+  - series: 'hostedClusterAPI_kubeapiserver_available{status="True", name="test-cluster", namespace="clusters", _id="abc-123", cluster="mgmt-cluster"}'
+    values: "1+0x600" # 10 hours of perfect availability
+  alert_rule_test:
+  - eval_time: 600m
+    alertname: UJKubeApiserverAvailability1h5m
+    exp_alerts: []
+  - eval_time: 600m
+    alertname: UJKubeApiserverAvailability6h30m
+    exp_alerts: []
+# Test 2: Fast burn - complete failure triggers UJKubeApiserverAvailability1h5m
+# SLI rules require the series to have existed 15m ago (offset blackout), so no alert
+# fires before t=15m. With complete failure (all samples = 0), both the 5m and 1h
+# windows immediately show 100% error rate once the offset gate clears at ~t=17m.
+# With for:10m, the fast-burn alert fires at ~t=27m (17m offset+gate + 10m for).
+- interval: 30s
+  name: "Test 2: Fast burn - complete failure triggers UJKubeApiserverAvailability1h5m"
+  input_series:
+  - series: 'hostedClusterAPI_kubeapiserver_available{status="True", name="test-cluster", namespace="clusters", _id="abc-123", cluster="mgmt-cluster"}'
+    values: "0+0x200" # 100 minutes of complete failure (200 * 30s)
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: UJKubeApiserverAvailability1h5m
+    exp_alerts: [] # Offset blackout: series has not existed for 15m yet
+  - eval_time: 10m
+    alertname: UJKubeApiserverAvailability6h30m
+    exp_alerts: [] # Offset blackout: series has not existed for 15m yet
+  - eval_time: 80m
+    alertname: UJKubeApiserverAvailability1h5m
+    exp_alerts:
+    - exp_labels:
+        severity: critical
+        slo: kas-availability
+        long_window: 1h
+        short_window: 5m
+        name: test-cluster
+        namespace: clusters
+        _id: abc-123
+        cluster: mgmt-cluster
+      exp_annotations:
+        summary: "[HCP] [test-cluster] KubeAPIServer Fast Error Budget Burn (1h/5m)"
+        description: "CID: abc-123\nManagement Cluster: mgmt-cluster/clusters\n"
+        runbook_url: https://aka.ms/arohcp-runbook-ujkasavailable
+        correlationId: "UJKubeApiserverAvailability1h5m/mgmt-cluster/abc-123"
+# Test 3: Medium burn - complete failure triggers both tiers after 6h+
+# With complete failure from t=0, both alerts fire as soon as the offset gate
+# clears (~t=17m with 30s interval data). At eval_time=420m (7 hours), both
+# tiers are confirmed firing.
+- interval: 30s
+  name: "Test 3: Medium burn - complete failure triggers both tiers after 6h+"
+  input_series:
+  - series: 'hostedClusterAPI_kubeapiserver_available{status="True", name="test-cluster", namespace="clusters", _id="abc-123", cluster="mgmt-cluster"}'
+    values: "0+0x900" # 450 minutes = 7.5 hours of complete failure (900 * 30s)
+  alert_rule_test:
+  - eval_time: 80m
+    alertname: UJKubeApiserverAvailability1h5m
+    exp_alerts:
+    - exp_labels:
+        severity: critical
+        slo: kas-availability
+        long_window: 1h
+        short_window: 5m
+        name: test-cluster
+        namespace: clusters
+        _id: abc-123
+        cluster: mgmt-cluster
+      exp_annotations:
+        summary: "[HCP] [test-cluster] KubeAPIServer Fast Error Budget Burn (1h/5m)"
+        description: "CID: abc-123\nManagement Cluster: mgmt-cluster/clusters\n"
+        runbook_url: https://aka.ms/arohcp-runbook-ujkasavailable
+        correlationId: "UJKubeApiserverAvailability1h5m/mgmt-cluster/abc-123"
+  - eval_time: 420m # 7 hours — both tiers firing
+    alertname: UJKubeApiserverAvailability1h5m
+    exp_alerts:
+    - exp_labels:
+        severity: critical
+        slo: kas-availability
+        long_window: 1h
+        short_window: 5m
+        name: test-cluster
+        namespace: clusters
+        _id: abc-123
+        cluster: mgmt-cluster
+      exp_annotations:
+        summary: "[HCP] [test-cluster] KubeAPIServer Fast Error Budget Burn (1h/5m)"
+        description: "CID: abc-123\nManagement Cluster: mgmt-cluster/clusters\n"
+        runbook_url: https://aka.ms/arohcp-runbook-ujkasavailable
+        correlationId: "UJKubeApiserverAvailability1h5m/mgmt-cluster/abc-123"
+  - eval_time: 420m
+    alertname: UJKubeApiserverAvailability6h30m
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+        slo: kas-availability
+        long_window: 6h
+        short_window: 30m
+        name: test-cluster
+        namespace: clusters
+        _id: abc-123
+        cluster: mgmt-cluster
+      exp_annotations:
+        summary: "[HCP] [test-cluster] KubeAPIServer Medium Error Budget Burn (6h/30m)"
+        description: "CID: abc-123\nManagement Cluster: mgmt-cluster/clusters\n"
+        runbook_url: https://aka.ms/arohcp-runbook-ujkasavailable
+        correlationId: "UJKubeApiserverAvailability6h30m/mgmt-cluster/abc-123"
+# Test 4: Provisioning grace - newly created cluster (< 15m) does NOT trigger alert
+# The offset blackout (hostedClusterAPI_kubeapiserver_available offset 15m) requires
+# the series to have existed 15 minutes ago. A brand-new cluster has no offset data,
+# so the SLI recording rules produce no output and no alert can fire.
+- interval: 1m
+  name: "Test 4: Provisioning grace - new cluster excluded from alerting"
+  input_series:
+  - series: 'hostedClusterAPI_kubeapiserver_available{status="True", name="new-cluster", namespace="clusters", _id="new-123", cluster="mgmt-cluster"}'
+    values: "0+0x10" # 10 minutes of complete failure (new cluster)
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: UJKubeApiserverAvailability1h5m
+    exp_alerts: [] # Offset blackout: no data 15m ago, SLI rules produce no output
+  - eval_time: 10m
+    alertname: UJKubeApiserverAvailability6h30m
+    exp_alerts: []
+# Test 5: Partial failure below threshold - no alert fires
+# One failure at t=21m; at eval_time=400m this falls outside both the 5m (t=395-400m)
+# and 1h (t=340-400m) windows — no burn in either window.
+- interval: 1m
+  name: "Test 5: Transient failure outside evaluation windows - no alert fires"
+  input_series:
+  - series: 'hostedClusterAPI_kubeapiserver_available{status="True", name="test-cluster", namespace="clusters", _id="abc-123", cluster="mgmt-cluster"}'
+    values: "1+0x20 0 1+0x580" # One failure in ~603 samples
+  alert_rule_test:
+  - eval_time: 400m
+    alertname: UJKubeApiserverAvailability1h5m
+    exp_alerts: []
+  - eval_time: 400m
+    alertname: UJKubeApiserverAvailability6h30m
+    exp_alerts: []
+# Test 6: Medium burn only - UJKubeApiserverAvailability6h30m fires independently
+# Failure burst from t=20m to t=41m (22 samples: 0+0x21 = 22 samples).
+# At eval_time=35m:
+#   - 5m window (t=31-35): all 0s → error=100% → fast tier condition TRUE
+#   - 1h window: contains failures → fast tier condition TRUE
+#   - But for:10m not yet satisfied (pending since ~t=22m, fires at ~t=32m)
+#   - fast-burn alert IS firing at t=35m (for:10m satisfied at ~t=32m)
+# At eval_time=65m:
+#   - 5m window (t=61-65): all 1s → error=0 → fast tier NOT firing
+#   - 30m window (t=36-65): failures at t=36-41 (6 steps) → error=6/30=0.2000 >> threshold
+#   - 6h window: contains failures from the burst → error >> 6x threshold
+#   - for:30m: condition first true ~t=22m; for:30m satisfied ~t=52m; 13 minutes of margin at t=65m
+- interval: 1m
+  name: "Test 6: Medium burn only - 6h30m fires independently, 1h5m does not"
+  input_series:
+  - series: 'hostedClusterAPI_kubeapiserver_available{status="True", name="test-cluster", namespace="clusters", _id="abc-123", cluster="mgmt-cluster"}'
+    values: "1+0x19 0+0x21 1+0x800" # 20m healthy, 22m failure (t=20..t=41), then recovery
+  alert_rule_test:
+  - eval_time: 35m
+    alertname: UJKubeApiserverAvailability1h5m
+    exp_alerts:
+    - exp_labels:
+        severity: critical
+        slo: kas-availability
+        long_window: 1h
+        short_window: 5m
+        name: test-cluster
+        namespace: clusters
+        _id: abc-123
+        cluster: mgmt-cluster
+      exp_annotations:
+        summary: "[HCP] [test-cluster] KubeAPIServer Fast Error Budget Burn (1h/5m)"
+        description: "CID: abc-123\nManagement Cluster: mgmt-cluster/clusters\n"
+        runbook_url: https://aka.ms/arohcp-runbook-ujkasavailable
+        correlationId: "UJKubeApiserverAvailability1h5m/mgmt-cluster/abc-123"
+  - eval_time: 35m
+    alertname: UJKubeApiserverAvailability6h30m
+    exp_alerts: [] # for:30m not yet satisfied (pending since ~t=22m, fires at ~t=52m)
+  - eval_time: 65m
+    alertname: UJKubeApiserverAvailability1h5m
+    exp_alerts: [] # Fast tier: 5m window (t=61-65) clean; fast alert fired during burst but has since cleared
+  - eval_time: 65m
+    alertname: UJKubeApiserverAvailability6h30m
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+        slo: kas-availability
+        long_window: 6h
+        short_window: 30m
+        name: test-cluster
+        namespace: clusters
+        _id: abc-123
+        cluster: mgmt-cluster
+      exp_annotations:
+        summary: "[HCP] [test-cluster] KubeAPIServer Medium Error Budget Burn (6h/30m)"
+        description: "CID: abc-123\nManagement Cluster: mgmt-cluster/clusters\n"
+        runbook_url: https://aka.ms/arohcp-runbook-ujkasavailable
+        correlationId: "UJKubeApiserverAvailability6h30m/mgmt-cluster/abc-123"
