@@ -25,6 +25,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	v20240610preview "github.com/Azure/ARO-HCP/internal/api/v20240610preview"
 	v20251223preview "github.com/Azure/ARO-HCP/internal/api/v20251223preview"
+	v20260630preview "github.com/Azure/ARO-HCP/internal/api/v20260630preview"
 )
 
 // TestEnsureDefaultsConsistencyNodePool verifies that the defaults applied by
@@ -72,6 +73,21 @@ func TestEnsureDefaultsConsistencyNodePool(t *testing.T) {
 	t.Run("v20251223preview", func(t *testing.T) {
 		externalDefault := &v20251223preview.NodePool{}
 		v20251223preview.SetDefaultValuesNodePool(externalDefault)
+
+		if string(ensuredDefault.Properties.Platform.OSDisk.DiskStorageAccountType) != string(ptr.Deref(externalDefault.Properties.Platform.OSDisk.DiskStorageAccountType, "")) {
+			t.Errorf("ensured default DiskStorageAccountType = %q, versioned default = %q",
+				ensuredDefault.Properties.Platform.OSDisk.DiskStorageAccountType,
+				ptr.Deref(externalDefault.Properties.Platform.OSDisk.DiskStorageAccountType, ""))
+		}
+		if string(ensuredDefault.Properties.Platform.OSDisk.DiskType) != string(ptr.Deref(externalDefault.Properties.Platform.OSDisk.DiskType, "")) {
+			t.Errorf("ensured default DiskType = %q, versioned default = %q",
+				ensuredDefault.Properties.Platform.OSDisk.DiskType,
+				ptr.Deref(externalDefault.Properties.Platform.OSDisk.DiskType, ""))
+		}
+	})
+	t.Run("v20260630preview", func(t *testing.T) {
+		externalDefault := &v20260630preview.NodePool{}
+		v20260630preview.SetDefaultValuesNodePool(externalDefault)
 
 		if string(ensuredDefault.Properties.Platform.OSDisk.DiskStorageAccountType) != string(ptr.Deref(externalDefault.Properties.Platform.OSDisk.DiskStorageAccountType, "")) {
 			t.Errorf("ensured default DiskStorageAccountType = %q, versioned default = %q",
@@ -170,6 +186,31 @@ func TestEnsureDefaultsConsistencyCluster(t *testing.T) {
 	t.Run("v20251223preview", func(t *testing.T) {
 		externalDefault := &v20251223preview.HcpOpenShiftCluster{}
 		v20251223preview.SetDefaultValuesCluster(externalDefault)
+
+		checks := []struct {
+			name           string
+			canonicalVal   string
+			externalPtrVal *string
+		}{
+			{"NetworkType", string(ensuredDefault.CustomerProperties.Network.NetworkType), stringPtrFromGenerated(externalDefault.Properties.Network.NetworkType)},
+			{"Visibility", string(ensuredDefault.CustomerProperties.API.Visibility), stringPtrFromGenerated(externalDefault.Properties.API.Visibility)},
+			{"OutboundType", string(ensuredDefault.CustomerProperties.Platform.OutboundType), stringPtrFromGenerated(externalDefault.Properties.Platform.OutboundType)},
+			{"ClusterImageRegistry.State", string(ensuredDefault.CustomerProperties.ClusterImageRegistry.State), stringPtrFromGenerated(externalDefault.Properties.ClusterImageRegistry.State)},
+			{"Etcd.DataEncryption.KeyManagementMode", string(ensuredDefault.CustomerProperties.Etcd.DataEncryption.KeyManagementMode), stringPtrFromGenerated(externalDefault.Properties.Etcd.DataEncryption.KeyManagementMode)},
+		}
+		for _, c := range checks {
+			t.Run(c.name, func(t *testing.T) {
+				if c.externalPtrVal == nil {
+					t.Errorf("versioned default is nil, expected %q", c.canonicalVal)
+				} else if c.canonicalVal != *c.externalPtrVal {
+					t.Errorf("ensured default = %q, versioned default = %q", c.canonicalVal, *c.externalPtrVal)
+				}
+			})
+		}
+	})
+	t.Run("v20260630preview", func(t *testing.T) {
+		externalDefault := &v20260630preview.HcpOpenShiftCluster{}
+		v20260630preview.SetDefaultValuesCluster(externalDefault)
 
 		checks := []struct {
 			name           string
@@ -467,6 +508,18 @@ func TestEnsureDefaultsConsistencyExternalAuth(t *testing.T) {
 	t.Run("v20251223preview", func(t *testing.T) {
 		externalDefault := &v20251223preview.ExternalAuth{}
 		v20251223preview.SetDefaultValuesExternalAuth(externalDefault)
+
+		if stringPtrFromGenerated(externalDefault.Properties.Claim.Mappings.Username.PrefixPolicy) == nil {
+			t.Errorf("versioned default PrefixPolicy is nil, expected %q", ensuredDefault.Properties.Claim.Mappings.Username.PrefixPolicy)
+		} else if string(ensuredDefault.Properties.Claim.Mappings.Username.PrefixPolicy) != *stringPtrFromGenerated(externalDefault.Properties.Claim.Mappings.Username.PrefixPolicy) {
+			t.Errorf("ensured default PrefixPolicy = %q, versioned default = %q",
+				ensuredDefault.Properties.Claim.Mappings.Username.PrefixPolicy,
+				*stringPtrFromGenerated(externalDefault.Properties.Claim.Mappings.Username.PrefixPolicy))
+		}
+	})
+	t.Run("v20260630preview", func(t *testing.T) {
+		externalDefault := &v20260630preview.ExternalAuth{}
+		v20260630preview.SetDefaultValuesExternalAuth(externalDefault)
 
 		if stringPtrFromGenerated(externalDefault.Properties.Claim.Mappings.Username.PrefixPolicy) == nil {
 			t.Errorf("versioned default PrefixPolicy is nil, expected %q", ensuredDefault.Properties.Claim.Mappings.Username.PrefixPolicy)
