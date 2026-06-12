@@ -117,6 +117,7 @@ setup_redhat() {
         "ARO HCP E2E Hosted Clusters - Dev - 02"
         "ARO HCP E2E Hosted Clusters - Dev - 03"
         "ARO SRE Team - INT (EA Subscription 3)"
+        "ARO HCP E2E Hosted Clusters - Stage - 00"
     )
 
     create_or_get_sp "${APPLICATION_NAME}"

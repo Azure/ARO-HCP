@@ -194,6 +194,10 @@ clouds:
               roleAssignmentLimit: 4000
               regions:
               - uksouth
+            - name: "ARO HCP E2E Hosted Clusters - Stage - 00"
+              roleAssignmentLimit: 8000
+              regions:
+              - uksouth
           # Test Test Azure Red Hat OpenShift (Microsoft E2E tenant); directory quota off — subscription ARM only.
           - tenantId: "93b21e64-4824-439a-b893-46c9b2a51082"
             tenantName: "TestTestARO"
@@ -201,10 +205,6 @@ clouds:
             keyVaultSecretName: "custom-metrics-collector-test-test-azure-arohcp-client-secret"
             directoryQuota: false
             subscriptions:
-            - name: "ARO HCP E2E - Staging"
-              roleAssignmentLimit: 4000
-              regions:
-              - uksouth
             - name: "ARO HCP E2E"
               roleAssignmentLimit: 4000
               regions:
@@ -287,18 +287,18 @@ clouds:
                   principalId: "ccbf438f-08ec-4e2b-ae4e-219ce7dc3762"
                 aro-hcp-msi-mock-cs-sp-dev-19:
                   principalId: "12eafc4e-f869-4b62-8198-816b7d6d0876"
-        stg:
-          bot:
-            applicationName: "OpenShift Release Bot - STG"
-          e2eSubscriptions:
-          - name: "ARO HCP E2E Hosted Clusters - Stage - 00"
-            id: "dee2f1be-a999-4e19-b027-221e7adaf7d3"
         int:
           bot:
             applicationName: "OpenShift Release Bot - INT"
           e2eSubscriptions:
           - name: "ARO SRE Team - INT (EA Subscription 3)"
             id: "64f0619f-ebc2-4156-9d91-c4c781de7e54"
+        stg:
+          bot:
+            applicationName: "OpenShift Release Bot - STG"
+          e2eSubscriptions:
+          - name: "ARO HCP E2E Hosted Clusters - Stage - 00"
+            id: "dee2f1be-a999-4e19-b027-221e7adaf7d3"
         prod:
           bot:
             applicationName: "OpenShift Release Bot - Prod"
