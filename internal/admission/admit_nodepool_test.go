@@ -638,10 +638,17 @@ func TestAdmitNodePool_VersionValidation(t *testing.T) {
 					},
 				},
 			}
+
+			// Use cluster version from test case's clusterVersions if cross-major upgrade
+			clusterVersion := "4.18"
+			if tt.allowMajorUpgrades && len(tt.clusterVersions) > 0 {
+				clusterVersion = tt.clusterVersions[0]
+			}
+
 			cluster := &api.HCPOpenShiftCluster{
 				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
 					Version: api.VersionProfile{
-						ID:           "4.18",
+						ID:           clusterVersion,
 						ChannelGroup: "stable",
 					},
 				},
@@ -685,19 +692,7 @@ func TestAdmitNodePool_VersionValidation(t *testing.T) {
 				},
 			}
 
-			// Build ServiceProviderCluster with active versions
-			var clusterActiveVersions []api.HCPClusterActiveVersion
-			for _, v := range tt.clusterVersions {
-				ver := semver.MustParse(v)
-				clusterActiveVersions = append(clusterActiveVersions, api.HCPClusterActiveVersion{Version: &ver})
-			}
-			spCluster := &api.ServiceProviderCluster{
-				Status: api.ServiceProviderClusterStatus{
-					ControlPlaneVersion: api.ServiceProviderClusterStatusVersion{
-						ActiveVersions: clusterActiveVersions,
-					},
-				},
-			}
+			spCluster := serviceProviderClusterWithVersions(t, tt.clusterVersions)
 
 			errs := AdmitNodePool(context.Background(), &NodePoolAdmissionContext{
 				Cluster:                 cluster,
@@ -751,14 +746,7 @@ func TestAdmitNodePool_IncludesChannelGroupCheck(t *testing.T) {
 		},
 	}
 
-	clusterVer := semver.MustParse("4.18.0")
-	spCluster := &api.ServiceProviderCluster{
-		Status: api.ServiceProviderClusterStatus{
-			ControlPlaneVersion: api.ServiceProviderClusterStatusVersion{
-				ActiveVersions: []api.HCPClusterActiveVersion{{Version: &clusterVer}},
-			},
-		},
-	}
+	spCluster := serviceProviderClusterWithVersions(t, []string{"4.18.0"})
 
 	// Empty update operation (no experimental features)
 	op := operation.Operation{Type: operation.Update}
@@ -841,5 +829,21 @@ func TestAdmitNodePoolOnDelete(t *testing.T) {
 			errs := AdmitNodePoolOnDelete(ctx, admissionContext, tt.nodePoolBeingDeleted)
 			utils.VerifyErrorsMatch(t, tt.expectErrors, errs)
 		})
+	}
+}
+
+func serviceProviderClusterWithVersions(t *testing.T, versions []string) *api.ServiceProviderCluster {
+	t.Helper()
+	var active []api.HCPClusterActiveVersion
+	for _, s := range versions {
+		v := semver.MustParse(s)
+		active = append(active, api.HCPClusterActiveVersion{Version: &v})
+	}
+	return &api.ServiceProviderCluster{
+		Status: api.ServiceProviderClusterStatus{
+			ControlPlaneVersion: api.ServiceProviderClusterStatusVersion{
+				ActiveVersions: active,
+			},
+		},
 	}
 }

@@ -1,0 +1,5 @@
+"error": {
+    "code": "InvalidRequestContent",
+    "message": "Invalid value: \"4.19.7\": must be at least 4.20.8",
+    "target": "properties.version.id"
+  }
