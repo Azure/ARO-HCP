@@ -164,6 +164,8 @@ func (c *nodePoolChildResourcesCleanupController) SyncOnce(ctx context.Context, 
 		return utils.TrackError(err)
 	}
 
+	logger.Info("all included nodepool child resources deleted")
+
 	return nil
 }
 
@@ -315,6 +317,8 @@ func (c *nodePoolChildResourcesCleanupController) ensureNodePoolScopedKubeApplie
 	if err := desireIterator.GetError(); err != nil {
 		return utils.TrackError(fmt.Errorf("error iterating nodepool-scoped kube-applier resources: %w", err))
 	}
+
+	logger.Info("all included nodepool-scoped kube-applier child resources deleted")
 
 	return nil
 }

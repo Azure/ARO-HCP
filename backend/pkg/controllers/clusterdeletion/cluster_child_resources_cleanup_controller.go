@@ -202,6 +202,8 @@ func (c *clusterChildResourcesCleanupController) SyncOnce(ctx context.Context, k
 		return utils.TrackError(err)
 	}
 
+	logger.Info("all included cluster cosmos child resources deleted")
+
 	return nil
 }
 
@@ -364,6 +366,8 @@ func (c *clusterChildResourcesCleanupController) ensureClusterScopedKubeApplierR
 	if err := desireIterator.GetError(); err != nil {
 		return utils.TrackError(fmt.Errorf("error iterating cluster-scoped kube-applier resources: %w", err))
 	}
+
+	logger.Info("all included cluster-scoped kube-applier child resources deleted")
 
 	return nil
 }
