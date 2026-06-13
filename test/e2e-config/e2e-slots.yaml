@@ -28,7 +28,7 @@ environments:
     # identity_container_count is higher than shard0/shard1 (55 vs 20) because this
     # single-tenant subscription is sized to run the full DEV E2E suite in parallel.
     # The parallel suite's peak simultaneous demand is 50 containers (47 specs: 45x1,
-    # 1x2, 1x3); 55 covers that with headroom and matches the suite Parallelism.
+    # 1x2, 1x3); 55 covers that with headroom.
     - subscription_name: "ARO HCP E2E Hosted Clusters - Dev - 02"
       region: westus3
       region_mode: runtime-selected
@@ -40,7 +40,7 @@ environments:
     # identity_container_count is higher than shard0/shard1 (55 vs 20) because this
     # single-tenant subscription is sized to run the full DEV E2E suite in parallel.
     # The parallel suite's peak simultaneous demand is 50 containers (47 specs: 45x1,
-    # 1x2, 1x3); 55 covers that with headroom and matches the suite Parallelism.
+    # 1x2, 1x3); 55 covers that with headroom.
     - subscription_name: "ARO HCP E2E Hosted Clusters - Dev - 03"
       region: westus3
       region_mode: runtime-selected
