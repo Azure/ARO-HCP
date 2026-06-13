@@ -58,21 +58,37 @@ spec:
     - alert: PrometheusFailedRate
       expr: |
         (
-          rate(prometheus_remote_storage_samples_failed_total[5m])
+          (
+            rate(prometheus_remote_storage_samples_failed_total{job="prometheus/prometheus",namespace="prometheus"}[5m])
+            or
+            rate(prometheus_remote_storage_failed_samples_total{job="prometheus/prometheus",namespace="prometheus"}[5m])
+          )
           /
-          rate(prometheus_remote_storage_samples_total[5m])
+          clamp_min(
+            (
+              rate(prometheus_remote_storage_samples_total{job="prometheus/prometheus",namespace="prometheus"}[5m])
+              or
+              (
+                rate(prometheus_remote_storage_failed_samples_total{job="prometheus/prometheus",namespace="prometheus"}[5m])
+                +
+                rate(prometheus_remote_storage_succeeded_samples_total{job="prometheus/prometheus",namespace="prometheus"}[5m])
+              )
+            ),
+            1e-9
+          )
         ) > 0.1
       for: 15m
       labels:
         severity: critical
       annotations:
+        correlationId: PrometheusFailedRate/{{ $labels.cluster }}/{{ $labels.namespace }}/{{ $labels.remote_name }}/{{ $labels.url }}
         description: |
           The failed sample rate for Prometheus remote storage has exceeded 10% over the past 15 minutes.
           This indicates that more than 10% of samples are not being successfully sent to remote storage, which could be caused by
           issues with the remote write endpoint, network instability, or Prometheus resource constraints.
           Persistent failures may result in increased memory usage and potential data loss if the buffer overflows.
           Please check the health and performance of the remote storage endpoint, network connectivity, and Prometheus resource utilization.
-        runbook_url: TBD # https://runbooks.prometheus-operator.dev/runbooks/prometheus/prometheusremotestoragefailures
+        runbook_url: TBD
         summary: Prometheus failed sample rate to remote storage is above 10%.
   - name: prometheus-rules
     rules:

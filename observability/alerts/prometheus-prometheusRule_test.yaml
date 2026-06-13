@@ -54,9 +54,9 @@ tests:
     exp_alerts: []
 - interval: 1m
   input_series:
-  - series: 'prometheus_remote_storage_samples_failed_total{cluster="test"}'
+  - series: 'prometheus_remote_storage_samples_failed_total{cluster="test",job="prometheus/prometheus",namespace="prometheus",remote_name="rw1",url="http://rw1"}'
     values: "0+15x20"
-  - series: 'prometheus_remote_storage_samples_total{cluster="test"}'
+  - series: 'prometheus_remote_storage_samples_total{cluster="test",job="prometheus/prometheus",namespace="prometheus",remote_name="rw1",url="http://rw1"}'
     values: "0+100x20"
   alert_rule_test:
   - eval_time: 16m
@@ -65,7 +65,12 @@ tests:
     - exp_labels:
         severity: critical
         cluster: test
+        job: prometheus/prometheus
+        namespace: prometheus
+        remote_name: rw1
+        url: http://rw1
       exp_annotations:
+        correlationId: PrometheusFailedRate/test/prometheus/rw1/http://rw1
         summary: Prometheus failed sample rate to remote storage is above 10%.
         description: |
           The failed sample rate for Prometheus remote storage has exceeded 10% over the past 15 minutes.
@@ -467,21 +472,92 @@ tests:
 # Test PrometheusFailedRate with exact threshold
 - interval: 1m
   input_series:
-  - series: 'prometheus_remote_storage_samples_failed_total{cluster="threshold-test"}'
+  - series: 'prometheus_remote_storage_samples_failed_total{cluster="threshold-test",job="prometheus/prometheus",namespace="prometheus",remote_name="rw1",url="http://rw1"}'
     values: "0+10x20" # Exactly 10% failure rate
-  - series: 'prometheus_remote_storage_samples_total{cluster="threshold-test"}'
+  - series: 'prometheus_remote_storage_samples_total{cluster="threshold-test",job="prometheus/prometheus",namespace="prometheus",remote_name="rw1",url="http://rw1"}'
     values: "0+100x20"
   alert_rule_test:
   - eval_time: 16m
     alertname: PrometheusFailedRate
     exp_alerts: []
+# Test PrometheusFailedRate with >10% current metric ratio
+- interval: 1m
+  input_series:
+  - series: 'prometheus_remote_storage_samples_failed_total{cluster="threshold-plus",job="prometheus/prometheus",namespace="prometheus",remote_name="rw1",url="http://rw1"}'
+    values: "0+11x20" # 11% failure rate should fire
+  - series: 'prometheus_remote_storage_samples_total{cluster="threshold-plus",job="prometheus/prometheus",namespace="prometheus",remote_name="rw1",url="http://rw1"}'
+    values: "0+100x20"
+  alert_rule_test:
+  - eval_time: 16m
+    alertname: PrometheusFailedRate
+    exp_alerts:
+    - exp_labels:
+        severity: critical
+        cluster: threshold-plus
+        job: prometheus/prometheus
+        namespace: prometheus
+        remote_name: rw1
+        url: http://rw1
+      exp_annotations:
+        correlationId: PrometheusFailedRate/threshold-plus/prometheus/rw1/http://rw1
+        summary: Prometheus failed sample rate to remote storage is above 10%.
+        description: |
+          The failed sample rate for Prometheus remote storage has exceeded 10% over the past 15 minutes.
+          This indicates that more than 10% of samples are not being successfully sent to remote storage, which could be caused by
+          issues with the remote write endpoint, network instability, or Prometheus resource constraints.
+          Persistent failures may result in increased memory usage and potential data loss if the buffer overflows.
+          Please check the health and performance of the remote storage endpoint, network connectivity, and Prometheus resource utilization.
+        runbook_url: TBD
 # Test PrometheusFailedRate with no samples
 - interval: 1m
   input_series:
-  - series: 'prometheus_remote_storage_samples_failed_total{cluster="no-samples"}'
+  - series: 'prometheus_remote_storage_samples_failed_total{cluster="no-samples",job="prometheus/prometheus",namespace="prometheus",remote_name="rw1",url="http://rw1"}'
     values: "0+0x20"
-  - series: 'prometheus_remote_storage_samples_total{cluster="no-samples"}'
+  - series: 'prometheus_remote_storage_samples_total{cluster="no-samples",job="prometheus/prometheus",namespace="prometheus",remote_name="rw1",url="http://rw1"}'
     values: "0+0x20"
+  alert_rule_test:
+  - eval_time: 16m
+    alertname: PrometheusFailedRate
+    exp_alerts: []
+# Test PrometheusFailedRate with legacy remote-write metrics
+- interval: 1m
+  input_series:
+  - series: 'prometheus_remote_storage_failed_samples_total{cluster="legacy-failed-rate",job="prometheus/prometheus",namespace="prometheus",remote_name="legacy",url="http://legacy"}'
+    values: "0+15x20"
+  - series: 'prometheus_remote_storage_succeeded_samples_total{cluster="legacy-failed-rate",job="prometheus/prometheus",namespace="prometheus",remote_name="legacy",url="http://legacy"}'
+    values: "0+100x20"
+  alert_rule_test:
+  - eval_time: 16m
+    alertname: PrometheusFailedRate
+    exp_alerts:
+    - exp_labels:
+        severity: critical
+        cluster: legacy-failed-rate
+        job: prometheus/prometheus
+        namespace: prometheus
+        remote_name: legacy
+        url: http://legacy
+      exp_annotations:
+        correlationId: PrometheusFailedRate/legacy-failed-rate/prometheus/legacy/http://legacy
+        summary: Prometheus failed sample rate to remote storage is above 10%.
+        description: |
+          The failed sample rate for Prometheus remote storage has exceeded 10% over the past 15 minutes.
+          This indicates that more than 10% of samples are not being successfully sent to remote storage, which could be caused by
+          issues with the remote write endpoint, network instability, or Prometheus resource constraints.
+          Persistent failures may result in increased memory usage and potential data loss if the buffer overflows.
+          Please check the health and performance of the remote storage endpoint, network connectivity, and Prometheus resource utilization.
+        runbook_url: TBD
+# Test PrometheusFailedRate when legacy and current metrics coexist
+- interval: 1m
+  input_series:
+  - series: 'prometheus_remote_storage_failed_samples_total{cluster="mixed-failed-rate",job="prometheus/prometheus",namespace="prometheus",remote_name="mixed",url="http://mixed"}'
+    values: "0+20x20" # Legacy path: 20/(20+80)=20% (>10%)
+  - series: 'prometheus_remote_storage_succeeded_samples_total{cluster="mixed-failed-rate",job="prometheus/prometheus",namespace="prometheus",remote_name="mixed",url="http://mixed"}'
+    values: "0+80x20"
+  - series: 'prometheus_remote_storage_samples_failed_total{cluster="mixed-failed-rate",job="prometheus/prometheus",namespace="prometheus",remote_name="mixed",url="http://mixed"}'
+    values: "0+5x20" # Current path: 5/100=5% (<10%)
+  - series: 'prometheus_remote_storage_samples_total{cluster="mixed-failed-rate",job="prometheus/prometheus",namespace="prometheus",remote_name="mixed",url="http://mixed"}'
+    values: "0+100x20"
   alert_rule_test:
   - eval_time: 16m
     alertname: PrometheusFailedRate
@@ -639,9 +715,9 @@ tests:
 # Test PrometheusFailedRate with very high failure rate
 - interval: 1m
   input_series:
-  - series: 'prometheus_remote_storage_samples_failed_total{cluster="high-failure"}'
+  - series: 'prometheus_remote_storage_samples_failed_total{cluster="high-failure",job="prometheus/prometheus",namespace="prometheus",remote_name="rw1",url="http://rw1"}'
     values: "0+90x20" # 90% failure rate
-  - series: 'prometheus_remote_storage_samples_total{cluster="high-failure"}'
+  - series: 'prometheus_remote_storage_samples_total{cluster="high-failure",job="prometheus/prometheus",namespace="prometheus",remote_name="rw1",url="http://rw1"}'
     values: "0+100x20"
   alert_rule_test:
   - eval_time: 16m
@@ -650,7 +726,12 @@ tests:
     - exp_labels:
         severity: critical
         cluster: high-failure
+        job: prometheus/prometheus
+        namespace: prometheus
+        remote_name: rw1
+        url: http://rw1
       exp_annotations:
+        correlationId: PrometheusFailedRate/high-failure/prometheus/rw1/http://rw1
         summary: Prometheus failed sample rate to remote storage is above 10%.
         description: |
           The failed sample rate for Prometheus remote storage has exceeded 10% over the past 15 minutes.
