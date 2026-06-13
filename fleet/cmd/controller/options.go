@@ -16,19 +16,28 @@ package controller
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
+	"net/http"
 	"os"
+	"time"
 
 	"github.com/spf13/cobra"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
 
+	maestroopenapi "github.com/openshift-online/maestro/pkg/api/openapi"
+	ocmsdk "github.com/openshift-online/ocm-sdk-go"
+
+	"github.com/Azure/ARO-HCP/fleet/pkg/controllers/maestroregistration"
 	"github.com/Azure/ARO-HCP/fleet/pkg/manager"
 	"github.com/Azure/ARO-HCP/internal/azsdk"
 	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/ocm"
 )
 
 const (
@@ -40,6 +49,11 @@ const (
 type RawControllerOptions struct {
 	CosmosURL  string
 	CosmosName string
+
+	ClustersServiceURL         string
+	ClustersServiceTLSInsecure bool
+
+	MaestroTLSInsecure bool
 
 	CloudEnvironment string
 	Region           string
@@ -63,6 +77,9 @@ func BindControllerOptions(opts *RawControllerOptions, cmd *cobra.Command) error
 	cmd.Flags().StringVar(&opts.CosmosName, "cosmos-name", opts.CosmosName, "CosmosDB database name")
 	cmd.Flags().StringVar(&opts.CloudEnvironment, "cloud-environment", opts.CloudEnvironment, "Azure cloud environment (AzurePublicCloud, AzureChinaCloud, AzureUSGovernmentCloud)")
 	cmd.Flags().StringVar(&opts.Region, "region", opts.Region, "Azure region")
+	cmd.Flags().StringVar(&opts.ClustersServiceURL, "clusters-service-url", opts.ClustersServiceURL, "URL of the ClustersService API")
+	cmd.Flags().BoolVar(&opts.ClustersServiceTLSInsecure, "clusters-service-tls-insecure", opts.ClustersServiceTLSInsecure, "skip TLS verification for ClustersService")
+	cmd.Flags().BoolVar(&opts.MaestroTLSInsecure, "maestro-tls-insecure", opts.MaestroTLSInsecure, "skip TLS verification for Maestro")
 	cmd.Flags().StringVar(&opts.KubeNamespace, "kube-namespace", opts.KubeNamespace, "Kubernetes namespace for leader election lease")
 	cmd.Flags().StringVar(&opts.LeaderElectionID, "leader-election-id", opts.LeaderElectionID, "name of the leader election lease")
 	cmd.Flags().StringVar(&opts.HealthzListenAddress, "healthz-listen-address", opts.HealthzListenAddress, "listen address for healthz server")
@@ -73,6 +90,7 @@ func BindControllerOptions(opts *RawControllerOptions, cmd *cobra.Command) error
 		"region",
 		"cosmos-url",
 		"cosmos-name",
+		"clusters-service-url",
 		"kube-namespace",
 	} {
 		if err := cmd.MarkFlagRequired(flag); err != nil {
@@ -102,8 +120,14 @@ func (o *RawControllerOptions) Validate(ctx context.Context) (*ValidatedControll
 	if len(o.Region) == 0 {
 		return nil, fmt.Errorf("--region is required")
 	}
+	if len(o.ClustersServiceURL) == 0 {
+		return nil, fmt.Errorf("--clusters-service-url is required")
+	}
 	if len(o.KubeNamespace) == 0 {
 		return nil, fmt.Errorf("--kube-namespace is required")
+	}
+	if len(o.LeaderElectionID) == 0 {
+		return nil, fmt.Errorf("--leader-election-id is required")
 	}
 	cloudConfig, err := azsdk.CloudConfigurationFromName(o.CloudEnvironment)
 	if err != nil {
@@ -119,10 +143,13 @@ func (o *RawControllerOptions) Validate(ctx context.Context) (*ValidatedControll
 }
 
 type controllerOptions struct {
-	fleetDBClient      database.FleetDBClient
-	leaderElectionLock resourcelock.Interface
-	healthzListenAddr  string
-	metricsListenAddr  string
+	fleetDBClient                database.FleetDBClient
+	clustersServiceClient        ocm.ClusterServiceClientSpec
+	maestroConsumerClientFactory maestroregistration.MaestroConsumerClientFactory
+	leaderElectionLock           resourcelock.Interface
+	region                       string
+	healthzListenAddr            string
+	metricsListenAddr            string
 }
 
 type ControllerOptions struct {
@@ -143,6 +170,13 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 		return nil, err
 	}
 
+	clustersServiceClient, err := newClustersServiceClient(o.ClustersServiceURL, o.ClustersServiceTLSInsecure)
+	if err != nil {
+		return nil, err
+	}
+
+	maestroConsumerClientFactory := newMaestroConsumerClientFactory(o.MaestroTLSInsecure)
+
 	kubeconfig, err := rest.InClusterConfig()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get in-cluster kubeconfig: %w", err)
@@ -160,20 +194,68 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 
 	return &ControllerOptions{
 		controllerOptions: &controllerOptions{
-			fleetDBClient:      fleetDBClient,
-			leaderElectionLock: leaderElectionLock,
-			healthzListenAddr:  o.HealthzListenAddress,
-			metricsListenAddr:  o.MetricsListenAddress,
+			fleetDBClient:                fleetDBClient,
+			clustersServiceClient:        clustersServiceClient,
+			maestroConsumerClientFactory: maestroConsumerClientFactory,
+			leaderElectionLock:           leaderElectionLock,
+			region:                       o.Region,
+			healthzListenAddr:            o.HealthzListenAddress,
+			metricsListenAddr:            o.MetricsListenAddress,
 		},
 	}, nil
 }
 
 func (o *ControllerOptions) Run(ctx context.Context) error {
 	mgr := &manager.Manager{
-		FleetDBClient:      o.fleetDBClient,
-		LeaderElectionLock: o.leaderElectionLock,
-		HealthzListenAddr:  o.healthzListenAddr,
-		MetricsListenAddr:  o.metricsListenAddr,
+		FleetDBClient:                o.fleetDBClient,
+		ClustersServiceClient:        o.clustersServiceClient,
+		MaestroConsumerClientFactory: o.maestroConsumerClientFactory,
+		LeaderElectionLock:           o.leaderElectionLock,
+		Region:                       o.region,
+		HealthzListenAddr:            o.healthzListenAddr,
+		MetricsListenAddr:            o.metricsListenAddr,
 	}
 	return mgr.Run(ctx)
+}
+
+type maestroConsumerClientFactory struct {
+	httpClient *http.Client
+}
+
+func newMaestroConsumerClientFactory(tlsInsecure bool) maestroregistration.MaestroConsumerClientFactory {
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.TLSClientConfig = &tls.Config{
+		InsecureSkipVerify: tlsInsecure,
+	}
+	return &maestroConsumerClientFactory{
+		httpClient: &http.Client{
+			Timeout:   30 * time.Second,
+			Transport: otelhttp.NewTransport(transport),
+		},
+	}
+}
+
+func (f *maestroConsumerClientFactory) NewMaestroConsumerClient(maestroURL string) maestroregistration.MaestroConsumerClient {
+	maestroConfig := &maestroopenapi.Configuration{
+		Servers: maestroopenapi.ServerConfigurations{{
+			URL: maestroURL,
+		}},
+		HTTPClient: f.httpClient,
+	}
+	apiClient := maestroopenapi.NewAPIClient(maestroConfig)
+	return maestroregistration.NewMaestroConsumerClient(apiClient)
+}
+
+func newClustersServiceClient(url string, tlsInsecure bool) (ocm.ClusterServiceClientSpec, error) {
+	conn, err := ocmsdk.NewUnauthenticatedConnectionBuilder().
+		TransportWrapper(func(r http.RoundTripper) http.RoundTripper {
+			return otelhttp.NewTransport(r)
+		}).
+		URL(url).
+		Insecure(tlsInsecure).
+		Build()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create OCM connection: %w", err)
+	}
+	return ocm.NewClusterServiceClient(conn), nil
 }

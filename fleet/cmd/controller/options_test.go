@@ -26,6 +26,7 @@ func TestValidate(t *testing.T) {
 			Region:               "westus3",
 			CosmosURL:            "https://cosmos.example.com",
 			CosmosName:           "fleet-db",
+			ClustersServiceURL:   "https://cs.example.com",
 			KubeNamespace:        "fleet-system",
 			HealthzListenAddress: ":8080",
 			MetricsListenAddress: ":8081",
@@ -55,6 +56,11 @@ func TestValidate(t *testing.T) {
 		{
 			name:    "missing region",
 			modify:  func(opts *RawControllerOptions) { opts.Region = "" },
+			wantErr: true,
+		},
+		{
+			name:    "missing clusters-service-url",
+			modify:  func(opts *RawControllerOptions) { opts.ClustersServiceURL = "" },
 			wantErr: true,
 		},
 		{

@@ -24,5 +24,7 @@ region: '{{ .region }}'
 cosmos:
   url: "__cosmosUrl__"
   name: '{{ .frontend.cosmosDB.name }}'
+clustersService:
+  namespace: "{{ .clustersService.k8s.namespace }}"
 controller:
   namespace: '{{ .fleet.k8s.namespace }}'

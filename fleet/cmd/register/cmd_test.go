@@ -54,7 +54,6 @@ func validRegisterOptions(t *testing.T, fleetDBClient *databasetesting.MockFleet
 			hostedClustersSecretsKeyVaultURL:           "https://kv-secrets.vault.azure.net",
 			hostedClustersManagedIdentitiesKeyVaultURL: "https://kv-mi.vault.azure.net",
 			hostedClustersSecretsKeyVaultManagedIdentityClientID: "12345678-1234-1234-1234-123456789012",
-			provisionShardID:               ptr.To(api.Must(api.NewInternalID("/api/aro_hcp/v1alpha1/provision_shards/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"))),
 			maestroConsumerName:            "hcp-underlay-westus3-mgmt-1",
 			maestroRESTAPIURL:              "http://maestro.maestro.svc.cluster.local:8000",
 			maestroGRPCTarget:              "maestro-grpc.maestro.svc.cluster.local:8090",
