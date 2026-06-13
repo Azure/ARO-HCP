@@ -68,7 +68,7 @@ func NewControlPlaneActiveVersionController(
 		resourcesDBClient,
 		informers,
 		kubeApplierInformers,
-		5*time.Minute,
+		1*time.Minute, // Reduced from 5min to detect versions faster (ARO-27305)
 		syncer,
 	)
 }
