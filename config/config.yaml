@@ -910,7 +910,7 @@ defaults:
       loglevel: 2
       managedIdentityName: maestro-server
       k8s:
-        replicas: 1
+        replicas: 2
         namespace: maestro
         serviceAccountName: maestro
         resources:
@@ -958,7 +958,7 @@ defaults:
     image:
       registry: quay.io
       repository: redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro
-      digest: sha256:1568fda504ca91a9cfee998067174ebd46f5ac2603a8663ebefbac94d6483a85 # e43800d7020340d3fb4c0cfa81a8099e06e303f8 (2026-06-16 17:37)
+      digest: sha256:784f3670c04a303b0c0fbd98048bc3e941c03b65122c53b0e0da58abcdec65b3 # ff220ea357a20c79d07659263b8bbbd555d60abd (2026-06-24 15:55)
   # ACM
   acm:
     operator:

@@ -1000,6 +1000,60 @@ resource maestro 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = 
         for: 'PT10M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'MaestroServerNoReadyReplicas'
+        enabled: true
+        labels: {
+          severity: 'critical'
+        }
+        annotations: {
+          correlationId: 'MaestroServerNoReadyReplicas/{{ $labels.cluster }}'
+          description: 'No maestro-server replicas have been Ready for 5 minutes. Readiness is gated on Postgres connectivity, so maestro is likely unable to reach its database; Clusters Service will get 503 and HCP cluster provisioning will stall.'
+          info: 'No maestro-server replicas have been Ready for 5 minutes. Readiness is gated on Postgres connectivity, so maestro is likely unable to reach its database; Clusters Service will get 503 and HCP cluster provisioning will stall.'
+          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/maestro/index.html'
+          summary: 'No maestro-server replicas are Ready'
+          title: 'No maestro-server replicas are Ready'
+        }
+        expression: 'kube_deployment_status_replicas_available{namespace="maestro", deployment="maestro"} == 0 and kube_deployment_spec_replicas{namespace="maestro", deployment="maestro"} > 0'
+        for: 'PT5M'
+        severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'MaestroServerReplicaNotReady'
+        enabled: true
+        labels: {
+          severity: 'warning'
+        }
+        annotations: {
+          correlationId: 'MaestroServerReplicaNotReady/{{ $labels.cluster }}'
+          description: 'At least one maestro-server replica has been NotReady for 15 minutes (available {{ $value }} below desired). Readiness is gated on Postgres connectivity, so a persistently NotReady replica usually indicates database connectivity problems.'
+          info: 'At least one maestro-server replica has been NotReady for 15 minutes (available {{ $value }} below desired). Readiness is gated on Postgres connectivity, so a persistently NotReady replica usually indicates database connectivity problems.'
+          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/maestro/index.html'
+          summary: 'A maestro-server replica is not Ready'
+          title: 'A maestro-server replica is not Ready'
+        }
+        expression: 'kube_deployment_status_replicas_available{namespace="maestro", deployment="maestro"} > 0 and kube_deployment_status_replicas_available{namespace="maestro", deployment="maestro"} < kube_deployment_spec_replicas{namespace="maestro", deployment="maestro"}'
+        for: 'PT15M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
     ]
     scopes: [
       azureMonitoring
