@@ -124,7 +124,7 @@ func mutateClusterExperimentalFeatures(_ context.Context, admissionContext *Clus
 	var errs field.ErrorList
 
 	// Reject unrecognized experimental tags.
-	knownTags := sets.New(api.TagClusterSingleReplica, api.TagClusterSizeOverride)
+	knownTags := sets.New(api.TagClusterSingleReplica, api.TagClusterSizeOverride, api.TagClusterFipsEnabled)
 	for k := range tags {
 		if strings.HasPrefix(strings.ToLower(k), api.ExperimentalClusterTagPrefix) && !knownTags.Has(strings.ToLower(k)) {
 			errs = append(errs, field.Invalid(tagsPath.Key(k), k, "unrecognized experimental tag"))
@@ -157,6 +157,19 @@ func mutateClusterExperimentalFeatures(_ context.Context, admissionContext *Clus
 		errs = append(errs, field.Invalid(
 			tagsPath.Key(api.TagClusterSizeOverride), sizeOverrideValue,
 			fmt.Sprintf("must be %q or empty", api.MinimalControlPlanePodSizing),
+		))
+	}
+
+	fipsEnabled := lookupTag(tags, api.TagClusterFipsEnabled)
+	switch strings.ToLower(fipsEnabled) {
+	case api.FipsModeEnabled:
+		experimentalFeatures.FipsEnabled = true
+	case api.FipsModeDisabled, "":
+		experimentalFeatures.FipsEnabled = false
+	default:
+		errs = append(errs, field.Invalid(
+			tagsPath.Key(api.TagClusterFipsEnabled), fipsEnabled,
+			fmt.Sprintf("must be %s or %s", api.FipsModeEnabled, api.FipsModeDisabled),
 		))
 	}
 
