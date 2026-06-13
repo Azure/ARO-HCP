@@ -1,0 +1,10 @@
+{
+  "code": "InvalidRequestContent",
+  "message": "Forbidden: field is immutable",
+  "target": "properties.platform.osDisk"
+}
+{
+  "code": "InvalidRequestContent",
+  "message": "Forbidden: field is immutable",
+  "target": "properties.platform"
+}

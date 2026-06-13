@@ -1,0 +1,5 @@
+{
+  "code": "InvalidRequestContent",
+  "message": "Invalid value: 501: must be less than or equal to 500",
+  "target": "properties.autoscaling.maxNodesTotal"
+}
