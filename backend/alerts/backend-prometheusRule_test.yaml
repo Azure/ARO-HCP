@@ -2,42 +2,13 @@ rule_files:
 - backend-prometheusRule.yaml
 evaluation_interval: 1m
 tests:
-# Test: BackendControllerRetryHotLoop fires when retry ratio > 50%
-- interval: 1m
-  input_series:
-  - series: 'workqueue_retries_total{name="OperationClusterCreate", namespace="aro-hcp"}'
-    values: "0+80x25" # 80 retries per minute
-  - series: 'workqueue_adds_total{name="OperationClusterCreate", namespace="aro-hcp"}'
-    values: "0+100x25" # 100 adds per minute → retry ratio = 80%
-  alert_rule_test:
-  - eval_time: 20m
-    alertname: BackendControllerRetryHotLoop
-    exp_alerts:
-    - exp_labels:
-        name: OperationClusterCreate
-        severity: warning
-      exp_annotations:
-        description: 'Backend controller workqueue OperationClusterCreate has a retry ratio of > 50% sustained over 10 minutes, indicating most queue activity is failed retries rather than fresh work.'
-        runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/backend-tsg.html'
-        summary: 'Backend controller workqueue retry hot loop'
-# Test: BackendControllerRetryHotLoop does not fire when retry ratio < 50%
-- interval: 1m
-  input_series:
-  - series: 'workqueue_retries_total{name="OperationClusterCreate", namespace="aro-hcp"}'
-    values: "0+20x25" # 20 retries per minute
-  - series: 'workqueue_adds_total{name="OperationClusterCreate", namespace="aro-hcp"}'
-    values: "0+100x25" # 100 adds per minute → retry ratio = 20%
-  alert_rule_test:
-  - eval_time: 20m
-    alertname: BackendControllerRetryHotLoop
-    exp_alerts: []
-# Test: BackendControllerQueueDepthHigh fires when depth > 10 for 5m
+# Test: BackendControllerQueueDepthHigh fires when depth > 10 for 15m
 - interval: 1m
   input_series:
   - series: 'workqueue_depth{name="OperationClusterCreate", namespace="aro-hcp"}'
-    values: "15x10" # depth stays at 15 for 10 minutes
+    values: "15x20" # depth stays at 15 for 20 minutes
   alert_rule_test:
-  - eval_time: 6m
+  - eval_time: 16m
     alertname: BackendControllerQueueDepthHigh
     exp_alerts:
     - exp_labels:
