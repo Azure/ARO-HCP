@@ -105,3 +105,13 @@ func ToServiceProviderNodePoolResourceIDString(subscriptionName, resourceGroupNa
 		ServiceProviderNodePoolResourceType.Types[len(ServiceProviderNodePoolResourceType.Types)-1], ServiceProviderNodePoolResourceName,
 	))
 }
+
+func ToServiceProviderExternalAuthResourceIDString(subscriptionName, resourceGroupName, clusterName, externalAuthName string) string {
+	return strings.ToLower(path.Join(
+		"/subscriptions", subscriptionName,
+		"resourceGroups", resourceGroupName,
+		"providers", ClusterResourceType.String(), clusterName,
+		ExternalAuthResourceType.String(), externalAuthName,
+		ServiceProviderExternalAuthResourceType.Types[len(ServiceProviderExternalAuthResourceType.Types)-1], ServiceProviderExternalAuthResourceName,
+	))
+}

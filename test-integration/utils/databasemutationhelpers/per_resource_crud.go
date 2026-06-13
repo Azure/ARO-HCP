@@ -49,6 +49,9 @@ func NewCosmosCRUD[InternalAPIType any](t *testing.T, cosmosClient database.Reso
 	case strings.EqualFold(resourceType.String(), api.ServiceProviderNodePoolResourceType.String()):
 		return any(cosmosClient.ServiceProviderNodePools(parentResourceID.SubscriptionID, parentResourceID.ResourceGroupName, parentResourceID.Parent.Name, parentResourceID.Name)).(database.ResourceCRUD[InternalAPIType])
 
+	case strings.EqualFold(resourceType.String(), api.ServiceProviderExternalAuthResourceType.String()):
+		return any(cosmosClient.ServiceProviderExternalAuths(parentResourceID.SubscriptionID, parentResourceID.ResourceGroupName, parentResourceID.Parent.Name, parentResourceID.Name)).(database.ResourceCRUD[InternalAPIType])
+
 	default:
 		t.Fatalf("unsupported resource type and parent: %q under %v", resourceType, parentResourceID.ResourceType.String())
 	}
