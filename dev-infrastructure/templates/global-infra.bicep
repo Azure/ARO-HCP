@@ -63,7 +63,6 @@ param azureFrontDoorProfileName string
 param azureFrontDoorKeyVaultName string
 param azureFrontDoorKeyVaultTagKey string
 param azureFrontDoorKeyVaultTagValue string
-param azureFrontDoorUseManagedCertificates bool
 param azureFrontDoorSkuName string
 param keyVaultAdminPrincipalId string
 param oidcMsiName string
@@ -391,7 +390,6 @@ module azureFrontDoor '../modules/oidc/global/main.bicep' = if (azureFrontDoorMa
     keyVaultName: azureFrontDoorKeyVaultName
     keyVaultTagKey: azureFrontDoorKeyVaultTagKey
     keyVaultTagValue: azureFrontDoorKeyVaultTagValue
-    useManagedCertificates: azureFrontDoorUseManagedCertificates
     keyVaultAdminSPObjId: keyVaultAdminPrincipalId
     oidcMsiName: oidcMsiName
   }
