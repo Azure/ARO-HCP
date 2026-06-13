@@ -1,0 +1,23 @@
+rule_files:
+- HCPkasRecord-prometheusRule-KSM.yaml
+- UJKubeApiserverAvailabilityRecord-prometheusRule-KSM.yaml
+evaluation_interval: 1m
+tests:
+# Recording rules are exercised end-to-end by UJKubeApiserverAvailability-prometheusRule-KSM_test.yaml
+# (6 alert scenarios covering all 6 SLI rules). This file satisfies the generator's
+# test-file requirement with a basic smoke test.
+- interval: 1m
+  input_series:
+  - series: 'hostedClusterAPI_kubeapiserver_available{status="True", name="test-cluster", namespace="clusters", _id="abc-123", cluster="mgmt-cluster"}'
+    values: "1+0x30"
+  promql_expr_test:
+  - eval_time: 20m
+    expr: hostedClusterAPI_kubeapiserver_available:sli_sum_5m{name="test-cluster"}
+    exp_samples:
+    - labels: 'hostedClusterAPI_kubeapiserver_available:sli_sum_5m{_id="abc-123", cluster="mgmt-cluster", name="test-cluster", namespace="clusters"}'
+      value: 5
+  - eval_time: 20m
+    expr: hostedClusterAPI_kubeapiserver_available:sli_count_5m{name="test-cluster"}
+    exp_samples:
+    - labels: 'hostedClusterAPI_kubeapiserver_available:sli_count_5m{_id="abc-123", cluster="mgmt-cluster", name="test-cluster", namespace="clusters"}'
+      value: 5
