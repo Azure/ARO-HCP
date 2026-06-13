@@ -162,6 +162,13 @@ spec:
           limits:
             memory: '{{ .Values.deployment.resources.limits.memory }}'
 {{- end }}
+        # NOTE: /healthcheck performs a Postgres read (instance row lookup), so a
+        # transient DB slowdown makes this probe fail. The liveness probe is kept
+        # deliberately tolerant (failureThreshold 18 x periodSeconds 10 = ~3m grace)
+        # so a brief Postgres latency spike removes the pod from Service endpoints
+        # via the readiness probe instead of restarting it and triggering a
+        # connection-pool reset storm (AROSLSRE-1170). Proper fix: a dedicated
+        # process-only liveness endpoint in maestro decoupled from the database.
         livenessProbe:
           httpGet:
             path: /healthcheck
@@ -170,7 +177,7 @@ spec:
           initialDelaySeconds: 25
           periodSeconds: 10
           timeoutSeconds: 10
-          failureThreshold: 5
+          failureThreshold: 18
         readinessProbe:
           httpGet:
             path: /healthcheck
