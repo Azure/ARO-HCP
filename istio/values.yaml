@@ -14,9 +14,8 @@ mise:
   namespace: "mise"
   image:
     registry: "{{ .acr.svc.name }}.azurecr.io"
-    repository: "{{ .mise.image.repository }}"
-    digest: "{{ .mise.image.digest }}"
-    digestv2: "{{ .mise.imageV2.digest }}"
+    repository: "{{ .mise.imageV2.repository }}"
+    digest: "{{ .mise.imageV2.digest }}"
   audit:
     adInstance: "https://{{ .mise.arm.authorityFQDN }}/"
     clientId: "{{ .firstPartyAppClientId }}"

@@ -15,13 +15,7 @@ data:
       envoyExtAuthzHttp:
         service: "mise/mise.mise.svc.cluster.local"
         port: "8080"
-        includeRequestHeadersInCheck: ["x-ext-authz", "mise-inbound-policies-to-filter", "x-ms-mise-version"]
-        pathPrefix: "/v1/EnvoyValidateRequest"
-    - name: "ext-authz-misev2"
-      envoyExtAuthzHttp:
-        service: "mise/misev2.mise.svc.cluster.local"
-        port: "8080"
-        includeRequestHeadersInCheck: ["x-ext-authz", "mise-inbound-policies-to-filter", "x-ms-mise-version"]
+        includeRequestHeadersInCheck: ["x-ext-authz", "mise-inbound-policies-to-filter"]
         pathPrefix: "/v1/EnvoyValidateRequest"
 {{ end }}
 {{ end }}
