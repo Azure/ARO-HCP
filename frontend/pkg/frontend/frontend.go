@@ -59,7 +59,6 @@ type Frontend struct {
 	server               http.Server
 	metricsServer        http.Server
 	resourcesDBClient    database.ResourcesDBClient
-	locksDBClient        database.LocksDBClient
 	auditClient          audit.Client
 	collector            *metrics.SubscriptionCollector
 	healthGauge          prometheus.Gauge
@@ -88,7 +87,6 @@ func NewFrontend(
 	registerer prometheus.Registerer,
 	gatherer prometheus.Gatherer,
 	resourcesDBClient database.ResourcesDBClient,
-	locksDBClient database.LocksDBClient,
 	csClient ocm.ClusterServiceClientSpec,
 	auditClient audit.Client,
 	azureLocation string,
@@ -120,7 +118,6 @@ func NewFrontend(
 		},
 		auditClient:                   auditClient,
 		resourcesDBClient:             resourcesDBClient,
-		locksDBClient:                 locksDBClient,
 		collector:                     metrics.NewSubscriptionCollector(registerer, resourcesDBClient, azureLocation),
 		clusterServiceProvisionShard:  clusterServiceProvisionShard,
 		clusterServiceNoopProvision:   clusterServiceNoopProvision,

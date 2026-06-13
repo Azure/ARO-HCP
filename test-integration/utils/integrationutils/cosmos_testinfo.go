@@ -47,7 +47,6 @@ type CosmosIntegrationTestInfo struct {
 	CosmosDatabaseClient *azcosmos.DatabaseClient
 	resourcesDBClient    database.ResourcesDBClient
 	billingDBClient      database.BillingDBClient
-	locksDBClient        database.LocksDBClient
 	fleetDBClient        database.FleetDBClient
 	cosmosClient         *azcosmos.Client
 }
@@ -69,10 +68,6 @@ func NewCosmosFromTestingEnv(ctx context.Context, t *testing.T) (StorageIntegrat
 	if err != nil {
 		return nil, fmt.Errorf("failed to create the billing database client: %w", err)
 	}
-	locksDBClient, err := database.NewLocksDBClient(ctx, cosmosDatabaseClient)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create the locks database client: %w", err)
-	}
 	fleetDBClient, err := database.NewFleetDBClient(cosmosDatabaseClient)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create the fleet database client: %w", err)
@@ -83,7 +78,6 @@ func NewCosmosFromTestingEnv(ctx context.Context, t *testing.T) (StorageIntegrat
 		CosmosDatabaseClient: cosmosDatabaseClient,
 		resourcesDBClient:    resourcesDBClient,
 		billingDBClient:      billingDBClient,
-		locksDBClient:        locksDBClient,
 		fleetDBClient:        fleetDBClient,
 		cosmosClient:         cosmosClient,
 	}
@@ -126,10 +120,6 @@ func (s *CosmosIntegrationTestInfo) ResourcesDBClient() database.ResourcesDBClie
 
 func (s *CosmosIntegrationTestInfo) BillingDBClient() database.BillingDBClient {
 	return s.billingDBClient
-}
-
-func (s *CosmosIntegrationTestInfo) LocksDBClient() database.LocksDBClient {
-	return s.locksDBClient
 }
 
 func (s *CosmosIntegrationTestInfo) FleetDBClient() database.FleetDBClient {
