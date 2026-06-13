@@ -260,15 +260,14 @@ func subscriptionInformerTestCase() informerTestCase {
 		expectedInitialAdds: 2,
 		mutateDB: func(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient) {
 			t.Helper()
-			// Update sub-1.
-			sub1Updated := &arm.Subscription{
-				CosmosMetadata: arm.CosmosMetadata{
-					ResourceID: mustParseResourceID(t, "/subscriptions/sub-1"),
-				},
-				ResourceID: mustParseResourceID(t, "/subscriptions/sub-1"),
-				State:      arm.SubscriptionStateWarned,
-			}
-			_, err := mockResourcesDBClient.Subscriptions().Replace(ctx, sub1Updated, nil)
+			// Update sub-1. Deep-copy the existing document so the Replace
+			// carries the existing etag and instance version forward; the
+			// crud_helpers PrepareForReplace check rejects fresh-built docs.
+			existing, err := mockResourcesDBClient.Subscriptions().Get(ctx, "sub-1")
+			require.NoError(t, err)
+			sub1Updated := existing.DeepCopy()
+			sub1Updated.State = arm.SubscriptionStateWarned
+			_, err = mockResourcesDBClient.Subscriptions().Replace(ctx, sub1Updated, nil)
 			require.NoError(t, err)
 
 			// Add sub-3.
@@ -380,8 +379,14 @@ func clusterInformerTestCase() informerTestCase {
 			t.Helper()
 			clusterCRUD := mockResourcesDBClient.HCPClusters(subscriptionID, resourceGroupName)
 
-			// Update cluster-1 state.
-			_, err := clusterCRUD.Replace(ctx, newCluster(t, "cluster-1", arm.ProvisioningStateDeleting), nil)
+			// Update cluster-1 state. Deep-copy the existing document so the
+			// Replace carries the existing etag and instance version forward;
+			// the crud_helpers PrepareForReplace check rejects fresh-built docs.
+			existing, err := clusterCRUD.Get(ctx, "cluster-1")
+			require.NoError(t, err)
+			updated := existing.DeepCopy()
+			updated.ServiceProviderProperties.ProvisioningState = arm.ProvisioningStateDeleting
+			_, err = clusterCRUD.Replace(ctx, updated, nil)
 			require.NoError(t, err)
 
 			// Add cluster-3.
@@ -515,8 +520,14 @@ func nodePoolInformerTestCase() informerTestCase {
 			t.Helper()
 			npCRUD := mockResourcesDBClient.HCPClusters(subscriptionID, resourceGroupName).NodePools(clusterName)
 
-			// Update np-1 replica count.
-			_, err := npCRUD.Replace(ctx, newNodePool(t, "np-1", 10), nil)
+			// Update np-1 replica count. Deep-copy the existing document so
+			// the Replace carries the existing etag and instance version forward;
+			// the crud_helpers PrepareForReplace check rejects fresh-built docs.
+			existing, err := npCRUD.Get(ctx, "np-1")
+			require.NoError(t, err)
+			updated := existing.DeepCopy()
+			updated.Properties.Replicas = 10
+			_, err = npCRUD.Replace(ctx, updated, nil)
 			require.NoError(t, err)
 
 			// Add np-3.
@@ -618,8 +629,14 @@ func activeOperationInformerTestCase() informerTestCase {
 
 			// Transition op-1 to succeeded (terminal) — the active operations
 			// informer should see this as a deletion since it only tracks
-			// non-terminal operations.
-			_, err := opCRUD.Replace(ctx, newOperation(t, "op-1", arm.ProvisioningStateSucceeded), nil)
+			// non-terminal operations. Deep-copy the existing document so the
+			// Replace carries the existing etag and instance version forward;
+			// the crud_helpers PrepareForReplace check rejects fresh-built docs.
+			existing, err := opCRUD.Get(ctx, "op-1")
+			require.NoError(t, err)
+			updated := existing.DeepCopy()
+			updated.Status = arm.ProvisioningStateSucceeded
+			_, err = opCRUD.Replace(ctx, updated, nil)
 			require.NoError(t, err)
 
 			// Add a new active operation op-3.

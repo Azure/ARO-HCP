@@ -96,6 +96,9 @@ func createFleetItem[InternalAPIType, CosmosAPIType any](
 	if strings.ToLower(partitionKeyString) != partitionKeyString {
 		return nil, fmt.Errorf("partitionKeyString must be lowercase, not: %q", partitionKeyString)
 	}
+	if err := PrepareForCreate(newObj); err != nil {
+		return nil, err
+	}
 	cosmosMetadata, data, err := serializeFleetItem[InternalAPIType, CosmosAPIType](partitionKeyString, newObj)
 	if err != nil {
 		return nil, err
@@ -124,6 +127,9 @@ func replaceFleetItem[InternalAPIType, CosmosAPIType any](
 	if strings.ToLower(partitionKeyString) != partitionKeyString {
 		return nil, fmt.Errorf("partitionKeyString must be lowercase, not: %q", partitionKeyString)
 	}
+	if err := PrepareForReplace(newObj); err != nil {
+		return nil, err
+	}
 	cosmosMetadata, data, err := serializeFleetItem[InternalAPIType, CosmosAPIType](partitionKeyString, newObj)
 	if err != nil {
 		return nil, err
@@ -132,9 +138,7 @@ func replaceFleetItem[InternalAPIType, CosmosAPIType any](
 	if opts == nil {
 		opts = &azcosmos.ItemOptions{}
 	}
-	if len(cosmosMetadata.CosmosETag) > 0 {
-		opts.IfMatchEtag = &cosmosMetadata.CosmosETag
-	}
+	opts.IfMatchEtag = &cosmosMetadata.CosmosETag
 	opts.EnableContentResponseOnWrite = true
 
 	responseItem, err := containerClient.ReplaceItem(
