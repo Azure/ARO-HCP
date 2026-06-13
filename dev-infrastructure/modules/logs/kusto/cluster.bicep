@@ -120,3 +120,4 @@ resource kusto 'Microsoft.Kusto/clusters@2024-04-13' = {
 
 output id string = kusto.id
 output name string = kusto.name
+output uri string = kusto.properties.uri

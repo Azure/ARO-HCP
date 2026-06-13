@@ -87,7 +87,7 @@ kusto_instance_id=$(get_kusto_instance_id)
 if [[ -n "$kusto_instance_id" ]]; then
     if has_locks "$kusto_instance_id"; then
         log WARN "Skipping locked Kusto instance: $kusto_instance_id"
-        continue
+        exit 0
     fi
 
     if [[ "$DRY_RUN" == "true" ]]; then
