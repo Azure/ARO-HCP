@@ -120,6 +120,12 @@ func (m *MockResourcesDBClient) ServiceProviderNodePools(subscriptionID, resourc
 	return newMockServiceProviderNodePoolCRUD(m, nodePoolResourceID)
 }
 
+// ServiceProviderExternalAuths returns a CRUD interface for service provider external auth resources.
+func (m *MockResourcesDBClient) ServiceProviderExternalAuths(subscriptionID, resourceGroupName, clusterName, externalAuthName string) database.ServiceProviderExternalAuthCRUD {
+	externalAuthResourceID := database.NewExternalAuthResourceID(subscriptionID, resourceGroupName, clusterName, externalAuthName)
+	return newMockServiceProviderExternalAuthCRUD(m, externalAuthResourceID)
+}
+
 // LoadFromDirectory loads cosmos-record context data from a directory.
 // It reads all JSON files that match the pattern for "load" directories.
 func (m *MockResourcesDBClient) LoadFromDirectory(dirPath string) error {
