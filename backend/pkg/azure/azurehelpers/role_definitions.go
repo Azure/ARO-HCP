@@ -82,6 +82,23 @@ func UnionDataActions(roleDefinitions []armauthorization.RoleDefinition) ([]stri
 	return dataActionsUnion.UnsortedList(), nil
 }
 
+// IntersectActions returns the role definition actions in a that are also present in b.
+// It assumes neither a nor b contains duplicate elements; this is not a true set
+// intersection, so repeated values in a are preserved in the result.
+func IntersectActions(a, b []string) []string {
+	lookup := make(map[string]struct{}, len(b))
+	for _, s := range b {
+		lookup[s] = struct{}{}
+	}
+	var result []string
+	for _, s := range a {
+		if _, ok := lookup[s]; ok {
+			result = append(result, s)
+		}
+	}
+	return result
+}
+
 func safeRoleDefinitionID(roleDefinition armauthorization.RoleDefinition) string {
 	if roleDefinition.ID != nil {
 		return *roleDefinition.ID
