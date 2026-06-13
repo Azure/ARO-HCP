@@ -22,6 +22,8 @@ grafana-dashboards:
     path: ./grafana-dashboards/msi-credential-refresher
   - name: Performance & Scale
     path: ./grafana-dashboards/perfscale-dashboards
+  - name: Velero
+    path: ./grafana-dashboards/velero
   - name: HCP Kube API Server
     path: ./grafana-dashboards/kas-monitor
   - name: HCP Kube API Server KSM
