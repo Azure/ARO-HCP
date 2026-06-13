@@ -19,4 +19,5 @@ package main
 import (
 	_ "github.com/Azure/ARO-HCP/internal/api/v20240610preview"
 	_ "github.com/Azure/ARO-HCP/internal/api/v20251223preview"
+	_ "github.com/Azure/ARO-HCP/internal/api/v20260630preview"
 )

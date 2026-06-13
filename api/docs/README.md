@@ -85,7 +85,7 @@ The API client can be generated using the [autorest](https://github.com/Azure/au
 the devcontainer comes with the autorest installed. The usage is straightforward:
 
 ```bash
-autorest api/readme.md --tag=v20251223preview
+autorest api/readme.md --tag=v20260630preview
 ```
 
 The autorest configuration is in the top-level `readme.md` file, which defines tags for each API version.
