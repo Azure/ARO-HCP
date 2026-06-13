@@ -97,7 +97,8 @@ deploy:
 	  --set deployment.zoneCount=${AVAILABILITY_ZONE_COUNT} \
 	  --set memoryRequest=${CS_MEMORY_REQUEST} \
 	  --set cpuRequest=${CS_CPU_REQUEST} \
-	  --set memoryLimit=${CS_MEMORY_LIMIT}
+	  --set memoryLimit=${CS_MEMORY_LIMIT} \
+	  --set dataPlaneHAProxyImage=${DATA_PLANE_HA_PROXY_IMAGE}
 
 deploy-cs-debug-jobs:
 	./hack/helm.sh cs-debug-jobs helm-charts/cs-debug-jobs ${NAMESPACE} \

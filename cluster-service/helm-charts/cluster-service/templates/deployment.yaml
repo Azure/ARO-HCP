@@ -243,6 +243,9 @@ spec:
         {{ if .Values.tracing.address }}
         - --tracing-otlp-url={{ .Values.tracing.address }}
         {{- end }}
+        {{ if .Values.dataPlaneHAProxyImage }}
+        - --data-plane-ha-proxy-image={{ .Values.dataPlaneHAProxyImage }}
+        {{- end }}
         livenessProbe:
           httpGet:
             path: /api/clusters_mgmt/v1

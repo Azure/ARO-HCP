@@ -217,6 +217,10 @@ databaseName: "ocm-cs-db"
 databasePort: "5432"
 # The name of the managed identities data plane audience resource.
 managedIdentitiesDataPlaneAudienceResource: "https://dummy.org"
+# The image used to override the HAProxy image of the worker node API server proxy.
+# If set to an empty string, either the environment variable IMAGE_SHARED_INGRESS_HAPROXY or the default shared ingress image will be used.
+# If given a value, it must be a valid image reference.
+dataPlaneHAProxyImage: ""
 # The Azure Operator Managed Identities.
 azureOperatorsMI:
   roleSetName: ""
