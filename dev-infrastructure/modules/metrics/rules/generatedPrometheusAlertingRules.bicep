@@ -89,6 +89,41 @@ Please check the status of the Prometheus pods, service endpoints, and network c
             }
           }
         ]
+        alert: 'PrometheusUptimeSampleCount'
+        enabled: true
+        labels: {
+          severity: 'warning'
+        }
+        annotations: {
+          correlationId: 'PrometheusUptimeSampleCount/{{ $labels.cluster }}'
+          description: '''Prometheus has delivered fewer than 95% of expected samples in the past 24 hours (expected 2880 at 30s interval, threshold 2736).
+Unlike PrometheusUptime which averages existing samples, this alert treats data gaps as downtime.
+A Prometheus outage that produces no samples at all will be caught by this alert.
+Check the PrometheusAgent pod status, remote write pipeline, and PodMonitor configuration.
+'''
+          info: '''Prometheus has delivered fewer than 95% of expected samples in the past 24 hours (expected 2880 at 30s interval, threshold 2736).
+Unlike PrometheusUptime which averages existing samples, this alert treats data gaps as downtime.
+A Prometheus outage that produces no samples at all will be caught by this alert.
+Check the PrometheusAgent pod status, remote write pipeline, and PodMonitor configuration.
+'''
+          runbook_url: 'TBD'
+          summary: 'Prometheus sample count below 95% SLO threshold for 24 hours.'
+          title: 'Prometheus sample count below 95% SLO threshold for 24 hours.'
+        }
+        expression: 'min by (job, namespace, cluster) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d])) < 0.95 * (24 * 3600 / 30)'
+        for: 'PT10M'
+        severity: 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
         alert: 'PrometheusPendingRate'
         enabled: true
         labels: {
