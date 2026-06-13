@@ -576,13 +576,24 @@ func parseConfig(data []byte) (*ProwJobConfig, error) {
 	}
 
 	return &ProwJobConfig{
-		Region:                src.Kusto.Location,
+		Region:                kustoRegion(src.Kusto.Location),
 		KustoName:             src.Kusto.KustoName,
 		HCPDatabase:           src.Kusto.HostedControlPlaneLogsDatabase,
 		ServiceDatabase:       src.Kusto.ServiceLogsDatabase,
 		ServiceClusterName:    src.Svc.AKS.Name,
 		ManagementClusterName: src.Mgmt.AKS.Name,
 	}, nil
+}
+
+// kustoRegion maps a deployment region to the physical Azure region that hosts
+// its Kusto cluster. EUAP ("canary") regions such as "eastus2euap" and
+// "centraluseuap" do not have their own Kusto cluster; their cluster is deployed
+// in the underlying physical region ("eastus2", "centralus"). Stripping the
+// "euap" suffix yields the region segment that resolves in DNS
+// (e.g. hcp-prod-usc.eastus2.kusto.windows.net). Non-EUAP regions are returned
+// unchanged.
+func kustoRegion(region string) string {
+	return strings.TrimSuffix(region, "euap")
 }
 
 // findArtifactDir lists subdirectories under artifacts/ and returns the one
