@@ -711,7 +711,7 @@ spec:
     spec:
       containers:
       - name: install
-        image: "arohcpsvcdev.azurecr.io/redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator@sha256:1234567890"
+        image: "arohcpsvcdev.azurecr.io/hypershift@sha256:1234567890"
         command:
         - /bin/sh
         - -c
@@ -721,7 +721,7 @@ spec:
             --managed-service ARO-HCP \
             --aro-hcp-key-vault-users-client-id __csiSecretStoreClientId__ \
             --registry-overrides "quay.io/openshift-release-dev/ocp-v4.0-art-dev=arohcpocpdev.azurecr.io/openshift-release-dev/ocp-v4.0-art-dev,quay.io/openshift-release-dev/ocp-v5.0-art-dev=arohcpocpdev.azurecr.io/openshift-release-dev/ocp-v5.0-art-dev,quay.io/openshift-release-dev/ocp-release=arohcpocpdev.azurecr.io/openshift-release-dev/ocp-release,quay.io/openshift-release-dev/ocp-release-nightly=arohcpocpdev.azurecr.io/openshift-release-dev/ocp-release-nightly,registry.redhat.io/redhat=arohcpocpdev.azurecr.io/redhat" \
-            --hypershift-image arohcpsvcdev.azurecr.io/redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator@sha256:1234567890 \
+            --hypershift-image arohcpsvcdev.azurecr.io/hypershift@sha256:1234567890 \
             --platform-monitoring=None \
             --metrics-set=SRE \
             --enable-size-tagging=true \
