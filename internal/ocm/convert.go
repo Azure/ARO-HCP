@@ -377,28 +377,11 @@ func BuildCSCluster(resourceID *azcorearm.ResourceID, tenantID string, hcpCluste
 		clusterAPIBuilder.Listening(apiListening)
 	}
 
-	clusterBuilder.NodeDrainGracePeriod(arohcpv1alpha1.NewValue().
-		Unit(csNodeDrainGracePeriodUnit).
-		Value(float64(hcpCluster.CustomerProperties.NodeDrainTimeoutMinutes)))
+	updatableConfig := ClusterUpdatableConfigFromCluster(hcpCluster)
 
-	cidrBlockAccess, err := convertCIDRBlockAllowAccessRPToCS(hcpCluster.CustomerProperties.API)
-	if err != nil {
-		return nil, nil, err
-	}
-	clusterBuilder.API(clusterAPIBuilder.CIDRBlockAccess(cidrBlockAccess))
-
-	clusterBuilder.RegistryConfig(arohcpv1alpha1.NewClusterRegistryConfig().
-		ImageDigestMirrors(convertImageDigestMirrorsToCSBuilder(hcpCluster.CustomerProperties.ImageDigestMirrors)...))
-
-	clusterAutoscalerBuilder, err := convertRpAutoscalarToCSBuilder(&hcpCluster.CustomerProperties.Autoscaling)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	// Property layering: preserve existing CS properties (on update), then
-	// overlay caller-specified properties, then experimental features.
-	// Experimental feature properties are added when enabled and deleted
-	// when disabled to ensure tag removal clears previously set values.
+	// Property layering for CS Properties(): preserve existing values (on update),
+	// overlay caller-specified properties, then applyClusterUpdatableConfig overlays
+	// updatable experimental features.
 	properties := map[string]string{}
 	if oldClusterServiceCluster != nil {
 		for k, v := range oldClusterServiceCluster.Properties() {
@@ -408,18 +391,16 @@ func BuildCSCluster(resourceID *azcorearm.ResourceID, tenantID string, hcpCluste
 	for k, v := range requiredProperties {
 		properties[k] = v
 	}
-	experimentalFeatures := hcpCluster.ServiceProviderProperties.ExperimentalFeatures
-	if experimentalFeatures.ControlPlaneAvailability == api.SingleReplicaControlPlane {
-		properties[CSPropertySingleReplica] = CSPropertyEnabled
-	} else {
-		delete(properties, CSPropertySingleReplica)
+
+	err = applyClusterUpdatableConfig(clusterBuilder, clusterAPIBuilder, properties, updatableConfig)
+	if err != nil {
+		return nil, nil, err
 	}
-	if experimentalFeatures.ControlPlanePodSizing == api.MinimalControlPlanePodSizing {
-		properties[CSPropertySizeOverride] = CSPropertyEnabled
-	} else {
-		delete(properties, CSPropertySizeOverride)
+
+	clusterAutoscalerBuilder, err := applyClusterUpdatableAutoscalerConfig(updatableConfig)
+	if err != nil {
+		return nil, nil, err
 	}
-	clusterBuilder = clusterBuilder.Properties(properties)
 
 	return clusterBuilder, clusterAutoscalerBuilder, nil
 }
