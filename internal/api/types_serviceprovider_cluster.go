@@ -36,6 +36,26 @@ const (
 	ServiceProviderClusterResourceName = "default"
 )
 
+// HostedClusterControlPlaneSize enumerates the SRE-selectable control-plane
+// sizing tiers we expose for a HostedCluster. Stored as a *string on
+// ServiceProviderClusterSpec so unset is distinguishable from "explicitly chosen."
+type HostedClusterControlPlaneSize string
+
+const (
+	HostedClusterControlPlaneSizeSmall  HostedClusterControlPlaneSize = "Small"
+	HostedClusterControlPlaneSizeMedium HostedClusterControlPlaneSize = "Medium"
+	HostedClusterControlPlaneSizeLarge  HostedClusterControlPlaneSize = "Large"
+)
+
+// IsValidHostedClusterControlPlaneSize reports whether s names a known tier.
+func IsValidHostedClusterControlPlaneSize(s string) bool {
+	switch HostedClusterControlPlaneSize(s) {
+	case HostedClusterControlPlaneSizeSmall, HostedClusterControlPlaneSizeMedium, HostedClusterControlPlaneSizeLarge:
+		return true
+	}
+	return false
+}
+
 // ServiceProviderCluster is used internally by controllers to track and pass information between them.
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type ServiceProviderCluster struct {
@@ -67,6 +87,13 @@ type ServiceProviderClusterSpec struct {
 	// Once this contains the critical values, we will create it on management clusters.
 	// We may or may not choose to store the actual state in status.  We may choose to store the actual state independently.
 	DesiredHostedCluster *v1beta1.HostedCluster `json:"desiredHostedCluster,omitempty"`
+
+	// DesiredHostedClusterControlPlaneSize is the SRE-selected control plane
+	// sizing tier (one of "Small", "Medium", "Large") to apply to the
+	// HostedCluster. Stored as *string so unset is distinguishable from any
+	// explicit choice; nil means no tier has been requested. Valid values are
+	// the HostedClusterControlPlaneSize* constants above.
+	DesiredHostedClusterControlPlaneSize *string `json:"desiredHostedClusterControlPlaneSize,omitempty"`
 }
 
 // ServiceProviderClusterSpecVersion contains the desired version information.

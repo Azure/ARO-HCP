@@ -122,6 +122,10 @@ func NewAdminAPI(
 		middleware.V1HCPResourcePattern("GET", "/serialconsole"),
 		hcpMiddleware.HandlerFunc(errorutils.ReportError(hcp.NewHCPSerialConsoleHandler(resourcesDBClient, fpaCredentialRetriever).ServeHTTP)),
 	)
+	middlewareMux.Handle(
+		middleware.V1HCPResourcePattern("POST", "/desiredcontrolplanesize"),
+		hcpMiddleware.HandlerFunc(errorutils.ReportError(hcp.NewHCPDesiredControlPlaneSizeHandler(resourcesDBClient).ServeHTTP)),
+	)
 
 	// Non-HCP admin routes
 	middlewareMux.Handle("GET /admin/helloworld", handlers.HelloWorldHandler())

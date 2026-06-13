@@ -574,6 +574,12 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		backendInformers,
 		unionKubeApplierInformers,
 	)
+	desiredControlPlaneSizeController := clusterpropertiescontroller.NewDesiredControlPlaneSizeController(
+		b.options.ResourcesDBClient,
+		activeOperationLister,
+		backendInformers,
+		unionKubeApplierInformers,
+	)
 
 	createClusterScopedReadDesiresController := controllers.NewCreateClusterScopedReadDesiresController(
 		activeOperationLister, b.options.ResourcesDBClient, b.options.KubeApplierDBClients,
@@ -778,6 +784,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go clusterBaseDomainPrefixSyncController.Run(ctx, 20)
 				go clusterPropertiesSyncController.Run(ctx, 20)
 				go identityMigrationController.Run(ctx, 20)
+				go desiredControlPlaneSizeController.Run(ctx, 20)
 				go azureRPRegistrationValidationController.Run(ctx, 20)
 				go azureClusterResourceGroupExistenceValidationController.Run(ctx, 20)
 				go azureClusterManagedIdentitiesExistenceValidationController.Run(ctx, 20)

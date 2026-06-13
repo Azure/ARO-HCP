@@ -1445,6 +1445,11 @@ func (in *ServiceProviderClusterSpec) DeepCopyInto(out *ServiceProviderClusterSp
 		*out = new(v1beta1.HostedCluster)
 		(*in).DeepCopyInto(*out)
 	}
+	if in.DesiredHostedClusterControlPlaneSize != nil {
+		in, out := &in.DesiredHostedClusterControlPlaneSize, &out.DesiredHostedClusterControlPlaneSize
+		*out = new(string)
+		**out = **in
+	}
 	return
 }
 
