@@ -5,14 +5,13 @@ tests:
 - interval: 1m
   input_series:
   # Scenario 1: A cluster that has been deleting for 7500s (over the 7200s threshold)
-  - series: 'hypershift_cluster_deleting_duration_seconds{cluster="mgmt-1",exported_namespace="hcp-ns-1",name="cluster-1",pod="pod-abc"}'
+  - series: 'cluster_deprovision_duration_seconds{cluster_id="cluster-1",cluster_external_id="ext-1",region="eastus",management_cluster="mgmt-1"}'
     values: "7500+0x15" # Value stays at 7500 for 15 minutes
   # Scenario 2: A cluster that is deleting but only for 3000s (safe)
-  - series: 'hypershift_cluster_deleting_duration_seconds{cluster="mgmt-1",exported_namespace="hcp-ns-2",name="cluster-2",pod="pod-xyz"}'
+  - series: 'cluster_deprovision_duration_seconds{cluster_id="cluster-2",cluster_external_id="ext-2",region="eastus",management_cluster="mgmt-1"}'
     values: "3000+0x15" # Value stays at 3000
   alert_rule_test:
-  # At minute 0: Alert should be pending (Active) for cluster-1, but not firing yet (needs 5m)
-  # At minute 6: Alert should be Firing
+  # At minute 6: Alert should be Firing for cluster-1 (pending since minute 0, 5m for clause satisfied)
   - eval_time: 6m
     alertname: HCPClusterStuckDeleting
     exp_alerts:
@@ -20,9 +19,11 @@ tests:
         alertname: HCPClusterStuckDeleting
         severity: warning
         cluster: mgmt-1
-        exported_namespace: hcp-ns-1
-        name: cluster-1
+        cluster_id: cluster-1
+        cluster_external_id: ext-1
+        region: eastus
+        management_cluster: mgmt-1
       exp_annotations:
         summary: "Cluster stuck deleting"
-        description: "Cluster hcp-ns-1 has been in a deleting state for more than 2 hours. \nThis may indicate that finalizers are stuck or resources are failing to cleanup.\n"
+        description: "Cluster ext-1 has been in a deleting state for more than 2 hours. \nThis may indicate that finalizers are stuck or resources are failing to cleanup.\n"
         runbook_url: TBD
