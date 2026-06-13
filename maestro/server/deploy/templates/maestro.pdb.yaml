@@ -1,0 +1,14 @@
+{{- if gt (int .Values.deployment.replicas) 1 }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: maestro
+  namespace: '{{ .Release.Namespace }}'
+  labels:
+    app: maestro
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: maestro
+{{- end }}

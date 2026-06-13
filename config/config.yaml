@@ -886,7 +886,7 @@ defaults:
       loglevel: 2
       managedIdentityName: maestro-server
       k8s:
-        replicas: 1
+        replicas: 2
         namespace: maestro
         serviceAccountName: maestro
         resources:
