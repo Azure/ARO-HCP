@@ -67656,6 +67656,10 @@ data:
           namespace:
           - metadata
           - namespace
+          resource_id:
+          - metadata
+          - annotations
+          - azure.microsoft.com/hcp-cluster-azure-resource-id
           subscription_id:
           - spec
           - platform
