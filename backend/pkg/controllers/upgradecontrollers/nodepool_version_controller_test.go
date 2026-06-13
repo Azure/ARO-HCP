@@ -541,7 +541,7 @@ func TestNodePoolVersionSyncer_SyncOnce_IntentFailed(t *testing.T) {
 
 			createTestNodePoolWithVersion(t, ctx, mockResourcesDBClient, tt.customerVersion)
 			createServiceProviderNodePoolWithVersion(t, ctx, mockResourcesDBClient, tt.nodePoolVersion)
-			createServiceProviderClusterWithVersion(t, ctx, mockResourcesDBClient, tt.controlPlaneVersion)
+			createServiceProviderClusterWithVersion(t, ctx, mockResourcesDBClient, tt.controlPlaneVersion, nil)
 
 			csNodePool := newCSNodePoolWithVersion(t, tt.nodePoolVersion)
 			mockCS.EXPECT().
@@ -999,7 +999,7 @@ func TestNodePoolVersionSyncer_SyncOnce_DesiredVersionUnchangedOnFailure_Changed
 
 	// Seed the database with a node pool
 	createTestNodePoolWithVersion(t, ctx, mockResourcesDBClient, "4.19.15")
-	createServiceProviderClusterWithVersion(t, ctx, mockResourcesDBClient, "4.19.99")
+	createServiceProviderClusterWithVersion(t, ctx, mockResourcesDBClient, "4.19.99", nil)
 
 	// Setup CS mock to return a node pool with version
 	csNodePool := newCSNodePool(t, "4.19.10")
@@ -1167,8 +1167,8 @@ func assertSyncResult(t *testing.T, err error, expectedError bool, expectedError
 	}
 }
 
-// createServiceProviderClusterWithVersion creates a ServiceProviderCluster with the given control plane version.
-func createServiceProviderClusterWithVersion(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient, controlPlaneVersion string) {
+// createServiceProviderClusterWithVersion creates a ServiceProviderCluster with the given active control plane version.
+func createServiceProviderClusterWithVersion(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient, activeVersion string, desiredVersion *semver.Version) {
 	t.Helper()
 
 	clusterResourceID := "/subscriptions/" + testSubscriptionID +
@@ -1177,7 +1177,7 @@ func createServiceProviderClusterWithVersion(t *testing.T, ctx context.Context, 
 	// ServiceProviderCluster resource ID format: {clusterResourceID}/{resourceTypeName}/{resourceName}
 	spClusterResourceID := clusterResourceID + "/" + api.ServiceProviderClusterResourceTypeName + "/" + api.ServiceProviderClusterResourceName
 
-	cpVersion := semver.MustParse(controlPlaneVersion)
+	cpVersion := semver.MustParse(activeVersion)
 	spCluster := &api.ServiceProviderCluster{
 		CosmosMetadata: api.CosmosMetadata{
 			ResourceID: api.Must(azcorearm.ParseResourceID(spClusterResourceID)),
@@ -1189,6 +1189,9 @@ func createServiceProviderClusterWithVersion(t *testing.T, ctx context.Context, 
 				},
 			},
 		},
+	}
+	if desiredVersion != nil {
+		spCluster.Spec.ControlPlaneVersion.DesiredVersion = desiredVersion
 	}
 	_, err := mockResourcesDBClient.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Create(ctx, spCluster, nil)
 	require.NoError(t, err)
