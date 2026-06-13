@@ -144,16 +144,30 @@ func (l *SliceActiveOperationLister) Get(ctx context.Context, subscriptionID, na
 
 func (l *SliceActiveOperationLister) ListActiveOperationsForCluster(ctx context.Context, subscriptionID, resourceGroupName, clusterName string) ([]*api.Operation, error) {
 	clusterKey := api.ToClusterResourceIDString(subscriptionID, resourceGroupName, clusterName)
+	return l.listByPrefix(clusterKey), nil
+}
+
+func (l *SliceActiveOperationLister) ListActiveOperationsForNodePool(ctx context.Context, subscriptionID, resourceGroupName, clusterName, nodePoolName string) ([]*api.Operation, error) {
+	nodePoolKey := api.ToNodePoolResourceIDString(subscriptionID, resourceGroupName, clusterName, nodePoolName)
+	return l.listByPrefix(nodePoolKey), nil
+}
+
+func (l *SliceActiveOperationLister) ListActiveOperationsForExternalAuth(ctx context.Context, subscriptionID, resourceGroupName, clusterName, externalAuthName string) ([]*api.Operation, error) {
+	externalAuthKey := api.ToExternalAuthResourceIDString(subscriptionID, resourceGroupName, clusterName, externalAuthName)
+	return l.listByPrefix(externalAuthKey), nil
+}
+
+func (l *SliceActiveOperationLister) listByPrefix(prefix string) []*api.Operation {
 	var result []*api.Operation
 	for _, op := range l.Operations {
 		if op.ExternalID == nil {
 			continue
 		}
-		if strings.HasPrefix(strings.ToLower(op.ExternalID.String()), strings.ToLower(clusterKey)) {
+		if strings.HasPrefix(strings.ToLower(op.ExternalID.String()), strings.ToLower(prefix)) {
 			result = append(result, op)
 		}
 	}
-	return result, nil
+	return result
 }
 
 // SliceExternalAuthLister implements listers.ExternalAuthLister backed by a slice.

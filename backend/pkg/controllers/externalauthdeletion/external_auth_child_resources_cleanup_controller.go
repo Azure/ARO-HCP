@@ -152,5 +152,7 @@ func (c *externalAuthChildResourcesCleanupController) SyncOnce(ctx context.Conte
 		return utils.TrackError(err)
 	}
 
+	logger.Info("all included external auth cosmos child resources deleted")
+
 	return nil
 }

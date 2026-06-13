@@ -130,6 +130,9 @@ func (c *nodePoolVersionSyncer) SyncOnce(ctx context.Context, key controllerutil
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get node pool from cosmos: %w", err))
 	}
+	if nodePool.ServiceProviderProperties.DeletionTimestamp != nil {
+		return nil
+	}
 	if nodePool.ServiceProviderProperties.ClusterServiceID == nil || len(nodePool.ServiceProviderProperties.ClusterServiceID.String()) == 0 {
 		// if we have no clusterservice nodepool, we have nothing to sync.
 		return nil
