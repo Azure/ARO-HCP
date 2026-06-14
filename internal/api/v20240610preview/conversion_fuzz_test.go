@@ -56,6 +56,9 @@ func TestRoundTripInternalExternalInternal(t *testing.T) {
 			// It cannot roundtrip through this version's external type.
 			// Cross-version preservation is handled by preserveUnknownClusterFields.
 			j.ImageDigestMirrors = nil
+			// Ingress was added in v2025_12_23_preview and does not exist in v20240610preview.
+			// Cross-version preservation is handled by preserveUnknownClusterFields.
+			j.Ingress = api.CustomerIngressProfile{}
 		},
 		func(j *api.HCPOpenShiftClusterStatus, c randfill.Continue) {
 			// Status does not roundtrip through the external type because it is purely an internal detail

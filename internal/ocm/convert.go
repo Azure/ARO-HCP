@@ -375,6 +375,14 @@ func BuildCSCluster(resourceID *azcorearm.ResourceID, tenantID string, hcpCluste
 			return nil, nil, err
 		}
 		clusterAPIBuilder.Listening(apiListening)
+
+		ingressListening, err := convertVisibilityToListening(hcpCluster.CustomerProperties.Ingress.Visibility)
+		if err != nil {
+			return nil, nil, err
+		}
+		clusterBuilder.Ingresses(arohcpv1alpha1.NewIngressList().Items(
+			arohcpv1alpha1.NewIngress().Default(true).Listening(ingressListening),
+		))
 	}
 
 	clusterBuilder.NodeDrainGracePeriod(arohcpv1alpha1.NewValue().

@@ -438,6 +438,8 @@ func preserveUnknownClusterFields(from, to *api.HCPOpenShiftCluster) {
 	}
 	// VnetIntegrationSubnetID was added in v2025_12_23_preview.
 	to.CustomerProperties.Platform.VnetIntegrationSubnetID = from.CustomerProperties.Platform.VnetIntegrationSubnetID
+	// Ingress was added in v2025_12_23_preview.
+	to.CustomerProperties.Ingress = from.CustomerProperties.Ingress
 	// Visibility was added in v2025_12_23_preview.
 	if from.CustomerProperties.Etcd.DataEncryption.CustomerManaged != nil && from.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms != nil {
 		if to.CustomerProperties.Etcd.DataEncryption.CustomerManaged == nil {

@@ -1532,6 +1532,22 @@ func TestValidateClusterUpdate(t *testing.T) {
 			},
 		},
 		{
+			name: "immutable ingress visibility - update",
+			newCluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Ingress.Visibility = api.VisibilityPrivate
+				return c
+			}(),
+			oldCluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Ingress.Visibility = api.VisibilityPublic
+				return c
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "field is immutable", FieldPath: "customerProperties.ingress.visibility"},
+			},
+		},
+		{
 			name: "immutable platform profile - update",
 			newCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
