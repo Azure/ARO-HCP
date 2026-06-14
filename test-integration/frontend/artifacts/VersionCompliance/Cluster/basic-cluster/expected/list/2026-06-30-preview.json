@@ -22,6 +22,9 @@
 				"keyManagementMode": "PlatformManaged"
 			}
 		},
+		"ingress": {
+			"visibility": "Public"
+		},
 		"network": {
 			"hostPrefix": 23,
 			"machineCidr": "10.0.0.0/16",

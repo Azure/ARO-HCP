@@ -201,9 +201,12 @@ func ToClusterCustomerPropertiesVersion(oldObj *api.HCPOpenShiftClusterCustomerP
 }
 
 var (
-	toCustomerDNS      = func(oldObj *api.HCPOpenShiftClusterCustomerProperties) *api.CustomerDNSProfile { return &oldObj.DNS }
-	toNetwork          = func(oldObj *api.HCPOpenShiftClusterCustomerProperties) *api.NetworkProfile { return &oldObj.Network }
-	toCustomerAPI      = func(oldObj *api.HCPOpenShiftClusterCustomerProperties) *api.CustomerAPIProfile { return &oldObj.API }
+	toCustomerDNS     = func(oldObj *api.HCPOpenShiftClusterCustomerProperties) *api.CustomerDNSProfile { return &oldObj.DNS }
+	toNetwork         = func(oldObj *api.HCPOpenShiftClusterCustomerProperties) *api.NetworkProfile { return &oldObj.Network }
+	toCustomerAPI     = func(oldObj *api.HCPOpenShiftClusterCustomerProperties) *api.CustomerAPIProfile { return &oldObj.API }
+	toCustomerIngress = func(oldObj *api.HCPOpenShiftClusterCustomerProperties) *api.CustomerIngressProfile {
+		return &oldObj.Ingress
+	}
 	toCustomerPlatform = func(oldObj *api.HCPOpenShiftClusterCustomerProperties) *api.CustomerPlatformProfile {
 		return &oldObj.Platform
 	}
@@ -235,6 +238,9 @@ func validateClusterCustomerProperties(ctx context.Context, op operation.Operati
 
 	// API                     CustomerAPIProfile                  `json:"api,omitempty"`
 	errs = append(errs, validateCustomerAPIProfile(ctx, op, fldPath.Child("api"), &newObj.API, safe.Field(oldObj, toCustomerAPI))...)
+
+	// Ingress                 CustomerIngressProfile              `json:"ingress,omitempty"`
+	errs = append(errs, validateCustomerIngressProfile(ctx, op, fldPath.Child("ingress"), &newObj.Ingress, safe.Field(oldObj, toCustomerIngress))...)
 
 	// Platform                CustomerPlatformProfile             `json:"platform,omitempty"`
 	errs = append(errs, immutableByReflect(ctx, op, fldPath.Child("platform"), &newObj.Platform, safe.Field(oldObj, toCustomerPlatform))...)
@@ -541,6 +547,21 @@ func validateCustomerAPIProfile(ctx context.Context, op operation.Operation, fld
 			nil, nil,
 			NoExtraWhitespace,
 		)...)
+
+	return errs
+}
+
+var (
+	toIngressVisibility = func(oldObj *api.CustomerIngressProfile) *api.Visibility { return &oldObj.Visibility }
+)
+
+func validateCustomerIngressProfile(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.CustomerIngressProfile) field.ErrorList {
+	errs := field.ErrorList{}
+
+	// Visibility      Visibility `json:"visibility,omitempty"`
+	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("visibility"), &newObj.Visibility, nil)...)
+	errs = append(errs, immutableByCompare(ctx, op, fldPath.Child("visibility"), &newObj.Visibility, safe.Field(oldObj, toIngressVisibility))...)
+	errs = append(errs, validate.Enum(ctx, op, fldPath.Child("visibility"), &newObj.Visibility, nil, api.ValidVisibility, nil)...)
 
 	return errs
 }

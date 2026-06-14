@@ -147,6 +147,11 @@ func TestEnsureDefaultsConsistencyCluster(t *testing.T) {
 			canonicalVal: string(ensuredDefault.CustomerProperties.Etcd.DataEncryption.KeyManagementMode),
 			internalVal:  string(internalDefault.CustomerProperties.Etcd.DataEncryption.KeyManagementMode),
 		},
+		{
+			name:         "Ingress.Visibility",
+			canonicalVal: string(ensuredDefault.CustomerProperties.Ingress.Visibility),
+			internalVal:  string(internalDefault.CustomerProperties.Ingress.Visibility),
+		},
 	}
 
 	for _, c := range internalChecks {
@@ -222,6 +227,7 @@ func TestEnsureDefaultsConsistencyCluster(t *testing.T) {
 			{"OutboundType", string(ensuredDefault.CustomerProperties.Platform.OutboundType), stringPtrFromGenerated(externalDefault.Properties.Platform.OutboundType)},
 			{"ClusterImageRegistry.State", string(ensuredDefault.CustomerProperties.ClusterImageRegistry.State), stringPtrFromGenerated(externalDefault.Properties.ClusterImageRegistry.State)},
 			{"Etcd.DataEncryption.KeyManagementMode", string(ensuredDefault.CustomerProperties.Etcd.DataEncryption.KeyManagementMode), stringPtrFromGenerated(externalDefault.Properties.Etcd.DataEncryption.KeyManagementMode)},
+			{"Ingress.Visibility", string(ensuredDefault.CustomerProperties.Ingress.Visibility), stringPtrFromGenerated(externalDefault.Properties.Ingress.Visibility)},
 		}
 		for _, c := range checks {
 			t.Run(c.name, func(t *testing.T) {
@@ -281,6 +287,7 @@ func TestPreExistingDataCluster(t *testing.T) {
 		{"OutboundType", string(internalCluster.CustomerProperties.Platform.OutboundType), string(api.OutboundTypeLoadBalancer)},
 		{"ClusterImageRegistry.State", string(internalCluster.CustomerProperties.ClusterImageRegistry.State), string(api.ClusterImageRegistryStateEnabled)},
 		{"Etcd.DataEncryption.KeyManagementMode", string(internalCluster.CustomerProperties.Etcd.DataEncryption.KeyManagementMode), string(api.EtcdDataEncryptionKeyManagementModeTypePlatformManaged)},
+		{"Ingress.Visibility", string(internalCluster.CustomerProperties.Ingress.Visibility), string(api.VisibilityPublic)},
 	}
 	for _, c := range checks {
 		t.Run(c.name, func(t *testing.T) {
@@ -456,6 +463,9 @@ func TestCanonicalDefaultsConsistencyCluster(t *testing.T) {
 	}
 	if internalDefault.CustomerProperties.ClusterImageRegistry.State != api.ClusterImageRegistryStateEnabled {
 		t.Errorf("ClusterImageRegistryState = %q, want %q", internalDefault.CustomerProperties.ClusterImageRegistry.State, api.ClusterImageRegistryStateEnabled)
+	}
+	if internalDefault.CustomerProperties.Ingress.Visibility != api.VisibilityPublic {
+		t.Errorf("Ingress.Visibility = %q, want %q", internalDefault.CustomerProperties.Ingress.Visibility, api.VisibilityPublic)
 	}
 }
 

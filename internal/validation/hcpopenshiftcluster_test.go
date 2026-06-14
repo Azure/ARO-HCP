@@ -109,6 +109,14 @@ func TestClusterRequired(t *testing.T) {
 				},
 				{
 					Message:   "Required value",
+					FieldPath: "customerProperties.ingress.visibility",
+				},
+				{
+					Message:   "Unsupported value",
+					FieldPath: "customerProperties.ingress.visibility",
+				},
+				{
+					Message:   "Required value",
 					FieldPath: "customerProperties.platform.managedResourceGroup",
 				},
 				{

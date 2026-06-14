@@ -488,9 +488,10 @@ func (c *HcpOpenShiftCluster) ConvertToInternal(existing *api.HCPOpenShiftCluste
 }
 
 // preserveUnknownClusterFields copies customer-facing fields from existing that
-// this API version doesn't know about. Currently empty — no cross-version
-// customer fields exist yet between v20240610preview and v20251223preview.
+// this API version doesn't know about.
 func preserveUnknownClusterFields(from, to *api.HCPOpenShiftCluster) {
+	// Ingress was added in v2026_06_30_preview.
+	to.CustomerProperties.Ingress = from.CustomerProperties.Ingress
 }
 
 func normalizeManagedIdentity(identity *generated.ManagedServiceIdentity) *arm.ManagedServiceIdentity {
