@@ -8,6 +8,9 @@
 		"api": {
 			"visibility": "Public"
 		},
+		"ingress": {
+			"visibility": "Public"
+		},
 		"autoscaling": {
 			"maxPodGracePeriodSeconds": -1
 		},

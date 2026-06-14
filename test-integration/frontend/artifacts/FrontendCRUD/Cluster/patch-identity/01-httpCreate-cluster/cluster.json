@@ -11,6 +11,9 @@
 		"api": {
 			"visibility": "Public"
 		},
+		"ingress": {
+			"visibility": "Public"
+		},
 		"clusterImageRegistry": {
 			"state": "Disabled"
 		},

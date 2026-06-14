@@ -15,6 +15,9 @@
 			"api": {
 				"visibility": "Public"
 			},
+			"ingress": {
+				"visibility": "Public"
+			},
 			"autoscaling": {
 				"maxNodeProvisionTimeSeconds": 900,
 				"maxPodGracePeriodSeconds": 600,
