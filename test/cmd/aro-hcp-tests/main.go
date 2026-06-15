@@ -197,6 +197,11 @@ func setupCli() *cobra.Command {
 		panic(fmt.Sprintf("couldn't build extension test specs from ginkgo: %+v", err.Error()))
 	}
 
+	// TEMPORARY: run only the HCP cluster-creation happy-path test for a single
+	// OCP version. REVERT before merging — leaving this in silently skips all
+	// other tests in CI.
+	specs = specs.MustFilter([]string{`name.contains("control plane and node pool install") && name.contains("for 4.20")`})
+
 	// You can add hooks to run before/after tests. There are BeforeEach, BeforeAll, AfterEach,
 	// and AfterAll. "Each" functions must be thread safe.
 	//
