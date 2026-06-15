@@ -711,7 +711,7 @@ spec:
     spec:
       containers:
       - name: install
-        image: "arohcpsvcdev.azurecr.io/redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator@sha256:1234567890"
+        image: 'arohcpsvcdev.azurecr.io/redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator@sha256:1234567890'
         command:
         - /bin/sh
         - -c

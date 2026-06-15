@@ -711,7 +711,7 @@ spec:
     spec:
       containers:
       - name: install
-        image: "quay.io/test/hypershift-operator:pr-1234"
+        image: 'quay.io/test/hypershift-operator:pr-1234'
         command:
         - /bin/sh
         - -c
