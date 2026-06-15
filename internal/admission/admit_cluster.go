@@ -165,7 +165,7 @@ func mutateClusterExperimentalFeatures(_ context.Context, admissionContext *Clus
 		if strings.TrimSpace(cpoImageValue) == "" {
 			errs = append(errs, field.Invalid(
 				tagsPath.Key(api.TagClusterCPOImageOverride), cpoImageValue,
-				"must be a valid container image reference or empty",
+				"must not be blank when provided",
 			))
 		} else {
 			experimentalFeatures.ControlPlaneOperatorImage = cpoImageValue
