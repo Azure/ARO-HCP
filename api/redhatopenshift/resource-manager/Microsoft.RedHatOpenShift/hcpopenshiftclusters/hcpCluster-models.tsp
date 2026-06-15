@@ -48,7 +48,7 @@ model NodePool is TrackedResource<NodePoolProperties> {
 model ExternalAuth is ProxyResource<ExternalAuthProperties> {
   ...ResourceNameParameter<
     ExternalAuth,
-    NamePattern = "^[a-zA-Z][-a-zA-Z0-9]{1,15}$"
+    NamePattern = "^[a-zA-Z]([-a-zA-Z0-9]{0,13}[a-zA-Z0-9])?$"
   >;
 }
 
