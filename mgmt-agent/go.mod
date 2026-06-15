@@ -4,16 +4,18 @@ go 1.25.7
 
 require (
 	github.com/Azure/ARO-HCP/internal v0.0.0-00010101000000-000000000000
-	github.com/Azure/ARO-Tools/testutil v0.0.0-20260602125010-e7c9d4923e48
+	github.com/Azure/ARO-Tools/testutil v0.0.0-20260610232034-297626079c7d
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.21.1
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.13.1
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6 v6.3.0
+	github.com/go-logr/logr v1.4.3
 	github.com/openshift/hypershift v0.1.76
 	github.com/openshift/hypershift/api v0.0.0-20260602200802-c135e0c47b37
 	github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring v0.88.0
 	github.com/spf13/cobra v1.10.2
 	golang.org/x/sync v0.20.0
 	k8s.io/api v0.35.3
+	k8s.io/apiextensions-apiserver v0.35.3
 	k8s.io/apimachinery v0.35.3
 	k8s.io/client-go v0.35.3
 	k8s.io/component-base v0.35.3
@@ -32,7 +34,6 @@ require (
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/emicklei/go-restful/v3 v3.13.0 // indirect
 	github.com/fxamacker/cbor/v2 v2.9.0 // indirect
-	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-openapi/jsonpointer v0.22.4 // indirect
 	github.com/go-openapi/jsonreference v0.21.4 // indirect
 	github.com/go-openapi/swag v0.25.4 // indirect

@@ -1,5 +1,5 @@
-github.com/Azure/ARO-Tools/testutil v0.0.0-20260602125010-e7c9d4923e48 h1:JgKnaIucbLA8zaA/m2VuvEyAHLHoPX1hNiTI+351Meo=
-github.com/Azure/ARO-Tools/testutil v0.0.0-20260602125010-e7c9d4923e48/go.mod h1:6V1kLTbkz3TLTspxt7fAI8Xy4EdBdsvLR5mk0gkry7k=
+github.com/Azure/ARO-Tools/testutil v0.0.0-20260610232034-297626079c7d h1:52WFeBnjksva+1qEzrXvmqf3nzwEF4kvgukUWPBQLN0=
+github.com/Azure/ARO-Tools/testutil v0.0.0-20260610232034-297626079c7d/go.mod h1:6V1kLTbkz3TLTspxt7fAI8Xy4EdBdsvLR5mk0gkry7k=
 github.com/Azure/azure-sdk-for-go v68.0.0+incompatible h1:fcYLmCpyNYRnvJbPerq7U0hS+6+I79yEDJBqVNcqUzU=
 github.com/Azure/azure-sdk-for-go/sdk/azcore v1.21.1 h1:jHb/wfvRikGdxMXYV3QG/SzUOPYN9KEUUuC0Yd0/vC0=
 github.com/Azure/azure-sdk-for-go/sdk/azcore v1.21.1/go.mod h1:pzBXCYn05zvYIrwLgtK8Ap8QcjRg+0i76tMQdWN6wOk=
@@ -182,6 +182,8 @@ gopkg.in/yaml.v3 v3.0.1 h1:fxVm/GzAzEWqLHuvctI91KS9hhNmmWOoWu0XTYJS7CA=
 gopkg.in/yaml.v3 v3.0.1/go.mod h1:K4uyk7z7BCEPqu6E+C64Yfv1cQ7kz7rIZviUmN+EgEM=
 k8s.io/api v0.35.3 h1:pA2fiBc6+N9PDf7SAiluKGEBuScsTzd2uYBkA5RzNWQ=
 k8s.io/api v0.35.3/go.mod h1:9Y9tkBcFwKNq2sxwZTQh1Njh9qHl81D0As56tu42GA4=
+k8s.io/apiextensions-apiserver v0.35.3 h1:2fQUhEO7P17sijylbdwt0nBdXP0TvHrHj0KeqHD8FiU=
+k8s.io/apiextensions-apiserver v0.35.3/go.mod h1:tK4Kz58ykRpwAEkXUb634HD1ZAegEElktz/B3jgETd8=
 k8s.io/apimachinery v0.35.3 h1:MeaUwQCV3tjKP4bcwWGgZ/cp/vpsRnQzqO6J6tJyoF8=
 k8s.io/apimachinery v0.35.3/go.mod h1:jQCgFZFR1F4Ik7hvr2g84RTJSZegBc8yHgFWKn//hns=
 k8s.io/client-go v0.35.3 h1:s1lZbpN4uI6IxeTM2cpdtrwHcSOBML1ODNTCCfsP1pg=
