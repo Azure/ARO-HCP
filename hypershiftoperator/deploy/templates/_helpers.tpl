@@ -2,6 +2,6 @@
 {{- if .Values.hoImageOverride -}}
 {{- .Values.hoImageOverride -}}
 {{- else -}}
-{{ .Values.image }}@{{ .Values.imageDigest }}
+{{- .Values.image }}@{{ .Values.imageDigest -}}
 {{- end -}}
 {{- end -}}
