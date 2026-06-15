@@ -17,6 +17,7 @@ package upgradecontrollers
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/blang/semver/v4"
 	"github.com/go-logr/logr"
@@ -377,6 +378,45 @@ func TestDesiredControlPlaneZVersion_NextYStreamUpgrade(t *testing.T) {
 			expectedError:   false,
 		},
 		{
+			name:                 "Y-stream upgrade - waits when live node pool SPNP missing",
+			activeVersions:       []api.HCPClusterActiveVersion{{Version: ptr.To(semver.MustParse("4.19.22")), State: configv1.CompletedUpdate}},
+			customerDesiredMinor: "4.20",
+			channelGroup:         "stable",
+			mockSetup:            func(mc *cincinnati.MockClient) {},
+			cosmosResources:      testCosmosClusterWithWorkersNodePoolMissingSPNP("4.18.0"),
+			expectedVersion:      nil,
+			expectedError:        false,
+		},
+		{
+			name:                 "Y-stream upgrade - proceeds when workers node pool is deleting",
+			activeVersions:       []api.HCPClusterActiveVersion{{Version: ptr.To(semver.MustParse("4.19.22")), State: configv1.CompletedUpdate}},
+			customerDesiredMinor: "4.20",
+			channelGroup:         "stable",
+			mockSetup: func(mc *cincinnati.MockClient) {
+				mc.EXPECT().GetUpdates(gomock.AssignableToTypeOf(context.Background()), api.Must(cincinnati.GetCincinnatiURI("stable")), "multi", "multi", "stable-4.20", semver.MustParse("4.19.22")).Return(
+					configv1.Release{Version: "4.19.22"},
+					[]configv1.Release{{Version: "4.20.15"}, {Version: "4.20.10"}, {Version: "4.19.25"}},
+					[]configv1.ConditionalUpdate{},
+					nil,
+				)
+				mc.EXPECT().GetUpdates(gomock.AssignableToTypeOf(context.Background()), api.Must(cincinnati.GetCincinnatiURI("stable")), "multi", "multi", "stable-4.21", semver.MustParse("4.20.15")).Return(
+					configv1.Release{Version: "4.20.15"},
+					[]configv1.Release{},
+					[]configv1.ConditionalUpdate{},
+					nil,
+				).Times(2)
+				mc.EXPECT().GetUpdates(gomock.AssignableToTypeOf(context.Background()), api.Must(cincinnati.GetCincinnatiURI("stable")), "multi", "multi", "stable-4.21", semver.MustParse("4.20.10")).Return(
+					configv1.Release{Version: "4.20.10"},
+					[]configv1.Release{{Version: "4.21.0"}},
+					[]configv1.ConditionalUpdate{},
+					nil,
+				)
+			},
+			cosmosResources: testCosmosClusterWithDeletingWorkersNodePool("4.18.0"),
+			expectedVersion: ptr.To(semver.MustParse("4.20.10")),
+			expectedError:   false,
+		},
+		{
 			name:                 "Y-stream upgrade - no direct path, falls back to Z-stream",
 			activeVersions:       []api.HCPClusterActiveVersion{{Version: ptr.To(semver.MustParse("4.19.15")), State: configv1.CompletedUpdate}},
 			customerDesiredMinor: "4.20",
@@ -590,9 +630,52 @@ func TestDesiredControlPlaneZVersion_NextYStreamUpgrade(t *testing.T) {
 	}
 }
 
-// testCosmosClusterWithWorkersNodePoolAtVersion returns a cluster and workers node pool for the subscription, resource group,
-// and cluster name shared by desiredControlPlaneZVersion tests. nodePoolVersionId is properties.version.id on the pool.
+// testCosmosClusterWithWorkersNodePoolAtVersion returns a cluster, workers node pool, and matching
+// ServiceProviderNodePool for desiredControlPlaneZVersion tests. nodePoolVersionId is
+// properties.version.id on the pool.
 func testCosmosClusterWithWorkersNodePoolAtVersion(nodePoolVersionId string) []any {
+	clusterResourceId := api.Must(api.ToClusterResourceID("6b690bec-0c16-4ecb-8f67-781caf40bba7", "test-rg", "test-cluster"))
+	cluster := &api.HCPOpenShiftCluster{
+		CosmosMetadata: arm.CosmosMetadata{
+			ResourceID: clusterResourceId,
+		},
+		TrackedResource: arm.TrackedResource{
+			Resource: arm.Resource{
+				ID:   clusterResourceId,
+				Name: clusterResourceId.Name,
+				Type: clusterResourceId.ResourceType.String(),
+			},
+		},
+		ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
+			ClusterServiceID: api.Ptr(api.Must(api.NewInternalID("/api/clusters_mgmt/v1/clusters/test-cluster"))),
+		},
+	}
+	nodePoolResourceId := api.Must(azcorearm.ParseResourceID(clusterResourceId.String() + "/nodePools/workers"))
+	spnpResourceID := api.Must(azcorearm.ParseResourceID(
+		nodePoolResourceId.String() + "/" + api.ServiceProviderNodePoolResourceTypeName + "/" + api.ServiceProviderNodePoolResourceName))
+	return []any{
+		cluster,
+		&api.HCPOpenShiftClusterNodePool{
+			CosmosMetadata: arm.CosmosMetadata{
+				ResourceID: nodePoolResourceId,
+			},
+			TrackedResource: arm.NewTrackedResource(nodePoolResourceId, "eastus"),
+			Properties: api.HCPOpenShiftClusterNodePoolProperties{
+				Version: api.NodePoolVersionProfile{ID: nodePoolVersionId},
+			},
+			ServiceProviderProperties: api.HCPOpenShiftClusterNodePoolServiceProviderProperties{
+				ClusterServiceID: api.Ptr(api.Must(api.NewInternalID("/api/clusters_mgmt/v1/clusters/test-cluster/node_pools/workers"))),
+			},
+		},
+		&api.ServiceProviderNodePool{
+			CosmosMetadata: arm.CosmosMetadata{ResourceID: spnpResourceID},
+		},
+	}
+}
+
+// testCosmosClusterWithWorkersNodePoolMissingSPNP returns a cluster and live workers node pool
+// with no ServiceProviderNodePool document (ensure controller has not created it yet).
+func testCosmosClusterWithWorkersNodePoolMissingSPNP(nodePoolVersionId string) []any {
 	clusterResourceId := api.Must(api.ToClusterResourceID("6b690bec-0c16-4ecb-8f67-781caf40bba7", "test-rg", "test-cluster"))
 	cluster := &api.HCPOpenShiftCluster{
 		CosmosMetadata: arm.CosmosMetadata{
@@ -622,6 +705,44 @@ func testCosmosClusterWithWorkersNodePoolAtVersion(nodePoolVersionId string) []a
 			},
 			ServiceProviderProperties: api.HCPOpenShiftClusterNodePoolServiceProviderProperties{
 				ClusterServiceID: api.Ptr(api.Must(api.NewInternalID("/api/clusters_mgmt/v1/clusters/test-cluster/node_pools/workers"))),
+			},
+		},
+	}
+}
+
+// testCosmosClusterWithDeletingWorkersNodePool returns a cluster and workers node pool marked
+// for deletion with no ServiceProviderNodePool document.
+func testCosmosClusterWithDeletingWorkersNodePool(nodePoolVersionId string) []any {
+	clusterResourceId := api.Must(api.ToClusterResourceID("6b690bec-0c16-4ecb-8f67-781caf40bba7", "test-rg", "test-cluster"))
+	cluster := &api.HCPOpenShiftCluster{
+		CosmosMetadata: arm.CosmosMetadata{
+			ResourceID: clusterResourceId,
+		},
+		TrackedResource: arm.TrackedResource{
+			Resource: arm.Resource{
+				ID:   clusterResourceId,
+				Name: clusterResourceId.Name,
+				Type: clusterResourceId.ResourceType.String(),
+			},
+		},
+		ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
+			ClusterServiceID: api.Ptr(api.Must(api.NewInternalID("/api/clusters_mgmt/v1/clusters/test-cluster"))),
+		},
+	}
+	nodePoolResourceId := api.Must(azcorearm.ParseResourceID(clusterResourceId.String() + "/nodePools/workers"))
+	return []any{
+		cluster,
+		&api.HCPOpenShiftClusterNodePool{
+			CosmosMetadata: arm.CosmosMetadata{
+				ResourceID: nodePoolResourceId,
+			},
+			TrackedResource: arm.NewTrackedResource(nodePoolResourceId, "eastus"),
+			Properties: api.HCPOpenShiftClusterNodePoolProperties{
+				Version: api.NodePoolVersionProfile{ID: nodePoolVersionId},
+			},
+			ServiceProviderProperties: api.HCPOpenShiftClusterNodePoolServiceProviderProperties{
+				ClusterServiceID:  api.Ptr(api.Must(api.NewInternalID("/api/clusters_mgmt/v1/clusters/test-cluster/node_pools/workers"))),
+				DeletionTimestamp: &metav1.Time{Time: time.Now()},
 			},
 		},
 	}
@@ -1181,6 +1302,89 @@ func TestControlPlaneDesiredVersionSyncer_SyncOnce(t *testing.T) {
 					assert.Empty(t, intentFailedCondition.Message, "when wantIntentFailed.Status is false, intentFailedCondition.Message must be empty")
 				}
 			}
+		})
+	}
+}
+
+func TestListClusterAdmissionNodePools(t *testing.T) {
+	clusterResourceID := api.Must(api.ToClusterResourceID("6b690bec-0c16-4ecb-8f67-781caf40bba7", "test-rg", "test-cluster"))
+	workersNodePoolResourceID := api.Must(azcorearm.ParseResourceID(clusterResourceID.String() + "/nodePools/workers"))
+	workersSPNPResourceID := api.Must(azcorearm.ParseResourceID(
+		workersNodePoolResourceID.String() + "/" + api.ServiceProviderNodePoolResourceTypeName + "/" + api.ServiceProviderNodePoolResourceName))
+
+	newLiveWorkersNodePool := func() *api.HCPOpenShiftClusterNodePool {
+		return &api.HCPOpenShiftClusterNodePool{
+			CosmosMetadata:  arm.CosmosMetadata{ResourceID: workersNodePoolResourceID},
+			TrackedResource: arm.NewTrackedResource(workersNodePoolResourceID, "eastus"),
+			Properties: api.HCPOpenShiftClusterNodePoolProperties{
+				Version: api.NodePoolVersionProfile{ID: "4.19.15"},
+			},
+		}
+	}
+	newDeletingWorkersNodePool := func() *api.HCPOpenShiftClusterNodePool {
+		return &api.HCPOpenShiftClusterNodePool{
+			CosmosMetadata:  arm.CosmosMetadata{ResourceID: workersNodePoolResourceID},
+			TrackedResource: arm.NewTrackedResource(workersNodePoolResourceID, "eastus"),
+			ServiceProviderProperties: api.HCPOpenShiftClusterNodePoolServiceProviderProperties{
+				DeletionTimestamp: &metav1.Time{Time: time.Now()},
+			},
+		}
+	}
+	newWorkersSPNP := func() *api.ServiceProviderNodePool {
+		return &api.ServiceProviderNodePool{
+			CosmosMetadata: arm.CosmosMetadata{ResourceID: workersSPNPResourceID},
+		}
+	}
+
+	tests := []struct {
+		name      string
+		resources func() []any
+		wantReady bool
+		wantLen   int
+		wantErr   bool
+	}{
+		{
+			name: "live node pool without SPNP is not ready",
+			resources: func() []any {
+				return []any{newLiveWorkersNodePool()}
+			},
+			wantReady: false,
+			wantLen:   0,
+		},
+		{
+			name: "deleting node pool without SPNP is skipped and ready",
+			resources: func() []any {
+				return []any{newDeletingWorkersNodePool()}
+			},
+			wantReady: true,
+			wantLen:   0,
+		},
+		{
+			name: "live node pool with SPNP is ready",
+			resources: func() []any {
+				return []any{newLiveWorkersNodePool(), newWorkersSPNP()}
+			},
+			wantReady: true,
+			wantLen:   1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.Background()
+			mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, tt.resources())
+			require.NoError(t, err)
+
+			syncer := &controlPlaneDesiredVersionSyncer{resourcesDBClient: mockResourcesDBClient}
+			gotPools, ready, err := syncer.listClusterAdmissionNodePools(ctx, clusterResourceID)
+
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantReady, ready)
+			assert.Len(t, gotPools, tt.wantLen)
 		})
 	}
 }

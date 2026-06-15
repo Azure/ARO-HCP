@@ -102,8 +102,7 @@ func GetOrCreateServiceProviderCluster(
 }
 
 // CreateServiceProviderCluster creates the singleton ServiceProviderCluster document
-// for the given cluster resource ID. A nil return means the document was created or
-// already exists (HTTP 409 Conflict).
+// for the given cluster resource ID.
 func CreateServiceProviderCluster(
 	ctx context.Context, dbClient ResourcesDBClient, clusterResourceID *azcorearm.ResourceID,
 ) error {

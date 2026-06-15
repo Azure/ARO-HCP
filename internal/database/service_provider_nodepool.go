@@ -104,8 +104,7 @@ func GetOrCreateServiceProviderNodePool(
 }
 
 // CreateServiceProviderNodePool creates the singleton ServiceProviderNodePool document
-// for the given node pool resource ID. A nil return means the document was created or
-// already exists (HTTP 409 Conflict).
+// for the given node pool resource ID.
 func CreateServiceProviderNodePool(
 	ctx context.Context, dbClient ResourcesDBClient, nodePoolResourceID *azcorearm.ResourceID,
 ) error {
