@@ -664,16 +664,13 @@
   "templating": {
     "list": [
       {
-        "current": {
-          "text": "Managed_Prometheus_services-usw3",
-          "value": "services-usw3"
-        },
+        "current": {},
         "includeAll": false,
         "name": "datasource",
         "options": [],
         "query": "prometheus",
         "refresh": 1,
-        "regex": "",
+        "regex": "^Managed_Prometheus_services-.*$",
         "type": "datasource"
       },
       {
