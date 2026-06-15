@@ -2022,13 +2022,22 @@ func (c *clients) waitForPoolVMSS(ctx context.Context, poolName string, timeout 
 }
 
 // patchVMSSAccelNetworking sets accelerated-networking to want on every NIC
-// configuration of the VMSS via a read-modify-write full PUT. A full PUT
-// (rather than a partial Update) is used so the existing IP configurations and
-// subnet bindings are preserved verbatim. Directly patching an AKS-managed VMSS
-// is unsupported by AKS, but Microsoft explicitly asked us to do this in ICM
-// 815156644 as the mitigation for the RP bringing Swift VMSS up with
-// accelerated-networking disabled; callers must re-verify the value afterwards
-// because AKS may reconcile it back.
+// configuration of the VMSS via a scoped PATCH that carries only the network
+// profile. Directly patching an AKS-managed VMSS is unsupported by AKS, but
+// Microsoft explicitly asked us to do this in ICM 815156644 as the mitigation
+// for the RP bringing Swift VMSS up with accelerated-networking disabled;
+// callers must re-verify the value afterwards because AKS may reconcile it back.
+//
+// A scoped PATCH (Update) is used instead of a read-modify-write full PUT
+// (CreateOrUpdate) on purpose. A full PUT re-sends the VMSS
+// storageProfile.imageReference, which on AKS nodes points at a shared-image
+// gallery version in a first-party (RP-owned) subscription. ARM then runs a
+// linked-access check (Microsoft.Compute/galleries/images/versions/read) on
+// that subscription, which the deploying identity is not authorized for, so the
+// PUT fails with 403 LinkedAuthorizationFailed (observed in INT, AROSLSRE-1172).
+// Sending only the network profile omits storageProfile entirely, avoiding the
+// image link while preserving every NIC/IP configuration verbatim (the existing
+// configs are read back and re-emitted unchanged except for the AN flag).
 func (c *clients) patchVMSSAccelNetworking(ctx context.Context, vmssName string, want bool) error {
 	resp, err := c.vmss.Get(ctx, c.cfg.nodeRG, vmssName, nil)
 	if err != nil {
@@ -2046,8 +2055,21 @@ func (c *clients) patchVMSSAccelNetworking(ctx context.Context, vmssName string,
 		}
 		nic.Properties.EnableAcceleratedNetworking = ptr(want)
 	}
-	logf("patching VMSS %s accelerated-networking=%t (read-modify-write PUT)", vmssName, want)
-	poller, err := c.vmss.BeginCreateOrUpdate(ctx, c.cfg.nodeRG, vmssName, vmss, nil)
+	updNICs, err := toUpdateNetworkInterfaceConfigs(vmss.Properties.VirtualMachineProfile.NetworkProfile.NetworkInterfaceConfigurations)
+	if err != nil {
+		return fmt.Errorf("convert VMSS %s network config for patch: %w", vmssName, err)
+	}
+	update := armcompute.VirtualMachineScaleSetUpdate{
+		Properties: &armcompute.VirtualMachineScaleSetUpdateProperties{
+			VirtualMachineProfile: &armcompute.VirtualMachineScaleSetUpdateVMProfile{
+				NetworkProfile: &armcompute.VirtualMachineScaleSetUpdateNetworkProfile{
+					NetworkInterfaceConfigurations: updNICs,
+				},
+			},
+		},
+	}
+	logf("patching VMSS %s accelerated-networking=%t (scoped network PATCH; storageProfile omitted to avoid linked image auth)", vmssName, want)
+	poller, err := c.vmss.BeginUpdate(ctx, c.cfg.nodeRG, vmssName, update, nil)
 	if err != nil {
 		return fmt.Errorf("begin update VMSS %s: %w", vmssName, err)
 	}
@@ -2055,6 +2077,35 @@ func (c *clients) patchVMSSAccelNetworking(ctx context.Context, vmssName string,
 		return fmt.Errorf("poll update VMSS %s: %w", vmssName, err)
 	}
 	return nil
+}
+
+// toUpdateNetworkInterfaceConfigs converts the full-model NIC configurations
+// read from a VMSS into their PATCH/Update equivalents, preserving every field
+// (IP configurations, subnets, load-balancer pools, ...) by round-tripping
+// through the shared ARM JSON representation. The create and update Go types
+// differ only in their wrapper struct; their JSON wire keys are identical, so a
+// marshal/unmarshal is a faithful, field-drift-proof translation that keeps the
+// existing network configuration intact and changes only what the caller set.
+func toUpdateNetworkInterfaceConfigs(nics []*armcompute.VirtualMachineScaleSetNetworkConfiguration) ([]*armcompute.VirtualMachineScaleSetUpdateNetworkConfiguration, error) {
+	out := make([]*armcompute.VirtualMachineScaleSetUpdateNetworkConfiguration, 0, len(nics))
+	for _, nic := range nics {
+		if nic == nil {
+			continue
+		}
+		b, err := json.Marshal(nic)
+		if err != nil {
+			return nil, fmt.Errorf("marshal NIC config: %w", err)
+		}
+		var upd armcompute.VirtualMachineScaleSetUpdateNetworkConfiguration
+		if err := json.Unmarshal(b, &upd); err != nil {
+			return nil, fmt.Errorf("unmarshal NIC config into update form: %w", err)
+		}
+		out = append(out, &upd)
+	}
+	if len(out) == 0 {
+		return nil, errors.New("no NIC configurations to convert")
+	}
+	return out, nil
 }
 
 // ensurePoolAccelNetworking ensures poolName's backing VMSS has the correct

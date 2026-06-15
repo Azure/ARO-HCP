@@ -2484,9 +2484,10 @@ func TestZeroNodePoolBodyNil(t *testing.T) {
 // LIST read from it; BeginCreateOrUpdate writes to it, so a patch is visible to
 // the subsequent confirmation read just like real ARM.
 type fakeVMSSStore struct {
-	mu     sync.Mutex
-	byName map[string]*armcompute.VirtualMachineScaleSet
-	puts   []armcompute.VirtualMachineScaleSet // captured PUT bodies, in order
+	mu      sync.Mutex
+	byName  map[string]*armcompute.VirtualMachineScaleSet
+	puts    []armcompute.VirtualMachineScaleSet       // captured full-PUT bodies, in order
+	updates []armcompute.VirtualMachineScaleSetUpdate // captured scoped-PATCH bodies, in order
 }
 
 func newFakeVMSSStore(vmsss ...*armcompute.VirtualMachineScaleSet) *fakeVMSSStore {
@@ -2535,6 +2536,38 @@ func newFakeVMSSClient(t *testing.T, store *fakeVMSSStore) *armcompute.VirtualMa
 			store.byName[name] = &stored
 			store.puts = append(store.puts, params)
 			resp.SetTerminalResponse(http.StatusOK, armcompute.VirtualMachineScaleSetsClientCreateOrUpdateResponse{VirtualMachineScaleSet: stored}, nil)
+			return
+		},
+		BeginUpdate: func(_ context.Context, _ string, name string, params armcompute.VirtualMachineScaleSetUpdate, _ *armcompute.VirtualMachineScaleSetsClientBeginUpdateOptions) (resp azfake.PollerResponder[armcompute.VirtualMachineScaleSetsClientUpdateResponse], errResp azfake.ErrorResponder) {
+			store.mu.Lock()
+			defer store.mu.Unlock()
+			v, ok := store.byName[name]
+			if !ok {
+				errResp.SetResponseError(http.StatusNotFound, "ResourceNotFound")
+				return
+			}
+			store.updates = append(store.updates, params)
+			// Apply only the accelerated-networking flag from the scoped PATCH
+			// body onto the stored NIC configs (matched by position), mirroring
+			// ARM's merge of the network profile while leaving everything else
+			// untouched.
+			if params.Properties != nil && params.Properties.VirtualMachineProfile != nil &&
+				params.Properties.VirtualMachineProfile.NetworkProfile != nil &&
+				v.Properties != nil && v.Properties.VirtualMachineProfile != nil &&
+				v.Properties.VirtualMachineProfile.NetworkProfile != nil {
+				upd := params.Properties.VirtualMachineProfile.NetworkProfile.NetworkInterfaceConfigurations
+				cur := v.Properties.VirtualMachineProfile.NetworkProfile.NetworkInterfaceConfigurations
+				for i := range upd {
+					if i >= len(cur) || upd[i] == nil || upd[i].Properties == nil || cur[i] == nil {
+						continue
+					}
+					if cur[i].Properties == nil {
+						cur[i].Properties = &armcompute.VirtualMachineScaleSetNetworkConfigurationProperties{}
+					}
+					cur[i].Properties.EnableAcceleratedNetworking = upd[i].Properties.EnableAcceleratedNetworking
+				}
+			}
+			resp.SetTerminalResponse(http.StatusOK, armcompute.VirtualMachineScaleSetsClientUpdateResponse{VirtualMachineScaleSet: *v}, nil)
 			return
 		},
 	}
@@ -2623,16 +2656,34 @@ func TestPatchVMSSAccelNetworking(t *testing.T) {
 	if err := c.patchVMSSAccelNetworking(context.Background(), "aks-userswft3-12345678-vmss", true); err != nil {
 		t.Fatalf("patchVMSSAccelNetworking: %v", err)
 	}
-	if len(store.puts) != 1 {
-		t.Fatalf("expected exactly 1 PUT, got %d", len(store.puts))
+	// Regression guard: the fix must NOT issue a full read-modify-write PUT
+	// (which re-sends storageProfile.imageReference and triggers the linked
+	// image-gallery 403 LinkedAuthorizationFailed). It must use a scoped PATCH.
+	if len(store.puts) != 0 {
+		t.Fatalf("expected 0 full PUTs (scoped PATCH only), got %d", len(store.puts))
+	}
+	if len(store.updates) != 1 {
+		t.Fatalf("expected exactly 1 scoped PATCH, got %d", len(store.updates))
+	}
+	// The PATCH body must carry only the network profile; storageProfile must be
+	// omitted so ARM never runs the linked image-gallery auth check.
+	updProps := store.updates[0].Properties
+	if updProps == nil || updProps.VirtualMachineProfile == nil {
+		t.Fatalf("PATCH body missing virtualMachineProfile")
+	}
+	if updProps.VirtualMachineProfile.StorageProfile != nil {
+		t.Fatalf("PATCH body must omit storageProfile to avoid linked image auth")
+	}
+	if updProps.VirtualMachineProfile.NetworkProfile == nil {
+		t.Fatalf("PATCH body missing networkProfile")
 	}
 	got, found := vmssAcceleratedNetworking(store.byName["aks-userswft3-12345678-vmss"])
 	if !found || !got {
 		t.Fatalf("after patch accelerated-networking=(enabled=%v found=%v), want enabled", got, found)
 	}
-	for i, nic := range store.puts[0].Properties.VirtualMachineProfile.NetworkProfile.NetworkInterfaceConfigurations {
-		if nic.Properties.EnableAcceleratedNetworking == nil || !*nic.Properties.EnableAcceleratedNetworking {
-			t.Fatalf("PUT body NIC %d not set to accelerated-networking=true", i)
+	for i, nic := range updProps.VirtualMachineProfile.NetworkProfile.NetworkInterfaceConfigurations {
+		if nic.Properties == nil || nic.Properties.EnableAcceleratedNetworking == nil || !*nic.Properties.EnableAcceleratedNetworking {
+			t.Fatalf("PATCH body NIC %d not set to accelerated-networking=true", i)
 		}
 	}
 }
