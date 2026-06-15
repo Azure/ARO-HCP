@@ -1,18 +1,18 @@
 {
-	"id": "d3f5a8c7-2e4b-6a9d-8f1c-5b7e9d2a4f3c",
+	"id": "80ef7f71-fa0b-51a8-bb67-b5392362f0b6",
 	"partitionKey": "6b690bec-0c16-4ecb-8f67-781caf40bba7",
 	"properties": {
 		"resourceId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster/serviceProviderClusters/default",
 		"spec": {
 			"control_plane_version": {
-				"desired_version": "4.20.0"
+				"desired_version": "4.20.8"
 			}
 		},
 		"status": {
 			"control_plane_version": {
 				"active_versions": [
 					{
-						"version": "4.20.0"
+						"version": "4.20.8"
 					}
 				]
 			}

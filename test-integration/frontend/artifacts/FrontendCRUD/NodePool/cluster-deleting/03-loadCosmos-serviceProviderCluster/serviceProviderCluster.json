@@ -1,18 +1,18 @@
 {
-	"id": "f7c2b8d9-3e4a-6f2d-a5c8-1b9e7d4f3a2c",
+	"id": "e9b72e50-f976-5965-9bf2-55b984709d12",
 	"partitionKey": "0465bc32-c654-41b8-8d87-9815d7abe8f6",
 	"properties": {
 		"resourceId": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-deleting/serviceProviderClusters/default",
 		"spec": {
 			"control_plane_version": {
-				"desired_version": "4.20.0"
+				"desired_version": "4.20.8"
 			}
 		},
 		"status": {
 			"control_plane_version": {
 				"active_versions": [
 					{
-						"version": "4.20.0"
+						"version": "4.20.8"
 					}
 				]
 			}
