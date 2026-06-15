@@ -202,13 +202,13 @@ To pin an image to a specific digest and prevent automatic updates:
 2. **Update `config.yaml`** to use a specific `tag` instead of `tagPattern`:
 
 ```yaml
-aro-hcp-exporter:
+imageSync:
   source:
-    image: arohcpsvcdev.azurecr.io/arohcpmetrics
-    tag: "013ae7f72821c95873141388054ed7fdaa75dbf71d78e8701240fb39e5a39c51"  # Pin to specific digest
+    image: arohcpsvcdev.azurecr.io/image-sync/oc-mirror
+    tag: "8755133"  # Pin to a specific tag instead of tagPattern
     useAuth: true
   targets:
-  - jsonPath: defaults.customExporter.image.digest
+  - jsonPath: defaults.imageSync.ocMirror.image.digest
     filePath: ../../config/config.yaml
 ```
 
@@ -222,7 +222,7 @@ az login
 
 ```bash
 # Update specific component
-make update COMPONENTS=aro-hcp-exporter
+make update COMPONENTS=imageSync
 ```
 
 5. **Run materialize** to update rendered configs:
@@ -300,12 +300,12 @@ clusters-service:
 
 **Azure Container Registry (Private)**:
 ```yaml
-aro-hcp-exporter:
+imageSync:
   source:
-    image: arohcpsvcdev.azurecr.io/arohcpmetrics
+    image: arohcpsvcdev.azurecr.io/image-sync/oc-mirror
     useAuth: true  # Uses DefaultAzureCredential
   targets:
-  - jsonPath: defaults.customExporter.image.digest
+  - jsonPath: defaults.imageSync.ocMirror.image.digest
     filePath: ../../config/config.yaml
 ```
 
