@@ -31,7 +31,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	azfake "github.com/Azure/azure-sdk-for-go/sdk/azcore/fake"
 	armcompute "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
 	computefake "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6/fake"
@@ -2414,7 +2414,8 @@ func TestVMSSAcceleratedNetworking(t *testing.T) {
 		{name: "nic_without_value", vmss: vmssWithNICs(nil), wantFound: false},
 		{name: "single_enabled", vmss: vmssWithNICs(ptr(true)), wantEnabled: true, wantFound: true},
 		{name: "single_disabled", vmss: vmssWithNICs(ptr(false)), wantEnabled: false, wantFound: true},
-		{name: "mixed_or_enabled", vmss: vmssWithNICs(ptr(false), ptr(true)), wantEnabled: true, wantFound: true},
+		{name: "mixed_one_disabled_and_false", vmss: vmssWithNICs(ptr(false), ptr(true)), wantEnabled: false, wantFound: true},
+		{name: "all_enabled", vmss: vmssWithNICs(ptr(true), ptr(true)), wantEnabled: true, wantFound: true},
 		{name: "all_disabled", vmss: vmssWithNICs(ptr(false), ptr(false)), wantEnabled: false, wantFound: true},
 	}
 	for _, tc := range cases {
@@ -2540,7 +2541,7 @@ func newFakeVMSSClient(t *testing.T, store *fakeVMSSStore) *armcompute.VirtualMa
 	client, err := armcompute.NewVirtualMachineScaleSetsClient(
 		"00000000-0000-0000-0000-000000000000",
 		&azfake.TokenCredential{},
-		&arm.ClientOptions{ClientOptions: azcore.ClientOptions{
+		&azcorearm.ClientOptions{ClientOptions: azcore.ClientOptions{
 			Transport: computefake.NewVirtualMachineScaleSetsServerTransport(&srv),
 		}},
 	)
@@ -2572,8 +2573,9 @@ func TestFindPoolVMSS(t *testing.T) {
 	store := newFakeVMSSStore(
 		namedVMSS("aks-userswft3-12345678-vmss", "userswft3", ptr(true)),
 		namedVMSS("aks-system-87654321-vmss", "system", ptr(true)),
-		// A VMSS whose name matches the prefix of "lonely" but carries no
-		// matching tag, to exercise the name-prefix fallback path.
+		// A VMSS whose name matches the aks-<pool>- prefix of "lonely" but
+		// carries no matching tag — must NOT be matched (we never guess by
+		// name convention; only the authoritative tag counts).
 		namedVMSS("aks-lonely-00000000-vmss", "", ptr(false)),
 	)
 	c := newTestClients(store, t)
@@ -2589,13 +2591,10 @@ func TestFindPoolVMSS(t *testing.T) {
 		}
 	})
 
-	t.Run("name_prefix_fallback", func(t *testing.T) {
-		name, v, err := c.findPoolVMSS(ctx, "lonely")
-		if err != nil {
-			t.Fatalf("findPoolVMSS fallback: %v", err)
-		}
-		if name != "aks-lonely-00000000-vmss" || v == nil {
-			t.Fatalf("got name=%q, want prefix fallback aks-lonely-...", name)
+	t.Run("name_prefix_not_matched", func(t *testing.T) {
+		// "lonely" has a prefix-matching VMSS but no tag — must error.
+		if _, _, err := c.findPoolVMSS(ctx, "lonely"); err == nil {
+			t.Fatalf("expected error: prefix-only match must not be returned")
 		}
 	})
 
