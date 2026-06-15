@@ -23,7 +23,7 @@ namespace Microsoft.RedHatOpenShift;
 model HcpOpenShiftCluster is TrackedResource<HcpOpenShiftClusterProperties> {
   ...ResourceNameParameter<
     HcpOpenShiftCluster,
-    NamePattern = "^[a-zA-Z][-a-zA-Z0-9]{1,52}[a-zA-Z0-9]$"
+    NamePattern = "^[a-zA-Z]([-a-zA-Z0-9]{0,52}[a-zA-Z0-9])?$"
   >;
   ...ManagedServiceIdentityProperty;
 }
@@ -38,7 +38,7 @@ model HcpOpenShiftCluster is TrackedResource<HcpOpenShiftClusterProperties> {
 model NodePool is TrackedResource<NodePoolProperties> {
   ...ResourceNameParameter<
     NodePool,
-    NamePattern = "^[a-zA-Z][-a-zA-Z0-9]{1,13}[a-zA-Z0-9]$"
+    NamePattern = "^[a-zA-Z]([-a-zA-Z0-9]{0,13}[a-zA-Z0-9])?$"
   >;
   ...ManagedServiceIdentityProperty;
 }
