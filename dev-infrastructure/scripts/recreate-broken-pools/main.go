@@ -1284,7 +1284,7 @@ func (c *clients) detect(ctx context.Context) ([]nodePoolTarget, string, error) 
 	}
 
 	if len(wedged) == 0 && len(anBroken) == 0 {
-		return nil, fmt.Sprintf("no selected node pools with %s=%q are in wedge-compatible state or missing Swift accelerated-networking", nodePoolRoleLabel, c.cfg.nodePoolTag), nil
+		return nil, fmt.Sprintf("no selected node pools with %s=%q are in wedge-compatible state or have Swift accelerated-networking disabled", nodePoolRoleLabel, c.cfg.nodePoolTag), nil
 	}
 
 	var targets []nodePoolTarget
