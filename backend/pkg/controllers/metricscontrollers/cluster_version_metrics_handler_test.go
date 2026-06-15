@@ -157,6 +157,27 @@ func TestClusterVersionMetricsHandler_EmitsDesiredWhenNotYetActive(t *testing.T)
 	require.NoError(t, testutil.GatherAndCompare(prometheusRegistry, strings.NewReader(expected), "backend_cluster_version_info"))
 }
 
+func TestClusterVersionMetricsHandler_SkipsDuplicateActiveVersionsAfterRollback(t *testing.T) {
+	ctx := context.Background()
+	prometheusRegistry := prometheus.NewRegistry()
+	handler := newTestClusterVersionMetricsHandler(t, prometheusRegistry, newTestHostedClusterReadDesireLister(t, "11111111-1111-1111-1111-111111111111"))
+
+	cluster := newTestCluster(t, "cluster-1", arm.ProvisioningStateSucceeded, nil)
+	// ActiveVersions is newest-first; the same z-stream can appear twice after a rollback.
+	serviceProviderCluster := newTestServiceProviderCluster(t, cluster, "", []api.HCPClusterActiveVersion{
+		{Version: ptr.To(semver.MustParse("4.19.19")), State: configv1.PartialUpdate},
+		{Version: ptr.To(semver.MustParse("4.19.19")), State: configv1.CompletedUpdate},
+	})
+	handler.Sync(ctx, serviceProviderCluster)
+
+	resourceID := resourceIDMetricLabel(cluster.ID)
+	subscriptionID := subscriptionIDMetricLabel(cluster.ID)
+
+	expected := expectedBackendClusterVersionInfoMetricHeader() + fmt.Sprintf(`backend_cluster_version_info{cluster_uuid="%s",resource_id="%s",state="partial",subscription_id="%s",version="4.19.19"} 1
+`, "11111111-1111-1111-1111-111111111111", resourceID, subscriptionID)
+	require.NoError(t, testutil.GatherAndCompare(prometheusRegistry, strings.NewReader(expected), "backend_cluster_version_info"))
+}
+
 func TestClusterVersionMetricsHandler_ReplacesDesiredWhenVersionBecomesActive(t *testing.T) {
 	ctx := context.Background()
 	prometheusRegistry := prometheus.NewRegistry()

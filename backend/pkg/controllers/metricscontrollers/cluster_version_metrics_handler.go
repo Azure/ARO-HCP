@@ -109,17 +109,21 @@ func (metricsHandler *clusterVersionMetricsHandler) clusterUUIDMetricLabel(
 func (metricsHandler *clusterVersionMetricsHandler) versionStatesFromServiceProviderCluster(serviceProviderCluster *api.ServiceProviderCluster) map[string]string {
 	versionStates := make(map[string]string)
 
-	// Desired is emitted only when the target z-stream is not yet active. Active versions
-	// (partial or completed) override desired for the same version string.
-	if serviceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion != nil {
-		versionStates[serviceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion.String()] = "desired"
-	}
-
 	for _, activeVersion := range serviceProviderCluster.Status.ControlPlaneVersion.ActiveVersions {
-		if activeVersion.Version == nil {
+		version := activeVersion.Version.String()
+		// ActiveVersions is newest-first; skip duplicates that can appear after a rollback to the same z-stream.
+		if _, ok := versionStates[version]; ok {
 			continue
 		}
-		versionStates[activeVersion.Version.String()] = strings.ToLower(string(activeVersion.State))
+		versionStates[version] = strings.ToLower(string(activeVersion.State))
+	}
+
+	// Desired is emitted only when the target z-stream is not yet active.
+	if serviceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion != nil {
+		desiredVersion := serviceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion.String()
+		if _, ok := versionStates[desiredVersion]; !ok {
+			versionStates[desiredVersion] = "desired"
+		}
 	}
 
 	return versionStates
