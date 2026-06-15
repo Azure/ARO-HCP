@@ -108,9 +108,12 @@ func (c *createClusterScopedReadDesiresSyncer) SyncOnce(ctx context.Context, key
 	// ServiceProviderCluster.Status.ManagementClusterResourceID; until that
 	// lands we have nowhere to write the ReadDesire, so skip and wait for
 	// the next reconcile cycle.
-	spc, err := database.GetOrCreateServiceProviderCluster(ctx, c.resourcesDBClient, key.GetResourceID())
+	spc, err := database.GetServiceProviderCluster(ctx, c.resourcesDBClient, key.GetResourceID())
+	if database.IsNotFoundError(err) {
+		return nil
+	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get or create ServiceProviderCluster: %w", err))
+		return utils.TrackError(fmt.Errorf("failed to get ServiceProviderCluster: %w", err))
 	}
 	mcResourceID := spc.Status.ManagementClusterResourceID
 	if mcResourceID == nil {

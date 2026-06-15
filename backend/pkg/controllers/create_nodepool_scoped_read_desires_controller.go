@@ -97,9 +97,12 @@ func (c *createNodePoolScopedReadDesiresSyncer) SyncOnce(ctx context.Context, ke
 		ResourceGroupName: key.ResourceGroupName,
 		HCPClusterName:    key.HCPClusterName,
 	}
-	spc, err := database.GetOrCreateServiceProviderCluster(ctx, c.resourcesDBClient, clusterKey.GetResourceID())
+	spc, err := database.GetServiceProviderCluster(ctx, c.resourcesDBClient, clusterKey.GetResourceID())
+	if database.IsNotFoundError(err) {
+		return nil
+	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get or create ServiceProviderCluster: %w", err))
+		return utils.TrackError(fmt.Errorf("failed to get ServiceProviderCluster: %w", err))
 	}
 	mcResourceID := spc.Status.ManagementClusterResourceID
 	if mcResourceID == nil {

@@ -252,6 +252,8 @@ func TestNodePoolVersionSyncer_SyncOnce(t *testing.T) {
 			seedDB: func(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient) {
 				t.Helper()
 				createTestNodePoolWithVersion(t, ctx, mockResourcesDBClient, "4.19.15")
+				createEmptyServiceProviderCluster(t, ctx, mockResourcesDBClient)
+				createEmptyServiceProviderNodePool(t, ctx, mockResourcesDBClient)
 			},
 			mockCS: func(t *testing.T, mockCS *ocm.MockClusterServiceClientSpec) {
 				t.Helper()
@@ -300,6 +302,8 @@ func TestNodePoolVersionSyncer_SyncOnce(t *testing.T) {
 			seedDB: func(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient) {
 				t.Helper()
 				createTestNodePoolWithVersion(t, ctx, mockResourcesDBClient, "4.19.15")
+				createEmptyServiceProviderCluster(t, ctx, mockResourcesDBClient)
+				createEmptyServiceProviderNodePool(t, ctx, mockResourcesDBClient)
 			},
 			mockCS: func(t *testing.T, mockCS *ocm.MockClusterServiceClientSpec) {
 				t.Helper()
@@ -1000,6 +1004,7 @@ func TestNodePoolVersionSyncer_SyncOnce_DesiredVersionUnchangedOnFailure_Changed
 	// Seed the database with a node pool
 	createTestNodePoolWithVersion(t, ctx, mockResourcesDBClient, "4.19.15")
 	createServiceProviderClusterWithVersion(t, ctx, mockResourcesDBClient, "4.19.99")
+	createEmptyServiceProviderNodePool(t, ctx, mockResourcesDBClient)
 
 	// Setup CS mock to return a node pool with version
 	csNodePool := newCSNodePool(t, "4.19.10")
@@ -1165,6 +1170,18 @@ func assertSyncResult(t *testing.T, err error, expectedError bool, expectedError
 	} else {
 		assert.NoError(t, err)
 	}
+}
+
+// createEmptyServiceProviderNodePool seeds the minimal ServiceProviderNodePool document
+// that CreateServiceProviderNodePool / GetOrCreateServiceProviderNodePool would create.
+func createEmptyServiceProviderNodePool(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient) {
+	t.Helper()
+
+	nodePoolResourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID +
+		"/resourceGroups/" + testResourceGroupName +
+		"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName +
+		"/nodePools/" + testNodePoolName))
+	require.NoError(t, database.CreateServiceProviderNodePool(ctx, mockResourcesDBClient, nodePoolResourceID))
 }
 
 // createServiceProviderClusterWithVersion creates a ServiceProviderCluster with the given control plane version.

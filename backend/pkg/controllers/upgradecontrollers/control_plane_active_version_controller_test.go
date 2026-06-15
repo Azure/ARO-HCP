@@ -36,6 +36,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
+	"github.com/Azure/ARO-HCP/internal/database"
 	internallistertesting "github.com/Azure/ARO-HCP/internal/database/listertesting"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -101,6 +102,7 @@ func TestControlPlaneActiveVersionSyncer_SyncOnce(t *testing.T) {
 			seedDB: func(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient) {
 				t.Helper()
 				createTestHCPCluster(t, ctx, mockResourcesDBClient)
+				createEmptyServiceProviderCluster(t, ctx, mockResourcesDBClient)
 			},
 			readDesires: func(t *testing.T) []*kubeapplier.ReadDesire {
 				return []*kubeapplier.ReadDesire{newHostedClusterReadDesireWithVersions(t, nil,
@@ -125,6 +127,7 @@ func TestControlPlaneActiveVersionSyncer_SyncOnce(t *testing.T) {
 			seedDB: func(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient) {
 				t.Helper()
 				createTestHCPCluster(t, ctx, mockResourcesDBClient)
+				createEmptyServiceProviderCluster(t, ctx, mockResourcesDBClient)
 			},
 			readDesires: func(t *testing.T) []*kubeapplier.ReadDesire {
 				return []*kubeapplier.ReadDesire{newHostedClusterReadDesireWithVersions(t, nil,
@@ -148,6 +151,7 @@ func TestControlPlaneActiveVersionSyncer_SyncOnce(t *testing.T) {
 			seedDB: func(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient) {
 				t.Helper()
 				createTestHCPCluster(t, ctx, mockResourcesDBClient)
+				createEmptyServiceProviderCluster(t, ctx, mockResourcesDBClient)
 			},
 			readDesires: func(t *testing.T) []*kubeapplier.ReadDesire {
 				return []*kubeapplier.ReadDesire{newHostedClusterReadDesireWithVersions(t, nil, hsv1beta1.ControlPlaneVersionStatus{})}
@@ -165,6 +169,7 @@ func TestControlPlaneActiveVersionSyncer_SyncOnce(t *testing.T) {
 			seedDB: func(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient) {
 				t.Helper()
 				createTestHCPCluster(t, ctx, mockResourcesDBClient)
+				createEmptyServiceProviderCluster(t, ctx, mockResourcesDBClient)
 			},
 			readDesires: func(t *testing.T) []*kubeapplier.ReadDesire {
 				return []*kubeapplier.ReadDesire{newHostedClusterReadDesireWithVersions(t, nil, hsv1beta1.ControlPlaneVersionStatus{})}
@@ -182,6 +187,7 @@ func TestControlPlaneActiveVersionSyncer_SyncOnce(t *testing.T) {
 			seedDB: func(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient) {
 				t.Helper()
 				createTestHCPCluster(t, ctx, mockResourcesDBClient)
+				createEmptyServiceProviderCluster(t, ctx, mockResourcesDBClient)
 			},
 			readDesires: func(t *testing.T) []*kubeapplier.ReadDesire {
 				return []*kubeapplier.ReadDesire{newHostedClusterReadDesireWithVersions(t, nil,
@@ -207,6 +213,7 @@ func TestControlPlaneActiveVersionSyncer_SyncOnce(t *testing.T) {
 			seedDB: func(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient) {
 				t.Helper()
 				createTestHCPCluster(t, ctx, mockResourcesDBClient)
+				createEmptyServiceProviderCluster(t, ctx, mockResourcesDBClient)
 			},
 			readDesires: func(t *testing.T) []*kubeapplier.ReadDesire {
 				return []*kubeapplier.ReadDesire{newHostedClusterReadDesireWithVersions(t,
@@ -233,6 +240,7 @@ func TestControlPlaneActiveVersionSyncer_SyncOnce(t *testing.T) {
 			seedDB: func(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient) {
 				t.Helper()
 				createTestHCPCluster(t, ctx, mockResourcesDBClient)
+				createEmptyServiceProviderCluster(t, ctx, mockResourcesDBClient)
 			},
 			readDesires: func(t *testing.T) []*kubeapplier.ReadDesire {
 				return []*kubeapplier.ReadDesire{newHostedClusterReadDesireWithVersions(t, nil,
@@ -256,6 +264,7 @@ func TestControlPlaneActiveVersionSyncer_SyncOnce(t *testing.T) {
 			seedDB: func(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient) {
 				t.Helper()
 				createTestHCPCluster(t, ctx, mockResourcesDBClient)
+				createEmptyServiceProviderCluster(t, ctx, mockResourcesDBClient)
 			},
 			readDesires: func(t *testing.T) []*kubeapplier.ReadDesire {
 				return []*kubeapplier.ReadDesire{newHostedClusterReadDesireWithVersions(t,
@@ -379,6 +388,17 @@ func createTestHCPCluster(t *testing.T, ctx context.Context, mockResourcesDBClie
 	}
 	_, err = mockResourcesDBClient.HCPClusters(testSubscriptionID, testResourceGroupName).Create(ctx, cluster, nil)
 	require.NoError(t, err)
+}
+
+// createEmptyServiceProviderCluster seeds the minimal ServiceProviderCluster document
+// that CreateServiceProviderCluster / GetOrCreateServiceProviderCluster would create.
+func createEmptyServiceProviderCluster(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient) {
+	t.Helper()
+
+	clusterResourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID +
+		"/resourceGroups/" + testResourceGroupName +
+		"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName))
+	require.NoError(t, database.CreateServiceProviderCluster(ctx, mockResourcesDBClient, clusterResourceID))
 }
 
 // newHostedClusterReadDesireWithVersions builds a ReadDesire whose

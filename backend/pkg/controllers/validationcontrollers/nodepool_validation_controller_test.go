@@ -124,6 +124,19 @@ func (m *mockNodePoolValidation) Validate(_ context.Context, _ *api.HCPOpenShift
 	return m.validateErr
 }
 
+func newTestServiceProviderNodePool(t *testing.T) *api.ServiceProviderNodePool {
+	t.Helper()
+	spnpResourceID := api.Must(azcorearm.ParseResourceID(
+		"/subscriptions/" + testSubscriptionID +
+			"/resourceGroups/" + testResourceGroup +
+			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName +
+			"/nodePools/" + testNodePoolName +
+			"/serviceProviderNodePools/default"))
+	return &api.ServiceProviderNodePool{
+		CosmosMetadata: arm.CosmosMetadata{ResourceID: spnpResourceID},
+	}
+}
+
 func TestNodePoolValidationSyncer_SyncOnce(t *testing.T) {
 
 	defaultSetupDB := func(t *testing.T, ctx context.Context, mockDB *databasetesting.MockResourcesDBClient) {
@@ -133,6 +146,9 @@ func TestNodePoolValidationSyncer_SyncOnce(t *testing.T) {
 		_, err = mockDB.HCPClusters(testSubscriptionID, testResourceGroup).NodePools(testClusterName).Create(ctx, newTestNodePool(t), nil)
 		require.NoError(t, err)
 		_, err = mockDB.Subscriptions().Create(ctx, newTestSubscription(), nil)
+		require.NoError(t, err)
+		_, err = mockDB.ServiceProviderNodePools(testSubscriptionID, testResourceGroup, testClusterName, testNodePoolName).
+			Create(ctx, newTestServiceProviderNodePool(t), nil)
 		require.NoError(t, err)
 	}
 
@@ -166,6 +182,19 @@ func TestNodePoolValidationSyncer_SyncOnce(t *testing.T) {
 			validation: &mockNodePoolValidation{name: testValidationName},
 		},
 		{
+			name: "service provider node pool not found -- no-op",
+			setupDB: func(t *testing.T, ctx context.Context, mockDB *databasetesting.MockResourcesDBClient) {
+				t.Helper()
+				_, err := mockDB.HCPClusters(testSubscriptionID, testResourceGroup).Create(ctx, newTestCluster(t), nil)
+				require.NoError(t, err)
+				_, err = mockDB.HCPClusters(testSubscriptionID, testResourceGroup).NodePools(testClusterName).Create(ctx, newTestNodePool(t), nil)
+				require.NoError(t, err)
+				_, err = mockDB.Subscriptions().Create(ctx, newTestSubscription(), nil)
+				require.NoError(t, err)
+			},
+			validation: &mockNodePoolValidation{name: testValidationName},
+		},
+		{
 			name:    "validation succeeds -- condition set to True",
 			setupDB: defaultSetupDB,
 			validation: &mockNodePoolValidation{
@@ -187,26 +216,23 @@ func TestNodePoolValidationSyncer_SyncOnce(t *testing.T) {
 			name: "already-succeeded validation -- skipped",
 			setupDB: func(t *testing.T, ctx context.Context, mockDB *databasetesting.MockResourcesDBClient) {
 				t.Helper()
-				defaultSetupDB(t, ctx, mockDB)
-				spnpResourceID := api.Must(azcorearm.ParseResourceID(
-					"/subscriptions/" + testSubscriptionID +
-						"/resourceGroups/" + testResourceGroup +
-						"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName +
-						"/nodePools/" + testNodePoolName +
-						"/serviceProviderNodePools/default"))
-				spnp := &api.ServiceProviderNodePool{
-					CosmosMetadata: arm.CosmosMetadata{ResourceID: spnpResourceID},
-					Status: api.ServiceProviderNodePoolStatus{
-						Validations: []metav1.Condition{
-							{
-								Type:   testValidationName,
-								Status: metav1.ConditionTrue,
-								Reason: "Succeeded",
-							},
+				_, err := mockDB.HCPClusters(testSubscriptionID, testResourceGroup).Create(ctx, newTestCluster(t), nil)
+				require.NoError(t, err)
+				_, err = mockDB.HCPClusters(testSubscriptionID, testResourceGroup).NodePools(testClusterName).Create(ctx, newTestNodePool(t), nil)
+				require.NoError(t, err)
+				_, err = mockDB.Subscriptions().Create(ctx, newTestSubscription(), nil)
+				require.NoError(t, err)
+				spnp := newTestServiceProviderNodePool(t)
+				spnp.Status = api.ServiceProviderNodePoolStatus{
+					Validations: []metav1.Condition{
+						{
+							Type:   testValidationName,
+							Status: metav1.ConditionTrue,
+							Reason: "Succeeded",
 						},
 					},
 				}
-				_, err := mockDB.ServiceProviderNodePools(testSubscriptionID, testResourceGroup, testClusterName, testNodePoolName).Create(ctx, spnp, nil)
+				_, err = mockDB.ServiceProviderNodePools(testSubscriptionID, testResourceGroup, testClusterName, testNodePoolName).Create(ctx, spnp, nil)
 				require.NoError(t, err)
 			},
 			validation: &mockNodePoolValidation{

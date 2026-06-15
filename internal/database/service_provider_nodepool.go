@@ -38,6 +38,23 @@ func newInitialServiceProviderNodePool(npResourceID *azcorearm.ResourceID) *api.
 	}
 }
 
+// GetServiceProviderNodePool gets the singleton ServiceProviderNodePool instance
+// named `default` for the given node pool resource ID.
+func GetServiceProviderNodePool(
+	ctx context.Context, dbClient ResourcesDBClient, nodePoolResourceID *azcorearm.ResourceID,
+) (*api.ServiceProviderNodePool, error) {
+	if !armhelpers.ResourceTypeEqual(nodePoolResourceID.ResourceType, api.NodePoolResourceType) {
+		return nil, utils.TrackError(fmt.Errorf("expected resource type %s, got %s", api.NodePoolResourceType, nodePoolResourceID.ResourceType))
+	}
+
+	return dbClient.ServiceProviderNodePools(
+		nodePoolResourceID.SubscriptionID,
+		nodePoolResourceID.ResourceGroupName,
+		nodePoolResourceID.Parent.Name,
+		nodePoolResourceID.Name,
+	).Get(ctx, api.ServiceProviderNodePoolResourceName)
+}
+
 // GetOrCreateServiceProviderNodePool gets the singleton ServiceProviderNodePool
 // instance named `default` for the given node pool resource ID.
 // If it doesn't exist, it creates a new one.
@@ -84,4 +101,29 @@ func GetOrCreateServiceProviderNodePool(
 	}
 
 	return existingServiceProviderNodePool, nil
+}
+
+// CreateServiceProviderNodePool creates the singleton ServiceProviderNodePool document
+// for the given node pool resource ID. A nil return means the document was created or
+// already exists (HTTP 409 Conflict).
+func CreateServiceProviderNodePool(
+	ctx context.Context, dbClient ResourcesDBClient, nodePoolResourceID *azcorearm.ResourceID,
+) error {
+	if !armhelpers.ResourceTypeEqual(nodePoolResourceID.ResourceType, api.NodePoolResourceType) {
+		return utils.TrackError(fmt.Errorf("expected resource type %s, got %s", api.NodePoolResourceType, nodePoolResourceID.ResourceType))
+	}
+
+	serviceProviderNodePoolsDBClient := dbClient.ServiceProviderNodePools(
+		nodePoolResourceID.SubscriptionID,
+		nodePoolResourceID.ResourceGroupName,
+		nodePoolResourceID.Parent.Name,
+		nodePoolResourceID.Name,
+	)
+
+	_, err := serviceProviderNodePoolsDBClient.Create(ctx, newInitialServiceProviderNodePool(nodePoolResourceID), nil)
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to create ServiceProviderNodePool: %w", err))
+	}
+
+	return nil
 }

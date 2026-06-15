@@ -38,6 +38,22 @@ func newInitialServiceProviderCluster(clusterResourceID *azcorearm.ResourceID) *
 	}
 }
 
+// GetServiceProviderCluster gets the singleton ServiceProviderCluster instance
+// named `default` for the given cluster resource ID.
+func GetServiceProviderCluster(
+	ctx context.Context, dbClient ResourcesDBClient, clusterResourceID *azcorearm.ResourceID,
+) (*api.ServiceProviderCluster, error) {
+	if !armhelpers.ResourceTypeEqual(clusterResourceID.ResourceType, api.ClusterResourceType) {
+		return nil, utils.TrackError(fmt.Errorf("expected resource type %s, got %s", api.ClusterResourceType, clusterResourceID.ResourceType))
+	}
+
+	return dbClient.ServiceProviderClusters(
+		clusterResourceID.SubscriptionID,
+		clusterResourceID.ResourceGroupName,
+		clusterResourceID.Name,
+	).Get(ctx, api.ServiceProviderClusterResourceName)
+}
+
 // GetOrCreateServiceProviderCluster gets the singleton ServiceProviderCluster
 // instance named `default` for the given cluster resource ID.
 // If it doesn't exist, it creates a new one.
@@ -83,4 +99,28 @@ func GetOrCreateServiceProviderCluster(
 	}
 
 	return existingServiceProviderCluster, nil
+}
+
+// CreateServiceProviderCluster creates the singleton ServiceProviderCluster document
+// for the given cluster resource ID. A nil return means the document was created or
+// already exists (HTTP 409 Conflict).
+func CreateServiceProviderCluster(
+	ctx context.Context, dbClient ResourcesDBClient, clusterResourceID *azcorearm.ResourceID,
+) error {
+	if !armhelpers.ResourceTypeEqual(clusterResourceID.ResourceType, api.ClusterResourceType) {
+		return utils.TrackError(fmt.Errorf("expected resource type %s, got %s", api.ClusterResourceType, clusterResourceID.ResourceType))
+	}
+
+	serviceProviderClustersDBClient := dbClient.ServiceProviderClusters(
+		clusterResourceID.SubscriptionID,
+		clusterResourceID.ResourceGroupName,
+		clusterResourceID.Name,
+	)
+
+	_, err := serviceProviderClustersDBClient.Create(ctx, newInitialServiceProviderCluster(clusterResourceID), nil)
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to create ServiceProviderCluster: %w", err))
+	}
+
+	return nil
 }
