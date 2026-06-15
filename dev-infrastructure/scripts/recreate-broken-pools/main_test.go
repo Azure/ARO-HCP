@@ -2349,6 +2349,7 @@ func TestRunWith(t *testing.T) {
 func TestDecideAccelNetworking(t *testing.T) {
 	cases := []struct {
 		name                             string
+		swiftRequired                    bool
 		refAN, refFound, tgtAN, tgtFound bool
 		wantPatch                        bool
 		wantWant                         bool
@@ -2359,10 +2360,15 @@ func TestDecideAccelNetworking(t *testing.T) {
 		{name: "match_disabled_no_patch", refAN: false, refFound: true, tgtAN: false, tgtFound: true, wantPatch: false, wantWant: false},
 		{name: "mismatch_temp_disabled_patch_to_enabled", refAN: true, refFound: true, tgtAN: false, tgtFound: true, wantPatch: true, wantWant: true},
 		{name: "mismatch_temp_enabled_patch_to_disabled", refAN: false, refFound: true, tgtAN: true, tgtFound: true, wantPatch: true, wantWant: false},
+		// Swift pools demand AN=true regardless of the reference.
+		{name: "swift_target_disabled_patch_to_enabled", swiftRequired: true, tgtAN: false, tgtFound: true, wantPatch: true, wantWant: true},
+		{name: "swift_target_enabled_no_patch", swiftRequired: true, tgtAN: true, tgtFound: true, wantPatch: false, wantWant: true},
+		{name: "swift_target_unknown_patch_to_enabled", swiftRequired: true, tgtFound: false, wantPatch: true, wantWant: true},
+		{name: "swift_ignores_reference_disabled", swiftRequired: true, refAN: false, refFound: true, tgtAN: false, tgtFound: true, wantPatch: true, wantWant: true},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			d := decideAccelNetworking(tc.refAN, tc.refFound, tc.tgtAN, tc.tgtFound)
+			d := decideAccelNetworking(tc.swiftRequired, tc.refAN, tc.refFound, tc.tgtAN, tc.tgtFound)
 			if d.patch != tc.wantPatch {
 				t.Fatalf("patch = %v, want %v (reason: %s)", d.patch, tc.wantPatch, d.reason)
 			}
@@ -2652,7 +2658,7 @@ func TestEnsurePoolAccelNetworking(t *testing.T) {
 			namedVMSS(refVMSS, "userswft3temp", ptr(true)), // reference: AN enabled
 		)
 		c := newTestClients(store, t)
-		patched, want, err := c.ensurePoolAccelNetworking(context.Background(), "userswft3", "userswft3temp")
+		patched, want, err := c.ensurePoolAccelNetworking(context.Background(), "userswft3", "userswft3temp", false)
 		if err != nil {
 			t.Fatalf("ensurePoolAccelNetworking: %v", err)
 		}
@@ -2670,7 +2676,7 @@ func TestEnsurePoolAccelNetworking(t *testing.T) {
 			namedVMSS(refVMSS, "userswft3temp", ptr(true)),
 		)
 		c := newTestClients(store, t)
-		patched, _, err := c.ensurePoolAccelNetworking(context.Background(), "userswft3", "userswft3temp")
+		patched, _, err := c.ensurePoolAccelNetworking(context.Background(), "userswft3", "userswft3temp", false)
 		if err != nil {
 			t.Fatalf("ensurePoolAccelNetworking: %v", err)
 		}
@@ -2685,12 +2691,91 @@ func TestEnsurePoolAccelNetworking(t *testing.T) {
 			namedVMSS(refVMSS, "userswft3temp", nil), // no explicit AN -> unknown
 		)
 		c := newTestClients(store, t)
-		patched, _, err := c.ensurePoolAccelNetworking(context.Background(), "userswft3", "userswft3temp")
+		patched, _, err := c.ensurePoolAccelNetworking(context.Background(), "userswft3", "userswft3temp", false)
 		if err != nil {
 			t.Fatalf("fail-open should not error: %v", err)
 		}
 		if patched || len(store.puts) != 0 {
 			t.Fatalf("expected fail-open no-patch when reference unknown (patched=%v puts=%d)", patched, len(store.puts))
+		}
+	})
+}
+
+// =============================================================================
+// Swift pool identification + accelerated-networking precheck
+// =============================================================================
+
+func swiftAgentPool(tags map[string]string) *armcs.AgentPool {
+	t := map[string]*string{}
+	for k, v := range tags {
+		t[k] = ptr(v)
+	}
+	return &armcs.AgentPool{
+		Properties: &armcs.ManagedClusterAgentPoolProfileProperties{Tags: t},
+	}
+}
+
+func TestPoolIsSwift(t *testing.T) {
+	cases := []struct {
+		name string
+		pool *armcs.AgentPool
+		want bool
+	}{
+		{"swift_tag_true", swiftAgentPool(map[string]string{swiftNodepoolTag: "true"}), true},
+		{"swift_tag_mixed_case", swiftAgentPool(map[string]string{swiftNodepoolTag: "True"}), true},
+		{"swift_tag_false", swiftAgentPool(map[string]string{swiftNodepoolTag: "false"}), false},
+		{"swift_tag_absent", swiftAgentPool(map[string]string{"other": "true"}), false},
+		{"no_tags", swiftAgentPool(nil), false},
+		{"nil_properties", &armcs.AgentPool{}, false},
+		{"nil_pool", nil, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := poolIsSwift(tc.pool); got != tc.want {
+				t.Fatalf("poolIsSwift = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestDetectAccelNetBrokenPools(t *testing.T) {
+	store := newFakeVMSSStore(
+		// Swift pool with AN disabled -> must be flagged broken.
+		namedVMSS("aks-swdisabled-11111111-vmss", "swdisabled", ptr(false)),
+		// Swift pool with AN enabled -> healthy, not flagged.
+		namedVMSS("aks-swenabled-22222222-vmss", "swenabled", ptr(true)),
+		// Swift pool whose VMSS reports no AN setting -> indeterminate, skipped.
+		namedVMSS("aks-swunknown-33333333-vmss", "swunknown", nil),
+	)
+	c := newTestClients(store, t)
+	ctx := context.Background()
+
+	swiftPools := []nodePoolTarget{
+		{name: "swdisabled"},
+		{name: "swenabled"},
+		{name: "swunknown"},
+		// Swift pool with no backing VMSS yet -> skipped (fail-open).
+		{name: "swmissing"},
+	}
+
+	broken, err := c.detectAccelNetBrokenPools(ctx, swiftPools)
+	if err != nil {
+		t.Fatalf("detectAccelNetBrokenPools: %v", err)
+	}
+	if len(broken) != 1 {
+		t.Fatalf("expected exactly 1 broken pool, got %d: %+v", len(broken), broken)
+	}
+	if broken[0].name != "swdisabled" {
+		t.Fatalf("expected swdisabled flagged, got %q", broken[0].name)
+	}
+	if !broken[0].accelNetBroken {
+		t.Fatalf("expected accelNetBroken=true on flagged pool")
+	}
+
+	t.Run("empty_input_no_list", func(t *testing.T) {
+		got, err := c.detectAccelNetBrokenPools(ctx, nil)
+		if err != nil || got != nil {
+			t.Fatalf("empty input should return (nil,nil), got (%v,%v)", got, err)
 		}
 	})
 }
