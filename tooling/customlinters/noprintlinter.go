@@ -15,7 +15,9 @@
 package customlinters
 
 import (
+	"bytes"
 	"go/ast"
+	"os"
 	"strings"
 
 	"github.com/golangci/plugin-module-register/register"
@@ -38,6 +40,71 @@ func (l *NoPrintLinter) GetLoadMode() string {
 	return register.LoadModeTypesInfo
 }
 
+// FileCtx holds per-file state for the noprint linter.
+type FileCtx struct {
+	pass     *analysis.Pass
+	file     *ast.File
+	src      []byte
+	disabled map[int]bool // line number -> true if the check is disabled for that line
+}
+
+// buildDisabledMap pre-computes which lines are suppressed via directives.
+// A directive on the same line disables that line.
+// A directive on the previous line disables the next line only if the comment is standalone
+// (i.e. no code precedes it on that line).
+//
+// Supported directives:
+//
+//	// nolint:noprint
+//	// noprint:ignore
+func (fc *FileCtx) buildDisabledMap() {
+	fc.disabled = make(map[int]bool)
+	if fc.file == nil {
+		return
+	}
+	for _, cg := range fc.file.Comments {
+		for _, c := range cg.List {
+			txt := c.Text
+			if !strings.Contains(txt, "nolint:noprint") && !strings.Contains(txt, "noprint:ignore") {
+				continue
+			}
+			cp := fc.pass.Fset.PositionFor(c.Pos(), true)
+			fc.disabled[cp.Line] = true
+			if isNoprintStandaloneComment(fc.src, fc.pass, c) {
+				fc.disabled[cp.Line+1] = true
+			}
+		}
+	}
+}
+
+// isDisabled returns true if the starting line of node is marked as disabled.
+func (fc *FileCtx) isDisabled(node ast.Node) bool {
+	if node == nil {
+		return false
+	}
+	line := fc.pass.Fset.PositionFor(node.Pos(), true).Line
+	return fc.disabled[line]
+}
+
+// isNoprintStandaloneComment returns true if the comment starts on a line that contains
+// only whitespace before the comment token.
+func isNoprintStandaloneComment(src []byte, pass *analysis.Pass, c *ast.Comment) bool {
+	cp := pass.Fset.PositionFor(c.Pos(), true)
+	tf := pass.Fset.File(c.Pos())
+	if tf == nil {
+		return false
+	}
+	if src == nil {
+		return cp.Column == 1
+	}
+	lineStart := pass.Fset.PositionFor(tf.LineStart(cp.Line), true)
+	if lineStart.Offset < 0 || cp.Offset < lineStart.Offset || cp.Offset > len(src) {
+		return false
+	}
+	prefix := src[lineStart.Offset:cp.Offset]
+	return len(bytes.TrimSpace(prefix)) == 0
+}
+
 func (l *NoPrintLinter) run(pass *analysis.Pass) (any, error) {
 	// Map of forbidden functions by package
 	forbiddenFuncs := map[string][]string{
@@ -52,9 +119,17 @@ func (l *NoPrintLinter) run(pass *analysis.Pass) (any, error) {
 			continue
 		}
 
+		src, _ := os.ReadFile(filename) // best-effort; nil on failure is fine
+		fc := &FileCtx{pass: pass, file: file, src: src}
+		fc.buildDisabledMap()
+
 		ast.Inspect(file, func(n ast.Node) bool {
 			call, ok := n.(*ast.CallExpr)
 			if !ok {
+				return true
+			}
+
+			if fc.isDisabled(call) {
 				return true
 			}
 
