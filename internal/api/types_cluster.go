@@ -172,6 +172,7 @@ type CustomerPlatformProfile struct {
 	OutboundType            OutboundType                   `json:"outboundType,omitempty"`
 	NetworkSecurityGroupID  *azcorearm.ResourceID          `json:"networkSecurityGroupId,omitempty"`
 	OperatorsAuthentication OperatorsAuthenticationProfile `json:"operatorsAuthentication,omitempty"`
+	ContainerRegistry       *ContainerRegistryProfile      `json:"containerRegistry,omitempty"`
 }
 
 type ServiceProviderPlatformProfile struct {
@@ -239,6 +240,22 @@ type UserAssignedIdentitiesProfile struct {
 	ControlPlaneOperators  map[string]*azcorearm.ResourceID `json:"controlPlaneOperators,omitempty"`
 	DataPlaneOperators     map[string]*azcorearm.ResourceID `json:"dataPlaneOperators,omitempty"`
 	ServiceManagedIdentity *azcorearm.ResourceID            `json:"serviceManagedIdentity,omitempty"`
+}
+
+// ContainerRegistryProfile represents Azure Container Registry configuration for a cluster.
+type ContainerRegistryProfile struct {
+	Credentials ContainerRegistryCredentialProfile `json:"credentials,omitempty"`
+}
+
+// ContainerRegistryCredentialProfile represents credentials for authenticating container image pulls.
+type ContainerRegistryCredentialProfile struct {
+	Type            ContainerRegistryCredentialType `json:"type,omitempty"`
+	ManagedIdentity *UserAssignedManagedIdentity    `json:"managedIdentity,omitempty"`
+}
+
+// UserAssignedManagedIdentity identifies a user-assigned managed identity by its ARM resource ID.
+type UserAssignedManagedIdentity struct {
+	ResourceID *azcorearm.ResourceID `json:"resourceId,omitempty"`
 }
 
 // ClusterImageRegistryProfile - OpenShift cluster image registry

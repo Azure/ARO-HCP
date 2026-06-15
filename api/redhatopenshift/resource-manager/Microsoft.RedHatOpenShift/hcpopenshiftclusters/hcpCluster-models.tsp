@@ -348,6 +348,12 @@ model PlatformProfile {
   @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   operatorsAuthentication: OperatorsAuthenticationProfile;
 
+  /** Azure Container Registry configuration for authenticating image pulls
+   * on the cluster's worker nodes. */
+  @added(Versions.v2025_12_23_preview)
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
+  containerRegistry?: ContainerRegistryProfile;
+
   /** URL for the OIDC provider to be used for authentication
    * to authenticate against user Azure cloud account
    */
@@ -496,6 +502,44 @@ union OutboundType {
 
   /** The load balancer configuration */
   LoadBalancer: "LoadBalancer",
+}
+
+/** The credential type used for Azure Container Registry image pulls. */
+union ContainerRegistryCredentialType {
+  string,
+
+  /** Uses a user-assigned managed identity for container registry authentication. */
+  ManagedIdentity: "ManagedIdentity",
+}
+
+/** Identifies a user-assigned managed identity by its ARM resource ID. */
+model UserAssignedManagedIdentity {
+  /** The Azure resource ID of the user-assigned managed identity. */
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
+  resourceId: UserAssignedIdentityResourceId;
+}
+
+/** Azure Container Registry credentials configuration.
+ * Configures authentication for container image pulls from Azure Container
+ * Registry (ACR) on worker nodes. */
+model ContainerRegistryCredentialProfile {
+  /** The credential type used for container registry image pulls. */
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
+  type: ContainerRegistryCredentialType;
+
+  /** The user-assigned managed identity used for container registry image pulls.
+   * Required when type is ManagedIdentity. */
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
+  managedIdentity?: UserAssignedManagedIdentity;
+}
+
+/** Azure Container Registry configuration for a cluster.
+ * Configures how worker nodes authenticate container image pulls
+ * from Azure Container Registry (ACR). */
+model ContainerRegistryProfile {
+  /** Credentials for authenticating container image pulls. */
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
+  credentials: ContainerRegistryCredentialProfile;
 }
 
 /** The configuration that the operators of the cluster have to authenticate to Azure. */

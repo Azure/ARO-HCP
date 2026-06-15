@@ -1583,6 +1583,108 @@
         "url"
       ]
     },
+    "ContainerRegistryCredentialProfile": {
+      "type": "object",
+      "description": "Azure Container Registry credentials configuration.\nConfigures authentication for container image pulls from Azure Container\nRegistry (ACR) on worker nodes.",
+      "properties": {
+        "type": {
+          "$ref": "#/definitions/ContainerRegistryCredentialType",
+          "description": "The credential type used for container registry image pulls.",
+          "x-ms-mutability": [
+            "read",
+            "update",
+            "create"
+          ]
+        },
+        "managedIdentity": {
+          "$ref": "#/definitions/UserAssignedManagedIdentity",
+          "description": "The user-assigned managed identity used for container registry image pulls.\nRequired when type is ManagedIdentity.",
+          "x-ms-mutability": [
+            "read",
+            "update",
+            "create"
+          ]
+        }
+      },
+      "required": [
+        "type"
+      ]
+    },
+    "ContainerRegistryCredentialProfileUpdate": {
+      "type": "object",
+      "description": "Azure Container Registry credentials configuration.\nConfigures authentication for container image pulls from Azure Container\nRegistry (ACR) on worker nodes.",
+      "properties": {
+        "type": {
+          "$ref": "#/definitions/ContainerRegistryCredentialType",
+          "description": "The credential type used for container registry image pulls.",
+          "x-ms-mutability": [
+            "read",
+            "update",
+            "create"
+          ]
+        },
+        "managedIdentity": {
+          "$ref": "#/definitions/UserAssignedManagedIdentityUpdate",
+          "description": "The user-assigned managed identity used for container registry image pulls.\nRequired when type is ManagedIdentity.",
+          "x-ms-mutability": [
+            "read",
+            "update",
+            "create"
+          ]
+        }
+      }
+    },
+    "ContainerRegistryCredentialType": {
+      "type": "string",
+      "description": "The credential type used for Azure Container Registry image pulls.",
+      "enum": [
+        "ManagedIdentity"
+      ],
+      "x-ms-enum": {
+        "name": "ContainerRegistryCredentialType",
+        "modelAsString": true,
+        "values": [
+          {
+            "name": "ManagedIdentity",
+            "value": "ManagedIdentity",
+            "description": "Uses a user-assigned managed identity for container registry authentication."
+          }
+        ]
+      }
+    },
+    "ContainerRegistryProfile": {
+      "type": "object",
+      "description": "Azure Container Registry configuration for a cluster.\nConfigures how worker nodes authenticate container image pulls\nfrom Azure Container Registry (ACR).",
+      "properties": {
+        "credentials": {
+          "$ref": "#/definitions/ContainerRegistryCredentialProfile",
+          "description": "Credentials for authenticating container image pulls.",
+          "x-ms-mutability": [
+            "read",
+            "update",
+            "create"
+          ]
+        }
+      },
+      "required": [
+        "credentials"
+      ]
+    },
+    "ContainerRegistryProfileUpdate": {
+      "type": "object",
+      "description": "Azure Container Registry configuration for a cluster.\nConfigures how worker nodes authenticate container image pulls\nfrom Azure Container Registry (ACR).",
+      "properties": {
+        "credentials": {
+          "$ref": "#/definitions/ContainerRegistryCredentialProfileUpdate",
+          "description": "Credentials for authenticating container image pulls.",
+          "x-ms-mutability": [
+            "read",
+            "update",
+            "create"
+          ]
+        }
+      }
+    },
     "CustomerManagedEncryptionProfile": {
       "type": "object",
       "description": "Customer managed encryption key profile.",
@@ -3337,6 +3439,15 @@
             "create"
           ]
         },
+        "containerRegistry": {
+          "$ref": "#/definitions/ContainerRegistryProfile",
+          "description": "Azure Container Registry configuration for authenticating image pulls\non the cluster's worker nodes.",
+          "x-ms-mutability": [
+            "read",
+            "update",
+            "create"
+          ]
+        },
         "issuerUrl": {
           "type": "string",
           "format": "uri",
@@ -3359,6 +3470,15 @@
         "operatorsAuthentication": {
           "$ref": "#/definitions/OperatorsAuthenticationProfileUpdate",
           "description": "The configuration that the operators of the cluster have to authenticate to Azure",
+          "x-ms-mutability": [
+            "read",
+            "update",
+            "create"
+          ]
+        },
+        "containerRegistry": {
+          "$ref": "#/definitions/ContainerRegistryProfileUpdate",
+          "description": "Azure Container Registry configuration for authenticating image pulls\non the cluster's worker nodes.",
           "x-ms-mutability": [
             "read",
             "update",
@@ -3749,6 +3869,39 @@
             "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
           }
         ]
+      }
+    },
+    "UserAssignedManagedIdentity": {
+      "type": "object",
+      "description": "Identifies a user-assigned managed identity by its ARM resource ID.",
+      "properties": {
+        "resourceId": {
+          "$ref": "#/definitions/UserAssignedIdentityResourceId",
+          "description": "The Azure resource ID of the user-assigned managed identity.",
+          "x-ms-mutability": [
+            "read",
+            "update",
+            "create"
+          ]
+        }
+      },
+      "required": [
+        "resourceId"
+      ]
+    },
+    "UserAssignedManagedIdentityUpdate": {
+      "type": "object",
+      "description": "Identifies a user-assigned managed identity by its ARM resource ID.",
+      "properties": {
+        "resourceId": {
+          "$ref": "#/definitions/UserAssignedIdentityResourceId",
+          "description": "The Azure resource ID of the user-assigned managed identity.",
+          "x-ms-mutability": [
+            "read",
+            "update",
+            "create"
+          ]
+        }
       }
     },
     "UsernameClaimPrefixPolicy": {
