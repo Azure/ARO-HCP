@@ -419,6 +419,11 @@ func BuildCSCluster(resourceID *azcorearm.ResourceID, tenantID string, hcpCluste
 	} else {
 		delete(properties, CSPropertySizeOverride)
 	}
+	if experimentalFeatures.ControlPlaneOperatorImage != "" {
+		properties[CSPropertyCPOImageOverride] = experimentalFeatures.ControlPlaneOperatorImage
+	} else {
+		delete(properties, CSPropertyCPOImageOverride)
+	}
 	clusterBuilder = clusterBuilder.Properties(properties)
 
 	return clusterBuilder, clusterAutoscalerBuilder, nil

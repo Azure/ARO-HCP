@@ -58,7 +58,6 @@ type FrontendOpts struct {
 	clusterServiceProvisionShard  string
 	clusterServiceNoopProvision   bool
 	clusterServiceNoopDeprovision bool
-	cpoImageOverride              string
 	insecure                      bool
 
 	location    string
@@ -106,7 +105,6 @@ func NewRootCmd() *cobra.Command {
 	rootCmd.Flags().StringVar(&opts.clusterServiceProvisionShard, "cluster-service-provision-shard", "", "Manually specify provision shard for all requests to cluster service")
 	rootCmd.Flags().BoolVar(&opts.clusterServiceNoopProvision, "cluster-service-noop-provision", false, "Skip cluster service provisioning steps for development purposes")
 	rootCmd.Flags().BoolVar(&opts.clusterServiceNoopDeprovision, "cluster-service-noop-deprovision", false, "Skip cluster service deprovisioning steps for development purposes")
-	rootCmd.Flags().StringVar(&opts.cpoImageOverride, "cpo-image-override", "", "Override the control plane operator image for all new HostedClusters")
 
 	rootCmd.Flags().BoolVar(&opts.exitOnPanic, "exit-on-panic", opts.exitOnPanic,
 		"If set, frontend will exit the process if a panic occurs. As of now it only controls the setting of k8s.io/apimachinery/pkg/util/runtime.ReallyCrash",
@@ -272,7 +270,7 @@ func (opts *FrontendOpts) Run() error {
 		logger, listener, metricsListener,
 		legacyregistry.Registerer(), legacyregistry.DefaultGatherer,
 		resourcesDBClient, locksDBClient, csClient, auditClient, opts.location, opts.clusterServiceProvisionShard,
-		opts.clusterServiceNoopProvision, opts.clusterServiceNoopDeprovision, opts.cpoImageOverride, opts.exitOnPanic,
+		opts.clusterServiceNoopProvision, opts.clusterServiceNoopDeprovision, opts.exitOnPanic,
 	)
 
 	runErrCh := make(chan error, 1)

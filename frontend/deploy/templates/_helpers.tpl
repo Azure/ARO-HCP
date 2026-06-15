@@ -43,7 +43,7 @@ spec:
       - name: {{ .appName }}
         image: '{{ .Values.deployment.imageName }}'
         imagePullPolicy: Always
-        args: ["--clusters-service-url", "http://clusters-service.{{ .Values.clustersService.namespace }}.svc.cluster.local:8000", "--exit-on-panic={{ .Values.exitOnPanic }}", "--log-verbosity={{ .Values.logVerbosity }}"{{- if .Values.cpoImageOverride }}, "--cpo-image-override={{ .Values.cpoImageOverride }}"{{- end }}]
+        args: ["--clusters-service-url", "http://clusters-service.{{ .Values.clustersService.namespace }}.svc.cluster.local:8000", "--exit-on-panic={{ .Values.exitOnPanic }}", "--log-verbosity={{ .Values.logVerbosity }}"]
         env:
         - name: DB_NAME
           valueFrom:

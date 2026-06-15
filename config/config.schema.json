@@ -2388,10 +2388,6 @@
           "type": "string",
           "description": "Full image reference to override the HyperShift Operator image. Empty string uses the default."
         },
-        "cpoImageOverride": {
-          "type": "string",
-          "description": "Full image reference to override the Control Plane Operator image. Passed to Cluster Service as a cluster property."
-        },
         "additionalInstallArg": {
           "type": "string"
         },

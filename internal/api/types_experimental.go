@@ -27,6 +27,11 @@ type ExperimentalFeatures struct {
 	// control plane components. When set to Minimal, CS sets the
 	// ClusterSizeOverride annotation for reduced resource requests.
 	ControlPlanePodSizing ControlPlanePodSizing `json:"sizeOverride,omitempty"`
+
+	// ControlPlaneOperatorImage overrides the control plane operator
+	// image for a HostedCluster. When non-empty, CS sets the
+	// control-plane-operator-image annotation on the HostedCluster.
+	ControlPlaneOperatorImage string `json:"controlPlaneOperatorImage,omitempty"`
 }
 
 // ControlPlaneAvailability controls the AvailabilityPolicy for control plane components.

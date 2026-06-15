@@ -1,6 +1,0 @@
-values: ../values.yaml
-name: frontend-cpo-image-override
-namespace: aro-hcp
-testData:
-  hypershift:
-    cpoImageOverride: "testacrname.azurecr.io/hypershift:test-override-tag"

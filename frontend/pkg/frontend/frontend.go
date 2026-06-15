@@ -76,12 +76,7 @@ type Frontend struct {
 	// clusterServiceNoopDeprovision short-circuits the full deprovision flow
 	// during testing.
 	clusterServiceNoopDeprovision bool
-	// cpoImageOverride, when non-empty, is passed as a Cluster Service
-	// property so that CS sets the control-plane-operator-image annotation
-	// on HostedClusters.
-	cpoImageOverride string
-
-	apiRegistry api.APIRegistry
+	apiRegistry                   api.APIRegistry
 
 	exitOnPanic bool
 }
@@ -100,7 +95,6 @@ func NewFrontend(
 	clusterServiceProvisionShard string,
 	clusterServiceNoopProvision bool,
 	clusterServiceNoopDeprovision bool,
-	cpoImageOverride string,
 	exitOnPanic bool,
 ) *Frontend {
 	// zero side-effect registration path
@@ -132,7 +126,6 @@ func NewFrontend(
 		clusterServiceProvisionShard:  clusterServiceProvisionShard,
 		clusterServiceNoopProvision:   clusterServiceNoopProvision,
 		clusterServiceNoopDeprovision: clusterServiceNoopDeprovision,
-		cpoImageOverride:              cpoImageOverride,
 		healthGauge: promauto.With(registerer).NewGauge(
 			prometheus.GaugeOpts{
 				Name: healthGaugeName,
