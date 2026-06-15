@@ -29,8 +29,9 @@ type ExperimentalFeatures struct {
 	ControlPlanePodSizing ControlPlanePodSizing `json:"sizeOverride,omitempty"`
 
 	// ControlPlaneOperatorImage overrides the control plane operator
-	// image for a HostedCluster. When non-empty, CS sets the
-	// control-plane-operator-image annotation on the HostedCluster.
+	// image for a HostedCluster. When non-empty, the OCM converter sets
+	// the control_plane_operator_image CS cluster property, which CS
+	// translates into the HostedCluster annotation.
 	ControlPlaneOperatorImage string `json:"controlPlaneOperatorImage,omitempty"`
 }
 
