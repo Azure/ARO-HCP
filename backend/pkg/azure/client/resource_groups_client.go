@@ -30,6 +30,7 @@ type ResourceGroupsClient interface {
 		*runtime.Poller[armresources.ResourceGroupsClientDeleteResponse], error)
 	Get(ctx context.Context, resourceGroupName string, options *armresources.ResourceGroupsClientGetOptions) (
 		armresources.ResourceGroupsClientGetResponse, error)
+	NewListPager(options *armresources.ResourceGroupsClientListOptions) *runtime.Pager[armresources.ResourceGroupsClientListResponse]
 }
 
 var _ ResourceGroupsClient = (*armresources.ResourceGroupsClient)(nil)
