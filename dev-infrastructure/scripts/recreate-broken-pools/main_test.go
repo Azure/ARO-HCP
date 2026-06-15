@@ -23,6 +23,7 @@ import (
 	"reflect"
 	"sort"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -30,6 +31,10 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	azfake "github.com/Azure/azure-sdk-for-go/sdk/azcore/fake"
+	armcompute "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
+	computefake "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6/fake"
 	armcs "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v6"
 )
 
@@ -2335,4 +2340,357 @@ func TestRunWith(t *testing.T) {
 			}
 		})
 	}
+}
+
+// =============================================================================
+// accelerated-networking guard (AROSLSRE-1172)
+// =============================================================================
+
+func TestDecideAccelNetworking(t *testing.T) {
+	cases := []struct {
+		name                             string
+		refAN, refFound, tgtAN, tgtFound bool
+		wantPatch                        bool
+		wantWant                         bool
+	}{
+		{name: "reference_unknown_fails_open", refFound: false, tgtAN: false, tgtFound: true, wantPatch: false},
+		{name: "target_unknown_fails_open", refAN: true, refFound: true, tgtFound: false, wantPatch: false},
+		{name: "match_enabled_no_patch", refAN: true, refFound: true, tgtAN: true, tgtFound: true, wantPatch: false, wantWant: true},
+		{name: "match_disabled_no_patch", refAN: false, refFound: true, tgtAN: false, tgtFound: true, wantPatch: false, wantWant: false},
+		{name: "mismatch_temp_disabled_patch_to_enabled", refAN: true, refFound: true, tgtAN: false, tgtFound: true, wantPatch: true, wantWant: true},
+		{name: "mismatch_temp_enabled_patch_to_disabled", refAN: false, refFound: true, tgtAN: true, tgtFound: true, wantPatch: true, wantWant: false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			d := decideAccelNetworking(tc.refAN, tc.refFound, tc.tgtAN, tc.tgtFound)
+			if d.patch != tc.wantPatch {
+				t.Fatalf("patch = %v, want %v (reason: %s)", d.patch, tc.wantPatch, d.reason)
+			}
+			if d.patch && d.want != tc.wantWant {
+				t.Fatalf("want = %v, want %v (reason: %s)", d.want, tc.wantWant, d.reason)
+			}
+			if d.reason == "" {
+				t.Fatalf("reason must not be empty")
+			}
+		})
+	}
+}
+
+func vmssWithNICs(values ...*bool) *armcompute.VirtualMachineScaleSet {
+	nics := make([]*armcompute.VirtualMachineScaleSetNetworkConfiguration, 0, len(values))
+	for _, v := range values {
+		nics = append(nics, &armcompute.VirtualMachineScaleSetNetworkConfiguration{
+			Properties: &armcompute.VirtualMachineScaleSetNetworkConfigurationProperties{
+				EnableAcceleratedNetworking: v,
+			},
+		})
+	}
+	return &armcompute.VirtualMachineScaleSet{
+		Properties: &armcompute.VirtualMachineScaleSetProperties{
+			VirtualMachineProfile: &armcompute.VirtualMachineScaleSetVMProfile{
+				NetworkProfile: &armcompute.VirtualMachineScaleSetNetworkProfile{
+					NetworkInterfaceConfigurations: nics,
+				},
+			},
+		},
+	}
+}
+
+func TestVMSSAcceleratedNetworking(t *testing.T) {
+	cases := []struct {
+		name        string
+		vmss        *armcompute.VirtualMachineScaleSet
+		wantEnabled bool
+		wantFound   bool
+	}{
+		{name: "nil_vmss", vmss: nil, wantFound: false},
+		{name: "no_network_profile", vmss: &armcompute.VirtualMachineScaleSet{Properties: &armcompute.VirtualMachineScaleSetProperties{}}, wantFound: false},
+		{name: "nic_without_value", vmss: vmssWithNICs(nil), wantFound: false},
+		{name: "single_enabled", vmss: vmssWithNICs(ptr(true)), wantEnabled: true, wantFound: true},
+		{name: "single_disabled", vmss: vmssWithNICs(ptr(false)), wantEnabled: false, wantFound: true},
+		{name: "mixed_or_enabled", vmss: vmssWithNICs(ptr(false), ptr(true)), wantEnabled: true, wantFound: true},
+		{name: "all_disabled", vmss: vmssWithNICs(ptr(false), ptr(false)), wantEnabled: false, wantFound: true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			enabled, found := vmssAcceleratedNetworking(tc.vmss)
+			if enabled != tc.wantEnabled || found != tc.wantFound {
+				t.Fatalf("got (enabled=%v found=%v), want (enabled=%v found=%v)", enabled, found, tc.wantEnabled, tc.wantFound)
+			}
+		})
+	}
+}
+
+func TestZeroNodePoolBody(t *testing.T) {
+	final := &armcs.AgentPool{
+		Properties: &armcs.ManagedClusterAgentPoolProfileProperties{
+			Count:             ptr(int32(5)),
+			EnableAutoScaling: ptr(true),
+			MinCount:          ptr(int32(3)),
+			MaxCount:          ptr(int32(9)),
+			VMSize:            ptr("Standard_D8s_v3"),
+		},
+	}
+	zero, err := zeroNodePoolBody(final)
+	if err != nil {
+		t.Fatalf("zeroNodePoolBody: %v", err)
+	}
+	if zero.Properties.Count == nil || *zero.Properties.Count != 0 {
+		t.Fatalf("zero Count = %v, want 0", zero.Properties.Count)
+	}
+	if zero.Properties.EnableAutoScaling == nil || *zero.Properties.EnableAutoScaling {
+		t.Fatalf("zero EnableAutoScaling = %v, want false", zero.Properties.EnableAutoScaling)
+	}
+	if zero.Properties.MinCount != nil || zero.Properties.MaxCount != nil {
+		t.Fatalf("zero Min/MaxCount must be nil, got %v/%v", zero.Properties.MinCount, zero.Properties.MaxCount)
+	}
+	if strDeref(zero.Properties.VMSize) != "Standard_D8s_v3" {
+		t.Fatalf("zero VMSize = %q, want preserved", strDeref(zero.Properties.VMSize))
+	}
+	// input must not be mutated
+	if *final.Properties.Count != 5 || !*final.Properties.EnableAutoScaling ||
+		*final.Properties.MinCount != 3 || *final.Properties.MaxCount != 9 {
+		t.Fatalf("zeroNodePoolBody mutated the input body: %+v", final.Properties)
+	}
+}
+
+func TestZeroNodePoolBodyNil(t *testing.T) {
+	if _, err := zeroNodePoolBody(nil); err == nil {
+		t.Fatalf("expected error for nil body")
+	}
+	if _, err := zeroNodePoolBody(&armcs.AgentPool{}); err == nil {
+		t.Fatalf("expected error for nil Properties")
+	}
+}
+
+// =============================================================================
+// VMSS client paths via azcore fake transport
+//
+// These tests exercise the live-ARM code paths (findPoolVMSS, patchVMSS-
+// AccelNetworking, ensurePoolAccelNetworking) offline by wiring the real
+// armcompute VMSS client to an in-memory fake server. No cluster or Azure
+// credentials are required; the fake server keeps mutable VMSS state so the
+// read-after-write semantics of the patch flow are exercised end to end.
+// =============================================================================
+
+// fakeVMSSStore is the mutable backing state for the fake VMSS server. GET and
+// LIST read from it; BeginCreateOrUpdate writes to it, so a patch is visible to
+// the subsequent confirmation read just like real ARM.
+type fakeVMSSStore struct {
+	mu     sync.Mutex
+	byName map[string]*armcompute.VirtualMachineScaleSet
+	puts   []armcompute.VirtualMachineScaleSet // captured PUT bodies, in order
+}
+
+func newFakeVMSSStore(vmsss ...*armcompute.VirtualMachineScaleSet) *fakeVMSSStore {
+	s := &fakeVMSSStore{byName: map[string]*armcompute.VirtualMachineScaleSet{}}
+	for _, v := range vmsss {
+		s.byName[strDeref(v.Name)] = v
+	}
+	return s
+}
+
+func (s *fakeVMSSStore) list() []*armcompute.VirtualMachineScaleSet {
+	out := make([]*armcompute.VirtualMachineScaleSet, 0, len(s.byName))
+	for _, v := range s.byName {
+		out = append(out, v)
+	}
+	return out
+}
+
+// newFakeVMSSClient builds a real armcompute VMSS client backed by store.
+func newFakeVMSSClient(t *testing.T, store *fakeVMSSStore) *armcompute.VirtualMachineScaleSetsClient {
+	t.Helper()
+	srv := computefake.VirtualMachineScaleSetsServer{
+		NewListPager: func(_ string, _ *armcompute.VirtualMachineScaleSetsClientListOptions) (resp azfake.PagerResponder[armcompute.VirtualMachineScaleSetsClientListResponse]) {
+			store.mu.Lock()
+			defer store.mu.Unlock()
+			resp.AddPage(http.StatusOK, armcompute.VirtualMachineScaleSetsClientListResponse{
+				VirtualMachineScaleSetListResult: armcompute.VirtualMachineScaleSetListResult{Value: store.list()},
+			}, nil)
+			return
+		},
+		Get: func(_ context.Context, _ string, name string, _ *armcompute.VirtualMachineScaleSetsClientGetOptions) (resp azfake.Responder[armcompute.VirtualMachineScaleSetsClientGetResponse], errResp azfake.ErrorResponder) {
+			store.mu.Lock()
+			defer store.mu.Unlock()
+			v, ok := store.byName[name]
+			if !ok {
+				errResp.SetResponseError(http.StatusNotFound, "ResourceNotFound")
+				return
+			}
+			resp.SetResponse(http.StatusOK, armcompute.VirtualMachineScaleSetsClientGetResponse{VirtualMachineScaleSet: *v}, nil)
+			return
+		},
+		BeginCreateOrUpdate: func(_ context.Context, _ string, name string, params armcompute.VirtualMachineScaleSet, _ *armcompute.VirtualMachineScaleSetsClientBeginCreateOrUpdateOptions) (resp azfake.PollerResponder[armcompute.VirtualMachineScaleSetsClientCreateOrUpdateResponse], errResp azfake.ErrorResponder) {
+			store.mu.Lock()
+			defer store.mu.Unlock()
+			stored := params
+			store.byName[name] = &stored
+			store.puts = append(store.puts, params)
+			resp.SetTerminalResponse(http.StatusOK, armcompute.VirtualMachineScaleSetsClientCreateOrUpdateResponse{VirtualMachineScaleSet: stored}, nil)
+			return
+		},
+	}
+	client, err := armcompute.NewVirtualMachineScaleSetsClient(
+		"00000000-0000-0000-0000-000000000000",
+		&azfake.TokenCredential{},
+		&arm.ClientOptions{ClientOptions: azcore.ClientOptions{
+			Transport: computefake.NewVirtualMachineScaleSetsServerTransport(&srv),
+		}},
+	)
+	if err != nil {
+		t.Fatalf("build fake VMSS client: %v", err)
+	}
+	return client
+}
+
+// namedVMSS builds a VMSS with a name, the aks-managed-poolName tag, and one NIC
+// carrying the given accelerated-networking value.
+func namedVMSS(name, poolTag string, an *bool) *armcompute.VirtualMachineScaleSet {
+	v := vmssWithNICs(an)
+	v.Name = ptr(name)
+	if poolTag != "" {
+		v.Tags = map[string]*string{aksManagedPoolNameTag: ptr(poolTag)}
+	}
+	return v
+}
+
+func newTestClients(store *fakeVMSSStore, t *testing.T) *clients {
+	return &clients{
+		cfg:  &config{nodeRG: "MC_rg_cluster_region"},
+		vmss: newFakeVMSSClient(t, store),
+	}
+}
+
+func TestFindPoolVMSS(t *testing.T) {
+	store := newFakeVMSSStore(
+		namedVMSS("aks-userswft3-12345678-vmss", "userswft3", ptr(true)),
+		namedVMSS("aks-system-87654321-vmss", "system", ptr(true)),
+		// A VMSS whose name matches the prefix of "lonely" but carries no
+		// matching tag, to exercise the name-prefix fallback path.
+		namedVMSS("aks-lonely-00000000-vmss", "", ptr(false)),
+	)
+	c := newTestClients(store, t)
+	ctx := context.Background()
+
+	t.Run("tag_match", func(t *testing.T) {
+		name, v, err := c.findPoolVMSS(ctx, "userswft3")
+		if err != nil {
+			t.Fatalf("findPoolVMSS: %v", err)
+		}
+		if name != "aks-userswft3-12345678-vmss" || v == nil {
+			t.Fatalf("got name=%q vmss=%v, want tag match", name, v)
+		}
+	})
+
+	t.Run("name_prefix_fallback", func(t *testing.T) {
+		name, v, err := c.findPoolVMSS(ctx, "lonely")
+		if err != nil {
+			t.Fatalf("findPoolVMSS fallback: %v", err)
+		}
+		if name != "aks-lonely-00000000-vmss" || v == nil {
+			t.Fatalf("got name=%q, want prefix fallback aks-lonely-...", name)
+		}
+	})
+
+	t.Run("not_found", func(t *testing.T) {
+		if _, _, err := c.findPoolVMSS(ctx, "doesnotexist"); err == nil {
+			t.Fatalf("expected error for missing pool VMSS")
+		}
+	})
+}
+
+func TestPatchVMSSAccelNetworking(t *testing.T) {
+	// Two NICs, both disabled; patch must flip both to true and the stored
+	// state must reflect it.
+	target := namedVMSS("aks-userswft3-12345678-vmss", "userswft3", ptr(false))
+	target.Properties.VirtualMachineProfile.NetworkProfile.NetworkInterfaceConfigurations = append(
+		target.Properties.VirtualMachineProfile.NetworkProfile.NetworkInterfaceConfigurations,
+		&armcompute.VirtualMachineScaleSetNetworkConfiguration{
+			Properties: &armcompute.VirtualMachineScaleSetNetworkConfigurationProperties{
+				EnableAcceleratedNetworking: ptr(false),
+			},
+		},
+	)
+	store := newFakeVMSSStore(target)
+	c := newTestClients(store, t)
+
+	if err := c.patchVMSSAccelNetworking(context.Background(), "aks-userswft3-12345678-vmss", true); err != nil {
+		t.Fatalf("patchVMSSAccelNetworking: %v", err)
+	}
+	if len(store.puts) != 1 {
+		t.Fatalf("expected exactly 1 PUT, got %d", len(store.puts))
+	}
+	got, found := vmssAcceleratedNetworking(store.byName["aks-userswft3-12345678-vmss"])
+	if !found || !got {
+		t.Fatalf("after patch accelerated-networking=(enabled=%v found=%v), want enabled", got, found)
+	}
+	for i, nic := range store.puts[0].Properties.VirtualMachineProfile.NetworkProfile.NetworkInterfaceConfigurations {
+		if nic.Properties.EnableAcceleratedNetworking == nil || !*nic.Properties.EnableAcceleratedNetworking {
+			t.Fatalf("PUT body NIC %d not set to accelerated-networking=true", i)
+		}
+	}
+}
+
+func TestPatchVMSSAccelNetworkingNoNICs(t *testing.T) {
+	bare := namedVMSS("aks-x-1-vmss", "x", nil)
+	bare.Properties.VirtualMachineProfile.NetworkProfile.NetworkInterfaceConfigurations = nil
+	store := newFakeVMSSStore(bare)
+	c := newTestClients(store, t)
+	if err := c.patchVMSSAccelNetworking(context.Background(), "aks-x-1-vmss", true); err == nil {
+		t.Fatalf("expected error patching a VMSS with no NIC configurations")
+	}
+}
+
+func TestEnsurePoolAccelNetworking(t *testing.T) {
+	const tgtVMSS = "aks-userswft3-12345678-vmss"
+	const refVMSS = "aks-userswft3temp-87654321-vmss"
+
+	t.Run("mismatch_patches_and_confirms", func(t *testing.T) {
+		store := newFakeVMSSStore(
+			namedVMSS(tgtVMSS, "userswft3", ptr(false)),    // broken: AN disabled
+			namedVMSS(refVMSS, "userswft3temp", ptr(true)), // reference: AN enabled
+		)
+		c := newTestClients(store, t)
+		patched, want, err := c.ensurePoolAccelNetworking(context.Background(), "userswft3", "userswft3temp")
+		if err != nil {
+			t.Fatalf("ensurePoolAccelNetworking: %v", err)
+		}
+		if !patched || !want {
+			t.Fatalf("got patched=%v want=%v, expected patched=true want=true", patched, want)
+		}
+		if got, found := vmssAcceleratedNetworking(store.byName[tgtVMSS]); !found || !got {
+			t.Fatalf("target VMSS not corrected: enabled=%v found=%v", got, found)
+		}
+	})
+
+	t.Run("already_matches_no_patch", func(t *testing.T) {
+		store := newFakeVMSSStore(
+			namedVMSS(tgtVMSS, "userswft3", ptr(true)),
+			namedVMSS(refVMSS, "userswft3temp", ptr(true)),
+		)
+		c := newTestClients(store, t)
+		patched, _, err := c.ensurePoolAccelNetworking(context.Background(), "userswft3", "userswft3temp")
+		if err != nil {
+			t.Fatalf("ensurePoolAccelNetworking: %v", err)
+		}
+		if patched || len(store.puts) != 0 {
+			t.Fatalf("expected no patch when values match (patched=%v puts=%d)", patched, len(store.puts))
+		}
+	})
+
+	t.Run("reference_unknown_fails_open", func(t *testing.T) {
+		store := newFakeVMSSStore(
+			namedVMSS(tgtVMSS, "userswft3", ptr(false)),
+			namedVMSS(refVMSS, "userswft3temp", nil), // no explicit AN -> unknown
+		)
+		c := newTestClients(store, t)
+		patched, _, err := c.ensurePoolAccelNetworking(context.Background(), "userswft3", "userswft3temp")
+		if err != nil {
+			t.Fatalf("fail-open should not error: %v", err)
+		}
+		if patched || len(store.puts) != 0 {
+			t.Fatalf("expected fail-open no-patch when reference unknown (patched=%v puts=%d)", patched, len(store.puts))
+		}
+	})
 }
