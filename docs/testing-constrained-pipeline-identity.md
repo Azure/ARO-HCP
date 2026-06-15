@@ -66,9 +66,9 @@ roles, and nothing more**.
 SUB=<management-subscription-id>
 MSI_RG=<management-underlay-resource-group>   # e.g. hcp-underlay-<cluster>
 
-az identity create -n rbp-test-msi -g "$MSI_RG" --subscription "$SUB" -o json > /tmp/msi.json
-PRIN=$(python3 -c 'import json;print(json.load(open("/tmp/msi.json"))["principalId"])')
-CLIENT=$(python3 -c 'import json;print(json.load(open("/tmp/msi.json"))["clientId"])')
+az identity create -n rbp-test-msi -g "$MSI_RG" --subscription "$SUB" -o none
+PRIN=$(az identity show -n rbp-test-msi -g "$MSI_RG" --subscription "$SUB" --query principalId -o tsv)
+CLIENT=$(az identity show -n rbp-test-msi -g "$MSI_RG" --subscription "$SUB" --query clientId -o tsv)
 
 # Wait a few seconds for the service principal to propagate, then mirror the
 # EV2 identity's role assignments EXACTLY (here: sub Contributor + Reader only).
