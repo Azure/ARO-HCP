@@ -16,6 +16,7 @@ package controllers
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
@@ -86,11 +87,9 @@ func (c *cleanOrphanedManagedResourceGroup) SyncOnce(ctx context.Context, _ any)
 
 	logger.Info("Retrieved subscriptions", "count", len(subscriptions))
 
-	// Iterate over all subscriptions and get all clusters
 	for _, subscription := range subscriptions {
 		subscriptionID := subscription.ResourceID.SubscriptionID
 
-		// Create a resource groups client for this subscription
 		rgClient, err := c.azureFPAClientBuilder.ResourceGroupsClient(
 			*subscription.Properties.TenantId,
 			subscriptionID,
@@ -99,18 +98,25 @@ func (c *cleanOrphanedManagedResourceGroup) SyncOnce(ctx context.Context, _ any)
 			return utils.TrackError(err)
 		}
 
-		// Get all HCP clusters in this subscription
+		clusterResourceIDs := make(map[string]struct{})
 		allHCPClusters, err := c.resourcesDBClient.HCPClusters(subscriptionID, "").List(ctx, nil)
 		if err != nil {
 			return utils.TrackError(err)
+		}
+
+		for _, cluster := range allHCPClusters.Items(ctx) {
+			if cluster == nil || cluster.ID == nil {
+				continue
+			}
+			clusterResourceIDs[strings.ToLower(cluster.ID.String())] = struct{}{}
 		}
 
 		if err := allHCPClusters.GetError(); err != nil {
 			return utils.TrackError(err)
 		}
 
-		// List all resource groups in this subscription
-		// We list resource groups in chunks to avoid loading everything at once
+		logger.Info("Found HCP clusters in subscription", "subscriptionID", subscriptionID, "count", len(clusterResourceIDs))
+
 		resourceGroupsPager := rgClient.NewListPager(&armresources.ResourceGroupsClientListOptions{
 			Top: ptr.To(resourceGroupListPageSize),
 		})
@@ -120,13 +126,28 @@ func (c *cleanOrphanedManagedResourceGroup) SyncOnce(ctx context.Context, _ any)
 				return utils.TrackError(err)
 			}
 
-			// Process each resource group
 			for _, rg := range resourceGroupPage.Value {
 				if rg == nil || rg.Name == nil {
 					continue
 				}
-				logger.Info("Processing resource group", "subscriptionID", subscriptionID, "resourceGroup", *rg.Name)
-				// TODO: Check if this is an orphaned managed resource group
+
+				if rg.ManagedBy == nil {
+					continue
+				}
+
+				managedByResourceID := strings.ToLower(*rg.ManagedBy)
+
+				if _, exists := clusterResourceIDs[managedByResourceID]; exists {
+					// Cluster exists, this is not an orphaned resource group
+					continue
+				}
+
+				logger.Info("Found orphaned managed resource group",
+					"subscriptionID", subscriptionID,
+					"resourceGroup", *rg.Name,
+					"managedBy", *rg.ManagedBy)
+
+				// TODO: Delete the orphaned managed resource group
 			}
 		}
 	}
