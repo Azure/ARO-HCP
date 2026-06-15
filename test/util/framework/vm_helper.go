@@ -156,6 +156,15 @@ func GetVirtualMachinesInResourceGroup(
 	return vms, nil
 }
 
+// isRetryableBootDiagnosticsError checks if the error is a 409 OperationNotAllowed
+func isRetryableBootDiagnosticsError(err error) bool {
+	var azErr *azcore.ResponseError
+	if !errors.As(err, &azErr) {
+		return false
+	}
+	return azErr.StatusCode == http.StatusConflict && azErr.ErrorCode == "OperationNotAllowed"
+}
+
 // GetVirtualMachineConsoleLog retrieves the boot diagnostics serial console log from an Azure VM.
 // Returns an io.ReadCloser for streaming the console log data. The caller is responsible for closing the reader.
 // Returns an error if the retrieval fails or boot diagnostics is not enabled.
@@ -165,12 +174,31 @@ func GetVirtualMachineConsoleLog(
 	resourceGroupName string,
 	vmName string,
 ) (io.ReadCloser, error) {
+	logger := ginkgo.GinkgoLogr
 	vmClient := computeClientFactory.NewVirtualMachinesClient()
 
-	// Retrieve boot diagnostics data which includes the serial console log
-	result, err := vmClient.RetrieveBootDiagnosticsData(ctx, resourceGroupName, vmName, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to retrieve boot diagnostics data for VM %q: %w", vmName, err)
+	retryBackoff := []time.Duration{5 * time.Second, 10 * time.Second, 20 * time.Second, 20 * time.Second}
+	var result armcompute.VirtualMachinesClientRetrieveBootDiagnosticsDataResponse
+	var err error
+	for attempt := 0; ; attempt++ {
+		result, err = vmClient.RetrieveBootDiagnosticsData(ctx, resourceGroupName, vmName, nil)
+		if err == nil {
+			break
+		}
+		if !isRetryableBootDiagnosticsError(err) || attempt >= len(retryBackoff) {
+			return nil, fmt.Errorf("failed to retrieve boot diagnostics data for VM %q: %w", vmName, err)
+		}
+		wait := retryBackoff[attempt]
+		logger.Info("retrying boot diagnostics retrieval due to OperationNotAllowed",
+			"vmName", vmName,
+			"attempt", attempt+1,
+			"nextRetryIn", wait.String(),
+			"error", err.Error())
+		select {
+		case <-ctx.Done():
+			return nil, fmt.Errorf("failed to retrieve boot diagnostics data for VM %q: %w", vmName, ctx.Err())
+		case <-time.After(wait):
+		}
 	}
 
 	// Check if serial console log URI is available
