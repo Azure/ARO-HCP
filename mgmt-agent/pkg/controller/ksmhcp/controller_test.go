@@ -17,8 +17,9 @@ package ksmhcp
 import (
 	"testing"
 
-	"github.com/Azure/ARO-Tools/testutil"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/Azure/ARO-Tools/testutil"
 
 	hypershiftv1beta1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
 )
