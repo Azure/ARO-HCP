@@ -16,7 +16,6 @@ package cmd
 
 import (
 	"context"
-	"flag"
 	"fmt"
 	"net/http"
 	"os"
@@ -51,6 +50,7 @@ type RawControllerOptions struct {
 	Kubeconfig    string
 	Namespace     string
 	Workers       int
+	LogVerbosity  int
 }
 
 func DefaultControllerOptions() *RawControllerOptions {
@@ -61,13 +61,13 @@ func DefaultControllerOptions() *RawControllerOptions {
 }
 
 func (o *RawControllerOptions) BindFlags(cmd *cobra.Command) error {
-	klog.InitFlags(nil)
-
 	cmd.Flags().StringVar(&o.HealthAddress, "health-address", o.HealthAddress, "The bind address for the health check server (e.g., ':8080')")
 	cmd.Flags().StringVar(&o.Kubeconfig, "kubeconfig", "", "Path to a kubeconfig. Optional.")
 	cmd.Flags().StringVar(&o.Namespace, "namespace", os.Getenv("POD_NAMESPACE"), "The namespace where the mgmt-agent controller is deployed.")
 	cmd.Flags().IntVar(&o.Workers, "workers", o.Workers, "Number of reconcile workers to run")
-	cmd.Flags().AddGoFlagSet(flag.CommandLine)
+	cmd.Flags().IntVar(&o.LogVerbosity, "log-verbosity", o.LogVerbosity,
+		"Log verbosity. 0 is the default verbosity level, equivalent to INFO. "+
+			"It must be a value >= 0, where a higher value means more verbose output.")
 
 	return nil
 }
@@ -99,6 +99,9 @@ func (o *RawControllerOptions) Validate(ctx context.Context) (*ValidatedControll
 	}
 	if o.HealthAddress == "" {
 		return nil, fmt.Errorf("health-address is required")
+	}
+	if o.LogVerbosity < 0 {
+		return nil, fmt.Errorf("--log-verbosity must be a value >= 0")
 	}
 	return &ValidatedControllerOptions{
 		validatedControllerOptions: &validatedControllerOptions{

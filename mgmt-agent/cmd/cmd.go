@@ -16,8 +16,13 @@ package cmd
 
 import (
 	"context"
+	"log/slog"
+	"os"
 
+	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
+
+	"k8s.io/klog/v2"
 )
 
 func NewRootCmd() (*cobra.Command, error) {
@@ -66,6 +71,17 @@ func NewControllerCommand() (*cobra.Command, error) {
 }
 
 func runController(ctx context.Context, opts *RawControllerOptions) error {
+	// Create a logr.Logger backed by slog's JSON handler for structured JSON logging.
+	// slog.Level(opts.LogVerbosity * -1) converts the verbosity to an slog.Level:
+	// 0 = INFO, higher values = more verbose.
+	handlerOptions := &slog.HandlerOptions{Level: slog.Level(opts.LogVerbosity * -1), AddSource: true}
+	slogJSONHandler := slog.NewJSONHandler(os.Stdout, handlerOptions)
+	logger := logr.FromSlogHandler(slogJSONHandler)
+	ctx = logr.NewContext(ctx, logger)
+
+	// Redirect klog (used by k8s client-go, etc.) through the same JSON handler.
+	klog.SetLogger(logger)
+
 	validated, err := opts.Validate(ctx)
 	if err != nil {
 		return err

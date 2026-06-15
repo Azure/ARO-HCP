@@ -147,8 +147,7 @@ spec:
         args:
         - controller
         - "--health-address=:8080"
-        - "-v=2"
-        - "-logging-format=json"
+        - "--log-verbosity=2"
         image: "arohcpsvcdev.azurecr.io/mgmt-agent@sha256:1234567890"
         name: mgmt-agent-controller
         env:
