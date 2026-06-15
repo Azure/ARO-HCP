@@ -991,23 +991,24 @@ func TestValidateClusterCreate(t *testing.T) {
 			},
 		},
 		{
-			name: "invalid cluster resource name - too short",
+			name: "invalid cluster resource name - empty",
 			cluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.ID.Name = "a"
-				c.Name = "a"
+				c.ID.Name = ""
+				c.Name = ""
 				return c
 			}(),
 			expectErrors: []utils.ExpectedError{
-				{Message: "must be a valid DNS RFC 1035 label", FieldPath: "id"},
+				{Message: "resource name is required", FieldPath: "trackedResource.resource.id"},
+				{Message: "resource name is required", FieldPath: "id"},
 			},
 		},
 		{
 			name: "valid cluster resource name - minimum length",
 			cluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.ID.Name = "abc"
-				c.Name = "abc"
+				c.ID.Name = "a"
+				c.Name = "a"
 				return c
 			}(),
 			expectErrors: []utils.ExpectedError{},

@@ -319,11 +319,11 @@ var (
 	rfc1035LabelRegex          = regexp.MustCompile(dnsRegexStringRFC1035Label)
 	rfc1035ErrorString         = `(must be a valid DNS RFC 1035 label)`
 
-	clusterResourceName            = `^[a-zA-Z][-a-zA-Z0-9]{1,52}[a-zA-Z0-9]$`
+	clusterResourceName            = `^[a-zA-Z]([-a-zA-Z0-9]{0,52}[a-zA-Z0-9])?$`
 	clusterResourceNameRegex       = regexp.MustCompile(clusterResourceName)
 	clusterResourceNameErrorString = `(must be a valid DNS RFC 1035 label)`
 
-	nodePoolResourceName            = `^[a-zA-Z][-a-zA-Z0-9]{1,13}[a-zA-Z0-9]$`
+	nodePoolResourceName            = `^[a-zA-Z]([-a-zA-Z0-9]{0,13}[a-zA-Z0-9])?$`
 	nodePoolResourceNameRegex       = regexp.MustCompile(nodePoolResourceName)
 	nodePoolResourceNameErrorString = `(must be a valid DNS RFC 1035 label)`
 
