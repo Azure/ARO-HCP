@@ -18,9 +18,12 @@ import (
 	"context"
 	"time"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
+
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/util/workqueue"
+	"k8s.io/utils/ptr"
 
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
@@ -29,12 +32,18 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+const (
+	// resourceGroupListPageSize is the number of resource groups to fetch per page
+	// when listing resource groups in a subscription
+	resourceGroupListPageSize int32 = 100
+)
+
 type cleanOrphanedManagedResourceGroup struct {
 	name string
 
-	subscriptionLister   listers.SubscriptionLister
-	resourcesDBClient    database.ResourcesDBClient
-	resourceGroupsClient azureclient.ResourceGroupsClient
+	subscriptionLister    listers.SubscriptionLister
+	resourcesDBClient     database.ResourcesDBClient
+	azureFPAClientBuilder azureclient.FirstPartyApplicationClientBuilder
 
 	// queue is where incoming work is placed to de-dup and to allow "easy"
 	// rate limited requeues on errors
@@ -46,13 +55,13 @@ type cleanOrphanedManagedResourceGroup struct {
 func NewCleanOrphanedManagedResourceGroupController(
 	subscriptionLister listers.SubscriptionLister,
 	resourcesDBClient database.ResourcesDBClient,
-	resourceGroupsClient azureclient.ResourceGroupsClient,
+	azureFPAClientBuilder azureclient.FirstPartyApplicationClientBuilder,
 ) controllerutils.Controller {
 	c := &cleanOrphanedManagedResourceGroup{
-		name:                 "CleanOrphanedManagedResourceGroup",
-		subscriptionLister:   subscriptionLister,
-		resourcesDBClient:    resourcesDBClient,
-		resourceGroupsClient: resourceGroupsClient,
+		name:                  "CleanOrphanedManagedResourceGroup",
+		subscriptionLister:    subscriptionLister,
+		resourcesDBClient:     resourcesDBClient,
+		azureFPAClientBuilder: azureFPAClientBuilder,
 		queue: workqueue.NewTypedRateLimitingQueueWithConfig(
 			workqueue.DefaultTypedControllerRateLimiter[string](),
 			workqueue.TypedRateLimitingQueueConfig[string]{
@@ -77,7 +86,50 @@ func (c *cleanOrphanedManagedResourceGroup) SyncOnce(ctx context.Context, _ any)
 
 	logger.Info("Retrieved subscriptions", "count", len(subscriptions))
 
-	// TODO: Implement rest of the logic
+	// Iterate over all subscriptions and get all clusters
+	for _, subscription := range subscriptions {
+		subscriptionID := subscription.ResourceID.SubscriptionID
+
+		// Create a resource groups client for this subscription
+		rgClient, err := c.azureFPAClientBuilder.ResourceGroupsClient(
+			*subscription.Properties.TenantId,
+			subscriptionID,
+		)
+		if err != nil {
+			return utils.TrackError(err)
+		}
+
+		// Get all HCP clusters in this subscription
+		allHCPClusters, err := c.resourcesDBClient.HCPClusters(subscriptionID, "").List(ctx, nil)
+		if err != nil {
+			return utils.TrackError(err)
+		}
+
+		if err := allHCPClusters.GetError(); err != nil {
+			return utils.TrackError(err)
+		}
+
+		// List all resource groups in this subscription
+		// We list resource groups in chunks to avoid loading everything at once
+		resourceGroupsPager := rgClient.NewListPager(&armresources.ResourceGroupsClientListOptions{
+			Top: ptr.To(resourceGroupListPageSize),
+		})
+		for resourceGroupsPager.More() {
+			resourceGroupPage, err := resourceGroupsPager.NextPage(ctx)
+			if err != nil {
+				return utils.TrackError(err)
+			}
+
+			// Process each resource group
+			for _, rg := range resourceGroupPage.Value {
+				if rg == nil || rg.Name == nil {
+					continue
+				}
+				logger.Info("Processing resource group", "subscriptionID", subscriptionID, "resourceGroup", *rg.Name)
+				// TODO: Check if this is an orphaned managed resource group
+			}
+		}
+	}
 
 	logger.Info("End of orphaned managed resource groups sync")
 	return nil
