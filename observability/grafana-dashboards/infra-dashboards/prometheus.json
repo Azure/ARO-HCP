@@ -4247,16 +4247,13 @@
   "templating": {
     "list": [
       {
-        "current": {
-          "text": "Managed_Prometheus_services-usw3rgar",
-          "value": "services-usw3rgar"
-        },
+        "current": {},
         "label": "Data Source",
         "name": "datasource",
         "options": [],
         "query": "prometheus",
         "refresh": 1,
-        "regex": "",
+        "regex": "^Managed_Prometheus_services-.*$",
         "type": "datasource"
       },
       {
