@@ -43,7 +43,7 @@ const (
 	TestResourceGroupName         = "testResourceGroup"
 	TestClusterName               = "testCluster"
 	TestNodePoolName              = "testNodePool"
-	TestExternalAuthName          = "testExternalAuth"
+	TestExternalAuthName          = "testExtAuth"
 	TestDeploymentName            = "testDeployment"
 	TestManagedResourceGroupName  = "testManagedResourceGroup"
 	TestNetworkSecurityGroupName  = "testNetworkSecurityGroup"
