@@ -1725,7 +1725,7 @@
     "to": "now"
   },
   "timepicker": {},
-  "timezone": "browser",
+  "timezone": "utc",
   "title": "Management Cluster Triage",
   "uid": "mgmt-cluster-triage",
   "version": 1,
