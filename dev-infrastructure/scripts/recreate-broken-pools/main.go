@@ -2050,8 +2050,11 @@ func (c *clients) patchVMSSAccelNetworking(ctx context.Context, vmssName string,
 		return fmt.Errorf("VMSS %s has no NIC configurations to patch", vmssName)
 	}
 	for _, nic := range vmss.Properties.VirtualMachineProfile.NetworkProfile.NetworkInterfaceConfigurations {
-		if nic == nil || nic.Properties == nil {
+		if nic == nil {
 			continue
+		}
+		if nic.Properties == nil {
+			nic.Properties = &armcompute.VirtualMachineScaleSetNetworkConfigurationProperties{}
 		}
 		nic.Properties.EnableAcceleratedNetworking = ptr(want)
 	}

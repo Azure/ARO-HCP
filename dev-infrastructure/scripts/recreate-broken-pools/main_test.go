@@ -2481,8 +2481,9 @@ func TestZeroNodePoolBodyNil(t *testing.T) {
 // =============================================================================
 
 // fakeVMSSStore is the mutable backing state for the fake VMSS server. GET and
-// LIST read from it; BeginCreateOrUpdate writes to it, so a patch is visible to
-// the subsequent confirmation read just like real ARM.
+// LIST read from it; BeginCreateOrUpdate (full PUT) and BeginUpdate (scoped
+// PATCH) both write to it, so a patch is visible to the subsequent confirmation
+// read just like real ARM.
 type fakeVMSSStore struct {
 	mu      sync.Mutex
 	byName  map[string]*armcompute.VirtualMachineScaleSet
