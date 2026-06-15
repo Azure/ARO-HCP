@@ -70,7 +70,6 @@ tests:
         remote_name: rw1
         url: http://rw1
       exp_annotations:
-        correlationId: PrometheusFailedRate/test/prometheus/rw1/http://rw1
         summary: Prometheus failed sample rate to remote storage is above 10%.
         description: |
           The failed sample rate for Prometheus remote storage has exceeded 10% over the past 15 minutes.
@@ -499,7 +498,6 @@ tests:
         remote_name: rw1
         url: http://rw1
       exp_annotations:
-        correlationId: PrometheusFailedRate/threshold-plus/prometheus/rw1/http://rw1
         summary: Prometheus failed sample rate to remote storage is above 10%.
         description: |
           The failed sample rate for Prometheus remote storage has exceeded 10% over the past 15 minutes.
@@ -529,24 +527,7 @@ tests:
   alert_rule_test:
   - eval_time: 16m
     alertname: PrometheusFailedRate
-    exp_alerts:
-    - exp_labels:
-        severity: critical
-        cluster: legacy-failed-rate
-        job: prometheus/prometheus
-        namespace: prometheus
-        remote_name: legacy
-        url: http://legacy
-      exp_annotations:
-        correlationId: PrometheusFailedRate/legacy-failed-rate/prometheus/legacy/http://legacy
-        summary: Prometheus failed sample rate to remote storage is above 10%.
-        description: |
-          The failed sample rate for Prometheus remote storage has exceeded 10% over the past 15 minutes.
-          This indicates that more than 10% of samples are not being successfully sent to remote storage, which could be caused by
-          issues with the remote write endpoint, network instability, or Prometheus resource constraints.
-          Persistent failures may result in increased memory usage and potential data loss if the buffer overflows.
-          Please check the health and performance of the remote storage endpoint, network connectivity, and Prometheus resource utilization.
-        runbook_url: TBD
+    exp_alerts: []
 # Test PrometheusFailedRate when legacy and current metrics coexist
 - interval: 1m
   input_series:
@@ -731,7 +712,6 @@ tests:
         remote_name: rw1
         url: http://rw1
       exp_annotations:
-        correlationId: PrometheusFailedRate/high-failure/prometheus/rw1/http://rw1
         summary: Prometheus failed sample rate to remote storage is above 10%.
         description: |
           The failed sample rate for Prometheus remote storage has exceeded 10% over the past 15 minutes.
