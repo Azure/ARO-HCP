@@ -2372,7 +2372,7 @@ func TestDecideAccelNetworking(t *testing.T) {
 			if d.patch != tc.wantPatch {
 				t.Fatalf("patch = %v, want %v (reason: %s)", d.patch, tc.wantPatch, d.reason)
 			}
-			if d.patch && d.want != tc.wantWant {
+			if d.want != tc.wantWant {
 				t.Fatalf("want = %v, want %v (reason: %s)", d.want, tc.wantWant, d.reason)
 			}
 			if d.reason == "" {

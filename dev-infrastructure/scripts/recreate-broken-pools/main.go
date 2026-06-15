@@ -1941,15 +1941,23 @@ func (c *clients) listNodeRGVMSS(ctx context.Context) ([]*armcompute.VirtualMach
 }
 
 // findPoolVMSS locates the backing VMSS of an agent pool in the node resource
-// group by the authoritative aks-managed-poolName tag.
+// group by the authoritative aks-managed-poolName tag. It scans each pager page
+// and returns as soon as the tagged VMSS is found, so the common single-pool
+// lookup (and waitForPoolVMSS's repeated polling) does not drain and allocate
+// the full RG listing on every call.
 func (c *clients) findPoolVMSS(ctx context.Context, poolName string) (string, *armcompute.VirtualMachineScaleSet, error) {
-	all, err := c.listNodeRGVMSS(ctx)
-	if err != nil {
-		return "", nil, err
+	if c.vmss == nil {
+		return "", nil, errors.New("vmss client not initialized")
 	}
-	name, vmss := matchPoolVMSS(all, poolName)
-	if vmss != nil {
-		return name, vmss, nil
+	pager := c.vmss.NewListPager(c.cfg.nodeRG, nil)
+	for pager.More() {
+		page, err := pager.NextPage(ctx)
+		if err != nil {
+			return "", nil, fmt.Errorf("list VMSS in %s: %w", c.cfg.nodeRG, err)
+		}
+		if name, vmss := matchPoolVMSS(page.Value, poolName); vmss != nil {
+			return name, vmss, nil
+		}
 	}
 	return "", nil, fmt.Errorf("no VMSS found for pool %s in %s (tag %s=%s)", poolName, c.cfg.nodeRG, aksManagedPoolNameTag, poolName)
 }
@@ -2193,7 +2201,15 @@ func (c *clients) createPoolZeroThenScale(ctx context.Context, poolName, refPool
 	if err := c.waitForReadyNodes(ctx, poolName, wantCount, readyTimeout); err != nil {
 		return err
 	}
-	if patched {
+	// Re-verify after scale-up when we patched the VMSS, and also for Swift
+	// pools that came up already-enabled (wantAN==true, no patch): AKS may
+	// reconcile the VMSS during the scale-up PUT, so a Swift pool — where
+	// accelerated-networking is mandatory — must be confirmed even when no
+	// patch was applied. The wantAN guard keeps the fail-open path intact:
+	// when the VMSS was unreadable, ensurePoolAccelNetworking returns
+	// wantAN==false and we skip the post-scale assertion rather than demand a
+	// value we never managed to read (AROSLSRE-1172).
+	if patched || (swiftRequired && wantAN) {
 		return c.verifyPoolAccelNetworking(ctx, poolName, wantAN)
 	}
 	return nil
