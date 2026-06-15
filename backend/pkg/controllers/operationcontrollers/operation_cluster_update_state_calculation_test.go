@@ -1711,6 +1711,67 @@ func TestClusterServiceClusterSpecOperationState(t *testing.T) {
 			wantState:         arm.ProvisioningStateUpdating,
 			wantMessageSubstr: `k8sAPIServerAuthorizedCIDRs is allow_all, want allow_list`,
 		},
+		{
+			name: "matching container registry pull MI returns Succeeded",
+			cluster: &api.HCPOpenShiftCluster{
+				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+					Platform: api.CustomerPlatformProfile{
+						ContainerRegistryPullManagedIdentity: api.NewTestUserAssignedIdentity("cr-pull-mi"),
+					},
+				},
+			},
+			csCluster: func() *arohcpv1alpha1.Cluster {
+				c, err := arohcpv1alpha1.NewCluster().
+					API(arohcpv1alpha1.NewClusterAPI().
+						CIDRBlockAccess(arohcpv1alpha1.NewCIDRBlockAccess().
+							Allow(arohcpv1alpha1.NewCIDRBlockAllowAccess().Mode(ocm.CSCIDRBlockAllowAccessModeAllowAll)))).
+					Azure(arohcpv1alpha1.NewAzure().
+						ContainerRegistry(arohcpv1alpha1.NewAzureContainerRegistry().
+							Credentials(arohcpv1alpha1.NewAzureContainerRegistryCredentials().
+								Type(arohcpv1alpha1.AzureContainerRegistryCredentialTypeManagedIdentity).
+								ManagedIdentity(arohcpv1alpha1.NewAzureUserAssignedManagedIdentity().
+									ResourceID(api.NewTestUserAssignedIdentity("cr-pull-mi").String()))))).
+					Build()
+				require.NoError(t, err)
+				return c
+			}(),
+			wantState: arm.ProvisioningStateSucceeded,
+		},
+		{
+			name: "container registry pull MI mismatch returns Updating",
+			cluster: &api.HCPOpenShiftCluster{
+				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+					Platform: api.CustomerPlatformProfile{
+						ContainerRegistryPullManagedIdentity: api.NewTestUserAssignedIdentity("new-mi"),
+					},
+				},
+			},
+			csCluster: func() *arohcpv1alpha1.Cluster {
+				c, err := arohcpv1alpha1.NewCluster().
+					API(arohcpv1alpha1.NewClusterAPI().
+						CIDRBlockAccess(arohcpv1alpha1.NewCIDRBlockAccess().
+							Allow(arohcpv1alpha1.NewCIDRBlockAllowAccess().Mode(ocm.CSCIDRBlockAllowAccessModeAllowAll)))).
+					Azure(arohcpv1alpha1.NewAzure().
+						ContainerRegistry(arohcpv1alpha1.NewAzureContainerRegistry().
+							Credentials(arohcpv1alpha1.NewAzureContainerRegistryCredentials().
+								Type(arohcpv1alpha1.AzureContainerRegistryCredentialTypeManagedIdentity).
+								ManagedIdentity(arohcpv1alpha1.NewAzureUserAssignedManagedIdentity().
+									ResourceID(api.NewTestUserAssignedIdentity("old-mi").String()))))).
+					Build()
+				require.NoError(t, err)
+				return c
+			}(),
+			wantState:         arm.ProvisioningStateUpdating,
+			wantMessageSubstr: `containerRegistryPullManagedIdentity`,
+		},
+		{
+			name: "nil desired with unset CS container registry returns Succeeded",
+			cluster: &api.HCPOpenShiftCluster{
+				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{},
+			},
+			csCluster: newCSClusterWithAllowAll(t),
+			wantState: arm.ProvisioningStateSucceeded,
+		},
 	}
 
 	for _, tt := range tests {

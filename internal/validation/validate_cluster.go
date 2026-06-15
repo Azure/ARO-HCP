@@ -195,7 +195,6 @@ func validateResourceIDsAgainstClusterID(ctx context.Context, op operation.Opera
 		field.NewPath("customerProperties", "platform", "operatorsAuthentication", "userAssignedIdentities", "serviceManagedIdentity"),
 		newCluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity, nil,
 		newCluster.ID.SubscriptionID, newCluster.CustomerProperties.Platform.ManagedResourceGroup)...)
-
 	return errs
 }
 
@@ -249,7 +248,7 @@ func validateClusterCustomerProperties(ctx context.Context, op operation.Operati
 	errs = append(errs, validateCustomerIngressProfile(ctx, op, fldPath.Child("ingress"), &newObj.Ingress, safe.Field(oldObj, toCustomerIngress))...)
 
 	// Platform                CustomerPlatformProfile             `json:"platform,omitempty"`
-	errs = append(errs, immutableByReflect(ctx, op, fldPath.Child("platform"), &newObj.Platform, safe.Field(oldObj, toCustomerPlatform))...)
+	errs = append(errs, immutablePlatformExcludingContainerRegistryPullMI(ctx, op, fldPath.Child("platform"), &newObj.Platform, safe.Field(oldObj, toCustomerPlatform))...)
 	errs = append(errs, validateCustomerPlatformProfile(ctx, op, fldPath.Child("platform"), &newObj.Platform, safe.Field(oldObj, toCustomerPlatform))...)
 
 	//Autoscaling             ClusterAutoscalingProfile   `json:"autoscaling,omitempty"`
@@ -596,6 +595,9 @@ var (
 	toPlatformVnetIntegrationSubnetID = func(oldObj *api.CustomerPlatformProfile) *azcorearm.ResourceID { return oldObj.VnetIntegrationSubnetID }
 	toPlatformOutboundType            = func(oldObj *api.CustomerPlatformProfile) *api.OutboundType { return &oldObj.OutboundType }
 	toPlatformNetworkSecurityGroupID  = func(oldObj *api.CustomerPlatformProfile) *azcorearm.ResourceID { return oldObj.NetworkSecurityGroupID }
+	toPlatformContainerRegistryPullMI = func(oldObj *api.CustomerPlatformProfile) *azcorearm.ResourceID {
+		return oldObj.ContainerRegistryPullManagedIdentity
+	}
 	toPlatformOperatorsAuthentication = func(oldObj *api.CustomerPlatformProfile) *api.OperatorsAuthenticationProfile {
 		return &oldObj.OperatorsAuthentication
 	}
@@ -647,6 +649,31 @@ func validateCustomerPlatformProfile(ctx context.Context, op operation.Operation
 	errs = append(errs, immutableByReflect(ctx, op, fldPath.Child("operatorsAuthentication"), &newObj.OperatorsAuthentication, safe.Field(oldObj, toPlatformOperatorsAuthentication))...)
 	errs = append(errs, validateOperatorsAuthenticationProfile(ctx, op, fldPath.Child("operatorsAuthentication"), &newObj.OperatorsAuthentication, safe.Field(oldObj, toPlatformOperatorsAuthentication))...)
 
+	//ContainerRegistryPullManagedIdentity *azcorearm.ResourceID `json:"containerRegistry,omitempty"`
+	errs = append(errs, validateContainerRegistryPullCredentials(ctx, op, fldPath.Child("containerRegistry", "managedIdentity"), newObj.ContainerRegistryPullManagedIdentity, safe.Field(oldObj, toPlatformContainerRegistryPullMI), newObj.ManagedResourceGroup)...)
+
+	return errs
+}
+
+func immutablePlatformExcludingContainerRegistryPullMI(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj *api.CustomerPlatformProfile, oldObj *api.CustomerPlatformProfile) field.ErrorList {
+	newCopy := *newObj
+	newCopy.ContainerRegistryPullManagedIdentity = nil
+	var oldCopy *api.CustomerPlatformProfile
+	if oldObj != nil {
+		tmp := *oldObj
+		tmp.ContainerRegistryPullManagedIdentity = nil
+		oldCopy = &tmp
+	}
+	return immutableByReflect(ctx, op, fldPath, &newCopy, oldCopy)
+}
+
+func validateContainerRegistryPullCredentials(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj *azcorearm.ResourceID, oldObj *azcorearm.ResourceID, managedResourceGroupName string) field.ErrorList {
+	errs := field.ErrorList{}
+	if newObj == nil {
+		return errs
+	}
+	errs = append(errs, RestrictedResourceIDWithResourceGroup(ctx, op, fldPath, newObj, oldObj, "Microsoft.ManagedIdentity/userAssignedIdentities")...)
+	errs = append(errs, DifferentResourceGroupNameFromResourceID(ctx, op, fldPath, newObj, oldObj, managedResourceGroupName)...)
 	return errs
 }
 

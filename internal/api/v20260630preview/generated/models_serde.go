@@ -226,6 +226,35 @@ func (c *ConsoleProfile) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// MarshalJSON implements the json.Marshaller interface for type ContainerRegistryProfile.
+func (c ContainerRegistryProfile) MarshalJSON() ([]byte, error) {
+	objectMap := make(map[string]any)
+	populate(objectMap, "managedIdentity", c.ManagedIdentity)
+	return json.Marshal(objectMap)
+}
+
+// UnmarshalJSON implements the json.Unmarshaller interface for type ContainerRegistryProfile.
+func (c *ContainerRegistryProfile) UnmarshalJSON(data []byte) error {
+	var rawMsg map[string]json.RawMessage
+	if err := json.Unmarshal(data, &rawMsg); err != nil {
+		return fmt.Errorf("unmarshalling type %T: %v", c, err)
+	}
+	for key, val := range rawMsg {
+		var err error
+		switch key {
+		case "managedIdentity":
+			err = unpopulate(val, "ManagedIdentity", &c.ManagedIdentity)
+			delete(rawMsg, key)
+		default:
+			err = fmt.Errorf("unmarshalling type %T, unknown field %q", c, key)
+		}
+		if err != nil {
+			return fmt.Errorf("unmarshalling type %T: %v", c, err)
+		}
+	}
+	return nil
+}
+
 // MarshalJSON implements the json.Marshaller interface for type CustomerManagedEncryptionProfile.
 func (c CustomerManagedEncryptionProfile) MarshalJSON() ([]byte, error) {
 	objectMap := make(map[string]any)
@@ -2352,6 +2381,7 @@ func (o *OsDiskProfile) UnmarshalJSON(data []byte) error {
 // MarshalJSON implements the json.Marshaller interface for type PlatformProfile.
 func (p PlatformProfile) MarshalJSON() ([]byte, error) {
 	objectMap := make(map[string]any)
+	populate(objectMap, "containerRegistry", p.ContainerRegistry)
 	populate(objectMap, "issuerUrl", p.IssuerURL)
 	populate(objectMap, "managedResourceGroup", p.ManagedResourceGroup)
 	populate(objectMap, "networkSecurityGroupId", p.NetworkSecurityGroupID)
@@ -2371,6 +2401,9 @@ func (p *PlatformProfile) UnmarshalJSON(data []byte) error {
 	for key, val := range rawMsg {
 		var err error
 		switch key {
+		case "containerRegistry":
+			err = unpopulate(val, "ContainerRegistry", &p.ContainerRegistry)
+			delete(rawMsg, key)
 		case "issuerUrl":
 			err = unpopulate(val, "IssuerURL", &p.IssuerURL)
 			delete(rawMsg, key)
@@ -2405,6 +2438,7 @@ func (p *PlatformProfile) UnmarshalJSON(data []byte) error {
 // MarshalJSON implements the json.Marshaller interface for type PlatformProfileUpdate.
 func (p PlatformProfileUpdate) MarshalJSON() ([]byte, error) {
 	objectMap := make(map[string]any)
+	populate(objectMap, "containerRegistry", p.ContainerRegistry)
 	populate(objectMap, "operatorsAuthentication", p.OperatorsAuthentication)
 	return json.Marshal(objectMap)
 }
@@ -2418,6 +2452,9 @@ func (p *PlatformProfileUpdate) UnmarshalJSON(data []byte) error {
 	for key, val := range rawMsg {
 		var err error
 		switch key {
+		case "containerRegistry":
+			err = unpopulate(val, "ContainerRegistry", &p.ContainerRegistry)
+			delete(rawMsg, key)
 		case "operatorsAuthentication":
 			err = unpopulate(val, "OperatorsAuthentication", &p.OperatorsAuthentication)
 			delete(rawMsg, key)
