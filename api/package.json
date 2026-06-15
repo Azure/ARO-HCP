@@ -27,7 +27,7 @@
     "@microsoft.azure/openapi-validator-rulesets": "2.2.6",
     "@typespec/compiler": "^1.12.0",
     "autorest": "^3.7.2",
-    "prettier": "^3.8.1"
+    "prettier": "^3.8.4"
   },
   "overrides": {
     "ajv@>=7.0.0-alpha.0": "^8.18.0",
