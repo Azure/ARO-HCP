@@ -381,7 +381,7 @@ func (f *Frontend) createHCPCluster(writer http.ResponseWriter, request *http.Re
 	if f.clusterServiceNoopDeprovision {
 		initialClusterProperties[ocm.CSPropertyNoopDeprovision] = ocm.CSPropertyEnabled
 	}
-	if len(f.cpoImageOverride) != 0 {
+	if f.cpoImageOverride != "" {
 		initialClusterProperties[ocm.CSPropertyCPOImageOverride] = f.cpoImageOverride
 	}
 	newClusterServiceClusterBuilder, newClusterServiceAutoscalerBuilder, err := ocm.BuildCSCluster(newInternalCluster.ID, tenantID, newInternalCluster, initialClusterProperties, nil)
