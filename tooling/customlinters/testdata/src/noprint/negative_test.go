@@ -12,13 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package testdata
+package noprint
 
 import (
 	"fmt"
 	"testing"
-
-	"github.com/onsi/ginkgo/v2"
 )
 
 // This file contains negative test cases - code that should NOT trigger the linter
@@ -41,12 +39,27 @@ func TestBuildingStrings(t *testing.T) {
 	t.Logf("Result: %s", str)
 }
 
-func TestWithGinkgoLogr(t *testing.T) {
-	// Acceptable - using GinkgoLogr
-	ginkgo.GinkgoLogr.Info("This is fine")
+func TestWithTestingLog(t *testing.T) {
+	// Acceptable - use t.Log / t.Logf instead of fmt.Print*
+	t.Log("This is fine")
+	t.Logf("Also fine: %s", "value")
 }
 
-func TestWithGinkgoWriter(t *testing.T) {
-	// Acceptable - using GinkgoWriter
-	ginkgo.GinkgoWriter.Write([]byte("This is fine"))
+func TestWithNolintInlineComment(t *testing.T) {
+	fmt.Println("suppressed by inline nolint")  // nolint:noprint
+	fmt.Printf("suppressed too: %s\n", "value") // nolint:noprint
+	println("builtin suppressed")               // nolint:noprint
+}
+
+func TestWithNoprintIgnoreInlineComment(t *testing.T) {
+	fmt.Println("suppressed by inline noprint:ignore") // noprint:ignore
+	fmt.Printf("suppressed too: %s\n", "value")        // noprint:ignore
+	println("builtin suppressed")                      // noprint:ignore
+}
+
+func TestWithStandaloneNolintComment(t *testing.T) {
+	// nolint:noprint
+	fmt.Println("suppressed by preceding nolint comment")
+	// noprint:ignore
+	fmt.Printf("suppressed too: %s\n", "value")
 }

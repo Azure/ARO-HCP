@@ -63,17 +63,14 @@ plugins:
 Defines which linters to run and their settings:
 
 ```yaml
-version: "2"
-run:
-  timeout: 10m
-  skip-dirs:
-    - tooling/customlinters/testdata  # Don't lint test data
-issues:
-  max-issues-per-linter: 0
-  max-same-issues: 0
 linters:
   enable:
-    - noprint  # Enable the noprint linter
+  - noprint
+  settings:
+    custom:
+      noprint:
+        type: "module"
+        description: Detects print statements to standard output in test files
 ```
 
 ## Testing
@@ -86,8 +83,11 @@ The custom linters use Go unit tests to validate analyzer behavior.
 tooling/customlinters/
 ├── noprintlinter_test.go    # Go unit tests
 └── testdata/
-    ├── positive_test.go     # Code that should trigger linter
-    └── negative_test.go     # Valid code that should not trigger linter
+    └── src/
+        └── noprint/
+            └── test/
+                ├── positive_test.go   # Code that should trigger the linter
+                └── negative_test.go   # Valid code that should not trigger the linter
 ```
 
 ### Running Tests
@@ -98,48 +98,20 @@ make test         # Run all unit tests
 
 ### Writing Unit Tests
 
-Each linter should have corresponding unit tests following the pattern in `noprintlinter_test.go`:
+Tests use [`golang.org/x/tools/go/analysis/analysistest`](https://pkg.go.dev/golang.org/x/tools/go/analysis/analysistest), which runs the analyzer against a real Go package under `testdata/src/`. Any diagnostic the analyzer emits must be declared as expected via a `` // want `pattern` `` annotation on the same source line, otherwise `analysistest.Run` fails the test with "unexpected diagnostic".
 
-1. **Positive test cases** - Verify the linter detects violations
-2. **Negative test cases** - Verify the linter allows valid code
+Test pattern in `noprintlinter_test.go`:
 
-**Example test structure:**
-```go
-func TestLinter_PositiveCases(t *testing.T) {
-    // 1. Build the analyzer
-    linter := &YourLinter{}
-    analyzers, _ := linter.BuildAnalyzers()
+1. Retrieve the plugin constructor via `register.GetPlugin("noprint")`
+2. Instantiate the plugin by calling the constructor with `nil` settings: `newPlugin(nil)`
+3. Build the analyzers with `plugin.BuildAnalyzers()` and assert exactly one is returned
+4. Run `analysistest.Run(t, analysistest.TestData(), analyzers[0], "noprint")` where `"noprint"` matches the package directory under `testdata/src/`
 
-    // 2. Parse test file with path matching linter's filter
-    fset := token.NewFileSet()
-    content, _ := os.ReadFile("testdata/positive_test.go")
-    file, _ := parser.ParseFile(fset, "/fake/path/test/positive_test.go", content, parser.ParseComments)
+#### Test Data
 
-    // 3. Run analyzer and count diagnostics
-    diagnosticCount := 0
-    pass := &analysis.Pass{
-        Fset: fset,
-        Files: []*ast.File{file},
-        Report: func(d analysis.Diagnostic) {
-            diagnosticCount++
-        },
-    }
-    analyzer.Run(pass)
-
-    // 4. Verify expected count
-    if diagnosticCount != expectedIssues {
-        t.Errorf("Expected %d issues, got %d", expectedIssues, diagnosticCount)
-    }
-}
-```
-
-### Test Data
-
-Place test files in `testdata/` directory:
-- **positive_test.go** - Code with violations the linter should catch
-- **negative_test.go** - Valid code the linter should allow
-
-The `testdata/` directory is excluded from the main lint run to avoid flagging intentional test violations.
+Test files live under `testdata/src/noprint/`:
+- **`positive_test.go`** — Code with violations the linter should catch. Each offending line must carry a `` // want `pattern` `` annotation so `analysistest` knows the diagnostic is expected.
+- **`negative_test.go`** — Valid code (including suppressed lines) that the linter should not flag.
 
 ## Available Linters
 
@@ -162,5 +134,27 @@ The linter catches the following functions in files under the `test/` directory:
 - ✅ `fmt.Sprintf`, `fmt.Errorf` (don't print to stdout)
 - ✅ `t.Log()`, `t.Logf()` (standard Go test logging)
 - ✅ `GinkgoWriter`, `GinkgoLogr` (Ginkgo test output)
+
+**Suppressing Violations:**
+
+When a print statement is genuinely necessary in a test file, you can suppress the linter on a per-call basis using either of two directives:
+
+| Directive | Form |
+|---|---|
+| `// nolint:noprint` | golangci-lint standard |
+| `// noprint:ignore` | project-specific alternative |
+
+Two placement styles are supported:
+
+1. **Inline** — directive on the same line as the call:
+   ```go
+   fmt.Println("intentional output") // nolint:noprint
+   ```
+
+2. **Previous-line** — directive on its own line immediately above the call (no code on the same line as the directive):
+   ```go
+   // noprint:ignore
+   fmt.Printf("also suppressed: %s\n", v)
+   ```
 
 **Implementation:** `noprintlinter.go`

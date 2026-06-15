@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package testdata
+package noprint
 
 import (
 	"fmt"
@@ -23,31 +23,25 @@ import (
 // This file contains positive test cases - code that SHOULD trigger the linter
 
 func TestWithFmtPrintln(t *testing.T) {
-	// Should be flagged
-	fmt.Println("This should be flagged") // want "do not use fmt.Println in test files"
+	fmt.Println("This should be flagged") // want `do not use fmt\.Println`
 }
 
 func TestWithFmtPrintf(t *testing.T) {
-	// Should be flagged
-	fmt.Printf("This too: %s\n", "flagged") // want "do not use fmt.Printf in test files"
+	fmt.Printf("This too: %s\n", "flagged") // want `do not use fmt\.Printf`
 }
 
 func TestWithFmtPrint(t *testing.T) {
-	// Should be flagged
-	fmt.Print("Also flagged") // want "do not use fmt.Print in test files"
+	fmt.Print("Also flagged") // want `do not use fmt\.Print in`
 }
 
 func TestWithLogPrintln(t *testing.T) {
-	// Should be flagged
-	log.Println("This should be flagged") // want "do not use log.Println in test files"
+	log.Println("This should be flagged") // want `do not use log\.Println`
 }
 
 func TestWithBuiltinPrintln(t *testing.T) {
-	// Should be flagged
-	println("And this builtin") // want "do not use builtin println in test files"
+	println("And this builtin") // want `do not use builtin println`
 }
 
 func TestWithBuiltinPrint(t *testing.T) {
-	// Should be flagged
-	print("Also builtin") // want "do not use builtin print in test files"
+	print("Also builtin") // want `do not use builtin print`
 }
