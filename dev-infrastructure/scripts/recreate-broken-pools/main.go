@@ -136,6 +136,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	armcompute "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
 	armcs "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v6"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/monitor/armmonitor"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
@@ -151,6 +152,30 @@ const (
 	tempReadyTOMin   = 8
 	poolReadyTOMin   = 15
 	pollIntervalSec  = 30
+
+	// vmssReadyTOMin caps how long we wait for AKS to materialize the
+	// backing VMSS of a freshly-created (0-node) agent pool before we can
+	// inspect/patch its accelerated-networking setting (AROSLSRE-1172).
+	vmssReadyTOMin      = 5
+	vmssPollIntervalSec = 15
+
+	// aksManagedPoolNameTag is the tag AKS stamps on every node-pool VMSS
+	// carrying the owning agent-pool name. It is the authoritative way to
+	// map an agent pool to its backing VMSS (the VMSS name itself is
+	// aks-<poolName>-<hash>-vmss but the tag is exact).
+	aksManagedPoolNameTag = "aks-managed-poolName"
+
+	// swiftNodepoolTag is the tag the AKS provisioning bicep stamps on
+	// Swift V2 multi-tenancy node pools (enableSwiftV2Nodepools=true). A
+	// pool carrying this tag with value "true" hosts pods on delegated
+	// Swift NICs, which cannot attach unless the backing VMSS has
+	// accelerated-networking enabled. It is therefore both the marker that
+	// a pool REQUIRES accelerated-networking (AROSLSRE-1172) and the signal
+	// used to detect Swift pools whose VMSS came up with it disabled.
+	// Source: dev-infrastructure/modules/aks-cluster-base.bicep (swiftNodepoolTags).
+	swiftNodepoolTag      = "aks-nic-enable-multi-tenancy"
+	swiftNodepoolTagValue = "true"
+
 	// overallTimeoutMin caps the whole binary. The EV2 ShellExtension host
 	// honors the `timeout` field set on the corresponding Shell step in
 	// mgmt-pipeline.yaml (currently `150m`, which leaves headroom for the
@@ -235,6 +260,7 @@ type nodePoolTarget struct {
 	suspected         bool
 	deletionInitiated bool
 	forcedEvidence    bool
+	accelNetBroken    bool
 }
 
 func poolVMSSPrefix(poolName string) string {
@@ -256,6 +282,17 @@ func poolRoleTag(p *armcs.AgentPool) string {
 		}
 	}
 	return ""
+}
+
+// poolIsSwift reports whether an agent pool is a Swift V2 multi-tenancy pool,
+// identified by the swiftNodepoolTag=true tag the provisioning bicep stamps on
+// Swift pools. Swift pods require accelerated-networking on the backing VMSS,
+// so this is the signal that a pool MUST have accelerated-networking enabled.
+func poolIsSwift(p *armcs.AgentPool) bool {
+	if p == nil || p.Properties == nil {
+		return false
+	}
+	return strings.EqualFold(tagValue(p.Properties.Tags, swiftNodepoolTag), swiftNodepoolTagValue)
 }
 
 // tempPoolName returns the deterministic temp-pool name for the given
@@ -414,7 +451,7 @@ func runWith(ctx context.Context, cfg *config, orch orchestrator) error {
 	}
 	logf("SELECTED BROKEN NODE POOLS: %d pool(s) confirmed", len(targets))
 	for _, target := range targets {
-		logf("  pool=%s role=%s nrpFailures=%d", target.name, cfg.nodePoolTag, target.nrpFailures)
+		logf("  pool=%s role=%s nrpFailures=%d accelNetBroken=%t", target.name, cfg.nodePoolTag, target.nrpFailures, target.accelNetBroken)
 	}
 	var forcedEvidenceTargets []nodePoolTarget
 	for _, target := range targets {
@@ -788,6 +825,7 @@ type clients struct {
 	cred         azcore.TokenCredential
 	pools        *armcs.AgentPoolsClient
 	cluster      *armcs.ManagedClustersClient
+	vmss         *armcompute.VirtualMachineScaleSetsClient
 	activityLogs *armmonitor.ActivityLogsClient
 	tags         *armresources.TagsClient
 	kube         kubernetes.Interface
@@ -811,6 +849,10 @@ func newAzureClients(cfg *config) (*clients, error) {
 	if err != nil {
 		return nil, fmt.Errorf("arm containerservice factory: %w", err)
 	}
+	computeFactory, err := armcompute.NewClientFactory(cfg.subscriptionID, cred, nil)
+	if err != nil {
+		return nil, fmt.Errorf("arm compute factory: %w", err)
+	}
 	activityLogs, err := armmonitor.NewActivityLogsClient(cfg.subscriptionID, cred, nil)
 	if err != nil {
 		return nil, fmt.Errorf("arm monitor activity logs client: %w", err)
@@ -824,6 +866,7 @@ func newAzureClients(cfg *config) (*clients, error) {
 		cred:         cred,
 		pools:        clientFactory.NewAgentPoolsClient(),
 		cluster:      clientFactory.NewManagedClustersClient(),
+		vmss:         computeFactory.NewVirtualMachineScaleSetsClient(),
 		activityLogs: activityLogs,
 		tags:         tags,
 	}, nil
@@ -1196,6 +1239,7 @@ func (c *clients) detect(ctx context.Context) ([]nodePoolTarget, string, error) 
 	}
 	var selected []nodePoolTarget
 	var wedged []wedgedPool
+	var swiftSelected []nodePoolTarget
 	for _, p := range allPools {
 		if p == nil || p.Name == nil || p.Properties == nil {
 			continue
@@ -1208,47 +1252,90 @@ func (c *clients) detect(ctx context.Context) ([]nodePoolTarget, string, error) 
 		}
 		name := *p.Name
 		vmssPrefix := poolVMSSPrefix(name)
-		selected = append(selected, nodePoolTarget{name: name, vmssPrefix: vmssPrefix})
+		t := nodePoolTarget{name: name, vmssPrefix: vmssPrefix}
+		selected = append(selected, t)
+		if poolIsSwift(p) {
+			swiftSelected = append(swiftSelected, t)
+		}
 		provState := strDeref(p.Properties.ProvisioningState)
 		if ok, _ := evalPoolWedge(provState); !ok {
 			continue
 		}
 		wedged = append(wedged, wedgedPool{
-			target:    nodePoolTarget{name: name, vmssPrefix: vmssPrefix},
+			target:    t,
 			provState: provState,
 		})
 	}
 	if len(selected) == 0 {
 		return nil, fmt.Sprintf("no node pools found with %s=%q", nodePoolRoleLabel, c.cfg.nodePoolTag), nil
 	}
-	if len(wedged) == 0 {
-		return nil, fmt.Sprintf("no selected node pools with %s=%q are in wedge-compatible state", nodePoolRoleLabel, c.cfg.nodePoolTag), nil
+
+	// Accelerated-networking precheck (AROSLSRE-1172): a Swift pool whose
+	// backing VMSS came up with accelerated-networking DISABLED is broken
+	// regardless of provisioning state or NRP-KVS storm evidence — its Swift
+	// NICs can never attach — so it is flagged for recreation directly. This
+	// is at most one cheap VMSS List (far cheaper than the activity-log
+	// query, and skipped entirely when there are no Swift pools) and fails
+	// open, so it never regresses the existing NRP-driven behavior.
+	anBroken, anErr := c.detectAccelNetBrokenPools(ctx, swiftSelected)
+	if anErr != nil {
+		logf("WARN: accelerated-networking precheck failed: %v (continuing with NRP detection only)", anErr)
+		anBroken = nil
 	}
 
-	// Only now do we pay for the Activity Log list.
-	out, err := c.activityLogJSON(ctx, c.cfg.nodeRG, fmt.Sprintf("%dm", c.cfg.windowMin))
-	if err != nil {
-		return nil, "", fmt.Errorf("NRP-KVS storm activity-log query failed: %w", err)
+	if len(wedged) == 0 && len(anBroken) == 0 {
+		return nil, fmt.Sprintf("no selected node pools with %s=%q are in wedge-compatible state or have Swift accelerated-networking disabled", nodePoolRoleLabel, c.cfg.nodePoolTag), nil
 	}
 
 	var targets []nodePoolTarget
 	var confirmedCount int
-	for _, w := range wedged {
-		logf("pool %s: role=%s provisioningState=%s — wedge-compatible", w.target.name, c.cfg.nodePoolTag, w.provState)
-		hits, err := countNRPFailures(out, w.target.vmssPrefix)
+
+	if len(wedged) > 0 {
+		// Only now do we pay for the Activity Log list.
+		out, err := c.activityLogJSON(ctx, c.cfg.nodeRG, fmt.Sprintf("%dm", c.cfg.windowMin))
 		if err != nil {
-			return nil, "", fmt.Errorf("NRP failure count for pool %s: %w", w.target.name, err)
+			return nil, "", fmt.Errorf("NRP-KVS storm activity-log query failed: %w", err)
 		}
-		logf("pool %s: NRP-KVS failures on %s*: %d (threshold %d)", w.target.name, w.target.vmssPrefix, hits, c.cfg.threshold)
-		target := w.target
-		target.nrpFailures = hits
-		if hits < c.cfg.threshold && !c.cfg.skipGuards {
-			target.suspected = true
-		} else {
-			confirmedCount++
+		for _, w := range wedged {
+			logf("pool %s: role=%s provisioningState=%s — wedge-compatible", w.target.name, c.cfg.nodePoolTag, w.provState)
+			hits, err := countNRPFailures(out, w.target.vmssPrefix)
+			if err != nil {
+				return nil, "", fmt.Errorf("NRP failure count for pool %s: %w", w.target.name, err)
+			}
+			logf("pool %s: NRP-KVS failures on %s*: %d (threshold %d)", w.target.name, w.target.vmssPrefix, hits, c.cfg.threshold)
+			target := w.target
+			target.nrpFailures = hits
+			if hits < c.cfg.threshold && !c.cfg.skipGuards {
+				target.suspected = true
+			} else {
+				confirmedCount++
+			}
+			targets = append(targets, target)
 		}
-		targets = append(targets, target)
 	}
+
+	// Merge accelerated-networking-broken Swift pools as confirmed targets.
+	// AN-disabled is direct evidence of brokenness, so these skip the
+	// forced-evidence probe; a pool already surfaced (suspected) by the NRP
+	// path is upgraded to confirmed.
+	idxByName := map[string]int{}
+	for i := range targets {
+		idxByName[targets[i].name] = i
+	}
+	for _, ab := range anBroken {
+		logf("pool %s: confirmed broken by accelerated-networking precheck (Swift pool with AN disabled)", ab.name)
+		if i, ok := idxByName[ab.name]; ok {
+			if targets[i].suspected {
+				targets[i].suspected = false
+				confirmedCount++
+			}
+			targets[i].accelNetBroken = true
+			continue
+		}
+		confirmedCount++
+		targets = append(targets, ab)
+	}
+
 	// When every candidate is below threshold the caller will either route
 	// through the forced-evidence path or log a no-op exit. Surface a
 	// non-empty reason so the operator log line is actionable rather than
@@ -1693,16 +1780,13 @@ func (c *clients) addTempPool(ctx context.Context, target nodePoolTarget, live *
 	}
 	logf("creating temp pool %s for %s (vmSize=%s, mode=%v, count=%d, countSource=%s, k8s=%s, inherited taints)",
 		tmpName, target.name, strDeref(live.Properties.VMSize), ptrValue(live.Properties.Mode), wantReady, countSource, c.cfg.cpVersion)
-	poller, err := c.pools.BeginCreateOrUpdate(ctx, c.cfg.resourceGroup, c.cfg.clusterName, tmpName, *body, nil)
-	if err != nil {
-		return fmt.Errorf("begin create temp pool %s: %w", tmpName, err)
-	}
-	if _, err := poller.PollUntilDone(ctx, nil); err != nil {
-		return fmt.Errorf("poll create temp pool %s: %w", tmpName, err)
-	}
-	readyTimeout := tempPoolReadyTimeout(wantReady)
-	logf("temp pool %s created; waiting for %d k8s node(s) Ready (timeout=%s)", tmpName, wantReady, readyTimeout)
-	return c.waitForReadyNodes(ctx, tmpName, wantReady, readyTimeout)
+	// AROSLSRE-1172: AKS can bring the temp pool's VMSS up with
+	// accelerated-networking (Swift) DISABLED in some regions, which makes
+	// the new nodes unable to host Swift pods drained off the broken source
+	// pool. Create the pool empty, verify/correct accelerated-networking on
+	// the backing VMSS against the still-present live source pool, and only
+	// then scale up so every node boots with the correct NIC config.
+	return c.createPoolZeroThenScale(ctx, tmpName, target.name, body, wantReady, tempPoolReadyTimeout(wantReady))
 }
 
 func tempPoolDesiredCount(props *armcs.ManagedClusterAgentPoolProfileProperties) (int32, string) {
@@ -1722,6 +1806,413 @@ func tempPoolReadyTimeout(wantReady int) time.Duration {
 		return poolReadyTOMin * time.Minute
 	}
 	return tempReadyTOMin * time.Minute
+}
+
+// ---------------------------------------------------------------------------
+// accelerated-networking (Swift) guard for newly-created pools — AROSLSRE-1172
+//
+// AKS does not expose accelerated-networking on the agent-pool API; the AKS RP
+// sets it on the backing VMSS NIC config at create time. In some regions the
+// RP has been observed to bring a pool's VMSS up with accelerated-networking
+// DISABLED even when the source pool has it enabled, which breaks Swift pod
+// networking and makes the repair fail (pods can't be drained onto the temp
+// pool). To guard against this, every pool this binary creates (the temp pool
+// AND the recreated source pool) is first created with zero nodes so AKS
+// materializes the VMSS empty; we then verify — and if necessary patch —
+// accelerated-networking on the empty VMSS before scaling up, so every node that
+// boots inherits the corrected NIC config with no reimage. The check fails OPEN
+// (logs a WARN and proceeds) when the VMSS can't be located or its value is
+// indeterminate; it fails CLOSED (refuses to scale up) only when a known-wrong,
+// required value cannot be corrected, rather than create Swift-broken nodes.
+// ---------------------------------------------------------------------------
+
+// accelNetDecision is the outcome of comparing a pool's VMSS
+// accelerated-networking value against its reference pool.
+type accelNetDecision struct {
+	patch  bool   // whether the target VMSS must be patched
+	want   bool   // the accelerated-networking value to enforce
+	reason string // human-readable explanation for the logs
+}
+
+// decideAccelNetworking is a pure function (unit-testable) that decides whether
+// the target pool's VMSS accelerated-networking value must be corrected.
+//
+// When swiftRequired is true the pool is a Swift V2 multi-tenancy pool, which
+// cannot attach its delegated NIC without accelerated-networking. In that case
+// the value is DEMANDED to be true regardless of the reference pool: we patch
+// whenever the target is not already known-enabled. This fails CLOSED for Swift
+// pools — even if the reference pool itself came up Swift-broken (e.g. a
+// region-wide RP regression) we still enforce true rather than mirror the bad
+// value.
+//
+// When swiftRequired is false it mirrors the reference pool and fails OPEN: when
+// either side's value is unknown it returns no-patch, so behavior is never
+// regressed on clusters where we cannot read the VMSS.
+func decideAccelNetworking(swiftRequired, refAN, refFound, tgtAN, tgtFound bool) accelNetDecision {
+	if swiftRequired {
+		if tgtFound && tgtAN {
+			return accelNetDecision{patch: false, want: true, reason: "swift pool requires accelerated-networking and target already has it enabled"}
+		}
+		return accelNetDecision{patch: true, want: true, reason: fmt.Sprintf("swift pool requires accelerated-networking; target=%t(found=%t); will enforce true", tgtAN, tgtFound)}
+	}
+	switch {
+	case !refFound:
+		return accelNetDecision{patch: false, reason: "reference accelerated-networking unknown; proceeding without check"}
+	case !tgtFound:
+		return accelNetDecision{patch: false, reason: "target accelerated-networking unknown; proceeding without check"}
+	case refAN == tgtAN:
+		return accelNetDecision{patch: false, want: refAN, reason: fmt.Sprintf("accelerated-networking already matches reference (%t)", refAN)}
+	default:
+		return accelNetDecision{patch: true, want: refAN, reason: fmt.Sprintf("accelerated-networking mismatch: reference=%t target=%t; will patch target to %t", refAN, tgtAN, refAN)}
+	}
+}
+
+// vmssAcceleratedNetworking reports the accelerated-networking value of a VMSS,
+// derived from its NIC configurations. found is false when the VMSS carries no
+// NIC config with an explicit value. enabled is the logical AND across all NIC
+// configs that carry an explicit value: a Swift pod can be scheduled onto any
+// node NIC, so a single NIC with accelerated-networking disabled makes the pool
+// Swift-broken. enabled is therefore true only when EVERY explicit NIC has it
+// enabled.
+func vmssAcceleratedNetworking(vmss *armcompute.VirtualMachineScaleSet) (enabled bool, found bool) {
+	if vmss == nil || vmss.Properties == nil || vmss.Properties.VirtualMachineProfile == nil ||
+		vmss.Properties.VirtualMachineProfile.NetworkProfile == nil {
+		return false, false
+	}
+	enabled = true
+	for _, nic := range vmss.Properties.VirtualMachineProfile.NetworkProfile.NetworkInterfaceConfigurations {
+		if nic == nil || nic.Properties == nil || nic.Properties.EnableAcceleratedNetworking == nil {
+			continue
+		}
+		found = true
+		if !*nic.Properties.EnableAcceleratedNetworking {
+			enabled = false
+		}
+	}
+	if !found {
+		return false, false
+	}
+	return enabled, true
+}
+
+// tagValue returns the value of an Azure resource tag, or "" if absent/nil.
+func tagValue(tags map[string]*string, key string) string {
+	if tags == nil {
+		return ""
+	}
+	if v, ok := tags[key]; ok {
+		return strDeref(v)
+	}
+	return ""
+}
+
+// matchPoolVMSS picks the backing VMSS of poolName from a pre-listed slice by
+// the authoritative aks-managed-poolName tag that AKS stamps on every VMSS it
+// manages (including freshly created 0-node pools). Returns ("", nil) when no
+// VMSS carries the tag — we deliberately do NOT guess by name convention, since
+// a wrong VMSS here would patch or recreate the wrong pool.
+func matchPoolVMSS(all []*armcompute.VirtualMachineScaleSet, poolName string) (string, *armcompute.VirtualMachineScaleSet) {
+	for _, v := range all {
+		if v == nil || v.Name == nil {
+			continue
+		}
+		if tagValue(v.Tags, aksManagedPoolNameTag) == poolName {
+			return *v.Name, v
+		}
+	}
+	return "", nil
+}
+
+// listNodeRGVMSS lists every VMSS in the node resource group once.
+func (c *clients) listNodeRGVMSS(ctx context.Context) ([]*armcompute.VirtualMachineScaleSet, error) {
+	if c.vmss == nil {
+		return nil, errors.New("vmss client not initialized")
+	}
+	pager := c.vmss.NewListPager(c.cfg.nodeRG, nil)
+	var all []*armcompute.VirtualMachineScaleSet
+	for pager.More() {
+		page, err := pager.NextPage(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("list VMSS in %s: %w", c.cfg.nodeRG, err)
+		}
+		all = append(all, page.Value...)
+	}
+	return all, nil
+}
+
+// findPoolVMSS locates the backing VMSS of an agent pool in the node resource
+// group by the authoritative aks-managed-poolName tag. It scans each pager page
+// and returns as soon as the tagged VMSS is found, so the common single-pool
+// lookup (and waitForPoolVMSS's repeated polling) does not drain and allocate
+// the full RG listing on every call.
+func (c *clients) findPoolVMSS(ctx context.Context, poolName string) (string, *armcompute.VirtualMachineScaleSet, error) {
+	if c.vmss == nil {
+		return "", nil, errors.New("vmss client not initialized")
+	}
+	pager := c.vmss.NewListPager(c.cfg.nodeRG, nil)
+	for pager.More() {
+		page, err := pager.NextPage(ctx)
+		if err != nil {
+			return "", nil, fmt.Errorf("list VMSS in %s: %w", c.cfg.nodeRG, err)
+		}
+		if name, vmss := matchPoolVMSS(page.Value, poolName); vmss != nil {
+			return name, vmss, nil
+		}
+	}
+	return "", nil, fmt.Errorf("no VMSS found for pool %s in %s (tag %s=%s)", poolName, c.cfg.nodeRG, aksManagedPoolNameTag, poolName)
+}
+
+// detectAccelNetBrokenPools inspects the live backing VMSS of each Swift pool
+// and returns those whose accelerated-networking is explicitly DISABLED. A
+// Swift V2 pool in that state cannot attach its delegated NIC, so its nodes are
+// broken and the pool must be recreated (AROSLSRE-1172) — independent of the
+// NRP-KVS storm signal. It fails OPEN: pools whose VMSS is missing or whose
+// accelerated-networking value is indeterminate are skipped, never flagged.
+func (c *clients) detectAccelNetBrokenPools(ctx context.Context, swiftPools []nodePoolTarget) ([]nodePoolTarget, error) {
+	if len(swiftPools) == 0 {
+		return nil, nil
+	}
+	all, err := c.listNodeRGVMSS(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var broken []nodePoolTarget
+	for _, sp := range swiftPools {
+		_, vmss := matchPoolVMSS(all, sp.name)
+		if vmss == nil {
+			logf("accel-net precheck: swift pool %s has no backing VMSS yet; skipping (fail-open)", sp.name)
+			continue
+		}
+		an, found := vmssAcceleratedNetworking(vmss)
+		if !found {
+			logf("accel-net precheck: swift pool %s accelerated-networking indeterminate; skipping (fail-open)", sp.name)
+			continue
+		}
+		if !an {
+			logf("accel-net precheck: swift pool %s VMSS has accelerated-networking DISABLED — flagging broken (Swift NICs cannot attach; pool must be recreated)", sp.name)
+			t := sp
+			t.accelNetBroken = true
+			broken = append(broken, t)
+		}
+	}
+	return broken, nil
+}
+
+// waitForPoolVMSS polls until the backing VMSS of poolName exists or timeout
+// elapses. AKS creates the VMSS shortly after the agent-pool PUT completes,
+// but not always synchronously, so a short poll is needed.
+func (c *clients) waitForPoolVMSS(ctx context.Context, poolName string, timeout time.Duration) (string, *armcompute.VirtualMachineScaleSet, error) {
+	deadline := time.Now().Add(timeout)
+	var lastErr error
+	for {
+		name, vmss, err := c.findPoolVMSS(ctx, poolName)
+		if err == nil {
+			return name, vmss, nil
+		}
+		lastErr = err
+		if time.Now().After(deadline) {
+			return "", nil, fmt.Errorf("timed out after %s waiting for VMSS of pool %s: %w", timeout, poolName, lastErr)
+		}
+		select {
+		case <-ctx.Done():
+			return "", nil, ctx.Err()
+		case <-time.After(vmssPollIntervalSec * time.Second):
+		}
+	}
+}
+
+// patchVMSSAccelNetworking sets accelerated-networking to want on every NIC
+// configuration of the VMSS via a read-modify-write full PUT. A full PUT
+// (rather than a partial Update) is used so the existing IP configurations and
+// subnet bindings are preserved verbatim. Directly patching an AKS-managed VMSS
+// is unsupported by AKS, but Microsoft explicitly asked us to do this in ICM
+// 815156644 as the mitigation for the RP bringing Swift VMSS up with
+// accelerated-networking disabled; callers must re-verify the value afterwards
+// because AKS may reconcile it back.
+func (c *clients) patchVMSSAccelNetworking(ctx context.Context, vmssName string, want bool) error {
+	resp, err := c.vmss.Get(ctx, c.cfg.nodeRG, vmssName, nil)
+	if err != nil {
+		return fmt.Errorf("get VMSS %s: %w", vmssName, err)
+	}
+	vmss := resp.VirtualMachineScaleSet
+	if vmss.Properties == nil || vmss.Properties.VirtualMachineProfile == nil ||
+		vmss.Properties.VirtualMachineProfile.NetworkProfile == nil ||
+		len(vmss.Properties.VirtualMachineProfile.NetworkProfile.NetworkInterfaceConfigurations) == 0 {
+		return fmt.Errorf("VMSS %s has no NIC configurations to patch", vmssName)
+	}
+	for _, nic := range vmss.Properties.VirtualMachineProfile.NetworkProfile.NetworkInterfaceConfigurations {
+		if nic == nil || nic.Properties == nil {
+			continue
+		}
+		nic.Properties.EnableAcceleratedNetworking = ptr(want)
+	}
+	logf("patching VMSS %s accelerated-networking=%t (read-modify-write PUT)", vmssName, want)
+	poller, err := c.vmss.BeginCreateOrUpdate(ctx, c.cfg.nodeRG, vmssName, vmss, nil)
+	if err != nil {
+		return fmt.Errorf("begin update VMSS %s: %w", vmssName, err)
+	}
+	if _, err := poller.PollUntilDone(ctx, nil); err != nil {
+		return fmt.Errorf("poll update VMSS %s: %w", vmssName, err)
+	}
+	return nil
+}
+
+// ensurePoolAccelNetworking ensures poolName's backing VMSS has the correct
+// accelerated-networking value before scale-up, patching it when it does not.
+// When swiftRequired is true the value is DEMANDED to be enabled (the pool is a
+// Swift V2 pool whose NICs cannot attach without it); otherwise the value is
+// mirrored from refPool's VMSS. It returns whether a patch was applied and the
+// value that was enforced, so the caller can re-verify after scale-up.
+//
+// It fails OPEN (returns patched=false, no error) when the VMSS cannot be
+// located or the value is indeterminate, so clusters where the VMSS is
+// unreadable keep the prior behavior. It fails CLOSED (returns an error) only
+// when a known-required value cannot be corrected — refusing to scale onto a
+// VMSS that would create Swift-broken nodes.
+func (c *clients) ensurePoolAccelNetworking(ctx context.Context, poolName, refPool string, swiftRequired bool) (patched bool, want bool, err error) {
+	tgtName, tgtVMSS, err := c.waitForPoolVMSS(ctx, poolName, vmssReadyTOMin*time.Minute)
+	if err != nil {
+		logf("WARN: pool %s: could not locate backing VMSS to verify accelerated-networking: %v (proceeding without check)", poolName, err)
+		return false, false, nil
+	}
+	tgtAN, tgtFound := vmssAcceleratedNetworking(tgtVMSS)
+
+	// A Swift pool demands accelerated-networking unconditionally, so the
+	// reference value is only consulted for non-Swift pools.
+	var refAN, refFound bool
+	if !swiftRequired {
+		_, refVMSS, err := c.findPoolVMSS(ctx, refPool)
+		if err != nil {
+			logf("WARN: reference pool %s: could not locate backing VMSS to read desired accelerated-networking for %s: %v (proceeding without check)", refPool, poolName, err)
+			return false, false, nil
+		}
+		refAN, refFound = vmssAcceleratedNetworking(refVMSS)
+	}
+
+	d := decideAccelNetworking(swiftRequired, refAN, refFound, tgtAN, tgtFound)
+	logf("pool %s accelerated-networking check: swiftRequired=%t reference(%s)=%t(found=%t) target=%t(found=%t): %s",
+		poolName, swiftRequired, refPool, refAN, refFound, tgtAN, tgtFound, d.reason)
+	if !d.patch {
+		return false, d.want, nil
+	}
+	if err := c.patchVMSSAccelNetworking(ctx, tgtName, d.want); err != nil {
+		return false, false, fmt.Errorf("pool %s: patch VMSS %s accelerated-networking=%t: %w", poolName, tgtName, d.want, err)
+	}
+	_, confirmVMSS, err := c.findPoolVMSS(ctx, poolName)
+	if err != nil {
+		return false, false, fmt.Errorf("pool %s: re-read VMSS after accelerated-networking patch: %w", poolName, err)
+	}
+	gotAN, gotFound := vmssAcceleratedNetworking(confirmVMSS)
+	if !gotFound || gotAN != d.want {
+		return false, false, fmt.Errorf("pool %s: accelerated-networking still %t (want %t) after patch; refusing to scale up onto a VMSS that would create Swift-broken nodes — manual intervention required", poolName, gotAN, d.want)
+	}
+	logf("pool %s: accelerated-networking patched to %t and confirmed; proceeding to scale up", poolName, d.want)
+	return true, d.want, nil
+}
+
+// verifyPoolAccelNetworking re-reads poolName's VMSS after scale-up and errors
+// if accelerated-networking regressed away from want. AKS may reconcile an
+// unsupported VMSS edit back to its own value during the scale-up PUT, so this
+// post-scale gate prevents the binary from declaring success on Swift-broken
+// nodes. A transient read failure is logged but not treated as fatal.
+func (c *clients) verifyPoolAccelNetworking(ctx context.Context, poolName string, want bool) error {
+	_, vmss, err := c.findPoolVMSS(ctx, poolName)
+	if err != nil {
+		logf("WARN: pool %s: could not re-read VMSS to confirm accelerated-networking after scale-up: %v", poolName, err)
+		return nil
+	}
+	got, found := vmssAcceleratedNetworking(vmss)
+	if !found {
+		logf("WARN: pool %s: accelerated-networking indeterminate on VMSS after scale-up; skipping post-scale confirmation", poolName)
+		return nil
+	}
+	if got != want {
+		return fmt.Errorf("pool %s: accelerated-networking regressed to %t (want %t) after scale-up; AKS reconciled the VMSS back to the broken value — refusing to use Swift-broken nodes, manual intervention required", poolName, got, want)
+	}
+	logf("pool %s: accelerated-networking=%t confirmed after scale-up", poolName, want)
+	return nil
+}
+
+// zeroNodePoolBody returns a deep copy of body with the node count forced to
+// zero and autoscaling disabled, so AKS creates (or recreates) the backing
+// VMSS with no instances. The input body is never mutated; the deep copy is
+// produced via a JSON round-trip so the autoscaling/count overrides cannot
+// alias the caller's final-size body.
+func zeroNodePoolBody(body *armcs.AgentPool) (*armcs.AgentPool, error) {
+	if body == nil || body.Properties == nil {
+		return nil, errors.New("zeroNodePoolBody: nil body")
+	}
+	raw, err := json.Marshal(body)
+	if err != nil {
+		return nil, fmt.Errorf("marshal: %w", err)
+	}
+	var out armcs.AgentPool
+	if err := json.Unmarshal(raw, &out); err != nil {
+		return nil, fmt.Errorf("unmarshal: %w", err)
+	}
+	out.Properties.Count = ptr(int32(0))
+	out.Properties.EnableAutoScaling = ptr(false)
+	out.Properties.MinCount = nil
+	out.Properties.MaxCount = nil
+	return &out, nil
+}
+
+// putPoolWait issues an agent-pool CreateOrUpdate PUT and blocks until ARM
+// reports the operation done.
+func (c *clients) putPoolWait(ctx context.Context, poolName string, body *armcs.AgentPool) error {
+	poller, err := c.pools.BeginCreateOrUpdate(ctx, c.cfg.resourceGroup, c.cfg.clusterName, poolName, *body, nil)
+	if err != nil {
+		return fmt.Errorf("begin create/update pool %s: %w", poolName, err)
+	}
+	if _, err := poller.PollUntilDone(ctx, nil); err != nil {
+		return fmt.Errorf("poll create/update pool %s: %w", poolName, err)
+	}
+	return nil
+}
+
+// createPoolZeroThenScale creates (or recreates) an agent pool with the
+// accelerated-networking guard described above: create empty → verify/correct
+// the VMSS against refPool → scale up to wantCount → wait for Ready nodes →
+// re-verify when a patch was applied. finalBody carries the pool's intended
+// final spec (size, autoscaling, taints, etc); the zero-node create transiently
+// disables autoscaling so the VMSS comes up empty, and the scale-up PUT
+// restores finalBody verbatim.
+func (c *clients) createPoolZeroThenScale(ctx context.Context, poolName, refPool string, finalBody *armcs.AgentPool, wantCount int, readyTimeout time.Duration) error {
+	zeroBody, err := zeroNodePoolBody(finalBody)
+	if err != nil {
+		return fmt.Errorf("build zero-node body for %s: %w", poolName, err)
+	}
+	logf("creating pool %s at 0 nodes (autoscaling disabled) to inspect accelerated-networking before scale-up", poolName)
+	if err := c.putPoolWait(ctx, poolName, zeroBody); err != nil {
+		return fmt.Errorf("create pool %s at 0 nodes: %w", poolName, err)
+	}
+
+	swiftRequired := poolIsSwift(finalBody)
+	patched, wantAN, err := c.ensurePoolAccelNetworking(ctx, poolName, refPool, swiftRequired)
+	if err != nil {
+		return err
+	}
+
+	logf("scaling pool %s up to %d node(s)", poolName, wantCount)
+	if err := c.putPoolWait(ctx, poolName, finalBody); err != nil {
+		return fmt.Errorf("scale pool %s to %d: %w", poolName, wantCount, err)
+	}
+	logf("pool %s scaled; waiting for %d Ready k8s node(s) (timeout=%s)", poolName, wantCount, readyTimeout)
+	if err := c.waitForReadyNodes(ctx, poolName, wantCount, readyTimeout); err != nil {
+		return err
+	}
+	// Re-verify after scale-up when we patched the VMSS, and also for Swift
+	// pools that came up already-enabled (wantAN==true, no patch): AKS may
+	// reconcile the VMSS during the scale-up PUT, so a Swift pool — where
+	// accelerated-networking is mandatory — must be confirmed even when no
+	// patch was applied. The wantAN guard keeps the fail-open path intact:
+	// when the VMSS was unreadable, ensurePoolAccelNetworking returns
+	// wantAN==false and we skip the post-scale assertion rather than demand a
+	// value we never managed to read (AROSLSRE-1172).
+	if patched || (swiftRequired && wantAN) {
+		return c.verifyPoolAccelNetworking(ctx, poolName, wantAN)
+	}
+	return nil
 }
 
 // ---------------------------------------------------------------------------
@@ -1812,14 +2303,6 @@ func (c *clients) recreatePool(ctx context.Context, poolName string, live *armcs
 	if b, err := json.MarshalIndent(body, "", "  "); err == nil {
 		logf("--- sanitized PUT body for %s ---\n%s", poolName, string(b))
 	}
-	logf("BeginCreateOrUpdate pool %s", poolName)
-	poller, err := c.pools.BeginCreateOrUpdate(ctx, c.cfg.resourceGroup, c.cfg.clusterName, poolName, *body, nil)
-	if err != nil {
-		return fmt.Errorf("begin recreate %s: %w", poolName, err)
-	}
-	if _, err := poller.PollUntilDone(ctx, nil); err != nil {
-		return fmt.Errorf("poll recreate %s: %w", poolName, err)
-	}
 	expected := int32(1)
 	if body.Properties != nil {
 		if body.Properties.MinCount != nil {
@@ -1828,8 +2311,15 @@ func (c *clients) recreatePool(ctx context.Context, poolName string, live *armcs
 			expected = *body.Properties.Count
 		}
 	}
-	logf("pool %s ARM-Succeeded; waiting for %d Ready k8s node(s)", poolName, expected)
-	return c.waitForReadyNodes(ctx, poolName, int(expected), poolReadyTOMin*time.Minute)
+	logf("recreating pool %s (target %d Ready node(s))", poolName, expected)
+	// AROSLSRE-1172: apply the same accelerated-networking guard to the
+	// recreated source pool. By this point the source pool's own VMSS has
+	// been deleted, so the reference for the desired accelerated-networking
+	// value is the temp pool's VMSS, which addTempPool already verified (and
+	// corrected if needed). Create the pool empty, verify/correct the VMSS,
+	// then scale to the original size so the recreated nodes also boot with
+	// the correct NIC config.
+	return c.createPoolZeroThenScale(ctx, poolName, tempPoolName(poolName), body, int(expected), poolReadyTOMin*time.Minute)
 }
 
 // ---------------------------------------------------------------------------
