@@ -19,7 +19,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -300,11 +299,6 @@ func createServiceProviderClusterForTesting(
 ) {
 	t.Helper()
 
-	cosmosTestInfo, ok := testInfo.StorageIntegrationTestInfo.(*integrationutils.CosmosIntegrationTestInfo)
-	if !ok {
-		return
-	}
-
 	parsedID := api.Must(azcorearm.ParseResourceID(clusterResourceID(clusterName)))
 	subscriptionID := parsedID.SubscriptionID
 	resourceGroupName := parsedID.ResourceGroupName
@@ -312,8 +306,11 @@ func createServiceProviderClusterForTesting(
 	spcResourceID := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/%s/serviceProviderClusters/default",
 		subscriptionID, resourceGroupName, clusterName)
 
+	cosmosID, err := arm.ResourceIDStringToCosmosID(spcResourceID)
+	require.NoError(t, err)
+
 	spcDoc := map[string]interface{}{
-		"id":           strings.ReplaceAll(strings.ToLower(spcResourceID), "/", "|"),
+		"id":           cosmosID,
 		"partitionKey": subscriptionID,
 		"resourceID":   spcResourceID,
 		"resourceType": "microsoft.redhatopenshift/hcpopenshiftclusters/serviceproviderclusters",
@@ -339,7 +336,7 @@ func createServiceProviderClusterForTesting(
 	spcBytes, err := json.Marshal(spcDoc)
 	require.NoError(t, err)
 
-	require.NoError(t, cosmosTestInfo.LoadContent(ctx, spcBytes))
+	require.NoError(t, testInfo.LoadContent(ctx, spcBytes))
 }
 
 // testCrossVersionClusterPUT verifies that a v2024 GET-then-PUT preserves

@@ -133,7 +133,7 @@ func testVersionCompliance(t *testing.T, withMock bool) {
 				clusterResourceID := api.Must(azcorearm.ParseResourceID(scenario.ClusterResourceID))
 				require.NoError(t, integrationutils.MarkOperationsCompleteForName(ctx, testInfo.ResourcesDBClient(), subscriptionID, clusterResourceID.Name))
 
-				createServiceProviderClusterForVersionCompliance(t, ctx, testInfo, subscriptionID, clusterResourceID.Name)
+				createServiceProviderClusterForVersionCompliance(t, ctx, testInfo, subscriptionID, clusterResourceID.ResourceGroupName, clusterResourceID.Name)
 			}
 
 			// Create the resource under test using the scenario's createVersion
@@ -253,21 +253,18 @@ func createServiceProviderClusterForVersionCompliance(
 	t *testing.T,
 	ctx context.Context,
 	testInfo *integrationutils.IntegrationTestInfo,
-	subscriptionID, clusterName string,
+	subscriptionID, resourceGroupName, clusterName string,
 ) {
 	t.Helper()
 
-	cosmosTestInfo, ok := testInfo.StorageIntegrationTestInfo.(*integrationutils.CosmosIntegrationTestInfo)
-	if !ok {
-		return
-	}
-
-	resourceGroupName := "resourceGroupName"
 	spcResourceID := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/%s/serviceProviderClusters/default",
 		subscriptionID, resourceGroupName, clusterName)
 
+	cosmosID, err := arm.ResourceIDStringToCosmosID(spcResourceID)
+	require.NoError(t, err)
+
 	spcDoc := map[string]interface{}{
-		"id":           strings.ReplaceAll(strings.ToLower(spcResourceID), "/", "|"),
+		"id":           cosmosID,
 		"partitionKey": subscriptionID,
 		"resourceID":   spcResourceID,
 		"resourceType": "microsoft.redhatopenshift/hcpopenshiftclusters/serviceproviderclusters",
@@ -293,5 +290,5 @@ func createServiceProviderClusterForVersionCompliance(
 	spcBytes, err := json.Marshal(spcDoc)
 	require.NoError(t, err)
 
-	require.NoError(t, cosmosTestInfo.LoadContent(ctx, spcBytes))
+	require.NoError(t, testInfo.LoadContent(ctx, spcBytes))
 }
