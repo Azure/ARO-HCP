@@ -1254,6 +1254,6 @@
   "timepicker": {},
   "timezone": "browser",
   "title": "Operations Overview - Fleet Wide",
-  "uid": "operations-overview",
+  "uid": "sre-cluster-health-operations-overview",
   "version": 1
 }

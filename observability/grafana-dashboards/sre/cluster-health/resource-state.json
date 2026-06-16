@@ -189,7 +189,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "count(backend_node_pool_provision_state) or vector(0)",
+          "expr": "count(backend_node_pool_provision_state == 1) or vector(0)",
           "instant": true,
           "range": false,
           "legendFormat": "__auto",
@@ -1040,6 +1040,6 @@
   "timepicker": {},
   "timezone": "browser",
   "title": "Resource State - Fleet Wide",
-  "uid": "resource-state",
+  "uid": "sre-cluster-health-resource-state",
   "version": 1
 }
