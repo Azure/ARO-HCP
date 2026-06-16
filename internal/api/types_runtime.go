@@ -248,6 +248,21 @@ func (o *SystemAdminCredential) GetObjectMeta() metav1.Object {
 	return om
 }
 
+// SystemAdminCredentialList is a list of SystemAdminCredentials
+// compatible with runtime.Object for use with Kubernetes informer machinery.
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+type SystemAdminCredentialList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+	Items           []SystemAdminCredential `json:"items"`
+}
+
+var _ runtime.Object = &SystemAdminCredentialList{}
+
+func (l *SystemAdminCredentialList) GetObjectKind() schema.ObjectKind {
+	return &l.TypeMeta
+}
+
 // ControllerList is a list of Controller resources.
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type ControllerList struct {

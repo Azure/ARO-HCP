@@ -460,7 +460,7 @@ func (m *mockHCPClusterCRUD) ManagementClusterContents(hcpClusterName string) da
 	return newMockManagementClusterContentCRUD(m.client, parentResourceID, api.ClusterScopedManagementClusterContentResourceType)
 }
 
-func (m *mockHCPClusterCRUD) SystemAdminCredentials(hcpClusterName string) database.ResourceCRUD[api.SystemAdminCredential] {
+func (m *mockHCPClusterCRUD) SystemAdminCredentials(hcpClusterName string) database.SystemAdminCredentialsCRUD {
 	parentResourceID := api.Must(azcorearm.ParseResourceID(
 		path.Join(
 			m.parentResourceID.String(),
@@ -469,8 +469,10 @@ func (m *mockHCPClusterCRUD) SystemAdminCredentials(hcpClusterName string) datab
 			m.resourceType.Type,
 			hcpClusterName)))
 
-	return newMockResourceCRUD[api.SystemAdminCredential, database.GenericDocument[api.SystemAdminCredential]](
-		m.client, parentResourceID, api.SystemAdminCredentialResourceType)
+	return &mockSystemAdminCredentialsCRUD{
+		mockResourceCRUD: newMockResourceCRUD[api.SystemAdminCredential, database.GenericDocument[api.SystemAdminCredential]](
+			m.client, parentResourceID, api.SystemAdminCredentialResourceType),
+	}
 }
 
 var _ database.HCPClusterCRUD = &mockHCPClusterCRUD{}
@@ -521,6 +523,24 @@ func (m *mockExternalAuthCRUD) Controllers(externalAuthName string) database.Res
 }
 
 var _ database.ExternalAuthsCRUD = &mockExternalAuthCRUD{}
+
+// mockSystemAdminCredentialsCRUD implements database.SystemAdminCredentialsCRUD.
+type mockSystemAdminCredentialsCRUD struct {
+	*mockResourceCRUD[api.SystemAdminCredential, database.GenericDocument[api.SystemAdminCredential]]
+}
+
+func (m *mockSystemAdminCredentialsCRUD) Controllers(credentialName string) database.ResourceCRUD[api.Controller] {
+	parentResourceID := api.Must(azcorearm.ParseResourceID(
+		path.Join(
+			m.parentResourceID.String(),
+			m.resourceType.Types[len(m.resourceType.Types)-1],
+			credentialName,
+		)))
+
+	return newMockResourceCRUD[api.Controller, database.GenericDocument[api.Controller]](m.client, parentResourceID, api.SystemAdminCredentialControllerResourceType)
+}
+
+var _ database.SystemAdminCredentialsCRUD = &mockSystemAdminCredentialsCRUD{}
 
 // mockOperationCRUD implements database.OperationCRUD.
 type mockOperationCRUD struct {

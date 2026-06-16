@@ -54,6 +54,7 @@ const (
 	ClusterRelistDuration                  = 30 * time.Second
 	NodePoolRelistDuration                 = 30 * time.Second
 	ExternalAuthRelistDuration             = 30 * time.Second
+	SystemAdminCredentialRelistDuration    = 30 * time.Second
 	ServiceProviderClusterRelistDuration   = 30 * time.Second
 	ServiceProviderNodePoolRelistDuration  = 30 * time.Second
 	ControllerRelistDuration               = 30 * time.Second
@@ -295,6 +296,55 @@ func NewExternalAuthInformerWithRelistDuration(lister database.GlobalLister[api.
 		&api.HCPOpenShiftClusterExternalAuth{},
 		cache.SharedIndexInformerOptions{
 			ResyncPeriod: 1 * time.Hour, // this is only a default.  Shorter resyncs can be added when registering handlers.
+			Indexers: cache.Indexers{
+				listers.ByResourceGroup: resourceGroupIndexFunc,
+				listers.ByCluster:       clusterResourceIDIndexFunc,
+			},
+		},
+	)
+}
+
+// NewSystemAdminCredentialInformer creates an unstarted SharedIndexInformer for system admin credentials
+// with resource group and cluster indexes using the default relist duration.
+func NewSystemAdminCredentialInformer(lister database.GlobalLister[api.SystemAdminCredential]) cache.SharedIndexInformer {
+	return NewSystemAdminCredentialInformerWithRelistDuration(lister, SystemAdminCredentialRelistDuration)
+}
+
+// NewSystemAdminCredentialInformerWithRelistDuration creates an unstarted SharedIndexInformer for system admin credentials
+// with resource group and cluster indexes and a configurable relist duration.
+func NewSystemAdminCredentialInformerWithRelistDuration(lister database.GlobalLister[api.SystemAdminCredential], relistDuration time.Duration) cache.SharedIndexInformer {
+	lw := &cache.ListWatch{
+		ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
+			logger := utils.LoggerFromContext(ctx)
+			logger.Info("listing system admin credentials")
+			defer logger.Info("finished listing system admin credentials")
+
+			iter, err := lister.List(ctx, nil)
+			if err != nil {
+				return nil, err
+			}
+
+			list := &api.SystemAdminCredentialList{}
+			list.ResourceVersion = "0"
+			for _, sac := range iter.Items(ctx) {
+				list.Items = append(list.Items, *sac)
+			}
+			if err := iter.GetError(); err != nil {
+				return nil, err
+			}
+
+			return list, nil
+		},
+		WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
+			return NewExpiringWatcher(ctx, relistDuration), nil
+		},
+	}
+
+	return cache.NewSharedIndexInformerWithOptions(
+		&listWatchWithoutWatchListSemantics{lw},
+		&api.SystemAdminCredential{},
+		cache.SharedIndexInformerOptions{
+			ResyncPeriod: 1 * time.Hour,
 			Indexers: cache.Indexers{
 				listers.ByResourceGroup: resourceGroupIndexFunc,
 				listers.ByCluster:       clusterResourceIDIndexFunc,
