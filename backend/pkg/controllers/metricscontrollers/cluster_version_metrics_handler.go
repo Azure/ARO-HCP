@@ -109,7 +109,13 @@ func (metricsHandler *clusterVersionMetricsHandler) clusterUUIDMetricLabel(
 func (metricsHandler *clusterVersionMetricsHandler) versionStatesFromServiceProviderCluster(serviceProviderCluster *api.ServiceProviderCluster) map[string]string {
 	versionStates := make(map[string]string)
 
-	for _, activeVersion := range serviceProviderCluster.Status.ControlPlaneVersion.ActiveVersions {
+	activeVersions := serviceProviderCluster.Status.ControlPlaneVersion.ActiveVersions
+	// Bound concurrent version time series per cluster: the version we are on or moving to and the two previous versions.
+	const maxReportedActiveVersions = 3
+	if len(activeVersions) > maxReportedActiveVersions {
+		activeVersions = activeVersions[:maxReportedActiveVersions]
+	}
+	for _, activeVersion := range activeVersions {
 		version := activeVersion.Version.String()
 		// ActiveVersions is newest-first; skip duplicates that can appear after a rollback to the same z-stream.
 		if _, ok := versionStates[version]; ok {

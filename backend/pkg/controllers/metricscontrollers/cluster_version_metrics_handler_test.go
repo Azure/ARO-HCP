@@ -178,6 +178,32 @@ func TestClusterVersionMetricsHandler_SkipsDuplicateActiveVersionsAfterRollback(
 	require.NoError(t, testutil.GatherAndCompare(prometheusRegistry, strings.NewReader(expected), "backend_cluster_version_info"))
 }
 
+func TestClusterVersionMetricsHandler_CapsReportedActiveVersions(t *testing.T) {
+	ctx := context.Background()
+	prometheusRegistry := prometheus.NewRegistry()
+	handler := newTestClusterVersionMetricsHandler(t, prometheusRegistry, newTestHostedClusterReadDesireLister(t, "11111111-1111-1111-1111-111111111111"))
+
+	cluster := newTestCluster(t, "cluster-1", arm.ProvisioningStateSucceeded, nil)
+	// ActiveVersions is newest-first; only the three newest history entries are reported.
+	serviceProviderCluster := newTestServiceProviderCluster(t, cluster, "", []api.HCPClusterActiveVersion{
+		{Version: ptr.To(semver.MustParse("4.19.22")), State: configv1.PartialUpdate},
+		{Version: ptr.To(semver.MustParse("4.19.21")), State: configv1.PartialUpdate},
+		{Version: ptr.To(semver.MustParse("4.19.20")), State: configv1.PartialUpdate},
+		{Version: ptr.To(semver.MustParse("4.19.19")), State: configv1.CompletedUpdate},
+	})
+	handler.Sync(ctx, serviceProviderCluster)
+
+	resourceID := resourceIDMetricLabel(cluster.ID)
+	subscriptionID := subscriptionIDMetricLabel(cluster.ID)
+	clusterUUID := "11111111-1111-1111-1111-111111111111"
+
+	expected := expectedBackendClusterVersionInfoMetricHeader() + fmt.Sprintf(`backend_cluster_version_info{cluster_uuid="%s",resource_id="%s",state="partial",subscription_id="%s",version="4.19.22"} 1
+backend_cluster_version_info{cluster_uuid="%s",resource_id="%s",state="partial",subscription_id="%s",version="4.19.21"} 1
+backend_cluster_version_info{cluster_uuid="%s",resource_id="%s",state="partial",subscription_id="%s",version="4.19.20"} 1
+`, clusterUUID, resourceID, subscriptionID, clusterUUID, resourceID, subscriptionID, clusterUUID, resourceID, subscriptionID)
+	require.NoError(t, testutil.GatherAndCompare(prometheusRegistry, strings.NewReader(expected), "backend_cluster_version_info"))
+}
+
 func TestClusterVersionMetricsHandler_ReplacesDesiredWhenVersionBecomesActive(t *testing.T) {
 	ctx := context.Background()
 	prometheusRegistry := prometheus.NewRegistry()
