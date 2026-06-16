@@ -47,11 +47,11 @@ metadata:
   name: multicluster-engine-operator-config
   namespace: 'multicluster-engine'
 ---
-# Source: multicluster-engine/templates/multicluster-engin-2jizw78jh572r0kmnx26lw5n2uj0ws375neqnn6jtbr7.clusterrole.yaml
+# Source: multicluster-engine/templates/multicluster-engine-x5d5x8b93c5mh334chde54vpu6bfnweigxlxg6wtmnd.clusterrole.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: multicluster-engin-2jizw78jh572r0kmnx26lw5n2uj0ws375neqnn6jtbr7
+  name: multicluster-engine-x5d5x8b93c5mh334chde54vpu6bfnweigxlxg6wtmnd
 rules:
 - apiGroups:
   - ""
@@ -1135,6 +1135,7 @@ rules:
   - config.openshift.io
   resources:
   - apiservers
+  - authentications
   - clusteroperators
   - clusterversions
   - dnses
@@ -3349,15 +3350,15 @@ rules:
   - update
   - watch
 ---
-# Source: multicluster-engine/templates/multicluster-engin-2jizw78jh572r0kmnx26lw5n2uj0ws375neqnn6jtbr7.clusterrolebinding.yaml
+# Source: multicluster-engine/templates/multicluster-engine-x5d5x8b93c5mh334chde54vpu6bfnweigxlxg6wtmnd.clusterrolebinding.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: multicluster-engin-2jizw78jh572r0kmnx26lw5n2uj0ws375neqnn6jtbr7
+  name: multicluster-engine-x5d5x8b93c5mh334chde54vpu6bfnweigxlxg6wtmnd
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: multicluster-engin-2jizw78jh572r0kmnx26lw5n2uj0ws375neqnn6jtbr7
+  name: multicluster-engine-x5d5x8b93c5mh334chde54vpu6bfnweigxlxg6wtmnd
 subjects:
 - kind: ServiceAccount
   name: multicluster-engine-operator
@@ -3499,6 +3500,8 @@ spec:
           value: 'arohcpsvcdev.azurecr.io/acm-d-cache/must-gather-rhel9@sha256:1234567890'
         - name: OPERAND_IMAGE_BACKPLANE_OPERATOR
           value: 'arohcpsvcdev.azurecr.io/acm-d-cache/backplane-rhel9-operator@sha256:1234567890'
+        - name: OPERAND_IMAGE_CLOUDEVENTS_CONDUCTOR
+          value: 'arohcpsvcdev.azurecr.io/acm-d-cache/cloudevents-conductor-rhel9@sha256:1234567890'
         - name: OPERAND_IMAGE_CLUSTER_API_PROVIDER_AGENT
           value: 'arohcpsvcdev.azurecr.io/acm-d-cache/cluster-api-provider-agent-rhel9@sha256:1234567890'
         - name: OPERAND_IMAGE_CLUSTER_API_PROVIDER_AWS_RHEL9
@@ -3521,6 +3524,8 @@ spec:
           value: 'arohcpsvcdev.azurecr.io/acm-d-cache/cluster-image-set-controller-rhel9@sha256:1234567890'
         - name: OPERAND_IMAGE_CLUSTERLIFECYCLE_STATE_METRICS
           value: 'arohcpsvcdev.azurecr.io/acm-d-cache/clusterlifecycle-state-metrics-rhel9@sha256:1234567890'
+        - name: OPERAND_IMAGE_CLUSTER_PERMISSION
+          value: 'arohcpsvcdev.azurecr.io/acm-d-cache/cluster-permission-rhel9@sha256:1234567890'
         - name: OPERAND_IMAGE_CLUSTER_PROXY
           value: 'arohcpsvcdev.azurecr.io/acm-d-cache/cluster-proxy-rhel9@sha256:1234567890'
         - name: OPERAND_IMAGE_CONSOLE_MCE
@@ -3539,6 +3544,8 @@ spec:
           value: 'arohcpsvcdev.azurecr.io/acm-d-cache/image-based-install-rhel9@sha256:1234567890'
         - name: OPERAND_IMAGE_KUBE_RBAC_PROXY_MCE
           value: 'arohcpsvcdev.azurecr.io/acm-d-cache/kube-rbac-proxy-mce-rhel9@sha256:1234567890'
+        - name: OPERAND_IMAGE_MAESTRO
+          value: 'arohcpsvcdev.azurecr.io/acm-d-cache/maestro-rhel9@sha256:1234567890'
         - name: OPERAND_IMAGE_MANAGEDCLUSTER_IMPORT_CONTROLLER
           value: 'arohcpsvcdev.azurecr.io/acm-d-cache/managedcluster-import-controller-rhel9@sha256:1234567890'
         - name: OPERAND_IMAGE_MANAGED_SERVICEACCOUNT
@@ -3571,8 +3578,10 @@ spec:
           value: 'arohcpsvcdev.azurecr.io/acm-d-cache/ose-baremetal-cluster-api-controllers-rhel9@sha256:1234567890'
         - name: OPERAND_IMAGE_POSTGRESQL_13
           value: 'arohcpsvcdev.azurecr.io/acm-d-cache/postgresql-13@sha256:1234567890'
+        - name: OPERAND_IMAGE_POSTGRESQL_15
+          value: 'arohcpsvcdev.azurecr.io/acm-d-cache/postgresql-15@sha256:1234567890'
         - name: OPERATOR_VERSION
-          value: 2.11.3
+          value: 2.17.0
         - name: OPERATOR_PACKAGE
           value: multicluster-engine
         image: 'arohcpsvcdev.azurecr.io/acm-d-cache/backplane-rhel9-operator@sha256:1234567890'

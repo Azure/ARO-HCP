@@ -1,14 +1,14 @@
 acm:
   mce:
     bundle:
-      digest: sha256:2fbd59d99219005e547eec97b7b7386f285993e9133c0478bd76c26f1251f621
+      digest: sha256:91b812c7345d9ca143dce919865debe6bf3740c3dd6299644c047a920340f9cb
       registry: quay.io
-      repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-211
+      repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-217
   operator:
     bundle:
-      digest: sha256:c57efbcc1a6eaf381a6acfc8971426e72cb780df393cc87b37d36d5707cc1792
+      digest: sha256:2a4a4c0b64b0e80edc499f7e8a5e5bc01c0cd1880becb213012e5a6985843a43
       registry: quay.io
-      repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-216
+      repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-217
 acr:
   ocp:
     name: arohcpocpdev
