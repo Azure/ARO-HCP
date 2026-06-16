@@ -400,12 +400,105 @@
       "type": "stat"
     },
     {
+      "datasource": {
+        "type": "datasource",
+        "uid": "-- Mixed --"
+      },
+      "description": "Total cluster count per service-cluster region, sorted descending",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "fixedColor": "purple",
+            "mode": "fixed"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              }
+            ]
+          },
+          "unit": "none",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 12,
+        "w": 24,
+        "x": 0,
+        "y": 6
+      },
+      "id": 40,
+      "options": {
+        "barRadius": 0.1,
+        "barWidth": 0.8,
+        "fullHighlight": false,
+        "groupWidth": 0.7,
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "right",
+          "showLegend": true
+        },
+        "orientation": "horizontal",
+        "showValue": "always",
+        "stacking": "none",
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        },
+        "xTickLabelRotation": 0
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "sort_desc(count by (cluster) (backend_cluster_provision_state == 1))",
+          "instant": true,
+          "range": false,
+          "legendFormat": "{{cluster}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Clusters Per Region",
+      "transformations": [
+        {
+          "id": "seriesToRows",
+          "options": {}
+        },
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "fields": {},
+            "sort": [
+              {
+                "field": "Value",
+                "desc": true
+              }
+            ]
+          }
+        }
+      ],
+      "type": "barchart"
+    },
+    {
       "collapsed": false,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 6
+        "y": 18
       },
       "id": 10,
       "panels": [],
@@ -534,7 +627,7 @@
         "h": 10,
         "w": 12,
         "x": 0,
-        "y": 7
+        "y": 19
       },
       "id": 11,
       "options": {
@@ -689,7 +782,7 @@
         "h": 10,
         "w": 12,
         "x": 12,
-        "y": 7
+        "y": 19
       },
       "id": 12,
       "options": {
@@ -743,7 +836,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 17
+        "y": 29
       },
       "id": 20,
       "panels": [],
@@ -840,7 +933,7 @@
         "h": 10,
         "w": 24,
         "x": 0,
-        "y": 18
+        "y": 30
       },
       "id": 21,
       "options": {
@@ -913,7 +1006,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 28
+        "y": 40
       },
       "id": 30,
       "panels": [],
@@ -961,7 +1054,7 @@
         "h": 8,
         "w": 24,
         "x": 0,
-        "y": 29
+        "y": 41
       },
       "id": 31,
       "options": {
