@@ -324,10 +324,14 @@ func (c *cleanupLegacyMaestroReadonlyBundles) buildMaestroClientsByManagementClu
 	return out, nil
 }
 
-// cancelMaestroClientsByManagementCluster runs the cancel function for each
-// maestro client built by buildMaestroClientsByManagementCluster.
+// cancelMaestroClientsByManagementCluster releases each maestro client built by
+// buildMaestroClientsByManagementCluster by closing its underlying HTTP transport
+// and running its cancel function.
 func cancelMaestroClientsByManagementCluster(maestroClientsByMC map[string]*shardMaestroClient) {
 	for _, entry := range maestroClientsByMC {
+		if entry.maestroClient != nil {
+			entry.maestroClient.Close()
+		}
 		entry.maestroClientCancelFunc()
 	}
 }

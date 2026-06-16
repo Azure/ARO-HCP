@@ -137,7 +137,7 @@ func GenerateMaestroSourceID(envName string, provisionShardID string) string {
 // It returns the cloned transport alongside the API client so the caller can
 // close idle connections when the client is no longer needed.
 func newRESTClient(endpoint string) (*http.Transport, *maestroopenapi.APIClient) {
-	httpClientTransport := http.DefaultTransport.(*http.Transport).Clone()
+	httpClientTransport := cloneDefaultTransport()
 	maestroRESTClientConfig := &maestroopenapi.Configuration{
 		DefaultHeader: map[string]string{},
 		UserAgent:     "ARO-HCP-Backend",
@@ -154,6 +154,18 @@ func newRESTClient(endpoint string) (*http.Transport, *maestroopenapi.APIClient)
 
 	restClient := maestroopenapi.NewAPIClient(maestroRESTClientConfig)
 	return httpClientTransport, restClient
+}
+
+// cloneDefaultTransport returns a clone of http.DefaultTransport so the returned
+// transport preserves its defaults (proxy settings, connection pooling, timeouts)
+// while being owned by the caller, which can release its idle connections. It
+// falls back to a new transport if http.DefaultTransport has been replaced with a
+// value that is not an *http.Transport.
+func cloneDefaultTransport() *http.Transport {
+	if dt, ok := http.DefaultTransport.(*http.Transport); ok {
+		return dt.Clone()
+	}
+	return &http.Transport{Proxy: http.ProxyFromEnvironment}
 }
 
 // newGRPCSourceWorkClient creates a new GRPC Source Work client for the Maestro API.

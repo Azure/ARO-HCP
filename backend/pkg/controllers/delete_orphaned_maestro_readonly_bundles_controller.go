@@ -176,9 +176,13 @@ type shardMaestroClient struct {
 	maestroClientCancelFunc context.CancelFunc
 }
 
-// cancelMaestroClientsByProvisionShard runs the cancel function for each Maestro client entry in maestroClientsByProvisionShard.
+// cancelMaestroClientsByProvisionShard releases each Maestro client entry in maestroClientsByProvisionShard
+// by closing its underlying HTTP transport and running its cancel function.
 func cancelMaestroClientsByProvisionShard(maestroClientsByProvisionShard map[string]*shardMaestroClient) {
 	for _, entry := range maestroClientsByProvisionShard {
+		if entry.maestroClient != nil {
+			entry.maestroClient.Close()
+		}
 		entry.maestroClientCancelFunc()
 	}
 }

@@ -62,6 +62,7 @@ func execute(ctx context.Context, opts *base.RawAuthOptions) error {
 	logger.Info("Executing hellow world")
 
 	client := adminClient.NewClient(completed.Endpoint, completed.Host, completed.Token, completed.Insecure, false)
+	defer client.Close()
 	err = client.HelloWorld(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to send request: %w", err)

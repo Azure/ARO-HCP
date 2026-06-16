@@ -36,28 +36,29 @@ type httpClient interface {
 }
 
 type client struct {
-	token     string
-	endpoint  string
+	token      string
+	endpoint   string
 	hostHeader string
-	client    httpClient
-	transport *http.Transport // non-nil only when a custom transport was created
+	client     httpClient
+	transport  *http.Transport
 }
 
 var _ Client = (*client)(nil)
 
 func NewClient(endpoint string, hostHeader string, token string, insecureSkipVerify bool, debug bool) Client {
-	var roundTripper httpClient = &http.Client{}
-	var transport *http.Transport
+	// Clone http.DefaultTransport so we own the transport (and can release its
+	// idle connections in Close) while preserving its defaults such as
+	// ProxyFromEnvironment, connection pooling limits and timeouts.
+	transport := cloneDefaultTransport()
 
 	if insecureSkipVerify {
-		transport = &http.Transport{
-			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: true, //nolint:gosec // intentional for admin CLI usage with self-signed certs
-				ServerName:         hostHeader,
-			},
+		transport.TLSClientConfig = &tls.Config{
+			InsecureSkipVerify: true, //nolint:gosec // intentional for admin CLI usage with self-signed certs
+			ServerName:         hostHeader,
 		}
-		roundTripper = &http.Client{Transport: transport}
 	}
+
+	var roundTripper httpClient = &http.Client{Transport: transport}
 
 	if debug {
 		roundTripper = &debuggingRoundTripper{
@@ -73,6 +74,17 @@ func NewClient(endpoint string, hostHeader string, token string, insecureSkipVer
 		client:     roundTripper,
 		transport:  transport,
 	}
+}
+
+// cloneDefaultTransport returns a clone of http.DefaultTransport so the
+// returned transport preserves environment proxy settings, connection pooling
+// and timeouts. It falls back to a new transport if http.DefaultTransport has
+// been replaced with a value that is not an *http.Transport.
+func cloneDefaultTransport() *http.Transport {
+	if dt, ok := http.DefaultTransport.(*http.Transport); ok {
+		return dt.Clone()
+	}
+	return &http.Transport{Proxy: http.ProxyFromEnvironment}
 }
 
 // Close releases idle connections held by the underlying HTTP transport.
@@ -103,7 +115,10 @@ func (d *debuggingRoundTripper) Do(request *http.Request) (*http.Response, error
 
 	raw, err = httputil.DumpResponse(resp, true)
 	if err != nil {
-		return resp, fmt.Errorf("failed to dump response: %w", err)
+		// Avoid leaking the response body: the caller short-circuits on error
+		// and will not get a chance to close it.
+		_ = resp.Body.Close()
+		return nil, fmt.Errorf("failed to dump response: %w", err)
 	}
 	fmt.Println(string(raw))
 	return resp, nil

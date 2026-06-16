@@ -32,8 +32,13 @@ import (
 )
 
 const (
-	maxBytes            = 100 * 1024 * 1024 // 100MB
-	blobDownloadTimeout = 60 * time.Second
+	maxBytes = 100 * 1024 * 1024 // 100MB
+	// blobResponseHeaderTimeout bounds the time spent waiting for the blob
+	// storage response headers (time to first byte) rather than the whole
+	// download. A single total deadline would risk prematurely cancelling large
+	// (up to maxBytes) downloads on slow networks; overall cancellation is still
+	// governed by the request context.
+	blobResponseHeaderTimeout = 60 * time.Second
 )
 
 // HCPSerialConsoleHandler handles requests to retrieve VM serial console logs
@@ -54,8 +59,24 @@ func NewHCPSerialConsoleHandler(
 	return &HCPSerialConsoleHandler{
 		resourcesDBClient:      resourcesDBClient,
 		fpaCredentialRetriever: fpaCredentialRetriever,
-		httpClient:             &http.Client{Timeout: blobDownloadTimeout},
+		httpClient:             newBlobHTTPClient(),
 	}
+}
+
+// newBlobHTTPClient builds the HTTP client used to download serial console blobs.
+// It bounds the time waiting for response headers instead of imposing a single
+// total deadline, so large downloads (up to maxBytes) on slow networks are not
+// prematurely cancelled. The transport is cloned from http.DefaultTransport to
+// preserve its defaults (proxy settings, connection pooling, dial timeouts).
+func newBlobHTTPClient() *http.Client {
+	transport, ok := http.DefaultTransport.(*http.Transport)
+	if ok {
+		transport = transport.Clone()
+	} else {
+		transport = &http.Transport{Proxy: http.ProxyFromEnvironment}
+	}
+	transport.ResponseHeaderTimeout = blobResponseHeaderTimeout
+	return &http.Client{Transport: transport}
 }
 
 // ServeHTTP handles GET requests to retrieve serial console output for a specified VM.
