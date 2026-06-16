@@ -10,6 +10,20 @@
 $schema: "pipeline.schema.v1"
 serviceGroup: Microsoft.Azure.ARO.HCP.Global
 rolloutName: Global Resource Rollout
+buildStep:
+  command: bash
+  args:
+  - -c
+  - |
+    set -o errexit
+    set -o nounset
+    set -o pipefail
+    tmp="$(mktemp ./scripts/restore-entra-app/restore-entra-app.XXXXXX)"
+    trap 'rm -f "${tmp}"' EXIT
+    CGO_ENABLED=0 go build -o "${tmp}" ./scripts/restore-entra-app
+    chmod 0755 "${tmp}"
+    mv "${tmp}" ./scripts/restore-entra-app/restore-entra-app
+    trap - EXIT
 resourceGroups:
 - name: singleton
   resourceGroup: '{{ .global.rg }}'
@@ -93,6 +107,44 @@ resourceGroups:
         name: genevaActionKeyVaultUrl
     issuer:
       value: OneCertV2-PrivateCA
+  - name: geneva-restore-permissions
+    action: ARM
+    template: templates/geneva-restore-permissions.bicep
+    parameters: configurations/geneva-restore-permissions.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    dependsOn:
+    - resourceGroup: singleton
+      step: output
+  # Restore the Geneva Actions Entra app/SP if it is in the 30-day soft-delete
+  # window. A soft-deleted object keeps its uniqueName reservation, which makes
+  # the declarative create in geneva-identities fail with a misleading
+  # "Failed to update one or more relationships in 'owners'" error. The tool is
+  # idempotent: live app -> no-op; nothing deleted -> no-op; soft-deleted ->
+  # restore app (+ SP). See AROSLSRE-1130.
+  - name: restore-geneva-actions-app
+    action: Shell
+    command: ./scripts/restore-entra-app/restore-entra-app
+    workingDir: .
+    shellIdentity:
+      input:
+        resourceGroup: singleton
+        step: output
+        name: globalMSIId
+    variables:
+    - name: APPLICATION_NAME
+      configRef: geneva.actions.application.name
+    automatedRetry:
+      errorContainsAny:
+      # The app-role grant from geneva-restore-permissions can take a short
+      # time to propagate into freshly issued MSI tokens.
+      - "Authorization_RequestDenied"
+      - "unauthorized"
+      - "InvalidAuthenticationToken"
+      maximumRetryCount: 5
+      durationBetweenRetries: 30s
+    dependsOn:
+    - resourceGroup: singleton
+      step: geneva-restore-permissions
   - name: geneva-identities
     action: ARM
     template: templates/geneva-identities.bicep
@@ -103,6 +155,8 @@ resourceGroups:
       step: global-kv-private-issuer
     - resourceGroup: singleton
       step: geneva-kv-private-issuer
+    - resourceGroup: singleton
+      step: restore-geneva-actions-app
   - name: mise-identity
     action: ARM
     template: templates/mise-identity.bicep
