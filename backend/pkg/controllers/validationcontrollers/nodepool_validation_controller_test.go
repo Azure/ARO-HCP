@@ -31,9 +31,11 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/validationcontrollers/validations"
+	"github.com/Azure/ARO-HCP/backend/pkg/listertesting"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
+	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -140,9 +142,14 @@ func TestNodePoolValidationSyncer_SyncOnce(t *testing.T) {
 		t.Helper()
 		_, err := mockDB.HCPClusters(testSubscriptionID, testResourceGroup).Create(ctx, newTestCluster(t), nil)
 		require.NoError(t, err)
-		_, err = mockDB.HCPClusters(testSubscriptionID, testResourceGroup).NodePools(testClusterName).Create(ctx, newTestNodePool(t), nil)
+		nodePool := newTestNodePool(t)
+		_, err = mockDB.HCPClusters(testSubscriptionID, testResourceGroup).NodePools(testClusterName).Create(ctx, nodePool, nil)
 		require.NoError(t, err)
 		_, err = mockDB.Subscriptions().Create(ctx, newTestSubscription(), nil)
+		require.NoError(t, err)
+		// Seed an empty ServiceProviderNodePool the way the production creator
+		// controller would have populated it by the time the syncer runs.
+		_, err = database.GetOrCreateServiceProviderNodePool(ctx, mockDB, nodePool.ID)
 		require.NoError(t, err)
 	}
 
@@ -198,28 +205,17 @@ func TestNodePoolValidationSyncer_SyncOnce(t *testing.T) {
 			setupDB: func(t *testing.T, ctx context.Context, mockDB *databasetesting.MockResourcesDBClient) {
 				t.Helper()
 				defaultSetupDB(t, ctx, mockDB)
-				spnpResourceID := api.Must(azcorearm.ParseResourceID(
-					"/subscriptions/" + testSubscriptionID +
-						"/resourceGroups/" + testResourceGroup +
-						"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName +
-						"/nodePools/" + testNodePoolName +
-						"/serviceProviderNodePools/default"))
-				spnp := &api.ServiceProviderNodePool{
-					CosmosMetadata: arm.CosmosMetadata{
-						ResourceID:   spnpResourceID,
-						PartitionKey: strings.ToLower(spnpResourceID.SubscriptionID),
-					},
-					Status: api.ServiceProviderNodePoolStatus{
-						Validations: []metav1.Condition{
-							{
-								Type:   testValidationName,
-								Status: metav1.ConditionTrue,
-								Reason: "Succeeded",
-							},
-						},
+				spnpCRUD := mockDB.ServiceProviderNodePools(testSubscriptionID, testResourceGroup, testClusterName, testNodePoolName)
+				spnp, err := spnpCRUD.Get(ctx, api.ServiceProviderNodePoolResourceName)
+				require.NoError(t, err)
+				spnp.Status.Validations = []metav1.Condition{
+					{
+						Type:   testValidationName,
+						Status: metav1.ConditionTrue,
+						Reason: "Succeeded",
 					},
 				}
-				_, err := mockDB.ServiceProviderNodePools(testSubscriptionID, testResourceGroup, testClusterName, testNodePoolName).Create(ctx, spnp, nil)
+				_, err = spnpCRUD.Replace(ctx, spnp, nil)
 				require.NoError(t, err)
 			},
 			validation: &mockNodePoolValidation{
@@ -239,9 +235,10 @@ func TestNodePoolValidationSyncer_SyncOnce(t *testing.T) {
 			}
 
 			syncer := &nodePoolValidationSyncer{
-				cooldownChecker:   &alwaysSyncCooldownChecker{},
-				resourcesDBClient: mockDB,
-				validation:        tc.validation,
+				cooldownChecker:               &alwaysSyncCooldownChecker{},
+				resourcesDBClient:             mockDB,
+				serviceProviderNodePoolLister: &listertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockDB},
+				validation:                    tc.validation,
 			}
 
 			err := syncer.SyncOnce(ctx, newTestNodePoolKey())
@@ -254,7 +251,7 @@ func TestNodePoolValidationSyncer_SyncOnce(t *testing.T) {
 			if tc.wantConditionStatus != nil {
 				spnp, spnpErr := mockDB.ServiceProviderNodePools(
 					testSubscriptionID, testResourceGroup, testClusterName, testNodePoolName,
-				).Get(ctx, "default")
+				).Get(ctx, api.ServiceProviderNodePoolResourceName)
 				require.NoError(t, spnpErr)
 
 				cond := meta.FindStatusCondition(spnp.Status.Validations, testValidationName)
