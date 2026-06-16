@@ -242,6 +242,18 @@ func (c *MockClientPatchCall) DoAndReturn(f func(context.Context, string, types.
 	return c
 }
 
+// Close mocks base method.
+func (m *MockClient) Close() {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "Close")
+}
+
+// Close indicates an expected call of Close.
+func (mr *MockClientMockRecorder) Close() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockClient)(nil).Close))
+}
+
 // MockMaestroClientBuilder is a mock of MaestroClientBuilder interface.
 type MockMaestroClientBuilder struct {
 	ctrl     *gomock.Controller
