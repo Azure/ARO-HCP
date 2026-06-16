@@ -195,6 +195,8 @@ resourceGroups:
       configRef: clustersService.k8s.resources.requests.cpu
     - name: CS_MEMORY_LIMIT
       configRef: clustersService.k8s.resources.limits.memory
+    - name: DATA_PLANE_HA_PROXY_IMAGE
+      configRef: clustersService.dataPlaneHAProxyImage
     shellIdentity:
       input:
         resourceGroup: global

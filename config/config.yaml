@@ -966,6 +966,8 @@ defaults:
       exporter: ""
     environment: "arohcp{{ .ctx.environment }}"
     denyAssignments: "disabled"
+    # The image used to override the HAProxy image of the worker node API server proxy.
+    dataPlaneHAProxyImage: ""
     postgres:
       name: "arohcp-{{ .ctx.environment }}-dbcs-{{ .ctx.regionShort }}" # [globally-unique]
       deploy: true
