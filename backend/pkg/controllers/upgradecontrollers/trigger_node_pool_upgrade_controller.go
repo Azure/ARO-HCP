@@ -92,9 +92,12 @@ func (c *triggerNodePoolUpgradeSyncer) SyncOnce(ctx context.Context, key control
 		return nil
 	}
 
-	existingServiceProviderNodePool, err := database.GetOrCreateServiceProviderNodePool(ctx, c.resourcesDBClient, key.GetResourceID())
+	existingServiceProviderNodePool, err := database.GetServiceProviderNodePool(ctx, c.resourcesDBClient, key.GetResourceID())
+	if database.IsNotFoundError(err) {
+		return nil
+	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get or create ServiceProviderNodePool: %w", err))
+		return utils.TrackError(fmt.Errorf("failed to get ServiceProviderNodePool: %w", err))
 	}
 
 	desiredVersion := existingServiceProviderNodePool.Spec.NodePoolVersion.DesiredVersion

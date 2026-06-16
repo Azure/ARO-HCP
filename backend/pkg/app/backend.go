@@ -575,6 +575,13 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		unionKubeApplierInformers,
 	)
 
+	createServiceProviderClusterController := controllers.NewCreateServiceProviderClusterController(
+		activeOperationLister, b.options.ResourcesDBClient, backendInformers,
+	)
+	createServiceProviderNodePoolController := controllers.NewCreateServiceProviderNodePoolController(
+		activeOperationLister, b.options.ResourcesDBClient, backendInformers,
+	)
+
 	createClusterScopedReadDesiresController := controllers.NewCreateClusterScopedReadDesiresController(
 		activeOperationLister, b.options.ResourcesDBClient, b.options.KubeApplierDBClients,
 		backendInformers, b.options.MaestroSourceEnvironmentIdentifier,
@@ -782,6 +789,8 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go azureClusterResourceGroupExistenceValidationController.Run(ctx, 20)
 				go azureClusterManagedIdentitiesExistenceValidationController.Run(ctx, 20)
 				go nodePoolVersionController.Run(ctx, 20)
+				go createServiceProviderClusterController.Run(ctx, 20)
+				go createServiceProviderNodePoolController.Run(ctx, 20)
 				go createClusterScopedReadDesiresController.Run(ctx, 20)
 				go createNodePoolScopedReadDesiresController.Run(ctx, 20)
 				go maestroDeleteOrphanedReadonlyBundlesController.Run(ctx, 20)

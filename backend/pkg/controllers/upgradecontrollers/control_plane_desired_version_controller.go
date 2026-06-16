@@ -127,9 +127,12 @@ func (c *controlPlaneDesiredVersionSyncer) SyncOnce(ctx context.Context, key con
 		return nil
 	}
 
-	existingServiceProviderCluster, err := database.GetOrCreateServiceProviderCluster(ctx, c.resourcesDBClient, key.GetResourceID())
+	existingServiceProviderCluster, err := database.GetServiceProviderCluster(ctx, c.resourcesDBClient, key.GetResourceID())
+	if database.IsNotFoundError(err) {
+		return nil
+	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get or create ServiceProviderCluster: %w", err))
+		return utils.TrackError(fmt.Errorf("failed to get ServiceProviderCluster: %w", err))
 	}
 
 	// Resolve the cluster UUID from the cached HostedCluster so we can build the Cincinnati client.
@@ -290,9 +293,12 @@ func (c *controlPlaneDesiredVersionSyncer) desiredControlPlaneZVersion(ctx conte
 		if err := validation.OpenshiftVersionAtMostOneMinorSkew(actualLatestMinorVersion.String(), desiredMinorVersion.String()); err != nil {
 			return nil, utils.TrackError(err)
 		}
-		clusterNodePools, err := c.listClusterAdmissionNodePools(ctx, clusterResourceID)
+		clusterNodePools, ready, err := c.listClusterAdmissionNodePools(ctx, clusterResourceID)
 		if err != nil {
 			return nil, utils.TrackError(err)
+		}
+		if !ready {
+			return nil, nil
 		}
 		if err := admission.AdmitClusterNodePoolsMinorVersionSkew(ctx, clusterNodePools, desiredMinorVersion); err != nil {
 			return nil, utils.TrackError(err)
@@ -334,21 +340,32 @@ func (c *controlPlaneDesiredVersionSyncer) desiredControlPlaneZVersion(ctx conte
 	))
 }
 
-// listClusterAdmissionNodePools prefetches every node pool under clusterResourceID
-// paired with its service-provider record, in the same shape that
+// listClusterAdmissionNodePools prefetches live node pools under clusterResourceID
+// paired with their service-provider record, in the same shape that
 // frontend.newClusterAdmissionContext builds for cluster admission. The upgrade
 // controller passes the result to admission.AdmitClusterNodePoolsMinorVersionSkew
 // directly so that admission code stays free of any DB dependency.
-func (c *controlPlaneDesiredVersionSyncer) listClusterAdmissionNodePools(ctx context.Context, clusterResourceID *azcorearm.ResourceID) ([]admission.ClusterAdmissionNodePool, error) {
+//
+// Node pools with DeletionTimestamp set are omitted. When a live node pool has
+// no ServiceProviderNodePool document yet, ready is false so the caller retries
+// on a later reconcile once the ensure controller has created it.
+func (c *controlPlaneDesiredVersionSyncer) listClusterAdmissionNodePools(ctx context.Context, clusterResourceID *azcorearm.ResourceID) ([]admission.ClusterAdmissionNodePool, bool, error) {
 	nodePoolIterator, err := c.resourcesDBClient.HCPClusters(clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName).NodePools(clusterResourceID.Name).List(ctx, nil)
 	if err != nil {
-		return nil, utils.TrackError(err)
+		return nil, false, utils.TrackError(err)
 	}
 	var clusterNodePools []admission.ClusterAdmissionNodePool
 	for _, nodePool := range nodePoolIterator.Items(ctx) {
-		spNodePool, err := database.GetOrCreateServiceProviderNodePool(ctx, c.resourcesDBClient, nodePool.ID)
+		if nodePool.ServiceProviderProperties.DeletionTimestamp != nil {
+			continue
+		}
+
+		spNodePool, err := database.GetServiceProviderNodePool(ctx, c.resourcesDBClient, nodePool.ID)
+		if database.IsNotFoundError(err) {
+			return nil, false, nil
+		}
 		if err != nil {
-			return nil, utils.TrackError(err)
+			return nil, false, utils.TrackError(err)
 		}
 		clusterNodePools = append(clusterNodePools, admission.ClusterAdmissionNodePool{
 			NodePool:                nodePool,
@@ -356,9 +373,9 @@ func (c *controlPlaneDesiredVersionSyncer) listClusterAdmissionNodePools(ctx con
 		})
 	}
 	if err := nodePoolIterator.GetError(); err != nil {
-		return nil, utils.TrackError(err)
+		return nil, false, utils.TrackError(err)
 	}
-	return clusterNodePools, nil
+	return clusterNodePools, true, nil
 }
 
 // FindAllUpgradeTargetVersionsInMinor queries Cincinnati and finds the latest version within the specified target minor.
