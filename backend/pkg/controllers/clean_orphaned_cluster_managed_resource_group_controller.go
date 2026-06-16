@@ -31,6 +31,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -38,14 +39,6 @@ import (
 // resourceGroupListPageSize is the number of resource groups to fetch per page
 // when listing resource groups in a subscription
 const resourceGroupListPageSize int32 = 100
-
-// managedResourceGroupInfo holds information about a managed resource group
-type managedResourceGroupInfo struct {
-	subscriptionID string
-	tenantID       string
-	name           string
-	managedBy      string
-}
 
 type cleanOrphanedClusterManagedResourceGroup struct {
 	name     string
@@ -85,6 +78,79 @@ func NewCleanOrphanedClusterManagedResourceGroupController(
 	return c
 }
 
+// listManagedResourceGroupsForSubscription lists all HCP-managed resource groups in the controller's location
+// for a single subscription and returns them as a map where:
+// - key: resource group name
+// - value: managedBy resource ID
+func (c *cleanOrphanedClusterManagedResourceGroup) listManagedResourceGroupsForSubscription(ctx context.Context, subscription *arm.Subscription) (map[string]string, error) {
+	managedResourceGroups := make(map[string]string)
+	subscriptionID := subscription.ResourceID.SubscriptionID
+	tenantID := *subscription.Properties.TenantId
+
+	rgClient, err := c.azureFPAClientBuilder.ResourceGroupsClient(tenantID, subscriptionID)
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+
+	resourceGroupsPager := rgClient.NewListPager(&armresources.ResourceGroupsClientListOptions{
+		Top: ptr.To(resourceGroupListPageSize),
+	})
+	for resourceGroupsPager.More() {
+		resourceGroupPage, err := resourceGroupsPager.NextPage(ctx)
+		if err != nil {
+			return nil, utils.TrackError(err)
+		}
+
+		for _, rg := range resourceGroupPage.Value {
+			if rg.ManagedBy == nil {
+				continue
+			}
+
+			// Only process resource groups in our location
+			if !strings.EqualFold(*rg.Location, c.location) {
+				continue
+			}
+
+			parsedID, err := azcorearm.ParseResourceID(*rg.ManagedBy)
+			if err != nil {
+				// Skip resource groups with invalid ManagedBy resource IDs
+				continue
+			}
+
+			// Only track HCP-managed resource groups
+			if !(strings.EqualFold(parsedID.ResourceType.String(), api.ClusterResourceType.String())) {
+				continue
+			}
+
+			managedResourceGroups[*rg.Name] = *rg.ManagedBy
+		}
+	}
+
+	return managedResourceGroups, nil
+}
+
+// listClusterResourceIDsForSubscription lists all HCP cluster resource IDs for a single subscription
+// and returns them as a set (map with empty struct values) with lowercase keys.
+func (c *cleanOrphanedClusterManagedResourceGroup) listClusterResourceIDsForSubscription(ctx context.Context, subscription *arm.Subscription) (map[string]struct{}, error) {
+	clusterResourceIDs := make(map[string]struct{})
+	subscriptionID := subscription.ResourceID.SubscriptionID
+
+	allHCPClusters, err := c.resourcesDBClient.HCPClusters(subscriptionID, "").List(ctx, nil)
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+
+	if err := allHCPClusters.GetError(); err != nil {
+		return nil, utils.TrackError(err)
+	}
+
+	for _, cluster := range allHCPClusters.Items(ctx) {
+		clusterResourceIDs[strings.ToLower(cluster.ID.String())] = struct{}{}
+	}
+
+	return clusterResourceIDs, nil
+}
+
 // SyncOnce implements the main sync logic for the controller.
 func (c *cleanOrphanedClusterManagedResourceGroup) SyncOnce(ctx context.Context, _ any) error {
 	logger := utils.LoggerFromContext(ctx)
@@ -98,98 +164,38 @@ func (c *cleanOrphanedClusterManagedResourceGroup) SyncOnce(ctx context.Context,
 
 	logger.Info("Retrieved subscriptions", "count", len(subscriptions))
 
-	// List all managed resource groups
-	managedResourceGroups := make(map[string]*managedResourceGroupInfo)
-	for _, subscription := range subscriptions {
-		subscriptionID := subscription.ResourceID.SubscriptionID
-		tenantID := *subscription.Properties.TenantId
-
-		rgClient, err := c.azureFPAClientBuilder.ResourceGroupsClient(tenantID, subscriptionID)
-		if err != nil {
-			return utils.TrackError(err)
-		}
-
-		resourceGroupsPager := rgClient.NewListPager(&armresources.ResourceGroupsClientListOptions{
-			Top: ptr.To(resourceGroupListPageSize),
-		})
-		for resourceGroupsPager.More() {
-			resourceGroupPage, err := resourceGroupsPager.NextPage(ctx)
-			if err != nil {
-				return utils.TrackError(err)
-			}
-
-			for _, rg := range resourceGroupPage.Value {
-				if rg == nil || rg.Name == nil || rg.ManagedBy == nil || rg.Location == nil {
-					continue
-				}
-
-				// Only process resource groups in our location
-				if !strings.EqualFold(*rg.Location, c.location) {
-					continue
-				}
-
-				parsedID, err := azcorearm.ParseResourceID(*rg.ManagedBy)
-				if err != nil {
-					// Skip resource groups with invalid ManagedBy resource IDs
-					continue
-				}
-
-				// Only track HCP-managed resource groups
-				if !(strings.EqualFold(parsedID.ResourceType.String(), api.ClusterResourceType.String())) {
-					continue
-				}
-
-				key := subscriptionID + "/" + *rg.Name
-				managedResourceGroups[key] = &managedResourceGroupInfo{
-					subscriptionID: subscriptionID,
-					tenantID:       tenantID,
-					name:           *rg.Name,
-					managedBy:      *rg.ManagedBy,
-				}
-			}
-		}
-	}
-	logger.Info("Found cluster managed resource groups", "count", len(managedResourceGroups))
-
-	// clusterResourceIDs is a map of cluster resource IDs (in lowercase) to empty struct for fast lookup
-	clusterResourceIDs := make(map[string]struct{})
+	// Process each subscription to identify orphaned managed resource groups
 	for _, subscription := range subscriptions {
 		subscriptionID := subscription.ResourceID.SubscriptionID
 
-		allHCPClusters, err := c.resourcesDBClient.HCPClusters(subscriptionID, "").List(ctx, nil)
+		// Get managed resource groups for this subscription
+		managedResourceGroups, err := c.listManagedResourceGroupsForSubscription(ctx, subscription)
 		if err != nil {
-			return utils.TrackError(err)
+			return err
 		}
 
-		for _, cluster := range allHCPClusters.Items(ctx) {
-			if cluster == nil || cluster.ID == nil {
+		// Get cluster resource IDs for this subscription
+		clusterResourceIDs, err := c.listClusterResourceIDsForSubscription(ctx, subscription)
+		if err != nil {
+			return err
+		}
+
+		// Identify orphaned managed resource groups for this subscription
+		for resourceGroupName, managedBy := range managedResourceGroups {
+			managedByResourceID := strings.ToLower(managedBy)
+
+			if _, exists := clusterResourceIDs[managedByResourceID]; exists {
+				// Cluster exists, this is not an orphaned resource group
 				continue
 			}
-			clusterResourceIDs[strings.ToLower(cluster.ID.String())] = struct{}{}
+
+			logger.Info("Found orphaned cluster managed resource group",
+				"subscriptionID", subscriptionID,
+				"resourceGroup", resourceGroupName,
+				"managedBy", managedBy)
+
+			// TODO: Clean up the orphaned cluster managed resource group
 		}
-
-		if err := allHCPClusters.GetError(); err != nil {
-			return utils.TrackError(err)
-		}
-	}
-	logger.Info("Found HCP clusters", "count", len(clusterResourceIDs))
-
-	// Identify orphaned managed resource groups
-	for key, mrg := range managedResourceGroups {
-		managedByResourceID := strings.ToLower(mrg.managedBy)
-
-		if _, exists := clusterResourceIDs[managedByResourceID]; exists {
-			// Cluster exists, this is not an orphaned resource group
-			continue
-		}
-
-		logger.Info("Found orphaned cluster managed resource group",
-			"key", key,
-			"subscriptionID", mrg.subscriptionID,
-			"resourceGroup", mrg.name,
-			"managedBy", mrg.managedBy)
-
-		// TODO: Clean up the orphaned cluster managed resource group
 	}
 
 	logger.Info("End of orphaned cluster managed resource groups sync")
