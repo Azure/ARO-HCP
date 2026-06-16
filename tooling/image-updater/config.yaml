@@ -70,7 +70,7 @@ images:
     group: hypershift-stack
     source:
       image: quay.io/redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-216
-      tag: "v2.16.2-450" # PINNED: v2.16.2-452 has klusterlet registration regression
+      tag: "v2.16.2-462" # PINNED: advanced from v2.16.2-450 (expired from quay); holding back from latest
       repoVersionUpgrade:
         repoPrefix: "acm-operator-bundle-acm-"
     targets:
@@ -80,7 +80,7 @@ images:
     group: hypershift-stack
     source:
       image: quay.io/redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-211
-      tag: "v2.11.2-506" # PINNED: v2.11.2-508 has klusterlet registration regression
+      tag: "v2.11.3-517" # PINNED: advanced from v2.11.2-506 (expired from quay); holding back from latest
       repoVersionUpgrade:
         repoPrefix: "mce-operator-bundle-mce-"
     targets:
