@@ -81,7 +81,7 @@ arobit:
   mdsd:
     enabled: false
     image:
-      digest: sha256:78ffccc52f816e9c2a6a6f6d611191e8698a468dc23839eda26f36d89261df78
+      digest: sha256:b7537284064d047322a6044b4dc003437e59e2a30e9032e5b5acd5ffa090ada5
       registry: mcr.microsoft.com
       repository: geneva/distroless/mdsd
 auditLogsEventHub:
@@ -165,7 +165,7 @@ clustersService:
   deployDebugJobs: false
   environment: arohcppers
   image:
-    digest: sha256:546c6af88cf2dba74473f3b90d794839f43d771ed735da94fc368252b28124a0
+    digest: sha256:8132ccff93a2460ec753894af3d8bcb99cd52bf7360c69b288de2a0a8b7e7feb
     registry: quay.io
     repository: app-sre/aro-hcp-clusters-service
   k8s:
@@ -427,7 +427,7 @@ hcpRecovery:
 hypershift:
   additionalInstallArg: --enable-cpo-overrides
   image:
-    digest: sha256:8143071e0d2b6c453ff1d19b8ba98939e19a06796791a9d56c87d4922bb204d1
+    digest: sha256:42db547a2f0e3b57827e4b37e48e598d1b94af8f752bc8efcf15986a4988e3f0
     registry: quay.io
     repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
   limitClusterSizes: true
@@ -445,7 +445,7 @@ imageSync:
   ocMirror:
     enabled: true
     image:
-      digest: sha256:bcaee76884f96be911ebd95825801c9b2629f9c4e7efaf8980f2c76da075a07b
+      digest: sha256:a5c7dc39275992123505d79a22cc721d2d09e9cce0e2e45184b04d3b5a6ea927
       registry: arohcpsvcdev.azurecr.io
       repository: image-sync/oc-mirror
     jobNamePrefix: ""
@@ -477,7 +477,7 @@ kubeApplier:
 kubeEvents:
   enabled: true
   image:
-    digest: sha256:c6281c97b2479afe25cea7c4f610ef2f61815e39bef1a97cddc8b29a1665081b
+    digest: sha256:c2442d4cabf2ef1815bf8e058e5ec96d9fbce8169e2f0e356c61374e049fdfac
     registry: kubernetesshared.azurecr.io
     repository: shared/kube-events
   k8s:
@@ -540,7 +540,7 @@ maestro:
     name: arohcp-pers-maestro-usw3test
     private: false
   image:
-    digest: sha256:6e3033bb699838df98ca5ba8c5396e17091d97866807cf101c69d5275feac427
+    digest: sha256:1568fda504ca91a9cfee998067174ebd46f5ac2603a8663ebefbac94d6483a85
     registry: quay.io
     repository: redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro
   postgres:
