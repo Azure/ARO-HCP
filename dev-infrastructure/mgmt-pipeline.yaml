@@ -273,16 +273,10 @@ resourceGroups:
     action: Shell
     command: ./scripts/recreate-broken-pools/recreate-broken-pools
     workingDir: .
-    # Internal overallTimeoutMin = 120. The extra 30m headroom accommodates
-    # the deferred forced-evidence cleanup contexts (abort + restore are
-    # rooted in context.Background and can run for up to ~23m past the
-    # parent ctx after a forced-evidence probe).
-    timeout: '150m'
-    automatedRetry:
-      errorContainsAny:
-      - "restore forced-evidence pool spec"
-      maximumRetryCount: 2
-      durationBetweenRetries: 5m
+    # Internal overallTimeoutMin = 120. The small extra headroom accommodates
+    # the per-pool drain/delete/recreate LRO pollers that can run briefly past
+    # the orchestrator deadline during cleanup.
+    timeout: '130m'
     shellIdentity:
       input:
         resourceGroup: global
@@ -300,12 +294,6 @@ resourceGroups:
         name: subscriptionId
     - name: NODEPOOL_TAG
       value: 'worker'
-    - name: NRP_FAIL_THRESHOLD
-      value: '10'
-    - name: NRP_FAIL_WINDOW_MIN
-      value: '360'
-    - name: FORCED_EVIDENCE_TIMEOUT_MIN
-      value: '20'
     dependsOn:
     - resourceGroup: management
       step: recreate-system-pool-if-broken
