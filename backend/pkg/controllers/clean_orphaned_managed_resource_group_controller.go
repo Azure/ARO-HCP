@@ -24,11 +24,13 @@ import (
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/utils/ptr"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
+	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -45,7 +47,7 @@ type managedResourceGroupInfo struct {
 	managedBy      string
 }
 
-type cleanOrphanedManagedResourceGroup struct {
+type deleteManagedResourceGroup struct {
 	name string
 
 	subscriptionLister    listers.SubscriptionLister
@@ -57,22 +59,22 @@ type cleanOrphanedManagedResourceGroup struct {
 	queue workqueue.TypedRateLimitingInterface[string]
 }
 
-// NewCleanOrphanedManagedResourceGroupController periodically looks for managed resource groups
+// NewDeleteManagedResourceGroupController periodically looks for managed resource groups
 // that are not referenced by any HCPOpenShiftCluster in the database and deletes them.
-func NewCleanOrphanedManagedResourceGroupController(
+func NewDeleteManagedResourceGroupController(
 	subscriptionLister listers.SubscriptionLister,
 	resourcesDBClient database.ResourcesDBClient,
 	azureFPAClientBuilder azureclient.FirstPartyApplicationClientBuilder,
 ) controllerutils.Controller {
-	c := &cleanOrphanedManagedResourceGroup{
-		name:                  "CleanOrphanedManagedResourceGroup",
+	c := &deleteManagedResourceGroup{
+		name:                  "DeleteManagedResourceGroup",
 		subscriptionLister:    subscriptionLister,
 		resourcesDBClient:     resourcesDBClient,
 		azureFPAClientBuilder: azureFPAClientBuilder,
 		queue: workqueue.NewTypedRateLimitingQueueWithConfig(
 			workqueue.DefaultTypedControllerRateLimiter[string](),
 			workqueue.TypedRateLimitingQueueConfig[string]{
-				Name: "CleanOrphanedManagedResourceGroup",
+				Name: "DeleteManagedResourceGroup",
 			},
 		),
 	}
@@ -81,7 +83,7 @@ func NewCleanOrphanedManagedResourceGroupController(
 }
 
 // SyncOnce implements the main sync logic for the controller.
-func (c *cleanOrphanedManagedResourceGroup) SyncOnce(ctx context.Context, _ any) error {
+func (c *deleteManagedResourceGroup) SyncOnce(ctx context.Context, _ any) error {
 	logger := utils.LoggerFromContext(ctx)
 	logger.Info("Syncing orphaned managed resource groups")
 
@@ -114,9 +116,18 @@ func (c *cleanOrphanedManagedResourceGroup) SyncOnce(ctx context.Context, _ any)
 			}
 
 			for _, rg := range resourceGroupPage.Value {
-				// Only track RH-managed resource groups
-				managedByLowercase := strings.ToLower(*rg.ManagedBy)
-				if !strings.Contains(managedByLowercase, "microsoft.redhatopenshift/hcpopenshiftclusters/") {
+				if rg == nil || rg.Name == nil || rg.ManagedBy == nil {
+					continue
+				}
+
+				parsedID, err := azcorearm.ParseResourceID(*rg.ManagedBy)
+				if err != nil {
+					// Skip resource groups with invalid ManagedBy resource IDs
+					continue
+				}
+
+				// Only track HCP-managed resource groups
+				if !(strings.EqualFold(parsedID.ResourceType.String(), api.ClusterResourceType.String())) {
 					continue
 				}
 
@@ -132,8 +143,6 @@ func (c *cleanOrphanedManagedResourceGroup) SyncOnce(ctx context.Context, _ any)
 	}
 	logger.Info("Found managed resource groups", "count", len(managedResourceGroups))
 
-	// List all HCP clusters
-	logger.Info("Phase 2: Listing all HCP clusters")
 	clusterResourceIDs := make(map[string]struct{})
 	for _, subscription := range subscriptions {
 		subscriptionID := subscription.ResourceID.SubscriptionID
@@ -144,6 +153,9 @@ func (c *cleanOrphanedManagedResourceGroup) SyncOnce(ctx context.Context, _ any)
 		}
 
 		for _, cluster := range allHCPClusters.Items(ctx) {
+			if cluster == nil || cluster.ID == nil {
+				continue
+			}
 			clusterResourceIDs[strings.ToLower(cluster.ID.String())] = struct{}{}
 		}
 
@@ -154,7 +166,6 @@ func (c *cleanOrphanedManagedResourceGroup) SyncOnce(ctx context.Context, _ any)
 	logger.Info("Found HCP clusters", "count", len(clusterResourceIDs))
 
 	// Identify orphaned managed resource groups
-	logger.Info("Phase 3: Identifying orphaned managed resource groups")
 	for key, mrg := range managedResourceGroups {
 		managedByResourceID := strings.ToLower(mrg.managedBy)
 
@@ -176,7 +187,7 @@ func (c *cleanOrphanedManagedResourceGroup) SyncOnce(ctx context.Context, _ any)
 	return nil
 }
 
-func (c *cleanOrphanedManagedResourceGroup) Run(ctx context.Context, threadiness int) {
+func (c *deleteManagedResourceGroup) Run(ctx context.Context, threadiness int) {
 	// don't let panics crash the process
 	defer utilruntime.HandleCrash()
 	// make sure the work queue is shutdown which will trigger workers to end
@@ -206,7 +217,7 @@ func (c *cleanOrphanedManagedResourceGroup) Run(ctx context.Context, threadiness
 	logger.Info("Shutting down")
 }
 
-func (c *cleanOrphanedManagedResourceGroup) runWorker(ctx context.Context) {
+func (c *deleteManagedResourceGroup) runWorker(ctx context.Context) {
 	defer utilruntime.HandleCrash()
 	for c.processNextWorkItem(ctx) {
 	}
@@ -214,7 +225,7 @@ func (c *cleanOrphanedManagedResourceGroup) runWorker(ctx context.Context) {
 
 // processNextWorkItem deals with one item off the queue.  It returns false
 // when it's time to quit.
-func (c *cleanOrphanedManagedResourceGroup) processNextWorkItem(ctx context.Context) bool {
+func (c *deleteManagedResourceGroup) processNextWorkItem(ctx context.Context) bool {
 	ref, shutdown := c.queue.Get()
 	if shutdown {
 		return false
