@@ -29,6 +29,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/api"
+	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -37,10 +38,12 @@ import (
 
 // triggerControlPlaneUpgradeSyncer is a Cluster syncer that triggers control plane upgrades
 type triggerControlPlaneUpgradeSyncer struct {
-	clock                 utilsclock.PassiveClock
-	resourcesDBClient     database.ResourcesDBClient
-	clusterServiceClient  ocm.ClusterServiceClientSpec
-	activeOperationLister listers.ActiveOperationLister
+	clock                        utilsclock.PassiveClock
+	cooldownChecker              controllerutil.CooldownChecker
+	resourcesDBClient            database.ResourcesDBClient
+	clusterServiceClient         ocm.ClusterServiceClientSpec
+	activeOperationLister        listers.ActiveOperationLister
+	serviceProviderClusterLister listers.ServiceProviderClusterLister
 }
 
 var _ controllerutils.ClusterSyncer = (*triggerControlPlaneUpgradeSyncer)(nil)
@@ -57,14 +60,17 @@ func NewTriggerControlPlaneUpgradeController(
 	resourcesDBClient database.ResourcesDBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
 	activeOperationLister listers.ActiveOperationLister,
+	serviceProviderClusterLister listers.ServiceProviderClusterLister,
 	informers informers.BackendInformers,
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 ) controllerutils.Controller {
 	syncer := &triggerControlPlaneUpgradeSyncer{
-		clock:                 clock,
-		resourcesDBClient:     resourcesDBClient,
-		clusterServiceClient:  clusterServiceClient,
-		activeOperationLister: activeOperationLister,
+		clock:                        clock,
+		cooldownChecker:              controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
+		resourcesDBClient:            resourcesDBClient,
+		clusterServiceClient:         clusterServiceClient,
+		activeOperationLister:        activeOperationLister,
+		serviceProviderClusterLister: serviceProviderClusterLister,
 	}
 
 	controller := controllerutils.NewClusterWatchingController(
@@ -86,6 +92,10 @@ func NewTriggerControlPlaneUpgradeController(
 //  2. Check if desiredVersion differs from latest actual version
 //  3. If different, call version service API to trigger upgrade
 //  4. The version service API is idempotent and handles the actual upgrade orchestration
+func (c *triggerControlPlaneUpgradeSyncer) CooldownChecker() controllerutil.CooldownChecker {
+	return c.cooldownChecker
+}
+
 func (c *triggerControlPlaneUpgradeSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
 	logger := utils.LoggerFromContext(ctx)
 	existingCluster, err := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Get(ctx, key.HCPClusterName)
@@ -103,9 +113,13 @@ func (c *triggerControlPlaneUpgradeSyncer) SyncOnce(ctx context.Context, key con
 		return nil
 	}
 
-	existingServiceProviderCluster, err := database.GetOrCreateServiceProviderCluster(ctx, c.resourcesDBClient, key.GetResourceID())
+	existingServiceProviderCluster, err := c.serviceProviderClusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
+	if database.IsNotFoundError(err) {
+		// CreateServiceProviderCluster will populate it; we'll be re-enqueued via the ServiceProviderCluster informer.
+		return nil
+	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get or create ServiceProviderCluster: %w", err))
+		return utils.TrackError(fmt.Errorf("failed to get ServiceProviderCluster: %w", err))
 	}
 
 	// here we check to see if we should be triggering an upgrade. We do this by

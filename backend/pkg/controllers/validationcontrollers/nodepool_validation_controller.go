@@ -27,6 +27,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/api"
+	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -35,7 +36,9 @@ import (
 // nodePoolValidationSyncer is a NodePool syncer that performs a NodePool
 // validation.
 type nodePoolValidationSyncer struct {
-	resourcesDBClient database.ResourcesDBClient
+	cooldownChecker               controllerutil.CooldownChecker
+	resourcesDBClient             database.ResourcesDBClient
+	serviceProviderNodePoolLister listers.ServiceProviderNodePoolLister
 
 	// validation is the validation to perform on the node pool.
 	validation validations.NodePoolValidation
@@ -49,13 +52,16 @@ func NewNodePoolValidationController(
 	validation validations.NodePoolValidation,
 	activeOperationLister listers.ActiveOperationLister,
 	resourcesDBClient database.ResourcesDBClient,
+	serviceProviderNodePoolLister listers.ServiceProviderNodePoolLister,
 	informers informers.BackendInformers,
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 ) controllerutils.Controller {
 
 	syncer := &nodePoolValidationSyncer{
-		resourcesDBClient: resourcesDBClient,
-		validation:        validation,
+		cooldownChecker:               controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
+		resourcesDBClient:             resourcesDBClient,
+		serviceProviderNodePoolLister: serviceProviderNodePoolLister,
+		validation:                    validation,
 	}
 
 	controller := controllerutils.NewNodePoolWatchingController(
@@ -68,6 +74,10 @@ func NewNodePoolValidationController(
 	)
 
 	return controller
+}
+
+func (c *nodePoolValidationSyncer) CooldownChecker() controllerutil.CooldownChecker {
+	return c.cooldownChecker
 }
 
 func (c *nodePoolValidationSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPNodePoolKey) error {
@@ -93,15 +103,20 @@ func (c *nodePoolValidationSyncer) SyncOnce(ctx context.Context, key controlleru
 		return nil
 	}
 
-	existingServiceProviderNodePool, err := database.GetOrCreateServiceProviderNodePool(ctx, c.resourcesDBClient, key.GetResourceID())
+	cachedServiceProviderNodePool, err := c.serviceProviderNodePoolLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPNodePoolName)
+	if database.IsNotFoundError(err) {
+		// CreateServiceProviderNodePool will populate it; we'll be re-enqueued via the ServiceProviderNodePool informer.
+		return nil
+	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get or create ServiceProviderNodePool: %w", err))
+		return utils.TrackError(fmt.Errorf("failed to get ServiceProviderNodePool: %w", err))
 	}
 
-	shouldProcess := c.shouldProcess(existingServiceProviderNodePool)
+	shouldProcess := c.shouldProcess(cachedServiceProviderNodePool)
 	if !shouldProcess {
 		return nil // no work to do
 	}
+	existingServiceProviderNodePool := cachedServiceProviderNodePool.DeepCopy()
 	subscription, err := c.resourcesDBClient.Subscriptions().Get(ctx, existingNodePool.ID.SubscriptionID)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get Subscription: %w", err))

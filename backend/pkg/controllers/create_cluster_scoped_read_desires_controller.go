@@ -46,8 +46,9 @@ import (
 type createClusterScopedReadDesiresSyncer struct {
 	activeOperationLister listers.ActiveOperationLister
 
-	resourcesDBClient    database.ResourcesDBClient
-	kubeApplierDBClients database.KubeApplierDBClients
+	resourcesDBClient            database.ResourcesDBClient
+	kubeApplierDBClients         database.KubeApplierDBClients
+	serviceProviderClusterLister listers.ServiceProviderClusterLister
 
 	// hostedClusterNamespaceEnvIdentifier is the "envName" segment of the
 	// CDNamespace (ocm-<envName>-<csClusterID>). Historically the maestro
@@ -66,6 +67,7 @@ func NewCreateClusterScopedReadDesiresController(
 	activeOperationLister listers.ActiveOperationLister,
 	resourcesDBClient database.ResourcesDBClient,
 	kubeApplierDBClients database.KubeApplierDBClients,
+	serviceProviderClusterLister listers.ServiceProviderClusterLister,
 	informers informers.BackendInformers,
 	hostedClusterNamespaceEnvIdentifier string,
 ) controllerutils.Controller {
@@ -73,6 +75,7 @@ func NewCreateClusterScopedReadDesiresController(
 		activeOperationLister:               activeOperationLister,
 		resourcesDBClient:                   resourcesDBClient,
 		kubeApplierDBClients:                kubeApplierDBClients,
+		serviceProviderClusterLister:        serviceProviderClusterLister,
 		hostedClusterNamespaceEnvIdentifier: hostedClusterNamespaceEnvIdentifier,
 	}
 
@@ -117,11 +120,15 @@ func (c *createClusterScopedReadDesiresSyncer) SyncOnce(ctx context.Context, key
 	// ServiceProviderCluster.Status.ManagementClusterResourceID; until that
 	// lands we have nowhere to write the ReadDesire, so skip and wait for
 	// the next reconcile cycle.
-	spc, err := database.GetOrCreateServiceProviderCluster(ctx, c.resourcesDBClient, key.GetResourceID())
-	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get or create ServiceProviderCluster: %w", err))
+	serviceProviderCluster, err := c.serviceProviderClusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
+	if database.IsNotFoundError(err) {
+		// CreateServiceProviderCluster will populate it; we'll be re-enqueued via the ServiceProviderCluster informer.
+		return nil
 	}
-	mcResourceID := spc.Status.ManagementClusterResourceID
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to get ServiceProviderCluster: %w", err))
+	}
+	mcResourceID := serviceProviderCluster.Status.ManagementClusterResourceID
 	if mcResourceID == nil {
 		return nil
 	}
