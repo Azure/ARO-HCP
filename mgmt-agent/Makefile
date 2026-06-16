@@ -29,7 +29,7 @@ $(BINARY): $(MGMT_AGENT_SOURCES)
 	go build $(LDFLAGS) -o $(BINARY) .
 
 run:
-	go run . controller --namespace ${NAMESPACE} -v 2
+	go run . controller --namespace ${NAMESPACE} --log-verbosity 2
 .PHONY: run
 
 image:
