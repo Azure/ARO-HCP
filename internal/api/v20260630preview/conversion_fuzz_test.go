@@ -49,6 +49,9 @@ func TestRoundTripInternalExternalInternal(t *testing.T) {
 			// InstanceVersion is purely storage-layer state; it does not round-trip
 			// through the external API.
 			j.InstanceVersion = 0
+			// PartitionKey is purely storage-layer state; it does not round-trip
+			// through the external API.
+			j.PartitionKey = ""
 		},
 		func(j *api.ImageDigestMirror, c randfill.Continue) {
 			c.FillNoCustom(j)

@@ -1235,6 +1235,7 @@ func createServiceProviderClusterWithActiveAndDesiredVersion(t *testing.T, ctx c
 			},
 		},
 	}
+	serviceProviderCluster.SetPartitionKey(testSubscriptionID)
 	_, err := mockResourcesDBClient.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Create(ctx, serviceProviderCluster, nil)
 	require.NoError(t, err)
 }

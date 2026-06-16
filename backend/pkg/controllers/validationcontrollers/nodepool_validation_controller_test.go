@@ -17,6 +17,7 @@ package validationcontrollers
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/go-logr/logr/testr"
@@ -61,7 +62,10 @@ func newTestCluster(t *testing.T) *api.HCPOpenShiftCluster {
 			"/resourceGroups/" + testResourceGroup +
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName))
 	return &api.HCPOpenShiftCluster{
-		CosmosMetadata: arm.CosmosMetadata{ResourceID: resourceID},
+		CosmosMetadata: arm.CosmosMetadata{
+			ResourceID:   resourceID,
+			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
+		},
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
 				ID:   resourceID,
@@ -81,7 +85,10 @@ func newTestNodePool(t *testing.T) *api.HCPOpenShiftClusterNodePool {
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName +
 			"/nodePools/" + testNodePoolName))
 	return &api.HCPOpenShiftClusterNodePool{
-		CosmosMetadata: arm.CosmosMetadata{ResourceID: resourceID},
+		CosmosMetadata: arm.CosmosMetadata{
+			ResourceID:   resourceID,
+			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
+		},
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
 				ID:   resourceID,
@@ -97,9 +104,12 @@ func newTestSubscription() *arm.Subscription {
 	subResourceID := api.Must(azcorearm.ParseResourceID(
 		"/subscriptions/" + testSubscriptionID))
 	return &arm.Subscription{
-		CosmosMetadata: api.CosmosMetadata{ResourceID: subResourceID},
-		ResourceID:     subResourceID,
-		State:          arm.SubscriptionStateRegistered,
+		CosmosMetadata: api.CosmosMetadata{
+			ResourceID:   subResourceID,
+			PartitionKey: strings.ToLower(subResourceID.SubscriptionID),
+		},
+		ResourceID: subResourceID,
+		State:      arm.SubscriptionStateRegistered,
 	}
 }
 
@@ -195,7 +205,10 @@ func TestNodePoolValidationSyncer_SyncOnce(t *testing.T) {
 						"/nodePools/" + testNodePoolName +
 						"/serviceProviderNodePools/default"))
 				spnp := &api.ServiceProviderNodePool{
-					CosmosMetadata: arm.CosmosMetadata{ResourceID: spnpResourceID},
+					CosmosMetadata: arm.CosmosMetadata{
+						ResourceID:   spnpResourceID,
+						PartitionKey: strings.ToLower(spnpResourceID.SubscriptionID),
+					},
 					Status: api.ServiceProviderNodePoolStatus{
 						Validations: []metav1.Condition{
 							{

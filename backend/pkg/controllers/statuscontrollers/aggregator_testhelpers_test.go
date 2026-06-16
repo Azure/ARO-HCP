@@ -16,6 +16,7 @@ package statuscontrollers
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -48,7 +49,8 @@ func controllerUnder(parentResourceID *azcorearm.ResourceID, controllerName stri
 	rid := api.Must(azcorearm.ParseResourceID(parentResourceID.String() + "/" + api.ControllerResourceTypeName + "/" + controllerName))
 	return &api.Controller{
 		CosmosMetadata: api.CosmosMetadata{
-			ResourceID: rid,
+			ResourceID:   rid,
+			PartitionKey: strings.ToLower(rid.SubscriptionID),
 		},
 		ExternalID: parentResourceID,
 		Status: api.ControllerStatus{

@@ -410,7 +410,8 @@ func newTestNodePoolOperation(subscriptionID, operationName, targetSubscription,
 	))
 	return &api.Operation{
 		CosmosMetadata: arm.CosmosMetadata{
-			ResourceID: operationResourceID,
+			ResourceID:   operationResourceID,
+			PartitionKey: strings.ToLower(operationResourceID.SubscriptionID),
 		},
 		OperationID: operationResourceID,
 		ExternalID:  externalID,
@@ -430,7 +431,8 @@ func newTestExternalAuthOperation(subscriptionID, operationName, targetSubscript
 	))
 	return &api.Operation{
 		CosmosMetadata: arm.CosmosMetadata{
-			ResourceID: operationResourceID,
+			ResourceID:   operationResourceID,
+			PartitionKey: strings.ToLower(operationResourceID.SubscriptionID),
 		},
 		OperationID: operationResourceID,
 		ExternalID:  externalID,

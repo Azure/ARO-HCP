@@ -78,7 +78,10 @@ func newTestClusterWithNewDeletionApproach(t *testing.T, opts func(*api.HCPOpenS
 			},
 			Location: "eastus",
 		},
-		CosmosMetadata: arm.CosmosMetadata{ResourceID: resourceID},
+		CosmosMetadata: arm.CosmosMetadata{
+			ResourceID:   resourceID,
+			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
+		},
 		ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
 			ClusterServiceID:               clusterInternalID,
 			UsesNewClusterDeletionApproach: true,

@@ -16,6 +16,7 @@ package register
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/go-logr/logr"
@@ -120,7 +121,7 @@ func TestRun(t *testing.T) {
 			name: "update existing stamp preserves conditions",
 			seed: func(t *testing.T) []any {
 				stamp := &fleet.Stamp{
-					CosmosMetadata: api.CosmosMetadata{ResourceID: api.Must(fleet.ToStampResourceID(testStampIdentifier))},
+					CosmosMetadata: api.CosmosMetadata{ResourceID: api.Must(fleet.ToStampResourceID(testStampIdentifier)), PartitionKey: strings.ToLower(testStampIdentifier)},
 					ResourceID:     api.Must(fleet.ToStampResourceID(testStampIdentifier)),
 					Status: fleet.StampStatus{
 						Conditions: []metav1.Condition{
@@ -150,11 +151,11 @@ func TestRun(t *testing.T) {
 			name: "update existing management cluster with same values succeeds",
 			seed: func(t *testing.T) []any {
 				stamp := &fleet.Stamp{
-					CosmosMetadata: api.CosmosMetadata{ResourceID: api.Must(fleet.ToStampResourceID(testStampIdentifier))},
+					CosmosMetadata: api.CosmosMetadata{ResourceID: api.Must(fleet.ToStampResourceID(testStampIdentifier)), PartitionKey: strings.ToLower(testStampIdentifier)},
 					ResourceID:     api.Must(fleet.ToStampResourceID(testStampIdentifier)),
 				}
 				managementCluster := &fleet.ManagementCluster{
-					CosmosMetadata: api.CosmosMetadata{ResourceID: api.Must(fleet.ToManagementClusterResourceID(testStampIdentifier))},
+					CosmosMetadata: api.CosmosMetadata{ResourceID: api.Must(fleet.ToManagementClusterResourceID(testStampIdentifier)), PartitionKey: strings.ToLower(testStampIdentifier)},
 					ResourceID:     api.Must(fleet.ToManagementClusterResourceID(testStampIdentifier)),
 					Spec: fleet.ManagementClusterSpec{
 						SchedulingPolicy: fleet.ManagementClusterSchedulingPolicySchedulable,
@@ -186,11 +187,11 @@ func TestRun(t *testing.T) {
 			name: "update existing management cluster rejects changed immutable field",
 			seed: func(t *testing.T) []any {
 				stamp := &fleet.Stamp{
-					CosmosMetadata: api.CosmosMetadata{ResourceID: api.Must(fleet.ToStampResourceID(testStampIdentifier))},
+					CosmosMetadata: api.CosmosMetadata{ResourceID: api.Must(fleet.ToStampResourceID(testStampIdentifier)), PartitionKey: strings.ToLower(testStampIdentifier)},
 					ResourceID:     api.Must(fleet.ToStampResourceID(testStampIdentifier)),
 				}
 				managementCluster := &fleet.ManagementCluster{
-					CosmosMetadata: api.CosmosMetadata{ResourceID: api.Must(fleet.ToManagementClusterResourceID(testStampIdentifier))},
+					CosmosMetadata: api.CosmosMetadata{ResourceID: api.Must(fleet.ToManagementClusterResourceID(testStampIdentifier)), PartitionKey: strings.ToLower(testStampIdentifier)},
 					ResourceID:     api.Must(fleet.ToManagementClusterResourceID(testStampIdentifier)),
 					Spec: fleet.ManagementClusterSpec{
 						SchedulingPolicy: fleet.ManagementClusterSchedulingPolicySchedulable,
@@ -219,11 +220,11 @@ func TestRun(t *testing.T) {
 			name: "update existing management cluster allows scheduling policy change",
 			seed: func(t *testing.T) []any {
 				stamp := &fleet.Stamp{
-					CosmosMetadata: api.CosmosMetadata{ResourceID: api.Must(fleet.ToStampResourceID(testStampIdentifier))},
+					CosmosMetadata: api.CosmosMetadata{ResourceID: api.Must(fleet.ToStampResourceID(testStampIdentifier)), PartitionKey: strings.ToLower(testStampIdentifier)},
 					ResourceID:     api.Must(fleet.ToStampResourceID(testStampIdentifier)),
 				}
 				managementCluster := &fleet.ManagementCluster{
-					CosmosMetadata: api.CosmosMetadata{ResourceID: api.Must(fleet.ToManagementClusterResourceID(testStampIdentifier))},
+					CosmosMetadata: api.CosmosMetadata{ResourceID: api.Must(fleet.ToManagementClusterResourceID(testStampIdentifier)), PartitionKey: strings.ToLower(testStampIdentifier)},
 					ResourceID:     api.Must(fleet.ToManagementClusterResourceID(testStampIdentifier)),
 					Spec: fleet.ManagementClusterSpec{
 						SchedulingPolicy: fleet.ManagementClusterSchedulingPolicySchedulable,

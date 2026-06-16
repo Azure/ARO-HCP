@@ -17,6 +17,7 @@ package statuscontrollers
 import (
 	"context"
 	"regexp"
+	"strings"
 	"testing"
 	"time"
 
@@ -46,7 +47,10 @@ func newTestNodePoolForAggregator(opts ...func(*api.HCPOpenShiftClusterNodePool)
 			"/nodePools/" + testNodePoolName,
 	))
 	np := &api.HCPOpenShiftClusterNodePool{
-		CosmosMetadata: arm.CosmosMetadata{ResourceID: resourceID},
+		CosmosMetadata: arm.CosmosMetadata{
+			ResourceID:   resourceID,
+			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
+		},
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
 				ID:   resourceID,
@@ -194,7 +198,10 @@ func TestNodePoolDegradedAggregator_SyncOnce(t *testing.T) {
 				}
 			})
 			parentCluster := &api.HCPOpenShiftCluster{
-				CosmosMetadata: arm.CosmosMetadata{ResourceID: parentClusterID},
+				CosmosMetadata: arm.CosmosMetadata{
+					ResourceID:   parentClusterID,
+					PartitionKey: strings.ToLower(parentClusterID.SubscriptionID),
+				},
 				TrackedResource: arm.TrackedResource{
 					Resource: arm.Resource{ID: parentClusterID, Name: testClusterName, Type: parentClusterID.ResourceType.String()},
 				},
