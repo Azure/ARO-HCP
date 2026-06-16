@@ -17,9 +17,11 @@ package controllers
 import (
 	"context"
 	"errors"
+	"net/http"
 	"strings"
 	"time"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/util/workqueue"
@@ -83,15 +85,8 @@ func NewCleanOrphanedClusterManagedResourceGroupController(
 // for a single subscription and returns them as a map where:
 // - key: resource group name
 // - value: managedBy resource ID
-func (c *cleanOrphanedClusterManagedResourceGroup) listManagedResourceGroupsForSubscription(ctx context.Context, subscription *arm.Subscription) (map[string]string, error) {
+func (c *cleanOrphanedClusterManagedResourceGroup) listManagedResourceGroupsForSubscription(ctx context.Context, rgClient azureclient.ResourceGroupsClient) (map[string]string, error) {
 	managedResourceGroups := make(map[string]string)
-	subscriptionID := subscription.ResourceID.SubscriptionID
-	tenantID := *subscription.Properties.TenantId
-
-	rgClient, err := c.azureFPAClientBuilder.ResourceGroupsClient(tenantID, subscriptionID)
-	if err != nil {
-		return nil, utils.TrackError(err)
-	}
 
 	resourceGroupsPager := rgClient.NewListPager(&armresources.ResourceGroupsClientListOptions{
 		Top: ptr.To(resourceGroupListPageSize),
@@ -128,6 +123,70 @@ func (c *cleanOrphanedClusterManagedResourceGroup) listManagedResourceGroupsForS
 	}
 
 	return managedResourceGroups, nil
+}
+
+// deleteOrphanedManagedResourceGroup attempts to delete an orphaned managed resource group.
+// It first checks the current state and only initiates deletion if the resource group exists
+// and is not already being deleted.
+func (c *cleanOrphanedClusterManagedResourceGroup) deleteOrphanedManagedResourceGroup(ctx context.Context, rgClient azureclient.ResourceGroupsClient, subscriptionID, resourceGroupName, managedBy string) error {
+	logger := utils.LoggerFromContext(ctx)
+
+	rg, err := rgClient.Get(ctx, resourceGroupName, nil)
+	if err != nil {
+		var respErr *azcore.ResponseError
+		if errors.As(err, &respErr) && respErr.StatusCode == http.StatusNotFound {
+			// Resource group already deleted
+			logger.Info("Orphaned cluster managed resource group already deleted",
+				"subscriptionID", subscriptionID,
+				"resourceGroup", resourceGroupName)
+			return nil
+		}
+		logger.Error(err, "Failed to get resource group state",
+			"subscriptionID", subscriptionID,
+			"resourceGroup", resourceGroupName)
+		return err
+	}
+
+	if rg.Properties != nil && rg.Properties.ProvisioningState != nil {
+		provisioningState := *rg.Properties.ProvisioningState
+		if provisioningState == "Deleting" {
+			// Already being deleted, just log and return
+			logger.Info("Orphaned cluster managed resource group deletion already in progress",
+				"subscriptionID", subscriptionID,
+				"resourceGroup", resourceGroupName,
+				"provisioningState", provisioningState)
+			return nil
+		}
+	}
+
+	logger.Info("Initiating deletion of orphaned cluster managed resource group",
+		"subscriptionID", subscriptionID,
+		"resourceGroup", resourceGroupName,
+		"managedBy", managedBy)
+
+	_, err = rgClient.BeginDelete(ctx, resourceGroupName, nil)
+	if err != nil {
+		var respErr *azcore.ResponseError
+		if errors.As(err, &respErr) && respErr.StatusCode == http.StatusNotFound {
+			// Resource group was deleted between Get and BeginDelete, this is fine
+			logger.Info("Orphaned cluster managed resource group deleted before deletion could be initiated",
+				"subscriptionID", subscriptionID,
+				"resourceGroup", resourceGroupName)
+			return nil
+		}
+
+		logger.Error(err, "Failed to initiate deletion of orphaned cluster managed resource group",
+			"subscriptionID", subscriptionID,
+			"resourceGroup", resourceGroupName,
+			"managedBy", managedBy)
+		return err
+	}
+
+	logger.Info("Successfully initiated deletion of orphaned cluster managed resource group",
+		"subscriptionID", subscriptionID,
+		"resourceGroup", resourceGroupName,
+		"managedBy", managedBy)
+	return nil
 }
 
 // listClusterResourceIDsForSubscription lists all HCP cluster resource IDs for a single subscription
@@ -169,8 +228,17 @@ func (c *cleanOrphanedClusterManagedResourceGroup) SyncOnce(ctx context.Context,
 	var errs []error
 	for _, subscription := range subscriptions {
 		subscriptionID := subscription.ResourceID.SubscriptionID
+		tenantID := *subscription.Properties.TenantId
 
-		managedResourceGroups, err := c.listManagedResourceGroupsForSubscription(ctx, subscription)
+		rgClient, err := c.azureFPAClientBuilder.ResourceGroupsClient(tenantID, subscriptionID)
+		if err != nil {
+			logger.Error(err, "Failed to create resource groups client",
+				"subscriptionID", subscriptionID)
+			errs = append(errs, err)
+			continue
+		}
+
+		managedResourceGroups, err := c.listManagedResourceGroupsForSubscription(ctx, rgClient)
 		if err != nil {
 			logger.Error(err, "Failed to list managed resource groups for subscription",
 				"subscriptionID", subscriptionID)
@@ -186,7 +254,7 @@ func (c *cleanOrphanedClusterManagedResourceGroup) SyncOnce(ctx context.Context,
 			continue
 		}
 
-		// Identify orphaned managed resource groups for this subscription
+		// Identify and clean up orphaned managed resource groups for this subscription
 		for resourceGroupName, managedBy := range managedResourceGroups {
 			managedByResourceID := strings.ToLower(managedBy)
 
@@ -195,12 +263,10 @@ func (c *cleanOrphanedClusterManagedResourceGroup) SyncOnce(ctx context.Context,
 				continue
 			}
 
-			logger.Info("Found orphaned cluster managed resource group",
-				"subscriptionID", subscriptionID,
-				"resourceGroup", resourceGroupName,
-				"managedBy", managedBy)
-
-			// TODO: Clean up the orphaned cluster managed resource group
+			err = c.deleteOrphanedManagedResourceGroup(ctx, rgClient, subscriptionID, resourceGroupName, managedBy)
+			if err != nil {
+				errs = append(errs, err)
+			}
 		}
 	}
 
