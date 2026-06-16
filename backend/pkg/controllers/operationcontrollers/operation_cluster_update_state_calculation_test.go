@@ -558,9 +558,9 @@ func TestHypershiftClusterOperationState(t *testing.T) {
 
 			state, err := controller.hypershiftClusterOperationState(ctx, tt.cluster)
 			require.NoError(t, err)
-			assert.Equal(t, tt.wantState, state.provisioningState)
+			assert.Equal(t, tt.wantState, state.ProvisioningState)
 			if tt.wantMessageSubstr != "" {
-				assert.Contains(t, state.message, tt.wantMessageSubstr)
+				assert.Contains(t, state.Message, tt.wantMessageSubstr)
 			}
 		})
 	}
@@ -1267,9 +1267,9 @@ func TestClusterServiceClusterOperationState(t *testing.T) {
 			t.Parallel()
 			state, err := controller.clusterServiceClusterSpecOperationState(tt.cluster, tt.csCluster)
 			require.NoError(t, err)
-			assert.Equal(t, tt.wantState, state.provisioningState)
+			assert.Equal(t, tt.wantState, state.ProvisioningState)
 			if tt.wantMessageSubstr != "" {
-				assert.Contains(t, state.message, tt.wantMessageSubstr)
+				assert.Contains(t, state.Message, tt.wantMessageSubstr)
 			}
 		})
 	}

@@ -190,11 +190,11 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 
 				cluster, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
 				require.NoError(t, err)
-				wantMsg := fmt.Sprintf(
+				wantMessageSubstr := fmt.Sprintf(
 					"timed out after 29s waiting for resolution of desired version from '%s' cluster version",
 					cluster.CustomerProperties.Version.ID,
 				)
-				assert.Equal(t, wantMsg, op.Error.Message)
+				assert.Contains(t, op.Error.Message, wantMessageSubstr)
 
 				assert.Equal(t, arm.ProvisioningStateFailed, cluster.ServiceProviderProperties.ProvisioningState)
 				assert.Empty(t, cluster.ServiceProviderProperties.ActiveOperationID)

@@ -127,15 +127,15 @@ func (c *operationNodePoolUpdate) SynchronizeOperation(ctx context.Context, key 
 	}
 
 	var persistErr *arm.CloudErrorBody
-	if operationalState.provisioningState == arm.ProvisioningStateFailed {
+	if operationalState.ProvisioningState == arm.ProvisioningStateFailed {
 		persistErr = &arm.CloudErrorBody{
 			Code:    arm.CloudErrorCodeInvalidRequestContent,
-			Message: operationalState.message,
+			Message: operationalState.Message,
 		}
 	}
 
 	logger.Info("updating status")
-	if err := UpdateOperationStatus(ctx, c.clock, c.resourcesDBClient, operation, operationalState.provisioningState, persistErr, postAsyncNotificationFn(c.notificationClient)); err != nil {
+	if err := UpdateOperationStatus(ctx, c.clock, c.resourcesDBClient, operation, operationalState.ProvisioningState, persistErr, postAsyncNotificationFn(c.notificationClient)); err != nil {
 		return utils.TrackError(err)
 	}
 	return nil
@@ -149,12 +149,12 @@ func (c *operationNodePoolUpdate) determineOperationState(ctx context.Context, o
 	if operationState, err := c.desiredVersionResolutionOperationState(ctx, operation); err != nil {
 		errs = append(errs, utils.TrackError(err))
 	} else {
-		operationStates = append(operationStates, operationState)
+		operationStates = append(operationStates, operationState.withSource("desiredVersionResolution"))
 	}
 	if operationState, csErr := c.nodePoolServiceUpdateOperationState(ctx, operation); csErr != nil {
 		errs = append(errs, utils.TrackError(csErr))
 	} else {
-		operationStates = append(operationStates, operationState)
+		operationStates = append(operationStates, operationState.withSource("clusterServiceNodePool"))
 	}
 
 	if err := errors.Join(errs...); err != nil {
@@ -172,7 +172,7 @@ func (c *operationNodePoolUpdate) determineOperationState(ctx context.Context, o
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
-	logger.Info("picked node pool update operation status", "provisioningState", picked.provisioningState, "message", picked.message)
+	logger.Info("picked node pool update operation status", "provisioningState", picked.ProvisioningState, "message", picked.Message)
 	return picked, nil
 }
 

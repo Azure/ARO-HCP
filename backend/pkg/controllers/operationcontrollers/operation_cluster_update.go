@@ -140,15 +140,15 @@ func (c *operationClusterUpdate) SynchronizeOperation(ctx context.Context, key c
 	}
 
 	var persistErr *arm.CloudErrorBody
-	if operationalState.provisioningState == arm.ProvisioningStateFailed {
+	if operationalState.ProvisioningState == arm.ProvisioningStateFailed {
 		persistErr = &arm.CloudErrorBody{
 			Code:    arm.CloudErrorCodeInvalidRequestContent,
-			Message: operationalState.message,
+			Message: operationalState.Message,
 		}
 	}
 
 	logger.Info("updating status")
-	if err := UpdateOperationStatus(ctx, c.clock, c.resourcesDBClient, operation, operationalState.provisioningState, persistErr, postAsyncNotificationFn(c.notificationClient)); err != nil {
+	if err := UpdateOperationStatus(ctx, c.clock, c.resourcesDBClient, operation, operationalState.ProvisioningState, persistErr, postAsyncNotificationFn(c.notificationClient)); err != nil {
 		return utils.TrackError(err)
 	}
 	return nil
@@ -169,23 +169,23 @@ func (c *operationClusterUpdate) determineOperationState(ctx context.Context, op
 	if operationState, err := c.desiredVersionResolutionOperationState(ctx, operation, existingCluster); err != nil {
 		errs = append(errs, utils.TrackError(err))
 	} else {
-		operationStates = append(operationStates, operationState)
+		operationStates = append(operationStates, operationState.withSource("desiredVersionResolution"))
 	}
 	if operationState, csErr := c.clusterServiceClusterStatusOperationState(ctx, operation, existingCSCluster.Status()); csErr != nil {
 		errs = append(errs, utils.TrackError(csErr))
 	} else {
-		operationStates = append(operationStates, operationState)
+		operationStates = append(operationStates, operationState.withSource("clusterServiceClusterStatus"))
 	}
 	if operationState, csErr := c.clusterServiceClusterSpecOperationState(existingCluster, existingCSCluster); csErr != nil {
 		errs = append(errs, utils.TrackError(csErr))
 	} else {
-		operationStates = append(operationStates, operationState)
+		operationStates = append(operationStates, operationState.withSource("clusterServiceClusterSpec"))
 	}
 
 	if operationState, hsErr := c.hypershiftClusterOperationState(ctx, existingCluster); hsErr != nil {
 		errs = append(errs, utils.TrackError(hsErr))
 	} else {
-		operationStates = append(operationStates, operationState)
+		operationStates = append(operationStates, operationState.withSource("hypershiftCluster"))
 	}
 
 	if err := errors.Join(errs...); err != nil {
@@ -203,7 +203,7 @@ func (c *operationClusterUpdate) determineOperationState(ctx context.Context, op
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
-	logger.Info("picked cluster update operation status", "provisioningState", picked.provisioningState, "message", picked.message)
+	logger.Info("picked cluster update operation status", "picked", picked)
 	return picked, nil
 }
 
