@@ -95,8 +95,7 @@ func (metricsHandler *clusterVersionMetricsHandler) clusterUUIDMetricLabel(
 	if err != nil {
 		logger := utils.LoggerFromContext(ctx)
 		logger.Error(utils.TrackError(err), "error getting cluster UUID, continuing with empty")
-	}
-	if !found {
+	} else if !found {
 		logger := utils.LoggerFromContext(ctx)
 		logger.V(1).Info("missing cluster UUID, continuing with empty")
 	}
