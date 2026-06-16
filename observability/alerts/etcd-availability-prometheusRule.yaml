@@ -1,0 +1,251 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: etcd-availability
+  namespace: monitoring
+spec:
+  groups:
+  - name: etcd-availability
+    rules:
+    # ========================================
+    # Burn-rate tiers per ADR-001:
+    #   Fast  (1h/5m):  fires in 5m   — severity: warning
+    #   Medium (6h/30m): fires in 30m  — severity: warning
+    #   Slow  (3d):     fires in 6h   — severity: info
+    # For histogram metrics the rate window matches the short window.
+    # For gauge/increase metrics only the 'for' duration varies.
+    # ========================================
+
+    # ----------------------------------------
+    # EtcdBackendCommitDurationHigh
+    # ----------------------------------------
+    - alert: EtcdBackendCommitDurationHigh1h5m
+      expr: |
+        histogram_quantile(0.99, rate(etcd_disk_backend_commit_duration_seconds_bucket[5m])) > 0.025
+      for: 5m
+      labels:
+        severity: warning
+        long_window: 1h
+        short_window: 5m
+      annotations:
+        summary: "etcd backend commit duration is high"
+        description: "etcd instance {{ $labels.instance }} has 99th percentile backend commit duration of {{ $value }}s (threshold: 25ms). Slow disk performance may impact write performance."
+        runbook_url: TBD
+    - alert: EtcdBackendCommitDurationHigh6h30m
+      expr: |
+        histogram_quantile(0.99, rate(etcd_disk_backend_commit_duration_seconds_bucket[30m])) > 0.025
+      for: 30m
+      labels:
+        severity: warning
+        long_window: 6h
+        short_window: 30m
+      annotations:
+        summary: "etcd backend commit duration is high"
+        description: "etcd instance {{ $labels.instance }} has 99th percentile backend commit duration of {{ $value }}s (threshold: 25ms). Slow disk performance may impact write performance."
+        runbook_url: TBD
+    - alert: EtcdBackendCommitDurationHigh3d
+      expr: |
+        histogram_quantile(0.99, rate(etcd_disk_backend_commit_duration_seconds_bucket[6h])) > 0.025
+      for: 6h
+      labels:
+        severity: info
+        long_window: 3d
+      annotations:
+        summary: "etcd backend commit duration is chronically high"
+        description: "etcd instance {{ $labels.instance }} has 99th percentile backend commit duration of {{ $value }}s (threshold: 25ms). Slow disk performance may impact write performance."
+        runbook_url: TBD
+
+    # ----------------------------------------
+    # EtcdDatabaseInUseSizeHigh
+    # ----------------------------------------
+    - alert: EtcdDatabaseInUseSizeHigh1h5m
+      expr: |
+        (etcd_mvcc_db_total_size_in_use_in_bytes / etcd_mvcc_db_total_size_in_bytes) > 0.9
+      for: 5m
+      labels:
+        severity: warning
+        long_window: 1h
+        short_window: 5m
+      annotations:
+        summary: "etcd database fragmentation is low"
+        description: "etcd instance {{ $labels.instance }} database in-use ratio is {{ $value | humanizePercentage }} (threshold: 90%). Database compaction may be needed to reclaim space."
+        runbook_url: TBD
+    - alert: EtcdDatabaseInUseSizeHigh6h30m
+      expr: |
+        (etcd_mvcc_db_total_size_in_use_in_bytes / etcd_mvcc_db_total_size_in_bytes) > 0.9
+      for: 30m
+      labels:
+        severity: warning
+        long_window: 6h
+        short_window: 30m
+      annotations:
+        summary: "etcd database fragmentation is low"
+        description: "etcd instance {{ $labels.instance }} database in-use ratio is {{ $value | humanizePercentage }} (threshold: 90%). Database compaction may be needed to reclaim space."
+        runbook_url: TBD
+    - alert: EtcdDatabaseInUseSizeHigh3d
+      expr: |
+        (etcd_mvcc_db_total_size_in_use_in_bytes / etcd_mvcc_db_total_size_in_bytes) > 0.9
+      for: 6h
+      labels:
+        severity: info
+        long_window: 3d
+      annotations:
+        summary: "etcd database fragmentation is chronically low"
+        description: "etcd instance {{ $labels.instance }} database in-use ratio is {{ $value | humanizePercentage }} (threshold: 90%). Database compaction may be needed to reclaim space."
+        runbook_url: TBD
+
+    # ----------------------------------------
+    # EtcdDatabaseSizeExceeded
+    # ----------------------------------------
+    - alert: EtcdDatabaseSizeExceeded1h5m
+      expr: |
+        etcd_mvcc_db_total_size_in_bytes > 8589934592
+      for: 5m
+      labels:
+        severity: warning
+        long_window: 1h
+        short_window: 5m
+      annotations:
+        summary: "etcd database size is too large"
+        description: "etcd instance {{ $labels.instance }} database size is {{ $value | humanize }}B (threshold: 8GB). Database may need compaction or quota increase."
+        runbook_url: TBD
+    - alert: EtcdDatabaseSizeExceeded6h30m
+      expr: |
+        etcd_mvcc_db_total_size_in_bytes > 8589934592
+      for: 30m
+      labels:
+        severity: warning
+        long_window: 6h
+        short_window: 30m
+      annotations:
+        summary: "etcd database size is too large"
+        description: "etcd instance {{ $labels.instance }} database size is {{ $value | humanize }}B (threshold: 8GB). Database may need compaction or quota increase."
+        runbook_url: TBD
+    - alert: EtcdDatabaseSizeExceeded3d
+      expr: |
+        etcd_mvcc_db_total_size_in_bytes > 8589934592
+      for: 6h
+      labels:
+        severity: info
+        long_window: 3d
+      annotations:
+        summary: "etcd database size is chronically too large"
+        description: "etcd instance {{ $labels.instance }} database size is {{ $value | humanize }}B (threshold: 8GB). Database may need compaction or quota increase."
+        runbook_url: TBD
+
+    # ----------------------------------------
+    # EtcdFrequentLeaderChanges
+    # ----------------------------------------
+    - alert: EtcdFrequentLeaderChanges1h5m
+      expr: |
+        increase(etcd_server_leader_changes_seen_total[15m]) > 3
+      for: 5m
+      labels:
+        severity: warning
+        long_window: 1h
+        short_window: 5m
+      annotations:
+        summary: "etcd cluster experiencing frequent leader changes"
+        description: "etcd instance {{ $labels.instance }} has seen {{ $value }} leader changes in the last 15 minutes (threshold: 3). This may indicate network issues or cluster instability."
+        runbook_url: TBD
+    - alert: EtcdFrequentLeaderChanges6h30m
+      expr: |
+        increase(etcd_server_leader_changes_seen_total[15m]) > 3
+      for: 30m
+      labels:
+        severity: warning
+        long_window: 6h
+        short_window: 30m
+      annotations:
+        summary: "etcd cluster experiencing frequent leader changes"
+        description: "etcd instance {{ $labels.instance }} has seen {{ $value }} leader changes in the last 15 minutes (threshold: 3). This may indicate network issues or cluster instability."
+        runbook_url: TBD
+    - alert: EtcdFrequentLeaderChanges3d
+      expr: |
+        increase(etcd_server_leader_changes_seen_total[15m]) > 3
+      for: 6h
+      labels:
+        severity: info
+        long_window: 3d
+      annotations:
+        summary: "etcd cluster experiencing chronic frequent leader changes"
+        description: "etcd instance {{ $labels.instance }} has seen {{ $value }} leader changes in the last 15 minutes (threshold: 3). This may indicate network issues or cluster instability."
+        runbook_url: TBD
+
+    # ----------------------------------------
+    # EtcdPeerRoundTripTimeHigh
+    # ----------------------------------------
+    - alert: EtcdPeerRoundTripTimeHigh1h5m
+      expr: |
+        histogram_quantile(0.99, rate(etcd_network_peer_round_trip_time_seconds_bucket[5m])) > 0.1
+      for: 5m
+      labels:
+        severity: warning
+        long_window: 1h
+        short_window: 5m
+      annotations:
+        summary: "etcd peer round-trip time is high"
+        description: "etcd instance {{ $labels.instance }} has 99th percentile peer round-trip time of {{ $value }}s (threshold: 100ms). Network latency between peers may be affecting cluster performance."
+        runbook_url: TBD
+    - alert: EtcdPeerRoundTripTimeHigh6h30m
+      expr: |
+        histogram_quantile(0.99, rate(etcd_network_peer_round_trip_time_seconds_bucket[30m])) > 0.1
+      for: 30m
+      labels:
+        severity: warning
+        long_window: 6h
+        short_window: 30m
+      annotations:
+        summary: "etcd peer round-trip time is high"
+        description: "etcd instance {{ $labels.instance }} has 99th percentile peer round-trip time of {{ $value }}s (threshold: 100ms). Network latency between peers may be affecting cluster performance."
+        runbook_url: TBD
+    - alert: EtcdPeerRoundTripTimeHigh3d
+      expr: |
+        histogram_quantile(0.99, rate(etcd_network_peer_round_trip_time_seconds_bucket[6h])) > 0.1
+      for: 6h
+      labels:
+        severity: info
+        long_window: 3d
+      annotations:
+        summary: "etcd peer round-trip time is chronically high"
+        description: "etcd instance {{ $labels.instance }} has 99th percentile peer round-trip time of {{ $value }}s (threshold: 100ms). Network latency between peers may be affecting cluster performance."
+        runbook_url: TBD
+
+    # ----------------------------------------
+    # EtcdWALFsyncDurationHigh
+    # ----------------------------------------
+    - alert: EtcdWALFsyncDurationHigh1h5m
+      expr: |
+        histogram_quantile(0.99, rate(etcd_disk_wal_fsync_duration_seconds_bucket[5m])) > 0.01
+      for: 5m
+      labels:
+        severity: warning
+        long_window: 1h
+        short_window: 5m
+      annotations:
+        summary: "etcd WAL fsync duration is high"
+        description: "etcd instance {{ $labels.instance }} has 99th percentile WAL fsync duration of {{ $value }}s (threshold: 10ms). Slow disk performance may impact cluster stability."
+        runbook_url: TBD
+    - alert: EtcdWALFsyncDurationHigh6h30m
+      expr: |
+        histogram_quantile(0.99, rate(etcd_disk_wal_fsync_duration_seconds_bucket[30m])) > 0.01
+      for: 30m
+      labels:
+        severity: warning
+        long_window: 6h
+        short_window: 30m
+      annotations:
+        summary: "etcd WAL fsync duration is high"
+        description: "etcd instance {{ $labels.instance }} has 99th percentile WAL fsync duration of {{ $value }}s (threshold: 10ms). Slow disk performance may impact cluster stability."
+        runbook_url: TBD
+    - alert: EtcdWALFsyncDurationHigh3d
+      expr: |
+        histogram_quantile(0.99, rate(etcd_disk_wal_fsync_duration_seconds_bucket[6h])) > 0.01
+      for: 6h
+      labels:
+        severity: info
+        long_window: 3d
+      annotations:
+        summary: "etcd WAL fsync duration is chronically high"
+        description: "etcd instance {{ $labels.instance }} has 99th percentile WAL fsync duration of {{ $value }}s (threshold: 10ms). Slow disk performance may impact cluster stability."
+        runbook_url: TBD
