@@ -54,11 +54,13 @@ const controlPlaneDesiredVersionControllerName = "ControlPlaneDesiredVersion"
 // It handles automated (managed) z-stream (patch) upgrades and assists with y-stream (minor)
 // version upgrades by selecting the appropriate z-stream within the user-desired minor version.
 type controlPlaneDesiredVersionSyncer struct {
-	cooldownChecker      controllerutil.CooldownChecker
-	readDesireLister     dblisters.ReadDesireLister
-	resourcesDBClient    database.ResourcesDBClient
-	clusterServiceClient ocm.ClusterServiceClientSpec
-	subscriptionLister   listers.SubscriptionLister
+	cooldownChecker               controllerutil.CooldownChecker
+	readDesireLister              dblisters.ReadDesireLister
+	resourcesDBClient             database.ResourcesDBClient
+	clusterServiceClient          ocm.ClusterServiceClientSpec
+	subscriptionLister            listers.SubscriptionLister
+	serviceProviderClusterLister  listers.ServiceProviderClusterLister
+	serviceProviderNodePoolLister listers.ServiceProviderNodePoolLister
 
 	cincinnatiClientCache cincinnati.ClientCache
 }
@@ -72,18 +74,22 @@ func NewControlPlaneDesiredVersionController(
 	resourcesDBClient database.ResourcesDBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
 	activeOperationLister listers.ActiveOperationLister,
+	serviceProviderClusterLister listers.ServiceProviderClusterLister,
+	serviceProviderNodePoolLister listers.ServiceProviderNodePoolLister,
 	informers informers.BackendInformers,
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 	readDesireLister dblisters.ReadDesireLister,
 	subscriptionLister listers.SubscriptionLister,
 ) controllerutils.Controller {
 	syncer := &controlPlaneDesiredVersionSyncer{
-		cooldownChecker:       controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
-		readDesireLister:      readDesireLister,
-		cincinnatiClientCache: cincinnati.NewClientCache(),
-		resourcesDBClient:     resourcesDBClient,
-		clusterServiceClient:  clusterServiceClient,
-		subscriptionLister:    subscriptionLister,
+		cooldownChecker:               controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
+		readDesireLister:              readDesireLister,
+		cincinnatiClientCache:         cincinnati.NewClientCache(),
+		resourcesDBClient:             resourcesDBClient,
+		clusterServiceClient:          clusterServiceClient,
+		subscriptionLister:            subscriptionLister,
+		serviceProviderClusterLister:  serviceProviderClusterLister,
+		serviceProviderNodePoolLister: serviceProviderNodePoolLister,
 	}
 
 	controller := controllerutils.NewClusterWatchingController(
@@ -132,9 +138,13 @@ func (c *controlPlaneDesiredVersionSyncer) SyncOnce(ctx context.Context, key con
 		return nil
 	}
 
-	existingServiceProviderCluster, err := database.GetOrCreateServiceProviderCluster(ctx, c.resourcesDBClient, key.GetResourceID())
+	existingServiceProviderCluster, err := c.serviceProviderClusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
+	if database.IsNotFoundError(err) {
+		// CreateServiceProviderCluster will populate it; we'll be re-enqueued via the ServiceProviderCluster informer.
+		return nil
+	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get or create ServiceProviderCluster: %w", err))
+		return utils.TrackError(fmt.Errorf("failed to get ServiceProviderCluster: %w", err))
 	}
 
 	// Resolve the cluster UUID from the cached HostedCluster so we can build the Cincinnati client.
@@ -187,22 +197,18 @@ func (c *controlPlaneDesiredVersionSyncer) SyncOnce(ctx context.Context, key con
 	}
 
 	previousDesiredVersion := existingServiceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion
-	desiredVersionUpdated := false
 	// Only advance stored desired when the newly resolved version is greater, so graph changes
 	// cannot automatically select a lower z-stream. When rollback support is added, relax this
 	// so that only SRE-enforced rollback targets can decrease desired.
 	if desiredVersion != nil && (previousDesiredVersion == nil || desiredVersion.GT(*previousDesiredVersion)) {
 		logger.Info("Selected desired version", "desiredVersion", desiredVersion, "previousDesiredVersion", previousDesiredVersion)
-		existingServiceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion = desiredVersion
-		desiredVersionUpdated = true
-	}
-
-	// on successful resolution of the desired version.
-	// update the ServiceProviderCluster first and only afterwards
-	// clear the IntentFailed condition
-	if desiredVersionUpdated {
+		desiredServiceProviderCluster := existingServiceProviderCluster.DeepCopy()
+		desiredServiceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion = desiredVersion
+		// on successful resolution of the desired version.
+		// update the ServiceProviderCluster first and only afterwards
+		// clear the IntentFailed condition
 		serviceProviderClustersCosmosClient := c.resourcesDBClient.ServiceProviderClusters(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
-		_, err := serviceProviderClustersCosmosClient.Replace(ctx, existingServiceProviderCluster, nil)
+		_, err := serviceProviderClustersCosmosClient.Replace(ctx, desiredServiceProviderCluster, nil)
 		if err != nil {
 			return utils.TrackError(fmt.Errorf("failed to replace ServiceProviderCluster: %w", err))
 		}
@@ -298,9 +304,14 @@ func (c *controlPlaneDesiredVersionSyncer) desiredControlPlaneZVersion(ctx conte
 		if err := validation.OpenshiftVersionAtMostOneMinorSkew(actualLatestMinorVersion.String(), desiredMinorVersion.String()); err != nil {
 			return nil, utils.TrackError(err)
 		}
-		clusterNodePools, err := c.listClusterAdmissionNodePools(ctx, clusterResourceID)
+		clusterNodePools, ready, err := c.listClusterAdmissionNodePools(ctx, clusterResourceID)
 		if err != nil {
 			return nil, utils.TrackError(err)
+		}
+		if !ready {
+			// Skip until every node pool has its ServiceProviderNodePool;
+			// without complete version data we can't validate minor skew.
+			return nil, nil
 		}
 		if err := admission.AdmitClusterNodePoolsMinorVersionSkew(ctx, clusterNodePools, desiredMinorVersion); err != nil {
 			return nil, utils.TrackError(err)
@@ -347,26 +358,38 @@ func (c *controlPlaneDesiredVersionSyncer) desiredControlPlaneZVersion(ctx conte
 // frontend.newClusterAdmissionContext builds for cluster admission. The upgrade
 // controller passes the result to admission.AdmitClusterNodePoolsMinorVersionSkew
 // directly so that admission code stays free of any DB dependency.
-func (c *controlPlaneDesiredVersionSyncer) listClusterAdmissionNodePools(ctx context.Context, clusterResourceID *azcorearm.ResourceID) ([]admission.ClusterAdmissionNodePool, error) {
+//
+// Returns (_, false, nil) when any node pool is missing its
+// ServiceProviderNodePool. CreateServiceProviderNodePool will populate it.
+// ClusterWatchingController does not watch the ServiceProviderNodePool
+// informer (a child-document arrival doesn't naturally route to its parent
+// cluster), so the retry happens on the controller's periodic resync or on
+// the next Cluster / ServiceProviderCluster event for this cluster.
+// Skipping admission avoids using stale or missing node-pool version data
+// for skew validation.
+func (c *controlPlaneDesiredVersionSyncer) listClusterAdmissionNodePools(ctx context.Context, clusterResourceID *azcorearm.ResourceID) ([]admission.ClusterAdmissionNodePool, bool, error) {
 	nodePoolIterator, err := c.resourcesDBClient.HCPClusters(clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName).NodePools(clusterResourceID.Name).List(ctx, nil)
 	if err != nil {
-		return nil, utils.TrackError(err)
+		return nil, false, utils.TrackError(err)
 	}
 	var clusterNodePools []admission.ClusterAdmissionNodePool
 	for _, nodePool := range nodePoolIterator.Items(ctx) {
-		spNodePool, err := database.GetOrCreateServiceProviderNodePool(ctx, c.resourcesDBClient, nodePool.ID)
+		serviceProviderNodePool, err := c.serviceProviderNodePoolLister.Get(ctx, clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName, clusterResourceID.Name, nodePool.ID.Name)
+		if database.IsNotFoundError(err) {
+			return nil, false, nil
+		}
 		if err != nil {
-			return nil, utils.TrackError(err)
+			return nil, false, utils.TrackError(err)
 		}
 		clusterNodePools = append(clusterNodePools, admission.ClusterAdmissionNodePool{
 			NodePool:                nodePool,
-			ServiceProviderNodePool: spNodePool,
+			ServiceProviderNodePool: serviceProviderNodePool,
 		})
 	}
 	if err := nodePoolIterator.GetError(); err != nil {
-		return nil, utils.TrackError(err)
+		return nil, false, utils.TrackError(err)
 	}
-	return clusterNodePools, nil
+	return clusterNodePools, true, nil
 }
 
 // FindAllUpgradeTargetVersionsInMinor queries Cincinnati and finds the latest version within the specified target minor.

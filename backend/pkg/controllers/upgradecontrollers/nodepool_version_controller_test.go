@@ -156,6 +156,14 @@ func createTestNodePoolWithVersion(t *testing.T, ctx context.Context, mockResour
 	_, err = mockResourcesDBClient.HCPClusters(testSubscriptionID, testResourceGroupName).
 		NodePools(testClusterName).Create(ctx, nodePool, nil)
 	require.NoError(t, err)
+
+	// Seed empty ServiceProviderCluster and ServiceProviderNodePool the way
+	// the production creator controllers would have populated them by the
+	// time any consumer syncer runs.
+	_, err = database.GetOrCreateServiceProviderCluster(ctx, mockResourcesDBClient, clusterResourceID)
+	require.NoError(t, err)
+	_, err = database.GetOrCreateServiceProviderNodePool(ctx, mockResourcesDBClient, nodePoolResourceID)
+	require.NoError(t, err)
 }
 
 // newCSNodePool creates a Cluster Service node pool for testing.
@@ -333,11 +341,13 @@ func TestNodePoolVersionSyncer_SyncOnce(t *testing.T) {
 			}
 
 			syncer := &nodePoolVersionSyncer{
-				cooldownChecker:       &alwaysSyncCooldownChecker{},
-				readDesireLister:      contentLister,
-				resourcesDBClient:     mockResourcesDBClient,
-				clusterServiceClient:  mockCS,
-				cincinnatiClientCache: mockClientCache,
+				cooldownChecker:               &alwaysSyncCooldownChecker{},
+				readDesireLister:              contentLister,
+				resourcesDBClient:             mockResourcesDBClient,
+				clusterServiceClient:          mockCS,
+				cincinnatiClientCache:         mockClientCache,
+				serviceProviderClusterLister:  &listertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
+				serviceProviderNodePoolLister: &listertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
 			}
 
 			ctx = utils.ContextWithLogger(ctx, logr.Discard())
@@ -556,12 +566,14 @@ func TestNodePoolVersionSyncer_SyncOnce_IntentFailed(t *testing.T) {
 			mockClientCache.EXPECT().GetOrCreateClient(gomock.Any()).Return(mockCincinnati).AnyTimes()
 
 			syncer := &nodePoolVersionSyncer{
-				cooldownChecker:       &alwaysSyncCooldownChecker{},
-				readDesireLister:      newValidHostedClusterReadDesireLister(t),
-				resourcesDBClient:     mockResourcesDBClient,
-				clusterServiceClient:  mockCS,
-				subscriptionLister:    subscriptionLister,
-				cincinnatiClientCache: mockClientCache,
+				cooldownChecker:               &alwaysSyncCooldownChecker{},
+				readDesireLister:              newValidHostedClusterReadDesireLister(t),
+				resourcesDBClient:             mockResourcesDBClient,
+				clusterServiceClient:          mockCS,
+				subscriptionLister:            subscriptionLister,
+				cincinnatiClientCache:         mockClientCache,
+				serviceProviderClusterLister:  &listertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
+				serviceProviderNodePoolLister: &listertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
 			}
 
 			err := syncer.SyncOnce(ctx, testKey)
@@ -1024,12 +1036,14 @@ func TestNodePoolVersionSyncer_SyncOnce_DesiredVersionUnchangedOnFailure_Changed
 	mockClientCache.EXPECT().GetOrCreateClient(gomock.Any()).Return(mockCincinnati).Times(1)
 
 	syncer := &nodePoolVersionSyncer{
-		cooldownChecker:       &alwaysSyncCooldownChecker{},
-		readDesireLister:      newValidHostedClusterReadDesireLister(t),
-		resourcesDBClient:     mockResourcesDBClient,
-		clusterServiceClient:  mockCS,
-		subscriptionLister:    newTestSubscriptionLister(),
-		cincinnatiClientCache: mockClientCache,
+		cooldownChecker:               &alwaysSyncCooldownChecker{},
+		readDesireLister:              newValidHostedClusterReadDesireLister(t),
+		resourcesDBClient:             mockResourcesDBClient,
+		clusterServiceClient:          mockCS,
+		subscriptionLister:            newTestSubscriptionLister(),
+		cincinnatiClientCache:         mockClientCache,
+		serviceProviderClusterLister:  &listertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
+		serviceProviderNodePoolLister: &listertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
 	}
 
 	testKey := controllerutils.HCPNodePoolKey{
@@ -1167,58 +1181,42 @@ func assertSyncResult(t *testing.T, err error, expectedError bool, expectedError
 	}
 }
 
-// createServiceProviderClusterWithVersion creates a ServiceProviderCluster with the given control plane version.
+// createServiceProviderClusterWithVersion seeds a ServiceProviderCluster
+// carrying the given control plane version. Uses GetOrCreate + Replace so the
+// helper is safe to call after createTestHCPCluster (which already seeds an
+// empty ServiceProviderCluster the way the production creator controller
+// would).
 func createServiceProviderClusterWithVersion(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient, controlPlaneVersion string) {
 	t.Helper()
 
-	clusterResourceID := "/subscriptions/" + testSubscriptionID +
-		"/resourceGroups/" + testResourceGroupName +
-		"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName
-	// ServiceProviderCluster resource ID format: {clusterResourceID}/{resourceTypeName}/{resourceName}
-	spClusterResourceID := clusterResourceID + "/" + api.ServiceProviderClusterResourceTypeName + "/" + api.ServiceProviderClusterResourceName
+	clusterResourceID := api.Must(api.ToClusterResourceID(testSubscriptionID, testResourceGroupName, testClusterName))
+	spCluster, err := database.GetOrCreateServiceProviderCluster(ctx, mockResourcesDBClient, clusterResourceID)
+	require.NoError(t, err)
 
 	cpVersion := semver.MustParse(controlPlaneVersion)
-	spCluster := &api.ServiceProviderCluster{
-		CosmosMetadata: api.CosmosMetadata{
-			ResourceID: api.Must(azcorearm.ParseResourceID(spClusterResourceID)),
-		},
-		Status: api.ServiceProviderClusterStatus{
-			ControlPlaneVersion: api.ServiceProviderClusterStatusVersion{
-				ActiveVersions: []api.HCPClusterActiveVersion{
-					{Version: &cpVersion, State: configv1.CompletedUpdate},
-				},
-			},
-		},
+	spCluster.Status.ControlPlaneVersion.ActiveVersions = []api.HCPClusterActiveVersion{
+		{Version: &cpVersion, State: configv1.CompletedUpdate},
 	}
-	_, err := mockResourcesDBClient.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Create(ctx, spCluster, nil)
+	_, err = mockResourcesDBClient.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Replace(ctx, spCluster, nil)
 	require.NoError(t, err)
 }
 
-// createServiceProviderNodePoolWithVersion creates a ServiceProviderNodePool with the given active version.
+// createServiceProviderNodePoolWithVersion seeds a ServiceProviderNodePool
+// carrying the given active version. Uses GetOrCreate + Replace so the helper
+// is safe to call after createTestNodePoolWithVersion (which seeds an empty
+// ServiceProviderNodePool the way the production creator controller would).
 func createServiceProviderNodePoolWithVersion(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient, activeVersion string) {
 	t.Helper()
 
-	nodePoolResourceID := "/subscriptions/" + testSubscriptionID +
-		"/resourceGroups/" + testResourceGroupName +
-		"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName +
-		"/nodePools/" + testNodePoolName
-	// ServiceProviderNodePool resource ID format: {nodePoolResourceID}/{resourceTypeName}/{resourceName}
-	spNodePoolResourceID := nodePoolResourceID + "/" + api.ServiceProviderNodePoolResourceTypeName + "/" + api.ServiceProviderNodePoolResourceName
+	nodePoolResourceID := api.Must(api.ToNodePoolResourceID(testSubscriptionID, testResourceGroupName, testClusterName, testNodePoolName))
+	spNodePool, err := database.GetOrCreateServiceProviderNodePool(ctx, mockResourcesDBClient, nodePoolResourceID)
+	require.NoError(t, err)
 
 	version := semver.MustParse(activeVersion)
-	spNodePool := &api.ServiceProviderNodePool{
-		CosmosMetadata: api.CosmosMetadata{
-			ResourceID: api.Must(azcorearm.ParseResourceID(spNodePoolResourceID)),
-		},
-		Status: api.ServiceProviderNodePoolStatus{
-			NodePoolVersion: api.ServiceProviderNodePoolStatusVersion{
-				ActiveVersions: []api.HCPNodePoolActiveVersion{
-					{Version: &version},
-				},
-			},
-		},
+	spNodePool.Status.NodePoolVersion.ActiveVersions = []api.HCPNodePoolActiveVersion{
+		{Version: &version},
 	}
-	_, err := mockResourcesDBClient.ServiceProviderNodePools(testSubscriptionID, testResourceGroupName, testClusterName, testNodePoolName).Create(ctx, spNodePool, nil)
+	_, err = mockResourcesDBClient.ServiceProviderNodePools(testSubscriptionID, testResourceGroupName, testClusterName, testNodePoolName).Replace(ctx, spNodePool, nil)
 	require.NoError(t, err)
 }
 

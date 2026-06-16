@@ -204,11 +204,38 @@ func (l *DBServiceProviderClusterLister) List(ctx context.Context) ([]*api.Servi
 }
 
 func (l *DBServiceProviderClusterLister) Get(ctx context.Context, subscriptionID, resourceGroupName, clusterName string) (*api.ServiceProviderCluster, error) {
-	return l.ResourcesDBClient.ServiceProviderClusters(subscriptionID, resourceGroupName, clusterName).Get(ctx, "default")
+	return l.ResourcesDBClient.ServiceProviderClusters(subscriptionID, resourceGroupName, clusterName).Get(ctx, api.ServiceProviderClusterResourceName)
 }
 
 func (l *DBServiceProviderClusterLister) ListForCluster(ctx context.Context, subscriptionID, resourceGroupName, clusterName string) ([]*api.ServiceProviderCluster, error) {
 	iter, err := l.ResourcesDBClient.ServiceProviderClusters(subscriptionID, resourceGroupName, clusterName).List(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	return collectFromIterator(ctx, iter)
+}
+
+// DBServiceProviderNodePoolLister implements listers.ServiceProviderNodePoolLister backed by a database.ResourcesDBClient.
+type DBServiceProviderNodePoolLister struct {
+	ResourcesDBClient database.ResourcesDBClient
+}
+
+var _ listers.ServiceProviderNodePoolLister = &DBServiceProviderNodePoolLister{}
+
+func (l *DBServiceProviderNodePoolLister) List(ctx context.Context) ([]*api.ServiceProviderNodePool, error) {
+	iter, err := l.ResourcesDBClient.ResourcesGlobalListers().ServiceProviderNodePools().List(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	return collectFromIterator(ctx, iter)
+}
+
+func (l *DBServiceProviderNodePoolLister) Get(ctx context.Context, subscriptionID, resourceGroupName, clusterName, nodePoolName string) (*api.ServiceProviderNodePool, error) {
+	return l.ResourcesDBClient.ServiceProviderNodePools(subscriptionID, resourceGroupName, clusterName, nodePoolName).Get(ctx, api.ServiceProviderNodePoolResourceName)
+}
+
+func (l *DBServiceProviderNodePoolLister) ListForNodePool(ctx context.Context, subscriptionID, resourceGroupName, clusterName, nodePoolName string) ([]*api.ServiceProviderNodePool, error) {
+	iter, err := l.ResourcesDBClient.ServiceProviderNodePools(subscriptionID, resourceGroupName, clusterName, nodePoolName).List(ctx, nil)
 	if err != nil {
 		return nil, err
 	}

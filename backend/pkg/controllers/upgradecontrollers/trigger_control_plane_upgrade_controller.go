@@ -36,9 +36,10 @@ import (
 
 // triggerControlPlaneUpgradeSyncer is a Cluster syncer that triggers control plane upgrades
 type triggerControlPlaneUpgradeSyncer struct {
-	cooldownChecker      controllerutil.CooldownChecker
-	resourcesDBClient    database.ResourcesDBClient
-	clusterServiceClient ocm.ClusterServiceClientSpec
+	cooldownChecker              controllerutil.CooldownChecker
+	resourcesDBClient            database.ResourcesDBClient
+	clusterServiceClient         ocm.ClusterServiceClientSpec
+	serviceProviderClusterLister listers.ServiceProviderClusterLister
 }
 
 var _ controllerutils.ClusterSyncer = (*triggerControlPlaneUpgradeSyncer)(nil)
@@ -54,13 +55,15 @@ func NewTriggerControlPlaneUpgradeController(
 	resourcesDBClient database.ResourcesDBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
 	activeOperationLister listers.ActiveOperationLister,
+	serviceProviderClusterLister listers.ServiceProviderClusterLister,
 	informers informers.BackendInformers,
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 ) controllerutils.Controller {
 	syncer := &triggerControlPlaneUpgradeSyncer{
-		cooldownChecker:      controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
-		resourcesDBClient:    resourcesDBClient,
-		clusterServiceClient: clusterServiceClient,
+		cooldownChecker:              controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
+		resourcesDBClient:            resourcesDBClient,
+		clusterServiceClient:         clusterServiceClient,
+		serviceProviderClusterLister: serviceProviderClusterLister,
 	}
 
 	controller := controllerutils.NewClusterWatchingController(
@@ -102,9 +105,13 @@ func (c *triggerControlPlaneUpgradeSyncer) SyncOnce(ctx context.Context, key con
 		return nil
 	}
 
-	existingServiceProviderCluster, err := database.GetOrCreateServiceProviderCluster(ctx, c.resourcesDBClient, key.GetResourceID())
+	existingServiceProviderCluster, err := c.serviceProviderClusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
+	if database.IsNotFoundError(err) {
+		// CreateServiceProviderCluster will populate it; we'll be re-enqueued via the ServiceProviderCluster informer.
+		return nil
+	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get or create ServiceProviderCluster: %w", err))
+		return utils.TrackError(fmt.Errorf("failed to get ServiceProviderCluster: %w", err))
 	}
 
 	desiredVersion := existingServiceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion

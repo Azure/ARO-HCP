@@ -283,7 +283,12 @@ func TestDesiredControlPlaneZVersion_ZStreamManagedUpgrade(t *testing.T) {
 			mockCincinnatiClient := cincinnati.NewMockClient(ctrl)
 			tt.mockSetup(mockCincinnatiClient)
 
-			syncer := &controlPlaneDesiredVersionSyncer{resourcesDBClient: databasetesting.NewMockResourcesDBClient()}
+			mockResourcesDBClient := databasetesting.NewMockResourcesDBClient()
+			syncer := &controlPlaneDesiredVersionSyncer{
+				resourcesDBClient:             mockResourcesDBClient,
+				serviceProviderClusterLister:  &listertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
+				serviceProviderNodePoolLister: &listertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
+			}
 
 			ctx := context.Background()
 			result, err := syncer.desiredControlPlaneZVersion(ctx, mockCincinnatiClient, api.Must(api.ToClusterResourceID("6b690bec-0c16-4ecb-8f67-781caf40bba7", "test-rg", "test-cluster")), tt.customerDesiredMinor, tt.channelGroup, tt.activeVersions, false)
@@ -581,7 +586,11 @@ func TestDesiredControlPlaneZVersion_NextYStreamUpgrade(t *testing.T) {
 			ctx := context.Background()
 			mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, tt.cosmosResources)
 			require.NoError(t, err)
-			syncer := &controlPlaneDesiredVersionSyncer{resourcesDBClient: mockResourcesDBClient}
+			syncer := &controlPlaneDesiredVersionSyncer{
+				resourcesDBClient:             mockResourcesDBClient,
+				serviceProviderClusterLister:  &listertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
+				serviceProviderNodePoolLister: &listertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
+			}
 
 			result, err := syncer.desiredControlPlaneZVersion(ctx, mockCincinnatiClient, api.Must(api.ToClusterResourceID("6b690bec-0c16-4ecb-8f67-781caf40bba7", "test-rg", "test-cluster")), tt.customerDesiredMinor, tt.channelGroup, tt.activeVersions, false)
 
@@ -592,6 +601,8 @@ func TestDesiredControlPlaneZVersion_NextYStreamUpgrade(t *testing.T) {
 
 // testCosmosClusterWithWorkersNodePoolAtVersion returns a cluster and workers node pool for the subscription, resource group,
 // and cluster name shared by desiredControlPlaneZVersion tests. nodePoolVersionId is properties.version.id on the pool.
+// Also seeds an empty ServiceProviderCluster and an empty ServiceProviderNodePool the
+// way the production creator controllers would have populated them.
 func testCosmosClusterWithWorkersNodePoolAtVersion(nodePoolVersionId string) []any {
 	clusterResourceId := api.Must(api.ToClusterResourceID("6b690bec-0c16-4ecb-8f67-781caf40bba7", "test-rg", "test-cluster"))
 	cluster := &api.HCPOpenShiftCluster{
@@ -610,6 +621,8 @@ func testCosmosClusterWithWorkersNodePoolAtVersion(nodePoolVersionId string) []a
 		},
 	}
 	nodePoolResourceId := api.Must(azcorearm.ParseResourceID(clusterResourceId.String() + "/nodePools/workers"))
+	serviceProviderClusterResourceID := api.Must(azcorearm.ParseResourceID(clusterResourceId.String() + "/" + api.ServiceProviderClusterResourceTypeName + "/" + api.ServiceProviderClusterResourceName))
+	serviceProviderNodePoolResourceID := api.Must(azcorearm.ParseResourceID(nodePoolResourceId.String() + "/" + api.ServiceProviderNodePoolResourceTypeName + "/" + api.ServiceProviderNodePoolResourceName))
 	return []any{
 		cluster,
 		&api.HCPOpenShiftClusterNodePool{
@@ -623,6 +636,12 @@ func testCosmosClusterWithWorkersNodePoolAtVersion(nodePoolVersionId string) []a
 			ServiceProviderProperties: api.HCPOpenShiftClusterNodePoolServiceProviderProperties{
 				ClusterServiceID: api.Ptr(api.Must(api.NewInternalID("/api/clusters_mgmt/v1/clusters/test-cluster/node_pools/workers"))),
 			},
+		},
+		&api.ServiceProviderCluster{
+			CosmosMetadata: api.CosmosMetadata{ResourceID: serviceProviderClusterResourceID},
+		},
+		&api.ServiceProviderNodePool{
+			CosmosMetadata: api.CosmosMetadata{ResourceID: serviceProviderNodePoolResourceID},
 		},
 	}
 }
@@ -715,7 +734,11 @@ func TestDesiredControlPlaneZVersion_Validations(t *testing.T) {
 			ctx := context.Background()
 			mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, tt.cosmosResources)
 			require.NoError(t, err)
-			syncer := &controlPlaneDesiredVersionSyncer{resourcesDBClient: mockResourcesDBClient}
+			syncer := &controlPlaneDesiredVersionSyncer{
+				resourcesDBClient:             mockResourcesDBClient,
+				serviceProviderClusterLister:  &listertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
+				serviceProviderNodePoolLister: &listertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
+			}
 
 			result, err := syncer.desiredControlPlaneZVersion(ctx, mockCincinnatiClient, api.Must(api.ToClusterResourceID("6b690bec-0c16-4ecb-8f67-781caf40bba7", "test-rg", "test-cluster")), tt.customerDesiredMinor, tt.channelGroup, tt.activeVersions, tt.experimentalReleaseFeatures)
 
@@ -815,7 +838,11 @@ func TestDesiredControlPlaneZVersion_CrossMajorUpgrade(t *testing.T) {
 			ctx := context.Background()
 			mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, tt.cosmosResources)
 			require.NoError(t, err)
-			syncer := &controlPlaneDesiredVersionSyncer{resourcesDBClient: mockResourcesDBClient}
+			syncer := &controlPlaneDesiredVersionSyncer{
+				resourcesDBClient:             mockResourcesDBClient,
+				serviceProviderClusterLister:  &listertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
+				serviceProviderNodePoolLister: &listertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
+			}
 
 			result, err := syncer.desiredControlPlaneZVersion(ctx, mockCincinnatiClient, api.Must(api.ToClusterResourceID("6b690bec-0c16-4ecb-8f67-781caf40bba7", "test-rg", "test-cluster")), tt.customerDesiredMinor, tt.channelGroup, tt.activeVersions, tt.experimentalReleaseFeatures)
 
@@ -955,7 +982,12 @@ func TestDesiredControlPlaneZVersion_InitialVersionSelection(t *testing.T) {
 			mockCincinnatiClient := cincinnati.NewMockClient(ctrl)
 			tt.mockSetup(mockCincinnatiClient)
 
-			syncer := &controlPlaneDesiredVersionSyncer{resourcesDBClient: databasetesting.NewMockResourcesDBClient()}
+			mockResourcesDBClient := databasetesting.NewMockResourcesDBClient()
+			syncer := &controlPlaneDesiredVersionSyncer{
+				resourcesDBClient:             mockResourcesDBClient,
+				serviceProviderClusterLister:  &listertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
+				serviceProviderNodePoolLister: &listertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
+			}
 
 			// Empty active versions - simulating a new cluster
 			activeVersions := []api.HCPClusterActiveVersion{}
@@ -1159,12 +1191,14 @@ func TestControlPlaneDesiredVersionSyncer_SyncOnce(t *testing.T) {
 			mockClientCache.EXPECT().GetOrCreateClient(gomock.Any()).Return(mockCincinnati).AnyTimes()
 
 			syncer := &controlPlaneDesiredVersionSyncer{
-				cooldownChecker:       &alwaysSyncCooldownChecker{},
-				readDesireLister:      newValidHostedClusterReadDesireLister(t),
-				resourcesDBClient:     mockResourcesDBClient,
-				clusterServiceClient:  mockCS,
-				subscriptionLister:    subscriptionLister,
-				cincinnatiClientCache: mockClientCache,
+				cooldownChecker:               &alwaysSyncCooldownChecker{},
+				readDesireLister:              newValidHostedClusterReadDesireLister(t),
+				resourcesDBClient:             mockResourcesDBClient,
+				clusterServiceClient:          mockCS,
+				subscriptionLister:            subscriptionLister,
+				cincinnatiClientCache:         mockClientCache,
+				serviceProviderClusterLister:  &listertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
+				serviceProviderNodePoolLister: &listertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
 			}
 
 			err := syncer.SyncOnce(ctx, clusterKey)

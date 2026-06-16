@@ -52,11 +52,13 @@ const NodepoolVersionControllerName = "NodePoolVersion"
 // from CS and internal and helps selecting a valid desiredVersion within the user's
 // desired
 type nodePoolVersionSyncer struct {
-	cooldownChecker      controllerutil.CooldownChecker
-	readDesireLister     dblisters.ReadDesireLister
-	resourcesDBClient    database.ResourcesDBClient
-	clusterServiceClient ocm.ClusterServiceClientSpec
-	subscriptionLister   listers.SubscriptionLister
+	cooldownChecker               controllerutil.CooldownChecker
+	readDesireLister              dblisters.ReadDesireLister
+	resourcesDBClient             database.ResourcesDBClient
+	clusterServiceClient          ocm.ClusterServiceClientSpec
+	subscriptionLister            listers.SubscriptionLister
+	serviceProviderClusterLister  listers.ServiceProviderClusterLister
+	serviceProviderNodePoolLister listers.ServiceProviderNodePoolLister
 
 	cincinnatiClientCache cincinnati.ClientCache
 }
@@ -70,17 +72,21 @@ func NewNodePoolVersionController(
 	resourcesDBClient database.ResourcesDBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
 	activeOperationLister listers.ActiveOperationLister,
+	serviceProviderClusterLister listers.ServiceProviderClusterLister,
+	serviceProviderNodePoolLister listers.ServiceProviderNodePoolLister,
 	informers informers.BackendInformers,
 	readDesireLister dblisters.ReadDesireLister,
 	subscriptionLister listers.SubscriptionLister,
 ) controllerutils.Controller {
 	syncer := &nodePoolVersionSyncer{
-		cooldownChecker:       controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
-		readDesireLister:      readDesireLister,
-		resourcesDBClient:     resourcesDBClient,
-		clusterServiceClient:  clusterServiceClient,
-		cincinnatiClientCache: cincinnati.NewClientCache(),
-		subscriptionLister:    subscriptionLister,
+		cooldownChecker:               controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
+		readDesireLister:              readDesireLister,
+		resourcesDBClient:             resourcesDBClient,
+		clusterServiceClient:          clusterServiceClient,
+		cincinnatiClientCache:         cincinnati.NewClientCache(),
+		subscriptionLister:            subscriptionLister,
+		serviceProviderClusterLister:  serviceProviderClusterLister,
+		serviceProviderNodePoolLister: serviceProviderNodePoolLister,
 	}
 
 	controller := controllerutils.NewNodePoolWatchingController(
@@ -138,16 +144,28 @@ func (c *nodePoolVersionSyncer) SyncOnce(ctx context.Context, key controllerutil
 		return nil
 	}
 
-	existingServiceProviderNodePool, err := database.GetOrCreateServiceProviderNodePool(ctx, c.resourcesDBClient, key.GetResourceID())
-	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get or create ServiceProviderNodePool: %w", err))
+	cachedServiceProviderNodePool, err := c.serviceProviderNodePoolLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPNodePoolName)
+	if database.IsNotFoundError(err) {
+		// CreateServiceProviderNodePool will populate it; we'll be re-enqueued via the ServiceProviderNodePool informer.
+		return nil
 	}
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to get ServiceProviderNodePool: %w", err))
+	}
+	existingServiceProviderNodePool := cachedServiceProviderNodePool.DeepCopy()
 
 	// Get the ServiceProviderCluster for control plane version validation
-	clusterResourceID := api.Must(api.ToClusterResourceID(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName))
-	existingServiceProviderCluster, err := database.GetOrCreateServiceProviderCluster(ctx, c.resourcesDBClient, clusterResourceID)
+	existingServiceProviderCluster, err := c.serviceProviderClusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
+	if database.IsNotFoundError(err) {
+		// CreateServiceProviderCluster will populate it. NodePoolWatchingController
+		// does not watch the ServiceProviderCluster informer (an SPC arrival
+		// can't be walked down to a specific node pool), so the next attempt
+		// happens on the controller's periodic resync or the next NodePool /
+		// ServiceProviderNodePool event for this node pool.
+		return nil
+	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get or create ServiceProviderCluster: %w", err))
+		return utils.TrackError(fmt.Errorf("failed to get ServiceProviderCluster: %w", err))
 	}
 
 	// Get the cluster for Cincinnati client initialization

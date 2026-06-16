@@ -33,9 +33,11 @@ import (
 	hsv1beta1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
+	"github.com/Azure/ARO-HCP/backend/pkg/listertesting"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
+	"github.com/Azure/ARO-HCP/internal/database"
 	internallistertesting "github.com/Azure/ARO-HCP/internal/database/listertesting"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -294,9 +296,10 @@ func TestControlPlaneActiveVersionSyncer_SyncOnce(t *testing.T) {
 			}
 
 			syncer := &controlPlaneActiveVersionSyncer{
-				cooldownChecker:   &alwaysSyncCooldownChecker{},
-				resourcesDBClient: mockResourcesDBClient,
-				readDesireLister:  &internallistertesting.SliceReadDesireLister{Desires: desires},
+				cooldownChecker:              &alwaysSyncCooldownChecker{},
+				resourcesDBClient:            mockResourcesDBClient,
+				readDesireLister:             &internallistertesting.SliceReadDesireLister{Desires: desires},
+				serviceProviderClusterLister: &listertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
 			}
 
 			err := syncer.SyncOnce(runCtx, testKey)
@@ -334,9 +337,10 @@ func TestControlPlaneActiveVersionSyncer_NoReplaceWhenVersionsUnchanged(t *testi
 	beforeETag := before.CosmosETag
 
 	syncer := &controlPlaneActiveVersionSyncer{
-		cooldownChecker:   &alwaysSyncCooldownChecker{},
-		resourcesDBClient: mockResourcesDBClient,
-		readDesireLister:  &internallistertesting.SliceReadDesireLister{Desires: desires},
+		cooldownChecker:              &alwaysSyncCooldownChecker{},
+		resourcesDBClient:            mockResourcesDBClient,
+		readDesireLister:             &internallistertesting.SliceReadDesireLister{Desires: desires},
+		serviceProviderClusterLister: &listertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
 	}
 	require.NoError(t, syncer.SyncOnce(runCtx, controllerutils.HCPClusterKey{
 		SubscriptionID:    testSubscriptionID,
@@ -351,6 +355,10 @@ func TestControlPlaneActiveVersionSyncer_NoReplaceWhenVersionsUnchanged(t *testi
 
 // createTestHCPCluster creates an HCP cluster in the mock database (no node pools).
 // Used as the parent resource for control plane active version sync.
+//
+// An empty ServiceProviderCluster is also seeded; this mirrors what the
+// CreateServiceProviderCluster controller would have populated by the time
+// any consumer syncer runs in production.
 func createTestHCPCluster(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient) {
 	t.Helper()
 
@@ -378,6 +386,9 @@ func createTestHCPCluster(t *testing.T, ctx context.Context, mockResourcesDBClie
 		},
 	}
 	_, err = mockResourcesDBClient.HCPClusters(testSubscriptionID, testResourceGroupName).Create(ctx, cluster, nil)
+	require.NoError(t, err)
+
+	_, err = database.GetOrCreateServiceProviderCluster(ctx, mockResourcesDBClient, clusterResourceID)
 	require.NoError(t, err)
 }
 
