@@ -55,6 +55,8 @@ func (c *ActiveOperationBasedChecker) CanSync(ctx context.Context, key any) bool
 	switch castKey := key.(type) {
 	case HCPClusterKey:
 		activeOperations, err = c.activeOperationLister.ListActiveOperationsForCluster(ctx, castKey.SubscriptionID, castKey.ResourceGroupName, castKey.HCPClusterName)
+	case HCPSystemAdminCredentialKey:
+		activeOperations, err = c.activeOperationLister.ListActiveOperationsForCluster(ctx, castKey.SubscriptionID, castKey.ResourceGroupName, castKey.HCPClusterName)
 	case OperationKey:
 		ret := c.activeOperationTimer.CanSync(ctx, key)
 		return ret

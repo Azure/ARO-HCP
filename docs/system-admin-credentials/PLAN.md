@@ -423,7 +423,10 @@ mirrors the pattern in the existing version controllers
 
 ### 1. `OperationRequestCredentialDispatch` (replaces `dispatch_request_credential.go`)
 
-Runs against the operation document.
+Runs against the operation document. **Intentionally narrow** — its
+only job is to create the credential doc and stamp the operation.
+Building the `ApplyDesire`s/`ReadDesire`s is owned by controller #11
+(see below), which fires from the SystemAdminCredential informer.
 
 Inputs: `Operation` with `Request=RequestCredential`, status `Accepted`, empty
 `InternalID`, and the parent cluster.
@@ -431,25 +434,39 @@ Inputs: `Operation` with `Request=RequestCredential`, status `Accepted`, empty
 Outputs:
 - Generates an RSA keypair in-process.
 - A new `SystemAdminCredential` Cosmos document under the cluster, with
-  `Spec.PublicKeyPEM` and `Spec.PrivateKeyPEM` populated. The keypair
-  exists in process memory only between generation and the Cosmos
-  `Create`; afterwards the dispatcher discards it.
-- The `ApplyDesire`s for the CSR (built from `Spec.PublicKeyPEM`) and
-  the CSRA. No Secret.
-- The matching `ReadDesire` on the CSR.
-- **Records every desire it just created on
-  `Status.OutstandingDesires`** as a `{Kind, Name}` pair, in the same
-  Cosmos write that creates the doc. Subsequent controllers walk this
-  list rather than reconstructing the desire names from a separate
-  convention. (Per-credential names are derived from `<credName>` but
-  controllers do not depend on that derivation surviving a future
-  schema change.)
+  `Spec.PublicKeyPEM` and `Spec.PrivateKeyPEM` populated and
+  `Status.Phase=Requested`. The keypair exists in process memory only
+  between generation and the Cosmos `Create`; afterwards the dispatcher
+  discards it.
 - Sets `Operation.InternalID` to the `SystemAdminCredential` resource ID
   so downstream controllers can find it without another round trip.
 
+`Status.OutstandingDesires` is left empty; controller #11 appends to it
+as it creates each desire.
+
 Idempotency: keyed on `Operation.OperationID`. If the
 `SystemAdminCredential` already exists with `Spec.OperationID` matching,
-this controller becomes a no-op.
+this controller just (re-)stamps `Operation.InternalID` and exits.
+
+### 11. `SystemAdminCredentialDesiresCreator`
+
+Driven by the **SystemAdminCredential informer**. For credentials in
+`Phase=Requested` it makes sure every expected `ApplyDesire` (CSR, CSRA,
+3 RBAC bundles → 8 desires) and the CSR `ReadDesire` exist in the
+kube-applier container scoped to the cluster's placed management cluster.
+For every desire it newly creates, it appends a `{Kind, Name}` entry to
+`Status.OutstandingDesires` (idempotent — re-runs skip names already
+present, and `ConflictError` from a `Create` is treated as success).
+
+Why this is informer-driven on the credential rather than folded into
+controller #1:
+- The dispatch path stays a single Cosmos write — fast, easy to reason
+  about, and trivially idempotent.
+- Desire creation depends on the cluster's MC placement, which often
+  hasn't been resolved at dispatch time. Driving from the credential
+  informer means we naturally retry as placement lands.
+- Subsequent controllers (#3, #6, #7) only need to know the credential
+  doc exists; the desires materialize behind it.
 
 ### 2. `OperationRequestCredentialPoll` (replaces `operation_request_credential.go`)
 
@@ -766,28 +783,29 @@ doc; cluster-service generates the kubeconfig with a CA it pulls from
 its own DB at GET time. We add a new field
 
 ```go
-HCPOpenShiftClusterServiceProviderProperties.API.ServingCABundle string  // PEM, omitempty
+ServiceProviderClusterStatus.ServingCABundle string  // PEM, omitempty
 ```
 
+(on `ServiceProviderCluster`, not on `HCPOpenShiftCluster` — the cluster
+doc is reserved for fields the frontend's cluster CRUD reads/writes)
 and populate it from a new long-lived per-cluster `ReadDesire` on the
-HyperShift-managed serving CA Secret. The mirror is created by
-extending `createClusterScopedReadDesiresSyncer` to add a second
-ReadDesire alongside the existing HostedCluster mirror, with
-`Spec.TargetItem` pointing at the kube-apiserver serving CA Secret
+HyperShift-managed serving CA Secret. The ReadDesire is created by a
+dedicated cluster-watching controller (#10
+`SystemAdminCredentialServingCAReadDesireCreator`) — only something
+in this repo can create the kube-applier Cosmos doc. Its
+`Spec.TargetItem` points at the kube-apiserver serving CA Secret
 under the cluster's HCP namespace (concrete name + namespace TBD
 during implementation — pin against the HyperShift version we target;
 candidates are `kube-apiserver-server-ca`, `<hcp>-ca-bundle`, or
 whatever HyperShift currently exposes in the published kubeconfig
 Secret).
 
-A small new sibling controller —
-`SystemAdminCredentialCABundleSync` — watches the new ReadDesire,
-extracts the CA bytes from the mirrored Secret, and writes them onto
-`ServiceProviderProperties.API.ServingCABundle`. It uses the same
-"if observed value differs from stored value, Replace" pattern as
-`clusterPropertiesSyncer`. This is controller #8 in the overall list
-(see the "Controllers" section); the cutover wiring step already
-accounts for it.
+A sibling controller — `SystemAdminCredentialCABundleSync` (#8) —
+watches the new ReadDesire, extracts the CA bytes from the mirrored
+Secret, and writes them onto `ServiceProviderClusterStatus.ServingCABundle`.
+It uses the same "if observed value differs from stored value,
+Replace" pattern as `clusterPropertiesSyncer`. The cutover wiring step
+already accounts for both controllers.
 
 The CA bundle is stable over the cluster's lifetime in normal
 operation. A rotation event would surface as a ReadDesire status
@@ -945,10 +963,10 @@ Specifically:
   remains for the credential.
 - `SystemAdminCredentialCABundleSync`: ReadDesire absent (no-op);
   ReadDesire present but `KubeContent` unobserved (no-op); ReadDesire
-  observed with a CA bundle matching the cluster doc's stored value
+  observed with a CA bundle matching the SPC's stored value
   (no Replace expected); ReadDesire observed with a different CA
   bundle (must write the new bytes onto
-  `ServiceProviderProperties.API.ServingCABundle`); malformed Secret
+  `ServiceProviderClusterStatus.ServingCABundle`); malformed Secret
   (must not crash, must surface via a Condition or log without
   rewriting good state).
 - `SystemAdminCredentialRevokedGC`: `Phase=Revoked` doc with

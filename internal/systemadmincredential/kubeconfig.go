@@ -33,8 +33,7 @@ type BuildKubeconfigInput struct {
 	// API URL come from" subsection.
 	APIURL string
 	// ServingCABundle is the PEM-encoded API server serving CA bundle.
-	// Sourced from
-	// HCPOpenShiftCluster.ServiceProviderProperties.API.ServingCABundle.
+	// Sourced from ServiceProviderCluster.Status.ServingCABundle.
 	ServingCABundle []byte
 	// SignedCertificatePEM is the PEM-encoded user certificate the
 	// HyperShift signer produced. Stored in

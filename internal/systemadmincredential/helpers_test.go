@@ -89,13 +89,13 @@ func TestBuildCSR_RejectsEmptyArgs(t *testing.T) {
 	_, privPEM, err := GenerateKeypair()
 	require.NoError(t, err)
 	for _, tc := range []struct {
-		name    string
+		name     string
 		credName string
-		signer  string
-		ns      string
-		user    string
-		key     []byte
-		wantErr string
+		signer   string
+		ns       string
+		user     string
+		key      []byte
+		wantErr  string
 	}{
 		{"empty credName", "", "signer/x.customer-break-glass", testHCPNamespace, "u", privPEM, "credName"},
 		{"empty signer", testCredName, "", testHCPNamespace, "u", privPEM, "signerName"},

@@ -190,6 +190,35 @@ func (k *HCPExternalAuthKey) InitialController(controllerName string) *api.Contr
 	}
 }
 
+// HCPSystemAdminCredentialKey is for driving workqueues keyed for system admin credentials.
+type HCPSystemAdminCredentialKey struct {
+	SubscriptionID                string `json:"subscriptionID"`
+	ResourceGroupName             string `json:"resourceGroupName"`
+	HCPClusterName                string `json:"hcpClusterName"`
+	HCPSystemAdminCredentialName  string `json:"hcpSystemAdminCredentialName"`
+}
+
+func (k *HCPSystemAdminCredentialKey) GetResourceID() *azcorearm.ResourceID {
+	return api.Must(api.ToSystemAdminCredentialResourceID(k.SubscriptionID, k.ResourceGroupName, k.HCPClusterName, k.HCPSystemAdminCredentialName))
+}
+
+func (k *HCPSystemAdminCredentialKey) AddLoggerValues(logger logr.Logger) logr.Logger {
+	return logger.WithValues(utils.LogValues{}.AddLogValuesForResourceID(k.GetResourceID())...)
+}
+
+func (k *HCPSystemAdminCredentialKey) InitialController(controllerName string) *api.Controller {
+	resourceID := api.Must(azcorearm.ParseResourceID(k.GetResourceID().String() + "/" + api.ControllerResourceTypeName + "/" + controllerName))
+	return &api.Controller{
+		CosmosMetadata: api.CosmosMetadata{
+			ResourceID: resourceID,
+		},
+		ExternalID: k.GetResourceID(),
+		Status: api.ControllerStatus{
+			Conditions: []metav1.Condition{},
+		},
+	}
+}
+
 // controllerMutationFunc is called when trying to write a controller. It gives a spot for computation of a value.
 // It should only perform short calls, not long lookups.  It must not fail. Think of it as a way to write information
 // that you have already precomputed.

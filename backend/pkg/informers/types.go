@@ -34,6 +34,7 @@ type BackendInformers interface {
 	Clusters() (cache.SharedIndexInformer, listers.ClusterLister)
 	NodePools() (cache.SharedIndexInformer, listers.NodePoolLister)
 	ExternalAuths() (cache.SharedIndexInformer, listers.ExternalAuthLister)
+	SystemAdminCredentials() (cache.SharedIndexInformer, listers.SystemAdminCredentialLister)
 	ServiceProviderClusters() (cache.SharedIndexInformer, listers.ServiceProviderClusterLister)
 	ServiceProviderNodePools() (cache.SharedIndexInformer, listers.ServiceProviderNodePoolLister)
 	Controllers() (cache.SharedIndexInformer, listers.ControllerLister)
@@ -62,6 +63,9 @@ type backendInformers struct {
 
 	externalAuthInformer cache.SharedIndexInformer
 	externalAuthLister   listers.ExternalAuthLister
+
+	systemAdminCredentialInformer cache.SharedIndexInformer
+	systemAdminCredentialLister   listers.SystemAdminCredentialLister
 
 	serviceProviderClusterInformer cache.SharedIndexInformer
 	serviceProviderClusterLister   listers.ServiceProviderClusterLister
@@ -102,6 +106,10 @@ func (b *backendInformers) ExternalAuths() (cache.SharedIndexInformer, listers.E
 	return b.externalAuthInformer, b.externalAuthLister
 }
 
+func (b *backendInformers) SystemAdminCredentials() (cache.SharedIndexInformer, listers.SystemAdminCredentialLister) {
+	return b.systemAdminCredentialInformer, b.systemAdminCredentialLister
+}
+
 func (b *backendInformers) ServiceProviderClusters() (cache.SharedIndexInformer, listers.ServiceProviderClusterLister) {
 	return b.serviceProviderClusterInformer, b.serviceProviderClusterLister
 }
@@ -131,6 +139,7 @@ func NewBackendInformersWithRelistDuration(ctx context.Context, resourcesGlobalL
 	clusterRelistDuration := ClusterRelistDuration
 	nodePoolRelistDuration := NodePoolRelistDuration
 	externalAuthRelistDuration := ExternalAuthRelistDuration
+	systemAdminCredentialRelistDuration := SystemAdminCredentialRelistDuration
 	serviceProviderClusterRelistDuration := ServiceProviderClusterRelistDuration
 	serviceProviderNodePoolRelistDuration := ServiceProviderNodePoolRelistDuration
 	controllerRelistDuration := ControllerRelistDuration
@@ -143,6 +152,7 @@ func NewBackendInformersWithRelistDuration(ctx context.Context, resourcesGlobalL
 		clusterRelistDuration = *relistDuration
 		nodePoolRelistDuration = *relistDuration
 		externalAuthRelistDuration = *relistDuration
+		systemAdminCredentialRelistDuration = *relistDuration
 		serviceProviderClusterRelistDuration = *relistDuration
 		serviceProviderNodePoolRelistDuration = *relistDuration
 		controllerRelistDuration = *relistDuration
@@ -159,6 +169,7 @@ func NewBackendInformersWithRelistDuration(ctx context.Context, resourcesGlobalL
 	ret.clusterInformer = NewClusterInformerWithRelistDuration(resourcesGlobalListers.Clusters(), clusterRelistDuration)
 	ret.nodePoolInformer = NewNodePoolInformerWithRelistDuration(resourcesGlobalListers.NodePools(), nodePoolRelistDuration)
 	ret.externalAuthInformer = NewExternalAuthInformerWithRelistDuration(resourcesGlobalListers.ExternalAuths(), externalAuthRelistDuration)
+	ret.systemAdminCredentialInformer = NewSystemAdminCredentialInformerWithRelistDuration(resourcesGlobalListers.SystemAdminCredentials(), systemAdminCredentialRelistDuration)
 	ret.serviceProviderClusterInformer = NewServiceProviderClusterInformerWithRelistDuration(resourcesGlobalListers.ServiceProviderClusters(), serviceProviderClusterRelistDuration)
 	ret.serviceProviderNodePoolInformer = NewServiceProviderNodePoolInformerWithRelistDuration(resourcesGlobalListers.ServiceProviderNodePools(), serviceProviderNodePoolRelistDuration)
 	ret.controllerInformer = NewControllerInformerWithRelistDuration(resourcesGlobalListers.Controllers(), controllerRelistDuration)
@@ -170,6 +181,7 @@ func NewBackendInformersWithRelistDuration(ctx context.Context, resourcesGlobalL
 	ret.clusterLister = listers.NewClusterLister(ret.clusterInformer.GetIndexer())
 	ret.nodePoolLister = listers.NewNodePoolLister(ret.nodePoolInformer.GetIndexer())
 	ret.externalAuthLister = listers.NewExternalAuthLister(ret.externalAuthInformer.GetIndexer())
+	ret.systemAdminCredentialLister = listers.NewSystemAdminCredentialLister(ret.systemAdminCredentialInformer.GetIndexer())
 	ret.serviceProviderClusterLister = listers.NewServiceProviderClusterLister(ret.serviceProviderClusterInformer.GetIndexer())
 	ret.serviceProviderNodePoolLister = listers.NewServiceProviderNodePoolLister(ret.serviceProviderNodePoolInformer.GetIndexer())
 	ret.controllerLister = listers.NewControllerLister(ret.controllerInformer.GetIndexer())
@@ -222,6 +234,12 @@ func (b *backendInformers) RunWithContext(ctx context.Context) {
 		defer utilruntime.HandleCrash()
 		defer wg.Done()
 		b.externalAuthInformer.RunWithContext(ctx)
+	}()
+	wg.Add(1)
+	go func() {
+		defer utilruntime.HandleCrash()
+		defer wg.Done()
+		b.systemAdminCredentialInformer.RunWithContext(ctx)
 	}()
 	wg.Add(1)
 	go func() {
