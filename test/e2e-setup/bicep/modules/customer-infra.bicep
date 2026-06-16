@@ -22,6 +22,15 @@ param privateKeyVault bool = false
 @description('Assign Key Vault Crypto Officer role to the deployer on the customer KeyVault that contains etcd encryption key')
 param assignKeyVaultCryptoOfficer bool = false
 
+@description('Enable soft delete on the customer Key Vault')
+param enableKeyVaultSoftDelete bool = false
+
+@description('Enable purge protection on the customer Key Vault (requires soft delete)')
+param enableKeyVaultPurgeProtection bool = false
+
+@description('Soft delete retention in days')
+param keyVaultSoftDeleteRetentionInDays int = 7
+
 //
 // Variables
 //
@@ -99,7 +108,9 @@ resource customerKeyVault 'Microsoft.KeyVault/vaults@2024-12-01-preview' = {
   location: resourceGroup().location
   properties: {
     enableRbacAuthorization: true
-    enableSoftDelete: false
+    enableSoftDelete: enableKeyVaultSoftDelete ? true : null
+    enablePurgeProtection: enableKeyVaultPurgeProtection ? true : null
+    softDeleteRetentionInDays: enableKeyVaultSoftDelete ? keyVaultSoftDeleteRetentionInDays : null
     tenantId: subscription().tenantId
     publicNetworkAccess: privateKeyVault ? 'Disabled' : 'Enabled'
     sku: {

@@ -90,8 +90,9 @@ type NodePoolParams20251223 struct {
 	// Labels are Kubernetes labels propagated to NodePool nodes.
 	Labels []*hcpsdk20251223preview.Label
 	// Taints are Kubernetes taints applied to NodePool nodes.
-	Taints []*hcpsdk20251223preview.Taint
-	Tags   map[string]*string
+	Taints          []*hcpsdk20251223preview.Taint
+	Tags            map[string]*string
+	EncryptionSetID string
 }
 
 // ---------------------------------------------------------------------------
@@ -437,6 +438,10 @@ func BuildNodePoolFromParams20251223(
 			Labels:     parameters.Labels,
 			Taints:     parameters.Taints,
 		},
+	}
+
+	if parameters.EncryptionSetID != "" {
+		nodePool.Properties.Platform.OSDisk.EncryptionSetID = to.Ptr(parameters.EncryptionSetID)
 	}
 
 	if parameters.AutoScaling != nil {
