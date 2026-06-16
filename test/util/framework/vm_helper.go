@@ -27,6 +27,8 @@ import (
 
 	"github.com/onsi/ginkgo/v2"
 
+	"k8s.io/apimachinery/pkg/util/wait"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v5"
@@ -177,28 +179,37 @@ func GetVirtualMachineConsoleLog(
 	logger := ginkgo.GinkgoLogr
 	vmClient := computeClientFactory.NewVirtualMachinesClient()
 
-	retryBackoff := []time.Duration{5 * time.Second, 10 * time.Second, 20 * time.Second, 20 * time.Second}
 	var result armcompute.VirtualMachinesClientRetrieveBootDiagnosticsDataResponse
-	var err error
-	for attempt := 0; ; attempt++ {
+	var attempt int
+	var lastRetryableErr error
+	retryErr := wait.ExponentialBackoffWithContext(ctx, wait.Backoff{
+		Duration: 5 * time.Second,
+		Factor:   2.0,
+		Steps:    5,
+		Cap:      20 * time.Second,
+	}, func(ctx context.Context) (bool, error) {
+		attempt++
+		var err error
 		result, err = vmClient.RetrieveBootDiagnosticsData(ctx, resourceGroupName, vmName, nil)
 		if err == nil {
-			break
+			return true, nil
 		}
-		if !isRetryableBootDiagnosticsError(err) || attempt >= len(retryBackoff) {
-			return nil, fmt.Errorf("failed to retrieve boot diagnostics data for VM %q: %w", vmName, err)
+		if isRetryableBootDiagnosticsError(err) {
+			lastRetryableErr = err
+			logger.Info("retrying boot diagnostics retrieval due to OperationNotAllowed",
+				"vmName", vmName,
+				"attempt", attempt,
+				"error", err.Error())
+			return false, nil
 		}
-		wait := retryBackoff[attempt]
-		logger.Info("retrying boot diagnostics retrieval due to OperationNotAllowed",
-			"vmName", vmName,
-			"attempt", attempt+1,
-			"nextRetryIn", wait.String(),
-			"error", err.Error())
-		select {
-		case <-ctx.Done():
-			return nil, fmt.Errorf("failed to retrieve boot diagnostics data for VM %q: %w", vmName, ctx.Err())
-		case <-time.After(wait):
+		return false, err
+	})
+
+	if retryErr != nil {
+		if wait.Interrupted(retryErr) && lastRetryableErr != nil {
+			return nil, fmt.Errorf("failed to retrieve boot diagnostics data for VM %q after %d attempts, last error: %w", vmName, attempt, lastRetryableErr)
 		}
+		return nil, fmt.Errorf("failed to retrieve boot diagnostics data for VM %q: %w", vmName, retryErr)
 	}
 
 	// Check if serial console log URI is available
