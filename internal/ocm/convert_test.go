@@ -491,8 +491,8 @@ func TestBuildCSNodePool(t *testing.T) {
 				),
 		},
 		{
-			name: "nil disk encryption set ID does not set SSE field",
-			hcpNodePool: getHCPNodePoolResource(),
+			name:               "nil disk encryption set ID does not set SSE field",
+			hcpNodePool:        getHCPNodePoolResource(),
 			expectedCSNodePool: getBaseCSNodePoolBuilder(),
 		},
 	}
