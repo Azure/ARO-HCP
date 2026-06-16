@@ -86,16 +86,15 @@ if [ -z "$namespaces" ]; then
     echo "No EventGrid namespaces found in resource group $REGIONAL_RESOURCE_GROUP"
 else
     for ns in $namespaces; do
-        ameroot_id=$(az resource show \
+        if az eventgrid namespace ca-certificate show \
             --resource-group "$REGIONAL_RESOURCE_GROUP" \
-            --namespace Microsoft.EventGrid \
-            --resource-type namespaces/caCertificates \
-            --name "${ns}/ameroot" \
-            --query "id" -o tsv 2>/dev/null || true)
-
-        if [ -n "$ameroot_id" ]; then
+            --namespace-name "$ns" \
+            --name ameroot &>/dev/null; then
             echo "Found orphaned ameroot CA certificate on namespace '${ns}' - deleting"
-            execute az resource delete --ids "$ameroot_id"
+            execute az eventgrid namespace ca-certificate delete \
+                --resource-group "$REGIONAL_RESOURCE_GROUP" \
+                --namespace-name "$ns" \
+                --name ameroot --yes
         else
             echo "No ameroot CA certificate found on namespace '${ns}' - nothing to do"
         fi
