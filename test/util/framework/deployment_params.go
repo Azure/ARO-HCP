@@ -280,6 +280,7 @@ type NodePoolParams20240610 struct {
 	// AutoScaling enables nodepool autoscaling. When set, Replicas is ignored.
 	AutoScaling      *NodePoolAutoScalingParams
 	AvailabilityZone string
+	EncryptionSetID  string
 }
 
 type NodePoolParams20251223 struct {
