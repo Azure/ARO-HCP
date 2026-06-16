@@ -28,3 +28,5 @@ grafana-dashboards:
     path: ./grafana-dashboards/kas-ksm-monitor
   - name: SRE User Journey
     path: ./grafana-dashboards/sre/user-journey
+  - name: SRE Cluster Health
+    path: ./grafana-dashboards/sre/cluster-health
