@@ -64,3 +64,31 @@ spec:
         description: 'Backend controller {{ $labels.controller }} has panicked {{ printf "%.0f" $value }} time(s) in the last 5 minutes.'
         runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/backend-tsg.html'
         summary: 'Backend controller is panicking'
+    - alert: OrphanedMRGDetected
+      expr: |
+        sum by (location, cluster) (
+          max without(prometheus_replica) (
+            increase(aro_hcp_orphaned_managed_resource_groups_found_total[10m])
+          )
+        ) > 0
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        description: 'Found {{ printf "%.0f" $value }} orphaned cluster managed resource groups in location {{ $labels.location }} over the last 10 minutes. Orphaned MRGs should not exist - investigate why cluster deletion left resources behind.'
+        runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/backend-tsg.html'
+        summary: 'Orphaned cluster managed resource groups detected'
+    - alert: OrphanedMRGDeletionFailing
+      expr: |
+        sum by (location, cluster) (
+          max without(prometheus_replica) (
+            increase(aro_hcp_orphaned_managed_resource_groups_deletion_failed_total[10m])
+          )
+        ) > 0
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        description: 'Orphaned cluster managed resource group deletion has failed {{ printf "%.0f" $value }} time(s) in location {{ $labels.location }} over the last 10 minutes. Deletion should succeed - investigate Azure permissions or resource locks.'
+        runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/backend-tsg.html'
+        summary: 'Orphaned cluster managed resource group deletion is failing'
