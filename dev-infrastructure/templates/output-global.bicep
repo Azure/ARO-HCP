@@ -26,7 +26,7 @@ param globalKVName string
 param genevaActionsKVName string
 
 @description('Global fleet metrics workspace name (empty if not deployed)')
-param globalFleetMonitorName string = ''
+param globalFleetMonitorName string
 
 //
 //   A C R

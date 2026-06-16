@@ -174,7 +174,15 @@ resource fleetDcr 'Microsoft.Insights/dataCollectionRules@2022-06-01' = if (glob
           streams: [
             'Microsoft-PrometheusMetrics'
           ]
-          labelIncludeFilter: {}
+          labelIncludeFilter: {
+            __name__: [
+              'backend_cluster_provision_state'
+              'backend_node_pool_provision_state'
+              'backend_cluster_created_time_seconds'
+              'backend_resource_operation_phase_info'
+              'backend_resource_operation_duration_seconds'
+            ]
+          }
         }
       ]
     }
@@ -190,13 +198,14 @@ resource fleetDcr 'Microsoft.Insights/dataCollectionRules@2022-06-01' = if (glob
   }
 }
 
+// Monitoring Metrics Publisher role (3913510d-42f4-4e42-8a64-420c390055eb)
 resource fleetMonitoringMetricsPublisher 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (globalFleetMonitorId != '') {
   name: guid('fleet', aksClusterName)
   scope: fleetDcr
   properties: {
     roleDefinitionId: subscriptionResourceId(
       'Microsoft.Authorization/roleDefinitions',
-      '3913510d-42f4-4e42-8a64-420c390055eb'
+      '3913510d-42f4-4e42-8a64-420c390055eb' // Monitoring Metrics Publisher
     )
     principalId: prometheusPrincipalId
     principalType: 'ServicePrincipal'

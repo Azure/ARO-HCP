@@ -101,7 +101,7 @@ param allowedAcisExtensions string
 param genevaActionsPrincipalId string
 
 @description('Global fleet metrics workspace name for fleet-wide dashboards')
-param globalFleetMonitorName string = ''
+param globalFleetMonitorName string
 
 @description('Maximum active time series limit for global fleet AMW')
 param globalAmwMaxActiveTimeSeries int = 2000000

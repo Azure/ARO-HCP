@@ -54,5 +54,5 @@ param genevaActionsPrincipalId = '{{ .geneva.actions.genevaActionsPrincipalId }}
 
 // Global Fleet Metrics
 param globalFleetMonitorName = '{{ .monitoring.globalFleetWorkspaceName }}'
-param globalAmwMaxActiveTimeSeries = {{ if eq (printf "%T" .monitoring.maxActiveTimeSeries) "float64" }}{{ printf "%.0f" .monitoring.maxActiveTimeSeries }}{{ else }}{{ .monitoring.maxActiveTimeSeries }}{{ end }}
-param globalAmwMaxEventsPerMinute = {{ if eq (printf "%T" .monitoring.maxEventsPerMinute) "float64" }}{{ printf "%.0f" .monitoring.maxEventsPerMinute }}{{ else }}{{ .monitoring.maxEventsPerMinute }}{{ end }}
+param globalAmwMaxActiveTimeSeries = {{ .monitoring.maxActiveTimeSeries }}
+param globalAmwMaxEventsPerMinute = {{ .monitoring.maxEventsPerMinute }}
