@@ -1039,14 +1039,15 @@ func TestControlPlaneDesiredVersionSyncer_SyncOnce(t *testing.T) {
 	const testChannelGroup = "stable"
 
 	tests := []struct {
-		name                string
-		customerVersion     string
-		controlPlaneVersion string
-		setupCincinnati     func(mc *cincinnati.MockClient)
-		wantSyncErr         bool
-		wantErrContains     string
-		wantDesiredVersion  *semver.Version
-		wantIntentFailed    *metav1.Condition
+		name                   string
+		customerVersion        string
+		controlPlaneVersion    string
+		previousDesiredVersion *semver.Version
+		setupCincinnati        func(mc *cincinnati.MockClient)
+		wantSyncErr            bool
+		wantErrContains        string
+		wantDesiredVersion     *semver.Version
+		wantIntentFailed       *metav1.Condition
 	}{
 		{
 			name:                "successful resolution persists desired version and sets IntentFailed False",
@@ -1060,6 +1061,29 @@ func TestControlPlaneDesiredVersionSyncer_SyncOnce(t *testing.T) {
 					nil,
 				).Times(1)
 				mc.EXPECT().GetUpdates(gomock.Any(), stableURI, "multi", "multi", "stable-4.20", semver.MustParse("4.19.22")).Return(
+					configv1.Release{}, nil, nil, &cvocincinnati.Error{Reason: "VersionNotFound"},
+				).Times(1)
+			},
+			wantDesiredVersion: ptr.To(semver.MustParse("4.19.22")),
+			wantIntentFailed: &metav1.Condition{
+				Type:   api.ControllerConditionTypeIntentFailed,
+				Status: metav1.ConditionFalse,
+				Reason: api.ControllerConditionReasonAsExpected,
+			},
+		},
+		{
+			name:                   "lower resolved desired does not replace higher previously selected desired",
+			customerVersion:        "4.19",
+			controlPlaneVersion:    "4.19.15",
+			previousDesiredVersion: ptr.To(semver.MustParse("4.19.22")),
+			setupCincinnati: func(mc *cincinnati.MockClient) {
+				mc.EXPECT().GetUpdates(gomock.Any(), stableURI, "multi", "multi", "stable-4.19", semver.MustParse("4.19.15")).Return(
+					configv1.Release{},
+					[]configv1.Release{{Version: "4.19.18"}},
+					nil,
+					nil,
+				).Times(1)
+				mc.EXPECT().GetUpdates(gomock.Any(), stableURI, "multi", "multi", "stable-4.20", semver.MustParse("4.19.18")).Return(
 					configv1.Release{}, nil, nil, &cvocincinnati.Error{Reason: "VersionNotFound"},
 				).Times(1)
 			},
@@ -1126,7 +1150,7 @@ func TestControlPlaneDesiredVersionSyncer_SyncOnce(t *testing.T) {
 			mockCS := ocm.NewMockClusterServiceClientSpec(ctrl)
 
 			createTestHCPClusterWithCustomerVersion(t, ctx, mockResourcesDBClient, tt.customerVersion, testChannelGroup)
-			createServiceProviderClusterWithVersion(t, ctx, mockResourcesDBClient, tt.controlPlaneVersion)
+			createServiceProviderClusterWithActiveAndDesiredVersion(t, ctx, mockResourcesDBClient, semver.MustParse(tt.controlPlaneVersion), tt.previousDesiredVersion)
 
 			mockCincinnati := cincinnati.NewMockClient(ctrl)
 			tt.setupCincinnati(mockCincinnati)
@@ -1183,4 +1207,30 @@ func TestControlPlaneDesiredVersionSyncer_SyncOnce(t *testing.T) {
 			}
 		})
 	}
+}
+
+func createServiceProviderClusterWithActiveAndDesiredVersion(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient, activeVersion semver.Version, desiredVersion *semver.Version) {
+	t.Helper()
+
+	serviceProviderCluster := &api.ServiceProviderCluster{
+		CosmosMetadata: api.CosmosMetadata{
+			ResourceID: api.Must(azcorearm.ParseResourceID(
+				api.ToServiceProviderClusterResourceIDString(testSubscriptionID, testResourceGroupName, testClusterName),
+			)),
+		},
+		Spec: api.ServiceProviderClusterSpec{
+			ControlPlaneVersion: api.ServiceProviderClusterSpecVersion{
+				DesiredVersion: desiredVersion,
+			},
+		},
+		Status: api.ServiceProviderClusterStatus{
+			ControlPlaneVersion: api.ServiceProviderClusterStatusVersion{
+				ActiveVersions: []api.HCPClusterActiveVersion{
+					{Version: ptr.To(activeVersion), State: configv1.CompletedUpdate},
+				},
+			},
+		},
+	}
+	_, err := mockResourcesDBClient.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Create(ctx, serviceProviderCluster, nil)
+	require.NoError(t, err)
 }
