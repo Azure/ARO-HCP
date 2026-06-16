@@ -1,5 +1,5 @@
 {
-	"name": "basic-external-auth",
+	"name": "ea-inv-form",
 	"properties": {
 		"claim": {
 			"mappings": {

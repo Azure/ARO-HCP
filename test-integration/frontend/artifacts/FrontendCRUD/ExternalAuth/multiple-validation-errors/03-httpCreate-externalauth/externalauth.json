@@ -1,5 +1,5 @@
 {
-	"name": "multiple-validation-errors-auth",
+	"name": "ea-mult-err",
 	"properties": {
 		"claim": {
 			"mappings": {
