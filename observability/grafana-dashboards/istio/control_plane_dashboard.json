@@ -933,7 +933,8 @@
         {
           "name": "datasource",
           "query": "prometheus",
-          "type": "datasource"
+          "type": "datasource",
+          "regex": "^Managed_Prometheus_services-.*$"
         }
       ]
     },

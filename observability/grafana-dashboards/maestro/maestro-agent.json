@@ -650,10 +650,7 @@
   "templating": {
     "list": [
       {
-        "current": {
-          "text": "Managed_Prometheus_services-usw3",
-          "value": "services-usw3"
-        },
+        "current": {},
         "name": "datasource",
         "options": [],
         "query": "prometheus",
