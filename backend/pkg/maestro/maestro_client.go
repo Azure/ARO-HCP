@@ -55,9 +55,24 @@ type Client interface {
 	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *workv1.ManifestWork, err error)
 	// List lists all Maestro Bundles.
 	List(ctx context.Context, opts metav1.ListOptions) (*workv1.ManifestWorkList, error)
+	// Close releases idle connections held by the underlying HTTP transport.
+	// Callers should invoke this when the client is no longer needed.
+	Close()
 }
 
-var _ Client = (workv1client.ManifestWorkInterface)(nil)
+// maestroClient wraps workv1client.ManifestWorkInterface and holds a reference
+// to the HTTP transport so idle connections can be released when Close is called.
+type maestroClient struct {
+	workv1client.ManifestWorkInterface
+	transport *http.Transport
+}
+
+// Close releases idle connections held by the underlying HTTP transport.
+func (c *maestroClient) Close() {
+	c.transport.CloseIdleConnections()
+}
+
+var _ Client = (*maestroClient)(nil)
 
 // NewClient creates a new Maestro Client that allows you to interact with Maestro using the Open Cluster Management ManifestWorks abstraction.
 // It uses the provided Maestro REST and GRPC API endpoints to interact with it. Both endpoints are assumed to be pointing to the same Maestro server.
@@ -71,14 +86,15 @@ func NewClient(
 	ctx context.Context,
 	maestroRESTAPIEndpoint string, maestroGRPCAPIEndpoint string, maestroConsumerName string, maestroSourceID string,
 ) (Client, error) {
-	restClient := newRESTClient(maestroRESTAPIEndpoint)
+	transport, restClient := newRESTClient(maestroRESTAPIEndpoint)
 	grpcClient, err := newGRPCSourceWorkClient(ctx, maestroGRPCAPIEndpoint, restClient, maestroSourceID)
 	if err != nil {
+		transport.CloseIdleConnections()
 		return nil, utils.TrackError(fmt.Errorf("failed to create maestro grpc source work client: %w", err))
 	}
 
-	maestroManifestWorksInterface := newMaestroManifestWorksClient(grpcClient, maestroConsumerName)
-	return maestroManifestWorksInterface, nil
+	manifestWorksInterface := newMaestroManifestWorksClient(grpcClient, maestroConsumerName)
+	return &maestroClient{ManifestWorkInterface: manifestWorksInterface, transport: transport}, nil
 }
 
 // MaestroClientBuilder is an interface that allows to build a Maestro Client.
@@ -115,7 +131,9 @@ func GenerateMaestroSourceID(envName string, provisionShardID string) string {
 
 // newRESTClient creates a REST client for the Maestro API. The Maestro REST client
 // allows to perform a subset (but not all) of actions against the Maestro API.
-func newRESTClient(endpoint string) *maestroopenapi.APIClient {
+// It returns the cloned transport alongside the API client so the caller can
+// close idle connections when the client is no longer needed.
+func newRESTClient(endpoint string) (*http.Transport, *maestroopenapi.APIClient) {
 	httpClientTransport := http.DefaultTransport.(*http.Transport).Clone()
 	maestroRESTClientConfig := &maestroopenapi.Configuration{
 		DefaultHeader: map[string]string{},
@@ -132,7 +150,7 @@ func newRESTClient(endpoint string) *maestroopenapi.APIClient {
 	}
 
 	restClient := maestroopenapi.NewAPIClient(maestroRESTClientConfig)
-	return restClient
+	return httpClientTransport, restClient
 }
 
 // newGRPCSourceWorkClient creates a new GRPC Source Work client for the Maestro API.

@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v5"
@@ -31,7 +32,8 @@ import (
 )
 
 const (
-	maxBytes = 100 * 1024 * 1024 // 100MB
+	maxBytes            = 100 * 1024 * 1024 // 100MB
+	blobDownloadTimeout = 60 * time.Second
 )
 
 // HCPSerialConsoleHandler handles requests to retrieve VM serial console logs
@@ -40,6 +42,8 @@ const (
 type HCPSerialConsoleHandler struct {
 	resourcesDBClient      database.ResourcesDBClient
 	fpaCredentialRetriever fpa.FirstPartyApplicationTokenCredentialRetriever
+	// httpClient is shared across all requests to allow connection reuse.
+	httpClient *http.Client
 }
 
 // NewHCPSerialConsoleHandler creates a new serial console handler with the required dependencies
@@ -50,6 +54,7 @@ func NewHCPSerialConsoleHandler(
 	return &HCPSerialConsoleHandler{
 		resourcesDBClient:      resourcesDBClient,
 		fpaCredentialRetriever: fpaCredentialRetriever,
+		httpClient:             &http.Client{Timeout: blobDownloadTimeout},
 	}
 }
 
@@ -161,8 +166,7 @@ func (h *HCPSerialConsoleHandler) ServeHTTP(writer http.ResponseWriter, request 
 		return utils.TrackError(fmt.Errorf("failed to create blob request: %w", err))
 	}
 
-	httpClient := &http.Client{}
-	blobResp, err := httpClient.Do(blobReq)
+	blobResp, err := h.httpClient.Do(blobReq)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to download serial console log: %w", err))
 	}

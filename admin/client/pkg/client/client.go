@@ -27,6 +27,8 @@ import (
 
 type Client interface {
 	HelloWorld(ctx context.Context) error
+	// Close releases idle connections held by the underlying HTTP transport.
+	Close()
 }
 
 type httpClient interface {
@@ -34,26 +36,27 @@ type httpClient interface {
 }
 
 type client struct {
-	token      string
-	endpoint   string
+	token     string
+	endpoint  string
 	hostHeader string
-	client     httpClient
+	client    httpClient
+	transport *http.Transport // non-nil only when a custom transport was created
 }
 
 var _ Client = (*client)(nil)
 
 func NewClient(endpoint string, hostHeader string, token string, insecureSkipVerify bool, debug bool) Client {
 	var roundTripper httpClient = &http.Client{}
+	var transport *http.Transport
 
 	if insecureSkipVerify {
-		roundTripper = &http.Client{
-			Transport: &http.Transport{
-				TLSClientConfig: &tls.Config{
-					InsecureSkipVerify: true,
-					ServerName:         hostHeader,
-				},
+		transport = &http.Transport{
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: true, //nolint:gosec // intentional for admin CLI usage with self-signed certs
+				ServerName:         hostHeader,
 			},
 		}
+		roundTripper = &http.Client{Transport: transport}
 	}
 
 	if debug {
@@ -68,6 +71,15 @@ func NewClient(endpoint string, hostHeader string, token string, insecureSkipVer
 		endpoint:   endpoint,
 		hostHeader: hostHeader,
 		client:     roundTripper,
+		transport:  transport,
+	}
+}
+
+// Close releases idle connections held by the underlying HTTP transport.
+// This should be called when the client is no longer needed.
+func (c *client) Close() {
+	if c.transport != nil {
+		c.transport.CloseIdleConnections()
 	}
 }
 
