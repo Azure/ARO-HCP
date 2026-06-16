@@ -133,10 +133,12 @@ func (d *debuggingRoundTripper) Do(request *http.Request) (*http.Response, error
 
 	raw, err = httputil.DumpResponse(resp, true)
 	if err != nil {
-		// Avoid leaking the response body: the caller short-circuits on error
-		// and will not get a chance to close it.
-		_ = resp.Body.Close()
-		return nil, fmt.Errorf("failed to dump response: %w", err)
+		// The HTTP call itself succeeded; failing to dump the response is only a
+		// debugging-aid problem. Report the error but still return the response
+		// so the caller can consume and close the body normally (no leak, no
+		// change to functional behavior).
+		fmt.Printf("failed to dump response: %v\n", err)
+		return resp, nil
 	}
 	fmt.Println(string(raw))
 	return resp, nil
