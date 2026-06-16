@@ -19,8 +19,10 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"net"
 	"net/http"
 	"net/http/httputil"
+	"time"
 
 	"github.com/go-logr/logr"
 )
@@ -84,7 +86,23 @@ func cloneDefaultTransport() *http.Transport {
 	if dt, ok := http.DefaultTransport.(*http.Transport); ok {
 		return dt.Clone()
 	}
-	return &http.Transport{Proxy: http.ProxyFromEnvironment}
+	return defaultTransport()
+}
+
+// defaultTransport mirrors the standard library's http.DefaultTransport values.
+func defaultTransport() *http.Transport {
+	return &http.Transport{
+		Proxy: http.ProxyFromEnvironment,
+		DialContext: (&net.Dialer{
+			Timeout:   30 * time.Second,
+			KeepAlive: 30 * time.Second,
+		}).DialContext,
+		ForceAttemptHTTP2:     true,
+		MaxIdleConns:          100,
+		IdleConnTimeout:       90 * time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+	}
 }
 
 // Close releases idle connections held by the underlying HTTP transport.

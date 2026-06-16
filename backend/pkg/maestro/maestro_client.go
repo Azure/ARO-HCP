@@ -19,6 +19,7 @@ package maestro
 import (
 	"context"
 	"fmt"
+	"net"
 	"net/http"
 	"time"
 
@@ -92,7 +93,9 @@ func NewClient(
 	transport, restClient := newRESTClient(maestroRESTAPIEndpoint)
 	grpcClient, err := newGRPCSourceWorkClient(ctx, maestroGRPCAPIEndpoint, restClient, maestroSourceID)
 	if err != nil {
-		transport.CloseIdleConnections()
+		if transport != nil {
+			transport.CloseIdleConnections()
+		}
 		return nil, utils.TrackError(fmt.Errorf("failed to create maestro grpc source work client: %w", err))
 	}
 
@@ -165,7 +168,23 @@ func cloneDefaultTransport() *http.Transport {
 	if dt, ok := http.DefaultTransport.(*http.Transport); ok {
 		return dt.Clone()
 	}
-	return &http.Transport{Proxy: http.ProxyFromEnvironment}
+	return defaultTransport()
+}
+
+// defaultTransport mirrors the standard library's http.DefaultTransport values.
+func defaultTransport() *http.Transport {
+	return &http.Transport{
+		Proxy: http.ProxyFromEnvironment,
+		DialContext: (&net.Dialer{
+			Timeout:   30 * time.Second,
+			KeepAlive: 30 * time.Second,
+		}).DialContext,
+		ForceAttemptHTTP2:     true,
+		MaxIdleConns:          100,
+		IdleConnTimeout:       90 * time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+	}
 }
 
 // newGRPCSourceWorkClient creates a new GRPC Source Work client for the Maestro API.
