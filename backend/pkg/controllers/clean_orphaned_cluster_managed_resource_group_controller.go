@@ -48,7 +48,8 @@ type managedResourceGroupInfo struct {
 }
 
 type cleanOrphanedClusterManagedResourceGroup struct {
-	name string
+	name     string
+	location string
 
 	subscriptionLister    listers.SubscriptionLister
 	resourcesDBClient     database.ResourcesDBClient
@@ -62,12 +63,14 @@ type cleanOrphanedClusterManagedResourceGroup struct {
 // NewCleanOrphanedClusterManagedResourceGroupController periodically looks for managed resource groups
 // that are not referenced by any HCPOpenShiftCluster in the database and cleans them up.
 func NewCleanOrphanedClusterManagedResourceGroupController(
+	location string,
 	subscriptionLister listers.SubscriptionLister,
 	resourcesDBClient database.ResourcesDBClient,
 	azureFPAClientBuilder azureclient.FirstPartyApplicationClientBuilder,
 ) controllerutils.Controller {
 	c := &cleanOrphanedClusterManagedResourceGroup{
 		name:                  "CleanOrphanedClusterManagedResourceGroup",
+		location:              location,
 		subscriptionLister:    subscriptionLister,
 		resourcesDBClient:     resourcesDBClient,
 		azureFPAClientBuilder: azureFPAClientBuilder,
@@ -116,7 +119,12 @@ func (c *cleanOrphanedClusterManagedResourceGroup) SyncOnce(ctx context.Context,
 			}
 
 			for _, rg := range resourceGroupPage.Value {
-				if rg == nil || rg.Name == nil || rg.ManagedBy == nil {
+				if rg == nil || rg.Name == nil || rg.ManagedBy == nil || rg.Location == nil {
+					continue
+				}
+
+				// Only process resource groups in our location
+				if !strings.EqualFold(*rg.Location, c.location) {
 					continue
 				}
 
@@ -143,6 +151,7 @@ func (c *cleanOrphanedClusterManagedResourceGroup) SyncOnce(ctx context.Context,
 	}
 	logger.Info("Found cluster managed resource groups", "count", len(managedResourceGroups))
 
+	// clusterResourceIDs is a map of cluster resource IDs (in lowercase) to empty struct for fast lookup
 	clusterResourceIDs := make(map[string]struct{})
 	for _, subscription := range subscriptions {
 		subscriptionID := subscription.ResourceID.SubscriptionID
