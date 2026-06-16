@@ -54,6 +54,7 @@ import (
 	graphutil "github.com/Azure/ARO-HCP/internal/graph/util"
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	hcpsdk20251223preview "github.com/Azure/ARO-HCP/test/sdk/v20251223preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	hcpsdk20260630preview "github.com/Azure/ARO-HCP/test/sdk/v20260630preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/timing"
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/pipeline"
 )
@@ -68,6 +69,7 @@ type perItOrDescribeTestContext struct {
 	subscriptionID                string
 	clientFactory20240610         *hcpsdk20240610preview.ClientFactory
 	clientFactory20251223         *hcpsdk20251223preview.ClientFactory
+	clientFactory20260630         *hcpsdk20260630preview.ClientFactory
 	armComputeClientFactory       *armcompute.ClientFactory
 	armResourcesClientFactory     *armresources.ClientFactory
 	armSubscriptionsClientFactory *armsubscriptions.ClientFactory
@@ -1113,6 +1115,68 @@ func (tc *perItOrDescribeTestContext) Get20251223ClientFactoryWithPolicies(ctx c
 	opts.PerCallPolicies = append(opts.PerCallPolicies, policies...)
 
 	return hcpsdk20251223preview.NewClientFactory(subscriptionID, creds, opts)
+}
+
+func (tc *perItOrDescribeTestContext) Get20260630ClientFactory(ctx context.Context) (*hcpsdk20260630preview.ClientFactory, error) {
+	tc.contextLock.RLock()
+	if tc.clientFactory20260630 != nil {
+		defer tc.contextLock.RUnlock()
+		return tc.clientFactory20260630, nil
+	}
+	tc.contextLock.RUnlock()
+
+	tc.contextLock.Lock()
+	defer tc.contextLock.Unlock()
+
+	return tc.get20260630ClientFactoryUnlocked(ctx)
+}
+
+func (tc *perItOrDescribeTestContext) Get20260630ClientFactoryOrDie(ctx context.Context) *hcpsdk20260630preview.ClientFactory {
+	return Must(tc.Get20260630ClientFactory(ctx))
+}
+
+func (tc *perItOrDescribeTestContext) get20260630ClientFactoryUnlocked(ctx context.Context) (*hcpsdk20260630preview.ClientFactory, error) {
+	if tc.clientFactory20260630 != nil {
+		return tc.clientFactory20260630, nil
+	}
+
+	creds, err := tc.perBinaryInvocationTestContext.getAzureCredentials()
+	if err != nil {
+		return nil, err
+	}
+	subscriptionID, err := tc.getSubscriptionIDUnlocked(ctx)
+	if err != nil {
+		return nil, err
+	}
+	clientFactory, err := hcpsdk20260630preview.NewClientFactory(subscriptionID, creds, tc.perBinaryInvocationTestContext.getHCPClientFactoryOptions())
+	if err != nil {
+		return nil, err
+	}
+	tc.clientFactory20260630 = clientFactory
+
+	return tc.clientFactory20260630, nil
+}
+
+// Get20260630ClientFactoryWithPolicies creates a v20260630preview client factory
+// with the given additional per-call policies appended to the base options.
+// Unlike Get20260630ClientFactory, the result is not cached since policies vary per call.
+func (tc *perItOrDescribeTestContext) Get20260630ClientFactoryWithPolicies(ctx context.Context, policies ...policy.Policy) (*hcpsdk20260630preview.ClientFactory, error) {
+	creds, err := tc.perBinaryInvocationTestContext.getAzureCredentials()
+	if err != nil {
+		return nil, err
+	}
+
+	tc.contextLock.Lock()
+	subscriptionID, err := tc.getSubscriptionIDUnlocked(ctx)
+	tc.contextLock.Unlock()
+	if err != nil {
+		return nil, err
+	}
+
+	opts := tc.perBinaryInvocationTestContext.getHCPClientFactoryOptions()
+	opts.PerCallPolicies = append(opts.PerCallPolicies, policies...)
+
+	return hcpsdk20260630preview.NewClientFactory(subscriptionID, creds, opts)
 }
 
 func (tc *perItOrDescribeTestContext) Location() string {
