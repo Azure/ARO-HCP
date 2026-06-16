@@ -21,12 +21,16 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
+
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/util/workqueue"
+	"k8s.io/component-base/metrics/legacyregistry"
 	"k8s.io/utils/ptr"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 
@@ -42,6 +46,48 @@ import (
 // resourceGroupListPageSize is the number of resource groups to fetch per page
 // when listing resource groups in a subscription
 const resourceGroupListPageSize int32 = 100
+
+var (
+	orphanedMRGsFound = promauto.With(legacyregistry.Registerer()).NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "aro_hcp_orphaned_managed_resource_groups_found_total",
+			Help: "Total number of orphaned cluster managed resource groups found",
+		},
+		[]string{"location"},
+	)
+
+	orphanedMRGsDeletionInitiated = promauto.With(legacyregistry.Registerer()).NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "aro_hcp_orphaned_managed_resource_groups_deletion_initiated_total",
+			Help: "Total number of orphaned cluster managed resource groups where deletion was successfully initiated",
+		},
+		[]string{"location"},
+	)
+
+	orphanedMRGsAlreadyDeleting = promauto.With(legacyregistry.Registerer()).NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "aro_hcp_orphaned_managed_resource_groups_already_deleting_total",
+			Help: "Total number of orphaned cluster managed resource groups already in deleting state",
+		},
+		[]string{"location"},
+	)
+
+	orphanedMRGsAlreadyDeleted = promauto.With(legacyregistry.Registerer()).NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "aro_hcp_orphaned_managed_resource_groups_already_deleted_total",
+			Help: "Total number of orphaned cluster managed resource groups already deleted (404)",
+		},
+		[]string{"location"},
+	)
+
+	orphanedMRGsDeletionFailed = promauto.With(legacyregistry.Registerer()).NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "aro_hcp_orphaned_managed_resource_groups_deletion_failed_total",
+			Help: "Total number of orphaned cluster managed resource groups where deletion failed",
+		},
+		[]string{"location"},
+	)
+)
 
 type cleanOrphanedClusterManagedResourceGroup struct {
 	name     string
@@ -139,11 +185,13 @@ func (c *cleanOrphanedClusterManagedResourceGroup) deleteOrphanedManagedResource
 			logger.Info("Orphaned cluster managed resource group already deleted",
 				"subscriptionID", subscriptionID,
 				"resourceGroup", resourceGroupName)
+			orphanedMRGsAlreadyDeleted.WithLabelValues(c.location).Inc()
 			return nil
 		}
 		logger.Error(err, "Failed to get resource group state",
 			"subscriptionID", subscriptionID,
 			"resourceGroup", resourceGroupName)
+		orphanedMRGsDeletionFailed.WithLabelValues(c.location).Inc()
 		return err
 	}
 
@@ -155,6 +203,7 @@ func (c *cleanOrphanedClusterManagedResourceGroup) deleteOrphanedManagedResource
 				"subscriptionID", subscriptionID,
 				"resourceGroup", resourceGroupName,
 				"provisioningState", provisioningState)
+			orphanedMRGsAlreadyDeleting.WithLabelValues(c.location).Inc()
 			return nil
 		}
 	}
@@ -172,6 +221,7 @@ func (c *cleanOrphanedClusterManagedResourceGroup) deleteOrphanedManagedResource
 			logger.Info("Orphaned cluster managed resource group deleted before deletion could be initiated",
 				"subscriptionID", subscriptionID,
 				"resourceGroup", resourceGroupName)
+			orphanedMRGsAlreadyDeleted.WithLabelValues(c.location).Inc()
 			return nil
 		}
 
@@ -179,6 +229,7 @@ func (c *cleanOrphanedClusterManagedResourceGroup) deleteOrphanedManagedResource
 			"subscriptionID", subscriptionID,
 			"resourceGroup", resourceGroupName,
 			"managedBy", managedBy)
+		orphanedMRGsDeletionFailed.WithLabelValues(c.location).Inc()
 		return err
 	}
 
@@ -186,6 +237,7 @@ func (c *cleanOrphanedClusterManagedResourceGroup) deleteOrphanedManagedResource
 		"subscriptionID", subscriptionID,
 		"resourceGroup", resourceGroupName,
 		"managedBy", managedBy)
+	orphanedMRGsDeletionInitiated.WithLabelValues(c.location).Inc()
 	return nil
 }
 
@@ -262,6 +314,9 @@ func (c *cleanOrphanedClusterManagedResourceGroup) SyncOnce(ctx context.Context,
 				// Cluster exists, this is not an orphaned resource group
 				continue
 			}
+
+			// Found an orphaned managed resource group
+			orphanedMRGsFound.WithLabelValues(c.location).Inc()
 
 			err = c.deleteOrphanedManagedResourceGroup(ctx, rgClient, subscriptionID, resourceGroupName, managedBy)
 			if err != nil {
