@@ -14,7 +14,7 @@ param adminUsername string = 'azureuser'
 param sshPublicKey string
 
 @description('VM size')
-param vmSize string = 'Standard_D2s_v5'
+param vmSize string = 'Standard_D2s_v3'
 
 @description('Location for the VM')
 param location string = resourceGroup().location
