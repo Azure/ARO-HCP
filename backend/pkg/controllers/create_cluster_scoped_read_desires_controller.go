@@ -90,6 +90,15 @@ func NewCreateClusterScopedReadDesiresController(
 }
 
 func (c *createClusterScopedReadDesiresSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
+	logger := utils.LoggerFromContext(ctx).WithValues(utils.LogValues{}.
+		AddSubscriptionID(key.SubscriptionID).
+		AddResourceGroup(key.ResourceGroupName).
+		AddHCPClusterName(key.HCPClusterName)...)
+	// Inject the cluster-scoped logger so downstream helpers (e.g.
+	// kubeApplierDBClients.For) that read utils.LoggerFromContext(ctx)
+	// also emit the cluster-identifying fields.
+	ctx = utils.ContextWithLogger(ctx, logger)
+
 	existingCluster, err := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Get(ctx, key.HCPClusterName)
 	if database.IsNotFoundError(err) {
 		return nil
@@ -137,7 +146,9 @@ func (c *createClusterScopedReadDesiresSyncer) SyncOnce(ctx context.Context, key
 	kaClient := c.kubeApplierDBClients.For(ctx, mcResourceID)
 	if kaClient == nil {
 		// Registry doesn't have an entry yet for this MC (e.g. the fleet
-		// lister hasn't caught up). Skip and rely on retrigger.
+		// lister hasn't caught up). Skip and rely on retrigger. When the MC
+		// document is registered but misconfigured (e.g. missing its
+		// kube-applier container name), For() surfaces that loudly.
 		return nil
 	}
 	crud, err := kaClient.ReadDesiresForCluster(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)

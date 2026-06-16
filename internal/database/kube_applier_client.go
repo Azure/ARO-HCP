@@ -408,12 +408,22 @@ func (c *kubeApplierDBClients) For(ctx context.Context, managementClusterResourc
 		return existing
 	}
 
+	logger := utils.LoggerFromContext(ctx).WithValues(
+		"managementClusterResourceID", managementClusterResourceID.String())
+
 	mc := c.findManagementClusterLocked(ctx, managementClusterResourceID)
 	if mc == nil {
+		// Lister hasn't observed this management cluster yet (e.g. fleet
+		// informer lag). Transient; the caller retriggers.
+		logger.V(1).Info("no management cluster found for resourceID; cannot build kube-applier client")
 		return nil
 	}
 	containerName := mc.Status.KubeApplierCosmosContainerName
 	if len(containerName) == 0 {
+		// The MC document exists but is missing its container name. This is not
+		// expected in steady state and silently prevents every per-cluster
+		// ReadDesire from being written (see ARO-27510); surface it loudly.
+		logger.Info("management cluster found but Status.KubeApplierCosmosContainerName is empty; kube-applier client cannot be built and per-cluster ReadDesires will not be written")
 		return nil
 	}
 	container, err := c.database.NewContainer(containerName)
@@ -421,6 +431,7 @@ func (c *kubeApplierDBClients) For(ctx context.Context, managementClusterResourc
 		// NewContainer only errors on malformed inputs at construction time —
 		// treat as misconfiguration and surface as nil. The caller already
 		// has to handle nil for "not found" anyway.
+		logger.Error(err, "failed to construct kube-applier cosmos container; treating as unavailable", "containerName", containerName)
 		return nil
 	}
 	// Partition key per container is the lowercased MaestroConsumerName; *Desire
