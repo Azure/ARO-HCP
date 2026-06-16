@@ -400,6 +400,155 @@
       "type": "stat"
     },
     {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 6
+      },
+      "id": 50,
+      "panels": [],
+      "title": "Cluster Fleet Summary",
+      "type": "row"
+    },
+    {
+      "description": "",
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 7
+      },
+      "id": 51,
+      "options": {
+        "code": {
+          "language": "plaintext",
+          "showLineNumbers": false,
+          "showMiniMap": false
+        },
+        "content": "### Cluster Fleet Summary\n\nThis section provides insight into the total ARO HCP cluster fleet size and its regional distribution.\n\n**What is shown:**\n- **Total Cluster Over Time**: Shows how the total number of clusters changes over the last 30 days.\n- **Clusters Per Region**: Shows how clusters are distributed across Azure regions.\n\n**How to use:**\n1. Monitor the total cluster count over time to see overall growth or decline in the fleet.\n2. Review the region chart to see where most clusters are running and identify regions with higher or lower usage.",
+        "mode": "markdown"
+      },
+      "pluginVersion": "11.6.9",
+      "title": "Cluster Fleet Summary",
+      "type": "text"
+    },
+    {
+      "datasource": {
+        "type": "datasource",
+        "uid": "-- Mixed --"
+      },
+      "description": "Total number of clusters in the fleet over time",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "fixedColor": "blue",
+            "mode": "fixed"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              }
+            ]
+          },
+          "unit": "none",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 16,
+        "x": 8,
+        "y": 7
+      },
+      "id": 52,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull",
+            "min",
+            "max"
+          ],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "count(backend_cluster_provision_state == 1)",
+          "range": true,
+          "legendFormat": "Count",
+          "refId": "A"
+        }
+      ],
+      "title": "Total Cluster Over Time",
+      "timeFrom": "30d",
+      "transformations": [
+        {
+          "id": "seriesToRows",
+          "options": {}
+        },
+        {
+          "id": "merge",
+          "options": {}
+        }
+      ],
+      "type": "timeseries"
+    },
+    {
       "datasource": {
         "type": "datasource",
         "uid": "-- Mixed --"
@@ -429,7 +578,7 @@
         "h": 12,
         "w": 24,
         "x": 0,
-        "y": 6
+        "y": 15
       },
       "id": 40,
       "options": {
@@ -498,7 +647,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 18
+        "y": 27
       },
       "id": 10,
       "panels": [],
@@ -627,7 +776,7 @@
         "h": 10,
         "w": 12,
         "x": 0,
-        "y": 19
+        "y": 28
       },
       "id": 11,
       "options": {
@@ -782,7 +931,7 @@
         "h": 10,
         "w": 12,
         "x": 12,
-        "y": 19
+        "y": 28
       },
       "id": 12,
       "options": {
@@ -836,7 +985,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 29
+        "y": 38
       },
       "id": 20,
       "panels": [],
@@ -933,7 +1082,7 @@
         "h": 10,
         "w": 24,
         "x": 0,
-        "y": 30
+        "y": 39
       },
       "id": 21,
       "options": {
@@ -1006,7 +1155,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 40
+        "y": 49
       },
       "id": 30,
       "panels": [],
@@ -1054,7 +1203,7 @@
         "h": 8,
         "w": 24,
         "x": 0,
-        "y": 41
+        "y": 50
       },
       "id": 31,
       "options": {
