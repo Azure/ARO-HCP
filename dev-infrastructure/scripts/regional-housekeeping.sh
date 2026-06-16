@@ -71,3 +71,33 @@ for workspace in $workspaces; do
         echo "Workspace '$workspace' has aroHCPPurpose tag: '$aro_purpose_tag' - preserving"
     fi
 done
+
+#
+#   E V E N T G R I D   C A   C E R T I F I C A T E S
+#
+
+echo "Checking for orphaned ameroot CA certificate on EventGrid namespaces in resource group $REGIONAL_RESOURCE_GROUP..."
+
+namespaces=$(az eventgrid namespace list \
+    --resource-group "$REGIONAL_RESOURCE_GROUP" \
+    --query "[].name" -o tsv)
+
+if [ -z "$namespaces" ]; then
+    echo "No EventGrid namespaces found in resource group $REGIONAL_RESOURCE_GROUP"
+else
+    for ns in $namespaces; do
+        ameroot_id=$(az resource show \
+            --resource-group "$REGIONAL_RESOURCE_GROUP" \
+            --namespace Microsoft.EventGrid \
+            --resource-type namespaces/caCertificates \
+            --name "${ns}/ameroot" \
+            --query "id" -o tsv 2>/dev/null || true)
+
+        if [ -n "$ameroot_id" ]; then
+            echo "Found orphaned ameroot CA certificate on namespace '${ns}' - deleting"
+            execute az resource delete --ids "$ameroot_id"
+        else
+            echo "No ameroot CA certificate found on namespace '${ns}' - nothing to do"
+        fi
+    done
+fi
