@@ -63,6 +63,12 @@
 // (cluster state -> non-system pools -> system wedge -> NRP-KVS storm)
 // so the cheap ARM checks short-circuit before we query Activity Log.
 //
+// Two ARM-only prechecks ([accel-net] and [empty ipconfig], below) run
+// before the Activity Log query and flag a pool broken on their own
+// direct evidence — independent of the NRP-KVS storm signal — so a pool
+// in either state is recreated even when the activity-log write storm
+// has not (yet) appeared.
+//
 //   [cluster state]      cluster provisioningState is recoverable:
 //                        Succeeded, Canceled, Failed (settled) OR
 //                        Updating, Upgrading (mid-LRO — the NRP-KVS
@@ -90,6 +96,18 @@
 //                        check, so they cannot trigger a destructive
 //                        pool recreation that would not address their
 //                        actual root cause.
+//   [empty ipconfig]     any selected pool whose backing VMSS has a
+//                        realized instance NIC with an empty
+//                        ipConfigurations array — the ARM-visible
+//                        signature of the NRP null-pointer defect (the
+//                        delegated Swift NIC was created but never
+//                        populated, so kubelet never registers). This
+//                        is authoritative direct evidence and flags the
+//                        pool for recreation regardless of the NRP-KVS
+//                        storm, which only surfaces once AKS reconciles
+//                        the pool. Fails open: pools with no backing
+//                        VMSS, no realized NICs yet, or whose NIC list
+//                        errors are skipped, never flagged.
 //
 // Action (only when all guards pass) — applied to every confirmed target pool
 // ----------------------------------------------------------------------------
@@ -139,6 +157,7 @@ import (
 	armcompute "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
 	armcs "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v6"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/monitor/armmonitor"
+	armnetwork "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v6"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 
 	mcclient "github.com/Azure/ARO-HCP/sessiongate/pkg/mc"
@@ -261,6 +280,7 @@ type nodePoolTarget struct {
 	deletionInitiated bool
 	forcedEvidence    bool
 	accelNetBroken    bool
+	emptyIPConfig     bool
 }
 
 func poolVMSSPrefix(poolName string) string {
@@ -451,7 +471,7 @@ func runWith(ctx context.Context, cfg *config, orch orchestrator) error {
 	}
 	logf("SELECTED BROKEN NODE POOLS: %d pool(s) confirmed", len(targets))
 	for _, target := range targets {
-		logf("  pool=%s role=%s nrpFailures=%d accelNetBroken=%t", target.name, cfg.nodePoolTag, target.nrpFailures, target.accelNetBroken)
+		logf("  pool=%s role=%s nrpFailures=%d accelNetBroken=%t emptyIPConfig=%t", target.name, cfg.nodePoolTag, target.nrpFailures, target.accelNetBroken, target.emptyIPConfig)
 	}
 	var forcedEvidenceTargets []nodePoolTarget
 	for _, target := range targets {
@@ -826,6 +846,7 @@ type clients struct {
 	pools        *armcs.AgentPoolsClient
 	cluster      *armcs.ManagedClustersClient
 	vmss         *armcompute.VirtualMachineScaleSetsClient
+	nics         *armnetwork.InterfacesClient
 	activityLogs *armmonitor.ActivityLogsClient
 	tags         *armresources.TagsClient
 	kube         kubernetes.Interface
@@ -853,6 +874,10 @@ func newAzureClients(cfg *config) (*clients, error) {
 	if err != nil {
 		return nil, fmt.Errorf("arm compute factory: %w", err)
 	}
+	networkFactory, err := armnetwork.NewClientFactory(cfg.subscriptionID, cred, nil)
+	if err != nil {
+		return nil, fmt.Errorf("arm network factory: %w", err)
+	}
 	activityLogs, err := armmonitor.NewActivityLogsClient(cfg.subscriptionID, cred, nil)
 	if err != nil {
 		return nil, fmt.Errorf("arm monitor activity logs client: %w", err)
@@ -867,6 +892,7 @@ func newAzureClients(cfg *config) (*clients, error) {
 		pools:        clientFactory.NewAgentPoolsClient(),
 		cluster:      clientFactory.NewManagedClustersClient(),
 		vmss:         computeFactory.NewVirtualMachineScaleSetsClient(),
+		nics:         networkFactory.NewInterfacesClient(),
 		activityLogs: activityLogs,
 		tags:         tags,
 	}, nil
@@ -1283,8 +1309,26 @@ func (c *clients) detect(ctx context.Context) ([]nodePoolTarget, string, error) 
 		anBroken = nil
 	}
 
-	if len(wedged) == 0 && len(anBroken) == 0 {
-		return nil, fmt.Sprintf("no selected node pools with %s=%q are in wedge-compatible state or have Swift accelerated-networking disabled", nodePoolRoleLabel, c.cfg.nodePoolTag), nil
+	// Empty-ipConfiguration precheck (Steve Kuznetsov, MSFT): a pool whose
+	// backing VMSS has realized instance NICs with an empty ipConfigurations
+	// array is broken by the NRP null-pointer defect (ICM 798003653) — the
+	// node never attaches its Swift NIC and kubelet never registers —
+	// regardless of provisioning state or NRP-KVS storm evidence. The
+	// activity-log write storm only surfaces once AKS reconciles the pool, so
+	// gating recreation on it lets broken pools linger and forces a slow
+	// one-by-one recovery across rollouts; detecting the empty ipConfigurations
+	// directly recreates every affected pool in a single pass. This runs over
+	// ALL selected role-matched pools (so it covers the system pool too, not
+	// just Swift-tagged ones), is ARM-only (cheaper than the activity-log
+	// query), and fails open so it never regresses existing behavior.
+	emptyIPCfgBroken, eicErr := c.detectEmptyIPConfigPools(ctx, selected)
+	if eicErr != nil {
+		logf("WARN: empty-ipconfig precheck failed: %v (continuing with NRP detection only)", eicErr)
+		emptyIPCfgBroken = nil
+	}
+
+	if len(wedged) == 0 && len(anBroken) == 0 && len(emptyIPCfgBroken) == 0 {
+		return nil, fmt.Sprintf("no selected node pools with %s=%q are in wedge-compatible state, have Swift accelerated-networking disabled, or have empty NIC ipConfigurations", nodePoolRoleLabel, c.cfg.nodePoolTag), nil
 	}
 
 	var targets []nodePoolTarget
@@ -1336,6 +1380,28 @@ func (c *clients) detect(ctx context.Context) ([]nodePoolTarget, string, error) 
 		targets = append(targets, ab)
 	}
 
+	// Merge empty-ipConfiguration-broken pools as confirmed targets. An empty
+	// realized-NIC ipConfigurations array is direct evidence of the NRP
+	// null-pointer defect, so these skip the forced-evidence probe; a pool
+	// already surfaced (suspected) by the NRP path is upgraded to confirmed,
+	// and a pool already flagged by the accelerated-networking precheck just
+	// gains the emptyIPConfig marker for observability.
+	for i := range targets {
+		idxByName[targets[i].name] = i
+	}
+	for _, eb := range emptyIPCfgBroken {
+		logf("pool %s: confirmed broken by empty-ipconfig precheck (backing VMSS has NIC(s) with empty ipConfigurations)", eb.name)
+		if i, ok := idxByName[eb.name]; ok {
+			if targets[i].suspected {
+				targets[i].suspected = false
+				confirmedCount++
+			}
+			targets[i].emptyIPConfig = true
+			continue
+		}
+		confirmedCount++
+		targets = append(targets, eb)
+	}
 	// When every candidate is below threshold the caller will either route
 	// through the forced-evidence path or log a no-op exit. Surface a
 	// non-empty reason so the operator log line is actionable rather than
@@ -1992,6 +2058,95 @@ func (c *clients) detectAccelNetBrokenPools(ctx context.Context, swiftPools []no
 			logf("accel-net precheck: swift pool %s VMSS has accelerated-networking DISABLED — flagging broken (Swift NICs cannot attach; pool must be recreated)", sp.name)
 			t := sp
 			t.accelNetBroken = true
+			broken = append(broken, t)
+		}
+	}
+	return broken, nil
+}
+
+// countEmptyIPConfigs reports how many of the given realized network interfaces
+// carry an empty ipConfigurations array, plus how many NICs were inspected. A
+// healthy NIC always has at least one ipConfiguration; an empty array is the
+// ARM-visible signature of the NRP null-pointer defect, where NRP brings the
+// (delegated) Swift NIC up but never populates its ipConfigurations. NICs with
+// nil Properties are not counted (indeterminate; fail-open).
+func countEmptyIPConfigs(nics []*armnetwork.Interface) (total, empty int) {
+	for _, nic := range nics {
+		if nic == nil || nic.Properties == nil {
+			continue
+		}
+		total++
+		if len(nic.Properties.IPConfigurations) == 0 {
+			empty++
+		}
+	}
+	return total, empty
+}
+
+// listVMSSInstanceNICs lists every realized per-instance network interface of
+// vmssName in the node resource group. This is the ARM equivalent of the
+// NRP_Entities networkinterfaces view used to triage the defect.
+func (c *clients) listVMSSInstanceNICs(ctx context.Context, vmssName string) ([]*armnetwork.Interface, error) {
+	if c.nics == nil {
+		return nil, errors.New("network interfaces client not initialized")
+	}
+	pager := c.nics.NewListVirtualMachineScaleSetNetworkInterfacesPager(c.cfg.nodeRG, vmssName, nil)
+	var all []*armnetwork.Interface
+	for pager.More() {
+		page, err := pager.NextPage(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("list NICs for VMSS %s in %s: %w", vmssName, c.cfg.nodeRG, err)
+		}
+		all = append(all, page.Value...)
+	}
+	return all, nil
+}
+
+// detectEmptyIPConfigPools inspects the realized instance NICs of each pool's
+// backing VMSS and returns those with at least one NIC whose ipConfigurations
+// array is empty — the ARM-visible signature of the NRP null-pointer defect
+// (ICM 798003653). Steve Kuznetsov (MSFT) established that this state is the
+// authoritative "broken" signal and that every VMSS exhibiting it must be
+// recreated, regardless of whether the Activity Log shows an NRP-KVS write
+// storm: the write failures only surface once AKS reconciles the pool, so
+// gating recreation on them lets broken pools linger across rollouts and forces
+// a slow one-by-one recovery. Flagging on empty ipConfigurations lets a single
+// run recreate every affected pool at once.
+//
+// It fails OPEN: a pool whose backing VMSS is missing, whose NIC listing
+// errors, or which has no realized NICs yet (a freshly-created or
+// scaling-to-zero pool) is skipped, never flagged. A pool is flagged only when
+// at least one realized NIC was observed AND at least one of them has an empty
+// ipConfigurations array.
+func (c *clients) detectEmptyIPConfigPools(ctx context.Context, pools []nodePoolTarget) ([]nodePoolTarget, error) {
+	if len(pools) == 0 {
+		return nil, nil
+	}
+	all, err := c.listNodeRGVMSS(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var broken []nodePoolTarget
+	for _, p := range pools {
+		vmssName, vmss := matchPoolVMSS(all, p.name)
+		if vmss == nil {
+			logf("empty-ipconfig precheck: pool %s has no backing VMSS yet; skipping (fail-open)", p.name)
+			continue
+		}
+		nics, err := c.listVMSSInstanceNICs(ctx, vmssName)
+		if err != nil {
+			logf("WARN: empty-ipconfig precheck: listing NICs for pool %s VMSS %s failed: %v (skipping, fail-open)", p.name, vmssName, err)
+			continue
+		}
+		total, empty := countEmptyIPConfigs(nics)
+		if total == 0 {
+			logf("empty-ipconfig precheck: pool %s VMSS %s has no realized instance NICs yet; skipping (fail-open)", p.name, vmssName)
+			continue
+		}
+		if empty > 0 {
+			logf("empty-ipconfig precheck: pool %s VMSS %s has %d/%d instance NIC(s) with empty ipConfigurations — flagging broken (NRP null-pointer; pool must be recreated)", p.name, vmssName, empty, total)
+			t := p
+			t.emptyIPConfig = true
 			broken = append(broken, t)
 		}
 	}

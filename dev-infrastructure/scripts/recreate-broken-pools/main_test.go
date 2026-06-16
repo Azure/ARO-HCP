@@ -36,6 +36,8 @@ import (
 	armcompute "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
 	computefake "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6/fake"
 	armcs "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v6"
+	armnetwork "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v6"
+	networkfake "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v6/fake"
 )
 
 // =============================================================================
@@ -2829,4 +2831,119 @@ func TestDetectAccelNetBrokenPools(t *testing.T) {
 			t.Fatalf("empty input should return (nil,nil), got (%v,%v)", got, err)
 		}
 	})
+}
+
+// =============================================================================
+// empty-ipConfiguration detection (Steve Kuznetsov, MSFT): a pool whose backing
+// VMSS has realized instance NICs with an empty ipConfigurations array is broken
+// by the NRP null-pointer defect and must be recreated regardless of the
+// activity-log storm signal.
+// =============================================================================
+
+// nic builds a realized network interface with the given number of
+// ipConfigurations (n==0 reproduces the NRP null-pointer signature).
+func nic(ipConfigs int) *armnetwork.Interface {
+	cfgs := make([]*armnetwork.InterfaceIPConfiguration, 0, ipConfigs)
+	for i := 0; i < ipConfigs; i++ {
+		cfgs = append(cfgs, &armnetwork.InterfaceIPConfiguration{})
+	}
+	return &armnetwork.Interface{
+		Properties: &armnetwork.InterfacePropertiesFormat{IPConfigurations: cfgs},
+	}
+}
+
+func TestCountEmptyIPConfigs(t *testing.T) {
+	cases := []struct {
+		name      string
+		nics      []*armnetwork.Interface
+		wantTotal int
+		wantEmpty int
+	}{
+		{name: "nil_slice", nics: nil, wantTotal: 0, wantEmpty: 0},
+		{name: "all_healthy", nics: []*armnetwork.Interface{nic(1), nic(2)}, wantTotal: 2, wantEmpty: 0},
+		{name: "one_empty", nics: []*armnetwork.Interface{nic(1), nic(0)}, wantTotal: 2, wantEmpty: 1},
+		{name: "all_empty", nics: []*armnetwork.Interface{nic(0), nic(0)}, wantTotal: 2, wantEmpty: 2},
+		{name: "nil_nic_skipped", nics: []*armnetwork.Interface{nil, nic(0)}, wantTotal: 1, wantEmpty: 1},
+		{name: "nil_properties_skipped", nics: []*armnetwork.Interface{{Properties: nil}, nic(1)}, wantTotal: 1, wantEmpty: 0},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			total, empty := countEmptyIPConfigs(tc.nics)
+			if total != tc.wantTotal || empty != tc.wantEmpty {
+				t.Fatalf("got (total=%d empty=%d), want (total=%d empty=%d)", total, empty, tc.wantTotal, tc.wantEmpty)
+			}
+		})
+	}
+}
+
+// newFakeNICsClient builds a real armnetwork InterfacesClient whose VMSS-NIC
+// list reads from nicsByVMSS (keyed by VMSS name). A VMSS absent from the map
+// returns an empty NIC list, mirroring ARM for a scaled-to-zero VMSS.
+func newFakeNICsClient(t *testing.T, nicsByVMSS map[string][]*armnetwork.Interface) *armnetwork.InterfacesClient {
+	t.Helper()
+	srv := networkfake.InterfacesServer{
+		NewListVirtualMachineScaleSetNetworkInterfacesPager: func(_ string, vmssName string, _ *armnetwork.InterfacesClientListVirtualMachineScaleSetNetworkInterfacesOptions) (resp azfake.PagerResponder[armnetwork.InterfacesClientListVirtualMachineScaleSetNetworkInterfacesResponse]) {
+			resp.AddPage(http.StatusOK, armnetwork.InterfacesClientListVirtualMachineScaleSetNetworkInterfacesResponse{
+				InterfaceListResult: armnetwork.InterfaceListResult{Value: nicsByVMSS[vmssName]},
+			}, nil)
+			return
+		},
+	}
+	client, err := armnetwork.NewInterfacesClient(
+		"00000000-0000-0000-0000-000000000000",
+		&azfake.TokenCredential{},
+		&azcorearm.ClientOptions{ClientOptions: azcore.ClientOptions{
+			Transport: networkfake.NewInterfacesServerTransport(&srv),
+		}},
+	)
+	if err != nil {
+		t.Fatalf("build fake NICs client: %v", err)
+	}
+	return client
+}
+
+func TestDetectEmptyIPConfigPools(t *testing.T) {
+	const (
+		brokenVMSS  = "aks-userswft3-12345678-vmss"
+		healthyVMSS = "aks-system-87654321-vmss"
+		zeroVMSS    = "aks-userswft2-11112222-vmss"
+	)
+	store := newFakeVMSSStore(
+		namedVMSS(brokenVMSS, "userswft3", ptr(true)),
+		namedVMSS(healthyVMSS, "system", ptr(true)),
+		namedVMSS(zeroVMSS, "userswft2", ptr(true)),
+		// "nomvss" intentionally absent: no backing VMSS yet.
+	)
+	nicsByVMSS := map[string][]*armnetwork.Interface{
+		brokenVMSS:  {nic(1), nic(0)}, // one NIC lost its ipConfigurations
+		healthyVMSS: {nic(1), nic(1)}, // all NICs healthy
+		zeroVMSS:    {},               // no realized NICs yet
+	}
+	c := &clients{
+		cfg:  &config{nodeRG: "MC_rg_cluster_region"},
+		vmss: newFakeVMSSClient(t, store),
+		nics: newFakeNICsClient(t, nicsByVMSS),
+	}
+
+	pools := []nodePoolTarget{
+		{name: "userswft3"}, {name: "system"}, {name: "userswft2"}, {name: "nomvss"},
+	}
+	broken, err := c.detectEmptyIPConfigPools(context.Background(), pools)
+	if err != nil {
+		t.Fatalf("detectEmptyIPConfigPools: %v", err)
+	}
+	if len(broken) != 1 {
+		t.Fatalf("expected exactly 1 broken pool, got %d: %+v", len(broken), broken)
+	}
+	if broken[0].name != "userswft3" || !broken[0].emptyIPConfig {
+		t.Fatalf("got %+v, want pool=userswft3 emptyIPConfig=true", broken[0])
+	}
+}
+
+func TestDetectEmptyIPConfigPools_EmptyInput(t *testing.T) {
+	c := &clients{cfg: &config{nodeRG: "rg"}}
+	got, err := c.detectEmptyIPConfigPools(context.Background(), nil)
+	if err != nil || got != nil {
+		t.Fatalf("empty input should return (nil,nil), got (%v,%v)", got, err)
+	}
 }
