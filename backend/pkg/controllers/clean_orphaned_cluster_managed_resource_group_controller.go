@@ -16,6 +16,7 @@ package controllers
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"time"
 
@@ -156,7 +157,6 @@ func (c *cleanOrphanedClusterManagedResourceGroup) SyncOnce(ctx context.Context,
 	logger := utils.LoggerFromContext(ctx)
 	logger.Info("Syncing orphaned cluster managed resource groups")
 
-	// Get all subscriptions
 	subscriptions, err := c.subscriptionLister.List(ctx)
 	if err != nil {
 		return utils.TrackError(err)
@@ -165,19 +165,25 @@ func (c *cleanOrphanedClusterManagedResourceGroup) SyncOnce(ctx context.Context,
 	logger.Info("Retrieved subscriptions", "count", len(subscriptions))
 
 	// Process each subscription to identify orphaned managed resource groups
+	// Collect errors but continue processing other subscriptions
+	var errs []error
 	for _, subscription := range subscriptions {
 		subscriptionID := subscription.ResourceID.SubscriptionID
 
-		// Get managed resource groups for this subscription
 		managedResourceGroups, err := c.listManagedResourceGroupsForSubscription(ctx, subscription)
 		if err != nil {
-			return err
+			logger.Error(err, "Failed to list managed resource groups for subscription",
+				"subscriptionID", subscriptionID)
+			errs = append(errs, err)
+			continue
 		}
 
-		// Get cluster resource IDs for this subscription
 		clusterResourceIDs, err := c.listClusterResourceIDsForSubscription(ctx, subscription)
 		if err != nil {
-			return err
+			logger.Error(err, "Failed to list cluster resource IDs for subscription",
+				"subscriptionID", subscriptionID)
+			errs = append(errs, err)
+			continue
 		}
 
 		// Identify orphaned managed resource groups for this subscription
@@ -199,6 +205,11 @@ func (c *cleanOrphanedClusterManagedResourceGroup) SyncOnce(ctx context.Context,
 	}
 
 	logger.Info("End of orphaned cluster managed resource groups sync")
+
+	if len(errs) > 0 {
+		return utils.TrackError(errors.Join(errs...))
+	}
+
 	return nil
 }
 
