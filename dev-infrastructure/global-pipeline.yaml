@@ -109,7 +109,6 @@ resourceGroups:
     automatedRetry:
       errorContainsAny:
       - "Failed to update one or more relationships in 'owners'"
-      - "Please try again later"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
   - name: mise-identity
