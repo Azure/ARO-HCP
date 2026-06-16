@@ -68,8 +68,11 @@ type maestroClient struct {
 }
 
 // Close releases idle connections held by the underlying HTTP transport.
+// It is safe to call even if the transport is nil.
 func (c *maestroClient) Close() {
-	c.transport.CloseIdleConnections()
+	if c.transport != nil {
+		c.transport.CloseIdleConnections()
+	}
 }
 
 var _ Client = (*maestroClient)(nil)
