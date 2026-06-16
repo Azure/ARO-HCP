@@ -553,7 +553,7 @@
         "type": "datasource",
         "uid": "-- Mixed --"
       },
-      "description": "Total cluster count per service-cluster region, sorted descending",
+      "description": "Total cluster count per service-cluster (the 'cluster' label identifies each regional service-cluster), sorted descending",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -609,7 +609,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "sort_desc(count by (cluster) (backend_cluster_provision_state == 1))",
+          "expr": "count by (cluster) (backend_cluster_provision_state == 1)",
           "instant": true,
           "range": false,
           "legendFormat": "{{cluster}}",

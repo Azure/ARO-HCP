@@ -618,7 +618,7 @@
                         "text": "accepted"
                       },
                       "awaitingsecret": {
-                        "color": "light-orange",
+                        "color": "orange",
                         "index": 4,
                         "text": "awaitingsecret"
                       },
