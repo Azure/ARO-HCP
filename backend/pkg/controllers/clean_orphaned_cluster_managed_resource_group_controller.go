@@ -47,7 +47,7 @@ type managedResourceGroupInfo struct {
 	managedBy      string
 }
 
-type deleteManagedResourceGroup struct {
+type cleanOrphanedClusterManagedResourceGroup struct {
 	name string
 
 	subscriptionLister    listers.SubscriptionLister
@@ -59,22 +59,22 @@ type deleteManagedResourceGroup struct {
 	queue workqueue.TypedRateLimitingInterface[string]
 }
 
-// NewDeleteManagedResourceGroupController periodically looks for managed resource groups
-// that are not referenced by any HCPOpenShiftCluster in the database and deletes them.
-func NewDeleteManagedResourceGroupController(
+// NewCleanOrphanedClusterManagedResourceGroupController periodically looks for managed resource groups
+// that are not referenced by any HCPOpenShiftCluster in the database and cleans them up.
+func NewCleanOrphanedClusterManagedResourceGroupController(
 	subscriptionLister listers.SubscriptionLister,
 	resourcesDBClient database.ResourcesDBClient,
 	azureFPAClientBuilder azureclient.FirstPartyApplicationClientBuilder,
 ) controllerutils.Controller {
-	c := &deleteManagedResourceGroup{
-		name:                  "DeleteManagedResourceGroup",
+	c := &cleanOrphanedClusterManagedResourceGroup{
+		name:                  "CleanOrphanedClusterManagedResourceGroup",
 		subscriptionLister:    subscriptionLister,
 		resourcesDBClient:     resourcesDBClient,
 		azureFPAClientBuilder: azureFPAClientBuilder,
 		queue: workqueue.NewTypedRateLimitingQueueWithConfig(
 			workqueue.DefaultTypedControllerRateLimiter[string](),
 			workqueue.TypedRateLimitingQueueConfig[string]{
-				Name: "DeleteManagedResourceGroup",
+				Name: "CleanOrphanedClusterManagedResourceGroup",
 			},
 		),
 	}
@@ -83,9 +83,9 @@ func NewDeleteManagedResourceGroupController(
 }
 
 // SyncOnce implements the main sync logic for the controller.
-func (c *deleteManagedResourceGroup) SyncOnce(ctx context.Context, _ any) error {
+func (c *cleanOrphanedClusterManagedResourceGroup) SyncOnce(ctx context.Context, _ any) error {
 	logger := utils.LoggerFromContext(ctx)
-	logger.Info("Syncing orphaned managed resource groups")
+	logger.Info("Syncing orphaned cluster managed resource groups")
 
 	// Get all subscriptions
 	subscriptions, err := c.subscriptionLister.List(ctx)
@@ -141,7 +141,7 @@ func (c *deleteManagedResourceGroup) SyncOnce(ctx context.Context, _ any) error 
 			}
 		}
 	}
-	logger.Info("Found managed resource groups", "count", len(managedResourceGroups))
+	logger.Info("Found cluster managed resource groups", "count", len(managedResourceGroups))
 
 	clusterResourceIDs := make(map[string]struct{})
 	for _, subscription := range subscriptions {
@@ -174,20 +174,20 @@ func (c *deleteManagedResourceGroup) SyncOnce(ctx context.Context, _ any) error 
 			continue
 		}
 
-		logger.Info("Found orphaned managed resource group",
+		logger.Info("Found orphaned cluster managed resource group",
 			"key", key,
 			"subscriptionID", mrg.subscriptionID,
 			"resourceGroup", mrg.name,
 			"managedBy", mrg.managedBy)
 
-		// TODO: Delete the orphaned managed resource group
+		// TODO: Clean up the orphaned cluster managed resource group
 	}
 
-	logger.Info("End of orphaned managed resource groups sync")
+	logger.Info("End of orphaned cluster managed resource groups sync")
 	return nil
 }
 
-func (c *deleteManagedResourceGroup) Run(ctx context.Context, threadiness int) {
+func (c *cleanOrphanedClusterManagedResourceGroup) Run(ctx context.Context, threadiness int) {
 	// don't let panics crash the process
 	defer utilruntime.HandleCrash()
 	// make sure the work queue is shutdown which will trigger workers to end
@@ -217,7 +217,7 @@ func (c *deleteManagedResourceGroup) Run(ctx context.Context, threadiness int) {
 	logger.Info("Shutting down")
 }
 
-func (c *deleteManagedResourceGroup) runWorker(ctx context.Context) {
+func (c *cleanOrphanedClusterManagedResourceGroup) runWorker(ctx context.Context) {
 	defer utilruntime.HandleCrash()
 	for c.processNextWorkItem(ctx) {
 	}
@@ -225,7 +225,7 @@ func (c *deleteManagedResourceGroup) runWorker(ctx context.Context) {
 
 // processNextWorkItem deals with one item off the queue.  It returns false
 // when it's time to quit.
-func (c *deleteManagedResourceGroup) processNextWorkItem(ctx context.Context) bool {
+func (c *cleanOrphanedClusterManagedResourceGroup) processNextWorkItem(ctx context.Context) bool {
 	ref, shutdown := c.queue.Get()
 	if shutdown {
 		return false
