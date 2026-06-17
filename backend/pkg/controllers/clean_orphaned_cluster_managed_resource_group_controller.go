@@ -18,6 +18,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -141,7 +142,8 @@ func (c *cleanOrphanedClusterManagedResourceGroup) listManagedResourceGroupsForS
 // deleteOrphanedManagedResourceGroup attempts to delete an orphaned managed resource group.
 // It first checks the current state and only initiates deletion if the resource group exists
 // and is not already being deleted.
-func (c *cleanOrphanedClusterManagedResourceGroup) deleteOrphanedManagedResourceGroup(ctx context.Context, rgClient azureclient.ResourceGroupsClient, subscriptionID, resourceGroupName, managedBy string) error {
+// If readOnly is true, it will only log what would be deleted without actually initiating deletion.
+func (c *cleanOrphanedClusterManagedResourceGroup) deleteOrphanedManagedResourceGroup(ctx context.Context, rgClient azureclient.ResourceGroupsClient, subscriptionID, resourceGroupName, managedBy string, readOnly bool) error {
 	logger := utils.LoggerFromContext(ctx)
 
 	rg, err := rgClient.Get(ctx, resourceGroupName, nil)
@@ -171,6 +173,14 @@ func (c *cleanOrphanedClusterManagedResourceGroup) deleteOrphanedManagedResource
 				"provisioningState", provisioningState)
 			return nil
 		}
+	}
+
+	if readOnly {
+		logger.Info("Would delete orphaned cluster managed resource group (read-only mode, skipping actual deletion)",
+			"subscriptionID", subscriptionID,
+			"resourceGroup", resourceGroupName,
+			"managedBy", managedBy)
+		return nil
 	}
 
 	logger.Info("Initiating deletion of orphaned cluster managed resource group",
@@ -230,6 +240,9 @@ func (c *cleanOrphanedClusterManagedResourceGroup) SyncOnce(ctx context.Context,
 	logger := utils.LoggerFromContext(ctx)
 	subscriptionID := key.SubscriptionID
 
+	// Check if we're in read-write mode (default is read-only for safety)
+	readOnly := os.Getenv("CLEAN_ORPHANED_MANAGED_RESOURCE_GROUPS_MODE") != "readwrite"
+
 	logger.Info("Syncing orphaned cluster managed resource groups for subscription",
 		"subscriptionID", subscriptionID)
 
@@ -277,7 +290,7 @@ func (c *cleanOrphanedClusterManagedResourceGroup) SyncOnce(ctx context.Context,
 		// Found an orphaned managed resource group
 		orphanedMRGsFound.WithLabelValues(c.location).Inc()
 
-		err = c.deleteOrphanedManagedResourceGroup(ctx, rgClient, subscriptionID, resourceGroupName, managedBy)
+		err = c.deleteOrphanedManagedResourceGroup(ctx, rgClient, subscriptionID, resourceGroupName, managedBy, readOnly)
 		if err != nil {
 			errs = append(errs, err)
 		}
