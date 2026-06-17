@@ -10,3 +10,7 @@ ResourceLimitsAllowlist:
 - Deployment/multicluster-engine-operator/backplane-operator # third-party MCE chart, not ours to modify
 - Deployment/fleet-controller/fleet-controller # fleet controller chart sets limits
 - Job/*/fleet-registration # fleet registration job name varies by environment
+- Deployment/*/kube-state-metrics # upstream kube-state-metrics chart sets limits
+- Deployment/prometheus-operator/kube-prometheus-stack # upstream prometheus-operator chart sets limits
+- Job/prometheus-admission-*/create # upstream prometheus-operator admission webhook jobs
+- Job/prometheus-admission-*/patch # upstream prometheus-operator admission webhook jobs
