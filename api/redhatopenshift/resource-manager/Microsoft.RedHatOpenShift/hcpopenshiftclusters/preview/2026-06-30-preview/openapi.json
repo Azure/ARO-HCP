@@ -2258,7 +2258,7 @@
         },
         "ingress": {
           "$ref": "#/definitions/IngressProfile",
-          "description": "Shows the cluster ingress profile",
+          "description": "The cluster ingress configuration",
           "x-ms-mutability": [
             "read",
             "create"

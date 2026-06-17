@@ -79,7 +79,7 @@ model HcpOpenShiftClusterProperties {
   @visibility(Lifecycle.Read, Lifecycle.Create)
   api?: ApiProfile;
 
-  /** Shows the cluster ingress profile */
+  /** The cluster ingress configuration */
   @added(Versions.v2026_06_30_preview)
   @visibility(Lifecycle.Read, Lifecycle.Create)
   ingress?: IngressProfile;
