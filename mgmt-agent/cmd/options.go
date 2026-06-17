@@ -26,6 +26,7 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/sync/errgroup"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
@@ -92,6 +93,7 @@ type completedControllerOptions struct {
 	ksmCtrl             *ksmhcp.KSMHCPController
 	resourceWatcher     *controller.ResourceWatcher
 	kubeInformers       kubeinformers.SharedInformerFactory
+	ksmKubeInformers    kubeinformers.SharedInformerFactory
 	hypershiftInformers hypershiftinformers.SharedInformerFactory
 	dynamicInformers    dynamicinformer.DynamicSharedInformerFactory
 	workers             int
@@ -162,6 +164,7 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 
 	var ksmCtrl *ksmhcp.KSMHCPController
 	var hsInformers hypershiftinformers.SharedInformerFactory
+	var ksmKubeInformers kubeinformers.SharedInformerFactory
 	var dynInformers dynamicinformer.DynamicSharedInformerFactory
 	if o.KSMImage != "" {
 		hsClient, err := hypershiftclient.NewForConfig(kubeConfig)
@@ -169,14 +172,23 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 			return nil, fmt.Errorf("failed to create hypershift clientset: %w", err)
 		}
 		hsInformers = hypershiftinformers.NewSharedInformerFactory(hsClient, 10*time.Minute)
-		dynInformers = dynamicinformer.NewDynamicSharedInformerFactory(dynamicClient, 10*time.Minute)
+		ksmKubeInformers = kubeinformers.NewSharedInformerFactoryWithOptions(kubeClientset, 10*time.Minute,
+			kubeinformers.WithTweakListOptions(func(opts *metav1.ListOptions) {
+				opts.LabelSelector = ksmhcp.LabelSelector
+			}),
+		)
+		dynInformers = dynamicinformer.NewFilteredDynamicSharedInformerFactory(dynamicClient, 10*time.Minute, metav1.NamespaceAll,
+			func(opts *metav1.ListOptions) {
+				opts.LabelSelector = ksmhcp.LabelSelector
+			},
+		)
 
 		ksmCtrl, err = ksmhcp.NewKSMHCPController(
 			kubeClientset,
 			dynamicClient,
 			hsInformers.Hypershift().V1beta1().HostedControlPlanes(),
-			kubeInformers.Apps().V1().Deployments().Informer(),
-			kubeInformers.Core().V1().Services().Informer(),
+			ksmKubeInformers.Apps().V1().Deployments().Informer(),
+			ksmKubeInformers.Core().V1().Services().Informer(),
 			dynInformers.ForResource(ksmhcp.ServiceMonitorGVR).Informer(),
 			o.KSMImage,
 		)
@@ -200,6 +212,7 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 			ksmCtrl:             ksmCtrl,
 			resourceWatcher:     resourceWatcher,
 			kubeInformers:       kubeInformers,
+			ksmKubeInformers:    ksmKubeInformers,
 			hypershiftInformers: hsInformers,
 			dynamicInformers:    dynInformers,
 			workers:             o.Workers,
@@ -239,6 +252,9 @@ func (o *ControllerOptions) Run(ctx context.Context) error {
 	o.kubeInformers.Start(ctx.Done())
 	if o.hypershiftInformers != nil {
 		o.hypershiftInformers.Start(ctx.Done())
+	}
+	if o.ksmKubeInformers != nil {
+		o.ksmKubeInformers.Start(ctx.Done())
 	}
 	if o.dynamicInformers != nil {
 		o.dynamicInformers.Start(ctx.Done())

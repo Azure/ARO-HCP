@@ -47,6 +47,9 @@ const (
 	labelApp     = "app.kubernetes.io/name"
 	fieldManager = "mgmt-agent-ksm-hcp"
 
+	// LabelSelector filters informers to only cache resources managed by this controller.
+	LabelSelector = labelApp + "=" + resourceName
+
 	// serviceNetworkKubeconfigSecret is the well-known secret name created by
 	// HyperShift's control-plane-operator (manifests/kas.go:KASServiceKubeconfigSecret)
 	// for in-cluster access to the HCP kube-apiserver. Used by 25+ HCP components.
