@@ -112,11 +112,11 @@ var _ = Describe("Nodepool OS Disk Encryption", func() {
 				customerNodePoolName,
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to get nodepool %s", customerNodePoolName)
-			Expect(created.Properties).ToNot(BeNil())
-			Expect(created.Properties.ProvisioningState).ToNot(BeNil())
-			Expect(*created.Properties.ProvisioningState).To(Equal(hcpsdk20240610preview.ProvisioningStateSucceeded))
-			Expect(created.Properties.Platform).ToNot(BeNil())
-			Expect(created.Properties.Platform.OSDisk).ToNot(BeNil())
+			Expect(created.Properties).ToNot(BeNil(), "nodepool Properties was nil")
+			Expect(created.Properties.ProvisioningState).ToNot(BeNil(), "nodepool ProvisioningState was nil")
+			Expect(*created.Properties.ProvisioningState).To(Equal(hcpsdk20240610preview.ProvisioningStateSucceeded), "nodepool %s should be Succeeded", customerNodePoolName)
+			Expect(created.Properties.Platform).ToNot(BeNil(), "nodepool Platform was nil")
+			Expect(created.Properties.Platform.OSDisk).ToNot(BeNil(), "nodepool OSDisk was nil")
 			Expect(created.Properties.Platform.OSDisk.EncryptionSetID).ToNot(BeNil(),
 				"nodepool OSDisk.EncryptionSetID should be set")
 			Expect(strings.EqualFold(*created.Properties.Platform.OSDisk.EncryptionSetID, desResourceID)).To(BeTrue(),
