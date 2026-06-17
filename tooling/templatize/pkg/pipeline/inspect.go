@@ -137,11 +137,11 @@ func acquireOutputChainingInputs(ctx context.Context, steps []string, pipeline *
 			Concurrency:           options.Concurrency,
 			TopoDirLookupFunc:     options.TopoDirLookupFunc,
 		}
-		outputs, err := RunPipeline(options.Service, pipeline, ctx, runOptions, RunStep)
+		state, err := RunPipeline(options.Service, pipeline, ctx, runOptions, RunStep)
 		if err != nil {
 			return nil, err
 		}
-		for serviceGroup, resourceGroups := range outputs {
+		for serviceGroup, resourceGroups := range state.GetOutputs("") {
 			if _, ok := inputs[serviceGroup]; !ok {
 				inputs[serviceGroup] = map[string]map[string]Output{}
 			}

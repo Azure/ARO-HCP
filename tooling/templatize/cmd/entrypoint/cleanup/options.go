@@ -15,9 +15,11 @@
 package cleanup
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"os"
+	"slices"
 
 	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
@@ -25,7 +27,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/util/sets"
 
-	"github.com/Azure/ARO-Tools/pipelines/graph"
+	"github.com/Azure/ARO-Tools/pipelines/types"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 
@@ -144,53 +146,79 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 	}, nil
 }
 
+// resourceGroupTarget holds the resolved name and subscription key for a resource group to clean up.
+type resourceGroupTarget struct {
+	resourceGroup string
+	subscription  string
+}
+
+// collectResourceGroupTargets extracts all unique (resourceGroup, subscription) pairs across
+// every stamp's pipelines. This avoids relying on the execution graph which, in service-group
+// mode, only contains resource groups from the first stamp.
+func collectResourceGroupTargets(stampPipelines map[string]map[string]*types.Pipeline) []resourceGroupTarget {
+	seen := map[resourceGroupTarget]struct{}{}
+	for _, pipelines := range stampPipelines {
+		for _, p := range pipelines {
+			for _, rg := range p.ResourceGroups {
+				seen[resourceGroupTarget{
+					resourceGroup: rg.ResourceGroup,
+					subscription:  rg.Subscription,
+				}] = struct{}{}
+			}
+		}
+	}
+	targets := make([]resourceGroupTarget, 0, len(seen))
+	for t := range seen {
+		targets = append(targets, t)
+	}
+	slices.SortFunc(targets, func(a, b resourceGroupTarget) int {
+		if c := cmp.Compare(a.subscription, b.subscription); c != 0 {
+			return c
+		}
+		return cmp.Compare(a.resourceGroup, b.resourceGroup)
+	})
+	return targets
+}
+
 func (o *Options) CleanUpResources(ctx context.Context) error {
 	logger, err := logr.FromContext(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get logger from context: %w", err)
 	}
 
-	var executionGraph *graph.Graph
-	if o.Entrypoint != nil {
-		executionGraph, err = graph.ForEntrypoint(&o.Topo.Topology, o.Entrypoint, o.Pipelines)
-	} else {
-		executionGraph, err = graph.ForPipeline(o.Service, o.Pipelines[o.Service.ServiceGroup])
-	}
-	if err != nil {
-		return fmt.Errorf("failed to generate execution graph: %w", err)
-	}
-
 	var regionalRGs sets.Set[string]
 	if o.OnlyRegional {
-		regionalRGs = sets.New(entrypointutils.RegionalResourceGroupNames(o.Config)...)
+		regionalRGs = sets.New(entrypointutils.RegionalResourceGroupNames(o.StampConfigs)...)
 	}
+
+	targets := collectResourceGroupTargets(o.StampPipelines)
 
 	group, groupCtx := errgroup.WithContext(ctx)
 
-	for _, resourceGroup := range executionGraph.ResourceGroups {
-		rgLogger := logger.WithValues("resourceGroup", resourceGroup.ResourceGroup)
+	for _, target := range targets {
+		rgLogger := logger.WithValues("resourceGroup", target.resourceGroup)
 
-		if o.OnlyRegional && !regionalRGs.Has(resourceGroup.ResourceGroup) {
+		if o.OnlyRegional && !regionalRGs.Has(target.resourceGroup) {
 			rgLogger.Info("Skipping non-regional resource group")
 			continue
 		}
 
 		// In dry-run mode without wait, just log what would be deleted and continue
 		if o.DryRun && !o.Wait {
-			rgLogger.Info("Would delete resource group.", "resourceGroup", resourceGroup.ResourceGroup)
+			rgLogger.Info("Would delete resource group.", "resourceGroup", target.resourceGroup)
 			continue
 		}
 
-		subscriptionID, err := o.SubscriptionLookup(ctx, resourceGroup.Subscription)
+		subscriptionID, err := o.SubscriptionLookup(ctx, target.subscription)
 		if err != nil {
-			return fmt.Errorf("failed to lookup subscription ID for %q: %w", resourceGroup.Subscription, err)
+			return fmt.Errorf("failed to lookup subscription ID for %q: %w", target.subscription, err)
 		}
 
 		rgLogger.Info("Deleting resource group with ordered resource cleanup")
 
 		// Create deleter for this resource group
 		deleter := &resourceGroupDeleter{
-			resourceGroupName: resourceGroup.ResourceGroup,
+			resourceGroupName: target.resourceGroup,
 			subscriptionID:    subscriptionID,
 			credential:        o.AzureCredential,
 			wait:              o.Wait,

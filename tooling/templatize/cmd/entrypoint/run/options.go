@@ -149,7 +149,7 @@ func (o *Options) Run(ctx context.Context) error {
 	// Extract target resource group names from config for precheck
 	var regionRGNames []string
 	if o.AbortIfRegionalExist {
-		regionRGNames = entrypointutils.RegionalResourceGroupNames(o.Config)
+		regionRGNames = entrypointutils.RegionalResourceGroupNames(o.StampConfigs)
 	}
 
 	runOpts := &pipeline.PipelineRunOptions{
@@ -165,13 +165,14 @@ func (o *Options) Run(ctx context.Context) error {
 		TopoDirLookupFunc:     o.Topo.GetTopologyDirForServiceGroup,
 		Region:                o.Region,
 		Environment:           o.DeployEnv,
-		Stamp:                 o.Stamp,
 		SubsciptionLookupFunc: pipeline.LookupSubscriptionID(o.Subscriptions),
 		Concurrency:           o.Concurrency,
 		TimingOutputFile:      o.TimingOutputFile,
 		JUnitOutputFile:       o.JUnitOutputFile,
 		AbortIfRegionalExist:  o.AbortIfRegionalExist,
 		RegionRGNames:         regionRGNames,
+		StampConfigs:          o.StampConfigs,
+		StampPipelines:        o.StampPipelines,
 	}
 
 	if o.Entrypoint != nil {

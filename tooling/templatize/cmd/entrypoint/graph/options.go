@@ -150,7 +150,7 @@ func (o *Options) Run(ctx context.Context) error {
 		return err
 	}
 
-	rawDot, err := graph.MarshalDOT(executionGraph.Nodes, executionGraph.ServiceValidationSteps)
+	rawDot, err := graph.MarshalDOT(executionGraph)
 	if err != nil {
 		return fmt.Errorf("unable to marshal graph to DOT: %w", err)
 	}

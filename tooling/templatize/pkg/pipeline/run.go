@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -72,6 +73,9 @@ type PipelineRunOptions struct {
 
 	AbortIfRegionalExist bool
 	RegionRGNames        []string // Specific RG names to check for concurrent execution prevention
+
+	StampConfigs   map[string]configtypes.Configuration
+	StampPipelines map[string]map[string]*types.Pipeline
 }
 
 type BaseRunOptions struct {
@@ -135,13 +139,66 @@ type DetailsProducer func(ctx context.Context) (*ExecutionDetails, error)
 type ExecutionState struct {
 	*sync.RWMutex
 
-	Executed sets.Set[graph.Identifier]
-	Queued   sets.Set[graph.Identifier]
-	Outputs  Outputs
+	Executed     sets.Set[graph.Identifier]
+	Queued       sets.Set[graph.Identifier]
+	Outputs      Outputs
+	StampOutputs map[string]Outputs
 
 	Timing  map[graph.Identifier]*ExecutionInfo
 	Details map[graph.Identifier]*ExecutionDetails
 	Logging map[graph.Identifier][]byte
+}
+
+// RecordOutput stores step output in the correct layer.
+// Stamped nodes write to StampOutputs[stamp], unstamped to Outputs.
+// Caller must hold state.Lock() (write lock).
+func (s *ExecutionState) RecordOutput(node graph.Identifier, output Output) {
+	target := s.Outputs
+	if len(node.Stamp) > 0 {
+		if s.StampOutputs[node.Stamp] == nil {
+			s.StampOutputs[node.Stamp] = Outputs{}
+		}
+		target = s.StampOutputs[node.Stamp]
+	}
+
+	if target[node.ServiceGroup] == nil {
+		target[node.ServiceGroup] = map[string]map[string]Output{}
+	}
+	if target[node.ServiceGroup][node.ResourceGroup] == nil {
+		target[node.ServiceGroup][node.ResourceGroup] = map[string]Output{}
+	}
+	target[node.ServiceGroup][node.ResourceGroup][node.Step] = output
+}
+
+// GetOutputs returns a snapshot of outputs for the given stamp.
+// For stamped nodes, the stamp layer is merged over the base layer (stamp wins on conflict).
+// During concurrent execution, caller must hold state.RLock() or state.Lock().
+func (s *ExecutionState) GetOutputs(stamp string) Outputs {
+	merged := Outputs{}
+	for sg, rgMap := range s.Outputs {
+		merged[sg] = map[string]map[string]Output{}
+		for rg, stepMap := range rgMap {
+			merged[sg][rg] = map[string]Output{}
+			maps.Copy(merged[sg][rg], stepMap)
+		}
+	}
+	if stamp == "" {
+		return merged
+	}
+	if stampOutputs, ok := s.StampOutputs[stamp]; ok {
+		for sg, rgMap := range stampOutputs {
+			if merged[sg] == nil {
+				merged[sg] = map[string]map[string]Output{}
+			}
+			for rg, stepMap := range rgMap {
+				if merged[sg][rg] == nil {
+					merged[sg][rg] = map[string]Output{}
+				}
+				maps.Copy(merged[sg][rg], stepMap)
+			}
+		}
+	}
+	return merged
 }
 
 type ExecutionInfo struct {
@@ -235,7 +292,7 @@ func precheckResourceGroups(ctx context.Context, logger logr.Logger, executionGr
 	return nil
 }
 
-func RunPipeline(service *topology.Service, pipeline *types.Pipeline, ctx context.Context, options *PipelineRunOptions, executor Executor) (Outputs, error) {
+func RunPipeline(service *topology.Service, pipeline *types.Pipeline, ctx context.Context, options *PipelineRunOptions, executor Executor) (*ExecutionState, error) {
 	logger, err := logr.FromContext(ctx)
 	if err != nil {
 		return nil, err
@@ -272,7 +329,7 @@ func RunPipeline(service *topology.Service, pipeline *types.Pipeline, ctx contex
 	return runGraph(ctx, logger, executionGraph, options, executor)
 }
 
-func RunEntrypoint(topo *topology.CombinedTopology, entrypoint *topology.Entrypoint, pipelines map[string]*types.Pipeline, ctx context.Context, options *PipelineRunOptions, executor Executor) (Outputs, error) {
+func RunEntrypoint(topo *topology.CombinedTopology, entrypoint *topology.Entrypoint, pipelines map[string]*types.Pipeline, ctx context.Context, options *PipelineRunOptions, executor Executor) (*ExecutionState, error) {
 	logger, err := logr.FromContext(ctx)
 	if err != nil {
 		return nil, err
@@ -291,11 +348,14 @@ func RunEntrypoint(topo *topology.CombinedTopology, entrypoint *topology.Entrypo
 		return nil, err
 	}
 
-	logger.Info("Generating execution graph.")
-	executionGraph, err := graph.ForEntrypoint(&topo.Topology, entrypoint, pipelines)
+	logger.Info("Generating stamped execution graph.")
+	executionGraph, err := graph.ForStampedEntrypoints(&topo.Topology, []*topology.Entrypoint{entrypoint}, options.StampPipelines)
 	if err != nil {
-		return nil, fmt.Errorf("failed to generate execution graph: %w", err)
+		return nil, fmt.Errorf("failed to generate stamped execution graph: %w", err)
 	}
+
+	// Stamps execute concurrently; execution order is still enforced by the graph’s dependency edges (including unstamped parents).
+	executor = stampConfigExecutor(options.StampConfigs, executor)
 
 	if err := precheckResourceGroups(ctx, logger, executionGraph,
 		options.SubsciptionLookupFunc, options.AbortIfRegionalExist, options.RegionRGNames); err != nil {
@@ -345,7 +405,7 @@ func runBuildStep(ctx context.Context, buildStep types.BuildStep, serviceGroup, 
 	return nil
 }
 
-func runGraph(ctx context.Context, logger logr.Logger, executionGraph *graph.Graph, options *PipelineRunOptions, executor Executor) (Outputs, error) {
+func runGraph(ctx context.Context, logger logr.Logger, executionGraph *graph.Graph, options *PipelineRunOptions, executor Executor) (*ExecutionState, error) {
 	if options.StepCacheDir != "" {
 		if err := os.MkdirAll(options.StepCacheDir, 0755); err != nil {
 			return nil, err
@@ -353,13 +413,14 @@ func runGraph(ctx context.Context, logger logr.Logger, executionGraph *graph.Gra
 	}
 
 	state := &ExecutionState{
-		RWMutex:  &sync.RWMutex{},
-		Executed: sets.Set[graph.Identifier]{},
-		Queued:   sets.Set[graph.Identifier]{},
-		Timing:   make(map[graph.Identifier]*ExecutionInfo),
-		Details:  make(map[graph.Identifier]*ExecutionDetails),
-		Logging:  make(map[graph.Identifier][]byte),
-		Outputs:  make(Outputs),
+		RWMutex:      &sync.RWMutex{},
+		Executed:     sets.Set[graph.Identifier]{},
+		Queued:       sets.Set[graph.Identifier]{},
+		Timing:       make(map[graph.Identifier]*ExecutionInfo),
+		Details:      make(map[graph.Identifier]*ExecutionDetails),
+		Logging:      make(map[graph.Identifier][]byte),
+		Outputs:      make(Outputs),
+		StampOutputs: make(map[string]Outputs),
 	}
 
 	if options.TimingOutputFile != "" {
@@ -570,6 +631,9 @@ func runGraph(ctx context.Context, logger logr.Logger, executionGraph *graph.Gra
 					stepHandler := logr.FromSlogHandler(slog.NewTextHandler(&stepLogs, &slog.HandlerOptions{}))
 					sink := multiSink{sinks: []logr.LogSink{originalSink, stepHandler.GetSink()}}
 					stepLogger := thisLogger.WithSink(&sink).WithValues("serviceGroup", step.ServiceGroup, "resourceGroup", step.ResourceGroup, "step", step.Step)
+					if step.Stamp != "" {
+						stepLogger = stepLogger.WithValues("stamp", step.Stamp)
+					}
 					stepLogger.V(4).Info("Executing step.")
 					state.Lock()
 					state.Timing[step].StartedAt = time.Now().Format(time.RFC3339)
@@ -648,11 +712,26 @@ func runGraph(ctx context.Context, logger logr.Logger, executionGraph *graph.Gra
 	if len(executionErrors) > 0 {
 		return nil, fmt.Errorf("errors occurred during execution: %v", executionErrors)
 	}
-	state.RLock()
-	outputs := state.Outputs
-	state.RUnlock()
+	return state, nil
+}
 
-	return outputs, nil
+func stampConfigExecutor(
+	stampConfigs map[string]configtypes.Configuration,
+	baseExecutor Executor,
+) Executor {
+	return func(id graph.Identifier, s types.Step, ctx context.Context, executionTarget ExecutionTarget, options *StepRunOptions, state *ExecutionState) (Output, DetailsProducer, error) {
+		if id.Stamp != "" {
+			cfg, ok := stampConfigs[id.Stamp]
+			if !ok {
+				return nil, nil, fmt.Errorf("no configuration for stamp %q", id.Stamp)
+			}
+			stampOpts := *options
+			stampOpts.Configuration = cfg
+			stampOpts.Stamp = id.Stamp
+			return baseExecutor(id, s, ctx, executionTarget, &stampOpts, state)
+		}
+		return baseExecutor(id, s, ctx, executionTarget, options, state)
+	}
 }
 
 func executeNode(logger logr.Logger, executor Executor, graphCtx *graph.Graph, node graph.Identifier, ctx context.Context, options *PipelineRunOptions, state *ExecutionState) (DetailsProducer, int, error) {
@@ -665,14 +744,14 @@ func executeNode(logger logr.Logger, executor Executor, graphCtx *graph.Graph, n
 		return nil, 0, nil
 	}
 
-	resourceGroup, exists := graphCtx.ResourceGroups[node.ResourceGroup]
+	resourceGroup, exists := graphCtx.GetResourceGroup(node.ResourceGroupKey())
 	if !exists {
-		return nil, 0, fmt.Errorf("could not find resource group %s", node.ResourceGroup)
+		return nil, 0, fmt.Errorf("could not find resource group for node %s", node)
 	}
 
-	step, exists := graphCtx.Steps[node.ServiceGroup][node.ResourceGroup][node.Step]
+	step, exists := graphCtx.GetStep(node)
 	if !exists {
-		return nil, 0, fmt.Errorf("could not find step %s/%s/%s", node.ServiceGroup, node.ResourceGroup, node.Step)
+		return nil, 0, fmt.Errorf("could not find step %s", node)
 	}
 
 	subscriptionID, err := options.SubsciptionLookupFunc(ctx, resourceGroup.Subscription)
@@ -722,19 +801,16 @@ func executeNode(logger logr.Logger, executor Executor, graphCtx *graph.Graph, n
 		}
 	}
 	if stepRunErr != nil {
+		if node.Stamp != "" {
+			return details, runCount, fmt.Errorf("stamp %s: %w", node.Stamp, stepRunErr)
+		}
 		return details, runCount, stepRunErr
 	}
 
 	state.Lock()
 	if output != nil {
 		logger.V(4).Info("Recording step output.")
-		if _, recorded := state.Outputs[node.ServiceGroup]; !recorded {
-			state.Outputs[node.ServiceGroup] = map[string]map[string]Output{}
-		}
-		if _, recorded := state.Outputs[node.ServiceGroup][node.ResourceGroup]; !recorded {
-			state.Outputs[node.ServiceGroup][node.ResourceGroup] = map[string]Output{}
-		}
-		state.Outputs[node.ServiceGroup][node.ResourceGroup][node.Step] = output
+		state.RecordOutput(node, output)
 	}
 	state.Executed.Insert(node)
 	state.Unlock()
@@ -849,7 +925,7 @@ func RunStep(id graph.Identifier, s types.Step, ctx context.Context, executionTa
 		}
 		return output, details, nil
 	case *types.ARMStackStep:
-		output, details, err := runArmStackStep(ctx, options, executionTarget, id, step, state, options.Environment, options.Stamp)
+		output, details, err := runArmStackStep(ctx, options, executionTarget, id, step, state, options.Environment, id.Stamp)
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to run ARM step: %w", err)
 		}
