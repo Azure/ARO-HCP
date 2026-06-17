@@ -1546,7 +1546,7 @@
         "type": "prometheus",
         "uid": "${hcp_datasource}"
       },
-      "description": "Rate of etcd leader changes per HCP namespace. Frequent leader elections indicate etcd instability.",
+      "description": "Number of etcd leader changes per HCP namespace over the last hour. Any value above 0 indicates leader churn worth investigating.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1632,13 +1632,13 @@
             "uid": "${hcp_datasource}"
           },
           "editorMode": "code",
-          "expr": "sum by (namespace) (rate(etcd_server_leader_changes_seen_total{cluster=\"$cluster\"}[5m]))",
+          "expr": "sum by (namespace) (increase(etcd_server_leader_changes_seen_total{cluster=\"$cluster\"}[1h]))",
           "legendFormat": "{{namespace}}",
           "range": true,
           "refId": "A"
         }
       ],
-      "title": "etcd Leader Changes",
+      "title": "etcd Leader Changes (Last 1h)",
       "type": "timeseries"
     }
   ],
