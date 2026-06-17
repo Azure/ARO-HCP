@@ -1000,3 +1000,119 @@ func TestCheckNotAllowedAndDeniedActionsForResourceID_NoActionsNoDataActions(t *
 	assert.Empty(t, result)
 	assert.False(t, checkAccessCalled, "CheckAccess should not be called when there are no actions and no data actions")
 }
+
+// --- Tests for formatMissingPermissionsMessage ---
+
+func TestFormatMissingPermissionsMessage(t *testing.T) {
+	identity := mustParseResourceID("/subscriptions/11111111-1111-1111-1111-111111111111/resourceGroups/rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/cloud-controller")
+	resource := mustParseResourceID("/subscriptions/11111111-1111-1111-1111-111111111111/resourceGroups/rg/providers/Microsoft.Network/networkSecurityGroups/nsg")
+
+	for _, tc := range []struct {
+		name     string
+		input    []IdentityResourceMissingPermissions
+		expected string
+	}{
+		{
+			name:     "empty input",
+			input:    nil,
+			expected: "",
+		},
+		{
+			name: "not allowed regular actions only",
+			input: []IdentityResourceMissingPermissions{
+				{
+					Identity: identity,
+					Resource: resource,
+					Decisions: []checkaccessv2.AuthorizationDecision{
+						{ActionId: "Microsoft.Network/networkSecurityGroups/write", AccessDecision: checkaccessv2.NotAllowed, IsDataAction: false},
+					},
+				},
+			},
+			expected: "identity '" + identity.String() + "' on resource '" + resource.String() + "': not allowed actions: Microsoft.Network/networkSecurityGroups/write",
+		},
+		{
+			name: "not allowed dataActions only",
+			input: []IdentityResourceMissingPermissions{
+				{
+					Identity: identity,
+					Resource: resource,
+					Decisions: []checkaccessv2.AuthorizationDecision{
+						{ActionId: "Microsoft.Storage/storageAccounts/blobServices/containers/blobs/read", AccessDecision: checkaccessv2.NotAllowed, IsDataAction: true},
+					},
+				},
+			},
+			expected: "identity '" + identity.String() + "' on resource '" + resource.String() + "': not allowed dataActions: Microsoft.Storage/storageAccounts/blobServices/containers/blobs/read",
+		},
+		{
+			name: "denied regular actions only",
+			input: []IdentityResourceMissingPermissions{
+				{
+					Identity: identity,
+					Resource: resource,
+					Decisions: []checkaccessv2.AuthorizationDecision{
+						{ActionId: "Microsoft.Network/networkSecurityGroups/join/action", AccessDecision: checkaccessv2.Denied, IsDataAction: false},
+					},
+				},
+			},
+			expected: "identity '" + identity.String() + "' on resource '" + resource.String() + "': denied actions: Microsoft.Network/networkSecurityGroups/join/action",
+		},
+		{
+			name: "denied dataActions only",
+			input: []IdentityResourceMissingPermissions{
+				{
+					Identity: identity,
+					Resource: resource,
+					Decisions: []checkaccessv2.AuthorizationDecision{
+						{ActionId: "Microsoft.Storage/storageAccounts/blobServices/containers/blobs/write", AccessDecision: checkaccessv2.Denied, IsDataAction: true},
+					},
+				},
+			},
+			expected: "identity '" + identity.String() + "' on resource '" + resource.String() + "': denied dataActions: Microsoft.Storage/storageAccounts/blobServices/containers/blobs/write",
+		},
+		{
+			name: "all four buckets present",
+			input: []IdentityResourceMissingPermissions{
+				{
+					Identity: identity,
+					Resource: resource,
+					Decisions: []checkaccessv2.AuthorizationDecision{
+						{ActionId: "Microsoft.Network/networkSecurityGroups/write", AccessDecision: checkaccessv2.NotAllowed, IsDataAction: false},
+						{ActionId: "Microsoft.Storage/storageAccounts/blobServices/containers/blobs/read", AccessDecision: checkaccessv2.NotAllowed, IsDataAction: true},
+						{ActionId: "Microsoft.Network/networkSecurityGroups/join/action", AccessDecision: checkaccessv2.Denied, IsDataAction: false},
+						{ActionId: "Microsoft.Storage/storageAccounts/blobServices/containers/blobs/write", AccessDecision: checkaccessv2.Denied, IsDataAction: true},
+					},
+				},
+			},
+			expected: "identity '" + identity.String() + "' on resource '" + resource.String() + "':" +
+				" not allowed actions: Microsoft.Network/networkSecurityGroups/write" +
+				" not allowed dataActions: Microsoft.Storage/storageAccounts/blobServices/containers/blobs/read" +
+				" denied actions: Microsoft.Network/networkSecurityGroups/join/action" +
+				" denied dataActions: Microsoft.Storage/storageAccounts/blobServices/containers/blobs/write",
+		},
+		{
+			name: "multiple results joined by semicolon",
+			input: []IdentityResourceMissingPermissions{
+				{
+					Identity: identity,
+					Resource: resource,
+					Decisions: []checkaccessv2.AuthorizationDecision{
+						{ActionId: "Microsoft.Network/networkSecurityGroups/write", AccessDecision: checkaccessv2.NotAllowed, IsDataAction: false},
+					},
+				},
+				{
+					Identity: identity,
+					Resource: resource,
+					Decisions: []checkaccessv2.AuthorizationDecision{
+						{ActionId: "Microsoft.Storage/storageAccounts/blobServices/containers/blobs/read", AccessDecision: checkaccessv2.Denied, IsDataAction: true},
+					},
+				},
+			},
+			expected: "identity '" + identity.String() + "' on resource '" + resource.String() + "': not allowed actions: Microsoft.Network/networkSecurityGroups/write" +
+				"; identity '" + identity.String() + "' on resource '" + resource.String() + "': denied dataActions: Microsoft.Storage/storageAccounts/blobServices/containers/blobs/read",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, formatMissingPermissionsMessage(tc.input))
+		})
+	}
+}

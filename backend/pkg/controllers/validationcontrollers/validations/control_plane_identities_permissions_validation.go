@@ -402,28 +402,44 @@ func (v *ControlPlaneIdentitiesPermissionsValidation) collectNotAllowedAndDenied
 
 // formatMissingPermissionsMessage builds a human-readable string from a set of authorization
 // failures. Each IdentityResourceMissingPermissions contributes one entry describing the
-// identity, resource, and the specific not-allowed and denied actions, for example:
+// identity, resource, and the specific not-allowed and denied actions or dataActions, for example:
 //
-//	identity '.../cloud-controller' on resource '.../networkSecurityGroups/nsg': not allowed: Microsoft.Network/networkSecurityGroups/write, denied: Microsoft.Network/networkSecurityGroups/join/action
+//	identity '.../cloud-controller' on resource '.../networkSecurityGroups/nsg': not allowed actions: Microsoft.Network/networkSecurityGroups/write, denied dataActions: Microsoft.Storage/storageAccounts/blobServices/containers/blobs/read
 func formatMissingPermissionsMessage(results []IdentityResourceMissingPermissions) string {
 	parts := make([]string, 0, len(results))
 	for _, result := range results {
 		var notAllowedActions []string
+		var notAllowedDataActions []string
 		var deniedActions []string
+		var deniedDataActions []string
 		for _, decision := range result.Decisions {
 			switch decision.AccessDecision {
 			case azurecheckaccessv2client.NotAllowed:
-				notAllowedActions = append(notAllowedActions, decision.ActionId)
+				if decision.IsDataAction {
+					notAllowedDataActions = append(notAllowedDataActions, decision.ActionId)
+				} else {
+					notAllowedActions = append(notAllowedActions, decision.ActionId)
+				}
 			case azurecheckaccessv2client.Denied:
-				deniedActions = append(deniedActions, decision.ActionId)
+				if decision.IsDataAction {
+					deniedDataActions = append(deniedDataActions, decision.ActionId)
+				} else {
+					deniedActions = append(deniedActions, decision.ActionId)
+				}
 			}
 		}
 		msg := fmt.Sprintf("identity '%s' on resource '%s':", result.Identity.String(), result.Resource.String())
 		if len(notAllowedActions) > 0 {
-			msg += fmt.Sprintf(" not allowed: %s", strings.Join(notAllowedActions, ", "))
+			msg += fmt.Sprintf(" not allowed actions: %s", strings.Join(notAllowedActions, ", "))
+		}
+		if len(notAllowedDataActions) > 0 {
+			msg += fmt.Sprintf(" not allowed dataActions: %s", strings.Join(notAllowedDataActions, ", "))
 		}
 		if len(deniedActions) > 0 {
-			msg += fmt.Sprintf(" denied: %s", strings.Join(deniedActions, ", "))
+			msg += fmt.Sprintf(" denied actions: %s", strings.Join(deniedActions, ", "))
+		}
+		if len(deniedDataActions) > 0 {
+			msg += fmt.Sprintf(" denied dataActions: %s", strings.Join(deniedDataActions, ", "))
 		}
 		parts = append(parts, msg)
 	}
