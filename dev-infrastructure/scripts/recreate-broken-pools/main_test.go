@@ -307,6 +307,70 @@ func TestEvalNonTargetPoolsHealthy_TempPoolSkipped(t *testing.T) {
 }
 
 // =============================================================================
+// guardDecision
+// =============================================================================
+
+func TestGuardDecision(t *testing.T) {
+	cases := []struct {
+		name        string
+		guard       string
+		pass        bool
+		reason      string
+		skipGuards  bool
+		wantProceed bool
+		wantMsg     string
+	}{
+		{
+			name:        "pass_ignores_skip_guards",
+			guard:       "cluster state",
+			pass:        true,
+			reason:      "",
+			skipGuards:  false,
+			wantProceed: true,
+			wantMsg:     "cluster state PASS",
+		},
+		{
+			name:        "pass_with_skip_guards_still_pass",
+			guard:       "cluster safety",
+			pass:        true,
+			reason:      "",
+			skipGuards:  true,
+			wantProceed: true,
+			wantMsg:     "cluster safety PASS",
+		},
+		{
+			name:        "fail_without_override_halts",
+			guard:       "cluster state",
+			pass:        false,
+			reason:      "provisioningState=\"Creating\" rejected",
+			skipGuards:  false,
+			wantProceed: false,
+			wantMsg:     "provisioningState=\"Creating\" rejected",
+		},
+		{
+			name:        "fail_with_override_proceeds",
+			guard:       "cluster safety",
+			pass:        false,
+			reason:      "non-target pool unhealthy",
+			skipGuards:  true,
+			wantProceed: true,
+			wantMsg:     "SKIP_GUARDS=true — overriding cluster safety failure: non-target pool unhealthy",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			proceed, msg := guardDecision(tc.guard, tc.pass, tc.reason, tc.skipGuards)
+			if proceed != tc.wantProceed {
+				t.Errorf("proceed = %t, want %t", proceed, tc.wantProceed)
+			}
+			if msg != tc.wantMsg {
+				t.Errorf("msg = %q, want %q", msg, tc.wantMsg)
+			}
+		})
+	}
+}
+
+// =============================================================================
 // agentPoolForCreate
 // =============================================================================
 

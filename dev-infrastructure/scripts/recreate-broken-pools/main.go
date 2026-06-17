@@ -174,11 +174,14 @@ const (
 	swiftNodepoolTag      = "aks-nic-enable-multi-tenancy"
 	swiftNodepoolTagValue = "true"
 
-	// overallTimeoutMin caps the whole binary. The EV2 ShellExtension host
-	// honors the `timeout` field set on the corresponding Shell step in
-	// mgmt-pipeline.yaml, which must leave headroom above this value for the
-	// deferred LRO-abort cleanup context (rooted in context.Background) that
-	// can run a few minutes past the parent ctx.
+	// overallTimeoutMin caps the whole binary via the single
+	// context.WithTimeout in run(); every Azure LRO poller, drain, and
+	// pre/post-flight dump inherits that ctx, so nothing outlives it. The EV2
+	// ShellExtension host honors the `timeout` field set on the corresponding
+	// Shell step in mgmt-pipeline.yaml, which must stay strictly above this
+	// value so the binary reaches its own deadline first and returns a logged
+	// timeout error (unwinding any in-flight pollers) instead of being
+	// force-killed by the host mid-operation.
 	overallTimeoutMin = 120
 
 	// nrpKVSErrorCode / vmssWriteOperation identify the NRP-KVS VMSS-write
@@ -931,6 +934,28 @@ func evalPoolWedge(provState string) (bool, string) {
 	return false, fmt.Sprintf("pool wedge FAIL: provisioningState=%q is not a recognized wedge-compatible state", provState)
 }
 
+// guardDecision resolves a single detection guard's outcome against the
+// SKIP_GUARDS operator override. It returns proceed=true when the run may
+// continue past the guard, plus a human-readable log line describing the
+// outcome:
+//   - guard passed              -> proceed, "<name> PASS"
+//   - guard failed, no override -> halt, the guard's reason (returned to the
+//     caller so the run exits no-op with that reason)
+//   - guard failed, skipGuards  -> proceed, "SKIP_GUARDS=true — overriding
+//     <name> failure: <reason>" (operator override; failure logged, not enforced)
+//
+// This is what makes SKIP_GUARDS actually bypass the cluster-state and
+// non-target-pool safety guards in detect(), matching its documented behavior.
+func guardDecision(name string, pass bool, reason string, skipGuards bool) (proceed bool, logMsg string) {
+	if pass {
+		return true, name + " PASS"
+	}
+	if skipGuards {
+		return true, fmt.Sprintf("SKIP_GUARDS=true — overriding %s failure: %s", name, reason)
+	}
+	return false, reason
+}
+
 func (c *clients) detect(ctx context.Context) ([]nodePoolTarget, string, error) {
 	mc, err := c.cluster.Get(ctx, c.cfg.resourceGroup, c.cfg.clusterName, nil)
 	if err != nil {
@@ -941,10 +966,12 @@ func (c *clients) detect(ctx context.Context) ([]nodePoolTarget, string, error) 
 		cs = *mc.Properties.ProvisioningState
 	}
 	logf("cluster state :: provisioningState=%s (accept: Succeeded/Canceled/Failed/Updating/Upgrading; reject: Creating/Deleting/unknown)", cs)
-	if pass, reason := evalClusterState(cs); !pass {
-		return nil, reason, nil
+	csPass, csReason := evalClusterState(cs)
+	proceed, msg := guardDecision("cluster state", csPass, csReason, c.cfg.skipGuards)
+	if !proceed {
+		return nil, msg, nil
 	}
-	logf("cluster state PASS")
+	logf("%s", msg)
 
 	pager := c.pools.NewListPager(c.cfg.resourceGroup, c.cfg.clusterName, nil)
 	var allPools []*armcs.AgentPool
@@ -956,11 +983,12 @@ func (c *clients) detect(ctx context.Context) ([]nodePoolTarget, string, error) 
 		allPools = append(allPools, page.Value...)
 	}
 
-	pass, reason := evalNonTargetPoolsHealthy(allPools)
-	if !pass {
-		return nil, reason, nil
+	ntPass, ntReason := evalNonTargetPoolsHealthy(allPools)
+	proceed, msg = guardDecision("cluster safety", ntPass, ntReason, c.cfg.skipGuards)
+	if !proceed {
+		return nil, msg, nil
 	}
-	logf("cluster safety PASS")
+	logf("%s", msg)
 
 	// Classify pools by role match without touching the Activity Log. The two
 	// ARM-only prechecks below give us a priori knowledge of which pools are
