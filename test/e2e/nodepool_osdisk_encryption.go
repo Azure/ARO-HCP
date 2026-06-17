@@ -70,14 +70,21 @@ var _ = Describe("Nodepool OS Disk Encryption", func() {
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to create cluster customer resources")
 
-			By("creating a KeyVault and DES for OS disk encryption")
-			subscriptionID, err := tc.SubscriptionID(ctx)
-			Expect(err).NotTo(HaveOccurred(), "failed to get subscription ID")
-
-			desResourceID := fmt.Sprintf(
-				"/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Compute/diskEncryptionSets/%s-des",
-				subscriptionID, *resourceGroup.Name, customerClusterName,
+			By("creating disk encryption set backed by KeyVault")
+			desDeployment, err := tc.CreateBicepTemplateAndWait(ctx,
+				framework.WithTemplateFromFS(TestArtifactsFS, "test-artifacts/generated-test-artifacts/modules/disk-encryption-set.json"),
+				framework.WithDeploymentName(fmt.Sprintf("des-%s", customerClusterName)),
+				framework.WithScope(framework.BicepDeploymentScopeResourceGroup),
+				framework.WithClusterResourceGroup(*resourceGroup.Name),
+				framework.WithParameters(map[string]interface{}{
+					"keyVaultName": clusterParams.KeyVaultName,
+					"clusterName":  customerClusterName,
+				}),
 			)
+			Expect(err).NotTo(HaveOccurred(), "failed to create disk encryption set")
+
+			desResourceID, err := framework.GetOutputValueString(desDeployment, "diskEncryptionSetId")
+			Expect(err).NotTo(HaveOccurred(), "failed to get diskEncryptionSetId from deployment output")
 
 			By("creating the HCP cluster")
 			err = tc.CreateHCPClusterFromParam20240610(ctx,
