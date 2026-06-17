@@ -1434,12 +1434,12 @@
               {
                 "name": "Public",
                 "value": "Public",
-                "description": "The API server is visible from the internet."
+                "description": "The endpoint is visible from the internet."
               },
               {
                 "name": "Private",
                 "value": "Private",
-                "description": "The API server is not visible from the internet."
+                "description": "The endpoint is not visible from the internet."
               }
             ]
           },
