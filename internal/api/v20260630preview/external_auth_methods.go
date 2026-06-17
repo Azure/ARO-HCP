@@ -304,6 +304,7 @@ func (v version) NewHCPOpenShiftClusterExternalAuth(from *api.HCPOpenShiftCluste
 			SystemData: api.PtrOrNil(newSystemData(from.SystemData)),
 			Properties: &generated.ExternalAuthProperties{
 				ProvisioningState: api.PtrOrNil(generated.ExternalAuthProvisioningState(from.Properties.ProvisioningState)),
+				Status:            newResourceStatus(from.Status.Conditions),
 				Issuer:            api.PtrOrNil(newTokenIssuerProfile(&from.Properties.Issuer)),
 				Claim:             api.PtrOrNil(newExternalAuthClaimProfile(&from.Properties.Claim)),
 			},
