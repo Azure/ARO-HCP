@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"os"
 	"time"
 
 	_ "k8s.io/component-base/metrics/prometheus/clientgo"
@@ -794,7 +795,9 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go createNodePoolScopedReadDesiresController.Run(ctx, 20)
 				go maestroDeleteOrphanedReadonlyBundlesController.Run(ctx, 20)
 				go cleanupLegacyMaestroReadonlyBundlesController.Run(ctx, 1)
-				go cleanOrphanedClusterManagedResourceGroupController.Run(ctx, 1)
+				if os.Getenv("CLEAN_ORPHANED_MANAGED_RESOURCE_GROUPS") == "enabled" {
+					go cleanOrphanedClusterManagedResourceGroupController.Run(ctx, 1)
+				}
 				go triggerNodePoolUpgradeController.Run(ctx, 20)
 				go nodePoolDeletionClusterServiceDeleteDispatchController.Run(ctx, 20)
 				go nodePoolClusterServiceIDClearerController.Run(ctx, 20)
