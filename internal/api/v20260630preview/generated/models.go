@@ -348,7 +348,7 @@ type HcpOpenShiftClusterProperties struct {
 	// WARNING: Updating this array will redeploy all node pools in the cluster.
 	ImageDigestMirrors []*ImageDigestMirror
 
-	// Shows the cluster ingress profile
+	// The cluster ingress configuration
 	Ingress *IngressProfile
 
 	// Cluster network configuration
