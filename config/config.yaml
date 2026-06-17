@@ -1610,7 +1610,7 @@ clouds:
                 vmSize: Standard_D16ds_v6
                 secondaryNicCount: 7
               infraAgentPool:
-                vmSize: Standard_D4ds_v6
+                vmSize: Standard_D8ds_v6
                 osDiskSizeGB: 64
               enableSwiftV2Nodepools: true
               enableSwiftV2Vnet: true
@@ -1709,7 +1709,7 @@ clouds:
                 vmSize: Standard_D16ds_v6
                 secondaryNicCount: 7
               infraAgentPool:
-                vmSize: Standard_D4ds_v6
+                vmSize: Standard_D8ds_v6
                 osDiskSizeGB: 64
               enableSwiftV2Nodepools: true
               enableSwiftV2Vnet: true

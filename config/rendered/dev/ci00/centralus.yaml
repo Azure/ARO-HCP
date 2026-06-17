@@ -594,7 +594,7 @@ mgmt:
       name: infra
       osDiskSizeGB: 64
       poolCount: 2
-      vmSize: Standard_D4ds_v6
+      vmSize: Standard_D8ds_v6
       zoneRedundantMode: Auto
       zones: ""
     kubernetesVersion: "1.35"
