@@ -113,6 +113,7 @@ type HCPClusterCRUD interface {
 
 	ExternalAuth(hcpClusterID string) ExternalAuthsCRUD
 	NodePools(hcpClusterID string) NodePoolsCRUD
+	SystemAdminCredentials(hcpClusterID string) SystemAdminCredentialsCRUD
 }
 
 func NewHCPClusterCRUD(containerClient *azcosmos.ContainerClient, subscriptionID, resourceGroupName string) HCPClusterCRUD {
@@ -143,6 +144,11 @@ type ExternalAuthsCRUD interface {
 	ControllerContainer
 }
 
+type SystemAdminCredentialsCRUD interface {
+	ResourceCRUD[api.SystemAdminCredential]
+	ControllerContainer
+}
+
 type hcpClusterCRUD struct {
 	*nestedCosmosResourceCRUD[api.HCPOpenShiftCluster, GenericDocument[api.HCPOpenShiftCluster]]
 }
@@ -163,6 +169,24 @@ func (h *hcpClusterCRUD) ExternalAuth(hcpClusterName string) ExternalAuthsCRUD {
 			h.containerClient,
 			parentResourceID,
 			api.ExternalAuthResourceType,
+		),
+	}
+}
+
+func (h *hcpClusterCRUD) SystemAdminCredentials(hcpClusterName string) SystemAdminCredentialsCRUD {
+	parentResourceID := api.Must(azcorearm.ParseResourceID(
+		path.Join(
+			h.parentResourceID.String(),
+			"providers",
+			h.resourceType.Namespace,
+			h.resourceType.Type,
+			hcpClusterName)))
+
+	return &systemAdminCredentialsCRUD{
+		nestedCosmosResourceCRUD: NewCosmosResourceCRUD[api.SystemAdminCredential, GenericDocument[api.SystemAdminCredential]](
+			h.containerClient,
+			parentResourceID,
+			api.SystemAdminCredentialResourceType,
 		),
 	}
 }
@@ -214,6 +238,21 @@ func (h *hcpClusterCRUD) ManagementClusterContents(hcpClusterName string) Manage
 
 type externalAuthCRUD struct {
 	*nestedCosmosResourceCRUD[api.HCPOpenShiftClusterExternalAuth, GenericDocument[api.HCPOpenShiftClusterExternalAuth]]
+}
+
+type systemAdminCredentialsCRUD struct {
+	*nestedCosmosResourceCRUD[api.SystemAdminCredential, GenericDocument[api.SystemAdminCredential]]
+}
+
+func (h *systemAdminCredentialsCRUD) Controllers(credentialName string) ResourceCRUD[api.Controller] {
+	parentResourceID := api.Must(azcorearm.ParseResourceID(
+		path.Join(
+			h.parentResourceID.String(),
+			h.resourceType.Types[len(h.resourceType.Types)-1],
+			credentialName,
+		)))
+
+	return NewControllerCRUD(h.containerClient, parentResourceID, api.SystemAdminCredentialControllerResourceType)
 }
 
 func (h *externalAuthCRUD) Controllers(externalAuthName string) ResourceCRUD[api.Controller] {

@@ -46,7 +46,20 @@ var (
 	aroHcpV1Alpha1ExternalAuthPattern          = path.Join(aroHcpV1Alpha1ClusterPattern, externalAuthKey, "*")
 	aroHcpV1Alpha1ClusterProvisionShardPattern = path.Join(aroHcpV1Alpha1ClusterPattern, clusterProvisionShardKey) + "$"
 	aroHcpV1Alpha1ProvisionShardPattern        = path.Join(aroHcpV1Alpha1Pattern, provisionShardKey, "*")
+
+	// systemAdminCredentialARMPattern matches the lowercased ARM resource
+	// ID of a SystemAdminCredential document (internal, per-cluster). The
+	// SystemAdminCredential migration plan reuses Operation.InternalID
+	// as the pointer from the operation to its in-flight credential —
+	// see docs/system-admin-credentials/PLAN.md controller 1.
+	systemAdminCredentialARMPattern = "/subscriptions/*/resourcegroups/*/providers/microsoft.redhatopenshift/hcpopenshiftclusters/*/systemadmincredentials/*"
 )
+
+// SystemAdminCredentialKind is the InternalID kind for a
+// SystemAdminCredential ARM resource ID. Distinct from any
+// cluster-service `Kind` constant because this is not a cluster-service
+// HREF.
+const SystemAdminCredentialKind = "SystemAdminCredential"
 
 // InternalID represents a Cluster Service resource.
 type InternalID struct {
@@ -105,6 +118,11 @@ func (id *InternalID) validate() error {
 
 	if match, _ = path.Match(aroHcpV1Alpha1ProvisionShardPattern, id.path); match {
 		id.kind = arohcpv1alpha1.ProvisionShardKind
+		return nil
+	}
+
+	if match, _ = path.Match(systemAdminCredentialARMPattern, id.path); match {
+		id.kind = SystemAdminCredentialKind
 		return nil
 	}
 
