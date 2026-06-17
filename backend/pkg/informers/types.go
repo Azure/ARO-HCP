@@ -19,6 +19,7 @@ import (
 	"sync"
 	"time"
 
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
@@ -179,6 +180,7 @@ func NewBackendInformersWithRelistDuration(ctx context.Context, resourcesGlobalL
 }
 
 func (b *backendInformers) RunWithContext(ctx context.Context) {
+	defer utilruntime.HandleCrash()
 	logger := utils.LoggerFromContext(ctx)
 	logger.Info("starting informers")
 	defer logger.Info("stopped informers")
@@ -187,56 +189,67 @@ func (b *backendInformers) RunWithContext(ctx context.Context) {
 
 	wg.Add(1)
 	go func() {
+		defer utilruntime.HandleCrash()
 		defer wg.Done()
 		b.subscriptionInformer.RunWithContext(ctx)
 	}()
 	wg.Add(1)
 	go func() {
+		defer utilruntime.HandleCrash()
 		defer wg.Done()
 		b.activeOperationInformer.RunWithContext(ctx)
 	}()
 	wg.Add(1)
 	go func() {
+		defer utilruntime.HandleCrash()
 		defer wg.Done()
 		b.allOperationInformer.RunWithContext(ctx)
 	}()
 	wg.Add(1)
 	go func() {
+		defer utilruntime.HandleCrash()
 		defer wg.Done()
 		b.clusterInformer.RunWithContext(ctx)
 	}()
 	wg.Add(1)
 	go func() {
+		defer utilruntime.HandleCrash()
 		defer wg.Done()
 		b.nodePoolInformer.RunWithContext(ctx)
 	}()
 	wg.Add(1)
 	go func() {
+		defer utilruntime.HandleCrash()
 		defer wg.Done()
 		b.externalAuthInformer.RunWithContext(ctx)
 	}()
 	wg.Add(1)
 	go func() {
+		defer utilruntime.HandleCrash()
 		defer wg.Done()
 		b.serviceProviderClusterInformer.RunWithContext(ctx)
 	}()
 	wg.Add(1)
 	go func() {
+		defer utilruntime.HandleCrash()
 		defer wg.Done()
 		b.serviceProviderNodePoolInformer.RunWithContext(ctx)
 	}()
 	wg.Add(1)
 	go func() {
+		defer utilruntime.HandleCrash()
 		defer wg.Done()
 		b.controllerInformer.RunWithContext(ctx)
 	}()
 	wg.Add(1)
 	go func() {
+		defer utilruntime.HandleCrash()
 		defer wg.Done()
 		b.managementClusterContentInformer.RunWithContext(ctx)
 	}()
 	wg.Add(1)
 	go func() {
+		defer utilruntime.HandleCrash()
 		defer wg.Done()
 		b.billingInformer.RunWithContext(ctx)
 	}()

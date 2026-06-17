@@ -8,6 +8,10 @@ entrypoints:
   metadata:
     name: Region
     scopeDoc: high-level-architecture.md#regional-scope
+- identifier: 'Microsoft.Azure.ARO.HCP.Monitoring'
+  metadata:
+    name: Monitoring
+    scopeDoc: high-level-architecture.md#monitoring-scope
 services:
 - serviceGroup: Microsoft.Azure.ARO.HCP.Global
   children:
@@ -41,6 +45,7 @@ services:
         pipelinePath: dev-infrastructure/svc-pipeline.yaml
         purpose: Deploy the service cluster and supporting infrastructure.
       - serviceGroup: Microsoft.Azure.ARO.HCP.Management.Infra
+        stamped: true
         children:
         - serviceGroup: Microsoft.Azure.ARO.HCP.Velero
           pipelinePath: velero/pipeline.yaml
@@ -60,9 +65,6 @@ services:
         - serviceGroup: Microsoft.Azure.ARO.HCP.KubeApplier
           pipelinePath: kube-applier/pipeline.yaml
           purpose: Deploy the Kube Applier.
-        - serviceGroup: Microsoft.Azure.ARO.HCP.RouteMonitorOperator
-          pipelinePath: route-monitor-operator/pipeline.yaml
-          purpose: Deploy the Route Monitor Operator.
         - serviceGroup: Microsoft.Azure.ARO.HCP.MgmtAgent
           pipelinePath: mgmt-agent/pipeline.yaml
           purpose: Deploy the Management Agent.

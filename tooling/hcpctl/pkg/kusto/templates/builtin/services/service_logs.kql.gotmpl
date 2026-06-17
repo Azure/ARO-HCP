@@ -1,19 +1,20 @@
 {{- if .NoTruncation}}set notruncation;
 {{end -}}
 {{.Table}}
+| where timestamp between({{ .TimestampMin }} .. {{ .TimestampMax }})
+{{- if .ClusterIds }}
+| where column_ifexists("cid", "") in ({{.ClusterIds}})
+    or (log has '{{.SubResourceGroupId}}' and log has_any ({{.ClusterIds}}))
+{{- else}}
+| where log has '{{.SubResourceGroupId}}'
+{{- end}}
 {{- if .SplitByPod}}
 | extend pod_name = column_ifexists("pod_name", "")
 | project timestamp, log, cluster, namespace_name, container_name, pod_name
 {{- else}}
 | project timestamp, log, cluster, namespace_name, container_name
 {{- end}}
-| where timestamp between({{ .TimestampMin }} .. {{ .TimestampMax }})
-{{- if .ClusterIds }}
-| where log has '{{.SubResourceGroupId}}' or log has_any ({{.ClusterIds}})
-{{- else}}
-| where log has '{{.SubResourceGroupId}}'
-{{- end}}
+| order by timestamp {{.OrderBy}}
 {{- if gt .Limit 0}}
 | limit {{.Limit}}
 {{- end}}
-| order by timestamp asc

@@ -222,7 +222,7 @@ func (c *SwiftNICController) process(ctx context.Context, node *corev1.Node) (*a
 		), nil
 }
 
-// countSwiftNICs counts non-primary accelerated networking NICs on a VMSS VM.
+// countSwiftNICs counts non-primary NICs on a VMSS VM.
 func countSwiftNICs(vm armcompute.VirtualMachineScaleSetVMsClientGetResponse) int {
 	count := 0
 	if vm.Properties == nil || vm.Properties.NetworkProfileConfiguration == nil {
@@ -233,8 +233,7 @@ func countSwiftNICs(vm armcompute.VirtualMachineScaleSetVMsClientGetResponse) in
 			continue
 		}
 		isPrimary := nic.Properties.Primary != nil && *nic.Properties.Primary
-		isAccelerated := nic.Properties.EnableAcceleratedNetworking != nil && *nic.Properties.EnableAcceleratedNetworking
-		if !isPrimary && isAccelerated {
+		if !isPrimary {
 			count++
 		}
 	}

@@ -18,8 +18,10 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 )
@@ -44,15 +46,47 @@ type Operation struct {
 type Resource struct {
 	// ResourceType is the resource provider and resource name, like "Microsoft.KeyVault/vaults".
 	ResourceType string `json:"resourceType"`
+	// SubscriptionID is the Azure subscription in which the resource exists.
+	// Not serialized to avoid leaking sensitive identifiers into published artifacts.
+	SubscriptionID string `json:"-"`
 	// ResourceGroup is the Azure resource group in which the resource exists.
 	ResourceGroup string `json:"resourceGroup"`
 	// Name is the name of the resource.
 	Name string `json:"name"`
 }
 
-func DetermineOperationsForResourceGroupDeployment(client *armresources.DeploymentOperationsClient, resourceGroup, deploymentName string) DetailsProducer {
+// OperationsClientGetter returns a DeploymentOperationsClient for the given subscription ID.
+// Implementations should cache clients to avoid redundant authentication.
+type OperationsClientGetter func(subscriptionID string) (*armresources.DeploymentOperationsClient, error)
+
+// NewCachedOperationsClientGetter creates an OperationsClientGetter that caches clients per subscription.
+// The provided defaultClient is used for the given subscriptionID; clients for other subscriptions
+// are created lazily using the provided credential.
+func NewCachedOperationsClientGetter(subscriptionID string, defaultClient *armresources.DeploymentOperationsClient, cred azcore.TokenCredential, opts *azcorearm.ClientOptions) OperationsClientGetter {
+	// mu guards the clients map, which may be accessed concurrently if
+	// multiple deployment operations are fetched in parallel.
+	var mu sync.Mutex
+	clients := map[string]*armresources.DeploymentOperationsClient{
+		subscriptionID: defaultClient,
+	}
+	return func(subID string) (*armresources.DeploymentOperationsClient, error) {
+		mu.Lock()
+		defer mu.Unlock()
+		if c, ok := clients[subID]; ok {
+			return c, nil
+		}
+		c, err := armresources.NewDeploymentOperationsClient(subID, cred, opts)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create operations client for subscription: %w", err)
+		}
+		clients[subID] = c
+		return c, nil
+	}
+}
+
+func DetermineOperationsForResourceGroupDeployment(getClient OperationsClientGetter, subscriptionID, resourceGroup, deploymentName string) DetailsProducer {
 	return func(ctx context.Context) (*ExecutionDetails, error) {
-		ops, err := fetchOperationsFor(ctx, client, resourceGroup, deploymentName)
+		ops, err := fetchOperationsFor(ctx, getClient, subscriptionID, resourceGroup, deploymentName)
 		if err != nil {
 			return nil, err
 		}
@@ -60,9 +94,9 @@ func DetermineOperationsForResourceGroupDeployment(client *armresources.Deployme
 	}
 }
 
-func DetermineOperationsForSubscriptionDeployment(client *armresources.DeploymentOperationsClient, deploymentName string) DetailsProducer {
+func DetermineOperationsForSubscriptionDeployment(getClient OperationsClientGetter, subscriptionID, deploymentName string) DetailsProducer {
 	return func(ctx context.Context) (*ExecutionDetails, error) {
-		ops, err := fetchSubscriptionScopedOperationsFor(ctx, client, deploymentName)
+		ops, err := fetchSubscriptionScopedOperationsFor(ctx, getClient, subscriptionID, deploymentName)
 		if err != nil {
 			return nil, err
 		}
@@ -72,31 +106,64 @@ func DetermineOperationsForSubscriptionDeployment(client *armresources.Deploymen
 
 // n.b. the Azure SDK for Go has unique types for the different types of pagers and no type constraint can be written to scope for pages of things containing lists of ops, so just copy-paste this instead of being clever
 
-func fetchOperationsFor(ctx context.Context, client *armresources.DeploymentOperationsClient, resourceGroup, deploymentName string) ([]Operation, error) {
+// fetchOperationsFor retrieves ARM deployment operations, handling both resource-group-scoped
+// and subscription-scoped deployments. Recursively fetches child deployment operations,
+// resolving the correct subscription client when a nested deployment crosses subscriptions.
+func fetchOperationsFor(ctx context.Context, getClient OperationsClientGetter, subscriptionID, resourceGroup, deploymentName string) ([]Operation, error) {
+	client, err := getClient(subscriptionID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get operations client for subscription: %w", err)
+	}
+
 	var operations []Operation
-	pager := client.NewListPager(resourceGroup, deploymentName, nil)
-	for pager.More() {
-		page, err := pager.NextPage(ctx)
-		if err != nil {
-			return []Operation{}, fmt.Errorf("failed to fetch operations: %w", err)
-		}
-		for _, item := range page.Value {
-			op, err := operationFor(item)
+	if resourceGroup != "" {
+		pager := client.NewListPager(resourceGroup, deploymentName, nil)
+		for pager.More() {
+			page, err := pager.NextPage(ctx)
 			if err != nil {
-				return []Operation{}, err
+				return []Operation{}, fmt.Errorf("failed to fetch operations: %w", err)
 			}
-			if op != nil {
-				operations = append(operations, *op)
+			for _, item := range page.Value {
+				op, err := operationFor(item)
+				if err != nil {
+					return []Operation{}, err
+				}
+				if op != nil {
+					operations = append(operations, *op)
+				}
+			}
+		}
+	} else {
+		pager := client.NewListAtSubscriptionScopePager(deploymentName, nil)
+		for pager.More() {
+			page, err := pager.NextPage(ctx)
+			if err != nil {
+				return []Operation{}, fmt.Errorf("failed to fetch operations: %w", err)
+			}
+			for _, item := range page.Value {
+				op, err := operationFor(item)
+				if err != nil {
+					return []Operation{}, err
+				}
+				if op != nil {
+					operations = append(operations, *op)
+				}
 			}
 		}
 	}
 
+	// Recurse into nested deployments, which may target a different subscription
 	for i, op := range operations {
 		if op.Resource == nil {
 			continue
 		}
 		if strings.EqualFold(op.Resource.ResourceType, "Microsoft.Resources/deployments") {
-			children, err := fetchOperationsFor(ctx, client, op.Resource.ResourceGroup, op.Resource.Name)
+			// Use the child's subscription if available, otherwise inherit the parent's
+			childSub := subscriptionID
+			if op.Resource.SubscriptionID != "" {
+				childSub = op.Resource.SubscriptionID
+			}
+			children, err := fetchOperationsFor(ctx, getClient, childSub, op.Resource.ResourceGroup, op.Resource.Name)
 			if err != nil {
 				return []Operation{}, fmt.Errorf("failed to fetch operations for child deployment %s/%s: %w", op.Resource.ResourceGroup, op.Resource.Name, err)
 			}
@@ -106,6 +173,8 @@ func fetchOperationsFor(ctx context.Context, client *armresources.DeploymentOper
 	return operations, nil
 }
 
+// operationFor converts an ARM DeploymentOperation into our internal Operation type.
+// Extracts subscription ID from the resource's ARM ID to enable cross-subscription traversal.
 func operationFor(item *armresources.DeploymentOperation) (*Operation, error) {
 	if item == nil || item.Properties == nil {
 		return nil, nil
@@ -117,9 +186,10 @@ func operationFor(item *armresources.DeploymentOperation) (*Operation, error) {
 			return nil, fmt.Errorf("failed to parse resource id: %w", err)
 		}
 		resource = &Resource{
-			ResourceType:  resourceId.ResourceType.String(),
-			ResourceGroup: resourceId.ResourceGroupName,
-			Name:          resourceId.Name,
+			ResourceType:   resourceId.ResourceType.String(),
+			SubscriptionID: resourceId.SubscriptionID,
+			ResourceGroup:  resourceId.ResourceGroupName,
+			Name:           resourceId.Name,
 		}
 	}
 
@@ -131,36 +201,8 @@ func operationFor(item *armresources.DeploymentOperation) (*Operation, error) {
 	}, nil
 }
 
-func fetchSubscriptionScopedOperationsFor(ctx context.Context, client *armresources.DeploymentOperationsClient, deploymentName string) ([]Operation, error) {
-	var operations []Operation
-	pager := client.NewListAtSubscriptionScopePager(deploymentName, nil)
-	for pager.More() {
-		page, err := pager.NextPage(ctx)
-		if err != nil {
-			return []Operation{}, fmt.Errorf("failed to fetch operations: %w", err)
-		}
-		for _, item := range page.Value {
-			op, err := operationFor(item)
-			if err != nil {
-				return []Operation{}, err
-			}
-			if op != nil {
-				operations = append(operations, *op)
-			}
-		}
-	}
-
-	for i, op := range operations {
-		if op.Resource == nil {
-			continue
-		}
-		if strings.EqualFold(op.Resource.ResourceType, "Microsoft.Resources/deployments") {
-			children, err := fetchSubscriptionScopedOperationsFor(ctx, client, op.Resource.Name)
-			if err != nil {
-				return []Operation{}, fmt.Errorf("failed to fetch operations for child deployment %s/%s: %w", op.Resource.ResourceGroup, op.Resource.Name, err)
-			}
-			operations[i].Children = children
-		}
-	}
-	return operations, nil
+// fetchSubscriptionScopedOperationsFor is a convenience entry point for subscription-scoped
+// deployments (no resource group). Delegates to fetchOperationsFor with an empty resource group.
+func fetchSubscriptionScopedOperationsFor(ctx context.Context, getClient OperationsClientGetter, subscriptionID, deploymentName string) ([]Operation, error) {
+	return fetchOperationsFor(ctx, getClient, subscriptionID, "", deploymentName)
 }

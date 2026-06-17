@@ -319,13 +319,18 @@ var (
 	rfc1035LabelRegex          = regexp.MustCompile(dnsRegexStringRFC1035Label)
 	rfc1035ErrorString         = `(must be a valid DNS RFC 1035 label)`
 
-	clusterResourceName            = `^[a-zA-Z][-a-zA-Z0-9]{1,52}[a-zA-Z0-9]$`
+	clusterResourceName            = `^[a-zA-Z]([-a-zA-Z0-9]{0,52}[a-zA-Z0-9])?$`
 	clusterResourceNameRegex       = regexp.MustCompile(clusterResourceName)
 	clusterResourceNameErrorString = `(must be a valid DNS RFC 1035 label)`
 
-	nodePoolResourceName            = `^[a-zA-Z][-a-zA-Z0-9]{1,13}[a-zA-Z0-9]$`
+	nodePoolResourceName            = `^[a-zA-Z]([-a-zA-Z0-9]{0,13}[a-zA-Z0-9])?$`
 	nodePoolResourceNameRegex       = regexp.MustCompile(nodePoolResourceName)
 	nodePoolResourceNameErrorString = `(must be a valid DNS RFC 1035 label)`
+
+	externalAuthResourceName      = `^[a-zA-Z]([-a-zA-Z0-9]{0,13}[a-zA-Z0-9])?$`
+	externalAuthResourceNameRegex = regexp.MustCompile(externalAuthResourceName)
+
+	externalAuthResourceNameErrorString = `(must be a valid DNS RFC 1035 label)`
 
 	// resourceGroupName See https://learn.microsoft.com/en-gb/azure/azure-resource-manager/management/resource-name-rules#microsoftresources
 	resourceGroupName            = `^[\p{L}\p{N}_\-.()]{0,89}[\p{L}\p{N}_\-()]$`

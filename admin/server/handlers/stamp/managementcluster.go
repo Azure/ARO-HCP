@@ -90,7 +90,7 @@ func toManagementClusterStatus(status fleet.ManagementClusterStatus) (Management
 	}, nil
 }
 
-// ManagementClusterGetHandler handles GET /admin/v1/stamps/{stampIdentifier}/managementClusters/{managementClusterName}.
+// ManagementClusterGetHandler handles GET /admin/v1/stamps/{stampIdentifier}/managementclusters/{managementClusterName}.
 type ManagementClusterGetHandler struct {
 	fleetDBClient database.FleetDBClient
 }

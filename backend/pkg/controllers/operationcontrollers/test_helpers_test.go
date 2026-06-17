@@ -15,7 +15,10 @@
 package operationcontrollers
 
 import (
+	"fmt"
 	"time"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
@@ -197,6 +200,30 @@ func (f *nodePoolTestFixture) newNodePool() *api.HCPOpenShiftClusterNodePool {
 		ServiceProviderProperties: api.HCPOpenShiftClusterNodePoolServiceProviderProperties{
 			ClusterServiceID:  &f.nodePoolInternalID,
 			ActiveOperationID: testOperationName,
+		},
+	}
+}
+
+func (f *nodePoolTestFixture) newServiceProviderNodePool() *api.ServiceProviderNodePool {
+	resourceID := api.Must(azcorearm.ParseResourceID(fmt.Sprintf("%s/%s/%s",
+		f.nodePoolResourceID.String(),
+		api.ServiceProviderNodePoolResourceTypeName,
+		api.ServiceProviderNodePoolResourceName,
+	)))
+	return &api.ServiceProviderNodePool{
+		CosmosMetadata: api.CosmosMetadata{ResourceID: resourceID},
+	}
+}
+
+func (f *nodePoolTestFixture) newNodePoolVersionController(conditions []metav1.Condition) *api.Controller {
+	resourceID := api.Must(azcorearm.ParseResourceID(
+		f.nodePoolResourceID.String() + "/hcpOpenShiftControllers/NodePoolVersion",
+	))
+	return &api.Controller{
+		CosmosMetadata: api.CosmosMetadata{ResourceID: resourceID},
+		ExternalID:     f.nodePoolResourceID,
+		Status: api.ControllerStatus{
+			Conditions: conditions,
 		},
 	}
 }

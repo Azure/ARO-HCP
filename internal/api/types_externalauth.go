@@ -33,6 +33,19 @@ type HCPOpenShiftClusterExternalAuth struct {
 	arm.ProxyResource
 	Properties                HCPOpenShiftClusterExternalAuthProperties                `json:"properties"`
 	ServiceProviderProperties HCPOpenShiftClusterExternalAuthServiceProviderProperties `json:"serviceProviderProperties,omitempty"`
+	Status                    HCPOpenShiftClusterExternalAuthStatus                    `json:"status"`
+}
+
+// HCPOpenShiftClusterExternalAuthStatus contains the observed state of the external auth.
+type HCPOpenShiftClusterExternalAuthStatus struct {
+	// Conditions are the top-level HCPOpenShiftClusterExternalAuth status conditions.
+	// Each Condition Type represents a condition and it should be unique among all conditions.
+	// +optional
+	// +patchMergeKey=type
+	// +patchStrategy=merge
+	// +listType=map
+	// +listMapKey=type
+	Conditions []metav1.Condition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type"`
 }
 
 // EnsureDefaults fills in default values for fields that may be absent in

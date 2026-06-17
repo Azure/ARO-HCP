@@ -51,6 +51,7 @@ func TestCrossVersionRoundTrip(t *testing.T) {
 const (
 	v2024 = "2024-06-10-preview"
 	v2025 = "2025-12-23-preview"
+	v2026 = "2026-06-30-preview"
 )
 
 func testCrossVersionRoundTrip(t *testing.T, withMock bool) {
@@ -260,6 +261,57 @@ func clusterCreatePayload(clusterName, apiVersion string) []byte {
   "type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"
 }`, clusterName, subscriptionID, subscriptionID, subscriptionID))
 
+	case v2026:
+		// v2026 payload — includes all optional fields (autoscaling, nodeDrainTimeoutMinutes)
+		return []byte(fmt.Sprintf(`{
+  "identity": {
+    "type": "UserAssigned",
+    "userAssignedIdentities": {}
+  },
+  "name": "%s",
+  "properties": {
+    "api": {
+      "visibility": "Public"
+    },
+    "autoscaling": {
+      "maxNodeProvisionTimeSeconds": 1200,
+      "maxNodesTotal": 50,
+      "maxPodGracePeriodSeconds": 300,
+      "podPriorityThreshold": -5
+    },
+    "clusterImageRegistry": {
+      "state": "Disabled"
+    },
+    "etcd": {
+      "dataEncryption": {
+        "keyManagementMode": "PlatformManaged"
+      }
+    },
+    "nodeDrainTimeoutMinutes": 15,
+    "network": {
+      "hostPrefix": 23,
+      "machineCidr": "10.0.0.0/16",
+      "networkType": "OVNKubernetes",
+      "podCidr": "10.128.0.0/14",
+      "serviceCidr": "172.30.0.0/16"
+    },
+    "platform": {
+      "managedResourceGroup": "managed-rg-xvrt",
+      "networkSecurityGroupId": "/subscriptions/%s/resourceGroups/bar/providers/Microsoft.Network/networkSecurityGroups/nsg",
+      "outboundType": "LoadBalancer",
+      "subnetId": "/subscriptions/%s/resourceGroups/bar/providers/Microsoft.Network/virtualNetworks/vnet/subnets/subnet",
+      "vnetIntegrationSubnetId": "/subscriptions/%s/resourceGroups/bar/providers/Microsoft.Network/virtualNetworks/vnet/subnets/swift-subnet"
+    },
+    "version": {
+      "channelGroup": "stable",
+      "id": "4.20"
+    }
+  },
+  "tags": {
+    "env": "test"
+  },
+  "type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"
+}`, clusterName, subscriptionID, subscriptionID, subscriptionID))
 	default:
 		panic(fmt.Sprintf("unsupported apiVersion: %s", apiVersion))
 	}

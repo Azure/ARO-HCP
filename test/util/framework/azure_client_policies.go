@@ -15,6 +15,7 @@
 package framework
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -29,9 +30,11 @@ import (
 	"github.com/onsi/ginkgo/v2"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 
+	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
 
@@ -54,13 +57,30 @@ func (p *armSystemDataPolicy) Do(req *policy.Request) (*http.Response, error) {
 	return req.Next()
 }
 
+type resourceGroupClient interface {
+	Get(ctx context.Context, subscriptionID, resourceGroupName string) error
+}
+
+type defaultResourceGroupClient struct {
+	cred azcore.TokenCredential
+}
+
+func (c *defaultResourceGroupClient) Get(ctx context.Context, subscriptionID, resourceGroupName string) error {
+	client, err := armresources.NewResourceGroupsClient(subscriptionID, c.cred, nil)
+	if err != nil {
+		return fmt.Errorf("failed to create resource group client: %w", err)
+	}
+	_, err = client.Get(ctx, resourceGroupName, nil)
+	return err
+}
+
 // armResourceGroupValidationPolicy simulates ARM's resource group validation
 // for development environments where requests go directly to the RP frontend.
 // In production, ARM validates that the target resource group exists before
 // routing requests to the RP. This policy replicates that behavior so that
 // AroRpApiCompatible tests produce consistent results across environments.
 type armResourceGroupValidationPolicy struct {
-	cred azcore.TokenCredential
+	rgClient resourceGroupClient
 }
 
 func (p *armResourceGroupValidationPolicy) Do(req *policy.Request) (*http.Response, error) {
@@ -78,12 +98,7 @@ func (p *armResourceGroupValidationPolicy) Do(req *policy.Request) (*http.Respon
 		return req.Next()
 	}
 
-	client, err := armresources.NewResourceGroupsClient(subID, p.cred, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create resource group client: %w", err)
-	}
-
-	_, err = client.Get(req.Raw().Context(), rgName, nil)
+	err = p.rgClient.Get(req.Raw().Context(), subID, rgName)
 	if err != nil {
 		var respErr *azcore.ResponseError
 		if errors.As(err, &respErr) && respErr.ErrorCode == arm.CloudErrorCodeResourceGroupNotFound {
@@ -270,4 +285,112 @@ func (p *sanitizeAuthHeaderPolicy) Do(req *policy.Request) (*http.Response, erro
 		resp.Request.Header["Authorization"] = []string{"redacted"}
 	}
 	return resp, err
+}
+
+// retryVersionNotFoundPolicy is a pipeline policy that retries transient
+// InvalidRequestContent errors caused by an OpenShift version not yet being
+// registered in Cluster Service.
+//
+// Cincinnati can advertise a z-stream build before Cluster Service registers
+// that version, causing cluster create/update to fail with:
+//
+//	{"error":{"code":"InvalidRequestContent","message":"Version 'openshift-v4.y.z-candidate' doesn't exist"}}
+//
+// The policy only activates for PUT/PATCH requests targeting the cluster
+// resource type (Microsoft.RedHatOpenShift/hcpOpenShiftClusters), excluding
+// child resources like node pools or external auth.
+//
+// See https://github.com/Azure/ARO-HCP/pull/4621#discussion_r2986322194
+type retryVersionNotFoundPolicy struct {
+	MaxRetries     int
+	BaseBackoff    time.Duration
+	MaxBackoff     time.Duration
+	MaxRetryWindow time.Duration
+}
+
+func NewRetryVersionNotFoundPolicy() *retryVersionNotFoundPolicy {
+	return &retryVersionNotFoundPolicy{
+		MaxRetries:     25,
+		BaseBackoff:    5 * time.Second,
+		MaxBackoff:     45 * time.Second,
+		MaxRetryWindow: 5 * time.Minute,
+	}
+}
+
+func (p *retryVersionNotFoundPolicy) Do(req *policy.Request) (*http.Response, error) {
+	method := req.Raw().Method
+	if !strings.EqualFold(method, http.MethodPut) && !strings.EqualFold(method, http.MethodPatch) {
+		return req.Next()
+	}
+
+	resourceID, err := azcorearm.ParseResourceID(req.Raw().URL.Path)
+	if err != nil {
+		return req.Next()
+	}
+	if !strings.EqualFold(resourceID.ResourceType.String(), api.ClusterResourceType.String()) {
+		return req.Next()
+	}
+
+	start := time.Now()
+	attempt := 0
+
+	for {
+		resp, err, retry := func(req *policy.Request) (resp *http.Response, err error, retry bool) {
+			retryReq := req.Clone(req.Raw().Context())
+			if err := retryReq.RewindBody(); err != nil {
+				return nil, err, false
+			}
+
+			resp, err = retryReq.Next()
+			if err == nil {
+				return resp, nil, false
+			}
+			defer func(resp *http.Response) {
+				if resp != nil {
+					if err := resp.Body.Close(); err != nil {
+						ginkgo.GinkgoLogr.Error(err, "failed to close response body")
+					}
+				}
+			}(resp)
+
+			var respErr *azcore.ResponseError
+			if errors.As(err, &respErr) &&
+				respErr.ErrorCode == "InvalidRequestContent" &&
+				strings.Contains(respErr.Error(), "Version") &&
+				strings.Contains(respErr.Error(), "openshift-v") &&
+				strings.Contains(respErr.Error(), "doesn't exist") {
+				return nil, err, true
+			}
+			return nil, err, false
+		}(req)
+
+		if !retry {
+			return resp, err
+		}
+
+		if attempt >= p.MaxRetries || time.Since(start) >= p.MaxRetryWindow {
+			return resp, fmt.Errorf("max retries or max retry window reached waiting for OpenShift version in Cluster Service: %w", err)
+		}
+
+		sleep := p.backoff(attempt)
+
+		ginkgo.GinkgoLogr.Info("OpenShift version not yet in Cluster Service; retrying",
+			"attempt", attempt+1,
+			"sleep", sleep.String(),
+			"url", req.Raw().URL.String())
+
+		select {
+		case <-time.After(sleep):
+		case <-req.Raw().Context().Done():
+			return nil, req.Raw().Context().Err()
+		}
+
+		attempt++
+	}
+}
+
+func (p *retryVersionNotFoundPolicy) backoff(attempt int) time.Duration {
+	sleep := min(p.BaseBackoff<<attempt, p.MaxBackoff)
+	jitter := time.Duration(rand.Int63n(int64(max(p.BaseBackoff/2, time.Millisecond))))
+	return sleep + jitter
 }

@@ -1,0 +1,60 @@
+rule_files:
+- imageRegistryPolicy-prometheusRule.yaml
+evaluation_interval: 1m
+tests:
+# Test 1: Deny mode — policy denies pods, alert fires
+- interval: 1m
+  input_series:
+  - series: 'apiserver_validating_admission_policy_check_total{cluster="svc-1",policy="image-registry-allowlist-policy",policy_binding="image-registry-allowlist-policy-binding",enforcement_action="deny",validation_result="denied"}'
+    values: '0+3x20'
+  alert_rule_test:
+  - eval_time: 16m
+    alertname: ImageRegistryPolicyDenied
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+        cluster: svc-1
+        policy: image-registry-allowlist-policy
+        policy_binding: image-registry-allowlist-policy-binding
+      exp_annotations:
+        summary: "Image registry policy denied pod admission"
+        description: "The image-registry-allowlist-policy on cluster svc-1 has denied 45 pod admission(s) in the last 15 minutes. This means pods with images from non-approved registries were blocked from running."
+        runbook_url: TBD
+        correlationId: "ImageRegistryPolicyDenied/svc-1"
+# Test 2: Deny mode — no denials, no alert
+- interval: 1m
+  input_series:
+  - series: 'apiserver_validating_admission_policy_check_total{cluster="svc-1",policy="image-registry-allowlist-policy",policy_binding="image-registry-allowlist-policy-binding",enforcement_action="deny",validation_result="allowed"}'
+    values: '0+10x20'
+  alert_rule_test:
+  - eval_time: 16m
+    alertname: ImageRegistryPolicyDenied
+    exp_alerts: []
+# Test 3: Audit mode — violations logged, alert fires after 5m
+- interval: 1m
+  input_series:
+  - series: 'apiserver_validating_admission_policy_check_total{cluster="mgmt-1",policy="image-registry-allowlist-policy",policy_binding="image-registry-allowlist-policy-binding",enforcement_action="audit",validation_result="denied"}'
+    values: '0+2x20'
+  alert_rule_test:
+  - eval_time: 20m
+    alertname: ImageRegistryPolicyAuditViolation
+    exp_alerts:
+    - exp_labels:
+        severity: info
+        cluster: mgmt-1
+        policy: image-registry-allowlist-policy
+        policy_binding: image-registry-allowlist-policy-binding
+      exp_annotations:
+        summary: "Image registry policy audit violation detected"
+        description: "The image-registry-allowlist-policy on cluster mgmt-1 has logged 30 audit violation(s) in the last 15 minutes. Pods with images from non-approved registries are running but not blocked. Review kubernetesEvents in Kusto for details."
+        runbook_url: TBD
+        correlationId: "ImageRegistryPolicyAuditViolation/mgmt-1"
+# Test 4: Audit mode — no violations, no alert
+- interval: 1m
+  input_series:
+  - series: 'apiserver_validating_admission_policy_check_total{cluster="mgmt-1",policy="image-registry-allowlist-policy",policy_binding="image-registry-allowlist-policy-binding",enforcement_action="audit",validation_result="allowed"}'
+    values: '0+5x20'
+  alert_rule_test:
+  - eval_time: 20m
+    alertname: ImageRegistryPolicyAuditViolation
+    exp_alerts: []

@@ -189,6 +189,42 @@ func TestValidateNodePoolCreate(t *testing.T) {
 			}(),
 			expectErrors: []utils.ExpectedError{
 				{Message: "Required value", FieldPath: "properties.version.channelGroup"},
+				{Message: "Unsupported value", FieldPath: "properties.version.channelGroup"},
+			},
+		},
+		{
+			name: "invalid channel group - create",
+			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Version.ChannelGroup = "invalid-cg"
+				return np
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "Unsupported value", FieldPath: "properties.version.channelGroup"},
+			},
+		},
+		{
+			name: "candidate channel group rejected without feature flag - create",
+			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Version.ID = "4.21.0-rc.1"
+				np.Properties.Version.ChannelGroup = "candidate"
+				return np
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "Unsupported value", FieldPath: "properties.version.channelGroup"},
+			},
+		},
+		{
+			name: "nightly channel group rejected without feature flag - create",
+			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Version.ID = "4.21.0-0.nightly-2024-01-15-123456"
+				np.Properties.Version.ChannelGroup = "nightly"
+				return np
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "Unsupported value", FieldPath: "properties.version.channelGroup"},
 			},
 		},
 		{
@@ -735,23 +771,24 @@ func TestValidateNodePoolCreate(t *testing.T) {
 			},
 		},
 		{
-			name: "invalid nodepool resource name - too short",
+			name: "invalid nodepool resource name - empty",
 			nodePool: func() *api.HCPOpenShiftClusterNodePool {
 				np := createValidNodePool()
-				np.ID.Name = "a"
+				np.ID.Name = ""
+				np.Name = ""
 				return np
 			}(),
 			expectErrors: []utils.ExpectedError{
-				{Message: "must be equal to", FieldPath: "trackedResource.resource.name"},
-				{Message: "must be a valid DNS RFC 1035 label", FieldPath: "id"},
+				{Message: "resource name is required", FieldPath: "trackedResource.resource.id"},
+				{Message: "resource name is required", FieldPath: "id"},
 			},
 		},
 		{
 			name: "valid nodepool resource name - minimum length",
 			nodePool: func() *api.HCPOpenShiftClusterNodePool {
 				np := createValidNodePool()
-				np.ID.Name = "abc"
-				np.Name = "abc"
+				np.ID.Name = "a"
+				np.Name = "a"
 				return np
 			}(),
 			expectErrors: []utils.ExpectedError{},
@@ -1474,6 +1511,18 @@ func TestValidateNodePoolVersionWithFeatureFlags(t *testing.T) {
 			}(),
 			opOptions:    testNodePoolFeatureOptions(api.FeatureExperimentalReleaseFeatures),
 			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name: "invalid channel group rejected even with experimental flag",
+			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Version.ChannelGroup = "invalid-cg"
+				return np
+			}(),
+			opOptions: testNodePoolFeatureOptions(api.FeatureExperimentalReleaseFeatures),
+			expectErrors: []utils.ExpectedError{
+				{Message: "Unsupported value", FieldPath: "properties.version.channelGroup"},
+			},
 		},
 		{
 			name: "malformed version rejected",

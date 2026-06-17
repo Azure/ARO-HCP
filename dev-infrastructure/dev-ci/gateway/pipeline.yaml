@@ -1,0 +1,41 @@
+$schema: "pipeline.schema.v1"
+serviceGroup: Microsoft.Azure.ARO.HCP.DevCI.Gateway
+rolloutName: Opstool Gateway Rollout
+resourceGroups:
+- name: opstool
+  resourceGroup: '{{ .svc.rg }}'
+  subscription: '{{ .svc.subscription.key }}'
+  steps:
+  - name: output
+    action: ARM
+    template: ../../templates/output-opstool-cluster.bicep
+    parameters: ../../configurations/output-opstool-cluster.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
+  - name: deploy
+    aksCluster: '{{ .opstool.aks.name }}'
+    action: Helm
+    releaseName: 'opstool-gateway'
+    releaseNamespace: '{{ .opstool.gateway.namespace }}'
+    chartDir: deploy
+    valuesFile: deploy/values.yaml.tmpl
+    kustoEndpoint:
+      resourceGroup: opstool
+      step: output
+      name: kustoUri
+    kustoDatabase: ''
+    kustoTable: ''
+    dependsOn:
+    - resourceGroup: opstool
+      step: output
+    externalDependsOn:
+    - serviceGroup: Microsoft.Azure.ARO.HCP.DevCI.Infra
+      resourceGroup: opstool
+      step: network
+    - serviceGroup: Microsoft.Azure.ARO.HCP.DevCI.CertManager
+      resourceGroup: opstool
+      step: issuer
+    identityFrom:
+      resourceGroup: opstool
+      step: output
+      name: opstoolUAMIId

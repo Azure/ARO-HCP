@@ -4,3 +4,6 @@ istio-*
 
 swift/fpa.crt
 swift/fpa.pfx
+scripts/cleanup-pko-resources/cleanup-pko-resources
+scripts/recreate-system-pool/recreate-system-pool
+scripts/recreate-broken-pools/recreate-broken-pools

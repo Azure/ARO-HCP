@@ -16,7 +16,6 @@ package cmd
 
 import (
 	"context"
-	"flag"
 	"fmt"
 	"net/http"
 	"os"
@@ -27,6 +26,9 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/sync/errgroup"
 
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/client-go/discovery"
+	"k8s.io/client-go/dynamic"
 	kubeinformers "k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -48,6 +50,7 @@ type RawControllerOptions struct {
 	Kubeconfig    string
 	Namespace     string
 	Workers       int
+	LogVerbosity  int
 }
 
 func DefaultControllerOptions() *RawControllerOptions {
@@ -58,13 +61,13 @@ func DefaultControllerOptions() *RawControllerOptions {
 }
 
 func (o *RawControllerOptions) BindFlags(cmd *cobra.Command) error {
-	klog.InitFlags(nil)
-
 	cmd.Flags().StringVar(&o.HealthAddress, "health-address", o.HealthAddress, "The bind address for the health check server (e.g., ':8080')")
 	cmd.Flags().StringVar(&o.Kubeconfig, "kubeconfig", "", "Path to a kubeconfig. Optional.")
 	cmd.Flags().StringVar(&o.Namespace, "namespace", os.Getenv("POD_NAMESPACE"), "The namespace where the mgmt-agent controller is deployed.")
 	cmd.Flags().IntVar(&o.Workers, "workers", o.Workers, "Number of reconcile workers to run")
-	cmd.Flags().AddGoFlagSet(flag.CommandLine)
+	cmd.Flags().IntVar(&o.LogVerbosity, "log-verbosity", o.LogVerbosity,
+		"Log verbosity. 0 is the default verbosity level, equivalent to INFO. "+
+			"It must be a value >= 0, where a higher value means more verbose output.")
 
 	return nil
 }
@@ -79,6 +82,7 @@ type ValidatedControllerOptions struct {
 
 type completedControllerOptions struct {
 	ctrl              *controller.SwiftNICController
+	resourceWatcher   *controller.ResourceWatcher
 	kubeInformers     kubeinformers.SharedInformerFactory
 	workers           int
 	healthAddress     string
@@ -95,6 +99,9 @@ func (o *RawControllerOptions) Validate(ctx context.Context) (*ValidatedControll
 	}
 	if o.HealthAddress == "" {
 		return nil, fmt.Errorf("health-address is required")
+	}
+	if o.LogVerbosity < 0 {
+		return nil, fmt.Errorf("--log-verbosity must be a value >= 0")
 	}
 	return &ValidatedControllerOptions{
 		validatedControllerOptions: &validatedControllerOptions{
@@ -131,6 +138,18 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 		return nil, fmt.Errorf("failed to create controller: %w", err)
 	}
 
+	dynamicClient, err := dynamic.NewForConfig(kubeConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create dynamic client: %w", err)
+	}
+
+	discoveryClient, err := discovery.NewDiscoveryClientForConfig(kubeConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create discovery client: %w", err)
+	}
+
+	resourceWatcher := controller.NewResourceWatcher(dynamicClient, discoveryClient)
+
 	leaderElectionCfg := &controller.LeaderElectionConfig{
 		LockName:      LeaderElectionLockName,
 		LeaseDuration: 15 * time.Second,
@@ -143,6 +162,7 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 	return &ControllerOptions{
 		completedControllerOptions: &completedControllerOptions{
 			ctrl:              ctrl,
+			resourceWatcher:   resourceWatcher,
 			kubeInformers:     kubeInformers,
 			workers:           o.Workers,
 			healthAddress:     o.HealthAddress,
@@ -195,6 +215,7 @@ func (o *ControllerOptions) Run(ctx context.Context) error {
 		mux.Handle("/metrics", legacyregistry.Handler())
 		server := &http.Server{Addr: o.healthAddress, Handler: mux}
 		go func() {
+			defer utilruntime.HandleCrash()
 			<-ctx.Done()
 			if err := server.Shutdown(context.Background()); err != nil {
 				logger.Error(err, "Error shutting down health server")
@@ -209,14 +230,24 @@ func (o *ControllerOptions) Run(ctx context.Context) error {
 
 	// controller with leader election
 	g.Go(func() error {
-		logger.Info("Starting swift-nic controller")
-		if err := controller.RunWithLeaderElection(ctx, "swift-nic", o.leaderElectionCfg, func(leaderCtx context.Context) error {
-			return o.ctrl.Run(leaderCtx, o.workers)
+		logger.Info("Starting controllers under leader election")
+		if err := controller.RunWithLeaderElection(ctx, "mgmt-agent", o.leaderElectionCfg, func(leaderCtx context.Context) error {
+			innerG, innerCtx := errgroup.WithContext(leaderCtx)
+
+			innerG.Go(func() error {
+				return o.ctrl.Run(innerCtx, o.workers)
+			})
+
+			innerG.Go(func() error {
+				return o.resourceWatcher.Run(innerCtx)
+			})
+
+			return innerG.Wait()
 		}); err != nil {
-			logger.Error(err, "Controller stopped with error")
+			logger.Error(err, "Controllers stopped with error")
 			return err
 		}
-		logger.Info("Controller stopped")
+		logger.Info("Controllers stopped")
 		return nil
 	})
 

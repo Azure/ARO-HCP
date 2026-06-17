@@ -10,6 +10,7 @@ use (
 	./fleet
 	./frontend
 	./hack/verify-gomega-assertions
+	./hack/verify-schema-additional-properties
 	./internal
 	./kube-applier
 	./mgmt-agent

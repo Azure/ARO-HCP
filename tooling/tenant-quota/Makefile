@@ -1,12 +1,12 @@
 TENANT_QUOTA_COLLECTOR_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 
-DEPLOY_ENV ?= opstool
+DEPLOY_ENV ?= dev-ci
 
 -include $(TENANT_QUOTA_COLLECTOR_DIR)/../../setup-templatize-env.mk
 -include $(TENANT_QUOTA_COLLECTOR_DIR)/../../.bingo/Variables.mk
 
-# Opstool uses its own config file, not the main config.yaml
-OPSTOOL_CONFIG_FILE := $(TENANT_QUOTA_COLLECTOR_DIR)/../../config/config-opstool.yaml
+# Dev CI uses its own config file, not the main config.yaml
+DEV_CI_CONFIG_FILE := $(TENANT_QUOTA_COLLECTOR_DIR)/../../config/config-dev-ci.yaml
 DEV_SETTINGS_FILE := $(TENANT_QUOTA_COLLECTOR_DIR)/../../tooling/templatize/settings.yaml
 
 ARO_HCP_REVISION ?= $(shell git rev-parse HEAD)
@@ -14,7 +14,7 @@ ARO_HCP_IMAGE_ACR ?= arohcpsvcdev
 ARO_HCP_IMAGE_REGISTRY ?= ${ARO_HCP_IMAGE_ACR}.azurecr.io
 TENANT_QUOTA_COLLECTOR_IMAGE_REPOSITORY ?= tenant-quota-collector
 
-# Tag defaults to 'latest' for opstool dev environment (matches config-opstool.yaml)
+# Tag defaults to 'latest' for the dev-ci environment (matches config-dev-ci.yaml)
 TENANT_QUOTA_IMAGE_REPOSITORY ?= $(shell DEPLOY_ENV=${DEPLOY_ENV} BASELINE_REPO=${TENANT_QUOTA_COLLECTOR_IMAGE_REPOSITORY} $(TENANT_QUOTA_COLLECTOR_DIR)/../../generate-repo.sh)
 TENANT_QUOTA_IMAGE_TAG ?= latest
 TENANT_QUOTA_TAGGED_IMAGE ?= $(ARO_HCP_IMAGE_REGISTRY)/$(TENANT_QUOTA_IMAGE_REPOSITORY):$(TENANT_QUOTA_IMAGE_TAG)
@@ -31,12 +31,12 @@ tenant-quota-collector:
 # ---------------------------------------------------------------------------
 # Local config rendering
 # ---------------------------------------------------------------------------
-# Renders config-opstool.yaml through templatize to produce the config.yaml
+# Renders config-dev-ci.yaml through templatize to produce the config.yaml
 # that the tool expects. This is the same content that ends up in the
 # ConfigMap data["config.yaml"] during a real deployment.
-_output/config.yaml: $(TEMPLATIZE) deploy/config.yaml.tmpl $(OPSTOOL_CONFIG_FILE)
+_output/config.yaml: $(TEMPLATIZE) deploy/config.yaml.tmpl $(DEV_CI_CONFIG_FILE)
 	$(TEMPLATIZE) generate \
-		--config-file $(OPSTOOL_CONFIG_FILE) \
+		--config-file $(DEV_CI_CONFIG_FILE) \
 		--dev-settings-file $(DEV_SETTINGS_FILE) \
 		--dev-environment $(DEPLOY_ENV) \
 		--input deploy/config.yaml.tmpl \

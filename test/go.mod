@@ -8,11 +8,12 @@ require (
 	github.com/Azure/ARO-HCP/internal v0.0.0-00010101000000-000000000000
 	github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp v0.0.0-00010101000000-000000000000
 	github.com/Azure/ARO-HCP/test/sdk/v20251223preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp v0.0.0-00010101000000-000000000000
+	github.com/Azure/ARO-HCP/test/sdk/v20260630preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp v0.0.0-00010101000000-000000000000
 	github.com/Azure/ARO-HCP/tooling/hcpctl v0.0.0-20260113131010-8f869ff652e6
 	github.com/Azure/ARO-HCP/tooling/templatize v0.0.0-00010101000000-000000000000
 	github.com/Azure/ARO-HCP/tooling/utilitytypes v0.0.0-00010101000000-000000000000
-	github.com/Azure/ARO-Tools/config v0.0.0-20260602125010-e7c9d4923e48
-	github.com/Azure/ARO-Tools/tools/prow-job-executor v0.0.0-20260602125010-e7c9d4923e48
+	github.com/Azure/ARO-Tools/config v0.0.0-20260617060128-2277df76598b
+	github.com/Azure/ARO-Tools/tools/prow-job-executor v0.0.0-20260617060128-2277df76598b
 	github.com/Azure/azure-kusto-go/azkustodata v1.2.1
 	github.com/Azure/azure-sdk-for-go/sdk/messaging/azeventhubs/v2 v2.0.2
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/alertsmanagement/armalertsmanagement v0.11.0
@@ -36,7 +37,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/onsi/ginkgo/v2 v2.28.1
 	github.com/onsi/gomega v1.39.1
-	github.com/openshift-eng/openshift-tests-extension v0.0.0-20260422120742-50dec0b5ecf3
+	github.com/openshift-eng/openshift-tests-extension v0.0.0-20260528165303-ac98bf018579
 	github.com/openshift/api v0.0.0-20260429122012-1180c0f5c3e9
 	github.com/openshift/client-go v0.0.0-20260429123927-c81f86abfa6a
 	github.com/openshift/cluster-version-operator v1.0.1-0.20260202115537-557510ea0603
@@ -68,13 +69,13 @@ require (
 	cloud.google.com/go/monitoring v1.24.3 // indirect
 	cloud.google.com/go/storage v1.62.1 // indirect
 	dario.cat/mergo v1.0.1 // indirect
-	github.com/Azure/ARO-Tools/pipelines v0.0.0-20260602125010-e7c9d4923e48 // indirect
-	github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260602125010-e7c9d4923e48 // indirect
-	github.com/Azure/ARO-Tools/tools/grafanactl v0.0.0-20260602125010-e7c9d4923e48 // indirect
-	github.com/Azure/ARO-Tools/tools/helm v0.0.0-20260602125010-e7c9d4923e48 // indirect
-	github.com/Azure/ARO-Tools/tools/registration v0.0.0-20260602125010-e7c9d4923e48 // indirect
-	github.com/Azure/ARO-Tools/tools/secret-sync v0.0.0-20260602125010-e7c9d4923e48 // indirect
-	github.com/Azure/ARO-Tools/tools/yamlwrap v0.0.0-20260602125010-e7c9d4923e48 // indirect
+	github.com/Azure/ARO-Tools/pipelines v0.0.0-20260617060128-2277df76598b // indirect
+	github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260617060128-2277df76598b // indirect
+	github.com/Azure/ARO-Tools/tools/grafanactl v0.0.0-20260617060128-2277df76598b // indirect
+	github.com/Azure/ARO-Tools/tools/helm v0.0.0-20260617060128-2277df76598b // indirect
+	github.com/Azure/ARO-Tools/tools/registration v0.0.0-20260617060128-2277df76598b // indirect
+	github.com/Azure/ARO-Tools/tools/secret-sync v0.0.0-20260617060128-2277df76598b // indirect
+	github.com/Azure/ARO-Tools/tools/yamlwrap v0.0.0-20260617060128-2277df76598b // indirect
 	github.com/Azure/azure-sdk-for-go v68.0.0+incompatible // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v1.4.2 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice v1.0.0 // indirect
@@ -363,6 +364,8 @@ replace github.com/Azure/ARO-HCP/tooling/utilitytypes => ../tooling/utilitytypes
 replace github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp => ./sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp
 
 replace github.com/Azure/ARO-HCP/test/sdk/v20251223preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp => ./sdk/v20251223preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp
+
+replace github.com/Azure/ARO-HCP/test/sdk/v20260630preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp => ./sdk/v20260630preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp
 
 // this is the OCP fork of ginkgo that allows listing and inspecting the tests to be compatible with https://github.com/openshift-eng/openshift-tests-extension
 replace github.com/onsi/ginkgo/v2 => github.com/openshift/onsi-ginkgo/v2 v2.6.1-0.20250416174521-4eb003743b54

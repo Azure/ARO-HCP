@@ -114,7 +114,7 @@ hcpctl hcp breakglass 12345678-1234-1234-1234-123456789abc
 # Access using Azure resource ID
 hcpctl hcp breakglass /subscriptions/sub-id/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpClusters/cluster-name
 
-# Privileged access (uses aro-sre-cluster-admin role instead of aro-sre)
+# Privileged access (uses system:masters group instead of system:cluster-readers)
 hcpctl hcp breakglass 12345678-1234-1234-1234-123456789abc --privileged
 ```
 

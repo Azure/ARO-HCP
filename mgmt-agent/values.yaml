@@ -7,7 +7,7 @@ deployment:
   requests:
     cpu: 50m
     memory: 64Mi
-logLevel: "2"
+logVerbosity: 2
 health:
   port: 8080
 nodeSelector: {}

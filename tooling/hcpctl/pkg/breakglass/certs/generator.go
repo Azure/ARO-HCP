@@ -74,9 +74,9 @@ func EncodePrivateKey(key *rsa.PrivateKey) []byte {
 
 // BuildSubject creates the certificate subject for SRE breakglass
 func BuildSubject(user string, privileged bool) pkix.Name {
-	organization := "aro-sre"
+	organization := "system:cluster-readers"
 	if privileged {
-		organization = "aro-sre-cluster-admin"
+		organization = "system:masters"
 	}
 
 	return pkix.Name{

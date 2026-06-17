@@ -477,7 +477,7 @@ func (tc *perItOrDescribeTestContext) GetStamp(ctx context.Context, stampIdentif
 }
 
 func (tc *perItOrDescribeTestContext) GetManagementCluster(ctx context.Context, stampIdentifier string, managementClusterName string, identityDetails *AzureIdentityDetails) (*stamp.ManagementCluster, error) {
-	endpoint := fmt.Sprintf("%s/admin/v1/stamps/%s/managementClusters/%s", tc.perBinaryInvocationTestContext.adminAPIAddress, stampIdentifier, managementClusterName)
+	endpoint := fmt.Sprintf("%s/admin/v1/stamps/%s/managementclusters/%s", tc.perBinaryInvocationTestContext.adminAPIAddress, stampIdentifier, managementClusterName)
 
 	By(fmt.Sprintf("getting management cluster %s for stamp %s via admin API: %s", managementClusterName, stampIdentifier, endpoint))
 	body, err := adminAPIGet(ctx, createAdminAPIHTTPClient(identityDetails), endpoint)

@@ -37,6 +37,7 @@ import (
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/billingcontrollers"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/clusterdeletion"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/clusterpropertiescontroller"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/datadumpcontrollers"
@@ -118,6 +119,7 @@ func (o *BackendOptions) RunBackend(ctx context.Context) error {
 	}
 	runErrCh := make(chan error, 1)
 	go func() {
+		defer k8sutilruntime.HandleCrash()
 		runErrCh <- backend.Run(ctx)
 		cancel(fmt.Errorf("backend exited"))
 	}()
@@ -214,6 +216,7 @@ func (b *Backend) Run(ctx context.Context) error {
 			electionChecker:   electionChecker,
 		}
 		go func() {
+			defer k8sutilruntime.HandleCrash()
 			err := s.Run(ctx)
 			if err != nil {
 				cancel(fmt.Errorf("healthz server exited: %w", err))
@@ -230,6 +233,7 @@ func (b *Backend) Run(ctx context.Context) error {
 			metricsGatherer:   b.options.MetricsGatherer,
 		}
 		go func() {
+			defer k8sutilruntime.HandleCrash()
 			err := s.Run(ctx)
 			if err != nil {
 				cancel(fmt.Errorf("metrics server exited: %w", err))
@@ -239,6 +243,7 @@ func (b *Backend) Run(ctx context.Context) error {
 	}
 
 	go func() {
+		defer k8sutilruntime.HandleCrash()
 		err := b.runBackendControllersUnderLeaderElection(ctx, electionChecker)
 		// When leader election exits (e.g. lost lease), cancel so Run() unblocks and performs shutdown.
 		cancel(fmt.Errorf("backend controllers leader election exited"))
@@ -319,6 +324,7 @@ func runHTTPServer(ctx context.Context, name string, addr string, server *http.S
 	done := make(chan struct{})
 	defer close(done)
 	go func() {
+		defer k8sutilruntime.HandleCrash()
 		select {
 		case <-ctx.Done():
 			shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), backendShutdownTimeout)
@@ -392,6 +398,11 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	clusterHandler := metricscontrollers.NewClusterMetricsHandler(b.options.MetricsRegisterer)
 	clusterMetricsController := metricscontrollers.NewController(
 		"ClusterMetrics", clusterInformer, clusterHandler)
+
+	serviceProviderClusterInformer, _ := backendInformers.ServiceProviderClusters()
+	clusterVersionMetricsHandler := metricscontrollers.NewClusterVersionMetricsHandler(b.options.MetricsRegisterer, unionReadDesireLister)
+	clusterVersionMetricsController := metricscontrollers.NewController(
+		"ClusterVersionMetrics", serviceProviderClusterInformer, clusterVersionMetricsHandler)
 
 	_, billingLister := backendInformers.BillingDocs()
 
@@ -547,12 +558,19 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		backendInformers,
 		unionKubeApplierInformers,
 	)
-	clusterPropertiesSyncController := clusterpropertiescontroller.NewClusterPropertiesSyncController(
+	clusterBaseDomainPrefixSyncController := clusterpropertiescontroller.NewClusterBaseDomainPrefixSyncController(
 		b.options.ResourcesDBClient,
 		b.options.ClustersServiceClient,
 		activeOperationLister,
 		backendInformers,
 		unionKubeApplierInformers,
+	)
+	clusterPropertiesSyncController := clusterpropertiescontroller.NewClusterPropertiesSyncController(
+		b.options.ResourcesDBClient,
+		activeOperationLister,
+		backendInformers,
+		unionKubeApplierInformers,
+		unionReadDesireLister,
 	)
 	identityMigrationController := clusterpropertiescontroller.NewIdentityMigrationController(
 		b.options.ResourcesDBClient,
@@ -615,6 +633,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		activeOperationLister,
 		backendInformers,
 		unionReadDesireLister,
+		subscriptionLister,
 	)
 	triggerNodePoolUpgradeController := upgradecontrollers.NewTriggerNodePoolUpgradeController(
 		b.options.ResourcesDBClient,
@@ -646,6 +665,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	)
 	nodePoolChildResourcesCleanupController := nodepooldeletion.NewNodePoolChildResourcesCleanupController(
 		b.options.ResourcesDBClient,
+		b.options.KubeApplierDBClients,
 		activeOperationLister,
 		backendInformers,
 	)
@@ -662,19 +682,52 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		activeOperationLister,
 		backendInformers,
 	)
+
 	externalAuthClusterServiceIDClearerController := externalauthdeletion.NewExternalAuthClusterServiceIDClearerController(
 		b.options.ResourcesDBClient,
 		b.options.ClustersServiceClient,
 		activeOperationLister,
 		backendInformers,
 	)
+
 	externalAuthChildResourcesCleanupController := externalauthdeletion.NewExternalAuthChildResourcesCleanupController(
 		b.options.ResourcesDBClient,
 		activeOperationLister,
 		backendInformers,
 	)
+
 	externalAuthDeletionController := externalauthdeletion.NewExternalAuthDeletionController(
 		b.options.ResourcesDBClient,
+		activeOperationLister,
+		backendInformers,
+	)
+
+	clusterDeletionClusterServiceDeleteDispatchController := clusterdeletion.NewClusterClusterServiceDeleteDispatchController(
+		utilsclock.RealClock{},
+		b.options.ResourcesDBClient,
+		b.options.ClustersServiceClient,
+		activeOperationLister,
+		backendInformers,
+	)
+
+	clusterClusterServiceIDClearerController := clusterdeletion.NewClusterClusterServiceIDClearerController(
+		b.options.ResourcesDBClient,
+		b.options.ClustersServiceClient,
+		activeOperationLister,
+		backendInformers,
+	)
+
+	clusterChildResourcesCleanupController := clusterdeletion.NewClusterChildResourcesCleanupController(
+		b.options.ResourcesDBClient,
+		b.options.KubeApplierDBClients,
+		activeOperationLister,
+		backendInformers,
+	)
+
+	clusterDeletionController := clusterdeletion.NewClusterDeletionController(
+		utilsclock.RealClock{},
+		b.options.ResourcesDBClient,
+		b.options.BillingDBClient,
 		activeOperationLister,
 		backendInformers,
 	)
@@ -727,6 +780,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go controlPlaneActiveVersionController.Run(ctx, 20)
 				go controlPlaneDesiredVersionController.Run(ctx, 20)
 				go triggerControlPlaneUpgradeController.Run(ctx, 20)
+				go clusterBaseDomainPrefixSyncController.Run(ctx, 20)
 				go clusterPropertiesSyncController.Run(ctx, 20)
 				go identityMigrationController.Run(ctx, 20)
 				go azureRPRegistrationValidationController.Run(ctx, 20)
@@ -746,8 +800,13 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go externalAuthClusterServiceIDClearerController.Run(ctx, 20)
 				go externalAuthChildResourcesCleanupController.Run(ctx, 20)
 				go externalAuthDeletionController.Run(ctx, 20)
+				go clusterDeletionClusterServiceDeleteDispatchController.Run(ctx, 20)
+				go clusterClusterServiceIDClearerController.Run(ctx, 20)
+				go clusterChildResourcesCleanupController.Run(ctx, 20)
+				go clusterDeletionController.Run(ctx, 20)
 				go operationPhaseMetricsController.Run(ctx, 1)
 				go clusterMetricsController.Run(ctx, 1)
+				go clusterVersionMetricsController.Run(ctx, 1)
 				go nodePoolMetricsController.Run(ctx, 1)
 				go externalAuthMetricsController.Run(ctx, 1)
 				go placementSyncController.Run(ctx, 20)

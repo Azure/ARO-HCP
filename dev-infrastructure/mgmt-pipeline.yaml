@@ -95,6 +95,17 @@ resourceGroups:
   resourceGroup: '{{ .mgmt.rg }}'
   subscription: '{{ .mgmt.subscription.key }}'
   steps:
+  - name: grafana-monitoring-reader
+    action: ARM
+    template: templates/grafana-monitoring-reader.bicep
+    parameters: configurations/grafana-monitoring-reader.tmpl.bicepparam
+    deploymentLevel: Subscription
+    variables:
+    - name: grafanaPrincipalId
+      input:
+        resourceGroup: global
+        step: output
+        name: grafanaPrincipalId
   - name: subscription-output
     action: ARM
     template: templates/subscription-lookup.bicep
@@ -262,11 +273,10 @@ resourceGroups:
     action: Shell
     command: ./scripts/recreate-broken-pools/recreate-broken-pools
     workingDir: .
-    # Internal overallTimeoutMin = 120. The extra 30m headroom accommodates
-    # the deferred forced-evidence cleanup contexts (abort + restore are
-    # rooted in context.Background and can run for up to ~23m past the
-    # parent ctx after a forced-evidence probe).
-    timeout: '150m'
+    # Internal overallTimeoutMin = 120. The small extra headroom accommodates
+    # the per-pool drain/delete/recreate LRO pollers that can run briefly past
+    # the orchestrator deadline during cleanup.
+    timeout: '130m'
     shellIdentity:
       input:
         resourceGroup: global
@@ -284,12 +294,6 @@ resourceGroups:
         name: subscriptionId
     - name: NODEPOOL_TAG
       value: 'worker'
-    - name: NRP_FAIL_THRESHOLD
-      value: '10'
-    - name: NRP_FAIL_WINDOW_MIN
-      value: '360'
-    - name: FORCED_EVIDENCE_TIMEOUT_MIN
-      value: '20'
     dependsOn:
     - resourceGroup: management
       step: recreate-system-pool-if-broken
@@ -374,26 +378,6 @@ resourceGroups:
     dependsOn:
     - resourceGroup: management
       step: cluster
-  - name: delete-non-swift-user-nodepools
-    aksCluster: '{{ .mgmt.aks.name }}'
-    action: Shell
-    command: ./scripts/delete-user-nodepools.sh
-    workingDir: .
-    shellIdentity:
-      input:
-        resourceGroup: global
-        step: output
-        name: globalMSIId
-    variables:
-    - name: CLUSTER_NAME
-      configRef: mgmt.aks.name
-    - name: RESOURCE_GROUP
-      configRef: mgmt.rg
-    - name: POOL_NAME_PATTERN
-      value: 'user[0-9]+'
-    dependsOn:
-    - resourceGroup: management
-      step: cluster
   - name: upgrade-aks-cluster
     action: Shell
     command: ./upgrade-aks-cluster.sh
@@ -412,7 +396,7 @@ resourceGroups:
       configRef: mgmt.aks.kubernetesVersion
     dependsOn:
     - resourceGroup: management
-      step: delete-non-swift-user-nodepools
+      step: cluster
   - name: nsp
     action: ARM
     omitFromServiceGroupCompletion: true

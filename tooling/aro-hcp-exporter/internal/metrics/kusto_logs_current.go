@@ -103,13 +103,13 @@ func (c *KustoLogsCurrentCollector) CollectMetricValues(ctx context.Context) {
 
 		queryClient := mustgather.NewQueryClientWithFileWriter(c.kustoClient, KustoLogsCurrentQueryTimeout, "", nil)
 
-		queryOptions := kusto.QueryOptions{
-			InfraClusterName: clusterName,
-			TimestampMin:     time.Now().Add(-120 * time.Minute),
-			TimestampMax:     time.Now(),
-			// Use magic number for now, will change to specific limit for each table, once kql generater is done
-			Limit: 100,
-		}
+		queryOptions := kusto.NewQueryOptions()
+		queryOptions.InfraClusterName = clusterName
+		queryOptions.TimestampMin = time.Now().Add(-120 * time.Minute)
+		queryOptions.TimestampMax = time.Now()
+		// Use magic number for now, will change to specific limit for each table, once kql generater is done
+		queryOptions.Limit = 100
+		queryOptions.OrderBy = kusto.OrderByDesc
 
 		foundLogSources := make(map[string]time.Time)
 		var foundMutex sync.Mutex

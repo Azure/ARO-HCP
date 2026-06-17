@@ -23,6 +23,7 @@ import (
 	"reflect"
 	"sort"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -30,7 +31,13 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	azfake "github.com/Azure/azure-sdk-for-go/sdk/azcore/fake"
+	armcompute "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
+	computefake "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6/fake"
 	armcs "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v6"
+	armnetwork "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v6"
+	networkfake "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v6/fake"
 )
 
 // =============================================================================
@@ -61,18 +68,6 @@ func TestParseEnvConfig_MinimalRequiredFields(t *testing.T) {
 	if c.subscriptionID != "sub-0001" {
 		t.Errorf("subscriptionID=%q", c.subscriptionID)
 	}
-	if c.threshold != defaultThreshold {
-		t.Errorf("threshold=%d want default %d", c.threshold, defaultThreshold)
-	}
-	if c.windowMin != defaultWindowMin {
-		t.Errorf("windowMin=%d want default %d", c.windowMin, defaultWindowMin)
-	}
-	if c.forcedEvidenceTimeoutMin != defaultForcedEvidenceTimeoutMin {
-		t.Errorf("forcedEvidenceTimeoutMin=%d want default %d", c.forcedEvidenceTimeoutMin, defaultForcedEvidenceTimeoutMin)
-	}
-	if c.forcedEvidenceThreshold != defaultForcedEvidenceThreshold {
-		t.Errorf("forcedEvidenceThreshold=%d want default %d", c.forcedEvidenceThreshold, defaultForcedEvidenceThreshold)
-	}
 	if c.dryRun {
 		t.Errorf("dryRun=true, want false by default")
 	}
@@ -99,121 +94,6 @@ func TestParseEnvConfig_MissingSubscriptionID(t *testing.T) {
 	_, err := parseEnvConfig(env)
 	if err == nil || !strings.Contains(err.Error(), "SUBSCRIPTION_ID") {
 		t.Errorf("expected SUBSCRIPTION_ID error, got %v", err)
-	}
-}
-
-func TestParseEnvConfig_CustomThresholdAndWindow(t *testing.T) {
-	env := envFromMap(map[string]string{
-		"CLUSTER_NAME":        "c",
-		"RESOURCE_GROUP":      "rg",
-		"SUBSCRIPTION_ID":     "sub",
-		"NODEPOOL_TAG":        "user",
-		"NRP_FAIL_THRESHOLD":  "25",
-		"NRP_FAIL_WINDOW_MIN": "30",
-	})
-	c, err := parseEnvConfig(env)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if c.threshold != 25 || c.windowMin != 30 {
-		t.Errorf("threshold=%d windowMin=%d", c.threshold, c.windowMin)
-	}
-}
-
-func TestParseEnvConfig_CustomForcedEvidence(t *testing.T) {
-	env := envFromMap(map[string]string{
-		"CLUSTER_NAME":                "c",
-		"RESOURCE_GROUP":              "rg",
-		"SUBSCRIPTION_ID":             "sub",
-		"NODEPOOL_TAG":                "user",
-		"FORCED_EVIDENCE_TIMEOUT_MIN": "45",
-		"FORCED_EVIDENCE_THRESHOLD":   "7",
-	})
-	c, err := parseEnvConfig(env)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if c.forcedEvidenceTimeoutMin != 45 || c.forcedEvidenceThreshold != 7 {
-		t.Errorf("forcedEvidenceTimeoutMin=%d forcedEvidenceThreshold=%d", c.forcedEvidenceTimeoutMin, c.forcedEvidenceThreshold)
-	}
-}
-
-func TestParseEnvConfig_InvalidForcedEvidence(t *testing.T) {
-	cases := []struct {
-		name string
-		key  string
-		v    string
-	}{
-		{"timeout_non_numeric", "FORCED_EVIDENCE_TIMEOUT_MIN", "abc"},
-		{"timeout_zero", "FORCED_EVIDENCE_TIMEOUT_MIN", "0"},
-		{"timeout_negative", "FORCED_EVIDENCE_TIMEOUT_MIN", "-1"},
-		{"threshold_non_numeric", "FORCED_EVIDENCE_THRESHOLD", "xyz"},
-		{"threshold_zero", "FORCED_EVIDENCE_THRESHOLD", "0"},
-		{"threshold_negative", "FORCED_EVIDENCE_THRESHOLD", "-2"},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			env := envFromMap(map[string]string{
-				"CLUSTER_NAME":    "c",
-				"RESOURCE_GROUP":  "rg",
-				"SUBSCRIPTION_ID": "sub",
-				"NODEPOOL_TAG":    "user",
-				tc.key:            tc.v,
-			})
-			if _, err := parseEnvConfig(env); err == nil {
-				t.Errorf("expected error for %s=%q", tc.key, tc.v)
-			}
-		})
-	}
-}
-
-func TestParseEnvConfig_InvalidThreshold(t *testing.T) {
-	cases := []struct {
-		name string
-		v    string
-	}{
-		{"non-numeric", "abc"},
-		{"zero", "0"},
-		{"negative", "-5"},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			env := envFromMap(map[string]string{
-				"CLUSTER_NAME":       "c",
-				"RESOURCE_GROUP":     "rg",
-				"SUBSCRIPTION_ID":    "sub",
-				"NODEPOOL_TAG":       "user",
-				"NRP_FAIL_THRESHOLD": tc.v,
-			})
-			if _, err := parseEnvConfig(env); err == nil {
-				t.Errorf("expected error for threshold=%q", tc.v)
-			}
-		})
-	}
-}
-
-func TestParseEnvConfig_InvalidWindow(t *testing.T) {
-	cases := []struct {
-		name string
-		v    string
-	}{
-		{"non-numeric", "xyz"},
-		{"zero", "0"},
-		{"negative", "-1"},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			env := envFromMap(map[string]string{
-				"CLUSTER_NAME":        "c",
-				"RESOURCE_GROUP":      "rg",
-				"SUBSCRIPTION_ID":     "sub",
-				"NODEPOOL_TAG":        "user",
-				"NRP_FAIL_WINDOW_MIN": tc.v,
-			})
-			if _, err := parseEnvConfig(env); err == nil {
-				t.Errorf("expected error for window=%q", tc.v)
-			}
-		})
 	}
 }
 
@@ -254,34 +134,8 @@ func TestParseEnvConfig_DryRunFlag(t *testing.T) {
 }
 
 // =============================================================================
-// evalNRPStorm..4
+// evalClusterState
 // =============================================================================
-
-func TestEvalNRPStorm(t *testing.T) {
-	cases := []struct {
-		name                string
-		failures, threshold int
-		wantPass            bool
-	}{
-		{"below_threshold", 9, 10, false},
-		{"at_threshold", 10, 10, true},
-		{"above_threshold", 50, 10, true},
-		{"zero_failures", 0, 10, false},
-		{"invalid_threshold_zero", 100, 0, false},
-		{"invalid_threshold_negative", 100, -1, false},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			pass, reason := evalNRPStorm(tc.failures, tc.threshold)
-			if pass != tc.wantPass {
-				t.Errorf("failures=%d threshold=%d: pass=%t want %t (%s)", tc.failures, tc.threshold, pass, tc.wantPass, reason)
-			}
-			if !pass && reason == "" {
-				t.Errorf("non-pass result must have a reason")
-			}
-		})
-	}
-}
 
 func TestEvalClusterState(t *testing.T) {
 	cases := []struct {
@@ -449,6 +303,70 @@ func TestEvalNonTargetPoolsHealthy_TempPoolSkipped(t *testing.T) {
 	pass, reason := evalNonTargetPoolsHealthy(pools)
 	if !pass {
 		t.Fatalf("temp pool with count=0 should be skipped: %s", reason)
+	}
+}
+
+// =============================================================================
+// guardDecision
+// =============================================================================
+
+func TestGuardDecision(t *testing.T) {
+	cases := []struct {
+		name        string
+		guard       string
+		pass        bool
+		reason      string
+		skipGuards  bool
+		wantProceed bool
+		wantMsg     string
+	}{
+		{
+			name:        "pass_ignores_skip_guards",
+			guard:       "cluster state",
+			pass:        true,
+			reason:      "",
+			skipGuards:  false,
+			wantProceed: true,
+			wantMsg:     "cluster state PASS",
+		},
+		{
+			name:        "pass_with_skip_guards_still_pass",
+			guard:       "cluster safety",
+			pass:        true,
+			reason:      "",
+			skipGuards:  true,
+			wantProceed: true,
+			wantMsg:     "cluster safety PASS",
+		},
+		{
+			name:        "fail_without_override_halts",
+			guard:       "cluster state",
+			pass:        false,
+			reason:      "provisioningState=\"Creating\" rejected",
+			skipGuards:  false,
+			wantProceed: false,
+			wantMsg:     "provisioningState=\"Creating\" rejected",
+		},
+		{
+			name:        "fail_with_override_proceeds",
+			guard:       "cluster safety",
+			pass:        false,
+			reason:      "non-target pool unhealthy",
+			skipGuards:  true,
+			wantProceed: true,
+			wantMsg:     "SKIP_GUARDS=true — overriding cluster safety failure: non-target pool unhealthy",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			proceed, msg := guardDecision(tc.guard, tc.pass, tc.reason, tc.skipGuards)
+			if proceed != tc.wantProceed {
+				t.Errorf("proceed = %t, want %t", proceed, tc.wantProceed)
+			}
+			if msg != tc.wantMsg {
+				t.Errorf("msg = %q, want %q", msg, tc.wantMsg)
+			}
+		})
 	}
 }
 
@@ -649,55 +567,6 @@ func TestAgentPoolForCreate_DoesNotMutateInput(t *testing.T) {
 	}
 }
 
-func TestAgentPoolForScaleUpTrigger(t *testing.T) {
-	live := mkLiveSystemPool()
-	count := int32(3)
-	minCount := int32(3)
-	maxCount := int32(6)
-	autoscale := true
-	live.Properties.Count = &count
-	live.Properties.MinCount = &minCount
-	live.Properties.MaxCount = &maxCount
-	live.Properties.EnableAutoScaling = &autoscale
-
-	body, err := agentPoolForScaleUpTrigger(live, "1.35.4")
-	if err != nil {
-		t.Fatalf("agentPoolForScaleUpTrigger() error = %v", err)
-	}
-	if got := *body.Properties.Count; got != 4 {
-		t.Errorf("Count=%d want 4", got)
-	}
-	if got := *body.Properties.MinCount; got != 4 {
-		t.Errorf("MinCount=%d want 4", got)
-	}
-	if got := *body.Properties.MaxCount; got != 6 {
-		t.Errorf("MaxCount=%d want 6", got)
-	}
-}
-
-func TestAgentPoolForScaleUpTriggerRaisesMaxCount(t *testing.T) {
-	live := mkLiveSystemPool()
-	count := int32(3)
-	minCount := int32(3)
-	maxCount := int32(3)
-	autoscale := true
-	live.Properties.Count = &count
-	live.Properties.MinCount = &minCount
-	live.Properties.MaxCount = &maxCount
-	live.Properties.EnableAutoScaling = &autoscale
-
-	body, err := agentPoolForScaleUpTrigger(live, "1.35.4")
-	if err != nil {
-		t.Fatalf("agentPoolForScaleUpTrigger() error = %v", err)
-	}
-	if got := *body.Properties.MinCount; got != 4 {
-		t.Errorf("MinCount=%d want 4", got)
-	}
-	if got := *body.Properties.MaxCount; got != 4 {
-		t.Errorf("MaxCount=%d want 4", got)
-	}
-}
-
 func TestIsActiveClusterState(t *testing.T) {
 	cases := []struct {
 		state string
@@ -813,8 +682,8 @@ func TestBuildTempAgentPool_ValidInputs(t *testing.T) {
 	if p.VMSize == nil || *p.VMSize != "Standard_E8ds_v5" {
 		t.Errorf("temp VMSize should match live: %v", p.VMSize)
 	}
-	if p.Count == nil || *p.Count != 1 {
-		t.Errorf("temp Count should be 1, got %v", p.Count)
+	if p.Count == nil || *p.Count != 2 {
+		t.Errorf("temp Count should match live Count=2, got %v", p.Count)
 	}
 	if p.OrchestratorVersion == nil || *p.OrchestratorVersion != "1.35.4" {
 		t.Errorf("OrchestratorVersion: %v", p.OrchestratorVersion)
@@ -974,6 +843,84 @@ func TestTempPoolSourceID(t *testing.T) {
 	}
 }
 
+func mkLeftoverTempPool(name, source, role string) *armcs.AgentPool {
+	return &armcs.AgentPool{
+		Name: ptr(name),
+		Properties: &armcs.ManagedClusterAgentPoolProfileProperties{
+			NodeLabels: map[string]*string{
+				nodePoolRoleLabel: ptr(role),
+			},
+			Tags: map[string]*string{
+				tempPoolPurposeTag: ptr(tempPoolPurposeValue),
+				tempPoolSourceTag:  ptr(source),
+			},
+		},
+	}
+}
+
+func TestTargetFromLeftoverTempPool(t *testing.T) {
+	source := "/subscriptions/x/resourceGroups/y/providers/Microsoft.ContainerService/managedClusters/c/agentPools/userswft3"
+	temp := mkLeftoverTempPool(tempPoolName("userswft3"), source, "user")
+
+	target, ok, err := targetFromLeftoverTempPool(temp, "user")
+	if err != nil {
+		t.Fatalf("targetFromLeftoverTempPool() error = %v", err)
+	}
+	if !ok {
+		t.Fatal("targetFromLeftoverTempPool() skipped matching temp pool")
+	}
+	if target.name != "userswft3" || target.vmssPrefix != poolVMSSPrefix("userswft3") {
+		t.Fatalf("target = %#v", target)
+	}
+}
+
+func TestTargetFromLeftoverTempPoolIgnoresOtherRoles(t *testing.T) {
+	source := "/subscriptions/x/resourceGroups/y/providers/Microsoft.ContainerService/managedClusters/c/agentPools/system"
+	temp := mkLeftoverTempPool(tempPoolName("system"), source, "system")
+
+	target, ok, err := targetFromLeftoverTempPool(temp, "user")
+	if err != nil {
+		t.Fatalf("targetFromLeftoverTempPool() error = %v", err)
+	}
+	if ok || target != nil {
+		t.Fatalf("targetFromLeftoverTempPool() = %#v, %t; want skip", target, ok)
+	}
+}
+
+func TestTargetFromLeftoverTempPoolMalformedForTargetRoleFailsClosed(t *testing.T) {
+	cases := []struct {
+		name string
+		pool *armcs.AgentPool
+	}{
+		{
+			name: "missing source tag",
+			pool: &armcs.AgentPool{
+				Name: ptr(tempPoolName("userswft3")),
+				Properties: &armcs.ManagedClusterAgentPoolProfileProperties{
+					NodeLabels: map[string]*string{nodePoolRoleLabel: ptr("user")},
+					Tags:       map[string]*string{tempPoolPurposeTag: ptr(tempPoolPurposeValue)},
+				},
+			},
+		},
+		{
+			name: "malformed source tag",
+			pool: mkLeftoverTempPool(tempPoolName("userswft3"), "not-an-agent-pool-id", "user"),
+		},
+		{
+			name: "name does not match deterministic source name",
+			pool: mkLeftoverTempPool(tempPoolName("otherpool"), "/subscriptions/x/resourceGroups/y/providers/Microsoft.ContainerService/managedClusters/c/agentPools/userswft3", "user"),
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if _, _, err := targetFromLeftoverTempPool(tc.pool, "user"); err == nil {
+				t.Fatal("expected fail-closed error")
+			}
+		})
+	}
+}
+
 func TestBuildTempAgentPool_NilProperties(t *testing.T) {
 	if _, err := buildTempAgentPool(&armcs.AgentPool{}, "1.35.4"); err == nil {
 		t.Fatal("expected error for nil properties")
@@ -996,6 +943,47 @@ func TestBuildTempAgentPool_MissingCPVersion(t *testing.T) {
 	live := mkLiveSystemPool()
 	if _, err := buildTempAgentPool(live, ""); err == nil {
 		t.Fatal("expected error for empty cpVersion")
+	}
+}
+
+func TestBuildTempAgentPool_CountFallbacks(t *testing.T) {
+	cases := []struct {
+		name      string
+		count     *int32
+		minCount  *int32
+		wantCount int32
+	}{
+		{name: "count_wins", count: ptr(int32(3)), minCount: ptr(int32(5)), wantCount: 3},
+		{name: "missing_count_uses_min_count", count: nil, minCount: ptr(int32(4)), wantCount: 4},
+		{name: "zero_count_uses_min_count", count: ptr(int32(0)), minCount: ptr(int32(2)), wantCount: 2},
+		{name: "missing_count_and_min_count_uses_one", count: nil, minCount: nil, wantCount: 1},
+		{name: "zero_count_and_zero_min_count_uses_one", count: ptr(int32(0)), minCount: ptr(int32(0)), wantCount: 1},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			live := mkLiveSystemPool()
+			live.Properties.Count = tc.count
+			live.Properties.MinCount = tc.minCount
+			body, err := buildTempAgentPool(live, "1.35.4")
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if got := *body.Properties.Count; got != tc.wantCount {
+				t.Fatalf("Count=%d want %d", got, tc.wantCount)
+			}
+		})
+	}
+}
+
+func TestTempPoolReadyTimeout(t *testing.T) {
+	if got := tempPoolReadyTimeout(1); got != tempReadyTOMin*time.Minute {
+		t.Errorf("single-node temp timeout=%s want %dm", got, tempReadyTOMin)
+	}
+	for _, wantReady := range []int{2, 3, 4} {
+		if got := tempPoolReadyTimeout(wantReady); got != poolReadyTOMin*time.Minute {
+			t.Errorf("multi-node temp timeout for wantReady=%d got %s want %dm", wantReady, got, poolReadyTOMin)
+		}
 	}
 }
 
@@ -1590,6 +1578,7 @@ type mockOrchestrator struct {
 	ensureClusterFn          func(ctx context.Context) (armcs.ManagedCluster, bool, error)
 	bootstrapKubeFn          func(ctx context.Context, mc armcs.ManagedCluster) error
 	detectFn                 func(ctx context.Context, n int) (bool, string, error)
+	adoptLeftoverTempPoolsFn func(ctx context.Context) error
 	adoptLeftoverTempPoolFn  func(ctx context.Context, target nodePoolTarget) error
 	snapshotSystemFn         func(ctx context.Context) (*armcs.AgentPool, error)
 	maybeAbortLROFn          func(ctx context.Context) (bool, error)
@@ -1598,10 +1587,6 @@ type mockOrchestrator struct {
 	deletePoolFn             func(ctx context.Context, pool string) error
 	recreateSystemFn         func(ctx context.Context, live *armcs.AgentPool) error
 	reconcileTagPutFn        func(ctx context.Context) error
-	triggerSystemReconcileFn func(ctx context.Context, live *armcs.AgentPool) error
-	pollForNRPEvidenceFn     func(ctx context.Context, timeout time.Duration, pollInterval time.Duration, windowMin int, threshold int) (int, error)
-	abortSystemReconcileFn   func(ctx context.Context) error
-	restorePoolSpecFn        func(ctx context.Context, target nodePoolTarget, live *armcs.AgentPool) error
 }
 
 func (m *mockOrchestrator) record(name string) { m.calls = append(m.calls, name) }
@@ -1631,13 +1616,10 @@ func (m *mockOrchestrator) detect(ctx context.Context) ([]nodePoolTarget, string
 			return nil, reason, err
 		}
 		if !pass {
-			if strings.Contains(reason, "NRP-KVS storm FAIL") {
-				return []nodePoolTarget{{name: "system", vmssPrefix: poolVMSSPrefix("system"), suspected: true}}, reason, nil
-			}
 			return nil, reason, err
 		}
 	}
-	return []nodePoolTarget{{name: "system", vmssPrefix: poolVMSSPrefix("system"), nrpFailures: 10}}, "", nil
+	return []nodePoolTarget{{name: "system", vmssPrefix: poolVMSSPrefix("system"), emptyIPConfig: true}}, "", nil
 }
 
 func (m *mockOrchestrator) dumpPreflight(ctx context.Context) error {
@@ -1648,6 +1630,14 @@ func (m *mockOrchestrator) dumpPreflight(ctx context.Context) error {
 func (m *mockOrchestrator) dumpPostflight(ctx context.Context) error {
 	m.record("dumpPostflight")
 	return nil
+}
+
+func (m *mockOrchestrator) adoptLeftoverTempPools(ctx context.Context) error {
+	if m.adoptLeftoverTempPoolsFn == nil {
+		return nil
+	}
+	m.record("adoptLeftoverTempPools")
+	return m.adoptLeftoverTempPoolsFn(ctx)
 }
 
 func (m *mockOrchestrator) adoptLeftoverTempPool(ctx context.Context, target nodePoolTarget) error {
@@ -1722,46 +1712,6 @@ func (m *mockOrchestrator) reconcileTagPut(ctx context.Context) error {
 	return nil
 }
 
-func (m *mockOrchestrator) triggerPoolReconcile(ctx context.Context, target nodePoolTarget, live *armcs.AgentPool) error {
-	if target.name == "system" {
-		m.record("triggerSystemReconcile")
-	} else {
-		m.record("triggerPoolReconcile:" + target.name)
-	}
-	if m.triggerSystemReconcileFn != nil {
-		return m.triggerSystemReconcileFn(ctx, live)
-	}
-	return nil
-}
-
-func (m *mockOrchestrator) pollForNRPEvidence(ctx context.Context, target nodePoolTarget, timeout time.Duration, pollInterval time.Duration, windowMin int, threshold int) (int, error) {
-	m.record("pollForNRPEvidence")
-	if m.pollForNRPEvidenceFn != nil {
-		return m.pollForNRPEvidenceFn(ctx, timeout, pollInterval, windowMin, threshold)
-	}
-	return threshold, nil
-}
-
-func (m *mockOrchestrator) abortPoolReconcile(ctx context.Context, poolName string) error {
-	if poolName == "system" {
-		m.record("abortSystemReconcile")
-	} else {
-		m.record("abortPoolReconcile:" + poolName)
-	}
-	if m.abortSystemReconcileFn != nil {
-		return m.abortSystemReconcileFn(ctx)
-	}
-	return nil
-}
-
-func (m *mockOrchestrator) restorePoolSpec(ctx context.Context, target nodePoolTarget, live *armcs.AgentPool) error {
-	m.record("restorePoolSpec:" + target.name)
-	if m.restorePoolSpecFn != nil {
-		return m.restorePoolSpecFn(ctx, target, live)
-	}
-	return nil
-}
-
 func TestRunWith(t *testing.T) {
 	dummyErr := errors.New("boom")
 	tmpSystem := tempPoolName("system")
@@ -1816,72 +1766,24 @@ func TestRunWith(t *testing.T) {
 			wantCalls: []string{"ensureCluster", "dumpPreflight", "detect:1"},
 		},
 		{
-			name: "guard1_fail_dry_run_skips_forced_evidence",
-			cfg:  &config{clusterName: "c", resourceGroup: "rg", subscriptionID: "sub", cpVersion: "1.30.0", dryRun: true},
+			name: "pre_scan_adopts_leftover_before_detection_noop",
+			cfg:  &config{clusterName: "c", resourceGroup: "rg", subscriptionID: "sub", cpVersion: "1.30.0"},
 			setup: func(m *mockOrchestrator) {
+				m.adoptLeftoverTempPoolsFn = func(context.Context) error { return nil }
 				m.detectFn = func(_ context.Context, _ int) (bool, string, error) {
-					return false, "NRP-KVS storm FAIL: only 0 NRP failures < 10", nil
+					return false, "no selected node pools with role user", nil
 				}
 			},
-			wantCalls: []string{"ensureCluster", "dumpPreflight", "detect:1"},
+			wantCalls: []string{"ensureCluster", "dumpPreflight", "adoptLeftoverTempPools", "detect:1"},
 		},
 		{
-			name: "guard1_fail_forced_evidence_inconclusive",
-			cfg:  &config{clusterName: "c", resourceGroup: "rg", subscriptionID: "sub", cpVersion: "1.30.0", threshold: 10, forcedEvidenceTimeoutMin: 20, forcedEvidenceThreshold: 3},
+			name: "pre_scan_error_stops_before_detection",
+			cfg:  &config{clusterName: "c", resourceGroup: "rg", subscriptionID: "sub", cpVersion: "1.30.0"},
 			setup: func(m *mockOrchestrator) {
-				m.detectFn = func(_ context.Context, _ int) (bool, string, error) {
-					return false, "NRP-KVS storm FAIL: only 0 NRP failures < 10", nil
-				}
-				m.pollForNRPEvidenceFn = func(context.Context, time.Duration, time.Duration, int, int) (int, error) {
-					return 2, nil
-				}
+				m.adoptLeftoverTempPoolsFn = func(context.Context) error { return dummyErr }
 			},
-			wantCalls: []string{
-				"ensureCluster", "dumpPreflight", "detect:1",
-				"snapshotSystem", "triggerSystemReconcile", "pollForNRPEvidence", "abortSystemReconcile", "restorePoolSpec:system",
-			},
-		},
-		{
-			name: "guard1_fail_forced_evidence_confirms_nrp",
-			cfg:  &config{clusterName: "c", resourceGroup: "rg", subscriptionID: "sub", cpVersion: "1.30.0", threshold: 10, forcedEvidenceTimeoutMin: 20, forcedEvidenceThreshold: 3},
-			setup: func(m *mockOrchestrator) {
-				m.detectFn = func(_ context.Context, n int) (bool, string, error) {
-					if n == 1 {
-						return false, "NRP-KVS storm FAIL: only 0 NRP failures < 10", nil
-					}
-					return true, "", nil
-				}
-				m.pollForNRPEvidenceFn = func(context.Context, time.Duration, time.Duration, int, int) (int, error) {
-					return 12, nil
-				}
-			},
-			wantCalls: []string{
-				"ensureCluster", "dumpPreflight", "detect:1",
-				"snapshotSystem", "triggerSystemReconcile", "pollForNRPEvidence", "abortSystemReconcile", "restorePoolSpec:system",
-				"bootstrapKube", "dumpPreflight",
-				"snapshotSystem", "maybeAbortLRO", "detect:2", "adoptLeftoverTempPool:system", "snapshotSystem",
-				"addTempPool:system",
-				"drainPool:system", "deletePool:system",
-				"recreateSystem",
-				"drainPool:" + tmpSystem, "deletePool:" + tmpSystem,
-				"reconcileTagPut", "dumpPostflight",
-			},
-		},
-		{
-			name: "guard1_fail_trigger_failure_exits_noop",
-			cfg:  &config{clusterName: "c", resourceGroup: "rg", subscriptionID: "sub", cpVersion: "1.30.0", threshold: 10},
-			setup: func(m *mockOrchestrator) {
-				m.detectFn = func(_ context.Context, _ int) (bool, string, error) {
-					return false, "NRP-KVS storm FAIL: only 0 NRP failures < 10", nil
-				}
-				m.triggerSystemReconcileFn = func(context.Context, *armcs.AgentPool) error {
-					return errors.New("conflict")
-				}
-			},
-			wantCalls: []string{
-				"ensureCluster", "dumpPreflight", "detect:1",
-				"snapshotSystem", "triggerSystemReconcile",
-			},
+			wantErr:   "adopt leftover temp pools:",
+			wantCalls: []string{"ensureCluster", "dumpPreflight", "adoptLeftoverTempPools"},
 		},
 		{
 			name: "detect_error",
@@ -1921,26 +1823,25 @@ func TestRunWith(t *testing.T) {
 		},
 		{
 			// SKIP_GUARDS must not turn an empty confirmed-target list
-			// into a destructive run. Even though SKIP_GUARDS=true, the
-			// forced-evidence path is skipped (gated by !skipGuards), so
-			// targets = confirmed = []. We must exit no-op before Step 2
-			// (maybeAbortLRO) and Step 8 (reconcileTagPut) fire.
+			// into a destructive run. When detection finds no broken
+			// pool, targets = []. We must exit no-op before Step 2
+			// (maybeAbortLRO) and Step 8 (reconcileTagPut) fire, even
+			// with SKIP_GUARDS=true.
 			name: "skip_guards_pre_lro_empty_targets_exits_noop",
 			cfg:  &config{clusterName: "c", resourceGroup: "rg", subscriptionID: "sub", cpVersion: "1.30.0", skipGuards: true},
 			setup: func(m *mockOrchestrator) {
 				m.detectFn = func(_ context.Context, _ int) (bool, string, error) {
-					// NRP-KVS storm FAIL injects a suspected target via the
-					// mock, but with skipGuards=true the forced-evidence
-					// probe is skipped, so confirmed stays empty.
-					return false, "NRP-KVS storm FAIL: only 0 NRP failures < 10", nil
+					// No broken pool detected: the mock returns an empty
+					// target list, so there is nothing to recreate.
+					return false, "no broken pools detected", nil
 				}
 			},
 			wantCalls: []string{"ensureCluster", "dumpPreflight", "detect:1"},
 		},
 		{
 			// Same protection at the post-LRO recheck gate: detect:1
-			// confirms a target so we reach Step 2; detect:2 returns
-			// only a suspected target which gets filtered out. With
+			// confirms a target so we reach Step 2; detect:2 finds the
+			// pool healthy and returns an empty list. With
 			// skipGuards=true we must still exit before reconcileTagPut.
 			name: "skip_guards_post_lro_empty_targets_exits_noop",
 			cfg:  &config{clusterName: "c", resourceGroup: "rg", subscriptionID: "sub", cpVersion: "1.30.0", skipGuards: true},
@@ -1949,7 +1850,7 @@ func TestRunWith(t *testing.T) {
 					if n == 1 {
 						return true, "", nil
 					}
-					return false, "NRP-KVS storm FAIL after LRO", nil
+					return false, "no broken pools detected after LRO", nil
 				}
 			},
 			wantCalls: []string{
@@ -2096,5 +1997,614 @@ func TestRunWith(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// =============================================================================
+// accelerated-networking guard (AROSLSRE-1172)
+// =============================================================================
+
+func TestDecideAccelNetworking(t *testing.T) {
+	cases := []struct {
+		name                             string
+		swiftRequired                    bool
+		refAN, refFound, tgtAN, tgtFound bool
+		wantPatch                        bool
+		wantWant                         bool
+	}{
+		{name: "reference_unknown_fails_open", refFound: false, tgtAN: false, tgtFound: true, wantPatch: false},
+		{name: "target_unknown_fails_open", refAN: true, refFound: true, tgtFound: false, wantPatch: false},
+		{name: "match_enabled_no_patch", refAN: true, refFound: true, tgtAN: true, tgtFound: true, wantPatch: false, wantWant: true},
+		{name: "match_disabled_no_patch", refAN: false, refFound: true, tgtAN: false, tgtFound: true, wantPatch: false, wantWant: false},
+		{name: "mismatch_temp_disabled_patch_to_enabled", refAN: true, refFound: true, tgtAN: false, tgtFound: true, wantPatch: true, wantWant: true},
+		{name: "mismatch_temp_enabled_patch_to_disabled", refAN: false, refFound: true, tgtAN: true, tgtFound: true, wantPatch: true, wantWant: false},
+		// Swift pools demand AN=true regardless of the reference.
+		{name: "swift_target_disabled_patch_to_enabled", swiftRequired: true, tgtAN: false, tgtFound: true, wantPatch: true, wantWant: true},
+		{name: "swift_target_enabled_no_patch", swiftRequired: true, tgtAN: true, tgtFound: true, wantPatch: false, wantWant: true},
+		{name: "swift_target_unknown_patch_to_enabled", swiftRequired: true, tgtFound: false, wantPatch: true, wantWant: true},
+		{name: "swift_ignores_reference_disabled", swiftRequired: true, refAN: false, refFound: true, tgtAN: false, tgtFound: true, wantPatch: true, wantWant: true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			d := decideAccelNetworking(tc.swiftRequired, tc.refAN, tc.refFound, tc.tgtAN, tc.tgtFound)
+			if d.patch != tc.wantPatch {
+				t.Fatalf("patch = %v, want %v (reason: %s)", d.patch, tc.wantPatch, d.reason)
+			}
+			if d.want != tc.wantWant {
+				t.Fatalf("want = %v, want %v (reason: %s)", d.want, tc.wantWant, d.reason)
+			}
+			if d.reason == "" {
+				t.Fatalf("reason must not be empty")
+			}
+		})
+	}
+}
+
+func vmssWithNICs(values ...*bool) *armcompute.VirtualMachineScaleSet {
+	nics := make([]*armcompute.VirtualMachineScaleSetNetworkConfiguration, 0, len(values))
+	for _, v := range values {
+		nics = append(nics, &armcompute.VirtualMachineScaleSetNetworkConfiguration{
+			Properties: &armcompute.VirtualMachineScaleSetNetworkConfigurationProperties{
+				EnableAcceleratedNetworking: v,
+			},
+		})
+	}
+	return &armcompute.VirtualMachineScaleSet{
+		Properties: &armcompute.VirtualMachineScaleSetProperties{
+			VirtualMachineProfile: &armcompute.VirtualMachineScaleSetVMProfile{
+				NetworkProfile: &armcompute.VirtualMachineScaleSetNetworkProfile{
+					NetworkInterfaceConfigurations: nics,
+				},
+			},
+		},
+	}
+}
+
+func TestVMSSAcceleratedNetworking(t *testing.T) {
+	cases := []struct {
+		name        string
+		vmss        *armcompute.VirtualMachineScaleSet
+		wantEnabled bool
+		wantFound   bool
+	}{
+		{name: "nil_vmss", vmss: nil, wantFound: false},
+		{name: "no_network_profile", vmss: &armcompute.VirtualMachineScaleSet{Properties: &armcompute.VirtualMachineScaleSetProperties{}}, wantFound: false},
+		{name: "nic_without_value", vmss: vmssWithNICs(nil), wantFound: false},
+		{name: "single_enabled", vmss: vmssWithNICs(ptr(true)), wantEnabled: true, wantFound: true},
+		{name: "single_disabled", vmss: vmssWithNICs(ptr(false)), wantEnabled: false, wantFound: true},
+		{name: "mixed_one_disabled_and_false", vmss: vmssWithNICs(ptr(false), ptr(true)), wantEnabled: false, wantFound: true},
+		{name: "all_enabled", vmss: vmssWithNICs(ptr(true), ptr(true)), wantEnabled: true, wantFound: true},
+		{name: "all_disabled", vmss: vmssWithNICs(ptr(false), ptr(false)), wantEnabled: false, wantFound: true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			enabled, found := vmssAcceleratedNetworking(tc.vmss)
+			if enabled != tc.wantEnabled || found != tc.wantFound {
+				t.Fatalf("got (enabled=%v found=%v), want (enabled=%v found=%v)", enabled, found, tc.wantEnabled, tc.wantFound)
+			}
+		})
+	}
+}
+
+func TestZeroNodePoolBody(t *testing.T) {
+	final := &armcs.AgentPool{
+		Properties: &armcs.ManagedClusterAgentPoolProfileProperties{
+			Count:             ptr(int32(5)),
+			EnableAutoScaling: ptr(true),
+			MinCount:          ptr(int32(3)),
+			MaxCount:          ptr(int32(9)),
+			VMSize:            ptr("Standard_D8s_v3"),
+		},
+	}
+	zero, err := zeroNodePoolBody(final)
+	if err != nil {
+		t.Fatalf("zeroNodePoolBody: %v", err)
+	}
+	if zero.Properties.Count == nil || *zero.Properties.Count != 0 {
+		t.Fatalf("zero Count = %v, want 0", zero.Properties.Count)
+	}
+	if zero.Properties.EnableAutoScaling == nil || *zero.Properties.EnableAutoScaling {
+		t.Fatalf("zero EnableAutoScaling = %v, want false", zero.Properties.EnableAutoScaling)
+	}
+	if zero.Properties.MinCount != nil || zero.Properties.MaxCount != nil {
+		t.Fatalf("zero Min/MaxCount must be nil, got %v/%v", zero.Properties.MinCount, zero.Properties.MaxCount)
+	}
+	if strDeref(zero.Properties.VMSize) != "Standard_D8s_v3" {
+		t.Fatalf("zero VMSize = %q, want preserved", strDeref(zero.Properties.VMSize))
+	}
+	// input must not be mutated
+	if *final.Properties.Count != 5 || !*final.Properties.EnableAutoScaling ||
+		*final.Properties.MinCount != 3 || *final.Properties.MaxCount != 9 {
+		t.Fatalf("zeroNodePoolBody mutated the input body: %+v", final.Properties)
+	}
+}
+
+func TestZeroNodePoolBodyNil(t *testing.T) {
+	if _, err := zeroNodePoolBody(nil); err == nil {
+		t.Fatalf("expected error for nil body")
+	}
+	if _, err := zeroNodePoolBody(&armcs.AgentPool{}); err == nil {
+		t.Fatalf("expected error for nil Properties")
+	}
+}
+
+// =============================================================================
+// VMSS client paths via azcore fake transport
+//
+// These tests exercise the live-ARM code paths (findPoolVMSS, patchVMSS-
+// AccelNetworking, ensurePoolAccelNetworking) offline by wiring the real
+// armcompute VMSS client to an in-memory fake server. No cluster or Azure
+// credentials are required; the fake server keeps mutable VMSS state so the
+// read-after-write semantics of the patch flow are exercised end to end.
+// =============================================================================
+
+// fakeVMSSStore is the mutable backing state for the fake VMSS server. GET and
+// LIST read from it; BeginCreateOrUpdate (full PUT) and BeginUpdate (scoped
+// PATCH) both write to it, so a patch is visible to the subsequent confirmation
+// read just like real ARM.
+type fakeVMSSStore struct {
+	mu      sync.Mutex
+	byName  map[string]*armcompute.VirtualMachineScaleSet
+	puts    []armcompute.VirtualMachineScaleSet       // captured full-PUT bodies, in order
+	updates []armcompute.VirtualMachineScaleSetUpdate // captured scoped-PATCH bodies, in order
+}
+
+func newFakeVMSSStore(vmsss ...*armcompute.VirtualMachineScaleSet) *fakeVMSSStore {
+	s := &fakeVMSSStore{byName: map[string]*armcompute.VirtualMachineScaleSet{}}
+	for _, v := range vmsss {
+		s.byName[strDeref(v.Name)] = v
+	}
+	return s
+}
+
+func (s *fakeVMSSStore) list() []*armcompute.VirtualMachineScaleSet {
+	out := make([]*armcompute.VirtualMachineScaleSet, 0, len(s.byName))
+	for _, v := range s.byName {
+		out = append(out, v)
+	}
+	return out
+}
+
+// newFakeVMSSClient builds a real armcompute VMSS client backed by store.
+func newFakeVMSSClient(t *testing.T, store *fakeVMSSStore) *armcompute.VirtualMachineScaleSetsClient {
+	t.Helper()
+	srv := computefake.VirtualMachineScaleSetsServer{
+		NewListPager: func(_ string, _ *armcompute.VirtualMachineScaleSetsClientListOptions) (resp azfake.PagerResponder[armcompute.VirtualMachineScaleSetsClientListResponse]) {
+			store.mu.Lock()
+			defer store.mu.Unlock()
+			resp.AddPage(http.StatusOK, armcompute.VirtualMachineScaleSetsClientListResponse{
+				VirtualMachineScaleSetListResult: armcompute.VirtualMachineScaleSetListResult{Value: store.list()},
+			}, nil)
+			return
+		},
+		Get: func(_ context.Context, _ string, name string, _ *armcompute.VirtualMachineScaleSetsClientGetOptions) (resp azfake.Responder[armcompute.VirtualMachineScaleSetsClientGetResponse], errResp azfake.ErrorResponder) {
+			store.mu.Lock()
+			defer store.mu.Unlock()
+			v, ok := store.byName[name]
+			if !ok {
+				errResp.SetResponseError(http.StatusNotFound, "ResourceNotFound")
+				return
+			}
+			resp.SetResponse(http.StatusOK, armcompute.VirtualMachineScaleSetsClientGetResponse{VirtualMachineScaleSet: *v}, nil)
+			return
+		},
+		BeginCreateOrUpdate: func(_ context.Context, _ string, name string, params armcompute.VirtualMachineScaleSet, _ *armcompute.VirtualMachineScaleSetsClientBeginCreateOrUpdateOptions) (resp azfake.PollerResponder[armcompute.VirtualMachineScaleSetsClientCreateOrUpdateResponse], errResp azfake.ErrorResponder) {
+			store.mu.Lock()
+			defer store.mu.Unlock()
+			stored := params
+			store.byName[name] = &stored
+			store.puts = append(store.puts, params)
+			resp.SetTerminalResponse(http.StatusOK, armcompute.VirtualMachineScaleSetsClientCreateOrUpdateResponse{VirtualMachineScaleSet: stored}, nil)
+			return
+		},
+		BeginUpdate: func(_ context.Context, _ string, name string, params armcompute.VirtualMachineScaleSetUpdate, _ *armcompute.VirtualMachineScaleSetsClientBeginUpdateOptions) (resp azfake.PollerResponder[armcompute.VirtualMachineScaleSetsClientUpdateResponse], errResp azfake.ErrorResponder) {
+			store.mu.Lock()
+			defer store.mu.Unlock()
+			v, ok := store.byName[name]
+			if !ok {
+				errResp.SetResponseError(http.StatusNotFound, "ResourceNotFound")
+				return
+			}
+			store.updates = append(store.updates, params)
+			// Apply only the accelerated-networking flag from the scoped PATCH
+			// body onto the stored NIC configs (matched by position), mirroring
+			// ARM's merge of the network profile while leaving everything else
+			// untouched.
+			if params.Properties != nil && params.Properties.VirtualMachineProfile != nil &&
+				params.Properties.VirtualMachineProfile.NetworkProfile != nil &&
+				v.Properties != nil && v.Properties.VirtualMachineProfile != nil &&
+				v.Properties.VirtualMachineProfile.NetworkProfile != nil {
+				upd := params.Properties.VirtualMachineProfile.NetworkProfile.NetworkInterfaceConfigurations
+				cur := v.Properties.VirtualMachineProfile.NetworkProfile.NetworkInterfaceConfigurations
+				for i := range upd {
+					if i >= len(cur) || upd[i] == nil || upd[i].Properties == nil || cur[i] == nil {
+						continue
+					}
+					if cur[i].Properties == nil {
+						cur[i].Properties = &armcompute.VirtualMachineScaleSetNetworkConfigurationProperties{}
+					}
+					cur[i].Properties.EnableAcceleratedNetworking = upd[i].Properties.EnableAcceleratedNetworking
+				}
+			}
+			resp.SetTerminalResponse(http.StatusOK, armcompute.VirtualMachineScaleSetsClientUpdateResponse{VirtualMachineScaleSet: *v}, nil)
+			return
+		},
+	}
+	client, err := armcompute.NewVirtualMachineScaleSetsClient(
+		"00000000-0000-0000-0000-000000000000",
+		&azfake.TokenCredential{},
+		&azcorearm.ClientOptions{ClientOptions: azcore.ClientOptions{
+			Transport: computefake.NewVirtualMachineScaleSetsServerTransport(&srv),
+		}},
+	)
+	if err != nil {
+		t.Fatalf("build fake VMSS client: %v", err)
+	}
+	return client
+}
+
+// namedVMSS builds a VMSS with a name, the aks-managed-poolName tag, and one NIC
+// carrying the given accelerated-networking value.
+func namedVMSS(name, poolTag string, an *bool) *armcompute.VirtualMachineScaleSet {
+	v := vmssWithNICs(an)
+	v.Name = ptr(name)
+	if poolTag != "" {
+		v.Tags = map[string]*string{aksManagedPoolNameTag: ptr(poolTag)}
+	}
+	return v
+}
+
+func newTestClients(store *fakeVMSSStore, t *testing.T) *clients {
+	return &clients{
+		cfg:  &config{nodeRG: "MC_rg_cluster_region"},
+		vmss: newFakeVMSSClient(t, store),
+	}
+}
+
+func TestFindPoolVMSS(t *testing.T) {
+	store := newFakeVMSSStore(
+		namedVMSS("aks-userswft3-12345678-vmss", "userswft3", ptr(true)),
+		namedVMSS("aks-system-87654321-vmss", "system", ptr(true)),
+		// A VMSS whose name matches the aks-<pool>- prefix of "lonely" but
+		// carries no matching tag — must NOT be matched (we never guess by
+		// name convention; only the authoritative tag counts).
+		namedVMSS("aks-lonely-00000000-vmss", "", ptr(false)),
+	)
+	c := newTestClients(store, t)
+	ctx := context.Background()
+
+	t.Run("tag_match", func(t *testing.T) {
+		name, v, err := c.findPoolVMSS(ctx, "userswft3")
+		if err != nil {
+			t.Fatalf("findPoolVMSS: %v", err)
+		}
+		if name != "aks-userswft3-12345678-vmss" || v == nil {
+			t.Fatalf("got name=%q vmss=%v, want tag match", name, v)
+		}
+	})
+
+	t.Run("name_prefix_not_matched", func(t *testing.T) {
+		// "lonely" has a prefix-matching VMSS but no tag — must error.
+		if _, _, err := c.findPoolVMSS(ctx, "lonely"); err == nil {
+			t.Fatalf("expected error: prefix-only match must not be returned")
+		}
+	})
+
+	t.Run("not_found", func(t *testing.T) {
+		if _, _, err := c.findPoolVMSS(ctx, "doesnotexist"); err == nil {
+			t.Fatalf("expected error for missing pool VMSS")
+		}
+	})
+}
+
+func TestPatchVMSSAccelNetworking(t *testing.T) {
+	// Two NICs, both disabled; patch must flip both to true and the stored
+	// state must reflect it.
+	target := namedVMSS("aks-userswft3-12345678-vmss", "userswft3", ptr(false))
+	target.Properties.VirtualMachineProfile.NetworkProfile.NetworkInterfaceConfigurations = append(
+		target.Properties.VirtualMachineProfile.NetworkProfile.NetworkInterfaceConfigurations,
+		&armcompute.VirtualMachineScaleSetNetworkConfiguration{
+			Properties: &armcompute.VirtualMachineScaleSetNetworkConfigurationProperties{
+				EnableAcceleratedNetworking: ptr(false),
+			},
+		},
+	)
+	store := newFakeVMSSStore(target)
+	c := newTestClients(store, t)
+
+	if err := c.patchVMSSAccelNetworking(context.Background(), "aks-userswft3-12345678-vmss", true); err != nil {
+		t.Fatalf("patchVMSSAccelNetworking: %v", err)
+	}
+	// Regression guard: the fix must NOT issue a full read-modify-write PUT
+	// (which re-sends storageProfile.imageReference and triggers the linked
+	// image-gallery 403 LinkedAuthorizationFailed). It must use a scoped PATCH.
+	if len(store.puts) != 0 {
+		t.Fatalf("expected 0 full PUTs (scoped PATCH only), got %d", len(store.puts))
+	}
+	if len(store.updates) != 1 {
+		t.Fatalf("expected exactly 1 scoped PATCH, got %d", len(store.updates))
+	}
+	// The PATCH body must carry only the network profile; storageProfile must be
+	// omitted so ARM never runs the linked image-gallery auth check.
+	updProps := store.updates[0].Properties
+	if updProps == nil || updProps.VirtualMachineProfile == nil {
+		t.Fatalf("PATCH body missing virtualMachineProfile")
+	}
+	if updProps.VirtualMachineProfile.StorageProfile != nil {
+		t.Fatalf("PATCH body must omit storageProfile to avoid linked image auth")
+	}
+	if updProps.VirtualMachineProfile.NetworkProfile == nil {
+		t.Fatalf("PATCH body missing networkProfile")
+	}
+	got, found := vmssAcceleratedNetworking(store.byName["aks-userswft3-12345678-vmss"])
+	if !found || !got {
+		t.Fatalf("after patch accelerated-networking=(enabled=%v found=%v), want enabled", got, found)
+	}
+	for i, nic := range updProps.VirtualMachineProfile.NetworkProfile.NetworkInterfaceConfigurations {
+		if nic.Properties == nil || nic.Properties.EnableAcceleratedNetworking == nil || !*nic.Properties.EnableAcceleratedNetworking {
+			t.Fatalf("PATCH body NIC %d not set to accelerated-networking=true", i)
+		}
+	}
+}
+
+func TestPatchVMSSAccelNetworkingNoNICs(t *testing.T) {
+	bare := namedVMSS("aks-x-1-vmss", "x", nil)
+	bare.Properties.VirtualMachineProfile.NetworkProfile.NetworkInterfaceConfigurations = nil
+	store := newFakeVMSSStore(bare)
+	c := newTestClients(store, t)
+	if err := c.patchVMSSAccelNetworking(context.Background(), "aks-x-1-vmss", true); err == nil {
+		t.Fatalf("expected error patching a VMSS with no NIC configurations")
+	}
+}
+
+func TestEnsurePoolAccelNetworking(t *testing.T) {
+	const tgtVMSS = "aks-userswft3-12345678-vmss"
+	const refVMSS = "aks-userswft3temp-87654321-vmss"
+
+	t.Run("mismatch_patches_and_confirms", func(t *testing.T) {
+		store := newFakeVMSSStore(
+			namedVMSS(tgtVMSS, "userswft3", ptr(false)),    // broken: AN disabled
+			namedVMSS(refVMSS, "userswft3temp", ptr(true)), // reference: AN enabled
+		)
+		c := newTestClients(store, t)
+		patched, want, err := c.ensurePoolAccelNetworking(context.Background(), "userswft3", "userswft3temp", false)
+		if err != nil {
+			t.Fatalf("ensurePoolAccelNetworking: %v", err)
+		}
+		if !patched || !want {
+			t.Fatalf("got patched=%v want=%v, expected patched=true want=true", patched, want)
+		}
+		if got, found := vmssAcceleratedNetworking(store.byName[tgtVMSS]); !found || !got {
+			t.Fatalf("target VMSS not corrected: enabled=%v found=%v", got, found)
+		}
+	})
+
+	t.Run("already_matches_no_patch", func(t *testing.T) {
+		store := newFakeVMSSStore(
+			namedVMSS(tgtVMSS, "userswft3", ptr(true)),
+			namedVMSS(refVMSS, "userswft3temp", ptr(true)),
+		)
+		c := newTestClients(store, t)
+		patched, _, err := c.ensurePoolAccelNetworking(context.Background(), "userswft3", "userswft3temp", false)
+		if err != nil {
+			t.Fatalf("ensurePoolAccelNetworking: %v", err)
+		}
+		if patched || len(store.puts) != 0 {
+			t.Fatalf("expected no patch when values match (patched=%v puts=%d)", patched, len(store.puts))
+		}
+	})
+
+	t.Run("reference_unknown_fails_open", func(t *testing.T) {
+		store := newFakeVMSSStore(
+			namedVMSS(tgtVMSS, "userswft3", ptr(false)),
+			namedVMSS(refVMSS, "userswft3temp", nil), // no explicit AN -> unknown
+		)
+		c := newTestClients(store, t)
+		patched, _, err := c.ensurePoolAccelNetworking(context.Background(), "userswft3", "userswft3temp", false)
+		if err != nil {
+			t.Fatalf("fail-open should not error: %v", err)
+		}
+		if patched || len(store.puts) != 0 {
+			t.Fatalf("expected fail-open no-patch when reference unknown (patched=%v puts=%d)", patched, len(store.puts))
+		}
+	})
+}
+
+// =============================================================================
+// Swift pool identification + accelerated-networking precheck
+// =============================================================================
+
+func swiftAgentPool(tags map[string]string) *armcs.AgentPool {
+	t := map[string]*string{}
+	for k, v := range tags {
+		t[k] = ptr(v)
+	}
+	return &armcs.AgentPool{
+		Properties: &armcs.ManagedClusterAgentPoolProfileProperties{Tags: t},
+	}
+}
+
+func TestPoolIsSwift(t *testing.T) {
+	cases := []struct {
+		name string
+		pool *armcs.AgentPool
+		want bool
+	}{
+		{"swift_tag_true", swiftAgentPool(map[string]string{swiftNodepoolTag: "true"}), true},
+		{"swift_tag_mixed_case", swiftAgentPool(map[string]string{swiftNodepoolTag: "True"}), true},
+		{"swift_tag_false", swiftAgentPool(map[string]string{swiftNodepoolTag: "false"}), false},
+		{"swift_tag_absent", swiftAgentPool(map[string]string{"other": "true"}), false},
+		{"no_tags", swiftAgentPool(nil), false},
+		{"nil_properties", &armcs.AgentPool{}, false},
+		{"nil_pool", nil, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := poolIsSwift(tc.pool); got != tc.want {
+				t.Fatalf("poolIsSwift = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestDetectAccelNetBrokenPools(t *testing.T) {
+	store := newFakeVMSSStore(
+		// Swift pool with AN disabled -> must be flagged broken.
+		namedVMSS("aks-swdisabled-11111111-vmss", "swdisabled", ptr(false)),
+		// Swift pool with AN enabled -> healthy, not flagged.
+		namedVMSS("aks-swenabled-22222222-vmss", "swenabled", ptr(true)),
+		// Swift pool whose VMSS reports no AN setting -> indeterminate, skipped.
+		namedVMSS("aks-swunknown-33333333-vmss", "swunknown", nil),
+	)
+	c := newTestClients(store, t)
+	ctx := context.Background()
+
+	swiftPools := []nodePoolTarget{
+		{name: "swdisabled"},
+		{name: "swenabled"},
+		{name: "swunknown"},
+		// Swift pool with no backing VMSS yet -> skipped (fail-open).
+		{name: "swmissing"},
+	}
+
+	broken, err := c.detectAccelNetBrokenPools(ctx, swiftPools)
+	if err != nil {
+		t.Fatalf("detectAccelNetBrokenPools: %v", err)
+	}
+	if len(broken) != 1 {
+		t.Fatalf("expected exactly 1 broken pool, got %d: %+v", len(broken), broken)
+	}
+	if broken[0].name != "swdisabled" {
+		t.Fatalf("expected swdisabled flagged, got %q", broken[0].name)
+	}
+	if !broken[0].accelNetBroken {
+		t.Fatalf("expected accelNetBroken=true on flagged pool")
+	}
+
+	t.Run("empty_input_no_list", func(t *testing.T) {
+		got, err := c.detectAccelNetBrokenPools(ctx, nil)
+		if err != nil || got != nil {
+			t.Fatalf("empty input should return (nil,nil), got (%v,%v)", got, err)
+		}
+	})
+}
+
+// =============================================================================
+// empty-ipConfiguration detection (Steve Kuznetsov, MSFT): a pool whose backing
+// VMSS has realized instance NICs with an empty ipConfigurations array is broken
+// by the NRP null-pointer defect and must be recreated regardless of the
+// activity-log storm signal.
+// =============================================================================
+
+// nic builds a realized network interface with the given number of
+// ipConfigurations (n==0 reproduces the NRP null-pointer signature).
+func nic(ipConfigs int) *armnetwork.Interface {
+	cfgs := make([]*armnetwork.InterfaceIPConfiguration, 0, ipConfigs)
+	for i := 0; i < ipConfigs; i++ {
+		cfgs = append(cfgs, &armnetwork.InterfaceIPConfiguration{})
+	}
+	return &armnetwork.Interface{
+		Properties: &armnetwork.InterfacePropertiesFormat{IPConfigurations: cfgs},
+	}
+}
+
+func TestCountEmptyIPConfigs(t *testing.T) {
+	cases := []struct {
+		name      string
+		nics      []*armnetwork.Interface
+		wantTotal int
+		wantEmpty int
+	}{
+		{name: "nil_slice", nics: nil, wantTotal: 0, wantEmpty: 0},
+		{name: "all_healthy", nics: []*armnetwork.Interface{nic(1), nic(2)}, wantTotal: 2, wantEmpty: 0},
+		{name: "one_empty", nics: []*armnetwork.Interface{nic(1), nic(0)}, wantTotal: 2, wantEmpty: 1},
+		{name: "all_empty", nics: []*armnetwork.Interface{nic(0), nic(0)}, wantTotal: 2, wantEmpty: 2},
+		{name: "nil_nic_skipped", nics: []*armnetwork.Interface{nil, nic(0)}, wantTotal: 1, wantEmpty: 1},
+		{name: "nil_properties_skipped", nics: []*armnetwork.Interface{{Properties: nil}, nic(1)}, wantTotal: 1, wantEmpty: 0},
+		// nil (omitted/null) IPConfigurations is indeterminate, NOT the
+		// empty-array defect: it is skipped entirely (not counted toward
+		// total or empty), matching array_length(null) != 0.
+		{name: "nil_ipconfigs_skipped", nics: []*armnetwork.Interface{{Properties: &armnetwork.InterfacePropertiesFormat{IPConfigurations: nil}}, nic(1)}, wantTotal: 1, wantEmpty: 0},
+		{name: "only_nil_ipconfigs_indeterminate", nics: []*armnetwork.Interface{{Properties: &armnetwork.InterfacePropertiesFormat{IPConfigurations: nil}}}, wantTotal: 0, wantEmpty: 0},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			total, empty := countEmptyIPConfigs(tc.nics)
+			if total != tc.wantTotal || empty != tc.wantEmpty {
+				t.Fatalf("got (total=%d empty=%d), want (total=%d empty=%d)", total, empty, tc.wantTotal, tc.wantEmpty)
+			}
+		})
+	}
+}
+
+// newFakeNICsClient builds a real armnetwork InterfacesClient whose VMSS-NIC
+// list reads from nicsByVMSS (keyed by VMSS name). A VMSS absent from the map
+// returns an empty NIC list, mirroring ARM for a scaled-to-zero VMSS.
+func newFakeNICsClient(t *testing.T, nicsByVMSS map[string][]*armnetwork.Interface) *armnetwork.InterfacesClient {
+	t.Helper()
+	srv := networkfake.InterfacesServer{
+		NewListVirtualMachineScaleSetNetworkInterfacesPager: func(_ string, vmssName string, _ *armnetwork.InterfacesClientListVirtualMachineScaleSetNetworkInterfacesOptions) (resp azfake.PagerResponder[armnetwork.InterfacesClientListVirtualMachineScaleSetNetworkInterfacesResponse]) {
+			resp.AddPage(http.StatusOK, armnetwork.InterfacesClientListVirtualMachineScaleSetNetworkInterfacesResponse{
+				InterfaceListResult: armnetwork.InterfaceListResult{Value: nicsByVMSS[vmssName]},
+			}, nil)
+			return
+		},
+	}
+	client, err := armnetwork.NewInterfacesClient(
+		"00000000-0000-0000-0000-000000000000",
+		&azfake.TokenCredential{},
+		&azcorearm.ClientOptions{ClientOptions: azcore.ClientOptions{
+			Transport: networkfake.NewInterfacesServerTransport(&srv),
+		}},
+	)
+	if err != nil {
+		t.Fatalf("build fake NICs client: %v", err)
+	}
+	return client
+}
+
+func TestDetectEmptyIPConfigPools(t *testing.T) {
+	const (
+		brokenVMSS  = "aks-userswft3-12345678-vmss"
+		healthyVMSS = "aks-system-87654321-vmss"
+		zeroVMSS    = "aks-userswft2-11112222-vmss"
+	)
+	store := newFakeVMSSStore(
+		namedVMSS(brokenVMSS, "userswft3", ptr(true)),
+		namedVMSS(healthyVMSS, "system", ptr(true)),
+		namedVMSS(zeroVMSS, "userswft2", ptr(true)),
+		// "nomvss" intentionally absent: no backing VMSS yet.
+	)
+	nicsByVMSS := map[string][]*armnetwork.Interface{
+		brokenVMSS:  {nic(1), nic(0)}, // one NIC lost its ipConfigurations
+		healthyVMSS: {nic(1), nic(1)}, // all NICs healthy
+		zeroVMSS:    {},               // no realized NICs yet
+	}
+	c := &clients{
+		cfg:  &config{nodeRG: "MC_rg_cluster_region"},
+		vmss: newFakeVMSSClient(t, store),
+		nics: newFakeNICsClient(t, nicsByVMSS),
+	}
+
+	pools := []nodePoolTarget{
+		{name: "userswft3"}, {name: "system"}, {name: "userswft2"}, {name: "nomvss"},
+	}
+	broken, err := c.detectEmptyIPConfigPools(context.Background(), pools)
+	if err != nil {
+		t.Fatalf("detectEmptyIPConfigPools: %v", err)
+	}
+	if len(broken) != 1 {
+		t.Fatalf("expected exactly 1 broken pool, got %d: %+v", len(broken), broken)
+	}
+	if broken[0].name != "userswft3" || !broken[0].emptyIPConfig {
+		t.Fatalf("got %+v, want pool=userswft3 emptyIPConfig=true", broken[0])
+	}
+}
+
+func TestDetectEmptyIPConfigPools_EmptyInput(t *testing.T) {
+	c := &clients{cfg: &config{nodeRG: "rg"}}
+	got, err := c.detectEmptyIPConfigPools(context.Background(), nil)
+	if err != nil || got != nil {
+		t.Fatalf("empty input should return (nil,nil), got (%v,%v)", got, err)
 	}
 }

@@ -107,7 +107,7 @@ func (c *createNodePoolScopedReadDesiresSyncer) SyncOnce(ctx context.Context, ke
 	}
 
 	// Pull the parent cluster's domain prefix from cosmos rather than Cluster
-	// Service: the cluster_properties_sync controller already mirrors CS
+	// Service: the cluster_base_domain_prefix_sync controller already mirrors CS
 	// DomainPrefix into CustomerProperties.DNS.BaseDomainPrefix on the parent
 	// HCPCluster. Skip until that sync has happened; we'll retrigger on relist.
 	parentCluster, err := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Get(ctx, key.HCPClusterName)

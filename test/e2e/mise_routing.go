@@ -18,7 +18,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -67,7 +66,7 @@ func (p *miseVersionValidator) Do(req *policy.Request) (*http.Response, error) {
 
 // Tests the VirtualService routes to the correct frontend instance based on request headers
 // by creating and deleting a full HCP cluster, validating every response header.
-// In INT and above, this exercises MISE-backed routing. In dev/prow environments, the same
+// In INT and above, this exercises MISE-backed routing. In dev/CI environments, the same
 // VirtualService is deployed but fronts non-MISE frontend instances. PR checks connect
 // through the Istio ingress gateway (not port-forwarded), so the VirtualService routing
 // rules are always evaluated.
@@ -83,7 +82,7 @@ var _ = Describe("MISE Routing", func() {
 			tc := framework.NewTestContext()
 
 			if tc.UsePooledIdentities() {
-				err := tc.AssignIdentityContainers(ctx, 1, 60*time.Second)
+				err := tc.AssignIdentityContainers(ctx, 1, framework.IdentityContainerAssignmentRetryInterval)
 				Expect(err).NotTo(HaveOccurred(), "failed to assign identity containers")
 			}
 
@@ -140,7 +139,7 @@ var _ = Describe("MISE Routing", func() {
 			_, err = delPoller.PollUntilDone(delCtx, &runtime.PollUntilDoneOptions{
 				Frequency: framework.StandardPollInterval,
 			})
-			Expect(err).NotTo(HaveOccurred(), "failed to poll HCP cluster deletion to completion")
+			Expect(err).NotTo(HaveOccurred(), "failed to poll HCP cluster %q deletion (timeout '%f' minutes)", clusterParams.ClusterName, framework.HCPClusterDeletionTimeout.Minutes())
 
 			Expect(validator.mismatches).To(BeEmpty(), "x-ms-served-by header mismatches detected")
 			Expect(validator.requestCount).To(BeNumerically(">", 0), "expected at least one HCP API request")

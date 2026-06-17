@@ -68,6 +68,18 @@ func CosmosGenericToInternal[InternalAPIType any](cosmosObj *GenericDocument[Int
 	cosmosData := ret.(arm.CosmosPersistable).GetCosmosData()
 	cosmosData.ExistingCosmosUID = cosmosObj.ID
 	ret.SetEtag(cosmosObj.CosmosETag)
+	// Legacy documents predating the InstanceVersion field land here with
+	// the zero value. Treat that as "version 1" so a subsequent Get → modify
+	// → Replace path round-trips without tripping PrepareForReplace, which
+	// only allows InstanceVersion==0 to flag fresh-built docs the caller
+	// forgot to deep-copy from the existing record.
+	if cosmosData.InstanceVersion == 0 {
+		cosmosData.InstanceVersion = 1
+	}
+
+	if defaulter, ok := ret.(Defaulter); ok {
+		defaulter.EnsureDefaults()
+	}
 
 	// this isn't pretty, but on balance it's a better choice so that we can share all the rest.
 	switch castObj := any(ret).(type) {
@@ -92,4 +104,8 @@ func CosmosGenericToInternal[InternalAPIType any](cosmosObj *GenericDocument[Int
 	}
 
 	return &cosmosObj.Content, nil
+}
+
+type Defaulter interface {
+	EnsureDefaults()
 }

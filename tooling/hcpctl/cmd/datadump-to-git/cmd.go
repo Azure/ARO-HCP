@@ -239,6 +239,7 @@ func parseCSVFile(path string) ([]dataDumpEntry, error) {
 // "SubscriptionNonClusterDataDump" lands on the wire as "subscriptionnonclusterdatadump".
 func looksLikeDataDump(logJSON string) bool {
 	return strings.Contains(logJSON, "dumping resourceID ") ||
+		strings.Contains(logJSON, "dumping kube-applier resourceID ") ||
 		strings.Contains(logJSON, "cluster-service state dump") ||
 		strings.Contains(logJSON, "cluster-service node pool state dump")
 }

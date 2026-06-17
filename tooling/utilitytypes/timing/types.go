@@ -53,6 +53,9 @@ type Operation struct {
 type Resource struct {
 	// ResourceType is the resource provider and resource name, like "Microsoft.KeyVault/vaults".
 	ResourceType string `json:"resourceType"`
+	// SubscriptionID is the Azure subscription in which the resource exists.
+	// Not serialized to avoid leaking sensitive identifiers into published artifacts.
+	SubscriptionID string `json:"-"`
 	// ResourceGroup is the Azure resource group in which the resource exists.
 	ResourceGroup string `json:"resourceGroup"`
 	// Name is the name of the resource.

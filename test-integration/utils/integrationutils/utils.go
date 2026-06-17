@@ -41,6 +41,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/api/v20240610preview"
 	"github.com/Azure/ARO-HCP/internal/api/v20251223preview"
+	"github.com/Azure/ARO-HCP/internal/api/v20260630preview"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -211,6 +212,7 @@ func AllAPIVersions() []string {
 	registry := api.NewAPIRegistry()
 	api.Must[any](nil, v20240610preview.RegisterVersion(registry))
 	api.Must[any](nil, v20251223preview.RegisterVersion(registry))
+	api.Must[any](nil, v20260630preview.RegisterVersion(registry))
 
 	versions := registry.ListVersions().UnsortedList()
 	sort.Strings(versions)

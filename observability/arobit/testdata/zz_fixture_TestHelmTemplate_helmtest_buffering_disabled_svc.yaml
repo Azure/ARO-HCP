@@ -263,16 +263,6 @@ data:
         azure_kusto_buffer_key kubernetesEvents
         buffer_dir "/var/kusto"
 
-  output-mdsd.conf: |
-    # Forward logs to mdsd instance (default port)
-    [OUTPUT]
-        Name  forward
-        Alias forward.mdsd.other
-        Match mdsd-other.logs
-        Host  127.0.0.1
-        Port  5001
-        Tag   akskubesystem
-
     [OUTPUT]
         Match systemd.*
         Name azure_kusto
@@ -287,6 +277,16 @@ data:
         ingestion_mapping_reference ingestionMapping
         azure_kusto_buffer_key systemdLogs
         buffer_dir "/var/kusto"
+
+  output-mdsd.conf: |
+    # Forward logs to mdsd instance (default port)
+    [OUTPUT]
+        Name  forward
+        Alias forward.mdsd.other
+        Match mdsd-other.logs
+        Host  127.0.0.1
+        Port  5001
+        Tag   akskubesystem
 ---
 # Source: arobit/templates/forwarder-clusterrole.yaml
 kind: ClusterRole
@@ -382,7 +382,7 @@ spec:
         app: arobit-forwarder
         azure.workload.identity/use: "true"
       annotations:
-        checksum/configmap: 7c67a38bc1288295508fbaad623fae887102d323c74774f7b229cd591c9de18f
+        checksum/configmap: 5b891460ab85da3ee7c86ce445403f9619fb0c8749673c1764d18d65003c26e6
     spec:
       priorityClassName: service-lifecycle-critical
       serviceAccountName: 'arobit-forwarder'

@@ -174,9 +174,8 @@ func (o *RegisterOptions) applyToManagementCluster(managementCluster *fleet.Mana
 	managementCluster.Status.MaestroGRPCTarget = o.maestroGRPCTarget
 	managementCluster.Status.KubeApplierCosmosContainerName = o.kubeApplierCosmosContainerName
 	apimeta.SetStatusCondition(&managementCluster.Status.Conditions, metav1.Condition{
-		Type:               string(fleet.ManagementClusterConditionReady),
-		Status:             metav1.ConditionTrue,
-		Reason:             string(fleet.ManagementClusterConditionReasonProvisionShardActive),
-		LastTransitionTime: metav1.NewTime(time.Now()),
+		Type:   string(fleet.ManagementClusterConditionReady),
+		Status: metav1.ConditionTrue,
+		Reason: string(fleet.ManagementClusterConditionReasonProvisionShardActive),
 	})
 }

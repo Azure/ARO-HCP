@@ -231,6 +231,7 @@ mgmt:
     name: mgmt-cluster
 kusto:
   kustoName: hcp-dev-us-2
+  location: eastus2
   serviceLogsDatabase: ServiceLogs
   hostedControlPlaneLogsDatabase: HostedControlPlaneLogs
 `), 0644)

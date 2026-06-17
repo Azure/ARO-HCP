@@ -28,11 +28,9 @@ func main() {
 		logrus.SetLevel(logrus.DebugLevel)
 	}
 	var configFilePath string
-	var forceInfoSeverity bool
 	var promtoolPath string
 
 	flag.CommandLine.StringVar(&configFilePath, "config-file", "", "Path to configuration")
-	flag.CommandLine.BoolVar(&forceInfoSeverity, "force-info-severity", false, "Force all rule severities to info")
 	flag.CommandLine.StringVar(&promtoolPath, "promtool-path", "promtool", "Path to promtool binary ")
 	flag.Parse()
 
@@ -40,7 +38,7 @@ func main() {
 		logrus.WithError(err).Fatal("invalid options")
 	}
 
-	if err := prometheusrules.GenerateFromConfig(configFilePath, forceInfoSeverity, promtoolPath); err != nil {
+	if err := prometheusrules.GenerateFromConfig(configFilePath, false, promtoolPath); err != nil {
 		logrus.WithError(err).Fatal("error running generator")
 	}
 

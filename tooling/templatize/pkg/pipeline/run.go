@@ -32,6 +32,7 @@ import (
 
 	"github.com/go-logr/logr"
 
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/sets"
 
 	"sigs.k8s.io/yaml"
@@ -494,6 +495,7 @@ func runGraph(ctx context.Context, logger logr.Logger, executionGraph *graph.Gra
 	producerWg.Add(1)
 	// producer routine checks to see if we can queue more steps when we finish executing one
 	go func() {
+		defer utilruntime.HandleCrash()
 		thisLogger := logger.WithValues("routine", "producer")
 		defer func() {
 			close(queue)
@@ -550,6 +552,7 @@ func runGraph(ctx context.Context, logger logr.Logger, executionGraph *graph.Gra
 	for i := 0; i < maxConcurrency; i++ {
 		consumerWg.Add(1)
 		go func() {
+			defer utilruntime.HandleCrash()
 			thisLogger := logger.WithValues("routine", fmt.Sprintf("consumer-%d", i))
 			defer func() {
 				consumerWg.Done()
@@ -577,6 +580,7 @@ func runGraph(ctx context.Context, logger logr.Logger, executionGraph *graph.Gra
 					if details != nil {
 						consumerWg.Add(1)
 						go func(step graph.Identifier, logger logr.Logger) {
+							defer utilruntime.HandleCrash()
 							defer func() {
 								consumerWg.Done()
 								stepLogger.V(4).Info("Finished fetching execution details.")

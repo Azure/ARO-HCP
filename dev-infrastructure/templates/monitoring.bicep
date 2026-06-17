@@ -137,6 +137,7 @@ module svcIngestionAlerts '../modules/metrics/amw-ingestion-alerts.bicep' = {
     workspaceLabel: 'svc'
     actionGroups: sreActionGroups
     enabled: alertsEnabled
+    lowEventIngestionThreshold: 1
   }
 }
 
@@ -147,5 +148,8 @@ module hcpIngestionAlerts '../modules/metrics/amw-ingestion-alerts.bicep' = {
     workspaceLabel: 'hcp'
     actionGroups: sreActionGroups
     enabled: alertsEnabled
+    lowEventIngestionThreshold: 5
   }
 }
+
+output actionGroupSL string = manageConnection ? actionGroups.outputs.actionGroupsSL : ''

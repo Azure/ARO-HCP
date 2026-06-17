@@ -69,14 +69,15 @@ func (opts *CompletedInfraQueryOptions) RunInfra(ctx context.Context) error {
 	for _, clusterName := range opts.InfraClusters {
 		logger.V(1).Info("Gathering infrastructure logs", "cluster", clusterName)
 
+		queryOptions := kusto.NewQueryOptions()
+		queryOptions.InfraClusterName = clusterName
+		queryOptions.TimestampMin = opts.TimestampMin
+		queryOptions.TimestampMax = opts.TimestampMax
+		queryOptions.Limit = opts.Limit
+		queryOptions.SplitByPod = opts.SplitByPod
+
 		gatherer := mustgather.NewCliGatherer(opts.QueryClient, opts.OutputPath, ServicesLogDirectory, HostedControlPlaneLogDirectory, CustomLogsDirectory, mustgather.GathererOptions{
-			QueryOptions: &kusto.QueryOptions{
-				InfraClusterName: clusterName,
-				TimestampMin:     opts.TimestampMin,
-				TimestampMax:     opts.TimestampMax,
-				Limit:            opts.Limit,
-				SplitByPod:       opts.SplitByPod,
-			},
+			QueryOptions: &queryOptions,
 		}, true)
 
 		if err := gatherer.GatherLogs(ctx); err != nil {

@@ -16,8 +16,11 @@ package framework
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -28,6 +31,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/streaming"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
@@ -207,6 +211,14 @@ func TestArmSystemDataPolicy(t *testing.T) {
 	})
 }
 
+type fakeResourceGroupClient struct {
+	err error
+}
+
+func (f *fakeResourceGroupClient) Get(_ context.Context, _, _ string) error {
+	return f.err
+}
+
 func TestArmResourceGroupValidationPolicy(t *testing.T) {
 	t.Setenv("FRONTEND_ADDRESS", "https://"+frontendHost)
 
@@ -230,7 +242,7 @@ func TestArmResourceGroupValidationPolicy(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			pol := &armResourceGroupValidationPolicy{cred: nil}
+			pol := &armResourceGroupValidationPolicy{rgClient: &fakeResourceGroupClient{}}
 			called := false
 			transport := &fakeTransport{
 				do: func(r *http.Request) (*http.Response, error) {
@@ -248,6 +260,69 @@ func TestArmResourceGroupValidationPolicy(t *testing.T) {
 			assert.True(t, called, "transport should have been called")
 		})
 	}
+
+	t.Run("returns 404 CloudError when resource group does not exist", func(t *testing.T) {
+		pol := &armResourceGroupValidationPolicy{
+			rgClient: &fakeResourceGroupClient{
+				err: &azcore.ResponseError{
+					StatusCode: http.StatusNotFound,
+					ErrorCode:  arm.CloudErrorCodeResourceGroupNotFound,
+				},
+			},
+		}
+		called := false
+		transport := &fakeTransport{
+			do: func(r *http.Request) (*http.Response, error) {
+				called = true
+				return okResponse()
+			},
+		}
+		pipeline := newTestPipeline(pol, transport)
+		req, err := runtime.NewRequest(context.Background(), http.MethodGet, "https://"+frontendHost+"/subscriptions/sub-id/resourceGroups/nonexistent-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster")
+		require.NoError(t, err)
+
+		resp, err := pipeline.Do(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		assert.False(t, called, "transport should not have been called")
+		assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+		assert.Equal(t, "application/json", resp.Header.Get("Content-Type"))
+
+		var cloudErr arm.CloudError
+		err = json.NewDecoder(resp.Body).Decode(&cloudErr)
+		require.NoError(t, err)
+		assert.Equal(t, arm.CloudErrorCodeResourceGroupNotFound, cloudErr.Code)
+		assert.Contains(t, cloudErr.Message, "nonexistent-rg")
+	})
+
+	t.Run("propagates non-ResourceGroupNotFound errors from resource group client", func(t *testing.T) {
+		pol := &armResourceGroupValidationPolicy{
+			rgClient: &fakeResourceGroupClient{
+				err: &azcore.ResponseError{
+					StatusCode: http.StatusForbidden,
+					ErrorCode:  "AuthorizationFailed",
+				},
+			},
+		}
+		called := false
+		transport := &fakeTransport{
+			do: func(r *http.Request) (*http.Response, error) {
+				called = true
+				return okResponse()
+			},
+		}
+		pipeline := newTestPipeline(pol, transport)
+		req, err := runtime.NewRequest(context.Background(), http.MethodGet, "https://"+frontendHost+"/subscriptions/sub-id/resourceGroups/some-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster")
+		require.NoError(t, err)
+
+		_, err = pipeline.Do(req)
+		assert.Error(t, err)
+		assert.False(t, called, "transport should not have been called")
+
+		var respErr *azcore.ResponseError
+		require.ErrorAs(t, err, &respErr)
+		assert.Equal(t, http.StatusForbidden, respErr.StatusCode)
+	})
 }
 
 func TestRequestIDPolicy(t *testing.T) {
@@ -586,6 +661,267 @@ func TestLROPollerRetryDeploymentNotFoundPolicy(t *testing.T) {
 	t.Run("backoff respects bounds", func(t *testing.T) {
 		t.Parallel()
 		pol := &lroPollerRetryDeploymentNotFoundPolicy{
+			BaseBackoff: 2 * time.Second,
+			MaxBackoff:  10 * time.Second,
+		}
+
+		for attempt := 0; attempt < 10; attempt++ {
+			d := pol.backoff(attempt)
+			expectedSleep := min(pol.BaseBackoff<<uint(attempt), pol.MaxBackoff)
+			assert.GreaterOrEqual(t, d, expectedSleep,
+				"attempt %d: backoff should be at least the base sleep", attempt)
+			assert.Less(t, d, expectedSleep+pol.BaseBackoff/2,
+				"attempt %d: backoff should be less than base sleep + max jitter", attempt)
+		}
+	})
+}
+
+func versionNotFoundError() (*http.Response, error) {
+	body := `{"error":{"code":"InvalidRequestContent","message":"Version 'openshift-v4.17.1-candidate' doesn't exist"}}`
+	return nil, &azcore.ResponseError{
+		StatusCode: http.StatusBadRequest,
+		ErrorCode:  "InvalidRequestContent",
+		RawResponse: &http.Response{
+			StatusCode: http.StatusBadRequest,
+			Header:     http.Header{"Content-Type": {"application/json"}},
+			Body:       io.NopCloser(strings.NewReader(body)),
+		},
+	}
+}
+
+func newRetryVersionPolicyForTest() *retryVersionNotFoundPolicy {
+	return &retryVersionNotFoundPolicy{
+		MaxRetries:     5,
+		BaseBackoff:    time.Millisecond,
+		MaxBackoff:     5 * time.Millisecond,
+		MaxRetryWindow: time.Second,
+	}
+}
+
+const clusterPath = "/subscriptions/sub-id/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/my-cluster"
+
+func TestRetryVersionNotFoundPolicy(t *testing.T) {
+	t.Parallel()
+
+	t.Run("passes through GET requests", func(t *testing.T) {
+		t.Parallel()
+		pol := newRetryVersionPolicyForTest()
+		transport := &fakeTransport{do: func(r *http.Request) (*http.Response, error) { return okResponse() }}
+		pipeline := newTestPipeline(pol, transport)
+		req, err := runtime.NewRequest(context.Background(), http.MethodGet, "https://management.azure.com"+clusterPath)
+		require.NoError(t, err)
+
+		resp, err := pipeline.Do(req)
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+	})
+
+	t.Run("passes through DELETE requests", func(t *testing.T) {
+		t.Parallel()
+		pol := newRetryVersionPolicyForTest()
+		transport := &fakeTransport{do: func(r *http.Request) (*http.Response, error) { return okResponse() }}
+		pipeline := newTestPipeline(pol, transport)
+		req, err := runtime.NewRequest(context.Background(), http.MethodDelete, "https://management.azure.com"+clusterPath)
+		require.NoError(t, err)
+
+		resp, err := pipeline.Do(req)
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+	})
+
+	t.Run("passes through node pool requests", func(t *testing.T) {
+		t.Parallel()
+		pol := newRetryVersionPolicyForTest()
+		transport := &fakeTransport{do: func(r *http.Request) (*http.Response, error) { return okResponse() }}
+		pipeline := newTestPipeline(pol, transport)
+		req, err := runtime.NewRequest(context.Background(), http.MethodPut, "https://management.azure.com"+clusterPath+"/nodePools/np-1")
+		require.NoError(t, err)
+
+		resp, err := pipeline.Do(req)
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+	})
+
+	t.Run("passes through unparseable paths", func(t *testing.T) {
+		t.Parallel()
+		pol := newRetryVersionPolicyForTest()
+		transport := &fakeTransport{do: func(r *http.Request) (*http.Response, error) { return okResponse() }}
+		pipeline := newTestPipeline(pol, transport)
+		req, err := runtime.NewRequest(context.Background(), http.MethodPut, "https://management.azure.com/foo/bar")
+		require.NoError(t, err)
+
+		resp, err := pipeline.Do(req)
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+	})
+
+	t.Run("returns success on first attempt", func(t *testing.T) {
+		t.Parallel()
+		pol := newRetryVersionPolicyForTest()
+		transport := &fakeTransport{do: func(r *http.Request) (*http.Response, error) { return okResponse() }}
+		pipeline := newTestPipeline(pol, transport)
+		req, err := runtime.NewRequest(context.Background(), http.MethodPut, "https://management.azure.com"+clusterPath)
+		require.NoError(t, err)
+		require.NoError(t, req.SetBody(streaming.NopCloser(strings.NewReader(`{}`)), "application/json"))
+
+		resp, err := pipeline.Do(req)
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+	})
+
+	t.Run("retries version not found on PUT then succeeds", func(t *testing.T) {
+		t.Parallel()
+		callCount := 0
+		pol := newRetryVersionPolicyForTest()
+		transport := &fakeTransport{
+			do: func(r *http.Request) (*http.Response, error) {
+				callCount++
+				if callCount <= 2 {
+					return versionNotFoundError()
+				}
+				return okResponse()
+			},
+		}
+		pipeline := newTestPipeline(pol, transport)
+		req, err := runtime.NewRequest(context.Background(), http.MethodPut, "https://management.azure.com"+clusterPath)
+		require.NoError(t, err)
+		require.NoError(t, req.SetBody(streaming.NopCloser(strings.NewReader(`{}`)), "application/json"))
+
+		resp, err := pipeline.Do(req)
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		assert.Equal(t, 3, callCount)
+	})
+
+	t.Run("retries version not found on PATCH then succeeds", func(t *testing.T) {
+		t.Parallel()
+		callCount := 0
+		pol := newRetryVersionPolicyForTest()
+		transport := &fakeTransport{
+			do: func(r *http.Request) (*http.Response, error) {
+				callCount++
+				if callCount <= 1 {
+					return versionNotFoundError()
+				}
+				return okResponse()
+			},
+		}
+		pipeline := newTestPipeline(pol, transport)
+		req, err := runtime.NewRequest(context.Background(), http.MethodPatch, "https://management.azure.com"+clusterPath)
+		require.NoError(t, err)
+		require.NoError(t, req.SetBody(streaming.NopCloser(strings.NewReader(`{}`)), "application/json"))
+
+		resp, err := pipeline.Do(req)
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		assert.Equal(t, 2, callCount)
+	})
+
+	t.Run("exhausts retries on persistent version not found", func(t *testing.T) {
+		t.Parallel()
+		callCount := 0
+		pol := &retryVersionNotFoundPolicy{
+			MaxRetries:     3,
+			BaseBackoff:    time.Millisecond,
+			MaxBackoff:     5 * time.Millisecond,
+			MaxRetryWindow: time.Second,
+		}
+		transport := &fakeTransport{
+			do: func(r *http.Request) (*http.Response, error) {
+				callCount++
+				return versionNotFoundError()
+			},
+		}
+		pipeline := newTestPipeline(pol, transport)
+		req, err := runtime.NewRequest(context.Background(), http.MethodPut, "https://management.azure.com"+clusterPath)
+		require.NoError(t, err)
+		require.NoError(t, req.SetBody(streaming.NopCloser(strings.NewReader(`{}`)), "application/json"))
+
+		_, err = pipeline.Do(req)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "max retries or max retry window reached")
+		assert.Equal(t, 4, callCount)
+	})
+
+	t.Run("does not retry non-version-not-found errors", func(t *testing.T) {
+		t.Parallel()
+		callCount := 0
+		pol := newRetryVersionPolicyForTest()
+		transport := &fakeTransport{
+			do: func(r *http.Request) (*http.Response, error) {
+				callCount++
+				return nil, &azcore.ResponseError{
+					StatusCode: http.StatusBadRequest,
+					ErrorCode:  "InvalidRequestContent",
+					RawResponse: &http.Response{
+						StatusCode: http.StatusBadRequest,
+						Header:     http.Header{},
+						Body:       http.NoBody,
+					},
+				}
+			},
+		}
+		pipeline := newTestPipeline(pol, transport)
+		req, err := runtime.NewRequest(context.Background(), http.MethodPut, "https://management.azure.com"+clusterPath)
+		require.NoError(t, err)
+		require.NoError(t, req.SetBody(streaming.NopCloser(strings.NewReader(`{}`)), "application/json"))
+
+		_, err = pipeline.Do(req)
+		assert.Error(t, err)
+		assert.Equal(t, 1, callCount)
+	})
+
+	t.Run("does not retry other error codes", func(t *testing.T) {
+		t.Parallel()
+		callCount := 0
+		pol := newRetryVersionPolicyForTest()
+		transport := &fakeTransport{
+			do: func(r *http.Request) (*http.Response, error) {
+				callCount++
+				return nil, &azcore.ResponseError{
+					StatusCode: http.StatusInternalServerError,
+					ErrorCode:  "InternalServerError",
+				}
+			},
+		}
+		pipeline := newTestPipeline(pol, transport)
+		req, err := runtime.NewRequest(context.Background(), http.MethodPut, "https://management.azure.com"+clusterPath)
+		require.NoError(t, err)
+		require.NoError(t, req.SetBody(streaming.NopCloser(strings.NewReader(`{}`)), "application/json"))
+
+		_, err = pipeline.Do(req)
+		assert.Error(t, err)
+		assert.Equal(t, 1, callCount)
+	})
+
+	t.Run("respects context cancellation", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancel := context.WithCancel(context.Background())
+		pol := &retryVersionNotFoundPolicy{
+			MaxRetries:     10,
+			BaseBackoff:    time.Millisecond,
+			MaxBackoff:     5 * time.Millisecond,
+			MaxRetryWindow: 10 * time.Second,
+		}
+		transport := &fakeTransport{
+			do: func(r *http.Request) (*http.Response, error) {
+				cancel()
+				return versionNotFoundError()
+			},
+		}
+		pipeline := newTestPipeline(pol, transport)
+		req, err := runtime.NewRequest(ctx, http.MethodPut, "https://management.azure.com"+clusterPath)
+		require.NoError(t, err)
+		require.NoError(t, req.SetBody(streaming.NopCloser(strings.NewReader(`{}`)), "application/json"))
+
+		_, err = pipeline.Do(req)
+		assert.Error(t, err)
+		assert.ErrorIs(t, err, context.Canceled)
+	})
+
+	t.Run("backoff respects bounds", func(t *testing.T) {
+		t.Parallel()
+		pol := &retryVersionNotFoundPolicy{
 			BaseBackoff: 2 * time.Second,
 			MaxBackoff:  10 * time.Second,
 		}

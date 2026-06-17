@@ -40,7 +40,19 @@ import (
 	"github.com/Azure/ARO-HCP/tooling/helmtest/internal"
 )
 
-func runTest(ctx context.Context, settings *internal.Settings, testCase internal.TestCase) (string, error) {
+type runTestOption func(*runTestOptions)
+
+type runTestOptions struct {
+	digestSkipPaths []string
+}
+
+func withDigestSkipPaths(paths []string) runTestOption {
+	return func(o *runTestOptions) {
+		o.digestSkipPaths = paths
+	}
+}
+
+func runTest(ctx context.Context, settings *internal.Settings, testCase internal.TestCase, opts ...runTestOption) (string, error) {
 	helmSettings := cli.New()
 	cfg := action.Configuration{}
 	err := cfg.Init(helmSettings.RESTClientGetter(), testCase.Namespace, "memory")
@@ -60,12 +72,17 @@ func runTest(ctx context.Context, settings *internal.Settings, testCase internal
 		Minor:   "30",
 	}
 
+	o := &runTestOptions{}
+	for _, opt := range opts {
+		opt(o)
+	}
+
 	cfgYaml, err := internal.LoadConfigAndMerge(settings.ConfigPath, testCase.TestData)
 	if err != nil {
 		return "", fmt.Errorf("error loading config, %v", err)
 	}
 
-	cfgYaml = internal.ReplaceImageDigest(cfgYaml)
+	cfgYaml = internal.ReplaceImageDigestExcluding(cfgYaml, o.digestSkipPaths)
 
 	values, err := config.PreprocessFile(testCase.Values, cfgYaml)
 	if err != nil {

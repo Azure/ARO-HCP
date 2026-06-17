@@ -51,7 +51,6 @@ func TestRoleDefinitionsCachedReader_GetCachedByID(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	innerErr := errors.New("azure unavailable")
 	cachedResponse := roleDefByIDResponse(testRoleDefinitionRID)
 	initialCached := roleDefByIDResponse(testRoleDefinitionRID)
 	refreshedCached := roleDefByIDResponse(testRoleDefinitionRID)
@@ -99,13 +98,15 @@ func TestRoleDefinitionsCachedReader_GetCachedByID(t *testing.T) {
 			},
 		},
 		{
-			name: "propagates azure api interaction error when it occurs",
+			name: "caches error within error TTL",
 			setupClient: func(ctrl *gomock.Controller) azureclient.RoleDefinitionsClient {
 				mockClient := azureclient.NewMockRoleDefinitionsClient(ctrl)
-				mockClient.EXPECT().GetByID(gomock.Any(), testRoleDefinitionRID, nil).Return(armauthorization.RoleDefinitionsClientGetByIDResponse{}, innerErr).Times(1)
+				apiErr := errors.New("service unavailable")
+				// Times(1): all GetCachedByID calls within error TTL must not call Azure again.
+				mockClient.EXPECT().GetByID(gomock.Any(), testRoleDefinitionRID, nil).Return(armauthorization.RoleDefinitionsClientGetByIDResponse{}, apiErr).Times(1)
 				return mockClient
 			},
-			clock: utilsclock.RealClock{},
+			clock: clocktesting.NewFakePassiveClock(time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)),
 			calls: []struct {
 				advanceClockBy   time.Duration
 				roleDefinitionID string
@@ -116,12 +117,25 @@ func TestRoleDefinitionsCachedReader_GetCachedByID(t *testing.T) {
 				{
 					roleDefinitionID: testRoleDefinitionRID,
 					wantError:        true,
-					wantErrContains:  "failed to get role definition",
+					wantErrContains:  "service unavailable",
+				},
+				{
+					advanceClockBy:   2 * time.Minute,
+					roleDefinitionID: testRoleDefinitionRID,
+					wantError:        true,
+					wantErrContains:  "service unavailable",
+				},
+				{
+					// At exactly error TTL (isStale uses >), entry must still be fresh.
+					advanceClockBy:   roleDefinitionResourceIDCacheKeyErrorTTL - 2*time.Minute,
+					roleDefinitionID: testRoleDefinitionRID,
+					wantError:        true,
+					wantErrContains:  "service unavailable",
 				},
 			},
 		},
 		{
-			name: "error is not cached; next call retries",
+			name: "recovers after error TTL and caches success for success TTL",
 			setupClient: func(ctrl *gomock.Controller) azureclient.RoleDefinitionsClient {
 				mockClient := azureclient.NewMockRoleDefinitionsClient(ctrl)
 				gomock.InOrder(
@@ -130,7 +144,7 @@ func TestRoleDefinitionsCachedReader_GetCachedByID(t *testing.T) {
 				)
 				return mockClient
 			},
-			clock: utilsclock.RealClock{},
+			clock: clocktesting.NewFakePassiveClock(time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)),
 			calls: []struct {
 				advanceClockBy   time.Duration
 				roleDefinitionID string
@@ -141,15 +155,28 @@ func TestRoleDefinitionsCachedReader_GetCachedByID(t *testing.T) {
 				{
 					roleDefinitionID: testRoleDefinitionRID,
 					wantError:        true,
+					wantErrContains:  "temporary",
 				},
 				{
+					advanceClockBy:   2 * time.Minute,
+					roleDefinitionID: testRoleDefinitionRID,
+					wantError:        true,
+					wantErrContains:  "temporary",
+				},
+				{
+					advanceClockBy:   roleDefinitionResourceIDCacheKeyErrorTTL - 2*time.Minute + time.Second,
+					roleDefinitionID: testRoleDefinitionRID,
+					wantResponse:     cachedResponse,
+				},
+				{
+					advanceClockBy:   3 * time.Hour,
 					roleDefinitionID: testRoleDefinitionRID,
 					wantResponse:     cachedResponse,
 				},
 			},
 		},
 		{
-			name: "refreshes expired cache entry from inner client",
+			name: "caches success within success TTL and refreshes after expiry",
 			setupClient: func(ctrl *gomock.Controller) azureclient.RoleDefinitionsClient {
 				mockClient := azureclient.NewMockRoleDefinitionsClient(ctrl)
 				gomock.InOrder(
@@ -171,7 +198,12 @@ func TestRoleDefinitionsCachedReader_GetCachedByID(t *testing.T) {
 					wantResponse:     initialCached,
 				},
 				{
-					advanceClockBy:   roleDefinitionResourceIDCacheKeyTTL + time.Second,
+					advanceClockBy:   3 * time.Hour,
+					roleDefinitionID: testRoleDefinitionRID,
+					wantResponse:     initialCached,
+				},
+				{
+					advanceClockBy:   roleDefinitionResourceIDCacheKeySuccessTTL - 3*time.Hour + time.Second,
 					roleDefinitionID: testRoleDefinitionRID,
 					wantResponse:     refreshedCached,
 				},

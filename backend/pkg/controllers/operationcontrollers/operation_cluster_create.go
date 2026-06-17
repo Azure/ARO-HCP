@@ -210,6 +210,11 @@ func (c *operationClusterCreate) determineOperationStatus(ctx context.Context, o
 
 func (c *operationClusterCreate) clusterOperationStatus(ctx context.Context, operation *api.Operation) (*operationState, error) {
 	cluster, err := c.clusterLister.Get(ctx, operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName, operation.ExternalID.Name)
+	if database.IsNotFoundError(err) {
+		// if the cache doesn't have the cosmos cluster yet, we'll eventually recheck when we resync. Currently 10s for
+		// active operations.  No need to fail and trigger an extra check.
+		return newOperationState(arm.ProvisioningStateProvisioning, "cluster state not cached yet"), nil
+	}
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
@@ -226,9 +231,9 @@ func (c *operationClusterCreate) clusterOperationStatus(ctx context.Context, ope
 // control plane validation success.
 var minVersionsWithValidSuccessCondition = map[string]semver.Version{
 	"4.19": api.Must(semver.Parse("4.19.999")),
-	"4.20": api.Must(semver.Parse("4.20.999")),
-	"4.21": api.Must(semver.Parse("4.21.999")),
-	"4.22": api.Must(semver.Parse("4.22.999")),
+	"4.20": api.Must(semver.Parse("4.20.15")),
+	"4.21": api.Must(semver.Parse("4.21.1")),
+	"4.22": api.Must(semver.Parse("4.22.0")),
 }
 
 func (c *operationClusterCreate) hostedClusterOperationStatus(ctx context.Context, operation *api.Operation) (*operationState, error) {
@@ -239,7 +244,7 @@ func (c *operationClusterCreate) hostedClusterOperationStatus(ctx context.Contex
 	// don't need to know which management cluster the HostedCluster is on.
 	readDesire, err := c.readDesireLister.GetForCluster(ctx, operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName, operation.ExternalID.Name, maestrohelpers.ReadDesireNameReadonlyHostedCluster)
 	if database.IsNotFoundError(err) {
-		return newOperationState(arm.ProvisioningStateProvisioning, ""), nil
+		return newOperationState(arm.ProvisioningStateProvisioning, "hosted cluster state not cached yet"), nil
 	}
 	if err != nil {
 		return nil, utils.TrackError(err)

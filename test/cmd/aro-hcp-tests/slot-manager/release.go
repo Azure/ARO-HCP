@@ -30,8 +30,8 @@ import (
 
 func DefaultReleaseOptions() *RawReleaseOptions {
 	return &RawReleaseOptions{
-		SharedDir:           os.Getenv("SHARED_DIR"),
-		LeaseProxyServerURL: os.Getenv("LEASE_PROXY_SERVER_URL"),
+		SharedDir:           strings.TrimSpace(os.Getenv("SHARED_DIR")),
+		LeaseProxyServerURL: strings.TrimSpace(os.Getenv("LEASE_PROXY_SERVER_URL")),
 		LeaseProxyTimeout:   slots.DefaultLeaseProxyTimeout,
 	}
 }
@@ -39,7 +39,7 @@ func DefaultReleaseOptions() *RawReleaseOptions {
 func BindReleaseOptions(opts *RawReleaseOptions, cmd *cobra.Command) error {
 	cmd.Flags().StringVar(&opts.SharedDir, "shared-dir", opts.SharedDir, "Path to SHARED_DIR")
 	cmd.Flags().StringVar(&opts.LeaseProxyServerURL, "lease-proxy-server-url", opts.LeaseProxyServerURL, "Lease proxy server URL")
-	cmd.Flags().DurationVar(&opts.LeaseProxyTimeout, "lease-proxy-timeout", opts.LeaseProxyTimeout, "Timeout per lease proxy request attempt")
+	cmd.Flags().DurationVar(&opts.LeaseProxyTimeout, "lease-proxy-timeout", opts.LeaseProxyTimeout, "Maximum time to spend retrying a lease proxy request before failing.")
 	return nil
 }
 
@@ -98,9 +98,9 @@ func Release(ctx context.Context, opts *RawReleaseOptions) error {
 
 func (o *RawReleaseOptions) Validate() (*ValidatedReleaseOptions, error) {
 	switch {
-	case strings.TrimSpace(o.SharedDir) == "":
+	case o.SharedDir == "":
 		return nil, fmt.Errorf("--shared-dir must not be empty")
-	case strings.TrimSpace(o.LeaseProxyServerURL) == "":
+	case o.LeaseProxyServerURL == "":
 		return nil, fmt.Errorf("--lease-proxy-server-url must not be empty")
 	case o.LeaseProxyTimeout <= 0:
 		return nil, fmt.Errorf("--lease-proxy-timeout must be greater than zero")

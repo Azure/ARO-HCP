@@ -28,6 +28,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/leaderelection"
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
@@ -91,6 +92,7 @@ func (m *Manager) Run(ctx context.Context) error {
 		healthzServer = &http.Server{Addr: m.HealthzListenAddr, Handler: mux}
 		wg.Add(1)
 		go func() {
+			defer utilruntime.HandleCrash()
 			defer wg.Done()
 			logger.Info("healthz server listening", "address", m.HealthzListenAddr)
 			err := healthzServer.ListenAndServe()
@@ -110,6 +112,7 @@ func (m *Manager) Run(ctx context.Context) error {
 		metricsServer = &http.Server{Addr: m.MetricsListenAddr, Handler: mux}
 		wg.Add(1)
 		go func() {
+			defer utilruntime.HandleCrash()
 			defer wg.Done()
 			logger.Info("metrics server listening", "address", m.MetricsListenAddr)
 			err := metricsServer.ListenAndServe()
@@ -122,6 +125,7 @@ func (m *Manager) Run(ctx context.Context) error {
 
 	wg.Add(1)
 	go func() {
+		defer utilruntime.HandleCrash()
 		defer wg.Done()
 		err := m.runControllersUnderLeaderElection(ctx, electionChecker)
 		cancel(fmt.Errorf("leader election exited"))

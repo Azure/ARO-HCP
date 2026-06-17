@@ -8,71 +8,10 @@
 	"partitionKey": "6b690bec-0c16-4ecb-8f67-781caf40bba7",
 	"properties": {
 		"cosmosMetadata": {
+			"instanceVersion": 2,
 			"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/create-with-tags/nodePools/basic-node-pool"
 		},
 		"id": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/create-with-tags/nodePools/basic-node-pool",
-		"intermediateResourceDoc": {
-			"activeOperationId": "cdfb496e-6e70-4022-9f8d-b0dacf6d2ff5",
-			"internalId": "/api/clusters_mgmt/v1/clusters/9p2sk955gj/node_pools/59mkgdzg9s",
-			"provisioningState": "Accepted",
-			"resourceId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/create-with-tags/nodePools/basic-node-pool",
-			"systemData": {
-				"createdBy": "Unknown-ARO-HCP-frontend",
-				"createdByType": "Application",
-				"lastModifiedBy": "Unknown-ARO-HCP-frontend",
-				"lastModifiedByType": "Application"
-			}
-		},
-		"internalState": {
-			"internalAPI": {
-				"id": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/create-with-tags/nodePools/basic-node-pool",
-				"location": "fake-location",
-				"name": "basic-node-pool",
-				"properties": {
-					"autoRepair": true,
-					"autoScaling": {
-						"max": 5,
-						"min": 1
-					},
-					"labels": {
-						"label-ky": "label-value"
-					},
-					"nodeDrainTimeoutMinutes": 2,
-					"platform": {
-						"enableEncryptionAtHost": false,
-						"osDisk": {
-							"diskStorageAccountType": "Premium_LRS",
-							"diskType": "Managed",
-							"sizeGiB": 64
-						},
-						"vmSize": "large"
-					},
-					"provisioningState": "Accepted",
-					"taints": [
-						{
-							"effect": "NoExecute",
-							"key": "foo.com/key",
-							"value": "valid"
-						}
-					],
-					"version": {
-						"channelGroup": "stable"
-					}
-				},
-				"serviceProviderProperties": {
-					"activeOperationId": "cdfb496e-6e70-4022-9f8d-b0dacf6d2ff5",
-					"clusterServiceID": "",
-					"usesNewNodePoolDeletionApproach": false
-				},
-				"systemData": {
-					"createdBy": "Unknown-ARO-HCP-frontend",
-					"createdByType": "Application",
-					"lastModifiedBy": "Unknown-ARO-HCP-frontend",
-					"lastModifiedByType": "Application"
-				},
-				"type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/nodePools"
-			}
-		},
 		"location": "fake-location",
 		"name": "basic-node-pool",
 		"properties": {
@@ -111,6 +50,7 @@
 			"clusterServiceID": "/api/clusters_mgmt/v1/clusters/9p2sk955gj/node_pools/59mkgdzg9s",
 			"usesNewNodePoolDeletionApproach": false
 		},
+		"status": {},
 		"systemData": {
 			"createdBy": "Unknown-ARO-HCP-frontend",
 			"createdByType": "Application",

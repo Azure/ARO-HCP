@@ -29,6 +29,7 @@ import (
 	"go.opentelemetry.io/otel"
 	semconv "go.opentelemetry.io/otel/semconv/v1.27.0"
 
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/component-base/metrics/legacyregistry"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
@@ -274,6 +275,7 @@ func (opts *FrontendOpts) Run() error {
 
 	runErrCh := make(chan error, 1)
 	go func() {
+		defer utilruntime.HandleCrash()
 		runErrCh <- f.Run(ctx)
 		cancel(fmt.Errorf("frontend exited"))
 	}()

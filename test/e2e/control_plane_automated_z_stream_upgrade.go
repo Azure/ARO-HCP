@@ -16,7 +16,6 @@ package e2e
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -25,9 +24,6 @@ import (
 	. "github.com/onsi/gomega"
 
 	"k8s.io/apimachinery/pkg/util/rand"
-	"k8s.io/apimachinery/pkg/util/wait"
-
-	azcore "github.com/Azure/azure-sdk-for-go/sdk/azcore"
 
 	"github.com/Azure/ARO-HCP/internal/cincinnati"
 	"github.com/Azure/ARO-HCP/test/util/framework"
@@ -58,7 +54,7 @@ var _ = Describe("Service Provider", func() {
 				Expect(err).NotTo(HaveOccurred(), "failed to get install version for z-stream upgrade of %s", minorVersion)
 			}
 			if tc.UsePooledIdentities() {
-				err := tc.AssignIdentityContainers(ctx, 1, 60*time.Second)
+				err := tc.AssignIdentityContainers(ctx, 1, framework.IdentityContainerAssignmentRetryInterval)
 				Expect(err).NotTo(HaveOccurred(), "failed to assign pooled identity containers")
 			}
 
@@ -96,45 +92,14 @@ var _ = Describe("Service Provider", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create customer resources for z-stream cluster %q", clusterName)
 
 			By(fmt.Sprintf("creating the HCP cluster with version '%s' on candidate channel", installVersion))
-			// Cincinnati can advertise a z-stream build before Cluster Service has registered that version, so
-			// create fails with InvalidRequestContent until the worker in CS catches up—rare but flaky. We retry with backoff
-			// for up to 5m instead of failing the whole test. See https://github.com/Azure/ARO-HCP/pull/4621#discussion_r2986322194
-			// Drop this retry once cluster creation runs in the backend (https://github.com/Azure/ARO-HCP/pull/4477).
-			stopRetryingAfter := time.Now().Add(5 * time.Minute)
-			backoffErr := wait.ExponentialBackoffWithContext(ctx, wait.Backoff{
-				Duration: 5 * time.Second,
-				Factor:   2,
-				Jitter:   0.1,
-				Steps:    25,
-				Cap:      45 * time.Second,
-			}, func(_ context.Context) (done bool, err error) {
-				createErr := tc.CreateHCPClusterFromParam20240610(
-					ctx,
-					GinkgoLogr,
-					*resourceGroup.Name,
-					clusterParams,
-					framework.ClusterCreationTimeout,
-				)
-				if createErr == nil {
-					return true, nil
-				}
-				var azureErr *azcore.ResponseError
-				// Example ARM body: { "error": { "code": "InvalidRequestContent", "message": "Version 'openshift-v4.y.z-candidate' doesn't exist" } }
-				shouldRetryMissingVersionInCS := errors.As(createErr, &azureErr) &&
-					azureErr.ErrorCode == "InvalidRequestContent" &&
-					strings.Contains(azureErr.Error(), "Version") &&
-					strings.Contains(azureErr.Error(), "openshift-v") &&
-					strings.Contains(azureErr.Error(), "doesn't exist")
-				if shouldRetryMissingVersionInCS {
-					if time.Now().After(stopRetryingAfter) {
-						return false, fmt.Errorf("giving up after %v waiting for OpenShift version in Cluster Service: %w", 5*time.Minute, createErr)
-					}
-					GinkgoLogr.Info("OpenShift version not yet in Cluster Service; retrying cluster create", "error", createErr)
-					return false, nil
-				}
-				return false, createErr
-			})
-			Expect(backoffErr).NotTo(HaveOccurred(), "failed to create HCP cluster %q with version %s on candidate channel", clusterName, installVersion)
+			err = tc.CreateHCPClusterFromParam20240610(
+				ctx,
+				GinkgoLogr,
+				*resourceGroup.Name,
+				clusterParams,
+				framework.ClusterCreationTimeout,
+			)
+			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster %q with version %s on candidate channel", clusterName, installVersion)
 
 			By("verifying the cluster is viable")
 			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20240610(

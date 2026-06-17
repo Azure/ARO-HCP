@@ -19,6 +19,7 @@ import (
 	"sync"
 	"time"
 
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/Azure/ARO-HCP/internal/database"
@@ -100,6 +101,7 @@ func NewKubeApplierInformersWithRelistDuration(
 }
 
 func (k *kubeApplierInformers) RunWithContext(ctx context.Context) {
+	defer utilruntime.HandleCrash()
 	logger := utils.LoggerFromContext(ctx)
 	logger.Info("starting kube-applier informers")
 	defer logger.Info("stopped kube-applier informers")
@@ -108,16 +110,19 @@ func (k *kubeApplierInformers) RunWithContext(ctx context.Context) {
 
 	wg.Add(1)
 	go func() {
+		defer utilruntime.HandleCrash()
 		defer wg.Done()
 		k.applyDesireInformer.RunWithContext(ctx)
 	}()
 	wg.Add(1)
 	go func() {
+		defer utilruntime.HandleCrash()
 		defer wg.Done()
 		k.deleteDesireInformer.RunWithContext(ctx)
 	}()
 	wg.Add(1)
 	go func() {
+		defer utilruntime.HandleCrash()
 		defer wg.Done()
 		k.readDesireInformer.RunWithContext(ctx)
 	}()

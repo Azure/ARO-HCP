@@ -74,6 +74,12 @@ Welcome to the **ARO HCP** documentation. This guide provides an overview of the
 - [CI Execution](ci/execution.md)
   - How PR validation, EV2 gating, and periodic jobs actually work
   - Cross-tenant Azure flow for DEV, INT, STG, and PROD
+- [Dev-CI Topology](ci/dev-ci-topology.md)
+  - Standalone `dev-ci` rollout, persistent CI-supporting infrastructure, and service-group ownership
+  - Current mixed-management boundary for the DEV MSI mock SP pool and the long-term declarative direction
+- [DEV E2E Subscription Onboarding](ci/dev-e2e-subscription-onboarding.md)
+  - Procedure for adding another DEV customer subscription to the slot-based E2E fleet
+  - Covers slot catalog, Boskos, cluster-profile inventory, and `dev-ci` bootstrap RBAC updates
 - [CI Image Lifecycle](ci/image-lifecycle.md)
   - Shared CI build root, job-local image graph, and local E2E image injection
   - CI promotion inside OpenShift CI vs service-image mirroring to ACR
