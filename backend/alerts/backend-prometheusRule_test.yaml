@@ -127,8 +127,6 @@ tests:
   input_series:
   - series: 'aro_hcp_orphaned_managed_resource_groups_deletion_failed_total{location="eastus"}'
     values: "0+0x15" # No failures
-  - series: 'aro_hcp_orphaned_managed_resource_groups_deletion_initiated_total{location="eastus"}'
-    values: "0+5x15" # Only successful deletions
   alert_rule_test:
   - eval_time: 15m
     alertname: OrphanedMRGDeletionFailing
