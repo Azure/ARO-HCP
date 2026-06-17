@@ -2457,6 +2457,11 @@ func TestCountEmptyIPConfigs(t *testing.T) {
 		{name: "all_empty", nics: []*armnetwork.Interface{nic(0), nic(0)}, wantTotal: 2, wantEmpty: 2},
 		{name: "nil_nic_skipped", nics: []*armnetwork.Interface{nil, nic(0)}, wantTotal: 1, wantEmpty: 1},
 		{name: "nil_properties_skipped", nics: []*armnetwork.Interface{{Properties: nil}, nic(1)}, wantTotal: 1, wantEmpty: 0},
+		// nil (omitted/null) IPConfigurations is indeterminate, NOT the
+		// empty-array defect: it is skipped entirely (not counted toward
+		// total or empty), matching array_length(null) != 0.
+		{name: "nil_ipconfigs_skipped", nics: []*armnetwork.Interface{{Properties: &armnetwork.InterfacePropertiesFormat{IPConfigurations: nil}}, nic(1)}, wantTotal: 1, wantEmpty: 0},
+		{name: "only_nil_ipconfigs_indeterminate", nics: []*armnetwork.Interface{{Properties: &armnetwork.InterfacePropertiesFormat{IPConfigurations: nil}}}, wantTotal: 0, wantEmpty: 0},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

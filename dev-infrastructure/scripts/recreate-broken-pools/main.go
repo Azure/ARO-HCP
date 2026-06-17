@@ -1676,14 +1676,23 @@ func (c *clients) detectAccelNetBrokenPools(ctx context.Context, swiftPools []no
 }
 
 // countEmptyIPConfigs reports how many of the given realized network interfaces
-// carry an empty ipConfigurations array, plus how many NICs were inspected. A
-// healthy NIC always has at least one ipConfiguration; an empty array is the
-// ARM-visible signature of the NRP null-pointer defect, where NRP brings the
-// (delegated) Swift NIC up but never populates its ipConfigurations. NICs with
-// nil Properties are not counted (indeterminate; fail-open).
+// carry an empty ipConfigurations array, plus how many NICs gave a usable
+// reading. A healthy NIC always has at least one ipConfiguration; an empty
+// (but present) array is the ARM-visible signature of the NRP null-pointer
+// defect, where NRP brings the (delegated) Swift NIC up but never populates its
+// ipConfigurations. This mirrors Steve's triage query semantics
+// (array_length(ipConfigurations) == 0), which matches only an explicit empty
+// array — Kusto array_length(null) is null, not 0.
+//
+// Fail-open on indeterminate reads: NICs with nil Properties, OR with a nil
+// (omitted/null) IPConfigurations slice, are skipped entirely — they do not
+// count toward total or empty. Only a non-nil, zero-length slice is counted as
+// the defect. In the Azure SDK an ARM `[]` deserializes to a non-nil empty
+// slice while null/omitted deserializes to nil, so this distinction is exactly
+// the array_length==0 vs null distinction.
 func countEmptyIPConfigs(nics []*armnetwork.Interface) (total, empty int) {
 	for _, nic := range nics {
-		if nic == nil || nic.Properties == nil {
+		if nic == nil || nic.Properties == nil || nic.Properties.IPConfigurations == nil {
 			continue
 		}
 		total++
