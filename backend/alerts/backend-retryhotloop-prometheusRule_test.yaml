@@ -17,9 +17,10 @@ tests:
         name: OperationClusterCreate
         severity: warning
       exp_annotations:
+        correlationId: 'BackendControllerRetryHotLoop//OperationClusterCreate'
         description: 'Backend controller workqueue OperationClusterCreate has a retry ratio of > 50% sustained over 10 minutes, indicating most queue activity is failed retries rather than fresh work.'
         runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/backend-tsg.html'
-        summary: 'Backend controller workqueue retry hot loop'
+        summary: 'Backend controller workqueue OperationClusterCreate retry hot loop'
 # Test: BackendControllerRetryHotLoop does not fire when retry ratio < 50%
 - interval: 1m
   input_series:
