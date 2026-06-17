@@ -1,0 +1,180 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: hcp-kms-monitor-alerts
+  namespace: prometheus
+spec:
+  groups:
+  - name: hcp-kms-availability-rules
+    rules:
+    # Multi-window multi-burn-rate alerts for KMS availability (ValidAzureKMSConfig condition)
+    # SLO: 99.95% availability over 30 days (error budget = 0.05%)
+    #
+    # Fast burn (14.4x): 5m/1h windows — catches rapid availability drops
+    - alert: UJKmsAvailability1h5m
+      expr: |
+        1 - (hostedClusterAPI_valid_azure_kms_config:sum_over_time_5m / hostedClusterAPI_valid_azure_kms_config:count_over_time_5m) > (14.4 * (1 - 0.9995))
+        and hostedClusterAPI_valid_azure_kms_config:count_over_time_5m > 5
+        and 1 - (hostedClusterAPI_valid_azure_kms_config:sum_over_time_1h / hostedClusterAPI_valid_azure_kms_config:count_over_time_1h) > (14.4 * (1 - 0.9995))
+        and hostedClusterAPI_valid_azure_kms_config:count_over_time_1h > 60
+      for: 2m
+      labels:
+        severity: critical
+        short_window: 5m
+        long_window: 1h
+      annotations:
+        summary: "KMS config invalid for HostedCluster {{ $labels.name }}"
+        description: "HostedCluster {{ $labels.name }} (ID: {{ $labels._id }}) ValidAzureKMSConfig availability is burning error budget at 14.4x rate. The customer's KMS key may be inaccessible."
+        correlationId: "UJKmsAvailability/{{ $labels.cluster }}/{{ $labels._id }}"
+        runbook_url: "https://aka.ms/arohcp-runbook-kms"
+    # Medium burn (6x): 30m/6h windows — catches sustained degradation
+    - alert: UJKmsAvailability6h30m
+      expr: |
+        1 - (hostedClusterAPI_valid_azure_kms_config:sum_over_time_30m / hostedClusterAPI_valid_azure_kms_config:count_over_time_30m) > (6 * (1 - 0.9995))
+        and hostedClusterAPI_valid_azure_kms_config:count_over_time_30m > 30
+        and 1 - (hostedClusterAPI_valid_azure_kms_config:sum_over_time_6h / hostedClusterAPI_valid_azure_kms_config:count_over_time_6h) > (6 * (1 - 0.9995))
+        and hostedClusterAPI_valid_azure_kms_config:count_over_time_6h > 360
+      for: 15m
+      labels:
+        severity: warning
+        short_window: 30m
+        long_window: 6h
+      annotations:
+        summary: "KMS config invalid for HostedCluster {{ $labels.name }}"
+        description: "HostedCluster {{ $labels.name }} (ID: {{ $labels._id }}) ValidAzureKMSConfig availability is burning error budget at 6x rate."
+        correlationId: "UJKmsAvailability/{{ $labels.cluster }}/{{ $labels._id }}"
+        runbook_url: "https://aka.ms/arohcp-runbook-kms"
+    # Slow burn (1x): 6h/3d windows — catches persistent low-grade degradation
+    - alert: UJKmsAvailability3d
+      expr: |
+        1 - (hostedClusterAPI_valid_azure_kms_config:sum_over_time_6h / hostedClusterAPI_valid_azure_kms_config:count_over_time_6h) > (1 * (1 - 0.9995))
+        and hostedClusterAPI_valid_azure_kms_config:count_over_time_6h > 360
+        and 1 - sum by (name, namespace, _id, cluster) (hostedClusterAPI_valid_azure_kms_config:ratio_avg_3d) > (1 * (1 - 0.9995))
+      for: 3h
+      labels:
+        severity: info
+        short_window: 6h
+        long_window: 3d
+      annotations:
+        summary: "Slow KMS availability budget burn for HostedCluster {{ $labels.name }}"
+        description: "HostedCluster {{ $labels.name }} (ID: {{ $labels._id }}) ValidAzureKMSConfig is slowly burning error budget."
+        correlationId: "UJKmsAvailability/{{ $labels.cluster }}/{{ $labels._id }}"
+        runbook_url: "https://aka.ms/arohcp-runbook-kms"
+  - name: hcp-kms-errors-rules
+    rules:
+    # KMS operation error rate alerts
+    # SLO: < 0.05% error rate over 30 days
+    #
+    # Fast burn (14.4x): 5m/1h windows
+    - alert: UJKmsErrors1h5m
+      expr: |
+        (kas:kms_operations_errors:rate_avg_5m / kas:kms_operations_total:rate_avg_5m) > (14.4 * 0.0005)
+        and kas:kms_operations_total:rate_avg_5m > 0
+        and (kas:kms_operations_errors:rate_avg_1h / kas:kms_operations_total:rate_avg_1h) > (14.4 * 0.0005)
+        and kas:kms_operations_total:rate_avg_1h > 0
+      for: 2m
+      labels:
+        severity: critical
+        short_window: 5m
+        long_window: 1h
+      annotations:
+        summary: "High KMS operation error rate for HCP in {{ $labels.namespace }}"
+        description: "KMS encrypt/decrypt operations in namespace {{ $labels.namespace }} (cluster {{ $labels.cluster }}) are failing at a rate that burns the 0.05% error budget at 14.4x."
+        correlationId: "UJKmsErrors/{{ $labels.cluster }}/{{ $labels._id }}"
+        runbook_url: "https://aka.ms/arohcp-runbook-kms"
+    # Medium burn (6x): 30m/6h windows
+    - alert: UJKmsErrors6h30m
+      expr: |
+        (kas:kms_operations_errors:rate_avg_30m / kas:kms_operations_total:rate_avg_30m) > (6 * 0.0005)
+        and kas:kms_operations_total:rate_avg_30m > 0
+        and (kas:kms_operations_errors:rate_avg_6h / kas:kms_operations_total:rate_avg_6h) > (6 * 0.0005)
+        and kas:kms_operations_total:rate_avg_6h > 0
+      for: 15m
+      labels:
+        severity: warning
+        short_window: 30m
+        long_window: 6h
+      annotations:
+        summary: "Sustained KMS operation error rate for HCP in {{ $labels.namespace }}"
+        description: "KMS encrypt/decrypt operations in namespace {{ $labels.namespace }} (cluster {{ $labels.cluster }}) are failing at a rate that burns the 0.05% error budget at 6x."
+        correlationId: "UJKmsErrors/{{ $labels.cluster }}/{{ $labels._id }}"
+        runbook_url: "https://aka.ms/arohcp-runbook-kms"
+    # Slow burn (1x): 6h/3d windows
+    - alert: UJKmsErrors3d6h
+      expr: |
+        (kas:kms_operations_errors:rate_avg_6h / kas:kms_operations_total:rate_avg_6h) > (1 * 0.0005)
+        and kas:kms_operations_total:rate_avg_6h > 0
+        and (kas:kms_operations_errors:rate_avg_3d / kas:kms_operations_total:rate_avg_3d) > (1 * 0.0005)
+        and kas:kms_operations_total:rate_avg_3d > 0
+      for: 3h
+      labels:
+        severity: info
+        short_window: 6h
+        long_window: 3d
+      annotations:
+        summary: "Slow KMS error budget burn for HCP in {{ $labels.namespace }}"
+        description: "KMS encrypt/decrypt operations in namespace {{ $labels.namespace }} (cluster {{ $labels.cluster }}) are slowly burning the 0.05% error budget."
+        correlationId: "UJKmsErrors/{{ $labels.cluster }}/{{ $labels._id }}"
+        runbook_url: "https://aka.ms/arohcp-runbook-kms"
+  - name: hcp-kms-saturation-rules
+    rules:
+    # KMS latency alert — threshold-based (deliberate exception from burn-rate)
+    # SLO: p99 < 500ms for encrypt/decrypt
+    #
+    # Rationale for threshold instead of burn-rate: KMS encrypt/decrypt operations
+    # are infrequent on most clusters (~1-10 ops during setup, then idle). rate()[5m]
+    # returns 0, making burn-rate math produce NaN. A threshold alert on the recording
+    # rule output is the pragmatic choice.
+    - alert: UJKmsLatencyHigh
+      expr: |
+        kas:kms_encrypt_latency:p99_5m > 0.5
+        or kas:kms_decrypt_latency:p99_5m > 0.5
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "KMS encrypt/decrypt p99 latency exceeds 500ms in {{ $labels.namespace }}"
+        description: "KMS operation p99 latency in namespace {{ $labels.namespace }} (cluster {{ $labels.cluster }}) exceeds the 500ms SLO target."
+        correlationId: "UJKmsLatency/{{ $labels.cluster }}/{{ $labels._id }}"
+        runbook_url: "https://aka.ms/arohcp-runbook-kms"
+    # DEK cache empty — threshold-based
+    # SLO: cache size > 0
+    - alert: UJKmsDekCacheEmpty
+      expr: kas:kms_dek_cache_size:min == 0
+      for: 2m
+      labels:
+        severity: warning
+      annotations:
+        summary: "KMS DEK cache empty in {{ $labels.namespace }}"
+        description: "DEK cache is empty for KMS provider in namespace {{ $labels.namespace }} (cluster {{ $labels.cluster }}). Every secret read/write will round-trip to Azure Key Vault."
+        correlationId: "UJKmsDekCache/{{ $labels.cluster }}/{{ $labels._id }}"
+        runbook_url: "https://aka.ms/arohcp-runbook-kms"
+    # KMS status check stale — threshold-based
+    # SLO: status check age < 5 minutes (300s)
+    - alert: UJKmsStatusCheckStale
+      expr: kas:kms_status_check_age:max > 300
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "KMS status check stale in {{ $labels.namespace }}"
+        description: "KMS provider status check in namespace {{ $labels.namespace }} (cluster {{ $labels.cluster }}) has not succeeded for over 5 minutes. The provider connection may be broken."
+        correlationId: "UJKmsStatusCheck/{{ $labels.cluster }}/{{ $labels._id }}"
+        runbook_url: "https://aka.ms/arohcp-runbook-kms"
+  - name: hcp-kms-traffic-rules
+    rules:
+    # KMS traffic absent — threshold-based
+    # Fires when a cluster that previously had KMS operations stops having any,
+    # indicating the KMS provider or KAS may have stopped functioning.
+    - alert: UJKmsTrafficAbsent
+      expr: |
+        kas:kms_operations_total:rate5m == 0
+        and kas:kms_operations_total:rate_avg_1h > 0
+      for: 15m
+      labels:
+        severity: warning
+      annotations:
+        summary: "KMS operations stopped for HCP in {{ $labels.namespace }}"
+        description: "KMS operations in namespace {{ $labels.namespace }} (cluster {{ $labels.cluster }}) dropped to zero after previously having traffic. The KMS provider may have stopped."
+        correlationId: "UJKmsTraffic/{{ $labels.cluster }}/{{ $labels._id }}"
+        runbook_url: "https://aka.ms/arohcp-runbook-kms"

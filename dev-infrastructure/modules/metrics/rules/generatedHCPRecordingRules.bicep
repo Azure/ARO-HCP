@@ -195,3 +195,131 @@ resource hcpKasLatencyRecordingRules 'Microsoft.AlertsManagement/prometheusRuleG
     ]
   }
 }
+
+resource hcpKasKmsRecordingRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'hcp-kas-kms-recording-rules'
+  location: location
+  properties: {
+    scopes: [
+      azureMonitoring
+    ]
+    enabled: true
+    interval: 'PT1M'
+    rules: [
+      {
+        record: 'hostedClusterAPI_valid_azure_kms_config:ratio_avg_3d'
+        expression: 'avg by (name, namespace, _id, cluster) (avg_over_time(hostedClusterAPI_valid_azure_kms_config{status="True"}[3d])) and on (name, namespace, _id, cluster) count by (name, namespace, _id, cluster) (hostedClusterAPI_valid_azure_kms_config)'
+      }
+      {
+        record: 'hostedClusterAPI_valid_azure_kms_config:sum_over_time_5m'
+        expression: 'sum by (name, namespace, _id, cluster) (sum_over_time(hostedClusterAPI_valid_azure_kms_config{status="True"}[5m])) and on (name, namespace, _id, cluster) count by (name, namespace, _id, cluster) (hostedClusterAPI_valid_azure_kms_config)'
+      }
+      {
+        record: 'hostedClusterAPI_valid_azure_kms_config:sum_over_time_30m'
+        expression: 'sum by (name, namespace, _id, cluster) (sum_over_time(hostedClusterAPI_valid_azure_kms_config{status="True"}[30m])) and on (name, namespace, _id, cluster) count by (name, namespace, _id, cluster) (hostedClusterAPI_valid_azure_kms_config)'
+      }
+      {
+        record: 'hostedClusterAPI_valid_azure_kms_config:sum_over_time_1h'
+        expression: 'sum by (name, namespace, _id, cluster) (sum_over_time(hostedClusterAPI_valid_azure_kms_config{status="True"}[1h])) and on (name, namespace, _id, cluster) count by (name, namespace, _id, cluster) (hostedClusterAPI_valid_azure_kms_config)'
+      }
+      {
+        record: 'hostedClusterAPI_valid_azure_kms_config:sum_over_time_6h'
+        expression: 'sum by (name, namespace, _id, cluster) (sum_over_time(hostedClusterAPI_valid_azure_kms_config{status="True"}[6h])) and on (name, namespace, _id, cluster) count by (name, namespace, _id, cluster) (hostedClusterAPI_valid_azure_kms_config)'
+      }
+      {
+        record: 'hostedClusterAPI_valid_azure_kms_config:count_over_time_5m'
+        expression: 'sum by (name, namespace, _id, cluster) (count_over_time(hostedClusterAPI_valid_azure_kms_config{status="True"}[5m])) and on (name, namespace, _id, cluster) count by (name, namespace, _id, cluster) (hostedClusterAPI_valid_azure_kms_config)'
+      }
+      {
+        record: 'hostedClusterAPI_valid_azure_kms_config:count_over_time_30m'
+        expression: 'sum by (name, namespace, _id, cluster) (count_over_time(hostedClusterAPI_valid_azure_kms_config{status="True"}[30m])) and on (name, namespace, _id, cluster) count by (name, namespace, _id, cluster) (hostedClusterAPI_valid_azure_kms_config)'
+      }
+      {
+        record: 'hostedClusterAPI_valid_azure_kms_config:count_over_time_1h'
+        expression: 'sum by (name, namespace, _id, cluster) (count_over_time(hostedClusterAPI_valid_azure_kms_config{status="True"}[1h])) and on (name, namespace, _id, cluster) count by (name, namespace, _id, cluster) (hostedClusterAPI_valid_azure_kms_config)'
+      }
+      {
+        record: 'hostedClusterAPI_valid_azure_kms_config:count_over_time_6h'
+        expression: 'sum by (name, namespace, _id, cluster) (count_over_time(hostedClusterAPI_valid_azure_kms_config{status="True"}[6h])) and on (name, namespace, _id, cluster) count by (name, namespace, _id, cluster) (hostedClusterAPI_valid_azure_kms_config)'
+      }
+    ]
+  }
+}
+
+resource hcpKasKmsEnvelopeRecordingRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'hcp-kas-kms-envelope-recording-rules'
+  location: location
+  properties: {
+    scopes: [
+      azureMonitoring
+    ]
+    enabled: true
+    interval: 'PT1M'
+    rules: [
+      {
+        record: 'kas:kms_operations_total:rate5m'
+        expression: 'sum by (namespace, cluster, _id) (rate(apiserver_envelope_encryption_kms_operations_latency_seconds_count{namespace=~"ocm-.*"}[5m]))'
+      }
+      {
+        record: 'kas:kms_operations_errors:rate5m'
+        expression: 'sum by (namespace, cluster) (rate(apiserver_envelope_encryption_kms_operations_latency_seconds_count{namespace=~"ocm-.*", grpc_status_code!="ok"}[5m]))'
+      }
+      {
+        record: 'kas:kms_operations_total:rate_avg_5m'
+        expression: 'avg_over_time(kas:kms_operations_total:rate5m[5m])'
+      }
+      {
+        record: 'kas:kms_operations_errors:rate_avg_5m'
+        expression: 'avg_over_time(kas:kms_operations_errors:rate5m[5m])'
+      }
+      {
+        record: 'kas:kms_operations_total:rate_avg_30m'
+        expression: 'avg_over_time(kas:kms_operations_total:rate5m[30m])'
+      }
+      {
+        record: 'kas:kms_operations_errors:rate_avg_30m'
+        expression: 'avg_over_time(kas:kms_operations_errors:rate5m[30m])'
+      }
+      {
+        record: 'kas:kms_operations_total:rate_avg_1h'
+        expression: 'avg_over_time(kas:kms_operations_total:rate5m[1h])'
+      }
+      {
+        record: 'kas:kms_operations_errors:rate_avg_1h'
+        expression: 'avg_over_time(kas:kms_operations_errors:rate5m[1h])'
+      }
+      {
+        record: 'kas:kms_operations_total:rate_avg_6h'
+        expression: 'avg_over_time(kas:kms_operations_total:rate5m[6h])'
+      }
+      {
+        record: 'kas:kms_operations_errors:rate_avg_6h'
+        expression: 'avg_over_time(kas:kms_operations_errors:rate5m[6h])'
+      }
+      {
+        record: 'kas:kms_operations_total:rate_avg_3d'
+        expression: 'avg_over_time(kas:kms_operations_total:rate5m[3d])'
+      }
+      {
+        record: 'kas:kms_operations_errors:rate_avg_3d'
+        expression: 'avg_over_time(kas:kms_operations_errors:rate5m[3d])'
+      }
+      {
+        record: 'kas:kms_encrypt_latency:p99_5m'
+        expression: 'histogram_quantile(0.99, sum by (namespace, cluster, _id, le) (rate(apiserver_envelope_encryption_kms_operations_latency_seconds_bucket{ namespace=~"ocm-.*", method_name="/v2.keymanagementservice/encrypt", grpc_status_code="ok" }[5m])) )'
+      }
+      {
+        record: 'kas:kms_decrypt_latency:p99_5m'
+        expression: 'histogram_quantile(0.99, sum by (namespace, cluster, _id, le) (rate(apiserver_envelope_encryption_kms_operations_latency_seconds_bucket{ namespace=~"ocm-.*", method_name="/v2.keymanagementservice/decrypt", grpc_status_code="ok" }[5m])) )'
+      }
+      {
+        record: 'kas:kms_dek_cache_size:min'
+        expression: 'min by (namespace, cluster, _id) (apiserver_envelope_encryption_dek_source_cache_size{namespace=~"ocm-.*"})'
+      }
+      {
+        record: 'kas:kms_status_check_age:max'
+        expression: 'max by (namespace, cluster, _id) ( time() - apiserver_envelope_encryption_key_id_hash_status_last_timestamp_seconds{namespace=~"ocm-.*"} )'
+      }
+    ]
+  }
+}

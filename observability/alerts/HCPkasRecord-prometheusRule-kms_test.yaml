@@ -1,0 +1,54 @@
+rule_files:
+- HCPkasRecord-prometheusRule-kms.yaml
+evaluation_interval: 1m
+tests:
+# Test 1: 100% KMS Availability (Perfect Success)
+- interval: 1m
+  input_series:
+  - series: 'hostedClusterAPI_valid_azure_kms_config{status="True", name="test-cluster-1", namespace="clusters", _id="abc-123", cluster="mgmt-cluster"}'
+    values: "1+0x9"
+  promql_expr_test:
+  - expr: hostedClusterAPI_valid_azure_kms_config:ratio_avg_3d{name="test-cluster-1", namespace="clusters"}
+    eval_time: 10m
+    exp_samples:
+    - labels: '{__name__="hostedClusterAPI_valid_azure_kms_config:ratio_avg_3d", name="test-cluster-1", namespace="clusters", _id="abc-123", cluster="mgmt-cluster"}'
+      value: 1
+  - expr: hostedClusterAPI_valid_azure_kms_config:sum_over_time_5m{name="test-cluster-1", namespace="clusters"}
+    eval_time: 10m
+    exp_samples:
+    - labels: '{__name__="hostedClusterAPI_valid_azure_kms_config:sum_over_time_5m", name="test-cluster-1", namespace="clusters", _id="abc-123", cluster="mgmt-cluster"}'
+      value: 4
+  - expr: hostedClusterAPI_valid_azure_kms_config:count_over_time_5m{name="test-cluster-1", namespace="clusters"}
+    eval_time: 10m
+    exp_samples:
+    - labels: '{__name__="hostedClusterAPI_valid_azure_kms_config:count_over_time_5m", name="test-cluster-1", namespace="clusters", _id="abc-123", cluster="mgmt-cluster"}'
+      value: 4
+# Test 2: 50% KMS Availability (Intermittent Failures)
+- interval: 1m
+  input_series:
+  - series: 'hostedClusterAPI_valid_azure_kms_config{status="True", name="test-cluster-2", namespace="clusters", _id="def-456", cluster="mgmt-cluster"}'
+    values: "1 0 1 0 1 0 1 0 1 0"
+  promql_expr_test:
+  - expr: hostedClusterAPI_valid_azure_kms_config:ratio_avg_3d{name="test-cluster-2", namespace="clusters"}
+    eval_time: 10m
+    exp_samples:
+    - labels: '{__name__="hostedClusterAPI_valid_azure_kms_config:ratio_avg_3d", name="test-cluster-2", namespace="clusters", _id="def-456", cluster="mgmt-cluster"}'
+      value: 0.5
+# Test 3: 0% KMS Availability (Complete Failure)
+- interval: 1m
+  input_series:
+  - series: 'hostedClusterAPI_valid_azure_kms_config{status="True", name="test-cluster-3", namespace="clusters", _id="ghi-789", cluster="mgmt-cluster"}'
+    values: "0+0x9"
+  promql_expr_test:
+  - expr: hostedClusterAPI_valid_azure_kms_config:ratio_avg_3d{name="test-cluster-3", namespace="clusters"}
+    eval_time: 10m
+    exp_samples:
+    - labels: '{__name__="hostedClusterAPI_valid_azure_kms_config:ratio_avg_3d", name="test-cluster-3", namespace="clusters", _id="ghi-789", cluster="mgmt-cluster"}'
+      value: 0
+# Test 4: No data (cluster without KMS or deleted cluster)
+- interval: 1m
+  input_series: []
+  promql_expr_test:
+  - expr: hostedClusterAPI_valid_azure_kms_config:ratio_avg_3d
+    eval_time: 10m
+    exp_samples: []
