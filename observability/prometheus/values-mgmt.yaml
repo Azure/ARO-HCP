@@ -102,6 +102,7 @@ kube-prometheus-stack:
               api_url: [spec, services, "[service=APIServer]", servicePublishingStrategy, route, hostname]
               _id: [spec, clusterID]
               subscription_id: [spec, platform, azure, subscriptionID]
+              resource_id: [metadata, annotations, "azure.microsoft.com/hcp-cluster-azure-resource-id"]
             metrics:
             - name: "kubeapiserver_available"
               help: "KubeAPIServer availability condition"
