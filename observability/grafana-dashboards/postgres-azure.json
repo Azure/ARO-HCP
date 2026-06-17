@@ -15,7 +15,7 @@
       }
     ]
   },
-  "description": "Azure PostgreSQL metrics for Maestro database. NOTE: This dashboard is hard-coded to CSPR/PERF managed PostgreSQL instances. Personal dev environments use containerized PostgreSQL with prometheus metrics (see maestro-server.json dashboard instead).",
+  "description": "Azure PostgreSQL metrics for Maestro and Cluster Service databases. Select environment and database from dropdowns above. NOTE: This dashboard is for managed PostgreSQL instances (CSPR/PERF). Personal dev environments use containerized PostgreSQL with Prometheus metrics (see maestro-server.json or cluster-service.json dashboards instead).",
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
@@ -111,8 +111,8 @@
             "dimensionFilters": [],
             "metricName": "active_connections",
             "metricNamespace": "Microsoft.DBforPostgreSQL/flexibleServers",
-            "resourceGroup": "hcp-underlay-cspr-westus3",
-            "resourceName": "arohcp-cspr-dbmaestro-usw3",
+            "resourceGroup": "$resourceGroup",
+            "resourceName": "$database",
             "timeGrain": "auto"
           },
           "datasource": {
@@ -121,7 +121,7 @@
           },
           "queryType": "Azure Monitor",
           "refId": "A",
-          "subscription": "1d3378d3-5a3f-4712-85a1-2485495dfc4b"
+          "subscription": "$subscription"
         }
       ],
       "title": "Active Connections",
@@ -222,8 +222,8 @@
             "dimensionFilters": [],
             "metricName": "cpu_percent",
             "metricNamespace": "Microsoft.DBforPostgreSQL/flexibleServers",
-            "resourceGroup": "hcp-underlay-cspr-westus3",
-            "resourceName": "arohcp-cspr-dbmaestro-usw3",
+            "resourceGroup": "$resourceGroup",
+            "resourceName": "$database",
             "timeGrain": "auto"
           },
           "datasource": {
@@ -232,7 +232,7 @@
           },
           "queryType": "Azure Monitor",
           "refId": "A",
-          "subscription": "1d3378d3-5a3f-4712-85a1-2485495dfc4b"
+          "subscription": "$subscription"
         }
       ],
       "title": "CPU Percent",
@@ -333,8 +333,8 @@
             "dimensionFilters": [],
             "metricName": "memory_percent",
             "metricNamespace": "Microsoft.DBforPostgreSQL/flexibleServers",
-            "resourceGroup": "hcp-underlay-cspr-westus3",
-            "resourceName": "arohcp-cspr-dbmaestro-usw3",
+            "resourceGroup": "$resourceGroup",
+            "resourceName": "$database",
             "timeGrain": "auto"
           },
           "datasource": {
@@ -343,7 +343,7 @@
           },
           "queryType": "Azure Monitor",
           "refId": "A",
-          "subscription": "1d3378d3-5a3f-4712-85a1-2485495dfc4b"
+          "subscription": "$subscription"
         }
       ],
       "title": "Memory Percent",
@@ -438,8 +438,8 @@
             "dimensionFilters": [],
             "metricName": "longest_query_time_sec",
             "metricNamespace": "Microsoft.DBforPostgreSQL/flexibleServers",
-            "resourceGroup": "hcp-underlay-cspr-westus3",
-            "resourceName": "arohcp-cspr-dbmaestro-usw3",
+            "resourceGroup": "$resourceGroup",
+            "resourceName": "$database",
             "timeGrain": "auto"
           },
           "datasource": {
@@ -448,7 +448,7 @@
           },
           "queryType": "Azure Monitor",
           "refId": "A",
-          "subscription": "1d3378d3-5a3f-4712-85a1-2485495dfc4b"
+          "subscription": "$subscription"
         }
       ],
       "title": "Longest Query Time",
@@ -543,8 +543,8 @@
             "dimensionFilters": [],
             "metricName": "connections_failed",
             "metricNamespace": "Microsoft.DBforPostgreSQL/flexibleServers",
-            "resourceGroup": "hcp-underlay-cspr-westus3",
-            "resourceName": "arohcp-cspr-dbmaestro-usw3",
+            "resourceGroup": "$resourceGroup",
+            "resourceName": "$database",
             "timeGrain": "auto"
           },
           "datasource": {
@@ -553,7 +553,7 @@
           },
           "queryType": "Azure Monitor",
           "refId": "A",
-          "subscription": "1d3378d3-5a3f-4712-85a1-2485495dfc4b"
+          "subscription": "$subscription"
         }
       ],
       "title": "Failed Connections",
@@ -654,8 +654,8 @@
             "dimensionFilters": [],
             "metricName": "storage_percent",
             "metricNamespace": "Microsoft.DBforPostgreSQL/flexibleServers",
-            "resourceGroup": "hcp-underlay-cspr-westus3",
-            "resourceName": "arohcp-cspr-dbmaestro-usw3",
+            "resourceGroup": "$resourceGroup",
+            "resourceName": "$database",
             "timeGrain": "auto"
           },
           "datasource": {
@@ -664,7 +664,7 @@
           },
           "queryType": "Azure Monitor",
           "refId": "A",
-          "subscription": "1d3378d3-5a3f-4712-85a1-2485495dfc4b"
+          "subscription": "$subscription"
         }
       ],
       "title": "Storage Percent",
@@ -759,8 +759,8 @@
             "dimensionFilters": [],
             "metricName": "deadlocks",
             "metricNamespace": "Microsoft.DBforPostgreSQL/flexibleServers",
-            "resourceGroup": "hcp-underlay-cspr-westus3",
-            "resourceName": "arohcp-cspr-dbmaestro-usw3",
+            "resourceGroup": "$resourceGroup",
+            "resourceName": "$database",
             "timeGrain": "auto"
           },
           "datasource": {
@@ -769,7 +769,7 @@
           },
           "queryType": "Azure Monitor",
           "refId": "A",
-          "subscription": "1d3378d3-5a3f-4712-85a1-2485495dfc4b"
+          "subscription": "$subscription"
         }
       ],
       "title": "Deadlocks",
@@ -864,8 +864,8 @@
             "dimensionFilters": [],
             "metricName": "sessions_by_wait_event_type",
             "metricNamespace": "Microsoft.DBforPostgreSQL/flexibleServers",
-            "resourceGroup": "hcp-underlay-cspr-westus3",
-            "resourceName": "arohcp-cspr-dbmaestro-usw3",
+            "resourceGroup": "$resourceGroup",
+            "resourceName": "$database",
             "timeGrain": "auto"
           },
           "datasource": {
@@ -874,7 +874,7 @@
           },
           "queryType": "Azure Monitor",
           "refId": "A",
-          "subscription": "1d3378d3-5a3f-4712-85a1-2485495dfc4b"
+          "subscription": "$subscription"
         }
       ],
       "title": "Sessions by Wait Event Type",
@@ -969,8 +969,8 @@
             "dimensionFilters": [],
             "metricName": "client_connections_waiting",
             "metricNamespace": "Microsoft.DBforPostgreSQL/flexibleServers",
-            "resourceGroup": "hcp-underlay-cspr-westus3",
-            "resourceName": "arohcp-cspr-dbmaestro-usw3",
+            "resourceGroup": "$resourceGroup",
+            "resourceName": "$database",
             "timeGrain": "auto"
           },
           "datasource": {
@@ -979,7 +979,7 @@
           },
           "queryType": "Azure Monitor",
           "refId": "A",
-          "subscription": "1d3378d3-5a3f-4712-85a1-2485495dfc4b"
+          "subscription": "$subscription"
         }
       ],
       "title": "Waiting Client Connections",
@@ -989,9 +989,10 @@
   "refresh": "",
   "schemaVersion": 41,
   "tags": [
-    "maestro",
     "postgres",
-    "azure"
+    "azure",
+    "maestro",
+    "cluster-service"
   ],
   "templating": {
     "list": [
@@ -1006,6 +1007,77 @@
         "refresh": 1,
         "regex": "^Managed_Prometheus_services-.*$",
         "type": "datasource"
+      },
+      {
+        "current": {
+          "selected": true,
+          "text": "1d3378d3-5a3f-4712-85a1-2485495dfc4b",
+          "value": "1d3378d3-5a3f-4712-85a1-2485495dfc4b"
+        },
+        "description": "Azure subscription ID",
+        "hide": 0,
+        "label": "Subscription",
+        "name": "subscription",
+        "options": [
+          {
+            "selected": true,
+            "text": "1d3378d3-5a3f-4712-85a1-2485495dfc4b",
+            "value": "1d3378d3-5a3f-4712-85a1-2485495dfc4b"
+          }
+        ],
+        "query": "1d3378d3-5a3f-4712-85a1-2485495dfc4b",
+        "skipUrlSync": false,
+        "type": "textbox"
+      },
+      {
+        "current": {
+          "selected": true,
+          "text": "hcp-underlay-cspr-westus3",
+          "value": "hcp-underlay-cspr-westus3"
+        },
+        "description": "Resource group containing PostgreSQL server",
+        "hide": 0,
+        "label": "Resource Group",
+        "name": "resourceGroup",
+        "options": [
+          {
+            "selected": true,
+            "text": "hcp-underlay-cspr-westus3",
+            "value": "hcp-underlay-cspr-westus3"
+          }
+        ],
+        "query": "hcp-underlay-cspr-westus3",
+        "skipUrlSync": false,
+        "type": "textbox"
+      },
+      {
+        "current": {
+          "selected": true,
+          "text": "Maestro",
+          "value": "arohcp-cspr-dbmaestro-usw3"
+        },
+        "description": "PostgreSQL database server",
+        "hide": 0,
+        "includeAll": false,
+        "label": "Database",
+        "multi": false,
+        "name": "database",
+        "options": [
+          {
+            "selected": true,
+            "text": "Maestro",
+            "value": "arohcp-cspr-dbmaestro-usw3"
+          },
+          {
+            "selected": false,
+            "text": "Cluster Service",
+            "value": "arohcp-cspr-dbcs-usw3"
+          }
+        ],
+        "query": "Maestro : arohcp-cspr-dbmaestro-usw3, Cluster Service : arohcp-cspr-dbcs-usw3",
+        "queryValue": "",
+        "skipUrlSync": false,
+        "type": "custom"
       }
     ]
   },
@@ -1015,7 +1087,7 @@
   },
   "timepicker": {},
   "timezone": "",
-  "title": "Maestro Postgres (Azure)",
-  "uid": "maestro-postgres-azure",
+  "title": "PostgreSQL (Azure)",
+  "uid": "postgres-azure",
   "version": 0
 }
