@@ -2384,10 +2384,6 @@
         "image": {
           "$ref": "#/definitions/containerImage"
         },
-        "hoImageOverride": {
-          "type": "string",
-          "description": "Full image reference to override the HyperShift Operator image. Empty string uses the default."
-        },
         "additionalInstallArg": {
           "type": "string"
         },

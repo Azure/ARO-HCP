@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
       - name: install
-        image: '{{ include "hypershiftoperator.image" . }}'
+        image: "{{ .Values.image }}@{{ .Values.imageDigest }}"
         command:
         - /bin/sh
         - -c
@@ -25,7 +25,7 @@ spec:
             --managed-service ARO-HCP \
             --aro-hcp-key-vault-users-client-id {{ .Values.azureKeyVaultClientId }} \
             --registry-overrides "{{ .Values.registryOverrides }}" \
-            --hypershift-image {{ include "hypershiftoperator.image" . }} \
+            --hypershift-image {{ .Values.image }}@{{ .Values.imageDigest }} \
             --platform-monitoring=None \
             --metrics-set=SRE \
             --enable-size-tagging=true \
