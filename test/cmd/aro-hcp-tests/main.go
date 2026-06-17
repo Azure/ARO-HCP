@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"os"
 	"sort"
+	"strconv"
 	"time"
 
 	// If using ginkgo, import your tests here
@@ -48,6 +49,18 @@ func fastTestsOnly(query string) string {
 
 func slowTestsOnly(query string) string {
 	return fmt.Sprintf("%s && labels.exists(l, l==\"%s\")", query, labels.Slow[0])
+}
+
+// suiteParallelism returns the overridden parallelism from
+// ARO_HCP_SUITE_PARALLELISM if set, otherwise the provided default.
+func suiteParallelism(defaultParallelism int) int {
+	if v := os.Getenv("ARO_HCP_SUITE_PARALLELISM"); v != "" {
+		n, err := strconv.Atoi(v)
+		if err == nil && n > 0 {
+			return n
+		}
+	}
+	return defaultParallelism
 }
 
 func miDemandPriority(spec *et.ExtensionTestSpec) int {
@@ -85,8 +98,8 @@ func setupCli() *cobra.Command {
 		},
 		// Spec parallelism is limited by the leased identity containers. We set suite parallelism slightly above the number of
 		// leased identity containers to avoid multi-HCP tests blocking single-HCP tests from obtaining a lease.
-		// LEASED_MSI_CONTAINERS=20
-		Parallelism: 24,
+		// Override at runtime via ARO_HCP_SUITE_PARALLELISM.
+		Parallelism: suiteParallelism(24),
 		TestTimeout: &integrationTestTimeout,
 	})
 
@@ -97,8 +110,8 @@ func setupCli() *cobra.Command {
 		},
 		// Spec parallelism is limited by the leased identity containers. We set suite parallelism slightly above the number of
 		// leased identity containers to avoid multi-HCP tests blocking single-HCP tests from obtaining a lease.
-		// LEASED_MSI_CONTAINERS=20
-		Parallelism: 24,
+		// Override at runtime via ARO_HCP_SUITE_PARALLELISM.
+		Parallelism: suiteParallelism(24),
 		TestTimeout: &integrationTestTimeout,
 	})
 
@@ -111,8 +124,8 @@ func setupCli() *cobra.Command {
 		},
 		// Spec parallelism is limited by the leased identity containers. We set suite parallelism slightly above the number of
 		// leased identity containers to avoid multi-HCP tests blocking single-HCP tests from obtaining a lease.
-		// LEASED_MSI_CONTAINERS=30
-		Parallelism: 34,
+		// Override at runtime via ARO_HCP_SUITE_PARALLELISM.
+		Parallelism: suiteParallelism(34),
 		TestTimeout: &stageTestTimeout,
 	})
 	ext.AddSuite(e.Suite{
@@ -122,8 +135,8 @@ func setupCli() *cobra.Command {
 		},
 		// Spec parallelism is limited by the leased identity containers. We set suite parallelism slightly above the number of
 		// leased identity containers to avoid multi-HCP tests blocking single-HCP tests from obtaining a lease.
-		// LEASED_MSI_CONTAINERS=30
-		Parallelism: 34,
+		// Override at runtime via ARO_HCP_SUITE_PARALLELISM.
+		Parallelism: suiteParallelism(34),
 		TestTimeout: &stageTestTimeout,
 	})
 
@@ -136,8 +149,8 @@ func setupCli() *cobra.Command {
 		},
 		// Spec parallelism is limited by the leased identity containers. We set suite parallelism slightly above the number of
 		// leased identity containers to avoid multi-HCP tests blocking single-HCP tests from obtaining a lease.
-		// LEASED_MSI_CONTAINERS=15
-		Parallelism: 19,
+		// Override at runtime via ARO_HCP_SUITE_PARALLELISM.
+		Parallelism: suiteParallelism(19),
 		TestTimeout: &prodTestTimeout,
 	})
 	ext.AddSuite(e.Suite{
@@ -147,8 +160,8 @@ func setupCli() *cobra.Command {
 		},
 		// Spec parallelism is limited by the leased identity containers. We set suite parallelism slightly above the number of
 		// leased identity containers to avoid multi-HCP tests blocking single-HCP tests from obtaining a lease.
-		// LEASED_MSI_CONTAINERS=15
-		Parallelism: 19,
+		// Override at runtime via ARO_HCP_SUITE_PARALLELISM.
+		Parallelism: suiteParallelism(19),
 		TestTimeout: &prodTestTimeout,
 	})
 
@@ -160,7 +173,8 @@ func setupCli() *cobra.Command {
 			// TODO: revisit labels to tweak which tests to select here
 			fmt.Sprintf(`labels.exists(l, l=="%s" ) && labels.exists(l, l=="%s")`, labels.AroRpApiCompatible[0], labels.Positive[0]),
 		},
-		Parallelism: 20,
+		// Override at runtime via ARO_HCP_SUITE_PARALLELISM.
+		Parallelism: suiteParallelism(20),
 	})
 
 	rpApiCompatBaseQualifier := fmt.Sprintf(`labels.exists(l, l=="%s")`, labels.AroRpApiCompatible[0])
@@ -177,8 +191,8 @@ func setupCli() *cobra.Command {
 		Qualifiers: []string{fastTestsOnly(rpApiCompatBaseQualifier)},
 		// Spec parallelism is limited by the leased identity containers. We set suite parallelism slightly above the number of
 		// leased identity containers to avoid multi-HCP tests blocking single-HCP tests from obtaining a lease.
-		// LEASED_MSI_CONTAINERS=20
-		Parallelism: 24,
+		// Override at runtime via ARO_HCP_SUITE_PARALLELISM.
+		Parallelism: suiteParallelism(24),
 		TestTimeout: &rpApiCompatTestTimeout,
 	})
 	ext.AddSuite(e.Suite{
@@ -186,8 +200,8 @@ func setupCli() *cobra.Command {
 		Qualifiers: []string{slowTestsOnly(rpApiCompatBaseQualifier)},
 		// Spec parallelism is limited by the leased identity containers. We set suite parallelism slightly above the number of
 		// leased identity containers to avoid multi-HCP tests blocking single-HCP tests from obtaining a lease.
-		// LEASED_MSI_CONTAINERS=20
-		Parallelism: 24,
+		// Override at runtime via ARO_HCP_SUITE_PARALLELISM.
+		Parallelism: suiteParallelism(24),
 		TestTimeout: &rpApiCompatTestTimeout,
 	})
 
