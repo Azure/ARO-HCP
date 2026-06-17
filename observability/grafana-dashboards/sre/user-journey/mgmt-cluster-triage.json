@@ -637,7 +637,7 @@
         "type": "prometheus",
         "uid": "${datasource}"
       },
-      "description": "Current count of containers whose last termination was OOMKilled, grouped by namespace (top 10)",
+      "description": "Current count of containers whose last termination was OOMKilled, grouped by namespace (top 10). Intentionally unscoped to show all namespaces including platform/system.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -736,7 +736,7 @@
         "type": "prometheus",
         "uid": "${datasource}"
       },
-      "description": "Total pod container restarts per namespace in the last hour (top 10)",
+      "description": "Total pod container restarts per namespace in the last hour (top 10). Intentionally unscoped to show all namespaces including platform/system.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -835,7 +835,7 @@
         "type": "prometheus",
         "uid": "${datasource}"
       },
-      "description": "Current count of pods in CrashLoopBackOff state by namespace (top 10)",
+      "description": "Current count of pods in CrashLoopBackOff state by namespace (top 10). Intentionally unscoped to show all namespaces including platform/system.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -934,7 +934,7 @@
         "type": "prometheus",
         "uid": "${datasource}"
       },
-      "description": "Current count of pods in Pending phase by namespace (top 10)",
+      "description": "Current count of pods in Pending phase by namespace (top 10). Intentionally unscoped to show all namespaces including platform/system.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1033,7 +1033,7 @@
         "type": "prometheus",
         "uid": "${datasource}"
       },
-      "description": "Current count of evicted pods by namespace (top 10)",
+      "description": "Current count of evicted pods by namespace (top 10). Intentionally unscoped to show all namespaces including platform/system.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1705,18 +1705,29 @@
         "type": "query"
       },
       {
-        "current": {
-          "text": "ocm-.*",
-          "value": "ocm-.*"
+        "current": {},
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${datasource}"
         },
-        "description": "Regex pattern for HCP namespaces (default: ocm-.*)",
+        "definition": "label_values(kube_pod_info{cluster=\"$cluster\"}, namespace)",
+        "description": "HCP namespaces on the selected management cluster",
         "hide": 0,
-        "label": "HCP Namespace Pattern",
+        "includeAll": true,
+        "label": "HCP Namespace",
+        "multi": true,
         "name": "hcp_namespace",
         "options": [],
-        "query": "ocm-.*",
+        "query": {
+          "qryType": 1,
+          "query": "label_values(kube_pod_info{cluster=\"$cluster\"}, namespace)",
+          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+        },
+        "refresh": 1,
+        "regex": "^ocm-.*$",
         "skipUrlSync": false,
-        "type": "textbox"
+        "sort": 1,
+        "type": "query"
       }
     ]
   },
