@@ -12,6 +12,7 @@ DEPLOY_ENV ?= pers
 CONFIG_FILE ?= config/config.yaml
 TOPOLOGY_FILE ?= topology.yaml
 export AZURE_TOKEN_CREDENTIALS ?= dev
+BUILD_SERVICES_OPTS ?= '-j7'
 
 .DEFAULT_GOAL := all
 
@@ -397,7 +398,7 @@ generate-kiota:
 PERS_OVERRIDE_FILE ?= /tmp/personal-dev-override.yaml
 
 build-services:
-	$(MAKE) -j7 build-frontend build-backend build-admin build-sessiongate build-mgmt-agent build-kube-applier build-fleet
+	$(MAKE) $(BUILD_SERVICES_OPTS) build-frontend build-backend build-admin build-sessiongate build-mgmt-agent build-kube-applier
 .PHONY: build-services
 
 build-frontend:
