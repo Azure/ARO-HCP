@@ -134,14 +134,14 @@ defaults:
       image:
         registry: mcr.microsoft.com
         repository: geneva/distroless/mdsd
-        digest: sha256:78ffccc52f816e9c2a6a6f6d611191e8698a468dc23839eda26f36d89261df78 # 1.42.0-20260603-3 (2026-06-03 23:35)
+        digest: sha256:b7537284064d047322a6044b4dc003437e59e2a30e9032e5b5acd5ffa090ada5 # 1.42.0-20260615-1 (2026-06-15 19:00)
   # Kube Events
   kubeEvents:
     enabled: true
     image:
       registry: kubernetesshared.azurecr.io
       repository: shared/kube-events
-      digest: sha256:c6281c97b2479afe25cea7c4f610ef2f61815e39bef1a97cddc8b29a1665081b # 20260608.1 (2026-06-08 09:40)
+      digest: sha256:c2442d4cabf2ef1815bf8e058e5ec96d9fbce8169e2f0e356c61374e049fdfac # 20260616.1 (2026-06-16 05:25)
     k8s:
       namespace: monitoring
       serviceAccountName: ke-serviceaccount
@@ -317,7 +317,7 @@ defaults:
     image:
       registry: quay.io
       repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
-      digest: sha256:8143071e0d2b6c453ff1d19b8ba98939e19a06796791a9d56c87d4922bb204d1 # 39f04eb0d61faac3ea4239ea22ecc59a3dc0d85b (2026-06-11 21:58)
+      digest: sha256:42db547a2f0e3b57827e4b37e48e598d1b94af8f752bc8efcf15986a4988e3f0 # cfa8fc6fde97f72d44133e0dcca07876ce24dd1c (2026-06-16 14:38)
     namespace: hypershift
     additionalInstallArg: '--enable-cpo-overrides'
     # By default we set it to empty as this tag is only required for msft environments. We override
@@ -934,7 +934,7 @@ defaults:
     image:
       registry: quay.io
       repository: redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro
-      digest: sha256:6e3033bb699838df98ca5ba8c5396e17091d97866807cf101c69d5275feac427 # 85df8220e990d1bd8dbbe551766a7e462590ed93 (2026-06-10 21:21)
+      digest: sha256:1568fda504ca91a9cfee998067174ebd46f5ac2603a8663ebefbac94d6483a85 # e43800d7020340d3fb4c0cfa81a8099e06e303f8 (2026-06-16 17:37)
   # ACM
   acm:
     operator:
@@ -952,7 +952,7 @@ defaults:
     image:
       registry: quay.io
       repository: app-sre/aro-hcp-clusters-service
-      digest: sha256:546c6af88cf2dba74473f3b90d794839f43d771ed735da94fc368252b28124a0 # a1349e36ee4b3b68a85bdc3c78656c773f9a9eb5 (2026-06-12 08:52)
+      digest: sha256:8132ccff93a2460ec753894af3d8bcb99cd52bf7360c69b288de2a0a8b7e7feb # 07dc9dacb5c3525786310ce0631ee4e65345107b (2026-06-16 19:25)
     # controls how many HCPs can be placed on an MC, sadly not configurable per MC
     provisionShardClusterLimit: 100
     provisionShardStatus: active
@@ -1014,7 +1014,7 @@ defaults:
       image:
         registry: arohcpsvcdev.azurecr.io
         repository: image-sync/oc-mirror
-        digest: sha256:bcaee76884f96be911ebd95825801c9b2629f9c4e7efaf8980f2c76da075a07b # b559012 (2026-06-12 19:17)
+        digest: sha256:a5c7dc39275992123505d79a22cc721d2d09e9cce0e2e45184b04d3b5a6ea927 # 4a0d4de (2026-06-16 21:30)
       pullSecretName: ocmirror-pull-secret
       operatorVersionsToMirror: "4.18,4.19,4.20,4.21,4.22"
   # Automation Account
