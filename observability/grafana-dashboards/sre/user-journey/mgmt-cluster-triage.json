@@ -506,8 +506,8 @@
             "uid": "${datasource}"
           },
           "editorMode": "code",
-          "expr": "sum by (instance) (rate(container_cpu_usage_seconds_total{cluster=\"$cluster\", container!=\"\", container!=\"POD\"}[5m]))\n/ on(instance)\nmax by (instance) (label_replace(kube_node_status_allocatable{cluster=\"$cluster\", resource=\"cpu\"}, \"instance\", \"$1\", \"node\", \"(.+)\"))\n* 100",
-          "legendFormat": "{{instance}}",
+          "expr": "sum by (node) (label_replace(rate(container_cpu_usage_seconds_total{cluster=\"$cluster\", container!=\"\", container!=\"POD\"}[5m]), \"node\", \"$1\", \"instance\", \"(.+)\"))\n/ on(node)\nmax by (node) (kube_node_status_allocatable{cluster=\"$cluster\", resource=\"cpu\"})\n* 100",
+          "legendFormat": "{{node}}",
           "range": true,
           "refId": "A"
         }
@@ -610,8 +610,8 @@
             "uid": "${datasource}"
           },
           "editorMode": "code",
-          "expr": "sum by (instance) (container_memory_working_set_bytes{cluster=\"$cluster\", container!=\"\", container!=\"POD\"})\n/ on(instance)\nmax by (instance) (label_replace(kube_node_status_allocatable{cluster=\"$cluster\", resource=\"memory\"}, \"instance\", \"$1\", \"node\", \"(.+)\"))\n* 100",
-          "legendFormat": "{{instance}}",
+          "expr": "sum by (node) (label_replace(container_memory_working_set_bytes{cluster=\"$cluster\", container!=\"\", container!=\"POD\"}, \"node\", \"$1\", \"instance\", \"(.+)\"))\n/ on(node)\nmax by (node) (kube_node_status_allocatable{cluster=\"$cluster\", resource=\"memory\"})\n* 100",
+          "legendFormat": "{{node}}",
           "range": true,
           "refId": "A"
         }
@@ -1532,7 +1532,7 @@
             "uid": "${hcp_datasource}"
           },
           "editorMode": "code",
-          "expr": "histogram_quantile(0.99,\n  sum by (namespace, le) (\n    rate(etcd_disk_wal_fsync_duration_seconds_bucket{cluster=\"$cluster\"}[5m])\n  )\n)",
+          "expr": "histogram_quantile(0.99,\n  sum by (namespace, le) (\n    rate(etcd_disk_wal_fsync_duration_seconds_bucket{cluster=\"$cluster\", namespace=~\"$hcp_namespace\"}[5m])\n  )\n)",
           "legendFormat": "{{namespace}}",
           "range": true,
           "refId": "A"
@@ -1632,7 +1632,7 @@
             "uid": "${hcp_datasource}"
           },
           "editorMode": "code",
-          "expr": "sum by (namespace) (increase(etcd_server_leader_changes_seen_total{cluster=\"$cluster\"}[1h]))",
+          "expr": "sum by (namespace) (increase(etcd_server_leader_changes_seen_total{cluster=\"$cluster\", namespace=~\"$hcp_namespace\"}[1h]))",
           "legendFormat": "{{namespace}}",
           "range": true,
           "refId": "A"
