@@ -357,6 +357,12 @@ resourceGroups:
     dependsOn:
     - resourceGroup: management
       step: swift-vnet-permissions
+    automatedRetry:
+      errorContainsAny:
+      - "ContainerGroupDeploymentNotReady"
+      - "Timed out"
+      maximumRetryCount: 3
+      durationBetweenRetries: 1m
   - name: cluster
     action: ARM
     template: templates/mgmt-cluster.bicep
