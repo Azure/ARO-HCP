@@ -24,9 +24,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 
-	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	"k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/client-go/util/workqueue"
 	"k8s.io/component-base/metrics/legacyregistry"
 	"k8s.io/utils/ptr"
 
@@ -36,9 +33,10 @@ import (
 
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
+	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -90,41 +88,34 @@ var (
 )
 
 type cleanOrphanedClusterManagedResourceGroup struct {
-	name     string
-	location string
-
-	subscriptionLister    listers.SubscriptionLister
+	location              string
+	cooldownChecker       controllerutil.CooldownChecker
 	resourcesDBClient     database.ResourcesDBClient
 	azureFPAClientBuilder azureclient.FirstPartyApplicationClientBuilder
-
-	// queue is where incoming work is placed to de-dup and to allow "easy"
-	// rate limited requeues on errors
-	queue workqueue.TypedRateLimitingInterface[string]
 }
 
 // NewCleanOrphanedClusterManagedResourceGroupController periodically looks for managed resource groups
 // that are not referenced by any HCPOpenShiftCluster in the database and cleans them up.
 func NewCleanOrphanedClusterManagedResourceGroupController(
 	location string,
-	subscriptionLister listers.SubscriptionLister,
+	activeOperationLister listers.ActiveOperationLister,
 	resourcesDBClient database.ResourcesDBClient,
 	azureFPAClientBuilder azureclient.FirstPartyApplicationClientBuilder,
+	backendInformers informers.BackendInformers,
 ) controllerutils.Controller {
-	c := &cleanOrphanedClusterManagedResourceGroup{
-		name:                  "CleanOrphanedClusterManagedResourceGroup",
+	syncer := &cleanOrphanedClusterManagedResourceGroup{
 		location:              location,
-		subscriptionLister:    subscriptionLister,
+		cooldownChecker:       controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
 		resourcesDBClient:     resourcesDBClient,
 		azureFPAClientBuilder: azureFPAClientBuilder,
-		queue: workqueue.NewTypedRateLimitingQueueWithConfig(
-			workqueue.DefaultTypedControllerRateLimiter[string](),
-			workqueue.TypedRateLimitingQueueConfig[string]{
-				Name: "CleanOrphanedClusterManagedResourceGroup",
-			},
-		),
 	}
 
-	return c
+	return controllerutils.NewSubscriptionWatchingController(
+		"CleanOrphanedClusterManagedResourceGroup",
+		backendInformers,
+		10*time.Minute,
+		syncer,
+	)
 }
 
 // listManagedResourceGroupsForSubscription lists all HCP-managed resource groups in the controller's location
@@ -243,9 +234,8 @@ func (c *cleanOrphanedClusterManagedResourceGroup) deleteOrphanedManagedResource
 
 // listClusterResourceIDsForSubscription lists all HCP cluster resource IDs for a single subscription
 // and returns them as a set (map with empty struct values) with lowercase keys.
-func (c *cleanOrphanedClusterManagedResourceGroup) listClusterResourceIDsForSubscription(ctx context.Context, subscription *arm.Subscription) (map[string]struct{}, error) {
+func (c *cleanOrphanedClusterManagedResourceGroup) listClusterResourceIDsForSubscription(ctx context.Context, subscriptionID string) (map[string]struct{}, error) {
 	clusterResourceIDs := make(map[string]struct{})
-	subscriptionID := subscription.ResourceID.SubscriptionID
 
 	allHCPClusters, err := c.resourcesDBClient.HCPClusters(subscriptionID, "").List(ctx, nil)
 	if err != nil {
@@ -263,69 +253,66 @@ func (c *cleanOrphanedClusterManagedResourceGroup) listClusterResourceIDsForSubs
 	return clusterResourceIDs, nil
 }
 
-// SyncOnce implements the main sync logic for the controller.
-func (c *cleanOrphanedClusterManagedResourceGroup) SyncOnce(ctx context.Context, _ any) error {
+// SyncOnce implements the main sync logic for the controller for a single subscription.
+func (c *cleanOrphanedClusterManagedResourceGroup) SyncOnce(ctx context.Context, key controllerutils.SubscriptionKey) error {
 	logger := utils.LoggerFromContext(ctx)
-	logger.Info("Syncing orphaned cluster managed resource groups")
+	subscriptionID := key.SubscriptionID
 
-	subscriptions, err := c.subscriptionLister.List(ctx)
+	logger.Info("Syncing orphaned cluster managed resource groups for subscription",
+		"subscriptionID", subscriptionID)
+
+	// Load the subscription to get tenantID
+	subscription, err := c.resourcesDBClient.Subscriptions().Get(ctx, subscriptionID)
 	if err != nil {
+		logger.Error(err, "Failed to get subscription from database",
+			"subscriptionID", subscriptionID)
 		return utils.TrackError(err)
 	}
 
-	logger.Info("Retrieved subscriptions", "count", len(subscriptions))
+	tenantID := *subscription.Properties.TenantId
 
-	// Process each subscription to identify orphaned managed resource groups
-	// Collect errors but continue processing other subscriptions
+	rgClient, err := c.azureFPAClientBuilder.ResourceGroupsClient(tenantID, subscriptionID)
+	if err != nil {
+		logger.Error(err, "Failed to create resource groups client",
+			"subscriptionID", subscriptionID)
+		return utils.TrackError(err)
+	}
+
+	managedResourceGroups, err := c.listManagedResourceGroupsForSubscription(ctx, rgClient)
+	if err != nil {
+		logger.Error(err, "Failed to list managed resource groups for subscription",
+			"subscriptionID", subscriptionID)
+		return utils.TrackError(err)
+	}
+
+	clusterResourceIDs, err := c.listClusterResourceIDsForSubscription(ctx, subscriptionID)
+	if err != nil {
+		logger.Error(err, "Failed to list cluster resource IDs for subscription",
+			"subscriptionID", subscriptionID)
+		return utils.TrackError(err)
+	}
+
+	// Identify and clean up orphaned managed resource groups for this subscription
 	var errs []error
-	for _, subscription := range subscriptions {
-		subscriptionID := subscription.ResourceID.SubscriptionID
-		tenantID := *subscription.Properties.TenantId
+	for resourceGroupName, managedBy := range managedResourceGroups {
+		managedByResourceID := strings.ToLower(managedBy)
 
-		rgClient, err := c.azureFPAClientBuilder.ResourceGroupsClient(tenantID, subscriptionID)
-		if err != nil {
-			logger.Error(err, "Failed to create resource groups client",
-				"subscriptionID", subscriptionID)
-			errs = append(errs, err)
+		if _, exists := clusterResourceIDs[managedByResourceID]; exists {
+			// Cluster exists, this is not an orphaned resource group
 			continue
 		}
 
-		managedResourceGroups, err := c.listManagedResourceGroupsForSubscription(ctx, rgClient)
+		// Found an orphaned managed resource group
+		orphanedMRGsFound.WithLabelValues(c.location).Inc()
+
+		err = c.deleteOrphanedManagedResourceGroup(ctx, rgClient, subscriptionID, resourceGroupName, managedBy)
 		if err != nil {
-			logger.Error(err, "Failed to list managed resource groups for subscription",
-				"subscriptionID", subscriptionID)
 			errs = append(errs, err)
-			continue
-		}
-
-		clusterResourceIDs, err := c.listClusterResourceIDsForSubscription(ctx, subscription)
-		if err != nil {
-			logger.Error(err, "Failed to list cluster resource IDs for subscription",
-				"subscriptionID", subscriptionID)
-			errs = append(errs, err)
-			continue
-		}
-
-		// Identify and clean up orphaned managed resource groups for this subscription
-		for resourceGroupName, managedBy := range managedResourceGroups {
-			managedByResourceID := strings.ToLower(managedBy)
-
-			if _, exists := clusterResourceIDs[managedByResourceID]; exists {
-				// Cluster exists, this is not an orphaned resource group
-				continue
-			}
-
-			// Found an orphaned managed resource group
-			orphanedMRGsFound.WithLabelValues(c.location).Inc()
-
-			err = c.deleteOrphanedManagedResourceGroup(ctx, rgClient, subscriptionID, resourceGroupName, managedBy)
-			if err != nil {
-				errs = append(errs, err)
-			}
 		}
 	}
 
-	logger.Info("End of orphaned cluster managed resource groups sync")
+	logger.Info("Completed sync for subscription",
+		"subscriptionID", subscriptionID)
 
 	if len(errs) > 0 {
 		return utils.TrackError(errors.Join(errs...))
@@ -334,60 +321,6 @@ func (c *cleanOrphanedClusterManagedResourceGroup) SyncOnce(ctx context.Context,
 	return nil
 }
 
-func (c *cleanOrphanedClusterManagedResourceGroup) Run(ctx context.Context, threadiness int) {
-	// don't let panics crash the process
-	defer utilruntime.HandleCrash()
-	// make sure the work queue is shutdown which will trigger workers to end
-	defer c.queue.ShutDown()
-
-	ctx = utils.ContextWithControllerName(ctx, c.name)
-	logger := utils.LoggerFromContext(ctx)
-	logger = logger.WithValues(utils.LogValues{}.AddControllerName(c.name)...)
-	ctx = utils.ContextWithLogger(ctx, logger)
-	logger.Info("Starting")
-
-	// start up your worker threads based on threadiness.  Some controllers
-	// have multiple kinds of workers
-	for i := 0; i < threadiness; i++ {
-		// runWorker will loop until "something bad" happens.  The .Until will
-		// then rekick the worker after one second
-		go wait.UntilWithContext(ctx, c.runWorker, time.Second)
-	}
-
-	// We run this periodically enqueuing an arbitrary item named "doWork" to trigger the sync.
-	go wait.JitterUntilWithContext(ctx, func(ctx context.Context) { c.queue.Add("doWork") }, 10*time.Minute, 0.1, true)
-
-	logger.Info("Started workers")
-
-	// wait until we're told to stop
-	<-ctx.Done()
-	logger.Info("Shutting down")
-}
-
-func (c *cleanOrphanedClusterManagedResourceGroup) runWorker(ctx context.Context) {
-	defer utilruntime.HandleCrash()
-	for c.processNextWorkItem(ctx) {
-	}
-}
-
-// processNextWorkItem deals with one item off the queue.  It returns false
-// when it's time to quit.
-func (c *cleanOrphanedClusterManagedResourceGroup) processNextWorkItem(ctx context.Context) bool {
-	ref, shutdown := c.queue.Get()
-	if shutdown {
-		return false
-	}
-	defer c.queue.Done(ref)
-
-	controllerutils.ReconcileTotal.WithLabelValues(c.name).Inc()
-	err := c.SyncOnce(ctx, ref)
-	if err == nil {
-		c.queue.Forget(ref)
-		return true
-	}
-
-	utilruntime.HandleErrorWithContext(ctx, err, "Error syncing; requeuing for later retry", "objectReference", ref)
-	c.queue.AddRateLimited(ref)
-
-	return true
+func (c *cleanOrphanedClusterManagedResourceGroup) CooldownChecker() controllerutil.CooldownChecker {
+	return c.cooldownChecker
 }

@@ -603,9 +603,10 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 
 	cleanOrphanedClusterManagedResourceGroupController := controllers.NewCleanOrphanedClusterManagedResourceGroupController(
 		b.options.AzureLocation,
-		subscriptionLister,
+		activeOperationLister,
 		b.options.ResourcesDBClient,
 		b.options.FPAClientBuilder,
+		backendInformers,
 	)
 
 	azureRPRegistrationValidationController := validationcontrollers.NewClusterValidationController(
