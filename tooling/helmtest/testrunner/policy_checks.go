@@ -42,7 +42,7 @@ type workloadMeta struct {
 	} `json:"spec"`
 }
 
-var workloadKinds = sets.New[string](
+var workloadKinds = sets.New(
 	"Deployment",
 	"StatefulSet",
 	"DaemonSet",
@@ -90,40 +90,50 @@ func checkPolicyViolations(manifest string, resourceLimitsAllowlist []string) []
 			podSpec = w.Spec.JobTemplate.Spec.Template.Spec
 		}
 
-		violations = append(violations, checkPodSpecHasNoResourceLimits(w.Kind, w.Metadata.Name, podSpec, resourceLimitsAllowlist)...)
+		violations = append(violations, checkPodSpecMissingMemoryLimits(w.Kind, w.Metadata.Name, podSpec, resourceLimitsAllowlist)...)
 	}
 
 	return violations
 }
 
-func checkPodSpecHasNoResourceLimits(kind, name string, podSpec corev1.PodSpec, allowlist []string) []string {
+func checkPodSpecMissingMemoryLimits(kind, name string, podSpec corev1.PodSpec, allowlist []string) []string {
 	var violations []string
 	for _, c := range slices.Concat(podSpec.InitContainers, podSpec.Containers) {
-		if len(c.Resources.Limits) > 0 {
-			key := fmt.Sprintf("%s/%s/%s", kind, name, c.Name)
-			matched, err := matchesAllowlist(key, allowlist)
-			if err != nil {
-				violations = append(violations, err.Error())
-				continue
-			}
-			if matched {
-				continue
-			}
-			violations = append(violations, fmt.Sprintf("%s has resource limits set (add to ResourceLimitsAllowlist if intentional)", key))
+		key := fmt.Sprintf("%s/%s/%s", kind, name, c.Name)
+
+		// Check if this container is allowlisted (exempt from requiring limits)
+		matched, err := matchesAllowlist(key, allowlist)
+		if err != nil {
+			violations = append(violations, err.Error())
+			continue
+		}
+		if matched {
+			continue
+		}
+
+		// INVERTED LOGIC: Fail if memory limits are NOT set
+		memoryLimit := c.Resources.Limits.Memory()
+		if memoryLimit == nil || memoryLimit.IsZero() {
+			violations = append(violations, fmt.Sprintf("%s is missing resources.limits.memory (add to ResourceLimitsAllowlist if intentionally unlimited)", key))
 		}
 	}
 	for _, ec := range podSpec.EphemeralContainers {
-		if len(ec.Resources.Limits) > 0 {
-			key := fmt.Sprintf("%s/%s/%s", kind, name, ec.Name)
-			matched, err := matchesAllowlist(key, allowlist)
-			if err != nil {
-				violations = append(violations, err.Error())
-				continue
-			}
-			if matched {
-				continue
-			}
-			violations = append(violations, fmt.Sprintf("%s has resource limits set (add to ResourceLimitsAllowlist if intentional)", key))
+		key := fmt.Sprintf("%s/%s/%s", kind, name, ec.Name)
+
+		// Check if this container is allowlisted (exempt from requiring limits)
+		matched, err := matchesAllowlist(key, allowlist)
+		if err != nil {
+			violations = append(violations, err.Error())
+			continue
+		}
+		if matched {
+			continue
+		}
+
+		// INVERTED LOGIC: Fail if memory limits are NOT set
+		memoryLimit := ec.Resources.Limits.Memory()
+		if memoryLimit == nil || memoryLimit.IsZero() {
+			violations = append(violations, fmt.Sprintf("%s is missing resources.limits.memory (add to ResourceLimitsAllowlist if intentionally unlimited)", key))
 		}
 	}
 	return violations
