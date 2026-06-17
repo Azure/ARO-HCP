@@ -88,14 +88,35 @@ type MaestroClientBuilder interface {
 
 var _ MaestroClientBuilder = (*maestroClientBuilder)(nil)
 
-type maestroClientBuilder struct{}
-
-func (b *maestroClientBuilder) NewClient(ctx context.Context, maestroRESTAPIEndpoint string, maestroGRPCAPIEndpoint string, maestroConsumerName string, maestroSourceID string) (Client, error) {
-	return NewClient(ctx, maestroRESTAPIEndpoint, maestroGRPCAPIEndpoint, maestroConsumerName, maestroSourceID)
+type maestroClientBuilder struct {
+	metrics *MaestroMetrics
 }
 
-func NewMaestroClientBuilder() MaestroClientBuilder {
-	return &maestroClientBuilder{}
+func (b *maestroClientBuilder) NewClient(ctx context.Context, maestroRESTAPIEndpoint string, maestroGRPCAPIEndpoint string, maestroConsumerName string, maestroSourceID string) (Client, error) {
+	client, err := NewClient(ctx, maestroRESTAPIEndpoint, maestroGRPCAPIEndpoint, maestroConsumerName, maestroSourceID)
+	if err != nil {
+		return nil, err
+	}
+
+	if b.metrics != nil {
+		return NewInstrumentedMaestroClient(client, b.metrics), nil
+	}
+
+	return client, nil
+}
+
+// NewMaestroClientBuilder creates a new MaestroClientBuilder.
+//
+// The metrics parameter is optional and can be nil. If provided, all clients
+// created by this builder will be instrumented with Prometheus metrics.
+// If nil, clients will not be instrumented.
+//
+// Breaking change note: This constructor previously took no arguments.
+// The signature change is intentional to enable optional metrics instrumentation.
+func NewMaestroClientBuilder(metrics *MaestroMetrics) MaestroClientBuilder {
+	return &maestroClientBuilder{
+		metrics: metrics,
+	}
 }
 
 // GenerateMaestroSourceID generates a Maestro Source ID of the form "<envName>-<provisionShardID>".
