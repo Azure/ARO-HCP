@@ -82,25 +82,20 @@ fi
 
 OVERRIDE_CONFIG_FILE="${SHARED_DIR}/config-override.yaml"
 
-# Image overrides
-YQ_EXPR=""
+# Image overrides — use strenv() so values are never parsed as yq syntax
+echo "{}" > "${OVERRIDE_CONFIG_FILE}"
 if [[ ${#CI_IMAGE_NAMES[@]} -gt 0 ]]; then
     for prefix in "${CI_IMAGE_NAMES[@]}"; do
         config_key="${IMAGE_MAP[${prefix}]}"
-        if [[ -n "${YQ_EXPR}" ]]; then
-            YQ_EXPR="${YQ_EXPR} |"
-        fi
-        YQ_EXPR="${YQ_EXPR}
-  .clouds.dev.environments.${DEPLOY_ENV}.defaults.${config_key}.image.registry = \"${IMAGE_REGISTRY[${prefix}]}\" |
-  .clouds.dev.environments.${DEPLOY_ENV}.defaults.${config_key}.image.repository = \"${IMAGE_REPO[${prefix}]}\" |
-  .clouds.dev.environments.${DEPLOY_ENV}.defaults.${config_key}.image.digest = \"${IMAGE_DIGEST[${prefix}]}\""
+        path=".clouds.dev.environments.${DEPLOY_ENV}.defaults.${config_key}.image"
+        export _YQ_REG="${IMAGE_REGISTRY[${prefix}]}"
+        export _YQ_REPO="${IMAGE_REPO[${prefix}]}"
+        export _YQ_DIG="${IMAGE_DIGEST[${prefix}]}"
+        yq eval -i \
+          "${path}.registry = strenv(_YQ_REG) | ${path}.repository = strenv(_YQ_REPO) | ${path}.digest = strenv(_YQ_DIG)" \
+          "${OVERRIDE_CONFIG_FILE}"
     done
-fi
-
-if [[ -n "${YQ_EXPR}" ]]; then
-    yq eval -n "${YQ_EXPR}" > "${OVERRIDE_CONFIG_FILE}"
-else
-    echo "{}" > "${OVERRIDE_CONFIG_FILE}"
+    unset _YQ_REG _YQ_REPO _YQ_DIG
 fi
 
 # MSI mock SP overrides (if provided)
@@ -115,11 +110,15 @@ if [[ -n "${LEASED_MSI_MOCK_SP:-}" ]]; then
     exit 1
   fi
   echo "MSI mock SP override: ${LEASED_MSI_MOCK_SP} -> clientId=${MSI_MOCK_CLIENT_ID}"
+  export _YQ_CID="${MSI_MOCK_CLIENT_ID}"
+  export _YQ_PID="${MSI_MOCK_PRINCIPAL_ID}"
+  export _YQ_CERT="${MSI_MOCK_CERT_NAME}"
   yq -i "
-    .clouds.dev.environments.${DEPLOY_ENV}.defaults.miMockClientId = \"${MSI_MOCK_CLIENT_ID}\" |
-    .clouds.dev.environments.${DEPLOY_ENV}.defaults.miMockPrincipalId = \"${MSI_MOCK_PRINCIPAL_ID}\" |
-    .clouds.dev.environments.${DEPLOY_ENV}.defaults.miMockCertName = \"${MSI_MOCK_CERT_NAME}\"
+    .clouds.dev.environments.${DEPLOY_ENV}.defaults.miMockClientId = strenv(_YQ_CID) |
+    .clouds.dev.environments.${DEPLOY_ENV}.defaults.miMockPrincipalId = strenv(_YQ_PID) |
+    .clouds.dev.environments.${DEPLOY_ENV}.defaults.miMockCertName = strenv(_YQ_CERT)
   " "${OVERRIDE_CONFIG_FILE}"
+  unset _YQ_CID _YQ_PID _YQ_CERT
 else
   echo "No MSI mock SP lease provided, skipping mock SP overrides"
 fi

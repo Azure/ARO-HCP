@@ -162,13 +162,14 @@ func mutateClusterExperimentalFeatures(_ context.Context, admissionContext *Clus
 
 	cpoImageValue := lookupTag(tags, api.TagClusterCPOImageOverride)
 	if cpoImageValue != "" {
-		if strings.TrimSpace(cpoImageValue) == "" {
+		trimmed := strings.TrimSpace(cpoImageValue)
+		if trimmed == "" {
 			errs = append(errs, field.Invalid(
 				tagsPath.Key(api.TagClusterCPOImageOverride), cpoImageValue,
 				"must not be blank when provided",
 			))
 		} else {
-			experimentalFeatures.ControlPlaneOperatorImage = cpoImageValue
+			experimentalFeatures.ControlPlaneOperatorImage = trimmed
 		}
 	}
 
