@@ -157,7 +157,7 @@ func (c *operationClusterCreate) SynchronizeOperation(ctx context.Context, key c
 		// we want to require that the cosmos view of cluster creation is also complete before we mark it.  This ensures (among other things)
 		// that our ability to read maestro is successful.
 		// Once we have confidence in our ability to determine that cluster is functional, we'll stop checking cluster-service at all.
-		return fmt.Errorf("cosmos operation status is %q, but cluster-service operation status is %q", cosmosNewOperationState.provisioningState, newOperationStatus)
+		return fmt.Errorf("cosmos operation status is %q, but cluster-service operation status is %q: %s", cosmosNewOperationState.provisioningState, newOperationStatus, cosmosNewOperationState.message)
 	}
 
 	logger.Info("updating status")
