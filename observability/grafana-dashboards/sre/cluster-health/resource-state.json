@@ -431,7 +431,7 @@
           "showLineNumbers": false,
           "showMiniMap": false
         },
-        "content": "### Cluster Fleet Summary\n\nThis section provides insight into the total ARO HCP cluster fleet size and its regional distribution.\n\n**What is shown:**\n- **Total Cluster Over Time**: Shows how the total number of clusters changes over the last 30 days.\n- **Clusters Per Region**: Shows how clusters are distributed across Azure regions.\n\n**How to use:**\n1. Monitor the total cluster count over time to see overall growth or decline in the fleet.\n2. Review the region chart to see where most clusters are running and identify regions with higher or lower usage.",
+        "content": "### Cluster Fleet Summary\n\nThis section provides insight into the total ARO HCP cluster fleet size and its regional distribution.\n\n**Note:** These panels count only **successfully provisioned clusters** (`phase=succeeded`). Clusters in other states (failed, deleting, accepted, provisioning) are excluded to give an accurate view of the running fleet. See the Provisioning State breakdown below for all phases.\n\n**What is shown:**\n- **Total Cluster Over Time**: Shows how the total number of successfully provisioned clusters changes over the last 30 days.\n- **Clusters Per Region**: Shows how successfully provisioned clusters are distributed across service-clusters.\n\n**How to use:**\n1. Monitor the total cluster count over time to see overall growth or decline in the fleet.\n2. Review the region chart to see where most clusters are running and identify regions with higher or lower usage.",
         "mode": "markdown"
       },
       "pluginVersion": "11.6.9",
