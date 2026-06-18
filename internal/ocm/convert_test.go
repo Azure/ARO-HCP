@@ -144,16 +144,17 @@ func TestWithImmutableAttributes(t *testing.T) {
 			var buf bytes.Buffer
 			require.NoError(t, arohcpv1alpha1.MarshalCluster(tc.want, &buf))
 			want := buf.String()
-			builder, err := withImmutableAttributes(
+			hcpCluster := api.ClusterTestCase(t, tc.hcpCluster)
+			builder, azureBuilder, err := withImmutableAttributes(
 				ocmClusterDefaults(api.TestLocation),
-				api.ClusterTestCase(t, tc.hcpCluster),
+				hcpCluster,
 				api.TestSubscriptionID,
 				api.TestResourceGroupName,
 				api.TestTenantID,
 				api.TestManagedIdentitiesDataPlaneIdentityURL,
 			)
 			require.NoError(t, err)
-			result, err := builder.Build()
+			result, err := builder.Azure(azureBuilder).Build()
 			require.NoError(t, err)
 			buf.Reset()
 			require.NoError(t, arohcpv1alpha1.MarshalCluster(result, &buf))
@@ -613,7 +614,7 @@ func getBaseCSClusterBuilder(updating bool) *arohcpv1alpha1.ClusterBuilder {
 	}
 
 	// Add common mutable fields that BuildCSCluster always sets
-	return builder.
+	builder = builder.
 		NodeDrainGracePeriod(arohcpv1alpha1.NewValue().
 			Unit(csNodeDrainGracePeriodUnit).
 			Value(float64(0))).
@@ -628,6 +629,8 @@ func getBaseCSClusterBuilder(updating bool) *arohcpv1alpha1.ClusterBuilder {
 			Allow(arohcpv1alpha1.NewCIDRBlockAllowAccess().
 				Mode(csCIDRBlockAllowAccessModeAllowAll)))).
 		RegistryConfig(arohcpv1alpha1.NewClusterRegistryConfig().ImageDigestMirrors())
+
+	return builder
 }
 
 func TestBuildCSCluster(t *testing.T) {
@@ -1123,6 +1126,53 @@ func TestBuildCSCluster(t *testing.T) {
 					SubscriptionID(strings.ToLower(api.TestSubscriptionID)).
 					TenantID(api.TestTenantID),
 				),
+		},
+		{
+			name: "UPDATE - sets new KMS key version",
+			oldClusterServiceCluster: func() *arohcpv1alpha1.Cluster {
+				c, err := arohcpv1alpha1.NewCluster().Build()
+				if err != nil {
+					panic(err)
+				}
+				return c
+			}(),
+			hcpCluster: &api.HCPOpenShiftCluster{
+				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+					Etcd: api.EtcdProfile{
+						DataEncryption: api.EtcdDataEncryptionProfile{
+							KeyManagementMode: api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged,
+							CustomerManaged: &api.CustomerManagedEncryptionProfile{
+								EncryptionType: api.CustomerManagedEncryptionTypeKMS,
+								Kms: &api.KmsEncryptionProfile{
+									Visibility: api.KeyVaultVisibilityPublic,
+									ActiveKey: api.KmsKey{
+										Name:      "test-key",
+										VaultName: "test-vault",
+										Version:   "v2",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedCSCluster: getBaseCSClusterBuilder(true).
+				Azure(arohcpv1alpha1.NewAzure().
+					EtcdEncryption(arohcpv1alpha1.NewAzureEtcdEncryption().
+						DataEncryption(arohcpv1alpha1.NewAzureEtcdDataEncryption().
+							KeyManagementMode(csKeyManagementModeCustomerManaged).
+							CustomerManaged(arohcpv1alpha1.NewAzureEtcdDataEncryptionCustomerManaged().
+								EncryptionType("kms").
+								Kms(arohcpv1alpha1.NewAzureKmsEncryption().
+									Visibility(arohcpv1alpha1.AzureKmsEncryptionVisibilityPublic).
+									ActiveKey(arohcpv1alpha1.NewAzureKmsKey().
+										KeyName("test-key").
+										KeyVaultName("test-vault").
+										KeyVersion("v2"),
+									),
+								),
+							),
+						))),
 		},
 	}
 

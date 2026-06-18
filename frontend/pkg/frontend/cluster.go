@@ -341,7 +341,7 @@ func (f *Frontend) createHCPCluster(writer http.ResponseWriter, request *http.Re
 
 	validationOp := operation.Operation{
 		Type:    operation.Create,
-		Options: validation.AFECsToValidationOptions(subscription.GetRegisteredFeatures()),
+		Options: validation.BuildValidationOptions(subscription.GetRegisteredFeatures(), versionedInterface.String()),
 	}
 	admissionContext, err := f.newClusterAdmissionContext(ctx, validationOp, subscription, newInternalCluster, nil)
 	if err != nil {
@@ -629,7 +629,7 @@ func (f *Frontend) updateHCPClusterInCosmos(ctx context.Context, writer http.Res
 
 	validationOp := operation.Operation{
 		Type:    operation.Update,
-		Options: validation.AFECsToValidationOptions(subscription.GetRegisteredFeatures()),
+		Options: validation.BuildValidationOptions(subscription.GetRegisteredFeatures(), versionedInterface.String()),
 	}
 	admissionContext, err := f.newClusterAdmissionContext(ctx, validationOp, subscription, newInternalCluster, oldInternalCluster.ID)
 	if err != nil {

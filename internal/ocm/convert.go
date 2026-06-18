@@ -370,10 +370,11 @@ func BuildCSCluster(resourceID *azcorearm.ResourceID, tenantID string, hcpCluste
 	clusterBuilder := arohcpv1alpha1.NewCluster()
 	clusterAPIBuilder := arohcpv1alpha1.NewClusterAPI()
 
+	var azureBuilder *arohcpv1alpha1.AzureBuilder
+
 	// These attributes cannot be updated after cluster creation.
 	if oldClusterServiceCluster == nil {
-		// Add attributes that cannot be updated after cluster creation.
-		clusterBuilder, err = withImmutableAttributes(clusterBuilder, hcpCluster,
+		clusterBuilder, azureBuilder, err = withImmutableAttributes(clusterBuilder, hcpCluster,
 			resourceID.SubscriptionID,
 			resourceID.ResourceGroupName,
 			tenantID,
@@ -395,6 +396,23 @@ func BuildCSCluster(resourceID *azcorearm.ResourceID, tenantID string, hcpCluste
 		clusterBuilder.Ingresses(arohcpv1alpha1.NewIngressList().Items(
 			arohcpv1alpha1.NewIngress().Default(true).Listening(ingressListening),
 		))
+	}
+
+	// Etcd encryption is set outside withImmutableAttributes so that KMS
+	// key version updates reach CS on both create and update PATCHes.
+	if hcpCluster.CustomerProperties.Etcd.DataEncryption.KeyManagementMode == api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged {
+		etcdEncryption, err := convertEtcdRPToCS(hcpCluster.CustomerProperties.Etcd)
+		if err != nil {
+			return nil, nil, err
+		}
+		if azureBuilder == nil {
+			azureBuilder = arohcpv1alpha1.NewAzure()
+		}
+		azureBuilder.EtcdEncryption(etcdEncryption)
+	}
+
+	if azureBuilder != nil {
+		clusterBuilder.Azure(azureBuilder)
 	}
 
 	clusterBuilder.NodeDrainGracePeriod(arohcpv1alpha1.NewValue().
@@ -476,14 +494,14 @@ func DesiredHostedClusterSizeOverride(serviceProviderCluster *api.ServiceProvide
 	return "", false
 }
 
-func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, hcpCluster *api.HCPOpenShiftCluster, subscriptionID, resourceGroupName, tenantID, identityURL string) (*arohcpv1alpha1.ClusterBuilder, error) {
+func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, hcpCluster *api.HCPOpenShiftCluster, subscriptionID, resourceGroupName, tenantID, identityURL string) (*arohcpv1alpha1.ClusterBuilder, *arohcpv1alpha1.AzureBuilder, error) {
 	clusterImageRegistryState, err := convertClusterImageRegistryStateRPToCS(hcpCluster.CustomerProperties.ClusterImageRegistry)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	outboundType, err := convertOutboundTypeRPToCS(hcpCluster.CustomerProperties.Platform.OutboundType)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	clusterBuilder.
@@ -518,15 +536,6 @@ func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, hcpC
 		NodesOutboundConnectivity(arohcpv1alpha1.NewAzureNodesOutboundConnectivity().
 			OutboundType(outboundType))
 
-	// Only add etcd encryption if it's actually configured
-	if hcpCluster.CustomerProperties.Etcd.DataEncryption.KeyManagementMode != "" || hcpCluster.CustomerProperties.Etcd.DataEncryption.CustomerManaged != nil {
-		etcdEncryption, err := convertEtcdRPToCS(hcpCluster.CustomerProperties.Etcd)
-		if err != nil {
-			return nil, err
-		}
-		azureBuilder.EtcdEncryption(etcdEncryption)
-	}
-
 	// Cluster Service rejects an empty NetworkSecurityGroupResourceID string.
 	if hcpCluster.CustomerProperties.Platform.NetworkSecurityGroupID != nil {
 		azureBuilder.NetworkSecurityGroupResourceID(hcpCluster.CustomerProperties.Platform.NetworkSecurityGroupID.String())
@@ -559,14 +568,21 @@ func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, hcpC
 
 	azureBuilder.OperatorsAuthentication(arohcpv1alpha1.NewAzureOperatorsAuthentication().ManagedIdentities(managedIdentitiesBuilder))
 
-	clusterBuilder.Azure(azureBuilder)
-
 	// Cluster Service rejects an empty DomainPrefix string.
 	if hcpCluster.CustomerProperties.DNS.BaseDomainPrefix != "" {
 		clusterBuilder.DomainPrefix(hcpCluster.CustomerProperties.DNS.BaseDomainPrefix)
 	}
 
-	return clusterBuilder, nil
+	// Only add etcd encryption if it's configured for platformManagement
+	if hcpCluster.CustomerProperties.Etcd.DataEncryption.KeyManagementMode == api.EtcdDataEncryptionKeyManagementModeTypePlatformManaged {
+		etcdEncryption, err := convertEtcdRPToCS(hcpCluster.CustomerProperties.Etcd)
+		if err != nil {
+			return nil, azureBuilder, err
+		}
+		azureBuilder.EtcdEncryption(etcdEncryption)
+	}
+
+	return clusterBuilder, azureBuilder, nil
 }
 
 // BuildCSNodePool creates a CS NodePoolBuilder object from an HCPOpenShiftClusterNodePool object.
