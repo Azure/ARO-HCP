@@ -99,7 +99,7 @@ The generator automatically sets a `correlationId` annotation on every alert unl
 
 IcM uses the correlation ID to group alerts into incidents. Alerts with the same correlation ID on the same cluster are merged into a single incident. Different alert names or different clusters produce separate incidents.
 
-This means that all firings of the same alert on the same cluster are grouped together. For example, if `BackendControllerRetryHotLoop` fires for two different workqueues on the same cluster, they become one incident. The specific workqueue name is still visible in the alert `description`.
+This means that all firings of the same alert on the same cluster are grouped together. For example, if `BackendControllerQueueDepthHigh` fires for two different workqueues on the same cluster, they become one incident. The specific workqueue name is still visible in the alert `description`.
 
 This default is intentional: fine-grained correlation IDs (per-pod, per-queue, etc.) were found to cause excessive incident fragmentation. If you need to distinguish between instances in the incident, include the relevant labels in the `description` annotation where they are visible to the responder.
 
