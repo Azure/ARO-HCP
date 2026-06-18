@@ -137,7 +137,7 @@ func (tt *ResourceMutationTest) RunTest(t *testing.T) {
 		adminAPIErrCh <- testInfo.AdminAPI.Run(ctx)
 	}()
 
-	// wait for migration to complete to eliminate races with our test's second call migrateCosmos and to ensure the server is ready for testing
+	// wait for the server to be ready for testing
 	serverUrls := []string{testInfo.FrontendURL, testInfo.AdminURL}
 	err = wait.PollUntilContextCancel(ctx, 1*time.Second, true, func(ctx context.Context) (bool, error) {
 		for _, url := range serverUrls {
@@ -249,9 +249,6 @@ func NewStep[InternalAPIType any](indexString, stepType, stepName string, testDi
 
 	case "clusterServiceCompare":
 		return newClusterServiceCompareStep(stepID, stepDir)
-
-	case "migrateCosmos":
-		return newMigrateCosmosStep(stepID, stepDir)
 
 	case "kubernetesLoad":
 		return NewKubernetesLoadStep(stepID, stepDir)

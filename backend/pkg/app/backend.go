@@ -585,6 +585,13 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		backendInformers, b.options.MaestroSourceEnvironmentIdentifier,
 	)
 
+	cosmosMigrationController := controllers.NewCosmosMigrationController(
+		b.options.ResourcesDBClient,
+		b.options.KubeApplierDBClients,
+		backendInformers,
+		5*time.Minute,
+	)
+
 	maestroDeleteOrphanedReadonlyBundlesController := controllers.NewDeleteOrphanedMaestroReadonlyBundlesController(
 		b.options.ResourcesDBClient,
 		b.options.ClustersServiceClient,
@@ -804,6 +811,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go nodePoolMetricsController.Run(ctx, 1)
 				go externalAuthMetricsController.Run(ctx, 1)
 				go placementSyncController.Run(ctx, 20)
+				go cosmosMigrationController.Run(ctx, 5)
 			},
 			OnStoppedLeading: func() {
 				// This needs to be defined even though it does nothing.
