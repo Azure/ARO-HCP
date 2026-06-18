@@ -46,16 +46,6 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
-// resourceGroupListPageSize is the number of resource groups to fetch per page
-// when listing resource groups in a subscription
-const resourceGroupListPageSize int32 = 100
-
-// deletionPollTimeout is the maximum time to wait for a resource group deletion to complete
-const deletionPollTimeout = 15 * time.Minute
-
-// maxConcurrentDeletions is the maximum number of resource group deletions to run concurrently
-const maxConcurrentDeletions = 20
-
 var (
 	orphanedMRGsFound = promauto.With(legacyregistry.Registerer()).NewCounterVec(
 		prometheus.CounterOpts{
@@ -110,6 +100,10 @@ func NewCleanOrphanedClusterManagedResourceGroupController(
 // - key: resource group name
 // - value: managedBy resource ID
 func (c *cleanOrphanedClusterManagedResourceGroup) listManagedResourceGroupsForSubscription(ctx context.Context, rgClient azureclient.ResourceGroupsClient) (map[string]string, error) {
+	// resourceGroupListPageSize is the number of resource groups to fetch per page
+	// when listing resource groups in a subscription
+	const resourceGroupListPageSize int32 = 100
+
 	managedResourceGroups := make(map[string]string)
 
 	resourceGroupsPager := rgClient.NewListPager(&armresources.ResourceGroupsClientListOptions{
@@ -228,6 +222,8 @@ func (c *cleanOrphanedClusterManagedResourceGroup) deleteOrphanedManagedResource
 // pollResourceGroupDeletion polls a resource group deletion to completion with timeout.
 func (c *cleanOrphanedClusterManagedResourceGroup) pollResourceGroupDeletion(ctx context.Context, subscriptionID, resourceGroupName, managedBy string, poller *azruntime.Poller[armresources.ResourceGroupsClientDeleteResponse]) error {
 	logger := utils.LoggerFromContext(ctx)
+	// deletionPollTimeout is the maximum time to wait for a resource group deletion to complete
+	const deletionPollTimeout = 15 * time.Minute
 
 	pollCtx, cancel := context.WithTimeout(ctx, deletionPollTimeout)
 	defer cancel()
@@ -263,12 +259,12 @@ func (c *cleanOrphanedClusterManagedResourceGroup) listClusterResourceIDsForSubs
 		return nil, utils.TrackError(err)
 	}
 
-	if err := allHCPClusters.GetError(); err != nil {
-		return nil, utils.TrackError(err)
-	}
-
 	for _, cluster := range allHCPClusters.Items(ctx) {
 		clusterResourceIDs[strings.ToLower(cluster.ID.String())] = struct{}{}
+	}
+
+	if err := allHCPClusters.GetError(); err != nil {
+		return nil, utils.TrackError(err)
 	}
 
 	return clusterResourceIDs, nil
@@ -277,42 +273,44 @@ func (c *cleanOrphanedClusterManagedResourceGroup) listClusterResourceIDsForSubs
 // SyncOnce implements the main sync logic for the controller for a single subscription.
 func (c *cleanOrphanedClusterManagedResourceGroup) SyncOnce(ctx context.Context, key controllerutils.SubscriptionKey) error {
 	logger := utils.LoggerFromContext(ctx)
-	subscriptionID := key.SubscriptionID
+
+	// maxConcurrentDeletions is the maximum number of resource group deletions to run concurrently
+	const maxConcurrentDeletions = 20
 
 	// Check if we're in read-write mode (default is read-only for safety)
 	readOnly := os.Getenv("CLEAN_ORPHANED_MANAGED_RESOURCE_GROUPS_MODE") != "readwrite"
 
 	logger.Info("Syncing orphaned cluster managed resource groups for subscription",
-		"subscriptionID", subscriptionID)
+		"subscriptionID", key.SubscriptionID)
 
 	// Load the subscription to get tenantID
-	subscription, err := c.resourcesDBClient.Subscriptions().Get(ctx, subscriptionID)
+	subscription, err := c.resourcesDBClient.Subscriptions().Get(ctx, key.SubscriptionID)
 	if err != nil {
 		logger.Error(err, "Failed to get subscription from database",
-			"subscriptionID", subscriptionID)
+			"subscriptionID", key.SubscriptionID)
 		return utils.TrackError(err)
 	}
 
 	tenantID := *subscription.Properties.TenantId
 
-	rgClient, err := c.azureFPAClientBuilder.ResourceGroupsClient(tenantID, subscriptionID)
+	rgClient, err := c.azureFPAClientBuilder.ResourceGroupsClient(tenantID, key.SubscriptionID)
 	if err != nil {
 		logger.Error(err, "Failed to create resource groups client",
-			"subscriptionID", subscriptionID)
+			"subscriptionID", key.SubscriptionID)
 		return utils.TrackError(err)
 	}
 
 	managedResourceGroups, err := c.listManagedResourceGroupsForSubscription(ctx, rgClient)
 	if err != nil {
 		logger.Error(err, "Failed to list managed resource groups for subscription",
-			"subscriptionID", subscriptionID)
+			"subscriptionID", key.SubscriptionID)
 		return utils.TrackError(err)
 	}
 
-	clusterResourceIDs, err := c.listClusterResourceIDsForSubscription(ctx, subscriptionID)
+	clusterResourceIDs, err := c.listClusterResourceIDsForSubscription(ctx, key.SubscriptionID)
 	if err != nil {
 		logger.Error(err, "Failed to list cluster resource IDs for subscription",
-			"subscriptionID", subscriptionID)
+			"subscriptionID", key.SubscriptionID)
 		return utils.TrackError(err)
 	}
 
@@ -338,7 +336,7 @@ func (c *cleanOrphanedClusterManagedResourceGroup) SyncOnce(ctx context.Context,
 		managedBy := managedBy
 		eg.Go(func() error {
 			defer utilruntime.HandleCrash()
-			err := c.deleteOrphanedManagedResourceGroup(egCtx, rgClient, subscriptionID, resourceGroupName, managedBy, readOnly)
+			err := c.deleteOrphanedManagedResourceGroup(egCtx, rgClient, key.SubscriptionID, resourceGroupName, managedBy, readOnly)
 			if err != nil {
 				mu.Lock()
 				defer mu.Unlock()
@@ -352,7 +350,7 @@ func (c *cleanOrphanedClusterManagedResourceGroup) SyncOnce(ctx context.Context,
 	_ = eg.Wait()
 
 	logger.Info("Completed sync for subscription",
-		"subscriptionID", subscriptionID)
+		"subscriptionID", key.SubscriptionID)
 
 	if len(errs) > 0 {
 		return utils.TrackError(errors.Join(errs...))
