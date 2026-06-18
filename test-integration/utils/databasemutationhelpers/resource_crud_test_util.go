@@ -359,9 +359,6 @@ func NewStep[InternalAPIType any, InternalAPITypePointer arm.CosmosMetadataAcces
 	case "clusterServiceCompare":
 		return newClusterServiceCompareStep(stepID, stepDir)
 
-	case "migrateCosmos":
-		return newMigrateCosmosStep(stepID, stepDir)
-
 	case "kubernetesLoad":
 		return NewKubernetesLoadStep(stepID, stepDir)
 

@@ -54,7 +54,7 @@ import (
 // INVARIANTS:
 // - Canonical defaults (in EnsureDefaults) and CS->RP defaults (here) must match
 // - GET-then-PUT must preserve all explicit values (use Ptr, not PtrOrNil for bools)
-// - MigrateCosmosOrDie persists defaults via Get->Replace during FE deployment startup
+// - The backend cosmos migration controller persists defaults via Get->Replace
 //
 // See docs/api-version-defaults-and-storage.md for the full design rationale.
 
