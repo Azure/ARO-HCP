@@ -260,7 +260,6 @@ func validateClusterCustomerProperties(ctx context.Context, op operation.Operati
 	errs = append(errs, Maximum(ctx, op, fldPath.Child("nodeDrainTimeoutMinutes"), &newObj.NodeDrainTimeoutMinutes, safe.Field(oldObj, toNodeDrainTimeoutMinutes), 10080)...)
 
 	//Etcd                    EtcdProfile                 `json:"etcd,omitempty"`
-	errs = append(errs, immutableByReflect(ctx, op, fldPath.Child("etcd"), &newObj.Etcd, safe.Field(oldObj, toEtcd))...)
 	errs = append(errs, validateEtcdProfile(ctx, op, fldPath.Child("etcd"), &newObj.Etcd, safe.Field(oldObj, toEtcd))...)
 
 	//ClusterImageRegistry    ClusterImageRegistryProfile `json:"clusterImageRegistry,omitempty"`
@@ -821,7 +820,6 @@ func validateEtcdProfile(ctx context.Context, op operation.Operation, fldPath *f
 	errs := field.ErrorList{}
 
 	//DataEncryption EtcdDataEncryptionProfile `json:"dataEncryption,omitempty"`
-	errs = append(errs, immutableByReflect(ctx, op, fldPath.Child("dataEncryption"), &newObj.DataEncryption, safe.Field(oldObj, toEtcdProfileDataEncryption))...)
 	errs = append(errs, validateEtcdDataEncryptionProfile(ctx, op, fldPath.Child("dataEncryption"), &newObj.DataEncryption, safe.Field(oldObj, toEtcdProfileDataEncryption))...)
 
 	return errs
@@ -845,7 +843,6 @@ func validateEtcdDataEncryptionProfile(ctx context.Context, op operation.Operati
 	errs = append(errs, validate.Enum(ctx, op, fldPath.Child("keyManagementMode"), &newObj.KeyManagementMode, safe.Field(oldObj, toEtcdDataEncryptionProfileKeyManagementMode), api.ValidEtcdDataEncryptionKeyManagementModeType, nil)...)
 
 	//CustomerManaged   *CustomerManagedEncryptionProfile       `json:"customerManaged,omitempty"`
-	errs = append(errs, immutableByReflect(ctx, op, fldPath.Child("customerManaged"), newObj.CustomerManaged, safe.Field(oldObj, toEtcdDataEncryptionProfileCustomerManaged))...)
 	union := validate.NewDiscriminatedUnionMembership("keyManagementMode", validate.NewDiscriminatedUnionMember("customerManaged", "CustomerManaged"))
 	discriminatorExtractor := func(obj *api.EtcdDataEncryptionProfile) api.EtcdDataEncryptionKeyManagementModeType {
 		return obj.KeyManagementMode
@@ -880,7 +877,6 @@ func validateCustomerManagedEncryptionProfile(ctx context.Context, op operation.
 	errs = append(errs, validate.Enum(ctx, op, fldPath.Child("encryptionType"), &newObj.EncryptionType, safe.Field(oldObj, toCustomerManagedEncryptionProfileEncryptionType), api.ValidCustomerManagedEncryptionType, nil)...)
 
 	//Kms            *KmsEncryptionProfile         `json:"kms,omitempty"`
-	errs = append(errs, immutableByReflect(ctx, op, fldPath.Child("kms"), newObj.Kms, safe.Field(oldObj, toEtcdDataEncryptionProfileKms))...)
 	union := validate.NewDiscriminatedUnionMembership("encryptionType", validate.NewDiscriminatedUnionMember("kms", "KMS"))
 	discriminatorExtractor := func(obj *api.CustomerManagedEncryptionProfile) api.CustomerManagedEncryptionType {
 		return obj.EncryptionType
@@ -914,7 +910,6 @@ func validateKmsEncryptionProfile(ctx context.Context, op operation.Operation, f
 	errs = append(errs, validate.Enum(ctx, op, fldPath.Child("visibility"), &newObj.Visibility, safe.Field(oldObj, toKmsEncryptionProfileVisibility), api.ValidKeyVaultVisibility, nil)...)
 
 	//ActiveKey KmsKey `json:"activeKey,omitempty"`
-	errs = append(errs, immutableByReflect(ctx, op, fldPath.Child("activeKey"), &newObj.ActiveKey, safe.Field(oldObj, toKmsEncryptionProfileActiveKey))...)
 	errs = append(errs, validateKmsKey(ctx, op, fldPath.Child("activeKey"), &newObj.ActiveKey, safe.Field(oldObj, toKmsEncryptionProfileActiveKey))...)
 
 	return errs
@@ -940,7 +935,11 @@ func validateKmsKey(ctx context.Context, op operation.Operation, fldPath *field.
 	errs = append(errs, MaxLen(ctx, op, fldPath.Child("vaultName"), &newObj.VaultName, nil, 255)...)
 
 	//Version   string `json:"version"`
-	errs = append(errs, immutableByCompare(ctx, op, fldPath.Child("version"), &newObj.Version, safe.Field(oldObj, toKmsKeyVersion))...)
+	// The version field was made mutable in version 2026-06-30-preview.
+	apiVersion := api.APIVersionFromOptions(op.Options)
+	if len(apiVersion) > 0 && apiVersion.LT(api.APIVersionV20260630Preview) {
+		errs = append(errs, immutableByCompare(ctx, op, fldPath.Child("version"), &newObj.Version, safe.Field(oldObj, toKmsKeyVersion))...)
+	}
 	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("version"), &newObj.Version, nil)...)
 	errs = append(errs, MaxLen(ctx, op, fldPath.Child("version"), &newObj.Version, nil, 255)...)
 

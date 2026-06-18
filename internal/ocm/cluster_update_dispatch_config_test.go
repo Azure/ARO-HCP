@@ -151,6 +151,29 @@ func TestClusterUpdateDispatchConfigHash(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "different KMS key version",
+			cluster: &api.HCPOpenShiftCluster{
+				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+					NodeDrainTimeoutMinutes: baseCustomerProperties.NodeDrainTimeoutMinutes,
+					API:                     baseCustomerProperties.API,
+					Autoscaling:             baseCustomerProperties.Autoscaling,
+					Etcd: api.EtcdProfile{
+						DataEncryption: api.EtcdDataEncryptionProfile{
+							KeyManagementMode: api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged,
+							CustomerManaged: &api.CustomerManagedEncryptionProfile{
+								EncryptionType: api.CustomerManagedEncryptionTypeKMS,
+								Kms: &api.KmsEncryptionProfile{
+									ActiveKey: api.KmsKey{
+										Version: "v1",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
 	}
 
 	// Each row changes one dispatch-managed field from the baseline above. Comparing against
@@ -191,6 +214,56 @@ func TestClusterUpdateDispatchConfigHashExcludesNonUpdatableFields(t *testing.T)
 	hash2, err := clusterUpdateDispatchConfigHash(cluster2, &api.ServiceProviderCluster{})
 	require.NoError(t, err)
 	assert.Equal(t, hash1, hash2)
+
+	// Immutable etcd fields (keyName, vaultName, visibility) should not affect the hash.
+	// Only the key version is mutable and dispatch-managed.
+	cluster3 := &api.HCPOpenShiftCluster{
+		CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+			NodeDrainTimeoutMinutes: 30,
+			Etcd: api.EtcdProfile{
+				DataEncryption: api.EtcdDataEncryptionProfile{
+					KeyManagementMode: api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged,
+					CustomerManaged: &api.CustomerManagedEncryptionProfile{
+						EncryptionType: api.CustomerManagedEncryptionTypeKMS,
+						Kms: &api.KmsEncryptionProfile{
+							Visibility: api.KeyVaultVisibilityPublic,
+							ActiveKey: api.KmsKey{
+								Name:      "key-A",
+								VaultName: "vault-A",
+								Version:   "v1",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	cluster4 := &api.HCPOpenShiftCluster{
+		CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+			NodeDrainTimeoutMinutes: 30,
+			Etcd: api.EtcdProfile{
+				DataEncryption: api.EtcdDataEncryptionProfile{
+					KeyManagementMode: api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged,
+					CustomerManaged: &api.CustomerManagedEncryptionProfile{
+						EncryptionType: api.CustomerManagedEncryptionTypeKMS,
+						Kms: &api.KmsEncryptionProfile{
+							Visibility: api.KeyVaultVisibilityPrivate,
+							ActiveKey: api.KmsKey{
+								Name:      "key-B",
+								VaultName: "vault-B",
+								Version:   "v1",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	hash3, err := clusterUpdateDispatchConfigHash(cluster3, &api.ServiceProviderCluster{})
+	require.NoError(t, err)
+	hash4, err := clusterUpdateDispatchConfigHash(cluster4, &api.ServiceProviderCluster{})
+	require.NoError(t, err)
+	assert.Equal(t, hash3, hash4, "changing immutable etcd fields (keyName, vaultName, visibility) should not change the dispatch config hash")
 }
 
 func TestClusterUpdateDispatchConfigHashExcludesTagsWithoutExperimentalFeatures(t *testing.T) {
@@ -541,6 +614,8 @@ func TestClusterUpdateDispatchConfigJSONFromRPAndCS(t *testing.T) {
 func TestClusterUpdateDispatchConfigApplyToCSBuilders(t *testing.T) {
 	clusterBuilder := arohcpv1alpha1.NewCluster()
 	clusterAPIBuilder := arohcpv1alpha1.NewClusterAPI()
+	azureKmsKeyBuilder := arohcpv1alpha1.NewAzureKmsKey()
+	azureBuilder := arohcpv1alpha1.NewAzure()
 
 	tests := []struct {
 		name           string
@@ -656,7 +731,7 @@ func TestClusterUpdateDispatchConfigApplyToCSBuilders(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := tt.config.applyToCSBuilders(clusterBuilder, clusterAPIBuilder, tt.properties)
+			err := tt.config.applyToCSBuilders(clusterBuilder, clusterAPIBuilder, azureBuilder, azureKmsKeyBuilder, tt.properties)
 			require.NoError(t, err)
 			if tt.wantProperties != nil {
 				assert.Equal(t, tt.wantProperties, tt.properties)
@@ -1006,4 +1081,409 @@ func TestClusterUpdateDispatchConfigAutoscalerBuilder(t *testing.T) {
 	got, err := clusterUpdateDispatchConfigAutoscalingFromCS(autoscaler)
 	require.NoError(t, err)
 	assert.Equal(t, config.Autoscaling, got)
+}
+
+func TestClusterUpdateDispatchEtcdFromRP(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		etcd api.EtcdProfile
+		want clusterUpdateDispatchConfigEtcd
+	}{
+		{
+			name: "empty mode returns zero value",
+			etcd: api.EtcdProfile{},
+			want: clusterUpdateDispatchConfigEtcd{},
+		},
+		{
+			name: "platform-managed returns zero value",
+			etcd: api.EtcdProfile{
+				DataEncryption: api.EtcdDataEncryptionProfile{
+					KeyManagementMode: api.EtcdDataEncryptionKeyManagementModeTypePlatformManaged,
+				},
+			},
+			want: clusterUpdateDispatchConfigEtcd{},
+		},
+		{
+			name: "customer managed KMS returns version",
+			etcd: api.EtcdProfile{
+				DataEncryption: api.EtcdDataEncryptionProfile{
+					KeyManagementMode: api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged,
+					CustomerManaged: &api.CustomerManagedEncryptionProfile{
+						EncryptionType: api.CustomerManagedEncryptionTypeKMS,
+						Kms: &api.KmsEncryptionProfile{
+							Visibility: api.KeyVaultVisibilityPublic,
+							ActiveKey: api.KmsKey{
+								Name:      "test-key",
+								VaultName: "test-vault",
+								Version:   "v1",
+							},
+						},
+					},
+				},
+			},
+			want: clusterUpdateDispatchConfigEtcd{
+				DataEncryption: clusterUpdateDispatchConfigEtcdDataEncryption{
+					CustomerManaged: &clusterUpdateDispatchConfigEtcdDataEncryptionCustomerManaged{
+						Kms: &clusterUpdateDispatchConfigEtcdDataEncryptionCustomerManagedKms{
+							ActiveKey: clusterUpdateDispatchConfigEtcdDataEncryptionCustomerManagedKmsActiveKey{
+								Version: "v1",
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "customer managed KMS with different version",
+			etcd: api.EtcdProfile{
+				DataEncryption: api.EtcdDataEncryptionProfile{
+					KeyManagementMode: api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged,
+					CustomerManaged: &api.CustomerManagedEncryptionProfile{
+						EncryptionType: api.CustomerManagedEncryptionTypeKMS,
+						Kms: &api.KmsEncryptionProfile{
+							ActiveKey: api.KmsKey{
+								Version: "v2",
+							},
+						},
+					},
+				},
+			},
+			want: clusterUpdateDispatchConfigEtcd{
+				DataEncryption: clusterUpdateDispatchConfigEtcdDataEncryption{
+					CustomerManaged: &clusterUpdateDispatchConfigEtcdDataEncryptionCustomerManaged{
+						Kms: &clusterUpdateDispatchConfigEtcdDataEncryptionCustomerManagedKms{
+							ActiveKey: clusterUpdateDispatchConfigEtcdDataEncryptionCustomerManagedKmsActiveKey{
+								Version: "v2",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tt.want, clusterUpdateDispatchEtcdFromRP(tt.etcd))
+		})
+	}
+}
+
+func TestClusterUpdateDispatchConfigEtcdFromCS(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		azure func(t *testing.T) *arohcpv1alpha1.Azure
+		want  clusterUpdateDispatchConfigEtcd
+	}{
+		{
+			name: "no etcd encryption returns zero value",
+			azure: func(t *testing.T) *arohcpv1alpha1.Azure {
+				t.Helper()
+				cluster, err := arohcpv1alpha1.NewCluster().Azure(arohcpv1alpha1.NewAzure()).Build()
+				require.NoError(t, err)
+				return cluster.Azure()
+			},
+			want: clusterUpdateDispatchConfigEtcd{},
+		},
+		{
+			name: "platform-managed mode returns zero value",
+			azure: func(t *testing.T) *arohcpv1alpha1.Azure {
+				t.Helper()
+				cluster, err := arohcpv1alpha1.NewCluster().Azure(arohcpv1alpha1.NewAzure().
+					EtcdEncryption(arohcpv1alpha1.NewAzureEtcdEncryption().
+						DataEncryption(arohcpv1alpha1.NewAzureEtcdDataEncryption().
+							KeyManagementMode(csKeyManagementModePlatformManaged)))).Build()
+				require.NoError(t, err)
+				return cluster.Azure()
+			},
+			want: clusterUpdateDispatchConfigEtcd{},
+		},
+		{
+			name: "customer managed KMS returns version",
+			azure: func(t *testing.T) *arohcpv1alpha1.Azure {
+				t.Helper()
+				cluster, err := arohcpv1alpha1.NewCluster().Azure(arohcpv1alpha1.NewAzure().
+					EtcdEncryption(arohcpv1alpha1.NewAzureEtcdEncryption().
+						DataEncryption(arohcpv1alpha1.NewAzureEtcdDataEncryption().
+							KeyManagementMode(csKeyManagementModeCustomerManaged).
+							CustomerManaged(arohcpv1alpha1.NewAzureEtcdDataEncryptionCustomerManaged().
+								EncryptionType(csCustomerManagedEncryptionTypeKms).
+								Kms(arohcpv1alpha1.NewAzureKmsEncryption().
+									ActiveKey(arohcpv1alpha1.NewAzureKmsKey().
+										KeyVersion("v1"))))))).Build()
+				require.NoError(t, err)
+				return cluster.Azure()
+			},
+			want: clusterUpdateDispatchConfigEtcd{
+				DataEncryption: clusterUpdateDispatchConfigEtcdDataEncryption{
+					CustomerManaged: &clusterUpdateDispatchConfigEtcdDataEncryptionCustomerManaged{
+						Kms: &clusterUpdateDispatchConfigEtcdDataEncryptionCustomerManagedKms{
+							ActiveKey: clusterUpdateDispatchConfigEtcdDataEncryptionCustomerManagedKmsActiveKey{
+								Version: "v1",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tt.want, clusterUpdateDispatchConfigEtcdFromCS(tt.azure(t)))
+		})
+	}
+}
+
+func TestClusterUpdateDispatchConfigFromCSRoundTripWithKMS(t *testing.T) {
+	// oldClusterServiceCluster represents a KMS cluster that already exists in CS
+	// with all immutable fields set at creation time.
+	oldClusterServiceCluster, err := arohcpv1alpha1.NewCluster().
+		Azure(arohcpv1alpha1.NewAzure().
+			EtcdEncryption(arohcpv1alpha1.NewAzureEtcdEncryption().
+				DataEncryption(arohcpv1alpha1.NewAzureEtcdDataEncryption().
+					KeyManagementMode(csKeyManagementModeCustomerManaged).
+					CustomerManaged(arohcpv1alpha1.NewAzureEtcdDataEncryptionCustomerManaged().
+						EncryptionType(csCustomerManagedEncryptionTypeKms).
+						Kms(arohcpv1alpha1.NewAzureKmsEncryption().
+							ActiveKey(arohcpv1alpha1.NewAzureKmsKey().
+								KeyVersion("v0").KeyName("test-key").KeyVaultName("test-vault"))))))).Build()
+	require.NoError(t, err)
+
+	hcpCluster := &api.HCPOpenShiftCluster{
+		CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+			Etcd: api.EtcdProfile{
+				DataEncryption: api.EtcdDataEncryptionProfile{
+					KeyManagementMode: api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged,
+					CustomerManaged: &api.CustomerManagedEncryptionProfile{
+						EncryptionType: api.CustomerManagedEncryptionTypeKMS,
+						Kms: &api.KmsEncryptionProfile{
+							Visibility: api.KeyVaultVisibilityPublic,
+							ActiveKey: api.KmsKey{
+								Name:      "test-key",
+								VaultName: "test-vault",
+								Version:   "v1",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	spc := &api.ServiceProviderCluster{}
+
+	// BuildCSCluster in the update case (oldClusterServiceCluster != nil) produces
+	// a PATCH payload — it only contains mutable fields. Simulate what CS returns
+	// after applying the PATCH by building a full cluster with immutable fields
+	// from the old cluster plus the updated key version.
+	_, _, err = BuildCSCluster(nil, "11111111-1111-1111-1111-111111111111", hcpCluster, nil, oldClusterServiceCluster, spc)
+	require.NoError(t, err)
+
+	fullCSCluster, err := arohcpv1alpha1.NewCluster().
+		Azure(arohcpv1alpha1.NewAzure().
+			EtcdEncryption(arohcpv1alpha1.NewAzureEtcdEncryption().
+				DataEncryption(arohcpv1alpha1.NewAzureEtcdDataEncryption().
+					KeyManagementMode(csKeyManagementModeCustomerManaged).
+					CustomerManaged(arohcpv1alpha1.NewAzureEtcdDataEncryptionCustomerManaged().
+						EncryptionType(csCustomerManagedEncryptionTypeKms).
+						Kms(arohcpv1alpha1.NewAzureKmsEncryption().
+							ActiveKey(arohcpv1alpha1.NewAzureKmsKey().
+								KeyVersion("v1").KeyName("test-key").KeyVaultName("test-vault"))))))).Build()
+	require.NoError(t, err)
+
+	actualConfig, err := clusterUpdateDispatchConfigFromCS(fullCSCluster)
+	require.NoError(t, err)
+
+	require.NotNil(t, actualConfig.Etcd.DataEncryption.CustomerManaged)
+	require.NotNil(t, actualConfig.Etcd.DataEncryption.CustomerManaged.Kms)
+	assert.Equal(t, "v1", actualConfig.Etcd.DataEncryption.CustomerManaged.Kms.ActiveKey.Version)
+
+	desiredHash, err := clusterUpdateDispatchConfigFromRP(hcpCluster, spc).hash()
+	require.NoError(t, err)
+	actualHash, err := actualConfig.hash()
+	require.NoError(t, err)
+	assert.Equal(t, desiredHash, actualHash)
+}
+
+func TestClusterUpdateDispatchConfigJSONFromRPAndCSWithKMS(t *testing.T) {
+	hcpCluster := &api.HCPOpenShiftCluster{
+		CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+			Etcd: api.EtcdProfile{
+				DataEncryption: api.EtcdDataEncryptionProfile{
+					KeyManagementMode: api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged,
+					CustomerManaged: &api.CustomerManagedEncryptionProfile{
+						EncryptionType: api.CustomerManagedEncryptionTypeKMS,
+						Kms: &api.KmsEncryptionProfile{
+							ActiveKey: api.KmsKey{
+								Version: "v1",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	spc := &api.ServiceProviderCluster{}
+
+	// Simulate the full CS cluster that a GET would return after the key
+	// version update has been applied — immutable fields are already present.
+	fullCSCluster, err := arohcpv1alpha1.NewCluster().
+		Azure(arohcpv1alpha1.NewAzure().
+			EtcdEncryption(arohcpv1alpha1.NewAzureEtcdEncryption().
+				DataEncryption(arohcpv1alpha1.NewAzureEtcdDataEncryption().
+					KeyManagementMode(csKeyManagementModeCustomerManaged).
+					CustomerManaged(arohcpv1alpha1.NewAzureEtcdDataEncryptionCustomerManaged().
+						EncryptionType(csCustomerManagedEncryptionTypeKms).
+						Kms(arohcpv1alpha1.NewAzureKmsEncryption().
+							ActiveKey(arohcpv1alpha1.NewAzureKmsKey().
+								KeyVersion("v1"))))))).Build()
+	require.NoError(t, err)
+
+	desiredJSON, err := ClusterUpdateDispatchConfigJSONFromRP(hcpCluster, spc)
+	require.NoError(t, err)
+	actualJSON, err := ClusterUpdateDispatchConfigJSONFromCS(fullCSCluster)
+	require.NoError(t, err)
+
+	assert.JSONEq(t, desiredJSON, actualJSON)
+	assert.Equal(t, desiredJSON, actualJSON)
+	assert.Contains(t, desiredJSON, `"version": "v1"`)
+}
+
+func TestClusterUpdateDispatchConfigApplyToCSBuildersEtcd(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name              string
+		config            clusterUpdateDispatchConfig
+		kmsKeyBuilder     *arohcpv1alpha1.AzureKmsKeyBuilder
+		wantKeyVersion    string
+		wantKeyVersionSet bool
+	}{
+		{
+			name: "customer managed KMS sets key version on builder",
+			config: clusterUpdateDispatchConfig{
+				Etcd: clusterUpdateDispatchConfigEtcd{
+					DataEncryption: clusterUpdateDispatchConfigEtcdDataEncryption{
+						CustomerManaged: &clusterUpdateDispatchConfigEtcdDataEncryptionCustomerManaged{
+							Kms: &clusterUpdateDispatchConfigEtcdDataEncryptionCustomerManagedKms{
+								ActiveKey: clusterUpdateDispatchConfigEtcdDataEncryptionCustomerManagedKmsActiveKey{
+									Version: "v2",
+								},
+							},
+						},
+					},
+				},
+			},
+			kmsKeyBuilder:     arohcpv1alpha1.NewAzureKmsKey(),
+			wantKeyVersion:    "v2",
+			wantKeyVersionSet: true,
+		},
+		{
+			name:              "empty etcd does not set key version",
+			config:            clusterUpdateDispatchConfig{},
+			kmsKeyBuilder:     arohcpv1alpha1.NewAzureKmsKey(),
+			wantKeyVersionSet: false,
+		},
+		{
+			name: "nil builder is safely skipped",
+			config: clusterUpdateDispatchConfig{
+				Etcd: clusterUpdateDispatchConfigEtcd{
+					DataEncryption: clusterUpdateDispatchConfigEtcdDataEncryption{
+						CustomerManaged: &clusterUpdateDispatchConfigEtcdDataEncryptionCustomerManaged{
+							Kms: &clusterUpdateDispatchConfigEtcdDataEncryptionCustomerManagedKms{
+								ActiveKey: clusterUpdateDispatchConfigEtcdDataEncryptionCustomerManagedKmsActiveKey{
+									Version: "v2",
+								},
+							},
+						},
+					},
+				},
+			},
+			kmsKeyBuilder:     nil,
+			wantKeyVersionSet: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			clusterBuilder := arohcpv1alpha1.NewCluster()
+			clusterAPIBuilder := arohcpv1alpha1.NewClusterAPI()
+			properties := map[string]string{}
+
+			err := tt.config.applyToCSBuilders(clusterBuilder, clusterAPIBuilder, nil, tt.kmsKeyBuilder, properties)
+			require.NoError(t, err)
+
+			if tt.wantKeyVersionSet && tt.kmsKeyBuilder != nil {
+				key, err := tt.kmsKeyBuilder.Build()
+				require.NoError(t, err)
+				assert.Equal(t, tt.wantKeyVersion, key.KeyVersion())
+			}
+		})
+	}
+}
+
+func TestClusterUpdateDispatchConfigFromCSEtcdExtraction(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		csCluster func(t *testing.T) *arohcpv1alpha1.Cluster
+		wantEtcd  clusterUpdateDispatchConfigEtcd
+	}{
+		{
+			name: "no etcd encryption returns zero value",
+			csCluster: func(t *testing.T) *arohcpv1alpha1.Cluster {
+				t.Helper()
+				cluster, err := arohcpv1alpha1.NewCluster().Build()
+				require.NoError(t, err)
+				return cluster
+			},
+			wantEtcd: clusterUpdateDispatchConfigEtcd{},
+		},
+		{
+			name: "customer managed KMS extracts version",
+			csCluster: func(t *testing.T) *arohcpv1alpha1.Cluster {
+				t.Helper()
+				cluster, err := arohcpv1alpha1.NewCluster().
+					Azure(arohcpv1alpha1.NewAzure().
+						EtcdEncryption(arohcpv1alpha1.NewAzureEtcdEncryption().
+							DataEncryption(arohcpv1alpha1.NewAzureEtcdDataEncryption().
+								KeyManagementMode(csKeyManagementModeCustomerManaged).
+								CustomerManaged(arohcpv1alpha1.NewAzureEtcdDataEncryptionCustomerManaged().
+									EncryptionType(csCustomerManagedEncryptionTypeKms).
+									Kms(arohcpv1alpha1.NewAzureKmsEncryption().
+										ActiveKey(arohcpv1alpha1.NewAzureKmsKey().
+											KeyVersion("v3"))))))).Build()
+				require.NoError(t, err)
+				return cluster
+			},
+			wantEtcd: clusterUpdateDispatchConfigEtcd{
+				DataEncryption: clusterUpdateDispatchConfigEtcdDataEncryption{
+					CustomerManaged: &clusterUpdateDispatchConfigEtcdDataEncryptionCustomerManaged{
+						Kms: &clusterUpdateDispatchConfigEtcdDataEncryptionCustomerManagedKms{
+							ActiveKey: clusterUpdateDispatchConfigEtcdDataEncryptionCustomerManagedKmsActiveKey{
+								Version: "v3",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got, err := clusterUpdateDispatchConfigFromCS(tt.csCluster(t))
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantEtcd, got.Etcd)
+		})
+	}
 }
