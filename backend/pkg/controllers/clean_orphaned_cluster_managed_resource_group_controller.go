@@ -25,8 +25,9 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
-	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"golang.org/x/sync/errgroup"
 
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/component-base/metrics/legacyregistry"
 	"k8s.io/utils/ptr"
 
@@ -51,6 +52,9 @@ const resourceGroupListPageSize int32 = 100
 
 // deletionPollTimeout is the maximum time to wait for a resource group deletion to complete
 const deletionPollTimeout = 15 * time.Minute
+
+// maxConcurrentDeletions is the maximum number of resource group deletions to run concurrently
+const maxConcurrentDeletions = 20
 
 var (
 	orphanedMRGsFound = promauto.With(legacyregistry.Registerer()).NewCounterVec(
@@ -313,9 +317,11 @@ func (c *cleanOrphanedClusterManagedResourceGroup) SyncOnce(ctx context.Context,
 	}
 
 	// Identify and clean up orphaned managed resource groups for this subscription
-	var wg sync.WaitGroup
-	errCh := make(chan error, len(managedResourceGroups))
-	defer close(errCh)
+	eg, egCtx := errgroup.WithContext(ctx)
+	eg.SetLimit(maxConcurrentDeletions)
+
+	var mu sync.Mutex
+	var errs []error
 
 	for resourceGroupName, managedBy := range managedResourceGroups {
 		managedByResourceID := strings.ToLower(managedBy)
@@ -328,22 +334,22 @@ func (c *cleanOrphanedClusterManagedResourceGroup) SyncOnce(ctx context.Context,
 		// Found an orphaned managed resource group
 		orphanedMRGsFound.WithLabelValues(c.location).Inc()
 
-		wg.Go(func() {
+		resourceGroupName := resourceGroupName
+		managedBy := managedBy
+		eg.Go(func() error {
 			defer utilruntime.HandleCrash()
-			err := c.deleteOrphanedManagedResourceGroup(ctx, rgClient, subscriptionID, resourceGroupName, managedBy, readOnly)
+			err := c.deleteOrphanedManagedResourceGroup(egCtx, rgClient, subscriptionID, resourceGroupName, managedBy, readOnly)
 			if err != nil {
-				errCh <- err
+				mu.Lock()
+				defer mu.Unlock()
+				errs = append(errs, err)
 			}
+			return nil
 		})
 	}
 
-	wg.Wait()
-
-	// Collect all errors from the channel
-	var errs []error
-	for err := range errCh {
-		errs = append(errs, err)
-	}
+	// errgroup.Wait() returns only the first error. We saved all the errors into the errs array, so we can ignore this.
+	_ = eg.Wait()
 
 	logger.Info("Completed sync for subscription",
 		"subscriptionID", subscriptionID)
