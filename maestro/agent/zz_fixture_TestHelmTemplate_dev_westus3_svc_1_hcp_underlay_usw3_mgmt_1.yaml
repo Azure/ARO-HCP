@@ -65,8 +65,8 @@ spec:
     spec:
       containers:
       - name: python
-        image: "mcr.microsoft.com/azurelinux/base/python:3.9"
-        command: ["python3.9", "/scripts/registration.py", "http://maestro.maestro.svc.cluster.local:8000", "hcp-underlay-usw3-mgmt-1"]
+        image: "mcr.microsoft.com/azurelinux/base/python:3.12"
+        command: ["python3", "/scripts/registration.py", "http://maestro.maestro.svc.cluster.local:8000", "hcp-underlay-usw3-mgmt-1"]
         volumeMounts:
         - name: script-volume
           mountPath: /scripts
