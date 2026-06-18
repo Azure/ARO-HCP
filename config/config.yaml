@@ -277,6 +277,7 @@ defaults:
       genevaActionsPrincipalId: ""
       application:
         name: "arohcp-ga-{{ .ctx.environment }}" # [tenant unique]
+        applicationId: "empty-sentinel"
         useSNI: true
         manage: true
       publish:

@@ -312,6 +312,7 @@ geneva:
   actions:
     allowedAcisExtensions: AzureRedHatHypershiftExtension,Azure Red Hat Hypershift
     application:
+      applicationId: empty-sentinel
       manage: true
       name: arohcp-ga-dev
       useSNI: false
