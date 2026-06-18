@@ -44,7 +44,7 @@ func NewMaestroMetrics(r prometheus.Registerer) *MaestroMetrics {
 		errorsTotal: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
 				Name: "maestro_grpc_errors_total",
-				Help: "Total number of failed Maestro GRPC operations",
+				Help: "Total number of unexpected Maestro GRPC operation failures (excludes expected errors like NotFound/AlreadyExists)",
 			},
 			[]string{"operation"},
 		),
