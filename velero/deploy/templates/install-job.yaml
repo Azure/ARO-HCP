@@ -50,6 +50,7 @@ spec:
             --backup-location-config useAAD="true",resourceGroup={{ .Values.resourceGroup }},storageAccount={{ .Values.storageAccount }},subscriptionId={{ .Values.subscriptionId }} \
             --snapshot-location-config subscriptionId={{ .Values.subscriptionId }} \
             --image {{ .Values.imageRegistry }}/{{ .Values.veleroServer.repository }}@{{ .Values.veleroServer.digest }} \
+            --concurrent-backups 4 \
             --dry-run -o yaml > /manifest/velero.yaml
 
           echo "Manifest generated successfully."
