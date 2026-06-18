@@ -388,27 +388,48 @@ func TestAdmitCluster_Update(t *testing.T) {
 		}
 	}
 
+	kmsEtcdProfile := func(keyVersion string) api.EtcdProfile {
+		return api.EtcdProfile{
+			DataEncryption: api.EtcdDataEncryptionProfile{
+				KeyManagementMode: api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged,
+				CustomerManaged: &api.CustomerManagedEncryptionProfile{
+					Kms: &api.KmsEncryptionProfile{
+						ActiveKey: api.KmsKey{
+							Name:      "test-key",
+							VaultName: "test-vault",
+							Version:   keyVersion,
+						},
+					},
+				},
+			},
+		}
+	}
+
 	tests := []struct {
 		name                         string
 		oldClusterVersionID          string
-		clusterVersionID             string
+		channelGroup                 string
+		etcd                         api.EtcdProfile
+		options                      []string
 		serviceProviderClusterStatus api.ServiceProviderClusterStatus
 		nodePools                    []*api.HCPOpenShiftClusterNodePool
 		serviceProviderNodePools     []*api.ServiceProviderNodePool
+		newClusterFromOld            func(*api.HCPOpenShiftCluster) //This method uses a copy of the oldCluster, changes are applied to that copy.
 		expectErrors                 []utils.ExpectedError
 	}{
 		{
 			name:                         "empty desired version skips admission",
 			oldClusterVersionID:          "4.10",
-			clusterVersionID:             "",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.22"),
 			nodePools:                    []*api.HCPOpenShiftClusterNodePool{makeTestNodePool("np1", "4.10.0")},
-			expectErrors:                 []utils.ExpectedError{},
+			newClusterFromOld: func(oldCopy *api.HCPOpenShiftCluster) {
+				oldCopy.CustomerProperties.Version.ID = ""
+			},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name:                         "unchanged version skips admission",
 			oldClusterVersionID:          "5.0",
-			clusterVersionID:             "5.0",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.22"),
 			nodePools:                    []*api.HCPOpenShiftClusterNodePool{makeTestNodePool("workers", "4.20.0")},
 			expectErrors:                 []utils.ExpectedError{},
@@ -416,9 +437,10 @@ func TestAdmitCluster_Update(t *testing.T) {
 		{
 			name:                         "unparsable old version id",
 			oldClusterVersionID:          "4.x",
-			clusterVersionID:             "4.22",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.22"),
-			nodePools:                    nil,
+			newClusterFromOld: func(c *api.HCPOpenShiftCluster) {
+				c.CustomerProperties.Version.ID = "4.22"
+			},
 			expectErrors: []utils.ExpectedError{
 				{FieldPath: "properties.version.id", Message: "Invalid character(s) found in minor number"},
 			},
@@ -426,25 +448,28 @@ func TestAdmitCluster_Update(t *testing.T) {
 		{
 			name:                         "skips skew vs lowest when old minor matches lowest active cluster version",
 			oldClusterVersionID:          "4.21",
-			clusterVersionID:             "4.23",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.21"),
-			nodePools:                    nil,
-			expectErrors:                 []utils.ExpectedError{},
+			newClusterFromOld: func(c *api.HCPOpenShiftCluster) {
+				c.CustomerProperties.Version.ID = "4.23"
+			},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name:                         "allows 4.22 to 5.0 with active cluster version 4.22",
 			oldClusterVersionID:          "4.22",
-			clusterVersionID:             "5.0",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.22"),
-			nodePools:                    nil,
-			expectErrors:                 []utils.ExpectedError{},
+			newClusterFromOld: func(c *api.HCPOpenShiftCluster) {
+				c.CustomerProperties.Version.ID = "5.0"
+			},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name:                         "rejects 5.1 when old minor below lowest active cluster version",
 			oldClusterVersionID:          "4.21",
-			clusterVersionID:             "5.1",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.22"),
-			nodePools:                    nil,
+			newClusterFromOld: func(c *api.HCPOpenShiftCluster) {
+				c.CustomerProperties.Version.ID = "5.1"
+			},
 			expectErrors: []utils.ExpectedError{
 				{FieldPath: "properties.version.id", Message: "invalid upgrade path"},
 			},
@@ -452,9 +477,10 @@ func TestAdmitCluster_Update(t *testing.T) {
 		{
 			name:                         "rejects 4.24 when old minor below lowest active cluster version",
 			oldClusterVersionID:          "4.21",
-			clusterVersionID:             "4.24",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.22"),
-			nodePools:                    nil,
+			newClusterFromOld: func(c *api.HCPOpenShiftCluster) {
+				c.CustomerProperties.Version.ID = "4.24"
+			},
 			expectErrors: []utils.ExpectedError{
 				{FieldPath: "properties.version.id", Message: "only upgrade to the next minor is allowed"},
 			},
@@ -462,9 +488,10 @@ func TestAdmitCluster_Update(t *testing.T) {
 		{
 			name:                         "rejects version below highest active cluster version",
 			oldClusterVersionID:          "4.22",
-			clusterVersionID:             "4.21",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.22"),
-			nodePools:                    nil,
+			newClusterFromOld: func(c *api.HCPOpenShiftCluster) {
+				c.CustomerProperties.Version.ID = "4.21"
+			},
 			expectErrors: []utils.ExpectedError{
 				{FieldPath: "properties.version.id", Message: "must be at least"},
 			},
@@ -472,17 +499,19 @@ func TestAdmitCluster_Update(t *testing.T) {
 		{
 			name:                         "allows upgrade across adjacent active cluster minors",
 			oldClusterVersionID:          "4.21",
-			clusterVersionID:             "4.22",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersions("4.22", "4.21"),
-			nodePools:                    nil,
-			expectErrors:                 []utils.ExpectedError{},
+			newClusterFromOld: func(c *api.HCPOpenShiftCluster) {
+				c.CustomerProperties.Version.ID = "4.22"
+			},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name:                         "rejects skip minor vs lowest when fleet spans minors",
 			oldClusterVersionID:          "4.21",
-			clusterVersionID:             "4.22",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersions("4.20", "4.22"),
-			nodePools:                    nil,
+			newClusterFromOld: func(c *api.HCPOpenShiftCluster) {
+				c.CustomerProperties.Version.ID = "4.22"
+			},
 			expectErrors: []utils.ExpectedError{
 				{FieldPath: "properties.version.id", Message: "only upgrade to the next minor is allowed"},
 			},
@@ -490,9 +519,11 @@ func TestAdmitCluster_Update(t *testing.T) {
 		{
 			name:                         "rejects when node pool over two minors behind",
 			oldClusterVersionID:          "4.20",
-			clusterVersionID:             "4.21",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.20"),
 			nodePools:                    []*api.HCPOpenShiftClusterNodePool{makeTestNodePool("workers", "4.17.0")},
+			newClusterFromOld: func(c *api.HCPOpenShiftCluster) {
+				c.CustomerProperties.Version.ID = "4.21"
+			},
 			expectErrors: []utils.ExpectedError{
 				{FieldPath: "properties.version.id", Message: "must not be more than two minor versions ahead"},
 			},
@@ -500,7 +531,6 @@ func TestAdmitCluster_Update(t *testing.T) {
 		{
 			name:                         "allows no-op version with node pools in skew",
 			oldClusterVersionID:          "4.20",
-			clusterVersionID:             "4.20",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.20"),
 			nodePools: []*api.HCPOpenShiftClusterNodePool{
 				makeTestNodePool("workers", "4.18.0"),
@@ -512,49 +542,61 @@ func TestAdmitCluster_Update(t *testing.T) {
 		{
 			name:                         "allows 4.22 to 5.0 node pool 4.22",
 			oldClusterVersionID:          "4.22",
-			clusterVersionID:             "5.0",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.22"),
 			nodePools:                    []*api.HCPOpenShiftClusterNodePool{makeTestNodePool("workers", "4.22.0")},
-			expectErrors:                 []utils.ExpectedError{},
+			newClusterFromOld: func(c *api.HCPOpenShiftCluster) {
+				c.CustomerProperties.Version.ID = "5.0"
+			},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name:                         "allows 4.22 to 5.0 node pool 4.21",
 			oldClusterVersionID:          "4.22",
-			clusterVersionID:             "5.0",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.22"),
 			nodePools:                    []*api.HCPOpenShiftClusterNodePool{makeTestNodePool("workers", "4.21.0")},
-			expectErrors:                 []utils.ExpectedError{},
+			newClusterFromOld: func(c *api.HCPOpenShiftCluster) {
+				c.CustomerProperties.Version.ID = "5.0"
+			},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name:                         "allows 4.23 to 5.1 node pool 4.22",
 			oldClusterVersionID:          "4.23",
-			clusterVersionID:             "5.1",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.23"),
 			nodePools:                    []*api.HCPOpenShiftClusterNodePool{makeTestNodePool("workers", "4.22.0")},
-			expectErrors:                 []utils.ExpectedError{},
+			newClusterFromOld: func(c *api.HCPOpenShiftCluster) {
+				c.CustomerProperties.Version.ID = "5.1"
+			},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name:                         "allows 4.23 to 5.1 node pool 4.23",
 			oldClusterVersionID:          "4.23",
-			clusterVersionID:             "5.1",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.23"),
 			nodePools:                    []*api.HCPOpenShiftClusterNodePool{makeTestNodePool("workers", "4.23.0")},
-			expectErrors:                 []utils.ExpectedError{},
+			newClusterFromOld: func(c *api.HCPOpenShiftCluster) {
+				c.CustomerProperties.Version.ID = "5.1"
+			},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name:                         "allows 5.1 to 5.2 node pool 4.23",
 			oldClusterVersionID:          "5.1",
-			clusterVersionID:             "5.2",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("5.1"),
 			nodePools:                    []*api.HCPOpenShiftClusterNodePool{makeTestNodePool("workers", "4.23.0")},
-			expectErrors:                 []utils.ExpectedError{},
+			newClusterFromOld: func(c *api.HCPOpenShiftCluster) {
+				c.CustomerProperties.Version.ID = "5.2"
+			},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name:                         "rejects 4.22 to 5.0 node pool 4.20",
 			oldClusterVersionID:          "4.22",
-			clusterVersionID:             "5.0",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.22"),
 			nodePools:                    []*api.HCPOpenShiftClusterNodePool{makeTestNodePool("workers", "4.20.0")},
+			newClusterFromOld: func(c *api.HCPOpenShiftCluster) {
+				c.CustomerProperties.Version.ID = "5.0"
+			},
 			expectErrors: []utils.ExpectedError{
 				{FieldPath: "properties.version.id", Message: "incompatible with node pool"},
 			},
@@ -562,9 +604,11 @@ func TestAdmitCluster_Update(t *testing.T) {
 		{
 			name:                         "rejects 4.23 to 5.1 node pool 4.21",
 			oldClusterVersionID:          "4.23",
-			clusterVersionID:             "5.1",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.23"),
 			nodePools:                    []*api.HCPOpenShiftClusterNodePool{makeTestNodePool("workers", "4.21.0")},
+			newClusterFromOld: func(c *api.HCPOpenShiftCluster) {
+				c.CustomerProperties.Version.ID = "5.1"
+			},
 			expectErrors: []utils.ExpectedError{
 				{FieldPath: "properties.version.id", Message: "incompatible with node pool"},
 			},
@@ -572,9 +616,11 @@ func TestAdmitCluster_Update(t *testing.T) {
 		{
 			name:                         "rejects 4.22 to 5.0 node pool 4.23",
 			oldClusterVersionID:          "4.22",
-			clusterVersionID:             "5.0",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.22"),
 			nodePools:                    []*api.HCPOpenShiftClusterNodePool{makeTestNodePool("workers", "4.23.0")},
+			newClusterFromOld: func(c *api.HCPOpenShiftCluster) {
+				c.CustomerProperties.Version.ID = "5.0"
+			},
 			expectErrors: []utils.ExpectedError{
 				{FieldPath: "properties.version.id", Message: "incompatible with node pool"},
 			},
@@ -582,11 +628,13 @@ func TestAdmitCluster_Update(t *testing.T) {
 		{
 			name:                         "rejects 4.22 to 5.0 mixed node pool minors",
 			oldClusterVersionID:          "4.22",
-			clusterVersionID:             "5.0",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.22"),
 			nodePools: []*api.HCPOpenShiftClusterNodePool{
 				makeTestNodePool("workers", "4.22.0"),
 				makeTestNodePool("legacy", "4.20.0"),
+			},
+			newClusterFromOld: func(c *api.HCPOpenShiftCluster) {
+				c.CustomerProperties.Version.ID = "5.0"
 			},
 			expectErrors: []utils.ExpectedError{
 				{FieldPath: "properties.version.id", Message: "incompatible with node pool"},
@@ -595,10 +643,12 @@ func TestAdmitCluster_Update(t *testing.T) {
 		{
 			name:                         "rejects 4.22 to 5.0 sp node pool behind customer minor",
 			oldClusterVersionID:          "4.22",
-			clusterVersionID:             "5.0",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.22"),
 			nodePools:                    []*api.HCPOpenShiftClusterNodePool{makeTestNodePool("workers", "4.22.0")},
 			serviceProviderNodePools:     []*api.ServiceProviderNodePool{makeServiceProviderNodePool("workers", "4.17.0")},
+			newClusterFromOld: func(c *api.HCPOpenShiftCluster) {
+				c.CustomerProperties.Version.ID = "5.0"
+			},
 			expectErrors: []utils.ExpectedError{
 				{FieldPath: "properties.version.id", Message: "incompatible with node pool"},
 			},
@@ -606,10 +656,12 @@ func TestAdmitCluster_Update(t *testing.T) {
 		{
 			name:                         "rejects minor upgrade sp node pool two minors behind",
 			oldClusterVersionID:          "4.20",
-			clusterVersionID:             "4.21",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.20"),
 			nodePools:                    []*api.HCPOpenShiftClusterNodePool{makeTestNodePool("workers", "4.20.0")},
 			serviceProviderNodePools:     []*api.ServiceProviderNodePool{makeServiceProviderNodePool("workers", "4.17.0")},
+			newClusterFromOld: func(c *api.HCPOpenShiftCluster) {
+				c.CustomerProperties.Version.ID = "4.21"
+			},
 			expectErrors: []utils.ExpectedError{
 				{FieldPath: "properties.version.id", Message: "must not be more than two minor versions ahead"},
 			},
@@ -617,10 +669,12 @@ func TestAdmitCluster_Update(t *testing.T) {
 		{
 			name:                         "rejects 4.22 to 5.0 incompatible lowest active cluster version",
 			oldClusterVersionID:          "4.22",
-			clusterVersionID:             "5.0",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.22"),
 			nodePools:                    []*api.HCPOpenShiftClusterNodePool{makeTestNodePool("workers", "4.22.0")},
 			serviceProviderNodePools:     []*api.ServiceProviderNodePool{makeServiceProviderNodePool("workers", "4.22.0", "4.17.0")},
+			newClusterFromOld: func(c *api.HCPOpenShiftCluster) {
+				c.CustomerProperties.Version.ID = "5.0"
+			},
 			expectErrors: []utils.ExpectedError{
 				{FieldPath: "properties.version.id", Message: "incompatible with node pool"},
 			},
@@ -628,10 +682,91 @@ func TestAdmitCluster_Update(t *testing.T) {
 		{
 			name:                         "allows 4.22 to 5.0 compatible active cluster versions",
 			oldClusterVersionID:          "4.22",
-			clusterVersionID:             "5.0",
 			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.22"),
 			nodePools:                    []*api.HCPOpenShiftClusterNodePool{makeTestNodePool("workers", "4.22.0")},
 			serviceProviderNodePools:     []*api.ServiceProviderNodePool{makeServiceProviderNodePool("workers", "4.22.1", "4.22.0")},
+			newClusterFromOld: func(c *api.HCPOpenShiftCluster) {
+				c.CustomerProperties.Version.ID = "5.0"
+			},
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name:                         "kms key version change allowed at 4.22 nightly",
+			oldClusterVersionID:          "4.22",
+			channelGroup:                 "nightly",
+			etcd:                         kmsEtcdProfile("old-version"),
+			options:                      []string{api.APIVersionOption(api.APIVersionV20260630Preview)},
+			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.22.0-0.nightly-multi-2026-06-29-132714"),
+			newClusterFromOld: func(c *api.HCPOpenShiftCluster) {
+				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.ActiveKey.Version = "new-version"
+			},
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name:                         "kms key version change allowed at 4.22",
+			oldClusterVersionID:          "4.22",
+			etcd:                         kmsEtcdProfile("old-version"),
+			options:                      []string{api.APIVersionOption(api.APIVersionV20260630Preview)},
+			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.22.4"),
+			newClusterFromOld: func(c *api.HCPOpenShiftCluster) {
+				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.ActiveKey.Version = "new-version"
+			},
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name:                         "kms key version change allowed at 5.0",
+			oldClusterVersionID:          "4.22",
+			etcd:                         kmsEtcdProfile("old-version"),
+			options:                      []string{api.APIVersionOption(api.APIVersionV20260630Preview)},
+			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("5.0.1"),
+			newClusterFromOld: func(c *api.HCPOpenShiftCluster) {
+				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.ActiveKey.Version = "new-version"
+			},
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name:                         "kms key version change blocked at 4.21",
+			oldClusterVersionID:          "4.21",
+			etcd:                         kmsEtcdProfile("old-version"),
+			options:                      []string{api.APIVersionOption(api.APIVersionV20260630Preview)},
+			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.21.5"),
+			newClusterFromOld: func(c *api.HCPOpenShiftCluster) {
+				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.ActiveKey.Version = "new-version"
+			},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.etcd.dataEncryption.customerManaged.kms.activeKey.version", Message: "KMS key version rotation requires cluster version 4.22.0 or above"},
+			},
+		},
+		{
+			name:                         "kms key version change allowed during upgrade with lowest >= 4.22.4",
+			oldClusterVersionID:          "4.22",
+			etcd:                         kmsEtcdProfile("old-version"),
+			options:                      []string{api.APIVersionOption(api.APIVersionV20260630Preview)},
+			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersions("4.23.0", "4.22.4"),
+			newClusterFromOld: func(c *api.HCPOpenShiftCluster) {
+				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.ActiveKey.Version = "new-version"
+			},
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name:                         "kms key version change blocked during upgrade with lowest < 4.22.0",
+			oldClusterVersionID:          "4.22",
+			etcd:                         kmsEtcdProfile("old-version"),
+			options:                      []string{api.APIVersionOption(api.APIVersionV20260630Preview)},
+			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersions("4.22.0", "4.21.15"),
+			newClusterFromOld: func(c *api.HCPOpenShiftCluster) {
+				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms.ActiveKey.Version = "new-version"
+			},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.etcd.dataEncryption.customerManaged.kms.activeKey.version", Message: "KMS key version rotation requires cluster version 4.22.0 or above"},
+			},
+		},
+		{
+			name:                         "no error when kms key version unchanged on old cluster",
+			oldClusterVersionID:          "4.21",
+			etcd:                         kmsEtcdProfile("same-version"),
+			options:                      []string{api.APIVersionOption(api.APIVersionV20260630Preview)},
+			serviceProviderClusterStatus: serviceProviderClusterStatusWithActiveControlPlaneVersion("4.21.0"),
 			expectErrors:                 []utils.ExpectedError{},
 		},
 	}
@@ -645,9 +780,6 @@ func TestAdmitCluster_Update(t *testing.T) {
 				Status:         tt.serviceProviderClusterStatus,
 			}
 
-			// Pair each node pool with its matching service provider node pool
-			// by name. The frontend's newClusterAdmissionContext prefetches both
-			// from Cosmos and zips them together; we replicate that wiring here.
 			spByName := map[string]*api.ServiceProviderNodePool{}
 			for _, sp := range tt.serviceProviderNodePools {
 				spByName[sp.ResourceID.Parent.Name] = sp
@@ -668,17 +800,16 @@ func TestAdmitCluster_Update(t *testing.T) {
 			oldCluster := &api.HCPOpenShiftCluster{
 				TrackedResource: arm.NewTrackedResource(clusterResourceID, "eastus"),
 				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
-					Version: api.VersionProfile{ID: tt.oldClusterVersionID},
+					Version: api.VersionProfile{ID: tt.oldClusterVersionID, ChannelGroup: tt.channelGroup},
+					Etcd:    tt.etcd,
 				},
 			}
-			newCluster := &api.HCPOpenShiftCluster{
-				TrackedResource: oldCluster.TrackedResource,
-				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
-					Version: api.VersionProfile{ID: tt.clusterVersionID},
-				},
+			newCluster := oldCluster.DeepCopy()
+			if tt.newClusterFromOld != nil {
+				tt.newClusterFromOld(newCluster)
 			}
 
-			errs := AdmitCluster(ctx, admissionContext, operation.Operation{Type: operation.Update}, newCluster, oldCluster)
+			errs := AdmitCluster(ctx, admissionContext, operation.Operation{Type: operation.Update, Options: tt.options}, newCluster, oldCluster)
 
 			utils.VerifyErrorsMatch(t, tt.expectErrors, errs)
 		})
