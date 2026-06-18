@@ -106,6 +106,9 @@ func (c *createClusterScopedReadDesiresSyncer) SyncOnce(ctx context.Context, key
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get Cluster: %w", err))
 	}
+	if existingCluster.ServiceProviderProperties.DeletionTimestamp != nil {
+		return nil
+	}
 	if existingCluster.ServiceProviderProperties.ClusterServiceID == nil {
 		// We don't have a CS reference yet; we'll retrigger once it's set.
 		return nil
