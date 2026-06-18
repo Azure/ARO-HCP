@@ -15,7 +15,7 @@
       }
     ]
   },
-  "description": "Azure PostgreSQL metrics for Maestro and Cluster Service databases. Enter subscription ID and resource group, then select database from dropdown. NOTE: This dashboard is for managed PostgreSQL instances (CSPR/PERF). Personal dev environments use containerized PostgreSQL with Prometheus metrics (see maestro-server.json or cluster-service.json dashboards instead).",
+  "description": "Azure PostgreSQL metrics for Maestro and Cluster Service databases. Enter subscription ID and resource group, then select server from dropdown. NOTE: This dashboard is for managed PostgreSQL instances (CSPR/PERF). Personal dev environments use containerized PostgreSQL with Prometheus metrics (see maestro-server.json or cluster-service.json dashboards instead).",
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
@@ -1055,10 +1055,10 @@
           "text": "Maestro",
           "value": "arohcp-cspr-dbmaestro-usw3"
         },
-        "description": "PostgreSQL database server",
+        "description": "PostgreSQL server (Maestro or Cluster Service)",
         "hide": 0,
         "includeAll": false,
-        "label": "Database",
+        "label": "Server",
         "multi": false,
         "name": "database",
         "options": [
