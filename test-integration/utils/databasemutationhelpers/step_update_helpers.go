@@ -23,6 +23,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -44,37 +45,52 @@ func updateMode() bool {
 // Cosmos shape (HCPCluster, NodePool, ExternalAuth) or GenericDocument[T] for
 // everything else. The result is re-marshaled with indentation, matching the
 // existing fixture format.
+//
+// The top-level `_etag` is preserved across the roundtrip (and synthesized in
+// the Cosmos quoted-UUID format when the input lacks one or carries a malformed
+// value). load/loadCosmos fixtures are read back at test time through the same
+// Replace path that production uses, which refuses unconditional updates, so a
+// missing or mis-shaped `_etag` would make UPDATE-generated fixtures unusable.
 func roundtripCosmosBytes(content []byte) ([]byte, error) {
 	var typed database.TypedDocument
 	if err := json.Unmarshal(content, &typed); err != nil {
 		return nil, fmt.Errorf("failed to parse TypedDocument: %w", err)
 	}
+	etag := preserveOrSynthesizeEtag(content)
 	rt := strings.ToLower(typed.ResourceType)
+	var (
+		out []byte
+		err error
+	)
 	switch rt {
 	case strings.ToLower(api.ClusterResourceType.String()):
-		return roundtripGeneric[api.HCPOpenShiftCluster](content)
+		out, err = roundtripGeneric[api.HCPOpenShiftCluster](content)
 	case strings.ToLower(api.NodePoolResourceType.String()):
-		return roundtripGeneric[api.HCPOpenShiftClusterNodePool](content)
+		out, err = roundtripGeneric[api.HCPOpenShiftClusterNodePool](content)
 	case strings.ToLower(api.ExternalAuthResourceType.String()):
-		return roundtripGeneric[api.HCPOpenShiftClusterExternalAuth](content)
+		out, err = roundtripGeneric[api.HCPOpenShiftClusterExternalAuth](content)
 	case strings.ToLower(api.ServiceProviderClusterResourceType.String()):
-		return roundtripGeneric[api.ServiceProviderCluster](content)
+		out, err = roundtripGeneric[api.ServiceProviderCluster](content)
 	case strings.ToLower(api.ServiceProviderNodePoolResourceType.String()):
-		return roundtripGeneric[api.ServiceProviderNodePool](content)
+		out, err = roundtripGeneric[api.ServiceProviderNodePool](content)
 	case strings.ToLower(api.OperationStatusResourceType.String()):
-		return roundtripGeneric[api.Operation](content)
+		out, err = roundtripGeneric[api.Operation](content)
 	case strings.ToLower(azcorearm.SubscriptionResourceType.String()):
-		return roundtripGeneric[arm.Subscription](content)
+		out, err = roundtripGeneric[arm.Subscription](content)
 	case strings.ToLower(api.ClusterControllerResourceType.String()),
 		strings.ToLower(api.NodePoolControllerResourceType.String()),
 		strings.ToLower(api.ExternalAuthControllerResourceType.String()):
-		return roundtripGeneric[api.Controller](content)
+		out, err = roundtripGeneric[api.Controller](content)
 	case strings.ToLower(api.ClusterScopedManagementClusterContentResourceType.String()),
 		strings.ToLower(api.NodePoolScopedManagementClusterContentResourceType.String()):
-		return roundtripGeneric[api.ManagementClusterContent](content)
+		out, err = roundtripGeneric[api.ManagementClusterContent](content)
 	default:
 		return nil, fmt.Errorf("UPDATE roundtrip: unsupported resourceType %q", typed.ResourceType)
 	}
+	if err != nil {
+		return nil, err
+	}
+	return injectTopLevelEtag(out, etag)
 }
 
 func roundtripGeneric[InternalAPIType any](content []byte) ([]byte, error) {
@@ -91,6 +107,50 @@ func roundtripGeneric[InternalAPIType any](content []byte) ([]byte, error) {
 		return nil, fmt.Errorf("InternalToCosmosGeneric: %w", err)
 	}
 	return marshalCanonical(out)
+}
+
+// preserveOrSynthesizeEtag returns the input document's top-level `_etag` when
+// it is present in the Cosmos quoted-UUID format, and otherwise returns a freshly
+// generated one in that same format. Cosmos surrounds the UUID with literal
+// double quotes (`"<uuid>"`) — the CRUD layer rejects unquoted or empty etags on
+// Replace, so an UPDATE-written fixture must carry one with the right shape.
+func preserveOrSynthesizeEtag(content []byte) string {
+	var doc map[string]any
+	if err := json.Unmarshal(content, &doc); err == nil {
+		if raw, ok := doc["_etag"].(string); ok && isValidCosmosEtag(raw) {
+			return raw
+		}
+	}
+	return synthesizeCosmosEtag()
+}
+
+// isValidCosmosEtag reports whether s matches the `"<uuid>"` shape Cosmos
+// produces for the `_etag` system field.
+func isValidCosmosEtag(s string) bool {
+	if len(s) < 2 || s[0] != '"' || s[len(s)-1] != '"' {
+		return false
+	}
+	_, err := uuid.Parse(s[1 : len(s)-1])
+	return err == nil
+}
+
+// synthesizeCosmosEtag generates a fresh etag value in the Cosmos format
+// (`"<uuid>"` with the surrounding literal double quotes).
+func synthesizeCosmosEtag() string {
+	return `"` + uuid.New().String() + `"`
+}
+
+// injectTopLevelEtag stamps `_etag` onto the roundtripped document. The
+// roundtrip drops the cosmos system fields (they live on BaseDocument, which
+// the internal-to-cosmos converter leaves empty), so we put the etag back here
+// to keep the fixture usable as a Replace input.
+func injectTopLevelEtag(content []byte, etag string) ([]byte, error) {
+	var doc map[string]any
+	if err := json.Unmarshal(content, &doc); err != nil {
+		return nil, fmt.Errorf("inject etag: unmarshal: %w", err)
+	}
+	doc["_etag"] = etag
+	return marshalCanonical(doc)
 }
 
 // resolveStepUpdateDir locates the on-disk fixture directory for a step under
