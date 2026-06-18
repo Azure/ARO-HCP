@@ -112,11 +112,16 @@ func (c *Client) AddPassword(ctx context.Context, appID, displayName string, sta
 			if errors.As(err, &odataErr) {
 				code := odataErr.ResponseStatusCode
 				odataError := odataErr.GetErrorEscaped()
-				logger.Error(err, "Graph API AddPassword failed",
+				logFields := []interface{}{
 					"attempt", attempts,
 					"statusCode", code,
-					"errorCode", odataError.GetCode(),
-					"errorMessage", odataError.GetMessage())
+				}
+				if odataError != nil {
+					logFields = append(logFields,
+						"errorCode", odataError.GetCode(),
+						"errorMessage", odataError.GetMessage())
+				}
+				logger.Error(err, "Graph API AddPassword failed", logFields...)
 
 				// Retry all errors for first 3 attempts to handle transient issues
 				if attempts <= 3 {
