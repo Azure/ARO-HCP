@@ -54,7 +54,7 @@ This command creates a personal DEV environment with a unique name that is deriv
 > If you only want to update individual aspects of the environment, follow the [partial setup](#partial-personal-dev-environment-setup) instructions.
 
 > [!TIP] Make Options
-> [Make Options](./ARO-HCP/docs/make-options.md) describes how to customize the make build e.g. by defining the container engine to be used or limiting parallel jobs. This can be of help when experiencing problems with the build.
+> [Make Options](./make-options.md) describes how to customize the make build e.g. by defining the container engine to be used or limiting parallel jobs. This can be of help when experiencing problems with the build.
 
 ### Local Cluster Service Development Setup
 

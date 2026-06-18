@@ -97,7 +97,7 @@ image: Dockerfile $(shell find . -name '*.go' -o -name 'go.mod' -o -name 'go.sum
 
 build-and-push: image
 	$(acr-login)
-	docker push ${TENANT_QUOTA_TAGGED_IMAGE}
+	$(CONTAINER_ENGINE) push ${TENANT_QUOTA_TAGGED_IMAGE}
 	@echo ""
 	@echo "Pushed: ${TENANT_QUOTA_TAGGED_IMAGE}"
 .PHONY: build-and-push
