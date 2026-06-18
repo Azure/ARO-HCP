@@ -505,6 +505,25 @@ func (f *Frontend) ArmResourceActionRevokeCredentials(writer http.ResponseWriter
 	return nil
 }
 
+func (f *Frontend) ArmOperationsList(writer http.ResponseWriter, request *http.Request) error {
+	pagedResponse := arm.NewPagedResponse()
+
+	for _, operation := range AvailableOperations {
+		jsonBytes, err := arm.MarshalJSON(operation)
+		if err != nil {
+			return utils.TrackError(err)
+		}
+		pagedResponse.AddValue(jsonBytes)
+	}
+
+	_, err := arm.WriteJSONResponse(writer, http.StatusOK, pagedResponse)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+
+	return nil
+}
+
 func (f *Frontend) ArmSubscriptionGet(writer http.ResponseWriter, request *http.Request) error {
 	ctx := request.Context()
 
