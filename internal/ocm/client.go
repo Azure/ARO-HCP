@@ -36,6 +36,7 @@ const (
 	CSPropertyNoopDeprovision  = "provisioner_noop_deprovision"
 	CSPropertySingleReplica    = "hosted_cluster_single_replica"
 	CSPropertySizeOverride     = "hosted_cluster_size_override"
+	CSPropertyCPOImageOverride = "control_plane_operator_image"
 
 	CSPropertyEnabled = "true"
 )

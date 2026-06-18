@@ -76,8 +76,7 @@ type Frontend struct {
 	// clusterServiceNoopDeprovision short-circuits the full deprovision flow
 	// during testing.
 	clusterServiceNoopDeprovision bool
-
-	apiRegistry api.APIRegistry
+	apiRegistry                   api.APIRegistry
 
 	exitOnPanic bool
 }
