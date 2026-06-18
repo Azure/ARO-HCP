@@ -27,6 +27,7 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
+	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
 
@@ -45,6 +46,16 @@ func AFECsToValidationOptions(features []arm.Feature) []string {
 	}
 
 	return ret
+}
+
+// BuildValidationOptions combines AFEC feature flags and the ARM API version
+// into a single options slice for operation.Operation.Options.
+func BuildValidationOptions(features []arm.Feature, apiVersion api.APIVersion) []string {
+	options := AFECsToValidationOptions(features)
+	if apiVersion != "" {
+		options = append(options, api.APIVersionOption(apiVersion))
+	}
+	return options
 }
 
 var (

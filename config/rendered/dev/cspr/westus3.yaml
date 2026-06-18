@@ -104,7 +104,7 @@ backend:
     roleSetName: dev
   exitOnPanic: true
   image:
-    digest: sha256:1403f55f7616aac0d2c676f6669cce518f1e72d0e315358fb0d4d1e3b0804f6b
+    digest: sha256:1aecde2e0ab3c3d9df7c9e2bc20e354329f5699b86a1c0b88768dae9124863db
     registry: arohcpsvcdev.azurecr.io
     repository: arohcpbackend
   k8s:
