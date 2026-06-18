@@ -183,6 +183,38 @@ func (l *ServiceProviderNodePoolList) GetObjectKind() schema.ObjectKind {
 }
 
 var (
+	_ runtime.Object            = &ServiceProviderExternalAuth{}
+	_ metav1.ObjectMetaAccessor = &ServiceProviderExternalAuth{}
+)
+
+func (o *ServiceProviderExternalAuth) GetObjectKind() schema.ObjectKind {
+	return schema.EmptyObjectKind
+}
+
+func (o *ServiceProviderExternalAuth) GetObjectMeta() metav1.Object {
+	om := &metav1.ObjectMeta{}
+	if o.GetResourceID() != nil {
+		om.Name = strings.ToLower(o.GetResourceID().String())
+	}
+	return om
+}
+
+// ServiceProviderExternalAuthList is a list of ServiceProviderExternalAuths
+// compatible with runtime.Object for use with Kubernetes informer machinery.
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+type ServiceProviderExternalAuthList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+	Items           []ServiceProviderExternalAuth `json:"items"`
+}
+
+var _ runtime.Object = &ServiceProviderExternalAuthList{}
+
+func (l *ServiceProviderExternalAuthList) GetObjectKind() schema.ObjectKind {
+	return &l.TypeMeta
+}
+
+var (
 	_ runtime.Object            = &Operation{}
 	_ metav1.ObjectMetaAccessor = &Operation{}
 )

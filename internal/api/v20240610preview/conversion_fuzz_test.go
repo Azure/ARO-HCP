@@ -114,6 +114,8 @@ func TestRoundTripInternalExternalInternal(t *testing.T) {
 			j.ClusterServiceID = nil
 			// UsesNewExternalAuthDeletionApproach does not roundtrip through the external type because it is purely an internal detail
 			j.UsesNewExternalAuthDeletionApproach = false
+			// UsesNewExternalAuthUpdateApproach does not roundtrip through the external type because it is purely an internal detail
+			j.UsesNewExternalAuthUpdateApproach = false
 		},
 		func(j *api.CustomerPlatformProfile, c randfill.Continue) {
 			c.FillNoCustom(j)

@@ -245,6 +245,9 @@ func (defaultPanicResourcesGlobalListers) ServiceProviderClusters() database.Glo
 func (defaultPanicResourcesGlobalListers) ServiceProviderNodePools() database.GlobalLister[api.ServiceProviderNodePool] {
 	return &panicGlobalLister[api.ServiceProviderNodePool]{}
 }
+func (defaultPanicResourcesGlobalListers) ServiceProviderExternalAuths() database.GlobalLister[api.ServiceProviderExternalAuth] {
+	return &panicGlobalLister[api.ServiceProviderExternalAuth]{}
+}
 func (defaultPanicResourcesGlobalListers) Controllers() database.GlobalLister[api.Controller] {
 	return &panicGlobalLister[api.Controller]{}
 }
@@ -420,6 +423,9 @@ func (f *alwaysErrorResourcesGlobalListers) ManagementClusterContents() database
 }
 func (f *alwaysErrorResourcesGlobalListers) ServiceProviderNodePools() database.GlobalLister[api.ServiceProviderNodePool] {
 	return &alwaysErrorGlobalLister[api.ServiceProviderNodePool]{err: f.err}
+}
+func (f *alwaysErrorResourcesGlobalListers) ServiceProviderExternalAuths() database.GlobalLister[api.ServiceProviderExternalAuth] {
+	return &alwaysErrorGlobalLister[api.ServiceProviderExternalAuth]{err: f.err}
 }
 
 var _ database.ResourcesGlobalListers = (*alwaysErrorResourcesGlobalListers)(nil)

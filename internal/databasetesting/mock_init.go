@@ -31,6 +31,7 @@ import (
 //   - *api.HCPOpenShiftClusterExternalAuth
 //   - *api.ServiceProviderCluster
 //   - *api.ServiceProviderNodePool
+//   - *api.ServiceProviderExternalAuth
 //   - *arm.Subscription
 //   - *api.Controller
 //   - *api.ManagementClusterContent
@@ -63,6 +64,8 @@ func (m *MockResourcesDBClient) addResource(ctx context.Context, resource any) e
 		return m.addServiceProviderCluster(ctx, r)
 	case *api.ServiceProviderNodePool:
 		return m.addServiceProviderNodePool(ctx, r)
+	case *api.ServiceProviderExternalAuth:
+		return m.addServiceProviderExternalAuth(ctx, r)
 	case *arm.Subscription:
 		return m.addSubscription(ctx, r)
 	case *api.Controller:
@@ -147,6 +150,24 @@ func (m *MockResourcesDBClient) addServiceProviderNodePool(ctx context.Context, 
 	nodePoolName := resourceID.Parent.Name
 	serviceProviderNodePoolCRUD := m.ServiceProviderNodePools(resourceID.SubscriptionID, resourceID.ResourceGroupName, clusterName, nodePoolName)
 	_, err := serviceProviderNodePoolCRUD.Create(ctx, spnp, nil)
+	return err
+}
+
+func (m *MockResourcesDBClient) addServiceProviderExternalAuth(ctx context.Context, spea *api.ServiceProviderExternalAuth) error {
+	resourceID := spea.GetResourceID()
+	if resourceID == nil {
+		return fmt.Errorf("service provider external auth is missing resource ID")
+	}
+	if resourceID.Parent == nil {
+		return fmt.Errorf("service provider external auth is missing parent external auth ID")
+	}
+	if resourceID.Parent.Parent == nil {
+		return fmt.Errorf("service provider external auth is missing grandparent cluster ID")
+	}
+	clusterName := resourceID.Parent.Parent.Name
+	externalAuthName := resourceID.Parent.Name
+	serviceProviderExternalAuthCRUD := m.ServiceProviderExternalAuths(resourceID.SubscriptionID, resourceID.ResourceGroupName, clusterName, externalAuthName)
+	_, err := serviceProviderExternalAuthCRUD.Create(ctx, spea, nil)
 	return err
 }
 
