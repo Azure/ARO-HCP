@@ -40,7 +40,7 @@
           "showLineNumbers": false,
           "showMiniMap": false
         },
-        "content": "### Operations Overview Dashboard\n\nFleet-wide view of in-flight provisioning operations (create, delete, update) across all regions.\n\n**Panels**: Operations by phase, stuck operations (>20 min), failed operations with error details, operation duration distribution, operations rate over time.\n\n**Datasource**: Select a single service-cluster Prometheus datasource or choose `All` to fan out across all matching service-cluster datasources.\n\n**Metrics**: `backend_resource_operation_phase_info`, `backend_resource_operation_duration_seconds`, `backend_resource_operation_last_transition_time_seconds`, `backend_resource_operation_start_time_seconds`.",
+        "content": "### Operations Overview Dashboard\n\nFleet-wide view of in-flight provisioning operations (create, delete, update) across all regions.\n\n**Panels**: Operations by phase, stuck operations (>20 min), failed operations with error details, operation duration distribution, operations rate over time.\n\n**Datasource**: Select a single service-cluster Prometheus datasource or choose `All` to fan out across all matching service-cluster datasources.\n\n**Metrics**: `backend_resource_operation_phase_info`, `backend_resource_operation_last_transition_time_seconds`, `backend_resource_operation_start_time_seconds`.",
         "mode": "markdown"
       },
       "pluginVersion": "11.6.9",

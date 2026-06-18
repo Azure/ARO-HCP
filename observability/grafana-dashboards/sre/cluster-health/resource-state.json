@@ -40,7 +40,7 @@
           "showLineNumbers": false,
           "showMiniMap": false
         },
-        "content": "### Resource State Dashboard\n\nFleet-wide view of provisioning state distribution for clusters, nodepools, and external auths.\n\n**Datasource**: Select a single service-cluster Prometheus datasource or choose `All` to fan out across all matching service-cluster datasources.\n\n**Metrics**: `backend_cluster_provision_state`, `backend_node_pool_provision_state`, `backend_cluster_created_time_seconds`.",
+        "content": "### Resource State Dashboard\n\nFleet-wide view of provisioning state distribution for clusters and nodepools.\n\n**Datasource**: Select a single service-cluster Prometheus datasource or choose `All` to fan out across all matching service-cluster datasources.\n\n**Metrics**: `backend_cluster_provision_state`, `backend_node_pool_provision_state`, `backend_cluster_created_time_seconds`.",
         "mode": "markdown"
       },
       "pluginVersion": "11.6.9",
@@ -997,7 +997,7 @@
         "type": "datasource",
         "uid": "-- Mixed --"
       },
-      "description": "Current provisioning state of every cluster in the fleet",
+      "description": "Current provisioning state of non-succeeded clusters in the fleet",
       "fieldConfig": {
         "defaults": {
           "color": {
