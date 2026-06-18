@@ -56,31 +56,6 @@
       {
         "code": "InvalidRequestContent",
         "message": "Forbidden: field is immutable",
-        "target": "properties.etcd"
-      }
-      {
-        "code": "InvalidRequestContent",
-        "message": "Forbidden: field is immutable",
-        "target": "properties.etcd.dataEncryption"
-      }
-      {
-        "code": "InvalidRequestContent",
-        "message": "Forbidden: field is immutable",
-        "target": "properties.etcd.dataEncryption.customerManaged"
-      }
-      {
-        "code": "InvalidRequestContent",
-        "message": "Forbidden: field is immutable",
-        "target": "properties.etcd.dataEncryption.customerManaged.kms"
-      }
-      {
-        "code": "InvalidRequestContent",
-        "message": "Forbidden: field is immutable",
-        "target": "properties.etcd.dataEncryption.customerManaged.kms.activeKey"
-      }
-      {
-        "code": "InvalidRequestContent",
-        "message": "Forbidden: field is immutable",
         "target": "properties.etcd.dataEncryption.customerManaged.kms.activeKey.name"
       }
       {
