@@ -745,10 +745,12 @@ func severityFor(labels map[string]*string) (*int32, error) {
 		return ptr.To(int32(3)), nil
 	case "info":
 		return ptr.To(int32(4)), nil
+	// Azure CEN reserves Sev 1 for declared major incidents, so alerts must not
+	// self-classify as Sev 1. Reject it with an explicit message.
+	case "1":
+		return nil, fmt.Errorf(`invalid severity label "1": Sev 1 is reserved for declared major incidents (use 2, 3, or 4)`)
 	default:
-		// Fail fast rather than silently defaulting to Sev 4. "1" is rejected on
-		// purpose: Azure CEN reserves Sev 1 for declared major incidents, so
-		// alerts must not self-classify as Sev 1.
+		// Fail fast rather than silently defaulting to Sev 4.
 		return nil, fmt.Errorf("invalid severity label %q (use 2, 3, or 4)", *severity)
 	}
 }

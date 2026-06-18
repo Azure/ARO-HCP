@@ -52,7 +52,7 @@ spec:
         sum by (cluster) (rate(errors_total{namespace="aro-hcp"}[5m])) > 0.05
       for: 10m
       labels:
-        severity: warning
+        severity: "3"
       annotations:
         summary: 'Short title for the alert'
         description: 'Detailed description. Can reference labels: {{ $labels.cluster }} and value: {{ $value }}.'
@@ -75,7 +75,7 @@ spec:
 
 Severity is the customer-impact class of the alert and follows the Azure Common Engineering Naming (CEN) standard so alerts route cleanly into Microsoft IcM. It is a property of the impact the alert represents and is set independently of burn rate: burn rate decides *when* an alert fires, severity decides *who* is paged at what urgency.
 
-Use the explicit `2` / `3` / `4` values (the severity label is the IcM Sev number). The legacy `critical` / `warning` / `info` values are still accepted (deprecated). `1` is intentionally rejected by the generator: Azure CEN reserves Sev 1 for declared major incidents, so alerts must not self-classify as Sev 1. Any other value fails generation.
+Use the explicit `2` / `3` / `4` values (the severity label is the IcM Sev number). The legacy `critical` / `warning` / `info` values are still accepted (deprecated). `1` is intentionally rejected by the generator: Azure CEN reserves Sev 1 for declared major incidents, so alerts must not self-classify as Sev 1. Any other value fails generation. The label is a string, so both `severity: "3"` and `severity: 3` are accepted (the generator parses the value as a string).
 
 | Label | IcM Severity | Impact criterion |
 |---|---|---|
