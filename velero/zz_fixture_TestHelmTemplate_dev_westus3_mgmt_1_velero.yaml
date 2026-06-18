@@ -427,6 +427,7 @@ spec:
             --backup-location-config useAAD="true",resourceGroup=hcp-underlay-dev-westus3-mgmt-1,storageAccount=__storageAccountName__,subscriptionId=__subscriptionId__ \
             --snapshot-location-config subscriptionId=__subscriptionId__ \
             --image arohcpsvcdev.azurecr.io/oadp/oadp-velero-rhel9@sha256:1234567890 \
+            --concurrent-backups 4 \
             --dry-run -o yaml > /manifest/velero.yaml
 
           echo "Manifest generated successfully."
