@@ -15,7 +15,7 @@
       }
     ]
   },
-  "description": "Azure PostgreSQL metrics for Maestro and Cluster Service databases. Select environment and database from dropdowns above. NOTE: This dashboard is for managed PostgreSQL instances (CSPR/PERF). Personal dev environments use containerized PostgreSQL with Prometheus metrics (see maestro-server.json or cluster-service.json dashboards instead).",
+  "description": "Azure PostgreSQL metrics for Maestro and Cluster Service databases. Enter subscription ID and resource group, then select database from dropdown. NOTE: This dashboard is for managed PostgreSQL instances (CSPR/PERF). Personal dev environments use containerized PostgreSQL with Prometheus metrics (see maestro-server.json or cluster-service.json dashboards instead).",
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
@@ -997,10 +997,7 @@
   "templating": {
     "list": [
       {
-        "current": {
-          "text": "Managed_Prometheus_services-cspr-usw3",
-          "value": "services-cspr-usw3"
-        },
+        "current": {},
         "name": "datasource",
         "options": [],
         "query": "prometheus",
