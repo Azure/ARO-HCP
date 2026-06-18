@@ -347,7 +347,7 @@ spec:
       - command:
         - "/bin/sleep"
         - "infinity"
-        image: mcr.microsoft.com/cbl-mariner/busybox:2.0
+        image: mcr.microsoft.com/azurelinux/busybox:1.36
         name: init-container-msg-container-init
         volumeMounts:
         - name: secrets-store01-inline

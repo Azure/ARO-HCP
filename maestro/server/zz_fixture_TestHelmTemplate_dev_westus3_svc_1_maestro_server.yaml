@@ -287,7 +287,7 @@ spec:
       serviceAccountName: 'maestro'
       initContainers:
       - name: init
-        image: 'mcr.microsoft.com/azure-cli:cbl-mariner2.0'
+        image: 'mcr.microsoft.com/azure-cli:azurelinux3.0'
         imagePullPolicy: IfNotPresent
         command:
         - /bin/sh
@@ -337,7 +337,7 @@ spec:
           mountPath: /breakglass
       containers:
       - name: postgres
-        image: mcr.microsoft.com/cbl-mariner/base/postgres:14
+        image: mcr.microsoft.com/azurelinux/base/postgres:16
         command:
         - /bin/bash
         - -c
