@@ -7,7 +7,8 @@ By default, all `make` targets working with containers or container images will 
 You can force the usage of Docker with `make CONTAINER_ENGINE=docker ...`.
 
 ## Parallel builds
-By default, all `make build-services` (and all `make` targets depending on it) will trigger up to 7 jobs in parallel to build the subcomponents.
+
+By default, `make build-services` (and all `make` targets depending on it) will trigger up to 7 jobs in parallel to build the subcomponents.
 
 You can change this behavior by overriding `BUILD_SERVICES_OPTS` and providing an alternative `-j` parameter for make, e.g.
 
