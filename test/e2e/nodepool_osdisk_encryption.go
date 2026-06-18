@@ -22,7 +22,6 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v5"
 
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
@@ -160,38 +159,30 @@ var _ = Describe("Nodepool OS Disk Encryption", func() {
 		})
 })
 
-func verifyVMOSDiskCustomerEncryption(
-	ctx context.Context,
-	disksClient *armcompute.DisksClient,
-	managedResourceGroup string,
-	vm *armcompute.VirtualMachine,
-	expectedDESResourceID string,
-) {
-	vmName := to.Ptr("<unknown>")
-	if vm.Name != nil {
-		vmName = vm.Name
-	}
+func verifyVMOSDiskCustomerEncryption(ctx context.Context, disksClient *armcompute.DisksClient, managedResourceGroup string, vm *armcompute.VirtualMachine, expectedDESResourceID string) {
+	Expect(vm.Name).ToNot(BeNil(), "VM has no name")
+	vmName := *vm.Name
 
-	Expect(vm.Properties).ToNot(BeNil(), "VM %s has no properties", *vmName)
-	Expect(vm.Properties.StorageProfile).ToNot(BeNil(), "VM %s has no storage profile", *vmName)
-	Expect(vm.Properties.StorageProfile.OSDisk).ToNot(BeNil(), "VM %s has no OS disk", *vmName)
-	Expect(vm.Properties.StorageProfile.OSDisk.ManagedDisk).ToNot(BeNil(), "VM %s has no managed disk", *vmName)
+	Expect(vm.Properties).ToNot(BeNil(), "VM %s has no properties", vmName)
+	Expect(vm.Properties.StorageProfile).ToNot(BeNil(), "VM %s has no storage profile", vmName)
+	Expect(vm.Properties.StorageProfile.OSDisk).ToNot(BeNil(), "VM %s has no OS disk", vmName)
+	Expect(vm.Properties.StorageProfile.OSDisk.ManagedDisk).ToNot(BeNil(), "VM %s has no managed disk", vmName)
 
 	osDiskName := vm.Properties.StorageProfile.OSDisk.Name
-	Expect(osDiskName).ToNot(BeNil(), "VM %s OS disk has no name", *vmName)
+	Expect(osDiskName).ToNot(BeNil(), "VM %s OS disk has no name", vmName)
 
 	disk, err := disksClient.Get(ctx, managedResourceGroup, *osDiskName, nil)
-	Expect(err).NotTo(HaveOccurred(), "failed to get disk %s for VM %s", *osDiskName, *vmName)
+	Expect(err).NotTo(HaveOccurred(), "failed to get disk %s for VM %s", *osDiskName, vmName)
 
 	Expect(disk.Properties).ToNot(BeNil(), "disk %s has no properties", *osDiskName)
 	Expect(disk.Properties.Encryption).ToNot(BeNil(), "disk %s has no encryption properties", *osDiskName)
 	Expect(disk.Properties.Encryption.Type).ToNot(BeNil(), "disk %s has no encryption type", *osDiskName)
 	Expect(*disk.Properties.Encryption.Type).To(Equal(armcompute.EncryptionTypeEncryptionAtRestWithCustomerKey),
 		"disk %s for VM %s should have EncryptionAtRestWithCustomerKey, got %s",
-		*osDiskName, *vmName, *disk.Properties.Encryption.Type)
+		*osDiskName, vmName, *disk.Properties.Encryption.Type)
 	Expect(disk.Properties.Encryption.DiskEncryptionSetID).ToNot(BeNil(),
-		"disk %s for VM %s should have a DiskEncryptionSetID", *osDiskName, *vmName)
+		"disk %s for VM %s should have a DiskEncryptionSetID", *osDiskName, vmName)
 	Expect(strings.EqualFold(*disk.Properties.Encryption.DiskEncryptionSetID, expectedDESResourceID)).To(BeTrue(),
 		"disk %s for VM %s DiskEncryptionSetID mismatch: got %s, expected %s",
-		*osDiskName, *vmName, *disk.Properties.Encryption.DiskEncryptionSetID, expectedDESResourceID)
+		*osDiskName, vmName, *disk.Properties.Encryption.DiskEncryptionSetID, expectedDESResourceID)
 }
