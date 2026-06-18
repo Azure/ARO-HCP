@@ -20,16 +20,19 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 
 	"k8s.io/component-base/metrics/legacyregistry"
 	"k8s.io/utils/ptr"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	azruntime "github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
@@ -215,7 +218,13 @@ func (c *cleanOrphanedClusterManagedResourceGroup) deleteOrphanedManagedResource
 		"resourceGroup", resourceGroupName,
 		"managedBy", managedBy)
 
-	// Poll deletion to completion with timeout
+	return c.pollResourceGroupDeletion(ctx, subscriptionID, resourceGroupName, managedBy, poller)
+}
+
+// pollResourceGroupDeletion polls a resource group deletion to completion with timeout.
+func (c *cleanOrphanedClusterManagedResourceGroup) pollResourceGroupDeletion(ctx context.Context, subscriptionID, resourceGroupName, managedBy string, poller *azruntime.Poller[armresources.ResourceGroupsClientDeleteResponse]) error {
+	logger := utils.LoggerFromContext(ctx)
+
 	pollCtx, cancel := context.WithTimeout(ctx, deletionPollTimeout)
 	defer cancel()
 
@@ -223,7 +232,7 @@ func (c *cleanOrphanedClusterManagedResourceGroup) deleteOrphanedManagedResource
 		"resourceGroup", resourceGroupName,
 		"managedBy", managedBy)
 
-	_, err = poller.PollUntilDone(pollCtx, nil)
+	_, err := poller.PollUntilDone(pollCtx, nil)
 	if err != nil {
 		logger.Error(err, "Resource group deletion failed or timed out",
 			"subscriptionID", subscriptionID,
@@ -304,7 +313,10 @@ func (c *cleanOrphanedClusterManagedResourceGroup) SyncOnce(ctx context.Context,
 	}
 
 	// Identify and clean up orphaned managed resource groups for this subscription
-	var errs []error
+	var wg sync.WaitGroup
+	errCh := make(chan error, len(managedResourceGroups))
+	defer close(errCh)
+
 	for resourceGroupName, managedBy := range managedResourceGroups {
 		managedByResourceID := strings.ToLower(managedBy)
 
@@ -316,10 +328,21 @@ func (c *cleanOrphanedClusterManagedResourceGroup) SyncOnce(ctx context.Context,
 		// Found an orphaned managed resource group
 		orphanedMRGsFound.WithLabelValues(c.location).Inc()
 
-		err = c.deleteOrphanedManagedResourceGroup(ctx, rgClient, subscriptionID, resourceGroupName, managedBy, readOnly)
-		if err != nil {
-			errs = append(errs, err)
-		}
+		wg.Go(func() {
+			defer utilruntime.HandleCrash()
+			err := c.deleteOrphanedManagedResourceGroup(ctx, rgClient, subscriptionID, resourceGroupName, managedBy, readOnly)
+			if err != nil {
+				errCh <- err
+			}
+		})
+	}
+
+	wg.Wait()
+
+	// Collect all errors from the channel
+	var errs []error
+	for err := range errCh {
+		errs = append(errs, err)
 	}
 
 	logger.Info("Completed sync for subscription",
