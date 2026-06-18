@@ -843,7 +843,8 @@ func ConvertCSManagementClusterToInternal(csShard *arohcpv1alpha1.ProvisionShard
 
 	mc := &fleet.ManagementCluster{
 		CosmosMetadata: api.CosmosMetadata{
-			ResourceID: resourceID,
+			ResourceID:   resourceID,
+			PartitionKey: strings.ToLower(stampIdentifier),
 		},
 		ResourceID: resourceID,
 		Spec: fleet.ManagementClusterSpec{

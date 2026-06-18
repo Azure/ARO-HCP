@@ -209,6 +209,7 @@ func decodeDesiredExternalAuthCreate(ctx context.Context) (*api.HCPOpenShiftClus
 	// ProxyResource info doesn't to come from the external resource information
 	conversion.CopyReadOnlyProxyResourceValues(&newInternalExternalAuth.ProxyResource, ptr.To(arm.NewProxyResource(resourceID)))
 	newInternalExternalAuth.SetResourceID(resourceID)
+	newInternalExternalAuth.SetPartitionKey(resourceID.SubscriptionID)
 
 	// set fields that were not included during the conversion, because the user does not provide them or because the
 	// data is determined live on read.

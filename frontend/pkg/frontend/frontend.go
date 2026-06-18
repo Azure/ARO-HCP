@@ -551,6 +551,7 @@ func (f *Frontend) ArmSubscriptionPut(writer http.ResponseWriter, request *http.
 		return utils.TrackError(err)
 	}
 	requestSubscription.ResourceID = requestSubscription.CosmosMetadata.ResourceID
+	requestSubscription.SetPartitionKey(subscriptionID)
 
 	validationErrs := validation.ValidateSubscriptionCreate(ctx, &requestSubscription)
 	if err := arm.CloudErrorFromFieldErrors(validationErrs); err != nil {

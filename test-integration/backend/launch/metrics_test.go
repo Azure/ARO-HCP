@@ -153,7 +153,8 @@ func TestBackendExposesMetrics(t *testing.T) {
 func newMetricsTestCluster(resourceID *azcorearm.ResourceID, provisioningState arm.ProvisioningState, createdAt *time.Time) *api.HCPOpenShiftCluster {
 	return &api.HCPOpenShiftCluster{
 		CosmosMetadata: arm.CosmosMetadata{
-			ResourceID: resourceID,
+			ResourceID:   resourceID,
+			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
 		},
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
@@ -175,7 +176,8 @@ func newMetricsTestOperation(t *testing.T, subscriptionID, name string, external
 	resourceID := api.Must(azcorearm.ParseResourceID(fmt.Sprintf("/subscriptions/%s/providers/Microsoft.RedHatOpenShift/hcpOperationStatuses/%s", subscriptionID, name)))
 	return &api.Operation{
 		CosmosMetadata: api.CosmosMetadata{
-			ResourceID: resourceID,
+			ResourceID:   resourceID,
+			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
 		},
 		OperationID:        operationID,
 		ExternalID:         externalID,

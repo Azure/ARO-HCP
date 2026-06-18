@@ -16,6 +16,7 @@ package clusterpropertiescontroller
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -93,7 +94,8 @@ func newTestCluster(hcpClusterName string, opts ...func(*api.HCPOpenShiftCluster
 
 	cluster := &api.HCPOpenShiftCluster{
 		CosmosMetadata: arm.CosmosMetadata{
-			ResourceID: resourceID,
+			ResourceID:   resourceID,
+			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
 		},
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
@@ -143,13 +145,16 @@ func newTestHostedClusterReadDesire(t *testing.T, opts ...func(*hsv1beta1.Hosted
 	raw, err := json.Marshal(hostedCluster)
 	require.NoError(t, err)
 
+	managementClusterResourceID := api.Must(azcorearm.ParseResourceID(
+		"/providers/microsoft.redhatopenshift/stamps/1/managementclusters/mgmt-a"))
+
 	return &kubeapplier.ReadDesire{
 		CosmosMetadata: api.CosmosMetadata{
-			ResourceID: resourceID,
+			ResourceID:   resourceID,
+			PartitionKey: strings.ToLower(managementClusterResourceID.String()),
 		},
 		Spec: kubeapplier.ReadDesireSpec{
-			ManagementCluster: api.Must(azcorearm.ParseResourceID(
-				"/providers/microsoft.redhatopenshift/stamps/1/managementclusters/mgmt-a")),
+			ManagementCluster: managementClusterResourceID,
 		},
 		Status: kubeapplier.ReadDesireStatus{
 			KubeContent: &runtime.RawExtension{Raw: raw},

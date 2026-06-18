@@ -151,7 +151,18 @@ func (c *createNodePoolScopedReadDesiresSyncer) SyncOnce(ctx context.Context, ke
 	if !readDesireNeedsWork(existing, desired) {
 		return nil
 	}
-	return writeReadDesire(ctx, crud, existing, desired)
+	if existing == nil {
+		if _, err := crud.Create(ctx, desired, nil); err != nil {
+			return utils.TrackError(fmt.Errorf("create ReadDesire: %w", err))
+		}
+		return nil
+	}
+	replacement := existing.DeepCopy()
+	replacement.Spec = *desired.Spec.DeepCopy()
+	if _, err := crud.Replace(ctx, replacement, nil); err != nil {
+		return utils.TrackError(fmt.Errorf("replace ReadDesire: %w", err))
+	}
+	return nil
 }
 
 func (c *createNodePoolScopedReadDesiresSyncer) CooldownChecker() controllerutil.CooldownChecker {

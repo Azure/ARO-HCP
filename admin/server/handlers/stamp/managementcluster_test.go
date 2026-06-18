@@ -20,6 +20,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/go-logr/logr/testr"
@@ -56,7 +57,8 @@ func newManagementCluster(t *testing.T, stampIdentifier string) *fleet.Managemen
 	require.NoError(t, err)
 	return &fleet.ManagementCluster{
 		CosmosMetadata: arm.CosmosMetadata{
-			ResourceID: managementClusterResourceID,
+			ResourceID:   managementClusterResourceID,
+			PartitionKey: strings.ToLower(stampIdentifier),
 		},
 		ResourceID: managementClusterResourceID,
 		Spec: fleet.ManagementClusterSpec{

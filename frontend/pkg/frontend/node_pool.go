@@ -211,6 +211,7 @@ func decodeDesiredNodePoolCreate(ctx context.Context, azureLocation string) (*ap
 	}
 	conversion.CopyReadOnlyTrackedResourceValues(&newInternalNodePool.TrackedResource, ptr.To(arm.NewTrackedResource(resourceID, azureLocation)))
 	newInternalNodePool.SetResourceID(resourceID)
+	newInternalNodePool.SetPartitionKey(resourceID.SubscriptionID)
 
 	// set fields that were not included during the conversion, because the user does not provide them or because the
 	// data is determined live on read.

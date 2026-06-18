@@ -16,6 +16,7 @@ package frontend
 
 import (
 	"context"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -258,14 +259,16 @@ func subscriptionInformerIntegrationTestCase() informerIntegrationTestCase {
 			t.Helper()
 			sub1 := &arm.Subscription{
 				CosmosMetadata: arm.CosmosMetadata{
-					ResourceID: mustParseResourceID(t, "/subscriptions/sub-1"),
+					ResourceID:   mustParseResourceID(t, "/subscriptions/sub-1"),
+					PartitionKey: "sub-1",
 				},
 				ResourceID: mustParseResourceID(t, "/subscriptions/sub-1"),
 				State:      arm.SubscriptionStateRegistered,
 			}
 			sub2 := &arm.Subscription{
 				CosmosMetadata: arm.CosmosMetadata{
-					ResourceID: mustParseResourceID(t, "/subscriptions/sub-2"),
+					ResourceID:   mustParseResourceID(t, "/subscriptions/sub-2"),
+					PartitionKey: "sub-2",
 				},
 				ResourceID: mustParseResourceID(t, "/subscriptions/sub-2"),
 				State:      arm.SubscriptionStateRegistered,
@@ -293,7 +296,8 @@ func subscriptionInformerIntegrationTestCase() informerIntegrationTestCase {
 
 			sub3 := &arm.Subscription{
 				CosmosMetadata: arm.CosmosMetadata{
-					ResourceID: mustParseResourceID(t, "/subscriptions/sub-3"),
+					ResourceID:   mustParseResourceID(t, "/subscriptions/sub-3"),
+					PartitionKey: "sub-3",
 				},
 				ResourceID: mustParseResourceID(t, "/subscriptions/sub-3"),
 				State:      arm.SubscriptionStateRegistered,
@@ -360,7 +364,8 @@ func clusterInformerIntegrationTestCase() informerIntegrationTestCase {
 		require.NoError(t, err)
 		return &api.HCPOpenShiftCluster{
 			CosmosMetadata: arm.CosmosMetadata{
-				ResourceID: clusterResourceID,
+				ResourceID:   clusterResourceID,
+				PartitionKey: strings.ToLower(clusterResourceID.SubscriptionID),
 			},
 			TrackedResource: arm.TrackedResource{
 				Resource: arm.Resource{
@@ -466,7 +471,7 @@ func nodePoolInformerIntegrationTestCase() informerIntegrationTestCase {
 				"/nodePools/"+name)
 		internalID := api.Ptr(api.Must(api.NewInternalID("/api/aro_hcp/v1alpha1/clusters/" + clusterName + "/node_pools/" + name)))
 		return &api.HCPOpenShiftClusterNodePool{
-			CosmosMetadata: arm.CosmosMetadata{ResourceID: npResourceID},
+			CosmosMetadata: arm.CosmosMetadata{ResourceID: npResourceID, PartitionKey: strings.ToLower(npResourceID.SubscriptionID)},
 			TrackedResource: arm.TrackedResource{
 				Resource: arm.Resource{
 					ID:   npResourceID,
@@ -498,7 +503,8 @@ func nodePoolInformerIntegrationTestCase() informerIntegrationTestCase {
 			require.NoError(t, err)
 			cluster := &api.HCPOpenShiftCluster{
 				CosmosMetadata: arm.CosmosMetadata{
-					ResourceID: clusterResourceID,
+					ResourceID:   clusterResourceID,
+					PartitionKey: strings.ToLower(clusterResourceID.SubscriptionID),
 				},
 				TrackedResource: arm.TrackedResource{
 					Resource: arm.Resource{
@@ -603,7 +609,8 @@ func activeOperationInformerIntegrationTestCase() informerIntegrationTestCase {
 		now := time.Now().UTC()
 		return &api.Operation{
 			CosmosMetadata: api.CosmosMetadata{
-				ResourceID: resourceID,
+				ResourceID:   resourceID,
+				PartitionKey: strings.ToLower(resourceID.SubscriptionID),
 			},
 			OperationID:        operationID,
 			ExternalID:         externalID,

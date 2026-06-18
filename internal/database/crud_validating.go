@@ -21,55 +21,57 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation/field"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
+
+	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
 
 // validatingCRUD wraps a ResourceCRUD and runs type-specific validation before
 // Create and Replace. The wrapped CRUD is never exposed directly, so validation
 // cannot be bypassed.
-type validatingCRUD[InternalAPIType any] struct {
-	inner           ResourceCRUD[InternalAPIType]
+type validatingCRUD[InternalAPIType any, InternalAPITypePointer arm.CosmosMetadataAccessorPtr[InternalAPIType]] struct {
+	inner           ResourceCRUD[InternalAPIType, InternalAPITypePointer]
 	validateCreate  func(context.Context, *InternalAPIType) field.ErrorList
 	validateReplace func(context.Context, *InternalAPIType, *InternalAPIType) field.ErrorList
 }
 
-func NewValidatingCRUD[InternalAPIType any](
-	inner ResourceCRUD[InternalAPIType],
+func NewValidatingCRUD[InternalAPIType any, InternalAPITypePointer arm.CosmosMetadataAccessorPtr[InternalAPIType]](
+	inner ResourceCRUD[InternalAPIType, InternalAPITypePointer],
 	validateCreate func(context.Context, *InternalAPIType) field.ErrorList,
 	validateReplace func(context.Context, *InternalAPIType, *InternalAPIType) field.ErrorList,
-) ValidatingResourceCRUD[InternalAPIType] {
-	return &validatingCRUD[InternalAPIType]{
+) ValidatingResourceCRUD[InternalAPIType, InternalAPITypePointer] {
+	return &validatingCRUD[InternalAPIType, InternalAPITypePointer]{
 		inner:           inner,
 		validateCreate:  validateCreate,
 		validateReplace: validateReplace,
 	}
 }
 
-func (v *validatingCRUD[InternalAPIType]) GetByID(ctx context.Context, cosmosID string) (*InternalAPIType, error) {
+func (v *validatingCRUD[InternalAPIType, InternalAPITypePointer]) GetByID(ctx context.Context, cosmosID string) (*InternalAPIType, error) {
 	return v.inner.GetByID(ctx, cosmosID)
 }
 
-func (v *validatingCRUD[InternalAPIType]) Get(ctx context.Context, resourceID string) (*InternalAPIType, error) {
+func (v *validatingCRUD[InternalAPIType, InternalAPITypePointer]) Get(ctx context.Context, resourceID string) (*InternalAPIType, error) {
 	return v.inner.Get(ctx, resourceID)
 }
 
-func (v *validatingCRUD[InternalAPIType]) List(ctx context.Context, opts *DBClientListResourceDocsOptions) (DBClientIterator[InternalAPIType], error) {
+func (v *validatingCRUD[InternalAPIType, InternalAPITypePointer]) List(ctx context.Context, opts *DBClientListResourceDocsOptions) (DBClientIterator[InternalAPIType], error) {
 	return v.inner.List(ctx, opts)
 }
 
-func (v *validatingCRUD[InternalAPIType]) Create(ctx context.Context, newObj *InternalAPIType, options *azcosmos.ItemOptions) (*InternalAPIType, error) {
+func (v *validatingCRUD[InternalAPIType, InternalAPITypePointer]) Create(ctx context.Context, newObj *InternalAPIType, options *azcosmos.ItemOptions) (*InternalAPIType, error) {
 	if errs := v.validateCreate(ctx, newObj); errs.ToAggregate() != nil {
 		return nil, fmt.Errorf("create validation failed: %w", errs.ToAggregate())
 	}
 	return v.inner.Create(ctx, newObj, options)
 }
 
-func (v *validatingCRUD[InternalAPIType]) Replace(ctx context.Context, newObj, oldObj *InternalAPIType, options *azcosmos.ItemOptions) (*InternalAPIType, error) {
+func (v *validatingCRUD[InternalAPIType, InternalAPITypePointer]) Replace(ctx context.Context, newObj, oldObj *InternalAPIType, options *azcosmos.ItemOptions) (*InternalAPIType, error) {
 	if errs := v.validateReplace(ctx, newObj, oldObj); errs.ToAggregate() != nil {
 		return nil, fmt.Errorf("replace validation failed: %w", errs.ToAggregate())
 	}
 	return v.inner.Replace(ctx, newObj, options)
 }
 
-func (v *validatingCRUD[InternalAPIType]) Delete(ctx context.Context, resourceID string) error {
+func (v *validatingCRUD[InternalAPIType, InternalAPITypePointer]) Delete(ctx context.Context, resourceID string) error {
 	return v.inner.Delete(ctx, resourceID)
 }

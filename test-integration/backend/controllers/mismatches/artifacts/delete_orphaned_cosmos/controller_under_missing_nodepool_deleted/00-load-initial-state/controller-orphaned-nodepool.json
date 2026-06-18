@@ -1,10 +1,11 @@
 {
-	"_etag": "\"00000000-0000-0000-0000-000000000001\"",
+	"_etag": "\"555e3c86-f744-452a-b7b9-9570ba4b7ef8\"",
 	"id": "fc7b947a-1c1b-5315-a33f-fc75c35058c9",
 	"partitionKey": "a433a095-1277-44f1-8453-8d61a4d848c2",
 	"properties": {
 		"cosmosMetadata": {
 			"instanceVersion": 1,
+			"partitionKey": "a433a095-1277-44f1-8453-8d61a4d848c2",
 			"resourceID": "/subscriptions/a433a095-1277-44f1-8453-8d61a4d848c2/resourceGroups/unimportantpostponement/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/monstrousprecinct/nodePools/missingnodepool/hcpOpenShiftControllers/orphanedcontroller"
 		},
 		"externalId": "/subscriptions/a433a095-1277-44f1-8453-8d61a4d848c2/resourceGroups/unimportantpostponement/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/monstrousprecinct/nodePools/missingnodepool",

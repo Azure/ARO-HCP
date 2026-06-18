@@ -165,7 +165,18 @@ func (c *createClusterScopedReadDesiresSyncer) SyncOnce(ctx context.Context, key
 	if !readDesireNeedsWork(existing, desired) {
 		return nil
 	}
-	return writeReadDesire(ctx, crud, existing, desired)
+	if existing == nil {
+		if _, err := crud.Create(ctx, desired, nil); err != nil {
+			return utils.TrackError(fmt.Errorf("create ReadDesire: %w", err))
+		}
+		return nil
+	}
+	replacement := existing.DeepCopy()
+	replacement.Spec = *desired.Spec.DeepCopy()
+	if _, err := crud.Replace(ctx, replacement, nil); err != nil {
+		return utils.TrackError(fmt.Errorf("replace ReadDesire: %w", err))
+	}
+	return nil
 }
 
 func (c *createClusterScopedReadDesiresSyncer) CooldownChecker() controllerutil.CooldownChecker {
@@ -199,7 +210,10 @@ func hostedClusterTarget(envIdentifier, csClusterID, csClusterDomainPrefix strin
 func buildReadDesire(resourceIDString string, managementCluster *azcorearm.ResourceID, target kubeapplier.ResourceReference) *kubeapplier.ReadDesire {
 	resourceID, _ := azcorearm.ParseResourceID(resourceIDString) // resourceIDString is built from helpers and always parses
 	return &kubeapplier.ReadDesire{
-		CosmosMetadata: api.CosmosMetadata{ResourceID: resourceID},
+		CosmosMetadata: api.CosmosMetadata{
+			ResourceID:   resourceID,
+			PartitionKey: strings.ToLower(managementCluster.String()),
+		},
 		Spec: kubeapplier.ReadDesireSpec{
 			ManagementCluster: managementCluster,
 			TargetItem:        target,
@@ -210,7 +224,7 @@ func buildReadDesire(resourceIDString string, managementCluster *azcorearm.Resou
 // getExistingReadDesire returns the named ReadDesire from cosmos, or nil
 // when the document doesn't exist. Non-NotFound errors are propagated.
 func getExistingReadDesire(
-	ctx context.Context, crud database.ResourceCRUD[kubeapplier.ReadDesire], name string,
+	ctx context.Context, crud database.ResourceCRUD[kubeapplier.ReadDesire, *kubeapplier.ReadDesire], name string,
 ) (*kubeapplier.ReadDesire, error) {
 	existing, err := crud.Get(ctx, name)
 	if database.IsNotFoundError(err) {
@@ -233,25 +247,4 @@ func readDesireNeedsWork(existing, desired *kubeapplier.ReadDesire) bool {
 		return true
 	}
 	return existing.Spec.TargetItem != desired.Spec.TargetItem
-}
-
-// writeReadDesire performs the Create (when existing == nil) or Replace
-// that readDesireNeedsWork has determined is necessary.
-func writeReadDesire(
-	ctx context.Context,
-	crud database.ResourceCRUD[kubeapplier.ReadDesire],
-	existing, desired *kubeapplier.ReadDesire,
-) error {
-	if existing == nil {
-		if _, err := crud.Create(ctx, desired, nil); err != nil {
-			return utils.TrackError(fmt.Errorf("create ReadDesire: %w", err))
-		}
-		return nil
-	}
-	desired.CosmosMetadata = *existing.CosmosMetadata.DeepCopy()
-	desired.Status = *existing.Status.DeepCopy()
-	if _, err := crud.Replace(ctx, desired, nil); err != nil {
-		return utils.TrackError(fmt.Errorf("replace ReadDesire: %w", err))
-	}
-	return nil
 }

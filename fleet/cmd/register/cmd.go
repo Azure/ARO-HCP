@@ -17,6 +17,7 @@ package register
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -80,8 +81,11 @@ func (o *RegisterOptions) registerStamp(ctx context.Context) error {
 		}
 
 		newStamp := &fleet.Stamp{
-			CosmosMetadata: api.CosmosMetadata{ResourceID: o.stampResourceID},
-			ResourceID:     o.stampResourceID,
+			CosmosMetadata: api.CosmosMetadata{
+				ResourceID:   o.stampResourceID,
+				PartitionKey: strings.ToLower(o.stampIdentifier),
+			},
+			ResourceID: o.stampResourceID,
 		}
 		o.applyAutoApprove(newStamp)
 
@@ -137,8 +141,11 @@ func (o *RegisterOptions) registerManagementCluster(ctx context.Context) error {
 		}
 
 		managementCluster := &fleet.ManagementCluster{
-			CosmosMetadata: api.CosmosMetadata{ResourceID: o.managementClusterResourceID},
-			ResourceID:     o.managementClusterResourceID,
+			CosmosMetadata: api.CosmosMetadata{
+				ResourceID:   o.managementClusterResourceID,
+				PartitionKey: strings.ToLower(o.stampIdentifier),
+			},
+			ResourceID: o.managementClusterResourceID,
 		}
 		o.applyToManagementCluster(managementCluster)
 

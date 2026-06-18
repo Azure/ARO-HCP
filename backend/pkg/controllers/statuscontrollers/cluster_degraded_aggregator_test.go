@@ -17,6 +17,7 @@ package statuscontrollers
 import (
 	"context"
 	"regexp"
+	"strings"
 	"testing"
 	"time"
 
@@ -47,7 +48,10 @@ func newTestClusterForAggregator(opts ...func(*api.HCPOpenShiftCluster)) *api.HC
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName,
 	))
 	cluster := &api.HCPOpenShiftCluster{
-		CosmosMetadata: arm.CosmosMetadata{ResourceID: resourceID},
+		CosmosMetadata: arm.CosmosMetadata{
+			ResourceID:   resourceID,
+			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
+		},
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
 				ID:   resourceID,
@@ -174,7 +178,8 @@ func TestClusterDegradedAggregator_SyncOnce(t *testing.T) {
 				// the synthesized entry is age=0 -> within the 30s window -> hidden.
 				{
 					CosmosMetadata: api.CosmosMetadata{
-						ResourceID: api.Must(azcorearm.ParseResourceID(parentResourceID.String() + "/" + api.ControllerResourceTypeName + "/QuietController")),
+						ResourceID:   api.Must(azcorearm.ParseResourceID(parentResourceID.String() + "/" + api.ControllerResourceTypeName + "/QuietController")),
+						PartitionKey: strings.ToLower(parentResourceID.SubscriptionID),
 					},
 					ExternalID: parentResourceID,
 				},
@@ -192,7 +197,8 @@ func TestClusterDegradedAggregator_SyncOnce(t *testing.T) {
 			controllers: []*api.Controller{
 				{
 					CosmosMetadata: api.CosmosMetadata{
-						ResourceID: api.Must(azcorearm.ParseResourceID(parentResourceID.String() + "/" + api.ControllerResourceTypeName + "/QuietController")),
+						ResourceID:   api.Must(azcorearm.ParseResourceID(parentResourceID.String() + "/" + api.ControllerResourceTypeName + "/QuietController")),
+						PartitionKey: strings.ToLower(parentResourceID.SubscriptionID),
 					},
 					ExternalID: parentResourceID,
 				},
@@ -307,7 +313,8 @@ func TestClusterDegradedAggregator_MissingDegradedFlipsAfterInertia(t *testing.T
 	))
 	quietController := &api.Controller{
 		CosmosMetadata: api.CosmosMetadata{
-			ResourceID: api.Must(azcorearm.ParseResourceID(parentResourceID.String() + "/" + api.ControllerResourceTypeName + "/QuietController")),
+			ResourceID:   api.Must(azcorearm.ParseResourceID(parentResourceID.String() + "/" + api.ControllerResourceTypeName + "/QuietController")),
+			PartitionKey: strings.ToLower(parentResourceID.SubscriptionID),
 		},
 		ExternalID: parentResourceID,
 	}

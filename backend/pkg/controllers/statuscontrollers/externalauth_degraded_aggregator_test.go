@@ -17,6 +17,7 @@ package statuscontrollers
 import (
 	"context"
 	"regexp"
+	"strings"
 	"testing"
 	"time"
 
@@ -46,7 +47,10 @@ func newTestExternalAuthForAggregator(opts ...func(*api.HCPOpenShiftClusterExter
 			"/externalAuths/" + testExternalAuthName,
 	))
 	ea := &api.HCPOpenShiftClusterExternalAuth{
-		CosmosMetadata: arm.CosmosMetadata{ResourceID: resourceID},
+		CosmosMetadata: arm.CosmosMetadata{
+			ResourceID:   resourceID,
+			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
+		},
 		ProxyResource: arm.ProxyResource{
 			Resource: arm.Resource{
 				ID:   resourceID,
@@ -191,7 +195,10 @@ func TestExternalAuthDegradedAggregator_SyncOnce(t *testing.T) {
 				}
 			})
 			parentCluster := &api.HCPOpenShiftCluster{
-				CosmosMetadata: arm.CosmosMetadata{ResourceID: parentClusterID},
+				CosmosMetadata: arm.CosmosMetadata{
+					ResourceID:   parentClusterID,
+					PartitionKey: strings.ToLower(parentClusterID.SubscriptionID),
+				},
 				TrackedResource: arm.TrackedResource{
 					Resource: arm.Resource{ID: parentClusterID, Name: testClusterName, Type: parentClusterID.ResourceType.String()},
 				},
