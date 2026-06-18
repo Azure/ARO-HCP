@@ -100,6 +100,15 @@ param allowedAcisExtensions string
 @description('App ID for Geneva Actions - this is the MSFT owned one that will run our GAs')
 param genevaActionsPrincipalId string
 
+@description('Global fleet metrics workspace name for fleet-wide dashboards')
+param globalFleetMonitorName string
+
+@description('Maximum active time series limit for global fleet AMW')
+param globalAmwMaxActiveTimeSeries int = 2000000
+
+@description('Maximum events per minute limit for global fleet AMW')
+param globalAmwMaxEventsPerMinute int = 2000000
+
 //
 //  G L O B A L   M S I
 //
@@ -406,6 +415,34 @@ module grafanaAfdPermissions '../modules/grafana/observability-permissions.bicep
 }
 
 output globalKeyVaultUrl string = globalKV.outputs.kvUrl
+
+//
+//   G L O B A L   F L E E T   M E T R I C S   ( A M W )
+//
+// A single global Azure Monitor Workspace that aggregates golden-signal
+// metrics from all regions via DCR forwarding. This enables fleet-wide
+// Grafana dashboards without fan-out queries to every regional AMW.
+
+module globalFleetMonitor '../modules/metrics/global-monitor.bicep' = if (!empty(globalFleetMonitorName)) {
+  name: 'global-fleet-monitor'
+  params: {
+    grafanaResourceId: grafana.outputs.grafanaResourceId
+    monitorName: globalFleetMonitorName
+    location: location
+  }
+  dependsOn: [grafana]
+}
+
+module globalFleetMonitorIngestionLimits '../modules/metrics/amw-ingestion-limits.bicep' = if (!empty(globalFleetMonitorName)) {
+  name: 'global-fleet-monitor-ingestion-limits'
+  params: {
+    azureMonitorWorkspaceName: globalFleetMonitorName
+    location: location
+    maxActiveTimeSeries: globalAmwMaxActiveTimeSeries
+    maxEventsPerMinute: globalAmwMaxEventsPerMinute
+  }
+  dependsOn: [globalFleetMonitor]
+}
 
 // G E N E V A   A C T I O N S
 

@@ -51,3 +51,8 @@ param genevaKeyVaultTagValue = '{{ .geneva.actions.keyVault.tagValue }}'
 
 param allowedAcisExtensions = '{{ .geneva.actions.allowedAcisExtensions }}'
 param genevaActionsPrincipalId = '{{ .geneva.actions.genevaActionsPrincipalId }}'
+
+// Global Fleet Metrics
+param globalFleetMonitorName = '{{ .monitoring.globalFleetWorkspaceName }}'
+param globalAmwMaxActiveTimeSeries = {{ .monitoring.maxActiveTimeSeries }}
+param globalAmwMaxEventsPerMinute = {{ .monitoring.maxEventsPerMinute }}

@@ -25,6 +25,9 @@ param globalKVName string
 @description('The name of the geneva actions KV')
 param genevaActionsKVName string
 
+@description('Global fleet metrics workspace name (empty if not deployed)')
+param globalFleetMonitorName string
+
 //
 //   A C R
 //
@@ -107,6 +110,16 @@ resource genevaActionsKV 'Microsoft.KeyVault/vaults@2024-04-01-preview' existing
 }
 
 output genevaActionKeyVaultUrl string = genevaActionsKV.properties.vaultUri
+
+//
+//   G L O B A L   F L E E T   M E T R I C S
+//
+
+resource globalFleetMonitor 'microsoft.monitor/accounts@2021-06-03-preview' existing = if (!empty(globalFleetMonitorName)) {
+  name: globalFleetMonitorName
+}
+
+output globalFleetMonitorId string = !empty(globalFleetMonitorName) ? globalFleetMonitor.id : ''
 
 //
 //   S U B S C R I P T I O N

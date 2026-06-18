@@ -2857,6 +2857,12 @@
           "pattern": "^[a-z0-9][a-z0-9-]*[a-z0-9]$",
           "description": "The workspace name should include 4-63 letters, digits or '-'. The '-' shouldn't be the first or the last symbol. We limit the name to 44 characters so we have a future option to use NSP: https://learn.microsoft.com/en-us/azure/private-link/network-security-perimeter-concepts"
         },
+        "globalFleetWorkspaceName": {
+          "type": "string",
+          "maxLength": 44,
+          "pattern": "^$|^[a-z0-9][a-z0-9-]*[a-z0-9]$",
+          "description": "Global fleet metrics workspace name for fleet-wide dashboards. Empty string disables the global AMW."
+        },
         "alertRuleOwningTeamTag": {
           "type": "string"
         },
