@@ -46,6 +46,9 @@ import (
 // when listing resource groups in a subscription
 const resourceGroupListPageSize int32 = 100
 
+// deletionPollTimeout is the maximum time to wait for a resource group deletion to complete
+const deletionPollTimeout = 15 * time.Minute
+
 var (
 	orphanedMRGsFound = promauto.With(legacyregistry.Registerer()).NewCounterVec(
 		prometheus.CounterOpts{
@@ -188,7 +191,7 @@ func (c *cleanOrphanedClusterManagedResourceGroup) deleteOrphanedManagedResource
 		"resourceGroup", resourceGroupName,
 		"managedBy", managedBy)
 
-	_, err = rgClient.BeginDelete(ctx, resourceGroupName, nil)
+	poller, err := rgClient.BeginDelete(ctx, resourceGroupName, nil)
 	if err != nil {
 		var respErr *azcore.ResponseError
 		if errors.As(err, &respErr) && respErr.StatusCode == http.StatusNotFound {
@@ -208,6 +211,29 @@ func (c *cleanOrphanedClusterManagedResourceGroup) deleteOrphanedManagedResource
 	}
 
 	logger.Info("Successfully initiated deletion of orphaned cluster managed resource group",
+		"subscriptionID", subscriptionID,
+		"resourceGroup", resourceGroupName,
+		"managedBy", managedBy)
+
+	// Poll deletion to completion with timeout
+	pollCtx, cancel := context.WithTimeout(ctx, deletionPollTimeout)
+	defer cancel()
+
+	logger.Info("Polling resource group deletion",
+		"resourceGroup", resourceGroupName,
+		"managedBy", managedBy)
+
+	_, err = poller.PollUntilDone(pollCtx, nil)
+	if err != nil {
+		logger.Error(err, "Resource group deletion failed or timed out",
+			"subscriptionID", subscriptionID,
+			"resourceGroup", resourceGroupName,
+			"managedBy", managedBy)
+		orphanedMRGsDeletionFailed.WithLabelValues(c.location).Inc()
+		return err
+	}
+
+	logger.Info("Resource group deletion completed successfully",
 		"subscriptionID", subscriptionID,
 		"resourceGroup", resourceGroupName,
 		"managedBy", managedBy)
