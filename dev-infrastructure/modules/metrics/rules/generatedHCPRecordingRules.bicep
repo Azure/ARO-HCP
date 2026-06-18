@@ -308,7 +308,7 @@ resource hcpKasKmsEnvelopeRecordingRules 'Microsoft.AlertsManagement/prometheusR
       }
       {
         record: 'kas:kms_operations_errors:rate5m'
-        expression: 'sum by (namespace, cluster) (rate(apiserver_envelope_encryption_kms_operations_latency_seconds_count{namespace=~"ocm-.*", grpc_status_code!="ok"}[5m]))'
+        expression: 'sum by (namespace, cluster, _id) (rate(apiserver_envelope_encryption_kms_operations_latency_seconds_count{namespace=~"ocm-.*", grpc_status_code!="ok"}[5m]))'
       }
       {
         record: 'kas:kms_operations_total:rate_avg_5m'

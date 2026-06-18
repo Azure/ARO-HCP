@@ -26,7 +26,7 @@ spec:
       expr: sum by (namespace, cluster, _id) (rate(apiserver_envelope_encryption_kms_operations_latency_seconds_count{namespace=~"ocm-.*"}[5m]))
     # Base rate: failed KMS operations per second (non-ok gRPC status)
     - record: kas:kms_operations_errors:rate5m
-      expr: sum by (namespace, cluster) (rate(apiserver_envelope_encryption_kms_operations_latency_seconds_count{namespace=~"ocm-.*", grpc_status_code!="ok"}[5m]))
+      expr: sum by (namespace, cluster, _id) (rate(apiserver_envelope_encryption_kms_operations_latency_seconds_count{namespace=~"ocm-.*", grpc_status_code!="ok"}[5m]))
     # Multi-window averages for burn-rate alerting
     # 5-minute window (short window for Fast burn-rate tier)
     - record: kas:kms_operations_total:rate_avg_5m
