@@ -49,7 +49,6 @@ var _ = Describe("Customer", func() {
 				customerVnetName                 = "customer-vnet-name"
 				customerVnetSubnetName           = "customer-vnet-subnet"
 				customerClusterName              = "negative-tests-cluster"
-				customerNodePoolName             = "np-1"
 			)
 			tc := framework.NewTestContext()
 
@@ -123,16 +122,17 @@ var _ = Describe("Customer", func() {
 			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred(), "cluster %s is not viable", customerClusterName)
 
-			nodePoolParams := framework.NewDefaultNodePoolParams20240610()
-			nodePoolParams.ClusterName = clusterParams.ClusterName
-			nodePoolParams.NodePoolName = customerNodePoolName
+			baseNodePoolParams := framework.NewDefaultNodePoolParams20240610()
+			baseNodePoolParams.ClusterName = clusterParams.ClusterName
 
 			// TEST CASE: ARO-22576
-			nodePoolParamsInvalidInstance := nodePoolParams
+			nodePoolParamsInvalidInstance := baseNodePoolParams
 			nodePoolParamsInvalidInstance.VMSize = "Standard_A1_v2" // real, but unsupported Azure instance type
+			nodePoolParamsInvalidInstance.NodePoolName = "np-inv-inst"
 
-			nodePoolParamsInvalidQuota := nodePoolParams
+			nodePoolParamsInvalidQuota := baseNodePoolParams
 			nodePoolParamsInvalidQuota.Replicas = int32(201)
+			nodePoolParamsInvalidQuota.NodePoolName = "np-inv-quota"
 
 			By("attempting to create a node pool with invalid instance type")
 			err = tc.CreateNodePoolFromParam20240610(ctx,
@@ -143,7 +143,7 @@ var _ = Describe("Customer", func() {
 				nodePoolParamsInvalidInstance,
 				5*time.Minute,
 			)
-			checkExpectedError(&errs, "node pool creation with invalid instance type", err, "machine type not supported")
+			checkExpectedError(&errs, "node pool creation with invalid instance type", err, "properties.platform.vmSize Unsupported value Standard_A1_v2")
 
 			By("attempting to create a node pool with invalid quota")
 			err = tc.CreateNodePoolFromParam20240610(ctx,
@@ -156,6 +156,8 @@ var _ = Describe("Customer", func() {
 			)
 			checkExpectedError(&errs, "node pool creation with invalid quota", err, "invalid value must be less than or equal to")
 
+			nodePoolParams := baseNodePoolParams
+			nodePoolParams.NodePoolName = "np-1"
 			By("creating a nodepool")
 			err = tc.CreateNodePoolFromParam20240610(ctx,
 				GinkgoLogr,
@@ -165,7 +167,7 @@ var _ = Describe("Customer", func() {
 				nodePoolParams,
 				framework.NodePoolCreationTimeout,
 			)
-			Expect(err).NotTo(HaveOccurred(), "failed to create node pool %s", customerNodePoolName)
+			Expect(err).NotTo(HaveOccurred(), "failed to create node pool %s", nodePoolParams.NodePoolName)
 
 			// TEST CASE: ARO-23182
 			By("attempting to update nodepool version to higher than cluster version")
