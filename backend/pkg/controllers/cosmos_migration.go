@@ -75,6 +75,34 @@ func (c *cosmosMigrationController) CooldownChecker() controllerutil.CooldownChe
 	return c.cooldown
 }
 
+// MigrateAllSubscriptionsOrDie runs the Cosmos migration once across every
+// subscription currently in the Resources container and panics on the first
+// unrecoverable error. It is intended for integration-test setup where the
+// long-running subscription-watching controller is not wired in; production
+// migration runs as the controller returned by NewCosmosMigrationController.
+func MigrateAllSubscriptionsOrDie(ctx context.Context, resourcesDBClient database.ResourcesDBClient, kubeApplierDBClients database.KubeApplierDBClients) {
+	logger := utils.LoggerFromContext(ctx)
+	c := &cosmosMigrationController{
+		resourcesDBClient:    resourcesDBClient,
+		kubeApplierDBClients: kubeApplierDBClients,
+	}
+	subscriptionIterator, err := resourcesDBClient.Subscriptions().List(ctx, nil)
+	if err != nil {
+		logger.Error(err, "failed to list subscriptions")
+		panic(err)
+	}
+	for _, subscription := range subscriptionIterator.Items(ctx) {
+		if err := c.migrateSubscription(ctx, logger, subscription.ResourceID.Name); err != nil {
+			logger.Error(err, "cosmos migration failed", "subscription", subscription.ResourceID)
+			panic(err)
+		}
+	}
+	if err := subscriptionIterator.GetError(); err != nil {
+		logger.Error(err, "failed to iterate subscriptions")
+		panic(err)
+	}
+}
+
 func (c *cosmosMigrationController) SyncOnce(ctx context.Context, key controllerutils.SubscriptionKey) error {
 	// Only process each subscription once per process lifetime.
 	// The workqueue guarantees that a given subscription key is processed by at

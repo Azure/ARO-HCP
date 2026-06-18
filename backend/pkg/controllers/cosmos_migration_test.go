@@ -28,11 +28,10 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
-
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 )
 
 // stubDoc is a trivial document type used to instantiate replaceWithRetry[T].
