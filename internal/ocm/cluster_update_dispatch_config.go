@@ -116,6 +116,7 @@ type clusterUpdateDispatchConfig struct {
 	Autoscaling                    clusterUpdateDispatchConfigAutoscaling                    `json:"autoscaling,omitempty"`
 	ExperimentalFeatures           clusterUpdateDispatchConfigExperimentalFeatures           `json:"experimentalFeatures,omitempty"`
 	ServiceProviderClusterDispatch clusterUpdateDispatchConfigServiceProviderClusterDispatch `json:"serviceProviderClusterDispatch,omitempty"`
+	Etcd                           clusterUpdateDispatchConfigEtcd                           `json:"etcd,omitempty"`
 }
 
 // clusterUpdateDispatchConfigImageDigestMirror is the curated image mirror subset used for
@@ -146,6 +147,26 @@ type clusterUpdateDispatchConfigExperimentalFeatures struct {
 // subset of api.ServiceProviderCluster fields included in cluster update dispatch.
 type clusterUpdateDispatchConfigServiceProviderClusterDispatch struct {
 	DesiredHostedClusterControlPlaneSize *string `json:"desiredHostedClusterControlPlaneSize,omitempty"`
+}
+
+type clusterUpdateDispatchConfigEtcd struct {
+	DataEncryption clusterUpdateDispatchConfigEtcdDataEncryption `json:"dataEncryption,omitempty"`
+}
+
+type clusterUpdateDispatchConfigEtcdDataEncryption struct {
+	CustomerManaged *clusterUpdateDispatchConfigEtcdDataEncryptionCustomerManaged `json:"customerManaged,omitempty"`
+}
+
+type clusterUpdateDispatchConfigEtcdDataEncryptionCustomerManaged struct {
+	Kms *clusterUpdateDispatchConfigEtcdDataEncryptionCustomerManagedKms `json:"kms,omitempty"`
+}
+
+type clusterUpdateDispatchConfigEtcdDataEncryptionCustomerManagedKms struct {
+	ActiveKey clusterUpdateDispatchConfigEtcdDataEncryptionCustomerManagedKmsActiveKey `json:"activeKey,omitempty"`
+}
+
+type clusterUpdateDispatchConfigEtcdDataEncryptionCustomerManagedKmsActiveKey struct {
+	Version string `json:"version,omitempty"`
 }
 
 // ClusterUpdateDispatchConfigJSONFromRP returns the canonical JSON of the dispatch config
@@ -185,10 +206,32 @@ func clusterUpdateDispatchConfigFromRP(cluster *api.HCPOpenShiftCluster, service
 			ControlPlaneOperatorImage: cluster.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneOperatorImage,
 		},
 		ServiceProviderClusterDispatch: clusterUpdateDispatchConfigServiceProviderClusterDispatch{},
+		Etcd:                           clusterUpdateDispatchEtcdFromRP(cluster.CustomerProperties.Etcd),
 	}
 
 	if serviceProviderCluster != nil {
 		res.ServiceProviderClusterDispatch.DesiredHostedClusterControlPlaneSize = serviceProviderCluster.Spec.DesiredHostedClusterControlPlaneSize
+	}
+
+	return res
+}
+
+// clusterUpdateDispatchEtcdFromRP copies kms active key version from RP etcd configuration into the
+// dispatch canonical form. Returns zero value when the cluster does not use customer-managed KMS.
+func clusterUpdateDispatchEtcdFromRP(etcd api.EtcdProfile) clusterUpdateDispatchConfigEtcd {
+	if etcd.DataEncryption.KeyManagementMode != api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged {
+		return clusterUpdateDispatchConfigEtcd{}
+	}
+
+	res := clusterUpdateDispatchConfigEtcd{}
+	if etcd.DataEncryption.CustomerManaged.EncryptionType == api.CustomerManagedEncryptionTypeKMS {
+		res.DataEncryption.CustomerManaged = &clusterUpdateDispatchConfigEtcdDataEncryptionCustomerManaged{
+			Kms: &clusterUpdateDispatchConfigEtcdDataEncryptionCustomerManagedKms{
+				ActiveKey: clusterUpdateDispatchConfigEtcdDataEncryptionCustomerManagedKmsActiveKey{
+					Version: etcd.DataEncryption.CustomerManaged.Kms.ActiveKey.Version,
+				},
+			},
+		}
 	}
 
 	return res
@@ -230,6 +273,7 @@ func clusterUpdateDispatchConfigFromCS(csCluster *arohcpv1alpha1.Cluster) (*clus
 	config.NodeDrainTimeoutMinutes = ClusterUpdateDispatchConfigNodeDrainTimeoutFromCS(csCluster)
 	config.K8sAPIServerAuthorizedCIDRs = ClusterUpdateDispatchConfigAuthorizedCIDRsFromCS(csCluster.API())
 	config.ImageDigestMirrors = clusterUpdateDispatchConfigImageDigestMirrorsFromCS(csCluster.RegistryConfig())
+	config.Etcd = clusterUpdateDispatchConfigEtcdFromCS(csCluster.Azure())
 	config.ExperimentalFeatures = clusterUpdateDispatchConfigExperimentalFeaturesFromCS(csCluster)
 	config.ServiceProviderClusterDispatch.DesiredHostedClusterControlPlaneSize = clusterUpdateDispatchConfigServiceProviderClusterDispatchDesiredHostedClusterControlPlaneSizeFromCS(csCluster)
 	autoscaling, err := clusterUpdateDispatchConfigAutoscalingFromCS(csCluster.Autoscaler())
@@ -393,6 +437,54 @@ func clusterUpdateDispatchConfigAutoscalingFromCS(in *arohcpv1alpha1.ClusterAuto
 	}, nil
 }
 
+// clusterUpdateDispatchConfigActiveKeyVersionFromCS extracts the dispatch-managed KMS active key version
+// from a Cluster Service cluster. Returns zero value when the cluster does not use customer-managed KMS.
+func clusterUpdateDispatchConfigEtcdFromCS(in *arohcpv1alpha1.Azure) clusterUpdateDispatchConfigEtcd {
+
+	etcdEncryption, ok := in.GetEtcdEncryption()
+	if !ok || etcdEncryption == nil {
+		// platform managed
+		return clusterUpdateDispatchConfigEtcd{}
+	}
+	dataEncryption, ok := etcdEncryption.GetDataEncryption()
+	if !ok || dataEncryption == nil {
+		// platform managed
+		return clusterUpdateDispatchConfigEtcd{}
+	}
+
+	keyManagementMode, ok := dataEncryption.GetKeyManagementMode()
+	if !ok || keyManagementMode == csKeyManagementModePlatformManaged {
+		// platform managed
+		return clusterUpdateDispatchConfigEtcd{}
+	}
+
+	customerManaged := dataEncryption.CustomerManaged()
+
+	encryptionType := customerManaged.EncryptionType()
+	if encryptionType == "" && encryptionType != csCustomerManagedEncryptionTypeKms {
+		// No KMS encryption type
+		return clusterUpdateDispatchConfigEtcd{}
+	}
+
+	kms := customerManaged.Kms()
+
+	activeKey := kms.ActiveKey()
+
+	activeKeyKeyVersion := activeKey.KeyVersion()
+
+	return clusterUpdateDispatchConfigEtcd{
+		DataEncryption: clusterUpdateDispatchConfigEtcdDataEncryption{
+			CustomerManaged: &clusterUpdateDispatchConfigEtcdDataEncryptionCustomerManaged{
+				Kms: &clusterUpdateDispatchConfigEtcdDataEncryptionCustomerManagedKms{
+					ActiveKey: clusterUpdateDispatchConfigEtcdDataEncryptionCustomerManagedKmsActiveKey{
+						Version: activeKeyKeyVersion,
+					},
+				},
+			},
+		},
+	}
+}
+
 // clusterUpdateDispatchConfigHash returns a SHA-256 hex digest of the dispatch config
 // projected from RP desired state. The digest is computed from canonical JSON (sorted object
 // keys at every level), not from a raw json.Marshal of the struct.
@@ -417,7 +509,7 @@ func (c *clusterUpdateDispatchConfig) canonicalJSON() ([]byte, error) {
 // baseProperties depending on how they evaluate. If they evaluate to enabled then the corresponding
 // key is set to the value of the Experimental feature. If they evaluate to disabled then the corresponding key
 // is deleted from the baseProperties map.
-func (c *clusterUpdateDispatchConfig) applyToCSBuilders(clusterBuilder *arohcpv1alpha1.ClusterBuilder, clusterAPIBuilder *arohcpv1alpha1.ClusterAPIBuilder, baseProperties map[string]string) error {
+func (c *clusterUpdateDispatchConfig) applyToCSBuilders(clusterBuilder *arohcpv1alpha1.ClusterBuilder, clusterAPIBuilder *arohcpv1alpha1.ClusterAPIBuilder, azureBuilder *arohcpv1alpha1.AzureBuilder, etcdDataEncryptionCustomerManagedActiveKeyBuilder *arohcpv1alpha1.AzureKmsKeyBuilder, baseProperties map[string]string) error {
 	if baseProperties == nil {
 		baseProperties = map[string]string{}
 	}
@@ -436,6 +528,16 @@ func (c *clusterUpdateDispatchConfig) applyToCSBuilders(clusterBuilder *arohcpv1
 
 	clusterBuilder.RegistryConfig(arohcpv1alpha1.NewClusterRegistryConfig().
 		ImageDigestMirrors(convertImageDigestMirrorsToCSBuilder(clusterUpdateDispatchConfigImageDigestMirrorsToRP(c.ImageDigestMirrors))...))
+
+	var requiresAzureBuild = false
+	// We support updating the Active KMS key for etcd data encryption in customer managed key encryption mode
+	// only when we are in that mode
+	if c.Etcd.DataEncryption.CustomerManaged != nil && c.Etcd.DataEncryption.CustomerManaged.Kms != nil {
+		if etcdDataEncryptionCustomerManagedActiveKeyBuilder != nil {
+			requiresAzureBuild = true
+			etcdDataEncryptionCustomerManagedActiveKeyBuilder.KeyVersion(c.Etcd.DataEncryption.CustomerManaged.Kms.ActiveKey.Version)
+		}
+	}
 
 	experimentalFeatures := c.ExperimentalFeatures
 	if experimentalFeatures.ControlPlaneAvailability == api.SingleReplicaControlPlane {
@@ -460,6 +562,20 @@ func (c *clusterUpdateDispatchConfig) applyToCSBuilders(clusterBuilder *arohcpv1
 		delete(baseProperties, CSPropertyCPOImageOverride)
 	}
 	clusterBuilder.Properties(baseProperties)
+
+	// If you are changing a builder that is a child of Azure builder you need to add it here in case
+	// the azureBuilder is nil
+	if azureBuilder == nil && requiresAzureBuild {
+		azureBuilder = arohcpv1alpha1.NewAzure()
+		azureBuilder.EtcdEncryption(arohcpv1alpha1.NewAzureEtcdEncryption().
+			DataEncryption(arohcpv1alpha1.NewAzureEtcdDataEncryption().
+				CustomerManaged(arohcpv1alpha1.NewAzureEtcdDataEncryptionCustomerManaged().
+					Kms(arohcpv1alpha1.NewAzureKmsEncryption().
+						ActiveKey(etcdDataEncryptionCustomerManagedActiveKeyBuilder)))))
+	}
+	if azureBuilder != nil {
+		clusterBuilder.Azure(azureBuilder)
+	}
 
 	return nil
 }

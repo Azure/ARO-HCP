@@ -617,6 +617,161 @@ func TestHypershiftHostedClusterOperationState(t *testing.T) {
 			wantState:         arm.ProvisioningStateUpdating,
 			wantMessageSubstr: `is "quay.io/openshift/cpo:test", want unset`,
 		},
+		{
+			name: "kms cluster key version mismatch returns Updating",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := fixture.newCluster(nil)
+				c.CustomerProperties.Etcd = api.EtcdProfile{
+					DataEncryption: api.EtcdDataEncryptionProfile{
+						KeyManagementMode: api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged,
+						CustomerManaged: &api.CustomerManagedEncryptionProfile{
+							EncryptionType: api.CustomerManagedEncryptionTypeKMS,
+							Kms: &api.KmsEncryptionProfile{
+								Visibility: api.KeyVaultVisibilityPublic,
+								ActiveKey: api.KmsKey{
+									Name:      "test-key",
+									VaultName: "test-vault",
+									Version:   "v2",
+								},
+							},
+						},
+					},
+				}
+				return c
+			}(),
+			serviceProviderCluster: emptySPC,
+			readDesires: []*kubeapplier.ReadDesire{
+				newHostedClusterReadDesire(t, &v1beta1.HostedCluster{
+					Spec: func() v1beta1.HostedClusterSpec {
+						spec := testClusterUpdateMatchingHostedClusterSpec()
+						spec.SecretEncryption = &v1beta1.SecretEncryptionSpec{
+							Type: v1beta1.KMS,
+							KMS: &v1beta1.KMSSpec{
+								Azure: &v1beta1.AzureKMSSpec{
+									ActiveKey: v1beta1.AzureKMSKey{
+										KeyVersion: "v1",
+									},
+								},
+							},
+						}
+						return spec
+					}(),
+				}),
+			},
+			wantState:         arm.ProvisioningStateUpdating,
+			wantMessageSubstr: `active key version is: "v1", want: "v2"`,
+		},
+		{
+			name: "kms cluster with nil SecretEncryption returns Updating",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := fixture.newCluster(nil)
+				c.CustomerProperties.Etcd = api.EtcdProfile{
+					DataEncryption: api.EtcdDataEncryptionProfile{
+						KeyManagementMode: api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged,
+						CustomerManaged: &api.CustomerManagedEncryptionProfile{
+							EncryptionType: api.CustomerManagedEncryptionTypeKMS,
+							Kms: &api.KmsEncryptionProfile{
+								Visibility: api.KeyVaultVisibilityPublic,
+								ActiveKey: api.KmsKey{
+									Name:      "test-key",
+									VaultName: "test-vault",
+									Version:   "v1",
+								},
+							},
+						},
+					},
+				}
+				return c
+			}(),
+			serviceProviderCluster: emptySPC,
+			readDesires: []*kubeapplier.ReadDesire{
+				newHostedClusterReadDesire(t, &v1beta1.HostedCluster{
+					Spec: func() v1beta1.HostedClusterSpec {
+						spec := testClusterUpdateMatchingHostedClusterSpec()
+						spec.SecretEncryption = nil
+						return spec
+					}(),
+				}),
+			},
+			wantState:         arm.ProvisioningStateUpdating,
+			wantMessageSubstr: "secret encryption is not set",
+		},
+		{
+			name: "kms cluster key version matching returns Succeeded",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := fixture.newCluster(nil)
+				c.CustomerProperties.Etcd = api.EtcdProfile{
+					DataEncryption: api.EtcdDataEncryptionProfile{
+						KeyManagementMode: api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged,
+						CustomerManaged: &api.CustomerManagedEncryptionProfile{
+							EncryptionType: api.CustomerManagedEncryptionTypeKMS,
+							Kms: &api.KmsEncryptionProfile{
+								Visibility: api.KeyVaultVisibilityPublic,
+								ActiveKey: api.KmsKey{
+									Name:      "test-key",
+									VaultName: "test-vault",
+									Version:   "v1",
+								},
+							},
+						},
+					},
+				}
+				return c
+			}(),
+			serviceProviderCluster: emptySPC,
+			readDesires: []*kubeapplier.ReadDesire{
+				newHostedClusterReadDesire(t, &v1beta1.HostedCluster{
+					Spec: func() v1beta1.HostedClusterSpec {
+						spec := testClusterUpdateMatchingHostedClusterSpec()
+						spec.SecretEncryption = &v1beta1.SecretEncryptionSpec{
+							Type: v1beta1.KMS,
+							KMS: &v1beta1.KMSSpec{
+								Azure: &v1beta1.AzureKMSSpec{
+									ActiveKey: v1beta1.AzureKMSKey{
+										KeyVersion: "v1",
+									},
+								},
+							},
+						}
+						return spec
+					}(),
+				}),
+			},
+			wantState: arm.ProvisioningStateSucceeded,
+		},
+		{
+			name: "Platform Managed data encryption returns Updating",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := fixture.newCluster(nil)
+				c.CustomerProperties.Etcd = api.EtcdProfile{
+					DataEncryption: api.EtcdDataEncryptionProfile{
+						KeyManagementMode: api.EtcdDataEncryptionKeyManagementModeTypePlatformManaged,
+					},
+				}
+				return c
+			}(),
+			serviceProviderCluster: emptySPC,
+			readDesires: []*kubeapplier.ReadDesire{
+				newHostedClusterReadDesire(t, &v1beta1.HostedCluster{
+					Spec: func() v1beta1.HostedClusterSpec {
+						spec := testClusterUpdateMatchingHostedClusterSpec()
+						spec.SecretEncryption = &v1beta1.SecretEncryptionSpec{
+							Type: v1beta1.KMS,
+							KMS: &v1beta1.KMSSpec{
+								Azure: &v1beta1.AzureKMSSpec{
+									ActiveKey: v1beta1.AzureKMSKey{
+										KeyVersion: "v1",
+									},
+								},
+							},
+						}
+						return spec
+					}(),
+				}),
+			},
+			wantState:         arm.ProvisioningStateUpdating,
+			wantMessageSubstr: "support for desired key management mode",
+		},
 	}
 
 	for _, tt := range tests {
@@ -1251,6 +1406,131 @@ func TestHypershiftHostedClusterImageContentSourcesSpecMatchesDesired(t *testing
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			matches, msg := controller.hypershiftHostedClusterImageContentSourcesSpecMatchesDesired(tt.desired, tt.observed)
+			assert.Equal(t, tt.wantMatch, matches)
+			if tt.wantSubstr != "" {
+				assert.Contains(t, msg, tt.wantSubstr)
+			}
+		})
+	}
+}
+
+func TestHypershiftHostedClusterEtcdSecretEncryptionSpecMatchesDesired(t *testing.T) {
+	t.Parallel()
+
+	controller := &operationClusterUpdate{}
+
+	etcdDesired := api.EtcdDataEncryptionProfile{
+		KeyManagementMode: api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged,
+		CustomerManaged: &api.CustomerManagedEncryptionProfile{
+			EncryptionType: api.CustomerManagedEncryptionTypeKMS,
+			Kms: &api.KmsEncryptionProfile{
+				Visibility: api.KeyVaultVisibilityPublic,
+				ActiveKey: api.KmsKey{
+					Name:      "test-key",
+					VaultName: "test-vault",
+					Version:   "v1",
+				},
+			},
+		},
+	}
+
+	tests := []struct {
+		name       string
+		desired    api.EtcdDataEncryptionProfile
+		observed   *v1beta1.SecretEncryptionSpec
+		wantMatch  bool
+		wantSubstr string
+	}{
+		{
+			name:       "customer managed KMS with nil observed returns mismatch",
+			desired:    etcdDesired,
+			observed:   nil,
+			wantMatch:  false,
+			wantSubstr: "secret encryption is not set",
+		},
+		{
+			name:    "customer managed KMS with observed type not KMS returns mismatch",
+			desired: etcdDesired,
+			observed: &v1beta1.SecretEncryptionSpec{
+				Type: v1beta1.AESCBC,
+			},
+			wantMatch:  false,
+			wantSubstr: `secret encryption is: "aescbc"`,
+		},
+		{
+			name:    "customer managed KMS with nil KMS field returns mismatch",
+			desired: etcdDesired,
+			observed: &v1beta1.SecretEncryptionSpec{
+				Type: v1beta1.KMS,
+			},
+			wantMatch:  false,
+			wantSubstr: "kms secret encryption configuration unset",
+		},
+		{
+			name:    "customer managed KMS with nil Azure field returns mismatch",
+			desired: etcdDesired,
+			observed: &v1beta1.SecretEncryptionSpec{
+				Type: v1beta1.KMS,
+				KMS:  &v1beta1.KMSSpec{},
+			},
+			wantMatch:  false,
+			wantSubstr: "azure configuration unset",
+		},
+		{
+			name:    "customer managed KMS key version mismatch",
+			desired: etcdDesired,
+			observed: &v1beta1.SecretEncryptionSpec{
+				Type: v1beta1.KMS,
+				KMS: &v1beta1.KMSSpec{
+					Azure: &v1beta1.AzureKMSSpec{
+						ActiveKey: v1beta1.AzureKMSKey{
+							KeyVersion: "v2",
+						},
+					},
+				},
+			},
+			wantMatch:  false,
+			wantSubstr: `active key version is: "v2", want: "v1"`,
+		},
+		{
+			name:    "customer managed KMS key version match",
+			desired: etcdDesired,
+			observed: &v1beta1.SecretEncryptionSpec{
+				Type: v1beta1.KMS,
+				KMS: &v1beta1.KMSSpec{
+					Azure: &v1beta1.AzureKMSSpec{
+						ActiveKey: v1beta1.AzureKMSKey{
+							KeyVersion: "v1",
+						},
+					},
+				},
+			},
+			wantMatch: true,
+		},
+		{
+			name: "platform managed",
+			desired: api.EtcdDataEncryptionProfile{
+				KeyManagementMode: api.EtcdDataEncryptionKeyManagementModeTypePlatformManaged,
+			},
+			observed: &v1beta1.SecretEncryptionSpec{
+				Type: v1beta1.KMS,
+				KMS: &v1beta1.KMSSpec{
+					Azure: &v1beta1.AzureKMSSpec{
+						ActiveKey: v1beta1.AzureKMSKey{
+							KeyVersion: "v1",
+						},
+					},
+				},
+			},
+			wantMatch:  false,
+			wantSubstr: `support for desired key management mode "PlatformManaged" for updates is not implemented`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			matches, msg := controller.hypershiftHostedClusterEtcdSecretEncryptionSpecMatchesDesired(tt.desired, tt.observed)
 			assert.Equal(t, tt.wantMatch, matches)
 			if tt.wantSubstr != "" {
 				assert.Contains(t, msg, tt.wantSubstr)
