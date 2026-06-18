@@ -167,12 +167,6 @@ func (f *Frontend) Run(ctx context.Context) error {
 	// This just digs up the logger passed to NewFrontend.
 	logger := utils.LoggerFromContext(ctx)
 
-	// before we start the http handler (this should ensure we readiness checks until this is complete), we will do a cosmos
-	// data migration to our new storage keys.
-	logger.Info("starting cosmos data migration")
-	MigrateCosmosOrDie(ctx, f.resourcesDBClient)
-	logger.Info("completed cosmos data migration")
-
 	logger.Info(fmt.Sprintf("listening on %s", f.listener.Addr().String()))
 	logger.Info(fmt.Sprintf("metrics listening on %s", f.metricsListener.Addr().String()))
 
