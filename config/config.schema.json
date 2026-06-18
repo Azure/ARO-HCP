@@ -41,6 +41,9 @@
           "type": "string",
           "description": "The name of the application. Needs to be unique within the tenant. https://eng.ms/docs/microsoft-security/identity/auth/auth-sts-protocols/ests/ests-troubleshooting-guides/tsgs/3p-apps-build-out-automation/gotchas-and-known-issues"
         },
+        "applicationId": {
+          "type": "string"
+        },
         "useSNI": {
           "type": "boolean"
         },

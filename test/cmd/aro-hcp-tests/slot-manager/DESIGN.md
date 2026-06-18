@@ -112,7 +112,7 @@ flowchart TD
     IsFixed -->|fixed| FixedFilter["Fixed-mode filter:\n1. allowed subscriptions\n2. override location if set\n3. else allowed locations"]
     IsFixed -->|runtime-selected| RSFilter["Runtime-selected filter:\n1. allowed subscriptions\n2. ignore allowed locations\nfor pool identity"]
 
-    FixedFilter --> Candidates["Ordered candidate pool list"]
+    FixedFilter --> Candidates["Candidate pool list\nwith rotated starting point"]
     RSFilter --> Candidates
 
     Candidates --> PassStart["Start pass N over candidates"]
@@ -150,8 +150,8 @@ flowchart TD
   - release step wiring,
   - formalized non-secret runtime contract centered on `SELECTED_LOCATION`.
 - Multi-pool candidate selection and fallback are implemented:
-  - fixed-mode environments filter candidate pools by `ALLOWED_SUBSCRIPTIONS` and either `ALLOWED_LOCATIONS` or `MULTISTAGE_PARAM_OVERRIDE_LOCATION`, then try pools in catalog order,
-  - runtime-selected environments use `ALLOWED_SUBSCRIPTIONS` for pool identity, ignore `ALLOWED_LOCATIONS` for candidate selection, and use `MULTISTAGE_PARAM_OVERRIDE_LOCATION` only as the concrete runtime location,
+  - fixed-mode environments filter candidate pools by `ALLOWED_SUBSCRIPTIONS` and either `ALLOWED_LOCATIONS` or `MULTISTAGE_PARAM_OVERRIDE_LOCATION`, then rotate the starting pool once per acquire run while preserving the remaining catalog order for fallback,
+  - runtime-selected environments use `ALLOWED_SUBSCRIPTIONS` for pool identity, ignore `ALLOWED_LOCATIONS` for candidate selection, and use `MULTISTAGE_PARAM_OVERRIDE_LOCATION` only as the concrete runtime location; they use the same rotated-start probing model,
   - the dev catalog now uses one runtime-selected pool per customer subscription, with `westus3` as the default runtime region,
   - those shared dev pools provision their MSI container stacks in `westus3` via `identity_provisioning_region`,
   - that intentionally optimizes the current rollout for multi-subscription, single-region operation first; multi-region CI behavior will need a follow-up job strategy.

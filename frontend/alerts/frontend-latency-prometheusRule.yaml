@@ -1,0 +1,24 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    app.kubernetes.io/name: kube-prometheus
+    app.kubernetes.io/part-of: kube-prometheus
+    prometheus: k8s
+    role: alert-rules
+  name: frontend-latency-monitoring-rules
+  namespace: monitoring
+spec:
+  groups:
+  - name: frontend-latency
+    rules:
+    - alert: FrontendLatency
+      expr: |
+        histogram_quantile(0.95, rate(frontend_http_requests_duration_seconds_bucket[1h])) > 5
+      for: 15m
+      labels:
+        severity: info
+      annotations:
+        description: 'The 95th percentile of frontend request latency has exceeded 5 seconds over the past hour.'
+        runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/frontend-tsg.html'
+        summary: 'Frontend latency is high: 95th percentile exceeds 5 seconds'

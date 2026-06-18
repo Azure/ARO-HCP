@@ -55,7 +55,7 @@ administration:
   sreServiceTag: CorpNetSaw
 aksCommandRuntime:
   image:
-    digest: sha256:11e61c511dde7b07da3911503685a8345ab41774ced139fe7c60efdc34a25184
+    digest: sha256:07e516155014ed9c2c85de1cf7f0c38f92def33d62dbd297dc15664d779601ef
     registry: mcr.microsoft.com
     repository: aks/command/runtime
 armHelperCertName: armHelperCert2
@@ -312,6 +312,7 @@ geneva:
   actions:
     allowedAcisExtensions: AzureRedHatHypershiftExtension,Azure Red Hat Hypershift
     application:
+      applicationId: empty-sentinel
       manage: true
       name: arohcp-ga-dev
       useSNI: false
@@ -427,7 +428,7 @@ hcpRecovery:
 hypershift:
   additionalInstallArg: --enable-cpo-overrides
   image:
-    digest: sha256:42db547a2f0e3b57827e4b37e48e598d1b94af8f752bc8efcf15986a4988e3f0
+    digest: sha256:8da292ba080e4012fc23e4fd12ac612c9f0ee412f4d0461ea09cbeb6d0b6bae3
     registry: quay.io
     repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
   limitClusterSizes: true
@@ -445,7 +446,7 @@ imageSync:
   ocMirror:
     enabled: true
     image:
-      digest: sha256:a5c7dc39275992123505d79a22cc721d2d09e9cce0e2e45184b04d3b5a6ea927
+      digest: sha256:3cd716a09757f4acf0a2023fa3d49867e6d41c90dd26f67264974cfd234f2a76
       registry: arohcpsvcdev.azurecr.io
       repository: image-sync/oc-mirror
     jobNamePrefix: ""

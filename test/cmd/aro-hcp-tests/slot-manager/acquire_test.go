@@ -343,6 +343,7 @@ environments:
 		LeaseProxyTimeout:   50 * time.Millisecond,
 		MaxWaitForLease:     DefaultMaxWaitForLease,
 		LeaseWaitInterval:   DefaultLeaseWaitInterval,
+		Now:                 staticNow(time.Unix(0, 0)),
 	})
 	if err != nil {
 		t.Fatalf("expected acquire to succeed: %v", err)
@@ -425,6 +426,7 @@ environments:
 		LeaseProxyTimeout:   50 * time.Millisecond,
 		MaxWaitForLease:     DefaultMaxWaitForLease,
 		LeaseWaitInterval:   DefaultLeaseWaitInterval,
+		Now:                 staticNow(time.Unix(0, 0)),
 	})
 	if err != nil {
 		t.Fatalf("expected acquire to fall back after timeout: %v", err)
@@ -492,6 +494,7 @@ environments:
 		LeaseProxyTimeout:   50 * time.Millisecond,
 		MaxWaitForLease:     DefaultMaxWaitForLease,
 		LeaseWaitInterval:   DefaultLeaseWaitInterval,
+		Now:                 staticNow(time.Unix(0, 0)),
 	})
 	if err != nil {
 		t.Fatalf("expected acquire to succeed: %v", err)
@@ -562,6 +565,7 @@ environments:
 		LeaseProxyTimeout:   5 * time.Second,
 		MaxWaitForLease:     DefaultMaxWaitForLease,
 		LeaseWaitInterval:   DefaultLeaseWaitInterval,
+		Now:                 staticNow(time.Unix(0, 0)),
 	})
 	if err == nil {
 		t.Fatal("expected acquire to fail on hard lease-proxy error")
@@ -636,6 +640,73 @@ environments:
 	}
 	if got, want := clock.slept, []time.Duration{1 * time.Minute}; !equalDurations(got, want) {
 		t.Fatalf("unexpected sleep durations: got %v want %v", got, want)
+	}
+}
+
+func TestAcquireRunRotatesCandidatePoolStartingPoint(t *testing.T) {
+	t.Parallel()
+
+	clusterProfileDir := writeAcquireTestClusterProfiles(t, "dev-sub-a")
+	catalogPath := writeAcquireTestCatalogFromYAML(t, `version: 1
+environments:
+  dev:
+    deploy_envs: [ci01]
+    pools:
+      - subscription_name: dev-sub-a
+        region: centralus
+        region_mode: fixed
+        resource_type: aro-hcp-dev-centralus-a-slot
+        slot_count: 1
+        identity_container_prefix: aro-hcp-msi-container-dev-a
+        identity_container_count: 2
+      - subscription_name: dev-sub-b
+        region: centralus
+        region_mode: fixed
+        resource_type: aro-hcp-dev-centralus-b-slot
+        slot_count: 1
+        identity_container_prefix: aro-hcp-msi-container-dev-b
+        identity_container_count: 2
+`)
+
+	server, acquireCalls, _ := newTestLeaseProxyServer(t, map[string][]leaseProxyReply{
+		"aro-hcp-dev-centralus-b-slot": {
+			unavailableAcquireReply("aro-hcp-dev-centralus-b-slot"),
+		},
+		"aro-hcp-dev-centralus-a-slot": {
+			successAcquireReply("aro-hcp-dev-centralus-a-slot-00"),
+		},
+	})
+	defer server.Close()
+
+	completed := completeAcquireForTest(t, &RawAcquireOptions{
+		ClusterProfileDir:   clusterProfileDir,
+		DeployEnv:           "ci01",
+		AllowedLocations:    []string{"centralus"},
+		SharedDir:           t.TempDir(),
+		CatalogPath:         catalogPath,
+		LeaseProxyServerURL: server.URL,
+		LeaseProxyTimeout:   50 * time.Millisecond,
+		MaxWaitForLease:     DefaultMaxWaitForLease,
+		LeaseWaitInterval:   DefaultLeaseWaitInterval,
+	})
+	completed.Now = staticNow(time.Unix(0, 1))
+
+	if err := completed.Run(context.Background()); err != nil {
+		t.Fatalf("expected acquire run to succeed with rotated starting pool: %v", err)
+	}
+	if got, want := *acquireCalls, []string{
+		"aro-hcp-dev-centralus-b-slot",
+		"aro-hcp-dev-centralus-a-slot",
+	}; !equalStrings(got, want) {
+		t.Fatalf("unexpected acquire call order: got %v want %v", got, want)
+	}
+
+	state, err := slots.LoadAcquiredSlotState(completed.SharedDir)
+	if err != nil {
+		t.Fatalf("expected acquired slot state to load: %v", err)
+	}
+	if state.Slot.ResourceType != "aro-hcp-dev-centralus-a-slot" {
+		t.Fatalf("expected fallback to preserve rotated order, got %q", state.Slot.ResourceType)
 	}
 }
 
@@ -846,6 +917,7 @@ environments:
 		LeaseProxyTimeout:   5 * time.Second,
 		MaxWaitForLease:     DefaultMaxWaitForLease,
 		LeaseWaitInterval:   DefaultLeaseWaitInterval,
+		Now:                 staticNow(time.Unix(0, 0)),
 	})
 	if err == nil {
 		t.Fatal("expected acquire to fail when customer subscription cannot be resolved")
@@ -910,6 +982,7 @@ environments:
 		LeaseProxyTimeout:   5 * time.Second,
 		MaxWaitForLease:     DefaultMaxWaitForLease,
 		LeaseWaitInterval:   DefaultLeaseWaitInterval,
+		Now:                 staticNow(time.Unix(0, 0)),
 	})
 	if err == nil {
 		t.Fatal("expected acquire to fail when the env file cannot be written")
@@ -1114,6 +1187,12 @@ type fakeClock struct {
 
 func newFakeClock(start time.Time) *fakeClock {
 	return &fakeClock{current: start}
+}
+
+func staticNow(at time.Time) func() time.Time {
+	return func() time.Time {
+		return at
+	}
 }
 
 func (c *fakeClock) Now() time.Time {

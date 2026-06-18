@@ -114,6 +114,14 @@ module hcpAlerts '../modules/metrics/hcp-rules.bicep' = {
   }
 }
 
+module sreServiceAlerts '../modules/metrics/sre-service-rules.bicep' = {
+  name: 'sreServiceAlerts'
+  params: {
+    azureMonitoringWorkspaceId: azureMonitoringWorkspaceId
+    actionGroups: sreActionGroups
+  }
+}
+
 module rpAlerts '../modules/metrics/rp-rules.bicep' = {
   name: 'rpAlerts'
   params: {
@@ -135,7 +143,7 @@ module svcIngestionAlerts '../modules/metrics/amw-ingestion-alerts.bicep' = {
   params: {
     azureMonitorWorkspaceId: azureMonitoringWorkspaceId
     workspaceLabel: 'svc'
-    actionGroups: sreActionGroups
+    actionGroups: slActionGroups
     enabled: alertsEnabled
     lowEventIngestionThreshold: 1
   }
@@ -146,7 +154,7 @@ module hcpIngestionAlerts '../modules/metrics/amw-ingestion-alerts.bicep' = {
   params: {
     azureMonitorWorkspaceId: hcpAzureMonitoringWorkspaceId
     workspaceLabel: 'hcp'
-    actionGroups: sreActionGroups
+    actionGroups: slActionGroups
     enabled: alertsEnabled
     lowEventIngestionThreshold: 5
   }

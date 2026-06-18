@@ -27,6 +27,8 @@ import (
 
 	"github.com/onsi/ginkgo/v2"
 
+	"k8s.io/apimachinery/pkg/util/wait"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v5"
@@ -156,6 +158,15 @@ func GetVirtualMachinesInResourceGroup(
 	return vms, nil
 }
 
+// isRetryableBootDiagnosticsError checks if the error is a 409 OperationNotAllowed
+func isRetryableBootDiagnosticsError(err error) bool {
+	var azErr *azcore.ResponseError
+	if !errors.As(err, &azErr) {
+		return false
+	}
+	return azErr.StatusCode == http.StatusConflict && azErr.ErrorCode == "OperationNotAllowed"
+}
+
 // GetVirtualMachineConsoleLog retrieves the boot diagnostics serial console log from an Azure VM.
 // Returns an io.ReadCloser for streaming the console log data. The caller is responsible for closing the reader.
 // Returns an error if the retrieval fails or boot diagnostics is not enabled.
@@ -165,12 +176,40 @@ func GetVirtualMachineConsoleLog(
 	resourceGroupName string,
 	vmName string,
 ) (io.ReadCloser, error) {
+	logger := ginkgo.GinkgoLogr
 	vmClient := computeClientFactory.NewVirtualMachinesClient()
 
-	// Retrieve boot diagnostics data which includes the serial console log
-	result, err := vmClient.RetrieveBootDiagnosticsData(ctx, resourceGroupName, vmName, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to retrieve boot diagnostics data for VM %q: %w", vmName, err)
+	var result armcompute.VirtualMachinesClientRetrieveBootDiagnosticsDataResponse
+	var attempt int
+	var lastRetryableErr error
+	retryErr := wait.ExponentialBackoffWithContext(ctx, wait.Backoff{
+		Duration: 5 * time.Second,
+		Factor:   2.0,
+		Steps:    5,
+		Cap:      20 * time.Second,
+	}, func(ctx context.Context) (bool, error) {
+		attempt++
+		var err error
+		result, err = vmClient.RetrieveBootDiagnosticsData(ctx, resourceGroupName, vmName, nil)
+		if err == nil {
+			return true, nil
+		}
+		if isRetryableBootDiagnosticsError(err) {
+			lastRetryableErr = err
+			logger.Info("retrying boot diagnostics retrieval due to OperationNotAllowed",
+				"vmName", vmName,
+				"attempt", attempt,
+				"error", err.Error())
+			return false, nil
+		}
+		return false, err
+	})
+
+	if retryErr != nil {
+		if wait.Interrupted(retryErr) && lastRetryableErr != nil {
+			return nil, fmt.Errorf("failed to retrieve boot diagnostics data for VM %q after %d attempts, last error: %w", vmName, attempt, lastRetryableErr)
+		}
+		return nil, fmt.Errorf("failed to retrieve boot diagnostics data for VM %q: %w", vmName, retryErr)
 	}
 
 	// Check if serial console log URI is available

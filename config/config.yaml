@@ -111,7 +111,7 @@ defaults:
     image:
       registry: mcr.microsoft.com
       repository: aks/command/runtime
-      digest: sha256:11e61c511dde7b07da3911503685a8345ab41774ced139fe7c60efdc34a25184 # master.260527.3 (2026-05-27 00:00)
+      digest: sha256:07e516155014ed9c2c85de1cf7f0c38f92def33d62dbd297dc15664d779601ef # master.260616.2 (2026-06-16 00:00)
   # Arobit
   arobit:
     forwarder:
@@ -277,6 +277,7 @@ defaults:
       genevaActionsPrincipalId: ""
       application:
         name: "arohcp-ga-{{ .ctx.environment }}" # [tenant unique]
+        applicationId: "empty-sentinel"
         useSNI: true
         manage: true
       publish:
@@ -317,7 +318,7 @@ defaults:
     image:
       registry: quay.io
       repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
-      digest: sha256:42db547a2f0e3b57827e4b37e48e598d1b94af8f752bc8efcf15986a4988e3f0 # cfa8fc6fde97f72d44133e0dcca07876ce24dd1c (2026-06-16 14:38)
+      digest: sha256:8da292ba080e4012fc23e4fd12ac612c9f0ee412f4d0461ea09cbeb6d0b6bae3 # 75072919678d8241c259f68ca10377475a08de48 (2026-06-17 02:10)
     namespace: hypershift
     additionalInstallArg: '--enable-cpo-overrides'
     # By default we set it to empty as this tag is only required for msft environments. We override
@@ -1014,7 +1015,7 @@ defaults:
       image:
         registry: arohcpsvcdev.azurecr.io
         repository: image-sync/oc-mirror
-        digest: sha256:a5c7dc39275992123505d79a22cc721d2d09e9cce0e2e45184b04d3b5a6ea927 # 4a0d4de (2026-06-16 21:30)
+        digest: sha256:3cd716a09757f4acf0a2023fa3d49867e6d41c90dd26f67264974cfd234f2a76 # dbf1382 (2026-06-17 02:02)
       pullSecretName: ocmirror-pull-secret
       operatorVersionsToMirror: "4.18,4.19,4.20,4.21,4.22"
   # Automation Account
