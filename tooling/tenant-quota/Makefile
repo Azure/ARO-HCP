@@ -2,7 +2,7 @@ TENANT_QUOTA_COLLECTOR_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 
 DEPLOY_ENV ?= dev-ci
 
--include ../../setup-env.mk
+-include $(TENANT_QUOTA_COLLECTOR_DIR)/../../setup-env.mk
 -include $(TENANT_QUOTA_COLLECTOR_DIR)/../../setup-templatize-env.mk
 -include $(TENANT_QUOTA_COLLECTOR_DIR)/../../.bingo/Variables.mk
 
