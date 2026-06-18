@@ -13,7 +13,7 @@ DEPLOY_ENV ?= pers
 CONFIG_FILE ?= config/config.yaml
 TOPOLOGY_FILE ?= topology.yaml
 export AZURE_TOKEN_CREDENTIALS ?= dev
-BUILD_SERVICES_OPTS ?= '-j7'
+BUILD_SERVICES_OPTS ?= -j7
 
 .DEFAULT_GOAL := all
 

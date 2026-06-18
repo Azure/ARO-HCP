@@ -88,7 +88,7 @@ clean:
 
 image: Dockerfile $(shell find . -name '*.go' -o -name 'go.mod' -o -name 'go.sum') Makefile
 	cd $(TENANT_QUOTA_COLLECTOR_DIR)/../.. && \
-	docker build . --file tooling/tenant-quota/Dockerfile \
+	$(CONTAINER_ENGINE) build . --file tooling/tenant-quota/Dockerfile \
 	               --build-arg PLATFORM=linux/amd64 \
 	               --build-arg REVISION=${ARO_HCP_REVISION} \
 	               --build-arg TAG=${TENANT_QUOTA_IMAGE_TAG} \
