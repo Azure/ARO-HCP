@@ -114,6 +114,14 @@ module hcpAlerts '../modules/metrics/hcp-rules.bicep' = {
   }
 }
 
+module slHcpAlerts '../modules/metrics/sl-hcp-rules.bicep' = {
+  name: 'slHcpAlerts'
+  params: {
+    azureMonitoringWorkspaceId: hcpAzureMonitoringWorkspaceId
+    actionGroups: slActionGroups
+  }
+}
+
 module sreServiceAlerts '../modules/metrics/sre-service-rules.bicep' = {
   name: 'sreServiceAlerts'
   params: {
