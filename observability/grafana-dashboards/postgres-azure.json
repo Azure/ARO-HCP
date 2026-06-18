@@ -1006,7 +1006,9 @@
         "query": "prometheus",
         "refresh": 1,
         "regex": "^Managed_Prometheus_services-.*$",
-        "type": "datasource"
+        "type": "datasource",
+        "hide": 2,
+        "description": "Required for validation only - not used by this dashboard"
       },
       {
         "current": {
