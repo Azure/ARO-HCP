@@ -50,17 +50,18 @@ func (listWatchWithoutWatchListSemantics) IsWatchListSemanticsUnSupported() bool
 const (
 	// These durations indicate the maximum time it will take for us to notice a new instance of a particular type.
 	// Remember that these will not fire in order, so it's entirely possible to get an operation for subscription we have no observed.
-	SubscriptionRelistDuration             = 30 * time.Second
-	ClusterRelistDuration                  = 30 * time.Second
-	NodePoolRelistDuration                 = 30 * time.Second
-	ExternalAuthRelistDuration             = 30 * time.Second
-	ServiceProviderClusterRelistDuration   = 30 * time.Second
-	ServiceProviderNodePoolRelistDuration  = 30 * time.Second
-	ControllerRelistDuration               = 30 * time.Second
-	ManagementClusterContentRelistDuration = 30 * time.Second
-	AllOperationsRelistDuration            = 30 * time.Second
-	ActiveOperationsRelistDuration         = 10 * time.Second
-	BillingRelistDuration                  = 30 * time.Second
+	SubscriptionRelistDuration                = 30 * time.Second
+	ClusterRelistDuration                     = 30 * time.Second
+	NodePoolRelistDuration                    = 30 * time.Second
+	ExternalAuthRelistDuration                = 30 * time.Second
+	ServiceProviderClusterRelistDuration      = 30 * time.Second
+	ServiceProviderNodePoolRelistDuration     = 30 * time.Second
+	ServiceProviderExternalAuthRelistDuration = 30 * time.Second
+	ControllerRelistDuration                  = 30 * time.Second
+	ManagementClusterContentRelistDuration    = 30 * time.Second
+	AllOperationsRelistDuration               = 30 * time.Second
+	ActiveOperationsRelistDuration            = 10 * time.Second
+	BillingRelistDuration                     = 30 * time.Second
 )
 
 // NewSubscriptionInformer creates an unstarted SharedIndexInformer for subscriptions
@@ -443,6 +444,54 @@ func NewServiceProviderNodePoolInformerWithRelistDuration(lister database.Global
 			ResyncPeriod: 1 * time.Hour, // this is only a default.  Shorter resyncs can be added when registering handlers.
 			Indexers: cache.Indexers{
 				listers.ByNodePool: nodePoolResourceIDIndexFunc,
+			},
+		},
+	)
+}
+
+// NewServiceProviderExternalAuthInformer creates an unstarted SharedIndexInformer for service provider external auths
+// with an external auth index using the default relist duration.
+func NewServiceProviderExternalAuthInformer(lister database.GlobalLister[api.ServiceProviderExternalAuth]) cache.SharedIndexInformer {
+	return NewServiceProviderExternalAuthInformerWithRelistDuration(lister, ServiceProviderExternalAuthRelistDuration)
+}
+
+// NewServiceProviderExternalAuthInformerWithRelistDuration creates an unstarted SharedIndexInformer for service provider external auths
+// with an external auth index and a configurable relist duration.
+func NewServiceProviderExternalAuthInformerWithRelistDuration(lister database.GlobalLister[api.ServiceProviderExternalAuth], relistDuration time.Duration) cache.SharedIndexInformer {
+	lw := &cache.ListWatch{
+		ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
+			logger := utils.LoggerFromContext(ctx)
+			logger.Info("listing service provider external auths")
+			defer logger.Info("finished listing service provider external auths")
+
+			iter, err := lister.List(ctx, nil)
+			if err != nil {
+				return nil, err
+			}
+
+			list := &api.ServiceProviderExternalAuthList{}
+			list.ResourceVersion = "0"
+			for _, spea := range iter.Items(ctx) {
+				list.Items = append(list.Items, *spea)
+			}
+			if err := iter.GetError(); err != nil {
+				return nil, err
+			}
+
+			return list, nil
+		},
+		WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
+			return NewExpiringWatcher(ctx, relistDuration), nil
+		},
+	}
+
+	return cache.NewSharedIndexInformerWithOptions(
+		&listWatchWithoutWatchListSemantics{lw},
+		&api.ServiceProviderExternalAuth{},
+		cache.SharedIndexInformerOptions{
+			ResyncPeriod: 1 * time.Hour, // this is only a default.  Shorter resyncs can be added when registering handlers.
+			Indexers: cache.Indexers{
+				listers.ByExternalAuth: externalAuthResourceIDIndexFunc,
 			},
 		},
 	)

@@ -133,6 +133,8 @@ type ResourcesDBClient interface {
 	ResourcesGlobalListers() ResourcesGlobalListers
 
 	ServiceProviderNodePools(subscriptionID, resourceGroupName, clusterName, nodePoolName string) ServiceProviderNodePoolCRUD
+
+	ServiceProviderExternalAuths(subscriptionID, resourceGroupName, clusterName, externalAuthName string) ServiceProviderExternalAuthCRUD
 }
 
 var _ ResourcesDBClient = &resourcesCosmosDBClient{}
@@ -184,6 +186,12 @@ func (d *resourcesCosmosDBClient) ServiceProviderNodePools(subscriptionID, resou
 	nodePoolResourceID := NewNodePoolResourceID(subscriptionID, resourceGroupName, clusterName, nodePoolName)
 	return NewCosmosResourceCRUD[api.ServiceProviderNodePool, GenericDocument[api.ServiceProviderNodePool]](
 		d.resources, nodePoolResourceID, api.ServiceProviderNodePoolResourceType)
+}
+
+func (d *resourcesCosmosDBClient) ServiceProviderExternalAuths(subscriptionID, resourceGroupName, clusterName, externalAuthName string) ServiceProviderExternalAuthCRUD {
+	externalAuthResourceID := NewExternalAuthResourceID(subscriptionID, resourceGroupName, clusterName, externalAuthName)
+	return NewCosmosResourceCRUD[api.ServiceProviderExternalAuth, GenericDocument[api.ServiceProviderExternalAuth]](
+		d.resources, externalAuthResourceID, api.ServiceProviderExternalAuthResourceType)
 }
 
 func (d *resourcesCosmosDBClient) UntypedCRUD(parentResourceID azcorearm.ResourceID) (UntypedResourceCRUD, error) {
