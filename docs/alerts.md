@@ -65,7 +65,7 @@ spec:
 |---|---|
 | `alert` | Alert name in PascalCase (e.g. `BackendControllerPanic`) |
 | `expr` | PromQL expression that evaluates to true when the alert should fire |
-| `labels.severity` | One of `critical`, `warning`, `info` |
+| `labels.severity` | One of `2`, `3`, `4` (canonical, the IcM Sev number); `critical`, `warning`, `info` accepted but deprecated |
 | `annotations.summary` | Short title -- becomes the IcM incident title |
 | `annotations.description` | Detailed explanation, can use `{{ $labels.X }}` and `{{ $value }}` |
 | `annotations.runbook_url` | Link to the troubleshooting guide for this alert |
@@ -73,13 +73,15 @@ spec:
 
 ### Severity mapping
 
-The generator maps severity labels to Azure Monitor / IcM severity levels:
+Severity is the customer-impact class of the alert and follows the Azure Common Engineering Naming (CEN) standard so alerts route cleanly into Microsoft IcM. It is a property of the impact the alert represents and is set independently of burn rate: burn rate decides *when* an alert fires, severity decides *who* is paged at what urgency.
 
-| Label | Azure Severity | IcM Behavior |
+Use the explicit `2` / `3` / `4` values (the severity label is the IcM Sev number). The legacy `critical` / `warning` / `info` values are still accepted (deprecated). `1` is intentionally rejected by the generator: Azure CEN reserves Sev 1 for declared major incidents, so alerts must not self-classify as Sev 1. Any other value fails generation.
+
+| Label | IcM Severity | Impact criterion |
 |---|---|---|
-| `critical` | SEV 3 | Urgent, high business impact |
-| `warning` | SEV 3 | Urgent, high business impact |
-| `info` | SEV 4 | Not urgent, no SLA impact |
+| `2` (or `critical`) | SEV 2 | Direct or imminent violation of the customer SLA (e.g. hosted control plane kube-apiserver). |
+| `3` (or `warning`) | SEV 3 | Customer-facing user journey degraded or failing, but the SLA is not violated yet (e.g. cluster create, node pool, upgrade, accessing the cluster). |
+| `4` (or `info`) | SEV 4 | Component-internal issue with no current customer impact, or precursor signals (saturation, capacity). |
 
 ### The `summary` annotation and IcM titles
 

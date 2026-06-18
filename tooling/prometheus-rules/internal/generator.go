@@ -513,6 +513,10 @@ param location string = resourceGroup().location
 
 				// Filter rules based on the output file type
 				if rule.Alert != "" && isAlertingRulesFile {
+					severity, err := severityFor(labels)
+					if err != nil {
+						return fmt.Errorf("alert %q: %w", rule.Alert, err)
+					}
 					armGroup.Properties.Rules = append(armGroup.Properties.Rules, &armprometheusrulegroups.PrometheusRule{
 						Alert:       ptr.To(rule.Alert),
 						Enabled:     ptr.To(true),
@@ -524,7 +528,7 @@ param location string = resourceGroup().location
 								whitespaceMatcher.ReplaceAllString(rule.Expr.String(), " "),
 							),
 						),
-						Severity: severityFor(labels),
+						Severity: severity,
 					})
 				} else if rule.Record != "" && isRecordingRulesFile {
 					armGroup.Properties.Rules = append(armGroup.Properties.Rules, &armprometheusrulegroups.PrometheusRule{
@@ -717,24 +721,34 @@ func parseToAzureDurationString(d *monitoringv1.Duration) *string {
 	return ptr.To("PT" + strings.ToUpper(parsedDuration.String()))
 }
 
-func severityFor(labels map[string]*string) *int32 {
+func severityFor(labels map[string]*string) (*int32, error) {
 	severity, ok := labels["severity"]
 	if !ok || severity == nil {
-		return nil
+		return nil, nil
 	}
 
-	// Severity level mapping
+	// Severity is the customer-impact class of the alert (Azure CEN), set
+	// independently of burn rate, and maps directly to the IcM severity.
 	// https://msazure.visualstudio.com/AzureRedHatOpenShift/_wiki/wikis/ARO.wiki/838022/IcM-best-practices?anchor=severity-levels
-
 	switch *severity {
+	// Canonical Azure CEN vocabulary: the severity label is the IcM Sev number.
+	case "2":
+		return ptr.To(int32(2)), nil // Sev 2: direct or imminent customer SLA violation.
+	case "3":
+		return ptr.To(int32(3)), nil // Sev 3: customer-facing user journey degraded, SLA not yet violated.
+	case "4":
+		return ptr.To(int32(4)), nil // Sev 4: component-internal issue, no current customer impact.
+	// Deprecated vocabulary, retained for backward compatibility.
 	case "critical":
-		return ptr.To(int32(2)) // SEV 2: Single service SLA impact.
+		return ptr.To(int32(2)), nil
 	case "warning":
-		return ptr.To(int32(3)) // SEV 3: Urgent/high business impact, no SLA impact.
+		return ptr.To(int32(3)), nil
 	case "info":
-		return ptr.To(int32(4)) // SEV 4: Not urgent, no SLA impact.
+		return ptr.To(int32(4)), nil
 	default:
-		logrus.Warnf("unknown severity label %q, defaulting to verbose", *severity)
-		return ptr.To(int32(4)) // Sev 4 - Verbose
+		// Fail fast rather than silently defaulting to Sev 4. "1" is rejected on
+		// purpose: Azure CEN reserves Sev 1 for declared major incidents, so
+		// alerts must not self-classify as Sev 1.
+		return nil, fmt.Errorf("invalid severity label %q (use 2, 3, or 4)", *severity)
 	}
 }
