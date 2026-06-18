@@ -95,6 +95,7 @@ func (c *Client) AddPassword(ctx context.Context, appID, displayName string, sta
 	reqBody.SetPasswordCredential(passwordCred)
 
 	// Add password to application with retry for eventual consistency
+	logger := logr.FromContextOrDiscard(ctx)
 	var result models.PasswordCredentialable
 	var lastErr error
 	attempts := 0
@@ -110,6 +111,19 @@ func (c *Client) AddPassword(ctx context.Context, appID, displayName string, sta
 			var odataErr *odataerrors.ODataError
 			if errors.As(err, &odataErr) {
 				code := odataErr.ResponseStatusCode
+				odataError := odataErr.GetErrorEscaped()
+				logger.Error(err, "Graph API AddPassword failed",
+					"attempt", attempts,
+					"statusCode", code,
+					"errorCode", odataError.GetCode(),
+					"errorMessage", odataError.GetMessage())
+
+				// Retry all errors for first 3 attempts to handle transient issues
+				if attempts <= 3 {
+					return false, nil
+				}
+
+				// After 3 attempts, only retry known transient codes
 				if code != http.StatusNotFound && code != http.StatusTooManyRequests && code < http.StatusInternalServerError {
 					// Non-transient typed OData error, stop retrying.
 					return false, err
