@@ -2,6 +2,7 @@ SHELL = /usr/bin/env bash -o pipefail
 .SHELLFLAGS = -ec
 MGMT_AGENT_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 
+-include ../setup-env.mk
 -include ../setup-templatize-env.mk
 -include ../.bingo/Variables.mk
 
@@ -13,7 +14,6 @@ MGMT_AGENT_GENERATED_IMAGE_REPOSITORY = $(shell DEPLOY_ENV=${DEPLOY_ENV} BASELIN
 MGMT_AGENT_TAGGED_IMAGE ?= $(ARO_HCP_IMAGE_REGISTRY)/$(MGMT_AGENT_GENERATED_IMAGE_REPOSITORY):$(MGMT_AGENT_IMAGE_TAG)
 
 HELMCHART_DIR = deploy
-CONTAINER_ENGINE ?= $(shell command -v podman 2>/dev/null || echo docker)
 BINARY = bin/mgmt-agent
 MGMT_AGENT_SOURCES = $(shell find . -name '*.go' -o -name 'go.mod' -o -name 'go.sum')
 LDFLAGS = -ldflags "\
@@ -43,7 +43,7 @@ image:
 .PHONY: image
 
 build-and-push: image $(ORAS) $(YQ)
-	az acr login --name ${ARO_HCP_IMAGE_ACR}
+	$(acr-login)
 	@LOCAL_DIGEST=$$($(CONTAINER_ENGINE) image inspect --format '{{.Id}}' ${MGMT_AGENT_TAGGED_IMAGE} | sed 's/sha256://'); \
 	REMOTE_DIGEST=$$($(ORAS) manifest fetch ${MGMT_AGENT_TAGGED_IMAGE} 2>/dev/null | $(YQ) .config.digest | sed 's/sha256://'); \
 	if [ "$$LOCAL_DIGEST" = "$$REMOTE_DIGEST" ]; then \

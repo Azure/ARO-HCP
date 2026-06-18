@@ -1,5 +1,6 @@
 include ./.bingo/Variables.mk
 include ./.bingo/Symlinks.mk
+include ./setup-env.mk
 include ./tooling/templatize/Makefile
 include ./tooling/yamlwrap/Makefile
 include ./test/Makefile
@@ -210,10 +211,8 @@ e2e-local/run-test:
 	$(MAKE) -C test -f E2ELocal.mk e2e-local/pf/run-test TEST_NAME="$$TEST_NAME"
 .PHONY: e2e-local/run-test
 
-CONTAINER_RUNTIME ?= docker
-
 mega-lint:
-	$(CONTAINER_RUNTIME) run --rm \
+	$(CONTAINER_ENGINE) run --rm \
 		-e FILTER_REGEX_EXCLUDE='hypershiftoperator/deploy/crds/|acm/deploy/helm/multicluster-engine-config/charts/policy/charts|dev-infrastructure/global-pipeline.yaml|tooling/templatize/testdata/pipeline.yaml|hypershiftoperator/deploy/templates/cluster.clustersizingconfiguration.yaml' \
 		-e REPORT_OUTPUT_FOLDER=/tmp/report \
 		-v $${PWD}:/tmp/lint:Z \

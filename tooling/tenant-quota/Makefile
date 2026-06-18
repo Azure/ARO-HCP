@@ -2,6 +2,7 @@ TENANT_QUOTA_COLLECTOR_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 
 DEPLOY_ENV ?= dev-ci
 
+-include ../../setup-env.mk
 -include $(TENANT_QUOTA_COLLECTOR_DIR)/../../setup-templatize-env.mk
 -include $(TENANT_QUOTA_COLLECTOR_DIR)/../../.bingo/Variables.mk
 
@@ -95,7 +96,7 @@ image: Dockerfile $(shell find . -name '*.go' -o -name 'go.mod' -o -name 'go.sum
 .PHONY: image
 
 build-and-push: image
-	az acr login --name ${ARO_HCP_IMAGE_ACR}
+	$(acr-login)
 	docker push ${TENANT_QUOTA_TAGGED_IMAGE}
 	@echo ""
 	@echo "Pushed: ${TENANT_QUOTA_TAGGED_IMAGE}"
