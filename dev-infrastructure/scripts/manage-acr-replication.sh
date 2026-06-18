@@ -52,6 +52,14 @@ execute() {
     fi
 }
 
+# --region-endpoint-enabled was renamed to --global-endpoint-routing in az CLI 2.86.0
+# and removed in 2.87.0. Detect which flag the installed az CLI supports.
+if az acr replication create --help 2>&1 | grep -q -- "--global-endpoint-routing"; then
+    ENDPOINT_ROUTING_FLAG="--global-endpoint-routing"
+else
+    ENDPOINT_ROUTING_FLAG="--region-endpoint-enabled"
+fi
+
 # Function to create a new replication
 create_replication() {
     echo "Creating replication $REPLICATION_REGION for ACR $ACR_NAME in region $REPLICATION_REGION..."
@@ -60,7 +68,7 @@ create_replication() {
         --resource-group "$RESOURCE_GROUP" \
         --location "$REPLICATION_REGION" \
         --name "$REPLICATION_REGION" \
-        --global-endpoint-routing true
+        "$ENDPOINT_ROUTING_FLAG" true
 
     echo "Successfully created replication $REPLICATION_REGION for ACR $ACR_NAME in region $REPLICATION_REGION"
 }
