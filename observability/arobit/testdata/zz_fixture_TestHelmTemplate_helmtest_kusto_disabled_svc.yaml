@@ -55,6 +55,21 @@ data:
         Time_Format %Y-%m-%dT%H:%M:%S.%L
         Time_Keep   On
 
+    [MULTILINE_PARSER]
+        name          klog
+        type          regex
+        flush_timeout 1000
+        # A klog line starts with [IWEF] followed by 4 digits (mmdd) and a space
+        rule          "start_state"  "/^[IWEF]\d{4} /"               "cont"
+        # A JSON log line starts with { — treat as its own entry
+        rule          "start_state"  "/^\{/"                          "cont"
+        # A structured log line starts with an ISO 8601 timestamp
+        rule          "start_state"  "/^\d{4}-\d{2}-\d{2}T\d{2}:/"   "cont"
+        # Anything else is a continuation of the previous multiline entry
+        rule          "cont"         "/^[^IWEF{\d]/"                  "cont"
+        rule          "cont"         "/^[IWEF][^0-9]/"                "cont"
+        rule          "cont"         "/^\d(?!\d{3}-\d{2}-\d{2}T\d{2}:)/"  "cont"
+
   input.conf: |
     [INPUT]
         Name              tail
@@ -110,6 +125,13 @@ data:
         Threaded          On
         storage.type      filesystem
   filter.conf: |
+    [FILTER]
+        Name                  multiline
+        Alias                 filter.multiline_klog
+        Match                 kubernetes.*
+        multiline.parser      klog
+        multiline.key_content log
+
     [FILTER]
         Name modify
         Match systemd.*
@@ -452,7 +474,7 @@ spec:
         app: arobit-forwarder
         azure.workload.identity/use: "true"
       annotations:
-        checksum/configmap: 628a879b72e634b58a975868d7489abf9df991e7b65e4687c7ccad2d32d9d5df
+        checksum/configmap: 61983b89ba6ae411e8e038595cac82ee9899ff7676ac3f2ad1226838a61ad117
     spec:
       priorityClassName: service-lifecycle-critical
       serviceAccountName: 'arobit-forwarder'
