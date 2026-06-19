@@ -4,7 +4,7 @@ The KSM HCP controller enables monitoring of customer worker nodes across Hosted
 
 ## How It Works
 
-The controller runs inside mgmt-agent alongside the SwiftNIC controller under a single leader election. It watches `HostedControlPlane` CRs and, once the kube-apiserver is available, creates a KSM Deployment, Service, and ServiceMonitor in the HCP's control plane namespace. KSM connects to the HCP API server using the `service-network-admin-kubeconfig` secret. The ServiceMonitor injects the `namespace` label so metrics route to the HCP Azure Monitor Workspace via the existing remote write filter. The `region` label is provided globally via Prometheus external labels.
+The controller runs inside mgmt-agent alongside the SwiftNIC controller under a single leader election. It watches `HostedControlPlane` CRs and, once the kube-apiserver is available, creates a KSM Deployment, Service, and ServiceMonitor in the HCP's control plane namespace. KSM connects to the HCP API server using the `service-network-admin-kubeconfig` secret. The ServiceMonitor injects the `namespace` label so metrics route to the HCP Azure Monitor Workspace via the existing remote write filter. The `region` and `environment` labels are provided globally via Prometheus external labels.
 
 Resources are owned by the HostedControlPlane CR and cleaned up automatically by Kubernetes garbage collection when the HCP is deleted.
 
