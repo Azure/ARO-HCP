@@ -17,12 +17,6 @@ buildStep:
     set -o errexit
     set -o nounset
     set -o pipefail
-    tmp="$(mktemp ./scripts/cleanup-pko-resources/cleanup-pko-resources.XXXXXX)"
-    trap 'rm -f "${tmp}"' EXIT
-    CGO_ENABLED=0 go build -o "${tmp}" ./scripts/cleanup-pko-resources
-    chmod 0755 "${tmp}"
-    mv "${tmp}" ./scripts/cleanup-pko-resources/cleanup-pko-resources
-    trap - EXIT
     tmp2="$(mktemp ./scripts/recreate-system-pool/recreate-system-pool.XXXXXX)"
     trap 'rm -f "${tmp2}"' EXIT
     CGO_ENABLED=0 go build -o "${tmp2}" ./scripts/recreate-system-pool
@@ -682,20 +676,6 @@ resourceGroups:
       - "Internal error occurred"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
-  # TODO: Remove this PKO cleanup step once all management clusters have been cleaned up (ARO-23308)
-  - name: cleanup-pko
-    aksCluster: '{{ .mgmt.aks.name }}'
-    action: Shell
-    command: ./scripts/cleanup-pko-resources/cleanup-pko-resources
-    workingDir: .
-    shellIdentity:
-      input:
-        resourceGroup: global
-        step: output
-        name: globalMSIId
-    dependsOn:
-    - resourceGroup: management
-      step: cluster
   - name: service-lifecycle
     aksCluster: '{{ .mgmt.aks.name }}'
     action: Helm
