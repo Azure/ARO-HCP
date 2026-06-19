@@ -1,6 +1,6 @@
 ADMIN_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
-CONTAINER_ENGINE ?= $(shell command -v podman 2>/dev/null || echo docker)
 
+-include ../setup-env.mk
 -include ../setup-templatize-env.mk
 -include ../tooling/hcpctl/Variables.mk
 -include ../.bingo/Variables.mk
@@ -72,7 +72,7 @@ image:
 .PHONY: image
 
 build-and-push: image $(ORAS) $(YQ)
-	az acr login --name ${ARO_HCP_IMAGE_ACR}
+	$(acr-login)
 	@LOCAL_DIGEST=$$($(CONTAINER_ENGINE) image inspect --format '{{.Id}}' ${ADMIN_API_TAGGED_IMAGE} | sed 's/sha256://'); \
 	REMOTE_DIGEST=$$($(ORAS) manifest fetch ${ADMIN_API_TAGGED_IMAGE} 2>/dev/null | $(YQ) .config.digest | sed 's/sha256://'); \
 	if [ "$$LOCAL_DIGEST" = "$$REMOTE_DIGEST" ]; then \

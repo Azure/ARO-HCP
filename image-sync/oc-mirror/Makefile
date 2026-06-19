@@ -1,8 +1,8 @@
 SHELL = /bin/bash
-CONTAINER_ENGINE ?= $(shell command -v podman 2>/dev/null || echo docker)
 DEPLOY_ENV ?= pers
 COMMIT = $(shell git rev-parse --short=7 HEAD)$(shell [[ $$(git status --porcelain) = "" ]])
 
+include ../../setup-env.mk
 include ../../setup-templatize-env.mk
 
 ifeq ($(shell uname), Darwin)
@@ -16,7 +16,7 @@ image:
 .PHONY: image
 
 build-and-push: image
-	az acr login --name ${ARO_HCP_IMAGE_ACR}
+	$(acr-login)
 	$(CONTAINER_ENGINE) tag ${OC_MIRROR_IMAGE_TAGGED} ${OC_MIRROR_IMAGE}:latest
 	$(CONTAINER_ENGINE) push ${OC_MIRROR_IMAGE_TAGGED}
 	$(CONTAINER_ENGINE) push ${OC_MIRROR_IMAGE}:latest

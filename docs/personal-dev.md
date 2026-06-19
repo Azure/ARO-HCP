@@ -37,7 +37,7 @@ All other tools should be transparently installed by the `make` targets that req
 
 ## Full Personal DEV Environment Setup
 
-> [!IMPORTANT]
+> [!IMPORTANT] Environment Cleanup
 > A word of caution upfront: dev infrastructure is automatically deleted after 48h. If you want to keep your infrastructure indefinitely, run all the following commands with an env variable `PERSIST=true`.
 > Please consider the implication on cost if you decide to keep your infrastructure indefinitely.
 
@@ -49,9 +49,12 @@ The creation process can take up to 20 minutes.
 
 This command creates a personal DEV environment with a unique name that is derived from your username. It builds and pushes all in-repo service images (frontend, backend, admin, sessiongate) from your local checkout and deploys them along with all required infrastructure components.
 
-> [!TIP]
+> [!NOTE] Update Personal DEV Environment 
 > This command can be used to update your personal DEV environment as well. It will apply the latest changes to the infrastructure and services. Steps are cached, so it's quick and safe to re-run the entire environment setup.
 > If you only want to update individual aspects of the environment, follow the [partial setup](#partial-personal-dev-environment-setup) instructions.
+
+> [!TIP] Make Options
+> [Make Options](./make-options.md) describes how to customize the make build e.g. by defining the container engine to be used or limiting parallel jobs. This can be of help when experiencing problems with the build.
 
 ### Local Cluster Service Development Setup
 
