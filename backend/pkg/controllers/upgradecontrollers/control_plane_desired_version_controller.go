@@ -338,8 +338,8 @@ func (c *controlPlaneDesiredVersionSyncer) desiredControlPlaneZVersion(ctx conte
 	))
 }
 
-// listClusterAdmissionNodePools prefetches every node pool under clusterResourceID
-// paired with its service-provider record, in the same shape that
+// listClusterAdmissionNodePools prefetches every node pool that is not in the process of being deleted
+// under clusterResourceID paired with its service-provider record, in the same shape that
 // frontend.newClusterAdmissionContext builds for cluster admission. The upgrade
 // controller passes the result to admission.AdmitClusterNodePoolsMinorVersionSkew
 // directly so that admission code stays free of any DB dependency.
@@ -350,6 +350,11 @@ func (c *controlPlaneDesiredVersionSyncer) listClusterAdmissionNodePools(ctx con
 	}
 	var clusterNodePools []admission.ClusterAdmissionNodePool
 	for _, nodePool := range nodePoolIterator.Items(ctx) {
+		// When performing version skew validation, we do not include node pools
+		// that are in the process of being deleted.
+		if nodePool.ServiceProviderProperties.DeletionTimestamp != nil {
+			continue
+		}
 		spNodePool, err := database.GetOrCreateServiceProviderNodePool(ctx, c.resourcesDBClient, nodePool.ID)
 		if err != nil {
 			return nil, utils.TrackError(err)

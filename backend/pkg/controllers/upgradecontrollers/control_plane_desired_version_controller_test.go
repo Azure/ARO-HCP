@@ -594,6 +594,14 @@ func TestDesiredControlPlaneZVersion_NextYStreamUpgrade(t *testing.T) {
 // testCosmosClusterWithWorkersNodePoolAtVersion returns a cluster and workers node pool for the subscription, resource group,
 // and cluster name shared by desiredControlPlaneZVersion tests. nodePoolVersionId is properties.version.id on the pool.
 func testCosmosClusterWithWorkersNodePoolAtVersion(nodePoolVersionId string) []any {
+	clusterResourceId, cluster := testCosmosClusterResource()
+	return []any{
+		cluster,
+		testCosmosNodePool(clusterResourceId, "workers", nodePoolVersionId, false),
+	}
+}
+
+func testCosmosClusterResource() (*azcorearm.ResourceID, *api.HCPOpenShiftCluster) {
 	clusterResourceId := api.Must(api.ToClusterResourceID("6b690bec-0c16-4ecb-8f67-781caf40bba7", "test-rg", "test-cluster"))
 	cluster := &api.HCPOpenShiftCluster{
 		CosmosMetadata: arm.CosmosMetadata{
@@ -611,22 +619,38 @@ func testCosmosClusterWithWorkersNodePoolAtVersion(nodePoolVersionId string) []a
 			ClusterServiceID: api.Ptr(api.Must(api.NewInternalID("/api/clusters_mgmt/v1/clusters/test-cluster"))),
 		},
 	}
-	nodePoolResourceId := api.Must(azcorearm.ParseResourceID(clusterResourceId.String() + "/nodePools/workers"))
+	return clusterResourceId, cluster
+}
+
+func testCosmosNodePool(clusterResourceId *azcorearm.ResourceID, name, nodePoolVersionId string, deleting bool) *api.HCPOpenShiftClusterNodePool {
+	nodePoolResourceId := api.Must(azcorearm.ParseResourceID(clusterResourceId.String() + "/nodePools/" + name))
+	nodePool := &api.HCPOpenShiftClusterNodePool{
+		CosmosMetadata: arm.CosmosMetadata{
+			ResourceID:   nodePoolResourceId,
+			PartitionKey: strings.ToLower(nodePoolResourceId.SubscriptionID),
+		},
+		TrackedResource: arm.NewTrackedResource(nodePoolResourceId, "eastus"),
+		Properties: api.HCPOpenShiftClusterNodePoolProperties{
+			Version: api.NodePoolVersionProfile{ID: nodePoolVersionId},
+		},
+		ServiceProviderProperties: api.HCPOpenShiftClusterNodePoolServiceProviderProperties{
+			ClusterServiceID: api.Ptr(api.Must(api.NewInternalID("/api/clusters_mgmt/v1/clusters/test-cluster/node_pools/" + name))),
+		},
+	}
+	if deleting {
+		nodePool.ServiceProviderProperties.DeletionTimestamp = ptr.To(metav1.Now())
+	}
+	return nodePool
+}
+
+// testCosmosClusterWithActiveAndDeletingNodePools returns a cluster with one active node pool and one
+// node pool marked for deletion. Skew validation should consider only the active pool.
+func testCosmosClusterWithActiveAndDeletingNodePools(activeNodePoolName, activeVersion, deletingNodePoolName, deletingVersion string) []any {
+	clusterResourceId, cluster := testCosmosClusterResource()
 	return []any{
 		cluster,
-		&api.HCPOpenShiftClusterNodePool{
-			CosmosMetadata: arm.CosmosMetadata{
-				ResourceID:   nodePoolResourceId,
-				PartitionKey: strings.ToLower(nodePoolResourceId.SubscriptionID),
-			},
-			TrackedResource: arm.NewTrackedResource(nodePoolResourceId, "eastus"),
-			Properties: api.HCPOpenShiftClusterNodePoolProperties{
-				Version: api.NodePoolVersionProfile{ID: nodePoolVersionId},
-			},
-			ServiceProviderProperties: api.HCPOpenShiftClusterNodePoolServiceProviderProperties{
-				ClusterServiceID: api.Ptr(api.Must(api.NewInternalID("/api/clusters_mgmt/v1/clusters/test-cluster/node_pools/workers"))),
-			},
-		},
+		testCosmosNodePool(clusterResourceId, activeNodePoolName, activeVersion, false),
+		testCosmosNodePool(clusterResourceId, deletingNodePoolName, deletingVersion, true),
 	}
 }
 
@@ -746,6 +770,37 @@ func TestDesiredControlPlaneZVersion_CrossMajorUpgrade(t *testing.T) {
 			customerDesiredMinor:        "5.0",
 			channelGroup:                "stable",
 			cosmosResources:             testCosmosClusterWithWorkersNodePoolAtVersion("4.22.0"),
+			experimentalReleaseFeatures: true,
+			mockSetup: func(mc *cincinnati.MockClient) {
+				stableURI := api.Must(cincinnati.GetCincinnatiURI("stable"))
+				mc.EXPECT().GetUpdates(gomock.AssignableToTypeOf(context.Background()), stableURI, "multi", "multi", "stable-5.0", semver.MustParse("4.22.0")).Return(
+					configv1.Release{Version: "4.22.0"},
+					[]configv1.Release{{Version: "5.0.15"}, {Version: "5.0.10"}, {Version: "4.22.5"}},
+					[]configv1.ConditionalUpdate{},
+					nil,
+				)
+				mc.EXPECT().GetUpdates(gomock.AssignableToTypeOf(context.Background()), stableURI, "multi", "multi", "stable-5.1", semver.MustParse("5.0.15")).Times(2).Return(
+					configv1.Release{Version: "5.0.15"},
+					[]configv1.Release{},
+					[]configv1.ConditionalUpdate{},
+					nil,
+				)
+				mc.EXPECT().GetUpdates(gomock.AssignableToTypeOf(context.Background()), stableURI, "multi", "multi", "stable-5.1", semver.MustParse("5.0.10")).Return(
+					configv1.Release{Version: "5.0.10"},
+					[]configv1.Release{{Version: "5.1.0"}},
+					[]configv1.ConditionalUpdate{},
+					nil,
+				)
+			},
+			expectedVersion: ptr.To(semver.MustParse("5.0.10")),
+			expectedError:   false,
+		},
+		{
+			name:                        "Cross-major allowed when incompatible node pool is being deleted",
+			activeVersions:              []api.HCPClusterActiveVersion{{Version: ptr.To(semver.MustParse("4.22.0")), State: configv1.CompletedUpdate}},
+			customerDesiredMinor:        "5.0",
+			channelGroup:                "stable",
+			cosmosResources:             testCosmosClusterWithActiveAndDeletingNodePools("infra", "4.22.0", "workers", "4.20.0"),
 			experimentalReleaseFeatures: true,
 			mockSetup: func(mc *cincinnati.MockClient) {
 				stableURI := api.Must(cincinnati.GetCincinnatiURI("stable"))
