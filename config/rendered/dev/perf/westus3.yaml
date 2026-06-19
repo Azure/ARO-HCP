@@ -397,6 +397,8 @@ global:
     displayName: Azure Red Hat OpenShift HCP - perf - Global
     key: ARO Hosted Control Planes (EA Subscription 1)
     providers:
+      Microsoft.Cdn:
+        poll: true
       Microsoft.Compute:
         features:
         - name: EncryptionAtHost

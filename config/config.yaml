@@ -42,6 +42,8 @@ defaults:
       key: hcp-global
       displayName: "Azure Red Hat OpenShift HCP - {{ .ctx.environment }} - Global"
       providers:
+        'Microsoft.Cdn':
+          poll: true
         'Microsoft.Dashboard':
           poll: true
         'Microsoft.Network':
