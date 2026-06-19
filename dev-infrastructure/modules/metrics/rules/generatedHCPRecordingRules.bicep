@@ -14,83 +14,83 @@ resource hcpKmsRecordingRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2
     rules: [
       {
         record: 'hostedClusterAPI_kubeapiserver_available:ratio_avg_30d'
-        expression: 'avg by (name, namespace, _id, cluster) (avg_over_time(hostedClusterAPI_kubeapiserver_available{status="True"}[30d])) and on (name, namespace, _id, cluster) count by (name, namespace, _id, cluster) (hostedClusterAPI_kubeapiserver_available)'
+        expression: 'avg by (name, namespace, _id, cluster, subscription_id) (avg_over_time(hostedClusterAPI_kubeapiserver_available{status="True"}[30d])) and on (name, namespace, _id, cluster, subscription_id) count by (name, namespace, _id, cluster, subscription_id) (hostedClusterAPI_kubeapiserver_available)'
       }
       {
         record: 'hostedClusterAPI_kubeapiserver_available:ratio_avg_7d'
-        expression: 'avg by (name, namespace, _id, cluster) (avg_over_time(hostedClusterAPI_kubeapiserver_available{status="True"}[7d])) and on (name, namespace, _id, cluster) count by (name, namespace, _id, cluster) (hostedClusterAPI_kubeapiserver_available)'
+        expression: 'avg by (name, namespace, _id, cluster, subscription_id) (avg_over_time(hostedClusterAPI_kubeapiserver_available{status="True"}[7d])) and on (name, namespace, _id, cluster, subscription_id) count by (name, namespace, _id, cluster, subscription_id) (hostedClusterAPI_kubeapiserver_available)'
       }
       {
         record: 'hostedClusterAPI_kubeapiserver_available:ratio_avg_1d'
-        expression: 'avg by (name, namespace, _id, cluster) (avg_over_time(hostedClusterAPI_kubeapiserver_available{status="True"}[1d])) and on (name, namespace, _id, cluster) count by (name, namespace, _id, cluster) (hostedClusterAPI_kubeapiserver_available)'
+        expression: 'avg by (name, namespace, _id, cluster, subscription_id) (avg_over_time(hostedClusterAPI_kubeapiserver_available{status="True"}[1d])) and on (name, namespace, _id, cluster, subscription_id) count by (name, namespace, _id, cluster, subscription_id) (hostedClusterAPI_kubeapiserver_available)'
       }
       {
         record: 'hostedClusterAPI_kubeapiserver_available:ratio_avg_3d'
-        expression: 'avg by (name, namespace, _id, cluster) (avg_over_time(hostedClusterAPI_kubeapiserver_available{status="True"}[3d])) and on (name, namespace, _id, cluster) count by (name, namespace, _id, cluster) (hostedClusterAPI_kubeapiserver_available)'
+        expression: 'avg by (name, namespace, _id, cluster, subscription_id) (avg_over_time(hostedClusterAPI_kubeapiserver_available{status="True"}[3d])) and on (name, namespace, _id, cluster, subscription_id) count by (name, namespace, _id, cluster, subscription_id) (hostedClusterAPI_kubeapiserver_available)'
       }
       {
         record: 'hostedClusterAPI_kubeapiserver_available:sum_over_time_30m'
-        expression: 'sum by (name, namespace, _id, cluster) (sum_over_time(hostedClusterAPI_kubeapiserver_available{status="True"}[30m])) and on (name, namespace, _id, cluster) count by (name, namespace, _id, cluster) (hostedClusterAPI_kubeapiserver_available)'
+        expression: 'sum by (name, namespace, _id, cluster, subscription_id) (sum_over_time(hostedClusterAPI_kubeapiserver_available{status="True"}[30m])) and on (name, namespace, _id, cluster, subscription_id) count by (name, namespace, _id, cluster, subscription_id) (hostedClusterAPI_kubeapiserver_available)'
       }
       {
         record: 'hostedClusterAPI_kubeapiserver_available:sum_over_time_1h'
-        expression: 'sum by (name, namespace, _id, cluster) (sum_over_time(hostedClusterAPI_kubeapiserver_available{status="True"}[1h])) and on (name, namespace, _id, cluster) count by (name, namespace, _id, cluster) (hostedClusterAPI_kubeapiserver_available)'
+        expression: 'sum by (name, namespace, _id, cluster, subscription_id) (sum_over_time(hostedClusterAPI_kubeapiserver_available{status="True"}[1h])) and on (name, namespace, _id, cluster, subscription_id) count by (name, namespace, _id, cluster, subscription_id) (hostedClusterAPI_kubeapiserver_available)'
       }
       {
         record: 'hostedClusterAPI_kubeapiserver_available:sum_over_time_2h'
-        expression: 'sum by (name, namespace, _id, cluster) (sum_over_time(hostedClusterAPI_kubeapiserver_available{status="True"}[2h])) and on (name, namespace, _id, cluster) count by (name, namespace, _id, cluster) (hostedClusterAPI_kubeapiserver_available)'
+        expression: 'sum by (name, namespace, _id, cluster, subscription_id) (sum_over_time(hostedClusterAPI_kubeapiserver_available{status="True"}[2h])) and on (name, namespace, _id, cluster, subscription_id) count by (name, namespace, _id, cluster, subscription_id) (hostedClusterAPI_kubeapiserver_available)'
       }
       {
         record: 'hostedClusterAPI_kubeapiserver_available:sum_over_time_6h'
-        expression: 'sum by (name, namespace, _id, cluster) (sum_over_time(hostedClusterAPI_kubeapiserver_available{status="True"}[6h])) and on (name, namespace, _id, cluster) count by (name, namespace, _id, cluster) (hostedClusterAPI_kubeapiserver_available)'
+        expression: 'sum by (name, namespace, _id, cluster, subscription_id) (sum_over_time(hostedClusterAPI_kubeapiserver_available{status="True"}[6h])) and on (name, namespace, _id, cluster, subscription_id) count by (name, namespace, _id, cluster, subscription_id) (hostedClusterAPI_kubeapiserver_available)'
       }
       {
         record: 'hostedClusterAPI_kubeapiserver_available:count_over_time_30m'
-        expression: 'sum by (name, namespace, _id, cluster) (count_over_time(hostedClusterAPI_kubeapiserver_available{status="True"}[30m])) and on (name, namespace, _id, cluster) count by (name, namespace, _id, cluster) (hostedClusterAPI_kubeapiserver_available)'
+        expression: 'sum by (name, namespace, _id, cluster, subscription_id) (count_over_time(hostedClusterAPI_kubeapiserver_available{status="True"}[30m])) and on (name, namespace, _id, cluster, subscription_id) count by (name, namespace, _id, cluster, subscription_id) (hostedClusterAPI_kubeapiserver_available)'
       }
       {
         record: 'hostedClusterAPI_kubeapiserver_available:count_over_time_1h'
-        expression: 'sum by (name, namespace, _id, cluster) (count_over_time(hostedClusterAPI_kubeapiserver_available{status="True"}[1h])) and on (name, namespace, _id, cluster) count by (name, namespace, _id, cluster) (hostedClusterAPI_kubeapiserver_available)'
+        expression: 'sum by (name, namespace, _id, cluster, subscription_id) (count_over_time(hostedClusterAPI_kubeapiserver_available{status="True"}[1h])) and on (name, namespace, _id, cluster, subscription_id) count by (name, namespace, _id, cluster, subscription_id) (hostedClusterAPI_kubeapiserver_available)'
       }
       {
         record: 'hostedClusterAPI_kubeapiserver_available:count_over_time_2h'
-        expression: 'sum by (name, namespace, _id, cluster) (count_over_time(hostedClusterAPI_kubeapiserver_available{status="True"}[2h])) and on (name, namespace, _id, cluster) count by (name, namespace, _id, cluster) (hostedClusterAPI_kubeapiserver_available)'
+        expression: 'sum by (name, namespace, _id, cluster, subscription_id) (count_over_time(hostedClusterAPI_kubeapiserver_available{status="True"}[2h])) and on (name, namespace, _id, cluster, subscription_id) count by (name, namespace, _id, cluster, subscription_id) (hostedClusterAPI_kubeapiserver_available)'
       }
       {
         record: 'hostedClusterAPI_kubeapiserver_available:count_over_time_6h'
-        expression: 'sum by (name, namespace, _id, cluster) (count_over_time(hostedClusterAPI_kubeapiserver_available{status="True"}[6h])) and on (name, namespace, _id, cluster) count by (name, namespace, _id, cluster) (hostedClusterAPI_kubeapiserver_available)'
+        expression: 'sum by (name, namespace, _id, cluster, subscription_id) (count_over_time(hostedClusterAPI_kubeapiserver_available{status="True"}[6h])) and on (name, namespace, _id, cluster, subscription_id) count by (name, namespace, _id, cluster, subscription_id) (hostedClusterAPI_kubeapiserver_available)'
       }
       {
         record: 'hostedClusterAPI_kubeapiserver_available:count_over_time_1d'
-        expression: 'sum by (name, namespace, _id, cluster) (count_over_time(hostedClusterAPI_kubeapiserver_available{status="True"}[1d])) and on (name, namespace, _id, cluster) count by (name, namespace, _id, cluster) (hostedClusterAPI_kubeapiserver_available)'
+        expression: 'sum by (name, namespace, _id, cluster, subscription_id) (count_over_time(hostedClusterAPI_kubeapiserver_available{status="True"}[1d])) and on (name, namespace, _id, cluster, subscription_id) count by (name, namespace, _id, cluster, subscription_id) (hostedClusterAPI_kubeapiserver_available)'
       }
       {
         record: 'hostedClusterAPI_kubeapiserver_available:count_over_time_3d'
-        expression: 'sum by (name, namespace, _id, cluster) (count_over_time(hostedClusterAPI_kubeapiserver_available{status="True"}[3d])) and on (name, namespace, _id, cluster) count by (name, namespace, _id, cluster) (hostedClusterAPI_kubeapiserver_available)'
+        expression: 'sum by (name, namespace, _id, cluster, subscription_id) (count_over_time(hostedClusterAPI_kubeapiserver_available{status="True"}[3d])) and on (name, namespace, _id, cluster, subscription_id) count by (name, namespace, _id, cluster, subscription_id) (hostedClusterAPI_kubeapiserver_available)'
       }
       {
         record: 'hostedClusterAPI_kubeapiserver_available:sli_sum_15m'
-        expression: 'sum by (name, namespace, _id, cluster) ( sum_over_time( ( hostedClusterAPI_kubeapiserver_available{status="True"} and on (name, namespace, _id, cluster) max by (name, namespace, _id, cluster) ((hostedClusterAPI_kubeapiserver_available offset 15m) >= 0) )[15m:1m] ) ) and on (name, namespace, _id, cluster) count by (name, namespace, _id, cluster) (hostedClusterAPI_kubeapiserver_available)'
+        expression: 'sum by (name, namespace, _id, cluster, subscription_id) ( sum_over_time( ( hostedClusterAPI_kubeapiserver_available{status="True"} and on (name, namespace, _id, cluster, subscription_id) max by (name, namespace, _id, cluster, subscription_id) ((hostedClusterAPI_kubeapiserver_available offset 15m) >= 0) )[15m:1m] ) ) and on (name, namespace, _id, cluster, subscription_id) count by (name, namespace, _id, cluster, subscription_id) (hostedClusterAPI_kubeapiserver_available)'
       }
       {
         record: 'hostedClusterAPI_kubeapiserver_available:sli_count_15m'
-        expression: 'sum by (name, namespace, _id, cluster) ( count_over_time( ( max by (name, namespace, _id, cluster) (hostedClusterAPI_kubeapiserver_available) and on (name, namespace, _id, cluster) max by (name, namespace, _id, cluster) ((hostedClusterAPI_kubeapiserver_available offset 15m) >= 0) )[15m:1m] ) ) and on (name, namespace, _id, cluster) count by (name, namespace, _id, cluster) (hostedClusterAPI_kubeapiserver_available)'
+        expression: 'sum by (name, namespace, _id, cluster, subscription_id) ( count_over_time( ( max by (name, namespace, _id, cluster, subscription_id) (hostedClusterAPI_kubeapiserver_available) and on (name, namespace, _id, cluster, subscription_id) max by (name, namespace, _id, cluster, subscription_id) ((hostedClusterAPI_kubeapiserver_available offset 15m) >= 0) )[15m:1m] ) ) and on (name, namespace, _id, cluster, subscription_id) count by (name, namespace, _id, cluster, subscription_id) (hostedClusterAPI_kubeapiserver_available)'
       }
       {
         record: 'hostedClusterAPI_kubeapiserver_available:sli_sum_6h'
-        expression: 'sum by (name, namespace, _id, cluster) ( sum_over_time( ( hostedClusterAPI_kubeapiserver_available{status="True"} and on (name, namespace, _id, cluster) max by (name, namespace, _id, cluster) ((hostedClusterAPI_kubeapiserver_available offset 15m) >= 0) )[6h:5m] ) ) and on (name, namespace, _id, cluster) count by (name, namespace, _id, cluster) (hostedClusterAPI_kubeapiserver_available)'
+        expression: 'sum by (name, namespace, _id, cluster, subscription_id) ( sum_over_time( ( hostedClusterAPI_kubeapiserver_available{status="True"} and on (name, namespace, _id, cluster, subscription_id) max by (name, namespace, _id, cluster, subscription_id) ((hostedClusterAPI_kubeapiserver_available offset 15m) >= 0) )[6h:5m] ) ) and on (name, namespace, _id, cluster, subscription_id) count by (name, namespace, _id, cluster, subscription_id) (hostedClusterAPI_kubeapiserver_available)'
       }
       {
         record: 'hostedClusterAPI_kubeapiserver_available:sli_count_6h'
-        expression: 'sum by (name, namespace, _id, cluster) ( count_over_time( ( max by (name, namespace, _id, cluster) (hostedClusterAPI_kubeapiserver_available) and on (name, namespace, _id, cluster) max by (name, namespace, _id, cluster) ((hostedClusterAPI_kubeapiserver_available offset 15m) >= 0) )[6h:5m] ) ) and on (name, namespace, _id, cluster) count by (name, namespace, _id, cluster) (hostedClusterAPI_kubeapiserver_available)'
+        expression: 'sum by (name, namespace, _id, cluster, subscription_id) ( count_over_time( ( max by (name, namespace, _id, cluster, subscription_id) (hostedClusterAPI_kubeapiserver_available) and on (name, namespace, _id, cluster, subscription_id) max by (name, namespace, _id, cluster, subscription_id) ((hostedClusterAPI_kubeapiserver_available offset 15m) >= 0) )[6h:5m] ) ) and on (name, namespace, _id, cluster, subscription_id) count by (name, namespace, _id, cluster, subscription_id) (hostedClusterAPI_kubeapiserver_available)'
       }
       {
         record: 'hostedClusterAPI_kubeapiserver_available:sli_sum_3d'
-        expression: 'sum by (name, namespace, _id, cluster) ( sum_over_time( ( hostedClusterAPI_kubeapiserver_available{status="True"} and on (name, namespace, _id, cluster) max by (name, namespace, _id, cluster) ((hostedClusterAPI_kubeapiserver_available offset 15m) >= 0) )[3d:30m] ) ) and on (name, namespace, _id, cluster) count by (name, namespace, _id, cluster) (hostedClusterAPI_kubeapiserver_available)'
+        expression: 'sum by (name, namespace, _id, cluster, subscription_id) ( sum_over_time( ( hostedClusterAPI_kubeapiserver_available{status="True"} and on (name, namespace, _id, cluster, subscription_id) max by (name, namespace, _id, cluster, subscription_id) ((hostedClusterAPI_kubeapiserver_available offset 15m) >= 0) )[3d:30m] ) ) and on (name, namespace, _id, cluster, subscription_id) count by (name, namespace, _id, cluster, subscription_id) (hostedClusterAPI_kubeapiserver_available)'
       }
       {
         record: 'hostedClusterAPI_kubeapiserver_available:sli_count_3d'
-        expression: 'sum by (name, namespace, _id, cluster) ( count_over_time( ( max by (name, namespace, _id, cluster) (hostedClusterAPI_kubeapiserver_available) and on (name, namespace, _id, cluster) max by (name, namespace, _id, cluster) ((hostedClusterAPI_kubeapiserver_available offset 15m) >= 0) )[3d:30m] ) ) and on (name, namespace, _id, cluster) count by (name, namespace, _id, cluster) (hostedClusterAPI_kubeapiserver_available)'
+        expression: 'sum by (name, namespace, _id, cluster, subscription_id) ( count_over_time( ( max by (name, namespace, _id, cluster, subscription_id) (hostedClusterAPI_kubeapiserver_available) and on (name, namespace, _id, cluster, subscription_id) max by (name, namespace, _id, cluster, subscription_id) ((hostedClusterAPI_kubeapiserver_available offset 15m) >= 0) )[3d:30m] ) ) and on (name, namespace, _id, cluster, subscription_id) count by (name, namespace, _id, cluster, subscription_id) (hostedClusterAPI_kubeapiserver_available)'
       }
     ]
   }

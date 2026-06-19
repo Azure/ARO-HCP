@@ -60,10 +60,23 @@ type GroupAlerts struct {
 	Alerts    []string `json:"alerts"`
 }
 
+type InternalSubscriptionLookupTable struct {
+	MatchLabels []string `json:"matchLabels,omitempty"`
+	Table       string   `json:"table"`
+}
+
+type InternalSubscriptionFilter struct {
+	Enabled       bool                              `json:"enabled,omitempty"`
+	LookupTables  []InternalSubscriptionLookupTable `json:"lookupTables,omitempty"`
+	ExcludeAlerts []string                          `json:"excludeAlerts,omitempty"`
+}
+
 type Options struct {
 	promtoolPath            string
 	outputBicep             string
 	includedAlerts          map[string][]string
+	internalSubFilter       InternalSubscriptionFilter
+	excludedFilterAlerts    set.Set[string]
 	labelsToExtract         []string
 	ruleFiles               []alertingRuleFile
 	outputReplacements      []Replacements
@@ -85,7 +98,8 @@ type PrometheusRulesConfig struct {
 }
 
 type CliConfig struct {
-	PrometheusRules PrometheusRulesConfig `json:"prometheusRules"`
+	PrometheusRules            PrometheusRulesConfig      `json:"prometheusRules"`
+	InternalSubscriptionFilter InternalSubscriptionFilter `json:"internalSubscriptionFilter,omitempty"`
 }
 
 func NewOptions() *Options {
@@ -156,6 +170,26 @@ func (o *Options) Complete(configFilePath string, promtoolPath string) error {
 	o.outputBicep = path.Join(baseDirectory, config.PrometheusRules.OutputBicep)
 	o.groupNamePrefix = config.PrometheusRules.GroupNamePrefix
 	o.labelsToExtract = append([]string{}, config.PrometheusRules.LabelsToExtract...)
+	o.internalSubFilter = config.InternalSubscriptionFilter
+	o.excludedFilterAlerts = set.New[string](config.InternalSubscriptionFilter.ExcludeAlerts...)
+
+	for i, lookupTable := range o.internalSubFilter.LookupTables {
+		if len(lookupTable.MatchLabels) == 0 || lookupTable.Table == "" {
+			return fmt.Errorf("internalSubscriptionFilter lookup tables must have both matchLabels and table fields configured")
+		}
+		for j, label := range lookupTable.MatchLabels {
+			trimmed := strings.TrimSpace(label)
+			if trimmed == "" || strings.ContainsAny(trimmed, " \t{}()=~!,") {
+				return fmt.Errorf("internalSubscriptionFilter lookupTable[%d].matchLabels[%d] %q is not a valid PromQL label name", i, j, label)
+			}
+			o.internalSubFilter.LookupTables[i].MatchLabels[j] = trimmed
+		}
+		trimmedTable := strings.TrimSpace(lookupTable.Table)
+		if strings.ContainsAny(trimmedTable, " \t{}()=~!,") {
+			return fmt.Errorf("internalSubscriptionFilter lookupTable[%d].table %q is not a valid metric name", i, lookupTable.Table)
+		}
+		o.internalSubFilter.LookupTables[i].Table = trimmedTable
+	}
 
 	// Convert includedAlertsByGroup to a map
 	o.includedAlerts = make(map[string][]string)
@@ -356,6 +390,24 @@ func (o *Options) labelsFromTextInConfiguredOrder(text string) []string {
 	return orderedLabels
 }
 
+func (o *Options) appendInternalSubscriptionFilters(alertName, expression string, logger *logrus.Entry) string {
+	if !o.internalSubFilter.Enabled || o.excludedFilterAlerts.Has(alertName) {
+		return expression
+	}
+
+	if len(o.internalSubFilter.LookupTables) == 0 {
+		logger.WithField("alert", alertName).Warn("internal subscription filter enabled but no lookup tables are configured")
+		return expression
+	}
+
+	filteredExpression := expression
+	for _, lookupTable := range o.internalSubFilter.LookupTables {
+		filteredExpression = fmt.Sprintf("(%s) unless on(%s) %s", filteredExpression, strings.Join(lookupTable.MatchLabels, ", "), lookupTable.Table)
+	}
+
+	return filteredExpression
+}
+
 func (o *Options) Generate() error {
 	output, err := os.Create(o.outputBicep)
 	if err != nil {
@@ -390,8 +442,7 @@ param location string = resourceGroup().location
 			return err
 		}
 	} else {
-		if _, err := output.Write([]byte(`
-param azureMonitoring string
+		if _, err := output.Write([]byte(`param azureMonitoring string
 
 param location string = resourceGroup().location
 `)); err != nil {
@@ -510,18 +561,19 @@ param location string = resourceGroup().location
 
 				// Filter rules based on the output file type
 				if rule.Alert != "" && isAlertingRulesFile {
+					expression := strings.TrimSpace(
+						whitespaceMatcher.ReplaceAllString(rule.Expr.String(), " "),
+					)
+					expression = o.appendInternalSubscriptionFilters(rule.Alert, expression, logger)
+
 					armGroup.Properties.Rules = append(armGroup.Properties.Rules, &armprometheusrulegroups.PrometheusRule{
 						Alert:       ptr.To(rule.Alert),
 						Enabled:     ptr.To(true),
 						Labels:      labels,
 						Annotations: annotations,
 						For:         parseToAzureDurationString(rule.For),
-						Expression: ptr.To(
-							strings.TrimSpace(
-								whitespaceMatcher.ReplaceAllString(rule.Expr.String(), " "),
-							),
-						),
-						Severity: severityFor(labels),
+						Expression:  ptr.To(expression),
+						Severity:    severityFor(labels),
 					})
 				} else if rule.Record != "" && isRecordingRulesFile {
 					armGroup.Properties.Rules = append(armGroup.Properties.Rules, &armprometheusrulegroups.PrometheusRule{

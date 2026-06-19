@@ -45,7 +45,7 @@ Management Cluster: {{ $labels.cluster }}/{{ $labels.namespace }}
           summary: '[HCP] [{{ $labels.name }}] KubeAPIServer Fast Error Budget Burn (1h/5m)'
           title: '[HCP] [{{ $labels.name }}] KubeAPIServer Fast Error Budget Burn (1h/5m)'
         }
-        expression: '( 1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_5m / hostedClusterAPI_kubeapiserver_available:sli_count_5m) > (14.4 * (1 - 0.9995)) and on (name, namespace, _id, cluster) hostedClusterAPI_kubeapiserver_available:sli_count_5m > 3 ) and on (name, namespace, _id, cluster) ( 1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_1h / hostedClusterAPI_kubeapiserver_available:sli_count_1h) > (14.4 * (1 - 0.9995)) and on (name, namespace, _id, cluster) hostedClusterAPI_kubeapiserver_available:sli_count_1h > 54 )'
+        expression: '((( 1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_5m / hostedClusterAPI_kubeapiserver_available:sli_count_5m) > (14.4 * (1 - 0.9995)) and on (name, namespace, _id, cluster) hostedClusterAPI_kubeapiserver_available:sli_count_5m > 3 ) and on (name, namespace, _id, cluster) ( 1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_1h / hostedClusterAPI_kubeapiserver_available:sli_count_1h) > (14.4 * (1 - 0.9995)) and on (name, namespace, _id, cluster) hostedClusterAPI_kubeapiserver_available:sli_count_1h > 54 )) unless on(_id, cluster) internal_subscription:hostedcluster:info) unless on(subscription_id) internal_subscription:info'
         for: 'PT10M'
         severity: 2
       }
@@ -81,7 +81,7 @@ Management Cluster: {{ $labels.cluster }}/{{ $labels.namespace }}
           summary: '[HCP] [{{ $labels.name }}] KubeAPIServer Medium Error Budget Burn (6h/30m)'
           title: '[HCP] [{{ $labels.name }}] KubeAPIServer Medium Error Budget Burn (6h/30m)'
         }
-        expression: '( 1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_30m / hostedClusterAPI_kubeapiserver_available:sli_count_30m) > (6 * (1 - 0.9995)) and on (name, namespace, _id, cluster) hostedClusterAPI_kubeapiserver_available:sli_count_30m > 27 ) and on (name, namespace, _id, cluster) ( 1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_6h / hostedClusterAPI_kubeapiserver_available:sli_count_6h) > (6 * (1 - 0.9995)) and on (name, namespace, _id, cluster) hostedClusterAPI_kubeapiserver_available:sli_count_6h > 64 )'
+        expression: '((( 1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_30m / hostedClusterAPI_kubeapiserver_available:sli_count_30m) > (6 * (1 - 0.9995)) and on (name, namespace, _id, cluster) hostedClusterAPI_kubeapiserver_available:sli_count_30m > 27 ) and on (name, namespace, _id, cluster) ( 1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_6h / hostedClusterAPI_kubeapiserver_available:sli_count_6h) > (6 * (1 - 0.9995)) and on (name, namespace, _id, cluster) hostedClusterAPI_kubeapiserver_available:sli_count_6h > 64 )) unless on(_id, cluster) internal_subscription:hostedcluster:info) unless on(subscription_id) internal_subscription:info'
         for: 'PT30M'
         severity: 2
       }
@@ -117,7 +117,7 @@ Management Cluster: {{ $labels.cluster }}/{{ $labels.namespace }}
           summary: '[HCP] [{{ $labels.name }}] KubeAPIServer Slow Error Budget Burn (3d/6h)'
           title: '[HCP] [{{ $labels.name }}] KubeAPIServer Slow Error Budget Burn (3d/6h)'
         }
-        expression: '( 1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_6h / hostedClusterAPI_kubeapiserver_available:sli_count_6h) > (1 * (1 - 0.9995)) and on (name, namespace, _id, cluster) hostedClusterAPI_kubeapiserver_available:sli_count_6h > 64 ) and on (name, namespace, _id, cluster) ( 1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_3d / hostedClusterAPI_kubeapiserver_available:sli_count_3d) > (1 * (1 - 0.9995)) and on (name, namespace, _id, cluster) hostedClusterAPI_kubeapiserver_available:sli_count_3d > 130 )'
+        expression: '((( 1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_6h / hostedClusterAPI_kubeapiserver_available:sli_count_6h) > (1 * (1 - 0.9995)) and on (name, namespace, _id, cluster) hostedClusterAPI_kubeapiserver_available:sli_count_6h > 64 ) and on (name, namespace, _id, cluster) ( 1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_3d / hostedClusterAPI_kubeapiserver_available:sli_count_3d) > (1 * (1 - 0.9995)) and on (name, namespace, _id, cluster) hostedClusterAPI_kubeapiserver_available:sli_count_3d > 130 )) unless on(_id, cluster) internal_subscription:hostedcluster:info) unless on(subscription_id) internal_subscription:info'
         for: 'PT3H'
         severity: 3
       }

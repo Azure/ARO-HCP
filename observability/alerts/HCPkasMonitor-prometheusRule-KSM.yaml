@@ -31,7 +31,7 @@ spec:
         description: "HostedCluster {{ $labels.name }} (ID: {{ $labels._id }}) KubeAPIServer availability is below SLO (current value: {{ $value }})"
         correlationId: "hostedcluster-KubeAPIServer-ErrorBudgetBurn/{{ $labels.cluster }}/{{ $labels._id }}"
     - alert: hostedcluster-KubeAPIServer-ErrorBudgetBurn
-      expr: 1 - (hostedClusterAPI_kubeapiserver_available:sum_over_time_2h / hostedClusterAPI_kubeapiserver_available:count_over_time_2h) > (3 * (1 - 0.9995)) and hostedClusterAPI_kubeapiserver_available:count_over_time_2h > 120 and 1 - sum by (name, namespace, _id, cluster) (hostedClusterAPI_kubeapiserver_available:ratio_avg_1d) > (3 * (1 - 0.9995)) and hostedClusterAPI_kubeapiserver_available:count_over_time_1d > 1440
+      expr: 1 - (hostedClusterAPI_kubeapiserver_available:sum_over_time_2h / hostedClusterAPI_kubeapiserver_available:count_over_time_2h) > (3 * (1 - 0.9995)) and hostedClusterAPI_kubeapiserver_available:count_over_time_2h > 120 and 1 - sum by (name, namespace, _id, cluster, subscription_id) (hostedClusterAPI_kubeapiserver_available:ratio_avg_1d) > (3 * (1 - 0.9995)) and hostedClusterAPI_kubeapiserver_available:count_over_time_1d > 1440
       for: 1h
       labels:
         long_window: 1d
@@ -42,7 +42,7 @@ spec:
         description: "HostedCluster {{ $labels.name }} (ID: {{ $labels._id }}) KubeAPIServer availability is below SLO (current value: {{ $value }})"
         correlationId: "hostedcluster-KubeAPIServer-ErrorBudgetBurn/{{ $labels.cluster }}/{{ $labels._id }}"
     - alert: hostedcluster-KubeAPIServer-ErrorBudgetBurn
-      expr: 1 - (hostedClusterAPI_kubeapiserver_available:sum_over_time_6h / hostedClusterAPI_kubeapiserver_available:count_over_time_6h) > (1 * (1 - 0.9995)) and hostedClusterAPI_kubeapiserver_available:count_over_time_6h > 360 and 1 - sum by (name, namespace, _id, cluster) (hostedClusterAPI_kubeapiserver_available:ratio_avg_3d) > (1 * (1 - 0.9995)) and hostedClusterAPI_kubeapiserver_available:count_over_time_3d > 4320
+      expr: 1 - (hostedClusterAPI_kubeapiserver_available:sum_over_time_6h / hostedClusterAPI_kubeapiserver_available:count_over_time_6h) > (1 * (1 - 0.9995)) and hostedClusterAPI_kubeapiserver_available:count_over_time_6h > 360 and 1 - sum by (name, namespace, _id, cluster, subscription_id) (hostedClusterAPI_kubeapiserver_available:ratio_avg_3d) > (1 * (1 - 0.9995)) and hostedClusterAPI_kubeapiserver_available:count_over_time_3d > 4320
       for: 3h
       labels:
         long_window: 3d

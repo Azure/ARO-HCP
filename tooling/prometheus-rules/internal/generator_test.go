@@ -27,6 +27,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/utils/ptr"
+	"k8s.io/utils/set"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/prometheusrulegroups/armprometheusrulegroups"
 )
@@ -256,6 +257,45 @@ spec:
 			configFile:  `invalid: yaml: content:`,
 			expectError: true,
 			errorMsg:    "error unmarshaling configFile",
+		},
+		{
+			name: "config with internal subscription filter",
+			configFile: `
+prometheusRules:
+  untestedRules:
+  - untested.yaml
+  outputBicep: generated.bicep
+internalSubscriptionFilter:
+  enabled: true
+  lookupTables:
+  - matchLabels: [_id, cluster]
+    table: internal_subscription:hostedcluster:info
+  excludeAlerts:
+  - IgnoredAlert
+`,
+			setupFiles: func(tmpDir string) error {
+				ruleContent := `
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: test-rules
+spec:
+  groups:
+  - name: test.rules
+    rules:
+    - alert: IncludedAlert
+      expr: up == 0
+`
+				return os.WriteFile(filepath.Join(tmpDir, "untested.yaml"), []byte(ruleContent), 0644)
+			},
+			expectError: false,
+			validateFunc: func(t *testing.T, opts *Options) {
+				require.True(t, opts.internalSubFilter.Enabled)
+				require.Len(t, opts.internalSubFilter.LookupTables, 1)
+				require.Equal(t, []string{"_id", "cluster"}, opts.internalSubFilter.LookupTables[0].MatchLabels)
+				require.Equal(t, "internal_subscription:hostedcluster:info", opts.internalSubFilter.LookupTables[0].Table)
+				require.True(t, opts.excludedFilterAlerts.Has("IgnoredAlert"))
+			},
 		},
 		{
 			name: "config with labelsToExtract",
@@ -591,6 +631,152 @@ func TestOptionsGenerate(t *testing.T) {
 		generated := string(content)
 		assert.Contains(t, generated, "alert: 'AllowedAlert'")
 		assert.NotContains(t, generated, "alert: 'BlockedAlert'")
+	})
+
+	t.Run("appends internal subscription filter when enabled", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		outputFile := filepath.Join(tmpDir, "generatedAlertingRules.bicep")
+
+		opts := &Options{
+			outputBicep: outputFile,
+			internalSubFilter: InternalSubscriptionFilter{
+				Enabled: true,
+				LookupTables: []InternalSubscriptionLookupTable{
+					{
+						MatchLabels: []string{"_id", "cluster"},
+						Table:       "internal_subscription:hostedcluster:info",
+					},
+				},
+			},
+			excludedFilterAlerts: set.New[string](),
+			ruleFiles: []alertingRuleFile{
+				{
+					Rules: monitoringv1.PrometheusRule{
+						Spec: monitoringv1.PrometheusRuleSpec{
+							Groups: []monitoringv1.RuleGroup{
+								{
+									Name: "test-group",
+									Rules: []monitoringv1.Rule{
+										{
+											Alert: "FilteredAlert",
+											Expr:  intstr.FromString("up == 0"),
+											Labels: map[string]string{
+												"severity": "critical",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+
+		err := opts.Generate()
+		require.NoError(t, err)
+
+		content, err := os.ReadFile(outputFile)
+		require.NoError(t, err)
+		assert.Contains(t, string(content), "expression: '(up == 0) unless on(_id, cluster) internal_subscription:hostedcluster:info'")
+	})
+
+	t.Run("does not append internal subscription filter for excluded alerts", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		outputFile := filepath.Join(tmpDir, "generatedAlertingRules.bicep")
+
+		opts := &Options{
+			outputBicep: outputFile,
+			internalSubFilter: InternalSubscriptionFilter{
+				Enabled: true,
+				LookupTables: []InternalSubscriptionLookupTable{
+					{
+						MatchLabels: []string{"_id", "cluster"},
+						Table:       "internal_subscription:hostedcluster:info",
+					},
+				},
+			},
+			excludedFilterAlerts: set.New[string]("ExcludedAlert"),
+			ruleFiles: []alertingRuleFile{
+				{
+					Rules: monitoringv1.PrometheusRule{
+						Spec: monitoringv1.PrometheusRuleSpec{
+							Groups: []monitoringv1.RuleGroup{
+								{
+									Name: "test-group",
+									Rules: []monitoringv1.Rule{
+										{
+											Alert: "ExcludedAlert",
+											Expr:  intstr.FromString("up == 0"),
+											Labels: map[string]string{
+												"severity": "critical",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+
+		err := opts.Generate()
+		require.NoError(t, err)
+
+		content, err := os.ReadFile(outputFile)
+		require.NoError(t, err)
+		assert.Contains(t, string(content), "expression: 'up == 0'")
+		assert.NotContains(t, string(content), "internal_subscription:hostedcluster:info")
+	})
+
+	t.Run("does not append internal subscription filter when disabled", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		outputFile := filepath.Join(tmpDir, "generatedAlertingRules.bicep")
+
+		opts := &Options{
+			outputBicep: outputFile,
+			internalSubFilter: InternalSubscriptionFilter{
+				Enabled: false,
+				LookupTables: []InternalSubscriptionLookupTable{
+					{
+						MatchLabels: []string{"_id", "cluster"},
+						Table:       "internal_subscription:hostedcluster:info",
+					},
+				},
+			},
+			excludedFilterAlerts: set.New[string](),
+			ruleFiles: []alertingRuleFile{
+				{
+					Rules: monitoringv1.PrometheusRule{
+						Spec: monitoringv1.PrometheusRuleSpec{
+							Groups: []monitoringv1.RuleGroup{
+								{
+									Name: "test-group",
+									Rules: []monitoringv1.Rule{
+										{
+											Alert: "UnfilteredAlert",
+											Expr:  intstr.FromString("up == 0"),
+											Labels: map[string]string{
+												"severity": "critical",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+
+		err := opts.Generate()
+		require.NoError(t, err)
+
+		content, err := os.ReadFile(outputFile)
+		require.NoError(t, err)
+		assert.Contains(t, string(content), "expression: 'up == 0'")
+		assert.NotContains(t, string(content), "internal_subscription:hostedcluster:info")
 	})
 
 	t.Run("preserves per-alert correlationId override", func(t *testing.T) {

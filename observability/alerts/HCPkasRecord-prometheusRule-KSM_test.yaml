@@ -5,7 +5,7 @@ tests:
 # Test 1: 100% Availability (Perfect Success)
 - interval: 1m
   input_series:
-  - series: 'hostedClusterAPI_kubeapiserver_available{status="True", name="test-cluster-1", namespace="clusters", _id="abc-123", cluster="mgmt-cluster"}'
+  - series: 'hostedClusterAPI_kubeapiserver_available{status="True", name="test-cluster-1", namespace="clusters", _id="abc-123", cluster="mgmt-cluster", subscription_id="sub-001"}'
     # Generate 10 data points with a value of 1, over 10 minutes.
     values: "1+0x9"
   promql_expr_test:
@@ -13,91 +13,91 @@ tests:
   - expr: hostedClusterAPI_kubeapiserver_available:ratio_avg_30d{name="test-cluster-1", namespace="clusters"}
     eval_time: 10m
     exp_samples:
-    - labels: '{__name__="hostedClusterAPI_kubeapiserver_available:ratio_avg_30d", name="test-cluster-1", namespace="clusters", _id="abc-123", cluster="mgmt-cluster"}'
+    - labels: '{__name__="hostedClusterAPI_kubeapiserver_available:ratio_avg_30d", name="test-cluster-1", namespace="clusters", _id="abc-123", cluster="mgmt-cluster", subscription_id="sub-001"}'
       value: 1
   # Test the 7d rule
   - expr: hostedClusterAPI_kubeapiserver_available:ratio_avg_7d{name="test-cluster-1", namespace="clusters"}
     eval_time: 10m
     exp_samples:
-    - labels: '{__name__="hostedClusterAPI_kubeapiserver_available:ratio_avg_7d", name="test-cluster-1", namespace="clusters", _id="abc-123", cluster="mgmt-cluster"}'
+    - labels: '{__name__="hostedClusterAPI_kubeapiserver_available:ratio_avg_7d", name="test-cluster-1", namespace="clusters", _id="abc-123", cluster="mgmt-cluster", subscription_id="sub-001"}'
       value: 1
   # Test the 1d rule
   - expr: hostedClusterAPI_kubeapiserver_available:ratio_avg_1d{name="test-cluster-1", namespace="clusters"}
     eval_time: 10m
     exp_samples:
-    - labels: '{__name__="hostedClusterAPI_kubeapiserver_available:ratio_avg_1d", name="test-cluster-1", namespace="clusters", _id="abc-123", cluster="mgmt-cluster"}'
+    - labels: '{__name__="hostedClusterAPI_kubeapiserver_available:ratio_avg_1d", name="test-cluster-1", namespace="clusters", _id="abc-123", cluster="mgmt-cluster", subscription_id="sub-001"}'
       value: 1
   # Test the 3d rule
   - expr: hostedClusterAPI_kubeapiserver_available:ratio_avg_3d{name="test-cluster-1", namespace="clusters"}
     eval_time: 10m
     exp_samples:
-    - labels: '{__name__="hostedClusterAPI_kubeapiserver_available:ratio_avg_3d", name="test-cluster-1", namespace="clusters", _id="abc-123", cluster="mgmt-cluster"}'
+    - labels: '{__name__="hostedClusterAPI_kubeapiserver_available:ratio_avg_3d", name="test-cluster-1", namespace="clusters", _id="abc-123", cluster="mgmt-cluster", subscription_id="sub-001"}'
       value: 1
 # Test 2: 50% Availability (Intermittent Failures)
 - interval: 1m
   input_series:
-  - series: 'hostedClusterAPI_kubeapiserver_available{status="True", name="test-cluster-2", namespace="clusters", _id="def-456", cluster="mgmt-cluster"}'
+  - series: 'hostedClusterAPI_kubeapiserver_available{status="True", name="test-cluster-2", namespace="clusters", _id="def-456", cluster="mgmt-cluster", subscription_id="sub-001"}'
     values: "1 0 1 0 1 0 1 0 1 0"
   promql_expr_test:
   # Test the 30d rule
   - expr: hostedClusterAPI_kubeapiserver_available:ratio_avg_30d{name="test-cluster-2", namespace="clusters"}
     eval_time: 10m
     exp_samples:
-    - labels: '{__name__="hostedClusterAPI_kubeapiserver_available:ratio_avg_30d", name="test-cluster-2", namespace="clusters", _id="def-456", cluster="mgmt-cluster"}'
+    - labels: '{__name__="hostedClusterAPI_kubeapiserver_available:ratio_avg_30d", name="test-cluster-2", namespace="clusters", _id="def-456", cluster="mgmt-cluster", subscription_id="sub-001"}'
       value: 0.5
   # Test the 7d rule
   - expr: hostedClusterAPI_kubeapiserver_available:ratio_avg_7d{name="test-cluster-2", namespace="clusters"}
     eval_time: 10m
     exp_samples:
-    - labels: '{__name__="hostedClusterAPI_kubeapiserver_available:ratio_avg_7d", name="test-cluster-2", namespace="clusters", _id="def-456", cluster="mgmt-cluster"}'
+    - labels: '{__name__="hostedClusterAPI_kubeapiserver_available:ratio_avg_7d", name="test-cluster-2", namespace="clusters", _id="def-456", cluster="mgmt-cluster", subscription_id="sub-001"}'
       value: 0.5
   # Test the 1d rule
   - expr: hostedClusterAPI_kubeapiserver_available:ratio_avg_1d{name="test-cluster-2", namespace="clusters"}
     eval_time: 10m
     exp_samples:
-    - labels: '{__name__="hostedClusterAPI_kubeapiserver_available:ratio_avg_1d", name="test-cluster-2", namespace="clusters", _id="def-456", cluster="mgmt-cluster"}'
+    - labels: '{__name__="hostedClusterAPI_kubeapiserver_available:ratio_avg_1d", name="test-cluster-2", namespace="clusters", _id="def-456", cluster="mgmt-cluster", subscription_id="sub-001"}'
       value: 0.5
   # Test the 3d rule
   - expr: hostedClusterAPI_kubeapiserver_available:ratio_avg_3d{name="test-cluster-2", namespace="clusters"}
     eval_time: 10m
     exp_samples:
-    - labels: '{__name__="hostedClusterAPI_kubeapiserver_available:ratio_avg_3d", name="test-cluster-2", namespace="clusters", _id="def-456", cluster="mgmt-cluster"}'
+    - labels: '{__name__="hostedClusterAPI_kubeapiserver_available:ratio_avg_3d", name="test-cluster-2", namespace="clusters", _id="def-456", cluster="mgmt-cluster", subscription_id="sub-001"}'
       value: 0.5
 # Test 3: 0% Availability (Complete Failure)
 - interval: 1m
   input_series:
-  - series: 'hostedClusterAPI_kubeapiserver_available{status="True", name="test-cluster-3", namespace="clusters", _id="ghi-789", cluster="mgmt-cluster"}'
+  - series: 'hostedClusterAPI_kubeapiserver_available{status="True", name="test-cluster-3", namespace="clusters", _id="ghi-789", cluster="mgmt-cluster", subscription_id="sub-001"}'
     values: "0+0x9"
   promql_expr_test:
   # Test the 30d rule
   - expr: hostedClusterAPI_kubeapiserver_available:ratio_avg_30d{name="test-cluster-3", namespace="clusters"}
     eval_time: 10m
     exp_samples:
-    - labels: '{__name__="hostedClusterAPI_kubeapiserver_available:ratio_avg_30d", name="test-cluster-3", namespace="clusters", _id="ghi-789", cluster="mgmt-cluster"}'
+    - labels: '{__name__="hostedClusterAPI_kubeapiserver_available:ratio_avg_30d", name="test-cluster-3", namespace="clusters", _id="ghi-789", cluster="mgmt-cluster", subscription_id="sub-001"}'
       value: 0
   # Test the 7d rule
   - expr: hostedClusterAPI_kubeapiserver_available:ratio_avg_7d{name="test-cluster-3", namespace="clusters"}
     eval_time: 10m
     exp_samples:
-    - labels: '{__name__="hostedClusterAPI_kubeapiserver_available:ratio_avg_7d", name="test-cluster-3", namespace="clusters", _id="ghi-789", cluster="mgmt-cluster"}'
+    - labels: '{__name__="hostedClusterAPI_kubeapiserver_available:ratio_avg_7d", name="test-cluster-3", namespace="clusters", _id="ghi-789", cluster="mgmt-cluster", subscription_id="sub-001"}'
       value: 0
   # Test the 1d rule
   - expr: hostedClusterAPI_kubeapiserver_available:ratio_avg_1d{name="test-cluster-3", namespace="clusters"}
     eval_time: 10m
     exp_samples:
-    - labels: '{__name__="hostedClusterAPI_kubeapiserver_available:ratio_avg_1d", name="test-cluster-3", namespace="clusters", _id="ghi-789", cluster="mgmt-cluster"}'
+    - labels: '{__name__="hostedClusterAPI_kubeapiserver_available:ratio_avg_1d", name="test-cluster-3", namespace="clusters", _id="ghi-789", cluster="mgmt-cluster", subscription_id="sub-001"}'
       value: 0
   # Test the 3d rule
   - expr: hostedClusterAPI_kubeapiserver_available:ratio_avg_3d{name="test-cluster-3", namespace="clusters"}
     eval_time: 10m
     exp_samples:
-    - labels: '{__name__="hostedClusterAPI_kubeapiserver_available:ratio_avg_3d", name="test-cluster-3", namespace="clusters", _id="ghi-789", cluster="mgmt-cluster"}'
+    - labels: '{__name__="hostedClusterAPI_kubeapiserver_available:ratio_avg_3d", name="test-cluster-3", namespace="clusters", _id="ghi-789", cluster="mgmt-cluster", subscription_id="sub-001"}'
       value: 0
 # Test 4: Burn-rate recording rules (sum_over_time and count_over_time)
 - interval: 1m
   name: "Test 4: Burn-rate recording rules - all successes"
   input_series:
-  - series: 'hostedClusterAPI_kubeapiserver_available{status="True", name="test-cluster-4", namespace="clusters", _id="xyz-789", cluster="mgmt-cluster"}'
+  - series: 'hostedClusterAPI_kubeapiserver_available{status="True", name="test-cluster-4", namespace="clusters", _id="xyz-789", cluster="mgmt-cluster", subscription_id="sub-001"}'
     # Perfect availability for 2+ hours
     values: "1+0x150"
   promql_expr_test:
@@ -105,25 +105,25 @@ tests:
   - expr: hostedClusterAPI_kubeapiserver_available:sum_over_time_30m{name="test-cluster-4"}
     eval_time: 90m
     exp_samples:
-    - labels: '{__name__="hostedClusterAPI_kubeapiserver_available:sum_over_time_30m", name="test-cluster-4", namespace="clusters", _id="xyz-789", cluster="mgmt-cluster"}'
+    - labels: '{__name__="hostedClusterAPI_kubeapiserver_available:sum_over_time_30m", name="test-cluster-4", namespace="clusters", _id="xyz-789", cluster="mgmt-cluster", subscription_id="sub-001"}'
       value: 30
   # Test count_over_time_30m
   - expr: hostedClusterAPI_kubeapiserver_available:count_over_time_30m{name="test-cluster-4"}
     eval_time: 90m
     exp_samples:
-    - labels: '{__name__="hostedClusterAPI_kubeapiserver_available:count_over_time_30m", name="test-cluster-4", namespace="clusters", _id="xyz-789", cluster="mgmt-cluster"}'
+    - labels: '{__name__="hostedClusterAPI_kubeapiserver_available:count_over_time_30m", name="test-cluster-4", namespace="clusters", _id="xyz-789", cluster="mgmt-cluster", subscription_id="sub-001"}'
       value: 30
   # Test sum_over_time_1h (1h window is left-open: (30m, 90m] = 60 samples)
   - expr: hostedClusterAPI_kubeapiserver_available:sum_over_time_1h{name="test-cluster-4"}
     eval_time: 90m
     exp_samples:
-    - labels: '{__name__="hostedClusterAPI_kubeapiserver_available:sum_over_time_1h", name="test-cluster-4", namespace="clusters", _id="xyz-789", cluster="mgmt-cluster"}'
+    - labels: '{__name__="hostedClusterAPI_kubeapiserver_available:sum_over_time_1h", name="test-cluster-4", namespace="clusters", _id="xyz-789", cluster="mgmt-cluster", subscription_id="sub-001"}'
       value: 60
   # Test count_over_time_1h
   - expr: hostedClusterAPI_kubeapiserver_available:count_over_time_1h{name="test-cluster-4"}
     eval_time: 90m
     exp_samples:
-    - labels: '{__name__="hostedClusterAPI_kubeapiserver_available:count_over_time_1h", name="test-cluster-4", namespace="clusters", _id="xyz-789", cluster="mgmt-cluster"}'
+    - labels: '{__name__="hostedClusterAPI_kubeapiserver_available:count_over_time_1h", name="test-cluster-4", namespace="clusters", _id="xyz-789", cluster="mgmt-cluster", subscription_id="sub-001"}'
       value: 60
 # Test 5: SLI recording rules - perfect availability
 # The sli_* rules use a 15m offset blackout gate and [15m:1m] subquery.
@@ -132,18 +132,18 @@ tests:
 - interval: 1m
   name: "Test 5: SLI recording rules - perfect availability"
   input_series:
-  - series: 'hostedClusterAPI_kubeapiserver_available{status="True", name="test-cluster-5", namespace="clusters", _id="sli-100", cluster="mgmt-cluster"}'
+  - series: 'hostedClusterAPI_kubeapiserver_available{status="True", name="test-cluster-5", namespace="clusters", _id="sli-100", cluster="mgmt-cluster", subscription_id="sub-001"}'
     values: "1+0x60"
   promql_expr_test:
   - expr: hostedClusterAPI_kubeapiserver_available:sli_sum_15m{name="test-cluster-5"}
     eval_time: 35m
     exp_samples:
-    - labels: '{__name__="hostedClusterAPI_kubeapiserver_available:sli_sum_15m", name="test-cluster-5", namespace="clusters", _id="sli-100", cluster="mgmt-cluster"}'
+    - labels: '{__name__="hostedClusterAPI_kubeapiserver_available:sli_sum_15m", name="test-cluster-5", namespace="clusters", _id="sli-100", cluster="mgmt-cluster", subscription_id="sub-001"}'
       value: 15
   - expr: hostedClusterAPI_kubeapiserver_available:sli_count_15m{name="test-cluster-5"}
     eval_time: 35m
     exp_samples:
-    - labels: '{__name__="hostedClusterAPI_kubeapiserver_available:sli_count_15m", name="test-cluster-5", namespace="clusters", _id="sli-100", cluster="mgmt-cluster"}'
+    - labels: '{__name__="hostedClusterAPI_kubeapiserver_available:sli_count_15m", name="test-cluster-5", namespace="clusters", _id="sli-100", cluster="mgmt-cluster", subscription_id="sub-001"}'
       value: 15
 # Test 6: SLI offset blackout - newly provisioned cluster excluded
 # A cluster with only 10m of data should produce no SLI values because
@@ -151,7 +151,7 @@ tests:
 - interval: 1m
   name: "Test 6: SLI offset blackout - new cluster excluded"
   input_series:
-  - series: 'hostedClusterAPI_kubeapiserver_available{status="True", name="test-cluster-6", namespace="clusters", _id="sli-new", cluster="mgmt-cluster"}'
+  - series: 'hostedClusterAPI_kubeapiserver_available{status="True", name="test-cluster-6", namespace="clusters", _id="sli-new", cluster="mgmt-cluster", subscription_id="sub-001"}'
     values: "1+0x10"
   promql_expr_test:
   - expr: hostedClusterAPI_kubeapiserver_available:sli_sum_15m{name="test-cluster-6"}

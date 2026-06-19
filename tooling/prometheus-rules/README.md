@@ -14,6 +14,7 @@ This tool converts Kubernetes PrometheusRule custom resources (used by the Prome
 - Maps Prometheus severity labels to IcM (Incident Management) severity levels
 - Automatically generates IcM correlation IDs for proper incident aggregation
 - Supports expression replacements for platform-specific adjustments
+- Supports lane-level internal subscription filtering for alert expressions
 
 ## Recent Change
 
@@ -83,6 +84,13 @@ prometheusRules:
   outputReplacements:
     - from: 'original_expression'
       to: 'replaced_expression'
+
+internalSubscriptionFilter:
+  enabled: true
+  lookupTables:
+    - matchLabels: [_id, cluster]
+      table: internal_subscription:hostedcluster:info
+  excludeAlerts: []
 ```
 
 ## Rule Testing

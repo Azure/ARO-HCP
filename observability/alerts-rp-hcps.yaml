@@ -5,3 +5,10 @@ prometheusRules:
   testDependencies:
   - recording-rules-hcps.yaml
   outputBicep: ../dev-infrastructure/modules/metrics/rules/generatedRPHCPPrometheusAlertingRules.bicep
+internalSubscriptionFilter:
+  enabled: true
+  lookupTables:
+  - matchLabels: [_id, cluster]
+    table: internal_subscription:hostedcluster:info
+  - matchLabels: [subscription_id]
+    table: internal_subscription:info
