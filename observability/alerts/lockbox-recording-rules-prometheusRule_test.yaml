@@ -1,0 +1,66 @@
+rule_files:
+- lockbox-recording-rules-prometheusRule.yaml
+evaluation_interval: 1m
+tests:
+# Test 1: Active sessions gauge
+- interval: 1m
+  input_series:
+  - series: 'sessiongate_active_sessions{cluster="svc-cluster-1", instance="sessiongate-0"}'
+    values: "2+0x9"
+  - series: 'sessiongate_active_sessions{cluster="svc-cluster-1", instance="sessiongate-1"}'
+    values: "1+0x9"
+  promql_expr_test:
+  - expr: lockbox:sessiongate_active_sessions:max{cluster="svc-cluster-1"}
+    eval_time: 5m
+    exp_samples:
+    - labels: '{__name__="lockbox:sessiongate_active_sessions:max", cluster="svc-cluster-1"}'
+      value: 2
+# Test 2: KAS proxy request rate with errors
+- interval: 1m
+  input_series:
+  - series: 'sessiongate_kas_proxy_requests_total{cluster="svc-cluster-2", method="GET", status="200", route="/api"}'
+    values: "0+100x15"
+  - series: 'sessiongate_kas_proxy_requests_total{cluster="svc-cluster-2", method="GET", status="500", route="/api"}'
+    values: "0+5x15"
+  promql_expr_test:
+  - expr: lockbox:kas_proxy_requests_total:rate5m{cluster="svc-cluster-2"}
+    eval_time: 5m
+    exp_samples:
+    - labels: '{__name__="lockbox:kas_proxy_requests_total:rate5m", cluster="svc-cluster-2"}'
+      value: 1.75
+  - expr: lockbox:kas_proxy_errors_total:rate5m{cluster="svc-cluster-2"}
+    eval_time: 5m
+    exp_samples:
+    - labels: '{__name__="lockbox:kas_proxy_errors_total:rate5m", cluster="svc-cluster-2"}'
+      value: 0.08333333333333333
+# Test 3: Audit log error ratio
+- interval: 1m
+  input_series:
+  - series: 'otel_audit_log_records_total{cluster="svc-cluster-3", job="aro-hcp-admin-api-metrics"}'
+    values: "0+100x70"
+  - series: 'otel_audit_log_send_errors_total{cluster="svc-cluster-3", job="aro-hcp-admin-api-metrics"}'
+    values: "0+2x70"
+  promql_expr_test:
+  - expr: lockbox:audit_log_error_rate:ratio_1h{cluster="svc-cluster-3"}
+    eval_time: 70m
+    exp_samples:
+    - labels: '{__name__="lockbox:audit_log_error_rate:ratio_1h", cluster="svc-cluster-3"}'
+      value: 0.02
+# Test 4: Audit log connection degraded
+- interval: 1m
+  input_series:
+  - series: 'otel_audit_log_connection_degraded{cluster="svc-cluster-4", job="aro-hcp-admin-api-metrics", instance="admin-0"}'
+    values: "1+0x9"
+  promql_expr_test:
+  - expr: lockbox:audit_log_connection_degraded:max{cluster="svc-cluster-4"}
+    eval_time: 5m
+    exp_samples:
+    - labels: '{__name__="lockbox:audit_log_connection_degraded:max", cluster="svc-cluster-4"}'
+      value: 1
+# Test 5: No data (no breakglass sessions active)
+- interval: 1m
+  input_series: []
+  promql_expr_test:
+  - expr: lockbox:sessiongate_active_sessions:max
+    eval_time: 5m
+    exp_samples: []

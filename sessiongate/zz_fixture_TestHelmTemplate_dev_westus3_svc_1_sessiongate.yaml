@@ -422,6 +422,23 @@ subjects:
   name: sessiongate
   namespace: sessiongate
 ---
+# Source: sessiongate/templates/metrics.service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: sessiongate-metrics
+  namespace: 'sessiongate'
+  labels:
+    app: sessiongate-metrics
+spec:
+  selector:
+    app.kubernetes.io/name: sessiongate
+  ports:
+  - port: 8080
+    protocol: TCP
+    targetPort: 8080
+    name: metrics
+---
 # Source: sessiongate/templates/service.yaml
 apiVersion: v1
 kind: Service
@@ -703,4 +720,23 @@ spec:
       key: tls.crt
     - objectName: sessiongate-cert
       key: tls.key
+---
+# Source: sessiongate/templates/servicemonitor.yaml
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: sessiongate
+  namespace: 'sessiongate'
+spec:
+  endpoints:
+  - interval: 30s
+    path: /metrics
+    port: metrics
+    scheme: http
+  namespaceSelector:
+    matchNames:
+    - 'sessiongate'
+  selector:
+    matchLabels:
+      app: sessiongate-metrics
 

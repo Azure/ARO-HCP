@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: sessiongate-metrics
+  namespace: '{{ .Release.Namespace }}'
+  labels:
+    app: sessiongate-metrics
+spec:
+  selector:
+    app.kubernetes.io/name: sessiongate
+  ports:
+  - port: {{ .Values.service.port }}
+    protocol: TCP
+    targetPort: {{ .Values.service.port }}
+    name: metrics

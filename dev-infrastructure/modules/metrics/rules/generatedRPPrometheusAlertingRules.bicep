@@ -244,3 +244,239 @@ resource arohcpNodepoolSaturationAlerts 'Microsoft.AlertsManagement/prometheusRu
     ]
   }
 }
+
+resource lockboxAvailabilityRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'lockbox-availability-rules'
+  location: location
+  properties: {
+    interval: 'PT1M'
+    rules: [
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+              'IcM.Description': '#$.annotations.info#'
+              'IcM.TsgId': '#$.annotations.runbook_url#'
+            }
+          }
+        ]
+        alert: 'UJLockboxAuditDegraded'
+        enabled: true
+        labels: {
+          severity: 'critical'
+          slo: 'lockbox-availability'
+        }
+        annotations: {
+          correlationId: 'UJLockboxAudit/{{ $labels.cluster }}'
+          description: '''The Admin API failed to connect to the audit server and is running
+with a no-op audit client. Breakglass session actions are NOT being
+audited — this is a compliance violation.
+Service Cluster: {{ $labels.cluster }}
+'''
+          info: '''The Admin API failed to connect to the audit server and is running
+with a no-op audit client. Breakglass session actions are NOT being
+audited — this is a compliance violation.
+Service Cluster: {{ $labels.cluster }}
+'''
+          runbook_url: 'https://aka.ms/arohcp-runbook-lockbox'
+          summary: '[SVC] Lockbox audit log connection degraded on {{ $labels.cluster }}'
+          title: '[SVC] Lockbox audit log connection degraded on {{ $labels.cluster }}'
+        }
+        expression: 'lockbox:audit_log_connection_degraded:max == 1'
+        for: 'PT5M'
+        severity: 2
+      }
+    ]
+    scopes: [
+      azureMonitoring
+    ]
+  }
+}
+
+resource lockboxErrorsRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'lockbox-errors-rules'
+  location: location
+  properties: {
+    interval: 'PT1M'
+    rules: [
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+              'IcM.Description': '#$.annotations.info#'
+              'IcM.TsgId': '#$.annotations.runbook_url#'
+            }
+          }
+        ]
+        alert: 'UJLockboxAuditErrorRateHigh'
+        enabled: true
+        labels: {
+          severity: 'warning'
+          slo: 'lockbox-errors'
+        }
+        annotations: {
+          correlationId: 'UJLockboxAuditErrors/{{ $labels.cluster }}'
+          description: '''Audit log send error rate is {{ $value | humanizePercentage }} over the
+last hour. Some breakglass session audit records may be lost.
+Service Cluster: {{ $labels.cluster }}
+'''
+          info: '''Audit log send error rate is {{ $value | humanizePercentage }} over the
+last hour. Some breakglass session audit records may be lost.
+Service Cluster: {{ $labels.cluster }}
+'''
+          runbook_url: 'https://aka.ms/arohcp-runbook-lockbox'
+          summary: '[SVC] Lockbox audit log error rate >5% on {{ $labels.cluster }}'
+          title: '[SVC] Lockbox audit log error rate >5% on {{ $labels.cluster }}'
+        }
+        expression: 'lockbox:audit_log_error_rate:ratio_1h > 0.05'
+        for: 'PT5M'
+        severity: 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+              'IcM.Description': '#$.annotations.info#'
+              'IcM.TsgId': '#$.annotations.runbook_url#'
+            }
+          }
+        ]
+        alert: 'UJLockboxKasProxyErrors'
+        enabled: true
+        labels: {
+          severity: 'warning'
+          slo: 'lockbox-errors'
+        }
+        annotations: {
+          correlationId: 'UJLockboxKasProxy/{{ $labels.cluster }}'
+          description: '''KAS proxy error rate is {{ $value | humanizePercentage }}. Support
+engineer\'s breakglass session may be unusable.
+Service Cluster: {{ $labels.cluster }}
+'''
+          info: '''KAS proxy error rate is {{ $value | humanizePercentage }}. Support
+engineer\'s breakglass session may be unusable.
+Service Cluster: {{ $labels.cluster }}
+'''
+          runbook_url: 'https://aka.ms/arohcp-runbook-lockbox'
+          summary: '[SVC] Lockbox KAS proxy error rate >10% on {{ $labels.cluster }}'
+          title: '[SVC] Lockbox KAS proxy error rate >10% on {{ $labels.cluster }}'
+        }
+        expression: '(lockbox:kas_proxy_errors_total:rate5m / lockbox:kas_proxy_requests_total:rate5m) > 0.1 and lockbox:kas_proxy_requests_total:rate5m > 0'
+        for: 'PT5M'
+        severity: 3
+      }
+    ]
+    scopes: [
+      azureMonitoring
+    ]
+  }
+}
+
+resource lockboxLatencyRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'lockbox-latency-rules'
+  location: location
+  properties: {
+    interval: 'PT1M'
+    rules: [
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+              'IcM.Description': '#$.annotations.info#'
+              'IcM.TsgId': '#$.annotations.runbook_url#'
+            }
+          }
+        ]
+        alert: 'UJLockboxKasProxyLatencyHigh'
+        enabled: true
+        labels: {
+          severity: 'warning'
+          slo: 'lockbox-latency'
+        }
+        annotations: {
+          correlationId: 'UJLockboxLatency/{{ $labels.cluster }}'
+          description: '''KAS proxy p99 latency is {{ $value | humanizeDuration }}. Support
+engineer may experience slow cluster access during breakglass session.
+Service Cluster: {{ $labels.cluster }}
+'''
+          info: '''KAS proxy p99 latency is {{ $value | humanizeDuration }}. Support
+engineer may experience slow cluster access during breakglass session.
+Service Cluster: {{ $labels.cluster }}
+'''
+          runbook_url: 'https://aka.ms/arohcp-runbook-lockbox'
+          summary: '[SVC] Lockbox KAS proxy p99 latency >10s on {{ $labels.cluster }}'
+          title: '[SVC] Lockbox KAS proxy p99 latency >10s on {{ $labels.cluster }}'
+        }
+        expression: 'lockbox:kas_proxy_latency:p99_5m > 10'
+        for: 'PT5M'
+        severity: 3
+      }
+    ]
+    scopes: [
+      azureMonitoring
+    ]
+  }
+}
+
+resource lockboxSaturationRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'lockbox-saturation-rules'
+  location: location
+  properties: {
+    interval: 'PT1M'
+    rules: [
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+              'IcM.Description': '#$.annotations.info#'
+              'IcM.TsgId': '#$.annotations.runbook_url#'
+            }
+          }
+        ]
+        alert: 'UJLockboxHighActiveSessions'
+        enabled: true
+        labels: {
+          severity: 'info'
+          slo: 'lockbox-saturation'
+        }
+        annotations: {
+          correlationId: 'UJLockboxSaturation/{{ $labels.cluster }}'
+          description: '''More than 10 concurrent breakglass sessions are active. This may
+indicate an incident with widespread support access or a session
+cleanup issue.
+Service Cluster: {{ $labels.cluster }}
+'''
+          info: '''More than 10 concurrent breakglass sessions are active. This may
+indicate an incident with widespread support access or a session
+cleanup issue.
+Service Cluster: {{ $labels.cluster }}
+'''
+          runbook_url: 'https://aka.ms/arohcp-runbook-lockbox'
+          summary: '[SVC] High number of active breakglass sessions ({{ $value }}) on {{ $labels.cluster }}'
+          title: '[SVC] High number of active breakglass sessions ({{ $value }}) on {{ $labels.cluster }}'
+        }
+        expression: 'lockbox:sessiongate_active_sessions:max > 10'
+        for: 'PT15M'
+        severity: 4
+      }
+    ]
+    scopes: [
+      azureMonitoring
+    ]
+  }
+}

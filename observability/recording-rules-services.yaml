@@ -1,4 +1,5 @@
 prometheusRules:
-  rulesFolders: []
+  rulesFolders:
+  - alerts/lockbox-recording-rules-prometheusRule.yaml
   untestedRules: []
   outputBicep: ../dev-infrastructure/modules/metrics/rules/generatedRecordingRules.bicep

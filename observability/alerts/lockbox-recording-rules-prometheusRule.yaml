@@ -1,0 +1,47 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: lockbox-recording-rules
+  namespace: prometheus
+spec:
+  groups:
+  - name: lockbox-recording-rules
+    interval: 1m
+    rules:
+    # Lockbox / Breakglass Session recording rules for SLI/SLO monitoring.
+    # Source: sessiongate_* metrics from SessionGate pods on the service cluster,
+    #         otel_audit_log_* metrics from Admin API pods.
+    #
+    # Breakglass sessions are rare events (only during active support incidents).
+    # All alerts use threshold-based rules, not burn-rate (deliberate exception —
+    # rate()[5m] returns 0 most of the time on these metrics).
+
+    # TRAFFIC: Active breakglass sessions (gauge)
+    - record: lockbox:sessiongate_active_sessions:max
+      expr: max by (cluster) (sessiongate_active_sessions)
+    # ERRORS: KAS proxy request rate (total, for error ratio denominator)
+    - record: lockbox:kas_proxy_requests_total:rate5m
+      expr: sum by (cluster) (rate(sessiongate_kas_proxy_requests_total[5m]))
+    # ERRORS: KAS proxy error rate (non-2xx responses)
+    - record: lockbox:kas_proxy_errors_total:rate5m
+      expr: sum by (cluster) (rate(sessiongate_kas_proxy_requests_total{status!~"2.."}[5m]))
+    # LATENCY: KAS proxy p99 latency
+    - record: lockbox:kas_proxy_latency:p99_5m
+      expr: |
+        histogram_quantile(0.99,
+          sum by (cluster, le) (rate(sessiongate_kas_proxy_requests_duration_seconds_bucket[5m]))
+        )
+    # AVAILABILITY: Audit log error ratio over 1 hour
+    - record: lockbox:audit_log_error_rate:ratio_1h
+      expr: |
+        (
+          sum by (cluster) (rate(otel_audit_log_send_errors_total{job="aro-hcp-admin-api-metrics"}[1h]))
+          /
+          sum by (cluster) (rate(otel_audit_log_records_total{job="aro-hcp-admin-api-metrics"}[1h]))
+        )
+    # AVAILABILITY: Audit log connection health (1=degraded, 0=ok)
+    - record: lockbox:audit_log_connection_degraded:max
+      expr: max by (cluster) (otel_audit_log_connection_degraded{job="aro-hcp-admin-api-metrics"})
+    # TRAFFIC: Audit log volume (records per second)
+    - record: lockbox:audit_log_records:rate5m
+      expr: sum by (cluster) (rate(otel_audit_log_records_total{job="aro-hcp-admin-api-metrics"}[5m]))

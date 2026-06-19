@@ -1,0 +1,140 @@
+rule_files:
+- lockbox-monitor-prometheusRule.yaml
+evaluation_interval: 1m
+tests:
+# Test 1: Audit connection degraded fires after 5 minutes
+- interval: 1m
+  input_series:
+  - series: 'lockbox:audit_log_connection_degraded:max{cluster="svc-cluster-1"}'
+    values: "1+0x10"
+  alert_rule_test:
+  - eval_time: 3m
+    alertname: UJLockboxAuditDegraded
+    exp_alerts: []
+  - eval_time: 7m
+    alertname: UJLockboxAuditDegraded
+    exp_alerts:
+    - exp_labels:
+        severity: critical
+        slo: lockbox-availability
+        cluster: svc-cluster-1
+      exp_annotations:
+        summary: "[SVC] Lockbox audit log connection degraded on svc-cluster-1"
+        description: "The Admin API failed to connect to the audit server and is running\nwith a no-op audit client. Breakglass session actions are NOT being\naudited — this is a compliance violation.\nService Cluster: svc-cluster-1\n"
+        runbook_url: "https://aka.ms/arohcp-runbook-lockbox"
+        correlationId: "UJLockboxAudit/svc-cluster-1"
+# Test 2: Audit connection healthy — alert does not fire
+- interval: 1m
+  input_series:
+  - series: 'lockbox:audit_log_connection_degraded:max{cluster="svc-cluster-2"}'
+    values: "0+0x10"
+  alert_rule_test:
+  - eval_time: 7m
+    alertname: UJLockboxAuditDegraded
+    exp_alerts: []
+# Test 3: High audit error rate fires
+- interval: 1m
+  input_series:
+  - series: 'lockbox:audit_log_error_rate:ratio_1h{cluster="svc-cluster-3"}'
+    values: "0.08+0x10"
+  alert_rule_test:
+  - eval_time: 7m
+    alertname: UJLockboxAuditErrorRateHigh
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+        slo: lockbox-errors
+        cluster: svc-cluster-3
+      exp_annotations:
+        summary: "[SVC] Lockbox audit log error rate >5% on svc-cluster-3"
+        description: "Audit log send error rate is 8% over the\nlast hour. Some breakglass session audit records may be lost.\nService Cluster: svc-cluster-3\n"
+        runbook_url: "https://aka.ms/arohcp-runbook-lockbox"
+        correlationId: "UJLockboxAuditErrors/svc-cluster-3"
+# Test 4: Low audit error rate — alert does not fire
+- interval: 1m
+  input_series:
+  - series: 'lockbox:audit_log_error_rate:ratio_1h{cluster="svc-cluster-4"}'
+    values: "0.02+0x10"
+  alert_rule_test:
+  - eval_time: 7m
+    alertname: UJLockboxAuditErrorRateHigh
+    exp_alerts: []
+# Test 5: KAS proxy errors fire when error rate exceeds 10% with active traffic
+- interval: 1m
+  input_series:
+  - series: 'lockbox:kas_proxy_errors_total:rate5m{cluster="svc-cluster-5"}'
+    values: "0.5+0x10"
+  - series: 'lockbox:kas_proxy_requests_total:rate5m{cluster="svc-cluster-5"}'
+    values: "2+0x10"
+  alert_rule_test:
+  - eval_time: 7m
+    alertname: UJLockboxKasProxyErrors
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+        slo: lockbox-errors
+        cluster: svc-cluster-5
+      exp_annotations:
+        summary: "[SVC] Lockbox KAS proxy error rate >10% on svc-cluster-5"
+        description: "KAS proxy error rate is 25%. Support\nengineer's breakglass session may be unusable.\nService Cluster: svc-cluster-5\n"
+        runbook_url: "https://aka.ms/arohcp-runbook-lockbox"
+        correlationId: "UJLockboxKasProxy/svc-cluster-5"
+# Test 6: KAS proxy errors do NOT fire when there's no traffic
+- interval: 1m
+  input_series:
+  - series: 'lockbox:kas_proxy_errors_total:rate5m{cluster="svc-cluster-6"}'
+    values: "0+0x10"
+  - series: 'lockbox:kas_proxy_requests_total:rate5m{cluster="svc-cluster-6"}'
+    values: "0+0x10"
+  alert_rule_test:
+  - eval_time: 7m
+    alertname: UJLockboxKasProxyErrors
+    exp_alerts: []
+# Test 7: High active sessions fires after 15m pending
+- interval: 1m
+  input_series:
+  - series: 'lockbox:sessiongate_active_sessions:max{cluster="svc-cluster-7"}'
+    values: "15+0x20"
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: UJLockboxHighActiveSessions
+    exp_alerts: []
+  - eval_time: 17m
+    alertname: UJLockboxHighActiveSessions
+    exp_alerts:
+    - exp_labels:
+        severity: info
+        slo: lockbox-saturation
+        cluster: svc-cluster-7
+      exp_annotations:
+        summary: "[SVC] High number of active breakglass sessions (15) on svc-cluster-7"
+        description: "More than 10 concurrent breakglass sessions are active. This may\nindicate an incident with widespread support access or a session\ncleanup issue.\nService Cluster: svc-cluster-7\n"
+        runbook_url: "https://aka.ms/arohcp-runbook-lockbox"
+        correlationId: "UJLockboxSaturation/svc-cluster-7"
+# Test 8: Normal active sessions — alert does not fire
+- interval: 1m
+  input_series:
+  - series: 'lockbox:sessiongate_active_sessions:max{cluster="svc-cluster-8"}'
+    values: "3+0x20"
+  alert_rule_test:
+  - eval_time: 17m
+    alertname: UJLockboxHighActiveSessions
+    exp_alerts: []
+# Test 9: KAS proxy latency fires when p99 exceeds 10s
+- interval: 1m
+  input_series:
+  - series: 'lockbox:kas_proxy_latency:p99_5m{cluster="svc-cluster-9"}'
+    values: "15+0x10"
+  alert_rule_test:
+  - eval_time: 7m
+    alertname: UJLockboxKasProxyLatencyHigh
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+        slo: lockbox-latency
+        cluster: svc-cluster-9
+      exp_annotations:
+        summary: "[SVC] Lockbox KAS proxy p99 latency >10s on svc-cluster-9"
+        description: "KAS proxy p99 latency is 15s. Support\nengineer may experience slow cluster access during breakglass session.\nService Cluster: svc-cluster-9\n"
+        runbook_url: "https://aka.ms/arohcp-runbook-lockbox"
+        correlationId: "UJLockboxLatency/svc-cluster-9"
