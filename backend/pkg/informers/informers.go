@@ -592,6 +592,8 @@ func NewActiveOperationInformerWithRelistDuration(lister database.GlobalLister[a
 			Indexers: cache.Indexers{
 				listers.ByResourceGroup: activeOperationResourceGroupIndexFunc,
 				listers.ByCluster:       activeOperationClusterIndexFunc,
+				listers.ByNodePool:      activeOperationNodePoolIndexFunc,
+				listers.ByExternalAuth:  activeOperationExternalAuthIndexFunc,
 			},
 		},
 	)
@@ -614,10 +616,15 @@ func resourceGroupIndexFunc(obj interface{}) ([]string, error) {
 	}
 }
 
-// findAncestorResourceID walks up the resource ID parent chain looking for
-// a resource matching the given type. Returns the lowercased string form
-// of the first match, or nil if no match is found.
-func findAncestorResourceID(resourceType azcorearm.ResourceType, resourceID *azcorearm.ResourceID) ([]string, error) {
+// selfOrDirectParentResourceID returns the lowercased resource ID string of
+// either resourceID itself (when its type matches) or its direct Parent (when
+// the parent's type matches). It is non-recursive on purpose: indexing by
+// "self-or-direct-parent" gives ListFor<Cluster|NodePool|ExternalAuth> the
+// "direct child only" semantics we want, so e.g. a Controller hanging off a
+// NodePool is indexed under that NodePool but NOT under the grandparent
+// Cluster. If a future caller needs a deeper-ancestor lookup, add a separate
+// helper for that case rather than reintroducing recursion here.
+func selfOrDirectParentResourceID(resourceType azcorearm.ResourceType, resourceID *azcorearm.ResourceID) ([]string, error) {
 	if resourceID == nil {
 		return nil, nil
 	}
@@ -627,7 +634,10 @@ func findAncestorResourceID(resourceType azcorearm.ResourceType, resourceID *azc
 	if resourceID.Parent == nil {
 		return nil, nil
 	}
-	return findAncestorResourceID(resourceType, resourceID.Parent)
+	if armhelpers.ResourceTypeEqual(resourceID.Parent.ResourceType, resourceType) {
+		return []string{strings.ToLower(resourceID.Parent.String())}, nil
+	}
+	return nil, nil
 }
 
 func clusterResourceIDIndexFunc(obj interface{}) ([]string, error) {
@@ -642,7 +652,7 @@ func clusterResourceIDIndexFunc(obj interface{}) ([]string, error) {
 }
 
 func clusterResourceIDFromResourceID(resourceID *azcorearm.ResourceID) ([]string, error) {
-	return findAncestorResourceID(api.ClusterResourceType, resourceID)
+	return selfOrDirectParentResourceID(api.ClusterResourceType, resourceID)
 }
 
 func externalAuthResourceIDIndexFunc(obj interface{}) ([]string, error) {
@@ -657,7 +667,7 @@ func externalAuthResourceIDIndexFunc(obj interface{}) ([]string, error) {
 }
 
 func externalAuthResourceIDFromResourceID(resourceID *azcorearm.ResourceID) ([]string, error) {
-	return findAncestorResourceID(api.ExternalAuthResourceType, resourceID)
+	return selfOrDirectParentResourceID(api.ExternalAuthResourceType, resourceID)
 }
 
 // activeOperationResourceGroupIndexFunc indexes operations by the resource group
@@ -687,6 +697,32 @@ func activeOperationClusterIndexFunc(obj interface{}) ([]string, error) {
 	return clusterResourceIDFromResourceID(op.ExternalID)
 }
 
+// activeOperationNodePoolIndexFunc indexes operations by their associated node pool
+// resource ID, derived from ExternalID. If ExternalID is a node pool resource ID,
+// it is used directly. If it is a descendant of a node pool, the parent node pool
+// resource ID is used.
+func activeOperationNodePoolIndexFunc(obj interface{}) ([]string, error) {
+	op, ok := obj.(*api.Operation)
+	if !ok {
+		return nil, fmt.Errorf("expected *api.Operation, got %T", obj)
+	}
+
+	return nodePoolResourceIDFromResourceID(op.ExternalID)
+}
+
+// activeOperationExternalAuthIndexFunc indexes operations by their associated
+// external auth resource ID, derived from ExternalID. If ExternalID is an external
+// auth resource ID, it is used directly. If it is a descendant of an external auth,
+// the parent external auth resource ID is used.
+func activeOperationExternalAuthIndexFunc(obj interface{}) ([]string, error) {
+	op, ok := obj.(*api.Operation)
+	if !ok {
+		return nil, fmt.Errorf("expected *api.Operation, got %T", obj)
+	}
+
+	return externalAuthResourceIDFromResourceID(op.ExternalID)
+}
+
 // nodePoolResourceIDIndexFunc indexes objects by the node pool resource ID of their nearest
 // nodePool ancestor in the ARM path (Cosmos metadata resource ID).
 func nodePoolResourceIDIndexFunc(obj interface{}) ([]string, error) {
@@ -701,7 +737,7 @@ func nodePoolResourceIDIndexFunc(obj interface{}) ([]string, error) {
 }
 
 func nodePoolResourceIDFromResourceID(resourceID *azcorearm.ResourceID) ([]string, error) {
-	return findAncestorResourceID(api.NodePoolResourceType, resourceID)
+	return selfOrDirectParentResourceID(api.NodePoolResourceType, resourceID)
 }
 
 // billingDocSubscriptionIndexFunc indexes billing documents by their subscription ID.

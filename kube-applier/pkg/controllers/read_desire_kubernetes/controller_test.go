@@ -66,7 +66,8 @@ func newReadDesire(t *testing.T, target kubeapplier.ResourceReference) *kubeappl
 	t.Helper()
 	return &kubeapplier.ReadDesire{
 		CosmosMetadata: api.CosmosMetadata{
-			ResourceID: mustParseID(t, kubeapplier.ToClusterScopedReadDesireResourceIDString(testSub, testRG, testCluster, testDesire)),
+			ResourceID:   mustParseID(t, kubeapplier.ToClusterScopedReadDesireResourceIDString(testSub, testRG, testCluster, testDesire)),
+			PartitionKey: strings.ToLower(testMgmtID.String()),
 		},
 		Spec: kubeapplier.ReadDesireSpec{
 			ManagementCluster: testMgmtID,

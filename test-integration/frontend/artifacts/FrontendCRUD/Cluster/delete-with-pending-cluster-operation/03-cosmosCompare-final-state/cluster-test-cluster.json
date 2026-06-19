@@ -4,6 +4,7 @@
 	"properties": {
 		"cosmosMetadata": {
 			"instanceVersion": 2,
+			"partitionKey": "6b690bec-0c16-4ecb-8f67-781caf40bba7",
 			"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster"
 		},
 		"customerProperties": {
@@ -69,7 +70,7 @@
 			"managedIdentitiesDataPlaneIdentityURL": "https://dummyhost.identity.azure.net/otherinformation?aqueryarg=somevalue",
 			"platform": {},
 			"provisioningState": "Deleting",
-			"usesNewClusterDeletionApproach": false
+			"usesNewClusterDeletionApproach": true
 		},
 		"status": {},
 		"systemData": {

@@ -52,6 +52,9 @@ const (
 // that the RP consumes.
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type Stamp struct {
+	// PartitionKey holds the lowercased stamp identifier — i.e. the name of
+	// this stamp (the top-level resource name in CosmosMetadata.ResourceID).
+	// Every fleet document for one stamp shares this partition key.
 	api.CosmosMetadata `json:"cosmosMetadata"`
 
 	// ResourceID exists to match cosmosMetadata.resourceID until we're able to transition all types to use cosmosMetadata,

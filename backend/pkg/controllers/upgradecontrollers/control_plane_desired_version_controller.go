@@ -123,6 +123,9 @@ func (c *controlPlaneDesiredVersionSyncer) SyncOnce(ctx context.Context, key con
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get Cluster: %w", err))
 	}
+	if existingCluster.ServiceProviderProperties.DeletionTimestamp != nil {
+		return nil
+	}
 	if existingCluster.ServiceProviderProperties.ClusterServiceID == nil {
 		// Currently, this is correct.  We will likely refactor and change this to separate the read of active versions from the determination
 		// of the next desired version: we'll need to choose a desired version even if there are no active versions.
@@ -184,22 +187,18 @@ func (c *controlPlaneDesiredVersionSyncer) SyncOnce(ctx context.Context, key con
 	}
 
 	previousDesiredVersion := existingServiceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion
-	desiredVersionUpdated := false
 	// Only advance stored desired when the newly resolved version is greater, so graph changes
 	// cannot automatically select a lower z-stream. When rollback support is added, relax this
 	// so that only SRE-enforced rollback targets can decrease desired.
 	if desiredVersion != nil && (previousDesiredVersion == nil || desiredVersion.GT(*previousDesiredVersion)) {
 		logger.Info("Selected desired version", "desiredVersion", desiredVersion, "previousDesiredVersion", previousDesiredVersion)
-		existingServiceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion = desiredVersion
-		desiredVersionUpdated = true
-	}
-
-	// on successful resolution of the desired version.
-	// update the ServiceProviderCluster first and only afterwards
-	// clear the IntentFailed condition
-	if desiredVersionUpdated {
+		// on successful resolution of the desired version.
+		// update the ServiceProviderCluster first and only afterwards
+		// clear the IntentFailed condition
+		replacement := existingServiceProviderCluster.DeepCopy()
+		replacement.Spec.ControlPlaneVersion.DesiredVersion = desiredVersion
 		serviceProviderClustersCosmosClient := c.resourcesDBClient.ServiceProviderClusters(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
-		_, err := serviceProviderClustersCosmosClient.Replace(ctx, existingServiceProviderCluster, nil)
+		_, err := serviceProviderClustersCosmosClient.Replace(ctx, replacement, nil)
 		if err != nil {
 			return utils.TrackError(fmt.Errorf("failed to replace ServiceProviderCluster: %w", err))
 		}

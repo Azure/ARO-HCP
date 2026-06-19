@@ -117,9 +117,10 @@ func (c *dispatchRequestCredential) SynchronizeOperation(ctx context.Context, ke
 		logger.Info("revocation in progress, canceling operation",
 			"revoke_credentials_operation_id", cluster.ServiceProviderProperties.RevokeCredentialsOperationID)
 
-		apihelpers.CancelOperation(operation, c.clock.Now())
+		replacement := operation.DeepCopy()
+		apihelpers.CancelOperation(replacement, c.clock.Now())
 
-		_, err = c.resourcesDBClient.Operations(key.SubscriptionID).Replace(ctx, operation, nil)
+		_, err = c.resourcesDBClient.Operations(key.SubscriptionID).Replace(ctx, replacement, nil)
 		if err != nil {
 			return utils.TrackError(err)
 		}
@@ -145,9 +146,10 @@ func (c *dispatchRequestCredential) SynchronizeOperation(ctx context.Context, ke
 	// next retry. The abandoned credential will live on but never reach the client.
 	// Its backing certificate will eventually expire or be revoked.
 
-	operation.InternalID = csBreakGlassCredentialID
+	replacement := operation.DeepCopy()
+	replacement.InternalID = csBreakGlassCredentialID
 
-	_, err = c.resourcesDBClient.Operations(key.SubscriptionID).Replace(ctx, operation, nil)
+	_, err = c.resourcesDBClient.Operations(key.SubscriptionID).Replace(ctx, replacement, nil)
 	if err != nil {
 		return utils.TrackError(err)
 	}

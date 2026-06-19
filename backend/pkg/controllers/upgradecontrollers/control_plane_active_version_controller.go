@@ -81,12 +81,15 @@ func (c *controlPlaneActiveVersionSyncer) CooldownChecker() controllerutil.Coold
 // from the per-cluster ReadDesire's observed HostedCluster. Each active version
 // includes Version and State (Completed or Partial) and is persisted on replace.
 func (c *controlPlaneActiveVersionSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
-	_, err := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Get(ctx, key.HCPClusterName)
+	existingCluster, err := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Get(ctx, key.HCPClusterName)
 	if database.IsNotFoundError(err) {
 		return nil
 	}
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get Cluster: %w", err))
+	}
+	if existingCluster.ServiceProviderProperties.DeletionTimestamp != nil {
+		return nil
 	}
 
 	hostedCluster, err := maestrohelpers.GetCachedHostedClusterForCluster(ctx, c.readDesireLister, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
@@ -119,9 +122,10 @@ func (c *controlPlaneActiveVersionSyncer) SyncOnce(ctx context.Context, key cont
 	}
 	logger := utils.LoggerFromContext(ctx)
 	logger.Info("Active versions changed", "oldActiveVersions", oldActiveVersions, "newActiveVersions", newActiveVersions)
-	existingServiceProviderCluster.Status.ControlPlaneVersion.ActiveVersions = newActiveVersions
+	replacement := existingServiceProviderCluster.DeepCopy()
+	replacement.Status.ControlPlaneVersion.ActiveVersions = newActiveVersions
 	serviceProviderClustersCosmosClient := c.resourcesDBClient.ServiceProviderClusters(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
-	_, err = serviceProviderClustersCosmosClient.Replace(ctx, existingServiceProviderCluster, nil)
+	_, err = serviceProviderClustersCosmosClient.Replace(ctx, replacement, nil)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to replace ServiceProviderCluster: %w", err))
 	}

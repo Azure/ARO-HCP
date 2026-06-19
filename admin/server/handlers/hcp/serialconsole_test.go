@@ -95,7 +95,8 @@ func TestSerialConsoleHandler(t *testing.T) {
 				require.NoError(t, err)
 				hcp := &api.HCPOpenShiftCluster{
 					CosmosMetadata: arm.CosmosMetadata{
-						ResourceID: resourceID,
+						ResourceID:   resourceID,
+						PartitionKey: strings.ToLower(resourceID.SubscriptionID),
 					},
 					TrackedResource: arm.TrackedResource{
 						Resource: arm.Resource{ID: resourceID},
@@ -121,7 +122,8 @@ func TestSerialConsoleHandler(t *testing.T) {
 				require.NoError(t, err)
 				hcp := &api.HCPOpenShiftCluster{
 					CosmosMetadata: arm.CosmosMetadata{
-						ResourceID: resourceID,
+						ResourceID:   resourceID,
+						PartitionKey: strings.ToLower(resourceID.SubscriptionID),
 					},
 					TrackedResource: arm.TrackedResource{
 						Resource: arm.Resource{ID: resourceID},
@@ -138,7 +140,8 @@ func TestSerialConsoleHandler(t *testing.T) {
 				subscriptionResourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/" + resourceID.SubscriptionID))
 				subscription := &arm.Subscription{
 					CosmosMetadata: arm.CosmosMetadata{
-						ResourceID: subscriptionResourceID,
+						ResourceID:   subscriptionResourceID,
+						PartitionKey: strings.ToLower(subscriptionResourceID.SubscriptionID),
 					},
 					ResourceID: subscriptionResourceID,
 					State:      arm.SubscriptionStateRegistered,

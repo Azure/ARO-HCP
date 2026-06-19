@@ -193,8 +193,9 @@ func (opsync *operationRevokeCredentials) SynchronizeOperation(ctx context.Conte
 	// sure the field value still matches this operation's ID before clearing it.
 	if cluster.ServiceProviderProperties.RevokeCredentialsOperationID == oldOperation.OperationID.Name {
 		logger.Info("clearing RevokeCredentialsOperationID from cluster")
-		cluster.ServiceProviderProperties.RevokeCredentialsOperationID = ""
-		_, err = dbClient.Replace(ctx, cluster, nil)
+		replacement := cluster.DeepCopy()
+		replacement.ServiceProviderProperties.RevokeCredentialsOperationID = ""
+		_, err = dbClient.Replace(ctx, replacement, nil)
 		if err != nil {
 			return utils.TrackError(err)
 		}

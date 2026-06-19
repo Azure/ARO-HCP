@@ -26,7 +26,18 @@ import (
 type ActiveOperationLister interface {
 	List(ctx context.Context) ([]*api.Operation, error)
 	Get(ctx context.Context, subscriptionID, name string) (*api.Operation, error)
+	// ListActiveOperationsForCluster returns active operations by their associated cluster.
+	// This includes operations whose ExternalID is the cluster itself and operations
+	// on child resources (node pools, external auths) under that cluster.
 	ListActiveOperationsForCluster(ctx context.Context, subscriptionName, resourceGroupName, clusterName string) ([]*api.Operation, error)
+	// ListActiveOperationsForNodePool returns active operations by their associated node pool.
+	// This includes operations whose ExternalID is the node pool itself and operations
+	// on descendant resources under that node pool.
+	ListActiveOperationsForNodePool(ctx context.Context, subscriptionName, resourceGroupName, clusterName, nodePoolName string) ([]*api.Operation, error)
+	// ListActiveOperationsForExternalAuth returns active operations by their associated external auth.
+	// This includes operations whose ExternalID is the external auth itself and operations
+	// on descendant resources under that external auth.
+	ListActiveOperationsForExternalAuth(ctx context.Context, subscriptionName, resourceGroupName, clusterName, externalAuthName string) ([]*api.Operation, error)
 }
 
 // activeOperationLister implements ActiveOperationLister backed by a SharedIndexInformer.
@@ -57,4 +68,14 @@ func (l *activeOperationLister) Get(ctx context.Context, subscriptionID, name st
 func (l *activeOperationLister) ListActiveOperationsForCluster(ctx context.Context, subscriptionName, resourceGroupName, clusterName string) ([]*api.Operation, error) {
 	key := api.ToClusterResourceIDString(subscriptionName, resourceGroupName, clusterName)
 	return listFromIndex[api.Operation](l.indexer, ByCluster, key)
+}
+
+func (l *activeOperationLister) ListActiveOperationsForNodePool(ctx context.Context, subscriptionName, resourceGroupName, clusterName, nodePoolName string) ([]*api.Operation, error) {
+	key := api.ToNodePoolResourceIDString(subscriptionName, resourceGroupName, clusterName, nodePoolName)
+	return listFromIndex[api.Operation](l.indexer, ByNodePool, key)
+}
+
+func (l *activeOperationLister) ListActiveOperationsForExternalAuth(ctx context.Context, subscriptionName, resourceGroupName, clusterName, externalAuthName string) ([]*api.Operation, error) {
+	key := api.ToExternalAuthResourceIDString(subscriptionName, resourceGroupName, clusterName, externalAuthName)
+	return listFromIndex[api.Operation](l.indexer, ByExternalAuth, key)
 }

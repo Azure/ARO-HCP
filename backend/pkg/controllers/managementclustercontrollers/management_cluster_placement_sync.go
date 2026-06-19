@@ -160,9 +160,10 @@ func (c *managementClusterPlacementSyncer) SyncOnce(ctx context.Context, key con
 	}
 
 	// Set the ManagementClusterResourceID on the ServiceProviderCluster
-	existingSPC.Status.ManagementClusterResourceID = managementCluster.ResourceID
+	replacement := existingSPC.DeepCopy()
+	replacement.Status.ManagementClusterResourceID = managementCluster.ResourceID
 
-	if _, err := spcCRUD.Replace(ctx, existingSPC, nil); err != nil {
+	if _, err := spcCRUD.Replace(ctx, replacement, nil); err != nil {
 		return utils.TrackError(fmt.Errorf("failed to update ServiceProviderCluster: %w", err))
 	}
 

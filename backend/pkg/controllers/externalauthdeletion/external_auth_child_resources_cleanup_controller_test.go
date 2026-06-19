@@ -47,7 +47,7 @@ func newTestExternalAuthController(t *testing.T, name string) *api.Controller {
 			"/externalAuths/" + testExternalAuthName +
 			"/hcpOpenShiftControllers/" + name))
 	return &api.Controller{
-		CosmosMetadata: api.CosmosMetadata{ResourceID: resourceID},
+		CosmosMetadata: api.CosmosMetadata{ResourceID: resourceID, PartitionKey: strings.ToLower(resourceID.SubscriptionID)},
 		ExternalID: api.Must(azcorearm.ParseResourceID(
 			"/subscriptions/" + testSubscriptionID +
 				"/resourceGroups/" + testResourceGroupName +

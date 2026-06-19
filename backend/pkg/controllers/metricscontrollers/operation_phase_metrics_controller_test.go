@@ -142,7 +142,8 @@ func newTestOperation(t *testing.T, opName string, request api.OperationRequest,
 	resourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/sub-1/providers/Microsoft.RedHatOpenShift/hcpOperationStatuses/" + opName))
 	op := &api.Operation{
 		CosmosMetadata: api.CosmosMetadata{
-			ResourceID: resourceID,
+			ResourceID:   resourceID,
+			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
 		},
 		OperationID:        operationID,
 		Request:            request,
@@ -319,7 +320,8 @@ func TestOperationPhaseMetricsHandler_SkipsNilOperationID(t *testing.T) {
 	resourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/sub-1/providers/Microsoft.RedHatOpenShift/hcpOperationStatuses/op-nil-id"))
 	op := &api.Operation{
 		CosmosMetadata: api.CosmosMetadata{
-			ResourceID: resourceID,
+			ResourceID:   resourceID,
+			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
 		},
 		ExternalID:         api.Must(azcorearm.ParseResourceID("/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1")),
 		Request:            api.OperationRequestCreate,

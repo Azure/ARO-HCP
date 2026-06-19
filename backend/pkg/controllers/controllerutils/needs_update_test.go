@@ -16,6 +16,7 @@ package controllerutils
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -107,7 +108,7 @@ func TestNeedsUpdate_ManagementClusterContent_RoundTripUnchanged(t *testing.T) {
 	// (the path through cosmos read) must compare as not needing an update.
 	rid := mustParseRID(t, "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/c/managementClusterContents/readonlyHypershiftHostedCluster")
 	desired := &api.ManagementClusterContent{
-		CosmosMetadata: arm.CosmosMetadata{ResourceID: rid},
+		CosmosMetadata: arm.CosmosMetadata{ResourceID: rid, PartitionKey: strings.ToLower(rid.SubscriptionID)},
 		Status: api.ManagementClusterContentStatus{
 			Conditions: []metav1.Condition{
 				{

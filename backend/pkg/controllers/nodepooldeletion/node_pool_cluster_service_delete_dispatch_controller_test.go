@@ -431,7 +431,7 @@ func newTestNodePoolWithNewDeletionApproach(t *testing.T, opts func(*api.HCPOpen
 			},
 			Location: "eastus",
 		},
-		CosmosMetadata: arm.CosmosMetadata{ResourceID: resourceID},
+		CosmosMetadata: arm.CosmosMetadata{ResourceID: resourceID, PartitionKey: strings.ToLower(resourceID.SubscriptionID)},
 		Properties: api.HCPOpenShiftClusterNodePoolProperties{
 			Platform: api.NodePoolPlatformProfile{
 				OSDisk: api.OSDiskProfile{
@@ -467,7 +467,7 @@ func newTestSPNP(t *testing.T, bundles api.MaestroBundleReferenceList) *api.Serv
 			"/nodePools/" + testNodePoolName +
 			"/serviceProviderNodePools/default"))
 	return &api.ServiceProviderNodePool{
-		CosmosMetadata: arm.CosmosMetadata{ResourceID: spnpResourceID},
+		CosmosMetadata: arm.CosmosMetadata{ResourceID: spnpResourceID, PartitionKey: strings.ToLower(spnpResourceID.SubscriptionID)},
 		Status: api.ServiceProviderNodePoolStatus{
 			MaestroReadonlyBundles: bundles,
 		},

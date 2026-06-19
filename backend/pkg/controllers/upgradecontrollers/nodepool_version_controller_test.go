@@ -18,6 +18,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/blang/semver/v4"
@@ -80,7 +81,8 @@ func createTestSubscription(t *testing.T, ctx context.Context, mockResourcesDBCl
 	subResourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID))
 	subscription := &arm.Subscription{
 		CosmosMetadata: arm.CosmosMetadata{
-			ResourceID: subResourceID,
+			ResourceID:   subResourceID,
+			PartitionKey: strings.ToLower(subResourceID.SubscriptionID),
 		},
 		ResourceID: subResourceID,
 		State:      arm.SubscriptionStateRegistered,
@@ -108,7 +110,8 @@ func createTestNodePoolWithVersion(t *testing.T, ctx context.Context, mockResour
 
 	cluster := &api.HCPOpenShiftCluster{
 		CosmosMetadata: arm.CosmosMetadata{
-			ResourceID: clusterResourceID,
+			ResourceID:   clusterResourceID,
+			PartitionKey: strings.ToLower(clusterResourceID.SubscriptionID),
 		},
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
@@ -134,7 +137,7 @@ func createTestNodePoolWithVersion(t *testing.T, ctx context.Context, mockResour
 	nodePoolInternalID := api.Ptr(api.Must(api.NewInternalID(testCSNodePoolIDStr)))
 
 	nodePool := &api.HCPOpenShiftClusterNodePool{
-		CosmosMetadata: arm.CosmosMetadata{ResourceID: nodePoolResourceID},
+		CosmosMetadata: arm.CosmosMetadata{ResourceID: nodePoolResourceID, PartitionKey: strings.ToLower(nodePoolResourceID.SubscriptionID)},
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
 				ID:   nodePoolResourceID,
@@ -274,7 +277,8 @@ func TestNodePoolVersionSyncer_SyncOnce(t *testing.T) {
 					"/nodePools/" + testNodePoolName))
 				nodePool := &api.HCPOpenShiftClusterNodePool{
 					CosmosMetadata: arm.CosmosMetadata{
-						ResourceID: nodePoolResourceID,
+						ResourceID:   nodePoolResourceID,
+						PartitionKey: strings.ToLower(nodePoolResourceID.SubscriptionID),
 					},
 					TrackedResource: arm.TrackedResource{
 						Resource: arm.Resource{
@@ -1180,7 +1184,8 @@ func createServiceProviderClusterWithVersion(t *testing.T, ctx context.Context, 
 	cpVersion := semver.MustParse(controlPlaneVersion)
 	spCluster := &api.ServiceProviderCluster{
 		CosmosMetadata: api.CosmosMetadata{
-			ResourceID: api.Must(azcorearm.ParseResourceID(spClusterResourceID)),
+			ResourceID:   api.Must(azcorearm.ParseResourceID(spClusterResourceID)),
+			PartitionKey: strings.ToLower(testSubscriptionID),
 		},
 		Status: api.ServiceProviderClusterStatus{
 			ControlPlaneVersion: api.ServiceProviderClusterStatusVersion{
@@ -1208,7 +1213,8 @@ func createServiceProviderNodePoolWithVersion(t *testing.T, ctx context.Context,
 	version := semver.MustParse(activeVersion)
 	spNodePool := &api.ServiceProviderNodePool{
 		CosmosMetadata: api.CosmosMetadata{
-			ResourceID: api.Must(azcorearm.ParseResourceID(spNodePoolResourceID)),
+			ResourceID:   api.Must(azcorearm.ParseResourceID(spNodePoolResourceID)),
+			PartitionKey: strings.ToLower(testSubscriptionID),
 		},
 		Status: api.ServiceProviderNodePoolStatus{
 			NodePoolVersion: api.ServiceProviderNodePoolStatusVersion{

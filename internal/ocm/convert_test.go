@@ -81,7 +81,7 @@ func TestWithImmutableAttributes(t *testing.T) {
 			},
 			want: ocmCluster(t, ocmClusterDefaults(api.TestLocation).
 				Version(arohcpv1alpha1.NewVersion().
-					ID("openshift-v4.20.22").
+					ID("openshift-v4.20.23").
 					ChannelGroup("stable"))),
 		},
 		{
@@ -122,7 +122,7 @@ func TestWithImmutableAttributes(t *testing.T) {
 				},
 			},
 			want: ocmCluster(t, ocmClusterDefaults(api.TestLocation).Version(
-				arohcpv1alpha1.NewVersion().ID("openshift-v4.19.30").ChannelGroup("stable"))),
+				arohcpv1alpha1.NewVersion().ID("openshift-v4.19.31").ChannelGroup("stable"))),
 		},
 		{
 			name: "with version 4.21",
@@ -132,7 +132,7 @@ func TestWithImmutableAttributes(t *testing.T) {
 				},
 			},
 			want: ocmCluster(t, ocmClusterDefaults(api.TestLocation).Version(
-				arohcpv1alpha1.NewVersion().ID("openshift-v4.21.15").ChannelGroup("stable"))),
+				arohcpv1alpha1.NewVersion().ID("openshift-v4.21.16").ChannelGroup("stable"))),
 		},
 	}
 
@@ -236,7 +236,7 @@ func ocmClusterDefaults(azureLocation string) *arohcpv1alpha1.ClusterBuilder {
 		Region(arohcpv1alpha1.NewCloudRegion().
 			ID(azureLocation)).
 		Version(arohcpv1alpha1.NewVersion().
-			ID("openshift-v4.20.22").
+			ID("openshift-v4.20.23").
 			ChannelGroup("stable")).
 		ImageRegistry(arohcpv1alpha1.NewClusterImageRegistry().
 			State(csImageRegistryStateEnabled)).
@@ -337,7 +337,7 @@ func TestBuildCSNodePool(t *testing.T) {
 			),
 			expectedCSNodePool: getBaseCSNodePoolBuilder().
 				Version(arohcpv1alpha1.NewVersion().
-					ID("openshift-v4.20.22").
+					ID("openshift-v4.20.23").
 					ChannelGroup("stable")),
 		},
 		{
@@ -868,6 +868,51 @@ func TestBuildCSCluster(t *testing.T) {
 					"hosted_cluster_single_replica": "true",
 					"hosted_cluster_size_override":  "true",
 				}),
+		},
+		{
+			name: "CREATE - sets CPO image override",
+			hcpCluster: &api.HCPOpenShiftCluster{
+				ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
+					ExperimentalFeatures: api.ExperimentalFeatures{
+						ControlPlaneOperatorImage: "quay.io/openshift/cpo:test",
+					},
+				},
+			},
+			expectedCSCluster: getBaseCSClusterBuilder(false).
+				Properties(map[string]string{
+					"control_plane_operator_image": "quay.io/openshift/cpo:test",
+				}),
+		},
+		{
+			name: "CREATE - sets CPO image override with other experimental features",
+			hcpCluster: &api.HCPOpenShiftCluster{
+				ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
+					ExperimentalFeatures: api.ExperimentalFeatures{
+						ControlPlaneAvailability:  api.SingleReplicaControlPlane,
+						ControlPlaneOperatorImage: "quay.io/openshift/cpo:test",
+					},
+				},
+			},
+			expectedCSCluster: getBaseCSClusterBuilder(false).
+				Properties(map[string]string{
+					"hosted_cluster_single_replica": "true",
+					"control_plane_operator_image":  "quay.io/openshift/cpo:test",
+				}),
+		},
+		{
+			name: "UPDATE - tag removal clears CPO image override",
+			oldClusterServiceCluster: func() *arohcpv1alpha1.Cluster {
+				c, err := arohcpv1alpha1.NewCluster().Properties(map[string]string{
+					"control_plane_operator_image": "quay.io/openshift/cpo:old",
+				}).Build()
+				if err != nil {
+					panic(err)
+				}
+				return c
+			}(),
+			hcpCluster: &api.HCPOpenShiftCluster{},
+			expectedCSCluster: getBaseCSClusterBuilder(true).
+				Properties(map[string]string{}),
 		},
 		{
 			name: "CREATE - sets some image digest mirrors",

@@ -12,9 +12,9 @@ environments:
       region: westus3
       region_mode: runtime-selected
       resource_type: aro-hcp-dev-shard0-slot
-      slot_count: 15
+      slot_count: 6
       identity_container_prefix: aro-hcp-msi-container-dev-shard0
-      identity_container_count: 20
+      identity_container_count: 50
     # shard1: additional dev capacity for multi-subscription testing.
     # Capacity is still limited to 4000 role assignments.
     - subscription_name: "ARO HCP E2E Hosted Clusters 2 (EA Subscription)"
@@ -42,6 +42,13 @@ environments:
       slot_count: 3
       identity_container_prefix: aro-hcp-msi-container-dev-shard3
       identity_container_count: 50
+    - subscription_name: "Hypershift Managed Azure"
+      region: westus3
+      region_mode: runtime-selected
+      resource_type: aro-hcp-dev-hypershift-westus3-slot
+      slot_count: 1
+      identity_container_prefix: aro-hcp-msi-container-dev
+      identity_container_count: 20
   int:
     deploy_envs:
     - int

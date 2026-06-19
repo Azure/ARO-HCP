@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/go-logr/logr/testr"
@@ -186,7 +187,8 @@ func TestMiddlewareValidateSubscription(t *testing.T) {
 				resourceID := arm.Must(arm.ToSubscriptionResourceID(subscriptionId))
 				subscription = &arm.Subscription{
 					CosmosMetadata: arm.CosmosMetadata{
-						ResourceID: resourceID,
+						ResourceID:   resourceID,
+						PartitionKey: strings.ToLower(resourceID.SubscriptionID),
 					},
 					ResourceID: resourceID,
 					State:      tt.cachedState,

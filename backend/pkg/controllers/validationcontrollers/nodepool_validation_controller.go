@@ -78,6 +78,9 @@ func (c *nodePoolValidationSyncer) SyncOnce(ctx context.Context, key controlleru
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get Cluster: %w", err))
 	}
+	if existingCluster.ServiceProviderProperties.DeletionTimestamp != nil {
+		return nil
+	}
 
 	existingNodePool, err := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).NodePools(key.HCPClusterName).Get(ctx, key.HCPNodePoolName)
 	if database.IsNotFoundError(err) {
@@ -85,6 +88,9 @@ func (c *nodePoolValidationSyncer) SyncOnce(ctx context.Context, key controlleru
 	}
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get NodePool: %w", err))
+	}
+	if existingNodePool.ServiceProviderProperties.DeletionTimestamp != nil {
+		return nil
 	}
 
 	existingServiceProviderNodePool, err := database.GetOrCreateServiceProviderNodePool(ctx, c.resourcesDBClient, key.GetResourceID())
