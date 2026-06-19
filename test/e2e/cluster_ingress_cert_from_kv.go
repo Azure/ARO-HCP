@@ -21,6 +21,7 @@ import (
 	"crypto/x509"
 	"encoding/hex"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -207,13 +208,21 @@ var _ = Describe("Customer", func() {
 				"db79e9a7-68ee-4b58-9aeb-b90e7c24fcba",
 				"4633458b-17de-408a-b874-0445c86b69e6",
 			} {
-				Expect(assignBuiltInRoleAtScope(ctx, roleAssignmentsClient, subscriptionID, kvScope, uamiPrincipalID, roleDefID)).To(Succeed())
+				roleDefID := roleDefID
+				Eventually(func() error {
+					err := assignBuiltInRoleAtScope(ctx, roleAssignmentsClient, subscriptionID, kvScope, uamiPrincipalID, roleDefID, to.Ptr(armauthorization.PrincipalTypeServicePrincipal))
+					if err != nil && !isPrincipalNotFoundError(err) {
+						return StopTrying(err.Error()).Wrap(err)
+					}
+					return err
+				}).WithContext(ctx).WithTimeout(5*time.Minute).WithPolling(15*time.Second).Should(Succeed(),
+					"role assignment should succeed once principal propagates")
 			}
 
 			By("granting the test caller Key Vault Certificates Officer on the customer KV so it can issue and rotate the cert")
 			callerOID, err := currentCallerObjectID(ctx, cred)
 			Expect(err).NotTo(HaveOccurred(), "looking up the e2e caller's OID from its ARM token")
-			Expect(assignBuiltInRoleAtScope(ctx, roleAssignmentsClient, subscriptionID, kvScope, callerOID, "a4417e6f-fecd-4de8-b567-7b0420556985")).To(Succeed())
+			Expect(assignBuiltInRoleAtScope(ctx, roleAssignmentsClient, subscriptionID, kvScope, callerOID, "a4417e6f-fecd-4de8-b567-7b0420556985", to.Ptr(armauthorization.PrincipalTypeUser))).To(Succeed())
 
 			By("creating cert v1 in the customer Key Vault with a rotation policy")
 			vaultURL := fmt.Sprintf("https://%s.vault.azure.net", clusterParams.KeyVaultName)
@@ -530,6 +539,7 @@ func assignBuiltInRoleAtScope(
 	ctx context.Context,
 	client *armauthorization.RoleAssignmentsClient,
 	subscriptionID, scope, principalID, roleDefinitionID string,
+	principalType *armauthorization.PrincipalType,
 ) error {
 	roleDefResourceID := fmt.Sprintf("/subscriptions/%s/providers/Microsoft.Authorization/roleDefinitions/%s", subscriptionID, roleDefinitionID)
 	assignmentName := uuid.NewSHA1(uuid.NameSpaceDNS, []byte(strings.Join([]string{scope, principalID, roleDefinitionID}, "|"))).String()
@@ -538,15 +548,18 @@ func assignBuiltInRoleAtScope(
 		Properties: &armauthorization.RoleAssignmentProperties{
 			PrincipalID:      to.Ptr(principalID),
 			RoleDefinitionID: to.Ptr(roleDefResourceID),
-			// PrincipalType intentionally unset — Azure infers it. The
-			// principal here can be either a ServicePrincipal (CI) or a
-			// User (local dev), so we can't hardcode it.
+			PrincipalType:    principalType,
 		},
 	}, nil)
 	if err != nil && !strings.Contains(err.Error(), "RoleAssignmentExists") {
 		return fmt.Errorf("assigning role %s on %s to %s: %w", roleDefinitionID, scope, principalID, err)
 	}
 	return nil
+}
+
+func isPrincipalNotFoundError(err error) bool {
+	var respErr *azcore.ResponseError
+	return errors.As(err, &respErr) && respErr.ErrorCode == "PrincipalNotFound"
 }
 
 // currentCallerObjectID returns the object ID of the principal backing the
