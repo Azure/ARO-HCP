@@ -24,9 +24,6 @@ param msiMockRoleName string = 'dev-msi-mock'
 @description('Historical custom role name for the KMS plugin role')
 param kmsPluginRoleName string = 'Azure Red Hat OpenShift KMS Plugin - Dev'
 
-@description('Optional legacy role-assignment IDs for temporary adoption of pre-existing assignments in this subscription')
-param legacyAssignmentIds object = {}
-
 var homeSubscriptionScope = '/subscriptions/${homeSubscriptionId}'
 var contributorRoleDefinitionId = subscriptionResourceId(
   'Microsoft.Authorization/roleDefinitions',
@@ -48,15 +45,8 @@ var kmsPluginRoleDefinitionId = subscriptionResourceId(
   'Microsoft.Authorization/roleDefinitions',
   guid(kmsPluginRoleName)
 )
-var legacyPooledMiMockRoleAssignments = legacyAssignmentIds.?pooledMiMockRoleAssignments ?? {}
-var legacyPooledMiMockKmsRoleAssignments = legacyAssignmentIds.?pooledMiMockKmsRoleAssignments ?? {}
-
 resource firstPartyRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: legacyAssignmentIds.?firstPartyRoleAssignment ?? guid(
-    subscription().id,
-    firstPartyPrincipalId,
-    firstPartyRoleDefinitionId
-  )
+  name: guid(subscription().id, firstPartyPrincipalId, firstPartyRoleDefinitionId)
   scope: subscription()
   properties: {
     principalId: firstPartyPrincipalId
@@ -66,11 +56,7 @@ resource firstPartyRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-
 }
 
 resource armHelperContributorRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: legacyAssignmentIds.?armHelperContributorRoleAssignment ?? guid(
-    subscription().id,
-    armHelperPrincipalId,
-    contributorRoleDefinitionId
-  )
+  name: guid(subscription().id, armHelperPrincipalId, contributorRoleDefinitionId)
   scope: subscription()
   properties: {
     principalId: armHelperPrincipalId
@@ -80,11 +66,7 @@ resource armHelperContributorRoleAssignment 'Microsoft.Authorization/roleAssignm
 }
 
 resource armHelperRbacAdminRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: legacyAssignmentIds.?armHelperRbacAdminRoleAssignment ?? guid(
-    subscription().id,
-    armHelperPrincipalId,
-    rbacAdminRoleDefinitionId
-  )
+  name: guid(subscription().id, armHelperPrincipalId, rbacAdminRoleDefinitionId)
   scope: subscription()
   properties: {
     principalId: armHelperPrincipalId
@@ -94,7 +76,7 @@ resource armHelperRbacAdminRoleAssignment 'Microsoft.Authorization/roleAssignmen
 }
 
 resource miMockRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: legacyAssignmentIds.?miMockRoleAssignment ?? guid(subscription().id, miMockPrincipalId, msiMockRoleDefinitionId)
+  name: guid(subscription().id, miMockPrincipalId, msiMockRoleDefinitionId)
   scope: subscription()
   properties: {
     principalId: miMockPrincipalId
@@ -104,11 +86,7 @@ resource miMockRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-0
 }
 
 resource miMockKmsRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: legacyAssignmentIds.?miMockKmsRoleAssignment ?? guid(
-    subscription().id,
-    miMockPrincipalId,
-    kmsPluginRoleDefinitionId
-  )
+  name: guid(subscription().id, miMockPrincipalId, kmsPluginRoleDefinitionId)
   scope: subscription()
   properties: {
     principalId: miMockPrincipalId
@@ -119,11 +97,7 @@ resource miMockKmsRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-0
 
 resource pooledMiMockRoleAssignments 'Microsoft.Authorization/roleAssignments@2022-04-01' = [
   for principal in msiMockPoolPrincipals: {
-    name: legacyPooledMiMockRoleAssignments[?principal.name] ?? guid(
-      subscription().id,
-      principal.principalId,
-      msiMockRoleDefinitionId
-    )
+    name: guid(subscription().id, principal.principalId, msiMockRoleDefinitionId)
     scope: subscription()
     properties: {
       principalId: principal.principalId
@@ -135,11 +109,7 @@ resource pooledMiMockRoleAssignments 'Microsoft.Authorization/roleAssignments@20
 
 resource pooledMiMockKmsRoleAssignments 'Microsoft.Authorization/roleAssignments@2022-04-01' = [
   for principal in msiMockPoolPrincipals: {
-    name: legacyPooledMiMockKmsRoleAssignments[?principal.name] ?? guid(
-      subscription().id,
-      principal.principalId,
-      kmsPluginRoleDefinitionId
-    )
+    name: guid(subscription().id, principal.principalId, kmsPluginRoleDefinitionId)
     scope: subscription()
     properties: {
       principalId: principal.principalId

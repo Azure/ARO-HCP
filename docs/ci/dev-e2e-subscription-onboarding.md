@@ -28,12 +28,6 @@ The current implementation is split across two layers:
 
 The bootstrap layer is about the shared dev identities used by the DEV services and by local E2E provisioning, not the per-cluster managed identities created for a specific HCP during a test run.
 
-## Existing-Assignment Caveat
-
-The `customerSubscriptions` list in `config/config-dev-ci.yaml` now fans out into the three `dev-ci` RBAC parameter templates, so adding a brand-new third DEV customer subscription no longer requires per-index template edits first.
-
-A separate caveat still applies when you are adopting pre-existing role assignments instead of creating fresh ones: `legacyAssignmentIdsBySubscription` in `dev-infrastructure/configurations/e2e-subscription-rbac-assignments.tmpl.bicepparam` must contain the Azure-generated assignment IDs for any subscription whose existing grants need to be adopted in place. A brand-new subscription normally does not need that map.
-
 ## Shared Bootstrap Identities
 
 The DEV bootstrap layer currently grants access for these shared identities:
@@ -109,7 +103,6 @@ az provider show --namespace Microsoft.Compute \
    - That list now feeds the `dev-ci` RBAC parameter templates directly, so a brand-new subscription does not require extra per-index template edits.
    - In the same `config/config-dev-ci.yaml`, also add the subscription to the `opstool.tenantQuota` tenant's `subscriptions` list so the `tenant-quota-collector` tracks it. Set `roleAssignmentLimit: 8000` and list the same `regions` the pool runs in, matching the Role Assignment quota requested in step 2.
    - In a normal onboarding flow, `homeSubscription`, `sharedPrincipals`, and `msiMockPool.principals` should not need to change.
-   - If you are adopting pre-existing role assignments instead of creating new ones, also extend `legacyAssignmentIdsBySubscription` in `e2e-subscription-rbac-assignments.tmpl.bicepparam`. A brand-new subscription normally does not need that shim.
    - Run the rollout from the repo root:
      - `make dev-ci-e2e-subscription-rbac-local-run`
 
