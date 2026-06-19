@@ -19,6 +19,7 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
+	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/database/listers"
@@ -98,7 +99,7 @@ func (l *DBApplyDesireLister) GetForCluster(
 	ctx context.Context, subscriptionID, resourceGroupName, clusterName, name string,
 ) (*kubeapplier.ApplyDesire, error) {
 	return findClusterDesireInAnyClient(ctx, l.Clients, l.Lister, name,
-		func(c database.KubeApplierDBClient) (database.ResourceCRUD[kubeapplier.ApplyDesire], error) {
+		func(c database.KubeApplierDBClient) (database.ResourceCRUD[kubeapplier.ApplyDesire, *kubeapplier.ApplyDesire], error) {
 			return c.ApplyDesiresForCluster(subscriptionID, resourceGroupName, clusterName)
 		})
 }
@@ -107,7 +108,7 @@ func (l *DBApplyDesireLister) GetForNodePool(
 	ctx context.Context, subscriptionID, resourceGroupName, clusterName, nodePoolName, name string,
 ) (*kubeapplier.ApplyDesire, error) {
 	return findClusterDesireInAnyClient(ctx, l.Clients, l.Lister, name,
-		func(c database.KubeApplierDBClient) (database.ResourceCRUD[kubeapplier.ApplyDesire], error) {
+		func(c database.KubeApplierDBClient) (database.ResourceCRUD[kubeapplier.ApplyDesire, *kubeapplier.ApplyDesire], error) {
 			return c.ApplyDesiresForNodePool(subscriptionID, resourceGroupName, clusterName, nodePoolName)
 		})
 }
@@ -161,9 +162,9 @@ func (l *DBApplyDesireLister) ListForNodePool(
 // findClusterDesireInAnyClient tries Get on each configured per-MC client; first
 // hit wins. Stops on the first non-NotFound error. crudFor lets the caller
 // pick which per-scope CRUD method (ForCluster vs ForNodePool) to invoke.
-func findClusterDesireInAnyClient[T any](
+func findClusterDesireInAnyClient[T any, P arm.CosmosMetadataAccessorPtr[T]](
 	ctx context.Context, clients database.KubeApplierDBClients, lister database.ManagementClusterLister,
-	name string, crudFor func(database.KubeApplierDBClient) (database.ResourceCRUD[T], error),
+	name string, crudFor func(database.KubeApplierDBClient) (database.ResourceCRUD[T, P], error),
 ) (*T, error) {
 	rids, err := managementClusterResourceIDs(ctx, lister)
 	if err != nil {
@@ -226,7 +227,7 @@ func (l *DBDeleteDesireLister) GetForCluster(
 	ctx context.Context, subscriptionID, resourceGroupName, clusterName, name string,
 ) (*kubeapplier.DeleteDesire, error) {
 	return findClusterDesireInAnyClient(ctx, l.Clients, l.Lister, name,
-		func(c database.KubeApplierDBClient) (database.ResourceCRUD[kubeapplier.DeleteDesire], error) {
+		func(c database.KubeApplierDBClient) (database.ResourceCRUD[kubeapplier.DeleteDesire, *kubeapplier.DeleteDesire], error) {
 			return c.DeleteDesiresForCluster(subscriptionID, resourceGroupName, clusterName)
 		})
 }
@@ -235,7 +236,7 @@ func (l *DBDeleteDesireLister) GetForNodePool(
 	ctx context.Context, subscriptionID, resourceGroupName, clusterName, nodePoolName, name string,
 ) (*kubeapplier.DeleteDesire, error) {
 	return findClusterDesireInAnyClient(ctx, l.Clients, l.Lister, name,
-		func(c database.KubeApplierDBClient) (database.ResourceCRUD[kubeapplier.DeleteDesire], error) {
+		func(c database.KubeApplierDBClient) (database.ResourceCRUD[kubeapplier.DeleteDesire, *kubeapplier.DeleteDesire], error) {
 			return c.DeleteDesiresForNodePool(subscriptionID, resourceGroupName, clusterName, nodePoolName)
 		})
 }
@@ -323,7 +324,7 @@ func (l *DBReadDesireLister) GetForCluster(
 	ctx context.Context, subscriptionID, resourceGroupName, clusterName, name string,
 ) (*kubeapplier.ReadDesire, error) {
 	return findClusterDesireInAnyClient(ctx, l.Clients, l.Lister, name,
-		func(c database.KubeApplierDBClient) (database.ResourceCRUD[kubeapplier.ReadDesire], error) {
+		func(c database.KubeApplierDBClient) (database.ResourceCRUD[kubeapplier.ReadDesire, *kubeapplier.ReadDesire], error) {
 			return c.ReadDesiresForCluster(subscriptionID, resourceGroupName, clusterName)
 		})
 }
@@ -332,7 +333,7 @@ func (l *DBReadDesireLister) GetForNodePool(
 	ctx context.Context, subscriptionID, resourceGroupName, clusterName, nodePoolName, name string,
 ) (*kubeapplier.ReadDesire, error) {
 	return findClusterDesireInAnyClient(ctx, l.Clients, l.Lister, name,
-		func(c database.KubeApplierDBClient) (database.ResourceCRUD[kubeapplier.ReadDesire], error) {
+		func(c database.KubeApplierDBClient) (database.ResourceCRUD[kubeapplier.ReadDesire, *kubeapplier.ReadDesire], error) {
 			return c.ReadDesiresForNodePool(subscriptionID, resourceGroupName, clusterName, nodePoolName)
 		})
 }

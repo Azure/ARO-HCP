@@ -23,7 +23,7 @@ fmt-devinfra:
 run: alerts recording-rules
 .PHONY: run
 
-alerts: run-sl-services run-sre-hcps run-rp-services run-msft-services
+alerts: run-sl-services run-sre-hcps run-sre-services run-rp-services run-rp-hcps run-msft-services
 	$(MAKE) fmt-devinfra
 .PHONY: alerts
 
@@ -39,9 +39,17 @@ run-sre-hcps:
 	go run ./...  --config-file ../../observability/alerts-sre-hcps.yaml $(EXTRA_FLAGS)
 .PHONY: run-sre-hcps
 
+run-sre-services:
+	go run ./...  --config-file ../../observability/alerts-sre-services.yaml $(EXTRA_FLAGS)
+.PHONY: run-sre-services
+
 run-rp-services:
 	go run ./...  --config-file ../../observability/alerts-rp-services.yaml $(EXTRA_FLAGS)
 .PHONY: run-rp-services
+
+run-rp-hcps:
+	go run ./...  --config-file ../../observability/alerts-rp-hcps.yaml $(EXTRA_FLAGS)
+.PHONY: run-rp-hcps
 
 run-msft-services:
 	go run ./...  --config-file ../../observability/alerts-msft-services.yaml $(EXTRA_FLAGS)

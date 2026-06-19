@@ -1,0 +1,21 @@
+rule_files:
+- frontend-latency-prometheusRule.yaml
+evaluation_interval: 1m
+tests:
+# Test: FrontendLatency does not fire when 95th percentile is below 5 seconds
+- interval: 1m
+  input_series:
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="0.1"}'
+    values: '0+60x10'
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="0.5"}'
+    values: '0+60x20'
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="1"}'
+    values: '0+60x30'
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="5"}'
+    values: '0+60x190'
+  - series: 'frontend_http_requests_duration_seconds_bucket{le="+Inf"}'
+    values: '0+60x200'
+  alert_rule_test:
+  - eval_time: 60m
+    alertname: FrontendLatency
+    exp_alerts: []

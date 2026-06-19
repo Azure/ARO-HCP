@@ -19,5 +19,5 @@ import (
 )
 
 type SubscriptionCRUD interface {
-	ResourceCRUD[arm.Subscription]
+	ResourceCRUD[arm.Subscription, *arm.Subscription]
 }

@@ -51,7 +51,10 @@ func TestClusterChildResourcesCleanupController_SyncOnce(t *testing.T) {
 				"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName +
 				"/serviceProviderClusters/default"))
 		return &api.ServiceProviderCluster{
-			CosmosMetadata: arm.CosmosMetadata{ResourceID: spcResourceID},
+			CosmosMetadata: arm.CosmosMetadata{
+				ResourceID:   spcResourceID,
+				PartitionKey: strings.ToLower(spcResourceID.SubscriptionID),
+			},
 			Status: api.ServiceProviderClusterStatus{
 				ManagementClusterResourceID: mcResourceID,
 			},
@@ -64,7 +67,10 @@ func TestClusterChildResourcesCleanupController_SyncOnce(t *testing.T) {
 				"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName +
 				"/managementClusterContents/" + name))
 		return &api.ManagementClusterContent{
-			CosmosMetadata: api.CosmosMetadata{ResourceID: resourceID},
+			CosmosMetadata: api.CosmosMetadata{
+				ResourceID:   resourceID,
+				PartitionKey: strings.ToLower(resourceID.SubscriptionID),
+			},
 		}
 	}
 	newTestClusterController := func(name string) *api.Controller {
@@ -74,7 +80,10 @@ func TestClusterChildResourcesCleanupController_SyncOnce(t *testing.T) {
 				"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName +
 				"/hcpOpenShiftControllers/" + name))
 		return &api.Controller{
-			CosmosMetadata: api.CosmosMetadata{ResourceID: resourceID},
+			CosmosMetadata: api.CosmosMetadata{
+				ResourceID:   resourceID,
+				PartitionKey: strings.ToLower(resourceID.SubscriptionID),
+			},
 			ExternalID: api.Must(azcorearm.ParseResourceID(
 				"/subscriptions/" + testSubscriptionID +
 					"/resourceGroups/" + testResourceGroupName +
@@ -88,7 +97,10 @@ func TestClusterChildResourcesCleanupController_SyncOnce(t *testing.T) {
 	newTestReadDesire := func(resourceIDString string) *kubeapplier.ReadDesire {
 		resourceID := api.Must(azcorearm.ParseResourceID(resourceIDString))
 		return &kubeapplier.ReadDesire{
-			CosmosMetadata: api.CosmosMetadata{ResourceID: resourceID},
+			CosmosMetadata: api.CosmosMetadata{
+				ResourceID:   resourceID,
+				PartitionKey: strings.ToLower(managementClusterResourceID.String()),
+			},
 			Spec: kubeapplier.ReadDesireSpec{
 				ManagementCluster: managementClusterResourceID,
 			},
@@ -107,7 +119,10 @@ func TestClusterChildResourcesCleanupController_SyncOnce(t *testing.T) {
 			kubeapplier.ToClusterScopedApplyDesireResourceIDString(
 				testSubscriptionID, testResourceGroupName, testClusterName, name)))
 		return &kubeapplier.ApplyDesire{
-			CosmosMetadata: api.CosmosMetadata{ResourceID: resourceID},
+			CosmosMetadata: api.CosmosMetadata{
+				ResourceID:   resourceID,
+				PartitionKey: strings.ToLower(managementClusterResourceID.String()),
+			},
 			Spec: kubeapplier.ApplyDesireSpec{
 				ManagementCluster: managementClusterResourceID,
 			},
@@ -118,7 +133,10 @@ func TestClusterChildResourcesCleanupController_SyncOnce(t *testing.T) {
 			kubeapplier.ToNodePoolScopedDeleteDesireResourceIDString(
 				testSubscriptionID, testResourceGroupName, testClusterName, nodePoolName, name)))
 		return &kubeapplier.DeleteDesire{
-			CosmosMetadata: api.CosmosMetadata{ResourceID: resourceID},
+			CosmosMetadata: api.CosmosMetadata{
+				ResourceID:   resourceID,
+				PartitionKey: strings.ToLower(managementClusterResourceID.String()),
+			},
 			Spec: kubeapplier.DeleteDesireSpec{
 				ManagementCluster: managementClusterResourceID,
 			},

@@ -87,6 +87,9 @@ func (c *triggerNodePoolUpgradeSyncer) SyncOnce(ctx context.Context, key control
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get NodePool: %w", err))
 	}
+	if existingNodePool.ServiceProviderProperties.DeletionTimestamp != nil {
+		return nil
+	}
 	// if we have no clusterservice nodepool, we have nothing to trigger.
 	if existingNodePool.ServiceProviderProperties.ClusterServiceID == nil || len(existingNodePool.ServiceProviderProperties.ClusterServiceID.String()) == 0 {
 		return nil

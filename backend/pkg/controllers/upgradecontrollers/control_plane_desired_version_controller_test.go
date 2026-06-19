@@ -16,6 +16,7 @@ package upgradecontrollers
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/blang/semver/v4"
@@ -596,7 +597,8 @@ func testCosmosClusterWithWorkersNodePoolAtVersion(nodePoolVersionId string) []a
 	clusterResourceId := api.Must(api.ToClusterResourceID("6b690bec-0c16-4ecb-8f67-781caf40bba7", "test-rg", "test-cluster"))
 	cluster := &api.HCPOpenShiftCluster{
 		CosmosMetadata: arm.CosmosMetadata{
-			ResourceID: clusterResourceId,
+			ResourceID:   clusterResourceId,
+			PartitionKey: strings.ToLower(clusterResourceId.SubscriptionID),
 		},
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
@@ -614,7 +616,8 @@ func testCosmosClusterWithWorkersNodePoolAtVersion(nodePoolVersionId string) []a
 		cluster,
 		&api.HCPOpenShiftClusterNodePool{
 			CosmosMetadata: arm.CosmosMetadata{
-				ResourceID: nodePoolResourceId,
+				ResourceID:   nodePoolResourceId,
+				PartitionKey: strings.ToLower(nodePoolResourceId.SubscriptionID),
 			},
 			TrackedResource: arm.NewTrackedResource(nodePoolResourceId, "eastus"),
 			Properties: api.HCPOpenShiftClusterNodePoolProperties{
@@ -995,7 +998,8 @@ func createTestHCPClusterWithCustomerVersion(t *testing.T, ctx context.Context, 
 	require.NoError(t, err)
 	cluster := &api.HCPOpenShiftCluster{
 		CosmosMetadata: arm.CosmosMetadata{
-			ResourceID: clusterResourceID,
+			ResourceID:   clusterResourceID,
+			PartitionKey: strings.ToLower(clusterResourceID.SubscriptionID),
 		},
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
@@ -1029,7 +1033,7 @@ func TestControlPlaneDesiredVersionSyncer_SyncOnce(t *testing.T) {
 	subResourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID))
 	subscriptionLister := &listertesting.SliceSubscriptionLister{
 		Subscriptions: []*arm.Subscription{{
-			CosmosMetadata: arm.CosmosMetadata{ResourceID: subResourceID},
+			CosmosMetadata: arm.CosmosMetadata{ResourceID: subResourceID, PartitionKey: strings.ToLower(subResourceID.SubscriptionID)},
 			ResourceID:     subResourceID,
 			Properties:     &arm.SubscriptionProperties{},
 		}},
@@ -1231,6 +1235,7 @@ func createServiceProviderClusterWithActiveAndDesiredVersion(t *testing.T, ctx c
 			},
 		},
 	}
+	serviceProviderCluster.SetPartitionKey(testSubscriptionID)
 	_, err := mockResourcesDBClient.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Create(ctx, serviceProviderCluster, nil)
 	require.NoError(t, err)
 }

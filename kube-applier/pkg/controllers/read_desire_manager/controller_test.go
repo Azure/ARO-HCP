@@ -16,6 +16,7 @@ package read_desire_manager
 
 import (
 	"context"
+	"strings"
 	"sync"
 	"testing"
 
@@ -58,6 +59,7 @@ func newReadDesire(t *testing.T, target kubeapplier.ResourceReference) *kubeappl
 			ResourceID: mustParseID(t, kubeapplier.ToClusterScopedReadDesireResourceIDString(
 				testSub, testRG, testCluster, testDesire,
 			)),
+			PartitionKey: strings.ToLower(testManagementID.String()),
 		},
 		Spec: kubeapplier.ReadDesireSpec{
 			ManagementCluster: testManagementID,

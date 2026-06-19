@@ -130,6 +130,9 @@ func (c *nodePoolVersionSyncer) SyncOnce(ctx context.Context, key controllerutil
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get node pool from cosmos: %w", err))
 	}
+	if nodePool.ServiceProviderProperties.DeletionTimestamp != nil {
+		return nil
+	}
 	if nodePool.ServiceProviderProperties.ClusterServiceID == nil || len(nodePool.ServiceProviderProperties.ClusterServiceID.String()) == 0 {
 		// if we have no clusterservice nodepool, we have nothing to sync.
 		return nil
@@ -187,7 +190,7 @@ func (c *nodePoolVersionSyncer) SyncOnce(ctx context.Context, key controllerutil
 	actualVersion := semver.MustParse(version.RawID())
 
 	oldActiveVersions := existingServiceProviderNodePool.Status.NodePoolVersion.ActiveVersions
-	existingServiceProviderNodePool.Status.NodePoolVersion.ActiveVersions = prependActiveVersionIfChanged(oldActiveVersions, actualVersion)
+	newActiveVersions := prependActiveVersionIfChanged(oldActiveVersions, actualVersion)
 
 	serviceProviderCosmosNodePoolClient := c.resourcesDBClient.ServiceProviderNodePools(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPNodePoolName)
 	// check if actualVersion from node pool in clusterService is different that the active versions in serviceProviderNodePool
@@ -199,9 +202,11 @@ func (c *nodePoolVersionSyncer) SyncOnce(ctx context.Context, key controllerutil
 	//   	- upgradepolicy.targetVersion: if the policy has started this version is applying to the nodepool
 	//   - In Hypershift
 	//		- .Status.Version: shows the latest applied version https://github.com/openshift/hypershift/blob/main/api/hypershift/v1beta1/nodepool_types.go#L246-L251
-	if !slices.Equal(oldActiveVersions, existingServiceProviderNodePool.Status.NodePoolVersion.ActiveVersions) {
-		logger.Info("Active versions changed", "oldActiveVersions", oldActiveVersions, "newActiveVersions", existingServiceProviderNodePool.Status.NodePoolVersion.ActiveVersions)
-		existingServiceProviderNodePool, err = serviceProviderCosmosNodePoolClient.Replace(ctx, existingServiceProviderNodePool, nil)
+	if !slices.Equal(oldActiveVersions, newActiveVersions) {
+		logger.Info("Active versions changed", "oldActiveVersions", oldActiveVersions, "newActiveVersions", newActiveVersions)
+		replacement := existingServiceProviderNodePool.DeepCopy()
+		replacement.Status.NodePoolVersion.ActiveVersions = newActiveVersions
+		existingServiceProviderNodePool, err = serviceProviderCosmosNodePoolClient.Replace(ctx, replacement, nil)
 		if err != nil {
 			return utils.TrackError(fmt.Errorf("failed to replace ServiceProviderNodePool: %w", err))
 		}
@@ -258,8 +263,9 @@ func (c *nodePoolVersionSyncer) SyncOnce(ctx context.Context, key controllerutil
 	}
 
 	// Update the serviceProviderNodePool DesiredVersion
-	existingServiceProviderNodePool.Spec.NodePoolVersion.DesiredVersion = &customerDesiredVersion
-	_, err = serviceProviderCosmosNodePoolClient.Replace(ctx, existingServiceProviderNodePool, nil)
+	replacement := existingServiceProviderNodePool.DeepCopy()
+	replacement.Spec.NodePoolVersion.DesiredVersion = &customerDesiredVersion
+	_, err = serviceProviderCosmosNodePoolClient.Replace(ctx, replacement, nil)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to replace ServiceProviderNodePool: %w", err))
 	}

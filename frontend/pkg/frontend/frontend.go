@@ -76,8 +76,7 @@ type Frontend struct {
 	// clusterServiceNoopDeprovision short-circuits the full deprovision flow
 	// during testing.
 	clusterServiceNoopDeprovision bool
-
-	apiRegistry api.APIRegistry
+	apiRegistry                   api.APIRegistry
 
 	exitOnPanic bool
 }
@@ -506,6 +505,25 @@ func (f *Frontend) ArmResourceActionRevokeCredentials(writer http.ResponseWriter
 	return nil
 }
 
+func (f *Frontend) ArmOperationsList(writer http.ResponseWriter, request *http.Request) error {
+	pagedResponse := arm.NewPagedResponse()
+
+	for _, operation := range AvailableOperations {
+		jsonBytes, err := arm.MarshalJSON(operation)
+		if err != nil {
+			return utils.TrackError(err)
+		}
+		pagedResponse.AddValue(jsonBytes)
+	}
+
+	_, err := arm.WriteJSONResponse(writer, http.StatusOK, pagedResponse)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+
+	return nil
+}
+
 func (f *Frontend) ArmSubscriptionGet(writer http.ResponseWriter, request *http.Request) error {
 	ctx := request.Context()
 
@@ -551,6 +569,7 @@ func (f *Frontend) ArmSubscriptionPut(writer http.ResponseWriter, request *http.
 		return utils.TrackError(err)
 	}
 	requestSubscription.ResourceID = requestSubscription.CosmosMetadata.ResourceID
+	requestSubscription.SetPartitionKey(subscriptionID)
 
 	validationErrs := validation.ValidateSubscriptionCreate(ctx, &requestSubscription)
 	if err := arm.CloudErrorFromFieldErrors(validationErrs); err != nil {

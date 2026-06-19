@@ -1,3 +1,6 @@
+# This is just for dashboards now, do not put alerts here.
+# This should be renamed 'dashboards.yaml' really, but that's non-trivial
+# (and described in https://github.com/Azure/ARO-HCP/pull/5575)
 grafana-dashboards:
   azureManagedFolders:
   - Azure Managed Prometheus
@@ -28,3 +31,5 @@ grafana-dashboards:
     path: ./grafana-dashboards/kas-ksm-monitor
   - name: SRE User Journey
     path: ./grafana-dashboards/sre/user-journey
+  - name: SRE Cluster Health
+    path: ./grafana-dashboards/sre/cluster-health

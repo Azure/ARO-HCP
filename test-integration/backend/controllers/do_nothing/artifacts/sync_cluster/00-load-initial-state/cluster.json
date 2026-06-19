@@ -1,10 +1,11 @@
 {
-	"_etag": "\"00000000-0000-0000-0000-000000000001\"",
+	"_etag": "\"c6d187b2-d8fd-4fdc-8128-abc4d857301f\"",
 	"id": "1efd180d-f929-5506-9e76-15ef4c14ca7b",
 	"partitionKey": "4fa75980-6637-4157-9726-84d878a62e83",
 	"properties": {
 		"cosmosMetadata": {
 			"instanceVersion": 1,
+			"partitionKey": "4fa75980-6637-4157-9726-84d878a62e83",
 			"resourceID": "/subscriptions/4fa75980-6637-4157-9726-84d878a62e83/resourceGroups/shrillEffectiveness/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/lavishUnhappiness"
 		},
 		"customerProperties": {

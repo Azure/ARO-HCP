@@ -22,16 +22,18 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
 
-type listStep[InternalAPIType any] struct {
+type listStep[InternalAPIType any, InternalAPITypePointer arm.CosmosMetadataAccessorPtr[InternalAPIType]] struct {
 	stepID StepID
 	key    CosmosCRUDKey
 
 	expectedResources []*InternalAPIType
 }
 
-func newListStep[InternalAPIType any](stepID StepID, stepDir fs.FS) (*listStep[InternalAPIType], error) {
+func newListStep[InternalAPIType any, InternalAPITypePointer arm.CosmosMetadataAccessorPtr[InternalAPIType]](stepID StepID, stepDir fs.FS) (*listStep[InternalAPIType, InternalAPITypePointer], error) {
 	keyBytes, err := fs.ReadFile(stepDir, "00-key.json")
 	if err != nil {
 		return nil, fmt.Errorf("failed to read key.json: %w", err)
@@ -46,21 +48,19 @@ func newListStep[InternalAPIType any](stepID StepID, stepDir fs.FS) (*listStep[I
 		return nil, fmt.Errorf("failed to read resource in dir: %w", err)
 	}
 
-	return &listStep[InternalAPIType]{
+	return &listStep[InternalAPIType, InternalAPITypePointer]{
 		stepID:            stepID,
 		key:               key,
 		expectedResources: expectedResources,
 	}, nil
 }
 
-var _ IntegrationTestStep = &listStep[any]{}
-
-func (l *listStep[InternalAPIType]) StepID() StepID {
+func (l *listStep[InternalAPIType, InternalAPITypePointer]) StepID() StepID {
 	return l.stepID
 }
 
-func (l *listStep[InternalAPIType]) RunTest(ctx context.Context, t *testing.T, stepInput StepInput) {
-	resourceCRUDClient := NewCosmosCRUD[InternalAPIType](t, stepInput.ResourcesDBClient, l.key.ParentResourceID, l.key.ResourceType.ResourceType)
+func (l *listStep[InternalAPIType, InternalAPITypePointer]) RunTest(ctx context.Context, t *testing.T, stepInput StepInput) {
+	resourceCRUDClient := NewCosmosCRUD[InternalAPIType, InternalAPITypePointer](t, stepInput.ResourcesDBClient, l.key.ParentResourceID, l.key.ResourceType.ResourceType)
 	actualControllersIterator, err := resourceCRUDClient.List(ctx, nil)
 	require.NoError(t, err)
 

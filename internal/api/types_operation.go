@@ -38,6 +38,7 @@ const (
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type Operation struct {
+	// PartitionKey holds the lowercased subscriptionID.
 	CosmosMetadata `json:"cosmosMetadata"`
 
 	// TenantID is the tenant ID of the client that requested the operation

@@ -164,8 +164,9 @@ func (c *createBillingDoc) SyncOnce(ctx context.Context, keyObj controllerutils.
 	}
 
 	// Update the cluster to record the billing document ID (whether newly created or already existing)
-	existingCluster.ServiceProviderProperties.BillingDocumentCosmosID = doc.ID
-	_, err = clusterCRUD.Replace(ctx, existingCluster, nil)
+	replacement := existingCluster.DeepCopy()
+	replacement.ServiceProviderProperties.BillingDocumentCosmosID = doc.ID
+	_, err = clusterCRUD.Replace(ctx, replacement, nil)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to update cluster with billing document ID: %w", err))
 	}

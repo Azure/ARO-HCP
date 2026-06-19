@@ -36,6 +36,7 @@ const (
 	CSPropertyNoopDeprovision  = "provisioner_noop_deprovision"
 	CSPropertySingleReplica    = "hosted_cluster_single_replica"
 	CSPropertySizeOverride     = "hosted_cluster_size_override"
+	CSPropertyCPOImageOverride = "control_plane_operator_image"
 
 	CSPropertyEnabled = "true"
 )
@@ -805,7 +806,7 @@ func NewOpenShiftVersionXYZ(v, cg string) string {
 		if len(parts) == 2 {
 			// Patch version is managed by Red Hat. This will be computed automatically to the latest
 			// as part of https://github.com/Azure/ARO-HCP/pull/4477
-			if patch, ok := map[string]string{"4.19": "30", "4.20": "22", "4.21": "15"}[v]; ok {
+			if patch, ok := map[string]string{"4.19": "31", "4.20": "23", "4.21": "16"}[v]; ok {
 				parts = append(parts, patch)
 			} else {
 				parts = append(parts, "0")

@@ -24,7 +24,8 @@ import (
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type Controller struct {
 	// CosmosMetadata ResourceID is nested under the cluster so that association and cleanup work as expected
-	// it will be the ServiceProviderCluster type and the name default
+	// it will be the ServiceProviderCluster type and the name default.
+	// PartitionKey holds the lowercased subscriptionID.
 	CosmosMetadata `json:"cosmosMetadata"`
 
 	// ExternalID is the Azure resource ID of the type this is associated with.

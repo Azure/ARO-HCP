@@ -31,7 +31,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database"
 )
 
-// fakeControllerCRUD is a simple in-memory implementation of ResourceCRUD[api.Controller] for testing
+// fakeControllerCRUD is a simple in-memory implementation of ResourceCRUD[api.Controller, *api.Controller] for testing
 type fakeControllerCRUD struct {
 	controllers map[string]*api.Controller
 }
@@ -96,7 +96,8 @@ func TestDegradedControllerPanicHandler(t *testing.T) {
 				"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + clusterName))
 		return &api.Controller{
 			CosmosMetadata: api.CosmosMetadata{
-				ResourceID: resourceID,
+				ResourceID:   resourceID,
+				PartitionKey: strings.ToLower(resourceID.SubscriptionID),
 			},
 			ExternalID: clusterResourceID,
 			Status: api.ControllerStatus{

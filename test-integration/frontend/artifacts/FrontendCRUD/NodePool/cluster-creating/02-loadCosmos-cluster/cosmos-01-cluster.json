@@ -1,8 +1,11 @@
 {
+	"_etag": "\"585f3e5e-5eab-4f89-b01a-86e261071f3d\"",
 	"id": "d9dc2060-758a-540b-bb6e-bab0900ea591",
 	"partitionKey": "0465bc32-c654-41b8-8d87-9815d7abe8f6",
 	"properties": {
 		"cosmosMetadata": {
+			"instanceVersion": 1,
+			"partitionKey": "0465bc32-c654-41b8-8d87-9815d7abe8f6",
 			"resourceID": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-creating"
 		},
 		"customerProperties": {

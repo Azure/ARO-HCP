@@ -124,7 +124,7 @@ func mutateClusterExperimentalFeatures(_ context.Context, admissionContext *Clus
 	var errs field.ErrorList
 
 	// Reject unrecognized experimental tags.
-	knownTags := sets.New(api.TagClusterSingleReplica, api.TagClusterSizeOverride)
+	knownTags := sets.New(api.TagClusterSingleReplica, api.TagClusterSizeOverride, api.TagClusterCPOImageOverride)
 	for k := range tags {
 		if strings.HasPrefix(strings.ToLower(k), api.ExperimentalClusterTagPrefix) && !knownTags.Has(strings.ToLower(k)) {
 			errs = append(errs, field.Invalid(tagsPath.Key(k), k, "unrecognized experimental tag"))
@@ -158,6 +158,19 @@ func mutateClusterExperimentalFeatures(_ context.Context, admissionContext *Clus
 			tagsPath.Key(api.TagClusterSizeOverride), sizeOverrideValue,
 			fmt.Sprintf("must be %q or empty", api.MinimalControlPlanePodSizing),
 		))
+	}
+
+	cpoImageValue := lookupTag(tags, api.TagClusterCPOImageOverride)
+	if cpoImageValue != "" {
+		trimmed := strings.TrimSpace(cpoImageValue)
+		if trimmed == "" {
+			errs = append(errs, field.Invalid(
+				tagsPath.Key(api.TagClusterCPOImageOverride), cpoImageValue,
+				"must not be blank when provided",
+			))
+		} else {
+			experimentalFeatures.ControlPlaneOperatorImage = trimmed
+		}
 	}
 
 	if len(errs) > 0 {

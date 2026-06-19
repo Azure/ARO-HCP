@@ -170,19 +170,19 @@ func (d *resourcesCosmosDBClient) Operations(subscriptionID string) OperationCRU
 }
 
 func (d *resourcesCosmosDBClient) Subscriptions() SubscriptionCRUD {
-	return NewCosmosResourceCRUD[arm.Subscription, GenericDocument[arm.Subscription]](
+	return NewCosmosResourceCRUD[arm.Subscription, *arm.Subscription, GenericDocument[arm.Subscription]](
 		d.resources, nil, azcorearm.SubscriptionResourceType)
 }
 
 func (d *resourcesCosmosDBClient) ServiceProviderClusters(subscriptionID, resourceGroupName, clusterName string) ServiceProviderClusterCRUD {
 	clusterResourceID := NewClusterResourceID(subscriptionID, resourceGroupName, clusterName)
-	return NewCosmosResourceCRUD[api.ServiceProviderCluster, GenericDocument[api.ServiceProviderCluster]](
+	return NewCosmosResourceCRUD[api.ServiceProviderCluster, *api.ServiceProviderCluster, GenericDocument[api.ServiceProviderCluster]](
 		d.resources, clusterResourceID, api.ServiceProviderClusterResourceType)
 }
 
 func (d *resourcesCosmosDBClient) ServiceProviderNodePools(subscriptionID, resourceGroupName, clusterName, nodePoolName string) ServiceProviderNodePoolCRUD {
 	nodePoolResourceID := NewNodePoolResourceID(subscriptionID, resourceGroupName, clusterName, nodePoolName)
-	return NewCosmosResourceCRUD[api.ServiceProviderNodePool, GenericDocument[api.ServiceProviderNodePool]](
+	return NewCosmosResourceCRUD[api.ServiceProviderNodePool, *api.ServiceProviderNodePool, GenericDocument[api.ServiceProviderNodePool]](
 		d.resources, nodePoolResourceID, api.ServiceProviderNodePoolResourceType)
 }
 

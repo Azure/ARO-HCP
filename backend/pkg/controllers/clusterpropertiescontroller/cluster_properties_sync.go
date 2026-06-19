@@ -105,7 +105,6 @@ func (c *clusterPropertiesSyncer) SyncOnce(ctx context.Context, key controllerut
 	}
 
 	replacement := existingCluster.DeepCopy()
-
 	replacement.ServiceProviderProperties.Console.URL = fmt.Sprintf("https://console-openshift-console.apps.%s", hostedCluster.Spec.DNS.BaseDomain)
 	kubeAPIServerDNSNamePrefix := fmt.Sprintf("api.%s.", replacement.CustomerProperties.DNS.BaseDomainPrefix)
 	// A mismatch should not happen in normal operation; error so any regression is visible.

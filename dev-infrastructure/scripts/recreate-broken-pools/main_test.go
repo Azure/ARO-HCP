@@ -36,6 +36,8 @@ import (
 	armcompute "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
 	computefake "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6/fake"
 	armcs "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v6"
+	armnetwork "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v6"
+	networkfake "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v6/fake"
 )
 
 // =============================================================================
@@ -66,18 +68,6 @@ func TestParseEnvConfig_MinimalRequiredFields(t *testing.T) {
 	if c.subscriptionID != "sub-0001" {
 		t.Errorf("subscriptionID=%q", c.subscriptionID)
 	}
-	if c.threshold != defaultThreshold {
-		t.Errorf("threshold=%d want default %d", c.threshold, defaultThreshold)
-	}
-	if c.windowMin != defaultWindowMin {
-		t.Errorf("windowMin=%d want default %d", c.windowMin, defaultWindowMin)
-	}
-	if c.forcedEvidenceTimeoutMin != defaultForcedEvidenceTimeoutMin {
-		t.Errorf("forcedEvidenceTimeoutMin=%d want default %d", c.forcedEvidenceTimeoutMin, defaultForcedEvidenceTimeoutMin)
-	}
-	if c.forcedEvidenceThreshold != defaultForcedEvidenceThreshold {
-		t.Errorf("forcedEvidenceThreshold=%d want default %d", c.forcedEvidenceThreshold, defaultForcedEvidenceThreshold)
-	}
 	if c.dryRun {
 		t.Errorf("dryRun=true, want false by default")
 	}
@@ -104,121 +94,6 @@ func TestParseEnvConfig_MissingSubscriptionID(t *testing.T) {
 	_, err := parseEnvConfig(env)
 	if err == nil || !strings.Contains(err.Error(), "SUBSCRIPTION_ID") {
 		t.Errorf("expected SUBSCRIPTION_ID error, got %v", err)
-	}
-}
-
-func TestParseEnvConfig_CustomThresholdAndWindow(t *testing.T) {
-	env := envFromMap(map[string]string{
-		"CLUSTER_NAME":        "c",
-		"RESOURCE_GROUP":      "rg",
-		"SUBSCRIPTION_ID":     "sub",
-		"NODEPOOL_TAG":        "user",
-		"NRP_FAIL_THRESHOLD":  "25",
-		"NRP_FAIL_WINDOW_MIN": "30",
-	})
-	c, err := parseEnvConfig(env)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if c.threshold != 25 || c.windowMin != 30 {
-		t.Errorf("threshold=%d windowMin=%d", c.threshold, c.windowMin)
-	}
-}
-
-func TestParseEnvConfig_CustomForcedEvidence(t *testing.T) {
-	env := envFromMap(map[string]string{
-		"CLUSTER_NAME":                "c",
-		"RESOURCE_GROUP":              "rg",
-		"SUBSCRIPTION_ID":             "sub",
-		"NODEPOOL_TAG":                "user",
-		"FORCED_EVIDENCE_TIMEOUT_MIN": "45",
-		"FORCED_EVIDENCE_THRESHOLD":   "7",
-	})
-	c, err := parseEnvConfig(env)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if c.forcedEvidenceTimeoutMin != 45 || c.forcedEvidenceThreshold != 7 {
-		t.Errorf("forcedEvidenceTimeoutMin=%d forcedEvidenceThreshold=%d", c.forcedEvidenceTimeoutMin, c.forcedEvidenceThreshold)
-	}
-}
-
-func TestParseEnvConfig_InvalidForcedEvidence(t *testing.T) {
-	cases := []struct {
-		name string
-		key  string
-		v    string
-	}{
-		{"timeout_non_numeric", "FORCED_EVIDENCE_TIMEOUT_MIN", "abc"},
-		{"timeout_zero", "FORCED_EVIDENCE_TIMEOUT_MIN", "0"},
-		{"timeout_negative", "FORCED_EVIDENCE_TIMEOUT_MIN", "-1"},
-		{"threshold_non_numeric", "FORCED_EVIDENCE_THRESHOLD", "xyz"},
-		{"threshold_zero", "FORCED_EVIDENCE_THRESHOLD", "0"},
-		{"threshold_negative", "FORCED_EVIDENCE_THRESHOLD", "-2"},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			env := envFromMap(map[string]string{
-				"CLUSTER_NAME":    "c",
-				"RESOURCE_GROUP":  "rg",
-				"SUBSCRIPTION_ID": "sub",
-				"NODEPOOL_TAG":    "user",
-				tc.key:            tc.v,
-			})
-			if _, err := parseEnvConfig(env); err == nil {
-				t.Errorf("expected error for %s=%q", tc.key, tc.v)
-			}
-		})
-	}
-}
-
-func TestParseEnvConfig_InvalidThreshold(t *testing.T) {
-	cases := []struct {
-		name string
-		v    string
-	}{
-		{"non-numeric", "abc"},
-		{"zero", "0"},
-		{"negative", "-5"},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			env := envFromMap(map[string]string{
-				"CLUSTER_NAME":       "c",
-				"RESOURCE_GROUP":     "rg",
-				"SUBSCRIPTION_ID":    "sub",
-				"NODEPOOL_TAG":       "user",
-				"NRP_FAIL_THRESHOLD": tc.v,
-			})
-			if _, err := parseEnvConfig(env); err == nil {
-				t.Errorf("expected error for threshold=%q", tc.v)
-			}
-		})
-	}
-}
-
-func TestParseEnvConfig_InvalidWindow(t *testing.T) {
-	cases := []struct {
-		name string
-		v    string
-	}{
-		{"non-numeric", "xyz"},
-		{"zero", "0"},
-		{"negative", "-1"},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			env := envFromMap(map[string]string{
-				"CLUSTER_NAME":        "c",
-				"RESOURCE_GROUP":      "rg",
-				"SUBSCRIPTION_ID":     "sub",
-				"NODEPOOL_TAG":        "user",
-				"NRP_FAIL_WINDOW_MIN": tc.v,
-			})
-			if _, err := parseEnvConfig(env); err == nil {
-				t.Errorf("expected error for window=%q", tc.v)
-			}
-		})
 	}
 }
 
@@ -259,34 +134,8 @@ func TestParseEnvConfig_DryRunFlag(t *testing.T) {
 }
 
 // =============================================================================
-// evalNRPStorm..4
+// evalClusterState
 // =============================================================================
-
-func TestEvalNRPStorm(t *testing.T) {
-	cases := []struct {
-		name                string
-		failures, threshold int
-		wantPass            bool
-	}{
-		{"below_threshold", 9, 10, false},
-		{"at_threshold", 10, 10, true},
-		{"above_threshold", 50, 10, true},
-		{"zero_failures", 0, 10, false},
-		{"invalid_threshold_zero", 100, 0, false},
-		{"invalid_threshold_negative", 100, -1, false},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			pass, reason := evalNRPStorm(tc.failures, tc.threshold)
-			if pass != tc.wantPass {
-				t.Errorf("failures=%d threshold=%d: pass=%t want %t (%s)", tc.failures, tc.threshold, pass, tc.wantPass, reason)
-			}
-			if !pass && reason == "" {
-				t.Errorf("non-pass result must have a reason")
-			}
-		})
-	}
-}
 
 func TestEvalClusterState(t *testing.T) {
 	cases := []struct {
@@ -454,6 +303,70 @@ func TestEvalNonTargetPoolsHealthy_TempPoolSkipped(t *testing.T) {
 	pass, reason := evalNonTargetPoolsHealthy(pools)
 	if !pass {
 		t.Fatalf("temp pool with count=0 should be skipped: %s", reason)
+	}
+}
+
+// =============================================================================
+// guardDecision
+// =============================================================================
+
+func TestGuardDecision(t *testing.T) {
+	cases := []struct {
+		name        string
+		guard       string
+		pass        bool
+		reason      string
+		skipGuards  bool
+		wantProceed bool
+		wantMsg     string
+	}{
+		{
+			name:        "pass_ignores_skip_guards",
+			guard:       "cluster state",
+			pass:        true,
+			reason:      "",
+			skipGuards:  false,
+			wantProceed: true,
+			wantMsg:     "cluster state PASS",
+		},
+		{
+			name:        "pass_with_skip_guards_still_pass",
+			guard:       "cluster safety",
+			pass:        true,
+			reason:      "",
+			skipGuards:  true,
+			wantProceed: true,
+			wantMsg:     "cluster safety PASS",
+		},
+		{
+			name:        "fail_without_override_halts",
+			guard:       "cluster state",
+			pass:        false,
+			reason:      "provisioningState=\"Creating\" rejected",
+			skipGuards:  false,
+			wantProceed: false,
+			wantMsg:     "provisioningState=\"Creating\" rejected",
+		},
+		{
+			name:        "fail_with_override_proceeds",
+			guard:       "cluster safety",
+			pass:        false,
+			reason:      "non-target pool unhealthy",
+			skipGuards:  true,
+			wantProceed: true,
+			wantMsg:     "SKIP_GUARDS=true — overriding cluster safety failure: non-target pool unhealthy",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			proceed, msg := guardDecision(tc.guard, tc.pass, tc.reason, tc.skipGuards)
+			if proceed != tc.wantProceed {
+				t.Errorf("proceed = %t, want %t", proceed, tc.wantProceed)
+			}
+			if msg != tc.wantMsg {
+				t.Errorf("msg = %q, want %q", msg, tc.wantMsg)
+			}
+		})
 	}
 }
 
@@ -651,55 +564,6 @@ func TestAgentPoolForCreate_DoesNotMutateInput(t *testing.T) {
 	}
 	if _, ok := live.Properties.Tags["aks-managed-foo"]; !ok {
 		t.Errorf("live.Tags was mutated")
-	}
-}
-
-func TestAgentPoolForScaleUpTrigger(t *testing.T) {
-	live := mkLiveSystemPool()
-	count := int32(3)
-	minCount := int32(3)
-	maxCount := int32(6)
-	autoscale := true
-	live.Properties.Count = &count
-	live.Properties.MinCount = &minCount
-	live.Properties.MaxCount = &maxCount
-	live.Properties.EnableAutoScaling = &autoscale
-
-	body, err := agentPoolForScaleUpTrigger(live, "1.35.4")
-	if err != nil {
-		t.Fatalf("agentPoolForScaleUpTrigger() error = %v", err)
-	}
-	if got := *body.Properties.Count; got != 4 {
-		t.Errorf("Count=%d want 4", got)
-	}
-	if got := *body.Properties.MinCount; got != 4 {
-		t.Errorf("MinCount=%d want 4", got)
-	}
-	if got := *body.Properties.MaxCount; got != 6 {
-		t.Errorf("MaxCount=%d want 6", got)
-	}
-}
-
-func TestAgentPoolForScaleUpTriggerRaisesMaxCount(t *testing.T) {
-	live := mkLiveSystemPool()
-	count := int32(3)
-	minCount := int32(3)
-	maxCount := int32(3)
-	autoscale := true
-	live.Properties.Count = &count
-	live.Properties.MinCount = &minCount
-	live.Properties.MaxCount = &maxCount
-	live.Properties.EnableAutoScaling = &autoscale
-
-	body, err := agentPoolForScaleUpTrigger(live, "1.35.4")
-	if err != nil {
-		t.Fatalf("agentPoolForScaleUpTrigger() error = %v", err)
-	}
-	if got := *body.Properties.MinCount; got != 4 {
-		t.Errorf("MinCount=%d want 4", got)
-	}
-	if got := *body.Properties.MaxCount; got != 4 {
-		t.Errorf("MaxCount=%d want 4", got)
 	}
 }
 
@@ -1665,32 +1529,6 @@ func TestIsActivityLogAuthorizationError(t *testing.T) {
 	}
 }
 
-func TestIsDeletionInitiatedErr(t *testing.T) {
-	cases := []struct {
-		name string
-		err  error
-		want bool
-	}{
-		{"nil", nil, false},
-		{"plain_error", errors.New("boom"), false},
-		{"operation_not_allowed_deletion", fmt.Errorf("begin trigger: %w",
-			fmt.Errorf("deletion has been initiated: %w",
-				&azcore.ResponseError{StatusCode: http.StatusBadRequest, ErrorCode: "OperationNotAllowed"})), true},
-		{"operation_not_allowed_other_reason", fmt.Errorf("quota exceeded: %w",
-			&azcore.ResponseError{StatusCode: http.StatusBadRequest, ErrorCode: "OperationNotAllowed"}), false},
-		{"different_error_code_with_deletion_text", fmt.Errorf("deletion has been initiated: %w",
-			&azcore.ResponseError{StatusCode: http.StatusBadRequest, ErrorCode: "BadRequest"}), false},
-		{"not_response_error", fmt.Errorf("deletion has been initiated: %w", errors.New("not azcore")), false},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			if got := isDeletionInitiatedErr(tc.err); got != tc.want {
-				t.Errorf("got %t want %t", got, tc.want)
-			}
-		})
-	}
-}
-
 // =============================================================================
 // evalPoolWedge  (per-pool provisioningState == "Failed")
 // =============================================================================
@@ -1749,10 +1587,6 @@ type mockOrchestrator struct {
 	deletePoolFn             func(ctx context.Context, pool string) error
 	recreateSystemFn         func(ctx context.Context, live *armcs.AgentPool) error
 	reconcileTagPutFn        func(ctx context.Context) error
-	triggerSystemReconcileFn func(ctx context.Context, live *armcs.AgentPool) error
-	pollForNRPEvidenceFn     func(ctx context.Context, timeout time.Duration, pollInterval time.Duration, windowMin int, threshold int) (int, error)
-	abortSystemReconcileFn   func(ctx context.Context) error
-	restorePoolSpecFn        func(ctx context.Context, target nodePoolTarget, live *armcs.AgentPool) error
 }
 
 func (m *mockOrchestrator) record(name string) { m.calls = append(m.calls, name) }
@@ -1782,13 +1616,10 @@ func (m *mockOrchestrator) detect(ctx context.Context) ([]nodePoolTarget, string
 			return nil, reason, err
 		}
 		if !pass {
-			if strings.Contains(reason, "NRP-KVS storm FAIL") {
-				return []nodePoolTarget{{name: "system", vmssPrefix: poolVMSSPrefix("system"), suspected: true}}, reason, nil
-			}
 			return nil, reason, err
 		}
 	}
-	return []nodePoolTarget{{name: "system", vmssPrefix: poolVMSSPrefix("system"), nrpFailures: 10}}, "", nil
+	return []nodePoolTarget{{name: "system", vmssPrefix: poolVMSSPrefix("system"), emptyIPConfig: true}}, "", nil
 }
 
 func (m *mockOrchestrator) dumpPreflight(ctx context.Context) error {
@@ -1881,46 +1712,6 @@ func (m *mockOrchestrator) reconcileTagPut(ctx context.Context) error {
 	return nil
 }
 
-func (m *mockOrchestrator) triggerPoolReconcile(ctx context.Context, target nodePoolTarget, live *armcs.AgentPool) error {
-	if target.name == "system" {
-		m.record("triggerSystemReconcile")
-	} else {
-		m.record("triggerPoolReconcile:" + target.name)
-	}
-	if m.triggerSystemReconcileFn != nil {
-		return m.triggerSystemReconcileFn(ctx, live)
-	}
-	return nil
-}
-
-func (m *mockOrchestrator) pollForNRPEvidence(ctx context.Context, target nodePoolTarget, timeout time.Duration, pollInterval time.Duration, windowMin int, threshold int) (int, error) {
-	m.record("pollForNRPEvidence")
-	if m.pollForNRPEvidenceFn != nil {
-		return m.pollForNRPEvidenceFn(ctx, timeout, pollInterval, windowMin, threshold)
-	}
-	return threshold, nil
-}
-
-func (m *mockOrchestrator) abortPoolReconcile(ctx context.Context, poolName string) error {
-	if poolName == "system" {
-		m.record("abortSystemReconcile")
-	} else {
-		m.record("abortPoolReconcile:" + poolName)
-	}
-	if m.abortSystemReconcileFn != nil {
-		return m.abortSystemReconcileFn(ctx)
-	}
-	return nil
-}
-
-func (m *mockOrchestrator) restorePoolSpec(ctx context.Context, target nodePoolTarget, live *armcs.AgentPool) error {
-	m.record("restorePoolSpec:" + target.name)
-	if m.restorePoolSpecFn != nil {
-		return m.restorePoolSpecFn(ctx, target, live)
-	}
-	return nil
-}
-
 func TestRunWith(t *testing.T) {
 	dummyErr := errors.New("boom")
 	tmpSystem := tempPoolName("system")
@@ -1995,138 +1786,6 @@ func TestRunWith(t *testing.T) {
 			wantCalls: []string{"ensureCluster", "dumpPreflight", "adoptLeftoverTempPools"},
 		},
 		{
-			name: "guard1_fail_dry_run_skips_forced_evidence",
-			cfg:  &config{clusterName: "c", resourceGroup: "rg", subscriptionID: "sub", cpVersion: "1.30.0", dryRun: true},
-			setup: func(m *mockOrchestrator) {
-				m.adoptLeftoverTempPoolsFn = func(context.Context) error {
-					return errors.New("dry run must not adopt temp pools")
-				}
-				m.detectFn = func(_ context.Context, _ int) (bool, string, error) {
-					return false, "NRP-KVS storm FAIL: only 0 NRP failures < 10", nil
-				}
-			},
-			wantCalls: []string{"ensureCluster", "dumpPreflight", "detect:1"},
-		},
-		{
-			name: "guard1_fail_forced_evidence_inconclusive",
-			cfg:  &config{clusterName: "c", resourceGroup: "rg", subscriptionID: "sub", cpVersion: "1.30.0", threshold: 10, forcedEvidenceTimeoutMin: 20, forcedEvidenceThreshold: 3},
-			setup: func(m *mockOrchestrator) {
-				m.detectFn = func(_ context.Context, _ int) (bool, string, error) {
-					return false, "NRP-KVS storm FAIL: only 0 NRP failures < 10", nil
-				}
-				m.pollForNRPEvidenceFn = func(context.Context, time.Duration, time.Duration, int, int) (int, error) {
-					return 2, nil
-				}
-			},
-			wantCalls: []string{
-				"ensureCluster", "dumpPreflight", "detect:1",
-				"snapshotSystem", "triggerSystemReconcile", "pollForNRPEvidence", "abortSystemReconcile", "restorePoolSpec:system",
-			},
-		},
-		{
-			name: "guard1_fail_forced_evidence_inconclusive_restore_failure_fails_closed",
-			cfg:  &config{clusterName: "c", resourceGroup: "rg", subscriptionID: "sub", cpVersion: "1.30.0", threshold: 10, forcedEvidenceTimeoutMin: 20, forcedEvidenceThreshold: 3},
-			setup: func(m *mockOrchestrator) {
-				m.detectFn = func(_ context.Context, _ int) (bool, string, error) {
-					return false, "NRP-KVS storm FAIL: only 0 NRP failures < 10", nil
-				}
-				m.pollForNRPEvidenceFn = func(context.Context, time.Duration, time.Duration, int, int) (int, error) {
-					return 2, nil
-				}
-				m.restorePoolSpecFn = func(ctx context.Context, _ nodePoolTarget, _ *armcs.AgentPool) error {
-					deadline, ok := ctx.Deadline()
-					if !ok {
-						t.Fatalf("restorePoolSpec context has no deadline")
-					}
-					remaining := time.Until(deadline)
-					if remaining <= 0 || remaining > forcedEvidenceRestoreTimeoutMin*time.Minute {
-						t.Fatalf("restorePoolSpec deadline remaining=%s, want <= %dm and > 0", remaining, forcedEvidenceRestoreTimeoutMin)
-					}
-					if remaining < (forcedEvidenceRestoreTimeoutMin*time.Minute)-10*time.Second {
-						t.Fatalf("restorePoolSpec deadline remaining=%s, want near %dm", remaining, forcedEvidenceRestoreTimeoutMin)
-					}
-					return dummyErr
-				}
-			},
-			wantErr: "restore forced-evidence pool spec for system:",
-			wantCalls: []string{
-				"ensureCluster", "dumpPreflight", "detect:1",
-				"snapshotSystem", "triggerSystemReconcile", "pollForNRPEvidence", "abortSystemReconcile", "restorePoolSpec:system",
-			},
-		},
-		{
-			name: "guard1_fail_forced_evidence_confirms_nrp",
-			cfg:  &config{clusterName: "c", resourceGroup: "rg", subscriptionID: "sub", cpVersion: "1.30.0", threshold: 10, forcedEvidenceTimeoutMin: 20, forcedEvidenceThreshold: 3},
-			setup: func(m *mockOrchestrator) {
-				m.detectFn = func(_ context.Context, n int) (bool, string, error) {
-					if n == 1 {
-						return false, "NRP-KVS storm FAIL: only 0 NRP failures < 10", nil
-					}
-					return false, "NRP-KVS storm FAIL: only 5 NRP failures < 10", nil
-				}
-				m.pollForNRPEvidenceFn = func(context.Context, time.Duration, time.Duration, int, int) (int, error) {
-					return 12, nil
-				}
-			},
-			wantCalls: []string{
-				"ensureCluster", "dumpPreflight", "detect:1",
-				"snapshotSystem", "triggerSystemReconcile", "pollForNRPEvidence", "abortSystemReconcile",
-				"bootstrapKube", "dumpPreflight",
-				"snapshotSystem", "maybeAbortLRO", "detect:2", "adoptLeftoverTempPool:system", "snapshotSystem",
-				"addTempPool:system",
-				"drainPool:system", "deletePool:system",
-				"recreateSystem",
-				"drainPool:" + tmpSystem, "deletePool:" + tmpSystem,
-				"reconcileTagPut", "dumpPostflight",
-			},
-		},
-		{
-			name: "guard1_fail_trigger_failure_exits_noop",
-			cfg:  &config{clusterName: "c", resourceGroup: "rg", subscriptionID: "sub", cpVersion: "1.30.0", threshold: 10},
-			setup: func(m *mockOrchestrator) {
-				m.detectFn = func(_ context.Context, _ int) (bool, string, error) {
-					return false, "NRP-KVS storm FAIL: only 0 NRP failures < 10", nil
-				}
-				m.triggerSystemReconcileFn = func(context.Context, *armcs.AgentPool) error {
-					return errors.New("conflict")
-				}
-			},
-			wantCalls: []string{
-				"ensureCluster", "dumpPreflight", "detect:1",
-				"snapshotSystem", "triggerSystemReconcile",
-			},
-		},
-		{
-			// Deletion-initiated: detect:1 sees 0 NRP events (suspected),
-			// forced evidence trigger is rejected with OperationNotAllowed
-			// "deletion has been initiated", pool is confirmed. detect:2
-			// also sees 0 NRP events (suspected again), but the
-			// deletion-initiated flag carries forward through Step 2b.
-			name: "guard1_fail_trigger_deletion_initiated_confirms",
-			cfg:  &config{clusterName: "c", resourceGroup: "rg", subscriptionID: "sub", cpVersion: "1.30.0", threshold: 10, forcedEvidenceTimeoutMin: 20, forcedEvidenceThreshold: 3},
-			setup: func(m *mockOrchestrator) {
-				m.detectFn = func(_ context.Context, _ int) (bool, string, error) {
-					return false, "NRP-KVS storm FAIL: only 0 NRP failures < 10", nil
-				}
-				m.triggerSystemReconcileFn = func(context.Context, *armcs.AgentPool) error {
-					return fmt.Errorf("begin trigger pool scale-up system: %w",
-						fmt.Errorf("Cannot run operation on node pool system because deletion has been initiated: %w",
-							&azcore.ResponseError{StatusCode: http.StatusBadRequest, ErrorCode: "OperationNotAllowed"}))
-				}
-			},
-			wantCalls: []string{
-				"ensureCluster", "dumpPreflight", "detect:1",
-				"snapshotSystem", "triggerSystemReconcile",
-				"bootstrapKube", "dumpPreflight",
-				"snapshotSystem", "maybeAbortLRO", "detect:2", "adoptLeftoverTempPool:system", "snapshotSystem",
-				"addTempPool:system",
-				"drainPool:system", "deletePool:system",
-				"recreateSystem",
-				"drainPool:" + tmpSystem, "deletePool:" + tmpSystem,
-				"reconcileTagPut", "dumpPostflight",
-			},
-		},
-		{
 			name: "detect_error",
 			cfg:  &config{clusterName: "c", resourceGroup: "rg", subscriptionID: "sub", cpVersion: "1.30.0"},
 			setup: func(m *mockOrchestrator) {
@@ -2164,26 +1823,25 @@ func TestRunWith(t *testing.T) {
 		},
 		{
 			// SKIP_GUARDS must not turn an empty confirmed-target list
-			// into a destructive run. Even though SKIP_GUARDS=true, the
-			// forced-evidence path is skipped (gated by !skipGuards), so
-			// targets = confirmed = []. We must exit no-op before Step 2
-			// (maybeAbortLRO) and Step 8 (reconcileTagPut) fire.
+			// into a destructive run. When detection finds no broken
+			// pool, targets = []. We must exit no-op before Step 2
+			// (maybeAbortLRO) and Step 8 (reconcileTagPut) fire, even
+			// with SKIP_GUARDS=true.
 			name: "skip_guards_pre_lro_empty_targets_exits_noop",
 			cfg:  &config{clusterName: "c", resourceGroup: "rg", subscriptionID: "sub", cpVersion: "1.30.0", skipGuards: true},
 			setup: func(m *mockOrchestrator) {
 				m.detectFn = func(_ context.Context, _ int) (bool, string, error) {
-					// NRP-KVS storm FAIL injects a suspected target via the
-					// mock, but with skipGuards=true the forced-evidence
-					// probe is skipped, so confirmed stays empty.
-					return false, "NRP-KVS storm FAIL: only 0 NRP failures < 10", nil
+					// No broken pool detected: the mock returns an empty
+					// target list, so there is nothing to recreate.
+					return false, "no broken pools detected", nil
 				}
 			},
 			wantCalls: []string{"ensureCluster", "dumpPreflight", "detect:1"},
 		},
 		{
 			// Same protection at the post-LRO recheck gate: detect:1
-			// confirms a target so we reach Step 2; detect:2 returns
-			// only a suspected target which gets filtered out. With
+			// confirms a target so we reach Step 2; detect:2 finds the
+			// pool healthy and returns an empty list. With
 			// skipGuards=true we must still exit before reconcileTagPut.
 			name: "skip_guards_post_lro_empty_targets_exits_noop",
 			cfg:  &config{clusterName: "c", resourceGroup: "rg", subscriptionID: "sub", cpVersion: "1.30.0", skipGuards: true},
@@ -2192,7 +1850,7 @@ func TestRunWith(t *testing.T) {
 					if n == 1 {
 						return true, "", nil
 					}
-					return false, "NRP-KVS storm FAIL after LRO", nil
+					return false, "no broken pools detected after LRO", nil
 				}
 			},
 			wantCalls: []string{
@@ -2829,4 +2487,124 @@ func TestDetectAccelNetBrokenPools(t *testing.T) {
 			t.Fatalf("empty input should return (nil,nil), got (%v,%v)", got, err)
 		}
 	})
+}
+
+// =============================================================================
+// empty-ipConfiguration detection (Steve Kuznetsov, MSFT): a pool whose backing
+// VMSS has realized instance NICs with an empty ipConfigurations array is broken
+// by the NRP null-pointer defect and must be recreated regardless of the
+// activity-log storm signal.
+// =============================================================================
+
+// nic builds a realized network interface with the given number of
+// ipConfigurations (n==0 reproduces the NRP null-pointer signature).
+func nic(ipConfigs int) *armnetwork.Interface {
+	cfgs := make([]*armnetwork.InterfaceIPConfiguration, 0, ipConfigs)
+	for i := 0; i < ipConfigs; i++ {
+		cfgs = append(cfgs, &armnetwork.InterfaceIPConfiguration{})
+	}
+	return &armnetwork.Interface{
+		Properties: &armnetwork.InterfacePropertiesFormat{IPConfigurations: cfgs},
+	}
+}
+
+func TestCountEmptyIPConfigs(t *testing.T) {
+	cases := []struct {
+		name      string
+		nics      []*armnetwork.Interface
+		wantTotal int
+		wantEmpty int
+	}{
+		{name: "nil_slice", nics: nil, wantTotal: 0, wantEmpty: 0},
+		{name: "all_healthy", nics: []*armnetwork.Interface{nic(1), nic(2)}, wantTotal: 2, wantEmpty: 0},
+		{name: "one_empty", nics: []*armnetwork.Interface{nic(1), nic(0)}, wantTotal: 2, wantEmpty: 1},
+		{name: "all_empty", nics: []*armnetwork.Interface{nic(0), nic(0)}, wantTotal: 2, wantEmpty: 2},
+		{name: "nil_nic_skipped", nics: []*armnetwork.Interface{nil, nic(0)}, wantTotal: 1, wantEmpty: 1},
+		{name: "nil_properties_skipped", nics: []*armnetwork.Interface{{Properties: nil}, nic(1)}, wantTotal: 1, wantEmpty: 0},
+		// nil (omitted/null) IPConfigurations is indeterminate, NOT the
+		// empty-array defect: it is skipped entirely (not counted toward
+		// total or empty), matching array_length(null) != 0.
+		{name: "nil_ipconfigs_skipped", nics: []*armnetwork.Interface{{Properties: &armnetwork.InterfacePropertiesFormat{IPConfigurations: nil}}, nic(1)}, wantTotal: 1, wantEmpty: 0},
+		{name: "only_nil_ipconfigs_indeterminate", nics: []*armnetwork.Interface{{Properties: &armnetwork.InterfacePropertiesFormat{IPConfigurations: nil}}}, wantTotal: 0, wantEmpty: 0},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			total, empty := countEmptyIPConfigs(tc.nics)
+			if total != tc.wantTotal || empty != tc.wantEmpty {
+				t.Fatalf("got (total=%d empty=%d), want (total=%d empty=%d)", total, empty, tc.wantTotal, tc.wantEmpty)
+			}
+		})
+	}
+}
+
+// newFakeNICsClient builds a real armnetwork InterfacesClient whose VMSS-NIC
+// list reads from nicsByVMSS (keyed by VMSS name). A VMSS absent from the map
+// returns an empty NIC list, mirroring ARM for a scaled-to-zero VMSS.
+func newFakeNICsClient(t *testing.T, nicsByVMSS map[string][]*armnetwork.Interface) *armnetwork.InterfacesClient {
+	t.Helper()
+	srv := networkfake.InterfacesServer{
+		NewListVirtualMachineScaleSetNetworkInterfacesPager: func(_ string, vmssName string, _ *armnetwork.InterfacesClientListVirtualMachineScaleSetNetworkInterfacesOptions) (resp azfake.PagerResponder[armnetwork.InterfacesClientListVirtualMachineScaleSetNetworkInterfacesResponse]) {
+			resp.AddPage(http.StatusOK, armnetwork.InterfacesClientListVirtualMachineScaleSetNetworkInterfacesResponse{
+				InterfaceListResult: armnetwork.InterfaceListResult{Value: nicsByVMSS[vmssName]},
+			}, nil)
+			return
+		},
+	}
+	client, err := armnetwork.NewInterfacesClient(
+		"00000000-0000-0000-0000-000000000000",
+		&azfake.TokenCredential{},
+		&azcorearm.ClientOptions{ClientOptions: azcore.ClientOptions{
+			Transport: networkfake.NewInterfacesServerTransport(&srv),
+		}},
+	)
+	if err != nil {
+		t.Fatalf("build fake NICs client: %v", err)
+	}
+	return client
+}
+
+func TestDetectEmptyIPConfigPools(t *testing.T) {
+	const (
+		brokenVMSS  = "aks-userswft3-12345678-vmss"
+		healthyVMSS = "aks-system-87654321-vmss"
+		zeroVMSS    = "aks-userswft2-11112222-vmss"
+	)
+	store := newFakeVMSSStore(
+		namedVMSS(brokenVMSS, "userswft3", ptr(true)),
+		namedVMSS(healthyVMSS, "system", ptr(true)),
+		namedVMSS(zeroVMSS, "userswft2", ptr(true)),
+		// "nomvss" intentionally absent: no backing VMSS yet.
+	)
+	nicsByVMSS := map[string][]*armnetwork.Interface{
+		brokenVMSS:  {nic(1), nic(0)}, // one NIC lost its ipConfigurations
+		healthyVMSS: {nic(1), nic(1)}, // all NICs healthy
+		zeroVMSS:    {},               // no realized NICs yet
+	}
+	c := &clients{
+		cfg:  &config{nodeRG: "MC_rg_cluster_region"},
+		vmss: newFakeVMSSClient(t, store),
+		nics: newFakeNICsClient(t, nicsByVMSS),
+	}
+
+	pools := []nodePoolTarget{
+		{name: "userswft3"}, {name: "system"}, {name: "userswft2"}, {name: "nomvss"},
+	}
+	broken, err := c.detectEmptyIPConfigPools(context.Background(), pools)
+	if err != nil {
+		t.Fatalf("detectEmptyIPConfigPools: %v", err)
+	}
+	if len(broken) != 1 {
+		t.Fatalf("expected exactly 1 broken pool, got %d: %+v", len(broken), broken)
+	}
+	if broken[0].name != "userswft3" || !broken[0].emptyIPConfig {
+		t.Fatalf("got %+v, want pool=userswft3 emptyIPConfig=true", broken[0])
+	}
+}
+
+func TestDetectEmptyIPConfigPools_EmptyInput(t *testing.T) {
+	c := &clients{cfg: &config{nodeRG: "rg"}}
+	got, err := c.detectEmptyIPConfigPools(context.Background(), nil)
+	if err != nil || got != nil {
+		t.Fatalf("empty input should return (nil,nil), got (%v,%v)", got, err)
+	}
 }

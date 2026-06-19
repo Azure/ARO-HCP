@@ -383,8 +383,9 @@ func notifyOperationOwner(ctx context.Context, resourcesDBClient database.Resour
 			if err != nil {
 				logger.Error(err, "Failed to re-read operation to clear notification URI")
 			} else {
-				currentOperation.NotificationURI = ""
-				_, err = operationsCRUD.Replace(ctx, currentOperation, nil)
+				replacement := currentOperation.DeepCopy()
+				replacement.NotificationURI = ""
+				_, err = operationsCRUD.Replace(ctx, replacement, nil)
 				if err != nil {
 					logger.Error(err, "Failed to clear notification URI")
 				}
@@ -477,10 +478,10 @@ func convertClusterStatus(ctx context.Context, clusterServiceClient ocm.ClusterS
 		// no unique ProvisioningState values for them. They should
 		// only occur when ProvisioningState is Accepted.
 		if newOperationStatus != arm.ProvisioningStateAccepted {
-			err = fmt.Errorf("got ClusterState '%s' while ProvisioningState was '%s' instead of '%s'", state, newOperationStatus, arm.ProvisioningStateAccepted)
+			err = fmt.Errorf("got ClusterState '%s' (description: %q) while ProvisioningState was '%s' instead of '%s'", state, clusterStatus.Description(), newOperationStatus, arm.ProvisioningStateAccepted)
 		}
 	default:
-		err = fmt.Errorf("unhandled ClusterState '%s'", state)
+		err = fmt.Errorf("unhandled ClusterState '%s' (description: %q)", state, clusterStatus.Description())
 	}
 
 	return newOperationStatus, opError, err
@@ -537,7 +538,8 @@ func convertNodePoolStatus(operation *api.Operation, nodePoolStatus *arohcpv1alp
 		// no unique ProvisioningState values for them. They should
 		// only occur when ProvisioningState is Accepted.
 		if operation.Status != arm.ProvisioningStateAccepted {
-			err = fmt.Errorf("got NodePoolStatusValue '%s' while ProvisioningState was '%s' instead of '%s'", state, operation.Status, arm.ProvisioningStateAccepted)
+			msg, _ := nodePoolStatus.GetMessage()
+			err = fmt.Errorf("got NodePoolStatusValue '%s' (message: %q) while ProvisioningState was '%s' instead of '%s'", state, msg, operation.Status, arm.ProvisioningStateAccepted)
 		}
 	case NodePoolStateInstalling:
 		newOperationStatus = arm.ProvisioningStateProvisioning
@@ -563,7 +565,8 @@ func convertNodePoolStatus(operation *api.Operation, nodePoolStatus *arohcpv1alp
 			opError.Message = msg
 		}
 	default:
-		err = fmt.Errorf("unhandled NodePoolState '%s'", state)
+		msg, _ := nodePoolStatus.GetMessage()
+		err = fmt.Errorf("unhandled NodePoolState '%s' (message: %q)", state, msg)
 	}
 
 	return newOperationStatus, opError, err
@@ -590,7 +593,8 @@ func convertExternalAuthStatus(operation *api.Operation, externalAuthStatus *aro
 	case ExternalAuthStateUninstalling:
 		newOperationStatus = arm.ProvisioningStateDeleting
 	default:
-		err = fmt.Errorf("unhandled ExternalAuthState '%s'", state)
+		msg, _ := externalAuthStatus.GetMessage()
+		err = fmt.Errorf("unhandled ExternalAuthState '%s' (message: %q)", state, msg)
 	}
 	return newOperationStatus, opError, err
 }

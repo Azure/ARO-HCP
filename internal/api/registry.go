@@ -64,7 +64,6 @@ func init() {
 
 const (
 	ProviderNamespace                        = "Microsoft.RedHatOpenShift"
-	ProviderNamespaceDisplay                 = "Azure Red Hat OpenShift"
 	ClusterResourceTypeName                  = "hcpOpenShiftClusters"
 	ServiceProviderClusterResourceTypeName   = "serviceProviderClusters"
 	ServiceProviderNodePoolResourceTypeName  = "serviceProviderNodePools"
@@ -77,7 +76,6 @@ const (
 	RequestAdminCredentialActionTypeName     = "requestadmincredential"
 	RevokeAdminCredentialsActionTypeName     = "revokecredentials"
 	ManagementClusterContentResourceTypeName = "managementClusterContents"
-	ResourceTypeDisplay                      = "Hosted Control Plane (HCP) OpenShift Clusters"
 )
 
 var (

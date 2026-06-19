@@ -17,6 +17,7 @@ package admission
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/blang/semver/v4"
@@ -47,13 +48,14 @@ func TestMutateCluster(t *testing.T) {
 	}
 
 	tests := []struct {
-		name                             string
-		subscription                     *arm.Subscription
-		tags                             map[string]string
-		expectErrors                     []utils.ExpectedError
-		expectZeroFeatures               bool
-		expectedControlPlaneAvailability api.ControlPlaneAvailability
-		expectedControlPlanePodSizing    api.ControlPlanePodSizing
+		name                              string
+		subscription                      *arm.Subscription
+		tags                              map[string]string
+		expectErrors                      []utils.ExpectedError
+		expectZeroFeatures                bool
+		expectedControlPlaneAvailability  api.ControlPlaneAvailability
+		expectedControlPlanePodSizing     api.ControlPlanePodSizing
+		expectedControlPlaneOperatorImage string
 	}{
 		{
 			name:               "nil subscription ignores all tags",
@@ -188,6 +190,49 @@ func TestMutateCluster(t *testing.T) {
 			expectErrors:       []utils.ExpectedError{},
 			expectZeroFeatures: true,
 		},
+		{
+			name:                              "AFEC registered with CPO image override tag",
+			subscription:                      afecRegistered,
+			tags:                              map[string]string{api.TagClusterCPOImageOverride: "quay.io/openshift/cpo:latest"},
+			expectErrors:                      []utils.ExpectedError{},
+			expectedControlPlaneOperatorImage: "quay.io/openshift/cpo:latest",
+		},
+		{
+			name:                              "AFEC registered with CPO image override tag with digest",
+			subscription:                      afecRegistered,
+			tags:                              map[string]string{api.TagClusterCPOImageOverride: "quay.io/openshift/cpo@sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890"},
+			expectErrors:                      []utils.ExpectedError{},
+			expectedControlPlaneOperatorImage: "quay.io/openshift/cpo@sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
+		},
+		{
+			name:               "AFEC registered with empty CPO image override tag",
+			subscription:       afecRegistered,
+			tags:               map[string]string{api.TagClusterCPOImageOverride: ""},
+			expectErrors:       []utils.ExpectedError{},
+			expectZeroFeatures: true,
+		},
+		{
+			name:         "AFEC registered with whitespace-only CPO image override tag",
+			subscription: afecRegistered,
+			tags:         map[string]string{api.TagClusterCPOImageOverride: "  "},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "tags", Message: "Invalid value"},
+			},
+		},
+		{
+			name:               "no AFEC registered ignores CPO image override tag",
+			subscription:       noAFEC,
+			tags:               map[string]string{api.TagClusterCPOImageOverride: "quay.io/openshift/cpo:latest"},
+			expectErrors:       []utils.ExpectedError{},
+			expectZeroFeatures: true,
+		},
+		{
+			name:                              "AFEC registered with case insensitive CPO image override tag",
+			subscription:                      afecRegistered,
+			tags:                              map[string]string{"ARO-HCP.Experimental.Cluster.Control-Plane-Operator-Image-Override": "quay.io/openshift/cpo:v1.0"},
+			expectErrors:                      []utils.ExpectedError{},
+			expectedControlPlaneOperatorImage: "quay.io/openshift/cpo:v1.0",
+		},
 	}
 
 	for _, tt := range tests {
@@ -218,6 +263,10 @@ func TestMutateCluster(t *testing.T) {
 			if cluster.ServiceProviderProperties.ExperimentalFeatures.ControlPlanePodSizing != tt.expectedControlPlanePodSizing {
 				t.Errorf("expected ControlPlanePodSizing %q, got %q",
 					tt.expectedControlPlanePodSizing, cluster.ServiceProviderProperties.ExperimentalFeatures.ControlPlanePodSizing)
+			}
+			if cluster.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneOperatorImage != tt.expectedControlPlaneOperatorImage {
+				t.Errorf("expected ControlPlaneOperatorImage %q, got %q",
+					tt.expectedControlPlaneOperatorImage, cluster.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneOperatorImage)
 			}
 		})
 	}
@@ -265,7 +314,8 @@ func TestAdmitCluster_Update(t *testing.T) {
 			clusterResourceID.String() + "/nodePools/" + name))
 		return &api.HCPOpenShiftClusterNodePool{
 			CosmosMetadata: arm.CosmosMetadata{
-				ResourceID: nodePoolResourceID,
+				ResourceID:   nodePoolResourceID,
+				PartitionKey: strings.ToLower(nodePoolResourceID.SubscriptionID),
 			},
 			TrackedResource: arm.NewTrackedResource(nodePoolResourceID, "eastus"),
 			Properties: api.HCPOpenShiftClusterNodePoolProperties{
@@ -283,7 +333,7 @@ func TestAdmitCluster_Update(t *testing.T) {
 			active = append(active, api.HCPNodePoolActiveVersion{Version: ptr.To(api.Must(semver.ParseTolerant(v)))})
 		}
 		return &api.ServiceProviderNodePool{
-			CosmosMetadata: api.CosmosMetadata{ResourceID: spResourceID},
+			CosmosMetadata: api.CosmosMetadata{ResourceID: spResourceID, PartitionKey: strings.ToLower(spResourceID.SubscriptionID)},
 			Status: api.ServiceProviderNodePoolStatus{
 				NodePoolVersion: api.ServiceProviderNodePoolStatusVersion{ActiveVersions: active},
 			},
@@ -543,7 +593,7 @@ func TestAdmitCluster_Update(t *testing.T) {
 			t.Parallel()
 
 			serviceProviderCluster := &api.ServiceProviderCluster{
-				CosmosMetadata: api.CosmosMetadata{ResourceID: serviceProviderResourceID},
+				CosmosMetadata: api.CosmosMetadata{ResourceID: serviceProviderResourceID, PartitionKey: strings.ToLower(serviceProviderResourceID.SubscriptionID)},
 				Status:         tt.serviceProviderClusterStatus,
 			}
 

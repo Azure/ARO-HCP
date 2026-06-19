@@ -16,6 +16,7 @@ package clusterdeletion
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -282,7 +283,10 @@ func newTestNodePool(t *testing.T) *api.HCPOpenShiftClusterNodePool {
 			},
 			Location: "eastus",
 		},
-		CosmosMetadata: arm.CosmosMetadata{ResourceID: resourceID},
+		CosmosMetadata: arm.CosmosMetadata{
+			ResourceID:   resourceID,
+			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
+		},
 		Properties: api.HCPOpenShiftClusterNodePoolProperties{
 			Platform: api.NodePoolPlatformProfile{
 				OSDisk: api.OSDiskProfile{
@@ -302,7 +306,10 @@ func newTestExternalAuth(t *testing.T) *api.HCPOpenShiftClusterExternalAuth {
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName +
 			"/externalAuths/test-auth"))
 	return &api.HCPOpenShiftClusterExternalAuth{
-		CosmosMetadata: arm.CosmosMetadata{ResourceID: resourceID},
+		CosmosMetadata: arm.CosmosMetadata{
+			ResourceID:   resourceID,
+			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
+		},
 		ProxyResource: arm.ProxyResource{
 			Resource: arm.Resource{
 				ID:   resourceID,
@@ -321,7 +328,10 @@ func newTestSPC(t *testing.T, bundles api.MaestroBundleReferenceList) *api.Servi
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName +
 			"/serviceProviderClusters/default"))
 	return &api.ServiceProviderCluster{
-		CosmosMetadata: arm.CosmosMetadata{ResourceID: spcResourceID},
+		CosmosMetadata: arm.CosmosMetadata{
+			ResourceID:   spcResourceID,
+			PartitionKey: strings.ToLower(spcResourceID.SubscriptionID),
+		},
 		Status: api.ServiceProviderClusterStatus{
 			MaestroReadonlyBundles: bundles,
 		},
@@ -336,7 +346,10 @@ func newTestClusterScopedManagementClusterContent(t *testing.T, name string) *ap
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName +
 			"/managementClusterContents/" + name))
 	return &api.ManagementClusterContent{
-		CosmosMetadata: api.CosmosMetadata{ResourceID: resourceID},
+		CosmosMetadata: api.CosmosMetadata{
+			ResourceID:   resourceID,
+			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
+		},
 	}
 }
 
@@ -348,7 +361,10 @@ func newTestClusterController(t *testing.T, name string) *api.Controller {
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName +
 			"/hcpOpenShiftControllers/" + name))
 	return &api.Controller{
-		CosmosMetadata: api.CosmosMetadata{ResourceID: resourceID},
+		CosmosMetadata: api.CosmosMetadata{
+			ResourceID:   resourceID,
+			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
+		},
 		ExternalID: api.Must(azcorearm.ParseResourceID(
 			"/subscriptions/" + testSubscriptionID +
 				"/resourceGroups/" + testResourceGroupName +
@@ -368,7 +384,10 @@ func newTestNodePoolController(t *testing.T, name string) *api.Controller {
 			"/nodePools/test-nodepool" +
 			"/hcpOpenShiftControllers/" + name))
 	return &api.Controller{
-		CosmosMetadata: api.CosmosMetadata{ResourceID: resourceID},
+		CosmosMetadata: api.CosmosMetadata{
+			ResourceID:   resourceID,
+			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
+		},
 		Status: api.ControllerStatus{
 			Conditions: []metav1.Condition{},
 		},
@@ -384,7 +403,10 @@ func newTestExternalAuthController(t *testing.T, name string) *api.Controller {
 			"/externalAuths/test-auth" +
 			"/hcpOpenShiftControllers/" + name))
 	return &api.Controller{
-		CosmosMetadata: api.CosmosMetadata{ResourceID: resourceID},
+		CosmosMetadata: api.CosmosMetadata{
+			ResourceID:   resourceID,
+			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
+		},
 		Status: api.ControllerStatus{
 			Conditions: []metav1.Condition{},
 		},

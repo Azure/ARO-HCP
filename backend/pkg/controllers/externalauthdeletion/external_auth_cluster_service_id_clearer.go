@@ -131,8 +131,9 @@ func (c *externalAuthClusterServiceIDClearer) SyncOnce(ctx context.Context, key 
 		}
 		// 404 - cluster-service has finished deleting the ExternalAuth, clear the CS ID.
 		logger.Info("cluster-service ExternalAuth gone. Clearing ClusterServiceID", "clusterServiceID", csID.String())
-		externalAuth.ServiceProviderProperties.ClusterServiceID = nil
-		if _, err := externalAuthCRUD.Replace(ctx, externalAuth, nil); err != nil {
+		replacement := externalAuth.DeepCopy()
+		replacement.ServiceProviderProperties.ClusterServiceID = nil
+		if _, err := externalAuthCRUD.Replace(ctx, replacement, nil); err != nil {
 			return utils.TrackError(fmt.Errorf("failed to clear ClusterServiceID: %w", err))
 		}
 		return nil

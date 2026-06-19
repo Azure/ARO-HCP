@@ -419,6 +419,11 @@ func BuildCSCluster(resourceID *azcorearm.ResourceID, tenantID string, hcpCluste
 	} else {
 		delete(properties, CSPropertySizeOverride)
 	}
+	if experimentalFeatures.ControlPlaneOperatorImage != "" {
+		properties[CSPropertyCPOImageOverride] = experimentalFeatures.ControlPlaneOperatorImage
+	} else {
+		delete(properties, CSPropertyCPOImageOverride)
+	}
 	clusterBuilder = clusterBuilder.Properties(properties)
 
 	return clusterBuilder, clusterAutoscalerBuilder, nil
@@ -843,7 +848,8 @@ func ConvertCSManagementClusterToInternal(csShard *arohcpv1alpha1.ProvisionShard
 
 	mc := &fleet.ManagementCluster{
 		CosmosMetadata: api.CosmosMetadata{
-			ResourceID: resourceID,
+			ResourceID:   resourceID,
+			PartitionKey: strings.ToLower(stampIdentifier),
 		},
 		ResourceID: resourceID,
 		Spec: fleet.ManagementClusterSpec{

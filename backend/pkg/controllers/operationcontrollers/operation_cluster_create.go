@@ -27,6 +27,7 @@ import (
 	"github.com/blang/semver/v4"
 
 	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/cache"
 	utilsclock "k8s.io/utils/clock"
 
@@ -157,7 +158,7 @@ func (c *operationClusterCreate) SynchronizeOperation(ctx context.Context, key c
 		// we want to require that the cosmos view of cluster creation is also complete before we mark it.  This ensures (among other things)
 		// that our ability to read maestro is successful.
 		// Once we have confidence in our ability to determine that cluster is functional, we'll stop checking cluster-service at all.
-		return fmt.Errorf("cosmos operation status is %q, but cluster-service operation status is %q", cosmosNewOperationState.provisioningState, newOperationStatus)
+		return fmt.Errorf("cosmos operation status is %q, but cluster-service operation status is %q: %s", cosmosNewOperationState.provisioningState, newOperationStatus, cosmosNewOperationState.message)
 	}
 
 	logger.Info("updating status")
@@ -295,21 +296,21 @@ func (c *operationClusterCreate) hostedClusterOperationStatus(ctx context.Contex
 				message = fmt.Sprintf("hosted cluster is not available: %s: %s", availableCondition.Reason, availableCondition.Message)
 			}
 			logger.Info("hosted cluster is not available", "hostedCluster.Status.Conditions", hostedCluster.Status.Conditions)
-			return newOperationState(arm.ProvisioningStateProvisioning, message), nil
+			return newOperationState(arm.ProvisioningStateProvisioning, withDegradedSuffix(message, hostedCluster)), nil
 		}
 
 		if !anyVersionInstalled {
 			// can only check this when the success condition works, because this is unreliable otherwise
 			logger.Info("hosted cluster has no installed version", "hostedCluster.Status.ControlPlaneVersion.History", hostedCluster.Status.ControlPlaneVersion.History)
-			return newOperationState(arm.ProvisioningStateProvisioning, "hosted cluster has no installed version"), nil
+			return newOperationState(arm.ProvisioningStateProvisioning, withDegradedSuffix("hosted cluster has no installed version", hostedCluster)), nil
 		}
 	}
 
 	if len(hostedCluster.Status.ControlPlaneEndpoint.Host) == 0 {
-		return newOperationState(arm.ProvisioningStateProvisioning, "hosted cluster has no control plane endpoint host"), nil
+		return newOperationState(arm.ProvisioningStateProvisioning, withDegradedSuffix("hosted cluster has no control plane endpoint host", hostedCluster)), nil
 	}
 	if hostedCluster.Status.ControlPlaneEndpoint.Port == 0 {
-		return newOperationState(arm.ProvisioningStateProvisioning, "hosted cluster has no control plane endpoint port"), nil
+		return newOperationState(arm.ProvisioningStateProvisioning, withDegradedSuffix("hosted cluster has no control plane endpoint port", hostedCluster)), nil
 	}
 
 	// if we got here,
@@ -317,4 +318,16 @@ func (c *operationClusterCreate) hostedClusterOperationStatus(ctx context.Contex
 	// 2. the hosted cluster has successfully installed at least one version
 	// 3. the hosted cluster has a control plane endpoint host and port
 	return newOperationState(arm.ProvisioningStateSucceeded, ""), nil
+}
+
+// withDegradedSuffix appends the HostedCluster Degraded condition's reason and
+// message to the given non-success operation message when the condition is True,
+// so downstream consumers see the underlying degradation alongside the immediate
+// provisioning blocker.
+func withDegradedSuffix(message string, hostedCluster *v1beta1.HostedCluster) string {
+	degraded := meta.FindStatusCondition(hostedCluster.Status.Conditions, string(v1beta1.HostedClusterDegraded))
+	if degraded == nil || degraded.Status != metav1.ConditionTrue {
+		return message
+	}
+	return fmt.Sprintf("%s; hosted cluster degraded: %s: %s", message, degraded.Reason, degraded.Message)
 }

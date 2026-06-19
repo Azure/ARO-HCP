@@ -79,11 +79,6 @@ swagger-to-sdk:
 <!-- ### AutoRest v3 Suppressions -->
 ``` yaml
 suppressions:
-  - code: AvoidAnonymousTypes
-    from: openapi.json
-    where: $.definitions["Azure.ResourceManager.CommonTypes.ManagedServiceIdentityUpdate"].properties.userAssignedIdentities.additionalProperties
-    reason: This is an incorrect failure due to a bug in the tool
-    # https://github.com/Azure/typespec-azure/issues/1163
   - code: AvoidAdditionalProperties
     from: openapi.json
     where: $.definitions.UserAssignedIdentitiesProfile.properties.controlPlaneOperators
@@ -112,9 +107,14 @@ suppressions:
     from: openapi.json
     where: $.definitions.HcpOpenShiftVersionProperties.properties.enabled
     reason: Evaluated and decided to stay with a boolean.
+  - code: PostResponseCodes
+    from: openapi.json
+    where: $.paths["/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/{hcpOpenShiftClusterName}/revokeCredentials"].post
+    reason: False positive from validator on ArmResourceActionNoResponseContentAsync pattern. See https://github.com/Azure/azure-openapi-validator/issues/809
   - code: PreviewVersionOverOneYear
     from: openapi.json
     reason: API version will be deprecated when 2025-12-23-preview is deployed to Azure regions.
+
 ```
 
 
