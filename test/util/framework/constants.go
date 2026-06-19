@@ -20,7 +20,7 @@ import "time"
 
 // Provisioning timeouts
 const (
-	ClusterCreationTimeout      = 45 * time.Minute
+	ClusterCreationTimeout      = 20 * time.Minute
 	NodePoolCreationTimeout     = 20 * time.Minute
 	ExternalAuthCreationTimeout = 15 * time.Minute
 	GetAdminRESTConfigTimeout   = 10 * time.Minute

@@ -318,7 +318,7 @@ defaults:
     image:
       registry: quay.io
       repository: rh_ee_cschombu/hypershift
-      digest: sha256:f2c5dde8efc541e228be18024d7c543e34deba658758b1c54714e4eb8d6b1342 # etcd-endpointslice-self-register-2026-06-17
+      digest: sha256:ca20f538e9857dea2d3f6138a92dda676e225b3748fedc75ce6bb77bc5fef30d # etcd-endpointslice-self-register-2026-06-19
     namespace: hypershift
     additionalInstallArg: '--enable-cpo-overrides'
     # By default we set it to empty as this tag is only required for msft environments. We override
