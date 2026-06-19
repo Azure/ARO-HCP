@@ -104,6 +104,17 @@ func convertVisibilityToListening(visibility api.Visibility) (arohcpv1alpha1.Lis
 	}
 }
 
+func convertIngressTypeToListening(ingressType api.IngressType) (arohcpv1alpha1.ListeningMethod, error) {
+	switch ingressType {
+	case api.IngressTypePublic:
+		return arohcpv1alpha1.ListeningMethodExternal, nil
+	case api.IngressTypePrivate:
+		return arohcpv1alpha1.ListeningMethodInternal, nil
+	default:
+		return "", conversionError[arohcpv1alpha1.ListeningMethod](ingressType)
+	}
+}
+
 func convertKeyVaultVisibilityRPToCS(visibility api.KeyVaultVisibility) (arohcpv1alpha1.AzureKmsEncryptionVisibility, error) {
 	switch visibility {
 	case api.KeyVaultVisibilityPublic:
@@ -376,7 +387,7 @@ func BuildCSCluster(resourceID *azcorearm.ResourceID, tenantID string, hcpCluste
 		}
 		clusterAPIBuilder.Listening(apiListening)
 
-		ingressListening, err := convertVisibilityToListening(hcpCluster.CustomerProperties.Ingress.Visibility)
+		ingressListening, err := convertIngressTypeToListening(hcpCluster.CustomerProperties.Ingress.Type)
 		if err != nil {
 			return nil, nil, err
 		}

@@ -270,21 +270,36 @@ model ApiProfile {
 /** Information about the Ingress of a cluster. */
 @added(Versions.v2026_06_30_preview)
 model IngressProfile {
-  /** The internet visibility of the OpenShift Ingress. */
+  /** The type of the default cluster ingress. */
   @added(Versions.v2026_06_30_preview)
   @visibility(Lifecycle.Read, Lifecycle.Create)
-  visibility?: Visibility = Visibility.Public;
+  type?: IngressType = IngressType.Public;
 }
 
-/** The internet visibility of an OpenShift endpoint. */
+/** The internet visibility of the OpenShift API server. */
 union Visibility {
   string,
 
-  /** The endpoint is visible from the internet. */
+  /** The API server is visible from the internet. */
   Public: "Public",
 
-  /** The endpoint is not visible from the internet. */
+  /** The API server is not visible from the internet. */
   Private: "Private",
+}
+
+/** The type of the default cluster ingress. */
+@added(Versions.v2026_06_30_preview)
+union IngressType {
+  string,
+
+  /** The ingress is visible from the internet. */
+  Public: "Public",
+
+  /** The ingress is not visible from the internet. */
+  Private: "Private",
+
+  /** The ingress is disabled. */
+  Disabled: "Disabled",
 }
 
 /** Azure specific configuration */

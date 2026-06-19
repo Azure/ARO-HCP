@@ -304,7 +304,7 @@ func clusterCreatePayload(clusterName, apiVersion string) []byte {
       }
     },
     "ingress": {
-      "visibility": "Private"
+      "type": "Private"
     },
     "nodeDrainTimeoutMinutes": 15,
     "network": {

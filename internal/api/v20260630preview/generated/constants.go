@@ -214,6 +214,27 @@ func PossibleExternalAuthProvisioningStateValues() []ExternalAuthProvisioningSta
 	}
 }
 
+// IngressType - The type of the default cluster ingress.
+type IngressType string
+
+const (
+	// IngressTypeDisabled - The ingress is disabled.
+	IngressTypeDisabled IngressType = "Disabled"
+	// IngressTypePrivate - The ingress is not visible from the internet.
+	IngressTypePrivate IngressType = "Private"
+	// IngressTypePublic - The ingress is visible from the internet.
+	IngressTypePublic IngressType = "Public"
+)
+
+// PossibleIngressTypeValues returns the possible values for the IngressType const type.
+func PossibleIngressTypeValues() []IngressType {
+	return []IngressType{
+		IngressTypeDisabled,
+		IngressTypePrivate,
+		IngressTypePublic,
+	}
+}
+
 // KeyVaultVisibility - The internet visibility of a keyvault resource
 type KeyVaultVisibility string
 
@@ -441,9 +462,9 @@ func PossibleUsernameClaimPrefixPolicyValues() []UsernameClaimPrefixPolicy {
 type Visibility string
 
 const (
-	// VisibilityPrivate - The endpoint is not visible from the internet.
+	// VisibilityPrivate - The API server is not visible from the internet.
 	VisibilityPrivate Visibility = "Private"
-	// VisibilityPublic - The endpoint is visible from the internet.
+	// VisibilityPublic - The API server is visible from the internet.
 	VisibilityPublic Visibility = "Public"
 )
 

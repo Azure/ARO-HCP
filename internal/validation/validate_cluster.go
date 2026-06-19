@@ -552,16 +552,16 @@ func validateCustomerAPIProfile(ctx context.Context, op operation.Operation, fld
 }
 
 var (
-	toIngressVisibility = func(oldObj *api.CustomerIngressProfile) *api.Visibility { return &oldObj.Visibility }
+	toIngressType = func(oldObj *api.CustomerIngressProfile) *api.IngressType { return &oldObj.Type }
 )
 
 func validateCustomerIngressProfile(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.CustomerIngressProfile) field.ErrorList {
 	errs := field.ErrorList{}
 
-	// Visibility      Visibility `json:"visibility,omitempty"`
-	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("visibility"), &newObj.Visibility, nil)...)
-	errs = append(errs, immutableByCompare(ctx, op, fldPath.Child("visibility"), &newObj.Visibility, safe.Field(oldObj, toIngressVisibility))...)
-	errs = append(errs, validate.Enum(ctx, op, fldPath.Child("visibility"), &newObj.Visibility, nil, api.ValidVisibility, nil)...)
+	// Type      IngressType `json:"type,omitempty"`
+	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("type"), &newObj.Type, nil)...)
+	errs = append(errs, immutableByCompare(ctx, op, fldPath.Child("type"), &newObj.Type, safe.Field(oldObj, toIngressType))...)
+	errs = append(errs, validate.Enum(ctx, op, fldPath.Child("type"), &newObj.Type, nil, api.ValidIngressTypes, nil)...)
 
 	return errs
 }

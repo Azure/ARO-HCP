@@ -30,7 +30,7 @@
           ]
         },
         "ingress": {
-          "visibility": "Public"
+          "type": "Public"
         },
         "platform": {
           "managedResourceGroup": "nhyhywrxupo",
@@ -126,7 +126,7 @@
             "url": "https://api.test.shrd.usw3test.hcp.osadev.cloud:443"
           },
           "ingress": {
-            "visibility": "Public"
+            "type": "Public"
           },
           "platform": {
             "managedResourceGroup": "nhyhywrxupo",
@@ -243,7 +243,7 @@
             "url": "https://api.test.shrd.usw3test.hcp.osadev.cloud:443"
           },
           "ingress": {
-            "visibility": "Public"
+            "type": "Public"
           },
           "platform": {
             "managedResourceGroup": "nhyhywrxupo",

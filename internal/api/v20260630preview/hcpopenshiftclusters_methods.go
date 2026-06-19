@@ -76,8 +76,8 @@ func SetDefaultValuesCluster(obj *HcpOpenShiftCluster) {
 	if obj.Properties.Ingress == nil {
 		obj.Properties.Ingress = &generated.IngressProfile{}
 	}
-	if obj.Properties.Ingress.Visibility == nil {
-		obj.Properties.Ingress.Visibility = ptr.To(generated.VisibilityPublic)
+	if obj.Properties.Ingress.Type == nil {
+		obj.Properties.Ingress.Type = ptr.To(generated.IngressTypePublic)
 	}
 	if obj.Properties.Platform == nil {
 		obj.Properties.Platform = &generated.PlatformProfile{}
@@ -182,7 +182,7 @@ func newIngressProfile(from *api.CustomerIngressProfile) generated.IngressProfil
 		return generated.IngressProfile{}
 	}
 	return generated.IngressProfile{
-		Visibility: api.PtrOrNil(generated.Visibility(from.Visibility)),
+		Type: api.PtrOrNil(generated.IngressType(from.Type)),
 	}
 }
 
@@ -563,7 +563,7 @@ func normalizeAPI(p *generated.APIProfile, out *api.CustomerAPIProfile, out2 *ap
 }
 
 func normalizeIngress(p *generated.IngressProfile, out *api.CustomerIngressProfile) {
-	out.Visibility = api.Visibility(api.Deref(p.Visibility))
+	out.Type = api.IngressType(api.Deref(p.Type))
 }
 
 func normalizePlatform(fldPath *field.Path, p *generated.PlatformProfile, out *api.CustomerPlatformProfile, out2 *api.ServiceProviderPlatformProfile) field.ErrorList {

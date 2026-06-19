@@ -35,7 +35,7 @@
                 "visibility": "Public"
               },
               "ingress": {
-                "visibility": "Public"
+                "type": "Public"
               },
               "platform": {
                 "managedResourceGroup": "nhyhywrxupo",

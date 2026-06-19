@@ -675,11 +675,11 @@ func TestBuildCSCluster(t *testing.T) {
 							Values("10.0.0.0/8", "192.168.0.0/16")))),
 		},
 		{
-			name: "CREATE - sets private ingress visibility",
+			name: "CREATE - sets private ingress type",
 			hcpCluster: &api.HCPOpenShiftCluster{
 				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
 					Ingress: api.CustomerIngressProfile{
-						Visibility: api.VisibilityPrivate,
+						Type: api.IngressTypePrivate,
 					},
 				},
 			},

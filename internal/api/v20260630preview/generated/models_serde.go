@@ -1325,7 +1325,7 @@ func (i *ImageDigestMirror) UnmarshalJSON(data []byte) error {
 // MarshalJSON implements the json.Marshaller interface for type IngressProfile.
 func (i IngressProfile) MarshalJSON() ([]byte, error) {
 	objectMap := make(map[string]any)
-	populate(objectMap, "visibility", i.Visibility)
+	populate(objectMap, "type", i.Type)
 	return json.Marshal(objectMap)
 }
 
@@ -1338,8 +1338,8 @@ func (i *IngressProfile) UnmarshalJSON(data []byte) error {
 	for key, val := range rawMsg {
 		var err error
 		switch key {
-		case "visibility":
-			err = unpopulate(val, "Visibility", &i.Visibility)
+		case "type":
+			err = unpopulate(val, "Type", &i.Type)
 			delete(rawMsg, key)
 		default:
 			err = fmt.Errorf("unmarshalling type %T, unknown field %q", i, key)

@@ -159,7 +159,7 @@ type ServiceProviderAPIProfile struct {
 
 // CustomerIngressProfile represents the cluster ingress configuration.
 type CustomerIngressProfile struct {
-	Visibility Visibility `json:"visibility,omitempty"`
+	Type IngressType `json:"type,omitempty"`
 }
 
 // CustomerPlatformProfile represents the Azure platform configuration.
@@ -281,7 +281,7 @@ func NewDefaultHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, azureLocati
 				Visibility: VisibilityPublic,
 			},
 			Ingress: CustomerIngressProfile{
-				Visibility: VisibilityPublic,
+				Type: IngressTypePublic,
 			},
 			Platform: CustomerPlatformProfile{
 				OutboundType: OutboundTypeLoadBalancer,
@@ -319,8 +319,8 @@ func (cluster *HCPOpenShiftCluster) EnsureDefaults() {
 	if len(cluster.CustomerProperties.API.Visibility) == 0 {
 		cluster.CustomerProperties.API.Visibility = VisibilityPublic
 	}
-	if len(cluster.CustomerProperties.Ingress.Visibility) == 0 {
-		cluster.CustomerProperties.Ingress.Visibility = VisibilityPublic
+	if len(cluster.CustomerProperties.Ingress.Type) == 0 {
+		cluster.CustomerProperties.Ingress.Type = IngressTypePublic
 	}
 	if len(cluster.CustomerProperties.Platform.OutboundType) == 0 {
 		cluster.CustomerProperties.Platform.OutboundType = OutboundTypeLoadBalancer

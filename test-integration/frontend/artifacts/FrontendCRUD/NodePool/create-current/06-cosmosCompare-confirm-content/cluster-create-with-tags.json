@@ -41,7 +41,7 @@
 				}
 			},
 			"ingress": {
-				"visibility": "Public"
+				"type": "Public"
 			},
 			"network": {
 				"hostPrefix": 23,
