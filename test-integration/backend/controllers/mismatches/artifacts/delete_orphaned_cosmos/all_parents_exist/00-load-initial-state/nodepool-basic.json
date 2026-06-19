@@ -3,12 +3,23 @@
 	"id": "b3b837bb-154f-5f52-8562-96a8c9d2bb05",
 	"partitionKey": "a433a095-1277-44f1-8453-8d61a4d848c2",
 	"properties": {
+		"cosmosMetadata": {
+			"etag": "\"9d256061-9a7a-45b0-890d-e3a14159a5ac\"",
+			"instanceVersion": 1,
+			"partitionKey": "a433a095-1277-44f1-8453-8d61a4d848c2",
+			"resourceID": "/subscriptions/a433a095-1277-44f1-8453-8d61a4d848c2/resourceGroups/unimportantpostponement/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/monstrousprecinct/nodePools/basic"
+		},
 		"id": "/subscriptions/a433a095-1277-44f1-8453-8d61a4d848c2/resourceGroups/unimportantpostponement/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/monstrousprecinct/nodePools/basic",
 		"location": "fake-location",
 		"name": "basic",
 		"properties": {
 			"autoRepair": true,
 			"platform": {
+				"enableEncryptionAtHost": false,
+				"osDisk": {
+					"diskStorageAccountType": "Premium_LRS",
+					"diskType": "Managed"
+				},
 				"vmSize": "large"
 			},
 			"provisioningState": "Accepted",

@@ -1,12 +1,14 @@
 {
-	"_attachments": "attachments/",
-	"_etag": "\"00000000-0000-0000-80da-b390d80501dc\"",
-	"_rid": "NNYoALQEciYDAAAAAAAAAA==",
-	"_self": "dbs/NNYoAA==/colls/NNYoALQEciY=/docs/NNYoALQEciYDAAAAAAAAAA==/",
-	"_ts": 1767902971,
+	"_etag": "\"00000000-0000-0000-712b-4e012c0501dc\"",
 	"id": "9b74accf-0661-53d8-9741-b3aa39f9a53c",
 	"partitionKey": "6b690bec-0c16-4ecb-8f67-781caf40bba7",
 	"properties": {
+		"cosmosMetadata": {
+			"etag": "\"00000000-0000-0000-712b-4e012c0501dc\"",
+			"instanceVersion": 1,
+			"partitionKey": "6b690bec-0c16-4ecb-8f67-781caf40bba7",
+			"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/create-with-tags/nodePools/node-pool-02"
+		},
 		"id": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/create-with-tags/nodePools/node-pool-02",
 		"location": "fake-location",
 		"name": "node-pool-02",
@@ -24,6 +26,7 @@
 				"enableEncryptionAtHost": false,
 				"osDisk": {
 					"diskStorageAccountType": "Premium_LRS",
+					"diskType": "Managed",
 					"sizeGiB": 64
 				},
 				"vmSize": "large"

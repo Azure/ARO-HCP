@@ -3,7 +3,12 @@
 	"id": "b199fdeb-1823-5205-9da8-6b61046e9d89",
 	"partitionKey": "6b690bec-0c16-4ecb-8f67-781caf40bba7",
 	"properties": {
-		"resourceId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/major-upgrade/serviceProviderClusters/default",
+		"cosmosMetadata": {
+			"etag": "\"535ecee6-e88a-4e5c-a95c-e32dcbbaa67a\"",
+			"instanceVersion": 1,
+			"partitionKey": "6b690bec-0c16-4ecb-8f67-781caf40bba7",
+			"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/major-upgrade/serviceProviderClusters/default"
+		},
 		"spec": {
 			"control_plane_version": {
 				"desired_version": "5.0.0"
@@ -20,5 +25,5 @@
 		}
 	},
 	"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/major-upgrade/serviceProviderClusters/default",
-	"resourceType": "microsoft.redhatopenshift/hcpopenshiftclusters/serviceproviderclusters"
+	"resourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/serviceProviderClusters"
 }

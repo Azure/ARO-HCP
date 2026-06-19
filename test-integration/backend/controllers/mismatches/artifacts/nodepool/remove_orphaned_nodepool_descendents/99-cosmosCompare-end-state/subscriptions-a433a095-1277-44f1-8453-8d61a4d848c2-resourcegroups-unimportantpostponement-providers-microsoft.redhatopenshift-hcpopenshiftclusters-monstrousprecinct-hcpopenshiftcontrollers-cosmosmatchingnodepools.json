@@ -1,0 +1,27 @@
+{
+	"_etag": "1a7dcdeb-b59f-491f-8a1e-9555c29f6dde",
+	"id": "3b4f348f-06a2-587f-9b45-8d88dac8c26d",
+	"partitionKey": "a433a095-1277-44f1-8453-8d61a4d848c2",
+	"properties": {
+		"cosmosMetadata": {
+			"etag": "ad8da330-4ed1-4681-bc40-7159d7ee3295",
+			"instanceVersion": 2,
+			"partitionKey": "a433a095-1277-44f1-8453-8d61a4d848c2",
+			"resourceID": "/subscriptions/a433a095-1277-44f1-8453-8d61a4d848c2/resourceGroups/unimportantpostponement/providers/microsoft.redhatopenshift/hcpopenshiftclusters/monstrousprecinct/hcpOpenShiftControllers/CosmosMatchingNodePools"
+		},
+		"externalId": "/subscriptions/a433a095-1277-44f1-8453-8d61a4d848c2/resourceGroups/unimportantpostponement/providers/microsoft.redhatopenshift/hcpopenshiftclusters/monstrousprecinct",
+		"status": {
+			"conditions": [
+				{
+					"lastTransitionTime": "2026-06-19T01:10:57Z",
+					"message": "As expected.",
+					"reason": "NoErrors",
+					"status": "False",
+					"type": "Degraded"
+				}
+			]
+		}
+	},
+	"resourceID": "/subscriptions/a433a095-1277-44f1-8453-8d61a4d848c2/resourceGroups/unimportantpostponement/providers/microsoft.redhatopenshift/hcpopenshiftclusters/monstrousprecinct/hcpOpenShiftControllers/CosmosMatchingNodePools",
+	"resourceType": "microsoft.redhatopenshift/hcpopenshiftclusters/hcpOpenShiftControllers"
+}

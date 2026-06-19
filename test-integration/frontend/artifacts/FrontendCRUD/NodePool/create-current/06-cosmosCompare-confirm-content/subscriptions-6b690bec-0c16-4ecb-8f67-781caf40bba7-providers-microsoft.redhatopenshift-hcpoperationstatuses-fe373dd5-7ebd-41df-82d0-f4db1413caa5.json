@@ -1,0 +1,26 @@
+{
+	"_etag": "e13c7e71-e733-40ac-a22b-28dc769b5b7e",
+	"id": "4ea39c6c-b4aa-55f7-96a7-8aa5e7833b24",
+	"partitionKey": "6b690bec-0c16-4ecb-8f67-781caf40bba7",
+	"properties": {
+		"cosmosMetadata": {
+			"instanceVersion": 1,
+			"partitionKey": "6b690bec-0c16-4ecb-8f67-781caf40bba7",
+			"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/providers/Microsoft.RedHatOpenShift/hcpOperationStatuses/fe373dd5-7ebd-41df-82d0-f4db1413caa5"
+		},
+		"externalId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/create-with-tags/nodePools/basic-node-pool",
+		"internalId": "/api/clusters_mgmt/v1/clusters/d4xpvfxdjv/node_pools/ckzqhv8hxg",
+		"lastTransitionTime": "2026-06-19T01:11:04.991799009Z",
+		"operationId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/providers/Microsoft.RedHatOpenShift/locations/fake-location/hcpOperationStatuses/fe373dd5-7ebd-41df-82d0-f4db1413caa5",
+		"request": "Create",
+		"startTime": "2026-06-19T01:11:04.991799009Z",
+		"status": "Accepted",
+		"tenantId": "00000000-0000-0000-0000-000000000000",
+		"usesNewClusterDeletionApproach": false,
+		"usesNewExternalAuthDeletionApproach": false,
+		"usesNewNodePoolDeletionApproach": false
+	},
+	"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/providers/Microsoft.RedHatOpenShift/hcpOperationStatuses/fe373dd5-7ebd-41df-82d0-f4db1413caa5",
+	"resourceType": "Microsoft.RedHatOpenShift/hcpOperationStatuses",
+	"ttl": 604800
+}

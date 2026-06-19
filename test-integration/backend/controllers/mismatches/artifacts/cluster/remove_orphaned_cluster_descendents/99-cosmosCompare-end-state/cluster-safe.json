@@ -1,8 +1,10 @@
 {
+	"_etag": "\"2d156a58-ac1f-40da-84d3-f64b50dc0ba5\"",
 	"id": "1efd180d-f929-5506-9e76-15ef4c14ca7b",
 	"partitionKey": "4fa75980-6637-4157-9726-84d878a62e83",
 	"properties": {
 		"cosmosMetadata": {
+			"etag": "\"2d156a58-ac1f-40da-84d3-f64b50dc0ba5\"",
 			"instanceVersion": 1,
 			"partitionKey": "4fa75980-6637-4157-9726-84d878a62e83",
 			"resourceID": "/subscriptions/4fa75980-6637-4157-9726-84d878a62e83/resourceGroups/shrillEffectiveness/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/lavishUnhappiness"
@@ -29,7 +31,8 @@
 								"name": "encryptionKeyName",
 								"vaultName": "keyVaultName",
 								"version": "2024-12-01-preview"
-							}
+							},
+							"visibility": "Public"
 						}
 					},
 					"keyManagementMode": "CustomerManaged"
