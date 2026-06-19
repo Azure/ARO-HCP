@@ -123,8 +123,12 @@ func run() error {
 	if len(effectiveZones) == 0 && cfg.zoneRedundantMode != "Disabled" {
 		regionZones, ok := azregions.AvailabilityZones(akslog.Deref(mc.Location))
 		if !ok {
-			akslog.Logf("region %q is not in the availability-zone table — cannot reproduce bicep's effective pool zones; skipping orphan detection to avoid unsafe deletion (no pools touched)", akslog.Deref(mc.Location))
-			return nil
+			region := akslog.Deref(mc.Location)
+			if cfg.dryRun {
+				akslog.Logf("DRY_RUN: region %q is not in the availability-zone table — cannot reproduce bicep's effective pool zones; skipping orphan detection (no pools touched)", region)
+				return nil
+			}
+			return fmt.Errorf("region %q is not in the availability-zone table — aborting to avoid unsafe pool deletion (cannot reproduce bicep's effective pool zones)", region)
 		}
 		effectiveZones = regionZones
 		akslog.Logf("POOL_ZONES empty; resolved effective zones for region %q from the availability-zone table: %v", akslog.Deref(mc.Location), effectiveZones)
