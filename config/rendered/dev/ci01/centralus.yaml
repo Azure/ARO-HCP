@@ -397,6 +397,8 @@ global:
     displayName: Azure Red Hat OpenShift HCP - ci01 - Global
     key: ARO Hosted Control Planes (EA Subscription 1)
     providers:
+      Microsoft.Cdn:
+        poll: true
       Microsoft.Compute:
         features:
         - name: EncryptionAtHost
@@ -415,6 +417,8 @@ global:
         features:
         - name: AllowBringYourOwnPublicIpAddress
           poll: true
+        poll: true
+      Microsoft.Support:
         poll: true
 hcpRecovery:
   image:
