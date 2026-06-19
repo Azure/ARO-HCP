@@ -1,12 +1,12 @@
 acm:
   mce:
     bundle:
-      digest: sha256:2fbd59d99219005e547eec97b7b7386f285993e9133c0478bd76c26f1251f621
+      digest: sha256:431ee4a3af785871d0d6ff8851dd19b93533d19a79c465f771efea7c6ca9e355
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-211
   operator:
     bundle:
-      digest: sha256:c57efbcc1a6eaf381a6acfc8971426e72cb780df393cc87b37d36d5707cc1792
+      digest: sha256:95a64428e3c487112419ad5d4fb97f6c3acd2883480603ddb82f42c089b26a04
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-216
 acr:
@@ -165,7 +165,7 @@ clustersService:
   deployDebugJobs: false
   environment: arohcpci00
   image:
-    digest: sha256:8132ccff93a2460ec753894af3d8bcb99cd52bf7360c69b288de2a0a8b7e7feb
+    digest: sha256:32ba494edb732fb3ac4718b733ec62bf4f216aff683747121af530228c0ac5f4
     registry: quay.io
     repository: app-sre/aro-hcp-clusters-service
   k8s:
@@ -428,7 +428,7 @@ hcpRecovery:
 hypershift:
   additionalInstallArg: --enable-cpo-overrides
   image:
-    digest: sha256:8da292ba080e4012fc23e4fd12ac612c9f0ee412f4d0461ea09cbeb6d0b6bae3
+    digest: sha256:a4f20d1113805dd08e50b344b2f2255e2a5a12609a000668926d7ef3c9bd95b2
     registry: quay.io
     repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
   limitClusterSizes: true
@@ -446,7 +446,7 @@ imageSync:
   ocMirror:
     enabled: true
     image:
-      digest: sha256:3cd716a09757f4acf0a2023fa3d49867e6d41c90dd26f67264974cfd234f2a76
+      digest: sha256:6bec9b3575b9f9201353f0b9bb6b927414c5f475c9238cfd5da779c2f4037272
       registry: arohcpsvcdev.azurecr.io
       repository: image-sync/oc-mirror
     jobNamePrefix: ""
@@ -656,12 +656,12 @@ mgmt:
       image:
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus-config-reloader
-        sha: e55bedb36260560585958d1af9477c17eaf51547832b7d7e70177c04afce72f8
+        sha: 67a388022a2d78224f9b68f12c5b9118114334b59cce72b20f2cc199de953948
     prometheusOperator:
       image:
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus-operator
-        sha: 751ec9231b0fa0170f64bb4fbb5f4999d76b68a490b67f05485c1b2cb60d926b
+        sha: e7bbcd13ba6b9e1dec02a7f0fa882444b46d17fb06dc7f7bcde3f927b663c77e
       version: ""
     prometheusSpec:
       image:
@@ -976,12 +976,12 @@ svc:
       image:
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus-config-reloader
-        sha: e55bedb36260560585958d1af9477c17eaf51547832b7d7e70177c04afce72f8
+        sha: 67a388022a2d78224f9b68f12c5b9118114334b59cce72b20f2cc199de953948
     prometheusOperator:
       image:
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus-operator
-        sha: 751ec9231b0fa0170f64bb4fbb5f4999d76b68a490b67f05485c1b2cb60d926b
+        sha: e7bbcd13ba6b9e1dec02a7f0fa882444b46d17fb06dc7f7bcde3f927b663c77e
       version: ""
     prometheusSpec:
       image:
@@ -1041,7 +1041,7 @@ svc:
 tenantId: 64dc69e4-d083-49fc-9569-ebece1dd1408
 velero:
   azurePlugin:
-    digest: sha256:04708691d739da1843702d0370f971620f59fe8b78890b3abe7e40c000c297e8
+    digest: sha256:b92df9d921cde721e288a0fe14908cde588b777593da5fe33774e4e8a83da75f
     registry: registry.redhat.io
     repository: oadp/oadp-velero-plugin-for-microsoft-azure-rhel9
   hypershiftPlugin:
