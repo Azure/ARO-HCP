@@ -14,6 +14,8 @@
 
 package client
 
+//go:generate $MOCKGEN -typed -source=subnets_client.go -destination=mock_subnets_client.go -package client SubnetsClient
+
 import (
 	"context"
 

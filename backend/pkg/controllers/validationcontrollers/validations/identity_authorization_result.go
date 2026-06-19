@@ -24,5 +24,5 @@ import (
 type IdentityResourceMissingPermissions struct {
 	Resource  *azcorearm.ResourceID
 	Identity  *azcorearm.ResourceID
-	Decisions []azurecheckaccessv2client.AuthorizationDecision
+	Decisions *[]azurecheckaccessv2client.AuthorizationDecision
 }

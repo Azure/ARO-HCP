@@ -23,12 +23,12 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 
 	"k8s.io/utils/ptr"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v2"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v6"
 	checkaccessv2 "github.com/Azure/checkaccess-v2-go-sdk/client"
@@ -41,99 +41,16 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
-// --- Mocks ---
-
-type mockSMIClientBuilder struct {
-	subnetsClientFn func(ctx context.Context, clusterIdentityURL string, smiResourceID *azcorearm.ResourceID, subscriptionID string) (azureclient.SubnetsClient, error)
-}
-
-func (m *mockSMIClientBuilder) BuilderType() azureclient.ServiceManagedIdentityClientBuilderType {
-	return azureclient.ServiceManagedIdentityClientBuilderTypeValue
-}
-
-func (m *mockSMIClientBuilder) UserAssignedIdentitiesClient(_ context.Context, _ string, _ *azcorearm.ResourceID, _ string) (azureclient.UserAssignedIdentitiesClient, error) {
-	return nil, nil
-}
-
-func (m *mockSMIClientBuilder) SubnetsClient(ctx context.Context, clusterIdentityURL string, smiResourceID *azcorearm.ResourceID, subscriptionID string) (azureclient.SubnetsClient, error) {
-	return m.subnetsClientFn(ctx, clusterIdentityURL, smiResourceID, subscriptionID)
-}
-
-// mockMIDataplaneBasedIdentityAccessTokenRetriever allows tests to inject an arbitrary
-// GetToken response for a specific identity without any MI Dataplane network interaction.
-type mockMIDataplaneBasedIdentityAccessTokenRetriever struct {
-	getTokenFn func(ctx context.Context, options policy.TokenRequestOptions) (azcore.AccessToken, error)
-}
-
-func (m *mockMIDataplaneBasedIdentityAccessTokenRetriever) GetToken(ctx context.Context, options policy.TokenRequestOptions) (azcore.AccessToken, error) {
-	return m.getTokenFn(ctx, options)
-}
-
-// mockMIDataplaneBasedIdentityAccessTokenRetrieverBuilder allows tests to control what
-// retriever is returned for each identity without instantiating a real MI Dataplane client.
-type mockMIDataplaneBasedIdentityAccessTokenRetrieverBuilder struct {
-	buildFn func(clusterIdentityURL string, identityResourceID *azcorearm.ResourceID) (azureclient.MIDataplaneBasedIdentityAccessTokenRetriever, error)
-}
-
-func (m *mockMIDataplaneBasedIdentityAccessTokenRetrieverBuilder) Build(clusterIdentityURL string, identityResourceID *azcorearm.ResourceID) (azureclient.MIDataplaneBasedIdentityAccessTokenRetriever, error) {
-	return m.buildFn(clusterIdentityURL, identityResourceID)
-}
-
-type mockSubnetsClient struct {
-	getFn func(ctx context.Context, resourceGroupName string, virtualNetworkName string, subnetName string, options *armnetwork.SubnetsClientGetOptions) (armnetwork.SubnetsClientGetResponse, error)
-}
-
-func (m *mockSubnetsClient) Get(ctx context.Context, resourceGroupName string, virtualNetworkName string, subnetName string, options *armnetwork.SubnetsClientGetOptions) (armnetwork.SubnetsClientGetResponse, error) {
-	return m.getFn(ctx, resourceGroupName, virtualNetworkName, subnetName, options)
-}
-
-type mockCheckAccessV2ClientBuilder struct {
-	buildFn func(tenantID string) (azureclient.CheckAccessV2Client, error)
-}
-
-func (m *mockCheckAccessV2ClientBuilder) Build(tenantID string) (azureclient.CheckAccessV2Client, error) {
-	return m.buildFn(tenantID)
-}
-
-type mockCheckAccessV2Client struct {
-	checkAccessFn              func(ctx context.Context, authzReq checkaccessv2.AuthorizationRequest) (*checkaccessv2.AuthorizationDecisionResponse, error)
-	createAuthorizationRequest func(resourceId string, actions []string, jwtToken string) (*checkaccessv2.AuthorizationRequest, error)
-}
-
-func (m *mockCheckAccessV2Client) CheckAccess(ctx context.Context, authzReq checkaccessv2.AuthorizationRequest) (*checkaccessv2.AuthorizationDecisionResponse, error) {
-	return m.checkAccessFn(ctx, authzReq)
-}
-
-func (m *mockCheckAccessV2Client) CreateAuthorizationRequest(resourceId string, actions []string, jwtToken string) (*checkaccessv2.AuthorizationRequest, error) {
-	return m.createAuthorizationRequest(resourceId, actions, jwtToken)
-}
-
-type mockRoleDefinitionsCachedReader struct {
-	getCachedByIDFn func(ctx context.Context, roleDefinitionResourceID string, options *armauthorization.RoleDefinitionsClientGetByIDOptions) (armauthorization.RoleDefinitionsClientGetByIDResponse, error)
-}
-
-func (m *mockRoleDefinitionsCachedReader) GetCachedByID(ctx context.Context, roleDefinitionResourceID string, options *armauthorization.RoleDefinitionsClientGetByIDOptions) (armauthorization.RoleDefinitionsClientGetByIDResponse, error) {
-	return m.getCachedByIDFn(ctx, roleDefinitionResourceID, options)
-}
-
 // --- Test helpers ---
-
-func mustParseResourceID(id string) *azcorearm.ResourceID {
-	rid, err := azcorearm.ParseResourceID(id)
-	if err != nil {
-		panic(err)
-	}
-	return rid
-}
 
 func newTestCluster() *api.HCPOpenShiftCluster {
 	cluster := api.MinimumValidClusterTestCase()
 	cluster.CustomerProperties.Platform.OperatorsAuthentication = api.OperatorsAuthenticationProfile{
 		UserAssignedIdentities: api.UserAssignedIdentitiesProfile{
 			ControlPlaneOperators: map[string]*azcorearm.ResourceID{
-				"CloudController": mustParseResourceID("/subscriptions/11111111-1111-1111-1111-111111111111/resourceGroups/testResourceGroup/providers/Microsoft.ManagedIdentity/userAssignedIdentities/cloud-controller"),
+				"CloudController": api.Must(azcorearm.ParseResourceID("/subscriptions/11111111-1111-1111-1111-111111111111/resourceGroups/testResourceGroup/providers/Microsoft.ManagedIdentity/userAssignedIdentities/cloud-controller")),
 			},
-			ServiceManagedIdentity: mustParseResourceID("/subscriptions/11111111-1111-1111-1111-111111111111/resourceGroups/testResourceGroup/providers/Microsoft.ManagedIdentity/userAssignedIdentities/smi"),
+			ServiceManagedIdentity: api.Must(azcorearm.ParseResourceID("/subscriptions/11111111-1111-1111-1111-111111111111/resourceGroups/testResourceGroup/providers/Microsoft.ManagedIdentity/userAssignedIdentities/smi")),
 		},
 	}
 	return cluster
@@ -143,10 +60,6 @@ func newTestSubscription() *arm.Subscription {
 	sub := api.CreateTestSubscription()
 	sub.Properties.TenantId = ptr.To(api.TestTenantID)
 	return sub
-}
-
-func newRoleDefinitionResponse(actions ...string) armauthorization.RoleDefinitionsClientGetByIDResponse {
-	return newRoleDefinitionResponseWithDataActions(actions, nil)
 }
 
 func newRoleDefinitionResponseWithDataActions(actions []string, dataActions []string) armauthorization.RoleDefinitionsClientGetByIDResponse {
@@ -177,22 +90,21 @@ func fakeToken() azcore.AccessToken {
 }
 
 // successfulRetriever returns a mock retriever that always yields fakeToken().
-func successfulRetriever() *mockMIDataplaneBasedIdentityAccessTokenRetriever {
-	return &mockMIDataplaneBasedIdentityAccessTokenRetriever{
-		getTokenFn: func(_ context.Context, _ policy.TokenRequestOptions) (azcore.AccessToken, error) {
-			return fakeToken(), nil
-		},
-	}
+func successfulRetriever(ctrl *gomock.Controller) *azureclient.MockMIDataplaneBasedIdentityAccessTokenRetriever {
+	mock := azureclient.NewMockMIDataplaneBasedIdentityAccessTokenRetriever(ctrl)
+	mock.EXPECT().GetToken(gomock.Any(), gomock.Any()).Return(fakeToken(), nil).AnyTimes()
+	return mock
 }
 
 // mockSuccessfulTokenRetrieverBuilder returns a builder whose Build always returns
 // a retriever that issues a valid fake token, with no MI Dataplane interaction.
-func mockSuccessfulTokenRetrieverBuilder() *mockMIDataplaneBasedIdentityAccessTokenRetrieverBuilder {
-	return &mockMIDataplaneBasedIdentityAccessTokenRetrieverBuilder{
-		buildFn: func(_ string, _ *azcorearm.ResourceID) (azureclient.MIDataplaneBasedIdentityAccessTokenRetriever, error) {
-			return successfulRetriever(), nil
-		},
-	}
+func mockSuccessfulTokenRetrieverBuilder(ctrl *gomock.Controller) *azureclient.MockMIDataplaneBasedIdentityAccessTokenRetrieverBuilder {
+	mock := azureclient.NewMockMIDataplaneBasedIdentityAccessTokenRetrieverBuilder(ctrl)
+	mock.EXPECT().Build(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ string, _ *azcorearm.ResourceID) (azureclient.MIDataplaneBasedIdentityAccessTokenRetriever, error) {
+			return successfulRetriever(ctrl), nil
+		}).AnyTimes()
+	return mock
 }
 
 // testIdentitiesConfig builds a ClusterScopedIdentitiesConfig with a single
@@ -213,8 +125,8 @@ func testIdentitiesConfig(roleDefResourceID *azcorearm.ResourceID) *azure.Cluste
 	}
 }
 
-// allNetworkActions returns the full set of network role actions used across tests.
-func allNetworkActions() []string {
+// testAllNetworkActions returns the full set of network role actions used across tests.
+func testAllNetworkActions() []string {
 	return []string{
 		"Microsoft.Network/networkSecurityGroups/read",
 		"Microsoft.Network/networkSecurityGroups/write",
@@ -230,18 +142,17 @@ func allNetworkActions() []string {
 
 // mockSimpleSubnetsClient returns a mock SubnetsClient that returns a subnet with
 // no attached resources, or with the optional RouteTable set.
-func mockSimpleSubnetsClient(routeTable *armnetwork.RouteTable) *mockSubnetsClient {
-	return &mockSubnetsClient{
-		getFn: func(_ context.Context, _ string, _ string, _ string, _ *armnetwork.SubnetsClientGetOptions) (armnetwork.SubnetsClientGetResponse, error) {
-			return armnetwork.SubnetsClientGetResponse{
-				Subnet: armnetwork.Subnet{
-					Properties: &armnetwork.SubnetPropertiesFormat{
-						RouteTable: routeTable,
-					},
+func mockSimpleSubnetsClient(ctrl *gomock.Controller, routeTable *armnetwork.RouteTable) *azureclient.MockSubnetsClient {
+	mock := azureclient.NewMockSubnetsClient(ctrl)
+	mock.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(
+		armnetwork.SubnetsClientGetResponse{
+			Subnet: armnetwork.Subnet{
+				Properties: &armnetwork.SubnetPropertiesFormat{
+					RouteTable: routeTable,
 				},
-			}, nil
-		},
-	}
+			},
+		}, nil).AnyTimes()
+	return mock
 }
 
 // testCheckAccessV2Scope is the CheckAccessV2 scope used in all Validate tests.
@@ -249,767 +160,577 @@ const testCheckAccessV2Scope = "https://management.azure.com/.default"
 
 // --- Tests for Validate ---
 
-// TestValidate_AllPermissionsAllowed verifies that Validate returns no error when
-// all required permissions for the control plane operator identity are allowed
-// by CheckAccess on both NSG and VNet resources.
-func TestValidate_AllPermissionsAllowed(t *testing.T) {
-	ctx := utils.ContextWithLogger(context.Background(), logr.Discard())
+func TestValidate(t *testing.T) {
+	roleDefResourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/11111111-1111-1111-1111-111111111111/providers/Microsoft.Authorization/roleDefinitions/test-role-def"))
 
-	roleDefResourceID := mustParseResourceID("/subscriptions/11111111-1111-1111-1111-111111111111/providers/Microsoft.Authorization/roleDefinitions/test-role-def")
+	tests := []struct {
+		name string
 
-	mockCheckAccessClient := &mockCheckAccessV2Client{
-		createAuthorizationRequest: func(_ string, _ []string, _ string) (*checkaccessv2.AuthorizationRequest, error) {
-			return &checkaccessv2.AuthorizationRequest{}, nil
+		// emptyIdentitiesConfig uses an empty ClusterScopedIdentitiesConfig (no operators). When false (the default), testIdentitiesConfig(roleDefResourceID) is used.
+		emptyIdentitiesConfig bool
+
+		// role definition fields (only relevant when emptyIdentitiesConfig is false)
+		roleDefActions     []string
+		roleDefDataActions []string
+
+		// failure injection
+		checkAccessBuildErr error
+		subnetClientErr     error
+		tokenRetrieveErr    error
+
+		// CheckAccess decisions returned for every call (nil means CheckAccess is never reached)
+		checkAccessDecisions []checkaccessv2.AuthorizationDecision
+
+		// optional route table attached to the subnet
+		routeTable *armnetwork.RouteTable
+
+		// if > 0, assert the exact number of CheckAccess calls made
+		wantCheckAccessCalls int
+
+		wantErr         bool
+		wantErrContains []string
+	}{
+		{
+			name:           "all permissions allowed",
+			roleDefActions: testAllNetworkActions(),
+			checkAccessDecisions: []checkaccessv2.AuthorizationDecision{
+				{ActionId: "Microsoft.Network/networkSecurityGroups/read", AccessDecision: checkaccessv2.Allowed},
+				{ActionId: "Microsoft.Network/networkSecurityGroups/write", AccessDecision: checkaccessv2.Allowed},
+				{ActionId: "Microsoft.Network/networkSecurityGroups/join/action", AccessDecision: checkaccessv2.Allowed},
+			},
 		},
-		checkAccessFn: func(_ context.Context, _ checkaccessv2.AuthorizationRequest) (*checkaccessv2.AuthorizationDecisionResponse, error) {
-			return &checkaccessv2.AuthorizationDecisionResponse{
-				Value: []checkaccessv2.AuthorizationDecision{
-					{ActionId: "Microsoft.Network/networkSecurityGroups/read", AccessDecision: checkaccessv2.Allowed},
-					{ActionId: "Microsoft.Network/networkSecurityGroups/write", AccessDecision: checkaccessv2.Allowed},
-					{ActionId: "Microsoft.Network/networkSecurityGroups/join/action", AccessDecision: checkaccessv2.Allowed},
-				},
-			}, nil
+		{
+			name:           "missing permissions",
+			roleDefActions: testAllNetworkActions(),
+			checkAccessDecisions: []checkaccessv2.AuthorizationDecision{
+				{ActionId: "Microsoft.Network/networkSecurityGroups/read", AccessDecision: checkaccessv2.Allowed},
+				{ActionId: "Microsoft.Network/networkSecurityGroups/write", AccessDecision: checkaccessv2.NotAllowed},
+				{ActionId: "Microsoft.Network/networkSecurityGroups/join/action", AccessDecision: checkaccessv2.Denied},
+			},
+			wantErr:         true,
+			wantErrContains: []string{"control plane operators missing required permissions", "not allowed", "denied"},
+		},
+		{
+			name:             "get token error",
+			roleDefActions:   []string{"Microsoft.Network/networkSecurityGroups/read"},
+			tokenRetrieveErr: errors.New("failed to acquire token from MI dataplane"),
+			wantErr:          true,
+			wantErrContains:  []string{"failed to acquire token from MI dataplane"},
+		},
+		{
+			name:                  "subnet client error",
+			emptyIdentitiesConfig: true,
+			subnetClientErr:       errors.New("subnet client creation failed"),
+			wantErr:               true,
+			wantErrContains:       []string{"failed to get subnets client"},
+		},
+		{
+			name:                  "check access client build error",
+			emptyIdentitiesConfig: true,
+			checkAccessBuildErr:   errors.New("check access client build failed"),
+			wantErr:               true,
+			wantErrContains:       []string{"failed to build check access client"},
+		},
+		{
+			name:           "route table permissions checked",
+			roleDefActions: append(testAllNetworkActions(), "Microsoft.Network/routeTables/join/action"),
+			checkAccessDecisions: []checkaccessv2.AuthorizationDecision{
+				{ActionId: "Microsoft.Network/routeTables/join/action", AccessDecision: checkaccessv2.Allowed},
+			},
+			routeTable:           &armnetwork.RouteTable{ID: ptr.To("/subscriptions/11111111-1111-1111-1111-111111111111/resourceGroups/testResourceGroup/providers/Microsoft.Network/routeTables/testRouteTable")},
+			wantCheckAccessCalls: 3, // NSG + VNet + RouteTable
+		},
+		{
+			name:           "data actions extracted from role definitions",
+			roleDefActions: testAllNetworkActions(),
+			roleDefDataActions: []string{
+				"Microsoft.Storage/storageAccounts/blobServices/containers/blobs/read",
+				"Microsoft.Storage/storageAccounts/blobServices/containers/blobs/write",
+			},
+			checkAccessDecisions: []checkaccessv2.AuthorizationDecision{
+				{ActionId: "Microsoft.Network/networkSecurityGroups/read", AccessDecision: checkaccessv2.Allowed},
+				{ActionId: "Microsoft.Network/networkSecurityGroups/write", AccessDecision: checkaccessv2.Allowed},
+				{ActionId: "Microsoft.Network/networkSecurityGroups/join/action", AccessDecision: checkaccessv2.Allowed},
+			},
 		},
 	}
 
-	validation := NewControlPlaneIdentitiesPermissionsValidation(
-		&mockSMIClientBuilder{
-			subnetsClientFn: func(_ context.Context, _ string, _ *azcorearm.ResourceID, _ string) (azureclient.SubnetsClient, error) {
-				return mockSimpleSubnetsClient(nil), nil
-			},
-		},
-		testIdentitiesConfig(roleDefResourceID),
-		&cachedreader.BackendIdentityAzureCachedReaders{
-			RoleDefinitionsCachedReader: &mockRoleDefinitionsCachedReader{
-				getCachedByIDFn: func(_ context.Context, _ string, _ *armauthorization.RoleDefinitionsClientGetByIDOptions) (armauthorization.RoleDefinitionsClientGetByIDResponse, error) {
-					return newRoleDefinitionResponse(allNetworkActions()...), nil
-				},
-			},
-		},
-		&mockCheckAccessV2ClientBuilder{
-			buildFn: func(_ string) (azureclient.CheckAccessV2Client, error) { return mockCheckAccessClient, nil },
-		},
-		mockSuccessfulTokenRetrieverBuilder(),
-		testCheckAccessV2Scope,
-	)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := utils.ContextWithLogger(context.Background(), logr.Discard())
+			ctrl := gomock.NewController(t)
 
-	err := validation.Validate(ctx, newTestSubscription(), newTestCluster())
-	assert.NoError(t, err)
-}
+			// --- CheckAccess builder and client ---
+			mockCheckAccessClient := azureclient.NewMockCheckAccessV2Client(ctrl)
+			mockCheckAccessBuilder := azureclient.NewMockCheckAccessV2ClientBuilder(ctrl)
+			if tc.checkAccessBuildErr != nil {
+				mockCheckAccessBuilder.EXPECT().Build(gomock.Any()).Return(nil, tc.checkAccessBuildErr)
+			} else {
+				mockCheckAccessBuilder.EXPECT().Build(gomock.Any()).Return(mockCheckAccessClient, nil)
+			}
 
-// TestValidate_MissingPermissions verifies that Validate returns an error listing
-// missing actions when CheckAccess reports NotAllowed or Denied for some required
-// actions on the NSG resource.
-func TestValidate_MissingPermissions(t *testing.T) {
-	ctx := utils.ContextWithLogger(context.Background(), logr.Discard())
+			// Set up CheckAccess call expectations when it can be reached.
+			checkAccessCallCount := 0
+			if tc.checkAccessBuildErr == nil && tc.subnetClientErr == nil && tc.tokenRetrieveErr == nil {
+				mockCheckAccessClient.EXPECT().CreateAuthorizationRequest(gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(&checkaccessv2.AuthorizationRequest{}, nil).AnyTimes()
+				mockCheckAccessClient.EXPECT().CheckAccess(gomock.Any(), gomock.Any()).
+					DoAndReturn(func(_ context.Context, _ checkaccessv2.AuthorizationRequest) (*checkaccessv2.AuthorizationDecisionResponse, error) {
+						checkAccessCallCount++
+						return &checkaccessv2.AuthorizationDecisionResponse{Value: tc.checkAccessDecisions}, nil
+					}).AnyTimes()
+			}
 
-	roleDefResourceID := mustParseResourceID("/subscriptions/11111111-1111-1111-1111-111111111111/providers/Microsoft.Authorization/roleDefinitions/test-role-def")
+			// --- SMI / subnets builder ---
+			mockSMIBuilder := azureclient.NewMockServiceManagedIdentityClientBuilder(ctrl)
+			if tc.checkAccessBuildErr == nil {
+				if tc.subnetClientErr != nil {
+					mockSMIBuilder.EXPECT().SubnetsClient(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+						Return(nil, tc.subnetClientErr)
+				} else {
+					mockSMIBuilder.EXPECT().SubnetsClient(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+						Return(mockSimpleSubnetsClient(ctrl, tc.routeTable), nil)
+				}
+			}
 
-	mockCheckAccessClient := &mockCheckAccessV2Client{
-		createAuthorizationRequest: func(_ string, _ []string, _ string) (*checkaccessv2.AuthorizationRequest, error) {
-			return &checkaccessv2.AuthorizationRequest{}, nil
-		},
-		checkAccessFn: func(_ context.Context, _ checkaccessv2.AuthorizationRequest) (*checkaccessv2.AuthorizationDecisionResponse, error) {
-			return &checkaccessv2.AuthorizationDecisionResponse{
-				Value: []checkaccessv2.AuthorizationDecision{
-					{ActionId: "Microsoft.Network/networkSecurityGroups/read", AccessDecision: checkaccessv2.Allowed},
-					{ActionId: "Microsoft.Network/networkSecurityGroups/write", AccessDecision: checkaccessv2.NotAllowed},
-					{ActionId: "Microsoft.Network/networkSecurityGroups/join/action", AccessDecision: checkaccessv2.Denied},
-				},
-			}, nil
-		},
+			// --- Identities config, role definition reader, and token retriever ---
+			var identitiesConfig *azure.ClusterScopedIdentitiesConfig
+			var readers *cachedreader.BackendIdentityAzureCachedReaders
+			var tokenRetrieverBuilder azureclient.MIDataplaneBasedIdentityAccessTokenRetrieverBuilder
+
+			if tc.emptyIdentitiesConfig {
+				identitiesConfig = &azure.ClusterScopedIdentitiesConfig{}
+				readers = &cachedreader.BackendIdentityAzureCachedReaders{}
+				tokenRetrieverBuilder = mockSuccessfulTokenRetrieverBuilder(ctrl)
+			} else {
+				identitiesConfig = testIdentitiesConfig(roleDefResourceID)
+
+				mockRoleDefReader := cachedreader.NewMockRoleDefinitionsCachedReader(ctrl)
+				if tc.checkAccessBuildErr == nil && tc.subnetClientErr == nil {
+					mockRoleDefReader.EXPECT().GetCachedByID(gomock.Any(), gomock.Any(), gomock.Any()).
+						Return(newRoleDefinitionResponseWithDataActions(tc.roleDefActions, tc.roleDefDataActions), nil).AnyTimes()
+				}
+				readers = &cachedreader.BackendIdentityAzureCachedReaders{RoleDefinitionsCachedReader: mockRoleDefReader}
+
+				if tc.tokenRetrieveErr != nil {
+					failingRetriever := azureclient.NewMockMIDataplaneBasedIdentityAccessTokenRetriever(ctrl)
+					failingRetriever.EXPECT().GetToken(gomock.Any(), gomock.Any()).Return(azcore.AccessToken{}, tc.tokenRetrieveErr)
+					mockTokenRetrieverBuilder := azureclient.NewMockMIDataplaneBasedIdentityAccessTokenRetrieverBuilder(ctrl)
+					mockTokenRetrieverBuilder.EXPECT().Build(gomock.Any(), gomock.Any()).Return(failingRetriever, nil)
+					tokenRetrieverBuilder = mockTokenRetrieverBuilder
+				} else {
+					tokenRetrieverBuilder = mockSuccessfulTokenRetrieverBuilder(ctrl)
+				}
+			}
+
+			validation := NewControlPlaneIdentitiesPermissionsValidation(
+				mockSMIBuilder,
+				identitiesConfig,
+				readers,
+				mockCheckAccessBuilder,
+				tokenRetrieverBuilder,
+				testCheckAccessV2Scope,
+			)
+
+			err := validation.Validate(ctx, newTestSubscription(), newTestCluster())
+
+			if tc.wantErr {
+				require.Error(t, err)
+				for _, s := range tc.wantErrContains {
+					assert.Contains(t, err.Error(), s)
+				}
+			} else {
+				assert.NoError(t, err)
+			}
+			if tc.wantCheckAccessCalls > 0 {
+				assert.Equal(t, tc.wantCheckAccessCalls, checkAccessCallCount)
+			}
+		})
 	}
-
-	validation := NewControlPlaneIdentitiesPermissionsValidation(
-		&mockSMIClientBuilder{
-			subnetsClientFn: func(_ context.Context, _ string, _ *azcorearm.ResourceID, _ string) (azureclient.SubnetsClient, error) {
-				return mockSimpleSubnetsClient(nil), nil
-			},
-		},
-		testIdentitiesConfig(roleDefResourceID),
-		&cachedreader.BackendIdentityAzureCachedReaders{
-			RoleDefinitionsCachedReader: &mockRoleDefinitionsCachedReader{
-				getCachedByIDFn: func(_ context.Context, _ string, _ *armauthorization.RoleDefinitionsClientGetByIDOptions) (armauthorization.RoleDefinitionsClientGetByIDResponse, error) {
-					return newRoleDefinitionResponse(allNetworkActions()...), nil
-				},
-			},
-		},
-		&mockCheckAccessV2ClientBuilder{
-			buildFn: func(_ string) (azureclient.CheckAccessV2Client, error) { return mockCheckAccessClient, nil },
-		},
-		mockSuccessfulTokenRetrieverBuilder(),
-		testCheckAccessV2Scope,
-	)
-
-	err := validation.Validate(ctx, newTestSubscription(), newTestCluster())
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "control plane operators missing required permissions")
-	assert.Contains(t, err.Error(), "not allowed")
-	assert.Contains(t, err.Error(), "denied")
-}
-
-// TestValidate_GetTokenError verifies that Validate propagates the error when
-// MIDataplaneBasedIdentityAccessTokenRetriever.GetToken fails (e.g. the MI Dataplane
-// is unreachable or the token endpoint is unavailable).
-func TestValidate_GetTokenError(t *testing.T) {
-	ctx := utils.ContextWithLogger(context.Background(), logr.Discard())
-
-	roleDefResourceID := mustParseResourceID("/subscriptions/11111111-1111-1111-1111-111111111111/providers/Microsoft.Authorization/roleDefinitions/test-role-def")
-
-	validation := NewControlPlaneIdentitiesPermissionsValidation(
-		&mockSMIClientBuilder{
-			subnetsClientFn: func(_ context.Context, _ string, _ *azcorearm.ResourceID, _ string) (azureclient.SubnetsClient, error) {
-				return mockSimpleSubnetsClient(nil), nil
-			},
-		},
-		testIdentitiesConfig(roleDefResourceID),
-		&cachedreader.BackendIdentityAzureCachedReaders{
-			RoleDefinitionsCachedReader: &mockRoleDefinitionsCachedReader{
-				getCachedByIDFn: func(_ context.Context, _ string, _ *armauthorization.RoleDefinitionsClientGetByIDOptions) (armauthorization.RoleDefinitionsClientGetByIDResponse, error) {
-					return newRoleDefinitionResponse("Microsoft.Network/networkSecurityGroups/read"), nil
-				},
-			},
-		},
-		&mockCheckAccessV2ClientBuilder{
-			buildFn: func(_ string) (azureclient.CheckAccessV2Client, error) {
-				return &mockCheckAccessV2Client{}, nil
-			},
-		},
-		&mockMIDataplaneBasedIdentityAccessTokenRetrieverBuilder{
-			buildFn: func(_ string, _ *azcorearm.ResourceID) (azureclient.MIDataplaneBasedIdentityAccessTokenRetriever, error) {
-				return &mockMIDataplaneBasedIdentityAccessTokenRetriever{
-					getTokenFn: func(_ context.Context, _ policy.TokenRequestOptions) (azcore.AccessToken, error) {
-						return azcore.AccessToken{}, errors.New("failed to acquire token from MI dataplane")
-					},
-				}, nil
-			},
-		},
-		testCheckAccessV2Scope,
-	)
-
-	err := validation.Validate(ctx, newTestSubscription(), newTestCluster())
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to acquire token from MI dataplane")
-}
-
-// TestValidate_SubnetClientError verifies that Validate returns an error when
-// the SubnetsClient cannot be created from the SMI client builder.
-func TestValidate_SubnetClientError(t *testing.T) {
-	ctx := utils.ContextWithLogger(context.Background(), logr.Discard())
-
-	validation := NewControlPlaneIdentitiesPermissionsValidation(
-		&mockSMIClientBuilder{
-			subnetsClientFn: func(_ context.Context, _ string, _ *azcorearm.ResourceID, _ string) (azureclient.SubnetsClient, error) {
-				return nil, errors.New("subnet client creation failed")
-			},
-		},
-		&azure.ClusterScopedIdentitiesConfig{},
-		&cachedreader.BackendIdentityAzureCachedReaders{},
-		&mockCheckAccessV2ClientBuilder{
-			buildFn: func(_ string) (azureclient.CheckAccessV2Client, error) {
-				return &mockCheckAccessV2Client{}, nil
-			},
-		},
-		mockSuccessfulTokenRetrieverBuilder(),
-		testCheckAccessV2Scope,
-	)
-
-	err := validation.Validate(ctx, newTestSubscription(), newTestCluster())
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to get subnets client")
-}
-
-// TestValidate_CheckAccessClientBuildError verifies that Validate returns an error
-// when the CheckAccessV2 client builder fails to construct the client.
-func TestValidate_CheckAccessClientBuildError(t *testing.T) {
-	ctx := utils.ContextWithLogger(context.Background(), logr.Discard())
-
-	validation := NewControlPlaneIdentitiesPermissionsValidation(
-		&mockSMIClientBuilder{
-			subnetsClientFn: func(_ context.Context, _ string, _ *azcorearm.ResourceID, _ string) (azureclient.SubnetsClient, error) {
-				return nil, nil
-			},
-		},
-		&azure.ClusterScopedIdentitiesConfig{},
-		&cachedreader.BackendIdentityAzureCachedReaders{},
-		&mockCheckAccessV2ClientBuilder{
-			buildFn: func(_ string) (azureclient.CheckAccessV2Client, error) {
-				return nil, errors.New("check access client build failed")
-			},
-		},
-		mockSuccessfulTokenRetrieverBuilder(),
-		testCheckAccessV2Scope,
-	)
-
-	err := validation.Validate(ctx, newTestSubscription(), newTestCluster())
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to build check access client")
-}
-
-// TestValidate_RouteTablePermissionsChecked verifies that when the subnet has an
-// attached route table, Validate also checks permissions on the route table resource,
-// resulting in 3 CheckAccess calls total (NSG + VNet + RouteTable).
-func TestValidate_RouteTablePermissionsChecked(t *testing.T) {
-	ctx := utils.ContextWithLogger(context.Background(), logr.Discard())
-
-	roleDefResourceID := mustParseResourceID("/subscriptions/11111111-1111-1111-1111-111111111111/providers/Microsoft.Authorization/roleDefinitions/test-role-def")
-	routeTableID := "/subscriptions/11111111-1111-1111-1111-111111111111/resourceGroups/testResourceGroup/providers/Microsoft.Network/routeTables/testRouteTable"
-
-	checkAccessCallCount := 0
-	mockCheckAccessClient := &mockCheckAccessV2Client{
-		createAuthorizationRequest: func(_ string, _ []string, _ string) (*checkaccessv2.AuthorizationRequest, error) {
-			return &checkaccessv2.AuthorizationRequest{}, nil
-		},
-		checkAccessFn: func(_ context.Context, _ checkaccessv2.AuthorizationRequest) (*checkaccessv2.AuthorizationDecisionResponse, error) {
-			checkAccessCallCount++
-			return &checkaccessv2.AuthorizationDecisionResponse{
-				Value: []checkaccessv2.AuthorizationDecision{
-					{ActionId: "Microsoft.Network/routeTables/join/action", AccessDecision: checkaccessv2.Allowed},
-				},
-			}, nil
-		},
-	}
-
-	roleActions := append(allNetworkActions(), "Microsoft.Network/routeTables/join/action")
-	validation := NewControlPlaneIdentitiesPermissionsValidation(
-		&mockSMIClientBuilder{
-			subnetsClientFn: func(_ context.Context, _ string, _ *azcorearm.ResourceID, _ string) (azureclient.SubnetsClient, error) {
-				return mockSimpleSubnetsClient(&armnetwork.RouteTable{ID: ptr.To(routeTableID)}), nil
-			},
-		},
-		testIdentitiesConfig(roleDefResourceID),
-		&cachedreader.BackendIdentityAzureCachedReaders{
-			RoleDefinitionsCachedReader: &mockRoleDefinitionsCachedReader{
-				getCachedByIDFn: func(_ context.Context, _ string, _ *armauthorization.RoleDefinitionsClientGetByIDOptions) (armauthorization.RoleDefinitionsClientGetByIDResponse, error) {
-					return newRoleDefinitionResponse(roleActions...), nil
-				},
-			},
-		},
-		&mockCheckAccessV2ClientBuilder{
-			buildFn: func(_ string) (azureclient.CheckAccessV2Client, error) { return mockCheckAccessClient, nil },
-		},
-		mockSuccessfulTokenRetrieverBuilder(),
-		testCheckAccessV2Scope,
-	)
-
-	err := validation.Validate(ctx, newTestSubscription(), newTestCluster())
-	assert.NoError(t, err)
-	// NSG + VNet + RouteTable = 3 CheckAccess calls
-	assert.Equal(t, 3, checkAccessCallCount)
 }
 
 // --- Tests for checkNotAllowedAndDeniedActionsForNetworkSecurityGroup ---
 
-// TestCheckNotAllowedAndDeniedActionsForNSG_AllAllowed verifies that no denied actions
-// are returned when CheckAccess reports Allowed for all NSG actions.
-func TestCheckNotAllowedAndDeniedActionsForNSG_AllAllowed(t *testing.T) {
-	ctx := utils.ContextWithLogger(context.Background(), logr.Discard())
+func TestCheckNotAllowedAndDeniedActionsForNSG(t *testing.T) {
+	nsgResourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/11111111-1111-1111-1111-111111111111/resourceGroups/testRG/providers/Microsoft.Network/networkSecurityGroups/testNSG"))
 
-	nsgResourceID := mustParseResourceID("/subscriptions/11111111-1111-1111-1111-111111111111/resourceGroups/testRG/providers/Microsoft.Network/networkSecurityGroups/testNSG")
-
-	checkAccessV2Client := &mockCheckAccessV2Client{
-		createAuthorizationRequest: func(_ string, _ []string, _ string) (*checkaccessv2.AuthorizationRequest, error) {
-			return &checkaccessv2.AuthorizationRequest{}, nil
+	tests := []struct {
+		name            string
+		roleActions     []string
+		decisions       []checkaccessv2.AuthorizationDecision
+		checkAccessErr  error
+		noCheckAccess   bool // when true, CheckAccess must NOT be called
+		wantLen         int
+		wantDecisions   []checkaccessv2.AccessDecision
+		wantErr         bool
+		wantErrContains string
+	}{
+		{
+			name:        "all allowed",
+			roleActions: testAllNetworkActions(),
+			decisions: []checkaccessv2.AuthorizationDecision{
+				{ActionId: "Microsoft.Network/networkSecurityGroups/read", AccessDecision: checkaccessv2.Allowed},
+				{ActionId: "Microsoft.Network/networkSecurityGroups/write", AccessDecision: checkaccessv2.Allowed},
+				{ActionId: "Microsoft.Network/networkSecurityGroups/join/action", AccessDecision: checkaccessv2.Allowed},
+			},
+			wantLen: 0,
 		},
-		checkAccessFn: func(_ context.Context, _ checkaccessv2.AuthorizationRequest) (*checkaccessv2.AuthorizationDecisionResponse, error) {
-			return &checkaccessv2.AuthorizationDecisionResponse{
-				Value: []checkaccessv2.AuthorizationDecision{
-					{ActionId: "Microsoft.Network/networkSecurityGroups/read", AccessDecision: checkaccessv2.Allowed},
-					{ActionId: "Microsoft.Network/networkSecurityGroups/write", AccessDecision: checkaccessv2.Allowed},
-					{ActionId: "Microsoft.Network/networkSecurityGroups/join/action", AccessDecision: checkaccessv2.Allowed},
-				},
-			}, nil
+		{
+			name:        "some denied",
+			roleActions: testAllNetworkActions(),
+			decisions: []checkaccessv2.AuthorizationDecision{
+				{ActionId: "Microsoft.Network/networkSecurityGroups/read", AccessDecision: checkaccessv2.Allowed},
+				{ActionId: "Microsoft.Network/networkSecurityGroups/write", AccessDecision: checkaccessv2.NotAllowed},
+				{ActionId: "Microsoft.Network/networkSecurityGroups/join/action", AccessDecision: checkaccessv2.Denied},
+			},
+			wantLen:       2,
+			wantDecisions: []checkaccessv2.AccessDecision{checkaccessv2.NotAllowed, checkaccessv2.Denied},
 		},
-	}
-
-	v := &ControlPlaneIdentitiesPermissionsValidation{}
-	result, err := v.checkNotAllowedAndDeniedActionsForNetworkSecurityGroup(ctx, checkAccessV2Client, nsgResourceID, allNetworkActions(), nil, fakeToken())
-	require.NoError(t, err)
-	assert.Empty(t, result)
-}
-
-// TestCheckNotAllowedAndDeniedActionsForNSG_SomeDenied verifies that denied actions
-// are returned when CheckAccess reports NotAllowed or Denied for some NSG actions.
-func TestCheckNotAllowedAndDeniedActionsForNSG_SomeDenied(t *testing.T) {
-	ctx := utils.ContextWithLogger(context.Background(), logr.Discard())
-
-	nsgResourceID := mustParseResourceID("/subscriptions/11111111-1111-1111-1111-111111111111/resourceGroups/testRG/providers/Microsoft.Network/networkSecurityGroups/testNSG")
-
-	checkAccessV2Client := &mockCheckAccessV2Client{
-		createAuthorizationRequest: func(_ string, _ []string, _ string) (*checkaccessv2.AuthorizationRequest, error) {
-			return &checkaccessv2.AuthorizationRequest{}, nil
+		{
+			// Only route-table actions are passed; none overlap with NSG actions so CheckAccess is skipped.
+			name:          "no matching role actions",
+			roleActions:   []string{"Microsoft.Network/routeTables/join/action"},
+			noCheckAccess: true,
+			wantLen:       0,
 		},
-		checkAccessFn: func(_ context.Context, _ checkaccessv2.AuthorizationRequest) (*checkaccessv2.AuthorizationDecisionResponse, error) {
-			return &checkaccessv2.AuthorizationDecisionResponse{
-				Value: []checkaccessv2.AuthorizationDecision{
-					{ActionId: "Microsoft.Network/networkSecurityGroups/read", AccessDecision: checkaccessv2.Allowed},
-					{ActionId: "Microsoft.Network/networkSecurityGroups/write", AccessDecision: checkaccessv2.NotAllowed},
-					{ActionId: "Microsoft.Network/networkSecurityGroups/join/action", AccessDecision: checkaccessv2.Denied},
-				},
-			}, nil
-		},
-	}
-
-	v := &ControlPlaneIdentitiesPermissionsValidation{}
-	result, err := v.checkNotAllowedAndDeniedActionsForNetworkSecurityGroup(ctx, checkAccessV2Client, nsgResourceID, allNetworkActions(), nil, fakeToken())
-	require.NoError(t, err)
-	require.Len(t, result, 2)
-	assert.Equal(t, checkaccessv2.NotAllowed, result[0].AccessDecision)
-	assert.Equal(t, checkaccessv2.Denied, result[1].AccessDecision)
-}
-
-// TestCheckNotAllowedAndDeniedActionsForNSG_NoMatchingRoleActions verifies that when
-// the role definition has no NSG-related actions, CheckAccess is not called and no
-// results are returned.
-func TestCheckNotAllowedAndDeniedActionsForNSG_NoMatchingRoleActions(t *testing.T) {
-	ctx := utils.ContextWithLogger(context.Background(), logr.Discard())
-
-	nsgResourceID := mustParseResourceID("/subscriptions/11111111-1111-1111-1111-111111111111/resourceGroups/testRG/providers/Microsoft.Network/networkSecurityGroups/testNSG")
-	checkAccessCalled := false
-	checkAccessV2Client := &mockCheckAccessV2Client{
-		createAuthorizationRequest: func(_ string, _ []string, _ string) (*checkaccessv2.AuthorizationRequest, error) {
-			checkAccessCalled = true
-			return &checkaccessv2.AuthorizationRequest{}, nil
-		},
-		checkAccessFn: func(_ context.Context, _ checkaccessv2.AuthorizationRequest) (*checkaccessv2.AuthorizationDecisionResponse, error) {
-			checkAccessCalled = true
-			return &checkaccessv2.AuthorizationDecisionResponse{}, nil
+		{
+			name:            "check access error",
+			roleActions:     testAllNetworkActions(),
+			checkAccessErr:  errors.New("check access API unavailable"),
+			wantErr:         true,
+			wantErrContains: "check access API unavailable",
 		},
 	}
 
-	v := &ControlPlaneIdentitiesPermissionsValidation{}
-	// Pass only route table actions — none overlap with NSG actions.
-	result, err := v.checkNotAllowedAndDeniedActionsForNetworkSecurityGroup(ctx, checkAccessV2Client, nsgResourceID,
-		[]string{"Microsoft.Network/routeTables/join/action"}, nil, fakeToken())
-	require.NoError(t, err)
-	assert.Empty(t, result)
-	assert.False(t, checkAccessCalled, "CheckAccess should not be called when there are no matching NSG actions")
-}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := utils.ContextWithLogger(context.Background(), logr.Discard())
+			ctrl := gomock.NewController(t)
 
-// TestCheckNotAllowedAndDeniedActionsForNSG_CheckAccessError verifies that errors
-// from CheckAccess are propagated to the caller.
-func TestCheckNotAllowedAndDeniedActionsForNSG_CheckAccessError(t *testing.T) {
-	ctx := utils.ContextWithLogger(context.Background(), logr.Discard())
+			checkAccessV2Client := azureclient.NewMockCheckAccessV2Client(ctrl)
+			if !tc.noCheckAccess {
+				checkAccessV2Client.EXPECT().CreateAuthorizationRequest(gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(&checkaccessv2.AuthorizationRequest{}, nil)
+				if tc.checkAccessErr != nil {
+					checkAccessV2Client.EXPECT().CheckAccess(gomock.Any(), gomock.Any()).Return(nil, tc.checkAccessErr)
+				} else {
+					checkAccessV2Client.EXPECT().CheckAccess(gomock.Any(), gomock.Any()).
+						Return(&checkaccessv2.AuthorizationDecisionResponse{Value: tc.decisions}, nil)
+				}
+			}
 
-	nsgResourceID := mustParseResourceID("/subscriptions/11111111-1111-1111-1111-111111111111/resourceGroups/testRG/providers/Microsoft.Network/networkSecurityGroups/testNSG")
+			v := &ControlPlaneIdentitiesPermissionsValidation{}
+			result, err := v.checkNotAllowedAndDeniedActionsForNetworkSecurityGroup(ctx, checkAccessV2Client, nsgResourceID, tc.roleActions, nil, fakeToken())
 
-	checkAccessV2Client := &mockCheckAccessV2Client{
-		createAuthorizationRequest: func(_ string, _ []string, _ string) (*checkaccessv2.AuthorizationRequest, error) {
-			return &checkaccessv2.AuthorizationRequest{}, nil
-		},
-		checkAccessFn: func(_ context.Context, _ checkaccessv2.AuthorizationRequest) (*checkaccessv2.AuthorizationDecisionResponse, error) {
-			return nil, errors.New("check access API unavailable")
-		},
+			if tc.wantErr {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tc.wantErrContains)
+				return
+			}
+			require.NoError(t, err)
+			require.Len(t, result, tc.wantLen)
+			for i, d := range tc.wantDecisions {
+				assert.Equal(t, d, result[i].AccessDecision)
+			}
+		})
 	}
-
-	v := &ControlPlaneIdentitiesPermissionsValidation{}
-	_, err := v.checkNotAllowedAndDeniedActionsForNetworkSecurityGroup(ctx, checkAccessV2Client, nsgResourceID, allNetworkActions(), nil, fakeToken())
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "check access API unavailable")
 }
 
 // --- Tests for checkNotAllowedAndDeniedActionsForVNet ---
 
-// TestCheckNotAllowedAndDeniedActionsForVnet_AllAllowed verifies that no denied actions
-// are returned when CheckAccess reports Allowed for all VNet actions.
-func TestCheckNotAllowedAndDeniedActionsForVnet_AllAllowed(t *testing.T) {
-	ctx := utils.ContextWithLogger(context.Background(), logr.Discard())
+func TestCheckNotAllowedAndDeniedActionsForVNet(t *testing.T) {
+	vnetResourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/11111111-1111-1111-1111-111111111111/resourceGroups/testRG/providers/Microsoft.Network/virtualNetworks/testVNet"))
 
-	vnetResourceID := mustParseResourceID("/subscriptions/11111111-1111-1111-1111-111111111111/resourceGroups/testRG/providers/Microsoft.Network/virtualNetworks/testVNet")
-
-	checkAccessV2Client := &mockCheckAccessV2Client{
-		createAuthorizationRequest: func(_ string, _ []string, _ string) (*checkaccessv2.AuthorizationRequest, error) {
-			return &checkaccessv2.AuthorizationRequest{}, nil
+	tests := []struct {
+		name            string
+		roleActions     []string
+		decisions       []checkaccessv2.AuthorizationDecision
+		checkAccessErr  error
+		noCheckAccess   bool
+		wantLen         int
+		wantDecisions   []checkaccessv2.AccessDecision
+		wantErr         bool
+		wantErrContains string
+	}{
+		{
+			name:        "all allowed",
+			roleActions: testAllNetworkActions(),
+			decisions: []checkaccessv2.AuthorizationDecision{
+				{ActionId: "Microsoft.Network/virtualNetworks/join/action", AccessDecision: checkaccessv2.Allowed},
+				{ActionId: "Microsoft.Network/virtualNetworks/read", AccessDecision: checkaccessv2.Allowed},
+				{ActionId: "Microsoft.Network/virtualNetworks/subnets/join/action", AccessDecision: checkaccessv2.Allowed},
+			},
+			wantLen: 0,
 		},
-		checkAccessFn: func(_ context.Context, _ checkaccessv2.AuthorizationRequest) (*checkaccessv2.AuthorizationDecisionResponse, error) {
-			return &checkaccessv2.AuthorizationDecisionResponse{
-				Value: []checkaccessv2.AuthorizationDecision{
-					{ActionId: "Microsoft.Network/virtualNetworks/join/action", AccessDecision: checkaccessv2.Allowed},
-					{ActionId: "Microsoft.Network/virtualNetworks/read", AccessDecision: checkaccessv2.Allowed},
-					{ActionId: "Microsoft.Network/virtualNetworks/subnets/join/action", AccessDecision: checkaccessv2.Allowed},
-				},
-			}, nil
+		{
+			name:        "some denied",
+			roleActions: testAllNetworkActions(),
+			decisions: []checkaccessv2.AuthorizationDecision{
+				{ActionId: "Microsoft.Network/virtualNetworks/join/action", AccessDecision: checkaccessv2.Denied},
+				{ActionId: "Microsoft.Network/virtualNetworks/read", AccessDecision: checkaccessv2.NotAllowed},
+			},
+			wantLen:       2,
+			wantDecisions: []checkaccessv2.AccessDecision{checkaccessv2.Denied, checkaccessv2.NotAllowed},
 		},
-	}
-
-	v := &ControlPlaneIdentitiesPermissionsValidation{}
-	result, err := v.checkNotAllowedAndDeniedActionsForVNet(ctx, checkAccessV2Client, vnetResourceID, allNetworkActions(), nil, fakeToken())
-	require.NoError(t, err)
-	assert.Empty(t, result)
-}
-
-// TestCheckNotAllowedAndDeniedActionsForVnet_SomeDenied verifies that denied actions
-// are returned when CheckAccess reports NotAllowed or Denied for some VNet actions.
-func TestCheckNotAllowedAndDeniedActionsForVnet_SomeDenied(t *testing.T) {
-	ctx := utils.ContextWithLogger(context.Background(), logr.Discard())
-
-	vnetResourceID := mustParseResourceID("/subscriptions/11111111-1111-1111-1111-111111111111/resourceGroups/testRG/providers/Microsoft.Network/virtualNetworks/testVNet")
-
-	checkAccessV2Client := &mockCheckAccessV2Client{
-		createAuthorizationRequest: func(_ string, _ []string, _ string) (*checkaccessv2.AuthorizationRequest, error) {
-			return &checkaccessv2.AuthorizationRequest{}, nil
+		{
+			// Only NSG actions are passed; none overlap with VNet actions so CheckAccess is skipped.
+			name:          "no matching role actions",
+			roleActions:   []string{"Microsoft.Network/networkSecurityGroups/read"},
+			noCheckAccess: true,
+			wantLen:       0,
 		},
-		checkAccessFn: func(_ context.Context, _ checkaccessv2.AuthorizationRequest) (*checkaccessv2.AuthorizationDecisionResponse, error) {
-			return &checkaccessv2.AuthorizationDecisionResponse{
-				Value: []checkaccessv2.AuthorizationDecision{
-					{ActionId: "Microsoft.Network/virtualNetworks/join/action", AccessDecision: checkaccessv2.Denied},
-					{ActionId: "Microsoft.Network/virtualNetworks/read", AccessDecision: checkaccessv2.NotAllowed},
-				},
-			}, nil
-		},
-	}
-
-	v := &ControlPlaneIdentitiesPermissionsValidation{}
-	result, err := v.checkNotAllowedAndDeniedActionsForVNet(ctx, checkAccessV2Client, vnetResourceID, allNetworkActions(), nil, fakeToken())
-	require.NoError(t, err)
-	require.Len(t, result, 2)
-	assert.Equal(t, checkaccessv2.Denied, result[0].AccessDecision)
-	assert.Equal(t, checkaccessv2.NotAllowed, result[1].AccessDecision)
-}
-
-// TestCheckNotAllowedAndDeniedActionsForVnet_NoMatchingRoleActions verifies that when
-// the role definition has no VNet-related actions, CheckAccess is not called.
-func TestCheckNotAllowedAndDeniedActionsForVnet_NoMatchingRoleActions(t *testing.T) {
-	ctx := utils.ContextWithLogger(context.Background(), logr.Discard())
-
-	vnetResourceID := mustParseResourceID("/subscriptions/11111111-1111-1111-1111-111111111111/resourceGroups/testRG/providers/Microsoft.Network/virtualNetworks/testVNet")
-	checkAccessCalled := false
-	checkAccessV2Client := &mockCheckAccessV2Client{
-		createAuthorizationRequest: func(_ string, _ []string, _ string) (*checkaccessv2.AuthorizationRequest, error) {
-			checkAccessCalled = true
-			return &checkaccessv2.AuthorizationRequest{}, nil
-		},
-		checkAccessFn: func(_ context.Context, _ checkaccessv2.AuthorizationRequest) (*checkaccessv2.AuthorizationDecisionResponse, error) {
-			checkAccessCalled = true
-			return &checkaccessv2.AuthorizationDecisionResponse{}, nil
+		{
+			name:            "check access error",
+			roleActions:     testAllNetworkActions(),
+			checkAccessErr:  errors.New("check access API unavailable"),
+			wantErr:         true,
+			wantErrContains: "check access API unavailable",
 		},
 	}
 
-	v := &ControlPlaneIdentitiesPermissionsValidation{}
-	// Pass only NSG actions — none overlap with VNet actions.
-	result, err := v.checkNotAllowedAndDeniedActionsForVNet(ctx, checkAccessV2Client, vnetResourceID,
-		[]string{"Microsoft.Network/networkSecurityGroups/read"}, nil, fakeToken())
-	require.NoError(t, err)
-	assert.Empty(t, result)
-	assert.False(t, checkAccessCalled, "CheckAccess should not be called when there are no matching VNet actions")
-}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := utils.ContextWithLogger(context.Background(), logr.Discard())
+			ctrl := gomock.NewController(t)
 
-// TestCheckNotAllowedAndDeniedActionsForVnet_CheckAccessError verifies that errors
-// from CheckAccess are propagated to the caller.
-func TestCheckNotAllowedAndDeniedActionsForVnet_CheckAccessError(t *testing.T) {
-	ctx := utils.ContextWithLogger(context.Background(), logr.Discard())
+			checkAccessV2Client := azureclient.NewMockCheckAccessV2Client(ctrl)
+			if !tc.noCheckAccess {
+				checkAccessV2Client.EXPECT().CreateAuthorizationRequest(gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(&checkaccessv2.AuthorizationRequest{}, nil)
+				if tc.checkAccessErr != nil {
+					checkAccessV2Client.EXPECT().CheckAccess(gomock.Any(), gomock.Any()).Return(nil, tc.checkAccessErr)
+				} else {
+					checkAccessV2Client.EXPECT().CheckAccess(gomock.Any(), gomock.Any()).
+						Return(&checkaccessv2.AuthorizationDecisionResponse{Value: tc.decisions}, nil)
+				}
+			}
 
-	vnetResourceID := mustParseResourceID("/subscriptions/11111111-1111-1111-1111-111111111111/resourceGroups/testRG/providers/Microsoft.Network/virtualNetworks/testVNet")
+			v := &ControlPlaneIdentitiesPermissionsValidation{}
+			result, err := v.checkNotAllowedAndDeniedActionsForVNet(ctx, checkAccessV2Client, vnetResourceID, tc.roleActions, nil, fakeToken())
 
-	checkAccessV2Client := &mockCheckAccessV2Client{
-		createAuthorizationRequest: func(_ string, _ []string, _ string) (*checkaccessv2.AuthorizationRequest, error) {
-			return &checkaccessv2.AuthorizationRequest{}, nil
-		},
-		checkAccessFn: func(_ context.Context, _ checkaccessv2.AuthorizationRequest) (*checkaccessv2.AuthorizationDecisionResponse, error) {
-			return nil, errors.New("check access API unavailable")
-		},
+			if tc.wantErr {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tc.wantErrContains)
+				return
+			}
+			require.NoError(t, err)
+			require.Len(t, result, tc.wantLen)
+			for i, d := range tc.wantDecisions {
+				assert.Equal(t, d, result[i].AccessDecision)
+			}
+		})
 	}
-
-	v := &ControlPlaneIdentitiesPermissionsValidation{}
-	_, err := v.checkNotAllowedAndDeniedActionsForVNet(ctx, checkAccessV2Client, vnetResourceID, allNetworkActions(), nil, fakeToken())
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "check access API unavailable")
 }
 
 // --- Tests for checkNotAllowedAndDeniedActionsForRouteTable ---
 
-// TestCheckNotAllowedAndDeniedActionsForRouteTable_AllAllowed verifies that no denied
-// actions are returned when CheckAccess reports Allowed for the route table join action.
-func TestCheckNotAllowedAndDeniedActionsForRouteTable_AllAllowed(t *testing.T) {
-	ctx := utils.ContextWithLogger(context.Background(), logr.Discard())
+func TestCheckNotAllowedAndDeniedActionsForRouteTable(t *testing.T) {
+	validRouteTable := &armnetwork.RouteTable{ID: ptr.To("/subscriptions/11111111-1111-1111-1111-111111111111/resourceGroups/testRG/providers/Microsoft.Network/routeTables/testRT")}
 
-	routeTableID := "/subscriptions/11111111-1111-1111-1111-111111111111/resourceGroups/testRG/providers/Microsoft.Network/routeTables/testRT"
-
-	checkAccessV2Client := &mockCheckAccessV2Client{
-		createAuthorizationRequest: func(_ string, _ []string, _ string) (*checkaccessv2.AuthorizationRequest, error) {
-			return &checkaccessv2.AuthorizationRequest{}, nil
+	tests := []struct {
+		name            string
+		routeTable      *armnetwork.RouteTable
+		roleActions     []string
+		decisions       []checkaccessv2.AuthorizationDecision
+		checkAccessErr  error
+		noCheckAccess   bool
+		wantLen         int
+		wantDecisions   []checkaccessv2.AccessDecision
+		wantErr         bool
+		wantErrContains string
+	}{
+		{
+			name:        "all allowed",
+			routeTable:  validRouteTable,
+			roleActions: []string{"Microsoft.Network/routeTables/join/action"},
+			decisions: []checkaccessv2.AuthorizationDecision{
+				{ActionId: "Microsoft.Network/routeTables/join/action", AccessDecision: checkaccessv2.Allowed},
+			},
+			wantLen: 0,
 		},
-		checkAccessFn: func(_ context.Context, _ checkaccessv2.AuthorizationRequest) (*checkaccessv2.AuthorizationDecisionResponse, error) {
-			return &checkaccessv2.AuthorizationDecisionResponse{
-				Value: []checkaccessv2.AuthorizationDecision{
-					{ActionId: "Microsoft.Network/routeTables/join/action", AccessDecision: checkaccessv2.Allowed},
-				},
-			}, nil
+		{
+			name:        "denied",
+			routeTable:  validRouteTable,
+			roleActions: []string{"Microsoft.Network/routeTables/join/action"},
+			decisions: []checkaccessv2.AuthorizationDecision{
+				{ActionId: "Microsoft.Network/routeTables/join/action", AccessDecision: checkaccessv2.Denied},
+			},
+			wantLen:       1,
+			wantDecisions: []checkaccessv2.AccessDecision{checkaccessv2.Denied},
 		},
-	}
-
-	roleActions := []string{"Microsoft.Network/routeTables/join/action"}
-	v := &ControlPlaneIdentitiesPermissionsValidation{}
-	result, err := v.checkNotAllowedAndDeniedActionsForRouteTable(ctx, checkAccessV2Client, &armnetwork.RouteTable{ID: ptr.To(routeTableID)}, roleActions, nil, fakeToken())
-	require.NoError(t, err)
-	assert.Empty(t, result)
-}
-
-// TestCheckNotAllowedAndDeniedActionsForRouteTable_Denied verifies that a denied
-// action is returned when CheckAccess reports Denied for the route table join action.
-func TestCheckNotAllowedAndDeniedActionsForRouteTable_Denied(t *testing.T) {
-	ctx := utils.ContextWithLogger(context.Background(), logr.Discard())
-
-	routeTableID := "/subscriptions/11111111-1111-1111-1111-111111111111/resourceGroups/testRG/providers/Microsoft.Network/routeTables/testRT"
-
-	checkAccessV2Client := &mockCheckAccessV2Client{
-		createAuthorizationRequest: func(_ string, _ []string, _ string) (*checkaccessv2.AuthorizationRequest, error) {
-			return &checkaccessv2.AuthorizationRequest{}, nil
+		{
+			// Only NSG actions are passed; none overlap with route table actions so CheckAccess is skipped.
+			name:          "no matching role actions",
+			routeTable:    validRouteTable,
+			roleActions:   []string{"Microsoft.Network/networkSecurityGroups/read"},
+			noCheckAccess: true,
+			wantLen:       0,
 		},
-		checkAccessFn: func(_ context.Context, _ checkaccessv2.AuthorizationRequest) (*checkaccessv2.AuthorizationDecisionResponse, error) {
-			return &checkaccessv2.AuthorizationDecisionResponse{
-				Value: []checkaccessv2.AuthorizationDecision{
-					{ActionId: "Microsoft.Network/routeTables/join/action", AccessDecision: checkaccessv2.Denied},
-				},
-			}, nil
+		{
+			name:            "invalid resource ID",
+			routeTable:      &armnetwork.RouteTable{ID: ptr.To("not-a-valid-resource-id")},
+			roleActions:     []string{"Microsoft.Network/routeTables/join/action"},
+			noCheckAccess:   true,
+			wantErr:         true,
+			wantErrContains: "failed to parse route table resource ID",
 		},
-	}
-
-	roleActions := []string{"Microsoft.Network/routeTables/join/action"}
-	v := &ControlPlaneIdentitiesPermissionsValidation{}
-	result, err := v.checkNotAllowedAndDeniedActionsForRouteTable(ctx, checkAccessV2Client, &armnetwork.RouteTable{ID: ptr.To(routeTableID)}, roleActions, nil, fakeToken())
-	require.NoError(t, err)
-	require.Len(t, result, 1)
-	assert.Equal(t, checkaccessv2.Denied, result[0].AccessDecision)
-}
-
-// TestCheckNotAllowedAndDeniedActionsForRouteTable_NoMatchingRoleActions verifies that
-// when the role definition has no route table actions, CheckAccess is not called.
-func TestCheckNotAllowedAndDeniedActionsForRouteTable_NoMatchingRoleActions(t *testing.T) {
-	ctx := utils.ContextWithLogger(context.Background(), logr.Discard())
-
-	routeTableID := "/subscriptions/11111111-1111-1111-1111-111111111111/resourceGroups/testRG/providers/Microsoft.Network/routeTables/testRT"
-	checkAccessCalled := false
-	checkAccessV2Client := &mockCheckAccessV2Client{
-		createAuthorizationRequest: func(_ string, _ []string, _ string) (*checkaccessv2.AuthorizationRequest, error) {
-			checkAccessCalled = true
-			return &checkaccessv2.AuthorizationRequest{}, nil
-		},
-		checkAccessFn: func(_ context.Context, _ checkaccessv2.AuthorizationRequest) (*checkaccessv2.AuthorizationDecisionResponse, error) {
-			checkAccessCalled = true
-			return &checkaccessv2.AuthorizationDecisionResponse{}, nil
+		{
+			name:            "check access error",
+			routeTable:      validRouteTable,
+			roleActions:     []string{"Microsoft.Network/routeTables/join/action"},
+			checkAccessErr:  errors.New("check access API unavailable"),
+			wantErr:         true,
+			wantErrContains: "check access API unavailable",
 		},
 	}
 
-	v := &ControlPlaneIdentitiesPermissionsValidation{}
-	// Pass only NSG actions — none overlap with route table actions.
-	result, err := v.checkNotAllowedAndDeniedActionsForRouteTable(ctx, checkAccessV2Client,
-		&armnetwork.RouteTable{ID: ptr.To(routeTableID)},
-		[]string{"Microsoft.Network/networkSecurityGroups/read"}, nil, fakeToken())
-	require.NoError(t, err)
-	assert.Empty(t, result)
-	assert.False(t, checkAccessCalled, "CheckAccess should not be called when there are no matching route table actions")
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := utils.ContextWithLogger(context.Background(), logr.Discard())
+			ctrl := gomock.NewController(t)
+
+			checkAccessV2Client := azureclient.NewMockCheckAccessV2Client(ctrl)
+			if !tc.noCheckAccess {
+				checkAccessV2Client.EXPECT().CreateAuthorizationRequest(gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(&checkaccessv2.AuthorizationRequest{}, nil)
+				if tc.checkAccessErr != nil {
+					checkAccessV2Client.EXPECT().CheckAccess(gomock.Any(), gomock.Any()).Return(nil, tc.checkAccessErr)
+				} else {
+					checkAccessV2Client.EXPECT().CheckAccess(gomock.Any(), gomock.Any()).
+						Return(&checkaccessv2.AuthorizationDecisionResponse{Value: tc.decisions}, nil)
+				}
+			}
+
+			v := &ControlPlaneIdentitiesPermissionsValidation{}
+			result, err := v.checkNotAllowedAndDeniedActionsForRouteTable(ctx, checkAccessV2Client, tc.routeTable, tc.roleActions, nil, fakeToken())
+
+			if tc.wantErr {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tc.wantErrContains)
+				return
+			}
+			require.NoError(t, err)
+			require.Len(t, result, tc.wantLen)
+			for i, d := range tc.wantDecisions {
+				assert.Equal(t, d, result[i].AccessDecision)
+			}
+		})
+	}
 }
 
-// TestCheckNotAllowedAndDeniedActionsForRouteTable_InvalidResourceID verifies that an
-// error is returned when the route table has an unparseable resource ID.
-func TestCheckNotAllowedAndDeniedActionsForRouteTable_InvalidResourceID(t *testing.T) {
-	ctx := utils.ContextWithLogger(context.Background(), logr.Discard())
+// --- Tests for checkNotAllowedAndDeniedActionsForResourceID ---
 
-	v := &ControlPlaneIdentitiesPermissionsValidation{}
-	_, err := v.checkNotAllowedAndDeniedActionsForRouteTable(ctx, &mockCheckAccessV2Client{},
-		&armnetwork.RouteTable{ID: ptr.To("not-a-valid-resource-id")},
-		[]string{"Microsoft.Network/routeTables/join/action"}, nil, fakeToken())
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to parse route table resource ID")
-}
-
-// TestCheckNotAllowedAndDeniedActionsForRouteTable_CheckAccessError verifies that errors
-// from CheckAccess are propagated to the caller.
-func TestCheckNotAllowedAndDeniedActionsForRouteTable_CheckAccessError(t *testing.T) {
-	ctx := utils.ContextWithLogger(context.Background(), logr.Discard())
-
-	routeTableID := "/subscriptions/11111111-1111-1111-1111-111111111111/resourceGroups/testRG/providers/Microsoft.Network/routeTables/testRT"
-
-	checkAccessV2Client := &mockCheckAccessV2Client{
-		createAuthorizationRequest: func(_ string, _ []string, _ string) (*checkaccessv2.AuthorizationRequest, error) {
-			return &checkaccessv2.AuthorizationRequest{}, nil
-		},
-		checkAccessFn: func(_ context.Context, _ checkaccessv2.AuthorizationRequest) (*checkaccessv2.AuthorizationDecisionResponse, error) {
-			return nil, errors.New("check access API unavailable")
-		},
+func TestCheckNotAllowedAndDeniedActionsForResourceID(t *testing.T) {
+	type wantAction struct {
+		id           string
+		isDataAction bool
+	}
+	type wantDecision struct {
+		actionId string
+		decision checkaccessv2.AccessDecision
 	}
 
-	roleActions := []string{"Microsoft.Network/routeTables/join/action"}
-	v := &ControlPlaneIdentitiesPermissionsValidation{}
-	_, err := v.checkNotAllowedAndDeniedActionsForRouteTable(ctx, checkAccessV2Client,
-		&armnetwork.RouteTable{ID: ptr.To(routeTableID)}, roleActions, nil, fakeToken())
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "check access API unavailable")
-}
+	resourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/11111111-1111-1111-1111-111111111111/resourceGroups/testRG/providers/Microsoft.Network/networkSecurityGroups/testNSG"))
 
-// --- Tests for data action support ---
-
-// TestValidate_DataActionsExtractedFromRoleDefinitions verifies that Validate extracts
-// data actions from role definitions alongside regular actions. Since the per-resource
-// required data action lists are currently empty, data actions alone don't trigger
-// CheckAccess calls — but the extraction pipeline must not error.
-func TestValidate_DataActionsExtractedFromRoleDefinitions(t *testing.T) {
-	ctx := utils.ContextWithLogger(context.Background(), logr.Discard())
-
-	roleDefResourceID := mustParseResourceID("/subscriptions/11111111-1111-1111-1111-111111111111/providers/Microsoft.Authorization/roleDefinitions/test-role-def")
-
-	mockCheckAccessClient := &mockCheckAccessV2Client{
-		createAuthorizationRequest: func(_ string, _ []string, _ string) (*checkaccessv2.AuthorizationRequest, error) {
-			return &checkaccessv2.AuthorizationRequest{}, nil
-		},
-		checkAccessFn: func(_ context.Context, _ checkaccessv2.AuthorizationRequest) (*checkaccessv2.AuthorizationDecisionResponse, error) {
-			return &checkaccessv2.AuthorizationDecisionResponse{
-				Value: []checkaccessv2.AuthorizationDecision{
-					{ActionId: "Microsoft.Network/networkSecurityGroups/read", AccessDecision: checkaccessv2.Allowed},
-					{ActionId: "Microsoft.Network/networkSecurityGroups/write", AccessDecision: checkaccessv2.Allowed},
-					{ActionId: "Microsoft.Network/networkSecurityGroups/join/action", AccessDecision: checkaccessv2.Allowed},
-				},
-			}, nil
-		},
-	}
-
-	validation := NewControlPlaneIdentitiesPermissionsValidation(
-		&mockSMIClientBuilder{
-			subnetsClientFn: func(_ context.Context, _ string, _ *azcorearm.ResourceID, _ string) (azureclient.SubnetsClient, error) {
-				return mockSimpleSubnetsClient(nil), nil
+	tests := []struct {
+		name               string
+		actions            []string
+		dataActions        []string
+		decisions          []checkaccessv2.AuthorizationDecision
+		noCheckAccess      bool
+		wantRequestActions []wantAction
+		wantResult         []wantDecision
+	}{
+		{
+			name:        "data actions included alongside regular actions",
+			actions:     []string{"Microsoft.Network/networkSecurityGroups/read"},
+			dataActions: []string{"Microsoft.Storage/storageAccounts/blobServices/containers/blobs/read"},
+			decisions: []checkaccessv2.AuthorizationDecision{
+				{ActionId: "Microsoft.Network/networkSecurityGroups/read", AccessDecision: checkaccessv2.Allowed},
+				{ActionId: "Microsoft.Storage/storageAccounts/blobServices/containers/blobs/read", AccessDecision: checkaccessv2.NotAllowed, IsDataAction: true},
+			},
+			wantRequestActions: []wantAction{
+				{id: "Microsoft.Network/networkSecurityGroups/read", isDataAction: false},
+				{id: "Microsoft.Storage/storageAccounts/blobServices/containers/blobs/read", isDataAction: true},
+			},
+			wantResult: []wantDecision{
+				{actionId: "Microsoft.Storage/storageAccounts/blobServices/containers/blobs/read", decision: checkaccessv2.NotAllowed},
 			},
 		},
-		testIdentitiesConfig(roleDefResourceID),
-		&cachedreader.BackendIdentityAzureCachedReaders{
-			RoleDefinitionsCachedReader: &mockRoleDefinitionsCachedReader{
-				getCachedByIDFn: func(_ context.Context, _ string, _ *armauthorization.RoleDefinitionsClientGetByIDOptions) (armauthorization.RoleDefinitionsClientGetByIDResponse, error) {
-					return newRoleDefinitionResponseWithDataActions(
-						allNetworkActions(),
-						[]string{
-							"Microsoft.Storage/storageAccounts/blobServices/containers/blobs/read",
-							"Microsoft.Storage/storageAccounts/blobServices/containers/blobs/write",
-						},
-					), nil
-				},
+		{
+			name:        "only data actions",
+			dataActions: []string{"Microsoft.Storage/storageAccounts/blobServices/containers/blobs/read"},
+			decisions: []checkaccessv2.AuthorizationDecision{
+				{ActionId: "Microsoft.Storage/storageAccounts/blobServices/containers/blobs/read", AccessDecision: checkaccessv2.Allowed, IsDataAction: true},
 			},
+			wantRequestActions: []wantAction{
+				{id: "Microsoft.Storage/storageAccounts/blobServices/containers/blobs/read", isDataAction: true},
+			},
+			wantResult: nil,
 		},
-		&mockCheckAccessV2ClientBuilder{
-			buildFn: func(_ string) (azureclient.CheckAccessV2Client, error) { return mockCheckAccessClient, nil },
+		{
+			// Both slices empty: returns nil early without any API calls.
+			name:          "no actions and no data actions",
+			noCheckAccess: true,
+			wantResult:    nil,
 		},
-		mockSuccessfulTokenRetrieverBuilder(),
-		testCheckAccessV2Scope,
-	)
+	}
 
-	err := validation.Validate(ctx, newTestSubscription(), newTestCluster())
-	assert.NoError(t, err)
-}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := utils.ContextWithLogger(context.Background(), logr.Discard())
+			ctrl := gomock.NewController(t)
 
-// TestCheckNotAllowedAndDeniedActionsForResourceID_DataActionsIncluded verifies that
-// data actions are appended to the authorization request with IsDataAction=true and
-// that denied data actions are correctly collected in the response.
-func TestCheckNotAllowedAndDeniedActionsForResourceID_DataActionsIncluded(t *testing.T) {
-	ctx := utils.ContextWithLogger(context.Background(), logr.Discard())
-
-	nsgResourceID := mustParseResourceID("/subscriptions/11111111-1111-1111-1111-111111111111/resourceGroups/testRG/providers/Microsoft.Network/networkSecurityGroups/testNSG")
-
-	var capturedRequest checkaccessv2.AuthorizationRequest
-	checkAccessV2Client := &mockCheckAccessV2Client{
-		createAuthorizationRequest: func(_ string, actions []string, _ string) (*checkaccessv2.AuthorizationRequest, error) {
-			req := &checkaccessv2.AuthorizationRequest{}
-			for _, a := range actions {
-				req.Actions = append(req.Actions, checkaccessv2.ActionInfo{Id: a})
+			var capturedRequest checkaccessv2.AuthorizationRequest
+			checkAccessV2Client := azureclient.NewMockCheckAccessV2Client(ctrl)
+			if !tc.noCheckAccess {
+				// Use DoAndReturn so regular actions are reflected in the captured request,
+				// mirroring how the real client populates ActionInfo entries from the actions slice.
+				checkAccessV2Client.EXPECT().CreateAuthorizationRequest(gomock.Any(), gomock.Any(), gomock.Any()).
+					DoAndReturn(func(_ string, actions []string, _ string) (*checkaccessv2.AuthorizationRequest, error) {
+						req := &checkaccessv2.AuthorizationRequest{}
+						for _, a := range actions {
+							req.Actions = append(req.Actions, checkaccessv2.ActionInfo{Id: a})
+						}
+						return req, nil
+					})
+				checkAccessV2Client.EXPECT().CheckAccess(gomock.Any(), gomock.Any()).
+					DoAndReturn(func(_ context.Context, req checkaccessv2.AuthorizationRequest) (*checkaccessv2.AuthorizationDecisionResponse, error) {
+						capturedRequest = req
+						return &checkaccessv2.AuthorizationDecisionResponse{Value: tc.decisions}, nil
+					})
 			}
-			return req, nil
-		},
-		checkAccessFn: func(_ context.Context, req checkaccessv2.AuthorizationRequest) (*checkaccessv2.AuthorizationDecisionResponse, error) {
-			capturedRequest = req
-			return &checkaccessv2.AuthorizationDecisionResponse{
-				Value: []checkaccessv2.AuthorizationDecision{
-					{ActionId: "Microsoft.Network/networkSecurityGroups/read", AccessDecision: checkaccessv2.Allowed},
-					{ActionId: "Microsoft.Storage/storageAccounts/blobServices/containers/blobs/read", AccessDecision: checkaccessv2.NotAllowed, IsDataAction: true},
-				},
-			}, nil
-		},
-	}
 
-	v := &ControlPlaneIdentitiesPermissionsValidation{}
-	actions := []string{"Microsoft.Network/networkSecurityGroups/read"}
-	dataActions := []string{"Microsoft.Storage/storageAccounts/blobServices/containers/blobs/read"}
-	result, err := v.checkNotAllowedAndDeniedActionsForResourceID(ctx, checkAccessV2Client, nsgResourceID, actions, dataActions, fakeToken())
-	require.NoError(t, err)
+			v := &ControlPlaneIdentitiesPermissionsValidation{}
+			result, err := v.checkNotAllowedAndDeniedActionsForResourceID(ctx, checkAccessV2Client, resourceID, tc.actions, tc.dataActions, fakeToken())
+			require.NoError(t, err)
 
-	require.Len(t, capturedRequest.Actions, 2)
-	assert.False(t, capturedRequest.Actions[0].IsDataAction)
-	assert.True(t, capturedRequest.Actions[1].IsDataAction)
-	assert.Equal(t, "Microsoft.Storage/storageAccounts/blobServices/containers/blobs/read", capturedRequest.Actions[1].Id)
-
-	require.Len(t, result, 1)
-	assert.Equal(t, checkaccessv2.NotAllowed, result[0].AccessDecision)
-	assert.Equal(t, "Microsoft.Storage/storageAccounts/blobServices/containers/blobs/read", result[0].ActionId)
-}
-
-// TestCheckNotAllowedAndDeniedActionsForResourceID_OnlyDataActions verifies that
-// the function works correctly when there are only data actions and no regular actions.
-func TestCheckNotAllowedAndDeniedActionsForResourceID_OnlyDataActions(t *testing.T) {
-	ctx := utils.ContextWithLogger(context.Background(), logr.Discard())
-
-	resourceID := mustParseResourceID("/subscriptions/11111111-1111-1111-1111-111111111111/resourceGroups/testRG/providers/Microsoft.Network/networkSecurityGroups/testNSG")
-
-	var capturedRequest checkaccessv2.AuthorizationRequest
-	checkAccessV2Client := &mockCheckAccessV2Client{
-		createAuthorizationRequest: func(_ string, actions []string, _ string) (*checkaccessv2.AuthorizationRequest, error) {
-			req := &checkaccessv2.AuthorizationRequest{}
-			for _, a := range actions {
-				req.Actions = append(req.Actions, checkaccessv2.ActionInfo{Id: a})
+			if len(tc.wantRequestActions) > 0 {
+				require.Len(t, capturedRequest.Actions, len(tc.wantRequestActions))
+				for i, wa := range tc.wantRequestActions {
+					assert.Equal(t, wa.isDataAction, capturedRequest.Actions[i].IsDataAction, "action[%d].IsDataAction", i)
+					assert.Equal(t, wa.id, capturedRequest.Actions[i].Id, "action[%d].Id", i)
+				}
 			}
-			return req, nil
-		},
-		checkAccessFn: func(_ context.Context, req checkaccessv2.AuthorizationRequest) (*checkaccessv2.AuthorizationDecisionResponse, error) {
-			capturedRequest = req
-			return &checkaccessv2.AuthorizationDecisionResponse{
-				Value: []checkaccessv2.AuthorizationDecision{
-					{ActionId: "Microsoft.Storage/storageAccounts/blobServices/containers/blobs/read", AccessDecision: checkaccessv2.Allowed, IsDataAction: true},
-				},
-			}, nil
-		},
+
+			require.Len(t, result, len(tc.wantResult))
+			for i, wr := range tc.wantResult {
+				assert.Equal(t, wr.decision, result[i].AccessDecision)
+				assert.Equal(t, wr.actionId, result[i].ActionId)
+			}
+		})
 	}
-
-	v := &ControlPlaneIdentitiesPermissionsValidation{}
-	result, err := v.checkNotAllowedAndDeniedActionsForResourceID(ctx, checkAccessV2Client, resourceID, nil, []string{"Microsoft.Storage/storageAccounts/blobServices/containers/blobs/read"}, fakeToken())
-	require.NoError(t, err)
-
-	require.Len(t, capturedRequest.Actions, 1)
-	assert.True(t, capturedRequest.Actions[0].IsDataAction)
-	assert.Empty(t, result)
-}
-
-// TestCheckNotAllowedAndDeniedActionsForResourceID_NoActionsNoDataActions verifies that
-// when both actions and dataActions are empty, the function returns nil early without
-// making any CheckAccess API calls.
-func TestCheckNotAllowedAndDeniedActionsForResourceID_NoActionsNoDataActions(t *testing.T) {
-	ctx := utils.ContextWithLogger(context.Background(), logr.Discard())
-
-	resourceID := mustParseResourceID("/subscriptions/11111111-1111-1111-1111-111111111111/resourceGroups/testRG/providers/Microsoft.Network/networkSecurityGroups/testNSG")
-
-	checkAccessCalled := false
-	checkAccessV2Client := &mockCheckAccessV2Client{
-		createAuthorizationRequest: func(_ string, _ []string, _ string) (*checkaccessv2.AuthorizationRequest, error) {
-			checkAccessCalled = true
-			return &checkaccessv2.AuthorizationRequest{}, nil
-		},
-		checkAccessFn: func(_ context.Context, _ checkaccessv2.AuthorizationRequest) (*checkaccessv2.AuthorizationDecisionResponse, error) {
-			checkAccessCalled = true
-			return &checkaccessv2.AuthorizationDecisionResponse{}, nil
-		},
-	}
-
-	v := &ControlPlaneIdentitiesPermissionsValidation{}
-	result, err := v.checkNotAllowedAndDeniedActionsForResourceID(ctx, checkAccessV2Client, resourceID, nil, nil, fakeToken())
-	require.NoError(t, err)
-	assert.Empty(t, result)
-	assert.False(t, checkAccessCalled, "CheckAccess should not be called when there are no actions and no data actions")
 }
 
 // --- Tests for formatMissingPermissionsMessage ---
 
 func TestFormatMissingPermissionsMessage(t *testing.T) {
-	identity := mustParseResourceID("/subscriptions/11111111-1111-1111-1111-111111111111/resourceGroups/rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/cloud-controller")
-	resource := mustParseResourceID("/subscriptions/11111111-1111-1111-1111-111111111111/resourceGroups/rg/providers/Microsoft.Network/networkSecurityGroups/nsg")
+	identity := api.Must(azcorearm.ParseResourceID("/subscriptions/11111111-1111-1111-1111-111111111111/resourceGroups/rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/cloud-controller"))
+	resource := api.Must(azcorearm.ParseResourceID("/subscriptions/11111111-1111-1111-1111-111111111111/resourceGroups/rg/providers/Microsoft.Network/networkSecurityGroups/nsg"))
 
 	for _, tc := range []struct {
 		name     string
-		input    []IdentityResourceMissingPermissions
+		input    []*IdentityResourceMissingPermissions
 		expected string
 	}{
 		{
@@ -1019,63 +740,63 @@ func TestFormatMissingPermissionsMessage(t *testing.T) {
 		},
 		{
 			name: "not allowed regular actions only",
-			input: []IdentityResourceMissingPermissions{
+			input: []*IdentityResourceMissingPermissions{
 				{
 					Identity: identity,
 					Resource: resource,
-					Decisions: []checkaccessv2.AuthorizationDecision{
+					Decisions: &[]checkaccessv2.AuthorizationDecision{
 						{ActionId: "Microsoft.Network/networkSecurityGroups/write", AccessDecision: checkaccessv2.NotAllowed, IsDataAction: false},
 					},
 				},
 			},
-			expected: "identity '" + identity.String() + "' on resource '" + resource.String() + "': not allowed actions: Microsoft.Network/networkSecurityGroups/write",
+			expected: "identity '" + identity.String() + "' on resource '" + resource.String() + "': not allowed actions: [Microsoft.Network/networkSecurityGroups/write]",
 		},
 		{
 			name: "not allowed dataActions only",
-			input: []IdentityResourceMissingPermissions{
+			input: []*IdentityResourceMissingPermissions{
 				{
 					Identity: identity,
 					Resource: resource,
-					Decisions: []checkaccessv2.AuthorizationDecision{
+					Decisions: &[]checkaccessv2.AuthorizationDecision{
 						{ActionId: "Microsoft.Storage/storageAccounts/blobServices/containers/blobs/read", AccessDecision: checkaccessv2.NotAllowed, IsDataAction: true},
 					},
 				},
 			},
-			expected: "identity '" + identity.String() + "' on resource '" + resource.String() + "': not allowed dataActions: Microsoft.Storage/storageAccounts/blobServices/containers/blobs/read",
+			expected: "identity '" + identity.String() + "' on resource '" + resource.String() + "': not allowed dataActions: [Microsoft.Storage/storageAccounts/blobServices/containers/blobs/read]",
 		},
 		{
 			name: "denied regular actions only",
-			input: []IdentityResourceMissingPermissions{
+			input: []*IdentityResourceMissingPermissions{
 				{
 					Identity: identity,
 					Resource: resource,
-					Decisions: []checkaccessv2.AuthorizationDecision{
+					Decisions: &[]checkaccessv2.AuthorizationDecision{
 						{ActionId: "Microsoft.Network/networkSecurityGroups/join/action", AccessDecision: checkaccessv2.Denied, IsDataAction: false},
 					},
 				},
 			},
-			expected: "identity '" + identity.String() + "' on resource '" + resource.String() + "': denied actions: Microsoft.Network/networkSecurityGroups/join/action",
+			expected: "identity '" + identity.String() + "' on resource '" + resource.String() + "': denied actions: [Microsoft.Network/networkSecurityGroups/join/action]",
 		},
 		{
 			name: "denied dataActions only",
-			input: []IdentityResourceMissingPermissions{
+			input: []*IdentityResourceMissingPermissions{
 				{
 					Identity: identity,
 					Resource: resource,
-					Decisions: []checkaccessv2.AuthorizationDecision{
+					Decisions: &[]checkaccessv2.AuthorizationDecision{
 						{ActionId: "Microsoft.Storage/storageAccounts/blobServices/containers/blobs/write", AccessDecision: checkaccessv2.Denied, IsDataAction: true},
 					},
 				},
 			},
-			expected: "identity '" + identity.String() + "' on resource '" + resource.String() + "': denied dataActions: Microsoft.Storage/storageAccounts/blobServices/containers/blobs/write",
+			expected: "identity '" + identity.String() + "' on resource '" + resource.String() + "': denied dataActions: [Microsoft.Storage/storageAccounts/blobServices/containers/blobs/write]",
 		},
 		{
 			name: "all four buckets present",
-			input: []IdentityResourceMissingPermissions{
+			input: []*IdentityResourceMissingPermissions{
 				{
 					Identity: identity,
 					Resource: resource,
-					Decisions: []checkaccessv2.AuthorizationDecision{
+					Decisions: &[]checkaccessv2.AuthorizationDecision{
 						{ActionId: "Microsoft.Network/networkSecurityGroups/write", AccessDecision: checkaccessv2.NotAllowed, IsDataAction: false},
 						{ActionId: "Microsoft.Storage/storageAccounts/blobServices/containers/blobs/read", AccessDecision: checkaccessv2.NotAllowed, IsDataAction: true},
 						{ActionId: "Microsoft.Network/networkSecurityGroups/join/action", AccessDecision: checkaccessv2.Denied, IsDataAction: false},
@@ -1084,31 +805,31 @@ func TestFormatMissingPermissionsMessage(t *testing.T) {
 				},
 			},
 			expected: "identity '" + identity.String() + "' on resource '" + resource.String() + "':" +
-				" not allowed actions: Microsoft.Network/networkSecurityGroups/write" +
-				" not allowed dataActions: Microsoft.Storage/storageAccounts/blobServices/containers/blobs/read" +
-				" denied actions: Microsoft.Network/networkSecurityGroups/join/action" +
-				" denied dataActions: Microsoft.Storage/storageAccounts/blobServices/containers/blobs/write",
+				" not allowed actions: [Microsoft.Network/networkSecurityGroups/write]" +
+				" not allowed dataActions: [Microsoft.Storage/storageAccounts/blobServices/containers/blobs/read]" +
+				" denied actions: [Microsoft.Network/networkSecurityGroups/join/action]" +
+				" denied dataActions: [Microsoft.Storage/storageAccounts/blobServices/containers/blobs/write]",
 		},
 		{
 			name: "multiple results joined by semicolon",
-			input: []IdentityResourceMissingPermissions{
+			input: []*IdentityResourceMissingPermissions{
 				{
 					Identity: identity,
 					Resource: resource,
-					Decisions: []checkaccessv2.AuthorizationDecision{
+					Decisions: &[]checkaccessv2.AuthorizationDecision{
 						{ActionId: "Microsoft.Network/networkSecurityGroups/write", AccessDecision: checkaccessv2.NotAllowed, IsDataAction: false},
 					},
 				},
 				{
 					Identity: identity,
 					Resource: resource,
-					Decisions: []checkaccessv2.AuthorizationDecision{
+					Decisions: &[]checkaccessv2.AuthorizationDecision{
 						{ActionId: "Microsoft.Storage/storageAccounts/blobServices/containers/blobs/read", AccessDecision: checkaccessv2.Denied, IsDataAction: true},
 					},
 				},
 			},
-			expected: "identity '" + identity.String() + "' on resource '" + resource.String() + "': not allowed actions: Microsoft.Network/networkSecurityGroups/write" +
-				"; identity '" + identity.String() + "' on resource '" + resource.String() + "': denied dataActions: Microsoft.Storage/storageAccounts/blobServices/containers/blobs/read",
+			expected: "identity '" + identity.String() + "' on resource '" + resource.String() + "': not allowed actions: [Microsoft.Network/networkSecurityGroups/write]" +
+				"; identity '" + identity.String() + "' on resource '" + resource.String() + "': denied dataActions: [Microsoft.Storage/storageAccounts/blobServices/containers/blobs/read]",
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

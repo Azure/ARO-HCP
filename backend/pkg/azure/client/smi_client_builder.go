@@ -14,6 +14,8 @@
 
 package client
 
+//go:generate $MOCKGEN -typed -source=smi_client_builder.go -destination=mock_smi_client_builder.go -package client ServiceManagedIdentityClientBuilder
+
 import (
 	"context"
 	"fmt"

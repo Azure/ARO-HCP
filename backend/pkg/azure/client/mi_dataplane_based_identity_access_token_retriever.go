@@ -14,6 +14,8 @@
 
 package client
 
+//go:generate $MOCKGEN -typed -source=mi_dataplane_based_identity_access_token_retriever.go -destination=mock_mi_dataplane_based_identity_access_token_retriever.go -package client MIDataplaneBasedIdentityAccessTokenRetriever,MIDataplaneBasedIdentityAccessTokenRetrieverBuilder
+
 import (
 	"context"
 	"fmt"
@@ -29,8 +31,7 @@ import (
 // MIDataplaneBasedIdentityAccessTokenRetriever retrieves Azure access tokens for an
 // identity managed through the Managed Identities Data Plane (MI Dataplane) service.
 //
-// GetToken uses the same signature as azcore.TokenCredential, so production
-// implementations can also satisfy that interface for Azure SDK clients that need it.
+// GetToken uses the same signature as azcore.TokenCredential, so implementations can also satisfy that interface for Azure SDK clients that need it.
 //
 // Each call to GetToken fetches fresh credentials for the bound identity from the
 // MI Dataplane service and exchanges them for an access token.
@@ -97,7 +98,7 @@ func (r *miDataplaneBasedIdentityAccessTokenRetriever) GetToken(ctx context.Cont
 	return creds.GetToken(ctx, options)
 }
 
-// miDataplaneBasedIdentityAccessTokenRetrieverBuilder is the production implementation of MIDataplaneBasedIdentityAccessTokenRetrieverBuilder.
+// miDataplaneBasedIdentityAccessTokenRetrieverBuilder is the implementation of MIDataplaneBasedIdentityAccessTokenRetrieverBuilder.
 type miDataplaneBasedIdentityAccessTokenRetrieverBuilder struct {
 	fpaMIdataplaneClientBuilder FPAMIDataplaneClientBuilder
 	clientOptions               *azcore.ClientOptions

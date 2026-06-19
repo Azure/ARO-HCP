@@ -87,7 +87,7 @@ func (v *ControlPlaneIdentitiesPermissionsValidation) Validate(ctx context.Conte
 		return utils.TrackError(fmt.Errorf("failed to get subnet: %w", err))
 	}
 
-	var missingPermissions []IdentityResourceMissingPermissions
+	var missingPermissions []*IdentityResourceMissingPermissions
 	for operatorName, identity := range cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators {
 		results, err := v.findMissingActionsForIdentity(ctx, checkAccessV2Client, cluster, operatorName, identity, &subnet.Subnet)
 		if err != nil {
@@ -173,7 +173,7 @@ func (v *ControlPlaneIdentitiesPermissionsValidation) accessTokenForIdentity(ctx
 	return token, nil
 }
 
-func (v *ControlPlaneIdentitiesPermissionsValidation) findMissingActionsForIdentity(ctx context.Context, checkAccessV2Client azureclient.CheckAccessV2Client, cluster *api.HCPOpenShiftCluster, operatorName string, identity *azcorearm.ResourceID, clusterSubnet *armnetwork.Subnet) ([]IdentityResourceMissingPermissions, error) {
+func (v *ControlPlaneIdentitiesPermissionsValidation) findMissingActionsForIdentity(ctx context.Context, checkAccessV2Client azureclient.CheckAccessV2Client, cluster *api.HCPOpenShiftCluster, operatorName string, identity *azcorearm.ResourceID, clusterSubnet *armnetwork.Subnet) ([]*IdentityResourceMissingPermissions, error) {
 	roleActions, err := v.roleActionsForOperator(ctx, operatorName)
 	if err != nil {
 		return nil, err
@@ -189,47 +189,61 @@ func (v *ControlPlaneIdentitiesPermissionsValidation) findMissingActionsForIdent
 		return nil, err
 	}
 
-	var results []IdentityResourceMissingPermissions
+	var results []*IdentityResourceMissingPermissions
 
-	// Validate security group permissions
-	nsgDecisions, err := v.checkNotAllowedAndDeniedActionsForNetworkSecurityGroup(ctx, checkAccessV2Client, cluster.CustomerProperties.Platform.NetworkSecurityGroupID, roleActions, roleDataActions, token)
+	nsgResult, err := v.checkMissingPermissionsForNetworkSecurityGroup(ctx, checkAccessV2Client, cluster.CustomerProperties.Platform.NetworkSecurityGroupID, identity, roleActions, roleDataActions, token)
 	if err != nil {
-		return nil, utils.TrackError(err)
+		return nil, err
 	}
-	if len(nsgDecisions) > 0 {
-		results = append(results, IdentityResourceMissingPermissions{
-			Resource:  cluster.CustomerProperties.Platform.NetworkSecurityGroupID,
-			Identity:  identity,
-			Decisions: nsgDecisions,
-		})
+	if nsgResult != nil {
+		results = append(results, nsgResult)
 	}
 
-	vnetResult, err := v.validateVnetPermissions(ctx, checkAccessV2Client, cluster.CustomerProperties.Platform.SubnetID, identity, roleActions, roleDataActions, token)
+	vnetResult, err := v.checkMissingPermissionsForVNet(ctx, checkAccessV2Client, cluster.CustomerProperties.Platform.SubnetID, identity, roleActions, roleDataActions, token)
 	if err != nil {
 		return nil, err
 	}
 	if vnetResult != nil {
-		results = append(results, *vnetResult)
+		results = append(results, vnetResult)
 	}
 
-	rtResult, err := v.validateRouteTablePermissions(ctx, checkAccessV2Client, clusterSubnet, identity, roleActions, roleDataActions, token)
+	rtResult, err := v.checkMissingPermissionsForRouteTable(ctx, checkAccessV2Client, clusterSubnet, identity, roleActions, roleDataActions, token)
 	if err != nil {
 		return nil, err
 	}
 	if rtResult != nil {
-		results = append(results, *rtResult)
+		results = append(results, rtResult)
 	}
 
 	return results, nil
 }
 
-// validateVnetPermissions checks whether the given identity has all required permissions on the VNet that contains the cluster subnet. The VNet resource ID is derived from the subnet ID's parent.
+// checkMissingPermissionsForNetworkSecurityGroup checks whether the given identity has all required permissions on the given network security group.
+// Only actions from roleActions/roleDataActions that are relevant to NSG resources are checked (via intersection with the known NSG action set); actions irrelevant to NSGs are skipped.
+// It returns:
+//   - (nil, nil) if the identity has all required permissions, or if none of the role's actions apply to NSG resources.
+//   - a non-nil *IdentityResourceMissingPermissions populated with the NSG resource ID, the identity, and the slice of NotAllowed/Denied decisions, if any permission is missing.
+func (v *ControlPlaneIdentitiesPermissionsValidation) checkMissingPermissionsForNetworkSecurityGroup(ctx context.Context, checkAccessV2Client azureclient.CheckAccessV2Client, nsgID *azcorearm.ResourceID, identity *azcorearm.ResourceID, roleActions []string, roleDataActions []string, token azcore.AccessToken) (*IdentityResourceMissingPermissions, error) {
+	decisions, err := v.checkNotAllowedAndDeniedActionsForNetworkSecurityGroup(ctx, checkAccessV2Client, nsgID, roleActions, roleDataActions, token)
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+	if len(decisions) == 0 {
+		return nil, nil
+	}
+	return &IdentityResourceMissingPermissions{
+		Resource:  nsgID,
+		Identity:  identity,
+		Decisions: &decisions,
+	}, nil
+}
+
+// checkMissingPermissionsForVNet checks whether the given identity has all required permissions on the VNet that contains the cluster subnet. The VNet resource ID is derived from the subnet ID's parent.
 // Only actions from roleActions/roleDataActions that are relevant to VNet resources are checked (via intersection with the known VNet action set); actions irrelevant to VNets are skipped.
 // It returns:
 //   - (nil, nil) if the identity has all required permissions, or if none of the role's actions apply to VNet resources.
 //   - a non-nil *IdentityResourceMissingPermissions populated with the VNet resource ID, the identity, and the slice of NotAllowed/Denied decisions, if any permission is missing.
-//   - (nil, error) if the CheckAccessV2 API call fails.
-func (v *ControlPlaneIdentitiesPermissionsValidation) validateVnetPermissions(ctx context.Context, checkAccessV2Client azureclient.CheckAccessV2Client, subnetID *azcorearm.ResourceID, identity *azcorearm.ResourceID, roleActions []string, roleDataActions []string, token azcore.AccessToken) (*IdentityResourceMissingPermissions, error) {
+func (v *ControlPlaneIdentitiesPermissionsValidation) checkMissingPermissionsForVNet(ctx context.Context, checkAccessV2Client azureclient.CheckAccessV2Client, subnetID *azcorearm.ResourceID, identity *azcorearm.ResourceID, roleActions []string, roleDataActions []string, token azcore.AccessToken) (*IdentityResourceMissingPermissions, error) {
 	vnetResourceID := subnetID.Parent
 	decisions, err := v.checkNotAllowedAndDeniedActionsForVNet(ctx, checkAccessV2Client, vnetResourceID, roleActions, roleDataActions, token)
 	if err != nil {
@@ -241,17 +255,17 @@ func (v *ControlPlaneIdentitiesPermissionsValidation) validateVnetPermissions(ct
 	return &IdentityResourceMissingPermissions{
 		Resource:  vnetResourceID,
 		Identity:  identity,
-		Decisions: decisions,
+		Decisions: &decisions,
 	}, nil
 }
 
-// validateRouteTablePermissions checks whether the given identity has all required permissions on the route table attached to the cluster subnet. If the subnet has no route table, it is a no-op.
+// checkMissingPermissionsForRouteTable checks whether the given identity has all required permissions on the route table attached to the cluster subnet. If the subnet has no route table, it is a no-op.
 // Only actions from roleActions/roleDataActions that are relevant to route table resources are checked (via intersection with the known route table action set).
 // It returns:
 //   - (nil, nil) if the subnet has no attached route table, if the identity has all required permissions, or if none of the role's actions apply to route table resources.
 //   - a non-nil *IdentityResourceMissingPermissions populated with the route table resource ID, the identity, and the slice of NotAllowed/Denied decisions, if any permission is missing.
 //   - (nil, error) if the route table resource ID cannot be parsed or the CheckAccessV2 API call fails.
-func (v *ControlPlaneIdentitiesPermissionsValidation) validateRouteTablePermissions(ctx context.Context, checkAccessV2Client azureclient.CheckAccessV2Client, clusterSubnet *armnetwork.Subnet, identity *azcorearm.ResourceID, roleActions []string, roleDataActions []string, token azcore.AccessToken) (*IdentityResourceMissingPermissions, error) {
+func (v *ControlPlaneIdentitiesPermissionsValidation) checkMissingPermissionsForRouteTable(ctx context.Context, checkAccessV2Client azureclient.CheckAccessV2Client, clusterSubnet *armnetwork.Subnet, identity *azcorearm.ResourceID, roleActions []string, roleDataActions []string, token azcore.AccessToken) (*IdentityResourceMissingPermissions, error) {
 	if clusterSubnet.Properties.RouteTable == nil {
 		return nil, nil
 	}
@@ -269,7 +283,7 @@ func (v *ControlPlaneIdentitiesPermissionsValidation) validateRouteTablePermissi
 	return &IdentityResourceMissingPermissions{
 		Resource:  routeTableResourceID,
 		Identity:  identity,
-		Decisions: decisions,
+		Decisions: &decisions,
 	}, nil
 }
 
@@ -281,6 +295,7 @@ func (v *ControlPlaneIdentitiesPermissionsValidation) validateRouteTablePermissi
 //   - a non-nil slice of NotAllowed/Denied AuthorizationDecision entries, one per missing action, if any permission is absent.
 //   - (nil, error) if the CheckAccessV2 API call fails.
 func (v *ControlPlaneIdentitiesPermissionsValidation) checkNotAllowedAndDeniedActionsForNetworkSecurityGroup(ctx context.Context, checkAccessV2Client azureclient.CheckAccessV2Client, resourceID *azcorearm.ResourceID, roleDefinitionActions []string, roleDefinitionDataActions []string, token azcore.AccessToken) ([]azurecheckaccessv2client.AuthorizationDecision, error) {
+	// Union of all Microsoft.Network/networkSecurityGroups/* actions that appear across any operator role in dev-infrastructure/configurations/dev-operator-roles.tmpl.bicepparam
 	networkSecurityGroupActions := []string{
 		"Microsoft.Network/networkSecurityGroups/read",
 		"Microsoft.Network/networkSecurityGroups/write",
@@ -333,13 +348,11 @@ func (v *ControlPlaneIdentitiesPermissionsValidation) checkNotAllowedAndDeniedAc
 		return nil, utils.TrackError(err)
 	}
 	if authDecisionResponse == nil {
-		return nil, utils.TrackError(fmt.Errorf("authorization response for '%s' is unexpectedly nil, "+
-			"indicating a possible internal failure", resourceID.String()))
+		return nil, utils.TrackError(fmt.Errorf("authorization response for '%s' is unexpectedly nil, indicating a possible internal failure", resourceID.String()))
 	}
 
 	if totalExpected != len(authDecisionResponse.Value) {
-		logger.Error(fmt.Errorf("mismatch in authorization decision response for '%s': "+
-			"expected '%d' actions, got '%d' actions",
+		logger.Error(fmt.Errorf("mismatch in authorization decision response for '%s': expected '%d' actions, got '%d' actions",
 			resourceID.String(), totalExpected, len(authDecisionResponse.Value)), "mismatch in authorization decision response")
 	}
 
@@ -348,6 +361,7 @@ func (v *ControlPlaneIdentitiesPermissionsValidation) checkNotAllowedAndDeniedAc
 }
 
 func (v *ControlPlaneIdentitiesPermissionsValidation) checkNotAllowedAndDeniedActionsForVNet(ctx context.Context, checkAccessV2Client azureclient.CheckAccessV2Client, resourceId *azcorearm.ResourceID, roleDefinitionActions []string, roleDefinitionDataActions []string, token azcore.AccessToken) ([]azurecheckaccessv2client.AuthorizationDecision, error) {
+	// Union of all Microsoft.Network/virtualNetworks/* and Microsoft.Network/virtualNetworks/subnets/* actions that appear across any operator role in dev-infrastructure/configurations/dev-operator-roles.tmpl.bicepparam
 	subnetActions := []string{
 		"Microsoft.Network/virtualNetworks/join/action",
 		"Microsoft.Network/virtualNetworks/read",
@@ -368,6 +382,7 @@ func (v *ControlPlaneIdentitiesPermissionsValidation) checkNotAllowedAndDeniedAc
 }
 
 func (v *ControlPlaneIdentitiesPermissionsValidation) checkNotAllowedAndDeniedActionsForRouteTable(ctx context.Context, checkAccessV2Client azureclient.CheckAccessV2Client, routeTable *armnetwork.RouteTable, roleDefinitionActions []string, roleDefinitionDataActions []string, token azcore.AccessToken) ([]azurecheckaccessv2client.AuthorizationDecision, error) {
+	// Union of all Microsoft.Network/routeTables/* actions that appear across any operator role in dev-infrastructure/configurations/dev-operator-roles.tmpl.bicepparam
 	routeTableActions := []string{
 		"Microsoft.Network/routeTables/join/action",
 	}
@@ -404,15 +419,15 @@ func (v *ControlPlaneIdentitiesPermissionsValidation) collectNotAllowedAndDenied
 // failures. Each IdentityResourceMissingPermissions contributes one entry describing the
 // identity, resource, and the specific not-allowed and denied actions or dataActions, for example:
 //
-//	identity '.../cloud-controller' on resource '.../networkSecurityGroups/nsg': not allowed actions: Microsoft.Network/networkSecurityGroups/write, denied dataActions: Microsoft.Storage/storageAccounts/blobServices/containers/blobs/read
-func formatMissingPermissionsMessage(results []IdentityResourceMissingPermissions) string {
+//	identity '.../cloud-controller' on resource '.../networkSecurityGroups/nsg': not allowed actions: [Microsoft.Network/networkSecurityGroups/write], denied dataActions: [Microsoft.Storage/storageAccounts/blobServices/containers/blobs/read]
+func formatMissingPermissionsMessage(results []*IdentityResourceMissingPermissions) string {
 	parts := make([]string, 0, len(results))
 	for _, result := range results {
 		var notAllowedActions []string
 		var notAllowedDataActions []string
 		var deniedActions []string
 		var deniedDataActions []string
-		for _, decision := range result.Decisions {
+		for _, decision := range *result.Decisions {
 			switch decision.AccessDecision {
 			case azurecheckaccessv2client.NotAllowed:
 				if decision.IsDataAction {
@@ -430,16 +445,16 @@ func formatMissingPermissionsMessage(results []IdentityResourceMissingPermission
 		}
 		msg := fmt.Sprintf("identity '%s' on resource '%s':", result.Identity.String(), result.Resource.String())
 		if len(notAllowedActions) > 0 {
-			msg += fmt.Sprintf(" not allowed actions: %s", strings.Join(notAllowedActions, ", "))
+			msg += fmt.Sprintf(" not allowed actions: [%s]", strings.Join(notAllowedActions, ", "))
 		}
 		if len(notAllowedDataActions) > 0 {
-			msg += fmt.Sprintf(" not allowed dataActions: %s", strings.Join(notAllowedDataActions, ", "))
+			msg += fmt.Sprintf(" not allowed dataActions: [%s]", strings.Join(notAllowedDataActions, ", "))
 		}
 		if len(deniedActions) > 0 {
-			msg += fmt.Sprintf(" denied actions: %s", strings.Join(deniedActions, ", "))
+			msg += fmt.Sprintf(" denied actions: [%s]", strings.Join(deniedActions, ", "))
 		}
 		if len(deniedDataActions) > 0 {
-			msg += fmt.Sprintf(" denied dataActions: %s", strings.Join(deniedDataActions, ", "))
+			msg += fmt.Sprintf(" denied dataActions: [%s]", strings.Join(deniedDataActions, ", "))
 		}
 		parts = append(parts, msg)
 	}
