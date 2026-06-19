@@ -63,6 +63,8 @@ defaults:
             poll: true
         'Microsoft.Kusto':
           poll: true
+        'Microsoft.Support':
+          poll: true
     rg: global-shared-resources
     billing:
       rg: "placeholder"

@@ -418,6 +418,8 @@ global:
         - name: AllowBringYourOwnPublicIpAddress
           poll: true
         poll: true
+      Microsoft.Support:
+        poll: true
 hcpRecovery:
   image:
     digest: ""
