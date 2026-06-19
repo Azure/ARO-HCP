@@ -21,9 +21,6 @@ import (
 	"strconv"
 	"time"
 
-	// If using ginkgo, import your tests here
-	_ "github.com/Azure/ARO-HCP/test/e2e"
-
 	"github.com/onsi/gomega/format"
 	"github.com/spf13/cobra"
 
@@ -39,6 +36,8 @@ import (
 	gathersnapshot "github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/gather-snapshot"
 	slotmanager "github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager"
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/visualize"
+	// If using ginkgo, import your tests here
+	e2eTests "github.com/Azure/ARO-HCP/test/e2e"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 )
@@ -216,11 +215,47 @@ func setupCli() *cobra.Command {
 		TestTimeout: &rpApiCompatTestTimeout,
 	})
 
+	// upgrade/create provisions a fresh cluster+nodepool and exports state to SETUP_FILEPATH
+	// (default test-artifacts/e2e-setup.json). upgrade/post-infra reads the same path via Setup().
+	// openshift/release sets SETUP_FILEPATH=${SHARED_DIR}/e2e-setup.json on both test steps.
+	// BOSKOS_RESOURCE_TYPE=aro-hcp-dev-upgrade-westus3-slot
+	// LEASED_MSI_CONTAINERS=1
+	upgradeCreateTimeout := 90 * time.Minute
+	ext.AddSuite(e.Suite{
+		Name: "upgrade/create",
+		Qualifiers: []string{
+			fmt.Sprintf(`labels.exists(l, l=="%s")`, labels.CreateCluster[0]),
+		},
+		Parallelism: 1,
+		TestTimeout: &upgradeCreateTimeout,
+	})
+
+	// upgrade/post-infra validates that the node pool hashes produced by upgrade/create remain
+	// stable for 15 minutes, confirming no unexpected node churn after the upgrade.
+	// BOSKOS_RESOURCE_TYPE=aro-hcp-dev-upgrade-westus3-slot
+	// LEASED_MSI_CONTAINERS=1
+	upgradePostInfraTimeout := 90 * time.Minute
+	ext.AddSuite(e.Suite{
+		Name: "upgrade/post-infra",
+		Qualifiers: []string{
+			fmt.Sprintf(`labels.exists(l, l=="%s")`, labels.SetupValidation[0]),
+		},
+		Parallelism: 1,
+		TestTimeout: &upgradePostInfraTimeout,
+	})
+
 	// If using Ginkgo, build test specs automatically
 	specs, err := g.BuildExtensionTestSpecsFromOpenShiftGinkgoSuite()
 	if err != nil {
 		panic(fmt.Sprintf("couldn't build extension test specs from ginkgo: %+v", err.Error()))
 	}
+
+	specsHappyPath := specs.Select(et.HasLabel(labels.RequireHappyPathInfra[0]))
+	specsHappyPath.AddBeforeAll(func() {
+		if err = e2eTests.Setup(); err != nil {
+			panic(err)
+		}
+	})
 
 	// You can add hooks to run before/after tests. There are BeforeEach, BeforeAll, AfterEach,
 	// and AfterAll. "Each" functions must be thread safe.
