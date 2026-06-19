@@ -19,9 +19,7 @@ Key Vault is reflected in the cluster within the polling interval.
   - `Positive`
   - `High` (not Critical for first cut — promote to Critical once stable)
   - `CreateCluster`
-  - **No** `AroRpApiCompatible` — the test calls Azure ARM directly to create
-    the Key Vault cert and to rotate it, which the dev RP-only environment
-    cannot do. Remember to `make -C ../.. record-nonlocal-e2e` after adding.
+  - `AroRpApiCompatible`
 
 ## What the test does, end to end
 
