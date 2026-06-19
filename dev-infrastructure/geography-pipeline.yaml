@@ -12,6 +12,7 @@ resourceGroups:
     - int
     regions:
     - uksouth
+    - westus3
   - clouds:
     - public
     environments:
