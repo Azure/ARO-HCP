@@ -3,7 +3,12 @@
 	"id": "d561032d-9ee1-59c5-a0ba-90948e5b7ded",
 	"partitionKey": "6b690bec-0c16-4ecb-8f67-781caf40bba7",
 	"properties": {
-		"resourceId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/update-np-to-illegal-value/nodePools/illegal-np/serviceProviderNodePools/default",
+		"cosmosMetadata": {
+			"etag": "\"8469f141-1d20-4fc1-b576-80763f10e4fb\"",
+			"instanceVersion": 1,
+			"partitionKey": "6b690bec-0c16-4ecb-8f67-781caf40bba7",
+			"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/update-np-to-illegal-value/nodePools/illegal-np/serviceProviderNodePools/default"
+		},
 		"spec": {
 			"nodePoolVersion": {
 				"desiredVersion": "4.20.8"
@@ -20,5 +25,5 @@
 		}
 	},
 	"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/update-np-to-illegal-value/nodePools/illegal-np/serviceProviderNodePools/default",
-	"resourceType": "microsoft.redhatopenshift/hcpopenshiftclusters/nodepools/serviceprovidernodepools"
+	"resourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/nodePools/serviceProviderNodePools"
 }

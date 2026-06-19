@@ -1,12 +1,14 @@
 {
-	"_attachments": "attachments/",
 	"_etag": "\"00000000-0000-0000-712b-4dda080501dc\"",
-	"_rid": "SdEpAPzZNVkFAAAAAAAAAA==",
-	"_self": "dbs/SdEpAA==/colls/SdEpAPzZNVk=/docs/SdEpAPzZNVkFAAAAAAAAAA==/",
-	"_ts": 1766178371,
 	"id": "2b834a28-7e5b-50e2-9fb9-b6679cdd6a1b",
 	"partitionKey": "6b690bec-0c16-4ecb-8f67-781caf40bba7",
 	"properties": {
+		"cosmosMetadata": {
+			"etag": "\"00000000-0000-0000-712b-4dda080501dc\"",
+			"instanceVersion": 1,
+			"partitionKey": "6b690bec-0c16-4ecb-8f67-781caf40bba7",
+			"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/create-with-tags/nodePools/basic-node-pool"
+		},
 		"id": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/create-with-tags/nodePools/basic-node-pool",
 		"location": "fake-location",
 		"name": "basic-node-pool",
@@ -24,6 +26,7 @@
 				"enableEncryptionAtHost": false,
 				"osDisk": {
 					"diskStorageAccountType": "Premium_LRS",
+					"diskType": "Managed",
 					"sizeGiB": 64
 				},
 				"vmSize": "large"

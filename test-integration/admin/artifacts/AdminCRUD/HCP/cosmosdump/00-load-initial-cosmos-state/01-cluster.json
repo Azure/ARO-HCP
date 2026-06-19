@@ -4,9 +4,35 @@
 	"partitionKey": "0465bc32-c654-41b8-8d87-9815d7abe8f6",
 	"properties": {
 		"cosmosMetadata": {
+			"etag": "\"5ff11017-461e-4ad1-b8cb-95cc0d536414\"",
 			"instanceVersion": 1,
 			"partitionKey": "0465bc32-c654-41b8-8d87-9815d7abe8f6",
 			"resourceID": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/some-hcp-cluster"
+		},
+		"customerProperties": {
+			"api": {
+				"visibility": "Public"
+			},
+			"autoscaling": {},
+			"clusterImageRegistry": {
+				"state": "Enabled"
+			},
+			"dns": {},
+			"etcd": {
+				"dataEncryption": {
+					"keyManagementMode": "PlatformManaged"
+				}
+			},
+			"network": {
+				"networkType": "OVNKubernetes"
+			},
+			"platform": {
+				"operatorsAuthentication": {
+					"userAssignedIdentities": {}
+				},
+				"outboundType": "LoadBalancer"
+			},
+			"version": {}
 		},
 		"id": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/some-hcp-cluster",
 		"identity": {
@@ -15,7 +41,11 @@
 		"location": "eastus",
 		"name": "some-hcp-cluster",
 		"serviceProviderProperties": {
+			"api": {},
 			"clusterServiceID": "/api/aro_hcp/v1alpha1/clusters/fixed-value",
+			"console": {},
+			"dns": {},
+			"platform": {},
 			"provisioningState": "Succeeded",
 			"usesNewClusterDeletionApproach": false
 		},

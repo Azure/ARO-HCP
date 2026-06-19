@@ -1,8 +1,10 @@
 {
+	"_etag": "\"8958256c-cb03-4c3d-b74c-e41a92e04dc5\"",
 	"id": "f7583c84-ae03-56f3-b91d-55bbb849164d",
 	"partitionKey": "a433a095-1277-44f1-8453-8d61a4d848c2",
 	"properties": {
 		"cosmosMetadata": {
+			"etag": "\"8958256c-cb03-4c3d-b74c-e41a92e04dc5\"",
 			"instanceVersion": 1,
 			"partitionKey": "a433a095-1277-44f1-8453-8d61a4d848c2",
 			"resourceID": "/subscriptions/a433a095-1277-44f1-8453-8d61a4d848c2/resourceGroups/unimportantPostponement/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/monstrousPrecinct"
@@ -29,7 +31,8 @@
 								"name": "encryptionKeyName",
 								"vaultName": "keyVaultName",
 								"version": "2024-12-01-preview"
-							}
+							},
+							"visibility": "Public"
 						}
 					},
 					"keyManagementMode": "CustomerManaged"

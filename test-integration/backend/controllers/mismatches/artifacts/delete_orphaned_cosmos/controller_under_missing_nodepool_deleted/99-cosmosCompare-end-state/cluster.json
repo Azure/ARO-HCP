@@ -1,8 +1,10 @@
 {
+	"_etag": "\"9b6c9847-bead-453c-80f6-29883eb18427\"",
 	"id": "f7583c84-ae03-56f3-b91d-55bbb849164d",
 	"partitionKey": "a433a095-1277-44f1-8453-8d61a4d848c2",
 	"properties": {
 		"cosmosMetadata": {
+			"etag": "\"9b6c9847-bead-453c-80f6-29883eb18427\"",
 			"instanceVersion": 1,
 			"partitionKey": "a433a095-1277-44f1-8453-8d61a4d848c2",
 			"resourceID": "/subscriptions/a433a095-1277-44f1-8453-8d61a4d848c2/resourceGroups/unimportantPostponement/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/monstrousPrecinct"
@@ -10,6 +12,16 @@
 		"customerProperties": {
 			"api": {
 				"visibility": "Public"
+			},
+			"autoscaling": {},
+			"clusterImageRegistry": {
+				"state": "Enabled"
+			},
+			"dns": {},
+			"etcd": {
+				"dataEncryption": {
+					"keyManagementMode": "PlatformManaged"
+				}
 			},
 			"network": {
 				"hostPrefix": 23,
@@ -20,6 +32,9 @@
 			},
 			"platform": {
 				"managedResourceGroup": "uprightPairing",
+				"operatorsAuthentication": {
+					"userAssignedIdentities": {}
+				},
 				"outboundType": "LoadBalancer",
 				"subnetId": "/subscriptions/a433a095-1277-44f1-8453-8d61a4d848c2/resourceGroups/different-resource-group/providers/Microsoft.Network/virtualNetworks/vnet/subnets/subnet"
 			},

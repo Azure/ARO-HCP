@@ -1,19 +1,15 @@
 {
-	"_attachments": "attachments/",
 	"_etag": "\"4a0036e3-0000-1100-0000-69f35f960000\"",
-	"_rid": "vr4qAP3+YBM3FAQAAAAAAA==",
-	"_self": "dbs/vr4qAA==/colls/vr4qAP3+YBM=/docs/vr4qAP3+YBM3FAQAAAAAAA==/",
-	"_ts": 1777557398,
-	"id": "718f75e1-6967-5ce1-ab3c-4f991504b7eb",
+	"id": "647e3237-45a2-5ad3-a69d-1cb33efd3610",
 	"partitionKey": "a433a095-1277-44f1-8453-8d61a4d848c2",
 	"properties": {
 		"cosmosMetadata": {
+			"etag": "\"4a0036e3-0000-1100-0000-69f35f960000\"",
 			"instanceVersion": 1,
 			"partitionKey": "a433a095-1277-44f1-8453-8d61a4d848c2",
 			"resourceID": "/subscriptions/a433a095-1277-44f1-8453-8d61a4d848c2/resourceGroups/unimportantPostponement/providers/microsoft.redhatopenshift/hcpopenshiftclusters/monstrousPrecinct/hcpOpenShiftControllers/CreateBillingDoc"
 		},
 		"externalId": "/subscriptions/a433a095-1277-44f1-8453-8d61a4d848c2/resourceGroups/unimportantPostponement/providers/microsoft.redhatopenshift/hcpopenshiftclusters/monstrousPrecinct",
-		"resourceId": "/subscriptions/a433a095-1277-44f1-8453-8d61a4d848c2/resourceGroups/unimportantPostponement/providers/microsoft.redhatopenshift/hcpopenshiftclusters/monstrousPrecinct/hcpOpenShiftControllers/CreateBillingDoc",
 		"status": {
 			"conditions": [
 				{
