@@ -26,9 +26,11 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/sync/errgroup"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
+	dynamicinformer "k8s.io/client-go/dynamic/dynamicinformer"
 	kubeinformers "k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -38,7 +40,11 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 
+	hypershiftclient "github.com/openshift/hypershift/client/clientset/clientset"
+	hypershiftinformers "github.com/openshift/hypershift/client/informers/externalversions"
+
 	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/controller"
+	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/controller/ksmhcp"
 )
 
 const (
@@ -51,6 +57,7 @@ type RawControllerOptions struct {
 	Namespace     string
 	Workers       int
 	LogVerbosity  int
+	KSMImage      string
 }
 
 func DefaultControllerOptions() *RawControllerOptions {
@@ -68,6 +75,7 @@ func (o *RawControllerOptions) BindFlags(cmd *cobra.Command) error {
 	cmd.Flags().IntVar(&o.LogVerbosity, "log-verbosity", o.LogVerbosity,
 		"Log verbosity. 0 is the default verbosity level, equivalent to INFO. "+
 			"It must be a value >= 0, where a higher value means more verbose output.")
+	cmd.Flags().StringVar(&o.KSMImage, "ksm-image", o.KSMImage, "Container image for kube-state-metrics deployed per HCP namespace")
 
 	return nil
 }
@@ -81,12 +89,16 @@ type ValidatedControllerOptions struct {
 }
 
 type completedControllerOptions struct {
-	ctrl              *controller.SwiftNICController
-	resourceWatcher   *controller.ResourceWatcher
-	kubeInformers     kubeinformers.SharedInformerFactory
-	workers           int
-	healthAddress     string
-	leaderElectionCfg *controller.LeaderElectionConfig
+	ctrl                *controller.SwiftNICController
+	ksmCtrl             *ksmhcp.KSMHCPController
+	resourceWatcher     *controller.ResourceWatcher
+	kubeInformers       kubeinformers.SharedInformerFactory
+	ksmKubeInformers    kubeinformers.SharedInformerFactory
+	hypershiftInformers hypershiftinformers.SharedInformerFactory
+	dynamicInformers    dynamicinformer.DynamicSharedInformerFactory
+	workers             int
+	healthAddress       string
+	leaderElectionCfg   *controller.LeaderElectionConfig
 }
 
 type ControllerOptions struct {
@@ -150,6 +162,41 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 
 	resourceWatcher := controller.NewResourceWatcher(dynamicClient, discoveryClient)
 
+	var ksmCtrl *ksmhcp.KSMHCPController
+	var hsInformers hypershiftinformers.SharedInformerFactory
+	var ksmKubeInformers kubeinformers.SharedInformerFactory
+	var dynInformers dynamicinformer.DynamicSharedInformerFactory
+	if o.KSMImage != "" {
+		hsClient, err := hypershiftclient.NewForConfig(kubeConfig)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create hypershift clientset: %w", err)
+		}
+		hsInformers = hypershiftinformers.NewSharedInformerFactory(hsClient, 10*time.Minute)
+		ksmKubeInformers = kubeinformers.NewSharedInformerFactoryWithOptions(kubeClientset, 10*time.Minute,
+			kubeinformers.WithTweakListOptions(func(opts *metav1.ListOptions) {
+				opts.LabelSelector = ksmhcp.LabelSelector
+			}),
+		)
+		dynInformers = dynamicinformer.NewFilteredDynamicSharedInformerFactory(dynamicClient, 10*time.Minute, metav1.NamespaceAll,
+			func(opts *metav1.ListOptions) {
+				opts.LabelSelector = ksmhcp.LabelSelector
+			},
+		)
+
+		ksmCtrl, err = ksmhcp.NewKSMHCPController(
+			kubeClientset,
+			dynamicClient,
+			hsInformers.Hypershift().V1beta1().HostedControlPlanes(),
+			ksmKubeInformers.Apps().V1().Deployments().Informer(),
+			ksmKubeInformers.Core().V1().Services().Informer(),
+			dynInformers.ForResource(ksmhcp.ServiceMonitorGVR).Informer(),
+			o.KSMImage,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create KSM HCP controller: %w", err)
+		}
+	}
+
 	leaderElectionCfg := &controller.LeaderElectionConfig{
 		LockName:      LeaderElectionLockName,
 		LeaseDuration: 15 * time.Second,
@@ -161,12 +208,16 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 
 	return &ControllerOptions{
 		completedControllerOptions: &completedControllerOptions{
-			ctrl:              ctrl,
-			resourceWatcher:   resourceWatcher,
-			kubeInformers:     kubeInformers,
-			workers:           o.Workers,
-			healthAddress:     o.HealthAddress,
-			leaderElectionCfg: leaderElectionCfg,
+			ctrl:                ctrl,
+			ksmCtrl:             ksmCtrl,
+			resourceWatcher:     resourceWatcher,
+			kubeInformers:       kubeInformers,
+			ksmKubeInformers:    ksmKubeInformers,
+			hypershiftInformers: hsInformers,
+			dynamicInformers:    dynInformers,
+			workers:             o.Workers,
+			healthAddress:       o.HealthAddress,
+			leaderElectionCfg:   leaderElectionCfg,
 		},
 	}, nil
 }
@@ -199,6 +250,15 @@ func (o *ControllerOptions) Run(ctx context.Context) error {
 	logger := klog.FromContext(ctx)
 
 	o.kubeInformers.Start(ctx.Done())
+	if o.hypershiftInformers != nil {
+		o.hypershiftInformers.Start(ctx.Done())
+	}
+	if o.ksmKubeInformers != nil {
+		o.ksmKubeInformers.Start(ctx.Done())
+	}
+	if o.dynamicInformers != nil {
+		o.dynamicInformers.Start(ctx.Done())
+	}
 	logger.V(6).Info("Informer factories started")
 
 	g, ctx := errgroup.WithContext(ctx)
@@ -228,7 +288,7 @@ func (o *ControllerOptions) Run(ctx context.Context) error {
 		return nil
 	})
 
-	// controller with leader election
+	// controllers with leader election
 	g.Go(func() error {
 		logger.Info("Starting controllers under leader election")
 		if err := controller.RunWithLeaderElection(ctx, "mgmt-agent", o.leaderElectionCfg, func(leaderCtx context.Context) error {
@@ -241,6 +301,12 @@ func (o *ControllerOptions) Run(ctx context.Context) error {
 			innerG.Go(func() error {
 				return o.resourceWatcher.Run(innerCtx)
 			})
+
+			if o.ksmCtrl != nil {
+				innerG.Go(func() error {
+					return o.ksmCtrl.Run(innerCtx, o.workers)
+				})
+			}
 
 			return innerG.Wait()
 		}); err != nil {

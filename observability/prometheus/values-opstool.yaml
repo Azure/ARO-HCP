@@ -61,6 +61,8 @@ prometheusSpec:
   version: ""
   externalLabels:
     cluster: "{{ .opstool.aks.name }}"
+    region: "{{ .region }}"
+    environment: "{{ .environmentName }}"
   remoteWriteUrl: "__dcrRemoteWriteUrl__"
   hcpRemoteWriteUrl: "__dcrRemoteWriteUrl__"
   zoneCount: 1
