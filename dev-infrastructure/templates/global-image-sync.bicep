@@ -329,7 +329,7 @@ resource ocMirrorJobs 'Microsoft.App/jobs@2024-03-01' = [
         initContainers: [
           {
             name: 'decodesecrets'
-            image: 'mcr.microsoft.com/azure-cli:cbl-mariner2.0'
+            image: 'mcr.microsoft.com/azure-cli:azurelinux3.0'
             command: [
               '/bin/sh'
             ]
