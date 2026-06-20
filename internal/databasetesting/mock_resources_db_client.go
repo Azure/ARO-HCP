@@ -19,7 +19,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"path"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -28,6 +27,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
 	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
 )
 
@@ -68,33 +68,25 @@ func (m *MockResourcesDBClient) UntypedCRUD(parentResourceID azcorearm.ResourceI
 
 // HCPClusters returns a CRUD interface for HCPCluster resources.
 func (m *MockResourcesDBClient) HCPClusters(subscriptionID, resourceGroupName string) database.HCPClusterCRUD {
-	parts := []string{
-		"/subscriptions",
-		strings.ToLower(subscriptionID),
-	}
+	var parentResourceID *azcorearm.ResourceID
 	if len(resourceGroupName) > 0 {
-		parts = append(parts,
-			"resourceGroups",
-			resourceGroupName)
+		parentResourceID = api.Must(api.ToResourceGroupResourceID(subscriptionID, resourceGroupName))
+	} else {
+		parentResourceID = api.Must(arm.ToSubscriptionResourceID(subscriptionID))
 	}
-	parentResourceID := api.Must(azcorearm.ParseResourceID(strings.ToLower(path.Join(parts...))))
 
 	return newMockHCPClusterCRUD(m, parentResourceID)
 }
 
 // Operations returns a CRUD interface for operation resources.
 func (m *MockResourcesDBClient) Operations(subscriptionID string) database.OperationCRUD {
-	parts := []string{
-		"/subscriptions",
-		strings.ToLower(subscriptionID),
-	}
-	parentResourceID := api.Must(azcorearm.ParseResourceID(path.Join(parts...)))
+	parentResourceID := api.Must(arm.ToSubscriptionResourceID(subscriptionID))
 
 	return newMockOperationCRUD(m, parentResourceID)
 }
 
 // Subscriptions returns a CRUD interface for subscription resources.
-func (m *MockResourcesDBClient) Subscriptions() database.SubscriptionCRUD {
+func (m *MockResourcesDBClient) Subscriptions() database.ResourceCRUD[arm.Subscription, *arm.Subscription] {
 	return newMockSubscriptionCRUD(m)
 }
 
@@ -109,14 +101,14 @@ func (m *MockResourcesDBClient) ResourcesGlobalListers() database.ResourcesGloba
 }
 
 // ServiceProviderClusters returns a CRUD interface for service provider cluster resources.
-func (m *MockResourcesDBClient) ServiceProviderClusters(subscriptionID, resourceGroupName, clusterName string) database.ServiceProviderClusterCRUD {
-	clusterResourceID := database.NewClusterResourceID(subscriptionID, resourceGroupName, clusterName)
+func (m *MockResourcesDBClient) ServiceProviderClusters(subscriptionID, resourceGroupName, clusterName string) database.ResourceCRUD[api.ServiceProviderCluster, *api.ServiceProviderCluster] {
+	clusterResourceID := api.Must(api.ToClusterResourceID(subscriptionID, resourceGroupName, clusterName))
 	return newMockServiceProviderClusterCRUD(m, clusterResourceID)
 }
 
 // ServiceProviderNodePools returns a CRUD interface for service provider node pool resources.
-func (m *MockResourcesDBClient) ServiceProviderNodePools(subscriptionID, resourceGroupName, clusterName, nodePoolName string) database.ServiceProviderNodePoolCRUD {
-	nodePoolResourceID := database.NewNodePoolResourceID(subscriptionID, resourceGroupName, clusterName, nodePoolName)
+func (m *MockResourcesDBClient) ServiceProviderNodePools(subscriptionID, resourceGroupName, clusterName, nodePoolName string) database.ResourceCRUD[api.ServiceProviderNodePool, *api.ServiceProviderNodePool] {
+	nodePoolResourceID := api.Must(api.ToNodePoolResourceID(subscriptionID, resourceGroupName, clusterName, nodePoolName))
 	return newMockServiceProviderNodePoolCRUD(m, nodePoolResourceID)
 }
 

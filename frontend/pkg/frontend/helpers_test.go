@@ -116,9 +116,6 @@ func TestCheckForProvisioningStateConflict(t *testing.T) {
 					resourcesDBClient: mockResourcesDBClient,
 				}
 
-				doc := database.NewResourceDocument(resourceID)
-				doc.ProvisioningState = provisioningState
-
 				// Pre-populate the parent cluster in the database for nested resources (node pool, external auth)
 				if tt.parentConflict != nil {
 					parentResourceID := resourceID.Parent
@@ -141,7 +138,7 @@ func TestCheckForProvisioningStateConflict(t *testing.T) {
 					_, _ = mockResourcesDBClient.HCPClusters(parentResourceID.SubscriptionID, parentResourceID.ResourceGroupName).Create(ctx, parentCluster, nil)
 				}
 
-				cloudError := checkForProvisioningStateConflict(ctx, frontend.resourcesDBClient, tt.operationRequest, doc.ResourceID, doc.ProvisioningState)
+				cloudError := checkForProvisioningStateConflict(ctx, frontend.resourcesDBClient, tt.operationRequest, resourceID, provisioningState)
 
 				if cloudError == nil {
 					if tt.directConflict(provisioningState) {
@@ -165,10 +162,6 @@ func TestCheckForProvisioningStateConflict(t *testing.T) {
 					frontend := &Frontend{
 						resourcesDBClient: mockResourcesDBClient,
 					}
-
-					doc := database.NewResourceDocument(resourceID)
-					// Hold the provisioning state to something benign.
-					doc.ProvisioningState = arm.ProvisioningStateSucceeded
 
 					parentResourceID := resourceID.Parent
 					if parentResourceID.ResourceType.Namespace == resourceID.ResourceType.Namespace {
@@ -196,7 +189,7 @@ func TestCheckForProvisioningStateConflict(t *testing.T) {
 							resourceID.ResourceType.Namespace)
 					}
 
-					cloudError := checkForProvisioningStateConflict(ctx, frontend.resourcesDBClient, tt.operationRequest, doc.ResourceID, doc.ProvisioningState)
+					cloudError := checkForProvisioningStateConflict(ctx, frontend.resourcesDBClient, tt.operationRequest, resourceID, arm.ProvisioningStateSucceeded)
 
 					if cloudError == nil {
 						if tt.parentConflict(provisioningState) {

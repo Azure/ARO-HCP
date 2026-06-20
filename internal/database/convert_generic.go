@@ -20,8 +20,6 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/api/fleet"
-	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
 )
 
 const operationTimeToLive = 604800 // 7 days
@@ -136,6 +134,18 @@ type Defaulter interface {
 	EnsureDefaults()
 }
 
+// objectPartitionKeyDerivers is the ordered registry that DerivePartitionKey
+// walks. Most specific shape first (the kube-applier deriver matches only
+// documents that expose a ManagementCluster on their spec), then the fleet
+// types, with the catch-all subscription scheme last. Each deriver's
+// PartitionKeyFromObject returns an error when its policy doesn't apply, so
+// the iteration falls through to the next candidate.
+var objectPartitionKeyDerivers = []PartitionKeyDeriver{
+	KubeApplierPartitionKeyDeriver{},
+	FleetPartitionKeyDeriver{},
+	SubscriptionPartitionKeyDeriver{},
+}
+
 // DerivePartitionKey computes the lowercased partition key for an internal
 // object from its type. The CRUD layer is the canonical source of partition
 // keys (the container knows its own rule), so this exists for two callers:
@@ -148,24 +158,9 @@ type Defaulter interface {
 // Returns "" when no derivation is possible — the caller should treat that
 // as a programming error.
 func DerivePartitionKey[InternalAPIType any](internalObj *InternalAPIType) string {
-	// Kube-applier *Desires partition by their spec.managementCluster.
-	if mc, ok := any(internalObj).(kubeapplier.ManagementClusterAccessor); ok {
-		if rid := mc.GetManagementCluster(); rid != nil {
-			return strings.ToLower(rid.String())
-		}
-	}
-	// Fleet types (Stamp, ManagementCluster) partition by the top-level
-	// ancestor resource name.
-	switch any(internalObj).(type) {
-	case *fleet.Stamp, *fleet.ManagementCluster:
-		if md, ok := any(internalObj).(arm.CosmosMetadataAccessor); ok {
-			return topLevelResourceName(md.GetResourceID())
-		}
-	}
-	// Everything else partitions by lowercased subscription ID.
-	if md, ok := any(internalObj).(arm.CosmosMetadataAccessor); ok {
-		if rid := md.GetResourceID(); rid != nil {
-			return strings.ToLower(rid.SubscriptionID)
+	for _, d := range objectPartitionKeyDerivers {
+		if key, err := d.PartitionKeyFromObject(internalObj); err == nil && len(key) > 0 {
+			return key
 		}
 	}
 	return ""

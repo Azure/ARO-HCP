@@ -219,8 +219,8 @@ type mockKubeApplierListers struct {
 var _ database.KubeApplierListers = &mockKubeApplierListers{}
 
 func (g *mockKubeApplierListers) ApplyDesires() database.GlobalLister[kubeapplier.ApplyDesire] {
-	return &mockKubeApplierDesireLister[kubeapplier.ApplyDesire, database.GenericDocument[kubeapplier.ApplyDesire]]{
-		store: g.store,
+	return &mockGlobalLister[kubeapplier.ApplyDesire, database.GenericDocument[kubeapplier.ApplyDesire]]{
+		client: g.store,
 		resourceTypes: []azcorearm.ResourceType{
 			kubeapplier.ClusterScopedApplyDesireResourceType,
 			kubeapplier.NodePoolScopedApplyDesireResourceType,
@@ -229,8 +229,8 @@ func (g *mockKubeApplierListers) ApplyDesires() database.GlobalLister[kubeapplie
 }
 
 func (g *mockKubeApplierListers) DeleteDesires() database.GlobalLister[kubeapplier.DeleteDesire] {
-	return &mockKubeApplierDesireLister[kubeapplier.DeleteDesire, database.GenericDocument[kubeapplier.DeleteDesire]]{
-		store: g.store,
+	return &mockGlobalLister[kubeapplier.DeleteDesire, database.GenericDocument[kubeapplier.DeleteDesire]]{
+		client: g.store,
 		resourceTypes: []azcorearm.ResourceType{
 			kubeapplier.ClusterScopedDeleteDesireResourceType,
 			kubeapplier.NodePoolScopedDeleteDesireResourceType,
@@ -239,56 +239,13 @@ func (g *mockKubeApplierListers) DeleteDesires() database.GlobalLister[kubeappli
 }
 
 func (g *mockKubeApplierListers) ReadDesires() database.GlobalLister[kubeapplier.ReadDesire] {
-	return &mockKubeApplierDesireLister[kubeapplier.ReadDesire, database.GenericDocument[kubeapplier.ReadDesire]]{
-		store: g.store,
+	return &mockGlobalLister[kubeapplier.ReadDesire, database.GenericDocument[kubeapplier.ReadDesire]]{
+		client: g.store,
 		resourceTypes: []azcorearm.ResourceType{
 			kubeapplier.ClusterScopedReadDesireResourceType,
 			kubeapplier.NodePoolScopedReadDesireResourceType,
 		},
 	}
-}
-
-type mockKubeApplierDesireLister[InternalAPIType, CosmosAPIType any] struct {
-	store         *MockKubeApplierDBClient
-	resourceTypes []azcorearm.ResourceType
-}
-
-func (l *mockKubeApplierDesireLister[InternalAPIType, CosmosAPIType]) List(
-	ctx context.Context, options *database.DBClientListResourceDocsOptions,
-) (database.DBClientIterator[InternalAPIType], error) {
-	allDocs := l.store.GetAllDocuments()
-
-	var ids []string
-	var items []*InternalAPIType
-
-	for _, data := range allDocs {
-		var typedDoc database.TypedDocument
-		if err := json.Unmarshal(data, &typedDoc); err != nil {
-			continue
-		}
-		matches := false
-		for _, rt := range l.resourceTypes {
-			if strings.EqualFold(typedDoc.ResourceType, rt.String()) {
-				matches = true
-				break
-			}
-		}
-		if !matches {
-			continue
-		}
-		var cosmosObj CosmosAPIType
-		if err := json.Unmarshal(data, &cosmosObj); err != nil {
-			continue
-		}
-		internalObj, err := database.CosmosToInternal[InternalAPIType, CosmosAPIType](&cosmosObj)
-		if err != nil {
-			continue
-		}
-		ids = append(ids, typedDoc.ID)
-		items = append(items, internalObj)
-	}
-
-	return newMockIterator(ids, items), nil
 }
 
 // --- UntypedCRUD (in-memory) ----------------------------------------------

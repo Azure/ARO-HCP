@@ -116,16 +116,12 @@ type HCPClusterCRUD interface {
 }
 
 func NewHCPClusterCRUD(containerClient *azcosmos.ContainerClient, subscriptionID, resourceGroupName string) HCPClusterCRUD {
-	parts := []string{
-		"/subscriptions",
-		strings.ToLower(subscriptionID),
-	}
+	var parentResourceID *azcorearm.ResourceID
 	if len(resourceGroupName) > 0 {
-		parts = append(parts,
-			"resourceGroups",
-			resourceGroupName)
+		parentResourceID = api.Must(api.ToResourceGroupResourceID(subscriptionID, resourceGroupName))
+	} else {
+		parentResourceID = api.Must(arm.ToSubscriptionResourceID(subscriptionID))
 	}
-	parentResourceID := api.Must(azcorearm.ParseResourceID(strings.ToLower(path.Join(parts...))))
 
 	return &hcpClusterCRUD{
 		nestedCosmosResourceCRUD: NewCosmosResourceCRUD[api.HCPOpenShiftCluster, *api.HCPOpenShiftCluster, GenericDocument[api.HCPOpenShiftCluster]](containerClient, parentResourceID, api.ClusterResourceType),
@@ -196,7 +192,7 @@ func (h *hcpClusterCRUD) Controllers(hcpClusterName string) ResourceCRUD[api.Con
 	return NewControllerCRUD(h.containerClient, parentResourceID, api.ClusterControllerResourceType)
 }
 
-func (h *hcpClusterCRUD) ManagementClusterContents(hcpClusterName string) ManagementClusterContentCRUD {
+func (h *hcpClusterCRUD) ManagementClusterContents(hcpClusterName string) ResourceCRUD[api.ManagementClusterContent, *api.ManagementClusterContent] {
 	parentResourceID := api.Must(azcorearm.ParseResourceID(
 		path.Join(
 			h.parentResourceID.String(),
@@ -242,7 +238,7 @@ func (h *nodePoolsCRUD) Controllers(nodePoolName string) ResourceCRUD[api.Contro
 	return NewControllerCRUD(h.containerClient, parentResourceID, api.NodePoolControllerResourceType)
 }
 
-func (h *nodePoolsCRUD) ManagementClusterContents(nodePoolName string) ManagementClusterContentCRUD {
+func (h *nodePoolsCRUD) ManagementClusterContents(nodePoolName string) ResourceCRUD[api.ManagementClusterContent, *api.ManagementClusterContent] {
 	parentResourceID := api.Must(azcorearm.ParseResourceID(
 		path.Join(
 			h.parentResourceID.String(),
