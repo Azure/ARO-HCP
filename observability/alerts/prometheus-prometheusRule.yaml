@@ -13,7 +13,9 @@ spec:
   - name: prometheus-wip-rules
     rules:
     - alert: PrometheusJobUp
-      expr: group by (cluster) (up{job="kube-state-metrics"}) unless on(cluster) group by (cluster) (up{job="prometheus/prometheus",namespace="prometheus"} == 1)
+      # TODO: once PR #5732 (underlay_clusters source-of-truth metric) is merged and confirmed
+      # working in production, replace up{job="kubelet"} with underlay_clusters.
+      expr: group by (cluster) (up{job="kubelet"}) unless on(cluster) group by (cluster) (up{job="prometheus/prometheus",namespace="prometheus"} == 1)
       for: 10m
       labels:
         severity: critical

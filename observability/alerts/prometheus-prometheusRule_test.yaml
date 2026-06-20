@@ -5,7 +5,7 @@ tests:
 # prometheus-slo-rules group tests
 - interval: 1m
   input_series:
-  - series: 'up{job="kube-state-metrics",cluster="test"}'
+  - series: 'up{job="kubelet",cluster="test"}'
     values: "1+0x15"
   - series: 'up{job="prometheus/prometheus",namespace="prometheus",cluster="test"}'
     values: "0+0x15"
@@ -188,7 +188,7 @@ tests:
 # Additional test scenarios with multiple instances
 - interval: 1m
   input_series:
-  - series: 'up{job="kube-state-metrics",cluster="test"}'
+  - series: 'up{job="kubelet",cluster="test"}'
     values: "1+0x15"
   - series: 'up{job="prometheus/prometheus",namespace="prometheus",instance="prometheus-0",cluster="test"}'
     values: "0+0x15"
@@ -211,7 +211,7 @@ tests:
 # Test no alert scenario for PrometheusJobUp
 - interval: 1m
   input_series:
-  - series: 'up{job="kube-state-metrics",cluster="test"}'
+  - series: 'up{job="kubelet",cluster="test"}'
     values: "1+0x15"
   - series: 'up{job="prometheus/prometheus",namespace="prometheus",cluster="test"}'
     values: "1+0x15"
@@ -419,7 +419,7 @@ tests:
 # Test PrometheusJobUp with sustained outage
 - interval: 1m
   input_series:
-  - series: 'up{job="kube-state-metrics",cluster="test"}'
+  - series: 'up{job="kubelet",cluster="test"}'
     values: "1+0x15"
   - series: 'up{job="prometheus/prometheus",namespace="prometheus",cluster="test"}'
     values: "0+0x15" # Continuously down
@@ -664,7 +664,7 @@ tests:
 # Test that alert does not fire before for: 10m is reached
 - interval: 1m
   input_series:
-  - series: 'up{job="kube-state-metrics",cluster="test"}'
+  - series: 'up{job="kubelet",cluster="test"}'
     values: "1+0x10"
   - series: 'up{job="prometheus/prometheus",namespace="prometheus",cluster="test"}'
     values: "0+0x10"
@@ -675,7 +675,7 @@ tests:
 # Test that alert fires once for: 10m is reached
 - interval: 1m
   input_series:
-  - series: 'up{job="kube-state-metrics",cluster="test"}'
+  - series: 'up{job="kubelet",cluster="test"}'
     values: "1+0x15"
   - series: 'up{job="prometheus/prometheus",namespace="prometheus",cluster="test"}'
     values: "0+0x15"
@@ -766,7 +766,7 @@ tests:
 # Test recovery after alert condition
 - interval: 1m
   input_series:
-  - series: 'up{job="kube-state-metrics",cluster="test"}'
+  - series: 'up{job="kubelet",cluster="test"}'
     values: "1+0x25"
   - series: 'up{job="prometheus/prometheus",namespace="prometheus",cluster="test"}'
     values: "0+0x12 1+0x13" # Down for 12 minutes, then up
@@ -799,7 +799,7 @@ tests:
 # Test multiple namespaces and jobs
 - interval: 1m
   input_series:
-  - series: 'up{job="kube-state-metrics",cluster="test"}'
+  - series: 'up{job="kubelet",cluster="test"}'
     values: "1+0x15"
   - series: 'up{job="prometheus/prometheus",namespace="monitoring",cluster="test"}'
     values: "0+0x15"
