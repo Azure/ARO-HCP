@@ -419,7 +419,8 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 
 	_, controllerLister := backendInformers.Controllers()
 
-	maestroClientBuilder := maestro.NewMaestroClientBuilder()
+	maestroMetrics := maestro.NewMaestroMetrics(b.options.MetricsRegisterer)
+	maestroClientBuilder := maestro.NewMaestroClientBuilder(maestroMetrics)
 
 	subscriptionNonClusterDataDumpController := datadumpcontrollers.NewSubscriptionNonClusterDataDumpController(b.options.ResourcesDBClient, activeOperationLister, backendInformers)
 	clusterRecursiveDataDumpController := datadumpcontrollers.NewClusterRecursiveDataDumpController(b.options.ResourcesDBClient, b.options.KubeApplierDBClients, managementClusterLister, activeOperationLister, backendInformers, unionKubeApplierInformers)
