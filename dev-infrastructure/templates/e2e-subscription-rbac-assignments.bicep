@@ -27,9 +27,6 @@ param msiMockRoleName string = 'dev-msi-mock'
 @description('Historical custom role name for the KMS plugin role')
 param kmsPluginRoleName string = 'Azure Red Hat OpenShift KMS Plugin - Dev'
 
-@description('Optional legacy role-assignment IDs keyed by customer subscription for temporary adoption of pre-existing assignments')
-param legacyAssignmentIdsBySubscription object = {}
-
 module customerSubscriptionAssignments './e2e-subscription-rbac-assignment-subscription.bicep' = [
   for (customerSubscriptionId, index) in customerSubscriptionIds: {
     name: 'cust-sub-rbac-${index}'
@@ -43,7 +40,6 @@ module customerSubscriptionAssignments './e2e-subscription-rbac-assignment-subsc
       firstPartyRoleName: firstPartyRoleName
       msiMockRoleName: msiMockRoleName
       kmsPluginRoleName: kmsPluginRoleName
-      legacyAssignmentIds: legacyAssignmentIdsBySubscription[?customerSubscriptionId] ?? {}
     }
   }
 ]
