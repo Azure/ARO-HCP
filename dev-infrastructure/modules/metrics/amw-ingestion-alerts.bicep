@@ -13,50 +13,10 @@ param enabled bool
 @description('Threshold (percent) below which the low event ingestion alert fires')
 param lowEventIngestionThreshold int
 
-@description('Runbook URL for Prometheus metrics absent alert')
-param prometheusRunbookUrl string = 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/prometheus.html'
-
 var amwName = last(split(azureMonitorWorkspaceId, '/'))
 
 // Severity 4 (Informational): approaching limits — capacity planning signal
 // Severity 3 (Warning): high risk of throttling — matches all other production alerts in the repo
-
-resource prometheusMetricsAbsent 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
-  name: 'PrometheusMetricsAbsent - ${workspaceLabel} - ${amwName}'
-  location: resourceGroup().location
-  properties: {
-    enabled: enabled
-    scopes: [
-      azureMonitorWorkspaceId
-    ]
-    rules: [
-      {
-        alert: 'PrometheusMetricsAbsent'
-        expression: 'absent(up{job="prometheus/prometheus",namespace="prometheus"})'
-        for: 'PT10M'
-        severity: 3
-        enabled: true
-        annotations: {
-          description: 'The up metric for Prometheus in the prometheus namespace has been absent for the past 10 minutes. This indicates that Prometheus is not reporting any metrics, which means no data is being sent to the Azure Monitor Workspace. Check the status of the Prometheus pods, verify scrape configurations, and ensure remote write is functioning.'
-          runbook_url: prometheusRunbookUrl
-          summary: 'Prometheus up metric is absent.'
-        }
-        labels: {
-          severity: 'warning'
-        }
-        resolveConfiguration: {
-          autoResolved: true
-          timeToResolve: 'PT10M'
-        }
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-          }
-        ]
-      }
-    ]
-  }
-}
 
 resource approachingActiveTimeSeries 'Microsoft.Insights/metricAlerts@2018-03-01' = {
   name: 'AMW Approaching Active TimeSeries Limit - ${workspaceLabel} - ${amwName}'
