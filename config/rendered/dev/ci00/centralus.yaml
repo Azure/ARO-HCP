@@ -432,9 +432,9 @@ hcpRecovery:
 hypershift:
   additionalInstallArg: --enable-cpo-overrides
   image:
-    digest: sha256:a4f20d1113805dd08e50b344b2f2255e2a5a12609a000668926d7ef3c9bd95b2
+    digest: sha256:ca20f538e9857dea2d3f6138a92dda676e225b3748fedc75ce6bb77bc5fef30d
     registry: quay.io
-    repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
+    repository: rh_ee_cschombu/hypershift
   limitClusterSizes: true
   namespace: hypershift
   sharedIngressIPTag: ""
@@ -443,7 +443,7 @@ hypershift:
     registry: quay.io
     repository: redhat-user-workloads/crt-redhat-acm-tenant/hypershift-shared-ingress-main
 imageRegistryPolicy:
-  extraAllowedRegistries: docker.io/jaegertracing,docker.io/grafana,docker.io/otel,docker.io/library/postgres
+  extraAllowedRegistries: docker.io/jaegertracing,docker.io/grafana,docker.io/otel,docker.io/library/postgres,quay.io/rh_ee_cschombu
   validationActions: Deny
 imageSync:
   environmentName: aro-hcp-image-sync
