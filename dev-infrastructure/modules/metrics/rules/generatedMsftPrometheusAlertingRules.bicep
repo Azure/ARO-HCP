@@ -1108,7 +1108,7 @@ Check the status of the Prometheus pods, service endpoints, and network connecti
           summary: 'Prometheus is unreachable for 10 minutes.'
           title: 'Prometheus is unreachable for 10 minutes.'
         }
-        expression: 'group by (cluster) (up{job="kube-state-metrics"}) unless on(cluster) group by (cluster) (up{job="prometheus/prometheus",namespace="prometheus"} == 1)'
+        expression: 'group by (cluster) (up{job="kubelet"}) unless on(cluster) group by (cluster) (up{job="prometheus/prometheus",namespace="prometheus"} == 1)'
         for: 'PT10M'
         severity: 2
       }
