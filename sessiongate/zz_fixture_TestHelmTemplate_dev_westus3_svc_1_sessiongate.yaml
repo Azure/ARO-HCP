@@ -665,6 +665,20 @@ spec:
     - name: sessiongate
       port: 8080
 ---
+# Source: sessiongate/templates/peerauthentication.yaml
+apiVersion: security.istio.io/v1beta1
+kind: PeerAuthentication
+metadata:
+  name: sessiongate-metrics
+  namespace: 'sessiongate'
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: sessiongate
+  portLevelMtls:
+    8080:
+      mode: PERMISSIVE
+---
 # Source: sessiongate/templates/requestauthentication.yaml
 apiVersion: security.istio.io/v1beta1
 kind: RequestAuthentication

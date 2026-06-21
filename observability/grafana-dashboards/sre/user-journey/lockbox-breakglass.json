@@ -81,13 +81,14 @@
       },
       "targets": [
         {
-          "expr": "lockbox:sessiongate_active_sessions:max",
+          "expr": "max(sessiongate_active_sessions) or vector(0)",
           "legendFormat": "",
           "refId": "A",
           "datasource": {
             "type": "prometheus",
             "uid": "${datasource}"
-          }
+          },
+          "range": true
         }
       ]
     },
@@ -116,7 +117,28 @@
             ]
           },
           "unit": "short",
-          "mappings": [],
+          "mappings": [
+            {
+              "options": {
+                "0": {
+                  "text": "OK",
+                  "color": "green",
+                  "index": 0
+                }
+              },
+              "type": "value"
+            },
+            {
+              "options": {
+                "1": {
+                  "text": "DEGRADED",
+                  "color": "red",
+                  "index": 1
+                }
+              },
+              "type": "value"
+            }
+          ],
           "color": {
             "mode": "thresholds"
           }
@@ -145,13 +167,14 @@
       },
       "targets": [
         {
-          "expr": "lockbox:audit_log_connection_degraded:max",
+          "expr": "max(otel_audit_log_connection_degraded{job=\"aro-hcp-admin-api-metrics\"}) or vector(0)",
           "legendFormat": "",
           "refId": "A",
           "datasource": {
             "type": "prometheus",
             "uid": "${datasource}"
-          }
+          },
+          "range": true
         }
       ]
     },
@@ -209,13 +232,14 @@
       },
       "targets": [
         {
-          "expr": "lockbox:audit_log_error_rate:ratio_1h",
+          "expr": "lockbox:audit_log_error_rate:ratio_1h or vector(0)",
           "legendFormat": "",
           "refId": "A",
           "datasource": {
             "type": "prometheus",
             "uid": "${datasource}"
-          }
+          },
+          "range": true
         }
       ]
     },
@@ -279,7 +303,8 @@
           "datasource": {
             "type": "prometheus",
             "uid": "${datasource}"
-          }
+          },
+          "range": true
         }
       ]
     },
@@ -353,7 +378,7 @@
       },
       "targets": [
         {
-          "expr": "lockbox:sessiongate_active_sessions:max",
+          "expr": "max by (cluster) (sessiongate_active_sessions)",
           "legendFormat": "{{ cluster }}",
           "refId": "A",
           "datasource": {
@@ -609,7 +634,7 @@
       },
       "targets": [
         {
-          "expr": "lockbox:audit_log_records:rate5m",
+          "expr": "sum by (cluster) (rate(otel_audit_log_records_total{job=\"aro-hcp-admin-api-metrics\"}[5m]))",
           "legendFormat": "records/sec {{ cluster }}",
           "refId": "A",
           "datasource": {

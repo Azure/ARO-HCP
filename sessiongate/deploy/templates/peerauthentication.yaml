@@ -1,0 +1,12 @@
+apiVersion: security.istio.io/v1beta1
+kind: PeerAuthentication
+metadata:
+  name: sessiongate-metrics
+  namespace: '{{ .Release.Namespace }}'
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: sessiongate
+  portLevelMtls:
+    {{ .Values.service.port }}:
+      mode: PERMISSIVE
