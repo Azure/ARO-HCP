@@ -43,6 +43,78 @@
       "tooltip": "Fleet-wide in-flight operations overview",
       "type": "link",
       "url": "/d/sre-cluster-health-operations-overview/operations-overview-fleet-wide"
+    },
+    {
+      "asDropdown": false,
+      "icon": "dashboard",
+      "includeVars": false,
+      "keepTime": true,
+      "tags": [],
+      "targetBlank": true,
+      "title": "KAS Golden Signals",
+      "tooltip": "Per-HCP KAS availability, errors, latency, traffic, saturation",
+      "type": "link",
+      "url": "/d/hcp-kas-golden-signals/hcp-kas-golden-signals?var-namespace=$namespace"
+    },
+    {
+      "asDropdown": false,
+      "icon": "dashboard",
+      "includeVars": false,
+      "keepTime": true,
+      "tags": [],
+      "targetBlank": true,
+      "title": "Backend",
+      "tooltip": "Backend health and Maestro gRPC signals",
+      "type": "link",
+      "url": "/d/bepcy70a38jk0d/backend"
+    },
+    {
+      "asDropdown": false,
+      "icon": "dashboard",
+      "includeVars": false,
+      "keepTime": true,
+      "tags": [],
+      "targetBlank": true,
+      "title": "Clusters Service",
+      "tooltip": "Clusters Service availability and latency SLOs",
+      "type": "link",
+      "url": "/d/aro-hcp-cluster-service-slo/cluster-service-slo"
+    },
+    {
+      "asDropdown": false,
+      "icon": "dashboard",
+      "includeVars": false,
+      "keepTime": true,
+      "tags": [],
+      "targetBlank": true,
+      "title": "Maestro",
+      "tooltip": "Maestro server and agent signals",
+      "type": "link",
+      "url": "/d/maestro-server/maestro-server"
+    },
+    {
+      "asDropdown": false,
+      "icon": "dashboard",
+      "includeVars": false,
+      "keepTime": true,
+      "tags": [],
+      "targetBlank": true,
+      "title": "Frontend",
+      "tooltip": "Frontend request handling",
+      "type": "link",
+      "url": "/d/dem2p0rbqegaof/frontend"
+    },
+    {
+      "asDropdown": false,
+      "icon": "dashboard",
+      "includeVars": false,
+      "keepTime": true,
+      "tags": [],
+      "targetBlank": true,
+      "title": "etcd Availability",
+      "tooltip": "Fleet etcd availability and health",
+      "type": "link",
+      "url": "/d/etcd-availability/etcd-availability"
     }
   ],
   "panels": [
@@ -65,7 +137,7 @@
           "showLineNumbers": false,
           "showMiniMap": false
         },
-        "content": "### Per-Cluster Oncall Drill-in\n\nSingle-cluster health view for oncall triage.\n\n**How to use:** Select a services datasource (env+region), then pick an HCPs datasource for the same region. Choose a namespace to drill into a specific hosted cluster.\n\n**Datasources:** Services AMW for provisioning state and backend metrics. HCPs AMW for KAS, etcd, and control-plane signals.",
+        "content": "### Per-Cluster Oncall Drill-in\n\nSingle-cluster health view for oncall triage.\n\n**How to use:** Select a services datasource (env+region), then pick an HCPs datasource for the same region. Choose a namespace to drill into a specific hosted cluster.\n\n**Datasources:** Services AMW for provisioning state and backend metrics. HCPs AMW for KAS, etcd, and control-plane signals.\n\n**Planned:** Kusto/ADX panels for error log volume from ServiceLogs and HostedControlPlaneLogs (pending ADX datasource integration -- no existing dashboards use Kusto today).",
         "mode": "markdown"
       },
       "pluginVersion": "11.6.9",
@@ -713,6 +785,196 @@
         "x": 0,
         "y": 22
       },
+      "id": 15,
+      "panels": [],
+      "title": "Control Plane Components",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$ds_hcps"
+      },
+      "description": "KAS saturation: in-flight requests and long-running requests",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "Requests",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": { "type": "linear" },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": { "group": "A", "mode": "none" },
+            "thresholdsStyle": { "mode": "off" }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "green" }]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 23
+      },
+      "id": 16,
+      "options": {
+        "legend": {
+          "calcs": ["lastNotNull", "max"],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$ds_hcps"
+          },
+          "editorMode": "code",
+          "expr": "sum by (request_kind) (apiserver_current_inflight_requests{namespace=~\"$namespace\"})",
+          "range": true,
+          "legendFormat": "inflight: {{request_kind}}",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$ds_hcps"
+          },
+          "editorMode": "code",
+          "expr": "sum(apiserver_longrunning_requests{namespace=~\"$namespace\"})",
+          "range": true,
+          "legendFormat": "long-running",
+          "refId": "B"
+        }
+      ],
+      "title": "KAS Saturation (Inflight & Long-running)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$ds_hcps"
+      },
+      "description": "etcd backend commit and peer round-trip latencies",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": { "type": "linear" },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": { "group": "A", "mode": "none" },
+            "thresholdsStyle": {
+              "mode": "line"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green" },
+              { "color": "red", "value": 0.025 }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 23
+      },
+      "id": 17,
+      "options": {
+        "legend": {
+          "calcs": ["lastNotNull", "max"],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$ds_hcps"
+          },
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(etcd_disk_backend_commit_duration_seconds_bucket{namespace=~\"$namespace\"}[5m])))",
+          "range": true,
+          "legendFormat": "Backend Commit p99",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$ds_hcps"
+          },
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(etcd_network_peer_round_trip_time_seconds_bucket{namespace=~\"$namespace\"}[5m])))",
+          "range": true,
+          "legendFormat": "Peer RTT p99",
+          "refId": "B"
+        }
+      ],
+      "title": "etcd Backend Commit & Peer RTT (p99)",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 31
+      },
       "id": 20,
       "panels": [],
       "title": "etcd Health",
@@ -770,7 +1032,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 23
+        "y": 32
       },
       "id": 21,
       "options": {
@@ -850,7 +1112,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 23
+        "y": 32
       },
       "id": 22,
       "options": {
@@ -931,7 +1193,7 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 23
+        "y": 32
       },
       "id": 23,
       "options": {
@@ -966,7 +1228,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 31
+        "y": 40
       },
       "id": 30,
       "panels": [],
@@ -1027,7 +1289,7 @@
         "h": 8,
         "w": 24,
         "x": 0,
-        "y": 32
+        "y": 41
       },
       "id": 31,
       "options": {
@@ -1092,7 +1354,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 40
+        "y": 49
       },
       "id": 40,
       "panels": [],
@@ -1158,7 +1420,7 @@
         "h": 8,
         "w": 24,
         "x": 0,
-        "y": 41
+        "y": 50
       },
       "id": 41,
       "options": {
@@ -1205,7 +1467,7 @@
         "query": "prometheus",
         "queryValue": "",
         "refresh": 1,
-        "regex": "^Managed_Prometheus_services-.*$",
+        "regex": "^Managed_Prometheus_services-(?!.*-(ln|yt|chn)$).*$",
         "skipUrlSync": false,
         "type": "datasource"
       },
@@ -1220,7 +1482,7 @@
         "query": "prometheus",
         "queryValue": "",
         "refresh": 1,
-        "regex": "^Managed_Prometheus_hcps-.*$",
+        "regex": "^Managed_Prometheus_hcps-(?!.*-(ln|yt|chn)$).*$",
         "skipUrlSync": false,
         "type": "datasource"
       },
