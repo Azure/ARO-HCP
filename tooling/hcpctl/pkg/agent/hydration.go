@@ -22,7 +22,9 @@ import (
 	"encoding/base64"
 	"fmt"
 	"log/slog"
+	"net/url"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 
@@ -58,9 +60,20 @@ func NewHydrator(kustoClient KustoClient, kustoEndpoint, kustoDatabase string, w
 
 // queryToDeepLink compresses the input query with gzip and then encodes it to base64.
 // Necessary to compress long queries to fit in the default browser URI length limits.
-// Returns a Kusto deep link with encoded query and proper cluster/database.
+// Returns an Azure Data Explorer web portal deep link with encoded query.
+// The kustoEndpoint is a data-plane endpoint (e.g. https://cluster.region.kusto.windows.net)
+// which is transformed into a portal link (https://dataexplorer.azure.com/clusters/cluster.region/databases/db).
 // See: https://learn.microsoft.com/en-us/kusto/api/rest/deeplink
 func queryToDeepLink(kustoEndpoint, kustoDatabase, query string) (string, error) {
+	endpoint, err := url.Parse(kustoEndpoint)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse kusto endpoint %q: %w", kustoEndpoint, err)
+	}
+
+	// The data-plane hostname is "<cluster>.<region>.kusto.windows.net"; strip the suffix
+	// to get the cluster identifier used in the portal URL path.
+	clusterID := strings.TrimSuffix(endpoint.Hostname(), ".kusto.windows.net")
+
 	var buf bytes.Buffer
 	gzipWriter := gzip.NewWriter(&buf)
 
@@ -73,7 +86,16 @@ func queryToDeepLink(kustoEndpoint, kustoDatabase, query string) (string, error)
 	}
 
 	encodedQuery := base64.StdEncoding.EncodeToString(buf.Bytes())
-	return fmt.Sprintf("%s/%s?query=%s", kustoEndpoint, kustoDatabase, encodedQuery), nil
+
+	deepLink := &url.URL{
+		Scheme: "https",
+		Host:   "dataexplorer.azure.com",
+		Path:   path.Join("clusters", clusterID, "databases", kustoDatabase),
+	}
+	params := url.Values{}
+	params.Set("query", encodedQuery)
+	deepLink.RawQuery = params.Encode()
+	return deepLink.String(), nil
 }
 
 // Hydrate takes a DraftChain and produces a HydratedChain by re-running all
