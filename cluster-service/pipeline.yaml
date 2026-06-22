@@ -76,6 +76,14 @@ resourceGroups:
         resourceGroup: service
         step: output
         name: csMsiClientId
+      oidcIssuerBlobServiceUrl:
+        resourceGroup: service
+        step: output
+        name: oidcIssuerBlobServiceUrl
+      oidcIssuerBaseUrl:
+        resourceGroup: service
+        step: output
+        name: oidcIssuerBaseUrl
       ocpAcrResourceId: #OCP_ACR_RESOURCE_ID
         resourceGroup: global
         step: geneva-output
