@@ -162,9 +162,9 @@ Used for deploying Kubernetes services onto AKS clusters using [Helm](https://he
 6. `namespaceFiles`: Optional list of Kubernetes namespace manifest files to apply before the Helm release. The release namespace itself does not need to be listed here — it is always created. Use these when a namespace requires specific labels, annotations, or other configuration. These files are pre-processed as Go templates.
 7. `chartDir`: Path to the Helm chart directory, relative to the `pipeline.yaml` file.
 8. `valuesFile`: Optional. Path to the Helm values file, relative to the `pipeline.yaml` file. Pre-processed as a Go template before being passed to Helm.
-9. `kustoDatabase`: Optional. Kusto database name for logging this deployment.
-10. `kustoTable`: Optional. Kusto table for log ingestion.
-11. `kustoEndpoint`: Optional. Input reference resolving to the Kusto cluster URI, used for deployment logging.
+9. `kustoDatabase`: Kusto database name for logging this deployment.
+10. `kustoTable`: Kusto table for log ingestion.
+11. `kustoEndpoint`: Input reference resolving to the Kusto cluster URI, used for deployment logging.
 12. `inputVariables`: Optional. A map from placeholder names to step output references. Values are resolved from the outputs of other steps and injected into `valuesFile` and `namespaceFiles` by replacing `__<name>__` tokens.
     * Example:
       ```
@@ -175,8 +175,8 @@ Used for deploying Kubernetes services onto AKS clusters using [Helm](https://he
 	         name: outputVariableName
       ```  
 13. An `inputVariables` entry: the key (`frontendMsiClientId`) is the placeholder name; `resourceGroup`, `step`, and `name` identify which step output to read.
-14. `identityFrom`: Optional. The managed identity used when running this deployment in EV2.
-15. `timeout`: Maximum time to wait for the Helm release to reach ready state. Uses Go duration syntax (e.g., `30s`, `5m`, `1h`). Defaults to `5m`.
+14. `identityFrom`: The managed identity used when running this deployment in EV2.
+15. `timeout`: Optional. Maximum time to wait for the Helm release to reach ready state. Uses Go duration syntax (e.g., `30s`, `5m`, `1h`). Defaults to `5m`.
 16. `rollbackOnFailure`: Optional. If `true`, rolls back to the previous release on upgrade failure, or uninstalls on install failure. Defaults to `false`.
 
 The Helm step uses a **content-addressed cache** to skip execution when the chart directory, values file, namespace files, release name, release namespace, and target cluster are all unchanged since the last successful run, enabling efficient incremental deployments.
