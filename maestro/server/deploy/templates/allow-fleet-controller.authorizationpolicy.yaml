@@ -1,0 +1,23 @@
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-fleet-controller
+  namespace: '{{ .Release.Namespace }}'
+spec:
+  action: "ALLOW"
+  rules:
+    - to:
+      - operation:
+          ports:
+            - "{{ .Values.maestro.httpBindPort }}"
+      from:
+      - source:
+          principals:
+            {{- if .Values.istio.restrictIngress }}
+            - "cluster.local/ns/{{ .Values.fleet.namespace }}/sa/{{ .Values.fleet.serviceAccount }}"
+            {{- else }}
+            - "*"
+            {{- end }}
+  selector:
+    matchLabels:
+      app: "maestro"

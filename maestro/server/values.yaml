@@ -39,6 +39,9 @@ clustersService:
 backend:
   namespace: "{{ .backend.k8s.namespace }}"
   serviceAccount: "{{ .backend.k8s.serviceAccountName }}"
+fleet:
+  namespace: "{{ .fleet.k8s.namespace }}"
+  serviceAccount: "{{ .fleet.k8s.serviceAccountName }}"
 istio:
   restrictIngress: {{ .maestro.restrictIstioIngress }}
 azure:

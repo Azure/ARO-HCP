@@ -117,6 +117,8 @@ spec:
         - '__cosmosUrl__'
         - --cosmos-name
         - 'arohcpdev-rp-usw3'
+        - --clusters-service-url
+        - 'http://clusters-service.clusters-service.svc.cluster.local:8000'
         - --kube-namespace
         - 'fleet'
         ports:

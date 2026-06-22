@@ -23,6 +23,7 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
+	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
 
@@ -55,6 +56,20 @@ var needsUpdateEqualities = func() conversion.Equalities {
 		// azcorearm.ResourceID (value): same reason as the pointer form.
 		func(a, b azcorearm.ResourceID) bool {
 			return a.String() == b.String()
+		},
+		// api.InternalID (value): compare by canonical path.
+		func(a, b api.InternalID) bool {
+			return a.Path() == b.Path()
+		},
+		// *api.InternalID (pointer): nil-safe path comparison.
+		func(a, b *api.InternalID) bool {
+			if a == nil && b == nil {
+				return true
+			}
+			if a == nil || b == nil {
+				return false
+			}
+			return a.Path() == b.Path()
 		},
 		// runtime.RawExtension: compare via canonical JSON. RawExtension can carry data either as
 		// Raw bytes or as a typed Object; both forms need to round-trip to the same JSON for our
