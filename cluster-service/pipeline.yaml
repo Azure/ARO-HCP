@@ -54,7 +54,7 @@ resourceGroups:
     releaseName: 'cluster-service'
     releaseNamespace: '{{ .clustersService.k8s.namespace }}'
     chartDir: ./helm/cluster-service
-    valuesFile: ./helm/cluster-service/%OVERRIDE%.yaml
+    valuesFile: './helm/cluster-service/{{ .clustersService.postgres.valuesFileOverride }}'
     namespaceFiles:
     - namespace.yaml
     kustoDatabase: '{{ .kusto.serviceLogsDatabase }}'
@@ -84,6 +84,10 @@ resourceGroups:
         resourceGroup: service
         step: output
         name: oidcIssuerBaseUrl
+      databaseHost:
+        resourceGroup: service
+        step: output
+        name: databaseHost
       ocpAcrResourceId: #OCP_ACR_RESOURCE_ID
         resourceGroup: global
         step: geneva-output

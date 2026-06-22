@@ -194,7 +194,7 @@ deployLocalDatabase: true
 # The name of the K8s secret where CS DB connection information is placed
 databaseK8sSecretName: "ocm-cs-db"
 # The hostname of the postgres server/service. It can be a K8s service name
-databaseHost: "ocm-cs-db"
+databaseHost: "__databaseHost__"
 # Username for PostgreSQL user that will be used for accessing the database.
 databaseUser: "ocm"
 # Password for the PostgreSQL connection user.
