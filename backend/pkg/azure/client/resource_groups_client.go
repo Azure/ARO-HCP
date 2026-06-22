@@ -14,6 +14,8 @@
 
 package client
 
+//go:generate $MOCKGEN -typed -source=resource_groups_client.go -destination=mock_resource_groups_client.go -package client ResourceGroupsClient
+
 import (
 	"context"
 
