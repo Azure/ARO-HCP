@@ -111,6 +111,10 @@
           {
             "matcher": { "id": "byName", "options": "accepted" },
             "properties": [{ "id": "color", "value": { "fixedColor": "blue", "mode": "fixed" } }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "updating" },
+            "properties": [{ "id": "color", "value": { "fixedColor": "purple", "mode": "fixed" } }]
           }
         ]
       },
@@ -1184,7 +1188,9 @@
       "type": "timeseries"
     }
   ],
-  "schemaVersion": 40,
+  "preload": false,
+  "refresh": "5m",
+  "schemaVersion": 41,
   "tags": ["aro-hcp", "sre", "oncall", "per-cluster"],
   "templating": {
     "list": [
