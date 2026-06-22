@@ -42,6 +42,12 @@ resourceGroups:
   resourceGroup: '{{ .svc.rg }}'
   subscription: '{{ .svc.subscription.key }}'
   steps:
+  - name: output
+    action: ARM
+    template: ../dev-infrastructure/templates/cluster-service-lookup.bicep
+    parameters: ../dev-infrastructure/configurations/cluster-service-lookup.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
   - name: deploy
     action: Helm
     aksCluster: '{{ .svc.aks.name }}'
@@ -58,6 +64,18 @@ resourceGroups:
       step: output
       name: kustoUri
     inputVariables:
+      imagePullerMsiClientId:
+        resourceGroup: service
+        step: output
+        name: imagePullerMsiClientId
+      tenantId:
+        resourceGroup: service
+        step: output
+        name: tenantId
+      azureCsMiClientId:
+        resourceGroup: service
+        step: output
+        name: csMsiClientId
       ocpAcrResourceId: #OCP_ACR_RESOURCE_ID
         resourceGroup: global
         step: geneva-output
@@ -71,6 +89,8 @@ resourceGroups:
       step: output
       name: globalMSIId
     dependsOn:
+    - resourceGroup: service
+      step: output
     - resourceGroup: global
       step: mirror-image
     automatedRetry:

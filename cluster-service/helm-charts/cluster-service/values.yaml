@@ -142,7 +142,7 @@ memoryLimit: "unlimited"
 # CPU request.
 cpuRequest: "50m"
 # Client ID for the CS managed identity.
-azureCsMiClientId: ""
+azureCsMiClientId: "__azureCsMiClientId__"
 # Azure region the CS instance is running in.
 region: "westus3"
 # The client id of the first party application identity.
@@ -150,7 +150,7 @@ azureFirstPartyApplicationClientId: ""
 # The name of the Key Vault containing keys, secrets and certificates used to support services running on the service cluster.
 serviceKeyVaultName: ""
 # The Tenant ID of service cluster.
-tenantId: ""
+tenantId: "__tenantId__"
 # The name of the secret that contains the first party application certificate bundle.
 fpaCertName: ""
 # If set to true the connection to the database is performed without TLS.
