@@ -16,7 +16,7 @@ package e2e
 
 import (
 	"context"
-	"fmt"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -50,33 +50,33 @@ var _ = Describe("Fleet", func() {
 			currentIdentity, err := tc.GetCurrentAzureIdentityDetails(ctx)
 			Expect(err).NotTo(HaveOccurred(), "failed to get current Azure identity details")
 
-			By("listing all stamps via admin API")
-			stamps, err := tc.ListStamps(ctx, currentIdentity)
-			Expect(err).NotTo(HaveOccurred(), "failed to list stamps")
-			Expect(stamps).NotTo(BeEmpty(), "no stamps found — registration may not have run")
+			By("waiting for stamps to be registered with ready management clusters")
+			Eventually(func(g Gomega) {
+				stamps, err := tc.ListStamps(ctx, currentIdentity)
+				g.Expect(err).NotTo(HaveOccurred(), "failed to list stamps")
+				g.Expect(stamps).NotTo(BeEmpty(), "no stamps found — registration may not have run")
 
-			for _, s := range stamps {
-				Expect(s.ResourceID).NotTo(BeEmpty(), "stamp resourceId must not be empty")
-				By(fmt.Sprintf("verifying stamp %s", s.ResourceID))
+				for _, s := range stamps {
+					g.Expect(s.ResourceID).NotTo(BeEmpty(), "stamp resourceId must not be empty")
 
-				approvedCondition := apimeta.FindStatusCondition(s.Status.Conditions, string(fleet.StampConditionApproved))
-				Expect(approvedCondition).NotTo(BeNil(), "stamp must have Approved condition")
-				Expect(approvedCondition.Status).To(Equal(metav1.ConditionTrue), "stamp must be approved")
+					approvedCondition := apimeta.FindStatusCondition(s.Status.Conditions, string(fleet.StampConditionApproved))
+					g.Expect(approvedCondition).NotTo(BeNil(), "stamp %s must have Approved condition", s.ResourceID)
+					g.Expect(approvedCondition.Status).To(Equal(metav1.ConditionTrue), "stamp %s must be approved", s.ResourceID)
 
-				stampResourceID, err := azcorearm.ParseResourceID(s.ResourceID)
-				Expect(err).NotTo(HaveOccurred(), "failed to parse stamp resource ID %q", s.ResourceID)
-				stampIdentifier := stampResourceID.Name
+					stampResourceID, err := azcorearm.ParseResourceID(s.ResourceID)
+					g.Expect(err).NotTo(HaveOccurred(), "failed to parse stamp resource ID %q", s.ResourceID)
+					stampIdentifier := stampResourceID.Name
 
-				By(fmt.Sprintf("verifying management cluster for stamp %s", stampIdentifier))
-				managementCluster, err := tc.GetManagementCluster(ctx, stampIdentifier, fleet.ManagementClusterResourceName, currentIdentity)
-				Expect(err).NotTo(HaveOccurred(), "failed to get management cluster for stamp %s", stampIdentifier)
+					managementCluster, err := tc.GetManagementCluster(ctx, stampIdentifier, fleet.ManagementClusterResourceName, currentIdentity)
+					g.Expect(err).NotTo(HaveOccurred(), "failed to get management cluster for stamp %s", stampIdentifier)
 
-				Expect(managementCluster.ResourceID).NotTo(BeEmpty(), "management cluster resourceId must not be empty")
+					g.Expect(managementCluster.ResourceID).NotTo(BeEmpty(), "management cluster resourceId must not be empty")
 
-				readyCondition := apimeta.FindStatusCondition(managementCluster.Status.Conditions, string(fleet.ManagementClusterConditionReady))
-				Expect(readyCondition).NotTo(BeNil(), "management cluster must have Ready condition")
-				Expect(readyCondition.Status).To(Equal(metav1.ConditionTrue), "management cluster must be ready")
-			}
+					readyCondition := apimeta.FindStatusCondition(managementCluster.Status.Conditions, string(fleet.ManagementClusterConditionReady))
+					g.Expect(readyCondition).NotTo(BeNil(), "management cluster %s must have Ready condition", stampIdentifier)
+					g.Expect(readyCondition.Status).To(Equal(metav1.ConditionTrue), "management cluster %s must be ready", stampIdentifier)
+				}
+			}, 15*time.Minute, 30*time.Second).Should(Succeed(), "fleet registration did not complete in time")
 		},
 	)
 })

@@ -119,6 +119,18 @@ resourceGroups:
     - serviceGroup: Microsoft.Azure.ARO.HCP.Fleet
       resourceGroup: service
       step: deploy
+    - serviceGroup: Microsoft.Azure.ARO.HCP.ACM
+      resourceGroup: management
+      step: deploy-policies
+    - serviceGroup: Microsoft.Azure.ARO.HCP.RP.HypershiftOperator
+      resourceGroup: management
+      step: deploy
+    - serviceGroup: Microsoft.Azure.ARO.HCP.KubeApplier
+      resourceGroup: management
+      step: deploy
+    - serviceGroup: Microsoft.Azure.ARO.HCP.Maestro.Agent
+      resourceGroup: management
+      step: deploy
     identityFrom:
       resourceGroup: global
       step: output
