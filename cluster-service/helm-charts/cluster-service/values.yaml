@@ -16,9 +16,9 @@ defaultExpiration: "0"
 # Maximum expiration duration possible for any newly created cluster (e.g. 72h means the expiration date cannot be greater than 72h). 0 means no maximum expiration value possible.
 maximumExpiration: "0"
 # Image Registry
-imageRegistry: ""
+imageRegistry: "{{ .acr.svc.name }}.azurecr.io"
 # Image Repository
-imageRepository: ""
+imageRepository: "{{ .clustersService.image.repository }}"
 # Image Digest
 imageDigest: ""
 # log verbosity level. It is a go-logr/logr verbosity level.
@@ -141,7 +141,7 @@ memoryRequest: "150Mi"
 memoryLimit: "unlimited"
 # CPU request.
 cpuRequest: "50m"
-# Client ID for the CS manage identity.
+# Client ID for the CS managed identity.
 azureCsMiClientId: ""
 # Azure region the CS instance is running in.
 region: "westus3"
@@ -304,10 +304,10 @@ azureOperatorsMI:
         name: Azure Red Hat OpenShift Hosted Control Planes Service Managed Identity
 # Pull binding configuration for ACR Pull Operator
 pullBinding:
-  registry: ""
-  scope: ""
-  workloadIdentityClientId: ""
-  workloadIdentityTenantId: ""
+  registry: "{{ .acr.svc.name }}.azurecr.io"
+  scope: "repository:{{ .clustersService.image.repository }}:pull"
+  workloadIdentityClientId: "__imagePullerMsiClientId__"
+  workloadIdentityTenantId: "__tenantId__"
 tracing:
   address: ""
 csDeploymentStrategy:

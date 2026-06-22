@@ -49,6 +49,8 @@ resourceGroups:
     releaseNamespace: '{{ .clustersService.k8s.namespace }}'
     chartDir: ./helm/cluster-service
     valuesFile: ./helm/cluster-service/%OVERRIDE%.yaml
+    namespaceFiles:
+    - namespace.yaml
     kustoDatabase: '{{ .kusto.serviceLogsDatabase }}'
     kustoTable: 'containerLogs'
     kustoEndpoint:
@@ -56,11 +58,11 @@ resourceGroups:
       step: output
       name: kustoUri
     inputVariables:
-      OCP_ACR_RESOURCE_ID:
+      ocpAcrResourceId: #OCP_ACR_RESOURCE_ID
         resourceGroup: global
         step: geneva-output
         name: appId
-      OCP_ACR_URL:
+      ocpAcrUrl: #OCP_ACR_URL
         resourceGroup: global
         step: output
         name: ocpAcrLoginServer
