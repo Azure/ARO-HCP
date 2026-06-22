@@ -44,7 +44,7 @@ resourceGroups:
   steps:
   - name: output
     action: ARM
-    template: ../dev-infrastructure/templates/cluster-service-lookup.bicep
+    template: ../dev-infrastructure/modules/cluster-service/cluster-service-lookup.bicep
     parameters: ../dev-infrastructure/configurations/cluster-service-lookup.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     outputOnly: true
