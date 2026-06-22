@@ -43,9 +43,48 @@ resourceGroups:
   subscription: '{{ .svc.subscription.key }}'
   steps:
   - name: deploy
+    action: Helm
+    aksCluster: '{{ .svc.aks.name }}'
+    releaseName: 'cluster-service'
+    releaseNamespace: '{{ .clustersService.k8s.namespace }}'
+    chartDir: ./helm/cluster-service
+    valuesFile: ./helm/cluster-service/%OVERRIDE%.yaml
+    kustoDatabase: '{{ .kusto.serviceLogsDatabase }}'
+    kustoTable: 'containerLogs'
+    kustoEndpoint:
+      resourceGroup: kusto
+      step: output
+      name: kustoUri
+    inputVariables:
+      OCP_ACR_RESOURCE_ID:
+        resourceGroup: global
+        step: geneva-output
+        name: appId
+      OCP_ACR_URL:
+        resourceGroup: global
+        step: output
+        name: ocpAcrLoginServer
+    identityFrom:
+      resourceGroup: global
+      step: output
+      name: globalMSIId
+    dependsOn:
+    - resourceGroup: global
+      step: mirror-image
+    automatedRetry:
+      errorContainsAny:
+      - "500 Internal Server Error"
+      - "Internal error occurred"
+      maximumRetryCount: 3
+      durationBetweenRetries: 1m
+- name: service-legacy
+  resourceGroup: '{{ .svc.rg }}'
+  subscription: '{{ .svc.subscription.key }}'
+  steps:
+  - name: deploy
     aksCluster: '{{ .svc.aks.name }}'
     action: Shell
-    command: make -f Deploy.mk deploy
+    command: true # make -f Deploy.mk deploy
     workingDir: ./
     dependsOn:
     - resourceGroup: global
