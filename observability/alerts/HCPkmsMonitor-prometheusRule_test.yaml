@@ -117,7 +117,7 @@ tests:
     alertname: UJKmsAvailability1h5m
     exp_alerts:
     - exp_labels:
-        severity: critical
+        severity: warning
         short_window: 5m
         long_window: 1h
         name: degraded-fast
@@ -145,7 +145,7 @@ tests:
     alertname: UJKmsErrors1h5m
     exp_alerts:
     - exp_labels:
-        severity: critical
+        severity: warning
         short_window: 5m
         long_window: 1h
         namespace: ocm-errors-fast
