@@ -3292,6 +3292,55 @@
         "ocp"
       ]
     },
+    "stgGlobalV2": {
+      "type": "object",
+      "description": "TRANSIENT: distinct globally-unique resource names for the parallel STG-global 'V2' pipelines that deploy into a dedicated STG-global subscription during coexistence with the shared subscription. Real values are set in the cloud overlay for stg; defaults are empty-sentinel. Removed once the migration is decommissioned.",
+      "properties": {
+        "acrSvcName": {
+          "type": "string"
+        },
+        "acrOcpName": {
+          "type": "string"
+        },
+        "globalKeyVaultName": {
+          "type": "string"
+        },
+        "genevaKeyVaultName": {
+          "type": "string"
+        },
+        "frontDoorName": {
+          "type": "string"
+        },
+        "frontDoorKeyVaultName": {
+          "type": "string"
+        },
+        "oidcStorageAccountName": {
+          "type": "string"
+        },
+        "svcParentZoneName": {
+          "type": "string"
+        },
+        "cxParentZoneName": {
+          "type": "string"
+        },
+        "kustoName": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "acrSvcName",
+        "acrOcpName",
+        "globalKeyVaultName",
+        "genevaKeyVaultName",
+        "frontDoorName",
+        "frontDoorKeyVaultName",
+        "oidcStorageAccountName",
+        "svcParentZoneName",
+        "cxParentZoneName",
+        "kustoName"
+      ]
+    },
     "releaseApprover": {
       "type": "object",
       "properties": {

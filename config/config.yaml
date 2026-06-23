@@ -100,6 +100,24 @@ defaults:
       untaggedImagesRetention:
         enabled: true
         days: 90
+  # TRANSIENT — STG-global "V2" migration scaffolding. Every pipeline (including
+  # the stg-only V2 copies) is preprocessed by helmtest against the dev render
+  # and by EV2 manifest generation for all public envs, and the renderer uses
+  # missingkey=error — so stgGlobalV2 must resolve in every cloud/env. Only stg
+  # supplies real values (config.msft.clouds-overlay.yaml); everything else stays
+  # empty-sentinel and is never consumed (V2 pipelines are stg/uksouth-only).
+  # Removed at decommission.
+  stgGlobalV2:
+    acrSvcName: "empty-sentinel"
+    acrOcpName: "empty-sentinel"
+    globalKeyVaultName: "empty-sentinel"
+    genevaKeyVaultName: "empty-sentinel"
+    frontDoorName: "empty-sentinel"
+    frontDoorKeyVaultName: "empty-sentinel"
+    oidcStorageAccountName: "empty-sentinel"
+    svcParentZoneName: "empty-sentinel"
+    cxParentZoneName: "empty-sentinel"
+    kustoName: "empty-sentinel"
   # Image Registry Policy
   imageRegistryPolicy:
     extraAllowedRegistries: ""

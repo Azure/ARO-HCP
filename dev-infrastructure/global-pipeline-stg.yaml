@@ -1,0 +1,250 @@
+#
+# TRANSIENT — STG-global "V2" parallel copy of global-pipeline.yaml.
+#
+# Deploys the global infrastructure into the dedicated STG-global subscription
+# (hcp-stg-global) so it can be built and validated alongside the existing shared
+# subscription without touching it. Differences from the canonical pipeline:
+#   * serviceGroup is Microsoft.Azure.ARO.HCP.Global.StgGlobal (new subcomponent),
+#     wired under the new HCP.Global.V2 root entrypoint — NOT the live HCP.Global,
+#     so EV2 never co-deploys this with the existing global rollout.
+#   * subscription is hardcoded to 'hcp-stg-global' (the canonical pipeline uses
+#     '{{ .global.subscription.key }}', which for stg still resolves to the shared
+#     'hcp-global' sub during coexistence).
+#   * executionConstraints are stg/uksouth ONLY, which makes the generated prod &
+#     test EV2 manifests inert (isInCloud:false).
+#   * globally-unique resource names and DNS parent zones come from the transient
+#     stgGlobalV2 config block (the '…2' names) instead of the canonical paths, so
+#     they don't collide with the live names that still render for stg.
+# Removed at decommission once stg cuts over to the new subscription.
+#
+# Managed Resources: see global-pipeline.yaml (global parent zones + delegation,
+# Grafana, global MSI, SVC/OCP ACRs, KeyVaults, Front Door, image mirroring jobs).
+#
+$schema: "pipeline.schema.v1"
+serviceGroup: Microsoft.Azure.ARO.HCP.Global.StgGlobal
+rolloutName: Global Resource Rollout (STG V2)
+resourceGroups:
+- name: singleton
+  resourceGroup: '{{ .global.rg }}'
+  # Hardcoded on purpose — do NOT templatize to '{{ .global.subscription.key }}':
+  # for stg that resolves to the shared 'hcp-global' sub. Removed at decommission.
+  subscription: 'hcp-stg-global'
+  # stg/uksouth ONLY. Do NOT add int/prod — that is what keeps the generated prod &
+  # test EV2 manifests inert (isInCloud:false).
+  executionConstraints:
+  - clouds:
+    - public
+    environments:
+    - stg
+    regions:
+    - uksouth
+  steps:
+  - name: infra
+    action: ARM
+    template: templates/global-infra.bicep
+    parameters: configurations/global-infra-stg.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+  - name: output
+    action: ARM
+    template: templates/output-global.bicep
+    parameters: configurations/output-global-stg.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
+    dependsOn:
+    - resourceGroup: singleton
+      step: infra
+  - name: grafana-monitoring-reader
+    action: ARM
+    template: templates/grafana-monitoring-reader.bicep
+    parameters: configurations/grafana-monitoring-reader.tmpl.bicepparam
+    deploymentLevel: Subscription
+    variables:
+    - name: grafanaPrincipalId
+      input:
+        resourceGroup: singleton
+        step: output
+        name: grafanaPrincipalId
+    dependsOn:
+    - resourceGroup: singleton
+      step: output
+  - name: global-kv-private-issuer
+    action: SetCertificateIssuer
+    secretKeyVault:
+      configRef: ev2.assistedId.certificate.keyVault
+    secretName:
+      configRef: ev2.assistedId.certificate.name
+    applicationId:
+      configRef: ev2.assistedId.applicationId
+    vaultBaseUrl:
+      input:
+        resourceGroup: singleton
+        step: output
+        name: globalKeyVaultUrl
+    issuer:
+      value: OneCertV2-PrivateCA
+  - name: geneva-kv-private-issuer
+    action: SetCertificateIssuer
+    secretKeyVault:
+      configRef: ev2.assistedId.certificate.keyVault
+    secretName:
+      configRef: ev2.assistedId.certificate.name
+    applicationId:
+      configRef: ev2.assistedId.applicationId
+    vaultBaseUrl:
+      input:
+        resourceGroup: singleton
+        step: output
+        name: genevaActionKeyVaultUrl
+    issuer:
+      value: OneCertV2-PrivateCA
+  - name: geneva-identities
+    action: ARM
+    template: templates/geneva-identities.bicep
+    parameters: configurations/geneva-identities-stg.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    dependsOn:
+    - resourceGroup: singleton
+      step: global-kv-private-issuer
+    - resourceGroup: singleton
+      step: geneva-kv-private-issuer
+    # The Entra app/service-principal owners relationships are written through
+    # Microsoft Graph, which intermittently fails to commit the relationship and
+    # asks the caller to retry later. Retry the deployment on that transient error.
+    automatedRetry:
+      errorContainsAny:
+      - "Failed to update one or more relationships in 'owners'"
+      maximumRetryCount: 3
+      durationBetweenRetries: 1m
+  - name: mise-identity
+    action: ARM
+    template: templates/mise-identity.bicep
+    parameters: configurations/mise-identity.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+  - name: housekeeping
+    action: Shell
+    command: ./global-housekeeping.sh
+    workingDir: ./scripts
+    variables:
+    - name: GLOBAL_RESOURCE_GROUP
+      configRef: global.rg
+    shellIdentity:
+      input:
+        resourceGroup: singleton
+        step: output
+        name: globalMSIId
+    dependsOn:
+    - resourceGroup: singleton
+      step: infra
+  - name: grafana-dashboards
+    action: GrafanaDashboards
+    grafanaName: "{{ .monitoring.grafanaName }}"
+    observabilityConfig: ./../observability/observability.yaml
+    identityFrom:
+      resourceGroup: singleton
+      step: output
+      name: globalMSIId
+    dependsOn:
+    - resourceGroup: singleton
+      step: housekeeping
+    - resourceGroup: singleton
+      step: output
+  # creates DNS delegation for the ARO HCP global SVC zone
+  - name: svcChildZone
+    action: DelegateChildZone
+    parentZone:
+      configRef: dns.parentZoneName
+    childZone:
+      configRef: stgGlobalV2.svcParentZoneName
+    secretKeyVault:
+      configRef: ev2.assistedId.certificate.keyVault
+    secretName:
+      configRef: ev2.assistedId.certificate.name
+    dstsHost:
+      configRef: ev2.assistedId.dstsHost
+    deploymentMode:
+      value: "Incremental"
+    dependsOn:
+    - resourceGroup: singleton
+      step: infra
+  # creates DNS delegation for the ARO HCP global CX zone
+  - name: cxChildZone
+    action: DelegateChildZone
+    parentZone:
+      configRef: dns.parentZoneName
+    childZone:
+      configRef: stgGlobalV2.cxParentZoneName
+    secretKeyVault:
+      configRef: ev2.assistedId.certificate.keyVault
+    secretName:
+      configRef: ev2.assistedId.certificate.name
+    dstsHost:
+      configRef: ev2.assistedId.dstsHost
+    deploymentMode:
+      value: "Incremental"
+    dependsOn:
+    - resourceGroup: singleton
+      step: infra
+  # create global ARO HCP ACRs for OCP and SVC images
+  - name: acrs
+    action: ARM
+    template: templates/global-acr.bicep
+    parameters: configurations/global-acr-stg.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    dependsOn:
+    - resourceGroup: singleton
+      step: infra
+  # ingests secrets into the global KV
+  # NOTE: data/encryptedsecrets.yaml must be re-encrypted against the new global KV
+  # public key before this succeeds (the manual "re-encrypt" prerequisite).
+  - name: decrypt-and-ingest-secrets
+    action: SecretSync
+    keyVault: '{{ .stgGlobalV2.globalKeyVaultName }}'
+    configurationFile: 'data/encryptedsecrets.yaml'
+    encryptionKey: '{{ .global.keyVault.encryptionKeyName }}'
+    dependsOn:
+    - resourceGroup: singleton
+      step: infra
+    identityFrom:
+      resourceGroup: singleton
+      step: output
+      name: globalMSIId
+  # mirror oc-mirror image
+  - name: mirror-oc-mirror-image
+    action: ImageMirror
+    targetACR:
+      configRef: 'stgGlobalV2.acrSvcName'
+    sourceRegistry:
+      configRef: imageSync.ocMirror.image.registry
+    repository:
+      configRef: imageSync.ocMirror.image.repository
+    digest:
+      configRef: imageSync.ocMirror.image.digest
+    pullSecretKeyVault:
+      configRef: stgGlobalV2.globalKeyVaultName
+    pullSecretName:
+      configRef: imageSync.ondemandSync.pullSecretName
+    dependsOn:
+    - resourceGroup: singleton
+      step: acrs
+    - resourceGroup: singleton
+      step: decrypt-and-ingest-secrets
+    shellIdentity:
+      input:
+        resourceGroup: singleton
+        step: output
+        name: globalMSIId
+    automatedRetry:
+      errorContainsAny:
+      - "unknown_storage_failure"
+      - "unauthorized: authentication required"
+      maximumRetryCount: 5
+      durationBetweenRetries: 1m
+  # deploys the image mirror for the ACRs
+  - name: imagemirror
+    action: ARM
+    template: templates/global-image-sync.bicep
+    parameters: configurations/global-image-sync-stg.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    dependsOn:
+    - resourceGroup: singleton
+      step: mirror-oc-mirror-image
