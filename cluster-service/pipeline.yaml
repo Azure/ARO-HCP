@@ -74,62 +74,62 @@ resourceGroups:
       step: output
       name: kustoUri
     inputVariables:
-      imagePullerMsiClientId:
-        resourceGroup: service
-        step: output
-        name: imagePullerMsiClientId
-      tenantId:
-        resourceGroup: service
-        step: output
-        name: tenantId
-      azureCsMiClientId:
-        resourceGroup: service
-        step: output
-        name: csMsiClientId
-      oidcIssuerBlobServiceUrl:
-        resourceGroup: service
-        step: output
-        name: oidcIssuerBlobServiceUrl
-      oidcIssuerBaseUrl:
-        resourceGroup: service
-        step: output
-        name: oidcIssuerBaseUrl
-      databaseHost:
-        resourceGroup: service
-        step: output
-        name: databaseHost
-      databaseDisableTls:
-        resourceGroup: service
-        step: output
-        name: databaseDisableTls
-      databaseAuthMethod:
-        resourceGroup: service
-        step: output
-        name: databaseAuthMethod
-      deployLocalDatabase:
-        resourceGroup: service
-        step: output
-        name: deployLocalDatabase
-      databaseName:
-        resourceGroup: service
-        step: output
-        name: databaseName
-      databaseUser:
-        resourceGroup: service
-        step: output
-        name: databaseUser
-      databasePassword:
-        resourceGroup: service
-        step: output
-        name: databasePassword
-      ocpAcrResourceId:
-        resourceGroup: global
-        step: output
-        name: ocpAcrResourceId
       ocpAcrUrl:
         resourceGroup: global
         step: output
         name: ocpAcrLoginServer
+      ocpAcrResourceId:
+        resourceGroup: global
+        step: output
+        name: ocpAcrResourceId
+      azureCsMiClientId:
+        resourceGroup: service
+        step: output
+        name: csMsiClientId
+      databaseAuthMethod:
+        resourceGroup: service
+        step: output
+        name: databaseAuthMethod
+      databaseDisableTls:
+        resourceGroup: service
+        step: output
+        name: databaseDisableTls
+      databaseHost:
+        resourceGroup: service
+        step: output
+        name: databaseHost
+      databaseName:
+        resourceGroup: service
+        step: output
+        name: databaseName
+      databasePassword:
+        resourceGroup: service
+        step: output
+        name: databasePassword
+      databaseUser:
+        resourceGroup: service
+        step: output
+        name: databaseUser
+      deployLocalDatabase:
+        resourceGroup: service
+        step: output
+        name: deployLocalDatabase
+      imagePullerMsiClientId:
+        resourceGroup: service
+        step: output
+        name: imagePullerMsiClientId
+      oidcIssuerBaseUrl:
+        resourceGroup: service
+        step: output
+        name: oidcIssuerBaseUrl
+      oidcIssuerBlobServiceUrl:
+        resourceGroup: service
+        step: output
+        name: oidcIssuerBlobServiceUrl
+      tenantId:
+        resourceGroup: service
+        step: output
+        name: tenantId
     identityFrom:
       resourceGroup: global
       step: output
