@@ -37,6 +37,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/azure/cachedreader"
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/backupcontroller"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/billingcontrollers"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/clustercreation"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/clusterdeletion"
@@ -95,6 +96,7 @@ type BackendOptions struct {
 	BackendIdentityAzureCachedReaders  *cachedreader.BackendIdentityAzureCachedReaders
 	ExitOnPanic                        bool
 	FPAMIDataplaneClientBuilder        azureclient.FPAMIDataplaneClientBuilder
+	BackupConfig                       *backupcontroller.BackupConfig
 	SMIClientBuilder                   azureclient.ServiceManagedIdentityClientBuilder
 	CheckAccessV2ClientBuilder         azureclient.CheckAccessV2ClientBuilder
 	ClusterScopedIdentitiesConfig      *internalazure.ClusterScopedIdentitiesConfig
@@ -171,6 +173,9 @@ func (o *BackendOptions) validate() error {
 	if o.MetricsRegisterer == nil || o.MetricsGatherer == nil {
 		return fmt.Errorf("metrics registerer and gatherer must both be set (registerer set=%t, gatherer set=%t)",
 			o.MetricsRegisterer != nil, o.MetricsGatherer != nil)
+	}
+	if o.BackupConfig == nil {
+		o.BackupConfig = &backupcontroller.BackupConfig{Cadence: backupcontroller.BackupCadenceProduction}
 	}
 	return nil
 }
@@ -598,6 +603,20 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		unionKubeApplierInformers,
 	)
 
+	backupScheduleController := backupcontroller.NewBackupScheduleController(
+		b.options.ResourcesDBClient,
+		b.options.KubeApplierDBClients,
+		backendInformers,
+		unionKubeApplierInformers,
+		b.options.MaestroSourceEnvironmentIdentifier,
+		b.options.BackupConfig,
+	)
+	onDemandBackupCleanupController := backupcontroller.NewOnDemandBackupCleanupController(
+		b.options.ResourcesDBClient,
+		b.options.KubeApplierDBClients,
+		backendInformers,
+		unionKubeApplierInformers,
+	)
 	// Each aggregator hardcodes its own inertia inside the statuscontrollers
 	// package so subsystem-specific tuning lives next to the controller that
 	// uses it. The constructors here just supply listers / DB / clock.
@@ -897,6 +916,8 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go externalAuthMetricsController.Run(ctx, 1)
 				go placementSyncController.Run(ctx, 20)
 				go cosmosMigrationController.Run(ctx, 5)
+				go backupScheduleController.Run(ctx, 20)
+				go onDemandBackupCleanupController.Run(ctx, 20)
 			},
 			OnStoppedLeading: func() {
 				// This needs to be defined even though it does nothing.

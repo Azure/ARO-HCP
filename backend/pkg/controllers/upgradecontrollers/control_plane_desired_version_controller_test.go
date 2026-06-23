@@ -1429,7 +1429,7 @@ func TestControlPlaneDesiredVersionSyncer_ShouldDetermineDesiredVersion(t *testi
 				return &boomActiveOperationLister{err: listerBoom}
 			},
 			wantShouldRun:  true,
-			wantErrContain: "failed to get operations",
+			wantErrContain: "failed to get operation",
 		},
 	}
 
