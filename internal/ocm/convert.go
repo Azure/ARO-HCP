@@ -724,6 +724,12 @@ func CSErrorToCloudError(err error, resourceID *azcorearm.ResourceID) *arm.Cloud
 				arm.CloudErrorCodeInvalidRequestContent,
 				"", "%s", ocmError.Reason())
 		case http.StatusNotFound:
+			if strings.Contains(ocmError.Reason(), "Unable to find shard") {
+				return arm.NewCloudError(
+					http.StatusServiceUnavailable,
+					arm.CloudErrorCodeServiceUnavailable,
+					"", "Capacity is currently restricted, please try again later")
+			}
 			if resourceID != nil {
 				return arm.NewResourceNotFoundError(resourceID)
 			}
