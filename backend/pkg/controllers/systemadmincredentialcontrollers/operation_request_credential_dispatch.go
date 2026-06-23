@@ -173,7 +173,7 @@ func (c *operationRequestCredentialDispatch) cancelOperation(ctx context.Context
 // in-flight credentials per cluster is tiny (typically 0 or 1), so a
 // linear scan is fine. Read from the DB (not lister) so just-created
 // docs are picked up by an immediate retry.
-func findCredentialForOperation(ctx context.Context, credentialsCRUD database.ResourceCRUD[api.SystemAdminCredential], operationID string) (*api.SystemAdminCredential, error) {
+func findCredentialForOperation(ctx context.Context, credentialsCRUD database.ResourceCRUD[api.SystemAdminCredential, *api.SystemAdminCredential], operationID string) (*api.SystemAdminCredential, error) {
 	iter, err := credentialsCRUD.List(ctx, nil)
 	if err != nil {
 		return nil, utils.TrackError(err)

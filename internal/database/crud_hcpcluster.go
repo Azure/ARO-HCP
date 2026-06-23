@@ -141,7 +141,7 @@ type ExternalAuthsCRUD interface {
 }
 
 type SystemAdminCredentialsCRUD interface {
-	ResourceCRUD[api.SystemAdminCredential]
+	ResourceCRUD[api.SystemAdminCredential, *api.SystemAdminCredential]
 	ControllerContainer
 }
 
@@ -179,7 +179,7 @@ func (h *hcpClusterCRUD) SystemAdminCredentials(hcpClusterName string) SystemAdm
 			hcpClusterName)))
 
 	return &systemAdminCredentialsCRUD{
-		nestedCosmosResourceCRUD: NewCosmosResourceCRUD[api.SystemAdminCredential, GenericDocument[api.SystemAdminCredential]](
+		nestedCosmosResourceCRUD: NewCosmosResourceCRUD[api.SystemAdminCredential, *api.SystemAdminCredential, GenericDocument[api.SystemAdminCredential]](
 			h.containerClient,
 			parentResourceID,
 			api.SystemAdminCredentialResourceType,

@@ -470,7 +470,7 @@ func (m *mockHCPClusterCRUD) SystemAdminCredentials(hcpClusterName string) datab
 			hcpClusterName)))
 
 	return &mockSystemAdminCredentialsCRUD{
-		mockResourceCRUD: newMockResourceCRUD[api.SystemAdminCredential, database.GenericDocument[api.SystemAdminCredential]](
+		mockResourceCRUD: newMockResourceCRUD[api.SystemAdminCredential, *api.SystemAdminCredential, database.GenericDocument[api.SystemAdminCredential]](
 			m.client, parentResourceID, api.SystemAdminCredentialResourceType),
 	}
 }
@@ -526,10 +526,10 @@ var _ database.ExternalAuthsCRUD = &mockExternalAuthCRUD{}
 
 // mockSystemAdminCredentialsCRUD implements database.SystemAdminCredentialsCRUD.
 type mockSystemAdminCredentialsCRUD struct {
-	*mockResourceCRUD[api.SystemAdminCredential, database.GenericDocument[api.SystemAdminCredential]]
+	*mockResourceCRUD[api.SystemAdminCredential, *api.SystemAdminCredential, database.GenericDocument[api.SystemAdminCredential]]
 }
 
-func (m *mockSystemAdminCredentialsCRUD) Controllers(credentialName string) database.ResourceCRUD[api.Controller] {
+func (m *mockSystemAdminCredentialsCRUD) Controllers(credentialName string) database.ResourceCRUD[api.Controller, *api.Controller] {
 	parentResourceID := api.Must(azcorearm.ParseResourceID(
 		path.Join(
 			m.parentResourceID.String(),
@@ -537,7 +537,7 @@ func (m *mockSystemAdminCredentialsCRUD) Controllers(credentialName string) data
 			credentialName,
 		)))
 
-	return newMockResourceCRUD[api.Controller, database.GenericDocument[api.Controller]](m.client, parentResourceID, api.SystemAdminCredentialControllerResourceType)
+	return newMockResourceCRUD[api.Controller, *api.Controller, database.GenericDocument[api.Controller]](m.client, parentResourceID, api.SystemAdminCredentialControllerResourceType)
 }
 
 var _ database.SystemAdminCredentialsCRUD = &mockSystemAdminCredentialsCRUD{}
