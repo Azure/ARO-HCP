@@ -1,0 +1,778 @@
+rule_files:
+- userJourneyClusterUpgradeRecord-prometheusRule.yaml
+- userJourneyClusterUpgradeReachPartialMonitor-prometheusRule.yaml
+evaluation_interval: 1m
+tests:
+# ========================================
+# Test 1: Successful reach partial — no alert
+# ========================================
+- interval: 1m
+  input_series:
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1", version="4.19.19", state="completed"}'
+    values: "1+0x40"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1", version="4.19.20", state="desired"}'
+    values: "1x10 0x25"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1", version="4.19.20", state="partial"}'
+    values: "0x10 1x25"
+  alert_rule_test:
+  - eval_time: 40m
+    alertname: userJourneyClusterUpgradeReachPartial1h5m
+  - eval_time: 40m
+    alertname: userJourneyClusterUpgradeReachPartial6h30m
+  - eval_time: 40m
+    alertname: userJourneyClusterUpgradeReachPartial3d6h
+# ========================================
+# Test 2: Fast burn — 2 of 10 in-flight upgrades stuck in desired >20m → 5m+1h alert fires
+# Eval at 80m: ratio has been 0.2 since minute 20 (all 10 in flight, 8 healthy in partial).
+# ========================================
+- interval: 1m
+  input_series:
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/3/rg/a", subscription_id="sub-3", cluster_uuid="uuid-a", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/3/rg/a", subscription_id="sub-3", cluster_uuid="uuid-a", version="4.19.22", state="desired"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/3/rg/b", subscription_id="sub-3", cluster_uuid="uuid-b", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/3/rg/b", subscription_id="sub-3", cluster_uuid="uuid-b", version="4.19.22", state="desired"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/3/rg/c", subscription_id="sub-3", cluster_uuid="uuid-c", version="4.19.19", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/3/rg/c", subscription_id="sub-3", cluster_uuid="uuid-c", version="4.19.20", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/3/rg/d", subscription_id="sub-3", cluster_uuid="uuid-d", version="4.19.19", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/3/rg/d", subscription_id="sub-3", cluster_uuid="uuid-d", version="4.19.20", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/3/rg/e", subscription_id="sub-3", cluster_uuid="uuid-e", version="4.19.19", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/3/rg/e", subscription_id="sub-3", cluster_uuid="uuid-e", version="4.19.20", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/3/rg/f", subscription_id="sub-3", cluster_uuid="uuid-f", version="4.19.19", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/3/rg/f", subscription_id="sub-3", cluster_uuid="uuid-f", version="4.19.20", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/3/rg/g", subscription_id="sub-3", cluster_uuid="uuid-g", version="4.19.19", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/3/rg/g", subscription_id="sub-3", cluster_uuid="uuid-g", version="4.19.20", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/3/rg/h", subscription_id="sub-3", cluster_uuid="uuid-h", version="4.19.19", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/3/rg/h", subscription_id="sub-3", cluster_uuid="uuid-h", version="4.19.20", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/3/rg/i", subscription_id="sub-3", cluster_uuid="uuid-i", version="4.19.19", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/3/rg/i", subscription_id="sub-3", cluster_uuid="uuid-i", version="4.19.20", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/3/rg/j", subscription_id="sub-3", cluster_uuid="uuid-j", version="4.19.19", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/3/rg/j", subscription_id="sub-3", cluster_uuid="uuid-j", version="4.19.20", state="partial"}'
+    values: "1+0x90"
+  promql_expr_test:
+  - expr: hosted_control_plane_version:desired:stuck_over_20m:ratio{cluster="svc-1"}
+    eval_time: 80m
+    exp_samples:
+    - labels: 'hosted_control_plane_version:desired:stuck_over_20m:ratio{cluster="svc-1"}'
+      value: 0.2
+  - expr: hosted_control_plane_version:desired:stuck_over_20m:burnrate5m{cluster="svc-1"}
+    eval_time: 80m
+    exp_samples:
+    - labels: 'hosted_control_plane_version:desired:stuck_over_20m:burnrate5m{cluster="svc-1"}'
+      value: 400
+  - expr: hosted_control_plane_version:desired:stuck_over_20m:burnrate1h{cluster="svc-1"}
+    eval_time: 80m
+    exp_samples:
+    - labels: 'hosted_control_plane_version:desired:stuck_over_20m:burnrate1h{cluster="svc-1"}'
+      value: 400
+  alert_rule_test:
+  - eval_time: 80m
+    alertname: userJourneyClusterUpgradeReachPartial1h5m
+    exp_alerts:
+    - exp_labels:
+        cluster: "svc-1"
+        severity: info
+        slo: cluster-upgrade-reach-partial
+        short_window: 5m
+        long_window: 1h
+      exp_annotations:
+        summary: "[HCPUpgradeReachPartialBurn] svc-1"
+        description: |
+          More than 14.4x of the 99.95% cluster upgrade reach-partial error budget is being consumed. Cluster upgrades are stuck for over 20 minutes without the target version reaching partial. Partial is when the target version becomes active (recognized as active) on the HCP cluster; the upgrade is in progress but not yet complete. Investigate backend_cluster_version_info on affected clusters.
+          Window: 1h/5m
+          Management Cluster: svc-1
+        runbook_url: "https://aka.ms/arohcp-runbook-cluster-upgrade"
+        correlationId: "userJourneyClusterUpgradeReachPartial/svc-1"
+  - eval_time: 80m
+    alertname: userJourneyClusterUpgradeReachPartial6h30m
+    exp_alerts:
+    - exp_labels:
+        cluster: "svc-1"
+        severity: info
+        slo: cluster-upgrade-reach-partial
+        short_window: 30m
+        long_window: 6h
+      exp_annotations:
+        summary: "[HCPUpgradeReachPartialBurn] svc-1"
+        description: |
+          More than 6x of the 99.95% cluster upgrade reach-partial error budget is being consumed. Cluster upgrades are stuck for over 20 minutes without the target version reaching partial. Partial is when the target version becomes active (recognized as active) on the HCP cluster; the upgrade is in progress but not yet complete. Investigate backend_cluster_version_info on affected clusters.
+          Window: 6h/30m
+          Management Cluster: svc-1
+        runbook_url: "https://aka.ms/arohcp-runbook-cluster-upgrade"
+        correlationId: "userJourneyClusterUpgradeReachPartial/svc-1"
+  - eval_time: 80m
+    alertname: userJourneyClusterUpgradeReachPartial3d6h
+    exp_alerts:
+    - exp_labels:
+        cluster: "svc-1"
+        severity: info
+        slo: cluster-upgrade-reach-partial
+        short_window: 6h
+        long_window: 3d
+      exp_annotations:
+        summary: "[HCPUpgradeReachPartialBurn] svc-1"
+        description: |
+          Cluster upgrade reach-partial has been steadily consuming the 99.95% SLO error budget (1x burn). Cluster upgrades are stuck for over 20 minutes without reaching partial. Partial is when the target version becomes active (recognized as active) on the HCP cluster; the upgrade is in progress but not yet complete. Investigate backend_cluster_version_info on affected clusters.
+          Window: 3d/6h
+          Management Cluster: svc-1
+        runbook_url: "https://aka.ms/arohcp-runbook-cluster-upgrade"
+        correlationId: "userJourneyClusterUpgradeReachPartial/svc-1"
+# ========================================
+# Test 3: Fleet healthy — no SLO alert
+# ========================================
+- interval: 1m
+  input_series:
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/4/rg/a", subscription_id="sub-4", cluster_uuid="uuid-a", version="4.19.20", state="completed"}'
+    values: "1+0x40"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/4/rg/b", subscription_id="sub-4", cluster_uuid="uuid-b", version="4.19.20", state="completed"}'
+    values: "1+0x40"
+  promql_expr_test:
+  - expr: hosted_control_plane_version:desired:stuck_over_20m:ratio{cluster="svc-1"}
+    eval_time: 10m
+    exp_samples:
+    - labels: 'hosted_control_plane_version:desired:stuck_over_20m:ratio{cluster="svc-1"}'
+      value: 0
+  alert_rule_test:
+  - eval_time: 40m
+    alertname: userJourneyClusterUpgradeReachPartial1h5m
+  - eval_time: 40m
+    alertname: userJourneyClusterUpgradeReachPartial6h30m
+  - eval_time: 40m
+    alertname: userJourneyClusterUpgradeReachPartial3d6h
+# ========================================
+# Test 4: Medium burn — 1 of 140 stuck >20m → 6h/30m alert fires, 1h/5m does not
+# Ratio 1/140 ≈ 0.71% → burn ≈ 14.3 (< 14.4 fast, > 6 medium).
+# ========================================
+- interval: 1m
+  input_series:
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/stuck", subscription_id="sub-5", cluster_uuid="uuid-stuck", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/stuck", subscription_id="sub-5", cluster_uuid="uuid-stuck", version="4.19.22", state="desired"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h000", subscription_id="sub-5", cluster_uuid="uuid-h000", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h000", subscription_id="sub-5", cluster_uuid="uuid-h000", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h001", subscription_id="sub-5", cluster_uuid="uuid-h001", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h001", subscription_id="sub-5", cluster_uuid="uuid-h001", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h002", subscription_id="sub-5", cluster_uuid="uuid-h002", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h002", subscription_id="sub-5", cluster_uuid="uuid-h002", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h003", subscription_id="sub-5", cluster_uuid="uuid-h003", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h003", subscription_id="sub-5", cluster_uuid="uuid-h003", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h004", subscription_id="sub-5", cluster_uuid="uuid-h004", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h004", subscription_id="sub-5", cluster_uuid="uuid-h004", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h005", subscription_id="sub-5", cluster_uuid="uuid-h005", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h005", subscription_id="sub-5", cluster_uuid="uuid-h005", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h006", subscription_id="sub-5", cluster_uuid="uuid-h006", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h006", subscription_id="sub-5", cluster_uuid="uuid-h006", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h007", subscription_id="sub-5", cluster_uuid="uuid-h007", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h007", subscription_id="sub-5", cluster_uuid="uuid-h007", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h008", subscription_id="sub-5", cluster_uuid="uuid-h008", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h008", subscription_id="sub-5", cluster_uuid="uuid-h008", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h009", subscription_id="sub-5", cluster_uuid="uuid-h009", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h009", subscription_id="sub-5", cluster_uuid="uuid-h009", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h010", subscription_id="sub-5", cluster_uuid="uuid-h010", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h010", subscription_id="sub-5", cluster_uuid="uuid-h010", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h011", subscription_id="sub-5", cluster_uuid="uuid-h011", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h011", subscription_id="sub-5", cluster_uuid="uuid-h011", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h012", subscription_id="sub-5", cluster_uuid="uuid-h012", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h012", subscription_id="sub-5", cluster_uuid="uuid-h012", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h013", subscription_id="sub-5", cluster_uuid="uuid-h013", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h013", subscription_id="sub-5", cluster_uuid="uuid-h013", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h014", subscription_id="sub-5", cluster_uuid="uuid-h014", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h014", subscription_id="sub-5", cluster_uuid="uuid-h014", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h015", subscription_id="sub-5", cluster_uuid="uuid-h015", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h015", subscription_id="sub-5", cluster_uuid="uuid-h015", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h016", subscription_id="sub-5", cluster_uuid="uuid-h016", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h016", subscription_id="sub-5", cluster_uuid="uuid-h016", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h017", subscription_id="sub-5", cluster_uuid="uuid-h017", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h017", subscription_id="sub-5", cluster_uuid="uuid-h017", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h018", subscription_id="sub-5", cluster_uuid="uuid-h018", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h018", subscription_id="sub-5", cluster_uuid="uuid-h018", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h019", subscription_id="sub-5", cluster_uuid="uuid-h019", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h019", subscription_id="sub-5", cluster_uuid="uuid-h019", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h020", subscription_id="sub-5", cluster_uuid="uuid-h020", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h020", subscription_id="sub-5", cluster_uuid="uuid-h020", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h021", subscription_id="sub-5", cluster_uuid="uuid-h021", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h021", subscription_id="sub-5", cluster_uuid="uuid-h021", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h022", subscription_id="sub-5", cluster_uuid="uuid-h022", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h022", subscription_id="sub-5", cluster_uuid="uuid-h022", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h023", subscription_id="sub-5", cluster_uuid="uuid-h023", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h023", subscription_id="sub-5", cluster_uuid="uuid-h023", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h024", subscription_id="sub-5", cluster_uuid="uuid-h024", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h024", subscription_id="sub-5", cluster_uuid="uuid-h024", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h025", subscription_id="sub-5", cluster_uuid="uuid-h025", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h025", subscription_id="sub-5", cluster_uuid="uuid-h025", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h026", subscription_id="sub-5", cluster_uuid="uuid-h026", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h026", subscription_id="sub-5", cluster_uuid="uuid-h026", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h027", subscription_id="sub-5", cluster_uuid="uuid-h027", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h027", subscription_id="sub-5", cluster_uuid="uuid-h027", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h028", subscription_id="sub-5", cluster_uuid="uuid-h028", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h028", subscription_id="sub-5", cluster_uuid="uuid-h028", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h029", subscription_id="sub-5", cluster_uuid="uuid-h029", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h029", subscription_id="sub-5", cluster_uuid="uuid-h029", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h030", subscription_id="sub-5", cluster_uuid="uuid-h030", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h030", subscription_id="sub-5", cluster_uuid="uuid-h030", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h031", subscription_id="sub-5", cluster_uuid="uuid-h031", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h031", subscription_id="sub-5", cluster_uuid="uuid-h031", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h032", subscription_id="sub-5", cluster_uuid="uuid-h032", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h032", subscription_id="sub-5", cluster_uuid="uuid-h032", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h033", subscription_id="sub-5", cluster_uuid="uuid-h033", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h033", subscription_id="sub-5", cluster_uuid="uuid-h033", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h034", subscription_id="sub-5", cluster_uuid="uuid-h034", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h034", subscription_id="sub-5", cluster_uuid="uuid-h034", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h035", subscription_id="sub-5", cluster_uuid="uuid-h035", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h035", subscription_id="sub-5", cluster_uuid="uuid-h035", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h036", subscription_id="sub-5", cluster_uuid="uuid-h036", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h036", subscription_id="sub-5", cluster_uuid="uuid-h036", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h037", subscription_id="sub-5", cluster_uuid="uuid-h037", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h037", subscription_id="sub-5", cluster_uuid="uuid-h037", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h038", subscription_id="sub-5", cluster_uuid="uuid-h038", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h038", subscription_id="sub-5", cluster_uuid="uuid-h038", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h039", subscription_id="sub-5", cluster_uuid="uuid-h039", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h039", subscription_id="sub-5", cluster_uuid="uuid-h039", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h040", subscription_id="sub-5", cluster_uuid="uuid-h040", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h040", subscription_id="sub-5", cluster_uuid="uuid-h040", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h041", subscription_id="sub-5", cluster_uuid="uuid-h041", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h041", subscription_id="sub-5", cluster_uuid="uuid-h041", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h042", subscription_id="sub-5", cluster_uuid="uuid-h042", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h042", subscription_id="sub-5", cluster_uuid="uuid-h042", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h043", subscription_id="sub-5", cluster_uuid="uuid-h043", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h043", subscription_id="sub-5", cluster_uuid="uuid-h043", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h044", subscription_id="sub-5", cluster_uuid="uuid-h044", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h044", subscription_id="sub-5", cluster_uuid="uuid-h044", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h045", subscription_id="sub-5", cluster_uuid="uuid-h045", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h045", subscription_id="sub-5", cluster_uuid="uuid-h045", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h046", subscription_id="sub-5", cluster_uuid="uuid-h046", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h046", subscription_id="sub-5", cluster_uuid="uuid-h046", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h047", subscription_id="sub-5", cluster_uuid="uuid-h047", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h047", subscription_id="sub-5", cluster_uuid="uuid-h047", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h048", subscription_id="sub-5", cluster_uuid="uuid-h048", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h048", subscription_id="sub-5", cluster_uuid="uuid-h048", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h049", subscription_id="sub-5", cluster_uuid="uuid-h049", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h049", subscription_id="sub-5", cluster_uuid="uuid-h049", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h050", subscription_id="sub-5", cluster_uuid="uuid-h050", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h050", subscription_id="sub-5", cluster_uuid="uuid-h050", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h051", subscription_id="sub-5", cluster_uuid="uuid-h051", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h051", subscription_id="sub-5", cluster_uuid="uuid-h051", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h052", subscription_id="sub-5", cluster_uuid="uuid-h052", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h052", subscription_id="sub-5", cluster_uuid="uuid-h052", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h053", subscription_id="sub-5", cluster_uuid="uuid-h053", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h053", subscription_id="sub-5", cluster_uuid="uuid-h053", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h054", subscription_id="sub-5", cluster_uuid="uuid-h054", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h054", subscription_id="sub-5", cluster_uuid="uuid-h054", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h055", subscription_id="sub-5", cluster_uuid="uuid-h055", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h055", subscription_id="sub-5", cluster_uuid="uuid-h055", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h056", subscription_id="sub-5", cluster_uuid="uuid-h056", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h056", subscription_id="sub-5", cluster_uuid="uuid-h056", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h057", subscription_id="sub-5", cluster_uuid="uuid-h057", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h057", subscription_id="sub-5", cluster_uuid="uuid-h057", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h058", subscription_id="sub-5", cluster_uuid="uuid-h058", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h058", subscription_id="sub-5", cluster_uuid="uuid-h058", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h059", subscription_id="sub-5", cluster_uuid="uuid-h059", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h059", subscription_id="sub-5", cluster_uuid="uuid-h059", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h060", subscription_id="sub-5", cluster_uuid="uuid-h060", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h060", subscription_id="sub-5", cluster_uuid="uuid-h060", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h061", subscription_id="sub-5", cluster_uuid="uuid-h061", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h061", subscription_id="sub-5", cluster_uuid="uuid-h061", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h062", subscription_id="sub-5", cluster_uuid="uuid-h062", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h062", subscription_id="sub-5", cluster_uuid="uuid-h062", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h063", subscription_id="sub-5", cluster_uuid="uuid-h063", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h063", subscription_id="sub-5", cluster_uuid="uuid-h063", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h064", subscription_id="sub-5", cluster_uuid="uuid-h064", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h064", subscription_id="sub-5", cluster_uuid="uuid-h064", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h065", subscription_id="sub-5", cluster_uuid="uuid-h065", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h065", subscription_id="sub-5", cluster_uuid="uuid-h065", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h066", subscription_id="sub-5", cluster_uuid="uuid-h066", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h066", subscription_id="sub-5", cluster_uuid="uuid-h066", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h067", subscription_id="sub-5", cluster_uuid="uuid-h067", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h067", subscription_id="sub-5", cluster_uuid="uuid-h067", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h068", subscription_id="sub-5", cluster_uuid="uuid-h068", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h068", subscription_id="sub-5", cluster_uuid="uuid-h068", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h069", subscription_id="sub-5", cluster_uuid="uuid-h069", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h069", subscription_id="sub-5", cluster_uuid="uuid-h069", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h070", subscription_id="sub-5", cluster_uuid="uuid-h070", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h070", subscription_id="sub-5", cluster_uuid="uuid-h070", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h071", subscription_id="sub-5", cluster_uuid="uuid-h071", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h071", subscription_id="sub-5", cluster_uuid="uuid-h071", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h072", subscription_id="sub-5", cluster_uuid="uuid-h072", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h072", subscription_id="sub-5", cluster_uuid="uuid-h072", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h073", subscription_id="sub-5", cluster_uuid="uuid-h073", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h073", subscription_id="sub-5", cluster_uuid="uuid-h073", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h074", subscription_id="sub-5", cluster_uuid="uuid-h074", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h074", subscription_id="sub-5", cluster_uuid="uuid-h074", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h075", subscription_id="sub-5", cluster_uuid="uuid-h075", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h075", subscription_id="sub-5", cluster_uuid="uuid-h075", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h076", subscription_id="sub-5", cluster_uuid="uuid-h076", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h076", subscription_id="sub-5", cluster_uuid="uuid-h076", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h077", subscription_id="sub-5", cluster_uuid="uuid-h077", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h077", subscription_id="sub-5", cluster_uuid="uuid-h077", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h078", subscription_id="sub-5", cluster_uuid="uuid-h078", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h078", subscription_id="sub-5", cluster_uuid="uuid-h078", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h079", subscription_id="sub-5", cluster_uuid="uuid-h079", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h079", subscription_id="sub-5", cluster_uuid="uuid-h079", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h080", subscription_id="sub-5", cluster_uuid="uuid-h080", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h080", subscription_id="sub-5", cluster_uuid="uuid-h080", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h081", subscription_id="sub-5", cluster_uuid="uuid-h081", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h081", subscription_id="sub-5", cluster_uuid="uuid-h081", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h082", subscription_id="sub-5", cluster_uuid="uuid-h082", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h082", subscription_id="sub-5", cluster_uuid="uuid-h082", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h083", subscription_id="sub-5", cluster_uuid="uuid-h083", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h083", subscription_id="sub-5", cluster_uuid="uuid-h083", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h084", subscription_id="sub-5", cluster_uuid="uuid-h084", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h084", subscription_id="sub-5", cluster_uuid="uuid-h084", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h085", subscription_id="sub-5", cluster_uuid="uuid-h085", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h085", subscription_id="sub-5", cluster_uuid="uuid-h085", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h086", subscription_id="sub-5", cluster_uuid="uuid-h086", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h086", subscription_id="sub-5", cluster_uuid="uuid-h086", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h087", subscription_id="sub-5", cluster_uuid="uuid-h087", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h087", subscription_id="sub-5", cluster_uuid="uuid-h087", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h088", subscription_id="sub-5", cluster_uuid="uuid-h088", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h088", subscription_id="sub-5", cluster_uuid="uuid-h088", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h089", subscription_id="sub-5", cluster_uuid="uuid-h089", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h089", subscription_id="sub-5", cluster_uuid="uuid-h089", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h090", subscription_id="sub-5", cluster_uuid="uuid-h090", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h090", subscription_id="sub-5", cluster_uuid="uuid-h090", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h091", subscription_id="sub-5", cluster_uuid="uuid-h091", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h091", subscription_id="sub-5", cluster_uuid="uuid-h091", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h092", subscription_id="sub-5", cluster_uuid="uuid-h092", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h092", subscription_id="sub-5", cluster_uuid="uuid-h092", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h093", subscription_id="sub-5", cluster_uuid="uuid-h093", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h093", subscription_id="sub-5", cluster_uuid="uuid-h093", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h094", subscription_id="sub-5", cluster_uuid="uuid-h094", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h094", subscription_id="sub-5", cluster_uuid="uuid-h094", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h095", subscription_id="sub-5", cluster_uuid="uuid-h095", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h095", subscription_id="sub-5", cluster_uuid="uuid-h095", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h096", subscription_id="sub-5", cluster_uuid="uuid-h096", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h096", subscription_id="sub-5", cluster_uuid="uuid-h096", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h097", subscription_id="sub-5", cluster_uuid="uuid-h097", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h097", subscription_id="sub-5", cluster_uuid="uuid-h097", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h098", subscription_id="sub-5", cluster_uuid="uuid-h098", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h098", subscription_id="sub-5", cluster_uuid="uuid-h098", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h099", subscription_id="sub-5", cluster_uuid="uuid-h099", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h099", subscription_id="sub-5", cluster_uuid="uuid-h099", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h100", subscription_id="sub-5", cluster_uuid="uuid-h100", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h100", subscription_id="sub-5", cluster_uuid="uuid-h100", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h101", subscription_id="sub-5", cluster_uuid="uuid-h101", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h101", subscription_id="sub-5", cluster_uuid="uuid-h101", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h102", subscription_id="sub-5", cluster_uuid="uuid-h102", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h102", subscription_id="sub-5", cluster_uuid="uuid-h102", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h103", subscription_id="sub-5", cluster_uuid="uuid-h103", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h103", subscription_id="sub-5", cluster_uuid="uuid-h103", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h104", subscription_id="sub-5", cluster_uuid="uuid-h104", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h104", subscription_id="sub-5", cluster_uuid="uuid-h104", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h105", subscription_id="sub-5", cluster_uuid="uuid-h105", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h105", subscription_id="sub-5", cluster_uuid="uuid-h105", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h106", subscription_id="sub-5", cluster_uuid="uuid-h106", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h106", subscription_id="sub-5", cluster_uuid="uuid-h106", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h107", subscription_id="sub-5", cluster_uuid="uuid-h107", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h107", subscription_id="sub-5", cluster_uuid="uuid-h107", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h108", subscription_id="sub-5", cluster_uuid="uuid-h108", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h108", subscription_id="sub-5", cluster_uuid="uuid-h108", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h109", subscription_id="sub-5", cluster_uuid="uuid-h109", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h109", subscription_id="sub-5", cluster_uuid="uuid-h109", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h110", subscription_id="sub-5", cluster_uuid="uuid-h110", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h110", subscription_id="sub-5", cluster_uuid="uuid-h110", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h111", subscription_id="sub-5", cluster_uuid="uuid-h111", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h111", subscription_id="sub-5", cluster_uuid="uuid-h111", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h112", subscription_id="sub-5", cluster_uuid="uuid-h112", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h112", subscription_id="sub-5", cluster_uuid="uuid-h112", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h113", subscription_id="sub-5", cluster_uuid="uuid-h113", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h113", subscription_id="sub-5", cluster_uuid="uuid-h113", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h114", subscription_id="sub-5", cluster_uuid="uuid-h114", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h114", subscription_id="sub-5", cluster_uuid="uuid-h114", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h115", subscription_id="sub-5", cluster_uuid="uuid-h115", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h115", subscription_id="sub-5", cluster_uuid="uuid-h115", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h116", subscription_id="sub-5", cluster_uuid="uuid-h116", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h116", subscription_id="sub-5", cluster_uuid="uuid-h116", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h117", subscription_id="sub-5", cluster_uuid="uuid-h117", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h117", subscription_id="sub-5", cluster_uuid="uuid-h117", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h118", subscription_id="sub-5", cluster_uuid="uuid-h118", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h118", subscription_id="sub-5", cluster_uuid="uuid-h118", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h119", subscription_id="sub-5", cluster_uuid="uuid-h119", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h119", subscription_id="sub-5", cluster_uuid="uuid-h119", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h120", subscription_id="sub-5", cluster_uuid="uuid-h120", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h120", subscription_id="sub-5", cluster_uuid="uuid-h120", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h121", subscription_id="sub-5", cluster_uuid="uuid-h121", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h121", subscription_id="sub-5", cluster_uuid="uuid-h121", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h122", subscription_id="sub-5", cluster_uuid="uuid-h122", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h122", subscription_id="sub-5", cluster_uuid="uuid-h122", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h123", subscription_id="sub-5", cluster_uuid="uuid-h123", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h123", subscription_id="sub-5", cluster_uuid="uuid-h123", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h124", subscription_id="sub-5", cluster_uuid="uuid-h124", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h124", subscription_id="sub-5", cluster_uuid="uuid-h124", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h125", subscription_id="sub-5", cluster_uuid="uuid-h125", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h125", subscription_id="sub-5", cluster_uuid="uuid-h125", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h126", subscription_id="sub-5", cluster_uuid="uuid-h126", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h126", subscription_id="sub-5", cluster_uuid="uuid-h126", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h127", subscription_id="sub-5", cluster_uuid="uuid-h127", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h127", subscription_id="sub-5", cluster_uuid="uuid-h127", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h128", subscription_id="sub-5", cluster_uuid="uuid-h128", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h128", subscription_id="sub-5", cluster_uuid="uuid-h128", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h129", subscription_id="sub-5", cluster_uuid="uuid-h129", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h129", subscription_id="sub-5", cluster_uuid="uuid-h129", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h130", subscription_id="sub-5", cluster_uuid="uuid-h130", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h130", subscription_id="sub-5", cluster_uuid="uuid-h130", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h131", subscription_id="sub-5", cluster_uuid="uuid-h131", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h131", subscription_id="sub-5", cluster_uuid="uuid-h131", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h132", subscription_id="sub-5", cluster_uuid="uuid-h132", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h132", subscription_id="sub-5", cluster_uuid="uuid-h132", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h133", subscription_id="sub-5", cluster_uuid="uuid-h133", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h133", subscription_id="sub-5", cluster_uuid="uuid-h133", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h134", subscription_id="sub-5", cluster_uuid="uuid-h134", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h134", subscription_id="sub-5", cluster_uuid="uuid-h134", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h135", subscription_id="sub-5", cluster_uuid="uuid-h135", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h135", subscription_id="sub-5", cluster_uuid="uuid-h135", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h136", subscription_id="sub-5", cluster_uuid="uuid-h136", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h136", subscription_id="sub-5", cluster_uuid="uuid-h136", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h137", subscription_id="sub-5", cluster_uuid="uuid-h137", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h137", subscription_id="sub-5", cluster_uuid="uuid-h137", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h138", subscription_id="sub-5", cluster_uuid="uuid-h138", version="4.19.20", state="completed"}'
+    values: "1+0x90"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/h138", subscription_id="sub-5", cluster_uuid="uuid-h138", version="4.19.22", state="partial"}'
+    values: "1+0x90"
+  promql_expr_test:
+  - expr: hosted_control_plane_version:desired:stuck_over_20m:ratio{cluster="svc-1"}
+    eval_time: 80m
+    exp_samples:
+    - labels: 'hosted_control_plane_version:desired:stuck_over_20m:ratio{cluster="svc-1"}'
+      value: 0.007142857142857143
+  - expr: hosted_control_plane_version:desired:stuck_over_20m:burnrate30m{cluster="svc-1"}
+    eval_time: 80m
+    exp_samples:
+    - labels: 'hosted_control_plane_version:desired:stuck_over_20m:burnrate30m{cluster="svc-1"}'
+      value: 14.29
+  - expr: hosted_control_plane_version:desired:stuck_over_20m:burnrate5m{cluster="svc-1"}
+    eval_time: 80m
+    exp_samples:
+    - labels: 'hosted_control_plane_version:desired:stuck_over_20m:burnrate5m{cluster="svc-1"}'
+      value: 14.29
+  alert_rule_test:
+  - eval_time: 80m
+    alertname: userJourneyClusterUpgradeReachPartial6h30m
+    exp_alerts:
+    - exp_labels:
+        cluster: "svc-1"
+        severity: info
+        slo: cluster-upgrade-reach-partial
+        short_window: 30m
+        long_window: 6h
+      exp_annotations:
+        summary: "[HCPUpgradeReachPartialBurn] svc-1"
+        description: |
+          More than 6x of the 99.95% cluster upgrade reach-partial error budget is being consumed. Cluster upgrades are stuck for over 20 minutes without the target version reaching partial. Partial is when the target version becomes active (recognized as active) on the HCP cluster; the upgrade is in progress but not yet complete. Investigate backend_cluster_version_info on affected clusters.
+          Window: 6h/30m
+          Management Cluster: svc-1
+        runbook_url: "https://aka.ms/arohcp-runbook-cluster-upgrade"
+        correlationId: "userJourneyClusterUpgradeReachPartial/svc-1"
+  - eval_time: 80m
+    alertname: userJourneyClusterUpgradeReachPartial1h5m
+  - eval_time: 80m
+    alertname: userJourneyClusterUpgradeReachPartial3d6h
+    exp_alerts:
+    - exp_labels:
+        cluster: "svc-1"
+        severity: info
+        slo: cluster-upgrade-reach-partial
+        short_window: 6h
+        long_window: 3d
+      exp_annotations:
+        summary: "[HCPUpgradeReachPartialBurn] svc-1"
+        description: |
+          Cluster upgrade reach-partial has been steadily consuming the 99.95% SLO error budget (1x burn). Cluster upgrades are stuck for over 20 minutes without reaching partial. Partial is when the target version becomes active (recognized as active) on the HCP cluster; the upgrade is in progress but not yet complete. Investigate backend_cluster_version_info on affected clusters.
+          Window: 3d/6h
+          Management Cluster: svc-1
+        runbook_url: "https://aka.ms/arohcp-runbook-cluster-upgrade"
+        correlationId: "userJourneyClusterUpgradeReachPartial/svc-1"
