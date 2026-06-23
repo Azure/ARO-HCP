@@ -197,7 +197,7 @@ func hostedClusterTarget(envIdentifier, csClusterID, csClusterDomainPrefix strin
 		Group:     hsv1beta1.SchemeGroupVersion.Group,
 		Version:   hsv1beta1.SchemeGroupVersion.Version,
 		Resource:  "hostedclusters",
-		Namespace: hostedClusterNamespace(envIdentifier, csClusterID),
+		Namespace: HostedClusterNamespace(envIdentifier, csClusterID),
 		Name:      csClusterDomainPrefix,
 	}
 }

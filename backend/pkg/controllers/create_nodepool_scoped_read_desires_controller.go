@@ -185,7 +185,7 @@ func nodePoolTarget(envIdentifier, csClusterID, csClusterDomainPrefix, csNodePoo
 		Group:     hsv1beta1.SchemeGroupVersion.Group,
 		Version:   hsv1beta1.SchemeGroupVersion.Version,
 		Resource:  "nodepools",
-		Namespace: hostedClusterNamespace(envIdentifier, csClusterID),
+		Namespace: HostedClusterNamespace(envIdentifier, csClusterID),
 		Name:      fmt.Sprintf("%s-%s", csClusterDomainPrefix, csNodePoolID),
 	}
 }

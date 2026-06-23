@@ -107,6 +107,9 @@ func (m *MockKubeApplierDBClient) ListDocuments(resourceType *azcorearm.Resource
 		if resourceType != nil && !strings.EqualFold(td.ResourceType, resourceType.String()) {
 			continue
 		}
+		if td.DeletionTimestamp != nil {
+			continue
+		}
 		if len(prefix) != 0 &&
 			!strings.HasPrefix(strings.ToLower(td.ResourceID.String()), strings.ToLower(prefix)) {
 			continue
@@ -269,6 +272,10 @@ func (k *mockKubeApplierUntypedCRUD) listInternal(ctx context.Context, nonRecurs
 		}
 
 		if typedDoc.ResourceID != nil && !strings.HasPrefix(strings.ToLower(typedDoc.ResourceID.String()), prefix) {
+			continue
+		}
+
+		if typedDoc.DeletionTimestamp != nil {
 			continue
 		}
 

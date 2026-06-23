@@ -765,6 +765,8 @@ defaults:
       tlsCertificatesIssuer: OneCertV2-PublicCA
     maestro:
       sourceEnvironmentIdentifier: "arohcp{{ .ctx.environment }}"
+    backupCadence: production
+    backupPaused: false
     exitOnPanic: true
     logVerbosity: 4
     clusterScopedIdentitiesConfig:
@@ -1706,6 +1708,7 @@ clouds:
               certCN: 'mgmt-{{ .ctx.stamp }}.maestro.{{ .ctx.regionShort }}.hcpsvc.osadev.cloud'
           # Backend
           backend:
+            backupCadence: testing
             tracing:
               address: "http://ingest.observability:4318"
               exporter: "otlp"
@@ -1803,6 +1806,7 @@ clouds:
               certCN: 'mgmt-{{ .ctx.stamp }}.maestro.{{ .ctx.regionShort }}.hcpsvc.osadev.cloud'
           # Backend
           backend:
+            backupCadence: testing
             tracing:
               address: "http://ingest.observability:4318"
               exporter: "otlp"
