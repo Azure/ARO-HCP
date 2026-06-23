@@ -18,6 +18,8 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
+	"net/http"
 	"strings"
 	"testing"
 
@@ -31,6 +33,7 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
+	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
@@ -1338,6 +1341,157 @@ func TestConvertCSManagementClusterToInternal(t *testing.T) {
 				if tt.validate != nil {
 					tt.validate(t, mc)
 				}
+			}
+		})
+	}
+}
+
+func TestCSErrorToCloudError(t *testing.T) {
+	t.Parallel()
+
+	resourceID, err := azcorearm.ParseResourceID(
+		"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/myRG/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/myCluster",
+	)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name               string
+		err                error
+		resourceID         *azcorearm.ResourceID
+		expectedStatusCode int
+		expectedCode       string
+		expectedMessage    string
+	}{
+		{
+			name: "CS 404 with shard-not-found returns 503",
+			err: func() error {
+				e, _ := ocmerrors.NewError().
+					Status(http.StatusNotFound).
+					Reason("Unable to find shard for cluster '123' in region 'westus3'").
+					Build()
+				return e
+			}(),
+			resourceID:         resourceID,
+			expectedStatusCode: http.StatusServiceUnavailable,
+			expectedCode:       arm.CloudErrorCodeServiceUnavailable,
+			expectedMessage:    "Capacity is currently restricted, please try again later",
+		},
+		{
+			name: "CS 404 with shard-not-found returns 503 even without resourceID",
+			err: func() error {
+				e, _ := ocmerrors.NewError().
+					Status(http.StatusNotFound).
+					Reason("Unable to find shard for cluster '456' in region 'eastus'").
+					Build()
+				return e
+			}(),
+			resourceID:         nil,
+			expectedStatusCode: http.StatusServiceUnavailable,
+			expectedCode:       arm.CloudErrorCodeServiceUnavailable,
+			expectedMessage:    "Capacity is currently restricted, please try again later",
+		},
+		{
+			name: "CS 404 without shard reason returns ResourceNotFound when resourceID present",
+			err: func() error {
+				e, _ := ocmerrors.NewError().
+					Status(http.StatusNotFound).
+					Reason("Cluster not found").
+					Build()
+				return e
+			}(),
+			resourceID:         resourceID,
+			expectedStatusCode: http.StatusNotFound,
+			expectedCode:       arm.CloudErrorCodeResourceNotFound,
+		},
+		{
+			name: "CS 404 without shard reason returns NotFound when resourceID is nil",
+			err: func() error {
+				e, _ := ocmerrors.NewError().
+					Status(http.StatusNotFound).
+					Reason("Cluster not found").
+					Build()
+				return e
+			}(),
+			resourceID:         nil,
+			expectedStatusCode: http.StatusNotFound,
+			expectedCode:       arm.CloudErrorCodeNotFound,
+			expectedMessage:    "Cluster not found",
+		},
+		{
+			name: "CS 400 returns InvalidRequestContent",
+			err: func() error {
+				e, _ := ocmerrors.NewError().
+					Status(http.StatusBadRequest).
+					Reason("Validation failed").
+					Build()
+				return e
+			}(),
+			resourceID:         resourceID,
+			expectedStatusCode: http.StatusBadRequest,
+			expectedCode:       arm.CloudErrorCodeInvalidRequestContent,
+			expectedMessage:    "Validation failed",
+		},
+		{
+			name: "CS 409 returns Conflict",
+			err: func() error {
+				e, _ := ocmerrors.NewError().
+					Status(http.StatusConflict).
+					Reason("Resource already exists").
+					Build()
+				return e
+			}(),
+			resourceID:         resourceID,
+			expectedStatusCode: http.StatusConflict,
+			expectedCode:       arm.CloudErrorCodeConflict,
+			expectedMessage:    "Resource already exists",
+		},
+		{
+			name: "CS 503 returns ServiceUnavailable",
+			err: func() error {
+				e, _ := ocmerrors.NewError().
+					Status(http.StatusServiceUnavailable).
+					Reason("Cluster limit reached").
+					Build()
+				return e
+			}(),
+			resourceID:         resourceID,
+			expectedStatusCode: http.StatusServiceUnavailable,
+			expectedCode:       arm.CloudErrorCodeServiceUnavailable,
+			expectedMessage:    "Cluster limit reached",
+		},
+		{
+			name:               "non-OCM error returns InternalServerError",
+			err:                errors.New("something went wrong"),
+			resourceID:         resourceID,
+			expectedStatusCode: http.StatusInternalServerError,
+			expectedCode:       arm.CloudErrorCodeInternalServerError,
+		},
+		{
+			name: "unhandled OCM status returns InternalServerError",
+			err: func() error {
+				e, _ := ocmerrors.NewError().
+					Status(http.StatusForbidden).
+					Reason("Forbidden").
+					Build()
+				return e
+			}(),
+			resourceID:         resourceID,
+			expectedStatusCode: http.StatusInternalServerError,
+			expectedCode:       arm.CloudErrorCodeInternalServerError,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			cloudErr := CSErrorToCloudError(tt.err, tt.resourceID)
+
+			require.NotNil(t, cloudErr)
+			assert.Equal(t, tt.expectedStatusCode, cloudErr.StatusCode)
+			assert.Equal(t, tt.expectedCode, cloudErr.Code)
+			if tt.expectedMessage != "" {
+				assert.Contains(t, cloudErr.Message, tt.expectedMessage)
 			}
 		})
 	}
