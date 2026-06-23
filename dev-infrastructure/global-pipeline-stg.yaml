@@ -5,7 +5,7 @@
 # (hcp-stg-global) so it can be built and validated alongside the existing shared
 # subscription without touching it. Differences from the canonical pipeline:
 #   * serviceGroup is Microsoft.Azure.ARO.HCP.Global.StgGlobal (new subcomponent),
-#     wired under the new HCP.Global.V2 root entrypoint — NOT the live HCP.Global,
+#     wired under the new HCP.Global.StgGlobal root entrypoint — NOT the live HCP.Global,
 #     so EV2 never co-deploys this with the existing global rollout.
 #   * subscription is hardcoded to 'hcp-stg-global' (the canonical pipeline uses
 #     '{{ .global.subscription.key }}', which for stg still resolves to the shared

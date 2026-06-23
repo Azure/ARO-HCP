@@ -4,7 +4,7 @@
 # Deploys the geography-scoped Kusto cluster into the dedicated STG-global
 # subscription (hcp-stg-global). Differences from the canonical pipeline:
 #   * serviceGroup is Microsoft.Azure.ARO.HCP.Geography.StgGlobal (new subcomponent),
-#     a child of HCP.Global.StgGlobal under the new HCP.Global.V2 root entrypoint.
+#     a child of HCP.Global.StgGlobal under the new HCP.Global.StgGlobal root entrypoint.
 #   * subscription is hardcoded to 'hcp-stg-global'.
 #   * executionConstraints are stg/uksouth ONLY (prod & test render inert).
 #   * the globally-unique Kusto cluster name comes from stgGlobalV2.kustoName so it
