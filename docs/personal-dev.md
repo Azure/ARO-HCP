@@ -41,6 +41,13 @@ All other tools should be transparently installed by the `make` targets that req
 > A word of caution upfront: dev infrastructure is automatically deleted after 48h. If you want to keep your infrastructure indefinitely, run all the following commands with an env variable `PERSIST=true`.
 > Please consider the implication on cost if you decide to keep your infrastructure indefinitely.
 
+> [!CAUTION] Cleanup-sensitive naming patterns
+> The following resource group naming patterns trigger special cleanup rules. Avoid them for custom `DEPLOY_ENV` values or ad-hoc resource groups. See [`resourcegroups.policy.yaml`](../tooling/cleanup-sweeper/resourcegroups.policy.yaml) for details.
+>
+> **Prefixes:** `hcp-underlay-pers-`, `hcp-underlay-prow-`, `hcp-underlay-ci`, `hcp-underlay-cspr-`, `hcp-underlay-dev-`, `hcp-underlay-perf-`, `hcp-underlay-int-`, `hcp-underlay-stg-`, `hcp-underlay-prod-`
+>
+> **Suffixes:** `-shared-resources`
+
 The creation process can take up to 20 minutes.
 
    ```bash
