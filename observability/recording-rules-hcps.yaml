@@ -1,8 +1,8 @@
 prometheusRules:
   rulesFolders:
-  - alerts/HCPkasRecord-prometheusRule-KSM.yaml
-  - alerts/HCPkasRecord-prometheusRule-apiserver-requests.yaml
-  - alerts/HCPkasRecord-prometheusRule-latency.yaml
-  - alerts/UJKubeApiserverAvailabilityRecord-prometheusRule-KSM.yaml
+  - ../observability/alerts/HCPkasRecord-prometheusRule-KSM.yaml
+  - ../observability/alerts/HCPkasRecord-prometheusRule-apiserver-requests.yaml
+  - ../observability/alerts/HCPkasRecord-prometheusRule-latency.yaml
+  - ../observability/alerts/UJKubeApiserverAvailabilityRecord-prometheusRule-KSM.yaml
   untestedRules: []
   outputBicep: ../dev-infrastructure/modules/metrics/rules/generatedHCPRecordingRules.bicep
