@@ -61,12 +61,22 @@ scale independently from the infrastructure-subscription work.
 - The canonical E2E slot inventory lives in ARO-HCP.
 - Runtime leasing is done through `aro-hcp-tests slot-manager` and the ci-operator Boskos proxy.
 - The E2E workflow in `openshift/release` uses dedicated acquire/release steps that wrap the CLI.
+- Pool selection is now driven by an explicit selector contract:
+  - `ALLOWED_SUBSCRIPTIONS`
+    - candidate-pool allowlist keyed by catalog `subscription_name`
+  - `ALLOWED_LOCATIONS`
+    - fixed-mode candidate-pool allowlist keyed by region
+  - `MULTISTAGE_PARAM_OVERRIDE_LOCATION`
+    - highest-precedence concrete runtime location
+    - when set it overrides `ALLOWED_LOCATIONS` for fixed-mode pool selection
+    - for runtime-selected pools it does not change pool identity, but it does become the concrete runtime location
 - The runtime env contract is intentionally narrow and non-secret:
   - `CUSTOMER_SUBSCRIPTION`
-  - `LOCATION`
+  - `SELECTED_LOCATION`
   - `LEASED_MSI_CONTAINERS`
   - `ARO_HCP_E2E_SLOT_NAME`
   - `ARO_HCP_E2E_SLOT_RESOURCE_TYPE`
+- Downstream `openshift/release` steps still mostly consume `LOCATION` today, so the release-side scripts map `SELECTED_LOCATION` back into `LOCATION` where needed.
 
 ### Coordinate model by environment
 
@@ -85,8 +95,8 @@ scale independently from the infrastructure-subscription work.
     - Prod has presence in many regions, so region is a real routing coordinate here.
     - `prod` also has periodic E2E jobs pinned to `uksouth` today, declared in `release/ci-operator/config/Azure/ARO-HCP/Azure-ARO-HCP-main__periodic.yaml`.
     - Concurrency for a particular region is usually `1` (although it can be higher for `uksouth` due to periodics), but several customer subscriptions are still needed to run tests against multiple prod regions concurrently.
-    - The expectation is that Gangway-triggered prod gating jobs set `MULTISTAGE_PARAM_OVERRIDE_LOCATION` per target region when invoking the job. `slot-manager acquire` gives that override precedence over `LOCATION` during slot selection, and the leased slot then becomes the authoritative runtime `LOCATION` for downstream steps.
-    - This also means we need to watch for any step that bypasses that contract and accidentally uses a stale/default location instead of the leased one.
+    - The expectation is that Gangway-triggered prod gating jobs set `MULTISTAGE_PARAM_OVERRIDE_LOCATION` per target region when invoking the job. `slot-manager acquire` gives that override precedence over `ALLOWED_LOCATIONS` on the acquire side, and the leased slot then exports the authoritative runtime `SELECTED_LOCATION` for downstream steps.
+    - This also means we need to watch for any step that bypasses that contract and accidentally uses a stale/default `LOCATION` instead of the release-mapped `SELECTED_LOCATION`.
 
 ### Pool selection and lease acquisition flow
 
@@ -99,10 +109,10 @@ flowchart TD
 
     DetectMode --> IsFixed{region_mode?}
 
-    IsFixed -->|fixed| FixedFilter["Filter pools by:\n1. --subscription-name if set\n2. --region if set\nBoth narrow the candidate list"]
-    IsFixed -->|runtime-selected| RSFilter["Filter pools by:\n1. --subscription-name if set\n--region is ignored for filtering\nbecause region is chosen at runtime"]
+    IsFixed -->|fixed| FixedFilter["Fixed-mode filter:\n1. allowed subscriptions\n2. override location if set\n3. else allowed locations"]
+    IsFixed -->|runtime-selected| RSFilter["Runtime-selected filter:\n1. allowed subscriptions\n2. ignore allowed locations\nfor pool identity"]
 
-    FixedFilter --> Candidates["Ordered candidate pool list"]
+    FixedFilter --> Candidates["Candidate pool list\nwith rotated starting point"]
     RSFilter --> Candidates
 
     Candidates --> PassStart["Start pass N over candidates"]
@@ -111,8 +121,8 @@ flowchart TD
 
     LeaseResult -->|success| ResolveRegion{region_mode?}
     ResolveRegion -->|fixed| UsePoolRegion["Runtime region =\npool.Region"]
-    ResolveRegion -->|runtime-selected| HasOverride{--region set?}
-    HasOverride -->|yes| UseOverride["Runtime region =\n--region"]
+    ResolveRegion -->|runtime-selected| HasOverride{Override location set?}
+    HasOverride -->|yes| UseOverride["Runtime region =\noverride location"]
     HasOverride -->|no| UseFallback["Runtime region =\npool.Region as default"]
 
     UsePoolRegion --> Finalize
@@ -121,11 +131,12 @@ flowchart TD
 
     Finalize["Finalize:\n1. Verify subscription in cluster profile\n2. Write state file\n3. Write env file"]
 
-    LeaseResult -->|pool exhausted| MorePools{More candidate\npools?}
+    LeaseResult -->|no immediate lease| Unavailable["Temporarily unavailable now:\nproxy timeout,\nretry budget exhaustion,\nor retryable proxy response"]
+    Unavailable --> MorePools{More candidate\npools?}
     MorePools -->|yes| TryPool
     MorePools -->|no| WaitCheck{max_wait_for_lease\nexpired?}
     WaitCheck -->|no| Sleep["Sleep lease_wait_interval"] --> PassStart
-    WaitCheck -->|yes| Fail["Fail: all pools exhausted"]
+    WaitCheck -->|yes| Fail["Fail: no pool yielded an\nimmediate lease within budget"]
 
     LeaseResult -->|fatal error| Abort["Abort: non-retryable error"]
 ```
@@ -137,14 +148,22 @@ flowchart TD
   - `region_mode: fixed|runtime-selected` plus optional `identity_provisioning_region`,
   - Boskos managed-block sync/validation tooling,
   - release step wiring,
-  - formalized non-secret runtime contract.
+  - formalized non-secret runtime contract centered on `SELECTED_LOCATION`.
 - Multi-pool candidate selection and fallback are implemented:
-  - fixed-mode environments filter candidate pools by the requested runtime region and then try pools in catalog order,
-  - runtime-selected environments ignore region for pool identity and then try subscription-backed pools in catalog order,
-  - one full pass over the candidate pools is now the retry unit when every pool is exhausted.
-- Exhausted-pool waiting is now explicit and separated from transient proxy/network handling:
-  - per-request `lease-proxy-timeout` plus exponential backoff still only covers transient Boskos/proxy/network issues,
-  - all-pools-exhausted waiting now uses `lease_wait_interval` and `max_wait_for_lease`,
+  - fixed-mode environments filter candidate pools by `ALLOWED_SUBSCRIPTIONS` and either `ALLOWED_LOCATIONS` or `MULTISTAGE_PARAM_OVERRIDE_LOCATION`, then rotate the starting pool once per acquire run while preserving the remaining catalog order for fallback,
+  - runtime-selected environments use `ALLOWED_SUBSCRIPTIONS` for pool identity, ignore `ALLOWED_LOCATIONS` for candidate selection, and use `MULTISTAGE_PARAM_OVERRIDE_LOCATION` only as the concrete runtime location; they use the same rotated-start probing model,
+  - the dev catalog now uses one runtime-selected pool per customer subscription, with `westus3` as the default runtime region,
+  - those shared dev pools provision their MSI container stacks in `westus3` via `identity_provisioning_region`,
+  - that intentionally optimizes the current rollout for multi-subscription, single-region operation first; multi-region CI behavior will need a follow-up job strategy.
+- Pool fallback is now adapted to the Boskos proxy's blocking acquire behavior:
+  - the proxy does not reliably give `slot-manager` a distinct immediate "pool exhausted" signal for candidate failover,
+  - each candidate pool probe is therefore bounded by `lease-proxy-timeout` and interpreted through the client-side `ErrLeasePoolUnavailableNow` classification,
+  - timeout-budget exhaustion and retryable proxy/server failures now mean "this pool did not yield an immediate lease now; try the next candidate pool",
+  - one full pass over the candidate pools is the retry unit when every candidate is temporarily unavailable.
+- Waiting is now explicit and separated from transient proxy/network retry handling:
+  - per-request `lease-proxy-timeout` plus exponential backoff covers one bounded probe of a single candidate pool,
+  - repeated full-pass waiting now uses `lease_wait_interval` and `max_wait_for_lease`,
+  - the default per-pool `lease-proxy-timeout` is now `30s`,
   - the current defaults are `lease_wait_interval=1m` and `max_wait_for_lease=30m`,
   - `max_wait_for_lease=0` means wait forever,
   - `openshift/release` now exposes `ARO_HCP_SLOT_MANAGER_LEASE_WAIT_INTERVAL` and `ARO_HCP_SLOT_MANAGER_MAX_WAIT_FOR_LEASE` as optional per-job overrides.

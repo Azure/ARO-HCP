@@ -1,5 +1,5 @@
+-include ../../setup-env.mk
 -include ../../setup-templatize-env.mk
-CONTAINER_ENGINE ?= $(shell command -v podman 2>/dev/null || echo docker)
 
 SHELL = /bin/bash
 
@@ -47,6 +47,6 @@ image: Dockerfile Makefile
 .PHONY: image
 
 build-and-push: image
-	az acr login --name ${ARO_HCP_IMAGE_ACR}
+	$(acr-login)
 	$(CONTAINER_ENGINE) push ${ARO_HCP_EXPORTER_TAGGED_IMAGE}
 .PHONY: build-and-push

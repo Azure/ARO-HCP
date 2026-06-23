@@ -1,61 +1,25 @@
 {
+	"_etag": "\"5ff11017-461e-4ad1-b8cb-95cc0d536414\"",
 	"id": "68bc6026-a8a9-5706-92c5-25d3313bcabb",
 	"partitionKey": "0465bc32-c654-41b8-8d87-9815d7abe8f6",
 	"properties": {
 		"cosmosMetadata": {
+			"instanceVersion": 1,
+			"partitionKey": "0465bc32-c654-41b8-8d87-9815d7abe8f6",
 			"resourceID": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/some-hcp-cluster"
 		},
 		"id": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/some-hcp-cluster",
 		"identity": {
 			"type": "UserAssigned"
 		},
-		"intermediateResourceDoc": {
-			"identity": {
-				"type": "UserAssigned"
-			},
-			"internalId": "/api/aro_hcp/v1alpha1/clusters/fixed-value",
-			"provisioningState": "Succeeded",
-			"resourceId": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/some-hcp-cluster",
-			"systemData": {
-				"createdBy": "Unknown-ARO-HCP-frontend",
-				"createdByType": "Application",
-				"lastModifiedBy": "Unknown-ARO-HCP-frontend",
-				"lastModifiedByType": "Application"
-			},
-			"tags": {
-				"foo": "bar"
-			}
-		},
-		"internalState": {
-			"internalAPI": {
-				"id": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/some-hcp-cluster",
-				"identity": {
-					"type": "UserAssigned"
-				},
-				"location": "eastus",
-				"name": "some-hcp-cluster",
-				"serviceProviderProperties": {
-					"clusterServiceID": "/api/aro_hcp/v1alpha1/clusters/fixed-value",
-					"provisioningState": "Succeeded"
-				},
-				"systemData": {
-					"createdBy": "Unknown-ARO-HCP-frontend",
-					"createdByType": "Application",
-					"lastModifiedBy": "Unknown-ARO-HCP-frontend",
-					"lastModifiedByType": "Application"
-				},
-				"tags": {
-					"foo": "bar"
-				},
-				"type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"
-			}
-		},
 		"location": "eastus",
 		"name": "some-hcp-cluster",
 		"serviceProviderProperties": {
 			"clusterServiceID": "/api/aro_hcp/v1alpha1/clusters/fixed-value",
-			"provisioningState": "Succeeded"
+			"provisioningState": "Succeeded",
+			"usesNewClusterDeletionApproach": false
 		},
+		"status": {},
 		"systemData": {
 			"createdBy": "Unknown-ARO-HCP-frontend",
 			"createdByType": "Application",

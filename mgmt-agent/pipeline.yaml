@@ -61,6 +61,7 @@ resourceGroups:
   - name: deploy
     aksCluster: '{{ .mgmt.aks.name }}'
     action: Helm
+    timeout: 10m
     releaseName: 'mgmt-agent'
     releaseNamespace: '{{ .mgmtAgent.k8s.namespace }}'
     chartDir: ./deploy

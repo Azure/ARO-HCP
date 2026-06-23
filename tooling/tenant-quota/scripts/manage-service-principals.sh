@@ -111,9 +111,13 @@ setup_redhat() {
     local DIRECTORY_QUOTA=true
     local SUBSCRIPTIONS=(
         "ARO Hosted Control Planes (EA Subscription 1)"
-        "ARO HCP E2E Hosted Clusters (EA Subscription)"
         "ARO HCP E2E Infrastructure (EA Subscription)"
+        "ARO HCP E2E Hosted Clusters (EA Subscription)"
+        "ARO HCP E2E Hosted Clusters 2 (EA Subscription)"
+        "ARO HCP E2E Hosted Clusters - Dev - 02"
+        "ARO HCP E2E Hosted Clusters - Dev - 03"
         "ARO SRE Team - INT (EA Subscription 3)"
+        "ARO HCP E2E Hosted Clusters - Stage - 00"
     )
 
     create_or_get_sp "${APPLICATION_NAME}"
@@ -572,7 +576,7 @@ if [[ "${KEYVAULT_ONLY}" == "true" ]]; then
 
     header "Done"
     echo "Next steps:"
-    echo "  1. If this is a new tenant, add it to config/config-opstool.yaml"
+    echo "  1. If this is a new tenant, add it to config/config-dev-ci.yaml"
     echo "  2. Redeploy the collector (see templatize pipeline in README / script footer)."
     exit 0
 fi
@@ -603,12 +607,12 @@ esac
 
 header "Done"
 echo "Next steps:"
-echo "  1. If this is a new tenant, add it to config/config-opstool.yaml"
+echo "  1. If this is a new tenant, add it to config/config-dev-ci.yaml"
 echo "  2. Redeploy the collector:"
 echo "     ./templatize-bin pipeline run \\"
-echo "       --service-group Microsoft.Azure.ARO.HCP.Opstool.TenantQuota \\"
-echo "       --topology-file topology-opstool.yaml \\"
-echo "       --config-file config/config-opstool.yaml \\"
+echo "       --service-group Microsoft.Azure.ARO.HCP.DevCI.TenantQuota \\"
+echo "       --topology-file topology-dev-ci.yaml \\"
+echo "       --config-file config/config-dev-ci.yaml \\"
 echo "       --dev-settings-file tooling/templatize/settings.yaml \\"
-echo "       --dev-environment opstool \\"
+echo "       --dev-environment dev-ci \\"
 echo "       --step deploy"

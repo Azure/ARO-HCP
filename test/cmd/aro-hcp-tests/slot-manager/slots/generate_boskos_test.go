@@ -30,7 +30,7 @@ func TestRewriteGenerateBoskosAndValidateBoskosConfig(t *testing.T) {
 		Version: 1,
 		Environments: map[string]Environment{
 			"dev": {
-				DeployEnvs: []string{"prow", "ci01"},
+				DeployEnvs: []string{"ci00", "ci01"},
 				Pools: []Pool{
 					{
 						SubscriptionName:        "dev",

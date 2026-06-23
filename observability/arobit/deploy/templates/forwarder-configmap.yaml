@@ -62,6 +62,21 @@ data:
         Time_Format %Y-%m-%dT%H:%M:%S.%L
         Time_Keep   On
 
+    [MULTILINE_PARSER]
+        name          klog
+        type          regex
+        flush_timeout 1000
+        # A klog line starts with [IWEF] followed by 4 digits (mmdd) and a space
+        rule          "start_state"  "/^[IWEF]\d{4} /"               "cont"
+        # A JSON log line starts with { — treat as its own entry
+        rule          "start_state"  "/^\{/"                          "cont"
+        # A structured log line starts with an ISO 8601 timestamp
+        rule          "start_state"  "/^\d{4}-\d{2}-\d{2}T\d{2}:/"   "cont"
+        # Anything else is a continuation of the previous multiline entry
+        rule          "cont"         "/^[^IWEF{\d]/"                  "cont"
+        rule          "cont"         "/^[IWEF][^0-9]/"                "cont"
+        rule          "cont"         "/^\d(?!\d{3}-\d{2}-\d{2}T\d{2}:)/"  "cont"
+
   input.conf: |
     [INPUT]
         Name              tail
@@ -118,6 +133,13 @@ data:
         storage.type      filesystem
   filter.conf: |
     [FILTER]
+        Name                  multiline
+        Alias                 filter.multiline_klog
+        Match                 kubernetes.*
+        multiline.parser      klog
+        multiline.key_content log
+
+    [FILTER]
         Name modify
         Match systemd.*
         Add environment {{ .Values.forwarder.environment }}
@@ -159,6 +181,7 @@ data:
         Rule            $kubernetes['container_name'] ^aro-hcp-frontend* aro-hcp-frontend.logs true
         Rule            $kubernetes['container_name'] ^aro-hcp-backend* aro-hcp-backend.logs true
         Rule            $kubernetes['container_name'] ^clusters-service* clusters-service.logs true
+        Rule            $kubernetes['container_name'] ^fleet-controller* fleet-controller.logs true
         Rule            $kubernetes['container_name'] ^kube-events* kube-events.logs true
         Emitter_Name    re_emitted_container_name_router
         Emitter_Mem_Buf_Limit  20M
@@ -167,7 +190,7 @@ data:
     [FILTER]
         # Parse the log key and make it a json object again under $
         Name Parser
-        Match_regex (aro-hcp-(frontend|backend)|kube-events|clusters-service)\.logs
+        Match_regex (aro-hcp-(frontend|backend)|kube-events|clusters-service|fleet-controller)\.logs
         Key_Name log
         Parser containerlogs
         Preserve_Key On
@@ -383,6 +406,24 @@ data:
 {{- end }}
 
     [OUTPUT]
+        Match fleet-controller.logs
+        Name azure_kusto
+        Retry_Limit 5
+        auth_type workload_identity
+        tenant_id {{ .Values.forwarder.tenantId }}
+        client_id {{ .Values.forwarder.msiClientId }}
+        workload_identity_token_file ${AZURE_FEDERATED_TOKEN_FILE}
+        Ingestion_Endpoint {{ .Values.forwarder.kusto.ingestionEndpoint }}
+        Database_Name {{ .Values.forwarder.kusto.serviceLogsDatabase }}
+        Table_Name fleetLogs
+        ingestion_mapping_reference ingestionMapping
+        azure_kusto_buffer_key fleetLogs
+        buffer_dir "{{ .Values.forwarder.kusto.buffer_dir }}"
+{{- if .Values.forwarder.kusto.buffering }}
+        {{- template "buffer_settings" . }}
+{{- end }}
+
+    [OUTPUT]
         Match clusters-service.logs
         Name azure_kusto
         Retry_Limit 5
@@ -435,16 +476,6 @@ data:
         {{- template "buffer_settings" . }}
 {{- end }}
 
-  output-mdsd.conf: |
-    # Forward logs to mdsd instance (default port)
-    [OUTPUT]
-        Name  forward
-        Alias forward.mdsd.other
-        Match mdsd-other.logs
-        Host  127.0.0.1
-        Port  5001
-        Tag   akskubesystem
-
     [OUTPUT]
         Match systemd.*
         Name azure_kusto
@@ -462,3 +493,13 @@ data:
 {{- if .Values.forwarder.kusto.buffering }}
         {{- template "buffer_settings" . }}
 {{- end }}
+
+  output-mdsd.conf: |
+    # Forward logs to mdsd instance (default port)
+    [OUTPUT]
+        Name  forward
+        Alias forward.mdsd.other
+        Match mdsd-other.logs
+        Host  127.0.0.1
+        Port  5001
+        Tag   akskubesystem

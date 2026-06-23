@@ -1,0 +1,107 @@
+$schema: "pipeline.schema.v1"
+serviceGroup: Microsoft.Azure.ARO.HCP.DevCI.E2ESubscriptionRBAC
+rolloutName: Dev CI E2E Subscription RBAC Rollout
+resourceGroups:
+- name: home
+  resourceGroup: '{{ .global.rg }}'
+  subscription: '{{ .global.subscription.key }}'
+  steps:
+  - name: operator-roles
+    action: ARM
+    template: ../../templates/dev-operator-roles.bicep
+    parameters: ../../configurations/dev-operator-roles.tmpl.bicepparam
+    deploymentLevel: Subscription
+  - name: mock-identity-roles
+    action: ARM
+    template: ../../templates/mock-identity-roles.bicep
+    parameters: ../../configurations/mock-identity-roles.tmpl.bicepparam
+    deploymentLevel: Subscription
+- name: grants
+  resourceGroup: '{{ .global.rg }}'
+  subscription: '{{ .global.subscription.key }}'
+  steps:
+  - name: customer-subscription-grants
+    action: ARM
+    template: ../../templates/e2e-subscription-rbac-assignments.bicep
+    parameters: ../../configurations/e2e-subscription-rbac-assignments.tmpl.bicepparam
+    deploymentLevel: Subscription
+    dependsOn:
+    - resourceGroup: home
+      step: operator-roles
+    - resourceGroup: home
+      step: mock-identity-roles
+- name: ci-bots
+  resourceGroup: '{{ .global.rg }}'
+  subscription: '{{ .global.subscription.key }}'
+  steps:
+  - name: ci-bot-identity
+    action: ARM
+    template: ../../templates/ci-bot-identity.bicep
+    parameters: ../../configurations/ci-bot-identity.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+  - name: ci-bot-secret-int
+    action: Shell
+    command: ./ci-bot-ensure-secret.sh
+    workingDir: ../../scripts
+    variables:
+    - name: APP_NAME
+      configRef: ci.int.bot.applicationName
+    - name: ENV_NAME
+      value: int
+    - name: KEY_VAULT_NAME
+      configRef: opstool.keyVault.name
+    dependsOn:
+    - resourceGroup: ci-bots
+      step: ci-bot-identity
+  - name: ci-bot-secret-stg
+    action: Shell
+    command: ./ci-bot-ensure-secret.sh
+    workingDir: ../../scripts
+    variables:
+    - name: APP_NAME
+      configRef: ci.stg.bot.applicationName
+    - name: ENV_NAME
+      value: stg
+    - name: KEY_VAULT_NAME
+      configRef: opstool.keyVault.name
+    dependsOn:
+    - resourceGroup: ci-bots
+      step: ci-bot-identity
+  - name: ci-bot-secret-prod
+    action: Shell
+    command: ./ci-bot-ensure-secret.sh
+    workingDir: ../../scripts
+    variables:
+    - name: APP_NAME
+      configRef: ci.prod.bot.applicationName
+    - name: ENV_NAME
+      value: prod
+    - name: KEY_VAULT_NAME
+      configRef: opstool.keyVault.name
+    dependsOn:
+    - resourceGroup: ci-bots
+      step: ci-bot-identity
+  - name: ci-bot-rbac-int
+    action: ARM
+    template: ../../templates/ci-bot-rbac.bicep
+    parameters: ../../configurations/ci-bot-rbac-int.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    dependsOn:
+    - resourceGroup: ci-bots
+      step: ci-bot-identity
+  - name: ci-bot-rbac-stg
+    action: ARM
+    template: ../../templates/ci-bot-rbac.bicep
+    parameters: ../../configurations/ci-bot-rbac-stg.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    dependsOn:
+    - resourceGroup: ci-bots
+      step: ci-bot-identity
+  - name: ci-bot-rbac-prod
+    action: ARM
+    template: ../../templates/ci-bot-rbac.bicep
+    parameters: ../../configurations/ci-bot-rbac-prod.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    dependsOn:
+    - resourceGroup: ci-bots
+      step: ci-bot-identity

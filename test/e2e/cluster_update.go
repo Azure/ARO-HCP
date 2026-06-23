@@ -17,7 +17,6 @@ package e2e
 import (
 	"context"
 	"strings"
-	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -49,7 +48,7 @@ var _ = Describe("Update HCPOpenShiftCluster", func() {
 				tc := framework.NewTestContext()
 
 				if tc.UsePooledIdentities() {
-					err := tc.AssignIdentityContainers(ctx, 1, 60*time.Second)
+					err := tc.AssignIdentityContainers(ctx, 1, framework.IdentityContainerAssignmentRetryInterval)
 					Expect(err).NotTo(HaveOccurred(), "failed to assign pooled identity containers")
 				}
 
@@ -89,7 +88,7 @@ var _ = Describe("Update HCPOpenShiftCluster", func() {
 					tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 					*resourceGroup.Name,
 					clusterName,
-					10*time.Minute,
+					framework.GetAdminRESTConfigTimeout,
 				)
 				Expect(err).NotTo(HaveOccurred(), "failed to get admin REST config for patch-name cluster")
 
@@ -108,7 +107,7 @@ var _ = Describe("Update HCPOpenShiftCluster", func() {
 					*resourceGroup.Name,
 					clusterName,
 					update,
-					10*time.Minute,
+					framework.UpdateHCPClusterTimeout,
 				)
 				Expect(err).To(HaveOccurred(), "expected error when attempting to rename cluster via PATCH")
 				Expect(strings.ToLower(err.Error())).To(ContainSubstring("mismatchingresourcename"), "error should indicate mismatching resource name")
@@ -125,7 +124,7 @@ var _ = Describe("Update HCPOpenShiftCluster", func() {
 				tc := framework.NewTestContext()
 
 				if tc.UsePooledIdentities() {
-					err := tc.AssignIdentityContainers(ctx, 1, 60*time.Second)
+					err := tc.AssignIdentityContainers(ctx, 1, framework.IdentityContainerAssignmentRetryInterval)
 					Expect(err).NotTo(HaveOccurred(), "failed to assign pooled identity containers")
 				}
 
@@ -165,7 +164,7 @@ var _ = Describe("Update HCPOpenShiftCluster", func() {
 					tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 					*resourceGroup.Name,
 					clusterName,
-					10*time.Minute,
+					framework.GetAdminRESTConfigTimeout,
 				)
 				Expect(err).NotTo(HaveOccurred(), "failed to get admin REST config for patch-tags cluster")
 
@@ -187,7 +186,7 @@ var _ = Describe("Update HCPOpenShiftCluster", func() {
 					*resourceGroup.Name,
 					clusterName,
 					update,
-					10*time.Minute,
+					framework.UpdateHCPClusterTimeout,
 				)
 				Expect(err).NotTo(HaveOccurred(), "failed to update HCP cluster tags via PATCH")
 

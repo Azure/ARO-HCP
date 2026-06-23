@@ -1,5 +1,6 @@
 include ./.bingo/Variables.mk
 include ./.bingo/Symlinks.mk
+include ./setup-env.mk
 include ./tooling/templatize/Makefile
 include ./tooling/yamlwrap/Makefile
 include ./test/Makefile
@@ -12,6 +13,7 @@ DEPLOY_ENV ?= pers
 CONFIG_FILE ?= config/config.yaml
 TOPOLOGY_FILE ?= topology.yaml
 export AZURE_TOKEN_CREDENTIALS ?= dev
+BUILD_SERVICES_OPTS ?= -j7
 
 .DEFAULT_GOAL := all
 
@@ -96,8 +98,12 @@ verify-kql:
 update: deepcopy json-format
 .PHONY: update
 
-verify: verify-deepcopy verify-json-format verify-generate verify-yamlfmt verify-materialize verify-gomega-assertions
+verify: verify-deepcopy verify-json-format verify-generate verify-yamlfmt verify-materialize verify-gomega-assertions verify-schema
 .PHONY: verify
+
+verify-schema:
+	go run ./hack/verify-schema-additional-properties config/config.schema.json
+.PHONY: verify-schema
 
 verify-gomega-assertions:
 	go run ./hack/verify-gomega-assertions ./test/e2e/ ./test/util/
@@ -205,10 +211,8 @@ e2e-local/run-test:
 	$(MAKE) -C test -f E2ELocal.mk e2e-local/pf/run-test TEST_NAME="$$TEST_NAME"
 .PHONY: e2e-local/run-test
 
-CONTAINER_RUNTIME ?= docker
-
 mega-lint:
-	$(CONTAINER_RUNTIME) run --rm \
+	$(CONTAINER_ENGINE) run --rm \
 		-e FILTER_REGEX_EXCLUDE='hypershiftoperator/deploy/crds/|acm/deploy/helm/multicluster-engine-config/charts/policy/charts|dev-infrastructure/global-pipeline.yaml|tooling/templatize/testdata/pipeline.yaml|hypershiftoperator/deploy/templates/cluster.clustersizingconfiguration.yaml' \
 		-e REPORT_OUTPUT_FOLDER=/tmp/report \
 		-v $${PWD}:/tmp/lint:Z \
@@ -331,7 +335,7 @@ services_all = $(join services_svc,services_mgmt)
 # This sections is used to reference pipeline runs and should replace
 # the usage of `svc-deploy.sh` script in the future.
 services_svc_pipelines = backend frontend cluster-service maestro.server observability.tracing
-services_mgmt_pipelines = secret-sync-controller acm hypershiftoperator maestro.agent mgmt-agent observability.tracing route-monitor-operator
+services_mgmt_pipelines = secret-sync-controller acm hypershiftoperator maestro.agent mgmt-agent observability.tracing
 %.deploy_pipeline: $(ORAS_LINK) $(YQ)
 	$(eval export dirname=$(subst .,/,$(basename $@)))
 	./templatize.sh $(DEPLOY_ENV) -p $(shell $(YQ) .serviceGroup ./$(dirname)/pipeline.yaml) -P run
@@ -393,7 +397,7 @@ generate-kiota:
 PERS_OVERRIDE_FILE ?= /tmp/personal-dev-override.yaml
 
 build-services:
-	$(MAKE) -j7 build-frontend build-backend build-admin build-sessiongate build-mgmt-agent build-kube-applier build-fleet
+	$(MAKE) $(BUILD_SERVICES_OPTS) build-frontend build-backend build-admin build-sessiongate build-mgmt-agent build-kube-applier build-fleet
 .PHONY: build-services
 
 build-frontend:
@@ -457,11 +461,15 @@ endif
 .PHONY: personal-dev-env
 
 #
-# Opstool topology local run
+# Dev CI topology local run
 #
-opstool-local-run:
-	$(MAKE) local-run DEPLOY_ENV=opstool CONFIG_FILE=config/config-opstool.yaml TOPOLOGY_FILE=topology-opstool.yaml WHAT="--entrypoint Microsoft.Azure.ARO.HCP.Opstool.Infra" STEP_CACHE_DIR=""
-.PHONY: opstool-local-run
+dev-ci-local-run:
+	$(MAKE) local-run DEPLOY_ENV=dev-ci CONFIG_FILE=config/config-dev-ci.yaml TOPOLOGY_FILE=topology-dev-ci.yaml WHAT="--entrypoint Microsoft.Azure.ARO.HCP.DevCI.Infra" STEP_CACHE_DIR=""
+.PHONY: dev-ci-local-run
+
+dev-ci-e2e-subscription-rbac-local-run:
+	$(MAKE) local-run DEPLOY_ENV=dev-ci CONFIG_FILE=config/config-dev-ci.yaml TOPOLOGY_FILE=topology-dev-ci.yaml WHAT="--service-group Microsoft.Azure.ARO.HCP.DevCI.E2ESubscriptionRBAC" STEP_CACHE_DIR=""
+.PHONY: dev-ci-e2e-subscription-rbac-local-run
 
 #
 # Local Cluster Service Development Environment

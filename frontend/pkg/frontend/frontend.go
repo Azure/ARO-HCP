@@ -44,6 +44,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/api/v20240610preview"
 	"github.com/Azure/ARO-HCP/internal/api/v20251223preview"
+	"github.com/Azure/ARO-HCP/internal/api/v20260630preview"
 	"github.com/Azure/ARO-HCP/internal/audit"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -75,8 +76,7 @@ type Frontend struct {
 	// clusterServiceNoopDeprovision short-circuits the full deprovision flow
 	// during testing.
 	clusterServiceNoopDeprovision bool
-
-	apiRegistry api.APIRegistry
+	apiRegistry                   api.APIRegistry
 
 	exitOnPanic bool
 }
@@ -101,6 +101,7 @@ func NewFrontend(
 	apiRegistry := api.NewAPIRegistry()
 	api.Must[any](nil, v20240610preview.RegisterVersion(apiRegistry))
 	api.Must[any](nil, v20251223preview.RegisterVersion(apiRegistry))
+	api.Must[any](nil, v20260630preview.RegisterVersion(apiRegistry))
 
 	f := &Frontend{
 		clusterServiceClient: csClient,
@@ -178,14 +179,17 @@ func (f *Frontend) Run(ctx context.Context) error {
 	wg := sync.WaitGroup{}
 	wg.Add(3)
 	go func() {
+		defer k8sutilruntime.HandleCrash()
 		defer wg.Done()
 		errCh <- f.server.Serve(f.listener)
 	}()
 	go func() {
+		defer k8sutilruntime.HandleCrash()
 		defer wg.Done()
 		errCh <- f.metricsServer.Serve(f.metricsListener)
 	}()
 	go func() {
+		defer k8sutilruntime.HandleCrash()
 		defer wg.Done()
 		f.collector.Run(ctx)
 	}()
@@ -501,6 +505,25 @@ func (f *Frontend) ArmResourceActionRevokeCredentials(writer http.ResponseWriter
 	return nil
 }
 
+func (f *Frontend) ArmOperationsList(writer http.ResponseWriter, request *http.Request) error {
+	pagedResponse := arm.NewPagedResponse()
+
+	for _, operation := range AvailableOperations {
+		jsonBytes, err := arm.MarshalJSON(operation)
+		if err != nil {
+			return utils.TrackError(err)
+		}
+		pagedResponse.AddValue(jsonBytes)
+	}
+
+	_, err := arm.WriteJSONResponse(writer, http.StatusOK, pagedResponse)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+
+	return nil
+}
+
 func (f *Frontend) ArmSubscriptionGet(writer http.ResponseWriter, request *http.Request) error {
 	ctx := request.Context()
 
@@ -546,6 +569,7 @@ func (f *Frontend) ArmSubscriptionPut(writer http.ResponseWriter, request *http.
 		return utils.TrackError(err)
 	}
 	requestSubscription.ResourceID = requestSubscription.CosmosMetadata.ResourceID
+	requestSubscription.SetPartitionKey(subscriptionID)
 
 	validationErrs := validation.ValidateSubscriptionCreate(ctx, &requestSubscription)
 	if err := arm.CloudErrorFromFieldErrors(validationErrs); err != nil {
@@ -568,6 +592,9 @@ func (f *Frontend) ArmSubscriptionPut(writer http.ResponseWriter, request *http.
 			logger.Info(message)
 		}
 		if len(messages) > 0 {
+			// Carry the etag of the just-read document forward so Replace
+			// is conditional on it; the DB layer refuses unconditional updates.
+			requestSubscription.CosmosMetadata = *existingSubscription.CosmosMetadata.DeepCopy()
 			resultingSubscription, err = f.resourcesDBClient.Subscriptions().Replace(ctx, &requestSubscription, nil)
 			if err != nil {
 				return utils.TrackError(err)
@@ -692,14 +719,21 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 				// this indicates something really strange happened, return an error for it.
 				return utils.TrackError(err)
 			}
-			// Apply the same mutations that real cluster creation applies
-			admission.MutateClusterCreate(newInternalCluster)
 			op := operation.Operation{
 				Type:    operation.Create,
 				Options: []string{validation.ManagedIdentitiesDataPlaneIdentityURLOptionalOperationOption},
 			}
+			admissionContext, ctxErr := f.newClusterAdmissionContext(ctx, op, subscription, newInternalCluster, nil)
+			if ctxErr != nil {
+				return utils.TrackError(ctxErr)
+			}
+			// Apply the same mutations that real cluster creation applies
+			if mutationErrs := admission.MutateCluster(ctx, admissionContext, op, newInternalCluster, nil); len(mutationErrs) > 0 {
+				preflightErr = arm.CloudErrorFromFieldErrors(mutationErrs)
+				break
+			}
 			validationErrs := validation.ValidateCluster(ctx, op, newInternalCluster, nil, api.Must(versionedInterface.ValidationPathRewriter(&api.HCPOpenShiftCluster{})))
-			validationErrs = append(validationErrs, admission.AdmitClusterOnCreate(ctx, newInternalCluster, subscription)...)
+			validationErrs = append(validationErrs, admission.AdmitCluster(ctx, admissionContext, op, newInternalCluster, nil)...)
 			preflightErr = arm.CloudErrorFromFieldErrors(validationErrs)
 
 		case strings.ToLower(api.NodePoolResourceType.String()):

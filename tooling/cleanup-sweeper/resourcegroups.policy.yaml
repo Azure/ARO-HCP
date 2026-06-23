@@ -2,8 +2,8 @@
 # - excludedResourceGroups: never candidates (global, hcp-kusto-us, westus3-shared-resources).
 # - Skip managed RGs (managedBy set).
 # - hcp-underlay-pers-*: delete after 15d if persist=true; after 2d if persist is absent or not "true".
-# - hcp-underlay-prow-*: delete after 6h.
-# - Name prefix hcp-underlay-ci*: delete after 6h (covers ci01, etc.).
+# - hcp-underlay-prow-*: delete after 6h (transitional, remove after rename rollout).
+# - Name prefix hcp-underlay-ci*: delete after 6h (covers ci00, ci01, etc.).
 # - Skip any RG with persist=true (after pers-* and CI rules).
 # - Default: delete any other RG after 2d.
 # Delete rules need a parseable tags.createdAt; see docs/cleanup.md and scripts/ for Azure Policy.
@@ -39,6 +39,8 @@ rgOrdered:
         tagsNotEq:
           persist: "true"
       olderThan: "48h"
+    # TODO(ARO-27234): remove this rule once all hcp-underlay-prow-* RGs have
+    # aged out after the prow→ci00 rename rollout is complete.
     - name: prow-delete-after-6h
       action: delete
       match:

@@ -39,6 +39,10 @@ import (
 
 const DefaultStampCooldownPeriod = 10 * time.Minute
 
+const DefaultInformerResyncPeriod = 5 * time.Minute
+
+var ErrStampNotApproved = errors.New("parent stamp is not approved")
+
 type stampScoped interface {
 	GetStampIdentifier() string
 }

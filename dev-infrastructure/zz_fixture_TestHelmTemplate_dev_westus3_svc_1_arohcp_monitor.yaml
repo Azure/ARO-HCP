@@ -68466,7 +68466,7 @@ spec:
   probeSelector:
     matchLabels:
       release: arohcp-monitor
-  replicas: 1
+  replicas: 2
   routePrefix: /
   scrapeConfigNamespaceSelector: {}
   scrapeConfigSelector:
@@ -68514,6 +68514,8 @@ spec:
   walCompression: true
   externalLabels:
     cluster: 'dev-westus3-svc-1'
+    region: 'westus3'
+    environment: 'dev'
   remoteWrite:
   - url: '__dcrRemoteWriteUrl__'
     azureAd:

@@ -347,7 +347,8 @@ var allQueries = []querySpec{
 			return d.ClusterID != ""
 		},
 		prerequisites: "ClusterID",
-		requiredWhen:  func(d queryData) bool { return d.ClusterID != "" },
+		// Maestro readonly bundles are being phased out in favor of ReadDesires,
+		// so empty results are acceptable. Query stays informational for older snapshots.
 	},
 	{
 		component:    "backend",
@@ -359,7 +360,8 @@ var allQueries = []querySpec{
 			return d.ResourceGroup != "" && d.ClusterResourceName != "" && d.ServiceProviderResourceType != "" && d.ResourceName != ""
 		},
 		prerequisites: "ResourceGroup, ClusterResourceName, ServiceProviderResourceType, ResourceName",
-		requiredWhen:  isClusterOrNodePool,
+		// Maestro readonly bundles are being phased out in favor of ReadDesires,
+		// so empty results are acceptable. Query stays informational for older snapshots.
 	},
 	{
 		component:    "hypershift",

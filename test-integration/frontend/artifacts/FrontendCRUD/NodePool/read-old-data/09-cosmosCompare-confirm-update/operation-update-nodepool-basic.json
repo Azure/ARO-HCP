@@ -16,6 +16,8 @@
 		"startTime": "2026-01-08T20:09:32.571015378Z",
 		"status": "Accepted",
 		"tenantId": "00000000-0000-0000-0000-000000000000",
+		"usesNewClusterDeletionApproach": false,
+		"usesNewExternalAuthDeletionApproach": false,
 		"usesNewNodePoolDeletionApproach": false
 	},
 	"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/providers/Microsoft.RedHatOpenShift/hcpOperationStatuses/50c1a0ba-3bc4-48fb-857e-eb0974df1e1c",

@@ -24,7 +24,8 @@ spec:
         args:
         - controller
         - "--health-address=:{{ .Values.health.port }}"
-        - "-v={{ .Values.logLevel }}"
+        - "--ksm-image={{ .Values.ksmImage.registry }}/{{ .Values.ksmImage.repository }}@{{ .Values.ksmImage.digest }}"
+        - "--log-verbosity={{ .Values.logVerbosity }}"
         image: "{{ .Values.image.registry }}/{{ .Values.image.repository }}@{{ .Values.image.digest }}"
         name: mgmt-agent-controller
         env:

@@ -99,7 +99,7 @@ The generator automatically sets a `correlationId` annotation on every alert unl
 
 IcM uses the correlation ID to group alerts into incidents. Alerts with the same correlation ID on the same cluster are merged into a single incident. Different alert names or different clusters produce separate incidents.
 
-This means that all firings of the same alert on the same cluster are grouped together. For example, if `BackendControllerRetryHotLoop` fires for two different workqueues on the same cluster, they become one incident. The specific workqueue name is still visible in the alert `description`.
+This means that all firings of the same alert on the same cluster are grouped together. For example, if `BackendControllerQueueDepthHigh` fires for two different workqueues on the same cluster, they become one incident. The specific workqueue name is still visible in the alert `description`.
 
 This default is intentional: fine-grained correlation IDs (per-pod, per-queue, etc.) were found to cause excessive incident fragmentation. If you need to distinguish between instances in the incident, include the relevant labels in the `description` annotation where they are visible to the responder.
 
@@ -162,10 +162,10 @@ Add your rule file to the appropriate configuration in `observability/`:
 
 | Config file | Purpose | When to use |
 |---|---|---|
-| `observability/observability.yaml` | Service and platform alerts | Most alerts go here |
-| `observability/observability-hcp.yaml` | HCP namespace alerts | Alerts specific to hosted control planes |
-| `observability/observability-rp.yaml` | Resource provider alerts | RP-specific alerts |
-| `observability/observability-msft.yaml` | MSFT-filtered alerts | Subset of alerts for MSFT environments (uses `includedAlertsByGroup`) |
+| `observability/alerts-sl-services.yaml` | Service and platform alerts (SL queue) | Most alerts go here |
+| `observability/alerts-sre-hcps.yaml` | HCP namespace alerts (SRE queue) | Alerts specific to hosted control planes |
+| `observability/alerts-rp-services.yaml` | Resource provider alerts (RP queue) | RP-specific alerts |
+| `observability/alerts-msft-services.yaml` | MSFT-filtered alerts (MSFT queue) | Subset of alerts for MSFT environments (uses `includedAlertsByGroup`) |
 
 Edit the relevant YAML file and add your rule file path to `rulesFolders`:
 
@@ -176,7 +176,7 @@ prometheusRules:
   - ../myservice/alerts/myservice-prometheusRule.yaml  # <-- add here
 ```
 
-If your alert should also appear in the MSFT environment, add it to `observability/observability-msft.yaml` under `includedAlertsByGroup`.
+If your alert should also appear in the MSFT environment, add it to `observability/alerts-msft-services.yaml` under `includedAlertsByGroup`.
 
 ## 4. Generate Bicep
 

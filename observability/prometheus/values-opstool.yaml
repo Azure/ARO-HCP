@@ -61,6 +61,8 @@ prometheusSpec:
   version: ""
   externalLabels:
     cluster: "{{ .opstool.aks.name }}"
+    region: "{{ .region }}"
+    environment: "{{ .environmentName }}"
   remoteWriteUrl: "__dcrRemoteWriteUrl__"
   hcpRemoteWriteUrl: "__dcrRemoteWriteUrl__"
   zoneCount: 1
@@ -71,10 +73,9 @@ prometheusSpec:
       memory: 1Gi
     limits:
       memory: 2Gi
+  replicas: 1
+  shards: 1
 prometheus:
-  prometheusSpec:
-    shards: 1
-    replicas: 1
   serviceAccount:
     managedIdentity: "__prometheusUAMIClientId__"
 environment: "opstool"

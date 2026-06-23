@@ -83,7 +83,7 @@ var _ = Describe("Customer", func() {
 			tc := framework.NewTestContext()
 
 			if tc.UsePooledIdentities() {
-				err := tc.AssignIdentityContainers(ctx, 1, 60*time.Second)
+				err := tc.AssignIdentityContainers(ctx, 1, framework.IdentityContainerAssignmentRetryInterval)
 				Expect(err).NotTo(HaveOccurred(), "failed to assign pooled identity containers")
 			}
 
@@ -156,7 +156,7 @@ var _ = Describe("Customer", func() {
 				tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 				*resourceGroup.Name,
 				clusterName,
-				10*time.Minute,
+				framework.GetAdminRESTConfigTimeout,
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to get admin REST config for cluster %s", clusterName)
 			configClient, err := configv1client.NewForConfig(adminRESTConfig)
@@ -206,7 +206,7 @@ var _ = Describe("Customer", func() {
 					},
 				},
 			}
-			_, err = framework.UpdateNodePoolAndWait20240610(ctx, nodePoolsClient, *resourceGroup.Name, clusterName, customerNodePoolName, update, 45*time.Minute)
+			_, err = framework.UpdateNodePoolAndWait20240610(ctx, nodePoolsClient, *resourceGroup.Name, clusterName, customerNodePoolName, update, framework.NodePoolVersionUpgradeTimeout)
 			Expect(err).NotTo(HaveOccurred(), "failed to upgrade node pool %s to version %s", customerNodePoolName, nodePoolDesiredVersion)
 
 			By("verifying nodes are ready, updated to expected version, and release images differ from pre-upgrade")
@@ -217,7 +217,7 @@ var _ = Describe("Customer", func() {
 			// - Fire controllers sooner when Cosmos documents change: https://github.com/Azure/ARO-HCP/pull/4485 , https://github.com/Azure/ARO-HCP/pull/3913
 			Eventually(func() error {
 				return verifiers.VerifyNodePoolUpgrade(nodePoolDesiredVersion, customerNodePoolName, previousReleaseImages).Verify(ctx, adminRESTConfig)
-			}, 45*time.Minute, 2*time.Minute).Should(Succeed())
+			}, framework.NodePoolVersionUpgradeTimeout, 2*time.Minute).Should(Succeed())
 
 			By("verifying node pool GET still reflects the new version")
 			npGetResponse, err := framework.GetNodePool20240610(ctx, nodePoolsClient, *resourceGroup.Name, clusterName, customerNodePoolName)
@@ -269,7 +269,7 @@ var _ = Describe("Customer", func() {
 			tc := framework.NewTestContext()
 
 			if tc.UsePooledIdentities() {
-				err := tc.AssignIdentityContainers(ctx, 1, 60*time.Second)
+				err := tc.AssignIdentityContainers(ctx, 1, framework.IdentityContainerAssignmentRetryInterval)
 				Expect(err).NotTo(HaveOccurred(), "failed to assign identity containers")
 			}
 
@@ -307,7 +307,7 @@ var _ = Describe("Customer", func() {
 				GinkgoLogr,
 				*resourceGroup.Name,
 				clusterParams,
-				45*time.Minute,
+				framework.ClusterCreationTimeout,
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster %s", clusterName)
 
@@ -325,7 +325,7 @@ var _ = Describe("Customer", func() {
 				clusterParams.ManagedResourceGroupName,
 				clusterName,
 				nodePoolParams,
-				45*time.Minute,
+				framework.NodePoolCreationTimeout,
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to create nodepool %s at version %s", customerNodePoolName, fromVersion)
 
@@ -335,7 +335,7 @@ var _ = Describe("Customer", func() {
 				tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 				*resourceGroup.Name,
 				clusterName,
-				10*time.Minute,
+				framework.GetAdminRESTConfigTimeout,
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to get admin REST config for cluster %s", clusterName)
 
@@ -354,13 +354,13 @@ var _ = Describe("Customer", func() {
 					},
 				},
 			}
-			_, err = framework.UpdateNodePoolAndWait20240610(ctx, nodePoolsClient, *resourceGroup.Name, clusterName, customerNodePoolName, update, 45*time.Minute)
+			_, err = framework.UpdateNodePoolAndWait20240610(ctx, nodePoolsClient, *resourceGroup.Name, clusterName, customerNodePoolName, update, framework.NodePoolVersionUpgradeTimeout)
 			Expect(err).NotTo(HaveOccurred(), "failed to upgrade nodepool %s from %s to %s", customerNodePoolName, fromVersion, toVersion)
 
 			By("verifying nodes are recreated at the target version")
 			Eventually(func() error {
 				return verifiers.VerifyNodePoolUpgrade(toVersion.String(), customerNodePoolName, previousReleaseImages).Verify(ctx, adminRESTConfig)
-			}, 45*time.Minute, 2*time.Minute).Should(Succeed())
+			}, framework.NodePoolVersionUpgradeTimeout, 2*time.Minute).Should(Succeed())
 
 			By("verifying node pool GET reflects the target version")
 			npGetResponse, err := framework.GetNodePool20240610(ctx, nodePoolsClient, *resourceGroup.Name, clusterName, customerNodePoolName)
@@ -382,15 +382,38 @@ var _ = Describe("Customer", func() {
 		func(ctx context.Context, nodePoolMinor string, targetMinor string) {
 			channelGroup := framework.DefaultOpenshiftChannelGroup()
 
-			nodePoolInstallVersion, err := framework.GetLatestVersionInMinor(ctx, channelGroup, nodePoolMinor)
-			if cincinnati.IsCincinnatiVersionNotFoundError(err) {
-				Skip(fmt.Sprintf("Cincinnati returned version not found for minor %s on channel %s", nodePoolMinor, channelGroup))
+			// Workaround: skip on nightly until CS fixes the nightly→ACR image substitution
+			// on the nodepool upgrade path (PatchNodePoolCR writes quay.io instead of ACR).
+			// See ARO-27687.
+			if channelGroup == "nightly" {
+				Skip("nightly nodepool upgrade blocked by CS image substitution bug; see ARO-27687")
+			}
+
+			// On nightly, Cincinnati returns bare GA versions that don't exist in CS as nightly builds.
+			// Use GetLatestInstallVersion (release stream API) for nightly; GetLatestVersionInMinor
+			// (Cincinnati) for non-nightly to preserve existing behavior.
+			var (
+				nodePoolInstallVersion string
+				err                    error
+			)
+			if channelGroup == "nightly" {
+				nodePoolInstallVersion, err = framework.GetLatestInstallVersion(ctx, channelGroup, nodePoolMinor)
+			} else {
+				nodePoolInstallVersion, err = framework.GetLatestVersionInMinor(ctx, channelGroup, nodePoolMinor)
+			}
+			if framework.IsVersionNotFoundError(err) {
+				Skip(fmt.Sprintf("version not found for minor %s on channel %s", nodePoolMinor, channelGroup))
 			}
 			Expect(err).NotTo(HaveOccurred(), "failed to get latest version for nodepool minor %s", nodePoolMinor)
 
-			clusterInstallVersion, err := framework.GetLatestVersionInMinor(ctx, channelGroup, targetMinor)
-			if cincinnati.IsCincinnatiVersionNotFoundError(err) {
-				Skip(fmt.Sprintf("Cincinnati returned version not found for minor %s on channel %s", targetMinor, channelGroup))
+			var clusterInstallVersion string
+			if channelGroup == "nightly" {
+				clusterInstallVersion, err = framework.GetLatestInstallVersion(ctx, channelGroup, targetMinor)
+			} else {
+				clusterInstallVersion, err = framework.GetLatestVersionInMinor(ctx, channelGroup, targetMinor)
+			}
+			if framework.IsVersionNotFoundError(err) {
+				Skip(fmt.Sprintf("version not found for minor %s on channel %s", targetMinor, channelGroup))
 			}
 			Expect(err).NotTo(HaveOccurred(), "failed to get latest version for target minor %s", targetMinor)
 
@@ -399,7 +422,7 @@ var _ = Describe("Customer", func() {
 			tc := framework.NewTestContext()
 
 			if tc.UsePooledIdentities() {
-				err := tc.AssignIdentityContainers(ctx, 1, 60*time.Second)
+				err := tc.AssignIdentityContainers(ctx, 1, framework.IdentityContainerAssignmentRetryInterval)
 				Expect(err).NotTo(HaveOccurred(), "failed to assign identity containers")
 			}
 
@@ -504,5 +527,289 @@ var _ = Describe("Customer", func() {
 		Entry("from 4.20.z to 4.22.zLatest",
 			labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible,
 			"4.20", "4.22"),
+	)
+
+	// Nodepool z-stream downgrade: proves the no-edge scenario works. Cincinnati has no
+	// backward edges, so a downgrade exercises a version change without a Cincinnati upgrade
+	// path. HCP nodepools use Replace strategy — nodes are recreated, not upgraded in-place.
+	DescribeTable("should downgrade a nodepool version",
+		func(ctx context.Context, minor string) {
+			channelGroup := framework.DefaultOpenshiftChannelGroup()
+
+			versions, err := framework.GetAllVersionsInMinorStartingWith(ctx, channelGroup, minor)
+			if cincinnati.IsCincinnatiVersionNotFoundError(err) {
+				Skip(fmt.Sprintf("Cincinnati returned version not found for minor %s on channel %s", minor, channelGroup))
+			}
+			Expect(err).NotTo(HaveOccurred(), "failed to get versions for minor %s", minor)
+			if len(versions) < 2 {
+				Skip(fmt.Sprintf("fewer than 2 versions in minor %s on channel %s; cannot test downgrade", minor, channelGroup))
+			}
+
+			clusterInstallVersion := versions[0].String()
+			nodePoolInstallVersion := versions[0].String()
+			nodePoolDowngradeTarget := versions[1].String()
+
+			tc := framework.NewTestContext()
+
+			if tc.UsePooledIdentities() {
+				err := tc.AssignIdentityContainers(ctx, 1, framework.IdentityContainerAssignmentRetryInterval)
+				Expect(err).NotTo(HaveOccurred(), "failed to assign identity containers")
+			}
+
+			suffix := rand.String(6)
+			clusterName := "np-downgrade-" + suffix
+
+			By("creating resource group")
+			resourceGroup, err := tc.NewResourceGroup(ctx, "rg-np-downgrade-"+suffix, tc.Location())
+			Expect(err).NotTo(HaveOccurred(), "failed to create resource group")
+
+			By("creating cluster parameters at control plane version")
+			clusterParams := framework.NewDefaultClusterParams20240610()
+			clusterParams.ClusterName = clusterName
+			clusterParams.OpenshiftVersionId = clusterInstallVersion
+			clusterParams.ChannelGroup = channelGroup
+			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name+"-np-dg-"+suffix, "-managed", 64)
+			clusterParams.ManagedResourceGroupName = managedResourceGroupName
+
+			By("creating customer resources")
+			clusterParams, err = tc.CreateClusterCustomerResources20240610(ctx,
+				resourceGroup,
+				clusterParams,
+				map[string]any{
+					"customerNsgName":        "customer-nsg-np-dg-" + suffix,
+					"customerVnetName":       "customer-vnet-np-dg-" + suffix,
+					"customerVnetSubnetName": "customer-vnet-subnet-np-dg-" + suffix,
+				},
+				TestArtifactsFS,
+				framework.RBACScopeResourceGroup,
+			)
+			Expect(err).NotTo(HaveOccurred(), "failed to create cluster customer resources")
+
+			By(fmt.Sprintf("creating the HCP cluster with version %s", clusterInstallVersion))
+			err = tc.CreateHCPClusterFromParam20240610(
+				ctx,
+				GinkgoLogr,
+				*resourceGroup.Name,
+				clusterParams,
+				45*time.Minute,
+			)
+			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster")
+
+			By(fmt.Sprintf("creating nodepool at latest version %s", nodePoolInstallVersion))
+			customerNodePoolName := fmt.Sprintf("npdg-%s", strings.ReplaceAll(minor, ".", "-"))
+			nodePoolParams := framework.NewDefaultNodePoolParams20240610()
+			nodePoolParams.NodePoolName = customerNodePoolName
+			nodePoolParams.OpenshiftVersionId = nodePoolInstallVersion
+			nodePoolParams.ChannelGroup = channelGroup
+			nodePoolParams.NodeDrainTimeoutMinutes = to.Ptr(int32(10))
+			err = tc.CreateNodePoolFromParam20240610(
+				ctx,
+				GinkgoLogr,
+				*resourceGroup.Name,
+				managedResourceGroupName,
+				clusterName,
+				nodePoolParams,
+				45*time.Minute,
+			)
+			Expect(err).NotTo(HaveOccurred(), "failed to create nodepool %s", customerNodePoolName)
+
+			By("getting admin credentials")
+			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20240610(
+				ctx,
+				tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
+				*resourceGroup.Name,
+				clusterName,
+				10*time.Minute,
+			)
+			Expect(err).NotTo(HaveOccurred(), "failed to get admin REST config")
+
+			By("capturing node release images before downgrade")
+			previousReleaseImages, err := framework.NodePoolReleaseImages(ctx, adminRESTConfig, customerNodePoolName)
+			Expect(err).NotTo(HaveOccurred(), "failed to get node release images before downgrade")
+			Expect(previousReleaseImages).NotTo(BeEmpty(), "expected node pool nodes to report at least one release image ref before downgrade")
+
+			By(fmt.Sprintf("triggering nodepool downgrade from %s to %s", nodePoolInstallVersion, nodePoolDowngradeTarget))
+			nodePoolsClient := tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient()
+			update := hcpsdk20240610preview.NodePoolUpdate{
+				Properties: &hcpsdk20240610preview.NodePoolPropertiesUpdate{
+					Version: &hcpsdk20240610preview.NodePoolVersionProfile{
+						ID:           to.Ptr(nodePoolDowngradeTarget),
+						ChannelGroup: to.Ptr(channelGroup),
+					},
+				},
+			}
+			_, err = framework.UpdateNodePoolAndWait20240610(ctx, nodePoolsClient, *resourceGroup.Name, clusterName, customerNodePoolName, update, 45*time.Minute)
+			Expect(err).NotTo(HaveOccurred(), "failed to update nodepool %s to downgrade target %s", customerNodePoolName, nodePoolDowngradeTarget)
+
+			By("verifying nodes are recreated at the downgrade target version")
+			Eventually(func() error {
+				return verifiers.VerifyNodePoolUpgrade(nodePoolDowngradeTarget, customerNodePoolName, previousReleaseImages).Verify(ctx, adminRESTConfig)
+			}, 45*time.Minute, 2*time.Minute).Should(Succeed(), "node pool nodes were not recreated at downgrade target version %s", nodePoolDowngradeTarget)
+
+			By("verifying node pool GET reflects the downgrade target version")
+			npGetResponse, err := framework.GetNodePool20240610(ctx, nodePoolsClient, *resourceGroup.Name, clusterName, customerNodePoolName)
+			Expect(err).NotTo(HaveOccurred(), "failed to GET nodepool %s after downgrade", customerNodePoolName)
+			Expect(npGetResponse.Properties).NotTo(BeNil(), "nodepool %s response Properties was nil", customerNodePoolName)
+			Expect(npGetResponse.Properties.Version).NotTo(BeNil(), "nodepool %s Properties.Version was nil", customerNodePoolName)
+			Expect(npGetResponse.Properties.Version.ID).NotTo(BeNil(), "nodepool %s Properties.Version.ID was nil", customerNodePoolName)
+			Expect(*npGetResponse.Properties.Version.ID).To(Equal(nodePoolDowngradeTarget), "nodepool %s version should be %s but got %s", customerNodePoolName, nodePoolDowngradeTarget, *npGetResponse.Properties.Version.ID)
+		},
+		Entry("z-stream downgrade from 4.21.zLatest to 4.21.zPrevious",
+			labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible,
+			"4.21"),
+	)
+
+	// Nodepool y-stream downgrade at the N-2 skew boundary: NP starts at the same minor
+	// as CP, then downgrades 2 minors. The N-2 skew policy allows the node pool to be
+	// 2 minor versions behind the control plane.
+	DescribeTable("should downgrade a nodepool to a lower minor version",
+		func(ctx context.Context, cpMinor string, targetMinor string) {
+			channelGroup := framework.DefaultOpenshiftChannelGroup()
+
+			// Workaround: skip on nightly until CS fixes the nightly→ACR image substitution
+			// on the nodepool upgrade path (PatchNodePoolCR writes quay.io instead of ACR).
+			// See ARO-27687.
+			if channelGroup == "nightly" {
+				Skip("nightly nodepool downgrade blocked by CS image substitution bug; see ARO-27687")
+			}
+
+			// On nightly, Cincinnati returns bare GA versions that don't exist in CS as nightly builds.
+			// Use GetLatestInstallVersion (release stream API) for nightly; GetLatestVersionInMinor
+			// (Cincinnati) for non-nightly to preserve existing behavior.
+			var (
+				clusterInstallVersion string
+				err                   error
+			)
+			if channelGroup == "nightly" {
+				clusterInstallVersion, err = framework.GetLatestInstallVersion(ctx, channelGroup, cpMinor)
+			} else {
+				clusterInstallVersion, err = framework.GetLatestVersionInMinor(ctx, channelGroup, cpMinor)
+			}
+			if framework.IsVersionNotFoundError(err) {
+				Skip(fmt.Sprintf("version not found for minor %s on channel %s", cpMinor, channelGroup))
+			}
+			Expect(err).NotTo(HaveOccurred(), "failed to get latest version for minor %s", cpMinor)
+
+			nodePoolInstallVersion := clusterInstallVersion
+
+			var nodePoolDowngradeTarget string
+			if channelGroup == "nightly" {
+				nodePoolDowngradeTarget, err = framework.GetLatestInstallVersion(ctx, channelGroup, targetMinor)
+			} else {
+				nodePoolDowngradeTarget, err = framework.GetLatestVersionInMinor(ctx, channelGroup, targetMinor)
+			}
+			if framework.IsVersionNotFoundError(err) {
+				Skip(fmt.Sprintf("version not found for minor %s on channel %s", targetMinor, channelGroup))
+			}
+			Expect(err).NotTo(HaveOccurred(), "failed to get latest version for minor %s", targetMinor)
+
+			tc := framework.NewTestContext()
+
+			if tc.UsePooledIdentities() {
+				err := tc.AssignIdentityContainers(ctx, 1, framework.IdentityContainerAssignmentRetryInterval)
+				Expect(err).NotTo(HaveOccurred(), "failed to assign identity containers")
+			}
+
+			suffix := rand.String(6)
+			clusterName := "np-dg-minor-" + suffix
+
+			By("creating resource group")
+			resourceGroup, err := tc.NewResourceGroup(ctx, "rg-np-dg-minor-"+suffix, tc.Location())
+			Expect(err).NotTo(HaveOccurred(), "failed to create resource group")
+
+			By("creating cluster parameters at control plane version")
+			clusterParams := framework.NewDefaultClusterParams20240610()
+			clusterParams.ClusterName = clusterName
+			clusterParams.OpenshiftVersionId = clusterInstallVersion
+			clusterParams.ChannelGroup = channelGroup
+			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name+"-np-dgm-"+suffix, "-managed", 64)
+			clusterParams.ManagedResourceGroupName = managedResourceGroupName
+
+			By("creating customer resources")
+			clusterParams, err = tc.CreateClusterCustomerResources20240610(ctx,
+				resourceGroup,
+				clusterParams,
+				map[string]any{
+					"customerNsgName":        "customer-nsg-np-dgm-" + suffix,
+					"customerVnetName":       "customer-vnet-np-dgm-" + suffix,
+					"customerVnetSubnetName": "customer-vnet-subnet-np-dgm-" + suffix,
+				},
+				TestArtifactsFS,
+				framework.RBACScopeResourceGroup,
+			)
+			Expect(err).NotTo(HaveOccurred(), "failed to create cluster customer resources")
+
+			By(fmt.Sprintf("creating the HCP cluster with version %s", clusterInstallVersion))
+			err = tc.CreateHCPClusterFromParam20240610(
+				ctx,
+				GinkgoLogr,
+				*resourceGroup.Name,
+				clusterParams,
+				45*time.Minute,
+			)
+			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster")
+
+			By(fmt.Sprintf("creating nodepool at version %s (same as CP)", nodePoolInstallVersion))
+			customerNodePoolName := fmt.Sprintf("npdg-%s-%s", strings.ReplaceAll(cpMinor, ".", ""), strings.ReplaceAll(targetMinor, ".", ""))
+			nodePoolParams := framework.NewDefaultNodePoolParams20240610()
+			nodePoolParams.NodePoolName = customerNodePoolName
+			nodePoolParams.OpenshiftVersionId = nodePoolInstallVersion
+			nodePoolParams.ChannelGroup = channelGroup
+			nodePoolParams.NodeDrainTimeoutMinutes = to.Ptr(int32(10))
+			err = tc.CreateNodePoolFromParam20240610(
+				ctx,
+				GinkgoLogr,
+				*resourceGroup.Name,
+				managedResourceGroupName,
+				clusterName,
+				nodePoolParams,
+				45*time.Minute,
+			)
+			Expect(err).NotTo(HaveOccurred(), "failed to create nodepool %s", customerNodePoolName)
+
+			By("getting admin credentials")
+			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20240610(
+				ctx,
+				tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
+				*resourceGroup.Name,
+				clusterName,
+				10*time.Minute,
+			)
+			Expect(err).NotTo(HaveOccurred(), "failed to get admin REST config")
+
+			By("capturing node release images before downgrade")
+			previousReleaseImages, err := framework.NodePoolReleaseImages(ctx, adminRESTConfig, customerNodePoolName)
+			Expect(err).NotTo(HaveOccurred(), "failed to get node release images before downgrade")
+			Expect(previousReleaseImages).NotTo(BeEmpty(), "expected node pool nodes to report at least one release image ref before downgrade")
+
+			By(fmt.Sprintf("triggering nodepool y-stream downgrade from %s to %s (-2 minors)", nodePoolInstallVersion, nodePoolDowngradeTarget))
+			nodePoolsClient := tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient()
+			update := hcpsdk20240610preview.NodePoolUpdate{
+				Properties: &hcpsdk20240610preview.NodePoolPropertiesUpdate{
+					Version: &hcpsdk20240610preview.NodePoolVersionProfile{
+						ID:           to.Ptr(nodePoolDowngradeTarget),
+						ChannelGroup: to.Ptr(channelGroup),
+					},
+				},
+			}
+			_, err = framework.UpdateNodePoolAndWait20240610(ctx, nodePoolsClient, *resourceGroup.Name, clusterName, customerNodePoolName, update, 45*time.Minute)
+			Expect(err).NotTo(HaveOccurred(), "failed to update nodepool %s to downgrade target %s", customerNodePoolName, nodePoolDowngradeTarget)
+
+			By("verifying nodes are recreated at the downgrade target version")
+			Eventually(func() error {
+				return verifiers.VerifyNodePoolUpgrade(nodePoolDowngradeTarget, customerNodePoolName, previousReleaseImages).Verify(ctx, adminRESTConfig)
+			}, 45*time.Minute, 2*time.Minute).Should(Succeed(), "node pool nodes were not recreated at downgrade target version %s", nodePoolDowngradeTarget)
+
+			By("verifying node pool GET reflects the downgrade target version")
+			npGetResponse, err := framework.GetNodePool20240610(ctx, nodePoolsClient, *resourceGroup.Name, clusterName, customerNodePoolName)
+			Expect(err).NotTo(HaveOccurred(), "failed to GET nodepool %s after downgrade", customerNodePoolName)
+			Expect(npGetResponse.Properties).NotTo(BeNil(), "nodepool %s response Properties was nil", customerNodePoolName)
+			Expect(npGetResponse.Properties.Version).NotTo(BeNil(), "nodepool %s Properties.Version was nil", customerNodePoolName)
+			Expect(npGetResponse.Properties.Version.ID).NotTo(BeNil(), "nodepool %s Properties.Version.ID was nil", customerNodePoolName)
+			Expect(*npGetResponse.Properties.Version.ID).To(Equal(nodePoolDowngradeTarget), "nodepool %s version should be %s but got %s", customerNodePoolName, nodePoolDowngradeTarget, *npGetResponse.Properties.Version.ID)
+		},
+		Entry("from 4.21.zLatest to 4.19.zLatest",
+			labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible,
+			"4.21", "4.19"),
 	)
 })

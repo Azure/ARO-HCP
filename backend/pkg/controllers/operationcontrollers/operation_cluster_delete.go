@@ -25,6 +25,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 	utilsclock "k8s.io/utils/clock"
 
+	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
@@ -45,6 +46,15 @@ type operationClusterDelete struct {
 // NewOperationClusterDeleteController returns a new Controller instance that
 // follows an asynchronous cluster deletion operation to completion and updates
 // the corresponding operation document in Cosmos DB.
+//
+// The controller has the following responsibilities:
+//   - While the Cluster Cosmos document is present, it reconciles the
+//     operation and the cluster status.
+//   - When the Cluster Cosmos document is deleted (by the clusterDeletionController),
+//     it marks the operation as Succeeded. It also cleans up child
+//     resources. Note: This last part is handled by other controllers too but
+//     because the SetDeleteOperationAsCompleted is still reused by other operations
+//     that have not been migrated to asynchronous flow yet this remains.
 //
 // Operation documents relevant to this controller will have the following values:
 //
@@ -107,44 +117,73 @@ func (c *operationClusterDelete) SynchronizeOperation(ctx context.Context, key c
 	if err != nil {
 		return fmt.Errorf("failed to get active operation: %w", err)
 	}
+
+	// TODO remove this once migration of cluster deletion from frontend to backend is fully completed.
+	if !operation.UsesNewClusterDeletionApproach {
+		return c.legacySynchronizeOperation(ctx, operation)
+	}
+
+	// From here, we know it uses the new deletion approach.
+
 	if !c.ShouldProcess(ctx, operation) {
 		return nil // no work to do
 	}
 
-	if len(operation.InternalID.String()) == 0 {
-		// we cannot proceed: yet.
-		// TODO when we update to make clusterserice creation async, we need to handle this correctly.
-		return nil
-	}
-	clusterStatus, err := c.clusterServiceClient.GetClusterStatus(ctx, operation.InternalID)
-	var ocmGetClusterError *ocmerrors.Error
-	if err != nil && errors.As(err, &ocmGetClusterError) && ocmGetClusterError.Status() == http.StatusNotFound {
-		logger.Info("cluster was deleted")
-
-		// Update the Cosmos DB billing document with a deletion timestamp.
-		// Do this before calling setDeleteOperationAsCompleted so that in
-		// case of error the backend will retry by virtue of the operation
-		// document still having a non-terminal status.
-		err = controllerutils.MarkBillingDocumentDeleted(ctx, c.billingDBClient, operation.ExternalID, c.clock.Now())
-		if errors.Is(err, database.ErrAmbiguousResult) {
-			// TODO: Remove when we enforce there's a single billing document per cluster.
-			logger.Error(err, "Failed to mark CosmosDB billing record for deletion")
-		} else if err != nil {
-			return utils.TrackError(err)
-		}
-
+	clusterCRUD := c.resourcesDBClient.HCPClusters(operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName)
+	cluster, err := clusterCRUD.Get(ctx, operation.ExternalID.Name)
+	if database.IsNotFoundError(err) {
+		logger.Info("cluster document deleted - completing operation")
 		err = SetDeleteOperationAsCompleted(ctx, c.clock, c.resourcesDBClient, operation, postAsyncNotificationFn(c.notificationClient))
 		if err != nil {
 			return utils.TrackError(err)
 		}
-		// without cluster-status, there is nothing remaining to do.  the orphan controller will cleanup any remaining cosmos bits.
 		return nil
 	}
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to get cluster: %w", err))
+	}
+
+	if !c.shouldReconcileOperationAndResourceStatus(cluster) {
+		return nil
+	}
+	err = c.reconcileOperationAndResourceStatus(ctx, operation, cluster)
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
-	newOperationStatus, newOperationError, err := convertClusterStatus(ctx, c.clusterServiceClient, operation, clusterStatus)
+	return nil
+}
+
+func (c *operationClusterDelete) shouldReconcileOperationAndResourceStatus(cluster *api.HCPOpenShiftCluster) bool {
+	return cluster.ServiceProviderProperties.DeletionTimestamp != nil &&
+		cluster.ServiceProviderProperties.ClusterServiceDeletionTimestamp != nil &&
+		cluster.ServiceProviderProperties.ClusterServiceID != nil
+}
+
+func (c *operationClusterDelete) reconcileOperationAndResourceStatus(ctx context.Context, operation *api.Operation, cluster *api.HCPOpenShiftCluster) error {
+	logger := utils.LoggerFromContext(ctx)
+
+	clusterCSID := cluster.ServiceProviderProperties.ClusterServiceID
+
+	csClusterStatus, err := c.clusterServiceClient.GetClusterStatus(ctx, *clusterCSID)
+	if err != nil {
+		var ocmError *ocmerrors.Error
+		if !errors.As(err, &ocmError) || ocmError.Status() != http.StatusNotFound {
+			return utils.TrackError(fmt.Errorf("failed to get cluster-service Cluster status: %w", err))
+		}
+		// 404 - CS has finished deleting. clusterClusterServiceIDClearer will clear the ID.
+		logger.Info("cluster-service Cluster gone - skipping operation update", "clusterServiceID", clusterCSID.String())
+		return nil
+	}
+
+	// If the cluster is in the Ready state from CS side, we wait until the Cosmos Cluster document is deleted, which
+	// will be picked up by a next reconciliation of this controller and we will update the operation to Succeeded.
+	if csClusterStatus.State() == arohcpv1alpha1.ClusterStateReady {
+		logger.Info("cluster-service Cluster in Ready state. Waiting until Cosmos Cluster document is deleted.")
+		return nil
+	}
+
+	newOperationStatus, newOperationError, err := convertClusterStatus(ctx, c.clusterServiceClient, operation, csClusterStatus)
 	if err != nil {
 		return utils.TrackError(err)
 	}

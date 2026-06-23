@@ -76,6 +76,7 @@ func NewOperation(
 		"providers", api.ProviderNamespace,
 		api.OperationStatusResourceTypeName, operation.OperationID.Name,
 	)))
+	operation.SetPartitionKey(operation.ExternalID.SubscriptionID)
 
 	if correlationData != nil {
 		operation.ClientRequestID = correlationData.ClientRequestID

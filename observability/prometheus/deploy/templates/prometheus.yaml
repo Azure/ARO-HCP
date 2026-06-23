@@ -52,7 +52,7 @@ spec:
   probeSelector:
     matchLabels:
       release: arohcp-monitor
-  replicas: 1
+  replicas: {{ .Values.prometheusSpec.replicas }}
   routePrefix: /
   scrapeConfigNamespaceSelector: {}
   scrapeConfigSelector:
@@ -69,7 +69,7 @@ spec:
   serviceAccountName: prometheus
   serviceMonitorNamespaceSelector: {}
   serviceMonitorSelector: {}
-  shards: 1
+  shards: {{ .Values.prometheusSpec.shards }}
   storage:
     volumeClaimTemplate:
       spec:
@@ -100,6 +100,8 @@ spec:
   walCompression: true
   externalLabels:
     cluster: '{{ .Values.prometheusSpec.externalLabels.cluster }}'
+    region: '{{ .Values.prometheusSpec.externalLabels.region }}'
+    environment: '{{ .Values.prometheusSpec.externalLabels.environment }}'
   remoteWrite:
   - url: '{{ .Values.prometheusSpec.remoteWriteUrl }}'
     azureAd:

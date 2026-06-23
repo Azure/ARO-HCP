@@ -340,6 +340,7 @@ func (c *ReadDesireInformerManagingController) SyncOnce(ctx context.Context, key
 	c.mu.Unlock()
 
 	go func() {
+		defer utilruntime.HandleCrash()
 		defer close(done)
 		per.Run(childCtx)
 	}()
@@ -400,9 +401,9 @@ type readDesireFetcher struct {
 var _ desirestatuswriter.Fetcher[kubeapplier.ReadDesire, keys.ReadDesireKey] = &readDesireFetcher{}
 
 func (f *readDesireFetcher) Fetch(ctx context.Context, key keys.ReadDesireKey) (*kubeapplier.ReadDesire, error) {
-	crud, err := f.crudByParent.ReadDesires(key.ResourceParent())
+	crud, err := key.CRUD(f.crudByParent)
 	if err != nil {
-		return nil, fmt.Errorf("crud for parent %v: %w", key.ResourceParent(), err)
+		return nil, fmt.Errorf("crud for key %v: %w", key, err)
 	}
 	return crud.Get(ctx, key.Name)
 }
@@ -424,9 +425,9 @@ func (r *readDesireReplacer) Replace(ctx context.Context, desired *kubeapplier.R
 	if err != nil {
 		return fmt.Errorf("derive key for replace: %w", err)
 	}
-	crud, err := r.crudByParent.ReadDesires(key.ResourceParent())
+	crud, err := key.CRUD(r.crudByParent)
 	if err != nil {
-		return fmt.Errorf("crud for parent %v: %w", key.ResourceParent(), err)
+		return fmt.Errorf("crud for key %v: %w", key, err)
 	}
 	if _, err := crud.Replace(ctx, desired, nil); err != nil {
 		return err

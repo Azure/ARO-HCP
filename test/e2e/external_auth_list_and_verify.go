@@ -17,14 +17,16 @@ package e2e
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"time"
+	"net/http"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
 	"k8s.io/apimachinery/pkg/util/rand"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 
 	hcpsdk "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
@@ -50,7 +52,7 @@ var _ = Describe("Customer", func() {
 			tc := framework.NewTestContext()
 
 			if tc.UsePooledIdentities() {
-				err := tc.AssignIdentityContainers(ctx, 1, 60*time.Second)
+				err := tc.AssignIdentityContainers(ctx, 1, framework.IdentityContainerAssignmentRetryInterval)
 				Expect(err).NotTo(HaveOccurred(), "failed to assign pooled identity containers")
 			}
 
@@ -199,6 +201,40 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to get updated external auth config from cluster %s", clusterName)
 			Expect(*updatedResult.Properties.ProvisioningState).To(Equal(hcpsdk.ExternalAuthProvisioningStateSucceeded), "updated external auth provisioning state should be Succeeded")
 			Expect(*updatedResult.Properties.Claim.Mappings.Username.Prefix).To(Equal(*expectedExternalAuth.Properties.Claim.Mappings.Username.Prefix), "updated external auth Username.Prefix should match expected value")
+
+			By("deleting the external auth")
+			err = framework.DeleteExternalAuthAndWait20240610(
+				ctx,
+				externalAuthClient,
+				*resourceGroup.Name,
+				clusterName,
+				*expectedExternalAuth.Name,
+				framework.ExternalAuthDeletionTimeout,
+			)
+			Expect(err).NotTo(HaveOccurred(), "failed to delete external auth config on cluster %s", clusterName)
+
+			By("confirming the external auth has been deleted")
+			_, getErr := framework.GetExternalAuth20240610(
+				ctx,
+				externalAuthClient,
+				*resourceGroup.Name,
+				clusterName,
+				*expectedExternalAuth.Name,
+			)
+			Expect(getErr).To(HaveOccurred(), "expected error when getting deleted external auth %s on cluster %s", *expectedExternalAuth.Name, clusterName)
+			var respErr *azcore.ResponseError
+			Expect(errors.As(getErr, &respErr)).To(BeTrue(), "expected azcore.ResponseError when getting deleted external auth %s", *expectedExternalAuth.Name)
+			Expect(respErr.StatusCode).To(Equal(http.StatusNotFound), "expected HTTP 404 when getting deleted external auth %s", *expectedExternalAuth.Name)
+
+			By("confirming list returns no external auth configs")
+			var extAuthCount int
+			pager = externalAuthClient.NewListByParentPager(*resourceGroup.Name, clusterName, nil)
+			for pager.More() {
+				page, err := pager.NextPage(ctx)
+				Expect(err).NotTo(HaveOccurred(), "failed to list external auth configs on cluster %s after delete", clusterName)
+				extAuthCount += len(page.Value)
+			}
+			Expect(extAuthCount).To(Equal(0), "expected no external auth configs on cluster %s after delete", clusterName)
 
 		})
 })

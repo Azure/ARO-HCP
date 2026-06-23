@@ -114,10 +114,26 @@ module hcpAlerts '../modules/metrics/hcp-rules.bicep' = {
   }
 }
 
+module sreServiceAlerts '../modules/metrics/sre-service-rules.bicep' = {
+  name: 'sreServiceAlerts'
+  params: {
+    azureMonitoringWorkspaceId: azureMonitoringWorkspaceId
+    actionGroups: sreActionGroups
+  }
+}
+
 module rpAlerts '../modules/metrics/rp-rules.bicep' = {
   name: 'rpAlerts'
   params: {
     azureMonitoringWorkspaceId: azureMonitoringWorkspaceId
+    actionGroups: rpActionGroups
+  }
+}
+
+module rpHcpAlerts '../modules/metrics/rp-hcp-rules.bicep' = {
+  name: 'rpHcpAlerts'
+  params: {
+    azureMonitoringWorkspaceId: hcpAzureMonitoringWorkspaceId
     actionGroups: rpActionGroups
   }
 }
@@ -135,8 +151,9 @@ module svcIngestionAlerts '../modules/metrics/amw-ingestion-alerts.bicep' = {
   params: {
     azureMonitorWorkspaceId: azureMonitoringWorkspaceId
     workspaceLabel: 'svc'
-    actionGroups: sreActionGroups
+    actionGroups: slActionGroups
     enabled: alertsEnabled
+    lowEventIngestionThreshold: 1
   }
 }
 
@@ -145,7 +162,10 @@ module hcpIngestionAlerts '../modules/metrics/amw-ingestion-alerts.bicep' = {
   params: {
     azureMonitorWorkspaceId: hcpAzureMonitoringWorkspaceId
     workspaceLabel: 'hcp'
-    actionGroups: sreActionGroups
+    actionGroups: slActionGroups
     enabled: alertsEnabled
+    lowEventIngestionThreshold: 5
   }
 }
+
+output actionGroupSL string = manageConnection ? actionGroups.outputs.actionGroupsSL : ''

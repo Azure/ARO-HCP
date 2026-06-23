@@ -128,7 +128,7 @@ type clusterMetricsHandler struct {
 // NewClusterMetricsHandler creates a metrics handler for cluster metrics.
 func NewClusterMetricsHandler(r prometheus.Registerer) Handler[*api.HCPOpenShiftCluster] {
 	return &clusterMetricsHandler{
-		newResourceStateMetricsHandler[clusterMetricsObject](
+		resourceStateMetricsHandler: newResourceStateMetricsHandler[clusterMetricsObject](
 			r,
 			"backend_cluster_provision_state",
 			"Current provisioning state of the cluster (value is always 1).",

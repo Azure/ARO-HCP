@@ -71,6 +71,28 @@ func mutateNodePoolPlatform(ctx context.Context, admissionContext *NodePoolAdmis
 	return errs
 }
 
+// NodePoolDeleteAdmissionContext carries dependencies that node pool deletion admission needs.
+type NodePoolDeleteAdmissionContext struct {
+	// ClusterNodePools is a list of all node pools for the cluster, including the one being deleted.
+	ClusterNodePools []*api.HCPOpenShiftClusterNodePool
+}
+
+// AdmitNodePoolOnDelete performs non-static checks before deleting a node pool.
+func AdmitNodePoolOnDelete(ctx context.Context, admissionContext *NodePoolDeleteAdmissionContext, _ *api.HCPOpenShiftClusterNodePool) field.ErrorList {
+	errs := field.ErrorList{}
+
+	// We do a *best-effort* to check to see if we are the last node pool on the cluster and prevent deletion
+	// if we are. This is because as of now (2026-05-29) it is not possible to delete the last node pool from the cluster
+	// OCPBUGS-86702. This check won't fully prevent the last node pool deletion in all cases as there are edge cases
+	// where race conditions can occur, but it should be good enough to prevent the last node pool deletion in most cases.
+	// TODO once OCPBUGS-86702 is fixed, we should remove this check.
+	if len(admissionContext.ClusterNodePools) <= 1 {
+		errs = append(errs, field.Forbidden(field.NewPath("name"), "The last node pool can not be deleted from a cluster."))
+	}
+
+	return errs
+}
+
 // AdmitNodePool performs non-static checks of nodepool. Checks that require more information than is contained inside of
 // the nodepool instance itself. For update operations with version changes, include ServiceProviderNodePool and
 // ServiceProviderCluster in the admissionContext to enable version upgrade validation.
@@ -93,18 +115,6 @@ func admitNodePoolProperties(ctx context.Context, admissionContext *NodePoolAdmi
 
 func admitNodePoolVersion(ctx context.Context, admissionContext *NodePoolAdmissionContext, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.NodePoolVersionProfile) field.ErrorList {
 	errs := field.ErrorList{}
-
-	clusterVersion := &admissionContext.Cluster.CustomerProperties.Version
-
-	// Check only if it is a creating nodepool or a change in the channelGroup
-	if (op.Type == operation.Create || newObj.ChannelGroup != oldObj.ChannelGroup) &&
-		newObj.ChannelGroup != clusterVersion.ChannelGroup {
-		errs = append(errs, field.Invalid(
-			fldPath.Child("channelGroup"),
-			newObj.ChannelGroup,
-			fmt.Sprintf("must be the same as control plane channel group '%s'", clusterVersion.ChannelGroup),
-		))
-	}
 
 	// Perform update-specific version upgrade validation
 	if op.Type == operation.Update {
@@ -144,12 +154,12 @@ func admitNodePoolPlatform(ctx context.Context, admissionContext *NodePoolAdmiss
 	return errs
 }
 
-// validateNodePoolVersionChange validates that a node pool version change is a valid upgrade.
+// validateNodePoolVersionChange validates that a node pool version change is valid.
 // It checks:
-//   - No downgrade: new version >= old version
-//   - No major version change: new major == old major (unless FeatureExperimentalReleaseFeatures is registered)
-//   - Minor version upgrades limited to +2 (N-2 skew policy)
-//   - Cannot exceed cluster version: new version <= cluster version
+//   - Upgrade: at most +2 minor versions from current, and cannot exceed lowest control plane version
+//   - Downgrade: at most -2 minor versions from the highest control plane version
+//   - Cross-major changes (either direction) require AFEC FeatureExperimentalReleaseFeatures
+//   - NP version must be in the allowed skew map when CP and NP are on different majors
 func validateNodePoolVersionChange(ctx context.Context, admissionContext *NodePoolAdmissionContext, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.NodePoolVersionProfile) field.ErrorList {
 	spNodePool, spCluster := admissionContext.ServiceProviderNodePool, admissionContext.ServiceProviderCluster
 	// Skip validation if no version is specified or version didn't change
@@ -171,13 +181,10 @@ func validateNodePoolVersionChange(ctx context.Context, admissionContext *NodePo
 		return nil
 	}
 
-	lowestCPVersion, _ := apihelpers.FindLowestAndHighestClusterVersion(spCluster.Status.ControlPlaneVersion.ActiveVersions)
-	if err := validation.ValidateNodePoolUpgrade(newVersion, spNodePool.Status.NodePoolVersion.ActiveVersions, lowestCPVersion, op.HasOption(api.FeatureExperimentalReleaseFeatures)); err != nil {
+	lowestCPVersion, highestCPVersion := apihelpers.FindLowestAndHighestClusterVersion(spCluster.Status.ControlPlaneVersion.ActiveVersions)
+	if err := validation.ValidateNodePoolVersionChange(newVersion, spNodePool.Status.NodePoolVersion.ActiveVersions, lowestCPVersion, highestCPVersion, op.HasOption(api.FeatureExperimentalReleaseFeatures)); err != nil {
 		errs = append(errs, field.Invalid(fldPath, newObj.ID, err.Error()))
 	}
 
-	if spNodePool.Spec.NodePoolVersion.DesiredVersion != nil && newVersion.LE(*spNodePool.Spec.NodePoolVersion.DesiredVersion) {
-		errs = append(errs, field.Invalid(fldPath, newObj.ID, fmt.Sprintf("cannot downgrade from version %s to %s", spNodePool.Spec.NodePoolVersion.DesiredVersion.String(), newVersion.String())))
-	}
 	return errs
 }

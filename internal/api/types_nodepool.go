@@ -30,12 +30,26 @@ import (
 // OpenShift clusters.
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type HCPOpenShiftClusterNodePool struct {
+	// PartitionKey holds the lowercased subscriptionID.
 	CosmosMetadata `json:"cosmosMetadata"`
 
 	arm.TrackedResource
 	Properties                HCPOpenShiftClusterNodePoolProperties                `json:"properties,omitempty"`
 	ServiceProviderProperties HCPOpenShiftClusterNodePoolServiceProviderProperties `json:"serviceProviderProperties,omitempty"`
 	Identity                  *arm.ManagedServiceIdentity                          `json:"identity,omitempty"`
+	Status                    HCPOpenShiftClusterNodePoolStatus                    `json:"status"`
+}
+
+// HCPOpenShiftClusterNodePoolStatus contains the observed state of the node pool.
+type HCPOpenShiftClusterNodePoolStatus struct {
+	// Conditions are the top-level HCPOpenShiftClusterNodePool status conditions.
+	// Each Condition Type represents a condition and it should be unique among all conditions.
+	// +optional
+	// +patchMergeKey=type
+	// +patchStrategy=merge
+	// +listType=map
+	// +listMapKey=type
+	Conditions []metav1.Condition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type"`
 }
 
 var _ arm.CosmosPersistable = &HCPOpenShiftClusterNodePool{}
@@ -173,23 +187,6 @@ func (np *HCPOpenShiftClusterNodePool) EnsureDefaults() {
 	}
 }
 
-func (nodePool *HCPOpenShiftClusterNodePool) validateVersion(cluster *HCPOpenShiftCluster) []arm.CloudErrorBody {
-	var errorDetails []arm.CloudErrorBody
-
-	if nodePool.Properties.Version.ChannelGroup != cluster.CustomerProperties.Version.ChannelGroup {
-		errorDetails = append(errorDetails, arm.CloudErrorBody{
-			Code: arm.CloudErrorCodeInvalidRequestContent,
-			Message: fmt.Sprintf(
-				"Node pool channel group '%s' must be the same as control plane channel group '%s'",
-				nodePool.Properties.Version.ChannelGroup,
-				cluster.CustomerProperties.Version.ChannelGroup),
-			Target: "properties.version.channelGroup",
-		})
-	}
-
-	return errorDetails
-}
-
 func (nodePool *HCPOpenShiftClusterNodePool) validateSubnetID(cluster *HCPOpenShiftCluster) []arm.CloudErrorBody {
 	var errorDetails []arm.CloudErrorBody
 
@@ -218,7 +215,6 @@ func (nodePool *HCPOpenShiftClusterNodePool) Validate(cluster *HCPOpenShiftClust
 	var errorDetails []arm.CloudErrorBody
 
 	if cluster != nil {
-		errorDetails = append(errorDetails, nodePool.validateVersion(cluster)...)
 		errorDetails = append(errorDetails, nodePool.validateSubnetID(cluster)...)
 	}
 

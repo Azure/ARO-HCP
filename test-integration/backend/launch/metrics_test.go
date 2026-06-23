@@ -131,11 +131,12 @@ func TestBackendExposesMetrics(t *testing.T) {
 			strings.ToLower(clusterResourceID.String()),
 			strings.ToLower(clusterResourceID.SubscriptionID),
 		)
+		require.NotNil(t, operation.ExternalID, "operation.ExternalID must not be nil")
 		operationMetricLine := fmt.Sprintf(
 			`backend_resource_operation_phase_info{operation_type="create",phase="succeeded",resource_id="%s",resource_type="%s",subscription_id="%s"} 1`,
-			strings.ToLower(operation.GetResourceID().String()),
+			strings.ToLower(operation.ExternalID.String()),
 			strings.ToLower(clusterResourceID.ResourceType.String()),
-			strings.ToLower(operation.GetResourceID().SubscriptionID),
+			strings.ToLower(operation.ExternalID.SubscriptionID),
 		)
 
 		require.Eventually(t, func() bool {
@@ -152,7 +153,8 @@ func TestBackendExposesMetrics(t *testing.T) {
 func newMetricsTestCluster(resourceID *azcorearm.ResourceID, provisioningState arm.ProvisioningState, createdAt *time.Time) *api.HCPOpenShiftCluster {
 	return &api.HCPOpenShiftCluster{
 		CosmosMetadata: arm.CosmosMetadata{
-			ResourceID: resourceID,
+			ResourceID:   resourceID,
+			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
 		},
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
@@ -174,7 +176,8 @@ func newMetricsTestOperation(t *testing.T, subscriptionID, name string, external
 	resourceID := api.Must(azcorearm.ParseResourceID(fmt.Sprintf("/subscriptions/%s/providers/Microsoft.RedHatOpenShift/hcpOperationStatuses/%s", subscriptionID, name)))
 	return &api.Operation{
 		CosmosMetadata: api.CosmosMetadata{
-			ResourceID: resourceID,
+			ResourceID:   resourceID,
+			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
 		},
 		OperationID:        operationID,
 		ExternalID:         externalID,

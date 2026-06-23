@@ -1,0 +1,41 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    app.kubernetes.io/name: kube-prometheus
+    app.kubernetes.io/part-of: kube-prometheus
+    prometheus: k8s
+    role: alert-rules
+  name: backend-retryhotloop-monitoring-rules
+  namespace: monitoring
+spec:
+  groups:
+  - name: backend-retryhotloop
+    rules:
+    - alert: BackendControllerRetryHotLoop
+      # A ratio of retries to total adds that is rate-independent:
+      # it stays high regardless of item count or backoff delay.
+      # A ratio > 0.5 sustained for 10 minutes means more than half
+      # of all queue activity is retries rather than fresh work.
+      expr: |
+        (
+          sum by (name, cluster) (
+            max without(prometheus_replica) (
+              rate(workqueue_retries_total{namespace="aro-hcp"}[10m])
+            )
+          )
+          /
+          sum by (name, cluster) (
+            max without(prometheus_replica) (
+              rate(workqueue_adds_total{namespace="aro-hcp"}[10m])
+            )
+          )
+        ) > 0.5
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        correlationId: 'BackendControllerRetryHotLoop/{{ $labels.cluster }}/{{ $labels.name }}'
+        description: 'Backend controller workqueue {{ $labels.name }} has a retry ratio of > 50% sustained over 10 minutes, indicating most queue activity is failed retries rather than fresh work.'
+        runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/backend-tsg.html'
+        summary: 'Backend controller workqueue {{ $labels.name }} retry hot loop'

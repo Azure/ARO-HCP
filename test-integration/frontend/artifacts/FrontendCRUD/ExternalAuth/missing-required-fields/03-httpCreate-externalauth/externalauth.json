@@ -1,5 +1,5 @@
 {
-	"name": "missing-required-fields-auth",
+	"name": "ea-miss-req",
 	"properties": {
 		"claim": {
 			"mappings": {

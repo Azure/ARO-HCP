@@ -3,7 +3,10 @@
 # Description
 The RP for the ARO-HCP project.
 
-The components for HCP are each encapsulated in a top-level directory and each directory contains it's own makefile.
+The components for HCP are each encapsulated in a top-level directory and each directory contains its own Makefile. There's a single Makefile in the root directory that allows building all HCP components.
+
+> [!TIP] Make Options
+> [Make Options](./docs/make-options.md) describes how to customize the make build e.g. by defining the container engine to be used or limiting parallel jobs.
 
 ## Development setup
 

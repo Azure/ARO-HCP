@@ -17,18 +17,16 @@ package frontend
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"strings"
 	"time"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
-
-	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
@@ -211,6 +209,7 @@ func decodeDesiredExternalAuthCreate(ctx context.Context) (*api.HCPOpenShiftClus
 	// ProxyResource info doesn't to come from the external resource information
 	conversion.CopyReadOnlyProxyResourceValues(&newInternalExternalAuth.ProxyResource, ptr.To(arm.NewProxyResource(resourceID)))
 	newInternalExternalAuth.SetResourceID(resourceID)
+	newInternalExternalAuth.SetPartitionKey(resourceID.SubscriptionID)
 
 	// set fields that were not included during the conversion, because the user does not provide them or because the
 	// data is determined live on read.
@@ -578,25 +577,7 @@ func (f *Frontend) DeleteExternalAuth(writer http.ResponseWriter, request *http.
 		return utils.TrackError(err)
 	}
 
-	// Temporary check until creation and deletion interaction with CS is moved to the backend: if a delete arrives and the external
-	// auth has not been created in CS or the ClusterServiceID reference has not been persisted in Cosmos, return an error.
-	if externalAuth.ServiceProviderProperties.ClusterServiceID == nil || len(externalAuth.ServiceProviderProperties.ClusterServiceID.String()) == 0 {
-		return utils.TrackError(fmt.Errorf("serviceProviderProperties.clusterServiceID is required to delete an external auth"))
-	}
-
-	err = f.clusterServiceClient.DeleteExternalAuth(ctx, *externalAuth.ServiceProviderProperties.ClusterServiceID)
-	var ocmError *ocmerrors.Error
-	if errors.As(err, &ocmError) && ocmError.Status() == http.StatusNotFound {
-		// StatusNotFound means we have stale data in Cosmos DB.
-		// This can happen in test environments if a user bypasses
-		// the RP to delete a resource (e.g. "ocm delete"). It can
-		// also happen if an asynchronous deletion operation fails.
-		// we will fall through and cancel all operations and go through as normal a deletion flow as we can to avoid
-		// leaking data related to the resource, like controller status.
-		logger.Info("clusterService externalauth missing, trying to clean up", "err", err)
-	} else if err != nil {
-		return utils.TrackError(err)
-	}
+	logger.Info(fmt.Sprintf("deleting resource %s", externalAuth.ID))
 
 	transaction := f.resourcesDBClient.NewTransaction(externalAuth.ID.SubscriptionID)
 	if err := f.addDeleteExternalAuthToTransaction(ctx, writer, request, transaction, externalAuth); err != nil {
@@ -628,21 +609,18 @@ func (f *Frontend) addDeleteExternalAuthToTransaction(ctx context.Context, write
 		return utils.TrackError(err)
 	}
 
-	// Temporary check until creation and deletion interaction with CS is moved to the backend: if a delete arrives and the external
-	// auth has not been created in CS or the ClusterServiceID reference has not been persisted in Cosmos, return an error.
-	if externalAuth.ServiceProviderProperties.ClusterServiceID == nil || len(externalAuth.ServiceProviderProperties.ClusterServiceID.String()) == 0 {
-		return utils.TrackError(fmt.Errorf("serviceProviderProperties.clusterServiceID is required to delete an external auth"))
-	}
-
 	operationDoc := database.NewOperation(
 		database.OperationRequestDelete,
 		externalAuth.ID,
-		*externalAuth.ServiceProviderProperties.ClusterServiceID,
+		api.InternalID{},
 		f.azureLocation,
 		"",
 		"",
 		"",
 		correlationData)
+	// TODO remove this once migration of the new external auth deletion from frontend to backend approach is fully completed in all ARO-HCP
+	// permanent environments, for all regions.
+	operationDoc.UsesNewExternalAuthDeletionApproach = true
 	if request != nil {
 		// these are optional because when this is triggered via the subscription deletion flow, there is no
 		// deletion request containing these headers so these operations cannot be directly tracked.
@@ -656,8 +634,14 @@ func (f *Frontend) addDeleteExternalAuthToTransaction(ctx context.Context, write
 		return utils.TrackError(err)
 	}
 
+	if externalAuth.ServiceProviderProperties.DeletionTimestamp == nil {
+		externalAuth.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: time.Now().UTC()}
+	}
 	externalAuth.ServiceProviderProperties.ActiveOperationID = operationDoc.ResourceID.Name
 	externalAuth.Properties.ProvisioningState = operationDoc.Status
+	// TODO remove this once migration of the new external auth deletion from frontend to backend approach is fully completed in all ARO-HCP
+	// permanent environments, for all regions.
+	externalAuth.ServiceProviderProperties.UsesNewExternalAuthDeletionApproach = true
 	_, err = f.resourcesDBClient.HCPClusters(externalAuth.ID.SubscriptionID, externalAuth.ID.ResourceGroupName).ExternalAuth(externalAuth.ID.Parent.Name).
 		AddReplaceToTransaction(ctx, transaction, externalAuth, nil)
 	if err != nil {

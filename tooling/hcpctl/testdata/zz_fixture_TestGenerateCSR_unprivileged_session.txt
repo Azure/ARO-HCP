@@ -1,7 +1,7 @@
 Certificate Request:
     Data:
         Version: 0
-        Subject: CN=system:sre-break-glass:b-user@microsoft.com,O=aro-sre
+        Subject: CN=system:sre-break-glass:b-user@microsoft.com,O=system:cluster-readers
         Subject Public Key Info:
             Public Key Algorithm: RSA
                 Public-Key: (2048 bit)

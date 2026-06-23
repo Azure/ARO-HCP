@@ -236,6 +236,18 @@ func (s *ClusterServiceMock) setupMockClusterService(t *testing.T) {
 		}
 		return ocm.NewSimpleNodePoolListIterator(allObjs, nil)
 	}).AnyTimes()
+	s.MockClusterServiceClient.EXPECT().DeleteNodePool(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, id ocm.InternalID) error {
+		_, exists := internalIDToNodePool[id.String()]
+		if !exists {
+			retErr, err := ocmerrors.NewError().Status(http.StatusNotFound).Build()
+			if err != nil {
+				return err
+			}
+			return retErr
+		}
+		delete(internalIDToNodePool, id.String())
+		return nil
+	}).AnyTimes()
 
 	s.MockClusterServiceClient.EXPECT().DeleteBreakGlassCredentials(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	s.MockClusterServiceClient.EXPECT().PostBreakGlassCredential(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, clusterID ocm.InternalID) (*cmv1.BreakGlassCredential, error) {

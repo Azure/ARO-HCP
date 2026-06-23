@@ -1,0 +1,46 @@
+.create-merge table fleetLogs (
+  timestamp: datetime,
+  log: dynamic,
+  environment: string,
+  cluster: string,
+  namespace_name: string,
+  container_name: string,
+  container_image: string,           // fluentbit: kubernetes.container_image
+  host: string,
+  labels: string,
+  pod_name: string,
+  region: string,
+  level: string,
+  msg: string,
+  controller_name: string,
+  resource_name: string,
+  resource_id: string,
+  resource_type: string,
+  tag: string,                       // fluentbit: tag routing identifier
+  container_status_image_id: string  // fluentbit: kubernetes.container_hash (k8s status.containerStatuses.imageID)
+)
+
+.create-or-alter table fleetLogs ingestion json mapping 'ingestionMapping'
+```
+[
+  {"column":"timestamp","Properties":{"path":"$.timestamp"}},
+  {"column":"log","Properties":{"path":"$.log.log"}},
+  {"column":"environment","Properties":{"path":"$.log.environment"}},
+  {"column":"region","Properties":{"path":"$.log.region"}},
+  {"column":"cluster","Properties":{"path":"$.log.cluster"}},
+  {"column":"namespace_name","Properties":{"path":"$.log.kubernetes.namespace_name"}},
+  {"column":"container_name","Properties":{"path":"$.log.kubernetes.container_name"}},
+  {"column":"container_image","Properties":{"path":"$.log.kubernetes.container_image"}},
+  {"column":"host","Properties":{"path":"$.log.kubernetes.host"}},
+  {"column":"labels","Properties":{"path":"$.log.kubernetes.labels"}},
+  {"column":"pod_name","Properties":{"path":"$.log.kubernetes.pod_name"}},
+  {"column":"tag","Properties":{"path":"$.tag"}},
+  {"column":"level","Properties":{"path":"$.log.level"}},
+  {"column":"msg","Properties":{"path":"$.log.msg"}},
+  {"column":"controller_name","Properties":{"path":"$.log.controller_name"}},
+  {"column":"resource_name","Properties":{"path":"$.log.resource_name"}},
+  {"column":"resource_id","Properties":{"path":"$.log.resource_id"}},
+  {"column":"resource_type","Properties":{"path":"$.log.resourceType"}},
+  {"column":"container_status_image_id","Properties":{"path":"$.log.kubernetes.container_hash"}}
+]
+```

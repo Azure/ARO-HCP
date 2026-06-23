@@ -31,6 +31,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 
 	hcpsdk20251223preview "github.com/Azure/ARO-HCP/test/sdk/v20251223preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	hcpsdk20260630preview "github.com/Azure/ARO-HCP/test/sdk/v20260630preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 )
 
 func GetOutputValueString(deploymentInfo *armresources.DeploymentExtended, outputName string) (string, error) {
@@ -504,6 +505,115 @@ func (tc *perItOrDescribeTestContext) CreateNodePoolFromParam20251223(
 	if _, err := CreateNodePoolAndWait20251223(
 		nodePoolCtx,
 		tc.Get20251223ClientFactoryOrDie(nodePoolCtx).NewNodePoolsClient(),
+		resourceGroupName,
+		hcpClusterName,
+		nodePoolName,
+		nodePool,
+		timeout,
+	); err != nil {
+		// a separate context for console log download with its own timeout,
+		// to make sure logs are fetched even when the node pool deployment
+		// context is cancelled due to timeout
+		downloadTimeout := 5 * time.Minute
+		downloadCtx, downloadCancel := context.WithTimeoutCause(
+			ctx,
+			downloadTimeout,
+			fmt.Errorf("timeout '%f' minutes exceeded during DownloadAllVirtualMachineConsoleLogs for VMs in managed resource group %s", downloadTimeout.Minutes(), managedResourceGroupName))
+		defer downloadCancel()
+		computeFactory, clientErr := tc.GetARMComputeClientFactory(downloadCtx)
+		if clientErr == nil {
+			consoleLogErr := DownloadAllVirtualMachineConsoleLogs(
+				downloadCtx,
+				computeFactory,
+				managedResourceGroupName,
+				tc.LogDirPath)
+			if consoleLogErr != nil {
+				logger.Error(consoleLogErr, "failed to download VM console logs")
+			}
+		} else {
+			logger.Error(clientErr, "failed to get ARM compute client to download VM console logs")
+		}
+
+		if errors.Is(err, context.DeadlineExceeded) {
+			return fmt.Errorf("failed to create NodePool %s, caused by: %w, error: %w", nodePoolName, context.Cause(nodePoolCtx), err)
+		}
+		return fmt.Errorf("failed to create NodePool %s: %w", nodePoolName, err)
+	}
+
+	return nil
+}
+
+func (tc *perItOrDescribeTestContext) CreateHCPClusterFromParam20260630(
+	ctx context.Context,
+	logger logr.Logger,
+	resourceGroupName string,
+	parameters ClusterParams20260630,
+	imageDigestMirrors []*hcpsdk20260630preview.ImageDigestMirror,
+	timeout time.Duration,
+) error {
+	if timeout > 0*time.Second {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded during CreateHCPCluster20260630FromParam for cluster %s in resource group %s", timeout.Minutes(), parameters.ClusterName, resourceGroupName))
+		defer cancel()
+	}
+	clusterName := parameters.ClusterName
+
+	startTime := time.Now()
+	defer func() {
+		finishTime := time.Now()
+		tc.RecordTestStep(fmt.Sprintf("Deploy HCP cluster %s/%s (v20260630preview)", resourceGroupName, clusterName), startTime, finishTime)
+	}()
+
+	cluster, err := BuildHCPClusterFromParams20260630(parameters, tc.Location(), imageDigestMirrors)
+	if err != nil {
+		return fmt.Errorf("failed to build HCP cluster %s: %w", clusterName, err)
+	}
+
+	if _, err := CreateHCPClusterAndWait20260630(
+		ctx,
+		logger,
+		tc.Get20260630ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
+		resourceGroupName,
+		clusterName,
+		cluster,
+		timeout,
+	); err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			return fmt.Errorf("failed to create HCP cluster %s, caused by: %w, error: %w", clusterName, context.Cause(ctx), err)
+		}
+		return fmt.Errorf("failed to create HCP cluster %s: %w", clusterName, err)
+	}
+	return nil
+}
+
+func (tc *perItOrDescribeTestContext) CreateNodePoolFromParam20260630(
+	ctx context.Context,
+	logger logr.Logger,
+	resourceGroupName string,
+	managedResourceGroupName string,
+	hcpClusterName string,
+	parameters NodePoolParams20260630,
+	timeout time.Duration,
+) error {
+	nodePoolCtx, cancel := context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded during CreateNodePoolFromParam for node pool %s in resource group %s", timeout.Minutes(), parameters.NodePoolName, resourceGroupName))
+	defer cancel()
+
+	startTime := time.Now()
+	defer func() {
+		finishTime := time.Now()
+		tc.RecordTestStep(fmt.Sprintf("Deploy node pool %s", parameters.NodePoolName), startTime, finishTime)
+	}()
+
+	nodePoolName := parameters.NodePoolName
+	if nodePoolName == "" {
+		return fmt.Errorf("nodePoolName parameter not found or empty")
+	}
+
+	nodePool := BuildNodePoolFromParams20260630(parameters, tc.Location())
+
+	if _, err := CreateNodePoolAndWait20260630(
+		nodePoolCtx,
+		tc.Get20260630ClientFactoryOrDie(nodePoolCtx).NewNodePoolsClient(),
 		resourceGroupName,
 		hcpClusterName,
 		nodePoolName,

@@ -65,6 +65,7 @@ func TestDBApplyDesireLister_RoundTripViaMock(t *testing.T) {
 		CosmosMetadata: api.CosmosMetadata{
 			ResourceID: mustParseID(t, kubeapplier.ToClusterScopedApplyDesireResourceIDString(
 				testSub, testRG, testCluster, "cluster-d")),
+			PartitionKey: strings.ToLower(testMgmtID.String()),
 		},
 		Spec: kubeapplier.ApplyDesireSpec{
 			ManagementCluster: testMgmtID,
@@ -75,6 +76,7 @@ func TestDBApplyDesireLister_RoundTripViaMock(t *testing.T) {
 		CosmosMetadata: api.CosmosMetadata{
 			ResourceID: mustParseID(t, kubeapplier.ToNodePoolScopedApplyDesireResourceIDString(
 				testSub, testRG, testCluster, testNodePool, "np-d")),
+			PartitionKey: strings.ToLower(testMgmtID.String()),
 		},
 		Spec: kubeapplier.ApplyDesireSpec{
 			ManagementCluster: testMgmtID,

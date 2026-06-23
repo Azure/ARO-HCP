@@ -52,6 +52,8 @@ func runProwJobStep(step *types.ProwJobStep, ctx context.Context, options *StepR
 	}
 
 	opts := prowjobexecutor.DefaultExecuteOptions()
+	opts.Cloud = options.Cloud
+	opts.Environment = options.Environment
 	opts.Secret = step.TokenSecret
 	opts.KeyVaultURI = keyVaultURI
 	opts.ProwJobName = step.JobName

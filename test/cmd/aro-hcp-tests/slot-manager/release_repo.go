@@ -18,7 +18,6 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
-	"strings"
 
 	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
@@ -58,7 +57,7 @@ type ReleaseRepoOptions struct {
 }
 
 func (o *RawReleaseRepoOptions) Validate() (*ValidatedReleaseRepoOptions, error) {
-	if strings.TrimSpace(o.ReleaseRepo) == "" {
+	if o.ReleaseRepo == "" {
 		return nil, fmt.Errorf("--release-repo must not be empty")
 	}
 	return &ValidatedReleaseRepoOptions{

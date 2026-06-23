@@ -61,6 +61,16 @@ const (
 	NodePoolStateError            NodePoolStateValue = "error"
 )
 
+// Copied from uhc-clusters-service, because the
+// OCM SDK does not define this for some reason.
+type ExternalAuthStateValue string
+
+const (
+	ExternalAuthStateReady        ExternalAuthStateValue = "ready"
+	ExternalAuthStateUninstalling ExternalAuthStateValue = "uninstalling"
+	ExternalAuthStateError        ExternalAuthStateValue = "error"
+)
+
 // UpdateOperationStatus updates Cosmos DB to reflect an updated resource status.
 // If the operation has an associated resource, both documents are updated
 // atomically using a transactional batch to prevent a window where the
@@ -373,8 +383,9 @@ func notifyOperationOwner(ctx context.Context, resourcesDBClient database.Resour
 			if err != nil {
 				logger.Error(err, "Failed to re-read operation to clear notification URI")
 			} else {
-				currentOperation.NotificationURI = ""
-				_, err = operationsCRUD.Replace(ctx, currentOperation, nil)
+				replacement := currentOperation.DeepCopy()
+				replacement.NotificationURI = ""
+				_, err = operationsCRUD.Replace(ctx, replacement, nil)
 				if err != nil {
 					logger.Error(err, "Failed to clear notification URI")
 				}
@@ -385,7 +396,6 @@ func notifyOperationOwner(ctx context.Context, resourcesDBClient database.Resour
 	}
 }
 
-// PostAsyncNotification submits an POST request with status payload to the given URL.
 func postAsyncNotificationFn(notificationClient *http.Client) PostAsyncNotificationFunc {
 	return func(ctx context.Context, operation *api.Operation) error {
 		return PostAsyncNotification(ctx, notificationClient, operation)
@@ -468,10 +478,10 @@ func convertClusterStatus(ctx context.Context, clusterServiceClient ocm.ClusterS
 		// no unique ProvisioningState values for them. They should
 		// only occur when ProvisioningState is Accepted.
 		if newOperationStatus != arm.ProvisioningStateAccepted {
-			err = fmt.Errorf("got ClusterState '%s' while ProvisioningState was '%s' instead of '%s'", state, newOperationStatus, arm.ProvisioningStateAccepted)
+			err = fmt.Errorf("got ClusterState '%s' (description: %q) while ProvisioningState was '%s' instead of '%s'", state, clusterStatus.Description(), newOperationStatus, arm.ProvisioningStateAccepted)
 		}
 	default:
-		err = fmt.Errorf("unhandled ClusterState '%s'", state)
+		err = fmt.Errorf("unhandled ClusterState '%s' (description: %q)", state, clusterStatus.Description())
 	}
 
 	return newOperationStatus, opError, err
@@ -528,7 +538,8 @@ func convertNodePoolStatus(operation *api.Operation, nodePoolStatus *arohcpv1alp
 		// no unique ProvisioningState values for them. They should
 		// only occur when ProvisioningState is Accepted.
 		if operation.Status != arm.ProvisioningStateAccepted {
-			err = fmt.Errorf("got NodePoolStatusValue '%s' while ProvisioningState was '%s' instead of '%s'", state, operation.Status, arm.ProvisioningStateAccepted)
+			msg, _ := nodePoolStatus.GetMessage()
+			err = fmt.Errorf("got NodePoolStatusValue '%s' (message: %q) while ProvisioningState was '%s' instead of '%s'", state, msg, operation.Status, arm.ProvisioningStateAccepted)
 		}
 	case NodePoolStateInstalling:
 		newOperationStatus = arm.ProvisioningStateProvisioning
@@ -554,9 +565,37 @@ func convertNodePoolStatus(operation *api.Operation, nodePoolStatus *arohcpv1alp
 			opError.Message = msg
 		}
 	default:
-		err = fmt.Errorf("unhandled NodePoolState '%s'", state)
+		msg, _ := nodePoolStatus.GetMessage()
+		err = fmt.Errorf("unhandled NodePoolState '%s' (message: %q)", state, msg)
 	}
 
+	return newOperationStatus, opError, err
+}
+
+func convertExternalAuthStatus(operation *api.Operation, externalAuthStatus *arohcpv1alpha1.ExternalAuthStatus) (arm.ProvisioningState, *arm.CloudErrorBody, error) {
+	var newOperationStatus = operation.Status
+	var opError *arm.CloudErrorBody
+	var err error
+
+	switch state := ExternalAuthStateValue(externalAuthStatus.State().Value()); state {
+	case ExternalAuthStateReady:
+		if operation.Request != database.OperationRequestDelete {
+			newOperationStatus = arm.ProvisioningStateSucceeded
+		}
+	case ExternalAuthStateError:
+		// XXX OCM SDK offers no error code or message for failed externalauth
+		//     operations so "Internal Server Error" is all we can do for now.
+		newOperationStatus = arm.ProvisioningStateFailed
+		opError = arm.NewInternalServerError().CloudErrorBody
+		if msg, ok := externalAuthStatus.GetMessage(); ok {
+			opError.Message = msg
+		}
+	case ExternalAuthStateUninstalling:
+		newOperationStatus = arm.ProvisioningStateDeleting
+	default:
+		msg, _ := externalAuthStatus.GetMessage()
+		err = fmt.Errorf("unhandled ExternalAuthState '%s' (message: %q)", state, msg)
+	}
 	return newOperationStatus, opError, err
 }
 

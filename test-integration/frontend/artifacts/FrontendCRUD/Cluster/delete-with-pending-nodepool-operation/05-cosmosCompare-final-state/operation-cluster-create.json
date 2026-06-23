@@ -5,6 +5,8 @@
 		"request": "Create",
 		"status": "Succeeded",
 		"tenantId": "00000000-0000-0000-0000-000000000000",
+		"usesNewClusterDeletionApproach": false,
+		"usesNewExternalAuthDeletionApproach": false,
 		"usesNewNodePoolDeletionApproach": false
 	},
 	"resourceType": "Microsoft.RedHatOpenShift/hcpOperationStatuses",

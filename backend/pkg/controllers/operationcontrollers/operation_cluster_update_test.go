@@ -17,6 +17,7 @@ package operationcontrollers
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -217,7 +218,7 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 			)))
 
 			_, err = mockResourcesDBClient.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Create(ctx, &api.ServiceProviderCluster{
-				CosmosMetadata: api.CosmosMetadata{ResourceID: resourceId},
+				CosmosMetadata: api.CosmosMetadata{ResourceID: resourceId, PartitionKey: strings.ToLower(resourceId.SubscriptionID)},
 				Spec: api.ServiceProviderClusterSpec{
 					ControlPlaneVersion: api.ServiceProviderClusterSpecVersion{
 						DesiredVersion: ptr.To(semver.MustParse("4.19.0")),
@@ -233,7 +234,7 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 				fixture.clusterResourceID.String() + "/hcpOpenShiftControllers/ControlPlaneDesiredVersion",
 			))
 			_, err = mockResourcesDBClient.HCPClusters(testSubscriptionID, testResourceGroupName).Controllers(testClusterName).Create(ctx, &api.Controller{
-				CosmosMetadata: api.CosmosMetadata{ResourceID: rid},
+				CosmosMetadata: api.CosmosMetadata{ResourceID: rid, PartitionKey: strings.ToLower(rid.SubscriptionID)},
 				ExternalID:     fixture.clusterResourceID,
 				Status: api.ControllerStatus{
 					Conditions: tt.controlPlaneDesiredVersionControllerConditions,

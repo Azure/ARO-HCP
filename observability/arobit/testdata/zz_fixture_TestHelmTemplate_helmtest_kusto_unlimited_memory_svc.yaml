@@ -56,6 +56,21 @@ data:
         Time_Format %Y-%m-%dT%H:%M:%S.%L
         Time_Keep   On
 
+    [MULTILINE_PARSER]
+        name          klog
+        type          regex
+        flush_timeout 1000
+        # A klog line starts with [IWEF] followed by 4 digits (mmdd) and a space
+        rule          "start_state"  "/^[IWEF]\d{4} /"               "cont"
+        # A JSON log line starts with { — treat as its own entry
+        rule          "start_state"  "/^\{/"                          "cont"
+        # A structured log line starts with an ISO 8601 timestamp
+        rule          "start_state"  "/^\d{4}-\d{2}-\d{2}T\d{2}:/"   "cont"
+        # Anything else is a continuation of the previous multiline entry
+        rule          "cont"         "/^[^IWEF{\d]/"                  "cont"
+        rule          "cont"         "/^[IWEF][^0-9]/"                "cont"
+        rule          "cont"         "/^\d(?!\d{3}-\d{2}-\d{2}T\d{2}:)/"  "cont"
+
   input.conf: |
     [INPUT]
         Name              tail
@@ -112,6 +127,13 @@ data:
         storage.type      filesystem
   filter.conf: |
     [FILTER]
+        Name                  multiline
+        Alias                 filter.multiline_klog
+        Match                 kubernetes.*
+        multiline.parser      klog
+        multiline.key_content log
+
+    [FILTER]
         Name modify
         Match systemd.*
         Add environment dev
@@ -153,6 +175,7 @@ data:
         Rule            $kubernetes['container_name'] ^aro-hcp-frontend* aro-hcp-frontend.logs true
         Rule            $kubernetes['container_name'] ^aro-hcp-backend* aro-hcp-backend.logs true
         Rule            $kubernetes['container_name'] ^clusters-service* clusters-service.logs true
+        Rule            $kubernetes['container_name'] ^fleet-controller* fleet-controller.logs true
         Rule            $kubernetes['container_name'] ^kube-events* kube-events.logs true
         Emitter_Name    re_emitted_container_name_router
         Emitter_Mem_Buf_Limit  20M
@@ -161,7 +184,7 @@ data:
     [FILTER]
         # Parse the log key and make it a json object again under $
         Name Parser
-        Match_regex (aro-hcp-(frontend|backend)|kube-events|clusters-service)\.logs
+        Match_regex (aro-hcp-(frontend|backend)|kube-events|clusters-service|fleet-controller)\.logs
         Key_Name log
         Parser containerlogs
         Preserve_Key On
@@ -212,6 +235,31 @@ data:
         Table_Name backendLogs
         ingestion_mapping_reference ingestionMapping
         azure_kusto_buffer_key backendLogs
+        buffer_dir "/var/kusto"
+        buffering_enabled           true 
+        upload_timeout              1m
+        upload_file_size            16M
+        buffer_file_delete_early    false
+        unify_tag                   true
+        store_dir_limit_size        1.8GB
+        blob_uri_length             128
+        scheduler_max_retries       9
+        delete_on_max_upload_error  true
+        io_timeout                  60s
+
+    [OUTPUT]
+        Match fleet-controller.logs
+        Name azure_kusto
+        Retry_Limit 5
+        auth_type workload_identity
+        tenant_id __tenantId__
+        client_id __msiClientId__
+        workload_identity_token_file ${AZURE_FEDERATED_TOKEN_FILE}
+        Ingestion_Endpoint __kustoDataIngestionUri__
+        Database_Name ServiceLogs
+        Table_Name fleetLogs
+        ingestion_mapping_reference ingestionMapping
+        azure_kusto_buffer_key fleetLogs
         buffer_dir "/var/kusto"
         buffering_enabled           true 
         upload_timeout              1m
@@ -298,16 +346,6 @@ data:
         delete_on_max_upload_error  true
         io_timeout                  60s
 
-  output-mdsd.conf: |
-    # Forward logs to mdsd instance (default port)
-    [OUTPUT]
-        Name  forward
-        Alias forward.mdsd.other
-        Match mdsd-other.logs
-        Host  127.0.0.1
-        Port  5001
-        Tag   akskubesystem
-
     [OUTPUT]
         Match systemd.*
         Name azure_kusto
@@ -332,6 +370,16 @@ data:
         scheduler_max_retries       9
         delete_on_max_upload_error  true
         io_timeout                  60s
+
+  output-mdsd.conf: |
+    # Forward logs to mdsd instance (default port)
+    [OUTPUT]
+        Name  forward
+        Alias forward.mdsd.other
+        Match mdsd-other.logs
+        Host  127.0.0.1
+        Port  5001
+        Tag   akskubesystem
 ---
 # Source: arobit/templates/forwarder-clusterrole.yaml
 kind: ClusterRole
@@ -427,7 +475,7 @@ spec:
         app: arobit-forwarder
         azure.workload.identity/use: "true"
       annotations:
-        checksum/configmap: d0af69bf42ceeb8edd628b7ced7cfd5834bdb283b5fd6525fbad4d0e75977eda
+        checksum/configmap: ba7d5df25ab803bb668e6715d589726b054dd9f4388fc2ecf0805a0c09f6e6e1
     spec:
       priorityClassName: service-lifecycle-critical
       serviceAccountName: 'arobit-forwarder'

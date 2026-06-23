@@ -35,7 +35,7 @@ type TestSummary struct {
 }
 
 // ConvertTestResults transforms the raw test results returned by
-// FetchProwJobData into the TestSummary format used by the analysis agent.
+// FetchProwJobTestResults into the TestSummary format used by the analysis agent.
 func ConvertTestResults(results []TestResult) []TestSummary {
 	summaries := make([]TestSummary, 0, len(results))
 	for _, r := range results {

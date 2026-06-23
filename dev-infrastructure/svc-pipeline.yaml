@@ -84,6 +84,17 @@ resourceGroups:
   resourceGroup: '{{ .svc.rg }}'
   subscription: '{{ .svc.subscription.key }}'
   steps:
+  - name: grafana-monitoring-reader
+    action: ARM
+    template: templates/grafana-monitoring-reader.bicep
+    parameters: configurations/grafana-monitoring-reader.tmpl.bicepparam
+    deploymentLevel: Subscription
+    variables:
+    - name: grafanaPrincipalId
+      input:
+        resourceGroup: global
+        step: output
+        name: grafanaPrincipalId
   # Create SVC KV
   - name: infra
     action: ARM
@@ -210,26 +221,6 @@ resourceGroups:
       - "was not found in the AAD tenant"
       maximumRetryCount: 3
       durationBetweenRetries: 2m
-  - name: delete-old-user-nodepools
-    aksCluster: '{{ .svc.aks.name }}'
-    action: Shell
-    command: ./delete-user-nodepools.sh
-    workingDir: ./scripts
-    shellIdentity:
-      input:
-        resourceGroup: global
-        step: output
-        name: globalMSIId
-    variables:
-    - name: CLUSTER_NAME
-      configRef: svc.aks.name
-    - name: RESOURCE_GROUP
-      configRef: svc.rg
-    - name: POOL_NAME_PATTERN
-      value: 'user(nz)?[0-9]+'
-    dependsOn:
-    - resourceGroup: service
-      step: cluster
   - name: upgrade-aks-cluster
     action: Shell
     command: ./upgrade-aks-cluster.sh
@@ -248,7 +239,7 @@ resourceGroups:
       configRef: svc.aks.kubernetesVersion
     dependsOn:
     - resourceGroup: service
-      step: delete-old-user-nodepools
+      step: cluster
   - name: cluster-output
     action: ARM
     template: templates/output-svc-cluster.bicep
@@ -300,6 +291,7 @@ resourceGroups:
     # Deploy prometheus first since istio depends on it's CRDs
     aksCluster: '{{ .svc.aks.name }}'
     action: Helm
+    timeout: 10m
     releaseName: 'arohcp-monitor'
     releaseNamespace: 'prometheus'
     namespaceFiles:

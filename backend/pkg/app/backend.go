@@ -37,13 +37,17 @@ import (
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/billingcontrollers"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/clusterdeletion"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/clusterpropertiescontroller"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/datadumpcontrollers"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/externalauthdeletion"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/managementclustercontrollers"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/metricscontrollers"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/mismatchcontrollers"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/nodepooldeletion"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/operationcontrollers"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/statuscontrollers"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/upgradecontrollers"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/validationcontrollers"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/validationcontrollers/validations"
@@ -116,6 +120,7 @@ func (o *BackendOptions) RunBackend(ctx context.Context) error {
 	}
 	runErrCh := make(chan error, 1)
 	go func() {
+		defer k8sutilruntime.HandleCrash()
 		runErrCh <- backend.Run(ctx)
 		cancel(fmt.Errorf("backend exited"))
 	}()
@@ -212,6 +217,7 @@ func (b *Backend) Run(ctx context.Context) error {
 			electionChecker:   electionChecker,
 		}
 		go func() {
+			defer k8sutilruntime.HandleCrash()
 			err := s.Run(ctx)
 			if err != nil {
 				cancel(fmt.Errorf("healthz server exited: %w", err))
@@ -228,6 +234,7 @@ func (b *Backend) Run(ctx context.Context) error {
 			metricsGatherer:   b.options.MetricsGatherer,
 		}
 		go func() {
+			defer k8sutilruntime.HandleCrash()
 			err := s.Run(ctx)
 			if err != nil {
 				cancel(fmt.Errorf("metrics server exited: %w", err))
@@ -237,6 +244,7 @@ func (b *Backend) Run(ctx context.Context) error {
 	}
 
 	go func() {
+		defer k8sutilruntime.HandleCrash()
 		err := b.runBackendControllersUnderLeaderElection(ctx, electionChecker)
 		// When leader election exits (e.g. lost lease), cancel so Run() unblocks and performs shutdown.
 		cancel(fmt.Errorf("backend controllers leader election exited"))
@@ -317,6 +325,7 @@ func runHTTPServer(ctx context.Context, name string, addr string, server *http.S
 	done := make(chan struct{})
 	defer close(done)
 	go func() {
+		defer k8sutilruntime.HandleCrash()
 		select {
 		case <-ctx.Done():
 			shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), backendShutdownTimeout)
@@ -371,7 +380,6 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		"OperationPhaseMetrics", backendInformers.AllOperations(), operationPhaseHandler)
 
 	fleetInformers := dbinformers.NewFleetInformers(ctx, b.options.FleetDBClient.GlobalListers())
-	_, stampLister := fleetInformers.Stamps()
 	managementClusterInformer, managementClusterLister := fleetInformers.ManagementClusters()
 
 	// Union kube-applier informers: one aggregator surface that fans out
@@ -385,25 +393,34 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		unionkubeapplierinformers.NewKubeApplierInformerFactory(b.options.KubeApplierDBClients, nil),
 	)
 	unionKubeApplierInformers := unionKubeApplierInformersController.Union()
+	_, unionReadDesireLister := unionKubeApplierInformers.ReadDesires()
 
 	clusterInformer, clusterLister := backendInformers.Clusters()
 	clusterHandler := metricscontrollers.NewClusterMetricsHandler(b.options.MetricsRegisterer)
 	clusterMetricsController := metricscontrollers.NewController(
 		"ClusterMetrics", clusterInformer, clusterHandler)
 
+	serviceProviderClusterInformer, _ := backendInformers.ServiceProviderClusters()
+	clusterVersionMetricsHandler := metricscontrollers.NewClusterVersionMetricsHandler(b.options.MetricsRegisterer, unionReadDesireLister)
+	clusterVersionMetricsController := metricscontrollers.NewController(
+		"ClusterVersionMetrics", serviceProviderClusterInformer, clusterVersionMetricsHandler)
+
 	_, billingLister := backendInformers.BillingDocs()
 
-	nodePoolInformer, _ := backendInformers.NodePools()
+	nodePoolInformer, nodePoolLister := backendInformers.NodePools()
 	nodePoolHandler := metricscontrollers.NewNodePoolMetricsHandler(b.options.MetricsRegisterer)
 	nodePoolMetricsController := metricscontrollers.NewController(
 		"NodePoolMetrics", nodePoolInformer, nodePoolHandler)
 
-	externalAuthInformer, _ := backendInformers.ExternalAuths()
+	externalAuthInformer, externalAuthLister := backendInformers.ExternalAuths()
 	externalAuthHandler := metricscontrollers.NewExternalAuthMetricsHandler(b.options.MetricsRegisterer)
 	externalAuthMetricsController := metricscontrollers.NewController(
 		"ExternalAuthMetrics", externalAuthInformer, externalAuthHandler)
 
-	maestroClientBuilder := maestro.NewMaestroClientBuilder()
+	_, controllerLister := backendInformers.Controllers()
+
+	maestroMetrics := maestro.NewMaestroMetrics(b.options.MetricsRegisterer)
+	maestroClientBuilder := maestro.NewMaestroClientBuilder(maestroMetrics)
 
 	subscriptionNonClusterDataDumpController := datadumpcontrollers.NewSubscriptionNonClusterDataDumpController(b.options.ResourcesDBClient, activeOperationLister, backendInformers)
 	clusterRecursiveDataDumpController := datadumpcontrollers.NewClusterRecursiveDataDumpController(b.options.ResourcesDBClient, b.options.KubeApplierDBClients, managementClusterLister, activeOperationLister, backendInformers, unionKubeApplierInformers)
@@ -430,6 +447,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		http.DefaultClient,
 		activeOperationInformer,
 		backendInformers,
+		unionReadDesireLister,
 	)
 	operationClusterUpdateController := operationcontrollers.NewOperationClusterUpdateController(
 		b.clock,
@@ -526,6 +544,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		activeOperationLister,
 		backendInformers,
 		unionKubeApplierInformers,
+		unionReadDesireLister,
 	)
 	controlPlaneDesiredVersionController := upgradecontrollers.NewControlPlaneDesiredVersionController(
 		b.options.ResourcesDBClient,
@@ -533,6 +552,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		activeOperationLister,
 		backendInformers,
 		unionKubeApplierInformers,
+		unionReadDesireLister,
 		subscriptionLister,
 	)
 	triggerControlPlaneUpgradeController := upgradecontrollers.NewTriggerControlPlaneUpgradeController(
@@ -542,12 +562,19 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		backendInformers,
 		unionKubeApplierInformers,
 	)
-	clusterPropertiesSyncController := clusterpropertiescontroller.NewClusterPropertiesSyncController(
+	clusterBaseDomainPrefixSyncController := clusterpropertiescontroller.NewClusterBaseDomainPrefixSyncController(
 		b.options.ResourcesDBClient,
 		b.options.ClustersServiceClient,
 		activeOperationLister,
 		backendInformers,
 		unionKubeApplierInformers,
+	)
+	clusterPropertiesSyncController := clusterpropertiescontroller.NewClusterPropertiesSyncController(
+		b.options.ResourcesDBClient,
+		activeOperationLister,
+		backendInformers,
+		unionKubeApplierInformers,
+		unionReadDesireLister,
 	)
 	identityMigrationController := clusterpropertiescontroller.NewIdentityMigrationController(
 		b.options.ResourcesDBClient,
@@ -557,27 +584,57 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		unionKubeApplierInformers,
 	)
 
-	maestroCreateClusterScopedReadonlyBundlesController := controllers.NewCreateClusterScopedMaestroReadonlyBundlesController(
-		activeOperationLister, b.options.ResourcesDBClient, b.options.ClustersServiceClient,
-		backendInformers, unionKubeApplierInformers, b.options.MaestroSourceEnvironmentIdentifier, maestroClientBuilder,
+	// Each aggregator hardcodes its own inertia inside the statuscontrollers
+	// package so subsystem-specific tuning lives next to the controller that
+	// uses it. The constructors here just supply listers / DB / clock.
+	clusterDegradedAggregatorController := statuscontrollers.NewClusterDegradedAggregatorController(
+		b.options.ResourcesDBClient,
+		clusterLister,
+		controllerLister,
+		activeOperationLister,
+		backendInformers,
+		unionKubeApplierInformers,
+		b.clock,
 	)
-	maestroReadAndPersistClusterScopedReadonlyBundlesContentController := controllers.NewReadAndPersistClusterScopedMaestroReadonlyBundlesContentController(
-		activeOperationLister, b.options.ResourcesDBClient, b.options.ClustersServiceClient,
-		backendInformers, unionKubeApplierInformers, b.options.MaestroSourceEnvironmentIdentifier, maestroClientBuilder,
+	nodePoolDegradedAggregatorController := statuscontrollers.NewNodePoolDegradedAggregatorController(
+		b.options.ResourcesDBClient,
+		nodePoolLister,
+		controllerLister,
+		activeOperationLister,
+		backendInformers,
+		b.clock,
+	)
+	externalAuthDegradedAggregatorController := statuscontrollers.NewExternalAuthDegradedAggregatorController(
+		b.options.ResourcesDBClient,
+		externalAuthLister,
+		controllerLister,
+		activeOperationLister,
+		backendInformers,
+		b.clock,
 	)
 
-	maestroCreateNodePoolScopedReadonlyBundlesController := controllers.NewCreateNodePoolScopedMaestroReadonlyBundlesController(
-		activeOperationLister, b.options.ResourcesDBClient, b.options.ClustersServiceClient,
-		backendInformers, b.options.MaestroSourceEnvironmentIdentifier, maestroClientBuilder,
+	createClusterScopedReadDesiresController := controllers.NewCreateClusterScopedReadDesiresController(
+		activeOperationLister, b.options.ResourcesDBClient, b.options.KubeApplierDBClients,
+		backendInformers, b.options.MaestroSourceEnvironmentIdentifier,
 	)
-	maestroReadAndPersistNodePoolScopedReadonlyBundlesContentController := controllers.NewReadAndPersistNodePoolScopedMaestroReadonlyBundlesContentController(
-		activeOperationLister, b.options.ResourcesDBClient, b.options.ClustersServiceClient,
-		backendInformers, b.options.MaestroSourceEnvironmentIdentifier, maestroClientBuilder,
+
+	createNodePoolScopedReadDesiresController := controllers.NewCreateNodePoolScopedReadDesiresController(
+		activeOperationLister, b.options.ResourcesDBClient, b.options.KubeApplierDBClients,
+		backendInformers, b.options.MaestroSourceEnvironmentIdentifier,
 	)
 
 	maestroDeleteOrphanedReadonlyBundlesController := controllers.NewDeleteOrphanedMaestroReadonlyBundlesController(
 		b.options.ResourcesDBClient,
 		b.options.ClustersServiceClient,
+		maestroClientBuilder,
+		b.options.MaestroSourceEnvironmentIdentifier,
+	)
+	// Migration controller: drains the MaestroReadonlyBundles field on
+	// every ServiceProvider*. Retire once telemetry shows no SPC/SPNP
+	// still has the field populated.
+	cleanupLegacyMaestroReadonlyBundlesController := controllers.NewCleanupLegacyMaestroReadonlyBundlesController(
+		b.options.ResourcesDBClient,
+		managementClusterLister,
 		maestroClientBuilder,
 		b.options.MaestroSourceEnvironmentIdentifier,
 	)
@@ -608,18 +665,14 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		b.options.ClustersServiceClient,
 		activeOperationLister,
 		backendInformers,
+		unionReadDesireLister,
+		subscriptionLister,
 	)
 	triggerNodePoolUpgradeController := upgradecontrollers.NewTriggerNodePoolUpgradeController(
 		b.options.ResourcesDBClient,
 		b.options.ClustersServiceClient,
 		activeOperationLister,
 		backendInformers,
-	)
-	managementClusterMigrationController := managementclustercontrollers.NewManagementClusterMigrationController(
-		b.options.ClustersServiceClient,
-		b.options.FleetDBClient,
-		stampLister,
-		managementClusterLister,
 	)
 	placementSyncController := managementclustercontrollers.NewManagementClusterPlacementSyncController(
 		b.options.ResourcesDBClient,
@@ -628,6 +681,88 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		managementClusterLister,
 		backendInformers,
 		unionKubeApplierInformers,
+	)
+
+	nodePoolDeletionClusterServiceDeleteDispatchController := nodepooldeletion.NewNodePoolClusterServiceDeleteDispatchController(
+		utilsclock.RealClock{},
+		b.options.ResourcesDBClient,
+		b.options.ClustersServiceClient,
+		activeOperationLister,
+		backendInformers,
+	)
+	nodePoolClusterServiceIDClearerController := nodepooldeletion.NewNodePoolClusterServiceIDClearerController(
+		b.options.ResourcesDBClient,
+		b.options.ClustersServiceClient,
+		activeOperationLister,
+		backendInformers,
+	)
+	nodePoolChildResourcesCleanupController := nodepooldeletion.NewNodePoolChildResourcesCleanupController(
+		b.options.ResourcesDBClient,
+		b.options.KubeApplierDBClients,
+		activeOperationLister,
+		backendInformers,
+	)
+	nodePoolDeletionController := nodepooldeletion.NewNodePoolDeletionController(
+		b.options.ResourcesDBClient,
+		activeOperationLister,
+		backendInformers,
+	)
+
+	externalAuthDeletionClusterServiceDeleteDispatchController := externalauthdeletion.NewExternalAuthClusterServiceDeleteDispatchController(
+		utilsclock.RealClock{},
+		b.options.ResourcesDBClient,
+		b.options.ClustersServiceClient,
+		activeOperationLister,
+		backendInformers,
+	)
+
+	externalAuthClusterServiceIDClearerController := externalauthdeletion.NewExternalAuthClusterServiceIDClearerController(
+		b.options.ResourcesDBClient,
+		b.options.ClustersServiceClient,
+		activeOperationLister,
+		backendInformers,
+	)
+
+	externalAuthChildResourcesCleanupController := externalauthdeletion.NewExternalAuthChildResourcesCleanupController(
+		b.options.ResourcesDBClient,
+		activeOperationLister,
+		backendInformers,
+	)
+
+	externalAuthDeletionController := externalauthdeletion.NewExternalAuthDeletionController(
+		b.options.ResourcesDBClient,
+		activeOperationLister,
+		backendInformers,
+	)
+
+	clusterDeletionClusterServiceDeleteDispatchController := clusterdeletion.NewClusterClusterServiceDeleteDispatchController(
+		utilsclock.RealClock{},
+		b.options.ResourcesDBClient,
+		b.options.ClustersServiceClient,
+		activeOperationLister,
+		backendInformers,
+	)
+
+	clusterClusterServiceIDClearerController := clusterdeletion.NewClusterClusterServiceIDClearerController(
+		b.options.ResourcesDBClient,
+		b.options.ClustersServiceClient,
+		activeOperationLister,
+		backendInformers,
+	)
+
+	clusterChildResourcesCleanupController := clusterdeletion.NewClusterChildResourcesCleanupController(
+		b.options.ResourcesDBClient,
+		b.options.KubeApplierDBClients,
+		activeOperationLister,
+		backendInformers,
+	)
+
+	clusterDeletionController := clusterdeletion.NewClusterDeletionController(
+		utilsclock.RealClock{},
+		b.options.ResourcesDBClient,
+		b.options.BillingDBClient,
+		activeOperationLister,
+		backendInformers,
 	)
 
 	le, err := leaderelection.NewLeaderElector(leaderelection.LeaderElectionConfig{
@@ -678,23 +813,38 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go controlPlaneActiveVersionController.Run(ctx, 20)
 				go controlPlaneDesiredVersionController.Run(ctx, 20)
 				go triggerControlPlaneUpgradeController.Run(ctx, 20)
+				go clusterBaseDomainPrefixSyncController.Run(ctx, 20)
 				go clusterPropertiesSyncController.Run(ctx, 20)
 				go identityMigrationController.Run(ctx, 20)
+				go clusterDegradedAggregatorController.Run(ctx, 20)
+				go nodePoolDegradedAggregatorController.Run(ctx, 20)
+				go externalAuthDegradedAggregatorController.Run(ctx, 20)
 				go azureRPRegistrationValidationController.Run(ctx, 20)
 				go azureClusterResourceGroupExistenceValidationController.Run(ctx, 20)
 				go azureClusterManagedIdentitiesExistenceValidationController.Run(ctx, 20)
 				go nodePoolVersionController.Run(ctx, 20)
-				go maestroCreateClusterScopedReadonlyBundlesController.Run(ctx, 20)
-				go maestroReadAndPersistClusterScopedReadonlyBundlesContentController.Run(ctx, 20)
-				go maestroCreateNodePoolScopedReadonlyBundlesController.Run(ctx, 20)
-				go maestroReadAndPersistNodePoolScopedReadonlyBundlesContentController.Run(ctx, 20)
+				go createClusterScopedReadDesiresController.Run(ctx, 20)
+				go createNodePoolScopedReadDesiresController.Run(ctx, 20)
 				go maestroDeleteOrphanedReadonlyBundlesController.Run(ctx, 20)
+				go cleanupLegacyMaestroReadonlyBundlesController.Run(ctx, 1)
 				go triggerNodePoolUpgradeController.Run(ctx, 20)
+				go nodePoolDeletionClusterServiceDeleteDispatchController.Run(ctx, 20)
+				go nodePoolClusterServiceIDClearerController.Run(ctx, 20)
+				go nodePoolChildResourcesCleanupController.Run(ctx, 20)
+				go nodePoolDeletionController.Run(ctx, 20)
+				go externalAuthDeletionClusterServiceDeleteDispatchController.Run(ctx, 20)
+				go externalAuthClusterServiceIDClearerController.Run(ctx, 20)
+				go externalAuthChildResourcesCleanupController.Run(ctx, 20)
+				go externalAuthDeletionController.Run(ctx, 20)
+				go clusterDeletionClusterServiceDeleteDispatchController.Run(ctx, 20)
+				go clusterClusterServiceIDClearerController.Run(ctx, 20)
+				go clusterChildResourcesCleanupController.Run(ctx, 20)
+				go clusterDeletionController.Run(ctx, 20)
 				go operationPhaseMetricsController.Run(ctx, 1)
 				go clusterMetricsController.Run(ctx, 1)
+				go clusterVersionMetricsController.Run(ctx, 1)
 				go nodePoolMetricsController.Run(ctx, 1)
 				go externalAuthMetricsController.Run(ctx, 1)
-				go managementClusterMigrationController.Run(ctx, 1)
 				go placementSyncController.Run(ctx, 20)
 			},
 			OnStoppedLeading: func() {

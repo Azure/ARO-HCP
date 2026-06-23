@@ -121,7 +121,7 @@ flowchart LR
                 subgraph devRegionalSub["Regional instances subscription"]
                     direction LR
                     devRegionalSubName["ARO HCP E2E Infrastructure<br/>(EA Subscription)"]
-                    devRegional["Regional scope<br/>SVC+MGMT<br/>many instances in centralus<br/>Created on-demand<br/>per job run"]
+                    devRegional["Regional scope<br/>SVC+MGMT<br/>active CI target region<br/>Created on-demand<br/>per job run"]
                     devRegionalSubName ~~~ devRegional
                 end
             end
@@ -341,13 +341,17 @@ See [CI Identity Leasing](identity-leasing.md) for the full lease lifecycle, sta
 
 The Boskos resource types that back those identity containers are defined in `openshift/release` by `core-services/prow/02_config/generate-boskos.py`.
 
-ARO HCP jobs request those identity-container leases through ci-operator `leases:` configuration:
+Today ARO HCP uses two acquire paths for those containers:
 
-- DEV presubmit jobs use the `aro-hcp-local-e2e` workflow
-- higher-environment presubmit jobs request the corresponding environment-specific resource types from the main ci-operator config
-- EV2-gating jobs request them from the `main__e2e` ci-operator variant
+- DEV `e2e-parallel` uses the `aro-hcp-local-e2e` workflow, whose `aro-hcp-lease-acquire` step calls `slot-manager acquire`
+- higher-environment presubmit, EV2-gating, and periodic jobs still use ci-operator `leases:` directly
 
-Those leases populate `LEASED_MSI_CONTAINERS`, which the test framework then consumes directly.
+Operationally, the important distinction is:
+
+- the slot-manager path resolves a slot from the catalog, exports `SELECTED_LOCATION`, `CUSTOMER_SUBSCRIPTION`, and `LEASED_MSI_CONTAINERS`, and then hands the same leased identity-container set to the test framework
+- the legacy path still requests environment-specific identity-container resource types in job config and populates `LEASED_MSI_CONTAINERS` directly
+
+This document intentionally does not freeze the currently active runtime region in prose. If you need the live region or override for a job, inspect the current `openshift/release` ci-operator config.
 
 ### MSI Mock Service Principal Pool
 
@@ -357,7 +361,7 @@ DEV local E2E also spreads ARM traffic by leasing one MSI mock service principal
 - the provisioning step uses that lease to look up the mock SP's client ID, principal ID, and cert name from `dev-infrastructure/openshift-ci/msi-mock-pool.yaml`
 - personal development environments continue to use the shared non-pooled mock SP values
 
-This pool exists so concurrent DEV jobs do not all share ARM throttle budget through the same actor.
+This pool exists so concurrent DEV jobs do not all share ARM throttle budget through the same actor. It remains a separate Boskos lease by design and is not part of the slot-manager rollout.
 
 See [CI Identity Leasing](identity-leasing.md#msi-mock-service-principal-pool) for the pool setup, Boskos counts, and provisioning-time lookup path.
 

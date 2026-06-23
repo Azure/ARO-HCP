@@ -18,7 +18,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -75,7 +74,7 @@ type ApplyOptions struct {
 }
 
 func (o *RawApplyOptions) Validate() (*ValidatedApplyOptions, error) {
-	if strings.TrimSpace(o.Environment) == "" {
+	if o.Environment == "" {
 		return nil, fmt.Errorf("--environment must not be empty")
 	}
 

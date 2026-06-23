@@ -20,9 +20,6 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/fleet"
-	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -30,15 +27,6 @@ func CosmosToInternal[InternalAPIType, CosmosAPIType any](obj *CosmosAPIType) (*
 	var internalObj any
 	var err error
 	switch cosmosObj := any(obj).(type) {
-	case *ExternalAuth:
-		internalObj, err = CosmosToInternalExternalAuth(cosmosObj)
-
-	case *HCPCluster:
-		internalObj, err = CosmosToInternalCluster(cosmosObj)
-
-	case *NodePool:
-		internalObj, err = CosmosToInternalNodePool(cosmosObj)
-
 	case *TypedDocument:
 		var expectedObj InternalAPIType
 		switch castObj := any(expectedObj).(type) {
@@ -83,50 +71,27 @@ func oldCosmosIDToResourceID(resourceID string) (*azcorearm.ResourceID, error) {
 }
 
 func InternalToCosmos[InternalAPIType, CosmosAPIType any](obj *InternalAPIType) (*CosmosAPIType, error) {
-	var cosmosObj any
-	var err error
-	switch internalObj := any(obj).(type) {
-	case *api.HCPOpenShiftClusterExternalAuth:
-		cosmosObj, err = InternalToCosmosExternalAuth(internalObj)
-
-	case *api.HCPOpenShiftCluster:
-		cosmosObj, err = InternalToCosmosCluster(internalObj)
-
-	case *api.HCPOpenShiftClusterNodePool:
-		cosmosObj, err = InternalToCosmosNodePool(internalObj)
-
-	case *fleet.Stamp:
-		cosmosObj, err = InternalToCosmosFleet(internalObj)
-
-	case *fleet.ManagementCluster:
-		cosmosObj, err = InternalToCosmosFleet(internalObj)
-
-	case *kubeapplier.ApplyDesire:
-		cosmosObj, err = InternalToCosmosKubeApplier[kubeapplier.ApplyDesire](internalObj)
-
-	case *kubeapplier.DeleteDesire:
-		cosmosObj, err = InternalToCosmosKubeApplier[kubeapplier.DeleteDesire](internalObj)
-
-	case *kubeapplier.ReadDesire:
-		cosmosObj, err = InternalToCosmosKubeApplier[kubeapplier.ReadDesire](internalObj)
-
-	case *TypedDocument:
+	// TypedDocument is its own envelope; it does not get wrapped in a
+	// GenericDocument and the partition key is baked into the value already.
+	if typed, ok := any(obj).(*TypedDocument); ok {
 		var expectedObj CosmosAPIType
 		switch castObj := any(expectedObj).(type) {
 		case TypedDocument:
-			return any(internalObj).(*CosmosAPIType), nil
+			return any(typed).(*CosmosAPIType), nil
 		default:
 			return nil, fmt.Errorf("unexpected return type: %T", castObj)
 		}
-
-	default:
-		cosmosObj, err = InternalToCosmosGeneric[InternalAPIType](obj)
 	}
 
+	// All other internal types wrap into GenericDocument. The
+	// CosmosMetadata.PartitionKey field is the single source of truth for
+	// the typed-doc partition key, so the type-specific Fleet / KubeApplier
+	// converters that used to live here are no longer needed.
+	cosmosObj, err := InternalToCosmosGeneric[InternalAPIType](obj)
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
-	castCosmosObj, ok := cosmosObj.(*CosmosAPIType)
+	castCosmosObj, ok := any(cosmosObj).(*CosmosAPIType)
 	if !ok {
 		var o *CosmosAPIType
 		return nil, fmt.Errorf("type %T does not implement *CosmosAPIType interface: %T", cosmosObj, o)

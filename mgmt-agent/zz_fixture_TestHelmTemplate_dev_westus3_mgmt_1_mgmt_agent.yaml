@@ -34,6 +34,51 @@ rules:
   verbs:
   - patch
   - update
+- apiGroups:
+  - "*"
+  resources:
+  - "*"
+  verbs:
+  - list
+  - watch
+- apiGroups:
+  - hypershift.openshift.io
+  resources:
+  - hostedcontrolplanes
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - apps
+  resources:
+  - deployments
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - patch
+- apiGroups:
+  - ""
+  resources:
+  - services
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - patch
+- apiGroups:
+  - monitoring.coreos.com
+  resources:
+  - servicemonitors
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - patch
 ---
 # Source: mgmt-agent/templates/clusterrolebinding.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -140,7 +185,8 @@ spec:
         args:
         - controller
         - "--health-address=:8080"
-        - "-v=2"
+        - "--ksm-image=mcr.microsoft.com/oss/v2/kubernetes/kube-state-metrics@sha256:1234567890"
+        - "--log-verbosity=2"
         image: "arohcpsvcdev.azurecr.io/mgmt-agent@sha256:1234567890"
         name: mgmt-agent-controller
         env:

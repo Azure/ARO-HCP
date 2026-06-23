@@ -2,30 +2,30 @@ deploy:
 	make -C ./tracing deploy
 .PHONY: deploy
 
-kubernetesControlPlane-prometheusRule:
-	PROMETHEUS_OPERATOR_REF=$(shell yq -r '.prometheusRules.prometheusOperatorVersion' observability.yaml) && \
+sync-upstream:
+	PROMETHEUS_OPERATOR_REF=$$(yq -r '.prometheusRules.prometheusOperatorVersion' alerts-sl-services.yaml) && \
 	wget --quiet --output-document=alerts/kubernetesControlPlane-prometheusRule.yaml \
 	https://raw.githubusercontent.com/prometheus-operator/kube-prometheus/$${PROMETHEUS_OPERATOR_REF}/manifests/kubernetesControlPlane-prometheusRule.yaml
-.PHONY: kubernetesControlPlane-prometheusRule
+.PHONY: sync-upstream
 
-alerts: kubernetesControlPlane-prometheusRule
-	EXTRA_FLAGS=$(GENERATOR_FLAGS) make -C ../tooling/prometheus-rules run
-	az bicep format -f $$(yq '.prometheusRules.outputBicep' observability.yaml)
-	EXTRA_FLAGS=$(GENERATOR_FLAGS) make -C ../tooling/prometheus-rules run-hcp
-	az bicep format -f $$(yq '.prometheusRules.outputBicep' observability-hcp.yaml)
-	EXTRA_FLAGS=$(GENERATOR_FLAGS) make -C ../tooling/prometheus-rules run-rp
-	az bicep format -f $$(yq '.prometheusRules.outputBicep' observability-rp.yaml)
-	EXTRA_FLAGS=$(GENERATOR_FLAGS) make -C ../tooling/prometheus-rules run-msft
-	az bicep format -f $$(yq '.prometheusRules.outputBicep' observability-msft.yaml)
+alerts:
+	EXTRA_FLAGS=$(GENERATOR_FLAGS) make -C ../tooling/prometheus-rules alerts
 .PHONY: alerts
 
 recording-rules:
-	make -C ../tooling/prometheus-rules run-recording-rules
-	az bicep format -f $$(yq '.prometheusRules.outputBicep' observability-recording-rules.yaml)
-	make -C ../tooling/prometheus-rules run-hcp-recording-rules
-	az bicep format -f $$(yq '.prometheusRules.outputBicep' observability-hcp-recording-rules.yaml)
+	EXTRA_FLAGS=$(GENERATOR_FLAGS) make -C ../tooling/prometheus-rules recording-rules
 .PHONY: recording-rules
 
-verify:
+verify: verify-no-prom-alerts-in-bicep
 	go run ../tooling/grafanactl/main.go verify dashboards --config-file observability.yaml
 .PHONY: verify
+
+verify-no-prom-alerts-in-bicep:
+	@if grep -rFl --include='*.bicep' 'Microsoft.AlertsManagement/prometheusRuleGroups' \
+		../dev-infrastructure/ 2>/dev/null | grep -qv -e '/generated' -e '/default'; then \
+		echo "ERROR: Prom alerts need to be added with mechanisms in observability/"; \
+		grep -rFl --include='*.bicep' 'Microsoft.AlertsManagement/prometheusRuleGroups' \
+			../dev-infrastructure/ 2>/dev/null | grep -v -e '/generated' -e '/default'; \
+		exit 1; \
+	fi
+.PHONY: verify-no-prom-alerts-in-bicep

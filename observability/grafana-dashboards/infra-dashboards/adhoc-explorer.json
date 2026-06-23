@@ -23,7 +23,7 @@
         "multi": false,
         "options": [],
         "refresh": 1,
-        "regex": "",
+        "regex": "^Managed_Prometheus_.*$",
         "skipUrlSync": false
       },
       {

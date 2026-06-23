@@ -16,6 +16,7 @@ package read_desire_manager
 
 import (
 	"context"
+	"strings"
 	"sync"
 	"testing"
 
@@ -23,7 +24,6 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
-	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/kube-applier/pkg/controllers/desirestatuswriter"
 	"github.com/Azure/ARO-HCP/kube-applier/pkg/controllers/keys"
@@ -59,6 +59,7 @@ func newReadDesire(t *testing.T, target kubeapplier.ResourceReference) *kubeappl
 			ResourceID: mustParseID(t, kubeapplier.ToClusterScopedReadDesireResourceIDString(
 				testSub, testRG, testCluster, testDesire,
 			)),
+			PartitionKey: strings.ToLower(testManagementID.String()),
 		},
 		Spec: kubeapplier.ReadDesireSpec{
 			ManagementCluster: testManagementID,
@@ -133,10 +134,9 @@ func newTestController(
 // all share the same parent in this file's fixtures.
 func loadDesires(t *testing.T, mock *databasetesting.MockKubeApplierDBClient, ds ...*kubeapplier.ReadDesire) {
 	t.Helper()
-	parent := database.ResourceParent{SubscriptionID: testSub, ResourceGroupName: testRG, ClusterName: testCluster}
-	crud, err := mock.ReadDesires(parent)
+	crud, err := mock.ReadDesiresForCluster(testSub, testRG, testCluster)
 	if err != nil {
-		t.Fatalf("ReadDesires(parent): %v", err)
+		t.Fatalf("ReadDesiresForCluster: %v", err)
 	}
 	for _, d := range ds {
 		if _, err := crud.Create(context.Background(), d, nil); err != nil {
@@ -148,10 +148,9 @@ func loadDesires(t *testing.T, mock *databasetesting.MockKubeApplierDBClient, ds
 // deleteDesire removes a ReadDesire from the mock store.
 func deleteDesire(t *testing.T, mock *databasetesting.MockKubeApplierDBClient, d *kubeapplier.ReadDesire) {
 	t.Helper()
-	parent := database.ResourceParent{SubscriptionID: testSub, ResourceGroupName: testRG, ClusterName: testCluster}
-	crud, err := mock.ReadDesires(parent)
+	crud, err := mock.ReadDesiresForCluster(testSub, testRG, testCluster)
 	if err != nil {
-		t.Fatalf("ReadDesires(parent): %v", err)
+		t.Fatalf("ReadDesiresForCluster: %v", err)
 	}
 	if err := crud.Delete(context.Background(), d.GetResourceID().Name); err != nil {
 		t.Fatalf("Delete %s: %v", d.GetResourceID(), err)
@@ -161,10 +160,9 @@ func deleteDesire(t *testing.T, mock *databasetesting.MockKubeApplierDBClient, d
 // replaceDesire swaps a ReadDesire's TargetItem in the mock store.
 func replaceDesire(t *testing.T, mock *databasetesting.MockKubeApplierDBClient, d *kubeapplier.ReadDesire) {
 	t.Helper()
-	parent := database.ResourceParent{SubscriptionID: testSub, ResourceGroupName: testRG, ClusterName: testCluster}
-	crud, err := mock.ReadDesires(parent)
+	crud, err := mock.ReadDesiresForCluster(testSub, testRG, testCluster)
 	if err != nil {
-		t.Fatalf("ReadDesires(parent): %v", err)
+		t.Fatalf("ReadDesiresForCluster: %v", err)
 	}
 	// Refresh the desire's etag from the live store so Replace is accepted.
 	live, err := crud.Get(context.Background(), d.GetResourceID().Name)

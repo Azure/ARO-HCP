@@ -118,9 +118,10 @@ func (c *dispatchRevokeCredentials) SynchronizeOperation(ctx context.Context, ke
 		logger.Info("cluster RevokeCredentialsOperationID mismatch",
 			"revoke_credentials_operation_id", cluster.ServiceProviderProperties.RevokeCredentialsOperationID)
 
-		apihelpers.CancelOperation(operation, c.clock.Now())
+		replacement := operation.DeepCopy()
+		apihelpers.CancelOperation(replacement, c.clock.Now())
 
-		_, err = c.resourcesDBClient.Operations(key.SubscriptionID).Replace(ctx, operation, nil)
+		_, err = c.resourcesDBClient.Operations(key.SubscriptionID).Replace(ctx, replacement, nil)
 		if err != nil {
 			return utils.TrackError(err)
 		}
@@ -153,9 +154,10 @@ func (c *dispatchRevokeCredentials) SynchronizeOperation(ctx context.Context, ke
 	// Update the operation status to "Deleting" to commence Clusters
 	// Service polling in the "OperationRevokeCredentials" controller.
 
-	operation.Status = arm.ProvisioningStateDeleting
+	replacement := operation.DeepCopy()
+	replacement.Status = arm.ProvisioningStateDeleting
 
-	_, err = c.resourcesDBClient.Operations(key.SubscriptionID).Replace(ctx, operation, nil)
+	_, err = c.resourcesDBClient.Operations(key.SubscriptionID).Replace(ctx, replacement, nil)
 	if err != nil {
 		return utils.TrackError(err)
 	}

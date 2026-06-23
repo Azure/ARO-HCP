@@ -258,6 +258,38 @@ spec:
 			errorMsg:    "error unmarshaling configFile",
 		},
 		{
+			name: "config with labelsToExtract",
+			configFile: `
+prometheusRules:
+  untestedRules:
+  - untested.yaml
+  outputBicep: generated.bicep
+  labelsToExtract:
+  - namespace
+  - pod
+  - container
+`,
+			setupFiles: func(tmpDir string) error {
+				ruleContent := `
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: test-rules
+spec:
+  groups:
+  - name: test.rules
+    rules:
+    - alert: IncludedAlert
+      expr: up == 0
+`
+				return os.WriteFile(filepath.Join(tmpDir, "untested.yaml"), []byte(ruleContent), 0644)
+			},
+			expectError: false,
+			validateFunc: func(t *testing.T, opts *Options) {
+				require.Equal(t, []string{"namespace", "pod", "container"}, opts.labelsToExtract)
+			},
+		},
+		{
 			name: "config with includedAlertsByGroup",
 			configFile: `
 prometheusRules:
@@ -337,6 +369,49 @@ spec:
 				assert.Contains(t, opts.includedAlerts["other.rules"], "OtherAlert")
 			},
 		},
+		{
+			name:       "config with explicit deps for promtool",
+			configFile: "prometheusRules:\n  rulesFolders:\n  - alerts\n  testDependencies:\n  - recording-rules.yaml\n  outputBicep: generated.bicep\n",
+			setupFiles: func(tmpDir string) error {
+				alertsDir := filepath.Join(tmpDir, "alerts")
+				if err := os.Mkdir(alertsDir, 0755); err != nil {
+					return err
+				}
+				recDir := filepath.Join(tmpDir, "recording")
+				if err := os.Mkdir(recDir, 0755); err != nil {
+					return err
+				}
+
+				ruleContent := "apiVersion: monitoring.coreos.com/v1\nkind: PrometheusRule\nmetadata:\n  name: test-rules\nspec:\n  groups:\n  - name: test.rules\n    rules:\n    - alert: TestAlert\n      expr: up == 0\n"
+				testContent := "rule_files:\n- test.yaml\ntests: []\n"
+				recordContent := "apiVersion: monitoring.coreos.com/v1\nkind: PrometheusRule\nmetadata:\n  name: recording-rules\nspec:\n  groups:\n  - name: recording.rules\n    rules:\n    - record: my_recording_rule\n      expr: sum(up)\n"
+				recConfig := "prometheusRules:\n  rulesFolders:\n  - recording/record.yaml\n  untestedRules: []\n  outputBicep: out.bicep\n"
+
+				if err := os.WriteFile(filepath.Join(alertsDir, "test.yaml"), []byte(ruleContent), 0644); err != nil {
+					return err
+				}
+				if err := os.WriteFile(filepath.Join(alertsDir, "test_test.yaml"), []byte(testContent), 0644); err != nil {
+					return err
+				}
+				if err := os.WriteFile(filepath.Join(recDir, "record.yaml"), []byte(recordContent), 0644); err != nil {
+					return err
+				}
+				return os.WriteFile(filepath.Join(tmpDir, "recording-rules.yaml"), []byte(recConfig), 0644)
+			},
+			expectError: false,
+			validateFunc: func(t *testing.T, opts *Options) {
+				assert.Len(t, opts.ruleFiles, 2)
+				var hasDep bool
+				for _, rf := range opts.ruleFiles {
+					if rf.testDependency {
+						hasDep = true
+						assert.Equal(t, "record.yaml", rf.FileBaseName)
+						assert.Empty(t, rf.TestFileBaseName)
+					}
+				}
+				assert.True(t, hasDep, "expected a test dependency rule file")
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -353,7 +428,7 @@ spec:
 			}
 
 			opts := NewOptions()
-			err := opts.Complete(configPath, false, "promtool")
+			err := opts.Complete(configPath, "promtool")
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -464,7 +539,7 @@ func TestOptionsGenerate(t *testing.T) {
 		assert.Contains(t, generated, "param actionGroups array")
 		assert.Contains(t, generated, "Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01")
 		assert.Contains(t, generated, "alert: 'TestAlert'")
-		assert.Contains(t, generated, "severity: 3")
+		assert.Contains(t, generated, "severity: 2")
 	})
 
 	t.Run("with included alerts", func(t *testing.T) {
@@ -562,6 +637,162 @@ func TestOptionsGenerate(t *testing.T) {
 		assert.Contains(t, generated, "correlationId: 'hostedcluster-KubeAPIServer-ErrorBudgetBurn/{{ $labels.cluster }}/{{ $labels._id }}'")
 		assert.NotContains(t, generated, "correlationId: 'hostedcluster-KubeAPIServer-ErrorBudgetBurn/{{ $labels.cluster }}'")
 	})
+
+	t.Run("enriches default correlationId and summary title using labelsToExtract", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		outputFile := filepath.Join(tmpDir, "generatedAlertingRules.bicep")
+
+		opts := &Options{
+			outputBicep:     outputFile,
+			labelsToExtract: []string{"cluster", "namespace", "pod", "container"},
+			ruleFiles: []alertingRuleFile{
+				{
+					Rules: monitoringv1.PrometheusRule{
+						Spec: monitoringv1.PrometheusRuleSpec{
+							Groups: []monitoringv1.RuleGroup{
+								{
+									Name: "test-group",
+									Rules: []monitoringv1.Rule{
+										{
+											Alert: "EnrichedAlert",
+											Expr:  intstr.FromString("up == 0"),
+											Labels: map[string]string{
+												"severity": "warning",
+											},
+											Annotations: map[string]string{
+												"summary":     "Pod in namespace {{ $labels.namespace }} is unhealthy",
+												"description": "Pod {{ $labels.namespace }}/{{ $labels.pod }} has issues",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+
+		err := opts.Generate()
+		assert.NoError(t, err)
+
+		content, err := os.ReadFile(outputFile)
+		assert.NoError(t, err)
+		generated := string(content)
+
+		assert.Contains(t, generated, "correlationId: 'EnrichedAlert/{{ $labels.cluster }}/{{ $labels.namespace }}/{{ $labels.pod }}'")
+		assert.NotContains(t, generated, "{{ $labels.cluster }}/{{ $labels.cluster }}")
+		assert.Contains(t, generated, "title: 'Pod in namespace {{ $labels.namespace }} is unhealthy pod:{{ $labels.pod }}'")
+		assert.NotContains(t, generated, "namespace: {{ $labels.namespace }}")
+	})
+
+	t.Run("does not enrich title when summary is absent", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		outputFile := filepath.Join(tmpDir, "generatedAlertingRules.bicep")
+
+		opts := &Options{
+			outputBicep:     outputFile,
+			labelsToExtract: []string{"namespace", "pod"},
+			ruleFiles: []alertingRuleFile{
+				{
+					Rules: monitoringv1.PrometheusRule{
+						Spec: monitoringv1.PrometheusRuleSpec{
+							Groups: []monitoringv1.RuleGroup{
+								{
+									Name: "test-group",
+									Rules: []monitoringv1.Rule{
+										{
+											Alert: "NoSummaryAlert",
+											Expr:  intstr.FromString("up == 0"),
+											Labels: map[string]string{
+												"severity": "warning",
+											},
+											Annotations: map[string]string{
+												"description": "Pod {{ $labels.namespace }}/{{ $labels.pod }} has issues",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+
+		err := opts.Generate()
+		assert.NoError(t, err)
+
+		content, err := os.ReadFile(outputFile)
+		assert.NoError(t, err)
+		generated := string(content)
+
+		assert.Contains(t, generated, "title: 'NoSummaryAlert'")
+		assert.NotContains(t, generated, "title: 'NoSummaryAlert namespace:")
+	})
+
+	t.Run("deps excluded from output", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		outputFile := filepath.Join(tmpDir, "AlertingRules_output.bicep")
+
+		opts := &Options{
+			outputBicep: outputFile,
+			ruleFiles: []alertingRuleFile{
+				{
+					Rules: monitoringv1.PrometheusRule{
+						Spec: monitoringv1.PrometheusRuleSpec{
+							Groups: []monitoringv1.RuleGroup{
+								{
+									Name: "alert-group",
+									Rules: []monitoringv1.Rule{
+										{
+											Alert: "RealAlert",
+											Expr:  intstr.FromString("up == 0"),
+											Labels: map[string]string{
+												"severity": "critical",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				{
+					FileBaseName:   "recording.yaml",
+					testDependency: true,
+					Rules: monitoringv1.PrometheusRule{
+						Spec: monitoringv1.PrometheusRuleSpec{
+							Groups: []monitoringv1.RuleGroup{
+								{
+									Name: "recording-group",
+									Rules: []monitoringv1.Rule{
+										{
+											Alert: "DependencyAlert",
+											Expr:  intstr.FromString("sum(up)"),
+											Labels: map[string]string{
+												"severity": "warning",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+
+		err := opts.Generate()
+		assert.NoError(t, err)
+
+		content, err := os.ReadFile(outputFile)
+		assert.NoError(t, err)
+		generated := string(content)
+
+		assert.Contains(t, generated, "alert: 'RealAlert'")
+		assert.NotContains(t, generated, "DependencyAlert")
+	})
 }
 
 func TestWriteGroups(t *testing.T) {
@@ -647,27 +878,20 @@ func TestParseToAzureDurationString(t *testing.T) {
 
 func TestSeverityFor(t *testing.T) {
 	tests := []struct {
-		labels            map[string]*string
-		forceInfoSeverity bool
-		expected          *int32
+		labels   map[string]*string
+		expected *int32
 	}{
-		{map[string]*string{"severity": ptr.To("critical")}, false, ptr.To(int32(3))},
-		{map[string]*string{"severity": ptr.To("warning")}, false, ptr.To(int32(3))},
-		{map[string]*string{"severity": ptr.To("info")}, false, ptr.To(int32(4))},
-		{map[string]*string{"severity": ptr.To("unknown")}, false, ptr.To(int32(4))},
-		{map[string]*string{}, false, nil},
-		{map[string]*string{"other": ptr.To("value")}, false, nil},
-		{map[string]*string{"severity": ptr.To("critical")}, true, ptr.To(int32(3))},
-		{map[string]*string{"severity": ptr.To("warning")}, true, ptr.To(int32(3))},
-		{map[string]*string{"severity": ptr.To("info")}, true, ptr.To(int32(3))},
-		{map[string]*string{"severity": ptr.To("unknown")}, true, ptr.To(int32(3))},
-		{map[string]*string{}, true, ptr.To(int32(3))},
-		{map[string]*string{"other": ptr.To("value")}, true, ptr.To(int32(3))},
+		{map[string]*string{"severity": ptr.To("critical")}, ptr.To(int32(2))},
+		{map[string]*string{"severity": ptr.To("warning")}, ptr.To(int32(3))},
+		{map[string]*string{"severity": ptr.To("info")}, ptr.To(int32(4))},
+		{map[string]*string{"severity": ptr.To("unknown")}, ptr.To(int32(4))},
+		{map[string]*string{}, nil},
+		{map[string]*string{"other": ptr.To("value")}, nil},
 	}
 
 	for _, tt := range tests {
 		t.Run(fmt.Sprintf("labels_%v", tt.labels), func(t *testing.T) {
-			result := severityFor(tt.labels, tt.forceInfoSeverity)
+			result := severityFor(tt.labels)
 			if tt.expected == nil {
 				assert.Nil(t, result)
 			} else {

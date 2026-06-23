@@ -28,15 +28,20 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/leaderelection"
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
 	"k8s.io/component-base/metrics/legacyregistry"
 
 	"github.com/Azure/ARO-HCP/fleet/pkg/controllers/base"
+	"github.com/Azure/ARO-HCP/fleet/pkg/controllers/clustersserviceregistration"
 	"github.com/Azure/ARO-HCP/fleet/pkg/controllers/datadump"
+	"github.com/Azure/ARO-HCP/fleet/pkg/controllers/lifecycle"
+	"github.com/Azure/ARO-HCP/fleet/pkg/controllers/maestroregistration"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/database/informers"
+	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/internal/version"
 )
@@ -51,10 +56,13 @@ const (
 // Manager is the fleet controller manager. It runs informers, leader election,
 // and the fleet controllers.
 type Manager struct {
-	FleetDBClient      database.FleetDBClient
-	LeaderElectionLock resourcelock.Interface
-	HealthzListenAddr  string
-	MetricsListenAddr  string
+	FleetDBClient                database.FleetDBClient
+	ClustersServiceClient        ocm.ClusterServiceClientSpec
+	MaestroConsumerClientFactory maestroregistration.MaestroConsumerClientFactory
+	LeaderElectionLock           resourcelock.Interface
+	Region                       string
+	HealthzListenAddr            string
+	MetricsListenAddr            string
 }
 
 // Run starts the fleet controller manager. It serves /healthz and /metrics,
@@ -91,6 +99,7 @@ func (m *Manager) Run(ctx context.Context) error {
 		healthzServer = &http.Server{Addr: m.HealthzListenAddr, Handler: mux}
 		wg.Add(1)
 		go func() {
+			defer utilruntime.HandleCrash()
 			defer wg.Done()
 			logger.Info("healthz server listening", "address", m.HealthzListenAddr)
 			err := healthzServer.ListenAndServe()
@@ -110,6 +119,7 @@ func (m *Manager) Run(ctx context.Context) error {
 		metricsServer = &http.Server{Addr: m.MetricsListenAddr, Handler: mux}
 		wg.Add(1)
 		go func() {
+			defer utilruntime.HandleCrash()
 			defer wg.Done()
 			logger.Info("metrics server listening", "address", m.MetricsListenAddr)
 			err := metricsServer.ListenAndServe()
@@ -122,6 +132,7 @@ func (m *Manager) Run(ctx context.Context) error {
 
 	wg.Add(1)
 	go func() {
+		defer utilruntime.HandleCrash()
 		defer wg.Done()
 		err := m.runControllersUnderLeaderElection(ctx, electionChecker)
 		cancel(fmt.Errorf("leader election exited"))
@@ -158,6 +169,31 @@ func (m *Manager) runControllersUnderLeaderElection(
 	stampInformer, stampLister := fleetInformers.Stamps()
 	managementClusterInformer, managementClusterLister := fleetInformers.ManagementClusters()
 
+	csRegistrationController := clustersserviceregistration.NewClustersServiceRegistrationController(
+		managementClusterInformer,
+		stampInformer,
+		m.FleetDBClient,
+		m.ClustersServiceClient,
+		stampLister,
+		m.Region,
+		base.StampWatchingControllerConfig{},
+	)
+
+	maestroRegistrationController := maestroregistration.NewMaestroRegistrationController(
+		managementClusterInformer,
+		stampInformer,
+		m.FleetDBClient,
+		m.MaestroConsumerClientFactory,
+		stampLister,
+		base.StampWatchingControllerConfig{},
+	)
+
+	lifecycleController := lifecycle.NewManagementClusterLifecycleController(
+		managementClusterInformer,
+		m.FleetDBClient,
+		base.StampWatchingControllerConfig{},
+	)
+
 	dataDumpController := datadump.NewStampDataDumpController(
 		stampInformer,
 		managementClusterInformer,
@@ -183,6 +219,9 @@ func (m *Manager) runControllersUnderLeaderElection(
 				}
 
 				logger.Info("informer caches synced; starting controllers")
+				go csRegistrationController.Run(ctx, 4)
+				go maestroRegistrationController.Run(ctx, 4)
+				go lifecycleController.Run(ctx, 1)
 				go dataDumpController.Run(ctx, 1)
 			},
 			OnStoppedLeading: func() {

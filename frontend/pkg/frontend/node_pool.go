@@ -17,7 +17,6 @@ package frontend
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"maps"
 	"net/http"
@@ -30,8 +29,6 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
-
-	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
 	"github.com/Azure/ARO-HCP/internal/admission"
 	"github.com/Azure/ARO-HCP/internal/api"
@@ -214,6 +211,7 @@ func decodeDesiredNodePoolCreate(ctx context.Context, azureLocation string) (*ap
 	}
 	conversion.CopyReadOnlyTrackedResourceValues(&newInternalNodePool.TrackedResource, ptr.To(arm.NewTrackedResource(resourceID, azureLocation)))
 	newInternalNodePool.SetResourceID(resourceID)
+	newInternalNodePool.SetPartitionKey(resourceID.SubscriptionID)
 
 	// set fields that were not included during the conversion, because the user does not provide them or because the
 	// data is determined live on read.
@@ -708,23 +706,29 @@ func (f *Frontend) DeleteNodePool(writer http.ResponseWriter, request *http.Requ
 		return utils.TrackError(err)
 	}
 
-	// Temporary check until creation and deletion interaction with CS is moved to the backend: if a delete arrives and the node
-	// pool has not been created in CS or the ClusterServiceID reference has not been persisted in Cosmos, return an error.
-	if nodePool.ServiceProviderProperties.ClusterServiceID == nil || len(nodePool.ServiceProviderProperties.ClusterServiceID.String()) == 0 {
-		return utils.TrackError(fmt.Errorf("serviceProviderProperties.clusterServiceID is required to delete a node pool"))
+	logger.Info(fmt.Sprintf("deleting resource %s", nodePool.ID))
+
+	// We retrieve all node pools for the cluster, including the one we are attempting to
+	// delete, and we pass them to the delete admission validation.
+	// TODO once OCPBUGS-86702 is resolved, we should remove this retrieval and the check of last nodepool being
+	// deleted in the delete admission validation when we decide we want to allow the deletion of the last node pool.
+	nodePoolIterator, err := f.resourcesDBClient.HCPClusters(nodePool.ID.SubscriptionID, nodePool.ID.ResourceGroupName).NodePools(nodePool.ID.Parent.Name).List(ctx, nil)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+	clusterNodePools := make([]*api.HCPOpenShiftClusterNodePool, 0)
+	for _, clusterNodePool := range nodePoolIterator.Items(ctx) {
+		clusterNodePools = append(clusterNodePools, clusterNodePool)
+	}
+	if err := nodePoolIterator.GetError(); err != nil {
+		return utils.TrackError(err)
 	}
 
-	err = f.clusterServiceClient.DeleteNodePool(ctx, *nodePool.ServiceProviderProperties.ClusterServiceID)
-	var ocmError *ocmerrors.Error
-	if errors.As(err, &ocmError) && ocmError.Status() == http.StatusNotFound {
-		// StatusNotFound means we have stale data in Cosmos DB.
-		// This can happen in test environments if a user bypasses
-		// the RP to delete a resource (e.g. "ocm delete"). It can
-		// also happen if an asynchronous deletion operation fails.
-		// we will fall through and cancel all operations and go through as normal a deletion flow as we can to avoid
-		// leaking data related to the resource, like controller status.
-		logger.Info("clusterService nodepool missing, trying to clean up", "err", err)
-	} else if err != nil {
+	nodePoolDeleteAdmissionContext := &admission.NodePoolDeleteAdmissionContext{
+		ClusterNodePools: clusterNodePools,
+	}
+	err = arm.CloudErrorFromFieldErrors(admission.AdmitNodePoolOnDelete(ctx, nodePoolDeleteAdmissionContext, nodePool))
+	if err != nil {
 		return utils.TrackError(err)
 	}
 
@@ -758,21 +762,18 @@ func (f *Frontend) addDeleteNodePoolToTransaction(ctx context.Context, writer ht
 		return utils.TrackError(err)
 	}
 
-	// Temporary check until creation and deletion interaction with CS is moved to the backend: if a delete arrives and the node pool
-	// has not been created in CS or the ClusterServiceID reference has not been persisted in Cosmos, return an error.
-	if nodePool.ServiceProviderProperties.ClusterServiceID == nil || len(nodePool.ServiceProviderProperties.ClusterServiceID.String()) == 0 {
-		return utils.TrackError(fmt.Errorf("serviceProviderProperties.clusterServiceID is required to delete a node pool"))
-	}
-
 	operationDoc := database.NewOperation(
 		database.OperationRequestDelete,
 		nodePool.ID,
-		*nodePool.ServiceProviderProperties.ClusterServiceID,
+		api.InternalID{},
 		f.azureLocation,
 		"",
 		"",
 		"",
 		correlationData)
+	// TODO remove this once migration of the new node pool deletion from frontend to backend approach is fully completed in all ARO-HCP
+	// permanent environments, for all regions.
+	operationDoc.UsesNewNodePoolDeletionApproach = true
 	if request != nil {
 		// these are optional because when this is triggered via the subscription deletion flow, there is no
 		// deletion request containing these headers so these operations cannot be directly tracked.
@@ -791,6 +792,9 @@ func (f *Frontend) addDeleteNodePoolToTransaction(ctx context.Context, writer ht
 	}
 	nodePool.ServiceProviderProperties.ActiveOperationID = operationDoc.ResourceID.Name
 	nodePool.Properties.ProvisioningState = operationDoc.Status
+	// TODO remove this once migration of the new node pool deletion from frontend to backend approach is fully completed in all ARO-HCP
+	// permanent environments, for all regions.
+	nodePool.ServiceProviderProperties.UsesNewNodePoolDeletionApproach = true
 	_, err = f.resourcesDBClient.HCPClusters(nodePool.ID.SubscriptionID, nodePool.ID.ResourceGroupName).NodePools(nodePool.ID.Parent.Name).
 		AddReplaceToTransaction(ctx, transaction, nodePool, nil)
 	if err != nil {

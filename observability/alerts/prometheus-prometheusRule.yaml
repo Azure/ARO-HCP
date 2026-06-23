@@ -13,7 +13,9 @@ spec:
   - name: prometheus-wip-rules
     rules:
     - alert: PrometheusJobUp
-      expr: group by (cluster) (up{job="kube-state-metrics"}) unless on(cluster) group by (cluster) (up{job="prometheus/prometheus",namespace="prometheus"} == 1)
+      # TODO: once PR #5732 (underlay_clusters source-of-truth metric) is merged and confirmed
+      # working in production, replace up{job="kubelet"} with underlay_clusters.
+      expr: group by (cluster) (up{job="kubelet"}) unless on(cluster) group by (cluster) (up{job="prometheus/prometheus",namespace="prometheus"} == 1)
       for: 10m
       labels:
         severity: critical
@@ -58,9 +60,12 @@ spec:
     - alert: PrometheusFailedRate
       expr: |
         (
-          rate(prometheus_remote_storage_samples_failed_total[5m])
+          rate(prometheus_remote_storage_samples_failed_total{job="prometheus/prometheus",namespace="prometheus"}[5m])
           /
-          rate(prometheus_remote_storage_samples_total[5m])
+          clamp_min(
+            rate(prometheus_remote_storage_samples_total{job="prometheus/prometheus",namespace="prometheus"}[5m]),
+            1e-9
+          )
         ) > 0.1
       for: 15m
       labels:
@@ -72,7 +77,7 @@ spec:
           issues with the remote write endpoint, network instability, or Prometheus resource constraints.
           Persistent failures may result in increased memory usage and potential data loss if the buffer overflows.
           Please check the health and performance of the remote storage endpoint, network connectivity, and Prometheus resource utilization.
-        runbook_url: TBD # https://runbooks.prometheus-operator.dev/runbooks/prometheus/prometheusremotestoragefailures
+        runbook_url: TBD
         summary: Prometheus failed sample rate to remote storage is above 10%.
   - name: prometheus-rules
     rules:

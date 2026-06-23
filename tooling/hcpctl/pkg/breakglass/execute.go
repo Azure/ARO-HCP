@@ -27,6 +27,7 @@ import (
 	"github.com/go-logr/logr"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
@@ -398,6 +399,7 @@ func setupPortForwarding(ctx context.Context, params *ExecutionParams, localPort
 	stopOnce := &sync.Once{} // Prevent double-close
 
 	go func() {
+		defer utilruntime.HandleCrash()
 		if err := portforward.ForwardToService(ctx, params.RestConfig, params.Namespace, kasServiceName, localPort, KubeAPIServerPort, stopCh, readyCh); err != nil {
 			logger.Error(err, "Port forwarding failed")
 		}

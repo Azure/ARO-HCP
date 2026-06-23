@@ -76,6 +76,26 @@ spec:
     matchLabels:
       app: "clusters-service"
 ---
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-fleet-controller
+  namespace: '{{ .Release.Namespace }}'
+spec:
+  action: "ALLOW"
+  rules:
+  - from:
+    - source:
+        principals:
+        - "cluster.local/ns/fleet/sa/fleet"
+    to:
+    - operation:
+        ports:
+        - "8000"
+  selector:
+    matchLabels:
+      app: "clusters-service"
+---
 # TODO: Remove when migration to Azure Postgres completes
 apiVersion: security.istio.io/v1
 kind: AuthorizationPolicy

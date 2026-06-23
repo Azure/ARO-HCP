@@ -130,6 +130,18 @@ In DEV and other `no-rp` situations, that owner may already be gone or unavailab
 
 So the difference is not "DEV is special" for its own sake. The difference is whether there is still a live owner for managed resource-group deletion.
 
+### Why dev cleanup actively deletes service association links but public-cloud cleanup does not
+
+Service association links (SALs) are created by Azure when a subnet is delegated to a service. When a cluster uses a delegated customer subnet, Azure creates a SAL linking the subnet to the cluster resource.
+
+In public cloud, SALs are part of the cluster lifecycle owned by the RP. The correct behavior is to delete the cluster through the RP and expect Azure to remove the SAL as a consequence of that deletion.
+
+If SALs are left behind in public cloud, that is a signal that the RP did not complete deletion correctly. The cleanup framework treats that as meaningful signal, not something to silently clean up.
+
+In dev and other `no-rp` situations, the RP may already be torn down. In dev e2e CI, each job spins up a fresh RP and tears it down after the run. If a SAL is orphaned and there is no RP left to clean it up, it blocks resource-group deletion with `InUseSubnetCannotBeDeleted` errors.
+
+That is why the `no-rp` cleanup mode includes an optional FPA-authenticated SAL deletion step. When the RP is unavailable, cleanup deletes orphaned SALs directly before deleting the resource group. This requires FPA credentials because standard service principals lack permission to delete SALs.
+
 ## How Each Path Works
 
 ### E2E test teardown

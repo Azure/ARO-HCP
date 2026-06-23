@@ -41,10 +41,12 @@ import (
 const controllerName = "union-kube-applier-informers-controller"
 
 // ManagementClusterKey identifies one management cluster for the controller's
-// workqueue. There is no canonical management-cluster name (the parent stamp
-// can host any number of distinct MCs), so the key carries both the stamp
-// identifier and the management cluster name. Together they reconstruct the
-// full resourceID:
+// workqueue. Today a stamp hosts a single management cluster (the "default"
+// singleton, see fleet.ManagementClusterResourceName), so StampIdentifier
+// alone is the identity in practice; ManagementClusterName is kept on the key
+// because the cosmos resourceID encodes both segments and we don't want
+// callers reaching into resourceID-string surgery. Together they reconstruct
+// the full resourceID:
 //
 //	/providers/microsoft.redhatopenshift/stamps/{StampIdentifier}/managementClusters/{ManagementClusterName}
 type ManagementClusterKey struct {
@@ -300,6 +302,7 @@ func (c *UnionKubeApplierInformersController) ensureAdded(ctx context.Context, r
 	logger.Info("added per-MC sub-informer to union", "resourceID", rid)
 
 	go func() {
+		defer utilruntime.HandleCrash()
 		defer close(entry.done)
 		sub.RunWithContext(subCtx)
 	}()

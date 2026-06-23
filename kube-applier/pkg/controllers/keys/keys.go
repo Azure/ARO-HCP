@@ -25,6 +25,7 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/database"
 )
 
@@ -41,16 +42,12 @@ type ApplyDesireKey struct {
 // IsNodePoolScoped reports whether this key targets a node-pool-scoped desire.
 func (k ApplyDesireKey) IsNodePoolScoped() bool { return len(k.NodePoolName) > 0 }
 
-// ResourceParent renders the cluster/nodepool ancestor of this desire as a
-// database.ResourceParent so a per-parent ResourceCRUD can be built from a
-// KubeApplierApplyDesireCRUD.
-func (k ApplyDesireKey) ResourceParent() database.ResourceParent {
-	return database.ResourceParent{
-		SubscriptionID:    k.SubscriptionID,
-		ResourceGroupName: k.ResourceGroupName,
-		ClusterName:       k.ClusterName,
-		NodePoolName:      k.NodePoolName,
+// CRUD returns the right per-scope CRUD for this key's parent.
+func (k ApplyDesireKey) CRUD(client database.KubeApplierApplyDesireCRUD) (database.ResourceCRUD[kubeapplier.ApplyDesire, *kubeapplier.ApplyDesire], error) {
+	if k.IsNodePoolScoped() {
+		return client.ApplyDesiresForNodePool(k.SubscriptionID, k.ResourceGroupName, k.ClusterName, k.NodePoolName)
 	}
+	return client.ApplyDesiresForCluster(k.SubscriptionID, k.ResourceGroupName, k.ClusterName)
 }
 
 // DeleteDesireKey identifies a single DeleteDesire.
@@ -65,14 +62,12 @@ type DeleteDesireKey struct {
 // IsNodePoolScoped reports whether this key targets a node-pool-scoped desire.
 func (k DeleteDesireKey) IsNodePoolScoped() bool { return len(k.NodePoolName) > 0 }
 
-// ResourceParent is the DeleteDesire peer of ApplyDesireKey.ResourceParent.
-func (k DeleteDesireKey) ResourceParent() database.ResourceParent {
-	return database.ResourceParent{
-		SubscriptionID:    k.SubscriptionID,
-		ResourceGroupName: k.ResourceGroupName,
-		ClusterName:       k.ClusterName,
-		NodePoolName:      k.NodePoolName,
+// CRUD returns the right per-scope CRUD for this key's parent.
+func (k DeleteDesireKey) CRUD(client database.KubeApplierDeleteDesireCRUD) (database.ResourceCRUD[kubeapplier.DeleteDesire, *kubeapplier.DeleteDesire], error) {
+	if k.IsNodePoolScoped() {
+		return client.DeleteDesiresForNodePool(k.SubscriptionID, k.ResourceGroupName, k.ClusterName, k.NodePoolName)
 	}
+	return client.DeleteDesiresForCluster(k.SubscriptionID, k.ResourceGroupName, k.ClusterName)
 }
 
 // ReadDesireKey identifies a single ReadDesire.
@@ -87,14 +82,12 @@ type ReadDesireKey struct {
 // IsNodePoolScoped reports whether this key targets a node-pool-scoped desire.
 func (k ReadDesireKey) IsNodePoolScoped() bool { return len(k.NodePoolName) > 0 }
 
-// ResourceParent is the ReadDesire peer of ApplyDesireKey.ResourceParent.
-func (k ReadDesireKey) ResourceParent() database.ResourceParent {
-	return database.ResourceParent{
-		SubscriptionID:    k.SubscriptionID,
-		ResourceGroupName: k.ResourceGroupName,
-		ClusterName:       k.ClusterName,
-		NodePoolName:      k.NodePoolName,
+// CRUD returns the right per-scope CRUD for this key's parent.
+func (k ReadDesireKey) CRUD(client database.KubeApplierReadDesireCRUD) (database.ResourceCRUD[kubeapplier.ReadDesire, *kubeapplier.ReadDesire], error) {
+	if k.IsNodePoolScoped() {
+		return client.ReadDesiresForNodePool(k.SubscriptionID, k.ResourceGroupName, k.ClusterName, k.NodePoolName)
 	}
+	return client.ReadDesiresForCluster(k.SubscriptionID, k.ResourceGroupName, k.ClusterName)
 }
 
 // FromResourceID parses an ApplyDesireKey out of a *Desire's resource ID. The

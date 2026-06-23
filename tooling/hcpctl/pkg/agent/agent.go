@@ -29,6 +29,8 @@ import (
 	copilot "github.com/github/copilot-sdk/go"
 	"github.com/go-logr/logr"
 
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 )
@@ -156,7 +158,7 @@ func (c *CopilotClient) CreateSession(ctx context.Context, logger logr.Logger, c
 		OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
 		// Disable config discovery — we don't want to pick up .mcp.json or
 		// AGENTS.md from the analysis workspace.
-		EnableConfigDiscovery: false,
+		EnableConfigDiscovery: copilot.Bool(false),
 	}
 
 	// Apply the configured model if the caller didn't override.
@@ -232,6 +234,7 @@ func (s *Session) SendAndWait(ctx context.Context, prompt string) (string, error
 	}
 	ch := make(chan result, 1)
 	go func() {
+		defer utilruntime.HandleCrash()
 		ev, err := s.inner.SendAndWait(ctx, copilot.MessageOptions{
 			Prompt: prompt,
 		})
@@ -282,7 +285,7 @@ func (s *Session) Delete(ctx context.Context) error {
 // caches it locally. If the RPC fails (e.g. process is dying), the last
 // successful snapshot is preserved.
 func (s *Session) snapshotMessages() {
-	events, err := s.inner.GetMessages(context.Background())
+	events, err := s.inner.GetEvents(context.Background())
 	if err != nil {
 		s.logger.Error(err, "Failed to snapshot session messages.")
 		return

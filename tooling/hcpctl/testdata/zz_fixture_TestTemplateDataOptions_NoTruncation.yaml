@@ -2,9 +2,11 @@ ClusterId: ""
 ClusterIds: ""
 ClusterName: ""
 ClusterNames: ''''''
+FilterClusterName: ""
 HCPNamespacePrefix: ""
 Limit: 0
 NoTruncation: true
+OrderBy: asc
 ResourceGroupName: ""
 SplitByPod: false
 SubResourceGroupId: /subscriptions//resourceGroups/

@@ -19,6 +19,8 @@ resource InstancesDownV1 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
           actionProperties: {
             'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
             'IcM.CorrelationId': '#$.annotations.correlationId#'
+            'IcM.Description': '#$.annotations.info#'
+            'IcM.TsgId': '#$.annotations.runbook_url#'
           }
         }]
         alert: 'InstancesDownV1'
@@ -34,7 +36,7 @@ resource InstancesDownV1 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
           title: 'All instances of the App are down'
         }
         expression: 'sum(up{job="app"}) == 0'
-        severity: 3
+        severity: 2
       }
       {
         actions: [for g in actionGroups: {
@@ -42,6 +44,8 @@ resource InstancesDownV1 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
           actionProperties: {
             'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
             'IcM.CorrelationId': '#$.annotations.correlationId#'
+            'IcM.Description': '#$.annotations.info#'
+            'IcM.TsgId': '#$.annotations.runbook_url#'
           }
         }]
         alert: 'KubePodNotReady'

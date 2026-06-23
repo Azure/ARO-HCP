@@ -17,6 +17,7 @@ package unionkubeapplierinformers_test
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -270,7 +271,7 @@ func newApplyDesire(t *testing.T, resourceIDString string, managementClusterReso
 	resourceID, err := azcorearm.ParseResourceID(resourceIDString)
 	require.NoError(t, err, "parse %q", resourceIDString)
 	return &kubeapplier.ApplyDesire{
-		CosmosMetadata: api.CosmosMetadata{ResourceID: resourceID},
+		CosmosMetadata: api.CosmosMetadata{ResourceID: resourceID, PartitionKey: strings.ToLower(managementClusterResourceID.String())},
 		Spec: kubeapplier.ApplyDesireSpec{
 			ManagementCluster: managementClusterResourceID,
 			KubeContent:       &runtime.RawExtension{Raw: []byte(`{"apiVersion":"v1","kind":"ConfigMap"}`)},
@@ -281,7 +282,7 @@ func newApplyDesire(t *testing.T, resourceIDString string, managementClusterReso
 func createStamp(ctx context.Context, fleetClient database.FleetDBClient, stampIdentifier string) error {
 	stampResourceID := api.Must(fleet.ToStampResourceID(stampIdentifier))
 	stamp := &fleet.Stamp{
-		CosmosMetadata: api.CosmosMetadata{ResourceID: stampResourceID},
+		CosmosMetadata: api.CosmosMetadata{ResourceID: stampResourceID, PartitionKey: strings.ToLower(stampIdentifier)},
 		ResourceID:     stampResourceID,
 	}
 	_, err := fleetClient.Stamps().Create(ctx, stamp, nil)
@@ -297,7 +298,7 @@ func createManagementCluster(ctx context.Context, fleetClient database.FleetDBCl
 	provisionShardID := ptr.To(api.Must(api.NewInternalID(
 		fmt.Sprintf("/api/aro_hcp/v1alpha1/provision_shards/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeee%s", stampIdentifier))))
 	managementCluster := &fleet.ManagementCluster{
-		CosmosMetadata: api.CosmosMetadata{ResourceID: managementClusterResourceID},
+		CosmosMetadata: api.CosmosMetadata{ResourceID: managementClusterResourceID, PartitionKey: strings.ToLower(stampIdentifier)},
 		ResourceID:     managementClusterResourceID,
 		Spec: fleet.ManagementClusterSpec{
 			SchedulingPolicy: fleet.ManagementClusterSchedulingPolicySchedulable,
@@ -322,39 +323,24 @@ func createManagementCluster(ctx context.Context, fleetClient database.FleetDBCl
 // createApplyDesire writes a new ApplyDesire to a per-MC kube-applier mock
 // using the desire's parent resource hierarchy.
 func createApplyDesire(ctx context.Context, mockClient *databasetesting.MockKubeApplierDBClient, desire *kubeapplier.ApplyDesire) error {
-	parent, err := parentForDesire(desire.GetResourceID())
-	if err != nil {
-		return err
+	id := desire.GetResourceID()
+	if id == nil || id.Parent == nil {
+		return fmt.Errorf("desire %v has no parent in its resource ID", id)
 	}
-	applyDesireCRUD, err := mockClient.ApplyDesires(parent)
+	parentType := id.Parent.ResourceType
+	var applyDesireCRUD database.ResourceCRUD[kubeapplier.ApplyDesire, *kubeapplier.ApplyDesire]
+	var err error
+	switch {
+	case armhelpers.ResourceTypeEqual(parentType, api.ClusterResourceType):
+		applyDesireCRUD, err = mockClient.ApplyDesiresForCluster(id.SubscriptionID, id.ResourceGroupName, id.Parent.Name)
+	case armhelpers.ResourceTypeEqual(parentType, api.NodePoolResourceType):
+		applyDesireCRUD, err = mockClient.ApplyDesiresForNodePool(id.SubscriptionID, id.ResourceGroupName, id.Parent.Parent.Name, id.Parent.Name)
+	default:
+		return fmt.Errorf("unsupported *Desire parent resource type: %s", parentType)
+	}
 	if err != nil {
 		return err
 	}
 	_, err = applyDesireCRUD.Create(ctx, desire, nil)
 	return err
-}
-
-// parentForDesire derives the cluster/nodepool ResourceParent for a *Desire
-// resourceID. Both cluster-scoped and nodepool-scoped *Desires are supported.
-func parentForDesire(desireResourceID *azcorearm.ResourceID) (database.ResourceParent, error) {
-	if desireResourceID == nil || desireResourceID.Parent == nil {
-		return database.ResourceParent{}, fmt.Errorf("desire %v has no parent in its resource ID", desireResourceID)
-	}
-	parentType := desireResourceID.Parent.ResourceType
-	switch {
-	case armhelpers.ResourceTypeEqual(parentType, api.ClusterResourceType):
-		return database.ResourceParent{
-			SubscriptionID:    desireResourceID.SubscriptionID,
-			ResourceGroupName: desireResourceID.ResourceGroupName,
-			ClusterName:       desireResourceID.Parent.Name,
-		}, nil
-	case armhelpers.ResourceTypeEqual(parentType, api.NodePoolResourceType):
-		return database.ResourceParent{
-			SubscriptionID:    desireResourceID.SubscriptionID,
-			ResourceGroupName: desireResourceID.ResourceGroupName,
-			ClusterName:       desireResourceID.Parent.Parent.Name,
-			NodePoolName:      desireResourceID.Parent.Name,
-		}, nil
-	}
-	return database.ResourceParent{}, fmt.Errorf("unsupported *Desire parent resource type: %s", parentType)
 }

@@ -41,7 +41,7 @@ func TestLoadIdentityPools(t *testing.T) {
 environments:
   dev:
     deploy_envs:
-      - prow
+      - ci00
     pools:
       - subscription_name: dev-sub-1
         region: westus3
@@ -106,7 +106,7 @@ func TestLoadIdentityPoolsResolutionFailure(t *testing.T) {
 environments:
   dev:
     deploy_envs:
-      - prow
+      - ci00
     pools:
       - subscription_name: unknown-sub
         region: westus3
@@ -137,7 +137,7 @@ func TestLoadIdentityPoolsDeduplicatesResolution(t *testing.T) {
 environments:
   dev:
     deploy_envs:
-      - prow
+      - ci00
     pools:
       - subscription_name: shared-sub
         region: westus3

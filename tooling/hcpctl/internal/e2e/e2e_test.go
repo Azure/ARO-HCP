@@ -545,14 +545,14 @@ func TestHCPBreakglassRole(t *testing.T) {
 			name:           "HCP breakglass regular access role validation",
 			cluster:        hcpCluster.ID,
 			privileged:     false,
-			expectedGroups: []string{"aro-sre"},
+			expectedGroups: []string{"system:cluster-readers"},
 			expectError:    false,
 		},
 		{
 			name:           "HCP breakglass privileged access role validation",
 			cluster:        hcpCluster.ID,
 			privileged:     true,
-			expectedGroups: []string{"aro-sre-cluster-admin"},
+			expectedGroups: []string{"system:masters"},
 			expectError:    false,
 		},
 		{

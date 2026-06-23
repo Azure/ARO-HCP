@@ -15,7 +15,11 @@
 package operationcontrollers
 
 import (
+	"fmt"
+	"strings"
 	"time"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
@@ -83,7 +87,8 @@ func newClusterTestFixture() *clusterTestFixture {
 func (f *clusterTestFixture) newCluster(createdAt *time.Time) *api.HCPOpenShiftCluster {
 	return &api.HCPOpenShiftCluster{
 		CosmosMetadata: arm.CosmosMetadata{
-			ResourceID: f.clusterResourceID,
+			ResourceID:   f.clusterResourceID,
+			PartitionKey: strings.ToLower(f.clusterResourceID.SubscriptionID),
 		},
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
@@ -106,7 +111,8 @@ func (f *clusterTestFixture) newCluster(createdAt *time.Time) *api.HCPOpenShiftC
 func (f *clusterTestFixture) newOperation(request database.OperationRequest) *api.Operation {
 	return &api.Operation{
 		CosmosMetadata: api.CosmosMetadata{
-			ResourceID: f.cosmosOperationResourceID,
+			ResourceID:   f.cosmosOperationResourceID,
+			PartitionKey: strings.ToLower(f.cosmosOperationResourceID.SubscriptionID),
 		},
 		TenantID:    testTenantID,
 		Status:      arm.ProvisioningStateAccepted,
@@ -166,7 +172,8 @@ func newNodePoolTestFixture() *nodePoolTestFixture {
 func (f *nodePoolTestFixture) newCluster() *api.HCPOpenShiftCluster {
 	return &api.HCPOpenShiftCluster{
 		CosmosMetadata: arm.CosmosMetadata{
-			ResourceID: f.clusterResourceID,
+			ResourceID:   f.clusterResourceID,
+			PartitionKey: strings.ToLower(f.clusterResourceID.SubscriptionID),
 		},
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
@@ -183,7 +190,7 @@ func (f *nodePoolTestFixture) newCluster() *api.HCPOpenShiftCluster {
 
 func (f *nodePoolTestFixture) newNodePool() *api.HCPOpenShiftClusterNodePool {
 	return &api.HCPOpenShiftClusterNodePool{
-		CosmosMetadata: arm.CosmosMetadata{ResourceID: f.nodePoolResourceID},
+		CosmosMetadata: arm.CosmosMetadata{ResourceID: f.nodePoolResourceID, PartitionKey: strings.ToLower(f.nodePoolResourceID.SubscriptionID)},
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
 				ID:   f.nodePoolResourceID,
@@ -201,10 +208,41 @@ func (f *nodePoolTestFixture) newNodePool() *api.HCPOpenShiftClusterNodePool {
 	}
 }
 
+func (f *nodePoolTestFixture) newServiceProviderNodePool() *api.ServiceProviderNodePool {
+	resourceID := api.Must(azcorearm.ParseResourceID(fmt.Sprintf("%s/%s/%s",
+		f.nodePoolResourceID.String(),
+		api.ServiceProviderNodePoolResourceTypeName,
+		api.ServiceProviderNodePoolResourceName,
+	)))
+	return &api.ServiceProviderNodePool{
+		CosmosMetadata: api.CosmosMetadata{
+			ResourceID:   resourceID,
+			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
+		},
+	}
+}
+
+func (f *nodePoolTestFixture) newNodePoolVersionController(conditions []metav1.Condition) *api.Controller {
+	resourceID := api.Must(azcorearm.ParseResourceID(
+		f.nodePoolResourceID.String() + "/hcpOpenShiftControllers/NodePoolVersion",
+	))
+	return &api.Controller{
+		CosmosMetadata: api.CosmosMetadata{
+			ResourceID:   resourceID,
+			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
+		},
+		ExternalID: f.nodePoolResourceID,
+		Status: api.ControllerStatus{
+			Conditions: conditions,
+		},
+	}
+}
+
 func (f *nodePoolTestFixture) newOperation(request database.OperationRequest) *api.Operation {
 	return &api.Operation{
 		CosmosMetadata: api.CosmosMetadata{
-			ResourceID: f.cosmosOperationResourceID,
+			ResourceID:   f.cosmosOperationResourceID,
+			PartitionKey: strings.ToLower(f.cosmosOperationResourceID.SubscriptionID),
 		},
 		TenantID:    testTenantID,
 		Status:      arm.ProvisioningStateAccepted,
@@ -264,7 +302,8 @@ func newExternalAuthTestFixture() *externalAuthTestFixture {
 func (f *externalAuthTestFixture) newCluster() *api.HCPOpenShiftCluster {
 	return &api.HCPOpenShiftCluster{
 		CosmosMetadata: arm.CosmosMetadata{
-			ResourceID: f.clusterResourceID,
+			ResourceID:   f.clusterResourceID,
+			PartitionKey: strings.ToLower(f.clusterResourceID.SubscriptionID),
 		},
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
@@ -281,7 +320,7 @@ func (f *externalAuthTestFixture) newCluster() *api.HCPOpenShiftCluster {
 
 func (f *externalAuthTestFixture) newExternalAuth() *api.HCPOpenShiftClusterExternalAuth {
 	return &api.HCPOpenShiftClusterExternalAuth{
-		CosmosMetadata: arm.CosmosMetadata{ResourceID: f.externalAuthResourceID},
+		CosmosMetadata: arm.CosmosMetadata{ResourceID: f.externalAuthResourceID, PartitionKey: strings.ToLower(f.externalAuthResourceID.SubscriptionID)},
 		ProxyResource: arm.ProxyResource{
 			Resource: arm.Resource{
 				ID:   f.externalAuthResourceID,
@@ -302,7 +341,8 @@ func (f *externalAuthTestFixture) newExternalAuth() *api.HCPOpenShiftClusterExte
 func (f *externalAuthTestFixture) newOperation(request database.OperationRequest) *api.Operation {
 	return &api.Operation{
 		CosmosMetadata: api.CosmosMetadata{
-			ResourceID: f.cosmosOperationResourceID,
+			ResourceID:   f.cosmosOperationResourceID,
+			PartitionKey: strings.ToLower(f.cosmosOperationResourceID.SubscriptionID),
 		},
 		TenantID:    testTenantID,
 		Status:      arm.ProvisioningStateAccepted,

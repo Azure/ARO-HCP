@@ -5,8 +5,8 @@ param globalMSIId string
 
 import * as res from '../modules/resource.bicep'
 
-// The recreate-system-pool Shell step runs as the global pipeline MSI and
-// needs to query activity logs on AKS-created node resource groups. AKS node RG
+// The recreate-system-pool-if-broken and recreate-broken-user-nodepools Shell steps run as the global pipeline MSI and
+// need to query activity logs on AKS-created node resource groups. AKS node RG
 // names are not predictable at deployment time, so we cannot scope this to a
 // specific resource group. Subscription Reader is the narrowest reliable
 // read-only scope, matching the mgmt-agent pattern.

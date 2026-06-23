@@ -41,6 +41,9 @@
           "type": "string",
           "description": "The name of the application. Needs to be unique within the tenant. https://eng.ms/docs/microsoft-security/identity/auth/auth-sts-protocols/ests/ests-troubleshooting-guides/tsgs/3p-apps-build-out-automation/gotchas-and-known-issues"
         },
+        "applicationId": {
+          "type": "string"
+        },
         "useSNI": {
           "type": "boolean"
         },
@@ -48,6 +51,7 @@
           "type": "boolean"
         }
       },
+      "additionalProperties": false,
       "required": [
         "name"
       ]
@@ -86,7 +90,8 @@
             }
           ]
         }
-      }
+      },
+      "additionalProperties": false
     },
     "k8sDeploymentStrategy": {
       "type": "object",
@@ -99,7 +104,8 @@
             }
           ]
         }
-      }
+      },
+      "additionalProperties": false
     },
     "k8sDeployment": {
       "type": "object",
@@ -236,6 +242,7 @@
           "type": "string"
         }
       },
+      "additionalProperties": false,
       "required": [
         "keyVault",
         "name"
@@ -309,7 +316,8 @@
                 ]
               }
             }
-          }
+          },
+          "additionalProperties": false
         }
       }
     },
@@ -372,7 +380,8 @@
           "required": [
             "enabled",
             "days"
-          ]
+          ],
+          "additionalProperties": false
         }
       },
       "additionalProperties": false,
@@ -975,7 +984,8 @@
         "storageAccountContainerName": {
           "type": "string"
         }
-      }
+      },
+      "additionalProperties": false
     }
   },
   "properties": {
@@ -1069,7 +1079,8 @@
           },
           "required": [
             "bundle"
-          ]
+          ],
+          "additionalProperties": false
         },
         "mce": {
           "type": "object",
@@ -1177,6 +1188,10 @@
           "required": [
             "tlsCertificatesIssuer"
           ]
+        },
+        "dataPlaneHAProxyImage": {
+          "type": "string",
+          "description": "A valid image reference used for overriding the HAProxy image of the worker node API server proxy. If set to an empty string, either the environment variable IMAGE_SHARED_INGRESS_HAPROXY or the default shared ingress image will be used."
         }
       },
       "additionalProperties": false,
@@ -1429,13 +1444,31 @@
         },
         "k8s": {
           "$ref": "#/definitions/k8sDeployment"
+        },
+        "registration": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "stampIdentifier": {
+              "type": "string",
+              "description": "The identifier of the stamp to register"
+            },
+            "autoApproveStamps": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "stampIdentifier",
+            "autoApproveStamps"
+          ]
         }
       },
       "additionalProperties": false,
       "required": [
         "image",
         "managedIdentityName",
-        "k8s"
+        "k8s",
+        "registration"
       ]
     },
     "adminApi": {
@@ -1595,18 +1628,23 @@
           "required": [
             "accountName",
             "cloudSuffix"
-          ]
+          ],
+          "additionalProperties": false
         },
         "pav2": {
           "type": "object",
           "properties": {
             "cloudName": {
               "type": "string"
+            },
+            "endpoint": {
+              "type": "string"
             }
           },
           "required": [
             "cloudName"
-          ]
+          ],
+          "additionalProperties": false
         },
         "kusto": {
           "type": "object",
@@ -1640,7 +1678,8 @@
             "clusterPrincipals",
             "dstsGroups",
             "vmUsageStaleThreshold"
-          ]
+          ],
+          "additionalProperties": false
         },
         "eventHub": {
           "type": "object",
@@ -1659,7 +1698,8 @@
             "namespace",
             "subscriptionId",
             "resourceGroupName"
-          ]
+          ],
+          "additionalProperties": false
         },
         "imageArtifact": {
           "$ref": "#/definitions/imageArtifact"
@@ -2099,7 +2139,8 @@
             "applicationId",
             "authorityFQDN",
             "audienceFQDN"
-          ]
+          ],
+          "additionalProperties": false
         },
         "genevaActions": {
           "type": "object",
@@ -2121,7 +2162,8 @@
             "policyLabel",
             "authorityFQDN",
             "audienceFQDN"
-          ]
+          ],
+          "additionalProperties": false
         },
         "sessiongate": {
           "type": "object",
@@ -2143,7 +2185,8 @@
             "policyLabel",
             "authorityFQDN",
             "audience"
-          ]
+          ],
+          "additionalProperties": false
         },
         "image": {
           "$ref": "#/definitions/containerImage"
@@ -2478,7 +2521,8 @@
             "image"
           ]
         }
-      }
+      },
+      "additionalProperties": false
     },
     "customExporter": {
       "type": "object",
@@ -2738,6 +2782,21 @@
         "rg": {
           "$ref": "#/definitions/resourceGroupName"
         },
+        "stamps": {
+          "type": "object",
+          "description": "Management cluster stamp configuration",
+          "properties": {
+            "count": {
+              "type": "integer",
+              "description": "Number of management cluster stamps per region",
+              "minimum": 1
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "count"
+          ]
+        },
         "subscription": {
           "$ref": "#/definitions/subscriptionMetadata"
         },
@@ -2754,6 +2813,7 @@
         "aks",
         "applyKubeletFixes",
         "rg",
+        "stamps",
         "subscription",
         "prometheus"
       ]
@@ -2895,22 +2955,6 @@
         "quotaGroup",
         "managedIdentityName",
         "image"
-      ]
-    },
-    "routeMonitorOperator": {
-      "type": "object",
-      "properties": {
-        "operatorImage": {
-          "$ref": "#/definitions/containerImage"
-        },
-        "blackboxExporterImage": {
-          "$ref": "#/definitions/containerImage"
-        }
-      },
-      "additionalProperties": false,
-      "required": [
-        "operatorImage",
-        "blackboxExporterImage"
       ]
     },
     "velero": {
@@ -3302,7 +3346,8 @@
               "type": "string",
               "description": "The name of the KeyVault secret in the global AKV that stores the token used to authenticate with Prow."
             }
-          }
+          },
+          "additionalProperties": false
         },
         "regionTest": {
           "type": "object",
@@ -3317,7 +3362,8 @@
           "required": [
             "prowJobName",
             "gatePromotion"
-          ]
+          ],
+          "additionalProperties": false
         }
       },
       "additionalProperties": false,

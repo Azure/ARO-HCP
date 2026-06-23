@@ -37,9 +37,15 @@ import (
 // higher-level reactor that drives Add/Remove from a ManagementCluster
 // informer.
 //
-// Add and Remove are serialized by mu so the six underlying sub-registrations
-// (three informers, three listers) move together — concurrent callers can
-// never observe a partially-Added or partially-Removed state.
+// Add and Remove are serialized by mu so two concurrent registry mutations
+// can't interleave their six sub-registrations (three informers, three
+// listers). Readers on the individual union informers/listers do NOT take
+// mu — each underlying surface has its own internal lock, so each surface
+// presents a consistent view in isolation, but a reader that consults
+// multiple surfaces during an in-flight Add/Remove may see the sub registered
+// on some surfaces and not on others. The reactor consuming this type
+// (UnionKubeApplierInformersController) doesn't rely on cross-surface
+// atomicity, which is why we keep the cheaper locking discipline.
 type UnionKubeApplierInformers struct {
 	mu sync.Mutex
 

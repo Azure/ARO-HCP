@@ -1,0 +1,508 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Dev CI Configuration Schema",
+  "description": "Schema for the shared dev/CI topology configuration",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "clouds": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/Cloud"
+      }
+    }
+  },
+  "$defs": {
+    "Cloud": {
+      "type": "object",
+      "properties": {
+        "defaults": {
+          "$ref": "#/$defs/Configuration"
+        },
+        "environments": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/Environment"
+          }
+        }
+      }
+    },
+    "Environment": {
+      "type": "object",
+      "properties": {
+        "defaults": {
+          "$ref": "#/$defs/Configuration"
+        },
+        "regions": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/Configuration"
+          }
+        }
+      }
+    },
+    "Configuration": {
+      "type": "object",
+      "properties": {
+        "svc": {
+          "type": "object",
+          "properties": {
+            "rg": {
+              "type": "string",
+              "description": "Resource group name"
+            },
+            "subscription": {
+              "type": "object",
+              "properties": {
+                "key": {
+                  "type": "string"
+                }
+              }
+            },
+            "acr": {
+              "type": "object",
+              "description": "Azure Container Registry configuration",
+              "properties": {
+                "name": { "type": "string" },
+                "resourceGroup": { "type": "string" },
+                "id": { "type": "string", "description": "Full resource ID of the ACR" }
+              }
+            }
+          }
+        },
+        "monitoring": {
+          "type": "object",
+          "properties": {
+            "alertRuleOwningTeamTag": {
+              "type": "string"
+            },
+            "workspaceName": {
+              "type": "string",
+              "description": "Azure Monitor Workspace name"
+            }
+          }
+        },
+        "dns": {
+          "type": "object",
+          "properties": {
+            "regionalSubdomain": {
+              "type": "string"
+            }
+          }
+        },
+        "global": {
+          "type": "object",
+          "properties": {
+            "rg": {
+              "type": "string",
+              "description": "Resource group hosting the shared rollout identity"
+            },
+            "subscription": {
+              "type": "object",
+              "properties": {
+                "key": { "type": "string" }
+              }
+            },
+            "globalMSIName": {
+              "type": "string",
+              "description": "Name of the rollout managed identity used for shell-based cleanup operations"
+            }
+          }
+        },
+        "opstool": {
+          "type": "object",
+          "description": "Opstool AKS cluster configuration",
+          "properties": {
+            "aks": {
+              "type": "object",
+              "properties": {
+                "name": { "type": "string" },
+                "vnetAddressPrefix": { "type": "string" },
+                "subnetPrefix": { "type": "string" },
+                "podSubnetPrefix": { "type": "string" },
+                "kubernetesVersion": { "type": "string" },
+                "networkDataplane": { "type": "string" },
+                "networkPolicy": { "type": "string" },
+                "clusterOutboundIPAddressIPTags": { "type": "string" },
+                "etcd": {
+                  "type": "object",
+                  "properties": {
+                    "name": { "type": "string" },
+                    "tagKey": { "type": "string" },
+                    "tagValue": { "type": "string" },
+                    "softDelete": { "type": "boolean" }
+                  }
+                },
+                "systemAgentPool": { "$ref": "#/$defs/AgentPoolConfig" },
+                "userAgentPool": { "$ref": "#/$defs/AgentPoolConfig" },
+                "infraAgentPool": { "$ref": "#/$defs/AgentPoolConfig" }
+              }
+            },
+            "istio": {
+              "type": "object",
+              "properties": {
+                "versions": { "type": "string" }
+              }
+            },
+            "monitoring": {
+              "type": "object",
+              "properties": {
+                "workspaceName": { "type": "string" }
+              }
+            },
+            "prometheus": {
+              "type": "object",
+              "properties": {
+                "kubeStateMetrics": {
+                  "type": "object",
+                  "properties": {
+                    "image": { "$ref": "#/$defs/Image" }
+                  }
+                },
+                "prometheusOperator": {
+                  "type": "object",
+                  "properties": {
+                    "image": { "$ref": "#/$defs/Image" }
+                  }
+                },
+                "prometheusConfigReloader": {
+                  "type": "object",
+                  "properties": {
+                    "image": { "$ref": "#/$defs/Image" }
+                  }
+                },
+                "prometheusSpec": {
+                  "type": "object",
+                  "properties": {
+                    "image": { "$ref": "#/$defs/Image" }
+                  }
+                }
+              }
+            },
+            "keyVault": {
+              "type": "object",
+              "description": "KeyVault configuration for secrets",
+              "properties": {
+                "name": { "type": "string" }
+              }
+            },
+            "gateway": {
+              "type": "object",
+              "description": "Shared cluster Istio Gateway for *.tools.hcpsvc.osadev.cloud; workloads attach HTTPRoutes with their own hostnames",
+              "properties": {
+                "enabled": { "type": "boolean" },
+                "name": { "type": "string" },
+                "namespace": { "type": "string" },
+                "sectionName": { "type": "string" },
+                "wildcardHostname": {
+                  "type": "string",
+                  "description": "Listener hostname (RFC 1123 wildcard), e.g. *.tools.hcpsvc.osadev.cloud"
+                },
+                "credentialName": {
+                  "type": "string",
+                  "description": "Kubernetes TLS Secret name presented by the Gateway listener; cert-manager keeps this Secret up to date"
+                },
+                "publicIpName": { "type": "string" },
+                "publicIpResourceGroup": { "type": "string" },
+                "dns": {
+                  "type": "object",
+                  "description": "Delegated zone tools.parentZone; wildcard A record at apex routes to the gateway",
+                  "properties": {
+                    "parentZoneName": { "type": "string" },
+                    "parentZoneResourceGroup": { "type": "string" },
+                    "childZoneSubdomain": {
+                      "type": "string",
+                      "description": "First labels of the delegated zone before parentZoneName, e.g. tools for zone tools.hcpsvc.osadev.cloud"
+                    },
+                    "recordName": {
+                      "type": "string",
+                      "description": "A record name in the child zone; use * for a wildcard covering all hostnames in that zone"
+                    }
+                  }
+                }
+              }
+            },
+            "certManager": {
+              "type": "object",
+              "description": "cert-manager installation and ACME DNS-01 issuer configuration for the shared gateway wildcard certificate",
+              "properties": {
+                "namespace": { "type": "string" },
+                "clusterIssuer": {
+                  "type": "object",
+                  "properties": {
+                    "name": { "type": "string", "description": "ClusterIssuer name referenced by the shared Gateway annotation" },
+                    "email": { "type": "string", "description": "ACME contact email used for renewal notices" },
+                    "privateKeySecretName": {
+                      "type": "string",
+                      "description": "Secret name for the ACME account key stored in the cert-manager namespace"
+                    },
+                    "server": {
+                      "type": "string",
+                      "description": "ACME directory URL, e.g. https://acme-v02.api.letsencrypt.org/directory"
+                    },
+                    "azureDNS": {
+                      "type": "object",
+                      "properties": {
+                        "environment": {
+                          "type": "string",
+                          "description": "Azure cloud environment for the DNS-01 solver, e.g. AzurePublicCloud"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "alerting": {
+              "type": "object",
+              "description": "Alerting configuration",
+              "properties": {
+                "email": { "type": "string", "description": "Email address for alert notifications" },
+                "enabled": { "type": "boolean", "description": "Enable or disable alerting" }
+              }
+            },
+            "tenantQuota": {
+              "type": "object",
+              "description": "Tenant quota collector configuration",
+              "properties": {
+                "image": { "$ref": "#/$defs/Image" },
+                "tenants": {
+                  "type": "array",
+                  "description": "List of Azure AD tenants to monitor for directory and subscription quota",
+                  "items": { "$ref": "#/$defs/TenantQuotaConfig" }
+                }
+              }
+            },
+            "cihealth": {
+              "type": "object",
+              "description": "CIHealth deployment configuration",
+              "properties": {
+                "image": { "$ref": "#/$defs/Image" },
+                "disableRuntimeWorkloads": {
+                  "type": "boolean",
+                  "description": "Disable the CIHealth runtime workloads by scaling Deployments to zero replicas during bootstrap/import workflows"
+                },
+                "app": {
+                  "type": "object",
+                  "properties": {
+                    "replicas": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "description": "Number of CIHealth app replicas to run in the cihealth deployment"
+                    }
+                  }
+                },
+                "postgres": {
+                  "type": "object",
+                  "properties": {
+                    "usernameKeyVaultSecretName": {
+                      "type": "string",
+                      "description": "Key Vault secret name containing the PostgreSQL username for the cihealth deployment"
+                    },
+                    "passwordKeyVaultSecretName": {
+                      "type": "string",
+                      "description": "Key Vault secret name containing the PostgreSQL password for the cihealth deployment"
+                    },
+                    "databaseKeyVaultSecretName": {
+                      "type": "string",
+                      "description": "Key Vault secret name containing the PostgreSQL database name for the cihealth deployment"
+                    }
+                  },
+                  "required": [
+                    "usernameKeyVaultSecretName",
+                    "passwordKeyVaultSecretName",
+                    "databaseKeyVaultSecretName"
+                  ]
+                },
+                "httpRoute": {
+                  "type": "object",
+                  "properties": {
+                    "enabled": { "type": "boolean" },
+                    "host": {
+                      "type": "string",
+                      "description": "Public hostname for the CIHealth deployment (e.g. cihealth.tools.hcpsvc.osadev.cloud); must match a name covered by the shared gateway wildcard"
+                    },
+                    "gatewayName": { "type": "string" },
+                    "gatewayNamespace": { "type": "string" },
+                    "sectionName": { "type": "string" },
+                    "blockReviewPath": {
+                      "type": "boolean",
+                      "description": "When true, HTTPRoute redirects /review and /api/review to / so the old review page and the dev-only review API are not reachable from the ingress hostname"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "ci": {
+          "$ref": "#/$defs/CI"
+        }
+      },
+      "additionalProperties": true
+    },
+    "CI": {
+      "type": "object",
+      "description": "Per-environment CI bot identity and subscription inventory",
+      "additionalProperties": {
+        "$ref": "#/$defs/CIEnvironment"
+      }
+    },
+    "CIEnvironment": {
+      "type": "object",
+      "description": "CI configuration for a single target environment (dev, stg, prod, etc.)",
+      "properties": {
+        "bot": {
+          "$ref": "#/$defs/CIBot"
+        },
+        "e2eSubscriptions": {
+          "type": "array",
+          "description": "Customer testing subscriptions where the bot gets RBAC and E2E tests run",
+          "items": {
+            "$ref": "#/$defs/SubscriptionReference"
+          }
+        },
+        "infrastructureSubscriptions": {
+          "type": "array",
+          "description": "Infrastructure subscriptions where the bot gets RBAC (DEV-only)",
+          "items": {
+            "$ref": "#/$defs/InfraSubscriptionReference"
+          }
+        },
+        "devMockIdentities": {
+          "$ref": "#/$defs/DevMockIdentities"
+        }
+      },
+      "required": ["bot", "e2eSubscriptions"]
+    },
+    "CIBot": {
+      "type": "object",
+      "description": "CI service principal (OpenShift Release Bot) for this environment",
+      "properties": {
+        "applicationName": {
+          "type": "string",
+          "description": "Entra application display name and unique name"
+        }
+      },
+      "required": ["applicationName"]
+    },
+    "InfraSubscriptionReference": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "id": { "type": "string" },
+        "isGlobalSubscription": {
+          "type": "boolean",
+          "description": "Marks where shared infra lives; the bot gets extra data-plane roles (Key Vault Admin, Grafana Admin) here"
+        }
+      },
+      "required": ["name", "id"]
+    },
+    "DevMockIdentities": {
+      "type": "object",
+      "description": "DEV-only mock identities to simulate FPA behavior; absent from stg/prod",
+      "properties": {
+        "homeSubscriptionId": {
+          "type": "string",
+          "description": "Subscription ID where custom role definitions for mock identities are created"
+        },
+        "sharedPrincipals": {
+          "type": "object",
+          "properties": {
+            "firstParty": {
+              "$ref": "#/$defs/PrincipalReference"
+            },
+            "armHelper": {
+              "$ref": "#/$defs/PrincipalReference"
+            },
+            "miMock": {
+              "$ref": "#/$defs/PrincipalReference"
+            }
+          }
+        },
+        "msiMockPool": {
+          "type": "object",
+          "properties": {
+            "principals": {
+              "type": "object",
+              "additionalProperties": {
+                "$ref": "#/$defs/PrincipalReference"
+              }
+            }
+          }
+        }
+      },
+      "required": ["homeSubscriptionId", "sharedPrincipals"]
+    },
+    "SubscriptionReference": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "id": { "type": "string" }
+      },
+      "required": ["name", "id"]
+    },
+    "PrincipalReference": {
+      "type": "object",
+      "properties": {
+        "principalId": { "type": "string" }
+      },
+      "required": ["principalId"]
+    },
+    "Image": {
+      "type": "object",
+      "properties": {
+        "registry": { "type": "string" },
+        "repository": { "type": "string" },
+        "sha": { "type": "string" },
+        "digest": { "type": "string" },
+        "tag": { "type": "string" }
+      }
+    },
+    "AgentPoolConfig": {
+      "type": "object",
+      "properties": {
+        "count": { "type": "integer", "description": "Number of nodepools to create for this role" },
+        "minCount": { "type": "integer" },
+        "maxCount": { "type": "integer" },
+        "vmSize": { "type": "string" },
+        "osDiskSizeGB": { "type": "integer" },
+        "zones": { "type": "string" },
+        "zoneRedundantMode": { "type": "string" }
+      }
+    },
+    "TenantQuotaConfig": {
+      "type": "object",
+      "description": "Configuration for monitoring a single Azure AD tenant",
+      "properties": {
+        "tenantId": { "type": "string", "description": "Azure AD tenant ID" },
+        "tenantName": { "type": "string", "description": "Display name for metrics labels" },
+        "servicePrincipalClientId": { "type": "string", "description": "App ID of the service principal" },
+        "keyVaultSecretName": { "type": "string", "description": "Key Vault secret name holding the SP client secret" },
+        "directoryQuota": { "type": "boolean", "description": "Enable directory (Azure AD) quota monitoring" },
+        "subscriptions": {
+          "type": "array",
+          "description": "Subscriptions to monitor for compute/network/RBAC quota",
+          "items": { "$ref": "#/$defs/SubscriptionQuotaConfig" }
+        }
+      },
+      "required": ["tenantId", "tenantName", "servicePrincipalClientId", "keyVaultSecretName"]
+    },
+    "SubscriptionQuotaConfig": {
+      "type": "object",
+      "description": "Configuration for monitoring quota in a single subscription",
+      "properties": {
+        "name": { "type": "string", "description": "Subscription display name (used to resolve the subscription ID at runtime)" },
+        "roleAssignmentLimit": { "type": "integer", "description": "Role assignment limit for the subscription (default 4000)" },
+        "regions": {
+          "type": "array",
+          "description": "Azure regions to monitor for regional quotas",
+          "items": { "type": "string" }
+        }
+      },
+      "required": ["name", "regions"]
+    }
+  }
+}

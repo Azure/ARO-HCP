@@ -1,9 +1,9 @@
 SHELL = /bin/bash
 
 include versions.mk
+include ../../setup-env.mk
 
 IMAGE_NAME      ?= aro-hcp-ci-test
-CONTAINER_ENGINE ?= $(shell command -v podman 2>/dev/null || echo docker)
 PLATFORM ?= "linux/amd64"
 
 GO_WORK_VERSION := $(shell sed -n 's/^go //p' ../../go.work)

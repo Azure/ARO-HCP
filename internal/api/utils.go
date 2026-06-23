@@ -58,6 +58,12 @@ var AllowControlPlaneNodePoolMajorVersionSkew = map[string][]string{
 	"4.23": {"5.1", "5.2"},
 }
 
+// AllowedChannelGroups is the set ARO-HCP allows to use for customer purposes
+var AllowedChannelGroups = sets.New("stable", "fast")
+
+// AllowedChannelGroupsWithExperimentalFlag is the set the service allows to use when using the Experimental Feature AFEC flag
+var AllowedChannelGroupsWithExperimentalFlag = sets.New("stable", "fast", "candidate", "nightly")
+
 // Ptr returns a pointer to p.
 func Ptr[T any](p T) *T {
 	return &p

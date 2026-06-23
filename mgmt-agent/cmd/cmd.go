@@ -16,8 +16,13 @@ package cmd
 
 import (
 	"context"
+	"log/slog"
+	"os"
 
+	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
+
+	"k8s.io/klog/v2"
 )
 
 func NewRootCmd() (*cobra.Command, error) {
@@ -27,14 +32,18 @@ func NewRootCmd() (*cobra.Command, error) {
 		Long: `mgmt-agent runs on the management cluster to configure cluster-scoped resources
 to suit the needs of running ARO-HCP. It provides a place to put logic to bridge
 the gap between "brand new AKS cluster" and "ready to run ARO-HCP customer workloads".
-This deployment topology also enables the component to provide controller level
-analysis for custom metrics gathering on the state of the management cluster kube-API
 
-Currently, mgmt-agent runs the SWIFT NIC controller, which watches Node objects,
-queries the Azure Compute API for each node's VM network configuration, and sets
-an extended resource (aro.openshift.io/swift-nic) on node status via Server-Side
-Apply. This allows the Kubernetes scheduler to allocate SWIFT NICs to pods that
-request them.`,
+mgmt-agent runs two controllers under a single leader election:
+
+1. SWIFT NIC controller: watches Node objects on the management cluster, queries
+   the Azure Compute API for each node's VM network configuration, and sets an
+   extended resource (aro.openshift.io/swift-nic) on node status via Server-Side
+   Apply. This allows the Kubernetes scheduler to allocate SWIFT NICs to pods.
+
+2. KSM HCP controller (enabled via --ksm-image): watches HostedControlPlane CRs
+   and deploys a kube-state-metrics instance per HCP to scrape worker node health
+   metrics (kube_node_status_condition, kube_node_info) from each HCP's API server.
+   Metrics are forwarded to the HCP Azure Managed Prometheus workspace.`,
 	}
 	subcommands := []func() (*cobra.Command, error){
 		NewControllerCommand,
@@ -66,6 +75,17 @@ func NewControllerCommand() (*cobra.Command, error) {
 }
 
 func runController(ctx context.Context, opts *RawControllerOptions) error {
+	// Create a logr.Logger backed by slog's JSON handler for structured JSON logging.
+	// slog.Level(opts.LogVerbosity * -1) converts the verbosity to an slog.Level:
+	// 0 = INFO, higher values = more verbose.
+	handlerOptions := &slog.HandlerOptions{Level: slog.Level(opts.LogVerbosity * -1), AddSource: true}
+	slogJSONHandler := slog.NewJSONHandler(os.Stdout, handlerOptions)
+	logger := logr.FromSlogHandler(slogJSONHandler)
+	ctx = logr.NewContext(ctx, logger)
+
+	// Redirect klog (used by k8s client-go, etc.) through the same JSON handler.
+	klog.SetLogger(logger)
+
 	validated, err := opts.Validate(ctx)
 	if err != nil {
 		return err

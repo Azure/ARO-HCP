@@ -31,7 +31,8 @@ const (
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type ServiceProviderNodePool struct {
 	// CosmosMetadata ResourceID is nested under the cluster so that association and cleanup work as expected
-	// it will be the ServiceProviderNodePool type and the name default
+	// it will be the ServiceProviderNodePool type and the name default.
+	// PartitionKey holds the lowercased subscriptionID.
 	CosmosMetadata `json:"cosmosMetadata"`
 
 	// Spec contains the desired state of the nodepool
@@ -96,6 +97,13 @@ type ServiceProviderNodePoolStatus struct {
 	//   }
 	// }
 	NodePoolVersion ServiceProviderNodePoolStatusVersion `json:"nodePoolVersion,omitempty"`
+
+	// Validations is a list of conditions that tracks the status of each node pool validation.
+	// Each Condition Type represents a validation and it should be unique among all validations.
+	// A Condition Status of True means that the validation passed successfully, and a Condition Status of False means that the validation failed.
+	// The Condition Reason and Message are used to provide more details about the validation status.
+	// The Condition LastTransitionTime is used to track the last time the validation transitioned from one status to another.
+	Validations []metav1.Condition `json:"validations,omitempty"`
 
 	// MaestroReadonlyBundles contains a list of Maestro readonly bundles references.
 	// These bundles are used to retrieve particular K8s resources from the Management Cluster.

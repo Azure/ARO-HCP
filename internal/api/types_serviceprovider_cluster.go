@@ -40,7 +40,8 @@ const (
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type ServiceProviderCluster struct {
 	// CosmosMetadata ResourceID is nested under the cluster so that association and cleanup work as expected
-	// it will be the ServiceProviderCluster type and the name default
+	// it will be the ServiceProviderCluster type and the name default.
+	// PartitionKey holds the lowercased subscriptionID.
 	CosmosMetadata `json:"cosmosMetadata"`
 
 	LoadBalancerResourceID *azcorearm.ResourceID `json:"loadBalancerResourceID,omitempty"`
@@ -226,6 +227,26 @@ func (l *MaestroBundleReferenceList) Set(maestroBundleReference *MaestroBundleRe
 		}
 	}
 
+	return nil
+}
+
+// Remove removes the Maestro Bundle reference for a given Maestro Bundle internal name.
+// If the Maestro Bundle reference identified by name does not exist, it is a no-op.
+// If multiple Maestro Bundle references are found for the same internal name, it returns an error.
+func (l *MaestroBundleReferenceList) Remove(name MaestroBundleInternalName) error {
+	filtered := make(MaestroBundleReferenceList, 0, len(*l))
+	matched := 0
+	for _, bundle := range *l {
+		if bundle.Name == name {
+			matched++
+		} else {
+			filtered = append(filtered, bundle)
+		}
+	}
+	if matched > 1 {
+		return utils.TrackError(fmt.Errorf("multiple Maestro Bundle references found for the same internal name: %s", name))
+	}
+	*l = filtered
 	return nil
 }
 

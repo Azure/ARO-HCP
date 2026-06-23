@@ -32,7 +32,6 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
-	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/kube-applier/pkg/controllers/conditions"
 	"github.com/Azure/ARO-HCP/kube-applier/pkg/controllers/desirestatuswriter"
@@ -67,7 +66,8 @@ func newReadDesire(t *testing.T, target kubeapplier.ResourceReference) *kubeappl
 	t.Helper()
 	return &kubeapplier.ReadDesire{
 		CosmosMetadata: api.CosmosMetadata{
-			ResourceID: mustParseID(t, kubeapplier.ToClusterScopedReadDesireResourceIDString(testSub, testRG, testCluster, testDesire)),
+			ResourceID:   mustParseID(t, kubeapplier.ToClusterScopedReadDesireResourceIDString(testSub, testRG, testCluster, testDesire)),
+			PartitionKey: strings.ToLower(testMgmtID.String()),
 		},
 		Spec: kubeapplier.ReadDesireSpec{
 			ManagementCluster: testMgmtID,
@@ -135,12 +135,9 @@ func startSyncedController(
 	// Pre-populate a MockKubeApplierDBClient with the desire so the
 	// controller's fetcher can read it back via the live-client contract.
 	mock := databasetesting.NewMockKubeApplierDBClient()
-	parent := database.ResourceParent{
-		SubscriptionID: testSub, ResourceGroupName: testRG, ClusterName: testCluster,
-	}
-	crud, err := mock.ReadDesires(parent)
+	crud, err := mock.ReadDesiresForCluster(testSub, testRG, testCluster)
 	if err != nil {
-		t.Fatalf("ReadDesires(parent): %v", err)
+		t.Fatalf("ReadDesiresForCluster: %v", err)
 	}
 	if _, err := crud.Create(ctx, desire, nil); err != nil {
 		t.Fatalf("seed Create: %v", err)

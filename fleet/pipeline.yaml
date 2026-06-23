@@ -61,6 +61,7 @@ resourceGroups:
   - name: deploy
     aksCluster: '{{ .svc.aks.name }}'
     action: Helm
+    timeout: 10m
     releaseName: 'fleet'
     releaseNamespace: '{{ .fleet.k8s.namespace }}'
     chartDir: ./deploy
@@ -72,7 +73,7 @@ resourceGroups:
       step: kusto-lookup
       name: kustoUri
     kustoDatabase: '{{ .kusto.serviceLogsDatabase }}'
-    kustoTable: 'containerLogs'
+    kustoTable: 'fleetLogs'
     inputVariables:
       cosmosUrl:
         resourceGroup: service

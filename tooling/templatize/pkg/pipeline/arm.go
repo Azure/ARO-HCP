@@ -41,9 +41,11 @@ import (
 type armClient struct {
 	bicepClient *bicep.LSPClient
 
-	deploymentClient        *armresources.DeploymentsClient
-	operationsClient        *armresources.DeploymentOperationsClient
-	resourceGroupClient     *armresources.ResourceGroupsClient
+	subscriptionID      string
+	deploymentClient    *armresources.DeploymentsClient
+	getOperationsClient OperationsClientGetter
+	resourceGroupClient *armresources.ResourceGroupsClient
+
 	deploymentRetryWaitTime int
 
 	Region        string
@@ -67,10 +69,12 @@ func newArmClient(subscriptionID, region string, bicepClient *bicep.LSPClient) (
 	if err != nil {
 		return nil, fmt.Errorf("failed to create resource group client: %w", err)
 	}
+	getOperationsClient := NewCachedOperationsClientGetter(subscriptionID, operationsClient, cred, nil)
 	return &armClient{
 		bicepClient:             bicepClient,
+		subscriptionID:          subscriptionID,
 		deploymentClient:        deploymentClient,
-		operationsClient:        operationsClient,
+		getOperationsClient:     getOperationsClient,
 		deploymentRetryWaitTime: 15,
 		resourceGroupClient:     resourceGroupClient,
 		Region:                  region,
@@ -87,7 +91,7 @@ func (a *armClient) runArmStep(ctx context.Context, options *StepRunOptions, rgN
 		return nil, nil, fmt.Errorf("failed to ensure resource group exists: %w", err)
 	}
 
-	return doWaitForDeployment(ctx, a.bicepClient, a.deploymentClient, a.operationsClient, id.ServiceGroup, rgName, step, options.PipelineDirectory, options.StepCacheDir, options.Configuration, options.DeploymentTimeoutSeconds, options.RetryAttempt, state)
+	return doWaitForDeployment(ctx, a.bicepClient, a.deploymentClient, a.getOperationsClient, a.subscriptionID, id.ServiceGroup, rgName, step, options.PipelineDirectory, options.StepCacheDir, options.Configuration, options.DeploymentTimeoutSeconds, options.RetryAttempt, state)
 }
 
 func createError(errors armresources.ErrorResponse) error {
@@ -141,7 +145,7 @@ func armOutputFromOutputs(outputs any) ArmOutput {
 	return nil
 }
 
-func doWaitForDeployment(ctx context.Context, bicepClient *bicep.LSPClient, client *armresources.DeploymentsClient, operationsClient *armresources.DeploymentOperationsClient, sgName, rgName string, step *types.ARMStep, pipelineWorkingDir, stepCacheDir string, cfg configtypes.Configuration, timeoutSeconds int, retryAttempt int, state *ExecutionState) (Output, DetailsProducer, error) {
+func doWaitForDeployment(ctx context.Context, bicepClient *bicep.LSPClient, client *armresources.DeploymentsClient, getOperationsClient OperationsClientGetter, subscriptionID, sgName, rgName string, step *types.ARMStep, pipelineWorkingDir, stepCacheDir string, cfg configtypes.Configuration, timeoutSeconds int, retryAttempt int, state *ExecutionState) (Output, DetailsProducer, error) {
 	logger := logr.FromContextOrDiscard(ctx)
 
 	state.RLock()
@@ -188,7 +192,7 @@ func doWaitForDeployment(ctx context.Context, bicepClient *bicep.LSPClient, clie
 
 	var output ArmOutput
 	var details DetailsProducer
-	exists, output, details, err := pollAndGetOutputFromExistingDeployment(ctx, client, operationsClient, timeoutSeconds, step.DeploymentLevel, rgName, deploymentName)
+	exists, output, details, err := pollAndGetOutputFromExistingDeployment(ctx, client, getOperationsClient, subscriptionID, timeoutSeconds, step.DeploymentLevel, rgName, deploymentName)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to poll previously-existing deployment: %w", err)
 	}
@@ -199,7 +203,7 @@ func doWaitForDeployment(ctx context.Context, bicepClient *bicep.LSPClient, clie
 	logger.V(2).Info("Starting ARM deployment")
 	var pollErr error
 	if step.DeploymentLevel == "Subscription" {
-		details = DetermineOperationsForSubscriptionDeployment(operationsClient, deploymentName)
+		details = DetermineOperationsForSubscriptionDeployment(getOperationsClient, subscriptionID, deploymentName)
 		// Hardcode until schema is adapted
 		deployment.Location = to.Ptr("eastus2")
 		poller, err := client.BeginCreateOrUpdateAtSubscriptionScope(ctx, deploymentName, deployment, nil)
@@ -210,7 +214,7 @@ func doWaitForDeployment(ctx context.Context, bicepClient *bicep.LSPClient, clie
 
 		output, pollErr = pollAndGetOutput(ctx, poller)
 	} else {
-		details = DetermineOperationsForResourceGroupDeployment(operationsClient, rgName, deploymentName)
+		details = DetermineOperationsForResourceGroupDeployment(getOperationsClient, subscriptionID, rgName, deploymentName)
 		poller, err := client.BeginCreateOrUpdate(ctx, rgName, deploymentName, deployment, nil)
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to create deployment: %w", err)
@@ -228,7 +232,7 @@ func doWaitForDeployment(ctx context.Context, bicepClient *bicep.LSPClient, clie
 
 // pollAndGetOutputFromExistingDeployment papers over the unfortunate reality that armresources.DeploymentClient has
 // no mechanism to create a poller for an existing deployment - relegating us to a manual polling loop.
-func pollAndGetOutputFromExistingDeployment(ctx context.Context, client *armresources.DeploymentsClient, operationsClient *armresources.DeploymentOperationsClient, timeoutSeconds int, deploymentLevel, resourceGroup, deploymentName string) (bool, ArmOutput, DetailsProducer, error) {
+func pollAndGetOutputFromExistingDeployment(ctx context.Context, client *armresources.DeploymentsClient, getOperationsClient OperationsClientGetter, subscriptionID string, timeoutSeconds int, deploymentLevel, resourceGroup, deploymentName string) (bool, ArmOutput, DetailsProducer, error) {
 	logger, err := logr.FromContext(ctx)
 	if err != nil {
 		return false, nil, nil, err
@@ -238,13 +242,13 @@ func pollAndGetOutputFromExistingDeployment(ctx context.Context, client *armreso
 	var details DetailsProducer
 	var get func(ctx context.Context) (output *armresources.DeploymentPropertiesExtended, err error)
 	if deploymentLevel == "Subscription" {
-		details = DetermineOperationsForSubscriptionDeployment(operationsClient, deploymentName)
+		details = DetermineOperationsForSubscriptionDeployment(getOperationsClient, subscriptionID, deploymentName)
 		get = func(ctx context.Context) (output *armresources.DeploymentPropertiesExtended, err error) {
 			response, err := client.GetAtSubscriptionScope(ctx, deploymentName, nil)
 			return response.Properties, err
 		}
 	} else {
-		details = DetermineOperationsForResourceGroupDeployment(operationsClient, resourceGroup, deploymentName)
+		details = DetermineOperationsForResourceGroupDeployment(getOperationsClient, subscriptionID, resourceGroup, deploymentName)
 		get = func(ctx context.Context) (output *armresources.DeploymentPropertiesExtended, err error) {
 			response, err := client.Get(ctx, resourceGroup, deploymentName, nil)
 			return response.Properties, err

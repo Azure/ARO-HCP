@@ -1,0 +1,82 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app.kubernetes.io/name: kube-state-metrics-hcp
+  name: kube-state-metrics-hcp
+  namespace: ocm-arohcppers-abc123-xyz
+  ownerReferences:
+  - apiVersion: hypershift.openshift.io/v1beta1
+    kind: HostedControlPlane
+    name: test-hcp
+    uid: uid-123
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: kube-state-metrics-hcp
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: kube-state-metrics-hcp
+    spec:
+      automountServiceAccountToken: false
+      containers:
+      - args:
+        - --resources=nodes
+        - --kubeconfig=/opt/k8s/.kube/config
+        - --metric-allowlist=kube_node_status_condition,kube_node_info
+        image: mcr.microsoft.com/oss/v2/kubernetes/kube-state-metrics@sha256:abc
+        livenessProbe:
+          httpGet:
+            path: /livez
+            port: http-metrics
+          initialDelaySeconds: 5
+          timeoutSeconds: 5
+        name: kube-state-metrics
+        ports:
+        - containerPort: 8080
+          name: http-metrics
+          protocol: TCP
+        - containerPort: 8081
+          name: telemetry
+          protocol: TCP
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: telemetry
+          initialDelaySeconds: 5
+          timeoutSeconds: 5
+        resources:
+          limits:
+            memory: 64Mi
+          requests:
+            cpu: 10m
+            memory: 32Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          seccompProfile:
+            type: RuntimeDefault
+        volumeMounts:
+        - mountPath: /opt/k8s/.kube
+          name: kubeconfig
+          readOnly: true
+      securityContext:
+        fsGroup: 65534
+        runAsGroup: 65534
+        runAsNonRoot: true
+        runAsUser: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      volumes:
+      - name: kubeconfig
+        secret:
+          items:
+          - key: kubeconfig
+            path: config
+          secretName: service-network-admin-kubeconfig

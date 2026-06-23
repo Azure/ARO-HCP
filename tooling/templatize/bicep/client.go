@@ -26,6 +26,8 @@ import (
 	"github.com/go-logr/logr"
 	"go.lsp.dev/jsonrpc2"
 	"go.lsp.dev/protocol"
+
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 )
 
 // DetermineCLIPath tries to parse `az bicep version` output to find the path to the `bicep` CLI path, and falls back
@@ -93,6 +95,7 @@ func StartJSONRPCServer(ctx context.Context, logger logr.Logger, debug bool) (*L
 	logger.V(4).Info("started bicep JSON-RPC server", "pid", cmd.Process.Pid)
 
 	go func() {
+		defer utilruntime.HandleCrash()
 		if err := cmd.Wait(); err != nil {
 			logger.Error(err, "bicep JSON-RPC server exited with error")
 		}

@@ -188,7 +188,7 @@ func TestSynchronizeSubscription_OrphanedDesires(t *testing.T) {
 				kubeApplierClients.Register(m.mc, mock)
 				mockByMC[strings.ToLower(m.mc.String())] = mock
 				mcFleet = append(mcFleet, &fleet.ManagementCluster{
-					CosmosMetadata: api.CosmosMetadata{ResourceID: m.mc},
+					CosmosMetadata: api.CosmosMetadata{ResourceID: m.mc, PartitionKey: strings.ToLower(m.mc.SubscriptionID)},
 					ResourceID:     m.mc,
 				})
 			}
@@ -226,7 +226,7 @@ func subscription(t *testing.T) *arm.Subscription {
 	t.Helper()
 	rid := api.Must(arm.ToSubscriptionResourceID(testSubscriptionID))
 	return &arm.Subscription{
-		CosmosMetadata: api.CosmosMetadata{ResourceID: rid},
+		CosmosMetadata: api.CosmosMetadata{ResourceID: rid, PartitionKey: strings.ToLower(rid.SubscriptionID)},
 		ResourceID:     rid,
 		State:          arm.SubscriptionStateRegistered,
 	}
@@ -236,7 +236,7 @@ func cluster(t *testing.T, name string) *api.HCPOpenShiftCluster {
 	t.Helper()
 	rid := api.Must(api.ToClusterResourceID(testSubscriptionID, testResourceGroup, name))
 	return &api.HCPOpenShiftCluster{
-		CosmosMetadata: arm.CosmosMetadata{ResourceID: rid},
+		CosmosMetadata: arm.CosmosMetadata{ResourceID: rid, PartitionKey: strings.ToLower(rid.SubscriptionID)},
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
 				ID:   rid,
@@ -252,7 +252,7 @@ func nodePool(t *testing.T, clusterName, nodePoolName string) *api.HCPOpenShiftC
 	t.Helper()
 	rid := api.Must(api.ToNodePoolResourceID(testSubscriptionID, testResourceGroup, clusterName, nodePoolName))
 	return &api.HCPOpenShiftClusterNodePool{
-		CosmosMetadata: arm.CosmosMetadata{ResourceID: rid},
+		CosmosMetadata: arm.CosmosMetadata{ResourceID: rid, PartitionKey: strings.ToLower(rid.SubscriptionID)},
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
 				ID:   rid,
@@ -268,7 +268,7 @@ func newApplyDesire(t *testing.T, managementCluster *azcorearm.ResourceID, resou
 	t.Helper()
 	rid := api.Must(azcorearm.ParseResourceID(resourceIDString))
 	return &kubeapplier.ApplyDesire{
-		CosmosMetadata: api.CosmosMetadata{ResourceID: rid},
+		CosmosMetadata: api.CosmosMetadata{ResourceID: rid, PartitionKey: strings.ToLower(rid.SubscriptionID)},
 		Spec: kubeapplier.ApplyDesireSpec{
 			ManagementCluster: managementCluster,
 			KubeContent:       &runtime.RawExtension{Raw: []byte(`{"apiVersion":"v1","kind":"ConfigMap","metadata":{"name":"x","namespace":"default"}}`)},
