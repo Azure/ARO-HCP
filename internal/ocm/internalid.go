@@ -172,13 +172,3 @@ func GetExternalAuthClient(id InternalID, transport http.RoundTripper) (*arohcpv
 	}
 	return arohcpv1alpha1.NewExternalAuthClient(transport, id.Path()), true
 }
-
-// GetBreakGlassCredentialClient returns a v1 BreakGlassCredentialClient
-// from the InternalID. The transport is most likely to be a Connection
-// object from the SDK.
-func GetBreakGlassCredentialClient(id InternalID, transport http.RoundTripper) (*cmv1.BreakGlassCredentialClient, bool) {
-	if id.Kind() != cmv1.BreakGlassCredentialKind {
-		return nil, false
-	}
-	return cmv1.NewBreakGlassCredentialClient(transport, id.Path()), true
-}

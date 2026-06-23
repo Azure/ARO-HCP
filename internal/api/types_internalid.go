@@ -31,6 +31,10 @@ const (
 	breakGlassCredentialKey  = "break_glass_credentials"
 	clusterProvisionShardKey = "provision_shard"
 	provisionShardKey        = "provision_shards"
+
+	// SystemAdminCredentialKind is the kind identifier for
+	// SystemAdminCredential resources referenced via InternalID.
+	SystemAdminCredentialKind = "SystemAdminCredential"
 )
 
 var (
@@ -39,6 +43,9 @@ var (
 	v1NodePoolPattern             = path.Join(v1ClusterPattern, nodePoolKey, "*")
 	v1ExternalAuthPattern         = path.Join(v1ClusterPattern, externalAuthKey, "*")
 	v1BreakGlassCredentialPattern = path.Join(v1ClusterPattern, breakGlassCredentialKey, "*")
+
+	// ARM resource ID pattern for SystemAdminCredential
+	systemAdminCredentialARMPattern = "/subscriptions/*/resourcegroups/*/providers/microsoft.redhatopenshift/hcpopenshiftclusters/*/systemadmincredentials/*"
 
 	aroHcpV1Alpha1Pattern                      = "/api/aro_hcp/v1alpha1"
 	aroHcpV1Alpha1ClusterPattern               = path.Join(aroHcpV1Alpha1Pattern, clusterKey, "*")
@@ -80,6 +87,11 @@ func (id *InternalID) validate() error {
 
 	if match, _ = path.Match(v1BreakGlassCredentialPattern, id.path); match {
 		id.kind = cmv1.BreakGlassCredentialKind
+		return nil
+	}
+
+	if match, _ = path.Match(systemAdminCredentialARMPattern, id.path); match {
+		id.kind = SystemAdminCredentialKind
 		return nil
 	}
 

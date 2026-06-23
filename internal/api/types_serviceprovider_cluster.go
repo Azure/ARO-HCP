@@ -130,6 +130,11 @@ type ServiceProviderClusterStatus struct {
 	// this HCP is placed on. Nil means placement has not been resolved yet.
 	// Once set, this field is immutable.
 	ManagementClusterResourceID *azcorearm.ResourceID `json:"managementClusterResourceID,omitempty"`
+	// ServingCABundle is the PEM-encoded CA bundle for the cluster's
+	// kube-apiserver serving certificate. Populated by the
+	// SystemAdminCredentialCABundleSync controller from a ReadDesire
+	// on the HyperShift-managed serving CA Secret.
+	ServingCABundle string `json:"servingCABundle,omitempty"`
 }
 
 // ServiceProviderClusterStatusVersion contains the actual version information.

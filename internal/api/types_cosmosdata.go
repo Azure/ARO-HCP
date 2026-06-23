@@ -96,6 +96,19 @@ func ToManagementClusterContentResourceIDString(subscriptionName, resourceGroupN
 	))
 }
 
+func ToSystemAdminCredentialResourceIDString(subscriptionName, resourceGroupName, clusterName, credentialName string) string {
+	return strings.ToLower(path.Join(
+		"/subscriptions", subscriptionName,
+		"resourceGroups", resourceGroupName,
+		"providers", ClusterResourceType.String(), clusterName,
+		SystemAdminCredentialResourceType.Types[len(SystemAdminCredentialResourceType.Types)-1], credentialName,
+	))
+}
+
+func ToSystemAdminCredentialResourceID(subscriptionName, resourceGroupName, clusterName, credentialName string) (*azcorearm.ResourceID, error) {
+	return azcorearm.ParseResourceID(ToSystemAdminCredentialResourceIDString(subscriptionName, resourceGroupName, clusterName, credentialName))
+}
+
 func ToServiceProviderNodePoolResourceIDString(subscriptionName, resourceGroupName, clusterName, nodePoolName string) string {
 	return strings.ToLower(path.Join(
 		"/subscriptions", subscriptionName,

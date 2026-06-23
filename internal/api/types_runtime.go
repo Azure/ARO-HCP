@@ -272,3 +272,35 @@ var _ runtime.Object = &ManagementClusterContentList{}
 func (l *ManagementClusterContentList) GetObjectKind() schema.ObjectKind {
 	return &l.TypeMeta
 }
+
+var (
+	_ runtime.Object            = &SystemAdminCredential{}
+	_ metav1.ObjectMetaAccessor = &SystemAdminCredential{}
+)
+
+func (o *SystemAdminCredential) GetObjectKind() schema.ObjectKind {
+	return schema.EmptyObjectKind
+}
+
+func (o *SystemAdminCredential) GetObjectMeta() metav1.Object {
+	om := &metav1.ObjectMeta{}
+	if o.GetResourceID() != nil {
+		om.Name = strings.ToLower(o.GetResourceID().String())
+	}
+	return om
+}
+
+// SystemAdminCredentialList is a list of SystemAdminCredentials
+// compatible with runtime.Object for use with Kubernetes informer machinery.
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+type SystemAdminCredentialList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+	Items           []SystemAdminCredential `json:"items"`
+}
+
+var _ runtime.Object = &SystemAdminCredentialList{}
+
+func (l *SystemAdminCredentialList) GetObjectKind() schema.ObjectKind {
+	return &l.TypeMeta
+}

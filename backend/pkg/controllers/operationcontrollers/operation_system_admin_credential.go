@@ -23,24 +23,22 @@ import (
 	"k8s.io/client-go/tools/cache"
 	utilsclock "k8s.io/utils/clock"
 
-	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
-	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
-type operationRequestCredential struct {
-	clock                 utilsclock.PassiveClock
-	resourcesDBClient     database.ResourcesDBClient
-	clustersServiceClient ocm.ClusterServiceClientSpec
-	notificationClient    *http.Client
+type operationSystemAdminCredential struct {
+	clock              utilsclock.PassiveClock
+	resourcesDBClient  database.ResourcesDBClient
+	notificationClient *http.Client
 }
 
-// NewOperationRequestCredentialController returns a new Controller instance that
+// NewOperationSystemAdminCredentialController returns a new Controller instance that
 // follows an asynchronous admin credential request operation to completion and
 // updates the corresponding operation document in Cosmos DB.
 //
@@ -49,38 +47,29 @@ type operationRequestCredential struct {
 //	ResourceType: Microsoft.RedHatOpenShift/hcpOpenShiftClusters
 //	     Request: RequestCredential
 //	      Status: any non-terminal value
-//	  InternalID: a Clusters Service HREF value
-//
-// Note that "to completion" does not imply success. An operation is considered
-// complete when its status field reaches what Azure defines as a terminal value;
-// any of "Succeeded", "Failed", or "Canceled". Once the operation status reaches
-// a terminal value, there will be no further updates to the operation document.
-func NewOperationRequestCredentialController(
+//	  InternalID: a SystemAdminCredential resource ID
+func NewOperationSystemAdminCredentialController(
 	clock utilsclock.PassiveClock,
 	resourcesDBClient database.ResourcesDBClient,
-	clustersServiceClient ocm.ClusterServiceClientSpec,
 	notificationClient *http.Client,
 	activeOperationInformer cache.SharedIndexInformer,
 ) controllerutils.Controller {
-	syncer := &operationRequestCredential{
-		clock:                 clock,
-		resourcesDBClient:     resourcesDBClient,
-		clustersServiceClient: clustersServiceClient,
-		notificationClient:    notificationClient,
+	syncer := &operationSystemAdminCredential{
+		clock:              clock,
+		resourcesDBClient:  resourcesDBClient,
+		notificationClient: notificationClient,
 	}
 
-	controller := NewGenericOperationController(
-		"OperationRequestCredential",
+	return NewGenericOperationController(
+		"OperationSystemAdminCredential",
 		syncer,
 		10*time.Second,
 		activeOperationInformer,
 		resourcesDBClient,
 	)
-
-	return controller
 }
 
-func (opsync *operationRequestCredential) ShouldProcess(ctx context.Context, operation *api.Operation) bool {
+func (opsync *operationSystemAdminCredential) ShouldProcess(ctx context.Context, operation *api.Operation) bool {
 	if operation.Status.IsTerminal() {
 		return false
 	}
@@ -93,22 +82,32 @@ func (opsync *operationRequestCredential) ShouldProcess(ctx context.Context, ope
 	return true
 }
 
-func (opsync *operationRequestCredential) SynchronizeOperation(ctx context.Context, key controllerutils.OperationKey) error {
+func (opsync *operationSystemAdminCredential) SynchronizeOperation(ctx context.Context, key controllerutils.OperationKey) error {
 	logger := utils.LoggerFromContext(ctx)
 	logger.Info("checking operation")
 
 	oldOperation, err := opsync.resourcesDBClient.Operations(key.SubscriptionID).Get(ctx, key.OperationName)
 	if database.IsNotFoundError(err) {
-		return nil // no work to do
+		return nil
 	}
 	if err != nil {
 		return fmt.Errorf("failed to get active operation: %w", err)
 	}
 	if !opsync.ShouldProcess(ctx, oldOperation) {
-		return nil // no work to do
+		return nil
 	}
 
-	breakGlassCredential, err := opsync.clustersServiceClient.GetBreakGlassCredential(ctx, oldOperation.InternalID)
+	// Parse the SystemAdminCredential resource ID from the operation's InternalID.
+	credResourceID, err := azcorearm.ParseResourceID(oldOperation.InternalID.String())
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to parse InternalID as resource ID: %w", err))
+	}
+
+	cred, err := opsync.resourcesDBClient.SystemAdminCredentials(
+		credResourceID.SubscriptionID,
+		credResourceID.ResourceGroupName,
+		credResourceID.Parent.Name,
+	).Get(ctx, credResourceID.Name)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -116,21 +115,19 @@ func (opsync *operationRequestCredential) SynchronizeOperation(ctx context.Conte
 	var newOperationStatus arm.ProvisioningState
 	var newOperationError *arm.CloudErrorBody
 
-	switch status := breakGlassCredential.Status(); status {
-	case cmv1.BreakGlassCredentialStatusCreated:
+	switch phase := cred.Status.Phase; phase {
+	case api.SystemAdminCredentialPhaseRequested:
 		newOperationStatus = arm.ProvisioningStateProvisioning
-	case cmv1.BreakGlassCredentialStatusFailed:
-		// XXX Cluster Service does not provide a reason for the failure,
-		//     so we have no choice but to use a generic error message.
+	case api.SystemAdminCredentialPhaseFailed:
 		newOperationStatus = arm.ProvisioningStateFailed
 		newOperationError = &arm.CloudErrorBody{
 			Code:    arm.CloudErrorCodeInternalServerError,
 			Message: "Failed to provision cluster credential",
 		}
-	case cmv1.BreakGlassCredentialStatusIssued:
+	case api.SystemAdminCredentialPhaseIssued:
 		newOperationStatus = arm.ProvisioningStateSucceeded
 	default:
-		return fmt.Errorf("unhandled BreakGlassCredentialStatus '%s'", status)
+		return fmt.Errorf("unhandled SystemAdminCredentialPhase '%s'", phase)
 	}
 
 	if !needToPatchOperation(oldOperation, newOperationStatus, newOperationError) {

@@ -133,6 +133,8 @@ type ResourcesDBClient interface {
 	ResourcesGlobalListers() ResourcesGlobalListers
 
 	ServiceProviderNodePools(subscriptionID, resourceGroupName, clusterName, nodePoolName string) ResourceCRUD[api.ServiceProviderNodePool, *api.ServiceProviderNodePool]
+
+	SystemAdminCredentials(subscriptionID, resourceGroupName, clusterName string) ResourceCRUD[api.SystemAdminCredential, *api.SystemAdminCredential]
 }
 
 var _ ResourcesDBClient = &resourcesCosmosDBClient{}
@@ -184,6 +186,12 @@ func (d *resourcesCosmosDBClient) ServiceProviderNodePools(subscriptionID, resou
 	nodePoolResourceID := api.Must(api.ToNodePoolResourceID(subscriptionID, resourceGroupName, clusterName, nodePoolName))
 	return NewCosmosResourceCRUD[api.ServiceProviderNodePool, *api.ServiceProviderNodePool, GenericDocument[api.ServiceProviderNodePool]](
 		d.resources, nodePoolResourceID, api.ServiceProviderNodePoolResourceType)
+}
+
+func (d *resourcesCosmosDBClient) SystemAdminCredentials(subscriptionID, resourceGroupName, clusterName string) ResourceCRUD[api.SystemAdminCredential, *api.SystemAdminCredential] {
+	clusterResourceID := api.Must(api.ToClusterResourceID(subscriptionID, resourceGroupName, clusterName))
+	return NewCosmosResourceCRUD[api.SystemAdminCredential, *api.SystemAdminCredential, GenericDocument[api.SystemAdminCredential]](
+		d.resources, clusterResourceID, api.SystemAdminCredentialResourceType)
 }
 
 func (d *resourcesCosmosDBClient) UntypedCRUD(parentResourceID azcorearm.ResourceID) (UntypedResourceCRUD, error) {

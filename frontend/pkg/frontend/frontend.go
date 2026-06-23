@@ -36,7 +36,6 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
-	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
 
 	"github.com/Azure/ARO-HCP/frontend/pkg/metrics"
 	"github.com/Azure/ARO-HCP/internal/admission"
@@ -48,6 +47,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/audit"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
+	"github.com/Azure/ARO-HCP/internal/systemadmincredential"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/internal/utils/armhelpers"
 	"github.com/Azure/ARO-HCP/internal/validation"
@@ -1032,13 +1032,51 @@ func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Req
 	var responseBody []byte
 
 	switch {
-	case operation.InternalID.Kind() == cmv1.BreakGlassCredentialKind:
-		csBreakGlassCredential, err := f.clusterServiceClient.GetBreakGlassCredential(ctx, operation.InternalID)
+	case operation.InternalID.Kind() == api.SystemAdminCredentialKind:
+		credResourceID, err := azcorearm.ParseResourceID(operation.InternalID.String())
 		if err != nil {
 			return utils.TrackError(err)
 		}
 
-		responseBody, err = versionedInterface.MarshalHCPOpenShiftClusterAdminCredential(ocm.ConvertCStoAdminCredential(csBreakGlassCredential))
+		cred, err := f.resourcesDBClient.SystemAdminCredentials(
+			credResourceID.SubscriptionID,
+			credResourceID.ResourceGroupName,
+			credResourceID.Parent.Name,
+		).Get(ctx, credResourceID.Name)
+		if err != nil {
+			return utils.TrackError(err)
+		}
+
+		clusterResourceID := operation.ExternalID.Parent
+		cluster, err := f.resourcesDBClient.HCPClusters(
+			clusterResourceID.SubscriptionID,
+			clusterResourceID.ResourceGroupName,
+		).Get(ctx, clusterResourceID.Name)
+		if err != nil {
+			return utils.TrackError(err)
+		}
+
+		spc, err := database.GetOrCreateServiceProviderCluster(ctx, f.resourcesDBClient, cluster.GetResourceID())
+		if err != nil {
+			return utils.TrackError(err)
+		}
+
+		kubeconfig, err := systemadmincredential.BuildKubeconfig(
+			cluster.ServiceProviderProperties.API.URL,
+			spc.Status.ServingCABundle,
+			cred.Status.SignedCertificate,
+			cred.Spec.PrivateKeyPEM,
+			cred.Spec.Username,
+		)
+		if err != nil {
+			return utils.TrackError(err)
+		}
+
+		responseBody, err = versionedInterface.MarshalHCPOpenShiftClusterAdminCredential(
+			&api.HCPOpenShiftClusterAdminCredential{
+				ExpirationTimestamp: cred.Spec.ExpirationTimestamp.Time,
+				Kubeconfig:          string(kubeconfig),
+			})
 		if err != nil {
 			return utils.TrackError(err)
 		}

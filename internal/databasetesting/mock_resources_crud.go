@@ -650,6 +650,20 @@ func newMockServiceProviderNodePoolCRUD(client *MockResourcesDBClient, parentRes
 
 var _ database.ResourceCRUD[api.ServiceProviderNodePool, *api.ServiceProviderNodePool] = &mockServiceProviderNodePoolCRUD{}
 
+// mockSystemAdminCredentialCRUD implements database.ResourceCRUD[api.SystemAdminCredential, *api.SystemAdminCredential].
+type mockSystemAdminCredentialCRUD struct {
+	*mockResourceCRUD[api.SystemAdminCredential, *api.SystemAdminCredential, database.GenericDocument[api.SystemAdminCredential]]
+}
+
+func newMockSystemAdminCredentialCRUD(client *MockResourcesDBClient, parentResourceID *azcorearm.ResourceID) *mockSystemAdminCredentialCRUD {
+	return &mockSystemAdminCredentialCRUD{
+		mockResourceCRUD: newMockResourceCRUD[api.SystemAdminCredential, *api.SystemAdminCredential, database.GenericDocument[api.SystemAdminCredential]](
+			client, parentResourceID, api.SystemAdminCredentialResourceType),
+	}
+}
+
+var _ database.ResourceCRUD[api.SystemAdminCredential, *api.SystemAdminCredential] = &mockSystemAdminCredentialCRUD{}
+
 // mockManagementClusterContentCRUD implements database.ResourceCRUD[api.ManagementClusterContent, *api.ManagementClusterContent].
 type mockManagementClusterContentCRUD struct {
 	*mockResourceCRUD[api.ManagementClusterContent, *api.ManagementClusterContent, database.GenericDocument[api.ManagementClusterContent]]

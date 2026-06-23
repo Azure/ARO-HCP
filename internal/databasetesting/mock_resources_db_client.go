@@ -106,6 +106,12 @@ func (m *MockResourcesDBClient) ServiceProviderClusters(subscriptionID, resource
 	return newMockServiceProviderClusterCRUD(m, clusterResourceID)
 }
 
+// SystemAdminCredentials returns a CRUD interface for system admin credential resources.
+func (m *MockResourcesDBClient) SystemAdminCredentials(subscriptionID, resourceGroupName, clusterName string) database.ResourceCRUD[api.SystemAdminCredential, *api.SystemAdminCredential] {
+	clusterResourceID := api.Must(api.ToClusterResourceID(subscriptionID, resourceGroupName, clusterName))
+	return newMockSystemAdminCredentialCRUD(m, clusterResourceID)
+}
+
 // ServiceProviderNodePools returns a CRUD interface for service provider node pool resources.
 func (m *MockResourcesDBClient) ServiceProviderNodePools(subscriptionID, resourceGroupName, clusterName, nodePoolName string) database.ResourceCRUD[api.ServiceProviderNodePool, *api.ServiceProviderNodePool] {
 	nodePoolResourceID := api.Must(api.ToNodePoolResourceID(subscriptionID, resourceGroupName, clusterName, nodePoolName))
