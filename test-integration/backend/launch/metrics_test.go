@@ -116,8 +116,8 @@ func TestBackendExposesMetrics(t *testing.T) {
 			MaestroSourceEnvironmentIdentifier: "test",
 			ExitOnPanic:                        false,
 			BackupConfig: &backups.BackupConfig{
-				coreapi.BackupScheduleStateEnabled,
-				backups.BackupCadenceProduction,
+				BackupScheduleState:  coreapi.BackupScheduleStateEnabled,
+				BackupCadenceProfile: backups.BackupCadenceProduction,
 			},
 		}
 
