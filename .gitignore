@@ -35,4 +35,3 @@ _artifacts
 must-gather-*
 /hcpctl
 timing-metadata-*
-cluster-service/helm-charts/cluster-service/values-override.yaml

@@ -154,9 +154,9 @@ tenantId: "__tenantId__"
 # The name of the secret that contains the first party application certificate bundle.
 fpaCertName: ""
 # If set to true the connection to the database is performed without TLS.
-databaseDisableTLS: "false"
+databaseDisableTls: "__databaseDisableTls__"
 # Authentication method to use when connecting to the database. Accepted values are 'az-entra', 'postgres'
-databaseAuthMethod: "az-entra"
+databaseAuthMethod: "__databaseAuthMethod__"
 # URL of the storage account blob service, e.g. https://<storage-account>.blob.core.windows.net/
 oidcIssuerBlobServiceUrl: "__oidcIssuerBlobServiceUrl__"
 # OIDC base issuer URL, e.g. https://<storage-account>.z1.web.core.windows.net/
@@ -190,17 +190,17 @@ clientId: "foo"
 # ocm secret
 clientSecret: "bar"
 # If true an in cluster database will be deployed.
-deployLocalDatabase: true
+deployLocalDatabase: "__deployLocalDatabase__"
 # The name of the K8s secret where CS DB connection information is placed
 databaseK8sSecretName: "ocm-cs-db"
 # The hostname of the postgres server/service. It can be a K8s service name
 databaseHost: "__databaseHost__"
 # Username for PostgreSQL user that will be used for accessing the database.
-databaseUser: "ocm"
+databaseUser: "__databaseUser__"
 # Password for the PostgreSQL connection user.
-databasePassword: "TheBlurstOfTimes"
+databasePassword: "__databasePassword__"
 # Name of the PostgreSQL database accessed.
-databaseName: "ocm-cs-db"
+databaseName: "__databaseName__"
 # Host port
 databasePort: "5432"
 # The name of the managed identities data plane audience resource.
