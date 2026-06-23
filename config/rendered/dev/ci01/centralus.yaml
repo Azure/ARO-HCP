@@ -903,6 +903,17 @@ sessiongate:
     replicas: 2
     serviceAccountName: sessiongate
   managedIdentityName: sessiongate
+stgGlobalV2:
+  acrOcpName: empty-sentinel
+  acrSvcName: empty-sentinel
+  cxParentZoneName: empty-sentinel
+  frontDoorKeyVaultName: empty-sentinel
+  frontDoorName: empty-sentinel
+  genevaKeyVaultName: empty-sentinel
+  globalKeyVaultName: empty-sentinel
+  kustoName: empty-sentinel
+  oidcStorageAccountName: empty-sentinel
+  svcParentZoneName: empty-sentinel
 svc:
   aks:
     clusterOutboundIPAddressIPTags: ""
