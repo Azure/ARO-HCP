@@ -1,6 +1,0 @@
-prometheusRules:
-  rulesFolders: []
-  untestedRules: []
-  testDependencies:
-  - recording-rules-services.yaml
-  outputBicep: ../dev-infrastructure/modules/metrics/rules/generatedRPPrometheusAlertingRules.bicep

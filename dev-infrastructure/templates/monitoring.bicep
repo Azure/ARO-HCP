@@ -38,18 +38,6 @@ param icmRoutingIdSL string
 param icmAutomitigationEnabledSL string
 
 @description('Name of the ICM Action Group')
-param icmActionGroupNameRP string
-
-@description('Name of the ICM Action Group')
-param icmActionGroupShortNameRP string
-
-@description('ICM routing ID')
-param icmRoutingIdRP string
-
-@description('ICM automitigation enabled ID')
-param icmAutomitigationEnabledRP string
-
-@description('Name of the ICM Action Group')
 param icmActionGroupNameMSFT string
 
 @description('Name of the ICM Action Group')
@@ -81,10 +69,6 @@ module actionGroups '../modules/metrics/actiongroups.bicep' = if (manageConnecti
     icmActionGroupShortNameSL: icmActionGroupShortNameSL
     icmRoutingIdSL: icmRoutingIdSL
     icmAutomitigationEnabledSL: icmAutomitigationEnabledSL
-    icmActionGroupNameRP: icmActionGroupNameRP
-    icmActionGroupShortNameRP: icmActionGroupShortNameRP
-    icmRoutingIdRP: icmRoutingIdRP
-    icmAutomitigationEnabledRP: icmAutomitigationEnabledRP
     icmActionGroupNameMSFT: icmActionGroupNameMSFT
     icmActionGroupShortNameMSFT: icmActionGroupShortNameMSFT
     icmRoutingIdMSFT: icmRoutingIdMSFT
@@ -94,7 +78,6 @@ module actionGroups '../modules/metrics/actiongroups.bicep' = if (manageConnecti
 }
 
 var slActionGroups = manageConnection ? [actionGroups.outputs.actionGroupsSL] : []
-var rpActionGroups = manageConnection ? [actionGroups.outputs.actionGroupsRP] : []
 var sreActionGroups = manageConnection ? [actionGroups.outputs.actionGroupsSRE] : []
 var msftActionGroups = manageConnection ? [actionGroups.outputs.actionGroupsMSFT] : []
 
@@ -119,14 +102,6 @@ module sreServiceAlerts '../modules/metrics/sre-service-rules.bicep' = {
   params: {
     azureMonitoringWorkspaceId: azureMonitoringWorkspaceId
     actionGroups: sreActionGroups
-  }
-}
-
-module rpAlerts '../modules/metrics/rp-rules.bicep' = {
-  name: 'rpAlerts'
-  params: {
-    azureMonitoringWorkspaceId: azureMonitoringWorkspaceId
-    actionGroups: rpActionGroups
   }
 }
 
