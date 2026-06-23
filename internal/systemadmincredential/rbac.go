@@ -17,11 +17,10 @@ package systemadmincredential
 import (
 	"fmt"
 
-	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
+
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 )
 
 // RBAC bundle name prefixes — every bundle's k8s object names are
@@ -52,13 +51,13 @@ const (
 //
 // owner is required and is written to metadata.annotations on every
 // object returned.
-func BuildRBACGiveCSRPerm(owner *azcorearm.ResourceID, credName string) ([]runtime.Object, error) {
+func BuildRBACGiveCSRPerm(owner *azcorearm.ResourceID, credName string) (*rbacv1.ClusterRole, *rbacv1.ClusterRoleBinding, error) {
 	if credName == "" {
-		return nil, fmt.Errorf("credName must not be empty")
+		return nil, nil, fmt.Errorf("credName must not be empty")
 	}
 	name := RBACGiveCSRPermNamePrefix + "-" + credName
 
-	cr := &rbacv1.ClusterRole{
+	clusterRole := &rbacv1.ClusterRole{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: rbacv1.SchemeGroupVersion.String(),
 			Kind:       "ClusterRole",
@@ -72,9 +71,9 @@ func BuildRBACGiveCSRPerm(owner *azcorearm.ResourceID, credName string) ([]runti
 			},
 		},
 	}
-	setOwnerAnnotation(&cr.ObjectMeta, owner)
+	setOwnerAnnotation(&clusterRole.ObjectMeta, owner)
 
-	crb := &rbacv1.ClusterRoleBinding{
+	clusterRoleBinding := &rbacv1.ClusterRoleBinding{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: rbacv1.SchemeGroupVersion.String(),
 			Kind:       "ClusterRoleBinding",
@@ -91,24 +90,24 @@ func BuildRBACGiveCSRPerm(owner *azcorearm.ResourceID, credName string) ([]runti
 			Namespace: klusterletServiceAccountNamespace,
 		}},
 	}
-	setOwnerAnnotation(&crb.ObjectMeta, owner)
+	setOwnerAnnotation(&clusterRoleBinding.ObjectMeta, owner)
 
-	return []runtime.Object{cr, crb}, nil
+	return clusterRole, clusterRoleBinding, nil
 }
 
 // BuildRBACCSRA returns the Role + RoleBinding pair that lets the
 // klusterlet manage CertificateSigningRequestApproval objects (HyperShift
 // CRD) in the cluster's HCP namespace.
-func BuildRBACCSRA(owner *azcorearm.ResourceID, credName, namespace string) ([]runtime.Object, error) {
+func BuildRBACCSRA(owner *azcorearm.ResourceID, credName, namespace string) (*rbacv1.Role, *rbacv1.RoleBinding, error) {
 	if credName == "" {
-		return nil, fmt.Errorf("credName must not be empty")
+		return nil, nil, fmt.Errorf("credName must not be empty")
 	}
 	if namespace == "" {
-		return nil, fmt.Errorf("namespace must not be empty")
+		return nil, nil, fmt.Errorf("namespace must not be empty")
 	}
 	name := RBACCSRAPermNamePrefix + "-" + credName
 
-	r := &rbacv1.Role{
+	role := &rbacv1.Role{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: rbacv1.SchemeGroupVersion.String(),
 			Kind:       "Role",
@@ -122,9 +121,9 @@ func BuildRBACCSRA(owner *azcorearm.ResourceID, credName, namespace string) ([]r
 			},
 		},
 	}
-	setOwnerAnnotation(&r.ObjectMeta, owner)
+	setOwnerAnnotation(&role.ObjectMeta, owner)
 
-	rb := &rbacv1.RoleBinding{
+	roleBinding := &rbacv1.RoleBinding{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: rbacv1.SchemeGroupVersion.String(),
 			Kind:       "RoleBinding",
@@ -141,24 +140,24 @@ func BuildRBACCSRA(owner *azcorearm.ResourceID, credName, namespace string) ([]r
 			Namespace: klusterletServiceAccountNamespace,
 		}},
 	}
-	setOwnerAnnotation(&rb.ObjectMeta, owner)
+	setOwnerAnnotation(&roleBinding.ObjectMeta, owner)
 
-	return []runtime.Object{r, rb}, nil
+	return role, roleBinding, nil
 }
 
 // BuildRBACRevocation returns the Role + RoleBinding pair that lets the
 // klusterlet manage CertificateRevocationRequest objects (HyperShift
 // CRD) in the cluster's HCP namespace.
-func BuildRBACRevocation(owner *azcorearm.ResourceID, credName, namespace string) ([]runtime.Object, error) {
+func BuildRBACRevocation(owner *azcorearm.ResourceID, credName, namespace string) (*rbacv1.Role, *rbacv1.RoleBinding, error) {
 	if credName == "" {
-		return nil, fmt.Errorf("credName must not be empty")
+		return nil, nil, fmt.Errorf("credName must not be empty")
 	}
 	if namespace == "" {
-		return nil, fmt.Errorf("namespace must not be empty")
+		return nil, nil, fmt.Errorf("namespace must not be empty")
 	}
 	name := RBACRevocationPermNamePrefix + "-" + credName
 
-	r := &rbacv1.Role{
+	role := &rbacv1.Role{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: rbacv1.SchemeGroupVersion.String(),
 			Kind:       "Role",
@@ -172,9 +171,9 @@ func BuildRBACRevocation(owner *azcorearm.ResourceID, credName, namespace string
 			},
 		},
 	}
-	setOwnerAnnotation(&r.ObjectMeta, owner)
+	setOwnerAnnotation(&role.ObjectMeta, owner)
 
-	rb := &rbacv1.RoleBinding{
+	roleBinding := &rbacv1.RoleBinding{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: rbacv1.SchemeGroupVersion.String(),
 			Kind:       "RoleBinding",
@@ -191,7 +190,7 @@ func BuildRBACRevocation(owner *azcorearm.ResourceID, credName, namespace string
 			Namespace: klusterletServiceAccountNamespace,
 		}},
 	}
-	setOwnerAnnotation(&rb.ObjectMeta, owner)
+	setOwnerAnnotation(&roleBinding.ObjectMeta, owner)
 
-	return []runtime.Object{r, rb}, nil
+	return role, roleBinding, nil
 }

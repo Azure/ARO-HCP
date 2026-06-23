@@ -72,6 +72,7 @@ const (
 	NodePoolResourceTypeName                 = "nodePools"
 	ExternalAuthResourceTypeName             = "externalAuths"
 	SystemAdminCredentialResourceTypeName    = "systemAdminCredentials"
+	SystemAdminRevocationResourceTypeName    = "systemAdminRevocations"
 	OperationResultResourceTypeName          = "hcpOperationResults"
 	OperationStatusResourceTypeName          = "hcpOperationStatuses"
 	ControllerResourceTypeName               = "hcpOpenShiftControllers"
@@ -82,20 +83,23 @@ const (
 )
 
 var (
-	OperationStatusResourceType         = azcorearm.NewResourceType(ProviderNamespace, OperationStatusResourceTypeName)
-	ClusterResourceType                 = azcorearm.NewResourceType(ProviderNamespace, ClusterResourceTypeName)
-	ServiceProviderClusterResourceType  = azcorearm.NewResourceType(ProviderNamespace, ClusterResourceTypeName+"/"+ServiceProviderClusterResourceTypeName)
-	NodePoolResourceType                = azcorearm.NewResourceType(ProviderNamespace, ClusterResourceTypeName+"/"+NodePoolResourceTypeName)
-	ServiceProviderNodePoolResourceType = azcorearm.NewResourceType(ProviderNamespace, filepath.Join(ClusterResourceTypeName, NodePoolResourceTypeName, ServiceProviderNodePoolResourceTypeName))
-	ExternalAuthResourceType            = azcorearm.NewResourceType(ProviderNamespace, ClusterResourceTypeName+"/"+ExternalAuthResourceTypeName)
-	SystemAdminCredentialResourceType   = azcorearm.NewResourceType(ProviderNamespace, ClusterResourceTypeName+"/"+SystemAdminCredentialResourceTypeName)
-	PreflightResourceType               = azcorearm.NewResourceType(ProviderNamespace, "deployments/preflight")
-	VersionResourceType                 = azcorearm.NewResourceType(ProviderNamespace, "locations/"+VersionResourceTypeName)
-	ClusterControllerResourceType       = azcorearm.NewResourceType(ProviderNamespace, filepath.Join(ClusterResourceTypeName, ControllerResourceTypeName))
-	NodePoolControllerResourceType      = azcorearm.NewResourceType(ProviderNamespace, filepath.Join(ClusterResourceTypeName, NodePoolResourceTypeName, ControllerResourceTypeName))
-	ExternalAuthControllerResourceType  = azcorearm.NewResourceType(ProviderNamespace, filepath.Join(ClusterResourceTypeName, ExternalAuthResourceTypeName, ControllerResourceTypeName))
-	RequestAdminCredentialActionType    = azcorearm.NewResourceType(ProviderNamespace, filepath.Join(ClusterResourceTypeName, RequestAdminCredentialActionTypeName))
-	RevokeAdminCredentialsActionType    = azcorearm.NewResourceType(ProviderNamespace, filepath.Join(ClusterResourceTypeName, RevokeAdminCredentialsActionTypeName))
+	OperationStatusResourceType                 = azcorearm.NewResourceType(ProviderNamespace, OperationStatusResourceTypeName)
+	ClusterResourceType                         = azcorearm.NewResourceType(ProviderNamespace, ClusterResourceTypeName)
+	ServiceProviderClusterResourceType          = azcorearm.NewResourceType(ProviderNamespace, ClusterResourceTypeName+"/"+ServiceProviderClusterResourceTypeName)
+	NodePoolResourceType                        = azcorearm.NewResourceType(ProviderNamespace, ClusterResourceTypeName+"/"+NodePoolResourceTypeName)
+	ServiceProviderNodePoolResourceType         = azcorearm.NewResourceType(ProviderNamespace, filepath.Join(ClusterResourceTypeName, NodePoolResourceTypeName, ServiceProviderNodePoolResourceTypeName))
+	ExternalAuthResourceType                    = azcorearm.NewResourceType(ProviderNamespace, ClusterResourceTypeName+"/"+ExternalAuthResourceTypeName)
+	SystemAdminCredentialResourceType           = azcorearm.NewResourceType(ProviderNamespace, ClusterResourceTypeName+"/"+SystemAdminCredentialResourceTypeName)
+	SystemAdminRevocationResourceType           = azcorearm.NewResourceType(ProviderNamespace, ClusterResourceTypeName+"/"+SystemAdminRevocationResourceTypeName)
+	PreflightResourceType                       = azcorearm.NewResourceType(ProviderNamespace, "deployments/preflight")
+	VersionResourceType                         = azcorearm.NewResourceType(ProviderNamespace, "locations/"+VersionResourceTypeName)
+	ClusterControllerResourceType               = azcorearm.NewResourceType(ProviderNamespace, filepath.Join(ClusterResourceTypeName, ControllerResourceTypeName))
+	NodePoolControllerResourceType              = azcorearm.NewResourceType(ProviderNamespace, filepath.Join(ClusterResourceTypeName, NodePoolResourceTypeName, ControllerResourceTypeName))
+	ExternalAuthControllerResourceType          = azcorearm.NewResourceType(ProviderNamespace, filepath.Join(ClusterResourceTypeName, ExternalAuthResourceTypeName, ControllerResourceTypeName))
+	SystemAdminCredentialControllerResourceType = azcorearm.NewResourceType(ProviderNamespace, filepath.Join(ClusterResourceTypeName, SystemAdminCredentialResourceTypeName, ControllerResourceTypeName))
+	SystemAdminRevocationControllerResourceType = azcorearm.NewResourceType(ProviderNamespace, filepath.Join(ClusterResourceTypeName, SystemAdminRevocationResourceTypeName, ControllerResourceTypeName))
+	RequestAdminCredentialActionType            = azcorearm.NewResourceType(ProviderNamespace, filepath.Join(ClusterResourceTypeName, RequestAdminCredentialActionTypeName))
+	RevokeAdminCredentialsActionType            = azcorearm.NewResourceType(ProviderNamespace, filepath.Join(ClusterResourceTypeName, RevokeAdminCredentialsActionTypeName))
 	// ClusterScopedManagementClusterContentResourceType is managementClusterContents nested directly under a Cluster
 	ClusterScopedManagementClusterContentResourceType = azcorearm.NewResourceType(ProviderNamespace, filepath.Join(ClusterResourceTypeName, ManagementClusterContentResourceTypeName))
 	// NodePoolScopedManagementClusterContentResourceType is managementClusterContents nested under a Node Pool

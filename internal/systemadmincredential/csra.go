@@ -17,10 +17,11 @@ package systemadmincredential
 import (
 	"fmt"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	certificatesv1alpha1 "github.com/openshift/hypershift/api/certificates/v1alpha1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // CSRANamePrefix is the on-MC `metadata.name` prefix for per-credential

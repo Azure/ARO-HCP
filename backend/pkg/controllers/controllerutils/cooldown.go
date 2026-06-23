@@ -59,6 +59,8 @@ func (c *ActiveOperationBasedChecker) CanSync(ctx context.Context, key any) bool
 		activeOperations, err = c.activeOperationLister.ListActiveOperationsForNodePool(ctx, castKey.SubscriptionID, castKey.ResourceGroupName, castKey.HCPClusterName, castKey.HCPNodePoolName)
 	case HCPExternalAuthKey:
 		activeOperations, err = c.activeOperationLister.ListActiveOperationsForExternalAuth(ctx, castKey.SubscriptionID, castKey.ResourceGroupName, castKey.HCPClusterName, castKey.HCPExternalAuthName)
+	case HCPSystemAdminCredentialKey:
+		activeOperations, err = c.activeOperationLister.ListActiveOperationsForCluster(ctx, castKey.SubscriptionID, castKey.ResourceGroupName, castKey.HCPClusterName)
 	case OperationKey:
 		ret := c.activeOperationTimer.CanSync(ctx, key)
 		return ret

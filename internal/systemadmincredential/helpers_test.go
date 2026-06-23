@@ -24,12 +24,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-
-	rbacv1 "k8s.io/api/rbac/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	clientcmdapilatest "k8s.io/client-go/tools/clientcmd/api/latest"
 
-	"k8s.io/apimachinery/pkg/runtime"
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 )
 
 // testOwner is a stable cluster resource ID used across the Build* tests
@@ -89,13 +87,13 @@ func TestBuildCSR_RejectsEmptyArgs(t *testing.T) {
 	_, privPEM, err := GenerateKeypair()
 	require.NoError(t, err)
 	for _, tc := range []struct {
-		name    string
+		name     string
 		credName string
-		signer  string
-		ns      string
-		user    string
-		key     []byte
-		wantErr string
+		signer   string
+		ns       string
+		user     string
+		key      []byte
+		wantErr  string
 	}{
 		{"empty credName", "", "signer/x.customer-break-glass", testHCPNamespace, "u", privPEM, "credName"},
 		{"empty signer", testCredName, "", testHCPNamespace, "u", privPEM, "signerName"},
@@ -162,45 +160,40 @@ func TestBuildRevocationRequest_OwnerAnnotationAndShape(t *testing.T) {
 }
 
 func TestBuildRBACGiveCSRPerm(t *testing.T) {
-	objs, err := BuildRBACGiveCSRPerm(testOwner(t), testCredName)
+	clusterRole, clusterRoleBinding, err := BuildRBACGiveCSRPerm(testOwner(t), testCredName)
 	require.NoError(t, err)
-	require.Len(t, objs, 2)
+	require.NotNil(t, clusterRole)
+	require.NotNil(t, clusterRoleBinding)
 
-	cr, ok := objs[0].(*rbacv1.ClusterRole)
-	require.True(t, ok)
-	assert.Equal(t, RBACGiveCSRPermNamePrefix+"-"+testCredName, cr.Name)
-	assert.NotEmpty(t, cr.Annotations[OwnerAnnotationKey])
-	require.Len(t, cr.Rules, 1)
-	assert.Equal(t, []string{"certificates.k8s.io"}, cr.Rules[0].APIGroups)
+	assert.Equal(t, RBACGiveCSRPermNamePrefix+"-"+testCredName, clusterRole.Name)
+	assert.NotEmpty(t, clusterRole.Annotations[OwnerAnnotationKey])
+	require.Len(t, clusterRole.Rules, 1)
+	assert.Equal(t, []string{"certificates.k8s.io"}, clusterRole.Rules[0].APIGroups)
 
-	crb, ok := objs[1].(*rbacv1.ClusterRoleBinding)
-	require.True(t, ok)
-	assert.Equal(t, cr.Name, crb.Name, "binding must reference the role by the same name")
-	assert.Equal(t, cr.Name, crb.RoleRef.Name)
-	require.Len(t, crb.Subjects, 1)
-	assert.Equal(t, klusterletServiceAccountName, crb.Subjects[0].Name)
-	assert.Equal(t, klusterletServiceAccountNamespace, crb.Subjects[0].Namespace)
+	assert.Equal(t, clusterRole.Name, clusterRoleBinding.Name, "binding must reference the role by the same name")
+	assert.Equal(t, clusterRole.Name, clusterRoleBinding.RoleRef.Name)
+	require.Len(t, clusterRoleBinding.Subjects, 1)
+	assert.Equal(t, klusterletServiceAccountName, clusterRoleBinding.Subjects[0].Name)
+	assert.Equal(t, klusterletServiceAccountNamespace, clusterRoleBinding.Subjects[0].Namespace)
 }
 
 func TestBuildRBACCSRA(t *testing.T) {
-	objs, err := BuildRBACCSRA(testOwner(t), testCredName, testHCPNamespace)
+	role, roleBinding, err := BuildRBACCSRA(testOwner(t), testCredName, testHCPNamespace)
 	require.NoError(t, err)
-	require.Len(t, objs, 2)
-	r, ok := objs[0].(*rbacv1.Role)
-	require.True(t, ok)
-	assert.Equal(t, RBACCSRAPermNamePrefix+"-"+testCredName, r.Name)
-	assert.Equal(t, testHCPNamespace, r.Namespace)
-	assert.Equal(t, []string{"certificates.hypershift.openshift.io"}, r.Rules[0].APIGroups)
-	assert.Equal(t, []string{"certificatesigningrequestapprovals"}, r.Rules[0].Resources)
+	require.NotNil(t, role)
+	require.NotNil(t, roleBinding)
+	assert.Equal(t, RBACCSRAPermNamePrefix+"-"+testCredName, role.Name)
+	assert.Equal(t, testHCPNamespace, role.Namespace)
+	assert.Equal(t, []string{"certificates.hypershift.openshift.io"}, role.Rules[0].APIGroups)
+	assert.Equal(t, []string{"certificatesigningrequestapprovals"}, role.Rules[0].Resources)
 }
 
 func TestBuildRBACRevocation(t *testing.T) {
-	objs, err := BuildRBACRevocation(testOwner(t), testCredName, testHCPNamespace)
+	role, roleBinding, err := BuildRBACRevocation(testOwner(t), testCredName, testHCPNamespace)
 	require.NoError(t, err)
-	require.Len(t, objs, 2)
-	r, ok := objs[0].(*rbacv1.Role)
-	require.True(t, ok)
-	assert.Equal(t, []string{"certificaterevocationrequests"}, r.Rules[0].Resources)
+	require.NotNil(t, role)
+	require.NotNil(t, roleBinding)
+	assert.Equal(t, []string{"certificaterevocationrequests"}, role.Rules[0].Resources)
 }
 
 func TestBuildKubeconfig_HappyPath(t *testing.T) {

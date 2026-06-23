@@ -41,6 +41,7 @@ type ResourcesGlobalListers interface {
 	NodePools() GlobalLister[api.HCPOpenShiftClusterNodePool]
 	ExternalAuths() GlobalLister[api.HCPOpenShiftClusterExternalAuth]
 	SystemAdminCredentials() GlobalLister[api.SystemAdminCredential]
+	SystemAdminRevocations() GlobalLister[api.SystemAdminRevocation]
 	ServiceProviderClusters() GlobalLister[api.ServiceProviderCluster]
 	ServiceProviderNodePools() GlobalLister[api.ServiceProviderNodePool]
 	Controllers() GlobalLister[api.Controller]
@@ -97,6 +98,13 @@ func (g *cosmosResourcesGlobalListers) SystemAdminCredentials() GlobalLister[api
 	return &cosmosGlobalLister[api.SystemAdminCredential, GenericDocument[api.SystemAdminCredential]]{
 		containerClient: g.resources,
 		resourceType:    api.SystemAdminCredentialResourceType,
+	}
+}
+
+func (g *cosmosResourcesGlobalListers) SystemAdminRevocations() GlobalLister[api.SystemAdminRevocation] {
+	return &cosmosGlobalLister[api.SystemAdminRevocation, GenericDocument[api.SystemAdminRevocation]]{
+		containerClient: g.resources,
+		resourceType:    api.SystemAdminRevocationResourceType,
 	}
 }
 

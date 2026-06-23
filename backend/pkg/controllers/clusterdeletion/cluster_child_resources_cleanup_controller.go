@@ -158,6 +158,18 @@ func (c *clusterChildResourcesCleanupController) SyncOnce(ctx context.Context, k
 		// We never delete cluster controllers here, as there might be controllers still running
 		// for the Cluster until the very end of the deletion process
 		strings.ToLower(api.ClusterControllerResourceType.String()): func(ctx context.Context, resourceID *azcorearm.ResourceID) (bool, error) { return false, nil },
+		// SystemAdminCredentials own their own deletion lifecycle (Spec.DeletionTimestamp →
+		// credentialDesiresCreator teardown → DesiresCleanedUp condition →
+		// credential-deletion finalizer deletes the doc). The cluster-deletion sweep
+		// must not delete them directly, or it would orphan kube-applier desires on the
+		// management cluster.
+		strings.ToLower(api.SystemAdminCredentialResourceType.String()): func(ctx context.Context, resourceID *azcorearm.ResourceID) (bool, error) { return false, nil },
+		// SystemAdminRevocations own their own deletion lifecycle too
+		// (revocationDesiresCreator drives the per-revoke CRR + RBAC desires
+		// to gone, then flips RevocationComplete=True). Direct deletion by the
+		// cluster-deletion sweep would orphan those kube-applier desires; the
+		// per-revocation cleanup path handles them.
+		strings.ToLower(api.SystemAdminRevocationResourceType.String()): func(ctx context.Context, resourceID *azcorearm.ResourceID) (bool, error) { return false, nil },
 	}
 
 	if err := c.ensureClusterScopedKubeApplierResourcesDeleted(ctx, clusterResourceID); err != nil {

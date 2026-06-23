@@ -65,6 +65,13 @@ func (g *mockResourcesGlobalListers) SystemAdminCredentials() database.GlobalLis
 	}
 }
 
+func (g *mockResourcesGlobalListers) SystemAdminRevocations() database.GlobalLister[api.SystemAdminRevocation] {
+	return &mockTypedGlobalLister[api.SystemAdminRevocation, database.GenericDocument[api.SystemAdminRevocation]]{
+		client:       g.client,
+		resourceType: api.SystemAdminRevocationResourceType,
+	}
+}
+
 func (g *mockResourcesGlobalListers) ServiceProviderClusters() database.GlobalLister[api.ServiceProviderCluster] {
 	return &mockTypedGlobalLister[api.ServiceProviderCluster, database.GenericDocument[api.ServiceProviderCluster]]{
 		client:       g.client,

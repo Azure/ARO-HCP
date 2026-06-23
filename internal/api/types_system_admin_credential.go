@@ -62,6 +62,15 @@ type SystemAdminCredentialSpec struct {
 	// the revoke poller once Phase moves to Revoked so a stale Cosmos
 	// read can no longer recover the key.
 	PrivateKeyPEM string `json:"privateKeyPEM"`
+	// DeletionTimestamp is the timestamp at which the credential deletion
+	// was requested. Setting this hands the credential to the
+	// credentialDesiresCreator's teardown branch, which tears down every
+	// kube-applier desire the credential owns; once teardown completes a
+	// Condition of Type SystemAdminCredentialDesiresCleanedUpConditionType
+	// with Status=True is set, and a separate finalizer controller deletes
+	// the credential document.
+	// A nil value indicates that credential deletion has not been requested.
+	DeletionTimestamp *metav1.Time `json:"deletionTimestamp,omitempty"`
 }
 
 // SystemAdminCredentialStatus holds the lifecycle phase, the signed
@@ -112,6 +121,14 @@ const (
 	SystemAdminCredentialDesireKindRead   SystemAdminCredentialDesireKind = "ReadDesire"
 	SystemAdminCredentialDesireKindDelete SystemAdminCredentialDesireKind = "DeleteDesire"
 )
+
+// SystemAdminCredentialDesiresCleanedUpConditionType is the
+// SystemAdminCredentialStatus condition the credentialDesiresCreator
+// flips to True once every kube-applier desire the credential owns has
+// been torn down. The credential-deletion finalizer treats True (in
+// combination with a non-nil DeletionTimestamp) as the green light to
+// remove the credential document.
+const SystemAdminCredentialDesiresCleanedUpConditionType = "DesiresCleanedUp"
 
 type SystemAdminCredentialPhase string
 

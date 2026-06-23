@@ -18,9 +18,9 @@ import (
 	"context"
 	"fmt"
 
+	certificatesv1 "k8s.io/api/certificates/v1"
 	"k8s.io/apimachinery/pkg/util/json"
 
-	certificatesv1 "k8s.io/api/certificates/v1"
 	certificatesv1alpha1 "github.com/openshift/hypershift/api/certificates/v1alpha1"
 
 	"github.com/Azure/ARO-HCP/internal/database"
