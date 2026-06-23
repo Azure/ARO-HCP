@@ -93,6 +93,10 @@ type StampSyncer interface {
 
 // StampWatchingControllerConfig tunes the controller's cooldown behavior.
 type StampWatchingControllerConfig struct {
+	// Cooldown overrides the default time-based cooldown checker.
+	// When set, CooldownPeriod and Clock are ignored.
+	Cooldown controllerutils.CooldownChecker
+
 	CooldownPeriod time.Duration
 	Clock          utilsclock.PassiveClock
 }
@@ -125,8 +129,15 @@ func NewStampWatchingController(
 	cfg StampWatchingControllerConfig,
 ) *StampWatchingController {
 	cfg = cfg.withDefaults()
-	cooldownChecker := controllerutils.NewTimeBasedCooldownChecker(cfg.CooldownPeriod)
-	cooldownChecker.SetClock(cfg.Clock)
+
+	var cooldown controllerutils.CooldownChecker
+	if cfg.Cooldown != nil {
+		cooldown = cfg.Cooldown
+	} else {
+		checker := controllerutils.NewTimeBasedCooldownChecker(cfg.CooldownPeriod)
+		checker.SetClock(cfg.Clock)
+		cooldown = checker
+	}
 
 	return &StampWatchingController{
 		name:   name,
@@ -135,7 +146,7 @@ func NewStampWatchingController(
 			workqueue.DefaultTypedControllerRateLimiter[StampKey](),
 			workqueue.TypedRateLimitingQueueConfig[StampKey]{Name: name},
 		),
-		cooldown: cooldownChecker,
+		cooldown: cooldown,
 	}
 }
 

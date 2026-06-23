@@ -164,7 +164,8 @@ func (m *Manager) runControllersUnderLeaderElection(
 ) error {
 	logger := utils.LoggerFromContext(ctx)
 
-	fleetInformers := informers.NewFleetInformers(ctx, m.FleetDBClient.GlobalListers())
+	relistDuration := 10 * time.Second
+	fleetInformers := informers.NewFleetInformersWithRelistDuration(ctx, m.FleetDBClient.GlobalListers(), &relistDuration)
 
 	stampInformer, stampLister := fleetInformers.Stamps()
 	managementClusterInformer, managementClusterLister := fleetInformers.ManagementClusters()
@@ -176,7 +177,7 @@ func (m *Manager) runControllersUnderLeaderElection(
 		m.ClustersServiceClient,
 		stampLister,
 		m.Region,
-		base.StampWatchingControllerConfig{},
+		base.StampWatchingControllerConfig{Cooldown: base.DefaultRegistrationAwareCooldown(managementClusterLister)},
 	)
 
 	maestroRegistrationController := maestroregistration.NewMaestroRegistrationController(
@@ -185,13 +186,13 @@ func (m *Manager) runControllersUnderLeaderElection(
 		m.FleetDBClient,
 		m.MaestroConsumerClientFactory,
 		stampLister,
-		base.StampWatchingControllerConfig{},
+		base.StampWatchingControllerConfig{Cooldown: base.DefaultRegistrationAwareCooldown(managementClusterLister)},
 	)
 
 	lifecycleController := lifecycle.NewManagementClusterLifecycleController(
 		managementClusterInformer,
 		m.FleetDBClient,
-		base.StampWatchingControllerConfig{},
+		base.StampWatchingControllerConfig{Cooldown: base.DefaultRegistrationAwareCooldown(managementClusterLister)},
 	)
 
 	dataDumpController := datadump.NewStampDataDumpController(
