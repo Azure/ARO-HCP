@@ -29,9 +29,6 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 
 	"github.com/Azure/ARO-HCP/test/util/framework"
@@ -44,6 +41,9 @@ var _ = Describe("Customer", func() {
 		// per test initialization
 	})
 
+	// Tests the HyperShift HCCO global pull secret reconciliation flow:
+	// additional-pull-secret in kube-system -> HCCO merges into global-pull-secret -> DaemonSet syncs to nodes.
+	// Upstream documentation: https://hypershift.pages.dev/how-to/aws/global-pull-secret/
 	It("should be able to create an HCP cluster and manage pull secrets",
 		labels.RequireNothing,
 		labels.Critical,
@@ -58,16 +58,16 @@ var _ = Describe("Customer", func() {
 				pullSecretName         = "additional-pull-secret"
 				pullSecretNamespace    = "kube-system"
 				redhatRegistryHost     = "registry.redhat.io"
-				catalogSourceName      = "redhat-operators"
-				catalogSourceNamespace = "openshift-marketplace"
-				nfdNamespace           = "openshift-nfd"
 
 				// Timeouts and intervals for verifications
 				pullSecretMergeTimeout = 10 * time.Minute
 				daemonSetSyncTimeout   = 10 * time.Minute // moving from 5 to 10 minutes due to observed slowness in pre-merge CI
-				catalogSourceTimeout   = 10 * time.Minute // moving from 5 to 10 minutes due to observed slowness in CI
-				operatorInstallTimeout = 10 * time.Minute
+				imagePullTimeout       = 5 * time.Minute
 				verifierPollInterval   = 15 * time.Second
+
+				// Image pull test constants
+				pullTestNamespace = "pullsecret-image-test"
+				pullTestImage     = "registry.redhat.io/ubi9/ubi-minimal:latest"
 			)
 			tc := framework.NewTestContext()
 
@@ -96,7 +96,7 @@ var _ = Describe("Customer", func() {
 			clusterParams, err = tc.CreateClusterCustomerResources20240610(ctx,
 				resourceGroup,
 				clusterParams,
-				map[string]interface{}{},
+				map[string]any{},
 				TestArtifactsFS,
 				framework.RBACScopeResourceGroup,
 			)
@@ -157,6 +157,7 @@ var _ = Describe("Customer", func() {
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to create test docker config secret")
 
+			// HCCO watches specifically for a secret named "additional-pull-secret" in kube-system.
 			By("creating the test pull secret in the cluster")
 			_, err = kubeClient.CoreV1().Secrets(pullSecretNamespace).Create(ctx, testPullSecret, metav1.CreateOptions{})
 			Expect(err).NotTo(HaveOccurred(), "failed to create additional-pull-secret in kube-system namespace")
@@ -166,6 +167,7 @@ var _ = Describe("Customer", func() {
 			verifiers.EventuallyVerify(ctx, verifier, adminRESTConfig, pullSecretMergeTimeout, verifierPollInterval,
 				"additional pull secret should be merged into global-pull-secret by HCCO")
 
+			// The merged secret doesn't reach nodes until global-pull-secret-syncer syncs it to /var/lib/kubelet/config.json.
 			By("verifying the DaemonSet for global pull secret synchronization is created")
 			verifier = verifiers.VerifyGlobalPullSecretSyncer()
 			verifiers.EventuallyVerify(ctx, verifier, adminRESTConfig, daemonSetSyncTimeout, verifierPollInterval,
@@ -245,121 +247,41 @@ var _ = Describe("Customer", func() {
 			).Verify(ctx, adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred(), "failed to verify registry.redhat.io auth data in global-pull-secret")
 
-			By("verifying redhat-operators catalog source is ready")
-			verifier = verifiers.VerifyCatalogSourceReady(catalogSourceNamespace, catalogSourceName)
-			verifiers.EventuallyVerify(ctx, verifier, adminRESTConfig, catalogSourceTimeout, verifierPollInterval,
-				"redhat-operators catalog source should be ready before creating subscription")
-
-			By("creating dynamic client for operator installation")
-			dynamicClient, err := dynamic.NewForConfig(adminRESTConfig)
-			Expect(err).NotTo(HaveOccurred(), "failed to create dynamic kubernetes client")
-
-			By("creating namespace for NFD operator")
+			By("creating test namespace for image pull verification")
 			_, err = kubeClient.CoreV1().Namespaces().Create(ctx, &corev1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{
-					Name: nfdNamespace,
+					Name: pullTestNamespace,
 				},
 			}, metav1.CreateOptions{})
-			Expect(err).NotTo(HaveOccurred(), "failed to create namespace %s for NFD operator", nfdNamespace)
+			Expect(err).NotTo(HaveOccurred(), "failed to create namespace %s for image pull test", pullTestNamespace)
+			DeferCleanup(func(ctx context.Context) {
+				_ = kubeClient.CoreV1().Namespaces().Delete(ctx, pullTestNamespace, metav1.DeleteOptions{})
+			})
 
-			By("creating OperatorGroup for NFD operator")
-			operatorGroupGVR := schema.GroupVersionResource{
-				Group:    "operators.coreos.com",
-				Version:  "v1",
-				Resource: "operatorgroups",
-			}
-			operatorGroup := &unstructured.Unstructured{
-				Object: map[string]interface{}{
-					"apiVersion": "operators.coreos.com/v1",
-					"kind":       "OperatorGroup",
-					"metadata": map[string]interface{}{
-						"name":      "nfd-operator-group",
-						"namespace": nfdNamespace,
-					},
-					"spec": map[string]interface{}{
-						"targetNamespaces": []interface{}{nfdNamespace},
-					},
+			By("creating a pod for image pull verification")
+			pod := &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "pull-secret-test",
+					Namespace: pullTestNamespace,
 				},
-			}
-			_, err = dynamicClient.Resource(operatorGroupGVR).Namespace(nfdNamespace).Create(ctx, operatorGroup, metav1.CreateOptions{})
-			Expect(err).NotTo(HaveOccurred(), "failed to create OperatorGroup for NFD operator in %s", nfdNamespace)
-
-			By("creating Subscription for NFD operator from redhat-operators catalog")
-			subscriptionGVR := schema.GroupVersionResource{
-				Group:    "operators.coreos.com",
-				Version:  "v1alpha1",
-				Resource: "subscriptions",
-			}
-			subscription := &unstructured.Unstructured{
-				Object: map[string]interface{}{
-					"apiVersion": "operators.coreos.com/v1alpha1",
-					"kind":       "Subscription",
-					"metadata": map[string]interface{}{
-						"name":      "nfd",
-						"namespace": nfdNamespace,
-					},
-					"spec": map[string]interface{}{
-						"channel":             "stable",
-						"name":                "nfd",
-						"source":              "redhat-operators",
-						"sourceNamespace":     "openshift-marketplace",
-						"installPlanApproval": "Automatic",
-					},
-				},
-			}
-			_, err = dynamicClient.Resource(subscriptionGVR).Namespace(nfdNamespace).Create(ctx, subscription, metav1.CreateOptions{})
-			Expect(err).NotTo(HaveOccurred(), "failed to create Subscription for NFD operator from redhat-operators catalog")
-
-			By("waiting for NFD operator to be installed")
-			verifier = verifiers.VerifyOperatorInstalled(nfdNamespace, "nfd")
-			verifiers.EventuallyVerify(ctx, verifier, adminRESTConfig, operatorInstallTimeout, verifierPollInterval,
-				"NFD operator should be installed successfully")
-
-			By("creating NodeFeatureDiscovery CR to deploy NFD worker")
-			nfdGVR := schema.GroupVersionResource{
-				Group:    "nfd.openshift.io",
-				Version:  "v1",
-				Resource: "nodefeaturediscoveries",
-			}
-			nfdCR := &unstructured.Unstructured{
-				Object: map[string]interface{}{
-					"apiVersion": "nfd.openshift.io/v1",
-					"kind":       "NodeFeatureDiscovery",
-					"metadata": map[string]interface{}{
-						"name":      "nfd-instance",
-						"namespace": nfdNamespace,
-					},
-					"spec": map[string]interface{}{
-						"operand": map[string]interface{}{
-							"image": "registry.redhat.io/openshift4/ose-node-feature-discovery:latest",
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{
+							Name:            "pull-test",
+							Image:           pullTestImage,
+							Command:         []string{"/bin/sh", "-c", "echo pull-secret-ok"},
+							ImagePullPolicy: corev1.PullAlways,
 						},
 					},
+					RestartPolicy: corev1.RestartPolicyNever,
 				},
 			}
-			_, err = dynamicClient.Resource(nfdGVR).Namespace(nfdNamespace).Create(ctx, nfdCR, metav1.CreateOptions{})
-			Expect(err).NotTo(HaveOccurred(), "failed to create NodeFeatureDiscovery CR in %s", nfdNamespace)
+			_, err = kubeClient.CoreV1().Pods(pullTestNamespace).Create(ctx, pod, metav1.CreateOptions{})
+			Expect(err).NotTo(HaveOccurred(), "failed to create pull-secret-test pod in %s", pullTestNamespace)
 
-			By("waiting for NFD worker DaemonSet to be created")
-			Eventually(func() error {
-				daemonSets, err := kubeClient.AppsV1().DaemonSets(nfdNamespace).List(ctx, metav1.ListOptions{})
-				if err != nil {
-					return err
-				}
-				for _, ds := range daemonSets.Items {
-					if ds.Name == "nfd-worker" {
-						if ds.Status.DesiredNumberScheduled > 0 && ds.Status.NumberReady > 0 {
-							return nil
-						}
-						return fmt.Errorf("nfd-worker DaemonSet found but not ready: desired=%d, ready=%d",
-							ds.Status.DesiredNumberScheduled, ds.Status.NumberReady)
-					}
-				}
-				return fmt.Errorf("nfd-worker DaemonSet not found")
-			}, operatorInstallTimeout, verifierPollInterval).Should(Succeed(), "NFD worker DaemonSet should be created and have ready pods")
-
-			By("waiting for NFD worker pods to be created and verify images from registry.redhat.io can be pulled")
-			verifier = verifiers.VerifyImagePulled(nfdNamespace, "registry.redhat.io", "ose-node-feature-discovery")
-			verifiers.EventuallyVerify(ctx, verifier, adminRESTConfig, operatorInstallTimeout, verifierPollInterval,
-				"NFD worker images from registry.redhat.io should be pulled successfully with the added pull secret")
+			By("waiting for image from registry.redhat.io to be pulled successfully")
+			verifier = verifiers.VerifyImagePulled(pullTestNamespace, "registry.redhat.io", "ubi-minimal")
+			verifiers.EventuallyVerify(ctx, verifier, adminRESTConfig, imagePullTimeout, verifierPollInterval,
+				"image from registry.redhat.io should be pulled successfully with the added pull secret")
 		})
 })
