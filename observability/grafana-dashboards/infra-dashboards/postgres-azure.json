@@ -9226,7 +9226,7 @@
         "options": [],
         "query": "prometheus",
         "refresh": 1,
-        "regex": "",
+        "regex": "/.*/",
         "type": "datasource"
       },
       {
