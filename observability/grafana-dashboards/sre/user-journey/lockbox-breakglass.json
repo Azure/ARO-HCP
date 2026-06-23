@@ -1,6 +1,19 @@
 {
   "annotations": {
-    "list": []
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
   },
   "editable": true,
   "fiscalYearStartMonth": 0,
@@ -297,7 +310,7 @@
       },
       "targets": [
         {
-          "expr": "(lockbox:kas_proxy_errors_total:rate5m or vector(0)) / (lockbox:kas_proxy_requests_total:rate5m > 0)",
+          "expr": "lockbox:kas_proxy_errors_total:rate5m / lockbox:kas_proxy_requests_total:rate5m",
           "legendFormat": "",
           "refId": "A",
           "datasource": {
@@ -687,5 +700,5 @@
   "timezone": "utc",
   "title": "Lockbox / Breakglass Sessions",
   "uid": "lockbox-breakglass-uj",
-  "version": 1
+  "version": null
 }

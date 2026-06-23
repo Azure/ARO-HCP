@@ -20,7 +20,7 @@ spec:
       expr: lockbox:audit_log_connection_degraded:max == 1
       for: 5m
       labels:
-        severity: critical
+        severity: warning
         slo: lockbox-availability
       annotations:
         summary: "[SVC] Lockbox audit log connection degraded on {{ $labels.cluster }}"

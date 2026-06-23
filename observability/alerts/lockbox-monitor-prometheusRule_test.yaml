@@ -15,7 +15,7 @@ tests:
     alertname: UJLockboxAuditDegraded
     exp_alerts:
     - exp_labels:
-        severity: critical
+        severity: warning
         slo: lockbox-availability
         cluster: svc-cluster-1
       exp_annotations:
