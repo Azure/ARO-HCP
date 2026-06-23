@@ -63,4 +63,4 @@ resource postgres 'Microsoft.DBforPostgreSQL/flexibleServers@2023-12-01-preview'
   name: postgresName
 }
 
-output databaseHost string = useAzureDB ? postgres.properties.fullyQualifiedDomainName : 'ocm-cs-db'
+output databaseHost string = useAzureDB ? postgres!.properties.fullyQualifiedDomainName : 'ocm-cs-db'
