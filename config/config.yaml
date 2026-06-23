@@ -976,7 +976,6 @@ defaults:
     postgres:
       name: "arohcp-{{ .ctx.environment }}-dbcs-{{ .ctx.regionShort }}" # [globally-unique]
       deploy: true
-      valuesFileOverride: "azuredb.values.yaml"
       private: false
       password: ''
       minTLSVersion: 'TLSV1.2'
@@ -1445,7 +1444,6 @@ clouds:
           clustersService:
             postgres:
               deploy: false
-              valuesFileOverride: "containerdb.values.yaml"
               password: 'TheBlurstOfTimes'
               containerizedDb:
                 image: "docker.io/library/postgres:14.2"
@@ -1561,7 +1559,6 @@ clouds:
           clustersService:
             postgres:
               deploy: false
-              valuesFileOverride: "containerdb.values.yaml"
               password: 'TheBlurstOfTimes'
               containerizedDb:
                 image: "docker.io/library/postgres:14.2"
@@ -1659,7 +1656,6 @@ clouds:
           clustersService:
             postgres:
               deploy: false
-              valuesFileOverride: "containerdb.values.yaml"
               password: 'TheBlurstOfTimes'
               containerizedDb:
                 image: "docker.io/library/postgres:14.2"

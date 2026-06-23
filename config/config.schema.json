@@ -884,10 +884,6 @@
           "type": "boolean",
           "description": "Enable enhanced metrics for the PostgreSQL server."
         },
-        "valuesFileOverride": {
-          "type": "string",
-          "description": "Helm values file override for postgres deployment type (azuredb.values.yaml or containerdb.values.yaml)."
-        },
         "containerizedDb": {
           "type": "object",
           "additionalProperties": false,

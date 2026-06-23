@@ -48,13 +48,25 @@ resourceGroups:
     parameters: ../dev-infrastructure/configurations/cluster-service-lookup.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     outputOnly: true
+  - name: prepare-values-override
+    action: Shell
+    command: |
+      if [ "$USE_AZURE_DB" = "true" ]; then
+        cp ./helm-charts/cluster-service/azuredb.values.yaml ./helm-charts/cluster-service/values-override.yaml
+      else
+        cp ./helm-charts/cluster-service/containerdb.values.yaml ./helm-charts/cluster-service/values-override.yaml
+      fi
+    workingDir: ./
+    variables:
+    - name: USE_AZURE_DB
+      configRef: clustersService.postgres.deploy
   - name: deploy
     action: Helm
     aksCluster: '{{ .svc.aks.name }}'
     releaseName: 'cluster-service'
     releaseNamespace: '{{ .clustersService.k8s.namespace }}'
-    chartDir: ./helm/cluster-service
-    valuesFile: './helm/cluster-service/{{ .clustersService.postgres.valuesFileOverride }}'
+    chartDir: ./helm-charts/cluster-service
+    valuesFile: './helm-charts/cluster-service/values-override.yaml'
     namespaceFiles:
     - namespace.yaml
     kustoDatabase: '{{ .kusto.serviceLogsDatabase }}'
@@ -103,6 +115,8 @@ resourceGroups:
     dependsOn:
     - resourceGroup: service
       step: output
+    - resourceGroup: service
+      step: prepare-values-override
     - resourceGroup: global
       step: mirror-image
     automatedRetry:
