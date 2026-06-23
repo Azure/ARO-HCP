@@ -21,6 +21,7 @@ import (
 	"time"
 
 	certificatesv1 "k8s.io/api/certificates/v1"
+	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
@@ -119,15 +120,13 @@ func (c *issuanceObserver) SyncOnce(ctx context.Context, key controllerutils.HCP
 		if denied := csrDenied(csr); denied != "" {
 			replacement := credential.DeepCopy()
 			replacement.Status.Phase = api.SystemAdminCredentialPhaseFailed
-			meta := replacement.Status.Conditions
-			meta = append(meta, metav1.Condition{
+			apimeta.SetStatusCondition(&replacement.Status.Conditions, metav1.Condition{
 				Type:               "CSRDenied",
 				Status:             metav1.ConditionTrue,
-				LastTransitionTime: metav1.NewTime(time.Now()),
+				LastTransitionTime: metav1.Now(),
 				Reason:             denied,
 				Message:            "HyperShift signer denied the CertificateSigningRequest",
 			})
-			replacement.Status.Conditions = meta
 			if _, err := credentialsCRUD.Replace(ctx, replacement, nil); err != nil {
 				return utils.TrackError(fmt.Errorf("flip credential to Failed: %w", err))
 			}

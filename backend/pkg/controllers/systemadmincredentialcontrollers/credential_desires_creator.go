@@ -89,7 +89,12 @@ func (c *credentialDesiresCreator) CooldownChecker() controllerutil.CooldownChec
 func (c *credentialDesiresCreator) SyncOnce(ctx context.Context, key controllerutils.HCPSystemAdminCredentialKey) error {
 	logger := utils.LoggerFromContext(ctx)
 
-	cred, err := c.credentialLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPSystemAdminCredentialName)
+	// Read the credential from the DB (not the informer cache) to avoid
+	// lost updates: other controllers (issuance observer, revoke poller)
+	// also mutate this document, so a stale cached copy could overwrite
+	// newer fields like Status.Phase or Status.SignedCertificate.
+	credentialsCRUD := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).SystemAdminCredentials(key.HCPClusterName)
+	cred, err := credentialsCRUD.Get(ctx, key.HCPSystemAdminCredentialName)
 	if database.IsNotFoundError(err) {
 		return nil
 	}
@@ -224,7 +229,6 @@ func (c *credentialDesiresCreator) SyncOnce(ctx context.Context, key controlleru
 	if !mutated {
 		return nil
 	}
-	credentialsCRUD := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).SystemAdminCredentials(key.HCPClusterName)
 	if _, err := credentialsCRUD.Replace(ctx, updated, nil); err != nil {
 		return utils.TrackError(fmt.Errorf("persist credential OutstandingDesires: %w", err))
 	}

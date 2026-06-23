@@ -201,9 +201,18 @@ func (c *operationRevokeCredentialsPoll) SynchronizeOperation(ctx context.Contex
 	// the operation's pseudo-credential. Concretely we just call the
 	// same helper with a tiny ad-hoc credential containing only the
 	// CRR's refs.
+	//
+	// teardownCredentialOutstandingDesires expects ResourceID.Parent to
+	// be the cluster, so we build a synthetic child ResourceID under
+	// the cluster scope rather than using clusterRID directly.
 	crrName := systemadmincredential.CRRNamePrefix + "-" + revokeSuffix
+	syntheticCredRID, err := api.ToSystemAdminCredentialResourceID(
+		clusterRID.SubscriptionID, clusterRID.ResourceGroupName, clusterRID.Name, "crr-teardown-"+revokeSuffix)
+	if err != nil {
+		return fmt.Errorf("build synthetic credential resource ID: %w", err)
+	}
 	crrSyntheticCred := &api.SystemAdminCredential{
-		CosmosMetadata: api.CosmosMetadata{ResourceID: clusterRID}, // parent-only — desire teardown uses Parent
+		CosmosMetadata: api.CosmosMetadata{ResourceID: syntheticCredRID},
 		Status: api.SystemAdminCredentialStatus{
 			OutstandingDesires: []api.SystemAdminCredentialDesireRef{
 				{Kind: api.SystemAdminCredentialDesireKindApply, Name: crrName},

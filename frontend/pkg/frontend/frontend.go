@@ -1022,7 +1022,11 @@ func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Req
 		return nil
 	case database.OperationRequestRequestCredential:
 		if operation.InternalID.Kind() != api.SystemAdminCredentialKind {
-			return fmt.Errorf("legacy credential operation not supported")
+			return arm.NewCloudError(
+				http.StatusBadRequest,
+				arm.CloudErrorCodeInternalServerError,
+				resourceID.String(),
+				"This credential operation was created before a system upgrade and can no longer be fulfilled. Please request a new admin credential.")
 		}
 		successStatusCode = http.StatusOK
 	case database.OperationRequestRevokeCredentials:
