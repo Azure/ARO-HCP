@@ -68466,7 +68466,7 @@ spec:
   probeSelector:
     matchLabels:
       release: arohcp-monitor
-  replicas: 1
+  replicas: 2
   routePrefix: /
   scrapeConfigNamespaceSelector: {}
   scrapeConfigSelector:
