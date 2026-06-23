@@ -9,6 +9,8 @@ configMap:
   databaseUrl: "__cosmosDBDocumentEndpoint__"
   databaseName: "{{ .frontend.cosmosDB.name }}"
   kubeApplierCosmosContainerName: "{{ .kubeApplier.cosmosContainerName }}"
+backupCadence: "{{ .backend.backupCadence }}"
+backupPaused: {{ .backend.backupPaused }}
 deployment:
   replicas: {{ .backend.k8s.replicas }}
   imageName: "{{ .acr.svc.name }}.azurecr.io/{{ .backend.image.repository }}@{{ .backend.image.digest }}"

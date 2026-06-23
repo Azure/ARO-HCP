@@ -104,6 +104,8 @@ azureRegionAvailabilityZoneCount: 3
 backend:
   azureRuntimeConfig:
     tlsCertificatesIssuer: Self
+  backupCadence: testing
+  backupPaused: false
   clusterScopedIdentitiesConfig:
     roleSetName: dev
   exitOnPanic: true
