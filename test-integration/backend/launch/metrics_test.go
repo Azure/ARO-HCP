@@ -39,6 +39,7 @@ import (
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/app"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/backups"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/fleetcosmosstoragetesting"
@@ -114,6 +115,10 @@ func TestBackendExposesMetrics(t *testing.T) {
 			TracerProviderShutdownFunc:         func(context.Context) error { return nil },
 			MaestroSourceEnvironmentIdentifier: "test",
 			ExitOnPanic:                        false,
+			BackupConfig: &backups.BackupConfig{
+				coreapi.BackupScheduleStateEnabled,
+				backups.BackupCadenceProduction,
+			},
 		}
 
 		backendErrCh := make(chan error, 1)

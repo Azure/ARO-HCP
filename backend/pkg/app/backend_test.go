@@ -20,6 +20,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/backups"
 )
 
 func TestNewBackend_NilOptionsReturnsError(t *testing.T) {
@@ -47,6 +49,7 @@ func TestNewBackend_MetricsRegistryPairing(t *testing.T) {
 			b, err := (&BackendOptions{
 				MetricsRegisterer: tc.registerer,
 				MetricsGatherer:   tc.gatherer,
+				BackupConfig:      &backups.BackupConfig{},
 			}).NewBackend()
 			if tc.wantErr {
 				require.Error(t, err)
