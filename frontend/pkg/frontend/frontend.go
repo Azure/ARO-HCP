@@ -1021,6 +1021,9 @@ func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Req
 		writer.WriteHeader(http.StatusNoContent)
 		return nil
 	case database.OperationRequestRequestCredential:
+		if operation.InternalID.Kind() != api.SystemAdminCredentialKind {
+			return fmt.Errorf("legacy credential operation not supported")
+		}
 		successStatusCode = http.StatusOK
 	case database.OperationRequestRevokeCredentials:
 		writer.WriteHeader(http.StatusNoContent)

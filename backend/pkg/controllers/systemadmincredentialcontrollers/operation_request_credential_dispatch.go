@@ -31,6 +31,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/systemadmincredential"
 	"github.com/Azure/ARO-HCP/internal/utils"
+	"github.com/Azure/ARO-HCP/internal/utils/apihelpers"
 )
 
 // operationRequestCredentialDispatch is controller #1. On a fresh
@@ -160,8 +161,9 @@ func (c *operationRequestCredentialDispatch) recordDispatched(ctx context.Contex
 	return nil
 }
 
-func (c *operationRequestCredentialDispatch) cancelOperation(ctx context.Context, op *api.Operation, _msg string) error {
-	op.LastTransitionTime = c.clock.Now()
+func (c *operationRequestCredentialDispatch) cancelOperation(ctx context.Context, op *api.Operation, msg string) error {
+	apihelpers.CancelOperation(op, c.clock.Now())
+	op.Error.Message = msg
 	if _, err := c.resourcesDBClient.Operations(op.OperationID.SubscriptionID).Replace(ctx, op, nil); err != nil {
 		return err
 	}

@@ -72,7 +72,7 @@ type SystemAdminCredentialStatus struct {
 	// Phase is the lifecycle state. Mirrors the cluster-service `status`
 	// column we are replacing.
 	Phase SystemAdminCredentialPhase `json:"phase,omitempty"`
-	// SignedCertificate is the base64-DER cert the management-cluster
+	// SignedCertificate is the base64-encoded PEM cert the management-cluster
 	// signer produced. Populated when Phase moves to Issued. Mirrored
 	// here so OperationResult does not have to chase the MC for
 	// CSR.status.certificate on the hot path.
