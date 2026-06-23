@@ -60,9 +60,9 @@ batchProcessesDryRun: "true"
 # Date identification of each batch process expected to be run. Comma separated sequence.
 batchProcesses: ""
 # The URL of the Azure Container Registry where the OpenShift images are stored.
-ocpAcrURL: ""
+ocpAcrURL: "__ocpAcrUrl__"
 # The resource ID of the Azure Container Registry where the OpenShift images are stored.
-ocpAcrResourceId: ""
+ocpAcrResourceId: "__ocpAcrResourceId__"
 # These limits are based on the metrics collected in the production environment
 # over the last year. In particular the following Prometheus queries were used
 # to obtain the values:
@@ -211,7 +211,7 @@ managedIdentitiesDataPlaneAudienceResource: "https://dummy.org"
 dataPlaneHAProxyImage: ""
 # The Azure Operator Managed Identities.
 azureOperatorsMI:
-  roleSetName: ""
+  roleSetName: "{{ .clustersService.azureOperatorsManagedIdentities.roleSetName }}"
   # TODO (revisit mock MSI implementation):
   # because we have a mock MSI identity, these roles do nothing from a permissions perspective
   # for control plane identities.  They still work as intended on the managed resource group

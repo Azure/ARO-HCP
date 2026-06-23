@@ -13,6 +13,12 @@ param regionalOidcStorageAccountName string
 @description('The Azure Front Door OIDC base endpoint, used when blob public access is disabled')
 param afdOidcBaseEndpoint string
 
+@description('Whether to use a database in Azure')
+param useAzureDB bool
+
+@description('The name of the Postgres server')
+param postgresName string
+
 //
 //   I M A G E   P U L L E R   L O O K U P
 //
@@ -47,3 +53,14 @@ resource regionalOidcStorageAccount 'Microsoft.Storage/storageAccounts@2025-06-0
 
 output oidcIssuerBlobServiceUrl string = regionalOidcStorageAccount.properties.primaryEndpoints.blob
 output oidcIssuerBaseUrl string = regionalOidcStorageAccount.properties.allowBlobPublicAccess ? regionalOidcStorageAccount.properties.primaryEndpoints.web : afdOidcBaseEndpoint
+
+//
+//   P O S T G R E S
+//
+
+resource postgres 'Microsoft.DBforPostgreSQL/flexibleServers@2023-12-01-preview' existing = if (useAzureDB) {
+  scope: resourceGroup(regionalResourceGroup)
+  name: postgresName
+}
+
+output databaseHost string = useAzureDB ? postgres.properties.fullyQualifiedDomainName : 'ocm-cs-db'
