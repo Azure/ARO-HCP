@@ -68591,7 +68591,7 @@ spec:
   probeSelector:
     matchLabels:
       release: arohcp-monitor
-  replicas: 1
+  replicas: 2
   routePrefix: /
   scrapeConfigNamespaceSelector: {}
   scrapeConfigSelector:
@@ -68608,7 +68608,7 @@ spec:
   serviceAccountName: prometheus
   serviceMonitorNamespaceSelector: {}
   serviceMonitorSelector: {}
-  shards: 1
+  shards: 2
   storage:
     volumeClaimTemplate:
       spec:

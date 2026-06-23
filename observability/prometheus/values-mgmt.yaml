@@ -149,10 +149,9 @@ prometheusSpec:
       memory: {{ .mgmt.prometheus.prometheusSpec.resources.requests.memory }}
     limits:
       memory: {{ .mgmt.prometheus.prometheusSpec.resources.limits.memory }}
+  replicas: {{ .mgmt.prometheus.prometheusSpec.replicas }}
+  shards: {{ .mgmt.prometheus.prometheusSpec.shards }}
 prometheus:
-  prometheusSpec:
-    shards: {{ .mgmt.prometheus.prometheusSpec.shards }}
-    replicas: {{ .mgmt.prometheus.prometheusSpec.replicas }}
   serviceAccount:
     managedIdentity: "__prometheusUAMIClientId__"
 environment: "{{ .clustersService.environment }}"
