@@ -28,9 +28,9 @@ metadata:
   namespace: 'clusters-service'
 stringData:
   db.host: '__databaseHost__'
-  db.name: 'ocm-cs-db'
-  db.password: 'TheBlurstOfTimes'
-  db.user: 'ocm'
+  db.name: '__databaseName__'
+  db.password: '__databasePassword__'
+  db.user: '__databaseUser__'
   db.port: "5432"
 ---
 # Source: clusters-service/templates/provisioning-shards.secret.yaml
@@ -7988,7 +7988,7 @@ spec:
         app: clusters-service
         azure.workload.identity/use: "true"
       annotations:
-        checksum/db: 'da4335f09907750a51842dd6317c9c17a500b129b8b927004f4a435045256167'
+        checksum/db: '7d748725a08edbe974bbd237e5dd517833a82eaa0f0b211fc2881961bf4515a8'
         checksum/operatorcfg: '110eacb1e465d620a2c26da89d5b6246433bb53a2dd3f9853e2daaa035e53df5'
         checksum/ocpversionscfg: '9e5cff6bf43f7b8d712e0b54656c6b1ec66693e7fe17ba6801070134b28b2900'
         checksum/cskv: '90dc53d1b1561cff88174607f8960b37955941207803638fcba6549594835c1d'
@@ -8093,8 +8093,8 @@ spec:
         - --db-name=@/secrets/rds/db.name
         - --db-user=@/secrets/rds/db.user
         - --db-password=@/secrets/rds/db.password
-        - --db-disable-tls=
-        - --db-auth-method=az-entra
+        - --db-disable-tls=__databaseDisableTls__
+        - --db-auth-method=__databaseAuthMethod__
         - --force-migration=
         - --batch-processes-dry-run=true
         - --batch-processes=
@@ -8164,8 +8164,8 @@ spec:
         - --db-name=@/secrets/rds/db.name
         - --db-user=@/secrets/rds/db.user
         - --db-password=@/secrets/rds/db.password
-        - --db-disable-tls=
-        - --db-auth-method=az-entra
+        - --db-disable-tls=__databaseDisableTls__
+        - --db-auth-method=__databaseAuthMethod__
         - --gateway-url=
         - --client-id=@/secrets/service/client.id
         - --client-secret=@/secrets/service/client.secret
@@ -8323,9 +8323,9 @@ spec:
           sleep infinity
         env:
         - name: PGUSER
-          value: "ocm"
+          value: "__databaseUser__"
         - name: PGDATABASE
-          value: "ocm-cs-db"
+          value: "__databaseName__"
         - name: PGHOST
           value: "__databaseHost__"
         - name: PGPORT
