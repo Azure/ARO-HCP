@@ -38,8 +38,8 @@ All other tools should be transparently installed by the `make` targets that req
 ## Full Personal DEV Environment Setup
 
 > [!IMPORTANT] Environment Cleanup
-> A word of caution upfront: dev infrastructure is automatically deleted after 48h. If you want to keep your infrastructure indefinitely, run all the following commands with an env variable `PERSIST=true`.
-> Please consider the implication on cost if you decide to keep your infrastructure indefinitely.
+> A word of caution upfront: dev infrastructure is automatically deleted after 48h. Setting `PERSIST=true` extends retention to 15 days instead of permanent.
+> Please consider the implication on cost if you decide to persist your infrastructure.
 
 > [!CAUTION] Cleanup-sensitive naming patterns
 > The following resource group naming patterns trigger special cleanup rules. Avoid them for custom `DEPLOY_ENV` values or ad-hoc resource groups. See [`resourcegroups.policy.yaml`](../tooling/cleanup-sweeper/resourcegroups.policy.yaml) for details.
