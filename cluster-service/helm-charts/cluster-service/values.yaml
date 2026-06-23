@@ -317,4 +317,3 @@ csDeploymentStrategy:
     maxUnavailable: "{{ .clustersService.k8s.deploymentStrategy.rollingUpdate.maxUnavailable }}"
 deployment:
   zoneCount: "{{ .azureRegionAvailabilityZoneCount }}"
-serviceKeyvaultName: "{{ .serviceKeyVault.name }}"

@@ -1,2 +1,2 @@
-imageDigest: ""
-deployDebugJobs: false
+imageDigest: "{{ .clustersService.image.digest }}"
+deployDebugJobs: "{{ .clustersService.deployDebugJobs }}"
