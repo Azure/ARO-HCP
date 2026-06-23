@@ -29,6 +29,7 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/systemadmincredentialcontrollers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listertesting"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
@@ -44,13 +45,20 @@ func TestClusterChildResourcesCleanupController_SyncOnce(t *testing.T) {
 	unregisteredManagementClusterResourceID := api.Must(azcorearm.ParseResourceID(
 		"/providers/microsoft.redhatopenshift/stamps/1/managementclusters/unregistered"))
 
+	withSystemAdminCredentialContentDeleted := func(spc *api.ServiceProviderCluster) *api.ServiceProviderCluster {
+		spc.Status.Conditions = append(spc.Status.Conditions, metav1.Condition{
+			Type:   systemadmincredentialcontrollers.SystemAdminCredentialContentDeletedConditionType,
+			Status: metav1.ConditionTrue,
+		})
+		return spc
+	}
 	newTestSPCWithManagementCluster := func(mcResourceID *azcorearm.ResourceID) *api.ServiceProviderCluster {
 		spcResourceID := api.Must(azcorearm.ParseResourceID(
 			"/subscriptions/" + testSubscriptionID +
 				"/resourceGroups/" + testResourceGroupName +
 				"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName +
 				"/serviceProviderClusters/default"))
-		return &api.ServiceProviderCluster{
+		return withSystemAdminCredentialContentDeleted(&api.ServiceProviderCluster{
 			CosmosMetadata: arm.CosmosMetadata{
 				ResourceID:   spcResourceID,
 				PartitionKey: strings.ToLower(spcResourceID.SubscriptionID),
@@ -58,7 +66,7 @@ func TestClusterChildResourcesCleanupController_SyncOnce(t *testing.T) {
 			Status: api.ServiceProviderClusterStatus{
 				ManagementClusterResourceID: mcResourceID,
 			},
-		}
+		})
 	}
 	newTestClusterScopedManagementClusterContent := func(name string) *api.ManagementClusterContent {
 		resourceID := api.Must(azcorearm.ParseResourceID(
@@ -313,7 +321,7 @@ func TestClusterChildResourcesCleanupController_SyncOnce(t *testing.T) {
 		{
 			name:            "when there is a child ServiceProviderCluster without Maestro bundles it deletes it",
 			existingCluster: newTestClusterWithNewDeletionApproach(t, readyToDeleteClusterOptsFunc),
-			childResources:  []any{newTestSPC(t, nil)},
+			childResources:  []any{withSystemAdminCredentialContentDeleted(newTestSPC(t, nil))},
 			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, _ *databasetesting.MockKubeApplierDBClients) {
 				spcCRUD := db.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName)
 				_, err := spcCRUD.Get(ctx, api.ServiceProviderClusterResourceName)
