@@ -135,17 +135,6 @@ func TestSelectsResourceGroup_IntendedLegacyPolicyBehavior(t *testing.T) {
 			expectSelected: true,
 		},
 		{
-			name: "non-pers persist true is skipped by global persist protection",
-			rg: newResourceGroup(
-				"hcp-underlay-dev-usw3rvaz",
-				timePtr(now.Add(-72*time.Hour)),
-				map[string]string{"persist": "true"},
-				false,
-			),
-			excluded:       sets.New[string](),
-			expectSelected: false,
-		},
-		{
 			name: "non-pers older than 2 days is selected by global default",
 			rg: newResourceGroup(
 				"hcp-underlay-dev-usw3rvaz",

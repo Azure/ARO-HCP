@@ -1,6 +1,7 @@
 # cleanup-sweeper rg-ordered discovery policy (first matching rule wins).
-# - excludedResourceGroups: never candidates (global, hcp-kusto-us, westus3-shared-resources).
+# - excludedResourceGroups: never candidates (see list below).
 # - Skip managed RGs (managedBy set).
+# - Skip *-shared-resources RGs.
 # - hcp-underlay-pers-*: delete after 15d if persist=true; after 2d if persist is absent or not "true".
 # - hcp-underlay-prow-*: delete after 6h (transitional, remove after rename rollout).
 # - Name prefix hcp-underlay-ci*: delete after 6h (covers ci00, ci01, etc.).
@@ -11,7 +12,6 @@
 rgOrdered:
   # Keep known long-lived/shared groups out of rg-ordered deletion candidates.
   excludedResourceGroups:
-  - centralus-shared-resources
   - cs-shared-oidc-storage
   - dashboards
   - global
@@ -21,9 +21,6 @@ rgOrdered:
   - opstool-westus3
   - perf-scale-rg
   - pr-check-e2e-tests-resources
-  - switzerlandnorth-shared-resources
-  - uksouth-shared-resources
-  - westus3-shared-resources
   discovery:
     # Rules are evaluated in order; first match wins.
     rules:
@@ -33,6 +30,10 @@ rgOrdered:
         any: true
       conditions:
         managedBySet: true
+    - name: skip-shared-resources
+      action: skip
+      match:
+        nameRegex: "-shared-resources$"
     - name: pers-persist-delete-after-15d
       action: delete
       match:
