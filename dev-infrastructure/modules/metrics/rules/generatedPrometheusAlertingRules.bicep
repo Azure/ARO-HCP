@@ -20,8 +20,6 @@ resource prometheusWipRules 'Microsoft.AlertsManagement/prometheusRuleGroups@202
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -55,8 +53,6 @@ Check the status of the Prometheus pods, service endpoints, and network connecti
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -90,8 +86,6 @@ Please check the status of the Prometheus pods, service endpoints, and network c
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -129,8 +123,6 @@ Investigate the health and performance of the remote storage endpoint, network l
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -181,8 +173,6 @@ resource prometheusRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -210,8 +200,6 @@ resource prometheusRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -239,8 +227,6 @@ resource prometheusRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -268,8 +254,6 @@ resource prometheusRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -310,8 +294,6 @@ resource prometheusOperatorRules 'Microsoft.AlertsManagement/prometheusRuleGroup
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -339,8 +321,6 @@ resource prometheusOperatorRules 'Microsoft.AlertsManagement/prometheusRuleGroup
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -381,8 +361,6 @@ resource frontend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' =
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -410,8 +388,6 @@ resource frontend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' =
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -439,8 +415,6 @@ resource frontend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' =
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -468,8 +442,6 @@ resource frontend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' =
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -510,8 +482,6 @@ resource arohcpCsSloAvailabilityAlerts 'Microsoft.AlertsManagement/prometheusRul
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -541,8 +511,6 @@ resource arohcpCsSloAvailabilityAlerts 'Microsoft.AlertsManagement/prometheusRul
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -571,8 +539,6 @@ resource arohcpCsSloAvailabilityAlerts 'Microsoft.AlertsManagement/prometheusRul
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -603,8 +569,6 @@ resource arohcpCsSloAvailabilityAlerts 'Microsoft.AlertsManagement/prometheusRul
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -633,8 +597,6 @@ resource arohcpCsSloAvailabilityAlerts 'Microsoft.AlertsManagement/prometheusRul
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -665,8 +627,6 @@ resource arohcpCsSloAvailabilityAlerts 'Microsoft.AlertsManagement/prometheusRul
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -708,8 +668,6 @@ resource backend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = 
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -737,8 +695,6 @@ resource backend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = 
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -779,8 +735,6 @@ resource fleet 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -808,8 +762,6 @@ resource fleet 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -837,8 +789,6 @@ resource fleet 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -879,8 +829,6 @@ resource adminApi 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' =
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -908,8 +856,6 @@ resource adminApi 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' =
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -950,8 +896,6 @@ resource maestro 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = 
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -979,8 +923,6 @@ resource maestro 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = 
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -1008,8 +950,6 @@ resource maestro 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = 
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -1037,8 +977,6 @@ resource maestro 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = 
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -1079,8 +1017,6 @@ resource arobitRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -1110,8 +1046,6 @@ resource arobitRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -1145,8 +1079,6 @@ Investigate the Fluent Bit logs for the specific error details and check the Kus
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -1180,8 +1112,6 @@ Investigate the Fluent Bit logs for the specific error details and check the Kus
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -1213,8 +1143,6 @@ Investigate the Fluent Bit logs for the specific error details and check the Kus
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -1259,8 +1187,6 @@ resource serviceTagCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroup
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -1290,8 +1216,6 @@ resource serviceTagCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroup
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -1321,8 +1245,6 @@ resource serviceTagCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroup
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -1352,8 +1274,6 @@ resource serviceTagCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroup
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -1383,8 +1303,6 @@ resource serviceTagCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroup
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -1414,8 +1332,6 @@ resource serviceTagCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroup
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -1445,8 +1361,6 @@ resource serviceTagCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroup
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -1476,8 +1390,6 @@ resource serviceTagCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroup
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -1507,8 +1419,6 @@ resource serviceTagCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroup
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -1538,8 +1448,6 @@ resource serviceTagCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroup
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -1582,8 +1490,6 @@ resource hcpDeletionRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -1628,8 +1534,6 @@ resource kubeContainerOomRules 'Microsoft.AlertsManagement/prometheusRuleGroups@
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -1669,8 +1573,6 @@ resource kubeNodeRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -1710,8 +1612,6 @@ resource imageRegistryPolicy 'Microsoft.AlertsManagement/prometheusRuleGroups@20
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -1739,8 +1639,6 @@ resource imageRegistryPolicy 'Microsoft.AlertsManagement/prometheusRuleGroups@20
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -1781,8 +1679,6 @@ resource kustoLogsAgeRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
