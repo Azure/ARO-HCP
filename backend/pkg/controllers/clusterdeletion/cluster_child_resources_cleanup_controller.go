@@ -20,9 +20,12 @@ import (
 	"strings"
 	"time"
 
+	apimeta "k8s.io/apimachinery/pkg/api/meta"
+
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/systemadmincredentialcontrollers"
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/api"
@@ -246,6 +249,14 @@ func (c *clusterChildResourcesCleanupController) extraDeleteGateShouldDeleteServ
 	}
 	if err != nil {
 		return false, utils.TrackError(fmt.Errorf("failed to get ServiceProviderCluster: %w", err))
+	}
+
+	// Check if SystemAdminCredential content has been deleted.
+	cond := apimeta.FindStatusCondition(spc.Status.Conditions, systemadmincredentialcontrollers.SystemAdminCredentialContentDeletedConditionType)
+	if cond == nil || cond.Status != "True" {
+		logger.Info("waiting for SystemAdminCredentialContentDeleted condition before removing ServiceProviderCluster",
+			"serviceProviderClusterResourceID", spc.ResourceID.String())
+		return false, nil
 	}
 
 	// Check if there are any Maestro readonly bundles remaining.

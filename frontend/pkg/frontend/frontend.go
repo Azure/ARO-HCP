@@ -36,7 +36,6 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
-	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
 
 	"github.com/Azure/ARO-HCP/frontend/pkg/metrics"
 	"github.com/Azure/ARO-HCP/internal/admission"
@@ -48,6 +47,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/audit"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
+	"github.com/Azure/ARO-HCP/internal/systemadmincredential"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/internal/utils/armhelpers"
 	"github.com/Azure/ARO-HCP/internal/validation"
@@ -1032,13 +1032,64 @@ func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Req
 	var responseBody []byte
 
 	switch {
-	case operation.InternalID.Kind() == cmv1.BreakGlassCredentialKind:
-		csBreakGlassCredential, err := f.clusterServiceClient.GetBreakGlassCredential(ctx, operation.InternalID)
+	case operation.InternalID.Kind() == api.SystemAdminCredentialKind:
+		credResourceID, err := azcorearm.ParseResourceID(operation.InternalID.String())
 		if err != nil {
-			return utils.TrackError(err)
+			return utils.TrackError(fmt.Errorf("parsing SystemAdminCredential resource ID: %w", err))
+		}
+		clusterName := credResourceID.Parent.Name
+		credName := credResourceID.Name
+
+		cred, err := f.resourcesDBClient.HCPClusters(
+			credResourceID.SubscriptionID,
+			credResourceID.ResourceGroupName,
+		).SystemAdminCredentials(clusterName).Get(ctx, credName)
+		if err != nil {
+			return utils.TrackError(fmt.Errorf("fetching SystemAdminCredential: %w", err))
 		}
 
-		responseBody, err = versionedInterface.MarshalHCPOpenShiftClusterAdminCredential(ocm.ConvertCStoAdminCredential(csBreakGlassCredential))
+		adminCred := &api.HCPOpenShiftClusterAdminCredential{
+			ExpirationTimestamp: cred.Spec.ExpirationTimestamp.Time,
+		}
+
+		if cred.Status.SignedCertificate != "" && cred.Spec.PrivateKeyPEM != "" {
+			cluster, err := f.resourcesDBClient.HCPClusters(
+				credResourceID.SubscriptionID,
+				credResourceID.ResourceGroupName,
+			).Get(ctx, clusterName)
+			if err != nil {
+				return utils.TrackError(fmt.Errorf("fetching cluster for kubeconfig assembly: %w", err))
+			}
+
+			spc, err := f.resourcesDBClient.ServiceProviderClusters(
+				credResourceID.SubscriptionID,
+				credResourceID.ResourceGroupName,
+				clusterName,
+			).Get(ctx, api.ServiceProviderClusterResourceName)
+			if err != nil {
+				return utils.TrackError(fmt.Errorf("fetching ServiceProviderCluster for CA bundle: %w", err))
+			}
+
+			signedCertPEM, err := systemadmincredential.DecodeBase64Cert(cred.Status.SignedCertificate)
+			if err != nil {
+				return utils.TrackError(err)
+			}
+
+			kubeconfig, err := systemadmincredential.BuildKubeconfig(systemadmincredential.BuildKubeconfigInput{
+				APIURL:               cluster.ServiceProviderProperties.API.URL,
+				ServingCABundle:      []byte(spc.Status.ServingCABundle),
+				SignedCertificatePEM: signedCertPEM,
+				PrivateKeyPEM:        []byte(cred.Spec.PrivateKeyPEM),
+				Username:             cred.Spec.Username,
+				ClusterName:          clusterName,
+			})
+			if err != nil {
+				return utils.TrackError(fmt.Errorf("building admin kubeconfig: %w", err))
+			}
+			adminCred.Kubeconfig = string(kubeconfig)
+		}
+
+		responseBody, err = versionedInterface.MarshalHCPOpenShiftClusterAdminCredential(adminCred)
 		if err != nil {
 			return utils.TrackError(err)
 		}

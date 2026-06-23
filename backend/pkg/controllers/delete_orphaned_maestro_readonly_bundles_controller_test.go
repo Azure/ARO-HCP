@@ -258,6 +258,9 @@ func (defaultPanicResourcesGlobalListers) Operations() database.GlobalLister[api
 func (defaultPanicResourcesGlobalListers) ActiveOperations() database.GlobalLister[api.Operation] {
 	return &panicGlobalLister[api.Operation]{}
 }
+func (defaultPanicResourcesGlobalListers) SystemAdminCredentials() database.GlobalLister[api.SystemAdminCredential] {
+	return &panicGlobalLister[api.SystemAdminCredential]{}
+}
 
 var _ database.ResourcesGlobalListers = defaultPanicResourcesGlobalListers{}
 
@@ -421,6 +424,9 @@ func (f *alwaysErrorResourcesGlobalListers) ManagementClusterContents() database
 }
 func (f *alwaysErrorResourcesGlobalListers) ServiceProviderNodePools() database.GlobalLister[api.ServiceProviderNodePool] {
 	return &alwaysErrorGlobalLister[api.ServiceProviderNodePool]{err: f.err}
+}
+func (f *alwaysErrorResourcesGlobalListers) SystemAdminCredentials() database.GlobalLister[api.SystemAdminCredential] {
+	return &alwaysErrorGlobalLister[api.SystemAdminCredential]{err: f.err}
 }
 
 var _ database.ResourcesGlobalListers = (*alwaysErrorResourcesGlobalListers)(nil)
