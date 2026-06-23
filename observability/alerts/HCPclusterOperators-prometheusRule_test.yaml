@@ -62,7 +62,7 @@ tests:
     alertname: HCPClusterOperatorUnavailable
     exp_alerts:
     - exp_labels:
-        severity: critical
+        severity: warning
         cluster: mgmt-1
         namespace: hcp-ingress-down
       exp_annotations:
@@ -71,7 +71,7 @@ tests:
         correlationId: 'HCPClusterOperatorUnavailable/mgmt-1/hcp-ingress-down'
         runbook_url: https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/hcp-cluster-operators.md
     - exp_labels:
-        severity: critical
+        severity: warning
         cluster: mgmt-1
         namespace: hcp-version-and-ingress
       exp_annotations:

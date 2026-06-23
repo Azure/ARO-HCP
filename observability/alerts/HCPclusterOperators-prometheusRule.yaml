@@ -20,7 +20,10 @@ spec:
         )
       for: 30m
       labels:
-        severity: critical
+        # TEMPORARY: severity reduced from critical (SEV 2) to warning (SEV 3)
+        # while the alert's firing behaviour is observed in production. Revert
+        # this commit to restore critical/SEV 2.
+        severity: warning
       annotations:
         summary: "HCP cluster operator unavailable on {{ $labels.namespace }}"
         description: "{{ $value }} cluster operator(s) on hosted cluster {{ $labels.namespace }} (management cluster {{ $labels.cluster }}) have been reporting Available=false for more than 30 minutes. The version and console operators are excluded from this alert; the affected cluster has worker nodes present. An unavailable operator means the component it manages is down, not merely degraded.\n"

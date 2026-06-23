@@ -29,7 +29,7 @@ resource hcpClusterOperatorsRules 'Microsoft.AlertsManagement/prometheusRuleGrou
         alert: 'HCPClusterOperatorUnavailable'
         enabled: true
         labels: {
-          severity: 'critical'
+          severity: 'warning'
         }
         annotations: {
           correlationId: 'HCPClusterOperatorUnavailable/{{ $labels.cluster }}/{{ $labels.namespace }}'
@@ -43,7 +43,7 @@ resource hcpClusterOperatorsRules 'Microsoft.AlertsManagement/prometheusRuleGrou
         }
         expression: 'count by (cluster, namespace) (cluster_operator_conditions{condition="available",name!~"version|console"} == 0) and on (cluster, namespace) (sum by (cluster, namespace) (node_collector_zone_size) > 0)'
         for: 'PT30M'
-        severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
         actions: [

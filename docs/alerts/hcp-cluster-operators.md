@@ -17,9 +17,10 @@ Until a dedicated runbook exists, the alerts link here for context:
 
 ## The alerts at a glance
 
-- **`HCPClusterOperatorUnavailable`** (critical / SEV 2, `for: 30m`) — fires when
-  one or more cluster operators, *excluding the version and console operators*,
-  report `Available=false` on a cluster that has worker nodes.
+- **`HCPClusterOperatorUnavailable`** (critical / SEV 2, **temporarily reduced to
+  warning / SEV 3**, `for: 30m`) — fires when one or more cluster operators,
+  *excluding the version and console operators*, report `Available=false` on a
+  cluster that has worker nodes.
 - **`HCPClusterOperatorDegraded`** (info / SEV 4, `for: 2h`) — fires when one or
   more cluster operators, *excluding the version and console operators*, report
   `Degraded=true` on a cluster that has worker nodes.
@@ -76,6 +77,10 @@ nodes. An operator reporting unavailable means the component it manages is down,
 not merely providing reduced service — for example `ingress` being unavailable
 means cluster ingress is not serving. This is the most urgent of the three,
 hence critical / SEV 2 and the comparatively short 30-minute window.
+
+> **Temporary:** this alert is currently shipped at warning / SEV 3 rather than
+> critical / SEV 2 while its firing behaviour is observed in production. The
+> reduction lives in its own commit and is reverted to restore critical / SEV 2.
 
 The `$value` of the alert is the number of distinct operators that are
 unavailable on that cluster, so a single incident can communicate that more than
