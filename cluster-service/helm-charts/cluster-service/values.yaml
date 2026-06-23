@@ -317,4 +317,4 @@ csDeploymentStrategy:
     maxUnavailable: "{{ .clustersService.k8s.deploymentStrategy.rollingUpdate.maxUnavailable }}"
 deployment:
   zoneCount: "{{ .azureRegionAvailabilityZoneCount }}"
-# controls if a debug job is deployed to the cluster.
+serviceKeyvaultName: "{{ .serviceKeyVault.name }}"

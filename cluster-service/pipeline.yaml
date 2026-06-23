@@ -165,6 +165,7 @@ resourceGroups:
         resourceGroup: global
         step: output
         name: globalMSIId
+    timeout: 10m
 # - name: service-legacy
 #   resourceGroup: '{{ .svc.rg }}'
 #   subscription: '{{ .svc.subscription.key }}'
