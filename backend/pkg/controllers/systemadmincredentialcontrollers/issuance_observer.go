@@ -120,7 +120,6 @@ func (c *issuanceObserver) SyncOnce(ctx context.Context, key controllerutils.HCP
 		if denied := csrDenied(csr); denied != "" {
 			replacement := credential.DeepCopy()
 			replacement.Status.Phase = api.SystemAdminCredentialPhaseFailed
-			metav1.SetMetaDataAnnotation(nil, "", "") // no-op; keep import
 			meta := replacement.Status.Conditions
 			meta = append(meta, metav1.Condition{
 				Type:               "CSRDenied",
