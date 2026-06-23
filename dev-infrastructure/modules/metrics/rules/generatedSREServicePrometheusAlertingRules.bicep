@@ -73,8 +73,8 @@ resource backendRetryhotloop 'Microsoft.AlertsManagement/prometheusRuleGroups@20
           description: 'Backend controller workqueue {{ $labels.name }} has a retry ratio of > 50% sustained over 10 minutes, indicating most queue activity is failed retries rather than fresh work.'
           info: 'Backend controller workqueue {{ $labels.name }} has a retry ratio of > 50% sustained over 10 minutes, indicating most queue activity is failed retries rather than fresh work.'
           runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/backend-tsg.html'
-          summary: 'Backend controller workqueue retry hot loop'
-          title: 'Backend controller workqueue retry hot loop'
+          summary: 'Backend controller workqueue {{ $labels.name }} retry hot loop'
+          title: 'Backend controller workqueue {{ $labels.name }} retry hot loop'
         }
         expression: '( sum by (name, cluster) ( max without(prometheus_replica) ( rate(workqueue_retries_total{namespace="aro-hcp"}[10m]) ) ) / sum by (name, cluster) ( max without(prometheus_replica) ( rate(workqueue_adds_total{namespace="aro-hcp"}[10m]) ) ) ) > 0.5'
         for: 'PT10M'
