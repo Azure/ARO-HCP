@@ -117,10 +117,10 @@ spec:
       maxBackoff: 256s
     metadataConfig:
       send: false
-    {{- if .Values.environment }}
+    {{- if .Values.prometheusSpec.hcpNamespaceRegex }}
     writeRelabelConfigs:
       - sourceLabels: [namespace]
-        regex: '^ocm-{{ .Values.environment }}.*'
+        regex: '{{ .Values.prometheusSpec.hcpNamespaceRegex }}'
         action: drop
     {{- end -}}
   {{- if ne .Values.prometheusSpec.hcpRemoteWriteUrl "NONE" }}
@@ -138,10 +138,10 @@ spec:
       maxBackoff: 256s
     metadataConfig:
       send: false
-    {{- if .Values.environment }}
+    {{- if .Values.prometheusSpec.hcpNamespaceRegex }}
     writeRelabelConfigs:
       - sourceLabels: [namespace]
-        regex: '^ocm-{{ .Values.environment }}.*'
+        regex: '{{ .Values.prometheusSpec.hcpNamespaceRegex }}'
         action: keep
     {{- end }}
   {{- end }}

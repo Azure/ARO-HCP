@@ -93,6 +93,7 @@ prometheusSpec:
   hcpRemoteWriteUrl: "__hcpDcrRemoteWriteUrl__"
   zoneCount: {{ .azureRegionAvailabilityZoneCount }}
   maximumStartupDurationSeconds: 360
+  hcpNamespaceRegex: "{{ .svc.prometheus.prometheusSpec.hcpNamespaceRegex }}"
   resources:
     requests:
       cpu: {{ .svc.prometheus.prometheusSpec.resources.requests.cpu }}

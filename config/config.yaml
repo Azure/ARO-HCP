@@ -523,6 +523,7 @@ defaults:
             memory: NONE
         replicas: 2
         shards: 2
+        hcpNamespaceRegex: "^ocm-arohcp{{ .ctx.environment }}.*"
       prometheusConfigReloader:
         image:
           registry: mcr.microsoft.com/oss/v2
@@ -651,6 +652,7 @@ defaults:
             memory: NONE
         replicas: 2
         shards: 2
+        hcpNamespaceRegex: "^ocm-arohcp{{ .ctx.environment }}.*"
       prometheusConfigReloader:
         image:
           registry: mcr.microsoft.com/oss/v2
@@ -1363,6 +1365,9 @@ clouds:
               userAgentPool:
                 minCount: 2
                 maxCount: 12
+            prometheus:
+              prometheusSpec:
+                hcpNamespaceRegex: "^ocm-.*"
           mgmt:
             aks:
               systemAgentPool:
@@ -1378,6 +1383,9 @@ clouds:
                 osDiskSizeGB: 128
               enableSwiftV2Vnet: true
               enableSwiftV2Nodepools: true
+            prometheus:
+              prometheusSpec:
+                hcpNamespaceRegex: "^ocm-.*"
           # Geneva
           geneva:
             logs:

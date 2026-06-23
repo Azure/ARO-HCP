@@ -668,6 +668,7 @@ mgmt:
         sha: e7bbcd13ba6b9e1dec02a7f0fa882444b46d17fb06dc7f7bcde3f927b663c77e
       version: ""
     prometheusSpec:
+      hcpNamespaceRegex: ^ocm-arohcpci00.*
       image:
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus
@@ -988,6 +989,7 @@ svc:
         sha: e7bbcd13ba6b9e1dec02a7f0fa882444b46d17fb06dc7f7bcde3f927b663c77e
       version: ""
     prometheusSpec:
+      hcpNamespaceRegex: ^ocm-arohcpci00.*
       image:
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus
