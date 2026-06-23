@@ -20,8 +20,6 @@ resource arohcpNodepoolSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRule
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -52,8 +50,6 @@ resource arohcpNodepoolSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRule
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -84,8 +80,6 @@ resource arohcpNodepoolSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRule
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -115,8 +109,6 @@ resource arohcpNodepoolSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRule
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -145,8 +137,6 @@ resource arohcpNodepoolSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRule
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -187,8 +177,6 @@ resource arohcpNodepoolSaturationAlerts 'Microsoft.AlertsManagement/prometheusRu
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -216,8 +204,6 @@ resource arohcpNodepoolSaturationAlerts 'Microsoft.AlertsManagement/prometheusRu
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]

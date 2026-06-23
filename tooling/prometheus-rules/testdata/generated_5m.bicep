@@ -19,8 +19,6 @@ resource InstancesDownV1 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
           actionProperties: {
             'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
             'IcM.CorrelationId': '#$.annotations.correlationId#'
-            'IcM.Description': '#$.annotations.info#'
-            'IcM.TsgId': '#$.annotations.runbook_url#'
           }
         }]
         alert: 'InstancesDownV1'
@@ -44,8 +42,6 @@ resource InstancesDownV1 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
           actionProperties: {
             'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
             'IcM.CorrelationId': '#$.annotations.correlationId#'
-            'IcM.Description': '#$.annotations.info#'
-            'IcM.TsgId': '#$.annotations.runbook_url#'
           }
         }]
         alert: 'KubePodNotReady'

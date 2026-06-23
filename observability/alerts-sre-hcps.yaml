@@ -1,11 +1,11 @@
 prometheusRules:
   rulesFolders:
-  - alerts/mgmt-capacity-prometheusRule.yaml
-  - alerts/HCPkasRecord-prometheusRule-KSM.yaml
-  - alerts/HCPkasMonitor-prometheusRule-KSM.yaml
-  - alerts/HCPclusterHealth-prometheusRule.yaml
+  - ../observability/alerts/mgmt-capacity-prometheusRule.yaml
+  - ../observability/alerts/HCPkasRecord-prometheusRule-KSM.yaml
+  - ../observability/alerts/HCPkasMonitor-prometheusRule-KSM.yaml
+  - ../observability/alerts/HCPclusterHealth-prometheusRule.yaml
   untestedRules:
-  - alerts/kubernetesControlPlane-prometheusRule.yaml
+  - ../observability/alerts/kubernetesControlPlane-prometheusRule.yaml
   testDependencies:
   - recording-rules-hcps.yaml
   outputBicep: ../dev-infrastructure/modules/metrics/rules/generatedHCPPrometheusAlertingRules.bicep

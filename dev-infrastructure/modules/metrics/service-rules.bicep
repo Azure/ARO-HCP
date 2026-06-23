@@ -6,6 +6,13 @@ param azureMonitoringWorkspaceId string
 
 param actionGroups array
 
+module prometheus 'rules/prometheusAlertingRules.bicep' = {
+  name: 'prometheusAlertingRules'
+  params: {
+    azureMonitoring: azureMonitoringWorkspaceId
+  }
+}
+
 module generatedAlerts 'rules/generatedPrometheusAlertingRules.bicep' = {
   name: 'generatedPrometheusAlertingRules'
   params: {
