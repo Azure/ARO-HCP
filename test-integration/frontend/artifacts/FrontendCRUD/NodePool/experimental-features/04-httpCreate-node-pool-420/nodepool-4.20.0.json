@@ -7,7 +7,7 @@
 			"min": 1
 		},
 		"platform": {
-			"vmSize": "large"
+			"vmSize": "Standard_D8s_v3"
 		},
 		"version": {
 			"channelGroup": "stable",
