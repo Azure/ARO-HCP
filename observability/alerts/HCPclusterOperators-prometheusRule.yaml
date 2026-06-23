@@ -1,0 +1,73 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: hcp-cluster-operators
+  namespace: monitoring
+spec:
+  groups:
+  - name: hcp-cluster-operators-rules
+    rules:
+    # Fires when one or more cluster operators (EXCLUDING the version and console
+    # operators) report Available=false on a hosted cluster that has worker nodes.
+    - alert: HCPClusterOperatorUnavailable
+      expr: |
+        count by (cluster, namespace) (
+          cluster_operator_conditions{condition="available", name!~"version|console"} == 0
+        )
+        and on (cluster, namespace)
+        (
+          sum by (cluster, namespace) (node_collector_zone_size) > 0
+        )
+      for: 30m
+      labels:
+        severity: critical
+      annotations:
+        summary: "HCP cluster operator unavailable on {{ $labels.namespace }}"
+        description: "{{ $value }} cluster operator(s) on hosted cluster {{ $labels.namespace }} (management cluster {{ $labels.cluster }}) have been reporting Available=false for more than 30 minutes. The version and console operators are excluded from this alert; the affected cluster has worker nodes present. An unavailable operator means the component it manages is down, not merely degraded.\n"
+        correlationId: 'HCPClusterOperatorUnavailable/{{ $labels.cluster }}/{{ $labels.namespace }}'
+        runbook_url: https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/hcp-cluster-operators.md
+    # Fires when one or more cluster operators (EXCLUDING the version and console
+    # operators) report Degraded=true on a hosted cluster that has worker nodes.
+    - alert: HCPClusterOperatorDegraded
+      expr: |
+        count by (cluster, namespace) (
+          cluster_operator_conditions{condition="degraded", name!~"version|console"} == 1
+        )
+        and on (cluster, namespace)
+        (
+          sum by (cluster, namespace) (node_collector_zone_size) > 0
+        )
+      for: 2h
+      labels:
+        severity: info
+      annotations:
+        summary: "HCP cluster operator degraded on {{ $labels.namespace }}"
+        description: "{{ $value }} cluster operator(s) on hosted cluster {{ $labels.namespace }} (management cluster {{ $labels.cluster }}) have been reporting Degraded=true for more than 2 hours. The version and console operators are excluded from this alert; the affected cluster has worker nodes present. A degraded operator is reporting reduced quality of service.\n"
+        correlationId: 'HCPClusterOperatorDegraded/{{ $labels.cluster }}/{{ $labels.namespace }}'
+        runbook_url: https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/hcp-cluster-operators.md
+    # Fires when the version operator (ClusterVersion) is Failing AND NO OTHER
+    # cluster operator is unavailable or degraded. This isolates the version
+    # operator's own failure modes (payload retrieval, signature verification,
+    # upgrade preconditions, cluster-scoped manifest apply) from failures that a
+    # component operator already explains. The console operator is intentionally
+    # part of the subtracted set, so version-Failing caused only by console is
+    # suppressed here.
+    - alert: HCPClusterVersionFailing
+      expr: |
+        count by (cluster, namespace) (
+          cluster_operator_conditions{name="version", condition="failing"} == 1
+        )
+        unless on (cluster, namespace)
+        count by (cluster, namespace) (
+          (cluster_operator_conditions{condition="available", name!="version"} == 0)
+          or
+          (cluster_operator_conditions{condition="degraded", name!="version"} == 1)
+        )
+      for: 1h
+      labels:
+        severity: warning
+      annotations:
+        summary: "HCP version operator failing on {{ $labels.namespace }}"
+        description: "The version operator (ClusterVersion) on hosted cluster {{ $labels.namespace }} (management cluster {{ $labels.cluster }}) has been Failing for more than 1 hour while NO other cluster operator is unavailable or degraded. This points at a version-operator-specific failure -- payload image retrieval, release signature verification, an upgrade precondition, or a cluster-scoped manifest apply -- rather than a problem any individual component operator reports.\n"
+        correlationId: 'HCPClusterVersionFailing/{{ $labels.cluster }}/{{ $labels.namespace }}'
+        runbook_url: https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/hcp-cluster-operators.md
