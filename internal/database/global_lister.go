@@ -96,7 +96,7 @@ func (g *cosmosResourcesGlobalListers) ExternalAuths() GlobalLister[api.HCPOpenS
 func (g *cosmosResourcesGlobalListers) SystemAdminCredentials() GlobalLister[api.SystemAdminCredential] {
 	return &cosmosGlobalLister[api.SystemAdminCredential, GenericDocument[api.SystemAdminCredential]]{
 		containerClient: g.resources,
-		resourceType:    api.SystemAdminCredentialResourceType,
+		resourceTypes:   []azcorearm.ResourceType{api.SystemAdminCredentialResourceType},
 	}
 }
 

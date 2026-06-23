@@ -72,9 +72,9 @@ func (c *operationRequestCredentialPoll) ShouldProcess(ctx context.Context, op *
 	if len(op.InternalID.String()) == 0 {
 		return false
 	}
-	if op.InternalID.Kind() != api.SystemAdminCredentialKind {
-		return false
-	}
+	// Accept both SystemAdminCredential IDs (normal path) and legacy
+	// cluster-service HREF IDs so that handleLegacyOperation can
+	// explicitly fail the latter instead of leaving them non-terminal.
 	return true
 }
 
@@ -88,6 +88,18 @@ func (c *operationRequestCredentialPoll) SynchronizeOperation(ctx context.Contex
 	}
 	if !c.ShouldProcess(ctx, op) {
 		return nil
+	}
+
+	// Legacy operations created by cluster-service carry an HREF-style
+	// InternalID (e.g. /api/clusters_mgmt/v1/clusters/...) that is not
+	// a SystemAdminCredential ARM resource ID. The dispatcher skips them
+	// (InternalID is already set) and this poller cannot poll them. Fail
+	// them explicitly so they do not remain non-terminal forever.
+	if op.InternalID.Kind() != api.SystemAdminCredentialKind {
+		return patchOperationStatus(ctx, c.clock, c.resourcesDBClient, op, arm.ProvisioningStateFailed, &arm.CloudErrorBody{
+			Code:    arm.CloudErrorCodeInternalServerError,
+			Message: "Legacy credential operation is not supported by the new credential flow; please retry",
+		}, c.notificationClient)
 	}
 
 	credRID, err := azcorearm.ParseResourceID(op.InternalID.String())
@@ -111,6 +123,23 @@ func (c *operationRequestCredentialPoll) SynchronizeOperation(ctx context.Contex
 	}
 
 	newStatus, newErrBody := mapCredentialPhaseToARMStatus(credential)
+
+	// When the credential is Issued the operation would transition to
+	// Succeeded, but OperationResult also needs ServingCABundle to build
+	// a kubeconfig. If it is not yet available, keep the operation at
+	// Provisioning so the frontend doesn't try to build a kubeconfig
+	// with a missing CA.
+	if newStatus == arm.ProvisioningStateSucceeded {
+		spc, err := database.GetOrCreateServiceProviderCluster(ctx, c.resourcesDBClient, clusterRID)
+		if err != nil {
+			return fmt.Errorf("get ServiceProviderCluster: %w", err)
+		}
+		if spc.Status.ServingCABundle == "" {
+			// CA bundle not synced yet — stay at Provisioning.
+			return nil
+		}
+	}
+
 	return patchOperationStatus(ctx, c.clock, c.resourcesDBClient, op, newStatus, newErrBody, c.notificationClient)
 }
 

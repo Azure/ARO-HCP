@@ -59,9 +59,9 @@ func (g *mockResourcesGlobalListers) ExternalAuths() database.GlobalLister[api.H
 }
 
 func (g *mockResourcesGlobalListers) SystemAdminCredentials() database.GlobalLister[api.SystemAdminCredential] {
-	return &mockTypedGlobalLister[api.SystemAdminCredential, database.GenericDocument[api.SystemAdminCredential]]{
-		client:       g.client,
-		resourceType: api.SystemAdminCredentialResourceType,
+	return &mockGlobalLister[api.SystemAdminCredential, database.GenericDocument[api.SystemAdminCredential]]{
+		client:        g.client,
+		resourceTypes: []azcorearm.ResourceType{api.SystemAdminCredentialResourceType},
 	}
 }
 

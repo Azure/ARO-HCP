@@ -146,7 +146,7 @@ func (c *servingCAReadDesireCreator) SyncOnce(ctx context.Context, key controlle
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("get serving CA ReadDesire: %w", err))
 	}
-	if controllerutils.ResourceIDsEqual(existing.Spec.ManagementCluster, mcResourceID) && existing.Spec.TargetItem == target {
+	if controllerutil.ResourceIDsEqual(existing.Spec.ManagementCluster, mcResourceID) && existing.Spec.TargetItem == target {
 		return nil
 	}
 	desired.CosmosMetadata = *existing.CosmosMetadata.DeepCopy()

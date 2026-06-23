@@ -99,6 +99,7 @@ func TestBuildCSR_RejectsEmptyArgs(t *testing.T) {
 	}{
 		{"empty credName", "", "signer/x.customer-break-glass", testHCPNamespace, "u", privPEM, "credName"},
 		{"empty signer", testCredName, "", testHCPNamespace, "u", privPEM, "signerName"},
+		{"empty namespace", testCredName, "signer/x.customer-break-glass", "", "u", privPEM, "namespace"},
 		{"empty username", testCredName, "signer/x.customer-break-glass", testHCPNamespace, "", privPEM, "username"},
 		{"bad key", testCredName, "signer/x.customer-break-glass", testHCPNamespace, "u", []byte("not pem"), "private-key"},
 	} {

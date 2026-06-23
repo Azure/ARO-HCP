@@ -61,6 +61,9 @@ func BuildCSR(
 	if signerName == "" {
 		return nil, fmt.Errorf("signerName must not be empty")
 	}
+	if namespace == "" {
+		return nil, fmt.Errorf("namespace must not be empty")
+	}
 	if username == "" {
 		return nil, fmt.Errorf("username must not be empty")
 	}
