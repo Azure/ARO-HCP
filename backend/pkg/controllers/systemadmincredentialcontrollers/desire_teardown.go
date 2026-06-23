@@ -17,6 +17,7 @@ package systemadmincredentialcontrollers
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -131,7 +132,7 @@ func teardownCredentialOutstandingDesires(
 		// it after the ApplyDesire so the two are obviously paired in
 		// Cosmos listings; the kube-applier doesn't otherwise care.
 		delete := &kubeapplier.DeleteDesire{
-			CosmosMetadata: buildScopedDesireMetadata(parentClusterRID, applyName, kubeapplier.DeleteDesireResourceTypeName),
+			CosmosMetadata: buildScopedDesireMetadata(parentClusterRID, applyName, kubeapplier.DeleteDesireResourceTypeName, apply.Spec.ManagementCluster),
 			Spec: kubeapplier.DeleteDesireSpec{
 				ManagementCluster: apply.Spec.ManagementCluster,
 				TargetItem:        apply.Spec.TargetItem,
@@ -227,9 +228,10 @@ func isDesireConditionTrue(conditions []metav1.Condition, conditionType string) 
 // buildScopedDesireMetadata is a small construction helper. The
 // kube-applier informer + lister key off the desire's full resource ID,
 // derived from the parent cluster + the desire-kind segment + the
-// desire's name.
-func buildScopedDesireMetadata(parentClusterRID *azcorearm.ResourceID, name, desireTypeSegment string) api.CosmosMetadata {
+// desire's name. mcRID is the management-cluster resource ID used as
+// the Cosmos partition key.
+func buildScopedDesireMetadata(parentClusterRID *azcorearm.ResourceID, name, desireTypeSegment string, mcRID *azcorearm.ResourceID) api.CosmosMetadata {
 	// e.g. .../clusters/<cluster>/applyDesires/<name>
 	rid, _ := azcorearm.ParseResourceID(parentClusterRID.String() + "/" + desireTypeSegment + "/" + name)
-	return api.CosmosMetadata{ResourceID: rid}
+	return api.CosmosMetadata{ResourceID: rid, PartitionKey: strings.ToLower(mcRID.String())}
 }

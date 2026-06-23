@@ -197,10 +197,10 @@ func (k *HCPExternalAuthKey) InitialController(controllerName string) *api.Contr
 
 // HCPSystemAdminCredentialKey is for driving workqueues keyed for system admin credentials.
 type HCPSystemAdminCredentialKey struct {
-	SubscriptionID                string `json:"subscriptionID"`
-	ResourceGroupName             string `json:"resourceGroupName"`
-	HCPClusterName                string `json:"hcpClusterName"`
-	HCPSystemAdminCredentialName  string `json:"hcpSystemAdminCredentialName"`
+	SubscriptionID               string `json:"subscriptionID"`
+	ResourceGroupName            string `json:"resourceGroupName"`
+	HCPClusterName               string `json:"hcpClusterName"`
+	HCPSystemAdminCredentialName string `json:"hcpSystemAdminCredentialName"`
 }
 
 func (k *HCPSystemAdminCredentialKey) GetResourceID() *azcorearm.ResourceID {
@@ -215,7 +215,8 @@ func (k *HCPSystemAdminCredentialKey) InitialController(controllerName string) *
 	resourceID := api.Must(azcorearm.ParseResourceID(k.GetResourceID().String() + "/" + api.ControllerResourceTypeName + "/" + controllerName))
 	return &api.Controller{
 		CosmosMetadata: api.CosmosMetadata{
-			ResourceID: resourceID,
+			ResourceID:   resourceID,
+			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
 		},
 		ExternalID: k.GetResourceID(),
 		Status: api.ControllerStatus{

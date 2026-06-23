@@ -217,10 +217,9 @@ func TestOperationRevokeCredentialsPoll_SynchronizeOperation(t *testing.T) {
 				db, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, spc, op})
 				require.NoError(t, err)
 
-				kaClient := databasetesting.NewMockKubeApplierDBClient()
 				// Add CRR ReadDesire with Failed condition
 				rd := testReadDesireWithKubeContent(testClusterRID(), crrReadDesireName, marshalCRR(crrFailed))
-				kaClient, err = databasetesting.NewMockKubeApplierDBClientWithResources(ctx, []any{rd})
+				kaClient, err := databasetesting.NewMockKubeApplierDBClientWithResources(ctx, []any{rd})
 				require.NoError(t, err)
 				return db, testMockKubeApplierDBClients(kaClient), kaClient
 			},
@@ -242,9 +241,8 @@ func TestOperationRevokeCredentialsPoll_SynchronizeOperation(t *testing.T) {
 				db, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, spc, op})
 				require.NoError(t, err)
 
-				kaClient := databasetesting.NewMockKubeApplierDBClient()
 				rd := testReadDesireWithKubeContent(testClusterRID(), crrReadDesireName, marshalCRR(crrRevoked))
-				kaClient, err = databasetesting.NewMockKubeApplierDBClientWithResources(ctx, []any{rd})
+				kaClient, err := databasetesting.NewMockKubeApplierDBClientWithResources(ctx, []any{rd})
 				require.NoError(t, err)
 				return db, testMockKubeApplierDBClients(kaClient), kaClient
 			},

@@ -122,11 +122,11 @@ func TestIssuanceObserver_SyncOnce(t *testing.T) {
 	}
 
 	tests := []struct {
-		name      string
-		cred      *api.SystemAdminCredential
-		csrJSON   []byte
-		wantErr   bool
-		verifyDB  func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient)
+		name     string
+		cred     *api.SystemAdminCredential
+		csrJSON  []byte
+		wantErr  bool
+		verifyDB func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient)
 	}{
 		{
 			name:    "CSR with certificate flips credential to Issued",
@@ -205,16 +205,8 @@ func TestIssuanceObserver_SyncOnce(t *testing.T) {
 			readDesireName := systemadmincredential.CSRNamePrefix + "-" + testCredentialName
 			if tt.csrJSON != nil {
 				rd := testReadDesireWithKubeContent(testClusterRID(), readDesireName, tt.csrJSON)
-				_, err = databasetesting.NewMockKubeApplierDBClientWithResources(ctx, []any{rd})
-				if err != nil {
-					// If that fails, add it directly
-					readCRUD, _ := kaClient.ReadDesiresForCluster(testSubscriptionID, testResourceGroupName, testClusterName)
-					readCRUD.Create(ctx, rd, nil)
-				} else {
-					// Re-create with the resource
-					kaClient, err = databasetesting.NewMockKubeApplierDBClientWithResources(ctx, []any{rd})
-					require.NoError(t, err)
-				}
+				kaClient, err = databasetesting.NewMockKubeApplierDBClientWithResources(ctx, []any{rd})
+				require.NoError(t, err)
 			}
 
 			rdLister := newMockReadDesireLister(kaClient)

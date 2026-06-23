@@ -18,6 +18,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -46,10 +47,10 @@ import (
 // (a single Cosmos write) and lets the desires path retry independently
 // against the kube-applier container.
 type operationRequestCredentialDispatch struct {
-	clock                utilsclock.PassiveClock
-	clusterLister        listers.ClusterLister
-	resourcesDBClient    database.ResourcesDBClient
-	notificationClient   *http.Client
+	clock              utilsclock.PassiveClock
+	clusterLister      listers.ClusterLister
+	resourcesDBClient  database.ResourcesDBClient
+	notificationClient *http.Client
 }
 
 func NewOperationRequestCredentialDispatchController(
@@ -130,7 +131,7 @@ func (c *operationRequestCredentialDispatch) SynchronizeOperation(ctx context.Co
 	}
 	now := metav1.NewTime(c.clock.Now())
 	credential := &api.SystemAdminCredential{
-		CosmosMetadata: api.CosmosMetadata{ResourceID: credRID},
+		CosmosMetadata: api.CosmosMetadata{ResourceID: credRID, PartitionKey: strings.ToLower(credRID.SubscriptionID)},
 		Spec: api.SystemAdminCredentialSpec{
 			Username:            defaultUsername,
 			ExpirationTimestamp: metav1.NewTime(now.Add(24 * time.Hour)),

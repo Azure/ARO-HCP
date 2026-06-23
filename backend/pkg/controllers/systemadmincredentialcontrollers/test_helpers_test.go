@@ -16,13 +16,14 @@ package systemadmincredentialcontrollers
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/go-logr/logr/testr"
 
-	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-
 	"k8s.io/apimachinery/pkg/runtime"
+
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
@@ -90,7 +91,8 @@ func testCluster() *api.HCPOpenShiftCluster {
 	csID := testCSInternalID()
 	return &api.HCPOpenShiftCluster{
 		CosmosMetadata: arm.CosmosMetadata{
-			ResourceID: testClusterRID(),
+			ResourceID:   testClusterRID(),
+			PartitionKey: strings.ToLower(testSubscriptionID),
 		},
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
@@ -110,7 +112,8 @@ func testSPC(mcRID *azcorearm.ResourceID) *api.ServiceProviderCluster {
 	spcRID := api.Must(azcorearm.ParseResourceID(spcRIDStr))
 	return &api.ServiceProviderCluster{
 		CosmosMetadata: api.CosmosMetadata{
-			ResourceID: spcRID,
+			ResourceID:   spcRID,
+			PartitionKey: strings.ToLower(testSubscriptionID),
 		},
 		Status: api.ServiceProviderClusterStatus{
 			ManagementClusterResourceID: mcRID,
@@ -122,7 +125,8 @@ func testCredential(phase api.SystemAdminCredentialPhase) *api.SystemAdminCreden
 	credRID := api.Must(api.ToSystemAdminCredentialResourceID(testSubscriptionID, testResourceGroupName, testClusterName, testCredentialName))
 	return &api.SystemAdminCredential{
 		CosmosMetadata: api.CosmosMetadata{
-			ResourceID: credRID,
+			ResourceID:   credRID,
+			PartitionKey: strings.ToLower(testSubscriptionID),
 		},
 		Spec: api.SystemAdminCredentialSpec{
 			Username:      defaultUsername,
@@ -141,7 +145,8 @@ func testOperation(request database.OperationRequest, status arm.ProvisioningSta
 	clusterRID := testClusterRID()
 	return &api.Operation{
 		CosmosMetadata: api.CosmosMetadata{
-			ResourceID: operationRID,
+			ResourceID:   operationRID,
+			PartitionKey: strings.ToLower(testSubscriptionID),
 		},
 		Status:      status,
 		Request:     request,
@@ -177,7 +182,7 @@ func testReadDesireWithKubeContent(clusterRID *azcorearm.ResourceID, desireName 
 		clusterRID.SubscriptionID, clusterRID.ResourceGroupName, clusterRID.Name, desireName)
 	desireRID := api.Must(azcorearm.ParseResourceID(desireRIDStr))
 	rd := &kubeapplier.ReadDesire{
-		CosmosMetadata: api.CosmosMetadata{ResourceID: desireRID},
+		CosmosMetadata: api.CosmosMetadata{ResourceID: desireRID, PartitionKey: strings.ToLower(testMCResourceIDStr)},
 		Spec: kubeapplier.ReadDesireSpec{
 			ManagementCluster: testMCResourceID(),
 		},

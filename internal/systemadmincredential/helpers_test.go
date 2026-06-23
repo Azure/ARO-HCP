@@ -24,12 +24,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-
 	rbacv1 "k8s.io/api/rbac/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	clientcmdapilatest "k8s.io/client-go/tools/clientcmd/api/latest"
 
-	"k8s.io/apimachinery/pkg/runtime"
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 )
 
 // testOwner is a stable cluster resource ID used across the Build* tests

@@ -197,7 +197,7 @@ func (c *operationRevokeCredentialsDispatch) SynchronizeOperation(ctx context.Co
 		return fmt.Errorf("marshal CRR: %w", err)
 	}
 	ad := &kubeapplier.ApplyDesire{
-		CosmosMetadata: buildScopedDesireMetadata(clusterRID, crrName, kubeapplier.ApplyDesireResourceTypeName),
+		CosmosMetadata: buildScopedDesireMetadata(clusterRID, crrName, kubeapplier.ApplyDesireResourceTypeName, mcRID),
 		Spec: kubeapplier.ApplyDesireSpec{
 			ManagementCluster: mcRID,
 			TargetItem:        targetItemFor(crrObj),
@@ -208,7 +208,7 @@ func (c *operationRevokeCredentialsDispatch) SynchronizeOperation(ctx context.Co
 		return fmt.Errorf("create CRR ApplyDesire: %w", err)
 	}
 	rd := &kubeapplier.ReadDesire{
-		CosmosMetadata: buildScopedDesireMetadata(clusterRID, crrName, kubeapplier.ReadDesireResourceTypeName),
+		CosmosMetadata: buildScopedDesireMetadata(clusterRID, crrName, kubeapplier.ReadDesireResourceTypeName, mcRID),
 		Spec: kubeapplier.ReadDesireSpec{
 			ManagementCluster: mcRID,
 			TargetItem:        targetItemFor(crrObj),

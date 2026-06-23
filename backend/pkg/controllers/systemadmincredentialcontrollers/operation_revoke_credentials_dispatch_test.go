@@ -16,6 +16,7 @@ package systemadmincredentialcontrollers
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -170,7 +171,7 @@ func TestOperationRevokeCredentialsDispatch_SynchronizeOperation(t *testing.T) {
 
 				cred2RID := api.Must(api.ToSystemAdminCredentialResourceID(testSubscriptionID, testResourceGroupName, testClusterName, "fedcba9876543210"))
 				cred2 := &api.SystemAdminCredential{
-					CosmosMetadata: api.CosmosMetadata{ResourceID: cred2RID},
+					CosmosMetadata: api.CosmosMetadata{ResourceID: cred2RID, PartitionKey: strings.ToLower(testSubscriptionID)},
 					Spec: api.SystemAdminCredentialSpec{
 						OperationID: "other-op",
 						Username:    defaultUsername,

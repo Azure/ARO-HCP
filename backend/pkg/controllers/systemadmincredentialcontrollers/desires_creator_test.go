@@ -27,11 +27,11 @@ import (
 
 func TestHasOutstandingDesire(t *testing.T) {
 	tests := []struct {
-		name   string
-		cred   *api.SystemAdminCredential
-		kind   api.SystemAdminCredentialDesireKind
+		name       string
+		cred       *api.SystemAdminCredential
+		kind       api.SystemAdminCredentialDesireKind
 		desireName string
-		expect bool
+		expect     bool
 	}{
 		{
 			name: "found",
@@ -123,11 +123,11 @@ func TestKindToResource(t *testing.T) {
 
 func TestCredentialDesiresCreator_SyncOnce(t *testing.T) {
 	tests := []struct {
-		name      string
-		cred      *api.SystemAdminCredential
-		hasSPC    bool
-		wantErr   bool
-		verifyDB  func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, kaClient *databasetesting.MockKubeApplierDBClient)
+		name     string
+		cred     *api.SystemAdminCredential
+		hasSPC   bool
+		wantErr  bool
+		verifyDB func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, kaClient *databasetesting.MockKubeApplierDBClient)
 	}{
 		{
 			name: "creates ApplyDesires and ReadDesire for Requested credential",

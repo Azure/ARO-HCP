@@ -32,10 +32,10 @@ import (
 
 func TestMapCredentialPhaseToARMStatus(t *testing.T) {
 	tests := []struct {
-		name          string
-		phase         api.SystemAdminCredentialPhase
-		wantStatus    arm.ProvisioningState
-		wantCloudErr  bool
+		name         string
+		phase        api.SystemAdminCredentialPhase
+		wantStatus   arm.ProvisioningState
+		wantCloudErr bool
 	}{
 		{
 			name:         "Requested maps to Provisioning",
@@ -126,14 +126,14 @@ func TestOperationRequestCredentialPoll_ShouldProcess(t *testing.T) {
 			expect: false,
 		},
 		{
-			name: "rejects InternalID of wrong kind",
+			name: "accepts legacy cluster-service InternalID for handleLegacyOperation",
 			op: func() *api.Operation {
 				op := testOperation(database.OperationRequestRequestCredential, arm.ProvisioningStateProvisioning)
-				// cluster-service style internal ID
+				// cluster-service style internal ID — accepted so handleLegacyOperation can explicitly fail it
 				op.InternalID = api.Must(api.NewInternalID("/api/clusters_mgmt/v1/clusters/abc123"))
 				return op
 			}(),
-			expect: false,
+			expect: true,
 		},
 	}
 
@@ -203,7 +203,9 @@ func TestOperationRequestCredentialPoll_SynchronizeOperation(t *testing.T) {
 
 			op, cred := makeOp(tt.phase)
 			cluster := testCluster()
-			db, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, op})
+			spc := testSPC(testMCResourceID())
+			spc.Status.ServingCABundle = "test-ca-bundle"
+			db, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, spc, op})
 			require.NoError(t, err)
 			createCredentialInDB(ctx, t, cred, db)
 

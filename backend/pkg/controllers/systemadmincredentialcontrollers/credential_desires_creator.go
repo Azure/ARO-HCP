@@ -187,7 +187,7 @@ func (c *credentialDesiresCreator) SyncOnce(ctx context.Context, key controlleru
 			return utils.TrackError(fmt.Errorf("marshal %s: %w", plan.nameSegment, err))
 		}
 		ad := &kubeapplier.ApplyDesire{
-			CosmosMetadata: buildScopedDesireMetadata(clusterRID, plan.nameSegment, kubeapplier.ApplyDesireResourceTypeName),
+			CosmosMetadata: buildScopedDesireMetadata(clusterRID, plan.nameSegment, kubeapplier.ApplyDesireResourceTypeName, mcRID),
 			Spec: kubeapplier.ApplyDesireSpec{
 				ManagementCluster: mcRID,
 				TargetItem:        targetItemFor(plan.obj),
@@ -206,7 +206,7 @@ func (c *credentialDesiresCreator) SyncOnce(ctx context.Context, key controlleru
 	csrReadName := credentialDesireName(systemadmincredential.CSRNamePrefix, credName)
 	if !hasOutstandingDesire(updated, api.SystemAdminCredentialDesireKindRead, csrReadName) {
 		rd := &kubeapplier.ReadDesire{
-			CosmosMetadata: buildScopedDesireMetadata(clusterRID, csrReadName, kubeapplier.ReadDesireResourceTypeName),
+			CosmosMetadata: buildScopedDesireMetadata(clusterRID, csrReadName, kubeapplier.ReadDesireResourceTypeName, mcRID),
 			Spec: kubeapplier.ReadDesireSpec{
 				ManagementCluster: mcRID,
 				TargetItem:        targetItemFor(csrObj),
