@@ -1,6 +1,7 @@
 prometheusRules:
   rulesFolders:
-  - ../frontend/alerts/frontend-latency-prometheusRule.yaml
-  - ../backend/alerts/backend-retryhotloop-prometheusRule.yaml
+  - alerts/nodepool-slo-prometheusRule.yaml
   untestedRules: []
+  testDependencies:
+  - recording-rules-services.yaml
   outputBicep: ../dev-infrastructure/modules/metrics/rules/generatedSREServicePrometheusAlertingRules.bicep

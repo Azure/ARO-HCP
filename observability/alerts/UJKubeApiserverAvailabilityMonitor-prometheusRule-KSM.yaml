@@ -1,0 +1,99 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: uj-kubeapiserver-availability-alerts
+  namespace: prometheus
+spec:
+  groups:
+  - name: rp-uj-kas-availability-monitor-rules
+    rules:
+    - alert: UJKubeApiserverAvailability1h5m
+      expr: |
+        (
+          1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_5m / hostedClusterAPI_kubeapiserver_available:sli_count_5m)
+          > (14.4 * (1 - 0.9995))
+          and on (name, namespace, _id, cluster)
+          hostedClusterAPI_kubeapiserver_available:sli_count_5m > 3
+        )
+        and on (name, namespace, _id, cluster)
+        (
+          1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_1h / hostedClusterAPI_kubeapiserver_available:sli_count_1h)
+          > (14.4 * (1 - 0.9995))
+          and on (name, namespace, _id, cluster)
+          hostedClusterAPI_kubeapiserver_available:sli_count_1h > 54
+        )
+      for: 10m
+      labels:
+        long_window: 1h
+        short_window: 5m
+        severity: critical
+        slo: kas-availability
+      annotations:
+        summary: "KubeAPIServer availability error budget burn ({{ $labels._id }})"
+        description: |
+          Burn rate: fast (14.4x, 1h/5m, for: 10m)
+          CID: {{ $labels._id }}
+          Management Cluster: {{ $labels.cluster }}/{{ $labels.namespace }}
+        runbook_url: https://aka.ms/arohcp-runbook-ujkasavailable
+        correlationId: "UJKubeApiserverAvailability/{{ $labels.cluster }}/{{ $labels._id }}"
+    - alert: UJKubeApiserverAvailability6h30m
+      # sli_sum_6h and sli_count_6h are recording rules defined in HCPkasRecord-prometheusRule-KSM.yaml
+      expr: |
+        (
+          1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_30m / hostedClusterAPI_kubeapiserver_available:sli_count_30m)
+          > (6 * (1 - 0.9995))
+          and on (name, namespace, _id, cluster)
+          hostedClusterAPI_kubeapiserver_available:sli_count_30m > 27
+        )
+        and on (name, namespace, _id, cluster)
+        (
+          1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_6h / hostedClusterAPI_kubeapiserver_available:sli_count_6h)
+          > (6 * (1 - 0.9995))
+          and on (name, namespace, _id, cluster)
+          hostedClusterAPI_kubeapiserver_available:sli_count_6h > 64
+        )
+      for: 30m
+      labels:
+        long_window: 6h
+        short_window: 30m
+        severity: critical
+        slo: kas-availability
+      annotations:
+        summary: "KubeAPIServer availability error budget burn ({{ $labels._id }})"
+        description: |
+          Burn rate: medium (6x, 6h/30m, for: 30m)
+          CID: {{ $labels._id }}
+          Management Cluster: {{ $labels.cluster }}/{{ $labels.namespace }}
+        runbook_url: https://aka.ms/arohcp-runbook-ujkasavailable
+        correlationId: "UJKubeApiserverAvailability/{{ $labels.cluster }}/{{ $labels._id }}"
+    - alert: UJKubeApiserverAvailability3d6h
+      # sli_sum_3d, sli_count_3d (long window) and sli_sum_6h, sli_count_6h (short window)
+      # are recording rules defined in HCPkasRecord-prometheusRule-KSM.yaml
+      expr: |
+        (
+          1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_6h / hostedClusterAPI_kubeapiserver_available:sli_count_6h)
+          > (1 * (1 - 0.9995))
+          and on (name, namespace, _id, cluster)
+          hostedClusterAPI_kubeapiserver_available:sli_count_6h > 64
+        )
+        and on (name, namespace, _id, cluster)
+        (
+          1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_3d / hostedClusterAPI_kubeapiserver_available:sli_count_3d)
+          > (1 * (1 - 0.9995))
+          and on (name, namespace, _id, cluster)
+          hostedClusterAPI_kubeapiserver_available:sli_count_3d > 130
+        )
+      for: 3h
+      labels:
+        long_window: 3d
+        short_window: 6h
+        severity: warning
+        slo: kas-availability
+      annotations:
+        summary: "KubeAPIServer availability error budget burn ({{ $labels._id }})"
+        description: |
+          Burn rate: slow (1x, 3d/6h, for: 3h)
+          CID: {{ $labels._id }}
+          Management Cluster: {{ $labels.cluster }}/{{ $labels.namespace }}
+        runbook_url: https://aka.ms/arohcp-runbook-ujkasavailable
+        correlationId: "UJKubeApiserverAvailability/{{ $labels.cluster }}/{{ $labels._id }}"

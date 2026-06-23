@@ -1,6 +1,5 @@
 prometheusRules:
-  rulesFolders:
-  - alerts/nodepool-slo-prometheusRule.yaml
+  rulesFolders: []
   untestedRules: []
   testDependencies:
   - recording-rules-services.yaml
