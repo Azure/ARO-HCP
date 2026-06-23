@@ -24,7 +24,7 @@ imageDigest: "{{ .clustersService.image.digest }}"
 # log verbosity level. It is a go-logr/logr verbosity level.
 logLevel: 4
 # Number of replicas of the service to run.
-replicas: {{ .clustersService.k8s.replicas }}
+replicas: "{{ .clustersService.k8s.replicas }}"
 # Location of the JSON web key set used to verify tokens.
 jwksUrl: "http://localhost"
 # Location of the service that issues JSON web tokens.
@@ -313,8 +313,8 @@ tracing:
 csDeploymentStrategy:
   type: RollingUpdate
   rollingUpdate:
-    maxSurge: {{ .clustersService.k8s.deploymentStrategy.rollingUpdate.maxSurge}}
-    maxUnavailable: {{ .clustersService.k8s.deploymentStrategy.rollingUpdate.maxUnavailable }}
+    maxSurge: "{{ .clustersService.k8s.deploymentStrategy.rollingUpdate.maxSurge }}"
+    maxUnavailable: "{{ .clustersService.k8s.deploymentStrategy.rollingUpdate.maxUnavailable }}"
 deployment:
-  zoneCount: {{ .azureRegionAvailabilityZoneCount }}
+  zoneCount: "{{ .azureRegionAvailabilityZoneCount }}"
 # controls if a debug job is deployed to the cluster.

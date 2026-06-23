@@ -11,7 +11,10 @@ spec:
       app: clusters-service
   replicas: {{ .Values.replicas }}
   strategy:
-    {{- .Values.csDeploymentStrategy | toYaml | nindent 4 }}
+    type: {{ .Values.csDeploymentStrategy.type }}
+    rollingUpdate:
+      maxSurge: {{ .Values.csDeploymentStrategy.rollingUpdate.maxSurge | int }}
+      maxUnavailable: {{ .Values.csDeploymentStrategy.rollingUpdate.maxUnavailable | int }}
   template:
     metadata:
       labels:
