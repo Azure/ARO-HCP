@@ -20,6 +20,7 @@ import (
 	"net"
 	"os"
 	"sort"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -32,17 +33,22 @@ import (
 	"go.uber.org/goleak"
 
 	utilsclock "k8s.io/utils/clock"
+	clocktesting "k8s.io/utils/clock/testing"
 	"k8s.io/utils/set"
+
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	adminApiServer "github.com/Azure/ARO-HCP/admin/server/server"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/operationcontrollers"
 	"github.com/Azure/ARO-HCP/frontend/pkg/frontend"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/api/v20240610preview"
 	"github.com/Azure/ARO-HCP/internal/api/v20251223preview"
 	"github.com/Azure/ARO-HCP/internal/api/v20260630preview"
 	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -135,6 +141,45 @@ func NewIntegrationTestInfoFromEnv(ctx context.Context, t *testing.T, withMock b
 	metricsRegistry := prometheus.NewRegistry()
 	aroHCPFrontend := frontend.NewFrontend(logger, frontendListener, frontendMetricsListener, metricsRegistry, metricsRegistry, storageIntegrationTestInfo.ResourcesDBClient(), clusterServiceMockInfo.MockClusterServiceClient, fakeAuditClient, "fake-location", true)
 
+	fakeClock := clocktesting.NewFakePassiveClock(time.Date(2024, 1, 15, 10, 30, 0, 0, time.UTC))
+
+	mockKubeApplierClients := databasetesting.NewMockKubeApplierDBClients()
+	testMCResourceID, err := azcorearm.ParseResourceID("/providers/microsoft.redhatopenshift/stamps/1/managementclusters/default")
+	if err != nil {
+		return nil, err
+	}
+
+	hcReadDesireName := strings.ToLower(string(api.MaestroBundleInternalNameReadonlyHypershiftHostedCluster))
+	hcRDResourceIDStr := kubeapplier.ToClusterScopedReadDesireResourceIDString(
+		"0465bc32-c654-41b8-8d87-9815d7abe8f6", "some-resource-group", "some-hcp-cluster", hcReadDesireName,
+	)
+	hcRDResourceID, err := azcorearm.ParseResourceID(hcRDResourceIDStr)
+	if err != nil {
+		return nil, err
+	}
+	mockKAClient, err := databasetesting.NewMockKubeApplierDBClientWithResources(ctx, []any{
+		&kubeapplier.ReadDesire{
+			CosmosMetadata: api.CosmosMetadata{
+				ResourceID:   hcRDResourceID,
+				PartitionKey: strings.ToLower(testMCResourceID.String()),
+			},
+			Spec: kubeapplier.ReadDesireSpec{
+				ManagementCluster: testMCResourceID,
+				TargetItem: kubeapplier.ResourceReference{
+					Group:     "hypershift.openshift.io",
+					Version:   "v1beta1",
+					Resource:  "hostedclusters",
+					Namespace: "ocm-testenv-fixed-value",
+					Name:      "somecluster",
+				},
+			},
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+	mockKubeApplierClients.Register(testMCResourceID, mockKAClient)
+
 	// admin api setup
 	adminListener, err := net.Listen("tcp4", "127.0.0.1:0")
 	if err != nil {
@@ -162,6 +207,8 @@ func NewIntegrationTestInfoFromEnv(ctx context.Context, t *testing.T, withMock b
 		24*time.Hour,
 		set.New("aro-sre-pso", "aro-sre-csa"),
 		metricsRegistry,
+		mockKubeApplierClients,
+		fakeClock,
 	)
 
 	frontendURL := fmt.Sprintf("http://%s", frontendListener.Addr().String())
