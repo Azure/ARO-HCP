@@ -89,16 +89,18 @@ type ValidatedControllerOptions struct {
 }
 
 type completedControllerOptions struct {
-	ctrl                *controller.SwiftNICController
-	ksmCtrl             *ksmhcp.KSMHCPController
-	resourceWatcher     *controller.ResourceWatcher
-	kubeInformers       kubeinformers.SharedInformerFactory
-	ksmKubeInformers    kubeinformers.SharedInformerFactory
-	hypershiftInformers hypershiftinformers.SharedInformerFactory
-	dynamicInformers    dynamicinformer.DynamicSharedInformerFactory
-	workers             int
-	healthAddress       string
-	leaderElectionCfg   *controller.LeaderElectionConfig
+	ctrl                     *controller.SwiftNICController
+	ksmCtrl                  *ksmhcp.KSMHCPController
+	resourceWatcher          *controller.ResourceWatcher
+	podWatcher               *controller.PodWatcher
+	kubeInformers            kubeinformers.SharedInformerFactory
+	ksmKubeInformers         kubeinformers.SharedInformerFactory
+	clusterWideKubeInformers kubeinformers.SharedInformerFactory
+	hypershiftInformers      hypershiftinformers.SharedInformerFactory
+	dynamicInformers         dynamicinformer.DynamicSharedInformerFactory
+	workers                  int
+	healthAddress            string
+	leaderElectionCfg        *controller.LeaderElectionConfig
 }
 
 type ControllerOptions struct {
@@ -163,8 +165,10 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 	resourceWatcher := controller.NewResourceWatcher(dynamicClient, discoveryClient)
 
 	var ksmCtrl *ksmhcp.KSMHCPController
+	var podWatcher *controller.PodWatcher
 	var hsInformers hypershiftinformers.SharedInformerFactory
 	var ksmKubeInformers kubeinformers.SharedInformerFactory
+	var clusterWideKubeInformers kubeinformers.SharedInformerFactory
 	var dynInformers dynamicinformer.DynamicSharedInformerFactory
 	if o.KSMImage != "" {
 		hsClient, err := hypershiftclient.NewForConfig(kubeConfig)
@@ -195,6 +199,13 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 		if err != nil {
 			return nil, fmt.Errorf("failed to create KSM HCP controller: %w", err)
 		}
+
+		clusterWideKubeInformers = kubeinformers.NewSharedInformerFactory(kubeClientset, 0)
+
+		podWatcher, err = controller.NewPodWatcher(clusterWideKubeInformers.Core().V1().Pods())
+		if err != nil {
+			return nil, fmt.Errorf("failed to create pod watcher: %w", err)
+		}
 	}
 
 	leaderElectionCfg := &controller.LeaderElectionConfig{
@@ -208,16 +219,18 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 
 	return &ControllerOptions{
 		completedControllerOptions: &completedControllerOptions{
-			ctrl:                ctrl,
-			ksmCtrl:             ksmCtrl,
-			resourceWatcher:     resourceWatcher,
-			kubeInformers:       kubeInformers,
-			ksmKubeInformers:    ksmKubeInformers,
-			hypershiftInformers: hsInformers,
-			dynamicInformers:    dynInformers,
-			workers:             o.Workers,
-			healthAddress:       o.HealthAddress,
-			leaderElectionCfg:   leaderElectionCfg,
+			ctrl:                     ctrl,
+			ksmCtrl:                  ksmCtrl,
+			resourceWatcher:          resourceWatcher,
+			podWatcher:               podWatcher,
+			kubeInformers:            kubeInformers,
+			ksmKubeInformers:         ksmKubeInformers,
+			clusterWideKubeInformers: clusterWideKubeInformers,
+			hypershiftInformers:      hsInformers,
+			dynamicInformers:         dynInformers,
+			workers:                  o.Workers,
+			healthAddress:            o.HealthAddress,
+			leaderElectionCfg:        leaderElectionCfg,
 		},
 	}, nil
 }
@@ -248,18 +261,6 @@ func (o *ControllerOptions) Run(ctx context.Context) error {
 	ctx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	logger := klog.FromContext(ctx)
-
-	o.kubeInformers.Start(ctx.Done())
-	if o.hypershiftInformers != nil {
-		o.hypershiftInformers.Start(ctx.Done())
-	}
-	if o.ksmKubeInformers != nil {
-		o.ksmKubeInformers.Start(ctx.Done())
-	}
-	if o.dynamicInformers != nil {
-		o.dynamicInformers.Start(ctx.Done())
-	}
-	logger.V(6).Info("Informer factories started")
 
 	g, ctx := errgroup.WithContext(ctx)
 
@@ -292,6 +293,21 @@ func (o *ControllerOptions) Run(ctx context.Context) error {
 	g.Go(func() error {
 		logger.Info("Starting controllers under leader election")
 		if err := controller.RunWithLeaderElection(ctx, "mgmt-agent", o.leaderElectionCfg, func(leaderCtx context.Context) error {
+			o.kubeInformers.Start(leaderCtx.Done())
+			if o.hypershiftInformers != nil {
+				o.hypershiftInformers.Start(leaderCtx.Done())
+			}
+			if o.ksmKubeInformers != nil {
+				o.ksmKubeInformers.Start(leaderCtx.Done())
+			}
+			if o.clusterWideKubeInformers != nil {
+				o.clusterWideKubeInformers.Start(leaderCtx.Done())
+			}
+			if o.dynamicInformers != nil {
+				o.dynamicInformers.Start(leaderCtx.Done())
+			}
+			logger.V(6).Info("Informer factories started")
+
 			innerG, innerCtx := errgroup.WithContext(leaderCtx)
 
 			innerG.Go(func() error {
@@ -305,6 +321,12 @@ func (o *ControllerOptions) Run(ctx context.Context) error {
 			if o.ksmCtrl != nil {
 				innerG.Go(func() error {
 					return o.ksmCtrl.Run(innerCtx, o.workers)
+				})
+			}
+
+			if o.podWatcher != nil {
+				innerG.Go(func() error {
+					return o.podWatcher.Run(innerCtx)
 				})
 			}
 
