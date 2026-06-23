@@ -322,7 +322,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Usage (Gi)"
+              "options": "Usage"
             },
             "properties": [
               {
@@ -338,7 +338,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Request (Gi)"
+              "options": "Request"
             },
             "properties": [
               {
@@ -446,9 +446,9 @@
           "options": {
             "alias": "Usage/Request Ratio",
             "binary": {
-              "left": "Usage (Gi)",
+              "left": "Usage",
               "operator": "/",
-              "right": "Request (Gi)"
+              "right": "Request"
             },
             "mode": "binary",
             "reduce": {
@@ -803,7 +803,7 @@
             "type": "prometheus",
             "uid": "${datasource_svc}"
           },
-          "expr": "sum by (container) (increase(kube_pod_container_status_terminated_reason{cluster=\"$cluster\", namespace=\"$namespace\", reason=\"OOMKilled\"}[5m]))",
+          "expr": "sum by (container) (changes(kube_pod_container_status_terminated_reason{cluster=\"$cluster\", namespace=\"$namespace\", reason=\"OOMKilled\"}[5m]))",
           "legendFormat": "{{container}}",
           "refId": "A"
         }
@@ -1819,7 +1819,7 @@
           "type": "prometheus",
           "uid": "${datasource_hcp}"
         },
-        "definition": "label_values(apiserver_audit_event_total, cluster)",
+        "definition": "label_values(apiserver_request_total, cluster)",
         "hide": 0,
         "includeAll": false,
         "label": "Cluster (MGMT)",
@@ -1827,7 +1827,7 @@
         "name": "cluster",
         "options": [],
         "query": {
-          "query": "label_values(apiserver_audit_event_total, cluster)",
+          "query": "label_values(apiserver_request_total, cluster)",
           "refId": "StandardVariableQuery"
         },
         "refresh": 2,
@@ -1842,7 +1842,7 @@
           "type": "prometheus",
           "uid": "${datasource_hcp}"
         },
-        "definition": "label_values(apiserver_audit_event_total, namespace)",
+        "definition": "label_values(apiserver_request_total{cluster=\"$cluster\"}, namespace)",
         "hide": 0,
         "includeAll": false,
         "label": "Namespace (HCP)",
@@ -1850,7 +1850,7 @@
         "name": "namespace",
         "options": [],
         "query": {
-          "query": "label_values(apiserver_audit_event_total, namespace)",
+          "query": "label_values(apiserver_request_total{cluster=\"$cluster\"}, namespace)",
           "refId": "StandardVariableQuery"
         },
         "refresh": 2,
@@ -1866,7 +1866,8 @@
     "to": "now"
   },
   "timepicker": {},
-  "timezone": "",
+  "timezone": "utc",
+  "refresh": "30s",
   "version": 0,
   "weekStart": ""
 }
