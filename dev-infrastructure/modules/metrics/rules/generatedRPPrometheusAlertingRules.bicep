@@ -266,7 +266,7 @@ resource lockboxAvailabilityRules 'Microsoft.AlertsManagement/prometheusRuleGrou
         alert: 'UJLockboxAuditDegraded'
         enabled: true
         labels: {
-          severity: 'critical'
+          severity: 'warning'
           slo: 'lockbox-availability'
         }
         annotations: {
@@ -287,7 +287,7 @@ Service Cluster: {{ $labels.cluster }}
         }
         expression: 'lockbox:audit_log_connection_degraded:max == 1'
         for: 'PT5M'
-        severity: 2
+        severity: 3
       }
     ]
     scopes: [
