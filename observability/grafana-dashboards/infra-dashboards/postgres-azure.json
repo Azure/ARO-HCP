@@ -9218,6 +9218,18 @@
   "templating": {
     "list": [
       {
+        "current": {},
+        "hide": 2,
+        "includeAll": false,
+        "label": "Datasource",
+        "name": "datasource",
+        "options": [],
+        "query": "prometheus",
+        "refresh": 1,
+        "regex": "",
+        "type": "datasource"
+      },
+      {
         "current": {
           "text": "Azure Monitor",
           "value": "azure-monitor-oob"
