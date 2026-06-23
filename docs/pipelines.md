@@ -25,6 +25,8 @@ The tree of pipelines making up the ARO HCP service are documented here from the
         - Microsoft.Azure.ARO.HCP.Fleet.Registration ([ref](https://github.com/Azure/ARO-HCP/tree/main/fleet/registration/pipeline.yaml)): Register the stamp and management cluster in CosmosDB.
       - Microsoft.Azure.ARO.HCP.Monitoring ([ref](https://github.com/Azure/ARO-HCP/tree/main/dev-infrastructure/monitoring-pipeline.yaml)): Deploy the Monitoring resources (Monitoring)
       - Microsoft.Azure.ARO.HCP.E2E ([ref](https://github.com/Azure/ARO-HCP/tree/main/test/e2e-pipeline.yaml)): Run the E2E tests towards a region and gate SDP progression.
+- Microsoft.Azure.ARO.HCP.Global.StgGlobal ([ref](https://github.com/Azure/ARO-HCP/tree/main/dev-infrastructure/global-pipeline-stg.yaml)): Deploy global shared infrastructure (STG V2). (Global STG V2)
+  - Microsoft.Azure.ARO.HCP.Geography.StgGlobal ([ref](https://github.com/Azure/ARO-HCP/tree/main/dev-infrastructure/geography-pipeline-stg.yaml)): Deploy geography-level shared infrastructure (STG V2).
 - Microsoft.Azure.ARO.HCP.Management.Delete ([ref](https://github.com/Azure/ARO-HCP/tree/main/dev-infrastructure/cleanup/delete.mgmt.pipeline.yaml)): Delete the management resources and management resource group
 - Microsoft.Azure.ARO.HCP.Service.Delete ([ref](https://github.com/Azure/ARO-HCP/tree/main/dev-infrastructure/cleanup/delete.svc.pipeline.yaml)): Delete the service resources and service resource group
 - Microsoft.Azure.ARO.HCP.Region.Delete ([ref](https://github.com/Azure/ARO-HCP/tree/main/dev-infrastructure/cleanup/delete.region.pipeline.yaml)): Delete the region resources and resource group
