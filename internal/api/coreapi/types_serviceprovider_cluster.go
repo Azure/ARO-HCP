@@ -29,6 +29,15 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+// BackupScheduleState represents the desired state of backup scheduling for a cluster.
+// Maps to Velero Schedule spec.paused: Enabled → paused: false, Disabled → paused: true.
+type BackupScheduleState string
+
+const (
+	BackupScheduleStateEnabled  BackupScheduleState = "Enabled"
+	BackupScheduleStateDisabled BackupScheduleState = "Disabled"
+)
+
 const (
 	// ServiceProviderClusterResourceName is the name of the ServiceProviderCluster resource.
 	// ServiceProviderCluster is a singleton resource and ARM convention is to
@@ -101,6 +110,10 @@ type ServiceProviderClusterSpec struct {
 	// from any explicit choice; nil means no tier has been requested. Valid
 	// values are the HostedClusterControlPlaneSize* constants above.
 	DesiredHostedClusterControlPlaneSize *string `json:"desiredHostedClusterControlPlaneSize,omitempty"`
+
+	// BackupScheduleState is the desired backup scheduling state: Enabled or Disabled.
+	// Default is Enabled. Set to Disabled via Admin API to pause scheduled backups.
+	BackupScheduleState BackupScheduleState `json:"backupScheduleState,omitempty"`
 }
 
 // ServiceProviderClusterSpecVersion contains the desired version information.

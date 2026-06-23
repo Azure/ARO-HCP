@@ -31,6 +31,8 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/app"
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/backups"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	internalazure "github.com/Azure/ARO-HCP/internal/azure"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/kubeappliercosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/signal"
@@ -64,6 +66,8 @@ type BackendRootCmdFlags struct {
 	InsecureIgnoreUserAzureManagedIdentitiesThatNeedManagedIdentitiesDataplaneAvailableAndUseMock bool
 	ExitOnPanic                                                                                   bool
 	AzureClusterScopedIdentitiesRoleSetName                                                       string
+	BackupScheduleCadence                                                                         string
+	BackupScheduleState                                                                           string
 }
 
 func (f *BackendRootCmdFlags) AddFlags(cmd *cobra.Command) {
@@ -195,6 +199,11 @@ func (f *BackendRootCmdFlags) AddFlags(cmd *cobra.Command) {
 		"The name of the cluster scoped identities role set to use. It is used to select the appropriate set of operator role definitions associated to the cluster scoped identities. Accepted values: [dev, public].",
 	)
 
+	cmd.Flags().StringVar(&f.BackupScheduleCadence, "backup-schedule-cadence", f.BackupScheduleCadence,
+		fmt.Sprintf("Backup schedule cadence. Accepted values: '%s', '%s',", backups.BackupCadenceProduction, backups.BackupCadenceTesting))
+	cmd.Flags().StringVar(&f.BackupScheduleState, "backup-schedule-state", f.BackupScheduleState,
+		fmt.Sprintf("Backup schedule state. Accepted values: %s, %s", coreapi.BackupScheduleStateEnabled, coreapi.BackupScheduleStateDisabled))
+
 	cmd.MarkFlagsRequiredTogether("cosmos-name", "cosmos-url")
 }
 
@@ -280,6 +289,16 @@ func (f *BackendRootCmdFlags) validate() error {
 
 	if f.AzureClusterScopedIdentitiesRoleSetName != string(internalazure.RoleDefinitionConfigSetNameDev) && f.AzureClusterScopedIdentitiesRoleSetName != string(internalazure.RoleDefinitionConfigSetNamePublic) {
 		return utils.TrackError(fmt.Errorf("--azure-cluster-scoped-identities-role-set-name must be either '%s' or '%s'", internalazure.RoleDefinitionConfigSetNameDev, internalazure.RoleDefinitionConfigSetNamePublic))
+	}
+
+	switch backups.BackupCadenceProfile(f.BackupScheduleCadence) {
+	case backups.BackupCadenceProduction, backups.BackupCadenceTesting:
+	default:
+		return utils.TrackError(fmt.Errorf("--backup-schedule-cadence must be '%s' or '%s'", backups.BackupCadenceProduction, backups.BackupCadenceTesting))
+	}
+
+	if f.BackupScheduleState != string(coreapi.BackupScheduleStateEnabled) && f.BackupScheduleState != string(coreapi.BackupScheduleStateDisabled) {
+		return utils.TrackError(fmt.Errorf("--backup-schedule-state must be '%s' or '%s'", coreapi.BackupScheduleStateEnabled, coreapi.BackupScheduleStateDisabled))
 	}
 
 	return nil
@@ -440,6 +459,15 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 
 	clusterScopedIdentitiesConfig := internalazure.NewClusterScopedIdentitiesConfig(internalazure.RoleDefinitionConfigSetName(f.AzureClusterScopedIdentitiesRoleSetName))
 
+	backupScheduleState := coreapi.BackupScheduleStateEnabled
+	if f.BackupScheduleState == string(coreapi.BackupScheduleStateDisabled) {
+		backupScheduleState = coreapi.BackupScheduleStateDisabled
+	}
+	backupConfig := &backups.BackupConfig{
+		BackupCadenceProfile: backups.BackupCadenceProfile(f.BackupScheduleCadence),
+		BackupScheduleState:  backupScheduleState,
+	}
+
 	backendOptions := &app.BackendOptions{
 		AppShortDescriptionName:            cmd.Short,
 		AppVersion:                         cmd.Version,
@@ -458,6 +486,7 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 		BackendIdentityAzureClients:        backendIdentityAzureClients,
 		BackendIdentityAzureCachedReaders:  backendIdentityAzureCachedReaders,
 		ExitOnPanic:                        f.ExitOnPanic,
+		BackupConfig:                       backupConfig,
 		FPAMIDataplaneClientBuilder:        fpaMIDataplaneClientBuilder,
 		MIDataplaneBasedIdentityAccessTokenRetrieverBuilder: miDataplaneBasedIdentityAccessTokenRetrieverBuilder,
 		SMIClientBuilder:              smiClientBuilder,
@@ -487,6 +516,8 @@ func NewBackendRootCmdFlags() *BackendRootCmdFlags {
 		LogVerbosity:                                    0,
 		MaestroSourceEnvironmentIdentifier:              "",
 		ExitOnPanic:                                     true,
+		BackupScheduleCadence:                           string(backups.BackupCadenceProduction),
+		BackupScheduleState:                             string(coreapi.BackupScheduleStateEnabled),
 	}
 
 	return flags

@@ -89,3 +89,16 @@ rules:
   - update
   - patch
   - delete
+- apiGroups:
+  - velero.io
+  resources:
+  - schedules
+  - backups
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete

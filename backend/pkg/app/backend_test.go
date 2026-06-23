@@ -23,6 +23,7 @@ import (
 
 	apisconfigv1 "github.com/Azure/ARO-HCP/backend/pkg/apis/config/v1"
 	azureconfig "github.com/Azure/ARO-HCP/backend/pkg/azure/config"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/backups"
 )
 
 func TestNewBackend_NilOptionsReturnsError(t *testing.T) {
@@ -52,6 +53,7 @@ func TestNewBackend_MetricsRegistryPairing(t *testing.T) {
 			b, err := (&BackendOptions{
 				MetricsRegisterer: tc.registerer,
 				MetricsGatherer:   tc.gatherer,
+				BackupConfig:      &backups.BackupConfig{},
 				CloudEnvironment:  cloudEnvironment,
 			}).NewBackend()
 			if tc.wantErr {

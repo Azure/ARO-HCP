@@ -32,6 +32,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
 	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
+	"github.com/Azure/ARO-HCP/internal/backup"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/corecosmosstoragetesting"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstoragetesting/kubeappliercosmosstoragetesting"
@@ -129,6 +130,15 @@ func TestClusterChildResourcesCleanupController_SyncOnce(t *testing.T) {
 			},
 		}
 	}
+	newTestBackupApplyDesire := func(name string) *kubeapplierapi.ApplyDesire {
+		applyDesire := newTestClusterScopedApplyDesire(name)
+		applyDesire.Spec.Type = kubeapplierapi.ApplyDesireTypeServerSideApply
+		applyDesire.Spec.TargetItem = kubeapplierapi.ResourceReference{
+			Group: "velero.io", Version: "v1", Resource: "schedules",
+			Namespace: "velero", Name: name,
+		}
+		return applyDesire
+	}
 	assertNoClusterScopedKubeApplierResources := func(
 		t *testing.T,
 		ctx context.Context,
@@ -137,6 +147,7 @@ func TestClusterChildResourcesCleanupController_SyncOnce(t *testing.T) {
 		t.Helper()
 		client := kubeApplierDBClients.For(ctx, managementClusterResourceID)
 		require.NotNil(t, client)
+
 		clusterResourceID := metadataapi.Must(azcorearm.ParseResourceID(
 			"/subscriptions/" + testSubscriptionID +
 				"/resourceGroups/" + testResourceGroupName +
@@ -482,6 +493,55 @@ func TestClusterChildResourcesCleanupController_SyncOnce(t *testing.T) {
 				spcCRUD := db.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName)
 				_, err = spcCRUD.Get(ctx, coreapi.ServiceProviderClusterResourceName)
 				require.NoError(t, err, "expected SPC to still exist")
+			},
+		},
+		{
+			name:            "backup *Desires are skipped by the general sweep",
+			existingCluster: newTestClusterWithNewDeletionApproach(t, readyToDeleteClusterOptsFunc),
+			childResources: []any{
+				newTestSPCWithManagementCluster(managementClusterResourceID),
+			},
+			kubeApplierDesires: []any{
+				newTestBackupApplyDesire(backup.BackupScheduleDesireNamePrefix + "hourly"),
+				newTestClusterScopedReadDesire(backup.BackupScheduleDesireNamePrefix + "hourly"),
+			},
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient, kubeApplierDBClients *kubeappliercosmosstoragetesting.MockKubeApplierDBClients) {
+				client := kubeApplierDBClients.For(ctx, managementClusterResourceID)
+				require.NotNil(t, client)
+
+				applyDesireCRUD, err := client.ApplyDesiresForCluster(testSubscriptionID, testResourceGroupName, testClusterName)
+				require.NoError(t, err)
+				applyDesire, err := applyDesireCRUD.Get(ctx, backup.BackupScheduleDesireNamePrefix+"hourly")
+				require.NoError(t, err, "backup ApplyDesire should still exist (skipped by general sweep)")
+				assert.Equal(t, kubeapplierapi.ApplyDesireTypeServerSideApply, applyDesire.Spec.Type, "backup ApplyDesire should not be converted")
+
+				readDesireCRUD, err := client.ReadDesiresForCluster(testSubscriptionID, testResourceGroupName, testClusterName)
+				require.NoError(t, err)
+				readDesire, err := readDesireCRUD.Get(ctx, backup.BackupScheduleDesireNamePrefix+"hourly")
+				require.NoError(t, err)
+				assert.NotEmpty(t, readDesire)
+
+				serviceProviderClusterCRUD := db.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName)
+				_, err = serviceProviderClusterCRUD.Get(ctx, coreapi.ServiceProviderClusterResourceName)
+				require.NoError(t, err, "serviceProviderCluster should still exist (backup ApplyDesire remains)")
+			},
+		},
+		{
+			name:            "non-backup ApplyDesires are still swept normally",
+			existingCluster: newTestClusterWithNewDeletionApproach(t, readyToDeleteClusterOptsFunc),
+			childResources: []any{
+				newTestSPCWithManagementCluster(managementClusterResourceID),
+			},
+			kubeApplierDesires: []any{
+				newTestClusterScopedApplyDesire("non-backup-desire"),
+				newTestClusterScopedReadDesire("non-backup-desire"),
+			},
+			verifyDB: func(t *testing.T, ctx context.Context, db *corecosmosstoragetesting.MockResourcesDBClient, kubeApplierDBClients *kubeappliercosmosstoragetesting.MockKubeApplierDBClients) {
+				assertNoClusterScopedKubeApplierResources(t, ctx, kubeApplierDBClients)
+
+				serviceProviderCRUD := db.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName)
+				_, err := serviceProviderCRUD.Get(ctx, coreapi.ServiceProviderClusterResourceName)
+				require.True(t, cosmosstorageutils.IsNotFoundError(err), "SPC should be deleted")
 			},
 		},
 	}
