@@ -67,6 +67,7 @@ prometheusSpec:
   hcpRemoteWriteUrl: "__dcrRemoteWriteUrl__"
   zoneCount: 1
   maximumStartupDurationSeconds: 360
+  hcpNamespaceRegex: "^ocm-opstool.*"
   resources:
     requests:
       cpu: 500m
