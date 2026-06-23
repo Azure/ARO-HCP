@@ -4,6 +4,7 @@ prometheusRules:
   - alerts/HCPkasRecord-prometheusRule-KSM.yaml
   - alerts/HCPkasMonitor-prometheusRule-KSM.yaml
   - alerts/HCPclusterHealth-prometheusRule.yaml
+  - alerts/UJKubeApiserverAvailabilityMonitor-prometheusRule-KSM.yaml
   untestedRules:
   - alerts/kubernetesControlPlane-prometheusRule.yaml
   testDependencies:
