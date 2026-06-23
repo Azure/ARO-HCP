@@ -123,7 +123,7 @@ tests:
 # Test 9: KAS proxy latency fires when p99 exceeds 10s
 - interval: 1m
   input_series:
-  - series: 'lockbox:kas_proxy_latency:p99_5m{cluster="svc-cluster-9"}'
+  - series: 'lockbox:kas_proxy_latency:avg_5m{cluster="svc-cluster-9"}'
     values: "15+0x10"
   alert_rule_test:
   - eval_time: 7m

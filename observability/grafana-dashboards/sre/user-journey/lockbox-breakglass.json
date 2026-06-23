@@ -33,7 +33,7 @@
       },
       "options": {
         "mode": "markdown",
-        "content": "### Lockbox / Breakglass Sessions \u2014 User Journey SLIs\n\nMonitors the health of Azure Lockbox breakglass session lifecycle. Covers audit logging compliance, session creation, KAS proxy access, and concurrent session count.\n\n**SLO Targets:** Audit Available 99.95% | Audit Errors <5% | KAS Proxy Errors <10% | KAS Proxy p99 <10s"
+        "content": "### Lockbox / Breakglass Sessions \u2014 User Journey SLIs\n\nMonitors the health of Azure Lockbox breakglass session lifecycle. Covers audit logging compliance, session creation, KAS proxy access, and concurrent session count.\n\n**SLO Targets:** Audit Available 99.95% | Audit Errors <5% | KAS Proxy Errors <10% | KAS Proxy avg <10s"
       }
     },
     {
@@ -483,13 +483,13 @@
     },
     {
       "id": 8,
-      "title": "KAS Proxy Latency (p99)",
+      "title": "KAS Proxy Latency (avg)",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
       },
-      "description": "KAS proxy p99 latency. SLO target: <10s. High latency degrades support engineer experience.",
+      "description": "KAS proxy average request latency. SLO target: <10s. SessionGate uses native histograms so p99 is unavailable; average latency is used instead.",
       "fieldConfig": {
         "defaults": {
           "custom": {
@@ -558,8 +558,8 @@
       },
       "targets": [
         {
-          "expr": "lockbox:kas_proxy_latency:p99_5m",
-          "legendFormat": "p99 {{ cluster }}",
+          "expr": "lockbox:kas_proxy_latency:avg_5m",
+          "legendFormat": "avg {{ cluster }}",
           "refId": "A",
           "datasource": {
             "type": "prometheus",

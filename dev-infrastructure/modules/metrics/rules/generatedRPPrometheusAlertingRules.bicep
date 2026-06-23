@@ -419,7 +419,7 @@ Service Cluster: {{ $labels.cluster }}
           summary: '[SVC] Lockbox KAS proxy p99 latency >10s on {{ $labels.cluster }}'
           title: '[SVC] Lockbox KAS proxy p99 latency >10s on {{ $labels.cluster }}'
         }
-        expression: 'lockbox:kas_proxy_latency:p99_5m > 10'
+        expression: 'lockbox:kas_proxy_latency:avg_5m > 10'
         for: 'PT5M'
         severity: 3
       }

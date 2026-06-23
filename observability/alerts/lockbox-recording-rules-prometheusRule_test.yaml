@@ -57,7 +57,20 @@ tests:
     exp_samples:
     - labels: '{__name__="lockbox:audit_log_connection_degraded:max", cluster="svc-cluster-4"}'
       value: 1
-# Test 5: No data (no breakglass sessions active)
+# Test 5: KAS proxy average latency
+- interval: 1m
+  input_series:
+  - series: 'sessiongate_kas_proxy_requests_duration_seconds_sum{cluster="svc-cluster-5", method="GET", status="404", route="/api"}'
+    values: "0+0.5x15"
+  - series: 'sessiongate_kas_proxy_requests_duration_seconds_count{cluster="svc-cluster-5", method="GET", status="404", route="/api"}'
+    values: "0+10x15"
+  promql_expr_test:
+  - expr: lockbox:kas_proxy_latency:avg_5m{cluster="svc-cluster-5"}
+    eval_time: 5m
+    exp_samples:
+    - labels: '{__name__="lockbox:kas_proxy_latency:avg_5m", cluster="svc-cluster-5"}'
+      value: 0.05
+# Test 6: No data (no breakglass sessions active)
 - interval: 1m
   input_series: []
   promql_expr_test:

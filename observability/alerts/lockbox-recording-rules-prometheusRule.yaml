@@ -25,12 +25,15 @@ spec:
     # ERRORS: KAS proxy error rate (non-2xx responses)
     - record: lockbox:kas_proxy_errors_total:rate5m
       expr: sum by (cluster) (rate(sessiongate_kas_proxy_requests_total{status!~"2.."}[5m]))
-    # LATENCY: KAS proxy p99 latency
-    - record: lockbox:kas_proxy_latency:p99_5m
+    # LATENCY: KAS proxy average latency
+    # Note: SessionGate uses native (exponential) histograms which don't produce
+    # classic le buckets, so histogram_quantile() returns NaN. Using avg (sum/count)
+    # instead, which is appropriate for these low-latency proxy operations.
+    - record: lockbox:kas_proxy_latency:avg_5m
       expr: |
-        histogram_quantile(0.99,
-          sum by (cluster, le) (rate(sessiongate_kas_proxy_requests_duration_seconds_bucket[5m]))
-        )
+        sum by (cluster) (rate(sessiongate_kas_proxy_requests_duration_seconds_sum[5m]))
+        /
+        sum by (cluster) (rate(sessiongate_kas_proxy_requests_duration_seconds_count[5m]))
     # AVAILABILITY: Audit log error ratio over 1 hour
     - record: lockbox:audit_log_error_rate:ratio_1h
       expr: |

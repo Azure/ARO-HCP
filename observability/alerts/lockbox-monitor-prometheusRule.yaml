@@ -69,7 +69,7 @@ spec:
     rules:
     # KAS proxy latency — support engineer experience degraded
     - alert: UJLockboxKasProxyLatencyHigh
-      expr: lockbox:kas_proxy_latency:p99_5m > 10
+      expr: lockbox:kas_proxy_latency:avg_5m > 10
       for: 5m
       labels:
         severity: warning

@@ -25,8 +25,8 @@ resource lockboxRecordingRules 'Microsoft.AlertsManagement/prometheusRuleGroups@
         expression: 'sum by (cluster) (rate(sessiongate_kas_proxy_requests_total{status!~"2.."}[5m]))'
       }
       {
-        record: 'lockbox:kas_proxy_latency:p99_5m'
-        expression: 'histogram_quantile(0.99, sum by (cluster, le) (rate(sessiongate_kas_proxy_requests_duration_seconds_bucket[5m])) )'
+        record: 'lockbox:kas_proxy_latency:avg_5m'
+        expression: 'sum by (cluster) (rate(sessiongate_kas_proxy_requests_duration_seconds_sum[5m])) / sum by (cluster) (rate(sessiongate_kas_proxy_requests_duration_seconds_count[5m]))'
       }
       {
         record: 'lockbox:audit_log_error_rate:ratio_1h'
