@@ -1,8 +1,8 @@
 # Global values that are shared with subcharts
 global:
-  imageDigest: ""
+  imageDigest: "{{ .clustersService.image.digest }}"
 # service account name
-serviceAccountName: clusters-service
+serviceAccountName: "{{ .clustersService.k8s.serviceAccountName }}"
 # TODO: This parameter isn't currently used, but kept to avoid failures in the
 # execution of saasherder. It will be removed once the version of the service
 # that doesn't use it is deployed to all environments.
@@ -20,11 +20,11 @@ imageRegistry: "{{ .acr.svc.name }}.azurecr.io"
 # Image Repository
 imageRepository: "{{ .clustersService.image.repository }}"
 # Image Digest
-imageDigest: ""
+imageDigest: "{{ .clustersService.image.digest }}"
 # log verbosity level. It is a go-logr/logr verbosity level.
 logLevel: 4
 # Number of replicas of the service to run.
-replicas: 1
+replicas: {{ .clustersService.k8s.replicas }}
 # Location of the JSON web key set used to verify tokens.
 jwksUrl: "http://localhost"
 # Location of the service that issues JSON web tokens.
@@ -36,7 +36,7 @@ gatewayUrl: "http://127.0.0.1:9090"
 # Level of access that an app can request to a resource.
 clientScopes: "openid"
 # Environment associated with this instance.
-environment: ""
+environment: "{{ .clustersService.environment }}"
 # The URL of the Backplane API which is exposed via an endpoint and is dynamically consumed by the Backplane CLI.
 # Backplane CLI expects a URL with the following format https://api.<OCM environment>.backplane.<domain>
 # The <domain> part is specific to each deployment environment. The <OCM environment> part is optional.
@@ -56,9 +56,9 @@ machinePoolMigrationWorkerPeriod: "1h"
 # Note: this is defaulted to a commercial value. This should be overridden in fedramp app-interface
 userDefinedDnsBaseDomain: "i1.devshift.org"
 # Signals batch processes step to run in dry run.
-batchProcessesDryRun: "true"
+batchProcessesDryRun: "{{ .clustersService.batchProcessesDryRun }}"
 # Date identification of each batch process expected to be run. Comma separated sequence.
-batchProcesses: ""
+batchProcesses: "{{ .clustersService.batchProcesses }}"
 # The URL of the Azure Container Registry where the OpenShift images are stored.
 ocpAcrURL: "__ocpAcrUrl__"
 # The resource ID of the Azure Container Registry where the OpenShift images are stored.
@@ -136,23 +136,23 @@ ocpAcrResourceId: "__ocpAcrResourceId__"
 # up to a multiple of 0.05 cores, which results in 0.3 cores.
 
 # Memory request.
-memoryRequest: "150Mi"
+memoryRequest: "{{ .clustersService.k8s.resources.requests.memory }}"
 # Memory limit. Set to "unlimited" to disable memory limits.
-memoryLimit: "unlimited"
+memoryLimit: "{{ .clustersService.k8s.resources.limits.memory }}"
 # CPU request.
-cpuRequest: "50m"
+cpuRequest: "{{ .clustersService.k8s.resources.requests.cpu }}"
 # Client ID for the CS managed identity.
 azureCsMiClientId: "__azureCsMiClientId__"
 # Azure region the CS instance is running in.
-region: "westus3"
+region: "{{ .region }}"
 # The client id of the first party application identity.
-azureFirstPartyApplicationClientId: ""
+azureFirstPartyApplicationClientId: "{{ .firstPartyAppClientId }}"
 # The name of the Key Vault containing keys, secrets and certificates used to support services running on the service cluster.
-serviceKeyVaultName: ""
+serviceKeyVaultName: "{{ .serviceKeyVault.name }}"
 # The Tenant ID of service cluster.
 tenantId: "__tenantId__"
 # The name of the secret that contains the first party application certificate bundle.
-fpaCertName: ""
+fpaCertName: "{{ .firstPartyAppCertificate.name }}"
 # If set to true the connection to the database is performed without TLS.
 databaseDisableTls: "__databaseDisableTls__"
 # Authentication method to use when connecting to the database. Accepted values are 'az-entra', 'postgres'
@@ -162,29 +162,29 @@ oidcIssuerBlobServiceUrl: "__oidcIssuerBlobServiceUrl__"
 # OIDC base issuer URL, e.g. https://<storage-account>.z1.web.core.windows.net/
 oidcIssuerBaseUrl: "__oidcIssuerBaseUrl__"
 # tls certificates issuer specifies the issuer of the TLS certificate for Ingress and Kube API Server - either Self or OneCertV2-PublicCA.
-tlsCertificatesIssuer: ""
+tlsCertificatesIssuer: "{{ .clustersService.azureRuntimeConfig.tlsCertificatesIssuer }}"
 # tls certificates enabled  indicates whether TLS certificates are enabled or disabled for Ingress and Kube API Server.
 tlsCertificatesEnabled: true
 # Temporary deny assignment feature flag
-denyAssignments: "disabled"
+denyAssignments: "{{ .clustersService.denyAssignments }}"
 # The client id of the service principal that represents the ARM Helper Identity.
-azureArmHelperIdentityClientId: ""
+azureArmHelperIdentityClientId: "{{ .armHelperClientId }}"
 # The name of the secret that contains the ARM Helper Indentity certificate bundle.
-azureArmHelperIdentityCertName: ""
+azureArmHelperIdentityCertName: "{{ .armHelperCertName }}"
 # The principal id of the service principal that represents the mock first party application identity.
-azureArmHelperMockFpaPrincipalId: ""
+azureArmHelperMockFpaPrincipalId: "{{ .armHelperFPAPrincipalId }}"
 # The name of the secret that contains the mock managed identities certificate bundle.
-azureMiMockServicePrincipalCertName: ""
+azureMiMockServicePrincipalCertName: "{{ .miMockCertName }}"
 # The client id of the mock managed identities service principal.
-azureMiMockServicePrincipalClientId: ""
+azureMiMockServicePrincipalClientId: "{{ .miMockClientId }}"
 # The principal id of the mock managed identities service principal.
-azureMiMockServicePrincipalPrincipalId: ""
+azureMiMockServicePrincipalPrincipalId: "{{ .miMockPrincipalId }}"
 # The name of the Azure cloud environment following the same naming scheme as the one expected by the Secret Store
 # CSI Provider Azure. See
 # https://github.com/Azure/secrets-store-csi-driver-provider-azure/blob/master/website/content/en/getting-started/usage/_index.md#create-your-own-secretproviderclass-object under the `cloudName` attribute.
 # Even though it follows the same naming scheme as Secret Store CSI Provider Azure its usage is not limited to that
 # component. For example, it is also passed to the Azure Runtime Config file.
-azureCloudEnvironmentName: ""
+azureCloudEnvironmentName: "{{ .cloudEnvironmentName }}"
 # ocm client id
 clientId: "foo"
 # ocm secret
@@ -204,11 +204,11 @@ databaseName: "__databaseName__"
 # Host port
 databasePort: "5432"
 # The name of the managed identities data plane audience resource.
-managedIdentitiesDataPlaneAudienceResource: "https://dummy.org"
+managedIdentitiesDataPlaneAudienceResource: "{{ .msiRp.dataPlaneAudienceResource }}"
 # The image used to override the HAProxy image of the worker node API server proxy.
 # If set to an empty string, either the environment variable IMAGE_SHARED_INGRESS_HAPROXY or the default shared ingress image will be used.
 # If given a value, it must be a valid image reference.
-dataPlaneHAProxyImage: ""
+dataPlaneHAProxyImage: "{{ .clustersService.dataPlaneHAProxyImage }}"
 # The Azure Operator Managed Identities.
 azureOperatorsMI:
   roleSetName: "{{ .clustersService.azureOperatorsManagedIdentities.roleSetName }}"
@@ -309,12 +309,12 @@ pullBinding:
   workloadIdentityClientId: "__imagePullerMsiClientId__"
   workloadIdentityTenantId: "__tenantId__"
 tracing:
-  address: ""
+  address: "{{ .clustersService.tracing.address }}"
 csDeploymentStrategy:
   type: RollingUpdate
   rollingUpdate:
-    maxSurge: 1
-    maxUnavailable: 0
+    maxSurge: {{ .clustersService.k8s.deploymentStrategy.rollingUpdate.maxSurge}}
+    maxUnavailable: {{ .clustersService.k8s.deploymentStrategy.rollingUpdate.maxUnavailable }}
 deployment:
-  zoneCount: ""
+  zoneCount: {{ .azureRegionAvailabilityZoneCount }}
 # controls if a debug job is deployed to the cluster.
