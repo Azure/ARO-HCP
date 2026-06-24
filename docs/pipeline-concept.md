@@ -169,11 +169,11 @@ Used for deploying Kubernetes services onto AKS clusters using [Helm](https://he
     * Example:
       ```
       inputVariables:
-	       someImportantThing:
-	         resourceGroup: regional
-	         step: output
-	         name: outputVariableName
-      ```  
+        someImportantThing:
+          resourceGroup: regional
+          step: output
+          name: outputVariableName
+      ```
 13. An `inputVariables` entry: the key (`frontendMsiClientId`) is the placeholder name; `resourceGroup`, `step`, and `name` identify which step output to read.
 14. `identityFrom`: The managed identity used when running this deployment in EV2.
 15. `timeout`: Optional. Maximum time to wait for the Helm release to reach ready state. Uses Go duration syntax (e.g., `30s`, `5m`, `1h`). Defaults to `5m`.
