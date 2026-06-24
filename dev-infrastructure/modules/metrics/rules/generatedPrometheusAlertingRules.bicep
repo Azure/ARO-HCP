@@ -28,7 +28,7 @@ resource prometheusWipRules 'Microsoft.AlertsManagement/prometheusRuleGroups@202
         alert: 'PrometheusJobUp'
         enabled: true
         labels: {
-          severity: 'critical'
+          severity: 'warning'
         }
         annotations: {
           correlationId: 'PrometheusJobUp/{{ $labels.cluster }}'
@@ -46,7 +46,7 @@ Check the status of the Prometheus pods, service endpoints, and network connecti
         }
         expression: 'group by (cluster) (up{job="kubelet"}) unless on(cluster) group by (cluster) (up{job="prometheus/prometheus",namespace="prometheus"} == 1)'
         for: 'PT10M'
-        severity: 2
+        severity: 3
       }
       {
         actions: [
@@ -63,7 +63,7 @@ Check the status of the Prometheus pods, service endpoints, and network connecti
         alert: 'PrometheusUptime'
         enabled: true
         labels: {
-          severity: 'critical'
+          severity: 'warning'
         }
         annotations: {
           correlationId: 'PrometheusUptime/{{ $labels.cluster }}'
@@ -81,7 +81,7 @@ Please check the status of the Prometheus pods, service endpoints, and network c
         }
         expression: 'avg by (job, namespace, cluster) (avg_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d])) < 0.95'
         for: 'PT10M'
-        severity: 2
+        severity: 3
       }
       {
         actions: [
@@ -98,7 +98,7 @@ Please check the status of the Prometheus pods, service endpoints, and network c
         alert: 'PrometheusPendingRate'
         enabled: true
         labels: {
-          severity: 'critical'
+          severity: 'warning'
         }
         annotations: {
           correlationId: 'PrometheusPendingRate/{{ $labels.cluster }}'
@@ -120,7 +120,7 @@ Investigate the health and performance of the remote storage endpoint, network l
         }
         expression: '( prometheus_remote_storage_samples_pending / prometheus_remote_storage_samples_in_flight ) > 0.4'
         for: 'PT15M'
-        severity: 2
+        severity: 3
       }
       {
         actions: [
@@ -137,7 +137,7 @@ Investigate the health and performance of the remote storage endpoint, network l
         alert: 'PrometheusFailedRate'
         enabled: true
         labels: {
-          severity: 'critical'
+          severity: 'warning'
         }
         annotations: {
           correlationId: 'PrometheusFailedRate/{{ $labels.cluster }}'
@@ -159,7 +159,7 @@ Please check the health and performance of the remote storage endpoint, network 
         }
         expression: '( rate(prometheus_remote_storage_samples_failed_total{job="prometheus/prometheus",namespace="prometheus"}[5m]) / clamp_min( rate(prometheus_remote_storage_samples_total{job="prometheus/prometheus",namespace="prometheus"}[5m]), 1e-9 ) ) > 0.1'
         for: 'PT15M'
-        severity: 2
+        severity: 3
       }
     ]
     scopes: [
@@ -189,7 +189,7 @@ resource prometheusRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
         alert: 'PrometheusRemoteStorageFailures'
         enabled: true
         labels: {
-          severity: 'critical'
+          severity: 'warning'
         }
         annotations: {
           correlationId: 'PrometheusRemoteStorageFailures/{{ $labels.cluster }}'
@@ -201,7 +201,7 @@ resource prometheusRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
         }
         expression: '((rate(prometheus_remote_storage_failed_samples_total{job="prometheus/prometheus",namespace="prometheus"}[5m]) or rate(prometheus_remote_storage_samples_failed_total{job="prometheus/prometheus",namespace="prometheus"}[5m])) / ((rate(prometheus_remote_storage_failed_samples_total{job="prometheus/prometheus",namespace="prometheus"}[5m]) or rate(prometheus_remote_storage_samples_failed_total{job="prometheus/prometheus",namespace="prometheus"}[5m])) + (rate(prometheus_remote_storage_succeeded_samples_total{job="prometheus/prometheus",namespace="prometheus"}[5m]) or rate(prometheus_remote_storage_samples_total{job="prometheus/prometheus",namespace="prometheus"}[5m])))) * 100 > 1'
         for: 'PT15M'
-        severity: 2
+        severity: 3
       }
       {
         actions: [
@@ -247,7 +247,7 @@ resource prometheusRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
         alert: 'PrometheusBadConfig'
         enabled: true
         labels: {
-          severity: 'critical'
+          severity: 'warning'
         }
         annotations: {
           correlationId: 'PrometheusBadConfig/{{ $labels.cluster }}'
@@ -259,7 +259,7 @@ resource prometheusRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
         }
         expression: 'max_over_time(prometheus_config_last_reload_successful{job="prometheus/prometheus",namespace="prometheus"}[5m]) == 0'
         for: 'PT10M'
-        severity: 2
+        severity: 3
       }
       {
         actions: [

@@ -749,7 +749,7 @@ resource kubernetesStorage 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
         alert: 'KubePersistentVolumeFillingUp'
         enabled: true
         labels: {
-          severity: 'critical'
+          severity: 'warning'
         }
         annotations: {
           correlationId: 'KubePersistentVolumeFillingUp/{{ $labels.cluster }}'
@@ -761,7 +761,7 @@ resource kubernetesStorage 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
         }
         expression: '( kubelet_volume_stats_available_bytes{job="kubelet", metrics_path="/metrics"} / kubelet_volume_stats_capacity_bytes{job="kubelet", metrics_path="/metrics"} ) < 0.03 and kubelet_volume_stats_used_bytes{job="kubelet", metrics_path="/metrics"} > 0 unless on(cluster, namespace, persistentvolumeclaim) kube_persistentvolumeclaim_access_mode{ access_mode="ReadOnlyMany"} == 1 unless on(cluster, namespace, persistentvolumeclaim) kube_persistentvolumeclaim_labels{label_excluded_from_alerts="true"} == 1'
         for: 'PT1M'
-        severity: 2
+        severity: 3
       }
       {
         actions: [
@@ -807,7 +807,7 @@ resource kubernetesStorage 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
         alert: 'KubePersistentVolumeInodesFillingUp'
         enabled: true
         labels: {
-          severity: 'critical'
+          severity: 'warning'
         }
         annotations: {
           correlationId: 'KubePersistentVolumeInodesFillingUp/{{ $labels.cluster }}'
@@ -819,7 +819,7 @@ resource kubernetesStorage 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
         }
         expression: '( kubelet_volume_stats_inodes_free{job="kubelet", metrics_path="/metrics"} / kubelet_volume_stats_inodes{job="kubelet", metrics_path="/metrics"} ) < 0.03 and kubelet_volume_stats_inodes_used{job="kubelet", metrics_path="/metrics"} > 0 unless on(cluster, namespace, persistentvolumeclaim) kube_persistentvolumeclaim_access_mode{ access_mode="ReadOnlyMany"} == 1 unless on(cluster, namespace, persistentvolumeclaim) kube_persistentvolumeclaim_labels{label_excluded_from_alerts="true"} == 1'
         for: 'PT1M'
-        severity: 2
+        severity: 3
       }
       {
         actions: [
@@ -865,7 +865,7 @@ resource kubernetesStorage 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
         alert: 'KubePersistentVolumeErrors'
         enabled: true
         labels: {
-          severity: 'critical'
+          severity: 'warning'
         }
         annotations: {
           correlationId: 'KubePersistentVolumeErrors/{{ $labels.cluster }}'
@@ -877,7 +877,7 @@ resource kubernetesStorage 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
         }
         expression: 'kube_persistentvolume_status_phase{phase=~"Failed|Pending",job="kube-state-metrics"} > 0'
         for: 'PT5M'
-        severity: 2
+        severity: 3
       }
     ]
     scopes: [
@@ -979,7 +979,7 @@ resource kubeApiserverSlos 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
         enabled: true
         labels: {
           long: '1h'
-          severity: 'critical'
+          severity: 'warning'
           short: '5m'
         }
         annotations: {
@@ -992,7 +992,7 @@ resource kubeApiserverSlos 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
         }
         expression: 'sum(apiserver_request:burnrate1h) > (14.40 * 0.01000) and sum(apiserver_request:burnrate5m) > (14.40 * 0.01000)'
         for: 'PT2M'
-        severity: 2
+        severity: 3
       }
       {
         actions: [
@@ -1010,7 +1010,7 @@ resource kubeApiserverSlos 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
         enabled: true
         labels: {
           long: '6h'
-          severity: 'critical'
+          severity: 'warning'
           short: '30m'
         }
         annotations: {
@@ -1023,7 +1023,7 @@ resource kubeApiserverSlos 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
         }
         expression: 'sum(apiserver_request:burnrate6h) > (6.00 * 0.01000) and sum(apiserver_request:burnrate30m) > (6.00 * 0.01000)'
         for: 'PT15M'
-        severity: 2
+        severity: 3
       }
       {
         actions: [
@@ -1144,7 +1144,7 @@ resource kubernetesSystemApiserver 'Microsoft.AlertsManagement/prometheusRuleGro
         alert: 'KubeClientCertificateExpiration'
         enabled: true
         labels: {
-          severity: 'critical'
+          severity: 'warning'
         }
         annotations: {
           correlationId: 'KubeClientCertificateExpiration/{{ $labels.cluster }}'
@@ -1156,7 +1156,7 @@ resource kubernetesSystemApiserver 'Microsoft.AlertsManagement/prometheusRuleGro
         }
         expression: 'apiserver_client_certificate_expiration_seconds_count{job="controlplane-apiserver"} > 0 and on(job) histogram_quantile(0.01, sum by (job, le) (rate(apiserver_client_certificate_expiration_seconds_bucket{job="controlplane-apiserver"}[5m]))) < 86400'
         for: 'PT5M'
-        severity: 2
+        severity: 3
       }
       {
         actions: [
@@ -1230,7 +1230,7 @@ resource kubernetesSystemApiserver 'Microsoft.AlertsManagement/prometheusRuleGro
         alert: 'KubeAPIDown'
         enabled: true
         labels: {
-          severity: 'critical'
+          severity: 'warning'
         }
         annotations: {
           correlationId: 'KubeAPIDown/{{ $labels.cluster }}'
@@ -1242,7 +1242,7 @@ resource kubernetesSystemApiserver 'Microsoft.AlertsManagement/prometheusRuleGro
         }
         expression: 'count by (cluster) (up{job="controlplane-apiserver"} == 1) == 0'
         for: 'PT15M'
-        severity: 2
+        severity: 3
       }
       {
         actions: [
@@ -1503,7 +1503,7 @@ resource kubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGroup
         alert: 'KubeletClientCertificateExpiration'
         enabled: true
         labels: {
-          severity: 'critical'
+          severity: 'warning'
         }
         annotations: {
           correlationId: 'KubeletClientCertificateExpiration/{{ $labels.cluster }}'
@@ -1514,7 +1514,7 @@ resource kubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGroup
           title: 'Kubelet client certificate is about to expire.'
         }
         expression: 'kubelet_certificate_manager_client_ttl_seconds < 86400'
-        severity: 2
+        severity: 3
       }
       {
         actions: [
@@ -1559,7 +1559,7 @@ resource kubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGroup
         alert: 'KubeletServerCertificateExpiration'
         enabled: true
         labels: {
-          severity: 'critical'
+          severity: 'warning'
         }
         annotations: {
           correlationId: 'KubeletServerCertificateExpiration/{{ $labels.cluster }}'
@@ -1570,7 +1570,7 @@ resource kubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGroup
           title: 'Kubelet server certificate is about to expire.'
         }
         expression: 'kubelet_certificate_manager_server_ttl_seconds < 86400'
-        severity: 2
+        severity: 3
       }
       {
         actions: [
@@ -1645,7 +1645,7 @@ resource kubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGroup
         alert: 'KubeletDown'
         enabled: true
         labels: {
-          severity: 'critical'
+          severity: 'warning'
         }
         annotations: {
           correlationId: 'KubeletDown/{{ $labels.cluster }}'
@@ -1657,7 +1657,7 @@ resource kubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGroup
         }
         expression: 'count by (cluster) (up{job="kubelet", metrics_path="/metrics"} == 1) == 0'
         for: 'PT15M'
-        severity: 2
+        severity: 3
       }
     ]
     scopes: [
@@ -1687,7 +1687,7 @@ resource kubernetesSystemScheduler 'Microsoft.AlertsManagement/prometheusRuleGro
         alert: 'KubeSchedulerDown'
         enabled: true
         labels: {
-          severity: 'critical'
+          severity: 'warning'
         }
         annotations: {
           correlationId: 'KubeSchedulerDown/{{ $labels.cluster }}'
@@ -1699,7 +1699,7 @@ resource kubernetesSystemScheduler 'Microsoft.AlertsManagement/prometheusRuleGro
         }
         expression: 'count by (cluster) (up{job="controlplane-kube-scheduler"} == 1) == 0'
         for: 'PT15M'
-        severity: 2
+        severity: 3
       }
     ]
     scopes: [
@@ -1729,7 +1729,7 @@ resource kubernetesSystemControllerManager 'Microsoft.AlertsManagement/prometheu
         alert: 'KubeControllerManagerDown'
         enabled: true
         labels: {
-          severity: 'critical'
+          severity: 'warning'
         }
         annotations: {
           correlationId: 'KubeControllerManagerDown/{{ $labels.cluster }}'
@@ -1741,7 +1741,7 @@ resource kubernetesSystemControllerManager 'Microsoft.AlertsManagement/prometheu
         }
         expression: 'count by (cluster) (up{job="controlplane-kube-controller-manager"} == 1) == 0'
         for: 'PT15M'
-        severity: 2
+        severity: 3
       }
     ]
     scopes: [
@@ -1802,7 +1802,7 @@ resource mgmtCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
         alert: 'MgmtClusterNodeSwiftNICCapacityZero'
         enabled: true
         labels: {
-          severity: 'critical'
+          severity: 'warning'
           team: 'hcp-sl'
         }
         annotations: {
@@ -1816,7 +1816,7 @@ resource mgmtCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
         }
         expression: 'kube_node_status_capacity{node=~"user.*", resource="aro_openshift_io_swift_nic"} == 0'
         for: 'PT10M'
-        severity: 2
+        severity: 3
       }
       {
         actions: [
