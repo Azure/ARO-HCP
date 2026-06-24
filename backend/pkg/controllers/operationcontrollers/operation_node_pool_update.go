@@ -237,7 +237,7 @@ func (c *operationNodePoolUpdate) desiredVersionResolutionOperationState(ctx con
 			c.desiredVersionMismatchFirstSeen.Add(operationID, c.clock.Now())
 			return pending, nil
 		}
-		if c.clock.Since(firstSeen.(time.Time)) <= 59*time.Second {
+		if c.clock.Since(firstSeen.(time.Time)) <= 129*time.Second {
 			return pending, nil
 		}
 		msg := fmt.Sprintf(
