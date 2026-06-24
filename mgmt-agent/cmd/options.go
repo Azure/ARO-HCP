@@ -16,6 +16,7 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -26,7 +27,6 @@ import (
 	_ "k8s.io/component-base/metrics/prometheus/clientgo"
 
 	"github.com/spf13/cobra"
-	"golang.org/x/sync/errgroup"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -37,6 +37,8 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/client-go/tools/leaderelection"
+	"k8s.io/client-go/tools/leaderelection/resourcelock"
 	"k8s.io/component-base/metrics/legacyregistry"
 	"k8s.io/klog/v2"
 
@@ -102,7 +104,7 @@ type completedControllerOptions struct {
 	dynamicInformers         dynamicinformer.DynamicSharedInformerFactory
 	workers                  int
 	healthAddress            string
-	leaderElectionCfg        *controller.LeaderElectionConfig
+	leaderElectionLock       resourcelock.Interface
 }
 
 type ControllerOptions struct {
@@ -210,13 +212,25 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 		}
 	}
 
-	leaderElectionCfg := &controller.LeaderElectionConfig{
-		LockName:      LeaderElectionLockName,
-		LeaseDuration: 15 * time.Second,
-		RenewDeadline: 10 * time.Second,
-		RetryPeriod:   2 * time.Second,
-		Namespace:     o.Namespace,
-		KubeConfig:    kubeConfig,
+	leKubeConfig := rest.CopyConfig(kubeConfig)
+	leKubeConfig.QPS = 20
+	leKubeConfig.Burst = 40
+
+	hostname, err := os.Hostname()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get hostname for leader election: %w", err)
+	}
+
+	leaderElectionLock, err := resourcelock.NewFromKubeconfig(
+		resourcelock.LeasesResourceLock,
+		o.Namespace,
+		LeaderElectionLockName,
+		resourcelock.ResourceLockConfig{Identity: hostname},
+		leKubeConfig,
+		leaderElectionRenewDeadline,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create leader election lock: %w", err)
 	}
 
 	return &ControllerOptions{
@@ -232,7 +246,7 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 			dynamicInformers:         dynInformers,
 			workers:                  o.Workers,
 			healthAddress:            o.HealthAddress,
-			leaderElectionCfg:        leaderElectionCfg,
+			leaderElectionLock:       leaderElectionLock,
 		},
 	}, nil
 }
@@ -262,12 +276,21 @@ func (o *ValidatedControllerOptions) buildKubeConfig() (*rest.Config, error) {
 func (o *ControllerOptions) Run(ctx context.Context) error {
 	ctx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
 	defer stop()
+
+	ctx, cancel := context.WithCancelCause(ctx)
+	defer cancel(fmt.Errorf("Run returned"))
+
 	logger := klog.FromContext(ctx)
 
-	g, ctx := errgroup.WithContext(ctx)
+	// Launch servers and leader election as independent goroutines.
+	// Each goroutine sends its result on errCh when done. On first
+	// error or context cancellation, cancel propagates to all.
+	goroutines := 2 // health server + leader election always run
+	errCh := make(chan error, goroutines)
 
-	// health server
-	g.Go(func() error {
+	// health/metrics server
+	go func() {
+		defer utilruntime.HandleCrash()
 		mux := http.NewServeMux()
 		mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusOK)
@@ -277,75 +300,141 @@ func (o *ControllerOptions) Run(ctx context.Context) error {
 		})
 		mux.Handle("/metrics", legacyregistry.Handler())
 		server := &http.Server{Addr: o.healthAddress, Handler: mux}
-		go func() {
-			defer utilruntime.HandleCrash()
-			<-ctx.Done()
-			if err := server.Shutdown(context.Background()); err != nil {
-				logger.Error(err, "Error shutting down health server")
-			}
-		}()
-		logger.Info("Starting health server", "address", o.healthAddress)
-		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			return fmt.Errorf("health server error: %w", err)
+		err := runHTTPServer(ctx, server, "health server")
+		if err != nil {
+			cancel(fmt.Errorf("health server exited: %w", err))
 		}
-		return nil
-	})
+		errCh <- err
+	}()
 
 	// controllers with leader election
-	g.Go(func() error {
-		logger.Info("Starting controllers under leader election")
-		if err := controller.RunWithLeaderElection(ctx, "mgmt-agent", o.leaderElectionCfg, func(leaderCtx context.Context) error {
-			o.kubeInformers.Start(leaderCtx.Done())
-			if o.hypershiftInformers != nil {
-				o.hypershiftInformers.Start(leaderCtx.Done())
-			}
-			if o.ksmKubeInformers != nil {
-				o.ksmKubeInformers.Start(leaderCtx.Done())
-			}
-			if o.clusterWideKubeInformers != nil {
-				o.clusterWideKubeInformers.Start(leaderCtx.Done())
-			}
-			if o.dynamicInformers != nil {
-				o.dynamicInformers.Start(leaderCtx.Done())
-			}
-			logger.V(6).Info("Informer factories started")
+	go func() {
+		defer utilruntime.HandleCrash()
+		err := o.runControllersUnderLeaderElection(ctx)
+		// When leader election exits (e.g. lost lease), cancel so Run() unblocks and performs shutdown.
+		cancel(fmt.Errorf("leader election exited"))
+		errCh <- err
+	}()
 
-			innerG, innerCtx := errgroup.WithContext(leaderCtx)
+	<-ctx.Done()
 
-			innerG.Go(func() error {
-				return o.ctrl.Run(innerCtx, o.workers)
-			})
-
-			innerG.Go(func() error {
-				return o.resourceWatcher.Run(innerCtx)
-			})
-
-			if o.ksmCtrl != nil {
-				innerG.Go(func() error {
-					return o.ksmCtrl.Run(innerCtx, o.workers)
-				})
-			}
-
-			if o.podWatcher != nil {
-				innerG.Go(func() error {
-					return o.podWatcher.Run(innerCtx)
-				})
-			}
-
-			return innerG.Wait()
-		}); err != nil {
-			logger.Error(err, "Controllers stopped with error")
-			return err
+	errs := []error{}
+	for range goroutines {
+		if err := <-errCh; err != nil && !errors.Is(err, http.ErrServerClosed) {
+			errs = append(errs, err)
 		}
-		logger.Info("Controllers stopped")
-		return nil
-	})
+	}
+	logger.Info("mgmt-agent stopped")
+	return errors.Join(errs...)
+}
 
-	if err := g.Wait(); err != nil {
-		logger.Error(err, "Component failed")
-		klog.Flush()
+const (
+	leaderElectionLeaseDuration = 15 * time.Second
+	leaderElectionRenewDeadline = 10 * time.Second
+	leaderElectionRetryPeriod   = 2 * time.Second
+)
+
+// runControllersUnderLeaderElection runs the controllers inside the leader-election callback.
+// Informers are started inside the callback: a non-leader replica should not be running controllers.
+func (o *ControllerOptions) runControllersUnderLeaderElection(ctx context.Context) error {
+	logger := klog.FromContext(ctx)
+
+	le, err := leaderelection.NewLeaderElector(leaderelection.LeaderElectionConfig{
+		Lock:          o.leaderElectionLock,
+		LeaseDuration: leaderElectionLeaseDuration,
+		RenewDeadline: leaderElectionRenewDeadline,
+		RetryPeriod:   leaderElectionRetryPeriod,
+		Callbacks: leaderelection.LeaderCallbacks{
+			OnStartedLeading: func(ctx context.Context) {
+				logger.Info("acquired leader election lease; starting informers and controllers")
+				o.kubeInformers.Start(ctx.Done())
+				if o.hypershiftInformers != nil {
+					o.hypershiftInformers.Start(ctx.Done())
+				}
+				if o.ksmKubeInformers != nil {
+					o.ksmKubeInformers.Start(ctx.Done())
+				}
+				if o.clusterWideKubeInformers != nil {
+					o.clusterWideKubeInformers.Start(ctx.Done())
+				}
+				if o.dynamicInformers != nil {
+					o.dynamicInformers.Start(ctx.Done())
+				}
+
+				go func() {
+					defer utilruntime.HandleCrash()
+					if err := o.ctrl.Run(ctx, o.workers); err != nil {
+						logger.Error(err, "SwiftNIC controller failed")
+					}
+				}()
+				go func() {
+					defer utilruntime.HandleCrash()
+					if err := o.resourceWatcher.Run(ctx); err != nil {
+						logger.Error(err, "resource watcher failed")
+					}
+				}()
+				if o.ksmCtrl != nil {
+					go func() {
+						defer utilruntime.HandleCrash()
+						if err := o.ksmCtrl.Run(ctx, o.workers); err != nil {
+							logger.Error(err, "KSM HCP controller failed")
+						}
+					}()
+				}
+				if o.podWatcher != nil {
+					go func() {
+						defer utilruntime.HandleCrash()
+						if err := o.podWatcher.Run(ctx); err != nil {
+							logger.Error(err, "pod watcher failed")
+						}
+					}()
+				}
+
+				// Block until the leadership context is cancelled.
+				<-ctx.Done()
+			},
+			OnStoppedLeading: func() {
+				logger.Info("lost leader election lease")
+			},
+		},
+		ReleaseOnCancel: true,
+		Name:            LeaderElectionLockName,
+	})
+	if err != nil {
 		return err
 	}
-
+	le.Run(ctx)
 	return nil
+}
+
+// runHTTPServer runs the server and shuts it down when ctx is cancelled.
+// It returns nil if the server was shut down cleanly (http.ErrServerClosed),
+// or the underlying error if ListenAndServe failed for another reason.
+func runHTTPServer(ctx context.Context, server *http.Server, name string) error {
+	logger := klog.FromContext(ctx)
+
+	done := make(chan struct{})
+	defer close(done)
+	go func() {
+		defer utilruntime.HandleCrash()
+		select {
+		case <-ctx.Done():
+			shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 31*time.Second)
+			defer shutdownCancel()
+			logger.Info(fmt.Sprintf("shutting down %s", name))
+			if err := server.Shutdown(shutdownCtx); err != nil {
+				logger.Error(err, fmt.Sprintf("failed to shut down %s", name))
+			} else {
+				logger.Info(fmt.Sprintf("%s shut down completed", name))
+			}
+		case <-done:
+		}
+	}()
+
+	logger.Info(fmt.Sprintf("%s listening on %s", name, server.Addr))
+	err := server.ListenAndServe()
+	if errors.Is(err, http.ErrServerClosed) {
+		return nil
+	}
+	return err
 }
