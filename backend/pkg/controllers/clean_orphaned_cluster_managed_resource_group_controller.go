@@ -116,7 +116,7 @@ func (c *cleanOrphanedClusterManagedResourceGroup) listManagedResourceGroupsForS
 		}
 
 		for _, rg := range resourceGroupPage.Value {
-			if rg.ManagedBy == nil {
+			if rg.ManagedBy == nil || rg.Location == nil || rg.Name == nil {
 				continue
 			}
 
