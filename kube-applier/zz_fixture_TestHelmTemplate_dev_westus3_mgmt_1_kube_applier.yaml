@@ -150,6 +150,24 @@ subjects:
   name: 'kube-applier'
   namespace: 'kube-applier'
 ---
+# Source: kube-applier/templates/metrics.service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: kube-applier
+    port: metrics
+  name: kube-applier-metrics
+  namespace: 'kube-applier'
+spec:
+  ports:
+  - port: 8081
+    protocol: TCP
+    targetPort: 8081
+    name: metrics
+  selector:
+    app: kube-applier
+---
 # Source: kube-applier/templates/deployment.yaml
 apiVersion: apps/v1
 kind: Deployment
@@ -250,4 +268,24 @@ spec:
       clientID: '__imagePullerMsiClientId__'
       tenantID: '__imagePullerMsiTenantId__'
   serviceAccountName: 'kube-applier'
+---
+# Source: kube-applier/templates/servicemonitor.yaml
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: kube-applier
+  namespace: 'kube-applier'
+spec:
+  endpoints:
+  - interval: 30s
+    path: /metrics
+    port: metrics
+    scheme: http
+  namespaceSelector:
+    matchNames:
+    - 'kube-applier'
+  selector:
+    matchLabels:
+      app: kube-applier
+      port: metrics
 

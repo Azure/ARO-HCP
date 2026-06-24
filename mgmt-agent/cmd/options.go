@@ -23,6 +23,8 @@ import (
 	"syscall"
 	"time"
 
+	_ "k8s.io/component-base/metrics/prometheus/clientgo"
+
 	"github.com/spf13/cobra"
 	"golang.org/x/sync/errgroup"
 
