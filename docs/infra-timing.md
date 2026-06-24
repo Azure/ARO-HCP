@@ -4,7 +4,7 @@ When starting a personal environment using our entrypoint execution tools, a `ti
 
 ```shell
 $ AZURE_CONFIG_DIR=~/.azure-redhat make entrypoint/Region
-tooling/templatize/templatize entrypoint run --config-file "config/config.yaml" \
+tooling/templatize/templatize-$(shell uname -m) entrypoint run --config-file "config/config.yaml" \
 							     --config-file-override "" \
                                  --topology-config topology.yaml \
                                  --dev-settings-file tooling/templatize/settings.yaml \
@@ -38,7 +38,7 @@ Use the graph visualizer to determine the dependency links between steps in the 
 
 ```shell
 $ make graph/entrypoint/Region
-tooling/templatize/templatize entrypoint graph --config-file "config/config.yaml" \
+tooling/templatize/templatize-$(shell uname -m) entrypoint graph --config-file "config/config.yaml" \
                                --topology-config topology.yaml \
                                --dev-settings-file tooling/templatize/settings.yaml \
                                --dev-environment pers \
@@ -54,7 +54,7 @@ Use the HTML visualizer to create an interactive web view for the timing of step
 
 ```shell
 $ make visualize
-tooling/templatize/templatize entrypoint visualize --timing-input timing/steps.yaml --output timing/
+tooling/templatize/templatize-$(shell uname -m) entrypoint visualize --timing-input timing/steps.yaml --output timing/
 $ tree timing/
 timing/
 ├── Microsoft.Azure.ARO.HCP.AdminAPI
