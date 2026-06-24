@@ -31,6 +31,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
+
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
@@ -269,8 +271,18 @@ var _ = Describe("Customer", func() {
 						{
 							Name:            "pull-test",
 							Image:           pullTestImage,
-							Command:         []string{"/bin/sh", "-c", "echo pull-secret-ok"},
+							Command:         []string{"true"},
 							ImagePullPolicy: corev1.PullAlways,
+							SecurityContext: &corev1.SecurityContext{
+								AllowPrivilegeEscalation: to.Ptr(false),
+								RunAsNonRoot:             to.Ptr(true),
+								SeccompProfile: &corev1.SeccompProfile{
+									Type: corev1.SeccompProfileTypeRuntimeDefault,
+								},
+								Capabilities: &corev1.Capabilities{
+									Drop: []corev1.Capability{"ALL"},
+								},
+							},
 						},
 					},
 					RestartPolicy: corev1.RestartPolicyNever,
