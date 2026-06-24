@@ -44,7 +44,7 @@ var _ = Describe("Customer", func() {
 	})
 
 	// Tests the HyperShift HCCO global pull secret reconciliation flow:
-	// additional-pull-secret in kube-system -> HCCO merges into global-pull-secret -> DaemonSet syncs to nodes.
+	// additional-pull-secret in kube-system -> HCCO merges into global-pull-secret -> DaemonSet syncs to nodes
 	// Upstream documentation: https://hypershift.pages.dev/how-to/aws/global-pull-secret/
 	It("should be able to create an HCP cluster and manage pull secrets",
 		labels.RequireNothing,
@@ -158,7 +158,7 @@ var _ = Describe("Customer", func() {
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to create test docker config secret")
 
-			// HCCO watches specifically for a secret named "additional-pull-secret" in kube-system.
+			// HCCO watches specifically for a secret named "additional-pull-secret" in kube-system
 			By("creating the test pull secret in the cluster")
 			_, err = kubeClient.CoreV1().Secrets(pullSecretNamespace).Create(ctx, testPullSecret, metav1.CreateOptions{})
 			Expect(err).NotTo(HaveOccurred(), "failed to create additional-pull-secret in kube-system namespace")
@@ -168,7 +168,7 @@ var _ = Describe("Customer", func() {
 				Verify(ctx, adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred(), "failed to wait for additional pull secret to be merged into global-pull-secret by HCCO")
 
-			// The merged secret doesn't reach nodes until global-pull-secret-syncer syncs it to /var/lib/kubelet/config.json.
+			// The merged secret doesn't reach nodes until global-pull-secret-syncer syncs it to /var/lib/kubelet/config.json
 			By("verifying the DaemonSet for global pull secret synchronization is created")
 			err = verifiers.VerifyGlobalPullSecretSyncer(daemonSetSyncTimeout).
 				Verify(ctx, adminRESTConfig)
