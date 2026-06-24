@@ -1,9 +1,5 @@
 # ARO HCP Terminology
 
-- **Definition**:
-- **Abbreviation**:
-- **References**:
-
 ## Azure Terminology
 
 ### Azure Resource Manager
@@ -31,7 +27,7 @@
 
 ### Hosted Control Plane
 
-- **Definition:** OCP control plane running as Pods on a Kubernetes cluster. These Pods are managed by [Hypershift](#hosted-control-plane).
+- **Definition:** OCP control plane running as Pods on a Kubernetes cluster. These Pods are managed by [Hypershift](#hypershift).
 - **Abbreviation:** HCP
 - **References**:
   - [Blog](https://www.redhat.com/en/blog/red-hat-openshift-service-aws-hosted-control-planes-now-available)
@@ -45,7 +41,7 @@
 
 ### Service Cluster
 
-- **Definition**: Hosts the regional entry point services like [RP](#resource-provider) and [CS](#service-cluster) for HCP creation and management
+- **Definition**: Hosts the regional entry point services like [RP](#resource-provider) and [CS](#clusters-service) for HCP creation and management
 - **Abbreviation**: SC, SVC
 - **References**:
   - [High Level Architecture](high-level-architecture.md#service-cluster)
