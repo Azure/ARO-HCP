@@ -98,7 +98,7 @@ Execute shell commands or scripts within the pipeline environment. Shell steps a
 ```
 
 1. `action: Shell` marks the step as a shell step.
-2. `script`: The shell command to be executed. This can be a single command or a script file.
+2. `command`: The shell command to be executed. This can be a single command or a script file.
 3. `workingDir`: The directory that the shell step will have access to at runtime, optional. Highly recommended. If left unset, the step will be able to access the entire repository, but will run in the working directory of the `pipeline.yaml` file. Such steps will always re-run in incremental mode.
 4. `variables`: A list of environment variables that are set before executing the script.
 5. `variables.name`: The name of the environment variable.
@@ -161,7 +161,7 @@ Used for deploying Kubernetes services onto AKS clusters using [Helm](https://he
 5. `releaseNamespace`: The Kubernetes namespace for the release, analogous to `helm --namespace`. Created automatically if it does not exist.
 6. `namespaceFiles`: Optional list of Kubernetes namespace manifest files to apply before the Helm release. The release namespace itself does not need to be listed here — it is always created. Use these when a namespace requires specific labels, annotations, or other configuration. These files are pre-processed as Go templates.
 7. `chartDir`: Path to the Helm chart directory, relative to the `pipeline.yaml` file.
-8. `valuesFile`: Optional. Path to the Helm values file, relative to the `pipeline.yaml` file. Pre-processed as a Go template before being passed to Helm.
+8. `valuesFile`: Path to the Helm values file, relative to the `pipeline.yaml` file. Pre-processed as a Go template before being passed to Helm.
 9. `kustoDatabase`: Kusto database name for logging this deployment.
 10. `kustoTable`: Kusto table for log ingestion.
 11. `kustoEndpoint`: Input reference resolving to the Kusto cluster URI, used for deployment logging.

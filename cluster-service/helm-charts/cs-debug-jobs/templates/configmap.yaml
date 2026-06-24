@@ -1,4 +1,4 @@
-{{- if eq (lower .Values.deployDebugJobs) "true" }}
+{{- if eq (toString .Values.deployDebugJobs | lower) "true" }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
