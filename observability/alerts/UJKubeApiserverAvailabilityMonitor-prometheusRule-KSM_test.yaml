@@ -57,8 +57,8 @@ tests:
         _id: abc-123
         cluster: mgmt-cluster
       exp_annotations:
-        summary: "[HCP] [test-cluster] KubeAPIServer Fast Error Budget Burn (1h/5m)"
-        description: "CID: abc-123\nManagement Cluster: mgmt-cluster/clusters\n"
+        summary: "KubeAPIServer availability error budget burn (abc-123)"
+        description: "Burn rate: fast (14.4x, 1h/5m, for: 10m)\nCID: abc-123\nManagement Cluster: mgmt-cluster/clusters\n"
         runbook_url: https://aka.ms/arohcp-runbook-ujkasavailable
         correlationId: "UJKubeApiserverAvailability/mgmt-cluster/abc-123"
 # Test 3: Medium burn - complete failure triggers both tiers after 6h+
@@ -85,8 +85,8 @@ tests:
         _id: abc-123
         cluster: mgmt-cluster
       exp_annotations:
-        summary: "[HCP] [test-cluster] KubeAPIServer Fast Error Budget Burn (1h/5m)"
-        description: "CID: abc-123\nManagement Cluster: mgmt-cluster/clusters\n"
+        summary: "KubeAPIServer availability error budget burn (abc-123)"
+        description: "Burn rate: fast (14.4x, 1h/5m, for: 10m)\nCID: abc-123\nManagement Cluster: mgmt-cluster/clusters\n"
         runbook_url: https://aka.ms/arohcp-runbook-ujkasavailable
         correlationId: "UJKubeApiserverAvailability/mgmt-cluster/abc-123"
   - eval_time: 364m
@@ -105,8 +105,8 @@ tests:
         _id: abc-123
         cluster: mgmt-cluster
       exp_annotations:
-        summary: "[HCP] [test-cluster] KubeAPIServer Medium Error Budget Burn (6h/30m)"
-        description: "CID: abc-123\nManagement Cluster: mgmt-cluster/clusters\n"
+        summary: "KubeAPIServer availability error budget burn (abc-123)"
+        description: "Burn rate: medium (6x, 6h/30m, for: 30m)\nCID: abc-123\nManagement Cluster: mgmt-cluster/clusters\n"
         runbook_url: https://aka.ms/arohcp-runbook-ujkasavailable
         correlationId: "UJKubeApiserverAvailability/mgmt-cluster/abc-123"
   - eval_time: 420m # 7 hours — both tiers firing
@@ -122,8 +122,8 @@ tests:
         _id: abc-123
         cluster: mgmt-cluster
       exp_annotations:
-        summary: "[HCP] [test-cluster] KubeAPIServer Fast Error Budget Burn (1h/5m)"
-        description: "CID: abc-123\nManagement Cluster: mgmt-cluster/clusters\n"
+        summary: "KubeAPIServer availability error budget burn (abc-123)"
+        description: "Burn rate: fast (14.4x, 1h/5m, for: 10m)\nCID: abc-123\nManagement Cluster: mgmt-cluster/clusters\n"
         runbook_url: https://aka.ms/arohcp-runbook-ujkasavailable
         correlationId: "UJKubeApiserverAvailability/mgmt-cluster/abc-123"
   - eval_time: 420m
@@ -139,8 +139,8 @@ tests:
         _id: abc-123
         cluster: mgmt-cluster
       exp_annotations:
-        summary: "[HCP] [test-cluster] KubeAPIServer Medium Error Budget Burn (6h/30m)"
-        description: "CID: abc-123\nManagement Cluster: mgmt-cluster/clusters\n"
+        summary: "KubeAPIServer availability error budget burn (abc-123)"
+        description: "Burn rate: medium (6x, 6h/30m, for: 30m)\nCID: abc-123\nManagement Cluster: mgmt-cluster/clusters\n"
         runbook_url: https://aka.ms/arohcp-runbook-ujkasavailable
         correlationId: "UJKubeApiserverAvailability/mgmt-cluster/abc-123"
   - eval_time: 420m
@@ -244,8 +244,8 @@ tests:
         _id: abc-123
         cluster: mgmt-cluster
       exp_annotations:
-        summary: "[HCP] [test-cluster] KubeAPIServer Fast Error Budget Burn (1h/5m)"
-        description: "CID: abc-123\nManagement Cluster: mgmt-cluster/clusters\n"
+        summary: "KubeAPIServer availability error budget burn (abc-123)"
+        description: "Burn rate: fast (14.4x, 1h/5m, for: 10m)\nCID: abc-123\nManagement Cluster: mgmt-cluster/clusters\n"
         runbook_url: https://aka.ms/arohcp-runbook-ujkasavailable
         correlationId: "UJKubeApiserverAvailability/mgmt-cluster/abc-123"
   - eval_time: 91m
@@ -287,7 +287,7 @@ tests:
         _id: abc-123
         cluster: mgmt-cluster
       exp_annotations:
-        summary: "[HCP] [test-cluster] KubeAPIServer Slow Error Budget Burn (3d/6h)"
-        description: "CID: abc-123\nManagement Cluster: mgmt-cluster/clusters\n"
+        summary: "KubeAPIServer availability error budget burn (abc-123)"
+        description: "Burn rate: slow (1x, 3d/6h, for: 3h)\nCID: abc-123\nManagement Cluster: mgmt-cluster/clusters\n"
         runbook_url: https://aka.ms/arohcp-runbook-ujkasavailable
         correlationId: "UJKubeApiserverAvailability/mgmt-cluster/abc-123"
