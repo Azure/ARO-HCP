@@ -19,12 +19,9 @@ import (
 	"fmt"
 	"time"
 
-	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
-	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
@@ -113,14 +110,9 @@ func (c *servingCAReadDesireCreator) SyncOnce(ctx context.Context, key controlle
 		Namespace: hcpNamespace,
 		Name:      servingCASecretName,
 	}
-	desiredRIDStr := kubeapplier.ToClusterScopedReadDesireResourceIDString(
-		key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, ServingCAReadDesireName)
-	desiredRID, err := azcorearm.ParseResourceID(desiredRIDStr)
-	if err != nil {
-		return utils.TrackError(fmt.Errorf("parse desired ReadDesire RID: %w", err))
-	}
+	clusterRID := key.GetResourceID()
 	desired := &kubeapplier.ReadDesire{
-		CosmosMetadata: api.CosmosMetadata{ResourceID: desiredRID},
+		CosmosMetadata: buildScopedDesireMetadata(clusterRID, ServingCAReadDesireName, kubeapplier.ReadDesireResourceTypeName, mcResourceID),
 		Spec: kubeapplier.ReadDesireSpec{
 			ManagementCluster: mcResourceID,
 			TargetItem:        target,

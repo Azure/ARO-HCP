@@ -121,6 +121,7 @@ func (g *cosmosResourcesGlobalListers) Controllers() GlobalLister[api.Controller
 			api.ClusterControllerResourceType,
 			api.NodePoolControllerResourceType,
 			api.ExternalAuthControllerResourceType,
+			api.SystemAdminCredentialControllerResourceType,
 		},
 	}
 }
