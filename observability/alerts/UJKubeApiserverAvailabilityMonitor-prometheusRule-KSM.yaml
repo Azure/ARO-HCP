@@ -12,14 +12,14 @@ spec:
         (
           1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_5m / hostedClusterAPI_kubeapiserver_available:sli_count_5m)
           > (14.4 * (1 - 0.9995))
-          and on (name, namespace, _id, cluster)
+          and on (name, namespace, _id, cluster, subscription_id)
           hostedClusterAPI_kubeapiserver_available:sli_count_5m > 3
         )
-        and on (name, namespace, _id, cluster)
+        and on (name, namespace, _id, cluster, subscription_id)
         (
           1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_1h / hostedClusterAPI_kubeapiserver_available:sli_count_1h)
           > (14.4 * (1 - 0.9995))
-          and on (name, namespace, _id, cluster)
+          and on (name, namespace, _id, cluster, subscription_id)
           hostedClusterAPI_kubeapiserver_available:sli_count_1h > 54
         )
       for: 10m
@@ -33,6 +33,7 @@ spec:
         description: |
           Burn rate: fast (14.4x, 1h/5m, for: 10m)
           CID: {{ $labels._id }}
+          Subscription: {{ $labels.subscription_id }}
           Management Cluster: {{ $labels.cluster }}/{{ $labels.namespace }}
         runbook_url: https://aka.ms/arohcp-runbook-ujkasavailable
         correlationId: "UJKubeApiserverAvailability/{{ $labels.cluster }}/{{ $labels._id }}"
@@ -42,14 +43,14 @@ spec:
         (
           1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_30m / hostedClusterAPI_kubeapiserver_available:sli_count_30m)
           > (6 * (1 - 0.9995))
-          and on (name, namespace, _id, cluster)
+          and on (name, namespace, _id, cluster, subscription_id)
           hostedClusterAPI_kubeapiserver_available:sli_count_30m > 27
         )
-        and on (name, namespace, _id, cluster)
+        and on (name, namespace, _id, cluster, subscription_id)
         (
           1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_6h / hostedClusterAPI_kubeapiserver_available:sli_count_6h)
           > (6 * (1 - 0.9995))
-          and on (name, namespace, _id, cluster)
+          and on (name, namespace, _id, cluster, subscription_id)
           hostedClusterAPI_kubeapiserver_available:sli_count_6h > 64
         )
       for: 30m
@@ -63,6 +64,7 @@ spec:
         description: |
           Burn rate: medium (6x, 6h/30m, for: 30m)
           CID: {{ $labels._id }}
+          Subscription: {{ $labels.subscription_id }}
           Management Cluster: {{ $labels.cluster }}/{{ $labels.namespace }}
         runbook_url: https://aka.ms/arohcp-runbook-ujkasavailable
         correlationId: "UJKubeApiserverAvailability/{{ $labels.cluster }}/{{ $labels._id }}"
@@ -73,14 +75,14 @@ spec:
         (
           1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_6h / hostedClusterAPI_kubeapiserver_available:sli_count_6h)
           > (1 * (1 - 0.9995))
-          and on (name, namespace, _id, cluster)
+          and on (name, namespace, _id, cluster, subscription_id)
           hostedClusterAPI_kubeapiserver_available:sli_count_6h > 64
         )
-        and on (name, namespace, _id, cluster)
+        and on (name, namespace, _id, cluster, subscription_id)
         (
           1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_3d / hostedClusterAPI_kubeapiserver_available:sli_count_3d)
           > (1 * (1 - 0.9995))
-          and on (name, namespace, _id, cluster)
+          and on (name, namespace, _id, cluster, subscription_id)
           hostedClusterAPI_kubeapiserver_available:sli_count_3d > 130
         )
       for: 3h
@@ -94,6 +96,7 @@ spec:
         description: |
           Burn rate: slow (1x, 3d/6h, for: 3h)
           CID: {{ $labels._id }}
+          Subscription: {{ $labels.subscription_id }}
           Management Cluster: {{ $labels.cluster }}/{{ $labels.namespace }}
         runbook_url: https://aka.ms/arohcp-runbook-ujkasavailable
         correlationId: "UJKubeApiserverAvailability/{{ $labels.cluster }}/{{ $labels._id }}"

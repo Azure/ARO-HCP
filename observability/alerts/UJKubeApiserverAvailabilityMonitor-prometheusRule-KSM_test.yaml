@@ -12,7 +12,7 @@ tests:
 - interval: 1m
   name: "Test 1: Normal operation - perfect availability, no alerts"
   input_series:
-  - series: 'hostedClusterAPI_kubeapiserver_available{status="True", name="test-cluster", namespace="clusters", _id="abc-123", cluster="mgmt-cluster"}'
+  - series: 'hostedClusterAPI_kubeapiserver_available{status="True", name="test-cluster", namespace="clusters", _id="abc-123", cluster="mgmt-cluster", subscription_id="sub-123"}'
     values: "1+0x600" # 10 hours of perfect availability
   alert_rule_test:
   - eval_time: 600m
@@ -32,7 +32,7 @@ tests:
 - interval: 30s
   name: "Test 2: Fast burn - complete failure triggers UJKubeApiserverAvailability1h5m"
   input_series:
-  - series: 'hostedClusterAPI_kubeapiserver_available{status="True", name="test-cluster", namespace="clusters", _id="abc-123", cluster="mgmt-cluster"}'
+  - series: 'hostedClusterAPI_kubeapiserver_available{status="True", name="test-cluster", namespace="clusters", _id="abc-123", cluster="mgmt-cluster", subscription_id="sub-123"}'
     values: "0+0x200" # 100 minutes of complete failure (200 * 30s)
   alert_rule_test:
   - eval_time: 10m
@@ -56,9 +56,10 @@ tests:
         namespace: clusters
         _id: abc-123
         cluster: mgmt-cluster
+        subscription_id: sub-123
       exp_annotations:
         summary: "KubeAPIServer availability error budget burn (abc-123)"
-        description: "Burn rate: fast (14.4x, 1h/5m, for: 10m)\nCID: abc-123\nManagement Cluster: mgmt-cluster/clusters\n"
+        description: "Burn rate: fast (14.4x, 1h/5m, for: 10m)\nCID: abc-123\nSubscription: sub-123\nManagement Cluster: mgmt-cluster/clusters\n"
         runbook_url: https://aka.ms/arohcp-runbook-ujkasavailable
         correlationId: "UJKubeApiserverAvailability/mgmt-cluster/abc-123"
 # Test 3: Medium burn - complete failure triggers both tiers after 6h+
@@ -69,7 +70,7 @@ tests:
 - interval: 30s
   name: "Test 3: Medium burn - complete failure triggers both tiers after 6h+"
   input_series:
-  - series: 'hostedClusterAPI_kubeapiserver_available{status="True", name="test-cluster", namespace="clusters", _id="abc-123", cluster="mgmt-cluster"}'
+  - series: 'hostedClusterAPI_kubeapiserver_available{status="True", name="test-cluster", namespace="clusters", _id="abc-123", cluster="mgmt-cluster", subscription_id="sub-123"}'
     values: "0+0x900" # 450 minutes = 7.5 hours of complete failure (900 * 30s)
   alert_rule_test:
   - eval_time: 80m
@@ -84,9 +85,10 @@ tests:
         namespace: clusters
         _id: abc-123
         cluster: mgmt-cluster
+        subscription_id: sub-123
       exp_annotations:
         summary: "KubeAPIServer availability error budget burn (abc-123)"
-        description: "Burn rate: fast (14.4x, 1h/5m, for: 10m)\nCID: abc-123\nManagement Cluster: mgmt-cluster/clusters\n"
+        description: "Burn rate: fast (14.4x, 1h/5m, for: 10m)\nCID: abc-123\nSubscription: sub-123\nManagement Cluster: mgmt-cluster/clusters\n"
         runbook_url: https://aka.ms/arohcp-runbook-ujkasavailable
         correlationId: "UJKubeApiserverAvailability/mgmt-cluster/abc-123"
   - eval_time: 364m
@@ -104,9 +106,10 @@ tests:
         namespace: clusters
         _id: abc-123
         cluster: mgmt-cluster
+        subscription_id: sub-123
       exp_annotations:
         summary: "KubeAPIServer availability error budget burn (abc-123)"
-        description: "Burn rate: medium (6x, 6h/30m, for: 30m)\nCID: abc-123\nManagement Cluster: mgmt-cluster/clusters\n"
+        description: "Burn rate: medium (6x, 6h/30m, for: 30m)\nCID: abc-123\nSubscription: sub-123\nManagement Cluster: mgmt-cluster/clusters\n"
         runbook_url: https://aka.ms/arohcp-runbook-ujkasavailable
         correlationId: "UJKubeApiserverAvailability/mgmt-cluster/abc-123"
   - eval_time: 420m # 7 hours — both tiers firing
@@ -121,9 +124,10 @@ tests:
         namespace: clusters
         _id: abc-123
         cluster: mgmt-cluster
+        subscription_id: sub-123
       exp_annotations:
         summary: "KubeAPIServer availability error budget burn (abc-123)"
-        description: "Burn rate: fast (14.4x, 1h/5m, for: 10m)\nCID: abc-123\nManagement Cluster: mgmt-cluster/clusters\n"
+        description: "Burn rate: fast (14.4x, 1h/5m, for: 10m)\nCID: abc-123\nSubscription: sub-123\nManagement Cluster: mgmt-cluster/clusters\n"
         runbook_url: https://aka.ms/arohcp-runbook-ujkasavailable
         correlationId: "UJKubeApiserverAvailability/mgmt-cluster/abc-123"
   - eval_time: 420m
@@ -138,9 +142,10 @@ tests:
         namespace: clusters
         _id: abc-123
         cluster: mgmt-cluster
+        subscription_id: sub-123
       exp_annotations:
         summary: "KubeAPIServer availability error budget burn (abc-123)"
-        description: "Burn rate: medium (6x, 6h/30m, for: 30m)\nCID: abc-123\nManagement Cluster: mgmt-cluster/clusters\n"
+        description: "Burn rate: medium (6x, 6h/30m, for: 30m)\nCID: abc-123\nSubscription: sub-123\nManagement Cluster: mgmt-cluster/clusters\n"
         runbook_url: https://aka.ms/arohcp-runbook-ujkasavailable
         correlationId: "UJKubeApiserverAvailability/mgmt-cluster/abc-123"
   - eval_time: 420m
@@ -153,7 +158,7 @@ tests:
 - interval: 1m
   name: "Test 4: Provisioning grace - new cluster excluded from alerting"
   input_series:
-  - series: 'hostedClusterAPI_kubeapiserver_available{status="True", name="new-cluster", namespace="clusters", _id="new-123", cluster="mgmt-cluster"}'
+  - series: 'hostedClusterAPI_kubeapiserver_available{status="True", name="new-cluster", namespace="clusters", _id="new-123", cluster="mgmt-cluster", subscription_id="sub-123"}'
     values: "0+0x10" # 10 minutes of complete failure (new cluster)
   alert_rule_test:
   - eval_time: 10m
@@ -171,7 +176,7 @@ tests:
 - interval: 1m
   name: "Test 5: Transient failure outside evaluation windows - no alert fires"
   input_series:
-  - series: 'hostedClusterAPI_kubeapiserver_available{status="True", name="test-cluster", namespace="clusters", _id="abc-123", cluster="mgmt-cluster"}'
+  - series: 'hostedClusterAPI_kubeapiserver_available{status="True", name="test-cluster", namespace="clusters", _id="abc-123", cluster="mgmt-cluster", subscription_id="sub-123"}'
     values: "1+0x20 0 1+0x580" # One failure in ~603 samples
   alert_rule_test:
   - eval_time: 400m
@@ -196,7 +201,7 @@ tests:
 - interval: 1m
   name: "Test 6: Sample guards suppress sparse-window alerts during short burst"
   input_series:
-  - series: 'hostedClusterAPI_kubeapiserver_available{status="True", name="test-cluster", namespace="clusters", _id="abc-123", cluster="mgmt-cluster"}'
+  - series: 'hostedClusterAPI_kubeapiserver_available{status="True", name="test-cluster", namespace="clusters", _id="abc-123", cluster="mgmt-cluster", subscription_id="sub-123"}'
     values: "1+0x19 0+0x21 1+0x800" # 20m healthy, 22m failure (t=20..t=41), then recovery
   alert_rule_test:
   - eval_time: 35m
@@ -225,7 +230,7 @@ tests:
 - interval: 1m
   name: "Test 7: Near-threshold - minimal burst validates for:10m boundary"
   input_series:
-  - series: 'hostedClusterAPI_kubeapiserver_available{status="True", name="test-cluster", namespace="clusters", _id="abc-123", cluster="mgmt-cluster"}'
+  - series: 'hostedClusterAPI_kubeapiserver_available{status="True", name="test-cluster", namespace="clusters", _id="abc-123", cluster="mgmt-cluster", subscription_id="sub-123"}'
     values: "1+0x79 0+0x6 1+0x100" # 80 successes (t=0..79m), 7 failures (t=80..86m), then success
   alert_rule_test:
   - eval_time: 89m
@@ -243,9 +248,10 @@ tests:
         namespace: clusters
         _id: abc-123
         cluster: mgmt-cluster
+        subscription_id: sub-123
       exp_annotations:
         summary: "KubeAPIServer availability error budget burn (abc-123)"
-        description: "Burn rate: fast (14.4x, 1h/5m, for: 10m)\nCID: abc-123\nManagement Cluster: mgmt-cluster/clusters\n"
+        description: "Burn rate: fast (14.4x, 1h/5m, for: 10m)\nCID: abc-123\nSubscription: sub-123\nManagement Cluster: mgmt-cluster/clusters\n"
         runbook_url: https://aka.ms/arohcp-runbook-ujkasavailable
         correlationId: "UJKubeApiserverAvailability/mgmt-cluster/abc-123"
   - eval_time: 91m
@@ -265,7 +271,7 @@ tests:
 - interval: 1m
   name: "Test 8: Slow burn - sustained failure triggers UJKubeApiserverAvailability3d6h"
   input_series:
-  - series: 'hostedClusterAPI_kubeapiserver_available{status="True", name="test-cluster", namespace="clusters", _id="abc-123", cluster="mgmt-cluster"}'
+  - series: 'hostedClusterAPI_kubeapiserver_available{status="True", name="test-cluster", namespace="clusters", _id="abc-123", cluster="mgmt-cluster", subscription_id="sub-123"}'
     values: "0+0x4110" # 4111 samples at 1m interval, t=0 to t=4110m, complete failure
   alert_rule_test:
   - eval_time: 4080m
@@ -286,8 +292,9 @@ tests:
         namespace: clusters
         _id: abc-123
         cluster: mgmt-cluster
+        subscription_id: sub-123
       exp_annotations:
         summary: "KubeAPIServer availability error budget burn (abc-123)"
-        description: "Burn rate: slow (1x, 3d/6h, for: 3h)\nCID: abc-123\nManagement Cluster: mgmt-cluster/clusters\n"
+        description: "Burn rate: slow (1x, 3d/6h, for: 3h)\nCID: abc-123\nSubscription: sub-123\nManagement Cluster: mgmt-cluster/clusters\n"
         runbook_url: https://aka.ms/arohcp-runbook-ujkasavailable
         correlationId: "UJKubeApiserverAvailability/mgmt-cluster/abc-123"
