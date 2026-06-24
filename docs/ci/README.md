@@ -144,6 +144,16 @@ ARO HCP CI is split across this repository and the OpenShift CI configuration in
 - [Test Suites And Labels](e2e-testing.md#test-suites-and-labels)
 - [Periodic Tests](e2e-testing.md#periodic-tests)
 
+### [Upgrade-Path Presubmit](upgrade-path-presubmit.md)
+
+- [When To Use It](upgrade-path-presubmit.md#when-to-use-it)
+- [How It Works](upgrade-path-presubmit.md#how-it-works)
+- [Image Resolution](upgrade-path-presubmit.md#image-resolution)
+- [Interpreting Failures](upgrade-path-presubmit.md#interpreting-failures)
+- [Rehearsal Expectations](upgrade-path-presubmit.md#rehearsal-expectations)
+- [Relationship To `e2e-parallel`](upgrade-path-presubmit.md#relationship-to-e2e-parallel)
+- [Known Limitations](upgrade-path-presubmit.md#known-limitations)
+
 ### [CI Operations](operations.md)
 
 - [Inspecting Runs](operations.md#inspecting-runs)
@@ -183,6 +193,7 @@ ARO HCP CI is split across this repository and the OpenShift CI configuration in
 - [CI EV2 Integration](ev2-integration.md) explains how EV2 selects Prow jobs, authenticates to Gangway, and pins runs to the exact rollout commit.
 - [CI Cleanup](cleanup.md) explains why cleanup is intentionally split across strict per-test teardown, targeted environment teardown, and background hygiene.
 - [E2E Testing In CI](e2e-testing.md) explains how to trigger E2E jobs from PRs and how to narrow test selection safely.
+- [Upgrade-Path Presubmit](upgrade-path-presubmit.md) explains the optional `upgrade-e2e-parallel` job that validates main-to-PR infrastructure upgrades, including how to trigger it, interpret failures, and understand its image resolution strategy.
 - [CI Operations](operations.md) explains how to trigger, inspect, troubleshoot, and change the CI system itself.
 
 ## Source Of Truth
