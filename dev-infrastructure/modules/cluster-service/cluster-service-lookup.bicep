@@ -52,7 +52,9 @@ resource regionalOidcStorageAccount 'Microsoft.Storage/storageAccounts@2025-06-0
 }
 
 output oidcIssuerBlobServiceUrl string = regionalOidcStorageAccount.properties.primaryEndpoints.blob
-output oidcIssuerBaseUrl string = regionalOidcStorageAccount.properties.allowBlobPublicAccess ? regionalOidcStorageAccount.properties.primaryEndpoints.web : afdOidcBaseEndpoint
+output oidcIssuerBaseUrl string = regionalOidcStorageAccount.properties.allowBlobPublicAccess
+  ? regionalOidcStorageAccount.properties.primaryEndpoints.web
+  : afdOidcBaseEndpoint
 
 //
 //   P O S T G R E S
