@@ -1250,7 +1250,6 @@ func TestControlPlaneDesiredVersionSyncer_SyncOnce(t *testing.T) {
 			mockClientCache.EXPECT().GetOrCreateClient(gomock.Any()).Return(mockCincinnati).AnyTimes()
 
 			syncer := &controlPlaneDesiredVersionSyncer{
-				cooldownChecker:               &alwaysSyncCooldownChecker{},
 				readDesireLister:              newValidHostedClusterReadDesireLister(t),
 				resourcesDBClient:             mockResourcesDBClient,
 				clusterServiceClient:          mockCS,
@@ -1547,7 +1546,6 @@ func TestControlPlaneDesiredVersionSyncer_SyncOnceSkipsWhenGated(t *testing.T) {
 
 	syncer := &controlPlaneDesiredVersionSyncer{
 		clock:                        clocktesting.NewFakePassiveClock(now),
-		cooldownChecker:              &alwaysSyncCooldownChecker{},
 		readDesireLister:             newValidHostedClusterReadDesireLister(t),
 		resourcesDBClient:            mockDB,
 		serviceProviderClusterLister: &listertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockDB},

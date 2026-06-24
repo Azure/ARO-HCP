@@ -34,7 +34,6 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/listertesting"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -114,14 +113,6 @@ func newTestSubscription() *arm.Subscription {
 		State:      arm.SubscriptionStateRegistered,
 	}
 }
-
-type alwaysSyncCooldownChecker struct{}
-
-func (a *alwaysSyncCooldownChecker) CanSync(ctx context.Context, key any) bool {
-	return true
-}
-
-var _ controllerutil.CooldownChecker = &alwaysSyncCooldownChecker{}
 
 // mockNodePoolValidation implements validations.NodePoolValidation for tests.
 type mockNodePoolValidation struct {
@@ -236,7 +227,6 @@ func TestNodePoolValidationSyncer_SyncOnce(t *testing.T) {
 			}
 
 			syncer := &nodePoolValidationSyncer{
-				cooldownChecker:               &alwaysSyncCooldownChecker{},
 				resourcesDBClient:             mockDB,
 				serviceProviderNodePoolLister: &listertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockDB},
 				validation:                    tc.validation,

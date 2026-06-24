@@ -27,7 +27,6 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/api"
-	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -36,7 +35,6 @@ import (
 // clusterValidationSyncer is a Cluster syncer that performs a Cluster
 // validation.
 type clusterValidationSyncer struct {
-	cooldownChecker              controllerutil.CooldownChecker
 	resourcesDBClient            database.ResourcesDBClient
 	serviceProviderClusterLister listers.ServiceProviderClusterLister
 
@@ -50,7 +48,6 @@ var _ controllerutils.ClusterSyncer = (*clusterValidationSyncer)(nil)
 // executes the provided Cluster validation on each cluster.
 func NewClusterValidationController(
 	validation validations.ClusterValidation,
-	activeOperationLister listers.ActiveOperationLister,
 	resourcesDBClient database.ResourcesDBClient,
 	serviceProviderClusterLister listers.ServiceProviderClusterLister,
 	informers informers.BackendInformers,
@@ -58,7 +55,6 @@ func NewClusterValidationController(
 ) controllerutils.Controller {
 
 	syncer := &clusterValidationSyncer{
-		cooldownChecker:              controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
 		resourcesDBClient:            resourcesDBClient,
 		serviceProviderClusterLister: serviceProviderClusterLister,
 		validation:                   validation,
@@ -74,10 +70,6 @@ func NewClusterValidationController(
 	)
 
 	return controller
-}
-
-func (c *clusterValidationSyncer) CooldownChecker() controllerutil.CooldownChecker {
-	return c.cooldownChecker
 }
 
 func (c *clusterValidationSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {

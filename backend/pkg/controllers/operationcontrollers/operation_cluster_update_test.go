@@ -295,12 +295,12 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 			},
 		},
 		{
-			name:                           "customer minor mismatch without ControlPlaneDesiredVersion IntentFailed leaves operation accepted when first seen within 29s",
+			name:                           "customer minor mismatch without ControlPlaneDesiredVersion IntentFailed leaves operation accepted when first seen within 129s",
 			existingCluster:                newClusterWithCustomerVersion("4.20"),
 			existingOperation:              newOperationAccepted(),
 			existingServiceProviderCluster: newServiceProviderClusterWithSpecControlPlaneVersion("4.19"),
 			cachedHostedClusterReadDesire:  newPassingCachedHostedClusterReadDesire(),
-			seedMismatchFirstSeenAt:        testClockNow.Add(-20 * time.Second),
+			seedMismatchFirstSeenAt:        testClockNow.Add(-120 * time.Second),
 			setupMockCSClient: func(mock *ocm.MockClusterServiceClientSpec) {
 				mock.EXPECT().
 					GetCluster(gomock.Any(), fixture.clusterInternalID).
@@ -319,12 +319,12 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 			},
 		},
 		{
-			name:                           "customer minor mismatch without IntentFailed fails when mismatch first seen exceeds 29s",
+			name:                           "customer minor mismatch without IntentFailed fails when mismatch first seen exceeds 129s",
 			existingCluster:                newClusterWithCustomerVersion("4.20"),
 			existingOperation:              newOperationAccepted(),
 			existingServiceProviderCluster: newServiceProviderClusterWithSpecControlPlaneVersion("4.19"),
 			cachedHostedClusterReadDesire:  newPassingCachedHostedClusterReadDesire(),
-			seedMismatchFirstSeenAt:        testClockNow.Add(-30 * time.Second),
+			seedMismatchFirstSeenAt:        testClockNow.Add(-130 * time.Second),
 			setupMockCSClient: func(mock *ocm.MockClusterServiceClientSpec) {
 				mock.EXPECT().
 					GetCluster(gomock.Any(), fixture.clusterInternalID).
@@ -340,7 +340,7 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 				cluster, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
 				require.NoError(t, err)
 				wantMessageSubstr := fmt.Sprintf(
-					"timed out after 29s waiting for resolution of desired version from '%s' cluster version",
+					"timed out after 129s waiting for resolution of desired version from '%s' cluster version",
 					cluster.CustomerProperties.Version.ID,
 				)
 				assert.Contains(t, op.Error.Message, wantMessageSubstr)

@@ -40,7 +40,6 @@ import (
 // versions in ServiceProviderCluster status by reading the version from the per-cluster
 // ReadDesire kubeContent (the kube-applier's mirror of the management cluster's HostedCluster).
 type controlPlaneActiveVersionSyncer struct {
-	cooldownChecker              controllerutil.CooldownChecker
 	resourcesDBClient            database.ResourcesDBClient
 	readDesireLister             dblisters.ReadDesireLister
 	serviceProviderClusterLister listers.ServiceProviderClusterLister
@@ -53,14 +52,12 @@ var _ controllerutils.ClusterSyncer = (*controlPlaneActiveVersionSyncer)(nil)
 // observed HostedCluster.
 func NewControlPlaneActiveVersionController(
 	resourcesDBClient database.ResourcesDBClient,
-	activeOperationLister listers.ActiveOperationLister,
 	serviceProviderClusterLister listers.ServiceProviderClusterLister,
 	informers informers.BackendInformers,
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 	readDesireLister dblisters.ReadDesireLister,
 ) controllerutils.Controller {
 	syncer := &controlPlaneActiveVersionSyncer{
-		cooldownChecker:              controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
 		resourcesDBClient:            resourcesDBClient,
 		readDesireLister:             readDesireLister,
 		serviceProviderClusterLister: serviceProviderClusterLister,
@@ -74,10 +71,6 @@ func NewControlPlaneActiveVersionController(
 		5*time.Minute,
 		syncer,
 	)
-}
-
-func (c *controlPlaneActiveVersionSyncer) CooldownChecker() controllerutil.CooldownChecker {
-	return c.cooldownChecker
 }
 
 // SyncOnce updates ServiceProviderCluster.Status.ControlPlaneVersion.ActiveVersions

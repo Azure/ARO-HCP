@@ -39,7 +39,6 @@ import (
 	"github.com/Azure/ARO-HCP/internal/admission"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/cincinnati"
-	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	dblisters "github.com/Azure/ARO-HCP/internal/database/listers"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
@@ -62,7 +61,6 @@ const controlPlaneDesiredVersionControllerName = "ControlPlaneDesiredVersion"
 // version upgrades by selecting the appropriate z-stream within the user-desired minor version.
 type controlPlaneDesiredVersionSyncer struct {
 	clock                         utilsclock.PassiveClock
-	cooldownChecker               controllerutil.CooldownChecker
 	readDesireLister              dblisters.ReadDesireLister
 	resourcesDBClient             database.ResourcesDBClient
 	clusterServiceClient          ocm.ClusterServiceClientSpec
@@ -94,7 +92,6 @@ func NewControlPlaneDesiredVersionController(
 ) controllerutils.Controller {
 	syncer := &controlPlaneDesiredVersionSyncer{
 		clock:                         clock,
-		cooldownChecker:               controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
 		readDesireLister:              readDesireLister,
 		cincinnatiClientCache:         cincinnati.NewClientCache(),
 		graphClient:                   cincinnati.NewGraphClient(),
@@ -116,10 +113,6 @@ func NewControlPlaneDesiredVersionController(
 	)
 
 	return controller
-}
-
-func (c *controlPlaneDesiredVersionSyncer) CooldownChecker() controllerutil.CooldownChecker {
-	return c.cooldownChecker
 }
 
 // SyncOnce performs a single reconciliation of the desired control plane version for a given cluster.

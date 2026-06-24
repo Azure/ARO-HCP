@@ -29,7 +29,6 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/api"
-	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -39,7 +38,6 @@ import (
 // triggerControlPlaneUpgradeSyncer is a Cluster syncer that triggers control plane upgrades
 type triggerControlPlaneUpgradeSyncer struct {
 	clock                        utilsclock.PassiveClock
-	cooldownChecker              controllerutil.CooldownChecker
 	resourcesDBClient            database.ResourcesDBClient
 	clusterServiceClient         ocm.ClusterServiceClientSpec
 	activeOperationLister        listers.ActiveOperationLister
@@ -66,7 +64,6 @@ func NewTriggerControlPlaneUpgradeController(
 ) controllerutils.Controller {
 	syncer := &triggerControlPlaneUpgradeSyncer{
 		clock:                        clock,
-		cooldownChecker:              controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
 		resourcesDBClient:            resourcesDBClient,
 		clusterServiceClient:         clusterServiceClient,
 		activeOperationLister:        activeOperationLister,
@@ -78,7 +75,7 @@ func NewTriggerControlPlaneUpgradeController(
 		resourcesDBClient,
 		informers,
 		kubeApplierInformers,
-		5*time.Minute,
+		1*time.Minute,
 		syncer,
 	)
 
@@ -92,10 +89,6 @@ func NewTriggerControlPlaneUpgradeController(
 //  2. Check if desiredVersion differs from latest actual version
 //  3. If different, call version service API to trigger upgrade
 //  4. The version service API is idempotent and handles the actual upgrade orchestration
-func (c *triggerControlPlaneUpgradeSyncer) CooldownChecker() controllerutil.CooldownChecker {
-	return c.cooldownChecker
-}
-
 func (c *triggerControlPlaneUpgradeSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
 	logger := utils.LoggerFromContext(ctx)
 	existingCluster, err := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Get(ctx, key.HCPClusterName)

@@ -27,7 +27,6 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/api"
-	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -36,7 +35,6 @@ import (
 
 // triggerNodePoolUpgradeSyncer is a NodePool syncer that triggers node pool upgrades
 type triggerNodePoolUpgradeSyncer struct {
-	cooldownChecker               controllerutil.CooldownChecker
 	resourcesDBClient             database.ResourcesDBClient
 	clusterServiceClient          ocm.ClusterServiceClientSpec
 	serviceProviderNodePoolLister listers.ServiceProviderNodePoolLister
@@ -50,13 +48,11 @@ var _ controllerutils.NodePoolSyncer = (*triggerNodePoolUpgradeSyncer)(nil)
 func NewTriggerNodePoolUpgradeController(
 	resourcesDBClient database.ResourcesDBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
-	activeOperationLister listers.ActiveOperationLister,
 	serviceProviderNodePoolLister listers.ServiceProviderNodePoolLister,
 	informers informers.BackendInformers,
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 ) controllerutils.Controller {
 	syncer := &triggerNodePoolUpgradeSyncer{
-		cooldownChecker:               controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
 		resourcesDBClient:             resourcesDBClient,
 		clusterServiceClient:          clusterServiceClient,
 		serviceProviderNodePoolLister: serviceProviderNodePoolLister,
@@ -81,10 +77,6 @@ func NewTriggerNodePoolUpgradeController(
 //  2. Skips upgrade trigger if no active versions exist yet (during installation)
 //  3. Check if desiredVersion differs from latest actual version
 //  4. If different, create a NodePoolUpgradePolicy to trigger upgrade
-func (c *triggerNodePoolUpgradeSyncer) CooldownChecker() controllerutil.CooldownChecker {
-	return c.cooldownChecker
-}
-
 func (c *triggerNodePoolUpgradeSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPNodePoolKey) error {
 	existingNodePool, err := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).
 		NodePools(key.HCPClusterName).Get(ctx, key.HCPNodePoolName)

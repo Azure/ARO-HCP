@@ -297,7 +297,6 @@ func TestControlPlaneActiveVersionSyncer_SyncOnce(t *testing.T) {
 			}
 
 			syncer := &controlPlaneActiveVersionSyncer{
-				cooldownChecker:              &alwaysSyncCooldownChecker{},
 				resourcesDBClient:            mockResourcesDBClient,
 				readDesireLister:             &internallistertesting.SliceReadDesireLister{Desires: desires},
 				serviceProviderClusterLister: &listertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
@@ -338,7 +337,6 @@ func TestControlPlaneActiveVersionSyncer_NoReplaceWhenVersionsUnchanged(t *testi
 	beforeETag := before.CosmosETag
 
 	syncer := &controlPlaneActiveVersionSyncer{
-		cooldownChecker:              &alwaysSyncCooldownChecker{},
 		resourcesDBClient:            mockResourcesDBClient,
 		readDesireLister:             &internallistertesting.SliceReadDesireLister{Desires: desires},
 		serviceProviderClusterLister: &listertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},

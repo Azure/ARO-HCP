@@ -539,7 +539,6 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	clusterServiceMatchingClusterController := mismatchcontrollers.NewClusterServiceClusterMatchingController(b.options.ResourcesDBClient, subscriptionLister, b.options.ClustersServiceClient)
 	alwaysSuccessClusterValidationController := validationcontrollers.NewClusterValidationController(
 		validations.NewAlwaysSuccessValidation(),
-		activeOperationLister,
 		b.options.ResourcesDBClient,
 		serviceProviderClusterLister,
 		backendInformers,
@@ -555,7 +554,6 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		billingcontrollers.NewCreateBillingDocController(b.clock, b.options.AzureLocation, b.options.ResourcesDBClient, b.options.BillingDBClient, clusterLister, billingLister))
 	controlPlaneActiveVersionController := upgradecontrollers.NewControlPlaneActiveVersionController(
 		b.options.ResourcesDBClient,
-		activeOperationLister,
 		serviceProviderClusterLister,
 		backendInformers,
 		unionKubeApplierInformers,
@@ -654,14 +652,12 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	)
 	createServiceProviderClusterController := controllers.NewCreateServiceProviderClusterController(
 		b.options.ResourcesDBClient,
-		activeOperationLister,
 		clusterLister,
 		serviceProviderClusterLister,
 		backendInformers,
 	)
 	createServiceProviderNodePoolController := controllers.NewCreateServiceProviderNodePoolController(
 		b.options.ResourcesDBClient,
-		activeOperationLister,
 		nodePoolLister,
 		serviceProviderNodePoolLister,
 		backendInformers,
@@ -677,7 +673,6 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 
 	azureRPRegistrationValidationController := validationcontrollers.NewClusterValidationController(
 		validations.NewAzureResourceProvidersRegistrationValidation(b.options.FPAClientBuilder),
-		activeOperationLister,
 		b.options.ResourcesDBClient,
 		serviceProviderClusterLister,
 		backendInformers,
@@ -685,7 +680,6 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	)
 	azureClusterResourceGroupExistenceValidationController := validationcontrollers.NewClusterValidationController(
 		validations.NewAzureClusterResourceGroupExistenceValidation(b.options.FPAClientBuilder),
-		activeOperationLister,
 		b.options.ResourcesDBClient,
 		serviceProviderClusterLister,
 		backendInformers,
@@ -693,7 +687,6 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	)
 	azureClusterManagedIdentitiesExistenceValidationController := validationcontrollers.NewClusterValidationController(
 		validations.NewAzureClusterManagedIdentitiesExistenceValidation(b.options.SMIClientBuilder),
-		activeOperationLister,
 		b.options.ResourcesDBClient,
 		serviceProviderClusterLister,
 		backendInformers,
@@ -715,7 +708,6 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	triggerNodePoolUpgradeController := upgradecontrollers.NewTriggerNodePoolUpgradeController(
 		b.options.ResourcesDBClient,
 		b.options.ClustersServiceClient,
-		activeOperationLister,
 		serviceProviderNodePoolLister,
 		backendInformers,
 		unionKubeApplierInformers,

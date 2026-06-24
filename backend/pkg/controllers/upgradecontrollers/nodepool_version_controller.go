@@ -85,7 +85,7 @@ func NewNodePoolVersionController(
 		cincinnatiClientCache:         cincinnati.NewClientCache(),
 	}
 
-	resyncDuration := 5 * time.Minute
+	resyncDuration := 1 * time.Minute
 	controller := controllerutils.NewNodePoolWatchingController(
 		NodepoolVersionControllerName,
 		resourcesDBClient,

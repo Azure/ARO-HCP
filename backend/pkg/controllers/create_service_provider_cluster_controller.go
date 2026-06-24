@@ -22,7 +22,6 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
-	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -37,7 +36,6 @@ import (
 // have the document in hand to validate the request before any controller
 // has a chance to run.
 type createServiceProviderClusterSyncer struct {
-	cooldownChecker              controllerutil.CooldownChecker
 	resourcesDBClient            database.ResourcesDBClient
 	clusterLister                listers.ClusterLister
 	serviceProviderClusterLister listers.ServiceProviderClusterLister
@@ -49,13 +47,11 @@ var _ controllerutils.ClusterSyncer = (*createServiceProviderClusterSyncer)(nil)
 // missing ServiceProviderCluster documents.
 func NewCreateServiceProviderClusterController(
 	resourcesDBClient database.ResourcesDBClient,
-	activeOperationLister listers.ActiveOperationLister,
 	clusterLister listers.ClusterLister,
 	serviceProviderClusterLister listers.ServiceProviderClusterLister,
 	backendInformers informers.BackendInformers,
 ) controllerutils.Controller {
 	syncer := &createServiceProviderClusterSyncer{
-		cooldownChecker:              controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
 		resourcesDBClient:            resourcesDBClient,
 		clusterLister:                clusterLister,
 		serviceProviderClusterLister: serviceProviderClusterLister,
@@ -69,10 +65,6 @@ func NewCreateServiceProviderClusterController(
 		1*time.Minute,
 		syncer,
 	)
-}
-
-func (c *createServiceProviderClusterSyncer) CooldownChecker() controllerutil.CooldownChecker {
-	return c.cooldownChecker
 }
 
 // SyncOnce creates a ServiceProviderCluster for the given HCPCluster when one

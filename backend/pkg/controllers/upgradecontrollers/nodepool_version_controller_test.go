@@ -44,7 +44,6 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/cincinnati"
-	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	dblisters "github.com/Azure/ARO-HCP/internal/database/listers"
 	internallistertesting "github.com/Azure/ARO-HCP/internal/database/listertesting"
@@ -61,14 +60,6 @@ const (
 	testCSNodePoolIDStr   = testCSClusterIDStr + "/node_pools/" + testNodePoolName
 	testClusterExternalID = "11111111-1111-1111-1111-111111111111"
 )
-
-type alwaysSyncCooldownChecker struct{}
-
-func (a *alwaysSyncCooldownChecker) CanSync(ctx context.Context, key any) bool {
-	return true
-}
-
-var _ controllerutil.CooldownChecker = &alwaysSyncCooldownChecker{}
 
 // createTestSubscription creates a subscription in the mock database.
 func createTestSubscription(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient) {

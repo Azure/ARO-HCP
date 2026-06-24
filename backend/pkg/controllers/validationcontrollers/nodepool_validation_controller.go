@@ -27,7 +27,6 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/api"
-	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -36,7 +35,6 @@ import (
 // nodePoolValidationSyncer is a NodePool syncer that performs a NodePool
 // validation.
 type nodePoolValidationSyncer struct {
-	cooldownChecker               controllerutil.CooldownChecker
 	resourcesDBClient             database.ResourcesDBClient
 	serviceProviderNodePoolLister listers.ServiceProviderNodePoolLister
 
@@ -58,7 +56,6 @@ func NewNodePoolValidationController(
 ) controllerutils.Controller {
 
 	syncer := &nodePoolValidationSyncer{
-		cooldownChecker:               controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
 		resourcesDBClient:             resourcesDBClient,
 		serviceProviderNodePoolLister: serviceProviderNodePoolLister,
 		validation:                    validation,
@@ -74,10 +71,6 @@ func NewNodePoolValidationController(
 	)
 
 	return controller
-}
-
-func (c *nodePoolValidationSyncer) CooldownChecker() controllerutil.CooldownChecker {
-	return c.cooldownChecker
 }
 
 func (c *nodePoolValidationSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPNodePoolKey) error {

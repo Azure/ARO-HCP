@@ -22,7 +22,6 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
-	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -37,7 +36,6 @@ import (
 // directly because admission must have the document in hand to validate the
 // request before any controller has a chance to run.
 type createServiceProviderNodePoolSyncer struct {
-	cooldownChecker               controllerutil.CooldownChecker
 	resourcesDBClient             database.ResourcesDBClient
 	nodePoolLister                listers.NodePoolLister
 	serviceProviderNodePoolLister listers.ServiceProviderNodePoolLister
@@ -49,13 +47,11 @@ var _ controllerutils.NodePoolSyncer = (*createServiceProviderNodePoolSyncer)(ni
 // missing ServiceProviderNodePool documents.
 func NewCreateServiceProviderNodePoolController(
 	resourcesDBClient database.ResourcesDBClient,
-	activeOperationLister listers.ActiveOperationLister,
 	nodePoolLister listers.NodePoolLister,
 	serviceProviderNodePoolLister listers.ServiceProviderNodePoolLister,
 	backendInformers informers.BackendInformers,
 ) controllerutils.Controller {
 	syncer := &createServiceProviderNodePoolSyncer{
-		cooldownChecker:               controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
 		resourcesDBClient:             resourcesDBClient,
 		nodePoolLister:                nodePoolLister,
 		serviceProviderNodePoolLister: serviceProviderNodePoolLister,
@@ -69,10 +65,6 @@ func NewCreateServiceProviderNodePoolController(
 		1*time.Minute,
 		syncer,
 	)
-}
-
-func (c *createServiceProviderNodePoolSyncer) CooldownChecker() controllerutil.CooldownChecker {
-	return c.cooldownChecker
 }
 
 // SyncOnce creates a ServiceProviderNodePool for the given HCPNodePool when

@@ -275,7 +275,7 @@ func TestOperationNodePoolUpdate_SynchronizeOperation(t *testing.T) {
 			},
 		},
 		{
-			name:                            "customer version mismatch without NodePoolVersion IntentFailed leaves operation accepted when first seen within 59s",
+			name:                            "customer version mismatch without NodePoolVersion IntentFailed leaves operation accepted when first seen within 129s",
 			existingNodePool:                newNodePoolWithVersion("4.20.5"),
 			existingOperation:               newOperationAccepted(),
 			existingServiceProviderNodePool: newServiceProviderNodePoolWithDesiredVersion("4.20.4"),
@@ -283,7 +283,7 @@ func TestOperationNodePoolUpdate_SynchronizeOperation(t *testing.T) {
 				{Type: api.ControllerConditionTypeIntentFailed, Status: metav1.ConditionFalse},
 			}),
 			cachedNodePoolReadDesire: newPassingCachedNodePoolReadDesire(newNodePoolWithVersion("4.20.5")),
-			seedMismatchFirstSeenAt:  testClockNow.Add(-50 * time.Second),
+			seedMismatchFirstSeenAt:  testClockNow.Add(-120 * time.Second),
 			setupMockCSClient:        setupMockCSClientForNodePoolState(NodePoolStateReady),
 			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
 				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
@@ -297,7 +297,7 @@ func TestOperationNodePoolUpdate_SynchronizeOperation(t *testing.T) {
 			},
 		},
 		{
-			name:                            "customer version mismatch without IntentFailed fails when mismatch first seen exceeds 59s",
+			name:                            "customer version mismatch without IntentFailed fails when mismatch first seen exceeds 129s",
 			existingNodePool:                newNodePoolWithVersion("4.20.5"),
 			existingOperation:               newOperationAccepted(),
 			existingServiceProviderNodePool: newServiceProviderNodePoolWithDesiredVersion("4.20.4"),
@@ -305,7 +305,7 @@ func TestOperationNodePoolUpdate_SynchronizeOperation(t *testing.T) {
 				{Type: api.ControllerConditionTypeIntentFailed, Status: metav1.ConditionFalse},
 			}),
 			cachedNodePoolReadDesire: newPassingCachedNodePoolReadDesire(newNodePoolWithVersion("4.20.5")),
-			seedMismatchFirstSeenAt:  testClockNow.Add(-60 * time.Second),
+			seedMismatchFirstSeenAt:  testClockNow.Add(-130 * time.Second),
 			setupMockCSClient:        setupMockCSClientForNodePoolState(NodePoolStateReady),
 			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
 				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
@@ -317,7 +317,7 @@ func TestOperationNodePoolUpdate_SynchronizeOperation(t *testing.T) {
 				nodePool, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).NodePools(testClusterName).Get(ctx, testNodePoolName)
 				require.NoError(t, err)
 				wantMessageSubstr := fmt.Sprintf(
-					"timed out after 59s waiting for resolution of desired version from '%s' node pool version",
+					"timed out after 129s waiting for resolution of desired version from '%s' node pool version",
 					nodePool.Properties.Version.ID,
 				)
 				assert.Contains(t, op.Error.Message, wantMessageSubstr)
