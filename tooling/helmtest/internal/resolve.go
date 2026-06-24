@@ -80,9 +80,10 @@ func FindHelmSteps(topologyDir, configPath string) ([]HelmStepWithPath, error) {
 }
 
 func recursiveLoadPipelineReturnHelmSteps(topologyDir string, service topology.Service, cfg configtypes.Configuration) ([]HelmStepWithPath, error) {
-	pipeline, err := types.NewPipelineFromFile(filepath.Join(topologyDir, service.PipelinePath), cfg)
+	pipelinePath := filepath.Join(topologyDir, service.PipelinePath)
+	pipeline, err := types.NewPipelineFromFile(pipelinePath, cfg)
 	if err != nil {
-		return nil, fmt.Errorf("error loading pipeline: %v", err)
+		return nil, fmt.Errorf("error loading pipeline %s: %w", pipelinePath, err)
 	}
 
 	// Collect all ImageMirrorSteps keyed by (resourceGroup, stepName)
