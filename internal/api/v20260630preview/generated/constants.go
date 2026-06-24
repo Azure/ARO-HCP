@@ -218,11 +218,11 @@ func PossibleExternalAuthProvisioningStateValues() []ExternalAuthProvisioningSta
 type IngressType string
 
 const (
-	// IngressTypeDisabled - The ingress is disabled.
+	// IngressTypeDisabled - The default ingress is disabled.
 	IngressTypeDisabled IngressType = "Disabled"
-	// IngressTypePrivate - The ingress is not visible from the internet.
+	// IngressTypePrivate - The default ingress is not visible from the internet.
 	IngressTypePrivate IngressType = "Private"
-	// IngressTypePublic - The ingress is visible from the internet.
+	// IngressTypePublic - The default ingress is visible from the internet.
 	IngressTypePublic IngressType = "Public"
 )
 

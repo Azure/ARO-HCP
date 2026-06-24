@@ -292,13 +292,13 @@ union Visibility {
 union IngressType {
   string,
 
-  /** The ingress is visible from the internet. */
+  /** The default ingress is visible from the internet. */
   Public: "Public",
 
-  /** The ingress is not visible from the internet. */
+  /** The default ingress is not visible from the internet. */
   Private: "Private",
 
-  /** The ingress is disabled. */
+  /** The default ingress is disabled. */
   Disabled: "Disabled",
 }
 

@@ -2586,17 +2586,17 @@
               {
                 "name": "Public",
                 "value": "Public",
-                "description": "The ingress is visible from the internet."
+                "description": "The default ingress is visible from the internet."
               },
               {
                 "name": "Private",
                 "value": "Private",
-                "description": "The ingress is not visible from the internet."
+                "description": "The default ingress is not visible from the internet."
               },
               {
                 "name": "Disabled",
                 "value": "Disabled",
-                "description": "The ingress is disabled."
+                "description": "The default ingress is disabled."
               }
             ]
           },
