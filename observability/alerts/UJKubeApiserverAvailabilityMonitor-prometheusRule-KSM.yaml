@@ -29,8 +29,9 @@ spec:
         severity: warning
         slo: kas-availability
       annotations:
-        summary: "[HCP] [{{ $labels.name }}] KubeAPIServer Fast Error Budget Burn (1h/5m)"
+        summary: "KubeAPIServer availability error budget burn ({{ $labels._id }})"
         description: |
+          Burn rate: fast (14.4x, 1h/5m, for: 10m)
           CID: {{ $labels._id }}
           Management Cluster: {{ $labels.cluster }}/{{ $labels.namespace }}
         runbook_url: https://aka.ms/arohcp-runbook-ujkasavailable
@@ -58,8 +59,9 @@ spec:
         severity: warning
         slo: kas-availability
       annotations:
-        summary: "[HCP] [{{ $labels.name }}] KubeAPIServer Medium Error Budget Burn (6h/30m)"
+        summary: "KubeAPIServer availability error budget burn ({{ $labels._id }})"
         description: |
+          Burn rate: medium (6x, 6h/30m, for: 30m)
           CID: {{ $labels._id }}
           Management Cluster: {{ $labels.cluster }}/{{ $labels.namespace }}
         runbook_url: https://aka.ms/arohcp-runbook-ujkasavailable
@@ -88,8 +90,9 @@ spec:
         severity: warning
         slo: kas-availability
       annotations:
-        summary: "[HCP] [{{ $labels.name }}] KubeAPIServer Slow Error Budget Burn (3d/6h)"
+        summary: "KubeAPIServer availability error budget burn ({{ $labels._id }})"
         description: |
+          Burn rate: slow (1x, 3d/6h, for: 3h)
           CID: {{ $labels._id }}
           Management Cluster: {{ $labels.cluster }}/{{ $labels.namespace }}
         runbook_url: https://aka.ms/arohcp-runbook-ujkasavailable
