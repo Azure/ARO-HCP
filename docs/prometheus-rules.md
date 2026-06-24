@@ -35,7 +35,7 @@ spec:
     - alert: InstancesDownV1
       expr: sum(up{job="app"}) == 0
       labels:
-        severity: critical
+        severity: warning
       annotations:
         summary: "All instances of the App are down"
         description: "All instances of the App are down"
@@ -63,7 +63,7 @@ tests:
     alertname: InstancesDownV1
     exp_alerts:
     - exp_labels:
-        severity: critical
+        severity: warning
       exp_annotations:
         summary: "All instances of the App are down"
         description: "All instances of the App are down"

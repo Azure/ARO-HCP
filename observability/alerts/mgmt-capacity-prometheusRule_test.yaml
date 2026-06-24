@@ -12,7 +12,7 @@ tests:
     alertname: MgmtClusterNodeSwiftNICCapacityZero
     exp_alerts:
     - exp_labels:
-        severity: critical
+        severity: warning
         team: hcp-sl
         cluster: mgmt-nic-zero
         node: user-pool-node-1

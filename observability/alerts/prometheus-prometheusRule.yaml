@@ -18,7 +18,7 @@ spec:
       expr: group by (cluster) (up{job="kubelet"}) unless on(cluster) group by (cluster) (up{job="prometheus/prometheus",namespace="prometheus"} == 1)
       for: 10m
       labels:
-        severity: critical
+        severity: warning
       annotations:
         description: |
           Prometheus has not been reachable for the past 10 minutes.
@@ -30,7 +30,7 @@ spec:
       expr: avg by (job, namespace, cluster) (avg_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d])) < 0.95
       for: 10m
       labels:
-        severity: critical
+        severity: warning
       annotations:
         description: |
           Prometheus has been unreachable for more than 5% of the time over the past 24 hours.
@@ -47,7 +47,7 @@ spec:
         ) > 0.4
       for: 15m
       labels:
-        severity: critical
+        severity: warning
       annotations:
         description: |
           The pending sample rate of Prometheus remote storage is above 40% for the last 15 minutes.
@@ -69,7 +69,7 @@ spec:
         ) > 0.1
       for: 15m
       labels:
-        severity: critical
+        severity: warning
       annotations:
         description: |
           The failed sample rate for Prometheus remote storage has exceeded 10% over the past 15 minutes.
@@ -85,7 +85,7 @@ spec:
       expr: ((rate(prometheus_remote_storage_failed_samples_total{job="prometheus/prometheus",namespace="prometheus"}[5m]) or rate(prometheus_remote_storage_samples_failed_total{job="prometheus/prometheus",namespace="prometheus"}[5m])) / ((rate(prometheus_remote_storage_failed_samples_total{job="prometheus/prometheus",namespace="prometheus"}[5m]) or rate(prometheus_remote_storage_samples_failed_total{job="prometheus/prometheus",namespace="prometheus"}[5m])) + (rate(prometheus_remote_storage_succeeded_samples_total{job="prometheus/prometheus",namespace="prometheus"}[5m]) or rate(prometheus_remote_storage_samples_total{job="prometheus/prometheus",namespace="prometheus"}[5m])))) * 100 > 1
       for: 15m
       labels:
-        severity: critical
+        severity: warning
       annotations:
         description: Prometheus {{$labels.namespace}}/{{$labels.pod}} failed to send {{ printf "%.1f" $value }}% of the samples to {{ $labels.remote_name}}:{{ $labels.url }}
         runbook_url: https://runbooks.prometheus-operator.dev/runbooks/prometheus/prometheusremotestoragefailures
@@ -103,7 +103,7 @@ spec:
       expr: max_over_time(prometheus_config_last_reload_successful{job="prometheus/prometheus",namespace="prometheus"}[5m]) == 0
       for: 10m
       labels:
-        severity: critical
+        severity: warning
       annotations:
         description: Prometheus {{$labels.namespace}}/{{$labels.pod}} has failed to reload its configuration.
         runbook_url: https://runbooks.prometheus-operator.dev/runbooks/prometheus/prometheusbadconfig

@@ -35,7 +35,7 @@ spec:
         kube_node_status_capacity{node=~"user.*", resource="aro_openshift_io_swift_nic"} == 0
       for: 10m
       labels:
-        severity: critical
+        severity: warning
         team: hcp-sl
     - alert: MgmtClusterHCPCapacityCritical
       annotations:

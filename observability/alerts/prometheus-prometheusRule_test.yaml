@@ -14,7 +14,7 @@ tests:
     alertname: PrometheusJobUp
     exp_alerts:
     - exp_labels:
-        severity: critical
+        severity: warning
         cluster: test
       exp_annotations:
         summary: Prometheus is unreachable for 10 minutes.
@@ -32,7 +32,7 @@ tests:
     alertname: PrometheusUptime
     exp_alerts:
     - exp_labels:
-        severity: critical
+        severity: warning
         job: prometheus/prometheus
         namespace: prometheus
       exp_annotations:
@@ -63,7 +63,7 @@ tests:
     alertname: PrometheusFailedRate
     exp_alerts:
     - exp_labels:
-        severity: critical
+        severity: warning
         cluster: test
         job: prometheus/prometheus
         namespace: prometheus
@@ -90,7 +90,7 @@ tests:
     alertname: PrometheusRemoteStorageFailures
     exp_alerts:
     - exp_labels:
-        severity: critical
+        severity: warning
         job: prometheus/prometheus
         namespace: prometheus
         remote_name: test
@@ -126,7 +126,7 @@ tests:
     alertname: PrometheusBadConfig
     exp_alerts:
     - exp_labels:
-        severity: critical
+        severity: warning
         job: prometheus/prometheus
         namespace: prometheus
       exp_annotations:
@@ -199,7 +199,7 @@ tests:
     alertname: PrometheusJobUp
     exp_alerts:
     - exp_labels:
-        severity: critical
+        severity: warning
         cluster: test
       exp_annotations:
         summary: Prometheus is unreachable for 10 minutes.
@@ -251,7 +251,7 @@ tests:
     alertname: PrometheusPendingRate
     exp_alerts:
     - exp_labels:
-        severity: critical
+        severity: warning
         cluster: test-high
       exp_annotations:
         summary: Prometheus pending sample rate is above 40%.
@@ -278,7 +278,7 @@ tests:
     alertname: PrometheusRemoteStorageFailures
     exp_alerts:
     - exp_labels:
-        severity: critical
+        severity: warning
         job: prometheus/prometheus
         namespace: prometheus
         remote_name: storage1
@@ -428,7 +428,7 @@ tests:
     alertname: PrometheusJobUp
     exp_alerts:
     - exp_labels:
-        severity: critical
+        severity: warning
         cluster: test
       exp_annotations:
         summary: Prometheus is unreachable for 10 minutes.
@@ -447,7 +447,7 @@ tests:
     alertname: PrometheusUptime
     exp_alerts:
     - exp_labels:
-        severity: critical
+        severity: warning
         job: prometheus/prometheus
         namespace: prometheus
       exp_annotations:
@@ -491,7 +491,7 @@ tests:
     alertname: PrometheusFailedRate
     exp_alerts:
     - exp_labels:
-        severity: critical
+        severity: warning
         cluster: threshold-plus
         job: prometheus/prometheus
         namespace: prometheus
@@ -555,7 +555,7 @@ tests:
     alertname: PrometheusRemoteStorageFailures
     exp_alerts:
     - exp_labels:
-        severity: critical
+        severity: warning
         job: prometheus/prometheus
         namespace: prometheus
         remote_name: legacy
@@ -585,7 +585,7 @@ tests:
     alertname: PrometheusBadConfig
     exp_alerts:
     - exp_labels:
-        severity: critical
+        severity: warning
         job: prometheus/prometheus
         namespace: prometheus
       exp_annotations:
@@ -684,7 +684,7 @@ tests:
     alertname: PrometheusJobUp
     exp_alerts:
     - exp_labels:
-        severity: critical
+        severity: warning
         cluster: test
       exp_annotations:
         summary: Prometheus is unreachable for 10 minutes.
@@ -705,7 +705,7 @@ tests:
     alertname: PrometheusFailedRate
     exp_alerts:
     - exp_labels:
-        severity: critical
+        severity: warning
         cluster: high-failure
         job: prometheus/prometheus
         namespace: prometheus
@@ -754,7 +754,7 @@ tests:
     alertname: PrometheusRemoteStorageFailures
     exp_alerts:
     - exp_labels:
-        severity: critical
+        severity: warning
         job: prometheus/prometheus
         namespace: prometheus
         remote_name: minimal
@@ -775,7 +775,7 @@ tests:
     alertname: PrometheusJobUp
     exp_alerts:
     - exp_labels:
-        severity: critical
+        severity: warning
         cluster: test
       exp_annotations:
         summary: Prometheus is unreachable for 10 minutes.
@@ -829,7 +829,7 @@ tests:
     alertname: PrometheusRemoteStorageFailures
     exp_alerts:
     - exp_labels:
-        severity: critical
+        severity: warning
         job: prometheus/prometheus
         namespace: prometheus
         remote_name: storage1
@@ -876,7 +876,7 @@ tests:
     alertname: PrometheusPendingRate
     exp_alerts:
     - exp_labels:
-        severity: critical
+        severity: warning
         cluster: prod-east
       exp_annotations:
         summary: Prometheus pending sample rate is above 40%.
@@ -928,7 +928,7 @@ tests:
     alertname: PrometheusBadConfig
     exp_alerts:
     - exp_labels:
-        severity: critical
+        severity: warning
         job: prometheus/prometheus
         namespace: prometheus
         instance: 192.168.1.100:9090
@@ -948,7 +948,7 @@ tests:
     alertname: PrometheusRemoteStorageFailures
     exp_alerts:
     - exp_labels:
-        severity: critical
+        severity: warning
         job: prometheus/prometheus
         namespace: prometheus
         remote_name: storage1

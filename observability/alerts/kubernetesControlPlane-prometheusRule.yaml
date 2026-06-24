@@ -379,7 +379,7 @@ spec:
         kube_persistentvolumeclaim_labels{label_excluded_from_alerts="true"} == 1
       for: 1m
       labels:
-        severity: critical
+        severity: warning
     - alert: KubePersistentVolumeFillingUp
       annotations:
         description: Based on recent sampling, the PersistentVolume claimed by {{ $labels.persistentvolumeclaim }} in Namespace {{ $labels.namespace }} {{ with $labels.cluster -}} on Cluster {{ . }} {{- end }} is expected to fill up within four days. Currently {{ $value | humanizePercentage }} is available.
@@ -421,7 +421,7 @@ spec:
         kube_persistentvolumeclaim_labels{label_excluded_from_alerts="true"} == 1
       for: 1m
       labels:
-        severity: critical
+        severity: warning
     - alert: KubePersistentVolumeInodesFillingUp
       annotations:
         description: Based on recent sampling, the PersistentVolume claimed by {{ $labels.persistentvolumeclaim }} in Namespace {{ $labels.namespace }} {{ with $labels.cluster -}} on Cluster {{ . }} {{- end }} is expected to run out of inodes within four days. Currently {{ $value | humanizePercentage }} of its inodes are free.
@@ -453,7 +453,7 @@ spec:
         kube_persistentvolume_status_phase{phase=~"Failed|Pending",job="kube-state-metrics"} > 0
       for: 5m
       labels:
-        severity: critical
+        severity: warning
   - name: kubernetes-system
     rules:
     - alert: KubeVersionMismatch
@@ -493,7 +493,7 @@ spec:
       for: 2m
       labels:
         long: 1h
-        severity: critical
+        severity: warning
         short: 5m
     - alert: KubeAPIErrorBudgetBurn
       annotations:
@@ -507,7 +507,7 @@ spec:
       for: 15m
       labels:
         long: 6h
-        severity: critical
+        severity: warning
         short: 30m
     - alert: KubeAPIErrorBudgetBurn
       annotations:
@@ -558,7 +558,7 @@ spec:
         apiserver_client_certificate_expiration_seconds_count{job="apiserver"} > 0 and on(job) histogram_quantile(0.01, sum by (job, le) (rate(apiserver_client_certificate_expiration_seconds_bucket{job="apiserver"}[5m]))) < 86400
       for: 5m
       labels:
-        severity: critical
+        severity: warning
     - alert: KubeAggregatedAPIErrors
       annotations:
         description: Kubernetes aggregated API {{ $labels.name }}/{{ $labels.namespace }} has reported errors. It has appeared unavailable {{ $value | humanize }} times averaged over the past 10m.
@@ -587,7 +587,7 @@ spec:
         absent(up{job="apiserver"} == 1)
       for: 15m
       labels:
-        severity: critical
+        severity: warning
     - alert: KubeAPITerminatedRequests
       annotations:
         description: The kubernetes apiserver has terminated {{ $value | humanizePercentage }} of its incoming requests.
@@ -683,7 +683,7 @@ spec:
       expr: |
         kubelet_certificate_manager_client_ttl_seconds < 86400
       labels:
-        severity: critical
+        severity: warning
     - alert: KubeletServerCertificateExpiration
       annotations:
         description: Server certificate for Kubelet on node {{ $labels.node }} expires in {{ $value | humanizeDuration }}.
@@ -701,7 +701,7 @@ spec:
       expr: |
         kubelet_certificate_manager_server_ttl_seconds < 86400
       labels:
-        severity: critical
+        severity: warning
     - alert: KubeletClientCertificateRenewalErrors
       annotations:
         description: Kubelet on node {{ $labels.node }} has failed to renew its client certificate ({{ $value | humanize }} errors in the last 5 minutes).
@@ -731,7 +731,7 @@ spec:
         absent(up{job="kubelet", metrics_path="/metrics"} == 1)
       for: 15m
       labels:
-        severity: critical
+        severity: warning
   - name: kubernetes-system-scheduler
     rules:
     - alert: KubeSchedulerDown
@@ -743,7 +743,7 @@ spec:
         absent(up{job="kube-scheduler"} == 1)
       for: 15m
       labels:
-        severity: critical
+        severity: warning
   - name: kubernetes-system-controller-manager
     rules:
     - alert: KubeControllerManagerDown
@@ -755,7 +755,7 @@ spec:
         absent(up{job="kube-controller-manager"} == 1)
       for: 15m
       labels:
-        severity: critical
+        severity: warning
   - interval: 3m
     name: kube-apiserver-availability.rules
     rules:
