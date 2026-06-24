@@ -31,6 +31,7 @@ import (
 //   - *api.HCPOpenShiftClusterExternalAuth
 //   - *api.ServiceProviderCluster
 //   - *api.ServiceProviderNodePool
+//   - *api.SystemAdminCredential
 //   - *arm.Subscription
 //   - *api.Controller
 //   - *api.ManagementClusterContent
@@ -67,6 +68,8 @@ func (m *MockResourcesDBClient) addResource(ctx context.Context, resource any) e
 		return m.addSubscription(ctx, r)
 	case *api.Controller:
 		return m.addController(ctx, r)
+	case *api.SystemAdminCredential:
+		return m.addSystemAdminCredential(ctx, r)
 	case *api.ManagementClusterContent:
 		return m.addManagementClusterContent(ctx, r)
 	default:
@@ -195,6 +198,20 @@ func (m *MockResourcesDBClient) addController(ctx context.Context, controller *a
 		return err
 	}
 	return fmt.Errorf("unsupported parent resource type: %s", parentType)
+}
+
+func (m *MockResourcesDBClient) addSystemAdminCredential(ctx context.Context, cred *api.SystemAdminCredential) error {
+	resourceID := cred.GetResourceID()
+	if resourceID == nil {
+		return fmt.Errorf("system admin credential is missing resource ID")
+	}
+	if resourceID.Parent == nil {
+		return fmt.Errorf("system admin credential is missing parent cluster ID")
+	}
+	clusterName := resourceID.Parent.Name
+	credCRUD := m.SystemAdminCredentials(resourceID.SubscriptionID, resourceID.ResourceGroupName, clusterName)
+	_, err := credCRUD.Create(ctx, cred, nil)
+	return err
 }
 
 func (m *MockResourcesDBClient) addManagementClusterContent(ctx context.Context, mcc *api.ManagementClusterContent) error {
