@@ -104,7 +104,7 @@ tests:
         short_window: 5m
       exp_annotations:
         summary: "mgmt-1: Credential operation error rate critically high (>72%)"
-        description: "More than 72% of credential operations (requestAdminCredential/revokeCredentials) are in failed state, indicating a fast error budget burn (14.4x) that would exhaust the 95% SLO budget in ~12 hours."
+        description: "More than 72% of credential operations (requestcredential/revokecredentials) are in failed state, indicating a fast error budget burn (14.4x) that would exhaust the 95% SLO budget in ~12 hours."
         runbook_url: "aka.ms/arohcp-runbook-access-cluster"
   # Degradation also fires (15% threshold met at 80%)
   - eval_time: 35m
