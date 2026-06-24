@@ -1,6 +1,6 @@
 prometheusRules:
   rulesFolders:
-  - ../observability/alerts/UJKubeApiserverAvailabilityMonitor-prometheusRule-KSM.yaml
+  - alerts/UJKubeApiserverAvailabilityMonitor-prometheusRule-KSM.yaml
   untestedRules: []
   testDependencies:
   - recording-rules-hcps.yaml

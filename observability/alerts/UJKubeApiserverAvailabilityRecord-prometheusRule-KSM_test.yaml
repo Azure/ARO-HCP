@@ -8,16 +8,16 @@ tests:
 # test-file requirement with a basic smoke test.
 - interval: 1m
   input_series:
-  - series: 'hostedClusterAPI_kubeapiserver_available{status="True", name="test-cluster", namespace="clusters", _id="abc-123", cluster="mgmt-cluster"}'
+  - series: 'hostedClusterAPI_kubeapiserver_available{status="True", name="test-cluster", namespace="clusters", _id="abc-123", cluster="mgmt-cluster", resource_id="/subscriptions/sub-123/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster"}'
     values: "1+0x30"
   promql_expr_test:
   - eval_time: 20m
     expr: hostedClusterAPI_kubeapiserver_available:sli_sum_5m{name="test-cluster"}
     exp_samples:
-    - labels: 'hostedClusterAPI_kubeapiserver_available:sli_sum_5m{_id="abc-123", cluster="mgmt-cluster", name="test-cluster", namespace="clusters"}'
+    - labels: 'hostedClusterAPI_kubeapiserver_available:sli_sum_5m{_id="abc-123", cluster="mgmt-cluster", name="test-cluster", namespace="clusters", resource_id="/subscriptions/sub-123/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster"}'
       value: 5
   - eval_time: 20m
     expr: hostedClusterAPI_kubeapiserver_available:sli_count_5m{name="test-cluster"}
     exp_samples:
-    - labels: 'hostedClusterAPI_kubeapiserver_available:sli_count_5m{_id="abc-123", cluster="mgmt-cluster", name="test-cluster", namespace="clusters"}'
+    - labels: 'hostedClusterAPI_kubeapiserver_available:sli_count_5m{_id="abc-123", cluster="mgmt-cluster", name="test-cluster", namespace="clusters", resource_id="/subscriptions/sub-123/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster"}'
       value: 5
