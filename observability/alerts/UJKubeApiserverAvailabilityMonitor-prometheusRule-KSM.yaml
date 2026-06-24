@@ -26,7 +26,7 @@ spec:
       labels:
         long_window: 1h
         short_window: 5m
-        severity: critical
+        severity: warning
         slo: kas-availability
       annotations:
         summary: "[HCP] [{{ $labels.name }}] KubeAPIServer Fast Error Budget Burn (1h/5m)"
@@ -55,7 +55,7 @@ spec:
       labels:
         long_window: 6h
         short_window: 30m
-        severity: critical
+        severity: warning
         slo: kas-availability
       annotations:
         summary: "[HCP] [{{ $labels.name }}] KubeAPIServer Medium Error Budget Burn (6h/30m)"
