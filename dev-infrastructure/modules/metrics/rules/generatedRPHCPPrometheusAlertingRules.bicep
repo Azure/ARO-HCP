@@ -29,7 +29,7 @@ resource rpUjKasAvailabilityMonitorRules 'Microsoft.AlertsManagement/prometheusR
         enabled: true
         labels: {
           long_window: '1h'
-          severity: 'critical'
+          severity: 'warning'
           short_window: '5m'
           slo: 'kas-availability'
         }
@@ -65,7 +65,7 @@ Management Cluster: {{ $labels.cluster }}/{{ $labels.namespace }}
         enabled: true
         labels: {
           long_window: '6h'
-          severity: 'critical'
+          severity: 'warning'
           short_window: '30m'
           slo: 'kas-availability'
         }

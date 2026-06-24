@@ -48,7 +48,7 @@ tests:
     alertname: UJKubeApiserverAvailability1h5m
     exp_alerts:
     - exp_labels:
-        severity: critical
+        severity: warning
         slo: kas-availability
         long_window: 1h
         short_window: 5m
@@ -76,7 +76,7 @@ tests:
     alertname: UJKubeApiserverAvailability1h5m
     exp_alerts:
     - exp_labels:
-        severity: critical
+        severity: warning
         slo: kas-availability
         long_window: 1h
         short_window: 5m
@@ -96,7 +96,7 @@ tests:
     alertname: UJKubeApiserverAvailability6h30m
     exp_alerts:
     - exp_labels:
-        severity: critical
+        severity: warning
         slo: kas-availability
         long_window: 6h
         short_window: 30m
@@ -113,7 +113,7 @@ tests:
     alertname: UJKubeApiserverAvailability1h5m
     exp_alerts:
     - exp_labels:
-        severity: critical
+        severity: warning
         slo: kas-availability
         long_window: 1h
         short_window: 5m
@@ -130,7 +130,7 @@ tests:
     alertname: UJKubeApiserverAvailability6h30m
     exp_alerts:
     - exp_labels:
-        severity: critical
+        severity: warning
         slo: kas-availability
         long_window: 6h
         short_window: 30m
@@ -235,7 +235,7 @@ tests:
     alertname: UJKubeApiserverAvailability1h5m
     exp_alerts:
     - exp_labels:
-        severity: critical
+        severity: warning
         slo: kas-availability
         long_window: 1h
         short_window: 5m
