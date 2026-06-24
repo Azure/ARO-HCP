@@ -60,6 +60,11 @@ import (
 // kube-apiserver Get traffic bounded.
 const DefaultCooldownPeriod = 1 * time.Minute
 
+// DeleteDesireControllerName is the per-controller identifier emitted in the
+// "controller_name" log key and used as the workqueue name. Mirrors the backend
+// convention.
+const DeleteDesireControllerName = "DeleteDesireController"
+
 // Config tunes the DeleteDesireController's cooldown behavior. Zero-valued
 // fields take the Default* constants; tests pass shorter durations and a
 // fake clock.
@@ -126,7 +131,7 @@ func NewDeleteDesireController(
 	cooldownChecker := controllerutil.NewTimeBasedCooldownChecker(cfg.CooldownPeriod)
 	cooldownChecker.SetClock(cfg.Clock)
 	c := &DeleteDesireController{
-		name:                 "DeleteDesireController",
+		name:                 DeleteDesireControllerName,
 		deleteDesireInformer: deleteDesireInformer,
 		fetcher:              fetcher,
 		dyn:                  dyn,
@@ -136,7 +141,7 @@ func NewDeleteDesireController(
 		),
 		queue: workqueue.NewTypedRateLimitingQueueWithConfig(
 			workqueue.DefaultTypedControllerRateLimiter[keys.DeleteDesireKey](),
-			workqueue.TypedRateLimitingQueueConfig[keys.DeleteDesireKey]{Name: "DeleteDesireController"},
+			workqueue.TypedRateLimitingQueueConfig[keys.DeleteDesireKey]{Name: DeleteDesireControllerName},
 		),
 		cfg:      cfg,
 		cooldown: cooldownChecker,
@@ -163,8 +168,8 @@ func (c *DeleteDesireController) Run(ctx context.Context, threadiness int) {
 	ctx = utils.ContextWithControllerName(ctx, c.name)
 	logger := utils.LoggerFromContext(ctx).WithValues(utils.LogValues{}.AddControllerName(c.name)...)
 	ctx = utils.ContextWithLogger(ctx, logger)
-	logger.Info("starting DeleteDesireController")
-	defer logger.Info("stopped DeleteDesireController")
+	logger.Info("starting controller")
+	defer logger.Info("stopped controller")
 
 	for i := 0; i < threadiness; i++ {
 		go wait.UntilWithContext(ctx, c.runWorker, time.Second)
@@ -229,6 +234,12 @@ func (c *DeleteDesireController) processNext(ctx context.Context) bool {
 		return false
 	}
 	defer c.queue.Done(key)
+
+	// Seed the per-reconcile logger with the key's identifying fields so every
+	// log line from SyncOnce carries subscription_id / resource_group /
+	// resource_id, matching the backend generic worker loop's behavior.
+	logger := utils.AddLoggerValues(utils.LoggerFromContext(ctx), key)
+	ctx = utils.ContextWithLogger(ctx, logger)
 
 	if err := c.SyncOnce(ctx, key); err != nil {
 		utilruntime.HandleErrorWithContext(ctx, err, "sync error; requeuing", "key", key)

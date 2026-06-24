@@ -55,6 +55,11 @@ import (
 // (re)launched or stopped promptly.
 const DefaultCooldownPeriod = 10 * time.Minute
 
+// ReadDesireInformerManagingControllerName is the per-controller identifier
+// emitted in the "controller_name" log key and used as the workqueue name.
+// Mirrors the backend convention.
+const ReadDesireInformerManagingControllerName = "ReadDesireInformerManagingController"
+
 // Config tunes the manager's cooldown behavior. Zero-valued fields take the
 // Default* constants; tests pass shorter durations and a fake clock.
 type Config struct {
@@ -102,6 +107,7 @@ type PerInstanceFactory interface {
 //     promptly when a ReadDesire is removed from Cosmos.
 //   - On error the workqueue's rate limiter requeues the key with backoff.
 type ReadDesireInformerManagingController struct {
+	name               string
 	readDesireInformer cache.SharedIndexInformer
 	fetcher            *readDesireFetcher
 	factory            PerInstanceFactory
@@ -149,12 +155,13 @@ func NewReadDesireInformerManagingController(
 	cooldownChecker := controllerutil.NewTimeBasedCooldownChecker(cfg.CooldownPeriod)
 	cooldownChecker.SetClock(cfg.Clock)
 	c := &ReadDesireInformerManagingController{
+		name:               ReadDesireInformerManagingControllerName,
 		readDesireInformer: readDesireInformer,
 		fetcher:            fetcher,
 		factory:            &realPerInstanceFactory{dyn: dyn, crudByParent: crudByParent},
 		queue: workqueue.NewTypedRateLimitingQueueWithConfig(
 			workqueue.DefaultTypedControllerRateLimiter[keys.ReadDesireKey](),
-			workqueue.TypedRateLimitingQueueConfig[keys.ReadDesireKey]{Name: "ReadDesireInformerManagingController"},
+			workqueue.TypedRateLimitingQueueConfig[keys.ReadDesireKey]{Name: ReadDesireInformerManagingControllerName},
 		),
 		writer: desirestatuswriter.New[kubeapplier.ReadDesire, keys.ReadDesireKey, *kubeapplier.ReadDesire](
 			fetcher,
@@ -202,10 +209,11 @@ func (c *ReadDesireInformerManagingController) Run(ctx context.Context, threadin
 	defer c.queue.ShutDown()
 	defer c.stopAll()
 
-	logger := utils.LoggerFromContext(ctx).WithValues(utils.LogValues{}.AddControllerName("ReadDesireInformerManagingController")...)
+	ctx = utils.ContextWithControllerName(ctx, c.name)
+	logger := utils.LoggerFromContext(ctx).WithValues(utils.LogValues{}.AddControllerName(c.name)...)
 	ctx = utils.ContextWithLogger(ctx, logger)
-	logger.Info("starting ReadDesireInformerManagingController")
-	defer logger.Info("stopped ReadDesireInformerManagingController")
+	logger.Info("starting controller")
+	defer logger.Info("stopped controller")
 
 	if threadiness < 1 {
 		threadiness = 1
@@ -290,6 +298,13 @@ func (c *ReadDesireInformerManagingController) processNext(ctx context.Context) 
 		return false
 	}
 	defer c.queue.Done(key)
+
+	// Seed the per-reconcile logger with the key's identifying fields so every
+	// log line from SyncOnce carries subscription_id / resource_group /
+	// resource_id, matching the backend generic worker loop's behavior.
+	logger := utils.AddLoggerValues(utils.LoggerFromContext(ctx), key)
+	ctx = utils.ContextWithLogger(ctx, logger)
+
 	if err := c.SyncOnce(ctx, key); err != nil {
 		utilruntime.HandleErrorWithContext(ctx, err, "sync error; requeuing", "key", key)
 		c.queue.AddRateLimited(key)
