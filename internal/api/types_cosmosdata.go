@@ -25,6 +25,13 @@ import (
 
 type CosmosMetadata = arm.CosmosMetadata
 
+// The ToXxxResourceIDString helpers form ARM resource ID strings by
+// delegating to the parent helper and appending the final segment. The
+// segment uses the leaf type name (Types[len-1]) for nested types so that
+// the provider namespace is added exactly once at the top of the chain.
+// Authoring each level via its parent makes it impossible to accidentally
+// produce a non-canonical key — which the cache uses to look up objects.
+
 func ToResourceGroupResourceIDString(subscriptionName, resourceGroupName string) string {
 	return strings.ToLower(path.Join("/subscriptions", subscriptionName, "resourceGroups", resourceGroupName))
 }
@@ -39,8 +46,7 @@ func ToClusterResourceID(subscriptionName, resourceGroupName, clusterName string
 
 func ToClusterResourceIDString(subscriptionName, resourceGroupName, clusterName string) string {
 	return strings.ToLower(path.Join(
-		"/subscriptions", subscriptionName,
-		"resourceGroups", resourceGroupName,
+		ToResourceGroupResourceIDString(subscriptionName, resourceGroupName),
 		"providers", ClusterResourceType.String(), clusterName,
 	))
 }
@@ -51,10 +57,8 @@ func ToNodePoolResourceID(subscriptionName, resourceGroupName, clusterName, node
 
 func ToNodePoolResourceIDString(subscriptionName, resourceGroupName, clusterName, nodePoolName string) string {
 	return strings.ToLower(path.Join(
-		"/subscriptions", subscriptionName,
-		"resourceGroups", resourceGroupName,
-		"providers", ClusterResourceType.String(), clusterName,
-		NodePoolResourceType.Types[len(NodePoolResourceType.Types)-1], nodePoolName,
+		ToClusterResourceIDString(subscriptionName, resourceGroupName, clusterName),
+		leafTypeName(NodePoolResourceType), nodePoolName,
 	))
 }
 
@@ -64,19 +68,15 @@ func ToExternalAuthResourceID(subscriptionName, resourceGroupName, clusterName, 
 
 func ToExternalAuthResourceIDString(subscriptionName, resourceGroupName, clusterName, externalAuthName string) string {
 	return strings.ToLower(path.Join(
-		"/subscriptions", subscriptionName,
-		"resourceGroups", resourceGroupName,
-		"providers", ClusterResourceType.String(), clusterName,
-		ExternalAuthResourceType.Types[len(ExternalAuthResourceType.Types)-1], externalAuthName,
+		ToClusterResourceIDString(subscriptionName, resourceGroupName, clusterName),
+		leafTypeName(ExternalAuthResourceType), externalAuthName,
 	))
 }
 
 func ToServiceProviderClusterResourceIDString(subscriptionName, resourceGroupName, clusterName string) string {
 	return strings.ToLower(path.Join(
-		"/subscriptions", subscriptionName,
-		"resourceGroups", resourceGroupName,
-		"providers", ClusterResourceType.String(), clusterName,
-		ServiceProviderClusterResourceType.Types[len(ServiceProviderClusterResourceType.Types)-1], ServiceProviderClusterResourceName,
+		ToClusterResourceIDString(subscriptionName, resourceGroupName, clusterName),
+		leafTypeName(ServiceProviderClusterResourceType), ServiceProviderClusterResourceName,
 	))
 }
 
@@ -89,19 +89,23 @@ func ToOperationResourceIDString(subscriptionName, operationName string) string 
 
 func ToManagementClusterContentResourceIDString(subscriptionName, resourceGroupName, clusterName, managementClusterContentName string) string {
 	return strings.ToLower(path.Join(
-		"/subscriptions", subscriptionName,
-		"resourceGroups", resourceGroupName,
-		"providers", ClusterResourceType.String(), clusterName,
+		ToClusterResourceIDString(subscriptionName, resourceGroupName, clusterName),
 		ManagementClusterContentResourceTypeName, managementClusterContentName,
 	))
 }
 
 func ToServiceProviderNodePoolResourceIDString(subscriptionName, resourceGroupName, clusterName, nodePoolName string) string {
 	return strings.ToLower(path.Join(
-		"/subscriptions", subscriptionName,
-		"resourceGroups", resourceGroupName,
-		"providers", ClusterResourceType.String(), clusterName,
-		NodePoolResourceType.String(), nodePoolName,
-		ServiceProviderNodePoolResourceType.Types[len(ServiceProviderNodePoolResourceType.Types)-1], ServiceProviderNodePoolResourceName,
+		ToNodePoolResourceIDString(subscriptionName, resourceGroupName, clusterName, nodePoolName),
+		leafTypeName(ServiceProviderNodePoolResourceType), ServiceProviderNodePoolResourceName,
 	))
+}
+
+// leafTypeName returns the trailing segment of an ARM ResourceType (the
+// part after the last slash). Using it in the per-level helpers prevents
+// callers from accidentally embedding the full `namespace/type/...` form
+// twice in the same ID — see the original ToServiceProviderNodePoolResourceIDString
+// bug.
+func leafTypeName(rt azcorearm.ResourceType) string {
+	return rt.Types[len(rt.Types)-1]
 }
