@@ -181,7 +181,7 @@ Used for deploying Kubernetes services onto AKS clusters using [Helm](https://he
 
 The Helm step uses a **content-addressed cache** to skip execution when the chart directory, values file, namespace files, release name, release namespace, and target cluster are all unchanged since the last successful run, enabling efficient incremental deployments.
 
-> [!INFO]
+> [!NOTE]
 > See also [service-deployment-concept.md#helm-chart](service-deployment-concept.md#helm-chart)
 
 ### Automated Retry

@@ -42,7 +42,7 @@ resourceGroups:
   resourceGroup: '{{ .kusto.rg }}'
   subscription: '{{ .global.subscription.key }}'
   steps:
-  - name: output
+  - name: kusto-lookup
     action: ARM
     template: ../dev-infrastructure/templates/kusto-lookup.bicep
     parameters: ../dev-infrastructure/configurations/kusto-lookup.tmpl.bicepparam
@@ -71,10 +71,10 @@ resourceGroups:
     kustoTable: 'containerLogs'
     kustoEndpoint:
       resourceGroup: kusto
-      step: output
+      step: kusto-lookup
       name: kustoUri
     inputVariables:
-      ocpAcrUrl:
+      ocpAcrResourceUrl:
         resourceGroup: global
         step: output
         name: ocpAcrLoginServer
@@ -153,13 +153,11 @@ resourceGroups:
     releaseNamespace: '{{ .clustersService.k8s.namespace }}'
     chartDir: ./helm-charts/cs-debug-jobs
     valuesFile: './helm-charts/cs-debug-jobs/values.yaml'
-    namespaceFiles:
-    - namespace.yaml
     kustoDatabase: '{{ .kusto.serviceLogsDatabase }}'
     kustoTable: 'containerLogs'
     kustoEndpoint:
       resourceGroup: kusto
-      step: output
+      step: kusto-lookup
       name: kustoUri
     identityFrom:
       resourceGroup: global

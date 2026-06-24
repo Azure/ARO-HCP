@@ -11,7 +11,7 @@ data:
       "tenant_id": "{{ .Values.tenantId }}",
       "ocp_images_acr": {
         "resource_id": "{{ .Values.ocpAcrResourceId }}",
-        "url": "{{ .Values.ocpAcrUrl }}",
+        "url": "{{ .Values.ocpAcrResourceUrl }}",
         "scope_map_name": "_repositories_pull"
       },
       "data_plane_identities_oidc_configuration": {

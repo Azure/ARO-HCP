@@ -1,4 +1,4 @@
-{{- if .Values.deployDebugJobs }}
+{{- if eq (lower .Values.deployDebugJobs) "true" }}
 apiVersion: batch/v1
 kind: Job
 metadata:

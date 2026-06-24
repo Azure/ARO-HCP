@@ -202,7 +202,7 @@ data:
       "tenant_id": "__tenantId__",
       "ocp_images_acr": {
         "resource_id": "__ocpAcrResourceId__",
-        "url": "__ocpAcrUrl__",
+        "url": "__ocpAcrResourceUrl__",
         "scope_map_name": "_repositories_pull"
       },
       "data_plane_identities_oidc_configuration": {
@@ -7994,7 +7994,7 @@ spec:
         checksum/cskv: 'b448b17a3f3a42fa47e65b12fb753113bfcab908cb783b6f26566b7b7eaaeaa4'
         checksum/provisionshard: 'd2d4582f46da482e7a0c56f8a4372d95839bf6ced1d48a964d7030dc7e1b5b4b'
         checksum/cs: '7f91f7a8dc3a8b51073043defb13df2c3864a9c93f5a5588a2431f012bc2ae28'
-        checksum/runtime: '50810ab49f728474d0bb2ad53a7fcf8913f885c230fba6deca7ed3943c3ed480'
+        checksum/runtime: 'a59b6e4224066ebe7cb35d89a9e9c179f9e90942d3b4173c91c0609299a983ef'
         checksum/cloudres: '6db050cd35a77e565d80d2ba2c028450a8758e3ab0a4e524ede12cf207c3a73a'
         checksum/sa: '0187a6f1019114e284fb5565a82e4e954460ac079f952f07b9602117c0d81e3f'
     spec:
@@ -8166,7 +8166,7 @@ spec:
         - --db-password=@/secrets/rds/db.password
         - --db-disable-tls=__databaseDisableTls__
         - --db-auth-method=__databaseAuthMethod__
-        - --gateway-url=
+        - --gateway-url=http://127.0.0.1:9090
         - --client-id=@/secrets/service/client.id
         - --client-secret=@/secrets/service/client.secret
         - --client-scopes=openid

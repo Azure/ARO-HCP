@@ -60,7 +60,7 @@ batchProcessesDryRun: "{{ .clustersService.batchProcessesDryRun }}"
 # Date identification of each batch process expected to be run. Comma separated sequence.
 batchProcesses: "{{ .clustersService.batchProcesses }}"
 # The URL of the Azure Container Registry where the OpenShift images are stored.
-ocpAcrUrl: "__ocpAcrUrl__"
+ocpAcrResourceUrl: "__ocpAcrResourceUrl__"
 # The resource ID of the Azure Container Registry where the OpenShift images are stored.
 ocpAcrResourceId: "__ocpAcrResourceId__"
 # These limits are based on the metrics collected in the production environment
