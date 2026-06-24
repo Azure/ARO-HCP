@@ -1807,7 +1807,7 @@ resource hcpKmsAvailabilityRules 'Microsoft.AlertsManagement/prometheusRuleGroup
         enabled: true
         labels: {
           long_window: '1h'
-          severity: 'critical'
+          severity: 'warning'
           short_window: '5m'
         }
         annotations: {
@@ -1820,7 +1820,7 @@ resource hcpKmsAvailabilityRules 'Microsoft.AlertsManagement/prometheusRuleGroup
         }
         expression: '1 - (hostedClusterAPI_valid_azure_kms_config:sum_over_time_5m / hostedClusterAPI_valid_azure_kms_config:count_over_time_5m) > (14.4 * (1 - 0.9995)) and hostedClusterAPI_valid_azure_kms_config:count_over_time_5m > 5 and 1 - (hostedClusterAPI_valid_azure_kms_config:sum_over_time_1h / hostedClusterAPI_valid_azure_kms_config:count_over_time_1h) > (14.4 * (1 - 0.9995)) and hostedClusterAPI_valid_azure_kms_config:count_over_time_1h > 60'
         for: 'PT2M'
-        severity: 2
+        severity: 3
       }
       {
         actions: [
@@ -1907,7 +1907,7 @@ resource hcpKmsErrorsRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
         enabled: true
         labels: {
           long_window: '1h'
-          severity: 'critical'
+          severity: 'warning'
           short_window: '5m'
         }
         annotations: {
@@ -1920,7 +1920,7 @@ resource hcpKmsErrorsRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
         }
         expression: '(kas:kms_operations_errors:rate_avg_5m / kas:kms_operations_total:rate_avg_5m) > (14.4 * 0.0005) and kas:kms_operations_total:rate_avg_5m > 0 and (kas:kms_operations_errors:rate_avg_1h / kas:kms_operations_total:rate_avg_1h) > (14.4 * 0.0005) and kas:kms_operations_total:rate_avg_1h > 0'
         for: 'PT2M'
-        severity: 2
+        severity: 3
       }
       {
         actions: [
