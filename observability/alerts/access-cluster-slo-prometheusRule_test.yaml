@@ -1,0 +1,393 @@
+rule_files:
+- access-cluster-slo-prometheusRule.yaml
+evaluation_interval: 1m
+tests:
+# ========================================
+# Test 1: Normal operation — all operations succeeded, no alerts
+# ========================================
+# 10 credential operations in "succeeded" phase, 0 in "failed".
+# Error rate = 0%, well below 95% SLO. No alerts should fire.
+- interval: 1m
+  input_series:
+  # 5 succeeded requestcredential operations
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/a", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="requestcredential", phase="succeeded", cluster="mgmt-1"}'
+    values: "1+0x70"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/b", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="requestcredential", phase="succeeded", cluster="mgmt-1"}'
+    values: "1+0x70"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/c", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="requestcredential", phase="succeeded", cluster="mgmt-1"}'
+    values: "1+0x70"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/d", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="requestcredential", phase="succeeded", cluster="mgmt-1"}'
+    values: "1+0x70"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/e", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="requestcredential", phase="succeeded", cluster="mgmt-1"}'
+    values: "1+0x70"
+  # 5 succeeded revokecredentials operations
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/f", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="revokecredentials", phase="succeeded", cluster="mgmt-1"}'
+    values: "1+0x70"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/g", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="revokecredentials", phase="succeeded", cluster="mgmt-1"}'
+    values: "1+0x70"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/h", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="revokecredentials", phase="succeeded", cluster="mgmt-1"}'
+    values: "1+0x70"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/i", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="revokecredentials", phase="succeeded", cluster="mgmt-1"}'
+    values: "1+0x70"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/j", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="revokecredentials", phase="succeeded", cluster="mgmt-1"}'
+    values: "1+0x70"
+  promql_expr_test:
+  - expr: errors:backend_credential_operation:succeeded_total
+    eval_time: 10m
+    exp_samples:
+    - labels: 'errors:backend_credential_operation:succeeded_total{cluster="mgmt-1"}'
+      value: 10
+  - expr: errors:backend_credential_operation:terminal_total
+    eval_time: 10m
+    exp_samples:
+    - labels: 'errors:backend_credential_operation:terminal_total{cluster="mgmt-1"}'
+      value: 10
+  - expr: errors:backend_credential_operation:error_rate
+    eval_time: 10m
+    exp_samples:
+    - labels: 'errors:backend_credential_operation:error_rate{cluster="mgmt-1"}'
+      value: 0
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: UJAccessClusterErrors1h5m
+  - eval_time: 10m
+    alertname: UJAccessClusterErrors6h30m
+  - eval_time: 10m
+    alertname: UJAccessClusterErrors3d
+  - eval_time: 10m
+    alertname: UJAccessClusterErrorsDegradation
+# ========================================
+# Test 2: Fast burn — 80% failure rate, UJAccessClusterErrors1h5m fires
+# ========================================
+# 2 succeeded, 8 failed → error rate = 80% > 72% threshold (14.4x burn)
+# Both UJAccessClusterErrors1h5m and UJAccessClusterErrorsDegradation should fire.
+- interval: 1m
+  input_series:
+  # 2 succeeded
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/a", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="requestcredential", phase="succeeded", cluster="mgmt-1"}'
+    values: "1+0x40"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/b", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="revokecredentials", phase="succeeded", cluster="mgmt-1"}'
+    values: "1+0x40"
+  # 8 failed
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/c", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="requestcredential", phase="failed", cluster="mgmt-1"}'
+    values: "1+0x40"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/d", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="requestcredential", phase="failed", cluster="mgmt-1"}'
+    values: "1+0x40"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/e", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="requestcredential", phase="failed", cluster="mgmt-1"}'
+    values: "1+0x40"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/f", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="revokecredentials", phase="failed", cluster="mgmt-1"}'
+    values: "1+0x40"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/g", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="requestcredential", phase="failed", cluster="mgmt-1"}'
+    values: "1+0x40"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/h", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="requestcredential", phase="failed", cluster="mgmt-1"}'
+    values: "1+0x40"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/i", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="requestcredential", phase="failed", cluster="mgmt-1"}'
+    values: "1+0x40"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/j", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="requestcredential", phase="failed", cluster="mgmt-1"}'
+    values: "1+0x40"
+  promql_expr_test:
+  - expr: errors:backend_credential_operation:error_rate
+    eval_time: 10m
+    exp_samples:
+    - labels: 'errors:backend_credential_operation:error_rate{cluster="mgmt-1"}'
+      value: 0.8
+  alert_rule_test:
+  # Fast burn fires after 5m 'for' duration
+  - eval_time: 7m
+    alertname: UJAccessClusterErrors1h5m
+    exp_alerts:
+    - exp_labels:
+        cluster: "mgmt-1"
+        severity: info
+        slo: access-cluster-errors
+        long_window: 1h
+        short_window: 5m
+      exp_annotations:
+        summary: "mgmt-1: Credential operation error rate critically high (>72%)"
+        description: "More than 72% of credential operations (requestAdminCredential/revokeCredentials) are in failed state, indicating a fast error budget burn (14.4x) that would exhaust the 95% SLO budget in ~12 hours."
+        runbook_url: "aka.ms/arohcp-runbook-access-cluster"
+  # Degradation also fires (15% threshold met at 80%)
+  - eval_time: 35m
+    alertname: UJAccessClusterErrorsDegradation
+    exp_alerts:
+    - exp_labels:
+        cluster: "mgmt-1"
+        severity: info
+        slo: access-cluster-errors
+      exp_annotations:
+        summary: "mgmt-1: Credential operation failure rate exceeds 15% for 30 minutes"
+        description: "The credential operation failure rate has been above 15% for 30 minutes. This provides early warning of degradation before SLO-based burn rate alerts fire."
+        runbook_url: "aka.ms/arohcp-runbook-access-cluster"
+# ========================================
+# Test 3: Degradation — 20% failure rate, only degradation alert fires
+# ========================================
+# 8 succeeded, 2 failed → error rate = 20%
+# > 15% (degradation) but < 30% (medium burn) and < 72% (fast burn)
+- interval: 1m
+  input_series:
+  # 8 succeeded
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/2/cluster/a", subscription_id="sub-2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="requestcredential", phase="succeeded", cluster="mgmt-1"}'
+    values: "1+0x40"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/2/cluster/b", subscription_id="sub-2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="requestcredential", phase="succeeded", cluster="mgmt-1"}'
+    values: "1+0x40"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/2/cluster/c", subscription_id="sub-2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="revokecredentials", phase="succeeded", cluster="mgmt-1"}'
+    values: "1+0x40"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/2/cluster/d", subscription_id="sub-2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="requestcredential", phase="succeeded", cluster="mgmt-1"}'
+    values: "1+0x40"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/2/cluster/e", subscription_id="sub-2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="requestcredential", phase="succeeded", cluster="mgmt-1"}'
+    values: "1+0x40"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/2/cluster/f", subscription_id="sub-2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="requestcredential", phase="succeeded", cluster="mgmt-1"}'
+    values: "1+0x40"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/2/cluster/g", subscription_id="sub-2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="revokecredentials", phase="succeeded", cluster="mgmt-1"}'
+    values: "1+0x40"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/2/cluster/h", subscription_id="sub-2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="requestcredential", phase="succeeded", cluster="mgmt-1"}'
+    values: "1+0x40"
+  # 2 failed
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/2/cluster/i", subscription_id="sub-2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="requestcredential", phase="failed", cluster="mgmt-1"}'
+    values: "1+0x40"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/2/cluster/j", subscription_id="sub-2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="revokecredentials", phase="failed", cluster="mgmt-1"}'
+    values: "1+0x40"
+  promql_expr_test:
+  - expr: errors:backend_credential_operation:error_rate
+    eval_time: 10m
+    exp_samples:
+    - labels: 'errors:backend_credential_operation:error_rate{cluster="mgmt-1"}'
+      value: 0.2
+  alert_rule_test:
+  # Fast burn should NOT fire (20% < 72%)
+  - eval_time: 10m
+    alertname: UJAccessClusterErrors1h5m
+  # Degradation fires after 30m (20% > 15%)
+  - eval_time: 35m
+    alertname: UJAccessClusterErrorsDegradation
+    exp_alerts:
+    - exp_labels:
+        cluster: "mgmt-1"
+        severity: info
+        slo: access-cluster-errors
+      exp_annotations:
+        summary: "mgmt-1: Credential operation failure rate exceeds 15% for 30 minutes"
+        description: "The credential operation failure rate has been above 15% for 30 minutes. This provides early warning of degradation before SLO-based burn rate alerts fire."
+        runbook_url: "aka.ms/arohcp-runbook-access-cluster"
+# ========================================
+# Test 4: Stuck operation — requestcredential in "accepted" for > 1 hour
+# ========================================
+# start_time is 0 (epoch). At eval_time=90m (5400s), delta = 5400 > 3600 threshold.
+# The alert has for: 15m, so it fires after the threshold is crossed for 15 minutes.
+# Threshold crossed at 60m, plus 15m for duration = 75m. Eval at 90m confirms firing.
+- interval: 1m
+  input_series:
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/3/cluster/stuck", subscription_id="sub-3", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="requestcredential", phase="accepted", cluster="mgmt-1"}'
+    values: "0+0x95"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/3/cluster/stuck", subscription_id="sub-3", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="requestcredential", phase="accepted", cluster="mgmt-1"}'
+    values: "1+0x95"
+  alert_rule_test:
+  # At 90m (5400s), time() - 0 = 5400 > 3600, and for: 15m is satisfied
+  - eval_time: 90m
+    alertname: UJAccessClusterStuckOperation
+    exp_alerts:
+    - exp_labels:
+        resource_id: "/sub/3/cluster/stuck"
+        subscription_id: "sub-3"
+        resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters"
+        operation_type: "requestcredential"
+        phase: "accepted"
+        cluster: "mgmt-1"
+        severity: info
+      exp_annotations:
+        summary: "mgmt-1: Credential operation stuck in accepted for over 1 hour"
+        description: "Credential operation for /sub/3/cluster/stuck has been in accepted phase for over 1 hour. Stuck operations are invisible to success/failure SLIs and require investigation."
+        runbook_url: "aka.ms/arohcp-runbook-access-cluster"
+# ========================================
+# Test 5: No stuck operation — requestcredential in "provisioning" for < 1 hour
+# ========================================
+# Operation started recently, should not trigger stuck alert.
+- interval: 1m
+  input_series:
+  # start_time=600 (recent). At eval_time=50m, time()=3000. delta=2400 < 3600.
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/4/cluster/recent", subscription_id="sub-4", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="requestcredential", phase="provisioning", cluster="mgmt-1"}'
+    values: "600+0x55"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/4/cluster/recent", subscription_id="sub-4", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="requestcredential", phase="provisioning", cluster="mgmt-1"}'
+    values: "1+0x55"
+  alert_rule_test:
+  - eval_time: 50m
+    alertname: UJAccessClusterStuckOperation
+# ========================================
+# Test 6: Zero failure rate — all succeeded, no alerts
+# ========================================
+# 5 succeeded, 0 failed → error rate = 0%
+# No alerts should fire (well below all thresholds).
+- interval: 1m
+  input_series:
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/5/cluster/a", subscription_id="sub-5", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="requestcredential", phase="succeeded", cluster="mgmt-1"}'
+    values: "1+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/5/cluster/b", subscription_id="sub-5", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="revokecredentials", phase="succeeded", cluster="mgmt-1"}'
+    values: "1+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/5/cluster/c", subscription_id="sub-5", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="requestcredential", phase="succeeded", cluster="mgmt-1"}'
+    values: "1+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/5/cluster/d", subscription_id="sub-5", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="requestcredential", phase="succeeded", cluster="mgmt-1"}'
+    values: "1+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/5/cluster/e", subscription_id="sub-5", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="revokecredentials", phase="succeeded", cluster="mgmt-1"}'
+    values: "1+0x15"
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: UJAccessClusterErrors1h5m
+  - eval_time: 10m
+    alertname: UJAccessClusterErrors6h30m
+  - eval_time: 10m
+    alertname: UJAccessClusterErrorsDegradation
+# ========================================
+# Test 7: Queue depth — credential controller workqueue exceeds threshold
+# ========================================
+- interval: 1m
+  input_series:
+  - series: 'workqueue_depth{namespace="aro-hcp", name="OperationRequestCredential", cluster="mgmt-1"}'
+    values: "15+0x10"
+  alert_rule_test:
+  - eval_time: 7m
+    alertname: UJAccessClusterSaturationQueueDepth
+    exp_alerts:
+    - exp_labels:
+        name: "OperationRequestCredential"
+        cluster: "mgmt-1"
+        severity: info
+      exp_annotations:
+        summary: "mgmt-1: Credential controller workqueue OperationRequestCredential depth is high"
+        description: "Credential controller workqueue OperationRequestCredential has had a depth > 10 for more than 5 minutes, indicating work is accumulating faster than it can be processed."
+        runbook_url: "aka.ms/arohcp-runbook-access-cluster"
+# ========================================
+# Test 8: Queue depth normal — below threshold, no alert
+# ========================================
+- interval: 1m
+  input_series:
+  - series: 'workqueue_depth{namespace="aro-hcp", name="OperationRequestCredential", cluster="mgmt-1"}'
+    values: "5+0x10"
+  alert_rule_test:
+  - eval_time: 7m
+    alertname: UJAccessClusterSaturationQueueDepth
+# ========================================
+# Test 9: Retry hot loop — retry ratio > 50%
+# ========================================
+- interval: 1m
+  input_series:
+  - series: 'workqueue_retries_total{namespace="aro-hcp", name="OperationRequestCredential", cluster="mgmt-1"}'
+    values: "0+80x25"
+  - series: 'workqueue_adds_total{namespace="aro-hcp", name="OperationRequestCredential", cluster="mgmt-1"}'
+    values: "0+100x25"
+  alert_rule_test:
+  - eval_time: 22m
+    alertname: UJAccessClusterSaturationRetryHotLoop
+    exp_alerts:
+    - exp_labels:
+        name: "OperationRequestCredential"
+        cluster: "mgmt-1"
+        severity: info
+      exp_annotations:
+        summary: "mgmt-1: Credential controller workqueue OperationRequestCredential retry hot loop"
+        description: "Credential controller workqueue OperationRequestCredential has a retry ratio > 50% sustained over 10 minutes, indicating most queue activity is failed retries rather than fresh work."
+        runbook_url: "aka.ms/arohcp-runbook-access-cluster"
+# ========================================
+# Test 10: Retry hot loop — low retry ratio, no alert
+# ========================================
+- interval: 1m
+  input_series:
+  - series: 'workqueue_retries_total{namespace="aro-hcp", name="OperationRequestCredential", cluster="mgmt-1"}'
+    values: "0+10x25"
+  - series: 'workqueue_adds_total{namespace="aro-hcp", name="OperationRequestCredential", cluster="mgmt-1"}'
+    values: "0+100x25"
+  alert_rule_test:
+  - eval_time: 22m
+    alertname: UJAccessClusterSaturationRetryHotLoop
+# ========================================
+# Test 11: Mixed operation types — requestcredential and revokecredentials both tracked
+# ========================================
+# Verifies both operation types are captured by the regex filter.
+# 3 succeeded requestcredential, 2 succeeded revokecredentials,
+# 3 failed requestcredential, 2 failed revokecredentials
+# → error rate = 5/10 = 50%
+- interval: 1m
+  input_series:
+  # 3 succeeded requestcredential
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/6/cluster/a", subscription_id="sub-6", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="requestcredential", phase="succeeded", cluster="mgmt-1"}'
+    values: "1+0x40"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/6/cluster/b", subscription_id="sub-6", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="requestcredential", phase="succeeded", cluster="mgmt-1"}'
+    values: "1+0x40"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/6/cluster/c", subscription_id="sub-6", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="requestcredential", phase="succeeded", cluster="mgmt-1"}'
+    values: "1+0x40"
+  # 2 succeeded revokecredentials
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/6/cluster/d", subscription_id="sub-6", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="revokecredentials", phase="succeeded", cluster="mgmt-1"}'
+    values: "1+0x40"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/6/cluster/e", subscription_id="sub-6", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="revokecredentials", phase="succeeded", cluster="mgmt-1"}'
+    values: "1+0x40"
+  # 3 failed requestcredential
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/6/cluster/f", subscription_id="sub-6", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="requestcredential", phase="failed", cluster="mgmt-1"}'
+    values: "1+0x40"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/6/cluster/g", subscription_id="sub-6", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="requestcredential", phase="failed", cluster="mgmt-1"}'
+    values: "1+0x40"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/6/cluster/h", subscription_id="sub-6", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="requestcredential", phase="failed", cluster="mgmt-1"}'
+    values: "1+0x40"
+  # 2 failed revokecredentials
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/6/cluster/i", subscription_id="sub-6", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="revokecredentials", phase="failed", cluster="mgmt-1"}'
+    values: "1+0x40"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/6/cluster/j", subscription_id="sub-6", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="revokecredentials", phase="failed", cluster="mgmt-1"}'
+    values: "1+0x40"
+  promql_expr_test:
+  - expr: errors:backend_credential_operation:error_rate
+    eval_time: 10m
+    exp_samples:
+    - labels: 'errors:backend_credential_operation:error_rate{cluster="mgmt-1"}'
+      value: 0.5
+  - expr: errors:backend_credential_operation:succeeded_total
+    eval_time: 10m
+    exp_samples:
+    - labels: 'errors:backend_credential_operation:succeeded_total{cluster="mgmt-1"}'
+      value: 5
+  - expr: errors:backend_credential_operation:terminal_total
+    eval_time: 10m
+    exp_samples:
+    - labels: 'errors:backend_credential_operation:terminal_total{cluster="mgmt-1"}'
+      value: 10
+  alert_rule_test:
+  # 50% > 30% → medium burn fires after 30m
+  - eval_time: 35m
+    alertname: UJAccessClusterErrors6h30m
+    exp_alerts:
+    - exp_labels:
+        cluster: "mgmt-1"
+        severity: info
+        slo: access-cluster-errors
+        long_window: 6h
+        short_window: 30m
+      exp_annotations:
+        summary: "mgmt-1: Credential operation error rate elevated (>30%) for 30+ minutes"
+        description: "More than 30% of credential operations are in failed state sustained over 30 minutes, indicating a medium error budget burn (6x) that would exhaust the 95% SLO budget in ~28 hours."
+        runbook_url: "aka.ms/arohcp-runbook-access-cluster"
+  # 50% < 72% → fast burn should NOT fire
+  - eval_time: 35m
+    alertname: UJAccessClusterErrors1h5m
+# ========================================
+# Test 12: Stuck revokecredentials operation in "deleting" for > 1 hour
+# ========================================
+# Verifies that revokecredentials operations stuck in "deleting" also trigger the alert.
+- interval: 1m
+  input_series:
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/7/cluster/stuck-revoke", subscription_id="sub-7", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="revokecredentials", phase="deleting", cluster="mgmt-1"}'
+    values: "0+0x95"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/7/cluster/stuck-revoke", subscription_id="sub-7", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="revokecredentials", phase="deleting", cluster="mgmt-1"}'
+    values: "1+0x95"
+  alert_rule_test:
+  - eval_time: 90m
+    alertname: UJAccessClusterStuckOperation
+    exp_alerts:
+    - exp_labels:
+        resource_id: "/sub/7/cluster/stuck-revoke"
+        subscription_id: "sub-7"
+        resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters"
+        operation_type: "revokecredentials"
+        phase: "deleting"
+        cluster: "mgmt-1"
+        severity: info
+      exp_annotations:
+        summary: "mgmt-1: Credential operation stuck in deleting for over 1 hour"
+        description: "Credential operation for /sub/7/cluster/stuck-revoke has been in deleting phase for over 1 hour. Stuck operations are invisible to success/failure SLIs and require investigation."
+        runbook_url: "aka.ms/arohcp-runbook-access-cluster"
