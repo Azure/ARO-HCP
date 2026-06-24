@@ -931,6 +931,7 @@ model ExternalAuthProperties {
 
   /** An observation of the current state with additional information. */
   @visibility(Lifecycle.Read)
+  @removed(Versions.v2026_06_30_preview)
   condition?: ExternalAuthCondition;
 
   /** Token Issuer profile */
