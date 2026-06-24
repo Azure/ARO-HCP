@@ -197,7 +197,7 @@ metadata:
 data:
   config.json: |
     {
-      "cloud_environment": "",
+      "cloud_environment": "AzurePublicCloud",
       "managed_identities_data_plane_audience_resource": "https://dummy.org",
       "tenant_id": "__tenantId__",
       "ocp_images_acr": {
@@ -211,7 +211,7 @@ data:
         "oidc_issuer_base_url": "__oidcIssuerBaseUrl__"
       },
       "tls_certificates_config": {
-        "issuer": "",
+        "issuer": "Self",
         "enabled": true
       }
     }
@@ -7976,12 +7976,12 @@ spec:
   selector:
     matchLabels:
       app: clusters-service
-  replicas: 1
+  replicas: 3
   strategy:
+    type: RollingUpdate
     rollingUpdate:
       maxSurge: 1
       maxUnavailable: 0
-    type: RollingUpdate
   template:
     metadata:
       labels:
@@ -7991,16 +7991,16 @@ spec:
         checksum/db: '7d748725a08edbe974bbd237e5dd517833a82eaa0f0b211fc2881961bf4515a8'
         checksum/operatorcfg: '110eacb1e465d620a2c26da89d5b6246433bb53a2dd3f9853e2daaa035e53df5'
         checksum/ocpversionscfg: '9e5cff6bf43f7b8d712e0b54656c6b1ec66693e7fe17ba6801070134b28b2900'
-        checksum/cskv: '90dc53d1b1561cff88174607f8960b37955941207803638fcba6549594835c1d'
+        checksum/cskv: 'b448b17a3f3a42fa47e65b12fb753113bfcab908cb783b6f26566b7b7eaaeaa4'
         checksum/provisionshard: 'd2d4582f46da482e7a0c56f8a4372d95839bf6ced1d48a964d7030dc7e1b5b4b'
         checksum/cs: '7f91f7a8dc3a8b51073043defb13df2c3864a9c93f5a5588a2431f012bc2ae28'
-        checksum/runtime: 'da5fae33fa3d762012b448e4e052a103641383e4a703d09917952de1ce1bcb49'
+        checksum/runtime: '052cd3c444104183f36c29a4fa29cd8e2b92376fe5881fcfe2990e58dd30d063'
         checksum/cloudres: '6db050cd35a77e565d80d2ba2c028450a8758e3ab0a4e524ede12cf207c3a73a'
         checksum/sa: '0187a6f1019114e284fb5565a82e4e954460ac079f952f07b9602117c0d81e3f'
     spec:
       topologySpreadConstraints:
       - maxSkew: 1
-        topologyKey: 'kubernetes.azure.com/agentpool'
+        topologyKey: 'topology.kubernetes.io/zone'
         whenUnsatisfiable: ScheduleAnyway
         labelSelector:
           matchLabels:
@@ -8068,7 +8068,7 @@ spec:
             secretProviderClass: cs-keyvault
       initContainers:
       - name: clusters-service-init
-        image: 'arohcpsvcdev.azurecr.io/app-sre/aro-hcp-clusters-service@'
+        image: 'arohcpsvcdev.azurecr.io/app-sre/aro-hcp-clusters-service@sha256:1234567890'
         imagePullPolicy: IfNotPresent
         env:
         # We set AZURE_TOKEN_CREDENTIALS to WorkloadIdentityCredential to force workload identity because this pod uses
@@ -8099,11 +8099,11 @@ spec:
         - --batch-processes-dry-run=true
         - --batch-processes=
         - --azure-runtime-config-path=/configs/azure-runtime-config/config.json
-        - --azure-first-party-application-client-id=
+        - --azure-first-party-application-client-id=b3cb2fab-15cb-4583-ad06-f91da9bfe2d1
         - --azure-first-party-application-certificate-bundle-path=/secrets/keyvault/firstPartyApplicationCertificateBundle
       containers:
       - name: clusters-service-server
-        image: 'arohcpsvcdev.azurecr.io/app-sre/aro-hcp-clusters-service@'
+        image: 'arohcpsvcdev.azurecr.io/app-sre/aro-hcp-clusters-service@sha256:1234567890'
         imagePullPolicy: IfNotPresent
         env:
         - name: DENYASSIGNMENTS
@@ -8182,7 +8182,7 @@ spec:
         - --metrics-listener-address=:8080
         - --healthcheck-listener-network=tcp
         - --healthcheck-listener-address=:8083
-        - --environment=
+        - --environment=arohcpdev
         - --backplane-url=
         - --provision-shards-config=/secrets/shards/config
         - --proxy-config-file=/configs/proxy/config.yaml
@@ -8193,11 +8193,17 @@ spec:
         - --instance-type-constraints-config=/configs/cloud-resource-constraints/instance-type-constraints.yaml
         - --cloud-region-config=/configs/cloud-resources/cloud-regions.yaml
         - --cloud-region-constraints-config=/configs/cloud-resource-constraints/cloud-region-constraints.yaml
-        - --azure-first-party-application-client-id=
+        - --azure-first-party-application-client-id=b3cb2fab-15cb-4583-ad06-f91da9bfe2d1
         - --azure-first-party-application-certificate-bundle-path=/secrets/keyvault/firstPartyApplicationCertificateBundle
         - --azure-runtime-config-path=/configs/azure-runtime-config/config.json
         - --azure-operators-managed-identities-config-path=/configs/azure-operators-managed-identities-config.yaml
         - --aro-hcp-ocp-versions-config-path=/configs/aro-hcp-ocp-versions-config.yaml
+        - --azure-mi-mock-service-principal-certificate-bundle-path=/secrets/keyvault/mockMiServicePrincipalCertificateBundle
+        - --azure-mi-mock-service-principal-client-id=e8723db7-9b9e-46a4-9f7d-64d75c3534f0
+        - --azure-mi-mock-service-principal-principal-id=d6b62dfa-87f5-49b3-bbcb-4a687c4faa96
+        - --azure-arm-helper-identity-certificate-bundle-path=/secrets/keyvault/armHelperIndentityCertificateBundle
+        - --azure-arm-helper-identity-client-id=3331e670-0804-48e8-a086-6241671ddc93
+        - --azure-arm-helper-mock-fpa-principal-id=47f69502-0065-4d9a-b19b-d403e183d2f4
         # Baggage items are populated by the RP frontend and defined in internal/tracing/attributes.go.
         - --log-fields-from-baggage=aro.correlation_id=correlation_id,aro.client.request_id=client_request_id
         
@@ -8489,14 +8495,22 @@ metadata:
 spec:
   parameters:
     clientID: '__azureCsMiClientId__'
-    cloudName: ''
-    keyvaultName: ''
+    cloudName: 'AzurePublicCloud'
+    keyvaultName: 'aro-hcp-dev-svc-kv'
     objects: |-
       array:
         - |
-          objectName: ''
+          objectName: 'firstPartyCert2'
           objectType: secret
           objectAlias: firstPartyApplicationCertificateBundle
+        - |
+          objectName: 'msiMockCert2'
+          objectType: secret
+          objectAlias: mockMiServicePrincipalCertificateBundle
+        - |
+          objectName: 'armHelperCert2'
+          objectType: secret
+          objectAlias: armHelperIndentityCertificateBundle
     tenantId: '__tenantId__'
     usePodIdentity: "false"
   provider: azure
