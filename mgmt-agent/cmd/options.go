@@ -21,6 +21,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
@@ -282,14 +283,17 @@ func (o *ControllerOptions) Run(ctx context.Context) error {
 
 	logger := klog.FromContext(ctx)
 
-	// Launch servers and leader election as independent goroutines.
-	// Each goroutine sends its result on errCh when done. On first
-	// error or context cancellation, cancel propagates to all.
-	goroutines := 2 // health server + leader election always run
-	errCh := make(chan error, goroutines)
+	var (
+		mu   sync.Mutex
+		errs []error
+		wg   sync.WaitGroup
+	)
 
 	// health/metrics server
+	wg.Add(1)
 	go func() {
+		defer cancel(fmt.Errorf("health server exited"))
+		defer wg.Done()
 		defer utilruntime.HandleCrash()
 		mux := http.NewServeMux()
 		mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
@@ -300,30 +304,27 @@ func (o *ControllerOptions) Run(ctx context.Context) error {
 		})
 		mux.Handle("/metrics", legacyregistry.Handler())
 		server := &http.Server{Addr: o.healthAddress, Handler: mux}
-		err := runHTTPServer(ctx, server, "health server")
-		if err != nil {
-			cancel(fmt.Errorf("health server exited: %w", err))
+		if err := runHTTPServer(ctx, server, "health server"); err != nil {
+			mu.Lock()
+			errs = append(errs, err)
+			mu.Unlock()
 		}
-		errCh <- err
 	}()
 
 	// controllers with leader election
+	wg.Add(1)
 	go func() {
+		defer cancel(fmt.Errorf("leader election exited"))
+		defer wg.Done()
 		defer utilruntime.HandleCrash()
-		err := o.runControllersUnderLeaderElection(ctx)
-		// When leader election exits (e.g. lost lease), cancel so Run() unblocks and performs shutdown.
-		cancel(fmt.Errorf("leader election exited"))
-		errCh <- err
+		if err := o.runControllersUnderLeaderElection(ctx); err != nil {
+			mu.Lock()
+			errs = append(errs, err)
+			mu.Unlock()
+		}
 	}()
 
-	<-ctx.Done()
-
-	errs := []error{}
-	for range goroutines {
-		if err := <-errCh; err != nil && !errors.Is(err, http.ErrServerClosed) {
-			errs = append(errs, err)
-		}
-	}
+	wg.Wait()
 	logger.Info("mgmt-agent stopped")
 	return errors.Join(errs...)
 }

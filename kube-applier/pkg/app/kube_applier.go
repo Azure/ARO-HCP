@@ -19,6 +19,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"sync"
 	"time"
 
 	_ "k8s.io/component-base/metrics/prometheus/clientgo"
@@ -55,17 +56,11 @@ func (o *Options) Run(ctx context.Context) error {
 
 	electionChecker := leaderelection.NewLeaderHealthzAdaptor(20 * time.Second)
 
-	// Launch servers and leader election as independent goroutines.
-	// Each goroutine sends its result on errCh when done. On first
-	// error or context cancellation, cancel propagates to all.
-	goroutines := 1 // leader election always runs
-	if o.HealthzServerListenAddress != "" {
-		goroutines++
-	}
-	if o.MetricsServerListenAddress != "" {
-		goroutines++
-	}
-	errCh := make(chan error, goroutines)
+	var (
+		mu   sync.Mutex
+		errs []error
+		wg   sync.WaitGroup
+	)
 
 	if o.HealthzServerListenAddress != "" {
 		healthGauge := promauto.With(o.metricsRegisterer()).NewGauge(prometheus.GaugeOpts{
@@ -83,13 +78,16 @@ func (o *Options) Run(ctx context.Context) error {
 			healthGauge.Set(1)
 		})
 		server := &http.Server{Addr: o.HealthzServerListenAddress, Handler: mux}
+		wg.Add(1)
 		go func() {
+			defer cancel(fmt.Errorf("healthz server exited"))
+			defer wg.Done()
 			defer kuberuntime.HandleCrash()
-			err := runHTTPServer(ctx, server, "healthz server")
-			if err != nil {
-				cancel(fmt.Errorf("healthz server exited: %w", err))
+			if err := runHTTPServer(ctx, server, "healthz server"); err != nil {
+				mu.Lock()
+				errs = append(errs, err)
+				mu.Unlock()
 			}
-			errCh <- err
 		}()
 	}
 
@@ -100,32 +98,32 @@ func (o *Options) Run(ctx context.Context) error {
 			promhttp.HandlerFor(prometheus.Gatherers{o.metricsGatherer()}, promhttp.HandlerOpts{}),
 		))
 		server := &http.Server{Addr: o.MetricsServerListenAddress, Handler: mux}
+		wg.Add(1)
 		go func() {
+			defer cancel(fmt.Errorf("metrics server exited"))
+			defer wg.Done()
 			defer kuberuntime.HandleCrash()
-			err := runHTTPServer(ctx, server, "metrics server")
-			if err != nil {
-				cancel(fmt.Errorf("metrics server exited: %w", err))
+			if err := runHTTPServer(ctx, server, "metrics server"); err != nil {
+				mu.Lock()
+				errs = append(errs, err)
+				mu.Unlock()
 			}
-			errCh <- err
 		}()
 	}
 
+	wg.Add(1)
 	go func() {
+		defer cancel(fmt.Errorf("leader election exited"))
+		defer wg.Done()
 		defer kuberuntime.HandleCrash()
-		err := o.runControllersUnderLeaderElection(ctx, electionChecker)
-		// When leader election exits (e.g. lost lease), cancel so Run() unblocks and performs shutdown.
-		cancel(fmt.Errorf("leader election exited"))
-		errCh <- err
+		if err := o.runControllersUnderLeaderElection(ctx, electionChecker); err != nil {
+			mu.Lock()
+			errs = append(errs, err)
+			mu.Unlock()
+		}
 	}()
 
-	<-ctx.Done()
-
-	errs := []error{}
-	for range goroutines {
-		if err := <-errCh; err != nil && !errors.Is(err, http.ErrServerClosed) {
-			errs = append(errs, err)
-		}
-	}
+	wg.Wait()
 	logger.Info(fmt.Sprintf("%s (%s) stopped", AppShortDescriptionName, version.CommitSHA))
 	return errors.Join(errs...)
 }

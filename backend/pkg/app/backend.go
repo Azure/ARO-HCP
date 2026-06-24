@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"sync"
 	"time"
 
 	_ "k8s.io/component-base/metrics/prometheus/clientgo"
@@ -109,8 +110,6 @@ type backendMetricsServer struct {
 }
 
 func (o *BackendOptions) RunBackend(ctx context.Context) error {
-	logger := utils.LoggerFromContext(ctx)
-
 	ctx, cancel := context.WithCancelCause(ctx)
 	defer cancel(fmt.Errorf("function returned"))
 
@@ -118,23 +117,27 @@ func (o *BackendOptions) RunBackend(ctx context.Context) error {
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to construct backend: %w", err))
 	}
-	runErrCh := make(chan error, 1)
+
+	var (
+		mu   sync.Mutex
+		errs []error
+		wg   sync.WaitGroup
+	)
+
+	wg.Add(1)
 	go func() {
+		defer cancel(fmt.Errorf("backend exited"))
+		defer wg.Done()
 		defer k8sutilruntime.HandleCrash()
-		runErrCh <- backend.Run(ctx)
-		cancel(fmt.Errorf("backend exited"))
+		if err := backend.Run(ctx); err != nil {
+			mu.Lock()
+			errs = append(errs, utils.TrackError(fmt.Errorf("failed to run backend: %w", err)))
+			mu.Unlock()
+		}
 	}()
 
-	<-ctx.Done()
-	logger.Info("context closed")
-
-	logger.Info("waiting for backend run to finish")
-	runErr := <-runErrCh
-	if runErr != nil {
-		return utils.TrackError(fmt.Errorf("failed to run backend: %w", runErr))
-	}
-
-	return nil
+	wg.Wait()
+	return errors.Join(errs...)
 }
 
 func (o *BackendOptions) NewBackend() (*Backend, error) {
@@ -198,17 +201,11 @@ func (b *Backend) Run(ctx context.Context) error {
 	// Create HealthzAdaptor for leader election
 	electionChecker := leaderelection.NewLeaderHealthzAdaptor(time.Second * 20)
 
-	// Launch servers and leader election as independent goroutines.
-	// Each goroutine sends its result on errCh when done. On first
-	// error or context cancellation, cancel propagates to all.
-	goroutines := 1 // leader election always runs
-	if b.options.HealthzServerListenAddress != "" {
-		goroutines++
-	}
-	if b.options.MetricsServerListenAddress != "" || b.options.MetricsServerListener != nil {
-		goroutines++
-	}
-	errCh := make(chan error, goroutines)
+	var (
+		mu   sync.Mutex
+		errs []error
+		wg   sync.WaitGroup
+	)
 
 	if b.options.HealthzServerListenAddress != "" {
 		s := &backendHealthzServer{
@@ -216,13 +213,16 @@ func (b *Backend) Run(ctx context.Context) error {
 			metricsRegisterer: b.options.MetricsRegisterer,
 			electionChecker:   electionChecker,
 		}
+		wg.Add(1)
 		go func() {
+			defer cancel(fmt.Errorf("healthz server exited"))
+			defer wg.Done()
 			defer k8sutilruntime.HandleCrash()
-			err := s.Run(ctx)
-			if err != nil {
-				cancel(fmt.Errorf("healthz server exited: %w", err))
+			if err := s.Run(ctx); err != nil {
+				mu.Lock()
+				errs = append(errs, err)
+				mu.Unlock()
 			}
-			errCh <- err
 		}()
 	}
 
@@ -233,33 +233,32 @@ func (b *Backend) Run(ctx context.Context) error {
 			metricsRegisterer: b.options.MetricsRegisterer,
 			metricsGatherer:   b.options.MetricsGatherer,
 		}
+		wg.Add(1)
 		go func() {
+			defer cancel(fmt.Errorf("metrics server exited"))
+			defer wg.Done()
 			defer k8sutilruntime.HandleCrash()
-			err := s.Run(ctx)
-			if err != nil {
-				cancel(fmt.Errorf("metrics server exited: %w", err))
+			if err := s.Run(ctx); err != nil {
+				mu.Lock()
+				errs = append(errs, err)
+				mu.Unlock()
 			}
-			errCh <- err
 		}()
 	}
 
+	wg.Add(1)
 	go func() {
+		defer cancel(fmt.Errorf("backend controllers leader election exited"))
+		defer wg.Done()
 		defer k8sutilruntime.HandleCrash()
-		err := b.runBackendControllersUnderLeaderElection(ctx, electionChecker)
-		// When leader election exits (e.g. lost lease), cancel so Run() unblocks and performs shutdown.
-		cancel(fmt.Errorf("backend controllers leader election exited"))
-		errCh <- err
+		if err := b.runBackendControllersUnderLeaderElection(ctx, electionChecker); err != nil {
+			mu.Lock()
+			errs = append(errs, err)
+			mu.Unlock()
+		}
 	}()
 
-	<-ctx.Done()
-
-	errs := []error{}
-	for range goroutines {
-		if err := <-errCh; err != nil && !errors.Is(err, http.ErrServerClosed) {
-			logger.Info("goroutine completed", "message", err.Error())
-			errs = append(errs, err)
-		}
-	}
+	wg.Wait()
 
 	logger.Info(fmt.Sprintf("%s (%s) stopped", b.options.AppShortDescriptionName, b.options.AppVersion))
 
