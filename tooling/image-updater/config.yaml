@@ -23,7 +23,7 @@ images:
     group: hypershift-stack
     source:
       image: quay.io/redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
-      tag: "latest"
+      tag: "a101e6697af02eba43e6cfd04fc4c00277b72a64" # pinned: latest includes openshift/hypershift#8509 which breaks registry overrides for digest images (OCPBUGS-92034, unpin: AROSLSRE-1318)
       multiArch: true # Use multi-arch manifest
       useAuth: true
       keyVault:
