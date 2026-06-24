@@ -2,91 +2,7 @@ rule_files:
 - HCPkmsMonitor-prometheusRule.yaml
 evaluation_interval: 1m
 tests:
-# Test 1: DEK cache empty alert fires
-- interval: 1m
-  input_series:
-  - series: 'kas:kms_dek_cache_size:min{namespace="ocm-test", cluster="mgmt-1", _id="test-id-1"}'
-    values: "0+0x10"
-  alert_rule_test:
-  - eval_time: 5m
-    alertname: UJKmsDekCacheEmpty
-    exp_alerts:
-    - exp_labels:
-        severity: warning
-        namespace: ocm-test
-        cluster: mgmt-1
-        _id: test-id-1
-      exp_annotations:
-        summary: "KMS DEK cache empty in ocm-test"
-        description: "DEK cache is empty for KMS provider in namespace ocm-test (cluster mgmt-1). Every secret read/write will round-trip to Azure Key Vault."
-        correlationId: "UJKmsDekCache/mgmt-1/test-id-1"
-        runbook_url: "https://aka.ms/arohcp-runbook-kms"
-# Test 2: DEK cache non-empty — no alert
-- interval: 1m
-  input_series:
-  - series: 'kas:kms_dek_cache_size:min{namespace="ocm-test-2", cluster="mgmt-1", _id="test-id-2"}'
-    values: "16+0x10"
-  alert_rule_test:
-  - eval_time: 5m
-    alertname: UJKmsDekCacheEmpty
-    exp_alerts: []
-# Test 3: KMS status check stale — alert fires when age > 300s
-- interval: 1m
-  input_series:
-  - series: 'kas:kms_status_check_age:max{namespace="ocm-test-3", cluster="mgmt-1", _id="test-id-3"}'
-    values: "350+0x10"
-  alert_rule_test:
-  - eval_time: 6m
-    alertname: UJKmsStatusCheckStale
-    exp_alerts:
-    - exp_labels:
-        severity: warning
-        namespace: ocm-test-3
-        cluster: mgmt-1
-        _id: test-id-3
-      exp_annotations:
-        summary: "KMS status check stale in ocm-test-3"
-        description: "KMS provider status check in namespace ocm-test-3 (cluster mgmt-1) has not succeeded for over 5 minutes. The provider connection may be broken."
-        correlationId: "UJKmsStatusCheck/mgmt-1/test-id-3"
-        runbook_url: "https://aka.ms/arohcp-runbook-kms"
-# Test 4: KMS status check fresh — no alert
-- interval: 1m
-  input_series:
-  - series: 'kas:kms_status_check_age:max{namespace="ocm-test-4", cluster="mgmt-1", _id="test-id-4"}'
-    values: "30+0x10"
-  alert_rule_test:
-  - eval_time: 6m
-    alertname: UJKmsStatusCheckStale
-    exp_alerts: []
-# Test 5: KMS latency high — alert fires when p99 > 500ms
-- interval: 1m
-  input_series:
-  - series: 'kas:kms_encrypt_latency:p99_5m{namespace="ocm-test-5", cluster="mgmt-1", _id="test-id-5"}'
-    values: "0.6+0x10"
-  alert_rule_test:
-  - eval_time: 6m
-    alertname: UJKmsLatencyHigh
-    exp_alerts:
-    - exp_labels:
-        severity: warning
-        namespace: ocm-test-5
-        cluster: mgmt-1
-        _id: test-id-5
-      exp_annotations:
-        summary: "KMS encrypt/decrypt p99 latency exceeds 500ms in ocm-test-5"
-        description: "KMS operation p99 latency in namespace ocm-test-5 (cluster mgmt-1) exceeds the 500ms SLO target."
-        correlationId: "UJKmsLatency/mgmt-1/test-id-5"
-        runbook_url: "https://aka.ms/arohcp-runbook-kms"
-# Test 6: KMS latency normal — no alert
-- interval: 1m
-  input_series:
-  - series: 'kas:kms_encrypt_latency:p99_5m{namespace="ocm-test-6", cluster="mgmt-1", _id="test-id-6"}'
-    values: "0.05+0x10"
-  alert_rule_test:
-  - eval_time: 6m
-    alertname: UJKmsLatencyHigh
-    exp_alerts: []
-# Test 7: KMS availability — no alert when all healthy
+# Test 1: KMS availability — no alert when all healthy
 - interval: 1m
   input_series:
   - series: 'hostedClusterAPI_valid_azure_kms_config:sum_over_time_5m{name="healthy", namespace="clusters", _id="h-123", cluster="mgmt-1"}'
@@ -101,7 +17,7 @@ tests:
   - eval_time: 65m
     alertname: UJKmsAvailability1h5m
     exp_alerts: []
-# Test 8: KMS availability fast-burn alert fires when availability degrades
+# Test 2: KMS availability fast-burn alert fires when availability degrades
 - interval: 1m
   input_series:
   - series: 'hostedClusterAPI_valid_azure_kms_config:sum_over_time_5m{name="degraded-fast", namespace="clusters", _id="d-fast-123", cluster="mgmt-2"}'
@@ -117,7 +33,7 @@ tests:
     alertname: UJKmsAvailability1h5m
     exp_alerts:
     - exp_labels:
-        severity: warning
+        severity: info
         short_window: 5m
         long_window: 1h
         name: degraded-fast
@@ -129,77 +45,3 @@ tests:
         description: "HostedCluster degraded-fast (ID: d-fast-123) ValidAzureKMSConfig availability is burning error budget at 14.4x rate. The customer's KMS key may be inaccessible."
         correlationId: "UJKmsAvailability/mgmt-2/d-fast-123"
         runbook_url: "https://aka.ms/arohcp-runbook-kms"
-# Test 9: KMS errors fast-burn alert fires on high short-term error rate
-- interval: 1m
-  input_series:
-  - series: 'kas:kms_operations_errors:rate_avg_5m{namespace="ocm-errors-fast", cluster="mgmt-3", _id="err-id-1"}'
-    values: "0.2+0x30"
-  - series: 'kas:kms_operations_total:rate_avg_5m{namespace="ocm-errors-fast", cluster="mgmt-3", _id="err-id-1"}'
-    values: "10+0x30"
-  - series: 'kas:kms_operations_errors:rate_avg_1h{namespace="ocm-errors-fast", cluster="mgmt-3", _id="err-id-1"}'
-    values: "0.2+0x30"
-  - series: 'kas:kms_operations_total:rate_avg_1h{namespace="ocm-errors-fast", cluster="mgmt-3", _id="err-id-1"}'
-    values: "10+0x30"
-  alert_rule_test:
-  - eval_time: 10m
-    alertname: UJKmsErrors1h5m
-    exp_alerts:
-    - exp_labels:
-        severity: warning
-        short_window: 5m
-        long_window: 1h
-        namespace: ocm-errors-fast
-        cluster: mgmt-3
-        _id: err-id-1
-      exp_annotations:
-        summary: "High KMS operation error rate for HCP in ocm-errors-fast"
-        description: "KMS encrypt/decrypt operations in namespace ocm-errors-fast (cluster mgmt-3) are failing at a rate that burns the 0.05% error budget at 14.4x."
-        correlationId: "UJKmsErrors/mgmt-3/err-id-1"
-        runbook_url: "https://aka.ms/arohcp-runbook-kms"
-# Test 10: KMS errors fast-burn alert does not fire when there is no traffic
-- interval: 1m
-  input_series:
-  - series: 'kas:kms_operations_errors:rate_avg_5m{namespace="ocm-errors-idle", cluster="mgmt-3", _id="err-idle"}'
-    values: "1+0x30"
-  - series: 'kas:kms_operations_total:rate_avg_5m{namespace="ocm-errors-idle", cluster="mgmt-3", _id="err-idle"}'
-    values: "0+0x30"
-  - series: 'kas:kms_operations_errors:rate_avg_1h{namespace="ocm-errors-idle", cluster="mgmt-3", _id="err-idle"}'
-    values: "1+0x30"
-  - series: 'kas:kms_operations_total:rate_avg_1h{namespace="ocm-errors-idle", cluster="mgmt-3", _id="err-idle"}'
-    values: "0+0x30"
-  alert_rule_test:
-  - eval_time: 10m
-    alertname: UJKmsErrors1h5m
-    exp_alerts: []
-# Test 11: Traffic absent alert fires when ops drop to zero
-- interval: 1m
-  input_series:
-  - series: 'kas:kms_operations_total:rate5m{namespace="ocm-traffic", cluster="mgmt-4", _id="traf-id-1"}'
-    values: "0+0x30"
-  - series: 'kas:kms_operations_total:rate_avg_1h{namespace="ocm-traffic", cluster="mgmt-4", _id="traf-id-1"}'
-    values: "0.1+0x30"
-  alert_rule_test:
-  - eval_time: 16m
-    alertname: UJKmsTrafficAbsent
-    exp_alerts:
-    - exp_labels:
-        severity: warning
-        namespace: ocm-traffic
-        cluster: mgmt-4
-        _id: traf-id-1
-      exp_annotations:
-        summary: "KMS operations stopped for HCP in ocm-traffic"
-        description: "KMS operations in namespace ocm-traffic (cluster mgmt-4) dropped to zero after previously having traffic. The KMS provider may have stopped."
-        correlationId: "UJKmsTraffic/mgmt-4/traf-id-1"
-        runbook_url: "https://aka.ms/arohcp-runbook-kms"
-# Test 12: Traffic absent — no alert when traffic is present
-- interval: 1m
-  input_series:
-  - series: 'kas:kms_operations_total:rate5m{namespace="ocm-traffic-ok", cluster="mgmt-4", _id="traf-id-2"}'
-    values: "0.1+0x30"
-  - series: 'kas:kms_operations_total:rate_avg_1h{namespace="ocm-traffic-ok", cluster="mgmt-4", _id="traf-id-2"}'
-    values: "0.1+0x30"
-  alert_rule_test:
-  - eval_time: 16m
-    alertname: UJKmsTrafficAbsent
-    exp_alerts: []

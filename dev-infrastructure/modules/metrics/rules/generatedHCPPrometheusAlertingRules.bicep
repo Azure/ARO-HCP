@@ -1807,7 +1807,7 @@ resource hcpKmsAvailabilityRules 'Microsoft.AlertsManagement/prometheusRuleGroup
         enabled: true
         labels: {
           long_window: '1h'
-          severity: 'warning'
+          severity: 'info'
           short_window: '5m'
         }
         annotations: {
@@ -1820,7 +1820,7 @@ resource hcpKmsAvailabilityRules 'Microsoft.AlertsManagement/prometheusRuleGroup
         }
         expression: '1 - (hostedClusterAPI_valid_azure_kms_config:sum_over_time_5m / hostedClusterAPI_valid_azure_kms_config:count_over_time_5m) > (14.4 * (1 - 0.9995)) and hostedClusterAPI_valid_azure_kms_config:count_over_time_5m > 5 and 1 - (hostedClusterAPI_valid_azure_kms_config:sum_over_time_1h / hostedClusterAPI_valid_azure_kms_config:count_over_time_1h) > (14.4 * (1 - 0.9995)) and hostedClusterAPI_valid_azure_kms_config:count_over_time_1h > 60'
         for: 'PT2M'
-        severity: 3
+        severity: 4
       }
       {
         actions: [
@@ -1836,7 +1836,7 @@ resource hcpKmsAvailabilityRules 'Microsoft.AlertsManagement/prometheusRuleGroup
         enabled: true
         labels: {
           long_window: '6h'
-          severity: 'warning'
+          severity: 'info'
           short_window: '30m'
         }
         annotations: {
@@ -1849,7 +1849,7 @@ resource hcpKmsAvailabilityRules 'Microsoft.AlertsManagement/prometheusRuleGroup
         }
         expression: '1 - (hostedClusterAPI_valid_azure_kms_config:sum_over_time_30m / hostedClusterAPI_valid_azure_kms_config:count_over_time_30m) > (6 * (1 - 0.9995)) and hostedClusterAPI_valid_azure_kms_config:count_over_time_30m > 30 and 1 - (hostedClusterAPI_valid_azure_kms_config:sum_over_time_6h / hostedClusterAPI_valid_azure_kms_config:count_over_time_6h) > (6 * (1 - 0.9995)) and hostedClusterAPI_valid_azure_kms_config:count_over_time_6h > 360'
         for: 'PT15M'
-        severity: 3
+        severity: 4
       }
       {
         actions: [
@@ -1879,240 +1879,6 @@ resource hcpKmsAvailabilityRules 'Microsoft.AlertsManagement/prometheusRuleGroup
         expression: '1 - (hostedClusterAPI_valid_azure_kms_config:sum_over_time_6h / hostedClusterAPI_valid_azure_kms_config:count_over_time_6h) > (1 * (1 - 0.9995)) and hostedClusterAPI_valid_azure_kms_config:count_over_time_6h > 360 and 1 - sum by (name, namespace, _id, cluster) (hostedClusterAPI_valid_azure_kms_config:ratio_avg_3d) > (1 * (1 - 0.9995))'
         for: 'PT3H'
         severity: 4
-      }
-    ]
-    scopes: [
-      azureMonitoring
-    ]
-  }
-}
-
-resource hcpKmsErrorsRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
-  name: 'hcp-kms-errors-rules'
-  location: location
-  properties: {
-    interval: 'PT1M'
-    rules: [
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'UJKmsErrors1h5m'
-        enabled: true
-        labels: {
-          long_window: '1h'
-          severity: 'warning'
-          short_window: '5m'
-        }
-        annotations: {
-          correlationId: 'UJKmsErrors/{{ $labels.cluster }}/{{ $labels._id }}'
-          description: 'KMS encrypt/decrypt operations in namespace {{ $labels.namespace }} (cluster {{ $labels.cluster }}) are failing at a rate that burns the 0.05% error budget at 14.4x.'
-          info: 'KMS encrypt/decrypt operations in namespace {{ $labels.namespace }} (cluster {{ $labels.cluster }}) are failing at a rate that burns the 0.05% error budget at 14.4x.'
-          runbook_url: 'https://aka.ms/arohcp-runbook-kms'
-          summary: 'High KMS operation error rate for HCP in {{ $labels.namespace }}'
-          title: 'High KMS operation error rate for HCP in {{ $labels.namespace }}'
-        }
-        expression: '(kas:kms_operations_errors:rate_avg_5m / kas:kms_operations_total:rate_avg_5m) > (14.4 * 0.0005) and kas:kms_operations_total:rate_avg_5m > 0 and (kas:kms_operations_errors:rate_avg_1h / kas:kms_operations_total:rate_avg_1h) > (14.4 * 0.0005) and kas:kms_operations_total:rate_avg_1h > 0'
-        for: 'PT2M'
-        severity: 3
-      }
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'UJKmsErrors6h30m'
-        enabled: true
-        labels: {
-          long_window: '6h'
-          severity: 'warning'
-          short_window: '30m'
-        }
-        annotations: {
-          correlationId: 'UJKmsErrors/{{ $labels.cluster }}/{{ $labels._id }}'
-          description: 'KMS encrypt/decrypt operations in namespace {{ $labels.namespace }} (cluster {{ $labels.cluster }}) are failing at a rate that burns the 0.05% error budget at 6x.'
-          info: 'KMS encrypt/decrypt operations in namespace {{ $labels.namespace }} (cluster {{ $labels.cluster }}) are failing at a rate that burns the 0.05% error budget at 6x.'
-          runbook_url: 'https://aka.ms/arohcp-runbook-kms'
-          summary: 'Sustained KMS operation error rate for HCP in {{ $labels.namespace }}'
-          title: 'Sustained KMS operation error rate for HCP in {{ $labels.namespace }}'
-        }
-        expression: '(kas:kms_operations_errors:rate_avg_30m / kas:kms_operations_total:rate_avg_30m) > (6 * 0.0005) and kas:kms_operations_total:rate_avg_30m > 0 and (kas:kms_operations_errors:rate_avg_6h / kas:kms_operations_total:rate_avg_6h) > (6 * 0.0005) and kas:kms_operations_total:rate_avg_6h > 0'
-        for: 'PT15M'
-        severity: 3
-      }
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'UJKmsErrors3d6h'
-        enabled: true
-        labels: {
-          long_window: '3d'
-          severity: 'info'
-          short_window: '6h'
-        }
-        annotations: {
-          correlationId: 'UJKmsErrors/{{ $labels.cluster }}/{{ $labels._id }}'
-          description: 'KMS encrypt/decrypt operations in namespace {{ $labels.namespace }} (cluster {{ $labels.cluster }}) are slowly burning the 0.05% error budget.'
-          info: 'KMS encrypt/decrypt operations in namespace {{ $labels.namespace }} (cluster {{ $labels.cluster }}) are slowly burning the 0.05% error budget.'
-          runbook_url: 'https://aka.ms/arohcp-runbook-kms'
-          summary: 'Slow KMS error budget burn for HCP in {{ $labels.namespace }}'
-          title: 'Slow KMS error budget burn for HCP in {{ $labels.namespace }}'
-        }
-        expression: '(kas:kms_operations_errors:rate_avg_6h / kas:kms_operations_total:rate_avg_6h) > (1 * 0.0005) and kas:kms_operations_total:rate_avg_6h > 0 and (kas:kms_operations_errors:rate_avg_3d / kas:kms_operations_total:rate_avg_3d) > (1 * 0.0005) and kas:kms_operations_total:rate_avg_3d > 0'
-        for: 'PT3H'
-        severity: 4
-      }
-    ]
-    scopes: [
-      azureMonitoring
-    ]
-  }
-}
-
-resource hcpKmsSaturationRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
-  name: 'hcp-kms-saturation-rules'
-  location: location
-  properties: {
-    interval: 'PT1M'
-    rules: [
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'UJKmsLatencyHigh'
-        enabled: true
-        labels: {
-          severity: 'warning'
-        }
-        annotations: {
-          correlationId: 'UJKmsLatency/{{ $labels.cluster }}/{{ $labels._id }}'
-          description: 'KMS operation p99 latency in namespace {{ $labels.namespace }} (cluster {{ $labels.cluster }}) exceeds the 500ms SLO target.'
-          info: 'KMS operation p99 latency in namespace {{ $labels.namespace }} (cluster {{ $labels.cluster }}) exceeds the 500ms SLO target.'
-          runbook_url: 'https://aka.ms/arohcp-runbook-kms'
-          summary: 'KMS encrypt/decrypt p99 latency exceeds 500ms in {{ $labels.namespace }}'
-          title: 'KMS encrypt/decrypt p99 latency exceeds 500ms in {{ $labels.namespace }}'
-        }
-        expression: 'kas:kms_encrypt_latency:p99_5m > 0.5 or kas:kms_decrypt_latency:p99_5m > 0.5'
-        for: 'PT5M'
-        severity: 3
-      }
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'UJKmsDekCacheEmpty'
-        enabled: true
-        labels: {
-          severity: 'warning'
-        }
-        annotations: {
-          correlationId: 'UJKmsDekCache/{{ $labels.cluster }}/{{ $labels._id }}'
-          description: 'DEK cache is empty for KMS provider in namespace {{ $labels.namespace }} (cluster {{ $labels.cluster }}). Every secret read/write will round-trip to Azure Key Vault.'
-          info: 'DEK cache is empty for KMS provider in namespace {{ $labels.namespace }} (cluster {{ $labels.cluster }}). Every secret read/write will round-trip to Azure Key Vault.'
-          runbook_url: 'https://aka.ms/arohcp-runbook-kms'
-          summary: 'KMS DEK cache empty in {{ $labels.namespace }}'
-          title: 'KMS DEK cache empty in {{ $labels.namespace }}'
-        }
-        expression: 'kas:kms_dek_cache_size:min == 0'
-        for: 'PT2M'
-        severity: 3
-      }
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'UJKmsStatusCheckStale'
-        enabled: true
-        labels: {
-          severity: 'warning'
-        }
-        annotations: {
-          correlationId: 'UJKmsStatusCheck/{{ $labels.cluster }}/{{ $labels._id }}'
-          description: 'KMS provider status check in namespace {{ $labels.namespace }} (cluster {{ $labels.cluster }}) has not succeeded for over 5 minutes. The provider connection may be broken.'
-          info: 'KMS provider status check in namespace {{ $labels.namespace }} (cluster {{ $labels.cluster }}) has not succeeded for over 5 minutes. The provider connection may be broken.'
-          runbook_url: 'https://aka.ms/arohcp-runbook-kms'
-          summary: 'KMS status check stale in {{ $labels.namespace }}'
-          title: 'KMS status check stale in {{ $labels.namespace }}'
-        }
-        expression: 'kas:kms_status_check_age:max > 300'
-        for: 'PT5M'
-        severity: 3
-      }
-    ]
-    scopes: [
-      azureMonitoring
-    ]
-  }
-}
-
-resource hcpKmsTrafficRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
-  name: 'hcp-kms-traffic-rules'
-  location: location
-  properties: {
-    interval: 'PT1M'
-    rules: [
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'UJKmsTrafficAbsent'
-        enabled: true
-        labels: {
-          severity: 'warning'
-        }
-        annotations: {
-          correlationId: 'UJKmsTraffic/{{ $labels.cluster }}/{{ $labels._id }}'
-          description: 'KMS operations in namespace {{ $labels.namespace }} (cluster {{ $labels.cluster }}) dropped to zero after previously having traffic. The KMS provider may have stopped.'
-          info: 'KMS operations in namespace {{ $labels.namespace }} (cluster {{ $labels.cluster }}) dropped to zero after previously having traffic. The KMS provider may have stopped.'
-          runbook_url: 'https://aka.ms/arohcp-runbook-kms'
-          summary: 'KMS operations stopped for HCP in {{ $labels.namespace }}'
-          title: 'KMS operations stopped for HCP in {{ $labels.namespace }}'
-        }
-        expression: 'kas:kms_operations_total:rate5m == 0 and kas:kms_operations_total:rate_avg_1h > 0'
-        for: 'PT15M'
-        severity: 3
       }
     ]
     scopes: [
