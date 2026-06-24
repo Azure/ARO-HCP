@@ -584,6 +584,8 @@ resource {{.name}} 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' 
           actionProperties: {
             'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
             'IcM.CorrelationId': '#$.annotations.correlationId#'
+            'IcM.Description': '#$.annotations.info#'
+            'IcM.TsgId': '#$.annotations.runbook_url#'
           }
         }]
         alert: '{{.Alert}}'
