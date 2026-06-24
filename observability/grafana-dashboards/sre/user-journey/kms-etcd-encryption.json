@@ -201,7 +201,7 @@
       },
       "targets": [
         {
-          "expr": "histogram_quantile(0.99, sum by (le) (apiserver_envelope_encryption_kms_operations_latency_seconds_bucket{namespace=~\"$hcp\", method_name=\"/v2.keymanagementservice/encrypt\", grpc_status_code=\"ok\"}))",
+          "expr": "histogram_quantile(0.99, sum by (le) (apiserver_envelope_encryption_kms_operations_latency_seconds_bucket{namespace=~\"$hcp\", method_name=\"/v2.keymanagementservice/encrypt\", grpc_status_code=\"0\"}))",
           "legendFormat": "Encrypt p99"
         }
       ],
@@ -474,7 +474,7 @@
           "sort": "none"
         }
       },
-      "description": "KMS gRPC operations per second, broken down by status code.\n\nGood: Only 'ok' status visible \u2014 all operations succeeding.\nBad: 'canceled', 'deadlineexceeded', or 'unknown' status codes appearing \u2014 indicates KMS provider connectivity issues.\nNormal rate: ~0.03-0.15 ops/s (mostly status checks every 30s)."
+      "description": "KMS gRPC operations per second, broken down by numeric gRPC status code.\n\nGood: Only code '0' (OK) visible \u2014 all operations succeeding.\nBad: Non-zero codes appearing (1=CANCELED, 4=DEADLINE_EXCEEDED, 14=UNAVAILABLE) \u2014 indicates KMS provider connectivity issues.\nNormal rate: ~0.03-0.15 ops/s (mostly status checks every 30s)."
     },
     {
       "datasource": {
@@ -572,11 +572,11 @@
       "id": 8,
       "targets": [
         {
-          "expr": "histogram_quantile(0.99, sum by (namespace, cluster, le) (apiserver_envelope_encryption_kms_operations_latency_seconds_bucket{namespace=~\"$hcp\", method_name=\"/v2.keymanagementservice/encrypt\", grpc_status_code=\"ok\"}))",
+          "expr": "histogram_quantile(0.99, sum by (namespace, cluster, le) (apiserver_envelope_encryption_kms_operations_latency_seconds_bucket{namespace=~\"$hcp\", method_name=\"/v2.keymanagementservice/encrypt\", grpc_status_code=\"0\"}))",
           "legendFormat": "encrypt p99 {{ namespace }}"
         },
         {
-          "expr": "histogram_quantile(0.99, sum by (namespace, cluster, le) (apiserver_envelope_encryption_kms_operations_latency_seconds_bucket{namespace=~\"$hcp\", method_name=\"/v2.keymanagementservice/decrypt\", grpc_status_code=\"ok\"}))",
+          "expr": "histogram_quantile(0.99, sum by (namespace, cluster, le) (apiserver_envelope_encryption_kms_operations_latency_seconds_bucket{namespace=~\"$hcp\", method_name=\"/v2.keymanagementservice/decrypt\", grpc_status_code=\"0\"}))",
           "legendFormat": "decrypt p99 {{ namespace }}"
         },
         {

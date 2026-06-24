@@ -6,13 +6,13 @@ tests:
 - interval: 1m
   input_series:
   # 10 encrypt ops/min with ok status
-  - series: 'apiserver_envelope_encryption_kms_operations_latency_seconds_count{cluster="test-mgmt-1", namespace="ocm-aro-test-01", grpc_status_code="ok", method_name="/v2.keymanagementservice/encrypt", provider_name="azurekmsprovider0"}'
+  - series: 'apiserver_envelope_encryption_kms_operations_latency_seconds_count{cluster="test-mgmt-1", namespace="ocm-aro-test-01", grpc_status_code="0", method_name="/v2.keymanagementservice/encrypt", provider_name="azurekmsprovider0"}'
     values: "0+10x15"
   # 20 decrypt ops/min with ok status
-  - series: 'apiserver_envelope_encryption_kms_operations_latency_seconds_count{cluster="test-mgmt-1", namespace="ocm-aro-test-01", grpc_status_code="ok", method_name="/v2.keymanagementservice/decrypt", provider_name="azurekmsprovider0"}'
+  - series: 'apiserver_envelope_encryption_kms_operations_latency_seconds_count{cluster="test-mgmt-1", namespace="ocm-aro-test-01", grpc_status_code="0", method_name="/v2.keymanagementservice/decrypt", provider_name="azurekmsprovider0"}'
     values: "0+20x15"
   # 5 status ops/min with ok status
-  - series: 'apiserver_envelope_encryption_kms_operations_latency_seconds_count{cluster="test-mgmt-1", namespace="ocm-aro-test-01", grpc_status_code="ok", method_name="/v2.keymanagementservice/status", provider_name="azurekmsprovider0"}'
+  - series: 'apiserver_envelope_encryption_kms_operations_latency_seconds_count{cluster="test-mgmt-1", namespace="ocm-aro-test-01", grpc_status_code="0", method_name="/v2.keymanagementservice/status", provider_name="azurekmsprovider0"}'
     values: "0+5x15"
   promql_expr_test:
   # Total rate should be (10+20+5)/60 = 0.583 ops/sec
@@ -29,10 +29,10 @@ tests:
 - interval: 1m
   input_series:
   # 990 ops/min with ok status
-  - series: 'apiserver_envelope_encryption_kms_operations_latency_seconds_count{cluster="test-mgmt-2", namespace="ocm-aro-test-02", grpc_status_code="ok", method_name="/v2.keymanagementservice/encrypt", provider_name="azurekmsprovider0"}'
+  - series: 'apiserver_envelope_encryption_kms_operations_latency_seconds_count{cluster="test-mgmt-2", namespace="ocm-aro-test-02", grpc_status_code="0", method_name="/v2.keymanagementservice/encrypt", provider_name="azurekmsprovider0"}'
     values: "0+990x15"
   # 10 ops/min with deadlineexceeded status
-  - series: 'apiserver_envelope_encryption_kms_operations_latency_seconds_count{cluster="test-mgmt-2", namespace="ocm-aro-test-02", grpc_status_code="deadlineexceeded", method_name="/v2.keymanagementservice/encrypt", provider_name="azurekmsprovider0"}'
+  - series: 'apiserver_envelope_encryption_kms_operations_latency_seconds_count{cluster="test-mgmt-2", namespace="ocm-aro-test-02", grpc_status_code="4", method_name="/v2.keymanagementservice/encrypt", provider_name="azurekmsprovider0"}'
     values: "0+10x15"
   promql_expr_test:
   # Total rate should be (990+10)/60 = 16.67 ops/sec
@@ -57,10 +57,10 @@ tests:
 - interval: 1m
   input_series:
   # This should NOT be included (not ocm-* namespace)
-  - series: 'apiserver_envelope_encryption_kms_operations_latency_seconds_count{cluster="test-mgmt-3", namespace="default", grpc_status_code="ok", method_name="/v2.keymanagementservice/encrypt", provider_name="azurekmsprovider0"}'
+  - series: 'apiserver_envelope_encryption_kms_operations_latency_seconds_count{cluster="test-mgmt-3", namespace="default", grpc_status_code="0", method_name="/v2.keymanagementservice/encrypt", provider_name="azurekmsprovider0"}'
     values: "0+1000x15"
   # This SHOULD be included (ocm-* namespace)
-  - series: 'apiserver_envelope_encryption_kms_operations_latency_seconds_count{cluster="test-mgmt-3", namespace="ocm-aro-test-03", grpc_status_code="ok", method_name="/v2.keymanagementservice/encrypt", provider_name="azurekmsprovider0"}'
+  - series: 'apiserver_envelope_encryption_kms_operations_latency_seconds_count{cluster="test-mgmt-3", namespace="ocm-aro-test-03", grpc_status_code="0", method_name="/v2.keymanagementservice/encrypt", provider_name="azurekmsprovider0"}'
     values: "0+50x15"
   promql_expr_test:
   # Should only see ocm-aro-test-03, not default
