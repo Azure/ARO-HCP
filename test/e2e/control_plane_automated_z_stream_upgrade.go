@@ -92,6 +92,8 @@ var _ = Describe("Service Provider", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create customer resources for z-stream cluster %q", clusterName)
 
 			clusterCreationTimeout := framework.ClusterCreationTimeout
+			// 4.22 control plane provisioning has been consistently slower and frequently hits the default timeout.
+			// Bump the create+wait budget to reduce flaky timeouts for this minor.
 			if minorVersion == "4.22" {
 				clusterCreationTimeout = 35 * time.Minute
 			}
