@@ -11,12 +11,12 @@ ResourceRequestsAllowlist:
 - DaemonSet/*/fluentbit # arobit-fluentbit standing exemption (pattern match)
 - Deployment/*/mce # mce standing exemption
 - Job/*/mce # mce standing exemption
-# Upstream charts that set their own limits
-- Deployment/*/kube-state-metrics # upstream kube-state-metrics chart sets limits
-- Deployment/prometheus-operator/kube-prometheus-stack # upstream prometheus-operator chart sets limits
+# Upstream charts - currently missing requests
+- Deployment/*/kube-state-metrics # upstream kube-state-metrics chart
+- Deployment/prometheus-operator/kube-prometheus-stack # upstream prometheus-operator chart
 - Job/prometheus-admission-*/create # upstream prometheus-operator admission webhook jobs
 - Job/prometheus-admission-*/patch # upstream prometheus-operator admission webhook jobs
-# Current violations - missing requests
+# Current violations - containers missing resources.requests.memory
 - DaemonSet/arobit-forwarder/mdsd-clusterlogs
 - DaemonSet/set-kubelet-parameters-for-scale/kubelet-parameters
 - Deployment/admin-api-certificate-refresher/init-container-msg-container-init
@@ -53,15 +53,15 @@ ResourceMemoryLimitsAllowlist:
 - Deployment/sessiongate/* # config sets memory: unlimited
 - Deployment/secrets-store-sync-controller-manager/provider-azure-installer # config sets memory: unlimited
 - Deployment/maestro/maestro-server # config sets memory: NONE
-- Deployment/maestro/maestro-server-migration # config sets memory: NONE
-# Upstream charts that set their own limits
+- Deployment/maestro/maestro-server-migration # config sets memory: NONE (also missing requests)
+# Upstream charts - currently missing limits
 - DaemonSet/arobit-forwarder/mdsd-cert-watchdog # upstream arobit chart sets limits
 - Job/*/fleet-registration # fleet registration job name varies by environment
-- Deployment/*/kube-state-metrics # upstream kube-state-metrics chart sets limits
-- Deployment/prometheus-operator/kube-prometheus-stack # upstream prometheus-operator chart sets limits
+- Deployment/*/kube-state-metrics # upstream kube-state-metrics chart
+- Deployment/prometheus-operator/kube-prometheus-stack # upstream prometheus-operator chart
 - Job/prometheus-admission-*/create # upstream prometheus-operator admission webhook jobs
 - Job/prometheus-admission-*/patch # upstream prometheus-operator admission webhook jobs
-# Current violations - missing limits
+# Current violations - containers missing resources.limits.memory
 - DaemonSet/arobit-forwarder/mdsd-clusterlogs
 - DaemonSet/set-kubelet-parameters-for-scale/kubelet-parameters
 - Deployment/admin-api/service
