@@ -248,6 +248,11 @@ func DownloadAllVirtualMachineConsoleLogs(
 ) error {
 	logger := ginkgo.GinkgoLogr
 
+	if targetDirectory == "" {
+		logger.Info("skipping VM console log download: no target directory configured (ARTIFACT_DIR not set)")
+		return nil
+	}
+
 	// Create target directory if it doesn't exist
 	if err := os.MkdirAll(targetDirectory, 0755); err != nil {
 		return fmt.Errorf("failed to create target directory %q: %w", targetDirectory, err)
