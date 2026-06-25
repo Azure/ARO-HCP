@@ -325,10 +325,10 @@ func TestClusterUpdateDispatchConfigFromCSRoundTrip(t *testing.T) {
 	}
 	spc := &api.ServiceProviderCluster{}
 
-	clusterBuilder, autoscalerBuilder, err := BuildCSCluster(resourceID, api.TestTenantID, hcpCluster, nil, oldClusterServiceCluster, spc)
+	clusterBuilder, err := BuildCSCluster(resourceID, api.TestTenantID, hcpCluster, nil, oldClusterServiceCluster, spc)
 	require.NoError(t, err)
 
-	csCluster, err := clusterBuilder.Autoscaler(autoscalerBuilder).Build()
+	csCluster, err := clusterBuilder.Build()
 	require.NoError(t, err)
 
 	actualConfig, err := clusterUpdateDispatchConfigFromCS(csCluster)
@@ -360,10 +360,10 @@ func TestClusterUpdateDispatchConfigFromCSRoundTripServiceProviderClusterSize(t 
 		},
 	}
 
-	clusterBuilder, autoscalerBuilder, err := BuildCSCluster(nil, "11111111-1111-1111-1111-111111111111", hcpCluster, nil, oldClusterServiceCluster, spc)
+	clusterBuilder, err := BuildCSCluster(nil, "11111111-1111-1111-1111-111111111111", hcpCluster, nil, oldClusterServiceCluster, spc)
 	require.NoError(t, err)
 
-	csCluster, err := clusterBuilder.Autoscaler(autoscalerBuilder).Build()
+	csCluster, err := clusterBuilder.Build()
 	require.NoError(t, err)
 
 	actualConfig, err := clusterUpdateDispatchConfigFromCS(csCluster)
@@ -583,10 +583,11 @@ func TestClusterUpdateDispatchConfigJSONFromRPAndCS(t *testing.T) {
 	oldClusterServiceCluster, err := arohcpv1alpha1.NewCluster().Build()
 	require.NoError(t, err)
 
-	clusterBuilder, autoscalerBuilder, err := BuildCSCluster(nil, "11111111-1111-1111-1111-111111111111", hcpCluster, nil, oldClusterServiceCluster, spc)
+	clusterBuilder, err := BuildCSCluster(nil, "11111111-1111-1111-1111-111111111111", hcpCluster, nil, oldClusterServiceCluster, spc)
 
 	require.NoError(t, err)
-	csCluster, err := clusterBuilder.Autoscaler(autoscalerBuilder).Build()
+
+	csCluster, err := clusterBuilder.Build()
 	require.NoError(t, err)
 
 	desiredJSON, err := ClusterUpdateDispatchConfigJSONFromRP(hcpCluster, spc)
@@ -966,6 +967,20 @@ func TestClusterUpdateDispatchConfigAutoscalingFromCS(t *testing.T) {
 			},
 		},
 		{
+			name: "non-minute-aligned max node provision time uses integer seconds",
+			autoscaler: func(t *testing.T) *arohcpv1alpha1.ClusterAutoscaler {
+				t.Helper()
+				autoscaler, err := arohcpv1alpha1.NewClusterAutoscaler().
+					MaxNodeProvisionTime("15m50s").
+					Build()
+				require.NoError(t, err)
+				return autoscaler
+			},
+			want: clusterUpdateDispatchConfigAutoscaling{
+				MaxNodeProvisionTimeSeconds: 950,
+			},
+		},
+		{
 			name: "invalid max node provision time returns error",
 			autoscaler: func(t *testing.T) *arohcpv1alpha1.ClusterAutoscaler {
 				t.Helper()
@@ -1062,7 +1077,9 @@ func TestClusterUpdateDispatchConfigImageDigestMirrorsFromCS(t *testing.T) {
 	}
 }
 
-func TestClusterUpdateDispatchConfigAutoscalerBuilder(t *testing.T) {
+func TestClusterUpdateDispatchConfigApplyToCSBuildersAutoscaling(t *testing.T) {
+	clusterBuilder := arohcpv1alpha1.NewCluster()
+	clusterAPIBuilder := arohcpv1alpha1.NewClusterAPI()
 	config := clusterUpdateDispatchConfig{
 		Autoscaling: clusterUpdateDispatchConfigAutoscaling{
 			MaxNodesTotal:               12,
@@ -1072,13 +1089,13 @@ func TestClusterUpdateDispatchConfigAutoscalerBuilder(t *testing.T) {
 		},
 	}
 
-	builder, err := config.autoscalerBuilder()
+	err := config.applyToCSBuilders(clusterBuilder, clusterAPIBuilder, nil, nil, map[string]string{})
 	require.NoError(t, err)
 
-	autoscaler, err := builder.Build()
+	csCluster, err := clusterBuilder.Build()
 	require.NoError(t, err)
 
-	got, err := clusterUpdateDispatchConfigAutoscalingFromCS(autoscaler)
+	got, err := clusterUpdateDispatchConfigAutoscalingFromCS(csCluster.Autoscaler())
 	require.NoError(t, err)
 	assert.Equal(t, config.Autoscaling, got)
 }
@@ -1282,7 +1299,7 @@ func TestClusterUpdateDispatchConfigFromCSRoundTripWithKMS(t *testing.T) {
 	// a PATCH payload — it only contains mutable fields. Simulate what CS returns
 	// after applying the PATCH by building a full cluster with immutable fields
 	// from the old cluster plus the updated key version.
-	_, _, err = BuildCSCluster(nil, "11111111-1111-1111-1111-111111111111", hcpCluster, nil, oldClusterServiceCluster, spc)
+	_, err = BuildCSCluster(nil, "11111111-1111-1111-1111-111111111111", hcpCluster, nil, oldClusterServiceCluster, spc)
 	require.NoError(t, err)
 
 	fullCSCluster, err := arohcpv1alpha1.NewCluster().

@@ -146,7 +146,7 @@ func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 					Build()
 				require.NoError(t, err)
 				mockCS.EXPECT().
-					PostCluster(gomock.Any(), gomock.Any(), gomock.Any()).
+					PostCluster(gomock.Any(), gomock.Any()).
 					Return(csCluster, nil)
 				return mockCS
 			},

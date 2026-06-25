@@ -59,13 +59,10 @@ type ClusterServiceClientSpec interface {
 	GetClusterHypershiftDetails(ctx context.Context, internalID InternalID) (*cmv1.HypershiftConfig, error)
 
 	// PostCluster sends a POST request to create a cluster in Cluster Service.
-	PostCluster(ctx context.Context, clusterBuilder *arohcpv1alpha1.ClusterBuilder, autoscalerBuilder *arohcpv1alpha1.ClusterAutoscalerBuilder) (*arohcpv1alpha1.Cluster, error)
+	PostCluster(ctx context.Context, clusterBuilder *arohcpv1alpha1.ClusterBuilder) (*arohcpv1alpha1.Cluster, error)
 
 	// UpdateCluster sends a PATCH request to update a cluster in Cluster Service.
 	UpdateCluster(ctx context.Context, internalID InternalID, builder *arohcpv1alpha1.ClusterBuilder) (*arohcpv1alpha1.Cluster, error)
-
-	// UpdateClusterAutoscaler sends a PATCH request to update cluster autoscaling values in Cluster Service.
-	UpdateClusterAutoscaler(ctx context.Context, internalID InternalID, builder *arohcpv1alpha1.ClusterAutoscalerBuilder) (*arohcpv1alpha1.ClusterAutoscaler, error)
 
 	// DeleteCluster sends a DELETE request to delete a cluster from Cluster Service.
 	DeleteCluster(ctx context.Context, internalID InternalID) error
@@ -376,10 +373,7 @@ func (csc *clusterServiceClient) GetClusterHypershiftDetails(ctx context.Context
 	return hypershiftConfig, nil
 }
 
-func (csc *clusterServiceClient) PostCluster(ctx context.Context, clusterBuilder *arohcpv1alpha1.ClusterBuilder, autoscalerBuilder *arohcpv1alpha1.ClusterAutoscalerBuilder) (*arohcpv1alpha1.Cluster, error) {
-	if autoscalerBuilder != nil {
-		clusterBuilder.Autoscaler(autoscalerBuilder)
-	}
+func (csc *clusterServiceClient) PostCluster(ctx context.Context, clusterBuilder *arohcpv1alpha1.ClusterBuilder) (*arohcpv1alpha1.Cluster, error) {
 	cluster, err := clusterBuilder.Build()
 	if err != nil {
 		return nil, utils.TrackError(err)
@@ -413,26 +407,6 @@ func (csc *clusterServiceClient) UpdateCluster(ctx context.Context, internalID I
 		return nil, fmt.Errorf("empty response body")
 	}
 	return resolveClusterLinks(ctx, csc.conn, cluster)
-}
-
-func (csc *clusterServiceClient) UpdateClusterAutoscaler(ctx context.Context, internalID InternalID, builder *arohcpv1alpha1.ClusterAutoscalerBuilder) (*arohcpv1alpha1.ClusterAutoscaler, error) {
-	autoscaler, err := builder.Build()
-	if err != nil {
-		return nil, utils.TrackError(err)
-	}
-	client, ok := getAroHCPClusterClient(internalID, csc.conn)
-	if !ok {
-		return nil, fmt.Errorf("OCM path is not a cluster: %s", internalID)
-	}
-	autoscalerUpdateResponse, err := client.Autoscaler().Update().Body(autoscaler).SendContext(ctx)
-	if err != nil {
-		return nil, utils.TrackError(err)
-	}
-	autoscaler, ok = autoscalerUpdateResponse.GetBody()
-	if !ok {
-		return nil, fmt.Errorf("empty response body")
-	}
-	return autoscaler, nil
 }
 
 func (csc *clusterServiceClient) DeleteCluster(ctx context.Context, internalID InternalID) error {
