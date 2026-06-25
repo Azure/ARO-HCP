@@ -13,8 +13,8 @@ spec:
   strategy:
     type: {{ .Values.csDeploymentStrategy.type }}
     rollingUpdate:
-      maxSurge: {{ .Values.csDeploymentStrategy.rollingUpdate.maxSurge | int }}
-      maxUnavailable: {{ .Values.csDeploymentStrategy.rollingUpdate.maxUnavailable | int }}
+      maxSurge: {{ .Values.csDeploymentStrategy.rollingUpdate.maxSurge }}
+      maxUnavailable: {{ .Values.csDeploymentStrategy.rollingUpdate.maxUnavailable }}
   template:
     metadata:
       labels:
