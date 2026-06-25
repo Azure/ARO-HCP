@@ -1,0 +1,5 @@
+# Compiled pipeline-script binaries (each built into its own directory)
+cleanup-pko-resources/cleanup-pko-resources
+delete-extra-infra-nodepools/delete-extra-infra-nodepools
+recreate-broken-pools/recreate-broken-pools
+recreate-system-pool/recreate-system-pool
