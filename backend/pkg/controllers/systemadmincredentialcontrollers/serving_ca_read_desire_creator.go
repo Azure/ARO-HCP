@@ -25,6 +25,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
+	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -57,6 +58,7 @@ func NewServingCAReadDesireCreatorController(
 	resourcesDBClient database.ResourcesDBClient,
 	kubeApplierDBClients database.KubeApplierDBClients,
 	informers informers.BackendInformers,
+	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 	hostedClusterNamespaceEnvIdentifier string,
 ) controllerutils.Controller {
 	syncer := &servingCAReadDesireCreator{
@@ -70,7 +72,7 @@ func NewServingCAReadDesireCreatorController(
 		"SystemAdminCredentialServingCAReadDesireCreator",
 		resourcesDBClient,
 		informers,
-		nil,
+		kubeApplierInformers,
 		1*time.Minute,
 		syncer,
 	)

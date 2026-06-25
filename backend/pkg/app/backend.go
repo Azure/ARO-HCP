@@ -517,6 +517,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		b.options.ResourcesDBClient,
 		b.options.KubeApplierDBClients,
 		backendInformers,
+		unionKubeApplierInformers,
 		b.options.MaestroSourceEnvironmentIdentifier,
 	)
 
