@@ -16,8 +16,10 @@ package upgradecontrollers
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/blang/semver/v4"
 	"github.com/go-logr/logr"
@@ -27,6 +29,7 @@ import (
 
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	clocktesting "k8s.io/utils/clock/testing"
 	"k8s.io/utils/ptr"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -35,10 +38,12 @@ import (
 	cvocincinnati "github.com/openshift/cluster-version-operator/pkg/cincinnati"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
+	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listertesting"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/cincinnati"
+	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -1293,4 +1298,241 @@ func createServiceProviderClusterWithActiveAndDesiredVersion(t *testing.T, ctx c
 	serviceProviderCluster.SetPartitionKey(testSubscriptionID)
 	_, err := mockResourcesDBClient.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Create(ctx, serviceProviderCluster, nil)
 	require.NoError(t, err)
+}
+
+// boomActiveOperationLister is a test double that returns the configured
+// error from ListActiveOperationsForCluster. It exists so the gating helper
+// can exercise its error-propagation branch without a misbehaving mock DB.
+type boomActiveOperationLister struct {
+	listers.ActiveOperationLister
+	err error
+}
+
+func (b *boomActiveOperationLister) ListActiveOperationsForCluster(_ context.Context, _, _, _ string) ([]*api.Operation, error) {
+	return nil, b.err
+}
+
+// seedClusterCreateOperation seeds an active Create operation rooted at the
+// given ExternalID into the mock DB so the DB-backed active operation lister
+// can find it.
+func seedClusterCreateOperation(t *testing.T, ctx context.Context, mockDB *databasetesting.MockResourcesDBClient, externalID *azcorearm.ResourceID, opName string) {
+	t.Helper()
+	opResourceID := api.Must(azcorearm.ParseResourceID(api.ToOperationResourceIDString(externalID.SubscriptionID, opName)))
+	operationID := api.Must(azcorearm.ParseResourceID(
+		"/subscriptions/" + externalID.SubscriptionID +
+			"/providers/Microsoft.RedHatOpenShift/locations/eastus/hcpOperationStatuses/" + opName,
+	))
+	op := &api.Operation{
+		CosmosMetadata: api.CosmosMetadata{
+			ResourceID:   opResourceID,
+			PartitionKey: strings.ToLower(externalID.SubscriptionID),
+		},
+		Status:      arm.ProvisioningStateAccepted,
+		Request:     database.OperationRequestCreate,
+		ExternalID:  externalID,
+		OperationID: operationID,
+	}
+	_, err := mockDB.Operations(externalID.SubscriptionID).Create(ctx, op, nil)
+	require.NoError(t, err)
+}
+
+func TestControlPlaneDesiredVersionSyncer_ShouldDetermineDesiredVersion(t *testing.T) {
+	clusterKey := controllerutils.HCPClusterKey{
+		SubscriptionID:    testSubscriptionID,
+		ResourceGroupName: testResourceGroupName,
+		HCPClusterName:    testClusterName,
+	}
+	clusterResourceID := api.Must(api.ToClusterResourceID(testSubscriptionID, testResourceGroupName, testClusterName))
+	now := time.Date(2026, 6, 25, 12, 0, 0, 0, time.UTC)
+	listerBoom := errors.New("active operation lister exploded")
+
+	newCluster := func(createdAt *time.Time) *api.HCPOpenShiftCluster {
+		c := &api.HCPOpenShiftCluster{
+			TrackedResource: arm.TrackedResource{
+				Resource: arm.Resource{
+					ID:   clusterResourceID,
+					Name: testClusterName,
+					Type: api.ClusterResourceType.String(),
+				},
+			},
+		}
+		if createdAt != nil {
+			c.SystemData = &arm.SystemData{CreatedAt: createdAt}
+		}
+		return c
+	}
+	newSPC := func(desired *semver.Version) *api.ServiceProviderCluster {
+		return &api.ServiceProviderCluster{
+			Spec: api.ServiceProviderClusterSpec{
+				ControlPlaneVersion: api.ServiceProviderClusterSpecVersion{DesiredVersion: desired},
+			},
+		}
+	}
+
+	tests := []struct {
+		name           string
+		cluster        *api.HCPOpenShiftCluster
+		spc            *api.ServiceProviderCluster
+		seedOperation  bool
+		opLister       func(mockDB *databasetesting.MockResourcesDBClient) listers.ActiveOperationLister
+		wantShouldRun  bool
+		wantErrContain string
+	}{
+		{
+			name:          "empty DesiredVersion runs even when create is in flight (gate 1)",
+			cluster:       newCluster(ptr.To(now.Add(-5 * time.Minute))),
+			spc:           newSPC(nil),
+			seedOperation: true,
+			wantShouldRun: true,
+		},
+		{
+			name:          "cluster older than grace period runs even with active create (gate 2)",
+			cluster:       newCluster(ptr.To(now.Add(-3 * time.Hour))),
+			spc:           newSPC(ptr.To(semver.MustParse("4.19.15"))),
+			seedOperation: true,
+			wantShouldRun: true,
+		},
+		{
+			name:          "cluster with no SystemData.CreatedAt runs (treated as old enough)",
+			cluster:       newCluster(nil),
+			spc:           newSPC(ptr.To(semver.MustParse("4.19.15"))),
+			seedOperation: true,
+			wantShouldRun: true,
+		},
+		{
+			name:          "cluster younger than grace period with no active create runs (gate 3)",
+			cluster:       newCluster(ptr.To(now.Add(-5 * time.Minute))),
+			spc:           newSPC(ptr.To(semver.MustParse("4.19.15"))),
+			seedOperation: false,
+			wantShouldRun: true,
+		},
+		{
+			name:          "young cluster + DesiredVersion set + active create skips",
+			cluster:       newCluster(ptr.To(now.Add(-5 * time.Minute))),
+			spc:           newSPC(ptr.To(semver.MustParse("4.19.15"))),
+			seedOperation: true,
+			wantShouldRun: false,
+		},
+		{
+			name:    "cluster exactly at grace period boundary still skips (boundary is strict >)",
+			cluster: newCluster(ptr.To(now.Add(-clusterCreateGracePeriod))),
+			spc:     newSPC(ptr.To(semver.MustParse("4.19.15"))),
+			// active create present so without the boundary-is-strict gate, the
+			// cluster's age would have to push us through.
+			seedOperation: true,
+			wantShouldRun: false,
+		},
+		{
+			// Fail open: if we can't tell whether a Create is in flight we
+			// surface the error to the caller but still report shouldRun=true
+			// so a flaky lister doesn't pin the controller in skip-forever
+			// mode for the rest of the grace window.
+			name:          "active operation lister error is propagated and fails open to shouldRun=true",
+			cluster:       newCluster(ptr.To(now.Add(-5 * time.Minute))),
+			spc:           newSPC(ptr.To(semver.MustParse("4.19.15"))),
+			seedOperation: false,
+			opLister: func(_ *databasetesting.MockResourcesDBClient) listers.ActiveOperationLister {
+				return &boomActiveOperationLister{err: listerBoom}
+			},
+			wantShouldRun:  true,
+			wantErrContain: "failed to list active operations for cluster",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := utils.ContextWithLogger(context.Background(), logr.Discard())
+			mockDB := databasetesting.NewMockResourcesDBClient()
+			if tt.seedOperation {
+				seedClusterCreateOperation(t, ctx, mockDB, clusterResourceID, "op-create-1")
+			}
+			var opLister listers.ActiveOperationLister
+			if tt.opLister != nil {
+				opLister = tt.opLister(mockDB)
+			} else {
+				opLister = &listertesting.DBActiveOperationLister{ResourcesDBClient: mockDB}
+			}
+			syncer := &controlPlaneDesiredVersionSyncer{
+				clock:                 clocktesting.NewFakePassiveClock(now),
+				resourcesDBClient:     mockDB,
+				activeOperationLister: opLister,
+			}
+
+			gotShouldRun, err := syncer.shouldDetermineDesiredVersion(ctx, clusterKey, tt.cluster, tt.spc)
+			if tt.wantErrContain != "" {
+				require.Error(t, err)
+				assert.ErrorContains(t, err, tt.wantErrContain)
+			} else {
+				require.NoError(t, err)
+			}
+			assert.Equal(t, tt.wantShouldRun, gotShouldRun)
+		})
+	}
+}
+
+// TestControlPlaneDesiredVersionSyncer_SyncOnceSkipsWhenGated verifies the
+// end-to-end skip behaviour: when shouldDetermineDesiredVersion returns false
+// SyncOnce returns nil without touching the SPC DesiredVersion or writing a
+// controller doc, so the cluster create can finish without an upgrade
+// recomputation racing it.
+func TestControlPlaneDesiredVersionSyncer_SyncOnceSkipsWhenGated(t *testing.T) {
+	clusterKey := controllerutils.HCPClusterKey{
+		SubscriptionID:    testSubscriptionID,
+		ResourceGroupName: testResourceGroupName,
+		HCPClusterName:    testClusterName,
+	}
+	ctx := utils.ContextWithLogger(context.Background(), logr.Discard())
+	mockDB := databasetesting.NewMockResourcesDBClient()
+	now := time.Date(2026, 6, 25, 12, 0, 0, 0, time.UTC)
+
+	// Cluster is 5 minutes old.
+	createTestHCPClusterWithCustomerVersion(t, ctx, mockDB, "4.19", "stable")
+	clusterCRUD := mockDB.HCPClusters(testSubscriptionID, testResourceGroupName)
+	existing, err := clusterCRUD.Get(ctx, testClusterName)
+	require.NoError(t, err)
+	updated := existing.DeepCopy()
+	createdAt := now.Add(-5 * time.Minute)
+	updated.SystemData = &arm.SystemData{CreatedAt: &createdAt}
+	_, err = clusterCRUD.Replace(ctx, updated, nil)
+	require.NoError(t, err)
+
+	// SPC already has a desired version — gate 1 will not fire.
+	createServiceProviderClusterWithActiveAndDesiredVersion(t, ctx, mockDB, semver.MustParse("4.19.15"), ptr.To(semver.MustParse("4.19.22")))
+
+	// Active Create operation pinned to the cluster itself.
+	clusterResourceID := api.Must(api.ToClusterResourceID(testSubscriptionID, testResourceGroupName, testClusterName))
+	seedClusterCreateOperation(t, ctx, mockDB, clusterResourceID, "op-create-1")
+
+	ctrl := gomock.NewController(t)
+	mockClientCache := cincinnati.NewMockClientCache(ctrl)
+	// Cincinnati must not be consulted on the skip path.
+	mockClientCache.EXPECT().GetOrCreateClient(gomock.Any()).Times(0)
+
+	syncer := &controlPlaneDesiredVersionSyncer{
+		clock:                clocktesting.NewFakePassiveClock(now),
+		cooldownChecker:      &alwaysSyncCooldownChecker{},
+		readDesireLister:     newValidHostedClusterReadDesireLister(t),
+		resourcesDBClient:    mockDB,
+		clusterServiceClient: ocm.NewMockClusterServiceClientSpec(ctrl),
+		subscriptionLister: &listertesting.SliceSubscriptionLister{Subscriptions: []*arm.Subscription{{
+			ResourceID: api.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID)),
+			Properties: &arm.SubscriptionProperties{},
+		}}},
+		activeOperationLister: &listertesting.DBActiveOperationLister{ResourcesDBClient: mockDB},
+		cincinnatiClientCache: mockClientCache,
+	}
+
+	require.NoError(t, syncer.SyncOnce(ctx, clusterKey))
+
+	// DesiredVersion is untouched.
+	spc, err := mockDB.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, api.ServiceProviderClusterResourceName)
+	require.NoError(t, err)
+	require.NotNil(t, spc.Spec.ControlPlaneVersion.DesiredVersion)
+	assert.True(t, spc.Spec.ControlPlaneVersion.DesiredVersion.EQ(semver.MustParse("4.19.22")), "DesiredVersion must not change on the skip path")
+
+	// Controller doc was never written, since we returned before WriteController.
+	_, getControllerDocErr := mockDB.HCPClusters(testSubscriptionID, testResourceGroupName).
+		Controllers(testClusterName).Get(ctx, controlPlaneDesiredVersionControllerName)
+	assert.True(t, database.IsNotFoundError(getControllerDocErr), "controller doc must not be written on the skip path, got err=%v", getControllerDocErr)
 }
