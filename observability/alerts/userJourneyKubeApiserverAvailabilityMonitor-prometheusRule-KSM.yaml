@@ -33,10 +33,10 @@ spec:
         description: |
           Resource ID: {{ $labels.resource_id }}
           Window: 1h/5m
-          CID: {{ $labels._id }}
+          Namespace: {{ $labels.namespace }}
           Management Cluster: {{ $labels.cluster }}/{{ $labels.namespace }}
         runbook_url: https://aka.ms/arohcp-runbook-ujkasavailable
-        correlationId: "userJourneyKubeApiserverAvailability/{{ $labels.cluster }}/{{ $labels._id }}"
+        correlationId: "userJourneyKubeApiserverAvailability/{{ $labels.cluster }}/{{ $labels.namespace }}"
     - alert: userJourneyKubeApiserverAvailability6h30m
       # sli_sum_6h and sli_count_6h are recording rules defined in HCPkasRecord-prometheusRule-KSM.yaml
       expr: |
@@ -64,10 +64,10 @@ spec:
         description: |
           Resource ID: {{ $labels.resource_id }}
           Window: 6h/30m
-          CID: {{ $labels._id }}
+          Namespace: {{ $labels.namespace }}
           Management Cluster: {{ $labels.cluster }}/{{ $labels.namespace }}
         runbook_url: https://aka.ms/arohcp-runbook-ujkasavailable
-        correlationId: "userJourneyKubeApiserverAvailability/{{ $labels.cluster }}/{{ $labels._id }}"
+        correlationId: "userJourneyKubeApiserverAvailability/{{ $labels.cluster }}/{{ $labels.namespace }}"
     - alert: userJourneyKubeApiserverAvailability3d6h
       # sli_sum_3d, sli_count_3d (long window) and sli_sum_6h, sli_count_6h (short window)
       # are recording rules defined in HCPkasRecord-prometheusRule-KSM.yaml
@@ -96,7 +96,7 @@ spec:
         description: |
           Resource ID: {{ $labels.resource_id }}
           Window: 3d/6h
-          CID: {{ $labels._id }}
+          Namespace: {{ $labels.namespace }}
           Management Cluster: {{ $labels.cluster }}/{{ $labels.namespace }}
         runbook_url: https://aka.ms/arohcp-runbook-ujkasavailable
-        correlationId: "userJourneyKubeApiserverAvailability/{{ $labels.cluster }}/{{ $labels._id }}"
+        correlationId: "userJourneyKubeApiserverAvailability/{{ $labels.cluster }}/{{ $labels.namespace }}"

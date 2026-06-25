@@ -37,15 +37,15 @@ resource rpUjKasAvailabilityMonitorRules 'Microsoft.AlertsManagement/prometheusR
           slo: 'kas-availability'
         }
         annotations: {
-          correlationId: 'userJourneyKubeApiserverAvailability/{{ $labels.cluster }}/{{ $labels._id }}'
+          correlationId: 'userJourneyKubeApiserverAvailability/{{ $labels.cluster }}/{{ $labels.namespace }}'
           description: '''Resource ID: {{ $labels.resource_id }}
 Window: 1h/5m
-CID: {{ $labels._id }}
+Namespace: {{ $labels.namespace }}
 Management Cluster: {{ $labels.cluster }}/{{ $labels.namespace }}
 '''
           info: '''Resource ID: {{ $labels.resource_id }}
 Window: 1h/5m
-CID: {{ $labels._id }}
+Namespace: {{ $labels.namespace }}
 Management Cluster: {{ $labels.cluster }}/{{ $labels.namespace }}
 '''
           runbook_url: 'https://aka.ms/arohcp-runbook-ujkasavailable'
@@ -77,15 +77,15 @@ Management Cluster: {{ $labels.cluster }}/{{ $labels.namespace }}
           slo: 'kas-availability'
         }
         annotations: {
-          correlationId: 'userJourneyKubeApiserverAvailability/{{ $labels.cluster }}/{{ $labels._id }}'
+          correlationId: 'userJourneyKubeApiserverAvailability/{{ $labels.cluster }}/{{ $labels.namespace }}'
           description: '''Resource ID: {{ $labels.resource_id }}
 Window: 6h/30m
-CID: {{ $labels._id }}
+Namespace: {{ $labels.namespace }}
 Management Cluster: {{ $labels.cluster }}/{{ $labels.namespace }}
 '''
           info: '''Resource ID: {{ $labels.resource_id }}
 Window: 6h/30m
-CID: {{ $labels._id }}
+Namespace: {{ $labels.namespace }}
 Management Cluster: {{ $labels.cluster }}/{{ $labels.namespace }}
 '''
           runbook_url: 'https://aka.ms/arohcp-runbook-ujkasavailable'
@@ -117,15 +117,15 @@ Management Cluster: {{ $labels.cluster }}/{{ $labels.namespace }}
           slo: 'kas-availability'
         }
         annotations: {
-          correlationId: 'userJourneyKubeApiserverAvailability/{{ $labels.cluster }}/{{ $labels._id }}'
+          correlationId: 'userJourneyKubeApiserverAvailability/{{ $labels.cluster }}/{{ $labels.namespace }}'
           description: '''Resource ID: {{ $labels.resource_id }}
 Window: 3d/6h
-CID: {{ $labels._id }}
+Namespace: {{ $labels.namespace }}
 Management Cluster: {{ $labels.cluster }}/{{ $labels.namespace }}
 '''
           info: '''Resource ID: {{ $labels.resource_id }}
 Window: 3d/6h
-CID: {{ $labels._id }}
+Namespace: {{ $labels.namespace }}
 Management Cluster: {{ $labels.cluster }}/{{ $labels.namespace }}
 '''
           runbook_url: 'https://aka.ms/arohcp-runbook-ujkasavailable'
