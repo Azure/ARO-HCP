@@ -24,6 +24,8 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"io"
+	"net"
 	"net/http"
 	"regexp"
 	"strings"
@@ -334,4 +336,29 @@ func (tc *perItOrDescribeTestContext) IsHCPAPIVersionAvailable(ctx context.Conte
 		}
 	}
 	return true, nil
+}
+
+// GetTestRunnerPublicIP returns the public IP address of the test runner by
+// querying a public IP echo service. The IP can be used to add the test
+// runner to an HCP cluster's authorized CIDR list so that framework helpers
+// can reach the Kubernetes API server directly.
+func GetTestRunnerPublicIP(ctx context.Context) (string, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://checkip.amazonaws.com", nil)
+	if err != nil {
+		return "", fmt.Errorf("failed to build public IP echo request: %w", err)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("failed to query public IP echo service: %w", err)
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("failed to read public IP echo response: %w", err)
+	}
+	ip := strings.TrimSpace(string(body))
+	if net.ParseIP(ip) == nil {
+		return "", fmt.Errorf("public IP echo service returned invalid IP %q", ip)
+	}
+	return ip, nil
 }
