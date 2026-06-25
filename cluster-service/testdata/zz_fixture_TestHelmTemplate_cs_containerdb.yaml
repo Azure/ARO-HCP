@@ -7807,6 +7807,37 @@ data:
           version_constraints:
             min_version: 4.11.0
 ---
+# Source: clusters-service/charts/database/templates/database.pvc.yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: 'ocm-cs-db'
+  namespace: 'clusters-service'
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: '512Mi'
+---
+# Source: clusters-service/charts/database/templates/database.service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: 'ocm-cs-db'
+  namespace: 'clusters-service'
+spec:
+  ports:
+  - name: postgresql
+    nodePort: 0
+    port: 5432
+    protocol: TCP
+    targetPort: 5432
+  selector:
+    name: 'ocm-cs-db'
+  sessionAffinity: None
+  type: ClusterIP
+---
 # Source: clusters-service/templates/service.yaml
 apiVersion: v1
 kind: Service
@@ -7863,6 +7894,76 @@ spec:
     name: healthcheck
     protocol: TCP
 ---
+# Source: clusters-service/charts/database/templates/database.deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: 'ocm-cs-db'
+  namespace: 'clusters-service'
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      name: 'ocm-cs-db'
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        name: 'ocm-cs-db'
+    spec:
+      containers:
+      - env:
+        - name: POSTGRES_USER
+          valueFrom:
+            secretKeyRef:
+              key: db.user
+              name: 'ocm-cs-db'
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: db.password
+              name: 'ocm-cs-db'
+        - name: POSTGRES_DB
+          valueFrom:
+            secretKeyRef:
+              key: db.name
+              name: 'ocm-cs-db'
+        - name: PGDATA
+          value: /var/lib/pgsql/data/pgdata
+        image: docker.io/library/postgres:16.2
+        imagePullPolicy: IfNotPresent
+        livenessProbe:
+          tcpSocket:
+            port: 5432
+          initialDelaySeconds: 120
+          timeoutSeconds: 10
+        name: postgresql
+        ports:
+        - containerPort: 5432
+          protocol: TCP
+        readinessProbe:
+          exec:
+            command:
+            - /bin/sh
+            - -c
+            - exec /usr/bin/pg_isready -U $POSTGRES_USER -d $POSTGRES_DB -h localhost -p 5432
+          initialDelaySeconds: 5
+          timeoutSeconds: 1
+        securityContext:
+          capabilities: {}
+          privileged: false
+        terminationMessagePath: /dev/termination-log
+        volumeMounts:
+        - mountPath: /var/lib/pgsql/data
+          name: 'ocm-cs-db-data'
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      volumes:
+      - name: 'ocm-cs-db-data'
+        persistentVolumeClaim:
+          claimName: 'ocm-cs-db'
+---
 # Source: clusters-service/templates/deployment.yaml
 apiVersion: apps/v1
 kind: Deployment
@@ -7877,10 +7978,10 @@ spec:
       app: clusters-service
   replicas: 3
   strategy:
-    type: RollingUpdate
     rollingUpdate:
       maxSurge: 1
       maxUnavailable: 0
+    type: RollingUpdate
   template:
     metadata:
       labels:

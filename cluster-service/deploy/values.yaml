@@ -190,7 +190,7 @@ clientId: "foo"
 # ocm secret
 clientSecret: "bar"
 # If true an in cluster database will be deployed.
-deployLocalDatabase: __deployLocalDatabase__
+deployLocalDatabase: {{ .clustersService.deployLocalDatabase }}
 # The name of the K8s secret where CS DB connection information is placed
 databaseK8sSecretName: "ocm-cs-db"
 # The hostname of the postgres server/service. It can be a K8s service name
@@ -313,7 +313,7 @@ tracing:
 csDeploymentStrategy:
   type: RollingUpdate
   rollingUpdate:
-    maxSurge: "{{ .clustersService.k8s.deploymentStrategy.rollingUpdate.maxSurge }}"
-    maxUnavailable: "{{ .clustersService.k8s.deploymentStrategy.rollingUpdate.maxUnavailable }}"
+    maxSurge: {{ .clustersService.k8s.deploymentStrategy.rollingUpdate.maxSurge }}
+    maxUnavailable: {{ .clustersService.k8s.deploymentStrategy.rollingUpdate.maxUnavailable }}
 deployment:
   zoneCount: "{{ .azureRegionAvailabilityZoneCount }}"

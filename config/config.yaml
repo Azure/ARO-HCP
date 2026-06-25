@@ -973,9 +973,9 @@ defaults:
     denyAssignments: "disabled"
     # The image used to override the HAProxy image of the worker node API server proxy.
     dataPlaneHAProxyImage: ""
+    deployLocalDatabase: false
     postgres:
       name: "arohcp-{{ .ctx.environment }}-dbcs-{{ .ctx.regionShort }}" # [globally-unique]
-      deploy: true
       private: false
       password: ''
       minTLSVersion: 'TLSV1.2'
@@ -1442,8 +1442,8 @@ clouds:
             assignNSP: false
           # Cluster Service
           clustersService:
+            deployLocalDatabase: true
             postgres:
-              deploy: false
               password: 'TheBlurstOfTimes'
               containerizedDb:
                 image: "docker.io/library/postgres:14.2"
@@ -1557,8 +1557,8 @@ clouds:
             assignNSP: false
           # Cluster Service
           clustersService:
+            deployLocalDatabase: true
             postgres:
-              deploy: false
               password: 'TheBlurstOfTimes'
               containerizedDb:
                 image: "docker.io/library/postgres:14.2"
@@ -1654,8 +1654,8 @@ clouds:
             assignNSP: false
           # Cluster Service
           clustersService:
+            deployLocalDatabase: true
             postgres:
-              deploy: false
               password: 'TheBlurstOfTimes'
               containerizedDb:
                 image: "docker.io/library/postgres:14.2"
