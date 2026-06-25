@@ -29,6 +29,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
+	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -50,6 +51,7 @@ func NewTriggerNodePoolUpgradeController(
 	clusterServiceClient ocm.ClusterServiceClientSpec,
 	activeOperationLister listers.ActiveOperationLister,
 	informers informers.BackendInformers,
+	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 ) controllerutils.Controller {
 	syncer := &triggerNodePoolUpgradeSyncer{
 		cooldownChecker:      controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
@@ -61,6 +63,7 @@ func NewTriggerNodePoolUpgradeController(
 		"TriggerNodePoolUpgrade",
 		resourcesDBClient,
 		informers,
+		kubeApplierInformers,
 		5*time.Minute,
 		syncer,
 	)

@@ -29,6 +29,7 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
+	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
@@ -672,4 +673,142 @@ func activeOperationInformerIntegrationTestCase() informerIntegrationTestCase {
 			}, 45*time.Second, 200*time.Millisecond, "expected add event for op-3")
 		},
 	}
+}
+
+// TestServiceProviderNodePoolLister verifies that after seeding a
+// ServiceProviderNodePool in cosmos and starting the SPNP informer with a
+// very short relist duration, the serviceProviderNodePoolLister built from
+// the informer's indexer eventually surfaces the SPNP via both List and Get.
+func TestServiceProviderNodePoolLister(t *testing.T) {
+	integrationutils.WithAndWithoutCosmos(t, testServiceProviderNodePoolLister)
+}
+
+func testServiceProviderNodePoolLister(t *testing.T, withMock bool) {
+	const (
+		subscriptionID    = "00000000-0000-0000-0000-000000000004"
+		resourceGroupName = "test-rg"
+		clusterName       = "spnp-cluster"
+		nodePoolName      = "spnp-np"
+	)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	defer cancel()
+
+	var storageInfo integrationutils.StorageIntegrationTestInfo
+	var err error
+	if withMock {
+		storageInfo, err = integrationutils.NewMockCosmosFromTestingEnv(ctx, t)
+	} else {
+		storageInfo, err = integrationutils.NewCosmosFromTestingEnv(ctx, t)
+	}
+	require.NoError(t, err)
+	defer storageInfo.Cleanup(context.Background())
+
+	resourcesDBClient := storageInfo.ResourcesDBClient()
+
+	// Seed the parent cluster, parent node pool, and the SPNP.
+	clusterResourceID := mustParseResourceID(t,
+		"/subscriptions/"+subscriptionID+
+			"/resourceGroups/"+resourceGroupName+
+			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/"+clusterName)
+	clusterInternalID, err := api.NewInternalID("/api/clusters_mgmt/v1/clusters/" + clusterName)
+	require.NoError(t, err)
+	cluster := &api.HCPOpenShiftCluster{
+		CosmosMetadata: arm.CosmosMetadata{
+			ResourceID:   clusterResourceID,
+			PartitionKey: strings.ToLower(clusterResourceID.SubscriptionID),
+		},
+		TrackedResource: arm.TrackedResource{
+			Resource: arm.Resource{
+				ID:   clusterResourceID,
+				Name: clusterName,
+				Type: api.ClusterResourceType.String(),
+			},
+			Location: "eastus",
+		},
+		ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
+			ProvisioningState: arm.ProvisioningStateSucceeded,
+			ClusterServiceID:  &clusterInternalID,
+		},
+	}
+	_, err = resourcesDBClient.HCPClusters(subscriptionID, resourceGroupName).Create(ctx, cluster, nil)
+	require.NoError(t, err, "failed to seed parent cluster")
+
+	npResourceID := mustParseResourceID(t,
+		"/subscriptions/"+subscriptionID+
+			"/resourceGroups/"+resourceGroupName+
+			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/"+clusterName+
+			"/nodePools/"+nodePoolName)
+	npInternalID := api.Ptr(api.Must(api.NewInternalID("/api/aro_hcp/v1alpha1/clusters/" + clusterName + "/node_pools/" + nodePoolName)))
+	nodePool := &api.HCPOpenShiftClusterNodePool{
+		CosmosMetadata: arm.CosmosMetadata{
+			ResourceID:   npResourceID,
+			PartitionKey: strings.ToLower(npResourceID.SubscriptionID),
+		},
+		TrackedResource: arm.TrackedResource{
+			Resource: arm.Resource{
+				ID:   npResourceID,
+				Name: nodePoolName,
+				Type: api.NodePoolResourceType.String(),
+			},
+			Location: "eastus",
+		},
+		Properties: api.HCPOpenShiftClusterNodePoolProperties{
+			ProvisioningState: arm.ProvisioningStateSucceeded,
+			Replicas:          1,
+		},
+		ServiceProviderProperties: api.HCPOpenShiftClusterNodePoolServiceProviderProperties{
+			ClusterServiceID: npInternalID,
+		},
+	}
+	_, err = resourcesDBClient.HCPClusters(subscriptionID, resourceGroupName).NodePools(clusterName).Create(ctx, nodePool, nil)
+	require.NoError(t, err, "failed to seed parent node pool")
+
+	spnpResourceID := mustParseResourceID(t,
+		"/subscriptions/"+subscriptionID+
+			"/resourceGroups/"+resourceGroupName+
+			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/"+clusterName+
+			"/nodePools/"+nodePoolName+
+			"/serviceProviderNodePools/"+api.ServiceProviderNodePoolResourceName)
+	spnp := &api.ServiceProviderNodePool{
+		CosmosMetadata: arm.CosmosMetadata{
+			ResourceID:   spnpResourceID,
+			PartitionKey: strings.ToLower(spnpResourceID.SubscriptionID),
+		},
+	}
+	_, err = resourcesDBClient.ServiceProviderNodePools(subscriptionID, resourceGroupName, clusterName, nodePoolName).Create(ctx, spnp, nil)
+	require.NoError(t, err, "failed to seed service provider node pool")
+
+	// Start the SPNP informer with a very short relist duration so the cache
+	// observes the seeded object quickly.
+	informer := informers.NewServiceProviderNodePoolInformerWithRelistDuration(
+		resourcesDBClient.ResourcesGlobalListers().ServiceProviderNodePools(),
+		1*time.Second)
+	go informer.Run(ctx.Done())
+	require.True(t, cache.WaitForCacheSync(ctx.Done(), informer.HasSynced), "timed out waiting for service provider node pool informer cache sync")
+
+	lister := listers.NewServiceProviderNodePoolLister(informer.GetIndexer())
+
+	// Wait up to 30s for the SPNP to be visible via List.
+	require.Eventually(t, func() bool {
+		all, err := lister.List(ctx)
+		if err != nil {
+			return false
+		}
+		for _, item := range all {
+			if item.ResourceID != nil && strings.EqualFold(item.ResourceID.String(), spnpResourceID.String()) {
+				return true
+			}
+		}
+		return false
+	}, 30*time.Second, 200*time.Millisecond, "service provider node pool never appeared in lister.List output")
+
+	// Wait up to 30s for the SPNP to be visible via Get.
+	require.Eventually(t, func() bool {
+		got, err := lister.Get(ctx, subscriptionID, resourceGroupName, clusterName, nodePoolName)
+		if err != nil {
+			return false
+		}
+		return got != nil && got.ResourceID != nil && strings.EqualFold(got.ResourceID.String(), spnpResourceID.String())
+	}, 30*time.Second, 200*time.Millisecond, "service provider node pool never appeared in lister.Get output")
 }
