@@ -1,12 +1,12 @@
 acm:
   mce:
     bundle:
-      digest: sha256:843195fbb2b7caed6d5961212d932c8b6bd68c3df44a185a6a111dfdbd528ec9
+      digest: sha256:f75bda74ffc7b38f1eb1754dead9de61f0940123047dfc9bf577b72aa6e2a264
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-211
   operator:
     bundle:
-      digest: sha256:7d637c6366708b2f2a85ded051c762cbabedecb48a72586ebed5e00c135111d8
+      digest: sha256:b92b1aaf6e28a2ac3951c478631fd1280cb52b6b0f39d4c7ee567de6a367ef15
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-216
 acr:
@@ -25,7 +25,7 @@ acr:
 acrDNSSuffix: azurecr.io
 acrPull:
   image:
-    digest: sha256:f70b19d8e09517058036ea87a9931440110246ee4e4df09c341c59ec3716e46c
+    digest: sha256:17dda36c3ba6059411e813b03a6ee9fc11f1a4f737cf42e1239bd6fef558b9c5
     registry: mcr.microsoft.com
     repository: aks/msi-acrpull
 adminApi:
@@ -165,7 +165,7 @@ clustersService:
   deployDebugJobs: false
   environment: arohcpcspr
   image:
-    digest: sha256:6a49b32884d56e707aafba6d73258cb57857087c261f606df71c74f2a9336bf7
+    digest: sha256:c5d535b8dcb40f9060ad0f9db8a694013dc47ddeacfaa148a108c4ebfc24752e
     registry: quay.io
     repository: app-sre/aro-hcp-clusters-service
   k8s:
@@ -432,7 +432,7 @@ hcpRecovery:
 hypershift:
   additionalInstallArg: --enable-cpo-overrides
   image:
-    digest: sha256:e30b97d22230e8a06d0079c3862d0e5510868a4cd755df9e4396ddbd095956e5
+    digest: sha256:caea1a9e4d7cd7b270dc1b28895b571a44fbcb6b97c810683764a0f247ab13cf
     registry: quay.io
     repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
   limitClusterSizes: true
@@ -450,7 +450,7 @@ imageSync:
   ocMirror:
     enabled: true
     image:
-      digest: sha256:535c625e50392d40af6b178154d2cf8de765c8c77d5eb2e9d38e085b6b34cdb3
+      digest: sha256:cb57314a2bbcab2d4931b4362fe0ca6178b6a636c3c94b986356f448636ae6b1
       registry: arohcpsvcdev.azurecr.io
       repository: image-sync/oc-mirror
     jobNamePrefix: ""
@@ -535,7 +535,7 @@ maestro:
     managedIdentityName: maestro-consumer
     sidecar:
       image:
-        digest: sha256:90e8b621e7b75bd0e8738dc41aca5fe7de6e0449bf39bea3210370ab8626b354
+        digest: sha256:bef7ab720cea4ae7cd19a0ee03418a59c4a9233ded75b233143cf792d8ca0741
         registry: mcr.microsoft.com
         repository: azurelinux/base/nginx
   certDomain: selfsigned.maestro.keyvault.azure.com
@@ -545,7 +545,7 @@ maestro:
     name: arohcp-cspr-maestro-usw3
     private: false
   image:
-    digest: sha256:1568fda504ca91a9cfee998067174ebd46f5ac2603a8663ebefbac94d6483a85
+    digest: sha256:784f3670c04a303b0c0fbd98048bc3e941c03b65122c53b0e0da58abcdec65b3
     registry: quay.io
     repository: redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro
   postgres:
@@ -649,7 +649,7 @@ mgmt:
           sha: 01038e7de14b78d702d2849c3aad72fd25903c4765af63cf16aa3398f5d5f2dd
     kubeStateMetrics:
       image:
-        digest: sha256:e39c4ef50f0558940d7cd4e956a48d1166ca960498f9baae03a4ecf848a85f00
+        digest: sha256:68239720b1e1267eda101793d47ee189313c351949c5d4a6bb8c94a423da76a5
         registry: mcr.microsoft.com/oss/v2
         repository: kubernetes/kube-state-metrics
     namespace: prometheus
@@ -658,18 +658,18 @@ mgmt:
       image:
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus-config-reloader
-        sha: 67a388022a2d78224f9b68f12c5b9118114334b59cce72b20f2cc199de953948
+        sha: 7a892d5b1c89f3de601d73e1d900ac11d2fb52d1a113f10de0db2f728fd2b908
     prometheusOperator:
       image:
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus-operator
-        sha: e7bbcd13ba6b9e1dec02a7f0fa882444b46d17fb06dc7f7bcde3f927b663c77e
+        sha: 18feab9c546380db5b0aa7d75ed92c97dbd1fc49518cd0627d32e3aed29d7d11
       version: ""
     prometheusSpec:
       image:
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus
-        sha: 436aef842b67b5d11d7f72776138401f8a4005c8be5cf82238aa0eb7599cdf2e
+        sha: 394a9e3f587d410fa24efe3a1510ad3b7f372536f8cc1e31e1147ce68a5aec3c
       replicas: 2
       resources:
         limits:
@@ -874,7 +874,7 @@ secretSyncController:
         memory: 100Mi
     serviceAccountName: secrets-store-sync-controller-manager
   providerImage:
-    digest: sha256:fb9dbdb107f3435e60986a2240b464c36768af9a85deb484ed367ad69421e334
+    digest: sha256:3dee7cfb40a0973f83d544fefd153ef8169132dcabb72426485fb69aad201ee5
     registry: mcr.microsoft.com
     repository: oss/v2/azure/secrets-store/provider-azure
 serviceKeyVault:
@@ -948,7 +948,7 @@ svc:
   istio:
     ingressGatewayIPAddressIPTags: ""
     ingressGatewayIPAddressName: aro-hcp-istio-ingress
-    istioctlVersion: 1.30.1
+    istioctlVersion: 1.30.2
     tag: prod-stable
     targetVersion: asm-1-28
     versions: asm-1-28
@@ -968,7 +968,7 @@ svc:
           sha: 01038e7de14b78d702d2849c3aad72fd25903c4765af63cf16aa3398f5d5f2dd
     kubeStateMetrics:
       image:
-        digest: sha256:e39c4ef50f0558940d7cd4e956a48d1166ca960498f9baae03a4ecf848a85f00
+        digest: sha256:68239720b1e1267eda101793d47ee189313c351949c5d4a6bb8c94a423da76a5
         registry: mcr.microsoft.com/oss/v2
         repository: kubernetes/kube-state-metrics
     namespace: prometheus
@@ -977,18 +977,18 @@ svc:
       image:
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus-config-reloader
-        sha: 67a388022a2d78224f9b68f12c5b9118114334b59cce72b20f2cc199de953948
+        sha: 7a892d5b1c89f3de601d73e1d900ac11d2fb52d1a113f10de0db2f728fd2b908
     prometheusOperator:
       image:
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus-operator
-        sha: e7bbcd13ba6b9e1dec02a7f0fa882444b46d17fb06dc7f7bcde3f927b663c77e
+        sha: 18feab9c546380db5b0aa7d75ed92c97dbd1fc49518cd0627d32e3aed29d7d11
       version: ""
     prometheusSpec:
       image:
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus
-        sha: 436aef842b67b5d11d7f72776138401f8a4005c8be5cf82238aa0eb7599cdf2e
+        sha: 394a9e3f587d410fa24efe3a1510ad3b7f372536f8cc1e31e1147ce68a5aec3c
       replicas: 2
       resources:
         limits:
