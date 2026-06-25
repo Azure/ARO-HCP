@@ -946,7 +946,7 @@
         "definition": "label_values(kas:kms_dek_cache_size:min, namespace)",
         "hide": 0,
         "includeAll": true,
-        "allValue": ".*",
+        "allValue": "ocm-.*",
         "multi": false,
         "name": "hcp",
         "options": [],
