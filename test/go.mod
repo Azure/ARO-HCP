@@ -13,7 +13,7 @@ require (
 	github.com/Azure/ARO-HCP/tooling/templatize v0.0.0-00010101000000-000000000000
 	github.com/Azure/ARO-HCP/tooling/utilitytypes v0.0.0-00010101000000-000000000000
 	github.com/Azure/ARO-Tools/config v0.0.0-20260617060128-2277df76598b
-	github.com/Azure/ARO-Tools/tools/prow-job-executor v0.0.0-20260618114223-e64276f10667
+	github.com/Azure/ARO-Tools/tools/prow-job-executor v0.0.0-20260625140822-7cf3574ac01b
 	github.com/Azure/azure-kusto-go/azkustodata v1.2.1
 	github.com/Azure/azure-sdk-for-go/sdk/messaging/azeventhubs/v2 v2.0.2
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/alertsmanagement/armalertsmanagement v0.11.0
@@ -72,7 +72,7 @@ require (
 	github.com/Azure/ARO-Tools/pipelines v0.0.0-20260617060128-2277df76598b // indirect
 	github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260617060128-2277df76598b // indirect
 	github.com/Azure/ARO-Tools/tools/grafanactl v0.0.0-20260617060128-2277df76598b // indirect
-	github.com/Azure/ARO-Tools/tools/helm v0.0.0-20260617060128-2277df76598b // indirect
+	github.com/Azure/ARO-Tools/tools/helm v0.0.0-20260625140822-7cf3574ac01b // indirect
 	github.com/Azure/ARO-Tools/tools/registration v0.0.0-20260617060128-2277df76598b // indirect
 	github.com/Azure/ARO-Tools/tools/secret-sync v0.0.0-20260617060128-2277df76598b // indirect
 	github.com/Azure/ARO-Tools/tools/yamlwrap v0.0.0-20260617060128-2277df76598b // indirect
