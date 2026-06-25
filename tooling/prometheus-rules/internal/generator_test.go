@@ -537,9 +537,10 @@ func TestOptionsGenerate(t *testing.T) {
 		assert.Contains(t, generated, "#disable-next-line no-unused-params")
 		assert.Contains(t, generated, "param azureMonitoring string")
 		assert.Contains(t, generated, "param actionGroups array")
+		assert.Contains(t, generated, "param severityCeiling int = 0")
 		assert.Contains(t, generated, "Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01")
 		assert.Contains(t, generated, "alert: 'TestAlert'")
-		assert.Contains(t, generated, "severity: 2")
+		assert.Contains(t, generated, "severity: severityCeiling > 0 ? max(2, severityCeiling) : 2")
 	})
 
 	t.Run("with included alerts", func(t *testing.T) {

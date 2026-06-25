@@ -766,6 +766,7 @@ mise:
     exporter: ""
 monitoring:
   alertRuleOwningTeamTag: ""
+  alertSeverityCeiling: 0
   alertsEnabled: false
   crossTenantSecurityGroup: ""
   grafanaMajorVersion: "11"

@@ -5,6 +5,7 @@ param hcpAzureMonitoringWorkspaceId = '__hcpAzureMonitoringWorkspaceId__'
 
 param manageConnection = {{ .monitoring.icm.manageConnection }}
 param alertsEnabled = {{ .monitoring.alertsEnabled }}
+param alertSeverityCeiling = {{ .monitoring.alertSeverityCeiling }}
 param icmEnvironment = '{{ .monitoring.icm.environment }}'
 param icmConnectionName = '{{ .monitoring.icm.connectionName }}'
 param icmConnectionId = '{{ .monitoring.icm.connectionId }}'

@@ -2864,6 +2864,12 @@
           "type": "boolean",
           "description": "Whether ICM alerting is enabled for this region. When false, action groups will be disabled."
         },
+        "alertSeverityCeiling": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4,
+          "description": "The minimum IcM severity level (highest priority) that alerts can fire at. Alerts with a severity more critical (lower number) than this ceiling will be degraded to this value. For example, setting this to 3 means SEV2 alerts will fire as SEV3. A value of 0 means no ceiling is applied."
+        },
         "icm": {
           "type": "object",
           "properties": {
