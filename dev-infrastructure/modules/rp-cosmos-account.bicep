@@ -5,7 +5,7 @@ param location string
 param zoneRedundant bool
 param private bool
 
-resource cosmosDbAccount 'Microsoft.DocumentDB/databaseAccounts@2023-11-15' = {
+resource cosmosDbAccount 'Microsoft.DocumentDB/databaseAccounts@2024-11-15' = {
   kind: 'GlobalDocumentDB'
   name: name
   location: location
@@ -45,6 +45,7 @@ resource cosmosDbAccount 'Microsoft.DocumentDB/databaseAccounts@2023-11-15' = {
     networkAclBypass: 'None'
     enablePartitionMerge: false
     enableBurstCapacity: false
+    enablePerRegionPerPartitionAutoscale: true
     minimalTlsVersion: 'Tls12'
   }
 }
