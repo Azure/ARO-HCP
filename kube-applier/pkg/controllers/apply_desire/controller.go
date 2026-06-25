@@ -55,6 +55,12 @@ import (
 // is the owner, distinct from any native Kubernetes "kube-..." manager.
 const FieldManager = "aro-hcp-kube-applier"
 
+// ApplyDesireControllerName is the per-controller identifier emitted in the
+// "controller_name" log key, used as the workqueue name (so it surfaces as a
+// Prometheus label), and threaded into ctx via utils.ContextWithControllerName.
+// Mirrors the backend convention (e.g. NodepoolVersionControllerName).
+const ApplyDesireControllerName = "ApplyDesireController"
+
 // DefaultCooldownPeriod is the minimum interval between two reconciles
 // of an unchanged ApplyDesire. The informer's handler resync fires
 // frequently (at the informer's check period); the cooldown gate is what
@@ -133,7 +139,7 @@ func NewApplyDesireController(
 	cooldownChecker := controllerutils.NewTimeBasedCooldownChecker(cfg.CooldownPeriod)
 	cooldownChecker.SetClock(cfg.Clock)
 	c := &ApplyDesireController{
-		name:                "ApplyDesireController",
+		name:                ApplyDesireControllerName,
 		applyDesireInformer: applyDesireInformer,
 		fetcher:             fetcher,
 		dyn:                 dyn,
@@ -143,7 +149,7 @@ func NewApplyDesireController(
 		),
 		queue: workqueue.NewTypedRateLimitingQueueWithConfig(
 			workqueue.DefaultTypedControllerRateLimiter[keys.ApplyDesireKey](),
-			workqueue.TypedRateLimitingQueueConfig[keys.ApplyDesireKey]{Name: "ApplyDesireController"},
+			workqueue.TypedRateLimitingQueueConfig[keys.ApplyDesireKey]{Name: ApplyDesireControllerName},
 		),
 		cfg:      cfg,
 		cooldown: cooldownChecker,
@@ -174,8 +180,8 @@ func (c *ApplyDesireController) Run(ctx context.Context, threadiness int) {
 	ctx = utils.ContextWithControllerName(ctx, c.name)
 	logger := utils.LoggerFromContext(ctx).WithValues(utils.LogValues{}.AddControllerName(c.name)...)
 	ctx = utils.ContextWithLogger(ctx, logger)
-	logger.Info("starting ApplyDesireController")
-	defer logger.Info("stopped ApplyDesireController")
+	logger.Info("starting controller")
+	defer logger.Info("stopped controller")
 
 	for i := 0; i < threadiness; i++ {
 		go wait.UntilWithContext(ctx, c.runWorker, time.Second)
@@ -254,6 +260,12 @@ func (c *ApplyDesireController) processNext(ctx context.Context) bool {
 		return false
 	}
 	defer c.queue.Done(key)
+
+	// Seed the per-reconcile logger with the key's identifying fields so every
+	// log line from SyncOnce carries subscription_id / resource_group /
+	// resource_id, matching the backend generic worker loop's behavior.
+	logger := utils.AddLoggerValues(utils.LoggerFromContext(ctx), key)
+	ctx = utils.ContextWithLogger(ctx, logger)
 
 	if err := c.SyncOnce(ctx, key); err != nil {
 		utilruntime.HandleErrorWithContext(ctx, err, "sync error; requeuing", "key", key)

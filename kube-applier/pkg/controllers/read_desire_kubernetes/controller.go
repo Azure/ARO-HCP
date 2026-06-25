@@ -51,6 +51,12 @@ import (
 // into status. Aligns with the readme's "every 60 seconds" requirement.
 const ResyncDuration = 60 * time.Second
 
+// ReadDesireKubernetesControllerName is the per-controller identifier emitted
+// in the "controller_name" log key. Each per-instance controller shares this
+// name; the per-instance fields (subscription_id, resource_id, ...) are
+// supplied by the key via utils.AddLoggerValues.
+const ReadDesireKubernetesControllerName = "ReadDesireKubernetesController"
+
 // listWatchWithoutWatchListSemantics opts out of the WatchList streaming mode
 // enabled by default in client-go v0.35+. Mirrors the unexported wrapper in
 // client-go/tools/cache/listwatch.go. The dynamic client's Watch (whether
@@ -117,7 +123,7 @@ func NewReadDesireKubernetesController(
 			workqueue.TypedRateLimitingQueueConfig[keys.ReadDesireKey]{
 				// Underscores rather than slashes: this name surfaces as a
 				// Prometheus label and slashes complicate downstream tooling.
-				Name: fmt.Sprintf("ReadDesireKubernetesController_%s_%s_%s", key.ClusterName, key.NodePoolName, key.Name),
+				Name: fmt.Sprintf("%s_%s_%s_%s", ReadDesireKubernetesControllerName, key.ClusterName, key.NodePoolName, key.Name),
 			},
 		),
 		writer: desirestatuswriter.New[kubeapplier.ReadDesire, keys.ReadDesireKey, *kubeapplier.ReadDesire](
@@ -155,10 +161,16 @@ func (c *ReadDesireKubernetesController) Run(ctx context.Context) {
 	defer utilruntime.HandleCrash()
 	defer c.queue.ShutDown()
 
-	logger := utils.LoggerFromContext(ctx).WithValues("readDesire", c.key.Name, "cluster", c.key.ClusterName)
+	// Seed the per-controller logger with controller_name and the desire's
+	// identifying fields (subscription_id, resource_group, resource_id, ...).
+	// Since this controller is per-instance, the key fields are constant for
+	// its entire lifetime and belong on the Run-level logger.
+	ctx = utils.ContextWithControllerName(ctx, ReadDesireKubernetesControllerName)
+	logger := utils.LoggerFromContext(ctx).WithValues(utils.LogValues{}.AddControllerName(ReadDesireKubernetesControllerName)...)
+	logger = utils.AddLoggerValues(logger, c.key)
 	ctx = utils.ContextWithLogger(ctx, logger)
-	logger.Info("starting ReadDesireKubernetesController")
-	defer logger.Info("stopped ReadDesireKubernetesController")
+	logger.Info("starting controller")
+	defer logger.Info("stopped controller")
 
 	go c.informer.RunWithContext(ctx)
 
@@ -210,6 +222,16 @@ func (c *ReadDesireKubernetesController) processNext(ctx context.Context) bool {
 		return false
 	}
 	defer c.queue.Done(key)
+
+	// Seed the per-reconcile logger with the key's identifying fields so every
+	// log line from SyncOnce carries subscription_id / resource_group /
+	// resource_id, matching the backend generic worker loop's behavior and
+	// the convention shared with apply_desire / delete_desire / read_desire_manager.
+	// All keys here are identical (this controller is per-instance), but doing
+	// the seeding in processNext keeps the pattern uniform across kube-applier.
+	logger := utils.AddLoggerValues(utils.LoggerFromContext(ctx), key)
+	ctx = utils.ContextWithLogger(ctx, logger)
+
 	if err := c.SyncOnce(ctx); err != nil {
 		utilruntime.HandleErrorWithContext(ctx, err, "sync error; requeuing", "key", key)
 		c.queue.AddRateLimited(key)

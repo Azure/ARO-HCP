@@ -22,11 +22,14 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/go-logr/logr"
+
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 // ApplyDesireKey identifies a single ApplyDesire by the parts of its resource ID
@@ -50,6 +53,28 @@ func (k ApplyDesireKey) CRUD(client database.KubeApplierApplyDesireCRUD) (databa
 	return client.ApplyDesiresForCluster(k.SubscriptionID, k.ResourceGroupName, k.ClusterName)
 }
 
+// GetResourceID returns the desire's full resource ID. It uses the
+// cluster-scoped or node-pool-scoped builder depending on the key's shape.
+func (k ApplyDesireKey) GetResourceID() *azcorearm.ResourceID {
+	var s string
+	if k.IsNodePoolScoped() {
+		s = kubeapplier.ToNodePoolScopedApplyDesireResourceIDString(
+			k.SubscriptionID, k.ResourceGroupName, k.ClusterName, k.NodePoolName, k.Name)
+	} else {
+		s = kubeapplier.ToClusterScopedApplyDesireResourceIDString(
+			k.SubscriptionID, k.ResourceGroupName, k.ClusterName, k.Name)
+	}
+	return api.Must(azcorearm.ParseResourceID(s))
+}
+
+// AddLoggerValues implements utils.LoggableKey so the generic worker loop seeds
+// per-reconcile logger fields straight from the resource ID — same key set the
+// backend uses (subscription_id, resource_group, resource_name, resource_id,
+// hcp_cluster_name).
+func (k ApplyDesireKey) AddLoggerValues(logger logr.Logger) logr.Logger {
+	return logger.WithValues(utils.LogValues{}.AddLogValuesForResourceID(k.GetResourceID())...)
+}
+
 // DeleteDesireKey identifies a single DeleteDesire.
 type DeleteDesireKey struct {
 	SubscriptionID    string
@@ -70,6 +95,26 @@ func (k DeleteDesireKey) CRUD(client database.KubeApplierDeleteDesireCRUD) (data
 	return client.DeleteDesiresForCluster(k.SubscriptionID, k.ResourceGroupName, k.ClusterName)
 }
 
+// GetResourceID returns the desire's full resource ID. It uses the
+// cluster-scoped or node-pool-scoped builder depending on the key's shape.
+func (k DeleteDesireKey) GetResourceID() *azcorearm.ResourceID {
+	var s string
+	if k.IsNodePoolScoped() {
+		s = kubeapplier.ToNodePoolScopedDeleteDesireResourceIDString(
+			k.SubscriptionID, k.ResourceGroupName, k.ClusterName, k.NodePoolName, k.Name)
+	} else {
+		s = kubeapplier.ToClusterScopedDeleteDesireResourceIDString(
+			k.SubscriptionID, k.ResourceGroupName, k.ClusterName, k.Name)
+	}
+	return api.Must(azcorearm.ParseResourceID(s))
+}
+
+// AddLoggerValues implements utils.LoggableKey so the generic worker loop seeds
+// per-reconcile logger fields straight from the resource ID.
+func (k DeleteDesireKey) AddLoggerValues(logger logr.Logger) logr.Logger {
+	return logger.WithValues(utils.LogValues{}.AddLogValuesForResourceID(k.GetResourceID())...)
+}
+
 // ReadDesireKey identifies a single ReadDesire.
 type ReadDesireKey struct {
 	SubscriptionID    string
@@ -88,6 +133,26 @@ func (k ReadDesireKey) CRUD(client database.KubeApplierReadDesireCRUD) (database
 		return client.ReadDesiresForNodePool(k.SubscriptionID, k.ResourceGroupName, k.ClusterName, k.NodePoolName)
 	}
 	return client.ReadDesiresForCluster(k.SubscriptionID, k.ResourceGroupName, k.ClusterName)
+}
+
+// GetResourceID returns the desire's full resource ID. It uses the
+// cluster-scoped or node-pool-scoped builder depending on the key's shape.
+func (k ReadDesireKey) GetResourceID() *azcorearm.ResourceID {
+	var s string
+	if k.IsNodePoolScoped() {
+		s = kubeapplier.ToNodePoolScopedReadDesireResourceIDString(
+			k.SubscriptionID, k.ResourceGroupName, k.ClusterName, k.NodePoolName, k.Name)
+	} else {
+		s = kubeapplier.ToClusterScopedReadDesireResourceIDString(
+			k.SubscriptionID, k.ResourceGroupName, k.ClusterName, k.Name)
+	}
+	return api.Must(azcorearm.ParseResourceID(s))
+}
+
+// AddLoggerValues implements utils.LoggableKey so the generic worker loop seeds
+// per-reconcile logger fields straight from the resource ID.
+func (k ReadDesireKey) AddLoggerValues(logger logr.Logger) logr.Logger {
+	return logger.WithValues(utils.LogValues{}.AddLogValuesForResourceID(k.GetResourceID())...)
 }
 
 // FromResourceID parses an ApplyDesireKey out of a *Desire's resource ID. The
