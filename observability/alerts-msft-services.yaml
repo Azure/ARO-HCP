@@ -16,6 +16,9 @@ prometheusRules:
     alerts:
     - KubeAPIErrorBudgetBurn
   - groupName: kubernetes-resources
+    namespaces:
+    - billing
+    - credential-refresher
     alerts:
     - KubeCPUQuotaOvercommit
     - KubeMemoryOvercommit
@@ -24,6 +27,9 @@ prometheusRules:
     - KubeQuotaExceeded
     - KubeQuotaFullyUsed
   - groupName: kubernetes-storage
+    namespaces:
+    - billing
+    - credential-refresher
     alerts:
     - KubePersistentVolumeErrors
   - groupName: kubernetes-system

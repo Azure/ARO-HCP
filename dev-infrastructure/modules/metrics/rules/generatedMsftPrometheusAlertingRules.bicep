@@ -39,7 +39,7 @@ resource msftKubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroup
           summary: 'Cluster has overcommitted memory resource requests.'
           title: 'Cluster has overcommitted memory resource requests.'
         }
-        expression: 'sum by (cluster) (namespace_memory:kube_pod_container_resource_requests:sum) - (sum by (cluster) (kube_node_status_allocatable{job="kube-state-metrics",resource="memory"}) - max by (cluster) (kube_node_status_allocatable{job="kube-state-metrics",resource="memory"})) > 0 and (sum by (cluster) (kube_node_status_allocatable{job="kube-state-metrics",resource="memory"}) - max by (cluster) (kube_node_status_allocatable{job="kube-state-metrics",resource="memory"})) > 0'
+        expression: 'sum by (cluster) (namespace_memory:kube_pod_container_resource_requests:sum{namespace=~"billing|credential-refresher"}) - (sum by (cluster) (kube_node_status_allocatable{job="kube-state-metrics",namespace=~"billing|credential-refresher",resource="memory"}) - max by (cluster) (kube_node_status_allocatable{job="kube-state-metrics",namespace=~"billing|credential-refresher",resource="memory"})) > 0 and (sum by (cluster) (kube_node_status_allocatable{job="kube-state-metrics",namespace=~"billing|credential-refresher",resource="memory"}) - max by (cluster) (kube_node_status_allocatable{job="kube-state-metrics",namespace=~"billing|credential-refresher",resource="memory"})) > 0'
         for: 'PT10M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -66,7 +66,7 @@ resource msftKubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroup
           summary: 'Cluster has overcommitted CPU resource requests.'
           title: 'Cluster has overcommitted CPU resource requests.'
         }
-        expression: 'sum by (cluster) (min without (resource) (kube_resourcequota{job="kube-state-metrics",resource=~"(cpu|requests.cpu)",type="hard"})) / sum by (cluster) (kube_node_status_allocatable{job="kube-state-metrics",resource="cpu"}) > 1.5'
+        expression: 'sum by (cluster) (min without (resource) (kube_resourcequota{job="kube-state-metrics",namespace=~"billing|credential-refresher",resource=~"(cpu|requests.cpu)",type="hard"})) / sum by (cluster) (kube_node_status_allocatable{job="kube-state-metrics",namespace=~"billing|credential-refresher",resource="cpu"}) > 1.5'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -93,7 +93,7 @@ resource msftKubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroup
           summary: 'Cluster has overcommitted memory resource requests.'
           title: 'Cluster has overcommitted memory resource requests.'
         }
-        expression: 'sum by (cluster) (min without (resource) (kube_resourcequota{job="kube-state-metrics",resource=~"(memory|requests.memory)",type="hard"})) / sum by (cluster) (kube_node_status_allocatable{job="kube-state-metrics",resource="memory"}) > 1.5'
+        expression: 'sum by (cluster) (min without (resource) (kube_resourcequota{job="kube-state-metrics",namespace=~"billing|credential-refresher",resource=~"(memory|requests.memory)",type="hard"})) / sum by (cluster) (kube_node_status_allocatable{job="kube-state-metrics",namespace=~"billing|credential-refresher",resource="memory"}) > 1.5'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -120,7 +120,7 @@ resource msftKubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroup
           summary: 'Namespace quota is going to be full.'
           title: 'Namespace quota is going to be full. namespace:{{ $labels.namespace }} resource:{{ $labels.resource }}'
         }
-        expression: 'kube_resourcequota{job="kube-state-metrics",type="used"} / ignoring (instance, job, type) (kube_resourcequota{job="kube-state-metrics",type="hard"} > 0) > 0.9 < 1'
+        expression: 'kube_resourcequota{job="kube-state-metrics",namespace=~"billing|credential-refresher",type="used"} / ignoring (instance, job, type) (kube_resourcequota{job="kube-state-metrics",namespace=~"billing|credential-refresher",type="hard"} > 0) > 0.9 < 1'
         for: 'PT15M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
@@ -147,7 +147,7 @@ resource msftKubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroup
           summary: 'Namespace quota is fully used.'
           title: 'Namespace quota is fully used. namespace:{{ $labels.namespace }} resource:{{ $labels.resource }}'
         }
-        expression: 'kube_resourcequota{job="kube-state-metrics",type="used"} / ignoring (instance, job, type) (kube_resourcequota{job="kube-state-metrics",type="hard"} > 0) == 1'
+        expression: 'kube_resourcequota{job="kube-state-metrics",namespace=~"billing|credential-refresher",type="used"} / ignoring (instance, job, type) (kube_resourcequota{job="kube-state-metrics",namespace=~"billing|credential-refresher",type="hard"} > 0) == 1'
         for: 'PT15M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
@@ -174,7 +174,7 @@ resource msftKubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroup
           summary: 'Namespace quota has exceeded the limits.'
           title: 'Namespace quota has exceeded the limits. namespace:{{ $labels.namespace }} resource:{{ $labels.resource }}'
         }
-        expression: 'kube_resourcequota{job="kube-state-metrics",type="used"} / ignoring (instance, job, type) (kube_resourcequota{job="kube-state-metrics",type="hard"} > 0) > 1'
+        expression: 'kube_resourcequota{job="kube-state-metrics",namespace=~"billing|credential-refresher",type="used"} / ignoring (instance, job, type) (kube_resourcequota{job="kube-state-metrics",namespace=~"billing|credential-refresher",type="hard"} > 0) > 1'
         for: 'PT15M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -214,7 +214,7 @@ resource msftKubernetesStorage 'Microsoft.AlertsManagement/prometheusRuleGroups@
           summary: 'PersistentVolume is having issues with provisioning.'
           title: 'PersistentVolume is having issues with provisioning. persistentvolume:{{ $labels.persistentvolume }} phase:{{ $labels.phase }}'
         }
-        expression: 'kube_persistentvolume_status_phase{job="kube-state-metrics",phase=~"Failed|Pending"} > 0'
+        expression: 'kube_persistentvolume_status_phase{job="kube-state-metrics",namespace=~"billing|credential-refresher",phase=~"Failed|Pending"} > 0'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
       }
