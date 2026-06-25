@@ -169,7 +169,15 @@ func RunTestHelmTemplate(t *testing.T, settingsPath string) {
 	assert.NoError(t, err)
 	assert.NotNil(t, helmSteps)
 
-	resourceLimitsAllowlist := settings.ResourceLimitsAllowlist
+	// Use new allowlists if defined, otherwise fall back to deprecated ResourceLimitsAllowlist
+	resourceRequestsAllowlist := settings.ResourceRequestsAllowlist
+	if len(resourceRequestsAllowlist) == 0 {
+		resourceRequestsAllowlist = settings.ResourceLimitsAllowlist
+	}
+	resourceMemoryLimitsAllowlist := settings.ResourceMemoryLimitsAllowlist
+	if len(resourceMemoryLimitsAllowlist) == 0 {
+		resourceMemoryLimitsAllowlist = settings.ResourceLimitsAllowlist
+	}
 	chartDirsVisited := make(map[string]bool)
 
 	for _, helmStep := range helmSteps {
@@ -195,7 +203,7 @@ func RunTestHelmTemplate(t *testing.T, settingsPath string) {
 				manifest, err := runTest(t.Context(), settings, testCase)
 				require.NoError(t, err)
 
-				for _, v := range checkPolicyViolations(manifest, resourceLimitsAllowlist) {
+				for _, v := range checkPolicyViolations(manifest, resourceRequestsAllowlist, resourceMemoryLimitsAllowlist) {
 					t.Error(v)
 				}
 

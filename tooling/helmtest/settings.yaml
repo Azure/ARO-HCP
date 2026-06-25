@@ -3,11 +3,92 @@ TopologyDir: ../..
 Replace:
 - Regex: 'sha256.[a-fA-F0-9]{64}'
   Replacement: 'sha256:1234567890'
-ResourceLimitsAllowlist:
-- DaemonSet/arobit-forwarder/fluentbit # upstream fluent-bit chart sets limits
+# Components exempt from requiring resources.requests.memory
+ResourceRequestsAllowlist:
+# Standing exemptions
+- DaemonSet/*/acrpull # acrpull standing exemption
+- DaemonSet/arobit-forwarder/fluentbit # arobit-fluentbit standing exemption
+- DaemonSet/*/fluentbit # arobit-fluentbit standing exemption (pattern match)
+- Deployment/*/mce # mce standing exemption
+- Job/*/mce # mce standing exemption
+# Upstream charts that set their own limits
+- Deployment/*/kube-state-metrics # upstream kube-state-metrics chart sets limits
+- Deployment/prometheus-operator/kube-prometheus-stack # upstream prometheus-operator chart sets limits
+- Job/prometheus-admission-*/create # upstream prometheus-operator admission webhook jobs
+- Job/prometheus-admission-*/patch # upstream prometheus-operator admission webhook jobs
+# Current violations - missing requests
+- DaemonSet/arobit-forwarder/mdsd-clusterlogs
+- DaemonSet/set-kubelet-parameters-for-scale/kubelet-parameters
+- Deployment/admin-api-certificate-refresher/init-container-msg-container-init
+- Deployment/frontend-certificate-refresher/init-container-msg-container-init
+- Deployment/maestro/maestro-server-migration
+- Deployment/maestro-agent/init
+- Deployment/maestro-agent/maestro-agent
+- Deployment/maestro-agent/metrics-proxy
+- Deployment/mise/mise
+- Deployment/misev2/misev2
+- Deployment/postgres-breakglass/init
+- Deployment/postgres-breakglass/postgres
+- Deployment/secrets-store-sync-controller-manager/manager
+- Deployment/sessiongate-certificate-refresher/init-container-msg-container-init
+- Job/delete-sc-pre-upgrade/delete-sc
+- Job/finalize-mce/finalize
+- Job/finalize-mce-config/finalize
+- Job/install-hypershift/install
+- Job/registration-*/python # registration job name varies by environment
+- Job/unannotate-default-sc/finalize
+- Job/velero-install/apply-manifest
+- Job/velero-install/generate-manifest
+# Components exempt from requiring resources.limits.memory
+ResourceMemoryLimitsAllowlist:
+# Standing exemptions
+- DaemonSet/*/acrpull # acrpull standing exemption
+- DaemonSet/arobit-forwarder/fluentbit # arobit-fluentbit standing exemption
+- DaemonSet/*/fluentbit # arobit-fluentbit standing exemption (pattern match)
+- Deployment/*/mce # mce standing exemption
+- Job/*/mce # mce standing exemption
+# Config unlimited / NONE sentinels
+- Deployment/aro-hcp-exporter/* # config sets memory: unlimited
+- Deployment/kube-events/* # config sets memory: unlimited
+- Deployment/sessiongate/* # config sets memory: unlimited
+- Deployment/secrets-store-sync-controller-manager/provider-azure-installer # config sets memory: unlimited
+- Deployment/maestro/maestro-server # config sets memory: NONE
+- Deployment/maestro/maestro-server-migration # config sets memory: NONE
+# Upstream charts that set their own limits
 - DaemonSet/arobit-forwarder/mdsd-cert-watchdog # upstream arobit chart sets limits
 - Job/*/fleet-registration # fleet registration job name varies by environment
 - Deployment/*/kube-state-metrics # upstream kube-state-metrics chart sets limits
 - Deployment/prometheus-operator/kube-prometheus-stack # upstream prometheus-operator chart sets limits
 - Job/prometheus-admission-*/create # upstream prometheus-operator admission webhook jobs
 - Job/prometheus-admission-*/patch # upstream prometheus-operator admission webhook jobs
+# Current violations - missing limits
+- DaemonSet/arobit-forwarder/mdsd-clusterlogs
+- DaemonSet/set-kubelet-parameters-for-scale/kubelet-parameters
+- Deployment/admin-api/service
+- Deployment/admin-api-certificate-refresher/init-container-msg-container-init
+- Deployment/aro-hcp-backend/aro-hcp-backend
+- Deployment/aro-hcp-frontend/aro-hcp-frontend
+- Deployment/aro-hcp-frontend-v2/aro-hcp-frontend-v2
+- Deployment/frontend-certificate-refresher/init-container-msg-container-init
+- Deployment/grc-policy-addon-controller/manager
+- Deployment/grc-policy-propagator/governance-policy-propagator
+- Deployment/klusterlet-addon-controller-v2/klusterlet-addon-controller
+- Deployment/kube-applier/kube-applier
+- Deployment/maestro-agent/init
+- Deployment/maestro-agent/maestro-agent
+- Deployment/maestro-agent/metrics-proxy
+- Deployment/mgmt-agent/mgmt-agent-controller
+- Deployment/mise/mise
+- Deployment/misev2/misev2
+- Deployment/postgres-breakglass/init
+- Deployment/postgres-breakglass/postgres
+- Deployment/secrets-store-sync-controller-manager/manager
+- Deployment/sessiongate-certificate-refresher/init-container-msg-container-init
+- Job/delete-sc-pre-upgrade/delete-sc
+- Job/finalize-mce/finalize
+- Job/finalize-mce-config/finalize
+- Job/install-hypershift/install
+- Job/registration-*/python # registration job name varies by environment
+- Job/unannotate-default-sc/finalize
+- Job/velero-install/apply-manifest
+- Job/velero-install/generate-manifest

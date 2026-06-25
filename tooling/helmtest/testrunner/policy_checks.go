@@ -63,7 +63,7 @@ func matchesAllowlist(key string, patterns []string) (bool, error) {
 	return false, nil
 }
 
-func checkPolicyViolations(manifest string, resourceLimitsAllowlist []string) []string {
+func checkPolicyViolations(manifest string, resourceRequestsAllowlist, resourceMemoryLimitsAllowlist []string) []string {
 	var violations []string
 
 	decoder := utilyaml.NewYAMLToJSONDecoder(strings.NewReader(manifest))
@@ -90,50 +90,62 @@ func checkPolicyViolations(manifest string, resourceLimitsAllowlist []string) []
 			podSpec = w.Spec.JobTemplate.Spec.Template.Spec
 		}
 
-		violations = append(violations, checkPodSpecMissingMemoryLimits(w.Kind, w.Metadata.Name, podSpec, resourceLimitsAllowlist)...)
+		violations = append(violations, checkPodSpecMemoryResources(w.Kind, w.Metadata.Name, podSpec, resourceRequestsAllowlist, resourceMemoryLimitsAllowlist)...)
 	}
 
 	return violations
 }
 
-func checkPodSpecMissingMemoryLimits(kind, name string, podSpec corev1.PodSpec, allowlist []string) []string {
+func checkPodSpecMemoryResources(kind, name string, podSpec corev1.PodSpec, requestsAllowlist, limitsAllowlist []string) []string {
 	var violations []string
 	for _, c := range slices.Concat(podSpec.InitContainers, podSpec.Containers) {
 		key := fmt.Sprintf("%s/%s/%s", kind, name, c.Name)
 
-		// Check if this container is allowlisted (exempt from requiring limits)
-		matched, err := matchesAllowlist(key, allowlist)
+		// Check 1: Fail if memory requests are NOT set (unless in requests allowlist)
+		requestsMatched, err := matchesAllowlist(key, requestsAllowlist)
 		if err != nil {
 			violations = append(violations, err.Error())
-			continue
-		}
-		if matched {
-			continue
+		} else if !requestsMatched {
+			memoryRequest := c.Resources.Requests.Memory()
+			if memoryRequest == nil || memoryRequest.IsZero() {
+				violations = append(violations, fmt.Sprintf("%s container is missing a memory request (resources.requests.memory not set; add to ResourceRequestsAllowlist if intentionally unlimited)", key))
+			}
 		}
 
-		// INVERTED LOGIC: Fail if memory limits are NOT set
-		memoryLimit := c.Resources.Limits.Memory()
-		if memoryLimit == nil || memoryLimit.IsZero() {
-			violations = append(violations, fmt.Sprintf("%s is missing resources.limits.memory (add to ResourceLimitsAllowlist if intentionally unlimited)", key))
+		// Check 2: Fail if memory limits are NOT set (unless in limits allowlist)
+		limitsMatched, err := matchesAllowlist(key, limitsAllowlist)
+		if err != nil {
+			violations = append(violations, err.Error())
+		} else if !limitsMatched {
+			memoryLimit := c.Resources.Limits.Memory()
+			if memoryLimit == nil || memoryLimit.IsZero() {
+				violations = append(violations, fmt.Sprintf("%s container is missing a memory limit (resources.limits.memory not set; add to ResourceMemoryLimitsAllowlist if intentionally unlimited)", key))
+			}
 		}
 	}
 	for _, ec := range podSpec.EphemeralContainers {
 		key := fmt.Sprintf("%s/%s/%s", kind, name, ec.Name)
 
-		// Check if this container is allowlisted (exempt from requiring limits)
-		matched, err := matchesAllowlist(key, allowlist)
+		// Check 1: Fail if memory requests are NOT set (unless in requests allowlist)
+		requestsMatched, err := matchesAllowlist(key, requestsAllowlist)
 		if err != nil {
 			violations = append(violations, err.Error())
-			continue
-		}
-		if matched {
-			continue
+		} else if !requestsMatched {
+			memoryRequest := ec.Resources.Requests.Memory()
+			if memoryRequest == nil || memoryRequest.IsZero() {
+				violations = append(violations, fmt.Sprintf("%s container is missing a memory request (resources.requests.memory not set; add to ResourceRequestsAllowlist if intentionally unlimited)", key))
+			}
 		}
 
-		// INVERTED LOGIC: Fail if memory limits are NOT set
-		memoryLimit := ec.Resources.Limits.Memory()
-		if memoryLimit == nil || memoryLimit.IsZero() {
-			violations = append(violations, fmt.Sprintf("%s is missing resources.limits.memory (add to ResourceLimitsAllowlist if intentionally unlimited)", key))
+		// Check 2: Fail if memory limits are NOT set (unless in limits allowlist)
+		limitsMatched, err := matchesAllowlist(key, limitsAllowlist)
+		if err != nil {
+			violations = append(violations, err.Error())
+		} else if !limitsMatched {
+			memoryLimit := ec.Resources.Limits.Memory()
+			if memoryLimit == nil || memoryLimit.IsZero() {
+				violations = append(violations, fmt.Sprintf("%s container is missing a memory limit (resources.limits.memory not set; add to ResourceMemoryLimitsAllowlist if intentionally unlimited)", key))
+			}
 		}
 	}
 	return violations
