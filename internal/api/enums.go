@@ -93,6 +93,24 @@ var (
 	)
 )
 
+// IngressType represents the type of the default cluster ingress.
+type IngressType string
+
+const (
+	IngressTypePublic   IngressType = "Public"
+	IngressTypePrivate  IngressType = "Private"
+	IngressTypeDisabled IngressType = "Disabled"
+)
+
+var (
+	// ValidIngressTypes contains ingress types that are currently supported.
+	// Disabled is defined in the API but not yet supported.
+	ValidIngressTypes = sets.New[IngressType](
+		IngressTypePublic,
+		IngressTypePrivate,
+	)
+)
+
 // KeyVaultVisibility represents the visibility of a KeyVault resource.
 type KeyVaultVisibility string
 

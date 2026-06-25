@@ -2256,6 +2256,14 @@
             "create"
           ]
         },
+        "ingress": {
+          "$ref": "#/definitions/IngressProfile",
+          "description": "The cluster ingress configuration",
+          "x-ms-mutability": [
+            "read",
+            "create"
+          ]
+        },
         "platform": {
           "$ref": "#/definitions/PlatformProfile",
           "description": "Azure platform configuration",
@@ -2557,6 +2565,47 @@
       "type": "string",
       "description": "ImageRepository describes a repository for container images.",
       "maxLength": 255
+    },
+    "IngressProfile": {
+      "type": "object",
+      "description": "Information about the Ingress of a cluster.",
+      "properties": {
+        "type": {
+          "type": "string",
+          "description": "The type of the default cluster ingress.",
+          "default": "Public",
+          "enum": [
+            "Public",
+            "Private",
+            "Disabled"
+          ],
+          "x-ms-enum": {
+            "name": "IngressType",
+            "modelAsString": true,
+            "values": [
+              {
+                "name": "Public",
+                "value": "Public",
+                "description": "The default ingress is visible from the internet."
+              },
+              {
+                "name": "Private",
+                "value": "Private",
+                "description": "The default ingress is not visible from the internet."
+              },
+              {
+                "name": "Disabled",
+                "value": "Disabled",
+                "description": "The default ingress is disabled."
+              }
+            ]
+          },
+          "x-ms-mutability": [
+            "read",
+            "create"
+          ]
+        }
+      }
     },
     "KeyVaultVisibility": {
       "type": "string",

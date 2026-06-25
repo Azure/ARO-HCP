@@ -1193,6 +1193,17 @@ func TestValidateClusterCreate(t *testing.T) {
 				{Message: "must be at least 4.20", FieldPath: "customerProperties.version.id"},
 			},
 		},
+		{
+			name: "unsupported ingress type Disabled - create",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Ingress.Type = api.IngressTypeDisabled
+				return c
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "Unsupported value", FieldPath: "customerProperties.ingress.type"},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -1530,6 +1541,22 @@ func TestValidateClusterUpdate(t *testing.T) {
 			}(),
 			expectErrors: []utils.ExpectedError{
 				{Message: "field is immutable", FieldPath: "customerProperties.api.visibility"},
+			},
+		},
+		{
+			name: "immutable ingress type - update",
+			newCluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Ingress.Type = api.IngressTypePrivate
+				return c
+			}(),
+			oldCluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Ingress.Type = api.IngressTypePublic
+				return c
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "field is immutable", FieldPath: "customerProperties.ingress.type"},
 			},
 		},
 		{

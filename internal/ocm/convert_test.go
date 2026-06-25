@@ -607,6 +607,9 @@ func getBaseCSClusterBuilder(updating bool) *arohcpv1alpha1.ClusterBuilder {
 	} else {
 		builder = ocmClusterDefaults(api.TestLocation)
 		clusterAPIBuilder = clusterAPIBuilder.Listening(arohcpv1alpha1.ListeningMethodExternal)
+		builder.Ingresses(arohcpv1alpha1.NewIngressList().Items(
+			arohcpv1alpha1.NewIngress().Default(true).Listening(arohcpv1alpha1.ListeningMethodExternal),
+		))
 	}
 
 	// Add common mutable fields that BuildCSCluster always sets
@@ -673,6 +676,20 @@ func TestBuildCSCluster(t *testing.T) {
 						Allow(arohcpv1alpha1.NewCIDRBlockAllowAccess().
 							Mode(csCIDRBlockAllowAccessModeAllowList).
 							Values("10.0.0.0/8", "192.168.0.0/16")))),
+		},
+		{
+			name: "CREATE - sets private ingress type",
+			hcpCluster: &api.HCPOpenShiftCluster{
+				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+					Ingress: api.CustomerIngressProfile{
+						Type: api.IngressTypePrivate,
+					},
+				},
+			},
+			expectedCSCluster: getBaseCSClusterBuilder(false).
+				Ingresses(arohcpv1alpha1.NewIngressList().Items(
+					arohcpv1alpha1.NewIngress().Default(true).Listening(arohcpv1alpha1.ListeningMethodInternal),
+				)),
 		},
 		{
 			name: "UPDATE - sets CIDRBlockAccess with nil AuthorizedCIDRs",
@@ -1001,6 +1018,9 @@ func TestBuildCSCluster(t *testing.T) {
 					CIDRBlockAccess(arohcpv1alpha1.NewCIDRBlockAccess().
 						Allow(arohcpv1alpha1.NewCIDRBlockAllowAccess().
 							Mode(csCIDRBlockAllowAccessModeAllowAll)))).
+				Ingresses(arohcpv1alpha1.NewIngressList().Items(
+					arohcpv1alpha1.NewIngress().Default(true).Listening(arohcpv1alpha1.ListeningMethodExternal),
+				)).
 				Azure(arohcpv1alpha1.NewAzure().
 					EtcdEncryption(arohcpv1alpha1.NewAzureEtcdEncryption().
 						DataEncryption(arohcpv1alpha1.NewAzureEtcdDataEncryption().
@@ -1068,6 +1088,9 @@ func TestBuildCSCluster(t *testing.T) {
 					CIDRBlockAccess(arohcpv1alpha1.NewCIDRBlockAccess().
 						Allow(arohcpv1alpha1.NewCIDRBlockAllowAccess().
 							Mode(csCIDRBlockAllowAccessModeAllowAll)))).
+				Ingresses(arohcpv1alpha1.NewIngressList().Items(
+					arohcpv1alpha1.NewIngress().Default(true).Listening(arohcpv1alpha1.ListeningMethodExternal),
+				)).
 				Azure(arohcpv1alpha1.NewAzure().
 					EtcdEncryption(arohcpv1alpha1.NewAzureEtcdEncryption().
 						DataEncryption(arohcpv1alpha1.NewAzureEtcdDataEncryption().

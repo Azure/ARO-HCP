@@ -56,6 +56,12 @@ func TestRoundTripInternalExternalInternal(t *testing.T) {
 			// MirrorSourcePolicy does not roundtrip through the external type because it is purely an internal detail
 			j.MirrorSourcePolicy = api.MirrorSourcePolicyAllowContactingSource
 		},
+		func(j *api.HCPOpenShiftClusterCustomerProperties, c randfill.Continue) {
+			c.FillNoCustom(j)
+			// Ingress was added in v2026_06_30_preview and does not exist in v20251223preview.
+			// Cross-version preservation is handled by preserveUnknownClusterFields.
+			j.Ingress = api.CustomerIngressProfile{}
+		},
 		func(j *api.HCPOpenShiftClusterStatus, c randfill.Continue) {
 			// Status does not roundtrip through the external type because it is purely an internal detail
 			*j = api.HCPOpenShiftClusterStatus{}
