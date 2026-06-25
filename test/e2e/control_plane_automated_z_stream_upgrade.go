@@ -91,13 +91,18 @@ var _ = Describe("Service Provider", func() {
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to create customer resources for z-stream cluster %q", clusterName)
 
+			clusterCreationTimeout := framework.ClusterCreationTimeout
+			if minorVersion == "4.22" {
+				clusterCreationTimeout = 35 * time.Minute
+			}
+
 			By(fmt.Sprintf("creating the HCP cluster with version '%s' on candidate channel", installVersion))
 			err = tc.CreateHCPClusterFromParam20240610(
 				ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
 				clusterParams,
-				framework.ClusterCreationTimeout,
+				clusterCreationTimeout,
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster %q with version %s on candidate channel", clusterName, installVersion)
 
