@@ -762,6 +762,64 @@ resource backend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = 
         for: 'PT1M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+              'IcM.Description': '#$.annotations.info#'
+              'IcM.TsgId': '#$.annotations.runbook_url#'
+            }
+          }
+        ]
+        alert: 'OrphanedMRGDetected'
+        enabled: true
+        labels: {
+          severity: 'warning'
+        }
+        annotations: {
+          correlationId: 'OrphanedMRGDetected/{{ $labels.cluster }}'
+          description: 'Found {{ printf "%.0f" $value }} orphaned cluster managed resource groups in location {{ $labels.location }} over the last 10 minutes. Orphaned MRGs should not exist - investigate why cluster deletion left resources behind.'
+          info: 'Found {{ printf "%.0f" $value }} orphaned cluster managed resource groups in location {{ $labels.location }} over the last 10 minutes. Orphaned MRGs should not exist - investigate why cluster deletion left resources behind.'
+          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/backend-tsg.html'
+          summary: 'Orphaned cluster managed resource groups detected'
+          title: 'Orphaned cluster managed resource groups detected'
+        }
+        expression: 'sum by (location, cluster) ( max without(prometheus_replica) ( increase(aro_hcp_orphaned_managed_resource_groups_found_total[10m]) ) ) > 0'
+        for: 'PT5M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+              'IcM.Description': '#$.annotations.info#'
+              'IcM.TsgId': '#$.annotations.runbook_url#'
+            }
+          }
+        ]
+        alert: 'OrphanedMRGDeletionFailing'
+        enabled: true
+        labels: {
+          severity: 'warning'
+        }
+        annotations: {
+          correlationId: 'OrphanedMRGDeletionFailing/{{ $labels.cluster }}'
+          description: 'Orphaned cluster managed resource group deletion has failed {{ printf "%.0f" $value }} time(s) in location {{ $labels.location }} over the last 10 minutes. Deletion should succeed - investigate Azure permissions or resource locks.'
+          info: 'Orphaned cluster managed resource group deletion has failed {{ printf "%.0f" $value }} time(s) in location {{ $labels.location }} over the last 10 minutes. Deletion should succeed - investigate Azure permissions or resource locks.'
+          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/backend-tsg.html'
+          summary: 'Orphaned cluster managed resource group deletion is failing'
+          title: 'Orphaned cluster managed resource group deletion is failing'
+        }
+        expression: 'sum by (location, cluster) ( max without(prometheus_replica) ( increase(aro_hcp_orphaned_managed_resource_groups_deletion_failed_total[10m]) ) ) > 0'
+        for: 'PT10M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
     ]
     scopes: [
       azureMonitoring

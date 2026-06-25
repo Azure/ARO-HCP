@@ -142,6 +142,7 @@ module rpHcpAlerts '../modules/metrics/rp-hcp-rules.bicep' = {
   params: {
     azureMonitoringWorkspaceId: hcpAzureMonitoringWorkspaceId
     actionGroups: rpActionGroups
+    severityCeiling: alertSeverityCeiling
   }
 }
 
