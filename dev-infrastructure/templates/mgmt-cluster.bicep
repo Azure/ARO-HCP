@@ -446,6 +446,17 @@ module dataCollection '../modules/metrics/datacollection.bicep' = {
   ]
 }
 
+// Declare this management cluster in the authoritative underlay-cluster inventory (see the module
+// for details). Instantiated per stamp, so each management cluster emits its own series and they
+// are torn down individually when a stamp is decommissioned.
+module underlayClusterMetric '../modules/metrics/underlay-clusters-metric.bicep' = {
+  name: 'underlay-clusters-metric'
+  params: {
+    azureMonitoringWorkspaceId: azureMonitoringWorkspaceId
+    clusterName: aksClusterName
+  }
+}
+
 //
 // K E Y V A U L T S
 //
