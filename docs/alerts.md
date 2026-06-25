@@ -65,7 +65,7 @@ spec:
 |---|---|
 | `alert` | Alert name in PascalCase (e.g. `BackendControllerPanic`) |
 | `expr` | PromQL expression that evaluates to true when the alert should fire |
-| `labels.severity` | One of `2`, `3`, `4` (canonical, the IcM Sev number); `critical`, `warning`, `info` accepted but deprecated |
+| `labels.severity` | One of `2`, `2.5`, `3`, `4` (canonical, the IcM Sev number); `critical`, `warning`, `info` accepted but deprecated |
 | `annotations.summary` | Short title -- becomes the IcM incident title |
 | `annotations.description` | Detailed explanation, can use `{{ $labels.X }}` and `{{ $value }}` |
 | `annotations.runbook_url` | Link to the troubleshooting guide for this alert |
@@ -73,15 +73,16 @@ spec:
 
 ### Severity mapping
 
-Severity is the customer-impact class of the alert and follows the Azure Common Engineering Naming (CEN) standard so alerts route cleanly into Microsoft IcM. It is a property of the impact the alert represents and is set independently of burn rate: burn rate decides *when* an alert fires, severity decides *who* is paged at what urgency.
+Severity follows the Azure Common Engineering Naming (CEN) standard so alerts route cleanly into Microsoft IcM. It is set independently of burn rate: burn rate decides *when* an alert fires, severity decides *who* is paged at what urgency.
 
-Use the explicit `2` / `3` / `4` values (the severity label is the IcM Sev number). The legacy `critical` / `warning` / `info` values are still accepted (deprecated). `1` is intentionally rejected by the generator: Azure CEN reserves Sev 1 for declared major incidents, so alerts must not self-classify as Sev 1. Any other value fails generation. The label is a string, so both `severity: "3"` and `severity: 3` are accepted (the generator parses the value as a string).
+Use the explicit `2` / `2.5` / `3` / `4` values (the severity label is the IcM Sev number). The legacy `critical` / `warning` / `info` values are still accepted (deprecated). `1` is intentionally rejected by the generator: Azure CEN reserves Sev 1 for declared major incidents, so alerts must not self-classify as Sev 1. Any other value fails generation. The label is a string, so both `severity: "3"` and `severity: 3` are accepted (the generator parses the value as a string).
 
-| Label | IcM Severity | Impact criterion |
+| Label | IcM Severity | Urgency |
 |---|---|---|
-| `2` (or `critical`) | SEV 2 | Direct or imminent violation of the customer SLA (e.g. hosted control plane kube-apiserver). |
-| `3` (or `warning`) | SEV 3 | Customer-facing user journey degraded or failing, but the SLA is not violated yet (e.g. cluster create, node pool, upgrade, accessing the cluster). |
-| `4` (or `info`) | SEV 4 | Component-internal issue with no current customer impact, or precursor signals (saturation, capacity). |
+| `2` (or `critical`) | SEV 2 | Needs immediate attention. |
+| `2.5` (or `25`) | SEV 2.5 | Needs attention at start of next shift. |
+| `3` (or `warning`) | SEV 3 | Needs prompt investigation. |
+| `4` (or `info`) | SEV 4 | Can wait; no immediate action required. |
 
 ### The `summary` annotation and IcM titles
 

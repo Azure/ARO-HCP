@@ -727,17 +727,19 @@ func severityFor(labels map[string]*string) (*int32, error) {
 		return nil, nil
 	}
 
-	// Severity is the customer-impact class of the alert (Azure CEN), set
-	// independently of burn rate, and maps directly to the IcM severity.
+	// Severity follows the Azure CEN standard and maps directly to the
+	// IcM severity number. Set independently of burn rate.
 	// https://msazure.visualstudio.com/AzureRedHatOpenShift/_wiki/wikis/ARO.wiki/838022/IcM-best-practices?anchor=severity-levels
 	switch *severity {
 	// Canonical Azure CEN vocabulary: the severity label is the IcM Sev number.
 	case "2":
-		return ptr.To(int32(2)), nil // Sev 2: direct or imminent customer SLA violation.
+		return ptr.To(int32(2)), nil
+	case "2.5", "25":
+		return ptr.To(int32(25)), nil // IcM encodes Sev 2.5 as integer 25
 	case "3":
-		return ptr.To(int32(3)), nil // Sev 3: customer-facing user journey degraded, SLA not yet violated.
+		return ptr.To(int32(3)), nil
 	case "4":
-		return ptr.To(int32(4)), nil // Sev 4: component-internal issue, no current customer impact.
+		return ptr.To(int32(4)), nil
 	// Deprecated vocabulary, retained for backward compatibility.
 	case "critical":
 		return ptr.To(int32(2)), nil
@@ -748,9 +750,9 @@ func severityFor(labels map[string]*string) (*int32, error) {
 	// Azure CEN reserves Sev 1 for declared major incidents, so alerts must not
 	// self-classify as Sev 1. Reject it with an explicit message.
 	case "1":
-		return nil, fmt.Errorf(`invalid severity label "1": Sev 1 is reserved for declared major incidents (use 2, 3, or 4)`)
+		return nil, fmt.Errorf(`invalid severity label "1": Sev 1 is reserved for declared major incidents (use 2, 2.5, 3, or 4)`)
 	default:
 		// Fail fast rather than silently defaulting to Sev 4.
-		return nil, fmt.Errorf("invalid severity label %q (use 2, 3, or 4)", *severity)
+		return nil, fmt.Errorf("invalid severity label %q (use 2, 2.5, 3, or 4)", *severity)
 	}
 }

@@ -885,6 +885,8 @@ func TestSeverityFor(t *testing.T) {
 	}{
 		// Canonical Azure CEN vocabulary: the severity label is the IcM Sev number.
 		{map[string]*string{"severity": ptr.To("2")}, ptr.To(int32(2)), false},
+		{map[string]*string{"severity": ptr.To("2.5")}, ptr.To(int32(25)), false},
+		{map[string]*string{"severity": ptr.To("25")}, ptr.To(int32(25)), false},
 		{map[string]*string{"severity": ptr.To("3")}, ptr.To(int32(3)), false},
 		{map[string]*string{"severity": ptr.To("4")}, ptr.To(int32(4)), false},
 		// Deprecated vocabulary, still accepted.
