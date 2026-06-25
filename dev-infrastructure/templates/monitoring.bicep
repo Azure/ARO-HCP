@@ -70,6 +70,9 @@ param alertsEnabled bool
 @description('The minimum IcM severity level (highest priority) that alerts can fire at. Alerts more critical than this ceiling will be degraded to this value. 0 means no ceiling.')
 param alertSeverityCeiling int = 0
 
+@description('Resource ID of the RP Cosmos DB account')
+param rpCosmosDbAccountId string = ''
+
 module actionGroups '../modules/metrics/actiongroups.bicep' = if (manageConnection) {
   name: 'actionGroups'
   params: {
@@ -165,6 +168,15 @@ module hcpIngestionAlerts '../modules/metrics/amw-ingestion-alerts.bicep' = {
     actionGroups: slActionGroups
     enabled: alertsEnabled
     lowEventIngestionThreshold: 5
+  }
+}
+
+module cosmosAlerts '../modules/metrics/cosmos-alerts.bicep' = if (rpCosmosDbAccountId != '') {
+  name: 'cosmosAlerts'
+  params: {
+    cosmosDbAccountId: rpCosmosDbAccountId
+    actionGroups: slActionGroups
+    enabled: alertsEnabled
   }
 }
 
