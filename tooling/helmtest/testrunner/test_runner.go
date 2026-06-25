@@ -27,9 +27,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"helm.sh/helm/v4/pkg/action"
 	"helm.sh/helm/v4/pkg/chart/common"
-	"helm.sh/helm/v4/pkg/chart/loader"
+	"helm.sh/helm/v4/pkg/chart/loader/archive"
 	"helm.sh/helm/v4/pkg/cli"
 	"helm.sh/helm/v4/pkg/release"
+	v2loader "helm.sh/helm/v4/pkg/chart/v2/loader"
 
 	"sigs.k8s.io/yaml"
 
@@ -94,7 +95,7 @@ func runTest(ctx context.Context, settings *internal.Settings, testCase internal
 		return "", fmt.Errorf("error unmarshalling config, %v", err)
 
 	}
-	chart, err := loader.Load(testCase.HelmChartDir)
+	chart, err := loadChartPreprocessed(testCase.HelmChartDir, cfgYaml)
 	if err != nil {
 		return "", fmt.Errorf("error loading chart, %v", err)
 	}
@@ -128,6 +129,58 @@ func runTest(ctx context.Context, settings *internal.Settings, testCase internal
 	}
 
 	return fmt.Sprintf("%s\n%s", manifest, allHooks), nil
+}
+
+// loadChartPreprocessed loads a Helm chart from chartDir, preprocessing values.yaml
+// through templatize config substitution before loading. This allows values.yaml
+// to contain unquoted Go template tags that would otherwise be invalid YAML.
+func loadChartPreprocessed(chartDir string, cfgYaml map[string]any) (any, error) {
+	topdir, err := filepath.Abs(chartDir)
+	if err != nil {
+		return nil, err
+	}
+
+	var files []*archive.BufferedFile
+	sep := topdir + string(filepath.Separator)
+
+	err = filepath.Walk(topdir, func(name string, fi os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		n := strings.TrimPrefix(name, sep)
+		if n == "" || fi.IsDir() {
+			return nil
+		}
+		n = filepath.ToSlash(n)
+		if !fi.Mode().IsRegular() {
+			return fmt.Errorf("cannot load irregular file %s", name)
+		}
+
+		var data []byte
+		if n == "values.yaml" {
+			data, err = config.PreprocessFile(name, cfgYaml)
+			if err != nil {
+				// Fall back to raw file for charts using Helm named templates
+				// (e.g. {{template "name" .}}) which templatize cannot process.
+				data, err = os.ReadFile(name)
+				if err != nil {
+					return err
+				}
+			}
+		} else {
+			data, err = os.ReadFile(name)
+			if err != nil {
+				return err
+			}
+		}
+		files = append(files, &archive.BufferedFile{Name: n, Data: data})
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return v2loader.LoadFiles(files)
 }
 
 func getCustomTestCases(chartDir string) ([]internal.TestCase, error) {
