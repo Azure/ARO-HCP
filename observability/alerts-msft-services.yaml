@@ -56,7 +56,7 @@ prometheusRules:
     - ClusterCredentialNotRenewable
   - groupName: mise
     alerts:
-      - MiseEnvoyScrapeDown
+    - MiseEnvoyScrapeDown
   labelsToExtract:
   - persistentvolumeclaim
   - persistentvolume
