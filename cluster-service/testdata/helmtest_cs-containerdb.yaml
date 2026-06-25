@@ -1,0 +1,5 @@
+values: ../deploy/values.yaml
+name: cs-containerdb
+namespace: clusters-service
+testData:
+  deployLocalDatabase: true

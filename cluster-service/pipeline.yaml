@@ -63,12 +63,12 @@ resourceGroups:
     aksCluster: '{{ .svc.aks.name }}'
     releaseName: 'cluster-service'
     releaseNamespace: '{{ .clustersService.k8s.namespace }}'
-    chartDir: ./helm-charts/cluster-service
-    valuesFile: './helm-charts/cluster-service/values.yaml'
+    chartDir: ./deploy
+    valuesFile: './deploy/values.yaml'
     namespaceFiles:
     - namespace.yaml
     kustoDatabase: '{{ .kusto.serviceLogsDatabase }}'
-    kustoTable: 'containerLogs'
+    kustoTable: 'clustersServiceLogs'
     kustoEndpoint:
       resourceGroup: kusto
       step: kusto-lookup
@@ -151,10 +151,10 @@ resourceGroups:
     aksCluster: '{{ .svc.aks.name }}'
     releaseName: 'cs-debug-jobs'
     releaseNamespace: '{{ .clustersService.k8s.namespace }}'
-    chartDir: ./helm-charts/cs-debug-jobs
-    valuesFile: './helm-charts/cs-debug-jobs/values.yaml'
+    chartDir: ./cs-debug-jobs/deploy
+    valuesFile: './cs-debug-jobs/deploy/values.yaml'
     kustoDatabase: '{{ .kusto.serviceLogsDatabase }}'
-    kustoTable: 'containerLogs'
+    kustoTable: 'clustersServiceLogs'
     kustoEndpoint:
       resourceGroup: kusto
       step: kusto-lookup
