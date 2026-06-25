@@ -28,7 +28,7 @@ resource rpUjKasAvailabilityMonitorRules 'Microsoft.AlertsManagement/prometheusR
             }
           }
         ]
-        alert: 'UJKubeApiserverAvailability1h5m'
+        alert: 'userJourneyKubeApiserverAvailability1h5m'
         enabled: true
         labels: {
           long_window: '1h'
@@ -37,7 +37,7 @@ resource rpUjKasAvailabilityMonitorRules 'Microsoft.AlertsManagement/prometheusR
           slo: 'kas-availability'
         }
         annotations: {
-          correlationId: 'UJKubeApiserverAvailability/{{ $labels.cluster }}/{{ $labels._id }}'
+          correlationId: 'userJourneyKubeApiserverAvailability/{{ $labels.cluster }}/{{ $labels._id }}'
           description: '''Resource ID: {{ $labels.resource_id }}
 Window: 1h/5m
 CID: {{ $labels._id }}
@@ -68,7 +68,7 @@ Management Cluster: {{ $labels.cluster }}/{{ $labels.namespace }}
             }
           }
         ]
-        alert: 'UJKubeApiserverAvailability6h30m'
+        alert: 'userJourneyKubeApiserverAvailability6h30m'
         enabled: true
         labels: {
           long_window: '6h'
@@ -77,7 +77,7 @@ Management Cluster: {{ $labels.cluster }}/{{ $labels.namespace }}
           slo: 'kas-availability'
         }
         annotations: {
-          correlationId: 'UJKubeApiserverAvailability/{{ $labels.cluster }}/{{ $labels._id }}'
+          correlationId: 'userJourneyKubeApiserverAvailability/{{ $labels.cluster }}/{{ $labels._id }}'
           description: '''Resource ID: {{ $labels.resource_id }}
 Window: 6h/30m
 CID: {{ $labels._id }}
@@ -108,7 +108,7 @@ Management Cluster: {{ $labels.cluster }}/{{ $labels.namespace }}
             }
           }
         ]
-        alert: 'UJKubeApiserverAvailability3d6h'
+        alert: 'userJourneyKubeApiserverAvailability3d6h'
         enabled: true
         labels: {
           long_window: '3d'
@@ -117,7 +117,7 @@ Management Cluster: {{ $labels.cluster }}/{{ $labels.namespace }}
           slo: 'kas-availability'
         }
         annotations: {
-          correlationId: 'UJKubeApiserverAvailability/{{ $labels.cluster }}/{{ $labels._id }}'
+          correlationId: 'userJourneyKubeApiserverAvailability/{{ $labels.cluster }}/{{ $labels._id }}'
           description: '''Resource ID: {{ $labels.resource_id }}
 Window: 3d/6h
 CID: {{ $labels._id }}

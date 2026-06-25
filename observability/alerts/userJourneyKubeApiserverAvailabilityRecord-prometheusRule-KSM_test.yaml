@@ -1,9 +1,9 @@
 rule_files:
 - HCPkasRecord-prometheusRule-KSM.yaml
-- UJKubeApiserverAvailabilityRecord-prometheusRule-KSM.yaml
+- userJourneyKubeApiserverAvailabilityRecord-prometheusRule-KSM.yaml
 evaluation_interval: 1m
 tests:
-# Recording rules are exercised end-to-end by UJKubeApiserverAvailabilityMonitor-prometheusRule-KSM_test.yaml
+# Recording rules are exercised end-to-end by userJourneyKubeApiserverAvailabilityMonitor-prometheusRule-KSM_test.yaml
 # (6 alert scenarios covering all 6 SLI rules). This file satisfies the generator's
 # test-file requirement with a basic smoke test.
 - interval: 1m

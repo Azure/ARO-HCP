@@ -1,7 +1,7 @@
 rule_files:
 - HCPkasRecord-prometheusRule-KSM.yaml
-- UJKubeApiserverAvailabilityRecord-prometheusRule-KSM.yaml
-- UJKubeApiserverAvailabilityMonitor-prometheusRule-KSM.yaml
+- userJourneyKubeApiserverAvailabilityRecord-prometheusRule-KSM.yaml
+- userJourneyKubeApiserverAvailabilityMonitor-prometheusRule-KSM.yaml
 group_eval_order:
 - hcp-kms-recording-rules
 - uj-kubeapiserver-availability-recording-rules
@@ -16,36 +16,36 @@ tests:
     values: "1+0x600" # 10 hours of perfect availability
   alert_rule_test:
   - eval_time: 600m
-    alertname: UJKubeApiserverAvailability1h5m
+    alertname: userJourneyKubeApiserverAvailability1h5m
     exp_alerts: []
   - eval_time: 600m
-    alertname: UJKubeApiserverAvailability6h30m
+    alertname: userJourneyKubeApiserverAvailability6h30m
     exp_alerts: []
   - eval_time: 600m
-    alertname: UJKubeApiserverAvailability3d6h
+    alertname: userJourneyKubeApiserverAvailability3d6h
     exp_alerts: [] # sli_count_3d uses [3d:30m]; at 600m only ~20 steps pass offset gate — far below 130 guard
-# Test 2: Fast burn - complete failure triggers UJKubeApiserverAvailability1h5m
+# Test 2: Fast burn - complete failure triggers userJourneyKubeApiserverAvailability1h5m
 # SLI rules require the series to have existed 15m ago (offset blackout). The binding
 # constraint is the sli_count_1h > 54 guard: with [1h:1m] subquery and data from t=0,
 # the count of gate-passing steps is T-14, which first exceeds 54 at T=69m (55 steps).
 # With for:10m, the fast-burn alert first fires at T=79m.
 - interval: 30s
-  name: "Test 2: Fast burn - complete failure triggers UJKubeApiserverAvailability1h5m"
+  name: "Test 2: Fast burn - complete failure triggers userJourneyKubeApiserverAvailability1h5m"
   input_series:
   - series: 'hostedClusterAPI_kubeapiserver_available{status="True", name="test-cluster", namespace="clusters", _id="abc-123", cluster="mgmt-cluster", resource_id="/subscriptions/sub-123/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster"}'
     values: "0+0x200" # 100 minutes of complete failure (200 * 30s)
   alert_rule_test:
   - eval_time: 10m
-    alertname: UJKubeApiserverAvailability1h5m
+    alertname: userJourneyKubeApiserverAvailability1h5m
     exp_alerts: [] # Offset blackout: series has not existed for 15m yet
   - eval_time: 10m
-    alertname: UJKubeApiserverAvailability6h30m
+    alertname: userJourneyKubeApiserverAvailability6h30m
     exp_alerts: [] # Offset blackout: series has not existed for 15m yet
   - eval_time: 78m
-    alertname: UJKubeApiserverAvailability1h5m
+    alertname: userJourneyKubeApiserverAvailability1h5m
     exp_alerts: [] # for: timer = 9m, not yet 10m — alert not yet firing
   - eval_time: 80m # T=79m: for: timer reaches 10m; T=80m: still firing
-    alertname: UJKubeApiserverAvailability1h5m
+    alertname: userJourneyKubeApiserverAvailability1h5m
     exp_alerts:
     - exp_labels:
         severity: warning
@@ -61,7 +61,7 @@ tests:
         summary: "[HCPKASAvailableBurn] mgmt-cluster / clusters"
         description: "Resource ID: /subscriptions/sub-123/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster\nWindow: 1h/5m\nCID: abc-123\nManagement Cluster: mgmt-cluster/clusters\n"
         runbook_url: https://aka.ms/arohcp-runbook-ujkasavailable
-        correlationId: "UJKubeApiserverAvailability/mgmt-cluster/abc-123"
+        correlationId: "userJourneyKubeApiserverAvailability/mgmt-cluster/abc-123"
 # Test 3: Medium burn - complete failure triggers both tiers after 6h+
 # The fast-burn (1h/5m) alert fires at T=79m (same binding constraint as Test 2).
 # The medium-burn (6h/30m) alert requires sli_count_6h > 64 guard: with [6h:5m]
@@ -74,7 +74,7 @@ tests:
     values: "0+0x900" # 450 minutes = 7.5 hours of complete failure (900 * 30s)
   alert_rule_test:
   - eval_time: 80m
-    alertname: UJKubeApiserverAvailability1h5m
+    alertname: userJourneyKubeApiserverAvailability1h5m
     exp_alerts:
     - exp_labels:
         severity: warning
@@ -90,12 +90,12 @@ tests:
         summary: "[HCPKASAvailableBurn] mgmt-cluster / clusters"
         description: "Resource ID: /subscriptions/sub-123/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster\nWindow: 1h/5m\nCID: abc-123\nManagement Cluster: mgmt-cluster/clusters\n"
         runbook_url: https://aka.ms/arohcp-runbook-ujkasavailable
-        correlationId: "UJKubeApiserverAvailability/mgmt-cluster/abc-123"
+        correlationId: "userJourneyKubeApiserverAvailability/mgmt-cluster/abc-123"
   - eval_time: 364m
-    alertname: UJKubeApiserverAvailability6h30m
+    alertname: userJourneyKubeApiserverAvailability6h30m
     exp_alerts: [] # for: timer = 29m at T=364m, not yet 30m — alert not yet firing
   - eval_time: 366m # T=365m: for: timer reaches 30m; T=366m: still firing
-    alertname: UJKubeApiserverAvailability6h30m
+    alertname: userJourneyKubeApiserverAvailability6h30m
     exp_alerts:
     - exp_labels:
         severity: warning
@@ -111,9 +111,9 @@ tests:
         summary: "[HCPKASAvailableBurn] mgmt-cluster / clusters"
         description: "Resource ID: /subscriptions/sub-123/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster\nWindow: 6h/30m\nCID: abc-123\nManagement Cluster: mgmt-cluster/clusters\n"
         runbook_url: https://aka.ms/arohcp-runbook-ujkasavailable
-        correlationId: "UJKubeApiserverAvailability/mgmt-cluster/abc-123"
+        correlationId: "userJourneyKubeApiserverAvailability/mgmt-cluster/abc-123"
   - eval_time: 420m # 7 hours — both tiers firing
-    alertname: UJKubeApiserverAvailability1h5m
+    alertname: userJourneyKubeApiserverAvailability1h5m
     exp_alerts:
     - exp_labels:
         severity: warning
@@ -129,9 +129,9 @@ tests:
         summary: "[HCPKASAvailableBurn] mgmt-cluster / clusters"
         description: "Resource ID: /subscriptions/sub-123/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster\nWindow: 1h/5m\nCID: abc-123\nManagement Cluster: mgmt-cluster/clusters\n"
         runbook_url: https://aka.ms/arohcp-runbook-ujkasavailable
-        correlationId: "UJKubeApiserverAvailability/mgmt-cluster/abc-123"
+        correlationId: "userJourneyKubeApiserverAvailability/mgmt-cluster/abc-123"
   - eval_time: 420m
-    alertname: UJKubeApiserverAvailability6h30m
+    alertname: userJourneyKubeApiserverAvailability6h30m
     exp_alerts:
     - exp_labels:
         severity: warning
@@ -147,9 +147,9 @@ tests:
         summary: "[HCPKASAvailableBurn] mgmt-cluster / clusters"
         description: "Resource ID: /subscriptions/sub-123/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster\nWindow: 6h/30m\nCID: abc-123\nManagement Cluster: mgmt-cluster/clusters\n"
         runbook_url: https://aka.ms/arohcp-runbook-ujkasavailable
-        correlationId: "UJKubeApiserverAvailability/mgmt-cluster/abc-123"
+        correlationId: "userJourneyKubeApiserverAvailability/mgmt-cluster/abc-123"
   - eval_time: 420m
-    alertname: UJKubeApiserverAvailability3d6h
+    alertname: userJourneyKubeApiserverAvailability3d6h
     exp_alerts: [] # sli_count_3d guard: only 14 steps at T=420m, need > 130; 3d alert not triggered by 7.5h failure
 # Test 4: Provisioning grace - newly created cluster (< 15m) does NOT trigger alert
 # The offset blackout (hostedClusterAPI_kubeapiserver_available offset 15m) requires
@@ -162,13 +162,13 @@ tests:
     values: "0+0x10" # 10 minutes of complete failure (new cluster)
   alert_rule_test:
   - eval_time: 10m
-    alertname: UJKubeApiserverAvailability1h5m
+    alertname: userJourneyKubeApiserverAvailability1h5m
     exp_alerts: [] # Offset blackout: no data 15m ago, SLI rules produce no output
   - eval_time: 10m
-    alertname: UJKubeApiserverAvailability6h30m
+    alertname: userJourneyKubeApiserverAvailability6h30m
     exp_alerts: []
   - eval_time: 10m
-    alertname: UJKubeApiserverAvailability3d6h
+    alertname: userJourneyKubeApiserverAvailability3d6h
     exp_alerts: [] # sli_count_3d far below 130 guard at 10m
 # Test 5: Partial failure below threshold - no alert fires
 # One failure at t=21m; at eval_time=400m this falls outside both the 5m (t=395-400m)
@@ -180,10 +180,10 @@ tests:
     values: "1+0x20 0 1+0x580" # One failure in ~603 samples
   alert_rule_test:
   - eval_time: 400m
-    alertname: UJKubeApiserverAvailability1h5m
+    alertname: userJourneyKubeApiserverAvailability1h5m
     exp_alerts: []
   - eval_time: 400m
-    alertname: UJKubeApiserverAvailability6h30m
+    alertname: userJourneyKubeApiserverAvailability6h30m
     exp_alerts: []
 # Test 6: Sample guard behavior - short burst suppressed by minimum-sample guards
 # Failure burst from t=20m to t=41m (22 samples: 0+0x21 = 22 samples).
@@ -205,16 +205,16 @@ tests:
     values: "1+0x19 0+0x21 1+0x800" # 20m healthy, 22m failure (t=20..t=41), then recovery
   alert_rule_test:
   - eval_time: 35m
-    alertname: UJKubeApiserverAvailability1h5m
+    alertname: userJourneyKubeApiserverAvailability1h5m
     exp_alerts: [] # sli_count_1h guard: only ~21 samples visible at t=35m, need > 54
   - eval_time: 35m
-    alertname: UJKubeApiserverAvailability6h30m
+    alertname: userJourneyKubeApiserverAvailability6h30m
     exp_alerts: [] # for:30m not yet satisfied; sli_count_6h guard also blocks (~5 samples at 5m step, need > 64)
   - eval_time: 65m
-    alertname: UJKubeApiserverAvailability1h5m
+    alertname: userJourneyKubeApiserverAvailability1h5m
     exp_alerts: [] # Fast tier: 5m window (t=61-65) clean; sli_count_1h guard still blocks (~51 samples)
   - eval_time: 65m
-    alertname: UJKubeApiserverAvailability6h30m
+    alertname: userJourneyKubeApiserverAvailability6h30m
     exp_alerts: [] # sli_count_6h guard blocks: only ~11 samples at 5m step, need > 64
 # Test 7: Near-threshold - minimal failure burst validates for:10m boundary
 # 80m of success (t=0..79m), then 7 failures (t=80..86m), then success.
@@ -234,10 +234,10 @@ tests:
     values: "1+0x79 0+0x6 1+0x100" # 80 successes (t=0..79m), 7 failures (t=80..86m), then success
   alert_rule_test:
   - eval_time: 89m
-    alertname: UJKubeApiserverAvailability1h5m
+    alertname: userJourneyKubeApiserverAvailability1h5m
     exp_alerts: [] # for: timer = 9m, not yet 10m — alert not yet firing
   - eval_time: 90m
-    alertname: UJKubeApiserverAvailability1h5m
+    alertname: userJourneyKubeApiserverAvailability1h5m
     exp_alerts:
     - exp_labels:
         severity: warning
@@ -253,11 +253,11 @@ tests:
         summary: "[HCPKASAvailableBurn] mgmt-cluster / clusters"
         description: "Resource ID: /subscriptions/sub-123/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster\nWindow: 1h/5m\nCID: abc-123\nManagement Cluster: mgmt-cluster/clusters\n"
         runbook_url: https://aka.ms/arohcp-runbook-ujkasavailable
-        correlationId: "UJKubeApiserverAvailability/mgmt-cluster/abc-123"
+        correlationId: "userJourneyKubeApiserverAvailability/mgmt-cluster/abc-123"
   - eval_time: 91m
-    alertname: UJKubeApiserverAvailability1h5m
+    alertname: userJourneyKubeApiserverAvailability1h5m
     exp_alerts: [] # 5m window (86,91]={87..91m} all success → error_rate_5m=0 → alert resolves
-# Test 8: Slow burn - sustained complete failure triggers UJKubeApiserverAvailability3d6h
+# Test 8: Slow burn - sustained complete failure triggers userJourneyKubeApiserverAvailability3d6h
 # The slow-burn (3d/6h) alert uses sli_count_3d with [3d:30m] subquery (30m step).
 # With interval:1m and data from t=0, the offset gate (offset 15m) requires data at t-15m.
 # At subquery step t=30m: needs data at 15m (exists with 1m data density) → passes.
@@ -269,19 +269,19 @@ tests:
 #           eval_time=4109m → for:timer=179m → NOT firing (1-minute before threshold).
 #           eval_time=4110m → for:timer=180m=3h → FIRES.
 - interval: 1m
-  name: "Test 8: Slow burn - sustained failure triggers UJKubeApiserverAvailability3d6h"
+  name: "Test 8: Slow burn - sustained failure triggers userJourneyKubeApiserverAvailability3d6h"
   input_series:
   - series: 'hostedClusterAPI_kubeapiserver_available{status="True", name="test-cluster", namespace="clusters", _id="abc-123", cluster="mgmt-cluster", resource_id="/subscriptions/sub-123/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster"}'
     values: "0+0x4110" # 4111 samples at 1m interval, t=0 to t=4110m, complete failure
   alert_rule_test:
   - eval_time: 4080m
-    alertname: UJKubeApiserverAvailability3d6h
+    alertname: userJourneyKubeApiserverAvailability3d6h
     exp_alerts: [] # for: timer = 150m at T=4080m, not yet 3h — alert not yet firing
   - eval_time: 4109m
-    alertname: UJKubeApiserverAvailability3d6h
+    alertname: userJourneyKubeApiserverAvailability3d6h
     exp_alerts: [] # for: timer = 179m at T=4109m, not yet 3h — alert not yet firing
   - eval_time: 4110m
-    alertname: UJKubeApiserverAvailability3d6h
+    alertname: userJourneyKubeApiserverAvailability3d6h
     exp_alerts:
     - exp_labels:
         severity: warning
@@ -297,4 +297,4 @@ tests:
         summary: "[HCPKASAvailableBurn] mgmt-cluster / clusters"
         description: "Resource ID: /subscriptions/sub-123/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/test-cluster\nWindow: 3d/6h\nCID: abc-123\nManagement Cluster: mgmt-cluster/clusters\n"
         runbook_url: https://aka.ms/arohcp-runbook-ujkasavailable
-        correlationId: "UJKubeApiserverAvailability/mgmt-cluster/abc-123"
+        correlationId: "userJourneyKubeApiserverAvailability/mgmt-cluster/abc-123"

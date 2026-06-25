@@ -7,7 +7,7 @@ spec:
   groups:
   - name: rp-uj-kas-availability-monitor-rules
     rules:
-    - alert: UJKubeApiserverAvailability1h5m
+    - alert: userJourneyKubeApiserverAvailability1h5m
       expr: |
         (
           1 - (hostedClusterAPI_kubeapiserver_available:sli_sum_5m / hostedClusterAPI_kubeapiserver_available:sli_count_5m)
@@ -36,8 +36,8 @@ spec:
           CID: {{ $labels._id }}
           Management Cluster: {{ $labels.cluster }}/{{ $labels.namespace }}
         runbook_url: https://aka.ms/arohcp-runbook-ujkasavailable
-        correlationId: "UJKubeApiserverAvailability/{{ $labels.cluster }}/{{ $labels._id }}"
-    - alert: UJKubeApiserverAvailability6h30m
+        correlationId: "userJourneyKubeApiserverAvailability/{{ $labels.cluster }}/{{ $labels._id }}"
+    - alert: userJourneyKubeApiserverAvailability6h30m
       # sli_sum_6h and sli_count_6h are recording rules defined in HCPkasRecord-prometheusRule-KSM.yaml
       expr: |
         (
@@ -67,8 +67,8 @@ spec:
           CID: {{ $labels._id }}
           Management Cluster: {{ $labels.cluster }}/{{ $labels.namespace }}
         runbook_url: https://aka.ms/arohcp-runbook-ujkasavailable
-        correlationId: "UJKubeApiserverAvailability/{{ $labels.cluster }}/{{ $labels._id }}"
-    - alert: UJKubeApiserverAvailability3d6h
+        correlationId: "userJourneyKubeApiserverAvailability/{{ $labels.cluster }}/{{ $labels._id }}"
+    - alert: userJourneyKubeApiserverAvailability3d6h
       # sli_sum_3d, sli_count_3d (long window) and sli_sum_6h, sli_count_6h (short window)
       # are recording rules defined in HCPkasRecord-prometheusRule-KSM.yaml
       expr: |
@@ -99,4 +99,4 @@ spec:
           CID: {{ $labels._id }}
           Management Cluster: {{ $labels.cluster }}/{{ $labels.namespace }}
         runbook_url: https://aka.ms/arohcp-runbook-ujkasavailable
-        correlationId: "UJKubeApiserverAvailability/{{ $labels.cluster }}/{{ $labels._id }}"
+        correlationId: "userJourneyKubeApiserverAvailability/{{ $labels.cluster }}/{{ $labels._id }}"
