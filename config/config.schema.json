@@ -2914,9 +2914,17 @@
           "type": "integer",
           "description": "Maximum active time series limit for Azure Monitor Workspace (2M initial, bump when hitting 50% utilization)"
         },
+        "maxActiveTimeSeriesMillions": {
+          "type": "integer",
+          "description": "Maximum active time series limit for Azure Monitor Workspace, expressed in millions (e.g. 2 = 2,000,000). Preferred over maxActiveTimeSeries to avoid scientific notation in Go rendering."
+        },
         "maxEventsPerMinute": {
           "type": "integer",
           "description": "Maximum events per minute limit for Azure Monitor Workspace (2M initial, bump when hitting 50% utilization)"
+        },
+        "maxEventsPerMinuteMillions": {
+          "type": "integer",
+          "description": "Maximum events per minute limit for Azure Monitor Workspace, expressed in millions (e.g. 2 = 2,000,000). Preferred over maxEventsPerMinute to avoid scientific notation in Go rendering."
         }
       },
       "additionalProperties": false,
