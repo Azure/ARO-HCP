@@ -1467,7 +1467,7 @@
         "query": "prometheus",
         "queryValue": "",
         "refresh": 1,
-        "regex": "^Managed_Prometheus_services-(?!.*-(ln|yt|chn)$).*$",
+        "regex": "^Managed_Prometheus_services-(?![a-z]{2,3}$).+$",
         "skipUrlSync": false,
         "type": "datasource"
       },
@@ -1482,7 +1482,7 @@
         "query": "prometheus",
         "queryValue": "",
         "refresh": 1,
-        "regex": "^Managed_Prometheus_hcps-(?!.*-(ln|yt|chn)$).*$",
+        "regex": "^Managed_Prometheus_hcps-(?![a-z]{2,3}$).+$",
         "skipUrlSync": false,
         "type": "datasource"
       },

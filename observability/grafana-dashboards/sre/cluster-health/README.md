@@ -27,14 +27,14 @@ Per-cluster dashboards use two datasource variables:
 
 ### Datasource Regex
 
-Regex patterns exclude obsolete datasource suffixes (`-ln`, `-yt`, `-chn`):
+Regex patterns exclude obsolete datasources that end with 2-3 letter shortcodes (e.g. `am`, `bn`, `cbn`, `ln`, `yt`):
 
 ```
-^Managed_Prometheus_services-(?!.*-(ln|yt|chn)$).*$
-^Managed_Prometheus_hcps-(?!.*-(ln|yt|chn)$).*$
+^Managed_Prometheus_services-(?![a-z]{2,3}$).+$
+^Managed_Prometheus_hcps-(?![a-z]{2,3}$).+$
 ```
 
-See [docs/ai/grafana-debugging.md](../../../../docs/ai/grafana-debugging.md) for details on obsolete datasources.
+Valid datasources end with full Azure region names (4+ chars), so this pattern safely excludes all legacy short suffixes. See [docs/ai/grafana-debugging.md](../../../../docs/ai/grafana-debugging.md) for details.
 
 ## Extending
 
