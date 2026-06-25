@@ -67,7 +67,7 @@ func NewIssuanceObserverController(
 		resourcesDBClient,
 		informers,
 		kubeApplierInformers,
-		5*time.Minute,
+		1*time.Minute,
 		syncer,
 	)
 }
