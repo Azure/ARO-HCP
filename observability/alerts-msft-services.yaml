@@ -12,17 +12,32 @@ prometheusRules:
   # Explicitly lists all alerts wanted to prevent new Red Hat alerts from automatically being included here
   # Make sure to include the alert under the correct groupName as defined in its prometheusRule file
   includedAlertsByGroup:
-  - groupName: kube-apiserver-slos
+  - groupName: kubernetes-apps
+    namespaces:
+    - billing
+    - credential-refresher
     alerts:
-    - KubeAPIErrorBudgetBurn
+    - KubePodCrashLooping
+    - KubePodNotReady
+    - KubeDeploymentGenerationMismatch
+    - KubeDeploymentReplicasMismatch
+    - KubeDeploymentRolloutStuck
+    - KubeStatefulSetReplicasMismatch
+    - KubeStatefulSetGenerationMismatch
+    - KubeStatefulSetUpdateNotRolledOut
+    - KubeDaemonSetRolloutStuck
+    - KubeContainerWaiting
+    - KubeDaemonSetNotScheduled
+    - KubeDaemonSetMisScheduled
+    - KubeJobNotCompleted
+    - KubeJobFailed
+    - KubeHpaReplicasMismatch
+    - KubeHpaMaxedOut
   - groupName: kubernetes-resources
     namespaces:
     - billing
     - credential-refresher
     alerts:
-    - KubeCPUQuotaOvercommit
-    - KubeMemoryOvercommit
-    - KubeMemoryQuotaOvercommit
     - KubeQuotaAlmostFull
     - KubeQuotaExceeded
     - KubeQuotaFullyUsed
@@ -31,76 +46,17 @@ prometheusRules:
     - billing
     - credential-refresher
     alerts:
+    - KubePersistentVolumeFillingUp
+    - KubePersistentVolumeInodesFillingUp
     - KubePersistentVolumeErrors
-  - groupName: kubernetes-system
-    alerts:
-    - KubeClientErrors
-  - groupName: kubernetes-system-apiserver
-    alerts:
-    - KubeAPIDown
-    - KubeAPITerminatedRequests
-    - KubeAggregatedAPIDown
-    - KubeAggregatedAPIErrors
-    - KubeClientCertificateExpiration
-  - groupName: kubernetes-system-controller-manager
-    alerts:
-    - KubeControllerManagerDown
-  - groupName: kubernetes-system-kubelet
-    alerts:
-    - KubeNodeNotReady
-    - KubeNodeReadinessFlapping
-    - KubeNodeUnreachable
-    - KubeletClientCertificateExpiration
-    - KubeletClientCertificateRenewalErrors
-    - KubeletDown
-    - KubeletPlegDurationHigh
-    - KubeletPodStartUpLatencyHigh
-    - KubeletServerCertificateExpiration
-    - KubeletServerCertificateRenewalErrors
-    - KubeletTooManyPods
-  - groupName: kubernetes-system-scheduler
-    alerts:
-    - KubeSchedulerDown
-  - groupName: prometheus-wip-rules
-    alerts:
-    - PrometheusFailedRate
-    - PrometheusJobUp
-    - PrometheusPendingRate
-    - PrometheusUptime
-  - groupName: prometheus-rules
-    alerts:
-    - PrometheusBadConfig
-    - PrometheusNotIngestingSamples
-    - PrometheusRemoteStorageFailures
-    - PrometheusScrapeSampleLimitHit
-  - groupName: prometheus-operator-rules
-    alerts:
-    - PrometheusOperatorNotReady
-  - groupName: mise
-    alerts:
-    - MiseEnvoyScrapeDown
   - groupName: msi-credential-refresher
     alerts:
     - ClusterCredentialExpiringSoon
     - ClusterCredentialExpired
     - ClusterCredentialNotRenewable
-  outputReplacements:
-  - from: 'job="kube-scheduler"'
-    to: 'job="controlplane-kube-scheduler"'
-  - from: 'job="apiserver"'
-    to: 'job="controlplane-apiserver"'
-  - from: 'job="etcd"'
-    to: 'job="controlplane-etcd"'
-  - from: 'job="cluster-autoscaler"'
-    to: 'job="controlplane-cluster-autoscaler"'
-  - from: 'job="kube-controller-manager"'
-    to: 'job="controlplane-kube-controller-manager"'
-  regexOutputReplacements:
-  # absent alerts don't work correctly because they aren't associated with a specific cluster
-  # The alert ends up firing with {{target.cluster}} in the title and correlation id instead of
-  # an actual cluster name
-  - from: 'absent\(up{job="(.+)"} == 1\)'
-    to: 'count by (cluster) (up{job="$1"} == 1) == 0'
+  - groupName: mise
+    alerts:
+      - MiseEnvoyScrapeDown
   labelsToExtract:
   - persistentvolumeclaim
   - persistentvolume
