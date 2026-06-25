@@ -145,21 +145,6 @@ func BuildInitialPrompt(manifest, testError, testOutput, siblingTests, dataDir s
 	return sb.String()
 }
 
-// BuildSummaryPrompt creates the user prompt for the job-level summary step.
-func BuildSummaryPrompt(testAnalyses []string) string {
-	var sb strings.Builder
-	sb.WriteString("The following per-test analyses have been completed for this job. ")
-	sb.WriteString("Please synthesize a job-level summary: are the failures related? Is there a common root cause?\n\n")
-
-	for i, analysis := range testAnalyses {
-		sb.WriteString(fmt.Sprintf("## Test %d\n\n%s\n\n", i+1, analysis))
-	}
-
-	sb.WriteString("Output your summary as a JSON object with fields: {\"summary\": \"...\", \"notes\": \"...\"}")
-
-	return sb.String()
-}
-
 // readDir reads all .md files from a directory in the embedded filesystem,
 // returning their contents sorted by filename for deterministic ordering.
 func readDir(dir string) ([]string, error) {
