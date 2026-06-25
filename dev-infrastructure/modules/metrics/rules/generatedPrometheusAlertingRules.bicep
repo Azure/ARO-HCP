@@ -45,7 +45,7 @@ Check the status of the Prometheus pods, service endpoints, and network connecti
           summary: 'Prometheus is unreachable for 10 minutes.'
           title: 'Prometheus is unreachable for 10 minutes.'
         }
-        expression: 'group by (cluster) (up{job="kubelet"}) unless on(cluster) group by (cluster) (up{job="prometheus/prometheus",namespace="prometheus"} == 1)'
+        expression: 'group by (cluster) (up{job="kubelet"}) unless on (cluster) group by (cluster) (up{job="prometheus/prometheus",namespace="prometheus"} == 1)'
         for: 'PT10M'
         severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
       }
@@ -115,7 +115,7 @@ Investigate the health and performance of the remote storage endpoint, network l
           summary: 'Prometheus pending sample rate is above 40%.'
           title: 'Prometheus pending sample rate is above 40%.'
         }
-        expression: '( prometheus_remote_storage_samples_pending / prometheus_remote_storage_samples_in_flight ) > 0.4'
+        expression: '(prometheus_remote_storage_samples_pending / prometheus_remote_storage_samples_in_flight) > 0.4'
         for: 'PT15M'
         severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
       }
@@ -152,7 +152,7 @@ Please check the health and performance of the remote storage endpoint, network 
           summary: 'Prometheus failed sample rate to remote storage is above 10%.'
           title: 'Prometheus failed sample rate to remote storage is above 10%.'
         }
-        expression: '( rate(prometheus_remote_storage_samples_failed_total{job="prometheus/prometheus",namespace="prometheus"}[5m]) / clamp_min( rate(prometheus_remote_storage_samples_total{job="prometheus/prometheus",namespace="prometheus"}[5m]), 1e-9 ) ) > 0.1'
+        expression: '(rate(prometheus_remote_storage_samples_failed_total{job="prometheus/prometheus",namespace="prometheus"}[5m]) / clamp_min(rate(prometheus_remote_storage_samples_total{job="prometheus/prometheus",namespace="prometheus"}[5m]), 0.000000001)) > 0.1'
         for: 'PT15M'
         severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
       }
@@ -380,7 +380,7 @@ resource frontend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' =
           summary: 'High 4xx|5xx Error Rate on Frontend Cluster Service'
           title: 'High 4xx|5xx Error Rate on Frontend Cluster Service'
         }
-        expression: '(sum by (cluster) (max without(prometheus_replica) (rate(frontend_clusters_service_client_request_count{code=~"4..|5.."}[1h])))) / (sum by (cluster) (max without(prometheus_replica) (rate(frontend_clusters_service_client_request_count[1h])))) > 0.05'
+        expression: '(sum by (cluster) (max without (prometheus_replica) (rate(frontend_clusters_service_client_request_count{code=~"4..|5.."}[1h])))) / (sum by (cluster) (max without (prometheus_replica) (rate(frontend_clusters_service_client_request_count[1h])))) > 0.05'
         for: 'PT15M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
@@ -407,7 +407,7 @@ resource frontend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' =
           summary: 'High Frontend audit log error rate.'
           title: 'High Frontend audit log error rate.'
         }
-        expression: '( sum by (cluster) (rate(otel_audit_log_send_errors_total{job="aro-hcp-frontend-metrics"}[1h])) / sum by (cluster) (rate(otel_audit_log_records_total{job="aro-hcp-frontend-metrics"}[1h])) ) > 0.05'
+        expression: '(sum by (cluster) (rate(otel_audit_log_send_errors_total{job="aro-hcp-frontend-metrics"}[1h])) / sum by (cluster) (rate(otel_audit_log_records_total{job="aro-hcp-frontend-metrics"}[1h]))) > 0.05'
         for: 'PT15M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
@@ -461,7 +461,7 @@ resource frontend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' =
           summary: 'Frontend is panicking during HTTP request handling'
           title: 'Frontend is panicking during HTTP request handling'
         }
-        expression: 'sum by (cluster) ( increase(frontend_http_request_panics_total[5m]) ) > 0'
+        expression: 'sum by (cluster) (increase(frontend_http_request_panics_total[5m])) > 0'
         for: 'PT1M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -503,7 +503,7 @@ resource arohcpCsSloAvailabilityAlerts 'Microsoft.AlertsManagement/prometheusRul
           summary: 'Cluster Service API availability error budget burn rate is too high'
           title: 'Cluster Service API availability error budget burn rate is too high'
         }
-        expression: '( sum by(cluster, namespace, service) (max without(prometheus_replica) (availability:api_inbound_request_count:burnrate5m{namespace="clusters-service", service="clusters-service-metrics"})) > (13.44 * (1 - 0.99)) and sum by(cluster, namespace, service) (max without(prometheus_replica) (availability:api_inbound_request_count:burnrate1h{namespace="clusters-service", service="clusters-service-metrics"})) > (13.44 * (1 - 0.99)) ) or ( sum by(cluster, namespace, service) (max without(prometheus_replica) (availability:api_inbound_request_count:burnrate30m{namespace="clusters-service", service="clusters-service-metrics"})) > (5.6 * (1 - 0.99)) and sum by(cluster, namespace, service) (max without(prometheus_replica) (availability:api_inbound_request_count:burnrate6h{namespace="clusters-service", service="clusters-service-metrics"})) > (5.6 * (1 - 0.99)) )'
+        expression: '(sum by (cluster, namespace, service) (max without (prometheus_replica) (availability:api_inbound_request_count:burnrate5m{namespace="clusters-service",service="clusters-service-metrics"})) > (13.44 * (1 - 0.99)) and sum by (cluster, namespace, service) (max without (prometheus_replica) (availability:api_inbound_request_count:burnrate1h{namespace="clusters-service",service="clusters-service-metrics"})) > (13.44 * (1 - 0.99))) or (sum by (cluster, namespace, service) (max without (prometheus_replica) (availability:api_inbound_request_count:burnrate30m{namespace="clusters-service",service="clusters-service-metrics"})) > (5.6 * (1 - 0.99)) and sum by (cluster, namespace, service) (max without (prometheus_replica) (availability:api_inbound_request_count:burnrate6h{namespace="clusters-service",service="clusters-service-metrics"})) > (5.6 * (1 - 0.99)))'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -531,7 +531,7 @@ resource arohcpCsSloAvailabilityAlerts 'Microsoft.AlertsManagement/prometheusRul
           summary: 'API is slowly but steadily burning its 28 day availability error budget (99% SLO)'
           title: 'API is slowly but steadily burning its 28 day availability error budget (99% SLO)'
         }
-        expression: 'sum by(cluster, namespace, service) (max without(prometheus_replica) (availability:api_inbound_request_count:burnrate6h{namespace="clusters-service", service="clusters-service-metrics"})) > (0.934 * (1 - 0.99)) and sum by(cluster, namespace, service) (max without(prometheus_replica) (availability:api_inbound_request_count:burnrate3d{namespace="clusters-service", service="clusters-service-metrics"})) > (0.934 * (1 - 0.99))'
+        expression: 'sum by (cluster, namespace, service) (max without (prometheus_replica) (availability:api_inbound_request_count:burnrate6h{namespace="clusters-service",service="clusters-service-metrics"})) > (0.934 * (1 - 0.99)) and sum by (cluster, namespace, service) (max without (prometheus_replica) (availability:api_inbound_request_count:burnrate3d{namespace="clusters-service",service="clusters-service-metrics"})) > (0.934 * (1 - 0.99))'
         for: 'PT30M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -561,7 +561,7 @@ resource arohcpCsSloAvailabilityAlerts 'Microsoft.AlertsManagement/prometheusRul
           summary: 'Cluster Service API P99 latency error budget burn rate is too high'
           title: 'Cluster Service API P99 latency error budget burn rate is too high'
         }
-        expression: '( sum by(cluster, namespace, service) (max without(prometheus_replica) (latency:api_inbound_request_duration:p99_burnrate5m{namespace="clusters-service", service="clusters-service-metrics"})) > (13.44 * (1 - 0.99)) and sum by(cluster, namespace, service) (max without(prometheus_replica) (latency:api_inbound_request_duration:p99_burnrate1h{namespace="clusters-service", service="clusters-service-metrics"})) > (13.44 * (1 - 0.99)) ) or ( sum by(cluster, namespace, service) (max without(prometheus_replica) (latency:api_inbound_request_duration:p99_burnrate30m{namespace="clusters-service", service="clusters-service-metrics"})) > (5.6 * (1 - 0.99)) and sum by(cluster, namespace, service) (max without(prometheus_replica) (latency:api_inbound_request_duration:p99_burnrate6h{namespace="clusters-service", service="clusters-service-metrics"})) > (5.6 * (1 - 0.99)) )'
+        expression: '(sum by (cluster, namespace, service) (max without (prometheus_replica) (latency:api_inbound_request_duration:p99_burnrate5m{namespace="clusters-service",service="clusters-service-metrics"})) > (13.44 * (1 - 0.99)) and sum by (cluster, namespace, service) (max without (prometheus_replica) (latency:api_inbound_request_duration:p99_burnrate1h{namespace="clusters-service",service="clusters-service-metrics"})) > (13.44 * (1 - 0.99))) or (sum by (cluster, namespace, service) (max without (prometheus_replica) (latency:api_inbound_request_duration:p99_burnrate30m{namespace="clusters-service",service="clusters-service-metrics"})) > (5.6 * (1 - 0.99)) and sum by (cluster, namespace, service) (max without (prometheus_replica) (latency:api_inbound_request_duration:p99_burnrate6h{namespace="clusters-service",service="clusters-service-metrics"})) > (5.6 * (1 - 0.99)))'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -589,7 +589,7 @@ resource arohcpCsSloAvailabilityAlerts 'Microsoft.AlertsManagement/prometheusRul
           summary: 'API is slowly but steadily burning its 28 day 1s latency error budget (99% SLO)'
           title: 'API is slowly but steadily burning its 28 day 1s latency error budget (99% SLO)'
         }
-        expression: 'sum by(cluster, namespace, service) (max without(prometheus_replica) (latency:api_inbound_request_duration:p99_burnrate6h{namespace="clusters-service", service="clusters-service-metrics"})) > (0.934 * (1 - 0.99)) and sum by(cluster, namespace, service) (max without(prometheus_replica) (latency:api_inbound_request_duration:p99_burnrate3d{namespace="clusters-service", service="clusters-service-metrics"})) > (0.934 * (1 - 0.99))'
+        expression: 'sum by (cluster, namespace, service) (max without (prometheus_replica) (latency:api_inbound_request_duration:p99_burnrate6h{namespace="clusters-service",service="clusters-service-metrics"})) > (0.934 * (1 - 0.99)) and sum by (cluster, namespace, service) (max without (prometheus_replica) (latency:api_inbound_request_duration:p99_burnrate3d{namespace="clusters-service",service="clusters-service-metrics"})) > (0.934 * (1 - 0.99))'
         for: 'PT30M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -619,7 +619,7 @@ resource arohcpCsSloAvailabilityAlerts 'Microsoft.AlertsManagement/prometheusRul
           summary: 'Cluster Service API P90 latency error budget burn rate is too high'
           title: 'Cluster Service API P90 latency error budget burn rate is too high'
         }
-        expression: '( sum by(cluster, namespace, service) (max without(prometheus_replica) (latency:api_inbound_request_duration:p90_burnrate5m{namespace="clusters-service", service="clusters-service-metrics"})) > (13.44 * (1 - 0.90)) and sum by(cluster, namespace, service) (max without(prometheus_replica) (latency:api_inbound_request_duration:p90_burnrate1h{namespace="clusters-service", service="clusters-service-metrics"})) > (13.44 * (1 - 0.90)) ) or ( sum by(cluster, namespace, service) (max without(prometheus_replica) (latency:api_inbound_request_duration:p90_burnrate30m{namespace="clusters-service", service="clusters-service-metrics"})) > (5.6 * (1 - 0.90)) and sum by(cluster, namespace, service) (max without(prometheus_replica) (latency:api_inbound_request_duration:p90_burnrate6h{namespace="clusters-service", service="clusters-service-metrics"})) > (5.6 * (1 - 0.90)) )'
+        expression: '(sum by (cluster, namespace, service) (max without (prometheus_replica) (latency:api_inbound_request_duration:p90_burnrate5m{namespace="clusters-service",service="clusters-service-metrics"})) > (13.44 * (1 - 0.9)) and sum by (cluster, namespace, service) (max without (prometheus_replica) (latency:api_inbound_request_duration:p90_burnrate1h{namespace="clusters-service",service="clusters-service-metrics"})) > (13.44 * (1 - 0.9))) or (sum by (cluster, namespace, service) (max without (prometheus_replica) (latency:api_inbound_request_duration:p90_burnrate30m{namespace="clusters-service",service="clusters-service-metrics"})) > (5.6 * (1 - 0.9)) and sum by (cluster, namespace, service) (max without (prometheus_replica) (latency:api_inbound_request_duration:p90_burnrate6h{namespace="clusters-service",service="clusters-service-metrics"})) > (5.6 * (1 - 0.9)))'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -647,7 +647,7 @@ resource arohcpCsSloAvailabilityAlerts 'Microsoft.AlertsManagement/prometheusRul
           summary: 'API is slowly but steadily burning its 28 day 0.1s latency error budget (90% SLO)'
           title: 'API is slowly but steadily burning its 28 day 0.1s latency error budget (90% SLO)'
         }
-        expression: 'sum by(cluster, namespace, service) (max without(prometheus_replica) (latency:api_inbound_request_duration:p90_burnrate6h{namespace="clusters-service", service="clusters-service-metrics"})) > (0.934 * (1 - 0.90)) and sum by(cluster, namespace, service) (max without(prometheus_replica) (latency:api_inbound_request_duration:p90_burnrate3d{namespace="clusters-service", service="clusters-service-metrics"})) > (0.934 * (1 - 0.90))'
+        expression: 'sum by (cluster, namespace, service) (max without (prometheus_replica) (latency:api_inbound_request_duration:p90_burnrate6h{namespace="clusters-service",service="clusters-service-metrics"})) > (0.934 * (1 - 0.9)) and sum by (cluster, namespace, service) (max without (prometheus_replica) (latency:api_inbound_request_duration:p90_burnrate3d{namespace="clusters-service",service="clusters-service-metrics"})) > (0.934 * (1 - 0.9))'
         for: 'PT30M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -687,7 +687,7 @@ resource backend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = 
           summary: 'Backend controller workqueue depth is high'
           title: 'Backend controller workqueue depth is high'
         }
-        expression: 'max by (name, cluster) ( max without(prometheus_replica) ( workqueue_depth{namespace="aro-hcp"} ) ) > 10'
+        expression: 'max by (name, cluster) (max without (prometheus_replica) (workqueue_depth{namespace="aro-hcp"})) > 10'
         for: 'PT15M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -714,8 +714,62 @@ resource backend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = 
           summary: 'Backend controller is panicking'
           title: 'Backend controller is panicking'
         }
-        expression: 'sum by (controller, cluster) ( increase(panic_total{namespace="aro-hcp"}[5m]) ) > 0'
+        expression: 'sum by (controller, cluster) (increase(panic_total{namespace="aro-hcp"}[5m])) > 0'
         for: 'PT1M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'OrphanedMRGDetected'
+        enabled: true
+        labels: {
+          severity: 'warning'
+        }
+        annotations: {
+          correlationId: 'OrphanedMRGDetected/{{ $labels.cluster }}'
+          description: 'Found {{ printf "%.0f" $value }} orphaned cluster managed resource groups in location {{ $labels.location }} over the last 10 minutes. Orphaned MRGs should not exist - investigate why cluster deletion left resources behind.'
+          info: 'Found {{ printf "%.0f" $value }} orphaned cluster managed resource groups in location {{ $labels.location }} over the last 10 minutes. Orphaned MRGs should not exist - investigate why cluster deletion left resources behind.'
+          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/backend-tsg.html'
+          summary: 'Orphaned cluster managed resource groups detected'
+          title: 'Orphaned cluster managed resource groups detected'
+        }
+        expression: 'sum by (location, cluster) (max without (prometheus_replica) (increase(aro_hcp_orphaned_managed_resource_groups_found_total[10m]))) > 0'
+        for: 'PT5M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'OrphanedMRGDeletionFailing'
+        enabled: true
+        labels: {
+          severity: 'warning'
+        }
+        annotations: {
+          correlationId: 'OrphanedMRGDeletionFailing/{{ $labels.cluster }}'
+          description: 'Orphaned cluster managed resource group deletion has failed {{ printf "%.0f" $value }} time(s) in location {{ $labels.location }} over the last 10 minutes. Deletion should succeed - investigate Azure permissions or resource locks.'
+          info: 'Orphaned cluster managed resource group deletion has failed {{ printf "%.0f" $value }} time(s) in location {{ $labels.location }} over the last 10 minutes. Deletion should succeed - investigate Azure permissions or resource locks.'
+          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/backend-tsg.html'
+          summary: 'Orphaned cluster managed resource group deletion is failing'
+          title: 'Orphaned cluster managed resource group deletion is failing'
+        }
+        expression: 'sum by (location, cluster) (max without (prometheus_replica) (increase(aro_hcp_orphaned_managed_resource_groups_deletion_failed_total[10m]))) > 0'
+        for: 'PT10M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
     ]
@@ -754,7 +808,7 @@ resource fleet 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
           summary: 'Fleet controller workqueue retry hot loop'
           title: 'Fleet controller workqueue retry hot loop'
         }
-        expression: '( sum by (name, cluster) ( max without(prometheus_replica) ( rate(workqueue_retries_total{namespace="fleet"}[10m]) ) ) / sum by (name, cluster) ( max without(prometheus_replica) ( rate(workqueue_adds_total{namespace="fleet"}[10m]) ) ) ) > 0.5'
+        expression: '(sum by (name, cluster) (max without (prometheus_replica) (rate(workqueue_retries_total{namespace="fleet"}[10m]))) / sum by (name, cluster) (max without (prometheus_replica) (rate(workqueue_adds_total{namespace="fleet"}[10m])))) > 0.5'
         for: 'PT10M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -781,7 +835,7 @@ resource fleet 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
           summary: 'Fleet controller workqueue depth is high'
           title: 'Fleet controller workqueue depth is high'
         }
-        expression: 'max by (name, cluster) ( max without(prometheus_replica) ( workqueue_depth{namespace="fleet"} ) ) > 10'
+        expression: 'max by (name, cluster) (max without (prometheus_replica) (workqueue_depth{namespace="fleet"})) > 10'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -808,7 +862,7 @@ resource fleet 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
           summary: 'Fleet controller is panicking'
           title: 'Fleet controller is panicking'
         }
-        expression: 'sum by (controller, cluster) ( increase(panic_total{namespace="fleet"}[5m]) ) > 0'
+        expression: 'sum by (controller, cluster) (increase(panic_total{namespace="fleet"}[5m])) > 0'
         for: 'PT1M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -848,7 +902,7 @@ resource adminApi 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' =
           summary: 'High Admin API audit log error rate.'
           title: 'High Admin API audit log error rate.'
         }
-        expression: '( sum by (cluster) (rate(otel_audit_log_send_errors_total{job="aro-hcp-admin-api-metrics"}[1h])) / sum by (cluster) (rate(otel_audit_log_records_total{job="aro-hcp-admin-api-metrics"}[1h])) ) > 0.05'
+        expression: '(sum by (cluster) (rate(otel_audit_log_send_errors_total{job="aro-hcp-admin-api-metrics"}[1h])) / sum by (cluster) (rate(otel_audit_log_records_total{job="aro-hcp-admin-api-metrics"}[1h]))) > 0.05'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
@@ -942,7 +996,7 @@ resource maestro 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = 
           summary: 'Maestro REST API error rate is high'
           title: 'Maestro REST API error rate is high'
         }
-        expression: 'sum(rate(rest_api_inbound_request_count{namespace="maestro", code=~"5.."}[5m])) / sum(rate(rest_api_inbound_request_count{namespace="maestro"}[5m])) > 0.05'
+        expression: 'sum(rate(rest_api_inbound_request_count{code=~"5..",namespace="maestro"}[5m])) / sum(rate(rest_api_inbound_request_count{namespace="maestro"}[5m])) > 0.05'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -969,7 +1023,7 @@ resource maestro 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = 
           summary: 'Maestro gRPC server error rate is high'
           title: 'Maestro gRPC server error rate is high'
         }
-        expression: 'sum(rate(grpc_server_processed_total{namespace="maestro", code!="OK"}[5m])) / sum(rate(grpc_server_processed_total{namespace="maestro"}[5m])) > 0.05'
+        expression: 'sum(rate(grpc_server_processed_total{code!="OK",namespace="maestro"}[5m])) / sum(rate(grpc_server_processed_total{namespace="maestro"}[5m])) > 0.05'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -996,7 +1050,7 @@ resource maestro 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = 
           summary: 'Maestro spec controller reconcile error rate is high'
           title: 'Maestro spec controller reconcile error rate is high'
         }
-        expression: 'sum(rate(spec_controller_event_reconcile_total{namespace="maestro", status="error"}[5m])) / sum(rate(spec_controller_event_reconcile_total{namespace="maestro"}[5m])) > 0.1'
+        expression: 'sum(rate(spec_controller_event_reconcile_total{namespace="maestro",status="error"}[5m])) / sum(rate(spec_controller_event_reconcile_total{namespace="maestro"}[5m])) > 0.1'
         for: 'PT10M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -1038,7 +1092,7 @@ resource arobitRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01
           summary: 'Arobit forwarder metrics endpoint is unreachable on cluster {{ $labels.cluster }}.'
           title: 'Arobit forwarder metrics endpoint is unreachable on cluster {{ $labels.cluster }}.'
         }
-        expression: 'group by (cluster) (up{job="kube-state-metrics"}) unless on(cluster) group by (cluster) (up{job="arobit-forwarder",namespace="arobit"} == 1)'
+        expression: 'group by (cluster) (up{job="kube-state-metrics"}) unless on (cluster) group by (cluster) (up{job="arobit-forwarder",namespace="arobit"} == 1)'
         for: 'PT15M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -1071,7 +1125,7 @@ Investigate the Fluent Bit logs for the specific error details and check the Kus
           summary: 'Fluent Bit input ingestion paused due to backpressure.'
           title: 'Fluent Bit input ingestion paused due to backpressure.'
         }
-        expression: 'sum(fluentbit_input_ingestion_paused) by (cluster, pod) > 0'
+        expression: 'sum by (cluster, pod) (fluentbit_input_ingestion_paused) > 0'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -1104,7 +1158,7 @@ Investigate the Fluent Bit logs for the specific error details and check the Kus
           summary: 'High Kusto output retries'
           title: 'High Kusto output retries'
         }
-        expression: 'sum(increase(fluentbit_output_retries_total{name=~"azure_kusto.*"}[5m])) by (cluster, pod) > 3'
+        expression: 'sum by (cluster, pod) (increase(fluentbit_output_retries_total{name=~"azure_kusto.*"}[5m])) > 3'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -1135,7 +1189,7 @@ Investigate the Fluent Bit logs for the specific error details and check the Kus
           summary: 'Unrecoverable Kusto output errors - log data is being dropped.'
           title: 'Unrecoverable Kusto output errors - log data is being dropped.'
         }
-        expression: 'sum(increase(fluentbit_output_errors_total{name=~"azure_kusto.*"}[5m])) by (cluster, pod) > 0'
+        expression: 'sum by (cluster, pod) (increase(fluentbit_output_errors_total{name=~"azure_kusto.*"}[5m])) > 0'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -1166,7 +1220,7 @@ Investigate the Fluent Bit logs for the specific error details and check the Kus
           summary: 'Kusto output retries exhausted - chunks discarded after max retries.'
           title: 'Kusto output retries exhausted - chunks discarded after max retries.'
         }
-        expression: 'sum(increase(fluentbit_output_retries_failed_total{name=~"azure_kusto.*"}[5m])) by (cluster, pod) > 0'
+        expression: 'sum by (cluster, pod) (increase(fluentbit_output_retries_failed_total{name=~"azure_kusto.*"}[5m])) > 0'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -1324,7 +1378,7 @@ resource serviceTagCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroup
           summary: 'Service Tag IP Usage is reaching 80%'
           title: 'Service Tag IP Usage is reaching 80%'
         }
-        expression: 'public_ip_count_by_region_service_tag{service_tag_type="FirstPartyUsage",service_tag_value="/aro-hcp-prod-inbound-customerapi",region!="uswest2"} / 64 > 0.8'
+        expression: 'public_ip_count_by_region_service_tag{region!="uswest2",service_tag_type="FirstPartyUsage",service_tag_value="/aro-hcp-prod-inbound-customerapi"} / 64 > 0.8'
         for: 'PT15M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
@@ -1353,7 +1407,7 @@ resource serviceTagCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroup
           summary: 'Service Tag IP Usage is reaching 80%'
           title: 'Service Tag IP Usage is reaching 80%'
         }
-        expression: 'public_ip_count_by_region_service_tag{service_tag_type="FirstPartyUsage",service_tag_value="/aro-hcp-prod-inbound-customerapi",region="uswest2"} / 128 > 0.8'
+        expression: 'public_ip_count_by_region_service_tag{region="uswest2",service_tag_type="FirstPartyUsage",service_tag_value="/aro-hcp-prod-inbound-customerapi"} / 128 > 0.8'
         for: 'PT15M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
@@ -1553,7 +1607,7 @@ resource kubeContainerOomRules 'Microsoft.AlertsManagement/prometheusRuleGroups@
           summary: 'Container {{ $labels.container }} was OOMKilled'
           title: 'Container {{ $labels.container }} was OOMKilled'
         }
-        expression: 'kube_pod_container_status_last_terminated_reason{reason="OOMKilled", job="kube-state-metrics"} == 1'
+        expression: 'kube_pod_container_status_last_terminated_reason{job="kube-state-metrics",reason="OOMKilled"} == 1'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
     ]
@@ -1631,7 +1685,7 @@ resource imageRegistryPolicy 'Microsoft.AlertsManagement/prometheusRuleGroups@20
           summary: 'Image registry policy denied pod admission'
           title: 'Image registry policy denied pod admission'
         }
-        expression: 'sum by (cluster, policy, policy_binding) ( increase(apiserver_validating_admission_policy_check_total{ policy="image-registry-allowlist-policy", enforcement_action="deny", validation_result="denied" }[15m]) ) > 0'
+        expression: 'sum by (cluster, policy, policy_binding) (increase(apiserver_validating_admission_policy_check_total{enforcement_action="deny",policy="image-registry-allowlist-policy",validation_result="denied"}[15m])) > 0'
         for: 'PT1M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -1658,7 +1712,7 @@ resource imageRegistryPolicy 'Microsoft.AlertsManagement/prometheusRuleGroups@20
           summary: 'Image registry policy audit violation detected'
           title: 'Image registry policy audit violation detected'
         }
-        expression: 'sum by (cluster, policy, policy_binding) ( increase(apiserver_validating_admission_policy_check_total{ policy="image-registry-allowlist-policy", enforcement_action="audit", validation_result="denied" }[15m]) ) > 0'
+        expression: 'sum by (cluster, policy, policy_binding) (increase(apiserver_validating_admission_policy_check_total{enforcement_action="audit",policy="image-registry-allowlist-policy",validation_result="denied"}[15m])) > 0'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }

@@ -39,7 +39,7 @@ resource msftKubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroup
           summary: 'Cluster has overcommitted memory resource requests.'
           title: 'Cluster has overcommitted memory resource requests.'
         }
-        expression: 'sum(namespace_memory:kube_pod_container_resource_requests:sum{}) by (cluster) - (sum(kube_node_status_allocatable{resource="memory", job="kube-state-metrics"}) by (cluster) - max(kube_node_status_allocatable{resource="memory", job="kube-state-metrics"}) by (cluster)) > 0 and (sum(kube_node_status_allocatable{resource="memory", job="kube-state-metrics"}) by (cluster) - max(kube_node_status_allocatable{resource="memory", job="kube-state-metrics"}) by (cluster)) > 0'
+        expression: 'sum by (cluster) (namespace_memory:kube_pod_container_resource_requests:sum) - (sum by (cluster) (kube_node_status_allocatable{job="kube-state-metrics",resource="memory"}) - max by (cluster) (kube_node_status_allocatable{job="kube-state-metrics",resource="memory"})) > 0 and (sum by (cluster) (kube_node_status_allocatable{job="kube-state-metrics",resource="memory"}) - max by (cluster) (kube_node_status_allocatable{job="kube-state-metrics",resource="memory"})) > 0'
         for: 'PT10M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -66,7 +66,7 @@ resource msftKubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroup
           summary: 'Cluster has overcommitted CPU resource requests.'
           title: 'Cluster has overcommitted CPU resource requests.'
         }
-        expression: 'sum(min without(resource) (kube_resourcequota{job="kube-state-metrics", type="hard", resource=~"(cpu|requests.cpu)"})) by (cluster) / sum(kube_node_status_allocatable{resource="cpu", job="kube-state-metrics"}) by (cluster) > 1.5'
+        expression: 'sum by (cluster) (min without (resource) (kube_resourcequota{job="kube-state-metrics",resource=~"(cpu|requests.cpu)",type="hard"})) / sum by (cluster) (kube_node_status_allocatable{job="kube-state-metrics",resource="cpu"}) > 1.5'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -93,7 +93,7 @@ resource msftKubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroup
           summary: 'Cluster has overcommitted memory resource requests.'
           title: 'Cluster has overcommitted memory resource requests.'
         }
-        expression: 'sum(min without(resource) (kube_resourcequota{job="kube-state-metrics", type="hard", resource=~"(memory|requests.memory)"})) by (cluster) / sum(kube_node_status_allocatable{resource="memory", job="kube-state-metrics"}) by (cluster) > 1.5'
+        expression: 'sum by (cluster) (min without (resource) (kube_resourcequota{job="kube-state-metrics",resource=~"(memory|requests.memory)",type="hard"})) / sum by (cluster) (kube_node_status_allocatable{job="kube-state-metrics",resource="memory"}) > 1.5'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -120,7 +120,7 @@ resource msftKubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroup
           summary: 'Namespace quota is going to be full.'
           title: 'Namespace quota is going to be full. namespace:{{ $labels.namespace }} resource:{{ $labels.resource }}'
         }
-        expression: 'kube_resourcequota{job="kube-state-metrics", type="used"} / ignoring(instance, job, type) (kube_resourcequota{job="kube-state-metrics", type="hard"} > 0) > 0.9 < 1'
+        expression: 'kube_resourcequota{job="kube-state-metrics",type="used"} / ignoring (instance, job, type) (kube_resourcequota{job="kube-state-metrics",type="hard"} > 0) > 0.9 < 1'
         for: 'PT15M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
@@ -147,7 +147,7 @@ resource msftKubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroup
           summary: 'Namespace quota is fully used.'
           title: 'Namespace quota is fully used. namespace:{{ $labels.namespace }} resource:{{ $labels.resource }}'
         }
-        expression: 'kube_resourcequota{job="kube-state-metrics", type="used"} / ignoring(instance, job, type) (kube_resourcequota{job="kube-state-metrics", type="hard"} > 0) == 1'
+        expression: 'kube_resourcequota{job="kube-state-metrics",type="used"} / ignoring (instance, job, type) (kube_resourcequota{job="kube-state-metrics",type="hard"} > 0) == 1'
         for: 'PT15M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
@@ -174,7 +174,7 @@ resource msftKubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroup
           summary: 'Namespace quota has exceeded the limits.'
           title: 'Namespace quota has exceeded the limits. namespace:{{ $labels.namespace }} resource:{{ $labels.resource }}'
         }
-        expression: 'kube_resourcequota{job="kube-state-metrics", type="used"} / ignoring(instance, job, type) (kube_resourcequota{job="kube-state-metrics", type="hard"} > 0) > 1'
+        expression: 'kube_resourcequota{job="kube-state-metrics",type="used"} / ignoring (instance, job, type) (kube_resourcequota{job="kube-state-metrics",type="hard"} > 0) > 1'
         for: 'PT15M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -214,7 +214,7 @@ resource msftKubernetesStorage 'Microsoft.AlertsManagement/prometheusRuleGroups@
           summary: 'PersistentVolume is having issues with provisioning.'
           title: 'PersistentVolume is having issues with provisioning. persistentvolume:{{ $labels.persistentvolume }} phase:{{ $labels.phase }}'
         }
-        expression: 'kube_persistentvolume_status_phase{phase=~"Failed|Pending",job="kube-state-metrics"} > 0'
+        expression: 'kube_persistentvolume_status_phase{job="kube-state-metrics",phase=~"Failed|Pending"} > 0'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
       }
@@ -254,7 +254,7 @@ resource msftKubernetesSystem 'Microsoft.AlertsManagement/prometheusRuleGroups@2
           summary: 'Kubernetes API server client is experiencing errors.'
           title: 'Kubernetes API server client is experiencing errors. job:{{ $labels.job }} instance:{{ $labels.instance }}'
         }
-        expression: '(sum(rate(rest_client_requests_total{job="controlplane-apiserver",code=~"5.."}[5m])) by (cluster, instance, job, namespace) / sum(rate(rest_client_requests_total{job="controlplane-apiserver"}[5m])) by (cluster, instance, job, namespace)) > 0.01'
+        expression: '(sum by (cluster, instance, job, namespace) (rate(rest_client_requests_total{code=~"5..",job="controlplane-apiserver"}[5m])) / sum by (cluster, instance, job, namespace) (rate(rest_client_requests_total{job="controlplane-apiserver"}[5m]))) > 0.01'
         for: 'PT15M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -296,7 +296,7 @@ resource msftKubeApiserverSlos 'Microsoft.AlertsManagement/prometheusRuleGroups@
           summary: 'The API server is burning too much error budget.'
           title: 'The API server is burning too much error budget.'
         }
-        expression: 'sum(apiserver_request:burnrate1h) > (14.40 * 0.01000) and sum(apiserver_request:burnrate5m) > (14.40 * 0.01000)'
+        expression: 'sum(apiserver_request:burnrate1h) > (14.4 * 0.01) and sum(apiserver_request:burnrate5m) > (14.4 * 0.01)'
         for: 'PT2M'
         severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
       }
@@ -325,7 +325,7 @@ resource msftKubeApiserverSlos 'Microsoft.AlertsManagement/prometheusRuleGroups@
           summary: 'The API server is burning too much error budget.'
           title: 'The API server is burning too much error budget.'
         }
-        expression: 'sum(apiserver_request:burnrate6h) > (6.00 * 0.01000) and sum(apiserver_request:burnrate30m) > (6.00 * 0.01000)'
+        expression: 'sum(apiserver_request:burnrate6h) > (6 * 0.01) and sum(apiserver_request:burnrate30m) > (6 * 0.01)'
         for: 'PT15M'
         severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
       }
@@ -354,7 +354,7 @@ resource msftKubeApiserverSlos 'Microsoft.AlertsManagement/prometheusRuleGroups@
           summary: 'The API server is burning too much error budget.'
           title: 'The API server is burning too much error budget.'
         }
-        expression: 'sum(apiserver_request:burnrate1d) > (3.00 * 0.01000) and sum(apiserver_request:burnrate2h) > (3.00 * 0.01000)'
+        expression: 'sum(apiserver_request:burnrate1d) > (3 * 0.01) and sum(apiserver_request:burnrate2h) > (3 * 0.01)'
         for: 'PT1H'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -383,7 +383,7 @@ resource msftKubeApiserverSlos 'Microsoft.AlertsManagement/prometheusRuleGroups@
           summary: 'The API server is burning too much error budget.'
           title: 'The API server is burning too much error budget.'
         }
-        expression: 'sum(apiserver_request:burnrate3d) > (1.00 * 0.01000) and sum(apiserver_request:burnrate6h) > (1.00 * 0.01000)'
+        expression: 'sum(apiserver_request:burnrate3d) > (1 * 0.01) and sum(apiserver_request:burnrate6h) > (1 * 0.01)'
         for: 'PT3H'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -423,7 +423,7 @@ resource msftKubernetesSystemApiserver 'Microsoft.AlertsManagement/prometheusRul
           summary: 'Client certificate is about to expire.'
           title: 'Client certificate is about to expire.'
         }
-        expression: 'apiserver_client_certificate_expiration_seconds_count{job="controlplane-apiserver"} > 0 and on(job) histogram_quantile(0.01, sum by (job, le) (rate(apiserver_client_certificate_expiration_seconds_bucket{job="controlplane-apiserver"}[5m]))) < 604800'
+        expression: 'apiserver_client_certificate_expiration_seconds_count{job="controlplane-apiserver"} > 0 and on (job) histogram_quantile(0.01, sum by (job, le) (rate(apiserver_client_certificate_expiration_seconds_bucket{job="controlplane-apiserver"}[5m]))) < 604800'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -450,7 +450,7 @@ resource msftKubernetesSystemApiserver 'Microsoft.AlertsManagement/prometheusRul
           summary: 'Client certificate is about to expire.'
           title: 'Client certificate is about to expire.'
         }
-        expression: 'apiserver_client_certificate_expiration_seconds_count{job="controlplane-apiserver"} > 0 and on(job) histogram_quantile(0.01, sum by (job, le) (rate(apiserver_client_certificate_expiration_seconds_bucket{job="controlplane-apiserver"}[5m]))) < 86400'
+        expression: 'apiserver_client_certificate_expiration_seconds_count{job="controlplane-apiserver"} > 0 and on (job) histogram_quantile(0.01, sum by (job, le) (rate(apiserver_client_certificate_expiration_seconds_bucket{job="controlplane-apiserver"}[5m]))) < 86400'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
       }
@@ -477,7 +477,7 @@ resource msftKubernetesSystemApiserver 'Microsoft.AlertsManagement/prometheusRul
           summary: 'Kubernetes aggregated API has reported errors.'
           title: 'Kubernetes aggregated API has reported errors. name:{{ $labels.name }} namespace:{{ $labels.namespace }}'
         }
-        expression: 'sum by(name, namespace, cluster)(increase(aggregator_unavailable_apiservice_total{job="controlplane-apiserver"}[10m])) > 4'
+        expression: 'sum by (name, namespace, cluster) (increase(aggregator_unavailable_apiservice_total{job="controlplane-apiserver"}[10m])) > 4'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
@@ -503,7 +503,7 @@ resource msftKubernetesSystemApiserver 'Microsoft.AlertsManagement/prometheusRul
           summary: 'Kubernetes aggregated API is down.'
           title: 'Kubernetes aggregated API is down. name:{{ $labels.name }} namespace:{{ $labels.namespace }}'
         }
-        expression: '(1 - max by(name, namespace, cluster)(avg_over_time(aggregator_unavailable_apiservice{job="controlplane-apiserver"}[10m]))) * 100 < 85'
+        expression: '(1 - max by (name, namespace, cluster) (avg_over_time(aggregator_unavailable_apiservice{job="controlplane-apiserver"}[10m]))) * 100 < 85'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -557,7 +557,7 @@ resource msftKubernetesSystemApiserver 'Microsoft.AlertsManagement/prometheusRul
           summary: 'The kubernetes apiserver has terminated {{ $value | humanizePercentage }} of its incoming requests.'
           title: 'The kubernetes apiserver has terminated {{ $value | humanizePercentage }} of its incoming requests.'
         }
-        expression: 'sum(rate(apiserver_request_terminations_total{job="controlplane-apiserver"}[10m]))  / (  sum(rate(apiserver_request_total{job="controlplane-apiserver"}[10m])) + sum(rate(apiserver_request_terminations_total{job="controlplane-apiserver"}[10m])) ) > 0.20'
+        expression: 'sum(rate(apiserver_request_terminations_total{job="controlplane-apiserver"}[10m])) / (sum(rate(apiserver_request_total{job="controlplane-apiserver"}[10m])) + sum(rate(apiserver_request_terminations_total{job="controlplane-apiserver"}[10m]))) > 0.2'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -597,7 +597,7 @@ resource msftKubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleG
           summary: 'Node is not ready.'
           title: 'Node is not ready. node:{{ $labels.node }}'
         }
-        expression: 'kube_node_status_condition{job="kube-state-metrics",condition="Ready",status="true"} == 0'
+        expression: 'kube_node_status_condition{condition="Ready",job="kube-state-metrics",status="true"} == 0'
         for: 'PT15M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -624,7 +624,7 @@ resource msftKubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleG
           summary: 'Node is unreachable.'
           title: 'Node is unreachable. node:{{ $labels.node }}'
         }
-        expression: '(kube_node_spec_taint{job="kube-state-metrics",key="node.kubernetes.io/unreachable",effect="NoSchedule"} unless ignoring(key,value) kube_node_spec_taint{job="kube-state-metrics",key=~"ToBeDeletedByClusterAutoscaler|cloud.google.com/impending-node-termination|aws-node-termination-handler/spot-itn"}) == 1'
+        expression: '(kube_node_spec_taint{effect="NoSchedule",job="kube-state-metrics",key="node.kubernetes.io/unreachable"} unless ignoring (key, value) kube_node_spec_taint{job="kube-state-metrics",key=~"ToBeDeletedByClusterAutoscaler|cloud.google.com/impending-node-termination|aws-node-termination-handler/spot-itn"}) == 1'
         for: 'PT15M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -651,7 +651,7 @@ resource msftKubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleG
           summary: 'Kubelet is running at capacity.'
           title: 'Kubelet is running at capacity. node:{{ $labels.node }}'
         }
-        expression: 'count by(cluster, node) ( (kube_pod_status_phase{job="kube-state-metrics",phase="Running"} == 1) * on(instance,pod,namespace,cluster) group_left(node) topk by(instance,pod,namespace,cluster) (1, kube_pod_info{job="kube-state-metrics"}) ) / max by(cluster, node) ( kube_node_status_capacity{job="kube-state-metrics",resource="pods"} != 1 ) > 0.95'
+        expression: 'count by (cluster, node) ((kube_pod_status_phase{job="kube-state-metrics",phase="Running"} == 1) * on (instance, pod, namespace, cluster) group_left (node) topk by (instance, pod, namespace, cluster) (1, kube_pod_info{job="kube-state-metrics"})) / max by (cluster, node) (kube_node_status_capacity{job="kube-state-metrics",resource="pods"} != 1) > 0.95'
         for: 'PT15M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
@@ -678,7 +678,7 @@ resource msftKubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleG
           summary: 'Node readiness status is flapping.'
           title: 'Node readiness status is flapping. node:{{ $labels.node }}'
         }
-        expression: 'sum(changes(kube_node_status_condition{job="kube-state-metrics",status="true",condition="Ready"}[15m])) by (cluster, node) > 2'
+        expression: 'sum by (cluster, node) (changes(kube_node_status_condition{condition="Ready",job="kube-state-metrics",status="true"}[15m])) > 2'
         for: 'PT15M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -732,7 +732,7 @@ resource msftKubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleG
           summary: 'Kubelet Pod startup latency is too high.'
           title: 'Kubelet Pod startup latency is too high. node:{{ $labels.node }}'
         }
-        expression: 'histogram_quantile(0.99, sum(rate(kubelet_pod_worker_duration_seconds_bucket{job="kubelet", metrics_path="/metrics"}[5m])) by (cluster, instance, le)) * on(cluster, instance) group_left(node) kubelet_node_name{job="kubelet", metrics_path="/metrics"} > 60'
+        expression: 'histogram_quantile(0.99, sum by (cluster, instance, le) (rate(kubelet_pod_worker_duration_seconds_bucket{job="kubelet",metrics_path="/metrics"}[5m]))) * on (cluster, instance) group_left (node) kubelet_node_name{job="kubelet",metrics_path="/metrics"} > 60'
         for: 'PT15M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -917,7 +917,7 @@ resource msftKubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleG
           summary: 'Target disappeared from Prometheus target discovery.'
           title: 'Target disappeared from Prometheus target discovery.'
         }
-        expression: 'count by (cluster) (up{job="kubelet", metrics_path="/metrics"} == 1) == 0'
+        expression: 'count by (cluster) (up{job="kubelet",metrics_path="/metrics"} == 1) == 0'
         for: 'PT15M'
         severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
       }
@@ -1043,7 +1043,7 @@ Check the status of the Prometheus pods, service endpoints, and network connecti
           summary: 'Prometheus is unreachable for 10 minutes.'
           title: 'Prometheus is unreachable for 10 minutes.'
         }
-        expression: 'group by (cluster) (up{job="kubelet"}) unless on(cluster) group by (cluster) (up{job="prometheus/prometheus",namespace="prometheus"} == 1)'
+        expression: 'group by (cluster) (up{job="kubelet"}) unless on (cluster) group by (cluster) (up{job="prometheus/prometheus",namespace="prometheus"} == 1)'
         for: 'PT10M'
         severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
       }
@@ -1113,7 +1113,7 @@ Investigate the health and performance of the remote storage endpoint, network l
           summary: 'Prometheus pending sample rate is above 40%.'
           title: 'Prometheus pending sample rate is above 40%.'
         }
-        expression: '( prometheus_remote_storage_samples_pending / prometheus_remote_storage_samples_in_flight ) > 0.4'
+        expression: '(prometheus_remote_storage_samples_pending / prometheus_remote_storage_samples_in_flight) > 0.4'
         for: 'PT15M'
         severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
       }
@@ -1150,7 +1150,7 @@ Please check the health and performance of the remote storage endpoint, network 
           summary: 'Prometheus failed sample rate to remote storage is above 10%.'
           title: 'Prometheus failed sample rate to remote storage is above 10%.'
         }
-        expression: '( rate(prometheus_remote_storage_samples_failed_total{job="prometheus/prometheus",namespace="prometheus"}[5m]) / clamp_min( rate(prometheus_remote_storage_samples_total{job="prometheus/prometheus",namespace="prometheus"}[5m]), 1e-9 ) ) > 0.1'
+        expression: '(rate(prometheus_remote_storage_samples_failed_total{job="prometheus/prometheus",namespace="prometheus"}[5m]) / clamp_min(rate(prometheus_remote_storage_samples_total{job="prometheus/prometheus",namespace="prometheus"}[5m]), 0.000000001)) > 0.1'
         for: 'PT15M'
         severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
       }
@@ -1351,7 +1351,7 @@ resource msftMise 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' =
           summary: 'Envoy scrape target down for namespace=mise'
           title: 'Envoy scrape target down for namespace=mise'
         }
-        expression: 'group by (cluster) (up{job="kube-state-metrics", cluster=~".*-svc(-[0-9]+)?$"}) unless on(cluster) group by (cluster) (up{endpoint="http-envoy-prom", container="istio-proxy", namespace="mise"} == 1)'
+        expression: 'group by (cluster) (up{cluster=~".*-svc(-[0-9]+)?$",job="kube-state-metrics"}) unless on (cluster) group by (cluster) (up{container="istio-proxy",endpoint="http-envoy-prom",namespace="mise"} == 1)'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }

@@ -72,7 +72,7 @@ resource arohcpNodepoolSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRule
           summary: '{{ $labels.cluster }}: Node Pool operation error rate elevated (>30%) for 30+ minutes'
           title: '{{ $labels.cluster }}: Node Pool operation error rate elevated (>30%) for 30+ minutes'
         }
-        expression: 'errors:backend_nodepool_operation:error_rate > 0.30'
+        expression: 'errors:backend_nodepool_operation:error_rate > 0.3'
         for: 'PT30M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
@@ -156,7 +156,7 @@ resource arohcpNodepoolSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRule
           summary: '{{ $labels.cluster }}: Node Pool operation stuck in {{ $labels.phase }} for over 2 hours'
           title: '{{ $labels.cluster }}: Node Pool operation stuck in {{ $labels.phase }} for over 2 hours'
         }
-        expression: '( (time() - backend_resource_operation_start_time_seconds{resource_type=~".*nodepools"}) and backend_resource_operation_phase_info{resource_type=~".*nodepools", phase=~"updating|deleting"} == 1 ) > 7200'
+        expression: '((time() - backend_resource_operation_start_time_seconds{resource_type=~".*nodepools"}) and backend_resource_operation_phase_info{phase=~"updating|deleting",resource_type=~".*nodepools"} == 1) > 7200'
         for: 'PT15M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
@@ -196,7 +196,7 @@ resource arohcpNodepoolSaturationAlerts 'Microsoft.AlertsManagement/prometheusRu
           summary: '{{ $labels.cluster }}: Node Pool controller workqueue {{ $labels.name }} depth is high'
           title: '{{ $labels.cluster }}: Node Pool controller workqueue {{ $labels.name }} depth is high'
         }
-        expression: 'max by (name, cluster) ( max without(prometheus_replica) ( workqueue_depth{namespace="aro-hcp", name=~".*NodePool.*"} ) ) > 10'
+        expression: 'max by (name, cluster) (max without (prometheus_replica) (workqueue_depth{name=~".*NodePool.*",namespace="aro-hcp"})) > 10'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
@@ -223,7 +223,7 @@ resource arohcpNodepoolSaturationAlerts 'Microsoft.AlertsManagement/prometheusRu
           summary: '{{ $labels.cluster }}: Node Pool controller workqueue {{ $labels.name }} retry hot loop'
           title: '{{ $labels.cluster }}: Node Pool controller workqueue {{ $labels.name }} retry hot loop'
         }
-        expression: '( sum by (name, cluster) ( max without(prometheus_replica) ( rate(workqueue_retries_total{namespace="aro-hcp", name=~".*NodePool.*"}[10m]) ) ) / sum by (name, cluster) ( max without(prometheus_replica) ( rate(workqueue_adds_total{namespace="aro-hcp", name=~".*NodePool.*"}[10m]) ) ) ) > 0.5'
+        expression: '(sum by (name, cluster) (max without (prometheus_replica) (rate(workqueue_retries_total{name=~".*NodePool.*",namespace="aro-hcp"}[10m]))) / sum by (name, cluster) (max without (prometheus_replica) (rate(workqueue_adds_total{name=~".*NodePool.*",namespace="aro-hcp"}[10m])))) > 0.5'
         for: 'PT10M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }

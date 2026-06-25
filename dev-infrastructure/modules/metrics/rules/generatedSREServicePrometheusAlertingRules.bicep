@@ -79,7 +79,7 @@ resource backendRetryhotloop 'Microsoft.AlertsManagement/prometheusRuleGroups@20
           summary: 'Backend controller workqueue {{ $labels.name }} retry hot loop'
           title: 'Backend controller workqueue {{ $labels.name }} retry hot loop'
         }
-        expression: '( sum by (name, cluster) ( max without(prometheus_replica) ( rate(workqueue_retries_total{namespace="aro-hcp"}[10m]) ) ) / sum by (name, cluster) ( max without(prometheus_replica) ( rate(workqueue_adds_total{namespace="aro-hcp"}[10m]) ) ) ) > 0.5'
+        expression: '(sum by (name, cluster) (max without (prometheus_replica) (rate(workqueue_retries_total{namespace="aro-hcp"}[10m]))) / sum by (name, cluster) (max without (prometheus_replica) (rate(workqueue_adds_total{namespace="aro-hcp"}[10m])))) > 0.5'
         for: 'PT10M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
