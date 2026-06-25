@@ -68,7 +68,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "$datasource" },
           "editorMode": "code",
-          "expr": "(\n  (count(backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=~\"requestcredential|revokecredentials\", phase=\"succeeded\"}) or vector(0))\n  /\n  (count(backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=~\"requestcredential|revokecredentials\", phase=~\"succeeded|failed\"}) > 0 or vector(1))\n) * 100",
+          "expr": "(\n  (count(backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=~\"requestcredential|revokecredentials\", phase=\"succeeded\"}) or vector(0))\n  /\n  (count(backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=~\"requestcredential|revokecredentials\", phase=~\"succeeded|failed|canceled\"}) > 0 or vector(1))\n) * 100",
           "instant": true,
           "legendFormat": "Success Rate",
           "refId": "A"
@@ -262,7 +262,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "$datasource" },
           "editorMode": "code",
-          "expr": "(\n  (count(backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=~\"requestcredential|revokecredentials\", phase=\"succeeded\"}) or vector(0))\n  /\n  (count(backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=~\"requestcredential|revokecredentials\", phase=~\"succeeded|failed\"}) > 0 or vector(1))\n) * 100",
+          "expr": "(\n  (count(backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=~\"requestcredential|revokecredentials\", phase=\"succeeded\"}) or vector(0))\n  /\n  (count(backend_resource_operation_phase_info{resource_type=\"microsoft.redhatopenshift/hcpopenshiftclusters\", operation_type=~\"requestcredential|revokecredentials\", phase=~\"succeeded|failed|canceled\"}) > 0 or vector(1))\n) * 100",
           "legendFormat": "Success Rate %",
           "refId": "A"
         }
@@ -432,7 +432,7 @@
     },
     {
       "datasource": { "type": "datasource", "uid": "-- Mixed --" },
-      "description": "Frontend request rate for credential endpoints (listAdminCredentials, requestAdminCredential, revokeCredentials).",
+      "description": "Frontend request rate for credential endpoints (requestAdminCredential, revokeCredentials).",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
@@ -464,7 +464,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "$datasource" },
           "editorMode": "code",
-          "expr": "sum by (route, code) (rate(frontend_http_requests_total{route=~\".*listadmincredentials.*|.*requestadmincredential.*|.*revokecredentials.*\"}[5m]))",
+          "expr": "sum by (route, code) (rate(frontend_http_requests_total{route=~\".*requestadmincredential.*|.*revokecredentials.*\"}[5m]))",
           "legendFormat": "{{ route }} [{{ code }}]",
           "refId": "A"
         }
