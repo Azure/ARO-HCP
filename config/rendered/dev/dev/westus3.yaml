@@ -163,7 +163,6 @@ clustersService:
   dataPlaneHAProxyImage: ""
   denyAssignments: disabled
   deployDebugJobs: false
-  deployLocalDatabase: false
   environment: arohcpdev
   image:
     digest: sha256:6a49b32884d56e707aafba6d73258cb57857087c261f606df71c74f2a9336bf7
@@ -190,6 +189,7 @@ clustersService:
       image: ""
       pvcCapacity: ""
     databaseName: clusters-service
+    deploy: true
     enhancedMetricsEnabled: true
     geoRedundantBackup: false
     minTLSVersion: TLSV1.2

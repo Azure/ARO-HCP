@@ -13,8 +13,8 @@ param regionalOidcStorageAccountName string
 @description('The Azure Front Door OIDC base endpoint, used when blob public access is disabled')
 param afdOidcBaseEndpoint string
 
-@description('Whether to deploy a local PostgreSQL database')
-param deployLocalDatabase bool
+@description('Whether to use a database in Azure')
+param useAzureDB bool
 
 @description('The name of the Postgres server')
 param postgresName string
@@ -65,10 +65,11 @@ resource postgres 'Microsoft.DBforPostgreSQL/flexibleServers@2023-12-01-preview'
   name: postgresName
 }
 
-output databaseHost string = deployLocalDatabase ? 'ocm-cs-db' : postgres!.properties.fullyQualifiedDomainName
-output databaseDisableTls string = deployLocalDatabase ? 'true' : 'false'
-output databaseAuthMethod string = deployLocalDatabase ? 'postgres' : 'az-entra'
-output databaseName string = deployLocalDatabase ? 'ocm-cs-db' : 'clusters-service'
-output databaseUser string = deployLocalDatabase ? 'ocm' : 'clusters-service'
+output databaseHost string = useAzureDB ? postgres!.properties.fullyQualifiedDomainName : 'ocm-cs-db'
+output databaseDisableTls string = useAzureDB ? 'false' : 'true'
+output databaseAuthMethod string = useAzureDB ? 'az-entra' : 'postgres'
+output deployLocalDatabase string = useAzureDB ? 'false' : 'true'
+output databaseName string = useAzureDB ? 'clusters-service' : 'ocm-cs-db'
+output databaseUser string = useAzureDB ? 'clusters-service' : 'ocm'
 #disable-next-line outputs-should-not-contain-secrets
-output databasePassword string = deployLocalDatabase ? 'TheBlurstOfTimes' : ''
+output databasePassword string = useAzureDB ? '' : 'TheBlurstOfTimes'

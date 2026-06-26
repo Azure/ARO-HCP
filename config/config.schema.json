@@ -899,6 +899,7 @@
       },
       "additionalProperties": false,
       "required": [
+        "deploy",
         "name",
         "private",
         "serverStorageSizeGB",
@@ -1191,10 +1192,6 @@
         "dataPlaneHAProxyImage": {
           "type": "string",
           "description": "A valid image reference used for overriding the HAProxy image of the worker node API server proxy. If set to an empty string, either the environment variable IMAGE_SHARED_INGRESS_HAPROXY or the default shared ingress image will be used."
-        },
-        "deployLocalDatabase": {
-          "type": "boolean",
-          "description": "If true, a local PostgreSQL database will be deployed for the clusters service. If false, an Azure PostgreSQL will be used."
         }
       },
       "additionalProperties": false,
@@ -1207,8 +1204,7 @@
         "azureOperatorsManagedIdentities",
         "postgres",
         "tracing",
-        "azureRuntimeConfig",
-        "deployLocalDatabase"
+        "azureRuntimeConfig"
       ]
     },
     "cxKeyVault": {
