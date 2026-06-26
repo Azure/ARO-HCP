@@ -2,7 +2,7 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: {{ .Release.Name }}-shell-script-executor-{{ .Release.Revision }}
+  name: shell-script-executor-{{ .Release.Revision }}
   namespace: '{{ .Release.Namespace }}'
 spec:
   ttlSecondsAfterFinished: 300
