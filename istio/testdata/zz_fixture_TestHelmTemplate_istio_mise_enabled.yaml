@@ -4,7 +4,7 @@ apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
   name: mise
-  namespace: 'mise'
+  namespace: mise
 spec:
   minAvailable: 1
   unhealthyPodEvictionPolicy: AlwaysAllow
