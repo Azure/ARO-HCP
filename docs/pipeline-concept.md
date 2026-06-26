@@ -169,7 +169,7 @@ Used for deploying Kubernetes services onto AKS clusters using [Helm](https://he
 9. `kustoDatabase`: Kusto database name for logging this deployment.
 10. `kustoTable`: Kusto table for log ingestion.
 11. `kustoEndpoint`: Input reference resolving to the Kusto cluster URI, used for deployment logging.
-12. `inputVariables`: Optional. A map from placeholder names to step output references. Values are resolved from the outputs of other steps and injected into `valuesFile` and `namespaceFiles` by replacing `__<name>__` tokens.
+12. `inputVariables`: Optional. A map from placeholder names to step output references. Resolved values must be strings (non-string outputs will fail) and are injected into `valuesFile` and `namespaceFiles` by replacing `__<name>__` tokens.
     * Example:
       ```
       inputVariables:
