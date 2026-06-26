@@ -1,5 +1,5 @@
 ---
-# Source: istio/charts/mise/templates/pdb.yaml
+# Source: istio/charts/mise/templates/mise.poddisruptionbudget.yaml
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
