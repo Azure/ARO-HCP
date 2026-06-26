@@ -132,6 +132,19 @@ func runHelmStep(id graph.Identifier, step *types.HelmStep, ctx context.Context,
 		return err
 	}
 	chartDir := filepath.Join(options.PipelineDirectory, step.ChartDir)
+	opts := helm.RawOptions{
+		NamespaceFiles:    namespaceFiles,
+		ReleaseName:       step.ReleaseName,
+		ReleaseNamespace:  step.ReleaseNamespace,
+		ChartDir:          chartDir,
+		ValuesFile:        values,
+		KustoDatabase:     step.KustoDatabase,
+		KustoTable:        step.KustoTable,
+		KustoEndpoint:     kustoEndpointString,
+		Timeout:           timeout,
+		KubeconfigFile:    kubeconfig,
+		RollbackOnFailure: step.RollbackOnFailure,
+	}
 
 	chartData := map[string][]byte{}
 	if err := filepath.WalkDir(chartDir, func(path string, d fs.DirEntry, err error) error {
@@ -171,20 +184,6 @@ func runHelmStep(id graph.Identifier, step *types.HelmStep, ctx context.Context,
 	}
 	if skip {
 		return nil
-	}
-
-	opts := helm.RawOptions{
-		NamespaceFiles:    namespaceFiles,
-		ReleaseName:       step.ReleaseName,
-		ReleaseNamespace:  step.ReleaseNamespace,
-		ChartDir:          chartDir,
-		ValuesFile:        values,
-		KustoDatabase:     step.KustoDatabase,
-		KustoTable:        step.KustoTable,
-		KustoEndpoint:     kustoEndpointString,
-		Timeout:           timeout,
-		KubeconfigFile:    kubeconfig,
-		RollbackOnFailure: step.RollbackOnFailure,
 	}
 
 	validated, err := opts.Validate()
