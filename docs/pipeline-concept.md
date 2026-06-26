@@ -162,6 +162,10 @@ Used for deploying Kubernetes services onto AKS clusters using [Helm](https://he
 6. `namespaceFiles`: Optional list of Kubernetes namespace manifest files to apply before the Helm release. The release namespace itself does not need to be listed here — it is always created. Use these when a namespace requires specific labels, annotations, or other configuration. These files are pre-processed as Go templates.
 7. `chartDir`: Path to the Helm chart directory, relative to the `pipeline.yaml` file.
 8. `valuesFile`: Path to the Helm values file, relative to the `pipeline.yaml` file. Pre-processed as a Go template before being passed to Helm.
+
+   > [!IMPORTANT]
+   > `valuesFile` must be located **outside** `chartDir`. The Helm chart loader reads every file inside `chartDir` as raw YAML before any template processing occurs. Go template expressions such as `{{ .config.value }}` are invalid YAML and cause the chart to fail to load. Files outside `chartDir` — including `valuesFile` and `namespaceFiles` — are pre-processed by templatize first, so unquoted Go template expressions are fine there. Keep the chart's embedded `values.yaml` (inside `chartDir`) limited to static defaults without any `{{ }}` expressions.
+
 9. `kustoDatabase`: Kusto database name for logging this deployment.
 10. `kustoTable`: Kusto table for log ingestion.
 11. `kustoEndpoint`: Input reference resolving to the Kusto cluster URI, used for deployment logging.
