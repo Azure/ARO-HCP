@@ -12,9 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package agent implements LLM-driven test failure analysis using the
-// GitHub Copilot SDK. It wraps the Copilot CLI process and provides a
-// structured session interface for analysis workflows.
+// Package agent implements LLM-driven test failure analysis using
+// pluggable LLM providers. The LLMProvider and LLMSession interfaces
+// (defined in provider.go) abstract the underlying LLM backend;
+// built-in implementations exist for the GitHub Copilot SDK
+// (this file) and the Anthropic Claude API (claude_provider.go).
 package agent
 
 import (
@@ -75,8 +77,16 @@ type AgentConfig struct {
 	Verbosity int
 }
 
+// Compile-time check: *CopilotClient implements LLMProvider.
+var _ LLMProvider = (*CopilotClient)(nil)
+
+// Compile-time check: *Session implements LLMSession.
+var _ LLMSession = (*Session)(nil)
+
 // CopilotClient wraps a copilot.Client that manages the Copilot CLI process.
-// One instance is created per process lifetime.
+// It implements the LLMProvider interface via CreateProviderSession, and also
+// exposes a Copilot-specific CreateSession for callers that need direct access
+// to copilot.SessionConfig. One instance is created per process lifetime.
 type CopilotClient struct {
 	inner *copilot.Client
 	cfg   *AgentConfig
@@ -204,6 +214,84 @@ func (c *CopilotClient) CreateSession(ctx context.Context, logger logr.Logger, c
 	}
 
 	return s, nil
+}
+
+// CreateProviderSession creates a new Copilot session from a provider-neutral
+// configuration. This is the LLMProvider interface implementation. It converts
+// ToolDefinition values to copilot.Tool values and builds a Copilot
+// SystemMessageConfig from the provider-neutral system prompt.
+func (c *CopilotClient) CreateProviderSession(ctx context.Context, logger logr.Logger, cfg ProviderSessionConfig) (LLMSession, error) {
+	// Convert provider-neutral tool definitions to Copilot tools.
+	copilotTools := make([]copilot.Tool, 0, len(cfg.Tools))
+	for _, td := range cfg.Tools {
+		ct, err := toolDefinitionToCopilotTool(td)
+		if err != nil {
+			return nil, fmt.Errorf("converting tool %q: %w", td.Name, err)
+		}
+		copilotTools = append(copilotTools, ct)
+	}
+
+	// Build a SystemMessageConfig from the plain system prompt. The domain-
+	// specific content goes into the custom instructions section while the
+	// identity and tone sections are replaced with our SRE-specific content.
+	systemMsg := &copilot.SystemMessageConfig{
+		Mode: "customize",
+		Sections: map[string]copilot.SectionOverride{
+			copilot.SectionIdentity: {
+				Action:  copilot.SectionActionReplace,
+				Content: identityPrompt,
+			},
+			copilot.SectionTone: {
+				Action:  copilot.SectionActionReplace,
+				Content: tonePrompt,
+			},
+			copilot.SectionCodeChangeRules: {
+				Action: copilot.SectionActionRemove,
+			},
+			copilot.SectionCustomInstructions: {
+				Action:  copilot.SectionActionAppend,
+				Content: cfg.SystemPrompt,
+			},
+		},
+	}
+
+	return c.CreateSession(ctx, logger, SessionConfig{
+		WorkingDirectory: cfg.WorkingDirectory,
+		SystemMessage:    systemMsg,
+		Tools:            copilotTools,
+		Model:            cfg.Model,
+	})
+}
+
+// toolDefinitionToCopilotTool converts a provider-neutral ToolDefinition to a
+// copilot.Tool by parsing the JSON schema and wrapping the handler.
+func toolDefinitionToCopilotTool(td ToolDefinition) (copilot.Tool, error) {
+	var schemaMap map[string]any
+	if len(td.ParamSchema) > 0 {
+		if err := json.Unmarshal(td.ParamSchema, &schemaMap); err != nil {
+			return copilot.Tool{}, fmt.Errorf("parsing parameter schema: %w", err)
+		}
+	}
+
+	return copilot.Tool{
+		Name:        td.Name,
+		Description: td.Description,
+		Parameters:  schemaMap,
+		Handler: func(inv copilot.ToolInvocation) (copilot.ToolResult, error) {
+			rawJSON, err := json.Marshal(inv.Arguments)
+			if err != nil {
+				return copilot.ToolResult{}, fmt.Errorf("marshaling tool arguments: %w", err)
+			}
+			result, err := td.Handler(inv.TraceContext, rawJSON)
+			if err != nil {
+				return copilot.ToolResult{}, err
+			}
+			return copilot.ToolResult{
+				TextResultForLLM: result,
+				ResultType:       "success",
+			}, nil
+		},
+	}, nil
 }
 
 // SessionID returns the unique identifier for this session.
