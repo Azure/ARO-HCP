@@ -41,6 +41,7 @@ import (
 	"github.com/Azure/ARO-HCP/fleet/pkg/controllers/maestroregistration"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/database/informers"
+	sharedleaderelection "github.com/Azure/ARO-HCP/internal/leaderelection"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/internal/version"
@@ -192,11 +193,11 @@ func (m *Manager) runControllersUnderLeaderElection(
 		base.StampWatchingControllerConfig{CooldownPeriod: 4 * time.Minute},
 	)
 
-	leaderElector, err := leaderelection.NewLeaderElector(leaderelection.LeaderElectionConfig{
+	leaderElectionConfig := leaderelection.LeaderElectionConfig{
 		Lock:          m.LeaderElectionLock,
-		LeaseDuration: LeaderElectionLeaseDuration,
-		RenewDeadline: LeaderElectionRenewDeadline,
-		RetryPeriod:   LeaderElectionRetryPeriod,
+		LeaseDuration: sharedleaderelection.RecommendedLeaseDuration,
+		RenewDeadline: sharedleaderelection.RecommendedRenewDeadline,
+		RetryPeriod:   sharedleaderelection.RecommendedRetryPeriod,
 		Callbacks: leaderelection.LeaderCallbacks{
 			OnStartedLeading: func(ctx context.Context) {
 				logger.Info("acquired leader election lease; starting informers")
@@ -221,7 +222,11 @@ func (m *Manager) runControllersUnderLeaderElection(
 		ReleaseOnCancel: true,
 		WatchDog:        electionChecker,
 		Name:            "fleet-controller",
-	})
+	}
+
+	sharedleaderelection.LogLeaseProperties(logger, leaderElectionConfig)
+
+	leaderElector, err := leaderelection.NewLeaderElector(leaderElectionConfig)
 	if err != nil {
 		return err
 	}
