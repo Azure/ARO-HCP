@@ -90,7 +90,7 @@ resource vnetWithSwiftDeployment 'Microsoft.Resources/deploymentScripts@2020-10-
   properties: {
     azCliVersion: '2.53.1'
     scriptContent: '''
-      set -uo pipefail
+      set -euo pipefail
       az account set --subscription "${VNET_SUBSCRIPTION_ID}"
 
       # The deployment MSI's Network/Tag Contributor role assignments are created in
@@ -102,15 +102,14 @@ resource vnetWithSwiftDeployment 'Microsoft.Resources/deploymentScripts@2020-10-
       POLL_INTERVAL=5
 
       retry() {
-        local elapsed=0
+        local start=${SECONDS}
         until "$@"; do
-          if [ "${elapsed}" -ge "${MAX_WAIT}" ]; then
-            echo "✗ '$*' still failing after ${elapsed}s" >&2
+          if [ $((SECONDS - start)) -ge "${MAX_WAIT}" ]; then
+            echo "✗ '$*' still failing after $((SECONDS - start))s" >&2
             return 1
           fi
           echo "Command failed (likely RBAC propagation); retrying in ${POLL_INTERVAL}s..." >&2
           sleep "${POLL_INTERVAL}"
-          elapsed=$((elapsed + POLL_INTERVAL))
         done
       }
 
