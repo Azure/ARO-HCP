@@ -95,11 +95,14 @@ Per the readme, sync logic is:
 2. Resolve GVR via RESTMapper from the parsed kubeContent's GVK.
 3. Server-side-apply with Force=true and FieldManager="kube-applier" via
    the dynamic client:
-       dyn.Resource(gvr).Namespace(ns).Apply(ctx, name, obj, applyOpts)
-4. On success: SetSuccessful(conds, nil).
-   On error:   SetSuccessful(conds, err)   // err -> KubeAPIError
+       result, err := dyn.Resource(gvr).Namespace(ns).Apply(ctx, name, obj, applyOpts)
+4. On success: SetSuccessful(conds, nil); store result.GetGeneration()
+   (the metadata.generation from the Kubernetes object returned by the
+   apply call) in status.AppliedKubeGeneration.
+   On error:   SetSuccessful(conds, err); set AppliedKubeGeneration = nil.
    On a pre-check failure (RESTMapper miss, namespace mismatch, malformed
-   kubeContent): SetSuccessful(conds, err with PreCheckFailed reason).
+   kubeContent): SetSuccessful(conds, err with PreCheckFailed reason);
+   set AppliedKubeGeneration = nil.
 5. Write status via statuswriter.
 ```
 

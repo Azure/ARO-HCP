@@ -185,7 +185,7 @@ func TestApplyDesired_IssuesSSAPatch(t *testing.T) {
 	  "metadata": {"name":"hello", "namespace":"default"},
 	  "data": {"k":"v"}
 	}`))
-	if err := c.applyDesired(ctx, desire); err != nil {
+	if _, err := c.applyDesired(ctx, desire); err != nil {
 		t.Fatalf("applyDesired: %v", err)
 	}
 
@@ -256,7 +256,7 @@ func TestApplyDesired_PreCheckErrors(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			err := c.applyDesired(ctx, newApplyDesire(t, "x", tc.target, tc.kubeContent))
+			_, err := c.applyDesired(ctx, newApplyDesire(t, "x", tc.target, tc.kubeContent))
 			if err == nil {
 				t.Fatalf("expected error containing %q, got nil", tc.wantSubstr)
 			}
@@ -400,10 +400,11 @@ func TestHandleUpdate_UnchangedEtagGatedByCooldown(t *testing.T) {
 	}
 }
 
-// TestSyncOnce_ObservedGenerationSetOnSuccess verifies that after a
-// successful SSA, SyncOnce records the desire's InstanceVersion in
-// status.ObservedGeneration.
-func TestSyncOnce_ObservedGenerationSetOnSuccess(t *testing.T) {
+// TestSyncOnce_AppliedKubeGenerationSetOnSuccess verifies that after a
+// successful SSA, SyncOnce records the metadata.generation from the
+// Kubernetes object returned by the apply call in
+// status.AppliedKubeGeneration.
+func TestSyncOnce_AppliedKubeGenerationSetOnSuccess(t *testing.T) {
 	ctx := context.Background()
 	gvr := schema.GroupVersionResource{Version: "v1", Resource: "configmaps"}
 	dyn := fakeDynamic(t, map[schema.GroupVersionResource]string{gvr: "ConfigMapList"})
@@ -412,6 +413,8 @@ func TestSyncOnce_ObservedGenerationSetOnSuccess(t *testing.T) {
 		obj.SetGroupVersionKind(schema.GroupVersionKind{Version: "v1", Kind: "ConfigMap"})
 		obj.SetName(action.(clienttesting.PatchAction).GetName())
 		obj.SetNamespace(action.GetNamespace())
+		// Simulate the apiserver returning the object with metadata.generation set.
+		obj.SetGeneration(3)
 		return true, obj, nil
 	})
 
@@ -421,7 +424,6 @@ func TestSyncOnce_ObservedGenerationSetOnSuccess(t *testing.T) {
 	  "metadata": {"name":"hello", "namespace":"default"},
 	  "data": {"k":"v"}
 	}`))
-	desire.InstanceVersion = 42
 
 	fetcher := &staticFetcher{desire: desire}
 	replacer := &capturingReplacer{}
@@ -442,18 +444,18 @@ func TestSyncOnce_ObservedGenerationSetOnSuccess(t *testing.T) {
 	if replacer.last == nil {
 		t.Fatal("replacer was not called; status was not written")
 	}
-	if replacer.last.Status.ObservedGeneration == nil {
-		t.Fatal("ObservedGeneration is nil after successful apply, want non-nil")
+	if replacer.last.Status.AppliedKubeGeneration == nil {
+		t.Fatal("AppliedKubeGeneration is nil after successful apply, want non-nil")
 	}
-	if got := *replacer.last.Status.ObservedGeneration; got != 42 {
-		t.Errorf("ObservedGeneration = %d, want 42", got)
+	if got := *replacer.last.Status.AppliedKubeGeneration; got != 3 {
+		t.Errorf("AppliedKubeGeneration = %d, want 3 (metadata.generation from SSA response)", got)
 	}
 }
 
-// TestSyncOnce_ObservedGenerationNilOnFailure verifies that after a failed
+// TestSyncOnce_AppliedKubeGenerationNilOnFailure verifies that after a failed
 // SSA (PreCheckError for missing kubeContent), SyncOnce sets
-// status.ObservedGeneration to nil.
-func TestSyncOnce_ObservedGenerationNilOnFailure(t *testing.T) {
+// status.AppliedKubeGeneration to nil.
+func TestSyncOnce_AppliedKubeGenerationNilOnFailure(t *testing.T) {
 	ctx := context.Background()
 	dyn := fakeDynamic(t, map[schema.GroupVersionResource]string{
 		{Group: "", Version: "v1", Resource: "configmaps"}: "ConfigMapList",
@@ -461,10 +463,9 @@ func TestSyncOnce_ObservedGenerationNilOnFailure(t *testing.T) {
 
 	// Build a desire that will fail: nil kubeContent triggers PreCheckError.
 	desire := newApplyDesire(t, "fail", configMapTarget("hello"), nil)
-	desire.InstanceVersion = 7
-	// Pre-seed ObservedGeneration so we can confirm it gets cleared.
+	// Pre-seed AppliedKubeGeneration so we can confirm it gets cleared.
 	var prevGen int64 = 5
-	desire.Status.ObservedGeneration = &prevGen
+	desire.Status.AppliedKubeGeneration = &prevGen
 
 	fetcher := &staticFetcher{desire: desire}
 	replacer := &capturingReplacer{}
@@ -485,8 +486,8 @@ func TestSyncOnce_ObservedGenerationNilOnFailure(t *testing.T) {
 	if replacer.last == nil {
 		t.Fatal("replacer was not called; status was not written")
 	}
-	if replacer.last.Status.ObservedGeneration != nil {
-		t.Errorf("ObservedGeneration = %d after failed apply, want nil",
-			*replacer.last.Status.ObservedGeneration)
+	if replacer.last.Status.AppliedKubeGeneration != nil {
+		t.Errorf("AppliedKubeGeneration = %d after failed apply, want nil",
+			*replacer.last.Status.AppliedKubeGeneration)
 	}
 }

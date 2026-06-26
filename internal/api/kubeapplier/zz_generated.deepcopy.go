@@ -122,8 +122,8 @@ func (in *ApplyDesireStatus) DeepCopyInto(out *ApplyDesireStatus) {
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}
 	}
-	if in.ObservedGeneration != nil {
-		in, out := &in.ObservedGeneration, &out.ObservedGeneration
+	if in.AppliedKubeGeneration != nil {
+		in, out := &in.AppliedKubeGeneration, &out.AppliedKubeGeneration
 		*out = new(int64)
 		**out = **in
 	}

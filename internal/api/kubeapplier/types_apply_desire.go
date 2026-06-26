@@ -85,10 +85,10 @@ type ApplyDesireStatus struct {
 	//                   out-of-band reason.
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
 
-	// ObservedGeneration records the metadata.generation
-	// (CosmosMetadata.InstanceVersion) of the ApplyDesire at the time of
-	// the latest successful server-side apply. When the most recent apply
-	// attempt failed, this field is nil so that consumers can distinguish
-	// "last apply succeeded at generation N" from "last apply failed".
-	ObservedGeneration *int64 `json:"observedGeneration,omitempty"`
+	// AppliedKubeGeneration records the metadata.generation of the
+	// Kubernetes object returned by the most recent successful server-side
+	// apply call. When the most recent apply attempt failed, this field is
+	// nil so that consumers can distinguish "last apply succeeded and the
+	// kube object is at generation N" from "last apply failed".
+	AppliedKubeGeneration *int64 `json:"appliedKubeGeneration,omitempty"`
 }
