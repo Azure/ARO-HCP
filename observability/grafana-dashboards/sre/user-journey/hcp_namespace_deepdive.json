@@ -477,7 +477,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${datasource_hcp}"
+        "uid": "${datasource_svc}"
       },
       "description": "How many pods are in each state right now (Running, Pending, Failed, Succeeded).",
       "fieldConfig": {
@@ -627,7 +627,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${datasource_hcp}"
+        "uid": "${datasource_svc}"
       },
       "description": "Container restarts in the last hour per pod (more useful for triage than total restarts since pod started).",
       "fieldConfig": {
@@ -723,7 +723,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${datasource_hcp}"
+        "uid": "${datasource_svc}"
       },
       "description": "OOMKilled events timeline. Note: changes() counts value transitions not discrete events - may miss kills between scrapes.",
       "fieldConfig": {
@@ -819,7 +819,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${datasource_hcp}"
+        "uid": "${datasource_svc}"
       },
       "description": "Why each container exited last time (OOMKilled, Error, Completed, etc).",
       "fieldConfig": {
