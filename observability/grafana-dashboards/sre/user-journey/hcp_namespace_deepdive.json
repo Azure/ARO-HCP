@@ -26,6 +26,7 @@
         "type": "prometheus",
         "uid": "${datasource_svc}"
       },
+      "description": "CPU usage rate (cores) per container, averaged over 5m. Colored by control plane component.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -180,6 +181,7 @@
         "type": "prometheus",
         "uid": "${datasource_svc}"
       },
+      "description": "How much memory each container is actively using (doesn't include reclaimable cache).",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -475,8 +477,9 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${datasource_svc}"
+        "uid": "${datasource_hcp}"
       },
+      "description": "How many pods are in each state right now (Running, Pending, Failed, Succeeded).",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -624,8 +627,9 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${datasource_svc}"
+        "uid": "${datasource_hcp}"
       },
+      "description": "Container restarts in the last hour per pod (more useful for triage than total restarts since pod started).",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -708,7 +712,7 @@
             "type": "prometheus",
             "uid": "${datasource_svc}"
           },
-          "expr": "sum by (pod) (kube_pod_container_status_restarts_total{cluster=\"$cluster\", namespace=\"$namespace\"})",
+          "expr": "sum by (pod) (increase(kube_pod_container_status_restarts_total{cluster=\"$cluster\", namespace=\"$namespace\"}[1h]))",
           "legendFormat": "{{pod}}",
           "refId": "A"
         }
@@ -719,8 +723,9 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${datasource_svc}"
+        "uid": "${datasource_hcp}"
       },
+      "description": "OOMKilled events timeline. Note: changes() counts value transitions not discrete events - may miss kills between scrapes.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -814,8 +819,9 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${datasource_svc}"
+        "uid": "${datasource_hcp}"
       },
+      "description": "Why each container exited last time (OOMKilled, Error, Completed, etc).",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -946,6 +952,7 @@
         "type": "prometheus",
         "uid": "${datasource_svc}"
       },
+      "description": "How much network traffic each pod is receiving.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1039,6 +1046,7 @@
         "type": "prometheus",
         "uid": "${datasource_svc}"
       },
+      "description": "How much network traffic each pod is sending out.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1132,6 +1140,7 @@
         "type": "prometheus",
         "uid": "${datasource_svc}"
       },
+      "description": "Network errors (both receiving and sending) - sustained errors mean there's a network problem.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1250,6 +1259,7 @@
         "type": "prometheus",
         "uid": "${datasource_svc}"
       },
+      "description": "How much disk space each container is using (warning at 8GB, critical at 20GB).",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1350,6 +1360,7 @@
         "type": "prometheus",
         "uid": "${datasource_svc}"
       },
+      "description": "How fast each container is reading from disk.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1443,6 +1454,7 @@
         "type": "prometheus",
         "uid": "${datasource_svc}"
       },
+      "description": "How fast each container is writing to disk.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1651,6 +1663,7 @@
         "type": "prometheus",
         "uid": "${datasource_hcp}"
       },
+      "description": "Size of the etcd database (warning at 2GB, critical at 8GB near quota limit).",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1720,6 +1733,7 @@
         "type": "prometheus",
         "uid": "${datasource_hcp}"
       },
+      "description": "How many times the etcd leader changed in the last hour (frequent changes = instability).",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1797,6 +1811,8 @@
     "list": [
       {
         "current": {},
+        "description": "Pick the services datasource for your region (e.g., Managed_Prometheus_services-eastus). Must match where your namespace lives.",
+        "includeAll": false,
         "name": "datasource_svc",
         "options": [],
         "query": "prometheus",
@@ -1806,6 +1822,8 @@
       },
       {
         "current": {},
+        "description": "Pick the HCP datasource for your region (e.g., Managed_Prometheus_hcps-eastus). Must match where your namespace lives.",
+        "includeAll": false,
         "name": "datasource_hcp",
         "options": [],
         "query": "prometheus",
