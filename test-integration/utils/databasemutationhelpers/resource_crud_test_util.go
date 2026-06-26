@@ -265,6 +265,8 @@ func NewUntypedStep(indexString, stepType, stepName string, testDir fs.FS, path 
 		return newCompleteOperationStep(stepID, stepDir)
 	case "setClusterServiceID":
 		return newSetClusterServiceIDStep(stepID, stepDir)
+	case "simulateClusterServiceCreate":
+		return newSimulateClusterServiceCreateStep(stepID, stepDir)
 	case "clusterServiceCompare":
 		return newClusterServiceCompareStep(stepID, stepDir)
 	case "migrateCosmos":
@@ -360,6 +362,8 @@ func NewStep[InternalAPIType any, InternalAPITypePointer arm.CosmosMetadataAcces
 
 	case "setClusterServiceID":
 		return newSetClusterServiceIDStep(stepID, stepDir)
+	case "simulateClusterServiceCreate":
+		return newSimulateClusterServiceCreateStep(stepID, stepDir)
 
 	case "clusterServiceCompare":
 		return newClusterServiceCompareStep(stepID, stepDir)

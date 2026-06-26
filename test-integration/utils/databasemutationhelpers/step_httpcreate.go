@@ -24,6 +24,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/Azure/ARO-HCP/test-integration/utils/integrationutils"
 )
 
 type httpCreateStep struct {
@@ -70,6 +72,16 @@ func (l *httpCreateStep) StepID() StepID {
 }
 
 func (l *httpCreateStep) RunTest(ctx context.Context, t *testing.T, stepInput StepInput) {
+	if stepInput.ClusterServiceMockInfo != nil {
+		err := integrationutils.EnsureParentClusterServiceID(
+			ctx,
+			stepInput.ResourcesDBClient,
+			stepInput.ClusterServiceMockInfo,
+			l.key.ResourceID,
+		)
+		require.NoError(t, err)
+	}
+
 	accessor := stepInput.HTTPTestAccessor(l.key)
 
 	for _, resource := range l.resources {

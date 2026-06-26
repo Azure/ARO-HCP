@@ -132,6 +132,13 @@ func testVersionCompliance(t *testing.T, withMock bool) {
 				// Complete the cluster creation operation
 				clusterResourceID := api.Must(azcorearm.ParseResourceID(scenario.ClusterResourceID))
 				require.NoError(t, integrationutils.MarkOperationsCompleteForName(ctx, testInfo.ResourcesDBClient(), subscriptionID, clusterResourceID.Name))
+
+				require.NoError(t, integrationutils.EnsureParentClusterServiceID(
+					ctx,
+					testInfo.ResourcesDBClient(),
+					testInfo.ClusterServiceMock,
+					scenario.ResourceID,
+				))
 			}
 
 			// Create the resource under test using the scenario's createVersion
