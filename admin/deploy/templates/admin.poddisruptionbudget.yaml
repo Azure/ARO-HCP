@@ -2,7 +2,7 @@ apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
   name: admin-api
-  namespace: '{{ .Release.Namespace }}'
+  namespace: {{ .Release.Namespace }}
 spec:
   minAvailable: 1
   unhealthyPodEvictionPolicy: AlwaysAllow

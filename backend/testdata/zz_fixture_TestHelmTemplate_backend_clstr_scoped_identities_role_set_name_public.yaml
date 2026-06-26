@@ -4,7 +4,7 @@ apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
   name: aro-hcp-backend
-  namespace: 'aro-hcp'
+  namespace: aro-hcp
 spec:
   minAvailable: 1
   unhealthyPodEvictionPolicy: AlwaysAllow
