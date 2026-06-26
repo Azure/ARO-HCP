@@ -146,10 +146,11 @@ subjects:
 apiVersion: v1
 kind: Service
 metadata:
-  name: mgmt-agent
+  name: mgmt-agent-metrics
   namespace: 'mgmt-agent'
   labels:
     app.kubernetes.io/name: "mgmt-agent"
+    port: metrics
 spec:
   selector:
     app.kubernetes.io/name: mgmt-agent
@@ -157,6 +158,7 @@ spec:
   - port: 8080
     targetPort: 8080
     protocol: TCP
+    name: metrics
 ---
 # Source: mgmt-agent/templates/deployment.yaml
 apiVersion: apps/v1
@@ -232,4 +234,24 @@ spec:
       serviceAccountName: mgmt-agent
       terminationGracePeriodSeconds: 10
       nodeSelector:
+---
+# Source: mgmt-agent/templates/servicemonitor.yaml
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: mgmt-agent
+  namespace: 'mgmt-agent'
+spec:
+  endpoints:
+  - interval: 30s
+    path: /metrics
+    port: metrics
+    scheme: http
+  namespaceSelector:
+    matchNames:
+    - 'mgmt-agent'
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: mgmt-agent
+      port: metrics
 

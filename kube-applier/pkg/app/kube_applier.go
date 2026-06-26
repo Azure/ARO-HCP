@@ -56,16 +56,11 @@ func (o *Options) Run(ctx context.Context) error {
 
 	electionChecker := leaderelection.NewLeaderHealthzAdaptor(20 * time.Second)
 
-	var healthzServer, metricsServer *http.Server
-	defer func() {
-		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 31*time.Second)
-		defer shutdownCancel()
-		_ = shutdownHTTPServer(shutdownCtx, metricsServer, "metrics server")
-		_ = shutdownHTTPServer(shutdownCtx, healthzServer, "healthz server")
-	}()
-
-	errCh := make(chan error, 3)
-	wg := sync.WaitGroup{}
+	var (
+		mu   sync.Mutex
+		errs []error
+		wg   sync.WaitGroup
+	)
 
 	if o.HealthzServerListenAddress != "" {
 		healthGauge := promauto.With(o.metricsRegisterer()).NewGauge(prometheus.GaugeOpts{
@@ -82,13 +77,17 @@ func (o *Options) Run(ctx context.Context) error {
 			w.WriteHeader(http.StatusOK)
 			healthGauge.Set(1)
 		})
-		healthzServer = &http.Server{Addr: o.HealthzServerListenAddress, Handler: mux}
+		server := &http.Server{Addr: o.HealthzServerListenAddress, Handler: mux}
 		wg.Add(1)
 		go func() {
-			defer kuberuntime.HandleCrash()
+			defer cancel(fmt.Errorf("healthz server exited"))
 			defer wg.Done()
-			logger.Info(fmt.Sprintf("healthz server listening on %s", o.HealthzServerListenAddress))
-			errCh <- healthzServer.ListenAndServe()
+			defer kuberuntime.HandleCrash()
+			if err := runHTTPServer(ctx, server, "healthz server"); err != nil {
+				mu.Lock()
+				errs = append(errs, err)
+				mu.Unlock()
+			}
 		}()
 	}
 
@@ -98,35 +97,33 @@ func (o *Options) Run(ctx context.Context) error {
 			o.metricsRegisterer(),
 			promhttp.HandlerFor(prometheus.Gatherers{o.metricsGatherer()}, promhttp.HandlerOpts{}),
 		))
-		metricsServer = &http.Server{Addr: o.MetricsServerListenAddress, Handler: mux}
+		server := &http.Server{Addr: o.MetricsServerListenAddress, Handler: mux}
 		wg.Add(1)
 		go func() {
-			defer kuberuntime.HandleCrash()
+			defer cancel(fmt.Errorf("metrics server exited"))
 			defer wg.Done()
-			logger.Info(fmt.Sprintf("metrics server listening on %s", o.MetricsServerListenAddress))
-			errCh <- metricsServer.ListenAndServe()
+			defer kuberuntime.HandleCrash()
+			if err := runHTTPServer(ctx, server, "metrics server"); err != nil {
+				mu.Lock()
+				errs = append(errs, err)
+				mu.Unlock()
+			}
 		}()
 	}
 
 	wg.Add(1)
 	go func() {
-		defer kuberuntime.HandleCrash()
+		defer cancel(fmt.Errorf("leader election exited"))
 		defer wg.Done()
-		err := o.runControllersUnderLeaderElection(ctx, electionChecker)
-		cancel(fmt.Errorf("leader election exited"))
-		errCh <- err
+		defer kuberuntime.HandleCrash()
+		if err := o.runControllersUnderLeaderElection(ctx, electionChecker); err != nil {
+			mu.Lock()
+			errs = append(errs, err)
+			mu.Unlock()
+		}
 	}()
 
-	<-ctx.Done()
 	wg.Wait()
-	close(errCh)
-
-	errs := []error{}
-	for err := range errCh {
-		if err != nil && !errors.Is(err, http.ErrServerClosed) {
-			errs = append(errs, err)
-		}
-	}
 	logger.Info(fmt.Sprintf("%s (%s) stopped", AppShortDescriptionName, version.CommitSHA))
 	return errors.Join(errs...)
 }
@@ -211,16 +208,34 @@ func (o *Options) metricsGatherer() prometheus.Gatherer {
 	return legacyregistry.DefaultGatherer
 }
 
-func shutdownHTTPServer(ctx context.Context, server *http.Server, name string) error {
-	if server == nil {
+// runHTTPServer runs the server and shuts it down when ctx is cancelled.
+// It returns nil if the server was shut down cleanly (http.ErrServerClosed),
+// or the underlying error if ListenAndServe failed for another reason.
+func runHTTPServer(ctx context.Context, server *http.Server, name string) error {
+	logger := utils.LoggerFromContext(ctx)
+
+	done := make(chan struct{})
+	defer close(done)
+	go func() {
+		defer kuberuntime.HandleCrash()
+		select {
+		case <-ctx.Done():
+			shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 31*time.Second)
+			defer shutdownCancel()
+			logger.Info(fmt.Sprintf("shutting down %s", name))
+			if err := server.Shutdown(shutdownCtx); err != nil {
+				logger.Error(err, fmt.Sprintf("failed to shut down %s", name))
+			} else {
+				logger.Info(fmt.Sprintf("%s shut down completed", name))
+			}
+		case <-done:
+		}
+	}()
+
+	logger.Info(fmt.Sprintf("%s listening on %s", name, server.Addr))
+	err := server.ListenAndServe()
+	if errors.Is(err, http.ErrServerClosed) {
 		return nil
 	}
-	logger := utils.LoggerFromContext(ctx)
-	logger.Info(fmt.Sprintf("shutting down %s", name))
-	if err := server.Shutdown(ctx); err != nil {
-		logger.Error(err, fmt.Sprintf("failed to shut down %s", name))
-		return err
-	}
-	logger.Info(fmt.Sprintf("%s shut down completed", name))
-	return nil
+	return err
 }
