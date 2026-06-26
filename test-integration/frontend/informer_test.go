@@ -783,6 +783,7 @@ func testServiceProviderNodePoolLister(t *testing.T, withMock bool) {
 	// observes the seeded object quickly.
 	informer := informers.NewServiceProviderNodePoolInformerWithRelistDuration(
 		resourcesDBClient.ResourcesGlobalListers().ServiceProviderNodePools(),
+		resourcesDBClient,
 		1*time.Second)
 	go informer.Run(ctx.Done())
 	require.True(t, cache.WaitForCacheSync(ctx.Done(), informer.HasSynced), "timed out waiting for service provider node pool informer cache sync")
