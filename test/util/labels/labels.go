@@ -42,6 +42,10 @@ var (
 	CreateCluster      = ginkgo.Label("Create-Cluster")
 	SetupValidation    = ginkgo.Label("Setup-Validation")
 	TeardownValidation = ginkgo.Label("Teardown-Validation")
+	// UpgradeInPlace marks the end-to-end in-place Hypershift upgrade test. Selected
+	// exclusively by the upgrade/in-place suite — not part of any happy-path or
+	// api-compat suite.
+	UpgradeInPlace = ginkgo.Label("Upgrade-In-Place")
 )
 
 var (

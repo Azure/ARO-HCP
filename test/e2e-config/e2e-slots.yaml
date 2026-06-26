@@ -43,18 +43,6 @@ environments:
       identity_container_prefix: aro-hcp-msi-container-dev
       identity_container_count: 20
       identity_provisioning: unmanaged
-    # upgrade: dedicated slot for the upgrade/create and upgrade/post-infra suites.
-    # slot_count: 1 ensures the provisioned cluster persists isolated across both suite
-    # phases without interference from other concurrent E2E jobs.
-    # identity_container_count: 1 is sufficient because both upgrade suites run
-    # sequentially (Parallelism: 1) and create only a single cluster+nodepool.
-    - subscription_name: "ARO HCP E2E Hosted Clusters - Dev - 03"
-      region: westus3
-      region_mode: runtime-selected
-      resource_type: aro-hcp-dev-upgrade-westus3-slot
-      slot_count: 1
-      identity_container_prefix: aro-hcp-msi-container-dev-upgrade-westus3
-      identity_container_count: 1
   int:
     deploy_envs:
     - int
