@@ -143,80 +143,118 @@ func (c *nodePoolVersionSyncer) NeedsWork(nodePool *api.HCPOpenShiftClusterNodeP
 // round-tripping through Cluster Service.
 func (c *nodePoolVersionSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPNodePoolKey) error {
 	logger := utils.LoggerFromContext(ctx)
+	logger.Info("#### 1a")
 
 	// Do the super cheap cache check first.
 	cachedNodePool, err := c.nodePoolLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPNodePoolName)
+	logger.Info("#### 1b")
 	if database.IsNotFoundError(err) {
+		logger.Info("#### 1c")
 		// we'll be re-fired if it is created again
 		return nil
 	}
+	logger.Info("#### 1d")
 	if err != nil {
+		logger.Info("#### 1e")
 		return utils.TrackError(fmt.Errorf("failed to get node pool from cache: %w", err))
 	}
+	logger.Info("#### 1f")
 	// SPNP must be in cache. If a sibling controller hasn't created it yet,
 	// skip this sync; the informer will retrigger us when it lands.
 	cachedServiceProviderNodePool, err := c.serviceProviderNodePoolLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPNodePoolName)
+	logger.Info("#### 1g")
 	if database.IsNotFoundError(err) {
+		logger.Info("#### 1h")
 		return nil
 	}
+	logger.Info("#### 1i")
 	if err != nil {
+		logger.Info("#### 1j")
 		return utils.TrackError(fmt.Errorf("failed to get ServiceProviderNodePool from cache: %w", err))
 	}
+	logger.Info("#### 1k")
 	if !c.NeedsWork(cachedNodePool, cachedServiceProviderNodePool) {
+		logger.Info("#### 1l")
 		// if the cache doesn't need work, then we'll be retriggered if those values change when the cache updates.
 		return nil
 	}
+	logger.Info("#### 1m")
 
 	customerDesiredVersion, err := semver.Parse(cachedNodePool.Properties.Version.ID)
+	logger.Info("#### 1n")
 	if err != nil {
+		logger.Info("#### 1o")
 		return utils.TrackError(err)
 	}
+	logger.Info("#### 1p")
 
 	// Pull the ServiceProviderCluster and Subscription from cache rather than
 	// re-fetching live: validation only reads them, and if either isn't yet
 	// observed by the informer we'll be retriggered when it lands.
 	cachedServiceProviderCluster, err := c.serviceProviderClusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
+	logger.Info("#### 1q")
 	if database.IsNotFoundError(err) {
+		logger.Info("#### 1r")
 		return nil
 	}
+	logger.Info("#### 1s")
 	if err != nil {
+		logger.Info("#### 1t")
 		return utils.TrackError(fmt.Errorf("failed to get ServiceProviderCluster from cache: %w", err))
 	}
+	logger.Info("#### 1u")
 
 	subscription, err := c.subscriptionLister.Get(ctx, key.SubscriptionID)
+	logger.Info("#### 1v")
 	if database.IsNotFoundError(err) {
+		logger.Info("#### 1w")
 		return nil
 	}
+	logger.Info("#### 1x")
 	if err != nil {
+		logger.Info("#### 1y")
 		return utils.TrackError(fmt.Errorf("failed to get Subscription from cache: %w", err))
 	}
+	logger.Info("#### 1z")
 
 	// Resolve the cluster UUID from the cached HostedCluster so we can build the Cincinnati client.
 	// Use it as best effort.  If we cannot find use, use an empty value to make progress without a specific value.
 	clusterUUID, found, err := maestrohelpers.GetCachedHostedClusterUUIDForCluster(ctx, c.readDesireLister, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
+	logger.Info("#### 1aa")
 	if err != nil {
+		logger.Info("#### 1ab")
 		logger.Info("error getting cluster UUID, continuing with empty", "err", err.Error())
 	}
+	logger.Info("#### 1ac")
 	if !found {
+		logger.Info("#### 1ad")
 		logger.Info("missing cluster UUID, continuing with empty")
 	}
+	logger.Info("#### 1ae")
 
 	op := operation.Operation{
 		Options: validation.AFECsToValidationOptions(subscription.GetRegisteredFeatures()),
 	}
+	logger.Info("#### 1af")
 
 	// Validate the customer's desired version before setting it
 	err = c.validateDesiredNodePoolVersion(ctx, &customerDesiredVersion, cachedServiceProviderNodePool, cachedServiceProviderCluster, cachedNodePool.Properties.Version.ChannelGroup, clusterUUID,
 		op.HasOption(api.FeatureExperimentalReleaseFeatures))
+	logger.Info("#### 1ag")
 	if err != nil {
+		logger.Info("#### 1ah")
 		// Persist IntentFailed on the controller document for Cincinnati VersionNotFound or any non-Cincinnati resolution error.
 		// Other Cincinnati errors are treated as transient graph or transport issues.
 		var cincinnatiErr *cvocincinnati.Error
+		logger.Info("#### 1ai")
 		persistIntentFailed := cincinnati.IsCincinnatiVersionNotFoundError(err) || !errors.As(err, &cincinnatiErr)
+		logger.Info("#### 1aj")
 		if persistIntentFailed {
+			logger.Info("#### 1ak")
 			logger.Error(err, "desired version resolution failed, persisting IntentFailed condition")
 			controllerCRUD := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).
 				NodePools(key.HCPClusterName).Controllers(key.HCPNodePoolName)
+			logger.Info("#### 1al")
 			if writeErr := controllerutils.WriteController(ctx, controllerCRUD, NodepoolVersionControllerName, key.InitialController,
 				func(ctrl *api.Controller) {
 					apimeta.SetStatusCondition(&ctrl.Status.Conditions, metav1.Condition{
@@ -226,29 +264,42 @@ func (c *nodePoolVersionSyncer) SyncOnce(ctx context.Context, key controllerutil
 						Message: utils.ErrorMessageWithoutLineTracking(err),
 					})
 				}); writeErr != nil {
+				logger.Info("#### 1am")
 				return utils.TrackError(writeErr)
 			}
+			logger.Info("#### 1an")
 			return nil
 		}
+		logger.Info("#### 1ao")
 		return utils.TrackError(err)
 	}
+	logger.Info("#### 1ap")
 
 	// Update the serviceProviderNodePool DesiredVersion
 	replacement := cachedServiceProviderNodePool.DeepCopy()
+	logger.Info("#### 1aq")
 	replacement.Spec.NodePoolVersion.DesiredVersion = &customerDesiredVersion
+	logger.Info("#### 1ar")
 	_, err = c.resourcesDBClient.ServiceProviderNodePools(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPNodePoolName).Replace(ctx, replacement, nil)
+	logger.Info("#### 1as")
 	if database.IsPreconditionFailedError(err) {
+		logger.Info("#### 1at")
 		// the cache will update eventually since we're out of date and we'll enter this controller again. No need to fail.
 		return nil
 	}
+	logger.Info("#### 1au")
 	if err != nil {
+		logger.Info("#### 1av")
 		return utils.TrackError(fmt.Errorf("failed to replace ServiceProviderNodePool: %w", err))
 	}
+	logger.Info("#### 1aw")
 	logger.Info("Updated ServiceProviderNodePool with new desired version", "desiredVersion", customerDesiredVersion.String())
+	logger.Info("#### 1ax")
 
 	// Clear IntentFailed condition on successful validation
 	controllerCRUD := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).
 		NodePools(key.HCPClusterName).Controllers(key.HCPNodePoolName)
+	logger.Info("#### 1ay")
 	if err = controllerutils.WriteController(ctx, controllerCRUD, NodepoolVersionControllerName, key.InitialController,
 		func(ctrl *api.Controller) {
 			apimeta.SetStatusCondition(&ctrl.Status.Conditions, metav1.Condition{
@@ -258,8 +309,10 @@ func (c *nodePoolVersionSyncer) SyncOnce(ctx context.Context, key controllerutil
 				Message: "",
 			})
 		}); err != nil {
+		logger.Info("#### 1az")
 		return utils.TrackError(err)
 	}
+	logger.Info("#### 1ba")
 
 	return nil
 }
