@@ -3339,6 +3339,9 @@
         },
         "kustoName": {
           "type": "string"
+        },
+        "grafanaName": {
+          "type": "string"
         }
       },
       "additionalProperties": false,
@@ -3352,7 +3355,8 @@
         "oidcStorageAccountName",
         "svcParentZoneName",
         "cxParentZoneName",
-        "kustoName"
+        "kustoName",
+        "grafanaName"
       ]
     },
     "releaseApprover": {
