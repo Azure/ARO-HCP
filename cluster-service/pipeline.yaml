@@ -162,3 +162,4 @@ resourceGroups:
     dependsOn:
     - resourceGroup: service
       step: deploy
+    timeout: 10m
