@@ -117,27 +117,53 @@ spec:
         count by (name, namespace, _id, cluster) (hostedClusterAPI_kubeapiserver_available)
     - record: hostedClusterAPI_kubeapiserver_available:sli_sum_6h
       expr: |
-        sum by (name, namespace, _id, cluster) (
+        sum by (name, namespace, _id, cluster, resource_id) (
           sum_over_time(
             (
               hostedClusterAPI_kubeapiserver_available{status="True"}
-              and on (name, namespace, _id, cluster)
-              max by (name, namespace, _id, cluster) ((hostedClusterAPI_kubeapiserver_available offset 15m) >= 0)
+              and on (name, namespace, _id, cluster, resource_id)
+              max by (name, namespace, _id, cluster, resource_id) ((hostedClusterAPI_kubeapiserver_available offset 15m) >= 0)
             )[6h:5m]
           )
         )
-        and on (name, namespace, _id, cluster)
-        count by (name, namespace, _id, cluster) (hostedClusterAPI_kubeapiserver_available)
+        and on (name, namespace, _id, cluster, resource_id)
+        count by (name, namespace, _id, cluster, resource_id) (hostedClusterAPI_kubeapiserver_available)
     - record: hostedClusterAPI_kubeapiserver_available:sli_count_6h
       expr: |
-        sum by (name, namespace, _id, cluster) (
+        sum by (name, namespace, _id, cluster, resource_id) (
           count_over_time(
             (
-              max by (name, namespace, _id, cluster) (hostedClusterAPI_kubeapiserver_available)
-              and on (name, namespace, _id, cluster)
-              max by (name, namespace, _id, cluster) ((hostedClusterAPI_kubeapiserver_available offset 15m) >= 0)
+              max by (name, namespace, _id, cluster, resource_id) (hostedClusterAPI_kubeapiserver_available)
+              and on (name, namespace, _id, cluster, resource_id)
+              max by (name, namespace, _id, cluster, resource_id) ((hostedClusterAPI_kubeapiserver_available offset 15m) >= 0)
             )[6h:5m]
           )
         )
-        and on (name, namespace, _id, cluster)
-        count by (name, namespace, _id, cluster) (hostedClusterAPI_kubeapiserver_available)
+        and on (name, namespace, _id, cluster, resource_id)
+        count by (name, namespace, _id, cluster, resource_id) (hostedClusterAPI_kubeapiserver_available)
+    - record: hostedClusterAPI_kubeapiserver_available:sli_sum_3d
+      expr: |
+        sum by (name, namespace, _id, cluster, resource_id) (
+          sum_over_time(
+            (
+              hostedClusterAPI_kubeapiserver_available{status="True"}
+              and on (name, namespace, _id, cluster, resource_id)
+              max by (name, namespace, _id, cluster, resource_id) ((hostedClusterAPI_kubeapiserver_available offset 15m) >= 0)
+            )[3d:30m]
+          )
+        )
+        and on (name, namespace, _id, cluster, resource_id)
+        count by (name, namespace, _id, cluster, resource_id) (hostedClusterAPI_kubeapiserver_available)
+    - record: hostedClusterAPI_kubeapiserver_available:sli_count_3d
+      expr: |
+        sum by (name, namespace, _id, cluster, resource_id) (
+          count_over_time(
+            (
+              max by (name, namespace, _id, cluster, resource_id) (hostedClusterAPI_kubeapiserver_available)
+              and on (name, namespace, _id, cluster, resource_id)
+              max by (name, namespace, _id, cluster, resource_id) ((hostedClusterAPI_kubeapiserver_available offset 15m) >= 0)
+            )[3d:30m]
+          )
+        )
+        and on (name, namespace, _id, cluster, resource_id)
+        count by (name, namespace, _id, cluster, resource_id) (hostedClusterAPI_kubeapiserver_available)
