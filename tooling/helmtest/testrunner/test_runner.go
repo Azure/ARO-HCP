@@ -28,9 +28,9 @@ import (
 	"helm.sh/helm/v4/pkg/action"
 	"helm.sh/helm/v4/pkg/chart/common"
 	"helm.sh/helm/v4/pkg/chart/loader/archive"
+	v2loader "helm.sh/helm/v4/pkg/chart/v2/loader"
 	"helm.sh/helm/v4/pkg/cli"
 	"helm.sh/helm/v4/pkg/release"
-	v2loader "helm.sh/helm/v4/pkg/chart/v2/loader"
 
 	"sigs.k8s.io/yaml"
 
