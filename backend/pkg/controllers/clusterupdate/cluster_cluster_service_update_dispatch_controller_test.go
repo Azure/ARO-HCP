@@ -35,6 +35,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
+	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 )
@@ -119,12 +120,13 @@ func TestClusterUpdateDispatchSyncer_SyncOnce(t *testing.T) {
 	}
 
 	testCases := []struct {
-		name              string
-		cluster           *api.HCPOpenShiftCluster
-		existingCSCluster *arohcpv1alpha1.Cluster
-		setupMockCSClient func(mock *ocm.MockClusterServiceClientSpec)
-		wantErr           bool
-		wantErrContain    string
+		name                                string
+		cluster                             *api.HCPOpenShiftCluster
+		existingCSCluster                   *arohcpv1alpha1.Cluster
+		setupMockCSClient                   func(mock *ocm.MockClusterServiceClientSpec)
+		minimumReconcileTimeCooldownChecker controllerutil.CooldownChecker
+		wantErr                             bool
+		wantErrContain                      string
 	}{
 		{
 			name: "skip without CS call when no CSID",
@@ -132,6 +134,7 @@ func TestClusterUpdateDispatchSyncer_SyncOnce(t *testing.T) {
 				c.ServiceProviderProperties.ClusterServiceID = nil
 				c.CustomerProperties.NodeDrainTimeoutMinutes = 30
 			}),
+			minimumReconcileTimeCooldownChecker: &alwaysSyncCooldownChecker{},
 		},
 		{
 			name:              "dispatches CS calls when config differs",
@@ -148,6 +151,7 @@ func TestClusterUpdateDispatchSyncer_SyncOnce(t *testing.T) {
 					UpdateCluster(gomock.Any(), csID, gomock.Any()).
 					Return(nil, nil)
 			},
+			minimumReconcileTimeCooldownChecker: &alwaysSyncCooldownChecker{},
 		},
 		{
 			name: "no-op when config matches",
@@ -164,6 +168,7 @@ func TestClusterUpdateDispatchSyncer_SyncOnce(t *testing.T) {
 						c.CustomerProperties.NodeDrainTimeoutMinutes = 30
 					})), nil)
 			},
+			minimumReconcileTimeCooldownChecker: &alwaysSyncCooldownChecker{},
 		},
 		{
 			name:              "when CS autoscaler update returns cluster not updatable no error is returned and cluster update is not called",
@@ -177,6 +182,7 @@ func TestClusterUpdateDispatchSyncer_SyncOnce(t *testing.T) {
 					UpdateClusterAutoscaler(gomock.Any(), csID, gomock.Any()).
 					Return(nil, newFakeOCMClusterNotUpdatableError())
 			},
+			minimumReconcileTimeCooldownChecker: &alwaysSyncCooldownChecker{},
 		},
 		{
 			name:              "when CS cluster update returns cluster not updatable no error is returned",
@@ -193,6 +199,7 @@ func TestClusterUpdateDispatchSyncer_SyncOnce(t *testing.T) {
 					UpdateCluster(gomock.Any(), csID, gomock.Any()).
 					Return(nil, newFakeOCMClusterNotUpdatableError())
 			},
+			minimumReconcileTimeCooldownChecker: &alwaysSyncCooldownChecker{},
 		},
 		{
 			name:              "when CS autoscaler update returns unhandled error error is propagated",
@@ -206,8 +213,9 @@ func TestClusterUpdateDispatchSyncer_SyncOnce(t *testing.T) {
 					UpdateClusterAutoscaler(gomock.Any(), csID, gomock.Any()).
 					Return(nil, errors.New("boom"))
 			},
-			wantErr:        true,
-			wantErrContain: "failed to update cluster-service ClusterAutoscaler",
+			wantErr:                             true,
+			wantErrContain:                      "failed to update cluster-service ClusterAutoscaler",
+			minimumReconcileTimeCooldownChecker: &alwaysSyncCooldownChecker{},
 		},
 		{
 			name:              "when CS cluster update returns unhandled error error is propagated",
@@ -224,8 +232,9 @@ func TestClusterUpdateDispatchSyncer_SyncOnce(t *testing.T) {
 					UpdateCluster(gomock.Any(), csID, gomock.Any()).
 					Return(nil, errors.New("boom"))
 			},
-			wantErr:        true,
-			wantErrContain: "failed to update cluster-service Cluster",
+			wantErr:                             true,
+			wantErrContain:                      "failed to update cluster-service Cluster",
+			minimumReconcileTimeCooldownChecker: &alwaysSyncCooldownChecker{},
 		},
 		{
 			name:              "when CS autoscaler update returns unrelated bad request error error is propagated",
@@ -239,8 +248,14 @@ func TestClusterUpdateDispatchSyncer_SyncOnce(t *testing.T) {
 					UpdateClusterAutoscaler(gomock.Any(), csID, gomock.Any()).
 					Return(nil, newFakeOCMUnrelatedBadRequestError())
 			},
-			wantErr:        true,
-			wantErrContain: "failed to update cluster-service ClusterAutoscaler",
+			wantErr:                             true,
+			wantErrContain:                      "failed to update cluster-service ClusterAutoscaler",
+			minimumReconcileTimeCooldownChecker: &alwaysSyncCooldownChecker{},
+		},
+		{
+			name:                                "minimum reconcile cooldown prevents sync",
+			cluster:                             newTestCluster(),
+			minimumReconcileTimeCooldownChecker: &neverSyncCooldownChecker{},
 		},
 	}
 
@@ -259,10 +274,11 @@ func TestClusterUpdateDispatchSyncer_SyncOnce(t *testing.T) {
 			}
 
 			syncer := &clusterClusterServiceUpdateDispatchSyncer{
-				cooldownChecker:      &alwaysSyncCooldownChecker{},
-				clusterLister:        newFakeClusterLister(tc.cluster),
-				resourcesDBClient:    mockResourcesDB,
-				clusterServiceClient: mockCSClient,
+				cooldownChecker:                     &alwaysSyncCooldownChecker{},
+				minimumReconcileTimeCooldownChecker: tc.minimumReconcileTimeCooldownChecker,
+				clusterLister:                       newFakeClusterLister(tc.cluster),
+				resourcesDBClient:                   mockResourcesDB,
+				clusterServiceClient:                mockCSClient,
 			}
 
 			key := controllerutils.HCPClusterKey{
@@ -334,6 +350,12 @@ type alwaysSyncCooldownChecker struct{}
 
 func (c *alwaysSyncCooldownChecker) CanSync(_ context.Context, _ any) bool {
 	return true
+}
+
+type neverSyncCooldownChecker struct{}
+
+func (c *neverSyncCooldownChecker) CanSync(_ context.Context, _ any) bool {
+	return false
 }
 
 type fakeClusterLister struct {

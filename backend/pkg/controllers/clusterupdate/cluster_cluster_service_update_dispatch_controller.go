@@ -41,6 +41,10 @@ type clusterClusterServiceUpdateDispatchSyncer struct {
 	clusterLister        listers.ClusterLister
 	resourcesDBClient    database.ResourcesDBClient
 	clusterServiceClient ocm.ClusterServiceClientSpec
+
+	// minimumReconcileTimeCooldownChecker ensures we don't hotloop from any source,
+	// by ensuring that we don't reconcile more often than the cooldown time in it.
+	minimumReconcileTimeCooldownChecker controllerutil.CooldownChecker
 }
 
 var _ controllerutils.ClusterSyncer = (*clusterClusterServiceUpdateDispatchSyncer)(nil)
@@ -76,10 +80,13 @@ func NewClusterClusterServiceUpdateDispatchSyncer(
 	clusterLister listers.ClusterLister,
 ) controllerutils.ClusterSyncer {
 	return &clusterClusterServiceUpdateDispatchSyncer{
-		cooldownChecker:      controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
-		clusterLister:        clusterLister,
-		resourcesDBClient:    resourcesDBClient,
-		clusterServiceClient: clusterServiceClient,
+		cooldownChecker: controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
+		// We set minimumReconcileTimeCooldownChecker so that SyncOnce is not executed
+		// more than once per minute.
+		minimumReconcileTimeCooldownChecker: controllerutil.NewTimeBasedCooldownChecker(1 * time.Minute),
+		clusterLister:                       clusterLister,
+		resourcesDBClient:                   resourcesDBClient,
+		clusterServiceClient:                clusterServiceClient,
 	}
 }
 
@@ -102,6 +109,15 @@ func (c *clusterClusterServiceUpdateDispatchSyncer) CooldownChecker() controller
 
 func (c *clusterClusterServiceUpdateDispatchSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
 	logger := utils.LoggerFromContext(ctx)
+
+	// Because this controller ends up calling Cluster Service each time it's reconciled and it's reconciled
+	// while the resource exists and it is not being deleted, we establish a minimum reconcile time cooldown
+	// to avoid putting too much pressure on Cluster Service.
+	// TODO in the future, we could remove this cooldown checker by persisting a hash of the update dispatch configuration
+	// sent to Cluster Service and checking if it has changed since the last time we sent it.
+	if !c.minimumReconcileTimeCooldownChecker.CanSync(ctx, key) {
+		return nil
+	}
 
 	cachedCluster, err := c.clusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if database.IsNotFoundError(err) {
