@@ -879,20 +879,38 @@ func TestParseToAzureDurationString(t *testing.T) {
 
 func TestSeverityFor(t *testing.T) {
 	tests := []struct {
-		labels   map[string]*string
-		expected *int32
+		labels    map[string]*string
+		expected  *int32
+		expectErr bool
 	}{
-		{map[string]*string{"severity": ptr.To("critical")}, ptr.To(int32(2))},
-		{map[string]*string{"severity": ptr.To("warning")}, ptr.To(int32(3))},
-		{map[string]*string{"severity": ptr.To("info")}, ptr.To(int32(4))},
-		{map[string]*string{"severity": ptr.To("unknown")}, ptr.To(int32(4))},
-		{map[string]*string{}, nil},
-		{map[string]*string{"other": ptr.To("value")}, nil},
+		// Canonical Azure CEN vocabulary: the severity label is the IcM Sev number.
+		{map[string]*string{"severity": ptr.To("2")}, ptr.To(int32(2)), false},
+		{map[string]*string{"severity": ptr.To("2.5")}, ptr.To(int32(25)), false},
+		{map[string]*string{"severity": ptr.To("25")}, ptr.To(int32(25)), false},
+		{map[string]*string{"severity": ptr.To("3")}, ptr.To(int32(3)), false},
+		{map[string]*string{"severity": ptr.To("4")}, ptr.To(int32(4)), false},
+		// Deprecated vocabulary, still accepted.
+		{map[string]*string{"severity": ptr.To("critical")}, ptr.To(int32(2)), false},
+		{map[string]*string{"severity": ptr.To("warning")}, ptr.To(int32(3)), false},
+		{map[string]*string{"severity": ptr.To("info")}, ptr.To(int32(4)), false},
+		// "1" (Sev 1) is rejected: Azure CEN reserves Sev 1 for declared incidents.
+		{map[string]*string{"severity": ptr.To("1")}, nil, true},
+		// Unknown values fail fast instead of silently defaulting to Sev 4.
+		{map[string]*string{"severity": ptr.To("unknown")}, nil, true},
+		// No severity label: nil, no error.
+		{map[string]*string{}, nil, false},
+		{map[string]*string{"other": ptr.To("value")}, nil, false},
 	}
 
 	for _, tt := range tests {
 		t.Run(fmt.Sprintf("labels_%v", tt.labels), func(t *testing.T) {
-			result := severityFor(tt.labels)
+			result, err := severityFor(tt.labels)
+			if tt.expectErr {
+				require.Error(t, err)
+				assert.Nil(t, result)
+				return
+			}
+			require.NoError(t, err)
 			if tt.expected == nil {
 				assert.Nil(t, result)
 			} else {

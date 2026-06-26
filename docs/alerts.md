@@ -52,7 +52,7 @@ spec:
         sum by (cluster) (rate(errors_total{namespace="aro-hcp"}[5m])) > 0.05
       for: 10m
       labels:
-        severity: warning
+        severity: "3"
       annotations:
         summary: 'Short title for the alert'
         description: 'Detailed description. Can reference labels: {{ $labels.cluster }} and value: {{ $value }}.'
@@ -65,7 +65,7 @@ spec:
 |---|---|
 | `alert` | Alert name in PascalCase (e.g. `BackendControllerPanic`) |
 | `expr` | PromQL expression that evaluates to true when the alert should fire |
-| `labels.severity` | One of `critical`, `warning`, `info` |
+| `labels.severity` | One of `2`, `2.5`, `3`, `4` (canonical, the IcM Sev number); `critical`, `warning`, `info` accepted but deprecated |
 | `annotations.summary` | Short title -- becomes the IcM incident title |
 | `annotations.description` | Detailed explanation, can use `{{ $labels.X }}` and `{{ $value }}` |
 | `annotations.runbook_url` | Link to the troubleshooting guide for this alert |
@@ -73,13 +73,16 @@ spec:
 
 ### Severity mapping
 
-The generator maps severity labels to Azure Monitor / IcM severity levels:
+Severity follows the Azure Common Engineering Naming (CEN) standard so alerts route cleanly into Microsoft IcM. It is set independently of burn rate: burn rate decides *when* an alert fires, severity decides *who* is paged at what urgency.
 
-| Label | Azure Severity | IcM Behavior |
+Use the explicit `2` / `2.5` / `3` / `4` values (the severity label is the IcM Sev number). The legacy `critical` / `warning` / `info` values are still accepted (deprecated). `1` is intentionally rejected by the generator: Azure CEN reserves Sev 1 for declared major incidents, so alerts must not self-classify as Sev 1. Any other value fails generation. The label is a string, so both `severity: "3"` and `severity: 3` are accepted (the generator parses the value as a string).
+
+| Label | IcM Severity | Urgency |
 |---|---|---|
-| `critical` | SEV 3 | Urgent, high business impact |
-| `warning` | SEV 3 | Urgent, high business impact |
-| `info` | SEV 4 | Not urgent, no SLA impact |
+| `2` (or `critical`) | SEV 2 | Needs immediate attention. |
+| `2.5` (or `25`) | SEV 2.5 | Needs attention at start of next shift. |
+| `3` (or `warning`) | SEV 3 | Needs prompt investigation. |
+| `4` (or `info`) | SEV 4 | Can wait; no immediate action required. |
 
 ### The `summary` annotation and IcM titles
 
