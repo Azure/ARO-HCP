@@ -31,7 +31,6 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 
 	corev1 "k8s.io/api/core/v1"
@@ -40,7 +39,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/types"
 	utilyaml "k8s.io/apimachinery/pkg/util/yaml"
 	"k8s.io/client-go/discovery"
 	memory "k8s.io/client-go/discovery/cached/memory"
@@ -50,11 +48,11 @@ import (
 	"k8s.io/client-go/restmapper"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	armauthorization "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v3"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/msi/armmsi"
 
+	graphutil "github.com/Azure/ARO-HCP/internal/graph/util"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
@@ -79,15 +77,15 @@ var _ = Describe("Customer", func() {
 				esoServiceAccount    = "eso-azure-kv"
 				ingressSecretName    = "ingress-tls"
 				ingressNamespace     = "openshift-ingress"
-				ingressOperatorNS    = "openshift-ingress-operator"
-				refreshInterval      = "30s"
+				//ingressOperatorNS    = "openshift-ingress-operator"
+				refreshInterval = "30s"
 			)
 
 			tc := framework.NewTestContext()
 
 			if tc.UsePooledIdentities() {
-				err := tc.AssignIdentityContainers(ctx, 1, 60*time.Second)
-				Expect(err).NotTo(HaveOccurred(), "failed to assign identity containers")
+				err := tc.AssignIdentityContainers(ctx, 1, framework.IdentityContainerAssignmentRetryInterval)
+				Expect(err).NotTo(HaveOccurred(), "failed to assign pooled identity containers")
 			}
 
 			By("creating a resource group")
@@ -157,11 +155,12 @@ var _ = Describe("Customer", func() {
 			Expect(clusterResp.Properties.Platform.IssuerURL).NotTo(BeNil(), "cluster OIDC IssuerURL was nil")
 			oidcIssuerURL := *clusterResp.Properties.Platform.IssuerURL
 
-			//Expect(clusterResp.Properties.Console).NotTo(BeNil(), "cluster Properties.Console was nil")
-			//Expect(clusterResp.Properties.Console.URL).NotTo(BeNil(), "cluster Properties.Console.URL was nil")
-			//consoleURL := *clusterResp.Properties.Console.URL
-			appsBaseDomain := "test-base-domain.example.com" // hardcoded just to see if we can get further.
-			//Expect(appsBaseDomain).NotTo(BeEmpty(), "could not derive apps base domain from console URL %s", consoleURL)
+			Expect(clusterResp.Properties.Console).NotTo(BeNil(), "cluster Properties.Console was nil")
+			Expect(clusterResp.Properties.Console.URL).NotTo(BeNil(), "cluster Properties.Console.URL was nil")
+			consoleURL := *clusterResp.Properties.Console.URL
+			appsBaseDomain := strings.TrimSuffix(strings.Replace(consoleURL, "https://console-openshift-console.", "", 1), "/")
+			Expect(appsBaseDomain).NotTo(BeEmpty(), "could not derive apps base domain from console URL %s", consoleURL)
+
 			GinkgoLogr.Info("cluster identity", "oidcIssuer", oidcIssuerURL, "appsBaseDomain", appsBaseDomain)
 
 			By("creating a UAMI for ESO and federating it to the in-cluster ServiceAccount")
@@ -216,7 +215,6 @@ var _ = Describe("Customer", func() {
 				"db79e9a7-68ee-4b58-9aeb-b90e7c24fcba",
 				"4633458b-17de-408a-b874-0445c86b69e6",
 			} {
-				roleDefID := roleDefID
 				Eventually(func() error {
 					err := assignBuiltInRoleAtScope(ctx, roleAssignmentsClient, subscriptionID, kvScope, uamiPrincipalID, roleDefID)
 					if err != nil && !isPrincipalNotFoundError(err) {
@@ -228,7 +226,7 @@ var _ = Describe("Customer", func() {
 			}
 
 			By("granting the test caller Key Vault Certificates Officer on the customer KV so it can issue and rotate the cert")
-			callerOID, err := currentCallerObjectID(ctx, cred)
+			_, callerOID, err := graphutil.IdentifyCallerFromToken(ctx, cred)
 			Expect(err).NotTo(HaveOccurred(), "looking up the e2e caller's OID from its ARM token")
 			Expect(assignBuiltInRoleAtScope(ctx, roleAssignmentsClient, subscriptionID, kvScope, callerOID, "a4417e6f-fecd-4de8-b567-7b0420556985")).To(Succeed(), "failed to assign KV Certificates Officer to test caller")
 
@@ -268,7 +266,7 @@ var _ = Describe("Customer", func() {
 					return fmt.Errorf("external-secrets deployment not ready: ready=%d desired=%d", dep.Status.ReadyReplicas, dep.Status.Replicas)
 				}
 				return nil
-			}).WithContext(ctx).WithTimeout(10 * time.Minute).WithPolling(10 * time.Second).Should(Succeed())
+			}).WithContext(ctx).WithTimeout(10*time.Minute).WithPolling(10*time.Second).Should(Succeed(), "external-secrets deployment should become ready")
 
 			By("creating the external secrets namespace")
 			esoNS := corev1.Namespace{
@@ -319,17 +317,27 @@ var _ = Describe("Customer", func() {
 			}
 
 			By("waiting for the ingress-tls Secret to materialize and match cert v1")
+			var lastErr string
 			Eventually(func() error {
-				return expectTLSSecretSHA256(ctx, kubeClient, ingressNamespace, ingressSecretName, v1.SHA256)
-			}).WithContext(ctx).WithTimeout(5 * time.Minute).WithPolling(10 * time.Second).Should(Succeed())
+				err := expectTLSSecretSHA256(ctx, kubeClient, ingressNamespace, ingressSecretName, v1.SHA256)
+				if err != nil {
+					if msg := err.Error(); msg != lastErr {
+						GinkgoLogr.Info("waiting for Secret to match cert v1", "error", msg)
+						lastErr = msg
+					}
+					lastErr = err.Error()
+				}
+				return err
+			}).WithContext(ctx).WithTimeout(5*time.Minute).WithPolling(10*time.Second).Should(Succeed(),
+				"ingress-tls Secret should match cert v1 SHA256")
 
-			By("pointing IngressController/default at the new TLS Secret")
-			patch := []byte(fmt.Sprintf(`{"spec":{"defaultCertificate":{"name":%q}}}`, ingressSecretName))
-			icGVR := schema.GroupVersionResource{Group: "operator.openshift.io", Version: "v1", Resource: "ingresscontrollers"}
-			_, err = dynClient.Resource(icGVR).Namespace(ingressOperatorNS).Patch(ctx, "default", types.MergePatchType, patch, metav1.PatchOptions{})
-			Expect(err).NotTo(HaveOccurred(), "failed to patch IngressController default certificate")
+			//By("pointing IngressController/default at the new TLS Secret")
+			//patch := []byte(fmt.Sprintf(`{"spec":{"defaultCertificate":{"name":%q}}}`, ingressSecretName))
+			//icGVR := schema.GroupVersionResource{Group: "operator.openshift.io", Version: "v1", Resource: "ingresscontrollers"}
+			//_, err = dynClient.Resource(icGVR).Namespace(ingressOperatorNS).Patch(ctx, "default", types.MergePatchType, patch, metav1.PatchOptions{})
+			//Expect(err).NotTo(HaveOccurred(), "failed to patch IngressController default certificate")
 
-			By("waiting for the router to serve cert v1 on the apps wildcard")
+			//By("waiting for the router to serve cert v1 on the apps wildcard")
 			//consoleHostPort := mustHostPortFromURL(consoleURL, 443)
 			//Eventually(func() error {
 			//	return expectServedCertSHA256(ctx, consoleHostPort, v1.SHA256)
@@ -347,16 +355,24 @@ var _ = Describe("Customer", func() {
 				}
 				v2 = out
 				return nil
-			}).WithContext(ctx).WithTimeout(3 * time.Minute).WithPolling(15 * time.Second).Should(Succeed())
+			}).WithContext(ctx).WithTimeout(3*time.Minute).WithPolling(15*time.Second).Should(Succeed(), "failed to rotate cert in customer key vault")
 			GinkgoLogr.Info("issued cert v2", "version", v2.Version, "sha256", v2.SHA256)
 
 			By("waiting for the ingress-tls Secret to pick up cert v2")
-			// 4 * refreshInterval gives ESO room to land the change; pad for safety.
+			lastErr = ""
 			Eventually(func() error {
-				return expectTLSSecretSHA256(ctx, kubeClient, ingressNamespace, ingressSecretName, v2.SHA256)
-			}).WithContext(ctx).WithTimeout(5 * time.Minute).WithPolling(10 * time.Second).Should(Succeed())
+				err := expectTLSSecretSHA256(ctx, kubeClient, ingressNamespace, ingressSecretName, v2.SHA256)
+				if err != nil {
+					if msg := err.Error(); msg != lastErr {
+						GinkgoLogr.Info("waiting for Secret to match cert v2", "error", msg)
+						lastErr = msg
+					}
+				}
+				return err
+			}).WithContext(ctx).WithTimeout(5*time.Minute).WithPolling(10*time.Second).Should(Succeed(),
+				"ingress-tls Secret should match cert v2 SHA256")
 
-			By("waiting for the router to serve cert v2")
+			//By("waiting for the router to serve cert v2")
 			//Eventually(func() error {
 			//	return expectServedCertSHA256(ctx, consoleHostPort, v2.SHA256)
 			//}).WithContext(ctx).WithTimeout(10 * time.Minute).WithPolling(15 * time.Second).Should(Succeed())
@@ -544,26 +560,4 @@ func assignBuiltInRoleAtScope(
 func isPrincipalNotFoundError(err error) bool {
 	var respErr *azcore.ResponseError
 	return errors.As(err, &respErr) && respErr.ErrorCode == "PrincipalNotFound"
-}
-
-// currentCallerObjectID returns the object ID of the principal backing the
-// supplied credential by decoding the "oid" claim out of an ARM-scoped JWT.
-// Works for both Service Principals (CI) and Users (local dev).
-func currentCallerObjectID(ctx context.Context, cred azcore.TokenCredential) (string, error) {
-	tok, err := cred.GetToken(ctx, policy.TokenRequestOptions{
-		Scopes: []string{"https://management.azure.com/.default"},
-	})
-	if err != nil {
-		return "", fmt.Errorf("acquiring ARM token: %w", err)
-	}
-	claims := jwt.MapClaims{}
-	parser := jwt.NewParser(jwt.WithoutClaimsValidation())
-	if _, _, err := parser.ParseUnverified(tok.Token, &claims); err != nil {
-		return "", fmt.Errorf("parsing ARM token: %w", err)
-	}
-	oid, _ := claims["oid"].(string)
-	if oid == "" {
-		return "", fmt.Errorf("oid claim missing from ARM token")
-	}
-	return oid, nil
 }

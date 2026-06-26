@@ -40,7 +40,7 @@ sequenceDiagram
     Test->>AKV: Create cert v1 with rotation policy
     Test->>ARM: Create UAMI + federated cred to cluster OIDC issuer
     Test->>ARM: Assign KV Certificate User / KV Secrets User to UAMI
-    Test->>HC: Install ESO (helm) into external-secrets ns
+    Test->>HC: Install ESO (pinned upstream manifest) into external-secrets ns
     Test->>HC: Apply ClusterSecretStore + ExternalSecret + ServiceAccount
     Test->>HC: Eventually: Secret openshift-ingress/ingress-tls is type=tls and tls.crt matches v1 SHA256
     Test->>HC: Patch IngressController/default spec.defaultCertificate
@@ -60,11 +60,11 @@ Follow the pattern in
 
 - `tc := framework.NewTestContext()`
 - `tc.NewResourceGroup(ctx, "ingress-cert-kv", tc.Location())`
-- `framework.NewDefaultClusterParams()`, set `ClusterName = "ingress-cert-kv"`,
+- `framework.NewDefaultClusterParams20240610()`, set `ClusterName = "ingress-cert-kv"`,
   managed RG = `<rg>-managed`.
-- `tc.CreateClusterCustomerResources(ctx, ...)` with
+- `tc.CreateClusterCustomerResources20240610(ctx, ...)` with
   `framework.RBACScopeResourceGroup`.
-- `framework.CreateHCPCluster20251223AndWait(...)` with the 45-min timeout
+- `tc.CreateHCPClusterFromParam20240610(...)` with the 45-min timeout
   per [test/AGENTS.md](../../test/AGENTS.md).
 - `tc.CreateNodePoolFromParam(ctx, ...)` with 2 replicas.
 - `tc.GetAdminRESTConfigForHCPCluster(...)` — 10-min timeout per AGENTS.md.
@@ -134,9 +134,9 @@ Then apply (as raw YAML built in-test):
 
 ### 5. Verify the Secret materializes and matches AKV v1
 
-Use the pattern from
-[`test/e2e/cluster_pullsecret.go`](../../test/e2e/cluster_pullsecret.go)'s
-`eventuallyVerify` (referenced in [test/AGENTS.md](../../test/AGENTS.md#logging-in-eventuallypolling-tests))
+Use the delta-only logging pattern from
+[`test/util/verifiers/eventually.go`](../../test/util/verifiers/eventually.go)'s
+`EventuallyVerify` (referenced in [test/AGENTS.md](../../test/AGENTS.md#logging-in-eventuallypolling-tests))
 so we get delta-only logging:
 
 - `Eventually` (timeout 5 min, poll 10s):
