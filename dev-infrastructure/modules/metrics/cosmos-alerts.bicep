@@ -13,7 +13,7 @@ resource normalizedRUConsumptionHigh 'Microsoft.Insights/metricAlerts@2018-03-01
   name: 'Cosmos DB Normalized RU Consumption High - ${cosmosDbName}'
   location: 'global'
   properties: {
-    description: 'Cosmos DB normalized RU consumption is above 70% averaged over a 15-minute window, evaluated every 5 minutes. Investigate workload patterns or increase provisioned throughput. https://learn.microsoft.com/azure/cosmos-db/monitor-normalized-request-units'
+    description: 'TEMPORARY: Threshold lowered to 3% to validate alerting fires. Revert before merge. Cosmos DB normalized RU consumption is above 70% averaged over a 15-minute window, evaluated every 5 minutes. Investigate workload patterns or increase provisioned throughput. https://learn.microsoft.com/azure/cosmos-db/monitor-normalized-request-units'
     severity: 3
     enabled: enabled
     autoMitigate: true
@@ -26,7 +26,7 @@ resource normalizedRUConsumptionHigh 'Microsoft.Insights/metricAlerts@2018-03-01
       'odata.type': 'Microsoft.Azure.Monitor.SingleResourceMultipleMetricCriteria'
       allOf: [
         {
-          threshold: 70
+          threshold: 3
           name: 'NormalizedRUConsumptionCriteria'
           metricName: 'NormalizedRUConsumption'
           operator: 'GreaterThan'
