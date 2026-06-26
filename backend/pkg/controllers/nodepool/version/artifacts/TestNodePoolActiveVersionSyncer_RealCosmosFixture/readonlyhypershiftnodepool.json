@@ -1,0 +1,27 @@
+{
+  "properties": {
+    "cosmosMetadata": {
+      "resourceId": "/subscriptions/e8c5a115-842d-4d7e-98ad-cfb2c50b209e/resourceGroups/rg-np-version-upgrade-pckjw8-79qhmc/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/np-version-upgrade-cluster-pckjw8/nodePools/npupgrade-4-20/hcpReadDesires/readonlyHypershiftNodePool",
+      "partitionKey": "management-cluster-resource-id"
+    },
+    "status": {
+      "kubeContent": {
+        "apiVersion": "hypershift.openshift.io/v1beta1",
+        "kind": "NodePool",
+        "metadata": {
+          "name": "npupgrade-4-20"
+        },
+        "status": {
+          "nodesInfo": {
+            "nodeVersions": [
+              {
+                "ocpVersion": "4.20.24",
+                "nodeCount": 2
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}

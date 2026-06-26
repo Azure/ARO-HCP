@@ -1,0 +1,16 @@
+{
+  "properties": {
+    "cosmosMetadata": {
+      "resourceId": "/subscriptions/e8c5a115-842d-4d7e-98ad-cfb2c50b209e/resourceGroups/rg-np-version-upgrade-pckjw8-79qhmc/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/np-version-upgrade-cluster-pckjw8",
+      "partitionKey": "e8c5a115-842d-4d7e-98ad-cfb2c50b209e"
+    },
+    "id": "/subscriptions/e8c5a115-842d-4d7e-98ad-cfb2c50b209e/resourceGroups/rg-np-version-upgrade-pckjw8-79qhmc/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/np-version-upgrade-cluster-pckjw8",
+    "name": "np-version-upgrade-cluster-pckjw8",
+    "type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters",
+    "location": "eastus",
+    "serviceProviderProperties": {
+      "provisioningState": "Succeeded",
+      "clusterServiceId": "/api/clusters_mgmt/v1/clusters/test-cluster-id"
+    }
+  }
+}

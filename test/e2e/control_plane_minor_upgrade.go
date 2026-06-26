@@ -34,7 +34,7 @@ import (
 
 	cvocincinnati "github.com/openshift/cluster-version-operator/pkg/cincinnati"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/upgradecontrollers"
+	clusterversion "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/version"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/cincinnati"
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
@@ -79,7 +79,7 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to get versions in previous minor %s on channel %s", previousMinor.String(), channelGroup)
 
 			for _, possibleInstallVersion := range possibleInstallVersions {
-				possibleUpgradeVersions, err := upgradecontrollers.FindAllUpgradeTargetVersionsInMinor(ctx, cincinnatiClient, channelGroup, targetVer, []semver.Version{possibleInstallVersion})
+				possibleUpgradeVersions, err := clusterversion.FindAllUpgradeTargetVersionsInMinor(ctx, cincinnatiClient, channelGroup, targetVer, []semver.Version{possibleInstallVersion})
 				if cincinnati.IsCincinnatiVersionNotFoundError(err) {
 					Skip(fmt.Sprintf("Cincinnati returned version not found for target minor %s on channel %s: %v",
 						targetVer.String(),
@@ -88,7 +88,7 @@ var _ = Describe("Customer", func() {
 				Expect(err).NotTo(HaveOccurred(), "failed to find upgrade targets in minor %s for install version %s", targetVer.String(), possibleInstallVersion.String())
 
 				for _, possibleUpgradeVersion := range possibleUpgradeVersions {
-					possibleNextUpgradeVersions, err := upgradecontrollers.FindAllUpgradeTargetVersionsInMinor(ctx, cincinnatiClient, channelGroup, targetPlusOneVer, []semver.Version{possibleUpgradeVersion})
+					possibleNextUpgradeVersions, err := clusterversion.FindAllUpgradeTargetVersionsInMinor(ctx, cincinnatiClient, channelGroup, targetPlusOneVer, []semver.Version{possibleUpgradeVersion})
 					if cincinnati.IsCincinnatiVersionNotFoundError(err) {
 						// in this case we allow it because without a 4.y+2, we allow any 4.y+1
 						installVersion = &possibleInstallVersion

@@ -1,0 +1,217 @@
+// Copyright 2026 Microsoft Corporation
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package properties
+
+import (
+	"context"
+	"fmt"
+	"time"
+
+	"k8s.io/utils/ptr"
+
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
+	"github.com/Azure/ARO-HCP/backend/pkg/informers"
+	"github.com/Azure/ARO-HCP/backend/pkg/listers"
+	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/arm"
+	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
+	"github.com/Azure/ARO-HCP/internal/database"
+	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
+	"github.com/Azure/ARO-HCP/internal/ocm"
+	"github.com/Azure/ARO-HCP/internal/utils"
+)
+
+// identityMigrationSyncer is a Cluster syncer that migrates cluster identity information
+// from Cluster Service to Cosmos DB. It ensures that the Identity.UserAssignedIdentities
+// field is populated for clusters that were created before all identity state was held in Cosmos.
+type identityMigrationSyncer struct {
+	cooldownChecker controllerutil.CooldownChecker
+
+	clusterLister        listers.ClusterLister
+	resourcesDBClient    database.ResourcesDBClient
+	clusterServiceClient ocm.ClusterServiceClientSpec
+}
+
+var _ controllerutils.ClusterSyncer = (*identityMigrationSyncer)(nil)
+
+// NewIdentityMigrationController creates a new controller that migrates identity information
+// from Cluster Service to Cosmos DB.
+// It periodically checks each cluster and populates the Identity.UserAssignedIdentities
+// field if it is not set, using GetClusterServiceUserAssignedIdentities to extract the identity data.
+func NewIdentityMigrationController(
+	resourcesDBClient database.ResourcesDBClient,
+	clusterServiceClient ocm.ClusterServiceClientSpec,
+	activeOperationLister listers.ActiveOperationLister,
+	informers informers.BackendInformers,
+	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
+) controllerutils.Controller {
+	_, clusterLister := informers.Clusters()
+
+	syncer := &identityMigrationSyncer{
+		cooldownChecker:      controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
+		clusterLister:        clusterLister,
+		resourcesDBClient:    resourcesDBClient,
+		clusterServiceClient: clusterServiceClient,
+	}
+
+	controller := controllerutils.NewClusterWatchingController(
+		"IdentityMigration",
+		resourcesDBClient,
+		informers,
+		kubeApplierInformers,
+		60*time.Minute, // Check every 60 minutes
+		syncer,
+	)
+
+	return controller
+}
+
+func (c *identityMigrationSyncer) CooldownChecker() controllerutil.CooldownChecker {
+	return c.cooldownChecker
+}
+
+func (c *identityMigrationSyncer) NeedsWork(ctx context.Context, existingCluster *api.HCPOpenShiftCluster) bool {
+	// Check if we have a cluster service ID to query
+	if existingCluster.ServiceProviderProperties.ClusterServiceID == nil || len(existingCluster.ServiceProviderProperties.ClusterServiceID.String()) == 0 {
+		return false
+	}
+
+	// Check if identity information needs to be migrated
+	// Records that have UserAssignedIdentities already have all the identity info stored in cosmos
+	// Records that don't have this information need to be migrated
+	if existingCluster.Identity == nil {
+		return true
+	}
+	if len(existingCluster.Identity.UserAssignedIdentities) == 0 {
+		return true
+	}
+
+	expectedIdentityResourceIDs := map[string]struct{}{}
+	for _, resourceID := range existingCluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators {
+		if resourceID != nil {
+			expectedIdentityResourceIDs[resourceID.String()] = struct{}{}
+		}
+	}
+	if serviceManagedIdentity := existingCluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity; serviceManagedIdentity != nil {
+		expectedIdentityResourceIDs[serviceManagedIdentity.String()] = struct{}{}
+	}
+
+	for operatorIdentityResourceIDString, userAssignedIdentity := range existingCluster.Identity.UserAssignedIdentities {
+		if userAssignedIdentity == nil || len(ptr.Deref(userAssignedIdentity.ClientID, "")) == 0 || len(ptr.Deref(userAssignedIdentity.PrincipalID, "")) == 0 {
+			// try to fill in the information.
+			return true
+		}
+
+		if _, ok := expectedIdentityResourceIDs[operatorIdentityResourceIDString]; !ok {
+			// need to prune
+			return true
+		}
+	}
+
+	for _, operatorIdentityResourceID := range existingCluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators {
+		if operatorIdentityResourceID == nil {
+			return true
+		}
+		if needsWorkForIdentityKey(existingCluster.Identity.UserAssignedIdentities, operatorIdentityResourceID.String()) {
+			return true
+		}
+	}
+	if serviceManagedIdentity := existingCluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity; serviceManagedIdentity != nil {
+		if needsWorkForIdentityKey(existingCluster.Identity.UserAssignedIdentities, serviceManagedIdentity.String()) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// needsWorkForIdentityKey returns true when the identity at key is missing or has empty
+// client/principal IDs, signalling that the migration controller should fill it in.
+func needsWorkForIdentityKey(userAssignedIdentities map[string]*arm.UserAssignedIdentity, key string) bool {
+	identity, ok := userAssignedIdentities[key]
+	if !ok || identity == nil {
+		return true
+	}
+	if len(ptr.Deref(identity.ClientID, "")) == 0 || len(ptr.Deref(identity.PrincipalID, "")) == 0 {
+		return true
+	}
+	return false
+}
+
+// SyncOnce performs a single reconciliation of cluster identity information.
+// It checks if the Identity.UserAssignedIdentities field is unset,
+// and if so, fetches the values from Cluster Service using
+// GetClusterServiceUserAssignedIdentities and updates Cosmos with
+// the Identity.UserAssignedIdentities only.
+func (c *identityMigrationSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
+	logger := utils.LoggerFromContext(ctx)
+
+	// do the super cheap cache check first
+	cachedCluster, err := c.clusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
+	if database.IsNotFoundError(err) {
+		// we'll be re-fired if it is created again
+		return nil
+	}
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to get cluster from cache: %w", err))
+	}
+	if !c.NeedsWork(ctx, cachedCluster) {
+		// if the cache doesn't need work, then we'll be retriggered if those values change when the cache updates.
+		// if the values don't change, then we still have no work to do.
+		return nil
+	}
+
+	// Get the cluster from Cosmos
+	clusterCRUD := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName)
+	existingCluster, err := clusterCRUD.Get(ctx, key.HCPClusterName)
+	if database.IsNotFoundError(err) {
+		return nil // cluster doesn't exist, no work to do
+	}
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to get Cluster: %w", err))
+	}
+	// check if we need to do work again. Sometimes the live data is ahead of the cache and obviates the need to do any work
+	if !c.NeedsWork(ctx, existingCluster) {
+		return nil
+	}
+
+	// Fetch the cluster from Cluster Service
+	csCluster, err := c.clusterServiceClient.GetCluster(ctx, *existingCluster.ServiceProviderProperties.ClusterServiceID)
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to get cluster from Cluster Service: %w", err))
+	}
+
+	// Use GetClusterServiceUserAssignedIdentities on a deep copy to extract identity data
+	userAssignedIdentities := ocm.GetClusterServiceUserAssignedIdentities(csCluster)
+	if len(userAssignedIdentities) == 0 {
+		// nothing to set
+		return nil
+	}
+
+	// Only assign the Identity.UserAssignedIdentities from the converted cluster
+	replacement := existingCluster.DeepCopy()
+	if replacement.Identity == nil {
+		replacement.Identity = &arm.ManagedServiceIdentity{}
+	}
+	replacement.Identity.UserAssignedIdentities = userAssignedIdentities
+
+	// Write the updated cluster back to Cosmos
+	if _, err := clusterCRUD.Replace(ctx, replacement, nil); err != nil {
+		return utils.TrackError(fmt.Errorf("failed to replace Cluster: %w", err))
+	}
+
+	logger.Info("migrated identity information from Cluster Service")
+	return nil
+}

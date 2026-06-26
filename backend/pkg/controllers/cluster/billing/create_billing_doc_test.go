@@ -1,0 +1,356 @@
+// Copyright 2026 Microsoft Corporation
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package billing
+
+import (
+	"context"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/go-logr/logr/testr"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	clocktesting "k8s.io/utils/clock/testing"
+	"k8s.io/utils/ptr"
+
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
+	"github.com/Azure/ARO-HCP/backend/pkg/listertesting"
+	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/databasetesting"
+	"github.com/Azure/ARO-HCP/internal/utils"
+)
+
+const (
+	testSubscriptionID      = "00000000-0000-0000-0000-000000000000"
+	testResourceGroupName   = "test-rg"
+	testClusterName         = "test-cluster"
+	testClusterUID          = "billing-doc-id-001"
+	testTenantID            = "11111111-1111-1111-1111-111111111111"
+	testAzureLocation       = "eastus"
+	testClusterServiceIDStr = "/api/clusters_mgmt/v1/clusters/abc123"
+)
+
+func mustParseTime(s string) time.Time {
+	t, err := time.Parse(time.RFC3339, s)
+	if err != nil {
+		panic(err)
+	}
+	return t
+}
+
+func newTestClusterResourceID(t *testing.T) *azcorearm.ResourceID {
+	t.Helper()
+	resourceID, err := azcorearm.ParseResourceID(
+		"/subscriptions/" + testSubscriptionID +
+			"/resourceGroups/" + testResourceGroupName +
+			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName)
+	require.NoError(t, err)
+	return resourceID
+}
+
+func newTestSubscription() *arm.Subscription {
+	subResourceID := api.Must(azcorearm.ParseResourceID(
+		"/subscriptions/" + testSubscriptionID))
+	return &arm.Subscription{
+		CosmosMetadata: api.CosmosMetadata{
+			ResourceID:   subResourceID,
+			PartitionKey: strings.ToLower(subResourceID.SubscriptionID),
+		},
+		ResourceID: subResourceID,
+		State:      arm.SubscriptionStateRegistered,
+		Properties: &arm.SubscriptionProperties{
+			TenantId: ptr.To(testTenantID),
+		},
+	}
+}
+
+func newTestCluster(t *testing.T, clusterUID string, provisioningState arm.ProvisioningState, createdAt *time.Time) *api.HCPOpenShiftCluster {
+	t.Helper()
+	clusterResourceID := newTestClusterResourceID(t)
+	return &api.HCPOpenShiftCluster{
+		CosmosMetadata: arm.CosmosMetadata{
+			ResourceID:   clusterResourceID,
+			PartitionKey: strings.ToLower(clusterResourceID.SubscriptionID),
+		},
+		TrackedResource: arm.TrackedResource{
+			Resource: arm.Resource{
+				ID:   clusterResourceID,
+				Name: testClusterName,
+				Type: "Microsoft.RedHatOpenShift/hcpOpenShiftClusters",
+				SystemData: &arm.SystemData{
+					CreatedAt: createdAt,
+				},
+			},
+		},
+		ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
+			ProvisioningState: provisioningState,
+			ClusterUID:        clusterUID,
+			ClusterServiceID:  api.Ptr(api.Must(api.NewInternalID(testClusterServiceIDStr))),
+		},
+	}
+}
+
+func newTestClusterKey() controllerutils.HCPClusterKey {
+	return controllerutils.HCPClusterKey{
+		SubscriptionID:    testSubscriptionID,
+		ResourceGroupName: testResourceGroupName,
+		HCPClusterName:    testClusterName,
+	}
+}
+
+func TestCreateBillingDoc_SyncOnce(t *testing.T) {
+	fixedTime := mustParseTime("2025-01-20T10:30:00Z")
+	createdAt := mustParseTime("2025-01-15T10:30:00Z")
+
+	tests := []struct {
+		name        string
+		cluster     *api.HCPOpenShiftCluster
+		expectError bool
+		verify      func(t *testing.T, billing *databasetesting.MockBillingDBClient)
+	}{
+		{
+			name:        "creates billing document for succeeded cluster with ClusterUID",
+			cluster:     newTestCluster(t, testClusterUID, arm.ProvisioningStateSucceeded, &createdAt),
+			expectError: false,
+			verify: func(t *testing.T, billing *databasetesting.MockBillingDBClient) {
+				billingDocs := billing.GetBillingDocuments()
+				require.Len(t, billingDocs, 1)
+				doc := billingDocs[testClusterUID]
+				require.NotNil(t, doc)
+				assert.Equal(t, testClusterUID, doc.ID)
+				assert.Equal(t, testTenantID, doc.TenantID)
+				assert.Equal(t, testAzureLocation, doc.Location)
+				assert.Equal(t, createdAt, doc.CreationTime)
+			},
+		},
+		{
+			name:        "uses fallback time when CreatedAt is nil",
+			cluster:     newTestCluster(t, testClusterUID, arm.ProvisioningStateSucceeded, nil),
+			expectError: false,
+			verify: func(t *testing.T, billing *databasetesting.MockBillingDBClient) {
+				billingDocs := billing.GetBillingDocuments()
+				require.Len(t, billingDocs, 1)
+				doc := billingDocs[testClusterUID]
+				require.NotNil(t, doc)
+				assert.Equal(t, fixedTime, doc.CreationTime, "should use fallback time when CreatedAt is nil")
+			},
+		},
+		{
+			name:        "skips cluster without ClusterUID",
+			cluster:     newTestCluster(t, "", arm.ProvisioningStateSucceeded, &createdAt),
+			expectError: false,
+			verify: func(t *testing.T, billing *databasetesting.MockBillingDBClient) {
+				billingDocs := billing.GetBillingDocuments()
+				assert.Empty(t, billingDocs, "no billing document should be created when ClusterUID is empty")
+			},
+		},
+		{
+			name:        "skips cluster not in Succeeded state",
+			cluster:     newTestCluster(t, testClusterUID, arm.ProvisioningStateProvisioning, &createdAt),
+			expectError: false,
+			verify: func(t *testing.T, billing *databasetesting.MockBillingDBClient) {
+				billingDocs := billing.GetBillingDocuments()
+				assert.Empty(t, billingDocs, "no billing document should be created for non-succeeded cluster")
+			},
+		},
+		{
+			name:        "skips cluster in Failed state",
+			cluster:     newTestCluster(t, testClusterUID, arm.ProvisioningStateFailed, &createdAt),
+			expectError: false,
+			verify: func(t *testing.T, billing *databasetesting.MockBillingDBClient) {
+				billingDocs := billing.GetBillingDocuments()
+				assert.Empty(t, billingDocs, "no billing document should be created for failed cluster")
+			},
+		},
+		{
+			name:        "idempotent when billing document already exists",
+			cluster:     newTestCluster(t, testClusterUID, arm.ProvisioningStateSucceeded, &createdAt),
+			expectError: false,
+			verify:      nil, // covered by setup - billing doc pre-seeded, second sync should not error
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.Background()
+			ctx = utils.ContextWithLogger(ctx, testr.New(t))
+
+			subscription := newTestSubscription()
+			resources := []any{tt.cluster, subscription}
+
+			mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, resources)
+			require.NoError(t, err)
+			mockBillingDBClient := databasetesting.NewMockBillingDBClient()
+
+			controller := &createBillingDoc{
+				clock:             clocktesting.NewFakePassiveClock(fixedTime),
+				azureLocation:     testAzureLocation,
+				resourcesDBClient: mockResourcesDBClient,
+				billingDBClient:   mockBillingDBClient,
+				clusterLister: &listertesting.SliceClusterLister{
+					Clusters: []*api.HCPOpenShiftCluster{tt.cluster},
+				},
+				billingLister: &listertesting.SliceBillingLister{
+					BillingDocuments: []*database.BillingDocument{},
+				},
+			}
+
+			err = controller.SyncOnce(ctx, newTestClusterKey())
+
+			if tt.expectError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+
+			if tt.verify != nil {
+				tt.verify(t, mockBillingDBClient)
+			}
+		})
+	}
+}
+
+func TestCreateBillingDoc_Idempotent(t *testing.T) {
+	fixedTime := mustParseTime("2025-01-20T10:30:00Z")
+	createdAt := mustParseTime("2025-01-15T10:30:00Z")
+
+	ctx := context.Background()
+	ctx = utils.ContextWithLogger(ctx, testr.New(t))
+
+	cluster := newTestCluster(t, testClusterUID, arm.ProvisioningStateSucceeded, &createdAt)
+	subscription := newTestSubscription()
+
+	mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, subscription})
+	require.NoError(t, err)
+	mockBillingDBClient := databasetesting.NewMockBillingDBClient()
+
+	// Setup slice cluster lister (cache)
+	clusterLister := &listertesting.SliceClusterLister{
+		Clusters: []*api.HCPOpenShiftCluster{cluster},
+	}
+
+	controller := &createBillingDoc{
+		clock:             clocktesting.NewFakePassiveClock(fixedTime),
+		azureLocation:     testAzureLocation,
+		resourcesDBClient: mockResourcesDBClient,
+		billingDBClient:   mockBillingDBClient,
+		clusterLister:     clusterLister,
+		billingLister: &listertesting.SliceBillingLister{
+			BillingDocuments: []*database.BillingDocument{},
+		},
+	}
+
+	key := newTestClusterKey()
+
+	// First sync creates the billing doc
+	err = controller.SyncOnce(ctx, key)
+	require.NoError(t, err)
+
+	billingDocs := mockBillingDBClient.GetBillingDocuments()
+	require.Len(t, billingDocs, 1)
+
+	// Second sync should succeed without error (idempotent - conflict handled)
+	err = controller.SyncOnce(ctx, key)
+	require.NoError(t, err)
+
+	billingDocs = mockBillingDBClient.GetBillingDocuments()
+	assert.Len(t, billingDocs, 1, "should still have exactly one billing document")
+}
+
+func TestCreateBillingDoc_ExistingBillingDocButMissingClusterRef(t *testing.T) {
+	fixedTime := mustParseTime("2025-01-20T10:30:00Z")
+	createdAt := mustParseTime("2025-01-15T10:30:00Z")
+
+	// Pre-seed billing doc to simulate a prior cycle that created it but
+	// failed to update the cluster's BillingDocumentCosmosID.
+	preSeedDoc := database.NewBillingDocument(testClusterUID, newTestClusterResourceID(t))
+	preSeedDoc.CreationTime = createdAt
+	preSeedDoc.Location = testAzureLocation
+	preSeedDoc.TenantID = testTenantID
+
+	tests := []struct {
+		name             string
+		cachedBillingDoc []*database.BillingDocument
+		seedInDB         bool
+	}{
+		{
+			name:             "billing doc found in database",
+			cachedBillingDoc: []*database.BillingDocument{},
+			seedInDB:         true,
+		},
+		{
+			name:             "billing doc found in cache",
+			cachedBillingDoc: []*database.BillingDocument{preSeedDoc},
+			seedInDB:         false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.Background()
+			ctx = utils.ContextWithLogger(ctx, testr.New(t))
+
+			// Cluster has ClusterUID but no BillingDocumentCosmosID.
+			cluster := newTestCluster(t, testClusterUID, arm.ProvisioningStateSucceeded, &createdAt)
+			assert.Empty(t, cluster.ServiceProviderProperties.BillingDocumentCosmosID)
+
+			subscription := newTestSubscription()
+
+			mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, subscription})
+			require.NoError(t, err)
+			mockBillingDBClient := databasetesting.NewMockBillingDBClient()
+
+			if tt.seedInDB {
+				err = mockBillingDBClient.BillingDocs(testSubscriptionID).Create(ctx, preSeedDoc)
+				require.NoError(t, err)
+			}
+
+			controller := &createBillingDoc{
+				clock:             clocktesting.NewFakePassiveClock(fixedTime),
+				azureLocation:     testAzureLocation,
+				resourcesDBClient: mockResourcesDBClient,
+				billingDBClient:   mockBillingDBClient,
+				clusterLister: &listertesting.SliceClusterLister{
+					Clusters: []*api.HCPOpenShiftCluster{cluster},
+				},
+				billingLister: &listertesting.SliceBillingLister{
+					BillingDocuments: tt.cachedBillingDoc,
+				},
+			}
+
+			err = controller.SyncOnce(ctx, newTestClusterKey())
+			require.NoError(t, err)
+
+			// Verify no new billing document was created.
+			billingDocs := mockBillingDBClient.GetBillingDocuments()
+			if tt.seedInDB {
+				assert.Len(t, billingDocs, 1, "should not create a second billing document")
+			}
+
+			// Verify the cluster's BillingDocumentCosmosID was updated.
+			clusterCRUD := mockResourcesDBClient.HCPClusters(testSubscriptionID, testResourceGroupName)
+			updatedCluster, err := clusterCRUD.Get(ctx, testClusterName)
+			require.NoError(t, err)
+			assert.Equal(t, testClusterUID, updatedCluster.ServiceProviderProperties.BillingDocumentCosmosID,
+				"cluster should have BillingDocumentCosmosID set to the existing billing doc ID")
+		})
+	}
+}

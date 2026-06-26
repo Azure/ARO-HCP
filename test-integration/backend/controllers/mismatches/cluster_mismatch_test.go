@@ -29,7 +29,7 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/mismatchcontrollers"
+	clustermismatch "github.com/Azure/ARO-HCP/backend/pkg/controllers/cluster/mismatch"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/test-integration/utils/controllertesthelpers"
 	"github.com/Azure/ARO-HCP/test-integration/utils/integrationutils"
@@ -55,7 +55,7 @@ func testClusterMismatchController(t *testing.T, withMock bool) {
 			ArtifactDir: api.Must(fs.Sub(artifacts, path.Join("artifacts/cluster"))),
 			ControllerInitializerFn: func(ctx context.Context, t *testing.T, input *controllertesthelpers.ControllerInitializationInput) (controller controllerutils.Controller, testMemory map[string]any) {
 				// nil BackendInformers: test drives SyncOnce directly; see controllerutils.NewClusterWatchingController.
-				return mismatchcontrollers.NewCosmosClusterMatchingController(utilsclock.RealClock{}, input.ResourcesDBClient, input.BillingDBClient, input.ClusterServiceClient, nil, nil),
+				return clustermismatch.NewCosmosClusterMatchingController(utilsclock.RealClock{}, input.ResourcesDBClient, input.BillingDBClient, input.ClusterServiceClient, nil, nil),
 					map[string]any{}
 			},
 			ControllerVerifierFn: func(ctx context.Context, t *testing.T, controller controllerutils.Controller, testMemory map[string]any, input *controllertesthelpers.ControllerInitializationInput) {
@@ -87,7 +87,7 @@ func testClusterMismatchController(t *testing.T, withMock bool) {
 			ArtifactDir: api.Must(fs.Sub(artifacts, path.Join("artifacts/cluster"))),
 			ControllerInitializerFn: func(ctx context.Context, t *testing.T, input *controllertesthelpers.ControllerInitializationInput) (controller controllerutils.Controller, testMemory map[string]any) {
 				// nil BackendInformers: test drives SyncOnce directly; see controllerutils.NewClusterWatchingController.
-				return mismatchcontrollers.NewCosmosClusterMatchingController(utilsclock.RealClock{}, input.ResourcesDBClient, input.BillingDBClient, input.ClusterServiceClient, nil, nil),
+				return clustermismatch.NewCosmosClusterMatchingController(utilsclock.RealClock{}, input.ResourcesDBClient, input.BillingDBClient, input.ClusterServiceClient, nil, nil),
 					map[string]any{}
 			},
 			ControllerVerifierFn: func(ctx context.Context, t *testing.T, controller controllerutils.Controller, testMemory map[string]any, input *controllertesthelpers.ControllerInitializationInput) {
