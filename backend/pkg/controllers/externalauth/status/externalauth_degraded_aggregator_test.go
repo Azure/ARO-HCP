@@ -30,8 +30,8 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	sharedstatus "github.com/Azure/ARO-HCP/backend/pkg/controllers/shared/status"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
+	sharedstatus "github.com/Azure/ARO-HCP/backend/pkg/controllers/shared/status"
 	"github.com/Azure/ARO-HCP/backend/pkg/listertesting"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"

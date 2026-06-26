@@ -24,8 +24,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilsclock "k8s.io/utils/clock"
 
-	sharedstatus "github.com/Azure/ARO-HCP/backend/pkg/controllers/shared/status"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
+	sharedstatus "github.com/Azure/ARO-HCP/backend/pkg/controllers/shared/status"
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
@@ -44,7 +44,7 @@ type nodePoolDegradedAggregator struct {
 	resourcesDBClient database.ResourcesDBClient
 	inertia           sharedstatus.Inertia
 	clock             utilsclock.PassiveClock
-	firstObservedBad *sharedstatus.FirstObservedBadCache
+	firstObservedBad  *sharedstatus.FirstObservedBadCache
 }
 
 var _ controllerutils.NodePoolSyncer = (*nodePoolDegradedAggregator)(nil)

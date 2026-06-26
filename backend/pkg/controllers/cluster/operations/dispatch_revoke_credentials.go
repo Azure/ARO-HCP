@@ -27,8 +27,8 @@ import (
 
 	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
-	sharedops "github.com/Azure/ARO-HCP/backend/pkg/controllers/shared/operations"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
+	sharedops "github.com/Azure/ARO-HCP/backend/pkg/controllers/shared/operations"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"

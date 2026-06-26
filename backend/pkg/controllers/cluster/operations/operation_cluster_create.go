@@ -34,8 +34,8 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/hypershift/api/hypershift/v1beta1"
 
-	sharedops "github.com/Azure/ARO-HCP/backend/pkg/controllers/shared/operations"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
+	sharedops "github.com/Azure/ARO-HCP/backend/pkg/controllers/shared/operations"
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/backend/pkg/maestrohelpers"

@@ -16,7 +16,6 @@ package operations
 
 import (
 	"strings"
-	"time"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
@@ -26,16 +25,6 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
 )
-
-// mustParseTime parses a time string in RFC3339 format and panics on error.
-// Use for test constants to make date values more readable.
-func mustParseTime(s string) time.Time {
-	t, err := time.Parse(time.RFC3339, s)
-	if err != nil {
-		panic(err)
-	}
-	return t
-}
 
 // Common test constants
 const (
