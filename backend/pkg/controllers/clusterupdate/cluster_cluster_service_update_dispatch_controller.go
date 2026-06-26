@@ -90,7 +90,7 @@ func NewClusterClusterServiceUpdateDispatchSyncer(
 	}
 }
 
-func clusterShouldProceed(cluster *api.HCPOpenShiftCluster) bool {
+func needsWork(cluster *api.HCPOpenShiftCluster) bool {
 	if cluster.ServiceProviderProperties.DeletionTimestamp != nil {
 		return false
 	}
@@ -110,11 +110,8 @@ func (c *clusterClusterServiceUpdateDispatchSyncer) CooldownChecker() controller
 func (c *clusterClusterServiceUpdateDispatchSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
 	logger := utils.LoggerFromContext(ctx)
 
-	// Because this controller ends up calling Cluster Service each time it's reconciled and it's reconciled
-	// while the resource exists and it is not being deleted, we establish a minimum reconcile time cooldown
-	// to avoid putting too much pressure on Cluster Service.
-	// TODO in the future, we could remove this cooldown checker by persisting a hash of the update dispatch configuration
-	// sent to Cluster Service and checking if it has changed since the last time we sent it.
+	// For now, we only allow one reconcile per minute. Once we have rolled out the hash persistence logic and we verify
+	// that it works correctly, we can remove this cooldown checker as the hash mechanism will avoid hotlooping.
 	if !c.minimumReconcileTimeCooldownChecker.CanSync(ctx, key) {
 		return nil
 	}
@@ -126,7 +123,7 @@ func (c *clusterClusterServiceUpdateDispatchSyncer) SyncOnce(ctx context.Context
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get cluster from cache: %w", err))
 	}
-	if !clusterShouldProceed(cachedCluster) {
+	if !needsWork(cachedCluster) {
 		return nil
 	}
 
@@ -138,7 +135,15 @@ func (c *clusterClusterServiceUpdateDispatchSyncer) SyncOnce(ctx context.Context
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get cluster: %w", err))
 	}
-	if !clusterShouldProceed(cluster) {
+	if !needsWork(cluster) {
+		return nil
+	}
+
+	desiredHash, err := ocm.ClusterUpdateDispatchConfigHashFromRP(cluster)
+	if err != nil {
+		return err
+	}
+	if cluster.ServiceProviderProperties.LastDispatchedClusterServiceUpdateDispatchConfigHash == desiredHash {
 		return nil
 	}
 
@@ -152,9 +157,6 @@ func (c *clusterClusterServiceUpdateDispatchSyncer) SyncOnce(ctx context.Context
 	if err != nil {
 		return err
 	}
-	if !needsUpdate {
-		return nil
-	}
 
 	desiredConfigJSON, err := ocm.ClusterUpdateDispatchConfigJSONFromRP(cluster)
 	if err != nil {
@@ -163,6 +165,25 @@ func (c *clusterClusterServiceUpdateDispatchSyncer) SyncOnce(ctx context.Context
 	actualConfigJSON, err := ocm.ClusterUpdateDispatchConfigJSONFromCS(clusterServiceCluster)
 	if err != nil {
 		return err
+	}
+
+	// If the hashes differ but the update dispatch config is the same, we persist the updated hash. This can happen
+	// when the resource is new or if persisting to Cosmos has failed after dispatching the update to Cluster Service in a
+	// previous reconcile.
+	if !needsUpdate {
+		logger.Info("update dispatch config is the same between RP and CS but the calculated hash differs from the stored hash. Persisting the updated hash.",
+			"clusterServiceID", clusterCSID.String(),
+			"desiredHash", desiredHash,
+			"desiredConfig", desiredConfigJSON,
+			"storedHash", cluster.ServiceProviderProperties.LastDispatchedClusterServiceUpdateDispatchConfigHash,
+		)
+
+		err = c.persistLastDispatchedClusterServiceUpdateDispatchConfigHash(ctx, clusterCRUD, cluster, desiredHash)
+		if err != nil {
+			return utils.TrackError(fmt.Errorf("failed to persist last dispatched cluster service update dispatch config hash: %w", err))
+		}
+
+		return nil
 	}
 
 	logger.Info("update dispatch config differs between RP and CS",
@@ -245,6 +266,36 @@ func (c *clusterClusterServiceUpdateDispatchSyncer) SyncOnce(ctx context.Context
 	}
 
 	logger.Info("requested cluster-service Cluster update", "clusterServiceID", clusterCSID.String())
+
+	err = c.persistLastDispatchedClusterServiceUpdateDispatchConfigHash(ctx, clusterCRUD, cluster, desiredHash)
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to persist last dispatched cluster service update dispatch config hash: %w", err))
+	}
+
+	logger.Info("persisted last dispatched cluster service update dispatch config hash", "clusterServiceID", clusterCSID.String(), "desiredHash", desiredHash)
+
+	return nil
+}
+
+func (c *clusterClusterServiceUpdateDispatchSyncer) persistLastDispatchedClusterServiceUpdateDispatchConfigHash(ctx context.Context, clusterCRUD database.HCPClusterCRUD, cluster *api.HCPOpenShiftCluster, desiredHash string) error {
+	if cluster.ServiceProviderProperties.LastDispatchedClusterServiceUpdateDispatchConfigHash == desiredHash {
+		return nil
+	}
+
+	replacement := cluster.DeepCopy()
+	replacement.ServiceProviderProperties.LastDispatchedClusterServiceUpdateDispatchConfigHash = desiredHash
+
+	_, err := clusterCRUD.Replace(ctx, replacement, nil)
+	if database.IsPreconditionFailedError(err) {
+		// if we have a conflict error, then we're guaranteed that our informer will eventually see an update and trigger us again.
+		// there is no need to report an error since the retry will happen when the reflector sees the update and puts an Update into the informer.
+		return nil
+	}
+
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to replace Cluster: %w", err))
+	}
+
 	return nil
 }
 

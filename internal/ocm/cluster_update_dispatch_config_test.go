@@ -42,11 +42,11 @@ func TestClusterUpdateDispatchConfigHash(t *testing.T) {
 		},
 	}
 
-	hash1, err := clusterUpdateDispatchConfigHash(base)
+	hash1, err := ClusterUpdateDispatchConfigHashFromRP(base)
 	require.NoError(t, err)
 	require.NotEmpty(t, hash1)
 
-	hash2, err := clusterUpdateDispatchConfigHash(base)
+	hash2, err := ClusterUpdateDispatchConfigHashFromRP(base)
 	require.NoError(t, err)
 	assert.Equal(t, hash1, hash2)
 
@@ -62,7 +62,7 @@ func TestClusterUpdateDispatchConfigHash(t *testing.T) {
 			},
 		},
 	}
-	hashDifferent, err := clusterUpdateDispatchConfigHash(differentDrain)
+	hashDifferent, err := ClusterUpdateDispatchConfigHashFromRP(differentDrain)
 	require.NoError(t, err)
 	assert.NotEqual(t, hash1, hashDifferent)
 
@@ -78,7 +78,7 @@ func TestClusterUpdateDispatchConfigHash(t *testing.T) {
 			},
 		},
 	}
-	hashCIDRs, err := clusterUpdateDispatchConfigHash(differentCIDRs)
+	hashCIDRs, err := ClusterUpdateDispatchConfigHashFromRP(differentCIDRs)
 	require.NoError(t, err)
 	assert.NotEqual(t, hash1, hashCIDRs)
 
@@ -97,7 +97,7 @@ func TestClusterUpdateDispatchConfigHash(t *testing.T) {
 			},
 		},
 	}
-	hashMirrors, err := clusterUpdateDispatchConfigHash(withMirrors)
+	hashMirrors, err := ClusterUpdateDispatchConfigHashFromRP(withMirrors)
 	require.NoError(t, err)
 	assert.NotEqual(t, hash1, hashMirrors)
 
@@ -113,7 +113,7 @@ func TestClusterUpdateDispatchConfigHash(t *testing.T) {
 			},
 		},
 	}
-	hashAS, err := clusterUpdateDispatchConfigHash(differentAutoscaling)
+	hashAS, err := ClusterUpdateDispatchConfigHashFromRP(differentAutoscaling)
 	require.NoError(t, err)
 	assert.NotEqual(t, hash1, hashAS)
 
@@ -125,7 +125,7 @@ func TestClusterUpdateDispatchConfigHash(t *testing.T) {
 			},
 		},
 	}
-	hashSizeOverride, err := clusterUpdateDispatchConfigHash(withSizeOverride)
+	hashSizeOverride, err := ClusterUpdateDispatchConfigHashFromRP(withSizeOverride)
 	require.NoError(t, err)
 	assert.NotEqual(t, hash1, hashSizeOverride)
 
@@ -137,7 +137,7 @@ func TestClusterUpdateDispatchConfigHash(t *testing.T) {
 			},
 		},
 	}
-	hashCPOImageOverride, err := clusterUpdateDispatchConfigHash(withCPOImageOverride)
+	hashCPOImageOverride, err := ClusterUpdateDispatchConfigHashFromRP(withCPOImageOverride)
 	require.NoError(t, err)
 	assert.NotEqual(t, hash1, hashCPOImageOverride)
 }
@@ -163,9 +163,9 @@ func TestClusterUpdateDispatchConfigHashExcludesNonUpdatableFields(t *testing.T)
 		},
 	}
 
-	hash1, err := clusterUpdateDispatchConfigHash(cluster1)
+	hash1, err := ClusterUpdateDispatchConfigHashFromRP(cluster1)
 	require.NoError(t, err)
-	hash2, err := clusterUpdateDispatchConfigHash(cluster2)
+	hash2, err := ClusterUpdateDispatchConfigHashFromRP(cluster2)
 	require.NoError(t, err)
 	assert.Equal(t, hash1, hash2)
 }
@@ -185,9 +185,9 @@ func TestClusterUpdateDispatchConfigHashExcludesTagsWithoutExperimentalFeatures(
 		},
 	}
 
-	hash1, err := clusterUpdateDispatchConfigHash(cluster1)
+	hash1, err := ClusterUpdateDispatchConfigHashFromRP(cluster1)
 	require.NoError(t, err)
-	hash2, err := clusterUpdateDispatchConfigHash(cluster2)
+	hash2, err := ClusterUpdateDispatchConfigHashFromRP(cluster2)
 	require.NoError(t, err)
 	assert.Equal(t, hash1, hash2)
 }

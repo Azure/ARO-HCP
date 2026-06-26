@@ -107,6 +107,14 @@ type HCPOpenShiftClusterServiceProviderProperties struct {
 	// The timestamp is in UTC.
 	// TODO this attribute is not in use yet. Do not rely on it.
 	ClusterServiceDeletionTimestamp *metav1.Time `json:"clusterServiceDeletionTimestamp,omitempty"`
+	// LastDispatchedClusterServiceUpdateDispatchConfigHash is the hash of the
+	// update-dispatch configuration last successfully sent to Cluster Service by
+	// RP Backend's cluster service update dispatch controller.
+	// This hash is specific to the update-dispatch configuration, which is exclusively managed by
+	// RP Backend's cluster cs update dispatch controller and is not affected by other changes to the cluster.
+	// Because persisting the hash to Cosmos after dispatching the update to Cluster Service can fail, the update dispatch
+	// configuration that Cluster Service has last received might differ from the hash stored here.
+	LastDispatchedClusterServiceUpdateDispatchConfigHash string `json:"lastDispatchedClusterServiceUpdateDispatchConfigHash,omitempty"`
 
 	// TODO Temporary field to track whether the cluster operation is using the new deletion approach.
 	// We are migrating from the cluster CS deletion synchronous in frontend to the backend, to be fully asynchronous.

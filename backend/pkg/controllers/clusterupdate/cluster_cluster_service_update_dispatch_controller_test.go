@@ -47,7 +47,7 @@ const (
 	testClusterServiceIDStr = "/api/clusters_mgmt/v1/clusters/abc123"
 )
 
-func TestClusterShouldProceed(t *testing.T) {
+func TestClusterNeedsWork(t *testing.T) {
 	csID := api.Must(api.NewInternalID(testClusterServiceIDStr))
 	now := metav1.Now()
 
@@ -86,7 +86,7 @@ func TestClusterShouldProceed(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, clusterShouldProceed(tt.cluster))
+			assert.Equal(t, tt.want, needsWork(tt.cluster))
 		})
 	}
 }
@@ -119,6 +119,30 @@ func TestClusterUpdateDispatchSyncer_SyncOnce(t *testing.T) {
 		})
 	}
 
+	verifyLastDispatchedHashEmpty := func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, _ *api.HCPOpenShiftCluster) {
+		t.Helper()
+		stored, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
+		require.NoError(t, err)
+		assert.Empty(t, stored.ServiceProviderProperties.LastDispatchedClusterServiceUpdateDispatchConfigHash)
+	}
+
+	verifyLastDispatchedHashPersisted := func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, cluster *api.HCPOpenShiftCluster) {
+		t.Helper()
+		stored, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
+		require.NoError(t, err)
+		expectedHash, err := ocm.ClusterUpdateDispatchConfigHashFromRP(cluster)
+		require.NoError(t, err)
+		assert.Equal(t, expectedHash, stored.ServiceProviderProperties.LastDispatchedClusterServiceUpdateDispatchConfigHash)
+	}
+
+	verifyLastDispatchedHashUnchanged := func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, cluster *api.HCPOpenShiftCluster) {
+		t.Helper()
+		stored, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
+		require.NoError(t, err)
+		assert.Equal(t, cluster.ServiceProviderProperties.LastDispatchedClusterServiceUpdateDispatchConfigHash,
+			stored.ServiceProviderProperties.LastDispatchedClusterServiceUpdateDispatchConfigHash)
+	}
+
 	testCases := []struct {
 		name                                string
 		cluster                             *api.HCPOpenShiftCluster
@@ -127,6 +151,7 @@ func TestClusterUpdateDispatchSyncer_SyncOnce(t *testing.T) {
 		minimumReconcileTimeCooldownChecker controllerutil.CooldownChecker
 		wantErr                             bool
 		wantErrContain                      string
+		verifyDB                            func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, cluster *api.HCPOpenShiftCluster)
 	}{
 		{
 			name: "skip without CS call when no CSID",
@@ -135,9 +160,24 @@ func TestClusterUpdateDispatchSyncer_SyncOnce(t *testing.T) {
 				c.CustomerProperties.NodeDrainTimeoutMinutes = 30
 			}),
 			minimumReconcileTimeCooldownChecker: &alwaysSyncCooldownChecker{},
+			verifyDB:                            verifyLastDispatchedHashEmpty,
 		},
 		{
-			name:              "dispatches CS calls when config differs",
+			name: "skip without CS call when last dispatched hash matches desired config",
+			cluster: func() *api.HCPOpenShiftCluster {
+				cluster := newTestCluster(func(c *api.HCPOpenShiftCluster) {
+					c.CustomerProperties.NodeDrainTimeoutMinutes = 30
+				})
+				hash, err := ocm.ClusterUpdateDispatchConfigHashFromRP(cluster)
+				require.NoError(t, err)
+				cluster.ServiceProviderProperties.LastDispatchedClusterServiceUpdateDispatchConfigHash = hash
+				return cluster
+			}(),
+			minimumReconcileTimeCooldownChecker: &alwaysSyncCooldownChecker{},
+			verifyDB:                            verifyLastDispatchedHashUnchanged,
+		},
+		{
+			name:              "dispatches CS calls when config differs and persists hash",
 			cluster:           newClusterWithConfigDiff(),
 			existingCSCluster: defaultExistingCSCluster,
 			setupMockCSClient: func(mock *ocm.MockClusterServiceClientSpec) {
@@ -152,15 +192,13 @@ func TestClusterUpdateDispatchSyncer_SyncOnce(t *testing.T) {
 					Return(nil, nil)
 			},
 			minimumReconcileTimeCooldownChecker: &alwaysSyncCooldownChecker{},
+			verifyDB:                            verifyLastDispatchedHashPersisted,
 		},
 		{
-			name: "no-op when config matches",
+			name: "backfills hash when CS matches but stored hash differs",
 			cluster: newTestCluster(func(c *api.HCPOpenShiftCluster) {
 				c.CustomerProperties.NodeDrainTimeoutMinutes = 30
 			}),
-			existingCSCluster: mustBuildCSClusterFromRP(t, newTestCluster(func(c *api.HCPOpenShiftCluster) {
-				c.CustomerProperties.NodeDrainTimeoutMinutes = 30
-			})),
 			setupMockCSClient: func(mock *ocm.MockClusterServiceClientSpec) {
 				mock.EXPECT().
 					GetCluster(gomock.Any(), csID).
@@ -169,6 +207,7 @@ func TestClusterUpdateDispatchSyncer_SyncOnce(t *testing.T) {
 					})), nil)
 			},
 			minimumReconcileTimeCooldownChecker: &alwaysSyncCooldownChecker{},
+			verifyDB:                            verifyLastDispatchedHashPersisted,
 		},
 		{
 			name:              "when CS autoscaler update returns cluster not updatable no error is returned and cluster update is not called",
@@ -183,6 +222,7 @@ func TestClusterUpdateDispatchSyncer_SyncOnce(t *testing.T) {
 					Return(nil, newFakeOCMClusterNotUpdatableError())
 			},
 			minimumReconcileTimeCooldownChecker: &alwaysSyncCooldownChecker{},
+			verifyDB:                            verifyLastDispatchedHashEmpty,
 		},
 		{
 			name:              "when CS cluster update returns cluster not updatable no error is returned",
@@ -200,6 +240,7 @@ func TestClusterUpdateDispatchSyncer_SyncOnce(t *testing.T) {
 					Return(nil, newFakeOCMClusterNotUpdatableError())
 			},
 			minimumReconcileTimeCooldownChecker: &alwaysSyncCooldownChecker{},
+			verifyDB:                            verifyLastDispatchedHashEmpty,
 		},
 		{
 			name:              "when CS autoscaler update returns unhandled error error is propagated",
@@ -213,9 +254,10 @@ func TestClusterUpdateDispatchSyncer_SyncOnce(t *testing.T) {
 					UpdateClusterAutoscaler(gomock.Any(), csID, gomock.Any()).
 					Return(nil, errors.New("boom"))
 			},
+			minimumReconcileTimeCooldownChecker: &alwaysSyncCooldownChecker{},
 			wantErr:                             true,
 			wantErrContain:                      "failed to update cluster-service ClusterAutoscaler",
-			minimumReconcileTimeCooldownChecker: &alwaysSyncCooldownChecker{},
+			verifyDB:                            verifyLastDispatchedHashEmpty,
 		},
 		{
 			name:              "when CS cluster update returns unhandled error error is propagated",
@@ -232,9 +274,10 @@ func TestClusterUpdateDispatchSyncer_SyncOnce(t *testing.T) {
 					UpdateCluster(gomock.Any(), csID, gomock.Any()).
 					Return(nil, errors.New("boom"))
 			},
+			minimumReconcileTimeCooldownChecker: &alwaysSyncCooldownChecker{},
 			wantErr:                             true,
 			wantErrContain:                      "failed to update cluster-service Cluster",
-			minimumReconcileTimeCooldownChecker: &alwaysSyncCooldownChecker{},
+			verifyDB:                            verifyLastDispatchedHashEmpty,
 		},
 		{
 			name:              "when CS autoscaler update returns unrelated bad request error error is propagated",
@@ -248,14 +291,16 @@ func TestClusterUpdateDispatchSyncer_SyncOnce(t *testing.T) {
 					UpdateClusterAutoscaler(gomock.Any(), csID, gomock.Any()).
 					Return(nil, newFakeOCMUnrelatedBadRequestError())
 			},
+			minimumReconcileTimeCooldownChecker: &alwaysSyncCooldownChecker{},
 			wantErr:                             true,
 			wantErrContain:                      "failed to update cluster-service ClusterAutoscaler",
-			minimumReconcileTimeCooldownChecker: &alwaysSyncCooldownChecker{},
+			verifyDB:                            verifyLastDispatchedHashEmpty,
 		},
 		{
 			name:                                "minimum reconcile cooldown prevents sync",
 			cluster:                             newTestCluster(),
 			minimumReconcileTimeCooldownChecker: &neverSyncCooldownChecker{},
+			verifyDB:                            verifyLastDispatchedHashEmpty,
 		},
 	}
 
@@ -296,6 +341,10 @@ func TestClusterUpdateDispatchSyncer_SyncOnce(t *testing.T) {
 				return
 			}
 			require.NoError(t, err)
+
+			if tc.verifyDB != nil {
+				tc.verifyDB(t, ctx, mockResourcesDB, tc.cluster)
+			}
 		})
 	}
 }

@@ -281,7 +281,9 @@ func clusterUpdateDispatchConfigAutoscalingFromCS(in *arohcpv1alpha1.ClusterAuto
 	}, nil
 }
 
-func clusterUpdateDispatchConfigHash(cluster *api.HCPOpenShiftCluster) (string, error) {
+// ClusterUpdateDispatchConfigHashFromRP returns the SHA-256 hash of the canonical
+// JSON representation of the dispatch-managed configuration derived from the RP cluster.
+func ClusterUpdateDispatchConfigHashFromRP(cluster *api.HCPOpenShiftCluster) (string, error) {
 	return clusterUpdateDispatchConfigFromRP(cluster).hash()
 }
 
