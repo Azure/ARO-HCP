@@ -61,7 +61,7 @@ data:
       exit 0
     fi
     # At this point, if the shard is not in active status we consider
-    # we are in an unknwon state so we return at this point failing.
+    # we are in an unknown state so we return at this point failing.
     if [ "${PROVISION_SHARD_STATUS_BEFORE}" != "active" ]; then
       echo "unexpected error: provision shard '${PROVISION_SHARD_ID}' not in 'active' status. Status is '${PROVISION_SHARD_STATUS_BEFORE}'. End of execution"
       exit 1
