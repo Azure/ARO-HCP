@@ -170,12 +170,13 @@ func RunTestHelmTemplate(t *testing.T, settingsPath string) {
 	assert.NotNil(t, helmSteps)
 
 	// Use new allowlists if defined, otherwise fall back to deprecated ResourceLimitsAllowlist
+	// Use nil check (not len == 0) so callers can intentionally configure an empty allowlist
 	resourceRequestsAllowlist := settings.ResourceRequestsAllowlist
-	if len(resourceRequestsAllowlist) == 0 {
+	if resourceRequestsAllowlist == nil {
 		resourceRequestsAllowlist = settings.ResourceLimitsAllowlist
 	}
 	resourceMemoryLimitsAllowlist := settings.ResourceMemoryLimitsAllowlist
-	if len(resourceMemoryLimitsAllowlist) == 0 {
+	if resourceMemoryLimitsAllowlist == nil {
 		resourceMemoryLimitsAllowlist = settings.ResourceLimitsAllowlist
 	}
 	chartDirsVisited := make(map[string]bool)
