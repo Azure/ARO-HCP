@@ -20,7 +20,6 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"slices"
 	"strings"
 	"testing"
 
@@ -28,8 +27,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"helm.sh/helm/v4/pkg/action"
 	"helm.sh/helm/v4/pkg/chart/common"
-	"helm.sh/helm/v4/pkg/chart/loader/archive"
-	v2loader "helm.sh/helm/v4/pkg/chart/v2/loader"
+	"helm.sh/helm/v4/pkg/chart/loader"
 	"helm.sh/helm/v4/pkg/cli"
 	"helm.sh/helm/v4/pkg/release"
 
@@ -96,7 +94,7 @@ func runTest(ctx context.Context, settings *internal.Settings, testCase internal
 		return "", fmt.Errorf("error unmarshalling config, %v", err)
 
 	}
-	chart, err := loadChartPreprocessed(testCase.HelmChartDir, cfgYaml)
+	chart, err := loader.Load(testCase.HelmChartDir)
 	if err != nil {
 		return "", fmt.Errorf("error loading chart, %v", err)
 	}
@@ -130,70 +128,6 @@ func runTest(ctx context.Context, settings *internal.Settings, testCase internal
 	}
 
 	return fmt.Sprintf("%s\n%s", manifest, allHooks), nil
-}
-
-// loadChartPreprocessed loads a Helm chart from chartDir, preprocessing all
-// non-template files through templatize config substitution before loading.
-// This allows chart files (e.g. values.yaml, Chart.yaml) to contain unquoted
-// Go template tags that would otherwise be invalid YAML for the chart loader.
-// Files under templates/ directories are skipped because they use Helm template
-// syntax which conflicts with templatize processing.
-func loadChartPreprocessed(chartDir string, cfgYaml map[string]any) (any, error) {
-	topdir, err := filepath.Abs(chartDir)
-	if err != nil {
-		return nil, err
-	}
-
-	var files []*archive.BufferedFile
-	sep := topdir + string(filepath.Separator)
-
-	err = filepath.Walk(topdir, func(name string, fi os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		n := strings.TrimPrefix(name, sep)
-		if n == "" || fi.IsDir() {
-			return nil
-		}
-		n = filepath.ToSlash(n)
-		if !fi.Mode().IsRegular() {
-			return fmt.Errorf("cannot load irregular file %s", name)
-		}
-
-		data, err := os.ReadFile(name)
-		if err != nil {
-			return err
-		}
-		if isValuesFile(filepath.Base(name)) && !isInHelmTemplatesDir(n) {
-			if preprocessed, err := config.PreprocessFile(name, cfgYaml); err == nil {
-				data = preprocessed
-			}
-			// On error fall back to raw: files using Helm named templates
-			// (e.g. {{template "name" .}}) cannot be processed by templatize.
-		}
-		files = append(files, &archive.BufferedFile{Name: n, Data: data})
-		return nil
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	return v2loader.LoadFiles(files)
-}
-
-// isInHelmTemplatesDir reports whether a chart-relative slash path is inside a
-// Helm templates/ directory (top-level or subchart, e.g. charts/foo/templates/).
-func isInHelmTemplatesDir(relpath string) bool {
-	parts := strings.Split(relpath, "/")
-	return slices.Contains(parts[:len(parts)-1], "templates")
-}
-
-// isValuesFile reports whether a filename (basename only) matches *values*.yaml
-// or *values*.yml, case-insensitively.
-func isValuesFile(name string) bool {
-	lower := strings.ToLower(name)
-	return strings.Contains(lower, "values") &&
-		(strings.HasSuffix(lower, ".yaml") || strings.HasSuffix(lower, ".yml"))
 }
 
 func getCustomTestCases(chartDir string) ([]internal.TestCase, error) {

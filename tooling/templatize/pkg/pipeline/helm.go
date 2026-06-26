@@ -21,7 +21,6 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 	"time"
 
@@ -34,26 +33,6 @@ import (
 
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/aks"
 )
-
-// isHelmTemplateDir reports whether path is inside a Helm templates/ directory
-// (which contains Helm template syntax, not templatize placeholders).
-// Handles both top-level and subchart templates (e.g. charts/foo/templates/).
-func isHelmTemplateDir(chartDir, path string) bool {
-	rel, err := filepath.Rel(chartDir, path)
-	if err != nil {
-		return false
-	}
-	parts := strings.Split(filepath.ToSlash(rel), "/")
-	return slices.Contains(parts[:len(parts)-1], "templates")
-}
-
-// isValuesFile reports whether a filename (basename only) matches *values*.yaml
-// or *values*.yml, case-insensitively.
-func isValuesFile(name string) bool {
-	lower := strings.ToLower(name)
-	return strings.Contains(lower, "values") &&
-		(strings.HasSuffix(lower, ".yaml") || strings.HasSuffix(lower, ".yml"))
-}
 
 func runHelmStep(id graph.Identifier, step *types.HelmStep, ctx context.Context, options *StepRunOptions, executionTarget ExecutionTarget, state *ExecutionState) error {
 	logger, err := logr.FromContext(ctx)
@@ -154,42 +133,26 @@ func runHelmStep(id graph.Identifier, step *types.HelmStep, ctx context.Context,
 	}
 	chartDir := filepath.Join(options.PipelineDirectory, step.ChartDir)
 
-	// Walk the chart dir once: collect raw bytes for the sentinel and write a
-	// preprocessed copy to a temp dir so the Helm chart loader sees resolved
-	// values (unquoted Go template tags like boolean `{{ .foo }}` are otherwise
-	// invalid YAML for the loader).
-	chartTmpDir := filepath.Join(tmpdir, "chart")
 	chartData := map[string][]byte{}
 	if err := filepath.WalkDir(chartDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
+		if d.IsDir() {
+			return nil
+		}
 		relpath, err := filepath.Rel(chartDir, path)
 		if err != nil {
 			return err
-		}
-		destPath := filepath.Join(chartTmpDir, relpath)
-		if d.IsDir() {
-			return os.MkdirAll(destPath, 0755)
 		}
 		raw, err := os.ReadFile(path)
 		if err != nil {
 			return err
 		}
 		chartData[relpath] = raw
-
-		deployData := raw
-		if isValuesFile(filepath.Base(path)) && !isHelmTemplateDir(chartDir, path) {
-			preprocessed, err := process(path)
-			if err == nil {
-				deployData = preprocessed
-			}
-			// On error fall back to raw: files using Helm template syntax
-			// (e.g. {{template "name" .}}) cannot be processed by templatize.
-		}
-		return os.WriteFile(destPath, deployData, 0644)
+		return nil
 	}); err != nil {
-		return fmt.Errorf("failed to prepare helm chart dir: %w", err)
+		return fmt.Errorf("failed to walk helm chart dir: %w", err)
 	}
 
 	inputs := helmInputs{
@@ -214,7 +177,7 @@ func runHelmStep(id graph.Identifier, step *types.HelmStep, ctx context.Context,
 		NamespaceFiles:    namespaceFiles,
 		ReleaseName:       step.ReleaseName,
 		ReleaseNamespace:  step.ReleaseNamespace,
-		ChartDir:          chartTmpDir,
+		ChartDir:          chartDir,
 		ValuesFile:        values,
 		KustoDatabase:     step.KustoDatabase,
 		KustoTable:        step.KustoTable,
