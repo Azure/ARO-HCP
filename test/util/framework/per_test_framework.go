@@ -447,23 +447,6 @@ func (tc *perItOrDescribeTestContext) NewResourceGroup(ctx context.Context, reso
 	return resourceGroup, nil
 }
 
-// RegisterResourceGroup registers a pre-existing resource group with the test context so that it
-// participates in debug info collection and cleanup at the end of the test, without creating it.
-// Note: cleanup will still attempt to delete all HCP clusters in the group and the group itself
-// unless SKIP_CLEANUP is set.
-func (tc *perItOrDescribeTestContext) RegisterResourceGroup(resourceGroupName string) {
-	tc.contextLock.Lock()
-	defer tc.contextLock.Unlock()
-	tc.knownResourceGroups = append(tc.knownResourceGroups, resourceGroupName)
-
-	if len(tc.perBinaryInvocationTestContext.sharedDir) > 0 {
-		resourceGroupCleanupFilename := filepath.Join(tc.perBinaryInvocationTestContext.sharedDir, "tracked-resource-group_"+resourceGroupName)
-		if err := os.WriteFile(resourceGroupCleanupFilename, []byte{}, 0644); err != nil {
-			ginkgo.GinkgoLogr.Error(err, "failed writing resource group cleanup file", "resourceGroup", resourceGroupName)
-		}
-	}
-}
-
 func (tc *perItOrDescribeTestContext) findManagedResourceGroups(ctx context.Context, ResourceGroupName string) ([]string, error) {
 	managedResourceGroups := []string{}
 	clientFactory, err := tc.GetARMResourcesClientFactory(ctx)

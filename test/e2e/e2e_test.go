@@ -17,6 +17,7 @@
 package e2e
 
 import (
+	"context"
 	"testing"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -29,7 +30,7 @@ func TestE2E(t *testing.T) {
 }
 
 var _ = BeforeSuite(func() {
-	if err := Setup(); err != nil {
+	if err := setup(context.Background()); err != nil {
 		panic(err)
 	}
 })
