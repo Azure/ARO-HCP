@@ -16,6 +16,16 @@ recording-rules:
 	EXTRA_FLAGS=$(GENERATOR_FLAGS) make -C ../tooling/prometheus-rules recording-rules
 .PHONY: recording-rules
 
-verify:
+verify: verify-no-prom-alerts-in-bicep
 	go run ../tooling/grafanactl/main.go verify dashboards --config-file observability.yaml
 .PHONY: verify
+
+verify-no-prom-alerts-in-bicep:
+	@if grep -rFl --include='*.bicep' 'Microsoft.AlertsManagement/prometheusRuleGroups' \
+		../dev-infrastructure/ 2>/dev/null | grep -qv -e '/generated' -e '/defaultRecordingRuleGroups.bicep' -e '/underlay-clusters-metric.bicep'; then \
+		echo "ERROR: Prom alerts need to be added with mechanisms in observability/"; \
+		grep -rFl --include='*.bicep' 'Microsoft.AlertsManagement/prometheusRuleGroups' \
+			../dev-infrastructure/ 2>/dev/null | grep -v -e '/generated' -e '/defaultRecordingRuleGroups.bicep' -e '/underlay-clusters-metric.bicep'; \
+		exit 1; \
+	fi
+.PHONY: verify-no-prom-alerts-in-bicep
