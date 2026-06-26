@@ -93,6 +93,7 @@ artifacts/<SuiteName>/<ResourceType>/<TestCase>/
 | `cosmosCompare` | Assert entire cosmos state matches expected JSON documents |
 | `kubernetesCompare` | Assert K8s resource state matches expected JSON files (uses `ResourceInstanceEquals`) |
 | `completeOperation` | Mark an async operation as succeeded |
+| `simulateClusterServiceCreate` | Simulate backend cluster CS create (mock PostCluster + persist `clusterServiceID` on cluster doc). Used when `clusterServiceCompare` or cluster update runs before child httpCreate. Child httpCreate steps auto-provision parent CS ID via the same helper. |
 
 ## Step Directory Contents
 
