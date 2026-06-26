@@ -541,6 +541,30 @@ var allQueries = []querySpec{
 		requiredWhen:  isClusterOrNodePool,
 	},
 	{
+		component:    "clustersService",
+		queryName:    "inflightChecks",
+		templatePath: "queries/clustersService/inflightChecks/query.kql",
+		database:     "service",
+		category:     categoryLogs,
+		ready: func(d queryData) bool {
+			return d.ResourceID != "" && isClusterType(d)
+		},
+		prerequisites: "ResourceID, ResourceType is cluster",
+		requiredWhen:  isClusterType,
+	},
+	{
+		component:    "clustersService",
+		queryName:    "provisionSteps",
+		templatePath: "queries/clustersService/provisionSteps/query.kql",
+		database:     "service",
+		category:     categoryLogs,
+		ready: func(d queryData) bool {
+			return d.ResourceID != "" && isClusterType(d)
+		},
+		prerequisites: "ResourceID, ResourceType is cluster",
+		requiredWhen:  isClusterType,
+	},
+	{
 		component:    "maestro",
 		queryName:    "serverLogs",
 		templatePath: "queries/maestro/serverLogs/query.kql",
