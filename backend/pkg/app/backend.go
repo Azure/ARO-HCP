@@ -38,6 +38,7 @@ import (
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/billingcontrollers"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/clustercreation"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/clusterdeletion"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/clusterpropertiescontroller"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
@@ -754,6 +755,13 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		backendInformers,
 	)
 
+	clusterClusterServiceCreateController := clustercreation.NewClusterClusterServiceCreateController(
+		b.options.ResourcesDBClient,
+		b.options.ClustersServiceClient,
+		activeOperationLister,
+		backendInformers,
+	)
+
 	clusterDeletionClusterServiceDeleteDispatchController := clusterdeletion.NewClusterClusterServiceDeleteDispatchController(
 		utilsclock.RealClock{},
 		b.options.ResourcesDBClient,
@@ -809,6 +817,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go doNothingController.Run(ctx, 20)
 				go dispatchRequestCredentialController.Run(ctx, 20)
 				go dispatchRevokeCredentialsController.Run(ctx, 20)
+				go clusterClusterServiceCreateController.Run(ctx, 20)
 				go operationClusterCreateController.Run(ctx, 20)
 				go operationClusterUpdateController.Run(ctx, 20)
 				go operationClusterDeleteController.Run(ctx, 20)

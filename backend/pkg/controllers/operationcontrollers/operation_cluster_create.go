@@ -49,6 +49,7 @@ import (
 
 type operationClusterCreate struct {
 	clock                                 utilsclock.PassiveClock
+	activeOperationLister                 listers.ActiveOperationLister
 	clusterLister                         listers.ClusterLister
 	clusterManagementClusterContentLister listers.ManagementClusterContentLister
 	readDesireLister                      dblisters.ReadDesireLister
@@ -80,10 +81,12 @@ func NewOperationClusterCreateController(
 	informers informers.BackendInformers,
 	readDesireLister dblisters.ReadDesireLister,
 ) controllerutils.Controller {
+	_, activeOperationLister := informers.ActiveOperations()
 	_, clusterLister := informers.Clusters()
 	_, clusterManagementClusterContentLister := informers.ManagementClusterContents()
 	syncer := &operationClusterCreate{
 		clock:                                 clock,
+		activeOperationLister:                 activeOperationLister,
 		clusterLister:                         clusterLister,
 		clusterManagementClusterContentLister: clusterManagementClusterContentLister,
 		readDesireLister:                      readDesireLister,
@@ -120,7 +123,7 @@ func (c *operationClusterCreate) SynchronizeOperation(ctx context.Context, key c
 	logger := utils.LoggerFromContext(ctx)
 	logger.Info("checking operation")
 
-	operation, err := c.resourcesDBClient.Operations(key.SubscriptionID).Get(ctx, key.OperationName)
+	operation, err := c.activeOperationLister.Get(ctx, key.SubscriptionID, key.OperationName)
 	if database.IsNotFoundError(err) {
 		return nil // no work to do
 	}
@@ -131,13 +134,27 @@ func (c *operationClusterCreate) SynchronizeOperation(ctx context.Context, key c
 		return nil // no work to do
 	}
 
-	if len(operation.InternalID.String()) == 0 {
-		// we cannot proceed: yet.
-		// TODO when we update to make clusterserice creation async, we need https://github.com/Azure/ARO-HCP/pull/4695 or similar
-		// and we need to wire up a fail-safe where if we have no ID and we time out, we report the best failure we can.
+	cluster, err := c.clusterLister.Get(ctx, operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName, operation.ExternalID.Name)
+	if database.IsNotFoundError(err) {
+		logger.Info("cluster not found in cache, waiting")
 		return nil
 	}
-	clusterStatus, err := c.clusterServiceClient.GetClusterStatus(ctx, operation.InternalID)
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to get cluster to resolve ClusterServiceID: %w", err))
+	}
+	if operation.OperationID.Name != cluster.ServiceProviderProperties.ActiveOperationID {
+		logger.Info("cluster active operation id mismatch, returning early",
+			"synchronizedActiveOperationID", operation.OperationID.Name,
+			"clusterActiveOperationID", cluster.ServiceProviderProperties.ActiveOperationID)
+		return nil
+	}
+	if !c.shouldReconcileOperationAndResourceStatus(cluster) {
+		logger.Info("ClusterServiceID not yet set, waiting for ClusterClusterServiceCreate controller")
+		return nil
+	}
+	clusterServiceID := *cluster.ServiceProviderProperties.ClusterServiceID
+
+	clusterStatus, err := c.clusterServiceClient.GetClusterStatus(ctx, clusterServiceID)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -148,7 +165,7 @@ func (c *operationClusterCreate) SynchronizeOperation(ctx context.Context, key c
 	}
 	logger.Info("new status via cosmos", "newStatus", cosmosNewOperationState.provisioningState, "newOperationMessage", cosmosNewOperationState.message)
 
-	newOperationStatus, opError, err := convertClusterStatus(ctx, c.clusterServiceClient, operation, clusterStatus)
+	newOperationStatus, opError, err := convertClusterStatus(ctx, c.clusterServiceClient, operation, clusterStatus, clusterServiceID)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -318,6 +335,11 @@ func (c *operationClusterCreate) hostedClusterOperationStatus(ctx context.Contex
 	// 2. the hosted cluster has successfully installed at least one version
 	// 3. the hosted cluster has a control plane endpoint host and port
 	return newOperationState(arm.ProvisioningStateSucceeded, ""), nil
+}
+
+func (c *operationClusterCreate) shouldReconcileOperationAndResourceStatus(cluster *api.HCPOpenShiftCluster) bool {
+	return cluster.ServiceProviderProperties.DeletionTimestamp == nil &&
+		cluster.ServiceProviderProperties.ClusterServiceID != nil
 }
 
 // withDegradedSuffix appends the HostedCluster Degraded condition's reason and
