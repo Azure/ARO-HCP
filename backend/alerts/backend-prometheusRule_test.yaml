@@ -52,3 +52,53 @@ tests:
   - eval_time: 6m
     alertname: BackendControllerPanic
     exp_alerts: []
+# Test: OrphanedMRGDetected fires when orphaned MRGs are found
+- interval: 1m
+  input_series:
+  - series: 'aro_hcp_orphaned_managed_resource_groups_found_total{location="eastus"}'
+    values: "0+1x15" # 10 orphaned MRGs found over 10 minutes
+  alert_rule_test:
+  - eval_time: 15m
+    alertname: OrphanedMRGDetected
+    exp_alerts:
+    - exp_labels:
+        location: eastus
+        severity: warning
+      exp_annotations:
+        description: 'Found 10 orphaned cluster managed resource groups in location eastus over the last 10 minutes. Orphaned MRGs should not exist - investigate why cluster deletion left resources behind.'
+        runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/backend-tsg.html'
+        summary: 'Orphaned cluster managed resource groups detected'
+# Test: OrphanedMRGDetected does not fire when no orphaned MRGs found
+- interval: 1m
+  input_series:
+  - series: 'aro_hcp_orphaned_managed_resource_groups_found_total{location="eastus"}'
+    values: "0+0x15" # No orphaned MRGs found
+  alert_rule_test:
+  - eval_time: 15m
+    alertname: OrphanedMRGDetected
+    exp_alerts: []
+# Test: OrphanedMRGDeletionFailing fires when deletions fail
+- interval: 1m
+  input_series:
+  - series: 'aro_hcp_orphaned_managed_resource_groups_deletion_failed_total{location="eastus"}'
+    values: "0+1x15" # 1 failure per minute sustained for 15 minutes
+  alert_rule_test:
+  - eval_time: 15m
+    alertname: OrphanedMRGDeletionFailing
+    exp_alerts:
+    - exp_labels:
+        location: eastus
+        severity: warning
+      exp_annotations:
+        description: 'Orphaned cluster managed resource group deletion has failed 10 time(s) in location eastus over the last 10 minutes. Deletion should succeed - investigate Azure permissions or resource locks.'
+        runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/backend-tsg.html'
+        summary: 'Orphaned cluster managed resource group deletion is failing'
+# Test: OrphanedMRGDeletionFailing does not fire when no failures
+- interval: 1m
+  input_series:
+  - series: 'aro_hcp_orphaned_managed_resource_groups_deletion_failed_total{location="eastus"}'
+    values: "0+0x15" # No failures
+  alert_rule_test:
+  - eval_time: 15m
+    alertname: OrphanedMRGDeletionFailing
+    exp_alerts: []

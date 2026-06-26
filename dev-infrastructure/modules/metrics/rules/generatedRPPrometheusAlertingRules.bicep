@@ -4,6 +4,9 @@ param azureMonitoring string
 #disable-next-line no-unused-params
 param actionGroups array
 
+@description('The minimum IcM severity level (highest priority) that alerts can fire at. Alerts more critical than this ceiling will be degraded to this value. 0 means no ceiling.')
+param severityCeiling int = 0
+
 #disable-next-line no-unused-params
 param location string = resourceGroup().location
 
@@ -20,8 +23,6 @@ resource arohcpNodepoolSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRule
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -43,7 +44,7 @@ resource arohcpNodepoolSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRule
         }
         expression: 'errors:backend_nodepool_operation:error_rate > 0.72'
         for: 'PT5M'
-        severity: 4
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
       {
         actions: [
@@ -52,8 +53,6 @@ resource arohcpNodepoolSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRule
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -75,7 +74,7 @@ resource arohcpNodepoolSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRule
         }
         expression: 'errors:backend_nodepool_operation:error_rate > 0.30'
         for: 'PT30M'
-        severity: 4
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
       {
         actions: [
@@ -84,8 +83,6 @@ resource arohcpNodepoolSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRule
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -106,7 +103,7 @@ resource arohcpNodepoolSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRule
         }
         expression: 'errors:backend_nodepool_operation:error_rate > 0.05'
         for: 'PT6H'
-        severity: 4
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
       {
         actions: [
@@ -115,8 +112,6 @@ resource arohcpNodepoolSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRule
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -136,7 +131,7 @@ resource arohcpNodepoolSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRule
         }
         expression: 'errors:backend_nodepool_operation:error_rate > 0.15'
         for: 'PT30M'
-        severity: 4
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
       {
         actions: [
@@ -145,8 +140,6 @@ resource arohcpNodepoolSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRule
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -165,7 +158,7 @@ resource arohcpNodepoolSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRule
         }
         expression: '( (time() - backend_resource_operation_start_time_seconds{resource_type=~".*nodepools"}) and backend_resource_operation_phase_info{resource_type=~".*nodepools", phase=~"updating|deleting"} == 1 ) > 7200'
         for: 'PT15M'
-        severity: 4
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
     ]
     scopes: [
@@ -187,8 +180,6 @@ resource arohcpNodepoolSaturationAlerts 'Microsoft.AlertsManagement/prometheusRu
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -207,7 +198,7 @@ resource arohcpNodepoolSaturationAlerts 'Microsoft.AlertsManagement/prometheusRu
         }
         expression: 'max by (name, cluster) ( max without(prometheus_replica) ( workqueue_depth{namespace="aro-hcp", name=~".*NodePool.*"} ) ) > 10'
         for: 'PT5M'
-        severity: 4
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
       {
         actions: [
@@ -216,8 +207,6 @@ resource arohcpNodepoolSaturationAlerts 'Microsoft.AlertsManagement/prometheusRu
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -236,7 +225,7 @@ resource arohcpNodepoolSaturationAlerts 'Microsoft.AlertsManagement/prometheusRu
         }
         expression: '( sum by (name, cluster) ( max without(prometheus_replica) ( rate(workqueue_retries_total{namespace="aro-hcp", name=~".*NodePool.*"}[10m]) ) ) / sum by (name, cluster) ( max without(prometheus_replica) ( rate(workqueue_adds_total{namespace="aro-hcp", name=~".*NodePool.*"}[10m]) ) ) ) > 0.5'
         for: 'PT10M'
-        severity: 4
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
     ]
     scopes: [

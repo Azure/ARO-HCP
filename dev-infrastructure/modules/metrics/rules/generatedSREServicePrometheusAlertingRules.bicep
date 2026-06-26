@@ -4,6 +4,9 @@ param azureMonitoring string
 #disable-next-line no-unused-params
 param actionGroups array
 
+@description('The minimum IcM severity level (highest priority) that alerts can fire at. Alerts more critical than this ceiling will be degraded to this value. 0 means no ceiling.')
+param severityCeiling int = 0
+
 #disable-next-line no-unused-params
 param location string = resourceGroup().location
 
@@ -20,8 +23,6 @@ resource frontendLatency 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -40,7 +41,7 @@ resource frontendLatency 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
         }
         expression: 'histogram_quantile(0.95, rate(frontend_http_requests_duration_seconds_bucket[1h])) > 5'
         for: 'PT15M'
-        severity: 4
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
     ]
     scopes: [
@@ -62,8 +63,6 @@ resource backendRetryhotloop 'Microsoft.AlertsManagement/prometheusRuleGroups@20
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -82,7 +81,7 @@ resource backendRetryhotloop 'Microsoft.AlertsManagement/prometheusRuleGroups@20
         }
         expression: '( sum by (name, cluster) ( max without(prometheus_replica) ( rate(workqueue_retries_total{namespace="aro-hcp"}[10m]) ) ) / sum by (name, cluster) ( max without(prometheus_replica) ( rate(workqueue_adds_total{namespace="aro-hcp"}[10m]) ) ) ) > 0.5'
         for: 'PT10M'
-        severity: 3
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
     ]
     scopes: [

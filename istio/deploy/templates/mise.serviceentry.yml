@@ -6,7 +6,6 @@ metadata:
 spec:
   hosts:
   - "mise.mise.svc.cluster.local"
-  - "misev2.mise.svc.cluster.local"
   endpoints:
   - address: "127.0.0.1"
   ports:

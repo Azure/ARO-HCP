@@ -198,6 +198,12 @@ Each service follows consistent patterns:
   - `Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster")` — not `Expect(err).NotTo(HaveOccurred())`
   - `Expect(resp.Properties).NotTo(BeNil(), "cluster response Properties was nil")` — not `Expect(resp.Properties).NotTo(BeNil())`
 
+- **Every controller has a name constant and seeds its logger from it.** Each controller package defines `const XxxControllerName = "..."` and uses that single value for: the `name` field on the controller struct, the workqueue `Name` (which surfaces as a Prometheus label), `utils.ContextWithControllerName(ctx, name)`, and `utils.LogValues{}.AddControllerName(name)`. Hardcoded string literals in those four call sites are a review-blocker — they cause silent drift between metrics labels, ctx values, and log fields.
+
+- **Workqueue keys implement `utils.LoggableKey`.** Any struct used as a controller workqueue key must implement `AddLoggerValues(logger logr.Logger) logr.Logger` (declared in `internal/utils/context.go` alongside `LogValues`). The standard implementation builds the key's `*azcorearm.ResourceID` and calls `utils.LogValues{}.AddLogValuesForResourceID(...)` so every log line from a reconcile carries the same `subscription_id` / `resource_group` / `resource_id` / `hcp_cluster_name` set — uniform across backend and kube-applier, and consistent with the Kusto indexes. Backend examples: `HCPClusterKey`, `HCPNodePoolKey`, `OperationKey` in `backend/pkg/controllers/controllerutils/util.go`. Kube-applier examples: `ApplyDesireKey`, `DeleteDesireKey`, `ReadDesireKey` in `kube-applier/pkg/controllers/keys/keys.go`.
+
+- **Worker loops seed per-key logger via `utils.AddLoggerValues`.** Every controller's `processNext` (or equivalent) must call `logger := utils.AddLoggerValues(utils.LoggerFromContext(ctx), key)` and `ctx = utils.ContextWithLogger(ctx, logger)` after pulling a key off the queue but before invoking `SyncOnce`. The backend's `genericWatchingController` does this once; kube-applier controllers, which run their own worker loops, must do it themselves.
+
 ### API Versioning
 ARM API versions live under `internal/api/v<YYYYMMDD>preview/` (e.g. `v20240610preview`, `v20251223preview`). Each version directory has a `generated/` subdirectory with auto-generated types and a `register.go` that wires the version into the API registry. Conversion between API versions and internal types happens in the `*_methods.go` files. The internal (versionless) types live in `internal/api/`.
 

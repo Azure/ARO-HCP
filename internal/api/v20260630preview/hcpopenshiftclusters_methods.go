@@ -73,6 +73,12 @@ func SetDefaultValuesCluster(obj *HcpOpenShiftCluster) {
 	if obj.Properties.API.Visibility == nil {
 		obj.Properties.API.Visibility = ptr.To(generated.VisibilityPublic)
 	}
+	if obj.Properties.Ingress == nil {
+		obj.Properties.Ingress = &generated.IngressProfile{}
+	}
+	if obj.Properties.Ingress.Type == nil {
+		obj.Properties.Ingress.Type = ptr.To(generated.IngressTypePublic)
+	}
 	if obj.Properties.Platform == nil {
 		obj.Properties.Platform = &generated.PlatformProfile{}
 	}
@@ -168,6 +174,15 @@ func newAPIProfile(from *api.CustomerAPIProfile, from2 *api.ServiceProviderAPIPr
 		URL:             api.PtrOrNil(from2.URL),
 		Visibility:      api.PtrOrNil(generated.Visibility(from.Visibility)),
 		AuthorizedCIDRs: api.StringSliceToStringPtrSlice(from.AuthorizedCIDRs),
+	}
+}
+
+func newIngressProfile(from *api.CustomerIngressProfile) generated.IngressProfile {
+	if from == nil {
+		return generated.IngressProfile{}
+	}
+	return generated.IngressProfile{
+		Type: api.PtrOrNil(generated.IngressType(from.Type)),
 	}
 }
 
@@ -345,6 +360,7 @@ func (v version) NewHCPOpenShiftCluster(from *api.HCPOpenShiftCluster) api.Versi
 				Network:           api.PtrOrNil(newNetworkProfile(&from.CustomerProperties.Network)),
 				Console:           api.PtrOrNil(newConsoleProfile(&from.ServiceProviderProperties.Console)),
 				API:               api.PtrOrNil(newAPIProfile(&from.CustomerProperties.API, &from.ServiceProviderProperties.API)),
+				Ingress:           api.PtrOrNil(newIngressProfile(&from.CustomerProperties.Ingress)),
 				Platform:          api.PtrOrNil(newPlatformProfile(&from.CustomerProperties.Platform, &from.ServiceProviderProperties.Platform)),
 				Autoscaling:       api.PtrOrNil(newClusterAutoscalingProfile(&from.CustomerProperties.Autoscaling)),
 				// Use Ptr (not PtrOrNil) to ensure int32 zero value is preserved in JSON response.
@@ -462,6 +478,9 @@ func (c *HcpOpenShiftCluster) ConvertToInternal(existing *api.HCPOpenShiftCluste
 		if c.Properties.API != nil {
 			normalizeAPI(c.Properties.API, &out.CustomerProperties.API, &out.ServiceProviderProperties.API)
 		}
+		if c.Properties.Ingress != nil {
+			normalizeIngress(c.Properties.Ingress, &out.CustomerProperties.Ingress)
+		}
 		if c.Properties.Platform != nil {
 			errs = append(errs, normalizePlatform(field.NewPath("properties", "platform"), c.Properties.Platform, &out.CustomerProperties.Platform, &out.ServiceProviderProperties.Platform)...)
 		}
@@ -541,6 +560,10 @@ func normalizeAPI(p *generated.APIProfile, out *api.CustomerAPIProfile, out2 *ap
 	out2.URL = api.Deref(p.URL)
 	out.Visibility = api.Visibility(api.Deref(p.Visibility))
 	out.AuthorizedCIDRs = api.StringPtrSliceToStringSlice(p.AuthorizedCIDRs)
+}
+
+func normalizeIngress(p *generated.IngressProfile, out *api.CustomerIngressProfile) {
+	out.Type = api.IngressType(api.Deref(p.Type))
 }
 
 func normalizePlatform(fldPath *field.Path, p *generated.PlatformProfile, out *api.CustomerPlatformProfile, out2 *api.ServiceProviderPlatformProfile) field.ErrorList {

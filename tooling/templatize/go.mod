@@ -9,8 +9,8 @@ require (
 	github.com/Azure/ARO-Tools/testutil v0.0.0-20260617060128-2277df76598b
 	github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260617060128-2277df76598b
 	github.com/Azure/ARO-Tools/tools/grafanactl v0.0.0-20260617060128-2277df76598b
-	github.com/Azure/ARO-Tools/tools/helm v0.0.0-20260617060128-2277df76598b
-	github.com/Azure/ARO-Tools/tools/prow-job-executor v0.0.0-20260618114223-e64276f10667
+	github.com/Azure/ARO-Tools/tools/helm v0.0.0-20260625140822-7cf3574ac01b
+	github.com/Azure/ARO-Tools/tools/prow-job-executor v0.0.0-20260625140822-7cf3574ac01b
 	github.com/Azure/ARO-Tools/tools/registration v0.0.0-20260617060128-2277df76598b
 	github.com/Azure/ARO-Tools/tools/secret-sync v0.0.0-20260617060128-2277df76598b
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.21.1

@@ -4,6 +4,9 @@ param azureMonitoring string
 #disable-next-line no-unused-params
 param actionGroups array
 
+@description('The minimum IcM severity level (highest priority) that alerts can fire at. Alerts more critical than this ceiling will be degraded to this value. 0 means no ceiling.')
+param severityCeiling int = 0
+
 #disable-next-line no-unused-params
 param location string = resourceGroup().location
 
@@ -20,8 +23,6 @@ resource prometheusWipRules 'Microsoft.AlertsManagement/prometheusRuleGroups@202
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -46,7 +47,7 @@ Check the status of the Prometheus pods, service endpoints, and network connecti
         }
         expression: 'group by (cluster) (up{job="kubelet"}) unless on(cluster) group by (cluster) (up{job="prometheus/prometheus",namespace="prometheus"} == 1)'
         for: 'PT10M'
-        severity: 2
+        severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
       }
       {
         actions: [
@@ -55,8 +56,6 @@ Check the status of the Prometheus pods, service endpoints, and network connecti
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -81,7 +80,7 @@ Please check the status of the Prometheus pods, service endpoints, and network c
         }
         expression: 'avg by (job, namespace, cluster) (avg_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d])) < 0.95'
         for: 'PT10M'
-        severity: 2
+        severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
       }
       {
         actions: [
@@ -90,8 +89,6 @@ Please check the status of the Prometheus pods, service endpoints, and network c
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -120,7 +117,7 @@ Investigate the health and performance of the remote storage endpoint, network l
         }
         expression: '( prometheus_remote_storage_samples_pending / prometheus_remote_storage_samples_in_flight ) > 0.4'
         for: 'PT15M'
-        severity: 2
+        severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
       }
       {
         actions: [
@@ -129,8 +126,6 @@ Investigate the health and performance of the remote storage endpoint, network l
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -159,7 +154,7 @@ Please check the health and performance of the remote storage endpoint, network 
         }
         expression: '( rate(prometheus_remote_storage_samples_failed_total{job="prometheus/prometheus",namespace="prometheus"}[5m]) / clamp_min( rate(prometheus_remote_storage_samples_total{job="prometheus/prometheus",namespace="prometheus"}[5m]), 1e-9 ) ) > 0.1'
         for: 'PT15M'
-        severity: 2
+        severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
       }
     ]
     scopes: [
@@ -181,8 +176,6 @@ resource prometheusRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -201,7 +194,7 @@ resource prometheusRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
         }
         expression: '((rate(prometheus_remote_storage_failed_samples_total{job="prometheus/prometheus",namespace="prometheus"}[5m]) or rate(prometheus_remote_storage_samples_failed_total{job="prometheus/prometheus",namespace="prometheus"}[5m])) / ((rate(prometheus_remote_storage_failed_samples_total{job="prometheus/prometheus",namespace="prometheus"}[5m]) or rate(prometheus_remote_storage_samples_failed_total{job="prometheus/prometheus",namespace="prometheus"}[5m])) + (rate(prometheus_remote_storage_succeeded_samples_total{job="prometheus/prometheus",namespace="prometheus"}[5m]) or rate(prometheus_remote_storage_samples_total{job="prometheus/prometheus",namespace="prometheus"}[5m])))) * 100 > 1'
         for: 'PT15M'
-        severity: 2
+        severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
       }
       {
         actions: [
@@ -210,8 +203,6 @@ resource prometheusRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -230,7 +221,7 @@ resource prometheusRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
         }
         expression: '(sum without (type) (rate(prometheus_tsdb_head_samples_appended_total{job="prometheus/prometheus",namespace="prometheus"}[5m])) <= 0 and sum without (scrape_job) (prometheus_target_metadata_cache_entries{job="prometheus/prometheus",namespace="prometheus"}) > 0)'
         for: 'PT10M'
-        severity: 3
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
         actions: [
@@ -239,8 +230,6 @@ resource prometheusRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -259,7 +248,7 @@ resource prometheusRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
         }
         expression: 'max_over_time(prometheus_config_last_reload_successful{job="prometheus/prometheus",namespace="prometheus"}[5m]) == 0'
         for: 'PT10M'
-        severity: 2
+        severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
       }
       {
         actions: [
@@ -268,8 +257,6 @@ resource prometheusRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -288,7 +275,7 @@ resource prometheusRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
         }
         expression: 'increase(prometheus_target_scrapes_exceeded_sample_limit_total{job="prometheus/prometheus",namespace="prometheus"}[5m]) > 0'
         for: 'PT15M'
-        severity: 3
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
     ]
     scopes: [
@@ -310,8 +297,6 @@ resource prometheusOperatorRules 'Microsoft.AlertsManagement/prometheusRuleGroup
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -330,7 +315,7 @@ resource prometheusOperatorRules 'Microsoft.AlertsManagement/prometheusRuleGroup
         }
         expression: 'min by (cluster, controller, namespace) (max_over_time(prometheus_operator_ready{job="prometheus-operator",namespace="prometheus"}[5m])) == 0'
         for: 'PT5M'
-        severity: 3
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
         actions: [
@@ -339,8 +324,6 @@ resource prometheusOperatorRules 'Microsoft.AlertsManagement/prometheusRuleGroup
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -359,7 +342,7 @@ resource prometheusOperatorRules 'Microsoft.AlertsManagement/prometheusRuleGroup
         }
         expression: 'min_over_time(prometheus_operator_managed_resources{job="prometheus-operator",namespace="prometheus",state="rejected"}[5m]) > 0'
         for: 'PT20M'
-        severity: 3
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
     ]
     scopes: [
@@ -381,8 +364,6 @@ resource frontend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' =
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -401,7 +382,7 @@ resource frontend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' =
         }
         expression: '(sum by (cluster) (max without(prometheus_replica) (rate(frontend_clusters_service_client_request_count{code=~"4..|5.."}[1h])))) / (sum by (cluster) (max without(prometheus_replica) (rate(frontend_clusters_service_client_request_count[1h])))) > 0.05'
         for: 'PT15M'
-        severity: 4
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
       {
         actions: [
@@ -410,8 +391,6 @@ resource frontend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' =
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -430,7 +409,7 @@ resource frontend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' =
         }
         expression: '( sum by (cluster) (rate(otel_audit_log_send_errors_total{job="aro-hcp-frontend-metrics"}[1h])) / sum by (cluster) (rate(otel_audit_log_records_total{job="aro-hcp-frontend-metrics"}[1h])) ) > 0.05'
         for: 'PT15M'
-        severity: 4
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
       {
         actions: [
@@ -439,8 +418,6 @@ resource frontend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' =
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -459,7 +436,7 @@ resource frontend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' =
         }
         expression: 'otel_audit_log_connection_degraded{job="aro-hcp-frontend-metrics"} == 1'
         for: 'PT15M'
-        severity: 4
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
       {
         actions: [
@@ -468,8 +445,6 @@ resource frontend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' =
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -488,7 +463,7 @@ resource frontend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' =
         }
         expression: 'sum by (cluster) ( increase(frontend_http_request_panics_total[5m]) ) > 0'
         for: 'PT1M'
-        severity: 3
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
     ]
     scopes: [
@@ -510,8 +485,6 @@ resource arohcpCsSloAvailabilityAlerts 'Microsoft.AlertsManagement/prometheusRul
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -532,7 +505,7 @@ resource arohcpCsSloAvailabilityAlerts 'Microsoft.AlertsManagement/prometheusRul
         }
         expression: '( sum by(cluster, namespace, service) (max without(prometheus_replica) (availability:api_inbound_request_count:burnrate5m{namespace="clusters-service", service="clusters-service-metrics"})) > (13.44 * (1 - 0.99)) and sum by(cluster, namespace, service) (max without(prometheus_replica) (availability:api_inbound_request_count:burnrate1h{namespace="clusters-service", service="clusters-service-metrics"})) > (13.44 * (1 - 0.99)) ) or ( sum by(cluster, namespace, service) (max without(prometheus_replica) (availability:api_inbound_request_count:burnrate30m{namespace="clusters-service", service="clusters-service-metrics"})) > (5.6 * (1 - 0.99)) and sum by(cluster, namespace, service) (max without(prometheus_replica) (availability:api_inbound_request_count:burnrate6h{namespace="clusters-service", service="clusters-service-metrics"})) > (5.6 * (1 - 0.99)) )'
         for: 'PT5M'
-        severity: 3
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
         actions: [
@@ -541,8 +514,6 @@ resource arohcpCsSloAvailabilityAlerts 'Microsoft.AlertsManagement/prometheusRul
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -562,7 +533,7 @@ resource arohcpCsSloAvailabilityAlerts 'Microsoft.AlertsManagement/prometheusRul
         }
         expression: 'sum by(cluster, namespace, service) (max without(prometheus_replica) (availability:api_inbound_request_count:burnrate6h{namespace="clusters-service", service="clusters-service-metrics"})) > (0.934 * (1 - 0.99)) and sum by(cluster, namespace, service) (max without(prometheus_replica) (availability:api_inbound_request_count:burnrate3d{namespace="clusters-service", service="clusters-service-metrics"})) > (0.934 * (1 - 0.99))'
         for: 'PT30M'
-        severity: 3
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
         actions: [
@@ -571,8 +542,6 @@ resource arohcpCsSloAvailabilityAlerts 'Microsoft.AlertsManagement/prometheusRul
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -594,7 +563,7 @@ resource arohcpCsSloAvailabilityAlerts 'Microsoft.AlertsManagement/prometheusRul
         }
         expression: '( sum by(cluster, namespace, service) (max without(prometheus_replica) (latency:api_inbound_request_duration:p99_burnrate5m{namespace="clusters-service", service="clusters-service-metrics"})) > (13.44 * (1 - 0.99)) and sum by(cluster, namespace, service) (max without(prometheus_replica) (latency:api_inbound_request_duration:p99_burnrate1h{namespace="clusters-service", service="clusters-service-metrics"})) > (13.44 * (1 - 0.99)) ) or ( sum by(cluster, namespace, service) (max without(prometheus_replica) (latency:api_inbound_request_duration:p99_burnrate30m{namespace="clusters-service", service="clusters-service-metrics"})) > (5.6 * (1 - 0.99)) and sum by(cluster, namespace, service) (max without(prometheus_replica) (latency:api_inbound_request_duration:p99_burnrate6h{namespace="clusters-service", service="clusters-service-metrics"})) > (5.6 * (1 - 0.99)) )'
         for: 'PT5M'
-        severity: 3
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
         actions: [
@@ -603,8 +572,6 @@ resource arohcpCsSloAvailabilityAlerts 'Microsoft.AlertsManagement/prometheusRul
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -624,7 +591,7 @@ resource arohcpCsSloAvailabilityAlerts 'Microsoft.AlertsManagement/prometheusRul
         }
         expression: 'sum by(cluster, namespace, service) (max without(prometheus_replica) (latency:api_inbound_request_duration:p99_burnrate6h{namespace="clusters-service", service="clusters-service-metrics"})) > (0.934 * (1 - 0.99)) and sum by(cluster, namespace, service) (max without(prometheus_replica) (latency:api_inbound_request_duration:p99_burnrate3d{namespace="clusters-service", service="clusters-service-metrics"})) > (0.934 * (1 - 0.99))'
         for: 'PT30M'
-        severity: 3
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
         actions: [
@@ -633,8 +600,6 @@ resource arohcpCsSloAvailabilityAlerts 'Microsoft.AlertsManagement/prometheusRul
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -656,7 +621,7 @@ resource arohcpCsSloAvailabilityAlerts 'Microsoft.AlertsManagement/prometheusRul
         }
         expression: '( sum by(cluster, namespace, service) (max without(prometheus_replica) (latency:api_inbound_request_duration:p90_burnrate5m{namespace="clusters-service", service="clusters-service-metrics"})) > (13.44 * (1 - 0.90)) and sum by(cluster, namespace, service) (max without(prometheus_replica) (latency:api_inbound_request_duration:p90_burnrate1h{namespace="clusters-service", service="clusters-service-metrics"})) > (13.44 * (1 - 0.90)) ) or ( sum by(cluster, namespace, service) (max without(prometheus_replica) (latency:api_inbound_request_duration:p90_burnrate30m{namespace="clusters-service", service="clusters-service-metrics"})) > (5.6 * (1 - 0.90)) and sum by(cluster, namespace, service) (max without(prometheus_replica) (latency:api_inbound_request_duration:p90_burnrate6h{namespace="clusters-service", service="clusters-service-metrics"})) > (5.6 * (1 - 0.90)) )'
         for: 'PT5M'
-        severity: 3
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
         actions: [
@@ -665,8 +630,6 @@ resource arohcpCsSloAvailabilityAlerts 'Microsoft.AlertsManagement/prometheusRul
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -686,7 +649,7 @@ resource arohcpCsSloAvailabilityAlerts 'Microsoft.AlertsManagement/prometheusRul
         }
         expression: 'sum by(cluster, namespace, service) (max without(prometheus_replica) (latency:api_inbound_request_duration:p90_burnrate6h{namespace="clusters-service", service="clusters-service-metrics"})) > (0.934 * (1 - 0.90)) and sum by(cluster, namespace, service) (max without(prometheus_replica) (latency:api_inbound_request_duration:p90_burnrate3d{namespace="clusters-service", service="clusters-service-metrics"})) > (0.934 * (1 - 0.90))'
         for: 'PT30M'
-        severity: 3
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
     ]
     scopes: [
@@ -708,8 +671,6 @@ resource backend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = 
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -728,7 +689,7 @@ resource backend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = 
         }
         expression: 'max by (name, cluster) ( max without(prometheus_replica) ( workqueue_depth{namespace="aro-hcp"} ) ) > 10'
         for: 'PT15M'
-        severity: 3
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
         actions: [
@@ -737,8 +698,6 @@ resource backend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = 
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -757,7 +716,7 @@ resource backend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = 
         }
         expression: 'sum by (controller, cluster) ( increase(panic_total{namespace="aro-hcp"}[5m]) ) > 0'
         for: 'PT1M'
-        severity: 3
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
     ]
     scopes: [
@@ -779,8 +738,6 @@ resource fleet 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -799,7 +756,7 @@ resource fleet 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
         }
         expression: '( sum by (name, cluster) ( max without(prometheus_replica) ( rate(workqueue_retries_total{namespace="fleet"}[10m]) ) ) / sum by (name, cluster) ( max without(prometheus_replica) ( rate(workqueue_adds_total{namespace="fleet"}[10m]) ) ) ) > 0.5'
         for: 'PT10M'
-        severity: 3
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
         actions: [
@@ -808,8 +765,6 @@ resource fleet 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -828,7 +783,7 @@ resource fleet 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
         }
         expression: 'max by (name, cluster) ( max without(prometheus_replica) ( workqueue_depth{namespace="fleet"} ) ) > 10'
         for: 'PT5M'
-        severity: 3
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
         actions: [
@@ -837,8 +792,6 @@ resource fleet 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -857,7 +810,7 @@ resource fleet 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
         }
         expression: 'sum by (controller, cluster) ( increase(panic_total{namespace="fleet"}[5m]) ) > 0'
         for: 'PT1M'
-        severity: 3
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
     ]
     scopes: [
@@ -879,8 +832,6 @@ resource adminApi 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' =
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -899,7 +850,7 @@ resource adminApi 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' =
         }
         expression: '( sum by (cluster) (rate(otel_audit_log_send_errors_total{job="aro-hcp-admin-api-metrics"}[1h])) / sum by (cluster) (rate(otel_audit_log_records_total{job="aro-hcp-admin-api-metrics"}[1h])) ) > 0.05'
         for: 'PT5M'
-        severity: 4
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
       {
         actions: [
@@ -908,8 +859,6 @@ resource adminApi 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' =
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -928,7 +877,7 @@ resource adminApi 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' =
         }
         expression: 'otel_audit_log_connection_degraded{job="aro-hcp-admin-api-metrics"} == 1'
         for: 'PT5M'
-        severity: 4
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
     ]
     scopes: [
@@ -950,8 +899,6 @@ resource maestro 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = 
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -970,7 +917,7 @@ resource maestro 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = 
         }
         expression: 'sum(grpc_server_registered_source_clients{namespace="maestro"}) > 100'
         for: 'PT10M'
-        severity: 3
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
         actions: [
@@ -979,8 +926,6 @@ resource maestro 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = 
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -999,7 +944,7 @@ resource maestro 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = 
         }
         expression: 'sum(rate(rest_api_inbound_request_count{namespace="maestro", code=~"5.."}[5m])) / sum(rate(rest_api_inbound_request_count{namespace="maestro"}[5m])) > 0.05'
         for: 'PT5M'
-        severity: 3
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
         actions: [
@@ -1008,8 +953,6 @@ resource maestro 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = 
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -1028,7 +971,7 @@ resource maestro 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = 
         }
         expression: 'sum(rate(grpc_server_processed_total{namespace="maestro", code!="OK"}[5m])) / sum(rate(grpc_server_processed_total{namespace="maestro"}[5m])) > 0.05'
         for: 'PT5M'
-        severity: 3
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
         actions: [
@@ -1037,8 +980,6 @@ resource maestro 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = 
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -1057,7 +998,7 @@ resource maestro 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = 
         }
         expression: 'sum(rate(spec_controller_event_reconcile_total{namespace="maestro", status="error"}[5m])) / sum(rate(spec_controller_event_reconcile_total{namespace="maestro"}[5m])) > 0.1'
         for: 'PT10M'
-        severity: 3
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
     ]
     scopes: [
@@ -1079,8 +1020,6 @@ resource arobitRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -1101,7 +1040,7 @@ resource arobitRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01
         }
         expression: 'group by (cluster) (up{job="kube-state-metrics"}) unless on(cluster) group by (cluster) (up{job="arobit-forwarder",namespace="arobit"} == 1)'
         for: 'PT15M'
-        severity: 3
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
         actions: [
@@ -1110,8 +1049,6 @@ resource arobitRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -1136,7 +1073,7 @@ Investigate the Fluent Bit logs for the specific error details and check the Kus
         }
         expression: 'sum(fluentbit_input_ingestion_paused) by (cluster, pod) > 0'
         for: 'PT5M'
-        severity: 3
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
         actions: [
@@ -1145,8 +1082,6 @@ Investigate the Fluent Bit logs for the specific error details and check the Kus
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -1171,7 +1106,7 @@ Investigate the Fluent Bit logs for the specific error details and check the Kus
         }
         expression: 'sum(increase(fluentbit_output_retries_total{name=~"azure_kusto.*"}[5m])) by (cluster, pod) > 3'
         for: 'PT5M'
-        severity: 3
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
         actions: [
@@ -1180,8 +1115,6 @@ Investigate the Fluent Bit logs for the specific error details and check the Kus
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -1204,7 +1137,7 @@ Investigate the Fluent Bit logs for the specific error details and check the Kus
         }
         expression: 'sum(increase(fluentbit_output_errors_total{name=~"azure_kusto.*"}[5m])) by (cluster, pod) > 0'
         for: 'PT5M'
-        severity: 3
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
         actions: [
@@ -1213,8 +1146,6 @@ Investigate the Fluent Bit logs for the specific error details and check the Kus
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -1237,7 +1168,7 @@ Investigate the Fluent Bit logs for the specific error details and check the Kus
         }
         expression: 'sum(increase(fluentbit_output_retries_failed_total{name=~"azure_kusto.*"}[5m])) by (cluster, pod) > 0'
         for: 'PT5M'
-        severity: 3
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
     ]
     scopes: [
@@ -1259,8 +1190,6 @@ resource serviceTagCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroup
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -1281,7 +1210,7 @@ resource serviceTagCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroup
         }
         expression: 'public_ip_count_by_region_service_tag{service_tag_type="FirstPartyUsage",service_tag_value="/aro-hcp-nonprod-inbound-customerapi"} / 32 > 0.8'
         for: 'PT15M'
-        severity: 4
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
       {
         actions: [
@@ -1290,8 +1219,6 @@ resource serviceTagCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroup
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -1312,7 +1239,7 @@ resource serviceTagCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroup
         }
         expression: 'public_ip_count_by_region_service_tag{service_tag_type="FirstPartyUsage",service_tag_value="/aro-hcp-nonprod-inbound-svc"} / 18 > 0.8'
         for: 'PT15M'
-        severity: 4
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
       {
         actions: [
@@ -1321,8 +1248,6 @@ resource serviceTagCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroup
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -1343,7 +1268,7 @@ resource serviceTagCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroup
         }
         expression: 'public_ip_count_by_region_service_tag{service_tag_type="FirstPartyUsage",service_tag_value="/aro-hcp-nonprod-outbound-cx"} / 8 > 0.8'
         for: 'PT15M'
-        severity: 4
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
       {
         actions: [
@@ -1352,8 +1277,6 @@ resource serviceTagCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroup
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -1374,7 +1297,7 @@ resource serviceTagCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroup
         }
         expression: 'public_ip_count_by_region_service_tag{service_tag_type="FirstPartyUsage",service_tag_value="/aro-hcp-nonprod-outbound-svc"} / 18 > 0.8'
         for: 'PT15M'
-        severity: 4
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
       {
         actions: [
@@ -1383,8 +1306,6 @@ resource serviceTagCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroup
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -1405,7 +1326,7 @@ resource serviceTagCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroup
         }
         expression: 'public_ip_count_by_region_service_tag{service_tag_type="FirstPartyUsage",service_tag_value="/aro-hcp-prod-inbound-customerapi",region!="uswest2"} / 64 > 0.8'
         for: 'PT15M'
-        severity: 4
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
       {
         actions: [
@@ -1414,8 +1335,6 @@ resource serviceTagCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroup
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -1436,7 +1355,7 @@ resource serviceTagCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroup
         }
         expression: 'public_ip_count_by_region_service_tag{service_tag_type="FirstPartyUsage",service_tag_value="/aro-hcp-prod-inbound-customerapi",region="uswest2"} / 128 > 0.8'
         for: 'PT15M'
-        severity: 4
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
       {
         actions: [
@@ -1445,8 +1364,6 @@ resource serviceTagCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroup
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -1467,7 +1384,7 @@ resource serviceTagCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroup
         }
         expression: 'public_ip_count_by_region_service_tag{service_tag_type="FirstPartyUsage",service_tag_value="/aro-hcp-prod-inbound-cx"} / 32 > 0.8'
         for: 'PT15M'
-        severity: 4
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
       {
         actions: [
@@ -1476,8 +1393,6 @@ resource serviceTagCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroup
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -1498,7 +1413,7 @@ resource serviceTagCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroup
         }
         expression: 'public_ip_count_by_region_service_tag{service_tag_type="FirstPartyUsage",service_tag_value="/aro-hcp-prod-inbound-svc"} / 32 > 0.8'
         for: 'PT15M'
-        severity: 4
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
       {
         actions: [
@@ -1507,8 +1422,6 @@ resource serviceTagCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroup
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -1529,7 +1442,7 @@ resource serviceTagCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroup
         }
         expression: 'public_ip_count_by_region_service_tag{service_tag_type="FirstPartyUsage",service_tag_value="/aro-hcp-prod-outbound-cx"} / 32 > 0.8'
         for: 'PT15M'
-        severity: 4
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
       {
         actions: [
@@ -1538,8 +1451,6 @@ resource serviceTagCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroup
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -1560,7 +1471,7 @@ resource serviceTagCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroup
         }
         expression: 'public_ip_count_by_region_service_tag{service_tag_type="FirstPartyUsage",service_tag_value="/aro-hcp-prod-outbound-svc"} / 32 > 0.8'
         for: 'PT15M'
-        severity: 4
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
     ]
     scopes: [
@@ -1582,8 +1493,6 @@ resource hcpDeletionRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -1606,7 +1515,7 @@ This may indicate that finalizers are stuck or resources are failing to cleanup.
         }
         expression: 'sum by (cluster, exported_namespace, name) (hypershift_cluster_deleting_duration_seconds) > 7200'
         for: 'PT5M'
-        severity: 3
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
     ]
     scopes: [
@@ -1628,8 +1537,6 @@ resource kubeContainerOomRules 'Microsoft.AlertsManagement/prometheusRuleGroups@
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -1647,7 +1554,7 @@ resource kubeContainerOomRules 'Microsoft.AlertsManagement/prometheusRuleGroups@
           title: 'Container {{ $labels.container }} was OOMKilled'
         }
         expression: 'kube_pod_container_status_last_terminated_reason{reason="OOMKilled", job="kube-state-metrics"} == 1'
-        severity: 3
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
     ]
     scopes: [
@@ -1669,8 +1576,6 @@ resource kubeNodeRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -1688,7 +1593,7 @@ resource kubeNodeRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-
         }
         expression: 'kube_node_status_condition{condition="MemoryPressure",status="true"} == 1'
         for: 'PT5M'
-        severity: 3
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
     ]
     scopes: [
@@ -1710,8 +1615,6 @@ resource imageRegistryPolicy 'Microsoft.AlertsManagement/prometheusRuleGroups@20
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -1730,7 +1633,7 @@ resource imageRegistryPolicy 'Microsoft.AlertsManagement/prometheusRuleGroups@20
         }
         expression: 'sum by (cluster, policy, policy_binding) ( increase(apiserver_validating_admission_policy_check_total{ policy="image-registry-allowlist-policy", enforcement_action="deny", validation_result="denied" }[15m]) ) > 0'
         for: 'PT1M'
-        severity: 3
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
         actions: [
@@ -1739,8 +1642,6 @@ resource imageRegistryPolicy 'Microsoft.AlertsManagement/prometheusRuleGroups@20
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -1759,7 +1660,7 @@ resource imageRegistryPolicy 'Microsoft.AlertsManagement/prometheusRuleGroups@20
         }
         expression: 'sum by (cluster, policy, policy_binding) ( increase(apiserver_validating_admission_policy_check_total{ policy="image-registry-allowlist-policy", enforcement_action="audit", validation_result="denied" }[15m]) ) > 0'
         for: 'PT5M'
-        severity: 4
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
     ]
     scopes: [
@@ -1781,8 +1682,6 @@ resource kustoLogsAgeRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -1803,7 +1702,7 @@ resource kustoLogsAgeRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
         }
         expression: 'kusto_logs_age_in_seconds > 3600'
         for: 'PT15M'
-        severity: 3
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
     ]
     scopes: [

@@ -1,0 +1,398 @@
+{
+  "_attachments": "attachments/",
+  "_etag": "\"0000a625-0000-4d00-0000-6a29fae10000\"",
+  "_rid": "deIlAKL5A1hVBQAAAAAAAA==",
+  "_self": "dbs/deIlAA==/colls/deIlAKL5A1g=/docs/deIlAKL5A1hVBQAAAAAAAA==/",
+  "_ts": 1781136097,
+  "id": "7b628620-95db-5631-9c44-15c5dc774dfc",
+  "partitionKey": "e8c5a115-842d-4d7e-98ad-cfb2c50b209e",
+  "properties": {
+    "cosmosMetadata": {
+      "etag": "\"0000bc1d-0000-4d00-0000-6a29ec4f0000\"",
+      "resourceID": "/subscriptions/e8c5a115-842d-4d7e-98ad-cfb2c50b209e/resourceGroups/rg-np-version-upgrade-pckjw8-79qhmc/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/np-version-upgrade-cluster-pckjw8"
+    },
+    "customerProperties": {
+      "api": {
+        "visibility": "Public"
+      },
+      "autoscaling": {
+        "maxNodeProvisionTimeSeconds": 900,
+        "maxPodGracePeriodSeconds": 600,
+        "podPriorityThreshold": -10
+      },
+      "clusterImageRegistry": {
+        "state": "Enabled"
+      },
+      "dns": {
+        "baseDomainPrefix": "x8y5p7r4g6j9e3v"
+      },
+      "etcd": {
+        "dataEncryption": {
+          "customerManaged": {
+            "encryptionType": "KMS",
+            "kms": {
+              "activeKey": {
+                "name": "etcd-data-kms-encryption-key",
+                "vaultName": "cust-kv-nwb7s2fhiity4",
+                "version": "0ac571d3970149dfb69e433820082616"
+              },
+              "visibility": "Public"
+            }
+          },
+          "keyManagementMode": "CustomerManaged"
+        }
+      },
+      "network": {
+        "hostPrefix": 23,
+        "machineCidr": "10.0.0.0/16",
+        "networkType": "OVNKubernetes",
+        "podCidr": "10.128.0.0/14",
+        "serviceCidr": "172.30.0.0/16"
+      },
+      "platform": {
+        "managedResourceGroup": "rg-np-version-upgrade-pckjw8-79qhmc-np-upgrade-pckjw8--managed",
+        "networkSecurityGroupId": "/subscriptions/e8c5a115-842d-4d7e-98ad-cfb2c50b209e/resourceGroups/rg-np-version-upgrade-pckjw8-79qhmc/providers/Microsoft.Network/networkSecurityGroups/customer-nsg-np-upgrade-pckjw8",
+        "operatorsAuthentication": {
+          "userAssignedIdentities": {
+            "controlPlaneOperators": {
+              "cloud-controller-manager": "/subscriptions/e8c5a115-842d-4d7e-98ad-cfb2c50b209e/resourceGroups/aro-hcp-msi-container-dev-shard1-01-03/providers/Microsoft.ManagedIdentity/userAssignedIdentities/cloud-controller-manager",
+              "cloud-network-config": "/subscriptions/e8c5a115-842d-4d7e-98ad-cfb2c50b209e/resourceGroups/aro-hcp-msi-container-dev-shard1-01-03/providers/Microsoft.ManagedIdentity/userAssignedIdentities/cloud-network-config",
+              "cluster-api-azure": "/subscriptions/e8c5a115-842d-4d7e-98ad-cfb2c50b209e/resourceGroups/aro-hcp-msi-container-dev-shard1-01-03/providers/Microsoft.ManagedIdentity/userAssignedIdentities/cluster-api-azure",
+              "control-plane": "/subscriptions/e8c5a115-842d-4d7e-98ad-cfb2c50b209e/resourceGroups/aro-hcp-msi-container-dev-shard1-01-03/providers/Microsoft.ManagedIdentity/userAssignedIdentities/control-plane",
+              "disk-csi-driver": "/subscriptions/e8c5a115-842d-4d7e-98ad-cfb2c50b209e/resourceGroups/aro-hcp-msi-container-dev-shard1-01-03/providers/Microsoft.ManagedIdentity/userAssignedIdentities/disk-csi-driver",
+              "file-csi-driver": "/subscriptions/e8c5a115-842d-4d7e-98ad-cfb2c50b209e/resourceGroups/aro-hcp-msi-container-dev-shard1-01-03/providers/Microsoft.ManagedIdentity/userAssignedIdentities/file-csi-driver",
+              "image-registry": "/subscriptions/e8c5a115-842d-4d7e-98ad-cfb2c50b209e/resourceGroups/aro-hcp-msi-container-dev-shard1-01-03/providers/Microsoft.ManagedIdentity/userAssignedIdentities/image-registry",
+              "ingress": "/subscriptions/e8c5a115-842d-4d7e-98ad-cfb2c50b209e/resourceGroups/aro-hcp-msi-container-dev-shard1-01-03/providers/Microsoft.ManagedIdentity/userAssignedIdentities/ingress",
+              "kms": "/subscriptions/e8c5a115-842d-4d7e-98ad-cfb2c50b209e/resourceGroups/aro-hcp-msi-container-dev-shard1-01-03/providers/Microsoft.ManagedIdentity/userAssignedIdentities/kms"
+            },
+            "dataPlaneOperators": {
+              "disk-csi-driver": "/subscriptions/e8c5a115-842d-4d7e-98ad-cfb2c50b209e/resourceGroups/aro-hcp-msi-container-dev-shard1-01-03/providers/Microsoft.ManagedIdentity/userAssignedIdentities/dp-disk-csi-driver",
+              "file-csi-driver": "/subscriptions/e8c5a115-842d-4d7e-98ad-cfb2c50b209e/resourceGroups/aro-hcp-msi-container-dev-shard1-01-03/providers/Microsoft.ManagedIdentity/userAssignedIdentities/dp-file-csi-driver",
+              "image-registry": "/subscriptions/e8c5a115-842d-4d7e-98ad-cfb2c50b209e/resourceGroups/aro-hcp-msi-container-dev-shard1-01-03/providers/Microsoft.ManagedIdentity/userAssignedIdentities/dp-image-registry"
+            },
+            "serviceManagedIdentity": "/subscriptions/e8c5a115-842d-4d7e-98ad-cfb2c50b209e/resourceGroups/aro-hcp-msi-container-dev-shard1-01-03/providers/Microsoft.ManagedIdentity/userAssignedIdentities/service"
+          }
+        },
+        "outboundType": "LoadBalancer",
+        "subnetId": "/subscriptions/e8c5a115-842d-4d7e-98ad-cfb2c50b209e/resourceGroups/rg-np-version-upgrade-pckjw8-79qhmc/providers/Microsoft.Network/virtualNetworks/customer-vnet-np-upgrade-pckjw8/subnets/customer-vnet-subnet-np-upgrade-pckjw8"
+      },
+      "version": {
+        "channelGroup": "candidate",
+        "id": "4.21.19"
+      }
+    },
+    "id": "/subscriptions/e8c5a115-842d-4d7e-98ad-cfb2c50b209e/resourceGroups/rg-np-version-upgrade-pckjw8-79qhmc/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/np-version-upgrade-cluster-pckjw8",
+    "identity": {
+      "type": "UserAssigned",
+      "userAssignedIdentities": {
+        "/subscriptions/e8c5a115-842d-4d7e-98ad-cfb2c50b209e/resourceGroups/aro-hcp-msi-container-dev-shard1-01-03/providers/Microsoft.ManagedIdentity/userAssignedIdentities/cloud-controller-manager": {
+          "clientId": "8c088886-a118-4973-8168-0d7ae1493aa7",
+          "principalId": "ccbf438f-08ec-4e2b-ae4e-219ce7dc3762"
+        },
+        "/subscriptions/e8c5a115-842d-4d7e-98ad-cfb2c50b209e/resourceGroups/aro-hcp-msi-container-dev-shard1-01-03/providers/Microsoft.ManagedIdentity/userAssignedIdentities/cloud-network-config": {
+          "clientId": "8c088886-a118-4973-8168-0d7ae1493aa7",
+          "principalId": "ccbf438f-08ec-4e2b-ae4e-219ce7dc3762"
+        },
+        "/subscriptions/e8c5a115-842d-4d7e-98ad-cfb2c50b209e/resourceGroups/aro-hcp-msi-container-dev-shard1-01-03/providers/Microsoft.ManagedIdentity/userAssignedIdentities/cluster-api-azure": {
+          "clientId": "8c088886-a118-4973-8168-0d7ae1493aa7",
+          "principalId": "ccbf438f-08ec-4e2b-ae4e-219ce7dc3762"
+        },
+        "/subscriptions/e8c5a115-842d-4d7e-98ad-cfb2c50b209e/resourceGroups/aro-hcp-msi-container-dev-shard1-01-03/providers/Microsoft.ManagedIdentity/userAssignedIdentities/control-plane": {
+          "clientId": "8c088886-a118-4973-8168-0d7ae1493aa7",
+          "principalId": "ccbf438f-08ec-4e2b-ae4e-219ce7dc3762"
+        },
+        "/subscriptions/e8c5a115-842d-4d7e-98ad-cfb2c50b209e/resourceGroups/aro-hcp-msi-container-dev-shard1-01-03/providers/Microsoft.ManagedIdentity/userAssignedIdentities/disk-csi-driver": {
+          "clientId": "8c088886-a118-4973-8168-0d7ae1493aa7",
+          "principalId": "ccbf438f-08ec-4e2b-ae4e-219ce7dc3762"
+        },
+        "/subscriptions/e8c5a115-842d-4d7e-98ad-cfb2c50b209e/resourceGroups/aro-hcp-msi-container-dev-shard1-01-03/providers/Microsoft.ManagedIdentity/userAssignedIdentities/file-csi-driver": {
+          "clientId": "8c088886-a118-4973-8168-0d7ae1493aa7",
+          "principalId": "ccbf438f-08ec-4e2b-ae4e-219ce7dc3762"
+        },
+        "/subscriptions/e8c5a115-842d-4d7e-98ad-cfb2c50b209e/resourceGroups/aro-hcp-msi-container-dev-shard1-01-03/providers/Microsoft.ManagedIdentity/userAssignedIdentities/image-registry": {
+          "clientId": "8c088886-a118-4973-8168-0d7ae1493aa7",
+          "principalId": "ccbf438f-08ec-4e2b-ae4e-219ce7dc3762"
+        },
+        "/subscriptions/e8c5a115-842d-4d7e-98ad-cfb2c50b209e/resourceGroups/aro-hcp-msi-container-dev-shard1-01-03/providers/Microsoft.ManagedIdentity/userAssignedIdentities/ingress": {
+          "clientId": "8c088886-a118-4973-8168-0d7ae1493aa7",
+          "principalId": "ccbf438f-08ec-4e2b-ae4e-219ce7dc3762"
+        },
+        "/subscriptions/e8c5a115-842d-4d7e-98ad-cfb2c50b209e/resourceGroups/aro-hcp-msi-container-dev-shard1-01-03/providers/Microsoft.ManagedIdentity/userAssignedIdentities/kms": {
+          "clientId": "8c088886-a118-4973-8168-0d7ae1493aa7",
+          "principalId": "ccbf438f-08ec-4e2b-ae4e-219ce7dc3762"
+        },
+        "/subscriptions/e8c5a115-842d-4d7e-98ad-cfb2c50b209e/resourceGroups/aro-hcp-msi-container-dev-shard1-01-03/providers/Microsoft.ManagedIdentity/userAssignedIdentities/service": {
+          "clientId": "8c088886-a118-4973-8168-0d7ae1493aa7",
+          "principalId": "ccbf438f-08ec-4e2b-ae4e-219ce7dc3762"
+        }
+      }
+    },
+    "intermediateResourceDoc": {
+      "activeOperationId": "be3c078c-1f8c-45bd-aaef-13c0cafcbc65",
+      "identity": {
+        "type": "UserAssigned",
+        "userAssignedIdentities": {
+          "/subscriptions/e8c5a115-842d-4d7e-98ad-cfb2c50b209e/resourceGroups/aro-hcp-msi-container-dev-shard1-01-03/providers/Microsoft.ManagedIdentity/userAssignedIdentities/cloud-controller-manager": {
+            "clientId": "8c088886-a118-4973-8168-0d7ae1493aa7",
+            "principalId": "ccbf438f-08ec-4e2b-ae4e-219ce7dc3762"
+          },
+          "/subscriptions/e8c5a115-842d-4d7e-98ad-cfb2c50b209e/resourceGroups/aro-hcp-msi-container-dev-shard1-01-03/providers/Microsoft.ManagedIdentity/userAssignedIdentities/cloud-network-config": {
+            "clientId": "8c088886-a118-4973-8168-0d7ae1493aa7",
+            "principalId": "ccbf438f-08ec-4e2b-ae4e-219ce7dc3762"
+          },
+          "/subscriptions/e8c5a115-842d-4d7e-98ad-cfb2c50b209e/resourceGroups/aro-hcp-msi-container-dev-shard1-01-03/providers/Microsoft.ManagedIdentity/userAssignedIdentities/cluster-api-azure": {
+            "clientId": "8c088886-a118-4973-8168-0d7ae1493aa7",
+            "principalId": "ccbf438f-08ec-4e2b-ae4e-219ce7dc3762"
+          },
+          "/subscriptions/e8c5a115-842d-4d7e-98ad-cfb2c50b209e/resourceGroups/aro-hcp-msi-container-dev-shard1-01-03/providers/Microsoft.ManagedIdentity/userAssignedIdentities/control-plane": {
+            "clientId": "8c088886-a118-4973-8168-0d7ae1493aa7",
+            "principalId": "ccbf438f-08ec-4e2b-ae4e-219ce7dc3762"
+          },
+          "/subscriptions/e8c5a115-842d-4d7e-98ad-cfb2c50b209e/resourceGroups/aro-hcp-msi-container-dev-shard1-01-03/providers/Microsoft.ManagedIdentity/userAssignedIdentities/disk-csi-driver": {
+            "clientId": "8c088886-a118-4973-8168-0d7ae1493aa7",
+            "principalId": "ccbf438f-08ec-4e2b-ae4e-219ce7dc3762"
+          },
+          "/subscriptions/e8c5a115-842d-4d7e-98ad-cfb2c50b209e/resourceGroups/aro-hcp-msi-container-dev-shard1-01-03/providers/Microsoft.ManagedIdentity/userAssignedIdentities/file-csi-driver": {
+            "clientId": "8c088886-a118-4973-8168-0d7ae1493aa7",
+            "principalId": "ccbf438f-08ec-4e2b-ae4e-219ce7dc3762"
+          },
+          "/subscriptions/e8c5a115-842d-4d7e-98ad-cfb2c50b209e/resourceGroups/aro-hcp-msi-container-dev-shard1-01-03/providers/Microsoft.ManagedIdentity/userAssignedIdentities/image-registry": {
+            "clientId": "8c088886-a118-4973-8168-0d7ae1493aa7",
+            "principalId": "ccbf438f-08ec-4e2b-ae4e-219ce7dc3762"
+          },
+          "/subscriptions/e8c5a115-842d-4d7e-98ad-cfb2c50b209e/resourceGroups/aro-hcp-msi-container-dev-shard1-01-03/providers/Microsoft.ManagedIdentity/userAssignedIdentities/ingress": {
+            "clientId": "8c088886-a118-4973-8168-0d7ae1493aa7",
+            "principalId": "ccbf438f-08ec-4e2b-ae4e-219ce7dc3762"
+          },
+          "/subscriptions/e8c5a115-842d-4d7e-98ad-cfb2c50b209e/resourceGroups/aro-hcp-msi-container-dev-shard1-01-03/providers/Microsoft.ManagedIdentity/userAssignedIdentities/kms": {
+            "clientId": "8c088886-a118-4973-8168-0d7ae1493aa7",
+            "principalId": "ccbf438f-08ec-4e2b-ae4e-219ce7dc3762"
+          },
+          "/subscriptions/e8c5a115-842d-4d7e-98ad-cfb2c50b209e/resourceGroups/aro-hcp-msi-container-dev-shard1-01-03/providers/Microsoft.ManagedIdentity/userAssignedIdentities/service": {
+            "clientId": "8c088886-a118-4973-8168-0d7ae1493aa7",
+            "principalId": "ccbf438f-08ec-4e2b-ae4e-219ce7dc3762"
+          }
+        }
+      },
+      "internalId": "/api/aro_hcp/v1alpha1/clusters/2qrppk0otds3rdmdcojqcqkqq8f0s591",
+      "provisioningState": "Deleting",
+      "resourceId": "/subscriptions/e8c5a115-842d-4d7e-98ad-cfb2c50b209e/resourceGroups/rg-np-version-upgrade-pckjw8-79qhmc/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/np-version-upgrade-cluster-pckjw8",
+      "systemData": {
+        "createdAt": "2026-06-10T22:53:03.0000000Z",
+        "createdBy": "e2e-test",
+        "createdByType": "Application",
+        "lastModifiedAt": "2026-06-10T22:53:04.3799969Z",
+        "lastModifiedBy": "Unknown-ARO-HCP-frontend",
+        "lastModifiedByType": "Application"
+      },
+      "tags": {
+        "aro-hcp.experimental.cluster.size-override": "Minimal"
+      }
+    },
+    "internalState": {
+      "internalAPI": {
+        "cosmosMetadata": {
+          "resourceID": null
+        },
+        "customerProperties": {
+          "api": {
+            "visibility": "Public"
+          },
+          "autoscaling": {
+            "maxNodeProvisionTimeSeconds": 900,
+            "maxPodGracePeriodSeconds": 600,
+            "podPriorityThreshold": -10
+          },
+          "clusterImageRegistry": {
+            "state": "Enabled"
+          },
+          "dns": {
+            "baseDomainPrefix": "x8y5p7r4g6j9e3v"
+          },
+          "etcd": {
+            "dataEncryption": {
+              "customerManaged": {
+                "encryptionType": "KMS",
+                "kms": {
+                  "activeKey": {
+                    "name": "etcd-data-kms-encryption-key",
+                    "vaultName": "cust-kv-nwb7s2fhiity4",
+                    "version": "0ac571d3970149dfb69e433820082616"
+                  },
+                  "visibility": "Public"
+                }
+              },
+              "keyManagementMode": "CustomerManaged"
+            }
+          },
+          "network": {
+            "hostPrefix": 23,
+            "machineCidr": "10.0.0.0/16",
+            "networkType": "OVNKubernetes",
+            "podCidr": "10.128.0.0/14",
+            "serviceCidr": "172.30.0.0/16"
+          },
+          "platform": {
+            "managedResourceGroup": "rg-np-version-upgrade-pckjw8-79qhmc-np-upgrade-pckjw8--managed",
+            "networkSecurityGroupId": "/subscriptions/e8c5a115-842d-4d7e-98ad-cfb2c50b209e/resourceGroups/rg-np-version-upgrade-pckjw8-79qhmc/providers/Microsoft.Network/networkSecurityGroups/customer-nsg-np-upgrade-pckjw8",
+            "operatorsAuthentication": {
+              "userAssignedIdentities": {
+                "controlPlaneOperators": {
+                  "cloud-controller-manager": "/subscriptions/e8c5a115-842d-4d7e-98ad-cfb2c50b209e/resourceGroups/aro-hcp-msi-container-dev-shard1-01-03/providers/Microsoft.ManagedIdentity/userAssignedIdentities/cloud-controller-manager",
+                  "cloud-network-config": "/subscriptions/e8c5a115-842d-4d7e-98ad-cfb2c50b209e/resourceGroups/aro-hcp-msi-container-dev-shard1-01-03/providers/Microsoft.ManagedIdentity/userAssignedIdentities/cloud-network-config",
+                  "cluster-api-azure": "/subscriptions/e8c5a115-842d-4d7e-98ad-cfb2c50b209e/resourceGroups/aro-hcp-msi-container-dev-shard1-01-03/providers/Microsoft.ManagedIdentity/userAssignedIdentities/cluster-api-azure",
+                  "control-plane": "/subscriptions/e8c5a115-842d-4d7e-98ad-cfb2c50b209e/resourceGroups/aro-hcp-msi-container-dev-shard1-01-03/providers/Microsoft.ManagedIdentity/userAssignedIdentities/control-plane",
+                  "disk-csi-driver": "/subscriptions/e8c5a115-842d-4d7e-98ad-cfb2c50b209e/resourceGroups/aro-hcp-msi-container-dev-shard1-01-03/providers/Microsoft.ManagedIdentity/userAssignedIdentities/disk-csi-driver",
+                  "file-csi-driver": "/subscriptions/e8c5a115-842d-4d7e-98ad-cfb2c50b209e/resourceGroups/aro-hcp-msi-container-dev-shard1-01-03/providers/Microsoft.ManagedIdentity/userAssignedIdentities/file-csi-driver",
+                  "image-registry": "/subscriptions/e8c5a115-842d-4d7e-98ad-cfb2c50b209e/resourceGroups/aro-hcp-msi-container-dev-shard1-01-03/providers/Microsoft.ManagedIdentity/userAssignedIdentities/image-registry",
+                  "ingress": "/subscriptions/e8c5a115-842d-4d7e-98ad-cfb2c50b209e/resourceGroups/aro-hcp-msi-container-dev-shard1-01-03/providers/Microsoft.ManagedIdentity/userAssignedIdentities/ingress",
+                  "kms": "/subscriptions/e8c5a115-842d-4d7e-98ad-cfb2c50b209e/resourceGroups/aro-hcp-msi-container-dev-shard1-01-03/providers/Microsoft.ManagedIdentity/userAssignedIdentities/kms"
+                },
+                "dataPlaneOperators": {
+                  "disk-csi-driver": "/subscriptions/e8c5a115-842d-4d7e-98ad-cfb2c50b209e/resourceGroups/aro-hcp-msi-container-dev-shard1-01-03/providers/Microsoft.ManagedIdentity/userAssignedIdentities/dp-disk-csi-driver",
+                  "file-csi-driver": "/subscriptions/e8c5a115-842d-4d7e-98ad-cfb2c50b209e/resourceGroups/aro-hcp-msi-container-dev-shard1-01-03/providers/Microsoft.ManagedIdentity/userAssignedIdentities/dp-file-csi-driver",
+                  "image-registry": "/subscriptions/e8c5a115-842d-4d7e-98ad-cfb2c50b209e/resourceGroups/aro-hcp-msi-container-dev-shard1-01-03/providers/Microsoft.ManagedIdentity/userAssignedIdentities/dp-image-registry"
+                },
+                "serviceManagedIdentity": "/subscriptions/e8c5a115-842d-4d7e-98ad-cfb2c50b209e/resourceGroups/aro-hcp-msi-container-dev-shard1-01-03/providers/Microsoft.ManagedIdentity/userAssignedIdentities/service"
+              }
+            },
+            "outboundType": "LoadBalancer",
+            "subnetId": "/subscriptions/e8c5a115-842d-4d7e-98ad-cfb2c50b209e/resourceGroups/rg-np-version-upgrade-pckjw8-79qhmc/providers/Microsoft.Network/virtualNetworks/customer-vnet-np-upgrade-pckjw8/subnets/customer-vnet-subnet-np-upgrade-pckjw8"
+          },
+          "version": {
+            "channelGroup": "candidate",
+            "id": "4.21.19"
+          }
+        },
+        "id": "/subscriptions/e8c5a115-842d-4d7e-98ad-cfb2c50b209e/resourceGroups/rg-np-version-upgrade-pckjw8-79qhmc/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/np-version-upgrade-cluster-pckjw8",
+        "identity": {
+          "type": "UserAssigned",
+          "userAssignedIdentities": {
+            "/subscriptions/e8c5a115-842d-4d7e-98ad-cfb2c50b209e/resourceGroups/aro-hcp-msi-container-dev-shard1-01-03/providers/Microsoft.ManagedIdentity/userAssignedIdentities/cloud-controller-manager": {
+              "clientId": "8c088886-a118-4973-8168-0d7ae1493aa7",
+              "principalId": "ccbf438f-08ec-4e2b-ae4e-219ce7dc3762"
+            },
+            "/subscriptions/e8c5a115-842d-4d7e-98ad-cfb2c50b209e/resourceGroups/aro-hcp-msi-container-dev-shard1-01-03/providers/Microsoft.ManagedIdentity/userAssignedIdentities/cloud-network-config": {
+              "clientId": "8c088886-a118-4973-8168-0d7ae1493aa7",
+              "principalId": "ccbf438f-08ec-4e2b-ae4e-219ce7dc3762"
+            },
+            "/subscriptions/e8c5a115-842d-4d7e-98ad-cfb2c50b209e/resourceGroups/aro-hcp-msi-container-dev-shard1-01-03/providers/Microsoft.ManagedIdentity/userAssignedIdentities/cluster-api-azure": {
+              "clientId": "8c088886-a118-4973-8168-0d7ae1493aa7",
+              "principalId": "ccbf438f-08ec-4e2b-ae4e-219ce7dc3762"
+            },
+            "/subscriptions/e8c5a115-842d-4d7e-98ad-cfb2c50b209e/resourceGroups/aro-hcp-msi-container-dev-shard1-01-03/providers/Microsoft.ManagedIdentity/userAssignedIdentities/control-plane": {
+              "clientId": "8c088886-a118-4973-8168-0d7ae1493aa7",
+              "principalId": "ccbf438f-08ec-4e2b-ae4e-219ce7dc3762"
+            },
+            "/subscriptions/e8c5a115-842d-4d7e-98ad-cfb2c50b209e/resourceGroups/aro-hcp-msi-container-dev-shard1-01-03/providers/Microsoft.ManagedIdentity/userAssignedIdentities/disk-csi-driver": {
+              "clientId": "8c088886-a118-4973-8168-0d7ae1493aa7",
+              "principalId": "ccbf438f-08ec-4e2b-ae4e-219ce7dc3762"
+            },
+            "/subscriptions/e8c5a115-842d-4d7e-98ad-cfb2c50b209e/resourceGroups/aro-hcp-msi-container-dev-shard1-01-03/providers/Microsoft.ManagedIdentity/userAssignedIdentities/file-csi-driver": {
+              "clientId": "8c088886-a118-4973-8168-0d7ae1493aa7",
+              "principalId": "ccbf438f-08ec-4e2b-ae4e-219ce7dc3762"
+            },
+            "/subscriptions/e8c5a115-842d-4d7e-98ad-cfb2c50b209e/resourceGroups/aro-hcp-msi-container-dev-shard1-01-03/providers/Microsoft.ManagedIdentity/userAssignedIdentities/image-registry": {
+              "clientId": "8c088886-a118-4973-8168-0d7ae1493aa7",
+              "principalId": "ccbf438f-08ec-4e2b-ae4e-219ce7dc3762"
+            },
+            "/subscriptions/e8c5a115-842d-4d7e-98ad-cfb2c50b209e/resourceGroups/aro-hcp-msi-container-dev-shard1-01-03/providers/Microsoft.ManagedIdentity/userAssignedIdentities/ingress": {
+              "clientId": "8c088886-a118-4973-8168-0d7ae1493aa7",
+              "principalId": "ccbf438f-08ec-4e2b-ae4e-219ce7dc3762"
+            },
+            "/subscriptions/e8c5a115-842d-4d7e-98ad-cfb2c50b209e/resourceGroups/aro-hcp-msi-container-dev-shard1-01-03/providers/Microsoft.ManagedIdentity/userAssignedIdentities/kms": {
+              "clientId": "8c088886-a118-4973-8168-0d7ae1493aa7",
+              "principalId": "ccbf438f-08ec-4e2b-ae4e-219ce7dc3762"
+            },
+            "/subscriptions/e8c5a115-842d-4d7e-98ad-cfb2c50b209e/resourceGroups/aro-hcp-msi-container-dev-shard1-01-03/providers/Microsoft.ManagedIdentity/userAssignedIdentities/service": {
+              "clientId": "8c088886-a118-4973-8168-0d7ae1493aa7",
+              "principalId": "ccbf438f-08ec-4e2b-ae4e-219ce7dc3762"
+            }
+          }
+        },
+        "location": "westus3",
+        "name": "np-version-upgrade-cluster-pckjw8",
+        "serviceProviderProperties": {
+          "activeOperationId": "be3c078c-1f8c-45bd-aaef-13c0cafcbc65",
+          "api": {
+            "url": "https://api.x8y5p7r4g6j9e3v.ucwa.j0750976.hcp.osadev.cloud:443"
+          },
+          "billingDocumentCosmosID": "aa80adef-0fa4-4fe3-8d7e-86b5c9534e29",
+          "clusterServiceID": "/api/aro_hcp/v1alpha1/clusters/2qrppk0otds3rdmdcojqcqkqq8f0s591",
+          "clusterUID": "aa80adef-0fa4-4fe3-8d7e-86b5c9534e29",
+          "console": {
+            "url": "https://console-openshift-console.apps.aro.x8y5p7r4g6j9e3v.ucwa.j0750976.hcp.osadev.cloud"
+          },
+          "deletionTimestamp": "2026-06-11T00:01:37.0000000Z",
+          "dns": {
+            "baseDomain": "ucwa.j0750976.hcp.osadev.cloud"
+          },
+          "experimentalFeatures": {
+            "sizeOverride": "Minimal"
+          },
+          "managedIdentitiesDataPlaneIdentityURL": "https://dummyhost.identity.azure.net",
+          "platform": {
+            "issuerUrl": "https://arohcpci01oidcj0750976.z1.web.core.windows.net/64dc69e4-d083-49fc-9569-ebece1dd1408/2qrppk0otds3rdmdcojqcqkqq8f0s591"
+          },
+          "provisioningState": "Deleting",
+          "usesNewClusterDeletionApproach": false
+        },
+        "status": {},
+        "systemData": {
+          "createdAt": "2026-06-10T22:53:03.0000000Z",
+          "createdBy": "e2e-test",
+          "createdByType": "Application",
+          "lastModifiedAt": "2026-06-10T22:53:04.3799969Z",
+          "lastModifiedBy": "Unknown-ARO-HCP-frontend",
+          "lastModifiedByType": "Application"
+        },
+        "tags": {
+          "aro-hcp.experimental.cluster.size-override": "Minimal"
+        },
+        "type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"
+      }
+    },
+    "location": "westus3",
+    "name": "np-version-upgrade-cluster-pckjw8",
+    "serviceProviderProperties": {
+      "activeOperationId": "be3c078c-1f8c-45bd-aaef-13c0cafcbc65",
+      "api": {
+        "url": "https://api.x8y5p7r4g6j9e3v.ucwa.j0750976.hcp.osadev.cloud:443"
+      },
+      "billingDocumentCosmosID": "aa80adef-0fa4-4fe3-8d7e-86b5c9534e29",
+      "clusterServiceID": "/api/aro_hcp/v1alpha1/clusters/2qrppk0otds3rdmdcojqcqkqq8f0s591",
+      "clusterUID": "aa80adef-0fa4-4fe3-8d7e-86b5c9534e29",
+      "console": {
+        "url": "https://console-openshift-console.apps.aro.x8y5p7r4g6j9e3v.ucwa.j0750976.hcp.osadev.cloud"
+      },
+      "deletionTimestamp": "2026-06-11T00:01:37.0000000Z",
+      "dns": {
+        "baseDomain": "ucwa.j0750976.hcp.osadev.cloud"
+      },
+      "experimentalFeatures": {
+        "sizeOverride": "Minimal"
+      },
+      "managedIdentitiesDataPlaneIdentityURL": "https://dummyhost.identity.azure.net",
+      "platform": {
+        "issuerUrl": "https://arohcpci01oidcj0750976.z1.web.core.windows.net/64dc69e4-d083-49fc-9569-ebece1dd1408/2qrppk0otds3rdmdcojqcqkqq8f0s591"
+      },
+      "provisioningState": "Deleting",
+      "usesNewClusterDeletionApproach": false
+    },
+    "status": {},
+    "systemData": {
+      "createdAt": "2026-06-10T22:53:03.0000000Z",
+      "createdBy": "e2e-test",
+      "createdByType": "Application",
+      "lastModifiedAt": "2026-06-10T22:53:04.3799969Z",
+      "lastModifiedBy": "Unknown-ARO-HCP-frontend",
+      "lastModifiedByType": "Application"
+    },
+    "tags": {
+      "aro-hcp.experimental.cluster.size-override": "Minimal"
+    },
+    "type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"
+  },
+  "resourceID": "/subscriptions/e8c5a115-842d-4d7e-98ad-cfb2c50b209e/resourceGroups/rg-np-version-upgrade-pckjw8-79qhmc/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/np-version-upgrade-cluster-pckjw8",
+  "resourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"
+}

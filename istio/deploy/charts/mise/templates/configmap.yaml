@@ -1,0 +1,91 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mise-config
+  namespace: '{{ .Values.namespace }}'
+data:
+  appsettings.json: |-
+    {
+      "$schema": "https://identitydivision.visualstudio.com/DevEx/_git/MISE?path=/schemas/mise-options-schema.json",
+      "MiseVersion": "2.0",
+      "AllowedHosts": "*",
+      "EnableInboundPolicyFilter": true,
+      "AzureAd": {
+        "Instance": "{{ .Values.audit.adInstance }}",
+        "ClientId": "{{ .Values.miseAppId }}",
+        "TenantId": "{{ .Values.audit.tenantId }}",
+        "Audiences": ["api://{{ .Values.miseAppId }}"],
+        "Logging": {
+          "LogLevel": "Information"
+        },
+        "InboundPolicies": [
+          {
+            "Label": "{{ .Values.armPolicy.label }}",
+            "Authority": "{{ .Values.armPolicy.authority }}",
+            "Audiences": ["{{ .Values.armPolicy.audience }}"],
+            "ValidApplicationIds": [
+              "{{ .Values.armPolicy.applicationId }}"
+            ],
+            "Protocols": {
+              "Pop": {
+                "TokenTypes": {
+                  "AccessToken": {
+                    "AppToken": true
+                  }
+                },
+                "SignedHttpRequestValidationParametersOptions": {
+                  "ValidateTs": true,
+                  "ValidateM": true,
+                  "ValidateU": true,
+                  "ValidateP": true
+                }
+              }
+            }
+          },
+          {
+            "Label": "{{ .Values.genevaActionsPolicy.label }}",
+            "Authority": "{{ .Values.genevaActionsPolicy.authority }}",
+            "Audiences": ["{{ .Values.genevaActionsPolicy.audience }}"],
+            "ValidApplicationIds": [
+              "{{ .Values.genevaActionsPolicy.applicationId }}"
+            ],
+            "Protocols": {
+              "Bearer": {
+                "TokenTypes": {
+                  "AccessToken": {
+                    "AppToken": true
+                  }
+                }
+              }
+            }
+          },
+          {
+            "Label": "{{ .Values.sessiongatePolicy.label }}",
+            "Authority": "{{ .Values.sessiongatePolicy.authority }}",
+            "Audiences": ["{{ .Values.sessiongatePolicy.audience }}"],
+            "Protocols": {
+              "Bearer": {
+                "TokenTypes": {
+                  "AccessToken": {
+                    "AppToken": true
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "Kestrel": {
+        "Endpoints": {
+          "Http": {
+            "Url": "http://0.0.0.0:8080"
+          }
+        }
+      },
+      "Logging": {
+        "LogLevel": {
+          "Default": "Information",
+          "Microsoft": "Information"
+        }
+      }
+    }

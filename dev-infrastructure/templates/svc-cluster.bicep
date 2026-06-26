@@ -757,6 +757,16 @@ module dataCollection '../modules/metrics/datacollection.bicep' = {
   ]
 }
 
+// Declare this service cluster in the authoritative underlay-cluster inventory (see the module
+// for details). Lets absence alerts detect when this cluster stops reporting to the workspace.
+module underlayClusterMetric '../modules/metrics/underlay-clusters-metric.bicep' = {
+  name: 'underlay-clusters-metric'
+  params: {
+    azureMonitoringWorkspaceId: azureMonitoringWorkspaceId
+    clusterName: aksClusterName
+  }
+}
+
 var frontendMI = mi.getManagedIdentityByName(managedIdentities.outputs.managedIdentities, frontendMIName)
 var backendMI = mi.getManagedIdentityByName(managedIdentities.outputs.managedIdentities, backendMIName)
 var adminApiMI = mi.getManagedIdentityByName(managedIdentities.outputs.managedIdentities, adminApiMIName)

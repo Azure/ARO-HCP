@@ -1,4 +1,4 @@
-// Copyright 2025 Microsoft Corporation
+// Copyright 2026 Microsoft Corporation
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,17 +19,21 @@ import (
 	"io/fs"
 	"testing"
 
-	"github.com/Azure/ARO-HCP/frontend/pkg/frontend"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers"
+	"github.com/Azure/ARO-HCP/internal/databasetesting"
 )
 
+// migrateCosmosStep invokes the backend cosmos-migration logic once across
+// every subscription currently in the test's Resources container. Replaces
+// the frontend's startup migration (which was removed when the migration
+// moved into the long-running backend controller); the integration test
+// still needs a one-shot trigger so it can assert on post-migration state.
 type migrateCosmosStep struct {
 	stepID StepID
 }
 
-func newMigrateCosmosStep(stepID StepID, stepDir fs.FS) (*migrateCosmosStep, error) {
-	return &migrateCosmosStep{
-		stepID: stepID,
-	}, nil
+func newMigrateCosmosStep(stepID StepID, _ fs.FS) (*migrateCosmosStep, error) {
+	return &migrateCosmosStep{stepID: stepID}, nil
 }
 
 var _ IntegrationTestStep = &migrateCosmosStep{}
@@ -39,5 +43,8 @@ func (l *migrateCosmosStep) StepID() StepID {
 }
 
 func (l *migrateCosmosStep) RunTest(ctx context.Context, t *testing.T, stepInput StepInput) {
-	frontend.MigrateCosmosOrDie(ctx, stepInput.ResourcesDBClient)
+	// Frontend integration tests do not run kube-applier, so an empty
+	// MockKubeApplierDBClients is enough: its For() returns nil and the
+	// migration code already treats that as "skip kube-applier desires."
+	controllers.MigrateAllSubscriptionsOrDie(ctx, stepInput.ResourcesDBClient, databasetesting.NewMockKubeApplierDBClients())
 }

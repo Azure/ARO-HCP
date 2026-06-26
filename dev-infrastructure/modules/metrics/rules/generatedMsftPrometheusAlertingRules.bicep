@@ -4,6 +4,9 @@ param azureMonitoring string
 #disable-next-line no-unused-params
 param actionGroups array
 
+@description('The minimum IcM severity level (highest priority) that alerts can fire at. Alerts more critical than this ceiling will be degraded to this value. 0 means no ceiling.')
+param severityCeiling int = 0
+
 #disable-next-line no-unused-params
 param location string = resourceGroup().location
 
@@ -20,8 +23,6 @@ resource msftKubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroup
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -40,7 +41,7 @@ resource msftKubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroup
         }
         expression: 'sum(namespace_memory:kube_pod_container_resource_requests:sum{}) by (cluster) - (sum(kube_node_status_allocatable{resource="memory", job="kube-state-metrics"}) by (cluster) - max(kube_node_status_allocatable{resource="memory", job="kube-state-metrics"}) by (cluster)) > 0 and (sum(kube_node_status_allocatable{resource="memory", job="kube-state-metrics"}) by (cluster) - max(kube_node_status_allocatable{resource="memory", job="kube-state-metrics"}) by (cluster)) > 0'
         for: 'PT10M'
-        severity: 3
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
         actions: [
@@ -49,8 +50,6 @@ resource msftKubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroup
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -69,7 +68,7 @@ resource msftKubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroup
         }
         expression: 'sum(min without(resource) (kube_resourcequota{job="kube-state-metrics", type="hard", resource=~"(cpu|requests.cpu)"})) by (cluster) / sum(kube_node_status_allocatable{resource="cpu", job="kube-state-metrics"}) by (cluster) > 1.5'
         for: 'PT5M'
-        severity: 3
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
         actions: [
@@ -78,8 +77,6 @@ resource msftKubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroup
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -98,7 +95,7 @@ resource msftKubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroup
         }
         expression: 'sum(min without(resource) (kube_resourcequota{job="kube-state-metrics", type="hard", resource=~"(memory|requests.memory)"})) by (cluster) / sum(kube_node_status_allocatable{resource="memory", job="kube-state-metrics"}) by (cluster) > 1.5'
         for: 'PT5M'
-        severity: 3
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
         actions: [
@@ -107,8 +104,6 @@ resource msftKubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroup
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -127,7 +122,7 @@ resource msftKubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroup
         }
         expression: 'kube_resourcequota{job="kube-state-metrics", type="used"} / ignoring(instance, job, type) (kube_resourcequota{job="kube-state-metrics", type="hard"} > 0) > 0.9 < 1'
         for: 'PT15M'
-        severity: 4
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
       {
         actions: [
@@ -136,8 +131,6 @@ resource msftKubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroup
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -156,7 +149,7 @@ resource msftKubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroup
         }
         expression: 'kube_resourcequota{job="kube-state-metrics", type="used"} / ignoring(instance, job, type) (kube_resourcequota{job="kube-state-metrics", type="hard"} > 0) == 1'
         for: 'PT15M'
-        severity: 4
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
       {
         actions: [
@@ -165,8 +158,6 @@ resource msftKubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroup
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -185,7 +176,7 @@ resource msftKubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroup
         }
         expression: 'kube_resourcequota{job="kube-state-metrics", type="used"} / ignoring(instance, job, type) (kube_resourcequota{job="kube-state-metrics", type="hard"} > 0) > 1'
         for: 'PT15M'
-        severity: 3
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
     ]
     scopes: [
@@ -207,8 +198,6 @@ resource msftKubernetesStorage 'Microsoft.AlertsManagement/prometheusRuleGroups@
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -227,7 +216,7 @@ resource msftKubernetesStorage 'Microsoft.AlertsManagement/prometheusRuleGroups@
         }
         expression: 'kube_persistentvolume_status_phase{phase=~"Failed|Pending",job="kube-state-metrics"} > 0'
         for: 'PT5M'
-        severity: 2
+        severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
       }
     ]
     scopes: [
@@ -249,8 +238,6 @@ resource msftKubernetesSystem 'Microsoft.AlertsManagement/prometheusRuleGroups@2
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -269,7 +256,7 @@ resource msftKubernetesSystem 'Microsoft.AlertsManagement/prometheusRuleGroups@2
         }
         expression: '(sum(rate(rest_client_requests_total{job="controlplane-apiserver",code=~"5.."}[5m])) by (cluster, instance, job, namespace) / sum(rate(rest_client_requests_total{job="controlplane-apiserver"}[5m])) by (cluster, instance, job, namespace)) > 0.01'
         for: 'PT15M'
-        severity: 3
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
     ]
     scopes: [
@@ -291,8 +278,6 @@ resource msftKubeApiserverSlos 'Microsoft.AlertsManagement/prometheusRuleGroups@
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -313,7 +298,7 @@ resource msftKubeApiserverSlos 'Microsoft.AlertsManagement/prometheusRuleGroups@
         }
         expression: 'sum(apiserver_request:burnrate1h) > (14.40 * 0.01000) and sum(apiserver_request:burnrate5m) > (14.40 * 0.01000)'
         for: 'PT2M'
-        severity: 2
+        severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
       }
       {
         actions: [
@@ -322,8 +307,6 @@ resource msftKubeApiserverSlos 'Microsoft.AlertsManagement/prometheusRuleGroups@
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -344,7 +327,7 @@ resource msftKubeApiserverSlos 'Microsoft.AlertsManagement/prometheusRuleGroups@
         }
         expression: 'sum(apiserver_request:burnrate6h) > (6.00 * 0.01000) and sum(apiserver_request:burnrate30m) > (6.00 * 0.01000)'
         for: 'PT15M'
-        severity: 2
+        severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
       }
       {
         actions: [
@@ -353,8 +336,6 @@ resource msftKubeApiserverSlos 'Microsoft.AlertsManagement/prometheusRuleGroups@
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -375,7 +356,7 @@ resource msftKubeApiserverSlos 'Microsoft.AlertsManagement/prometheusRuleGroups@
         }
         expression: 'sum(apiserver_request:burnrate1d) > (3.00 * 0.01000) and sum(apiserver_request:burnrate2h) > (3.00 * 0.01000)'
         for: 'PT1H'
-        severity: 3
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
         actions: [
@@ -384,8 +365,6 @@ resource msftKubeApiserverSlos 'Microsoft.AlertsManagement/prometheusRuleGroups@
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -406,7 +385,7 @@ resource msftKubeApiserverSlos 'Microsoft.AlertsManagement/prometheusRuleGroups@
         }
         expression: 'sum(apiserver_request:burnrate3d) > (1.00 * 0.01000) and sum(apiserver_request:burnrate6h) > (1.00 * 0.01000)'
         for: 'PT3H'
-        severity: 3
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
     ]
     scopes: [
@@ -428,8 +407,6 @@ resource msftKubernetesSystemApiserver 'Microsoft.AlertsManagement/prometheusRul
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -448,7 +425,7 @@ resource msftKubernetesSystemApiserver 'Microsoft.AlertsManagement/prometheusRul
         }
         expression: 'apiserver_client_certificate_expiration_seconds_count{job="controlplane-apiserver"} > 0 and on(job) histogram_quantile(0.01, sum by (job, le) (rate(apiserver_client_certificate_expiration_seconds_bucket{job="controlplane-apiserver"}[5m]))) < 604800'
         for: 'PT5M'
-        severity: 3
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
         actions: [
@@ -457,8 +434,6 @@ resource msftKubernetesSystemApiserver 'Microsoft.AlertsManagement/prometheusRul
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -477,7 +452,7 @@ resource msftKubernetesSystemApiserver 'Microsoft.AlertsManagement/prometheusRul
         }
         expression: 'apiserver_client_certificate_expiration_seconds_count{job="controlplane-apiserver"} > 0 and on(job) histogram_quantile(0.01, sum by (job, le) (rate(apiserver_client_certificate_expiration_seconds_bucket{job="controlplane-apiserver"}[5m]))) < 86400'
         for: 'PT5M'
-        severity: 2
+        severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
       }
       {
         actions: [
@@ -486,8 +461,6 @@ resource msftKubernetesSystemApiserver 'Microsoft.AlertsManagement/prometheusRul
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -505,7 +478,7 @@ resource msftKubernetesSystemApiserver 'Microsoft.AlertsManagement/prometheusRul
           title: 'Kubernetes aggregated API has reported errors. name:{{ $labels.name }} namespace:{{ $labels.namespace }}'
         }
         expression: 'sum by(name, namespace, cluster)(increase(aggregator_unavailable_apiservice_total{job="controlplane-apiserver"}[10m])) > 4'
-        severity: 3
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
         actions: [
@@ -514,8 +487,6 @@ resource msftKubernetesSystemApiserver 'Microsoft.AlertsManagement/prometheusRul
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -534,7 +505,7 @@ resource msftKubernetesSystemApiserver 'Microsoft.AlertsManagement/prometheusRul
         }
         expression: '(1 - max by(name, namespace, cluster)(avg_over_time(aggregator_unavailable_apiservice{job="controlplane-apiserver"}[10m]))) * 100 < 85'
         for: 'PT5M'
-        severity: 3
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
         actions: [
@@ -543,8 +514,6 @@ resource msftKubernetesSystemApiserver 'Microsoft.AlertsManagement/prometheusRul
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -563,7 +532,7 @@ resource msftKubernetesSystemApiserver 'Microsoft.AlertsManagement/prometheusRul
         }
         expression: 'count by (cluster) (up{job="controlplane-apiserver"} == 1) == 0'
         for: 'PT15M'
-        severity: 2
+        severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
       }
       {
         actions: [
@@ -572,8 +541,6 @@ resource msftKubernetesSystemApiserver 'Microsoft.AlertsManagement/prometheusRul
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -592,7 +559,7 @@ resource msftKubernetesSystemApiserver 'Microsoft.AlertsManagement/prometheusRul
         }
         expression: 'sum(rate(apiserver_request_terminations_total{job="controlplane-apiserver"}[10m]))  / (  sum(rate(apiserver_request_total{job="controlplane-apiserver"}[10m])) + sum(rate(apiserver_request_terminations_total{job="controlplane-apiserver"}[10m])) ) > 0.20'
         for: 'PT5M'
-        severity: 3
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
     ]
     scopes: [
@@ -614,8 +581,6 @@ resource msftKubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleG
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -634,7 +599,7 @@ resource msftKubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleG
         }
         expression: 'kube_node_status_condition{job="kube-state-metrics",condition="Ready",status="true"} == 0'
         for: 'PT15M'
-        severity: 3
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
         actions: [
@@ -643,8 +608,6 @@ resource msftKubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleG
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -663,7 +626,7 @@ resource msftKubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleG
         }
         expression: '(kube_node_spec_taint{job="kube-state-metrics",key="node.kubernetes.io/unreachable",effect="NoSchedule"} unless ignoring(key,value) kube_node_spec_taint{job="kube-state-metrics",key=~"ToBeDeletedByClusterAutoscaler|cloud.google.com/impending-node-termination|aws-node-termination-handler/spot-itn"}) == 1'
         for: 'PT15M'
-        severity: 3
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
         actions: [
@@ -672,8 +635,6 @@ resource msftKubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleG
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -692,7 +653,7 @@ resource msftKubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleG
         }
         expression: 'count by(cluster, node) ( (kube_pod_status_phase{job="kube-state-metrics",phase="Running"} == 1) * on(instance,pod,namespace,cluster) group_left(node) topk by(instance,pod,namespace,cluster) (1, kube_pod_info{job="kube-state-metrics"}) ) / max by(cluster, node) ( kube_node_status_capacity{job="kube-state-metrics",resource="pods"} != 1 ) > 0.95'
         for: 'PT15M'
-        severity: 4
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
       {
         actions: [
@@ -701,8 +662,6 @@ resource msftKubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleG
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -721,7 +680,7 @@ resource msftKubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleG
         }
         expression: 'sum(changes(kube_node_status_condition{job="kube-state-metrics",status="true",condition="Ready"}[15m])) by (cluster, node) > 2'
         for: 'PT15M'
-        severity: 3
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
         actions: [
@@ -730,8 +689,6 @@ resource msftKubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleG
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -750,7 +707,7 @@ resource msftKubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleG
         }
         expression: 'node_quantile:kubelet_pleg_relist_duration_seconds:histogram_quantile{quantile="0.99"} >= 10'
         for: 'PT5M'
-        severity: 3
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
         actions: [
@@ -759,8 +716,6 @@ resource msftKubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleG
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -779,7 +734,7 @@ resource msftKubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleG
         }
         expression: 'histogram_quantile(0.99, sum(rate(kubelet_pod_worker_duration_seconds_bucket{job="kubelet", metrics_path="/metrics"}[5m])) by (cluster, instance, le)) * on(cluster, instance) group_left(node) kubelet_node_name{job="kubelet", metrics_path="/metrics"} > 60'
         for: 'PT15M'
-        severity: 3
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
         actions: [
@@ -788,8 +743,6 @@ resource msftKubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleG
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -807,7 +760,7 @@ resource msftKubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleG
           title: 'Kubelet client certificate is about to expire. node:{{ $labels.node }}'
         }
         expression: 'kubelet_certificate_manager_client_ttl_seconds < 604800'
-        severity: 3
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
         actions: [
@@ -816,8 +769,6 @@ resource msftKubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleG
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -835,7 +786,7 @@ resource msftKubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleG
           title: 'Kubelet client certificate is about to expire. node:{{ $labels.node }}'
         }
         expression: 'kubelet_certificate_manager_client_ttl_seconds < 86400'
-        severity: 2
+        severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
       }
       {
         actions: [
@@ -844,8 +795,6 @@ resource msftKubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleG
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -863,7 +812,7 @@ resource msftKubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleG
           title: 'Kubelet server certificate is about to expire. node:{{ $labels.node }}'
         }
         expression: 'kubelet_certificate_manager_server_ttl_seconds < 604800'
-        severity: 3
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
         actions: [
@@ -872,8 +821,6 @@ resource msftKubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleG
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -891,7 +838,7 @@ resource msftKubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleG
           title: 'Kubelet server certificate is about to expire. node:{{ $labels.node }}'
         }
         expression: 'kubelet_certificate_manager_server_ttl_seconds < 86400'
-        severity: 2
+        severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
       }
       {
         actions: [
@@ -900,8 +847,6 @@ resource msftKubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleG
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -920,7 +865,7 @@ resource msftKubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleG
         }
         expression: 'increase(kubelet_certificate_manager_client_expiration_renew_errors[5m]) > 0'
         for: 'PT15M'
-        severity: 3
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
         actions: [
@@ -929,8 +874,6 @@ resource msftKubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleG
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -949,7 +892,7 @@ resource msftKubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleG
         }
         expression: 'increase(kubelet_server_expiration_renew_errors[5m]) > 0'
         for: 'PT15M'
-        severity: 3
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
         actions: [
@@ -958,8 +901,6 @@ resource msftKubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleG
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -978,7 +919,7 @@ resource msftKubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleG
         }
         expression: 'count by (cluster) (up{job="kubelet", metrics_path="/metrics"} == 1) == 0'
         for: 'PT15M'
-        severity: 2
+        severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
       }
     ]
     scopes: [
@@ -1000,8 +941,6 @@ resource msftKubernetesSystemScheduler 'Microsoft.AlertsManagement/prometheusRul
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -1020,7 +959,7 @@ resource msftKubernetesSystemScheduler 'Microsoft.AlertsManagement/prometheusRul
         }
         expression: 'count by (cluster) (up{job="controlplane-kube-scheduler"} == 1) == 0'
         for: 'PT15M'
-        severity: 2
+        severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
       }
     ]
     scopes: [
@@ -1042,8 +981,6 @@ resource msftKubernetesSystemControllerManager 'Microsoft.AlertsManagement/prome
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -1062,7 +999,7 @@ resource msftKubernetesSystemControllerManager 'Microsoft.AlertsManagement/prome
         }
         expression: 'count by (cluster) (up{job="controlplane-kube-controller-manager"} == 1) == 0'
         for: 'PT15M'
-        severity: 2
+        severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
       }
     ]
     scopes: [
@@ -1084,8 +1021,6 @@ resource msftPrometheusWipRules 'Microsoft.AlertsManagement/prometheusRuleGroups
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -1110,7 +1045,7 @@ Check the status of the Prometheus pods, service endpoints, and network connecti
         }
         expression: 'group by (cluster) (up{job="kubelet"}) unless on(cluster) group by (cluster) (up{job="prometheus/prometheus",namespace="prometheus"} == 1)'
         for: 'PT10M'
-        severity: 2
+        severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
       }
       {
         actions: [
@@ -1119,8 +1054,6 @@ Check the status of the Prometheus pods, service endpoints, and network connecti
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -1145,7 +1078,7 @@ Please check the status of the Prometheus pods, service endpoints, and network c
         }
         expression: 'avg by (job, namespace, cluster) (avg_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d])) < 0.95'
         for: 'PT10M'
-        severity: 2
+        severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
       }
       {
         actions: [
@@ -1154,8 +1087,6 @@ Please check the status of the Prometheus pods, service endpoints, and network c
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -1184,7 +1115,7 @@ Investigate the health and performance of the remote storage endpoint, network l
         }
         expression: '( prometheus_remote_storage_samples_pending / prometheus_remote_storage_samples_in_flight ) > 0.4'
         for: 'PT15M'
-        severity: 2
+        severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
       }
       {
         actions: [
@@ -1193,8 +1124,6 @@ Investigate the health and performance of the remote storage endpoint, network l
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -1223,7 +1152,7 @@ Please check the health and performance of the remote storage endpoint, network 
         }
         expression: '( rate(prometheus_remote_storage_samples_failed_total{job="prometheus/prometheus",namespace="prometheus"}[5m]) / clamp_min( rate(prometheus_remote_storage_samples_total{job="prometheus/prometheus",namespace="prometheus"}[5m]), 1e-9 ) ) > 0.1'
         for: 'PT15M'
-        severity: 2
+        severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
       }
     ]
     scopes: [
@@ -1245,8 +1174,6 @@ resource msftPrometheusRules 'Microsoft.AlertsManagement/prometheusRuleGroups@20
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -1265,7 +1192,7 @@ resource msftPrometheusRules 'Microsoft.AlertsManagement/prometheusRuleGroups@20
         }
         expression: '((rate(prometheus_remote_storage_failed_samples_total{job="prometheus/prometheus",namespace="prometheus"}[5m]) or rate(prometheus_remote_storage_samples_failed_total{job="prometheus/prometheus",namespace="prometheus"}[5m])) / ((rate(prometheus_remote_storage_failed_samples_total{job="prometheus/prometheus",namespace="prometheus"}[5m]) or rate(prometheus_remote_storage_samples_failed_total{job="prometheus/prometheus",namespace="prometheus"}[5m])) + (rate(prometheus_remote_storage_succeeded_samples_total{job="prometheus/prometheus",namespace="prometheus"}[5m]) or rate(prometheus_remote_storage_samples_total{job="prometheus/prometheus",namespace="prometheus"}[5m])))) * 100 > 1'
         for: 'PT15M'
-        severity: 2
+        severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
       }
       {
         actions: [
@@ -1274,8 +1201,6 @@ resource msftPrometheusRules 'Microsoft.AlertsManagement/prometheusRuleGroups@20
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -1294,7 +1219,7 @@ resource msftPrometheusRules 'Microsoft.AlertsManagement/prometheusRuleGroups@20
         }
         expression: '(sum without (type) (rate(prometheus_tsdb_head_samples_appended_total{job="prometheus/prometheus",namespace="prometheus"}[5m])) <= 0 and sum without (scrape_job) (prometheus_target_metadata_cache_entries{job="prometheus/prometheus",namespace="prometheus"}) > 0)'
         for: 'PT10M'
-        severity: 3
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
         actions: [
@@ -1303,8 +1228,6 @@ resource msftPrometheusRules 'Microsoft.AlertsManagement/prometheusRuleGroups@20
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -1323,7 +1246,7 @@ resource msftPrometheusRules 'Microsoft.AlertsManagement/prometheusRuleGroups@20
         }
         expression: 'max_over_time(prometheus_config_last_reload_successful{job="prometheus/prometheus",namespace="prometheus"}[5m]) == 0'
         for: 'PT10M'
-        severity: 2
+        severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
       }
       {
         actions: [
@@ -1332,8 +1255,6 @@ resource msftPrometheusRules 'Microsoft.AlertsManagement/prometheusRuleGroups@20
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -1352,7 +1273,7 @@ resource msftPrometheusRules 'Microsoft.AlertsManagement/prometheusRuleGroups@20
         }
         expression: 'increase(prometheus_target_scrapes_exceeded_sample_limit_total{job="prometheus/prometheus",namespace="prometheus"}[5m]) > 0'
         for: 'PT15M'
-        severity: 3
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
     ]
     scopes: [
@@ -1374,8 +1295,6 @@ resource msftPrometheusOperatorRules 'Microsoft.AlertsManagement/prometheusRuleG
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -1394,7 +1313,7 @@ resource msftPrometheusOperatorRules 'Microsoft.AlertsManagement/prometheusRuleG
         }
         expression: 'min by (cluster, controller, namespace) (max_over_time(prometheus_operator_ready{job="prometheus-operator",namespace="prometheus"}[5m])) == 0'
         for: 'PT5M'
-        severity: 3
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
     ]
     scopes: [
@@ -1416,8 +1335,6 @@ resource msftMise 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' =
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -1436,7 +1353,7 @@ resource msftMise 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' =
         }
         expression: 'group by (cluster) (up{job="kube-state-metrics", cluster=~".*-svc(-[0-9]+)?$"}) unless on(cluster) group by (cluster) (up{endpoint="http-envoy-prom", container="istio-proxy", namespace="mise"} == 1)'
         for: 'PT5M'
-        severity: 4
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
     ]
     scopes: [
@@ -1458,8 +1375,6 @@ resource msftMsiCredentialRefresher 'Microsoft.AlertsManagement/prometheusRuleGr
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -1478,7 +1393,7 @@ resource msftMsiCredentialRefresher 'Microsoft.AlertsManagement/prometheusRuleGr
         }
         expression: 'sum by (cluster) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le="30"}[30m])) - sum by (cluster) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le="0"}[30m])) > 0'
         for: 'PT5M'
-        severity: 2
+        severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
       }
       {
         actions: [
@@ -1487,8 +1402,6 @@ resource msftMsiCredentialRefresher 'Microsoft.AlertsManagement/prometheusRuleGr
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -1507,7 +1420,7 @@ resource msftMsiCredentialRefresher 'Microsoft.AlertsManagement/prometheusRuleGr
         }
         expression: 'sum by (cluster) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le="0"}[30m])) - sum by (cluster) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le="-90"}[30m])) > 0'
         for: 'PT5M'
-        severity: 2
+        severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
       }
       {
         actions: [
@@ -1516,8 +1429,6 @@ resource msftMsiCredentialRefresher 'Microsoft.AlertsManagement/prometheusRuleGr
             actionProperties: {
               'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
               'IcM.CorrelationId': '#$.annotations.correlationId#'
-              'IcM.Description': '#$.annotations.info#'
-              'IcM.TsgId': '#$.annotations.runbook_url#'
             }
           }
         ]
@@ -1536,7 +1447,7 @@ resource msftMsiCredentialRefresher 'Microsoft.AlertsManagement/prometheusRuleGr
         }
         expression: 'sum by (cluster) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le="-90"}[30m])) > 0'
         for: 'PT5M'
-        severity: 2
+        severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
       }
     ]
     scopes: [

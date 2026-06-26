@@ -4,6 +4,9 @@ param azureMonitoring string
 #disable-next-line no-unused-params
 param actionGroups array
 
+@description('The minimum IcM severity level (highest priority) that alerts can fire at. Alerts more critical than this ceiling will be degraded to this value. 0 means no ceiling.')
+param severityCeiling int = 0
+
 #disable-next-line no-unused-params
 param location string = resourceGroup().location
 
@@ -19,8 +22,6 @@ resource InstancesDownV1 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
           actionProperties: {
             'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
             'IcM.CorrelationId': '#$.annotations.correlationId#'
-            'IcM.Description': '#$.annotations.info#'
-            'IcM.TsgId': '#$.annotations.runbook_url#'
           }
         }]
         alert: 'InstancesDownV1'
@@ -36,7 +37,7 @@ resource InstancesDownV1 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
           title: 'All instances of the App are down'
         }
         expression: 'sum(up{job="app"}) == 0'
-        severity: 2
+        severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
       }
       {
         actions: [for g in actionGroups: {
@@ -44,8 +45,6 @@ resource InstancesDownV1 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
           actionProperties: {
             'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
             'IcM.CorrelationId': '#$.annotations.correlationId#'
-            'IcM.Description': '#$.annotations.info#'
-            'IcM.TsgId': '#$.annotations.runbook_url#'
           }
         }]
         alert: 'KubePodNotReady'
@@ -63,7 +62,7 @@ resource InstancesDownV1 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
         }
         expression: 'sum by (namespace, pod, cluster) ( max by(namespace, pod, cluster) ( kube_pod_status_phase{job="kube-state-metrics", phase=~"Pending|Unknown|Failed"} ) * on(namespace, pod, cluster) group_left(owner_kind) topk by(namespace, pod, cluster) ( 1, max by(namespace, pod, owner_kind, cluster) (kube_pod_owner{owner_kind!="Job"}) ) ) > 0'
         for: 'PT15M'
-        severity: 3
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
     ]
     scopes: [

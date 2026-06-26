@@ -16,24 +16,28 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/cobra"
-	"golang.org/x/sync/errgroup"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	kubeinformers "k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
 	typedcorev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/client-go/tools/leaderelection"
+	"k8s.io/client-go/tools/leaderelection/resourcelock"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/klog/v2"
 
@@ -98,13 +102,16 @@ type ValidatedControllerOptions struct {
 }
 
 type completedControllerOptions struct {
-	server                     *server.Server
-	controlPlaneController     *controller.SessionController
-	dataPlaneController        *controller.DataplaneController
-	sessiongateInformerFactory informers.SharedInformerFactory
-	kubeInformerFactory        kubeinformers.SharedInformerFactory
-	workers                    int
-	leaderElectionCfg          *controller.LeaderElectionConfig
+	server                      *server.Server
+	controlPlaneController      *controller.SessionController
+	dataPlaneController         *controller.DataplaneController
+	sessiongateInformerFactory  informers.SharedInformerFactory
+	kubeInformerFactory         kubeinformers.SharedInformerFactory
+	workers                     int
+	leaderElectionLock          resourcelock.Interface
+	leaderElectionLeaseDuration time.Duration
+	leaderElectionRenewDeadline time.Duration
+	leaderElectionRetryPeriod   time.Duration
 }
 
 type ControllerOptions struct {
@@ -170,14 +177,26 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 	// create server
 	srv := server.NewServer(o.BindAddress, o.IngressBaseURL, prometheus.DefaultRegisterer)
 
-	// setup leader election config
-	leaderElectionCfg := &controller.LeaderElectionConfig{
-		LockName:      LeaderElectionLockName,
-		LeaseDuration: o.LeaderElectionLeaseDuration,
-		RenewDeadline: o.LeaderElectionRenewDeadline,
-		RetryPeriod:   o.LeaderElectionRetryPeriod,
-		Namespace:     o.Namespace,
-		KubeConfig:    kubeConfig,
+	// setup leader election lock
+	leKubeConfig := rest.CopyConfig(kubeConfig)
+	leKubeConfig.QPS = 20
+	leKubeConfig.Burst = 40
+
+	hostname, err := os.Hostname()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get hostname for leader election: %w", err)
+	}
+
+	leaderElectionLock, err := resourcelock.NewFromKubeconfig(
+		resourcelock.LeasesResourceLock,
+		o.Namespace,
+		LeaderElectionLockName,
+		resourcelock.ResourceLockConfig{Identity: hostname},
+		leKubeConfig,
+		o.LeaderElectionRenewDeadline,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create leader election lock: %w", err)
 	}
 
 	// create event recorders
@@ -232,13 +251,16 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 
 	return &ControllerOptions{
 		completedControllerOptions: &completedControllerOptions{
-			server:                     srv,
-			sessiongateInformerFactory: sessiongateInformers,
-			kubeInformerFactory:        kubeInformers,
-			controlPlaneController:     controlPlaneCtrl,
-			dataPlaneController:        dataPlaneCtrl,
-			workers:                    o.Workers,
-			leaderElectionCfg:          leaderElectionCfg,
+			server:                      srv,
+			sessiongateInformerFactory:  sessiongateInformers,
+			kubeInformerFactory:         kubeInformers,
+			controlPlaneController:      controlPlaneCtrl,
+			dataPlaneController:         dataPlaneCtrl,
+			workers:                     o.Workers,
+			leaderElectionLock:          leaderElectionLock,
+			leaderElectionLeaseDuration: o.LeaderElectionLeaseDuration,
+			leaderElectionRenewDeadline: o.LeaderElectionRenewDeadline,
+			leaderElectionRetryPeriod:   o.LeaderElectionRetryPeriod,
 		},
 	}, nil
 }
@@ -271,57 +293,100 @@ func (o *ValidatedControllerOptions) buildKubeConfig() (*rest.Config, error) {
 
 func (o *ControllerOptions) Run(ctx context.Context) error {
 	ctx = signals.SetupSignalHandler(ctx)
+
+	ctx, cancel := context.WithCancelCause(ctx)
+	defer cancel(fmt.Errorf("Run returned"))
+
 	logger := klog.FromContext(ctx)
 
-	// start informers
+	// start informers (shared by both controllers)
 	o.sessiongateInformerFactory.Start(ctx.Done())
 	o.kubeInformerFactory.Start(ctx.Done())
 	logger.V(6).Info("Informer factories started")
 
-	// use errgroup to run server and controller concurrently
-	// the first component to fail will cancel the context for the other
-	g, ctx := errgroup.WithContext(ctx)
+	var (
+		mu   sync.Mutex
+		errs []error
+		wg   sync.WaitGroup
+	)
 
 	// run webserver
-	g.Go(func() error {
+	wg.Add(1)
+	go func() {
+		defer cancel(fmt.Errorf("webserver exited"))
+		defer wg.Done()
+		defer utilruntime.HandleCrash()
 		logger.Info("Starting webserver", "address", o.server.BindAddress())
 		if err := o.server.Run(ctx); err != nil {
-			logger.Error(err, "Webserver stopped with error")
-			return err
+			mu.Lock()
+			errs = append(errs, err)
+			mu.Unlock()
 		}
-		logger.Info("Webserver stopped")
-		return nil
-	})
+	}()
 
-	// run control plane controller
-	g.Go(func() error {
-		logger.Info("Starting control plane controller")
-		if err := controller.RunWithLeaderElection(ctx, "controlplane", o.leaderElectionCfg, func() error {
-			return o.controlPlaneController.Run(ctx, o.workers)
-		}); err != nil {
-			logger.Error(err, "Control plane controller stopped with error")
-			return err
+	// run control plane controller under leader election
+	wg.Add(1)
+	go func() {
+		defer cancel(fmt.Errorf("leader election exited"))
+		defer wg.Done()
+		defer utilruntime.HandleCrash()
+		if err := o.runControlPlaneUnderLeaderElection(ctx); err != nil {
+			mu.Lock()
+			errs = append(errs, err)
+			mu.Unlock()
 		}
-		logger.Info("Control plane controller stopped")
-		return nil
-	})
+	}()
 
-	// run data plane controller
-	g.Go(func() error {
+	// run data plane controller (no leader election, runs on all replicas)
+	wg.Add(1)
+	go func() {
+		defer cancel(fmt.Errorf("data plane controller exited"))
+		defer wg.Done()
+		defer utilruntime.HandleCrash()
 		logger.Info("Starting data plane controller")
 		if err := o.dataPlaneController.Run(ctx, o.workers); err != nil {
-			logger.Error(err, "Data plane controller stopped with error")
-			return err
+			mu.Lock()
+			errs = append(errs, err)
+			mu.Unlock()
 		}
-		logger.Info("Data plane controller stopped")
-		return nil
-	})
+	}()
 
-	if err := g.Wait(); err != nil {
-		logger.Error(err, "Component failed")
-		klog.Flush()
+	wg.Wait()
+	logger.Info("sessiongate stopped")
+	return errors.Join(errs...)
+}
+
+// runControlPlaneUnderLeaderElection runs the control plane controller inside the leader-election callback.
+func (o *ControllerOptions) runControlPlaneUnderLeaderElection(ctx context.Context) error {
+	logger := klog.FromContext(ctx)
+
+	le, err := leaderelection.NewLeaderElector(leaderelection.LeaderElectionConfig{
+		Lock:          o.leaderElectionLock,
+		LeaseDuration: o.leaderElectionLeaseDuration,
+		RenewDeadline: o.leaderElectionRenewDeadline,
+		RetryPeriod:   o.leaderElectionRetryPeriod,
+		Callbacks: leaderelection.LeaderCallbacks{
+			OnStartedLeading: func(ctx context.Context) {
+				logger.Info("acquired leader election lease; starting control plane controller")
+				go func() {
+					defer utilruntime.HandleCrash()
+					if err := o.controlPlaneController.Run(ctx, o.workers); err != nil {
+						logger.Error(err, "control plane controller failed")
+					}
+				}()
+				// Block until the leadership context is cancelled.
+				<-ctx.Done()
+			},
+			OnStoppedLeading: func() {
+				logger.Info("lost leader election lease")
+			},
+		},
+		ReleaseOnCancel: true,
+		Name:            LeaderElectionLockName,
+	})
+	if err != nil {
 		return err
 	}
-
+	le.Run(ctx)
 	return nil
 }

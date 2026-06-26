@@ -1,7 +1,0 @@
-prometheusRules:
-  rulesFolders:
-  - ../observability/alerts/UJKubeApiserverAvailabilityMonitor-prometheusRule-KSM.yaml
-  untestedRules: []
-  testDependencies:
-  - recording-rules-hcps.yaml
-  outputBicep: ../dev-infrastructure/modules/metrics/rules/generatedRPHCPPrometheusAlertingRules.bicep

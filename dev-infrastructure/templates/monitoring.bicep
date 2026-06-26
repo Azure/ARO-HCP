@@ -67,6 +67,9 @@ param manageConnection bool
 @description('Whether ICM alerting is enabled for this region')
 param alertsEnabled bool
 
+@description('The minimum IcM severity level (highest priority) that alerts can fire at. Alerts more critical than this ceiling will be degraded to this value. 0 means no ceiling.')
+param alertSeverityCeiling int = 0
+
 module actionGroups '../modules/metrics/actiongroups.bicep' = if (manageConnection) {
   name: 'actionGroups'
   params: {
@@ -103,6 +106,7 @@ module serviceAlerts '../modules/metrics/service-rules.bicep' = {
   params: {
     azureMonitoringWorkspaceId: azureMonitoringWorkspaceId
     actionGroups: slActionGroups
+    severityCeiling: alertSeverityCeiling
   }
 }
 
@@ -111,6 +115,7 @@ module hcpAlerts '../modules/metrics/hcp-rules.bicep' = {
   params: {
     azureMonitoringWorkspaceId: hcpAzureMonitoringWorkspaceId
     actionGroups: sreActionGroups
+    severityCeiling: alertSeverityCeiling
   }
 }
 
@@ -119,6 +124,7 @@ module sreServiceAlerts '../modules/metrics/sre-service-rules.bicep' = {
   params: {
     azureMonitoringWorkspaceId: azureMonitoringWorkspaceId
     actionGroups: sreActionGroups
+    severityCeiling: alertSeverityCeiling
   }
 }
 
@@ -127,14 +133,7 @@ module rpAlerts '../modules/metrics/rp-rules.bicep' = {
   params: {
     azureMonitoringWorkspaceId: azureMonitoringWorkspaceId
     actionGroups: rpActionGroups
-  }
-}
-
-module rpHcpAlerts '../modules/metrics/rp-hcp-rules.bicep' = {
-  name: 'rpHcpAlerts'
-  params: {
-    azureMonitoringWorkspaceId: hcpAzureMonitoringWorkspaceId
-    actionGroups: rpActionGroups
+    severityCeiling: alertSeverityCeiling
   }
 }
 
@@ -143,6 +142,7 @@ module msftAlerts '../modules/metrics/msft-rules.bicep' = {
   params: {
     azureMonitoringWorkspaceId: azureMonitoringWorkspaceId
     actionGroups: msftActionGroups
+    severityCeiling: alertSeverityCeiling
   }
 }
 

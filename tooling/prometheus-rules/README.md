@@ -95,13 +95,18 @@ Tests are executed using `promtool test rules` during the generation process. If
 
 ## Severity Mapping
 
-The tool maps Prometheus severity labels to Azure Monitor/IcM severity levels:
+Severity follows the Azure Common Engineering Naming (CEN) standard so alerts route cleanly into IcM. It is set independently of burn rate: burn rate decides when an alert fires, severity decides who is paged at what urgency.
 
-| Prometheus Severity | Description               | IcM Severity | IcM Severity Description                    |
-|---------------------|---------------------------|--------------|---------------------------------------------|
-| Critical            | Important component       | 2            | Single service SLA impact.                  |
-| Warning             | Component degradation     | 3            | Urgent/high business impact, no SLA impact. |
-| Info                | Something may be going on | 4            | Not urgent, no SLA impact.                  |
+Use the IcM severity number as the `severity` label: `2`, `2.5`, `3`, or `4`. The legacy `critical` / `warning` / `info` labels are still accepted (deprecated) and map to the same numbers. `1` is rejected (Azure CEN reserves Sev 1 for declared major incidents), and any other value fails generation rather than silently defaulting to Sev 4. The label value is a string, so both `severity: 3` and `severity: "3"` are accepted.
+
+| Severity label       | IcM Severity | Urgency                                     |
+|----------------------|--------------|-----------------------------------------------|
+| `2` (or `critical`)  | 2            | Needs immediate attention.                    |
+| `2.5` (or `25`)      | 2.5          | Needs attention at start of next shift.       |
+| `3` (or `warning`)   | 3            | Needs prompt investigation.                   |
+| `4` (or `info`)      | 4            | Can wait; no immediate action required.       |
+
+Severity validation runs over every input rule, including upstream-managed `untestedRules` such as `kubernetesControlPlane-prometheusRule.yaml` (refreshed by `make -C observability sync-upstream`). A future upstream resync that introduces an unmapped severity will fail generation by design; if that happens, extend the mapping in `severityFor` when the new value is legitimate rather than disabling the check.
 
 See: [IcM best practices - Severity levels](https://msazure.visualstudio.com/AzureRedHatOpenShift/_wiki/wikis/ARO.wiki/838022/IcM-best-practices?anchor=severity-levels)
 

@@ -56,6 +56,7 @@ type HCPOpenShiftClusterCustomerProperties struct {
 	DNS                     CustomerDNSProfile          `json:"dns,omitempty"`
 	Network                 NetworkProfile              `json:"network,omitempty"`
 	API                     CustomerAPIProfile          `json:"api,omitempty"`
+	Ingress                 CustomerIngressProfile      `json:"ingress,omitempty"`
 	Platform                CustomerPlatformProfile     `json:"platform,omitempty"`
 	Autoscaling             ClusterAutoscalingProfile   `json:"autoscaling,omitempty"`
 	NodeDrainTimeoutMinutes int32                       `json:"nodeDrainTimeoutMinutes,omitempty"`
@@ -155,6 +156,11 @@ type CustomerAPIProfile struct {
 
 type ServiceProviderAPIProfile struct {
 	URL string `json:"url,omitempty"`
+}
+
+// CustomerIngressProfile represents the cluster ingress configuration.
+type CustomerIngressProfile struct {
+	Type IngressType `json:"type,omitempty"`
 }
 
 // CustomerPlatformProfile represents the Azure platform configuration.
@@ -275,6 +281,9 @@ func NewDefaultHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, azureLocati
 			API: CustomerAPIProfile{
 				Visibility: VisibilityPublic,
 			},
+			Ingress: CustomerIngressProfile{
+				Type: IngressTypePublic,
+			},
 			Platform: CustomerPlatformProfile{
 				OutboundType: OutboundTypeLoadBalancer,
 			},
@@ -310,6 +319,9 @@ func (cluster *HCPOpenShiftCluster) EnsureDefaults() {
 	}
 	if len(cluster.CustomerProperties.API.Visibility) == 0 {
 		cluster.CustomerProperties.API.Visibility = VisibilityPublic
+	}
+	if len(cluster.CustomerProperties.Ingress.Type) == 0 {
+		cluster.CustomerProperties.Ingress.Type = IngressTypePublic
 	}
 	if len(cluster.CustomerProperties.Platform.OutboundType) == 0 {
 		cluster.CustomerProperties.Platform.OutboundType = OutboundTypeLoadBalancer

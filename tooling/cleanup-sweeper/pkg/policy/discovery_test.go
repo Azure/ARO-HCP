@@ -15,6 +15,7 @@
 package policy
 
 import (
+	"regexp"
 	"testing"
 	"time"
 
@@ -134,17 +135,6 @@ func TestSelectsResourceGroup_IntendedLegacyPolicyBehavior(t *testing.T) {
 			expectSelected: true,
 		},
 		{
-			name: "non-pers persist true is skipped by global persist protection",
-			rg: newResourceGroup(
-				"hcp-underlay-dev-usw3rvaz",
-				timePtr(now.Add(-72*time.Hour)),
-				map[string]string{"persist": "true"},
-				false,
-			),
-			excluded:       sets.New[string](),
-			expectSelected: false,
-		},
-		{
 			name: "non-pers older than 2 days is selected by global default",
 			rg: newResourceGroup(
 				"hcp-underlay-dev-usw3rvaz",
@@ -242,6 +232,132 @@ func TestSelectsResourceGroup_ReturnsStructuredRuleReason(t *testing.T) {
 	}
 	if got, want := reason.String(), "rule[0]-expired"; got != want {
 		t.Fatalf("expected %q, got %q", want, got)
+	}
+}
+
+func TestSelectsResourceGroup_PersistTrueDeleteAfter15d(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.March, 16, 15, 0, 0, 0, time.UTC)
+	pol := &RGDiscoveryPolicy{
+		Rules: []RGDiscoveryRule{
+			{
+				Name:   "skip-shared-env-persist-true",
+				Action: RGDiscoveryActionSkip,
+				Match:  RGDiscoveryMatch{NameRegex: regexp.MustCompile(`^hcp-underlay-(cspr|dev|perf|int|stg|prod)-`)},
+				Conditions: RGDiscoveryConditions{
+					TagsEq: map[string]string{"persist": "true"},
+				},
+			},
+			{
+				Name:   "persist-true-delete-after-15d",
+				Action: RGDiscoveryActionDelete,
+				Match:  RGDiscoveryMatch{Any: true},
+				Conditions: RGDiscoveryConditions{
+					TagsEq: map[string]string{"persist": "true"},
+				},
+				OlderThan: 15 * 24 * time.Hour,
+			},
+		},
+	}
+
+	excluded := sets.New("global", "dashboards", "opstool-westus3")
+
+	testCases := []struct {
+		name           string
+		rg             *armresources.ResourceGroup
+		expectSelected bool
+	}{
+		{
+			name: "custom env swft persist true older than 15d is selected",
+			rg: newResourceGroup(
+				"hcp-underlay-swft-usw3rvaz",
+				timePtr(now.Add(-16*24*time.Hour)),
+				map[string]string{"persist": "true"},
+				false,
+			),
+			expectSelected: true,
+		},
+		{
+			name: "custom env swft persist true younger than 15d is not selected",
+			rg: newResourceGroup(
+				"hcp-underlay-swft-usw3rvaz",
+				timePtr(now.Add(-10*24*time.Hour)),
+				map[string]string{"persist": "true"},
+				false,
+			),
+			expectSelected: false,
+		},
+		{
+			name: "adhoc RG zgalor-test persist true older than 15d is selected",
+			rg: newResourceGroup(
+				"zgalor-test",
+				timePtr(now.Add(-20*24*time.Hour)),
+				map[string]string{"persist": "true"},
+				false,
+			),
+			expectSelected: true,
+		},
+		{
+			name: "adhoc RG bbergen-net-rg-03 persist true older than 15d is selected",
+			rg: newResourceGroup(
+				"bbergen-net-rg-03",
+				timePtr(now.Add(-90*24*time.Hour)),
+				map[string]string{"persist": "true"},
+				false,
+			),
+			expectSelected: true,
+		},
+		{
+			name: "shared env dev persist true is skipped",
+			rg: newResourceGroup(
+				"hcp-underlay-dev-usw3rvaz",
+				timePtr(now.Add(-20*24*time.Hour)),
+				map[string]string{"persist": "true"},
+				false,
+			),
+			expectSelected: false,
+		},
+		{
+			name: "shared env cspr persist true is skipped",
+			rg: newResourceGroup(
+				"hcp-underlay-cspr-usw3rvaz",
+				timePtr(now.Add(-20*24*time.Hour)),
+				map[string]string{"persist": "true"},
+				false,
+			),
+			expectSelected: false,
+		},
+		{
+			name: "excluded infra RG is skipped regardless of persist",
+			rg: newResourceGroup(
+				"dashboards",
+				timePtr(now.Add(-90*24*time.Hour)),
+				map[string]string{"persist": "true"},
+				false,
+			),
+			expectSelected: false,
+		},
+		{
+			name: "RG without persist does not match",
+			rg: newResourceGroup(
+				"zgalor-test",
+				timePtr(now.Add(-72*time.Hour)),
+				nil,
+				false,
+			),
+			expectSelected: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			selected, _ := pol.SelectsResourceGroup(tc.rg, excluded, now)
+			if selected != tc.expectSelected {
+				t.Fatalf("expected selected=%t, got selected=%t", tc.expectSelected, selected)
+			}
+		})
 	}
 }
 

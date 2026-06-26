@@ -256,3 +256,31 @@ func (lv LogValues) AddLogValuesForResourceIDString(resourceIDString string) Log
 	}
 	return lv.AddLogValuesForResourceID(resourceID)
 }
+
+// LoggableKey is the contract a controller workqueue key implements so that
+// the generic worker loop can seed its per-reconcile logger with the key's
+// identifying fields. Implementations typically build the key's
+// resourceID and call utils.LogValues{}.AddLogValuesForResourceID(...).
+//
+// Every controller key type in this repo must implement LoggableKey so that
+// the structured-log fields ("subscription_id", "resource_group", "resource_id",
+// etc.) are uniform across controllers and the indexes in Kusto stay coherent.
+type LoggableKey interface {
+	AddLoggerValues(logger logr.Logger) logr.Logger
+}
+
+// AddLoggerValues seeds logger with the key's identifying fields. If the key
+// satisfies LoggableKey, its AddLoggerValues method is used; otherwise the key
+// is logged under the catch-all "controllerKey" field so an opaque key still
+// shows up in the logs (without silently dropping it).
+//
+// This is the helper the generic worker loop calls after pulling a key off
+// the workqueue; controllers should not need to call it directly.
+func AddLoggerValues(logger logr.Logger, key any) logr.Logger {
+	switch castKey := key.(type) {
+	case LoggableKey:
+		return castKey.AddLoggerValues(logger)
+	default:
+		return logger.WithValues("controllerKey", key)
+	}
+}

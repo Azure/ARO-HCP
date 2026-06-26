@@ -54,7 +54,7 @@ import (
 // INVARIANTS:
 // - Canonical defaults (in EnsureDefaults) and CS->RP defaults (here) must match
 // - GET-then-PUT must preserve all explicit values (use Ptr, not PtrOrNil for bools)
-// - MigrateCosmosOrDie persists defaults via Get->Replace during FE deployment startup
+// - The backend cosmos migration controller persists defaults via Get->Replace
 //
 // See docs/api-version-defaults-and-storage.md for the full design rationale.
 
@@ -102,6 +102,17 @@ func convertVisibilityToListening(visibility api.Visibility) (arohcpv1alpha1.Lis
 		return arohcpv1alpha1.ListeningMethodInternal, nil
 	default:
 		return "", conversionError[arohcpv1alpha1.ListeningMethod](visibility)
+	}
+}
+
+func convertIngressTypeToListening(ingressType api.IngressType) (arohcpv1alpha1.ListeningMethod, error) {
+	switch ingressType {
+	case api.IngressTypePublic:
+		return arohcpv1alpha1.ListeningMethodExternal, nil
+	case api.IngressTypePrivate:
+		return arohcpv1alpha1.ListeningMethodInternal, nil
+	default:
+		return "", conversionError[arohcpv1alpha1.ListeningMethod](ingressType)
 	}
 }
 
@@ -376,6 +387,14 @@ func BuildCSCluster(resourceID *azcorearm.ResourceID, tenantID string, hcpCluste
 			return nil, nil, err
 		}
 		clusterAPIBuilder.Listening(apiListening)
+
+		ingressListening, err := convertIngressTypeToListening(hcpCluster.CustomerProperties.Ingress.Type)
+		if err != nil {
+			return nil, nil, err
+		}
+		clusterBuilder.Ingresses(arohcpv1alpha1.NewIngressList().Items(
+			arohcpv1alpha1.NewIngress().Default(true).Listening(ingressListening),
+		))
 	}
 
 	clusterBuilder.NodeDrainGracePeriod(arohcpv1alpha1.NewValue().
@@ -724,6 +743,12 @@ func CSErrorToCloudError(err error, resourceID *azcorearm.ResourceID) *arm.Cloud
 				arm.CloudErrorCodeInvalidRequestContent,
 				"", "%s", ocmError.Reason())
 		case http.StatusNotFound:
+			if strings.Contains(ocmError.Reason(), "Unable to find shard") {
+				return arm.NewCloudError(
+					http.StatusServiceUnavailable,
+					arm.CloudErrorCodeServiceUnavailable,
+					"", "Capacity is currently restricted, please try again later")
+			}
 			if resourceID != nil {
 				return arm.NewResourceNotFoundError(resourceID)
 			}
