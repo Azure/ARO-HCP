@@ -44,7 +44,7 @@ resource arohcpAccessClusterSloErrorAlerts 'Microsoft.AlertsManagement/prometheu
         }
         expression: 'errors:backend_credential_operation:error_rate > 0.72'
         for: 'PT5M'
-        severity: 4
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
       {
         actions: [
@@ -74,7 +74,7 @@ resource arohcpAccessClusterSloErrorAlerts 'Microsoft.AlertsManagement/prometheu
         }
         expression: 'errors:backend_credential_operation:error_rate > 0.30'
         for: 'PT30M'
-        severity: 4
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
       {
         actions: [
@@ -103,7 +103,7 @@ resource arohcpAccessClusterSloErrorAlerts 'Microsoft.AlertsManagement/prometheu
         }
         expression: 'errors:backend_credential_operation:error_rate > 0.05'
         for: 'PT6H'
-        severity: 4
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
       {
         actions: [
@@ -131,7 +131,7 @@ resource arohcpAccessClusterSloErrorAlerts 'Microsoft.AlertsManagement/prometheu
         }
         expression: 'errors:backend_credential_operation:error_rate > 0.15'
         for: 'PT30M'
-        severity: 4
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
       {
         actions: [
@@ -158,7 +158,7 @@ resource arohcpAccessClusterSloErrorAlerts 'Microsoft.AlertsManagement/prometheu
         }
         expression: '( (time() - backend_resource_operation_start_time_seconds{ resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type=~"requestcredential|revokecredentials" }) and backend_resource_operation_phase_info{ resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type=~"requestcredential|revokecredentials", phase=~"accepted|provisioning|deleting" } == 1 ) > 3600'
         for: 'PT15M'
-        severity: 4
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
     ]
     scopes: [
@@ -198,7 +198,7 @@ resource arohcpAccessClusterSaturationAlerts 'Microsoft.AlertsManagement/prometh
         }
         expression: 'max by (name, cluster) ( max without(prometheus_replica) ( workqueue_depth{namespace="aro-hcp", name=~".*(RequestCredential|RevokeCredentials).*"} ) ) > 10'
         for: 'PT5M'
-        severity: 4
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
       {
         actions: [
@@ -225,7 +225,7 @@ resource arohcpAccessClusterSaturationAlerts 'Microsoft.AlertsManagement/prometh
         }
         expression: '( sum by (name, cluster) ( max without(prometheus_replica) ( rate(workqueue_retries_total{namespace="aro-hcp", name=~".*(RequestCredential|RevokeCredentials).*"}[10m]) ) ) / sum by (name, cluster) ( max without(prometheus_replica) ( rate(workqueue_adds_total{namespace="aro-hcp", name=~".*(RequestCredential|RevokeCredentials).*"}[10m]) ) ) ) > 0.5'
         for: 'PT10M'
-        severity: 4
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
     ]
     scopes: [
