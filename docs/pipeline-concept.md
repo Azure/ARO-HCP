@@ -120,7 +120,7 @@ See the [Shell extension](https://ev2docs.azure.net/features/service-artifacts/a
 
 #### Helm Step
 
-Used for deploying Kubernetes services onto AKS clusters using [Helm](https://helm.sh/) charts. Helm steps manage the full lifecycle of a Helm release: the first deployment installs the chart, and subsequent deployments to the same release name upgrade it.
+Used for deploying Kubernetes services onto AKS clusters using [Helm](https://helm.sh/) charts. Prefer this over Shell steps that invoke `helm` directly, since the shell execution environment may not include a Helm CLI. Helm steps manage the full lifecycle of a Helm release: the first deployment installs the chart, and subsequent deployments to the same release name upgrade it.
 
 ```yaml
   ...
