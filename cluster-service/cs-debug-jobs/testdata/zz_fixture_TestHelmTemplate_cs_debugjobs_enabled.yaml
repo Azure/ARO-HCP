@@ -113,7 +113,7 @@ roleRef:
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: cs-shell-script-executor-35ozf
+  name: cs-shell-script-executor-uqhxz
   namespace: 'clusters-service'
 spec:
   ttlSecondsAfterFinished: 300

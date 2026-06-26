@@ -7807,7 +7807,7 @@ data:
           version_constraints:
             min_version: 4.11.0
 ---
-# Source: clusters-service/charts/database/templates/database.pvc.yaml
+# Source: clusters-service/templates/database.pvc.yaml
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
@@ -7820,7 +7820,7 @@ spec:
     requests:
       storage: '512Mi'
 ---
-# Source: clusters-service/charts/database/templates/database.service.yaml
+# Source: clusters-service/templates/database.service.yaml
 apiVersion: v1
 kind: Service
 metadata:
@@ -7894,7 +7894,7 @@ spec:
     name: healthcheck
     protocol: TCP
 ---
-# Source: clusters-service/charts/database/templates/database.deployment.yaml
+# Source: clusters-service/templates/database.deployment.yaml
 apiVersion: apps/v1
 kind: Deployment
 metadata:

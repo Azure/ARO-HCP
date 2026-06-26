@@ -3,4 +3,5 @@ name: cs-containerdb
 namespace: clusters-service
 testData:
   clustersService:
-    deployLocalDatabase: true
+    postgres:
+      deploy: false

@@ -110,10 +110,6 @@ resourceGroups:
         resourceGroup: service
         step: output
         name: databaseUser
-      deployLocalDatabase:
-        resourceGroup: service
-        step: output
-        name: deployLocalDatabase
       imagePullerMsiClientId:
         resourceGroup: service
         step: output

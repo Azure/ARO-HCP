@@ -68,7 +68,6 @@ resource postgres 'Microsoft.DBforPostgreSQL/flexibleServers@2023-12-01-preview'
 output databaseHost string = useAzureDB ? postgres!.properties.fullyQualifiedDomainName : 'ocm-cs-db'
 output databaseDisableTls string = useAzureDB ? 'false' : 'true'
 output databaseAuthMethod string = useAzureDB ? 'az-entra' : 'postgres'
-output deployLocalDatabase string = useAzureDB ? 'false' : 'true'
 output databaseName string = useAzureDB ? 'clusters-service' : 'ocm-cs-db'
 output databaseUser string = useAzureDB ? 'clusters-service' : 'ocm'
 #disable-next-line outputs-should-not-contain-secrets
