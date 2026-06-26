@@ -56,14 +56,16 @@ type alertingRuleFile struct {
 }
 
 type GroupAlerts struct {
-	GroupName string   `json:"groupName"`
-	Alerts    []string `json:"alerts"`
+	GroupName  string   `json:"groupName"`
+	Alerts     []string `json:"alerts"`
+	Namespaces []string `json:"namespaces,omitempty"`
 }
 
 type Options struct {
 	promtoolPath            string
 	outputBicep             string
 	includedAlerts          map[string][]string
+	namespaceFilters        map[string][]string
 	labelsToExtract         []string
 	ruleFiles               []alertingRuleFile
 	outputReplacements      []Replacements
@@ -159,8 +161,12 @@ func (o *Options) Complete(configFilePath string, promtoolPath string) error {
 
 	// Convert includedAlertsByGroup to a map
 	o.includedAlerts = make(map[string][]string)
+	o.namespaceFilters = make(map[string][]string)
 	for _, ga := range config.PrometheusRules.IncludedAlertsByGroup {
 		o.includedAlerts[ga.GroupName] = ga.Alerts
+		if len(ga.Namespaces) > 0 {
+			o.namespaceFilters[ga.GroupName] = ga.Namespaces
+		}
 	}
 
 	for _, untestedRules := range config.PrometheusRules.UntestedRules {
@@ -513,6 +519,22 @@ param location string = resourceGroup().location
 
 				// Filter rules based on the output file type
 				if rule.Alert != "" && isAlertingRulesFile {
+					exprStr := strings.TrimSpace(
+						whitespaceMatcher.ReplaceAllString(rule.Expr.String(), " "),
+					)
+					if namespaces, ok := o.namespaceFilters[group.Name]; ok && len(namespaces) > 0 {
+						filtered, err := injectNamespaceFilter(exprStr, namespaces)
+						if err != nil {
+							return fmt.Errorf("failed to inject namespace filter for alert %s in group %s: %w", rule.Alert, group.Name, err)
+						}
+						exprStr = filtered
+					} else {
+						normalized, err := normalizeExpr(exprStr)
+						if err != nil {
+							return fmt.Errorf("failed to normalize expression for alert %s in group %s: %w", rule.Alert, group.Name, err)
+						}
+						exprStr = normalized
+					}
 					severity, err := severityFor(labels)
 					if err != nil {
 						return fmt.Errorf("alert %q: %w", rule.Alert, err)
@@ -523,23 +545,31 @@ param location string = resourceGroup().location
 						Labels:      labels,
 						Annotations: annotations,
 						For:         parseToAzureDurationString(rule.For),
-						Expression: ptr.To(
-							strings.TrimSpace(
-								whitespaceMatcher.ReplaceAllString(rule.Expr.String(), " "),
-							),
-						),
-						Severity: severity,
+						Expression:  ptr.To(exprStr),
+						Severity:    severity,
 					})
 				} else if rule.Record != "" && isRecordingRulesFile {
+					exprStr := strings.TrimSpace(
+						whitespaceMatcher.ReplaceAllString(rule.Expr.String(), " "),
+					)
+					if namespaces, ok := o.namespaceFilters[group.Name]; ok && len(namespaces) > 0 {
+						filtered, err := injectNamespaceFilter(exprStr, namespaces)
+						if err != nil {
+							return fmt.Errorf("failed to inject namespace filter for record %s in group %s: %w", rule.Record, group.Name, err)
+						}
+						exprStr = filtered
+					} else {
+						normalized, err := normalizeExpr(exprStr)
+						if err != nil {
+							return fmt.Errorf("failed to normalize expression for record %s in group %s: %w", rule.Record, group.Name, err)
+						}
+						exprStr = normalized
+					}
 					armGroup.Properties.Rules = append(armGroup.Properties.Rules, &armprometheusrulegroups.PrometheusRule{
-						Record:  ptr.To(rule.Record),
-						Enabled: ptr.To(true),
-						Labels:  labels,
-						Expression: ptr.To(
-							strings.TrimSpace(
-								whitespaceMatcher.ReplaceAllString(rule.Expr.String(), " "),
-							),
-						),
+						Record:     ptr.To(rule.Record),
+						Enabled:    ptr.To(true),
+						Labels:     labels,
+						Expression: ptr.To(exprStr),
 					})
 				}
 			}
