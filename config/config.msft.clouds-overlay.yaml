@@ -45,6 +45,9 @@ clouds:
             cxParentZoneName: "aroapp-hcp-{{ .ctx.environment }}.azure.com"
             # New Kusto cluster (live stg is hcp-stg-uk-2; this is the next one).
             kustoName: "hcp-{{ .ctx.environment }}-uk-3"
+            # New Grafana workspace (live stg is arohcp-stg; this is the V2 one).
+            # Globally unique — must differ from the live name to avoid NameNotUnique.
+            grafanaName: "arohcp-{{ .ctx.environment }}2"
           # E2E
           e2e:
             regionTest:

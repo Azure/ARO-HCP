@@ -18,7 +18,9 @@ param keyVaultTagKey = '{{ .global.keyVault.tagKey }}'
 param keyVaultTagValue = '{{ .global.keyVault.tagValue }}'
 param keyVaultEncryptionKeyName = '{{ .global.keyVault.encryptionKeyName }}'
 
-param grafanaName = '{{ .monitoring.grafanaName }}'
+// V2 grafana name from stgGlobalV2 (not monitoring.grafanaName) so the parallel
+// STG-global stack does not collide with the live arohcp-stg Grafana workspace.
+param grafanaName = '{{ .stgGlobalV2.grafanaName }}'
 param grafanaMajorVersion = '{{ .monitoring.grafanaMajorVersion }}'
 param grafanaZoneRedundantMode = '{{ .monitoring.grafanaZoneRedundantMode }}'
 param grafanaRoles = '{{ .monitoring.grafanaRoles }}'

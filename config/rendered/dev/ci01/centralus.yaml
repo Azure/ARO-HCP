@@ -914,6 +914,7 @@ stgGlobalV2:
   frontDoorName: empty-sentinel
   genevaKeyVaultName: empty-sentinel
   globalKeyVaultName: empty-sentinel
+  grafanaName: empty-sentinel
   kustoName: empty-sentinel
   oidcStorageAccountName: empty-sentinel
   svcParentZoneName: empty-sentinel

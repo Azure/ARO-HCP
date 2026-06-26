@@ -137,7 +137,7 @@ resourceGroups:
       step: infra
   - name: grafana-dashboards
     action: GrafanaDashboards
-    grafanaName: "{{ .monitoring.grafanaName }}"
+    grafanaName: "{{ .stgGlobalV2.grafanaName }}"
     observabilityConfig: ./../observability/observability.yaml
     identityFrom:
       resourceGroup: singleton
