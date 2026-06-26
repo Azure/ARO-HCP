@@ -99,12 +99,20 @@ func TestPickWorstOperationState(t *testing.T) {
 			wantErr: "empty provisioning state",
 		},
 		{
-			name: "single state",
+			name: "single state without source",
 			states: []*operationState{
 				newOperationState(arm.ProvisioningStateFailed, "first failure"),
 			},
 			wantProv:    arm.ProvisioningStateFailed,
-			wantMessage: "first failure",
+			wantMessage: "[<unset_source>] first failure",
+		},
+		{
+			name: "single state with source",
+			states: []*operationState{
+				newOperationState(arm.ProvisioningStateFailed, "NotReady: cluster is not ready").withSource("hypershiftCluster"),
+			},
+			wantProv:    arm.ProvisioningStateFailed,
+			wantMessage: "[hypershiftCluster] NotReady: cluster is not ready",
 		},
 		{
 			name: "merges messages for consecutive same provisioning state",
@@ -114,7 +122,16 @@ func TestPickWorstOperationState(t *testing.T) {
 				newOperationState(arm.ProvisioningStateFailed, "c"),
 			},
 			wantProv:    arm.ProvisioningStateFailed,
-			wantMessage: "a; b; c",
+			wantMessage: "[<unset_source>] a; [<unset_source>] b; [<unset_source>] c",
+		},
+		{
+			name: "merges messages with sources",
+			states: []*operationState{
+				newOperationState(arm.ProvisioningStateFailed, "a").withSource("checkA"),
+				newOperationState(arm.ProvisioningStateFailed, "b").withSource("checkB"),
+			},
+			wantProv:    arm.ProvisioningStateFailed,
+			wantMessage: "[checkA] a; [checkB] b",
 		},
 		{
 			name: "stops merging when provisioning state changes",
@@ -123,7 +140,15 @@ func TestPickWorstOperationState(t *testing.T) {
 				newOperationState(arm.ProvisioningStateSucceeded, "ignored"),
 			},
 			wantProv:    arm.ProvisioningStateFailed,
-			wantMessage: "worst",
+			wantMessage: "[<unset_source>] worst",
+		},
+		{
+			name: "empty message uses placeholder",
+			states: []*operationState{
+				newOperationState(arm.ProvisioningStateFailed, "").withSource("checkA"),
+			},
+			wantProv:    arm.ProvisioningStateFailed,
+			wantMessage: "[checkA] <unset_message>",
 		},
 	}
 
@@ -139,8 +164,8 @@ func TestPickWorstOperationState(t *testing.T) {
 			}
 			assert.NoError(t, err)
 			assert.NotNil(t, got)
-			assert.Equal(t, tt.wantProv, got.provisioningState)
-			assert.Equal(t, tt.wantMessage, got.message)
+			assert.Equal(t, tt.wantProv, got.ProvisioningState)
+			assert.Equal(t, tt.wantMessage, got.Message)
 		})
 	}
 }

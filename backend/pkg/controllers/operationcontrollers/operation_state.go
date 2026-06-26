@@ -16,20 +16,30 @@ package operationcontrollers
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
 
 type operationState struct {
-	provisioningState arm.ProvisioningState
-	message           string
+	// Source is a name that identifies the source of the operation state.
+	Source            string                `json:"source"`
+	ProvisioningState arm.ProvisioningState `json:"provisioningState"`
+	Message           string                `json:"message"`
 }
 
+// withSource sets the source of the operation state.
+func (s *operationState) withSource(source string) *operationState {
+	s.Source = source
+	return s
+}
+
+// newOperationState creates a new operation state with the given provisioning state and message, without a source.
 func newOperationState(provisioningState arm.ProvisioningState, message string) *operationState {
 	return &operationState{
-		provisioningState: provisioningState,
-		message:           message,
+		ProvisioningState: provisioningState,
+		Message:           message,
 	}
 }
 
@@ -59,13 +69,13 @@ func compareOperationState(lhs, rhs *operationState) int {
 		return 1
 	}
 
-	if provisioningStatePriority[lhs.provisioningState] < provisioningStatePriority[rhs.provisioningState] {
+	if provisioningStatePriority[lhs.ProvisioningState] < provisioningStatePriority[rhs.ProvisioningState] {
 		return -1
 	}
-	if provisioningStatePriority[lhs.provisioningState] > provisioningStatePriority[rhs.provisioningState] {
+	if provisioningStatePriority[lhs.ProvisioningState] > provisioningStatePriority[rhs.ProvisioningState] {
 		return 1
 	}
-	return strings.Compare(lhs.message, rhs.message)
+	return strings.Compare(lhs.Message, rhs.Message)
 }
 
 // pickWorstOperationState expects states pre-sorted and returns the worst state with merged messages.
@@ -73,16 +83,24 @@ func pickWorstOperationState(states []*operationState) (*operationState, error) 
 	if len(states) == 0 {
 		return nil, errors.New("no operation states")
 	}
-	worstProvisioningState := states[0].provisioningState
+	worstProvisioningState := states[0].ProvisioningState
 	if len(worstProvisioningState) == 0 {
 		return nil, errors.New("empty provisioning state")
 	}
 	var messageParts []string
 	for _, s := range states {
-		if s.provisioningState != worstProvisioningState {
+		if s.ProvisioningState != worstProvisioningState {
 			break
 		}
-		messageParts = append(messageParts, s.message)
+		currentSource := "<unset_source>"
+		if s.Source != "" {
+			currentSource = s.Source
+		}
+		currentMessage := "<unset_message>"
+		if s.Message != "" {
+			currentMessage = s.Message
+		}
+		messageParts = append(messageParts, fmt.Sprintf("[%s] %s", currentSource, currentMessage))
 	}
 	return newOperationState(worstProvisioningState, strings.Join(messageParts, "; ")), nil
 }

@@ -77,8 +77,8 @@ const (
 	csOutboundType                      string = "load_balancer"
 	csUsernameClaimPrefixPolicyNoPrefix string = "NoPrefix"
 	csUsernameClaimPrefixPolicyPrefix   string = "Prefix"
-	csCIDRBlockAllowAccessModeAllowAll  string = "allow_all"
-	csCIDRBlockAllowAccessModeAllowList string = "allow_list"
+	CSCIDRBlockAllowAccessModeAllowAll  string = "allow_all"
+	CSCIDRBlockAllowAccessModeAllowList string = "allow_list"
 	csOsDiskPersistencePersistent       string = "persistent"
 	csOsDiskPersistenceEphemeral        string = "ephemeral"
 	CSProvisionShardStatusActive        string = "active"
@@ -276,9 +276,9 @@ func convertCIDRBlockAllowAccessRPToCS(in api.CustomerAPIProfile) (*arohcpv1alph
 	cidrBlockAllowAccess := arohcpv1alpha1.NewCIDRBlockAllowAccess()
 
 	if in.AuthorizedCIDRs == nil {
-		cidrBlockAllowAccess.Mode(csCIDRBlockAllowAccessModeAllowAll)
+		cidrBlockAllowAccess.Mode(CSCIDRBlockAllowAccessModeAllowAll)
 	} else if len(in.AuthorizedCIDRs) > 0 {
-		cidrBlockAllowAccess.Mode(csCIDRBlockAllowAccessModeAllowList)
+		cidrBlockAllowAccess.Mode(CSCIDRBlockAllowAccessModeAllowList)
 		cidrBlockAllowAccess.Values(in.AuthorizedCIDRs...)
 	} else {
 		// Unreachable: empty AuthorizedCIDRs list is disallowed by validation
@@ -397,28 +397,9 @@ func BuildCSCluster(resourceID *azcorearm.ResourceID, tenantID string, hcpCluste
 		))
 	}
 
-	clusterBuilder.NodeDrainGracePeriod(arohcpv1alpha1.NewValue().
-		Unit(csNodeDrainGracePeriodUnit).
-		Value(float64(hcpCluster.CustomerProperties.NodeDrainTimeoutMinutes)))
-
-	cidrBlockAccess, err := convertCIDRBlockAllowAccessRPToCS(hcpCluster.CustomerProperties.API)
-	if err != nil {
-		return nil, nil, err
-	}
-	clusterBuilder.API(clusterAPIBuilder.CIDRBlockAccess(cidrBlockAccess))
-
-	clusterBuilder.RegistryConfig(arohcpv1alpha1.NewClusterRegistryConfig().
-		ImageDigestMirrors(convertImageDigestMirrorsToCSBuilder(hcpCluster.CustomerProperties.ImageDigestMirrors)...))
-
-	clusterAutoscalerBuilder, err := convertRpAutoscalarToCSBuilder(&hcpCluster.CustomerProperties.Autoscaling)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	// Property layering: preserve existing CS properties (on update), then
-	// overlay caller-specified properties, then experimental features.
-	// Experimental feature properties are added when enabled and deleted
-	// when disabled to ensure tag removal clears previously set values.
+	// Property layering for CS Properties(): preserve existing values (on update),
+	// overlay caller-specified properties, then clusterUpdateDispatchConfig.applyToCSBuilders overlays
+	// dispatch-managed experimental features.
 	properties := map[string]string{}
 	if oldClusterServiceCluster != nil {
 		for k, v := range oldClusterServiceCluster.Properties() {
@@ -428,23 +409,17 @@ func BuildCSCluster(resourceID *azcorearm.ResourceID, tenantID string, hcpCluste
 	for k, v := range requiredProperties {
 		properties[k] = v
 	}
-	experimentalFeatures := hcpCluster.ServiceProviderProperties.ExperimentalFeatures
-	if experimentalFeatures.ControlPlaneAvailability == api.SingleReplicaControlPlane {
-		properties[CSPropertySingleReplica] = CSPropertyEnabled
-	} else {
-		delete(properties, CSPropertySingleReplica)
+
+	clusterUpdateDispatchConfig := clusterUpdateDispatchConfigFromRP(hcpCluster)
+	err = clusterUpdateDispatchConfig.applyToCSBuilders(clusterBuilder, clusterAPIBuilder, properties)
+	if err != nil {
+		return nil, nil, err
 	}
-	if experimentalFeatures.ControlPlanePodSizing == api.MinimalControlPlanePodSizing {
-		properties[CSPropertySizeOverride] = CSPropertyEnabled
-	} else {
-		delete(properties, CSPropertySizeOverride)
+
+	clusterAutoscalerBuilder, err := clusterUpdateDispatchConfig.autoscalerBuilder()
+	if err != nil {
+		return nil, nil, err
 	}
-	if experimentalFeatures.ControlPlaneOperatorImage != "" {
-		properties[CSPropertyCPOImageOverride] = experimentalFeatures.ControlPlaneOperatorImage
-	} else {
-		delete(properties, CSPropertyCPOImageOverride)
-	}
-	clusterBuilder = clusterBuilder.Properties(properties)
 
 	return clusterBuilder, clusterAutoscalerBuilder, nil
 }
