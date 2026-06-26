@@ -1,11 +1,116 @@
 {
+  "_attachments": "attachments/",
+  "_etag": "\"0000a825-0000-4d00-0000-6a29fae10000\"",
+  "_rid": "deIlAKL5A1gUBgAAAAAAAA==",
+  "_self": "dbs/deIlAA==/colls/deIlAKL5A1g=/docs/deIlAKL5A1gUBgAAAAAAAA==/",
+  "_ts": 1781136097,
+  "id": "91023779-455a-57f3-bbf0-e47c90179dac",
+  "partitionKey": "e8c5a115-842d-4d7e-98ad-cfb2c50b209e",
   "properties": {
     "cosmosMetadata": {
-      "resourceId": "/subscriptions/e8c5a115-842d-4d7e-98ad-cfb2c50b209e/resourceGroups/rg-np-version-upgrade-pckjw8-79qhmc/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/np-version-upgrade-cluster-pckjw8/nodePools/npupgrade-4-20",
-      "partitionKey": "e8c5a115-842d-4d7e-98ad-cfb2c50b209e"
+      "etag": "\"00002f23-0000-4d00-0000-6a29f03c0000\"",
+      "resourceID": "/subscriptions/e8c5a115-842d-4d7e-98ad-cfb2c50b209e/resourceGroups/rg-np-version-upgrade-pckjw8-79qhmc/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/np-version-upgrade-cluster-pckjw8/nodePools/npupgrade-4-20"
     },
     "id": "/subscriptions/e8c5a115-842d-4d7e-98ad-cfb2c50b209e/resourceGroups/rg-np-version-upgrade-pckjw8-79qhmc/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/np-version-upgrade-cluster-pckjw8/nodePools/npupgrade-4-20",
+    "intermediateResourceDoc": {
+      "activeOperationId": "66c481f6-0ee9-4fcb-9b23-78489a50e220",
+      "internalId": "/api/aro_hcp/v1alpha1/clusters/2qrppk0otds3rdmdcojqcqkqq8f0s591/node_pools/npupgrade-4-20",
+      "provisioningState": "Deleting",
+      "resourceId": "/subscriptions/e8c5a115-842d-4d7e-98ad-cfb2c50b209e/resourceGroups/rg-np-version-upgrade-pckjw8-79qhmc/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/np-version-upgrade-cluster-pckjw8/nodePools/npupgrade-4-20",
+      "systemData": {
+        "createdAt": "2026-06-10T22:59:18.0000000Z",
+        "createdBy": "e2e-test",
+        "createdByType": "Application",
+        "lastModifiedAt": "2026-06-10T23:09:27.6415755Z",
+        "lastModifiedBy": "Unknown-ARO-HCP-frontend",
+        "lastModifiedByType": "Application"
+      }
+    },
+    "internalState": {
+      "internalAPI": {
+        "cosmosMetadata": {
+          "resourceID": null
+        },
+        "id": "/subscriptions/e8c5a115-842d-4d7e-98ad-cfb2c50b209e/resourceGroups/rg-np-version-upgrade-pckjw8-79qhmc/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/np-version-upgrade-cluster-pckjw8/nodePools/npupgrade-4-20",
+        "location": "westus3",
+        "name": "npupgrade-4-20",
+        "properties": {
+          "autoRepair": true,
+          "nodeDrainTimeoutMinutes": 10,
+          "platform": {
+            "enableEncryptionAtHost": false,
+            "osDisk": {
+              "diskStorageAccountType": "StandardSSD_LRS",
+              "diskType": "Managed",
+              "sizeGiB": 64
+            },
+            "subnetId": "/subscriptions/e8c5a115-842d-4d7e-98ad-cfb2c50b209e/resourceGroups/rg-np-version-upgrade-pckjw8-79qhmc/providers/Microsoft.Network/virtualNetworks/customer-vnet-np-upgrade-pckjw8/subnets/customer-vnet-subnet-np-upgrade-pckjw8",
+            "vmSize": "Standard_D8s_v3"
+          },
+          "provisioningState": "Deleting",
+          "replicas": 3,
+          "version": {
+            "channelGroup": "candidate",
+            "id": "4.21.19"
+          }
+        },
+        "serviceProviderProperties": {
+          "activeOperationId": "66c481f6-0ee9-4fcb-9b23-78489a50e220",
+          "clusterServiceID": "/api/aro_hcp/v1alpha1/clusters/2qrppk0otds3rdmdcojqcqkqq8f0s591/node_pools/npupgrade-4-20",
+          "deletionTimestamp": "2026-06-11T00:01:37.0000000Z",
+          "usesNewNodePoolDeletionApproach": false
+        },
+        "status": {},
+        "systemData": {
+          "createdAt": "2026-06-10T22:59:18.0000000Z",
+          "createdBy": "e2e-test",
+          "createdByType": "Application",
+          "lastModifiedAt": "2026-06-10T23:09:27.6415755Z",
+          "lastModifiedBy": "Unknown-ARO-HCP-frontend",
+          "lastModifiedByType": "Application"
+        },
+        "type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/nodePools"
+      }
+    },
+    "location": "westus3",
     "name": "npupgrade-4-20",
+    "properties": {
+      "autoRepair": true,
+      "nodeDrainTimeoutMinutes": 10,
+      "platform": {
+        "enableEncryptionAtHost": false,
+        "osDisk": {
+          "diskStorageAccountType": "StandardSSD_LRS",
+          "diskType": "Managed",
+          "sizeGiB": 64
+        },
+        "subnetId": "/subscriptions/e8c5a115-842d-4d7e-98ad-cfb2c50b209e/resourceGroups/rg-np-version-upgrade-pckjw8-79qhmc/providers/Microsoft.Network/virtualNetworks/customer-vnet-np-upgrade-pckjw8/subnets/customer-vnet-subnet-np-upgrade-pckjw8",
+        "vmSize": "Standard_D8s_v3"
+      },
+      "provisioningState": "Deleting",
+      "replicas": 3,
+      "version": {
+        "channelGroup": "candidate",
+        "id": "4.21.19"
+      }
+    },
+    "serviceProviderProperties": {
+      "activeOperationId": "66c481f6-0ee9-4fcb-9b23-78489a50e220",
+      "clusterServiceID": "/api/aro_hcp/v1alpha1/clusters/2qrppk0otds3rdmdcojqcqkqq8f0s591/node_pools/npupgrade-4-20",
+      "deletionTimestamp": "2026-06-11T00:01:37.0000000Z",
+      "usesNewNodePoolDeletionApproach": false
+    },
+    "status": {},
+    "systemData": {
+      "createdAt": "2026-06-10T22:59:18.0000000Z",
+      "createdBy": "e2e-test",
+      "createdByType": "Application",
+      "lastModifiedAt": "2026-06-10T23:09:27.6415755Z",
+      "lastModifiedBy": "Unknown-ARO-HCP-frontend",
+      "lastModifiedByType": "Application"
+    },
     "type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/nodePools"
-  }
+  },
+  "resourceID": "/subscriptions/e8c5a115-842d-4d7e-98ad-cfb2c50b209e/resourceGroups/rg-np-version-upgrade-pckjw8-79qhmc/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/np-version-upgrade-cluster-pckjw8/nodePools/npupgrade-4-20",
+  "resourceType": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/nodePools"
 }

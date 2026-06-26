@@ -1,27 +1,406 @@
 {
+  "_attachments": "attachments/",
+  "_etag": "\"0000f32e-0000-4d00-0000-6a29fb670000\"",
+  "_rid": "deIlAOPdPfpBAAAAAAAAAA==",
+  "_self": "dbs/deIlAA==/colls/deIlAOPdPfo=/docs/deIlAOPdPfpBAAAAAAAAAA==/",
+  "_ts": 1781136231,
+  "id": "c52c6d67-3e54-5426-8d83-cd60445f039e",
+  "partitionKey": "/providers/microsoft.redhatopenshift/stamps/1/managementclusters/default",
   "properties": {
     "cosmosMetadata": {
-      "resourceId": "/subscriptions/e8c5a115-842d-4d7e-98ad-cfb2c50b209e/resourceGroups/rg-np-version-upgrade-pckjw8-79qhmc/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/np-version-upgrade-cluster-pckjw8/nodePools/npupgrade-4-20/hcpReadDesires/readonlyHypershiftNodePool",
-      "partitionKey": "management-cluster-resource-id"
+      "etag": "\"0000b42a-0000-4d00-0000-6a29f0000000\"",
+      "resourceID": "/subscriptions/e8c5a115-842d-4d7e-98ad-cfb2c50b209e/resourceGroups/rg-np-version-upgrade-pckjw8-79qhmc/providers/microsoft.redhatopenshift/hcpopenshiftclusters/np-version-upgrade-cluster-pckjw8/nodepools/npupgrade-4-20/readdesires/readonlyhypershiftnodepool"
+    },
+    "spec": {
+      "managementCluster": "/providers/microsoft.redhatopenshift/stamps/1/managementclusters/default",
+      "targetItem": {
+        "group": "hypershift.openshift.io",
+        "name": "x8y5p7r4g6j9e3v-npupgrade-4-20",
+        "namespace": "ocm-arohcpci01-2qrppk0otds3rdmdcojqcqkqq8f0s591",
+        "resource": "nodepools",
+        "version": "v1beta1"
+      }
     },
     "status": {
+      "conditions": [
+        {
+          "lastTransitionTime": "2026-06-10T22:59:58.0000000Z",
+          "message": "As expected.",
+          "reason": "NoErrors",
+          "status": "True",
+          "type": "Successful"
+        }
+      ],
       "kubeContent": {
         "apiVersion": "hypershift.openshift.io/v1beta1",
         "kind": "NodePool",
         "metadata": {
-          "name": "npupgrade-4-20"
+          "annotations": {
+            "hypershift.openshift.io/nodePoolCurrentConfig": "f467d67c",
+            "hypershift.openshift.io/nodePoolCurrentConfigVersion": "63caebc0",
+            "hypershift.openshift.io/nodePoolPlatformMachineTemplate": "x8y5p7r4g6j9e3v-npupgrade-4-20-b6b9e397"
+          },
+          "creationTimestamp": "2026-06-10T22:59:30.0000000Z",
+          "deletionGracePeriodSeconds": 0,
+          "deletionTimestamp": "2026-06-11T00:03:51.0000000Z",
+          "finalizers": [
+            "hypershift.openshift.io/finalizer"
+          ],
+          "generation": 4,
+          "labels": {
+            "api.openshift.com/environment": "arohcpci01",
+            "api.openshift.com/id": "2qrppk0otds3rdmdcojqcqkqq8f0s591",
+            "api.openshift.com/name": "np-version-upgrade-cluster-pckjw8"
+          },
+          "managedFields": [
+            {
+              "apiVersion": "hypershift.openshift.io/v1beta1",
+              "fieldsType": "FieldsV1",
+              "fieldsV1": {
+                "f:metadata": {
+                  "f:labels": {
+                    "f:api.openshift.com/environment": {},
+                    "f:api.openshift.com/id": {},
+                    "f:api.openshift.com/name": {}
+                  }
+                },
+                "f:spec": {
+                  "f:clusterName": {},
+                  "f:management": {
+                    "f:autoRepair": {},
+                    "f:replace": {
+                      "f:rollingUpdate": {
+                        "f:maxSurge": {},
+                        "f:maxUnavailable": {}
+                      },
+                      "f:strategy": {}
+                    },
+                    "f:upgradeType": {}
+                  },
+                  "f:nodeDrainTimeout": {},
+                  "f:platform": {
+                    "f:azure": {
+                      "f:diagnostics": {
+                        "f:storageAccountType": {}
+                      },
+                      "f:encryptionAtHost": {},
+                      "f:image": {
+                        "f:azureMarketplace": {
+                          "f:imageGeneration": {}
+                        },
+                        "f:type": {}
+                      },
+                      "f:osDisk": {
+                        "f:diskStorageAccountType": {},
+                        "f:persistence": {},
+                        "f:sizeGiB": {}
+                      },
+                      "f:subnetID": {},
+                      "f:vmSize": {}
+                    },
+                    "f:type": {}
+                  },
+                  "f:release": {
+                    "f:image": {}
+                  },
+                  "f:replicas": {}
+                }
+              },
+              "manager": "work-agent",
+              "operation": "Apply",
+              "time": "2026-06-10T23:09:33.0000000Z"
+            },
+            {
+              "apiVersion": "hypershift.openshift.io/v1beta1",
+              "fieldsType": "FieldsV1",
+              "fieldsV1": {
+                "f:metadata": {
+                  "f:ownerReferences": {
+                    ".": {},
+                    "k:{\"uid\":\"60158c0f-dbda-48d4-8d3d-5fb2a7b34476\"}": {}
+                  }
+                }
+              },
+              "manager": "work-agent",
+              "operation": "Update",
+              "time": "2026-06-10T22:59:30.0000000Z"
+            },
+            {
+              "apiVersion": "hypershift.openshift.io/v1beta1",
+              "fieldsType": "FieldsV1",
+              "fieldsV1": {
+                "f:metadata": {
+                  "f:annotations": {
+                    ".": {},
+                    "f:hypershift.openshift.io/nodePoolCurrentConfig": {},
+                    "f:hypershift.openshift.io/nodePoolCurrentConfigVersion": {},
+                    "f:hypershift.openshift.io/nodePoolPlatformMachineTemplate": {}
+                  },
+                  "f:finalizers": {
+                    ".": {},
+                    "v:\"hypershift.openshift.io/finalizer\"": {}
+                  },
+                  "f:ownerReferences": {
+                    "k:{\"uid\":\"6828189d-0a12-401e-ad4f-9381ea5ee8e8\"}": {}
+                  }
+                },
+                "f:spec": {
+                  "f:platform": {
+                    "f:azure": {
+                      "f:image": {
+                        "f:azureMarketplace": {
+                          "f:offer": {},
+                          "f:publisher": {},
+                          "f:sku": {},
+                          "f:version": {}
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "manager": "hypershift-operator-manager",
+              "operation": "Update",
+              "time": "2026-06-10T23:05:40.0000000Z"
+            },
+            {
+              "apiVersion": "hypershift.openshift.io/v1beta1",
+              "fieldsType": "FieldsV1",
+              "fieldsV1": {
+                "f:status": {
+                  ".": {},
+                  "f:conditions": {},
+                  "f:nodesInfo": {
+                    ".": {},
+                    "f:nodeVersions": {}
+                  },
+                  "f:replicas": {},
+                  "f:version": {}
+                }
+              },
+              "manager": "hypershift-operator-manager",
+              "operation": "Update",
+              "subresource": "status",
+              "time": "2026-06-10T23:15:12.0000000Z"
+            }
+          ],
+          "name": "x8y5p7r4g6j9e3v-npupgrade-4-20",
+          "namespace": "ocm-arohcpci01-2qrppk0otds3rdmdcojqcqkqq8f0s591",
+          "ownerReferences": [
+            {
+              "apiVersion": "work.open-cluster-management.io/v1",
+              "kind": "AppliedManifestWork",
+              "name": "1710ce7a0d4dfc0db490b6b6747644ffbb86e00748dd9562d4bee835e077b083-2qrppk0otds3rdmdcojqcqkqq8f0s591-npupgrade-4-20",
+              "uid": "60158c0f-dbda-48d4-8d3d-5fb2a7b34476"
+            },
+            {
+              "apiVersion": "hypershift.openshift.io/v1beta1",
+              "kind": "HostedCluster",
+              "name": "x8y5p7r4g6j9e3v",
+              "uid": "6828189d-0a12-401e-ad4f-9381ea5ee8e8"
+            }
+          ],
+          "resourceVersion": "504321",
+          "uid": "01b8fda7-7c0f-49c8-a741-b081f0e777e6"
+        },
+        "spec": {
+          "arch": "amd64",
+          "clusterName": "x8y5p7r4g6j9e3v",
+          "management": {
+            "autoRepair": true,
+            "replace": {
+              "rollingUpdate": {
+                "maxSurge": 1,
+                "maxUnavailable": 0
+              },
+              "strategy": "RollingUpdate"
+            },
+            "upgradeType": "Replace"
+          },
+          "nodeDrainTimeout": "10m0s",
+          "platform": {
+            "azure": {
+              "diagnostics": {
+                "storageAccountType": "Managed"
+              },
+              "encryptionAtHost": "Disabled",
+              "image": {
+                "azureMarketplace": {
+                  "imageGeneration": "Gen2",
+                  "offer": "aro4",
+                  "publisher": "azureopenshift",
+                  "sku": "420-v2",
+                  "version": "9.6.20251015"
+                },
+                "type": "AzureMarketplace"
+              },
+              "osDisk": {
+                "diskStorageAccountType": "StandardSSD_LRS",
+                "persistence": "Persistent",
+                "sizeGiB": 64
+              },
+              "subnetID": "/subscriptions/e8c5a115-842d-4d7e-98ad-cfb2c50b209e/resourceGroups/rg-np-version-upgrade-pckjw8-79qhmc/providers/Microsoft.Network/virtualNetworks/customer-vnet-np-upgrade-pckjw8/subnets/customer-vnet-subnet-np-upgrade-pckjw8",
+              "vmSize": "Standard_D8s_v3"
+            },
+            "type": "Azure"
+          },
+          "release": {
+            "image": "quay.io/openshift-release-dev/ocp-release@sha256:a65e099f04964491ac8b98692b2bc5c4599b0b534ffc042d020f3f90153fccf2"
+          },
+          "replicas": 3
         },
         "status": {
+          "conditions": [
+            {
+              "lastTransitionTime": "2026-06-10T22:59:30.0000000Z",
+              "observedGeneration": 3,
+              "reason": "AsExpected",
+              "status": "False",
+              "type": "AutoscalingEnabled"
+            },
+            {
+              "lastTransitionTime": "2026-06-10T22:59:30.0000000Z",
+              "observedGeneration": 3,
+              "reason": "AsExpected",
+              "status": "True",
+              "type": "UpdateManagementEnabled"
+            },
+            {
+              "lastTransitionTime": "2026-06-10T22:59:30.0000000Z",
+              "message": "Using release image: quay.io/openshift-release-dev/ocp-release@sha256:a65e099f04964491ac8b98692b2bc5c4599b0b534ffc042d020f3f90153fccf2",
+              "observedGeneration": 3,
+              "reason": "AsExpected",
+              "status": "True",
+              "type": "ValidReleaseImage"
+            },
+            {
+              "lastTransitionTime": "2026-06-10T22:59:30.0000000Z",
+              "observedGeneration": 3,
+              "reason": "AsExpected",
+              "status": "True",
+              "type": "ValidArchPlatform"
+            },
+            {
+              "lastTransitionTime": "2026-06-10T22:59:30.0000000Z",
+              "message": "Reconciliation active on resource",
+              "observedGeneration": 3,
+              "reason": "ReconciliationActive",
+              "status": "True",
+              "type": "ReconciliationActive"
+            },
+            {
+              "lastTransitionTime": "2026-06-10T22:59:30.0000000Z",
+              "message": "Release image version is valid",
+              "observedGeneration": 3,
+              "reason": "AsExpected",
+              "status": "True",
+              "type": "SupportedVersionSkew"
+            },
+            {
+              "lastTransitionTime": "2026-06-10T22:59:30.0000000Z",
+              "observedGeneration": 3,
+              "reason": "AsExpected",
+              "status": "True",
+              "type": "ValidMachineConfig"
+            },
+            {
+              "lastTransitionTime": "2026-06-10T23:05:40.0000000Z",
+              "observedGeneration": 3,
+              "reason": "AsExpected",
+              "status": "False",
+              "type": "UpdatingConfig"
+            },
+            {
+              "lastTransitionTime": "2026-06-10T23:05:40.0000000Z",
+              "observedGeneration": 3,
+              "reason": "AsExpected",
+              "status": "False",
+              "type": "UpdatingVersion"
+            },
+            {
+              "lastTransitionTime": "2026-06-10T23:00:03.0000000Z",
+              "message": "Payload generated successfully",
+              "observedGeneration": 3,
+              "reason": "AsExpected",
+              "status": "True",
+              "type": "ValidGeneratedPayload"
+            },
+            {
+              "lastTransitionTime": "2026-06-10T23:00:10.0000000Z",
+              "observedGeneration": 3,
+              "reason": "AsExpected",
+              "status": "True",
+              "type": "ReachedIgnitionEndpoint"
+            },
+            {
+              "lastTransitionTime": "2026-06-10T23:10:27.0000000Z",
+              "message": "All is well",
+              "observedGeneration": 3,
+              "reason": "AsExpected",
+              "status": "True",
+              "type": "AllMachinesReady"
+            },
+            {
+              "lastTransitionTime": "2026-06-10T23:15:12.0000000Z",
+              "message": "All is well",
+              "observedGeneration": 3,
+              "reason": "AsExpected",
+              "status": "True",
+              "type": "AllNodesHealthy"
+            },
+            {
+              "lastTransitionTime": "2026-06-10T22:59:30.0000000Z",
+              "message": "All is well",
+              "observedGeneration": 3,
+              "reason": "AsExpected",
+              "status": "True",
+              "type": "ValidPlatformConfig"
+            },
+            {
+              "lastTransitionTime": "2026-06-10T22:59:30.0000000Z",
+              "observedGeneration": 3,
+              "reason": "AsExpected",
+              "status": "True",
+              "type": "ValidTuningConfig"
+            },
+            {
+              "lastTransitionTime": "2026-06-10T23:05:40.0000000Z",
+              "observedGeneration": 3,
+              "reason": "AsExpected",
+              "status": "False",
+              "type": "UpdatingPlatformMachineTemplate"
+            },
+            {
+              "lastTransitionTime": "2026-06-10T23:15:12.0000000Z",
+              "observedGeneration": 3,
+              "reason": "AsExpected",
+              "status": "True",
+              "type": "Ready"
+            },
+            {
+              "lastTransitionTime": "2026-06-10T23:00:10.0000000Z",
+              "observedGeneration": 3,
+              "reason": "AsExpected",
+              "status": "True",
+              "type": "AutorepairEnabled"
+            }
+          ],
           "nodesInfo": {
             "nodeVersions": [
               {
+                "kubeletVersion": "v1.33.12",
                 "ocpVersion": "4.20.24",
-                "nodeCount": 2
+                "readyNodeCount": 3,
+                "unreadyNodeCount": 0
               }
             ]
-          }
+          },
+          "replicas": 3,
+          "version": "4.20.24"
         }
       }
     }
-  }
+  },
+  "resourceID": "/subscriptions/e8c5a115-842d-4d7e-98ad-cfb2c50b209e/resourceGroups/rg-np-version-upgrade-pckjw8-79qhmc/providers/microsoft.redhatopenshift/hcpopenshiftclusters/np-version-upgrade-cluster-pckjw8/nodepools/npupgrade-4-20/readdesires/readonlyhypershiftnodepool",
+  "resourceType": "microsoft.redhatopenshift/hcpopenshiftclusters/nodepools/readdesires"
 }
