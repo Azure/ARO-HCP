@@ -1,9 +1,10 @@
+-include ../setup-templatize-env.mk
+
 SHELL = /bin/bash
 STAMP ?= 1
 
-render-partial-config:
-	$(MAKE) -C ./../tooling/templatize templatize
-	./../tooling/templatize/templatize configuration render \
+render-partial-config: $(TEMPLATIZE)
+	$(TEMPLATIZE) configuration render \
 	  --service-config-file ./config.yaml \
 	  --config-file-override ./config.msft.clouds-overlay.yaml \
 	  --skip-schema-validation \
@@ -36,9 +37,8 @@ detect-change: materialize
 	fi
 .PHONY: detect-change
 
-validate:
-	$(MAKE) -C ./../tooling/templatize templatize
-	USER='test' BUILD_ID='1234567890987654321' ./../tooling/templatize/templatize configuration validate --service-config-file ./config.yaml \
+validate: $(TEMPLATIZE)
+	USER='test' BUILD_ID='1234567890987654321' $(TEMPLATIZE) configuration validate --service-config-file ./config.yaml \
 	                                                                      --dev-settings-file ./../tooling/templatize/settings.yaml \
 	                                                                      --output-dir ./rendered
 .PHONY: validate
