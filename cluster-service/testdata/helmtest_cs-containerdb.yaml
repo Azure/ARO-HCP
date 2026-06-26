@@ -1,4 +1,4 @@
-values: ../deploy/values.yaml
+values: ../values.yaml
 name: cs-containerdb
 namespace: clusters-service
 testData:

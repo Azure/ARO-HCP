@@ -1,6 +1,7 @@
 values: ../values.yaml
-name: cs-debugjobs-enabled
+name: cs-azuredb
 namespace: clusters-service
 testData:
   clustersService:
-    deployDebugJobs: true
+    postgres:
+      deploy: true

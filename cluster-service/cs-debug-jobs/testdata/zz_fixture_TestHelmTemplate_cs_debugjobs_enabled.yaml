@@ -113,7 +113,7 @@ roleRef:
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: cs-shell-script-executor-a9kwi
+  name: cs-debugjobs-enabled-shell-script-executor-1
   namespace: 'clusters-service'
 spec:
   ttlSecondsAfterFinished: 300
