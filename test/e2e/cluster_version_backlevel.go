@@ -173,10 +173,13 @@ var _ = Describe("Customer", func() {
 					nodePoolName := customerNodePoolName + nodePoolSuffix
 
 					By("creating node pool version " + matchingNodePoolVersion + " and verifying a simple web app can run")
+					nodePoolDefaults := defaultNodePoolDefaults
+					nodePoolDefaults.vmSize, err = tc.SelectVMSize(ctx, framework.DefaultWorkerVMSizeSelector())
+					Expect(err).NotTo(HaveOccurred(), "failed to resolve the default worker VM size for the back-level node pool; check VM SKU restrictions/quota for the test subscription in %s", tc.Location())
 					nodePool, err := buildNodePoolRequest(
 						tc.Location(),
 						matchingNodePoolVersion,
-						defaultNodePoolDefaults,
+						nodePoolDefaults,
 					)
 					Expect(err).NotTo(HaveOccurred(), "failed to build node pool request for version %s", matchingNodePoolVersion)
 					nodePoolClient := tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient()
@@ -213,10 +216,13 @@ type nodePoolDefaults struct {
 }
 
 var defaultNodePoolDefaults = nodePoolDefaults{
-	replicas:               int32(2),
-	vmSize:                 "Standard_D8s_v3",
+	replicas: int32(2),
+	// vmSize is intentionally left empty: it is resolved at create time via the
+	// restriction-aware framework.DefaultWorkerVMSizeSelector so the suite is
+	// resilient to per-subscription SKU restrictions.
+	vmSize:                 "",
 	osDiskSizeGiB:          int32(64),
-	diskStorageAccountType: "StandardSSD_LRS",
+	diskStorageAccountType: framework.DefaultDiskStorageAccountType,
 	channelGroup:           "stable",
 }
 

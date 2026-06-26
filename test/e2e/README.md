@@ -199,6 +199,35 @@ For instructions and best practices on creating ARO HCP E2E test cases, refer to
 
 Be sure to review these guidelines before creating or updating ARO HCP E2E test cases.
 
+## Selecting VM sizes (SKUs)
+
+E2E tests must **not** hardcode VM SKUs. Across the many subscriptions and
+regions the suite runs in, a fixed SKU may be quota-restricted (for example
+`NotAvailableForSubscription`), which breaks node pool creation in that environment.
+
+Instead, resolve VM sizes at runtime through the restriction-aware selector in
+[`test/util/framework/vm_sku_selection.go`](../util/framework/vm_sku_selection.go):
+
+- `tc.SelectVMSize(ctx, selector)` queries the Azure **Resource SKUs** API for the
+  test location, filters out SKUs that are restricted in the current
+  subscription/location, applies the selector's capability filters, and returns
+  a usable SKU. When the selector requires zones, only SKUs with at least one
+  non-restricted zone are considered usable. It prefers the selector's ordered
+  `Preferred` list first (so behaviour is unchanged whenever the historical SKU
+  is available), then falls back to a deterministic, sorted pick.
+- Use the named selectors for common shapes: `DefaultWorkerVMSizeSelector()`,
+  `SmallWorkerVMSizeSelector()`, `JumpboxVMSizeSelector()`,
+  `ARM64NodePoolVMSizeSelector()`, `GPUNodePoolVMSizeSelector()`.
+- The default node pool params (`NewDefaultNodePoolParams20240610` /
+  `...20251223` / `...20260630`) leave `VMSize` empty; `CreateNodePoolFromParam*`
+  resolves it via `DefaultWorkerVMSizeSelector()` automatically. The OS disk
+  storage account type comes from the shared `DefaultDiskStorageAccountType`
+  constant. Set `VMSize` explicitly only to pin a specific size (for example
+  negative tests that assert on a specific SKU).
+
+Only reported **restrictions** are honoured; quota *headroom* (vCPU Usages API)
+is out of scope.
+
 ## Updating E2E Timeouts
 
 Shared timeout constants live in [`test/util/framework/constants.go`](../util/framework/constants.go).

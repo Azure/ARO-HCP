@@ -61,8 +61,10 @@ var _ = Describe("Customer", func() {
 				Expect(err).NotTo(HaveOccurred(), "failed to assign pooled identity containers")
 			}
 
-			By("checking if the region supports availability zones")
-			hasAZ, err := tc.LocationHasAvailabilityZones(ctx, "Standard_D8s_v3")
+			By("resolving the default worker VM size and checking if the region supports availability zones")
+			workerVMSize, err := tc.SelectVMSize(ctx, framework.DefaultWorkerVMSizeSelector())
+			Expect(err).NotTo(HaveOccurred(), "failed to resolve the default worker VM size")
+			hasAZ, err := tc.LocationHasAvailabilityZones(ctx, workerVMSize)
 			Expect(err).NotTo(HaveOccurred(), "failed to check availability zone support")
 
 			By("creating a resource group")

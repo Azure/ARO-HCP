@@ -108,7 +108,9 @@ var _ = Describe("Customer", func() {
 			initialReplicas := nodePoolParams.Replicas
 
 			// using a smaller VM size for faster provisioning
-			nodePoolParams.VMSize = "Standard_D4s_v3"
+			smallVMSize, err := tc.SelectVMSize(ctx, framework.SmallWorkerVMSizeSelector())
+			Expect(err).NotTo(HaveOccurred(), "failed to resolve a small worker VM size; check VM SKU restrictions/quota for the test subscription in %s", tc.Location())
+			nodePoolParams.VMSize = smallVMSize
 
 			nodePool := framework.BuildNodePoolFromParams20240610(nodePoolParams, tc.Location())
 
