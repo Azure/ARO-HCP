@@ -157,27 +157,6 @@ func PossibleExternalAuthClientTypeValues() []ExternalAuthClientType {
 	}
 }
 
-// ExternalAuthConditionType - Representation of the possible types of a external auths condition.
-type ExternalAuthConditionType string
-
-const (
-	// ExternalAuthConditionTypeAvailable - Indicates that the external auth resource is available.
-	ExternalAuthConditionTypeAvailable ExternalAuthConditionType = "Available"
-	// ExternalAuthConditionTypeDegraded - Indicates that the external auth resource is in a degraded state.
-	ExternalAuthConditionTypeDegraded ExternalAuthConditionType = "Degraded"
-	// ExternalAuthConditionTypeProgressing - Indicates that the external auth resource is in a progressing state.
-	ExternalAuthConditionTypeProgressing ExternalAuthConditionType = "Progressing"
-)
-
-// PossibleExternalAuthConditionTypeValues returns the possible values for the ExternalAuthConditionType const type.
-func PossibleExternalAuthConditionTypeValues() []ExternalAuthConditionType {
-	return []ExternalAuthConditionType{
-		ExternalAuthConditionTypeAvailable,
-		ExternalAuthConditionTypeDegraded,
-		ExternalAuthConditionTypeProgressing,
-	}
-}
-
 // ExternalAuthProvisioningState - The resource provisioning state.
 type ExternalAuthProvisioningState string
 
@@ -396,27 +375,6 @@ func PossibleProvisioningStateValues() []ProvisioningState {
 		ProvisioningStateProvisioning,
 		ProvisioningStateSucceeded,
 		ProvisioningStateUpdating,
-	}
-}
-
-// StatusType - Representation of the possible values of a external auths condition status.
-type StatusType string
-
-const (
-	// StatusTypeFalse - Indicates that the condition status is False.
-	StatusTypeFalse StatusType = "False"
-	// StatusTypeTrue - Indicates that the condition status is True.
-	StatusTypeTrue StatusType = "True"
-	// StatusTypeUnknown - Indicates that the condition status is unknown.
-	StatusTypeUnknown StatusType = "Unknown"
-)
-
-// PossibleStatusTypeValues returns the possible values for the StatusType const type.
-func PossibleStatusTypeValues() []StatusType {
-	return []StatusType{
-		StatusTypeFalse,
-		StatusTypeTrue,
-		StatusTypeUnknown,
 	}
 }
 

@@ -222,44 +222,6 @@ var (
 	)
 )
 
-type ExternalAuthConditionType string
-
-const (
-	// ExternalAuthConditionTypeAvailable - the resource is in an available state.
-	ExternalAuthConditionTypeAvailable ExternalAuthConditionType = "Available"
-	// ExternalAuthConditionType - the resource is in a degraded state.
-	ExternalAuthConditionTypeDegraded ExternalAuthConditionType = "Degraded"
-	// ExternalAuthConditionTypeProgressing - the resource is in a progressing state.
-	ExternalAuthConditionTypeProgressing ExternalAuthConditionType = "Progressing"
-)
-
-var (
-	ValidExternalAuthConditionTypes = sets.New[ExternalAuthConditionType](
-		ExternalAuthConditionTypeAvailable,
-		ExternalAuthConditionTypeDegraded,
-		ExternalAuthConditionTypeProgressing,
-	)
-)
-
-type ConditionStatusType string
-
-const (
-	// ConditionStatusType - the condition status is true.
-	ConditionStatusTypeTrue ConditionStatusType = "True"
-	// ExternalAuthConditionTypeFalse - the condition status is false.
-	ConditionStatusTypeFalse ConditionStatusType = "False"
-	// ConditionStatusTypeUnknown - the condition status is unknown.
-	ConditionStatusTypeUnknown ConditionStatusType = "Unknown"
-)
-
-var (
-	ValidConditionStatusTypes = sets.New[ConditionStatusType](
-		ConditionStatusTypeTrue,
-		ConditionStatusTypeFalse,
-		ConditionStatusTypeUnknown,
-	)
-)
-
 type UsernameClaimPrefixPolicy string
 
 const (

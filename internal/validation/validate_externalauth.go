@@ -85,9 +85,6 @@ var (
 	toExternalAuthPropertiesProvisioningState = func(oldObj *api.HCPOpenShiftClusterExternalAuthProperties) *arm.ProvisioningState {
 		return &oldObj.ProvisioningState
 	}
-	toExternalAuthPropertiesCondition = func(oldObj *api.HCPOpenShiftClusterExternalAuthProperties) *api.ExternalAuthCondition {
-		return &oldObj.Condition
-	}
 	toExternalAuthPropertiesIssuer = func(oldObj *api.HCPOpenShiftClusterExternalAuthProperties) *api.TokenIssuerProfile {
 		return &oldObj.Issuer
 	}
@@ -104,9 +101,6 @@ func validateExternalAuthProperties(ctx context.Context, op operation.Operation,
 
 	//ProvisioningState arm.ProvisioningState       `json:"provisioningState"`
 	errs = append(errs, immutableByCompare(ctx, op, fldPath.Child("provisioningState"), &newObj.ProvisioningState, safe.Field(oldObj, toExternalAuthPropertiesProvisioningState))...)
-
-	//Condition         ExternalAuthCondition       `json:"condition,omitzero"`
-	errs = append(errs, validateExternalAuthCondition(ctx, op, fldPath.Child("condition"), &newObj.Condition, safe.Field(oldObj, toExternalAuthPropertiesCondition))...)
 
 	//Issuer            TokenIssuerProfile          `json:"issuer"`
 	errs = append(errs, validateTokenIssuerProfile(ctx, op, fldPath.Child("issuer"), &newObj.Issuer, safe.Field(oldObj, toExternalAuthPropertiesIssuer))...)
@@ -384,31 +378,6 @@ func validateTokenRequiredClaim(ctx context.Context, op operation.Operation, fld
 
 	//RequiredValue string `json:"requiredValue"`
 	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("requiredValue"), &newObj.RequiredValue, safe.Field(oldObj, toTokenRequiredClaimRequiredValue))...)
-
-	return errs
-}
-
-var (
-	toExternalAuthConditionType   = func(oldObj *api.ExternalAuthCondition) *api.ExternalAuthConditionType { return &oldObj.Type }
-	toExternalAuthConditionStatus = func(oldObj *api.ExternalAuthCondition) *api.ConditionStatusType { return &oldObj.Status }
-)
-
-func validateExternalAuthCondition(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.ExternalAuthCondition) field.ErrorList {
-	if newObj == nil || reflect.DeepEqual(*newObj, api.ExternalAuthCondition{}) {
-		return nil
-	}
-
-	errs := field.ErrorList{}
-
-	//Type               ExternalAuthConditionType `json:"type"`
-	errs = append(errs, validate.Enum(ctx, op, fldPath.Child("type"), &newObj.Type, safe.Field(oldObj, toExternalAuthConditionType), api.ValidExternalAuthConditionTypes, nil)...)
-
-	//Status             ConditionStatusType       `json:"status"`
-	errs = append(errs, validate.Enum(ctx, op, fldPath.Child("status"), &newObj.Status, safe.Field(oldObj, toExternalAuthConditionStatus), api.ValidConditionStatusTypes, nil)...)
-
-	//LastTransitionTime time.Time                 `json:"lastTransitionTime"`
-	//Reason             string                    `json:"reason"`
-	//Message            string                    `json:"message"`
 
 	return errs
 }

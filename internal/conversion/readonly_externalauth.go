@@ -34,6 +34,5 @@ func CopyReadOnlyExternalAuthValues(dest, src *api.HCPOpenShiftClusterExternalAu
 	dest.CosmosMetadata = *src.CosmosMetadata.DeepCopy()
 
 	dest.Properties.ProvisioningState = src.Properties.ProvisioningState
-	dest.Properties.Condition = *src.Properties.Condition.DeepCopy()
 	dest.ServiceProviderProperties = *src.ServiceProviderProperties.DeepCopy()
 }
