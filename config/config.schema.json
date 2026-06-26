@@ -2864,6 +2864,12 @@
           "type": "boolean",
           "description": "Whether ICM alerting is enabled for this region. When false, action groups will be disabled."
         },
+        "alertSeverityCeiling": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4,
+          "description": "The minimum IcM severity level (highest priority) that alerts can fire at. Alerts with a severity more critical (lower number) than this ceiling will be degraded to this value. For example, setting this to 3 means SEV2 alerts will fire as SEV3. A value of 0 means no ceiling is applied."
+        },
         "icm": {
           "type": "object",
           "properties": {
@@ -2908,9 +2914,17 @@
           "type": "integer",
           "description": "Maximum active time series limit for Azure Monitor Workspace (2M initial, bump when hitting 50% utilization)"
         },
+        "maxActiveTimeSeriesMillions": {
+          "type": "integer",
+          "description": "Maximum active time series limit for Azure Monitor Workspace, expressed in millions (e.g. 2 = 2,000,000). Preferred over maxActiveTimeSeries to avoid scientific notation in Go rendering."
+        },
         "maxEventsPerMinute": {
           "type": "integer",
           "description": "Maximum events per minute limit for Azure Monitor Workspace (2M initial, bump when hitting 50% utilization)"
+        },
+        "maxEventsPerMinuteMillions": {
+          "type": "integer",
+          "description": "Maximum events per minute limit for Azure Monitor Workspace, expressed in millions (e.g. 2 = 2,000,000). Preferred over maxEventsPerMinute to avoid scientific notation in Go rendering."
         }
       },
       "additionalProperties": false,
@@ -3290,6 +3304,55 @@
       "required": [
         "svc",
         "ocp"
+      ]
+    },
+    "stgGlobalV2": {
+      "type": "object",
+      "description": "TRANSIENT: distinct globally-unique resource names for the parallel STG-global 'V2' pipelines that deploy into a dedicated STG-global subscription during coexistence with the shared subscription. Real values are set in the cloud overlay for stg; defaults are empty-sentinel. Removed once the migration is decommissioned.",
+      "properties": {
+        "acrSvcName": {
+          "type": "string"
+        },
+        "acrOcpName": {
+          "type": "string"
+        },
+        "globalKeyVaultName": {
+          "type": "string"
+        },
+        "genevaKeyVaultName": {
+          "type": "string"
+        },
+        "frontDoorName": {
+          "type": "string"
+        },
+        "frontDoorKeyVaultName": {
+          "type": "string"
+        },
+        "oidcStorageAccountName": {
+          "type": "string"
+        },
+        "svcParentZoneName": {
+          "type": "string"
+        },
+        "cxParentZoneName": {
+          "type": "string"
+        },
+        "kustoName": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "acrSvcName",
+        "acrOcpName",
+        "globalKeyVaultName",
+        "genevaKeyVaultName",
+        "frontDoorName",
+        "frontDoorKeyVaultName",
+        "oidcStorageAccountName",
+        "svcParentZoneName",
+        "cxParentZoneName",
+        "kustoName"
       ]
     },
     "releaseApprover": {

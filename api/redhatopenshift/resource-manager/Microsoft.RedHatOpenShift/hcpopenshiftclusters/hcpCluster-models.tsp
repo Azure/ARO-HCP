@@ -79,6 +79,11 @@ model HcpOpenShiftClusterProperties {
   @visibility(Lifecycle.Read, Lifecycle.Create)
   api?: ApiProfile;
 
+  /** The cluster ingress configuration */
+  @added(Versions.v2026_06_30_preview)
+  @visibility(Lifecycle.Read, Lifecycle.Create)
+  ingress?: IngressProfile;
+
   /** Azure platform configuration */
   @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   platform: PlatformProfile;
@@ -262,7 +267,16 @@ model ApiProfile {
   authorizedCidrs?: string[];
 }
 
-/** The internet visibility of the OpenShift API server */
+/** Information about the Ingress of a cluster. */
+@added(Versions.v2026_06_30_preview)
+model IngressProfile {
+  /** The type of the default cluster ingress. */
+  @added(Versions.v2026_06_30_preview)
+  @visibility(Lifecycle.Read, Lifecycle.Create)
+  type?: IngressType = IngressType.Public;
+}
+
+/** The internet visibility of the OpenShift API server. */
 union Visibility {
   string,
 
@@ -271,6 +285,21 @@ union Visibility {
 
   /** The API server is not visible from the internet. */
   Private: "Private",
+}
+
+/** The type of the default cluster ingress. */
+@added(Versions.v2026_06_30_preview)
+union IngressType {
+  string,
+
+  /** The default ingress is visible from the internet. */
+  Public: "Public",
+
+  /** The default ingress is not visible from the internet. */
+  Private: "Private",
+
+  /** The default ingress is disabled. */
+  Disabled: "Disabled",
 }
 
 /** Azure specific configuration */

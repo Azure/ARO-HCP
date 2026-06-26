@@ -1,0 +1,28 @@
+cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}').table('clustersServiceLogs')
+| where timestamp between ({{ kqlDatetime .PhaseStartTime }} .. {{ kqlDatetime .PhaseEndTime }})
+{{- if and .ServiceClusterName .ManagementClusterName }}
+| where cluster in ('{{ .ServiceClusterName }}', '{{ .ManagementClusterName }}')
+{{- end }}
+| where log.aro_hcp_cluster_resource_id =~ '{{ .ResourceID }}'
+| where isempty(log.aro_hcp_node_pool_resource_id)
+| where log.msg has "inflight check"
+| extend msg = tostring(log.msg)
+| extend step_name = extract("'([^']+)'", 1, msg),
+         verb = coalesce(
+             extract("^(.+?)\\s+inflight check\\s+'", 1, msg),
+             extract("'\\s+(.+?)(?:\\s+for cluster|\\s*$)", 1, msg)
+         ),
+         error_detail = extract("returned an error:\\s*([\\s\\S]*)", 1, msg)
+| extend verb = tolower(trim_end("[.,:;\\s]+", verb))
+| extend verb = iff(isnotempty(error_detail), "error", verb)
+| summarize
+    first_occurrence = min(timestamp),
+    last_occurrence = max(timestamp),
+    occurrences = count()
+  by step_name, verb, error_detail
+| as hint.materialized=true T
+| join kind=leftouter (
+    T | summarize step_first = min(first_occurrence) by step_name
+  ) on step_name
+| order by step_first asc, first_occurrence asc
+| project-away step_first, step_name1

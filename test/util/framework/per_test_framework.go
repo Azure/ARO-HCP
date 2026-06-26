@@ -45,7 +45,6 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/log"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v5"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v6"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
@@ -1095,28 +1094,6 @@ func (tc *perItOrDescribeTestContext) getGraphClientUnlocked(ctx context.Context
 	return graphutil.NewClient(ctx, creds)
 }
 
-// Get20251223ClientFactoryWithPolicies creates a v20251223preview client factory
-// with the given additional per-call policies appended to the base options.
-// Unlike Get20251223ClientFactory, the result is not cached since policies vary per call.
-func (tc *perItOrDescribeTestContext) Get20251223ClientFactoryWithPolicies(ctx context.Context, policies ...policy.Policy) (*hcpsdk20251223preview.ClientFactory, error) {
-	creds, err := tc.perBinaryInvocationTestContext.getAzureCredentials()
-	if err != nil {
-		return nil, err
-	}
-
-	tc.contextLock.Lock()
-	subscriptionID, err := tc.getSubscriptionIDUnlocked(ctx)
-	tc.contextLock.Unlock()
-	if err != nil {
-		return nil, err
-	}
-
-	opts := tc.perBinaryInvocationTestContext.getHCPClientFactoryOptions()
-	opts.PerCallPolicies = append(opts.PerCallPolicies, policies...)
-
-	return hcpsdk20251223preview.NewClientFactory(subscriptionID, creds, opts)
-}
-
 func (tc *perItOrDescribeTestContext) Get20260630ClientFactory(ctx context.Context) (*hcpsdk20260630preview.ClientFactory, error) {
 	tc.contextLock.RLock()
 	if tc.clientFactory20260630 != nil {
@@ -1156,29 +1133,6 @@ func (tc *perItOrDescribeTestContext) get20260630ClientFactoryUnlocked(ctx conte
 
 	return tc.clientFactory20260630, nil
 }
-
-// Get20260630ClientFactoryWithPolicies creates a v20260630preview client factory
-// with the given additional per-call policies appended to the base options.
-// Unlike Get20260630ClientFactory, the result is not cached since policies vary per call.
-func (tc *perItOrDescribeTestContext) Get20260630ClientFactoryWithPolicies(ctx context.Context, policies ...policy.Policy) (*hcpsdk20260630preview.ClientFactory, error) {
-	creds, err := tc.perBinaryInvocationTestContext.getAzureCredentials()
-	if err != nil {
-		return nil, err
-	}
-
-	tc.contextLock.Lock()
-	subscriptionID, err := tc.getSubscriptionIDUnlocked(ctx)
-	tc.contextLock.Unlock()
-	if err != nil {
-		return nil, err
-	}
-
-	opts := tc.perBinaryInvocationTestContext.getHCPClientFactoryOptions()
-	opts.PerCallPolicies = append(opts.PerCallPolicies, policies...)
-
-	return hcpsdk20260630preview.NewClientFactory(subscriptionID, creds, opts)
-}
-
 func (tc *perItOrDescribeTestContext) Location() string {
 	return tc.perBinaryInvocationTestContext.Location()
 }

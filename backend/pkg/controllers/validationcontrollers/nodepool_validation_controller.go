@@ -29,6 +29,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
+	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -51,6 +52,7 @@ func NewNodePoolValidationController(
 	activeOperationLister listers.ActiveOperationLister,
 	resourcesDBClient database.ResourcesDBClient,
 	informers informers.BackendInformers,
+	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 ) controllerutils.Controller {
 
 	syncer := &nodePoolValidationSyncer{
@@ -63,6 +65,7 @@ func NewNodePoolValidationController(
 		fmt.Sprintf("NodePoolValidation%s", validation.Name()),
 		resourcesDBClient,
 		informers,
+		kubeApplierInformers,
 		1*time.Minute,
 		syncer,
 	)

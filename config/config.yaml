@@ -100,6 +100,24 @@ defaults:
       untaggedImagesRetention:
         enabled: true
         days: 90
+  # TRANSIENT — STG-global "V2" migration scaffolding. Every pipeline (including
+  # the stg-only V2 copies) is preprocessed by helmtest against the dev render
+  # and by EV2 manifest generation for all public envs, and the renderer uses
+  # missingkey=error — so stgGlobalV2 must resolve in every cloud/env. Only stg
+  # supplies real values (config.msft.clouds-overlay.yaml); everything else stays
+  # empty-sentinel and is never consumed (V2 pipelines are stg/uksouth-only).
+  # Removed at decommission.
+  stgGlobalV2:
+    acrSvcName: "empty-sentinel"
+    acrOcpName: "empty-sentinel"
+    globalKeyVaultName: "empty-sentinel"
+    genevaKeyVaultName: "empty-sentinel"
+    frontDoorName: "empty-sentinel"
+    frontDoorKeyVaultName: "empty-sentinel"
+    oidcStorageAccountName: "empty-sentinel"
+    svcParentZoneName: "empty-sentinel"
+    cxParentZoneName: "empty-sentinel"
+    kustoName: "empty-sentinel"
   # Image Registry Policy
   imageRegistryPolicy:
     extraAllowedRegistries: ""
@@ -191,7 +209,7 @@ defaults:
       digest: sha256:bf05fa14daa56bd1275fd28da3c9348fdaa232b7f1f7cfe7e9cfa83072c63894 # f55beeb (2026-05-29 19:42)
     cosmosContainerName: "Manifests-MC-{{ .ctx.stamp }}"
     partitionKey: "/providers/microsoft.redhatopenshift/stamps/{{ .ctx.stamp }}/managementclusters/default"
-    cosmosContainerMaxScale: 4000
+    cosmosContainerMaxScale: 8000
     managedIdentityName: kube-applier
     k8s:
       replicas: 1
@@ -322,7 +340,7 @@ defaults:
     image:
       registry: quay.io
       repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
-      digest: sha256:e30b97d22230e8a06d0079c3862d0e5510868a4cd755df9e4396ddbd095956e5 # 80198108f879b26a7e990bc621b490c50fe1c196 (2026-06-19 15:51)
+      digest: sha256:9775a90c9bf7affe17341f04769b4817b8835c2a83c923019b169c33d23b070e # 9acec4759a16c86f0f87792c18a1d738b3b85129 (2026-06-25 05:28)
     namespace: hypershift
     additionalInstallArg: '--enable-cpo-overrides'
     # By default we set it to empty as this tag is only required for msft environments. We override
@@ -362,9 +380,12 @@ defaults:
     # Azure Monitor Workspace ingestion limits
     # 2M initial limit, bump per env when hitting 50% utilization (Azure requires <200% increase)
     maxActiveTimeSeries: 2000000
+    maxActiveTimeSeriesMillions: 2
     maxEventsPerMinute: 2000000
+    maxEventsPerMinuteMillions: 2
     alertRuleOwningTeamTag: ""
     alertsEnabled: false
+    alertSeverityCeiling: 0
     icm:
       manageConnection: true
       connectionName: ""
@@ -792,7 +813,7 @@ defaults:
       name: "arohcp{{ .ctx.environment }}-rp-{{ .ctx.regionShort }}" # [globally-unique]
       private: true
       zoneRedundantMode: 'Auto'
-      resourceContainerMaxScale: 4000
+      resourceContainerMaxScale: 8000
       billingContainerMaxScale: 4000
       locksContainerMaxScale: 4000
       fleetContainerMaxScale: 4000

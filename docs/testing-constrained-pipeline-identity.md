@@ -16,11 +16,13 @@ This guide documents a repeatable way to do that in a personal-dev management
 cluster, using an AKS **workload-identity** pod. It is generic to any tool that
 authenticates with `DefaultAzureCredential` and runs as an EV2 `shellIdentity`.
 
-> **Worked example.** This technique was used to reproduce the
+> **Worked example (historical).** This technique was used to reproduce the
 > `403 LinkedAuthorizationFailed` from incident ITN-2026-00192 / AROSLSRE-1172,
-> where the `recreate-broken-pools` tool issued a full VMSS `PUT` that re-ran a
+> where a node-recreation self-heal tool issued a full VMSS `PUT` that re-ran a
 > cross-subscription linked-image authorization check the pipeline identity was
 > not entitled to. The bug was invisible to ordinary Owner-credential dev runs.
+> (That tooling has since been removed, but the reproduction technique below
+> applies to any EV2 `shellIdentity` tool.)
 
 ## Why this is needed
 
@@ -48,14 +50,14 @@ step.
 ## Step 1 — Identify the EV2 step's identity and RBAC
 
 Find the step in the pipeline and read its `shellIdentity`, then trace that
-identity's role assignments in the templates. For the `recreate-broken-pools`
-example:
+identity's role assignments in the templates. For example, an EV2 `Shell` step
+that runs as the global pipeline MSI:
 
 | What | Where |
 | --- | --- |
 | Step + identity | `dev-infrastructure/mgmt-pipeline.yaml` → `shellIdentity: globalMSIId` |
 | Subscription **Contributor** | `dev-infrastructure/templates/rg-ownership.bicep` |
-| Subscription **Reader** | `dev-infrastructure/templates/pipeline-msi-reader-permissions.bicep` |
+| Any extra grants | the bicep template(s) that assign roles to that MSI |
 
 The goal of the next step is to mint a test identity with **the same scopes and
 roles, and nothing more**.

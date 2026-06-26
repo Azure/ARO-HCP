@@ -286,7 +286,7 @@ frontend:
     locksContainerMaxScale: 4000
     name: arohcpdev-rp-usw3
     private: false
-    resourceContainerMaxScale: 4000
+    resourceContainerMaxScale: 8000
     zoneRedundantMode: Disabled
   exitOnPanic: true
   image:
@@ -432,7 +432,7 @@ hcpRecovery:
 hypershift:
   additionalInstallArg: --enable-cpo-overrides
   image:
-    digest: sha256:e30b97d22230e8a06d0079c3862d0e5510868a4cd755df9e4396ddbd095956e5
+    digest: sha256:9775a90c9bf7affe17341f04769b4817b8835c2a83c923019b169c33d23b070e
     registry: quay.io
     repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
   limitClusterSizes: true
@@ -461,7 +461,7 @@ imageSync:
   outboundServiceTags: ""
 keyVaultDNSSuffix: vault.azure.net
 kubeApplier:
-  cosmosContainerMaxScale: 4000
+  cosmosContainerMaxScale: 8000
   cosmosContainerName: Manifests-MC-1
   image:
     digest: sha256:bf05fa14daa56bd1275fd28da3c9348fdaa232b7f1f7cfe7e9cfa83072c63894
@@ -764,6 +764,7 @@ mise:
     exporter: ""
 monitoring:
   alertRuleOwningTeamTag: ""
+  alertSeverityCeiling: 0
   alertsEnabled: true
   crossTenantSecurityGroup: ""
   grafanaMajorVersion: "11"
@@ -797,7 +798,9 @@ monitoring:
       automitigationEnabled: ""
       routingId: ""
   maxActiveTimeSeries: 2000000
+  maxActiveTimeSeriesMillions: 2
   maxEventsPerMinute: 2000000
+  maxEventsPerMinuteMillions: 2
   svcWorkspaceName: services-usw3
 msiCredentialsRefresher:
   certificate:
@@ -901,6 +904,17 @@ sessiongate:
     replicas: 2
     serviceAccountName: sessiongate
   managedIdentityName: sessiongate
+stgGlobalV2:
+  acrOcpName: empty-sentinel
+  acrSvcName: empty-sentinel
+  cxParentZoneName: empty-sentinel
+  frontDoorKeyVaultName: empty-sentinel
+  frontDoorName: empty-sentinel
+  genevaKeyVaultName: empty-sentinel
+  globalKeyVaultName: empty-sentinel
+  kustoName: empty-sentinel
+  oidcStorageAccountName: empty-sentinel
+  svcParentZoneName: empty-sentinel
 svc:
   aks:
     clusterOutboundIPAddressIPTags: ""

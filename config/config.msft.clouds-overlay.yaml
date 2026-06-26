@@ -7,7 +7,9 @@ clouds:
           # Monitoring - Int needs higher limits
           monitoring:
             maxActiveTimeSeries: 4000000
+            maxActiveTimeSeriesMillions: 4
             maxEventsPerMinute: 4000000
+            maxEventsPerMinuteMillions: 4
           # E2E
           e2e:
             regionTest:
@@ -22,6 +24,27 @@ clouds:
           # This must be defined here, so our ci jobs can know this
           kusto:
             kustoName: "hcp-stg-uk-2"
+          # TRANSIENT — STG-global "V2" migration: real globally-unique names +
+          # dedicated DNS zones for the parallel infra deployed into the dedicated
+          # STG-global subscription during coexistence. Overrides the public.defaults
+          # empty-sentinel; only stg gets real values. "2" suffix is the only literal
+          # vs the canonical names. Live stg.defaults names (acr.svc.name etc.) are
+          # untouched until cutover. Removed at decommission.
+          stgGlobalV2:
+            acrSvcName: "arohcpsvc{{ .ctx.environment }}2"
+            acrOcpName: "arohcpocp{{ .ctx.environment }}2"
+            globalKeyVaultName: "arohcp{{ .ctx.environment }}2-global"
+            genevaKeyVaultName: "arohcp{{ .ctx.environment }}2-geneva-kv"
+            frontDoorName: "arohcp{{ .ctx.environment }}2"
+            frontDoorKeyVaultName: "ah-{{ .ctx.environment }}2-afd"
+            oidcStorageAccountName: "arohcp{{ .ctx.environment }}2oidc{{ .ctx.regionShort }}"
+            # DNS: dedicated stg zones (delegated from azure.com via SafeDNS),
+            # replacing the shared aro-hcp.azure.com / aroapp-hcp.io. Owned by the
+            # DNS track (AROSLSRE-1204) — confirm before deploy.
+            svcParentZoneName: "aro-hcp-{{ .ctx.environment }}.azure.com"
+            cxParentZoneName: "aroapp-hcp-{{ .ctx.environment }}.azure.com"
+            # New Kusto cluster (live stg is hcp-stg-uk-2; this is the next one).
+            kustoName: "hcp-{{ .ctx.environment }}-uk-3"
           # E2E
           e2e:
             regionTest:

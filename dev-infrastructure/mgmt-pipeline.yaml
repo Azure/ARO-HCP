@@ -9,26 +9,6 @@
 $schema: "pipeline.schema.v1"
 serviceGroup: Microsoft.Azure.ARO.HCP.Management.Infra
 rolloutName: Management Cluster Rollout
-buildStep:
-  command: bash
-  args:
-  - -c
-  - |
-    set -o errexit
-    set -o nounset
-    set -o pipefail
-    tmp2="$(mktemp ./scripts/recreate-system-pool/recreate-system-pool.XXXXXX)"
-    trap 'rm -f "${tmp2}"' EXIT
-    CGO_ENABLED=0 go build -o "${tmp2}" ./scripts/recreate-system-pool
-    chmod 0755 "${tmp2}"
-    mv "${tmp2}" ./scripts/recreate-system-pool/recreate-system-pool
-    trap - EXIT
-    tmp3="$(mktemp ./scripts/recreate-broken-pools/recreate-broken-pools.XXXXXX)"
-    trap 'rm -f "${tmp3}"' EXIT
-    CGO_ENABLED=0 go build -o "${tmp3}" ./scripts/recreate-broken-pools
-    chmod 0755 "${tmp3}"
-    mv "${tmp3}" ./scripts/recreate-broken-pools/recreate-broken-pools
-    trap - EXIT
 resourceGroups:
 - name: global
   resourceGroup: '{{ .global.rg }}'
@@ -212,85 +192,6 @@ resourceGroups:
         name: mgmtKeyVaultUrl
     issuer:
       value: OneCertV2-PublicCA
-  # Detect and self-heal the AKS system pool when NRP KVS corruption
-  # has wedged it (AROSLSRE-924 / ICM 798003653). Runs BEFORE the cluster
-  # ARM step so the cluster PUT does not get stuck behind a wedged
-  # VMSS update. The Go binary checks cluster existence first and exits
-  # 0 (no-op) if the cluster has not been created yet (greenfield
-  # rollout), or if any of the four detection guards fail.
-  - name: pipeline-msi-reader-permissions
-    action: ARM
-    template: templates/pipeline-msi-reader-permissions.bicep
-    parameters: configurations/pipeline-msi-reader-permissions.tmpl.bicepparam
-    deploymentLevel: Subscription
-    variables:
-    - name: globalMSIId
-      input:
-        resourceGroup: global
-        step: output
-        name: globalMSIId
-  - name: recreate-system-pool-if-broken
-    action: Shell
-    command: ./scripts/recreate-system-pool/recreate-system-pool
-    workingDir: .
-    shellIdentity:
-      input:
-        resourceGroup: global
-        step: output
-        name: globalMSIId
-    variables:
-    - name: CLUSTER_NAME
-      configRef: mgmt.aks.name
-    - name: RESOURCE_GROUP
-      configRef: mgmt.rg
-    - name: SUBSCRIPTION_ID
-      input:
-        resourceGroup: management
-        step: subscription-output
-        name: subscriptionId
-    - name: NRP_FAIL_THRESHOLD
-      value: '10'
-    - name: NRP_FAIL_WINDOW_MIN
-      value: '360'
-    dependsOn:
-    - resourceGroup: management
-      step: cx-oncert-public-kv-issuer
-    - resourceGroup: management
-      step: subscription-output
-    - resourceGroup: management
-      step: oncert-private-kv-issuer
-    - resourceGroup: management
-      step: oncert-public-kv-issuer
-    - resourceGroup: management
-      step: pipeline-msi-reader-permissions
-  - name: recreate-broken-user-nodepools
-    action: Shell
-    command: ./scripts/recreate-broken-pools/recreate-broken-pools
-    workingDir: .
-    # Internal overallTimeoutMin = 120. The small extra headroom accommodates
-    # the per-pool drain/delete/recreate LRO pollers that can run briefly past
-    # the orchestrator deadline during cleanup.
-    timeout: '130m'
-    shellIdentity:
-      input:
-        resourceGroup: global
-        step: output
-        name: globalMSIId
-    variables:
-    - name: CLUSTER_NAME
-      configRef: mgmt.aks.name
-    - name: RESOURCE_GROUP
-      configRef: mgmt.rg
-    - name: SUBSCRIPTION_ID
-      input:
-        resourceGroup: management
-        step: subscription-output
-        name: subscriptionId
-    - name: NODEPOOL_TAG
-      value: 'worker'
-    dependsOn:
-    - resourceGroup: management
-      step: recreate-system-pool-if-broken
   # Build the MC
   - name: cluster
     action: ARM
@@ -345,8 +246,6 @@ resourceGroups:
       step: oncert-private-kv-issuer
     - resourceGroup: management
       step: oncert-public-kv-issuer
-    - resourceGroup: management
-      step: recreate-broken-user-nodepools
     automatedRetry:
       errorContainsAny:
       - "DeploymentScriptACIProvisioningTimeout"
