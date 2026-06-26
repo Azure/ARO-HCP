@@ -5,6 +5,7 @@ metadata:
   namespace: '{{ .Release.Namespace }}'
 spec:
   minAvailable: 1
+  unhealthyPodEvictionPolicy: AlwaysAllow
   selector:
     matchLabels:
       app: aro-hcp-backend

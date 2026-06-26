@@ -7,6 +7,7 @@ metadata:
   namespace: 'aro-hcp-admin-api'
 spec:
   minAvailable: 1
+  unhealthyPodEvictionPolicy: AlwaysAllow
   selector:
     matchLabels:
       app: admin-api
