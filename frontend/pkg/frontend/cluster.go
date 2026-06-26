@@ -363,36 +363,7 @@ func (f *Frontend) createHCPCluster(writer http.ResponseWriter, request *http.Re
 	}
 	completeClusterIdentity(newInternalCluster, nil)
 
-	var tenantID string
-	if subscription.Properties != nil && subscription.Properties.TenantId != nil {
-		tenantID = *subscription.Properties.TenantId
-	}
-
-	initialClusterProperties := map[string]string{}
-	if len(f.clusterServiceProvisionShard) != 0 {
-		initialClusterProperties[ocm.CSPropertyProvisionShardID] = f.clusterServiceProvisionShard
-	}
-	if f.clusterServiceNoopProvision {
-		initialClusterProperties[ocm.CSPropertyNoopProvision] = ocm.CSPropertyEnabled
-	}
-	if f.clusterServiceNoopDeprovision {
-		initialClusterProperties[ocm.CSPropertyNoopDeprovision] = ocm.CSPropertyEnabled
-	}
-	newClusterServiceClusterBuilder, newClusterServiceAutoscalerBuilder, err := ocm.BuildCSCluster(newInternalCluster.ID, tenantID, newInternalCluster, initialClusterProperties, nil, nil)
-	if err != nil {
-		return utils.TrackError(err)
-	}
 	logger.Info(fmt.Sprintf("creating resource %s", newInternalCluster.ID))
-	resultingClusterServiceCluster, err := f.clusterServiceClient.PostCluster(ctx, newClusterServiceClusterBuilder, newClusterServiceAutoscalerBuilder)
-	if err != nil {
-		return utils.TrackError(err)
-	}
-
-	csID, err := api.NewInternalID(resultingClusterServiceCluster.HREF())
-	if err != nil {
-		return utils.TrackError(err)
-	}
-	newInternalCluster.ServiceProviderProperties.ClusterServiceID = &csID
 
 	transaction := f.resourcesDBClient.NewTransaction(newInternalCluster.ID.SubscriptionID)
 
@@ -400,7 +371,7 @@ func (f *Frontend) createHCPCluster(writer http.ResponseWriter, request *http.Re
 	clusterCreateOperation := database.NewOperation(
 		database.OperationRequestCreate,
 		newInternalCluster.ID,
-		ptr.Deref(newInternalCluster.ServiceProviderProperties.ClusterServiceID, api.InternalID{}),
+		api.InternalID{},
 		f.azureLocation,
 		request.Header.Get(arm.HeaderNameHomeTenantID),
 		request.Header.Get(arm.HeaderNameClientObjectID),
