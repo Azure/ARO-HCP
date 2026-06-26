@@ -98,7 +98,7 @@ verify-kql:
 update: deepcopy json-format
 .PHONY: update
 
-verify: verify-deepcopy verify-json-format verify-generate verify-yamlfmt verify-materialize verify-gomega-assertions verify-schema
+verify: verify-deepcopy verify-json-format verify-generate verify-yamlfmt verify-materialize verify-alert-bicep verify-gomega-assertions verify-schema
 .PHONY: verify
 
 verify-schema:
@@ -381,6 +381,11 @@ test-helm-fixtures:
 verify-materialize:
 	$(MAKE) -C config/ detect-change
 .PHONY: verify-materialize
+
+verify-alert-bicep:
+	$(MAKE) -C observability/ alerts NPROC=1
+	./hack/verify.sh "-C observability alerts"
+.PHONY: verify-alert-bicep
 
 #
 # Generated SDKs
