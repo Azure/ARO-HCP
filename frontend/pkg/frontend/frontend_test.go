@@ -95,7 +95,7 @@ func TestOperationsList(t *testing.T) {
 		nil,
 		newNoopAuditClient(t),
 		api.TestLocation,
-		"", false, false, true,
+		true,
 	)
 
 	ctx := utils.ContextWithLogger(t.Context(), testr.New(t))
@@ -198,7 +198,7 @@ func TestSubscriptionsGET(t *testing.T) {
 				nil,
 				newNoopAuditClient(t),
 				api.TestLocation,
-				"", false, false, true,
+				true,
 			)
 
 			// Pre-populate subscription in the mock database
@@ -348,7 +348,7 @@ func TestSubscriptionsPUT(t *testing.T) {
 				nil,
 				newNoopAuditClient(t),
 				api.TestLocation,
-				"", false, false, true,
+				true,
 			)
 
 			body, err := json.Marshal(&test.subscription)
@@ -564,7 +564,7 @@ func TestDeploymentPreflight(t *testing.T) {
 				nil,
 				newNoopAuditClient(t),
 				api.TestLocation,
-				"", false, false, true,
+				true,
 			)
 
 			subs := map[string]*arm.Subscription{
@@ -690,7 +690,7 @@ func TestRequestAdminCredential(t *testing.T) {
 				nil,
 				newNoopAuditClient(t),
 				api.TestLocation,
-				"", false, false, true,
+				true,
 			)
 
 			// Pre-populate the mock database with cluster and subscription
@@ -805,7 +805,7 @@ func TestRevokeCredentials(t *testing.T) {
 				nil,
 				newNoopAuditClient(t),
 				api.TestLocation,
-				"", false, false, true,
+				true,
 			)
 
 			// Pre-populate the mock database with cluster

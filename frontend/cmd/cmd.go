@@ -54,11 +54,8 @@ type FrontendOpts struct {
 	auditLogQueueSize  int
 	auditConnectSocket bool
 
-	clustersServiceURL            string
-	clusterServiceProvisionShard  string
-	clusterServiceNoopProvision   bool
-	clusterServiceNoopDeprovision bool
-	insecure                      bool
+	clustersServiceURL string
+	insecure           bool
 
 	location    string
 	metricsPort int
@@ -102,9 +99,6 @@ func NewRootCmd() *cobra.Command {
 
 	rootCmd.Flags().StringVar(&opts.clustersServiceURL, "clusters-service-url", "https://api.openshift.com", "URL of the OCM API gateway.")
 	rootCmd.Flags().BoolVar(&opts.insecure, "insecure", false, "Skip validating TLS for clusters-service.")
-	rootCmd.Flags().StringVar(&opts.clusterServiceProvisionShard, "cluster-service-provision-shard", "", "Manually specify provision shard for all requests to cluster service")
-	rootCmd.Flags().BoolVar(&opts.clusterServiceNoopProvision, "cluster-service-noop-provision", false, "Skip cluster service provisioning steps for development purposes")
-	rootCmd.Flags().BoolVar(&opts.clusterServiceNoopDeprovision, "cluster-service-noop-deprovision", false, "Skip cluster service deprovisioning steps for development purposes")
 
 	rootCmd.Flags().BoolVar(&opts.exitOnPanic, "exit-on-panic", opts.exitOnPanic,
 		"If set, frontend will exit the process if a panic occurs. As of now it only controls the setting of k8s.io/apimachinery/pkg/util/runtime.ReallyCrash",
@@ -269,8 +263,7 @@ func (opts *FrontendOpts) Run() error {
 	f := frontend.NewFrontend(
 		logger, listener, metricsListener,
 		legacyregistry.Registerer(), legacyregistry.DefaultGatherer,
-		resourcesDBClient, locksDBClient, csClient, auditClient, opts.location, opts.clusterServiceProvisionShard,
-		opts.clusterServiceNoopProvision, opts.clusterServiceNoopDeprovision, opts.exitOnPanic,
+		resourcesDBClient, locksDBClient, csClient, auditClient, opts.location, opts.exitOnPanic,
 	)
 
 	runErrCh := make(chan error, 1)
