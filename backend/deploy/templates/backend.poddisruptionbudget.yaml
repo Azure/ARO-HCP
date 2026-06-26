@@ -1,0 +1,10 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: aro-hcp-backend
+  namespace: '{{ .Release.Namespace }}'
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: aro-hcp-backend

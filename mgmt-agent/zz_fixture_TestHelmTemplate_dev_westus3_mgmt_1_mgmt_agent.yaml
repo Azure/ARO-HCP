@@ -1,4 +1,16 @@
 ---
+# Source: mgmt-agent/templates/mgmt-agent.poddisruptionbudget.yaml
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: mgmt-agent
+  namespace: mgmt-agent
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: mgmt-agent
+---
 # Source: mgmt-agent/templates/serviceaccount.yaml
 apiVersion: v1
 kind: ServiceAccount

@@ -1,4 +1,16 @@
 ---
+# Source: acrpull/templates/acrpull.poddisruptionbudget.yaml
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: acrpull
+  namespace: 'acrpull'
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: acrpull
+---
 # Source: acrpull/templates/serviceaccount.yaml
 apiVersion: v1
 kind: ServiceAccount

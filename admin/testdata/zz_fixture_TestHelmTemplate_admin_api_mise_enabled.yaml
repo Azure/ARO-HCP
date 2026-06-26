@@ -1,4 +1,16 @@
 ---
+# Source: ARO HCP Admin API/templates/admin.poddisruptionbudget.yaml
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: admin-api
+  namespace: 'aro-hcp-admin-api'
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: admin-api
+---
 # Source: ARO HCP Admin API/templates/admin.serviceaccount.yaml
 apiVersion: v1
 kind: ServiceAccount
