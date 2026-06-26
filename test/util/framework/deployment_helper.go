@@ -434,6 +434,14 @@ func (tc *perItOrDescribeTestContext) CreateNodePoolFromParam20240610(
 		return fmt.Errorf("nodePoolName parameter not found or empty")
 	}
 
+	if parameters.VMSize == "" {
+		vmSize, err := tc.SelectVMSize(nodePoolCtx, DefaultWorkerVMSizeSelector())
+		if err != nil {
+			return fmt.Errorf("failed to resolve default VM size for node pool %s (check VM SKU restrictions/quota for the test subscription in %s): %w", nodePoolName, tc.Location(), err)
+		}
+		parameters.VMSize = vmSize
+	}
+
 	nodePool := BuildNodePoolFromParams20240610(parameters, tc.Location())
 
 	if _, err := CreateNodePoolAndWait20240610(
@@ -498,6 +506,14 @@ func (tc *perItOrDescribeTestContext) CreateNodePoolFromParam20251223(
 	nodePoolName := parameters.NodePoolName
 	if nodePoolName == "" {
 		return fmt.Errorf("nodePoolName parameter not found or empty")
+	}
+
+	if parameters.VMSize == "" {
+		vmSize, err := tc.SelectVMSize(nodePoolCtx, DefaultWorkerVMSizeSelector())
+		if err != nil {
+			return fmt.Errorf("failed to resolve default VM size for node pool %s (check VM SKU restrictions/quota for the test subscription in %s): %w", nodePoolName, tc.Location(), err)
+		}
+		parameters.VMSize = vmSize
 	}
 
 	nodePool := BuildNodePoolFromParams20251223(parameters, tc.Location())
@@ -607,6 +623,14 @@ func (tc *perItOrDescribeTestContext) CreateNodePoolFromParam20260630(
 	nodePoolName := parameters.NodePoolName
 	if nodePoolName == "" {
 		return fmt.Errorf("nodePoolName parameter not found or empty")
+	}
+
+	if parameters.VMSize == "" {
+		vmSize, err := tc.SelectVMSize(nodePoolCtx, DefaultWorkerVMSizeSelector())
+		if err != nil {
+			return fmt.Errorf("failed to resolve default VM size for node pool %s (check VM SKU restrictions/quota for the test subscription in %s): %w", nodePoolName, tc.Location(), err)
+		}
+		parameters.VMSize = vmSize
 	}
 
 	nodePool := BuildNodePoolFromParams20260630(parameters, tc.Location())

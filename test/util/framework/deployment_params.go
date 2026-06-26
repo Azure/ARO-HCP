@@ -382,33 +382,43 @@ type NodePoolAutoScalingParams struct {
 
 func NewDefaultNodePoolParams20240610() NodePoolParams20240610 {
 	return NodePoolParams20240610{
-		OpenshiftVersionId:     DefaultOpenshiftNodePoolVersionId(),
-		Replicas:               int32(2),
-		VMSize:                 "Standard_D8s_v3",
+		OpenshiftVersionId: DefaultOpenshiftNodePoolVersionId(),
+		Replicas:           int32(2),
+		// VMSize is intentionally left empty: CreateNodePoolFromParam20240610
+		// resolves it via the restriction-aware DefaultWorkerVMSizeSelector at
+		// create time so the suite is resilient to per-subscription SKU
+		// restrictions. Set it explicitly to pin a specific size.
+		VMSize:                 "",
 		OSDiskSizeGiB:          int32(64),
-		DiskStorageAccountType: "StandardSSD_LRS",
+		DiskStorageAccountType: DefaultDiskStorageAccountType,
 		ChannelGroup:           DefaultOpenshiftNodePoolChannelGroup(),
 	}
 }
 
 func NewDefaultNodePoolParams20251223() NodePoolParams20251223 {
 	return NodePoolParams20251223{
-		OpenshiftVersionId:     DefaultOpenshiftNodePoolVersionId(),
-		Replicas:               int32(2),
-		VMSize:                 "Standard_D8s_v3",
+		OpenshiftVersionId: DefaultOpenshiftNodePoolVersionId(),
+		Replicas:           int32(2),
+		// VMSize is intentionally left empty: CreateNodePoolFromParam20251223
+		// resolves it via the restriction-aware DefaultWorkerVMSizeSelector at
+		// create time. Set it explicitly to pin a specific size.
+		VMSize:                 "",
 		OSDiskSizeGiB:          int32(64),
-		DiskStorageAccountType: "StandardSSD_LRS",
+		DiskStorageAccountType: DefaultDiskStorageAccountType,
 		ChannelGroup:           DefaultOpenshiftNodePoolChannelGroup(),
 	}
 }
 
 func NewDefaultNodePoolParams20260630() NodePoolParams20260630 {
 	return NodePoolParams20260630{
-		OpenshiftVersionId:     DefaultOpenshiftNodePoolVersionId(),
-		Replicas:               int32(2),
-		VMSize:                 "Standard_D8s_v3",
+		OpenshiftVersionId: DefaultOpenshiftNodePoolVersionId(),
+		Replicas:           int32(2),
+		// VMSize is intentionally left empty: CreateNodePoolFromParam20260630
+		// resolves it via the restriction-aware DefaultWorkerVMSizeSelector at
+		// create time. Set it explicitly to pin a specific size.
+		VMSize:                 "",
 		OSDiskSizeGiB:          int32(64),
-		DiskStorageAccountType: "StandardSSD_LRS",
+		DiskStorageAccountType: DefaultDiskStorageAccountType,
 		ChannelGroup:           DefaultOpenshiftNodePoolChannelGroup(),
 	}
 }

@@ -37,6 +37,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v5"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armsubscriptions"
 
 	"github.com/Azure/ARO-HCP/internal/azsdk"
@@ -63,6 +64,11 @@ type perBinaryInvocationTestContext struct {
 	azureCredentials  azcore.TokenCredential
 	identityPoolState *leasedIdentityPoolState
 	defaultTransport  *http.Transport
+	// virtualMachineResourceSKUsByLocation memoizes the slow Resource SKUs API
+	// for the duration of the whole e2e suite run. All specs in one invocation
+	// target the same location, so a suite-wide cache avoids repeatedly burning
+	// per-test timeout budget on the same ARM call.
+	virtualMachineResourceSKUsByLocation map[string][]*armcompute.ResourceSKU
 }
 
 type CleanupFunc func(ctx context.Context) error
@@ -93,21 +99,22 @@ var azureRetryOptions = policy.RetryOptions{
 func invocationContext() *perBinaryInvocationTestContext {
 	initializeOnce.Do(func() {
 		invocationContextInstance = &perBinaryInvocationTestContext{
-			artifactDir:              artifactDir(),
-			sharedDir:                SharedDir(),
-			subscriptionName:         subscriptionName(),
-			tenantID:                 tenantID(),
-			testUserClientID:         testUserClientID(),
-			location:                 location(),
-			pullSecretPath:           pullSecretPath(),
-			frontendAddress:          frontendAddress(),
-			adminAPIAddress:          adminAPIAddress(),
-			skipCertVerification:     skipCertVerification(),
-			isDevelopmentEnvironment: IsDevelopmentEnvironment(),
-			skipCleanup:              skipCleanup(),
-			pooledIdentities:         pooledIdentities(),
-			compressTimingMetadata:   compressTimingMetadata(),
-			defaultTransport:         defaultHTTPTransport(),
+			artifactDir:                          artifactDir(),
+			sharedDir:                            SharedDir(),
+			subscriptionName:                     subscriptionName(),
+			tenantID:                             tenantID(),
+			testUserClientID:                     testUserClientID(),
+			location:                             location(),
+			pullSecretPath:                       pullSecretPath(),
+			frontendAddress:                      frontendAddress(),
+			adminAPIAddress:                      adminAPIAddress(),
+			skipCertVerification:                 skipCertVerification(),
+			isDevelopmentEnvironment:             IsDevelopmentEnvironment(),
+			skipCleanup:                          skipCleanup(),
+			pooledIdentities:                     pooledIdentities(),
+			compressTimingMetadata:               compressTimingMetadata(),
+			defaultTransport:                     defaultHTTPTransport(),
+			virtualMachineResourceSKUsByLocation: make(map[string][]*armcompute.ResourceSKU),
 		}
 	})
 	return invocationContextInstance

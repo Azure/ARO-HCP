@@ -189,6 +189,10 @@ var _ = Describe("Customer", func() {
 			} else if nodePool.Properties.Platform == nil {
 				errs = append(errs, fmt.Errorf("nodepool platform properties are nil"))
 			} else {
+				originalVMSize := ""
+				if nodePool.Properties.Platform.VMSize != nil {
+					originalVMSize = *nodePool.Properties.Platform.VMSize
+				}
 				nodePool.Properties.Platform.VMSize = to.Ptr("Standard_D16s_v3")
 				nodePool.Properties.Platform.AvailabilityZone = to.Ptr("2")
 				if nodePool.Properties.Platform.OSDisk != nil {
@@ -207,7 +211,7 @@ var _ = Describe("Customer", func() {
 					} else {
 						platform := updatedNodePool.Properties.Platform
 
-						if platform.VMSize != nil && *platform.VMSize != "Standard_D8s_v3" {
+						if platform.VMSize != nil && *platform.VMSize != originalVMSize {
 							errs = append(errs, fmt.Errorf("vmSize was modified despite immutable error"))
 						}
 
