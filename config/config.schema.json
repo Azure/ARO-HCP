@@ -2188,6 +2188,17 @@
           ],
           "additionalProperties": false
         },
+        "audit": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "connectSocket": {
+              "type": "boolean",
+              "description": "Whether to connect to the mdsd audit socket for audit logging."
+            }
+          },
+          "required": ["connectSocket"]
+        },
         "image": {
           "$ref": "#/definitions/containerImage"
         },
@@ -2201,6 +2212,7 @@
       },
       "required": [
         "deploy",
+        "audit",
         "image",
         "imageV2",
         "arm",
