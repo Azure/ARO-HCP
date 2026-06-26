@@ -84,12 +84,13 @@ type panelPageData struct {
 // chartData holds the rendered chart HTML and metadata for a single query
 // within a panel.
 type chartData struct {
-	Title       string
-	Description string
-	Query       string
-	HasData     bool
-	Error       string
-	ChartHTML   template.HTML // raw HTML from go-echarts, not escaped
+	Title            string
+	Description      string
+	Query            string
+	HasData          bool
+	Error            string
+	ChartHTML        template.HTML // raw HTML from go-echarts, not escaped
+	MinPeakThreshold float64
 }
 
 // renderPanel assembles multiple charts into a single HTML page.
@@ -132,7 +133,7 @@ func estimateLegendHeight(series []parsedSeries, chartWidth int) int {
 // buildChartData builds the chart HTML for a single PromQL query result.
 // Each PrometheusResult becomes a separate series, labeled by its metric
 // labels.
-func buildChartData(title, description, query, unit, queryErr string, results []PrometheusResult, tw timing.TimeWindow) chartData {
+func buildChartData(title, description, query, unit, queryErr string, results []PrometheusResult, tw timing.TimeWindow, minPeakThreshold float64) chartData {
 	var series []parsedSeries
 	for _, result := range results {
 		if len(result.Values) == 0 {
@@ -166,7 +167,7 @@ func buildChartData(title, description, query, unit, queryErr string, results []
 	}
 
 	if len(series) == 0 {
-		return chartData{Title: title, Description: description, Query: query, Error: queryErr}
+		return chartData{Title: title, Description: description, Query: query, Error: queryErr, MinPeakThreshold: minPeakThreshold}
 	}
 
 	// Sort by peak value descending for consistent legend ordering
@@ -239,11 +240,12 @@ func buildChartData(title, description, query, unit, queryErr string, results []
 	html := extractChartBody(rendered)
 
 	return chartData{
-		Title:       title,
-		Description: description,
-		Query:       query,
-		HasData:     true,
-		ChartHTML:   template.HTML(html), //nolint:gosec // trusted go-echarts output
+		Title:            title,
+		Description:      description,
+		Query:            query,
+		HasData:          true,
+		ChartHTML:        template.HTML(html), //nolint:gosec // trusted go-echarts output
+		MinPeakThreshold: minPeakThreshold,
 	}
 }
 
