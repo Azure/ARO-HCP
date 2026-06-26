@@ -1,4 +1,17 @@
 ---
+# Source: istio/charts/mise/templates/pdb.yaml
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: mise
+  namespace: 'mise'
+spec:
+  minAvailable: 1
+  unhealthyPodEvictionPolicy: AlwaysAllow
+  selector:
+    matchLabels:
+      app: mise
+---
 # Source: istio/charts/mise/templates/configmap.yaml
 apiVersion: v1
 kind: ConfigMap
