@@ -1,5 +1,6 @@
 rule_files:
 - access-cluster-slo-prometheusRule.yaml
+- access-cluster-slo-recordingRule.yaml
 evaluation_interval: 1m
 tests:
 # ========================================
@@ -49,18 +50,18 @@ tests:
       value: 0
   alert_rule_test:
   - eval_time: 10m
-    alertname: UJAccessClusterErrors1h5m
+    alertname: userJourneyAccessClusterErrors1h5m
   - eval_time: 10m
-    alertname: UJAccessClusterErrors6h30m
+    alertname: userJourneyAccessClusterErrors6h30m
   - eval_time: 10m
-    alertname: UJAccessClusterErrors3d
+    alertname: userJourneyAccessClusterErrors3d
   - eval_time: 10m
-    alertname: UJAccessClusterErrorsDegradation
+    alertname: userJourneyAccessClusterErrorsDegradation
 # ========================================
-# Test 2: Fast burn — 80% failure rate, UJAccessClusterErrors1h5m fires
+# Test 2: Fast burn — 80% failure rate, userJourneyAccessClusterErrors1h5m fires
 # ========================================
 # 2 succeeded, 8 failed → error rate = 80% > 72% threshold (14.4x burn)
-# Both UJAccessClusterErrors1h5m and UJAccessClusterErrorsDegradation should fire.
+# Both userJourneyAccessClusterErrors1h5m and userJourneyAccessClusterErrorsDegradation should fire.
 - interval: 1m
   input_series:
   # 2 succeeded
@@ -94,7 +95,7 @@ tests:
   alert_rule_test:
   # Fast burn fires after 5m 'for' duration
   - eval_time: 7m
-    alertname: UJAccessClusterErrors1h5m
+    alertname: userJourneyAccessClusterErrors1h5m
     exp_alerts:
     - exp_labels:
         cluster: "mgmt-1"
@@ -108,7 +109,7 @@ tests:
         runbook_url: "aka.ms/arohcp-runbook-access-cluster"
   # Degradation also fires (15% threshold met at 80%)
   - eval_time: 35m
-    alertname: UJAccessClusterErrorsDegradation
+    alertname: userJourneyAccessClusterErrorsDegradation
     exp_alerts:
     - exp_labels:
         cluster: "mgmt-1"
@@ -156,10 +157,10 @@ tests:
   alert_rule_test:
   # Fast burn should NOT fire (20% < 72%)
   - eval_time: 10m
-    alertname: UJAccessClusterErrors1h5m
+    alertname: userJourneyAccessClusterErrors1h5m
   # Degradation fires after 30m (20% > 15%)
   - eval_time: 35m
-    alertname: UJAccessClusterErrorsDegradation
+    alertname: userJourneyAccessClusterErrorsDegradation
     exp_alerts:
     - exp_labels:
         cluster: "mgmt-1"
@@ -184,7 +185,7 @@ tests:
   alert_rule_test:
   # At 90m (5400s), time() - 0 = 5400 > 3600, and for: 15m is satisfied
   - eval_time: 90m
-    alertname: UJAccessClusterStuckOperation
+    alertname: userJourneyAccessClusterStuckOperation
     exp_alerts:
     - exp_labels:
         resource_id: "/sub/3/cluster/stuck"
@@ -211,7 +212,7 @@ tests:
     values: "1+0x55"
   alert_rule_test:
   - eval_time: 50m
-    alertname: UJAccessClusterStuckOperation
+    alertname: userJourneyAccessClusterStuckOperation
 # ========================================
 # Test 6: Zero failure rate — all succeeded, no alerts
 # ========================================
@@ -231,11 +232,11 @@ tests:
     values: "1+0x15"
   alert_rule_test:
   - eval_time: 10m
-    alertname: UJAccessClusterErrors1h5m
+    alertname: userJourneyAccessClusterErrors1h5m
   - eval_time: 10m
-    alertname: UJAccessClusterErrors6h30m
+    alertname: userJourneyAccessClusterErrors6h30m
   - eval_time: 10m
-    alertname: UJAccessClusterErrorsDegradation
+    alertname: userJourneyAccessClusterErrorsDegradation
 # ========================================
 # Test 7: Queue depth — credential controller workqueue exceeds threshold
 # ========================================
@@ -245,7 +246,7 @@ tests:
     values: "15+0x10"
   alert_rule_test:
   - eval_time: 7m
-    alertname: UJAccessClusterSaturationQueueDepth
+    alertname: userJourneyAccessClusterSaturationQueueDepth
     exp_alerts:
     - exp_labels:
         name: "OperationRequestCredential"
@@ -264,7 +265,7 @@ tests:
     values: "5+0x10"
   alert_rule_test:
   - eval_time: 7m
-    alertname: UJAccessClusterSaturationQueueDepth
+    alertname: userJourneyAccessClusterSaturationQueueDepth
 # ========================================
 # Test 9: Retry hot loop — retry ratio > 50%
 # ========================================
@@ -276,7 +277,7 @@ tests:
     values: "0+100x25"
   alert_rule_test:
   - eval_time: 22m
-    alertname: UJAccessClusterSaturationRetryHotLoop
+    alertname: userJourneyAccessClusterSaturationRetryHotLoop
     exp_alerts:
     - exp_labels:
         name: "OperationRequestCredential"
@@ -297,7 +298,7 @@ tests:
     values: "0+100x25"
   alert_rule_test:
   - eval_time: 22m
-    alertname: UJAccessClusterSaturationRetryHotLoop
+    alertname: userJourneyAccessClusterSaturationRetryHotLoop
 # ========================================
 # Test 11: Mixed operation types — requestcredential and revokecredentials both tracked
 # ========================================
@@ -350,7 +351,7 @@ tests:
   alert_rule_test:
   # 50% > 30% → medium burn fires after 30m
   - eval_time: 35m
-    alertname: UJAccessClusterErrors6h30m
+    alertname: userJourneyAccessClusterErrors6h30m
     exp_alerts:
     - exp_labels:
         cluster: "mgmt-1"
@@ -364,7 +365,7 @@ tests:
         runbook_url: "aka.ms/arohcp-runbook-access-cluster"
   # 50% < 72% → fast burn should NOT fire
   - eval_time: 35m
-    alertname: UJAccessClusterErrors1h5m
+    alertname: userJourneyAccessClusterErrors1h5m
 # ========================================
 # Test 12: Stuck revokecredentials operation in "deleting" for > 1 hour
 # ========================================
@@ -377,7 +378,7 @@ tests:
     values: "1+0x95"
   alert_rule_test:
   - eval_time: 90m
-    alertname: UJAccessClusterStuckOperation
+    alertname: userJourneyAccessClusterStuckOperation
     exp_alerts:
     - exp_labels:
         resource_id: "/sub/7/cluster/stuck-revoke"

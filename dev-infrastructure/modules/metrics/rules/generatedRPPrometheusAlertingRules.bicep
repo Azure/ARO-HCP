@@ -26,7 +26,7 @@ resource arohcpAccessClusterSloErrorAlerts 'Microsoft.AlertsManagement/prometheu
             }
           }
         ]
-        alert: 'UJAccessClusterErrors1h5m'
+        alert: 'userJourneyAccessClusterErrors1h5m'
         enabled: true
         labels: {
           long_window: '1h'
@@ -35,7 +35,7 @@ resource arohcpAccessClusterSloErrorAlerts 'Microsoft.AlertsManagement/prometheu
           slo: 'access-cluster-errors'
         }
         annotations: {
-          correlationId: 'UJAccessClusterErrors1h5m/{{ $labels.cluster }}'
+          correlationId: 'userJourneyAccessClusterErrors1h5m/{{ $labels.cluster }}'
           description: 'More than 72% of credential operations (requestcredential/revokecredentials) are in failed state, indicating a fast error budget burn (14.4x) that would exhaust the 95% SLO budget in ~12 hours.'
           info: 'More than 72% of credential operations (requestcredential/revokecredentials) are in failed state, indicating a fast error budget burn (14.4x) that would exhaust the 95% SLO budget in ~12 hours.'
           runbook_url: 'aka.ms/arohcp-runbook-access-cluster'
@@ -56,7 +56,7 @@ resource arohcpAccessClusterSloErrorAlerts 'Microsoft.AlertsManagement/prometheu
             }
           }
         ]
-        alert: 'UJAccessClusterErrors6h30m'
+        alert: 'userJourneyAccessClusterErrors6h30m'
         enabled: true
         labels: {
           long_window: '6h'
@@ -65,7 +65,7 @@ resource arohcpAccessClusterSloErrorAlerts 'Microsoft.AlertsManagement/prometheu
           slo: 'access-cluster-errors'
         }
         annotations: {
-          correlationId: 'UJAccessClusterErrors6h30m/{{ $labels.cluster }}'
+          correlationId: 'userJourneyAccessClusterErrors6h30m/{{ $labels.cluster }}'
           description: 'More than 30% of credential operations are in failed state sustained over 30 minutes, indicating a medium error budget burn (6x) that would exhaust the 95% SLO budget in ~28 hours.'
           info: 'More than 30% of credential operations are in failed state sustained over 30 minutes, indicating a medium error budget burn (6x) that would exhaust the 95% SLO budget in ~28 hours.'
           runbook_url: 'aka.ms/arohcp-runbook-access-cluster'
@@ -86,7 +86,7 @@ resource arohcpAccessClusterSloErrorAlerts 'Microsoft.AlertsManagement/prometheu
             }
           }
         ]
-        alert: 'UJAccessClusterErrors3d'
+        alert: 'userJourneyAccessClusterErrors3d'
         enabled: true
         labels: {
           long_window: '3d'
@@ -94,7 +94,7 @@ resource arohcpAccessClusterSloErrorAlerts 'Microsoft.AlertsManagement/prometheu
           slo: 'access-cluster-errors'
         }
         annotations: {
-          correlationId: 'UJAccessClusterErrors3d/{{ $labels.cluster }}'
+          correlationId: 'userJourneyAccessClusterErrors3d/{{ $labels.cluster }}'
           description: 'More than 5% of credential operations are in failed state sustained over 6 hours, indicating persistent degradation at the 95% SLO boundary that would exhaust the error budget in ~7 days.'
           info: 'More than 5% of credential operations are in failed state sustained over 6 hours, indicating persistent degradation at the 95% SLO boundary that would exhaust the error budget in ~7 days.'
           runbook_url: 'aka.ms/arohcp-runbook-access-cluster'
@@ -115,14 +115,14 @@ resource arohcpAccessClusterSloErrorAlerts 'Microsoft.AlertsManagement/prometheu
             }
           }
         ]
-        alert: 'UJAccessClusterErrorsDegradation'
+        alert: 'userJourneyAccessClusterErrorsDegradation'
         enabled: true
         labels: {
           severity: 'info'
           slo: 'access-cluster-errors'
         }
         annotations: {
-          correlationId: 'UJAccessClusterErrorsDegradation/{{ $labels.cluster }}'
+          correlationId: 'userJourneyAccessClusterErrorsDegradation/{{ $labels.cluster }}'
           description: 'The credential operation failure rate has been above 15% for 30 minutes. This provides early warning of degradation before SLO-based burn rate alerts fire.'
           info: 'The credential operation failure rate has been above 15% for 30 minutes. This provides early warning of degradation before SLO-based burn rate alerts fire.'
           runbook_url: 'aka.ms/arohcp-runbook-access-cluster'
@@ -143,13 +143,13 @@ resource arohcpAccessClusterSloErrorAlerts 'Microsoft.AlertsManagement/prometheu
             }
           }
         ]
-        alert: 'UJAccessClusterStuckOperation'
+        alert: 'userJourneyAccessClusterStuckOperation'
         enabled: true
         labels: {
           severity: 'info'
         }
         annotations: {
-          correlationId: 'UJAccessClusterStuckOperation/{{ $labels.cluster }}'
+          correlationId: 'userJourneyAccessClusterStuckOperation/{{ $labels.cluster }}'
           description: 'Credential operation for {{ $labels.resource_id }} has been in {{ $labels.phase }} phase for over 1 hour. Stuck operations are invisible to success/failure SLIs and require investigation.'
           info: 'Credential operation for {{ $labels.resource_id }} has been in {{ $labels.phase }} phase for over 1 hour. Stuck operations are invisible to success/failure SLIs and require investigation.'
           runbook_url: 'aka.ms/arohcp-runbook-access-cluster'
@@ -183,13 +183,13 @@ resource arohcpAccessClusterSaturationAlerts 'Microsoft.AlertsManagement/prometh
             }
           }
         ]
-        alert: 'UJAccessClusterSaturationQueueDepth'
+        alert: 'userJourneyAccessClusterSaturationQueueDepth'
         enabled: true
         labels: {
           severity: 'info'
         }
         annotations: {
-          correlationId: 'UJAccessClusterSaturationQueueDepth/{{ $labels.cluster }}'
+          correlationId: 'userJourneyAccessClusterSaturationQueueDepth/{{ $labels.cluster }}'
           description: 'Credential controller workqueue {{ $labels.name }} has had a depth > 10 for more than 5 minutes, indicating work is accumulating faster than it can be processed.'
           info: 'Credential controller workqueue {{ $labels.name }} has had a depth > 10 for more than 5 minutes, indicating work is accumulating faster than it can be processed.'
           runbook_url: 'aka.ms/arohcp-runbook-access-cluster'
@@ -210,13 +210,13 @@ resource arohcpAccessClusterSaturationAlerts 'Microsoft.AlertsManagement/prometh
             }
           }
         ]
-        alert: 'UJAccessClusterSaturationRetryHotLoop'
+        alert: 'userJourneyAccessClusterSaturationRetryHotLoop'
         enabled: true
         labels: {
           severity: 'info'
         }
         annotations: {
-          correlationId: 'UJAccessClusterSaturationRetryHotLoop/{{ $labels.cluster }}'
+          correlationId: 'userJourneyAccessClusterSaturationRetryHotLoop/{{ $labels.cluster }}'
           description: 'Credential controller workqueue {{ $labels.name }} has a retry ratio > 50% sustained over 10 minutes, indicating most queue activity is failed retries rather than fresh work.'
           info: 'Credential controller workqueue {{ $labels.name }} has a retry ratio > 50% sustained over 10 minutes, indicating most queue activity is failed retries rather than fresh work.'
           runbook_url: 'aka.ms/arohcp-runbook-access-cluster'

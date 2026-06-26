@@ -11,63 +11,6 @@ metadata:
 spec:
   groups:
   # ========================================
-  # Access the Cluster SLO Recording Rules
-  # ========================================
-  # These rules track the Errors SLO for credential operations
-  # (operation_type: requestcredential, revokecredentials).
-  # SLO: 95% of credential operations should succeed (not reach "failed" terminal phase)
-  # Error Budget: 5% (1 - 0.95)
-  #
-  # Metrics are gauge-based (backend_resource_operation_phase_info) from Cosmos DB,
-  # so we use count() aggregations rather than rate() on counters.
-  #
-  # Scope: covers requestcredential and revokecredentials operations on
-  # hcpOpenShiftClusters (not nodepools).
-  - name: arohcp_access_cluster_slo_recording_rules
-    interval: 1m
-    rules:
-    # Instantaneous count of succeeded credential operations per cluster
-    - record: errors:backend_credential_operation:succeeded_total
-      expr: |
-        count by (cluster) (backend_resource_operation_phase_info{
-          resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
-          operation_type=~"requestcredential|revokecredentials",
-          phase="succeeded"
-        })
-    # Instantaneous count of all terminal credential operations per cluster
-    - record: errors:backend_credential_operation:terminal_total
-      expr: |
-        count by (cluster) (backend_resource_operation_phase_info{
-          resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
-          operation_type=~"requestcredential|revokecredentials",
-          phase=~"succeeded|failed|canceled"
-        })
-    # Instantaneous error rate per cluster: fraction of terminal operations that failed
-    - record: errors:backend_credential_operation:error_rate
-      expr: |
-        (
-          count by (cluster) (backend_resource_operation_phase_info{
-            resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
-            operation_type=~"requestcredential|revokecredentials",
-            phase="failed"
-          })
-          or
-          0 * count by (cluster) (backend_resource_operation_phase_info{
-            resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
-            operation_type=~"requestcredential|revokecredentials",
-            phase=~"succeeded|failed|canceled"
-          })
-        )
-        /
-        clamp_min(
-          count by (cluster) (backend_resource_operation_phase_info{
-            resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
-            operation_type=~"requestcredential|revokecredentials",
-            phase=~"succeeded|failed|canceled"
-          }),
-          1
-        )
-  # ========================================
   # Access the Cluster SLO Alerts — Errors
   # ========================================
   # Multi-window burn-rate-style alerting adapted for gauge metrics.
@@ -89,7 +32,7 @@ spec:
     # ----------------------------------------
     # 14.4x burn rate → >72% failure rate sustained for 5 minutes
     # Would exhaust 7-day error budget in ~12 hours
-    - alert: UJAccessClusterErrors1h5m
+    - alert: userJourneyAccessClusterErrors1h5m
       expr: |
         errors:backend_credential_operation:error_rate > 0.72
       for: 5m
@@ -107,7 +50,7 @@ spec:
     # ----------------------------------------
     # 6x burn rate → >30% failure rate sustained for 30 minutes
     # Would exhaust 7-day error budget in ~28 hours
-    - alert: UJAccessClusterErrors6h30m
+    - alert: userJourneyAccessClusterErrors6h30m
       expr: |
         errors:backend_credential_operation:error_rate > 0.30
       for: 30m
@@ -126,7 +69,7 @@ spec:
     # Per ADR: slow burn alerts generate Jira ticket, not a page.
     # 1x burn rate → >5% failure rate sustained for 6 hours
     # Would exhaust 7-day error budget in ~7 days
-    - alert: UJAccessClusterErrors3d
+    - alert: userJourneyAccessClusterErrors3d
       expr: |
         errors:backend_credential_operation:error_rate > 0.05
       for: 6h
@@ -144,7 +87,7 @@ spec:
     # With a 95% SLO, the fast-burn threshold only fires at ~72% failure rate.
     # This provides early warning at 15% failure rate before burn-rate alerts fire.
     # Precursor signal → Sev 4 per ADR.
-    - alert: UJAccessClusterErrorsDegradation
+    - alert: userJourneyAccessClusterErrorsDegradation
       expr: |
         errors:backend_credential_operation:error_rate > 0.15
       for: 30m
@@ -162,7 +105,7 @@ spec:
     # Threshold: 1 hour (3600s) with 15m sustained observation.
     # Credential operations are expected to complete faster than node pool operations
     # (no VM provisioning), so 1 hour is appropriate (vs. 2 hours for node pools).
-    - alert: UJAccessClusterStuckOperation
+    - alert: userJourneyAccessClusterStuckOperation
       expr: |
         (
           (time() - backend_resource_operation_start_time_seconds{
@@ -191,7 +134,7 @@ spec:
   - name: arohcp_access_cluster_saturation_alerts
     rules:
     # Queue depth: credential controller workqueue accumulating work
-    - alert: UJAccessClusterSaturationQueueDepth
+    - alert: userJourneyAccessClusterSaturationQueueDepth
       expr: |
         max by (name, cluster) (
           max without(prometheus_replica) (
@@ -206,7 +149,7 @@ spec:
         description: "Credential controller workqueue {{ $labels.name }} has had a depth > 10 for more than 5 minutes, indicating work is accumulating faster than it can be processed."
         runbook_url: "aka.ms/arohcp-runbook-access-cluster"
     # Retry hot loop: high retry ratio on credential workqueue
-    - alert: UJAccessClusterSaturationRetryHotLoop
+    - alert: userJourneyAccessClusterSaturationRetryHotLoop
       expr: |
         (
           sum by (name, cluster) (
