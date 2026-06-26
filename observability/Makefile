@@ -22,10 +22,10 @@ verify: verify-no-prom-alerts-in-bicep
 
 verify-no-prom-alerts-in-bicep:
 	@if grep -rFl --include='*.bicep' 'Microsoft.AlertsManagement/prometheusRuleGroups' \
-		../dev-infrastructure/ 2>/dev/null | grep -qv -e '/generated' -e '/default'; then \
+		../dev-infrastructure/ 2>/dev/null | grep -qv -e '/generated' -e '/defaultRecordingRuleGroups.bicep' -e '/underlay-clusters-metric.bicep'; then \
 		echo "ERROR: Prom alerts need to be added with mechanisms in observability/"; \
 		grep -rFl --include='*.bicep' 'Microsoft.AlertsManagement/prometheusRuleGroups' \
-			../dev-infrastructure/ 2>/dev/null | grep -v -e '/generated' -e '/default'; \
+			../dev-infrastructure/ 2>/dev/null | grep -v -e '/generated' -e '/defaultRecordingRuleGroups.bicep' -e '/underlay-clusters-metric.bicep'; \
 		exit 1; \
 	fi
 .PHONY: verify-no-prom-alerts-in-bicep
