@@ -132,40 +132,43 @@ func runHelmStep(id graph.Identifier, step *types.HelmStep, ctx context.Context,
 		return err
 	}
 	chartDir := filepath.Join(options.PipelineDirectory, step.ChartDir)
-	opts := helm.RawOptions{
-		NamespaceFiles:    namespaceFiles,
-		ReleaseName:       step.ReleaseName,
-		ReleaseNamespace:  step.ReleaseNamespace,
-		ChartDir:          chartDir,
-		ValuesFile:        values,
-		KustoDatabase:     step.KustoDatabase,
-		KustoTable:        step.KustoTable,
-		KustoEndpoint:     kustoEndpointString,
-		Timeout:           timeout,
-		KubeconfigFile:    kubeconfig,
-		RollbackOnFailure: step.RollbackOnFailure,
-	}
 
+	// Walk the chart dir once: collect raw bytes for the sentinel and write a
+	// preprocessed copy to a temp dir so the Helm chart loader sees resolved
+	// values (unquoted Go template tags like boolean `{{ .foo }}` are otherwise
+	// invalid YAML for the loader).
+	chartTmpDir := filepath.Join(tmpdir, "chart")
 	chartData := map[string][]byte{}
 	if err := filepath.WalkDir(chartDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
-		if d.IsDir() {
-			return nil
-		}
 		relpath, err := filepath.Rel(chartDir, path)
 		if err != nil {
 			return err
+		}
+		destPath := filepath.Join(chartTmpDir, relpath)
+		if d.IsDir() {
+			return os.MkdirAll(destPath, 0755)
 		}
 		raw, err := os.ReadFile(path)
 		if err != nil {
 			return err
 		}
 		chartData[relpath] = raw
-		return nil
+
+		deployData := raw
+		if filepath.Base(path) == "values.yaml" {
+			preprocessed, err := process(path)
+			if err == nil {
+				deployData = preprocessed
+			}
+			// On error fall back to raw: charts using Helm named templates
+			// (e.g. {{template "name" .}}) cannot be processed by templatize.
+		}
+		return os.WriteFile(destPath, deployData, 0644)
 	}); err != nil {
-		return fmt.Errorf("failed to walk helm chart dir: %w", err)
+		return fmt.Errorf("failed to prepare helm chart dir: %w", err)
 	}
 
 	inputs := helmInputs{
@@ -184,6 +187,20 @@ func runHelmStep(id graph.Identifier, step *types.HelmStep, ctx context.Context,
 	}
 	if skip {
 		return nil
+	}
+
+	opts := helm.RawOptions{
+		NamespaceFiles:    namespaceFiles,
+		ReleaseName:       step.ReleaseName,
+		ReleaseNamespace:  step.ReleaseNamespace,
+		ChartDir:          chartTmpDir,
+		ValuesFile:        values,
+		KustoDatabase:     step.KustoDatabase,
+		KustoTable:        step.KustoTable,
+		KustoEndpoint:     kustoEndpointString,
+		Timeout:           timeout,
+		KubeconfigFile:    kubeconfig,
+		RollbackOnFailure: step.RollbackOnFailure,
 	}
 
 	validated, err := opts.Validate()

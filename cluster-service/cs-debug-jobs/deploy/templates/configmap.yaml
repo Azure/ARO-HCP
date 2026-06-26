@@ -1,4 +1,4 @@
-{{- if.Values.deployDebugJobs }}
+{{- if .Values.deployDebugJobs }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
