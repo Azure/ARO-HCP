@@ -292,9 +292,18 @@ func (c *ApplyDesireController) SyncOnce(ctx context.Context, key keys.ApplyDesi
 
 	syncErr := c.applyDesired(ctx, desire)
 
+	// Capture the generation (InstanceVersion) of the desire at the time of
+	// the apply attempt so the closure below records the right value.
+	observedGeneration := desire.InstanceVersion
+
 	return c.writer.UpdateStatus(ctx, key, func(d *kubeapplier.ApplyDesire) {
 		conditions.SetSuccessful(&d.Status.Conditions, syncErr)
 		conditions.SetDegraded(&d.Status.Conditions, classifyAsDegraded(syncErr))
+		if syncErr == nil {
+			d.Status.ObservedGeneration = &observedGeneration
+		} else {
+			d.Status.ObservedGeneration = nil
+		}
 	})
 }
 
