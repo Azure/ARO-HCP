@@ -379,7 +379,7 @@ func (f *Frontend) createHCPCluster(writer http.ResponseWriter, request *http.Re
 	if f.clusterServiceNoopDeprovision {
 		initialClusterProperties[ocm.CSPropertyNoopDeprovision] = ocm.CSPropertyEnabled
 	}
-	newClusterServiceClusterBuilder, newClusterServiceAutoscalerBuilder, err := ocm.BuildCSCluster(newInternalCluster.ID, tenantID, newInternalCluster, initialClusterProperties, nil)
+	newClusterServiceClusterBuilder, newClusterServiceAutoscalerBuilder, err := ocm.BuildCSCluster(newInternalCluster.ID, tenantID, newInternalCluster, initialClusterProperties, nil, nil)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -667,7 +667,7 @@ func (f *Frontend) updateHCPClusterInCosmos(ctx context.Context, writer http.Res
 		if err != nil {
 			return utils.TrackError(err)
 		}
-		newClusterServiceClusterBuilder, newClusterServiceAutoscalerBuilder, err := ocm.BuildCSCluster(oldInternalCluster.ID, tenantID, newInternalCluster, nil, oldClusterServiceCluster)
+		newClusterServiceClusterBuilder, newClusterServiceAutoscalerBuilder, err := ocm.BuildCSCluster(oldInternalCluster.ID, tenantID, newInternalCluster, nil, oldClusterServiceCluster, admissionContext.ServiceProviderCluster)
 		if err != nil {
 			return utils.TrackError(err)
 		}
