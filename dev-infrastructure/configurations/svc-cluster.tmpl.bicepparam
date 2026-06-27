@@ -179,6 +179,17 @@ param fleetContainerMaxScale = {{ .frontend.cosmosDB.fleetContainerMaxScale }}
 param auditLogsEventHubName = '{{ .auditLogsEventHub.name }}'
 param auditLogsEventHubAuthRuleId = '__auditLogsEventHubAuthRuleId__'
 
+// Deployment script storage (created in regional infra)
+param deploymentScriptStorageAccountName = '__deploymentScriptStorageAccountName__'
+param deploymentScriptSubnetId = '__deploymentScriptSubnetId__'
+
+// Deployment script storage for scripts running in the service KV RG
+param globalDeploymentScriptStorageAccountName = '__globalDeploymentScriptStorageAccountName__'
+param globalDeploymentScriptSubnetId = '__globalDeploymentScriptSubnetId__'
+
+// Deployment script storage for scripts running in this cluster's own RG
+param clusterDeploymentScriptStorageAccountName = '{{ .svc.deploymentScriptStorageAccountName }}'
+
 // Exporter
 param exporterMIName = '{{ .customExporter.managedIdentityName }}'
 param exporterNamespace = '{{ .customExporter.k8s.namespace }}'

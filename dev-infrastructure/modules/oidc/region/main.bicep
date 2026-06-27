@@ -18,6 +18,12 @@ param globalMSIId string
 param storageAccountAccessPrincipalIds array
 param frontDoorManage bool
 
+@description('The name of the storage account used by deployment scripts (must have allowSharedKeyAccess=false and MI granted Storage File Data Privileged Contributor)')
+param deploymentScriptStorageAccountName string = ''
+
+@description('The subnet ID for the deployment scripts ACI container (required when using MI-auth storage)')
+param deploymentScriptSubnetId string = ''
+
 var certificateName = 'afd-oic-${location}'
 var requestMessage = 'Requested by OIDC pipeline'
 var zoneNameReplacedDots = replace(zoneName, '\\.', '\\\\.')
@@ -34,6 +40,8 @@ module storageAccount 'storage.bicep' = {
     deploymentMsiId: globalMSIId
     deploymentScriptLocation: deploymentScriptLocation
     allowBlobPublicAccess: storageAccountBlobPublicAccess
+    deploymentScriptStorageAccountName: deploymentScriptStorageAccountName
+    deploymentScriptSubnetId: deploymentScriptSubnetId
   }
 }
 

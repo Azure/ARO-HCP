@@ -292,6 +292,25 @@ module managedIdentities '../modules/managed-identities.bicep' = {
 }
 
 //
+//   D E P L O Y M E N T   S C R I P T   S T O R A G E
+//
+
+// Local storage account for deployment scripts running in this cluster's own RG
+@description('The name of the storage account for deployment scripts in this cluster RG')
+param clusterDeploymentScriptStorageAccountName string
+
+module clusterDeploymentScriptStorage '../modules/deployment-script-storage.bicep' = {
+  name: 'deployment-script-storage'
+  params: {
+    storageAccountName: clusterDeploymentScriptStorageAccountName
+    location: location
+    managedIdentityPrincipalIds: [
+      reference(globalMSIId, '2023-01-31').principalId
+    ]
+  }
+}
+
+//
 //   A K S
 //
 
@@ -346,6 +365,8 @@ module vnetCreation '../modules/network/vnet.bicep' = {
     vnetAddressPrefix: vnetAddressPrefix
     enableSwift: aksEnableSwiftVnet
     deploymentMsiId: globalMSIId
+    deploymentScriptStorageAccountName: clusterDeploymentScriptStorage.outputs.storageAccountName
+    deploymentScriptSubnetId: clusterDeploymentScriptStorage.outputs.subnetId
   }
 }
 
@@ -520,6 +541,8 @@ module genevaRPCertificate '../modules/keyvault/key-vault-cert-with-access.bicep
     hostName: genevaRpLogsName
     keyVaultCertificateName: genevaRpLogsName
     certificateAccessManagedIdentityPrincipalId: mgmtCluster.outputs.aksClusterKeyVaultSecretsProviderPrincipalId
+    deploymentScriptStorageAccountName: clusterDeploymentScriptStorage.outputs.storageAccountName
+    deploymentScriptSubnetId: clusterDeploymentScriptStorage.outputs.subnetId
   }
 }
 
@@ -533,6 +556,8 @@ module genevaClusterLogCertificate '../modules/keyvault/key-vault-cert-with-acce
     hostName: genevaClusterLogsName
     keyVaultCertificateName: genevaClusterLogsName
     certificateAccessManagedIdentityPrincipalId: mgmtCluster.outputs.aksClusterKeyVaultSecretsProviderPrincipalId
+    deploymentScriptStorageAccountName: clusterDeploymentScriptStorage.outputs.storageAccountName
+    deploymentScriptSubnetId: clusterDeploymentScriptStorage.outputs.subnetId
   }
 }
 
@@ -555,6 +580,8 @@ module maestroConsumer '../modules/maestro/maestro-consumer.bicep' = if (maestro
     keyVaultOfficerManagedIdentityName: globalMSIId
     maestroCertificateDomain: effectiveMaestroCertDomain
     maestroCertificateIssuer: maestroCertIssuer
+    deploymentScriptStorageAccountName: clusterDeploymentScriptStorage.outputs.storageAccountName
+    deploymentScriptSubnetId: clusterDeploymentScriptStorage.outputs.subnetId
   }
   dependsOn: [
     mgmtKeyVault

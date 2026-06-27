@@ -27,6 +27,7 @@ defaults:
   environmentName: "{{ .ctx.environment }}"
   region: "{{ .ctx.region }}"
   regionRG: "{{ .ctx.region }}-shared-resources"
+  deploymentScriptStorageAccountName: "arohcp{{ .ctx.environment }}ds{{ .ctx.regionShort }}" # [globally-unique]
   cloud: "{{ .ev2.cloudName }}"
   azureRegionAvailabilityZoneCount: {{ .ev2.availabilityZoneCount }}
   keyVaultDNSSuffix: "{{ .ev2.keyVault.domainNameSuffix }}"
@@ -66,6 +67,7 @@ defaults:
         'Microsoft.Support':
           poll: true
     rg: global-shared-resources
+    deploymentScriptStorageAccountName: "arohcp{{ .ctx.environment }}dsglobal" # [globally-unique]
     billing:
       rg: "placeholder"
       digest: "placeholder"
@@ -469,6 +471,7 @@ defaults:
         'Microsoft.Quota':
           poll: true
     rg: "hcp-underlay-{{ .ctx.environment }}-{{ .ctx.region }}-svc"
+    deploymentScriptStorageAccountName: "{{ .ctx.environment }}{{ .ctx.regionShort }}svcds" # [env-unique]
     nsp:
       name: nsp-{{ .ctx.regionShort }}-svc
     istio:
@@ -605,6 +608,7 @@ defaults:
         'Microsoft.Quota':
           poll: true
     rg: "hcp-underlay-{{ .ctx.environment }}-{{ .ctx.region }}-mgmt-{{ .ctx.stamp }}"
+    deploymentScriptStorageAccountName: "{{ .ctx.environment }}{{ .ctx.regionShort }}mgmt{{ .ctx.stamp }}ds" # [env-unique]
     applyKubeletFixes: true
     nsp:
       name: nsp-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}
@@ -1081,6 +1085,7 @@ defaults:
   serviceKeyVault:
     name: "arohcp{{ .ctx.environment }}-svc-{{ .ctx.regionShort }}" # [globally-unique]
     rg: "{{ .ctx.region }}-shared-resources"
+    deploymentScriptStorageAccountName: "arohcp{{ .ctx.environment }}dskv{{ .ctx.regionShort }}" # [globally-unique]
     subscription:
       key: "hcp-{{ .ctx.environment }}-svc-{{ .ctx.region }}"
       displayName: "Azure Red Hat OpenShift HCP - {{ .ev2.regionFriendlyName }} - SVC"
@@ -1233,6 +1238,7 @@ clouds:
       serviceKeyVault:
         name: 'aro-hcp-dev-svc-kv'
         rg: 'global'
+        deploymentScriptStorageAccountName: "arohcp{{ .ctx.environment }}dskvglobal" # [globally-unique] own storage in KV RG
         subscription:
           key: ARO Hosted Control Planes (EA Subscription 1)
           displayName: ARO Hosted Control Planes (EA Subscription 1)

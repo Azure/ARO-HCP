@@ -2,6 +2,7 @@ using '../templates/global-infra.bicep'
 
 param location = '{{ .global.region }}'
 param globalMSIName = '{{ .global.globalMSIName }}'
+param deploymentScriptStorageAccountName = '{{ .global.deploymentScriptStorageAccountName }}'
 param cxParentZoneName = '{{ .dns.cxParentZoneName }}'
 param svcParentZoneName = '{{ .dns.svcParentZoneName }}'
 //  SafeDnsIntApplication object ID use to delegate child DNS

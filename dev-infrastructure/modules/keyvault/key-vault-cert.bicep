@@ -17,6 +17,12 @@ var boolstring = force == false ? '$false' : '$true'
 param validityInMonths int = 12
 param renewAtPercentageLifetime int = 24
 
+@description('The name of the storage account used by deployment scripts (must have allowSharedKeyAccess=false and MI granted Storage File Data Privileged Contributor)')
+param deploymentScriptStorageAccountName string = ''
+
+@description('The subnet ID for the deployment scripts ACI container (required when using MI-auth storage)')
+param deploymentScriptSubnetId string = ''
+
 module certificateOfficerAccess 'keyvault-secret-access.bicep' = {
   name: 'kv-cert-officer-access-${keyVaultName}-${uniqueString(keyVaultManagedIdentityId, deployment().name)}'
   params: {
@@ -44,6 +50,20 @@ resource newCertwithRotationKV 'Microsoft.Resources/deploymentScripts@2023-08-01
     cleanupPreference: 'Always'
     retentionInterval: 'P1D'
     timeout: 'PT5M'
+    storageAccountSettings: !empty(deploymentScriptStorageAccountName)
+      ? {
+          storageAccountName: deploymentScriptStorageAccountName
+        }
+      : null
+    containerSettings: !empty(deploymentScriptSubnetId)
+      ? {
+          subnetIds: [
+            {
+              id: deploymentScriptSubnetId
+            }
+          ]
+        }
+      : null
   }
 }
 

@@ -28,6 +28,12 @@ param deploymentScriptLocation string
 
 param allowBlobPublicAccess bool = false
 
+@description('The name of the storage account used by deployment scripts (must have allowSharedKeyAccess=false and MI granted Storage File Data Privileged Contributor)')
+param deploymentScriptStorageAccountName string = ''
+
+@description('The subnet ID for the deployment scripts ACI container (required when using MI-auth storage)')
+param deploymentScriptSubnetId string = ''
+
 module storageAccount '../../storage/storage.bicep' = {
   name: 'oidcStorageAccount'
   params: {
@@ -50,6 +56,8 @@ module storageRbac './storage-setup.bicep' = {
     principalIds: principalIds
     deploymentMsiId: deploymentMsiId
     deploymentScriptLocation: deploymentScriptLocation
+    deploymentScriptStorageAccountName: deploymentScriptStorageAccountName
+    deploymentScriptSubnetId: deploymentScriptSubnetId
   }
   dependsOn: [
     storageAccount

@@ -1,6 +1,7 @@
 using '../templates/geneva-identities.bicep'
 
 param ev2MsiName = '{{ .global.globalMSIName }}'
+param deploymentScriptStorageAccountName = '{{ .global.deploymentScriptStorageAccountName }}'
 
 param globalKeyVaultName = '{{ .global.keyVault.name }}'
 param genevaLogCertificateDomain = '{{ .geneva.logs.adminCertificateDomain }}'

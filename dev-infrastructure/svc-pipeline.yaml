@@ -70,6 +70,26 @@ resourceGroups:
     parameters: configurations/subscription-lookup.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     outputOnly: true
+  - name: ds-infra
+    action: ARM
+    template: templates/deployment-script-storage.bicep
+    parameters: configurations/svc-kv-ds.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    variables:
+    - name: globalMSIId
+      input:
+        resourceGroup: global
+        step: output
+        name: globalMSIId
+  - name: ds-output
+    action: ARM
+    template: templates/deployment-script-storage-lookup.bicep
+    parameters: configurations/svc-kv-ds-lookup.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
+    dependsOn:
+    - resourceGroup: svcKV
+      step: ds-infra
 - name: kusto
   resourceGroup: '{{ .kusto.rg }}'
   subscription: '{{ .global.subscription.key }}'
@@ -170,6 +190,16 @@ resourceGroups:
         resourceGroup: global
         step: output
         name: globalMSIId
+    - name: globalDeploymentScriptStorageAccountName
+      input:
+        resourceGroup: svcKV
+        step: ds-output
+        name: deploymentScriptStorageAccountName
+    - name: globalDeploymentScriptSubnetId
+      input:
+        resourceGroup: svcKV
+        step: ds-output
+        name: deploymentScriptSubnetId
     - name: ocpAcrResourceId
       input:
         resourceGroup: global
@@ -205,6 +235,16 @@ resourceGroups:
         resourceGroup: svcKV
         step: output
         name: subscriptionId
+    - name: deploymentScriptStorageAccountName
+      input:
+        resourceGroup: regional
+        step: output
+        name: deploymentScriptStorageAccountName
+    - name: deploymentScriptSubnetId
+      input:
+        resourceGroup: regional
+        step: output
+        name: deploymentScriptSubnetId
     dependsOn:
     - resourceGroup: service
       step: oncert-private-kv-issuer

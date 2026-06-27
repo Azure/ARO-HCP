@@ -71,6 +71,12 @@ param ocpAcrResourceId string
 @description('The resource ID of the managed identity used to manage the Postgres server')
 param postgresAdministrationManagedIdentityId string
 
+@description('The name of the storage account used by deployment scripts (must have allowSharedKeyAccess=false and MI granted Storage File Data Privileged Contributor)')
+param deploymentScriptStorageAccountName string = ''
+
+@description('The subnet ID for the deployment scripts ACI container (required when using MI-auth storage)')
+param deploymentScriptSubnetId string = ''
+
 @description('The zone redundant mode of the Postgres Database')
 param postgresZoneRedundantMode string
 
@@ -171,6 +177,8 @@ module csManagedIdentityDatabaseAccess 'postgres/postgres-access.bicep' = if (de
     databaseName: csDatabaseName
     newUserName: clusterServiceManagedIdentityName
     newUserPrincipalId: clusterServiceManagedIdentityPrincipalId
+    deploymentScriptStorageAccountName: deploymentScriptStorageAccountName
+    deploymentScriptSubnetId: deploymentScriptSubnetId
   }
   dependsOn: [
     csPostgres

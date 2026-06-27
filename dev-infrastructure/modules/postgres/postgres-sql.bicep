@@ -16,6 +16,12 @@ param sqlScript string
 
 param forceUpdateTag string = guid('${sqlScript}/${postgresServerName}/${databaseName}/${postgresAdministrationManagedIdentityId}')
 
+@description('The name of the storage account used by deployment scripts (must have allowSharedKeyAccess=false and MI granted Storage File Data Privileged Contributor)')
+param deploymentScriptStorageAccountName string = ''
+
+@description('The subnet ID for the deployment scripts ACI container (required when using MI-auth storage)')
+param deploymentScriptSubnetId string = ''
+
 import * as res from '../resource.bicep'
 
 resource deploymentScript 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
@@ -60,5 +66,19 @@ resource deploymentScript 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
       }
     ]
     timeout: 'PT30M'
+    storageAccountSettings: !empty(deploymentScriptStorageAccountName)
+      ? {
+          storageAccountName: deploymentScriptStorageAccountName
+        }
+      : null
+    containerSettings: !empty(deploymentScriptSubnetId)
+      ? {
+          subnetIds: [
+            {
+              id: deploymentScriptSubnetId
+            }
+          ]
+        }
+      : null
   }
 }

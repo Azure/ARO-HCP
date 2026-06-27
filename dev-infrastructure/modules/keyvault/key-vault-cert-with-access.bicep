@@ -31,6 +31,12 @@ param certificateIssuer string
 @description('Grant this managed identity access to the certificate in Key Vault.')
 param certificateAccessManagedIdentityPrincipalId string
 
+@description('The name of the storage account used by deployment scripts (must have allowSharedKeyAccess=false and MI granted Storage File Data Privileged Contributor)')
+param deploymentScriptStorageAccountName string = ''
+
+@description('The subnet ID for the deployment scripts ACI container (required when using MI-auth storage)')
+param deploymentScriptSubnetId string = ''
+
 //
 //   C E R T I F I C A T E   C R E A T I O N
 //
@@ -50,6 +56,8 @@ module clientCertificate 'key-vault-cert.bicep' = {
       fqdn
     ]
     issuerName: certificateIssuer
+    deploymentScriptStorageAccountName: deploymentScriptStorageAccountName
+    deploymentScriptSubnetId: deploymentScriptSubnetId
   }
 }
 

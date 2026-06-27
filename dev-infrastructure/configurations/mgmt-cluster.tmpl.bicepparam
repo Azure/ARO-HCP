@@ -106,3 +106,6 @@ param hcpBackupsStorageAccountName = '{{ .mgmt.hcpBackups.storageAccount.name }}
 // Audit Logs Event Hub
 param auditLogsEventHubName = '{{ .auditLogsEventHub.name }}'
 param auditLogsEventHubAuthRuleId = '__auditLogsEventHubAuthRuleId__'
+
+// Deployment script storage for scripts running in this cluster's own RG
+param clusterDeploymentScriptStorageAccountName = '{{ .mgmt.deploymentScriptStorageAccountName }}'

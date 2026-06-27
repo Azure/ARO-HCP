@@ -6,6 +6,9 @@ param location string
 @description('The global msi name')
 param globalMSIName string
 
+@description('The name of the storage account for deployment scripts')
+param deploymentScriptStorageAccountName string
+
 @description('Name of the keyvault where the pull secret is stored')
 param keyVaultName string
 
@@ -107,6 +110,23 @@ param genevaActionsPrincipalId string
 resource globalMSI 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
   name: globalMSIName
   location: location
+}
+
+//
+//   D E P L O Y M E N T   S C R I P T   S T O R A G E
+//
+
+// Storage account used by deployment scripts to avoid auto-created storage accounts
+// that use shared key auth (which is blocked by policy in some regions).
+module deploymentScriptStorage '../modules/deployment-script-storage.bicep' = {
+  name: 'deployment-script-storage'
+  params: {
+    storageAccountName: deploymentScriptStorageAccountName
+    location: location
+    managedIdentityPrincipalIds: [
+      globalMSI.properties.principalId
+    ]
+  }
 }
 
 //   G L O B A L    K V
@@ -328,6 +348,8 @@ module grafanaWorkspaceIdLookup '../modules/grafana/integration-lookup.bicep' = 
     location: location
     grafanaName: grafanaName
     deploymentScriptIdentityId: globalMSI.id
+    deploymentScriptStorageAccountName: deploymentScriptStorage.outputs.storageAccountName
+    deploymentScriptSubnetId: deploymentScriptStorage.outputs.subnetId
   }
 }
 

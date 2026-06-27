@@ -16,6 +16,12 @@ param keyVaultOfficerManagedIdentityName string
 param maestroCertificateDomain string
 param maestroCertificateIssuer string
 
+@description('The name of the storage account used by deployment scripts (must have allowSharedKeyAccess=false and MI granted Storage File Data Privileged Contributor)')
+param deploymentScriptStorageAccountName string = ''
+
+@description('The subnet ID for the deployment scripts ACI container (required when using MI-auth storage)')
+param deploymentScriptSubnetId string = ''
+
 module eventGridClientCert '../keyvault/key-vault-cert-with-access.bicep' = {
   name: 'maestro-eg-crt-${uniqueString(maestroConsumerName)}'
   params: {
@@ -26,6 +32,8 @@ module eventGridClientCert '../keyvault/key-vault-cert-with-access.bicep' = {
     hostName: maestroConsumerName
     keyVaultCertificateName: maestroConsumerName
     certificateAccessManagedIdentityPrincipalId: maestroAgentManagedIdentityPrincipalId
+    deploymentScriptStorageAccountName: deploymentScriptStorageAccountName
+    deploymentScriptSubnetId: deploymentScriptSubnetId
   }
 }
 

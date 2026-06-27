@@ -57,6 +57,9 @@ param amwMaxActiveTimeSeriesMillions int = 2
 @description('Maximum events per minute limit for Azure Monitor Workspaces in millions (2M initial, bump when hitting 50% utilization)')
 param amwMaxEventsPerMinuteMillions int = 2
 
+@description('The name of the storage account for deployment scripts')
+param deploymentScriptStorageAccountName string
+
 import { determineZoneRedundancyForRegion } from '../modules/common.bicep'
 import * as res from '../modules/resource.bicep'
 
@@ -194,4 +197,19 @@ module hcpMonitorIngestionLimits '../modules/metrics/amw-ingestion-limits.bicep'
     maxEventsPerMinuteMillions: amwMaxEventsPerMinuteMillions
   }
   dependsOn: [hcpMonitor]
+}
+
+//
+//   D E P L O Y M E N T   S C R I P T   S T O R A G E
+//
+
+module deploymentScriptStorage '../modules/deployment-script-storage.bicep' = {
+  name: 'deployment-script-storage'
+  params: {
+    storageAccountName: deploymentScriptStorageAccountName
+    location: location
+    managedIdentityPrincipalIds: [
+      reference(globalMSIId, '2023-01-31').principalId
+    ]
+  }
 }

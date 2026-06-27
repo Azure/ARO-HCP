@@ -18,6 +18,12 @@ param newUserName string
 @description('The name of the database, the new new user will be granted access to')
 param databaseName string
 
+@description('The name of the storage account used by deployment scripts (must have allowSharedKeyAccess=false and MI granted Storage File Data Privileged Contributor)')
+param deploymentScriptStorageAccountName string = ''
+
+@description('The subnet ID for the deployment scripts ACI container (required when using MI-auth storage)')
+param deploymentScriptSubnetId string = ''
+
 resource postgres 'Microsoft.DBforPostgreSQL/flexibleServers@2023-03-01-preview' existing = {
   name: postgresServerName
 }
@@ -50,5 +56,7 @@ module managedIdentityDatabaseAccess 'postgres-sql.bicep' = {
     databaseName: 'postgres' // access configuration is managed in the postgres DB
     postgresAdministrationManagedIdentityId: postgresAdministrationManagedIdentityId
     sqlScript: string(join(sqlScriptLines, '\n'))
+    deploymentScriptStorageAccountName: deploymentScriptStorageAccountName
+    deploymentScriptSubnetId: deploymentScriptSubnetId
   }
 }

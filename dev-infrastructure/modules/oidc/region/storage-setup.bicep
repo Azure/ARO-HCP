@@ -10,6 +10,12 @@ param deploymentMsiId string
 @description('Location where deployment script will run')
 param deploymentScriptLocation string
 
+@description('The name of the storage account used by deployment scripts (must have allowSharedKeyAccess=false and MI granted Storage File Data Privileged Contributor)')
+param deploymentScriptStorageAccountName string = ''
+
+@description('The subnet ID for the deployment scripts ACI container (required when using MI-auth storage)')
+param deploymentScriptSubnetId string = ''
+
 // Storage Account Contributor: Lets you manage storage accounts, including accessing storage account keys which provide full access to storage account data.
 // https://learn.microsoft.com/en-us/azure/role-based-access-control/built-in-roles/storage#storage-account-contributor
 var storageAccountContributorRole = '17d1049b-9a84-46fb-8f53-869881c3d3ab'
@@ -66,6 +72,20 @@ resource deploymentScript 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
         value: accountName
       }
     ]
+    storageAccountSettings: !empty(deploymentScriptStorageAccountName)
+      ? {
+          storageAccountName: deploymentScriptStorageAccountName
+        }
+      : null
+    containerSettings: !empty(deploymentScriptSubnetId)
+      ? {
+          subnetIds: [
+            {
+              id: deploymentScriptSubnetId
+            }
+          ]
+        }
+      : null
   }
   dependsOn: [
     storageAccountContributor

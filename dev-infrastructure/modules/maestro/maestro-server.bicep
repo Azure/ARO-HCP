@@ -85,6 +85,18 @@ param postgresEnhancedMetricsEnabled bool
 @description('The regional resource group')
 param regionalResourceGroup string
 
+@description('The name of the storage account used by deployment scripts in the regional RG (for postgres)')
+param deploymentScriptStorageAccountName string = ''
+
+@description('The subnet ID for deployment scripts ACI container in the regional RG (for postgres)')
+param deploymentScriptSubnetId string = ''
+
+@description('The name of the storage account used by deployment scripts in the cert KV RG (for cert creation)')
+param certDeploymentScriptStorageAccountName string = ''
+
+@description('The subnet ID for deployment scripts ACI container in the cert KV RG (for cert creation)')
+param certDeploymentScriptSubnetId string = ''
+
 //
 //   P O S T G R E S
 //
@@ -169,6 +181,8 @@ module maestroManagedIdentityDatabaseAccess '../postgres/postgres-access.bicep' 
     databaseName: maestroDatabaseName
     newUserName: maestroServerManagedIdentityName
     newUserPrincipalId: maestroServerManagedIdentityPrincipalId
+    deploymentScriptStorageAccountName: deploymentScriptStorageAccountName
+    deploymentScriptSubnetId: deploymentScriptSubnetId
   }
   dependsOn: [
     maestroPostgres
@@ -190,6 +204,8 @@ module eventGridClientCert '../keyvault/key-vault-cert-with-access.bicep' = {
     hostName: mqttClientName
     keyVaultCertificateName: mqttClientName
     certificateAccessManagedIdentityPrincipalId: maestroServerManagedIdentityPrincipalId
+    deploymentScriptStorageAccountName: certDeploymentScriptStorageAccountName
+    deploymentScriptSubnetId: certDeploymentScriptSubnetId
   }
 }
 

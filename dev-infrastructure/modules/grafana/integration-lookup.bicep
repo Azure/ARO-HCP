@@ -9,6 +9,12 @@ param location string
 
 param _now string = utcNow('F')
 
+@description('The name of the storage account used by deployment scripts (must have allowSharedKeyAccess=false and MI granted Storage File Data Privileged Contributor)')
+param deploymentScriptStorageAccountName string = ''
+
+@description('The subnet ID for the deployment scripts ACI container (required when using MI-auth storage)')
+param deploymentScriptSubnetId string = ''
+
 // Azure Managed Grafana Workspace Contributor: Can manage Azure Managed Grafana resources, without providing access to the workspaces themselves.
 // https://learn.microsoft.com/en-us/azure/role-based-access-control/built-in-roles/monitor#azure-managed-grafana-workspace-contributor
 var grafanaContributor = '5c2d7e57-b7c2-4d8a-be4f-82afa42c6e95'
@@ -23,7 +29,7 @@ resource contributorRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = 
   }
 }
 
-resource grafanaIntegrationsLookup 'Microsoft.Resources/deploymentScripts@2020-10-01' = {
+resource grafanaIntegrationsLookup 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
   name: 'grafana-workspace-lookup-script'
   location: location
   identity: {
@@ -41,6 +47,20 @@ resource grafanaIntegrationsLookup 'Microsoft.Resources/deploymentScripts@2020-1
     scriptContent: loadTextContent('grafanaIntegrationsLookup.ps1')
     arguments: '-grafanaResourceGroup ${resourceGroup().name} -grafanaName ${grafanaName}'
     forceUpdateTag: _now
+    storageAccountSettings: !empty(deploymentScriptStorageAccountName)
+      ? {
+          storageAccountName: deploymentScriptStorageAccountName
+        }
+      : null
+    containerSettings: !empty(deploymentScriptSubnetId)
+      ? {
+          subnetIds: [
+            {
+              id: deploymentScriptSubnetId
+            }
+          ]
+        }
+      : null
   }
   dependsOn: [
     contributorRole

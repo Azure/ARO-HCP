@@ -2305,9 +2305,14 @@
             "subscriptionKey": {
               "type": "string"
             },
-            "rg": {
-              "$ref": "#/definitions/resourceGroupName"
-            },
+        "rg": {
+          "$ref": "#/definitions/resourceGroupName"
+        },
+        "deploymentScriptStorageAccountName": {
+          "type": "string",
+          "pattern": "^[a-z0-9]{3,24}$",
+          "description": "The name of the storage account used by deployment scripts in the service KV resource group."
+        },
             "digest": {
               "type": "string"
             }
@@ -2327,6 +2332,11 @@
         "globalMSIName": {
           "type": "string",
           "description": "The name of the MSI that will be used for deployments."
+        },
+        "deploymentScriptStorageAccountName": {
+          "type": "string",
+          "pattern": "^[a-z0-9]{3,24}$",
+          "description": "The name of the storage account used by deployment scripts in the global resource group."
         },
         "contributorRoleId": {
           "type": "string",
@@ -2782,6 +2792,11 @@
         "rg": {
           "$ref": "#/definitions/resourceGroupName"
         },
+        "deploymentScriptStorageAccountName": {
+          "type": "string",
+          "pattern": "^[a-z0-9]{3,24}$",
+          "description": "The name of the storage account used by deployment scripts in the MGMT cluster resource group."
+        },
         "stamps": {
           "type": "object",
           "description": "Management cluster stamp configuration",
@@ -3123,6 +3138,11 @@
     "regionRG": {
       "$ref": "#/definitions/resourceGroupName"
     },
+    "deploymentScriptStorageAccountName": {
+      "type": "string",
+      "pattern": "^[a-z0-9]{3,24}$",
+      "description": "The name of the storage account used by deployment scripts in the regional resource group."
+    },
     "serviceKeyVault": {
       "type": "object",
       "properties": {
@@ -3152,6 +3172,11 @@
         },
         "tagValue": {
           "type": "string"
+        },
+        "deploymentScriptStorageAccountName": {
+          "type": "string",
+          "pattern": "^[a-z0-9]{3,24}$",
+          "description": "The name of the storage account used by deployment scripts in the service KV resource group."
         }
       },
       "additionalProperties": false,
@@ -3174,6 +3199,11 @@
         },
         "rg": {
           "$ref": "#/definitions/resourceGroupName"
+        },
+        "deploymentScriptStorageAccountName": {
+          "type": "string",
+          "pattern": "^[a-z0-9]{3,24}$",
+          "description": "The name of the storage account used by deployment scripts in the SVC cluster resource group."
         },
         "subscription": {
           "$ref": "#/definitions/subscriptionMetadata"
@@ -3476,6 +3506,7 @@
     "oidc",
     "region",
     "regionRG",
+    "deploymentScriptStorageAccountName",
     "serviceKeyVault",
     "sessiongate",
     "svc",

@@ -49,3 +49,24 @@ resource rpCosmosDbAccount 'Microsoft.DocumentDB/databaseAccounts@2023-11-15' ex
 
 output rpCosmosDbAccountId string = rpCosmosDbAccount.id
 output cosmosDBDocumentEndpoint string = rpCosmosDbAccount.properties.documentEndpoint
+
+//
+//  D E P L O Y M E N T   S C R I P T   S T O R A G E
+//
+
+@description('The name of the storage account for deployment scripts')
+param deploymentScriptStorageAccountName string
+
+@description('The name of the VNet for deployment scripts')
+param deploymentScriptVnetName string
+
+resource deploymentScriptVnet 'Microsoft.Network/virtualNetworks@2024-05-01' existing = {
+  name: deploymentScriptVnetName
+
+  resource subnet 'subnets' existing = {
+    name: 'deployment-scripts'
+  }
+}
+
+output deploymentScriptStorageAccountName string = deploymentScriptStorageAccountName
+output deploymentScriptSubnetId string = deploymentScriptVnet::subnet.id

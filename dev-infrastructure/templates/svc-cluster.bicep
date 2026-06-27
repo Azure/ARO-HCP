@@ -543,6 +543,39 @@ module managedIdentities '../modules/managed-identities.bicep' = {
 }
 
 //
+//   D E P L O Y M E N T   S C R I P T   S T O R A G E
+//
+
+// Regional storage account for deployment scripts running in the regional RG
+@description('The name of the regional storage account used by deployment scripts')
+param deploymentScriptStorageAccountName string = ''
+
+@description('The regional subnet ID for deployment scripts ACI containers')
+param deploymentScriptSubnetId string = ''
+
+// Global storage account for deployment scripts running cross-RG (service KV RG)
+@description('The name of the global storage account used by deployment scripts in the service KV RG')
+param globalDeploymentScriptStorageAccountName string = ''
+
+@description('The global subnet ID for deployment scripts ACI containers in the service KV RG')
+param globalDeploymentScriptSubnetId string = ''
+
+// Local storage account for deployment scripts running in this cluster's own RG
+@description('The name of the storage account for deployment scripts in this cluster RG')
+param clusterDeploymentScriptStorageAccountName string
+
+module clusterDeploymentScriptStorage '../modules/deployment-script-storage.bicep' = {
+  name: 'deployment-script-storage'
+  params: {
+    storageAccountName: clusterDeploymentScriptStorageAccountName
+    location: location
+    managedIdentityPrincipalIds: [
+      reference(globalMSIId, '2023-01-31').principalId
+    ]
+  }
+}
+
+//
 //   A K S
 //
 
@@ -632,6 +665,8 @@ module vnetCreation '../modules/network/vnet.bicep' = {
     vnetAddressPrefix: vnetAddressPrefix
     enableSwift: false
     deploymentMsiId: globalMSIId
+    deploymentScriptStorageAccountName: clusterDeploymentScriptStorage.outputs.storageAccountName
+    deploymentScriptSubnetId: clusterDeploymentScriptStorage.outputs.subnetId
   }
 }
 
@@ -791,6 +826,16 @@ resource validateMIPropagation 'Microsoft.Resources/deploymentScripts@2023-08-01
     arguments: '${frontendMI.uamiPrincipalID} ${backendMI.uamiPrincipalID} ${adminApiMI.uamiPrincipalID} ${fleetMI.uamiPrincipalID}'
     scriptContent: loadTextContent('../scripts/validate-mi-aad-propagation.sh')
     cleanupPreference: 'OnSuccess'
+    storageAccountSettings: {
+      storageAccountName: clusterDeploymentScriptStorage.outputs.storageAccountName
+    }
+    containerSettings: {
+      subnetIds: [
+        {
+          id: clusterDeploymentScriptStorage.outputs.subnetId
+        }
+      ]
+    }
   }
   dependsOn: [
     managedIdentities
@@ -870,6 +915,10 @@ module maestroServer '../modules/maestro/maestro-server.bicep' = {
       maestroMIName
     ).uamiPrincipalID
     maestroServerManagedIdentityName: maestroMIName
+    deploymentScriptStorageAccountName: deploymentScriptStorageAccountName
+    deploymentScriptSubnetId: deploymentScriptSubnetId
+    certDeploymentScriptStorageAccountName: globalDeploymentScriptStorageAccountName
+    certDeploymentScriptSubnetId: globalDeploymentScriptSubnetId
   }
   dependsOn: [
     serviceKeyVault
@@ -910,6 +959,8 @@ module cs '../modules/cluster-service.bicep' = {
     regionalResourceGroup: regionalResourceGroup
     ocpAcrResourceId: ocpAcrResourceId
     postgresAdministrationManagedIdentityId: globalMSIId
+    deploymentScriptStorageAccountName: deploymentScriptStorageAccountName
+    deploymentScriptSubnetId: deploymentScriptSubnetId
   }
   dependsOn: csPostgresDeploy && deployMaestroPostgres ? [maestroServer] : []
 }
@@ -999,6 +1050,8 @@ module oidc '../modules/oidc/region/main.bicep' = {
     deploymentScriptLocation: location
     storageAccountBlobPublicAccess: oidcStorageAccountPublic
     frontDoorManage: azureFrontDoorManage
+    deploymentScriptStorageAccountName: deploymentScriptStorageAccountName
+    deploymentScriptSubnetId: deploymentScriptSubnetId
   }
 }
 
@@ -1043,6 +1096,8 @@ module frontendIngressCert '../modules/keyvault/key-vault-cert.bicep' = {
       frontendDnsFQDN
     ]
     issuerName: frontendIngressCertIssuer
+    deploymentScriptStorageAccountName: globalDeploymentScriptStorageAccountName
+    deploymentScriptSubnetId: globalDeploymentScriptSubnetId
   }
 }
 
@@ -1087,6 +1142,8 @@ module adminApiCert '../modules/keyvault/key-vault-cert.bicep' = {
       adminApiDnsFQDN
     ]
     issuerName: adminApiIngressCertIssuer
+    deploymentScriptStorageAccountName: globalDeploymentScriptStorageAccountName
+    deploymentScriptSubnetId: globalDeploymentScriptSubnetId
   }
 }
 
@@ -1131,6 +1188,8 @@ module sessiongateCert '../modules/keyvault/key-vault-cert.bicep' = {
       sessiongateDnsFQDN
     ]
     issuerName: sessiongateIngressCertIssuer
+    deploymentScriptStorageAccountName: globalDeploymentScriptStorageAccountName
+    deploymentScriptSubnetId: globalDeploymentScriptSubnetId
   }
 }
 
@@ -1174,6 +1233,8 @@ module fpaCertificate '../modules/keyvault/key-vault-cert.bicep' = if (manageFpa
       fpaCertificateSNI
     ]
     issuerName: fpaCertificateIssuer
+    deploymentScriptStorageAccountName: globalDeploymentScriptStorageAccountName
+    deploymentScriptSubnetId: globalDeploymentScriptSubnetId
   }
 }
 
@@ -1192,6 +1253,8 @@ module genevaRPCertificate '../modules/keyvault/key-vault-cert-with-access.bicep
     hostName: genevaRpLogsName
     keyVaultCertificateName: genevaRpLogsName
     certificateAccessManagedIdentityPrincipalId: svcCluster.outputs.aksClusterKeyVaultSecretsProviderPrincipalId
+    deploymentScriptStorageAccountName: globalDeploymentScriptStorageAccountName
+    deploymentScriptSubnetId: globalDeploymentScriptSubnetId
   }
 }
 

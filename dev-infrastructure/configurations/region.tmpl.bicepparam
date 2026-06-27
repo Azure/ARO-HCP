@@ -26,3 +26,6 @@ param hcpMonitorName = '{{ .monitoring.hcpWorkspaceName }}'
 param grafanaResourceId = '__grafanaResourceId__'
 param amwMaxActiveTimeSeriesMillions = {{ .monitoring.maxActiveTimeSeriesMillions }}
 param amwMaxEventsPerMinuteMillions = {{ .monitoring.maxEventsPerMinuteMillions }}
+
+// Deployment script storage
+param deploymentScriptStorageAccountName = '{{ .deploymentScriptStorageAccountName }}'

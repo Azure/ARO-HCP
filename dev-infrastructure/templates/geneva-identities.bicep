@@ -5,6 +5,9 @@ import {
 param globalKeyVaultName string
 param ev2MsiName string
 
+@description('The name of the storage account for deployment scripts')
+param deploymentScriptStorageAccountName string
+
 // genva logs certificate
 param genevaLogCertificateDomain string
 param genevaLogCertificateHostName string
@@ -27,6 +30,21 @@ resource ev2MSI 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' ex
   name: ev2MsiName
 }
 
+//
+//   D E P L O Y M E N T   S C R I P T   S T O R A G E
+//
+
+module deploymentScriptStorage '../modules/deployment-script-storage.bicep' = {
+  name: 'deployment-script-storage'
+  params: {
+    storageAccountName: deploymentScriptStorageAccountName
+    location: resourceGroup().location
+    managedIdentityPrincipalIds: [
+      ev2MSI.properties.principalId
+    ]
+  }
+}
+
 //   G E N E V A    L O G S   C E R T I F I C A T E
 
 module genevaRPCertificate '../modules/keyvault/key-vault-cert-with-access.bicep' = if (genevaLogManageCertificates) {
@@ -39,6 +57,8 @@ module genevaRPCertificate '../modules/keyvault/key-vault-cert-with-access.bicep
     hostName: genevaLogCertificateHostName
     keyVaultCertificateName: genevaLogsAccountAdmin
     certificateAccessManagedIdentityPrincipalId: ev2MSI.properties.principalId
+    deploymentScriptStorageAccountName: deploymentScriptStorage.outputs.storageAccountName
+    deploymentScriptSubnetId: deploymentScriptStorage.outputs.subnetId
   }
 }
 
@@ -55,6 +75,8 @@ module genevaCertificate '../modules/keyvault/key-vault-cert.bicep' = if (geneva
       genevaActionsCertificateDomain
     ]
     issuerName: genevaActionsCertificateIssuer
+    deploymentScriptStorageAccountName: deploymentScriptStorage.outputs.storageAccountName
+    deploymentScriptSubnetId: deploymentScriptStorage.outputs.subnetId
   }
 }
 

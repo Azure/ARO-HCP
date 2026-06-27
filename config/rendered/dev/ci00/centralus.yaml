@@ -227,6 +227,7 @@ cxKeyVault:
   softDelete: false
   tagKey: aroHCPPurpose
   tagValue: cx
+deploymentScriptStorageAccountName: arohcpci00dsj7654321
 dns:
   baseDnsZoneRG: global
   cxParentZoneName: hcp.osadev.cloud
@@ -374,6 +375,7 @@ global:
     digest: placeholder
     rg: placeholder
     subscriptionKey: hcp-billng-ci00
+  deploymentScriptStorageAccountName: arohcpci00dsglobal
   globalMSIName: global-rollout-identity
   groupQuota:
     displayName: empty-sentinel
@@ -631,6 +633,7 @@ mgmt:
     vnetAddressPrefix: 10.128.0.0/14
   applyKubeletFixes: false
   defaultStorageClassSkuName: PremiumV2_LRS
+  deploymentScriptStorageAccountName: ci00j7654321mgmt1ds
   hcpBackups:
     storageAccount:
       name: oadpci00j76543211
@@ -883,6 +886,7 @@ secretSyncController:
     repository: oss/v2/azure/secrets-store/provider-azure
 serviceKeyVault:
   assignNSP: false
+  deploymentScriptStorageAccountName: arohcpci00dskvglobal
   name: aro-hcp-dev-svc-kv
   private: false
   region: westus3
@@ -961,6 +965,7 @@ svc:
       zoneRedundantMode: Auto
       zones: ""
     vnetAddressPrefix: 10.128.0.0/14
+  deploymentScriptStorageAccountName: ci00j7654321svcds
   istio:
     ingressGatewayIPAddressIPTags: ""
     ingressGatewayIPAddressName: aro-hcp-istio-ingress
