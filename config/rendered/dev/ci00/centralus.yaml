@@ -545,7 +545,7 @@ maestro:
     name: arohcp-ci00-maestro-j7654321
     private: false
   image:
-    digest: sha256:1568fda504ca91a9cfee998067174ebd46f5ac2603a8663ebefbac94d6483a85
+    digest: sha256:784f3670c04a303b0c0fbd98048bc3e941c03b65122c53b0e0da58abcdec65b3
     registry: quay.io
     repository: redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro
   postgres:
@@ -569,7 +569,7 @@ maestro:
   server:
     k8s:
       namespace: maestro
-      replicas: 1
+      replicas: 2
       resources:
         limits:
           memory: unlimited

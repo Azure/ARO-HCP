@@ -77,3 +77,42 @@ spec:
         description: 'Maestro spec controller reconcile error rate is above 10% for the last 10 minutes. Resources may not be reaching management clusters. Current value: {{ $value | humanizePercentage }}.'
         runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/maestro/index.html'
         summary: 'Maestro spec controller reconcile error rate is high'
+    - alert: MaestroServerNoReadyReplicas
+      # Fires when no maestro-server replicas are Ready. The readiness
+      # probe is gated on Postgres connectivity (/healthcheck runs an
+      # instance-row SELECT), while liveness uses the process-only
+      # /livez probe and no longer restarts the pod on DB errors. A
+      # sustained zero-Ready count therefore means maestro cannot reach
+      # its database: Clusters Service receives 503 and HCP provisioning
+      # stalls. This is the AROSLSRE-1170 outage condition.
+      expr: |
+        kube_deployment_status_replicas_available{namespace="maestro", deployment="maestro"} == 0
+        and
+        kube_deployment_spec_replicas{namespace="maestro", deployment="maestro"} > 0
+      for: 5m
+      labels:
+        severity: critical
+      annotations:
+        description: 'No maestro-server replicas have been Ready for 5 minutes. Readiness is gated on Postgres connectivity, so maestro is likely unable to reach its database; Clusters Service will get 503 and HCP cluster provisioning will stall.'
+        runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/maestro/index.html'
+        summary: 'No maestro-server replicas are Ready'
+    - alert: MaestroServerReplicaNotReady
+      # Fires when at least one (but not all) maestro-server replicas
+      # are not Ready for a sustained period. Because liveness now uses
+      # the process-only /livez probe, a replica that cannot reach
+      # Postgres stays Running but NotReady (removed from Service
+      # endpoints by readiness) instead of crash-looping, so this is the
+      # primary early signal of degraded database connectivity. The
+      # window is long enough to ignore normal rollouts.
+      expr: |
+        kube_deployment_status_replicas_available{namespace="maestro", deployment="maestro"} > 0
+        and
+        kube_deployment_status_replicas_available{namespace="maestro", deployment="maestro"}
+          < kube_deployment_spec_replicas{namespace="maestro", deployment="maestro"}
+      for: 15m
+      labels:
+        severity: warning
+      annotations:
+        description: 'At least one maestro-server replica has been NotReady for 15 minutes (available {{ $value }} below desired). Readiness is gated on Postgres connectivity, so a persistently NotReady replica usually indicates database connectivity problems.'
+        runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/maestro/index.html'
+        summary: 'A maestro-server replica is not Ready'
