@@ -1,11 +1,11 @@
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
-  name: aro-hcp-frontend
+  name: mgmt-agent
   namespace: {{ .Release.Namespace }}
 spec:
   minAvailable: 1
   unhealthyPodEvictionPolicy: AlwaysAllow
   selector:
     matchLabels:
-      app: aro-hcp-frontend
+      app.kubernetes.io/name: mgmt-agent

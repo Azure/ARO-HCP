@@ -1,11 +1,11 @@
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
-  name: aro-hcp-frontend
+  name: aro-hcp-backend
   namespace: {{ .Release.Namespace }}
 spec:
   minAvailable: 1
   unhealthyPodEvictionPolicy: AlwaysAllow
   selector:
     matchLabels:
-      app: aro-hcp-frontend
+      app: aro-hcp-backend

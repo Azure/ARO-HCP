@@ -213,7 +213,7 @@ defaults:
     cosmosContainerMaxScale: 8000
     managedIdentityName: kube-applier
     k8s:
-      replicas: 1
+      replicas: 2
       namespace: kube-applier
       serviceAccountName: kube-applier
       resources:

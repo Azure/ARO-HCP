@@ -469,7 +469,7 @@ kubeApplier:
     repository: kube-applier
   k8s:
     namespace: kube-applier
-    replicas: 1
+    replicas: 2
     resources:
       limits:
         memory: unlimited

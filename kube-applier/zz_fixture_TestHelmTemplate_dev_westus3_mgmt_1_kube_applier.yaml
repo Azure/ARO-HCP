@@ -1,4 +1,17 @@
 ---
+# Source: kube-applier/templates/kube-applier.poddisruptionbudget.yaml
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: kube-applier
+  namespace: kube-applier
+spec:
+  minAvailable: 1
+  unhealthyPodEvictionPolicy: AlwaysAllow
+  selector:
+    matchLabels:
+      app: kube-applier
+---
 # Source: kube-applier/templates/serviceaccount.yaml
 apiVersion: v1
 kind: ServiceAccount
@@ -178,7 +191,7 @@ metadata:
   namespace: 'kube-applier'
 spec:
   progressDeadlineSeconds: 600
-  replicas: 1
+  replicas: 2
   revisionHistoryLimit: 10
   selector:
     matchLabels:
