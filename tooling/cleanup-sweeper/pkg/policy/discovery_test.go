@@ -27,6 +27,7 @@ func TestSelectsResourceGroup_IntendedLegacyPolicyBehavior(t *testing.T) {
 	t.Parallel()
 
 	now := time.Date(2026, time.March, 16, 15, 0, 0, 0, time.UTC)
+
 	pol := &RGDiscoveryPolicy{
 		Rules: []RGDiscoveryRule{
 			{
@@ -34,7 +35,7 @@ func TestSelectsResourceGroup_IntendedLegacyPolicyBehavior(t *testing.T) {
 				Action: RGDiscoveryActionSkip,
 				Match:  RGDiscoveryMatch{Any: true},
 				Conditions: RGDiscoveryConditions{
-					ManagedBySet: boolPtr(true),
+					ManagedByAlive: boolPtr(true),
 				},
 			},
 			{
@@ -76,17 +77,24 @@ func TestSelectsResourceGroup_IntendedLegacyPolicyBehavior(t *testing.T) {
 		name           string
 		rg             *armresources.ResourceGroup
 		excluded       sets.Set[string]
+		knownRGs       sets.Set[string]
 		expectSelected bool
 	}{
 		{
-			name: "managed RG is always skipped",
-			rg: newResourceGroup(
+			name: "managed RG with alive target is always skipped",
+			rg: newResourceGroupWithManagedBy(
 				"hcp-underlay-pers-usw3rvaz",
-				timePtr(now.Add(-20*24*time.Hour)),
-				map[string]string{"persist": "false"},
-				true,
+				"/subscriptions/sub/resourceGroups/hcp-underlay-pers-usw3parent/providers/Microsoft.ContainerService/managedClusters/aks1",
 			),
-			excluded:       sets.New[string](),
+			knownRGs:       sets.New("hcp-underlay-pers-usw3parent"),
+			expectSelected: false,
+		},
+		{
+			name: "orphaned managed RG falls through to normal rules",
+			rg: newResourceGroupWithManagedBy(
+				"hcp-underlay-pers-usw3rvaz",
+				"/subscriptions/sub/resourceGroups/hcp-underlay-pers-usw3deleted/providers/Microsoft.ContainerService/managedClusters/aks1",
+			),
 			expectSelected: false,
 		},
 		{
@@ -182,7 +190,7 @@ func TestSelectsResourceGroup_IntendedLegacyPolicyBehavior(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			selected, _ := pol.SelectsResourceGroup(tc.rg, tc.excluded, now)
+			selected, _ := pol.SelectsResourceGroup(tc.rg, tc.excluded, tc.knownRGs, now)
 			if selected != tc.expectSelected {
 				t.Fatalf("expected selected=%t, got selected=%t", tc.expectSelected, selected)
 			}
@@ -224,7 +232,7 @@ func TestSelectsResourceGroup_ReturnsStructuredRuleReason(t *testing.T) {
 	}
 	rg := newResourceGroup("example-rg", timePtr(now.Add(-72*time.Hour)), nil, false)
 
-	selected, reason := pol.SelectsResourceGroup(rg, sets.New[string](), now)
+	selected, reason := pol.SelectsResourceGroup(rg, sets.New[string](), sets.New[string](), now)
 	if !selected {
 		t.Fatalf("expected resource group to be selected")
 	}
@@ -262,6 +270,13 @@ func TestSelectionReasonSourceDescription_WithAndWithoutRule(t *testing.T) {
 	withoutRule := RGSelectionReason{Code: "excluded"}
 	if got, want := withoutRule.SourceDescription(), "matched policy (excluded)"; got != want {
 		t.Fatalf("expected %q, got %q", want, got)
+	}
+}
+
+func newResourceGroupWithManagedBy(name, managedBy string) *armresources.ResourceGroup {
+	return &armresources.ResourceGroup{
+		Name:      strPtr(name),
+		ManagedBy: strPtr(managedBy),
 	}
 }
 

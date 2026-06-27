@@ -1,6 +1,6 @@
 # cleanup-sweeper rg-ordered discovery policy (first matching rule wins).
 # - excludedResourceGroups: never candidates (global, hcp-kusto-us, westus3-shared-resources).
-# - Skip managed RGs (managedBy set).
+# - Skip managed RGs (managedBy alive).
 # - hcp-underlay-pers-*: delete after 15d if persist=true; after 2d if persist is absent or not "true".
 # - hcp-underlay-prow-*: delete after 6h (transitional, remove after rename rollout).
 # - Name prefix hcp-underlay-ci*: delete after 6h (covers ci00, ci01, etc.).
@@ -22,7 +22,7 @@ rgOrdered:
       match:
         any: true
       conditions:
-        managedBySet: true
+        managedByAlive: true
     - name: pers-persist-delete-after-15d
       action: delete
       match:
