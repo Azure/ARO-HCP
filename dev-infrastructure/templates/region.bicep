@@ -51,11 +51,11 @@ param svcMonitorName string
 @description('Name of the Azure Monitor Workspace for hosted control planes')
 param hcpMonitorName string
 
-@description('Maximum active time series limit for Azure Monitor Workspaces (2M initial, bump when hitting 50% utilization)')
-param amwMaxActiveTimeSeries int = 2000000
+@description('Maximum active time series limit for Azure Monitor Workspaces in millions (2M initial, bump when hitting 50% utilization)')
+param amwMaxActiveTimeSeriesMillions int = 2
 
-@description('Maximum events per minute limit for Azure Monitor Workspaces (2M initial, bump when hitting 50% utilization)')
-param amwMaxEventsPerMinute int = 2000000
+@description('Maximum events per minute limit for Azure Monitor Workspaces in millions (2M initial, bump when hitting 50% utilization)')
+param amwMaxEventsPerMinuteMillions int = 2
 
 import { determineZoneRedundancyForRegion } from '../modules/common.bicep'
 import * as res from '../modules/resource.bicep'
@@ -179,8 +179,8 @@ module svcMonitorIngestionLimits '../modules/metrics/amw-ingestion-limits.bicep'
   params: {
     azureMonitorWorkspaceName: svcMonitorName
     location: location
-    maxActiveTimeSeries: amwMaxActiveTimeSeries
-    maxEventsPerMinute: amwMaxEventsPerMinute
+    maxActiveTimeSeriesMillions: amwMaxActiveTimeSeriesMillions
+    maxEventsPerMinuteMillions: amwMaxEventsPerMinuteMillions
   }
   dependsOn: [svcMonitor]
 }
@@ -190,8 +190,8 @@ module hcpMonitorIngestionLimits '../modules/metrics/amw-ingestion-limits.bicep'
   params: {
     azureMonitorWorkspaceName: hcpMonitorName
     location: location
-    maxActiveTimeSeries: amwMaxActiveTimeSeries
-    maxEventsPerMinute: amwMaxEventsPerMinute
+    maxActiveTimeSeriesMillions: amwMaxActiveTimeSeriesMillions
+    maxEventsPerMinuteMillions: amwMaxEventsPerMinuteMillions
   }
   dependsOn: [hcpMonitor]
 }
