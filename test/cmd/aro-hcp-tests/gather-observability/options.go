@@ -279,6 +279,15 @@ func (o Options) Run(ctx context.Context) error {
 		}
 	}
 
+	// Fail the process when JUnit contains failures
+	var totalFailed uint
+	for _, s := range suites.Suites {
+		totalFailed += s.NumFailed
+	}
+	if totalFailed > 0 {
+		return fmt.Errorf("JUnit results contain %d failing test case(s)", totalFailed)
+	}
+
 	return nil
 }
 

@@ -2,7 +2,6 @@ prometheusRules:
   rulesFolders:
   - alerts/mgmt-capacity-prometheusRule.yaml
   - alerts/HCPkasRecord-prometheusRule-KSM.yaml
-  - alerts/HCPkasMonitor-prometheusRule-KSM.yaml
   - alerts/HCPclusterHealth-prometheusRule.yaml
   untestedRules:
   - alerts/kubernetesControlPlane-prometheusRule.yaml
