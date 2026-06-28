@@ -157,7 +157,7 @@ func (o *Options) runControllersUnderLeaderElection(
 		return fmt.Errorf("read manager: %w", err)
 	}
 
-	le, err := leaderelection.NewLeaderElector(leaderelection.LeaderElectionConfig{
+	leaderElectionConfig := leaderelection.LeaderElectionConfig{
 		Lock:          o.LeaderElectionLock,
 		LeaseDuration: leaderElectionLeaseDuration,
 		RenewDeadline: leaderElectionRenewDeadline,
@@ -186,10 +186,25 @@ func (o *Options) runControllersUnderLeaderElection(
 		ReleaseOnCancel: true,
 		WatchDog:        electionChecker,
 		Name:            "kube-applier",
-	})
+	}
+
+	retryTimes := int(leaderElectionConfig.RenewDeadline / leaderElectionConfig.RetryPeriod)
+	logger.Info(
+		fmt.Sprintf(
+			"The leader election gives %v retries and allows for %v of clock skew. The kube-apiserver downtime tolerance is %vs. Worst non-graceful lease acquisition is %v. Worst graceful lease acquisition is %v.",
+			retryTimes,
+			leaderElectionConfig.LeaseDuration-leaderElectionConfig.RenewDeadline,
+			(retryTimes-1)*(int(leaderElectionConfig.RetryPeriod.Seconds())),
+			leaderElectionConfig.LeaseDuration+leaderElectionConfig.RetryPeriod,
+			leaderElectionConfig.RetryPeriod,
+		),
+	)
+
+	le, err := leaderelection.NewLeaderElector(leaderElectionConfig)
 	if err != nil {
 		return err
 	}
+
 	le.Run(ctx)
 	return nil
 }

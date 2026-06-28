@@ -25,9 +25,18 @@ import (
 )
 
 const (
-	leaderElectionLeaseDuration = 15 * time.Second
-	leaderElectionRenewDeadline = 10 * time.Second
-	leaderElectionRetryPeriod   = 2 * time.Second
+	// We want to be able to tolerate 60s of kube-apiserver disruption without causing pod restarts.
+	// We want the graceful lease re-acquisition fairly quick to avoid waits on new deployments and other rollouts.
+	// We want a single set of guidance for nearly every lease in openshift.  If you're special, we'll let you know.
+	// 1. clock skew tolerance is leaseDuration-renewDeadline == 30s
+	// 2. kube-apiserver downtime tolerance is == 78s
+	//      lastRetry=floor(renewDeadline/retryPeriod)*retryPeriod == 104
+	//      downtimeTolerance = lastRetry-retryPeriod == 78s
+	// 3. worst non-graceful lease acquisition is leaseDuration+retryPeriod == 163s
+	// 4. worst graceful lease acquisition is retryPeriod == 26s
+	leaderElectionLeaseDuration = 137 * time.Second
+	leaderElectionRenewDeadline = 107 * time.Second
+	leaderElectionRetryPeriod   = 26 * time.Second
 )
 
 // NewLeaderElectionLock builds a Leases-backed lock in kubeNamespace named
