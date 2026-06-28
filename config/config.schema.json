@@ -2827,6 +2827,15 @@
         "grafanaName": {
           "type": "string"
         },
+        "adxDatasourceEnabled": {
+          "type": "boolean",
+          "description": "Whether to provision ADX datasources in Managed Grafana"
+        },
+        "adxDatasourceGeographies": {
+          "type": "string",
+          "pattern": "^$|^\\s*[A-Za-z0-9-]+\\s*(,\\s*[A-Za-z0-9-]+\\s*)*$",
+          "description": "Comma-separated geography allowlist for optional targeted ADX datasource provisioning/removal. Empty means all geographies. Matching is case-insensitive and surrounding whitespace is ignored."
+        },
         "grafanaMajorVersion": {
           "type": "string"
         },
