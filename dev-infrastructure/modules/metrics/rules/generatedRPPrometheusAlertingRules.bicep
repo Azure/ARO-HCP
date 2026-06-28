@@ -72,7 +72,7 @@ resource arohcpAccessClusterSloErrorAlerts 'Microsoft.AlertsManagement/prometheu
           summary: '{{ $labels.cluster }}: Credential operation error rate elevated (>30%) for 30+ minutes'
           title: '{{ $labels.cluster }}: Credential operation error rate elevated (>30%) for 30+ minutes'
         }
-        expression: 'errors:backend_credential_operation:error_rate > 0.30'
+        expression: 'errors:backend_credential_operation:error_rate > 0.3'
         for: 'PT30M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
@@ -156,7 +156,7 @@ resource arohcpAccessClusterSloErrorAlerts 'Microsoft.AlertsManagement/prometheu
           summary: '{{ $labels.cluster }}: Credential operation stuck in {{ $labels.phase }} for over 1 hour'
           title: '{{ $labels.cluster }}: Credential operation stuck in {{ $labels.phase }} for over 1 hour'
         }
-        expression: '( (time() - backend_resource_operation_start_time_seconds{ resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type=~"requestcredential|revokecredentials" }) and backend_resource_operation_phase_info{ resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type=~"requestcredential|revokecredentials", phase=~"accepted|provisioning|deleting" } == 1 ) > 3600'
+        expression: '((time() - backend_resource_operation_start_time_seconds{operation_type=~"requestcredential|revokecredentials",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) and backend_resource_operation_phase_info{operation_type=~"requestcredential|revokecredentials",phase=~"accepted|provisioning|deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} == 1) > 3600'
         for: 'PT15M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
@@ -196,7 +196,7 @@ resource arohcpAccessClusterSaturationAlerts 'Microsoft.AlertsManagement/prometh
           summary: '{{ $labels.cluster }}: Credential controller workqueue {{ $labels.name }} depth is high'
           title: '{{ $labels.cluster }}: Credential controller workqueue {{ $labels.name }} depth is high'
         }
-        expression: 'max by (name, cluster) ( max without(prometheus_replica) ( workqueue_depth{namespace="aro-hcp", name=~".*(RequestCredential|RevokeCredentials).*"} ) ) > 10'
+        expression: 'max by (name, cluster) (max without (prometheus_replica) (workqueue_depth{name=~".*(RequestCredential|RevokeCredentials).*",namespace="aro-hcp"})) > 10'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
@@ -223,7 +223,7 @@ resource arohcpAccessClusterSaturationAlerts 'Microsoft.AlertsManagement/prometh
           summary: '{{ $labels.cluster }}: Credential controller workqueue {{ $labels.name }} retry hot loop'
           title: '{{ $labels.cluster }}: Credential controller workqueue {{ $labels.name }} retry hot loop'
         }
-        expression: '( sum by (name, cluster) ( max without(prometheus_replica) ( rate(workqueue_retries_total{namespace="aro-hcp", name=~".*(RequestCredential|RevokeCredentials).*"}[10m]) ) ) / sum by (name, cluster) ( max without(prometheus_replica) ( rate(workqueue_adds_total{namespace="aro-hcp", name=~".*(RequestCredential|RevokeCredentials).*"}[10m]) ) ) ) > 0.5'
+        expression: '(sum by (name, cluster) (max without (prometheus_replica) (rate(workqueue_retries_total{name=~".*(RequestCredential|RevokeCredentials).*",namespace="aro-hcp"}[10m]))) / sum by (name, cluster) (max without (prometheus_replica) (rate(workqueue_adds_total{name=~".*(RequestCredential|RevokeCredentials).*",namespace="aro-hcp"}[10m])))) > 0.5'
         for: 'PT10M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
