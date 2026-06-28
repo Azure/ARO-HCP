@@ -441,6 +441,10 @@ func runGraph(ctx context.Context, logger logr.Logger, executionGraph *graph.Gra
 			suite := suites.Suites[0]
 			for id, info := range timing {
 				thisLogger := logger.WithValues("id", id)
+				if info.StartedAt == "" || info.FinishedAt == "" {
+					thisLogger.V(1).Info("step never ran, skipping jUnit entry")
+					continue
+				}
 				startedAt, err := time.Parse(time.RFC3339, info.StartedAt)
 				if err != nil {
 					thisLogger.Error(err, "error parsing started at")

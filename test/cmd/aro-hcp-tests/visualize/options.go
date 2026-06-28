@@ -157,6 +157,9 @@ func (o *ValidatedOptions) Complete(logger logr.Logger) (*Options, error) {
 
 	var times []TestInfo
 	for _, item := range rawTimes {
+		if item.StartedAt == "" || item.FinishedAt == "" {
+			continue
+		}
 		s, err := time.Parse(time.RFC3339Nano, item.StartedAt)
 		if err != nil {
 			logger.Error(err, "failed to parse start date", "identifier", item.Identifier)
@@ -169,6 +172,9 @@ func (o *ValidatedOptions) Complete(logger logr.Logger) (*Options, error) {
 		}
 		var steps []StepTimingMetadata
 		for _, step := range item.Steps {
+			if step.StartedAt == "" || step.FinishedAt == "" {
+				continue
+			}
 			stepStarted, err := time.Parse(time.RFC3339Nano, step.StartedAt)
 			if err != nil {
 				logger.Error(err, "failed to parse start date", "identifier", step.Name)

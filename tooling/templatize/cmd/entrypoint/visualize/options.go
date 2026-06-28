@@ -131,6 +131,9 @@ func (o *ValidatedOptions) Complete(logger logr.Logger) (*Options, error) {
 
 	var times []NodeInfo
 	for _, item := range rawTimes {
+		if item.Info.QueuedAt == "" || item.Info.StartedAt == "" || item.Info.FinishedAt == "" {
+			continue
+		}
 		q, err := time.Parse(time.RFC3339Nano, item.Info.QueuedAt)
 		if err != nil {
 			logger.Error(err, "failed to parse queue date", "identifier", item.Identifier)

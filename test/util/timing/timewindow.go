@@ -157,6 +157,10 @@ func LoadTestTimingInfo(ctx context.Context, dir string) (map[string]TimingInfo,
 			return fmt.Errorf("failed to unmarshal %s: %w", p, err)
 		}
 
+		if tm.StartedAt == "" || tm.FinishedAt == "" {
+			return nil
+		}
+
 		startedAt, err := time.Parse(time.RFC3339, tm.StartedAt)
 		if err != nil {
 			return fmt.Errorf("failed to parse startedAt in %s: %w", p, err)
