@@ -16,6 +16,7 @@ package policy
 
 import (
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -170,6 +171,9 @@ func (c RGDiscoveryConditions) MatchesResourceGroup(rg *armresources.ResourceGro
 			return false
 		}
 		parsed, err := azcorearm.ParseResourceID(*rg.ManagedBy)
+		if err != nil {
+			slog.Warn("failed to parse managedBy resource ID, treating as alive", "managedBy", *rg.ManagedBy, "error", err)
+		}
 		alive := err != nil || knownResourceGroups.Has(strings.ToLower(parsed.ResourceGroupName))
 		if alive != *c.ManagedByAlive {
 			return false
