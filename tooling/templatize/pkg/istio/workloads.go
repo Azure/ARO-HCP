@@ -20,6 +20,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -234,15 +235,32 @@ func ExecuteRestartAllNamespaces(ctx context.Context, client kubernetes.Interfac
 	if err != nil {
 		return nil, err
 	}
+
+	type restartOutcome struct {
+		result *RestartResult
+		err    error
+	}
+	outcomes := make([]restartOutcome, len(namespaces))
+
+	var wg sync.WaitGroup
+	for i, ns := range namespaces {
+		wg.Add(1)
+		go func(idx int, namespace string) {
+			defer wg.Done()
+			result, err := executeRestart(ctx, client, namespace, targetRevision)
+			outcomes[idx] = restartOutcome{result: result, err: err}
+		}(i, ns.Name)
+	}
+	wg.Wait()
+
 	var results []RestartResult
 	var errs []error
-	for _, ns := range namespaces {
-		result, err := executeRestart(ctx, client, ns.Name, targetRevision)
-		if err != nil {
-			errs = append(errs, fmt.Errorf("restart failed in %s: %w", ns.Name, err))
+	for _, o := range outcomes {
+		if o.err != nil {
+			errs = append(errs, o.err)
 		}
-		if result != nil {
-			results = append(results, *result)
+		if o.result != nil {
+			results = append(results, *o.result)
 		}
 	}
 	return results, errors.Join(errs...)
@@ -433,12 +451,19 @@ func WaitForRolloutAllNamespaces(ctx context.Context, client kubernetes.Interfac
 	if err != nil {
 		return fmt.Errorf("failed to get mesh namespaces: %w", err)
 	}
-	for _, ns := range namespaces {
-		if err := WaitForRollout(ctx, client, ns.Name, timeout, pollInterval); err != nil {
-			return err
-		}
+
+	errs := make([]error, len(namespaces))
+	var wg sync.WaitGroup
+	for i, ns := range namespaces {
+		wg.Add(1)
+		go func(idx int, namespace string) {
+			defer wg.Done()
+			errs[idx] = WaitForRollout(ctx, client, namespace, timeout, pollInterval)
+		}(i, ns.Name)
 	}
-	return nil
+	wg.Wait()
+
+	return errors.Join(errs...)
 }
 
 func WaitForRollout(ctx context.Context, client kubernetes.Interface, namespace string, timeout, pollInterval time.Duration) error {

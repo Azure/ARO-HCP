@@ -426,6 +426,122 @@ func TestDeleteRevisionConfigMap_NotFoundIsNoop(t *testing.T) {
 	require.NoError(t, err, "deleting a non-existent ConfigMap should not error")
 }
 
+func TestWaitForRolloutAllNamespaces_ConcurrentSuccess(t *testing.T) {
+	client := fake.NewSimpleClientset(
+		&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "ns-a", Labels: map[string]string{"istio.io/rev": "asm-1-29"}}},
+		&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "ns-b", Labels: map[string]string{"istio.io/rev": "asm-1-29"}}},
+		&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "ns-c", Labels: map[string]string{"istio.io/rev": "asm-1-29"}}},
+		&appsv1.Deployment{
+			ObjectMeta: metav1.ObjectMeta{Name: "web", Namespace: "ns-a", Generation: 1},
+			Spec:       appsv1.DeploymentSpec{Replicas: ptr.To[int32](2)},
+			Status:     appsv1.DeploymentStatus{ObservedGeneration: 1, UpdatedReplicas: 2, ReadyReplicas: 2},
+		},
+		&appsv1.Deployment{
+			ObjectMeta: metav1.ObjectMeta{Name: "api", Namespace: "ns-b", Generation: 1},
+			Spec:       appsv1.DeploymentSpec{Replicas: ptr.To[int32](3)},
+			Status:     appsv1.DeploymentStatus{ObservedGeneration: 1, UpdatedReplicas: 3, ReadyReplicas: 3},
+		},
+		&appsv1.Deployment{
+			ObjectMeta: metav1.ObjectMeta{Name: "gate", Namespace: "ns-c", Generation: 1},
+			Spec:       appsv1.DeploymentSpec{Replicas: ptr.To[int32](1)},
+			Status:     appsv1.DeploymentStatus{ObservedGeneration: 1, UpdatedReplicas: 1, ReadyReplicas: 1},
+		},
+	)
+
+	err := WaitForRolloutAllNamespaces(context.Background(), client, 5*time.Second, 100*time.Millisecond)
+	require.NoError(t, err)
+}
+
+func TestWaitForRolloutAllNamespaces_ConcurrentErrors(t *testing.T) {
+	client := fake.NewSimpleClientset(
+		&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "ns-ok", Labels: map[string]string{"istio.io/rev": "asm-1-29"}}},
+		&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "ns-slow", Labels: map[string]string{"istio.io/rev": "asm-1-29"}}},
+		// ns-ok: ready
+		&appsv1.Deployment{
+			ObjectMeta: metav1.ObjectMeta{Name: "web", Namespace: "ns-ok", Generation: 1},
+			Spec:       appsv1.DeploymentSpec{Replicas: ptr.To[int32](1)},
+			Status:     appsv1.DeploymentStatus{ObservedGeneration: 1, UpdatedReplicas: 1, ReadyReplicas: 1},
+		},
+		// ns-slow: stuck — will timeout
+		&appsv1.Deployment{
+			ObjectMeta: metav1.ObjectMeta{Name: "stuck", Namespace: "ns-slow", Generation: 2},
+			Spec:       appsv1.DeploymentSpec{Replicas: ptr.To[int32](1)},
+			Status:     appsv1.DeploymentStatus{ObservedGeneration: 1, UpdatedReplicas: 0, ReadyReplicas: 0},
+		},
+	)
+
+	err := WaitForRolloutAllNamespaces(context.Background(), client, 200*time.Millisecond, 50*time.Millisecond)
+	assert.Error(t, err)
+	assert.ErrorContains(t, err, "ns-slow")
+}
+
+func TestWaitForRolloutAllNamespaces_ContextCancellation(t *testing.T) {
+	client := fake.NewSimpleClientset(
+		&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "ns-a", Labels: map[string]string{"istio.io/rev": "asm-1-29"}}},
+		&appsv1.Deployment{
+			ObjectMeta: metav1.ObjectMeta{Name: "stuck", Namespace: "ns-a", Generation: 2},
+			Spec:       appsv1.DeploymentSpec{Replicas: ptr.To[int32](1)},
+			Status:     appsv1.DeploymentStatus{ObservedGeneration: 1, UpdatedReplicas: 0, ReadyReplicas: 0},
+		},
+	)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	err := WaitForRolloutAllNamespaces(ctx, client, 5*time.Second, 50*time.Millisecond)
+	assert.Error(t, err, "should fail promptly when context is already cancelled")
+}
+
+func TestExecuteRestartAllNamespaces_ConcurrentSuccess(t *testing.T) {
+	client := fake.NewSimpleClientset(
+		&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "ns-a", Labels: map[string]string{"istio.io/rev": "asm-1-29"}}},
+		&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "ns-b", Labels: map[string]string{"istio.io/rev": "asm-1-29"}}},
+		// ns-a: stale pod
+		&corev1.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "pod-a", Namespace: "ns-a",
+				Annotations:     map[string]string{"sidecar.istio.io/status": `{"revision":"asm-1-28"}`},
+				OwnerReferences: []metav1.OwnerReference{{Name: "rs-a", Kind: "ReplicaSet", APIVersion: "apps/v1", Controller: ptr.To(true)}},
+			},
+			Status: corev1.PodStatus{Phase: corev1.PodRunning},
+		},
+		&appsv1.ReplicaSet{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "rs-a", Namespace: "ns-a",
+				OwnerReferences: []metav1.OwnerReference{{Name: "deploy-a", Kind: "Deployment", APIVersion: "apps/v1", Controller: ptr.To(true)}},
+			},
+		},
+		&appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{Name: "deploy-a", Namespace: "ns-a"}, Spec: appsv1.DeploymentSpec{Replicas: ptr.To[int32](1)}},
+		// ns-b: stale pod
+		&corev1.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "pod-b", Namespace: "ns-b",
+				Annotations:     map[string]string{"sidecar.istio.io/status": `{"revision":"asm-1-28"}`},
+				OwnerReferences: []metav1.OwnerReference{{Name: "rs-b", Kind: "ReplicaSet", APIVersion: "apps/v1", Controller: ptr.To(true)}},
+			},
+			Status: corev1.PodStatus{Phase: corev1.PodRunning},
+		},
+		&appsv1.ReplicaSet{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "rs-b", Namespace: "ns-b",
+				OwnerReferences: []metav1.OwnerReference{{Name: "deploy-b", Kind: "Deployment", APIVersion: "apps/v1", Controller: ptr.To(true)}},
+			},
+		},
+		&appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{Name: "deploy-b", Namespace: "ns-b"}, Spec: appsv1.DeploymentSpec{Replicas: ptr.To[int32](1)}},
+	)
+
+	results, err := ExecuteRestartAllNamespaces(context.Background(), client, "asm-1-29")
+	require.NoError(t, err)
+	require.Len(t, results, 2)
+
+	restartedByNS := map[string][]string{}
+	for _, r := range results {
+		restartedByNS[r.Namespace] = r.Restarted
+	}
+	assert.Contains(t, restartedByNS["ns-a"], "deployment/deploy-a")
+	assert.Contains(t, restartedByNS["ns-b"], "deployment/deploy-b")
+}
+
 func TestUpdateMeshNamespaceLabels(t *testing.T) {
 	client := fake.NewSimpleClientset(
 		&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "app-ns", Labels: map[string]string{"istio.io/rev": "asm-1-28"}}},
