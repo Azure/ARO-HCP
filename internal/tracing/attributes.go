@@ -15,14 +15,11 @@
 package tracing
 
 import (
-	"time"
-
 	"go.opentelemetry.io/otel/attribute"
 	semconv "go.opentelemetry.io/otel/semconv/v1.27.0"
 	"go.opentelemetry.io/otel/trace"
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
-	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
 )
 
 // Correlation data and generic attributes.
@@ -125,20 +122,6 @@ const (
 	// The key needs to be kept in sync with the key used by the Clusters Service.
 	ExternalAuthStateKey = attribute.Key("cs.externalauth.state")
 
-	// BreakGlassCredentialIDKey is the attribute key for the break-glass credential ID.
-	BreakGlassCredentialIDKey attribute.Key = "cs.break_glass_credential.id"
-
-	// BreakGlassCredentialStatus is the attribute key for the break-glass credential status.
-	BreakGlassCredentialStatusKey attribute.Key = "cs.break_glass_credential.status"
-
-	// BreakGlassCredentialRevocationTimestampKey is the attribute key for the
-	// break-glass credential's revocation timetstamp .
-	BreakGlassCredentialRevocationTimestampKey attribute.Key = "cs.break_glass_credential.revocation_time"
-
-	// BreakGlassCredentialExpirationTimestampKey is the attribute key for the
-	// break-glass credential's expiration timetstamp .
-	BreakGlassCredentialExpirationTimestampKey attribute.Key = "cs.break_glass_credential.expiration_time"
-
 	// ProvisionShardIDKey is the attribute key for the provision shard identifier.
 	ProvisionShardIDKey attribute.Key = "cs.provision_shard.id"
 
@@ -181,29 +164,6 @@ func SetNodePoolStatusAttributes(span trace.Span, nodePoolStatus *arohcpv1alpha1
 func SetExternalAuthAttributes(span trace.Span, externalAuth *arohcpv1alpha1.ExternalAuth) {
 	addAttributeIfPresent(span, ExternalAuthIDKey, externalAuth.GetID)
 	// addAttributeIfPresent(span, ExternalAuthStateKey, externalAuth.Status().State().)
-}
-
-// SetBreakGlassCredentialAttributes sets attributes on the span to identify the break-glass credential
-func SetBreakGlassCredentialAttributes(span trace.Span, credential *cmv1.BreakGlassCredential) {
-	addAttributeIfPresent(span, BreakGlassCredentialIDKey, credential.GetID)
-	addAttributeIfPresent(span, BreakGlassCredentialStatusKey, func() (string, bool) {
-		v, present := credential.GetStatus()
-		return string(v), present
-	})
-	addAttributeIfPresent(span, BreakGlassCredentialExpirationTimestampKey, func() (string, bool) {
-		ts, present := credential.GetExpirationTimestamp()
-		if !present {
-			return "", false
-		}
-		return ts.Format(time.RFC3339), true
-	})
-	addAttributeIfPresent(span, BreakGlassCredentialRevocationTimestampKey, func() (string, bool) {
-		ts, present := credential.GetRevocationTimestamp()
-		if !present {
-			return "", false
-		}
-		return ts.Format(time.RFC3339), true
-	})
 }
 
 func addAttributeIfPresent(span trace.Span, key attribute.Key, getter func() (string, bool)) {

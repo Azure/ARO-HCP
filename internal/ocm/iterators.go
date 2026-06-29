@@ -21,7 +21,6 @@ import (
 
 	sdk "github.com/openshift-online/ocm-sdk-go"
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
-	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
 )
 
 type ListIterator[T any] interface {
@@ -41,11 +40,6 @@ type NodePoolListIterator interface {
 
 type ExternalAuthListIterator interface {
 	Items(ctx context.Context) iter.Seq[*arohcpv1alpha1.ExternalAuth]
-	GetError() error
-}
-
-type BreakGlassCredentialListIterator interface {
-	Items(ctx context.Context) iter.Seq[*cmv1.BreakGlassCredential]
 	GetError() error
 }
 
@@ -85,13 +79,6 @@ func NewSimpleNodePoolListIterator(objs []*arohcpv1alpha1.NodePool, err error) N
 
 func NewSimpleExternalAuthListIterator(objs []*arohcpv1alpha1.ExternalAuth, err error) ExternalAuthListIterator {
 	return &simpleListIterator[arohcpv1alpha1.ExternalAuth]{
-		objs: objs,
-		err:  err,
-	}
-}
-
-func NewSimpleBreakGlassCredentialsListIterator(objs []*cmv1.BreakGlassCredential, err error) BreakGlassCredentialListIterator {
-	return &simpleListIterator[cmv1.BreakGlassCredential]{
 		objs: objs,
 		err:  err,
 	}
@@ -314,60 +301,6 @@ func (iter *externalAuthListIterator) Items(ctx context.Context) iter.Seq[*arohc
 // GetError returns any error that occurred during iteration. Call this after the
 // for/range loop that calls Items() to check if iteration completed successfully.
 func (iter externalAuthListIterator) GetError() error {
-	return iter.err
-}
-
-type breakGlassCredentialListIterator struct {
-	request *cmv1.BreakGlassCredentialsListRequest
-	err     error
-}
-
-// Items returns a push iterator that can be used directly in for/range loops.
-// If an error occurs during paging, iteration stops and the error is recorded.
-func (iter *breakGlassCredentialListIterator) Items(ctx context.Context) iter.Seq[*cmv1.BreakGlassCredential] {
-	return func(yield func(*cmv1.BreakGlassCredential) bool) {
-		// Request can be nil to allow for mocking.
-		if iter.request != nil {
-			var page = 0
-			var count = 0
-			var total = math.MaxInt
-
-			for count < total {
-				page++
-				result, err := iter.request.Page(page).SendContext(ctx)
-				if err != nil {
-					iter.err = err
-					return
-				}
-
-				total = result.Total()
-				items := result.Items()
-
-				// Safety check to prevent an infinite loop in case
-				// the result is somehow empty before count = total.
-				if items == nil || items.Empty() {
-					return
-				}
-
-				count += items.Len()
-
-				// XXX BreakGlassCredentialList.Each() lacks a boolean return
-				//     to indicate whether iteration fully completed.
-				//     BreakGlassCredentialList.Slice() may be less efficient
-				//     but is easier to work with.
-				for _, item := range items.Slice() {
-					if !yield(item) {
-						return
-					}
-				}
-			}
-		}
-	}
-}
-
-// GetError returns any error that occurred during iteration. Call this after the
-// for/range loop that calls Items() to check if iteration completed successfully.
-func (iter breakGlassCredentialListIterator) GetError() error {
 	return iter.err
 }
 
