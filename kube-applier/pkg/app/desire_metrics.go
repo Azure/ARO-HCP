@@ -92,8 +92,7 @@ func (c *desireCollector) collect() {
 	}
 }
 
-// initCounts seeds every known label combination to 0 so gauges go to zero
-// when no desires with that condition are True, rather than going stale.
+// initCounts pre-seeds all label combinations to 0 so gauges go to zero when desires disappear.
 func initCounts() map[string]map[string]float64 {
 	condTypes := []string{kubeapplier.ConditionTypeSuccessful, kubeapplier.ConditionTypeDegraded}
 	counts := map[string]map[string]float64{}

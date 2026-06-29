@@ -1,0 +1,83 @@
+rule_files:
+- kube-applier-prometheusRule.yaml
+evaluation_interval: 1m
+tests:
+# Test: KubeApplierLeaderElectionLost fires when lease has not been renewed for >30s
+- interval: 1m
+  input_series:
+  - series: 'kube_lease_renew_time{namespace="kube-applier", lease="kube-applier", cluster="test-cluster"}'
+    values: "0x25" # renewTime frozen at 0; diff grows to 60s after 1m, 120s after 2m, etc.
+  alert_rule_test:
+  - eval_time: 3m
+    alertname: KubeApplierLeaderElectionLost
+    exp_alerts:
+    - exp_labels:
+        severity: critical
+        cluster: test-cluster
+        lease: kube-applier
+        namespace: kube-applier
+      exp_annotations:
+        description: 'kube-applier leader lease on cluster test-cluster has not been renewed for more than 30 seconds. No replica is actively leading; desire reconciliation has stopped.'
+        runbook_url: 'TBD'
+        summary: 'kube-applier has no active leader'
+# Test: KubeApplierLeaderElectionLost does not fire when lease is renewed every minute
+- interval: 1m
+  input_series:
+  - series: 'kube_lease_renew_time{namespace="kube-applier", lease="kube-applier", cluster="test-cluster"}'
+    values: "0+60x25" # renewTime advances by 60s each minute, keeping diff at 0
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: KubeApplierLeaderElectionLost
+    exp_alerts: []
+# Test: KubeApplierReconcileStuck fires when desires exist but workqueue is idle for >15m
+- interval: 1m
+  input_series:
+  - series: 'kube_applier_desires{type="apply", condition="Successful", namespace="kube-applier", cluster="test-cluster"}'
+    values: "5x25" # 5 apply desires with Successful=True
+  - series: 'workqueue_work_duration_seconds_count{name="ApplyDesireController", namespace="kube-applier", cluster="test-cluster"}'
+    values: "100x25" # counter frozen — no items processed
+  alert_rule_test:
+  - eval_time: 21m
+    alertname: KubeApplierReconcileStuck
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+        cluster: test-cluster
+        namespace: kube-applier
+      exp_annotations:
+        description: 'kube-applier ApplyDesireController on cluster test-cluster has desires pending but has processed no items for more than 15 minutes.'
+        runbook_url: 'TBD'
+        summary: 'kube-applier ApplyDesireController is not processing items'
+# Test: KubeApplierReconcileStuck does not fire when reconciliation is happening
+- interval: 1m
+  input_series:
+  - series: 'kube_applier_desires{type="apply", condition="Successful", namespace="kube-applier", cluster="test-cluster"}'
+    values: "5x25"
+  - series: 'workqueue_work_duration_seconds_count{name="ApplyDesireController", namespace="kube-applier", cluster="test-cluster"}'
+    values: "0+1x25" # counter increasing — items being processed
+  alert_rule_test:
+  - eval_time: 21m
+    alertname: KubeApplierReconcileStuck
+    exp_alerts: []
+# Test: KubeApplierReconcileStuck does not fire when no apply desires exist
+- interval: 1m
+  input_series:
+  - series: 'kube_applier_desires{type="apply", condition="Successful", namespace="kube-applier", cluster="test-cluster"}'
+    values: "0x25" # no apply desires
+  - series: 'workqueue_work_duration_seconds_count{name="ApplyDesireController", namespace="kube-applier", cluster="test-cluster"}'
+    values: "100x25" # counter frozen
+  alert_rule_test:
+  - eval_time: 21m
+    alertname: KubeApplierReconcileStuck
+    exp_alerts: []
+# Test: KubeApplierReconcileStuck does not fire when only delete desires exist (not apply)
+- interval: 1m
+  input_series:
+  - series: 'kube_applier_desires{type="delete", condition="Successful", namespace="kube-applier", cluster="test-cluster"}'
+    values: "3x25" # delete desires only — apply desires absent
+  - series: 'workqueue_work_duration_seconds_count{name="ApplyDesireController", namespace="kube-applier", cluster="test-cluster"}'
+    values: "100x25" # counter frozen
+  alert_rule_test:
+  - eval_time: 21m
+    alertname: KubeApplierReconcileStuck
+    exp_alerts: []
