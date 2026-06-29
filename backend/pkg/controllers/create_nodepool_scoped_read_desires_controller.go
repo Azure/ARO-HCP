@@ -147,7 +147,7 @@ func (c *createNodePoolScopedReadDesiresSyncer) SyncOnce(ctx context.Context, ke
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("get ReadDesire CRUD: %w", err))
 	}
-	existing, err := getExistingReadDesire(ctx, crud, readDesireNameReadonlyNodePool)
+	existing, err := getExistingReadDesire(ctx, crud, desired.ResourceID.Name)
 	if err != nil {
 		return err
 	}
