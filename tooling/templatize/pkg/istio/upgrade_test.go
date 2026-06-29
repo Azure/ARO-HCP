@@ -1049,6 +1049,45 @@ func TestRunUpgrade_CompleteCanaryFailureMidCleanup(t *testing.T) {
 	assert.ErrorContains(t, err, "ARM timeout on complete")
 }
 
+func TestRunUpgrade_PostCompleteVerificationFailure(t *testing.T) {
+	aks := &fakeAKSClient{
+		clusterInfo: &ClusterInfo{ProvisioningState: "Succeeded"},
+		meshProfile: &MeshProfile{Revisions: []string{"asm-1-28", "asm-1-29"}},
+		upgradeInfo: &MeshUpgradeInfo{},
+	}
+	kubeClient := healthyKubeClient()
+
+	// After CompleteCanaryUpgrade, the target ConfigMap is deleted by
+	// external interference. VerifyUpgrade catches the missing ConfigMap.
+	configMapDeleted := false
+	origComplete := aks.CompleteCanaryUpgrade
+	_ = origComplete
+	// We can't easily hook the fake AKS client's CompleteCanaryUpgrade,
+	// so instead we use a reactor that deletes the ConfigMap on the
+	// DeleteRevisionConfigMap call for the old revision — which runs
+	// right after complete. The reactor also deletes the target ConfigMap.
+	kubeClient.PrependReactor("delete", "configmaps", func(action k8stesting.Action) (bool, runtime.Object, error) {
+		if !configMapDeleted {
+			configMapDeleted = true
+			// Also delete the target ConfigMap to trigger verification failure
+			_ = kubeClient.Tracker().Delete(
+				corev1.SchemeGroupVersion.WithResource("configmaps"),
+				"aks-istio-system", "istio-shared-configmap-asm-1-29")
+		}
+		return false, nil, nil
+	})
+
+	opts := baseOpts()
+	err := RunUpgrade(testCtx(t), opts, aks, kubeClient)
+
+	assert.Contains(t, aks.calls, "CompleteCanaryUpgrade",
+		"canary should have been completed — this state is non-recoverable")
+	assert.Error(t, err)
+	assert.ErrorContains(t, err, "post-upgrade verification failed")
+	assert.NotContains(t, aks.calls, "EnableMesh",
+		"should not attempt re-install after failed post-complete verification")
+}
+
 func TestRunUpgrade_OverallTimeout(t *testing.T) {
 	aks := &fakeAKSClient{
 		clusterInfo: &ClusterInfo{ProvisioningState: "Succeeded"},
