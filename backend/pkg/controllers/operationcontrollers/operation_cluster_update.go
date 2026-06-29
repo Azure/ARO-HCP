@@ -25,16 +25,19 @@ import (
 
 	"github.com/blang/semver/v4"
 
-	apimeta "k8s.io/apimachinery/pkg/api/meta"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/cache"
 	utilsclock "k8s.io/utils/clock"
 	"k8s.io/utils/lru"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
+	"github.com/Azure/ARO-HCP/backend/pkg/maestrohelpers"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/database"
+	dblisters "github.com/Azure/ARO-HCP/internal/database/listers"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -44,6 +47,7 @@ type operationClusterUpdate struct {
 	resourcesDBClient               database.ResourcesDBClient
 	clusterServiceClient            ocm.ClusterServiceClientSpec
 	notificationClient              *http.Client
+	readDesireLister                dblisters.ReadDesireLister
 	desiredVersionMismatchFirstSeen *lru.Cache
 }
 
@@ -67,12 +71,14 @@ func NewOperationClusterUpdateController(
 	clusterServiceClient ocm.ClusterServiceClientSpec,
 	notificationClient *http.Client,
 	activeOperationInformer cache.SharedIndexInformer,
+	readDesireLister dblisters.ReadDesireLister,
 ) controllerutils.Controller {
 	syncer := &operationClusterUpdate{
 		clock:                           clock,
 		resourcesDBClient:               resourcesDBClient,
 		clusterServiceClient:            clusterServiceClient,
 		notificationClient:              notificationClient,
+		readDesireLister:                readDesireLister,
 		desiredVersionMismatchFirstSeen: lru.New(100000),
 	}
 
@@ -155,6 +161,13 @@ func (c *operationClusterUpdate) determineOperationState(ctx context.Context, op
 	} else {
 		operationStates = append(operationStates, operationState)
 	}
+	if operation.AutoscalingUpdate {
+		if operationState, autoscalerErr := c.clusterAutoscalerOperationState(ctx, operation); autoscalerErr != nil {
+			errs = append(errs, utils.TrackError(autoscalerErr))
+		} else {
+			operationStates = append(operationStates, operationState)
+		}
+	}
 
 	if err := errors.Join(errs...); err != nil {
 		return nil, err
@@ -214,7 +227,7 @@ func (c *operationClusterUpdate) desiredVersionResolutionOperationState(ctx cont
 	if getControllerErr != nil {
 		return nil, utils.TrackError(getControllerErr)
 	}
-	intentFailedCondition := apimeta.FindStatusCondition(controllerDoc.Status.Conditions, api.ControllerConditionTypeIntentFailed)
+	intentFailedCondition := meta.FindStatusCondition(controllerDoc.Status.Conditions, api.ControllerConditionTypeIntentFailed)
 	if intentFailedCondition == nil || intentFailedCondition.Status != metav1.ConditionTrue || intentFailedCondition.Reason != api.VersionUpgradeNotAcceptedReason {
 		// Customer desired minor differs from the service provider resolved version, and the
 		// ControlPlaneDesiredVersion controller has not yet set IntentFailed (VersionUpgradeNotAccepted).
@@ -257,4 +270,49 @@ func (c *operationClusterUpdate) clusterServiceUpdateOperationState(ctx context.
 		msg = opError.Message
 	}
 	return newOperationState(newOperationStatus, msg), nil
+}
+
+func (c *operationClusterUpdate) clusterAutoscalerOperationState(ctx context.Context, operation *api.Operation) (*operationState, error) {
+	logger := utils.LoggerFromContext(ctx)
+
+	readDesire, err := c.readDesireLister.GetForCluster(
+		ctx,
+		operation.ExternalID.SubscriptionID,
+		operation.ExternalID.ResourceGroupName,
+		operation.ExternalID.Name,
+		maestrohelpers.ReadDesireNameReadonlyControlPlaneClusterAutoscaler,
+	)
+	if database.IsNotFoundError(err) {
+		return newOperationState(arm.ProvisioningStateUpdating, "cluster autoscaler state not cached yet"), nil
+	}
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+	if !meta.IsStatusConditionTrue(readDesire.Status.Conditions, kubeapplier.ConditionTypeSuccessful) {
+		message := "ReadDesire for cluster autoscaler has not yet successfully observed the target"
+		if successfulCondition := meta.FindStatusCondition(readDesire.Status.Conditions, kubeapplier.ConditionTypeSuccessful); successfulCondition != nil {
+			message = fmt.Sprintf("ReadDesire for cluster autoscaler is not successful: %s: %s", successfulCondition.Reason, successfulCondition.Message)
+		}
+		logger.Info("cluster autoscaler ReadDesire is not successful", "readDesire.Status.Conditions", readDesire.Status.Conditions)
+		return newOperationState(arm.ProvisioningStateUpdating, message), nil
+	}
+	if readDesire.Status.KubeContent == nil || len(readDesire.Status.KubeContent.Raw) == 0 {
+		return newOperationState(arm.ProvisioningStateUpdating, "cluster autoscaler state not cached yet"), nil
+	}
+
+	cpc, err := maestrohelpers.GetCachedControlPlaneClusterAutoscalerForCluster(
+		ctx, c.readDesireLister,
+		operation.ExternalID.SubscriptionID,
+		operation.ExternalID.ResourceGroupName,
+		operation.ExternalID.Name,
+	)
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+	if !maestrohelpers.IsControlPlaneClusterAutoscalerReady(cpc) {
+		message := maestrohelpers.ControlPlaneClusterAutoscalerNotReadyMessage(cpc)
+		logger.Info("cluster autoscaler ControlPlaneComponent is not ready", "message", message)
+		return newOperationState(arm.ProvisioningStateUpdating, message), nil
+	}
+	return newOperationState(arm.ProvisioningStateSucceeded, ""), nil
 }

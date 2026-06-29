@@ -92,6 +92,11 @@ type Operation struct {
 	// This will be removed once all clusters whose deletion was triggered before the new approach is fully rolled out have been
 	// fully deleted in all ARO-HCP permanent environments, for all regions.
 	UsesNewClusterDeletionApproach bool `json:"usesNewClusterDeletionApproach"`
+
+	// AutoscalingUpdate is true for cluster update operations where the customer changed
+	// CustomerProperties.Autoscaling. The backend uses this to gate operation completion on
+	// cluster-autoscaler ControlPlaneComponent readiness on the management cluster.
+	AutoscalingUpdate bool `json:"autoscalingUpdate,omitempty"`
 }
 
 func (o *Operation) ComputeLogicalResourceID() *azcorearm.ResourceID {

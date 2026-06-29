@@ -23,6 +23,7 @@ import (
 	"strings"
 	"time"
 
+	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/operation"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -684,6 +685,10 @@ func (f *Frontend) updateHCPClusterInCosmos(ctx context.Context, writer http.Res
 	}
 
 	transaction := f.resourcesDBClient.NewTransaction(oldInternalCluster.ID.SubscriptionID)
+	autoscalingUpdate := !equality.Semantic.DeepEqual(
+		oldInternalCluster.CustomerProperties.Autoscaling,
+		newInternalCluster.CustomerProperties.Autoscaling,
+	)
 	clusterUpdateOperation := database.NewOperation(
 		database.OperationRequestUpdate,
 		oldInternalCluster.ID,
@@ -693,6 +698,7 @@ func (f *Frontend) updateHCPClusterInCosmos(ctx context.Context, writer http.Res
 		request.Header.Get(arm.HeaderNameClientObjectID),
 		request.Header.Get(arm.HeaderNameAsyncNotificationURI),
 		correlationData)
+	clusterUpdateOperation.AutoscalingUpdate = autoscalingUpdate
 	transaction.OnSuccess(addOperationResponseHeaders(writer, request, clusterUpdateOperation.NotificationURI, clusterUpdateOperation.OperationID))
 	_, err = f.resourcesDBClient.Operations(newInternalCluster.ID.SubscriptionID).AddCreateToTransaction(ctx, transaction, clusterUpdateOperation, nil)
 	if err != nil {

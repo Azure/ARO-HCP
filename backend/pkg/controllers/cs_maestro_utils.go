@@ -31,6 +31,13 @@ func hostedClusterNamespace(envIdentifier, csClusterID string) string {
 	return fmt.Sprintf("ocm-%s-%s", envIdentifier, csClusterID)
 }
 
+// controlPlaneNamespace returns the management-cluster namespace that hosts a
+// given HCP's control plane workloads (including ControlPlaneComponent CRs).
+// Hypershift names it "ocm-<envIdentifier>-<csClusterID>-<csClusterDomainPrefix>".
+func controlPlaneNamespace(envIdentifier, csClusterID, csClusterDomainPrefix string) string {
+	return fmt.Sprintf("ocm-%s-%s-%s", envIdentifier, csClusterID, csClusterDomainPrefix)
+}
+
 // createMaestroClientFromCSProvisionShard creates a Maestro client for the given cluster provision shard.
 // the client is scoped to the Consumer Name associated to the provision shard, and to
 // the source ID associated to the provision shard and the environment specified

@@ -455,6 +455,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		b.options.ClustersServiceClient,
 		http.DefaultClient,
 		activeOperationInformer,
+		unionReadDesireLister,
 	)
 	operationClusterDeleteController := operationcontrollers.NewOperationClusterDeleteController(
 		b.clock,
