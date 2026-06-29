@@ -15,6 +15,7 @@
 package istio
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 
@@ -52,6 +53,19 @@ func EnsureRevisionTag(ctx context.Context, client kubernetes.Interface, tagName
 		return nil
 	}
 
+	revWHName := revisionWebhookName(newRevision)
+	revWH, err := client.AdmissionregistrationV1().MutatingWebhookConfigurations().Get(ctx, revWHName, metav1.GetOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to get revision webhook %s for caBundle: %w", revWHName, err)
+	}
+	if len(revWH.Webhooks) == 0 {
+		return fmt.Errorf("revision webhook %s has no webhook entries", revWHName)
+	}
+	newCABundle := revWH.Webhooks[0].ClientConfig.CABundle
+	if len(newCABundle) == 0 {
+		return fmt.Errorf("revision webhook %s has empty caBundle", revWHName)
+	}
+
 	changed := false
 	for i := range wh.Webhooks {
 		if wh.Webhooks[i].ClientConfig.Service == nil {
@@ -59,6 +73,10 @@ func EnsureRevisionTag(ctx context.Context, client kubernetes.Interface, tagName
 		}
 		if wh.Webhooks[i].ClientConfig.Service.Name != newServiceName {
 			wh.Webhooks[i].ClientConfig.Service.Name = newServiceName
+			changed = true
+		}
+		if !bytes.Equal(wh.Webhooks[i].ClientConfig.CABundle, newCABundle) {
+			wh.Webhooks[i].ClientConfig.CABundle = newCABundle
 			changed = true
 		}
 	}

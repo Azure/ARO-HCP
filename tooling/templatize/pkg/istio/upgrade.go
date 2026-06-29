@@ -337,6 +337,13 @@ func runCanaryPostInstall(ctx context.Context, logger logr.Logger, aksClient AKS
 		return err
 	}
 
+	if opts.Tag == "" {
+		if _, err := UpdateMeshNamespaceLabels(ctx, kubeClient, target); err != nil {
+			return rollbackAndReturn(ctx, logger, kubeClient, opts, previousRevisions, target,
+				fmt.Errorf("failed to update namespace labels: %w", err))
+		}
+	}
+
 	restartResults, err := ExecuteRestartAllNamespaces(ctx, kubeClient, target)
 	if err != nil {
 		return rollbackAndReturn(ctx, logger, kubeClient, opts, previousRevisions, target,
@@ -378,11 +385,7 @@ func runCanaryPostInstall(ctx context.Context, logger logr.Logger, aksClient AKS
 		return nil
 	}
 
-	if opts.Tag == "" {
-		if _, err := UpdateMeshNamespaceLabels(ctx, kubeClient, target); err != nil {
-			return fmt.Errorf("failed to update namespace labels: %w", err)
-		}
-	} else {
+	if opts.Tag != "" {
 		logger.Info("Tag-based injection — namespace labels preserved", "tag", opts.Tag)
 	}
 

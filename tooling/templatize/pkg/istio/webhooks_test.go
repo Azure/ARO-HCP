@@ -32,12 +32,27 @@ func TestEnsureRevisionTag(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{Name: "istio-revision-tag-default-aks-istio-system"},
 		Webhooks: []admissionregistrationv1.MutatingWebhook{
 			{
-				Name:         "rev.validation.istio.io",
-				ClientConfig: admissionregistrationv1.WebhookClientConfig{Service: &admissionregistrationv1.ServiceReference{Name: svcName}},
+				Name: "rev.validation.istio.io",
+				ClientConfig: admissionregistrationv1.WebhookClientConfig{
+					CABundle: []byte("old-ca-bundle"),
+					Service:  &admissionregistrationv1.ServiceReference{Name: svcName},
+				},
 			},
 		},
 	}
-	client := fake.NewSimpleClientset(webhook)
+	revisionWebhook := &admissionregistrationv1.MutatingWebhookConfiguration{
+		ObjectMeta: metav1.ObjectMeta{Name: "istio-sidecar-injector-asm-1-29-aks-istio-system"},
+		Webhooks: []admissionregistrationv1.MutatingWebhook{
+			{
+				Name: "rev.namespace.sidecar-injector.istio.io",
+				ClientConfig: admissionregistrationv1.WebhookClientConfig{
+					CABundle: []byte("new-ca-bundle"),
+					Service:  &admissionregistrationv1.ServiceReference{Name: "istiod-asm-1-29", Namespace: "aks-istio-system"},
+				},
+			},
+		},
+	}
+	client := fake.NewSimpleClientset(webhook, revisionWebhook)
 
 	err := EnsureRevisionTag(context.Background(), client, "default", "asm-1-29")
 	require.NoError(t, err)
@@ -88,12 +103,27 @@ func TestEnsureRevisionTag_NoOpWhenAlreadyCorrect(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{Name: "istio-revision-tag-default-aks-istio-system"},
 		Webhooks: []admissionregistrationv1.MutatingWebhook{
 			{
-				Name:         "rev.validation.istio.io",
-				ClientConfig: admissionregistrationv1.WebhookClientConfig{Service: &admissionregistrationv1.ServiceReference{Name: "istiod-asm-1-29"}},
+				Name: "rev.validation.istio.io",
+				ClientConfig: admissionregistrationv1.WebhookClientConfig{
+					CABundle: []byte("current-ca-bundle"),
+					Service:  &admissionregistrationv1.ServiceReference{Name: "istiod-asm-1-29"},
+				},
 			},
 		},
 	}
-	client := fake.NewSimpleClientset(webhook)
+	revisionWebhook := &admissionregistrationv1.MutatingWebhookConfiguration{
+		ObjectMeta: metav1.ObjectMeta{Name: "istio-sidecar-injector-asm-1-29-aks-istio-system"},
+		Webhooks: []admissionregistrationv1.MutatingWebhook{
+			{
+				Name: "rev.namespace.sidecar-injector.istio.io",
+				ClientConfig: admissionregistrationv1.WebhookClientConfig{
+					CABundle: []byte("current-ca-bundle"),
+					Service:  &admissionregistrationv1.ServiceReference{Name: "istiod-asm-1-29", Namespace: "aks-istio-system"},
+				},
+			},
+		},
+	}
+	client := fake.NewSimpleClientset(webhook, revisionWebhook)
 
 	err := EnsureRevisionTag(context.Background(), client, "default", "asm-1-29")
 	require.NoError(t, err)
