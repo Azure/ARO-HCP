@@ -51,6 +51,10 @@ spec:
             --snapshot-location-config subscriptionId={{ .Values.subscriptionId }} \
             --image {{ .Values.imageRegistry }}/{{ .Values.veleroServer.repository }}@{{ .Values.veleroServer.digest }} \
             --concurrent-backups 4 \
+            --velero-pod-mem-limit 0 \
+            --velero-pod-mem-request 1024Mi \
+            --velero-pod-cpu-limit 0 \
+            --velero-pod-cpu-request 1000m \
             --dry-run -o yaml > /manifest/velero.yaml
 
           echo "Manifest generated successfully."
