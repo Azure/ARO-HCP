@@ -9,6 +9,7 @@ grafanactl helps maintain Azure Managed Grafana instances by providing tools to:
 - Remove orphaned Azure Monitor Workspace integrations
 - Clean up stale datasources pointing to deleted resources
 - Sync dashboards and folders from git to Grafana
+- Create or update Azure Managed Grafana with all Azure Monitor Workspace integrations
 
 This tool is particularly useful when Azure Monitor Workspaces (Prometheus instances) are removed from your infrastructure but their references remain in Grafana, creating stale integrations.
 
@@ -41,6 +42,25 @@ All commands require these basic parameters:
 - `--grafana-name` - Azure Managed Grafana instance name
 - `--output` - Output format: `table` (default) or `json`
 - `-v, --verbosity` - Set logging verbosity level (0-10)
+
+
+### Reconcile Commands
+
+#### Reconcile Grafana
+
+Create or update the Azure Managed Grafana instance, discover all succeeded Azure Monitor Workspaces in the subscription, and apply them as `azureMonitorWorkspaceIntegrations` before reconciling datasources:
+
+```bash
+grafanactl reconcile grafana \
+  --subscription "your-subscription-id" \
+  --resource-group "your-resource-group" \
+  --grafana-name "your-grafana-instance" \
+  --location "uksouth" \
+  --grafana-major-version "11" \
+  --zone-redundancy-mode "Disabled"
+```
+
+This command avoids passing discovered workspace IDs through bicep outputs. RBAC remains managed by bicep.
 
 ### List Commands
 

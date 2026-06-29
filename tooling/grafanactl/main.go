@@ -30,6 +30,8 @@ import (
 	"github.com/Azure/ARO-Tools/tools/grafanactl/cmd/modify"
 	"github.com/Azure/ARO-Tools/tools/grafanactl/cmd/sync"
 	"github.com/Azure/ARO-Tools/tools/grafanactl/cmd/verify"
+
+	"github.com/Azure/ARO-HCP/tooling/grafanactl/cmd/reconcile"
 )
 
 const (
@@ -80,6 +82,7 @@ and other operational tasks.`,
 		clean.NewCleanCommand,
 		list.NewListCommand,
 		modify.NewModifyCommand,
+		reconcile.NewReconcileCommand,
 		sync.NewSyncCommand,
 		verify.NewVerifyCommand,
 	}
