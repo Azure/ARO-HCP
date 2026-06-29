@@ -296,46 +296,76 @@ func (c *GenericRegistryClient) getAllTags(ctx context.Context, repository strin
 		return nil, fmt.Errorf("logger not found in context: %w", err)
 	}
 
-	// Use Docker Registry HTTP API v2 for listing tags
-	url := fmt.Sprintf("https://%s/v2/%s/tags/list", c.registryURL, repository)
-
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request (url: %s): %w", url, err)
-	}
-
-	if c.useAuth {
-		if err := c.addAuth(req, repository); err != nil {
-			return nil, fmt.Errorf("failed to add authentication: %w", err)
-		}
-	}
-
-	resp, err := c.doRequestWithRetry(ctx, req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to request registry API (url: %s): %w", url, err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("registry API returned status %d for repository %s (url: %s)", resp.StatusCode, repository, url)
-	}
-
-	var tagsResp dockerRegistryTagsResponse
-	if err := json.NewDecoder(resp.Body).Decode(&tagsResp); err != nil {
-		return nil, fmt.Errorf("failed to decode registry API response (url: %s): %w", url, err)
-	}
-
-	logger.V(2).Info("fetched tags from generic registry", "registry", c.registryURL, "repository", repository, "totalTags", len(tagsResp.Tags))
-
 	var allTags []Tag
-	for _, tagName := range tagsResp.Tags {
-		allTags = append(allTags, Tag{
-			Name:         tagName,
-			LastModified: time.Time{},
-		})
+	nextURL := fmt.Sprintf("https://%s/v2/%s/tags/list", c.registryURL, repository)
+
+	for nextURL != "" {
+		req, err := http.NewRequestWithContext(ctx, "GET", nextURL, nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create request (url: %s): %w", nextURL, err)
+		}
+
+		if c.useAuth {
+			if err := c.addAuth(req, repository); err != nil {
+				return nil, fmt.Errorf("failed to add authentication: %w", err)
+			}
+		}
+
+		resp, err := c.doRequestWithRetry(ctx, req)
+		if err != nil {
+			return nil, fmt.Errorf("failed to request registry API (url: %s): %w", nextURL, err)
+		}
+
+		if resp.StatusCode != http.StatusOK {
+			resp.Body.Close()
+			return nil, fmt.Errorf("registry API returned status %d for repository %s (url: %s)", resp.StatusCode, repository, nextURL)
+		}
+
+		var tagsResp dockerRegistryTagsResponse
+		if err := json.NewDecoder(resp.Body).Decode(&tagsResp); err != nil {
+			resp.Body.Close()
+			return nil, fmt.Errorf("failed to decode registry API response (url: %s): %w", nextURL, err)
+		}
+
+		for _, tagName := range tagsResp.Tags {
+			allTags = append(allTags, Tag{
+				Name:         tagName,
+				LastModified: time.Time{},
+			})
+		}
+
+		nextURL = parseNextLink(resp.Header.Get("Link"), c.registryURL)
+		resp.Body.Close()
 	}
+
+	logger.V(2).Info("fetched tags from generic registry", "registry", c.registryURL, "repository", repository, "totalTags", len(allTags))
 
 	return allTags, nil
+}
+
+// parseNextLink extracts the next page URL from a Docker Registry V2 Link header.
+// The header format is: `</v2/repo/tags/list?n=100&last=tag>; rel="next"`
+func parseNextLink(linkHeader string, registryURL string) string {
+	if linkHeader == "" {
+		return ""
+	}
+	for _, part := range strings.Split(linkHeader, ",") {
+		part = strings.TrimSpace(part)
+		if !strings.Contains(part, `rel="next"`) {
+			continue
+		}
+		start := strings.Index(part, "<")
+		end := strings.Index(part, ">")
+		if start == -1 || end == -1 || end <= start {
+			continue
+		}
+		path := part[start+1 : end]
+		if strings.HasPrefix(path, "/") {
+			return fmt.Sprintf("https://%s%s", registryURL, path)
+		}
+		return path
+	}
+	return ""
 }
 
 func (c *GenericRegistryClient) GetArchSpecificDigest(ctx context.Context, repository string, tagPattern string, arch string, wantMultiArch bool, versionLabel string) (*Tag, error) {
@@ -351,12 +381,23 @@ func (c *GenericRegistryClient) GetArchSpecificDigest(ctx context.Context, repos
 		return nil, fmt.Errorf("failed to fetch all tags: %w", err)
 	}
 
+	// Pre-filter tags by pattern before enrichment to avoid costly remote.Get
+	// calls on thousands of non-matching tags
+	if tagPattern != "" {
+		filtered, err := FilterTagsByPattern(allTags, tagPattern)
+		if err != nil {
+			return nil, fmt.Errorf("failed to pre-filter tags: %w", err)
+		}
+		logger.V(2).Info("pre-filtered tags by pattern", "registry", c.registryURL, "repository", repository, "tagPattern", tagPattern, "totalTags", len(allTags), "matchingTags", len(filtered))
+		allTags = filtered
+	}
+
 	remoteOpts := GetRemoteOptions(c.useAuth)
 
 	// Cache for remote descriptors to avoid duplicate remote.Get calls
 	descriptorCache := make(map[string]*remote.Descriptor)
 
-	// Enrich tags with digest and timestamp information before filtering
+	// Enrich tags with digest and timestamp information
 	var enrichedTags []Tag
 	for _, tag := range allTags {
 		// Check if context is cancelled before processing each tag
