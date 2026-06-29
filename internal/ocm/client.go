@@ -112,20 +112,6 @@ type ClusterServiceClientSpec interface {
 	// then call GetError() to check for an iteration error.
 	ListExternalAuths(clusterInternalID InternalID, searchExpression string) ExternalAuthListIterator
 
-	// GetBreakGlassCredential sends a GET request to fetch a break-glass cluster credential from Cluster Service.
-	GetBreakGlassCredential(ctx context.Context, internalID InternalID) (*cmv1.BreakGlassCredential, error)
-
-	// PostBreakGlassCredential sends a POST request to create a break-glass cluster credential in Cluster Service.
-	PostBreakGlassCredential(ctx context.Context, clusterInternalID InternalID) (*cmv1.BreakGlassCredential, error)
-
-	// DeleteBreakGlassCredentials sends a DELETE request to revoke all break-glass credentials for a cluster in Cluster Service.
-	DeleteBreakGlassCredentials(ctx context.Context, clusterInternalID InternalID) error
-
-	// ListBreakGlassCredentials prepares a GET request with the given search expression. Call
-	// Items() on the returned iterator in a for/range loop to execute the request and paginate
-	// over results, then call GetError() to check for an iteration error.
-	ListBreakGlassCredentials(clusterInternalID InternalID, searchExpression string) BreakGlassCredentialListIterator
-
 	// GetVersion sends a GET request to fetch cluster version
 	GetVersion(ctx context.Context, versionName string) (*arohcpv1alpha1.Version, error)
 
@@ -626,63 +612,6 @@ func (csc *clusterServiceClient) ListExternalAuths(clusterInternalID InternalID,
 	//	externalAuthsListRequest.Search(searchExpression)
 	//}
 	return &externalAuthListIterator{request: externalAuthsListRequest}
-}
-
-func (csc *clusterServiceClient) GetBreakGlassCredential(ctx context.Context, internalID InternalID) (*cmv1.BreakGlassCredential, error) {
-	client, ok := GetBreakGlassCredentialClient(internalID, csc.conn)
-	if !ok {
-		return nil, fmt.Errorf("OCM path is not a break-glass credential: %s", internalID)
-	}
-	breakGlassCredentialGetResponse, err := client.Get().SendContext(ctx)
-	if err != nil {
-		return nil, utils.TrackError(err)
-	}
-	breakGlassCredential, ok := breakGlassCredentialGetResponse.GetBody()
-	if !ok {
-		return nil, fmt.Errorf("empty response body")
-	}
-	return breakGlassCredential, nil
-}
-
-func (csc *clusterServiceClient) PostBreakGlassCredential(ctx context.Context, clusterInternalID InternalID) (*cmv1.BreakGlassCredential, error) {
-	client, ok := getClusterClient(clusterInternalID, csc.conn)
-	if !ok {
-		return nil, fmt.Errorf("OCM path is not a cluster: %s", clusterInternalID)
-	}
-	breakGlassCredential, err := cmv1.NewBreakGlassCredential().Build()
-	if err != nil {
-		return nil, utils.TrackError(err)
-	}
-	breakGlassCredentialsAddResponse, err := client.BreakGlassCredentials().Add().Body(breakGlassCredential).SendContext(ctx)
-	if err != nil {
-		return nil, utils.TrackError(err)
-	}
-	breakGlassCredential, ok = breakGlassCredentialsAddResponse.GetBody()
-	if !ok {
-		return nil, fmt.Errorf("empty response body")
-	}
-	return breakGlassCredential, nil
-}
-
-func (csc *clusterServiceClient) DeleteBreakGlassCredentials(ctx context.Context, clusterInternalID InternalID) error {
-	client, ok := getClusterClient(clusterInternalID, csc.conn)
-	if !ok {
-		return fmt.Errorf("OCM path is not a cluster: %s", clusterInternalID)
-	}
-	_, err := client.BreakGlassCredentials().Delete().SendContext(ctx)
-	return utils.TrackError(err)
-}
-
-func (csc *clusterServiceClient) ListBreakGlassCredentials(clusterInternalID InternalID, searchExpression string) BreakGlassCredentialListIterator {
-	client, ok := getClusterClient(clusterInternalID, csc.conn)
-	if !ok {
-		return &breakGlassCredentialListIterator{err: fmt.Errorf("OCM path is not a cluster: %s", clusterInternalID)}
-	}
-	breakGlassCredentialsListRequest := client.BreakGlassCredentials().List()
-	if searchExpression != "" {
-		breakGlassCredentialsListRequest.Search(searchExpression)
-	}
-	return &breakGlassCredentialListIterator{request: breakGlassCredentialsListRequest}
 }
 
 func (csc *clusterServiceClient) GetVersion(ctx context.Context, versionName string) (*arohcpv1alpha1.Version, error) {
