@@ -60,30 +60,36 @@ type dockerRegistryTagsResponse struct {
 	Tags []string `json:"tags"`
 }
 
-// addAuth adds authentication headers to the request using Docker credentials.
-// It follows the Docker Registry V2 authentication flow:
-// 1. Resolve credentials from the default keychain
-// 2. Discover the token endpoint via the WWW-Authenticate challenge from the registry
-// 3. Exchange credentials for a bearer token
-func (c *GenericRegistryClient) addAuth(req *http.Request, repository string) error {
+// getToken resolves Docker credentials and exchanges them for a bearer token.
+func (c *GenericRegistryClient) getToken(repository string) (string, error) {
 	ref, err := name.NewRepository(fmt.Sprintf("%s/%s", c.registryURL, repository))
 	if err != nil {
-		return fmt.Errorf("failed to parse repository: %w", err)
+		return "", fmt.Errorf("failed to parse repository: %w", err)
 	}
 
 	authenticator, err := authn.DefaultKeychain.Resolve(ref.Registry)
 	if err != nil {
-		return fmt.Errorf("failed to resolve authenticator: %w", err)
+		return "", fmt.Errorf("failed to resolve authenticator: %w", err)
 	}
 
 	authConfig, err := authenticator.Authorization()
 	if err != nil {
-		return fmt.Errorf("failed to get authorization: %w", err)
+		return "", fmt.Errorf("failed to get authorization: %w", err)
 	}
 
 	token, err := c.getBearerToken(repository, *authConfig)
 	if err != nil {
-		return fmt.Errorf("failed to get bearer token: %w", err)
+		return "", fmt.Errorf("failed to get bearer token: %w", err)
+	}
+
+	return token, nil
+}
+
+// addAuth adds authentication headers to the request using Docker credentials.
+func (c *GenericRegistryClient) addAuth(req *http.Request, repository string) error {
+	token, err := c.getToken(repository)
+	if err != nil {
+		return err
 	}
 
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
@@ -296,6 +302,15 @@ func (c *GenericRegistryClient) getAllTags(ctx context.Context, repository strin
 		return nil, fmt.Errorf("logger not found in context: %w", err)
 	}
 
+	var authHeader string
+	if c.useAuth {
+		token, err := c.getToken(repository)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get authentication token: %w", err)
+		}
+		authHeader = fmt.Sprintf("Bearer %s", token)
+	}
+
 	var allTags []Tag
 	nextURL := fmt.Sprintf("https://%s/v2/%s/tags/list", c.registryURL, repository)
 
@@ -305,10 +320,8 @@ func (c *GenericRegistryClient) getAllTags(ctx context.Context, repository strin
 			return nil, fmt.Errorf("failed to create request (url: %s): %w", nextURL, err)
 		}
 
-		if c.useAuth {
-			if err := c.addAuth(req, repository); err != nil {
-				return nil, fmt.Errorf("failed to add authentication: %w", err)
-			}
+		if authHeader != "" {
+			req.Header.Set("Authorization", authHeader)
 		}
 
 		resp, err := c.doRequestWithRetry(ctx, req)
@@ -384,11 +397,19 @@ func (c *GenericRegistryClient) GetArchSpecificDigest(ctx context.Context, repos
 	// Pre-filter tags by pattern before enrichment to avoid costly remote.Get
 	// calls on thousands of non-matching tags
 	if tagPattern != "" {
+		totalCount := len(allTags)
 		filtered, err := FilterTagsByPattern(allTags, tagPattern)
 		if err != nil {
 			return nil, fmt.Errorf("failed to pre-filter tags: %w", err)
 		}
-		logger.V(2).Info("pre-filtered tags by pattern", "registry", c.registryURL, "repository", repository, "tagPattern", tagPattern, "totalTags", len(allTags), "matchingTags", len(filtered))
+		if len(filtered) == 0 {
+			var sampleTags []string
+			for i := 0; i < min(5, totalCount); i++ {
+				sampleTags = append(sampleTags, allTags[i].Name)
+			}
+			return nil, fmt.Errorf("no tags matching pattern %s found for repository %s (sample tags from %d total: %v)", tagPattern, repository, totalCount, sampleTags)
+		}
+		logger.V(2).Info("pre-filtered tags by pattern", "registry", c.registryURL, "repository", repository, "tagPattern", tagPattern, "totalTags", totalCount, "matchingTags", len(filtered))
 		allTags = filtered
 	}
 
