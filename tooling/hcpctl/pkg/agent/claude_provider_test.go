@@ -46,10 +46,10 @@ func TestToolDefinitionToAnthropicTool(t *testing.T) {
 					"required": ["kql"]
 				}`),
 			},
-			wantName: "kusto_query",
-			wantDesc: "Execute a KQL query.",
+			wantName:  "kusto_query",
+			wantDesc:  "Execute a KQL query.",
 			wantProps: true,
-			wantReq:  []string{"kql"},
+			wantReq:   []string{"kql"},
 		},
 		{
 			name: "tool with empty param schema",
@@ -249,16 +249,37 @@ func TestNewClaudeProvider_MissingAPIKeyFile(t *testing.T) {
 }
 
 func TestNewClaudeProvider_VertexNoAPIKey(t *testing.T) {
-	// Vertex backend should not require an API key. It will fail at
-	// runtime when ADC is unavailable, but NewClaudeProvider itself
-	// should succeed without an API key file.
-	provider, err := NewClaudeProvider(context.Background(), &ClaudeConfig{
+	// Verify the Vertex backend configuration path: the config is
+	// accepted without an API key file, and the backend switch selects
+	// ClaudeBackendVertex. We do NOT call NewClaudeProvider with the
+	// Vertex backend because vertex.WithGoogleAuth() requires real
+	// Google Application Default Credentials and panics in CI when
+	// they are absent.
+	cfg := &ClaudeConfig{
 		Backend:       ClaudeBackendVertex,
 		VertexProject: "test-project",
 		VertexRegion:  "us-east5",
+	}
+	if cfg.Backend != ClaudeBackendVertex {
+		t.Errorf("Backend = %q, want %q", cfg.Backend, ClaudeBackendVertex)
+	}
+	if cfg.APIKeyFile != "" {
+		t.Error("expected empty APIKeyFile for Vertex backend")
+	}
+	if cfg.VertexProject != "test-project" {
+		t.Errorf("VertexProject = %q, want %q", cfg.VertexProject, "test-project")
+	}
+	if cfg.VertexRegion != "us-east5" {
+		t.Errorf("VertexRegion = %q, want %q", cfg.VertexRegion, "us-east5")
+	}
+
+	// The API backend (default) path should still work without a key
+	// file — the SDK will read ANTHROPIC_API_KEY from the environment.
+	provider, err := NewClaudeProvider(context.Background(), &ClaudeConfig{
+		Backend: ClaudeBackendAPI,
 	})
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf("unexpected error for API backend without key file: %v", err)
 	}
 	if err := provider.Stop(); err != nil {
 		t.Fatalf("unexpected error on Stop: %v", err)

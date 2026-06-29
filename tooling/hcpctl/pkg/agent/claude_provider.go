@@ -101,7 +101,7 @@ func NewClaudeProvider(ctx context.Context, cfg *ClaudeConfig) (*ClaudeProvider,
 			}
 			key := strings.TrimSpace(string(keyData))
 			if key == "" {
-				return nil, fmt.Errorf("Anthropic API key file %s is empty", cfg.APIKeyFile)
+				return nil, fmt.Errorf("anthropic API key file %s is empty", cfg.APIKeyFile)
 			}
 			opts = append(opts, option.WithAPIKey(key))
 		}
