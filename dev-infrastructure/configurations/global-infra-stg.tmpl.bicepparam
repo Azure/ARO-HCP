@@ -20,11 +20,6 @@ param keyVaultEncryptionKeyName = '{{ .global.keyVault.encryptionKeyName }}'
 
 // V2 grafana name from stgGlobalV2 (not monitoring.grafanaName) so the parallel
 // STG-global stack does not collide with the live arohcp-stg Grafana workspace.
-param grafanaName = '{{ .stgGlobalV2.grafanaName }}'
-param grafanaMajorVersion = '{{ .monitoring.grafanaMajorVersion }}'
-param grafanaZoneRedundantMode = '{{ .monitoring.grafanaZoneRedundantMode }}'
-param grafanaRoles = '{{ .monitoring.grafanaRoles }}'
-param crossTenantSecurityGroup = '{{ .monitoring.crossTenantSecurityGroup }}'
 
 param globalNSPName = '{{ .global.nsp.name }}'
 param globalNSPAccessMode = '{{ .global.nsp.accessMode }}'

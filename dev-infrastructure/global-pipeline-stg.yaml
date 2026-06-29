@@ -44,6 +44,37 @@ resourceGroups:
     template: templates/global-infra.bicep
     parameters: configurations/global-infra-stg.tmpl.bicepparam
     deploymentLevel: ResourceGroup
+  - name: grafana
+    action: Shell
+    command: >-
+      ./grafanactl reconcile grafana --subscription "${GRAFANA_SUBSCRIPTION_ID}" --resource-group "${GRAFANA_RESOURCE_GROUP}" --grafana-name "${GRAFANA_NAME}" --location "${GRAFANA_LOCATION}" --grafana-major-version "${GRAFANA_MAJOR_VERSION}" --zone-redundancy-mode "${GRAFANA_ZONE_REDUNDANCY_MODE}" --cross-tenant-security-group "${GRAFANA_CROSS_TENANT_SECURITY_GROUP}"
+    workingDir: ./../tooling/grafanactl
+    variables:
+    - name: GRAFANA_SUBSCRIPTION_ID
+      input:
+        resourceGroup: singleton
+        step: infra
+        name: subscriptionId
+    - name: GRAFANA_RESOURCE_GROUP
+      configRef: global.rg
+    - name: GRAFANA_NAME
+      configRef: stgGlobalV2.grafanaName
+    - name: GRAFANA_LOCATION
+      configRef: global.region
+    - name: GRAFANA_MAJOR_VERSION
+      configRef: monitoring.grafanaMajorVersion
+    - name: GRAFANA_ZONE_REDUNDANCY_MODE
+      configRef: monitoring.grafanaZoneRedundantMode
+    - name: GRAFANA_CROSS_TENANT_SECURITY_GROUP
+      configRef: monitoring.crossTenantSecurityGroup
+    shellIdentity:
+      input:
+        resourceGroup: singleton
+        step: infra
+        name: globalMSIId
+    dependsOn:
+    - resourceGroup: singleton
+      step: infra
   - name: output
     action: ARM
     template: templates/output-global.bicep
@@ -52,7 +83,15 @@ resourceGroups:
     outputOnly: true
     dependsOn:
     - resourceGroup: singleton
-      step: infra
+      step: grafana
+  - name: grafana-rbac
+    action: ARM
+    template: templates/grafana-rbac.bicep
+    parameters: configurations/grafana-rbac-stg.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    dependsOn:
+    - resourceGroup: singleton
+      step: grafana
   - name: grafana-monitoring-reader
     action: ARM
     template: templates/grafana-monitoring-reader.bicep
@@ -67,6 +106,8 @@ resourceGroups:
     dependsOn:
     - resourceGroup: singleton
       step: output
+    - resourceGroup: singleton
+      step: grafana-rbac
   - name: global-kv-private-issuer
     action: SetCertificateIssuer
     secretKeyVault:
@@ -146,6 +187,8 @@ resourceGroups:
     dependsOn:
     - resourceGroup: singleton
       step: housekeeping
+    - resourceGroup: singleton
+      step: grafana-rbac
     - resourceGroup: singleton
       step: output
   # creates DNS delegation for the ARO HCP global SVC zone
