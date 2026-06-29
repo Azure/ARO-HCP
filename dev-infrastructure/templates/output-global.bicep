@@ -62,10 +62,9 @@ output svcParentZoneResourceId string = svcParentZone.id
 //
 
 // TODO(ARO-28044): re-enable after ARO-28040.
-// Keep the outputs present for pipeline compatibility while Grafana reconciliation is paused.
-var grafanaOutputPaused = !empty(grafanaName)
-output grafanaResourceId string = grafanaOutputPaused ? '' : ''
-output grafanaPrincipalId string = grafanaOutputPaused ? '' : ''
+// Grafana reconciliation is paused; emit empty outputs so dependent steps stay no-ops.
+output grafanaResourceId string = ''
+output grafanaPrincipalId string = ''
 
 //
 //   A Z U R E   F R O N T   D O O R
