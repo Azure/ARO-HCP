@@ -144,6 +144,13 @@ func (o *Options) runControllersUnderLeaderElection(
 	deleteInformer := informers.NewDeleteDesireInformer(listers.DeleteDesires())
 	readInformer := informers.NewReadDesireInformer(listers.ReadDesires())
 
+	collector := newDesireCollector(
+		applyInformer.GetStore(),
+		deleteInformer.GetStore(),
+		readInformer.GetStore(),
+		o.metricsRegisterer(),
+	)
+
 	applyCtl, err := apply_desire.NewApplyDesireController(applyInformer, o.DynamicClient, o.KubeApplierDBClient, apply_desire.Config{})
 	if err != nil {
 		return fmt.Errorf("apply controller: %w", err)
@@ -175,6 +182,7 @@ func (o *Options) runControllersUnderLeaderElection(
 					return
 				}
 
+				go collector.Run(ctx)
 				go applyCtl.Run(ctx, threadsApply)
 				go deleteCtl.Run(ctx, threadsDelete)
 				go readMgr.Run(ctx, threadsReadManager)
