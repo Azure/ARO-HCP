@@ -132,11 +132,6 @@ module maestroPostgres '../postgres/postgres.bicep' = if (deployPostgres) {
         principalName: res.msiRefFromId(postgresAdministrationManagedIdentityId).name
         principalType: 'ServicePrincipal'
       }
-      {
-        principalId: maestroServerManagedIdentityPrincipalId
-        principalName: maestroServerManagedIdentityName
-        principalType: 'ServicePrincipal'
-      }
     ]
     version: postgresServerVersion
     configurations: dbConfigurations
@@ -170,7 +165,7 @@ module maestroManagedIdentityDatabaseAccess '../postgres/postgres-access.bicep' 
   scope: resourceGroup(regionalResourceGroup)
   params: {
     postgresServerName: postgresServerName
-    postgresAdministrationManagedIdentityId: postgresAdministrationManagedIdentityId
+    postgresAdministrationManagedIdentityId: maestroServerManagedIdentityPrincipalId
     databaseName: maestroDatabaseName
     newUserName: maestroServerManagedIdentityName
     newUserPrincipalId: maestroServerManagedIdentityPrincipalId

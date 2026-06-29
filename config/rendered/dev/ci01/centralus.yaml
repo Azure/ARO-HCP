@@ -186,15 +186,15 @@ clustersService:
   postgres:
     backupRetentionDays: 7
     containerizedDb:
-      image: docker.io/library/postgres:14.2
-      pvcCapacity: 512Mi
+      image: ""
+      pvcCapacity: ""
     databaseName: clusters-service
     deploy: true
     enhancedMetricsEnabled: true
     geoRedundantBackup: false
     minTLSVersion: TLSV1.2
     name: arohcp-ci01-dbcs-j7654321
-    password: TheBlurstOfTimes
+    password: ""
     private: false
     serverSku: Standard_D8s_v3
     serverStorageSizeGB: 128
@@ -551,15 +551,15 @@ maestro:
   postgres:
     backupRetentionDays: 7
     containerizedDb:
-      image: docker.io/library/postgres:14.2
-      pvcCapacity: 512Mi
+      image: ""
+      pvcCapacity: ""
     databaseName: maestro
     deploy: true
     enhancedMetricsEnabled: true
     geoRedundantBackup: false
     minTLSVersion: TLSV1.2
     name: arohcp-ci01-dbmaestro-j7654321
-    password: TheBlurstOfTimes
+    password: ""
     private: false
     serverSku: Standard_D2s_v3
     serverStorageSizeGB: 32

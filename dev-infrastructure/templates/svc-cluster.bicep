@@ -863,7 +863,10 @@ module maestroServer '../modules/maestro/maestro-server.bicep' = {
     privateEndpointResourceGroup: resourceGroup().name
     maestroDatabaseName: maestroPostgresDatabaseName
     postgresServerPrivate: maestroPostgresPrivate
-    postgresAdministrationManagedIdentityId: globalMSIId
+    postgresAdministrationManagedIdentityId: mi.getManagedIdentityByName(
+      managedIdentities.outputs.managedIdentities,
+      maestroMIName
+    ).uamiID
     postgresEnhancedMetricsEnabled: maestroPostgresEnhancedMetricsEnabled
     maestroServerManagedIdentityPrincipalId: mi.getManagedIdentityByName(
       managedIdentities.outputs.managedIdentities,
@@ -909,7 +912,10 @@ module cs '../modules/cluster-service.bicep' = {
     regionalCXDNSZoneName: regionalCXDNSZoneName
     regionalResourceGroup: regionalResourceGroup
     ocpAcrResourceId: ocpAcrResourceId
-    postgresAdministrationManagedIdentityId: globalMSIId
+    postgresAdministrationManagedIdentityId: mi.getManagedIdentityByName(
+      managedIdentities.outputs.managedIdentities,
+      csMIName
+    ).uamiID
   }
   dependsOn: csPostgresDeploy && deployMaestroPostgres ? [maestroServer] : []
 }
