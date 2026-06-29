@@ -1381,3 +1381,155 @@ func TestRunUpgrade_OrphanRetryExhaustedRollsBackTagWebhook(t *testing.T) {
 	assert.Equal(t, []byte("ca-bundle-28"), tagWH.Webhooks[0].ClientConfig.CABundle,
 		"rollback should update CA bundle to old revision")
 }
+
+func TestRunUpgrade_CleanupUpdatesNamespaceBeforeRestart(t *testing.T) {
+	aks := &fakeAKSClient{
+		clusterInfo: &ClusterInfo{ProvisioningState: "Succeeded"},
+		meshProfile: &MeshProfile{Revisions: []string{"asm-1-28", "asm-1-29"}},
+		upgradeInfo: &MeshUpgradeInfo{AvailableUpgrades: []string{"asm-1-30"}},
+	}
+	kubeClient := fake.NewSimpleClientset(
+		&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "aks-istio-system"}},
+		&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "aks-istio-ingress"}},
+		&corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{Name: "app-ns", Labels: map[string]string{"istio.io/rev": "asm-1-29"}},
+		},
+		&appsv1.Deployment{
+			ObjectMeta: metav1.ObjectMeta{Name: "istiod-asm-1-28", Namespace: "aks-istio-system"},
+			Spec:       appsv1.DeploymentSpec{Replicas: ptr.To[int32](2)},
+			Status:     appsv1.DeploymentStatus{AvailableReplicas: 2},
+		},
+		&appsv1.Deployment{
+			ObjectMeta: metav1.ObjectMeta{Name: "istiod-asm-1-30", Namespace: "aks-istio-system"},
+			Spec:       appsv1.DeploymentSpec{Replicas: ptr.To[int32](2)},
+			Status:     appsv1.DeploymentStatus{AvailableReplicas: 2},
+		},
+		&corev1.Service{
+			ObjectMeta: metav1.ObjectMeta{Name: "aks-istio-ingressgateway-external", Namespace: "aks-istio-ingress"},
+			Spec:       corev1.ServiceSpec{Type: corev1.ServiceTypeLoadBalancer, Selector: map[string]string{"app": "gw"}},
+			Status:     corev1.ServiceStatus{LoadBalancer: corev1.LoadBalancerStatus{Ingress: []corev1.LoadBalancerIngress{{IP: "10.0.0.1"}}}},
+		},
+		&corev1.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "gw-pod", Namespace: "aks-istio-ingress",
+				Labels:      map[string]string{"app": "gw"},
+				Annotations: map[string]string{"sidecar.istio.io/status": `{"revision":"asm-1-28"}`},
+			},
+			Status: corev1.PodStatus{
+				Phase:      corev1.PodRunning,
+				Conditions: []corev1.PodCondition{{Type: corev1.PodReady, Status: corev1.ConditionTrue}},
+			},
+		},
+		&appsv1.Deployment{
+			ObjectMeta: metav1.ObjectMeta{Name: "web", Namespace: "app-ns"},
+			Spec:       appsv1.DeploymentSpec{Replicas: ptr.To[int32](1)},
+			Status:     appsv1.DeploymentStatus{UpdatedReplicas: 1, ReadyReplicas: 1},
+		},
+		&appsv1.ReplicaSet{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "web-abc", Namespace: "app-ns",
+				OwnerReferences: []metav1.OwnerReference{{Name: "web", Kind: "Deployment", APIVersion: "apps/v1", Controller: ptr.To(true)}},
+			},
+		},
+		&corev1.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "web-abc-123", Namespace: "app-ns",
+				Annotations:     map[string]string{"sidecar.istio.io/status": `{"revision":"asm-1-29"}`},
+				OwnerReferences: []metav1.OwnerReference{{Name: "web-abc", Kind: "ReplicaSet", APIVersion: "apps/v1", Controller: ptr.To(true)}},
+			},
+			Status: corev1.PodStatus{Phase: corev1.PodRunning},
+		},
+	)
+
+	cleanupRestartVerified := false
+	kubeClient.PrependReactor("patch", "deployments", func(action k8stesting.Action) (bool, runtime.Object, error) {
+		patchAction := action.(k8stesting.PatchAction)
+		if patchAction.GetNamespace() != "app-ns" {
+			return false, nil, nil
+		}
+
+		ns, err := kubeClient.Tracker().Get(corev1.SchemeGroupVersion.WithResource("namespaces"), "", "app-ns")
+		if err != nil {
+			return true, nil, err
+		}
+		nsLabel := ns.(*corev1.Namespace).Labels["istio.io/rev"]
+
+		pod, err := kubeClient.Tracker().Get(corev1.SchemeGroupVersion.WithResource("pods"), "app-ns", "web-abc-123")
+		if err != nil {
+			return true, nil, err
+		}
+
+		if !cleanupRestartVerified {
+			if nsLabel != "asm-1-28" {
+				return true, nil, fmt.Errorf("namespace label was %s during cleanup restart, expected asm-1-28", nsLabel)
+			}
+			cleanupRestartVerified = true
+		}
+
+		updated := pod.(*corev1.Pod).DeepCopy()
+		updated.Annotations["sidecar.istio.io/status"] = fmt.Sprintf(`{"revision":"%s"}`, nsLabel)
+		if err := kubeClient.Tracker().Update(corev1.SchemeGroupVersion.WithResource("pods"), updated, "app-ns"); err != nil {
+			return true, nil, err
+		}
+		return false, nil, nil
+	})
+
+	opts := baseOpts()
+	opts.Versions = "asm-1-30"
+
+	err := RunUpgrade(testCtx(t), opts, aks, kubeClient)
+	require.NoError(t, err)
+	assert.True(t, cleanupRestartVerified, "cleanup phase should have restarted workloads with labels already updated")
+}
+
+func TestRunUpgrade_DirectRevisionRollbackUpdatesLabels(t *testing.T) {
+	aks := &fakeAKSClient{
+		clusterInfo: &ClusterInfo{ProvisioningState: "Succeeded"},
+		meshProfile: &MeshProfile{Revisions: []string{"asm-1-28", "asm-1-29"}},
+		upgradeInfo: &MeshUpgradeInfo{},
+	}
+	kubeClient := fake.NewSimpleClientset(
+		&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "aks-istio-system"}},
+		&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "aks-istio-ingress"}},
+		&corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{Name: "app-ns", Labels: map[string]string{"istio.io/rev": "asm-1-28"}},
+		},
+		&appsv1.Deployment{
+			ObjectMeta: metav1.ObjectMeta{Name: "istiod-asm-1-28", Namespace: "aks-istio-system"},
+			Spec:       appsv1.DeploymentSpec{Replicas: ptr.To[int32](2)},
+			Status:     appsv1.DeploymentStatus{AvailableReplicas: 2},
+		},
+		&appsv1.Deployment{
+			ObjectMeta: metav1.ObjectMeta{Name: "istiod-asm-1-29", Namespace: "aks-istio-system"},
+			Spec:       appsv1.DeploymentSpec{Replicas: ptr.To[int32](2)},
+			Status:     appsv1.DeploymentStatus{AvailableReplicas: 0},
+		},
+		&corev1.Service{
+			ObjectMeta: metav1.ObjectMeta{Name: "aks-istio-ingressgateway-external", Namespace: "aks-istio-ingress"},
+			Spec:       corev1.ServiceSpec{Type: corev1.ServiceTypeLoadBalancer, Selector: map[string]string{"app": "gw"}},
+			Status:     corev1.ServiceStatus{LoadBalancer: corev1.LoadBalancerStatus{Ingress: []corev1.LoadBalancerIngress{{IP: "10.0.0.1"}}}},
+		},
+		&corev1.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "gw-pod", Namespace: "aks-istio-ingress",
+				Labels:      map[string]string{"app": "gw"},
+				Annotations: map[string]string{"sidecar.istio.io/status": `{"revision":"asm-1-29"}`},
+			},
+			Status: corev1.PodStatus{
+				Phase:      corev1.PodRunning,
+				Conditions: []corev1.PodCondition{{Type: corev1.PodReady, Status: corev1.ConditionTrue}},
+			},
+		},
+	)
+
+	opts := baseOpts()
+	opts.Versions = "asm-1-29"
+
+	err := RunUpgrade(testCtx(t), opts, aks, kubeClient)
+	assert.ErrorIs(t, err, ErrControlPlaneUnhealthy, "should fail due to unhealthy CP")
+
+	ns, err := kubeClient.CoreV1().Namespaces().Get(context.Background(), "app-ns", metav1.GetOptions{})
+	require.NoError(t, err)
+	assert.Equal(t, "asm-1-28", ns.Labels["istio.io/rev"],
+		"rollback should revert namespace label to old revision")
+}

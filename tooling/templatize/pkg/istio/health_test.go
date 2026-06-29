@@ -294,3 +294,48 @@ func TestCheckOrphanedWorkloads_NoRetiringRevisions(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, orphaned)
 }
+
+func TestMatchesSelector(t *testing.T) {
+	tests := []struct {
+		name     string
+		labels   map[string]string
+		selector map[string]string
+		want     bool
+	}{
+		{
+			name:     "nil selector matches nothing",
+			labels:   map[string]string{"app": "gw"},
+			selector: nil,
+			want:     false,
+		},
+		{
+			name:     "empty selector matches nothing",
+			labels:   map[string]string{"app": "gw"},
+			selector: map[string]string{},
+			want:     false,
+		},
+		{
+			name:     "matching selector",
+			labels:   map[string]string{"app": "gw", "env": "prod"},
+			selector: map[string]string{"app": "gw"},
+			want:     true,
+		},
+		{
+			name:     "non-matching selector",
+			labels:   map[string]string{"app": "web"},
+			selector: map[string]string{"app": "gw"},
+			want:     false,
+		},
+		{
+			name:     "nil labels with selector",
+			labels:   nil,
+			selector: map[string]string{"app": "gw"},
+			want:     false,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, matchesSelector(tc.labels, tc.selector))
+		})
+	}
+}

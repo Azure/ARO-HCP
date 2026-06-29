@@ -219,6 +219,12 @@ func runCleanupAndUpgrade(ctx context.Context, logger logr.Logger, aksClient AKS
 		return fmt.Errorf("failed to ensure ingress during cleanup: %w", err)
 	}
 
+	if opts.Tag == "" {
+		if _, err := UpdateMeshNamespaceLabels(ctx, kubeClient, oldRevision); err != nil {
+			return fmt.Errorf("failed to update namespace labels during cleanup: %w", err)
+		}
+	}
+
 	if _, err := ExecuteRestartAllNamespaces(ctx, kubeClient, oldRevision); err != nil {
 		return fmt.Errorf("cleanup workload restart failed: %w", err)
 	}
@@ -233,12 +239,6 @@ func runCleanupAndUpgrade(ctx context.Context, logger logr.Logger, aksClient AKS
 	}
 	if !health.Passed {
 		return fmt.Errorf("cleanup health check failed: %w: %v", ErrControlPlaneUnhealthy, health.Issues)
-	}
-
-	if opts.Tag == "" {
-		if _, err := UpdateMeshNamespaceLabels(ctx, kubeClient, oldRevision); err != nil {
-			return fmt.Errorf("failed to update namespace labels during cleanup: %w", err)
-		}
 	}
 
 	if err := aksClient.CompleteCanaryUpgrade(ctx, opts.ResourceGroup, opts.ClusterName, oldRevision); err != nil {
@@ -279,6 +279,10 @@ func rollbackWorkloads(ctx context.Context, logger logr.Logger, kubeClient kuber
 	if opts.Tag != "" {
 		if err := EnsureRevisionTag(ctx, kubeClient, opts.Tag, oldRevision); err != nil {
 			return fmt.Errorf("failed to flip revision tag %s → %s: %w", opts.Tag, oldRevision, err)
+		}
+	} else {
+		if _, err := UpdateMeshNamespaceLabels(ctx, kubeClient, oldRevision); err != nil {
+			return fmt.Errorf("failed to rollback namespace labels to %s: %w", oldRevision, err)
 		}
 	}
 	if _, err := ExecuteRestartAllNamespaces(ctx, kubeClient, oldRevision); err != nil {

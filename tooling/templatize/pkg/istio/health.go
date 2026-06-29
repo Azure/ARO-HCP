@@ -187,6 +187,9 @@ func CheckOrphanedWorkloads(ctx context.Context, client kubernetes.Interface, ta
 }
 
 func matchesSelector(labels, selector map[string]string) bool {
+	if len(selector) == 0 {
+		return false
+	}
 	for k, v := range selector {
 		if labels[k] != v {
 			return false
