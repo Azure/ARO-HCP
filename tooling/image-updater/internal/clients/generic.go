@@ -85,17 +85,6 @@ func (c *GenericRegistryClient) getToken(repository string) (string, error) {
 	return token, nil
 }
 
-// addAuth adds authentication headers to the request using Docker credentials.
-func (c *GenericRegistryClient) addAuth(req *http.Request, repository string) error {
-	token, err := c.getToken(repository)
-	if err != nil {
-		return err
-	}
-
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
-	return nil
-}
-
 // getBearerToken exchanges credentials for a bearer token following the Docker Registry V2 auth spec.
 // Unlike the QuayClient which hardcodes quay.io's token endpoint, this method dynamically discovers
 // the token endpoint by making an unauthenticated request to /v2/ and parsing the WWW-Authenticate
