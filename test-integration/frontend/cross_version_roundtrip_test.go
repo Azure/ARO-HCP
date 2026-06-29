@@ -570,6 +570,17 @@ func createNodePoolAndComplete(
 
 	parsedID := api.Must(azcorearm.ParseResourceID(resourceID))
 	require.NoError(t, integrationutils.MarkOperationsCompleteForName(ctx, testInfo.ResourcesDBClient(), subscriptionID, parsedID.Name))
+
+	// Setting the Cluster Service ID for the node pool is needed until we move all cs interactions to the backend.
+	csID, err := integrationutils.DeriveClusterServiceID(
+		ctx,
+		testInfo.ResourcesDBClient(),
+		testInfo.ClusterServiceMock,
+		t.Name(),
+		resourceID,
+	)
+	require.NoError(t, err)
+	require.NoError(t, integrationutils.SetClusterServiceID(ctx, testInfo.ResourcesDBClient(), resourceID, csID))
 }
 
 // externalAuthCreatePayload returns the ExternalAuth creation payload.
