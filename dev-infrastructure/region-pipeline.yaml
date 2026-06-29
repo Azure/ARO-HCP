@@ -51,23 +51,23 @@ resourceGroups:
         resourceGroup: global
         step: output
         name: globalMSIId
-  # TODO(ARO-28044): re-enable after ARO-28040
-  # - name: add-grafana-datasource
-  #   action: GrafanaDatasources
-  #   omitFromServiceGroupCompletion: true
-  #   automatedRetry:
-  #     errorContainsAny:
-  #     - "UpdateConflict"
-  #     maximumRetryCount: 3
-  #     durationBetweenRetries: 1m
-  #   grafanaName: "{{ .monitoring.grafanaName }}"
-  #   identityFrom:
-  #     resourceGroup: global
-  #     step: output
-  #     name: globalMSIId
-  #   dependsOn:
-  #   - resourceGroup: regional
-  #     step: output
+        # TODO(ARO-28044): re-enable after ARO-28040
+        # - name: add-grafana-datasource
+        #   action: GrafanaDatasources
+        #   omitFromServiceGroupCompletion: true
+        #   automatedRetry:
+        #     errorContainsAny:
+        #     - "UpdateConflict"
+        #     maximumRetryCount: 3
+        #     durationBetweenRetries: 1m
+        #   grafanaName: "{{ .monitoring.grafanaName }}"
+        #   identityFrom:
+        #     resourceGroup: global
+        #     step: output
+        #     name: globalMSIId
+        #   dependsOn:
+        #   - resourceGroup: regional
+        #     step: output
 - name: kusto
   resourceGroup: '{{ .kusto.rg }}'
   subscription: '{{ .global.subscription.key }}'
