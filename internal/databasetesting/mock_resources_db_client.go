@@ -163,6 +163,18 @@ func (m *MockResourcesDBClient) GetFeedRanges(ctx context.Context) ([]azcosmos.F
 	return []azcosmos.FeedRange{mockChangeFeedFeedRange}, nil
 }
 
+// SystemAdminCredentialRequests returns a CRUD interface for SystemAdminCredentialRequest resources.
+func (m *MockResourcesDBClient) SystemAdminCredentialRequests(subscriptionID, resourceGroupName, clusterName string) database.ResourceCRUD[api.SystemAdminCredentialRequest, *api.SystemAdminCredentialRequest] {
+	clusterResourceID := api.Must(api.ToClusterResourceID(subscriptionID, resourceGroupName, clusterName))
+	return newMockResourceCRUD[api.SystemAdminCredentialRequest, *api.SystemAdminCredentialRequest, database.GenericDocument[api.SystemAdminCredentialRequest]](m, clusterResourceID, api.SystemAdminCredentialRequestResourceType)
+}
+
+// SystemAdminCredentialsRevocations returns a CRUD interface for SystemAdminCredentialsRevocation resources.
+func (m *MockResourcesDBClient) SystemAdminCredentialsRevocations(subscriptionID, resourceGroupName, clusterName string) database.ResourceCRUD[api.SystemAdminCredentialsRevocation, *api.SystemAdminCredentialsRevocation] {
+	clusterResourceID := api.Must(api.ToClusterResourceID(subscriptionID, resourceGroupName, clusterName))
+	return newMockResourceCRUD[api.SystemAdminCredentialsRevocation, *api.SystemAdminCredentialsRevocation, database.GenericDocument[api.SystemAdminCredentialsRevocation]](m, clusterResourceID, api.SystemAdminCredentialsRevocationResourceType)
+}
+
 // LoadFromDirectory loads cosmos-record context data from a directory.
 // It reads all JSON files that match the pattern for "load" directories.
 func (m *MockResourcesDBClient) LoadFromDirectory(dirPath string) error {
