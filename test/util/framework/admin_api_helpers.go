@@ -69,6 +69,7 @@ const (
 type AzureIdentityDetails struct {
 	PrincipalName string
 	PrincipalType PrincipalType
+	ObjectID      string
 }
 
 // GetCurrentAzureIdentityDetails extracts the current Azure identity from the
@@ -101,6 +102,11 @@ func (tc *perBinaryInvocationTestContext) GetCurrentAzureIdentityDetails(ctx con
 		return nil, fmt.Errorf("unexpected JWT claims type %T", parsed.Claims)
 	}
 
+	oid, ok := claims["oid"].(string)
+	if !ok {
+		return nil, fmt.Errorf("oid claim missing or not a string in token")
+	}
+
 	idType, ok := claims["idtyp"].(string)
 	if !ok {
 		return nil, fmt.Errorf("idtyp claim missing or not a string in token")
@@ -113,16 +119,14 @@ func (tc *perBinaryInvocationTestContext) GetCurrentAzureIdentityDetails(ctx con
 		return &AzureIdentityDetails{
 			PrincipalName: upn,
 			PrincipalType: PrincipalTypeDSTSUser,
+			ObjectID:      oid,
 		}, nil
 	}
 	if idType == "app" {
-		oid, ok := claims["oid"].(string)
-		if !ok {
-			return nil, fmt.Errorf("oid claim missing or not a string for app identity")
-		}
 		return &AzureIdentityDetails{
 			PrincipalName: oid,
 			PrincipalType: PrincipalTypeAADServicePrincipal,
+			ObjectID:      oid,
 		}, nil
 	}
 	return nil, fmt.Errorf("unknown identity type %q in token claims", idType)
