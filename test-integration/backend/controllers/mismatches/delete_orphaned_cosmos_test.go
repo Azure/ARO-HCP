@@ -25,7 +25,7 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/mismatchcontrollers"
+	sharedmismatch "github.com/Azure/ARO-HCP/backend/pkg/controllers/shared/mismatch"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/test-integration/utils/controllertesthelpers"
 	"github.com/Azure/ARO-HCP/test-integration/utils/integrationutils"
@@ -48,7 +48,7 @@ func testDeleteOrphanedCosmosResourcesController(t *testing.T, withMock bool) {
 			ArtifactDir: api.Must(fs.Sub(artifacts, path.Join("artifacts/delete_orphaned_cosmos"))),
 			ControllerInitializerFn: func(ctx context.Context, t *testing.T, input *controllertesthelpers.ControllerInitializationInput) (controller controllerutils.Controller, testMemory map[string]any) {
 				return newSubscriptionKeyWrapper(
-					mismatchcontrollers.NewDeleteOrphanedCosmosResourcesController(input.ResourcesDBClient, input.KubeApplierDBClients, input.SubscriptionLister, input.ManagementClusterLister),
+					sharedmismatch.NewDeleteOrphanedCosmosResourcesController(input.ResourcesDBClient, input.KubeApplierDBClients, input.SubscriptionLister, input.ManagementClusterLister),
 				), map[string]any{}
 			},
 			ControllerVerifierFn: func(ctx context.Context, t *testing.T, controller controllerutils.Controller, testMemory map[string]any, input *controllertesthelpers.ControllerInitializationInput) {
@@ -64,7 +64,7 @@ func testDeleteOrphanedCosmosResourcesController(t *testing.T, withMock bool) {
 			ArtifactDir: api.Must(fs.Sub(artifacts, path.Join("artifacts/delete_orphaned_cosmos"))),
 			ControllerInitializerFn: func(ctx context.Context, t *testing.T, input *controllertesthelpers.ControllerInitializationInput) (controller controllerutils.Controller, testMemory map[string]any) {
 				return newSubscriptionKeyWrapper(
-					mismatchcontrollers.NewDeleteOrphanedCosmosResourcesController(input.ResourcesDBClient, input.KubeApplierDBClients, input.SubscriptionLister, input.ManagementClusterLister),
+					sharedmismatch.NewDeleteOrphanedCosmosResourcesController(input.ResourcesDBClient, input.KubeApplierDBClients, input.SubscriptionLister, input.ManagementClusterLister),
 				), map[string]any{}
 			},
 			ControllerVerifierFn: func(ctx context.Context, t *testing.T, controller controllerutils.Controller, testMemory map[string]any, input *controllertesthelpers.ControllerInitializationInput) {
@@ -98,7 +98,7 @@ func testDeleteOrphanedCosmosResourcesController(t *testing.T, withMock bool) {
 			ArtifactDir: api.Must(fs.Sub(artifacts, path.Join("artifacts/delete_orphaned_cosmos"))),
 			ControllerInitializerFn: func(ctx context.Context, t *testing.T, input *controllertesthelpers.ControllerInitializationInput) (controller controllerutils.Controller, testMemory map[string]any) {
 				return newSubscriptionKeyWrapper(
-					mismatchcontrollers.NewDeleteOrphanedCosmosResourcesController(input.ResourcesDBClient, input.KubeApplierDBClients, input.SubscriptionLister, input.ManagementClusterLister),
+					sharedmismatch.NewDeleteOrphanedCosmosResourcesController(input.ResourcesDBClient, input.KubeApplierDBClients, input.SubscriptionLister, input.ManagementClusterLister),
 				), map[string]any{}
 			},
 			ControllerVerifierFn: func(ctx context.Context, t *testing.T, controller controllerutils.Controller, testMemory map[string]any, input *controllertesthelpers.ControllerInitializationInput) {
@@ -129,7 +129,7 @@ func testDeleteOrphanedCosmosResourcesController(t *testing.T, withMock bool) {
 			ArtifactDir: api.Must(fs.Sub(artifacts, path.Join("artifacts/delete_orphaned_cosmos"))),
 			ControllerInitializerFn: func(ctx context.Context, t *testing.T, input *controllertesthelpers.ControllerInitializationInput) (controller controllerutils.Controller, testMemory map[string]any) {
 				return newSubscriptionKeyWrapper(
-					mismatchcontrollers.NewDeleteOrphanedCosmosResourcesController(input.ResourcesDBClient, input.KubeApplierDBClients, input.SubscriptionLister, input.ManagementClusterLister),
+					sharedmismatch.NewDeleteOrphanedCosmosResourcesController(input.ResourcesDBClient, input.KubeApplierDBClients, input.SubscriptionLister, input.ManagementClusterLister),
 				), map[string]any{}
 			},
 			ControllerVerifierFn: func(ctx context.Context, t *testing.T, controller controllerutils.Controller, testMemory map[string]any, input *controllertesthelpers.ControllerInitializationInput) {

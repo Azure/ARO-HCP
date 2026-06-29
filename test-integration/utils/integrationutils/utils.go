@@ -35,7 +35,7 @@ import (
 	"k8s.io/utils/set"
 
 	adminApiServer "github.com/Azure/ARO-HCP/admin/server/server"
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/operationcontrollers"
+	sharedops "github.com/Azure/ARO-HCP/backend/pkg/controllers/shared/operations"
 	"github.com/Azure/ARO-HCP/frontend/pkg/frontend"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
@@ -186,7 +186,7 @@ func MarkOperationsCompleteForName(ctx context.Context, resourcesDBClient databa
 		if operation.ExternalID.Name != resourceName {
 			continue
 		}
-		err := operationcontrollers.UpdateOperationStatus(ctx, utilsclock.RealClock{}, resourcesDBClient, operation, arm.ProvisioningStateSucceeded, nil, nil)
+		err := sharedops.UpdateOperationStatus(ctx, utilsclock.RealClock{}, resourcesDBClient, operation, arm.ProvisioningStateSucceeded, nil, nil)
 		if err != nil {
 			return err
 		}
