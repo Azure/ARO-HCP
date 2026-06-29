@@ -99,7 +99,11 @@ func NewClaudeProvider(ctx context.Context, cfg *ClaudeConfig) (*ClaudeProvider,
 			if err != nil {
 				return nil, fmt.Errorf("reading Anthropic API key from %s: %w", cfg.APIKeyFile, err)
 			}
-			opts = append(opts, option.WithAPIKey(strings.TrimSpace(string(keyData))))
+			key := strings.TrimSpace(string(keyData))
+			if key == "" {
+				return nil, fmt.Errorf("Anthropic API key file %s is empty", cfg.APIKeyFile)
+			}
+			opts = append(opts, option.WithAPIKey(key))
 		}
 		// If no key file, the SDK reads ANTHROPIC_API_KEY from the environment.
 	}
@@ -111,6 +115,9 @@ func NewClaudeProvider(ctx context.Context, cfg *ClaudeConfig) (*ClaudeProvider,
 }
 
 // CreateProviderSession creates a new ClaudeSession for an analysis run.
+// The cfg.SystemPrompt is expected to carry only domain-specific content;
+// the shared identity and tone preamble is prepended here so the Claude
+// system message contains the full prompt without duplication.
 func (p *ClaudeProvider) CreateProviderSession(ctx context.Context, logger logr.Logger, cfg ProviderSessionConfig) (LLMSession, error) {
 	model := cfg.Model
 	if model == "" {
@@ -130,6 +137,10 @@ func (p *ClaudeProvider) CreateProviderSession(ctx context.Context, logger logr.
 		tools = append(tools, at)
 	}
 
+	// Build the full system prompt by prepending the shared identity and
+	// tone sections to the domain-specific content from cfg.SystemPrompt.
+	fullSystemPrompt := identityPrompt + "\n\n" + tonePrompt + "\n\n" + cfg.SystemPrompt
+
 	sessionID := fmt.Sprintf("claude-%d", time.Now().UnixNano())
 	logger = logger.WithValues("sessionID", sessionID)
 	logger.Info("Created Claude session.", "model", model)
@@ -137,7 +148,7 @@ func (p *ClaudeProvider) CreateProviderSession(ctx context.Context, logger logr.
 	return &ClaudeSession{
 		client:       p.client,
 		model:        model,
-		systemPrompt: cfg.SystemPrompt,
+		systemPrompt: fullSystemPrompt,
 		tools:        tools,
 		toolHandlers: buildToolHandlerMap(cfg.Tools),
 		messages:     nil,

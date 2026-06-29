@@ -222,6 +222,8 @@ func (o *RawAnalyzeOptions) validate() (*validatedAnalyzeOptions, error) {
 				if _, err := os.Stat(claudeCfg.APIKeyFile); err != nil {
 					return nil, fmt.Errorf("--anthropic-api-key-file %q: %w", claudeCfg.APIKeyFile, err)
 				}
+			} else if os.Getenv("ANTHROPIC_API_KEY") == "" {
+				return nil, fmt.Errorf("--anthropic-api-key-file or ANTHROPIC_API_KEY environment variable is required when --claude-backend is %q", claudeCfg.Backend)
 			}
 		case agent.ClaudeBackendVertex:
 			vertexProject := o.VertexProject
@@ -291,11 +293,13 @@ func (o *validatedAnalyzeOptions) run(ctx context.Context) error {
 	}()
 	cachedKustoClient := agent.NewCachingKustoClient(kustoClient)
 
-	// Build provider-neutral tool definitions and system prompt.
+	// Build provider-neutral tool definitions and domain-only prompt.
+	// Each provider adds its own identity/tone framing, so we pass only
+	// the domain content here to avoid duplicating those sections.
 	kustoTool := agent.NewKustoToolDefinition(cachedKustoClient)
-	systemPrompt, err := agent.BuildSystemPrompt()
+	domainPrompt, err := agent.BuildDomainPrompt()
 	if err != nil {
-		return fmt.Errorf("failed to build system prompt: %w", err)
+		return fmt.Errorf("failed to build domain prompt: %w", err)
 	}
 
 	// Set up workspace with symlinks in a temp directory.
@@ -330,7 +334,7 @@ func (o *validatedAnalyzeOptions) run(ctx context.Context) error {
 	}()
 
 	session, err := provider.CreateProviderSession(ctx, logger, agent.ProviderSessionConfig{
-		SystemPrompt:     systemPrompt,
+		SystemPrompt:     domainPrompt,
 		Tools:            []agent.ToolDefinition{kustoTool},
 		WorkingDirectory: workspaceDir,
 		Model:            o.model,

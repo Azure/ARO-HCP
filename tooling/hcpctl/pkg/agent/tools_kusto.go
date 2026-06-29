@@ -106,7 +106,7 @@ func NewKustoToolDefinition(client KustoClient) ToolDefinition {
 func NewKustoTool(client KustoClient) copilot.Tool {
 	return copilot.DefineTool(
 		"kusto_query",
-		`Execute a KQL query against Azure Data Explorer. Use this when the pre-gathered diagnostic data is insufficient and you need to investigate further. The query runs against the ARO-HCP logging cluster. Results are returned as a markdown table. Write queries that are self-contained and tell a story — they will be rendered verbatim in the final analysis.`,
+		kustoToolDescription,
 		func(params kustoQueryParams, inv copilot.ToolInvocation) (string, error) {
 			if params.KQL == "" {
 				return "", fmt.Errorf("kql must not be empty")

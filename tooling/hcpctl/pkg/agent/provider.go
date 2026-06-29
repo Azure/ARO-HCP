@@ -64,12 +64,13 @@ type LLMSession interface {
 
 // ProviderSessionConfig holds provider-neutral configuration for creating
 // an LLM session. Each LLMProvider translates these fields into its native
-// format during CreateSession.
+// format during CreateProviderSession.
 type ProviderSessionConfig struct {
-	// SystemPrompt is the complete system prompt text, as built by
-	// BuildSystemPrompt. Providers that use structured system messages
-	// (e.g. Copilot's section overrides) convert this into their native
-	// format internally.
+	// SystemPrompt carries domain-specific content (system.md, references,
+	// exemplars) built by BuildDomainPrompt. It intentionally omits the
+	// shared identity and tone preamble — each provider adds those in its
+	// native format (e.g. Copilot section overrides, Claude system message
+	// prefix) to avoid duplication.
 	SystemPrompt string
 
 	// Tools are provider-neutral tool definitions. Each provider converts

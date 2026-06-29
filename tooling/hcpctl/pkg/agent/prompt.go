@@ -80,6 +80,16 @@ func buildDomainContent() (string, error) {
 	return sb.String(), nil
 }
 
+// BuildDomainPrompt returns only the domain-specific content (system.md,
+// references, exemplars) without the identity or tone preamble. This is
+// the preferred function for callers that pass the prompt through the
+// provider-neutral ProviderSessionConfig — each provider is responsible
+// for incorporating the shared identity and tone sections in its native
+// format (e.g. Copilot section overrides, Claude system message prefix).
+func BuildDomainPrompt() (string, error) {
+	return buildDomainContent()
+}
+
 // BuildSystemPrompt returns the complete system prompt as a plain string,
 // suitable for providers that accept a single system prompt (e.g. Claude).
 // It combines the identity, tone, and domain-specific content (system.md,
