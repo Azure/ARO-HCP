@@ -322,30 +322,28 @@ resource svcParentZoneRoleAssignment 'Microsoft.Authorization/roleAssignments@20
 // we might want to have another source of truth for the integrations in the future, e.g.
 // some sort of inventory of the regions of ARO HCP
 
-// TODO(ARO-28044): re-enable after ARO-28040
-// module grafanaWorkspaceIdLookup '../modules/grafana/integration-lookup.bicep' = {
-//   name: 'grafana-workspace-lookup'
-//   params: {
-//     location: location
-//     grafanaName: grafanaName
-//     deploymentScriptIdentityId: globalMSI.id
-//   }
-// }
+module grafanaWorkspaceIdLookup '../modules/grafana/integration-lookup.bicep' = {
+  name: 'grafana-workspace-lookup'
+  params: {
+    location: location
+    grafanaName: grafanaName
+    deploymentScriptIdentityId: globalMSI.id
+  }
+}
 
-// TODO(ARO-28044): re-enable after ARO-28040
-// module grafana '../modules/grafana/instance.bicep' = {
-//   name: 'grafana'
-//   params: {
-//     location: location
-//     grafanaName: grafanaName
-//     grafanaMajorVersion: grafanaMajorVersion
-//     grafanaManagerPrincipalId: globalMSI.properties.principalId
-//     grafanaRoles: grafanaRoles
-//     zoneRedundancy: determineZoneRedundancy(locationAvailabilityZoneList, grafanaZoneRedundantMode)
-//     azureMonitorWorkspaceIds: grafanaWorkspaceIdLookup.outputs.azureMonitorWorkspaceIds
-//     crossTenantSecurityGroup: crossTenantSecurityGroup
-//   }
-// }
+module grafana '../modules/grafana/instance.bicep' = {
+  name: 'grafana'
+  params: {
+    location: location
+    grafanaName: grafanaName
+    grafanaMajorVersion: grafanaMajorVersion
+    grafanaManagerPrincipalId: globalMSI.properties.principalId
+    grafanaRoles: grafanaRoles
+    zoneRedundancy: determineZoneRedundancy(locationAvailabilityZoneList, grafanaZoneRedundantMode)
+    azureMonitorWorkspaceIds: grafanaWorkspaceIdLookup.outputs.azureMonitorWorkspaceIds
+    crossTenantSecurityGroup: crossTenantSecurityGroup
+  }
+}
 
 //
 //   N E T W O R K    S E C U R I T Y    P E R I M E T E R
@@ -399,14 +397,13 @@ module azureFrontDoor '../modules/oidc/global/main.bicep' = if (azureFrontDoorMa
   }
 }
 
-// TODO(ARO-28044): re-enable after ARO-28040
-// module grafanaAfdPermissions '../modules/grafana/observability-permissions.bicep' = if (azureFrontDoorManage) {
-//   name: 'grafana-afd-permissions'
-//   params: {
-//     grafanaPrincipalId: grafana.outputs.grafanaPrincipalId
-//     frontDoorProfileId: azureFrontDoor.outputs.frontDoorProfileId
-//   }
-// }
+module grafanaAfdPermissions '../modules/grafana/observability-permissions.bicep' = if (azureFrontDoorManage) {
+  name: 'grafana-afd-permissions'
+  params: {
+    grafanaPrincipalId: grafana.outputs.grafanaPrincipalId
+    frontDoorProfileId: azureFrontDoor.outputs.frontDoorProfileId
+  }
+}
 
 output globalKeyVaultUrl string = globalKV.outputs.kvUrl
 
