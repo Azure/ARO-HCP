@@ -18,6 +18,7 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -319,6 +320,71 @@ func TestExecuteRestartAllNamespaces_PartialFailure(t *testing.T) {
 		}
 	}
 	assert.True(t, foundOK, "successful namespace result should still be included")
+}
+
+func TestWaitForRollout_AllReady(t *testing.T) {
+	client := fake.NewSimpleClientset(
+		&appsv1.Deployment{
+			ObjectMeta: metav1.ObjectMeta{Name: "web", Namespace: "app-ns", Generation: 1},
+			Spec:       appsv1.DeploymentSpec{Replicas: ptr.To[int32](2)},
+			Status:     appsv1.DeploymentStatus{ObservedGeneration: 1, UpdatedReplicas: 2, ReadyReplicas: 2},
+		},
+		&appsv1.StatefulSet{
+			ObjectMeta: metav1.ObjectMeta{Name: "cache", Namespace: "app-ns", Generation: 1},
+			Spec:       appsv1.StatefulSetSpec{Replicas: ptr.To[int32](1)},
+			Status:     appsv1.StatefulSetStatus{ObservedGeneration: 1, UpdatedReplicas: 1, ReadyReplicas: 1},
+		},
+	)
+
+	err := WaitForRollout(context.Background(), client, "app-ns", 5*time.Second, 100*time.Millisecond)
+	require.NoError(t, err)
+}
+
+func TestWaitForRollout_SkipsInjectFalse(t *testing.T) {
+	client := fake.NewSimpleClientset(
+		&appsv1.Deployment{
+			ObjectMeta: metav1.ObjectMeta{Name: "no-sidecar", Namespace: "app-ns", Generation: 1},
+			Spec: appsv1.DeploymentSpec{
+				Replicas: ptr.To[int32](1),
+				Template: corev1.PodTemplateSpec{
+					ObjectMeta: metav1.ObjectMeta{
+						Annotations: map[string]string{"sidecar.istio.io/inject": "false"},
+					},
+				},
+			},
+			Status: appsv1.DeploymentStatus{ObservedGeneration: 1, UpdatedReplicas: 0, ReadyReplicas: 0},
+		},
+	)
+
+	err := WaitForRollout(context.Background(), client, "app-ns", 5*time.Second, 100*time.Millisecond)
+	require.NoError(t, err, "inject-false deployment should be skipped even when not ready")
+}
+
+func TestWaitForRollout_SkipsZeroReplicas(t *testing.T) {
+	client := fake.NewSimpleClientset(
+		&appsv1.Deployment{
+			ObjectMeta: metav1.ObjectMeta{Name: "scaled-down", Namespace: "app-ns", Generation: 1},
+			Spec:       appsv1.DeploymentSpec{Replicas: ptr.To[int32](0)},
+			Status:     appsv1.DeploymentStatus{ObservedGeneration: 1, UpdatedReplicas: 0, ReadyReplicas: 0},
+		},
+	)
+
+	err := WaitForRollout(context.Background(), client, "app-ns", 5*time.Second, 100*time.Millisecond)
+	require.NoError(t, err, "zero-replica deployment should be skipped")
+}
+
+func TestWaitForRollout_Timeout(t *testing.T) {
+	client := fake.NewSimpleClientset(
+		&appsv1.Deployment{
+			ObjectMeta: metav1.ObjectMeta{Name: "stuck", Namespace: "app-ns", Generation: 2},
+			Spec:       appsv1.DeploymentSpec{Replicas: ptr.To[int32](1)},
+			Status:     appsv1.DeploymentStatus{ObservedGeneration: 1, UpdatedReplicas: 0, ReadyReplicas: 0},
+		},
+	)
+
+	err := WaitForRollout(context.Background(), client, "app-ns", 200*time.Millisecond, 50*time.Millisecond)
+	assert.Error(t, err)
+	assert.ErrorContains(t, err, "timeout waiting for rollout in app-ns")
 }
 
 func TestCreateRevisionConfigMap(t *testing.T) {
