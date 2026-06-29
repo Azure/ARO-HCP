@@ -49,6 +49,22 @@ resourceGroups:
     dependsOn:
     - resourceGroup: singleton
       step: infra
+  - name: ci-monitoring
+    action: ARM
+    template: templates/ci-monitoring.bicep
+    parameters: configurations/ci-monitoring.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    parameterOverrides:
+      grafanaResourceId:
+        input:
+          resourceGroup: singleton
+          step: output
+          name: grafanaResourceId
+    dependsOn:
+    - resourceGroup: singleton
+      step: infra
+    - resourceGroup: singleton
+      step: output
   - name: grafana-monitoring-reader
     action: ARM
     template: templates/grafana-monitoring-reader.bicep
@@ -144,6 +160,8 @@ resourceGroups:
       step: housekeeping
     - resourceGroup: singleton
       step: output
+    - resourceGroup: singleton
+      step: ci-monitoring
   # creates DNS delegation for the ARO HCP global SVC zone
   - name: svcChildZone
     action: DelegateChildZone
