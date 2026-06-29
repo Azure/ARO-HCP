@@ -211,6 +211,113 @@ func TestRunUpgrade_Install(t *testing.T) {
 	assert.Equal(t, "asm-1-29", cm.Labels["istio.io/rev"])
 }
 
+func TestRunUpgrade_InstallWithTag(t *testing.T) {
+	aks := &fakeAKSClient{
+		clusterInfo: &ClusterInfo{ProvisioningState: "Succeeded"},
+		meshProfile: &MeshProfile{Revisions: nil},
+		upgradeInfo: &MeshUpgradeInfo{},
+	}
+
+	kubeClient := healthyKubeClient()
+	trackerAdd(t, kubeClient, &admissionregistrationv1.MutatingWebhookConfiguration{
+		ObjectMeta: metav1.ObjectMeta{Name: "istio-sidecar-injector-asm-1-29-aks-istio-system"},
+		Webhooks: []admissionregistrationv1.MutatingWebhook{
+			{
+				Name: "rev.namespace.sidecar-injector.istio.io",
+				ClientConfig: admissionregistrationv1.WebhookClientConfig{
+					CABundle: []byte("test-ca-bundle"),
+					Service:  &admissionregistrationv1.ServiceReference{Name: "istiod-asm-1-29", Namespace: "aks-istio-system"},
+				},
+			},
+		},
+	})
+
+	opts := baseOpts()
+	opts.Tag = "prod-stable"
+
+	err := RunUpgrade(testCtx(t), opts, aks, kubeClient)
+	require.NoError(t, err)
+	assert.Contains(t, aks.calls, "EnableMesh")
+
+	tagWH, err := kubeClient.AdmissionregistrationV1().MutatingWebhookConfigurations().Get(
+		context.Background(), "istio-revision-tag-prod-stable-aks-istio-system", metav1.GetOptions{})
+	require.NoError(t, err, "install with tag should create the tag webhook")
+	assert.Equal(t, "istiod-asm-1-29", tagWH.Webhooks[0].ClientConfig.Service.Name)
+	assert.Equal(t, []byte("test-ca-bundle"), tagWH.Webhooks[0].ClientConfig.CABundle)
+}
+
+func TestRunUpgrade_ResumeWithTag(t *testing.T) {
+	aks := &fakeAKSClient{
+		clusterInfo: &ClusterInfo{ProvisioningState: "Succeeded"},
+		meshProfile: &MeshProfile{Revisions: []string{"asm-1-28", "asm-1-29"}},
+		upgradeInfo: &MeshUpgradeInfo{UpgradeInProgress: true},
+	}
+	kubeClient := healthyKubeClient()
+	trackerAdd(t, kubeClient, &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{Name: "app-ns", Labels: map[string]string{"istio.io/rev": "prod-stable"}},
+	})
+	// Tag webhook currently pointing at old revision
+	trackerAdd(t, kubeClient, &admissionregistrationv1.MutatingWebhookConfiguration{
+		ObjectMeta: metav1.ObjectMeta{Name: "istio-revision-tag-prod-stable-aks-istio-system"},
+		Webhooks: []admissionregistrationv1.MutatingWebhook{
+			{
+				Name: "rev.namespace.sidecar-injector.istio.io",
+				ClientConfig: admissionregistrationv1.WebhookClientConfig{
+					CABundle: []byte("ca-bundle-28"),
+					Service:  &admissionregistrationv1.ServiceReference{Name: "istiod-asm-1-28", Namespace: "aks-istio-system"},
+				},
+			},
+		},
+	})
+	trackerAdd(t, kubeClient, &admissionregistrationv1.MutatingWebhookConfiguration{
+		ObjectMeta: metav1.ObjectMeta{Name: "istio-sidecar-injector-asm-1-29-aks-istio-system"},
+		Webhooks: []admissionregistrationv1.MutatingWebhook{
+			{
+				Name: "rev.namespace.sidecar-injector.istio.io",
+				ClientConfig: admissionregistrationv1.WebhookClientConfig{
+					CABundle: []byte("ca-bundle-29"),
+					Service:  &admissionregistrationv1.ServiceReference{Name: "istiod-asm-1-29", Namespace: "aks-istio-system"},
+				},
+			},
+		},
+	})
+	trackerAdd(t, kubeClient, &admissionregistrationv1.MutatingWebhookConfiguration{
+		ObjectMeta: metav1.ObjectMeta{Name: "istio-sidecar-injector-asm-1-28-aks-istio-system"},
+		Webhooks: []admissionregistrationv1.MutatingWebhook{
+			{
+				Name: "rev.namespace.sidecar-injector.istio.io",
+				ClientConfig: admissionregistrationv1.WebhookClientConfig{
+					CABundle: []byte("ca-bundle-28"),
+					Service:  &admissionregistrationv1.ServiceReference{Name: "istiod-asm-1-28", Namespace: "aks-istio-system"},
+				},
+			},
+		},
+	})
+
+	opts := baseOpts()
+	opts.Tag = "prod-stable"
+
+	err := RunUpgrade(testCtx(t), opts, aks, kubeClient)
+	require.NoError(t, err)
+	assert.NotContains(t, aks.calls, "StartCanaryUpgrade")
+	assert.Contains(t, aks.calls, "CompleteCanaryUpgrade")
+
+	// Tag webhook should now point at the target revision
+	tagWH, err := kubeClient.AdmissionregistrationV1().MutatingWebhookConfigurations().Get(
+		context.Background(), "istio-revision-tag-prod-stable-aks-istio-system", metav1.GetOptions{})
+	require.NoError(t, err)
+	assert.Equal(t, "istiod-asm-1-29", tagWH.Webhooks[0].ClientConfig.Service.Name,
+		"resume should flip tag webhook to target revision")
+	assert.Equal(t, []byte("ca-bundle-29"), tagWH.Webhooks[0].ClientConfig.CABundle,
+		"resume should update CA bundle to target revision")
+
+	// Namespace labels should stay as the tag value
+	ns, err := kubeClient.CoreV1().Namespaces().Get(context.Background(), "app-ns", metav1.GetOptions{})
+	require.NoError(t, err)
+	assert.Equal(t, "prod-stable", ns.Labels["istio.io/rev"],
+		"tag-based namespace labels should not be changed during resume")
+}
+
 func TestRunUpgrade_Upgrade(t *testing.T) {
 	aks := &fakeAKSClient{
 		clusterInfo: &ClusterInfo{ProvisioningState: "Succeeded"},
