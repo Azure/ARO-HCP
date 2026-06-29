@@ -129,6 +129,11 @@ module csPostgres 'postgres/postgres.bicep' = if (deployPostgres) {
         principalName: res.msiRefFromId(postgresAdministrationManagedIdentityId).name
         principalType: 'ServicePrincipal'
       }
+      {
+        principalId: clusterServiceManagedIdentityPrincipalId
+        principalName: clusterServiceManagedIdentityName
+        principalType: 'ServicePrincipal'
+      }
     ]
     version: postgresServerVersion
     minTLSVersion: postgresServerMinTLSVersion
@@ -156,23 +161,4 @@ module csPostgres 'postgres/postgres.bicep' = if (deployPostgres) {
     managedPrivateEndpoint: true
     managedPrivateEndpointResourceGroup: privateEndpointResourceGroup
   }
-}
-
-//
-// Create DB user for the clusters-service managed identity and enable entra authentication
-//
-
-module csManagedIdentityDatabaseAccess 'postgres/postgres-access.bicep' = if (deployPostgres) {
-  name: 'cs-db-access'
-  scope: resourceGroup(regionalResourceGroup)
-  params: {
-    postgresServerName: postgresServerName
-    postgresAdministrationManagedIdentityId: postgresAdministrationManagedIdentityId
-    databaseName: csDatabaseName
-    newUserName: clusterServiceManagedIdentityName
-    newUserPrincipalId: clusterServiceManagedIdentityPrincipalId
-  }
-  dependsOn: [
-    csPostgres
-  ]
 }
