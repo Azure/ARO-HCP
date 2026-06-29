@@ -51,10 +51,6 @@ import (
 // Maestro bundle, and clears the field. Once every ServiceProvider* has
 // drained, this controller is a no-op forever; it can be retired and the
 // MaestroReadonlyBundles API field deleted in a follow-up.
-//
-// The existing deleteOrphanedMaestroReadonlyBundles controller stays in
-// place as a safety net for bundles whose cosmos reference was already
-// gone before this controller ran.
 type cleanupLegacyMaestroReadonlyBundles struct {
 	name string
 
@@ -69,8 +65,7 @@ type cleanupLegacyMaestroReadonlyBundles struct {
 }
 
 // NewCleanupLegacyMaestroReadonlyBundlesController constructs the
-// migration-cleanup controller. Wire it alongside the existing
-// delete-orphaned controller; both can run concurrently.
+// migration-cleanup controller.
 func NewCleanupLegacyMaestroReadonlyBundlesController(
 	resourcesDBClient database.ResourcesDBClient,
 	managementClusterLister dblisters.ManagementClusterLister,
@@ -155,8 +150,7 @@ func (c *cleanupLegacyMaestroReadonlyBundles) cleanupServiceProviderCluster(
 		return err
 	}
 	// If the SPC has no management cluster wired up we still want to clear
-	// the field so it is consistent. The orphan-cleanup safety net will
-	// remove any dangling Maestro bundles on its own pass.
+	// the field so it is consistent.
 	if !skip {
 		if err := c.deleteAllBundles(ctx, maestroClient, spc.Status.MaestroReadonlyBundles); err != nil {
 			return err
@@ -213,8 +207,7 @@ func (c *cleanupLegacyMaestroReadonlyBundles) cleanupServiceProviderNodePool(
 }
 
 // deleteAllBundles iterates over a MaestroReadonlyBundles list and best-effort
-// deletes each bundle from Maestro. A NotFound is treated as success
-// (the orphan-cleanup controller may have already removed it).
+// deletes each bundle from Maestro. A NotFound is treated as success.
 func (c *cleanupLegacyMaestroReadonlyBundles) deleteAllBundles(
 	ctx context.Context,
 	maestroClient maestro.Client,

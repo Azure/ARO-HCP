@@ -639,12 +639,6 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		5*time.Minute,
 	)
 
-	maestroDeleteOrphanedReadonlyBundlesController := controllers.NewDeleteOrphanedMaestroReadonlyBundlesController(
-		b.options.ResourcesDBClient,
-		b.options.ClustersServiceClient,
-		maestroClientBuilder,
-		b.options.MaestroSourceEnvironmentIdentifier,
-	)
 	// Migration controller: drains the MaestroReadonlyBundles field on
 	// every ServiceProvider*. Retire once telemetry shows no SPC/SPNP
 	// still has the field populated.
@@ -863,7 +857,6 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go nodePoolActiveVersionController.Run(ctx, 20)
 				go createClusterScopedReadDesiresController.Run(ctx, 20)
 				go createNodePoolScopedReadDesiresController.Run(ctx, 20)
-				go maestroDeleteOrphanedReadonlyBundlesController.Run(ctx, 20)
 				go cleanupLegacyMaestroReadonlyBundlesController.Run(ctx, 1)
 				go cleanOrphanedClusterManagedResourceGroupController.Run(ctx, 20)
 				go triggerNodePoolUpgradeController.Run(ctx, 20)
