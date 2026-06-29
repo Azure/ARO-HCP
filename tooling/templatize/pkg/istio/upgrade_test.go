@@ -1027,3 +1027,211 @@ func TestRunUpgrade_HealthCheckFailsVerifiesRollbackRestarted(t *testing.T) {
 	assert.ErrorIs(t, err, ErrControlPlaneUnhealthy)
 	assert.Greater(t, rollbackPatchCount, 0, "rollback should have triggered deployment patches to restore old sidecar")
 }
+
+func TestRunUpgrade_HealthCheckFailsRollsBackTagWebhook(t *testing.T) {
+	aks := &fakeAKSClient{
+		clusterInfo: &ClusterInfo{ProvisioningState: "Succeeded"},
+		meshProfile: &MeshProfile{Revisions: []string{"asm-1-28", "asm-1-29"}},
+		upgradeInfo: &MeshUpgradeInfo{},
+	}
+	kubeClient := fake.NewSimpleClientset(
+		&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "aks-istio-system"}},
+		&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "aks-istio-ingress"}},
+		&corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{Name: "app-ns", Labels: map[string]string{"istio.io/rev": "prod-stable"}},
+		},
+		&appsv1.Deployment{
+			ObjectMeta: metav1.ObjectMeta{Name: "istiod-asm-1-28", Namespace: "aks-istio-system"},
+			Spec:       appsv1.DeploymentSpec{Replicas: ptr.To[int32](2)},
+			Status:     appsv1.DeploymentStatus{AvailableReplicas: 2},
+		},
+		&appsv1.Deployment{
+			ObjectMeta: metav1.ObjectMeta{Name: "istiod-asm-1-29", Namespace: "aks-istio-system"},
+			Spec:       appsv1.DeploymentSpec{Replicas: ptr.To[int32](2)},
+			Status:     appsv1.DeploymentStatus{AvailableReplicas: 0},
+		},
+		&corev1.Service{
+			ObjectMeta: metav1.ObjectMeta{Name: "aks-istio-ingressgateway-external", Namespace: "aks-istio-ingress"},
+			Spec:       corev1.ServiceSpec{Type: corev1.ServiceTypeLoadBalancer, Selector: map[string]string{"app": "gw"}},
+			Status:     corev1.ServiceStatus{LoadBalancer: corev1.LoadBalancerStatus{Ingress: []corev1.LoadBalancerIngress{{IP: "10.0.0.1"}}}},
+		},
+		&corev1.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "gw-pod", Namespace: "aks-istio-ingress",
+				Labels:      map[string]string{"app": "gw"},
+				Annotations: map[string]string{"sidecar.istio.io/status": `{"revision":"asm-1-29"}`},
+			},
+			Status: corev1.PodStatus{
+				Phase:      corev1.PodRunning,
+				Conditions: []corev1.PodCondition{{Type: corev1.PodReady, Status: corev1.ConditionTrue}},
+			},
+		},
+		// Tag webhook initially pointing at asm-1-29 (the failed revision)
+		&admissionregistrationv1.MutatingWebhookConfiguration{
+			ObjectMeta: metav1.ObjectMeta{Name: "istio-revision-tag-prod-stable-aks-istio-system"},
+			Webhooks: []admissionregistrationv1.MutatingWebhook{
+				{
+					Name: "rev.namespace.sidecar-injector.istio.io",
+					ClientConfig: admissionregistrationv1.WebhookClientConfig{
+						CABundle: []byte("ca-bundle-29"),
+						Service:  &admissionregistrationv1.ServiceReference{Name: "istiod-asm-1-29", Namespace: "aks-istio-system"},
+					},
+				},
+			},
+		},
+		// Revision webhooks for rollback CA bundle lookup
+		&admissionregistrationv1.MutatingWebhookConfiguration{
+			ObjectMeta: metav1.ObjectMeta{Name: "istio-sidecar-injector-asm-1-28-aks-istio-system"},
+			Webhooks: []admissionregistrationv1.MutatingWebhook{
+				{
+					Name: "rev.namespace.sidecar-injector.istio.io",
+					ClientConfig: admissionregistrationv1.WebhookClientConfig{
+						CABundle: []byte("ca-bundle-28"),
+						Service:  &admissionregistrationv1.ServiceReference{Name: "istiod-asm-1-28", Namespace: "aks-istio-system"},
+					},
+				},
+			},
+		},
+		&admissionregistrationv1.MutatingWebhookConfiguration{
+			ObjectMeta: metav1.ObjectMeta{Name: "istio-sidecar-injector-asm-1-29-aks-istio-system"},
+			Webhooks: []admissionregistrationv1.MutatingWebhook{
+				{
+					Name: "rev.namespace.sidecar-injector.istio.io",
+					ClientConfig: admissionregistrationv1.WebhookClientConfig{
+						CABundle: []byte("ca-bundle-29"),
+						Service:  &admissionregistrationv1.ServiceReference{Name: "istiod-asm-1-29", Namespace: "aks-istio-system"},
+					},
+				},
+			},
+		},
+	)
+
+	opts := baseOpts()
+	opts.Tag = "prod-stable"
+
+	err := RunUpgrade(testCtx(t), opts, aks, kubeClient)
+	assert.ErrorIs(t, err, ErrControlPlaneUnhealthy, "should return health check error")
+	assert.NotContains(t, aks.calls, "CompleteCanaryUpgrade", "should not complete canary on health failure")
+
+	tagWH, err := kubeClient.AdmissionregistrationV1().MutatingWebhookConfigurations().Get(
+		context.Background(), "istio-revision-tag-prod-stable-aks-istio-system", metav1.GetOptions{})
+	require.NoError(t, err)
+	assert.Equal(t, "istiod-asm-1-28", tagWH.Webhooks[0].ClientConfig.Service.Name,
+		"rollback should flip tag webhook back to old revision")
+	assert.Equal(t, []byte("ca-bundle-28"), tagWH.Webhooks[0].ClientConfig.CABundle,
+		"rollback should update CA bundle to old revision")
+}
+
+func TestRunUpgrade_OrphanRetryExhaustedRollsBackTagWebhook(t *testing.T) {
+	aks := &fakeAKSClient{
+		clusterInfo: &ClusterInfo{ProvisioningState: "Succeeded"},
+		meshProfile: &MeshProfile{Revisions: []string{"asm-1-28", "asm-1-29"}},
+		upgradeInfo: &MeshUpgradeInfo{},
+	}
+	kubeClient := fake.NewSimpleClientset(
+		&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "aks-istio-system"}},
+		&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "aks-istio-ingress"}},
+		&corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{Name: "app-ns", Labels: map[string]string{"istio.io/rev": "prod-stable"}},
+		},
+		&appsv1.Deployment{
+			ObjectMeta: metav1.ObjectMeta{Name: "istiod-asm-1-28", Namespace: "aks-istio-system"},
+			Spec:       appsv1.DeploymentSpec{Replicas: ptr.To[int32](2)},
+			Status:     appsv1.DeploymentStatus{AvailableReplicas: 2},
+		},
+		&appsv1.Deployment{
+			ObjectMeta: metav1.ObjectMeta{Name: "istiod-asm-1-29", Namespace: "aks-istio-system"},
+			Spec:       appsv1.DeploymentSpec{Replicas: ptr.To[int32](2)},
+			Status:     appsv1.DeploymentStatus{AvailableReplicas: 2},
+		},
+		&corev1.Service{
+			ObjectMeta: metav1.ObjectMeta{Name: "aks-istio-ingressgateway-external", Namespace: "aks-istio-ingress"},
+			Spec:       corev1.ServiceSpec{Type: corev1.ServiceTypeLoadBalancer, Selector: map[string]string{"app": "gw"}},
+			Status:     corev1.ServiceStatus{LoadBalancer: corev1.LoadBalancerStatus{Ingress: []corev1.LoadBalancerIngress{{IP: "10.0.0.1"}}}},
+		},
+		&corev1.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "gw-pod", Namespace: "aks-istio-ingress",
+				Labels:      map[string]string{"app": "gw"},
+				Annotations: map[string]string{"sidecar.istio.io/status": `{"revision":"asm-1-29"}`},
+			},
+			Status: corev1.PodStatus{
+				Phase:      corev1.PodRunning,
+				Conditions: []corev1.PodCondition{{Type: corev1.PodReady, Status: corev1.ConditionTrue}},
+			},
+		},
+		// Stuck pod that won't migrate off asm-1-28
+		&corev1.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "stuck-pod", Namespace: "app-ns",
+				Annotations:     map[string]string{"sidecar.istio.io/status": `{"revision":"asm-1-28"}`},
+				OwnerReferences: []metav1.OwnerReference{{Name: "stuck-rs", Kind: "ReplicaSet", APIVersion: "apps/v1", Controller: ptr.To(true)}},
+			},
+			Status: corev1.PodStatus{Phase: corev1.PodRunning},
+		},
+		&appsv1.ReplicaSet{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "stuck-rs", Namespace: "app-ns",
+				OwnerReferences: []metav1.OwnerReference{{Name: "stuck-deploy", Kind: "Deployment", APIVersion: "apps/v1", Controller: ptr.To(true)}},
+			},
+		},
+		&appsv1.Deployment{
+			ObjectMeta: metav1.ObjectMeta{Name: "stuck-deploy", Namespace: "app-ns"},
+			Spec:       appsv1.DeploymentSpec{Replicas: ptr.To[int32](1)},
+			Status:     appsv1.DeploymentStatus{UpdatedReplicas: 1, ReadyReplicas: 1},
+		},
+		// Tag webhook initially pointing at asm-1-29
+		&admissionregistrationv1.MutatingWebhookConfiguration{
+			ObjectMeta: metav1.ObjectMeta{Name: "istio-revision-tag-prod-stable-aks-istio-system"},
+			Webhooks: []admissionregistrationv1.MutatingWebhook{
+				{
+					Name: "rev.namespace.sidecar-injector.istio.io",
+					ClientConfig: admissionregistrationv1.WebhookClientConfig{
+						CABundle: []byte("ca-bundle-29"),
+						Service:  &admissionregistrationv1.ServiceReference{Name: "istiod-asm-1-29", Namespace: "aks-istio-system"},
+					},
+				},
+			},
+		},
+		&admissionregistrationv1.MutatingWebhookConfiguration{
+			ObjectMeta: metav1.ObjectMeta{Name: "istio-sidecar-injector-asm-1-28-aks-istio-system"},
+			Webhooks: []admissionregistrationv1.MutatingWebhook{
+				{
+					Name: "rev.namespace.sidecar-injector.istio.io",
+					ClientConfig: admissionregistrationv1.WebhookClientConfig{
+						CABundle: []byte("ca-bundle-28"),
+						Service:  &admissionregistrationv1.ServiceReference{Name: "istiod-asm-1-28", Namespace: "aks-istio-system"},
+					},
+				},
+			},
+		},
+		&admissionregistrationv1.MutatingWebhookConfiguration{
+			ObjectMeta: metav1.ObjectMeta{Name: "istio-sidecar-injector-asm-1-29-aks-istio-system"},
+			Webhooks: []admissionregistrationv1.MutatingWebhook{
+				{
+					Name: "rev.namespace.sidecar-injector.istio.io",
+					ClientConfig: admissionregistrationv1.WebhookClientConfig{
+						CABundle: []byte("ca-bundle-29"),
+						Service:  &admissionregistrationv1.ServiceReference{Name: "istiod-asm-1-29", Namespace: "aks-istio-system"},
+					},
+				},
+			},
+		},
+	)
+
+	opts := baseOpts()
+	opts.Tag = "prod-stable"
+	opts.MaxOrphanRetries = 1
+
+	err := RunUpgrade(testCtx(t), opts, aks, kubeClient)
+	assert.ErrorIs(t, err, ErrRetireRevisionWouldOrphanWorkloads)
+	assert.NotContains(t, aks.calls, "CompleteCanaryUpgrade")
+
+	tagWH, err := kubeClient.AdmissionregistrationV1().MutatingWebhookConfigurations().Get(
+		context.Background(), "istio-revision-tag-prod-stable-aks-istio-system", metav1.GetOptions{})
+	require.NoError(t, err)
+	assert.Equal(t, "istiod-asm-1-28", tagWH.Webhooks[0].ClientConfig.Service.Name,
+		"rollback should flip tag webhook back to old revision")
+	assert.Equal(t, []byte("ca-bundle-28"), tagWH.Webhooks[0].ClientConfig.CABundle,
+		"rollback should update CA bundle to old revision")
+}
