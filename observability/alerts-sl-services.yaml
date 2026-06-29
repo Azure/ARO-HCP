@@ -8,6 +8,7 @@ prometheusRules:
   - ../admin/alerts/admin-prometheusRule.yaml
   - ../maestro/alerts/maestro-prometheusRule.yaml
   - ../kube-applier/alerts/kube-applier-prometheusRule.yaml
+  - alerts/leaderelection-prometheusRule.yaml
   - alerts/arobit-prometheusRule.yaml
   - alerts/service-tag-public-ip-usage.yaml
   - alerts/HCPdeletionStuck-prometheusRule.yaml

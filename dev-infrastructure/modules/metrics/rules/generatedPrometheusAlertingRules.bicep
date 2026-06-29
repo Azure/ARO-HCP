@@ -1131,23 +1131,36 @@ resource kubeApplier 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01
             }
           }
         ]
-        alert: 'KubeApplierLeaderElectionLost'
+        alert: 'KubeApplierReconcileStuck'
         enabled: true
         labels: {
-          severity: 'critical'
+          severity: 'warning'
         }
         annotations: {
-          correlationId: 'KubeApplierLeaderElectionLost/{{ $labels.cluster }}'
-          description: 'kube-applier leader lease on cluster {{ $labels.cluster }} has not been renewed for more than 30 seconds. No replica is actively leading; desire reconciliation has stopped.'
-          info: 'kube-applier leader lease on cluster {{ $labels.cluster }} has not been renewed for more than 30 seconds. No replica is actively leading; desire reconciliation has stopped.'
+          correlationId: 'KubeApplierReconcileStuck/{{ $labels.cluster }}'
+          description: 'kube-applier on cluster {{ $labels.cluster }} has desires pending but no controller processed any items for more than 15 minutes.'
+          info: 'kube-applier on cluster {{ $labels.cluster }} has desires pending but no controller processed any items for more than 15 minutes.'
           runbook_url: 'TBD'
-          summary: 'kube-applier has no active leader'
-          title: 'kube-applier has no active leader'
+          summary: 'kube-applier controllers are not processing items'
+          title: 'kube-applier controllers are not processing items'
         }
-        expression: 'time() - max without (prometheus_replica) (kube_lease_renew_time{lease="kube-applier",namespace="kube-applier"}) > 30'
-        for: 'PT1M'
-        severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
+        expression: '(sum without (type, condition) (max without (prometheus_replica) (kube_applier_desires{namespace="kube-applier"})) > 0) and on (cluster, namespace) (sum without (prometheus_replica, name) (increase(workqueue_work_duration_seconds_count{name=~".*Desire.*",namespace="kube-applier"}[15m])) == 0)'
+        for: 'PT5M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
+    ]
+    scopes: [
+      azureMonitoring
+    ]
+  }
+}
+
+resource leaderelection 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'leaderelection'
+  location: location
+  properties: {
+    interval: 'PT1M'
+    rules: [
       {
         actions: [
           for g in actionGroups: {
@@ -1158,20 +1171,20 @@ resource kubeApplier 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01
             }
           }
         ]
-        alert: 'KubeApplierReconcileStuck'
+        alert: 'LeaderElectionLeaseStale'
         enabled: true
         labels: {
           severity: 'warning'
         }
         annotations: {
-          correlationId: 'KubeApplierReconcileStuck/{{ $labels.cluster }}'
-          description: 'kube-applier ApplyDesireController on cluster {{ $labels.cluster }} has desires pending but has processed no items for more than 15 minutes.'
-          info: 'kube-applier ApplyDesireController on cluster {{ $labels.cluster }} has desires pending but has processed no items for more than 15 minutes.'
+          correlationId: 'LeaderElectionLeaseStale/{{ $labels.cluster }}'
+          description: 'Leader election lease {{ $labels.lease }} in namespace {{ $labels.namespace }} on cluster {{ $labels.cluster }} has not been renewed for more than 2 minutes. The component may have lost leadership or stopped running.'
+          info: 'Leader election lease {{ $labels.lease }} in namespace {{ $labels.namespace }} on cluster {{ $labels.cluster }} has not been renewed for more than 2 minutes. The component may have lost leadership or stopped running.'
           runbook_url: 'TBD'
-          summary: 'kube-applier ApplyDesireController is not processing items'
-          title: 'kube-applier ApplyDesireController is not processing items'
+          summary: 'Leader election lease stale for more than 2 minutes'
+          title: 'Leader election lease stale for more than 2 minutes'
         }
-        expression: '(sum without (type, condition) (max without (prometheus_replica) (kube_applier_desires{namespace="kube-applier",type="apply"})) > 0) and on (cluster, namespace) (increase(workqueue_work_duration_seconds_count{name="ApplyDesireController",namespace="kube-applier"}[15m]) == 0)'
+        expression: 'time() - max without (prometheus_replica) (kube_lease_renew_time{namespace=~"aro-hcp|fleet|kube-applier|mgmt-agent|sessiongate"}) > 120'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }

@@ -12,37 +12,29 @@ spec:
   groups:
   - name: kube-applier
     rules:
-    - alert: KubeApplierLeaderElectionLost
-      # Fires when the Lease is stale >30s (2× LeaseDuration); for: 1m absorbs normal pod restarts.
-      expr: |
-        time() - max without(prometheus_replica) (
-          kube_lease_renew_time{namespace="kube-applier", lease="kube-applier"}
-        ) > 30
-      for: 1m
-      labels:
-        severity: critical
-      annotations:
-        description: 'kube-applier leader lease on cluster {{ $labels.cluster }} has not been renewed for more than 30 seconds. No replica is actively leading; desire reconciliation has stopped.'
-        runbook_url: 'TBD'
-        summary: 'kube-applier has no active leader'
     - alert: KubeApplierReconcileStuck
-      # Fires when apply desires exist but ApplyDesireController processed no items for >15m (> DefaultCooldownPeriod of 10m).
+      # Fires when desires exist but no controller processed items for >15m (> DefaultCooldownPeriod of 10m).
       expr: |
         (
           sum without(type, condition) (
             max without(prometheus_replica) (
-              kube_applier_desires{type="apply", namespace="kube-applier"}
+              kube_applier_desires{namespace="kube-applier"}
             )
           ) > 0
         )
           and on(cluster, namespace)
         (
-          increase(workqueue_work_duration_seconds_count{name="ApplyDesireController", namespace="kube-applier"}[15m]) == 0
+          sum without(prometheus_replica, name) (
+            increase(workqueue_work_duration_seconds_count{
+              name=~".*Desire.*",
+              namespace="kube-applier"
+            }[15m])
+          ) == 0
         )
       for: 5m
       labels:
         severity: warning
       annotations:
-        description: 'kube-applier ApplyDesireController on cluster {{ $labels.cluster }} has desires pending but has processed no items for more than 15 minutes.'
+        description: 'kube-applier on cluster {{ $labels.cluster }} has desires pending but no controller processed any items for more than 15 minutes.'
         runbook_url: 'TBD'
-        summary: 'kube-applier ApplyDesireController is not processing items'
+        summary: 'kube-applier controllers are not processing items'
