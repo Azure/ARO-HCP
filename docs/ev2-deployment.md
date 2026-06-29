@@ -2,12 +2,6 @@
 
 This document describes the deployment process of ARO HCP instances into Microsoft tenants using EV2 tying in all artifact types and configuration.
 
-> [!NOTE]
-> Please note that this document does not cover the following details yet
->
-> * using the EV2 portal
-> * AME deployments
-
 ## Overview
 
 Deployments of ARO HCP instances into Microsoft tenants are managed through a combination of Azure DevOps (ADO) pipelines and [EV2](terminology.md#ev2). Different aspects of an ARO HCP instance, such as infrastructure and services, are deployed by distinct [ADO pipelines](pipelines.md).
