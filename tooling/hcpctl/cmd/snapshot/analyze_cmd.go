@@ -60,6 +60,9 @@ type RawAnalyzeOptions struct {
 	// Claude-specific options.
 	AnthropicAPIKeyFile string
 	AnthropicModel      string
+	ClaudeBackend       string
+	VertexProject       string
+	VertexRegion        string
 
 	Verbosity int
 }
@@ -93,8 +96,11 @@ func bindAnalyzeOptions(opts *RawAnalyzeOptions, cmd *cobra.Command) error {
 	cmd.Flags().StringVar(&opts.ModelDeployment, "model-deployment", opts.ModelDeployment, "Model deployment name (required for byok auth mode)")
 
 	// Claude-specific flags.
-	cmd.Flags().StringVar(&opts.AnthropicAPIKeyFile, "anthropic-api-key-file", opts.AnthropicAPIKeyFile, "Path to file containing the Anthropic API key (if not using ANTHROPIC_API_KEY env var)")
+	cmd.Flags().StringVar(&opts.AnthropicAPIKeyFile, "anthropic-api-key-file", opts.AnthropicAPIKeyFile, "Path to file containing the Anthropic API key (required for --claude-backend api)")
 	cmd.Flags().StringVar(&opts.AnthropicModel, "anthropic-model", opts.AnthropicModel, "Anthropic model name (defaults to "+agent.DefaultClaudeModel+")")
+	cmd.Flags().StringVar(&opts.ClaudeBackend, "claude-backend", agent.ClaudeBackendAPI, "Claude API backend: api (direct Anthropic API, default) or vertex (Google Vertex AI)")
+	cmd.Flags().StringVar(&opts.VertexProject, "vertex-project", opts.VertexProject, "GCP project ID for Vertex AI (env: GOOGLE_VERTEX_PROJECT_ID)")
+	cmd.Flags().StringVar(&opts.VertexRegion, "vertex-region", opts.VertexRegion, "GCP region for Vertex AI (env: GOOGLE_VERTEX_REGION)")
 
 	for _, flag := range []string{"aro-hcp", "hypershift", "maestro", "clusters-service"} {
 		if err := cmd.MarkFlagRequired(flag); err != nil {
@@ -206,12 +212,38 @@ func (o *RawAnalyzeOptions) validate() (*validatedAnalyzeOptions, error) {
 			APIKeyFile: o.AnthropicAPIKeyFile,
 			Model:      o.AnthropicModel,
 			Verbosity:  o.Verbosity,
+			Backend:    o.ClaudeBackend,
 		}
-		if claudeCfg.APIKeyFile != "" {
-			if _, err := os.Stat(claudeCfg.APIKeyFile); err != nil {
-				return nil, fmt.Errorf("--anthropic-api-key-file %q: %w", claudeCfg.APIKeyFile, err)
+
+		switch o.ClaudeBackend {
+		case agent.ClaudeBackendAPI, "":
+			claudeCfg.Backend = agent.ClaudeBackendAPI
+			if claudeCfg.APIKeyFile != "" {
+				if _, err := os.Stat(claudeCfg.APIKeyFile); err != nil {
+					return nil, fmt.Errorf("--anthropic-api-key-file %q: %w", claudeCfg.APIKeyFile, err)
+				}
 			}
+		case agent.ClaudeBackendVertex:
+			vertexProject := o.VertexProject
+			if vertexProject == "" {
+				vertexProject = os.Getenv("GOOGLE_VERTEX_PROJECT_ID")
+			}
+			if vertexProject == "" {
+				return nil, fmt.Errorf("--vertex-project or GOOGLE_VERTEX_PROJECT_ID is required when --claude-backend is %q", o.ClaudeBackend)
+			}
+			vertexRegion := o.VertexRegion
+			if vertexRegion == "" {
+				vertexRegion = os.Getenv("GOOGLE_VERTEX_REGION")
+			}
+			if vertexRegion == "" {
+				return nil, fmt.Errorf("--vertex-region or GOOGLE_VERTEX_REGION is required when --claude-backend is %q", o.ClaudeBackend)
+			}
+			claudeCfg.VertexProject = vertexProject
+			claudeCfg.VertexRegion = vertexRegion
+		default:
+			return nil, fmt.Errorf("unknown --claude-backend %q, must be one of: api, vertex", o.ClaudeBackend)
 		}
+
 		validated.claudeConfig = claudeCfg
 
 	default:
@@ -283,7 +315,7 @@ func (o *validatedAnalyzeOptions) run(ctx context.Context) error {
 		}
 		provider = copilotClient
 	case o.claudeConfig != nil:
-		claudeProvider, err := agent.NewClaudeProvider(o.claudeConfig)
+		claudeProvider, err := agent.NewClaudeProvider(ctx, o.claudeConfig)
 		if err != nil {
 			return fmt.Errorf("failed to create Claude provider: %w", err)
 		}
@@ -441,9 +473,12 @@ Supported LLM providers (--provider flag):
            Copilot CLI session (gh auth login), a GitHub token file
            (--auth-mode token), or a BYOK Azure AI endpoint
            (--auth-mode byok).
-  claude   Anthropic Claude API. Requires an API key via
-           --anthropic-api-key-file or the ANTHROPIC_API_KEY
-           environment variable.
+  claude   Anthropic Claude API. Supports two backends via --claude-backend:
+             api    (default) Direct Anthropic API. Requires an API key via
+                    --anthropic-api-key-file or the ANTHROPIC_API_KEY env var.
+             vertex Google Vertex AI. Uses Application Default Credentials
+                    (ADC) for keyless auth. Requires --vertex-project and
+                    --vertex-region (or their env var equivalents).
 
 The agent examines the manifest, test logs, and Kusto query results,
 then iteratively refines its analysis through validation and review rounds.
@@ -458,10 +493,21 @@ source code for evidence in its causal chain.`,
     --maestro ~/code/maestro \
     --clusters-service ~/code/clusters-service
 
-  # Analyze with Anthropic Claude
+  # Analyze with Anthropic Claude (direct API)
   hcpctl snapshot analyze ./data \
     --provider claude \
     --anthropic-api-key-file ~/.config/anthropic/api_key \
+    --aro-hcp ~/code/ARO-HCP \
+    --hypershift ~/code/hypershift \
+    --maestro ~/code/maestro \
+    --clusters-service ~/code/clusters-service
+
+  # Analyze with Claude via Google Vertex AI (keyless ADC auth)
+  hcpctl snapshot analyze ./data \
+    --provider claude \
+    --claude-backend vertex \
+    --vertex-project my-gcp-project \
+    --vertex-region us-east5 \
     --aro-hcp ~/code/ARO-HCP \
     --hypershift ~/code/hypershift \
     --maestro ~/code/maestro \

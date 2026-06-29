@@ -25,6 +25,7 @@ import (
 
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/anthropics/anthropic-sdk-go/option"
+	"github.com/anthropics/anthropic-sdk-go/vertex"
 	"github.com/go-logr/logr"
 )
 
@@ -35,6 +36,13 @@ const (
 
 	// claudeMaxTokens is the maximum number of output tokens per API call.
 	claudeMaxTokens int64 = 16384
+
+	// ClaudeBackendAPI selects the direct Anthropic API backend (requires an API key).
+	ClaudeBackendAPI = "api"
+
+	// ClaudeBackendVertex selects Google Vertex AI as the backend
+	// (uses Application Default Credentials for keyless auth).
+	ClaudeBackendVertex = "vertex"
 )
 
 // Compile-time check: *ClaudeProvider implements LLMProvider.
@@ -47,6 +55,7 @@ var _ LLMSession = (*ClaudeSession)(nil)
 type ClaudeConfig struct {
 	// APIKeyFile is the path to a file containing the Anthropic API key.
 	// If empty, the ANTHROPIC_API_KEY environment variable is used.
+	// Only used when Backend is "api" (the default).
 	APIKeyFile string
 
 	// Model is the Anthropic model to use (e.g. "claude-sonnet-4-20250514").
@@ -55,6 +64,16 @@ type ClaudeConfig struct {
 
 	// Verbosity is the log verbosity level from the CLI.
 	Verbosity int
+
+	// Backend selects the API backend: "api" for the direct Anthropic
+	// API (default) or "vertex" for Google Vertex AI.
+	Backend string
+
+	// VertexProject is the GCP project ID. Required when Backend is "vertex".
+	VertexProject string
+
+	// VertexRegion is the GCP region (e.g. "us-east5"). Required when Backend is "vertex".
+	VertexRegion string
 }
 
 // ClaudeProvider implements LLMProvider using the Anthropic Messages API.
@@ -66,18 +85,24 @@ type ClaudeProvider struct {
 }
 
 // NewClaudeProvider creates a ClaudeProvider configured with the given API key
-// and model settings.
-func NewClaudeProvider(cfg *ClaudeConfig) (*ClaudeProvider, error) {
+// and model settings. When the Vertex AI backend is selected, ctx is used to
+// initialise Google Application Default Credentials.
+func NewClaudeProvider(ctx context.Context, cfg *ClaudeConfig) (*ClaudeProvider, error) {
 	var opts []option.RequestOption
 
-	if cfg.APIKeyFile != "" {
-		keyData, err := os.ReadFile(cfg.APIKeyFile)
-		if err != nil {
-			return nil, fmt.Errorf("reading Anthropic API key from %s: %w", cfg.APIKeyFile, err)
+	switch cfg.Backend {
+	case ClaudeBackendVertex:
+		opts = append(opts, vertex.WithGoogleAuth(ctx, cfg.VertexRegion, cfg.VertexProject))
+	default: // ClaudeBackendAPI or ""
+		if cfg.APIKeyFile != "" {
+			keyData, err := os.ReadFile(cfg.APIKeyFile)
+			if err != nil {
+				return nil, fmt.Errorf("reading Anthropic API key from %s: %w", cfg.APIKeyFile, err)
+			}
+			opts = append(opts, option.WithAPIKey(strings.TrimSpace(string(keyData))))
 		}
-		opts = append(opts, option.WithAPIKey(strings.TrimSpace(string(keyData))))
+		// If no key file, the SDK reads ANTHROPIC_API_KEY from the environment.
 	}
-	// If no key file, the SDK reads ANTHROPIC_API_KEY from the environment.
 
 	return &ClaudeProvider{
 		client: anthropic.NewClient(opts...),
