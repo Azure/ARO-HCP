@@ -197,6 +197,38 @@ type RestartResult struct {
 	Errors    []string
 }
 
+func migrateWorkloads(ctx context.Context, kubeClient kubernetes.Interface, opts UpgradeOptions, toRevision string) error {
+	logger := logr.FromContextOrDiscard(ctx).WithName("migrate-workloads")
+
+	if opts.Tag != "" {
+		if err := EnsureRevisionTag(ctx, kubeClient, opts.Tag, toRevision); err != nil {
+			return fmt.Errorf("failed to flip revision tag %s → %s: %w", opts.Tag, toRevision, err)
+		}
+	} else {
+		if _, err := UpdateMeshNamespaceLabels(ctx, kubeClient, toRevision); err != nil {
+			return fmt.Errorf("failed to update namespace labels to %s: %w", toRevision, err)
+		}
+	}
+
+	restartResults, err := ExecuteRestartAllNamespaces(ctx, kubeClient, toRevision)
+	if err != nil {
+		return fmt.Errorf("workload restart failed: %w", err)
+	}
+	restarted := 0
+	for _, r := range restartResults {
+		restarted += len(r.Restarted)
+	}
+	if restarted > 0 {
+		logger.Info("Restarted workloads with stale sidecars", "revision", toRevision, "count", restarted)
+	}
+
+	if err := WaitForRolloutAllNamespaces(ctx, kubeClient, opts.RolloutTimeout, opts.RolloutPollInterval); err != nil {
+		return fmt.Errorf("rollout convergence failed: %w", err)
+	}
+
+	return nil
+}
+
 func ExecuteRestartAllNamespaces(ctx context.Context, client kubernetes.Interface, targetRevision string) ([]RestartResult, error) {
 	namespaces, err := GetMeshNamespaces(ctx, client)
 	if err != nil {

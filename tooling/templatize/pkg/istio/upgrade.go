@@ -219,18 +219,8 @@ func runCleanupAndUpgrade(ctx context.Context, logger logr.Logger, aksClient AKS
 		return fmt.Errorf("failed to ensure ingress during cleanup: %w", err)
 	}
 
-	if opts.Tag == "" {
-		if _, err := UpdateMeshNamespaceLabels(ctx, kubeClient, oldRevision); err != nil {
-			return fmt.Errorf("failed to update namespace labels during cleanup: %w", err)
-		}
-	}
-
-	if _, err := ExecuteRestartAllNamespaces(ctx, kubeClient, oldRevision); err != nil {
-		return fmt.Errorf("cleanup workload restart failed: %w", err)
-	}
-
-	if err := WaitForRolloutAllNamespaces(ctx, kubeClient, opts.RolloutTimeout, opts.RolloutPollInterval); err != nil {
-		return fmt.Errorf("cleanup rollout convergence failed: %w", err)
+	if err := migrateWorkloads(ctx, kubeClient, opts, oldRevision); err != nil {
+		return fmt.Errorf("cleanup workload migration failed: %w", err)
 	}
 
 	health, err := HealthCheck(ctx, kubeClient)
@@ -275,23 +265,7 @@ func rollbackAndReturn(ctx context.Context, logger logr.Logger, kubeClient kuber
 
 func rollbackWorkloads(ctx context.Context, logger logr.Logger, kubeClient kubernetes.Interface, opts UpgradeOptions, oldRevision string) error {
 	logger.Info("Rolling back workloads to previous revision", "revision", oldRevision)
-
-	if opts.Tag != "" {
-		if err := EnsureRevisionTag(ctx, kubeClient, opts.Tag, oldRevision); err != nil {
-			return fmt.Errorf("failed to flip revision tag %s → %s: %w", opts.Tag, oldRevision, err)
-		}
-	} else {
-		if _, err := UpdateMeshNamespaceLabels(ctx, kubeClient, oldRevision); err != nil {
-			return fmt.Errorf("failed to rollback namespace labels to %s: %w", oldRevision, err)
-		}
-	}
-	if _, err := ExecuteRestartAllNamespaces(ctx, kubeClient, oldRevision); err != nil {
-		return fmt.Errorf("workload rollback restart failed: %w", err)
-	}
-	if err := WaitForRolloutAllNamespaces(ctx, kubeClient, opts.RolloutTimeout, opts.RolloutPollInterval); err != nil {
-		return fmt.Errorf("workload rollback rollout failed: %w", err)
-	}
-	return nil
+	return migrateWorkloads(ctx, kubeClient, opts, oldRevision)
 }
 
 func pickRevision(revisions []string, exclude string, cmp func(a, b string) int) string {
@@ -341,28 +315,8 @@ func runCanaryPostInstall(ctx context.Context, logger logr.Logger, aksClient AKS
 		return err
 	}
 
-	if opts.Tag == "" {
-		if _, err := UpdateMeshNamespaceLabels(ctx, kubeClient, target); err != nil {
-			return rollbackAndReturn(ctx, logger, kubeClient, opts, previousRevisions, target,
-				fmt.Errorf("failed to update namespace labels: %w", err))
-		}
-	}
-
-	restartResults, err := ExecuteRestartAllNamespaces(ctx, kubeClient, target)
-	if err != nil {
-		return rollbackAndReturn(ctx, logger, kubeClient, opts, previousRevisions, target,
-			fmt.Errorf("workload restart failed: %w", err))
-	}
-	restarted := 0
-	for _, r := range restartResults {
-		restarted += len(r.Restarted)
-	}
-	if restarted > 0 {
-		logger.Info("Restarted workloads with stale sidecars", "count", restarted)
-	}
-
-	if err := WaitForRolloutAllNamespaces(ctx, kubeClient, opts.RolloutTimeout, opts.RolloutPollInterval); err != nil {
-		return fmt.Errorf("rollout convergence failed: %w", err)
+	if err := migrateWorkloads(ctx, kubeClient, opts, target); err != nil {
+		return rollbackAndReturn(ctx, logger, kubeClient, opts, previousRevisions, target, err)
 	}
 
 	health, err := HealthCheck(ctx, kubeClient)
@@ -387,10 +341,6 @@ func runCanaryPostInstall(ctx context.Context, logger logr.Logger, aksClient AKS
 	if opts.StopAfter == StopAfterOrphanCheck {
 		logger.Info("Stopping after orphan check as requested — workloads migrated and verified, re-run to complete canary")
 		return nil
-	}
-
-	if opts.Tag != "" {
-		logger.Info("Tag-based injection — namespace labels preserved", "tag", opts.Tag)
 	}
 
 	if err := aksClient.CompleteCanaryUpgrade(ctx, opts.ResourceGroup, opts.ClusterName, target); err != nil {
