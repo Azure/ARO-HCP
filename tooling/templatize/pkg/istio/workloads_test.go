@@ -16,6 +16,7 @@ package istio
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -25,7 +26,9 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes/fake"
+	k8stesting "k8s.io/client-go/testing"
 	"k8s.io/utils/ptr"
 )
 
@@ -207,6 +210,115 @@ func TestExecuteRestart(t *testing.T) {
 	for _, p := range pods.Items {
 		assert.NotEqual(t, "bare-pod", p.Name, "stale bare pod should have been deleted")
 	}
+}
+
+func TestExecuteRestartAllNamespaces(t *testing.T) {
+	client := fake.NewSimpleClientset(
+		&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "ns-a", Labels: map[string]string{"istio.io/rev": "asm-1-29"}}},
+		&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "ns-b", Labels: map[string]string{"istio.io/rev": "asm-1-29"}}},
+		// ns-a: stale pod owned by deployment
+		&corev1.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "pod-a", Namespace: "ns-a",
+				Annotations:     map[string]string{"sidecar.istio.io/status": `{"revision":"asm-1-28"}`},
+				OwnerReferences: []metav1.OwnerReference{{Name: "rs-a", Kind: "ReplicaSet", APIVersion: "apps/v1", Controller: ptr.To(true)}},
+			},
+			Status: corev1.PodStatus{Phase: corev1.PodRunning},
+		},
+		&appsv1.ReplicaSet{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "rs-a", Namespace: "ns-a",
+				OwnerReferences: []metav1.OwnerReference{{Name: "deploy-a", Kind: "Deployment", APIVersion: "apps/v1", Controller: ptr.To(true)}},
+			},
+		},
+		&appsv1.Deployment{
+			ObjectMeta: metav1.ObjectMeta{Name: "deploy-a", Namespace: "ns-a"},
+			Spec:       appsv1.DeploymentSpec{Replicas: ptr.To[int32](1)},
+		},
+		// ns-b: already current — no stale pods
+		&corev1.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "pod-b", Namespace: "ns-b",
+				Annotations:     map[string]string{"sidecar.istio.io/status": `{"revision":"asm-1-29"}`},
+				OwnerReferences: []metav1.OwnerReference{{Name: "rs-b", Kind: "ReplicaSet", APIVersion: "apps/v1", Controller: ptr.To(true)}},
+			},
+			Status: corev1.PodStatus{Phase: corev1.PodRunning},
+		},
+	)
+
+	results, err := ExecuteRestartAllNamespaces(context.Background(), client, "asm-1-29")
+	require.NoError(t, err)
+
+	require.Len(t, results, 2, "should return a result per mesh namespace")
+
+	var restarted int
+	for _, r := range results {
+		if r.Namespace == "ns-a" {
+			assert.Contains(t, r.Restarted, "deployment/deploy-a")
+		}
+		restarted += len(r.Restarted)
+	}
+	assert.Equal(t, 1, restarted, "only ns-a had stale workloads to restart")
+}
+
+func TestExecuteRestartAllNamespaces_NoNamespaces(t *testing.T) {
+	client := fake.NewSimpleClientset()
+
+	results, err := ExecuteRestartAllNamespaces(context.Background(), client, "asm-1-29")
+	require.NoError(t, err)
+	assert.Empty(t, results, "no mesh namespaces should produce empty results")
+}
+
+func TestExecuteRestartAllNamespaces_PartialFailure(t *testing.T) {
+	client := fake.NewSimpleClientset(
+		&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "ns-ok", Labels: map[string]string{"istio.io/rev": "asm-1-29"}}},
+		&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "ns-fail", Labels: map[string]string{"istio.io/rev": "asm-1-29"}}},
+		// ns-ok: stale bare pod (will succeed)
+		&corev1.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "bare-ok", Namespace: "ns-ok",
+				Annotations: map[string]string{"sidecar.istio.io/status": `{"revision":"asm-1-28"}`},
+			},
+			Status: corev1.PodStatus{Phase: corev1.PodRunning},
+		},
+		// ns-fail: stale pod owned by deployment that will fail to patch
+		&corev1.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "pod-fail", Namespace: "ns-fail",
+				Annotations:     map[string]string{"sidecar.istio.io/status": `{"revision":"asm-1-28"}`},
+				OwnerReferences: []metav1.OwnerReference{{Name: "rs-fail", Kind: "ReplicaSet", APIVersion: "apps/v1", Controller: ptr.To(true)}},
+			},
+			Status: corev1.PodStatus{Phase: corev1.PodRunning},
+		},
+		&appsv1.ReplicaSet{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "rs-fail", Namespace: "ns-fail",
+				OwnerReferences: []metav1.OwnerReference{{Name: "deploy-fail", Kind: "Deployment", APIVersion: "apps/v1", Controller: ptr.To(true)}},
+			},
+		},
+		// Intentionally no Deployment object for deploy-fail — patch will fail
+	)
+
+	client.PrependReactor("patch", "deployments", func(action k8stesting.Action) (bool, runtime.Object, error) {
+		pa := action.(k8stesting.PatchAction)
+		if pa.GetNamespace() == "ns-fail" {
+			return true, nil, fmt.Errorf("simulated patch failure")
+		}
+		return false, nil, nil
+	})
+
+	results, err := ExecuteRestartAllNamespaces(context.Background(), client, "asm-1-29")
+	assert.Error(t, err, "should return aggregated error from ns-fail")
+	assert.ErrorContains(t, err, "ns-fail")
+
+	var foundOK bool
+	for _, r := range results {
+		if r.Namespace == "ns-ok" {
+			foundOK = true
+			assert.Contains(t, r.Restarted, "pod/bare-ok", "ns-ok restart should have succeeded")
+		}
+	}
+	assert.True(t, foundOK, "successful namespace result should still be included")
 }
 
 func TestCreateRevisionConfigMap(t *testing.T) {
