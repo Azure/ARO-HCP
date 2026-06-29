@@ -69,17 +69,18 @@ resourceGroups:
   resourceGroup: '{{ .mgmt.rg }}'
   subscription: '{{ .mgmt.subscription.key }}'
   steps:
-  - name: grafana-monitoring-reader
-    action: ARM
-    template: templates/grafana-monitoring-reader.bicep
-    parameters: configurations/grafana-monitoring-reader.tmpl.bicepparam
-    deploymentLevel: Subscription
-    variables:
-    - name: grafanaPrincipalId
-      input:
-        resourceGroup: global
-        step: output
-        name: grafanaPrincipalId
+  # TODO(ARO-28044): re-enable after ARO-28040
+  # - name: grafana-monitoring-reader
+  #   action: ARM
+  #   template: templates/grafana-monitoring-reader.bicep
+  #   parameters: configurations/grafana-monitoring-reader.tmpl.bicepparam
+  #   deploymentLevel: Subscription
+  #   variables:
+  #   - name: grafanaPrincipalId
+  #     input:
+  #       resourceGroup: global
+  #       step: output
+  #       name: grafanaPrincipalId
   - name: subscription-output
     action: ARM
     template: templates/subscription-lookup.bicep
