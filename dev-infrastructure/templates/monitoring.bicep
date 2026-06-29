@@ -70,6 +70,9 @@ param alertsEnabled bool
 @description('The minimum IcM severity level (highest priority) that alerts can fire at. Alerts more critical than this ceiling will be degraded to this value. 0 means no ceiling.')
 param alertSeverityCeiling int = 0
 
+@description('Whether the RP IcM action group is wired to RP alert rules. When false, RP rules still evaluate in Prometheus but do not deliver to IcM.')
+param rpIcmActionGroupEnabled bool = true
+
 module actionGroups '../modules/metrics/actiongroups.bicep' = if (manageConnection) {
   name: 'actionGroups'
   params: {
@@ -97,7 +100,8 @@ module actionGroups '../modules/metrics/actiongroups.bicep' = if (manageConnecti
 }
 
 var slActionGroups = manageConnection ? [actionGroups.outputs.actionGroupsSL] : []
-var rpActionGroups = manageConnection ? [actionGroups.outputs.actionGroupsRP] : []
+// rpIcmActionGroupEnabled adds a second guard so RP-lane rules can evaluate without delivering IcM tickets
+var rpActionGroups = manageConnection && rpIcmActionGroupEnabled ? [actionGroups.outputs.actionGroupsRP] : []
 var sreActionGroups = manageConnection ? [actionGroups.outputs.actionGroupsSRE] : []
 var msftActionGroups = manageConnection ? [actionGroups.outputs.actionGroupsMSFT] : []
 

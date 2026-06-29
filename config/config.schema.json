@@ -2870,6 +2870,10 @@
           "maximum": 4,
           "description": "The minimum IcM severity level (highest priority) that alerts can fire at. Alerts with a severity more critical (lower number) than this ceiling will be degraded to this value. For example, setting this to 3 means SEV2 alerts will fire as SEV3. A value of 0 means no ceiling is applied."
         },
+        "rpIcmActionGroupEnabled": {
+          "type": "boolean",
+          "description": "Whether the RP IcM action group is wired to RP-lane alert rules. When false, RP-lane rules still evaluate in Prometheus but do not generate IcM tickets. Only has effect when manageConnection is true and alertsEnabled is true. Does not affect alerts routed through other lanes (e.g. SRE, SL)."
+        },
         "icm": {
           "type": "object",
           "properties": {

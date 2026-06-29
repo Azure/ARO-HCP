@@ -801,6 +801,7 @@ monitoring:
   maxActiveTimeSeriesMillions: 2
   maxEventsPerMinute: 2000000
   maxEventsPerMinuteMillions: 2
+  rpIcmActionGroupEnabled: true
   svcWorkspaceName: services-cspr-usw3
 msiCredentialsRefresher:
   certificate:

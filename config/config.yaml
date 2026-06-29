@@ -385,8 +385,12 @@ defaults:
     maxEventsPerMinute: 2000000
     maxEventsPerMinuteMillions: 2
     alertRuleOwningTeamTag: ""
+    # alertsEnabled: disables the Azure Action Group resource (affects all lanes: SRE, SL, RP, MSFT)
     alertsEnabled: false
     alertSeverityCeiling: 0
+    # rpIcmActionGroupEnabled: removes the RP action group from RP-lane rule wiring only.
+    # Only has effect when manageConnection=true and alertsEnabled=true.
+    rpIcmActionGroupEnabled: true
     icm:
       manageConnection: true
       connectionName: ""
