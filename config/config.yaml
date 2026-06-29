@@ -369,7 +369,7 @@ defaults:
       subscriptions: []
   # Monitoring
   monitoring:
-    grafanaName: "arohcp-{{ .ctx.environment }}"
+    grafanaName: "jbolltesting"
     # Format:
     #   Multiline string using '>-' YAML block scalar
     #   One item per line, formatted as: UUID/PrincipalType/RoleName
@@ -1309,8 +1309,8 @@ clouds:
       monitoring:
         icm:
           manageConnection: false
-        grafanaName: arohcp-dev
-        grafanaMajorVersion: '11'
+        grafanaName: jbolltesting2
+        grafanaMajorVersion: '13'
         grafanaZoneRedundantMode: Disabled
         grafanaRoles: >-
           6b6d3adf-8476-4727-9812-20ffdef2b85c/Group/Admin
