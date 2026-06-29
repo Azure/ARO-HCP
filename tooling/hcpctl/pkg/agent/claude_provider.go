@@ -112,9 +112,9 @@ func NewClaudeProvider(ctx context.Context, cfg *ClaudeConfig) (*ClaudeProvider,
 }
 
 // CreateProviderSession creates a new ClaudeSession for an analysis run.
-// The cfg.SystemPrompt is expected to carry only domain-specific content;
-// the shared identity and tone preamble is prepended here so the Claude
-// system message contains the full prompt without duplication.
+// It concatenates cfg.IdentityPrompt, cfg.TonePrompt, and cfg.SystemPrompt
+// into a single system message. All three fields are set centrally by the
+// caller (e.g. analyze_cmd.go).
 func (p *ClaudeProvider) CreateProviderSession(ctx context.Context, logger logr.Logger, cfg ProviderSessionConfig) (LLMSession, error) {
 	model := cfg.Model
 	if model == "" {
@@ -134,9 +134,10 @@ func (p *ClaudeProvider) CreateProviderSession(ctx context.Context, logger logr.
 		tools = append(tools, at)
 	}
 
-	// Build the full system prompt by prepending the shared identity and
-	// tone sections to the domain-specific content from cfg.SystemPrompt.
-	fullSystemPrompt := identityPrompt + "\n\n" + tonePrompt + "\n\n" + cfg.SystemPrompt
+	// Build the full system prompt from the three parts passed in cfg.
+	// The caller is responsible for setting IdentityPrompt, TonePrompt,
+	// and SystemPrompt — this provider just concatenates them.
+	fullSystemPrompt := cfg.IdentityPrompt + "\n\n" + cfg.TonePrompt + "\n\n" + cfg.SystemPrompt
 
 	sessionID := fmt.Sprintf("claude-%d", time.Now().UnixNano())
 	logger = logger.WithValues("sessionID", sessionID)

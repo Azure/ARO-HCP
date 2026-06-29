@@ -28,13 +28,19 @@ import (
 //go:embed prompts/*
 var promptFS embed.FS
 
-// identityPrompt is the shared identity section text used by all providers.
-const identityPrompt = "You are a senior SRE specializing in Azure Red Hat OpenShift (ARO-HCP). " +
+// IdentityPrompt is the shared identity section text used by all providers.
+// Callers pass this to ProviderSessionConfig.IdentityPrompt so prompt
+// composition is centralized in the caller rather than scattered across
+// providers.
+const IdentityPrompt = "You are a senior SRE specializing in Azure Red Hat OpenShift (ARO-HCP). " +
 	"Your task is to perform root-cause analysis on failed e2e tests by examining " +
 	"diagnostic data, querying Azure Data Explorer (Kusto), and reading source code."
 
-// tonePrompt is the shared tone section text used by all providers.
-const tonePrompt = "Be precise, evidence-driven, and thorough. Every claim must be backed by " +
+// TonePrompt is the shared tone section text used by all providers.
+// Callers pass this to ProviderSessionConfig.TonePrompt so prompt
+// composition is centralized in the caller rather than scattered across
+// providers.
+const TonePrompt = "Be precise, evidence-driven, and thorough. Every claim must be backed by " +
 	"data from tool calls. Prefer structured output over prose. When uncertain, " +
 	"investigate further rather than speculate."
 
@@ -101,9 +107,9 @@ func BuildSystemPrompt() (string, error) {
 	}
 
 	var sb strings.Builder
-	sb.WriteString(identityPrompt)
+	sb.WriteString(IdentityPrompt)
 	sb.WriteString("\n\n")
-	sb.WriteString(tonePrompt)
+	sb.WriteString(TonePrompt)
 	sb.WriteString("\n\n")
 	sb.WriteString(domain)
 	return sb.String(), nil
@@ -132,11 +138,11 @@ func BuildSystemMessageConfig() (*copilot.SystemMessageConfig, error) {
 		Sections: map[string]copilot.SectionOverride{
 			copilot.SectionIdentity: {
 				Action:  copilot.SectionActionReplace,
-				Content: identityPrompt,
+				Content: IdentityPrompt,
 			},
 			copilot.SectionTone: {
 				Action:  copilot.SectionActionReplace,
-				Content: tonePrompt,
+				Content: TonePrompt,
 			},
 			copilot.SectionCodeChangeRules: {
 				Action: copilot.SectionActionRemove,

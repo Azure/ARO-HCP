@@ -333,6 +333,8 @@ func (o *validatedAnalyzeOptions) run(ctx context.Context) error {
 	}()
 
 	session, err := provider.CreateProviderSession(ctx, logger, agent.ProviderSessionConfig{
+		IdentityPrompt:   agent.IdentityPrompt,
+		TonePrompt:       agent.TonePrompt,
 		SystemPrompt:     domainPrompt,
 		Tools:            []agent.ToolDefinition{kustoTool},
 		WorkingDirectory: workspaceDir,

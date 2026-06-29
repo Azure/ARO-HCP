@@ -231,19 +231,20 @@ func (c *CopilotClient) CreateProviderSession(ctx context.Context, logger logr.L
 		copilotTools = append(copilotTools, ct)
 	}
 
-	// Build a SystemMessageConfig from the plain system prompt. The domain-
-	// specific content goes into the custom instructions section while the
-	// identity and tone sections are replaced with our SRE-specific content.
+	// Build a SystemMessageConfig from the provider-neutral config. The
+	// identity and tone prompts come from cfg (set centrally by the caller)
+	// while the domain-specific content goes into the custom instructions
+	// section.
 	systemMsg := &copilot.SystemMessageConfig{
 		Mode: "customize",
 		Sections: map[string]copilot.SectionOverride{
 			copilot.SectionIdentity: {
 				Action:  copilot.SectionActionReplace,
-				Content: identityPrompt,
+				Content: cfg.IdentityPrompt,
 			},
 			copilot.SectionTone: {
 				Action:  copilot.SectionActionReplace,
-				Content: tonePrompt,
+				Content: cfg.TonePrompt,
 			},
 			copilot.SectionCodeChangeRules: {
 				Action: copilot.SectionActionRemove,

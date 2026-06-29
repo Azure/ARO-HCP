@@ -65,12 +65,29 @@ type LLMSession interface {
 // ProviderSessionConfig holds provider-neutral configuration for creating
 // an LLM session. Each LLMProvider translates these fields into its native
 // format during CreateProviderSession.
+//
+// The prompt is split into three parts so the caller can assemble the full
+// prompt centrally while each provider applies them in its native format:
+//
+//   - IdentityPrompt: who the model is (role, specialization).
+//   - TonePrompt: how the model should respond (style, evidence rules).
+//   - SystemPrompt: domain-specific content (system.md, references,
+//     exemplars) built by BuildDomainPrompt.
+//
+// For example, the Copilot provider maps IdentityPrompt and TonePrompt to
+// SDK section overrides, while the Claude provider concatenates all three
+// into a single system message.
 type ProviderSessionConfig struct {
+	// IdentityPrompt carries the identity/role instructions that tell
+	// the model who it is (e.g. "You are a senior SRE …").
+	IdentityPrompt string
+
+	// TonePrompt carries the tone/style instructions that tell the
+	// model how to respond (e.g. "Be precise, evidence-driven …").
+	TonePrompt string
+
 	// SystemPrompt carries domain-specific content (system.md, references,
-	// exemplars) built by BuildDomainPrompt. It intentionally omits the
-	// shared identity and tone preamble — each provider adds those in its
-	// native format (e.g. Copilot section overrides, Claude system message
-	// prefix) to avoid duplication.
+	// exemplars) built by BuildDomainPrompt.
 	SystemPrompt string
 
 	// Tools are provider-neutral tool definitions. Each provider converts
