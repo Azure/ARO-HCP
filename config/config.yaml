@@ -764,6 +764,7 @@ defaults:
           memory: unlimited
     cert:
       name: admin-api-cert-{{ .ctx.environment }}-{{ .ctx.regionShort }}
+      contentType: x-pkcs12
   # Session Gate
   sessiongate:
     image:
@@ -777,6 +778,7 @@ defaults:
       serviceAccountName: sessiongate
     cert:
       name: sessiongate-cert-{{ .ctx.environment }}-{{ .ctx.regionShort }}
+      contentType: x-pkcs12
   # HCP Recovery
   hcpRecovery:
     image:
@@ -820,6 +822,7 @@ defaults:
       fleetContainerMaxScale: 4000
     cert:
       name: frontend-cert-{{ .ctx.environment }}-{{ .ctx.regionShort }}
+      contentType: x-pkcs12
     exitOnPanic: true
     logVerbosity: 0
   # Billing

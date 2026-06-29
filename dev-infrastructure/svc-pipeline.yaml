@@ -159,6 +159,115 @@ resourceGroups:
         name: svcKeyVaultUrl
     issuer:
       value: OneCertV2-PublicCA
+  # Create certificates
+  - name: frontend-cert
+    action: CreateCertificate
+    secretKeyVault:
+      configRef: ev2.assistedId.certificate.keyVault
+    secretName:
+      configRef: ev2.assistedId.certificate.name
+    applicationId:
+      configRef: ev2.assistedId.applicationId
+    vaultBaseUrl:
+      input:
+        resourceGroup: service
+        step: infra-output
+        name: svcKeyVaultUrl
+    certificateName:
+      configRef: frontend.cert.name
+    contentType:
+      configRef: frontend.cert.contentType
+    san:
+      value: 'rp.{{ .dns.regionalSubdomain }}.{{ .dns.svcParentZoneName }}'
+    issuer:
+      configRef: frontend.cert.issuer
+    commonName:
+      value: 'rp.{{ .dns.regionalSubdomain }}.{{ .dns.svcParentZoneName }}'
+    dependsOn:
+    - resourceGroup: service
+      step: infra-output
+    - resourceGroup: service
+      step: oncert-private-kv-issuer
+    - resourceGroup: service
+      step: oncert-public-kv-issuer
+    automatedRetry:
+      errorContainsAny:
+      - "InternalServerError"
+      - "ServiceUnavailable"
+      maximumRetryCount: 3
+      durationBetweenRetries: 1m
+  - name: admin-api-cert
+    action: CreateCertificate
+    secretKeyVault:
+      configRef: ev2.assistedId.certificate.keyVault
+    secretName:
+      configRef: ev2.assistedId.certificate.name
+    applicationId:
+      configRef: ev2.assistedId.applicationId
+    vaultBaseUrl:
+      input:
+        resourceGroup: service
+        step: infra-output
+        name: svcKeyVaultUrl
+    certificateName:
+      configRef: adminApi.cert.name
+    contentType:
+      configRef: adminApi.cert.contentType
+    san:
+      value: 'admin.{{ .dns.regionalSubdomain }}.{{ .dns.svcParentZoneName }}'
+    issuer:
+      configRef: adminApi.cert.issuer
+    commonName:
+      value: 'admin.{{ .dns.regionalSubdomain }}.{{ .dns.svcParentZoneName }}'
+    dependsOn:
+    - resourceGroup: service
+      step: infra-output
+    - resourceGroup: service
+      step: oncert-private-kv-issuer
+    - resourceGroup: service
+      step: oncert-public-kv-issuer
+    automatedRetry:
+      errorContainsAny:
+      - "InternalServerError"
+      - "ServiceUnavailable"
+      maximumRetryCount: 3
+      durationBetweenRetries: 1m
+  - name: sessiongate-cert
+    action: CreateCertificate
+    secretKeyVault:
+      configRef: ev2.assistedId.certificate.keyVault
+    secretName:
+      configRef: ev2.assistedId.certificate.name
+    applicationId:
+      configRef: ev2.assistedId.applicationId
+    vaultBaseUrl:
+      input:
+        resourceGroup: service
+        step: infra-output
+        name: svcKeyVaultUrl
+    certificateName:
+      configRef: sessiongate.cert.name
+    contentType:
+      configRef: sessiongate.cert.contentType
+    san:
+      value: 'sessiongate.{{ .dns.regionalSubdomain }}.{{ .dns.svcParentZoneName }}'
+    issuer:
+      configRef: sessiongate.cert.issuer
+    commonName:
+      value: 'sessiongate.{{ .dns.regionalSubdomain }}.{{ .dns.svcParentZoneName }}'
+    dependsOn:
+    - resourceGroup: service
+      step: infra-output
+    - resourceGroup: service
+      step: oncert-private-kv-issuer
+    - resourceGroup: service
+      step: oncert-public-kv-issuer
+    automatedRetry:
+      errorContainsAny:
+      - "InternalServerError"
+      - "ServiceUnavailable"
+      maximumRetryCount: 3
+      durationBetweenRetries: 1m
   # Create SVC cluster
   - name: cluster
     action: ARM
@@ -211,6 +320,12 @@ resourceGroups:
       step: oncert-private-kv-issuer
     - resourceGroup: service
       step: oncert-public-kv-issuer
+    - resourceGroup: service
+      step: frontend-cert
+    - resourceGroup: service
+      step: admin-api-cert
+    - resourceGroup: service
+      step: sessiongate-cert
     automatedRetry:
       errorContainsAny:
       - "DeploymentScriptACIProvisioningTimeout"

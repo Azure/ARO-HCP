@@ -311,9 +311,6 @@ param regionalSvcDNSZoneName string
 @description('Frontend Ingress Certificate Name')
 param frontendIngressCertName string
 
-@description('Frontend Ingress Certificate Issuer')
-param frontendIngressCertIssuer string
-
 @description('The name of the frontend managed identity')
 param frontendMIName string
 
@@ -411,9 +408,6 @@ param adminApiServiceAccountName string
 @description('The name of the Admin API certificate')
 param adminApiIngressCertName string
 
-@description('The issuer of the Admin API certificate')
-param adminApiIngressCertIssuer string
-
 @description('The name of the Fleet managed identity')
 param fleetMIName string
 
@@ -458,9 +452,6 @@ param sessiongateServiceAccountName string
 
 @description('The name of the Session Gate ingress certificate')
 param sessiongateIngressCertName string
-
-@description('The issuer of the Session Gate ingress certificate')
-param sessiongateIngressCertIssuer string
 
 resource serviceKeyVault 'Microsoft.KeyVault/vaults@2024-04-01-preview' existing = {
   name: serviceKeyVaultName
@@ -1025,22 +1016,6 @@ module eventGrindPrivateEndpoint '../modules/private-endpoint.bicep' = {
 //
 
 var frontendDnsName = 'rp'
-var frontendDnsFQDN = '${frontendDnsName}.${regionalSvcDNSZoneName}'
-
-module frontendIngressCert '../modules/keyvault/key-vault-cert.bicep' = {
-  name: 'frontend-cert-${uniqueString(resourceGroup().name)}'
-  scope: resourceGroup(serviceKeyVaultSubscription, serviceKeyVaultResourceGroup)
-  params: {
-    keyVaultName: serviceKeyVaultName
-    subjectName: 'CN=${frontendDnsFQDN}'
-    certName: frontendIngressCertName
-    keyVaultManagedIdentityId: globalMSIId
-    dnsNames: [
-      frontendDnsFQDN
-    ]
-    issuerName: frontendIngressCertIssuer
-  }
-}
 
 module frontendIngressCertCSIAccess '../modules/keyvault/keyvault-secret-access.bicep' = {
   name: 'aks-svc-kv-access-${frontendIngressCertName}'
@@ -1069,22 +1044,6 @@ module frontendDNS '../modules/dns/a-record.bicep' = {
 //
 
 var adminApiDnsName = 'admin'
-var adminApiDnsFQDN = '${adminApiDnsName}.${regionalSvcDNSZoneName}'
-
-module adminApiCert '../modules/keyvault/key-vault-cert.bicep' = {
-  name: 'admin-api-cert-${uniqueString(resourceGroup().name)}'
-  scope: resourceGroup(serviceKeyVaultSubscription, serviceKeyVaultResourceGroup)
-  params: {
-    keyVaultName: serviceKeyVaultName
-    subjectName: 'CN=${adminApiDnsFQDN}'
-    certName: adminApiIngressCertName
-    keyVaultManagedIdentityId: globalMSIId
-    dnsNames: [
-      adminApiDnsFQDN
-    ]
-    issuerName: adminApiIngressCertIssuer
-  }
-}
 
 module adminApiIngressCertCSIAccess '../modules/keyvault/keyvault-secret-access.bicep' = {
   name: 'aks-svc-kv-access-${adminApiIngressCertName}'
@@ -1113,22 +1072,6 @@ module adminApiDNS '../modules/dns/a-record.bicep' = {
 //
 
 var sessiongateDnsName = 'sessiongate'
-var sessiongateDnsFQDN = '${sessiongateDnsName}.${regionalSvcDNSZoneName}'
-
-module sessiongateCert '../modules/keyvault/key-vault-cert.bicep' = {
-  name: 'sessiongate-cert-${uniqueString(resourceGroup().name)}'
-  scope: resourceGroup(serviceKeyVaultSubscription, serviceKeyVaultResourceGroup)
-  params: {
-    keyVaultName: serviceKeyVaultName
-    subjectName: 'CN=${sessiongateDnsFQDN}'
-    certName: sessiongateIngressCertName
-    keyVaultManagedIdentityId: globalMSIId
-    dnsNames: [
-      sessiongateDnsFQDN
-    ]
-    issuerName: sessiongateIngressCertIssuer
-  }
-}
 
 module sessiongateIngressCertCSIAccess '../modules/keyvault/keyvault-secret-access.bicep' = {
   name: 'aksSPCRead-${sessiongateIngressCertName}'

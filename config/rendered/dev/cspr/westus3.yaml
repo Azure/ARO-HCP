@@ -32,6 +32,7 @@ adminApi:
   audit:
     connectSocket: false
   cert:
+    contentType: x-pkcs12
     issuer: Self
     name: admin-api-cert-cspr-usw3
   image:
@@ -277,6 +278,7 @@ frontend:
   audit:
     connectSocket: false
   cert:
+    contentType: x-pkcs12
     issuer: Self
     name: frontend-cert-cspr-usw3
   cosmosDB:
@@ -893,6 +895,7 @@ serviceKeyVault:
   tagValue: service
 sessiongate:
   cert:
+    contentType: x-pkcs12
     issuer: Self
     name: sessiongate-cert-cspr-usw3
   image:

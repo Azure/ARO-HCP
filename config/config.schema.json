@@ -671,6 +671,12 @@
         }
       ]
     },
+    "certificateContentType": {
+      "type": "string",
+      "enum": [
+        "x-pkcs12"
+      ]
+    },
     "certificateIssuer": {
       "type": "string",
       "enum": [
@@ -1343,12 +1349,16 @@
             },
             "issuer": {
               "$ref": "#/definitions/certificateIssuer"
+            },
+            "contentType": {
+              "$ref": "#/definitions/certificateContentType"
             }
           },
           "additionalProperties": false,
           "required": [
             "name",
-            "issuer"
+            "issuer",
+            "contentType"
           ]
         }
       },
@@ -1497,12 +1507,16 @@
             },
             "issuer": {
               "$ref": "#/definitions/certificateIssuer"
+            },
+            "contentType": {
+              "$ref": "#/definitions/certificateContentType"
             }
           },
           "additionalProperties": false,
           "required": [
             "name",
-            "issuer"
+            "issuer",
+            "contentType"
           ]
         }
       },
@@ -1579,12 +1593,16 @@
             },
             "issuer": {
               "$ref": "#/definitions/certificateIssuer"
+            },
+            "contentType": {
+              "$ref": "#/definitions/certificateContentType"
             }
           },
           "additionalProperties": false,
           "required": [
             "name",
-            "issuer"
+            "issuer",
+            "contentType"
           ]
         },
         "exitOnPanic": {

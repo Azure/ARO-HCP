@@ -32,6 +32,7 @@ adminApi:
   audit:
     connectSocket: false
   cert:
+    contentType: x-pkcs12
     issuer: Self
     name: admin-api-cert-pers-usw3test
   image:
@@ -277,6 +278,7 @@ frontend:
   audit:
     connectSocket: false
   cert:
+    contentType: x-pkcs12
     issuer: Self
     name: frontend-cert-pers-usw3test
   cosmosDB:
@@ -895,6 +897,7 @@ serviceKeyVault:
   tagValue: service
 sessiongate:
   cert:
+    contentType: x-pkcs12
     issuer: Self
     name: sessiongate-cert-pers-usw3test
   image:
