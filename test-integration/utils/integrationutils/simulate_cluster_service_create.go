@@ -67,7 +67,6 @@ func SimulateBackendClusterServiceCreate(
 		tenantID = *subscription.Properties.TenantId
 	}
 
-	clusterCopy := cluster.DeepCopy()
 	serviceProviderClustersDBClient := resourcesDBClient.ServiceProviderClusters(
 		clusterResourceID.SubscriptionID,
 		clusterResourceID.ResourceGroupName,
@@ -77,11 +76,8 @@ func SimulateBackendClusterServiceCreate(
 	if err != nil && !database.IsNotFoundError(err) {
 		return utils.TrackError(fmt.Errorf("failed to get ServiceProviderCluster: %w", err))
 	}
-	if serviceProviderCluster != nil && serviceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion != nil {
-		clusterCopy.CustomerProperties.Version.ID = serviceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion.String()
-	}
 
-	csClusterBuilder, csAutoscalerBuilder, err := ocm.BuildCSCluster(clusterCopy.ID, tenantID, clusterCopy, nil, nil)
+	csClusterBuilder, csAutoscalerBuilder, err := ocm.BuildCSCluster(cluster.ID, tenantID, cluster, nil, nil, serviceProviderCluster)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to build CS cluster: %w", err))
 	}

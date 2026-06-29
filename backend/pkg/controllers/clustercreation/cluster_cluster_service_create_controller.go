@@ -20,8 +20,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/blang/semver/v4"
-
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
@@ -134,7 +132,7 @@ func (c *clusterClusterServiceCreateSyncer) SyncOnce(ctx context.Context, key co
 	}
 
 	if csCluster == nil {
-		csCluster, err = c.createClusterServiceCluster(ctx, cluster, existingServiceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion, tenantID)
+		csCluster, err = c.createClusterServiceCluster(ctx, cluster, existingServiceProviderCluster, tenantID)
 		if err != nil {
 			return utils.TrackError(fmt.Errorf("failed to create cluster in CS: %w", err))
 		}
@@ -234,22 +232,15 @@ func (c *clusterClusterServiceCreateSyncer) csClustersMatchingClusterByAzureInfo
 	return res, nil
 }
 
-func (c *clusterClusterServiceCreateSyncer) createClusterServiceCluster(ctx context.Context, cluster *api.HCPOpenShiftCluster, desiredVersion *semver.Version, tenantID string) (*arohcpv1alpha1.Cluster, error) {
+func (c *clusterClusterServiceCreateSyncer) createClusterServiceCluster(ctx context.Context, cluster *api.HCPOpenShiftCluster, serviceProviderCluster *api.ServiceProviderCluster, tenantID string) (*arohcpv1alpha1.Cluster, error) {
 	logger := utils.LoggerFromContext(ctx)
 
-	// Use the Cincinnati-resolved desired version instead of the
-	// customer's minor version so CS gets the exact patch release.
-	clusterCopy := cluster.DeepCopy()
-	clusterCopy.CustomerProperties.Version.ID = desiredVersion.String()
-
-	csClusterBuilder, csAutoscalerBuilder, err := ocm.BuildCSCluster(
-		clusterCopy.ID, tenantID, clusterCopy, nil, nil,
-	)
+	csClusterBuilder, csAutoscalerBuilder, err := ocm.BuildCSCluster(cluster.ID, tenantID, cluster, nil, nil, serviceProviderCluster)
 	if err != nil {
 		return nil, utils.TrackError(fmt.Errorf("failed to build CS cluster: %w", err))
 	}
 
-	logger.Info("Creating cluster in Cluster Service", "version", desiredVersion.String())
+	logger.Info("Creating cluster in Cluster Service", "version", serviceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion.String())
 	result, err := c.clustersServiceClient.PostCluster(ctx, csClusterBuilder, csAutoscalerBuilder)
 	if err != nil {
 		return nil, utils.TrackError(fmt.Errorf("PostCluster failed: %w", err))
