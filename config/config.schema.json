@@ -3342,6 +3342,9 @@
         },
         "grafanaName": {
           "type": "string"
+        },
+        "grafanaMajorVersion": {
+          "type": "string"
         }
       },
       "additionalProperties": false,
@@ -3356,7 +3359,8 @@
         "svcParentZoneName",
         "cxParentZoneName",
         "kustoName",
-        "grafanaName"
+        "grafanaName",
+        "grafanaMajorVersion"
       ]
     },
     "releaseApprover": {

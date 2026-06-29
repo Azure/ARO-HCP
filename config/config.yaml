@@ -119,6 +119,7 @@ defaults:
     cxParentZoneName: "empty-sentinel"
     kustoName: "empty-sentinel"
     grafanaName: "empty-sentinel"
+    grafanaMajorVersion: "empty-sentinel"
   # Image Registry Policy
   imageRegistryPolicy:
     extraAllowedRegistries: ""
