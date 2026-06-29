@@ -53,7 +53,6 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/validationcontrollers"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/validationcontrollers/validations"
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
-	"github.com/Azure/ARO-HCP/backend/pkg/maestro"
 	internalazure "github.com/Azure/ARO-HCP/internal/azure"
 	"github.com/Azure/ARO-HCP/internal/database"
 	dbinformers "github.com/Azure/ARO-HCP/internal/database/informers"
@@ -418,9 +417,6 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 
 	_, controllerLister := backendInformers.Controllers()
 
-	maestroMetrics := maestro.NewMaestroMetrics(b.options.MetricsRegisterer)
-	maestroClientBuilder := maestro.NewMaestroClientBuilder(maestroMetrics)
-
 	subscriptionNonClusterDataDumpController := datadumpcontrollers.NewSubscriptionNonClusterDataDumpController(b.options.ResourcesDBClient, activeOperationLister, backendInformers)
 	clusterRecursiveDataDumpController := datadumpcontrollers.NewClusterRecursiveDataDumpController(b.options.ResourcesDBClient, b.options.KubeApplierDBClients, managementClusterLister, activeOperationLister, backendInformers, unionKubeApplierInformers)
 	csStateDumpController := datadumpcontrollers.NewCSStateDumpController(b.options.ResourcesDBClient, activeOperationLister, backendInformers, unionKubeApplierInformers, b.options.ClustersServiceClient)
@@ -639,16 +635,6 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		5*time.Minute,
 	)
 
-	// Migration controller: drains the MaestroReadonlyBundles field on
-	// every ServiceProvider*. Retire once telemetry shows no SPC/SPNP
-	// still has the field populated.
-	cleanupLegacyMaestroReadonlyBundlesController := controllers.NewCleanupLegacyMaestroReadonlyBundlesController(
-		b.options.ResourcesDBClient,
-		managementClusterLister,
-		maestroClientBuilder,
-		b.options.MaestroSourceEnvironmentIdentifier,
-	)
-
 	cleanOrphanedClusterManagedResourceGroupController := controllers.NewCleanOrphanedClusterManagedResourceGroupController(
 		b.options.AzureLocation,
 		activeOperationLister,
@@ -857,7 +843,6 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go nodePoolActiveVersionController.Run(ctx, 20)
 				go createClusterScopedReadDesiresController.Run(ctx, 20)
 				go createNodePoolScopedReadDesiresController.Run(ctx, 20)
-				go cleanupLegacyMaestroReadonlyBundlesController.Run(ctx, 1)
 				go cleanOrphanedClusterManagedResourceGroupController.Run(ctx, 20)
 				go triggerNodePoolUpgradeController.Run(ctx, 20)
 				go nodePoolDeletionClusterServiceDeleteDispatchController.Run(ctx, 20)
