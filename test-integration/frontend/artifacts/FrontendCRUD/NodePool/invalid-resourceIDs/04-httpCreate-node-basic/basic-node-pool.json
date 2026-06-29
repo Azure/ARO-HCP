@@ -18,7 +18,7 @@
 				"encryptionSetId": "/invalid2"
 			},
 			"subnetId": "/invalid1",
-			"vmSize": "large"
+			"vmSize": "Standard_D8s_v3"
 		},
 		"taints": [
 			{

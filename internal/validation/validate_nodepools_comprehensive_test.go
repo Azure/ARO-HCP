@@ -281,6 +281,18 @@ func TestValidateNodePoolCreate(t *testing.T) {
 			}(),
 			expectErrors: []utils.ExpectedError{
 				{Message: "Required value", FieldPath: "properties.platform.vmSize"},
+				{Message: "Unsupported value", FieldPath: "properties.platform.vmSize"},
+			},
+		},
+		{
+			name: "invalid VM size - create",
+			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Platform.VMSize = "invalid_vm_size"
+				return np
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "Unsupported value", FieldPath: "properties.platform.vmSize"},
 			},
 		},
 		{
@@ -611,6 +623,7 @@ func TestValidateNodePoolCreate(t *testing.T) {
 				{Message: "No Major.Minor.Patch elements found", FieldPath: "properties.version.id"},
 				{Message: "Short version cannot contain PreRelease/Build meta data", FieldPath: "properties.version.id"},
 				{Message: "Required value", FieldPath: "properties.platform.vmSize"},
+				{Message: "Unsupported value", FieldPath: "properties.platform.vmSize"},
 				{Message: "must be greater than or equal to 64", FieldPath: "properties.platform.osDisk.sizeGiB"},
 				{Message: "must be greater than or equal to 0", FieldPath: "properties.replicas"},
 			},
@@ -980,7 +993,7 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 			}(),
 			oldNodePool: func() *api.HCPOpenShiftClusterNodePool {
 				np := createValidNodePool()
-				np.Properties.Platform.VMSize = "Standard_D2s_v3"
+				np.Properties.Platform.VMSize = "Standard_D8s_v3"
 				return np
 			}(),
 			expectErrors: []utils.ExpectedError{
@@ -1255,7 +1268,7 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 			oldNodePool: func() *api.HCPOpenShiftClusterNodePool {
 				np := createValidNodePool()
 				np.Properties.ProvisioningState = arm.ProvisioningStateSucceeded
-				np.Properties.Platform.VMSize = "Standard_D2s_v3"
+				np.Properties.Platform.VMSize = "Standard_D8s_v3"
 				np.Properties.AutoRepair = true
 				np.Location = "eastus"
 				return np
@@ -1434,7 +1447,7 @@ func createValidNodePool() *api.HCPOpenShiftClusterNodePool {
 	nodePool.Properties.Version.ID = "4.20.8"
 	nodePool.Properties.Version.ChannelGroup = "stable"
 	nodePool.Properties.Platform.SubnetID = api.Must(azcorearm.ParseResourceID("/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks/test-vnet/subnets/test-subnet"))
-	nodePool.Properties.Platform.VMSize = "Standard_D2s_v3"
+	nodePool.Properties.Platform.VMSize = "Standard_D8s_v3"
 	nodePool.Properties.Replicas = 3
 
 	// Add required systemData fields
