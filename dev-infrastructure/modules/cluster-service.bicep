@@ -124,11 +124,13 @@ module csPostgres 'postgres/postgres.bicep' = if (deployPostgres) {
     name: postgresServerName
     postgresZoneRedundantMode: postgresZoneRedundantMode
     databaseAdministrators: [
+      // global admin managed identity, kept as administrator for break-glass/management
       {
         principalId: reference(postgresAdministrationManagedIdentityId, '2023-01-31').principalId
         principalName: res.msiRefFromId(postgresAdministrationManagedIdentityId).name
         principalType: 'ServicePrincipal'
       }
+      // cluster-service identity granted access directly via Entra administrator
       {
         principalId: clusterServiceManagedIdentityPrincipalId
         principalName: clusterServiceManagedIdentityName

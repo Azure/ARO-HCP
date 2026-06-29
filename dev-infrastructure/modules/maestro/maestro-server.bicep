@@ -125,13 +125,13 @@ module maestroPostgres '../postgres/postgres.bicep' = if (deployPostgres) {
     postgresZoneRedundantMode: postgresZoneRedundantMode
     minTLSVersion: postgresServerMinTLSVersion
     databaseAdministrators: [
-      // add the dedicated admin managed identity as administrator
-      // this one is going to be used to manage DB access
+      // global admin managed identity, kept as administrator for break-glass/management
       {
         principalId: reference(postgresAdministrationManagedIdentityId, '2023-01-31').principalId
         principalName: res.msiRefFromId(postgresAdministrationManagedIdentityId).name
         principalType: 'ServicePrincipal'
       }
+      // maestro server identity granted access directly via Entra administrator
       {
         principalId: maestroServerManagedIdentityPrincipalId
         principalName: maestroServerManagedIdentityName
