@@ -3,6 +3,7 @@ Customer should not be able to reuse subnets and NSGs between clusters
 Customer should be able to list available HCP OpenShift versions and validate response content
 Customer should be able to test admin credentials before cluster ready, then full admin credential lifecycle
 Customer should be able to create node pools with ARM64-based VMs
+Customer should be able to rotate KMS key for a cluster with version >= 4.22
 Authorized CIDRs Connectivity should allow API access only from authorized VM IP
 Customer should be able to create an HCP cluster with custom autoscaling
 Customer should be able to create a HCP cluster and use cilium CNI plugin
