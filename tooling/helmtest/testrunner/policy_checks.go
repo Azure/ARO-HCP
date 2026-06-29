@@ -108,7 +108,7 @@ func checkPodSpecMemoryResources(kind, name string, podSpec corev1.PodSpec, requ
 		} else if !requestsMatched {
 			memoryRequest := c.Resources.Requests.Memory()
 			if memoryRequest == nil || memoryRequest.IsZero() {
-				violations = append(violations, fmt.Sprintf("%s container is missing a memory request (resources.requests.memory not set; add to ResourceRequestsAllowlist if intentionally unlimited)", key))
+				violations = append(violations, fmt.Sprintf("%s container is missing a memory request (resources.requests.memory not set; add to ResourceRequestsAllowlist if intentionally unset)", key))
 			}
 		}
 
@@ -133,7 +133,7 @@ func checkPodSpecMemoryResources(kind, name string, podSpec corev1.PodSpec, requ
 		} else if !requestsMatched {
 			memoryRequest := ec.Resources.Requests.Memory()
 			if memoryRequest == nil || memoryRequest.IsZero() {
-				violations = append(violations, fmt.Sprintf("%s container is missing a memory request (resources.requests.memory not set; add to ResourceRequestsAllowlist if intentionally unlimited)", key))
+			violations = append(violations, fmt.Sprintf("%s container is missing a memory request (resources.requests.memory not set; add to ResourceRequestsAllowlist if intentionally unset)", key))
 			}
 		}
 
