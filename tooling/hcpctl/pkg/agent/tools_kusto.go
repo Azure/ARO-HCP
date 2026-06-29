@@ -84,7 +84,7 @@ func NewKustoToolDefinition(client KustoClient) ToolDefinition {
 
 			table, err := client.Query(ctx, p.KQL)
 			if err != nil {
-				return "", fmt.Errorf("%s", summarizeKustoError(err))
+				return "", errors.New(summarizeKustoError(err))
 			}
 
 			totalRows := len(table.Rows)

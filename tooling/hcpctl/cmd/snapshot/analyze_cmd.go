@@ -211,7 +211,6 @@ func (o *RawAnalyzeOptions) validate() (*validatedAnalyzeOptions, error) {
 		claudeCfg := &agent.ClaudeConfig{
 			APIKeyFile: o.AnthropicAPIKeyFile,
 			Model:      o.AnthropicModel,
-			Verbosity:  o.Verbosity,
 			Backend:    o.ClaudeBackend,
 		}
 

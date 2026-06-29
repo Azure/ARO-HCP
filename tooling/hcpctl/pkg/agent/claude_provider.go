@@ -62,9 +62,6 @@ type ClaudeConfig struct {
 	// Defaults to DefaultClaudeModel.
 	Model string
 
-	// Verbosity is the log verbosity level from the CLI.
-	Verbosity int
-
 	// Backend selects the API backend: "api" for the direct Anthropic
 	// API (default) or "vertex" for Google Vertex AI.
 	Backend string
@@ -154,7 +151,6 @@ func (p *ClaudeProvider) CreateProviderSession(ctx context.Context, logger logr.
 		messages:     nil,
 		sessionID:    sessionID,
 		logger:       logger,
-		verbosity:    p.cfg.Verbosity,
 	}, nil
 }
 
@@ -176,7 +172,6 @@ type ClaudeSession struct {
 	messages     []anthropic.MessageParam
 	sessionID    string
 	logger       logr.Logger
-	verbosity    int
 }
 
 // SessionID returns the unique identifier for this session.
