@@ -792,9 +792,6 @@ resource validateMIPropagation 'Microsoft.Resources/deploymentScripts@2023-08-01
     scriptContent: loadTextContent('../scripts/validate-mi-aad-propagation.sh')
     cleanupPreference: 'OnSuccess'
   }
-  dependsOn: [
-    managedIdentities
-  ]
 }
 
 module rpCosmosDb '../modules/rp-cosmos.bicep' = if (rpCosmosDbAccountId != '') {

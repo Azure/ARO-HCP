@@ -15,7 +15,6 @@ var storageAccountContributorRole = '17d1049b-9a84-46fb-8f53-869881c3d3ab'
 // Storage Blob Data Contributor: Grants access to Read, write, and delete Azure Storage containers and blobs
 var storageBlobDataContributorRole = 'ba92f5b4-2d11-453d-a403-e96b0029c9fe'
 
-
 resource storageAccountResource 'Microsoft.Storage/storageAccounts@2023-01-01' existing = {
   name: accountName
 }
