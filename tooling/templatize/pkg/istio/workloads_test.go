@@ -23,6 +23,7 @@ import (
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/fake"
 	"k8s.io/utils/ptr"
@@ -221,6 +222,30 @@ func TestCreateRevisionConfigMap(t *testing.T) {
 
 	err = CreateRevisionConfigMap(context.Background(), client, "asm-1-29")
 	require.NoError(t, err)
+}
+
+func TestDeleteRevisionConfigMap(t *testing.T) {
+	client := fake.NewSimpleClientset(&corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "istio-shared-configmap-asm-1-28",
+			Namespace: "aks-istio-system",
+			Labels:    map[string]string{"istio.io/rev": "asm-1-28"},
+		},
+		Data: map[string]string{"mesh": "test"},
+	})
+
+	err := DeleteRevisionConfigMap(context.Background(), client, "asm-1-28")
+	require.NoError(t, err)
+
+	_, err = client.CoreV1().ConfigMaps("aks-istio-system").Get(context.Background(), "istio-shared-configmap-asm-1-28", metav1.GetOptions{})
+	assert.True(t, apierrors.IsNotFound(err), "ConfigMap should be deleted")
+}
+
+func TestDeleteRevisionConfigMap_NotFoundIsNoop(t *testing.T) {
+	client := fake.NewSimpleClientset()
+
+	err := DeleteRevisionConfigMap(context.Background(), client, "asm-1-28")
+	require.NoError(t, err, "deleting a non-existent ConfigMap should not error")
 }
 
 func TestUpdateMeshNamespaceLabels(t *testing.T) {
