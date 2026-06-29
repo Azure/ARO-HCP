@@ -21,10 +21,10 @@ We'll probably actually use a larger burst and smaller QPS, but it's an easy sca
 The scale of a region is larger, but is handled by cosmos so it will scale far beyond our needs.
 
 ## API structure
-The API types for this will live in `internal/api/kubeapplier`.
+The API types for this live in `internal/api/kubeapplier`.
 
-Every `*Desire` API will interact with a single kubernetes resource instance.
-We will not support lists, we will not support label selection, and we will not support list all.
+Every `*Desire` API interacts with a single kubernetes resource instance.
+Lists, label selection, and list all are not supported.
 This is for simplicity in reasoning about the status.
 We may eventually add support for `ReadManyDesire`, but only if we find a need for it.
 
@@ -33,7 +33,7 @@ Every `*Desire` API has a `.spec.managementCluster` field.
 This is the name of the management cluster that the `kube-applier` is running in.
 It matches the value the kube-applier binary was started with via `--management-cluster`,
 and it is used as the Cosmos partition key inside that management cluster's container.
-It is reasonably likely that will someday before an `*azcorearm.ResourceID`, but if that happens we'll adjust the string format first,
+It is reasonably likely that this will someday become an `*azcorearm.ResourceID`, but if that happens we'll adjust the string format first,
 rewrite everything, then change the type.
 No need to do so now since the type is a string.
 
@@ -101,7 +101,7 @@ The `internal/database/informers`, `internal/database/listers`, and
 `*Desire` APIs.
 
 ## Controller structure
-The `kube-applier` binary will be controller-based with many controllers structured similarly to the `backend` binary today.
+The `kube-applier` binary is controller-based with many controllers structured similarly to the `backend` binary.
 Instead of using the `Controller` type to communicate `Degraded` status, that will be communicated on the `*Desire` `.status.conditions["Degraded"]` field.
 Several controllers will exist
 
