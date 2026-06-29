@@ -19,12 +19,8 @@ param skuName string
 @description('The service principal ID to be added to Azure Storage account.')
 param principalIds array
 
-@description('Id of the MSI that will be used to run the deploymentScript')
+@description('Id of the MSI that will be granted access to configure the storage account')
 param deploymentMsiId string
-
-// Since deployment script is limted to specific regions, we run deployment script from the same location as the private link.
-// The location where deployment script run doesn't matter as it will be removed once the script is completed to enable static website on storage account.
-param deploymentScriptLocation string
 
 param allowBlobPublicAccess bool = false
 
@@ -49,7 +45,6 @@ module storageRbac './storage-setup.bicep' = {
     accountName: accountName
     principalIds: principalIds
     deploymentMsiId: deploymentMsiId
-    deploymentScriptLocation: deploymentScriptLocation
   }
   dependsOn: [
     storageAccount

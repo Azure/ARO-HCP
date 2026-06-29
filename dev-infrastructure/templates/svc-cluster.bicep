@@ -996,7 +996,6 @@ module oidc '../modules/oidc/region/main.bicep' = {
     keyVaultName: azureFrontDoorKeyVaultName
     useManagedCertificates: azureFrontDoorUseManagedCertificates
     globalMSIId: globalMSIId
-    deploymentScriptLocation: location
     storageAccountBlobPublicAccess: oidcStorageAccountPublic
     frontDoorManage: azureFrontDoorManage
   }

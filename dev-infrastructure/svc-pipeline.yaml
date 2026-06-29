@@ -240,6 +240,21 @@ resourceGroups:
     dependsOn:
     - resourceGroup: service
       step: cluster
+  - name: oidc-storage-setup
+    action: Shell
+    command: ./storage.sh
+    workingDir: ./scripts
+    variables:
+    - name: StorageAccountName
+      configRef: oidc.storageAccount.name
+    dependsOn:
+    - resourceGroup: service
+      step: cluster
+    shellIdentity:
+      input:
+        resourceGroup: global
+        step: output
+        name: globalMSIId
   - name: cluster-output
     action: ARM
     template: templates/output-svc-cluster.bicep
@@ -251,6 +266,8 @@ resourceGroups:
       step: output
     - resourceGroup: service
       step: upgrade-aks-cluster
+    - resourceGroup: service
+      step: oidc-storage-setup
   - name: kusto-ingest-service-logs
     action: ARM
     template: templates/kusto-grant-ingest.bicep
