@@ -189,7 +189,7 @@ clustersService:
       image: docker.io/library/postgres:14.2
       pvcCapacity: 512Mi
     databaseName: clusters-service
-    deploy: false
+    deploy: true
     enhancedMetricsEnabled: true
     geoRedundantBackup: false
     minTLSVersion: TLSV1.2
@@ -554,7 +554,7 @@ maestro:
       image: docker.io/library/postgres:14.2
       pvcCapacity: 512Mi
     databaseName: maestro
-    deploy: false
+    deploy: true
     enhancedMetricsEnabled: true
     geoRedundantBackup: false
     minTLSVersion: TLSV1.2

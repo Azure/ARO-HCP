@@ -1465,7 +1465,7 @@ clouds:
           # Cluster Service
           clustersService:
             postgres:
-              deploy: false
+              deploy: true
               password: 'TheBlurstOfTimes'
               containerizedDb:
                 image: "docker.io/library/postgres:14.2"
@@ -1580,7 +1580,7 @@ clouds:
           # Cluster Service
           clustersService:
             postgres:
-              deploy: false
+              deploy: true
               password: 'TheBlurstOfTimes'
               containerizedDb:
                 image: "docker.io/library/postgres:14.2"
@@ -1598,7 +1598,7 @@ clouds:
           # Maestro
           maestro:
             postgres:
-              deploy: false
+              deploy: true
               password: 'TheBlurstOfTimes'
               containerizedDb:
                 image: "docker.io/library/postgres:14.2"
@@ -1677,7 +1677,7 @@ clouds:
           # Cluster Service
           clustersService:
             postgres:
-              deploy: false
+              deploy: true
               password: 'TheBlurstOfTimes'
               containerizedDb:
                 image: "docker.io/library/postgres:14.2"
@@ -1695,7 +1695,7 @@ clouds:
           # Maestro
           maestro:
             postgres:
-              deploy: false
+              deploy: true
               password: 'TheBlurstOfTimes'
               containerizedDb:
                 image: "docker.io/library/postgres:14.2"

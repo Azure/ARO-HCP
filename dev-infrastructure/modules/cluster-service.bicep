@@ -129,6 +129,11 @@ module csPostgres 'postgres/postgres.bicep' = if (deployPostgres) {
         principalName: res.msiRefFromId(postgresAdministrationManagedIdentityId).name
         principalType: 'ServicePrincipal'
       }
+      {
+        principalId: clusterServiceManagedIdentityPrincipalId
+        principalName: clusterServiceManagedIdentityName
+        principalType: 'ServicePrincipal'
+      }
     ]
     version: postgresServerVersion
     minTLSVersion: postgresServerMinTLSVersion

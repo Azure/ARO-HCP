@@ -132,6 +132,11 @@ module maestroPostgres '../postgres/postgres.bicep' = if (deployPostgres) {
         principalName: res.msiRefFromId(postgresAdministrationManagedIdentityId).name
         principalType: 'ServicePrincipal'
       }
+      {
+        principalId: maestroServerManagedIdentityPrincipalId
+        principalName: maestroServerManagedIdentityName
+        principalType: 'ServicePrincipal'
+      }
     ]
     version: postgresServerVersion
     configurations: dbConfigurations
