@@ -50,6 +50,7 @@ spec:
         1 - (hostedClusterAPI_valid_azure_kms_config:sum_over_time_6h / hostedClusterAPI_valid_azure_kms_config:count_over_time_6h) > (1 * (1 - 0.9995))
         and hostedClusterAPI_valid_azure_kms_config:count_over_time_6h > 360
         and 1 - sum by (name, namespace, _id, cluster) (hostedClusterAPI_valid_azure_kms_config:ratio_avg_3d) > (1 * (1 - 0.9995))
+        and hostedClusterAPI_valid_azure_kms_config:count_over_time_3d > 4320
       for: 3h
       labels:
         severity: info

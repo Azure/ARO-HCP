@@ -64,3 +64,8 @@ spec:
         sum by (name, namespace, _id, cluster) (count_over_time(hostedClusterAPI_valid_azure_kms_config{status="True"}[6h]))
         and on (name, namespace, _id, cluster)
         count by (name, namespace, _id, cluster) (hostedClusterAPI_valid_azure_kms_config)
+    - record: hostedClusterAPI_valid_azure_kms_config:count_over_time_3d
+      expr: |
+        sum by (name, namespace, _id, cluster) (count_over_time(hostedClusterAPI_valid_azure_kms_config{status="True"}[3d]))
+        and on (name, namespace, _id, cluster)
+        count by (name, namespace, _id, cluster) (hostedClusterAPI_valid_azure_kms_config)

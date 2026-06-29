@@ -242,6 +242,10 @@ resource hcpKasKmsRecordingRules 'Microsoft.AlertsManagement/prometheusRuleGroup
         record: 'hostedClusterAPI_valid_azure_kms_config:count_over_time_6h'
         expression: 'sum by (name, namespace, _id, cluster) (count_over_time(hostedClusterAPI_valid_azure_kms_config{status="True"}[6h])) and on (name, namespace, _id, cluster) count by (name, namespace, _id, cluster) (hostedClusterAPI_valid_azure_kms_config)'
       }
+      {
+        record: 'hostedClusterAPI_valid_azure_kms_config:count_over_time_3d'
+        expression: 'sum by (name, namespace, _id, cluster) (count_over_time(hostedClusterAPI_valid_azure_kms_config{status="True"}[3d])) and on (name, namespace, _id, cluster) count by (name, namespace, _id, cluster) (hostedClusterAPI_valid_azure_kms_config)'
+      }
     ]
   }
 }
@@ -262,7 +266,7 @@ resource hcpKasKmsEnvelopeRecordingRules 'Microsoft.AlertsManagement/prometheusR
       }
       {
         record: 'kas:kms_operations_errors:rate5m'
-        expression: 'sum by (namespace, cluster, _id) (rate(apiserver_envelope_encryption_kms_operations_latency_seconds_count{namespace=~"ocm-.*", grpc_status_code!="0"}[5m]))'
+        expression: 'sum by (namespace, cluster, _id) (rate(apiserver_envelope_encryption_kms_operations_latency_seconds_count{grpc_status_code!="0",namespace=~"ocm-.*"}[5m]))'
       }
       {
         record: 'kas:kms_operations_total:rate_avg_5m'
@@ -306,11 +310,11 @@ resource hcpKasKmsEnvelopeRecordingRules 'Microsoft.AlertsManagement/prometheusR
       }
       {
         record: 'kas:kms_encrypt_latency:p99_5m'
-        expression: 'histogram_quantile(0.99, sum by (namespace, cluster, _id, le) (rate(apiserver_envelope_encryption_kms_operations_latency_seconds_bucket{ namespace=~"ocm-.*", method_name="/v2.keymanagementservice/encrypt", grpc_status_code="0" }[5m])) )'
+        expression: 'histogram_quantile(0.99, sum by (namespace, cluster, _id, le) (rate(apiserver_envelope_encryption_kms_operations_latency_seconds_bucket{grpc_status_code="0",method_name="/v2.keymanagementservice/encrypt",namespace=~"ocm-.*"}[5m])))'
       }
       {
         record: 'kas:kms_decrypt_latency:p99_5m'
-        expression: 'histogram_quantile(0.99, sum by (namespace, cluster, _id, le) (rate(apiserver_envelope_encryption_kms_operations_latency_seconds_bucket{ namespace=~"ocm-.*", method_name="/v2.keymanagementservice/decrypt", grpc_status_code="0" }[5m])) )'
+        expression: 'histogram_quantile(0.99, sum by (namespace, cluster, _id, le) (rate(apiserver_envelope_encryption_kms_operations_latency_seconds_bucket{grpc_status_code="0",method_name="/v2.keymanagementservice/decrypt",namespace=~"ocm-.*"}[5m])))'
       }
       {
         record: 'kas:kms_dek_cache_size:min'
@@ -318,7 +322,7 @@ resource hcpKasKmsEnvelopeRecordingRules 'Microsoft.AlertsManagement/prometheusR
       }
       {
         record: 'kas:kms_status_check_age:max'
-        expression: 'max by (namespace, cluster, _id) ( time() - apiserver_envelope_encryption_key_id_hash_status_last_timestamp_seconds{namespace=~"ocm-.*"} )'
+        expression: 'max by (namespace, cluster, _id) (time() - apiserver_envelope_encryption_key_id_hash_status_last_timestamp_seconds{namespace=~"ocm-.*"})'
       }
     ]
   }

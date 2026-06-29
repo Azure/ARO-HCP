@@ -85,3 +85,19 @@ tests:
     exp_samples:
     - labels: '{__name__="kas:kms_dek_cache_size:min", cluster="test-mgmt-4", namespace="ocm-aro-test-04"}'
       value: 12
+# Test 5: KMS status check age (max seconds since last successful check)
+- interval: 1m
+  input_series:
+  # KAS pod 1: last status check 200 seconds ago
+  - series: 'apiserver_envelope_encryption_key_id_hash_status_last_timestamp_seconds{cluster="test-mgmt-5", namespace="ocm-aro-test-05", provider_name="azurekmsprovider0", instance="kas-pod-1"}'
+    values: "0+0x10"
+  # KAS pod 2: last status check 100 seconds ago
+  - series: 'apiserver_envelope_encryption_key_id_hash_status_last_timestamp_seconds{cluster="test-mgmt-5", namespace="ocm-aro-test-05", provider_name="azurekmsprovider0", instance="kas-pod-2"}'
+    values: "60+0x10"
+  promql_expr_test:
+  # Max age should be from the pod with the oldest check (pod-1 at t=0, so age = eval_time - 0 = 300s)
+  - expr: kas:kms_status_check_age:max{cluster="test-mgmt-5", namespace="ocm-aro-test-05"}
+    eval_time: 5m
+    exp_samples:
+    - labels: '{__name__="kas:kms_status_check_age:max", cluster="test-mgmt-5", namespace="ocm-aro-test-05"}'
+      value: 300
