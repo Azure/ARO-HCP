@@ -1180,6 +1180,9 @@ func TestBuildCSCluster(t *testing.T) {
 						Allow(arohcpv1alpha1.NewCIDRBlockAllowAccess().
 							Mode(csCIDRBlockAllowAccessModeAllowAll)))).
 				RegistryConfig(arohcpv1alpha1.NewClusterRegistryConfig().ImageDigestMirrors()).
+				Ingresses(arohcpv1alpha1.NewIngressList().Items(
+					arohcpv1alpha1.NewIngress().Default(true).Listening(arohcpv1alpha1.ListeningMethodExternal),
+				)).
 				Azure(arohcpv1alpha1.NewAzure().
 					EtcdEncryption(arohcpv1alpha1.NewAzureEtcdEncryption().
 						DataEncryption(arohcpv1alpha1.NewAzureEtcdDataEncryption().
