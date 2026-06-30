@@ -156,6 +156,10 @@ func (c *operationNodePoolCreate) SynchronizeOperation(ctx context.Context, key 
 
 	logger.Info("updating status")
 	err = UpdateOperationStatus(ctx, c.clock, c.resourcesDBClient, operation, operationalState.provisioningState, persistErr, postAsyncNotificationFn(c.notificationClient))
+	if database.IsPreconditionFailedError(err) {
+		// if we have a conflict error, then we're guaranteed that our informer will eventually see an update and trigger us again.
+		return nil
+	}
 	if err != nil {
 		return utils.TrackError(err)
 	}
