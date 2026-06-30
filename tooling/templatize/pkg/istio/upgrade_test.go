@@ -1533,3 +1533,49 @@ func TestRunUpgrade_DirectRevisionRollbackUpdatesLabels(t *testing.T) {
 	assert.Equal(t, "asm-1-28", ns.Labels["istio.io/rev"],
 		"rollback should revert namespace label to old revision")
 }
+
+func TestEnsureIngress_PartialConfigErrors(t *testing.T) {
+	client := fake.NewSimpleClientset()
+	ctx := logr.NewContext(context.Background(), testr.New(t))
+
+	tests := []struct {
+		name          string
+		ingressIPName string
+		regionRG      string
+		wantErr       bool
+	}{
+		{
+			name:          "both empty is no-op",
+			ingressIPName: "",
+			regionRG:      "",
+			wantErr:       false,
+		},
+		{
+			name:          "only IngressIPName set errors",
+			ingressIPName: "my-ip",
+			regionRG:      "",
+			wantErr:       true,
+		},
+		{
+			name:          "only RegionRG set errors",
+			ingressIPName: "",
+			regionRG:      "my-rg",
+			wantErr:       true,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			opts := UpgradeOptions{
+				IngressIPName: tc.ingressIPName,
+				RegionRG:      tc.regionRG,
+			}
+			err := ensureIngress(ctx, client, opts)
+			if tc.wantErr {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), "incomplete")
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}

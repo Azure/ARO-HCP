@@ -75,6 +75,10 @@ func EnsureRevisionTag(ctx context.Context, client kubernetes.Interface, tagName
 			wh.Webhooks[i].ClientConfig.Service.Name = newServiceName
 			changed = true
 		}
+		if wh.Webhooks[i].ClientConfig.Service.Namespace != istioSystemNamespace {
+			wh.Webhooks[i].ClientConfig.Service.Namespace = istioSystemNamespace
+			changed = true
+		}
 		if !bytes.Equal(wh.Webhooks[i].ClientConfig.CABundle, newCABundle) {
 			wh.Webhooks[i].ClientConfig.CABundle = newCABundle
 			changed = true

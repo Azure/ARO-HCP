@@ -95,6 +95,7 @@ func TestEnsureRevisionTag_UpdatesCABundleFromTargetRevision(t *testing.T) {
 	updated, err := client.AdmissionregistrationV1().MutatingWebhookConfigurations().Get(context.Background(), "istio-revision-tag-default-aks-istio-system", metav1.GetOptions{})
 	require.NoError(t, err)
 	assert.Equal(t, "istiod-asm-1-29", updated.Webhooks[0].ClientConfig.Service.Name)
+	assert.Equal(t, "aks-istio-system", updated.Webhooks[0].ClientConfig.Service.Namespace)
 	assert.Equal(t, []byte("new-ca-bundle"), updated.Webhooks[0].ClientConfig.CABundle)
 }
 
@@ -106,7 +107,7 @@ func TestEnsureRevisionTag_NoOpWhenAlreadyCorrect(t *testing.T) {
 				Name: "rev.validation.istio.io",
 				ClientConfig: admissionregistrationv1.WebhookClientConfig{
 					CABundle: []byte("current-ca-bundle"),
-					Service:  &admissionregistrationv1.ServiceReference{Name: "istiod-asm-1-29"},
+					Service:  &admissionregistrationv1.ServiceReference{Name: "istiod-asm-1-29", Namespace: "aks-istio-system"},
 				},
 			},
 		},

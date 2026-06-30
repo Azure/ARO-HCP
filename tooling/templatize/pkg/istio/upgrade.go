@@ -368,12 +368,16 @@ func runCanaryPostInstall(ctx context.Context, logger logr.Logger, aksClient AKS
 }
 
 func ensureIngress(ctx context.Context, kubeClient kubernetes.Interface, opts UpgradeOptions) error {
-	if opts.IngressIPName != "" && opts.RegionRG != "" {
-		if _, err := EnsureIngressAnnotations(ctx, kubeClient, opts.RegionRG, map[string]string{
-			"aks-istio-ingressgateway-external": opts.IngressIPName,
-		}); err != nil {
-			return fmt.Errorf("failed to ensure ingress annotations: %w", err)
-		}
+	if opts.IngressIPName == "" && opts.RegionRG == "" {
+		return nil
+	}
+	if opts.IngressIPName == "" || opts.RegionRG == "" {
+		return fmt.Errorf("ingress config is incomplete: both IngressIPName and RegionRG must be set (got IngressIPName=%q, RegionRG=%q)", opts.IngressIPName, opts.RegionRG)
+	}
+	if _, err := EnsureIngressAnnotations(ctx, kubeClient, opts.RegionRG, map[string]string{
+		"aks-istio-ingressgateway-external": opts.IngressIPName,
+	}); err != nil {
+		return fmt.Errorf("failed to ensure ingress annotations: %w", err)
 	}
 	return nil
 }

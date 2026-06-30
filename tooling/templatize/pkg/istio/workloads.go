@@ -406,11 +406,11 @@ func parseSidecarRevisionFromImage(pod corev1.Pod) (string, bool) {
 		if c.Name != "istio-proxy" {
 			continue
 		}
-		parts := strings.SplitN(c.Image, ":", 2)
-		if len(parts) != 2 {
+		lastColon := strings.LastIndex(c.Image, ":")
+		if lastColon < 0 {
 			return "", false
 		}
-		tag := parts[1]
+		tag := c.Image[lastColon+1:]
 		segments := strings.Split(tag, "-")
 		if len(segments) >= 3 && segments[0] == "asm" {
 			return strings.Join(segments[:3], "-"), true
