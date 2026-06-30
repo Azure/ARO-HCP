@@ -8,7 +8,7 @@ sync-upstream:
 	https://raw.githubusercontent.com/prometheus-operator/kube-prometheus/$${PROMETHEUS_OPERATOR_REF}/manifests/kubernetesControlPlane-prometheusRule.yaml
 .PHONY: sync-upstream
 
-alerts:
+alerts: verify-no-prom-alerts-in-bicep
 	EXTRA_FLAGS=$(GENERATOR_FLAGS) make -C ../tooling/prometheus-rules alerts
 .PHONY: alerts
 
@@ -16,7 +16,7 @@ recording-rules:
 	EXTRA_FLAGS=$(GENERATOR_FLAGS) make -C ../tooling/prometheus-rules recording-rules
 .PHONY: recording-rules
 
-verify: verify-no-prom-alerts-in-bicep
+verify:
 	go run ../tooling/grafanactl/main.go verify dashboards --config-file observability.yaml
 .PHONY: verify
 
