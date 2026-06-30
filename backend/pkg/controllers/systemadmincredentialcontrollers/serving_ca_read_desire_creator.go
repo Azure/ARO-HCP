@@ -54,17 +54,16 @@ type servingCAReadDesireCreator struct {
 	hostedClusterNamespaceEnvIdentifier string
 }
 
-var _ controllerutils.CredentialRequestSyncer = (*servingCAReadDesireCreator)(nil)
+var _ controllerutils.ClusterSyncer = (*servingCAReadDesireCreator)(nil)
 
-// NewServingCAReadDesireCreatorController returns a CredentialRequestWatchingController
+// NewServingCAReadDesireCreatorController returns a ClusterWatchingController
 // that ensures a ReadDesire exists per cluster pointing at the kube-apiserver
 // serving CA Secret in the hosted cluster namespace on the management cluster.
 // The kube-applier mirrors the Secret content into ReadDesire.Status.KubeContent;
 // controller #8 (CABundleSync) reads from there.
 //
-// This controller fires on credential request events so it immediately creates
-// the serving CA ReadDesire when the first credential request appears for a
-// cluster.
+// This is a cluster-scoped operation — the serving CA is shared across all
+// credential requests for a given cluster.
 func NewServingCAReadDesireCreatorController(
 	activeOperationLister listers.ActiveOperationLister,
 	resourcesDBClient database.ResourcesDBClient,
@@ -83,7 +82,7 @@ func NewServingCAReadDesireCreatorController(
 		hostedClusterNamespaceEnvIdentifier: hostedClusterNamespaceEnvIdentifier,
 	}
 
-	return controllerutils.NewCredentialRequestWatchingController(
+	return controllerutils.NewClusterWatchingController(
 		"SystemAdminCredentialServingCAReadDesireCreator",
 		resourcesDBClient,
 		backendInformers,
@@ -97,7 +96,7 @@ func (c *servingCAReadDesireCreator) CooldownChecker() controllerutil.CooldownCh
 	return c.cooldownChecker
 }
 
-func (c *servingCAReadDesireCreator) SyncOnce(ctx context.Context, key controllerutils.SystemAdminCredentialRequestKey) error {
+func (c *servingCAReadDesireCreator) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
 	logger := utils.LoggerFromContext(ctx)
 
 	existingCluster, err := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Get(ctx, key.HCPClusterName)
