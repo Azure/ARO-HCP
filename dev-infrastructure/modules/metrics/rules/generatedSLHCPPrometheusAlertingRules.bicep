@@ -39,7 +39,7 @@ resource hcpClusterOperatorsRules 'Microsoft.AlertsManagement/prometheusRuleGrou
 '''
           runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/hcp-cluster-operators.md'
           summary: 'HCP cluster operator unavailable on {{ $labels.namespace }}'
-          title: 'HCP cluster operator unavailable on {{ $labels.namespace }}'
+          title: 'HCP cluster operator unavailable on {{ $labels.namespace }} cluster:{{ $labels.cluster }}'
         }
         expression: 'count by (cluster, namespace) (cluster_operator_conditions{condition="available",name!~"version|console"} == 0) and on (cluster, namespace) (sum by (cluster, namespace) (node_collector_zone_size) > 0)'
         for: 'PT30M'
@@ -68,7 +68,7 @@ resource hcpClusterOperatorsRules 'Microsoft.AlertsManagement/prometheusRuleGrou
 '''
           runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/hcp-cluster-operators.md'
           summary: 'HCP cluster operator degraded on {{ $labels.namespace }}'
-          title: 'HCP cluster operator degraded on {{ $labels.namespace }}'
+          title: 'HCP cluster operator degraded on {{ $labels.namespace }} cluster:{{ $labels.cluster }}'
         }
         expression: 'count by (cluster, namespace) (cluster_operator_conditions{condition="degraded",name!~"version|console"} == 1) and on (cluster, namespace) (sum by (cluster, namespace) (node_collector_zone_size) > 0)'
         for: 'PT2H'
@@ -97,7 +97,7 @@ resource hcpClusterOperatorsRules 'Microsoft.AlertsManagement/prometheusRuleGrou
 '''
           runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/hcp-cluster-operators.md'
           summary: 'HCP version operator failing on {{ $labels.namespace }}'
-          title: 'HCP version operator failing on {{ $labels.namespace }}'
+          title: 'HCP version operator failing on {{ $labels.namespace }} cluster:{{ $labels.cluster }}'
         }
         expression: 'count by (cluster, namespace) (cluster_operator_conditions{condition="failing",name="version"} == 1) unless on (cluster, namespace) count by (cluster, namespace) ((cluster_operator_conditions{condition="available",name!="version"} == 0) or (cluster_operator_conditions{condition="degraded",name!="version"} == 1))'
         for: 'PT1H'

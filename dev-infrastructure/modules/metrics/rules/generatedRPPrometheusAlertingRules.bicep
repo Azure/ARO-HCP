@@ -373,12 +373,12 @@ resource arohcpNodepoolSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRule
           severity: 'info'
         }
         annotations: {
-          correlationId: 'UJNodePoolStuckOperation/{{ $labels.cluster }}'
+          correlationId: 'UJNodePoolStuckOperation/{{ $labels.cluster }}/{{ $labels.resource_id }}/{{ $labels.phase }}'
           description: 'Node pool operation for {{ $labels.resource_id }} has been in {{ $labels.phase }} phase for over 2 hours. Stuck operations are invisible to success/failure SLIs and require investigation.'
           info: 'Node pool operation for {{ $labels.resource_id }} has been in {{ $labels.phase }} phase for over 2 hours. Stuck operations are invisible to success/failure SLIs and require investigation.'
           runbook_url: 'aka.ms/arohcp-runbook-nodepool'
           summary: '{{ $labels.cluster }}: Node Pool operation stuck in {{ $labels.phase }} for over 2 hours'
-          title: '{{ $labels.cluster }}: Node Pool operation stuck in {{ $labels.phase }} for over 2 hours'
+          title: '{{ $labels.cluster }}: Node Pool operation stuck in {{ $labels.phase }} for over 2 hours resource_id:{{ $labels.resource_id }}'
         }
         expression: '((time() - backend_resource_operation_start_time_seconds{resource_type=~".*nodepools"}) and backend_resource_operation_phase_info{phase=~"updating|deleting",resource_type=~".*nodepools"} == 1) > 7200'
         for: 'PT15M'
@@ -413,7 +413,7 @@ resource arohcpNodepoolSaturationAlerts 'Microsoft.AlertsManagement/prometheusRu
           severity: 'info'
         }
         annotations: {
-          correlationId: 'UJNodePoolSaturationQueueDepth/{{ $labels.cluster }}'
+          correlationId: 'UJNodePoolSaturationQueueDepth/{{ $labels.cluster }}/{{ $labels.name }}'
           description: 'Node pool controller workqueue {{ $labels.name }} has had a depth > 10 for more than 5 minutes, indicating work is accumulating faster than it can be processed.'
           info: 'Node pool controller workqueue {{ $labels.name }} has had a depth > 10 for more than 5 minutes, indicating work is accumulating faster than it can be processed.'
           runbook_url: 'aka.ms/arohcp-runbook-nodepool'
@@ -440,7 +440,7 @@ resource arohcpNodepoolSaturationAlerts 'Microsoft.AlertsManagement/prometheusRu
           severity: 'info'
         }
         annotations: {
-          correlationId: 'UJNodePoolSaturationRetryHotLoop/{{ $labels.cluster }}'
+          correlationId: 'UJNodePoolSaturationRetryHotLoop/{{ $labels.cluster }}/{{ $labels.name }}'
           description: 'Node pool controller workqueue {{ $labels.name }} has a retry ratio > 50% sustained over 10 minutes, indicating most queue activity is failed retries rather than fresh work.'
           info: 'Node pool controller workqueue {{ $labels.name }} has a retry ratio > 50% sustained over 10 minutes, indicating most queue activity is failed retries rather than fresh work.'
           runbook_url: 'aka.ms/arohcp-runbook-nodepool'
