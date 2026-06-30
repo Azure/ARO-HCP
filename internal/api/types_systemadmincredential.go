@@ -26,6 +26,7 @@ import (
 // progress independently and callers can reason about each concern separately.
 //
 // +k8s:deepcopy-gen=true
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type SystemAdminCredentialRequest struct {
 	CosmosMetadata `json:"cosmosMetadata"`
 
