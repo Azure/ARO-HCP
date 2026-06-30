@@ -63,6 +63,10 @@ type SystemAdminCredentialRequestStatus struct {
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
 	// RevokedAt is set when the Revoked condition transitions to True.
 	RevokedAt *metav1.Time `json:"revokedAt,omitempty"`
+	// DeleteTimestamp is set when deletion has been requested for this credential
+	// request. Controllers use this to drive teardown of associated kube-applier
+	// desires before removing the credential request document itself.
+	DeleteTimestamp *metav1.Time `json:"deleteTimestamp,omitempty"`
 }
 
 // SystemAdminCredentialRequest condition types.
