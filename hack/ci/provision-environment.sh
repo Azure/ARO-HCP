@@ -1,7 +1,8 @@
 #!/bin/bash
 # Shared provisioning logic for ARO HCP CI environments.
-# Called by both aro-hcp-provision-environment and aro-hcp-hypershift-deploy
-# step registry steps. Do not run directly.
+# Called by step-registry wrappers: aro-hcp-provision-environment,
+# aro-hcp-provision-from-main, and aro-hcp-hypershift-deploy.
+# Do not run directly.
 set -o errexit
 set -o nounset
 set -o pipefail
@@ -43,11 +44,12 @@ declare -A IMAGE_MAP=(
     [FLEET]=fleet
     [MGMT_AGENT]=mgmtAgent
     [KUBE_APPLIER]=kubeApplier
+    [EXPORTER]=customExporter
 )
 
 CI_IMAGE_NAMES=()
 
-for prefix in BACKEND FRONTEND ADMIN_API SESSIONGATE HCP_RECOVERY FLEET MGMT_AGENT KUBE_APPLIER; do
+for prefix in BACKEND FRONTEND ADMIN_API SESSIONGATE HCP_RECOVERY FLEET MGMT_AGENT KUBE_APPLIER EXPORTER; do
     var="${prefix}_IMAGE"
     if [[ -n "${!var:-}" ]]; then
         image="${!var}"
@@ -123,6 +125,14 @@ else
   echo "No MSI mock SP lease provided, skipping mock SP overrides"
 fi
 
+# Healthcheck workflows provision without leases and don't need E2E-sized clusters.
+# Override minCount to 1 so healthcheck clusters stay small.
+if [[ -z "${LEASED_MSI_CONTAINERS:-}" ]]; then
+  yq -i "
+    .clouds.dev.environments.${DEPLOY_ENV}.defaults.mgmt.aks.userAgentPool.minCount = 1
+  " "${OVERRIDE_CONFIG_FILE}"
+fi
+
 # Merge hypershift image overrides if present (written by aro-hcp-hypershift-images-push)
 HYPERSHIFT_OVERRIDES="${SHARED_DIR}/hypershift-image-overrides.yaml"
 if [[ -f "${HYPERSHIFT_OVERRIDES}" ]]; then
@@ -155,12 +165,24 @@ finalize() {
 trap finalize EXIT
 
 unset GOFLAGS
+
+EXTRA_ARGS="--region ${LOCATION}"
+if [[ "${ARO_HCP_PROVISION_ABORT_IF_EXISTS:-true}" == "true" ]]; then
+  EXTRA_ARGS+=" --abort-if-regional-exist"
+fi
+
+STEP_NAME="${PROVISION_STEP_NAME:-entrypoint}"
+STEP_NAME="${STEP_NAME//[^a-zA-Z0-9_-]/}"
+: "${STEP_NAME:=entrypoint}"
 make -o "tooling/templatize/templatize-$(uname -m)" entrypoint/Region \
   DEPLOY_ENV="${DEPLOY_ENV}" \
   OVERRIDE_CONFIG_FILE="${OVERRIDE_CONFIG_FILE}" \
-  EXTRA_ARGS="--region ${LOCATION} --abort-if-regional-exist" \
+  EXTRA_ARGS="${EXTRA_ARGS}" \
   TIMING_OUTPUT=${SHARED_DIR}/steps.yaml.gz \
-  ENTRYPOINT_JUNIT_OUTPUT=${ARTIFACT_DIR}/junit_entrypoint.xml \
+  ENTRYPOINT_JUNIT_OUTPUT=${ARTIFACT_DIR}/junit_${STEP_NAME}.xml \
   CONFIG_OUTPUT=${CONFIG_PROV}
 
-touch "${SHARED_DIR}/provision-complete"
+MARKER="${PROVISION_COMPLETE_MARKER:-provision-complete}"
+MARKER="${MARKER//[^a-zA-Z0-9_-]/}"
+: "${MARKER:=provision-complete}"
+touch "${SHARED_DIR}/${MARKER}"
