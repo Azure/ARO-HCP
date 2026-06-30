@@ -140,7 +140,7 @@ func NewReadDesireKubernetesController(
 		// with non-watchable backends, hence this wrapper for both paths.
 		&listWatchWithoutWatchListSemantics{ListWatch: c.singleObjectListWatch()},
 		&unstructured.Unstructured{},
-		cache.SharedIndexInformerOptions{ResyncPeriod: ResyncDuration},
+		cache.SharedIndexInformerOptions{ResyncPeriod: ResyncDuration, ObjectDescription: "ReadDesireKubernetes"},
 	)
 
 	// Register the event handler at construction so the SharedIndexInformer
