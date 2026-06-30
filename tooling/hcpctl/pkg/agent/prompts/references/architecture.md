@@ -56,9 +56,9 @@ this table in the Service database.
 
 This is not mgmt-agent output: K8s Events report API-level reasons (mount failures, scheduling, probes). Use mgmt-agent
 `pod event` logs when you need container waiting/termination timelines that Events do not capture. See
-[kubernetes-events.md](../exemplars/kubernetes-events.md) and [mgmt-agent-event-logs.md](../exemplars/mgmt-agent-event-logs.md).
+[kubernetes-events.md](../exemplars/kubernetes-events.md) and [mgmt-agent-snapshots.md](../exemplars/mgmt-agent-snapshots.md).
 
-## mgmt-agent event logs (management cluster)
+## mgmt-agent snapshots (management cluster)
 
 mgmt-agent runs on each management cluster. Besides reconcilers (SWIFT NIC capacity on nodes, optional
 kube-state-metrics per HCP), it includes two **watch-only** informers that log full object snapshots to

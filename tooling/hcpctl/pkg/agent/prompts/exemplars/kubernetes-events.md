@@ -1,5 +1,12 @@
-This document shows how to use Kubernetes API Event logs when investigating control plane failures. Snapshot output
-already includes a summarized view; write ad-hoc queries when you need to filter to one component or reason.
+This exemplar demonstrates how to use Kubernetes API Event logs when investigating control plane failures. Snapshot
+output already includes a summarized `controlPlaneEvents` view; write ad-hoc queries when you need to filter to one
+component or reason.
+
+**Note:** For a complete end-to-end RCA workflow combining snapshot conditions, Kubernetes events, and mgmt-agent
+snapshots, see [cluster-creation-timeout-z-stream-upgrade.md](cluster-creation-timeout-z-stream-upgrade.md). That
+exemplar shows the full investigative flow from test timeout through multiple "Why" layers to root cause.
+
+---
 
 # Root Cause
 
@@ -13,7 +20,7 @@ The `kube-events` collector on each service and management cluster ingests Kuber
 **`ServiceLogs.kubernetesEvents`**. Scope with `cluster`, `eventNamespace` (hosted control plane namespace on the
 management cluster), `objectKind`, `objectName`, `reason`, and `message`. Snapshot **`controlPlaneEvents`** runs the
 same table with aggregation — use it first, then narrow with ad-hoc KQL. These events are not mgmt-agent logs; use
-[mgmt-agent-event-logs.md](mgmt-agent-event-logs.md) for container waiting/termination timelines when Events are
+[mgmt-agent-snapshots.md](mgmt-agent-snapshots.md) for container waiting/termination timelines when Events are
 inconclusive.
 
 ## Recursive 'Why' Chain
