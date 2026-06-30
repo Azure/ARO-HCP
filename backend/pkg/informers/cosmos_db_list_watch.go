@@ -72,7 +72,7 @@ func (c *ChangeFeedListWatcher[InternalAPIType, InternalAPITypePointer, CosmosAP
 	defer c.lock.Unlock()
 
 	logger := utils.LoggerFromContext(ctx)
-	logger = logger.WithValues(utils.LogValues{}.AddResourceTypes(c.desiredResourceTypes...))
+	logger = logger.WithValues(utils.LogValues{}.AddResourceTypes(c.desiredResourceTypes...)...)
 	ctx = utils.ContextWithLogger(ctx, logger)
 
 	logger.Info("listing")
@@ -224,7 +224,7 @@ func (c *ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPITyp
 
 	logger := utils.LoggerFromContext(ctx)
 	logger = logger.WithValues(utils.LogValues{}.
-		AddResourceTypes(c.desiredResourceTypes...))
+		AddResourceTypes(c.desiredResourceTypes...)...)
 	ctx = utils.ContextWithLogger(ctx, logger)
 
 	logger.Info("starting change feed watcher")
@@ -314,7 +314,7 @@ func (c *ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPITyp
 	if err := json.Unmarshal(document, objAsTypedDocument); err != nil {
 		return utils.TrackError(err)
 	}
-	logger = logger.WithValues(utils.LogValues{}.AddLogValuesForResourceID(objAsTypedDocument.ResourceID))
+	logger = logger.WithValues(utils.LogValues{}.AddLogValuesForResourceID(objAsTypedDocument.ResourceID)...)
 	ctx = utils.ContextWithLogger(ctx, logger)
 
 	matchesDesiredType := false
