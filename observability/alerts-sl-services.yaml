@@ -16,7 +16,6 @@ prometheusRules:
   - alerts/hcp-test-clusters-prometheusRule.yaml
   - alerts/kubeContainerOOM-prometheusRule.yaml
   - alerts/kubeNode-prometheusRule.yaml
-  - alerts/imageRegistryPolicy-prometheusRule.yaml
   - alerts/kusto-logs-age-prometheusRule.yaml
   - alerts/leaderelection-prometheusRule.yaml
   untestedRules: []
