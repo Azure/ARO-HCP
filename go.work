@@ -12,6 +12,7 @@ use (
 	./hack/verify-gomega-assertions
 	./hack/verify-mi-containers
 	./hack/verify-schema-additional-properties
+	./hcp-recovery
 	./internal
 	./kube-applier
 	./mgmt-agent

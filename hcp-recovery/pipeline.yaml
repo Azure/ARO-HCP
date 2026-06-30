@@ -1,0 +1,95 @@
+$schema: "pipeline.schema.v1"
+serviceGroup: Microsoft.Azure.ARO.HCP.HcpRecovery
+rolloutName: HCP Recovery Rollout
+resourceGroups:
+- name: global
+  resourceGroup: '{{ .global.rg }}'
+  subscription: '{{ .global.subscription.key }}'
+  steps:
+  - name: output
+    action: ARM
+    template: templates/output-global.bicep
+    parameters: ./../dev-infrastructure/configurations/output-global.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
+  - name: mirror-image
+    action: ImageMirror
+    targetACR:
+      configRef: 'acr.svc.name'
+    sourceRegistry:
+      configRef: hcpRecovery.image.registry
+    repository:
+      configRef: hcpRecovery.image.repository
+    digest:
+      configRef: hcpRecovery.image.digest
+    pullSecretKeyVault:
+      configRef: global.keyVault.name
+    pullSecretName:
+      configRef: imageSync.ondemandSync.pullSecretName
+    shellIdentity:
+      input:
+        resourceGroup: global
+        step: output
+        name: globalMSIId
+    automatedRetry:
+      errorContainsAny:
+      - "unknown_storage_failure"
+      - "unauthorized: authentication required"
+      maximumRetryCount: 5
+      durationBetweenRetries: 1m
+- name: kusto
+  resourceGroup: '{{ .kusto.rg }}'
+  subscription: '{{ .global.subscription.key }}'
+  steps:
+  - name: kusto-lookup
+    action: ARM
+    template: ../dev-infrastructure/templates/kusto-lookup.bicep
+    parameters: ../dev-infrastructure/configurations/kusto-lookup.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
+- name: management
+  resourceGroup: '{{ .mgmt.rg }}'
+  subscription: '{{ .mgmt.subscription.key }}'
+  steps:
+  - name: image-puller-lookup
+    action: ARM
+    template: ./../dev-infrastructure/templates/image-puller-lookup.bicep
+    parameters: ./../dev-infrastructure/configurations/image-puller-lookup.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
+  - name: deploy
+    aksCluster: '{{ .mgmt.aks.name }}'
+    action: Helm
+    releaseName: hcp-recovery
+    releaseNamespace: hcp-recovery
+    chartDir: ./deploy
+    valuesFile: ./values.yaml
+    kustoEndpoint:
+      resourceGroup: kusto
+      step: kusto-lookup
+      name: kustoUri
+    kustoDatabase: '{{ .kusto.serviceLogsDatabase }}'
+    kustoTable: 'containerLogs'
+    inputVariables:
+      imagePullerMsiClientId:
+        resourceGroup: management
+        step: image-puller-lookup
+        name: imagePullerMsiClientId
+      imagePullerMsiTenantId:
+        resourceGroup: management
+        step: image-puller-lookup
+        name: imagePullerMsiTenantId
+    dependsOn:
+    - resourceGroup: global
+      step: mirror-image
+    identityFrom:
+      resourceGroup: global
+      step: output
+      name: globalMSIId
+    automatedRetry:
+      errorContainsAny:
+      - "500 Internal Server Error"
+      - "Internal error occurred"
+      - "context deadline exceeded"
+      maximumRetryCount: 3
+      durationBetweenRetries: 1m

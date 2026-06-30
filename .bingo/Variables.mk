@@ -47,6 +47,12 @@ $(CLIENT_GEN): $(BINGO_DIR)/client-gen.mod
 	@echo "(re)installing $(GOBIN)/client-gen-v0.34.3"
 	@cd $(BINGO_DIR) && GOWORK=off GOOS=$(GOHOSTOS) GOARCH=$(GOHOSTARCH) GOARM=$(GOHOSTARM) $(GO) build -mod=mod -modfile=client-gen.mod -o=$(GOBIN)/client-gen-v0.34.3 "k8s.io/code-generator/cmd/client-gen"
 
+CONTROLLER_GEN := $(GOBIN)/controller-gen-v0.20.1
+$(CONTROLLER_GEN): $(BINGO_DIR)/controller-gen.mod
+	@# Install binary/ries using Go 1.14+ build command. This is using bwplotka/bingo-controlled, separate go module with pinned dependencies.
+	@echo "(re)installing $(GOBIN)/controller-gen-v0.20.1"
+	@cd $(BINGO_DIR) && GOWORK=off GOOS=$(GOHOSTOS) GOARCH=$(GOHOSTARCH) GOARM=$(GOHOSTARM) $(GO) build -mod=mod -modfile=controller-gen.mod -o=$(GOBIN)/controller-gen-v0.20.1 "sigs.k8s.io/controller-tools/cmd/controller-gen"
+
 DEEPCOPY_GEN := $(GOBIN)/deepcopy-gen-v0.34.3
 $(DEEPCOPY_GEN): $(BINGO_DIR)/deepcopy-gen.mod
 	@# Install binary/ries using Go 1.14+ build command. This is using bwplotka/bingo-controlled, separate go module with pinned dependencies.

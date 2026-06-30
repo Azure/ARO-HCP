@@ -1,0 +1,6 @@
+apiVersion: v2
+name: hcp-recovery
+description: Controller for managing hosted control plane recovery in ARO HCP.
+type: application
+version: 0.1.0
+appVersion: "v0.1.0"

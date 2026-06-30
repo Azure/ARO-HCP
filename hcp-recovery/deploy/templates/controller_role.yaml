@@ -1,0 +1,42 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  labels:
+    app.kubernetes.io/name: hcp-recovery
+  name: hcp-recovery-controller
+  namespace: {{ .Release.Namespace }}
+rules:
+- apiGroups:
+  - hcprecovery.aro-hcp.azure.com
+  resources:
+  - hcprecoveries
+  verbs:
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - hcprecovery.aro-hcp.azure.com
+  resources:
+  - hcprecoveries/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - hcprecovery.aro-hcp.azure.com
+  resources:
+  - hcprecoveries/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - ""
+  - events.k8s.io
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+  - update

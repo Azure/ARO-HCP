@@ -1,0 +1,83 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: hcp-recovery
+  name: hcp-recovery-controller
+rules:
+- apiGroups:
+  - velero.io
+  resources:
+  - backups
+  verbs:
+  - create
+  - get
+  - list
+  - watch
+- apiGroups:
+  - velero.io
+  resources:
+  - restores
+  verbs:
+  - create
+  - get
+  - list
+  - watch
+- apiGroups:
+  - velero.io
+  resources:
+  - schedules
+  verbs:
+  - create
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - hypershift.openshift.io
+  resources:
+  - hostedclusters
+  verbs:
+  - get
+  - list
+  - patch
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - namespaces
+  verbs:
+  - get
+  - delete
+- apiGroups:
+  - hypershift.openshift.io
+  resources:
+  - hostedcontrolplanes
+  verbs:
+  - list
+  - patch
+- apiGroups:
+  - cluster.x-k8s.io
+  resources:
+  - clusters
+  - machinedeployments
+  - machines
+  - machinesets
+  verbs:
+  - list
+  - patch
+- apiGroups:
+  - infrastructure.cluster.x-k8s.io
+  resources:
+  - azuremachines
+  verbs:
+  - list
+  - patch
+- apiGroups:
+  - apps
+  resources:
+  - deployments
+  verbs:
+  - get
+  - patch

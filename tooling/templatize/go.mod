@@ -233,7 +233,7 @@ require (
 	github.com/shurcooL/githubv4 v0.0.0-20210725200734-83ba7b4c9228 // indirect
 	github.com/shurcooL/graphql v0.0.0-20181231061246-d48a9a75455f // indirect
 	github.com/sirupsen/logrus v1.9.4 // indirect
-	github.com/spf13/cast v1.7.0 // indirect
+	github.com/spf13/cast v1.7.1 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/spiffe/go-spiffe/v2 v2.6.0 // indirect
 	github.com/std-uritemplate/std-uritemplate/go/v2 v2.0.3 // indirect

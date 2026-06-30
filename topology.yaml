@@ -53,6 +53,9 @@ services:
       - serviceGroup: Microsoft.Azure.ARO.HCP.Management.Infra
         stamped: true
         children:
+        - serviceGroup: Microsoft.Azure.ARO.HCP.HcpRecovery
+          pipelinePath: hcp-recovery/pipeline.yaml
+          purpose: Deploy the HCP Recovery service.
         - serviceGroup: Microsoft.Azure.ARO.HCP.Velero
           pipelinePath: velero/pipeline.yaml
           purpose: Deploy Velero for HostedCluster backup and restore.
