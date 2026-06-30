@@ -14,8 +14,8 @@ resourceGroups:
   steps:
   - name: output
     action: ARM
-    template: templates/output-global.bicep
-    parameters: configurations/output-global.tmpl.bicepparam
+    template: templates/output-grafana.bicep
+    parameters: configurations/output-grafana.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     outputOnly: true
   - name: grafana-reconcile
