@@ -162,12 +162,12 @@ func getCustomTestCases(chartDir string) ([]internal.TestCase, error) {
 
 func RunTestHelmTemplate(t *testing.T, settingsPath string) {
 	settings, err := internal.LoadSettings(settingsPath)
-	assert.NoError(t, err)
-	assert.NotNil(t, settings)
+	require.NoError(t, err)
+	require.NotNil(t, settings)
 
 	helmSteps, err := internal.FindHelmSteps(settings.TopologyDir, settings.ConfigPath)
-	assert.NoError(t, err)
-	assert.NotNil(t, helmSteps)
+	require.NoError(t, err)
+	require.NotNil(t, helmSteps)
 
 	resourceRequestsAllowlist := settings.ResourceRequestsAllowlist
 	resourceMemoryLimitsAllowlist := settings.ResourceMemoryLimitsAllowlist
