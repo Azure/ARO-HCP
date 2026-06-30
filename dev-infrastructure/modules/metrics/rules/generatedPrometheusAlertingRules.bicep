@@ -1927,6 +1927,50 @@ resource maestro 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = 
   }
 }
 
+resource hcpDeletionRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'hcp-deletion-rules'
+  location: location
+  properties: {
+    interval: 'PT1M'
+    rules: [
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'HCPClusterStuckDeleting'
+        enabled: true
+        labels: {
+          severity: 'warning'
+        }
+        annotations: {
+          correlationId: 'HCPClusterStuckDeleting/{{ $labels.cluster }}'
+          description: '''Cluster {{ $labels.exported_namespace }} has been in a deleting state for more than 2 hours. 
+This may indicate that finalizers are stuck or resources are failing to cleanup.
+'''
+          info: '''Cluster {{ $labels.exported_namespace }} has been in a deleting state for more than 2 hours. 
+This may indicate that finalizers are stuck or resources are failing to cleanup.
+'''
+          runbook_url: 'TBD'
+          summary: 'Cluster stuck deleting'
+          title: 'Cluster stuck deleting'
+        }
+        expression: 'sum by (cluster, exported_namespace, name) (hypershift_cluster_deleting_duration_seconds) > 7200'
+        for: 'PT5M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+    ]
+    scopes: [
+      azureMonitoring
+    ]
+  }
+}
+
 resource arobitRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
   name: 'arobit-rules'
   location: location
@@ -2097,8 +2141,8 @@ Investigate the Fluent Bit logs for the specific error details and check the Kus
   }
 }
 
-resource serviceTagCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
-  name: 'service-tag-capacity-rules'
+resource imageRegistryPolicy 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'image-registry-policy'
   location: location
   properties: {
     interval: 'PT1M'
@@ -2463,6 +2507,33 @@ resource hcpTestClustersRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2
         expression: 'max by (cluster, resource_id, environment, subscription_id) (time() - backend_cluster_created_time_seconds{environment="prod",subscription_id=~"403d9de9-132b-4974-94a5-5b78bdfa191e|8d696692-794f-4cdb-ba25-9250c9e9ec4c|ec435068-e722-475f-8504-c91b72a5dc51"}) > 3 * 3600'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'ImageRegistryPolicyAuditViolation'
+        enabled: true
+        labels: {
+          severity: 'info'
+        }
+        annotations: {
+          correlationId: 'ImageRegistryPolicyAuditViolation/{{ $labels.cluster }}'
+          description: 'The image-registry-allowlist-policy on cluster {{ $labels.cluster }} has logged {{ $value }} audit violation(s) in the last 15 minutes. Pods with images from non-approved registries are running but not blocked. Review kubernetesEvents in Kusto for details.'
+          info: 'The image-registry-allowlist-policy on cluster {{ $labels.cluster }} has logged {{ $value }} audit violation(s) in the last 15 minutes. Pods with images from non-approved registries are running but not blocked. Review kubernetesEvents in Kusto for details.'
+          runbook_url: 'TBD'
+          summary: 'Image registry policy audit violation detected'
+          title: 'Image registry policy audit violation detected'
+        }
+        expression: 'sum by (cluster, policy, policy_binding) (increase(apiserver_validating_admission_policy_check_total{enforcement_action="audit",policy="image-registry-allowlist-policy",validation_result="denied"}[15m])) > 0'
+        for: 'PT5M'
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
     ]
     scopes: [
