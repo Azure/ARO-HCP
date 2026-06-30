@@ -23,9 +23,8 @@ import (
 )
 
 const (
-	ApplyDesireResourceTypeName  = "applyDesires"
-	DeleteDesireResourceTypeName = "deleteDesires"
-	ReadDesireResourceTypeName   = "readDesires"
+	ApplyDesireResourceTypeName = "applyDesires"
+	ReadDesireResourceTypeName  = "readDesires"
 )
 
 // nestedResourceType is a small wrapper over azcorearm.NewResourceType that joins the
@@ -40,11 +39,6 @@ var (
 	ClusterScopedApplyDesireResourceType = nestedResourceType(api.ClusterResourceTypeName, ApplyDesireResourceTypeName)
 	// NodePoolScopedApplyDesireResourceType is applyDesires nested under a NodePool under a Cluster.
 	NodePoolScopedApplyDesireResourceType = nestedResourceType(api.ClusterResourceTypeName, api.NodePoolResourceTypeName, ApplyDesireResourceTypeName)
-
-	// ClusterScopedDeleteDesireResourceType is deleteDesires nested directly under a Cluster.
-	ClusterScopedDeleteDesireResourceType = nestedResourceType(api.ClusterResourceTypeName, DeleteDesireResourceTypeName)
-	// NodePoolScopedDeleteDesireResourceType is deleteDesires nested under a NodePool under a Cluster.
-	NodePoolScopedDeleteDesireResourceType = nestedResourceType(api.ClusterResourceTypeName, api.NodePoolResourceTypeName, DeleteDesireResourceTypeName)
 
 	// ClusterScopedReadDesireResourceType is readDesires nested directly under a Cluster.
 	ClusterScopedReadDesireResourceType = nestedResourceType(api.ClusterResourceTypeName, ReadDesireResourceTypeName)

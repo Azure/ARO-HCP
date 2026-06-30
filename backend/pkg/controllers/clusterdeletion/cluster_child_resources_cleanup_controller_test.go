@@ -128,20 +128,6 @@ func TestClusterChildResourcesCleanupController_SyncOnce(t *testing.T) {
 			},
 		}
 	}
-	newTestNodePoolScopedDeleteDesire := func(nodePoolName, name string) *kubeapplier.DeleteDesire {
-		resourceID := api.Must(azcorearm.ParseResourceID(
-			kubeapplier.ToNodePoolScopedDeleteDesireResourceIDString(
-				testSubscriptionID, testResourceGroupName, testClusterName, nodePoolName, name)))
-		return &kubeapplier.DeleteDesire{
-			CosmosMetadata: api.CosmosMetadata{
-				ResourceID:   resourceID,
-				PartitionKey: strings.ToLower(managementClusterResourceID.String()),
-			},
-			Spec: kubeapplier.DeleteDesireSpec{
-				ManagementCluster: managementClusterResourceID,
-			},
-		}
-	}
 	assertNoClusterScopedKubeApplierResources := func(
 		t *testing.T,
 		ctx context.Context,
@@ -345,7 +331,6 @@ func TestClusterChildResourcesCleanupController_SyncOnce(t *testing.T) {
 				newTestClusterScopedReadDesire("readonly-hostedcluster"),
 				newTestClusterScopedApplyDesire("apply-example"),
 				newTestNodePoolScopedReadDesire("workers", "readonly-nodepool"),
-				newTestNodePoolScopedDeleteDesire("workers", "delete-example"),
 			},
 			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, kubeApplierDBClients *databasetesting.MockKubeApplierDBClients) {
 				spcCRUD := db.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName)
@@ -356,9 +341,6 @@ func TestClusterChildResourcesCleanupController_SyncOnce(t *testing.T) {
 				assertClusterScopedKubeApplierResourceExists(t, ctx, kubeApplierDBClients,
 					kubeapplier.ToNodePoolScopedReadDesireResourceIDString(
 						testSubscriptionID, testResourceGroupName, testClusterName, "workers", "readonly-nodepool"))
-				assertClusterScopedKubeApplierResourceExists(t, ctx, kubeApplierDBClients,
-					kubeapplier.ToNodePoolScopedDeleteDesireResourceIDString(
-						testSubscriptionID, testResourceGroupName, testClusterName, "workers", "delete-example"))
 			},
 		},
 		{

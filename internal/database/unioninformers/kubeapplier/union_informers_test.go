@@ -364,7 +364,8 @@ func newApplyDesire(t *testing.T, idStr string, mgmt *azcorearm.ResourceID) *kub
 		CosmosMetadata: api.CosmosMetadata{ResourceID: mustParseID(t, idStr), PartitionKey: strings.ToLower(mgmt.String())},
 		Spec: kubeapplier.ApplyDesireSpec{
 			ManagementCluster: mgmt,
-			KubeContent:       &runtime.RawExtension{Raw: []byte(`{"apiVersion":"v1","kind":"ConfigMap"}`)},
+			Type:              kubeapplier.ApplyDesireTypeServerSideApply,
+			ServerSideApply:   &kubeapplier.ServerSideApplyConfig{KubeContent: &runtime.RawExtension{Raw: []byte(`{"apiVersion":"v1","kind":"ConfigMap"}`)}},
 		},
 	}
 }
@@ -387,9 +388,8 @@ func buildPerMCInformers(t *testing.T, ctx context.Context, seed ...*kubeapplier
 	info := informers.NewKubeApplierInformersWithRelistDuration(ctx, mock.Listers(), &relist)
 	go info.RunWithContext(ctx)
 	apply, _ := info.ApplyDesires()
-	delete, _ := info.DeleteDesires()
 	read, _ := info.ReadDesires()
-	waitForSync(t, ctx, apply.HasSynced, delete.HasSynced, read.HasSynced)
+	waitForSync(t, ctx, apply.HasSynced, read.HasSynced)
 	return info
 }
 
@@ -437,9 +437,7 @@ func TestUnionKubeApplierInformers_EndToEnd(t *testing.T) {
 	}
 
 	applyInf, applyLister := u.ApplyDesires()
-	deleteInf, _ := u.DeleteDesires()
 	readInf, _ := u.ReadDesires()
-	_ = deleteInf
 	_ = readInf
 
 	// Union lister sees both MCs' fixtures.

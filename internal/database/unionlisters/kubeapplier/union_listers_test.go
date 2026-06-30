@@ -90,38 +90,6 @@ func applySublisters(t *testing.T) (a, b *listertesting.SliceApplyDesireLister) 
 	return a, b
 }
 
-// --- DeleteDesire fixtures -----------------------------------------------
-
-func newDeleteDesire(t *testing.T, idStr string, mgmt *azcorearm.ResourceID) *kubeapplier.DeleteDesire {
-	t.Helper()
-	return &kubeapplier.DeleteDesire{
-		CosmosMetadata: api.CosmosMetadata{ResourceID: mustParseID(t, idStr)},
-		Spec:           kubeapplier.DeleteDesireSpec{ManagementCluster: mgmt},
-	}
-}
-
-func deleteSublisters(t *testing.T) (a, b *listertesting.SliceDeleteDesireLister) {
-	t.Helper()
-	a = &listertesting.SliceDeleteDesireLister{
-		Desires: []*kubeapplier.DeleteDesire{
-			newDeleteDesire(t,
-				kubeapplier.ToClusterScopedDeleteDesireResourceIDString(testSub, testRG, testCluster, "a1"),
-				mgmtAID),
-			newDeleteDesire(t,
-				kubeapplier.ToNodePoolScopedDeleteDesireResourceIDString(testSub, testRG, testCluster, testNodePool, "a2"),
-				mgmtAID),
-		},
-	}
-	b = &listertesting.SliceDeleteDesireLister{
-		Desires: []*kubeapplier.DeleteDesire{
-			newDeleteDesire(t,
-				kubeapplier.ToClusterScopedDeleteDesireResourceIDString(testSub, testRG, "other-cluster", "b1"),
-				mgmtBID),
-		},
-	}
-	return a, b
-}
-
 // --- ReadDesire fixtures -------------------------------------------------
 
 func newReadDesire(t *testing.T, idStr string, mgmt *azcorearm.ResourceID) *kubeapplier.ReadDesire {
@@ -384,80 +352,6 @@ func TestUnionApplyDesireLister_ConcurrentAddRemoveVsRead(t *testing.T) {
 	}
 	close(stop)
 	wg.Wait()
-}
-
-// ============================================================================
-// UnionDeleteDesireLister
-// ============================================================================
-
-func TestUnionDeleteDesireLister(t *testing.T) {
-	ctx := context.Background()
-	a, b := deleteSublisters(t)
-	u := unionkubeapplier.NewUnionDesireLister[kubeapplier.DeleteDesire]()
-	u.Add(mgmtAID, a)
-	u.Add(mgmtBID, b)
-
-	t.Run("List aggregates", func(t *testing.T) {
-		got, err := u.List(ctx)
-		if err != nil {
-			t.Fatalf("List: %v", err)
-		}
-		if len(got) != 3 {
-			t.Errorf("List len = %d, want 3", len(got))
-		}
-	})
-
-	t.Run("GetForCluster first-hit-wins", func(t *testing.T) {
-		if _, err := u.GetForCluster(ctx, testSub, testRG, testCluster, "a1"); err != nil {
-			t.Errorf("GetForCluster a1: %v", err)
-		}
-		if _, err := u.GetForCluster(ctx, testSub, testRG, "other-cluster", "b1"); err != nil {
-			t.Errorf("GetForCluster b1: %v", err)
-		}
-		if _, err := u.GetForCluster(ctx, testSub, testRG, testCluster, "missing"); !database.IsNotFoundError(err) {
-			t.Errorf("GetForCluster missing: want NotFound, got %v", err)
-		}
-	})
-
-	t.Run("GetForNodePool", func(t *testing.T) {
-		if _, err := u.GetForNodePool(ctx, testSub, testRG, testCluster, testNodePool, "a2"); err != nil {
-			t.Errorf("GetForNodePool a2: %v", err)
-		}
-		if _, err := u.GetForNodePool(ctx, testSub, testRG, testCluster, testNodePool, "missing"); !database.IsNotFoundError(err) {
-			t.Errorf("GetForNodePool missing: want NotFound, got %v", err)
-		}
-	})
-
-	t.Run("ListForManagementCluster delegates", func(t *testing.T) {
-		gotA, err := u.ListForManagementCluster(ctx, mgmtAID)
-		if err != nil {
-			t.Fatalf("ListForManagementCluster mgmt-a: %v", err)
-		}
-		if len(gotA) != 2 {
-			t.Errorf("mgmt-a len = %d, want 2", len(gotA))
-		}
-		gotZ, err := u.ListForManagementCluster(ctx, mgmtUnregistered)
-		if err != nil {
-			t.Fatalf("ListForManagementCluster unregistered: %v", err)
-		}
-		if gotZ != nil {
-			t.Errorf("unregistered MC: want nil, got %v", gotZ)
-		}
-	})
-
-	t.Run("Remove", func(t *testing.T) {
-		u2 := unionkubeapplier.NewUnionDesireLister[kubeapplier.DeleteDesire]()
-		u2.Add(mgmtAID, a)
-		u2.Add(mgmtBID, b)
-		u2.Remove(mgmtAID)
-		got, err := u2.List(ctx)
-		if err != nil {
-			t.Fatalf("List after Remove: %v", err)
-		}
-		if len(got) != 1 {
-			t.Errorf("after Remove mgmt-a: len = %d, want 1", len(got))
-		}
-	})
 }
 
 // ============================================================================

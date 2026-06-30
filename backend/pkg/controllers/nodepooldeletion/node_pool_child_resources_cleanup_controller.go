@@ -285,7 +285,6 @@ func (c *nodePoolChildResourcesCleanupController) ensureNodePoolScopedKubeApplie
 	extraDeleteGates := map[string]func(ctx context.Context, resourceID *azcorearm.ResourceID) (bool, error){
 		// strings.ToLower(kubeapplier.ClusterScopedReadDesireResourceType.String()): c.extraDeleteGateShouldDeleteReadDesire,
 		// strings.ToLower(kubeapplier.ClusterScopedApplyDesireResourceType.String()): c.extraDeleteGateShouldDeleteApplyDesire,
-		// strings.ToLower(kubeapplier.ClusterScopedDeleteDesireResourceType.String()): c.extraDeleteGateShouldDeleteDeleteDesire,
 	}
 
 	desireCRUD, err := kaClient.UntypedCRUD(*nodePoolResourceID)

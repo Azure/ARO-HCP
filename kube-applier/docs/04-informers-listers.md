@@ -44,7 +44,6 @@ Create one file per `*Desire`:
 internal/database/listers/
   types.go                 // index constants, helpers (mirror backend/pkg/listers/types.go)
   apply_desire_lister.go
-  delete_desire_lister.go
   read_desire_lister.go
 ```
 
@@ -79,7 +78,6 @@ Create:
 internal/database/informers/
   types.go                 // KubeApplierInformers interface + factory
   apply_desire_informer.go
-  delete_desire_informer.go
   read_desire_informer.go
 ```
 
@@ -88,7 +86,6 @@ The factory mirrors `backend/pkg/informers/types.go:NewBackendInformers`:
 ```go
 type KubeApplierInformers interface {
     ApplyDesires() (cache.SharedIndexInformer, listers.ApplyDesireLister)
-    DeleteDesires() (cache.SharedIndexInformer, listers.DeleteDesireLister)
     ReadDesires() (cache.SharedIndexInformer, listers.ReadDesireLister)
 
     RunWithContext(ctx context.Context)
@@ -130,7 +127,7 @@ Mirror `backend/pkg/listertesting/`:
 ```
 internal/database/listertesting/
   helpers.go
-  slice_listers.go    // SliceApplyDesireLister, SliceDeleteDesireLister, SliceReadDesireLister
+  slice_listers.go    // SliceApplyDesireLister, SliceReadDesireLister
   db_listers.go       // DBApplyDesireLister wrapping a database.DBClient
 ```
 

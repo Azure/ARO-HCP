@@ -38,7 +38,6 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/internal/version"
 	"github.com/Azure/ARO-HCP/kube-applier/pkg/controllers/apply_desire"
-	"github.com/Azure/ARO-HCP/kube-applier/pkg/controllers/delete_desire"
 	"github.com/Azure/ARO-HCP/kube-applier/pkg/controllers/read_desire_manager"
 )
 
@@ -129,7 +128,7 @@ func (o *Options) Run(ctx context.Context) error {
 	return errors.Join(errs...)
 }
 
-// runControllersUnderLeaderElection wires the three controllers and runs them
+// runControllersUnderLeaderElection wires the two controllers and runs them
 // inside the leader-election callback. Informers are started inside the
 // callback too: a non-leader replica should not be reading Cosmos.
 func (o *Options) runControllersUnderLeaderElection(
@@ -142,16 +141,11 @@ func (o *Options) runControllersUnderLeaderElection(
 	listers := o.KubeApplierDBClient.Listers()
 
 	applyInformer := informers.NewApplyDesireInformer(listers.ApplyDesires())
-	deleteInformer := informers.NewDeleteDesireInformer(listers.DeleteDesires())
 	readInformer := informers.NewReadDesireInformer(listers.ReadDesires())
 
 	applyCtl, err := apply_desire.NewApplyDesireController(applyInformer, o.DynamicClient, o.KubeApplierDBClient, apply_desire.Config{})
 	if err != nil {
 		return fmt.Errorf("apply controller: %w", err)
-	}
-	deleteCtl, err := delete_desire.NewDeleteDesireController(deleteInformer, o.DynamicClient, o.KubeApplierDBClient, delete_desire.Config{})
-	if err != nil {
-		return fmt.Errorf("delete controller: %w", err)
 	}
 	readMgr, err := read_desire_manager.NewReadDesireInformerManagingController(readInformer, o.DynamicClient, o.KubeApplierDBClient, read_desire_manager.Config{})
 	if err != nil {
@@ -167,17 +161,15 @@ func (o *Options) runControllersUnderLeaderElection(
 			OnStartedLeading: func(ctx context.Context) {
 				logger.Info("acquired leader election lease; starting informers and controllers")
 				go applyInformer.RunWithContext(ctx)
-				go deleteInformer.RunWithContext(ctx)
 				go readInformer.RunWithContext(ctx)
 
 				if !cache.WaitForCacheSync(ctx.Done(),
-					applyInformer.HasSynced, deleteInformer.HasSynced, readInformer.HasSynced) {
+					applyInformer.HasSynced, readInformer.HasSynced) {
 					logger.Info("informer caches did not sync; aborting controller startup")
 					return
 				}
 
 				go applyCtl.Run(ctx, threadsApply)
-				go deleteCtl.Run(ctx, threadsDelete)
 				go readMgr.Run(ctx, threadsReadManager)
 			},
 			OnStoppedLeading: func() {

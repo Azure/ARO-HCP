@@ -172,7 +172,7 @@ func NewCmdRoot() *cobra.Command {
 		Short: app.AppShortDescriptionName,
 		Long: fmt.Sprintf(`%s
 
-	The kube-applier reconciles ApplyDesire, DeleteDesire, and ReadDesire
+	The kube-applier reconciles ApplyDesire and ReadDesire
 	documents stored in the kube-applier Cosmos container against the
 	management cluster's local kube-apiserver.
 

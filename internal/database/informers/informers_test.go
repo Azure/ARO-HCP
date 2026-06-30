@@ -68,7 +68,8 @@ func newApplyDesire(t *testing.T, idStr string, mgmt *azcorearm.ResourceID) *kub
 		},
 		Spec: kubeapplier.ApplyDesireSpec{
 			ManagementCluster: mgmt,
-			KubeContent:       &runtime.RawExtension{Raw: []byte(`{"apiVersion":"v1","kind":"ConfigMap"}`)},
+			Type:              kubeapplier.ApplyDesireTypeServerSideApply,
+			ServerSideApply:   &kubeapplier.ServerSideApplyConfig{KubeContent: &runtime.RawExtension{Raw: []byte(`{"apiVersion":"v1","kind":"ConfigMap"}`)}},
 		},
 	}
 }
@@ -79,9 +80,8 @@ func startAndSync(t *testing.T, ctx context.Context, info informers.KubeApplierI
 	t.Helper()
 	go info.RunWithContext(ctx)
 	apply, _ := info.ApplyDesires()
-	delete, _ := info.DeleteDesires()
 	read, _ := info.ReadDesires()
-	if !cache.WaitForCacheSync(ctx.Done(), apply.HasSynced, delete.HasSynced, read.HasSynced) {
+	if !cache.WaitForCacheSync(ctx.Done(), apply.HasSynced, read.HasSynced) {
 		t.Fatal("informers did not sync")
 	}
 }
@@ -222,7 +222,6 @@ func TestKubeApplierInformers_GetByID(t *testing.T) {
 // Compile-time assertion: the listers package's interface is satisfied by the
 // implementation returned by the informer factory.
 var (
-	_ listers.ApplyDesireLister  = (listers.ApplyDesireLister)(nil)
-	_ listers.DeleteDesireLister = (listers.DeleteDesireLister)(nil)
-	_ listers.ReadDesireLister   = (listers.ReadDesireLister)(nil)
+	_ listers.ApplyDesireLister = (listers.ApplyDesireLister)(nil)
+	_ listers.ReadDesireLister  = (listers.ReadDesireLister)(nil)
 )

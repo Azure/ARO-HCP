@@ -226,7 +226,7 @@ func (c *ReadDesireKubernetesController) processNext(ctx context.Context) bool {
 	// Seed the per-reconcile logger with the key's identifying fields so every
 	// log line from SyncOnce carries subscription_id / resource_group /
 	// resource_id, matching the backend generic worker loop's behavior and
-	// the convention shared with apply_desire / delete_desire / read_desire_manager.
+	// the convention shared with apply_desire / read_desire_manager.
 	// All keys here are identical (this controller is per-instance), but doing
 	// the seeding in processNext keeps the pattern uniform across kube-applier.
 	logger := utils.AddLoggerValues(utils.LoggerFromContext(ctx), key)

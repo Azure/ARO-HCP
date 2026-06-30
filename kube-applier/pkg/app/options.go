@@ -39,7 +39,6 @@ const AppShortDescriptionName = "ARO HCP kube-applier"
 // own goroutines independent of this count.
 const (
 	threadsApply       = 4
-	threadsDelete      = 4
 	threadsReadManager = 1
 )
 

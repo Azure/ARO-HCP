@@ -74,7 +74,7 @@ func SetSuccessful(conds *[]metav1.Condition, err error) {
 }
 
 // SetSuccessfulWaitingForDeletion records the "deletion is in flight"
-// state for a DeleteDesire whose target still exists in the cluster.
+// state for an ApplyDesire with Type=Delete whose target still exists in the cluster.
 // The deletion timestamp and UID are surfaced verbatim in the message
 // so consumers can correlate without an extra cluster read.
 func SetSuccessfulWaitingForDeletion(conds *[]metav1.Condition, deletionTime metav1.Time, uid types.UID) {
