@@ -765,7 +765,7 @@ resource msftMsiCredentialRefresher 'Microsoft.AlertsManagement/prometheusRuleGr
           summary: 'Customer cluster credential expiring in less than 30 days'
           title: 'Customer cluster credential expiring in less than 30 days'
         }
-        expression: 'sum by (cluster) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le="30"}[30m])) - sum by (cluster) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le="0"}[30m])) > 0'
+        expression: 'sum by (cluster) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le=~"^30([.]0)?$"}[30m])) - sum by (cluster) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le=~"^0([.]0)?$"}[30m])) > 0'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
       }
@@ -792,7 +792,7 @@ resource msftMsiCredentialRefresher 'Microsoft.AlertsManagement/prometheusRuleGr
           summary: 'Customer cluster credential expired'
           title: 'Customer cluster credential expired'
         }
-        expression: 'sum by (cluster) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le="0"}[30m])) - sum by (cluster) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le="-90"}[30m])) > 0'
+        expression: 'sum by (cluster) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le=~"^0([.]0)?$"}[30m])) - sum by (cluster) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le=~"^-90([.]0)?$"}[30m])) > 0'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
       }
@@ -819,7 +819,7 @@ resource msftMsiCredentialRefresher 'Microsoft.AlertsManagement/prometheusRuleGr
           summary: 'Customer cluster credential is no longer renewable'
           title: 'Customer cluster credential is no longer renewable'
         }
-        expression: 'sum by (cluster) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le="-90"}[30m])) > 0'
+        expression: 'sum by (cluster) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le=~"^-90([.]0)?$"}[30m])) > 0'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
       }

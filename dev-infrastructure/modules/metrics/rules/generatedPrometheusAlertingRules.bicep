@@ -1077,7 +1077,7 @@ resource maestro 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = 
           summary: 'No maestro-server replicas are Ready'
           title: 'No maestro-server replicas are Ready'
         }
-        expression: 'kube_deployment_status_replicas_available{namespace="maestro", deployment="maestro"} == 0 and kube_deployment_spec_replicas{namespace="maestro", deployment="maestro"} > 0'
+        expression: 'kube_deployment_status_replicas_available{deployment="maestro",namespace="maestro"} == 0 and kube_deployment_spec_replicas{deployment="maestro",namespace="maestro"} > 0'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
       }
@@ -1104,7 +1104,7 @@ resource maestro 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = 
           summary: 'A maestro-server replica is not Ready'
           title: 'A maestro-server replica is not Ready'
         }
-        expression: 'kube_deployment_status_replicas_available{namespace="maestro", deployment="maestro"} > 0 and kube_deployment_status_replicas_available{namespace="maestro", deployment="maestro"} < kube_deployment_spec_replicas{namespace="maestro", deployment="maestro"}'
+        expression: 'kube_deployment_status_replicas_available{deployment="maestro",namespace="maestro"} > 0 and kube_deployment_status_replicas_available{deployment="maestro",namespace="maestro"} < kube_deployment_spec_replicas{deployment="maestro",namespace="maestro"}'
         for: 'PT15M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
