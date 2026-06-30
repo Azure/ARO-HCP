@@ -53,11 +53,12 @@ type desiresCreator struct {
 	hostedClusterNamespaceEnvIdentifier string
 }
 
-var _ controllerutils.ClusterSyncer = (*desiresCreator)(nil)
+var _ controllerutils.CredentialRequestSyncer = (*desiresCreator)(nil)
 
-// NewDesiresCreatorController returns a ClusterWatchingController that creates
-// the per-credential ApplyDesires (CSR, CSRA, 3 RBAC bundles) and ReadDesire (CSR)
-// for SystemAdminCredentialRequest documents that are pending.
+// NewDesiresCreatorController returns a CredentialRequestWatchingController that
+// creates the per-credential ApplyDesires (CSR, CSRA, 3 RBAC bundles) and
+// ReadDesire (CSR) for individual SystemAdminCredentialRequest documents that are
+// pending.
 func NewDesiresCreatorController(
 	activeOperationLister listers.ActiveOperationLister,
 	resourcesDBClient database.ResourcesDBClient,
@@ -75,7 +76,7 @@ func NewDesiresCreatorController(
 		hostedClusterNamespaceEnvIdentifier: hostedClusterNamespaceEnvIdentifier,
 	}
 
-	return controllerutils.NewClusterWatchingController(
+	return controllerutils.NewCredentialRequestWatchingController(
 		"SystemAdminCredentialDesiresCreator",
 		resourcesDBClient,
 		backendInformers,
@@ -89,12 +90,8 @@ func (c *desiresCreator) CooldownChecker() controllerutil.CooldownChecker {
 	return c.cooldownChecker
 }
 
-func (c *desiresCreator) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
-	logger := utils.LoggerFromContext(ctx).WithValues(utils.LogValues{}.
-		AddSubscriptionID(key.SubscriptionID).
-		AddResourceGroup(key.ResourceGroupName).
-		AddHCPClusterName(key.HCPClusterName)...)
-	ctx = utils.ContextWithLogger(ctx, logger)
+func (c *desiresCreator) SyncOnce(ctx context.Context, key controllerutils.SystemAdminCredentialRequestKey) error {
+	logger := utils.LoggerFromContext(ctx)
 
 	existingCluster, err := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Get(ctx, key.HCPClusterName)
 	if database.IsNotFoundError(err) {
@@ -131,35 +128,33 @@ func (c *desiresCreator) SyncOnce(ctx context.Context, key controllerutils.HCPCl
 	hcpNamespace := fmt.Sprintf("ocm-%s-%s", c.hostedClusterNamespaceEnvIdentifier, csClusterID)
 
 	// Owner for annotations is the cluster's ARM resource ID.
-	clusterResourceID := key.GetResourceID()
+	clusterResourceID := key.GetClusterResourceID()
 
-	// List all SystemAdminCredentialRequests for this cluster.
+	// Get the specific credential request.
 	credCRUD := c.resourcesDBClient.SystemAdminCredentialRequests(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
-	iter, err := credCRUD.List(ctx, nil)
+	cred, err := credCRUD.Get(ctx, key.CredentialName)
+	if database.IsNotFoundError(err) {
+		return nil
+	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to list SystemAdminCredentialRequests: %w", err))
+		return utils.TrackError(fmt.Errorf("failed to get SystemAdminCredentialRequest: %w", err))
 	}
 
-	for _, cred := range iter.Items(ctx) {
-		if !cred.Status.IsPending() {
-			continue
-		}
-
-		credName := cred.ResourceID.Name
-		if err := c.ensureDesires(ctx, key, cred, credName, hcpNamespace, clusterResourceID, mcResourceID, kaClient); err != nil {
-			return err
-		}
-	}
-	if err := iter.GetError(); err != nil {
-		return utils.TrackError(fmt.Errorf("failed to iterate SystemAdminCredentialRequests: %w", err))
+	if !cred.Status.IsPending() {
+		return nil
 	}
 
+	if err := c.ensureDesires(ctx, key, cred, key.CredentialName, hcpNamespace, clusterResourceID, mcResourceID, kaClient); err != nil {
+		return err
+	}
+
+	logger.Info("ensured desires for credential", "credential", key.CredentialName)
 	return nil
 }
 
 func (c *desiresCreator) ensureDesires(
 	ctx context.Context,
-	key controllerutils.HCPClusterKey,
+	key controllerutils.SystemAdminCredentialRequestKey,
 	cred *api.SystemAdminCredentialRequest,
 	credName, hcpNamespace string,
 	owner, mcResourceID *azcorearm.ResourceID,
@@ -255,7 +250,7 @@ func (c *desiresCreator) ensureDesires(
 func (c *desiresCreator) createApplyDesire(
 	ctx context.Context,
 	crud database.ResourceCRUD[kubeapplier.ApplyDesire, *kubeapplier.ApplyDesire],
-	key controllerutils.HCPClusterKey,
+	key controllerutils.SystemAdminCredentialRequestKey,
 	desireName string,
 	mcResourceID *azcorearm.ResourceID,
 	target kubeapplier.ResourceReference,
@@ -291,7 +286,7 @@ func (c *desiresCreator) createApplyDesire(
 func (c *desiresCreator) createReadDesire(
 	ctx context.Context,
 	crud database.ResourceCRUD[kubeapplier.ReadDesire, *kubeapplier.ReadDesire],
-	key controllerutils.HCPClusterKey,
+	key controllerutils.SystemAdminCredentialRequestKey,
 	desireName string,
 	mcResourceID *azcorearm.ResourceID,
 	target kubeapplier.ResourceReference,

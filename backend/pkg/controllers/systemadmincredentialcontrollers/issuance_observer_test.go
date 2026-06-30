@@ -43,10 +43,11 @@ func TestIssuanceObserver_SyncOnce(t *testing.T) {
 	fixedTime := time.Date(2026, 6, 15, 10, 0, 0, 0, time.UTC)
 	fakeClock := clocktesting.NewFakeClock(fixedTime)
 
-	testKey := controllerutils.HCPClusterKey{
+	testKey := controllerutils.SystemAdminCredentialRequestKey{
 		SubscriptionID:    testSubscriptionID,
 		ResourceGroupName: testResourceGroupName,
 		HCPClusterName:    testClusterName,
+		CredentialName:    testCredentialName,
 	}
 
 	tests := []struct {

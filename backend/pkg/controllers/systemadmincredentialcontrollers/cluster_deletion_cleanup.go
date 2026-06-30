@@ -41,9 +41,9 @@ type clusterDeletionCleanup struct {
 	serviceProviderClusterLister listers.ServiceProviderClusterLister
 }
 
-var _ controllerutils.ClusterSyncer = (*clusterDeletionCleanup)(nil)
+var _ controllerutils.CredentialRequestSyncer = (*clusterDeletionCleanup)(nil)
 
-// NewClusterDeletionCleanupController returns a ClusterWatchingController
+// NewClusterDeletionCleanupController returns a CredentialRequestWatchingController
 // that is the precondition gate for cluster deletion. When a cluster is
 // being deleted, it:
 //  1. Walks credential-related desires in the kube-applier DB and issues
@@ -54,6 +54,10 @@ var _ controllerutils.ClusterSyncer = (*clusterDeletionCleanup)(nil)
 //     DeleteDesires, and the SystemAdminCredentialRequest docs themselves).
 //  4. Sets SystemAdminCredentialContentDeleted=True on ServiceProviderCluster
 //     so the cluster-deletion finalizer can advance.
+//
+// This controller fires on credential request events. When the cluster is
+// being deleted, each credential request event triggers a full cluster-wide
+// cleanup pass, which is idempotent.
 func NewClusterDeletionCleanupController(
 	activeOperationLister listers.ActiveOperationLister,
 	resourcesDBClient database.ResourcesDBClient,
@@ -72,7 +76,7 @@ func NewClusterDeletionCleanupController(
 		serviceProviderClusterLister: serviceProviderClusterLister,
 	}
 
-	return controllerutils.NewClusterWatchingController(
+	return controllerutils.NewCredentialRequestWatchingController(
 		"SystemAdminCredentialClusterDeletionCleanup",
 		resourcesDBClient,
 		backendInformers,
@@ -86,12 +90,8 @@ func (c *clusterDeletionCleanup) CooldownChecker() controllerutil.CooldownChecke
 	return c.cooldownChecker
 }
 
-func (c *clusterDeletionCleanup) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
-	logger := utils.LoggerFromContext(ctx).WithValues(utils.LogValues{}.
-		AddSubscriptionID(key.SubscriptionID).
-		AddResourceGroup(key.ResourceGroupName).
-		AddHCPClusterName(key.HCPClusterName)...)
-	ctx = utils.ContextWithLogger(ctx, logger)
+func (c *clusterDeletionCleanup) SyncOnce(ctx context.Context, key controllerutils.SystemAdminCredentialRequestKey) error {
+	logger := utils.LoggerFromContext(ctx)
 
 	// Only run during cluster deletion — both deletion and CS-side
 	// deletion must be confirmed.
@@ -205,7 +205,7 @@ func (c *clusterDeletionCleanup) SyncOnce(ctx context.Context, key controlleruti
 // Returns true if there are still outstanding desires.
 func (c *clusterDeletionCleanup) driveDesireTeardown(
 	ctx context.Context,
-	key controllerutils.HCPClusterKey,
+	key controllerutils.SystemAdminCredentialRequestKey,
 	kaClient database.KubeApplierDBClient,
 ) (bool, error) {
 	applyCRUD, err := kaClient.ApplyDesiresForCluster(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
@@ -286,7 +286,7 @@ func (c *clusterDeletionCleanup) driveDesireTeardown(
 
 func (c *clusterDeletionCleanup) removeApplyDesireDuringDeletion(
 	ctx context.Context,
-	key controllerutils.HCPClusterKey,
+	key controllerutils.SystemAdminCredentialRequestKey,
 	desireName string,
 	applyCRUD database.ResourceCRUD[kubeapplier.ApplyDesire, *kubeapplier.ApplyDesire],
 	deleteCRUD database.ResourceCRUD[kubeapplier.DeleteDesire, *kubeapplier.DeleteDesire],

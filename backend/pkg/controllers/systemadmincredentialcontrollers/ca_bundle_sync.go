@@ -41,13 +41,13 @@ type caBundleSync struct {
 	serviceProviderClusterLister listers.ServiceProviderClusterLister
 }
 
-var _ controllerutils.ClusterSyncer = (*caBundleSync)(nil)
+var _ controllerutils.CredentialRequestSyncer = (*caBundleSync)(nil)
 
-// NewCABundleSyncController returns a ClusterWatchingController that watches
-// the serving CA ReadDesire (created by controller #10) and writes the CA
-// bundle bytes onto ServiceProviderClusterStatus.ServingCABundle. It uses the
-// same "if observed value differs from stored value, Replace" pattern as
-// clusterPropertiesSyncer.
+// NewCABundleSyncController returns a CredentialRequestWatchingController that
+// watches the serving CA ReadDesire (created by controller #10) and writes the
+// CA bundle bytes onto ServiceProviderClusterStatus.ServingCABundle. It fires
+// on credential request events so the CA bundle is synced as soon as any
+// credential request appears for the cluster.
 func NewCABundleSyncController(
 	activeOperationLister listers.ActiveOperationLister,
 	resourcesDBClient database.ResourcesDBClient,
@@ -64,7 +64,7 @@ func NewCABundleSyncController(
 		serviceProviderClusterLister: serviceProviderClusterLister,
 	}
 
-	return controllerutils.NewClusterWatchingController(
+	return controllerutils.NewCredentialRequestWatchingController(
 		"SystemAdminCredentialCABundleSync",
 		resourcesDBClient,
 		backendInformers,
@@ -78,12 +78,8 @@ func (c *caBundleSync) CooldownChecker() controllerutil.CooldownChecker {
 	return c.cooldownChecker
 }
 
-func (c *caBundleSync) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
-	logger := utils.LoggerFromContext(ctx).WithValues(utils.LogValues{}.
-		AddSubscriptionID(key.SubscriptionID).
-		AddResourceGroup(key.ResourceGroupName).
-		AddHCPClusterName(key.HCPClusterName)...)
-	ctx = utils.ContextWithLogger(ctx, logger)
+func (c *caBundleSync) SyncOnce(ctx context.Context, key controllerutils.SystemAdminCredentialRequestKey) error {
+	logger := utils.LoggerFromContext(ctx)
 
 	// Read the serving CA Secret from the ReadDesire cache.
 	cachedSecret, err := maestrohelpers.GetCachedServingCASecretForCluster(
