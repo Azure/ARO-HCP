@@ -52,17 +52,18 @@ func (listWatchWithoutWatchListSemantics) IsWatchListSemanticsUnSupported() bool
 const (
 	// These durations indicate the maximum time it will take for us to notice a new instance of a particular type.
 	// Remember that these will not fire in order, so it's entirely possible to get an operation for subscription we have no observed.
-	SubscriptionRelistDuration             = 30 * time.Minute
-	ClusterRelistDuration                  = 30 * time.Minute
-	NodePoolRelistDuration                 = 30 * time.Minute
-	ExternalAuthRelistDuration             = 30 * time.Minute
-	ServiceProviderClusterRelistDuration   = 30 * time.Minute
-	ServiceProviderNodePoolRelistDuration  = 30 * time.Minute
-	ControllerRelistDuration               = 30 * time.Minute
-	AllOperationsRelistDuration            = 30 * time.Minute
-	ActiveOperationsRelistDuration         = 30 * time.Minute
-	ManagementClusterContentRelistDuration = 30 * time.Second
-	BillingRelistDuration                  = 30 * time.Second
+	SubscriptionRelistDuration                 = 30 * time.Minute
+	ClusterRelistDuration                      = 30 * time.Minute
+	NodePoolRelistDuration                     = 30 * time.Minute
+	ExternalAuthRelistDuration                 = 30 * time.Minute
+	ServiceProviderClusterRelistDuration       = 30 * time.Minute
+	ServiceProviderNodePoolRelistDuration      = 30 * time.Minute
+	ControllerRelistDuration                   = 30 * time.Minute
+	AllOperationsRelistDuration                = 30 * time.Minute
+	ActiveOperationsRelistDuration             = 30 * time.Minute
+	ManagementClusterContentRelistDuration     = 30 * time.Second
+	SystemAdminCredentialRequestRelistDuration = 30 * time.Second
+	BillingRelistDuration                      = 30 * time.Second
 )
 
 // NewSubscriptionInformer creates an unstarted SharedIndexInformer for subscriptions
@@ -340,6 +341,54 @@ func NewServiceProviderNodePoolInformerWithRelistDuration(lister database.Global
 				listers.ByNodePool: nodePoolResourceIDIndexFunc,
 			},
 			ObjectDescription: "ServiceProviderNodePool",
+		},
+	)
+}
+
+// NewSystemAdminCredentialRequestInformer creates an unstarted SharedIndexInformer for
+// SystemAdminCredentialRequests with a cluster index using the default relist duration.
+func NewSystemAdminCredentialRequestInformer(lister database.GlobalLister[api.SystemAdminCredentialRequest]) cache.SharedIndexInformer {
+	return NewSystemAdminCredentialRequestInformerWithRelistDuration(lister, SystemAdminCredentialRequestRelistDuration)
+}
+
+// NewSystemAdminCredentialRequestInformerWithRelistDuration creates an unstarted SharedIndexInformer
+// for SystemAdminCredentialRequests with a cluster index and a configurable relist duration.
+func NewSystemAdminCredentialRequestInformerWithRelistDuration(lister database.GlobalLister[api.SystemAdminCredentialRequest], relistDuration time.Duration) cache.SharedIndexInformer {
+	lw := &cache.ListWatch{
+		ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
+			logger := utils.LoggerFromContext(ctx)
+			logger.Info("listing system admin credential requests")
+			defer logger.Info("finished listing system admin credential requests")
+
+			iter, err := lister.List(ctx, nil)
+			if err != nil {
+				return nil, err
+			}
+
+			list := &api.SystemAdminCredentialRequestList{}
+			list.ResourceVersion = "0"
+			for _, sacr := range iter.Items(ctx) {
+				list.Items = append(list.Items, *sacr)
+			}
+			if err := iter.GetError(); err != nil {
+				return nil, err
+			}
+
+			return list, nil
+		},
+		WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
+			return NewExpiringWatcher(ctx, relistDuration), nil
+		},
+	}
+
+	return cache.NewSharedIndexInformerWithOptions(
+		&listWatchWithoutWatchListSemantics{lw},
+		&api.SystemAdminCredentialRequest{},
+		cache.SharedIndexInformerOptions{
+			ResyncPeriod: 1 * time.Hour, // this is only a default.  Shorter resyncs can be added when registering handlers.
+			Indexers: cache.Indexers{
+				listers.ByCluster: clusterResourceIDIndexFunc,
+			},
 		},
 	)
 }
