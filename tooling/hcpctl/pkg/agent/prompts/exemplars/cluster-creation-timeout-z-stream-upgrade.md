@@ -41,7 +41,9 @@ never finished cluster creation; the 20-minute create wait expired while the bac
 #### Proof 2: Log Snippet
 
 ```kql
+// manifest.json: resource_group
 let resourceGroup = 'rg-zstream-upgrade-4-22-d84tcz';
+// manifest.json: kusto_cluster
 cluster('https://hcp-dev-us-2.eastus2.kusto.windows.net').database('ServiceLogs').table('backendLogs')
 | where resource_group == resourceGroup
 | where log.controller_name == 'operationclustercreate'
@@ -65,14 +67,18 @@ cluster('https://hcp-dev-us-2.eastus2.kusto.windows.net').database('ServiceLogs'
 
 ### Why was there no installed version, and why did kube-apiserver have 1 unavailable replica?
 
-Clusters Service reached `ready` at **17:55:16Z** while the ARM create was still in flight, so ARO-HCP's z-stream upgrade to 4.22.2 was honored in-flight (`force-upgrade-to` at **17:55:20Z**). A `Completed` entry in `controlPlaneVersion.history` requires every control plane component to be ready; during the forced upgrade rollout none reached that state, so the backend kept reporting *hosted cluster has no installed version* (from **17:54:07Z**). From **17:59:56Z** that message was paired with *kube-apiserver deployment has 1 unavailable replicas* — kube-apiserver on the new ReplicaSet never became ready before the create timeout:
+Clusters Service reached `ready` at **17:55:16Z** while the ARM create was still in flight, so ARO-HCP's automated z-stream upgrade to 4.22.2 was triggered at **17:55:20Z**. A `Completed` entry in `controlPlaneVersion.history` requires every control plane component to be ready; during the automated z-stream upgrade rollout none reached that state, so the backend kept reporting *hosted cluster has no installed version* (from **17:54:07Z**). From **17:59:56Z** that message was paired with *kube-apiserver deployment has 1 unavailable replicas* — kube-apiserver on the new ReplicaSet never became ready before the create timeout:
 
 #### Proof 1: Log Snippet
 
 ```kql
+// manifest.json: hosted_cluster_namespace
 let hcNamespace = 'ocm-arohcpci01-2r4sj32f75bfmfa9m6rkupe7o982hqst';
+// manifest.json: hosted_control_plane_namespace (name suffix)
 let hcName = 'p2d8v9o7y9g8x5o';
+// manifest.json: kusto_cluster
 cluster('https://hcp-dev-us-2.eastus2.kusto.windows.net').database('ServiceLogs').table('containerLogs')
+// manifest.json: time_window.start .. time_window.end
 | where timestamp between (datetime(2026-06-24T17:43:34Z) .. datetime(2026-06-24T18:49:43Z))
 | where container_name == 'mgmt-agent-controller'
 | where tostring(log.msg) == 'resource event'
@@ -80,26 +86,30 @@ cluster('https://hcp-dev-us-2.eastus2.kusto.windows.net').database('ServiceLogs'
 | where tostring(log.namespace) == hcNamespace
 | where tostring(log.name) == hcName
 | extend desired = tostring(log.object.spec.release.image),
-         versionHistory = log.object.status.controlPlaneVersion.history,
+         versionHistory = tostring(log.object.status.controlPlaneVersion.history),
          forceUpgradeTo = tostring(log.object.metadata.annotations['hypershift.openshift.io/force-upgrade-to'])
+| extend desired = replace_regex(desired, @'sha256:[a-f0-9]{64}', 'sha256:…'),
+         forceUpgradeTo = replace_regex(forceUpgradeTo, @'sha256:[a-f0-9]{64}', 'sha256:…'),
+         versionHistory = replace_regex(versionHistory, @'sha256:[a-f0-9]{64}', 'sha256:…')
 | summarize first_occurrence = min(timestamp), last_occurrence = max(timestamp),
             event = arg_min(timestamp, tostring(log.event)),
             desired = arg_min(timestamp, desired),
             forceUpgradeTo = max(forceUpgradeTo)
-    by versionHistory = tostring(versionHistory)
+    by versionHistory
+| project first_occurrence, last_occurrence, event, desired, forceUpgradeTo, versionHistory
 | order by first_occurrence asc
 ```
 
-| first_occurrence         | last_occurrence          | event  | desired (abbrev.)     | forceUpgradeTo (abbrev.) | versionHistory (abbrev.)                                                                 |
-|--------------------------|--------------------------|--------|-----------------------|--------------------------|------------------------------------------------------------------------------------------|
-| 2026-06-24T17:49:05.714Z | 2026-06-24T17:49:10.292Z | Add    | …@sha256:83803bd…1429 |                          | `[{version: 4.22.0, state: Partial, startedTime: 17:49:20Z}]`                            |
-| 2026-06-24T17:49:21.097Z | 2026-06-24T17:49:53.026Z | Update | …@sha256:83803bd…1429 |                          | `[{version: 4.22.0, state: Partial, startedTime: 17:49:20Z}]`                            |
-| 2026-06-24T17:50:36.094Z | 2026-06-24T17:53:43.409Z | Update | …@sha256:83803bd…1429 |                          | `[{version: 4.22.0, state: Partial, startedTime: 17:49:20Z}]`                            |
-| 2026-06-24T17:54:13.288Z | 2026-06-24T17:54:13.288Z | Update | …@sha256:83803bd…1429 |                          | `[{version: 4.22.0, state: Partial, startedTime: 17:49:20Z}]`                            |
-| 2026-06-24T17:55:20.312Z | 2026-06-24T17:55:20.642Z | Update | …@sha256:2eb72c86…5989 | …@sha256:2eb72c86…5989   | `[{version: 4.22.0, state: Partial}]` — desired + `force-upgrade-to` set to 4.22.2       |
-| 2026-06-24T17:56:15.160Z | 2026-06-24T17:58:59.295Z | Update | …@sha256:2eb72c86…5989 | …@sha256:2eb72c86…5989   | `[{version: 4.22.2, state: Partial, startedTime: 17:56:15Z}, {version: 4.22.0, state: Partial, completionTime: 17:56:15Z}]` |
-| 2026-06-24T18:04:19.743Z | 2026-06-24T18:05:11.198Z | Update | …@sha256:2eb72c86…5989 | …@sha256:2eb72c86…5989   | dual-`Partial` (4.22.2 + 4.22.0) through create timeout                                  |
-| 2026-06-24T18:06:14.719Z | 2026-06-24T18:09:17.779Z | Update | …@sha256:2eb72c86…5989 | …@sha256:2eb72c86…5989   | dual-`Partial` during teardown                                                           |
+| first_occurrence         | last_occurrence          | event | desired | forceUpgradeTo                                     | versionHistory |
+|--------------------------|--------------------------|-------|---------|----------------------------------------------------|----------------|
+| 2026-06-24T17:49:05.714Z | 2026-06-24T17:49:10.292Z |       |         |                                                    |                |
+| 2026-06-24T17:49:21.097Z | 2026-06-24T17:49:53.026Z |       |         |                                                    | [{"state":"Partial","version":"4.22.0","image":"arohcpocpdev.azurecr.io/openshift-release-dev/ocp-release@sha256:…","startedTime":"2026-06-24T17:49:20.0000000Z"}] |
+| 2026-06-24T17:50:36.094Z | 2026-06-24T17:53:43.409Z |       |         |                                                    | [{"image":"arohcpocpdev.azurecr.io/openshift-release-dev/ocp-release@sha256:…","state":"Partial","version":"4.22.0","startedTime":"2026-06-24T17:49:20.0000000Z"}] |
+| 2026-06-24T17:54:13.288Z | 2026-06-24T17:54:13.288Z |       |         |                                                    | [{"version":"4.22.0","image":"arohcpocpdev.azurecr.io/openshift-release-dev/ocp-release@sha256:…","state":"Partial","startedTime":"2026-06-24T17:49:20.0000000Z"}] |
+| 2026-06-24T17:55:20.312Z | 2026-06-24T17:55:20.642Z |       |         | quay.io/openshift-release-dev/ocp-release@sha256:… | [{"version":"4.22.0","image":"arohcpocpdev.azurecr.io/openshift-release-dev/ocp-release@sha256:…","startedTime":"2026-06-24T17:49:20.0000000Z","state":"Partial"}] |
+| 2026-06-24T17:56:15.160Z | 2026-06-24T17:58:59.295Z |       |         | quay.io/openshift-release-dev/ocp-release@sha256:… | [{"version":"4.22.2","image":"arohcpocpdev.azurecr.io/openshift-release-dev/ocp-release@sha256:…","startedTime":"2026-06-24T17:56:15.0000000Z","state":"Partial"},{"version":"4.22.0","image":"arohcpocpdev.azurecr.io/openshift-release-dev/ocp-release@sha256:…","startedTime":"2026-06-24T17:49:20.0000000Z","state":"Partial","completionTime":"2026-06-24T17:56:15.0000000Z"}] |
+| 2026-06-24T18:04:19.743Z | 2026-06-24T18:05:11.198Z |       |         | quay.io/openshift-release-dev/ocp-release@sha256:… | [{"image":"arohcpocpdev.azurecr.io/openshift-release-dev/ocp-release@sha256:…","version":"4.22.2","startedTime":"2026-06-24T17:56:15.0000000Z","state":"Partial"},{"image":"arohcpocpdev.azurecr.io/openshift-release-dev/ocp-release@sha256:…","version":"4.22.0","startedTime":"2026-06-24T17:49:20.0000000Z","state":"Partial","completionTime":"2026-06-24T17:56:15.0000000Z"}] |
+| 2026-06-24T18:06:14.719Z | 2026-06-24T18:09:17.779Z |       |         | quay.io/openshift-release-dev/ocp-release@sha256:… | [{"state":"Partial","version":"4.22.2","image":"arohcpocpdev.azurecr.io/openshift-release-dev/ocp-release@sha256:…","startedTime":"2026-06-24T17:56:15.0000000Z"},{"state":"Partial","version":"4.22.0","image":"arohcpocpdev.azurecr.io/openshift-release-dev/ocp-release@sha256:…","startedTime":"2026-06-24T17:49:20.0000000Z","completionTime":"2026-06-24T17:56:15.0000000Z"}] |
 
 ### Why did the upgrade leave kube-apiserver with 1 unavailable replica?
 
@@ -108,11 +118,17 @@ The new kube-apiserver ReplicaSet never became fully ready during the forced-upg
 #### Proof 1: Log Snippet
 
 ```kql
+// clustersService/phases gathered output: CS cluster reached ready
 let csReadyAt = datetime(2026-06-24T17:55:16Z);
+// manifest.json: time_window subset through test failure
 let probeEnd = datetime(2026-06-24T18:05:00Z);
+// manifest.json: hosted_cluster_namespace
 let hcNamespace = 'ocm-arohcpci01-2r4sj32f75bfmfa9m6rkupe7o982hqst';
+// manifest.json: hosted_control_plane_namespace (name suffix)
 let hcName = 'p2d8v9o7y9g8x5o';
+// manifest.json: kusto_cluster
 cluster('https://hcp-dev-us-2.eastus2.kusto.windows.net').database('ServiceLogs').table('containerLogs')
+// manifest.json: time_window subset (CS ready .. test failure)
 | where timestamp between (csReadyAt .. probeEnd)
 | where container_name == 'mgmt-agent-controller'
 | where tostring(log.msg) == 'resource event'
@@ -150,8 +166,11 @@ kube-apiserver pods on the new ReplicaSet `54b7f655f6` cold-started while old RS
 #### Proof 1: Log Snippet
 
 ```kql
+// manifest.json: hosted_control_plane_namespace
 let hcpNamespace = 'ocm-arohcpci01-2r4sj32f75bfmfa9m6rkupe7o982hqst-p2d8v9o7y9g8x5o';
+// manifest.json: kusto_cluster
 cluster('https://hcp-dev-us-2.eastus2.kusto.windows.net').database('ServiceLogs').table('containerLogs')
+// manifest.json: time_window subset (upgrade rollout window)
 | where timestamp between (datetime(2026-06-24T17:55:00Z) .. datetime(2026-06-24T18:05:00Z))
 | where container_name == 'mgmt-agent-controller'
 | where tostring(log.msg) == 'pod event'
@@ -167,49 +186,42 @@ cluster('https://hcp-dev-us-2.eastus2.kusto.windows.net').database('ServiceLogs'
     reason=coalesce(
         tostring(container.state.waiting.reason),
         tostring(container.state.terminated.reason),
-        iff(isnotempty(container.state.running), 'running', '')
+        iff(isnotempty(container.state.running), 'Running', '')
     )
 | where containerName == 'kube-apiserver' or (event in ('Add', 'Delete') and isempty(containerName))
-| order by timestamp asc
+| summarize firstSeen = min(timestamp), lastSeen = max(timestamp), count = count()
+    by event, podName, containerName, ready, reason
+| order by firstSeen asc
 ```
 
-| timestamp                | event  | podName                        | containerName  | ready | reason / state   |
-|--------------------------|--------|--------------------------------|----------------|-------|------------------|
-| 2026-06-24T17:58:48.375Z | Add    | kube-apiserver-54b7f655f6-tn2dc |                |       |                  |
-| 2026-06-24T18:00:25.672Z | Update | kube-apiserver-dd7d46b5d-2pl4k | kube-apiserver | false | Completed        |
-| 2026-06-24T18:00:25.807Z | Update | kube-apiserver-54b7f655f6-tn2dc | kube-apiserver | false | PodInitializing  |
-| 2026-06-24T18:00:26.005Z | Delete | kube-apiserver-dd7d46b5d-2pl4k | kube-apiserver | false | Completed        |
-| 2026-06-24T18:00:30.817Z | Update | kube-apiserver-54b7f655f6-tn2dc | kube-apiserver | false | PodInitializing  |
-| 2026-06-24T18:00:31.832Z | Update | kube-apiserver-54b7f655f6-tn2dc | kube-apiserver | false | PodInitializing  |
-| 2026-06-24T18:00:32.866Z | Update | kube-apiserver-54b7f655f6-tn2dc | kube-apiserver | false | PodInitializing  |
-| 2026-06-24T18:00:33.891Z | Update | kube-apiserver-54b7f655f6-tn2dc | kube-apiserver | false | PodInitializing  |
-| 2026-06-24T18:00:38.033Z | Update | kube-apiserver-54b7f655f6-tn2dc | kube-apiserver | false | running          |
-| 2026-06-24T18:00:47.823Z | Add    | kube-apiserver-54b7f655f6-qmpf7 |                |       |                  |
-| 2026-06-24T18:02:00.778Z | Update | kube-apiserver-dd7d46b5d-dd96n | kube-apiserver | false | Completed        |
-| 2026-06-24T18:02:00.900Z | Update | kube-apiserver-54b7f655f6-qmpf7 | kube-apiserver | false | PodInitializing  |
-| 2026-06-24T18:02:01.566Z | Delete | kube-apiserver-dd7d46b5d-dd96n | kube-apiserver | false | Completed        |
-| 2026-06-24T18:02:09.417Z | Update | kube-apiserver-54b7f655f6-qmpf7 | kube-apiserver | false | PodInitializing  |
-| 2026-06-24T18:02:10.425Z | Update | kube-apiserver-54b7f655f6-qmpf7 | kube-apiserver | false | PodInitializing  |
-| 2026-06-24T18:02:11.451Z | Update | kube-apiserver-54b7f655f6-qmpf7 | kube-apiserver | false | PodInitializing  |
-| 2026-06-24T18:02:12.485Z | Update | kube-apiserver-54b7f655f6-qmpf7 | kube-apiserver | false | PodInitializing  |
-| 2026-06-24T18:02:15.621Z | Update | kube-apiserver-54b7f655f6-qmpf7 | kube-apiserver | false | PodInitializing  |
-| 2026-06-24T18:02:16.601Z | Update | kube-apiserver-54b7f655f6-qmpf7 | kube-apiserver | false | PodInitializing  |
-| 2026-06-24T18:02:23.751Z | Update | kube-apiserver-54b7f655f6-qmpf7 | kube-apiserver | false | running          |
-| 2026-06-24T18:02:32.411Z | Add    | kube-apiserver-54b7f655f6-8kgd8 |                |       |                  |
-| 2026-06-24T18:03:50.322Z | Update | kube-apiserver-dd7d46b5d-hpfdr | kube-apiserver | false | Completed        |
-| 2026-06-24T18:03:50.389Z | Delete | kube-apiserver-dd7d46b5d-hpfdr | kube-apiserver | false | Completed        |
-| 2026-06-24T18:03:52.589Z | Update | kube-apiserver-54b7f655f6-8kgd8 | kube-apiserver | false | PodInitializing  |
-| 2026-06-24T18:03:53.551Z | Update | kube-apiserver-54b7f655f6-8kgd8 | kube-apiserver | false | PodInitializing  |
-| 2026-06-24T18:03:54.542Z | Update | kube-apiserver-54b7f655f6-8kgd8 | kube-apiserver | false | PodInitializing  |
-| 2026-06-24T18:03:55.540Z | Update | kube-apiserver-54b7f655f6-8kgd8 | kube-apiserver | false | running          |
+| firstSeen                | lastSeen                 | count | event  | podName                        | containerName  | ready | reason           |
+|--------------------------|--------------------------|-------|--------|--------------------------------|----------------|-------|------------------|
+| 2026-06-24T17:58:48.375Z | 2026-06-24T17:58:48.375Z | 1     | Add    | kube-apiserver-54b7f655f6-tn2dc |                |       |                  |
+| 2026-06-24T18:00:25.672Z | 2026-06-24T18:00:25.672Z | 1     | Update | kube-apiserver-dd7d46b5d-2pl4k | kube-apiserver | false | Completed        |
+| 2026-06-24T18:00:25.807Z | 2026-06-24T18:00:33.891Z | 5     | Update | kube-apiserver-54b7f655f6-tn2dc | kube-apiserver | false | PodInitializing  |
+| 2026-06-24T18:00:26.005Z | 2026-06-24T18:00:26.005Z | 1     | Delete | kube-apiserver-dd7d46b5d-2pl4k | kube-apiserver | false | Completed        |
+| 2026-06-24T18:00:38.033Z | 2026-06-24T18:00:38.033Z | 1     | Update | kube-apiserver-54b7f655f6-tn2dc | kube-apiserver | false | Running          |
+| 2026-06-24T18:00:47.823Z | 2026-06-24T18:00:47.823Z | 1     | Add    | kube-apiserver-54b7f655f6-qmpf7 |                |       |                  |
+| 2026-06-24T18:02:00.778Z | 2026-06-24T18:02:00.778Z | 1     | Update | kube-apiserver-dd7d46b5d-dd96n | kube-apiserver | false | Completed        |
+| 2026-06-24T18:02:00.900Z | 2026-06-24T18:02:16.601Z | 7     | Update | kube-apiserver-54b7f655f6-qmpf7 | kube-apiserver | false | PodInitializing  |
+| 2026-06-24T18:02:01.566Z | 2026-06-24T18:02:01.566Z | 1     | Delete | kube-apiserver-dd7d46b5d-dd96n | kube-apiserver | false | Completed        |
+| 2026-06-24T18:02:23.751Z | 2026-06-24T18:02:23.751Z | 1     | Update | kube-apiserver-54b7f655f6-qmpf7 | kube-apiserver | false | Running          |
+| 2026-06-24T18:02:32.411Z | 2026-06-24T18:02:32.411Z | 1     | Add    | kube-apiserver-54b7f655f6-8kgd8 |                |       |                  |
+| 2026-06-24T18:03:50.322Z | 2026-06-24T18:03:50.322Z | 1     | Update | kube-apiserver-dd7d46b5d-hpfdr | kube-apiserver | false | Completed        |
+| 2026-06-24T18:03:50.389Z | 2026-06-24T18:03:50.389Z | 1     | Delete | kube-apiserver-dd7d46b5d-hpfdr | kube-apiserver | false | Completed        |
+| 2026-06-24T18:03:52.589Z | 2026-06-24T18:03:54.542Z | 3     | Update | kube-apiserver-54b7f655f6-8kgd8 | kube-apiserver | false | PodInitializing  |
+| 2026-06-24T18:03:55.540Z | 2026-06-24T18:03:55.540Z | 1     | Update | kube-apiserver-54b7f655f6-8kgd8 | kube-apiserver | false | Running          |
 
 #### Proof 2: Log Snippet
 
 New-RS `54b7f655f6` pods logged sustained `etcd-client` dial errors; prior RS `dd7d46b5d` logged fewer:
 
 ```kql
+// manifest.json: hosted_control_plane_namespace
 let hcpNamespace = 'ocm-arohcpci01-2r4sj32f75bfmfa9m6rkupe7o982hqst-p2d8v9o7y9g8x5o';
+// manifest.json: kusto_cluster
 cluster('https://hcp-dev-us-2.eastus2.kusto.windows.net').database('HostedControlPlaneLogs').table('containerLogs')
+// manifest.json: time_window subset (upgrade rollout window)
 | where timestamp between (datetime(2026-06-24T17:56:00Z) .. datetime(2026-06-24T18:05:00Z))
 | where namespace_name == hcpNamespace
 | where pod_name has 'kube-apiserver'
@@ -236,9 +248,13 @@ cluster('https://hcp-dev-us-2.eastus2.kusto.windows.net').database('HostedContro
 Kubernetes Events on the first new-RS pod show **~97s** of `FailedScheduling` before assignment (**17:58:48Z**–**18:00:25Z**), then readiness probe HTTP **403** failures after containers started:
 
 ```kql
+// manifest.json: hosted_control_plane_namespace
 let hcpNamespace = 'ocm-arohcpci01-2r4sj32f75bfmfa9m6rkupe7o982hqst-p2d8v9o7y9g8x5o';
+// pod event query (Proof 1): first new-RS kube-apiserver pod
 let failingPod = 'kube-apiserver-54b7f655f6-tn2dc';
+// manifest.json: kusto_cluster
 cluster('https://hcp-dev-us-2.eastus2.kusto.windows.net').database('ServiceLogs').table('kubernetesEvents')
+// manifest.json: time_window subset (upgrade rollout window)
 | where timestamp between (datetime(2026-06-24T17:55:00Z) .. datetime(2026-06-24T18:05:00Z))
 | where eventNamespace == hcpNamespace
 | where objectName == failingPod
@@ -277,9 +293,13 @@ kube-apiserver container logs during 17:56:00Z–18:05:00Z are dominated by `etc
 #### Proof 1: Log Snippet
 
 ```kql
+// manifest.json: hosted_control_plane_namespace
 let hcpNamespace = 'ocm-arohcpci01-2r4sj32f75bfmfa9m6rkupe7o982hqst-p2d8v9o7y9g8x5o';
+// pod event query (Proof 1): first new-RS kube-apiserver pod
 let failingPod = 'kube-apiserver-54b7f655f6-tn2dc';
+// manifest.json: kusto_cluster
 cluster('https://hcp-dev-us-2.eastus2.kusto.windows.net').database('HostedControlPlaneLogs').table('containerLogs')
+// manifest.json: time_window subset (upgrade rollout window)
 | where timestamp between (datetime(2026-06-24T17:56:00Z) .. datetime(2026-06-24T18:05:00Z))
 | where namespace_name == hcpNamespace
 | where pod_name == failingPod
@@ -311,8 +331,11 @@ cluster('https://hcp-dev-us-2.eastus2.kusto.windows.net').database('HostedContro
 etcd StatefulSet rolled during the forced upgrade:
 
 ```kql
+// manifest.json: hosted_control_plane_namespace
 let hcpNamespace = 'ocm-arohcpci01-2r4sj32f75bfmfa9m6rkupe7o982hqst-p2d8v9o7y9g8x5o';
+// manifest.json: kusto_cluster
 cluster('https://hcp-dev-us-2.eastus2.kusto.windows.net').database('ServiceLogs').table('kubernetesEvents')
+// manifest.json: time_window subset (upgrade rollout window)
 | where timestamp between (datetime(2026-06-24T17:55:00Z) .. datetime(2026-06-24T18:05:00Z))
 | where eventNamespace == hcpNamespace
 | where objectName in ('etcd-0', 'etcd-1', 'etcd-2')
@@ -352,8 +375,11 @@ The dial failures fit **upgrade churn** from the in-flight z-stream bump to 4.22
 `etcd-client` Service:
 
 ```kql
+// manifest.json: hosted_control_plane_namespace
 let hcpNamespace = 'ocm-arohcpci01-2r4sj32f75bfmfa9m6rkupe7o982hqst-p2d8v9o7y9g8x5o';
+// manifest.json: kusto_cluster
 cluster('https://hcp-dev-us-2.eastus2.kusto.windows.net').database('ServiceLogs').table('kubernetesEvents')
+// manifest.json: time_window subset (upgrade rollout window)
 | where timestamp between (datetime(2026-06-24T17:55:00Z) .. datetime(2026-06-24T18:05:00Z))
 | where eventNamespace == hcpNamespace
 | where objectKind == 'Service' and objectName == 'etcd-client'
@@ -371,8 +397,11 @@ No rows — no Service Events for `etcd-client` in this window.
 `etcd-client` Endpoints:
 
 ```kql
+// manifest.json: hosted_control_plane_namespace
 let hcpNamespace = 'ocm-arohcpci01-2r4sj32f75bfmfa9m6rkupe7o982hqst-p2d8v9o7y9g8x5o';
+// manifest.json: kusto_cluster
 cluster('https://hcp-dev-us-2.eastus2.kusto.windows.net').database('ServiceLogs').table('kubernetesEvents')
+// manifest.json: time_window subset (upgrade rollout window)
 | where timestamp between (datetime(2026-06-24T17:55:00Z) .. datetime(2026-06-24T18:05:00Z))
 | where eventNamespace == hcpNamespace
 | where objectKind == 'Endpoints' and objectName == 'etcd-client'

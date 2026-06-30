@@ -55,10 +55,9 @@ The `kube-events` collector on each service and management cluster ingests Kuber
 this table in the Service database.
 
 This is not mgmt-agent output: K8s Events report API-level reasons (mount failures, scheduling, probes). Use mgmt-agent
-`pod event` logs when you need container waiting/termination timelines that Events do not capture. See
-[kubernetes-events.md](../exemplars/kubernetes-events.md) and [mgmt-agent-snapshots.md](../exemplars/mgmt-agent-snapshots.md).
+`pod event` logs when you need container waiting/termination timelines that Events do not capture.
 
-## mgmt-agent snapshots (management cluster)
+## mgmt-agent resource snapshots and pod state change logs (management cluster)
 
 mgmt-agent runs on each management cluster. Besides reconcilers (SWIFT NIC capacity on nodes, optional
 kube-state-metrics per HCP), it includes two **watch-only** informers that log full object snapshots to
@@ -74,8 +73,6 @@ PodWatcher does not emit on field-level changes within the same state type (for 
 Both log from container `mgmt-agent-controller` into the **Service** Kusto database (`containerLogs` table,
 `cluster` = management cluster name). Fields include `log.event`, `log.namespace`, `log.name`, and a full
 `log.object` payload.
-
-Omitted from snapshot output — write scoped ad-hoc queries instead. See [mgmt-agent-event-logs.md](../exemplars/mgmt-agent-event-logs.md).
 
 ## Key Repositories
 
