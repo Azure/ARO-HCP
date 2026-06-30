@@ -60,4 +60,6 @@ resource roleAssignmentInternal 'Microsoft.Authorization/roleAssignments@2022-04
 }
 
 output monitorId string = useInternalApiVersion ? monitorInternal.id : monitor.id
-output monitorPrometheusQueryEndpoint string = useInternalApiVersion ? monitorInternal.properties.metrics.prometheusQueryEndpoint : monitor.properties.metrics.prometheusQueryEndpoint
+output monitorPrometheusQueryEndpoint string = useInternalApiVersion
+  ? monitorInternal.properties.metrics.prometheusQueryEndpoint
+  : monitor.properties.metrics.prometheusQueryEndpoint
