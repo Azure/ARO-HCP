@@ -311,7 +311,7 @@ spec:
 `
 	badAllowlist := []string{"Deployment/my-app/[bad"}
 	violations := checkPolicyViolations(manifest, badAllowlist, badAllowlist)
-	assert.Len(t, violations, 2) // Two errors: one for requests check, one for limits check
+	assert.Len(t, violations, 2)                                   // Two errors: one for requests check, one for limits check
 	assert.Contains(t, violations[0], "invalid allowlist pattern") // Error handling still works
 	assert.Contains(t, violations[1], "invalid allowlist pattern") // Error handling still works
 }
