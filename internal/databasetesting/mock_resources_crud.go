@@ -592,6 +592,56 @@ func (m *mockOperationCRUD) ListActiveOperations(options *database.ResourcesDBCl
 	return newMockIterator(ids, items)
 }
 
+func (m *mockOperationCRUD) ListByExternalID(externalID *azcorearm.ResourceID, includeNested bool) database.DBClientIterator[api.Operation] {
+	allDocs := m.client.GetAllDocuments()
+
+	var ids []string
+	var items []*api.Operation
+
+	for _, data := range allDocs {
+		var typedDoc database.TypedDocument
+		if err := json.Unmarshal(data, &typedDoc); err != nil {
+			continue
+		}
+
+		if !strings.EqualFold(typedDoc.ResourceType, api.OperationStatusResourceType.String()) {
+			continue
+		}
+
+		if typedDoc.ResourceID == nil {
+			continue
+		}
+
+		var cosmosObj database.GenericDocument[api.Operation]
+		if err := json.Unmarshal(data, &cosmosObj); err != nil {
+			continue
+		}
+
+		opExternalID := cosmosObj.Content.ExternalID
+		if opExternalID == nil {
+			continue
+		}
+
+		match := strings.EqualFold(opExternalID.String(), externalID.String())
+		if !match && includeNested {
+			match = strings.HasPrefix(strings.ToLower(opExternalID.String()), strings.ToLower(externalID.String())+"/")
+		}
+		if !match {
+			continue
+		}
+
+		internalObj, err := database.CosmosGenericToInternal(&cosmosObj)
+		if err != nil {
+			continue
+		}
+
+		ids = append(ids, typedDoc.ID)
+		items = append(items, internalObj)
+	}
+
+	return newMockIterator(ids, items)
+}
+
 var _ database.OperationCRUD = &mockOperationCRUD{}
 
 // mockSubscriptionCRUD implements database.ResourceCRUD[arm.Subscription, *arm.Subscription].

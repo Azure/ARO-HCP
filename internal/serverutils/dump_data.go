@@ -140,23 +140,16 @@ func DumpDataToLogger(
 	}
 
 	// dump all related operations, including the completed ones.
-	allOperationsForSubscription, err := resourcesDBClient.Operations(resourceID.SubscriptionID).List(ctx, nil)
-	if err != nil {
-		errs = append(errs, err)
+	allOperations := resourcesDBClient.Operations(resourceID.SubscriptionID).ListByExternalID(resourceID, true)
+	for _, operation := range allOperations.Items(ctx) {
+		logger.Info(fmt.Sprintf("dumping resourceID %v", operation.ResourceID),
+			"snapshotType", "cosmos",
+			"currentResourceID", resourceIDToString(operation.ResourceID),
+			"objectMetadata", ObjectMetadataForResourceID("operations", operation.ResourceID),
+			"content", operation,
+		)
 	}
-	resourceIDString := strings.ToLower(resourceID.String())
-	for _, operation := range allOperationsForSubscription.Items(ctx) {
-		currOperationTarget := strings.ToLower(operation.ExternalID.String())
-		if strings.HasPrefix(currOperationTarget, resourceIDString) {
-			logger.Info(fmt.Sprintf("dumping resourceID %v", operation.ResourceID),
-				"snapshotType", "cosmos",
-				"currentResourceID", resourceIDToString(operation.ResourceID),
-				"objectMetadata", ObjectMetadataForResourceID("operations", operation.ResourceID),
-				"content", operation,
-			)
-		}
-	}
-	if err := allOperationsForSubscription.GetError(); err != nil {
+	if err := allOperations.GetError(); err != nil {
 		errs = append(errs, err)
 	}
 
