@@ -1,6 +1,6 @@
 # cleanup-sweeper rg-ordered discovery policy (first matching rule wins).
 # - excludedResourceGroups: never candidates (see list below).
-# - Skip managed RGs (managedBy set).
+# - Skip managed RGs (managedBy alive).
 # - Skip *-shared-resources RGs.
 # - hcp-underlay-pers-*: delete after 15d if persist=true; after 2d if persist is absent or not "true".
 # - hcp-underlay-prow-*: delete after 6h (transitional, remove after rename rollout).
@@ -29,7 +29,7 @@ rgOrdered:
       match:
         any: true
       conditions:
-        managedBySet: true
+        managedByAlive: true
     - name: skip-shared-resources
       action: skip
       match:
