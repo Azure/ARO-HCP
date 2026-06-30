@@ -45,6 +45,9 @@ type SystemAdminCredentialRequest struct {
 - `SignedCertificate` - Base64-DER cert from the management cluster signer
 - `Conditions` - Standard `metav1.Conditions` tracking lifecycle
 - `RevokedAt` - Timestamp when revocation completed
+- `DeleteTimestamp` - Set when deletion has been requested; controllers use
+  this to drive teardown of associated kube-applier desires before removing
+  the credential request document itself
 
 ### Conditions instead of Phase
 
@@ -89,69 +92,87 @@ type SystemAdminCredentialsRevocation struct {
 
 ### Desire Scoping
 
-**Current approach:** Desires are created at the cluster scope and tracked via a
-list of references on the credential request document.
+Desire resources (ApplyDesire, ReadDesire, DeleteDesire) support being nested
+under `SystemAdminCredentialRequest` as a parent resource, in addition to
+cluster-scoped and node-pool-scoped nesting. This means resource IDs follow
+the pattern:
 
-**Future direction** (review feedback from deads2k): Desires should be scoped
-*under* the `SystemAdminCredentialRequest` (and `SystemAdminCredentialsRevocation`)
-types. This nesting:
+```
+/subscriptions/{sub}/resourceGroups/{rg}/providers/Microsoft.RedHatOpenShift/
+  hcpOpenShiftClusters/{cluster}/systemAdminCredentialRequests/{cred}/
+  applyDesires/{name}
+```
+
+**Why credential-request-scoped desires** (review feedback from deads2k):
+Nesting desires under the `SystemAdminCredentialRequest` parent:
 
 1. Makes cleanup automatic when the parent document is deleted
 2. Removes the need for an `OutstandingDesires` tracking field
 3. Lets controllers fire when desires change (informer watches on scoped desires)
 4. Makes it easy to find all desires for a specific credential request
 
-This requires kube-applier changes to support desire documents scoped under
-arbitrary parent types, which will be done in a follow-up PR.
+The kube-applier types (`registry.go`, `types_cosmosdata.go`) include
+`CredentialRequestScoped*ResourceType` constants and
+`ToCredentialRequestScoped*ResourceIDString` builder functions for all three
+desire types.
 
 ### Controller Pattern
 
-**Implemented** (review feedback from deads2k): All system-admin-credential
-controllers now fire on individual `SystemAdminCredentialRequest` informer
-events via `NewCredentialRequestWatchingController`, rather than watching
-cluster-level events and iterating over all credential requests per cluster.
+**Cluster-scoped controllers** (CABundleSync, ServingCAReadDesireCreator) use
+`ClusterWatchingController` because they operate on cluster-level data shared
+across all credential requests (e.g., serving CA bundle). They fire on cluster
+and ServiceProviderCluster informer events.
 
-This change was mandatory for two reasons:
+**Why ClusterWatchingController for these** (review feedback from deads2k):
+The CA bundle sync and serving CA read desire creator are inherently
+cluster-scoped operations. The serving CA is the same for all credential
+requests on a cluster. Using `CredentialRequestWatchingController` for them
+was incorrect — it would fire per-credential-request even though the work is
+identical regardless of which credential request triggered it.
 
-1. **Responsiveness**: The previous `ClusterWatchingController` pattern relied on
-   periodic cluster resync (1-minute intervals). With an 11-controller chain,
-   each waiting for the next resync cycle, the compound latency could easily
-   exceed 10 minutes — causing e2e timeouts. Informer-driven controllers fire
-   immediately when a credential request is created or updated.
+**Credential-scoped controllers** (DesiresCreator, ClusterDeletionCleanup,
+IssuanceObserver, etc.) use `CredentialRequestWatchingController` because
+they react to individual credential request lifecycle changes.
 
-2. **Correctness**: Controllers should react to the events they care about.
-   Credential lifecycle controllers care about credential request changes, not
-   cluster changes. Watching cluster events was an indirection that added
-   unnecessary coupling.
+### Cluster Create Operation Requires CA Bundle
 
-The `CredentialRequestWatchingController` pattern mirrors `ClusterWatchingController`
-but:
-- Watches the `SystemAdminCredentialRequest` informer instead of cluster informers
-- Uses `SystemAdminCredentialRequestKey` (subscription, RG, cluster, credential name)
-  instead of `HCPClusterKey`
-- Derives cluster identity from the credential request's parent resource ID
-- Optionally watches ReadDesire informer events (walking up to the credential
-  request parent type)
+The cluster create operation (`operationClusterCreate`) requires the
+`ServingCABundle` field on `ServiceProviderClusterStatus` to be populated
+before considering the cluster created. This ensures that the serving CA is
+available for building kubeconfigs before the cluster is marked as ready.
 
-Cluster-scoped controllers (CABundleSync, ServingCAReadDesireCreator,
-ClusterDeletionCleanup) also use this pattern. They receive credential request
-events but perform cluster-wide operations, which is idempotent — processing the
-same cluster-level operation multiple times (once per credential request) produces
-the same result.
+**Why this is a precondition** (review feedback from deads2k): Without the
+serving CA bundle, the frontend cannot construct valid kubeconfigs for system
+admin credential responses. Marking a cluster as created before the CA bundle
+is available would allow credential request operations to proceed but fail to
+produce usable kubeconfigs.
 
-### Cluster Deletion Cleanup
+### Credential Request Deletion via DeleteTimestamp
 
-**Current approach:** The cleanup controller walks each credential's tracked
-desires and issues delete desires for each apply desire.
+When a credential request needs to be cleaned up (during cluster deletion or
+revocation), the controller sets `Status.DeleteTimestamp` on the
+`SystemAdminCredentialRequest`. The `ClusterDeletionCleanup` controller then
+drives a 4-step teardown:
 
-**Future direction** (review feedback from deads2k): Use a DeletionTimestamp
-pattern. The revocation controller:
+1. **Delete ApplyDesires**: For each ApplyDesire matching the credential prefix,
+   create a corresponding DeleteDesire so the kube-applier removes the
+   management-cluster-side objects.
+2. **Wait for DeleteDesires**: Check that all DeleteDesires have the
+   `Successful=True` condition, indicating the kube-applier has confirmed
+   deletion on the management cluster.
+3. **Clean up DeleteDesires and ReadDesires**: Delete the completed DeleteDesires
+   and any credential-related ReadDesires.
+4. **Delete credential document**: Once all desires are cleaned up, delete the
+   `SystemAdminCredentialRequest` document itself.
 
-1. Sets a DeletionTimestamp on every `SystemAdminCredentialRequest`
-2. Each credential request's controller handles its own cleanup
-3. The revocation controller waits for all DeletionTimestamp'd requests to be
-   gone
-4. This is more natural and lets each credential request clean itself up
+**Why DeleteTimestamp** (review feedback from deads2k): This pattern is more
+natural than checking cluster-level deletion timestamps because:
+
+1. Each credential request drives its own cleanup independently
+2. The controller only needs to check one field (`Status.DeleteTimestamp`)
+   instead of correlating with cluster-level state
+3. It decouples credential cleanup from cluster deletion — revocation can
+   also use the same mechanism
 
 ### Lister-based Reads
 
@@ -177,19 +198,19 @@ let the informer re-trigger the controller, rather than propagating the error
 
 ## Controller List
 
-| # | Controller | Trigger | Purpose |
-|---|-----------|---------|---------|
-| 1 | DispatchRequestCredential | Operation (RequestCredential, Accepted) | Create credential request doc, generate keypair |
-| 2 | OperationRequestCredentialPoll | Operation (RequestCredential, non-terminal) | Map conditions to ARM provisioning state |
-| 3 | IssuanceObserver | CredentialRequest + ReadDesire informers | Watch CSR ReadDesire for signed cert |
-| 4 | DispatchRevokeCredentials | Operation (RevokeCredentials, Accepted) | Flip credentials to AwaitingRevocation, create CRR |
-| 5 | OperationRevokeCredentialsPoll | Operation (RevokeCredentials, Deleting) | Drive revocation phases |
-| 6 | ClusterDeletionCleanup | CredentialRequest + ReadDesire informers | Gate cluster deletion on credential cleanup |
-| 7 | PostIssuanceCleanup | CredentialRequest + ReadDesire informers | Tear down MC objects after issuance |
-| 8 | CABundleSync | CredentialRequest + ReadDesire informers | Sync serving CA to ServiceProviderCluster |
-| 9 | RevokedGC | CredentialRequest informer (1h interval) | Delete revoked credential docs after 48h |
-| 10 | ServingCAReadDesireCreator | CredentialRequest + ReadDesire informers | Ensure serving CA ReadDesire exists |
-| 11 | DesiresCreator | CredentialRequest informer | Create CSR/CSRA/RBAC desires for pending requests |
+| # | Controller | Type | Trigger | Purpose |
+|---|-----------|------|---------|---------|
+| 1 | DispatchRequestCredential | Operation | Operation (RequestCredential, Accepted) | Create credential request doc, generate keypair |
+| 2 | OperationRequestCredentialPoll | Operation | Operation (RequestCredential, non-terminal) | Map conditions to ARM provisioning state |
+| 3 | IssuanceObserver | CredentialRequest | CredentialRequest + ReadDesire informers | Watch CSR ReadDesire for signed cert |
+| 4 | DispatchRevokeCredentials | Operation | Operation (RevokeCredentials, Accepted) | Flip credentials to AwaitingRevocation, create CRR |
+| 5 | OperationRevokeCredentialsPoll | Operation | Operation (RevokeCredentials, Deleting) | Drive revocation phases |
+| 6 | ClusterDeletionCleanup | CredentialRequest | CredentialRequest + ReadDesire informers | Gate cluster deletion on credential cleanup |
+| 7 | PostIssuanceCleanup | CredentialRequest | CredentialRequest + ReadDesire informers | Tear down MC objects after issuance |
+| 8 | CABundleSync | Cluster | Cluster + ReadDesire informers | Sync serving CA to ServiceProviderCluster |
+| 9 | RevokedGC | CredentialRequest | CredentialRequest informer (1h interval) | Delete revoked credential docs after 48h |
+| 10 | ServingCAReadDesireCreator | Cluster | Cluster + ReadDesire informers | Ensure serving CA ReadDesire exists |
+| 11 | DesiresCreator | CredentialRequest | CredentialRequest informer | Create CSR/CSRA/RBAC desires for pending requests |
 
 ## RBAC Object Ordering
 
@@ -200,7 +221,8 @@ exists but the signer lacks permission to act on it.
 
 ## Open Items
 
-1. Kube-applier changes to support desire scoping under SystemAdminCredentialRequest
+1. ~~Kube-applier changes to support desire scoping under SystemAdminCredentialRequest~~ — **Done** (resource type constants and ID builders added)
 2. ~~SystemAdminCredentialRequest informer-based controller pattern~~ — **Done**
-3. DeletionTimestamp-based cleanup replacing the explicit desire teardown
+3. ~~DeletionTimestamp-based cleanup replacing the explicit desire teardown~~ — **Done** (DeleteTimestamp field added, controller updated)
 4. Migration path from Phase-based documents to Conditions-based documents
+5. Wire credential-scoped desire CRUD into controllers (currently desires are cluster-scoped at the Cosmos CRUD level)
