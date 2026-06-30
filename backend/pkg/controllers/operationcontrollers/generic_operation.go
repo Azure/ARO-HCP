@@ -78,12 +78,18 @@ func NewGenericOperationController(
 
 	// this happens when unit tests don't want triggering.  This isn't beautiful, but fails to do nothing which is pretty safe.
 	if activeOperationInformer != nil {
+		logger := utils.DefaultLogger()
+		logger = logger.WithValues(
+			utils.LogValues{}.AddControllerName(c.name)...,
+		)
+
 		_, err := activeOperationInformer.AddEventHandlerWithOptions(
 			cache.ResourceEventHandlerFuncs{
 				AddFunc:    c.enqueueAdd,
 				UpdateFunc: c.enqueueUpdate,
 			},
 			cache.HandlerOptions{
+				Logger:       &logger,
 				ResyncPeriod: ptr.To(activeOperationScanInterval),
 			})
 		if err != nil {
