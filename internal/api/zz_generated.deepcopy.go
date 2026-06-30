@@ -1867,6 +1867,10 @@ func (in *SystemAdminCredentialRequestStatus) DeepCopyInto(out *SystemAdminCrede
 		in, out := &in.RevokedAt, &out.RevokedAt
 		*out = (*in).DeepCopy()
 	}
+	if in.DeleteTimestamp != nil {
+		in, out := &in.DeleteTimestamp, &out.DeleteTimestamp
+		*out = (*in).DeepCopy()
+	}
 	return
 }
 
