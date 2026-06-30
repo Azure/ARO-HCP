@@ -349,7 +349,10 @@ func (c *ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPITyp
 		logger.Info("skipping document", "instanceVersion", internalObj.GetInstanceVersion(), "initialInstanceVersion", initialInstanceVersion)
 		return nil
 	}
-	logger.Info("delivering change feed item")
+	logger.Info("delivering change feed item",
+		"content", cosmosObj,
+		"internalObj", internalObj,
+	)
 	c.resourceIDToInstanceVersion.Store(canonicalResourceID, internalObj.GetInstanceVersion())
 
 	watchEvent := watch.Event{
