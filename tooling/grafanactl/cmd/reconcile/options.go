@@ -16,7 +16,9 @@ package reconcile
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net/http"
 	"sort"
 	"strings"
 
@@ -26,6 +28,7 @@ import (
 	"github.com/Azure/ARO-Tools/tools/cmdutils"
 	"github.com/Azure/ARO-Tools/tools/grafanactl/cmd/base"
 	"github.com/Azure/ARO-Tools/tools/grafanactl/cmd/modify"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/dashboard/armdashboard/v2"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/monitor/armmonitor"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armsubscriptions"
@@ -156,6 +159,26 @@ func (o *CompletedGrafanaOptions) Run(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+
+	// Safety guard: if discovery returned no Azure Monitor Workspaces (for
+	// example a transient permission or listing glitch), refuse to push an
+	// empty integration set onto a Grafana that already has integrations, which
+	// would silently wipe them. A genuine first-time create (the Grafana does
+	// not exist yet) is still allowed to proceed with an empty set.
+	if len(workspaceIDs) == 0 {
+		existing, err := o.grafanaClient.Get(ctx, o.ResourceGroup, o.GrafanaName, nil)
+		if err != nil {
+			var respErr *azcore.ResponseError
+			if !errors.As(err, &respErr) || respErr.StatusCode != http.StatusNotFound {
+				return fmt.Errorf("failed to get existing Managed Grafana: %w", err)
+			}
+			logger.Info("No Azure Monitor Workspaces discovered and Grafana does not exist yet; proceeding with first-time create")
+		} else if count := existingIntegrationCount(existing.ManagedGrafana); count > 0 {
+			logger.Info("No Azure Monitor Workspaces discovered but existing Grafana has integrations; skipping update to avoid wiping them", "existing-integration-count", count)
+			return nil
+		}
+	}
+
 	if o.DryRun {
 		logger.Info("Dry run - would create or update Managed Grafana", "workspace-count", len(workspaceIDs))
 		return nil
@@ -182,6 +205,15 @@ func (o *CompletedGrafanaOptions) Run(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+// existingIntegrationCount returns the number of Azure Monitor Workspace
+// integrations currently configured on the given Managed Grafana resource.
+func existingIntegrationCount(grafana armdashboard.ManagedGrafana) int {
+	if grafana.Properties == nil || grafana.Properties.GrafanaIntegrations == nil {
+		return 0
+	}
+	return len(grafana.Properties.GrafanaIntegrations.AzureMonitorWorkspaceIntegrations)
 }
 
 func (o *CompletedGrafanaOptions) discoverWorkspaceIDs(ctx context.Context, logger logr.Logger) ([]string, error) {

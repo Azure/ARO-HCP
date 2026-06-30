@@ -31,6 +31,7 @@ func NewReconcileCommand(group string) (*cobra.Command, error) {
 		Use:   "grafana",
 		Short: "Reconcile an Azure Managed Grafana instance",
 		Long:  "Create or update an Azure Managed Grafana instance, discover all succeeded Azure Monitor Workspaces, and reconcile Azure Monitor Workspace integrations.",
+		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return opts.Run(cmd.Context())
 		},
