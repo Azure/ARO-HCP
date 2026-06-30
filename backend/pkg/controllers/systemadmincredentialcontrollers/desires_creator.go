@@ -201,7 +201,7 @@ func (c *desiresCreator) ensureDesires(
 			}
 			dName := rbacSpec.desireName + suffix
 			ref := targetRefForClientObject(obj)
-			if err := c.createApplyDesire(ctx, applyCRUD, key, dName, mcResourceID, ref, obj); err != nil {
+			if err := c.ensureApplyDesire(ctx, applyCRUD, key, dName, mcResourceID, ref, obj); err != nil {
 				return err
 			}
 		}
@@ -213,7 +213,7 @@ func (c *desiresCreator) ensureDesires(
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to build CSR: %w", err))
 	}
-	if err := c.createApplyDesire(ctx, applyCRUD, key, csrDesireName, mcResourceID, csrTarget(csrObj), csrObj); err != nil {
+	if err := c.ensureApplyDesire(ctx, applyCRUD, key, csrDesireName, mcResourceID, csrTarget(csrObj), csrObj); err != nil {
 		return err
 	}
 	logger.Info("created CSR ApplyDesire", "credential", credName)
@@ -221,7 +221,7 @@ func (c *desiresCreator) ensureDesires(
 	// 5. CSRA ApplyDesire
 	csraDesireName := fmt.Sprintf("systemAdminCredentialCSRA-%s", credName)
 	csraObj := systemadmincredential.BuildCSRA(owner, credName, hcpNamespace)
-	if err := c.createApplyDesire(ctx, applyCRUD, key, csraDesireName, mcResourceID,
+	if err := c.ensureApplyDesire(ctx, applyCRUD, key, csraDesireName, mcResourceID,
 		kubeapplier.ResourceReference{
 			Group:     "certificates.hypershift.openshift.io",
 			Version:   "v1alpha1",
@@ -234,7 +234,7 @@ func (c *desiresCreator) ensureDesires(
 
 	// 6. CSR ReadDesire
 	csrReadDesireName := maestrohelpers.ReadDesireNameForSystemAdminCredentialRequestCSR(credName)
-	if err := c.createReadDesire(ctx, readCRUD, key, csrReadDesireName, mcResourceID, kubeapplier.ResourceReference{
+	if err := c.ensureReadDesire(ctx, readCRUD, key, csrReadDesireName, mcResourceID, kubeapplier.ResourceReference{
 		Group:    "certificates.k8s.io",
 		Version:  "v1",
 		Resource: "certificatesigningrequests",
@@ -247,7 +247,7 @@ func (c *desiresCreator) ensureDesires(
 	return nil
 }
 
-func (c *desiresCreator) createApplyDesire(
+func (c *desiresCreator) ensureApplyDesire(
 	ctx context.Context,
 	crud database.ResourceCRUD[kubeapplier.ApplyDesire, *kubeapplier.ApplyDesire],
 	key controllerutils.SystemAdminCredentialRequestKey,
@@ -283,7 +283,7 @@ func (c *desiresCreator) createApplyDesire(
 	return nil
 }
 
-func (c *desiresCreator) createReadDesire(
+func (c *desiresCreator) ensureReadDesire(
 	ctx context.Context,
 	crud database.ResourceCRUD[kubeapplier.ReadDesire, *kubeapplier.ReadDesire],
 	key controllerutils.SystemAdminCredentialRequestKey,
