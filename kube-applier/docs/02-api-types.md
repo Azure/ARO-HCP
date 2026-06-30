@@ -11,6 +11,13 @@ The package already exists with three minimal types:
 Each embeds `api.CosmosMetadata` and exposes a `Spec` and `Status`. The
 `Status.Conditions` is `[]metav1.Condition`.
 
+`ApplyDesireStatus` also carries an `AppliedKubeGeneration *int64` field.
+After a successful server-side apply, this records the `metadata.generation`
+of the Kubernetes object returned by the apply call. On failure the field is
+set to `nil`, so consumers can distinguish &ldquo;last apply succeeded and
+the kube object is at generation N&rdquo; from &ldquo;last apply
+failed&rdquo;.
+
 Reference patterns to follow:
 
 - Deepcopy markers: `internal/api/types_management_cluster_content.go:24` and
