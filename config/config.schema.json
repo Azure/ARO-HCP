@@ -1347,6 +1347,10 @@
               "maxLength": 127,
               "pattern": "^[a-zA-Z0-9-]+$"
             },
+            "san": {
+              "type": "string",
+              "description": "SAN and CN for the sessiongate ingress certificate"
+            },
             "issuer": {
               "$ref": "#/definitions/certificateIssuer"
             },
@@ -1357,6 +1361,7 @@
           "additionalProperties": false,
           "required": [
             "name",
+            "san",
             "issuer",
             "contentType"
           ]
@@ -1505,6 +1510,10 @@
               "maxLength": 127,
               "pattern": "^[a-zA-Z0-9-]+$"
             },
+            "san": {
+              "type": "string",
+              "description": "SAN and CN for the admin API ingress certificate"
+            },
             "issuer": {
               "$ref": "#/definitions/certificateIssuer"
             },
@@ -1515,6 +1524,7 @@
           "additionalProperties": false,
           "required": [
             "name",
+            "san",
             "issuer",
             "contentType"
           ]
@@ -1591,6 +1601,10 @@
               "maxLength": 127,
               "pattern": "^[a-zA-Z0-9-]+$"
             },
+            "san": {
+              "type": "string",
+              "description": "SAN and CN for the frontend ingress certificate"
+            },
             "issuer": {
               "$ref": "#/definitions/certificateIssuer"
             },
@@ -1601,6 +1615,7 @@
           "additionalProperties": false,
           "required": [
             "name",
+            "san",
             "issuer",
             "contentType"
           ]
@@ -3503,5 +3518,19 @@
     "acrDNSSuffix",
     "e2e",
     "entraAppOwnerIds"
+  ],
+  "x-cel-validations": [
+    {
+      "rule": "self.frontend.cert.san == 'rp.' + self.dns.regionalSubdomain + '.' + self.dns.svcParentZoneName",
+      "message": "frontend.cert.san must equal 'rp.' + dns.regionalSubdomain + '.' + dns.svcParentZoneName"
+    },
+    {
+      "rule": "self.adminApi.cert.san == 'admin.' + self.dns.regionalSubdomain + '.' + self.dns.svcParentZoneName",
+      "message": "adminApi.cert.san must equal 'admin.' + dns.regionalSubdomain + '.' + dns.svcParentZoneName"
+    },
+    {
+      "rule": "self.sessiongate.cert.san == 'sessiongate.' + self.dns.regionalSubdomain + '.' + self.dns.svcParentZoneName",
+      "message": "sessiongate.cert.san must equal 'sessiongate.' + dns.regionalSubdomain + '.' + dns.svcParentZoneName"
+    }
   ]
 }

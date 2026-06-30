@@ -311,6 +311,9 @@ param regionalSvcDNSZoneName string
 @description('Frontend Ingress Certificate Name')
 param frontendIngressCertName string
 
+@description('The SAN and CN for the frontend ingress certificate')
+param frontendIngressCertSAN string
+
 @description('The name of the frontend managed identity')
 param frontendMIName string
 
@@ -408,6 +411,9 @@ param adminApiServiceAccountName string
 @description('The name of the Admin API certificate')
 param adminApiIngressCertName string
 
+@description('The SAN and CN for the admin API ingress certificate')
+param adminApiIngressCertSAN string
+
 @description('The name of the Fleet managed identity')
 param fleetMIName string
 
@@ -452,6 +458,9 @@ param sessiongateServiceAccountName string
 
 @description('The name of the Session Gate ingress certificate')
 param sessiongateIngressCertName string
+
+@description('The SAN and CN for the sessiongate ingress certificate')
+param sessiongateIngressCertSAN string
 
 resource serviceKeyVault 'Microsoft.KeyVault/vaults@2024-04-01-preview' existing = {
   name: serviceKeyVaultName
@@ -1015,7 +1024,7 @@ module eventGrindPrivateEndpoint '../modules/private-endpoint.bicep' = {
 //   F R O N T E N D
 //
 
-var frontendDnsName = 'rp'
+var frontendDns = res.dnsRecordRefFromFqdn(frontendIngressCertSAN)
 
 module frontendIngressCertCSIAccess '../modules/keyvault/keyvault-secret-access.bicep' = {
   name: 'aks-svc-kv-access-${frontendIngressCertName}'
@@ -1032,8 +1041,8 @@ module frontendDNS '../modules/dns/a-record.bicep' = {
   name: 'frontend-dns'
   scope: resourceGroup(regionalResourceGroup)
   params: {
-    zoneName: regionalSvcDNSZoneName
-    recordName: frontendDnsName
+    zoneName: frontendDns.zoneName
+    recordName: frontendDns.recordName
     ipAddress: istioIngressGatewayIPAddress.outputs.ipAddress
     ttl: 300
   }
@@ -1043,7 +1052,7 @@ module frontendDNS '../modules/dns/a-record.bicep' = {
 //   A D M I N   A P I
 //
 
-var adminApiDnsName = 'admin'
+var adminApiDns = res.dnsRecordRefFromFqdn(adminApiIngressCertSAN)
 
 module adminApiIngressCertCSIAccess '../modules/keyvault/keyvault-secret-access.bicep' = {
   name: 'aks-svc-kv-access-${adminApiIngressCertName}'
@@ -1060,8 +1069,8 @@ module adminApiDNS '../modules/dns/a-record.bicep' = {
   name: 'admin-api-dns'
   scope: resourceGroup(regionalResourceGroup)
   params: {
-    zoneName: regionalSvcDNSZoneName
-    recordName: adminApiDnsName
+    zoneName: adminApiDns.zoneName
+    recordName: adminApiDns.recordName
     ipAddress: opsIngressGatewayIPAddress.outputs.ipAddress
     ttl: 300
   }
@@ -1071,7 +1080,7 @@ module adminApiDNS '../modules/dns/a-record.bicep' = {
 //   S E S S I O N G A T E
 //
 
-var sessiongateDnsName = 'sessiongate'
+var sessiongateDns = res.dnsRecordRefFromFqdn(sessiongateIngressCertSAN)
 
 module sessiongateIngressCertCSIAccess '../modules/keyvault/keyvault-secret-access.bicep' = {
   name: 'aksSPCRead-${sessiongateIngressCertName}'
@@ -1088,8 +1097,8 @@ module sessiongateDNS '../modules/dns/a-record.bicep' = {
   name: 'sessiongate-dns'
   scope: resourceGroup(regionalResourceGroup)
   params: {
-    zoneName: regionalSvcDNSZoneName
-    recordName: sessiongateDnsName
+    zoneName: sessiongateDns.zoneName
+    recordName: sessiongateDns.recordName
     ipAddress: opsIngressGatewayIPAddress.outputs.ipAddress
     ttl: 300
   }

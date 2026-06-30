@@ -57,6 +57,7 @@ param sessiongateMIName = '{{ .sessiongate.managedIdentityName }}'
 param sessiongateNamespace = '{{ .sessiongate.k8s.namespace }}'
 param sessiongateServiceAccountName = '{{ .sessiongate.k8s.serviceAccountName }}'
 param sessiongateIngressCertName = '{{ .sessiongate.cert.name }}'
+param sessiongateIngressCertSAN = '{{ .sessiongate.cert.san }}'
 
 param maestroMIName = '{{ .maestro.server.managedIdentityName }}'
 param maestroNamespace = '{{ .maestro.server.k8s.namespace }}'
@@ -106,6 +107,7 @@ param adminApiMIName = '{{ .adminApi.managedIdentityName }}'
 param adminApiNamespace = '{{ .adminApi.k8s.namespace }}'
 param adminApiServiceAccountName = '{{ .adminApi.k8s.serviceAccountName }}'
 param adminApiIngressCertName = '{{ .adminApi.cert.name }}'
+param adminApiIngressCertSAN = '{{ .adminApi.cert.san }}'
 
 param fleetMIName = '{{ .fleet.managedIdentityName }}'
 param fleetNamespace = '{{ .fleet.k8s.namespace }}'
@@ -138,6 +140,7 @@ param regionalSvcDNSZoneName = '{{ .dns.regionalSubdomain }}.{{ .dns.svcParentZo
 param regionalResourceGroup = '{{ .regionRG }}'
 
 param frontendIngressCertName = '{{ .frontend.cert.name }}'
+param frontendIngressCertSAN = '{{ .frontend.cert.san }}'
 param genevaActionsServiceTag = '{{ .geneva.actions.serviceTag }}'
 param sreServiceTag = '{{ .administration.sreServiceTag }}'
 

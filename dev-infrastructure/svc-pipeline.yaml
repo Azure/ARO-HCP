@@ -178,11 +178,11 @@ resourceGroups:
     contentType:
       configRef: frontend.cert.contentType
     san:
-      value: 'rp.{{ .dns.regionalSubdomain }}.{{ .dns.svcParentZoneName }}'
+      configRef: frontend.cert.san
     issuer:
       configRef: frontend.cert.issuer
     commonName:
-      value: 'rp.{{ .dns.regionalSubdomain }}.{{ .dns.svcParentZoneName }}'
+      configRef: frontend.cert.san
     dependsOn:
     - resourceGroup: service
       step: infra-output
@@ -214,11 +214,11 @@ resourceGroups:
     contentType:
       configRef: adminApi.cert.contentType
     san:
-      value: 'admin.{{ .dns.regionalSubdomain }}.{{ .dns.svcParentZoneName }}'
+      configRef: adminApi.cert.san
     issuer:
       configRef: adminApi.cert.issuer
     commonName:
-      value: 'admin.{{ .dns.regionalSubdomain }}.{{ .dns.svcParentZoneName }}'
+      configRef: adminApi.cert.san
     dependsOn:
     - resourceGroup: service
       step: infra-output
@@ -250,11 +250,11 @@ resourceGroups:
     contentType:
       configRef: sessiongate.cert.contentType
     san:
-      value: 'sessiongate.{{ .dns.regionalSubdomain }}.{{ .dns.svcParentZoneName }}'
+      configRef: sessiongate.cert.san
     issuer:
       configRef: sessiongate.cert.issuer
     commonName:
-      value: 'sessiongate.{{ .dns.regionalSubdomain }}.{{ .dns.svcParentZoneName }}'
+      configRef: sessiongate.cert.san
     dependsOn:
     - resourceGroup: service
       step: infra-output

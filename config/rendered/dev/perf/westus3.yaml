@@ -35,6 +35,7 @@ adminApi:
     contentType: x-pkcs12
     issuer: Self
     name: admin-api-cert-perf-usw3ptest
+    san: admin.usw3ptest.hcpsvc.osadev.cloud
   image:
     digest: sha256:6f7cd7e77ae5ca7cf9231b9479211a0430a071c763d9540d769a2f40d9d78c57
     registry: arohcpsvcdev.azurecr.io
@@ -281,6 +282,7 @@ frontend:
     contentType: x-pkcs12
     issuer: Self
     name: frontend-cert-perf-usw3ptest
+    san: rp.usw3ptest.hcpsvc.osadev.cloud
   cosmosDB:
     billingContainerMaxScale: 4000
     disableLocalAuth: true
@@ -898,6 +900,7 @@ sessiongate:
     contentType: x-pkcs12
     issuer: Self
     name: sessiongate-cert-perf-usw3ptest
+    san: sessiongate.usw3ptest.hcpsvc.osadev.cloud
   image:
     digest: sha256:df780df7ce54fbf58824258c44fdb1d135687c24f232440355f4e317c3af3cde
     registry: arohcpsvcdev.azurecr.io
