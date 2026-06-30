@@ -38,12 +38,14 @@ func TestRevokedGC_SyncOnce(t *testing.T) {
 
 	tests := []struct {
 		name        string
+		credName    string
 		setupDB     func(db *databasetesting.MockResourcesDBClient)
 		expectError bool
 		verify      func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient)
 	}{
 		{
-			name: "deletes credential revoked more than 48h ago",
+			name:     "deletes credential revoked more than 48h ago",
+			credName: "old-revoked",
 			setupDB: func(db *databasetesting.MockResourcesDBClient) {
 				revokedAt := metav1.NewTime(fixedTime.Add(-49 * time.Hour))
 				createTestCredentialRequest(t, db, "old-revoked",
@@ -64,7 +66,8 @@ func TestRevokedGC_SyncOnce(t *testing.T) {
 			},
 		},
 		{
-			name: "does not delete credential revoked less than 48h ago",
+			name:     "does not delete credential revoked less than 48h ago",
+			credName: "recent-revoked",
 			setupDB: func(db *databasetesting.MockResourcesDBClient) {
 				revokedAt := metav1.NewTime(fixedTime.Add(-24 * time.Hour))
 				createTestCredentialRequest(t, db, "recent-revoked",
@@ -85,7 +88,8 @@ func TestRevokedGC_SyncOnce(t *testing.T) {
 			},
 		},
 		{
-			name: "skips non-revoked credentials",
+			name:     "skips non-revoked credentials",
+			credName: "issued-cred",
 			setupDB: func(db *databasetesting.MockResourcesDBClient) {
 				createTestCredentialRequest(t, db, "issued-cred",
 					withCondition(api.SystemAdminCredentialRequestConditionIssued))
@@ -104,7 +108,8 @@ func TestRevokedGC_SyncOnce(t *testing.T) {
 			},
 		},
 		{
-			name: "skips revoked credentials without RevokedAt",
+			name:     "skips revoked credentials without RevokedAt",
+			credName: "revoked-no-ts",
 			setupDB: func(db *databasetesting.MockResourcesDBClient) {
 				createTestCredentialRequest(t, db, "revoked-no-ts",
 					withCondition(api.SystemAdminCredentialRequestConditionRevoked))
@@ -124,6 +129,7 @@ func TestRevokedGC_SyncOnce(t *testing.T) {
 		},
 		{
 			name:        "no credentials returns nil",
+			credName:    "nonexistent",
 			setupDB:     func(db *databasetesting.MockResourcesDBClient) {},
 			expectError: false,
 		},
@@ -141,10 +147,11 @@ func TestRevokedGC_SyncOnce(t *testing.T) {
 				resourcesDBClient: db,
 			}
 
-			key := controllerutils.HCPClusterKey{
+			key := controllerutils.SystemAdminCredentialRequestKey{
 				SubscriptionID:    testSubscriptionID,
 				ResourceGroupName: testResourceGroupName,
 				HCPClusterName:    testClusterName,
+				CredentialName:    tc.credName,
 			}
 
 			err := syncer.SyncOnce(ctx, key)
