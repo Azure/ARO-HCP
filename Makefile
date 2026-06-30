@@ -358,6 +358,9 @@ rebase:
 validate-config-pipelines: $(YQ) $(TEMPLATIZE)
 	$(TEMPLATIZE) pipeline validate --topology-config-file topology.yaml --service-config-file "$(CONFIG_FILE)" --dev-mode --dev-region $(shell $(YQ) '.environments[] | select(.name == "dev") | .defaults.region' <tooling/templatize/settings.yaml) $(ONLY_CHANGED)
 
+validate-config-pipelines-dev-ci: $(YQ) $(TEMPLATIZE)
+	$(TEMPLATIZE) pipeline validate --topology-config-file topology-dev-ci.yaml --service-config-file config/config-dev-ci.yaml --dev-mode --dev-region $(shell $(YQ) '.environments[] | select(.name == "dev-ci") | .defaults.region' <tooling/templatize/settings.yaml)
+
 validate-changed-config-pipelines:
 	$(MAKE) validate-config-pipelines DEV_MODE="--dev-mode --dev-region uksouth" ONLY_CHANGED="--only-changed"
 
@@ -463,11 +466,11 @@ endif
 # Dev CI topology local run
 #
 dev-ci-local-run:
-	$(MAKE) local-run DEPLOY_ENV=dev-ci CONFIG_FILE=config/config-dev-ci.yaml TOPOLOGY_FILE=topology-dev-ci.yaml WHAT="--entrypoint Microsoft.Azure.ARO.HCP.DevCI.Infra" STEP_CACHE_DIR=""
+	$(MAKE) local-run DEPLOY_ENV=dev-ci CONFIG_FILE=config/config-dev-ci.yaml TOPOLOGY_FILE=topology-dev-ci.yaml WHAT="--entrypoint Microsoft.Azure.ARO.HCP.DevCI.Infra" STEP_CACHE_DIR="" EXTRA_ARGS="--skip-bicepparam-validation"
 .PHONY: dev-ci-local-run
 
 dev-ci-e2e-subscription-rbac-local-run:
-	$(MAKE) local-run DEPLOY_ENV=dev-ci CONFIG_FILE=config/config-dev-ci.yaml TOPOLOGY_FILE=topology-dev-ci.yaml WHAT="--service-group Microsoft.Azure.ARO.HCP.DevCI.E2ESubscriptionRBAC" STEP_CACHE_DIR=""
+	$(MAKE) local-run DEPLOY_ENV=dev-ci CONFIG_FILE=config/config-dev-ci.yaml TOPOLOGY_FILE=topology-dev-ci.yaml WHAT="--service-group Microsoft.Azure.ARO.HCP.DevCI.E2ESubscriptionRBAC" STEP_CACHE_DIR="" EXTRA_ARGS="--skip-bicepparam-validation"
 .PHONY: dev-ci-e2e-subscription-rbac-local-run
 
 #

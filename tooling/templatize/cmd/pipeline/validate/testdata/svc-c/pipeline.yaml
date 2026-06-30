@@ -1,0 +1,7 @@
+resourceGroups:
+- name: rg3
+  subscription: sub1
+  steps:
+  - name: run-script
+    action: Shell
+    command: echo hello

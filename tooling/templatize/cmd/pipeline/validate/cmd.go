@@ -59,5 +59,8 @@ func runValidate(ctx context.Context, opts *RawValidationOptions) error {
 	if err != nil {
 		return err
 	}
+	if err := completed.ValidateBicepparamTemplates(ctx); err != nil {
+		return err
+	}
 	return completed.ValidatePipelineConfigReferences(ctx)
 }

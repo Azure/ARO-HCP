@@ -1,0 +1,8 @@
+resourceGroups:
+- name: rg1
+  subscription: sub1
+  steps:
+  - name: deploy-with-loop
+    action: ARM
+    template: template.bicep
+    parameters: invalid.tmpl.bicepparam

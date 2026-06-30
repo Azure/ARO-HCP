@@ -91,7 +91,7 @@ func (a *armClient) runArmStep(ctx context.Context, options *StepRunOptions, rgN
 		return nil, nil, fmt.Errorf("failed to ensure resource group exists: %w", err)
 	}
 
-	return doWaitForDeployment(ctx, a.bicepClient, a.deploymentClient, a.getOperationsClient, a.subscriptionID, id.ServiceGroup, rgName, step, options.PipelineDirectory, options.StepCacheDir, options.Configuration, options.DeploymentTimeoutSeconds, options.RetryAttempt, state)
+	return doWaitForDeployment(ctx, a.bicepClient, a.deploymentClient, a.getOperationsClient, a.subscriptionID, id.ServiceGroup, rgName, step, options.PipelineDirectory, options.StepCacheDir, options.Configuration, options.DeploymentTimeoutSeconds, options.RetryAttempt, options.SkipBicepparamValidation, state)
 }
 
 func createError(errors armresources.ErrorResponse) error {
@@ -145,7 +145,7 @@ func armOutputFromOutputs(outputs any) ArmOutput {
 	return nil
 }
 
-func doWaitForDeployment(ctx context.Context, bicepClient *bicep.LSPClient, client *armresources.DeploymentsClient, getOperationsClient OperationsClientGetter, subscriptionID, sgName, rgName string, step *types.ARMStep, pipelineWorkingDir, stepCacheDir string, cfg configtypes.Configuration, timeoutSeconds int, retryAttempt int, state *ExecutionState) (Output, DetailsProducer, error) {
+func doWaitForDeployment(ctx context.Context, bicepClient *bicep.LSPClient, client *armresources.DeploymentsClient, getOperationsClient OperationsClientGetter, subscriptionID, sgName, rgName string, step *types.ARMStep, pipelineWorkingDir, stepCacheDir string, cfg configtypes.Configuration, timeoutSeconds int, retryAttempt int, skipBicepparamValidation bool, state *ExecutionState) (Output, DetailsProducer, error) {
 	logger := logr.FromContextOrDiscard(ctx)
 
 	state.RLock()
@@ -155,7 +155,7 @@ func doWaitForDeployment(ctx context.Context, bicepClient *bicep.LSPClient, clie
 		return nil, nil, fmt.Errorf("failed to get input values: %w", err)
 	}
 	// Transform Bicep to ARM
-	deploymentProperties, err := transformBicepToARMDeployment(ctx, bicepClient, step.Parameters, step.DeploymentMode, pipelineWorkingDir, cfg, inputValues)
+	deploymentProperties, err := transformBicepToARMDeployment(ctx, bicepClient, step.Parameters, step.DeploymentMode, pipelineWorkingDir, cfg, inputValues, skipBicepparamValidation)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to transform Bicep to ARM: %w", err)
 	}
