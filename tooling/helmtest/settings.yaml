@@ -52,8 +52,8 @@ ResourceMemoryLimitsAllowlist:
 - Deployment/kube-events/* # config sets memory: unlimited
 - Deployment/sessiongate/* # config sets memory: unlimited
 - Deployment/secrets-store-sync-controller-manager/provider-azure-installer # config sets memory: unlimited
-- Deployment/maestro/maestro-server # config sets memory: NONE
-- Deployment/maestro/maestro-server-migration # config sets memory: NONE (also missing requests)
+- Deployment/maestro/maestro-server # config sets memory: unlimited (template omits limits)
+- Deployment/maestro/maestro-server-migration # initContainer has no limits set (also missing requests)
 # Upstream charts - currently missing limits
 - DaemonSet/arobit-forwarder/mdsd-cert-watchdog # upstream arobit chart sets limits
 - Job/*/fleet-registration # fleet registration job name varies by environment

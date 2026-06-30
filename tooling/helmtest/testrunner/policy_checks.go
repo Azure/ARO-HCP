@@ -66,6 +66,17 @@ func matchesAllowlist(key string, patterns []string) (bool, error) {
 func checkPolicyViolations(manifest string, resourceRequestsAllowlist, resourceMemoryLimitsAllowlist []string) []string {
 	var violations []string
 
+	// Validate allowlist patterns once so malformed globs don't produce repeated errors per-container.
+	if _, err := matchesAllowlist("", resourceRequestsAllowlist); err != nil {
+		violations = append(violations, err.Error())
+	}
+	if _, err := matchesAllowlist("", resourceMemoryLimitsAllowlist); err != nil {
+		violations = append(violations, err.Error())
+	}
+	if len(violations) > 0 {
+		return violations
+	}
+
 	decoder := utilyaml.NewYAMLToJSONDecoder(strings.NewReader(manifest))
 	for {
 		var w workloadMeta
