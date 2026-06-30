@@ -70,6 +70,18 @@ param alertsEnabled bool
 @description('The minimum IcM severity level (highest priority) that alerts can fire at. Alerts more critical than this ceiling will be degraded to this value. 0 means no ceiling.')
 param alertSeverityCeiling int = 0
 
+@description('Whether the SRE IcM action group is wired to SRE alert rules. When false, SRE rules still evaluate in Prometheus but do not deliver to IcM.')
+param icmEnabledSRE bool = true
+
+@description('Whether the SL IcM action group is wired to SL alert rules. When false, SL rules still evaluate in Prometheus but do not deliver to IcM.')
+param icmEnabledSL bool = true
+
+@description('Whether the RP IcM action group is wired to RP alert rules. When false, RP rules still evaluate in Prometheus but do not deliver to IcM.')
+param icmEnabledRP bool = true
+
+@description('Whether the MSFT IcM action group is wired to MSFT alert rules. When false, MSFT rules still evaluate in Prometheus but do not deliver to IcM.')
+param icmEnabledMSFT bool = true
+
 module actionGroups '../modules/metrics/actiongroups.bicep' = if (manageConnection) {
   name: 'actionGroups'
   params: {
@@ -96,10 +108,11 @@ module actionGroups '../modules/metrics/actiongroups.bicep' = if (manageConnecti
   }
 }
 
-var slActionGroups = manageConnection ? [actionGroups.outputs.actionGroupsSL] : []
-var rpActionGroups = manageConnection ? [actionGroups.outputs.actionGroupsRP] : []
-var sreActionGroups = manageConnection ? [actionGroups.outputs.actionGroupsSRE] : []
-var msftActionGroups = manageConnection ? [actionGroups.outputs.actionGroupsMSFT] : []
+// Each lane's icmEnabled flag is a second guard so that lane's rules can evaluate without delivering IcM tickets
+var slActionGroups = manageConnection && icmEnabledSL ? [actionGroups.outputs.actionGroupsSL] : []
+var rpActionGroups = manageConnection && icmEnabledRP ? [actionGroups.outputs.actionGroupsRP] : []
+var sreActionGroups = manageConnection && icmEnabledSRE ? [actionGroups.outputs.actionGroupsSRE] : []
+var msftActionGroups = manageConnection && icmEnabledMSFT ? [actionGroups.outputs.actionGroupsMSFT] : []
 
 module serviceAlerts '../modules/metrics/service-rules.bicep' = {
   name: 'serviceAlerts'

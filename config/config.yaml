@@ -393,22 +393,29 @@ defaults:
       connectionName: ""
       connectionId: ""
       environment: ""
+      # enabled: per-lane switch. When false, the lane's action group is removed from
+      # its rule wiring, so those rules still evaluate in Prometheus but do not generate
+      # IcM tickets. Only has effect when manageConnection=true and alertsEnabled=true.
       sre:
+        enabled: true
         actionGroupName: ""
         actionGroupShortName: ""
         routingId: ""
         automitigationEnabled: ""
       sl:
+        enabled: true
         actionGroupName: ""
         actionGroupShortName: ""
         routingId: ""
         automitigationEnabled: ""
       rp:
+        enabled: true
         actionGroupName: ""
         actionGroupShortName: ""
         routingId: ""
         automitigationEnabled: ""
       msft:
+        enabled: true
         actionGroupName: ""
         actionGroupShortName: ""
         routingId: ""

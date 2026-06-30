@@ -136,6 +136,10 @@
     "icmConnection": {
       "type": "object",
       "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Whether this lane's IcM action group is wired to its alert rules. When false, the lane's rules still evaluate in Prometheus but do not generate IcM tickets. Only has effect when manageConnection is true and alertsEnabled is true. Defaults to true when omitted."
+        },
         "actionGroupName": {
           "type": "string",
           "description": "Name of the ICM Action Group"
