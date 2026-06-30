@@ -32,8 +32,10 @@ adminApi:
   audit:
     connectSocket: false
   cert:
+    contentType: x-pkcs12
     issuer: Self
     name: admin-api-cert-ci01-j7654321
+    san: admin.j7654321.hcpsvc.osadev.cloud
   image:
     digest: sha256:6f7cd7e77ae5ca7cf9231b9479211a0430a071c763d9540d769a2f40d9d78c57
     registry: arohcpsvcdev.azurecr.io
@@ -277,8 +279,10 @@ frontend:
   audit:
     connectSocket: false
   cert:
+    contentType: x-pkcs12
     issuer: Self
     name: frontend-cert-ci01-j7654321
+    san: rp.j7654321.hcpsvc.osadev.cloud
   cosmosDB:
     billingContainerMaxScale: 4000
     disableLocalAuth: true
@@ -895,8 +899,10 @@ serviceKeyVault:
   tagValue: service
 sessiongate:
   cert:
+    contentType: x-pkcs12
     issuer: Self
     name: sessiongate-cert-ci01-j7654321
+    san: sessiongate.j7654321.hcpsvc.osadev.cloud
   image:
     digest: sha256:df780df7ce54fbf58824258c44fdb1d135687c24f232440355f4e317c3af3cde
     registry: arohcpsvcdev.azurecr.io
