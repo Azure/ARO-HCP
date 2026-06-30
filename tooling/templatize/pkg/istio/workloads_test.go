@@ -408,9 +408,9 @@ func TestCreateRevisionConfigMap_UpdatePreservesExistingLabels(t *testing.T) {
 			Name:      "istio-shared-configmap-asm-1-29",
 			Namespace: "aks-istio-system",
 			Labels: map[string]string{
-				"istio.io/rev":               "asm-1-29",
+				"istio.io/rev":                 "asm-1-29",
 				"app.kubernetes.io/managed-by": "Helm",
-				"helm.sh/chart":               "istio-config-0.1.0",
+				"helm.sh/chart":                "istio-config-0.1.0",
 			},
 		},
 		Data: map[string]string{"mesh": "old-data"},
