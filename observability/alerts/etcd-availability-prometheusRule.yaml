@@ -29,7 +29,7 @@ spec:
         short_window: 5m
       annotations:
         summary: "etcd backend commit duration is high"
-        description: "etcd instance {{ $labels.instance }} has 99th percentile backend commit duration of {{ $value }}s (threshold: 25ms). Slow disk performance may impact write performance."
+        description: "etcd instance {{ $labels.instance }} has 99th percentile backend commit duration of {{ $value }}s (threshold: 25ms). Slow disk performance may impact write performance. Fast burn (1h/5m)."
         runbook_url: TBD
     - alert: EtcdBackendCommitDurationHigh6h30m
       expr: |
@@ -41,7 +41,7 @@ spec:
         short_window: 30m
       annotations:
         summary: "etcd backend commit duration is high"
-        description: "etcd instance {{ $labels.instance }} has 99th percentile backend commit duration of {{ $value }}s (threshold: 25ms). Slow disk performance may impact write performance."
+        description: "etcd instance {{ $labels.instance }} has 99th percentile backend commit duration of {{ $value }}s (threshold: 25ms). Slow disk performance may impact write performance. Medium burn (6h/30m)."
         runbook_url: TBD
     - alert: EtcdBackendCommitDurationHigh3d
       expr: |
@@ -52,7 +52,7 @@ spec:
         long_window: 3d
       annotations:
         summary: "etcd backend commit duration is chronically high"
-        description: "etcd instance {{ $labels.instance }} has 99th percentile backend commit duration of {{ $value }}s (threshold: 25ms). Slow disk performance may impact write performance."
+        description: "etcd instance {{ $labels.instance }} has 99th percentile backend commit duration of {{ $value }}s (threshold: 25ms). Slow disk performance may impact write performance. Slow burn (3d)."
         runbook_url: TBD
 
     # ----------------------------------------
@@ -68,7 +68,7 @@ spec:
         short_window: 5m
       annotations:
         summary: "etcd database fragmentation is low"
-        description: "etcd instance {{ $labels.instance }} database in-use ratio is {{ $value | humanizePercentage }} (threshold: 90%). Database compaction may be needed to reclaim space."
+        description: "etcd instance {{ $labels.instance }} database in-use ratio is {{ $value | humanizePercentage }} (threshold: 90%). Database compaction may be needed to reclaim space. Fast burn (1h/5m)."
         runbook_url: TBD
     - alert: EtcdDatabaseInUseSizeHigh6h30m
       expr: |
@@ -80,7 +80,7 @@ spec:
         short_window: 30m
       annotations:
         summary: "etcd database fragmentation is low"
-        description: "etcd instance {{ $labels.instance }} database in-use ratio is {{ $value | humanizePercentage }} (threshold: 90%). Database compaction may be needed to reclaim space."
+        description: "etcd instance {{ $labels.instance }} database in-use ratio is {{ $value | humanizePercentage }} (threshold: 90%). Database compaction may be needed to reclaim space. Medium burn (6h/30m)."
         runbook_url: TBD
     - alert: EtcdDatabaseInUseSizeHigh3d
       expr: |
@@ -91,7 +91,7 @@ spec:
         long_window: 3d
       annotations:
         summary: "etcd database fragmentation is chronically low"
-        description: "etcd instance {{ $labels.instance }} database in-use ratio is {{ $value | humanizePercentage }} (threshold: 90%). Database compaction may be needed to reclaim space."
+        description: "etcd instance {{ $labels.instance }} database in-use ratio is {{ $value | humanizePercentage }} (threshold: 90%). Database compaction may be needed to reclaim space. Slow burn (3d)."
         runbook_url: TBD
 
     # ----------------------------------------
@@ -107,7 +107,7 @@ spec:
         short_window: 5m
       annotations:
         summary: "etcd database size is too large"
-        description: "etcd instance {{ $labels.instance }} database size is {{ $value | humanize }}B (threshold: 8GB). Database may need compaction or quota increase."
+        description: "etcd instance {{ $labels.instance }} database size is {{ $value | humanize }}B (threshold: 8GB). Database may need compaction or quota increase. Fast burn (1h/5m)."
         runbook_url: TBD
     - alert: EtcdDatabaseSizeExceeded6h30m
       expr: |
@@ -119,7 +119,7 @@ spec:
         short_window: 30m
       annotations:
         summary: "etcd database size is too large"
-        description: "etcd instance {{ $labels.instance }} database size is {{ $value | humanize }}B (threshold: 8GB). Database may need compaction or quota increase."
+        description: "etcd instance {{ $labels.instance }} database size is {{ $value | humanize }}B (threshold: 8GB). Database may need compaction or quota increase. Medium burn (6h/30m)."
         runbook_url: TBD
     - alert: EtcdDatabaseSizeExceeded3d
       expr: |
@@ -130,7 +130,7 @@ spec:
         long_window: 3d
       annotations:
         summary: "etcd database size is chronically too large"
-        description: "etcd instance {{ $labels.instance }} database size is {{ $value | humanize }}B (threshold: 8GB). Database may need compaction or quota increase."
+        description: "etcd instance {{ $labels.instance }} database size is {{ $value | humanize }}B (threshold: 8GB). Database may need compaction or quota increase. Slow burn (3d)."
         runbook_url: TBD
 
     # ----------------------------------------
@@ -146,7 +146,7 @@ spec:
         short_window: 5m
       annotations:
         summary: "etcd cluster experiencing frequent leader changes"
-        description: "etcd instance {{ $labels.instance }} has seen {{ $value }} leader changes in the last 15 minutes (threshold: 3). This may indicate network issues or cluster instability."
+        description: "etcd instance {{ $labels.instance }} has seen {{ $value }} leader changes in the last 15 minutes (threshold: 3). This may indicate network issues or cluster instability. Fast burn (1h/5m)."
         runbook_url: TBD
     - alert: EtcdFrequentLeaderChanges6h30m
       expr: |
@@ -158,7 +158,7 @@ spec:
         short_window: 30m
       annotations:
         summary: "etcd cluster experiencing frequent leader changes"
-        description: "etcd instance {{ $labels.instance }} has seen {{ $value }} leader changes in the last 15 minutes (threshold: 3). This may indicate network issues or cluster instability."
+        description: "etcd instance {{ $labels.instance }} has seen {{ $value }} leader changes in the last 15 minutes (threshold: 3). This may indicate network issues or cluster instability. Medium burn (6h/30m)."
         runbook_url: TBD
     - alert: EtcdFrequentLeaderChanges3d
       expr: |
@@ -169,7 +169,7 @@ spec:
         long_window: 3d
       annotations:
         summary: "etcd cluster experiencing chronic frequent leader changes"
-        description: "etcd instance {{ $labels.instance }} has seen {{ $value }} leader changes in the last 15 minutes (threshold: 3). This may indicate network issues or cluster instability."
+        description: "etcd instance {{ $labels.instance }} has seen {{ $value }} leader changes in the last 15 minutes (threshold: 3). This may indicate network issues or cluster instability. Slow burn (3d)."
         runbook_url: TBD
 
     # ----------------------------------------
@@ -185,7 +185,7 @@ spec:
         short_window: 5m
       annotations:
         summary: "etcd peer round-trip time is high"
-        description: "etcd instance {{ $labels.instance }} has 99th percentile peer round-trip time of {{ $value }}s (threshold: 100ms). Network latency between peers may be affecting cluster performance."
+        description: "etcd instance {{ $labels.instance }} has 99th percentile peer round-trip time of {{ $value }}s (threshold: 100ms). Network latency between peers may be affecting cluster performance. Fast burn (1h/5m)."
         runbook_url: TBD
     - alert: EtcdPeerRoundTripTimeHigh6h30m
       expr: |
@@ -197,7 +197,7 @@ spec:
         short_window: 30m
       annotations:
         summary: "etcd peer round-trip time is high"
-        description: "etcd instance {{ $labels.instance }} has 99th percentile peer round-trip time of {{ $value }}s (threshold: 100ms). Network latency between peers may be affecting cluster performance."
+        description: "etcd instance {{ $labels.instance }} has 99th percentile peer round-trip time of {{ $value }}s (threshold: 100ms). Network latency between peers may be affecting cluster performance. Medium burn (6h/30m)."
         runbook_url: TBD
     - alert: EtcdPeerRoundTripTimeHigh3d
       expr: |
@@ -208,7 +208,7 @@ spec:
         long_window: 3d
       annotations:
         summary: "etcd peer round-trip time is chronically high"
-        description: "etcd instance {{ $labels.instance }} has 99th percentile peer round-trip time of {{ $value }}s (threshold: 100ms). Network latency between peers may be affecting cluster performance."
+        description: "etcd instance {{ $labels.instance }} has 99th percentile peer round-trip time of {{ $value }}s (threshold: 100ms). Network latency between peers may be affecting cluster performance. Slow burn (3d)."
         runbook_url: TBD
 
     # ----------------------------------------
@@ -224,7 +224,7 @@ spec:
         short_window: 5m
       annotations:
         summary: "etcd WAL fsync duration is high"
-        description: "etcd instance {{ $labels.instance }} has 99th percentile WAL fsync duration of {{ $value }}s (threshold: 10ms). Slow disk performance may impact cluster stability."
+        description: "etcd instance {{ $labels.instance }} has 99th percentile WAL fsync duration of {{ $value }}s (threshold: 10ms). Slow disk performance may impact cluster stability. Fast burn (1h/5m)."
         runbook_url: TBD
     - alert: EtcdWALFsyncDurationHigh6h30m
       expr: |
@@ -236,7 +236,7 @@ spec:
         short_window: 30m
       annotations:
         summary: "etcd WAL fsync duration is high"
-        description: "etcd instance {{ $labels.instance }} has 99th percentile WAL fsync duration of {{ $value }}s (threshold: 10ms). Slow disk performance may impact cluster stability."
+        description: "etcd instance {{ $labels.instance }} has 99th percentile WAL fsync duration of {{ $value }}s (threshold: 10ms). Slow disk performance may impact cluster stability. Medium burn (6h/30m)."
         runbook_url: TBD
     - alert: EtcdWALFsyncDurationHigh3d
       expr: |
@@ -247,5 +247,5 @@ spec:
         long_window: 3d
       annotations:
         summary: "etcd WAL fsync duration is chronically high"
-        description: "etcd instance {{ $labels.instance }} has 99th percentile WAL fsync duration of {{ $value }}s (threshold: 10ms). Slow disk performance may impact cluster stability."
+        description: "etcd instance {{ $labels.instance }} has 99th percentile WAL fsync duration of {{ $value }}s (threshold: 10ms). Slow disk performance may impact cluster stability. Slow burn (3d)."
         runbook_url: TBD

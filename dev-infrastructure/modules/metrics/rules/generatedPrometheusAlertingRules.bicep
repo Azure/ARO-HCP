@@ -1149,6 +1149,528 @@ resource adminApi 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' =
   }
 }
 
+resource backend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'backend'
+  location: location
+  properties: {
+    interval: 'PT1M'
+    rules: [
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'BackendControllerQueueDepthHigh'
+        enabled: true
+        labels: {
+          severity: 'warning'
+        }
+        annotations: {
+          correlationId: 'BackendControllerQueueDepthHigh/{{ $labels.cluster }}'
+          description: 'Backend controller workqueue {{ $labels.name }} has had a depth > 10 for more than 15 minutes, indicating work is accumulating faster than it can be processed.'
+          info: 'Backend controller workqueue {{ $labels.name }} has had a depth > 10 for more than 15 minutes, indicating work is accumulating faster than it can be processed.'
+          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/backend-tsg.html'
+          summary: 'Backend controller workqueue depth is high'
+          title: 'Backend controller workqueue depth is high'
+        }
+        expression: 'max by (name, cluster) (max without (prometheus_replica) (workqueue_depth{namespace="aro-hcp"})) > 10'
+        for: 'PT15M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'BackendControllerPanic'
+        enabled: true
+        labels: {
+          severity: 'warning'
+        }
+        annotations: {
+          correlationId: 'BackendControllerPanic/{{ $labels.cluster }}'
+          description: 'Backend controller {{ $labels.controller }} has panicked {{ printf "%.0f" $value }} time(s) in the last 5 minutes.'
+          info: 'Backend controller {{ $labels.controller }} has panicked {{ printf "%.0f" $value }} time(s) in the last 5 minutes.'
+          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/backend-tsg.html'
+          summary: 'Backend controller is panicking'
+          title: 'Backend controller is panicking'
+        }
+        expression: 'sum by (controller, cluster) (increase(panic_total{namespace="aro-hcp"}[5m])) > 0'
+        for: 'PT1M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'OrphanedMRGDetected'
+        enabled: true
+        labels: {
+          severity: 'warning'
+        }
+        annotations: {
+          correlationId: 'OrphanedMRGDetected/{{ $labels.cluster }}'
+          description: 'Found {{ printf "%.0f" $value }} orphaned cluster managed resource groups in location {{ $labels.location }} over the last 10 minutes. Orphaned MRGs should not exist - investigate why cluster deletion left resources behind.'
+          info: 'Found {{ printf "%.0f" $value }} orphaned cluster managed resource groups in location {{ $labels.location }} over the last 10 minutes. Orphaned MRGs should not exist - investigate why cluster deletion left resources behind.'
+          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/backend-tsg.html'
+          summary: 'Orphaned cluster managed resource groups detected'
+          title: 'Orphaned cluster managed resource groups detected'
+        }
+        expression: 'sum by (location, cluster) (max without (prometheus_replica) (increase(aro_hcp_orphaned_managed_resource_groups_found_total[10m]))) > 0'
+        for: 'PT5M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'OrphanedMRGDeletionFailing'
+        enabled: true
+        labels: {
+          severity: 'warning'
+        }
+        annotations: {
+          correlationId: 'OrphanedMRGDeletionFailing/{{ $labels.cluster }}'
+          description: 'Orphaned cluster managed resource group deletion has failed {{ printf "%.0f" $value }} time(s) in location {{ $labels.location }} over the last 10 minutes. Deletion should succeed - investigate Azure permissions or resource locks.'
+          info: 'Orphaned cluster managed resource group deletion has failed {{ printf "%.0f" $value }} time(s) in location {{ $labels.location }} over the last 10 minutes. Deletion should succeed - investigate Azure permissions or resource locks.'
+          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/backend-tsg.html'
+          summary: 'Orphaned cluster managed resource group deletion is failing'
+          title: 'Orphaned cluster managed resource group deletion is failing'
+        }
+        expression: 'sum by (location, cluster) (max without (prometheus_replica) (increase(aro_hcp_orphaned_managed_resource_groups_deletion_failed_total[10m]))) > 0'
+        for: 'PT10M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+    ]
+    scopes: [
+      azureMonitoring
+    ]
+  }
+}
+
+resource arohcpCsSloAvailabilityAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'arohcp_cs_slo_availability_alerts'
+  location: location
+  properties: {
+    interval: 'PT1M'
+    rules: [
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'ClustersServiceAPIAvailability5mto1hor30mto6hErrorBudgetBurn'
+        enabled: true
+        labels: {
+          long: '6h'
+          severity: 'warning'
+          short: '30m'
+        }
+        annotations: {
+          correlationId: 'ClustersServiceAPIAvailability5mto1hor30mto6hErrorBudgetBurn/{{ $labels.cluster }}'
+          description: 'API is rapidly burning its 28 day availability error budget (99% SLO)'
+          info: 'API is rapidly burning its 28 day availability error budget (99% SLO)'
+          runbook_url: 'aka.ms/arohcp-runbook/cs-slo-monitoring'
+          summary: 'Cluster Service API availability error budget burn rate is too high'
+          title: 'Cluster Service API availability error budget burn rate is too high'
+        }
+        expression: '(sum by (cluster, namespace, service) (max without (prometheus_replica) (availability:api_inbound_request_count:burnrate5m{namespace="clusters-service",service="clusters-service-metrics"})) > (13.44 * (1 - 0.99)) and sum by (cluster, namespace, service) (max without (prometheus_replica) (availability:api_inbound_request_count:burnrate1h{namespace="clusters-service",service="clusters-service-metrics"})) > (13.44 * (1 - 0.99))) or (sum by (cluster, namespace, service) (max without (prometheus_replica) (availability:api_inbound_request_count:burnrate30m{namespace="clusters-service",service="clusters-service-metrics"})) > (5.6 * (1 - 0.99)) and sum by (cluster, namespace, service) (max without (prometheus_replica) (availability:api_inbound_request_count:burnrate6h{namespace="clusters-service",service="clusters-service-metrics"})) > (5.6 * (1 - 0.99)))'
+        for: 'PT5M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'ClustersServiceAPIAvailability6hto3dErrorBudgetBurn'
+        enabled: true
+        labels: {
+          severity: 'warning'
+          slo: 'api-availability'
+        }
+        annotations: {
+          correlationId: 'ClustersServiceAPIAvailability6hto3dErrorBudgetBurn/{{ $labels.cluster }}'
+          description: 'This indicates persistent underperformance that needs investigation to avoid an SLO breach. The alert will fire if the current burn rate exceeds 0.934 times the allowed rate for the last 6 hours and 3 days.'
+          info: 'This indicates persistent underperformance that needs investigation to avoid an SLO breach. The alert will fire if the current burn rate exceeds 0.934 times the allowed rate for the last 6 hours and 3 days.'
+          runbook_url: 'aka.ms/arohcp-runbook/cs-slo-monitoring'
+          summary: 'API is slowly but steadily burning its 28 day availability error budget (99% SLO)'
+          title: 'API is slowly but steadily burning its 28 day availability error budget (99% SLO)'
+        }
+        expression: 'sum by (cluster, namespace, service) (max without (prometheus_replica) (availability:api_inbound_request_count:burnrate6h{namespace="clusters-service",service="clusters-service-metrics"})) > (0.934 * (1 - 0.99)) and sum by (cluster, namespace, service) (max without (prometheus_replica) (availability:api_inbound_request_count:burnrate3d{namespace="clusters-service",service="clusters-service-metrics"})) > (0.934 * (1 - 0.99))'
+        for: 'PT30M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'ClustersServiceAPILatency5mto1hor30mto6hP99ErrorBudgetBurn'
+        enabled: true
+        labels: {
+          long: '6h'
+          severity: 'warning'
+          short: '30m'
+          slo: 'api-latency-p99'
+        }
+        annotations: {
+          correlationId: 'ClustersServiceAPILatency5mto1hor30mto6hP99ErrorBudgetBurn/{{ $labels.cluster }}'
+          description: 'API is rapidly burning its 28 day 1s latency error budget (99% SLO)'
+          info: 'API is rapidly burning its 28 day 1s latency error budget (99% SLO)'
+          runbook_url: 'aka.ms/arohcp-runbook/cs-slo-monitoring'
+          summary: 'Cluster Service API P99 latency error budget burn rate is too high'
+          title: 'Cluster Service API P99 latency error budget burn rate is too high'
+        }
+        expression: '(sum by (cluster, namespace, service) (max without (prometheus_replica) (latency:api_inbound_request_duration:p99_burnrate5m{namespace="clusters-service",service="clusters-service-metrics"})) > (13.44 * (1 - 0.99)) and sum by (cluster, namespace, service) (max without (prometheus_replica) (latency:api_inbound_request_duration:p99_burnrate1h{namespace="clusters-service",service="clusters-service-metrics"})) > (13.44 * (1 - 0.99))) or (sum by (cluster, namespace, service) (max without (prometheus_replica) (latency:api_inbound_request_duration:p99_burnrate30m{namespace="clusters-service",service="clusters-service-metrics"})) > (5.6 * (1 - 0.99)) and sum by (cluster, namespace, service) (max without (prometheus_replica) (latency:api_inbound_request_duration:p99_burnrate6h{namespace="clusters-service",service="clusters-service-metrics"})) > (5.6 * (1 - 0.99)))'
+        for: 'PT5M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'ClustersServiceAPILatency6hto3dP99ErrorBudgetBurn'
+        enabled: true
+        labels: {
+          severity: 'warning'
+          slo: 'api-latency-p99'
+        }
+        annotations: {
+          correlationId: 'ClustersServiceAPILatency6hto3dP99ErrorBudgetBurn/{{ $labels.cluster }}'
+          description: 'This indicates persistent underperformance that needs investigation to avoid an SLO breach. The alert will fire if the current burn rate exceeds 0.934 times the allowed rate for the last 6 hours and 3 days.'
+          info: 'This indicates persistent underperformance that needs investigation to avoid an SLO breach. The alert will fire if the current burn rate exceeds 0.934 times the allowed rate for the last 6 hours and 3 days.'
+          runbook_url: 'aka.ms/arohcp-runbook/cs-slo-monitoring'
+          summary: 'API is slowly but steadily burning its 28 day 1s latency error budget (99% SLO)'
+          title: 'API is slowly but steadily burning its 28 day 1s latency error budget (99% SLO)'
+        }
+        expression: 'sum by (cluster, namespace, service) (max without (prometheus_replica) (latency:api_inbound_request_duration:p99_burnrate6h{namespace="clusters-service",service="clusters-service-metrics"})) > (0.934 * (1 - 0.99)) and sum by (cluster, namespace, service) (max without (prometheus_replica) (latency:api_inbound_request_duration:p99_burnrate3d{namespace="clusters-service",service="clusters-service-metrics"})) > (0.934 * (1 - 0.99))'
+        for: 'PT30M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'ClustersServiceAPILatency5mto1hor30mto6hP90ErrorBudgetBurn'
+        enabled: true
+        labels: {
+          long: '6h'
+          severity: 'warning'
+          short: '30m'
+          slo: 'api-latency-p90'
+        }
+        annotations: {
+          correlationId: 'ClustersServiceAPILatency5mto1hor30mto6hP90ErrorBudgetBurn/{{ $labels.cluster }}'
+          description: 'API is rapidly burning its 28 day 0.1s latency error budget (90% SLO)'
+          info: 'API is rapidly burning its 28 day 0.1s latency error budget (90% SLO)'
+          runbook_url: 'aka.ms/arohcp-runbook/cs-slo-monitoring'
+          summary: 'Cluster Service API P90 latency error budget burn rate is too high'
+          title: 'Cluster Service API P90 latency error budget burn rate is too high'
+        }
+        expression: '(sum by (cluster, namespace, service) (max without (prometheus_replica) (latency:api_inbound_request_duration:p90_burnrate5m{namespace="clusters-service",service="clusters-service-metrics"})) > (13.44 * (1 - 0.9)) and sum by (cluster, namespace, service) (max without (prometheus_replica) (latency:api_inbound_request_duration:p90_burnrate1h{namespace="clusters-service",service="clusters-service-metrics"})) > (13.44 * (1 - 0.9))) or (sum by (cluster, namespace, service) (max without (prometheus_replica) (latency:api_inbound_request_duration:p90_burnrate30m{namespace="clusters-service",service="clusters-service-metrics"})) > (5.6 * (1 - 0.9)) and sum by (cluster, namespace, service) (max without (prometheus_replica) (latency:api_inbound_request_duration:p90_burnrate6h{namespace="clusters-service",service="clusters-service-metrics"})) > (5.6 * (1 - 0.9)))'
+        for: 'PT5M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'ClustersServiceAPILatency6hto3dP90ErrorBudgetBurn'
+        enabled: true
+        labels: {
+          severity: 'warning'
+          slo: 'api-latency-p90'
+        }
+        annotations: {
+          correlationId: 'ClustersServiceAPILatency6hto3dP90ErrorBudgetBurn/{{ $labels.cluster }}'
+          description: 'This indicates persistent underperformance that needs investigation to avoid an SLO breach. The alert will fire if the current burn rate exceeds 0.934 times the allowed rate for the last 6 hours and 3 days.'
+          info: 'This indicates persistent underperformance that needs investigation to avoid an SLO breach. The alert will fire if the current burn rate exceeds 0.934 times the allowed rate for the last 6 hours and 3 days.'
+          runbook_url: 'aka.ms/arohcp-runbook/cs-slo-monitoring'
+          summary: 'API is slowly but steadily burning its 28 day 0.1s latency error budget (90% SLO)'
+          title: 'API is slowly but steadily burning its 28 day 0.1s latency error budget (90% SLO)'
+        }
+        expression: 'sum by (cluster, namespace, service) (max without (prometheus_replica) (latency:api_inbound_request_duration:p90_burnrate6h{namespace="clusters-service",service="clusters-service-metrics"})) > (0.934 * (1 - 0.9)) and sum by (cluster, namespace, service) (max without (prometheus_replica) (latency:api_inbound_request_duration:p90_burnrate3d{namespace="clusters-service",service="clusters-service-metrics"})) > (0.934 * (1 - 0.9))'
+        for: 'PT30M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+    ]
+    scopes: [
+      azureMonitoring
+    ]
+  }
+}
+
+resource fleet 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'fleet'
+  location: location
+  properties: {
+    interval: 'PT1M'
+    rules: [
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'FleetControllerRetryHotLoop'
+        enabled: true
+        labels: {
+          severity: 'warning'
+        }
+        annotations: {
+          correlationId: 'FleetControllerRetryHotLoop/{{ $labels.cluster }}'
+          description: 'Fleet controller workqueue {{ $labels.name }} has a retry ratio of > 50% sustained over 10 minutes, indicating most queue activity is failed retries rather than fresh work.'
+          info: 'Fleet controller workqueue {{ $labels.name }} has a retry ratio of > 50% sustained over 10 minutes, indicating most queue activity is failed retries rather than fresh work.'
+          runbook_url: 'TBD'
+          summary: 'Fleet controller workqueue retry hot loop'
+          title: 'Fleet controller workqueue retry hot loop'
+        }
+        expression: '(sum by (name, cluster) (max without (prometheus_replica) (rate(workqueue_retries_total{namespace="fleet"}[10m]))) / sum by (name, cluster) (max without (prometheus_replica) (rate(workqueue_adds_total{namespace="fleet"}[10m])))) > 0.5'
+        for: 'PT10M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'FleetControllerQueueDepthHigh'
+        enabled: true
+        labels: {
+          severity: 'warning'
+        }
+        annotations: {
+          correlationId: 'FleetControllerQueueDepthHigh/{{ $labels.cluster }}'
+          description: 'Fleet controller workqueue {{ $labels.name }} has had a depth > 10 for more than 5 minutes, indicating work is accumulating faster than it can be processed.'
+          info: 'Fleet controller workqueue {{ $labels.name }} has had a depth > 10 for more than 5 minutes, indicating work is accumulating faster than it can be processed.'
+          runbook_url: 'TBD'
+          summary: 'Fleet controller workqueue depth is high'
+          title: 'Fleet controller workqueue depth is high'
+        }
+        expression: 'max by (name, cluster) (max without (prometheus_replica) (workqueue_depth{namespace="fleet"})) > 10'
+        for: 'PT5M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'FleetControllerPanic'
+        enabled: true
+        labels: {
+          severity: 'warning'
+        }
+        annotations: {
+          correlationId: 'FleetControllerPanic/{{ $labels.cluster }}'
+          description: 'Fleet controller {{ $labels.controller }} has panicked {{ printf "%.0f" $value }} time(s) in the last 5 minutes.'
+          info: 'Fleet controller {{ $labels.controller }} has panicked {{ printf "%.0f" $value }} time(s) in the last 5 minutes.'
+          runbook_url: 'TBD'
+          summary: 'Fleet controller is panicking'
+          title: 'Fleet controller is panicking'
+        }
+        expression: 'sum by (controller, cluster) (increase(panic_total{namespace="fleet"}[5m])) > 0'
+        for: 'PT1M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+    ]
+    scopes: [
+      azureMonitoring
+    ]
+  }
+}
+
+resource frontend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'frontend'
+  location: location
+  properties: {
+    interval: 'PT1M'
+    rules: [
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'FrontendClusterServiceErrorRate'
+        enabled: true
+        labels: {
+          severity: 'info'
+        }
+        annotations: {
+          correlationId: 'FrontendClusterServiceErrorRate/{{ $labels.cluster }}'
+          description: 'The Frontend Cluster Service 5xx error rate is above 5% for the last hour. Current value: {{ $value | humanizePercentage }}.'
+          info: 'The Frontend Cluster Service 5xx error rate is above 5% for the last hour. Current value: {{ $value | humanizePercentage }}.'
+          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/frontend-tsg.html'
+          summary: 'High 4xx|5xx Error Rate on Frontend Cluster Service'
+          title: 'High 4xx|5xx Error Rate on Frontend Cluster Service'
+        }
+        expression: '(sum by (cluster) (max without (prometheus_replica) (rate(frontend_clusters_service_client_request_count{code=~"4..|5.."}[1h])))) / (sum by (cluster) (max without (prometheus_replica) (rate(frontend_clusters_service_client_request_count[1h])))) > 0.05'
+        for: 'PT15M'
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'FrontendHighAuditLogErrorRate'
+        enabled: true
+        labels: {
+          severity: 'info'
+        }
+        annotations: {
+          correlationId: 'FrontendHighAuditLogErrorRate/{{ $labels.cluster }}'
+          description: 'Audit log error rate is above 5% for the last hour. Current value: {{ $value | humanizePercentage }}.'
+          info: 'Audit log error rate is above 5% for the last hour. Current value: {{ $value | humanizePercentage }}.'
+          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/frontend-tsg.html'
+          summary: 'High Frontend audit log error rate.'
+          title: 'High Frontend audit log error rate.'
+        }
+        expression: '(sum by (cluster) (rate(otel_audit_log_send_errors_total{job="aro-hcp-frontend-metrics"}[1h])) / sum by (cluster) (rate(otel_audit_log_records_total{job="aro-hcp-frontend-metrics"}[1h]))) > 0.05'
+        for: 'PT15M'
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'FrontendAuditLogConnectionDegraded'
+        enabled: true
+        labels: {
+          severity: 'info'
+        }
+        annotations: {
+          correlationId: 'FrontendAuditLogConnectionDegraded/{{ $labels.cluster }}'
+          description: 'The frontend failed to connect to the audit server and is running with a no-op audit client. No audit logs are being sent.'
+          info: 'The frontend failed to connect to the audit server and is running with a no-op audit client. No audit logs are being sent.'
+          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/frontend-tsg.html'
+          summary: 'Frontend audit log connection is degraded.'
+          title: 'Frontend audit log connection is degraded.'
+        }
+        expression: 'otel_audit_log_connection_degraded{job="aro-hcp-frontend-metrics"} == 1'
+        for: 'PT15M'
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'FrontendHttpRequestPanics'
+        enabled: true
+        labels: {
+          severity: 'warning'
+        }
+        annotations: {
+          correlationId: 'FrontendHttpRequestPanics/{{ $labels.cluster }}'
+          description: 'Frontend HTTP request handler has panicked {{ printf "%.0f" $value }} time(s) in the last 5 minutes.'
+          info: 'Frontend HTTP request handler has panicked {{ printf "%.0f" $value }} time(s) in the last 5 minutes.'
+          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/frontend-tsg.html'
+          summary: 'Frontend is panicking during HTTP request handling'
+          title: 'Frontend is panicking during HTTP request handling'
+        }
+        expression: 'sum by (cluster) (increase(frontend_http_request_panics_total[5m])) > 0'
+        for: 'PT1M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+    ]
+    scopes: [
+      azureMonitoring
+    ]
+  }
+}
+
 resource maestro 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
   name: 'maestro'
   location: location
