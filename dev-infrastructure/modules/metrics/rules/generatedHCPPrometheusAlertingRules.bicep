@@ -114,14 +114,14 @@ resource kubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03
         }
         annotations: {
           correlationId: 'KubeDeploymentReplicasMismatch/{{ $labels.cluster }}'
-          description: 'Deployment {{ $labels.namespace }}/{{ $labels.deployment }} has not matched the expected number of replicas for longer than 30 minutes.'
-          info: 'Deployment {{ $labels.namespace }}/{{ $labels.deployment }} has not matched the expected number of replicas for longer than 30 minutes.'
+          description: 'Deployment {{ $labels.namespace }}/{{ $labels.deployment }} has not matched the expected number of replicas for longer than 15 minutes.'
+          info: 'Deployment {{ $labels.namespace }}/{{ $labels.deployment }} has not matched the expected number of replicas for longer than 15 minutes.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubedeploymentreplicasmismatch'
           summary: 'Deployment has not matched the expected number of replicas.'
           title: 'Deployment has not matched the expected number of replicas.'
         }
         expression: '(kube_deployment_spec_replicas{job="kube-state-metrics"} > kube_deployment_status_replicas_available{job="kube-state-metrics"}) and (changes(kube_deployment_status_replicas_updated{job="kube-state-metrics"}[10m]) == 0)'
-        for: 'PT30M'
+        for: 'PT15M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
@@ -141,14 +141,14 @@ resource kubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03
         }
         annotations: {
           correlationId: 'KubeDeploymentRolloutStuck/{{ $labels.cluster }}'
-          description: 'Rollout of deployment {{ $labels.namespace }}/{{ $labels.deployment }} is not progressing for longer than 30 minutes.'
-          info: 'Rollout of deployment {{ $labels.namespace }}/{{ $labels.deployment }} is not progressing for longer than 30 minutes.'
+          description: 'Rollout of deployment {{ $labels.namespace }}/{{ $labels.deployment }} is not progressing for longer than 15 minutes.'
+          info: 'Rollout of deployment {{ $labels.namespace }}/{{ $labels.deployment }} is not progressing for longer than 15 minutes.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubedeploymentrolloutstuck'
           summary: 'Deployment rollout is not progressing.'
           title: 'Deployment rollout is not progressing.'
         }
         expression: 'kube_deployment_status_condition{condition="Progressing",job="kube-state-metrics",status="false"} != 0'
-        for: 'PT30M'
+        for: 'PT15M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
@@ -861,7 +861,7 @@ resource kubernetesSystem 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-
           title: 'Different semantic versions of Kubernetes components running.'
         }
         expression: 'count by (cluster) (count by (git_version, cluster) (label_replace(kubernetes_build_info{job!~"kube-dns|coredns"}, "git_version", "$1", "git_version", "(v[0-9]*.[0-9]*).*"))) > 1'
-        for: 'PT1H30M'
+        for: 'PT15M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
@@ -1633,6 +1633,535 @@ resource kubernetesSystemControllerManager 'Microsoft.AlertsManagement/prometheu
         expression: 'count by (cluster) (up{job="controlplane-kube-controller-manager"} == 1) == 0'
         for: 'PT15M'
         severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
+      }
+    ]
+    scopes: [
+      azureMonitoring
+    ]
+  }
+}
+
+resource etcdAvailability 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'etcd-availability'
+  location: location
+  properties: {
+    interval: 'PT1M'
+    rules: [
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'EtcdBackendCommitDurationHigh1h5m'
+        enabled: true
+        labels: {
+          long_window: '1h'
+          severity: 'warning'
+          short_window: '5m'
+        }
+        annotations: {
+          correlationId: 'EtcdBackendCommitDurationHigh1h5m/{{ $labels.cluster }}'
+          description: 'etcd instance {{ $labels.instance }} has 99th percentile backend commit duration of {{ $value }}s (threshold: 25ms). Slow disk performance may impact write performance. Fast burn (1h/5m).'
+          info: 'etcd instance {{ $labels.instance }} has 99th percentile backend commit duration of {{ $value }}s (threshold: 25ms). Slow disk performance may impact write performance. Fast burn (1h/5m).'
+          runbook_url: 'TBD'
+          summary: 'etcd backend commit duration is high'
+          title: 'etcd backend commit duration is high'
+        }
+        expression: 'histogram_quantile(0.99, rate(etcd_disk_backend_commit_duration_seconds_bucket[5m])) > 0.025'
+        for: 'PT5M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'EtcdBackendCommitDurationHigh6h30m'
+        enabled: true
+        labels: {
+          long_window: '6h'
+          severity: 'warning'
+          short_window: '30m'
+        }
+        annotations: {
+          correlationId: 'EtcdBackendCommitDurationHigh6h30m/{{ $labels.cluster }}'
+          description: 'etcd instance {{ $labels.instance }} has 99th percentile backend commit duration of {{ $value }}s (threshold: 25ms). Slow disk performance may impact write performance. Medium burn (6h/30m).'
+          info: 'etcd instance {{ $labels.instance }} has 99th percentile backend commit duration of {{ $value }}s (threshold: 25ms). Slow disk performance may impact write performance. Medium burn (6h/30m).'
+          runbook_url: 'TBD'
+          summary: 'etcd backend commit duration is high'
+          title: 'etcd backend commit duration is high'
+        }
+        expression: 'histogram_quantile(0.99, rate(etcd_disk_backend_commit_duration_seconds_bucket[30m])) > 0.025'
+        for: 'PT30M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'EtcdBackendCommitDurationHigh3d'
+        enabled: true
+        labels: {
+          long_window: '3d'
+          severity: 'info'
+        }
+        annotations: {
+          correlationId: 'EtcdBackendCommitDurationHigh3d/{{ $labels.cluster }}'
+          description: 'etcd instance {{ $labels.instance }} has 99th percentile backend commit duration of {{ $value }}s (threshold: 25ms). Slow disk performance may impact write performance. Slow burn (3d).'
+          info: 'etcd instance {{ $labels.instance }} has 99th percentile backend commit duration of {{ $value }}s (threshold: 25ms). Slow disk performance may impact write performance. Slow burn (3d).'
+          runbook_url: 'TBD'
+          summary: 'etcd backend commit duration is chronically high'
+          title: 'etcd backend commit duration is chronically high'
+        }
+        expression: 'histogram_quantile(0.99, rate(etcd_disk_backend_commit_duration_seconds_bucket[6h])) > 0.025'
+        for: 'PT6H'
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'EtcdDatabaseInUseSizeHigh1h5m'
+        enabled: true
+        labels: {
+          long_window: '1h'
+          severity: 'warning'
+          short_window: '5m'
+        }
+        annotations: {
+          correlationId: 'EtcdDatabaseInUseSizeHigh1h5m/{{ $labels.cluster }}'
+          description: 'etcd instance {{ $labels.instance }} database in-use ratio is {{ $value | humanizePercentage }} (threshold: 90%). Database compaction may be needed to reclaim space. Fast burn (1h/5m).'
+          info: 'etcd instance {{ $labels.instance }} database in-use ratio is {{ $value | humanizePercentage }} (threshold: 90%). Database compaction may be needed to reclaim space. Fast burn (1h/5m).'
+          runbook_url: 'TBD'
+          summary: 'etcd database fragmentation is low'
+          title: 'etcd database fragmentation is low'
+        }
+        expression: '(etcd_mvcc_db_total_size_in_use_in_bytes / etcd_mvcc_db_total_size_in_bytes) > 0.9'
+        for: 'PT5M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'EtcdDatabaseInUseSizeHigh6h30m'
+        enabled: true
+        labels: {
+          long_window: '6h'
+          severity: 'warning'
+          short_window: '30m'
+        }
+        annotations: {
+          correlationId: 'EtcdDatabaseInUseSizeHigh6h30m/{{ $labels.cluster }}'
+          description: 'etcd instance {{ $labels.instance }} database in-use ratio is {{ $value | humanizePercentage }} (threshold: 90%). Database compaction may be needed to reclaim space. Medium burn (6h/30m).'
+          info: 'etcd instance {{ $labels.instance }} database in-use ratio is {{ $value | humanizePercentage }} (threshold: 90%). Database compaction may be needed to reclaim space. Medium burn (6h/30m).'
+          runbook_url: 'TBD'
+          summary: 'etcd database fragmentation is low'
+          title: 'etcd database fragmentation is low'
+        }
+        expression: '(etcd_mvcc_db_total_size_in_use_in_bytes / etcd_mvcc_db_total_size_in_bytes) > 0.9'
+        for: 'PT30M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'EtcdDatabaseInUseSizeHigh3d'
+        enabled: true
+        labels: {
+          long_window: '3d'
+          severity: 'info'
+        }
+        annotations: {
+          correlationId: 'EtcdDatabaseInUseSizeHigh3d/{{ $labels.cluster }}'
+          description: 'etcd instance {{ $labels.instance }} database in-use ratio is {{ $value | humanizePercentage }} (threshold: 90%). Database compaction may be needed to reclaim space. Slow burn (3d).'
+          info: 'etcd instance {{ $labels.instance }} database in-use ratio is {{ $value | humanizePercentage }} (threshold: 90%). Database compaction may be needed to reclaim space. Slow burn (3d).'
+          runbook_url: 'TBD'
+          summary: 'etcd database fragmentation is chronically low'
+          title: 'etcd database fragmentation is chronically low'
+        }
+        expression: '(etcd_mvcc_db_total_size_in_use_in_bytes / etcd_mvcc_db_total_size_in_bytes) > 0.9'
+        for: 'PT6H'
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'EtcdDatabaseSizeExceeded1h5m'
+        enabled: true
+        labels: {
+          long_window: '1h'
+          severity: 'warning'
+          short_window: '5m'
+        }
+        annotations: {
+          correlationId: 'EtcdDatabaseSizeExceeded1h5m/{{ $labels.cluster }}'
+          description: 'etcd instance {{ $labels.instance }} database size is {{ $value | humanize }}B (threshold: 8GB). Database may need compaction or quota increase. Fast burn (1h/5m).'
+          info: 'etcd instance {{ $labels.instance }} database size is {{ $value | humanize }}B (threshold: 8GB). Database may need compaction or quota increase. Fast burn (1h/5m).'
+          runbook_url: 'TBD'
+          summary: 'etcd database size is too large'
+          title: 'etcd database size is too large'
+        }
+        expression: 'etcd_mvcc_db_total_size_in_bytes > 8589934592'
+        for: 'PT5M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'EtcdDatabaseSizeExceeded6h30m'
+        enabled: true
+        labels: {
+          long_window: '6h'
+          severity: 'warning'
+          short_window: '30m'
+        }
+        annotations: {
+          correlationId: 'EtcdDatabaseSizeExceeded6h30m/{{ $labels.cluster }}'
+          description: 'etcd instance {{ $labels.instance }} database size is {{ $value | humanize }}B (threshold: 8GB). Database may need compaction or quota increase. Medium burn (6h/30m).'
+          info: 'etcd instance {{ $labels.instance }} database size is {{ $value | humanize }}B (threshold: 8GB). Database may need compaction or quota increase. Medium burn (6h/30m).'
+          runbook_url: 'TBD'
+          summary: 'etcd database size is too large'
+          title: 'etcd database size is too large'
+        }
+        expression: 'etcd_mvcc_db_total_size_in_bytes > 8589934592'
+        for: 'PT30M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'EtcdDatabaseSizeExceeded3d'
+        enabled: true
+        labels: {
+          long_window: '3d'
+          severity: 'info'
+        }
+        annotations: {
+          correlationId: 'EtcdDatabaseSizeExceeded3d/{{ $labels.cluster }}'
+          description: 'etcd instance {{ $labels.instance }} database size is {{ $value | humanize }}B (threshold: 8GB). Database may need compaction or quota increase. Slow burn (3d).'
+          info: 'etcd instance {{ $labels.instance }} database size is {{ $value | humanize }}B (threshold: 8GB). Database may need compaction or quota increase. Slow burn (3d).'
+          runbook_url: 'TBD'
+          summary: 'etcd database size is chronically too large'
+          title: 'etcd database size is chronically too large'
+        }
+        expression: 'etcd_mvcc_db_total_size_in_bytes > 8589934592'
+        for: 'PT6H'
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'EtcdFrequentLeaderChanges1h5m'
+        enabled: true
+        labels: {
+          long_window: '1h'
+          severity: 'warning'
+          short_window: '5m'
+        }
+        annotations: {
+          correlationId: 'EtcdFrequentLeaderChanges1h5m/{{ $labels.cluster }}'
+          description: 'etcd instance {{ $labels.instance }} has seen {{ $value }} leader changes in the last 15 minutes (threshold: 3). This may indicate network issues or cluster instability. Fast burn (1h/5m).'
+          info: 'etcd instance {{ $labels.instance }} has seen {{ $value }} leader changes in the last 15 minutes (threshold: 3). This may indicate network issues or cluster instability. Fast burn (1h/5m).'
+          runbook_url: 'TBD'
+          summary: 'etcd cluster experiencing frequent leader changes'
+          title: 'etcd cluster experiencing frequent leader changes'
+        }
+        expression: 'increase(etcd_server_leader_changes_seen_total[15m]) > 3'
+        for: 'PT5M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'EtcdFrequentLeaderChanges6h30m'
+        enabled: true
+        labels: {
+          long_window: '6h'
+          severity: 'warning'
+          short_window: '30m'
+        }
+        annotations: {
+          correlationId: 'EtcdFrequentLeaderChanges6h30m/{{ $labels.cluster }}'
+          description: 'etcd instance {{ $labels.instance }} has seen {{ $value }} leader changes in the last 15 minutes (threshold: 3). This may indicate network issues or cluster instability. Medium burn (6h/30m).'
+          info: 'etcd instance {{ $labels.instance }} has seen {{ $value }} leader changes in the last 15 minutes (threshold: 3). This may indicate network issues or cluster instability. Medium burn (6h/30m).'
+          runbook_url: 'TBD'
+          summary: 'etcd cluster experiencing frequent leader changes'
+          title: 'etcd cluster experiencing frequent leader changes'
+        }
+        expression: 'increase(etcd_server_leader_changes_seen_total[15m]) > 3'
+        for: 'PT30M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'EtcdFrequentLeaderChanges3d'
+        enabled: true
+        labels: {
+          long_window: '3d'
+          severity: 'info'
+        }
+        annotations: {
+          correlationId: 'EtcdFrequentLeaderChanges3d/{{ $labels.cluster }}'
+          description: 'etcd instance {{ $labels.instance }} has seen {{ $value }} leader changes in the last 15 minutes (threshold: 3). This may indicate network issues or cluster instability. Slow burn (3d).'
+          info: 'etcd instance {{ $labels.instance }} has seen {{ $value }} leader changes in the last 15 minutes (threshold: 3). This may indicate network issues or cluster instability. Slow burn (3d).'
+          runbook_url: 'TBD'
+          summary: 'etcd cluster experiencing chronic frequent leader changes'
+          title: 'etcd cluster experiencing chronic frequent leader changes'
+        }
+        expression: 'increase(etcd_server_leader_changes_seen_total[15m]) > 3'
+        for: 'PT6H'
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'EtcdPeerRoundTripTimeHigh1h5m'
+        enabled: true
+        labels: {
+          long_window: '1h'
+          severity: 'warning'
+          short_window: '5m'
+        }
+        annotations: {
+          correlationId: 'EtcdPeerRoundTripTimeHigh1h5m/{{ $labels.cluster }}'
+          description: 'etcd instance {{ $labels.instance }} has 99th percentile peer round-trip time of {{ $value }}s (threshold: 100ms). Network latency between peers may be affecting cluster performance. Fast burn (1h/5m).'
+          info: 'etcd instance {{ $labels.instance }} has 99th percentile peer round-trip time of {{ $value }}s (threshold: 100ms). Network latency between peers may be affecting cluster performance. Fast burn (1h/5m).'
+          runbook_url: 'TBD'
+          summary: 'etcd peer round-trip time is high'
+          title: 'etcd peer round-trip time is high'
+        }
+        expression: 'histogram_quantile(0.99, rate(etcd_network_peer_round_trip_time_seconds_bucket[5m])) > 0.1'
+        for: 'PT5M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'EtcdPeerRoundTripTimeHigh6h30m'
+        enabled: true
+        labels: {
+          long_window: '6h'
+          severity: 'warning'
+          short_window: '30m'
+        }
+        annotations: {
+          correlationId: 'EtcdPeerRoundTripTimeHigh6h30m/{{ $labels.cluster }}'
+          description: 'etcd instance {{ $labels.instance }} has 99th percentile peer round-trip time of {{ $value }}s (threshold: 100ms). Network latency between peers may be affecting cluster performance. Medium burn (6h/30m).'
+          info: 'etcd instance {{ $labels.instance }} has 99th percentile peer round-trip time of {{ $value }}s (threshold: 100ms). Network latency between peers may be affecting cluster performance. Medium burn (6h/30m).'
+          runbook_url: 'TBD'
+          summary: 'etcd peer round-trip time is high'
+          title: 'etcd peer round-trip time is high'
+        }
+        expression: 'histogram_quantile(0.99, rate(etcd_network_peer_round_trip_time_seconds_bucket[30m])) > 0.1'
+        for: 'PT30M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'EtcdPeerRoundTripTimeHigh3d'
+        enabled: true
+        labels: {
+          long_window: '3d'
+          severity: 'info'
+        }
+        annotations: {
+          correlationId: 'EtcdPeerRoundTripTimeHigh3d/{{ $labels.cluster }}'
+          description: 'etcd instance {{ $labels.instance }} has 99th percentile peer round-trip time of {{ $value }}s (threshold: 100ms). Network latency between peers may be affecting cluster performance. Slow burn (3d).'
+          info: 'etcd instance {{ $labels.instance }} has 99th percentile peer round-trip time of {{ $value }}s (threshold: 100ms). Network latency between peers may be affecting cluster performance. Slow burn (3d).'
+          runbook_url: 'TBD'
+          summary: 'etcd peer round-trip time is chronically high'
+          title: 'etcd peer round-trip time is chronically high'
+        }
+        expression: 'histogram_quantile(0.99, rate(etcd_network_peer_round_trip_time_seconds_bucket[6h])) > 0.1'
+        for: 'PT6H'
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'EtcdWALFsyncDurationHigh1h5m'
+        enabled: true
+        labels: {
+          long_window: '1h'
+          severity: 'warning'
+          short_window: '5m'
+        }
+        annotations: {
+          correlationId: 'EtcdWALFsyncDurationHigh1h5m/{{ $labels.cluster }}'
+          description: 'etcd instance {{ $labels.instance }} has 99th percentile WAL fsync duration of {{ $value }}s (threshold: 10ms). Slow disk performance may impact cluster stability. Fast burn (1h/5m).'
+          info: 'etcd instance {{ $labels.instance }} has 99th percentile WAL fsync duration of {{ $value }}s (threshold: 10ms). Slow disk performance may impact cluster stability. Fast burn (1h/5m).'
+          runbook_url: 'TBD'
+          summary: 'etcd WAL fsync duration is high'
+          title: 'etcd WAL fsync duration is high'
+        }
+        expression: 'histogram_quantile(0.99, rate(etcd_disk_wal_fsync_duration_seconds_bucket[5m])) > 0.01'
+        for: 'PT5M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'EtcdWALFsyncDurationHigh6h30m'
+        enabled: true
+        labels: {
+          long_window: '6h'
+          severity: 'warning'
+          short_window: '30m'
+        }
+        annotations: {
+          correlationId: 'EtcdWALFsyncDurationHigh6h30m/{{ $labels.cluster }}'
+          description: 'etcd instance {{ $labels.instance }} has 99th percentile WAL fsync duration of {{ $value }}s (threshold: 10ms). Slow disk performance may impact cluster stability. Medium burn (6h/30m).'
+          info: 'etcd instance {{ $labels.instance }} has 99th percentile WAL fsync duration of {{ $value }}s (threshold: 10ms). Slow disk performance may impact cluster stability. Medium burn (6h/30m).'
+          runbook_url: 'TBD'
+          summary: 'etcd WAL fsync duration is high'
+          title: 'etcd WAL fsync duration is high'
+        }
+        expression: 'histogram_quantile(0.99, rate(etcd_disk_wal_fsync_duration_seconds_bucket[30m])) > 0.01'
+        for: 'PT30M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'EtcdWALFsyncDurationHigh3d'
+        enabled: true
+        labels: {
+          long_window: '3d'
+          severity: 'info'
+        }
+        annotations: {
+          correlationId: 'EtcdWALFsyncDurationHigh3d/{{ $labels.cluster }}'
+          description: 'etcd instance {{ $labels.instance }} has 99th percentile WAL fsync duration of {{ $value }}s (threshold: 10ms). Slow disk performance may impact cluster stability. Slow burn (3d).'
+          info: 'etcd instance {{ $labels.instance }} has 99th percentile WAL fsync duration of {{ $value }}s (threshold: 10ms). Slow disk performance may impact cluster stability. Slow burn (3d).'
+          runbook_url: 'TBD'
+          summary: 'etcd WAL fsync duration is chronically high'
+          title: 'etcd WAL fsync duration is chronically high'
+        }
+        expression: 'histogram_quantile(0.99, rate(etcd_disk_wal_fsync_duration_seconds_bucket[6h])) > 0.01'
+        for: 'PT6H'
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
     ]
     scopes: [
