@@ -18,10 +18,13 @@ param keyVaultTagKey = '{{ .global.keyVault.tagKey }}'
 param keyVaultTagValue = '{{ .global.keyVault.tagValue }}'
 param keyVaultEncryptionKeyName = '{{ .global.keyVault.encryptionKeyName }}'
 
-// V2 grafana name from stgGlobalV2 (not monitoring.grafanaName) so the parallel
-// STG-global stack does not collide with the live arohcp-stg Grafana workspace.
+// V2 grafana name and major version from stgGlobalV2 (not monitoring.*) so the
+// parallel STG-global stack does not collide with the live arohcp-stg Grafana
+// workspace, and so the brand-new V2 workspace is created on a Grafana major
+// version Azure still accepts for new Standard-SKU workspaces (v11 retired
+// 2026-06-15; valid: 12, 13). The live fleet stays grandfathered on monitoring.*.
 param grafanaName = '{{ .stgGlobalV2.grafanaName }}'
-param grafanaMajorVersion = '{{ .monitoring.grafanaMajorVersion }}'
+param grafanaMajorVersion = '{{ .stgGlobalV2.grafanaMajorVersion }}'
 param grafanaZoneRedundantMode = '{{ .monitoring.grafanaZoneRedundantMode }}'
 param grafanaRoles = '{{ .monitoring.grafanaRoles }}'
 param crossTenantSecurityGroup = '{{ .monitoring.crossTenantSecurityGroup }}'
