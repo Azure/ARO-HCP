@@ -866,7 +866,6 @@ module maestroServer '../modules/maestro/maestro-server.bicep' = {
       managedIdentities.outputs.managedIdentities,
       maestroMIName
     ).uamiPrincipalID
-    maestroServerManagedIdentityName: maestroMIName
   }
   dependsOn: [
     serviceKeyVault
@@ -899,8 +898,6 @@ module cs '../modules/cluster-service.bicep' = {
     postgresBackupRetentionDays: csPostgresBackupRetentionDays
     postgresGeoRedundantBackup: csPostgresGeoRedundantBackup
     postgresServerPrivate: clusterServicePostgresPrivate
-    clusterServiceManagedIdentityPrincipalId: csManagedIdentityPrincipalId
-    clusterServiceManagedIdentityName: csMIName
     serviceKeyVaultName: serviceKeyVault.name
     serviceKeyVaultResourceGroup: serviceKeyVaultResourceGroup
     regionalCXDNSZoneName: regionalCXDNSZoneName
