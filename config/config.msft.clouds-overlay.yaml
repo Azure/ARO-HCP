@@ -48,6 +48,10 @@ clouds:
             # New Grafana workspace (live stg is arohcp-stg; this is the V2 one).
             # Globally unique — must differ from the live name to avoid NameNotUnique.
             grafanaName: "arohcp-{{ .ctx.environment }}2"
+            # New workspace must be created on v13: Azure retired v11 for new
+            # creation on 2026-06-15, so only major versions 12/13 are accepted.
+            # The live grandfathered workspace stays on 11 (shared monitoring value).
+            grafanaMajorVersion: "13"
           # E2E
           e2e:
             regionTest:
