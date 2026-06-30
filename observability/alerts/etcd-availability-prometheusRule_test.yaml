@@ -43,7 +43,7 @@ tests:
         short_window: 5m
         instance: etcd-0
       exp_annotations:
-        description: "etcd instance etcd-0 has 99th percentile backend commit duration of 0.064s (threshold: 25ms). Slow disk performance may impact write performance."
+        description: "etcd instance etcd-0 has 99th percentile backend commit duration of 0.064s (threshold: 25ms). Slow disk performance may impact write performance. Fast burn (1h/5m)."
         summary: "etcd backend commit duration is high"
         runbook_url: TBD
   - eval_time: 11m
@@ -63,7 +63,7 @@ tests:
         short_window: 30m
         instance: etcd-0
       exp_annotations:
-        description: "etcd instance etcd-0 has 99th percentile backend commit duration of 0.064s (threshold: 25ms). Slow disk performance may impact write performance."
+        description: "etcd instance etcd-0 has 99th percentile backend commit duration of 0.064s (threshold: 25ms). Slow disk performance may impact write performance. Medium burn (6h/30m)."
         summary: "etcd backend commit duration is high"
         runbook_url: TBD
   - eval_time: 61m
@@ -79,7 +79,7 @@ tests:
         long_window: 3d
         instance: etcd-0
       exp_annotations:
-        description: "etcd instance etcd-0 has 99th percentile backend commit duration of 0.064s (threshold: 25ms). Slow disk performance may impact write performance."
+        description: "etcd instance etcd-0 has 99th percentile backend commit duration of 0.064s (threshold: 25ms). Slow disk performance may impact write performance. Slow burn (3d)."
         summary: "etcd backend commit duration is chronically high"
         runbook_url: TBD
 
@@ -131,7 +131,7 @@ tests:
         short_window: 5m
         instance: etcd-0
       exp_annotations:
-        description: "etcd instance etcd-0 database in-use ratio is 93.75% (threshold: 90%). Database compaction may be needed to reclaim space."
+        description: "etcd instance etcd-0 database in-use ratio is 93.75% (threshold: 90%). Database compaction may be needed to reclaim space. Fast burn (1h/5m)."
         summary: "etcd database fragmentation is low"
         runbook_url: TBD
   - eval_time: 11m
@@ -150,7 +150,7 @@ tests:
         short_window: 30m
         instance: etcd-0
       exp_annotations:
-        description: "etcd instance etcd-0 database in-use ratio is 93.75% (threshold: 90%). Database compaction may be needed to reclaim space."
+        description: "etcd instance etcd-0 database in-use ratio is 93.75% (threshold: 90%). Database compaction may be needed to reclaim space. Medium burn (6h/30m)."
         summary: "etcd database fragmentation is low"
         runbook_url: TBD
   - eval_time: 61m
@@ -165,7 +165,7 @@ tests:
         long_window: 3d
         instance: etcd-0
       exp_annotations:
-        description: "etcd instance etcd-0 database in-use ratio is 93.75% (threshold: 90%). Database compaction may be needed to reclaim space."
+        description: "etcd instance etcd-0 database in-use ratio is 93.75% (threshold: 90%). Database compaction may be needed to reclaim space. Slow burn (3d)."
         summary: "etcd database fragmentation is chronically low"
         runbook_url: TBD
 
@@ -218,7 +218,7 @@ tests:
         short_window: 5m
         instance: etcd-0
       exp_annotations:
-        description: "etcd instance etcd-0 database size is 9GB (threshold: 8GB). Database may need compaction or quota increase."
+        description: "etcd instance etcd-0 database size is 9GB (threshold: 8GB). Database may need compaction or quota increase. Fast burn (1h/5m)."
         summary: "etcd database size is too large"
         runbook_url: TBD
   - eval_time: 11m
@@ -237,7 +237,7 @@ tests:
         short_window: 30m
         instance: etcd-0
       exp_annotations:
-        description: "etcd instance etcd-0 database size is 9GB (threshold: 8GB). Database may need compaction or quota increase."
+        description: "etcd instance etcd-0 database size is 9GB (threshold: 8GB). Database may need compaction or quota increase. Medium burn (6h/30m)."
         summary: "etcd database size is too large"
         runbook_url: TBD
   - eval_time: 61m
@@ -252,7 +252,7 @@ tests:
         long_window: 3d
         instance: etcd-0
       exp_annotations:
-        description: "etcd instance etcd-0 database size is 9GB (threshold: 8GB). Database may need compaction or quota increase."
+        description: "etcd instance etcd-0 database size is 9GB (threshold: 8GB). Database may need compaction or quota increase. Slow burn (3d)."
         summary: "etcd database size is chronically too large"
         runbook_url: TBD
 
@@ -301,7 +301,7 @@ tests:
         short_window: 5m
         instance: etcd-0
       exp_annotations:
-        description: "etcd instance etcd-0 has seen 15 leader changes in the last 15 minutes (threshold: 3). This may indicate network issues or cluster instability."
+        description: "etcd instance etcd-0 has seen 15 leader changes in the last 15 minutes (threshold: 3). This may indicate network issues or cluster instability. Fast burn (1h/5m)."
         summary: "etcd cluster experiencing frequent leader changes"
         runbook_url: TBD
   - eval_time: 15m
@@ -320,7 +320,7 @@ tests:
         short_window: 30m
         instance: etcd-0
       exp_annotations:
-        description: "etcd instance etcd-0 has seen 15 leader changes in the last 15 minutes (threshold: 3). This may indicate network issues or cluster instability."
+        description: "etcd instance etcd-0 has seen 15 leader changes in the last 15 minutes (threshold: 3). This may indicate network issues or cluster instability. Medium burn (6h/30m)."
         summary: "etcd cluster experiencing frequent leader changes"
         runbook_url: TBD
   - eval_time: 61m
@@ -335,7 +335,7 @@ tests:
         long_window: 3d
         instance: etcd-0
       exp_annotations:
-        description: "etcd instance etcd-0 has seen 15 leader changes in the last 15 minutes (threshold: 3). This may indicate network issues or cluster instability."
+        description: "etcd instance etcd-0 has seen 15 leader changes in the last 15 minutes (threshold: 3). This may indicate network issues or cluster instability. Slow burn (3d)."
         summary: "etcd cluster experiencing chronic frequent leader changes"
         runbook_url: TBD
 
@@ -411,7 +411,7 @@ tests:
         short_window: 5m
         instance: etcd-0
       exp_annotations:
-        description: "etcd instance etcd-0 has 99th percentile peer round-trip time of 0.2048s (threshold: 100ms). Network latency between peers may be affecting cluster performance."
+        description: "etcd instance etcd-0 has 99th percentile peer round-trip time of 0.2048s (threshold: 100ms). Network latency between peers may be affecting cluster performance. Fast burn (1h/5m)."
         summary: "etcd peer round-trip time is high"
         runbook_url: TBD
   - eval_time: 11m
@@ -430,7 +430,7 @@ tests:
         short_window: 30m
         instance: etcd-0
       exp_annotations:
-        description: "etcd instance etcd-0 has 99th percentile peer round-trip time of 0.2048s (threshold: 100ms). Network latency between peers may be affecting cluster performance."
+        description: "etcd instance etcd-0 has 99th percentile peer round-trip time of 0.2048s (threshold: 100ms). Network latency between peers may be affecting cluster performance. Medium burn (6h/30m)."
         summary: "etcd peer round-trip time is high"
         runbook_url: TBD
   - eval_time: 61m
@@ -445,7 +445,7 @@ tests:
         long_window: 3d
         instance: etcd-0
       exp_annotations:
-        description: "etcd instance etcd-0 has 99th percentile peer round-trip time of 0.2048s (threshold: 100ms). Network latency between peers may be affecting cluster performance."
+        description: "etcd instance etcd-0 has 99th percentile peer round-trip time of 0.2048s (threshold: 100ms). Network latency between peers may be affecting cluster performance. Slow burn (3d)."
         summary: "etcd peer round-trip time is chronically high"
         runbook_url: TBD
 
@@ -502,7 +502,7 @@ tests:
         short_window: 5m
         instance: etcd-0
       exp_annotations:
-        description: "etcd instance etcd-0 has 99th percentile WAL fsync duration of 0.032s (threshold: 10ms). Slow disk performance may impact cluster stability."
+        description: "etcd instance etcd-0 has 99th percentile WAL fsync duration of 0.032s (threshold: 10ms). Slow disk performance may impact cluster stability. Fast burn (1h/5m)."
         summary: "etcd WAL fsync duration is high"
         runbook_url: TBD
   - eval_time: 11m
@@ -521,7 +521,7 @@ tests:
         short_window: 30m
         instance: etcd-0
       exp_annotations:
-        description: "etcd instance etcd-0 has 99th percentile WAL fsync duration of 0.032s (threshold: 10ms). Slow disk performance may impact cluster stability."
+        description: "etcd instance etcd-0 has 99th percentile WAL fsync duration of 0.032s (threshold: 10ms). Slow disk performance may impact cluster stability. Medium burn (6h/30m)."
         summary: "etcd WAL fsync duration is high"
         runbook_url: TBD
   - eval_time: 61m
@@ -536,7 +536,7 @@ tests:
         long_window: 3d
         instance: etcd-0
       exp_annotations:
-        description: "etcd instance etcd-0 has 99th percentile WAL fsync duration of 0.032s (threshold: 10ms). Slow disk performance may impact cluster stability."
+        description: "etcd instance etcd-0 has 99th percentile WAL fsync duration of 0.032s (threshold: 10ms). Slow disk performance may impact cluster stability. Slow burn (3d)."
         summary: "etcd WAL fsync duration is chronically high"
         runbook_url: TBD
 
