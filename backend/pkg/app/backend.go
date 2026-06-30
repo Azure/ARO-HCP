@@ -74,6 +74,7 @@ import (
 	nodepoolupdate "github.com/Azure/ARO-HCP/backend/pkg/controllers/nodepool/update"
 	nodepoolvalidation "github.com/Azure/ARO-HCP/backend/pkg/controllers/nodepool/validation"
 	nodepoolversion "github.com/Azure/ARO-HCP/backend/pkg/controllers/nodepool/version"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/recoverycontroller"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/validationutils"
 	internalazure "github.com/Azure/ARO-HCP/internal/azure"
@@ -722,6 +723,11 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		b.options.BackupConfig,
 	)
 
+	recoveryController := recoverycontroller.NewRecoveryController(
+		activeOperationLister, b.options.ResourcesDBClient, b.options.KubeApplierDBClients,
+		backendInformers,
+	)
+
 	// Each aggregator hardcodes its own inertia inside the statusutils
 	// package so subsystem-specific tuning lives next to the controller that
 	// uses it. The constructors here just supply listers / DB / clock.
@@ -1116,6 +1122,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go cosmosMigrationController.Run(ctx, 5)
 				go virtualMachineResourceSKUsCachedReaderController.Run(ctx, 20)
 				go backupScheduleController.Run(ctx, 20)
+				go recoveryController.Run(ctx, 20)
 			},
 			OnStoppedLeading: func() {
 				// This needs to be defined even though it does nothing.

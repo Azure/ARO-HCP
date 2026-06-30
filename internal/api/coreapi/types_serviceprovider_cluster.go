@@ -38,6 +38,18 @@ const (
 	BackupScheduleStateDisabled BackupScheduleState = "Disabled"
 )
 
+// RecoveryState represents the progress of a recovery operation for a cluster.
+type RecoveryState string
+
+const (
+	RecoveryStatePending           RecoveryState = "Pending"
+	RecoveryStateRecoveryCRCreated RecoveryState = "RecoveryCRCreated"
+	RecoveryStateMonitoring        RecoveryState = "Monitoring"
+	RecoveryStateRestoring         RecoveryState = "Restoring"
+	RecoveryStateCompleted         RecoveryState = "Completed"
+	RecoveryStateFailed            RecoveryState = "Failed"
+)
+
 const (
 	// ServiceProviderClusterResourceName is the name of the ServiceProviderCluster resource.
 	// ServiceProviderCluster is a singleton resource and ARM convention is to
@@ -114,6 +126,15 @@ type ServiceProviderClusterSpec struct {
 	// BackupScheduleState is the desired backup scheduling state: Enabled or Disabled.
 	// Default is Enabled. Set to Disabled via Admin API to pause scheduled backups.
 	BackupScheduleState BackupScheduleState `json:"backupScheduleState,omitempty"`
+
+	RecoveryRequests RecoveryRequests `json:"recoveryRequests,omitempty"`
+}
+
+type RecoveryRequests []RecoveryRequest
+
+type RecoveryRequest struct {
+	RecoveryId string `json:"recoveryId"`
+	BackupId   string `json:"backupId"`
 }
 
 // ServiceProviderClusterSpecVersion contains the desired version information.
@@ -232,6 +253,8 @@ type ServiceProviderClusterStatus struct {
 	// AzureResources tracks the lifecycle of Azure resources associated with
 	// the cluster, including deny assignments and the managed resource group.
 	AzureResources AzureResources `json:"azureResources,omitempty"`
+
+	Recoveries []RecoveryStatus `json:"recoveries,omitempty"`
 }
 
 // AzureResources groups the Azure resource references associated with a cluster.
@@ -278,6 +301,13 @@ type AzureReference struct {
 	// Additionally, long recheck times are recommended for resources outside of their active phases. Order of at least
 	// six hours is, with durations up to 24 hours considered normal.
 	EarliestRecheckTime *metav1.Time `json:"earliestRecheckTime,omitempty"`
+}
+
+type RecoveryStatus struct {
+	RecoveryId  string        `json:"recoveryId"`
+	State       RecoveryState `json:"state,omitempty"`
+	StartedAt   *metav1.Time  `json:"startedAt,omitempty"`
+	CompletedAt *metav1.Time  `json:"completedAt,omitempty"`
 }
 
 // ServiceProviderClusterStatusVersion contains the actual version information.
