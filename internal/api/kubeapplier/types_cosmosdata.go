@@ -70,3 +70,42 @@ func ToNodePoolScopedReadDesireResourceIDString(subscriptionName, resourceGroupN
 		ReadDesireResourceTypeName, readDesireName,
 	))
 }
+
+// ToCredentialRequestScopedApplyDesireResourceIDString returns the resource ID string for an ApplyDesire
+// nested under a SystemAdminCredentialRequest under a cluster.
+func ToCredentialRequestScopedApplyDesireResourceIDString(subscriptionName, resourceGroupName, clusterName, credentialRequestName, applyDesireName string,
+) string {
+	return strings.ToLower(path.Join(
+		"/subscriptions", subscriptionName,
+		"resourceGroups", resourceGroupName,
+		"providers", api.ClusterResourceType.String(), clusterName,
+		api.SystemAdminCredentialRequestResourceTypeName, credentialRequestName,
+		ApplyDesireResourceTypeName, applyDesireName,
+	))
+}
+
+// ToCredentialRequestScopedDeleteDesireResourceIDString returns the resource ID string for a DeleteDesire
+// nested under a SystemAdminCredentialRequest under a cluster.
+func ToCredentialRequestScopedDeleteDesireResourceIDString(subscriptionName, resourceGroupName, clusterName, credentialRequestName, deleteDesireName string,
+) string {
+	return strings.ToLower(path.Join(
+		"/subscriptions", subscriptionName,
+		"resourceGroups", resourceGroupName,
+		"providers", api.ClusterResourceType.String(), clusterName,
+		api.SystemAdminCredentialRequestResourceTypeName, credentialRequestName,
+		DeleteDesireResourceTypeName, deleteDesireName,
+	))
+}
+
+// ToCredentialRequestScopedReadDesireResourceIDString returns the resource ID string for a ReadDesire
+// nested under a SystemAdminCredentialRequest under a cluster.
+func ToCredentialRequestScopedReadDesireResourceIDString(subscriptionName, resourceGroupName, clusterName, credentialRequestName, readDesireName string,
+) string {
+	return strings.ToLower(path.Join(
+		"/subscriptions", subscriptionName,
+		"resourceGroups", resourceGroupName,
+		"providers", api.ClusterResourceType.String(), clusterName,
+		api.SystemAdminCredentialRequestResourceTypeName, credentialRequestName,
+		ReadDesireResourceTypeName, readDesireName,
+	))
+}
