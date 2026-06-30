@@ -325,8 +325,6 @@ defaults:
     adminGroups: ""
     viewerGroups: ""
     viewerIdentities: ""
-    crossClusterServiceLogsScript: ""
-    crossClusterHostedControlPlaneLogsScript: ""
     sku: ""
     tier: ""
   auditLogsEventHub:
