@@ -67,11 +67,17 @@ func checkPolicyViolations(manifest string, resourceRequestsAllowlist, resourceM
 	var violations []string
 
 	// Validate allowlist patterns once so malformed globs don't produce repeated errors per-container.
-	if _, err := matchesAllowlist("", resourceRequestsAllowlist); err != nil {
-		violations = append(violations, err.Error())
+	for _, p := range resourceRequestsAllowlist {
+		if _, err := path.Match(p, "validate"); err != nil {
+			violations = append(violations, fmt.Sprintf("invalid allowlist pattern %q: %v", p, err))
+			break
+		}
 	}
-	if _, err := matchesAllowlist("", resourceMemoryLimitsAllowlist); err != nil {
-		violations = append(violations, err.Error())
+	for _, p := range resourceMemoryLimitsAllowlist {
+		if _, err := path.Match(p, "validate"); err != nil {
+			violations = append(violations, fmt.Sprintf("invalid allowlist pattern %q: %v", p, err))
+			break
+		}
 	}
 	if len(violations) > 0 {
 		return violations
