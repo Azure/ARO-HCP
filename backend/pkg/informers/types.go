@@ -16,6 +16,7 @@ package informers
 
 import (
 	"context"
+	"reflect"
 	"sync"
 	"time"
 
@@ -23,6 +24,9 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
+	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/fleet"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -191,61 +195,91 @@ func (b *backendInformers) RunWithContext(ctx context.Context) {
 	go func() {
 		defer utilruntime.HandleCrash()
 		defer wg.Done()
-		b.subscriptionInformer.RunWithContext(ctx)
+		localLogger := logger.WithValues("type", reflect.TypeOf(&arm.Subscription{}).String())
+		localCtx := utils.ContextWithLogger(ctx, localLogger)
+
+		b.subscriptionInformer.RunWithContext(localCtx)
 	}()
 	wg.Add(1)
 	go func() {
 		defer utilruntime.HandleCrash()
 		defer wg.Done()
-		b.activeOperationInformer.RunWithContext(ctx)
+		localLogger := logger.WithValues("type", reflect.TypeOf(&arm.Operation{}).String())
+		localCtx := utils.ContextWithLogger(ctx, localLogger)
+
+		b.activeOperationInformer.RunWithContext(localCtx)
 	}()
 	wg.Add(1)
 	go func() {
 		defer utilruntime.HandleCrash()
 		defer wg.Done()
-		b.allOperationInformer.RunWithContext(ctx)
+		localLogger := logger.WithValues("type", reflect.TypeOf(&arm.Operation{}).String())
+		localCtx := utils.ContextWithLogger(ctx, localLogger)
+
+		b.allOperationInformer.RunWithContext(localCtx)
 	}()
 	wg.Add(1)
 	go func() {
 		defer utilruntime.HandleCrash()
 		defer wg.Done()
-		b.clusterInformer.RunWithContext(ctx)
+		localLogger := logger.WithValues("type", reflect.TypeOf(&api.HCPOpenShiftCluster{}).String())
+		localCtx := utils.ContextWithLogger(ctx, localLogger)
+
+		b.clusterInformer.RunWithContext(localCtx)
 	}()
 	wg.Add(1)
 	go func() {
 		defer utilruntime.HandleCrash()
 		defer wg.Done()
-		b.nodePoolInformer.RunWithContext(ctx)
+		localLogger := logger.WithValues("type", reflect.TypeOf(&api.HCPOpenShiftClusterNodePool{}).String())
+		localCtx := utils.ContextWithLogger(ctx, localLogger)
+
+		b.nodePoolInformer.RunWithContext(localCtx)
 	}()
 	wg.Add(1)
 	go func() {
 		defer utilruntime.HandleCrash()
 		defer wg.Done()
-		b.externalAuthInformer.RunWithContext(ctx)
+		localLogger := logger.WithValues("type", reflect.TypeOf(&api.HCPOpenShiftClusterExternalAuth{}).String())
+		localCtx := utils.ContextWithLogger(ctx, localLogger)
+
+		b.externalAuthInformer.RunWithContext(localCtx)
 	}()
 	wg.Add(1)
 	go func() {
 		defer utilruntime.HandleCrash()
 		defer wg.Done()
-		b.serviceProviderClusterInformer.RunWithContext(ctx)
+		localLogger := logger.WithValues("type", reflect.TypeOf(&api.ServiceProviderCluster{}).String())
+		localCtx := utils.ContextWithLogger(ctx, localLogger)
+
+		b.serviceProviderClusterInformer.RunWithContext(localCtx)
 	}()
 	wg.Add(1)
 	go func() {
 		defer utilruntime.HandleCrash()
 		defer wg.Done()
-		b.serviceProviderNodePoolInformer.RunWithContext(ctx)
+		localLogger := logger.WithValues("type", reflect.TypeOf(&api.ServiceProviderNodePool{}).String())
+		localCtx := utils.ContextWithLogger(ctx, localLogger)
+
+		b.serviceProviderNodePoolInformer.RunWithContext(localCtx)
 	}()
 	wg.Add(1)
 	go func() {
 		defer utilruntime.HandleCrash()
 		defer wg.Done()
-		b.controllerInformer.RunWithContext(ctx)
+		localLogger := logger.WithValues("type", reflect.TypeOf(&api.Controller{}).String())
+		localCtx := utils.ContextWithLogger(ctx, localLogger)
+
+		b.controllerInformer.RunWithContext(localCtx)
 	}()
 	wg.Add(1)
 	go func() {
 		defer utilruntime.HandleCrash()
 		defer wg.Done()
-		b.managementClusterContentInformer.RunWithContext(ctx)
+		localLogger := logger.WithValues("type", reflect.TypeOf(&fleet.ManagementCluster{}).String())
+		localCtx := utils.ContextWithLogger(ctx, localLogger)
+
+		b.managementClusterContentInformer.RunWithContext(localCtx)
 	}()
 	wg.Add(1)
 	go func() {

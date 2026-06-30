@@ -72,8 +72,11 @@ func (c *ChangeFeedListWatcher[InternalAPIType, InternalAPITypePointer, CosmosAP
 	defer c.lock.Unlock()
 
 	logger := utils.LoggerFromContext(ctx)
-	logger.Info("listing clusters")
-	defer logger.Info("finished listing clusters")
+	logger = logger.WithValues(utils.LogValues{}.AddResourceTypes(c.desiredResourceTypes...))
+	ctx = utils.ContextWithLogger(ctx, logger)
+
+	logger.Info("listing")
+	defer logger.Info("finished listing")
 
 	// We create and start the watch before we do the list so that we won't miss any changefeed events due to a gap between
 	// the end of the list and the start of the watch.
@@ -220,6 +223,10 @@ func (c *ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPITyp
 	defer close(c.finished)
 
 	logger := utils.LoggerFromContext(ctx)
+	logger = logger.WithValues(utils.LogValues{}.
+		AddResourceTypes(c.desiredResourceTypes...))
+	ctx = utils.ContextWithLogger(ctx, logger)
+
 	logger.Info("starting change feed watcher")
 	defer logger.Info("finished change feed watcher")
 
@@ -233,7 +240,6 @@ func (c *ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPITyp
 
 	// Initialize the workqueue with feed ranges.
 	for _, feedRange := range resourcesFeedRanges {
-		logger := utils.LoggerFromContext(ctx)
 		localFeedRange := feedRange
 		localCtx := utils.ContextWithLogger(ctx, logger.WithValues("feedRange", localFeedRange))
 
@@ -308,6 +314,9 @@ func (c *ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPITyp
 	if err := json.Unmarshal(document, objAsTypedDocument); err != nil {
 		return utils.TrackError(err)
 	}
+	logger = logger.WithValues(utils.LogValues{}.AddLogValuesForResourceID(objAsTypedDocument.ResourceID))
+	ctx = utils.ContextWithLogger(ctx, logger)
+
 	matchesDesiredType := false
 	for _, desiredResourceType := range c.desiredResourceTypes {
 		if armhelpers.ResourceTypeStringEqual(objAsTypedDocument.ResourceType, desiredResourceType) {
@@ -318,6 +327,7 @@ func (c *ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPITyp
 	if !matchesDesiredType {
 		return nil
 	}
+
 	if objAsTypedDocument.ResourceID == nil {
 		return utils.TrackError(fmt.Errorf("missing resourceID"))
 	}
@@ -336,9 +346,10 @@ func (c *ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPITyp
 	canonicalResourceID := strings.ToLower(internalObj.GetResourceID().String())
 	initialInstanceVersion, objPreviouslySeen := c.resourceIDToInstanceVersion.Load(canonicalResourceID)
 	if objPreviouslySeen && initialInstanceVersion.(int64) >= internalObj.GetInstanceVersion() {
-		logger.Info("skipping document", "resourceID", canonicalResourceID, "instanceVersion", internalObj.GetInstanceVersion(), "initialInstanceVersion", initialInstanceVersion)
+		logger.Info("skipping document", "instanceVersion", internalObj.GetInstanceVersion(), "initialInstanceVersion", initialInstanceVersion)
 		return nil
 	}
+	logger.Info("delivering change feed item")
 	c.resourceIDToInstanceVersion.Store(canonicalResourceID, internalObj.GetInstanceVersion())
 
 	watchEvent := watch.Event{
@@ -393,7 +404,6 @@ func (c *ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPITyp
 
 		err := c.readFeedRange(ctx, feedRange)
 		if err != nil {
-			logger := utils.LoggerFromContext(ctx)
 			logger.Error(err, "error reading feed range")
 		}
 	}
