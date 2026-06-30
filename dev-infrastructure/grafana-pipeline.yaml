@@ -19,7 +19,7 @@ resourceGroups:
     deploymentLevel: ResourceGroup
     outputOnly: true
   - name: grafana-reconcile
-    action: GrafanaReconcile
+    action: GrafanaManage
     grafanaName: "{{ .monitoring.grafanaName }}"
     location: "{{ .global.region }}"
     majorVersion: "{{ .monitoring.grafanaMajorVersion }}"
@@ -29,9 +29,6 @@ resourceGroups:
       resourceGroup: singleton
       step: output
       name: globalMSIId
-    dependsOn:
-    - resourceGroup: singleton
-      step: output
   - name: grafana-roles
     action: ARM
     template: templates/grafana-roles.bicep
