@@ -139,6 +139,9 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 				readDesireLister: &internallistertesting.SliceReadDesireLister{
 					Desires: []*kubeapplier.ReadDesire{succeededDesire},
 				},
+				serviceProviderClusterLister: &listertesting.SliceServiceProviderClusterLister{
+					ServiceProviderClusters: []*api.ServiceProviderCluster{newServiceProviderClusterWithCABundle("test-ca-bundle")},
+				},
 			}
 
 			err = controller.SynchronizeOperation(ctx, fixture.operationKey())
@@ -153,6 +156,24 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 				tt.verify(t, ctx, mockResourcesDBClient, fixture)
 			}
 		})
+	}
+}
+
+// newServiceProviderClusterWithCABundle builds a ServiceProviderCluster with the
+// given ServingCABundle value.
+func newServiceProviderClusterWithCABundle(caBundle string) *api.ServiceProviderCluster {
+	fixture := newClusterTestFixture()
+	spcResourceID := api.Must(azcorearm.ParseResourceID(
+		fixture.clusterResourceID.String() + "/serviceProviderClusters/default",
+	))
+	return &api.ServiceProviderCluster{
+		CosmosMetadata: api.CosmosMetadata{
+			ResourceID:   spcResourceID,
+			PartitionKey: strings.ToLower(spcResourceID.SubscriptionID),
+		},
+		Status: api.ServiceProviderClusterStatus{
+			ServingCABundle: caBundle,
+		},
 	}
 }
 
@@ -192,6 +213,21 @@ func (l *errorReadDesireLister) ListForCluster(_ context.Context, _, _, _ string
 	return nil, l.err
 }
 func (l *errorReadDesireLister) ListForNodePool(_ context.Context, _, _, _, _ string) ([]*kubeapplier.ReadDesire, error) {
+	return nil, l.err
+}
+
+// errorServiceProviderClusterLister always returns the configured error.
+type errorServiceProviderClusterLister struct {
+	err error
+}
+
+func (l *errorServiceProviderClusterLister) List(_ context.Context) ([]*api.ServiceProviderCluster, error) {
+	return nil, l.err
+}
+func (l *errorServiceProviderClusterLister) Get(_ context.Context, _, _, _ string) (*api.ServiceProviderCluster, error) {
+	return nil, l.err
+}
+func (l *errorServiceProviderClusterLister) ListForCluster(_ context.Context, _, _, _ string) ([]*api.ServiceProviderCluster, error) {
 	return nil, l.err
 }
 
@@ -238,13 +274,14 @@ func TestDetermineOperationStatus(t *testing.T) {
 	operation := fixture.newOperation(database.OperationRequestCreate)
 
 	tests := []struct {
-		name             string
-		clusterLister    listers.ClusterLister
-		readDesireLister dblisters.ReadDesireLister
-		expectedState    arm.ProvisioningState
-		expectedMessage  string
-		expectError      bool
-		errContains      string
+		name                         string
+		clusterLister                listers.ClusterLister
+		readDesireLister             dblisters.ReadDesireLister
+		serviceProviderClusterLister listers.ServiceProviderClusterLister
+		expectedState                arm.ProvisioningState
+		expectedMessage              string
+		expectError                  bool
+		errContains                  string
 	}{
 		{
 			name: "both checks succeed → Succeeded",
@@ -442,6 +479,95 @@ func TestDetermineOperationStatus(t *testing.T) {
 			expectedMessage: "hosted cluster has no control plane endpoint port",
 		},
 		{
+			name: "serving CA bundle not yet populated → Provisioning",
+			clusterLister: &listertesting.SliceClusterLister{
+				Clusters: []*api.HCPOpenShiftCluster{newClusterWithAPIURL("https://api.example.com")},
+			},
+			readDesireLister: &internallistertesting.SliceReadDesireLister{
+				Desires: []*kubeapplier.ReadDesire{
+					newHostedClusterReadDesire(t, &v1beta1.HostedCluster{
+						Status: v1beta1.HostedClusterStatus{
+							Conditions: []metav1.Condition{
+								{Type: string(v1beta1.HostedClusterAvailable), Status: metav1.ConditionTrue},
+							},
+							ControlPlaneVersion: v1beta1.ControlPlaneVersionStatus{
+								History: []v1beta1.ControlPlaneUpdateHistory{
+									{Version: "4.17.3", State: configv1.CompletedUpdate},
+								},
+							},
+							ControlPlaneEndpoint: v1beta1.APIEndpoint{
+								Host: "api.example.com",
+								Port: 6443,
+							},
+						},
+					}),
+				},
+			},
+			serviceProviderClusterLister: &listertesting.SliceServiceProviderClusterLister{
+				ServiceProviderClusters: []*api.ServiceProviderCluster{newServiceProviderClusterWithCABundle("")},
+			},
+			expectedState:   arm.ProvisioningStateProvisioning,
+			expectedMessage: "serving CA bundle not yet populated",
+		},
+		{
+			name: "ServiceProviderCluster not cached yet → Provisioning",
+			clusterLister: &listertesting.SliceClusterLister{
+				Clusters: []*api.HCPOpenShiftCluster{newClusterWithAPIURL("https://api.example.com")},
+			},
+			readDesireLister: &internallistertesting.SliceReadDesireLister{
+				Desires: []*kubeapplier.ReadDesire{
+					newHostedClusterReadDesire(t, &v1beta1.HostedCluster{
+						Status: v1beta1.HostedClusterStatus{
+							Conditions: []metav1.Condition{
+								{Type: string(v1beta1.HostedClusterAvailable), Status: metav1.ConditionTrue},
+							},
+							ControlPlaneVersion: v1beta1.ControlPlaneVersionStatus{
+								History: []v1beta1.ControlPlaneUpdateHistory{
+									{Version: "4.17.3", State: configv1.CompletedUpdate},
+								},
+							},
+							ControlPlaneEndpoint: v1beta1.APIEndpoint{
+								Host: "api.example.com",
+								Port: 6443,
+							},
+						},
+					}),
+				},
+			},
+			serviceProviderClusterLister: &listertesting.SliceServiceProviderClusterLister{},
+			expectedState:                arm.ProvisioningStateProvisioning,
+			expectedMessage:              "ServiceProviderCluster not cached yet",
+		},
+		{
+			name: "ServiceProviderCluster lister error → error propagated",
+			clusterLister: &listertesting.SliceClusterLister{
+				Clusters: []*api.HCPOpenShiftCluster{newClusterWithAPIURL("https://api.example.com")},
+			},
+			readDesireLister: &internallistertesting.SliceReadDesireLister{
+				Desires: []*kubeapplier.ReadDesire{
+					newHostedClusterReadDesire(t, &v1beta1.HostedCluster{
+						Status: v1beta1.HostedClusterStatus{
+							Conditions: []metav1.Condition{
+								{Type: string(v1beta1.HostedClusterAvailable), Status: metav1.ConditionTrue},
+							},
+							ControlPlaneVersion: v1beta1.ControlPlaneVersionStatus{
+								History: []v1beta1.ControlPlaneUpdateHistory{
+									{Version: "4.17.3", State: configv1.CompletedUpdate},
+								},
+							},
+							ControlPlaneEndpoint: v1beta1.APIEndpoint{
+								Host: "api.example.com",
+								Port: 6443,
+							},
+						},
+					}),
+				},
+			},
+			serviceProviderClusterLister: &errorServiceProviderClusterLister{err: fmt.Errorf("spc error")},
+			expectError:                  true,
+			errContains:                  "spc error",
+		},
+		{
 			name: "version with valid success condition but not installed → Provisioning",
 			clusterLister: &listertesting.SliceClusterLister{
 				Clusters: []*api.HCPOpenShiftCluster{newClusterWithAPIURL("https://api.example.com")},
@@ -475,9 +601,19 @@ func TestDetermineOperationStatus(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
 
+			spcLister := tt.serviceProviderClusterLister
+			if spcLister == nil {
+				// Default: provide a ServiceProviderCluster with a populated CA bundle
+				// so the serving CA check succeeds unless explicitly overridden.
+				spcLister = &listertesting.SliceServiceProviderClusterLister{
+					ServiceProviderClusters: []*api.ServiceProviderCluster{newServiceProviderClusterWithCABundle("test-ca-bundle")},
+				}
+			}
+
 			controller := &operationClusterCreate{
-				clusterLister:    tt.clusterLister,
-				readDesireLister: tt.readDesireLister,
+				clusterLister:                tt.clusterLister,
+				readDesireLister:             tt.readDesireLister,
+				serviceProviderClusterLister: spcLister,
 			}
 
 			result, err := controller.determineOperationStatus(ctx, operation)

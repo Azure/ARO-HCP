@@ -52,6 +52,7 @@ type operationClusterCreate struct {
 	clusterLister                         listers.ClusterLister
 	clusterManagementClusterContentLister listers.ManagementClusterContentLister
 	readDesireLister                      dblisters.ReadDesireLister
+	serviceProviderClusterLister          listers.ServiceProviderClusterLister
 	resourcesDBClient                     database.ResourcesDBClient
 	clusterServiceClient                  ocm.ClusterServiceClientSpec
 	notificationClient                    *http.Client
@@ -82,11 +83,13 @@ func NewOperationClusterCreateController(
 ) controllerutils.Controller {
 	_, clusterLister := informers.Clusters()
 	_, clusterManagementClusterContentLister := informers.ManagementClusterContents()
+	_, serviceProviderClusterLister := informers.ServiceProviderClusters()
 	syncer := &operationClusterCreate{
 		clock:                                 clock,
 		clusterLister:                         clusterLister,
 		clusterManagementClusterContentLister: clusterManagementClusterContentLister,
 		readDesireLister:                      readDesireLister,
+		serviceProviderClusterLister:          serviceProviderClusterLister,
 		resourcesDBClient:                     resourcesDBClient,
 		clusterServiceClient:                  clusterServiceClient,
 		notificationClient:                    notificationClient,
@@ -186,6 +189,11 @@ func (c *operationClusterCreate) determineOperationStatus(ctx context.Context, o
 	} else {
 		operationStates = append(operationStates, currState)
 	}
+	if currState, err := c.servingCAOperationStatus(ctx, operation); err != nil {
+		errs = append(errs, utils.TrackError(err))
+	} else {
+		operationStates = append(operationStates, currState)
+	}
 
 	if err := errors.Join(errs...); err != nil {
 		return nil, err
@@ -223,6 +231,22 @@ func (c *operationClusterCreate) clusterOperationStatus(ctx context.Context, ope
 	if len(cluster.ServiceProviderProperties.API.URL) == 0 {
 		message := ".api.url is empty"
 		return newOperationState(arm.ProvisioningStateProvisioning, message), nil
+	}
+
+	return newOperationState(arm.ProvisioningStateSucceeded, ""), nil
+}
+
+func (c *operationClusterCreate) servingCAOperationStatus(ctx context.Context, operation *api.Operation) (*operationState, error) {
+	spc, err := c.serviceProviderClusterLister.Get(ctx, operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName, operation.ExternalID.Name)
+	if database.IsNotFoundError(err) {
+		return newOperationState(arm.ProvisioningStateProvisioning, "ServiceProviderCluster not cached yet"), nil
+	}
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+
+	if len(spc.Status.ServingCABundle) == 0 {
+		return newOperationState(arm.ProvisioningStateProvisioning, "serving CA bundle not yet populated"), nil
 	}
 
 	return newOperationState(arm.ProvisioningStateSucceeded, ""), nil
