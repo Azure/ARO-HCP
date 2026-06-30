@@ -29,11 +29,11 @@ import (
 )
 
 var (
-	ErrRetireRevisionWouldOrphanWorkloads = errors.New("retiring revision would orphan workloads")
-	ErrControlPlaneUnhealthy              = errors.New("control plane unhealthy")
+	ErrRetireRevisionWouldOrphanWorkloads = errors.New("retiring revision would orphan workloads: stale sidecar pods remain after restart retries")
+	ErrControlPlaneUnhealthy              = errors.New("control plane unhealthy: one or more istiod pods are not ready")
 )
 
-var revisionPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9-]*$`)
+var revisionPattern = regexp.MustCompile(`^asm-\d+-\d+$`)
 
 type StopAfter string
 
@@ -139,10 +139,18 @@ func RunUpgrade(ctx context.Context, opts UpgradeOptions, aksClient AKSClusterCl
 				"installed", meshProfile.Revisions,
 				"expected", target,
 			)
-		} else {
-			if err := CreateRevisionConfigMap(ctx, kubeClient, target); err != nil {
-				logger.Info("Istio upgrade — failed to ensure ConfigMap on skip (non-fatal)", "error", err)
+			return nil
+		}
+		if err := CreateRevisionConfigMap(ctx, kubeClient, target); err != nil {
+			logger.Info("Istio upgrade — failed to ensure ConfigMap on skip (non-fatal)", "error", err)
+		}
+		if opts.Tag != "" {
+			if err := EnsureRevisionTag(ctx, kubeClient, opts.Tag, target); err != nil {
+				logger.Info("Istio upgrade — failed to ensure tag webhook on skip (non-fatal)", "error", err)
 			}
+		}
+		if err := ensureIngress(ctx, kubeClient, opts); err != nil {
+			logger.Info("Istio upgrade — failed to ensure ingress on skip (non-fatal)", "error", err)
 		}
 		return nil
 	case ActionInstall:

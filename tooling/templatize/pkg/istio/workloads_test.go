@@ -402,6 +402,31 @@ func TestCreateRevisionConfigMap(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestCreateRevisionConfigMap_UpdatePreservesExistingLabels(t *testing.T) {
+	client := fake.NewSimpleClientset(&corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "istio-shared-configmap-asm-1-29",
+			Namespace: "aks-istio-system",
+			Labels: map[string]string{
+				"istio.io/rev":               "asm-1-29",
+				"app.kubernetes.io/managed-by": "Helm",
+				"helm.sh/chart":               "istio-config-0.1.0",
+			},
+		},
+		Data: map[string]string{"mesh": "old-data"},
+	})
+
+	err := CreateRevisionConfigMap(context.Background(), client, "asm-1-29")
+	require.NoError(t, err)
+
+	cm, err := client.CoreV1().ConfigMaps("aks-istio-system").Get(context.Background(), "istio-shared-configmap-asm-1-29", metav1.GetOptions{})
+	require.NoError(t, err)
+	assert.Equal(t, "asm-1-29", cm.Labels["istio.io/rev"])
+	assert.Equal(t, "Helm", cm.Labels["app.kubernetes.io/managed-by"])
+	assert.Equal(t, "istio-config-0.1.0", cm.Labels["helm.sh/chart"])
+	assert.Contains(t, cm.Data["mesh"], "ext-authz")
+}
+
 func TestDeleteRevisionConfigMap(t *testing.T) {
 	client := fake.NewSimpleClientset(&corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{

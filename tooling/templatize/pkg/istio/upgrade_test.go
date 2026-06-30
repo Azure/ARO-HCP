@@ -176,8 +176,26 @@ func TestRunUpgrade_AlreadyAtTarget(t *testing.T) {
 	}
 	opts := baseOpts()
 	opts.Versions = "asm-1-29"
+	opts.Tag = "prod-stable"
 
-	kubeClient := fake.NewSimpleClientset()
+	revisionWebhook := &admissionregistrationv1.MutatingWebhookConfiguration{
+		ObjectMeta: metav1.ObjectMeta{Name: "istio-sidecar-injector-asm-1-29-aks-istio-system"},
+		Webhooks: []admissionregistrationv1.MutatingWebhook{
+			{
+				Name: "rev.namespace.sidecar-injector.istio.io",
+				ClientConfig: admissionregistrationv1.WebhookClientConfig{
+					CABundle: []byte("test-ca"),
+					Service:  &admissionregistrationv1.ServiceReference{Name: "istiod-asm-1-29", Namespace: "aks-istio-system"},
+				},
+				AdmissionReviewVersions: []string{"v1"},
+				SideEffects: func() *admissionregistrationv1.SideEffectClass {
+					s := admissionregistrationv1.SideEffectClassNone
+					return &s
+				}(),
+			},
+		},
+	}
+	kubeClient := fake.NewSimpleClientset(revisionWebhook)
 	err := RunUpgrade(testCtx(t), opts, aks, kubeClient)
 	require.NoError(t, err)
 	assert.NotContains(t, aks.calls, "EnableMesh")
@@ -187,6 +205,11 @@ func TestRunUpgrade_AlreadyAtTarget(t *testing.T) {
 		context.Background(), "istio-shared-configmap-asm-1-29", metav1.GetOptions{})
 	require.NoError(t, err, "skip path should ensure ConfigMap exists when at target")
 	assert.Equal(t, "asm-1-29", cm.Labels["istio.io/rev"])
+
+	tagWH, err := kubeClient.AdmissionregistrationV1().MutatingWebhookConfigurations().Get(
+		context.Background(), "istio-revision-tag-prod-stable-aks-istio-system", metav1.GetOptions{})
+	require.NoError(t, err, "skip path should ensure tag webhook exists when at target")
+	assert.Equal(t, "istiod-asm-1-29", tagWH.Webhooks[0].ClientConfig.Service.Name)
 }
 
 func TestRunUpgrade_Install(t *testing.T) {

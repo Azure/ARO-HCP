@@ -69,7 +69,10 @@ func CreateRevisionConfigMap(ctx context.Context, client kubernetes.Interface, r
 			return nil
 		}
 		existing.Data = cm.Data
-		existing.Labels = cm.Labels
+		if existing.Labels == nil {
+			existing.Labels = make(map[string]string)
+		}
+		existing.Labels["istio.io/rev"] = revision
 		if _, err = client.CoreV1().ConfigMaps(istioSystemNamespace).Update(ctx, existing, metav1.UpdateOptions{}); err != nil {
 			return fmt.Errorf("failed to update ConfigMap %s: %w", cmName, err)
 		}
