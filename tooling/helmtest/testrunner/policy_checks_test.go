@@ -86,9 +86,9 @@ spec:
 	violations := checkPolicyViolations(manifest, emptyAllowlist, emptyAllowlist)
 	// Both init and web containers are missing memory requests AND limits
 	assert.Equal(t, []string{
-		`Deployment/my-app/init container is missing a memory request (resources.requests.memory not set; add to ResourceRequestsAllowlist if intentionally unlimited)`,
+		`Deployment/my-app/init container is missing a memory request (resources.requests.memory not set; add to ResourceRequestsAllowlist if intentionally unset)`,
 		`Deployment/my-app/init container is missing a memory limit (resources.limits.memory not set; add to ResourceMemoryLimitsAllowlist if intentionally unlimited)`,
-		`Deployment/my-app/web container is missing a memory request (resources.requests.memory not set; add to ResourceRequestsAllowlist if intentionally unlimited)`,
+		`Deployment/my-app/web container is missing a memory request (resources.requests.memory not set; add to ResourceRequestsAllowlist if intentionally unset)`,
 		`Deployment/my-app/web container is missing a memory limit (resources.limits.memory not set; add to ResourceMemoryLimitsAllowlist if intentionally unlimited)`,
 	}, violations)
 }
@@ -219,7 +219,7 @@ spec:
 	violations := checkPolicyViolations(manifest, emptyAllowlist, emptyAllowlist)
 	// web container is missing both requests and limits, debugger has them
 	assert.Equal(t, []string{
-		`Deployment/my-app/web container is missing a memory request (resources.requests.memory not set; add to ResourceRequestsAllowlist if intentionally unlimited)`,
+		`Deployment/my-app/web container is missing a memory request (resources.requests.memory not set; add to ResourceRequestsAllowlist if intentionally unset)`,
 		`Deployment/my-app/web container is missing a memory limit (resources.limits.memory not set; add to ResourceMemoryLimitsAllowlist if intentionally unlimited)`,
 	}, violations)
 }
@@ -241,9 +241,9 @@ spec:
 	violations := checkPolicyViolations(manifest, emptyAllowlist, emptyAllowlist)
 	// Both web and debugger containers are missing memory requests AND limits
 	assert.Equal(t, []string{
-		`Deployment/my-app/web container is missing a memory request (resources.requests.memory not set; add to ResourceRequestsAllowlist if intentionally unlimited)`,
+		`Deployment/my-app/web container is missing a memory request (resources.requests.memory not set; add to ResourceRequestsAllowlist if intentionally unset)`,
 		`Deployment/my-app/web container is missing a memory limit (resources.limits.memory not set; add to ResourceMemoryLimitsAllowlist if intentionally unlimited)`,
-		`Deployment/my-app/debugger container is missing a memory request (resources.requests.memory not set; add to ResourceRequestsAllowlist if intentionally unlimited)`,
+		`Deployment/my-app/debugger container is missing a memory request (resources.requests.memory not set; add to ResourceRequestsAllowlist if intentionally unset)`,
 		`Deployment/my-app/debugger container is missing a memory limit (resources.limits.memory not set; add to ResourceMemoryLimitsAllowlist if intentionally unlimited)`,
 	}, violations)
 }
@@ -340,7 +340,7 @@ spec:
 	violations := checkPolicyViolations(manifest, testAllowlist, testAllowlist)
 	// test-container is allowlisted, not-allowlisted has no memory requests or limits
 	assert.Equal(t, []string{
-		`DaemonSet/test-allowlisted-ds/not-allowlisted container is missing a memory request (resources.requests.memory not set; add to ResourceRequestsAllowlist if intentionally unlimited)`,
+		`DaemonSet/test-allowlisted-ds/not-allowlisted container is missing a memory request (resources.requests.memory not set; add to ResourceRequestsAllowlist if intentionally unset)`,
 		`DaemonSet/test-allowlisted-ds/not-allowlisted container is missing a memory limit (resources.limits.memory not set; add to ResourceMemoryLimitsAllowlist if intentionally unlimited)`,
 	}, violations)
 }
@@ -381,7 +381,7 @@ spec:
 `
 	violations := checkPolicyViolations(manifest, emptyAllowlist, emptyAllowlist)
 	assert.Equal(t, []string{
-		`Deployment/my-app/web container is missing a memory request (resources.requests.memory not set; add to ResourceRequestsAllowlist if intentionally unlimited)`,
+		`Deployment/my-app/web container is missing a memory request (resources.requests.memory not set; add to ResourceRequestsAllowlist if intentionally unset)`,
 		`Deployment/my-app/web container is missing a memory limit (resources.limits.memory not set; add to ResourceMemoryLimitsAllowlist if intentionally unlimited)`,
 	}, violations)
 }
@@ -427,7 +427,7 @@ spec:
 	violations := checkPolicyViolations(manifest, emptyAllowlist, emptyAllowlist)
 	// Has limits but missing requests - should fail the requests check
 	assert.Equal(t, []string{
-		`Deployment/my-app/web container is missing a memory request (resources.requests.memory not set; add to ResourceRequestsAllowlist if intentionally unlimited)`,
+		`Deployment/my-app/web container is missing a memory request (resources.requests.memory not set; add to ResourceRequestsAllowlist if intentionally unset)`,
 	}, violations)
 }
 
