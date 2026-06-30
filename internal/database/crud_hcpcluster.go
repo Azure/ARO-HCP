@@ -43,6 +43,12 @@ type OperationCRUD interface {
 	// to do so. Hence the lack of a Context argument. The search is performed by calling Items() on
 	// the iterator in a ranged for loop.
 	ListActiveOperations(options *ResourcesDBClientListActiveOperationDocsOptions) DBClientIterator[api.Operation]
+
+	// ListByExternalID returns an iterator over all operation documents (including terminal
+	// states) whose externalId matches the given resource ID. When includeNested is true,
+	// operations on nested resources (e.g. node pools under a cluster) are included via a
+	// STARTSWITH prefix match.
+	ListByExternalID(externalID *azcorearm.ResourceID, includeNested bool) DBClientIterator[api.Operation]
 }
 
 type operationCRUD struct {
@@ -101,6 +107,30 @@ func (d *operationCRUD) ListActiveOperations(options *ResourcesDBClientListActiv
 			queryOptions.QueryParameters = append(queryOptions.QueryParameters, queryParameter)
 		}
 	}
+
+	pager := d.containerClient.NewQueryItemsPager(query, NewPartitionKey(d.parentResourceID.SubscriptionID), &queryOptions)
+	return newQueryResourcesIterator[api.Operation, GenericDocument[api.Operation]](pager)
+}
+
+func (d *operationCRUD) ListByExternalID(externalID *azcorearm.ResourceID, includeNested bool) DBClientIterator[api.Operation] {
+	query := fmt.Sprintf(
+		"SELECT * FROM c WHERE STRINGEQUALS(c.resourceType, %q, true) "+
+			"AND LENGTH(c.resourceID) > 0",
+		api.OperationStatusResourceType.String())
+
+	var queryOptions azcosmos.QueryOptions
+
+	const resourceFilter = "STRINGEQUALS(c.properties.externalId, @externalId, true)"
+	if includeNested {
+		const nestedResourceFilter = "STARTSWITH(c.properties.externalId, CONCAT(@externalId, \"/\"), true)"
+		query += fmt.Sprintf(" AND (%s OR %s)", resourceFilter, nestedResourceFilter)
+	} else {
+		query += " AND " + resourceFilter
+	}
+	queryOptions.QueryParameters = append(queryOptions.QueryParameters, azcosmos.QueryParameter{
+		Name:  "@externalId",
+		Value: externalID.String(),
+	})
 
 	pager := d.containerClient.NewQueryItemsPager(query, NewPartitionKey(d.parentResourceID.SubscriptionID), &queryOptions)
 	return newQueryResourcesIterator[api.Operation, GenericDocument[api.Operation]](pager)
