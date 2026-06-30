@@ -47,7 +47,7 @@ resourceGroups:
   - name: grafana
     action: Shell
     command: >-
-      ./grafanactl reconcile grafana --subscription "${GRAFANA_SUBSCRIPTION_ID}" --resource-group "${GRAFANA_RESOURCE_GROUP}" --grafana-name "${GRAFANA_NAME}" --location "${GRAFANA_LOCATION}" --grafana-major-version "${GRAFANA_MAJOR_VERSION}" --zone-redundancy-mode "${GRAFANA_ZONE_REDUNDANCY_MODE}" --cross-tenant-security-group "${GRAFANA_CROSS_TENANT_SECURITY_GROUP}"
+      make build && ./grafanactl reconcile grafana --subscription "${GRAFANA_SUBSCRIPTION_ID}" --resource-group "${GRAFANA_RESOURCE_GROUP}" --grafana-name "${GRAFANA_NAME}" --location "${GRAFANA_LOCATION}" --grafana-major-version "${GRAFANA_MAJOR_VERSION}" --zone-redundancy-mode "${GRAFANA_ZONE_REDUNDANCY_MODE}" --cross-tenant-security-group "${GRAFANA_CROSS_TENANT_SECURITY_GROUP}"
     workingDir: ./../tooling/grafanactl
     variables:
     - name: GRAFANA_SUBSCRIPTION_ID

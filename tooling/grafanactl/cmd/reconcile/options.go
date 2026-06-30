@@ -226,10 +226,14 @@ func (o *CompletedGrafanaOptions) managedGrafana(workspaceIDs []string) armdashb
 		})
 	}
 
-	tags := map[string]*string{}
+	// Leave Tags nil unless we have a value to set. Sending an empty map on the
+	// ARM PUT would clear any tags already present on the Managed Grafana resource.
+	var tags map[string]*string
 	if o.CrossTenantSecurityGroup != "" {
 		crossTenantSecurityGroup := o.CrossTenantSecurityGroup
-		tags["AMG.CrossTenant.SecurityGroup"] = &crossTenantSecurityGroup
+		tags = map[string]*string{
+			"AMG.CrossTenant.SecurityGroup": &crossTenantSecurityGroup,
+		}
 	}
 
 	return armdashboard.ManagedGrafana{
