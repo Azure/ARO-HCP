@@ -38,6 +38,7 @@ func BindOptions(opts *RawRunOptions, cmd *cobra.Command) error {
 	}
 	cmd.Flags().BoolVar(&opts.NoPersist, "no-persist-tag", opts.NoPersist, "toggle if persist tag should not be set")
 	cmd.Flags().IntVar(&opts.DeploymentTimeoutSeconds, "deployment-timeout-seconds", pipeline.DefaultDeploymentTimeoutSeconds, "Timeout in Seconds to wait for previous deployments of the pipeline to finish")
+	cmd.Flags().BoolVar(&opts.SkipBicepparamValidation, "skip-bicepparam-validation", opts.SkipBicepparamValidation, "Skip validation of bicepparam templates for simple field access.")
 	return nil
 }
 
@@ -45,6 +46,7 @@ type RawRunOptions struct {
 	PipelineOptions          *options.RawPipelineOptions
 	NoPersist                bool
 	DeploymentTimeoutSeconds int
+	SkipBicepparamValidation bool
 }
 
 // validatedRunOptions is a private wrapper that enforces a call of Validate() before Complete() can be invoked.
@@ -63,6 +65,7 @@ type completedRunOptions struct {
 	PipelineOptions          *options.PipelineOptions
 	NoPersist                bool
 	DeploymentTimeoutSeconds int
+	SkipBicepparamValidation bool
 }
 
 type RunOptions struct {
@@ -95,6 +98,7 @@ func (o *ValidatedRunOptions) Complete(ctx context.Context) (*RunOptions, error)
 			PipelineOptions:          completed,
 			NoPersist:                o.NoPersist,
 			DeploymentTimeoutSeconds: o.DeploymentTimeoutSeconds,
+			SkipBicepparamValidation: o.SkipBicepparamValidation,
 		},
 	}, nil
 }
@@ -122,6 +126,7 @@ func (o *RunOptions) RunPipeline(ctx context.Context) error {
 			NoPersist:                            o.NoPersist,
 			DeploymentTimeoutSeconds:             o.DeploymentTimeoutSeconds,
 			BicepClient:                          o.PipelineOptions.RolloutOptions.BicepClient,
+			SkipBicepparamValidation:             o.SkipBicepparamValidation,
 			SubscriptionIdToAzureConfigDirectory: subscriptionIdToAzureConfigDirectory,
 		},
 		Region:                o.PipelineOptions.RolloutOptions.Region,
