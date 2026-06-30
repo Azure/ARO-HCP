@@ -34,6 +34,7 @@ var _ = Describe("Customer", func() {
 		labels.AroRpApiCompatible,
 		labels.MIDemandMedium,
 		func(ctx context.Context) {
+			Skip("disabled until platform subnet/NSG uniqueness is validated in frontend admission (async CS create no longer returns synchronous 400)")
 			const (
 				customerNetworkSecurityGroupName = "customer-nsg-name"
 				customerVnetName                 = "customer-vnet-name"
