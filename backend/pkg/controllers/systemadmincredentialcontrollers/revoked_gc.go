@@ -41,10 +41,11 @@ type revokedGC struct {
 	resourcesDBClient database.ResourcesDBClient
 }
 
-var _ controllerutils.ClusterSyncer = (*revokedGC)(nil)
+var _ controllerutils.CredentialRequestSyncer = (*revokedGC)(nil)
 
-// NewRevokedGCController returns a ClusterWatchingController that deletes
-// SystemAdminCredentialRequest documents 48 hours after they reach Phase=Revoked.
+// NewRevokedGCController returns a CredentialRequestWatchingController that
+// deletes individual SystemAdminCredentialRequest documents 48 hours after they
+// reach Revoked state.
 func NewRevokedGCController(
 	clock utilsclock.PassiveClock,
 	activeOperationLister listers.ActiveOperationLister,
@@ -57,7 +58,7 @@ func NewRevokedGCController(
 		resourcesDBClient: resourcesDBClient,
 	}
 
-	return controllerutils.NewClusterWatchingController(
+	return controllerutils.NewCredentialRequestWatchingController(
 		"SystemAdminCredentialRevokedGC",
 		resourcesDBClient,
 		backendInformers,
@@ -71,43 +72,36 @@ func (c *revokedGC) CooldownChecker() controllerutil.CooldownChecker {
 	return c.cooldownChecker
 }
 
-func (c *revokedGC) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
-	logger := utils.LoggerFromContext(ctx).WithValues(utils.LogValues{}.
-		AddSubscriptionID(key.SubscriptionID).
-		AddResourceGroup(key.ResourceGroupName).
-		AddHCPClusterName(key.HCPClusterName)...)
-	ctx = utils.ContextWithLogger(ctx, logger)
+func (c *revokedGC) SyncOnce(ctx context.Context, key controllerutils.SystemAdminCredentialRequestKey) error {
+	logger := utils.LoggerFromContext(ctx)
 
 	credCRUD := c.resourcesDBClient.SystemAdminCredentialRequests(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
-	iter, err := credCRUD.List(ctx, nil)
+	cred, err := credCRUD.Get(ctx, key.CredentialName)
+	if database.IsNotFoundError(err) {
+		return nil
+	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to list SystemAdminCredentialRequests: %w", err))
+		return utils.TrackError(fmt.Errorf("failed to get SystemAdminCredentialRequest: %w", err))
+	}
+
+	if !cred.Status.IsRevoked() {
+		return nil
+	}
+	if cred.Status.RevokedAt == nil {
+		return nil
 	}
 
 	now := c.clock.Now()
-	for _, cred := range iter.Items(ctx) {
-		if !cred.Status.IsRevoked() {
-			continue
-		}
-		if cred.Status.RevokedAt == nil {
-			continue
-		}
-
-		age := now.Sub(cred.Status.RevokedAt.Time)
-		if age < revokedGCRetention {
-			continue
-		}
-
-		credName := cred.ResourceID.Name
-		if err := credCRUD.Delete(ctx, credName); err != nil && !database.IsNotFoundError(err) {
-			logger.Error(err, "failed to delete revoked credential", "credential", credName)
-			continue
-		}
-		logger.Info("garbage-collected revoked credential", "credential", credName, "age", age.String())
+	age := now.Sub(cred.Status.RevokedAt.Time)
+	if age < revokedGCRetention {
+		return nil
 	}
-	if err := iter.GetError(); err != nil {
-		return utils.TrackError(fmt.Errorf("failed to iterate SystemAdminCredentialRequests: %w", err))
+
+	if err := credCRUD.Delete(ctx, key.CredentialName); err != nil && !database.IsNotFoundError(err) {
+		logger.Error(err, "failed to delete revoked credential", "credential", key.CredentialName)
+		return nil
 	}
+	logger.Info("garbage-collected revoked credential", "credential", key.CredentialName, "age", age.String())
 
 	return nil
 }

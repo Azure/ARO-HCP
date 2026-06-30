@@ -43,11 +43,11 @@ type issuanceObserver struct {
 	readDesireLister  dblisters.ReadDesireLister
 }
 
-var _ controllerutils.ClusterSyncer = (*issuanceObserver)(nil)
+var _ controllerutils.CredentialRequestSyncer = (*issuanceObserver)(nil)
 
-// NewIssuanceObserverController returns a ClusterWatchingController that
-// observes the mirrored CSR from the ReadDesire and transitions
-// SystemAdminCredentialRequest documents from Requested → Issued (or Failed).
+// NewIssuanceObserverController returns a CredentialRequestWatchingController
+// that observes the mirrored CSR from the ReadDesire and transitions
+// individual SystemAdminCredentialRequest documents from Pending → Issued (or Failed).
 func NewIssuanceObserverController(
 	clock utilsclock.PassiveClock,
 	resourcesDBClient database.ResourcesDBClient,
@@ -63,7 +63,7 @@ func NewIssuanceObserverController(
 		readDesireLister:  readDesireLister,
 	}
 
-	return controllerutils.NewClusterWatchingController(
+	return controllerutils.NewCredentialRequestWatchingController(
 		"SystemAdminCredentialIssuanceObserver",
 		resourcesDBClient,
 		backendInformers,
@@ -77,47 +77,33 @@ func (c *issuanceObserver) CooldownChecker() controllerutil.CooldownChecker {
 	return c.cooldownChecker
 }
 
-func (c *issuanceObserver) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
-	logger := utils.LoggerFromContext(ctx).WithValues(utils.LogValues{}.
-		AddSubscriptionID(key.SubscriptionID).
-		AddResourceGroup(key.ResourceGroupName).
-		AddHCPClusterName(key.HCPClusterName)...)
-	ctx = utils.ContextWithLogger(ctx, logger)
-
-	// List all SystemAdminCredentialRequests for this cluster.
+func (c *issuanceObserver) SyncOnce(ctx context.Context, key controllerutils.SystemAdminCredentialRequestKey) error {
+	// Get the specific credential request from Cosmos.
 	credCRUD := c.resourcesDBClient.SystemAdminCredentialRequests(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
-	iter, err := credCRUD.List(ctx, nil)
+	cred, err := credCRUD.Get(ctx, key.CredentialName)
+	if database.IsNotFoundError(err) {
+		return nil
+	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to list SystemAdminCredentialRequests: %w", err))
+		return utils.TrackError(fmt.Errorf("failed to get SystemAdminCredentialRequest: %w", err))
 	}
 
-	for _, cred := range iter.Items(ctx) {
-		// Only process credentials that are pending.
-		if !cred.Status.IsPending() {
-			continue
-		}
-
-		credName := cred.ResourceID.Name
-		if err := c.observeCSR(ctx, key, cred, credName, credCRUD); err != nil {
-			return err
-		}
-	}
-	if err := iter.GetError(); err != nil {
-		return utils.TrackError(fmt.Errorf("failed to iterate SystemAdminCredentialRequests: %w", err))
+	// Only process credentials that are pending.
+	if !cred.Status.IsPending() {
+		return nil
 	}
 
-	return nil
+	return c.observeCSR(ctx, key, cred, key.CredentialName, credCRUD)
 }
 
 func (c *issuanceObserver) observeCSR(
 	ctx context.Context,
-	key controllerutils.HCPClusterKey,
+	key controllerutils.SystemAdminCredentialRequestKey,
 	cred *api.SystemAdminCredentialRequest,
 	credName string,
 	credCRUD database.ResourceCRUD[api.SystemAdminCredentialRequest, *api.SystemAdminCredentialRequest],
 ) error {
 	logger := utils.LoggerFromContext(ctx)
-
 	cachedCSR, err := maestrohelpers.GetCachedCSRForSystemAdminCredentialRequest(
 		ctx, c.readDesireLister,
 		key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, credName,
