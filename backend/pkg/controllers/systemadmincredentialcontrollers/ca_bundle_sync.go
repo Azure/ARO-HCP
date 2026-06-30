@@ -41,13 +41,13 @@ type caBundleSync struct {
 	serviceProviderClusterLister listers.ServiceProviderClusterLister
 }
 
-var _ controllerutils.CredentialRequestSyncer = (*caBundleSync)(nil)
+var _ controllerutils.ClusterSyncer = (*caBundleSync)(nil)
 
-// NewCABundleSyncController returns a CredentialRequestWatchingController that
+// NewCABundleSyncController returns a ClusterWatchingController that
 // watches the serving CA ReadDesire (created by controller #10) and writes the
-// CA bundle bytes onto ServiceProviderClusterStatus.ServingCABundle. It fires
-// on credential request events so the CA bundle is synced as soon as any
-// credential request appears for the cluster.
+// CA bundle bytes onto ServiceProviderClusterStatus.ServingCABundle. This is a
+// cluster-scoped operation — the CA bundle is shared across all credential
+// requests for a given cluster.
 func NewCABundleSyncController(
 	activeOperationLister listers.ActiveOperationLister,
 	resourcesDBClient database.ResourcesDBClient,
@@ -64,7 +64,7 @@ func NewCABundleSyncController(
 		serviceProviderClusterLister: serviceProviderClusterLister,
 	}
 
-	return controllerutils.NewCredentialRequestWatchingController(
+	return controllerutils.NewClusterWatchingController(
 		"SystemAdminCredentialCABundleSync",
 		resourcesDBClient,
 		backendInformers,
@@ -78,7 +78,7 @@ func (c *caBundleSync) CooldownChecker() controllerutil.CooldownChecker {
 	return c.cooldownChecker
 }
 
-func (c *caBundleSync) SyncOnce(ctx context.Context, key controllerutils.SystemAdminCredentialRequestKey) error {
+func (c *caBundleSync) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
 	logger := utils.LoggerFromContext(ctx)
 
 	// Read the serving CA Secret from the ReadDesire cache.
