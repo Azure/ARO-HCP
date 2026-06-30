@@ -290,6 +290,42 @@ resourceGroups:
       - "ServiceUnavailable"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
+  - name: maestro-server-cert
+    action: CreateCertificate
+    secretKeyVault:
+      configRef: ev2.assistedId.certificate.keyVault
+    secretName:
+      configRef: ev2.assistedId.certificate.name
+    applicationId:
+      configRef: ev2.assistedId.applicationId
+    vaultBaseUrl:
+      input:
+        resourceGroup: service
+        step: infra-output
+        name: svcKeyVaultUrl
+    certificateName:
+      configRef: maestro.server.mqttClientName
+    contentType:
+      value: x-pkcs12
+    san:
+      configRef: maestro.server.certSAN
+    issuer:
+      configRef: maestro.certIssuer
+    commonName:
+      configRef: maestro.server.certSAN
+    dependsOn:
+    - resourceGroup: service
+      step: infra-output
+    - resourceGroup: service
+      step: oncert-private-kv-issuer
+    - resourceGroup: service
+      step: oncert-public-kv-issuer
+    automatedRetry:
+      errorContainsAny:
+      - "InternalServerError"
+      - "ServiceUnavailable"
+      maximumRetryCount: 3
+      durationBetweenRetries: 1m
   # Create SVC cluster
   - name: cluster
     action: ARM
@@ -348,6 +384,8 @@ resourceGroups:
       step: admin-api-cert
     - resourceGroup: service
       step: sessiongate-cert
+    - resourceGroup: service
+      step: maestro-server-cert
     automatedRetry:
       errorContainsAny:
       - "DeploymentScriptACIProvisioningTimeout"

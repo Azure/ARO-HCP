@@ -1,7 +1,7 @@
 /*
 This module is responsible for setting up EventGrid access for the maestro consumer by
-- create a client certificate
-- register the client in the EventGrid namespace
+- granting access to the client certificate in Key Vault
+- registering the client in the EventGrid namespace
 
 Execution scope: the resourcegroup of the MC where the agent is deployed.
 */
@@ -12,22 +12,26 @@ param maestroConsumerName string
 param maestroEventGridNamespaceId string
 
 param certKeyVaultName string
-param keyVaultOfficerManagedIdentityName string
-param maestroCertificateDomain string
-param maestroCertificateIssuer string
 
-module eventGridClientCert '../keyvault/key-vault-cert-with-access.bicep' = {
-  name: 'maestro-eg-crt-${uniqueString(maestroConsumerName)}'
+@description('The subject alternative name of the certificate')
+param certificateSAN string
+
+//
+//   C E R T I F I C A T E   A C C E S S
+//
+
+module certSecretAccess '../keyvault/key-vault-secret-access.bicep' = {
+  name: 'maestro-cert-access-${uniqueString(maestroConsumerName)}'
   params: {
     keyVaultName: certKeyVaultName
-    kvCertOfficerManagedIdentityResourceId: keyVaultOfficerManagedIdentityName
-    certDomain: maestroCertificateDomain
-    certificateIssuer: maestroCertificateIssuer
-    hostName: maestroConsumerName
-    keyVaultCertificateName: maestroConsumerName
-    certificateAccessManagedIdentityPrincipalId: maestroAgentManagedIdentityPrincipalId
+    secretName: maestroConsumerName
+    principalId: maestroAgentManagedIdentityPrincipalId
   }
 }
+
+//
+//   E V E N T G R I D   A C C E S S
+//
 
 import * as res from '../resource.bicep'
 
@@ -40,8 +44,6 @@ module evengGridAccess 'maestro-eventgrid-access.bicep' = {
     eventGridNamespaceName: eventGridNamespaceRef.name
     clientName: maestroConsumerName
     clientRole: 'consumer'
-    certificateThumbprint: eventGridClientCert.outputs.certificateThumbprint
-    certificateSAN: eventGridClientCert.outputs.certificateSAN
-    certificateIssuer: maestroCertificateIssuer
+    certificateSAN: certificateSAN
   }
 }

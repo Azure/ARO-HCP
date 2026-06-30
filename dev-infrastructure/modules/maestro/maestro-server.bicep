@@ -2,6 +2,7 @@
 This module is responsible for:
  - setting up Postgres access for the maestro server
  - setting up EventGrid access for the maestro server
+ - granting access to the maestro server certificate in Key Vault
 
 Execution scope: the resourcegroup of the AKS cluster where the maestro server
 will be deployed.
@@ -12,9 +13,9 @@ param maestroEventGridNamespaceName string
 param certKeyVaultName string
 param certKeyVaultResourceGroup string
 param certKeyVaultSubscription string = subscription().subscriptionId
-param keyVaultOfficerManagedIdentityName string
-param maestroCertificateDomain string
-param maestroCertificateIssuer string
+
+@description('The subject alternative name of the certificate')
+param certificateSAN string
 
 @description('The name of the MQTT client that will be created in the EventGrid Namespace')
 param mqttClientName string
@@ -163,22 +164,22 @@ module maestroPostgres '../postgres/postgres.bicep' = if (deployPostgres) {
 // SFI-ID4.2.1 compliance).
 
 //
-//   E V E N T G R I D   A C C E S S
+//   C E R T I F I C A T E   A C C E S S
 //
 
-module eventGridClientCert '../keyvault/key-vault-cert-with-access.bicep' = {
-  name: 'maestro-eg-crt-${uniqueString(mqttClientName)}'
+module certSecretAccess '../keyvault/key-vault-secret-access.bicep' = {
+  name: 'maestro-cert-access-${uniqueString(mqttClientName)}'
   scope: resourceGroup(certKeyVaultSubscription, certKeyVaultResourceGroup)
   params: {
     keyVaultName: certKeyVaultName
-    kvCertOfficerManagedIdentityResourceId: keyVaultOfficerManagedIdentityName
-    certDomain: maestroCertificateDomain
-    certificateIssuer: maestroCertificateIssuer
-    hostName: mqttClientName
-    keyVaultCertificateName: mqttClientName
-    certificateAccessManagedIdentityPrincipalId: maestroServerManagedIdentityPrincipalId
+    secretName: mqttClientName
+    principalId: maestroServerManagedIdentityPrincipalId
   }
 }
+
+//
+//   E V E N T G R I D   A C C E S S
+//
 
 module evengGridAccess 'maestro-eventgrid-access.bicep' = {
   name: 'maestro-eg-access-${uniqueString(mqttClientName)}'
@@ -187,8 +188,6 @@ module evengGridAccess 'maestro-eventgrid-access.bicep' = {
     eventGridNamespaceName: maestroEventGridNamespaceName
     clientName: mqttClientName
     clientRole: 'server'
-    certificateThumbprint: eventGridClientCert.outputs.certificateThumbprint
-    certificateSAN: eventGridClientCert.outputs.certificateSAN
-    certificateIssuer: maestroCertificateIssuer
+    certificateSAN: certificateSAN
   }
 }

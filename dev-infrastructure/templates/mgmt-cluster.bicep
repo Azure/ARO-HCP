@@ -140,11 +140,8 @@ param aksEnableSwiftNodepools bool
 @description('The name of the maestro consumer.')
 param maestroConsumerName string
 
-@description('The domain to use to use for the maestro certificate. Relevant only for environments where OneCert can be used.')
-param maestroCertDomain string
-
-@description('The issuer of the maestro certificate.')
-param maestroCertIssuer string
+@description('The SAN and CN for the Maestro consumer EventGrid certificate.')
+param maestroConsumerCertSAN string
 
 @description('The Azure resource ID of the eventgrid namespace for Maestro.')
 param maestroEventGridNamespaceId string
@@ -187,9 +184,6 @@ param mgmtAgentNamespace string
 
 @description('The service account name of the mgmt-agent controller.')
 param mgmtAgentServiceAccountName string
-
-@description('The regional SVC DNS zone name.')
-param regionalSvcDNSZoneName string
 
 @description('The name of the CX KeyVault')
 param cxKeyVaultName string
@@ -539,8 +533,6 @@ module genevaClusterLogCertificate '../modules/keyvault/key-vault-cert-with-acce
 //   M A E S T R O
 //
 
-var effectiveMaestroCertDomain = !empty(maestroCertDomain) ? maestroCertDomain : 'maestro.${regionalSvcDNSZoneName}'
-
 module maestroConsumer '../modules/maestro/maestro-consumer.bicep' = if (maestroEventGridNamespaceId != '') {
   name: 'maestro-consumer'
   params: {
@@ -551,9 +543,7 @@ module maestroConsumer '../modules/maestro/maestro-consumer.bicep' = if (maestro
     maestroConsumerName: maestroConsumerName
     maestroEventGridNamespaceId: maestroEventGridNamespaceId
     certKeyVaultName: mgmtKeyVaultName
-    keyVaultOfficerManagedIdentityName: globalMSIId
-    maestroCertificateDomain: effectiveMaestroCertDomain
-    maestroCertificateIssuer: maestroCertIssuer
+    certificateSAN: maestroConsumerCertSAN
   }
   dependsOn: [
     mgmtKeyVault
