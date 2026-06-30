@@ -243,6 +243,8 @@ func NewUntypedStep(indexString, stepType, stepName string, testDir fs.FS, path 
 		return newUntypedGetStep(stepID, stepDir)
 	case "listActiveOperations":
 		return newListActiveOperationsStep(stepID, stepDir)
+	case "listByExternalID":
+		return newListByExternalIDStep(stepID, stepDir)
 	case "untypedListRecursive":
 		return newUntypedListRecursiveStep(stepID, stepDir)
 	case "untypedList":
@@ -324,6 +326,9 @@ func NewStep[InternalAPIType any, InternalAPITypePointer arm.CosmosMetadataAcces
 
 	case "listActiveOperations":
 		return newListActiveOperationsStep(stepID, stepDir)
+
+	case "listByExternalID":
+		return newListByExternalIDStep(stepID, stepDir)
 
 	case "untypedListRecursive":
 		return newUntypedListRecursiveStep(stepID, stepDir)
