@@ -542,21 +542,33 @@ func TestNodePoolVersionSyncer_NeedsWork(t *testing.T) {
 		}
 		return spnp
 	}
+	spcWithActiveVersions := func(versions ...string) *api.ServiceProviderCluster {
+		spc := &api.ServiceProviderCluster{}
+		for _, v := range versions {
+			version := semver.MustParse(v)
+			spc.Status.ControlPlaneVersion.ActiveVersions = append(spc.Status.ControlPlaneVersion.ActiveVersions, api.HCPClusterActiveVersion{Version: &version, State: configv1.CompletedUpdate})
+		}
+		return spc
+	}
+	spc := spcWithActiveVersions("4.19.15")
 
 	t.Run("no customer desired version skips", func(t *testing.T) {
-		assert.False(t, syncer.NeedsWork(npWith(""), spnpWithDesired("")))
+		assert.False(t, syncer.NeedsWork(npWith(""), spnpWithDesired(""), spc))
 	})
 	t.Run("SPNP without DesiredVersion needs work", func(t *testing.T) {
-		assert.True(t, syncer.NeedsWork(npWith("4.19.15"), spnpWithDesired("")))
+		assert.True(t, syncer.NeedsWork(npWith("4.19.15"), spnpWithDesired(""), spc))
+	})
+	t.Run("no active versions skips", func(t *testing.T) {
+		assert.False(t, syncer.NeedsWork(npWith("4.19.15"), spnpWithDesired(""), spcWithActiveVersions()))
 	})
 	t.Run("matching DesiredVersion skips", func(t *testing.T) {
-		assert.False(t, syncer.NeedsWork(npWith("4.19.15"), spnpWithDesired("4.19.15")))
+		assert.False(t, syncer.NeedsWork(npWith("4.19.15"), spnpWithDesired("4.19.15"), spc))
 	})
 	t.Run("different DesiredVersion needs work", func(t *testing.T) {
-		assert.True(t, syncer.NeedsWork(npWith("4.19.15"), spnpWithDesired("4.19.10")))
+		assert.True(t, syncer.NeedsWork(npWith("4.19.15"), spnpWithDesired("4.19.10"), spc))
 	})
 	t.Run("unparseable customer version conservatively needs work", func(t *testing.T) {
-		assert.True(t, syncer.NeedsWork(npWith("not-a-semver"), spnpWithDesired("4.19.15")))
+		assert.True(t, syncer.NeedsWork(npWith("not-a-semver"), spnpWithDesired("4.19.15"), spc))
 	})
 }
 

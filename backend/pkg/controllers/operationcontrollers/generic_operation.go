@@ -109,6 +109,10 @@ func (c *genericOperation) controllerCRUD(key controllerutils.OperationKey) data
 	}
 }
 
+func (c *genericOperation) QueueForInformers(resyncDuration time.Duration, notifiers ...controllerutils.Notifier) error {
+	panic("not implemented")
+}
+
 func (c *genericOperation) SyncOnce(ctx context.Context, keyObj any) error {
 	key := keyObj.(controllerutils.OperationKey)
 	controllerCRUD := c.controllerCRUD(key)
