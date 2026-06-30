@@ -121,6 +121,30 @@ var _ = Describe("FIPS Mode Support", func() {
 				By("verifying FIPS mode is enabled on the cluster")
 				err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig, verifiers.VerifyFIPSEnabled())
 				Expect(err).NotTo(HaveOccurred(), "failed to verify FIPS is enabled on cluster %s", customerClusterName)
+
+				By("attempting to change FIPS tag from true to false - should be rejected")
+				actualHCPCluster.Tags[api.TagClusterFIPSEnabled] = to.Ptr("false")
+				poller, err := tc.Get20251223ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient().BeginCreateOrUpdate(
+					ctx,
+					*resourceGroup.Name,
+					customerClusterName,
+					actualHCPCluster.HcpOpenShiftCluster,
+					nil,
+				)
+				if err == nil {
+					_, err = poller.PollUntilDone(ctx, nil)
+				}
+				Expect(err).To(HaveOccurred(), "expected FIPS tag modification to be rejected")
+				Expect(strings.ToLower(err.Error())).To(ContainSubstring("immutable"), "error should indicate FIPS tag is immutable")
+
+				By("verifying FIPS tag remains unchanged at true")
+				verifyCluster, err := tc.Get20251223ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient().Get(ctx, *resourceGroup.Name, customerClusterName, nil)
+				Expect(err).NotTo(HaveOccurred(), "failed to get HCP cluster after PATCH attempt")
+				Expect(verifyCluster.Tags).NotTo(BeNil(), "cluster tags should not be nil")
+				fipsTagAfterPatch, exists := verifyCluster.Tags[api.TagClusterFIPSEnabled]
+				Expect(exists).To(BeTrue(), "FIPS tag should still exist")
+				Expect(fipsTagAfterPatch).NotTo(BeNil(), "FIPS tag value should not be nil")
+				Expect(*fipsTagAfterPatch).To(Equal("true"), "FIPS tag should remain 'true' after rejected PATCH")
 			})
 
 		It("should reject an HCP cluster creation with invalid FIPS tag value",

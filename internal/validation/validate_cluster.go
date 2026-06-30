@@ -295,6 +295,9 @@ var (
 	toServiceProviderManagedIdentitiesDataPlaneIdentityURL = func(oldObj *api.HCPOpenShiftClusterServiceProviderProperties) *string {
 		return &oldObj.ManagedIdentitiesDataPlaneIdentityURL
 	}
+	toExperimentalFeaturesFIPSEnabled = func(oldObj *api.HCPOpenShiftClusterServiceProviderProperties) *bool {
+		return &oldObj.ExperimentalFeatures.FIPSEnabled
+	}
 )
 
 // ToClusterServiceProviderPropertiesClusterUID returns a pointer to the
@@ -346,6 +349,9 @@ func validateClusterServiceProviderProperties(ctx context.Context, op operation.
 		errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("clusterUID"), &newObj.ClusterUID, nil)...)
 	}
 	errs = append(errs, immutableByCompare(ctx, op, fldPath.Child("clusterUID"), &newObj.ClusterUID, safe.Field(oldObj, ToClusterServiceProviderPropertiesClusterUID))...)
+
+	// ExperimentalFeatures.FIPSEnabled is immutable
+	errs = append(errs, immutableByCompare(ctx, op, fldPath.Child("tags").Key(api.TagClusterFIPSEnabled), &newObj.ExperimentalFeatures.FIPSEnabled, safe.Field(oldObj, toExperimentalFeaturesFIPSEnabled))...)
 
 	return errs
 }
