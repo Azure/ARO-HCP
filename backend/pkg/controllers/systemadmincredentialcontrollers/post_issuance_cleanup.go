@@ -40,11 +40,12 @@ type postIssuanceCleanup struct {
 	serviceProviderClusterLister listers.ServiceProviderClusterLister
 }
 
-var _ controllerutils.ClusterSyncer = (*postIssuanceCleanup)(nil)
+var _ controllerutils.CredentialRequestSyncer = (*postIssuanceCleanup)(nil)
 
-// NewPostIssuanceCleanupController returns a ClusterWatchingController that
-// eagerly tears down per-credential CSR/CSRA/RBAC ApplyDesires and ReadDesires
-// once a credential reaches Issued or Failed condition, freeing MC resources.
+// NewPostIssuanceCleanupController returns a CredentialRequestWatchingController
+// that eagerly tears down per-credential CSR/CSRA/RBAC ApplyDesires and
+// ReadDesires once an individual credential reaches Issued or Failed condition,
+// freeing MC resources.
 func NewPostIssuanceCleanupController(
 	activeOperationLister listers.ActiveOperationLister,
 	resourcesDBClient database.ResourcesDBClient,
@@ -61,7 +62,7 @@ func NewPostIssuanceCleanupController(
 		serviceProviderClusterLister: serviceProviderClusterLister,
 	}
 
-	return controllerutils.NewClusterWatchingController(
+	return controllerutils.NewCredentialRequestWatchingController(
 		"SystemAdminCredentialPostIssuanceCleanup",
 		resourcesDBClient,
 		backendInformers,
@@ -75,12 +76,8 @@ func (c *postIssuanceCleanup) CooldownChecker() controllerutil.CooldownChecker {
 	return c.cooldownChecker
 }
 
-func (c *postIssuanceCleanup) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
-	logger := utils.LoggerFromContext(ctx).WithValues(utils.LogValues{}.
-		AddSubscriptionID(key.SubscriptionID).
-		AddResourceGroup(key.ResourceGroupName).
-		AddHCPClusterName(key.HCPClusterName)...)
-	ctx = utils.ContextWithLogger(ctx, logger)
+func (c *postIssuanceCleanup) SyncOnce(ctx context.Context, key controllerutils.SystemAdminCredentialRequestKey) error {
+	logger := utils.LoggerFromContext(ctx)
 
 	// Get the management cluster resource ID.
 	spc, err := c.serviceProviderClusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
@@ -100,32 +97,32 @@ func (c *postIssuanceCleanup) SyncOnce(ctx context.Context, key controllerutils.
 		return nil
 	}
 
+	// Get the specific credential request.
 	credCRUD := c.resourcesDBClient.SystemAdminCredentialRequests(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
-	iter, err := credCRUD.List(ctx, nil)
+	cred, err := credCRUD.Get(ctx, key.CredentialName)
+	if database.IsNotFoundError(err) {
+		return nil
+	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to list SystemAdminCredentialRequests: %w", err))
+		return utils.TrackError(fmt.Errorf("failed to get SystemAdminCredentialRequest: %w", err))
 	}
 
-	for _, cred := range iter.Items(ctx) {
-		// Only process credentials that are Issued or Failed.
-		if !cred.Status.IsIssued() && !cred.Status.IsFailed() {
-			continue
-		}
-
-		if err := c.cleanupDesires(ctx, key, cred, kaClient); err != nil {
-			return err
-		}
-	}
-	if err := iter.GetError(); err != nil {
-		return utils.TrackError(fmt.Errorf("failed to iterate SystemAdminCredentialRequests: %w", err))
+	// Only process credentials that are Issued or Failed.
+	if !cred.Status.IsIssued() && !cred.Status.IsFailed() {
+		return nil
 	}
 
+	if err := c.cleanupDesires(ctx, key, cred, kaClient); err != nil {
+		return err
+	}
+
+	logger.Info("post-issuance cleanup processed", "credential", key.CredentialName)
 	return nil
 }
 
 func (c *postIssuanceCleanup) cleanupDesires(
 	ctx context.Context,
-	key controllerutils.HCPClusterKey,
+	key controllerutils.SystemAdminCredentialRequestKey,
 	cred *api.SystemAdminCredentialRequest,
 	kaClient database.KubeApplierDBClient,
 ) error {
@@ -196,7 +193,7 @@ func (c *postIssuanceCleanup) cleanupDesires(
 
 func (c *postIssuanceCleanup) removeApplyDesire(
 	ctx context.Context,
-	key controllerutils.HCPClusterKey,
+	key controllerutils.SystemAdminCredentialRequestKey,
 	desireName string,
 	applyCRUD database.ResourceCRUD[kubeapplier.ApplyDesire, *kubeapplier.ApplyDesire],
 	deleteCRUD database.ResourceCRUD[kubeapplier.DeleteDesire, *kubeapplier.DeleteDesire],
@@ -236,7 +233,7 @@ func (c *postIssuanceCleanup) removeApplyDesire(
 
 func (c *postIssuanceCleanup) ensureDeleteDesire(
 	ctx context.Context,
-	key controllerutils.HCPClusterKey,
+	key controllerutils.SystemAdminCredentialRequestKey,
 	applyDesireName string,
 	applyCRUD database.ResourceCRUD[kubeapplier.ApplyDesire, *kubeapplier.ApplyDesire],
 	deleteCRUD database.ResourceCRUD[kubeapplier.DeleteDesire, *kubeapplier.DeleteDesire],

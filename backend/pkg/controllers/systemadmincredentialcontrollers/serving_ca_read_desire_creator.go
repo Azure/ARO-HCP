@@ -54,13 +54,17 @@ type servingCAReadDesireCreator struct {
 	hostedClusterNamespaceEnvIdentifier string
 }
 
-var _ controllerutils.ClusterSyncer = (*servingCAReadDesireCreator)(nil)
+var _ controllerutils.CredentialRequestSyncer = (*servingCAReadDesireCreator)(nil)
 
-// NewServingCAReadDesireCreatorController returns a ClusterWatchingController
+// NewServingCAReadDesireCreatorController returns a CredentialRequestWatchingController
 // that ensures a ReadDesire exists per cluster pointing at the kube-apiserver
 // serving CA Secret in the hosted cluster namespace on the management cluster.
 // The kube-applier mirrors the Secret content into ReadDesire.Status.KubeContent;
 // controller #8 (CABundleSync) reads from there.
+//
+// This controller fires on credential request events so it immediately creates
+// the serving CA ReadDesire when the first credential request appears for a
+// cluster.
 func NewServingCAReadDesireCreatorController(
 	activeOperationLister listers.ActiveOperationLister,
 	resourcesDBClient database.ResourcesDBClient,
@@ -79,7 +83,7 @@ func NewServingCAReadDesireCreatorController(
 		hostedClusterNamespaceEnvIdentifier: hostedClusterNamespaceEnvIdentifier,
 	}
 
-	return controllerutils.NewClusterWatchingController(
+	return controllerutils.NewCredentialRequestWatchingController(
 		"SystemAdminCredentialServingCAReadDesireCreator",
 		resourcesDBClient,
 		backendInformers,
@@ -93,12 +97,8 @@ func (c *servingCAReadDesireCreator) CooldownChecker() controllerutil.CooldownCh
 	return c.cooldownChecker
 }
 
-func (c *servingCAReadDesireCreator) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
-	logger := utils.LoggerFromContext(ctx).WithValues(utils.LogValues{}.
-		AddSubscriptionID(key.SubscriptionID).
-		AddResourceGroup(key.ResourceGroupName).
-		AddHCPClusterName(key.HCPClusterName)...)
-	ctx = utils.ContextWithLogger(ctx, logger)
+func (c *servingCAReadDesireCreator) SyncOnce(ctx context.Context, key controllerutils.SystemAdminCredentialRequestKey) error {
+	logger := utils.LoggerFromContext(ctx)
 
 	existingCluster, err := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Get(ctx, key.HCPClusterName)
 	if database.IsNotFoundError(err) {
