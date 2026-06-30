@@ -233,3 +233,124 @@ resource arohcpNodepoolSaturationAlerts 'Microsoft.AlertsManagement/prometheusRu
     ]
   }
 }
+
+resource ingressMonitorRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'ingress-monitor-rules'
+  location: location
+  properties: {
+    interval: 'PT1M'
+    rules: [
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'UJIngressAvailability1h5m'
+        enabled: true
+        labels: {
+          long_window: '1h'
+          severity: 'warning'
+          short_window: '5m'
+        }
+        annotations: {
+          correlationId: 'UJIngressAvailability1h5m/{{ $labels.cluster }}'
+          message: 'High error budget burn for ingress {{ $labels.probe_url }} (current value: {{ $value }})'
+          runbook_url: 'https://aka.ms/arohcp-runbook-ingress'
+          title: 'UJIngressAvailability1h5m'
+        }
+        expression: '1 - (sum by (probe_url, namespace, _id, cluster) (sum_over_time(probe_success{job="blackbox-ingress"}[5m])) / sum by (probe_url, namespace, _id, cluster) (count_over_time(probe_success{job="blackbox-ingress"}[5m]))) > (14.4 * (1 - 0.9995)) and sum by (probe_url, namespace, _id, cluster) (count_over_time(probe_success{job="blackbox-ingress"}[5m])) > 5 and 1 - (sum by (probe_url, namespace, _id, cluster) (sum_over_time(probe_success{job="blackbox-ingress"}[1h])) / sum by (probe_url, namespace, _id, cluster) (count_over_time(probe_success{job="blackbox-ingress"}[1h]))) > (14.4 * (1 - 0.9995)) and sum by (probe_url, namespace, _id, cluster) (count_over_time(probe_success{job="blackbox-ingress"}[1h])) > 60'
+        for: 'PT2M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'UJIngressAvailability6h30m'
+        enabled: true
+        labels: {
+          long_window: '6h'
+          severity: 'warning'
+          short_window: '30m'
+        }
+        annotations: {
+          correlationId: 'UJIngressAvailability6h30m/{{ $labels.cluster }}'
+          message: 'High error budget burn for ingress {{ $labels.probe_url }} (current value: {{ $value }})'
+          runbook_url: 'https://aka.ms/arohcp-runbook-ingress'
+          title: 'UJIngressAvailability6h30m'
+        }
+        expression: '1 - (sum by (probe_url, namespace, _id, cluster) (sum_over_time(probe_success{job="blackbox-ingress"}[30m])) / sum by (probe_url, namespace, _id, cluster) (count_over_time(probe_success{job="blackbox-ingress"}[30m]))) > (6 * (1 - 0.9995)) and sum by (probe_url, namespace, _id, cluster) (count_over_time(probe_success{job="blackbox-ingress"}[30m])) > 30 and 1 - (sum by (probe_url, namespace, _id, cluster) (sum_over_time(probe_success{job="blackbox-ingress"}[6h])) / sum by (probe_url, namespace, _id, cluster) (count_over_time(probe_success{job="blackbox-ingress"}[6h]))) > (6 * (1 - 0.9995)) and sum by (probe_url, namespace, _id, cluster) (count_over_time(probe_success{job="blackbox-ingress"}[6h])) > 360'
+        for: 'PT15M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'UJIngressAvailability1d2h'
+        enabled: true
+        labels: {
+          long_window: '1d'
+          severity: 'warning'
+          short_window: '2h'
+        }
+        annotations: {
+          correlationId: 'UJIngressAvailability1d2h/{{ $labels.cluster }}'
+          message: 'High error budget burn for ingress {{ $labels.probe_url }} (current value: {{ $value }})'
+          runbook_url: 'https://aka.ms/arohcp-runbook-ingress'
+          title: 'UJIngressAvailability1d2h'
+        }
+        expression: '1 - (sum by (probe_url, namespace, _id, cluster) (sum_over_time(probe_success{job="blackbox-ingress"}[2h])) / sum by (probe_url, namespace, _id, cluster) (count_over_time(probe_success{job="blackbox-ingress"}[2h]))) > (3 * (1 - 0.9995)) and sum by (probe_url, namespace, _id, cluster) (count_over_time(probe_success{job="blackbox-ingress"}[2h])) > 120 and 1 - (sum by (probe_url, namespace, _id, cluster) (sum_over_time(probe_success{job="blackbox-ingress"}[1d])) / sum by (probe_url, namespace, _id, cluster) (count_over_time(probe_success{job="blackbox-ingress"}[1d]))) > (3 * (1 - 0.9995)) and sum by (probe_url, namespace, _id, cluster) (count_over_time(probe_success{job="blackbox-ingress"}[1d])) > 1440'
+        for: 'PT1H'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'UJIngressAvailability3d6h'
+        enabled: true
+        labels: {
+          long_window: '3d'
+          severity: 'warning'
+          short_window: '6h'
+        }
+        annotations: {
+          correlationId: 'UJIngressAvailability3d6h/{{ $labels.cluster }}'
+          message: 'High error budget burn for ingress {{ $labels.probe_url }} (current value: {{ $value }})'
+          runbook_url: 'https://aka.ms/arohcp-runbook-ingress'
+          title: 'UJIngressAvailability3d6h'
+        }
+        expression: '1 - (sum by (probe_url, namespace, _id, cluster) (sum_over_time(probe_success{job="blackbox-ingress"}[6h])) / sum by (probe_url, namespace, _id, cluster) (count_over_time(probe_success{job="blackbox-ingress"}[6h]))) > (1 * (1 - 0.9995)) and sum by (probe_url, namespace, _id, cluster) (count_over_time(probe_success{job="blackbox-ingress"}[6h])) > 360 and 1 - (sum by (probe_url, namespace, _id, cluster) (sum_over_time(probe_success{job="blackbox-ingress"}[3d])) / sum by (probe_url, namespace, _id, cluster) (count_over_time(probe_success{job="blackbox-ingress"}[3d]))) > (1 * (1 - 0.9995)) and sum by (probe_url, namespace, _id, cluster) (count_over_time(probe_success{job="blackbox-ingress"}[3d])) > 4320'
+        for: 'PT3H'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+    ]
+    scopes: [
+      azureMonitoring
+    ]
+  }
+}
