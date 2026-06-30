@@ -333,30 +333,40 @@ func (o *Options) RunTests() error {
 }
 
 var whitespaceMatcher = regexp.MustCompile(`\s*\n\s*`)
+var labelReferenceMatcher = regexp.MustCompile(`\$labels\.([^\s}]+)`)
 
 func (o *Options) labelsFromTextInConfiguredOrder(text string) []string {
-	if len(o.labelsToExtract) == 0 || text == "" {
+	if text == "" {
 		return nil
 	}
 
-	labelsInDescription := set.New[string]()
-	for _, label := range o.labelsToExtract {
-		if strings.Contains(text, labelTemplateToken(label)) {
-			labelsInDescription.Insert(label)
-		}
-	}
-	orderedLabels := make([]string, 0, len(o.labelsToExtract))
+	// Extract all label references from the text. This ensures that the correlationId
+	// includes all dimensions mentioned in the description, providing sufficiently
+	// specific IDs so alerts don't get incorrectly aggregated under one IcM incident.
 	seen := set.New[string]()
+	var orderedLabels []string
 
-	for _, labelToExtract := range o.labelsToExtract {
-		if !labelsInDescription.Has(labelToExtract) {
+	// When labelsToExtract is configured, emit those labels first (in the configured
+	// order) — but only the ones actually referenced in the text.
+	for _, label := range o.labelsToExtract {
+		if !strings.Contains(text, labelTemplateToken(label)) {
 			continue
 		}
-		if seen.Has(labelToExtract) {
+		if seen.Has(label) {
 			continue
 		}
-		seen.Insert(labelToExtract)
-		orderedLabels = append(orderedLabels, labelToExtract)
+		seen.Insert(label)
+		orderedLabels = append(orderedLabels, label)
+	}
+
+	// Then append any remaining labels found in the text that weren't already covered.
+	for _, match := range labelReferenceMatcher.FindAllStringSubmatch(text, -1) {
+		label := match[1]
+		if seen.Has(label) {
+			continue
+		}
+		seen.Insert(label)
+		orderedLabels = append(orderedLabels, label)
 	}
 
 	return orderedLabels
