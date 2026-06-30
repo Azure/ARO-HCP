@@ -1,0 +1,68 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: hcp-kms-monitor-alerts
+  namespace: prometheus
+spec:
+  groups:
+  - name: hcp-kms-availability-rules
+    rules:
+    # Multi-window multi-burn-rate alerts for KMS availability (ValidAzureKMSConfig condition)
+    # SLO: 99.95% availability over 30 days (error budget = 0.05%)
+    #
+    # Fast burn (14.4x): 5m/1h windows — catches rapid availability drops
+    - alert: UJKmsAvailability1h5m
+      expr: |
+        1 - (hostedClusterAPI_valid_azure_kms_config:sum_over_time_5m / hostedClusterAPI_valid_azure_kms_config:count_over_time_5m) > (14.4 * (1 - 0.9995))
+        and hostedClusterAPI_valid_azure_kms_config:count_over_time_5m > 5
+        and 1 - (hostedClusterAPI_valid_azure_kms_config:sum_over_time_1h / hostedClusterAPI_valid_azure_kms_config:count_over_time_1h) > (14.4 * (1 - 0.9995))
+        and hostedClusterAPI_valid_azure_kms_config:count_over_time_1h > 60
+      for: 2m
+      labels:
+        severity: info
+        short_window: 5m
+        long_window: 1h
+      annotations:
+        summary: "KMS config invalid for HostedCluster {{ $labels.name }}"
+        description: "HostedCluster {{ $labels.name }} (ID: {{ $labels._id }}) ValidAzureKMSConfig availability is burning error budget at 14.4x rate. The customer's KMS key may be inaccessible."
+        correlationId: "UJKmsAvailability/{{ $labels.cluster }}/{{ $labels._id }}"
+        runbook_url: "https://aka.ms/arohcp-runbook-kms"
+    # Medium burn (6x): 30m/6h windows — catches sustained degradation
+    - alert: UJKmsAvailability6h30m
+      expr: |
+        1 - (hostedClusterAPI_valid_azure_kms_config:sum_over_time_30m / hostedClusterAPI_valid_azure_kms_config:count_over_time_30m) > (6 * (1 - 0.9995))
+        and hostedClusterAPI_valid_azure_kms_config:count_over_time_30m > 30
+        and 1 - (hostedClusterAPI_valid_azure_kms_config:sum_over_time_6h / hostedClusterAPI_valid_azure_kms_config:count_over_time_6h) > (6 * (1 - 0.9995))
+        and hostedClusterAPI_valid_azure_kms_config:count_over_time_6h > 360
+      for: 15m
+      labels:
+        severity: info
+        short_window: 30m
+        long_window: 6h
+      annotations:
+        summary: "KMS config invalid for HostedCluster {{ $labels.name }}"
+        description: "HostedCluster {{ $labels.name }} (ID: {{ $labels._id }}) ValidAzureKMSConfig availability is burning error budget at 6x rate."
+        correlationId: "UJKmsAvailability/{{ $labels.cluster }}/{{ $labels._id }}"
+        runbook_url: "https://aka.ms/arohcp-runbook-kms"
+    # Slow burn (1x): 6h/3d windows — catches persistent low-grade degradation
+    - alert: UJKmsAvailability3d
+      expr: |
+        1 - (hostedClusterAPI_valid_azure_kms_config:sum_over_time_6h / hostedClusterAPI_valid_azure_kms_config:count_over_time_6h) > (1 * (1 - 0.9995))
+        and hostedClusterAPI_valid_azure_kms_config:count_over_time_6h > 360
+        and 1 - sum by (name, namespace, _id, cluster) (hostedClusterAPI_valid_azure_kms_config:ratio_avg_3d) > (1 * (1 - 0.9995))
+        and hostedClusterAPI_valid_azure_kms_config:count_over_time_3d > 4320
+      for: 3h
+      labels:
+        severity: info
+        short_window: 6h
+        long_window: 3d
+      annotations:
+        summary: "Slow KMS availability budget burn for HostedCluster {{ $labels.name }}"
+        description: "HostedCluster {{ $labels.name }} (ID: {{ $labels._id }}) ValidAzureKMSConfig is slowly burning error budget."
+        correlationId: "UJKmsAvailability/{{ $labels.cluster }}/{{ $labels._id }}"
+        runbook_url: "https://aka.ms/arohcp-runbook-kms"
+  # NOTE: Error, saturation, and traffic alert groups are disabled until the
+  # HyperShift ServiceMonitor bug fix (openshift/hypershift#8715) rolls out
+  # to the fleet. Without it, KAS pod metrics (apiserver_envelope_encryption_*)
+  # are not scraped, causing false positives or missing data.
+  # Re-enable: hcp-kms-errors-rules, hcp-kms-saturation-rules, hcp-kms-traffic-rules

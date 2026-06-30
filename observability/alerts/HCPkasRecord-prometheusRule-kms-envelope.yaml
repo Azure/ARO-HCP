@@ -1,0 +1,89 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: hcp-kas-kms-envelope-recording-rules
+  namespace: prometheus
+spec:
+  groups:
+  - name: hcp-kas-kms-envelope-recording-rules
+    interval: 1m
+    rules:
+    # KMS envelope encryption recording rules for SLI/SLO monitoring.
+    # Source: apiserver_envelope_encryption_* metrics from HCP KAS pods.
+    # These pre-aggregate into multi-window averages for burn-rate alerting.
+    #
+    # SLO targets (per ADR):
+    #   Errors:     < 0.05% KMS operation error rate over 30 days
+    #   Latency:    p99 < 500ms for encrypt/decrypt over 5-min window
+    #   Saturation: DEK cache > 0, status check age < 5 min
+
+    #
+    # ERRORS SLI: KMS operation error rate (good events / total events)
+    #
+
+    # Base rate: total KMS operations per second (all gRPC status codes)
+    - record: kas:kms_operations_total:rate5m
+      expr: sum by (namespace, cluster, _id) (rate(apiserver_envelope_encryption_kms_operations_latency_seconds_count{namespace=~"ocm-.*"}[5m]))
+    # Base rate: failed KMS operations per second (non-ok gRPC status)
+    - record: kas:kms_operations_errors:rate5m
+      expr: sum by (namespace, cluster, _id) (rate(apiserver_envelope_encryption_kms_operations_latency_seconds_count{namespace=~"ocm-.*", grpc_status_code!="0"}[5m]))
+    # Multi-window averages for burn-rate alerting
+    # 5-minute window (short window for Fast burn-rate tier)
+    - record: kas:kms_operations_total:rate_avg_5m
+      expr: avg_over_time(kas:kms_operations_total:rate5m[5m])
+    - record: kas:kms_operations_errors:rate_avg_5m
+      expr: avg_over_time(kas:kms_operations_errors:rate5m[5m])
+    # 30-minute window (short window for Medium burn-rate tier)
+    - record: kas:kms_operations_total:rate_avg_30m
+      expr: avg_over_time(kas:kms_operations_total:rate5m[30m])
+    - record: kas:kms_operations_errors:rate_avg_30m
+      expr: avg_over_time(kas:kms_operations_errors:rate5m[30m])
+    # 1-hour window (for critical 5m/1h burn rate alert)
+    - record: kas:kms_operations_total:rate_avg_1h
+      expr: avg_over_time(kas:kms_operations_total:rate5m[1h])
+    - record: kas:kms_operations_errors:rate_avg_1h
+      expr: avg_over_time(kas:kms_operations_errors:rate5m[1h])
+    # 6-hour window (for critical 30m/6h burn rate alert)
+    - record: kas:kms_operations_total:rate_avg_6h
+      expr: avg_over_time(kas:kms_operations_total:rate5m[6h])
+    - record: kas:kms_operations_errors:rate_avg_6h
+      expr: avg_over_time(kas:kms_operations_errors:rate5m[6h])
+    # 3-day window (for warning 6h/3d burn rate alert)
+    - record: kas:kms_operations_total:rate_avg_3d
+      expr: avg_over_time(kas:kms_operations_total:rate5m[3d])
+    - record: kas:kms_operations_errors:rate_avg_3d
+      expr: avg_over_time(kas:kms_operations_errors:rate5m[3d])
+    #
+    # LATENCY SLI: KMS encrypt/decrypt p99 latency
+    #
+    - record: kas:kms_encrypt_latency:p99_5m
+      expr: |
+        histogram_quantile(0.99,
+          sum by (namespace, cluster, _id, le) (rate(apiserver_envelope_encryption_kms_operations_latency_seconds_bucket{
+            namespace=~"ocm-.*",
+            method_name="/v2.keymanagementservice/encrypt",
+            grpc_status_code="0"
+          }[5m]))
+        )
+    - record: kas:kms_decrypt_latency:p99_5m
+      expr: |
+        histogram_quantile(0.99,
+          sum by (namespace, cluster, _id, le) (rate(apiserver_envelope_encryption_kms_operations_latency_seconds_bucket{
+            namespace=~"ocm-.*",
+            method_name="/v2.keymanagementservice/decrypt",
+            grpc_status_code="0"
+          }[5m]))
+        )
+    # Minimum DEK cache size per HCP namespace (0 = every op hits Key Vault)
+    - record: kas:kms_dek_cache_size:min
+      #
+      # SATURATION SLI: DEK cache size and KMS status check freshness
+      #
+
+      expr: min by (namespace, cluster, _id) (apiserver_envelope_encryption_dek_source_cache_size{namespace=~"ocm-.*"})
+    # Maximum seconds since last KMS status check (>300s = provider likely disconnected)
+    - record: kas:kms_status_check_age:max
+      expr: |
+        max by (namespace, cluster, _id) (
+          time() - apiserver_envelope_encryption_key_id_hash_status_last_timestamp_seconds{namespace=~"ocm-.*"}
+        )

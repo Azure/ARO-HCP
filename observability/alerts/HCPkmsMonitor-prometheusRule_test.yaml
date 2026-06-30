@@ -1,0 +1,47 @@
+rule_files:
+- HCPkmsMonitor-prometheusRule.yaml
+evaluation_interval: 1m
+tests:
+# Test 1: KMS availability — no alert when all healthy
+- interval: 1m
+  input_series:
+  - series: 'hostedClusterAPI_valid_azure_kms_config:sum_over_time_5m{name="healthy", namespace="clusters", _id="h-123", cluster="mgmt-1"}'
+    values: "5+0x70"
+  - series: 'hostedClusterAPI_valid_azure_kms_config:count_over_time_5m{name="healthy", namespace="clusters", _id="h-123", cluster="mgmt-1"}'
+    values: "5+0x70"
+  - series: 'hostedClusterAPI_valid_azure_kms_config:sum_over_time_1h{name="healthy", namespace="clusters", _id="h-123", cluster="mgmt-1"}'
+    values: "60+0x70"
+  - series: 'hostedClusterAPI_valid_azure_kms_config:count_over_time_1h{name="healthy", namespace="clusters", _id="h-123", cluster="mgmt-1"}'
+    values: "60+0x70"
+  alert_rule_test:
+  - eval_time: 65m
+    alertname: UJKmsAvailability1h5m
+    exp_alerts: []
+# Test 2: KMS availability fast-burn alert fires when availability degrades
+- interval: 1m
+  input_series:
+  - series: 'hostedClusterAPI_valid_azure_kms_config:sum_over_time_5m{name="degraded-fast", namespace="clusters", _id="d-fast-123", cluster="mgmt-2"}'
+    values: "0+0x120"
+  - series: 'hostedClusterAPI_valid_azure_kms_config:count_over_time_5m{name="degraded-fast", namespace="clusters", _id="d-fast-123", cluster="mgmt-2"}'
+    values: "6+0x120"
+  - series: 'hostedClusterAPI_valid_azure_kms_config:sum_over_time_1h{name="degraded-fast", namespace="clusters", _id="d-fast-123", cluster="mgmt-2"}'
+    values: "0+0x120"
+  - series: 'hostedClusterAPI_valid_azure_kms_config:count_over_time_1h{name="degraded-fast", namespace="clusters", _id="d-fast-123", cluster="mgmt-2"}'
+    values: "61+0x120"
+  alert_rule_test:
+  - eval_time: 5m
+    alertname: UJKmsAvailability1h5m
+    exp_alerts:
+    - exp_labels:
+        severity: info
+        short_window: 5m
+        long_window: 1h
+        name: degraded-fast
+        namespace: clusters
+        _id: d-fast-123
+        cluster: mgmt-2
+      exp_annotations:
+        summary: "KMS config invalid for HostedCluster degraded-fast"
+        description: "HostedCluster degraded-fast (ID: d-fast-123) ValidAzureKMSConfig availability is burning error budget at 14.4x rate. The customer's KMS key may be inaccessible."
+        correlationId: "UJKmsAvailability/mgmt-2/d-fast-123"
+        runbook_url: "https://aka.ms/arohcp-runbook-kms"

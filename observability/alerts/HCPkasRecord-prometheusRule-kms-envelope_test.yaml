@@ -1,0 +1,103 @@
+rule_files:
+- HCPkasRecord-prometheusRule-kms-envelope.yaml
+evaluation_interval: 1m
+tests:
+# Test 1: Steady KMS operations with no errors (100% success)
+- interval: 1m
+  input_series:
+  # 10 encrypt ops/min with ok status
+  - series: 'apiserver_envelope_encryption_kms_operations_latency_seconds_count{cluster="test-mgmt-1", namespace="ocm-aro-test-01", grpc_status_code="0", method_name="/v2.keymanagementservice/encrypt", provider_name="azurekmsprovider0"}'
+    values: "0+10x15"
+  # 20 decrypt ops/min with ok status
+  - series: 'apiserver_envelope_encryption_kms_operations_latency_seconds_count{cluster="test-mgmt-1", namespace="ocm-aro-test-01", grpc_status_code="0", method_name="/v2.keymanagementservice/decrypt", provider_name="azurekmsprovider0"}'
+    values: "0+20x15"
+  # 5 status ops/min with ok status
+  - series: 'apiserver_envelope_encryption_kms_operations_latency_seconds_count{cluster="test-mgmt-1", namespace="ocm-aro-test-01", grpc_status_code="0", method_name="/v2.keymanagementservice/status", provider_name="azurekmsprovider0"}'
+    values: "0+5x15"
+  promql_expr_test:
+  # Total rate should be (10+20+5)/60 = 0.583 ops/sec
+  - expr: kas:kms_operations_total:rate5m{cluster="test-mgmt-1", namespace="ocm-aro-test-01"}
+    eval_time: 5m
+    exp_samples:
+    - labels: '{__name__="kas:kms_operations_total:rate5m", cluster="test-mgmt-1", namespace="ocm-aro-test-01"}'
+      value: 0.5833333333333333
+  # Error rate should be 0 (no non-ok status codes)
+  - expr: kas:kms_operations_errors:rate5m{cluster="test-mgmt-1", namespace="ocm-aro-test-01"}
+    eval_time: 5m
+    exp_samples: []
+# Test 2: KMS operations with errors (verify error rate calculation)
+- interval: 1m
+  input_series:
+  # 990 ops/min with ok status
+  - series: 'apiserver_envelope_encryption_kms_operations_latency_seconds_count{cluster="test-mgmt-2", namespace="ocm-aro-test-02", grpc_status_code="0", method_name="/v2.keymanagementservice/encrypt", provider_name="azurekmsprovider0"}'
+    values: "0+990x15"
+  # 10 ops/min with deadlineexceeded status
+  - series: 'apiserver_envelope_encryption_kms_operations_latency_seconds_count{cluster="test-mgmt-2", namespace="ocm-aro-test-02", grpc_status_code="4", method_name="/v2.keymanagementservice/encrypt", provider_name="azurekmsprovider0"}'
+    values: "0+10x15"
+  promql_expr_test:
+  # Total rate should be (990+10)/60 = 16.67 ops/sec
+  - expr: kas:kms_operations_total:rate5m{cluster="test-mgmt-2", namespace="ocm-aro-test-02"}
+    eval_time: 5m
+    exp_samples:
+    - labels: '{__name__="kas:kms_operations_total:rate5m", cluster="test-mgmt-2", namespace="ocm-aro-test-02"}'
+      value: 16.666666666666668
+  # Error rate should be 10/60 = 0.167 ops/sec
+  - expr: kas:kms_operations_errors:rate5m{cluster="test-mgmt-2", namespace="ocm-aro-test-02"}
+    eval_time: 5m
+    exp_samples:
+    - labels: '{__name__="kas:kms_operations_errors:rate5m", cluster="test-mgmt-2", namespace="ocm-aro-test-02"}'
+      value: 0.16666666666666666
+  # 1-hour average should converge to same values
+  - expr: kas:kms_operations_total:rate_avg_1h{cluster="test-mgmt-2", namespace="ocm-aro-test-02"}
+    eval_time: 10m
+    exp_samples:
+    - labels: '{__name__="kas:kms_operations_total:rate_avg_1h", cluster="test-mgmt-2", namespace="ocm-aro-test-02"}'
+      value: 13.333333333333334
+# Test 3: Namespace filter validation (non-ocm namespace excluded)
+- interval: 1m
+  input_series:
+  # This should NOT be included (not ocm-* namespace)
+  - series: 'apiserver_envelope_encryption_kms_operations_latency_seconds_count{cluster="test-mgmt-3", namespace="default", grpc_status_code="0", method_name="/v2.keymanagementservice/encrypt", provider_name="azurekmsprovider0"}'
+    values: "0+1000x15"
+  # This SHOULD be included (ocm-* namespace)
+  - series: 'apiserver_envelope_encryption_kms_operations_latency_seconds_count{cluster="test-mgmt-3", namespace="ocm-aro-test-03", grpc_status_code="0", method_name="/v2.keymanagementservice/encrypt", provider_name="azurekmsprovider0"}'
+    values: "0+50x15"
+  promql_expr_test:
+  # Should only see ocm-aro-test-03, not default
+  - expr: kas:kms_operations_total:rate5m{cluster="test-mgmt-3"}
+    eval_time: 5m
+    exp_samples:
+    - labels: '{__name__="kas:kms_operations_total:rate5m", cluster="test-mgmt-3", namespace="ocm-aro-test-03"}'
+      value: 0.8333333333333334
+# Test 4: DEK cache size and status check freshness
+- interval: 1m
+  input_series:
+  # DEK cache with 16 entries
+  - series: 'apiserver_envelope_encryption_dek_source_cache_size{cluster="test-mgmt-4", namespace="ocm-aro-test-04", provider_name="azurekmsprovider0", instance="kas-pod-1"}'
+    values: "16+0x9"
+  # Second KAS instance with 12 entries
+  - series: 'apiserver_envelope_encryption_dek_source_cache_size{cluster="test-mgmt-4", namespace="ocm-aro-test-04", provider_name="azurekmsprovider0", instance="kas-pod-2"}'
+    values: "12+0x9"
+  promql_expr_test:
+  # Min cache size should be 12 (the lower of the two)
+  - expr: kas:kms_dek_cache_size:min{cluster="test-mgmt-4", namespace="ocm-aro-test-04"}
+    eval_time: 5m
+    exp_samples:
+    - labels: '{__name__="kas:kms_dek_cache_size:min", cluster="test-mgmt-4", namespace="ocm-aro-test-04"}'
+      value: 12
+# Test 5: KMS status check age (max seconds since last successful check)
+- interval: 1m
+  input_series:
+  # KAS pod 1: last status check 200 seconds ago
+  - series: 'apiserver_envelope_encryption_key_id_hash_status_last_timestamp_seconds{cluster="test-mgmt-5", namespace="ocm-aro-test-05", provider_name="azurekmsprovider0", instance="kas-pod-1"}'
+    values: "0+0x10"
+  # KAS pod 2: last status check 100 seconds ago
+  - series: 'apiserver_envelope_encryption_key_id_hash_status_last_timestamp_seconds{cluster="test-mgmt-5", namespace="ocm-aro-test-05", provider_name="azurekmsprovider0", instance="kas-pod-2"}'
+    values: "60+0x10"
+  promql_expr_test:
+  # Max age should be from the pod with the oldest check (pod-1 at t=0, so age = eval_time - 0 = 300s)
+  - expr: kas:kms_status_check_age:max{cluster="test-mgmt-5", namespace="ocm-aro-test-05"}
+    eval_time: 5m
+    exp_samples:
+    - labels: '{__name__="kas:kms_status_check_age:max", cluster="test-mgmt-5", namespace="ocm-aro-test-05"}'
+      value: 300

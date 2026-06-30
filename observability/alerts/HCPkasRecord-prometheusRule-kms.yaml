@@ -1,0 +1,71 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: hcp-kas-kms-recording-rules
+  namespace: prometheus
+spec:
+  groups:
+  - name: hcp-kas-kms-recording-rules
+    interval: 1m
+    rules:
+    # KMS availability recording rules based on the ValidAzureKMSConfig condition
+    # exposed via kube-state-metrics custom resource state config.
+    # Gated on the raw KSM metric to prevent stale data from deleted clusters.
+    #
+    # Note: Unknown status is intentionally counted as unavailable (not True).
+    # This matches the KAS availability pattern — "we don't know" IS a problem.
+    # Fresh clusters may briefly report Unknown during warm-up; if this causes
+    # false alerts, add a 15m offset blackout (see KAS SLI rules for the pattern).
+    # Long-window averages for slow-burn alerts
+    - record: hostedClusterAPI_valid_azure_kms_config:ratio_avg_3d
+      expr: |
+        avg by (name, namespace, _id, cluster) (avg_over_time(hostedClusterAPI_valid_azure_kms_config{status="True"}[3d]))
+        and on (name, namespace, _id, cluster)
+        count by (name, namespace, _id, cluster) (hostedClusterAPI_valid_azure_kms_config)
+    # Short-window sum_over_time for burn-rate calculations
+    - record: hostedClusterAPI_valid_azure_kms_config:sum_over_time_5m
+      expr: |
+        sum by (name, namespace, _id, cluster) (sum_over_time(hostedClusterAPI_valid_azure_kms_config{status="True"}[5m]))
+        and on (name, namespace, _id, cluster)
+        count by (name, namespace, _id, cluster) (hostedClusterAPI_valid_azure_kms_config)
+    - record: hostedClusterAPI_valid_azure_kms_config:sum_over_time_30m
+      expr: |
+        sum by (name, namespace, _id, cluster) (sum_over_time(hostedClusterAPI_valid_azure_kms_config{status="True"}[30m]))
+        and on (name, namespace, _id, cluster)
+        count by (name, namespace, _id, cluster) (hostedClusterAPI_valid_azure_kms_config)
+    - record: hostedClusterAPI_valid_azure_kms_config:sum_over_time_1h
+      expr: |
+        sum by (name, namespace, _id, cluster) (sum_over_time(hostedClusterAPI_valid_azure_kms_config{status="True"}[1h]))
+        and on (name, namespace, _id, cluster)
+        count by (name, namespace, _id, cluster) (hostedClusterAPI_valid_azure_kms_config)
+    - record: hostedClusterAPI_valid_azure_kms_config:sum_over_time_6h
+      expr: |
+        sum by (name, namespace, _id, cluster) (sum_over_time(hostedClusterAPI_valid_azure_kms_config{status="True"}[6h]))
+        and on (name, namespace, _id, cluster)
+        count by (name, namespace, _id, cluster) (hostedClusterAPI_valid_azure_kms_config)
+    # Short-window count_over_time for burn-rate calculations
+    - record: hostedClusterAPI_valid_azure_kms_config:count_over_time_5m
+      expr: |
+        sum by (name, namespace, _id, cluster) (count_over_time(hostedClusterAPI_valid_azure_kms_config{status="True"}[5m]))
+        and on (name, namespace, _id, cluster)
+        count by (name, namespace, _id, cluster) (hostedClusterAPI_valid_azure_kms_config)
+    - record: hostedClusterAPI_valid_azure_kms_config:count_over_time_30m
+      expr: |
+        sum by (name, namespace, _id, cluster) (count_over_time(hostedClusterAPI_valid_azure_kms_config{status="True"}[30m]))
+        and on (name, namespace, _id, cluster)
+        count by (name, namespace, _id, cluster) (hostedClusterAPI_valid_azure_kms_config)
+    - record: hostedClusterAPI_valid_azure_kms_config:count_over_time_1h
+      expr: |
+        sum by (name, namespace, _id, cluster) (count_over_time(hostedClusterAPI_valid_azure_kms_config{status="True"}[1h]))
+        and on (name, namespace, _id, cluster)
+        count by (name, namespace, _id, cluster) (hostedClusterAPI_valid_azure_kms_config)
+    - record: hostedClusterAPI_valid_azure_kms_config:count_over_time_6h
+      expr: |
+        sum by (name, namespace, _id, cluster) (count_over_time(hostedClusterAPI_valid_azure_kms_config{status="True"}[6h]))
+        and on (name, namespace, _id, cluster)
+        count by (name, namespace, _id, cluster) (hostedClusterAPI_valid_azure_kms_config)
+    - record: hostedClusterAPI_valid_azure_kms_config:count_over_time_3d
+      expr: |
+        sum by (name, namespace, _id, cluster) (count_over_time(hostedClusterAPI_valid_azure_kms_config{status="True"}[3d]))
+        and on (name, namespace, _id, cluster)
+        count by (name, namespace, _id, cluster) (hostedClusterAPI_valid_azure_kms_config)

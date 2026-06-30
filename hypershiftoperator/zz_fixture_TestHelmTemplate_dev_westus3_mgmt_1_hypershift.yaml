@@ -658,7 +658,7 @@ data:
         sourceLabels: ["__name__"]
     kubeAPIServer:
       - action:       "keep"
-        regex:        ".*"
+        regex:        "(apiserver_request_total|apiserver_request_sli_duration_seconds_bucket|apiserver_request_sli_duration_seconds_count|apiserver_request_terminations_total|apiserver_current_inflight_requests|apiserver_longrunning_requests|apiserver_longrunning_request|apiserver_storage_objects|apiserver_request_duration_seconds_bucket|apiserver_response_sizes_bucket|apiserver_client_certificate_expiration_seconds_bucket|apiserver_client_certificate_expiration_seconds_count|apiserver_flowcontrol_current_inqueue_requests|apiserver_flowcontrol_dispatched_requests_total|apiserver_flowcontrol_request_concurrency_limit|apiserver_flowcontrol_request_execution_seconds_bucket|apiserver_flowcontrol_request_queue_length_after_enqueue_bucket|apiserver_flowcontrol_request_wait_duration_seconds_bucket|apiserver_admission_controller_admission_duration_seconds_bucket|apiserver_validating_admission_policy_check_total|apiserver_envelope_encryption_kms_operations_latency_seconds_bucket|apiserver_envelope_encryption_kms_operations_latency_seconds_count|apiserver_envelope_encryption_dek_source_cache_size|apiserver_envelope_encryption_key_id_hash_status_last_timestamp_seconds)"
         sourceLabels: ["__name__"]
     kubeControllerManager:
       - action:       "keep"
