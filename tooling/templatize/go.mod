@@ -8,7 +8,7 @@ require (
 	github.com/Azure/ARO-Tools/pipelines v0.0.0-20260630104810-b6b7b3f3b40a
 	github.com/Azure/ARO-Tools/testutil v0.0.0-20260630104810-b6b7b3f3b40a
 	github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260630104810-b6b7b3f3b40a
-	github.com/Azure/ARO-Tools/tools/grafanactl v0.0.0-20260630104810-b6b7b3f3b40a
+	github.com/Azure/ARO-Tools/tools/grafanactl v0.0.0-20260701080107-e5cce9f7341e
 	github.com/Azure/ARO-Tools/tools/helm v0.0.0-20260630104810-b6b7b3f3b40a
 	github.com/Azure/ARO-Tools/tools/prow-job-executor v0.0.0-20260630104810-b6b7b3f3b40a
 	github.com/Azure/ARO-Tools/tools/registration v0.0.0-20260630104810-b6b7b3f3b40a

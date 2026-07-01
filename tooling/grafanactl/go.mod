@@ -3,7 +3,7 @@ module github.com/Azure/ARO-HCP/tooling/grafanactl
 go 1.25.7
 
 require (
-	github.com/Azure/ARO-Tools/tools/grafanactl v0.0.0-20260630104810-b6b7b3f3b40a
+	github.com/Azure/ARO-Tools/tools/grafanactl v0.0.0-20260701080107-e5cce9f7341e
 	github.com/dusted-go/logging v1.3.0
 	github.com/go-logr/logr v1.4.3
 	github.com/spf13/cobra v1.10.2
