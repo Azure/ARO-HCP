@@ -46,15 +46,20 @@ ARO HCP CI is split across this repository and the OpenShift CI configuration in
 - [Operator Entry Points](dev-ci-topology.md#operator-entry-points)
 - [Where To Look](dev-ci-topology.md#where-to-look)
 
-### [DEV E2E Subscription Onboarding](dev-e2e-subscription-onboarding.md)
+### [E2E Subscription Onboarding](e2e-subscription-onboarding.md)
 
-- [What This Onboarding Touches](dev-e2e-subscription-onboarding.md#what-this-onboarding-touches)
-- [Current Model](dev-e2e-subscription-onboarding.md#current-model)
-- [Existing-Assignment Caveat](dev-e2e-subscription-onboarding.md#existing-assignment-caveat)
-- [Shared Bootstrap Identities](dev-e2e-subscription-onboarding.md#shared-bootstrap-identities)
-- [Procedure](dev-e2e-subscription-onboarding.md#procedure)
-- [What Usually Does Not Change](dev-e2e-subscription-onboarding.md#what-usually-does-not-change)
-- [Where To Look](dev-e2e-subscription-onboarding.md#where-to-look)
+- [DEV E2E Subscription Onboarding](e2e-subscription-onboarding.md#dev-e2e-subscription-onboarding)
+- [INT/STG/PROD E2E Subscription Onboarding](e2e-subscription-onboarding.md#intstgprod-e2e-subscription-onboarding)
+
+### [DEV Mock Identities](dev-mock-identities.md)
+
+- [The Identities At A Glance](dev-mock-identities.md#the-identities-at-a-glance)
+- [First Party Mock](dev-mock-identities.md#first-party-mock--aro-dev-first-party2)
+- [ARM Helper](dev-mock-identities.md#arm-helper--aro-dev-arm-helper2-the-mockfpa)
+- [MSI Mock](dev-mock-identities.md#msi-mock--aro-dev-msi-mock2-and-the-pool)
+- [Why Some Roles Are Custom And Others Built-In](dev-mock-identities.md#why-some-roles-are-custom-and-others-built-in)
+- [How The Roles Are Assigned](dev-mock-identities.md#how-the-roles-are-assigned)
+- [Where To Look](dev-mock-identities.md#where-to-look)
 
 ### [CI Image Lifecycle](image-lifecycle.md)
 
@@ -170,7 +175,8 @@ ARO HCP CI is split across this repository and the OpenShift CI configuration in
 
 - [CI Execution](execution.md) explains how CI works, what each execution mode validates, and how requests flow across tenants and subscriptions.
 - [Dev-CI Topology](dev-ci-topology.md) explains what the standalone `dev-ci` rollout owns today, how it relates to on-demand DEV CI, and where the remaining mixed-management boundary still sits.
-- [DEV E2E Subscription Onboarding](dev-e2e-subscription-onboarding.md) documents the end-to-end procedure for adding another DEV customer subscription, including slot catalog, Boskos, cluster-profile inventory, and bootstrap RBAC updates.
+- [E2E Subscription Onboarding](e2e-subscription-onboarding.md) documents the end-to-end procedure for adding customer subscriptions across all environments (DEV, INT, STG, PROD), including slot catalog, Boskos, AFEC flags, and RBAC updates.
+- [DEV Mock Identities](dev-mock-identities.md) explains what each DEV mock identity (first-party, ARM helper, MSI mock and its pool) stands in for and why it needs each role it is granted, given the absence of a real FPA and Managed Identities Data Plane.
 - [CI Image Lifecycle](image-lifecycle.md) explains the shared CI build root, job-local image graph, local E2E image injection, and the difference between CI promotion and ACR mirroring.
 - [CI Identity Leasing](identity-leasing.md) explains the managed identity container pool, the MSI mock SP pool, and the current staged model: slot-manager for DEV `e2e-parallel`, legacy ci-operator identity-container leases elsewhere.
 - [CI Quota Monitoring](quota-monitoring.md) explains how Azure quotas that constrain CI are monitored and where to check current usage.

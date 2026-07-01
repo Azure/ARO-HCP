@@ -77,8 +77,8 @@ Welcome to the **ARO HCP** documentation. This guide provides an overview of the
 - [Dev-CI Topology](ci/dev-ci-topology.md)
   - Standalone `dev-ci` rollout, persistent CI-supporting infrastructure, and service-group ownership
   - Current mixed-management boundary for the DEV MSI mock SP pool and the long-term declarative direction
-- [DEV E2E Subscription Onboarding](ci/dev-e2e-subscription-onboarding.md)
-  - Procedure for adding another DEV customer subscription to the slot-based E2E fleet
+- [E2E Subscription Onboarding](ci/e2e-subscription-onboarding.md)
+  - Procedure for onboarding E2E customer subscriptions across all environments (DEV, INT, STG, PROD)
   - Covers slot catalog, Boskos, cluster-profile inventory, and `dev-ci` bootstrap RBAC updates
 - [CI Image Lifecycle](ci/image-lifecycle.md)
   - Shared CI build root, job-local image graph, and local E2E image injection

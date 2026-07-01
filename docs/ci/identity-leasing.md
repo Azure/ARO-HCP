@@ -215,7 +215,7 @@ For the live DEV slot-managed path:
 - update `test/e2e-config/e2e-slots.yaml`
 - sync or validate the release-side Boskos inventory with `./test/aro-hcp-tests slot-manager sync-boskos-config` and `./test/aro-hcp-tests slot-manager validate-boskos-config`
 - apply the identity pool with `./test/aro-hcp-tests slot-manager apply-identity-pool --environment dev`
-- follow [DEV E2E Subscription Onboarding](dev-e2e-subscription-onboarding.md) for the full operator runbook when adding another customer subscription
+- follow [E2E Subscription Onboarding](e2e-subscription-onboarding.md) for the full operator runbook when adding another customer subscription
 
 For higher environments, the identity-container acquisition path is still the older ci-operator `leases:` model. Those jobs are not yet wired to slot-manager acquire or release, so changes there still have to respect the existing `openshift/release` Boskos inventory and job configuration.
 
@@ -302,7 +302,7 @@ Jobs only consume the Boskos key and the static `msi-mock-pool.yaml` catalog at 
 When you need to change or debug identity leasing, start here:
 
 - [CI Execution](execution.md)
-- [DEV E2E Subscription Onboarding](dev-e2e-subscription-onboarding.md)
+- [E2E Subscription Onboarding](e2e-subscription-onboarding.md)
 - [slot-manager design](../../test/cmd/aro-hcp-tests/slot-manager/DESIGN.md)
 - ARO HCP test framework: `test/util/framework/identities_helper.go`
 - slot-managed identity-pool code: `test/cmd/aro-hcp-tests/slot-manager/identity-pool/`
@@ -323,7 +323,7 @@ When you need to change or debug identity leasing, start here:
 
 - [CI Overview](README.md)
 - [CI Execution](execution.md)
-- [DEV E2E Subscription Onboarding](dev-e2e-subscription-onboarding.md)
+- [E2E Subscription Onboarding](e2e-subscription-onboarding.md)
 - [CI Quota Monitoring](quota-monitoring.md)
 - [CI Operations](operations.md)
 - [CI EV2 Integration](ev2-integration.md)
