@@ -9,7 +9,6 @@ metadata:
     app: clusters-service
   annotations:
     azure.workload.identity/client-id: '__azureCsMiClientId__'
-    azure.workload.identity/tenant-id: '__tenantId__'
 ---
 # Source: clusters-service/templates/clusters-service.secret.yaml
 apiVersion: v1
