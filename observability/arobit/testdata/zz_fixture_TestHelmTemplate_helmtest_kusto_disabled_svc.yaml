@@ -133,6 +133,14 @@ data:
         multiline.key_content log
 
     [FILTER]
+        # Drop noisy kube-proxy topology.go INFO messages that generate 10x log volume
+        # spikes during EndpointSlice reconciliation on mgmt clusters (ICM 825611890).
+        Name    grep
+        Alias   filter.drop_kube_proxy_topology_noise
+        Match   kubernetes.var.log.containers.kube-proxy*
+        Exclude log Ignoring same-(node|zone) topology hints
+
+    [FILTER]
         Name modify
         Match systemd.*
         Add environment dev
@@ -474,7 +482,7 @@ spec:
         app: arobit-forwarder
         azure.workload.identity/use: "true"
       annotations:
-        checksum/configmap: 61983b89ba6ae411e8e038595cac82ee9899ff7676ac3f2ad1226838a61ad117
+        checksum/configmap: 2dbcfcb8ccec730e935c42c2cc3a4972ce31fec6b50ebf7b3bb38a4de9cd1a5b
     spec:
       priorityClassName: service-lifecycle-critical
       serviceAccountName: 'arobit-forwarder'
