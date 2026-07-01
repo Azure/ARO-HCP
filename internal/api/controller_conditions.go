@@ -22,4 +22,6 @@ const (
 // Known controller status condition Reason values (metav1.Condition.Reason).
 const (
 	ControllerConditionReasonAsExpected = "AsExpected"
+
+	CSNodePoolCreateClientErrorReason = "CSNodePoolCreateClientError"
 )

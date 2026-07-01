@@ -519,7 +519,11 @@ func TestDeploymentPreflight(t *testing.T) {
 						"channelGroup": "stable",
 					},
 					"platform": map[string]any{
-						// 1 missing required field
+						"vmSize": "Standard_D8s_v3",
+						"osDisk": map[string]any{
+							// 1 invalid field
+							"sizeGiB": -1,
+						},
 					},
 					"autoScaling": map[string]any{
 						// 1 invalid field
@@ -536,7 +540,7 @@ func TestDeploymentPreflight(t *testing.T) {
 			},
 			expectStatus: arm.DeploymentPreflightStatusFailed,
 			expectErrors: []expectedPreflightError{
-				{message: "Required value", target: "properties.platform.vmSize"},
+				{message: "Invalid value: -1: must be greater than or equal to 64", target: "properties.platform.osDisk.sizeGiB"},
 				{message: "Invalid value: 1: must be greater than or equal to 3", target: "properties.autoScaling.max"},
 				{message: "Unsupported value: \"NoTouchy\": supported values: \"NoExecute\", \"NoSchedule\", \"PreferNoSchedule\"", target: "properties.taints[0].effect"},
 				{message: "Required value", target: "properties.taints[0].key"},

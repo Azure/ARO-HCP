@@ -94,6 +94,16 @@ func ToManagementClusterContentResourceIDString(subscriptionName, resourceGroupN
 	))
 }
 
+func ToNodePoolControllerResourceIDString(subscriptionName, resourceGroupName, clusterName, nodePoolName, controllerName string) string {
+	return strings.ToLower(path.Join(
+		"/subscriptions", subscriptionName,
+		"resourceGroups", resourceGroupName,
+		"providers", ClusterResourceType.String(), clusterName,
+		NodePoolResourceType.Types[len(NodePoolResourceType.Types)-1], nodePoolName,
+		ControllerResourceTypeName, controllerName,
+	))
+}
+
 func ToServiceProviderNodePoolResourceIDString(subscriptionName, resourceGroupName, clusterName, nodePoolName string) string {
 	return strings.ToLower(path.Join(
 		ToNodePoolResourceIDString(subscriptionName, resourceGroupName, clusterName, nodePoolName),

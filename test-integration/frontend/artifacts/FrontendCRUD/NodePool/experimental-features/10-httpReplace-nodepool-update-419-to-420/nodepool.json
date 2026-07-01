@@ -1,0 +1,18 @@
+{
+	"name": "valid-419-np",
+	"properties": {
+		"autoRepair": true,
+		"autoScaling": {
+			"max": 5,
+			"min": 1
+		},
+		"platform": {
+			"vmSize": "Standard_D8s_v3"
+		},
+		"version": {
+			"channelGroup": "stable",
+			"id": "4.20.0"
+		}
+	},
+	"type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/nodePools"
+}

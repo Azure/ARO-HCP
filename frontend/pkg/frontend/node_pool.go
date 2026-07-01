@@ -307,26 +307,13 @@ func (f *Frontend) createNodePool(writer http.ResponseWriter, request *http.Requ
 	if err := checkForProvisioningStateConflict(ctx, f.resourcesDBClient, database.OperationRequestCreate, newInternalNodePool.ID, newInternalNodePool.Properties.ProvisioningState); err != nil {
 		return utils.TrackError(err)
 	}
-	csNodePoolBuilder, err := ocm.BuildCSNodePool(ctx, newInternalNodePool, false)
-	if err != nil {
-		return utils.TrackError(err)
-	}
-	csNodePool, err := f.clusterServiceClient.PostNodePool(ctx, *cluster.ServiceProviderProperties.ClusterServiceID, csNodePoolBuilder)
-	if err != nil {
-		return utils.TrackError(err)
-	}
-	csNodePoolID, err := api.NewInternalID(csNodePool.HREF())
-	if err != nil {
-		return utils.TrackError(err)
-	}
-	newInternalNodePool.ServiceProviderProperties.ClusterServiceID = &csNodePoolID
 
 	transaction := f.resourcesDBClient.NewTransaction(newInternalNodePool.ID.SubscriptionID)
 
 	createNodePoolOperation := database.NewOperation(
 		database.OperationRequestCreate,
 		newInternalNodePool.ID,
-		*newInternalNodePool.ServiceProviderProperties.ClusterServiceID,
+		api.InternalID{},
 		f.azureLocation,
 		request.Header.Get(arm.HeaderNameHomeTenantID),
 		request.Header.Get(arm.HeaderNameClientObjectID),

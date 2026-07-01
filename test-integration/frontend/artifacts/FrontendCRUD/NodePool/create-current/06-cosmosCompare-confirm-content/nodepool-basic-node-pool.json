@@ -33,7 +33,7 @@
 					"sizeGiB": 64
 				},
 				"subnetId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/bar/providers/Microsoft.Network/virtualNetworks/vnet/subnets/subnet",
-				"vmSize": "large"
+				"vmSize": "Standard_D8s_v3"
 			},
 			"provisioningState": "Accepted",
 			"taints": [

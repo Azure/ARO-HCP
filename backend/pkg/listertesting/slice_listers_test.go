@@ -37,6 +37,7 @@ const (
 	testClusterName2      = "other-cluster"
 	testNodePoolName      = "test-nodepool"
 	testExternalAuthName  = "test-external-auth"
+	testControllerName    = "test-controller"
 )
 
 func TestSliceClusterLister(t *testing.T) {
@@ -272,6 +273,56 @@ func TestSliceSubscriptionLister(t *testing.T) {
 
 	t.Run("Get returns not found for non-existent subscription", func(t *testing.T) {
 		_, err := lister.Get(ctx, "22222222-2222-2222-2222-222222222222")
+		require.Error(t, err)
+		assert.True(t, database.IsNotFoundError(err))
+	})
+}
+
+func TestSliceControllerLister(t *testing.T) {
+	npCtrl1 := newTestNodePoolController(testSubscriptionID, testResourceGroupName, testClusterName, testNodePoolName, testControllerName)
+	npCtrl2 := newTestNodePoolController(testSubscriptionID, testResourceGroupName, testClusterName, testNodePoolName, "other-controller")
+	npCtrl3 := newTestNodePoolController(testSubscriptionID, testResourceGroupName, testClusterName, "other-nodepool", testControllerName)
+	clusterCtrl := newTestClusterController(testSubscriptionID, testResourceGroupName, testClusterName, testControllerName)
+
+	lister := &SliceControllerLister{
+		Controllers: []*api.Controller{npCtrl1, npCtrl2, npCtrl3, clusterCtrl},
+	}
+
+	ctx := context.Background()
+
+	t.Run("List returns all controllers", func(t *testing.T) {
+		result, err := lister.List(ctx)
+		require.NoError(t, err)
+		assert.Len(t, result, 4)
+	})
+
+	t.Run("ListForCluster returns controllers under cluster", func(t *testing.T) {
+		result, err := lister.ListForCluster(ctx, testSubscriptionID, testResourceGroupName, testClusterName)
+		require.NoError(t, err)
+		assert.Len(t, result, 1)
+		assert.Equal(t, clusterCtrl, result[0])
+	})
+
+	t.Run("ListForNodePool returns controllers under node pool", func(t *testing.T) {
+		result, err := lister.ListForNodePool(ctx, testSubscriptionID, testResourceGroupName, testClusterName, testNodePoolName)
+		require.NoError(t, err)
+		assert.Len(t, result, 2)
+	})
+
+	t.Run("GetForNodePool returns matching controller", func(t *testing.T) {
+		result, err := lister.GetForNodePool(ctx, testSubscriptionID, testResourceGroupName, testClusterName, testNodePoolName, testControllerName)
+		require.NoError(t, err)
+		assert.Equal(t, npCtrl1, result)
+	})
+
+	t.Run("GetForNodePool returns not found for non-existent controller", func(t *testing.T) {
+		_, err := lister.GetForNodePool(ctx, testSubscriptionID, testResourceGroupName, testClusterName, testNodePoolName, "non-existent")
+		require.Error(t, err)
+		assert.True(t, database.IsNotFoundError(err))
+	})
+
+	t.Run("GetForNodePool returns not found for wrong node pool", func(t *testing.T) {
+		_, err := lister.GetForNodePool(ctx, testSubscriptionID, testResourceGroupName, testClusterName, "wrong-nodepool", testControllerName)
 		require.Error(t, err)
 		assert.True(t, database.IsNotFoundError(err))
 	})
