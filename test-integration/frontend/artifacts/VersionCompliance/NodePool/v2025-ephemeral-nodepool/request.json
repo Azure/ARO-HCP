@@ -1,0 +1,17 @@
+{
+	"name": "v2025-np-eph",
+	"properties": {
+		"autoRepair": true,
+		"autoScaling": {
+			"min": 1,
+			"max": 5
+		},
+		"platform": {
+			"osDisk": {
+				"diskType": "Ephemeral"
+			},
+			"vmSize": "Standard_D4s_v3"
+		}
+	},
+	"type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/nodePools"
+}

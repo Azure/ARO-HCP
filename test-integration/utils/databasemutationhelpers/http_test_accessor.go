@@ -17,7 +17,6 @@ package databasemutationhelpers
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -182,14 +181,6 @@ func (a *httpHTTPTestAccessor) doRequest(ctx context.Context, method, path strin
 	}
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		// Re-indent the response body with 2-space indent to match the
-		// format produced by the Azure SDK's ResponseError.Error(). This
-		// ensures expected-error.txt fixtures (written as substrings of
-		// that format) continue to match via ErrorContains.
-		var indented bytes.Buffer
-		if err := json.Indent(&indented, bodyBytes, "", "  "); err == nil {
-			bodyBytes = indented.Bytes()
-		}
 		return nil, utils.TrackError(fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(bodyBytes)))
 	}
 

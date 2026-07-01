@@ -1,0 +1,7 @@
+{
+	"description": "NodePool with Ephemeral diskType; verify diskType present in v2025 GET/LIST, absent in v2024",
+	"createVersion": "2025-12-23-preview",
+	"resourceType": "nodePool",
+	"clusterResourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/vc-v2025-np",
+	"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/vc-v2025-np/nodePools/v2025-np-eph"
+}

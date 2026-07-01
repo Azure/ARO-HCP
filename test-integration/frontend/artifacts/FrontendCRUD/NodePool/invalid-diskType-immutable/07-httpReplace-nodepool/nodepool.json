@@ -1,0 +1,13 @@
+{
+	"name": "dt-imm-np",
+	"properties": {
+		"autoRepair": true,
+		"platform": {
+			"vmSize": "large",
+			"osDisk": {
+				"diskType": "Ephemeral"
+			}
+		}
+	},
+	"type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/nodePools"
+}

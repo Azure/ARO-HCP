@@ -1,0 +1,13 @@
+{
+	"properties": {
+		"etcd": {
+			"dataEncryption": {
+				"customerManaged": {
+					"kms": {
+						"visibility": null
+					}
+				}
+			}
+		}
+	}
+}
