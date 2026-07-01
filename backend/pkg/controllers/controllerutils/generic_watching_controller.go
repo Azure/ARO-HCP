@@ -233,6 +233,14 @@ func (c *genericWatchingController[T]) EnqueueResourceIDAddWithMaxDepth(resource
 
 func (c *genericWatchingController[T]) enqueueCosmosAddFunc(maxDepth int) func(any) {
 	return func(newObj any) {
+		logger := utils.DefaultLogger()
+		logger = logger.WithValues(
+			utils.LogValues{}.
+				AddControllerName(c.name).
+				AddLogValuesForResourceID(newObj.(arm.CosmosPersistable).GetCosmosData().GetResourceID())...,
+		)
+		logger.Info("Attempt enqueue add")
+
 		c.enqueueCosmosAddWithMaxDepth(newObj, maxDepth)
 	}
 }
@@ -243,6 +251,14 @@ func (c *genericWatchingController[T]) enqueueCosmosAddWithMaxDepth(newObj any, 
 
 func (c *genericWatchingController[T]) enqueueCosmosUpdateFunc(maxDepth int) func(any, any) {
 	return func(oldObj, newObj any) {
+		logger := utils.DefaultLogger()
+		logger = logger.WithValues(
+			utils.LogValues{}.
+				AddControllerName(c.name).
+				AddLogValuesForResourceID(newObj.(arm.CosmosPersistable).GetCosmosData().GetResourceID())...,
+		)
+		logger.Info("Attempt enqueue update")
+
 		c.enqueueCosmosUpdateWithMaxDepth(oldObj, newObj, maxDepth)
 	}
 }
