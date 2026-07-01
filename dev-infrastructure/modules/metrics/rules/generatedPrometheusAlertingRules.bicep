@@ -1071,14 +1071,14 @@ resource maestro 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = 
         }
         annotations: {
           correlationId: 'MaestroServerNoReadyReplicas/{{ $labels.cluster }}'
-          description: 'No maestro-server replicas have been Ready for 5 minutes. Readiness is gated on Postgres connectivity, so maestro is likely unable to reach its database; Clusters Service will get 503 and HCP cluster provisioning will stall.'
-          info: 'No maestro-server replicas have been Ready for 5 minutes. Readiness is gated on Postgres connectivity, so maestro is likely unable to reach its database; Clusters Service will get 503 and HCP cluster provisioning will stall.'
+          description: 'No maestro-server replicas have been Ready for 10 minutes. Readiness is gated on Postgres connectivity, so maestro is likely unable to reach its database; Clusters Service will get 503 and HCP cluster provisioning will stall.'
+          info: 'No maestro-server replicas have been Ready for 10 minutes. Readiness is gated on Postgres connectivity, so maestro is likely unable to reach its database; Clusters Service will get 503 and HCP cluster provisioning will stall.'
           runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/maestro/index.html'
           summary: 'No maestro-server replicas are Ready'
           title: 'No maestro-server replicas are Ready'
         }
-        expression: 'kube_deployment_status_replicas_available{namespace="maestro", deployment="maestro"} == 0 and kube_deployment_spec_replicas{namespace="maestro", deployment="maestro"} > 0'
-        for: 'PT5M'
+        expression: 'kube_deployment_status_replicas_available{deployment="maestro",namespace="maestro"} == 0 and kube_deployment_spec_replicas{deployment="maestro",namespace="maestro"} > 0'
+        for: 'PT10M'
         severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
       }
       {
@@ -1104,7 +1104,7 @@ resource maestro 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = 
           summary: 'A maestro-server replica is not Ready'
           title: 'A maestro-server replica is not Ready'
         }
-        expression: 'kube_deployment_status_replicas_available{namespace="maestro", deployment="maestro"} > 0 and kube_deployment_status_replicas_available{namespace="maestro", deployment="maestro"} < kube_deployment_spec_replicas{namespace="maestro", deployment="maestro"}'
+        expression: 'kube_deployment_status_replicas_available{deployment="maestro",namespace="maestro"} > 0 and kube_deployment_status_replicas_available{deployment="maestro",namespace="maestro"} < kube_deployment_spec_replicas{deployment="maestro",namespace="maestro"}'
         for: 'PT15M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }

@@ -34,6 +34,7 @@ import (
 	"k8s.io/component-base/metrics/legacyregistry"
 
 	"github.com/Azure/ARO-HCP/internal/database/informers"
+	sharedleaderelection "github.com/Azure/ARO-HCP/internal/leaderelection"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/internal/version"
 	"github.com/Azure/ARO-HCP/kube-applier/pkg/controllers/apply_desire"
@@ -159,9 +160,9 @@ func (o *Options) runControllersUnderLeaderElection(
 
 	leaderElectionConfig := leaderelection.LeaderElectionConfig{
 		Lock:          o.LeaderElectionLock,
-		LeaseDuration: leaderElectionLeaseDuration,
-		RenewDeadline: leaderElectionRenewDeadline,
-		RetryPeriod:   leaderElectionRetryPeriod,
+		LeaseDuration: sharedleaderelection.RecommendedLeaseDuration,
+		RenewDeadline: sharedleaderelection.RecommendedRenewDeadline,
+		RetryPeriod:   sharedleaderelection.RecommendedRetryPeriod,
 		Callbacks: leaderelection.LeaderCallbacks{
 			OnStartedLeading: func(ctx context.Context) {
 				logger.Info("acquired leader election lease; starting informers and controllers")
@@ -188,17 +189,7 @@ func (o *Options) runControllersUnderLeaderElection(
 		Name:            "kube-applier",
 	}
 
-	retryTimes := int(leaderElectionConfig.RenewDeadline / leaderElectionConfig.RetryPeriod)
-	logger.Info(
-		fmt.Sprintf(
-			"The leader election gives %v retries and allows for %v of clock skew. The kube-apiserver downtime tolerance is %vs. Worst non-graceful lease acquisition is %v. Worst graceful lease acquisition is %v.",
-			retryTimes,
-			leaderElectionConfig.LeaseDuration-leaderElectionConfig.RenewDeadline,
-			(retryTimes-1)*(int(leaderElectionConfig.RetryPeriod.Seconds())),
-			leaderElectionConfig.LeaseDuration+leaderElectionConfig.RetryPeriod,
-			leaderElectionConfig.RetryPeriod,
-		),
-	)
+	sharedleaderelection.LogLeaseProperties(logger, leaderElectionConfig)
 
 	le, err := leaderelection.NewLeaderElector(leaderElectionConfig)
 	if err != nil {

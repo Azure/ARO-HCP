@@ -119,6 +119,7 @@ defaults:
     cxParentZoneName: "empty-sentinel"
     kustoName: "empty-sentinel"
     grafanaName: "empty-sentinel"
+    grafanaMajorVersion: "empty-sentinel"
   # Image Registry Policy
   imageRegistryPolicy:
     extraAllowedRegistries: ""
@@ -324,8 +325,6 @@ defaults:
     adminGroups: ""
     viewerGroups: ""
     viewerIdentities: ""
-    crossClusterServiceLogsScript: ""
-    crossClusterHostedControlPlaneLogsScript: ""
     sku: ""
     tier: ""
   auditLogsEventHub:
@@ -764,6 +763,8 @@ defaults:
           memory: unlimited
     cert:
       name: admin-api-cert-{{ .ctx.environment }}-{{ .ctx.regionShort }}
+      san: ''
+      contentType: x-pkcs12
   # Session Gate
   sessiongate:
     image:
@@ -777,6 +778,8 @@ defaults:
       serviceAccountName: sessiongate
     cert:
       name: sessiongate-cert-{{ .ctx.environment }}-{{ .ctx.regionShort }}
+      san: ''
+      contentType: x-pkcs12
   # HCP Recovery
   hcpRecovery:
     image:
@@ -820,6 +823,8 @@ defaults:
       fleetContainerMaxScale: 4000
     cert:
       name: frontend-cert-{{ .ctx.environment }}-{{ .ctx.regionShort }}
+      san: ''
+      contentType: x-pkcs12
     exitOnPanic: true
     logVerbosity: 0
   # Billing
@@ -1210,14 +1215,17 @@ clouds:
       # Admin API
       adminApi:
         cert:
+          san: 'admin.{{ .ctx.regionShort }}.hcpsvc.osadev.cloud'
           issuer: Self
       # Sessiongate
       sessiongate:
         cert:
+          san: 'sessiongate.{{ .ctx.regionShort }}.hcpsvc.osadev.cloud'
           issuer: Self
       # Frontend
       frontend:
         cert:
+          san: 'rp.{{ .ctx.regionShort }}.hcpsvc.osadev.cloud'
           issuer: Self
       # Backend
       backend:
@@ -1348,6 +1356,14 @@ clouds:
           # DNS
           dns:
             regionalSubdomain: '{{ .ctx.region }}'
+          # Admin API
+          adminApi:
+            cert:
+              san: 'admin.{{ .ctx.region }}.hcpsvc.osadev.cloud'
+          # Sessiongate
+          sessiongate:
+            cert:
+              san: 'sessiongate.{{ .ctx.region }}.hcpsvc.osadev.cloud'
           # Maestro
           maestro:
             server:
@@ -1357,6 +1373,8 @@ clouds:
                 exporter: "otlp"
           # Frontend
           frontend:
+            cert:
+              san: 'rp.{{ .ctx.region }}.hcpsvc.osadev.cloud'
             audit:
               connectSocket: false
             cosmosDB:
@@ -1407,11 +1425,21 @@ clouds:
           # DNS
           dns:
             regionalSubdomain: '{{ .ctx.region }}-cs'
+          # Admin API
+          adminApi:
+            cert:
+              san: 'admin.{{ .ctx.region }}-cs.hcpsvc.osadev.cloud'
+          # Sessiongate
+          sessiongate:
+            cert:
+              san: 'sessiongate.{{ .ctx.region }}-cs.hcpsvc.osadev.cloud'
           # Maestro
           maestro:
             restrictIstioIngress: false
           # Frontend
           frontend:
+            cert:
+              san: 'rp.{{ .ctx.region }}-cs.hcpsvc.osadev.cloud'
             cosmosDB:
               private: false
               zoneRedundantMode: 'Disabled'

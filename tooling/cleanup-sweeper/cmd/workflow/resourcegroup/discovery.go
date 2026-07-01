@@ -98,9 +98,14 @@ func discoverPolicyCandidates(
 	}
 
 	excludedResourceGroups := sets.New(opts.Policy.ExcludedResourceGroups...)
-
+	knownResourceGroups := make(sets.Set[string], len(resourceGroups))
 	for _, rg := range resourceGroups {
-		include, reason := opts.Policy.Discovery.SelectsResourceGroup(rg, excludedResourceGroups, opts.ReferenceTime)
+		if rg.Name != nil {
+			knownResourceGroups.Insert(strings.ToLower(*rg.Name))
+		}
+	}
+	for _, rg := range resourceGroups {
+		include, reason := opts.Policy.Discovery.SelectsResourceGroup(rg, excludedResourceGroups, knownResourceGroups, opts.ReferenceTime)
 		if !include {
 			continue
 		}

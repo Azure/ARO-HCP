@@ -290,11 +290,20 @@ func (c *ApplyDesireController) SyncOnce(ctx context.Context, key keys.ApplyDesi
 		return nil
 	}
 
-	syncErr := c.applyDesired(ctx, desire)
+	applied, syncErr := c.applyDesired(ctx, desire)
+
+	// Capture the metadata.generation of the Kubernetes object returned by
+	// the SSA apply call so the closure below records the right value.
+	var appliedKubeGeneration *int64
+	if syncErr == nil && applied != nil {
+		gen := applied.GetGeneration()
+		appliedKubeGeneration = &gen
+	}
 
 	return c.writer.UpdateStatus(ctx, key, func(d *kubeapplier.ApplyDesire) {
 		conditions.SetSuccessful(&d.Status.Conditions, syncErr)
 		conditions.SetDegraded(&d.Status.Conditions, classifyAsDegraded(syncErr))
+		d.Status.AppliedKubeGeneration = appliedKubeGeneration
 	})
 }
 
@@ -306,17 +315,17 @@ func (c *ApplyDesireController) SyncOnce(ctx context.Context, key keys.ApplyDesi
 // PreCheckError is returned for pre-flight failures (parse, missing fields)
 // so they classify as PreCheckFailed; everything else is treated as a
 // kube-apiserver error.
-func (c *ApplyDesireController) applyDesired(ctx context.Context, d *kubeapplier.ApplyDesire) error {
+func (c *ApplyDesireController) applyDesired(ctx context.Context, d *kubeapplier.ApplyDesire) (*unstructured.Unstructured, error) {
 	target := d.Spec.TargetItem
 	if len(target.Resource) == 0 || len(target.Version) == 0 || len(target.Name) == 0 {
-		return conditions.NewPreCheckError(errors.New("spec.targetItem requires version, resource, and name"))
+		return nil, conditions.NewPreCheckError(errors.New("spec.targetItem requires version, resource, and name"))
 	}
 	if d.Spec.KubeContent == nil || len(d.Spec.KubeContent.Raw) == 0 {
-		return conditions.NewPreCheckError(errors.New("spec.kubeContent is empty"))
+		return nil, conditions.NewPreCheckError(errors.New("spec.kubeContent is empty"))
 	}
 	obj := &unstructured.Unstructured{}
 	if err := obj.UnmarshalJSON(d.Spec.KubeContent.Raw); err != nil {
-		return conditions.NewPreCheckError(fmt.Errorf("decode kubeContent: %w", err))
+		return nil, conditions.NewPreCheckError(fmt.Errorf("decode kubeContent: %w", err))
 	}
 
 	gvr := schema.GroupVersionResource{Group: target.Group, Version: target.Version, Resource: target.Resource}
@@ -326,16 +335,16 @@ func (c *ApplyDesireController) applyDesired(ctx context.Context, d *kubeapplier
 		kubeResourceAccessor = resource.Namespace(target.Namespace)
 	}
 
-	_, applyErr := kubeResourceAccessor.Apply(ctx, target.Name, obj, metav1.ApplyOptions{
+	result, applyErr := kubeResourceAccessor.Apply(ctx, target.Name, obj, metav1.ApplyOptions{
 		FieldManager: FieldManager,
 		Force:        true,
 	})
 	if applyErr != nil {
 		// Wrap with a contextual prefix; keep the original kind so SetSuccessful
 		// classifies it as a kube-apiserver error (NOT a *PreCheckError).
-		return fmt.Errorf("server-side apply: %w", applyErr)
+		return nil, fmt.Errorf("server-side apply: %w", applyErr)
 	}
-	return nil
+	return result, nil
 }
 
 // classifyAsDegraded picks which sync errors should bubble to the Degraded

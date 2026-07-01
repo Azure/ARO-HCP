@@ -37,6 +37,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/kube-applier/pkg/controllers/conditions"
+	"github.com/Azure/ARO-HCP/kube-applier/pkg/controllers/desirestatuswriter"
 	"github.com/Azure/ARO-HCP/kube-applier/pkg/controllers/keys"
 )
 
@@ -95,6 +96,27 @@ type errFetcher struct{ err error }
 
 func (f *errFetcher) Fetch(context.Context, keys.ApplyDesireKey) (*kubeapplier.ApplyDesire, error) {
 	return nil, f.err
+}
+
+// staticFetcher implements desirestatuswriter.Fetcher by returning a deep-copy
+// of the stored desire. Used by SyncOnce tests to wire both the controller's
+// fetcher and the status writer's fetcher without Cosmos.
+type staticFetcher struct{ desire *kubeapplier.ApplyDesire }
+
+func (f *staticFetcher) Fetch(context.Context, keys.ApplyDesireKey) (*kubeapplier.ApplyDesire, error) {
+	if f.desire == nil {
+		return nil, nil
+	}
+	return f.desire.DeepCopy(), nil
+}
+
+// capturingReplacer implements desirestatuswriter.Replacer by storing the
+// last replaced desire so tests can inspect it.
+type capturingReplacer struct{ last *kubeapplier.ApplyDesire }
+
+func (r *capturingReplacer) Replace(_ context.Context, d *kubeapplier.ApplyDesire) error {
+	r.last = d.DeepCopy()
+	return nil
 }
 
 func mustKey(t *testing.T, d *kubeapplier.ApplyDesire) keys.ApplyDesireKey {
@@ -163,7 +185,7 @@ func TestApplyDesired_IssuesSSAPatch(t *testing.T) {
 	  "metadata": {"name":"hello", "namespace":"default"},
 	  "data": {"k":"v"}
 	}`))
-	if err := c.applyDesired(ctx, desire); err != nil {
+	if _, err := c.applyDesired(ctx, desire); err != nil {
 		t.Fatalf("applyDesired: %v", err)
 	}
 
@@ -234,7 +256,7 @@ func TestApplyDesired_PreCheckErrors(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			err := c.applyDesired(ctx, newApplyDesire(t, "x", tc.target, tc.kubeContent))
+			_, err := c.applyDesired(ctx, newApplyDesire(t, "x", tc.target, tc.kubeContent))
 			if err == nil {
 				t.Fatalf("expected error containing %q, got nil", tc.wantSubstr)
 			}
@@ -375,5 +397,97 @@ func TestHandleUpdate_UnchangedEtagGatedByCooldown(t *testing.T) {
 	c.handleUpdate(oldDesire, newDesire)
 	if got := drain(); len(got) != 0 {
 		t.Errorf("immediately after pass-through drained %v, want none", got)
+	}
+}
+
+// TestSyncOnce_AppliedKubeGenerationSetOnSuccess verifies that after a
+// successful SSA, SyncOnce records the metadata.generation from the
+// Kubernetes object returned by the apply call in
+// status.AppliedKubeGeneration.
+func TestSyncOnce_AppliedKubeGenerationSetOnSuccess(t *testing.T) {
+	ctx := context.Background()
+	gvr := schema.GroupVersionResource{Version: "v1", Resource: "configmaps"}
+	dyn := fakeDynamic(t, map[schema.GroupVersionResource]string{gvr: "ConfigMapList"})
+	dyn.PrependReactor("patch", "configmaps", func(action clienttesting.Action) (bool, runtime.Object, error) {
+		obj := &unstructured.Unstructured{}
+		obj.SetGroupVersionKind(schema.GroupVersionKind{Version: "v1", Kind: "ConfigMap"})
+		obj.SetName(action.(clienttesting.PatchAction).GetName())
+		obj.SetNamespace(action.GetNamespace())
+		// Simulate the apiserver returning the object with metadata.generation set.
+		obj.SetGeneration(3)
+		return true, obj, nil
+	})
+
+	desire := newApplyDesire(t, "ok", configMapTarget("hello"), []byte(`{
+	  "apiVersion": "v1",
+	  "kind": "ConfigMap",
+	  "metadata": {"name":"hello", "namespace":"default"},
+	  "data": {"k":"v"}
+	}`))
+
+	fetcher := &staticFetcher{desire: desire}
+	replacer := &capturingReplacer{}
+
+	c := &ApplyDesireController{
+		dyn:     dyn,
+		fetcher: fetcher,
+		writer: desirestatuswriter.New[kubeapplier.ApplyDesire, keys.ApplyDesireKey, *kubeapplier.ApplyDesire](
+			fetcher, replacer,
+		),
+	}
+	key := mustKey(t, desire)
+
+	if err := c.SyncOnce(ctx, key); err != nil {
+		t.Fatalf("SyncOnce: %v", err)
+	}
+
+	if replacer.last == nil {
+		t.Fatal("replacer was not called; status was not written")
+	}
+	if replacer.last.Status.AppliedKubeGeneration == nil {
+		t.Fatal("AppliedKubeGeneration is nil after successful apply, want non-nil")
+	}
+	if got := *replacer.last.Status.AppliedKubeGeneration; got != 3 {
+		t.Errorf("AppliedKubeGeneration = %d, want 3 (metadata.generation from SSA response)", got)
+	}
+}
+
+// TestSyncOnce_AppliedKubeGenerationNilOnFailure verifies that after a failed
+// SSA (PreCheckError for missing kubeContent), SyncOnce sets
+// status.AppliedKubeGeneration to nil.
+func TestSyncOnce_AppliedKubeGenerationNilOnFailure(t *testing.T) {
+	ctx := context.Background()
+	dyn := fakeDynamic(t, map[schema.GroupVersionResource]string{
+		{Group: "", Version: "v1", Resource: "configmaps"}: "ConfigMapList",
+	})
+
+	// Build a desire that will fail: nil kubeContent triggers PreCheckError.
+	desire := newApplyDesire(t, "fail", configMapTarget("hello"), nil)
+	// Pre-seed AppliedKubeGeneration so we can confirm it gets cleared.
+	var prevGen int64 = 5
+	desire.Status.AppliedKubeGeneration = &prevGen
+
+	fetcher := &staticFetcher{desire: desire}
+	replacer := &capturingReplacer{}
+
+	c := &ApplyDesireController{
+		dyn:     dyn,
+		fetcher: fetcher,
+		writer: desirestatuswriter.New[kubeapplier.ApplyDesire, keys.ApplyDesireKey, *kubeapplier.ApplyDesire](
+			fetcher, replacer,
+		),
+	}
+	key := mustKey(t, desire)
+
+	if err := c.SyncOnce(ctx, key); err != nil {
+		t.Fatalf("SyncOnce: %v", err)
+	}
+
+	if replacer.last == nil {
+		t.Fatal("replacer was not called; status was not written")
+	}
+	if replacer.last.Status.AppliedKubeGeneration != nil {
+		t.Errorf("AppliedKubeGeneration = %d after failed apply, want nil",
+			*replacer.last.Status.AppliedKubeGeneration)
 	}
 }

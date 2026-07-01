@@ -48,6 +48,7 @@ import (
 	hypershiftclient "github.com/openshift/hypershift/client/clientset/clientset"
 	hypershiftinformers "github.com/openshift/hypershift/client/informers/externalversions"
 
+	sharedleaderelection "github.com/Azure/ARO-HCP/internal/leaderelection"
 	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/controller"
 	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/controller/ksmhcp"
 )
@@ -213,23 +214,12 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 		}
 	}
 
-	leKubeConfig := rest.CopyConfig(kubeConfig)
-	leKubeConfig.QPS = 20
-	leKubeConfig.Burst = 40
-
 	hostname, err := os.Hostname()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get hostname for leader election: %w", err)
 	}
 
-	leaderElectionLock, err := resourcelock.NewFromKubeconfig(
-		resourcelock.LeasesResourceLock,
-		o.Namespace,
-		LeaderElectionLockName,
-		resourcelock.ResourceLockConfig{Identity: hostname},
-		leKubeConfig,
-		leaderElectionRenewDeadline,
-	)
+	leaderElectionLock, err := sharedleaderelection.NewLeaderElectionLock(hostname, kubeConfig, o.Namespace, LeaderElectionLockName, sharedleaderelection.RecommendedRenewDeadline)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create leader election lock: %w", err)
 	}
@@ -329,22 +319,16 @@ func (o *ControllerOptions) Run(ctx context.Context) error {
 	return errors.Join(errs...)
 }
 
-const (
-	leaderElectionLeaseDuration = 15 * time.Second
-	leaderElectionRenewDeadline = 10 * time.Second
-	leaderElectionRetryPeriod   = 2 * time.Second
-)
-
 // runControllersUnderLeaderElection runs the controllers inside the leader-election callback.
 // Informers are started inside the callback: a non-leader replica should not be running controllers.
 func (o *ControllerOptions) runControllersUnderLeaderElection(ctx context.Context) error {
 	logger := klog.FromContext(ctx)
 
-	le, err := leaderelection.NewLeaderElector(leaderelection.LeaderElectionConfig{
+	leaderElectionConfig := leaderelection.LeaderElectionConfig{
 		Lock:          o.leaderElectionLock,
-		LeaseDuration: leaderElectionLeaseDuration,
-		RenewDeadline: leaderElectionRenewDeadline,
-		RetryPeriod:   leaderElectionRetryPeriod,
+		LeaseDuration: sharedleaderelection.RecommendedLeaseDuration,
+		RenewDeadline: sharedleaderelection.RecommendedRenewDeadline,
+		RetryPeriod:   sharedleaderelection.RecommendedRetryPeriod,
 		Callbacks: leaderelection.LeaderCallbacks{
 			OnStartedLeading: func(ctx context.Context) {
 				logger.Info("acquired leader election lease; starting informers and controllers")
@@ -400,7 +384,11 @@ func (o *ControllerOptions) runControllersUnderLeaderElection(ctx context.Contex
 		},
 		ReleaseOnCancel: true,
 		Name:            LeaderElectionLockName,
-	})
+	}
+
+	sharedleaderelection.LogLeaseProperties(logger, leaderElectionConfig)
+
+	le, err := leaderelection.NewLeaderElector(leaderElectionConfig)
 	if err != nil {
 		return err
 	}

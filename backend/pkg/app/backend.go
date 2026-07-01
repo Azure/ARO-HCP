@@ -57,6 +57,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database"
 	dbinformers "github.com/Azure/ARO-HCP/internal/database/informers"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
+	sharedleaderelection "github.com/Azure/ARO-HCP/internal/leaderelection"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -365,6 +366,8 @@ func shutdownHTTPServer(ctx context.Context, server *http.Server, name string) e
 // runBackendControllersUnderLeaderElection runs the backen controllers under
 // a leader election loop.
 func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, electionChecker *leaderelection.HealthzAdaptor) error {
+	logger := utils.LoggerFromContext(ctx)
+
 	backendInformers := informers.NewBackendInformers(ctx,
 		b.options.ResourcesDBClient.ResourcesGlobalListers(),
 		b.options.BillingDBClient.BillingGlobalListers(),
@@ -781,11 +784,11 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		backendInformers,
 	)
 
-	le, err := leaderelection.NewLeaderElector(leaderelection.LeaderElectionConfig{
+	leaderElectionConfig := leaderelection.LeaderElectionConfig{
 		Lock:          b.options.LeaderElectionLock,
-		LeaseDuration: leaderElectionLeaseDuration,
-		RenewDeadline: leaderElectionRenewDeadline,
-		RetryPeriod:   leaderElectionRetryPeriod,
+		LeaseDuration: sharedleaderelection.RecommendedLeaseDuration,
+		RenewDeadline: sharedleaderelection.RecommendedRenewDeadline,
+		RetryPeriod:   sharedleaderelection.RecommendedRetryPeriod,
 		Callbacks: leaderelection.LeaderCallbacks{
 			OnStartedLeading: func(ctx context.Context) {
 				// start the SharedInformers
@@ -872,7 +875,11 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		ReleaseOnCancel: true,
 		WatchDog:        electionChecker,
 		Name:            leaderElectionLockName,
-	})
+	}
+
+	sharedleaderelection.LogLeaseProperties(logger, leaderElectionConfig)
+
+	le, err := leaderelection.NewLeaderElector(leaderElectionConfig)
 	if err != nil {
 		return err
 	}

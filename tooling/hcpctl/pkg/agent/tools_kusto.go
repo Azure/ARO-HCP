@@ -16,6 +16,7 @@ package agent
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -47,11 +48,65 @@ type kustoQueryParams struct {
 // persistence); only the markdown rendered for the conversation is truncated.
 const maxToolResultRows = 100
 
+// kustoToolDescription is the shared description for the kusto_query tool,
+// used by both the Copilot-specific and provider-neutral factories.
+const kustoToolDescription = `Execute a KQL query against Azure Data Explorer. Use this when the pre-gathered diagnostic data is insufficient and you need to investigate further. The query runs against the ARO-HCP logging cluster. Results are returned as a markdown table. Write queries that are self-contained and tell a story — they will be rendered verbatim in the final analysis.`
+
+// kustoToolParamSchema is the JSON Schema for the kusto_query tool's
+// input parameters, shared between all providers.
+var kustoToolParamSchema = json.RawMessage(`{
+	"type": "object",
+	"properties": {
+		"kql": {
+			"type": "string",
+			"description": "The KQL query to execute."
+		}
+	},
+	"required": ["kql"]
+}`)
+
+// NewKustoToolDefinition creates a provider-neutral ToolDefinition for the
+// kusto_query tool. This is the preferred factory for use with LLMProvider
+// implementations; each provider converts it to its native tool format.
+func NewKustoToolDefinition(client KustoClient) ToolDefinition {
+	return ToolDefinition{
+		Name:        "kusto_query",
+		Description: kustoToolDescription,
+		ParamSchema: kustoToolParamSchema,
+		Handler: func(ctx context.Context, params json.RawMessage) (string, error) {
+			var p kustoQueryParams
+			if err := json.Unmarshal(params, &p); err != nil {
+				return "", fmt.Errorf("invalid kusto_query params: %w", err)
+			}
+			if p.KQL == "" {
+				return "", fmt.Errorf("kql must not be empty")
+			}
+
+			table, err := client.Query(ctx, p.KQL)
+			if err != nil {
+				return "", errors.New(summarizeKustoError(err))
+			}
+
+			totalRows := len(table.Rows)
+			if totalRows > maxToolResultRows {
+				truncated := &tabular.Table{
+					Columns: table.Columns,
+					Rows:    table.Rows[:maxToolResultRows],
+				}
+				return fmt.Sprintf("%s\n\n(showing %d of %d rows — add filters or aggregations to narrow results)",
+					TableToMarkdown(truncated), maxToolResultRows, totalRows), nil
+			}
+
+			return TableToMarkdown(table), nil
+		},
+	}
+}
+
 // NewKustoTool creates a kusto_query Copilot SDK tool backed by the given client.
 func NewKustoTool(client KustoClient) copilot.Tool {
 	return copilot.DefineTool(
 		"kusto_query",
-		`Execute a KQL query against Azure Data Explorer. Use this when the pre-gathered diagnostic data is insufficient and you need to investigate further. The query runs against the ARO-HCP logging cluster. Results are returned as a markdown table. Write queries that are self-contained and tell a story — they will be rendered verbatim in the final analysis.`,
+		kustoToolDescription,
 		func(params kustoQueryParams, inv copilot.ToolInvocation) (string, error) {
 			if params.KQL == "" {
 				return "", fmt.Errorf("kql must not be empty")

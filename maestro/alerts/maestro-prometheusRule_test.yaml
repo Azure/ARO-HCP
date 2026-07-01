@@ -110,15 +110,15 @@ tests:
   - eval_time: 15m
     alertname: MaestroSpecControllerReconcileErrors
     exp_alerts: []
-# Test: MaestroServerNoReadyReplicas fires when 0 replicas available for 5m
+# Test: MaestroServerNoReadyReplicas fires when 0 replicas available for 10m
 - interval: 1m
   input_series:
   - series: 'kube_deployment_status_replicas_available{namespace="maestro", deployment="maestro"}'
-    values: "0x10" # no Ready replicas
+    values: "0x15" # no Ready replicas
   - series: 'kube_deployment_spec_replicas{namespace="maestro", deployment="maestro"}'
-    values: "2x10" # 2 desired
+    values: "2x15" # 2 desired
   alert_rule_test:
-  - eval_time: 6m
+  - eval_time: 11m
     alertname: MaestroServerNoReadyReplicas
     exp_alerts:
     - exp_labels:
@@ -126,18 +126,18 @@ tests:
         namespace: maestro
         deployment: maestro
       exp_annotations:
-        description: 'No maestro-server replicas have been Ready for 5 minutes. Readiness is gated on Postgres connectivity, so maestro is likely unable to reach its database; Clusters Service will get 503 and HCP cluster provisioning will stall.'
+        description: 'No maestro-server replicas have been Ready for 10 minutes. Readiness is gated on Postgres connectivity, so maestro is likely unable to reach its database; Clusters Service will get 503 and HCP cluster provisioning will stall.'
         runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/maestro/index.html'
         summary: 'No maestro-server replicas are Ready'
 # Test: MaestroServerNoReadyReplicas does not fire when all replicas available
 - interval: 1m
   input_series:
   - series: 'kube_deployment_status_replicas_available{namespace="maestro", deployment="maestro"}'
-    values: "2x10"
+    values: "2x15"
   - series: 'kube_deployment_spec_replicas{namespace="maestro", deployment="maestro"}'
-    values: "2x10"
+    values: "2x15"
   alert_rule_test:
-  - eval_time: 6m
+  - eval_time: 11m
     alertname: MaestroServerNoReadyReplicas
     exp_alerts: []
 # Test: MaestroServerReplicaNotReady fires when available < desired (but > 0) for 15m

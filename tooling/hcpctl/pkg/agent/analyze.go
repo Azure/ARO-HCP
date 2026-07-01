@@ -77,7 +77,7 @@ type AnalyzeResult struct {
 // output, hydrates proof items with real query results and code excerpts,
 // then runs review rounds where the agent sees its rendered output and can
 // refine it.
-func Analyze(ctx context.Context, logger logr.Logger, session *Session, kustoClient KustoClient, opts AnalyzeOptions) (*AnalyzeResult, error) {
+func Analyze(ctx context.Context, logger logr.Logger, session LLMSession, kustoClient KustoClient, opts AnalyzeOptions) (*AnalyzeResult, error) {
 	maxValidationRounds := opts.MaxValidationRounds
 	if maxValidationRounds <= 0 {
 		maxValidationRounds = 10
@@ -171,7 +171,7 @@ func Analyze(ctx context.Context, logger logr.Logger, session *Session, kustoCli
 func ValidateDraftLoop(
 	ctx context.Context,
 	logger logr.Logger,
-	session *Session,
+	session LLMSession,
 	kustoClient KustoClient,
 	vc *ValidationContext,
 	output string,
