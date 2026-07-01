@@ -95,9 +95,10 @@ func (c *Client) AddPassword(ctx context.Context, appID, displayName string, sta
 	reqBody.SetPasswordCredential(passwordCred)
 
 	// Add password to application with retry for eventual consistency
-	logger := logr.FromContextOrDiscard(ctx)
 	var result models.PasswordCredentialable
 	var lastErr error
+	var lastStatusCode int
+	var lastErrorCode, lastErrorMessage string
 	attempts := 0
 	pollErr := wait.PollUntilContextTimeout(ctx, 5*time.Second, 2*time.Minute, true, func(ctx context.Context) (bool, error) {
 		attempts++
@@ -111,17 +112,16 @@ func (c *Client) AddPassword(ctx context.Context, appID, displayName string, sta
 			var odataErr *odataerrors.ODataError
 			if errors.As(err, &odataErr) {
 				code := odataErr.ResponseStatusCode
+				lastStatusCode = code
 				odataError := odataErr.GetErrorEscaped()
-				logFields := []interface{}{
-					"attempt", attempts,
-					"statusCode", code,
-				}
 				if odataError != nil {
-					logFields = append(logFields,
-						"errorCode", odataError.GetCode(),
-						"errorMessage", odataError.GetMessage())
+					if errCode := odataError.GetCode(); errCode != nil {
+						lastErrorCode = *errCode
+					}
+					if errMsg := odataError.GetMessage(); errMsg != nil {
+						lastErrorMessage = *errMsg
+					}
 				}
-				logger.Error(err, "Graph API AddPassword failed", logFields...)
 
 				// Retry all errors for first 3 attempts to handle transient issues
 				if attempts <= 3 {
@@ -140,7 +140,15 @@ func (c *Client) AddPassword(ctx context.Context, appID, displayName string, sta
 	})
 	if pollErr != nil {
 		if lastErr != nil {
-			return nil, fmt.Errorf("add password after %d attempts; last attempt error: %w; polling error: %w", attempts, lastErr, pollErr)
+			// Include diagnostic details in error message for self-diagnosing failures
+			diagDetails := fmt.Sprintf("HTTP %d", lastStatusCode)
+			if lastErrorCode != "" {
+				diagDetails += fmt.Sprintf(", %s", lastErrorCode)
+			}
+			if lastErrorMessage != "" {
+				diagDetails += fmt.Sprintf(": %s", lastErrorMessage)
+			}
+			return nil, fmt.Errorf("add password after %d attempts; last attempt error (%s): %w; polling error: %w", attempts, diagDetails, lastErr, pollErr)
 		}
 		return nil, fmt.Errorf("add password after %d attempts: %w", attempts, pollErr)
 	}
