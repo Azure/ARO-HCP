@@ -1,0 +1,28 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    app.kubernetes.io/name: kube-prometheus
+    app.kubernetes.io/part-of: kube-prometheus
+    prometheus: k8s
+    role: alert-rules
+  name: crashlooping-services-monitoring-rules
+  namespace: monitoring
+spec:
+  groups:
+  - name: crashlooping-services
+    rules:
+    - alert: HCPComponentCrashLooping
+      expr: |
+        max_over_time(kube_pod_container_status_waiting_reason{
+          reason="CrashLoopBackOff",
+          job="kube-state-metrics",
+          namespace=~"aro-hcp|clusters-service|kube-applier|fleet|aro-hcp-admin-api|maestro|mgmt-agent"
+        }[5m]) >= 1
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        description: 'Pod {{ $labels.namespace }}/{{ $labels.pod }} ({{ $labels.container }}) is in CrashLoopBackOff on cluster {{ $labels.cluster }}.'
+        runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/crashlooping-tsg.html'
+        summary: 'HCP component pod is crash looping.'

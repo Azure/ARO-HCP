@@ -1,0 +1,64 @@
+rule_files:
+- crashlooping-services-prometheusRule.yaml
+evaluation_interval: 1m
+tests:
+# Test: HCPComponentCrashLooping fires for aro-hcp namespace pod in CrashLoopBackOff
+- interval: 1m
+  input_series:
+  - series: 'kube_pod_container_status_waiting_reason{reason="CrashLoopBackOff", job="kube-state-metrics", namespace="aro-hcp", pod="backend-abc123", container="backend", cluster="test-cluster"}'
+    values: "1x12"
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: HCPComponentCrashLooping
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+        namespace: aro-hcp
+        pod: backend-abc123
+        container: backend
+        cluster: test-cluster
+        reason: CrashLoopBackOff
+        job: kube-state-metrics
+      exp_annotations:
+        description: 'Pod aro-hcp/backend-abc123 (backend) is in CrashLoopBackOff on cluster test-cluster.'
+        runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/crashlooping-tsg.html'
+        summary: 'HCP component pod is crash looping.'
+# Test: HCPComponentCrashLooping fires for kube-applier namespace
+- interval: 1m
+  input_series:
+  - series: 'kube_pod_container_status_waiting_reason{reason="CrashLoopBackOff", job="kube-state-metrics", namespace="kube-applier", pod="kube-applier-xyz", container="kube-applier", cluster="test-mc"}'
+    values: "1x12"
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: HCPComponentCrashLooping
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+        namespace: kube-applier
+        pod: kube-applier-xyz
+        container: kube-applier
+        cluster: test-mc
+        reason: CrashLoopBackOff
+        job: kube-state-metrics
+      exp_annotations:
+        description: 'Pod kube-applier/kube-applier-xyz (kube-applier) is in CrashLoopBackOff on cluster test-mc.'
+        runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/crashlooping-tsg.html'
+        summary: 'HCP component pod is crash looping.'
+# Test: HCPComponentCrashLooping does not fire for unrelated namespace
+- interval: 1m
+  input_series:
+  - series: 'kube_pod_container_status_waiting_reason{reason="CrashLoopBackOff", job="kube-state-metrics", namespace="some-other-ns", pod="foo-pod", container="foo", cluster="test-cluster"}'
+    values: "1x12"
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: HCPComponentCrashLooping
+    exp_alerts: []
+# Test: HCPComponentCrashLooping does not fire before for: 5m
+- interval: 1m
+  input_series:
+  - series: 'kube_pod_container_status_waiting_reason{reason="CrashLoopBackOff", job="kube-state-metrics", namespace="aro-hcp", pod="frontend-pod", container="frontend", cluster="test-cluster"}'
+    values: "1x12"
+  alert_rule_test:
+  - eval_time: 4m
+    alertname: HCPComponentCrashLooping
+    exp_alerts: []

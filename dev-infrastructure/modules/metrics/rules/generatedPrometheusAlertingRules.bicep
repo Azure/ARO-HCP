@@ -1898,3 +1898,43 @@ resource kustoLogsAgeRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
     ]
   }
 }
+
+resource crashloopingServices 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'crashlooping-services'
+  location: location
+  properties: {
+    interval: 'PT1M'
+    rules: [
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'HCPComponentCrashLooping'
+        enabled: true
+        labels: {
+          severity: 'warning'
+        }
+        annotations: {
+          correlationId: 'HCPComponentCrashLooping/{{ $labels.cluster }}'
+          description: 'Pod {{ $labels.namespace }}/{{ $labels.pod }} ({{ $labels.container }}) is in CrashLoopBackOff on cluster {{ $labels.cluster }}.'
+          info: 'Pod {{ $labels.namespace }}/{{ $labels.pod }} ({{ $labels.container }}) is in CrashLoopBackOff on cluster {{ $labels.cluster }}.'
+          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/crashlooping-tsg.html'
+          summary: 'HCP component pod is crash looping.'
+          title: 'HCP component pod is crash looping.'
+        }
+        expression: 'max_over_time(kube_pod_container_status_waiting_reason{job="kube-state-metrics",namespace=~"aro-hcp|clusters-service|kube-applier|fleet|aro-hcp-admin-api|maestro|mgmt-agent",reason="CrashLoopBackOff"}[5m]) >= 1'
+        for: 'PT5M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+    ]
+    scopes: [
+      azureMonitoring
+    ]
+  }
+}

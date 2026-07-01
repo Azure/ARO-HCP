@@ -16,6 +16,7 @@ prometheusRules:
   - alerts/kubeNode-prometheusRule.yaml
   - alerts/imageRegistryPolicy-prometheusRule.yaml
   - alerts/kusto-logs-age-prometheusRule.yaml
+  - alerts/crashlooping-services-prometheusRule.yaml
   untestedRules: []
   testDependencies:
   - recording-rules-services.yaml
