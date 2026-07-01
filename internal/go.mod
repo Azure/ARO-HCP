@@ -151,3 +151,5 @@ require (
 	sigs.k8s.io/structured-merge-diff/v6 v6.3.2 // indirect
 	sigs.k8s.io/yaml v1.6.0 // indirect
 )
+
+replace k8s.io/client-go => github.com/deads2k/client-go v0.0.0-20260701203053-897f36105ad1

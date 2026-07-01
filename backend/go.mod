@@ -159,3 +159,5 @@ require (
 )
 
 replace github.com/Azure/ARO-HCP/internal => ../internal
+
+replace k8s.io/client-go => github.com/deads2k/client-go v0.0.0-20260701203053-897f36105ad1
