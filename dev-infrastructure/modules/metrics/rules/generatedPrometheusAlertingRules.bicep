@@ -92,6 +92,74 @@ Please check the status of the Prometheus pods, service endpoints, and network c
             }
           }
         ]
+        alert: 'PrometheusUptimeSampleCount'
+        enabled: true
+        labels: {
+          severity: 'warning'
+        }
+        annotations: {
+          correlationId: 'PrometheusUptimeSampleCount/{{ $labels.cluster }}'
+          description: '''Prometheus has delivered fewer than 95% of expected samples in the past 24 hours (expected 2880 at 30s interval, threshold 2736).
+Unlike PrometheusUptime which averages existing samples, this alert treats data gaps as downtime.
+Complete metric absence (no samples) will also trigger PrometheusMetricsAbsentPerCluster.
+Check the PrometheusAgent pod status, remote write pipeline, and PodMonitor configuration.
+'''
+          info: '''Prometheus has delivered fewer than 95% of expected samples in the past 24 hours (expected 2880 at 30s interval, threshold 2736).
+Unlike PrometheusUptime which averages existing samples, this alert treats data gaps as downtime.
+Complete metric absence (no samples) will also trigger PrometheusMetricsAbsentPerCluster.
+Check the PrometheusAgent pod status, remote write pipeline, and PodMonitor configuration.
+'''
+          runbook_url: 'TBD'
+          summary: 'Prometheus sample count below 95% SLO threshold for 24 hours.'
+          title: 'Prometheus sample count below 95% SLO threshold for 24 hours.'
+        }
+        expression: '(sum by (job, namespace, cluster) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d])) < 0.95 * (24 * 3600 / 30)) and sum by (job, namespace, cluster) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d] offset 1d)) > 0'
+        for: 'PT10M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'PrometheusMetricsAbsentPerCluster'
+        enabled: true
+        labels: {
+          severity: 'critical'
+        }
+        annotations: {
+          correlationId: 'PrometheusMetricsAbsentPerCluster/{{ $labels.cluster }}'
+          description: '''Prometheus on cluster {{ $labels.cluster }} has not reported any up metrics in the last 10 minutes, but was reporting within the last 7 days.
+This indicates the Prometheus agent on this specific cluster is dead or its remote write pipeline is broken.
+Check the PrometheusAgent pod status and remote write configuration on the affected cluster.
+'''
+          info: '''Prometheus on cluster {{ $labels.cluster }} has not reported any up metrics in the last 10 minutes, but was reporting within the last 7 days.
+This indicates the Prometheus agent on this specific cluster is dead or its remote write pipeline is broken.
+Check the PrometheusAgent pod status and remote write configuration on the affected cluster.
+'''
+          runbook_url: 'TBD'
+          summary: 'Prometheus metrics absent for cluster {{ $labels.cluster }}.'
+          title: 'Prometheus metrics absent for cluster {{ $labels.cluster }}.'
+        }
+        expression: 'count by (cluster) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1w])) unless count by (cluster) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[10m]))'
+        for: 'PT10M'
+        severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
         alert: 'PrometheusPendingRate'
         enabled: true
         labels: {
