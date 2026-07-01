@@ -1075,6 +1075,10 @@ func BuildNodePoolFromParams20240610(
 		},
 	}
 
+	if parameters.EncryptionSetID != "" {
+		nodePool.Properties.Platform.OSDisk.EncryptionSetID = to.Ptr(parameters.EncryptionSetID)
+	}
+
 	if parameters.AutoScaling != nil {
 		nodePool.Properties.AutoScaling = &hcpsdk20240610preview.NodePoolAutoScaling{
 			Min: to.Ptr(parameters.AutoScaling.Min),
