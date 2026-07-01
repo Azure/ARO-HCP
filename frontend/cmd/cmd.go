@@ -230,11 +230,6 @@ func (opts *FrontendOpts) Run() error {
 		return fmt.Errorf("failed to create the resources database client: %w", err)
 	}
 
-	locksDBClient, err := database.NewLocksDBClient(ctx, cosmosDatabaseClient)
-	if err != nil {
-		return fmt.Errorf("failed to create the locks database client: %w", err)
-	}
-
 	listener, err := net.Listen("tcp4", fmt.Sprintf(":%d", opts.port))
 	if err != nil {
 		return err
@@ -269,7 +264,7 @@ func (opts *FrontendOpts) Run() error {
 	f := frontend.NewFrontend(
 		logger, listener, metricsListener,
 		legacyregistry.Registerer(), legacyregistry.DefaultGatherer,
-		resourcesDBClient, locksDBClient, csClient, auditClient, opts.location, opts.clusterServiceProvisionShard,
+		resourcesDBClient, csClient, auditClient, opts.location, opts.clusterServiceProvisionShard,
 		opts.clusterServiceNoopProvision, opts.clusterServiceNoopDeprovision, opts.exitOnPanic,
 	)
 
