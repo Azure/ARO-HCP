@@ -110,6 +110,15 @@ module serviceAlerts '../modules/metrics/service-rules.bicep' = {
   }
 }
 
+module svcKubeAlerts '../modules/metrics/svc-kube-rules.bicep' = {
+  name: 'svcKubeAlerts'
+  params: {
+    azureMonitoringWorkspaceId: azureMonitoringWorkspaceId
+    actionGroups: slActionGroups
+    severityCeiling: alertSeverityCeiling
+  }
+}
+
 module hcpAlerts '../modules/metrics/hcp-rules.bicep' = {
   name: 'hcpAlerts'
   params: {
