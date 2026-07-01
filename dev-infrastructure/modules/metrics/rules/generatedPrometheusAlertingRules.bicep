@@ -1928,7 +1928,7 @@ resource crashloopingServices 'Microsoft.AlertsManagement/prometheusRuleGroups@2
           summary: 'HCP component pod is crash looping.'
           title: 'HCP component pod is crash looping.'
         }
-        expression: 'max_over_time(kube_pod_container_status_waiting_reason{job="kube-state-metrics",namespace=~"aro-hcp|clusters-service|kube-applier|fleet|aro-hcp-admin-api|maestro|mgmt-agent",reason="CrashLoopBackOff"}[5m]) >= 1'
+        expression: 'max_over_time(kube_pod_container_status_waiting_reason{job="kube-state-metrics",namespace!~"kube-system|kube-public|kube-node-lease|default",reason="CrashLoopBackOff"}[5m]) >= 1'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }

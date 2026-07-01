@@ -17,7 +17,7 @@ spec:
         max_over_time(kube_pod_container_status_waiting_reason{
           reason="CrashLoopBackOff",
           job="kube-state-metrics",
-          namespace=~"aro-hcp|clusters-service|kube-applier|fleet|aro-hcp-admin-api|maestro|mgmt-agent"
+          namespace!~"kube-system|kube-public|kube-node-lease|default"
         }[5m]) >= 1
       for: 5m
       labels:

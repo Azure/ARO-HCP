@@ -44,10 +44,10 @@ tests:
         description: 'Pod kube-applier/kube-applier-xyz (kube-applier) is in CrashLoopBackOff on cluster test-mc.'
         runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/crashlooping-tsg.html'
         summary: 'HCP component pod is crash looping.'
-# Test: HCPComponentCrashLooping does not fire for unrelated namespace
+# Test: HCPComponentCrashLooping does not fire for excluded system namespaces
 - interval: 1m
   input_series:
-  - series: 'kube_pod_container_status_waiting_reason{reason="CrashLoopBackOff", job="kube-state-metrics", namespace="some-other-ns", pod="foo-pod", container="foo", cluster="test-cluster"}'
+  - series: 'kube_pod_container_status_waiting_reason{reason="CrashLoopBackOff", job="kube-state-metrics", namespace="kube-system", pod="foo-pod", container="foo", cluster="test-cluster"}'
     values: "1x12"
   alert_rule_test:
   - eval_time: 10m
