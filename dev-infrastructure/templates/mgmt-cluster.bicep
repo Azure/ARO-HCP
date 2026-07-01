@@ -143,6 +143,9 @@ param maestroConsumerName string
 @description('The SAN and CN for the Maestro consumer EventGrid certificate.')
 param maestroConsumerCertSAN string
 
+@description('The issuer of the Maestro certificate.')
+param maestroCertIssuer string
+
 @description('The Azure resource ID of the eventgrid namespace for Maestro.')
 param maestroEventGridNamespaceId string
 
@@ -545,6 +548,7 @@ module maestroConsumer '../modules/maestro/maestro-consumer.bicep' = if (maestro
     maestroEventGridNamespaceId: maestroEventGridNamespaceId
     certKeyVaultName: mgmtKeyVaultName
     certificateSAN: maestroConsumerCertSAN
+    certificateIssuer: maestroCertIssuer
   }
   dependsOn: [
     mgmtKeyVault

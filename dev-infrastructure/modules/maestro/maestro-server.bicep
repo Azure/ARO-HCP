@@ -17,6 +17,9 @@ param certKeyVaultSubscription string = subscription().subscriptionId
 @description('The subject alternative name of the certificate')
 param certificateSAN string
 
+@description('The issuer of the certificate.')
+param certificateIssuer string
+
 @description('The name of the MQTT client that will be created in the EventGrid Namespace')
 param mqttClientName string
 
@@ -178,6 +181,20 @@ module certSecretAccess '../keyvault/key-vault-secret-access.bicep' = {
 }
 
 //
+//   C E R T I F I C A T E   T H U M B P R I N T
+//
+
+resource certKv 'Microsoft.KeyVault/vaults@2023-07-01' existing = {
+  scope: resourceGroup(certKeyVaultSubscription, certKeyVaultResourceGroup)
+  name: certKeyVaultName
+}
+
+resource certSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' existing = {
+  parent: certKv
+  name: mqttClientName
+}
+
+//
 //   E V E N T G R I D   A C C E S S
 //
 
@@ -189,5 +206,7 @@ module evengGridAccess 'maestro-eventgrid-access.bicep' = {
     clientName: mqttClientName
     clientRole: 'server'
     certificateSAN: certificateSAN
+    certificateIssuer: certificateIssuer
+    certificateThumbprint: certSecret.tags.?thumbprint ?? ''
   }
 }

@@ -52,6 +52,7 @@ param mgmtAgentServiceAccountName = '{{ .mgmtAgent.k8s.serviceAccountName }}'
 
 param maestroConsumerName = '{{ .maestro.agent.consumerName }}'
 param maestroConsumerCertSAN = '{{ .maestro.agent.certSAN }}'
+param maestroCertIssuer = '{{ .maestro.certIssuer }}'
 param maestroEventGridNamespaceId = '__maestroEventGridNamespaceId__'
 
 // Kube Applier

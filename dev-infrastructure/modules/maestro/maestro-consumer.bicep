@@ -16,6 +16,9 @@ param certKeyVaultName string
 @description('The subject alternative name of the certificate')
 param certificateSAN string
 
+@description('The issuer of the certificate.')
+param certificateIssuer string
+
 //
 //   C E R T I F I C A T E   A C C E S S
 //
@@ -27,6 +30,19 @@ module certSecretAccess '../keyvault/key-vault-secret-access.bicep' = {
     secretName: maestroConsumerName
     principalId: maestroAgentManagedIdentityPrincipalId
   }
+}
+
+//
+//   C E R T I F I C A T E   T H U M B P R I N T
+//
+
+resource kv 'Microsoft.KeyVault/vaults@2023-07-01' existing = {
+  name: certKeyVaultName
+}
+
+resource certSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' existing = {
+  parent: kv
+  name: maestroConsumerName
 }
 
 //
@@ -45,5 +61,7 @@ module evengGridAccess 'maestro-eventgrid-access.bicep' = {
     clientName: maestroConsumerName
     clientRole: 'consumer'
     certificateSAN: certificateSAN
+    certificateIssuer: certificateIssuer
+    certificateThumbprint: certSecret.tags.?thumbprint ?? ''
   }
 }

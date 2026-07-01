@@ -162,6 +162,9 @@ param maestroEventGridNamespacesName string
 @description('The SAN and CN for the Maestro server EventGrid certificate.')
 param maestroServerCertSAN string
 
+@description('The issuer of the Maestro certificate.')
+param maestroCertIssuer string
+
 @description('Deploy CS Postgres if true')
 param csPostgresDeploy bool
 
@@ -812,6 +815,7 @@ module maestroServer '../modules/maestro/maestro-server.bicep' = {
     certKeyVaultResourceGroup: serviceKeyVaultResourceGroup
     certKeyVaultSubscription: serviceKeyVaultSubscription
     certificateSAN: maestroServerCertSAN
+    certificateIssuer: maestroCertIssuer
     deployPostgres: deployMaestroPostgres
     postgresServerName: maestroPostgresServerName
     postgresServerVersion: maestroPostgresServerVersion
