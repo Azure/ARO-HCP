@@ -15,6 +15,21 @@
 $schema: "pipeline.schema.v1"
 serviceGroup: Microsoft.Azure.ARO.HCP.Service.Infra
 rolloutName: Service Cluster Rollout
+# Pre-build the Go helpers invoked by Shell steps before the rollout runs.
+# The EV2 Shell runner image has no postgres client, so postgres-access grants
+# database access in Go (see scripts/postgres-access).
+buildStep:
+  command: bash
+  args:
+  - -c
+  - |
+    set -euo pipefail
+    tmp="$(mktemp ./scripts/postgres-access/postgres-access.XXXXXX)"
+    trap 'rm -f "${tmp}"' EXIT
+    CGO_ENABLED=0 go build -o "${tmp}" ./scripts/postgres-access
+    chmod 0755 "${tmp}"
+    mv "${tmp}" ./scripts/postgres-access/postgres-access
+    trap - EXIT
 resourceGroups:
 # Query parameters from global deployment, e.g. ACR resource IDs
 - name: global
@@ -84,17 +99,25 @@ resourceGroups:
   resourceGroup: '{{ .svc.rg }}'
   subscription: '{{ .svc.subscription.key }}'
   steps:
-  - name: grafana-monitoring-reader
+  # Expose the service subscription id for the postgres-access Shell steps.
+  - name: subscription-output
     action: ARM
-    template: templates/grafana-monitoring-reader.bicep
-    parameters: configurations/grafana-monitoring-reader.tmpl.bicepparam
-    deploymentLevel: Subscription
-    variables:
-    - name: grafanaPrincipalId
-      input:
-        resourceGroup: global
-        step: output
-        name: grafanaPrincipalId
+    template: templates/subscription-lookup.bicep
+    parameters: configurations/subscription-lookup.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
+  # TODO(ARO-28044): re-enable after ARO-28040
+  # - name: grafana-monitoring-reader
+  #   action: ARM
+  #   template: templates/grafana-monitoring-reader.bicep
+  #   parameters: configurations/grafana-monitoring-reader.tmpl.bicepparam
+  #   deploymentLevel: Subscription
+  #   variables:
+  #   - name: grafanaPrincipalId
+  #     input:
+  #       resourceGroup: global
+  #       step: output
+  #       name: grafanaPrincipalId
   # Create SVC KV
   - name: infra
     action: ARM
@@ -158,6 +181,115 @@ resourceGroups:
         name: svcKeyVaultUrl
     issuer:
       value: OneCertV2-PublicCA
+  # Create certificates
+  - name: frontend-cert
+    action: CreateCertificate
+    secretKeyVault:
+      configRef: ev2.assistedId.certificate.keyVault
+    secretName:
+      configRef: ev2.assistedId.certificate.name
+    applicationId:
+      configRef: ev2.assistedId.applicationId
+    vaultBaseUrl:
+      input:
+        resourceGroup: service
+        step: infra-output
+        name: svcKeyVaultUrl
+    certificateName:
+      configRef: frontend.cert.name
+    contentType:
+      configRef: frontend.cert.contentType
+    san:
+      configRef: frontend.cert.san
+    issuer:
+      configRef: frontend.cert.issuer
+    commonName:
+      configRef: frontend.cert.san
+    dependsOn:
+    - resourceGroup: service
+      step: infra-output
+    - resourceGroup: service
+      step: oncert-private-kv-issuer
+    - resourceGroup: service
+      step: oncert-public-kv-issuer
+    automatedRetry:
+      errorContainsAny:
+      - "InternalServerError"
+      - "ServiceUnavailable"
+      maximumRetryCount: 3
+      durationBetweenRetries: 1m
+  - name: admin-api-cert
+    action: CreateCertificate
+    secretKeyVault:
+      configRef: ev2.assistedId.certificate.keyVault
+    secretName:
+      configRef: ev2.assistedId.certificate.name
+    applicationId:
+      configRef: ev2.assistedId.applicationId
+    vaultBaseUrl:
+      input:
+        resourceGroup: service
+        step: infra-output
+        name: svcKeyVaultUrl
+    certificateName:
+      configRef: adminApi.cert.name
+    contentType:
+      configRef: adminApi.cert.contentType
+    san:
+      configRef: adminApi.cert.san
+    issuer:
+      configRef: adminApi.cert.issuer
+    commonName:
+      configRef: adminApi.cert.san
+    dependsOn:
+    - resourceGroup: service
+      step: infra-output
+    - resourceGroup: service
+      step: oncert-private-kv-issuer
+    - resourceGroup: service
+      step: oncert-public-kv-issuer
+    automatedRetry:
+      errorContainsAny:
+      - "InternalServerError"
+      - "ServiceUnavailable"
+      maximumRetryCount: 3
+      durationBetweenRetries: 1m
+  - name: sessiongate-cert
+    action: CreateCertificate
+    secretKeyVault:
+      configRef: ev2.assistedId.certificate.keyVault
+    secretName:
+      configRef: ev2.assistedId.certificate.name
+    applicationId:
+      configRef: ev2.assistedId.applicationId
+    vaultBaseUrl:
+      input:
+        resourceGroup: service
+        step: infra-output
+        name: svcKeyVaultUrl
+    certificateName:
+      configRef: sessiongate.cert.name
+    contentType:
+      configRef: sessiongate.cert.contentType
+    san:
+      configRef: sessiongate.cert.san
+    issuer:
+      configRef: sessiongate.cert.issuer
+    commonName:
+      configRef: sessiongate.cert.san
+    dependsOn:
+    - resourceGroup: service
+      step: infra-output
+    - resourceGroup: service
+      step: oncert-private-kv-issuer
+    - resourceGroup: service
+      step: oncert-public-kv-issuer
+    automatedRetry:
+      errorContainsAny:
+      - "InternalServerError"
+      - "ServiceUnavailable"
+      maximumRetryCount: 3
+      durationBetweenRetries: 1m
   # Create SVC cluster
   - name: cluster
     action: ARM
@@ -210,6 +342,12 @@ resourceGroups:
       step: oncert-private-kv-issuer
     - resourceGroup: service
       step: oncert-public-kv-issuer
+    - resourceGroup: service
+      step: frontend-cert
+    - resourceGroup: service
+      step: admin-api-cert
+    - resourceGroup: service
+      step: sessiongate-cert
     automatedRetry:
       errorContainsAny:
       - "DeploymentScriptACIProvisioningTimeout"
@@ -240,6 +378,89 @@ resourceGroups:
     dependsOn:
     - resourceGroup: service
       step: cluster
+  - name: cs-postgres-access
+    action: Shell
+    command: ./scripts/postgres-access/postgres-access
+    workingDir: .
+    shellIdentity:
+      input:
+        resourceGroup: global
+        step: output
+        name: globalMSIId
+    variables:
+    - name: SUBSCRIPTION_ID
+      input:
+        resourceGroup: service
+        step: subscription-output
+        name: subscriptionId
+    - name: RESOURCE_GROUP
+      configRef: regionRG
+    - name: MI_RESOURCE_GROUP
+      configRef: svc.rg
+    - name: PG_SERVER_NAME
+      configRef: clustersService.postgres.name
+    - name: DATABASE_NAME
+      configRef: clustersService.postgres.databaseName
+    - name: NEW_USER_NAME
+      configRef: clustersService.managedIdentityName
+    - name: ADMIN_USER_NAME
+      configRef: global.globalMSIName
+    - name: DEPLOY_POSTGRES
+      configRef: clustersService.postgres.deploy
+    dependsOn:
+    - resourceGroup: service
+      step: cluster
+    - resourceGroup: service
+      step: subscription-output
+  - name: maestro-postgres-access
+    action: Shell
+    command: ./scripts/postgres-access/postgres-access
+    workingDir: .
+    shellIdentity:
+      input:
+        resourceGroup: global
+        step: output
+        name: globalMSIId
+    variables:
+    - name: SUBSCRIPTION_ID
+      input:
+        resourceGroup: service
+        step: subscription-output
+        name: subscriptionId
+    - name: RESOURCE_GROUP
+      configRef: regionRG
+    - name: MI_RESOURCE_GROUP
+      configRef: svc.rg
+    - name: PG_SERVER_NAME
+      configRef: maestro.postgres.name
+    - name: DATABASE_NAME
+      configRef: maestro.postgres.databaseName
+    - name: NEW_USER_NAME
+      configRef: maestro.server.managedIdentityName
+    - name: ADMIN_USER_NAME
+      configRef: global.globalMSIName
+    - name: DEPLOY_POSTGRES
+      configRef: maestro.postgres.deploy
+    dependsOn:
+    - resourceGroup: service
+      step: cluster
+    - resourceGroup: service
+      step: subscription-output
+  - name: oidc-storage-setup
+    action: Shell
+    command: ./storage.sh
+    workingDir: ./scripts
+    variables:
+    - name: StorageAccountName
+      configRef: oidc.storageAccount.name
+    dependsOn:
+    - resourceGroup: service
+      step: cluster
+    shellIdentity:
+      input:
+        resourceGroup: global
+        step: output
+        name: globalMSIId
   - name: cluster-output
     action: ARM
     template: templates/output-svc-cluster.bicep
@@ -251,6 +472,8 @@ resourceGroups:
       step: output
     - resourceGroup: service
       step: upgrade-aks-cluster
+    - resourceGroup: service
+      step: oidc-storage-setup
   - name: kusto-ingest-service-logs
     action: ARM
     template: templates/kusto-grant-ingest.bicep

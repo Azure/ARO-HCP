@@ -671,6 +671,12 @@
         }
       ]
     },
+    "certificateContentType": {
+      "type": "string",
+      "enum": [
+        "x-pkcs12"
+      ]
+    },
     "certificateIssuer": {
       "type": "string",
       "enum": [
@@ -1341,14 +1347,23 @@
               "maxLength": 127,
               "pattern": "^[a-zA-Z0-9-]+$"
             },
+            "san": {
+              "type": "string",
+              "description": "SAN and CN for the sessiongate ingress certificate"
+            },
             "issuer": {
               "$ref": "#/definitions/certificateIssuer"
+            },
+            "contentType": {
+              "$ref": "#/definitions/certificateContentType"
             }
           },
           "additionalProperties": false,
           "required": [
             "name",
-            "issuer"
+            "san",
+            "issuer",
+            "contentType"
           ]
         }
       },
@@ -1495,14 +1510,23 @@
               "maxLength": 127,
               "pattern": "^[a-zA-Z0-9-]+$"
             },
+            "san": {
+              "type": "string",
+              "description": "SAN and CN for the admin API ingress certificate"
+            },
             "issuer": {
               "$ref": "#/definitions/certificateIssuer"
+            },
+            "contentType": {
+              "$ref": "#/definitions/certificateContentType"
             }
           },
           "additionalProperties": false,
           "required": [
             "name",
-            "issuer"
+            "san",
+            "issuer",
+            "contentType"
           ]
         }
       },
@@ -1577,14 +1601,23 @@
               "maxLength": 127,
               "pattern": "^[a-zA-Z0-9-]+$"
             },
+            "san": {
+              "type": "string",
+              "description": "SAN and CN for the frontend ingress certificate"
+            },
             "issuer": {
               "$ref": "#/definitions/certificateIssuer"
+            },
+            "contentType": {
+              "$ref": "#/definitions/certificateContentType"
             }
           },
           "additionalProperties": false,
           "required": [
             "name",
-            "issuer"
+            "san",
+            "issuer",
+            "contentType"
           ]
         },
         "exitOnPanic": {
@@ -1998,12 +2031,6 @@
         "viewerIdentities": {
           "$ref": "#/definitions/csvPrincipalList",
           "description": "CSV separated list of app/managed identity principals to grant AllDatabasesViewer on the Kusto cluster."
-        },
-        "crossClusterServiceLogsScript": {
-          "type": "string"
-        },
-        "crossClusterHostedControlPlaneLogsScript": {
-          "type": "string"
         },
         "enableAutoScale": {
           "type": "boolean"
@@ -3342,6 +3369,9 @@
         },
         "grafanaName": {
           "type": "string"
+        },
+        "grafanaMajorVersion": {
+          "type": "string"
         }
       },
       "additionalProperties": false,
@@ -3356,7 +3386,8 @@
         "svcParentZoneName",
         "cxParentZoneName",
         "kustoName",
-        "grafanaName"
+        "grafanaName",
+        "grafanaMajorVersion"
       ]
     },
     "releaseApprover": {
@@ -3485,5 +3516,19 @@
     "acrDNSSuffix",
     "e2e",
     "entraAppOwnerIds"
+  ],
+  "x-cel-validations": [
+    {
+      "rule": "self.frontend.cert.san == 'rp.' + self.dns.regionalSubdomain + '.' + self.dns.svcParentZoneName",
+      "message": "frontend.cert.san must equal 'rp.' + dns.regionalSubdomain + '.' + dns.svcParentZoneName"
+    },
+    {
+      "rule": "self.adminApi.cert.san == 'admin.' + self.dns.regionalSubdomain + '.' + self.dns.svcParentZoneName",
+      "message": "adminApi.cert.san must equal 'admin.' + dns.regionalSubdomain + '.' + dns.svcParentZoneName"
+    },
+    {
+      "rule": "self.sessiongate.cert.san == 'sessiongate.' + self.dns.regionalSubdomain + '.' + self.dns.svcParentZoneName",
+      "message": "sessiongate.cert.san must equal 'sessiongate.' + dns.regionalSubdomain + '.' + dns.svcParentZoneName"
+    }
   ]
 }

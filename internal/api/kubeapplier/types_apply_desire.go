@@ -84,4 +84,11 @@ type ApplyDesireStatus struct {
 	//   - "Degraded":   the controller is not making progress for an
 	//                   out-of-band reason.
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
+
+	// AppliedKubeGeneration records the metadata.generation of the
+	// Kubernetes object returned by the most recent successful server-side
+	// apply call. When the most recent apply attempt failed, this field is
+	// nil so that consumers can distinguish "last apply succeeded and the
+	// kube object is at generation N" from "last apply failed".
+	AppliedKubeGeneration *int64 `json:"appliedKubeGeneration,omitempty"`
 }
