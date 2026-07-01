@@ -123,7 +123,7 @@ spec:
       maxShards: 50
       minShards: 1
       maxSamplesPerSend: 10000
-      batchSendDeadline: 60s
+      batchSendDeadline: 30s
       minBackoff: 30ms
       maxBackoff: 256s
     metadataConfig:
@@ -144,7 +144,7 @@ spec:
       maxShards: 50
       minShards: 1
       maxSamplesPerSend: 10000
-      batchSendDeadline: 60s
+      batchSendDeadline: 30s
       minBackoff: 30ms
       maxBackoff: 256s
     metadataConfig:
