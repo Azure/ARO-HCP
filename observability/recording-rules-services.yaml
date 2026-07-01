@@ -1,4 +1,5 @@
 prometheusRules:
-  rulesFolders: []
+  rulesFolders:
+  - recording-rules/access-cluster-slo-recordingRule.yaml
   untestedRules: []
   outputBicep: ../dev-infrastructure/modules/metrics/rules/generatedRecordingRules.bicep
