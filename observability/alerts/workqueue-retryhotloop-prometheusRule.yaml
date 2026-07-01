@@ -1,0 +1,43 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    app.kubernetes.io/name: kube-prometheus
+    app.kubernetes.io/part-of: kube-prometheus
+    prometheus: k8s
+    role: alert-rules
+  name: workqueue-retryhotloop-monitoring-rules
+  namespace: monitoring
+spec:
+  groups:
+  - name: workqueue-retryhotloop
+    rules:
+    - alert: WorkqueueControllerRetryHotLoop
+      # A ratio of retries to total adds that is rate-independent:
+      # it stays high regardless of item count or backoff delay.
+      # A ratio > 0.5 sustained for 10 minutes means more than half
+      # of all queue activity is retries rather than fresh work.
+      # Excludes system namespaces whose workqueues are not operated by ARO-HCP.
+      expr: |
+        (
+          sum by (name, namespace, cluster) (
+            max without(prometheus_replica) (
+              rate(workqueue_retries_total{namespace!~"kube-system|kube-public|kube-node-lease|default|monitoring"}[10m])
+            )
+          )
+          /
+          sum by (name, namespace, cluster) (
+            max without(prometheus_replica) (
+              rate(workqueue_adds_total{namespace!~"kube-system|kube-public|kube-node-lease|default|monitoring"}[10m])
+            )
+          )
+        ) > 0.5
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        correlationId: 'WorkqueueControllerRetryHotLoop/{{ $labels.cluster }}/{{ $labels.namespace }}/{{ $labels.name }}'
+        description: 'Workqueue {{ $labels.name }} in namespace {{ $labels.namespace }} on cluster {{ $labels.cluster }} has a retry ratio of > 50% sustained over 10 minutes, indicating most queue activity is failed retries rather than fresh work.'
+        runbook_url: 'TBD'
+        summary: 'Workqueue {{ $labels.name }} in {{ $labels.namespace }} on {{ $labels.cluster }} retry hot loop'
+        title: 'Workqueue {{ $labels.name }} in {{ $labels.namespace }} on {{ $labels.cluster }} retry hot loop'

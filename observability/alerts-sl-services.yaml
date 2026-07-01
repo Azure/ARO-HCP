@@ -9,6 +9,7 @@ prometheusRules:
   - ../maestro/alerts/maestro-prometheusRule.yaml
   - ../kube-applier/alerts/kube-applier-prometheusRule.yaml
   - alerts/leaderelection-prometheusRule.yaml
+  - alerts/workqueue-retryhotloop-prometheusRule.yaml
   - alerts/arobit-prometheusRule.yaml
   - alerts/service-tag-public-ip-usage.yaml
   - alerts/HCPdeletionStuck-prometheusRule.yaml
@@ -16,7 +17,6 @@ prometheusRules:
   - alerts/kubeNode-prometheusRule.yaml
   - alerts/imageRegistryPolicy-prometheusRule.yaml
   - alerts/kusto-logs-age-prometheusRule.yaml
-  - alerts/crashlooping-services-prometheusRule.yaml
   untestedRules: []
   testDependencies:
   - recording-rules-services.yaml

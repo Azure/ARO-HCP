@@ -1195,6 +1195,46 @@ resource leaderelection 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03
   }
 }
 
+resource workqueueRetryhotloop 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'workqueue-retryhotloop'
+  location: location
+  properties: {
+    interval: 'PT1M'
+    rules: [
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'WorkqueueControllerRetryHotLoop'
+        enabled: true
+        labels: {
+          severity: 'warning'
+        }
+        annotations: {
+          correlationId: 'WorkqueueControllerRetryHotLoop/{{ $labels.cluster }}/{{ $labels.namespace }}/{{ $labels.name }}'
+          description: 'Workqueue {{ $labels.name }} in namespace {{ $labels.namespace }} on cluster {{ $labels.cluster }} has a retry ratio of > 50% sustained over 10 minutes, indicating most queue activity is failed retries rather than fresh work.'
+          info: 'Workqueue {{ $labels.name }} in namespace {{ $labels.namespace }} on cluster {{ $labels.cluster }} has a retry ratio of > 50% sustained over 10 minutes, indicating most queue activity is failed retries rather than fresh work.'
+          runbook_url: 'TBD'
+          summary: 'Workqueue {{ $labels.name }} in {{ $labels.namespace }} on {{ $labels.cluster }} retry hot loop'
+          title: 'Workqueue {{ $labels.name }} in {{ $labels.namespace }} on {{ $labels.cluster }} retry hot loop'
+        }
+        expression: '(sum by (name, namespace, cluster) (max without (prometheus_replica) (rate(workqueue_retries_total{namespace!~"kube-system|kube-public|kube-node-lease|default|monitoring"}[10m]))) / sum by (name, namespace, cluster) (max without (prometheus_replica) (rate(workqueue_adds_total{namespace!~"kube-system|kube-public|kube-node-lease|default|monitoring"}[10m])))) > 0.5'
+        for: 'PT10M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+    ]
+    scopes: [
+      azureMonitoring
+    ]
+  }
+}
+
 resource arobitRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
   name: 'arobit-rules'
   location: location
@@ -1890,46 +1930,6 @@ resource kustoLogsAgeRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
         }
         expression: 'kusto_logs_age_in_seconds > 3600'
         for: 'PT15M'
-        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
-      }
-    ]
-    scopes: [
-      azureMonitoring
-    ]
-  }
-}
-
-resource crashloopingServices 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
-  name: 'crashlooping-services'
-  location: location
-  properties: {
-    interval: 'PT1M'
-    rules: [
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'HCPComponentCrashLooping'
-        enabled: true
-        labels: {
-          severity: 'warning'
-        }
-        annotations: {
-          correlationId: 'HCPComponentCrashLooping/{{ $labels.cluster }}'
-          description: 'Pod {{ $labels.namespace }}/{{ $labels.pod }} ({{ $labels.container }}) is in CrashLoopBackOff on cluster {{ $labels.cluster }}.'
-          info: 'Pod {{ $labels.namespace }}/{{ $labels.pod }} ({{ $labels.container }}) is in CrashLoopBackOff on cluster {{ $labels.cluster }}.'
-          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/crashlooping-tsg.html'
-          summary: 'HCP component pod is crash looping.'
-          title: 'HCP component pod is crash looping.'
-        }
-        expression: 'max_over_time(kube_pod_container_status_waiting_reason{job="kube-state-metrics",namespace!~"kube-system|kube-public|kube-node-lease|default",reason="CrashLoopBackOff"}[5m]) >= 1'
-        for: 'PT5M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
     ]
