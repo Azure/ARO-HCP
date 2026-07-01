@@ -22,12 +22,14 @@ import (
 	"strings"
 	"time"
 
+	"k8s.io/apimachinery/pkg/api/operation"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
+	"github.com/Azure/ARO-HCP/internal/admission"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/conversion"
@@ -240,7 +242,29 @@ func (f *Frontend) createExternalAuth(writer http.ResponseWriter, request *http.
 		return utils.TrackError(err)
 	}
 
+	// We retrieve all external auths for the cluster. Used for admission validation.
+	externalAuthIterator, err := f.resourcesDBClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).ExternalAuth(resourceID.Parent.Name).List(ctx, nil)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+	clusterExternalAuths := make([]*api.HCPOpenShiftClusterExternalAuth, 0)
+	for _, clusterExternalAuth := range externalAuthIterator.Items(ctx) {
+		clusterExternalAuths = append(clusterExternalAuths, clusterExternalAuth)
+	}
+	if err := externalAuthIterator.GetError(); err != nil {
+		return utils.TrackError(err)
+	}
+
+	restOperation := operation.Operation{
+		Type: operation.Create,
+		// TODO set operations when a need appears for it.
+	}
+	externalAuthAdmissionContext := &admission.ExternalAuthAdmissionContext{
+		ClusterExternalAuths: clusterExternalAuths,
+	}
+
 	validationErrs := validation.ValidateExternalAuthCreate(ctx, newInternalExternalAuth)
+	validationErrs = append(validationErrs, admission.AdmitExternalAuth(ctx, externalAuthAdmissionContext, restOperation, newInternalExternalAuth, nil)...)
 	if err := arm.CloudErrorFromFieldErrors(validationErrs); err != nil {
 		return utils.TrackError(err)
 	}
@@ -257,20 +281,6 @@ func (f *Frontend) createExternalAuth(writer http.ResponseWriter, request *http.
 		return utils.TrackError(fmt.Errorf("cluster %s has no ClusterServiceID", cluster.ID))
 	}
 
-	csExternalAuthBuilder, err := ocm.BuildCSExternalAuth(ctx, newInternalExternalAuth, false)
-	if err != nil {
-		return utils.TrackError(err)
-	}
-	csExternalAuth, err := f.clusterServiceClient.PostExternalAuth(ctx, *cluster.ServiceProviderProperties.ClusterServiceID, csExternalAuthBuilder)
-	if err != nil {
-		return utils.TrackError(err)
-	}
-	csExternalAuthID, err := api.NewInternalID(csExternalAuth.HREF())
-	if err != nil {
-		return utils.TrackError(err)
-	}
-	newInternalExternalAuth.ServiceProviderProperties.ClusterServiceID = &csExternalAuthID
-
 	operationRequest := database.OperationRequestCreate
 
 	transaction := f.resourcesDBClient.NewTransaction(newInternalExternalAuth.ID.SubscriptionID)
@@ -278,7 +288,7 @@ func (f *Frontend) createExternalAuth(writer http.ResponseWriter, request *http.
 	createExternalAuthOperation := database.NewOperation(
 		operationRequest,
 		newInternalExternalAuth.ID,
-		*newInternalExternalAuth.ServiceProviderProperties.ClusterServiceID,
+		api.InternalID{},
 		f.azureLocation,
 		request.Header.Get(arm.HeaderNameHomeTenantID),
 		request.Header.Get(arm.HeaderNameClientObjectID),
