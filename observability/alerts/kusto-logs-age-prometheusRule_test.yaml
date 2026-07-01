@@ -60,11 +60,11 @@ tests:
           Kusto log data for table systemdlogs on cluster aro-hcp-region-svc-1 (Kusto cluster testcluster) is stale. Check the ingestion pipeline.
         runbook_url: TBD
         summary: Kusto log data is stale for systemdlogs on aro-hcp-region-svc-1.
-# KustoLogsDataStale - alert fires for systemdlogs on mgmt clusters
+# KustoLogsDataStale - alert fires for systemdlogs on mgmt clusters at 1 hour
 - interval: 1m
   input_series:
   - series: 'kusto_logs_age_in_seconds{kusto_cluster="testcluster",cluster="aro-hcp-region-mgmt-1",table="systemdlogs"}'
-    values: "7200+0x20"
+    values: "3700+0x20"
   alert_rule_test:
   - eval_time: 15m
     alertname: KustoLogsDataStale
