@@ -7992,7 +7992,7 @@ spec:
         checksum/db: '7d748725a08edbe974bbd237e5dd517833a82eaa0f0b211fc2881961bf4515a8'
         checksum/operatorcfg: '110eacb1e465d620a2c26da89d5b6246433bb53a2dd3f9853e2daaa035e53df5'
         checksum/ocpversionscfg: '9e5cff6bf43f7b8d712e0b54656c6b1ec66693e7fe17ba6801070134b28b2900'
-        checksum/cskv: '4c657d141569358590c266d8968565e8c0001ae8a077caa0a0808ea796b79c51'
+        checksum/cskv: 'b448b17a3f3a42fa47e65b12fb753113bfcab908cb783b6f26566b7b7eaaeaa4'
         checksum/provisionshard: 'd2d4582f46da482e7a0c56f8a4372d95839bf6ced1d48a964d7030dc7e1b5b4b'
         checksum/cs: '7f91f7a8dc3a8b51073043defb13df2c3864a9c93f5a5588a2431f012bc2ae28'
         checksum/runtime: 'a59b6e4224066ebe7cb35d89a9e9c179f9e90942d3b4173c91c0609299a983ef'
@@ -8487,37 +8487,12 @@ spec:
     8080:
       mode: PERMISSIVE
 ---
-# Source: clusters-service/templates/servicemonitor.yaml
-apiVersion: monitoring.coreos.com/v1
-kind: ServiceMonitor
-metadata:
-  name: clusters-service
-  namespace: 'clusters-service'
-spec:
-  endpoints:
-  - interval: 30s
-    path: /metrics
-    port: metrics
-    scheme: http
-  namespaceSelector:
-    matchNames:
-    - 'clusters-service'
-  selector:
-    matchLabels:
-      app: clusters-service
-      port: metrics
-
----
 # Source: clusters-service/templates/cs-keyvault.secret.yaml
 apiVersion: secrets-store.csi.x-k8s.io/v1
 kind: SecretProviderClass
 metadata:
   name: cs-keyvault
   namespace: 'clusters-service'
-  annotations:
-    helm.sh/hook: pre-install,pre-upgrade
-    helm.sh/hook-weight: "-5"
-    helm.sh/resource-policy: keep
 spec:
   parameters:
     clientID: '__azureCsMiClientId__'
@@ -8540,3 +8515,24 @@ spec:
     tenantId: '__tenantId__'
     usePodIdentity: "false"
   provider: azure
+---
+# Source: clusters-service/templates/servicemonitor.yaml
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: clusters-service
+  namespace: 'clusters-service'
+spec:
+  endpoints:
+  - interval: 30s
+    path: /metrics
+    port: metrics
+    scheme: http
+  namespaceSelector:
+    matchNames:
+    - 'clusters-service'
+  selector:
+    matchLabels:
+      app: clusters-service
+      port: metrics
+
