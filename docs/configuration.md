@@ -158,7 +158,7 @@ steps:
       configRef: frontend.cosmosDB.name
 ```
 
-For more details on shell steps, refer to the **Shell Step Documentation**.
+For more details on shell steps, refer to the [Shell Step Documentation](pipeline-concept.md#shell-step).
 
 ### Bicep Templates
 

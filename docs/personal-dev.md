@@ -2,7 +2,7 @@
 
 A personal DEV environment is a fully-fledged ARO HCP service stack that provides all major infrastructure and service components required to create hosted control planes in a region. Each ARO HCP team member creates their own personal DEV environment for development purposes.
 
-These environments are hosted in the Red Hat Azure tenant, meaning that all [restrictions](environments.md#aro-hcp-azure-tenant-overview) of that tenant apply.
+These environments are hosted in the Red Hat Azure tenant, meaning that all [restrictions](environments.md#azure-tenants) of that tenant apply.
 
 This document will describe how to create and manage a personal DEV environment and how to access them for development purposes.
 
