@@ -1141,8 +1141,8 @@ resource kubeApplier 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01
           description: 'kube-applier on cluster {{ $labels.cluster }} has {{ $labels.type }} desires pending but no controller processed any items for more than 15 minutes.'
           info: 'kube-applier on cluster {{ $labels.cluster }} has {{ $labels.type }} desires pending but no controller processed any items for more than 15 minutes.'
           runbook_url: 'TBD'
-          summary: 'kube-applier controllers are not processing items'
-          title: 'kube-applier controllers are not processing items'
+          summary: 'kube-applier on {{ $labels.cluster }}: {{ $labels.type }} controllers are not processing items'
+          title: 'kube-applier on {{ $labels.cluster }}: {{ $labels.type }} controllers are not processing items'
         }
         expression: '(sum without (condition) (max without (prometheus_replica) (kube_applier_desires{namespace="kube-applier"})) > 0) and on (cluster, namespace) (sum without (prometheus_replica, name) (increase(workqueue_work_duration_seconds_count{name=~".*Desire.*",namespace="kube-applier"}[15m])) == 0)'
         for: 'PT5M'
@@ -1181,8 +1181,8 @@ resource leaderelection 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03
           description: 'Leader election lease {{ $labels.lease }} in namespace {{ $labels.namespace }} on cluster {{ $labels.cluster }} has not been renewed for more than 2 minutes. The component may have lost leadership or stopped running.'
           info: 'Leader election lease {{ $labels.lease }} in namespace {{ $labels.namespace }} on cluster {{ $labels.cluster }} has not been renewed for more than 2 minutes. The component may have lost leadership or stopped running.'
           runbook_url: 'TBD'
-          summary: 'Leader election lease stale for more than 2 minutes'
-          title: 'Leader election lease stale for more than 2 minutes'
+          summary: 'Leader election lease {{ $labels.lease }} in {{ $labels.namespace }} on {{ $labels.cluster }} stale for more than 2 minutes'
+          title: 'Leader election lease {{ $labels.lease }} in {{ $labels.namespace }} on {{ $labels.cluster }} stale for more than 2 minutes'
         }
         expression: 'time() - max without (prometheus_replica) (kube_lease_renew_time{namespace=~"aro-hcp|fleet|kube-applier|mgmt-agent|sessiongate"}) > 120'
         for: 'PT5M'

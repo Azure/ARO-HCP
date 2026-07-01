@@ -24,4 +24,4 @@ spec:
       annotations:
         description: 'Leader election lease {{ $labels.lease }} in namespace {{ $labels.namespace }} on cluster {{ $labels.cluster }} has not been renewed for more than 2 minutes. The component may have lost leadership or stopped running.'
         runbook_url: 'TBD'
-        summary: 'Leader election lease stale for more than 2 minutes'
+        summary: 'Leader election lease {{ $labels.lease }} in {{ $labels.namespace }} on {{ $labels.cluster }} stale for more than 2 minutes'

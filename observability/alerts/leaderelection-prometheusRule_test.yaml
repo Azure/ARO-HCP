@@ -19,7 +19,7 @@ tests:
       exp_annotations:
         description: 'Leader election lease kube-applier in namespace kube-applier on cluster test-cluster has not been renewed for more than 2 minutes. The component may have lost leadership or stopped running.'
         runbook_url: 'TBD'
-        summary: 'Leader election lease stale for more than 2 minutes'
+        summary: 'Leader election lease kube-applier in kube-applier on test-cluster stale for more than 2 minutes'
 # Test: LeaderElectionLeaseStale fires for a service with tight timing (mgmt-agent)
 - interval: 1m
   input_series:
@@ -37,7 +37,7 @@ tests:
       exp_annotations:
         description: 'Leader election lease mgmt-agent-controller-leader in namespace mgmt-agent on cluster test-cluster has not been renewed for more than 2 minutes. The component may have lost leadership or stopped running.'
         runbook_url: 'TBD'
-        summary: 'Leader election lease stale for more than 2 minutes'
+        summary: 'Leader election lease mgmt-agent-controller-leader in mgmt-agent on test-cluster stale for more than 2 minutes'
 # Test: LeaderElectionLeaseStale does not fire when lease is renewed every minute
 - interval: 1m
   input_series:
