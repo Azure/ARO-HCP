@@ -97,7 +97,7 @@ resource vnetWithSwiftDeployment 'Microsoft.Resources/deploymentScripts@2020-10-
       # this same deployment. Azure RBAC is eventually consistent, so the first write
       # can fail with AuthorizationFailed ("if access was recently granted, please
       # refresh your credentials") before the assignment propagates to the data plane.
-      # Retry the write to absorb that lag, mirroring scripts/validate-mi-aad-propagation.sh.
+      # Retry the write to absorb that lag during RBAC propagation.
       MAX_WAIT=120
       POLL_INTERVAL=5
 
