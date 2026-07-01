@@ -202,4 +202,3 @@ param roles = [
   }
 ]
 
-param e2eTestSubscriptions = empty('{{ range $index, $subscription := .ci.dev.e2eSubscriptions }}{{ if $index }},{{ end }}{{ $subscription.id }}{{ end }}') ? [] : split('{{ range $index, $subscription := .ci.dev.e2eSubscriptions }}{{ if $index }},{{ end }}{{ $subscription.id }}{{ end }}', ',')
