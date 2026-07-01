@@ -1,14 +1,13 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: install-hypershift
+  name: install-hypershift-crds
   namespace: '{{ .Release.Namespace }}'
   annotations:
     "helm.sh/hook": post-install,post-upgrade
     "helm.sh/hook-weight": "1"
     "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
 spec:
-  # set deadline to 30min
   activeDeadlineSeconds: 1800
   backoffLimit: 1
   template:
@@ -20,7 +19,37 @@ spec:
         - /bin/sh
         - -c
         - |
-          hypershift install \
+          hypershift install render \
+            --outputs=crds \
+            --managed-service ARO-HCP \
+            --limit-crd-install=Azure \
+            --hypershift-image {{ .Values.image }}@{{ .Values.imageDigest }} | kubectl apply -f -
+      restartPolicy: Never
+      serviceAccountName: hypershift-installer
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: install-hypershift
+  namespace: '{{ .Release.Namespace }}'
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "3"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  activeDeadlineSeconds: 1800
+  backoffLimit: 1
+  template:
+    spec:
+      containers:
+      - name: install
+        image: "{{ .Values.image }}@{{ .Values.imageDigest }}"
+        command:
+        - /bin/sh
+        - -c
+        - |
+          hypershift install render \
+            --outputs=resources \
             --enable-conversion-webhook=false \
             --managed-service ARO-HCP \
             --aro-hcp-key-vault-users-client-id {{ .Values.azureKeyVaultClientId }} \
@@ -36,6 +65,6 @@ spec:
             {{- if .Values.operatorEnvVars.sharedIngressImage }}
             --additional-operator-env-vars IMAGE_SHARED_INGRESS_HAPROXY={{ .Values.operatorEnvVars.sharedIngressImage }} \
             {{- end }}
-            {{ .Values.additionalArgs }}
+            {{ .Values.additionalArgs }} | kubectl apply -f -
       restartPolicy: Never
       serviceAccountName: hypershift-installer
