@@ -46,7 +46,7 @@ const (
 	testSubscriptionID      = "00000000-0000-0000-0000-000000000000"
 	testResourceGroupName   = "test-rg"
 	testClusterName         = "test-cluster"
-	testClusterServiceIDStr = "/api/clusters_mgmt/v1/clusters/abc123"
+	testClusterServiceIDStr = "/api/aro_hcp/v1alpha1/clusters/abc123"
 	testTenantID            = "11111111-1111-1111-1111-111111111111"
 	testClusterUID          = "00000000-0000-0000-0000-000000000000"
 	// testManagedResourceGroup must match what api.MinimumValidClusterTestCase() sets.
@@ -299,13 +299,10 @@ func TestClusterClusterServiceCreate_findAROHCPClusterByAzureInfo(t *testing.T) 
 	tenant := "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
 	mrg := "arohcp-mycluster-uuid"
 
-	wantSearch := "azure.subscription_id = '" + strings.ToLower(sub) + "' and azure.resource_group_name = '" + strings.ToLower(rg) + "' and azure.resource_name = '" + strings.ToLower(resName) + "'" +
-		" and azure.tenant_id = '" + tenant + "'" +
-		" and azure.managed_resource_group_name = '" + mrg + "'"
-
 	wantSub := strings.ToLower(sub)
 	wantRG := strings.ToLower(rg)
 	wantName := strings.ToLower(resName)
+	wantSearch := (&clusterClusterServiceCreateSyncer{}).clustersServiceClusterByAzureInfoSearchString(wantSub, wantRG, wantName, tenant, mrg)
 
 	tests := []struct {
 		name        string
