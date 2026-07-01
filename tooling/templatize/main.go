@@ -30,6 +30,7 @@ import (
 	"github.com/Azure/ARO-HCP/tooling/templatize/cmd/ev2lookup"
 	"github.com/Azure/ARO-HCP/tooling/templatize/cmd/generate"
 	"github.com/Azure/ARO-HCP/tooling/templatize/cmd/inspect"
+	"github.com/Azure/ARO-HCP/tooling/templatize/cmd/istio"
 	"github.com/Azure/ARO-HCP/tooling/templatize/cmd/pipeline"
 )
 
@@ -62,6 +63,7 @@ func main() {
 	commands := []func() (*cobra.Command, error){
 		generate.NewCommand,
 		inspect.NewCommand,
+		istio.NewCommand,
 		pipeline.NewCommand,
 		entrypoint.NewCommand,
 		ev2lookup.NewCommand,
