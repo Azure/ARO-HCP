@@ -109,6 +109,12 @@ func TestRoundTripInternalExternalInternal(t *testing.T) {
 			// UsesNewExternalAuthDeletionApproach does not roundtrip through the external type because it is purely an internal detail
 			j.UsesNewExternalAuthDeletionApproach = false
 		},
+		func(j *api.ContainerRegistryCredentialProfile, c randfill.Continue) {
+			c.FillNoCustom(j)
+			if j.Type == "" {
+				j.Type = api.ContainerRegistryCredentialTypeManagedIdentity
+			}
+		},
 		func(j *api.CustomerManagedEncryptionProfile, c randfill.Continue) {
 			c.FillNoCustom(j)
 			// Kms cannot roundtrip if ActiveKey has neither Name nor Version,

@@ -74,6 +74,40 @@ type ConsoleProfile struct {
 	URL *string
 }
 
+// ContainerRegistryCredentialProfile - Azure Container Registry credentials configuration. Configures authentication for
+// container image pulls from Azure Container Registry (ACR) on worker nodes.
+type ContainerRegistryCredentialProfile struct {
+	// REQUIRED; The credential type used for container registry image pulls.
+	Type *ContainerRegistryCredentialType
+
+	// The user-assigned managed identity used for container registry image pulls. Required when type is ManagedIdentity.
+	ManagedIdentity *UserAssignedManagedIdentity
+}
+
+// ContainerRegistryCredentialProfileUpdate - Azure Container Registry credentials configuration. Configures authentication
+// for container image pulls from Azure Container Registry (ACR) on worker nodes.
+type ContainerRegistryCredentialProfileUpdate struct {
+	// The user-assigned managed identity used for container registry image pulls. Required when type is ManagedIdentity.
+	ManagedIdentity *UserAssignedManagedIdentityUpdate
+
+	// The credential type used for container registry image pulls.
+	Type *ContainerRegistryCredentialType
+}
+
+// ContainerRegistryProfile - Azure Container Registry configuration for a cluster. Configures how worker nodes authenticate
+// container image pulls from Azure Container Registry (ACR).
+type ContainerRegistryProfile struct {
+	// REQUIRED; Credentials for authenticating container image pulls.
+	Credentials *ContainerRegistryCredentialProfile
+}
+
+// ContainerRegistryProfileUpdate - Azure Container Registry configuration for a cluster. Configures how worker nodes authenticate
+// container image pulls from Azure Container Registry (ACR).
+type ContainerRegistryProfileUpdate struct {
+	// Credentials for authenticating container image pulls.
+	Credentials *ContainerRegistryCredentialProfileUpdate
+}
+
 // CustomerManagedEncryptionProfile - Customer managed encryption key profile.
 type CustomerManagedEncryptionProfile struct {
 	// The encryption type used. By default, "KMS" is used.
@@ -898,15 +932,21 @@ type PlatformProfile struct {
 	// unique identifier per RFC 4122.
 	ManagedResourceGroup *string
 
-	// The core outgoing configuration
-	OutboundType *OutboundType
-
 	// READ-ONLY; URL for the OIDC provider to be used for authentication to authenticate against user Azure cloud account
 	IssuerURL *string
+
+	// Azure Container Registry configuration for authenticating image pulls on the cluster's worker nodes.
+	ContainerRegistry *ContainerRegistryProfile
+
+	// The core outgoing configuration
+	OutboundType *OutboundType
 }
 
 // PlatformProfileUpdate - Azure specific configuration
 type PlatformProfileUpdate struct {
+	// Azure Container Registry configuration for authenticating image pulls on the cluster's worker nodes.
+	ContainerRegistry *ContainerRegistryProfileUpdate
+
 	// The configuration that the operators of the cluster have to authenticate to Azure
 	OperatorsAuthentication *OperatorsAuthenticationProfileUpdate
 }
@@ -1070,6 +1110,18 @@ type UserAssignedIdentity struct {
 
 	// READ-ONLY; The principal ID of the assigned identity.
 	PrincipalID *string
+}
+
+// UserAssignedManagedIdentity - Identifies a user-assigned managed identity by its ARM resource ID.
+type UserAssignedManagedIdentity struct {
+	// REQUIRED; The Azure resource ID of the user-assigned managed identity.
+	ResourceID *string
+}
+
+// UserAssignedManagedIdentityUpdate - Identifies a user-assigned managed identity by its ARM resource ID.
+type UserAssignedManagedIdentityUpdate struct {
+	// The Azure resource ID of the user-assigned managed identity.
+	ResourceID *string
 }
 
 // UsernameClaimProfile - External Auth claim profile This configures how the username of a cluster identity should be constructed

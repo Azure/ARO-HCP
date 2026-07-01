@@ -189,7 +189,6 @@ func validateResourceIDsAgainstClusterID(ctx context.Context, op operation.Opera
 		field.NewPath("customerProperties", "platform", "operatorsAuthentication", "userAssignedIdentities", "serviceManagedIdentity"),
 		newCluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity, nil,
 		newCluster.ID.SubscriptionID, newCluster.CustomerProperties.Platform.ManagedResourceGroup)...)
-
 	return errs
 }
 
@@ -243,7 +242,7 @@ func validateClusterCustomerProperties(ctx context.Context, op operation.Operati
 	errs = append(errs, validateCustomerIngressProfile(ctx, op, fldPath.Child("ingress"), &newObj.Ingress, safe.Field(oldObj, toCustomerIngress))...)
 
 	// Platform                CustomerPlatformProfile             `json:"platform,omitempty"`
-	errs = append(errs, immutableByReflect(ctx, op, fldPath.Child("platform"), &newObj.Platform, safe.Field(oldObj, toCustomerPlatform))...)
+	errs = append(errs, immutablePlatformExcludingContainerRegistry(ctx, op, fldPath.Child("platform"), &newObj.Platform, safe.Field(oldObj, toCustomerPlatform))...)
 	errs = append(errs, validateCustomerPlatformProfile(ctx, op, fldPath.Child("platform"), &newObj.Platform, safe.Field(oldObj, toCustomerPlatform))...)
 
 	//Autoscaling             ClusterAutoscalingProfile   `json:"autoscaling,omitempty"`
@@ -585,6 +584,9 @@ var (
 	toPlatformVnetIntegrationSubnetID = func(oldObj *api.CustomerPlatformProfile) *azcorearm.ResourceID { return oldObj.VnetIntegrationSubnetID }
 	toPlatformOutboundType            = func(oldObj *api.CustomerPlatformProfile) *api.OutboundType { return &oldObj.OutboundType }
 	toPlatformNetworkSecurityGroupID  = func(oldObj *api.CustomerPlatformProfile) *azcorearm.ResourceID { return oldObj.NetworkSecurityGroupID }
+	toPlatformContainerRegistry       = func(oldObj *api.CustomerPlatformProfile) *api.ContainerRegistryProfile {
+		return oldObj.ContainerRegistry
+	}
 	toPlatformOperatorsAuthentication = func(oldObj *api.CustomerPlatformProfile) *api.OperatorsAuthenticationProfile {
 		return &oldObj.OperatorsAuthentication
 	}
@@ -631,6 +633,43 @@ func validateCustomerPlatformProfile(ctx context.Context, op operation.Operation
 	//OperatorsAuthentication OperatorsAuthenticationProfile `json:"operatorsAuthentication,omitempty"`
 	errs = append(errs, immutableByReflect(ctx, op, fldPath.Child("operatorsAuthentication"), &newObj.OperatorsAuthentication, safe.Field(oldObj, toPlatformOperatorsAuthentication))...)
 	errs = append(errs, validateOperatorsAuthenticationProfile(ctx, op, fldPath.Child("operatorsAuthentication"), &newObj.OperatorsAuthentication, safe.Field(oldObj, toPlatformOperatorsAuthentication))...)
+
+	//ContainerRegistry *ContainerRegistryProfile `json:"containerRegistry,omitempty"`
+	errs = append(errs, validateContainerRegistryProfile(ctx, op, fldPath.Child("containerRegistry"), newObj.ContainerRegistry, safe.Field(oldObj, toPlatformContainerRegistry), newObj.ManagedResourceGroup)...)
+
+	return errs
+}
+
+func immutablePlatformExcludingContainerRegistry(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj *api.CustomerPlatformProfile, oldObj *api.CustomerPlatformProfile) field.ErrorList {
+	newCopy := *newObj
+	newCopy.ContainerRegistry = nil
+	var oldCopy *api.CustomerPlatformProfile
+	if oldObj != nil {
+		tmp := *oldObj
+		tmp.ContainerRegistry = nil
+		oldCopy = &tmp
+	}
+	return immutableByReflect(ctx, op, fldPath, &newCopy, oldCopy)
+}
+
+func validateContainerRegistryProfile(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.ContainerRegistryProfile, managedResourceGroupName string) field.ErrorList {
+	errs := field.ErrorList{}
+	if newObj == nil {
+		return errs
+	}
+
+	errs = append(errs, validate.Enum(ctx, op, fldPath.Child("credentials", "type"), &newObj.Credentials.Type, nil, api.ValidContainerRegistryCredentialType, nil)...)
+
+	if newObj.Credentials.Type == api.ContainerRegistryCredentialTypeManagedIdentity {
+		if newObj.Credentials.ManagedIdentity == nil || newObj.Credentials.ManagedIdentity.ResourceID == nil {
+			errs = append(errs, field.Required(fldPath.Child("credentials", "managedIdentity", "resourceId"), "required when credentials type is ManagedIdentity"))
+		}
+	}
+
+	if newObj.Credentials.ManagedIdentity != nil {
+		errs = append(errs, RestrictedResourceIDWithResourceGroup(ctx, op, fldPath.Child("credentials", "managedIdentity", "resourceId"), newObj.Credentials.ManagedIdentity.ResourceID, nil, "Microsoft.ManagedIdentity/userAssignedIdentities")...)
+		errs = append(errs, DifferentResourceGroupNameFromResourceID(ctx, op, fldPath.Child("credentials", "managedIdentity", "resourceId"), newObj.Credentials.ManagedIdentity.ResourceID, nil, managedResourceGroupName)...)
+	}
 
 	return errs
 }

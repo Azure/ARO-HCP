@@ -272,6 +272,56 @@ func convertEtcdRPToCS(in api.EtcdProfile) (*arohcpv1alpha1.AzureEtcdEncryptionB
 	return arohcpv1alpha1.NewAzureEtcdEncryption().DataEncryption(azureEtcdDataEncryptionBuilder), nil
 }
 
+func convertContainerRegistryRPToCS(in *api.ContainerRegistryProfile) *arohcpv1alpha1.AzureContainerRegistryBuilder {
+	if in == nil {
+		return nil
+	}
+	credentialsBuilder := arohcpv1alpha1.NewAzureContainerRegistryCredentials().
+		Type(arohcpv1alpha1.AzureContainerRegistryCredentialType(in.Credentials.Type))
+	if in.Credentials.ManagedIdentity != nil && in.Credentials.ManagedIdentity.ResourceID != nil {
+		credentialsBuilder.ManagedIdentity(
+			arohcpv1alpha1.NewAzureUserAssignedManagedIdentity().
+				ResourceID(in.Credentials.ManagedIdentity.ResourceID.String()))
+	}
+	return arohcpv1alpha1.NewAzureContainerRegistry().Credentials(credentialsBuilder)
+}
+
+// ConvertCSContainerRegistryToRP converts a CS AzureContainerRegistry to an RP ContainerRegistryProfile.
+func ConvertCSContainerRegistryToRP(csAzure *arohcpv1alpha1.Azure) (*api.ContainerRegistryProfile, error) {
+	if csAzure == nil {
+		return nil, nil
+	}
+	cr := csAzure.ContainerRegistry()
+	if cr == nil {
+		return nil, nil
+	}
+	creds := cr.Credentials()
+	if creds == nil {
+		return nil, nil
+	}
+
+	result := &api.ContainerRegistryProfile{
+		Credentials: api.ContainerRegistryCredentialProfile{
+			Type: api.ContainerRegistryCredentialType(creds.Type()),
+		},
+	}
+
+	if mi := creds.ManagedIdentity(); mi != nil {
+		resourceIDStr := mi.ResourceID()
+		if resourceIDStr != "" {
+			parsed, err := azcorearm.ParseResourceID(resourceIDStr)
+			if err != nil {
+				return nil, fmt.Errorf("failed to parse container registry managed identity resource ID %q: %w", resourceIDStr, err)
+			}
+			result.Credentials.ManagedIdentity = &api.UserAssignedManagedIdentity{
+				ResourceID: parsed,
+			}
+		}
+	}
+
+	return result, nil
+}
+
 func convertCIDRBlockAllowAccessRPToCS(in api.CustomerAPIProfile) (*arohcpv1alpha1.CIDRBlockAccessBuilder, error) {
 	cidrBlockAllowAccess := arohcpv1alpha1.NewCIDRBlockAllowAccess()
 
@@ -446,6 +496,14 @@ func BuildCSCluster(resourceID *azcorearm.ResourceID, tenantID string, hcpCluste
 	}
 	clusterBuilder = clusterBuilder.Properties(properties)
 
+	// ContainerRegistry is mutable — set it on update path too.
+	// On create, it's already set inside withImmutableAttributes.
+	if oldClusterServiceCluster != nil {
+		if containerRegistryBuilder := convertContainerRegistryRPToCS(hcpCluster.CustomerProperties.Platform.ContainerRegistry); containerRegistryBuilder != nil {
+			clusterBuilder.Azure(arohcpv1alpha1.NewAzure().ContainerRegistry(containerRegistryBuilder))
+		}
+	}
+
 	return clusterBuilder, clusterAutoscalerBuilder, nil
 }
 
@@ -558,6 +616,10 @@ func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, hcpC
 	}
 
 	azureBuilder.OperatorsAuthentication(arohcpv1alpha1.NewAzureOperatorsAuthentication().ManagedIdentities(managedIdentitiesBuilder))
+
+	if containerRegistryBuilder := convertContainerRegistryRPToCS(hcpCluster.CustomerProperties.Platform.ContainerRegistry); containerRegistryBuilder != nil {
+		azureBuilder.ContainerRegistry(containerRegistryBuilder)
+	}
 
 	clusterBuilder.Azure(azureBuilder)
 
