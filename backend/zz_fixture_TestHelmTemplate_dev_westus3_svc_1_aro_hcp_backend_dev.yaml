@@ -229,6 +229,8 @@ spec:
           value: ""
         - name: OTEL_TRACES_EXPORTER
           value: ""
+        - name: KUBE_CACHE_MUTATION_DETECTOR
+          value: "true"
         - name: AZURE_TOKEN_CREDENTIALS
           value: "WorkloadIdentityCredential"
         ports:
