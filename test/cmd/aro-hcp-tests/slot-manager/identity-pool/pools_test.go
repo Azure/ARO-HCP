@@ -68,7 +68,7 @@ environments:
 		"dev-sub-2": "00000000-0000-0000-0000-000000000002",
 	})
 
-	pools, err := loadIdentityPools(context.Background(), catalogPath, "dev", resolver)
+	pools, err := loadIdentityPools(context.Background(), catalogPath, "dev", nil, resolver)
 	if err != nil {
 		t.Fatalf("expected identity pools to load: %v", err)
 	}
@@ -122,7 +122,7 @@ environments:
 
 	resolver := fakeResolver(map[string]string{})
 
-	_, err := loadIdentityPools(context.Background(), catalogPath, "dev", resolver)
+	_, err := loadIdentityPools(context.Background(), catalogPath, "dev", nil, resolver)
 	if err == nil {
 		t.Fatal("expected error when subscription resolution fails")
 	}
@@ -167,7 +167,7 @@ environments:
 		return "", fmt.Errorf("unknown subscription %q", name)
 	}
 
-	pools, err := loadIdentityPools(context.Background(), catalogPath, "dev", resolver)
+	pools, err := loadIdentityPools(context.Background(), catalogPath, "dev", nil, resolver)
 	if err != nil {
 		t.Fatalf("expected identity pools to load: %v", err)
 	}

@@ -54,11 +54,16 @@ type Pool struct {
 	Region                     string `yaml:"region"`
 	RegionMode                 string `yaml:"region_mode,omitempty"`
 	IdentityProvisioningRegion string `yaml:"identity_provisioning_region,omitempty"`
+	IdentityProvisioning       string `yaml:"identity_provisioning,omitempty"`
 	ResourceType               string `yaml:"resource_type"`
 	SlotCount                  int    `yaml:"slot_count"`
 	IdentityContainerPrefix    string `yaml:"identity_container_prefix"`
 	IdentityContainerCount     int    `yaml:"identity_container_count"`
 }
+
+const (
+	IdentityProvisioningUnmanaged = "unmanaged"
+)
 
 type ExpandedSlot struct {
 	Environment             string `yaml:"environment"`
@@ -377,6 +382,10 @@ func (c *Catalog) FindSlotByResourceName(resourceName string) (*ExpandedSlot, er
 	}
 
 	return nil, fmt.Errorf("failed to find slot for leased resource %q", resourceName)
+}
+
+func (p Pool) IsUnmanaged() bool {
+	return p.IdentityProvisioning == IdentityProvisioningUnmanaged
 }
 
 func (p Pool) EffectiveRegionMode() string {

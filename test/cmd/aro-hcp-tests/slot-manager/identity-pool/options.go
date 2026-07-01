@@ -44,6 +44,7 @@ func DefaultApplyOptions() *RawApplyOptions {
 func BindApplyOptions(opts *RawApplyOptions, cmd *cobra.Command) error {
 	cmd.Flags().StringVar(&opts.Environment, "environment", opts.Environment, "Environment short name. One of: int, stg, dev, prod")
 	cmd.Flags().StringVar(&opts.SlotCatalog, "slot-catalog", opts.SlotCatalog, "Path to the canonical E2E slot catalog")
+	cmd.Flags().StringSliceVar(&opts.Subscriptions, "subscription", nil, "Limit provisioning to the named subscription(s). When set, unmanaged pools matching the filter are included.")
 	if err := cmd.MarkFlagRequired("environment"); err != nil {
 		return fmt.Errorf("failed to mark flag %q as required: %w", "environment", err)
 	}
@@ -51,8 +52,9 @@ func BindApplyOptions(opts *RawApplyOptions, cmd *cobra.Command) error {
 }
 
 type RawApplyOptions struct {
-	Environment string
-	SlotCatalog string
+	Environment   string
+	SlotCatalog   string
+	Subscriptions []string
 }
 
 type validatedApplyOptions struct {
@@ -98,7 +100,7 @@ func (o *ValidatedApplyOptions) Complete(ctx context.Context) (*ApplyOptions, er
 	}
 	subscriptionClient := subscriptionClientFactory.NewClient()
 
-	pools, err := loadIdentityPools(ctx, o.SlotCatalog, o.Environment, func(ctx context.Context, name string) (string, error) {
+	pools, err := loadIdentityPools(ctx, o.SlotCatalog, o.Environment, o.Subscriptions, func(ctx context.Context, name string) (string, error) {
 		return framework.GetSubscriptionID(ctx, subscriptionClient, name)
 	})
 	if err != nil {

@@ -2,20 +2,6 @@ $schema: "pipeline.schema.v1"
 serviceGroup: Microsoft.Azure.ARO.HCP.DevCI.E2ESubscriptionRBAC
 rolloutName: Dev CI E2E Subscription RBAC Rollout
 resourceGroups:
-- name: home
-  resourceGroup: '{{ .global.rg }}'
-  subscription: '{{ .global.subscription.key }}'
-  steps:
-  - name: operator-roles
-    action: ARM
-    template: ../../templates/dev-operator-roles.bicep
-    parameters: ../../configurations/dev-operator-roles.tmpl.bicepparam
-    deploymentLevel: Subscription
-  - name: mock-identity-roles
-    action: ARM
-    template: ../../templates/mock-identity-roles.bicep
-    parameters: ../../configurations/mock-identity-roles.tmpl.bicepparam
-    deploymentLevel: Subscription
 - name: grants
   resourceGroup: '{{ .global.rg }}'
   subscription: '{{ .global.subscription.key }}'
@@ -25,11 +11,6 @@ resourceGroups:
     template: ../../templates/e2e-subscription-rbac-assignments.bicep
     parameters: ../../configurations/e2e-subscription-rbac-assignments.tmpl.bicepparam
     deploymentLevel: Subscription
-    dependsOn:
-    - resourceGroup: home
-      step: operator-roles
-    - resourceGroup: home
-      step: mock-identity-roles
 - name: ci-bots
   resourceGroup: '{{ .global.rg }}'
   subscription: '{{ .global.subscription.key }}'
