@@ -12,6 +12,9 @@ spec:
   # The job will be retried up to 50 times if it fails.
   backoffLimit: 50
   template:
+    metadata:
+      annotations:
+        proxy.istio.io/config: '{"holdApplicationUntilProxyStarts": true}'
     spec:
       serviceAccountName: cs-shell-script-executor
       restartPolicy: Never
@@ -40,6 +43,7 @@ spec:
           echo "Running arbitrary commands..."
           /bin/bash /scripts/arbitrary-commands.sh
           ARB_COMMANDS_EXIT_CODE="$?"
+          curl -fsS -X POST http://127.0.0.1:15020/quitquitquit || true
           if [ "${ARB_COMMANDS_EXIT_CODE}" -ne 0 ]; then
             echo "Error: Arbitrary commands execution finished with non zero exit code: ${ARB_COMMANDS_EXIT_CODE}"
             exit 1

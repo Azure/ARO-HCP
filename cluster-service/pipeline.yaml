@@ -149,6 +149,8 @@ resourceGroups:
     releaseNamespace: '{{ .clustersService.k8s.namespace }}'
     chartDir: ./cs-debug-jobs/deploy
     valuesFile: './cs-debug-jobs/values.yaml'
+    namespaceFiles:
+    - namespace.yaml
     kustoDatabase: '{{ .kusto.serviceLogsDatabase }}'
     kustoTable: 'clustersServiceLogs'
     kustoEndpoint:
