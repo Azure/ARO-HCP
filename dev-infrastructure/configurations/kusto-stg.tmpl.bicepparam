@@ -28,7 +28,3 @@ param autoScaleMin = {{ .kusto.autoScaleMin }}
 param autoScaleMax = {{ .kusto.autoScaleMax }}
 
 param enableAutoScale = {{ .kusto.enableAutoScale }}
-
-param crossClusterServiceLogsScript = {{ if .kusto.crossClusterServiceLogsScript }}'''{{ .kusto.crossClusterServiceLogsScript }}'''{{ else }}''{{ end }}
-
-param crossClusterHostedControlPlaneLogsScript = {{ if .kusto.crossClusterHostedControlPlaneLogsScript }}'''{{ .kusto.crossClusterHostedControlPlaneLogsScript }}'''{{ else }}''{{ end }}

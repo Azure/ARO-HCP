@@ -2032,12 +2032,6 @@
           "$ref": "#/definitions/csvPrincipalList",
           "description": "CSV separated list of app/managed identity principals to grant AllDatabasesViewer on the Kusto cluster."
         },
-        "crossClusterServiceLogsScript": {
-          "type": "string"
-        },
-        "crossClusterHostedControlPlaneLogsScript": {
-          "type": "string"
-        },
         "enableAutoScale": {
           "type": "boolean"
         },

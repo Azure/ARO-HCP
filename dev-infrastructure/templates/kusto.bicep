@@ -37,13 +37,6 @@ param autoScaleMax int
 @description('Toggle if autoscale should be enabled')
 param enableAutoScale bool
 
-@description('Optional cross-cluster ServiceLogs Kusto script content.')
-@secure()
-param crossClusterServiceLogsScript string = ''
-
-@description('Optional cross-cluster HostedControlPlaneLogs Kusto script content.')
-@secure()
-param crossClusterHostedControlPlaneLogsScript string = ''
 module kusto '../modules/logs/kusto/main.bicep' = if (manageInstance) {
   name: 'kusto-${location}'
   params: {
@@ -60,7 +53,5 @@ module kusto '../modules/logs/kusto/main.bicep' = if (manageInstance) {
     autoScaleMin: autoScaleMin
     autoScaleMax: autoScaleMax
     enableAutoScale: enableAutoScale
-    crossClusterServiceLogsScript: crossClusterServiceLogsScript
-    crossClusterHostedControlPlaneLogsScript: crossClusterHostedControlPlaneLogsScript
   }
 }
