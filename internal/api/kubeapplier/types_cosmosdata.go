@@ -46,31 +46,6 @@ func ToNodePoolScopedApplyDesireResourceIDString(subscriptionName, resourceGroup
 	))
 }
 
-// ToClusterScopedDeleteDesireResourceIDString returns the resource ID string for a DeleteDesire
-// nested directly under a cluster.
-func ToClusterScopedDeleteDesireResourceIDString(subscriptionName, resourceGroupName, clusterName, deleteDesireName string,
-) string {
-	return strings.ToLower(path.Join(
-		"/subscriptions", subscriptionName,
-		"resourceGroups", resourceGroupName,
-		"providers", api.ClusterResourceType.String(), clusterName,
-		DeleteDesireResourceTypeName, deleteDesireName,
-	))
-}
-
-// ToNodePoolScopedDeleteDesireResourceIDString returns the resource ID string for a DeleteDesire
-// nested under a node pool under a cluster.
-func ToNodePoolScopedDeleteDesireResourceIDString(subscriptionName, resourceGroupName, clusterName, nodePoolName, deleteDesireName string,
-) string {
-	return strings.ToLower(path.Join(
-		"/subscriptions", subscriptionName,
-		"resourceGroups", resourceGroupName,
-		"providers", api.ClusterResourceType.String(), clusterName,
-		api.NodePoolResourceTypeName, nodePoolName,
-		DeleteDesireResourceTypeName, deleteDesireName,
-	))
-}
-
 // ToClusterScopedReadDesireResourceIDString returns the resource ID string for a ReadDesire
 // nested directly under a cluster.
 func ToClusterScopedReadDesireResourceIDString(subscriptionName, resourceGroupName, clusterName, readDesireName string,

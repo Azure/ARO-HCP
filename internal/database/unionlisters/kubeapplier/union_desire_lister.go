@@ -39,9 +39,9 @@ import (
 )
 
 // DesireLister is the type-parameterized contract satisfied by per-MC listers
-// for any of the kube-applier *Desire types. listers.ApplyDesireLister,
-// listers.DeleteDesireLister, and listers.ReadDesireLister each satisfy
-// DesireLister[<corresponding type>] structurally.
+// for any of the kube-applier *Desire types. listers.ApplyDesireLister
+// and listers.ReadDesireLister each satisfy DesireLister[<corresponding type>]
+// structurally.
 type DesireLister[T any] interface {
 	List(ctx context.Context) ([]*T, error)
 	GetForCluster(ctx context.Context, subscriptionID, resourceGroupName, clusterName, name string) (*T, error)
@@ -61,12 +61,11 @@ type UnionDesireLister[T any] struct {
 	sublisters map[string]DesireLister[T] // key = lowercased(rid.String())
 }
 
-// Compile-time checks: the three concrete listers.<Type>DesireLister
+// Compile-time checks: the two concrete listers.<Type>DesireLister
 // interfaces are each satisfied by *UnionDesireLister[<corresponding type>].
 var (
-	_ listers.ApplyDesireLister  = (*UnionDesireLister[kubeapplier.ApplyDesire])(nil)
-	_ listers.DeleteDesireLister = (*UnionDesireLister[kubeapplier.DeleteDesire])(nil)
-	_ listers.ReadDesireLister   = (*UnionDesireLister[kubeapplier.ReadDesire])(nil)
+	_ listers.ApplyDesireLister = (*UnionDesireLister[kubeapplier.ApplyDesire])(nil)
+	_ listers.ReadDesireLister  = (*UnionDesireLister[kubeapplier.ReadDesire])(nil)
 )
 
 // NewUnionDesireLister returns an empty union; call Add to register

@@ -50,16 +50,6 @@ func TestResourceIDStrings(t *testing.T) {
 			want: testNodePoolIDPrefix + "/applydesires/mydesire",
 		},
 		{
-			name: "DeleteDesire under cluster",
-			got:  ToClusterScopedDeleteDesireResourceIDString(sub, rg, cluster, name),
-			want: testClusterIDPrefix + "/deletedesires/mydesire",
-		},
-		{
-			name: "DeleteDesire under nodepool",
-			got:  ToNodePoolScopedDeleteDesireResourceIDString(sub, rg, cluster, np, name),
-			want: testNodePoolIDPrefix + "/deletedesires/mydesire",
-		},
-		{
 			name: "ReadDesire under cluster",
 			got:  ToClusterScopedReadDesireResourceIDString(sub, rg, cluster, name),
 			want: testClusterIDPrefix + "/readdesires/mydesire",
@@ -104,16 +94,6 @@ func TestResourceIDsParseToExpectedTypes(t *testing.T) {
 			name:     "nodepool-scoped ApplyDesire",
 			idStr:    ToNodePoolScopedApplyDesireResourceIDString(sub, rg, cluster, np, name),
 			wantType: NodePoolScopedApplyDesireResourceType.String(),
-		},
-		{
-			name:     "cluster-scoped DeleteDesire",
-			idStr:    ToClusterScopedDeleteDesireResourceIDString(sub, rg, cluster, name),
-			wantType: ClusterScopedDeleteDesireResourceType.String(),
-		},
-		{
-			name:     "nodepool-scoped DeleteDesire",
-			idStr:    ToNodePoolScopedDeleteDesireResourceIDString(sub, rg, cluster, np, name),
-			wantType: NodePoolScopedDeleteDesireResourceType.String(),
 		},
 		{
 			name:     "cluster-scoped ReadDesire",

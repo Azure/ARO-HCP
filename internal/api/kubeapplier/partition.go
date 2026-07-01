@@ -25,6 +25,5 @@ type ManagementClusterAccessor interface {
 	GetManagementCluster() *azcorearm.ResourceID
 }
 
-func (d *ApplyDesire) GetManagementCluster() *azcorearm.ResourceID  { return d.Spec.ManagementCluster }
-func (d *DeleteDesire) GetManagementCluster() *azcorearm.ResourceID { return d.Spec.ManagementCluster }
-func (d *ReadDesire) GetManagementCluster() *azcorearm.ResourceID   { return d.Spec.ManagementCluster }
+func (d *ApplyDesire) GetManagementCluster() *azcorearm.ResourceID { return d.Spec.ManagementCluster }
+func (d *ReadDesire) GetManagementCluster() *azcorearm.ResourceID  { return d.Spec.ManagementCluster }

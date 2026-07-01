@@ -39,7 +39,7 @@ import (
 //	    expected.json # subset to match against the observed desire's JSON
 //	                  # shape; see matchSubset in subset.go for the rule.
 //
-// The kind of *Desire (Apply/Delete/Read) is inferred from the resourceID's
+// The kind of *Desire (Apply/Read) is inferred from the resourceID's
 // leaf resource type. The step polls Cosmos via the matching CRUD's Get
 // until matchSubset succeeds, or EventuallyTimeout elapses.
 
@@ -96,22 +96,11 @@ func newDesireEventuallyStep(id string, dir fs.FS) (Step, error) {
 }
 
 // desireGetters maps the lower-cased leaf resource type from the ResourceID
-// to a function that fetches that *Desire kind. Adding a fourth desire type
+// to a function that fetches that *Desire kind. Adding a new desire type
 // in the future is one entry in this map.
 var desireGetters = map[string]func(ctx context.Context, kac database.KubeApplierDBClient, id *azcorearm.ResourceID) (any, error){
 	strings.ToLower(kubeapplier.ApplyDesireResourceTypeName): func(ctx context.Context, kac database.KubeApplierDBClient, id *azcorearm.ResourceID) (any, error) {
 		k, err := keys.ApplyDesireKeyFromResourceID(id)
-		if err != nil {
-			return nil, err
-		}
-		c, err := k.CRUD(kac)
-		if err != nil {
-			return nil, err
-		}
-		return c.Get(ctx, id.Name)
-	},
-	strings.ToLower(kubeapplier.DeleteDesireResourceTypeName): func(ctx context.Context, kac database.KubeApplierDBClient, id *azcorearm.ResourceID) (any, error) {
-		k, err := keys.DeleteDesireKeyFromResourceID(id)
 		if err != nil {
 			return nil, err
 		}

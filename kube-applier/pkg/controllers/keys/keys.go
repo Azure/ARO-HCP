@@ -75,46 +75,6 @@ func (k ApplyDesireKey) AddLoggerValues(logger logr.Logger) logr.Logger {
 	return logger.WithValues(utils.LogValues{}.AddLogValuesForResourceID(k.GetResourceID())...)
 }
 
-// DeleteDesireKey identifies a single DeleteDesire.
-type DeleteDesireKey struct {
-	SubscriptionID    string
-	ResourceGroupName string
-	ClusterName       string
-	NodePoolName      string
-	Name              string
-}
-
-// IsNodePoolScoped reports whether this key targets a node-pool-scoped desire.
-func (k DeleteDesireKey) IsNodePoolScoped() bool { return len(k.NodePoolName) > 0 }
-
-// CRUD returns the right per-scope CRUD for this key's parent.
-func (k DeleteDesireKey) CRUD(client database.KubeApplierDeleteDesireCRUD) (database.ResourceCRUD[kubeapplier.DeleteDesire, *kubeapplier.DeleteDesire], error) {
-	if k.IsNodePoolScoped() {
-		return client.DeleteDesiresForNodePool(k.SubscriptionID, k.ResourceGroupName, k.ClusterName, k.NodePoolName)
-	}
-	return client.DeleteDesiresForCluster(k.SubscriptionID, k.ResourceGroupName, k.ClusterName)
-}
-
-// GetResourceID returns the desire's full resource ID. It uses the
-// cluster-scoped or node-pool-scoped builder depending on the key's shape.
-func (k DeleteDesireKey) GetResourceID() *azcorearm.ResourceID {
-	var s string
-	if k.IsNodePoolScoped() {
-		s = kubeapplier.ToNodePoolScopedDeleteDesireResourceIDString(
-			k.SubscriptionID, k.ResourceGroupName, k.ClusterName, k.NodePoolName, k.Name)
-	} else {
-		s = kubeapplier.ToClusterScopedDeleteDesireResourceIDString(
-			k.SubscriptionID, k.ResourceGroupName, k.ClusterName, k.Name)
-	}
-	return api.Must(azcorearm.ParseResourceID(s))
-}
-
-// AddLoggerValues implements utils.LoggableKey so the generic worker loop seeds
-// per-reconcile logger fields straight from the resource ID.
-func (k DeleteDesireKey) AddLoggerValues(logger logr.Logger) logr.Logger {
-	return logger.WithValues(utils.LogValues{}.AddLogValuesForResourceID(k.GetResourceID())...)
-}
-
 // ReadDesireKey identifies a single ReadDesire.
 type ReadDesireKey struct {
 	SubscriptionID    string
@@ -169,15 +129,6 @@ func ApplyDesireKeyFromResourceID(id *azcorearm.ResourceID) (ApplyDesireKey, err
 		return ApplyDesireKey{}, err
 	}
 	return ApplyDesireKey(parts), nil
-}
-
-// DeleteDesireKeyFromResourceID is the DeleteDesire parallel of ApplyDesireKeyFromResourceID.
-func DeleteDesireKeyFromResourceID(id *azcorearm.ResourceID) (DeleteDesireKey, error) {
-	parts, err := parseDesireParts(id)
-	if err != nil {
-		return DeleteDesireKey{}, err
-	}
-	return DeleteDesireKey(parts), nil
 }
 
 // ReadDesireKeyFromResourceID is the ReadDesire parallel of ApplyDesireKeyFromResourceID.

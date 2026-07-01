@@ -35,9 +35,9 @@ const (
 	// (e.g. malformed kubeContent, GVR not present in the RESTMapper, etc.).
 	ConditionReasonPreCheckFailed = "PreCheckFailed"
 
-	// ConditionReasonWaitingForDeletion is set on a DeleteDesire when the target item still
-	// exists in the cluster, either because finalizers are running or the delete
-	// call has just been issued.
+	// ConditionReasonWaitingForDeletion is set on an ApplyDesire with Type=Delete when the
+	// target item still exists in the cluster, either because finalizers are running or
+	// the delete call has just been issued.
 	ConditionReasonWaitingForDeletion = "WaitingForDeletion"
 
 	// ConditionReasonNoErrors is the success reason matching the existing controller

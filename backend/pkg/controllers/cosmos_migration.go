@@ -424,8 +424,8 @@ func (c *cosmosMigrationController) resolveKubeApplierClient(ctx context.Context
 	return kubeApplierClient
 }
 
-// migrateClusterDesires migrates all three kube-applier desire types (ApplyDesire,
-// DeleteDesire, ReadDesire) for a cluster scope.
+// migrateClusterDesires migrates kube-applier desire types (ApplyDesire,
+// ReadDesire) for a cluster scope.
 func migrateClusterDesires(ctx context.Context, logger logr.Logger, kubeApplierClient database.KubeApplierDBClient, subscriptionID, resourceGroupName, clusterName string) error {
 	var migrationErrors []error
 
@@ -433,13 +433,6 @@ func migrateClusterDesires(ctx context.Context, logger logr.Logger, kubeApplierC
 	if err != nil {
 		migrationErrors = append(migrationErrors, fmt.Errorf("failed to construct CRUD for cluster apply desire: %w", err))
 	} else if err := migrateDesireDocuments(ctx, logger, applyCRUD, "cluster apply desire", applyDesireName); err != nil {
-		migrationErrors = append(migrationErrors, err)
-	}
-
-	deleteCRUD, err := kubeApplierClient.DeleteDesiresForCluster(subscriptionID, resourceGroupName, clusterName)
-	if err != nil {
-		migrationErrors = append(migrationErrors, fmt.Errorf("failed to construct CRUD for cluster delete desire: %w", err))
-	} else if err := migrateDesireDocuments(ctx, logger, deleteCRUD, "cluster delete desire", deleteDesireName); err != nil {
 		migrationErrors = append(migrationErrors, err)
 	}
 
@@ -453,8 +446,8 @@ func migrateClusterDesires(ctx context.Context, logger logr.Logger, kubeApplierC
 	return errors.Join(migrationErrors...)
 }
 
-// migrateNodePoolDesires migrates all three kube-applier desire types (ApplyDesire,
-// DeleteDesire, ReadDesire) for a node pool scope.
+// migrateNodePoolDesires migrates kube-applier desire types (ApplyDesire,
+// ReadDesire) for a node pool scope.
 func migrateNodePoolDesires(ctx context.Context, logger logr.Logger, kubeApplierClient database.KubeApplierDBClient, subscriptionID, resourceGroupName, clusterName, nodePoolName string) error {
 	var migrationErrors []error
 
@@ -462,13 +455,6 @@ func migrateNodePoolDesires(ctx context.Context, logger logr.Logger, kubeApplier
 	if err != nil {
 		migrationErrors = append(migrationErrors, fmt.Errorf("failed to construct CRUD for node pool apply desire: %w", err))
 	} else if err := migrateDesireDocuments(ctx, logger, applyCRUD, "node pool apply desire", applyDesireName); err != nil {
-		migrationErrors = append(migrationErrors, err)
-	}
-
-	deleteCRUD, err := kubeApplierClient.DeleteDesiresForNodePool(subscriptionID, resourceGroupName, clusterName, nodePoolName)
-	if err != nil {
-		migrationErrors = append(migrationErrors, fmt.Errorf("failed to construct CRUD for node pool delete desire: %w", err))
-	} else if err := migrateDesireDocuments(ctx, logger, deleteCRUD, "node pool delete desire", deleteDesireName); err != nil {
 		migrationErrors = append(migrationErrors, err)
 	}
 
@@ -484,14 +470,6 @@ func migrateNodePoolDesires(ctx context.Context, logger logr.Logger, kubeApplier
 
 // applyDesireName returns the document name from an ApplyDesire, or empty string if ResourceID is nil.
 func applyDesireName(d *kubeapplier.ApplyDesire) string {
-	if d.ResourceID == nil {
-		return ""
-	}
-	return d.ResourceID.Name
-}
-
-// deleteDesireName returns the document name from a DeleteDesire, or empty string if ResourceID is nil.
-func deleteDesireName(d *kubeapplier.DeleteDesire) string {
 	if d.ResourceID == nil {
 		return ""
 	}

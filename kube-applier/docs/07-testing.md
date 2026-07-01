@@ -45,7 +45,7 @@ dyn, _ := dynamic.NewForConfig(cfg)
 | existing object owned by another field manager (force=true) | `Successful=True`; verify the diff was applied |
 | no-op resync (status already correct) | no Cosmos write (verify via mock) |
 
-### DeleteDesireController
+### ApplyDesireController (Type=Delete)
 
 | Case | Expected condition |
 | --- | --- |
@@ -106,8 +106,8 @@ Smoke scenarios at minimum:
 - Apply a Namespace + ConfigMap, verify they exist; mutate the ApplyDesire,
   verify the ConfigMap is updated; delete the ApplyDesire (mock-side),
   verify the ConfigMap is left in place (we are not cascading deletes).
-- Create a DeleteDesire targeting the ConfigMap, verify it is deleted and
-  the desire reports `Successful=True`.
+- Create an ApplyDesire with `Type=Delete` targeting the ConfigMap, verify
+  it is deleted and the desire reports `Successful=True`.
 - Create a ReadDesire on the ConfigMap; verify `.status.kubeContent`
   becomes the live ConfigMap; mutate the live ConfigMap directly via the
   KIND client; verify `.status.kubeContent` updates within one resync.

@@ -77,10 +77,6 @@ type KubeApplierDBClient interface {
 	ApplyDesiresForCluster(subscriptionID, resourceGroupName, clusterName string) (ResourceCRUD[kubeapplier.ApplyDesire, *kubeapplier.ApplyDesire], error)
 	// ApplyDesiresForNodePool returns a CRUD scoped to a nodepool parent.
 	ApplyDesiresForNodePool(subscriptionID, resourceGroupName, clusterName, nodePoolName string) (ResourceCRUD[kubeapplier.ApplyDesire, *kubeapplier.ApplyDesire], error)
-	// DeleteDesiresForCluster returns a CRUD scoped to a cluster parent.
-	DeleteDesiresForCluster(subscriptionID, resourceGroupName, clusterName string) (ResourceCRUD[kubeapplier.DeleteDesire, *kubeapplier.DeleteDesire], error)
-	// DeleteDesiresForNodePool returns a CRUD scoped to a nodepool parent.
-	DeleteDesiresForNodePool(subscriptionID, resourceGroupName, clusterName, nodePoolName string) (ResourceCRUD[kubeapplier.DeleteDesire, *kubeapplier.DeleteDesire], error)
 	// ReadDesiresForCluster returns a CRUD scoped to a cluster parent.
 	ReadDesiresForCluster(subscriptionID, resourceGroupName, clusterName string) (ResourceCRUD[kubeapplier.ReadDesire, *kubeapplier.ReadDesire], error)
 	// ReadDesiresForNodePool returns a CRUD scoped to a nodepool parent.
@@ -103,7 +99,6 @@ type KubeApplierDBClient interface {
 // returns every desire of that kind for that management cluster.
 type KubeApplierListers interface {
 	ApplyDesires() GlobalLister[kubeapplier.ApplyDesire]
-	DeleteDesires() GlobalLister[kubeapplier.DeleteDesire]
 	ReadDesires() GlobalLister[kubeapplier.ReadDesire]
 }
 
@@ -113,12 +108,6 @@ type KubeApplierListers interface {
 type KubeApplierApplyDesireCRUD interface {
 	ApplyDesiresForCluster(subscriptionID, resourceGroupName, clusterName string) (ResourceCRUD[kubeapplier.ApplyDesire, *kubeapplier.ApplyDesire], error)
 	ApplyDesiresForNodePool(subscriptionID, resourceGroupName, clusterName, nodePoolName string) (ResourceCRUD[kubeapplier.ApplyDesire, *kubeapplier.ApplyDesire], error)
-}
-
-// KubeApplierDeleteDesireCRUD is the DeleteDesire peer of KubeApplierApplyDesireCRUD.
-type KubeApplierDeleteDesireCRUD interface {
-	DeleteDesiresForCluster(subscriptionID, resourceGroupName, clusterName string) (ResourceCRUD[kubeapplier.DeleteDesire, *kubeapplier.DeleteDesire], error)
-	DeleteDesiresForNodePool(subscriptionID, resourceGroupName, clusterName, nodePoolName string) (ResourceCRUD[kubeapplier.DeleteDesire, *kubeapplier.DeleteDesire], error)
 }
 
 // KubeApplierReadDesireCRUD is the ReadDesire peer of KubeApplierApplyDesireCRUD.
@@ -181,28 +170,6 @@ func (c *kubeApplierCosmosDBClient) ApplyDesiresForNodePool(subscriptionID, reso
 	), nil
 }
 
-func (c *kubeApplierCosmosDBClient) DeleteDesiresForCluster(subscriptionID, resourceGroupName, clusterName string) (ResourceCRUD[kubeapplier.DeleteDesire, *kubeapplier.DeleteDesire], error) {
-	parentID, err := api.ToClusterResourceID(subscriptionID, resourceGroupName, clusterName)
-	if err != nil {
-		return nil, err
-	}
-	return NewCosmosResourceCRUDWithStrategies[kubeapplier.DeleteDesire, *kubeapplier.DeleteDesire, GenericDocument[kubeapplier.DeleteDesire]](
-		c.kubeApplier, parentID, kubeapplier.ClusterScopedDeleteDesireResourceType,
-		KubeApplierPartitionKeyDeriver{ManagementClusterResourceID: c.managementClusterResourceID}, ClusterNestedResourceIDBuilder{},
-	), nil
-}
-
-func (c *kubeApplierCosmosDBClient) DeleteDesiresForNodePool(subscriptionID, resourceGroupName, clusterName, nodePoolName string) (ResourceCRUD[kubeapplier.DeleteDesire, *kubeapplier.DeleteDesire], error) {
-	parentID, err := api.ToNodePoolResourceID(subscriptionID, resourceGroupName, clusterName, nodePoolName)
-	if err != nil {
-		return nil, err
-	}
-	return NewCosmosResourceCRUDWithStrategies[kubeapplier.DeleteDesire, *kubeapplier.DeleteDesire, GenericDocument[kubeapplier.DeleteDesire]](
-		c.kubeApplier, parentID, kubeapplier.NodePoolScopedDeleteDesireResourceType,
-		KubeApplierPartitionKeyDeriver{ManagementClusterResourceID: c.managementClusterResourceID}, ClusterNestedResourceIDBuilder{},
-	), nil
-}
-
 func (c *kubeApplierCosmosDBClient) ReadDesiresForCluster(subscriptionID, resourceGroupName, clusterName string) (ResourceCRUD[kubeapplier.ReadDesire, *kubeapplier.ReadDesire], error) {
 	parentID, err := api.ToClusterResourceID(subscriptionID, resourceGroupName, clusterName)
 	if err != nil {
@@ -252,16 +219,6 @@ func (g *cosmosKubeApplierListers) ApplyDesires() GlobalLister[kubeapplier.Apply
 		resourceTypes: []azcorearm.ResourceType{
 			kubeapplier.ClusterScopedApplyDesireResourceType,
 			kubeapplier.NodePoolScopedApplyDesireResourceType,
-		},
-	}
-}
-
-func (g *cosmosKubeApplierListers) DeleteDesires() GlobalLister[kubeapplier.DeleteDesire] {
-	return &cosmosGlobalLister[kubeapplier.DeleteDesire, GenericDocument[kubeapplier.DeleteDesire]]{
-		containerClient: g.kubeApplier,
-		resourceTypes: []azcorearm.ResourceType{
-			kubeapplier.ClusterScopedDeleteDesireResourceType,
-			kubeapplier.NodePoolScopedDeleteDesireResourceType,
 		},
 	}
 }

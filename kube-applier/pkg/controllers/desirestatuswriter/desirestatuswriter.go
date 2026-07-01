@@ -14,7 +14,7 @@
 
 // Package desirestatuswriter is the generic "read-mutate-replace" helper that
 // writes back the .status section of kube-applier *Desire Cosmos documents
-// (ApplyDesire, DeleteDesire, ReadDesire). It has nothing to do with the
+// (ApplyDesire and ReadDesire). It has nothing to do with the
 // .status section of the Kubernetes objects those desires target — that
 // content, when relevant, lives in ReadDesire.status.kubeContent and is
 // written by the per-instance ReadDesireKubernetesController, not by this

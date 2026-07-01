@@ -150,20 +150,6 @@ func TestNodePoolChildResourcesCleanupController_SyncOnce(t *testing.T) {
 			},
 		}
 	}
-	newTestNodePoolScopedDeleteDesire := func(name string) *kubeapplier.DeleteDesire {
-		resourceID := api.Must(azcorearm.ParseResourceID(
-			kubeapplier.ToNodePoolScopedDeleteDesireResourceIDString(
-				testSubscriptionID, testResourceGroupName, testClusterName, testNodePoolName, name)))
-		return &kubeapplier.DeleteDesire{
-			CosmosMetadata: api.CosmosMetadata{
-				ResourceID:   resourceID,
-				PartitionKey: strings.ToLower(managementClusterResourceID.String()),
-			},
-			Spec: kubeapplier.DeleteDesireSpec{
-				ManagementCluster: managementClusterResourceID,
-			},
-		}
-	}
 	assertNoNodePoolScopedKubeApplierResources := func(
 		t *testing.T,
 		ctx context.Context,
@@ -475,7 +461,6 @@ func TestNodePoolChildResourcesCleanupController_SyncOnce(t *testing.T) {
 				newTestClusterScopedApplyDesire("apply-example"),
 				newTestNodePoolScopedReadDesire("readonly-nodepool"),
 				newTestNodePoolScopedApplyDesire("apply-nodepool"),
-				newTestNodePoolScopedDeleteDesire("delete-example"),
 			},
 			verifyDB: func(t *testing.T, ctx context.Context, _ *databasetesting.MockResourcesDBClient, kubeApplierDBClients *databasetesting.MockKubeApplierDBClients) {
 				assertNoNodePoolScopedKubeApplierResources(t, ctx, kubeApplierDBClients)
