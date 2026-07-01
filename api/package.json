@@ -5,6 +5,7 @@
     "@azure-tools/typespec-azure-resource-manager": "^0.69.0",
     "@azure-tools/typespec-azure-rulesets": "^0.69.0",
     "@azure-tools/typespec-client-generator-core": "^0.69.0",
+    "@azure-tools/typespec-go": "^0.14.0",
     "@typespec/http": "^1.12.0",
     "@typespec/openapi": "^1.12.0",
     "@typespec/openapi3": "^1.13.0",
@@ -18,15 +19,13 @@
   "scripts": {
     "format": "prettier --write --plugin @typespec/compiler/internals/prettier-formatter \"redhatopenshift/**/*.tsp\"",
     "format-check": "prettier --check --plugin @typespec/compiler/internals/prettier-formatter \"redhatopenshift/**/*.tsp\"",
-    "compile": "tsp compile redhatopenshift/resource-manager/Microsoft.RedHatOpenShift/hcpopenshiftclusters --warn-as-error",
-    "models": "autorest readme.md --verbose --tag=${VERSION}",
-    "testsdk": "autorest testsdk.md --verbose --tag=${VERSION}"
+    "compile": "tsp compile redhatopenshift/resource-manager/Microsoft.RedHatOpenShift/hcpopenshiftclusters --warn-as-error"
   },
   "devDependencies": {
     "@microsoft.azure/openapi-validator": "2.2.4",
     "@microsoft.azure/openapi-validator-rulesets": "2.2.6",
     "@typespec/compiler": "^1.12.0",
-    "autorest": "^3.7.2",
+    "@stoplight/spectral-cli": "^6.14.0",
     "prettier": "^3.8.1"
   },
   "overrides": {
@@ -43,6 +42,9 @@
     "@azure/ms-rest-js": {
       "uuid": "^14.0.0"
     },
-    "fast-uri": "^3.1.2"
+    "fast-uri": "^3.1.2",
+    "@azure-tools/typespec-go": {
+      "@azure-tools/typespec-client-generator-core": "$@azure-tools/typespec-client-generator-core"
+    }
   }
 }

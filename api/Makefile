@@ -1,11 +1,16 @@
 include ../.bingo/Variables.mk
 SHELL = /bin/bash
 
-# VERSION determines which API version to generate with autorest.
+# VERSION determines which API version to generate.
 # The default value for VERSION should be the latest API version.
+# Note: typespec-go can only generate for the latest API version defined in
+# the TypeSpec source. Older versions' generated code is stable and stays
+# committed as-is. To regenerate older versions, use a git checkout of the
+# code from when that version was the latest.
 VERSION ?= v20260630preview
 
-AUTOREST_OUTPUT_DIR = ../internal/api/${VERSION}/generated
+TYPESPEC_GO_OUTPUT_DIR = ../internal/api/${VERSION}/generated
+TESTSDK_OUTPUT_DIR = ../test/sdk/${VERSION}/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp
 
 SPEC_BASE_DIR = redhatopenshift/resource-manager/Microsoft.RedHatOpenShift/hcpopenshiftclusters
 API_SPEC_PATHS = $(shell find $(SPEC_BASE_DIR) -type f -name "openapi.json" 2>/dev/null | sort)
@@ -30,17 +35,42 @@ swagger:
 
 .PHONY: models
 models: $(GOIMPORTS)
-	VERSION=${VERSION} npm run models
+	npx tsp compile $(SPEC_BASE_DIR) \
+		--emit @azure-tools/typespec-go \
+		--option "@azure-tools/typespec-go.emitter-output-dir=$(CURDIR)/$(TYPESPEC_GO_OUTPUT_DIR)" \
+		--option "@azure-tools/typespec-go.module=github.com/Azure/ARO-HCP/internal/api/$(VERSION)/generated" \
+		--option "@azure-tools/typespec-go.disallow-unknown-fields=true" \
+		--option "@azure-tools/typespec-go.generate-fakes=false" \
+		--option "@azure-tools/typespec-go.inject-spans=false" \
+		--option "@azure-tools/typespec-go.fix-const-stuttering=true" \
+		--option "@azure-tools/typespec-go.flavor=azure" \
+		--option "@azure-tools/typespec-go.generate-samples=false" \
+		--option "@azure-tools/typespec-go.head-as-boolean=false" \
+		--option "@azure-tools/typespec-go.service-dir="
 	$(GOIMPORTS) -w -local github.com/Azure/ARO-HCP ../internal
-	# Remove the client API, leave only the constants and models.
-	rm $(RM_FORCE) ${AUTOREST_OUTPUT_DIR}/client_factory.go
-	rm $(RM_FORCE) ${AUTOREST_OUTPUT_DIR}/*_client.go
-	rm $(RM_FORCE) ${AUTOREST_OUTPUT_DIR}/options.go
-	rm $(RM_FORCE) ${AUTOREST_OUTPUT_DIR}/responses.go
+	# Remove client API files, keep only constants and models.
+	rm $(RM_FORCE) ${TYPESPEC_GO_OUTPUT_DIR}/client_factory.go
+	rm $(RM_FORCE) ${TYPESPEC_GO_OUTPUT_DIR}/*_client.go
+	rm $(RM_FORCE) ${TYPESPEC_GO_OUTPUT_DIR}/options.go
+	rm $(RM_FORCE) ${TYPESPEC_GO_OUTPUT_DIR}/responses.go
+	rm $(RM_FORCE) ${TYPESPEC_GO_OUTPUT_DIR}/go.mod
+	rm $(RM_FORCE) ${TYPESPEC_GO_OUTPUT_DIR}/go.sum
+	rm $(RM_FORCE) ${TYPESPEC_GO_OUTPUT_DIR}/LICENSE.txt
+	rm $(RM_FORCE) ${TYPESPEC_GO_OUTPUT_DIR}/version.go
+	rm -rf ${TYPESPEC_GO_OUTPUT_DIR}/testdata
 
 .PHONY: testsdk
 testsdk: $(GOIMPORTS)
-	VERSION=${VERSION} npm run testsdk
+	npx tsp compile $(SPEC_BASE_DIR) \
+		--emit @azure-tools/typespec-go \
+		--option "@azure-tools/typespec-go.emitter-output-dir=$(CURDIR)/$(TESTSDK_OUTPUT_DIR)" \
+		--option "@azure-tools/typespec-go.module=github.com/Azure/ARO-HCP/test/sdk/$(VERSION)/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp" \
+		--option "@azure-tools/typespec-go.generate-fakes=false" \
+		--option "@azure-tools/typespec-go.fix-const-stuttering=true" \
+		--option "@azure-tools/typespec-go.flavor=azure" \
+		--option "@azure-tools/typespec-go.generate-samples=false" \
+		--option "@azure-tools/typespec-go.head-as-boolean=false" \
+		--option "@azure-tools/typespec-go.service-dir="
 	$(GOIMPORTS) -w -local github.com/Azure/ARO-HCP ../test/sdk
 
 .PHONY: fmt
@@ -60,16 +90,9 @@ validate-examples:
 .PHONY: lint-openapi
 lint-openapi:
 	@echo "Linting OpenAPI specs with Azure ARM rules for all API versions..."
-	@for version in $(API_VERSIONS); do \
+	@for spec_path in $(API_SPEC_PATHS); do \
+		version=$$(basename $$(dirname $$spec_path)); \
 		echo ""; \
-		echo "==> Linting package-$$version"; \
-		npx autorest \
-			--v3 \
-			--azure-validator \
-			--spectral \
-			--semantic-validator=false \
-			--model-validator=false \
-			--openapi-type=arm \
-			--tag=package-$$version \
-			$(SPEC_BASE_DIR)/readme.md || exit 1; \
+		echo "==> Linting $$version"; \
+		npx spectral lint --ruleset node_modules/@microsoft.azure/openapi-validator-rulesets/dist/spectral/az-arm.js $$spec_path || exit 1; \
 	done
