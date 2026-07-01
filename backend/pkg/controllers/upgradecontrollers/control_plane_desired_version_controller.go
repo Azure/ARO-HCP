@@ -139,11 +139,6 @@ func (c *controlPlaneDesiredVersionSyncer) SyncOnce(ctx context.Context, key con
 	if existingCluster.ServiceProviderProperties.DeletionTimestamp != nil {
 		return nil
 	}
-	if existingCluster.ServiceProviderProperties.ClusterServiceID == nil {
-		// Currently, this is correct.  We will likely refactor and change this to separate the read of active versions from the determination
-		// of the next desired version: we'll need to choose a desired version even if there are no active versions.
-		return nil
-	}
 
 	existingServiceProviderCluster, err := database.GetOrCreateServiceProviderCluster(ctx, c.resourcesDBClient, key.GetResourceID())
 	if err != nil {
@@ -162,7 +157,7 @@ func (c *controlPlaneDesiredVersionSyncer) SyncOnce(ctx context.Context, key con
 	}
 
 	// Resolve the cluster UUID from the cached HostedCluster so we can build the Cincinnati client.
-	// Use it as best effort.  If we cannot find use, use an empty value to make progress without a specific value.
+	// Use it as best effort. If we cannot find it, use an empty value to make progress without a specific value.
 	clusterUUID, found, err := maestrohelpers.GetCachedHostedClusterUUIDForCluster(ctx, c.readDesireLister, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if err != nil {
 		logger.Info("error getting cluster UUID, continuing with empty", "err", err.Error())
