@@ -49,7 +49,7 @@ tests:
   - eval_time: 10m
     alertname: LeaderElectionLeaseStale
     exp_alerts: []
-# Test: LeaderElectionLeaseStale does not fire for namespaces not in the watch list
+# Test: LeaderElectionLeaseStale does not fire for excluded system namespaces
 - interval: 1m
   input_series:
   - series: 'kube_lease_renew_time{namespace="kube-system", lease="kube-controller-manager", cluster="test-cluster"}'

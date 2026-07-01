@@ -13,10 +13,10 @@ spec:
   - name: leaderelection
     rules:
     - alert: LeaderElectionLeaseStale
-      # Fires when a leader election lease has not been renewed for >2m; conservative threshold safe for all ARO-HCP services.
+      # Fires when a leader election lease has not been renewed for >2m; excludes standard k8s system namespaces (kube-node-lease has node heartbeat leases that are not leader election).
       expr: |
         time() - max without(prometheus_replica) (
-          kube_lease_renew_time{namespace=~"aro-hcp|fleet|kube-applier|mgmt-agent|sessiongate"}
+          kube_lease_renew_time{namespace!~"kube-system|kube-public|kube-node-lease|default"}
         ) > 120
       for: 5m
       labels:
