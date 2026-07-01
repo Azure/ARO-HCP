@@ -50,4 +50,11 @@ var (
 	ClusterScopedReadDesireResourceType = nestedResourceType(api.ClusterResourceTypeName, ReadDesireResourceTypeName)
 	// NodePoolScopedReadDesireResourceType is readDesires nested under a NodePool under a Cluster.
 	NodePoolScopedReadDesireResourceType = nestedResourceType(api.ClusterResourceTypeName, api.NodePoolResourceTypeName, ReadDesireResourceTypeName)
+
+	// CredentialRequestScopedApplyDesireResourceType is applyDesires nested under a SystemAdminCredentialRequest under a Cluster.
+	CredentialRequestScopedApplyDesireResourceType = nestedResourceType(api.ClusterResourceTypeName, api.SystemAdminCredentialRequestResourceTypeName, ApplyDesireResourceTypeName)
+	// CredentialRequestScopedDeleteDesireResourceType is deleteDesires nested under a SystemAdminCredentialRequest under a Cluster.
+	CredentialRequestScopedDeleteDesireResourceType = nestedResourceType(api.ClusterResourceTypeName, api.SystemAdminCredentialRequestResourceTypeName, DeleteDesireResourceTypeName)
+	// CredentialRequestScopedReadDesireResourceType is readDesires nested under a SystemAdminCredentialRequest under a Cluster.
+	CredentialRequestScopedReadDesireResourceType = nestedResourceType(api.ClusterResourceTypeName, api.SystemAdminCredentialRequestResourceTypeName, ReadDesireResourceTypeName)
 )

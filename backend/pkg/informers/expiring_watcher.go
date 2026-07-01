@@ -45,7 +45,8 @@ func NewExpiringWatcher(ctx context.Context, expiry time.Duration) watch.Interfa
 		defer utilruntime.HandleCrash()
 		select {
 		case <-time.After(expiry):
-			w.result <- watch.Event{
+			select {
+			case w.result <- watch.Event{
 				Type: watch.Error,
 				Object: &metav1.Status{
 					Status:  metav1.StatusFailure,
@@ -53,6 +54,9 @@ func NewExpiringWatcher(ctx context.Context, expiry time.Duration) watch.Interfa
 					Reason:  metav1.StatusReasonExpired,
 					Message: "watch expired",
 				},
+			}:
+			case <-w.done:
+			case <-ctx.Done():
 			}
 		case <-w.done:
 		case <-ctx.Done():

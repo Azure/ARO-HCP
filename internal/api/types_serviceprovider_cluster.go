@@ -171,6 +171,12 @@ type ServiceProviderClusterStatus struct {
 	// Status non-nil), where there is no signal on Spec alone that the CS
 	// property still needs to be cleared.
 	DesiredHostedClusterControlPlaneSize *string `json:"desiredHostedClusterControlPlaneSize,omitempty"`
+
+	// ServingCABundle is the PEM-encoded serving CA bundle for the cluster's
+	// kube-apiserver. Populated by the SystemAdminCredentialRequestCABundleSync
+	// controller from a ReadDesire mirror of the management cluster's serving
+	// CA Secret. Used by the frontend to assemble admin credential kubeconfigs.
+	ServingCABundle string `json:"servingCABundle,omitempty"`
 }
 
 // ServiceProviderClusterStatusVersion contains the actual version information.

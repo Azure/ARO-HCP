@@ -132,15 +132,51 @@ Mirror the existing `api.ToClusterResourceIDString` helpers
 (`internal/api/types_cluster.go`). Add:
 
 ```go
-// internal/api/kubeapplier/resource_ids.go
-func ToApplyDesireResourceIDString(sub, rg, cluster, name string) string
-func ToApplyDesireUnderNodePoolResourceIDString(sub, rg, cluster, np, name string) string
+// internal/api/kubeapplier/types_cosmosdata.go
+func ToClusterScopedApplyDesireResourceIDString(sub, rg, cluster, name string) string
+func ToNodePoolScopedApplyDesireResourceIDString(sub, rg, cluster, np, name string) string
 // ... and DeleteDesire / ReadDesire variants
-func ParseDesireResourceID(id string) (DesireKey, error)
 ```
 
 These are the canonical way to build the `*Desire` resource IDs and to
 extract index keys (see Doc 04 for `ByCluster` / `ByNodePool` indexers).
+
+### 2.6 SystemAdminCredentialRequest-scoped desires
+
+Desire resources can now have `SystemAdminCredentialRequest` as a parent
+resource, in addition to clusters and node pools. This enables proper nesting
+so that credential-related desires are scoped under the credential request
+they belong to.
+
+**Resource types** (in `registry.go`):
+
+```go
+CredentialRequestScopedApplyDesireResourceType  = nestedResourceType(ClusterResourceTypeName, SystemAdminCredentialRequestResourceTypeName, ApplyDesireResourceTypeName)
+CredentialRequestScopedDeleteDesireResourceType = nestedResourceType(ClusterResourceTypeName, SystemAdminCredentialRequestResourceTypeName, DeleteDesireResourceTypeName)
+CredentialRequestScopedReadDesireResourceType   = nestedResourceType(ClusterResourceTypeName, SystemAdminCredentialRequestResourceTypeName, ReadDesireResourceTypeName)
+```
+
+**Resource ID builders** (in `types_cosmosdata.go`):
+
+```go
+func ToCredentialRequestScopedApplyDesireResourceIDString(sub, rg, cluster, credReq, name string) string
+func ToCredentialRequestScopedDeleteDesireResourceIDString(sub, rg, cluster, credReq, name string) string
+func ToCredentialRequestScopedReadDesireResourceIDString(sub, rg, cluster, credReq, name string) string
+```
+
+These produce resource IDs of the form:
+
+```
+/subscriptions/{sub}/resourceGroups/{rg}/providers/Microsoft.RedHatOpenShift/
+  hcpOpenShiftClusters/{cluster}/systemAdminCredentialRequests/{cred}/
+  applyDesires/{name}
+```
+
+**Rationale**: Nesting desires under `SystemAdminCredentialRequest` makes
+cleanup automatic when the parent document is deleted, removes the need for
+an `OutstandingDesires` tracking field, lets controllers fire when desires
+change via informer watches, and makes it easy to find all desires for a
+specific credential request.
 
 ## Acceptance for this layer
 
@@ -149,6 +185,6 @@ extract index keys (see Doc 04 for `ByCluster` / `ByNodePool` indexers).
 - Hand-written unit tests in `internal/api/kubeapplier/*_test.go` cover:
   - Round-trip JSON for each `*Desire` (mirror existing tests on
     `HCPOpenShiftCluster`).
-  - Resource-ID parse/format symmetry.
+  - Resource-ID parse/format symmetry (including credential-request-scoped variants).
 - No code outside `internal/api/kubeapplier` and `internal/api` itself depends
   on this package yet (so this layer can ship in its own PR).
