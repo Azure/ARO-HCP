@@ -796,3 +796,127 @@ func severityFor(labels map[string]*string) (*int32, error) {
 		return nil, fmt.Errorf("invalid severity label %q (use 2, 2.5, 3, or 4)", *severity)
 	}
 }
+
+// CorrelationIDSegment is a single segment of a parsed correlation ID.
+// Each segment is either a literal string value or a reference to a Prometheus label.
+type CorrelationIDSegment struct {
+	Type  string `json:"type"`
+	Value string `json:"value,omitempty"`
+	Name  string `json:"name,omitempty"`
+}
+
+// CorrelationMapEntry holds the mapping between a monitor identifier and its parsed correlation ID segments.
+type CorrelationMapEntry struct {
+	Alert    string                 `json:"alert"`
+	Segments []CorrelationIDSegment `json:"correlationId"`
+}
+
+// correlationIDSegmentMatcher matches `{{ $labels.X }}` tokens in a correlation ID string.
+var correlationIDSegmentMatcher = regexp.MustCompile(`\{\{\s*\$labels\.([^\s}]+)\s*\}\}`)
+
+// parseCorrelationID splits a correlation ID string like
+// "AlertName/{{ $labels.cluster }}/{{ $labels.namespace }}" into typed segments.
+func parseCorrelationID(raw string) []CorrelationIDSegment {
+	var segments []CorrelationIDSegment
+	for raw != "" {
+		loc := correlationIDSegmentMatcher.FindStringIndex(raw)
+		if loc == nil {
+			// No more label references; the rest is literal.
+			for _, part := range strings.Split(raw, "/") {
+				if part != "" {
+					segments = append(segments, CorrelationIDSegment{Type: "literal", Value: part})
+				}
+			}
+			break
+		}
+		// Everything before the match is literal text containing slash-separated segments.
+		if loc[0] > 0 {
+			prefix := raw[:loc[0]]
+			for _, part := range strings.Split(prefix, "/") {
+				if part != "" {
+					segments = append(segments, CorrelationIDSegment{Type: "literal", Value: part})
+				}
+			}
+		}
+		// The match itself is a label reference.
+		match := correlationIDSegmentMatcher.FindStringSubmatch(raw)
+		segments = append(segments, CorrelationIDSegment{Type: "label", Name: match[1]})
+		raw = raw[loc[1]:]
+		// Consume a trailing slash separator if present.
+		raw = strings.TrimPrefix(raw, "/")
+	}
+	return segments
+}
+
+// CorrelationMap iterates all alerting rules (using the same logic as Generate)
+// and returns the mapping between group/alert names and their parsed correlation ID segments.
+func (o *Options) CorrelationMap() ([]CorrelationMapEntry, error) {
+	var entries []CorrelationMapEntry
+
+	for _, irf := range o.ruleFiles {
+		if irf.testDependency {
+			continue
+		}
+		for _, group := range irf.Rules.Spec.Groups {
+			if len(o.includedAlerts) > 0 {
+				if _, exists := o.includedAlerts[group.Name]; !exists {
+					continue
+				}
+			}
+
+			groupName := o.groupNamePrefix + group.Name
+
+			for _, rule := range group.Rules {
+				if rule.Alert == "" {
+					continue
+				}
+
+				if len(o.includedAlerts) > 0 {
+					if includedAlerts, exists := o.includedAlerts[group.Name]; exists {
+						shouldInclude := false
+						for _, includedAlert := range includedAlerts {
+							if rule.Alert == includedAlert {
+								shouldInclude = true
+								break
+							}
+						}
+						if !shouldInclude {
+							continue
+						}
+					}
+				}
+
+				annotations := map[string]*string{}
+				for k, v := range rule.Annotations {
+					annotations[k] = ptr.To(v)
+				}
+
+				descriptionText := ""
+				if description, exists := annotations["description"]; exists {
+					descriptionText = ptr.Deref(description, "")
+				}
+
+				extractedLabels := o.labelsFromTextInConfiguredOrder(descriptionText)
+
+				var correlationID string
+				if override, hasOverride := annotations["correlationId"]; hasOverride {
+					correlationID = ptr.Deref(override, "")
+				} else {
+					correlationID = rule.Alert + "/{{ $labels.cluster }}"
+					for _, label := range extractedLabels {
+						if strings.Contains(correlationID, labelTemplateToken(label)) {
+							continue
+						}
+						correlationID += "/" + labelTemplateToken(label)
+					}
+				}
+
+				entries = append(entries, CorrelationMapEntry{
+					Alert:    groupName + "/" + rule.Alert,
+					Segments: parseCorrelationID(correlationID),
+				})
+			}
+		}
+	}
+	return entries, nil
+}
