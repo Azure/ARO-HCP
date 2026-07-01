@@ -31,6 +31,8 @@ import (
 
 	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
+
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 )
 
 // logEntry represents a single log line from the backend
@@ -40,12 +42,42 @@ type logEntry struct {
 	Msg   string `json:"msg"`
 }
 
-// contentData represents the content object in the log JSON
+// contentData represents the content object in the log JSON.
+// Datadump entries serialize api.Operation with externalId/request at the top level;
+// changefeed entries carry the raw cosmos document where those fields are nested
+// under "properties". Both layouts are supported.
 type contentData struct {
 	ResourceID     string             `json:"resourceID"`
 	ExternalId     string             `json:"externalId"`
 	Request        string             `json:"request"`
 	CosmosMetadata *cosmosMetadataRef `json:"cosmosMetadata,omitempty"`
+	Properties     *contentProperties `json:"properties,omitempty"`
+}
+
+// contentProperties holds fields nested under "properties" in changefeed cosmos documents.
+type contentProperties struct {
+	ExternalId string `json:"externalId"`
+	Request    string `json:"request"`
+}
+
+func (c *contentData) getExternalID() string {
+	if c.ExternalId != "" {
+		return c.ExternalId
+	}
+	if c.Properties != nil {
+		return c.Properties.ExternalId
+	}
+	return ""
+}
+
+func (c *contentData) getRequest() string {
+	if c.Request != "" {
+		return c.Request
+	}
+	if c.Properties != nil {
+		return c.Properties.Request
+	}
+	return ""
 }
 
 // cosmosMetadataRef is the relevant slice of arm.CosmosMetadata as serialized inside `content`.
@@ -61,8 +93,42 @@ type logData struct {
 	// for every dumped record. It's populated even when the inner content has no top-level
 	// resourceID (operation statuses, etc.), so it's our most reliable source of the document's
 	// ARM resource ID.
-	CurrentResourceID string       `json:"currentResourceID"`
-	Content           *contentData `json:"content"`
+	CurrentResourceID string `json:"currentResourceID"`
+	// ResourceID is the structured-logging key the changefeed logger sets via
+	// AddLogValuesForResourceID. It's the lowercased ARM resource ID of the document.
+	ResourceID string       `json:"resource_id"`
+	Content    *contentData `json:"content"`
+}
+
+// changeFeedResourceTypes lists the ARM resource types that have changefeed-
+// style informers. Datadump log entries for these types are redundant when
+// changefeed entries are available and are skipped.
+var changeFeedResourceTypes = []azcorearm.ResourceType{
+	azcorearm.NewResourceType("Microsoft.RedHatOpenShift", "hcpOpenShiftClusters"),
+	azcorearm.NewResourceType("Microsoft.RedHatOpenShift", "hcpOpenShiftClusters/nodePools"),
+	azcorearm.NewResourceType("Microsoft.RedHatOpenShift", "hcpOpenShiftClusters/externalAuths"),
+	azcorearm.NewResourceType("Microsoft.RedHatOpenShift", "hcpOpenShiftClusters/serviceProviderClusters"),
+	azcorearm.NewResourceType("Microsoft.RedHatOpenShift", "hcpOpenShiftClusters/nodePools/serviceProviderNodePools"),
+	azcorearm.NewResourceType("Microsoft.RedHatOpenShift", "hcpOpenShiftClusters/hcpOpenShiftControllers"),
+	azcorearm.NewResourceType("Microsoft.RedHatOpenShift", "hcpOpenShiftClusters/nodePools/hcpOpenShiftControllers"),
+	azcorearm.NewResourceType("Microsoft.RedHatOpenShift", "hcpOpenShiftClusters/externalAuths/hcpOpenShiftControllers"),
+	azcorearm.NewResourceType("Microsoft.RedHatOpenShift", "hcpOperationStatuses"),
+	azcorearm.NewResourceType("Microsoft.Resources", "subscriptions"),
+}
+
+// hasChangeFeedInformer returns true if the given resource ID string belongs
+// to a resource type that is served by a changefeed informer.
+func hasChangeFeedInformer(resourceIDStr string) bool {
+	parsed, err := azcorearm.ParseResourceID(resourceIDStr)
+	if err != nil {
+		return false
+	}
+	for _, cfType := range changeFeedResourceTypes {
+		if strings.EqualFold(parsed.ResourceType.String(), cfType.String()) {
+			return true
+		}
+	}
+	return false
 }
 
 // dataDumpEntry represents a parsed data dump entry
@@ -241,7 +307,8 @@ func looksLikeDataDump(logJSON string) bool {
 	return strings.Contains(logJSON, "dumping resourceID ") ||
 		strings.Contains(logJSON, "dumping kube-applier resourceID ") ||
 		strings.Contains(logJSON, "cluster-service state dump") ||
-		strings.Contains(logJSON, "cluster-service node pool state dump")
+		strings.Contains(logJSON, "cluster-service node pool state dump") ||
+		strings.Contains(logJSON, "delivering change feed item")
 }
 
 func parseJSONLFile(path string) ([]dataDumpEntry, error) {
@@ -307,11 +374,20 @@ func parseLogJSON(logJSON string) (dataDumpEntry, bool) {
 		return parseCSClusterStateDump(inner, entry.Time)
 	case "cluster-service node pool state dump":
 		return parseCSNodePoolStateDump(inner, entry.Time)
+	case "delivering change feed item":
+		return parseChangeFeedEntry(inner, entry.Time)
 	}
 
 	// We need to extract resourceID and content from the inner log JSON
 	resourceID := extractResourceID(inner)
 	if resourceID == "" {
+		return dataDumpEntry{}, false
+	}
+
+	// Skip datadump entries for resource types that have changefeed informers.
+	// The changefeed provides higher-fidelity per-mutation snapshots, so the
+	// periodic datadump entries for those types are redundant.
+	if hasChangeFeedInformer(resourceID) {
 		return dataDumpEntry{}, false
 	}
 
@@ -368,6 +444,26 @@ func parseCSNodePoolStateDump(inner, timestamp string) (dataDumpEntry, bool) {
 	}, true
 }
 
+// parseChangeFeedEntry parses a "delivering change feed item" log entry.
+// The changefeed logger writes the ARM resource ID under the `resource_id`
+// JSON key and the cosmos document under `content`.
+func parseChangeFeedEntry(inner, timestamp string) (dataDumpEntry, bool) {
+	resourceID := extractResourceID(inner)
+	if resourceID == "" {
+		return dataDumpEntry{}, false
+	}
+	content := extractContent(inner)
+	if content == "" {
+		return dataDumpEntry{}, false
+	}
+	return dataDumpEntry{
+		Timestamp:  timestamp,
+		ResourceID: resourceID,
+		Content:    content,
+		FullMsg:    inner,
+	}, true
+}
+
 // extractContent extracts the .content field to write to the git repo file
 func extractContent(logJSON string) string {
 	return extractRawField(logJSON, "content")
@@ -405,9 +501,11 @@ func extractStringField(logJSON, field string) string {
 //     always present for data dumps and is the only reliable location for record types whose
 //     `content` does not carry its own top-level `resourceID` (e.g. hcpOperationStatuses,
 //     managementClusterContents).
-//  2. `.content.resourceID` for record types whose envelope still serializes it (clusters,
+//  2. The top-level structured-logging `resource_id` key set by AddLogValuesForResourceID in the
+//     changefeed logger. This is always present for changefeed entries.
+//  3. `.content.resourceID` for record types whose envelope still serializes it (clusters,
 //     nodepools, externalauths).
-//  3. `.content.cosmosMetadata.resourceID` as a final fallback.
+//  4. `.content.cosmosMetadata.resourceID` as a final fallback.
 func extractResourceID(logJSON string) string {
 	var data logData
 	if err := json.Unmarshal([]byte(logJSON), &data); err != nil {
@@ -416,6 +514,9 @@ func extractResourceID(logJSON string) string {
 
 	if data.CurrentResourceID != "" {
 		return data.CurrentResourceID
+	}
+	if data.ResourceID != "" {
+		return data.ResourceID
 	}
 	if data.Content != nil && data.Content.ResourceID != "" {
 		return data.Content.ResourceID
@@ -750,7 +851,7 @@ func resourceIDToPathWithContent(resourceID string, logJSON string) string {
 		return resourceIDToPath(resourceID)
 	}
 
-	if data.Content == nil || data.Content.ExternalId == "" || data.Content.Request == "" {
+	if data.Content == nil || data.Content.getExternalID() == "" || data.Content.getRequest() == "" {
 		return resourceIDToPath(resourceID)
 	}
 
@@ -758,7 +859,7 @@ func resourceIDToPathWithContent(resourceID string, logJSON string) string {
 	operationID := filepath.Base(resourceID)
 
 	// Use externalId as the base path
-	basePath := strings.TrimPrefix(data.Content.ExternalId, "/")
+	basePath := strings.TrimPrefix(data.Content.getExternalID(), "/")
 	basePath = strings.ReplaceAll(basePath, "\\", "/")
 	basePath = strings.ToLower(basePath)
 
@@ -773,7 +874,7 @@ func resourceIDToPathWithContent(resourceID string, logJSON string) string {
 	parts = append(parts, "hcpoperationstatuses")
 
 	// Create filename with request prefix
-	filename := fmt.Sprintf("%s-%s.json", strings.ToLower(data.Content.Request), strings.ToLower(operationID))
+	filename := fmt.Sprintf("%s-%s.json", strings.ToLower(data.Content.getRequest()), strings.ToLower(operationID))
 	return filepath.Join(append(parts, filename)...)
 }
 
