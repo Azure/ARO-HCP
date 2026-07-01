@@ -1138,13 +1138,13 @@ resource kubeApplier 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01
         }
         annotations: {
           correlationId: 'KubeApplierReconcileStuck/{{ $labels.cluster }}'
-          description: 'kube-applier on cluster {{ $labels.cluster }} has desires pending but no controller processed any items for more than 15 minutes.'
-          info: 'kube-applier on cluster {{ $labels.cluster }} has desires pending but no controller processed any items for more than 15 minutes.'
+          description: 'kube-applier on cluster {{ $labels.cluster }} has {{ $labels.type }} desires pending but no controller processed any items for more than 15 minutes.'
+          info: 'kube-applier on cluster {{ $labels.cluster }} has {{ $labels.type }} desires pending but no controller processed any items for more than 15 minutes.'
           runbook_url: 'TBD'
           summary: 'kube-applier controllers are not processing items'
           title: 'kube-applier controllers are not processing items'
         }
-        expression: '(sum without (type, condition) (max without (prometheus_replica) (kube_applier_desires{namespace="kube-applier"})) > 0) and on (cluster, namespace) (sum without (prometheus_replica, name) (increase(workqueue_work_duration_seconds_count{name=~".*Desire.*",namespace="kube-applier"}[15m])) == 0)'
+        expression: '(sum without (condition) (max without (prometheus_replica) (kube_applier_desires{namespace="kube-applier"})) > 0) and on (cluster, namespace) (sum without (prometheus_replica, name) (increase(workqueue_work_duration_seconds_count{name=~".*Desire.*",namespace="kube-applier"}[15m])) == 0)'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }

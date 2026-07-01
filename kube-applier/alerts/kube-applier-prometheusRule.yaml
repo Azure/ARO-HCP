@@ -16,7 +16,7 @@ spec:
       # Fires when desires exist but no controller processed items for >15m (> DefaultCooldownPeriod of 10m).
       expr: |
         (
-          sum without(type, condition) (
+          sum without(condition) (
             max without(prometheus_replica) (
               kube_applier_desires{namespace="kube-applier"}
             )
@@ -35,6 +35,6 @@ spec:
       labels:
         severity: warning
       annotations:
-        description: 'kube-applier on cluster {{ $labels.cluster }} has desires pending but no controller processed any items for more than 15 minutes.'
+        description: 'kube-applier on cluster {{ $labels.cluster }} has {{ $labels.type }} desires pending but no controller processed any items for more than 15 minutes.'
         runbook_url: 'TBD'
         summary: 'kube-applier controllers are not processing items'

@@ -21,8 +21,9 @@ tests:
         severity: warning
         cluster: test-cluster
         namespace: kube-applier
+        type: apply
       exp_annotations:
-        description: 'kube-applier on cluster test-cluster has desires pending but no controller processed any items for more than 15 minutes.'
+        description: 'kube-applier on cluster test-cluster has apply desires pending but no controller processed any items for more than 15 minutes.'
         runbook_url: 'TBD'
         summary: 'kube-applier controllers are not processing items'
 # Test: KubeApplierReconcileStuck does not fire when any controller is processing
@@ -74,7 +75,8 @@ tests:
         severity: warning
         cluster: test-cluster
         namespace: kube-applier
+        type: delete
       exp_annotations:
-        description: 'kube-applier on cluster test-cluster has desires pending but no controller processed any items for more than 15 minutes.'
+        description: 'kube-applier on cluster test-cluster has delete desires pending but no controller processed any items for more than 15 minutes.'
         runbook_url: 'TBD'
         summary: 'kube-applier controllers are not processing items'
