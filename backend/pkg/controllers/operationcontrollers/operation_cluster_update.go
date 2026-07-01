@@ -247,7 +247,7 @@ func (c *operationClusterUpdate) clusterServiceUpdateOperationState(ctx context.
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
-	newOperationStatus, opError, err := convertClusterStatus(ctx, c.clusterServiceClient, operation, clusterStatus)
+	newOperationStatus, opError, err := convertClusterStatus(ctx, c.clusterServiceClient, operation, clusterStatus, operation.InternalID)
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
