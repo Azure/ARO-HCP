@@ -55,7 +55,7 @@ ResourceMemoryLimitsAllowlist:
 - Deployment/maestro/maestro-server # config sets memory: unlimited (template omits limits)
 - Deployment/maestro/maestro-server-migration # initContainer has no limits set (also missing requests)
 # Upstream charts - currently missing limits
-- DaemonSet/arobit-forwarder/mdsd-cert-watchdog # upstream arobit chart sets limits
+- DaemonSet/arobit-forwarder/mdsd-cert-watchdog # temporarily allowlisted while auditing upstream arobit chart resource settings
 - Job/*/fleet-registration # fleet registration job name varies by environment
 - Deployment/*/kube-state-metrics # upstream kube-state-metrics chart
 - Deployment/prometheus-operator/kube-prometheus-stack # upstream prometheus-operator chart

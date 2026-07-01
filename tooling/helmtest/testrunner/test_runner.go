@@ -178,7 +178,7 @@ func RunTestHelmTemplate(t *testing.T, settingsPath string) {
 		if _, ok := chartDirsVisited[helmStep.ChartDirFromRoot(settings.TopologyDir)]; !ok {
 			// visit the chart directory only once. Some helm step definitions reference the directory, would cause duplicates.
 			customTestCases, err := getCustomTestCases(helmStep.ChartDirFromRoot(settings.TopologyDir))
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			allCases = append(allCases, customTestCases...)
 			chartDirsVisited[helmStep.ChartDirFromRoot(settings.TopologyDir)] = true
 		}
