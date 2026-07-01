@@ -184,9 +184,9 @@ output ciDceId string = ciDce.id
 output ciDceMetricsIngestionEndpoint string = ciDce.properties.metricsIngestion.endpoint
 
 output ciDcrId string = ciDcr.id
-output ciDcrRemoteWriteUrl string = '${ciDce.properties.metricsIngestion.endpoint}/dataCollectionRules/${ciDcr.properties.immutableId}/streams/Microsoft-PrometheusMetrics/api/v1/write?api-version=2021-11-01-preview'
+output ciDcrRemoteWriteUrl string = '${ciDce.properties.metricsIngestion.endpoint}/dataCollectionRules/${ciDcr.properties.immutableId}/streams/Microsoft-PrometheusMetrics/api/v1/write?api-version=2023-04-24'
 
 output ciHcpDcrId string = createHcpWorkspace ? ciHcpDcr.id : ''
 output ciHcpDcrRemoteWriteUrl string = createHcpWorkspace
-  ? '${ciDce.properties.metricsIngestion.endpoint}/dataCollectionRules/${ciHcpDcr.properties.immutableId}/streams/Microsoft-PrometheusMetrics/api/v1/write?api-version=2021-11-01-preview'
-  : ''
+  ? '${ciDce.properties.metricsIngestion.endpoint}/dataCollectionRules/${ciHcpDcr.properties.immutableId}/streams/Microsoft-PrometheusMetrics/api/v1/write?api-version=2023-04-24'
+  : 'NONE'

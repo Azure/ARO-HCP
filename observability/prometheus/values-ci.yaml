@@ -136,6 +136,7 @@ prometheusSpec:
   # CRITICAL: These labels identify the CI job for post-deletion analysis
   externalLabels:
     cluster: "{{ .mgmt.aks.name }}"
+    region: "{{ .region }}"
     environment: "ci"
     job_id: "__CI_JOB_ID__"              # Injected by CI bootstrap script
     pr_number: "__CI_PR_NUMBER__"        # Injected by CI bootstrap script
@@ -151,10 +152,9 @@ prometheusSpec:
       memory: {{ .mgmt.prometheus.prometheusSpec.resources.requests.memory }}
     limits:
       memory: {{ .mgmt.prometheus.prometheusSpec.resources.limits.memory }}
+  replicas: 1  # CI jobs don't need HA
+  shards: 1    # CI jobs don't need multiple shards (ephemeral)
 prometheus:
-  prometheusSpec:
-    shards: 1  # CI jobs don't need multiple shards (ephemeral)
-    replicas: 1  # CI jobs don't need HA
   serviceAccount:
     managedIdentity: "__prometheusUAMIClientId__"
 environment: "ci"  # Used for namespace filtering

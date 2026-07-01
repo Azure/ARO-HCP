@@ -1,7 +1,12 @@
 #!/bin/bash
 # CI Prometheus Bootstrap Script
 # Injects job metadata into Prometheus configuration before deployment
-# This script should be sourced by CI jobs before deploying Prometheus
+# This script should be executed (not sourced) by CI jobs before deploying Prometheus.
+# It writes a templated values file with CI job metadata injected.
+if [[ "${BASH_SOURCE[0]}" != "${0}" ]]; then
+  echo "ERROR: Do not source this script; run it as an executable." >&2
+  return 1
+fi
 
 set -euo pipefail
 
@@ -26,6 +31,7 @@ echo "  Cluster: $CI_CLUSTER_NAME"
 echo ""
 echo "Fetching CI monitoring endpoints..."
 
+: "${GLOBAL_RESOURCE_GROUP:?GLOBAL_RESOURCE_GROUP must be set (resource group containing the ci-monitoring deployment)}"
 export CI_DCR_URL=$(az deployment group show \
   --resource-group "${GLOBAL_RESOURCE_GROUP}" \
   --name ci-monitoring \
@@ -38,6 +44,9 @@ export CI_HCP_DCR_URL=$(az deployment group show \
   --query 'properties.outputs.ciHcpDcrRemoteWriteUrl.value' \
   -o tsv 2>/dev/null || echo "")
 
+if [ -z "$CI_HCP_DCR_URL" ]; then
+  CI_HCP_DCR_URL="NONE"
+fi
 if [ -z "$CI_DCR_URL" ]; then
   echo "ERROR: Could not retrieve CI DCR remote write URL"
   echo "Ensure ci-monitoring deployment exists in resource group: ${GLOBAL_RESOURCE_GROUP}"
