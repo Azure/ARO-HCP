@@ -168,10 +168,13 @@ func (c *Catalog) Validate() error {
 			pool.IdentityProvisioningRegion = strings.TrimSpace(pool.IdentityProvisioningRegion)
 			pool.ResourceType = strings.TrimSpace(pool.ResourceType)
 			pool.IdentityContainerPrefix = strings.TrimSpace(pool.IdentityContainerPrefix)
+			pool.IdentityProvisioning = strings.TrimSpace(pool.IdentityProvisioning)
 
 			switch {
 			case pool.SubscriptionName == "":
 				return fmt.Errorf("environment %q has a pool with empty subscription_name", environmentName)
+			case pool.IdentityProvisioning != "" && pool.IdentityProvisioning != IdentityProvisioningUnmanaged:
+				return fmt.Errorf("environment %q pool %s has invalid identity_provisioning %q (must be empty or %q)", environmentName, describePool(*pool), pool.IdentityProvisioning, IdentityProvisioningUnmanaged)
 			case pool.Region == "":
 				return fmt.Errorf("environment %q has a pool with empty region", environmentName)
 			case pool.RegionMode != RegionModeFixed && pool.RegionMode != RegionModeRuntimeSelected:
