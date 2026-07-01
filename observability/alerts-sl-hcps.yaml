@@ -1,0 +1,5 @@
+prometheusRules:
+  rulesFolders:
+  - alerts/HCPclusterOperators-prometheusRule.yaml
+  untestedRules: []
+  outputBicep: ../dev-infrastructure/modules/metrics/rules/generatedSLHCPPrometheusAlertingRules.bicep
