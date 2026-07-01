@@ -38,3 +38,4 @@ spec:
         description: 'kube-applier on cluster {{ $labels.cluster }} has {{ $labels.type }} desires pending but no controller processed any items for more than 15 minutes.'
         runbook_url: 'TBD'
         summary: 'kube-applier on {{ $labels.cluster }}: {{ $labels.type }} controllers are not processing items'
+        title: 'kube-applier on {{ $labels.cluster }}: {{ $labels.type }} controllers are not processing items'
