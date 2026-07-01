@@ -187,7 +187,7 @@ var _ = Describe("Authorized CIDRs", func() {
 				// Try to connect from the test runner (which is not in authorized CIDRs)
 				err = testAPIConnectivity(apiURL, 5*time.Second)
 				Expect(err).To(HaveOccurred(), "Connection from unauthorized IP should be blocked")
-				GinkgoWriter.Printf("Unauthorized connection error: %v\n", err)
+				GinkgoWriter.Printf("Connection from unauthorized IP address failed as expected on error: %v\n", err)
 
 				By("verifying VM can access cluster API with credentials")
 				adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20240610(
