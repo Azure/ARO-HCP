@@ -44,7 +44,7 @@ func DefaultApplyOptions() *RawApplyOptions {
 func BindApplyOptions(opts *RawApplyOptions, cmd *cobra.Command) error {
 	cmd.Flags().StringVar(&opts.Environment, "environment", opts.Environment, "Environment short name. One of: int, stg, dev, prod")
 	cmd.Flags().StringVar(&opts.SlotCatalog, "slot-catalog", opts.SlotCatalog, "Path to the canonical E2E slot catalog")
-	cmd.Flags().StringSliceVar(&opts.Subscriptions, "subscription", nil, "Limit provisioning to the named subscription(s). When set, unmanaged pools matching the filter are included.")
+	cmd.Flags().StringSliceVar(&opts.Subscriptions, "subscription", opts.Subscriptions, "Limit provisioning to the named subscription(s). When set, unmanaged pools matching the filter are included.")
 	if err := cmd.MarkFlagRequired("environment"); err != nil {
 		return fmt.Errorf("failed to mark flag %q as required: %w", "environment", err)
 	}
