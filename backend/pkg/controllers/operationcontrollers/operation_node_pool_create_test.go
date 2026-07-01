@@ -29,6 +29,7 @@ import (
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
+	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listertesting"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
@@ -81,16 +82,28 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 			Return(nodePoolStatus, nil)
 	}
 
+	fixture := newNodePoolTestFixture()
+	preconditionExistingOperation := fixture.newOperation(database.OperationRequestCreate)
+	preconditionListerOperation := fixture.newOperation(database.OperationRequestCreate)
+	preconditionListerOperation.CosmosETag = "stale-etag"
+	// Not seeded to Cosmos, so PrepareForCreate never runs. UpdateOperationStatus still
+	// requires a non-zero InstanceVersion before it will attempt the etag-checked replace.
+	preconditionListerOperation.InstanceVersion = 1
+
 	tests := []struct {
-		name        string
-		nodePool    func(fixture *nodePoolTestFixture) *api.HCPOpenShiftClusterNodePool
-		setupCSMock func(t *testing.T, mock *ocm.MockClusterServiceClientSpec, fixture *nodePoolTestFixture)
-		expectError bool
-		verifyDB    func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient)
+		name              string
+		nodePool          func(fixture *nodePoolTestFixture) *api.HCPOpenShiftClusterNodePool
+		setupCSMock       func(t *testing.T, mock *ocm.MockClusterServiceClientSpec, fixture *nodePoolTestFixture)
+		existingOperation *api.Operation
+		// When not set, the controller uses an active operations lister that contains the existingOperation
+		activeOperationsLister listers.ActiveOperationLister
+		expectError            bool
+		verifyDB               func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient)
 	}{
 		{
-			name:     "node pool ready transitions to succeeded",
-			nodePool: defaultNodePool,
+			name:              "node pool ready transitions to succeeded",
+			nodePool:          defaultNodePool,
+			existingOperation: fixture.newOperation(database.OperationRequestCreate),
 			setupCSMock: func(t *testing.T, mock *ocm.MockClusterServiceClientSpec, fixture *nodePoolTestFixture) {
 				setupCSNodePoolStatus(t, mock, fixture, string(NodePoolStateReady), "")
 			},
@@ -106,8 +119,9 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 			},
 		},
 		{
-			name:     "node pool installing transitions to provisioning",
-			nodePool: defaultNodePool,
+			name:              "node pool installing transitions to provisioning",
+			nodePool:          defaultNodePool,
+			existingOperation: fixture.newOperation(database.OperationRequestCreate),
 			setupCSMock: func(t *testing.T, mock *ocm.MockClusterServiceClientSpec, fixture *nodePoolTestFixture) {
 				setupCSNodePoolStatus(t, mock, fixture, string(NodePoolStateInstalling), "")
 			},
@@ -123,8 +137,9 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 			},
 		},
 		{
-			name:     "node pool error transitions to failed",
-			nodePool: defaultNodePool,
+			name:              "node pool error transitions to failed",
+			nodePool:          defaultNodePool,
+			existingOperation: fixture.newOperation(database.OperationRequestCreate),
 			setupCSMock: func(t *testing.T, mock *ocm.MockClusterServiceClientSpec, fixture *nodePoolTestFixture) {
 				setupCSNodePoolStatus(t, mock, fixture, string(NodePoolStateError), "node pool creation failed")
 			},
@@ -142,8 +157,9 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 			},
 		},
 		{
-			name:     "node pool pending stays accepted",
-			nodePool: defaultNodePool,
+			name:              "node pool pending stays accepted",
+			nodePool:          defaultNodePool,
+			existingOperation: fixture.newOperation(database.OperationRequestCreate),
 			setupCSMock: func(t *testing.T, mock *ocm.MockClusterServiceClientSpec, fixture *nodePoolTestFixture) {
 				setupCSNodePoolStatus(t, mock, fixture, string(NodePoolStatePending), "")
 			},
@@ -154,8 +170,9 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 			},
 		},
 		{
-			name:     "node pool validating stays accepted",
-			nodePool: defaultNodePool,
+			name:              "node pool validating stays accepted",
+			nodePool:          defaultNodePool,
+			existingOperation: fixture.newOperation(database.OperationRequestCreate),
 			setupCSMock: func(t *testing.T, mock *ocm.MockClusterServiceClientSpec, fixture *nodePoolTestFixture) {
 				setupCSNodePoolStatus(t, mock, fixture, string(NodePoolStateValidating), "")
 			},
@@ -166,8 +183,9 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 			},
 		},
 		{
-			name:     "ClusterServiceID nil skips reconciliation",
-			nodePool: nodePoolWithoutCSID,
+			name:              "ClusterServiceID nil skips reconciliation",
+			nodePool:          nodePoolWithoutCSID,
+			existingOperation: fixture.newOperation(database.OperationRequestCreate),
 			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
 				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
 				require.NoError(t, err)
@@ -175,8 +193,9 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 			},
 		},
 		{
-			name:     "ActiveOperationID mismatch skips reconciliation",
-			nodePool: nodePoolWithMismatchedActiveOperationID,
+			name:              "ActiveOperationID mismatch skips reconciliation",
+			nodePool:          nodePoolWithMismatchedActiveOperationID,
+			existingOperation: fixture.newOperation(database.OperationRequestCreate),
 			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
 				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
 				require.NoError(t, err)
@@ -184,8 +203,9 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 			},
 		},
 		{
-			name:     "empty ActiveOperationID skips reconciliation",
-			nodePool: nodePoolWithEmptyActiveOperationID,
+			name:              "empty ActiveOperationID skips reconciliation",
+			nodePool:          nodePoolWithEmptyActiveOperationID,
+			existingOperation: fixture.newOperation(database.OperationRequestCreate),
 			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
 				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
 				require.NoError(t, err)
@@ -193,12 +213,29 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 			},
 		},
 		{
-			name:     "DeletionTimestamp set skips reconciliation",
-			nodePool: nodePoolWithDeletionTimestamp,
+			name:              "DeletionTimestamp set skips reconciliation",
+			nodePool:          nodePoolWithDeletionTimestamp,
+			existingOperation: fixture.newOperation(database.OperationRequestCreate),
 			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
 				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
+			},
+		},
+		{
+			name:              "precondition failed on status update is ignored",
+			nodePool:          defaultNodePool,
+			existingOperation: preconditionExistingOperation,
+			activeOperationsLister: &listertesting.SliceActiveOperationLister{
+				Operations: []*api.Operation{preconditionListerOperation},
+			},
+			setupCSMock: func(t *testing.T, mock *ocm.MockClusterServiceClientSpec, fixture *nodePoolTestFixture) {
+				setupCSNodePoolStatus(t, mock, fixture, string(NodePoolStateReady), "")
+			},
+			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
+				require.NoError(t, err)
+				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status, "operation should be unchanged after optimistic concurrency conflict")
 			},
 		},
 	}
@@ -210,15 +247,17 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			defer ctrl.Finish()
 
-			fixture := newNodePoolTestFixture()
 			cluster := fixture.newCluster()
 			nodePool := tt.nodePool(fixture)
-			operation := fixture.newOperation(database.OperationRequestCreate)
 
-			resources := []any{cluster, nodePool, operation}
-
+			resources := []any{cluster, nodePool, tt.existingOperation}
 			mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, resources)
 			require.NoError(t, err)
+
+			activeOperationsLister := tt.activeOperationsLister
+			if activeOperationsLister == nil {
+				activeOperationsLister = &listertesting.DBActiveOperationLister{ResourcesDBClient: mockResourcesDBClient}
+			}
 
 			mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)
 			if tt.setupCSMock != nil {
@@ -228,7 +267,7 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 			controller := &operationNodePoolCreate{
 				clock:                  utilsclock.RealClock{},
 				resourcesDBClient:      mockResourcesDBClient,
-				activeOperationsLister: &listertesting.DBActiveOperationLister{ResourcesDBClient: mockResourcesDBClient},
+				activeOperationsLister: activeOperationsLister,
 				nodePoolLister:         &listertesting.DBNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
 				clusterServiceClient:   mockCSClient,
 				notificationClient:     nil,
