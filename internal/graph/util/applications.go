@@ -133,6 +133,11 @@ func (c *Client) AddPassword(ctx context.Context, appID, displayName string, sta
 					// Non-transient typed OData error, stop retrying.
 					return false, err
 				}
+			} else {
+				// Not an OData error - reset diagnostic variables to avoid stale data
+				lastStatusCode = 0
+				lastErrorCode = ""
+				lastErrorMessage = ""
 			}
 			return false, nil
 		}
@@ -141,14 +146,17 @@ func (c *Client) AddPassword(ctx context.Context, appID, displayName string, sta
 	if pollErr != nil {
 		if lastErr != nil {
 			// Include diagnostic details in error message for self-diagnosing failures
-			diagDetails := fmt.Sprintf("HTTP %d", lastStatusCode)
-			if lastErrorCode != "" {
-				diagDetails += fmt.Sprintf(", %s", lastErrorCode)
+			if lastStatusCode != 0 {
+				diagDetails := fmt.Sprintf("HTTP %d", lastStatusCode)
+				if lastErrorCode != "" {
+					diagDetails += fmt.Sprintf(", %s", lastErrorCode)
+				}
+				if lastErrorMessage != "" {
+					diagDetails += fmt.Sprintf(": %s", lastErrorMessage)
+				}
+				return nil, fmt.Errorf("add password after %d attempts; last attempt error (%s): %w; polling error: %w", attempts, diagDetails, lastErr, pollErr)
 			}
-			if lastErrorMessage != "" {
-				diagDetails += fmt.Sprintf(": %s", lastErrorMessage)
-			}
-			return nil, fmt.Errorf("add password after %d attempts; last attempt error (%s): %w; polling error: %w", attempts, diagDetails, lastErr, pollErr)
+			return nil, fmt.Errorf("add password after %d attempts; last attempt error: %w; polling error: %w", attempts, lastErr, pollErr)
 		}
 		return nil, fmt.Errorf("add password after %d attempts: %w", attempts, pollErr)
 	}
