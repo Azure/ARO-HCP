@@ -9,7 +9,13 @@ param firstPartyRoleName string = 'dev-first-party-mock'
 @description('The name of the MSI mock identity role')
 param msiMockRoleName string = 'dev-msi-mock'
 
-@description('Explicit E2E customer subscription IDs that need these roles in assignableScopes')
+// E2E customer subscriptions are kept in the home role definitions' assignableScopes
+// during the migration to per-subscription (self-contained) role definitions. The
+// legacy cross-subscription role assignments in those subs still reference these home
+// definitions, so shrinking the scope now would orphan them
+// (RoleScopeBeingRemovedContainsAssignments). Once the legacy assignments are cleaned
+// up, this param and the concat below can be dropped.
+@description('E2E customer subscription IDs kept in assignableScopes during the role-definition migration so legacy cross-subscription assignments are not orphaned')
 param e2eTestSubscriptions array = []
 
 var e2eTestSubscriptionScopes = [for subscriptionId in e2eTestSubscriptions: '/subscriptions/${subscriptionId}']
