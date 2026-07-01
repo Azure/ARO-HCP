@@ -87,16 +87,27 @@ spec:
   topologySpreadConstraints:
   - labelSelector:
       matchLabels:
-        app: prometheus
+        app.kubernetes.io/name: prometheus-agent
+        operator.prometheus.io/name: prometheus
     maxSkew: 1
     topologyKey: '{{ if eq (int .Values.prometheusSpec.zoneCount) 0 }}kubernetes.azure.com/agentpool{{ else }}topology.kubernetes.io/zone{{ end }}'
     whenUnsatisfiable: ScheduleAnyway
   - labelSelector:
       matchLabels:
-        app: prometheus
+        app.kubernetes.io/name: prometheus-agent
+        operator.prometheus.io/name: prometheus
     maxSkew: 1
     topologyKey: kubernetes.io/hostname
     whenUnsatisfiable: ScheduleAnyway
+  - labelSelector:
+      matchLabels:
+        app.kubernetes.io/name: prometheus-agent
+        operator.prometheus.io/name: prometheus
+    matchLabelKeys:
+    - operator.prometheus.io/shard
+    maxSkew: 1
+    topologyKey: kubernetes.io/hostname
+    whenUnsatisfiable: DoNotSchedule
   walCompression: true
   externalLabels:
     cluster: '{{ .Values.prometheusSpec.externalLabels.cluster }}'
