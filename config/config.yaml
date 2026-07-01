@@ -69,6 +69,7 @@ defaults:
     billing:
       rg: "placeholder"
       digest: "placeholder"
+      repository: billing
       subscriptionKey: "hcp-billng-{{ .ctx.environment }}"
     globalMSIName: global-ev2-identity
     nsp:
