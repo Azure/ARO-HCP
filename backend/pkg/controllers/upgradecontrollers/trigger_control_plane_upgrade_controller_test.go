@@ -16,19 +16,30 @@ package upgradecontrollers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/blang/semver/v4"
+	"github.com/go-logr/logr"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	clocktesting "k8s.io/utils/clock/testing"
 	"k8s.io/utils/ptr"
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
+	"github.com/Azure/ARO-HCP/backend/pkg/listers"
+	"github.com/Azure/ARO-HCP/backend/pkg/listertesting"
 	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 func TestTriggerControlPlaneUpgradeSyncer_CreateUpgradePolicyIfNeeded(t *testing.T) {
@@ -165,6 +176,118 @@ func TestTriggerControlPlaneUpgradeSyncer_CreateUpgradePolicyIfNeeded(t *testing
 			} else {
 				assert.NoError(t, err)
 			}
+		})
+	}
+}
+
+func TestTriggerControlPlaneUpgradeSyncer_ShouldTriggerUpgrade(t *testing.T) {
+	clusterKey := controllerutils.HCPClusterKey{
+		SubscriptionID:    testSubscriptionID,
+		ResourceGroupName: testResourceGroupName,
+		HCPClusterName:    testClusterName,
+	}
+	clusterResourceID := api.Must(api.ToClusterResourceID(testSubscriptionID, testResourceGroupName, testClusterName))
+	now := time.Date(2026, 6, 26, 12, 0, 0, 0, time.UTC)
+	listerBoom := errors.New("active operation lister exploded")
+
+	newCluster := func(createdAt *time.Time) *api.HCPOpenShiftCluster {
+		c := &api.HCPOpenShiftCluster{
+			TrackedResource: arm.TrackedResource{
+				Resource: arm.Resource{
+					ID:   clusterResourceID,
+					Name: testClusterName,
+					Type: api.ClusterResourceType.String(),
+				},
+			},
+		}
+		if createdAt != nil {
+			c.SystemData = &arm.SystemData{CreatedAt: createdAt}
+		}
+		return c
+	}
+
+	tests := []struct {
+		name           string
+		cluster        *api.HCPOpenShiftCluster
+		seedOperation  bool
+		opLister       func(mockDB *databasetesting.MockResourcesDBClient) listers.ActiveOperationLister
+		wantShouldRun  bool
+		wantErrContain string
+	}{
+		{
+			name:          "cluster older than grace period runs even with active create (gate 1)",
+			cluster:       newCluster(ptr.To(now.Add(-3 * time.Hour))),
+			seedOperation: true,
+			wantShouldRun: true,
+		},
+		{
+			name:          "cluster with no SystemData.CreatedAt runs (treated as old enough)",
+			cluster:       newCluster(nil),
+			seedOperation: true,
+			wantShouldRun: true,
+		},
+		{
+			name:          "cluster younger than grace period with no active create runs (gate 2)",
+			cluster:       newCluster(ptr.To(now.Add(-5 * time.Minute))),
+			seedOperation: false,
+			wantShouldRun: true,
+		},
+		{
+			name:          "young cluster + active create skips",
+			cluster:       newCluster(ptr.To(now.Add(-5 * time.Minute))),
+			seedOperation: true,
+			wantShouldRun: false,
+		},
+		{
+			name:          "cluster exactly at grace period boundary still skips (boundary is strict >)",
+			cluster:       newCluster(ptr.To(now.Add(-clusterCreateGracePeriod))),
+			seedOperation: true,
+			wantShouldRun: false,
+		},
+		{
+			// Fail open: if we can't tell whether a Create is in flight we
+			// surface the error to the caller but still report shouldRun=true
+			// so a flaky lister doesn't pin the controller in skip-forever
+			// mode for the rest of the grace window.
+			name:          "active operation lister error is propagated and fails open to shouldRun=true",
+			cluster:       newCluster(ptr.To(now.Add(-5 * time.Minute))),
+			seedOperation: false,
+			opLister: func(_ *databasetesting.MockResourcesDBClient) listers.ActiveOperationLister {
+				return &boomActiveOperationLister{err: listerBoom}
+			},
+			wantShouldRun:  true,
+			wantErrContain: "failed to list active operations for cluster",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := utils.ContextWithLogger(context.Background(), logr.Discard())
+			mockDB := databasetesting.NewMockResourcesDBClient()
+			if tt.seedOperation {
+				seedClusterCreateOperation(t, ctx, mockDB, clusterResourceID, "op-create-1")
+			}
+			var opLister listers.ActiveOperationLister
+			if tt.opLister != nil {
+				opLister = tt.opLister(mockDB)
+			} else {
+				opLister = &listertesting.DBActiveOperationLister{ResourcesDBClient: mockDB}
+			}
+			syncer := &triggerControlPlaneUpgradeSyncer{
+				clock:                 clocktesting.NewFakePassiveClock(now),
+				resourcesDBClient:     mockDB,
+				activeOperationLister: opLister,
+			}
+
+			gotShouldRun, err := syncer.shouldTriggerUpgrade(ctx, clusterKey, tt.cluster)
+			if tt.wantErrContain != "" {
+				require.Error(t, err)
+				assert.ErrorContains(t, err, tt.wantErrContain)
+			} else {
+				require.NoError(t, err)
+			}
+			assert.Equal(t, tt.wantShouldRun, gotShouldRun)
 		})
 	}
 }

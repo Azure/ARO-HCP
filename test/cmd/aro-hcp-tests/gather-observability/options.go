@@ -279,6 +279,15 @@ func (o Options) Run(ctx context.Context) error {
 		}
 	}
 
+	// Fail the process when JUnit contains failures
+	var totalFailed uint
+	for _, s := range suites.Suites {
+		totalFailed += s.NumFailed
+	}
+	if totalFailed > 0 {
+		return fmt.Errorf("JUnit results contain %d failing test case(s)", totalFailed)
+	}
+
 	return nil
 }
 
@@ -312,7 +321,7 @@ func (o Options) runQueries(ctx context.Context, workspaces map[string]*workspac
 				results = resp.Data.Result
 			}
 
-			panelCharts = append(panelCharts, buildChartData(q.Title, q.Description, q.Query, q.Unit, queryErr, results, o.TimeWindow))
+			panelCharts = append(panelCharts, buildChartData(q.Title, q.Description, q.Query, q.Unit, queryErr, results, o.TimeWindow, q.MinPeakThreshold))
 		}
 
 		// filename must match the Spyglass HTML lens regex .*-summary.*\.html

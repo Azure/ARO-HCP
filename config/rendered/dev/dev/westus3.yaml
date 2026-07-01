@@ -32,8 +32,10 @@ adminApi:
   audit:
     connectSocket: false
   cert:
+    contentType: x-pkcs12
     issuer: Self
     name: admin-api-cert-dev-usw3
+    san: admin.westus3.hcpsvc.osadev.cloud
   image:
     digest: sha256:6f7cd7e77ae5ca7cf9231b9479211a0430a071c763d9540d769a2f40d9d78c57
     registry: arohcpsvcdev.azurecr.io
@@ -277,8 +279,10 @@ frontend:
   audit:
     connectSocket: false
   cert:
+    contentType: x-pkcs12
     issuer: Self
     name: frontend-cert-dev-usw3
+    san: rp.westus3.hcpsvc.osadev.cloud
   cosmosDB:
     billingContainerMaxScale: 4000
     disableLocalAuth: true
@@ -469,7 +473,7 @@ kubeApplier:
     repository: kube-applier
   k8s:
     namespace: kube-applier
-    replicas: 1
+    replicas: 2
     resources:
       limits:
         memory: unlimited
@@ -498,8 +502,6 @@ kusto:
   adminGroups: ""
   autoScaleMax: 10
   autoScaleMin: 2
-  crossClusterHostedControlPlaneLogsScript: ""
-  crossClusterServiceLogsScript: ""
   enableAutoScale: true
   hostedControlPlaneLogsDatabase: HostedControlPlaneLogs
   kustoName: hcp-dev-us-2
@@ -545,7 +547,7 @@ maestro:
     name: arohcp-dev-maestro-usw3
     private: false
   image:
-    digest: sha256:1568fda504ca91a9cfee998067174ebd46f5ac2603a8663ebefbac94d6483a85
+    digest: sha256:784f3670c04a303b0c0fbd98048bc3e941c03b65122c53b0e0da58abcdec65b3
     registry: quay.io
     repository: redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro
   postgres:
@@ -569,7 +571,7 @@ maestro:
   server:
     k8s:
       namespace: maestro
-      replicas: 1
+      replicas: 2
       resources:
         limits:
           memory: unlimited
@@ -893,8 +895,10 @@ serviceKeyVault:
   tagValue: service
 sessiongate:
   cert:
+    contentType: x-pkcs12
     issuer: Self
     name: sessiongate-cert-dev-usw3
+    san: sessiongate.westus3.hcpsvc.osadev.cloud
   image:
     digest: sha256:df780df7ce54fbf58824258c44fdb1d135687c24f232440355f4e317c3af3cde
     registry: arohcpsvcdev.azurecr.io
@@ -912,6 +916,8 @@ stgGlobalV2:
   frontDoorName: empty-sentinel
   genevaKeyVaultName: empty-sentinel
   globalKeyVaultName: empty-sentinel
+  grafanaMajorVersion: empty-sentinel
+  grafanaName: empty-sentinel
   kustoName: empty-sentinel
   oidcStorageAccountName: empty-sentinel
   svcParentZoneName: empty-sentinel
@@ -1055,14 +1061,14 @@ svc:
 tenantId: 64dc69e4-d083-49fc-9569-ebece1dd1408
 velero:
   azurePlugin:
-    digest: sha256:b92df9d921cde721e288a0fe14908cde588b777593da5fe33774e4e8a83da75f
-    registry: registry.redhat.io
+    digest: sha256:6caa5c6353ed05d209782e5c5fef6ce674d9f760184c6068b5c885c4649b56a5
+    registry: registry.stage.redhat.io
     repository: oadp/oadp-velero-plugin-for-microsoft-azure-rhel9
   hypershiftPlugin:
-    digest: sha256:2969b02311a20792fb89193e3e4e8f0eef930cc0b38731681dfeaf84155eb4be
-    registry: registry.redhat.io
+    digest: sha256:07d5ca63256268fa35e6b6936896005e97dac6f63daeed9710f425aeb5111976
+    registry: registry.stage.redhat.io
     repository: oadp/oadp-hypershift-velero-plugin-rhel9
   server:
-    digest: sha256:a4b0a8e424b9217df7e9a721b1df748294a36b163130b4d1d25f27ee71045b61
-    registry: registry.redhat.io
+    digest: sha256:7e7c60f3bb3c8d2c09a48e2a85c4620e33eb5d30bfb2baaf7098afd597c7bece
+    registry: registry.stage.redhat.io
     repository: oadp/oadp-velero-rhel9

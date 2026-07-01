@@ -7,7 +7,7 @@
   "Get each nodepool from HCPOpenShiftCluster",
   "Successfully lists clusters filtered by resource group name",
   "creates a cluster and fails to update its name with a PATCH request",
-  "creates and deletes vm type NC4asT4v3 in a single cluster",
+  "creates and deletes a GPU nodepool in a single cluster",
   "should allow pods with images from allowed registries and have a valid allowlist",
   "should be able to create an HCP cluster then delete it by deleting the customer resource group",
   "should be able to forward control plane logs to a storage account and Event Hub via shoebox diagnostic settings",

@@ -34,6 +34,7 @@ import (
 	"k8s.io/component-base/metrics/legacyregistry"
 
 	"github.com/Azure/ARO-HCP/internal/database/informers"
+	sharedleaderelection "github.com/Azure/ARO-HCP/internal/leaderelection"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/internal/version"
 	"github.com/Azure/ARO-HCP/kube-applier/pkg/controllers/apply_desire"
@@ -157,11 +158,11 @@ func (o *Options) runControllersUnderLeaderElection(
 		return fmt.Errorf("read manager: %w", err)
 	}
 
-	le, err := leaderelection.NewLeaderElector(leaderelection.LeaderElectionConfig{
+	leaderElectionConfig := leaderelection.LeaderElectionConfig{
 		Lock:          o.LeaderElectionLock,
-		LeaseDuration: leaderElectionLeaseDuration,
-		RenewDeadline: leaderElectionRenewDeadline,
-		RetryPeriod:   leaderElectionRetryPeriod,
+		LeaseDuration: sharedleaderelection.RecommendedLeaseDuration,
+		RenewDeadline: sharedleaderelection.RecommendedRenewDeadline,
+		RetryPeriod:   sharedleaderelection.RecommendedRetryPeriod,
 		Callbacks: leaderelection.LeaderCallbacks{
 			OnStartedLeading: func(ctx context.Context) {
 				logger.Info("acquired leader election lease; starting informers and controllers")
@@ -186,10 +187,15 @@ func (o *Options) runControllersUnderLeaderElection(
 		ReleaseOnCancel: true,
 		WatchDog:        electionChecker,
 		Name:            "kube-applier",
-	})
+	}
+
+	sharedleaderelection.LogLeaseProperties(logger, leaderElectionConfig)
+
+	le, err := leaderelection.NewLeaderElector(leaderElectionConfig)
 	if err != nil {
 		return err
 	}
+
 	le.Run(ctx)
 	return nil
 }

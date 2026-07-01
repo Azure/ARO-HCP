@@ -155,7 +155,7 @@ finalize() {
 trap finalize EXIT
 
 unset GOFLAGS
-make -o tooling/templatize/templatize entrypoint/Region \
+make -o "tooling/templatize/templatize-$(uname -m)" entrypoint/Region \
   DEPLOY_ENV="${DEPLOY_ENV}" \
   OVERRIDE_CONFIG_FILE="${OVERRIDE_CONFIG_FILE}" \
   EXTRA_ARGS="--region ${LOCATION} --abort-if-regional-exist" \

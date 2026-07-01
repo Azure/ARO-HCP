@@ -61,9 +61,6 @@ param privateEndpointResourceGroup string = ''
 @description('The name of the database to create for Maestro')
 param maestroDatabaseName string
 
-@description('The name of the Managed Identity for the Maestro cluster service')
-param maestroServerManagedIdentityName string
-
 @description('The principal ID of the Managed Identity for the Maestro cluster service')
 param maestroServerManagedIdentityPrincipalId string
 
@@ -160,20 +157,10 @@ module maestroPostgres '../postgres/postgres.bicep' = if (deployPostgres) {
   }
 }
 
-module maestroManagedIdentityDatabaseAccess '../postgres/postgres-access.bicep' = if (deployPostgres) {
-  name: 'maestro-db-access'
-  scope: resourceGroup(regionalResourceGroup)
-  params: {
-    postgresServerName: postgresServerName
-    postgresAdministrationManagedIdentityId: postgresAdministrationManagedIdentityId
-    databaseName: maestroDatabaseName
-    newUserName: maestroServerManagedIdentityName
-    newUserPrincipalId: maestroServerManagedIdentityPrincipalId
-  }
-  dependsOn: [
-    maestroPostgres
-  ]
-}
+// The maestro-server managed identity is granted database access and enabled
+// for Entra authentication by the `maestro-postgres-access` Shell step in
+// svc-pipeline.yaml (the deploymentScript-based modules were removed for
+// SFI-ID4.2.1 compliance).
 
 //
 //   E V E N T G R I D   A C C E S S

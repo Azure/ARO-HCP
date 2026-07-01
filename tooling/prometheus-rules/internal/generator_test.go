@@ -370,6 +370,49 @@ spec:
 			},
 		},
 		{
+			name: "config with includedAlertsByGroup and namespaces",
+			configFile: `
+prometheusRules:
+  untestedRules:
+  - untested.yaml
+  outputBicep: generated.bicep
+  includedAlertsByGroup:
+  - groupName: kubernetes-resources
+    namespaces:
+    - aro-hcp
+    - clusters-service
+    alerts:
+    - KubeQuotaAlmostFull
+  - groupName: kubernetes-system
+    alerts:
+    - KubeClientErrors
+`,
+			setupFiles: func(tmpDir string) error {
+				ruleContent := `
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: test-rules
+spec:
+  groups:
+  - name: kubernetes-resources
+    rules:
+    - alert: KubeQuotaAlmostFull
+      expr: up == 0
+`
+				return os.WriteFile(filepath.Join(tmpDir, "untested.yaml"), []byte(ruleContent), 0644)
+			},
+			expectError: false,
+			validateFunc: func(t *testing.T, opts *Options) {
+				assert.Len(t, opts.includedAlerts, 2)
+				assert.Len(t, opts.namespaceFilters, 1)
+				assert.Contains(t, opts.namespaceFilters, "kubernetes-resources")
+				assert.Equal(t, []string{"aro-hcp", "clusters-service"}, opts.namespaceFilters["kubernetes-resources"])
+				// Group without namespaces should not appear in namespaceFilters
+				assert.NotContains(t, opts.namespaceFilters, "kubernetes-system")
+			},
+		},
+		{
 			name:       "config with explicit deps for promtool",
 			configFile: "prometheusRules:\n  rulesFolders:\n  - alerts\n  testDependencies:\n  - recording-rules.yaml\n  outputBicep: generated.bicep\n",
 			setupFiles: func(tmpDir string) error {
@@ -793,6 +836,106 @@ func TestOptionsGenerate(t *testing.T) {
 
 		assert.Contains(t, generated, "alert: 'RealAlert'")
 		assert.NotContains(t, generated, "DependencyAlert")
+	})
+
+	t.Run("with namespace filter", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		outputFile := filepath.Join(tmpDir, "generatedAlertingRules.bicep")
+
+		opts := &Options{
+			outputBicep: outputFile,
+			includedAlerts: map[string][]string{
+				"test-group": {"QuotaAlert"},
+			},
+			namespaceFilters: map[string][]string{
+				"test-group": {"aro-hcp", "clusters-service"},
+			},
+			ruleFiles: []alertingRuleFile{
+				{
+					Rules: monitoringv1.PrometheusRule{
+						Spec: monitoringv1.PrometheusRuleSpec{
+							Groups: []monitoringv1.RuleGroup{
+								{
+									Name: "test-group",
+									Rules: []monitoringv1.Rule{
+										{
+											Alert: "QuotaAlert",
+											Expr:  intstr.FromString(`kube_resourcequota{job="kube-state-metrics", type="used"} > 0.9`),
+											Labels: map[string]string{
+												"severity": "warning",
+											},
+											Annotations: map[string]string{
+												"summary": "Quota almost full",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+
+		err := opts.Generate()
+		assert.NoError(t, err)
+
+		content, err := os.ReadFile(outputFile)
+		assert.NoError(t, err)
+		generated := string(content)
+
+		assert.Contains(t, generated, "alert: 'QuotaAlert'")
+		assert.Contains(t, generated, `namespace=~"aro-hcp|clusters-service"`)
+	})
+
+	t.Run("namespace filter does not modify selectors with existing namespace matcher", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		outputFile := filepath.Join(tmpDir, "generatedAlertingRules.bicep")
+
+		opts := &Options{
+			outputBicep: outputFile,
+			includedAlerts: map[string][]string{
+				"test-group": {"ScopedAlert"},
+			},
+			namespaceFilters: map[string][]string{
+				"test-group": {"aro-hcp"},
+			},
+			ruleFiles: []alertingRuleFile{
+				{
+					Rules: monitoringv1.PrometheusRule{
+						Spec: monitoringv1.PrometheusRuleSpec{
+							Groups: []monitoringv1.RuleGroup{
+								{
+									Name: "test-group",
+									Rules: []monitoringv1.Rule{
+										{
+											Alert: "ScopedAlert",
+											Expr:  intstr.FromString(`up{namespace="already-scoped"}`),
+											Labels: map[string]string{
+												"severity": "warning",
+											},
+											Annotations: map[string]string{
+												"summary": "Already scoped alert",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+
+		err := opts.Generate()
+		assert.NoError(t, err)
+
+		content, err := os.ReadFile(outputFile)
+		assert.NoError(t, err)
+		generated := string(content)
+
+		assert.Contains(t, generated, `namespace="already-scoped"`)
+		assert.NotContains(t, generated, `namespace=~"aro-hcp"`)
 	})
 }
 

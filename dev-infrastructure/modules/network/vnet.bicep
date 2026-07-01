@@ -90,31 +90,50 @@ resource vnetWithSwiftDeployment 'Microsoft.Resources/deploymentScripts@2020-10-
   properties: {
     azCliVersion: '2.53.1'
     scriptContent: '''
+      set -euo pipefail
       az account set --subscription "${VNET_SUBSCRIPTION_ID}"
 
-      az network vnet show \
+      # The deployment MSI's Network/Tag Contributor role assignments are created in
+      # this same deployment. Azure RBAC is eventually consistent, so the first write
+      # can fail with AuthorizationFailed ("if access was recently granted, please
+      # refresh your credentials") before the assignment propagates to the data plane.
+      # Retry the write to absorb that lag during RBAC propagation.
+      MAX_WAIT=120
+      POLL_INTERVAL=5
+
+      retry() {
+        local start=${SECONDS}
+        until "$@"; do
+          if [ $((SECONDS - start)) -ge "${MAX_WAIT}" ]; then
+            echo "✗ '$*' still failing after $((SECONDS - start))s" >&2
+            return 1
+          fi
+          echo "Command failed (likely RBAC propagation); retrying in ${POLL_INTERVAL}s..." >&2
+          sleep "${POLL_INTERVAL}"
+        done
+      }
+
+      if az network vnet show \
         --resource-group "${VNET_RG}" \
         --name "${VNET_NAME}" \
-        --output none 2>/dev/null
-
-      if [ $? -ne 0 ]; then
-        echo "VNet does not exist. Creating..."
-        az network vnet create \
-          --resource-group "${VNET_RG}" \
-          --name "${VNET_NAME}" \
-          --address-prefixes "${VNET_ADDRESS_PREFIX}" \
-          --tags stampcreatorserviceinfo=true
-      else
+        --output none 2>/dev/null; then
         echo "VNet exists. Updating tags..."
-        az resource tag \
+        retry az resource tag \
           --tags stampcreatorserviceinfo=true \
           --resource-group "${VNET_RG}" \
           --name "${VNET_NAME}" \
           --resource-type Microsoft.Network/virtualnetworks \
           --api-version 2024-05-01
+      else
+        echo "VNet does not exist or not yet authorized. Creating..."
+        retry az network vnet create \
+          --resource-group "${VNET_RG}" \
+          --name "${VNET_NAME}" \
+          --address-prefixes "${VNET_ADDRESS_PREFIX}" \
+          --tags stampcreatorserviceinfo=true
       fi
     '''
-    timeout: 'PT5M'
+    timeout: 'PT10M'
     cleanupPreference: 'OnSuccess'
     retentionInterval: 'P1D'
     environmentVariables: [

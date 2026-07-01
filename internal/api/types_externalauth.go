@@ -15,8 +15,6 @@
 package api
 
 import (
-	"time"
-
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -69,7 +67,6 @@ var _ arm.CosmosPersistable = &HCPOpenShiftClusterExternalAuth{}
 // HCPOpenShiftClusterNodePool resource.
 type HCPOpenShiftClusterExternalAuthProperties struct {
 	ProvisioningState arm.ProvisioningState       `json:"provisioningState"`
-	Condition         ExternalAuthCondition       `json:"condition,omitzero"`
 	Issuer            TokenIssuerProfile          `json:"issuer"`
 	Clients           []ExternalAuthClientProfile `json:"clients"`
 	Claim             ExternalAuthClaimProfile    `json:"claim"`
@@ -102,16 +99,6 @@ type HCPOpenShiftClusterExternalAuthServiceProviderProperties struct {
 	// This will be removed once all external auths whose deletion was triggered before the new approach is fully rolled out have been
 	// fully deleted in all ARO-HCP permanent environments, for all regions.
 	UsesNewExternalAuthDeletionApproach bool `json:"usesNewExternalAuthDeletionApproach"`
-}
-
-// Condition defines an observation of the external auth state.
-// Visibility for the entire struct is "read".
-type ExternalAuthCondition struct {
-	Type               ExternalAuthConditionType `json:"type"`
-	Status             ConditionStatusType       `json:"status"`
-	LastTransitionTime time.Time                 `json:"lastTransitionTime"`
-	Reason             string                    `json:"reason"`
-	Message            string                    `json:"message"`
 }
 
 // Token issuer profile

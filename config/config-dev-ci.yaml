@@ -2,7 +2,7 @@ $schema: config-dev-ci.schema.json
 #
 # Usage (from repo root):
 #   PROJECT_ROOT_DIR="$(pwd)" && \
-#   ./tooling/templatize/templatize pipeline run \
+#   ./tooling/templatize/templatize-$(uname -m) pipeline run \
 #     --config-file="${PROJECT_ROOT_DIR}/config/config-dev-ci.yaml" \
 #     --topology-file="${PROJECT_ROOT_DIR}/topology-dev-ci.yaml" \
 #     --dev-settings-file="${PROJECT_ROOT_DIR}/tooling/templatize/settings.yaml" \

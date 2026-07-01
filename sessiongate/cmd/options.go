@@ -43,6 +43,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 
+	sharedleaderelection "github.com/Azure/ARO-HCP/internal/leaderelection"
 	sessiongatev1alpha1 "github.com/Azure/ARO-HCP/sessiongate/pkg/apis/sessiongate/v1alpha1"
 	"github.com/Azure/ARO-HCP/sessiongate/pkg/controller"
 	clientset "github.com/Azure/ARO-HCP/sessiongate/pkg/generated/clientset/versioned"
@@ -69,9 +70,9 @@ type RawControllerOptions struct {
 func DefaultControllerOptions() *RawControllerOptions {
 	return &RawControllerOptions{
 		BindAddress:                 "localhost:8080",
-		LeaderElectionLeaseDuration: 15 * time.Second,
-		LeaderElectionRenewDeadline: 10 * time.Second,
-		LeaderElectionRetryPeriod:   2 * time.Second,
+		LeaderElectionLeaseDuration: sharedleaderelection.RecommendedLeaseDuration,
+		LeaderElectionRenewDeadline: sharedleaderelection.RecommendedRenewDeadline,
+		LeaderElectionRetryPeriod:   sharedleaderelection.RecommendedRetryPeriod,
 		Workers:                     5,
 	}
 }
@@ -178,23 +179,12 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 	srv := server.NewServer(o.BindAddress, o.IngressBaseURL, prometheus.DefaultRegisterer)
 
 	// setup leader election lock
-	leKubeConfig := rest.CopyConfig(kubeConfig)
-	leKubeConfig.QPS = 20
-	leKubeConfig.Burst = 40
-
 	hostname, err := os.Hostname()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get hostname for leader election: %w", err)
 	}
 
-	leaderElectionLock, err := resourcelock.NewFromKubeconfig(
-		resourcelock.LeasesResourceLock,
-		o.Namespace,
-		LeaderElectionLockName,
-		resourcelock.ResourceLockConfig{Identity: hostname},
-		leKubeConfig,
-		o.LeaderElectionRenewDeadline,
-	)
+	leaderElectionLock, err := sharedleaderelection.NewLeaderElectionLock(hostname, kubeConfig, o.Namespace, LeaderElectionLockName, o.LeaderElectionRenewDeadline)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create leader election lock: %w", err)
 	}
@@ -360,7 +350,7 @@ func (o *ControllerOptions) Run(ctx context.Context) error {
 func (o *ControllerOptions) runControlPlaneUnderLeaderElection(ctx context.Context) error {
 	logger := klog.FromContext(ctx)
 
-	le, err := leaderelection.NewLeaderElector(leaderelection.LeaderElectionConfig{
+	leaderElectionConfig := leaderelection.LeaderElectionConfig{
 		Lock:          o.leaderElectionLock,
 		LeaseDuration: o.leaderElectionLeaseDuration,
 		RenewDeadline: o.leaderElectionRenewDeadline,
@@ -383,7 +373,11 @@ func (o *ControllerOptions) runControlPlaneUnderLeaderElection(ctx context.Conte
 		},
 		ReleaseOnCancel: true,
 		Name:            LeaderElectionLockName,
-	})
+	}
+
+	sharedleaderelection.LogLeaseProperties(logger, leaderElectionConfig)
+
+	le, err := leaderelection.NewLeaderElector(leaderElectionConfig)
 	if err != nil {
 		return err
 	}

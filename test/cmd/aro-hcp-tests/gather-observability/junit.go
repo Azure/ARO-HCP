@@ -142,8 +142,33 @@ func workspaceDataToJUnit(logger logr.Logger, ws *workspaceData, timeWindow timi
 	}
 }
 
+type timeInterval struct {
+	start, end time.Time
+}
+
+func mergeIntervals(intervals []timeInterval) []timeInterval {
+	if len(intervals) == 0 {
+		return nil
+	}
+	slices.SortFunc(intervals, func(a, b timeInterval) int {
+		return a.start.Compare(b.start)
+	})
+	merged := []timeInterval{intervals[0]}
+	for _, next := range intervals[1:] {
+		last := &merged[len(merged)-1]
+		if next.start.After(last.end) {
+			merged = append(merged, next)
+			continue
+		}
+		if next.end.After(last.end) {
+			last.end = next.end
+		}
+	}
+	return merged
+}
+
 func computeGroupDuration(firings []alert, tw timing.TimeWindow) float64 {
-	var total float64
+	var intervals []timeInterval
 	for _, f := range firings {
 		if f.Alert.StartsAt == nil {
 			continue
@@ -152,10 +177,13 @@ func computeGroupDuration(firings []alert, tw timing.TimeWindow) float64 {
 		if f.Alert.EndsAt != nil {
 			end = *f.Alert.EndsAt
 		}
-		d := end.Sub(*f.Alert.StartsAt).Seconds()
-		if d > 0 {
-			total += d
+		if end.After(*f.Alert.StartsAt) {
+			intervals = append(intervals, timeInterval{start: *f.Alert.StartsAt, end: end})
 		}
+	}
+	var total float64
+	for _, interval := range mergeIntervals(intervals) {
+		total += interval.end.Sub(interval.start).Seconds()
 	}
 	return total
 }

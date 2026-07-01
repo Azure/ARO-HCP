@@ -28,30 +28,38 @@ import (
 //go:embed prompts/*
 var promptFS embed.FS
 
-// BuildSystemMessageConfig assembles a SystemMessageConfig in "customize" mode.
-//
-// Section strategy (from design review):
-//   - SectionIdentity: replace with our domain identity
-//   - SectionTone: replace with our analysis tone
-//   - SectionCodeChangeRules: remove (agent doesn't write code)
-//   - SectionToolInstructions: keep (SDK manages tool descriptions)
-//   - SectionToolEfficiency: keep
-//   - SectionSafety: keep
-//   - SectionCustomInstructions: append domain content (references, exemplars, output schema)
-func BuildSystemMessageConfig() (*copilot.SystemMessageConfig, error) {
+// IdentityPrompt is the shared identity section text used by all providers.
+// Callers pass this to ProviderSessionConfig.IdentityPrompt so prompt
+// composition is centralized in the caller rather than scattered across
+// providers.
+const IdentityPrompt = "You are a senior SRE specializing in Azure Red Hat OpenShift (ARO-HCP). " +
+	"Your task is to perform root-cause analysis on failed e2e tests by examining " +
+	"diagnostic data, querying Azure Data Explorer (Kusto), and reading source code."
+
+// TonePrompt is the shared tone section text used by all providers.
+// Callers pass this to ProviderSessionConfig.TonePrompt so prompt
+// composition is centralized in the caller rather than scattered across
+// providers.
+const TonePrompt = "Be precise, evidence-driven, and thorough. Every claim must be backed by " +
+	"data from tool calls. Prefer structured output over prose. When uncertain, " +
+	"investigate further rather than speculate."
+
+// buildDomainContent reads the embedded system prompt, reference documents, and
+// exemplar analyses, returning them as a single string. This content is shared
+// by all providers.
+func buildDomainContent() (string, error) {
 	base, err := promptFS.ReadFile("prompts/system.md")
 	if err != nil {
-		return nil, fmt.Errorf("failed to read system prompt: %w", err)
+		return "", fmt.Errorf("failed to read system prompt: %w", err)
 	}
 
-	// Build the custom instructions content: base prompt + references + exemplars.
 	var sb strings.Builder
 	sb.Write(base)
 
 	// Append reference documents.
 	refs, err := readDir("prompts/references")
 	if err != nil {
-		return nil, fmt.Errorf("failed to read reference documents: %w", err)
+		return "", fmt.Errorf("failed to read reference documents: %w", err)
 	}
 	if len(refs) > 0 {
 		sb.WriteString("\n\n## Reference Material\n\n")
@@ -64,7 +72,7 @@ func BuildSystemMessageConfig() (*copilot.SystemMessageConfig, error) {
 	// Append exemplars.
 	exemplars, err := readDir("prompts/exemplars")
 	if err != nil {
-		return nil, fmt.Errorf("failed to read exemplar documents: %w", err)
+		return "", fmt.Errorf("failed to read exemplar documents: %w", err)
 	}
 	if len(exemplars) > 0 {
 		sb.WriteString("\n\n## Exemplar Analyses\n\n")
@@ -75,27 +83,73 @@ func BuildSystemMessageConfig() (*copilot.SystemMessageConfig, error) {
 		}
 	}
 
+	return sb.String(), nil
+}
+
+// BuildDomainPrompt returns only the domain-specific content (system.md,
+// references, exemplars) without the identity or tone preamble. This is
+// the preferred function for callers that pass the prompt through the
+// provider-neutral ProviderSessionConfig — each provider is responsible
+// for incorporating the shared identity and tone sections in its native
+// format (e.g. Copilot section overrides, Claude system message prefix).
+func BuildDomainPrompt() (string, error) {
+	return buildDomainContent()
+}
+
+// BuildSystemPrompt returns the complete system prompt as a plain string,
+// suitable for providers that accept a single system prompt (e.g. Claude).
+// It combines the identity, tone, and domain-specific content (system.md,
+// references, exemplars) into one string.
+func BuildSystemPrompt() (string, error) {
+	domain, err := buildDomainContent()
+	if err != nil {
+		return "", err
+	}
+
+	var sb strings.Builder
+	sb.WriteString(IdentityPrompt)
+	sb.WriteString("\n\n")
+	sb.WriteString(TonePrompt)
+	sb.WriteString("\n\n")
+	sb.WriteString(domain)
+	return sb.String(), nil
+}
+
+// BuildSystemMessageConfig assembles a Copilot-specific SystemMessageConfig
+// in "customize" mode. It uses the same shared content as BuildSystemPrompt
+// but packages it into Copilot SDK section overrides.
+//
+// Section strategy (from design review):
+//   - SectionIdentity: replace with our domain identity
+//   - SectionTone: replace with our analysis tone
+//   - SectionCodeChangeRules: remove (agent doesn't write code)
+//   - SectionToolInstructions: keep (SDK manages tool descriptions)
+//   - SectionToolEfficiency: keep
+//   - SectionSafety: keep
+//   - SectionCustomInstructions: append domain content (references, exemplars, output schema)
+func BuildSystemMessageConfig() (*copilot.SystemMessageConfig, error) {
+	domain, err := buildDomainContent()
+	if err != nil {
+		return nil, err
+	}
+
 	return &copilot.SystemMessageConfig{
 		Mode: "customize",
 		Sections: map[string]copilot.SectionOverride{
 			copilot.SectionIdentity: {
-				Action: copilot.SectionActionReplace,
-				Content: "You are a senior SRE specializing in Azure Red Hat OpenShift (ARO-HCP). " +
-					"Your task is to perform root-cause analysis on failed e2e tests by examining " +
-					"diagnostic data, querying Azure Data Explorer (Kusto), and reading source code.",
+				Action:  copilot.SectionActionReplace,
+				Content: IdentityPrompt,
 			},
 			copilot.SectionTone: {
-				Action: copilot.SectionActionReplace,
-				Content: "Be precise, evidence-driven, and thorough. Every claim must be backed by " +
-					"data from tool calls. Prefer structured output over prose. When uncertain, " +
-					"investigate further rather than speculate.",
+				Action:  copilot.SectionActionReplace,
+				Content: TonePrompt,
 			},
 			copilot.SectionCodeChangeRules: {
 				Action: copilot.SectionActionRemove,
 			},
 			copilot.SectionCustomInstructions: {
 				Action:  copilot.SectionActionAppend,
-				Content: sb.String(),
+				Content: domain,
 			},
 		},
 	}, nil
@@ -141,21 +195,6 @@ func BuildInitialPrompt(manifest, testError, testOutput, siblingTests, dataDir s
 
 	sb.WriteString("\n\nPlease begin your analysis. Start by reading the manifest to understand what resources were involved, then examine the relevant trace data and state files. Use the available tools to explore the data directory and the kusto_query tool if you need additional data not present in the pre-gathered artifacts.")
 	sb.WriteString("\n\nWhen you are done, output your analysis as a JSON object conforming to the draft chain schema.")
-
-	return sb.String()
-}
-
-// BuildSummaryPrompt creates the user prompt for the job-level summary step.
-func BuildSummaryPrompt(testAnalyses []string) string {
-	var sb strings.Builder
-	sb.WriteString("The following per-test analyses have been completed for this job. ")
-	sb.WriteString("Please synthesize a job-level summary: are the failures related? Is there a common root cause?\n\n")
-
-	for i, analysis := range testAnalyses {
-		sb.WriteString(fmt.Sprintf("## Test %d\n\n%s\n\n", i+1, analysis))
-	}
-
-	sb.WriteString("Output your summary as a JSON object with fields: {\"summary\": \"...\", \"notes\": \"...\"}")
 
 	return sb.String()
 }

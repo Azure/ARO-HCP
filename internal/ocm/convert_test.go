@@ -84,7 +84,7 @@ func TestWithImmutableAttributes(t *testing.T) {
 			},
 			want: ocmCluster(t, ocmClusterDefaults(api.TestLocation).
 				Version(arohcpv1alpha1.NewVersion().
-					ID("openshift-v4.20.23").
+					ID("openshift-v4.20.25").
 					ChannelGroup("stable"))),
 		},
 		{
@@ -125,7 +125,7 @@ func TestWithImmutableAttributes(t *testing.T) {
 				},
 			},
 			want: ocmCluster(t, ocmClusterDefaults(api.TestLocation).Version(
-				arohcpv1alpha1.NewVersion().ID("openshift-v4.19.31").ChannelGroup("stable"))),
+				arohcpv1alpha1.NewVersion().ID("openshift-v4.19.34").ChannelGroup("stable"))),
 		},
 		{
 			name: "with version 4.21",
@@ -135,7 +135,7 @@ func TestWithImmutableAttributes(t *testing.T) {
 				},
 			},
 			want: ocmCluster(t, ocmClusterDefaults(api.TestLocation).Version(
-				arohcpv1alpha1.NewVersion().ID("openshift-v4.21.16").ChannelGroup("stable"))),
+				arohcpv1alpha1.NewVersion().ID("openshift-v4.21.20").ChannelGroup("stable"))),
 		},
 	}
 
@@ -239,7 +239,7 @@ func ocmClusterDefaults(azureLocation string) *arohcpv1alpha1.ClusterBuilder {
 		Region(arohcpv1alpha1.NewCloudRegion().
 			ID(azureLocation)).
 		Version(arohcpv1alpha1.NewVersion().
-			ID("openshift-v4.20.23").
+			ID("openshift-v4.20.25").
 			ChannelGroup("stable")).
 		ImageRegistry(arohcpv1alpha1.NewClusterImageRegistry().
 			State(csImageRegistryStateEnabled)).
@@ -340,7 +340,7 @@ func TestBuildCSNodePool(t *testing.T) {
 			),
 			expectedCSNodePool: getBaseCSNodePoolBuilder().
 				Version(arohcpv1alpha1.NewVersion().
-					ID("openshift-v4.20.23").
+					ID("openshift-v4.20.25").
 					ChannelGroup("stable")),
 		},
 		{
@@ -761,7 +761,7 @@ func TestBuildCSCluster(t *testing.T) {
 			expectedCSCluster: getBaseCSClusterBuilder(false).
 				Properties(map[string]string{
 					"hosted_cluster_single_replica": "true",
-					"hosted_cluster_size_override":  "true",
+					"hosted_cluster_size_override":  CSPropertyE2EMinimalControlPlaneSize,
 				}),
 		},
 		{
@@ -815,7 +815,7 @@ func TestBuildCSCluster(t *testing.T) {
 			},
 			expectedCSCluster: getBaseCSClusterBuilder(true).
 				Properties(map[string]string{
-					"hosted_cluster_size_override": "true",
+					"hosted_cluster_size_override": CSPropertyE2EMinimalControlPlaneSize,
 				}),
 		},
 		{
@@ -866,7 +866,7 @@ func TestBuildCSCluster(t *testing.T) {
 					"provisioner_noop_provision":    "true",
 					"provisioner_noop_deprovision":  "true",
 					"hosted_cluster_single_replica": "true",
-					"hosted_cluster_size_override":  "true",
+					"hosted_cluster_size_override":  CSPropertyE2EMinimalControlPlaneSize,
 				}),
 		},
 		{
@@ -886,7 +886,7 @@ func TestBuildCSCluster(t *testing.T) {
 			expectedCSCluster: getBaseCSClusterBuilder(false).
 				Properties(map[string]string{
 					"hosted_cluster_single_replica": "true",
-					"hosted_cluster_size_override":  "true",
+					"hosted_cluster_size_override":  CSPropertyE2EMinimalControlPlaneSize,
 				}),
 		},
 		{
@@ -1143,7 +1143,7 @@ func TestBuildCSCluster(t *testing.T) {
 			require.NoError(t, err)
 
 			// Build actual CS cluster
-			actualClusterBuilder, actualAutoscalerBuilder, err := BuildCSCluster(resourceID, api.TestTenantID, hcpCluster, tc.requiredProperties, tc.oldClusterServiceCluster)
+			actualClusterBuilder, actualAutoscalerBuilder, err := BuildCSCluster(resourceID, api.TestTenantID, hcpCluster, tc.requiredProperties, tc.oldClusterServiceCluster, nil)
 
 			if tc.expectedError != "" {
 				require.Error(t, err)
@@ -1162,6 +1162,75 @@ func TestBuildCSCluster(t *testing.T) {
 
 			// Compare
 			assert.Equal(t, expected, actual)
+		})
+	}
+}
+
+func TestDesiredHostedClusterSizeOverride(t *testing.T) {
+	largeStr := "Large"
+	spcWithSize := func(s *string) *api.ServiceProviderCluster {
+		return &api.ServiceProviderCluster{
+			Spec: api.ServiceProviderClusterSpec{
+				DesiredHostedClusterControlPlaneSize: s,
+			},
+		}
+	}
+	clusterWithPodSizing := func(p api.ControlPlanePodSizing) *api.HCPOpenShiftCluster {
+		c := &api.HCPOpenShiftCluster{}
+		c.ServiceProviderProperties.ExperimentalFeatures.ControlPlanePodSizing = p
+		return c
+	}
+
+	tests := []struct {
+		name         string
+		spc          *api.ServiceProviderCluster
+		hcpCluster   *api.HCPOpenShiftCluster
+		expectValue  string
+		expectActive bool
+	}{
+		{
+			name:         "SPC size wins over experimental feature",
+			spc:          spcWithSize(&largeStr),
+			hcpCluster:   clusterWithPodSizing(api.MinimalControlPlanePodSizing),
+			expectValue:  "large",
+			expectActive: true,
+		},
+		{
+			name:         "SPC size set, no experimental feature",
+			spc:          spcWithSize(&largeStr),
+			hcpCluster:   clusterWithPodSizing(""),
+			expectValue:  "large",
+			expectActive: true,
+		},
+		{
+			name:         "SPC nil, experimental feature active → legacy sentinel",
+			spc:          nil,
+			hcpCluster:   clusterWithPodSizing(api.MinimalControlPlanePodSizing),
+			expectValue:  CSPropertyE2EMinimalControlPlaneSize,
+			expectActive: true,
+		},
+		{
+			name:         "SPC has nil size, experimental feature active → legacy sentinel",
+			spc:          spcWithSize(nil),
+			hcpCluster:   clusterWithPodSizing(api.MinimalControlPlanePodSizing),
+			expectValue:  CSPropertyE2EMinimalControlPlaneSize,
+			expectActive: true,
+		},
+		{
+			name:         "neither input set → property absent",
+			spc:          nil,
+			hcpCluster:   clusterWithPodSizing(""),
+			expectActive: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			value, active := DesiredHostedClusterSizeOverride(tc.spc, tc.hcpCluster)
+			assert.Equal(t, tc.expectActive, active)
+			if tc.expectActive {
+				assert.Equal(t, tc.expectValue, value)
+			}
 		})
 	}
 }

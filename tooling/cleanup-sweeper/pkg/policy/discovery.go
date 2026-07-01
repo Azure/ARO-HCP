@@ -16,11 +16,13 @@ package policy
 
 import (
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
 	"k8s.io/apimachinery/pkg/util/sets"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 )
 
@@ -91,9 +93,12 @@ func newRGSelectionRuleReason(ruleIndex int, rule RGDiscoveryRule, ruleResult st
 }
 
 // SelectsResourceGroup evaluates discovery rules for a resource group.
+// knownResourceGroups is the set of all RG names in the subscription
+// used by the managedByAlive condition to detect orphaned managed RGs.
 func (p *RGDiscoveryPolicy) SelectsResourceGroup(
 	rg *armresources.ResourceGroup,
 	excludedResourceGroups sets.Set[string],
+	knownResourceGroups sets.Set[string],
 	now time.Time,
 ) (bool, RGSelectionReason) {
 	if p == nil {
@@ -118,7 +123,7 @@ func (p *RGDiscoveryPolicy) SelectsResourceGroup(
 		if !rule.Match.MatchesResourceGroup(rgName) {
 			continue
 		}
-		if !rule.Conditions.MatchesResourceGroup(rg) {
+		if !rule.Conditions.MatchesResourceGroup(rg, knownResourceGroups) {
 			continue
 		}
 
@@ -156,14 +161,21 @@ func (m RGDiscoveryMatch) MatchesResourceGroup(resourceGroupName string) bool {
 }
 
 // MatchesResourceGroup evaluates additional condition predicates.
-func (c RGDiscoveryConditions) MatchesResourceGroup(rg *armresources.ResourceGroup) bool {
+func (c RGDiscoveryConditions) MatchesResourceGroup(rg *armresources.ResourceGroup, knownResourceGroups sets.Set[string]) bool {
 	if rg == nil {
 		return false
 	}
 
-	if c.ManagedBySet != nil {
-		managedBySet := rg.ManagedBy != nil
-		if managedBySet != *c.ManagedBySet {
+	if c.ManagedByAlive != nil {
+		if rg.ManagedBy == nil {
+			return false
+		}
+		parsed, err := azcorearm.ParseResourceID(*rg.ManagedBy)
+		if err != nil {
+			slog.Warn("failed to parse managedBy resource ID, treating as alive", "managedBy", *rg.ManagedBy, "error", err)
+		}
+		alive := err != nil || knownResourceGroups.Has(strings.ToLower(parsed.ResourceGroupName))
+		if alive != *c.ManagedByAlive {
 			return false
 		}
 	}

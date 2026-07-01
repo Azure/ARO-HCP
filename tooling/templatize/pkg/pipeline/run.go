@@ -854,6 +854,11 @@ func RunStep(id graph.Identifier, s types.Step, ctx context.Context, executionTa
 			return nil, nil, fmt.Errorf("failed to run ARM step: %w", err)
 		}
 		return output, details, nil
+	case *types.CreateCertificateStep:
+		if err := runCreateCertificateStep(ctx, step, options, id, state); err != nil {
+			return nil, nil, fmt.Errorf("error running Create Certificate Step: %w", err)
+		}
+		return nil, nil, nil
 	default:
 		logger.Info("No implementation for action type - skip", "actionType", s.ActionType())
 		return nil, nil, nil
@@ -900,6 +905,42 @@ func resolveInput(serviceGroup string, input types.Input, outputs Outputs) (any,
 	} else {
 		return nil, fmt.Errorf("variable invalid: resource group %s has no step %s", input.ResourceGroup, input.Step)
 	}
+}
+
+func resolveValue(v types.Value, cfg configtypes.Configuration, outputs Outputs, serviceGroup string) (string, error) {
+	if v.Input != nil {
+		val, err := resolveInput(serviceGroup, types.Input{
+			StepDependency: v.Input.StepDependency,
+			Name:           v.Input.Name,
+		}, outputs)
+		if err != nil {
+			return "", err
+		}
+		s, ok := val.(string)
+		if !ok {
+			return "", fmt.Errorf("input value is not a string: %T", val)
+		}
+		return s, nil
+	}
+	if v.ConfigRef != "" {
+		val, err := cfg.GetByPath(v.ConfigRef)
+		if err != nil {
+			return "", fmt.Errorf("failed to resolve config reference %q: %w", v.ConfigRef, err)
+		}
+		s, ok := val.(string)
+		if !ok {
+			return "", fmt.Errorf("config value for %q is not a string: %T", v.ConfigRef, val)
+		}
+		return s, nil
+	}
+	if v.Value != nil {
+		s, ok := v.Value.(string)
+		if !ok {
+			return "", fmt.Errorf("value is not a string: %T", v.Value)
+		}
+		return s, nil
+	}
+	return "", fmt.Errorf("value has no source (value, configRef, or input)")
 }
 
 // multiSink implements logr.Sink and sends logs to multiple sinks

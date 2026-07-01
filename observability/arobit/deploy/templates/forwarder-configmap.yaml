@@ -140,6 +140,14 @@ data:
         multiline.key_content log
 
     [FILTER]
+        # Drop noisy kube-proxy topology.go INFO messages that generate 10x log volume
+        # spikes during EndpointSlice reconciliation on mgmt clusters (ICM 825611890).
+        Name    grep
+        Alias   filter.drop_kube_proxy_topology_noise
+        Match   kubernetes.var.log.containers.kube-proxy*
+        Exclude log Ignoring same-(node|zone) topology hints
+
+    [FILTER]
         Name modify
         Match systemd.*
         Add environment {{ .Values.forwarder.environment }}

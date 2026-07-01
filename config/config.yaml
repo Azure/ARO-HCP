@@ -118,6 +118,8 @@ defaults:
     svcParentZoneName: "empty-sentinel"
     cxParentZoneName: "empty-sentinel"
     kustoName: "empty-sentinel"
+    grafanaName: "empty-sentinel"
+    grafanaMajorVersion: "empty-sentinel"
   # Image Registry Policy
   imageRegistryPolicy:
     extraAllowedRegistries: ""
@@ -212,7 +214,7 @@ defaults:
     cosmosContainerMaxScale: 8000
     managedIdentityName: kube-applier
     k8s:
-      replicas: 1
+      replicas: 2
       namespace: kube-applier
       serviceAccountName: kube-applier
       resources:
@@ -323,8 +325,6 @@ defaults:
     adminGroups: ""
     viewerGroups: ""
     viewerIdentities: ""
-    crossClusterServiceLogsScript: ""
-    crossClusterHostedControlPlaneLogsScript: ""
     sku: ""
     tier: ""
   auditLogsEventHub:
@@ -422,17 +422,17 @@ defaults:
       digest: ""
   velero:
     server:
-      registry: registry.redhat.io
+      registry: registry.stage.redhat.io
       repository: oadp/oadp-velero-rhel9
-      digest: sha256:a4b0a8e424b9217df7e9a721b1df748294a36b163130b4d1d25f27ee71045b61 # 1.6.0 (2026-06-02 01:11)
+      digest: sha256:7e7c60f3bb3c8d2c09a48e2a85c4620e33eb5d30bfb2baaf7098afd597c7bece # 1.6.1 (2026-06-25 19:44)
     azurePlugin:
-      registry: registry.redhat.io
+      registry: registry.stage.redhat.io
       repository: oadp/oadp-velero-plugin-for-microsoft-azure-rhel9
-      digest: sha256:b92df9d921cde721e288a0fe14908cde588b777593da5fe33774e4e8a83da75f # 1.5.7 (2026-05-20 02:19)
+      digest: sha256:6caa5c6353ed05d209782e5c5fef6ce674d9f760184c6068b5c885c4649b56a5 # 1.6.1 (2026-06-25 18:31)
     hypershiftPlugin:
-      registry: registry.redhat.io
+      registry: registry.stage.redhat.io
       repository: oadp/oadp-hypershift-velero-plugin-rhel9
-      digest: sha256:2969b02311a20792fb89193e3e4e8f0eef930cc0b38731681dfeaf84155eb4be # 1.6.0 (2026-06-02 01:09)
+      digest: sha256:07d5ca63256268fa35e6b6936896005e97dac6f63daeed9710f425aeb5111976 # 1.6.1 (2026-06-25 18:31)
   # SVC cluster specifics
   svc:
     subscription:
@@ -763,6 +763,8 @@ defaults:
           memory: unlimited
     cert:
       name: admin-api-cert-{{ .ctx.environment }}-{{ .ctx.regionShort }}
+      san: ''
+      contentType: x-pkcs12
   # Session Gate
   sessiongate:
     image:
@@ -776,6 +778,8 @@ defaults:
       serviceAccountName: sessiongate
     cert:
       name: sessiongate-cert-{{ .ctx.environment }}-{{ .ctx.regionShort }}
+      san: ''
+      contentType: x-pkcs12
   # HCP Recovery
   hcpRecovery:
     image:
@@ -819,6 +823,8 @@ defaults:
       fleetContainerMaxScale: 4000
     cert:
       name: frontend-cert-{{ .ctx.environment }}-{{ .ctx.regionShort }}
+      san: ''
+      contentType: x-pkcs12
     exitOnPanic: true
     logVerbosity: 0
   # Billing
@@ -912,7 +918,7 @@ defaults:
       loglevel: 2
       managedIdentityName: maestro-server
       k8s:
-        replicas: 1
+        replicas: 2
         namespace: maestro
         serviceAccountName: maestro
         resources:
@@ -960,7 +966,7 @@ defaults:
     image:
       registry: quay.io
       repository: redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro
-      digest: sha256:1568fda504ca91a9cfee998067174ebd46f5ac2603a8663ebefbac94d6483a85 # e43800d7020340d3fb4c0cfa81a8099e06e303f8 (2026-06-16 17:37)
+      digest: sha256:784f3670c04a303b0c0fbd98048bc3e941c03b65122c53b0e0da58abcdec65b3 # ff220ea357a20c79d07659263b8bbbd555d60abd (2026-06-24 15:55)
   # ACM
   acm:
     operator:
@@ -1209,14 +1215,17 @@ clouds:
       # Admin API
       adminApi:
         cert:
+          san: 'admin.{{ .ctx.regionShort }}.hcpsvc.osadev.cloud'
           issuer: Self
       # Sessiongate
       sessiongate:
         cert:
+          san: 'sessiongate.{{ .ctx.regionShort }}.hcpsvc.osadev.cloud'
           issuer: Self
       # Frontend
       frontend:
         cert:
+          san: 'rp.{{ .ctx.regionShort }}.hcpsvc.osadev.cloud'
           issuer: Self
       # Backend
       backend:
@@ -1347,6 +1356,14 @@ clouds:
           # DNS
           dns:
             regionalSubdomain: '{{ .ctx.region }}'
+          # Admin API
+          adminApi:
+            cert:
+              san: 'admin.{{ .ctx.region }}.hcpsvc.osadev.cloud'
+          # Sessiongate
+          sessiongate:
+            cert:
+              san: 'sessiongate.{{ .ctx.region }}.hcpsvc.osadev.cloud'
           # Maestro
           maestro:
             server:
@@ -1356,6 +1373,8 @@ clouds:
                 exporter: "otlp"
           # Frontend
           frontend:
+            cert:
+              san: 'rp.{{ .ctx.region }}.hcpsvc.osadev.cloud'
             audit:
               connectSocket: false
             cosmosDB:
@@ -1406,11 +1425,21 @@ clouds:
           # DNS
           dns:
             regionalSubdomain: '{{ .ctx.region }}-cs'
+          # Admin API
+          adminApi:
+            cert:
+              san: 'admin.{{ .ctx.region }}-cs.hcpsvc.osadev.cloud'
+          # Sessiongate
+          sessiongate:
+            cert:
+              san: 'sessiongate.{{ .ctx.region }}-cs.hcpsvc.osadev.cloud'
           # Maestro
           maestro:
             restrictIstioIngress: false
           # Frontend
           frontend:
+            cert:
+              san: 'rp.{{ .ctx.region }}-cs.hcpsvc.osadev.cloud'
             cosmosDB:
               private: false
               zoneRedundantMode: 'Disabled'
