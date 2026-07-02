@@ -602,7 +602,7 @@ mgmt:
       name: infra
       osDiskSizeGB: 64
       poolCount: 2
-      vmSize: Standard_D4ds_v6
+      vmSize: Standard_D8ds_v6
       zoneRedundantMode: Auto
       zones: ""
     kubernetesVersion: "1.35"
@@ -622,12 +622,12 @@ mgmt:
       zones: ""
     userAgentPool:
       maxCount: 14
-      minCount: 3
+      minCount: 5
       name: userswft
       osDiskSizeGB: 100
       poolCount: 3
       secondaryNicCount: 7
-      vmSize: Standard_D16ds_v6
+      vmSize: Standard_E16ds_v6
       zoneRedundantMode: Auto
       zones: ""
     vnetAddressPrefix: 10.128.0.0/14
