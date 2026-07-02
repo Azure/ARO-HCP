@@ -158,6 +158,12 @@ func (c *genericWatchingController[T]) QueueForInformers(resyncDuration time.Dur
 // It is exposed so that individual controllers can add other items to requeue based on easily.
 func (c *genericWatchingController[T]) QueueForInformersWithMaxDepth(resyncDuration time.Duration, maxDepth int, notifiers ...Notifier) error {
 	errs := []error{}
+
+	logger := utils.DefaultLogger()
+	logger = logger.WithValues(
+		utils.LogValues{}.AddControllerName(c.name)...,
+	)
+
 	for _, notifier := range notifiers {
 		_, err := notifier.AddEventHandlerWithOptions(
 			cache.ResourceEventHandlerFuncs{
@@ -165,6 +171,7 @@ func (c *genericWatchingController[T]) QueueForInformersWithMaxDepth(resyncDurat
 				UpdateFunc: c.enqueueCosmosUpdateFunc(maxDepth),
 			},
 			cache.HandlerOptions{
+				Logger:       &logger,
 				ResyncPeriod: ptr.To(resyncDuration),
 			})
 		errs = append(errs, err)
@@ -206,26 +213,42 @@ func (c *genericWatchingController[T]) EnqueueResourceIDAddWithMaxDepth(resource
 	key := c.syncer.MakeKey(resourceID)
 
 	logger := utils.DefaultLogger()
-	logger = logger.WithValues(utils.LogValues{}.AddControllerName(c.name)...)
+	logger = logger.WithValues(
+		utils.LogValues{}.
+			AddControllerName(c.name).
+			AddLogValuesForResourceID(resourceID)...,
+	)
 	logger = utils.AddLoggerValues(logger, key)
 	ctx := logr.NewContext(context.TODO(), logger)
 	ctx = utils.ContextWithControllerName(ctx, c.name)
 
 	if changed {
 		// when state has changed, fire immediately
+		logger.Info("Adding notification")
 		c.queue.Add(key)
 		return
 	}
 
 	if !c.syncer.CooldownChecker().CanSync(ctx, key) {
+		logger.Info("Skipping notification")
 		return
 	}
 
+	logger.Info("Adding notification")
 	c.queue.Add(key)
 }
 
 func (c *genericWatchingController[T]) enqueueCosmosAddFunc(maxDepth int) func(any) {
 	return func(newObj any) {
+		logger := utils.DefaultLogger()
+		logger = logger.WithValues(
+			utils.LogValues{}.
+				AddControllerName(c.name).
+				AddLogValuesForResourceID(newObj.(arm.CosmosPersistable).GetCosmosData().GetResourceID())...,
+		)
+		logger.Info("Attempt enqueue add")
+		defer logger.Info("Finished enqueue add")
+
 		c.enqueueCosmosAddWithMaxDepth(newObj, maxDepth)
 	}
 }
@@ -236,11 +259,43 @@ func (c *genericWatchingController[T]) enqueueCosmosAddWithMaxDepth(newObj any, 
 
 func (c *genericWatchingController[T]) enqueueCosmosUpdateFunc(maxDepth int) func(any, any) {
 	return func(oldObj, newObj any) {
+		logger := utils.DefaultLogger()
+		logger = logger.WithValues(
+			utils.LogValues{}.
+				AddControllerName(c.name).
+				AddLogValuesForResourceID(newObj.(arm.CosmosPersistable).GetCosmosData().GetResourceID())...,
+		)
+		logger.Info("Attempt enqueue update")
+		defer logger.Info("Finished enqueue update")
+
 		c.enqueueCosmosUpdateWithMaxDepth(oldObj, newObj, maxDepth)
 	}
 }
 
 func (c *genericWatchingController[T]) enqueueCosmosUpdateWithMaxDepth(oldObj, newObj any, maxDepth int) {
+	logger := utils.DefaultLogger()
+	logger = logger.WithValues(
+		utils.LogValues{}.
+			AddControllerName(c.name).
+			AddLogValuesForResourceID(newObj.(arm.CosmosPersistable).GetCosmosData().GetResourceID())...,
+	)
+
 	changed := oldObj.(arm.CosmosPersistable).GetCosmosData().GetEtag() != newObj.(arm.CosmosPersistable).GetCosmosData().GetEtag()
+	if !changed {
+		logger.Info("No change",
+			"oldInstanceVersion", oldObj.(arm.CosmosPersistable).GetCosmosData().GetInstanceVersion(),
+			"newInstanceVersion", newObj.(arm.CosmosPersistable).GetCosmosData().GetInstanceVersion(),
+			"oldEtag", oldObj.(arm.CosmosPersistable).GetCosmosData().GetEtag(),
+			"newEtag", newObj.(arm.CosmosPersistable).GetCosmosData().GetEtag(),
+		)
+	} else {
+		logger.Info("Difference",
+			"oldInstanceVersion", oldObj.(arm.CosmosPersistable).GetCosmosData().GetInstanceVersion(),
+			"newInstanceVersion", newObj.(arm.CosmosPersistable).GetCosmosData().GetInstanceVersion(),
+			"oldEtag", oldObj.(arm.CosmosPersistable).GetCosmosData().GetEtag(),
+			"newEtag", newObj.(arm.CosmosPersistable).GetCosmosData().GetEtag(),
+		)
+	}
+
 	c.EnqueueResourceIDAddWithMaxDepth(newObj.(arm.CosmosPersistable).GetCosmosData().GetResourceID(), changed, maxDepth)
 }

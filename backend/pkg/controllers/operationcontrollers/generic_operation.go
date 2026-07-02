@@ -78,12 +78,18 @@ func NewGenericOperationController(
 
 	// this happens when unit tests don't want triggering.  This isn't beautiful, but fails to do nothing which is pretty safe.
 	if activeOperationInformer != nil {
+		logger := utils.DefaultLogger()
+		logger = logger.WithValues(
+			utils.LogValues{}.AddControllerName(c.name)...,
+		)
+
 		_, err := activeOperationInformer.AddEventHandlerWithOptions(
 			cache.ResourceEventHandlerFuncs{
 				AddFunc:    c.enqueueAdd,
 				UpdateFunc: c.enqueueUpdate,
 			},
 			cache.HandlerOptions{
+				Logger:       &logger,
 				ResyncPeriod: ptr.To(activeOperationScanInterval),
 			})
 		if err != nil {
@@ -107,6 +113,10 @@ func (c *genericOperation) controllerCRUD(key controllerutils.OperationKey) data
 	default:
 		return c.resourcesDBClient.HCPClusters(sub, rg).Controllers(parentResourceID.Name)
 	}
+}
+
+func (c *genericOperation) QueueForInformers(resyncDuration time.Duration, notifiers ...controllerutils.Notifier) error {
+	panic("not implemented")
 }
 
 func (c *genericOperation) SyncOnce(ctx context.Context, keyObj any) error {

@@ -225,7 +225,7 @@ func (opts *FrontendOpts) Run() error {
 		return fmt.Errorf("failed to create the CosmosDB client: %w", err)
 	}
 
-	resourcesDBClient, err := database.NewResourcesDBClient(cosmosDatabaseClient)
+	resourcesDBClient, err := database.NewResourcesDBClient(ctx, cosmosDatabaseClient)
 	if err != nil {
 		return fmt.Errorf("failed to create the resources database client: %w", err)
 	}

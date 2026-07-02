@@ -48,6 +48,8 @@ func NewActiveOperationPrioritizingCooldown(activeOperationLister listers.Active
 }
 
 func (c *ActiveOperationBasedChecker) CanSync(ctx context.Context, key any) bool {
+	return true
+
 	logger := utils.LoggerFromContext(ctx)
 
 	var activeOperations []*api.Operation

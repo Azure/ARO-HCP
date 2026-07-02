@@ -90,8 +90,9 @@ func NewApplyDesireInformerWithRelistDuration(
 			// relistDuration keeps "how often the informer re-checks Cosmos"
 			// aligned with "how often handlers can be resynced," which is
 			// what kube-applier's cooldown-gated controllers want.
-			ResyncPeriod: relistDuration,
-			Indexers:     desireIndexers(),
+			ResyncPeriod:      relistDuration,
+			Indexers:          desireIndexers(),
+			ObjectDescription: "ApplyDesire",
 		},
 	)
 }
@@ -140,8 +141,9 @@ func NewReadDesireInformerWithRelistDuration(
 			// relistDuration keeps "how often the informer re-checks Cosmos"
 			// aligned with "how often handlers can be resynced," which is
 			// what kube-applier's cooldown-gated controllers want.
-			ResyncPeriod: relistDuration,
-			Indexers:     desireIndexers(),
+			ResyncPeriod:      relistDuration,
+			Indexers:          desireIndexers(),
+			ObjectDescription: "ReadDesire",
 		},
 	)
 }

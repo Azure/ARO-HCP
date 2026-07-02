@@ -61,7 +61,7 @@ func NewCosmosFromTestingEnv(ctx context.Context, t *testing.T) (StorageIntegrat
 	if err != nil {
 		return nil, fmt.Errorf("failed to Initialize Cosmos DB: %w", err)
 	}
-	resourcesDBClient, err := database.NewResourcesDBClient(cosmosDatabaseClient)
+	resourcesDBClient, err := database.NewResourcesDBClient(ctx, cosmosDatabaseClient)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create the resources database client: %w", err)
 	}

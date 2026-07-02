@@ -30,10 +30,12 @@ import (
 )
 
 type clusterRecursiveDataDump struct {
-	cooldownChecker         controllerutil.CooldownChecker
-	resourcesDBClient       database.ResourcesDBClient
-	kubeApplierDBClients    database.KubeApplierDBClients
-	managementClusterLister dblisters.ManagementClusterLister
+	cooldownChecker               controllerutil.CooldownChecker
+	resourcesDBClient             database.ResourcesDBClient
+	kubeApplierDBClients          database.KubeApplierDBClients
+	managementClusterLister       dblisters.ManagementClusterLister
+	nodePoolLister                listers.NodePoolLister
+	serviceProviderNodePoolLister listers.ServiceProviderNodePoolLister
 
 	// nextDataDumpChecker ensures we don't hotloop from any source.
 	nextDataDumpChecker controllerutil.CooldownChecker
@@ -45,15 +47,19 @@ func NewClusterRecursiveDataDumpController(
 	kubeApplierDBClients database.KubeApplierDBClients,
 	managementClusterLister dblisters.ManagementClusterLister,
 	activeOperationLister listers.ActiveOperationLister,
+	nodePoolLister listers.NodePoolLister,
+	serviceProviderNodePoolLister listers.ServiceProviderNodePoolLister,
 	backendInformers informers.BackendInformers,
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 ) controllerutils.Controller {
 	syncer := &clusterRecursiveDataDump{
-		cooldownChecker:         controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
-		resourcesDBClient:       resourcesDBClient,
-		kubeApplierDBClients:    kubeApplierDBClients,
-		managementClusterLister: managementClusterLister,
-		nextDataDumpChecker:     controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
+		cooldownChecker:               controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
+		resourcesDBClient:             resourcesDBClient,
+		kubeApplierDBClients:          kubeApplierDBClients,
+		managementClusterLister:       managementClusterLister,
+		nodePoolLister:                nodePoolLister,
+		serviceProviderNodePoolLister: serviceProviderNodePoolLister,
+		nextDataDumpChecker:           controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
 	}
 
 	controller := controllerutils.NewClusterWatchingController(
@@ -75,7 +81,7 @@ func (c *clusterRecursiveDataDump) SyncOnce(ctx context.Context, key controlleru
 
 	logger := utils.LoggerFromContext(ctx)
 
-	if err := serverutils.DumpDataToLogger(ctx, c.resourcesDBClient, c.kubeApplierDBClients, c.managementClusterLister, key.GetResourceID()); err != nil {
+	if err := serverutils.DumpDataToLogger(ctx, c.resourcesDBClient, c.kubeApplierDBClients, c.managementClusterLister, c.nodePoolLister, c.serviceProviderNodePoolLister, key.GetResourceID()); err != nil {
 		// never fail, this is best effort
 		logger.Error(err, "failed to dump data to logger")
 	}

@@ -215,7 +215,7 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create the CosmosDB client: %w", err)
 	}
-	resourcesDBClient, err := database.NewResourcesDBClient(cosmosDatabaseClient)
+	resourcesDBClient, err := database.NewResourcesDBClient(ctx, cosmosDatabaseClient)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create the resources DB client: %w", err)
 	}
