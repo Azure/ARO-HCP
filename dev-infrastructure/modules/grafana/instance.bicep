@@ -2,11 +2,22 @@ import {
   splitOrEmptyArray
 } from '../common.bicep'
 
+param location string
+
 @description('Metrics global Grafana name')
 param grafanaName string
 
+@description('The Grafana major version')
+param grafanaMajorVersion string
+
 @description('The identity that will manage Grafana')
 param grafanaManagerPrincipalId string
+
+@description('The zone redundant mode of Grafana')
+param zoneRedundancy bool
+
+@description('The azure monitor workspace IDs to integrate with Grafana')
+param azureMonitorWorkspaceIds array
 
 @description('List of grafana role assignments as a space-separated list of items in the format of "principalId/principalType/role"')
 param grafanaRoles string
@@ -18,10 +29,38 @@ var grafanaRolesArray = [
   }
 ]
 
-// Grafana instance is provisioned by grafanactl manage reconcile.
-// This module manages only the role assignments on the existing resource.
-resource grafana 'Microsoft.Dashboard/grafana@2024-10-01' existing = {
+@description('Cross-tenant security group for Grafana access (format: GroupObjectId;TenantId)')
+param crossTenantSecurityGroup string
+
+resource grafana 'Microsoft.Dashboard/grafana@2024-10-01' = {
   name: grafanaName
+  location: location
+  sku: {
+    name: 'Standard'
+  }
+  identity: {
+    type: 'SystemAssigned'
+  }
+  tags: !empty(crossTenantSecurityGroup)
+    ? {
+        // To enable AMG cross-tenant login, add a tag with a security group from CORP tenant
+        // The tag references a security group in CORP tenant which can access the AMG in the secure tenant.
+        // Format: GroupObjectId;TenantId
+        // Users who are members of the cross-tenant security group can access AMG with Grafana Viewer role
+        'AMG.CrossTenant.SecurityGroup': crossTenantSecurityGroup
+      }
+    : {}
+  properties: {
+    grafanaIntegrations: {
+      azureMonitorWorkspaceIntegrations: [
+        for workspaceId in azureMonitorWorkspaceIds: {
+          azureMonitorWorkspaceResourceId: workspaceId
+        }
+      ]
+    }
+    zoneRedundancy: zoneRedundancy ? 'Enabled' : 'Disabled'
+    grafanaMajorVersion: grafanaMajorVersion
+  }
 }
 
 // Built-in roles for Azure Monitor Grafana
