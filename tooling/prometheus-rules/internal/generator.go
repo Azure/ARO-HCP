@@ -113,9 +113,6 @@ func readRulesFile(filename string) (*monitoringv1.PrometheusRule, error) {
 }
 
 func (o *Options) Complete(configFilePath string, promtoolPath string) error {
-	if promtoolPath == "" {
-		return fmt.Errorf("promtoolPath cannot be an empty string")
-	}
 	o.promtoolPath = promtoolPath
 
 	o.ruleFiles = make([]alertingRuleFile, 0)
