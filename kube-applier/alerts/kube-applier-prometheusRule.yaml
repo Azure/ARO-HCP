@@ -1,0 +1,41 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    app.kubernetes.io/name: kube-prometheus
+    app.kubernetes.io/part-of: kube-prometheus
+    prometheus: k8s
+    role: alert-rules
+  name: kube-applier-monitoring-rules
+  namespace: monitoring
+spec:
+  groups:
+  - name: kube-applier
+    rules:
+    - alert: KubeApplierReconcileStuck
+      # Fires when desires exist but no controller processed items for >15m (> DefaultCooldownPeriod of 10m).
+      expr: |
+        (
+          sum without(condition) (
+            max without(prometheus_replica) (
+              kube_applier_desires{namespace="kube-applier"}
+            )
+          ) > 0
+        )
+          and on(cluster, namespace)
+        (
+          sum without(prometheus_replica, name) (
+            increase(workqueue_work_duration_seconds_count{
+              name=~".*Desire.*",
+              namespace="kube-applier"
+            }[15m])
+          ) == 0
+        )
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        description: 'kube-applier on cluster {{ $labels.cluster }} has {{ $labels.type }} desires pending but no controller processed any items for more than 15 minutes.'
+        runbook_url: 'TBD'
+        summary: 'kube-applier on {{ $labels.cluster }}: {{ $labels.type }} controllers are not processing items'
+        title: 'kube-applier on {{ $labels.cluster }}: {{ $labels.type }} controllers are not processing items'

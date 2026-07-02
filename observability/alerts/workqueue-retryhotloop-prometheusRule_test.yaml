@@ -1,0 +1,81 @@
+rule_files:
+- workqueue-retryhotloop-prometheusRule.yaml
+evaluation_interval: 1m
+tests:
+# Test: WorkqueueControllerRetryHotLoop fires when retry ratio > 50% for 10m (kube-applier)
+- interval: 1m
+  input_series:
+  - series: 'workqueue_retries_total{namespace="kube-applier", name="apply-desire", cluster="test-cluster"}'
+    values: "0+6x30" # 6 retries/min
+  - series: 'workqueue_adds_total{namespace="kube-applier", name="apply-desire", cluster="test-cluster"}'
+    values: "0+10x30" # 10 adds/min → ratio 0.6 > 0.5
+  alert_rule_test:
+  - eval_time: 25m
+    alertname: WorkqueueControllerRetryHotLoop
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+        cluster: test-cluster
+        namespace: kube-applier
+        name: apply-desire
+      exp_annotations:
+        correlationId: 'WorkqueueControllerRetryHotLoop/test-cluster/kube-applier/apply-desire'
+        description: 'Workqueue apply-desire in namespace kube-applier on cluster test-cluster has a retry ratio of > 50% sustained over 10 minutes, indicating most queue activity is failed retries rather than fresh work.'
+        runbook_url: 'TBD'
+        summary: 'Workqueue apply-desire in kube-applier on test-cluster retry hot loop'
+        title: 'Workqueue apply-desire in kube-applier on test-cluster retry hot loop'
+# Test: WorkqueueControllerRetryHotLoop fires for aro-hcp namespace (backend)
+- interval: 1m
+  input_series:
+  - series: 'workqueue_retries_total{namespace="aro-hcp", name="hcp-cluster", cluster="test-cluster"}'
+    values: "0+6x30"
+  - series: 'workqueue_adds_total{namespace="aro-hcp", name="hcp-cluster", cluster="test-cluster"}'
+    values: "0+10x30"
+  alert_rule_test:
+  - eval_time: 25m
+    alertname: WorkqueueControllerRetryHotLoop
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+        cluster: test-cluster
+        namespace: aro-hcp
+        name: hcp-cluster
+      exp_annotations:
+        correlationId: 'WorkqueueControllerRetryHotLoop/test-cluster/aro-hcp/hcp-cluster'
+        description: 'Workqueue hcp-cluster in namespace aro-hcp on cluster test-cluster has a retry ratio of > 50% sustained over 10 minutes, indicating most queue activity is failed retries rather than fresh work.'
+        runbook_url: 'TBD'
+        summary: 'Workqueue hcp-cluster in aro-hcp on test-cluster retry hot loop'
+        title: 'Workqueue hcp-cluster in aro-hcp on test-cluster retry hot loop'
+# Test: WorkqueueControllerRetryHotLoop does not fire when retry ratio <= 50%
+- interval: 1m
+  input_series:
+  - series: 'workqueue_retries_total{namespace="kube-applier", name="apply-desire", cluster="test-cluster"}'
+    values: "0+3x30" # 3 retries/min
+  - series: 'workqueue_adds_total{namespace="kube-applier", name="apply-desire", cluster="test-cluster"}'
+    values: "0+10x30" # 10 adds/min → ratio 0.3 < 0.5
+  alert_rule_test:
+  - eval_time: 25m
+    alertname: WorkqueueControllerRetryHotLoop
+    exp_alerts: []
+# Test: WorkqueueControllerRetryHotLoop does not fire for excluded namespace kube-system
+- interval: 1m
+  input_series:
+  - series: 'workqueue_retries_total{namespace="kube-system", name="some-controller", cluster="test-cluster"}'
+    values: "0+9x30" # ratio 0.9 — would fire if not excluded
+  - series: 'workqueue_adds_total{namespace="kube-system", name="some-controller", cluster="test-cluster"}'
+    values: "0+10x30"
+  alert_rule_test:
+  - eval_time: 25m
+    alertname: WorkqueueControllerRetryHotLoop
+    exp_alerts: []
+# Test: WorkqueueControllerRetryHotLoop does not fire for excluded namespace monitoring
+- interval: 1m
+  input_series:
+  - series: 'workqueue_retries_total{namespace="monitoring", name="some-controller", cluster="test-cluster"}'
+    values: "0+9x30"
+  - series: 'workqueue_adds_total{namespace="monitoring", name="some-controller", cluster="test-cluster"}'
+    values: "0+10x30"
+  alert_rule_test:
+  - eval_time: 25m
+    alertname: WorkqueueControllerRetryHotLoop
+    exp_alerts: []
