@@ -76,10 +76,14 @@ func NewClient(
 	// connection pool. Callers tear the client down by cancelling ctx, so we
 	// drain the pool's idle connections on cancellation to avoid leaking TCP
 	// connections and file descriptors across repeated client creations.
-	context.AfterFunc(ctx, restHTTPClient.CloseIdleConnections)
+	stopDrainIdleConns := context.AfterFunc(ctx, restHTTPClient.CloseIdleConnections)
 
 	grpcClient, err := newGRPCSourceWorkClient(ctx, maestroGRPCAPIEndpoint, restClient, maestroSourceID)
 	if err != nil {
+		// Unregister the teardown callback so we don't retain references until
+		// ctx is cancelled when client creation fails here.
+		stopDrainIdleConns()
+		restHTTPClient.CloseIdleConnections()
 		return nil, utils.TrackError(fmt.Errorf("failed to create maestro grpc source work client: %w", err))
 	}
 
