@@ -30,7 +30,7 @@ func newVersion() version {
 
 // String returns the api-version parameter value for this API.
 func (v version) String() string {
-	return "2025-12-23-preview"
+	return api.APIVersionV20251223Preview
 }
 
 func (v version) ValidationPathRewriter(internalObj any) (api.ValidationPathMapperFunc, error) {
