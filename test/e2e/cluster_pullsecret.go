@@ -62,12 +62,11 @@ var _ = Describe("Customer", func() {
 				catalogSourceNamespace = "openshift-marketplace"
 				nfdNamespace           = "openshift-nfd"
 
-				// Timeouts and intervals for verifications
+				// Timeouts for verifications
 				pullSecretMergeTimeout = 10 * time.Minute
 				daemonSetSyncTimeout   = 10 * time.Minute // moving from 5 to 10 minutes due to observed slowness in pre-merge CI
 				catalogSourceTimeout   = 10 * time.Minute // moving from 5 to 10 minutes due to observed slowness in CI
 				operatorInstallTimeout = 10 * time.Minute
-				verifierPollInterval   = 15 * time.Second
 			)
 			tc := framework.NewTestContext()
 
@@ -162,14 +161,14 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create additional-pull-secret in kube-system namespace")
 
 			By("waiting for HCCO to merge the additional pull secret with the global pull secret")
-			verifier := verifiers.VerifyPullSecretMergedIntoGlobal(testPullSecretHost)
-			verifiers.EventuallyVerify(ctx, verifier, adminRESTConfig, pullSecretMergeTimeout, verifierPollInterval,
-				"additional pull secret should be merged into global-pull-secret by HCCO")
+			err = verifiers.VerifyPullSecretMergedIntoGlobal(testPullSecretHost, pullSecretMergeTimeout).
+				Verify(ctx, adminRESTConfig)
+			Expect(err).NotTo(HaveOccurred(), "failed to wait for additional pull secret to be merged into global-pull-secret by HCCO")
 
 			By("verifying the DaemonSet for global pull secret synchronization is created")
-			verifier = verifiers.VerifyGlobalPullSecretSyncer()
-			verifiers.EventuallyVerify(ctx, verifier, adminRESTConfig, daemonSetSyncTimeout, verifierPollInterval,
-				"global-pull-secret-syncer DaemonSet should be created")
+			err = verifiers.VerifyGlobalPullSecretSyncer(daemonSetSyncTimeout).
+				Verify(ctx, adminRESTConfig)
+			Expect(err).NotTo(HaveOccurred(), "failed to wait for global-pull-secret-syncer DaemonSet to be created and ready")
 
 			By("verifying the pull secret was merged into the global pull secret")
 			err = verifiers.VerifyPullSecretAuthData(
@@ -223,17 +222,17 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to update additional-pull-secret with registry.redhat.io credentials")
 
 			By("waiting for HCCO to merge the updated pull secret (with registry.redhat.io) into global pull secret")
-			verifier = verifiers.VerifyPullSecretMergedIntoGlobal(redhatRegistryHost)
-			verifiers.EventuallyVerify(ctx, verifier, adminRESTConfig, pullSecretMergeTimeout, verifierPollInterval,
-				"registry.redhat.io pull secret should be merged into global-pull-secret by HCCO")
+			err = verifiers.VerifyPullSecretMergedIntoGlobal(redhatRegistryHost, pullSecretMergeTimeout).
+				Verify(ctx, adminRESTConfig)
+			Expect(err).NotTo(HaveOccurred(), "failed to wait for registry.redhat.io pull secret to be merged into global-pull-secret by HCCO")
 
 			By("waiting for global-pull-secret-syncer DaemonSet to sync updated secret to all nodes")
-			verifier = verifiers.VerifyGlobalPullSecretSyncer()
-			verifiers.EventuallyVerify(ctx, verifier, adminRESTConfig, daemonSetSyncTimeout, verifierPollInterval,
-				"global-pull-secret-syncer should have synced pull secret to all nodes")
+			err = verifiers.VerifyGlobalPullSecretSyncer(daemonSetSyncTimeout).
+				Verify(ctx, adminRESTConfig)
+			Expect(err).NotTo(HaveOccurred(), "failed to wait for global-pull-secret-syncer to sync pull secret to all nodes")
 
 			By("verifying both test registries are now in the global pull secret")
-			err = verifiers.VerifyPullSecretMergedIntoGlobal(testPullSecretHost).Verify(ctx, adminRESTConfig)
+			err = verifiers.VerifyPullSecretMergedIntoGlobal(testPullSecretHost, pullSecretMergeTimeout).Verify(ctx, adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred(), "host.example.com should still be in global-pull-secret")
 
 			err = verifiers.VerifyPullSecretAuthData(
@@ -246,9 +245,9 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to verify registry.redhat.io auth data in global-pull-secret")
 
 			By("verifying redhat-operators catalog source is ready")
-			verifier = verifiers.VerifyCatalogSourceReady(catalogSourceNamespace, catalogSourceName)
-			verifiers.EventuallyVerify(ctx, verifier, adminRESTConfig, catalogSourceTimeout, verifierPollInterval,
-				"redhat-operators catalog source should be ready before creating subscription")
+			err = verifiers.VerifyCatalogSourceReady(catalogSourceNamespace, catalogSourceName, catalogSourceTimeout).
+				Verify(ctx, adminRESTConfig)
+			Expect(err).NotTo(HaveOccurred(), "failed to wait for redhat-operators catalog source to be ready before creating subscription")
 
 			By("creating dynamic client for operator installation")
 			dynamicClient, err := dynamic.NewForConfig(adminRESTConfig)
@@ -311,9 +310,9 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create Subscription for NFD operator from redhat-operators catalog")
 
 			By("waiting for NFD operator to be installed")
-			verifier = verifiers.VerifyOperatorInstalled(nfdNamespace, "nfd")
-			verifiers.EventuallyVerify(ctx, verifier, adminRESTConfig, operatorInstallTimeout, verifierPollInterval,
-				"NFD operator should be installed successfully")
+			err = verifiers.VerifyOperatorInstalled(nfdNamespace, "nfd", operatorInstallTimeout).
+				Verify(ctx, adminRESTConfig)
+			Expect(err).NotTo(HaveOccurred(), "failed to wait for NFD operator to be installed successfully")
 
 			By("creating NodeFeatureDiscovery CR to deploy NFD worker")
 			nfdGVR := schema.GroupVersionResource{
@@ -340,26 +339,13 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create NodeFeatureDiscovery CR in %s", nfdNamespace)
 
 			By("waiting for NFD worker DaemonSet to be created")
-			Eventually(func() error {
-				daemonSets, err := kubeClient.AppsV1().DaemonSets(nfdNamespace).List(ctx, metav1.ListOptions{})
-				if err != nil {
-					return err
-				}
-				for _, ds := range daemonSets.Items {
-					if ds.Name == "nfd-worker" {
-						if ds.Status.DesiredNumberScheduled > 0 && ds.Status.NumberReady > 0 {
-							return nil
-						}
-						return fmt.Errorf("nfd-worker DaemonSet found but not ready: desired=%d, ready=%d",
-							ds.Status.DesiredNumberScheduled, ds.Status.NumberReady)
-					}
-				}
-				return fmt.Errorf("nfd-worker DaemonSet not found")
-			}, operatorInstallTimeout, verifierPollInterval).Should(Succeed(), "NFD worker DaemonSet should be created and have ready pods")
+			err = verifiers.VerifyDaemonSetReady(nfdNamespace, "nfd-worker", operatorInstallTimeout).
+				Verify(ctx, adminRESTConfig)
+			Expect(err).NotTo(HaveOccurred(), "failed to wait for NFD worker DaemonSet to be created and have ready pods")
 
 			By("waiting for NFD worker pods to be created and verify images from registry.redhat.io can be pulled")
-			verifier = verifiers.VerifyImagePulled(nfdNamespace, "registry.redhat.io", "ose-node-feature-discovery")
-			verifiers.EventuallyVerify(ctx, verifier, adminRESTConfig, operatorInstallTimeout, verifierPollInterval,
-				"NFD worker images from registry.redhat.io should be pulled successfully with the added pull secret")
+			err = verifiers.VerifyImagePulled(nfdNamespace, "registry.redhat.io", "ose-node-feature-discovery", operatorInstallTimeout).
+				Verify(ctx, adminRESTConfig)
+			Expect(err).NotTo(HaveOccurred(), "failed to wait for NFD worker images from registry.redhat.io to be pulled successfully with the added pull secret")
 		})
 })
