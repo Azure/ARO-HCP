@@ -1876,7 +1876,7 @@ resource kustoLogsAgeRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
           summary: 'Kusto log data is stale for {{ $labels.table }} on {{ $labels.cluster }}.'
           title: 'Kusto log data is stale for {{ $labels.table }} on {{ $labels.cluster }}.'
         }
-        expression: 'kusto_logs_age_in_seconds > 3600'
+        expression: 'kusto_logs_age_in_seconds{table!="systemdlogs"} > 3600 or kusto_logs_age_in_seconds{cluster!~".*-svc-.*",table="systemdlogs"} > 3600 or kusto_logs_age_in_seconds{cluster=~".*-svc-.*",table="systemdlogs"} > 7200'
         for: 'PT15M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
