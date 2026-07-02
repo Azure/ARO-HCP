@@ -602,6 +602,8 @@ defaults:
           features:
           - name: IstioNativeSidecarModePreview
             poll: true
+        'Microsoft.ContainerInstance':
+          poll: true
         'Microsoft.Quota':
           poll: true
     rg: "hcp-underlay-{{ .ctx.environment }}-{{ .ctx.region }}-mgmt-{{ .ctx.stamp }}"
