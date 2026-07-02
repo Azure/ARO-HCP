@@ -148,7 +148,7 @@ tests:
       exp_annotations:
         summary: Prometheus has failed scrapes that have exceeded the configured sample limit.
         description: Prometheus prometheus/ has failed 10 scrapes in the last 5m because some targets exceeded the configured sample_limit.
-        runbook_url: https://runbooks.prometheus-operator.dev/runbooks/prometheus/prometheusscrapesamplelimithit
+        runbook_url: https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/Prometheus.md
 # prometheus-operator-rules group tests
 - interval: 1m
   input_series:
