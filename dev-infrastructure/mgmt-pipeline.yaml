@@ -222,6 +222,11 @@ resourceGroups:
     action: Shell
     command: ./swift-vnet.sh
     workingDir: ./scripts
+    shellIdentity:
+      input:
+        resourceGroup: global
+        step: output
+        name: globalMSIId
     variables:
     - name: ENABLE_SWIFT
       configRef: mgmt.aks.enableSwiftV2Vnet
