@@ -50,6 +50,23 @@ func copyFile(fileToCopy, targetDir string) error {
 	return os.WriteFile(filepath.Join(targetDir, filepath.Base(fileToCopy)), input, 0644)
 }
 
+func runGenerator(configFile, promtoolPath string, skipTests bool) error {
+	opts := &prometheusrules.RawOptions{
+		ConfigFile:   configFile,
+		PromtoolPath: promtoolPath,
+		SkipTests:    skipTests,
+	}
+	validated, err := opts.Validate()
+	if err != nil {
+		return err
+	}
+	completed, err := validated.Complete()
+	if err != nil {
+		return err
+	}
+	return completed.Run()
+}
+
 func TestPrometheusRules(t *testing.T) {
 
 	testCases := []struct {
@@ -72,7 +89,7 @@ func TestPrometheusRules(t *testing.T) {
 			} {
 				require.NoError(t, copyFile(testfile, filepath.Join(tmpDir, "alerts")))
 			}
-			err := prometheusrules.GenerateFromConfig(filepath.Join(tmpDir, "config.yaml"), false, "promtool")
+			err := runGenerator(filepath.Join(tmpDir, "config.yaml"), "promtool", false)
 			require.NoError(t, err)
 
 			generatedFile, err := os.ReadFile(filepath.Join(tmpDir, "zzz_generated_AlertingRules.bicep"))
@@ -100,7 +117,7 @@ func TestPrometheusRulesMissingTest(t *testing.T) {
 	} {
 		require.NoError(t, copyFile(testfile, filepath.Join(tmpDir, "alerts")))
 	}
-	err := prometheusrules.GenerateFromConfig(filepath.Join(tmpDir, "config.yaml"), false, "promtool")
+	err := runGenerator(filepath.Join(tmpDir, "config.yaml"), "promtool", false)
 	require.ErrorContains(t, err, "missing testfile")
 }
 
@@ -108,7 +125,6 @@ func TestPrometheusRulesMixedRulesNotAllowed(t *testing.T) {
 	tmpDir := t.TempDir()
 	require.NoError(t, setupTestFiles(tmpDir, ""))
 
-	// Create a rule file with mixed alert and recording rules in the same group
 	mixedRulesContent := `apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
 metadata:
@@ -125,7 +141,6 @@ spec:
       expr: rate(test_metric[5m])
 `
 
-	// Create a corresponding test file (required by the generator)
 	testFileContent := `rule_files:
 - mixed-prometheusRule.yaml
 tests: []
@@ -137,17 +152,12 @@ tests: []
 	err = os.WriteFile(filepath.Join(tmpDir, "alerts", "mixed-prometheusRule_test.yaml"), []byte(testFileContent), 0644)
 	require.NoError(t, err)
 
-	// Run the generator - it should handle mixed rules based on file type
-	// Since we're using AlertingRules filename, it should process only alerts
-	err = prometheusrules.GenerateFromConfig(filepath.Join(tmpDir, "config.yaml"), false, "promtool")
+	err = runGenerator(filepath.Join(tmpDir, "config.yaml"), "promtool", false)
 	require.NoError(t, err)
 
-	// Verify the generated file exists and contains only alert rules
 	generatedFile, err := os.ReadFile(filepath.Join(tmpDir, "zzz_generated_AlertingRules.bicep"))
 	require.NoError(t, err)
 
-	// The generated content should contain alert-related configuration
 	require.Contains(t, string(generatedFile), "alert: 'TestAlert'")
-	// Recording rules should be ignored when generating AlertingRules file
 	require.NotContains(t, string(generatedFile), "record: 'test:metric:rate5m'")
 }

@@ -471,7 +471,7 @@ spec:
 			}
 
 			opts := NewOptions()
-			err := opts.Complete(configPath, "promtool")
+			err := opts.Complete(configPath, "promtool", false)
 
 			if tt.expectError {
 				assert.Error(t, err)

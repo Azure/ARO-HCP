@@ -15,10 +15,10 @@
 package main
 
 import (
-	"flag"
 	"os"
 
 	"github.com/sirupsen/logrus"
+	"github.com/spf13/cobra"
 
 	"github.com/Azure/ARO-HCP/tooling/prometheus-rules/pkg/prometheusrules"
 )
@@ -27,19 +27,43 @@ func main() {
 	if os.Getenv("DEBUG") == "true" {
 		logrus.SetLevel(logrus.DebugLevel)
 	}
-	var configFilePath string
-	var promtoolPath string
 
-	flag.CommandLine.StringVar(&configFilePath, "config-file", "", "Path to configuration")
-	flag.CommandLine.StringVar(&promtoolPath, "promtool-path", "promtool", "Path to promtool binary ")
-	flag.Parse()
-
-	if err := prometheusrules.Validate(flag.Args(), configFilePath, promtoolPath); err != nil {
-		logrus.WithError(err).Fatal("invalid options")
+	cmd, err := newCommand()
+	if err != nil {
+		logrus.WithError(err).Fatal("failed to create command")
 	}
 
-	if err := prometheusrules.GenerateFromConfig(configFilePath, false, promtoolPath); err != nil {
+	if err := cmd.Execute(); err != nil {
 		logrus.WithError(err).Fatal("error running generator")
 	}
+}
 
+func newCommand() (*cobra.Command, error) {
+	opts := prometheusrules.DefaultOptions()
+	cmd := &cobra.Command{
+		Use:           "prometheus-rules",
+		Short:         "Generate Azure Bicep templates from Prometheus rules",
+		SilenceErrors: true,
+		SilenceUsage:  true,
+		Args:          cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return run(opts)
+		},
+	}
+	if err := prometheusrules.BindOptions(opts, cmd); err != nil {
+		return nil, err
+	}
+	return cmd, nil
+}
+
+func run(opts *prometheusrules.RawOptions) error {
+	validated, err := opts.Validate()
+	if err != nil {
+		return err
+	}
+	completed, err := validated.Complete()
+	if err != nil {
+		return err
+	}
+	return completed.Run()
 }
