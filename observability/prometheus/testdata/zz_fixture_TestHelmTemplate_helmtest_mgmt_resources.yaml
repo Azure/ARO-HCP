@@ -68626,16 +68626,27 @@ spec:
   topologySpreadConstraints:
   - labelSelector:
       matchLabels:
-        app: prometheus
+        app.kubernetes.io/name: prometheus-agent
+        operator.prometheus.io/name: prometheus
     maxSkew: 1
     topologyKey: 'topology.kubernetes.io/zone'
     whenUnsatisfiable: ScheduleAnyway
   - labelSelector:
       matchLabels:
-        app: prometheus
+        app.kubernetes.io/name: prometheus-agent
+        operator.prometheus.io/name: prometheus
     maxSkew: 1
     topologyKey: kubernetes.io/hostname
     whenUnsatisfiable: ScheduleAnyway
+  - labelSelector:
+      matchLabels:
+        app.kubernetes.io/name: prometheus-agent
+        operator.prometheus.io/name: prometheus
+    matchLabelKeys:
+    - operator.prometheus.io/shard
+    maxSkew: 1
+    topologyKey: kubernetes.io/hostname
+    whenUnsatisfiable: DoNotSchedule
   walCompression: true
   externalLabels:
     cluster: 'dev-westus3-mgmt-1'
@@ -68651,7 +68662,7 @@ spec:
       maxShards: 50
       minShards: 1
       maxSamplesPerSend: 10000
-      batchSendDeadline: 60s
+      batchSendDeadline: 30s
       minBackoff: 30ms
       maxBackoff: 256s
     metadataConfig:
@@ -68669,7 +68680,7 @@ spec:
       maxShards: 50
       minShards: 1
       maxSamplesPerSend: 10000
-      batchSendDeadline: 60s
+      batchSendDeadline: 30s
       minBackoff: 30ms
       maxBackoff: 256s
     metadataConfig:
