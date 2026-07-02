@@ -49,6 +49,10 @@ func nodePoolHash(ctx context.Context, kubeClient kubernetes.Interface, nodePool
 		return "", fmt.Errorf("select nodes for pool %q: %w", nodePoolName, err)
 	}
 
+	if len(poolNodes) == 0 {
+		return "", fmt.Errorf("no nodes found for pool %q", nodePoolName)
+	}
+
 	sort.Slice(poolNodes, func(i, j int) bool {
 		return poolNodes[i].Name < poolNodes[j].Name
 	})
@@ -74,8 +78,8 @@ var _ = Describe("HypershiftOperator in-place upgrade", func() {
 		labels.UpgradeInPlace,
 		func(ctx context.Context) {
 			const (
-				// Time allowed for the node pool rollout to produce a hash change after
-				// the pipeline deploy completes.
+				// Time to observe for unexpected node pool hash changes after the
+				// pipeline deploy completes.
 				rolloutObservationWindow = 20 * time.Minute
 				rolloutPollInterval      = 30 * time.Second
 			)

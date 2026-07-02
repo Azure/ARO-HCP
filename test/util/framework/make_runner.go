@@ -74,10 +74,8 @@ func NewMakeRunner(logger logr.Logger) *MakeRunner {
 	}
 }
 
-// Run executes "make <target>", forwarding stdout and stderr to the process's
-// own stdout and stderr. The caller is expected to redirect those streams before
-// Run returns (e.g. set cmd.Stdout = GinkgoWriter at the call site) — or use
-// the RunWithOutput variant which accepts explicit io.Writers.
+// Run executes "make <target>", forwarding stdout and stderr to os.Stdout and os.Stderr.
+// Use RunWithOutput to route output to custom writers (e.g. ginkgo.GinkgoWriter).
 //
 // The subprocess is placed in its own process group (Setpgid) so that context
 // cancellation terminates the whole tree, not just the top-level make PID.

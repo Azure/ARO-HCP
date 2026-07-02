@@ -212,6 +212,7 @@ Every test MUST include appropriate labels from these categories:
 ### Test Environment Labels (MANDATORY - exactly one):
 - `labels.RequireNothing`: Per-test cluster tests (creates own cluster) — **preferred approach**
 - `labels.RequireHappyPathInfra`: Per-run cluster tests (uses pre-created cluster)
+- `labels.UpgradeInPlace`: End-to-end in-place upgrade tests — exclusively selected by the `upgrade/in-place` suite and automatically excluded from all other suites. Use for tests that invoke `make` pipeline targets (e.g. `pipeline/RP.HypershiftOperator`) against pre-provisioned regional infrastructure
 
 ### Importance Labels (MANDATORY - exactly one):
 - `labels.Critical`: Blockers for rollout
