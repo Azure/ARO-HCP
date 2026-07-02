@@ -297,7 +297,9 @@ defaults:
       certificate:
         name: genevaAction
         issuer: OneCertV2-PrivateCA
-        manage: true
+        san: ""
+        contentType: x-pkcs12
+        manage: Enabled
       allowedAcisExtensions: "AzureRedHatHypershiftExtension,Azure Red Hat Hypershift"
       genevaActionsPrincipalId: ""
       application:
@@ -1344,6 +1346,7 @@ clouds:
             name: "arohcpdev-geneva-kv" # [globally-unique]
           certificate:
             issuer: Self
+            san: genevaAction.hcp-global.osadev.cloud
     environments:
       dev:
         # this is the integrated DEV environment

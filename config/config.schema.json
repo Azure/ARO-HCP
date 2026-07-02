@@ -685,6 +685,13 @@
         "OneCertV2-PrivateCA"
       ]
     },
+    "certificateManage": {
+      "type": "string",
+      "enum": [
+        "Enabled",
+        "Disabled"
+      ]
+    },
     "clusterScopedIdentitiesConfig": {
       "type": "object",
       "properties": {
@@ -1241,8 +1248,7 @@
           "type": "string"
         },
         "manage": {
-          "type": "string",
-          "enum": ["Enabled", "Disabled"]
+          "$ref": "#/definitions/certificateManage"
         }
       },
       "additionalProperties": false,
@@ -1942,14 +1948,22 @@
                 "issuer": {
                   "$ref": "#/definitions/certificateIssuer"
                 },
+                "san": {
+                  "type": "string"
+                },
+                "contentType": {
+                  "type": "string"
+                },
                 "manage": {
-                  "type": "boolean"
+                  "$ref": "#/definitions/certificateManage"
                 }
               },
               "additionalProperties": false,
               "required": [
                 "name",
                 "issuer",
+                "san",
+                "contentType",
                 "manage"
               ]
             },
@@ -3560,6 +3574,10 @@
     {
       "rule": "self.firstPartyAppCertificate.san == '' || self.firstPartyAppCertificate.san == self.firstPartyAppCertificate.name + '.' + self.dns.svcParentZoneName",
       "message": "firstPartyAppCertificate.san must equal firstPartyAppCertificate.name + '.' + dns.svcParentZoneName"
+    },
+    {
+      "rule": "self.geneva.actions.certificate.san == '' || self.geneva.actions.certificate.san == self.geneva.actions.certificate.name + '.' + self.dns.globalCertificatesDomain",
+      "message": "geneva.actions.certificate.san must equal geneva.actions.certificate.name + '.' + dns.globalCertificatesDomain"
     }
   ]
 }
