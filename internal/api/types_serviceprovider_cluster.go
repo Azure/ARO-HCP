@@ -165,11 +165,12 @@ type ServiceProviderClusterStatus struct {
 	ManagementClusterResourceID *azcorearm.ResourceID `json:"managementClusterResourceID,omitempty"`
 
 	// DesiredHostedClusterControlPlaneSize mirrors the value of
-	// Spec.DesiredHostedClusterControlPlaneSize that the backend reconciler
-	// last successfully pushed to cluster-service. It exists so NeedsWork can
-	// cheaply detect divergence — including the unset transition (Spec nil,
-	// Status non-nil), where there is no signal on Spec alone that the CS
-	// property still needs to be cleared.
+	// Spec.DesiredHostedClusterControlPlaneSize once cluster-service reflects
+	// the effective size override (as confirmed by the desired-control-plane-size
+	// status reconciler). It exists so NeedsWork can cheaply detect divergence,
+	// including the unset transition (Spec nil, Status non-nil), where there
+	// is no signal on Spec alone that dispatch still needs to clear the CS
+	// property.
 	DesiredHostedClusterControlPlaneSize *string `json:"desiredHostedClusterControlPlaneSize,omitempty"`
 }
 

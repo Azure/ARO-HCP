@@ -21,8 +21,6 @@ import (
 
 	"k8s.io/utils/ptr"
 
-	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
-
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
@@ -34,21 +32,20 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
-// desiredControlPlaneSizeSyncer forwards the SRE-selected
-// DesiredHostedClusterControlPlaneSize from the ServiceProviderCluster into
-// cluster-service via the cluster's properties bag (CSPropertySizeOverride).
+// desiredControlPlaneSizeSyncer records ServiceProviderCluster.Status
+// DesiredHostedClusterControlPlaneSize once cluster-service reflects the
+// effective size override implied by SPC Spec and the cluster experimental
+// features (via ocm.ConvertHostedClusterSizeOverrideToCS).
 //
-// It reads the live cluster-service cluster, computes the desired property
-// value via ocm.DesiredHostedClusterSizeOverride (the same helper the frontend
-// update path uses), and only issues an UpdateCluster when the value actually
-// differs — avoiding the cost (and the CS "updating" state churn) of pushing
-// on every resync.
+// It does not PATCH cluster-service. The cluster update dispatch controller
+// is the sole writer for CSPropertySizeOverride. This syncer only observes
+// the live CS cluster and, when the property already matches the merged
+// desired value, mirrors SPC Spec into Status so NeedsWork can detect the
+// unset transition (Spec nil, Status non-nil) without round-tripping to CS.
 //
-// After a successful reconcile the syncer writes the applied size back to
-// ServiceProviderCluster.Status.DesiredHostedClusterControlPlaneSize so that
-// NeedsWork can detect the unset transition (Spec nil, Status non-nil)
-// without round-tripping to CS — the only signal that the previously-applied
-// property still needs to be cleared from CS.
+// Status records the SPC tier field only, not the merged CS property value.
+// For example, when SPC Spec is cleared and experimental Minimal applies,
+// Status is set to nil once CS holds e2e_minimal, not e2e_minimal itself.
 type desiredControlPlaneSizeSyncer struct {
 	cooldownChecker              controllerutil.CooldownChecker
 	serviceProviderClusterLister listers.ServiceProviderClusterLister
@@ -59,9 +56,10 @@ type desiredControlPlaneSizeSyncer struct {
 
 var _ controllerutils.ClusterSyncer = (*desiredControlPlaneSizeSyncer)(nil)
 
-// NewDesiredControlPlaneSizeController creates a controller that reads
-// ServiceProviderClusterSpec.DesiredHostedClusterControlPlaneSize and writes
-// the corresponding cluster-service property when it diverges.
+// NewDesiredControlPlaneSizeController creates a controller that reconciles
+// ServiceProviderCluster.Status.DesiredHostedClusterControlPlaneSize against
+// SPC Spec once the cluster update dispatch controller has applied the
+// effective size override to cluster-service.
 func NewDesiredControlPlaneSizeController(
 	resourcesDBClient database.ResourcesDBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
@@ -95,7 +93,7 @@ func (c *desiredControlPlaneSizeSyncer) CooldownChecker() controllerutil.Cooldow
 }
 
 // NeedsWork reports whether ServiceProviderCluster.Spec.DesiredHostedClusterControlPlaneSize
-// diverges from what we last wrote (ServiceProviderCluster.Status.DesiredHostedClusterControlPlaneSize).
+// diverges from what we last recorded (ServiceProviderCluster.Status.DesiredHostedClusterControlPlaneSize).
 // The comparison covers all three transitions we care about:
 //   - set → changed:  Spec=A, Status=B
 //   - unset → set:    Spec=A, Status=nil
@@ -153,33 +151,19 @@ func (c *desiredControlPlaneSizeSyncer) SyncOnce(ctx context.Context, key contro
 		return utils.TrackError(fmt.Errorf("failed to get cluster from Cluster Service: %w", err))
 	}
 
-	// Compute the desired CSPropertySizeOverride value using the same logic
-	// BuildCSCluster applies on the frontend update path — the helper is the
-	// single source of truth so the two writers cannot disagree.
-	desired, desiredPresent := ocm.DesiredHostedClusterSizeOverride(cachedServiceProviderCluster, cachedCluster)
+	// Compute the effective CSPropertySizeOverride using the same logic the
+	// cluster update dispatch controller applies. The helper is the single
+	// source of truth so dispatch and this status reconciler cannot disagree.
+	effectiveDesired, effectiveDesiredPresent := ocm.ConvertHostedClusterSizeOverrideToCS(cachedCluster.ServiceProviderProperties.ExperimentalFeatures.ControlPlanePodSizing, cachedServiceProviderCluster.Spec.DesiredHostedClusterControlPlaneSize)
 	current, currentPresent := clusterServiceCluster.Properties()[ocm.CSPropertySizeOverride]
 
-	if desiredPresent != currentPresent || desired != current {
-		// Overlay onto a copy of the existing properties so any other entries
-		// CS already holds (SingleReplica, provision shard, etc.) stay intact.
-		properties := map[string]string{}
-		for k, v := range clusterServiceCluster.Properties() {
-			properties[k] = v
-		}
-		if desiredPresent {
-			properties[ocm.CSPropertySizeOverride] = desired
-		} else {
-			delete(properties, ocm.CSPropertySizeOverride)
-		}
-
-		clusterBuilder := arohcpv1alpha1.NewCluster().Properties(properties)
-		if _, err := c.clusterServiceClient.UpdateCluster(ctx, clusterServiceID, clusterBuilder); err != nil {
-			return utils.TrackError(fmt.Errorf("failed to update cluster in Cluster Service: %w", err))
-		}
+	if effectiveDesiredPresent != currentPresent || effectiveDesired != current {
+		logger.V(1).Info("effective cluster-service size override not yet applied, waiting for update dispatch", "effectiveDesired", effectiveDesired, "effectiveDesiredPresent", effectiveDesiredPresent, "current", current, "currentPresent", currentPresent)
+		return nil
 	}
 
-	// Record what we just applied. Status mirrors Spec so NeedsWork can
-	// trivially detect the next divergence — including the unset case.
+	// Cluster-service reflects the merged desired value. Mirror SPC Spec into
+	// Status so NeedsWork can trivially detect the next divergence.
 	replacement := cachedServiceProviderCluster.DeepCopy()
 	if cachedServiceProviderCluster.Spec.DesiredHostedClusterControlPlaneSize == nil {
 		replacement.Status.DesiredHostedClusterControlPlaneSize = nil
@@ -197,9 +181,6 @@ func (c *desiredControlPlaneSizeSyncer) SyncOnce(ctx context.Context, key contro
 		return utils.TrackError(fmt.Errorf("failed to update ServiceProviderCluster status: %w", err))
 	}
 
-	logger.Info("reconciled DesiredHostedClusterControlPlaneSize with Cluster Service",
-		"size", desired,
-		"present", desiredPresent,
-	)
+	logger.Info("recorded DesiredHostedClusterControlPlaneSize status after cluster-service confirmed", "size", effectiveDesired, "present", effectiveDesiredPresent)
 	return nil
 }

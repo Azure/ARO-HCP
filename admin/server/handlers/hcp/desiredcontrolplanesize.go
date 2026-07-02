@@ -56,9 +56,10 @@ func (h *HCPDesiredControlPlaneSizeHandler) ServeHTTP(writer http.ResponseWriter
 	if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
 		return arm.NewCloudError(http.StatusBadRequest, arm.CloudErrorCodeInvalidRequestContent, "", "invalid JSON body: %v", err)
 	}
-	// A nil body.Size means the caller is clearing the SRE-selected tier; that
-	// nil-on-SPC state is what the backend syncer will use to drive removal of
-	// the corresponding cluster-service property. An explicit empty string is
+	// A nil body.Size means the caller is clearing the SRE-selected tier; the
+	// cluster update dispatch controller applies the effective size override to
+	// cluster-service, and the desired-control-plane-size status reconciler
+	// records Status once CS confirms the change. An explicit empty string is
 	// not a valid tier and is rejected separately from the omitted case.
 	if body.Size != nil && *body.Size == "" {
 		return arm.NewCloudError(http.StatusBadRequest, arm.CloudErrorCodeInvalidRequestContent, "", "size must not be empty; omit the field to clear")
