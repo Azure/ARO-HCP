@@ -1,0 +1,82 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    app.kubernetes.io/name: kube-prometheus
+    app.kubernetes.io/part-of: kube-prometheus
+    prometheus: k8s
+    role: alert-rules
+  name: user-journey-cluster-upgrade-complete-alerts
+  namespace: monitoring
+spec:
+  groups:
+  # ========================================
+  # Cluster Upgrade Complete SLO Monitor Alerts
+  # ========================================
+  # Multi-window burn-rate alerts. Sev 4 (info).
+  #
+  # In absence of https://issues.redhat.com/browse/ARO-22686 (reporting of control plane
+  # version history for versions lower than 4.22), cluster upgrade completeness is directly
+  # impacted by data plane state — e.g. no worker nodes means the upgrade will not reach
+  # completed; missing console component in external auth prevents CVO from marking the
+  # upgrade complete. Alerts may therefore fire due to missing data plane configuration
+  # rather than control plane failure. The runbook will be written to accommodate this.
+  - name: rp-user-journey-cluster-upgrade-complete-monitor-rules
+    rules:
+    - alert: userJourneyClusterUpgradeComplete1h5m
+      expr: |
+        hosted_control_plane_version:in_progress:stuck_over_30m:burnrate5m > 14.4
+        and
+        hosted_control_plane_version:in_progress:stuck_over_30m:burnrate1h > 14.4
+      for: 5m
+      labels:
+        severity: info
+        slo: cluster-upgrade-complete
+        short_window: 5m
+        long_window: 1h
+      annotations:
+        summary: "[HCPUpgradeCompleteBurn] {{ $labels.cluster }}"
+        description: |
+          More than 14.4x of the 99.95% cluster upgrade complete error budget is being consumed. Cluster upgrades are stuck for over 30 minutes without reaching completed. Completed is when the target version upgrade has finished and is reported as complete on the HCP cluster. Investigate backend_cluster_version_info on affected clusters.
+          Window: 1h/5m
+          Management Cluster: {{ $labels.cluster }}
+        runbook_url: https://aka.ms/arohcp-runbook-cluster-upgrade
+        correlationId: "userJourneyClusterUpgradeComplete/{{ $labels.cluster }}"
+    - alert: userJourneyClusterUpgradeComplete6h30m
+      expr: |
+        hosted_control_plane_version:in_progress:stuck_over_30m:burnrate30m > 6
+        and
+        hosted_control_plane_version:in_progress:stuck_over_30m:burnrate6h > 6
+      for: 30m
+      labels:
+        severity: info
+        slo: cluster-upgrade-complete
+        short_window: 30m
+        long_window: 6h
+      annotations:
+        summary: "[HCPUpgradeCompleteBurn] {{ $labels.cluster }}"
+        description: |
+          More than 6x of the 99.95% cluster upgrade complete error budget is being consumed. Cluster upgrades are stuck for over 30 minutes without reaching completed. Completed is when the target version upgrade has finished and is reported as complete on the HCP cluster. Investigate backend_cluster_version_info on affected clusters.
+          Window: 6h/30m
+          Management Cluster: {{ $labels.cluster }}
+        runbook_url: https://aka.ms/arohcp-runbook-cluster-upgrade
+        correlationId: "userJourneyClusterUpgradeComplete/{{ $labels.cluster }}"
+    - alert: userJourneyClusterUpgradeComplete3d6h
+      expr: |
+        hosted_control_plane_version:in_progress:stuck_over_30m:burnrate6h > 1
+        and
+        hosted_control_plane_version:in_progress:stuck_over_30m:burnrate3d > 1
+      for: 30m
+      labels:
+        severity: info
+        slo: cluster-upgrade-complete
+        short_window: 6h
+        long_window: 3d
+      annotations:
+        summary: "[HCPUpgradeCompleteBurn] {{ $labels.cluster }}"
+        description: |
+          Cluster upgrade complete has been steadily consuming the 99.95% SLO error budget (1x burn). Cluster upgrades are stuck for over 30 minutes without reaching completed. Completed is when the target version upgrade has finished and is reported as complete on the HCP cluster. Investigate backend_cluster_version_info on affected clusters.
+          Window: 3d/6h
+          Management Cluster: {{ $labels.cluster }}
+        runbook_url: https://aka.ms/arohcp-runbook-cluster-upgrade
+        correlationId: "userJourneyClusterUpgradeComplete/{{ $labels.cluster }}"
