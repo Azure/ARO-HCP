@@ -119,7 +119,6 @@ mocks: $(MOCKGEN) $(GOIMPORTS)
 .PHONY: mocks
 
 install-tools: $(BINGO) $(HELM_LINK) $(YQ_LINK) $(JQ) $(ORAS_LINK)
-	$(BINGO) get
 .PHONY: install-tools
 
 licenses: $(ADDLICENSE)
