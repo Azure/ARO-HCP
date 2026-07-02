@@ -68,7 +68,7 @@ environments:
 		"dev-sub-2": "00000000-0000-0000-0000-000000000002",
 	})
 
-	pools, err := loadIdentityPools(context.Background(), catalogPath, "dev", resolver)
+	pools, err := loadIdentityPools(context.Background(), catalogPath, "dev", nil, resolver)
 	if err != nil {
 		t.Fatalf("expected identity pools to load: %v", err)
 	}
@@ -97,6 +97,102 @@ environments:
 	}
 }
 
+func TestLoadIdentityPoolsSkipsUnmanagedByDefault(t *testing.T) {
+	t.Parallel()
+
+	catalogDir := t.TempDir()
+	catalogPath := filepath.Join(catalogDir, "e2e-slots.yaml")
+	catalog := `version: 1
+environments:
+  dev:
+    deploy_envs:
+      - ci00
+    pools:
+      - subscription_name: managed-sub
+        region: westus3
+        region_mode: fixed
+        resource_type: aro-hcp-dev-westus3-slot
+        slot_count: 1
+        identity_container_prefix: aro-hcp-msi-container-dev-a
+        identity_container_count: 1
+      - subscription_name: unmanaged-sub
+        region: eastus2
+        region_mode: fixed
+        identity_provisioning: unmanaged
+        resource_type: aro-hcp-dev-eastus2-slot
+        slot_count: 1
+        identity_container_prefix: aro-hcp-msi-container-dev-b
+        identity_container_count: 1
+`
+	if err := os.WriteFile(catalogPath, []byte(catalog), 0o644); err != nil {
+		t.Fatalf("expected catalog write to succeed: %v", err)
+	}
+
+	resolver := fakeResolver(map[string]string{
+		"managed-sub":   "00000000-0000-0000-0000-000000000001",
+		"unmanaged-sub": "00000000-0000-0000-0000-000000000002",
+	})
+
+	pools, err := loadIdentityPools(context.Background(), catalogPath, "dev", nil, resolver)
+	if err != nil {
+		t.Fatalf("expected identity pools to load: %v", err)
+	}
+	if len(pools) != 1 {
+		t.Fatalf("expected 1 pool (unmanaged skipped), got %d", len(pools))
+	}
+	if pools[0].SubscriptionName != "managed-sub" {
+		t.Fatalf("expected only the managed pool, got %q", pools[0].SubscriptionName)
+	}
+}
+
+func TestLoadIdentityPoolsIncludesUnmanagedWhenFiltered(t *testing.T) {
+	t.Parallel()
+
+	catalogDir := t.TempDir()
+	catalogPath := filepath.Join(catalogDir, "e2e-slots.yaml")
+	catalog := `version: 1
+environments:
+  dev:
+    deploy_envs:
+      - ci00
+    pools:
+      - subscription_name: managed-sub
+        region: westus3
+        region_mode: fixed
+        resource_type: aro-hcp-dev-westus3-slot
+        slot_count: 1
+        identity_container_prefix: aro-hcp-msi-container-dev-a
+        identity_container_count: 1
+      - subscription_name: unmanaged-sub
+        region: eastus2
+        region_mode: fixed
+        identity_provisioning: unmanaged
+        resource_type: aro-hcp-dev-eastus2-slot
+        slot_count: 1
+        identity_container_prefix: aro-hcp-msi-container-dev-b
+        identity_container_count: 1
+`
+	if err := os.WriteFile(catalogPath, []byte(catalog), 0o644); err != nil {
+		t.Fatalf("expected catalog write to succeed: %v", err)
+	}
+
+	resolver := fakeResolver(map[string]string{
+		"managed-sub":   "00000000-0000-0000-0000-000000000001",
+		"unmanaged-sub": "00000000-0000-0000-0000-000000000002",
+	})
+
+	pools, err := loadIdentityPools(context.Background(), catalogPath, "dev", []string{"unmanaged-sub"}, resolver)
+	if err != nil {
+		t.Fatalf("expected identity pools to load: %v", err)
+	}
+	if len(pools) != 1 {
+		t.Fatalf("expected 1 pool matching the filter, got %d", len(pools))
+	}
+	if pools[0].SubscriptionName != "unmanaged-sub" {
+		t.Fatalf("expected the unmanaged pool to be included via filter, got %q", pools[0].SubscriptionName)
+	}
+}
+
 func TestLoadIdentityPoolsResolutionFailure(t *testing.T) {
 	t.Parallel()
 
@@ -122,7 +218,7 @@ environments:
 
 	resolver := fakeResolver(map[string]string{})
 
-	_, err := loadIdentityPools(context.Background(), catalogPath, "dev", resolver)
+	_, err := loadIdentityPools(context.Background(), catalogPath, "dev", nil, resolver)
 	if err == nil {
 		t.Fatal("expected error when subscription resolution fails")
 	}
@@ -167,7 +263,7 @@ environments:
 		return "", fmt.Errorf("unknown subscription %q", name)
 	}
 
-	pools, err := loadIdentityPools(context.Background(), catalogPath, "dev", resolver)
+	pools, err := loadIdentityPools(context.Background(), catalogPath, "dev", nil, resolver)
 	if err != nil {
 		t.Fatalf("expected identity pools to load: %v", err)
 	}

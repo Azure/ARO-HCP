@@ -9,11 +9,6 @@ param firstPartyRoleName string = 'dev-first-party-mock'
 @description('The name of the MSI mock identity role')
 param msiMockRoleName string = 'dev-msi-mock'
 
-@description('Explicit E2E customer subscription IDs that need these roles in assignableScopes')
-param e2eTestSubscriptions array = []
-
-var e2eTestSubscriptionScopes = [for subscriptionId in e2eTestSubscriptions: '/subscriptions/${subscriptionId}']
-
 resource customRole 'Microsoft.Authorization/roleDefinitions@2022-04-01' = {
   name: guid(subscription().id, firstPartyRoleName)
   properties: {
@@ -34,13 +29,10 @@ resource customRole 'Microsoft.Authorization/roleDefinitions@2022-04-01' = {
         notActions: []
       }
     ]
-    assignableScopes: concat(
-      [
-        subscription().id
-        subscriptionResourceId('Microsoft.Resources/resourceGroups/', globalResourceGroupName)
-      ],
-      e2eTestSubscriptionScopes
-    )
+    assignableScopes: [
+      subscription().id
+      subscriptionResourceId('Microsoft.Resources/resourceGroups/', globalResourceGroupName)
+    ]
   }
 }
 
@@ -80,12 +72,9 @@ resource msiCustomRole 'Microsoft.Authorization/roleDefinitions@2022-04-01' = {
         notActions: []
       }
     ]
-    assignableScopes: concat(
-      [
-        subscription().id
-        subscriptionResourceId('Microsoft.Resources/resourceGroups/', globalResourceGroupName)
-      ],
-      e2eTestSubscriptionScopes
-    )
+    assignableScopes: [
+      subscription().id
+      subscriptionResourceId('Microsoft.Resources/resourceGroups/', globalResourceGroupName)
+    ]
   }
 }

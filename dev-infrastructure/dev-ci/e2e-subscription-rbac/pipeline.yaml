@@ -81,6 +81,21 @@ resourceGroups:
     dependsOn:
     - resourceGroup: ci-bots
       step: ci-bot-identity
+  # The DEV Release Bot RBAC is still managed imperatively by the legacy
+  # grant-openshift-release-bot-dev.sh script, which created role assignments
+  # under random (non-deterministic) names. Enabling this step before those
+  # legacy assignments are removed fails with RoleAssignmentExists, because the
+  # deterministic guid()-named assignments this template creates collide with
+  # the pre-existing ones. Keep it commented until the DEV bot RBAC migration
+  # (delete legacy assignments, then enable this step) has been performed.
+  # - name: ci-bot-rbac-dev
+  #   action: ARM
+  #   template: ../../templates/ci-bot-rbac.bicep
+  #   parameters: ../../configurations/ci-bot-rbac-dev.tmpl.bicepparam
+  #   deploymentLevel: ResourceGroup
+  #   dependsOn:
+  #   - resourceGroup: ci-bots
+  #     step: ci-bot-identity
   - name: ci-bot-rbac-int
     action: ARM
     template: ../../templates/ci-bot-rbac.bicep

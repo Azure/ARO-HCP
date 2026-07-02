@@ -44,6 +44,7 @@ environments:
       slot_count: 1
       identity_container_prefix: aro-hcp-msi-container-dev
       identity_container_count: 20
+      identity_provisioning: unmanaged
   int:
     deploy_envs:
     - int
