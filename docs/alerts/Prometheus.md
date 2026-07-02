@@ -141,4 +141,4 @@ Several alerts come from the Prometheus Operator upstream runbooks:
 | `PrometheusOperatorNotReady` | <https://runbooks.prometheus-operator.dev/runbooks/prometheus-operator/prometheusoperatornotready/> |
 | `PrometheusOperatorRejectedResources` | <https://runbooks.prometheus-operator.dev/runbooks/prometheus-operator/prometheusoperatorrejectedresources/> |
 
-The checked-in `PrometheusScrapeSampleLimitHit` annotation points at `https://runbooks.prometheus-operator.dev/runbooks/prometheus/prometheusscrapesamplelimithit`, but that URL currently returns 404. The alert still means that a target exceeded its configured Prometheus scrape sample limit and some target metrics may be missing.
+`PrometheusScrapeSampleLimitHit` points at this page instead of the upstream Prometheus Operator runbook because `https://runbooks.prometheus-operator.dev/runbooks/prometheus/prometheusscrapesamplelimithit` currently returns 404. The alert means that a target exceeded its configured Prometheus scrape sample limit and some target metrics may be missing.

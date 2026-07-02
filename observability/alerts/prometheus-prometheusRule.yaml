@@ -150,7 +150,7 @@ spec:
         severity: warning
       annotations:
         description: Prometheus {{$labels.namespace}}/{{$labels.pod}} has failed {{ printf "%.0f" $value }} scrapes in the last 5m because some targets exceeded the configured sample_limit.
-        runbook_url: https://runbooks.prometheus-operator.dev/runbooks/prometheus/prometheusscrapesamplelimithit
+        runbook_url: https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/Prometheus.md
         summary: Prometheus has failed scrapes that have exceeded the configured sample limit.
   - name: prometheus-operator-rules
     rules:
