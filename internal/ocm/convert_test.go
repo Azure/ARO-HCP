@@ -24,6 +24,7 @@ import (
 	"testing"
 
 	"dario.cat/mergo"
+	"github.com/blang/semver/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -144,13 +145,15 @@ func TestWithImmutableAttributes(t *testing.T) {
 			var buf bytes.Buffer
 			require.NoError(t, arohcpv1alpha1.MarshalCluster(tc.want, &buf))
 			want := buf.String()
+			hcpCluster := api.ClusterTestCase(t, tc.hcpCluster)
 			builder, err := withImmutableAttributes(
 				ocmClusterDefaults(api.TestLocation),
-				api.ClusterTestCase(t, tc.hcpCluster),
+				hcpCluster,
 				api.TestSubscriptionID,
 				api.TestResourceGroupName,
 				api.TestTenantID,
 				api.TestManagedIdentitiesDataPlaneIdentityURL,
+				clusterCSVersionID(nil, hcpCluster),
 			)
 			require.NoError(t, err)
 			result, err := builder.Build()
@@ -1162,6 +1165,56 @@ func TestBuildCSCluster(t *testing.T) {
 
 			// Compare
 			assert.Equal(t, expected, actual)
+		})
+	}
+}
+
+func TestClusterCSVersionID(t *testing.T) {
+	hcpCluster := func(versionID string) *api.HCPOpenShiftCluster {
+		c := &api.HCPOpenShiftCluster{}
+		c.CustomerProperties.Version.ID = versionID
+		c.CustomerProperties.Version.ChannelGroup = "stable"
+		return c
+	}
+	spcWithDesired := func(v string) *api.ServiceProviderCluster {
+		return &api.ServiceProviderCluster{
+			Spec: api.ServiceProviderClusterSpec{
+				ControlPlaneVersion: api.ServiceProviderClusterSpecVersion{
+					DesiredVersion: ptr.To(semver.MustParse(v)),
+				},
+			},
+		}
+	}
+
+	tests := []struct {
+		name       string
+		spc        *api.ServiceProviderCluster
+		hcpCluster *api.HCPOpenShiftCluster
+		want       string
+	}{
+		{
+			name:       "customer version when SPC is nil",
+			spc:        nil,
+			hcpCluster: hcpCluster("4.20"),
+			want:       "openshift-v4.20.25",
+		},
+		{
+			name:       "customer version when SPC has no DesiredVersion",
+			spc:        &api.ServiceProviderCluster{},
+			hcpCluster: hcpCluster("4.20"),
+			want:       "openshift-v4.20.25",
+		},
+		{
+			name:       "SPC DesiredVersion wins over customer minor",
+			spc:        spcWithDesired("4.20.8"),
+			hcpCluster: hcpCluster("4.20"),
+			want:       "openshift-v4.20.8",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, clusterCSVersionID(tc.spc, tc.hcpCluster))
 		})
 	}
 }

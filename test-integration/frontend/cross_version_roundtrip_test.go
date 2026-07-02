@@ -565,6 +565,12 @@ func createNodePoolAndComplete(
 	t.Helper()
 
 	resourceID := nodePoolResourceID(clusterName, nodePoolName)
+	require.NoError(t, integrationutils.EnsureParentClusterServiceID(
+		ctx,
+		testInfo.ResourcesDBClient(),
+		testInfo.ClusterServiceMock,
+		resourceID,
+	))
 	accessor := databasemutationhelpers.NewVersionedHTTPTestAccessor(testInfo.FrontendURL, apiVersion)
 	require.NoError(t, accessor.CreateOrUpdate(ctx, resourceID, nodePoolCreatePayload(nodePoolName, apiVersion)))
 
@@ -626,6 +632,12 @@ func createExternalAuthAndComplete(
 	t.Helper()
 
 	resourceID := externalAuthResourceID(clusterName, authName)
+	require.NoError(t, integrationutils.EnsureParentClusterServiceID(
+		ctx,
+		testInfo.ResourcesDBClient(),
+		testInfo.ClusterServiceMock,
+		resourceID,
+	))
 	accessor := databasemutationhelpers.NewVersionedHTTPTestAccessor(testInfo.FrontendURL, apiVersion)
 	require.NoError(t, accessor.CreateOrUpdate(ctx, resourceID, externalAuthCreatePayload(apiVersion)))
 

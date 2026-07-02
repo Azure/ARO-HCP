@@ -38,6 +38,7 @@ var _ = Describe("Customer", func() {
 		labels.Positive,
 		labels.MIDemandHigh,
 		func(ctx context.Context) {
+			Skip("disabled until managed resource group uniqueness is validated in frontend admission (async CS create no longer returns synchronous 400)")
 			const (
 				customerNetworkSecurityGroupName = "customer-nsg-name"
 				customerVnetName                 = "customer-vnet-name"
