@@ -42,3 +42,43 @@ See `istio/deploy/charts/mise/templates/configmap.yaml` for the full template.
 - Istio enforces the decision (forward or reject).
 Note: This retrofit ensures that Geneva Action traffic is consistently validated through the same MISE-based framework, providing a unified security model for both ARM and Geneva-originated requests.
 
+# Audit Logging
+
+MISE v2 (1.27.0+) automatically audits 100% of authentication requests. Audit records are written to the `AsmAuditCPRPMISE` Geneva table via the OpenTelemetry Geneva Log Exporter over a Unix domain socket provided by mdsd on the node.
+
+## How it works
+
+On Linux, MISE resolves the audit connection in this order:
+1. If `AzureAd:AuditOptions:CustomConnectionString` is set, use it.
+2. If `/var/run/mdsd/asa/default_fluent.socket` exists (AzSecPack/AutoConfig), use it.
+3. Otherwise fall back to `Endpoint=unix:/var/run/mdsd/default_fluent.socket`.
+
+ARO-HCP service cluster nodes run mdsd, exposing `/var/run/mdsd/` on the host. The MISE deployment mounts this directory into the pod via a `hostPath` volume when `audit.connectSocket` is enabled.
+
+## Configuration
+
+Audit logging is controlled by the `audit.connectSocket` toggle, following the same pattern as the RP frontend and Admin API:
+
+- **Default** (`config/config.yaml`): `mise.audit.connectSocket: false`
+- **Production overlay** (`config/config.msft.clouds-overlay.yaml`): set to `true` for int, stg, and prod environments
+
+When enabled, the MISE Helm chart:
+- Mounts `/var/run/mdsd` from the host into the pod
+- Adds `AuditOptions.CustomConnectionString` to `appsettings.json` pointing to `Endpoint=unix:/var/run/mdsd/default_fluent.socket`
+
+See `istio/deploy/charts/mise/templates/deployment.yaml` and `istio/deploy/charts/mise/templates/configmap.yaml` for the implementation.
+
+## Emergency disable
+
+In an emergency, audit logging can be disabled via the MISE config without removing the socket mount:
+
+```json
+{
+  "AzureAd": {
+    "AuditOptions": {
+      "EmergencyDisableAllAuditLogging": true
+    }
+  }
+}
+```
+

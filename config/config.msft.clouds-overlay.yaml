@@ -18,6 +18,10 @@ clouds:
           frontend:
             audit:
               connectSocket: true
+          # MISE
+          mise:
+            audit:
+              connectSocket: true
       stg:
         # this is the MSFT STAGE environment
         defaults:
@@ -63,6 +67,10 @@ clouds:
           frontend:
             audit:
               connectSocket: true
+          # MISE
+          mise:
+            audit:
+              connectSocket: true
       prod:
         # this is the MSFT PRODUCTION environment
         defaults:
@@ -75,6 +83,10 @@ clouds:
             deployDebugJobs: true
           # RP Frontend
           frontend:
+            audit:
+              connectSocket: true
+          # MISE
+          mise:
             audit:
               connectSocket: true
         regions:
