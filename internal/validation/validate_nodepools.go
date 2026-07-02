@@ -241,6 +241,7 @@ func validateNodePoolPlatformProfile(ctx context.Context, op operation.Operation
 	//VMSize                 string        `json:"vmSize,omitempty"`
 	errs = append(errs, immutableByCompare(ctx, op, fldPath.Child("vmSize"), &newObj.VMSize, safe.Field(oldObj, toNodePoolPlatformProfileVMSize))...)
 	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("vmSize"), &newObj.VMSize, safe.Field(oldObj, toNodePoolPlatformProfileVMSize))...)
+	errs = append(errs, validate.Enum(ctx, op, fldPath.Child("vmSize"), &newObj.VMSize, safe.Field(oldObj, toNodePoolPlatformProfileVMSize), enabledNodePoolAzureVMSizes(), nil)...)
 
 	//EnableEncryptionAtHost bool          `json:"enableEncryptionAtHost"`
 	errs = append(errs, immutableByCompare(ctx, op, fldPath.Child("enableEncryptionAtHost"), &newObj.EnableEncryptionAtHost, safe.Field(oldObj, toNodePoolPlatformProfileEnableEncryptionAtHost))...)

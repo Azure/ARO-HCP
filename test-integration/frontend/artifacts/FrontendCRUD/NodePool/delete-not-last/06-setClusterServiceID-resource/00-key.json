@@ -1,0 +1,5 @@
+{
+	"_artifactStep": "setClusterServiceID",
+	"id": "aefc4159-c097-5ab9-b2e1-3397105887ea",
+	"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/delete-not-last/nodePools/nodepooltwo"
+}

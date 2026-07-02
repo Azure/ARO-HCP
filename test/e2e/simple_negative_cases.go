@@ -49,7 +49,6 @@ var _ = Describe("Customer", func() {
 				customerVnetName                 = "customer-vnet-name"
 				customerVnetSubnetName           = "customer-vnet-subnet"
 				customerClusterName              = "negative-tests-cluster"
-				customerNodePoolName             = "np-1"
 			)
 			tc := framework.NewTestContext()
 
@@ -123,27 +122,16 @@ var _ = Describe("Customer", func() {
 			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred(), "cluster %s is not viable", customerClusterName)
 
-			nodePoolParams := framework.NewDefaultNodePoolParams20240610()
-			nodePoolParams.ClusterName = clusterParams.ClusterName
-			nodePoolParams.NodePoolName = customerNodePoolName
+			baseNodePoolParams := framework.NewDefaultNodePoolParams20240610()
+			baseNodePoolParams.ClusterName = clusterParams.ClusterName
 
-			// TEST CASE: ARO-22576
-			nodePoolParamsInvalidInstance := nodePoolParams
-			nodePoolParamsInvalidInstance.VMSize = "Standard_A1_v2" // real, but unsupported Azure instance type
-
-			nodePoolParamsInvalidQuota := nodePoolParams
+			// TEST CASE: ARO-22576 test that verifies error is triggered when the configured nodepool replicas exceeds
+			// the maximum number of node pool replicas when an availability zone is not specified when creating the node pool,
+			// which means when the node pool is created as part of an availability set. There is a limit of virtual machines per availability set:
+			// https://learn.microsoft.com/en-us/azure/azure-resource-manager/management/azure-subscription-service-limits#azure-virtual-machines-limits---azure-resource-manager
+			nodePoolParamsInvalidQuota := baseNodePoolParams
 			nodePoolParamsInvalidQuota.Replicas = int32(201)
-
-			By("attempting to create a node pool with invalid instance type")
-			err = tc.CreateNodePoolFromParam20240610(ctx,
-				GinkgoLogr,
-				*resourceGroup.Name,
-				managedResourceGroupName,
-				clusterParams.ClusterName,
-				nodePoolParamsInvalidInstance,
-				5*time.Minute,
-			)
-			checkExpectedError(&errs, "node pool creation with invalid instance type", err, "machine type not supported")
+			nodePoolParamsInvalidQuota.NodePoolName = "np-inv-quota"
 
 			By("attempting to create a node pool with invalid quota")
 			err = tc.CreateNodePoolFromParam20240610(ctx,
@@ -156,6 +144,8 @@ var _ = Describe("Customer", func() {
 			)
 			checkExpectedError(&errs, "node pool creation with invalid quota", err, "invalid value must be less than or equal to")
 
+			nodePoolParams := baseNodePoolParams
+			nodePoolParams.NodePoolName = "np-1"
 			By("creating a nodepool")
 			err = tc.CreateNodePoolFromParam20240610(ctx,
 				GinkgoLogr,
@@ -165,7 +155,7 @@ var _ = Describe("Customer", func() {
 				nodePoolParams,
 				framework.NodePoolCreationTimeout,
 			)
-			Expect(err).NotTo(HaveOccurred(), "failed to create node pool %s", customerNodePoolName)
+			Expect(err).NotTo(HaveOccurred(), "failed to create node pool %s", nodePoolParams.NodePoolName)
 
 			// TEST CASE: ARO-23182
 			By("attempting to update nodepool version to higher than cluster version")
