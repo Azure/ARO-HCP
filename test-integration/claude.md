@@ -76,6 +76,7 @@ artifacts/<SuiteName>/<ResourceType>/<TestCase>/
 | `replaceWithETag` | Replace with optimistic concurrency |
 | `delete` | Delete resource |
 | `listActiveOperations` | List in-progress operations for a resource |
+| `listByExternalID` | List operations by externalId with optional nested matching |
 
 ### Untyped database steps
 
