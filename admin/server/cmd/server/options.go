@@ -31,6 +31,7 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+	utilsclock "k8s.io/utils/clock"
 	"k8s.io/utils/set"
 
 	"github.com/Azure/azure-kusto-go/kusto"
@@ -150,6 +151,7 @@ type completedOptions struct {
 	MaxSessionTTL           time.Duration
 	AllowedBreakglassGroups set.Set[string]
 	Registry                *prometheus.Registry
+	KubeApplierDBClients    database.KubeApplierDBClients
 }
 
 type Options struct {
@@ -289,6 +291,9 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 
 	sessionClient := sessiongateClientset.SessiongateV1alpha1().Sessions(o.SessiongateNamespace)
 
+	mcLister := database.NewDBBackedManagementClusterLister(fleetDBClient)
+	kubeApplierDBClients := database.NewKubeApplierDBClients(cosmosDatabaseClient, mcLister)
+
 	return &Options{
 		completedOptions: &completedOptions{
 			Port:                    o.Port,
@@ -307,6 +312,7 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 			MaxSessionTTL:           o.MaxSessionTTL,
 			AllowedBreakglassGroups: set.New[string](o.AllowedBreakglassGroups...),
 			Registry:                registry,
+			KubeApplierDBClients:    kubeApplierDBClients,
 		},
 	}, nil
 }
@@ -363,6 +369,8 @@ func (opts *Options) Run(ctx context.Context) error {
 		opts.MaxSessionTTL,
 		opts.AllowedBreakglassGroups,
 		opts.Registry,
+		opts.KubeApplierDBClients,
+		utilsclock.RealClock{},
 	)
 
 	runErrCh := make(chan error, 1)

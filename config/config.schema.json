@@ -1300,6 +1300,15 @@
         "maestro": {
           "$ref": "#/definitions/backendMaestroConfig"
         },
+        "backupCadence": {
+          "type": "string",
+          "description": "Backup cadence preset: 'production' creates hourly/daily/weekly schedules, 'testing' creates a 5-minute cycle schedule",
+          "enum": ["production", "testing"]
+        },
+        "backupPaused": {
+          "type": "boolean",
+          "description": "Whether backup schedules are paused"
+        },
         "exitOnPanic": {
           "type": "boolean",
           "description": "If true, backend will exit the process if a panic occurs. As of now it only controls the setting of k8s.io/apimachinery/pkg/util/runtime.ReallyCrash"
@@ -1321,6 +1330,8 @@
         "managedIdentityName",
         "azureRuntimeConfig",
         "maestro",
+        "backupCadence",
+        "backupPaused",
         "exitOnPanic",
         "logVerbosity",
         "clusterScopedIdentitiesConfig"

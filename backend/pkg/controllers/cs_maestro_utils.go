@@ -16,10 +16,10 @@ package controllers
 
 import "fmt"
 
-// hostedClusterNamespace returns the management-cluster namespace that
+// HostedClusterNamespace returns the management-cluster namespace that
 // hosts a given HCP's HostedCluster / NodePool objects. Cluster Service
 // names it "ocm-<envIdentifier>-<csClusterID>" and we must mirror that
 // exactly so the kube-applier targets the right namespace.
-func hostedClusterNamespace(envIdentifier, csClusterID string) string {
+func HostedClusterNamespace(envIdentifier, csClusterID string) string {
 	return fmt.Sprintf("ocm-%s-%s", envIdentifier, csClusterID)
 }

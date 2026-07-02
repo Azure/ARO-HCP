@@ -20,12 +20,16 @@ import (
 	"strings"
 	"time"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
+	"github.com/Azure/ARO-HCP/internal/backup"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -324,11 +328,18 @@ func (c *clusterChildResourcesCleanupController) ensureClusterScopedKubeApplierR
 		return nil
 	}
 
+	// Backup desires are managed by ensureBackupScheduleKubeObjectsDeleted
+	// and must not be swept here while that cleanup is in progress.
+	skipBackupDesires := func(_ context.Context, resourceID *azcorearm.ResourceID) (bool, error) {
+		if strings.HasPrefix(resourceID.Name, backup.BackupDesireNamePrefix) {
+			return false, nil
+		}
+		return true, nil
+	}
 	// extraDeleteGates uses lowercased kubeapplier.*DesireResourceTypeName keys. Types not
 	// in the map are deleted unconditionally.
 	extraDeleteGates := map[string]func(ctx context.Context, resourceID *azcorearm.ResourceID) (bool, error){
-		// strings.ToLower(kubeapplier.ClusterScopedReadDesireResourceType.String()): c.extraDeleteGateShouldDeleteReadDesire,
-		// strings.ToLower(kubeapplier.ClusterScopedApplyDesireResourceType.String()): c.extraDeleteGateShouldDeleteApplyDesire,
+		strings.ToLower(kubeapplier.ClusterScopedApplyDesireResourceType.String()): skipBackupDesires,
 	}
 
 	desireCRUD, err := kaClient.UntypedCRUD(*clusterResourceID)
@@ -366,9 +377,103 @@ func (c *clusterChildResourcesCleanupController) ensureClusterScopedKubeApplierR
 		return utils.TrackError(fmt.Errorf("error iterating cluster-scoped kube-applier resources: %w", err))
 	}
 
+	if err := c.ensureBackupScheduleKubeObjectsDeleted(ctx, clusterResourceID); err != nil {
+		return utils.TrackError(fmt.Errorf("failed to ensure backup schedule kube objects deleted: %w", err))
+	}
+
 	logger.Info("all included cluster-scoped kube-applier child resources deleted")
 
 	return nil
+}
+
+// ensureBackupScheduleKubeObjectsDeleted converts backup ApplyDesires from
+// ServerSideApply to Delete type so the kube-applier removes the OADP Schedule
+// kube objects from the management cluster. Once the Delete-type ApplyDesire
+// reports Successful, all related desires are cleaned up from Cosmos.
+func (c *clusterChildResourcesCleanupController) ensureBackupScheduleKubeObjectsDeleted(ctx context.Context, clusterResourceID *azcorearm.ResourceID) error {
+	logger := utils.LoggerFromContext(ctx)
+
+	spc, err := c.resourcesDBClient.ServiceProviderClusters(clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName, clusterResourceID.Name).Get(ctx, api.ServiceProviderClusterResourceName)
+	if database.IsNotFoundError(err) {
+		return nil
+	}
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to get ServiceProviderCluster: %w", err))
+	}
+
+	mcResourceID := spc.Status.ManagementClusterResourceID
+	if mcResourceID == nil {
+		return nil
+	}
+
+	kaClient := c.kubeApplierDBClients.For(ctx, mcResourceID)
+	if kaClient == nil {
+		return nil
+	}
+
+	adCrud, err := kaClient.ApplyDesiresForCluster(clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName, clusterResourceID.Name)
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to get ApplyDesire CRUD: %w", err))
+	}
+	rdCrud, err := kaClient.ReadDesiresForCluster(clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName, clusterResourceID.Name)
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to get ReadDesire CRUD: %w", err))
+	}
+
+	adIterator, err := adCrud.List(ctx, nil)
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to list ApplyDesires: %w", err))
+	}
+	for _, ad := range adIterator.Items(ctx) {
+		if !strings.HasPrefix(ad.ResourceID.Name, backup.BackupDesireNamePrefix) {
+			continue
+		}
+		desireName := ad.ResourceID.Name
+
+		if ad.Spec.Type == kubeapplier.ApplyDesireTypeServerSideApply {
+			logger.Info("converting backup ApplyDesire to Delete type", "desireName", desireName)
+			deleteAD := &kubeapplier.ApplyDesire{
+				CosmosMetadata: *ad.CosmosMetadata.DeepCopy(),
+				Spec: kubeapplier.ApplyDesireSpec{
+					ManagementCluster: mcResourceID,
+					Type:              kubeapplier.ApplyDesireTypeDelete,
+					TargetItem:        ad.Spec.TargetItem,
+				},
+				Status: *ad.Status.DeepCopy(),
+			}
+			if _, err := adCrud.Replace(ctx, deleteAD, nil); err != nil {
+				return utils.TrackError(fmt.Errorf("failed to replace ApplyDesire %s with Delete type: %w", desireName, err))
+			}
+			continue
+		}
+
+		if !isApplyDesireSuccessful(ad.Status.Conditions) {
+			logger.Info("waiting for backup Delete ApplyDesire to complete", "desireName", desireName)
+			continue
+		}
+
+		logger.Info("backup Delete ApplyDesire successful, cleaning up desires", "desireName", desireName)
+		if err := adCrud.Delete(ctx, desireName); err != nil && !database.IsNotFoundError(err) {
+			return utils.TrackError(fmt.Errorf("failed to delete ApplyDesire %s: %w", desireName, err))
+		}
+		if err := rdCrud.Delete(ctx, desireName); err != nil && !database.IsNotFoundError(err) {
+			return utils.TrackError(fmt.Errorf("failed to delete ReadDesire %s: %w", desireName, err))
+		}
+	}
+	if err := adIterator.GetError(); err != nil {
+		return utils.TrackError(fmt.Errorf("error iterating ApplyDesires: %w", err))
+	}
+
+	return nil
+}
+
+func isApplyDesireSuccessful(conditions []metav1.Condition) bool {
+	for _, c := range conditions {
+		if c.Type == kubeapplier.ConditionTypeSuccessful && c.Status == metav1.ConditionTrue {
+			return true
+		}
+	}
+	return false
 }
 
 func deletePreconditionAllNodePoolsDeleted(ctx context.Context, dbClient database.ResourcesDBClient, key controllerutils.HCPClusterKey) (bool, error) {

@@ -323,6 +323,7 @@ driver: disk.csi.azure.com
 deletionPolicy: Retain
 parameters:
   incremental: "true"
+  instantaccessdurationminutes: "60" # 60 minutes is the minimum duration for instant access snapshots
 
 ---
 # Source: velero-hcp-cli/templates/kustomize-patch.yaml
@@ -367,8 +368,6 @@ data:
       template:
         spec:
           priorityClassName: service-lifecycle-critical
-          nodeSelector:
-            aro-hcp.azure.com/role: infra
           tolerations:
           - key: "infra"
             operator: "Equal"
@@ -427,6 +426,11 @@ spec:
             --backup-location-config useAAD="true",resourceGroup=hcp-underlay-dev-westus3-mgmt-1,storageAccount=__storageAccountName__,subscriptionId=__subscriptionId__ \
             --snapshot-location-config subscriptionId=__subscriptionId__ \
             --image arohcpsvcdev.azurecr.io/oadp/oadp-velero-rhel9@sha256:1234567890 \
+            --concurrent-backups 4 \
+            --velero-pod-mem-limit 0 \
+            --velero-pod-mem-request 1024Mi \
+            --velero-pod-cpu-limit 0 \
+            --velero-pod-cpu-request 1000m \
             --dry-run -o yaml > /manifest/velero.yaml
 
           echo "Manifest generated successfully."
