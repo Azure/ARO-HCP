@@ -38,6 +38,41 @@ spec:
           Please check the status of the Prometheus pods, service endpoints, and network connectivity.
         runbook_url: TBD # https://runbooks.prometheus-operator.dev/runbooks/prometheus/prometheusdown
         summary: Prometheus is unreachable for 1 day.
+    - alert: PrometheusUptimeSampleCount
+      # The divisor 30 matches spec.scrapeInterval (30s) in prometheus.yaml. Update both together if the interval changes.
+      # sum (not min) so pod restarts don't false-fire: old + new instance samples cover the full day.
+      # The offset 1d gate excludes clusters younger than 24h — without it, new clusters always fire
+      # because count_over_time([1d]) can never reach the full-day threshold until 24h of data exists.
+      expr: |
+        (
+          sum by (job, namespace, cluster) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d]))
+          < 0.95 * (24 * 3600 / 30)
+        )
+        and
+        sum by (job, namespace, cluster) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d] offset 1d)) > 0
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        description: |
+          Prometheus has delivered fewer than 95% of expected samples in the past 24 hours (expected 2880 at 30s interval, threshold 2736).
+          Unlike PrometheusUptime which averages existing samples, this alert treats data gaps as downtime.
+          Complete metric absence (no samples) will also trigger PrometheusMetricsAbsentPerCluster.
+          Check the PrometheusAgent pod status, remote write pipeline, and PodMonitor configuration.
+        runbook_url: TBD
+        summary: Prometheus sample count below 95% SLO threshold for 24 hours.
+    - alert: PrometheusMetricsAbsentPerCluster
+      expr: count by (cluster) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[7d])) unless count by (cluster) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[10m]))
+      for: 10m
+      labels:
+        severity: critical
+      annotations:
+        description: |
+          Prometheus on cluster {{ $labels.cluster }} has not reported any up metrics in the last 10 minutes, but was reporting within the last 7 days.
+          This indicates the Prometheus agent on this specific cluster is dead or its remote write pipeline is broken.
+          Check the PrometheusAgent pod status and remote write configuration on the affected cluster.
+        runbook_url: TBD
+        summary: Prometheus metrics absent for cluster {{ $labels.cluster }}.
     - alert: PrometheusPendingRate
       expr: |
         (

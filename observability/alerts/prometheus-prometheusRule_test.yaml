@@ -796,6 +796,107 @@ tests:
   - eval_time: 10m
     alertname: PrometheusUptime
     exp_alerts: []
+# Test PrometheusUptimeSampleCount - data gap (dead 6h, no samples)
+# 2160 samples at 30s = 18h of data (t=0 to ~t=1080m), then 6h gap.
+# At eval_time 1450m, [1d] window covers (10m, 1450m] → ~2139 effective samples.
+# 2139 < 2736 (95% of 2880) so the alert fires.
+# The offset 1d gate passes because early samples (t=0–10m) fall in the [1d offset 1d] window.
+- interval: 30s
+  input_series:
+  - series: 'up{job="prometheus/prometheus",namespace="prometheus",cluster="gap-cluster"}'
+    values: "1+0x2160"
+  alert_rule_test:
+  - eval_time: 1450m
+    alertname: PrometheusUptimeSampleCount
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+        job: prometheus/prometheus
+        namespace: prometheus
+        cluster: gap-cluster
+      exp_annotations:
+        summary: Prometheus sample count below 95% SLO threshold for 24 hours.
+        description: |
+          Prometheus has delivered fewer than 95% of expected samples in the past 24 hours (expected 2880 at 30s interval, threshold 2736).
+          Unlike PrometheusUptime which averages existing samples, this alert treats data gaps as downtime.
+          Complete metric absence (no samples) will also trigger PrometheusMetricsAbsentPerCluster.
+          Check the PrometheusAgent pod status, remote write pipeline, and PodMonitor configuration.
+        runbook_url: TBD
+# Test PrometheusUptimeSampleCount - healthy (full 24h of samples)
+# 2880 samples at 30s = 24h of data (t=0 to ~t=1440m).
+# At eval_time 1450m, [1d] window covers (10m, 1450m] → ~2859 effective samples.
+# 2859 > 2736 (95% of 2880) so the alert does not fire.
+- interval: 30s
+  input_series:
+  - series: 'up{job="prometheus/prometheus",namespace="prometheus",cluster="healthy-cluster"}'
+    values: "1+0x2880"
+  alert_rule_test:
+  - eval_time: 1450m
+    alertname: PrometheusUptimeSampleCount
+    exp_alerts: []
+# Test PrometheusUptimeSampleCount - new cluster (< 24h old, should NOT fire)
+# 1440 samples at 30s = 12h of data. Below threshold (1440 < 2736) but the offset 1d gate
+# excludes it: at eval_time 750m the [1d offset 1d] window is entirely before t=0 → no data → gate fails.
+- interval: 30s
+  input_series:
+  - series: 'up{job="prometheus/prometheus",namespace="prometheus",cluster="new-cluster"}'
+    values: "1+0x1440"
+  alert_rule_test:
+  - eval_time: 750m
+    alertname: PrometheusUptimeSampleCount
+    exp_alerts: []
+# Test PrometheusMetricsAbsentPerCluster - cluster went dead
+# 20 samples at 1m interval (t=0 to t=19m), then nothing.
+# At eval_time=40m: [7d] window has 20 samples, [10m] window (t=30m-40m) has 0 → fires.
+- interval: 1m
+  input_series:
+  - series: 'up{job="prometheus/prometheus",namespace="prometheus",cluster="dead-cluster"}'
+    values: "1+0x20"
+  alert_rule_test:
+  - eval_time: 40m
+    alertname: PrometheusMetricsAbsentPerCluster
+    exp_alerts:
+    - exp_labels:
+        severity: critical
+        cluster: dead-cluster
+      exp_annotations:
+        summary: Prometheus metrics absent for cluster dead-cluster.
+        description: |
+          Prometheus on cluster dead-cluster has not reported any up metrics in the last 10 minutes, but was reporting within the last 7 days.
+          This indicates the Prometheus agent on this specific cluster is dead or its remote write pipeline is broken.
+          Check the PrometheusAgent pod status and remote write configuration on the affected cluster.
+        runbook_url: TBD
+# Test PrometheusMetricsAbsentPerCluster - healthy cluster (continuous data)
+- interval: 1m
+  input_series:
+  - series: 'up{job="prometheus/prometheus",namespace="prometheus",cluster="healthy-cluster"}'
+    values: "1+0x50"
+  alert_rule_test:
+  - eval_time: 40m
+    alertname: PrometheusMetricsAbsentPerCluster
+    exp_alerts: []
+# Test PrometheusMetricsAbsentPerCluster - one dead, one healthy
+# Only the dead cluster should fire.
+- interval: 1m
+  input_series:
+  - series: 'up{job="prometheus/prometheus",namespace="prometheus",cluster="alive"}'
+    values: "1+0x50"
+  - series: 'up{job="prometheus/prometheus",namespace="prometheus",cluster="dead"}'
+    values: "1+0x20"
+  alert_rule_test:
+  - eval_time: 40m
+    alertname: PrometheusMetricsAbsentPerCluster
+    exp_alerts:
+    - exp_labels:
+        severity: critical
+        cluster: dead
+      exp_annotations:
+        summary: Prometheus metrics absent for cluster dead.
+        description: |
+          Prometheus on cluster dead has not reported any up metrics in the last 10 minutes, but was reporting within the last 7 days.
+          This indicates the Prometheus agent on this specific cluster is dead or its remote write pipeline is broken.
+          Check the PrometheusAgent pod status and remote write configuration on the affected cluster.
+        runbook_url: TBD
 # Test multiple namespaces and jobs
 - interval: 1m
   input_series:
