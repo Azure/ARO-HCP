@@ -149,12 +149,12 @@ resource arohcpAccessClusterSloErrorAlerts 'Microsoft.AlertsManagement/prometheu
           severity: 'info'
         }
         annotations: {
-          correlationId: 'userJourneyAccessClusterStuckOperation/{{ $labels.cluster }}'
+          correlationId: 'userJourneyAccessClusterStuckOperation/{{ $labels.cluster }}/{{ $labels.resource_id }}/{{ $labels.phase }}'
           description: 'Credential operation for {{ $labels.resource_id }} has been in {{ $labels.phase }} phase for over 1 hour. Stuck operations are invisible to success/failure SLIs and require investigation.'
           info: 'Credential operation for {{ $labels.resource_id }} has been in {{ $labels.phase }} phase for over 1 hour. Stuck operations are invisible to success/failure SLIs and require investigation.'
           runbook_url: 'aka.ms/arohcp-runbook-access-cluster'
           summary: '{{ $labels.cluster }}: Credential operation stuck in {{ $labels.phase }} for over 1 hour'
-          title: '{{ $labels.cluster }}: Credential operation stuck in {{ $labels.phase }} for over 1 hour'
+          title: '{{ $labels.cluster }}: Credential operation stuck in {{ $labels.phase }} for over 1 hour resource_id:{{ $labels.resource_id }}'
         }
         expression: '((time() - backend_resource_operation_start_time_seconds{operation_type=~"requestcredential|revokecredentials",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) and backend_resource_operation_phase_info{operation_type=~"requestcredential|revokecredentials",phase=~"accepted|provisioning|deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"} == 1) > 3600'
         for: 'PT15M'
@@ -189,7 +189,7 @@ resource arohcpAccessClusterSaturationAlerts 'Microsoft.AlertsManagement/prometh
           severity: 'info'
         }
         annotations: {
-          correlationId: 'userJourneyAccessClusterSaturationQueueDepth/{{ $labels.cluster }}'
+          correlationId: 'userJourneyAccessClusterSaturationQueueDepth/{{ $labels.cluster }}/{{ $labels.name }}'
           description: 'Credential controller workqueue {{ $labels.name }} has had a depth > 10 for more than 5 minutes, indicating work is accumulating faster than it can be processed.'
           info: 'Credential controller workqueue {{ $labels.name }} has had a depth > 10 for more than 5 minutes, indicating work is accumulating faster than it can be processed.'
           runbook_url: 'aka.ms/arohcp-runbook-access-cluster'
@@ -216,7 +216,7 @@ resource arohcpAccessClusterSaturationAlerts 'Microsoft.AlertsManagement/prometh
           severity: 'info'
         }
         annotations: {
-          correlationId: 'userJourneyAccessClusterSaturationRetryHotLoop/{{ $labels.cluster }}'
+          correlationId: 'userJourneyAccessClusterSaturationRetryHotLoop/{{ $labels.cluster }}/{{ $labels.name }}'
           description: 'Credential controller workqueue {{ $labels.name }} has a retry ratio > 50% sustained over 10 minutes, indicating most queue activity is failed retries rather than fresh work.'
           info: 'Credential controller workqueue {{ $labels.name }} has a retry ratio > 50% sustained over 10 minutes, indicating most queue activity is failed retries rather than fresh work.'
           runbook_url: 'aka.ms/arohcp-runbook-access-cluster'
