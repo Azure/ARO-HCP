@@ -384,10 +384,6 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 	smiClientBuilder := app.NewServiceManagedIdentityClientBuilder(fpaMIDataplaneClientBuilder, azureConfig)
 
 	azCoreClientOptions := *azureConfig.CloudEnvironment.AZCoreClientOptions()
-	miDataplaneBasedIdentityAccessTokenRetrieverBuilder := azureclient.NewMIDataplaneBasedIdentityAccessTokenRetrieverBuilder(
-		fpaMIDataplaneClientBuilder,
-		azCoreClientOptions,
-	)
 
 	cosmosDatabaseClient, err := app.NewCosmosDatabaseClient(
 		f.AzureCosmosDBURL,
@@ -445,13 +441,11 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 		BackendIdentityAzureCachedReaders:  backendIdentityAzureCachedReaders,
 		ExitOnPanic:                        f.ExitOnPanic,
 		FPAMIDataplaneClientBuilder:        fpaMIDataplaneClientBuilder,
-		MIDataplaneBasedIdentityAccessTokenRetrieverBuilder: miDataplaneBasedIdentityAccessTokenRetrieverBuilder,
-		SMIClientBuilder:              smiClientBuilder,
-		CheckAccessV2ClientBuilder:    checkAccessV2ClientBuilder,
-		ClusterScopedIdentitiesConfig: clusterScopedIdentitiesConfig,
-		CloudEnvironment:              azureConfig.CloudEnvironment,
-		MetricsRegisterer:             legacyregistry.Registerer(),
-		MetricsGatherer:               legacyregistry.DefaultGatherer,
+		SMIClientBuilder:                   smiClientBuilder,
+		CheckAccessV2ClientBuilder:         checkAccessV2ClientBuilder,
+		ClusterScopedIdentitiesConfig:      clusterScopedIdentitiesConfig,
+		MetricsRegisterer:                  legacyregistry.Registerer(),
+		MetricsGatherer:                    legacyregistry.DefaultGatherer,
 	}
 
 	return backendOptions, nil
