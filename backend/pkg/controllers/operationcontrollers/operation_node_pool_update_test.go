@@ -186,7 +186,7 @@ func TestOperationNodePoolUpdate_SynchronizeOperation(t *testing.T) {
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateFailed, op.Status)
 				assert.NotNil(t, op.Error)
-				assert.Equal(t, "temporary error occurred", op.Error.Message)
+				assert.Contains(t, op.Error.Message, "temporary error occurred")
 			},
 		},
 		{

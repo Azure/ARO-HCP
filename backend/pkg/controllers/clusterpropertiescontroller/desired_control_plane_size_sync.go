@@ -154,9 +154,9 @@ func (c *desiredControlPlaneSizeSyncer) SyncOnce(ctx context.Context, key contro
 	}
 
 	// Compute the desired CSPropertySizeOverride value using the same logic
-	// BuildCSCluster applies on the frontend update path — the helper is the
+	// BuildCSCluster applies on the backend's cluster update dispatch controller path. The helper is the
 	// single source of truth so the two writers cannot disagree.
-	desired, desiredPresent := ocm.DesiredHostedClusterSizeOverride(cachedServiceProviderCluster, cachedCluster)
+	desired, desiredPresent := ocm.ConvertHostedClusterSizeOverrideToCS(cachedCluster.ServiceProviderProperties.ExperimentalFeatures.ControlPlanePodSizing, cachedServiceProviderCluster.Spec.DesiredHostedClusterControlPlaneSize)
 	current, currentPresent := clusterServiceCluster.Properties()[ocm.CSPropertySizeOverride]
 
 	if desiredPresent != currentPresent || desired != current {
