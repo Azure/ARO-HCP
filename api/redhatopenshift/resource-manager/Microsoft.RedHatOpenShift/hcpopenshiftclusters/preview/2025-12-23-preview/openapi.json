@@ -2633,7 +2633,12 @@
           "type": "string",
           "description": "version contains the version of the key to use.",
           "minLength": 1,
-          "maxLength": 255
+          "maxLength": 255,
+          "x-ms-mutability": [
+            "read",
+            "update",
+            "create"
+          ]
         }
       },
       "required": [

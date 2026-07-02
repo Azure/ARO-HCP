@@ -211,6 +211,7 @@ func admitClusterCustomerProperties(ctx context.Context, admissionContext *Clust
 	errs := field.ErrorList{}
 
 	errs = append(errs, admitClusterVersionProfile(ctx, admissionContext, op, fldPath.Child("version"), &newObj.Version, safe.Field(oldObj, validation.ToClusterCustomerPropertiesVersion))...)
+	errs = append(errs, admitClusterEtcdKmsKeyVersionChange(ctx, admissionContext, op, fldPath.Child("etcd", "dataEncryption", "customerManaged", "kms", "activeKey", "version"), newObj, oldObj)...)
 
 	return errs
 }
@@ -259,4 +260,35 @@ func admitClusterVersionProfile(ctx context.Context, admissionContext *ClusterAd
 	}
 
 	return errs
+}
+
+var minKmsKeyVersionRotationVersion = semver.Version{Major: 4, Minor: 22}
+
+// admitClusterEtcdKmsKeyVersionChange rejects KMS key version changes when the
+// cluster's active control plane version is older than 4.22 version
+func admitClusterEtcdKmsKeyVersionChange(_ context.Context, admissionContext *ClusterAdmissionContext, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.HCPOpenShiftClusterCustomerProperties) field.ErrorList {
+	if op.Type != operation.Update || oldObj == nil {
+		return nil
+	}
+
+	if newObj.Etcd.DataEncryption.KeyManagementMode != api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged {
+		return nil
+	}
+
+	if newObj.Etcd.DataEncryption.CustomerManaged.Kms.ActiveKey.Version == oldObj.Etcd.DataEncryption.CustomerManaged.Kms.ActiveKey.Version {
+		return nil
+	}
+
+	if admissionContext.ServiceProviderCluster == nil {
+		return field.ErrorList{field.InternalError(fldPath, errors.New("cannot validate KMS key version rotation"))}
+	}
+
+	lowest, _ := apihelpers.FindLowestAndHighestClusterVersion(admissionContext.ServiceProviderCluster.Status.ControlPlaneVersion.ActiveVersions)
+	if lowest != nil {
+		if lowest.Major == minKmsKeyVersionRotationVersion.Major && lowest.Minor < minKmsKeyVersionRotationVersion.Minor {
+			return field.ErrorList{field.Forbidden(fldPath, fmt.Sprintf("KMS key version rotation requires cluster version %s or above", minKmsKeyVersionRotationVersion))}
+		}
+	}
+
+	return nil
 }

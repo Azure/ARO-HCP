@@ -286,7 +286,7 @@ func (f *Frontend) createNodePool(writer http.ResponseWriter, request *http.Requ
 
 	restOperation := operation.Operation{
 		Type:    operation.Create,
-		Options: validation.AFECsToValidationOptions(subscription.GetRegisteredFeatures()),
+		Options: validation.BuildValidationOptions(subscription.GetRegisteredFeatures(), api.APIVersion(versionedInterface.String())),
 	}
 	admissionContext, err := f.newNodePoolAdmissionContext(ctx, restOperation, cluster, nil, nil)
 	if err != nil {
@@ -575,7 +575,7 @@ func (f *Frontend) updateNodePoolInCosmos(ctx context.Context, writer http.Respo
 
 	restOperation := operation.Operation{
 		Type:    operation.Update,
-		Options: validation.AFECsToValidationOptions(subscription.GetRegisteredFeatures()),
+		Options: validation.BuildValidationOptions(subscription.GetRegisteredFeatures(), api.APIVersion(versionedInterface.String())),
 	}
 	admissionContext, err := f.newNodePoolAdmissionContext(ctx, restOperation, cluster, spCluster, spNodePool)
 	if err != nil {
