@@ -90,11 +90,8 @@ param logsMSI = '{{ .logs.mdsd.msiName }}'
 param logsServiceAccount = '{{ .logs.mdsd.serviceAccountName }}'
 
 // Geneva logging settings
-param genevaCertificateDomain = '{{ .geneva.logs.certificateDomain }}'
-param genevaCertificateIssuer = '{{ .geneva.logs.certificateIssuer }}'
 param genevaRpLogsName = '{{ .geneva.logs.rp.secretName }}'
 param genevaClusterLogsName = '{{ .geneva.logs.cluster.secretName }}'
-param genevaManageCertificates = {{ .geneva.logs.manageCertificates }}
 
 // Alert rules tag value
 param owningTeamTagValue = '{{ .monitoring.alertRuleOwningTeamTag }}'

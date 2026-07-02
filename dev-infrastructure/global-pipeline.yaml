@@ -84,6 +84,40 @@ resourceGroups:
         name: globalKeyVaultUrl
     issuer:
       value: OneCertV2-PrivateCA
+  - name: geneva-logs-cert
+    action: CreateCertificate
+    manage:
+      configRef: geneva.logs.manage
+    secretKeyVault:
+      configRef: ev2.assistedId.certificate.keyVault
+    secretName:
+      configRef: ev2.assistedId.certificate.name
+    applicationId:
+      configRef: ev2.assistedId.applicationId
+    vaultBaseUrl:
+      input:
+        resourceGroup: singleton
+        step: output
+        name: globalKeyVaultUrl
+    certificateName:
+      configRef: geneva.logs.adminCertName
+    contentType:
+      configRef: geneva.logs.contentType
+    san:
+      configRef: geneva.logs.adminCertSan
+    issuer:
+      configRef: geneva.logs.certificateIssuer
+    commonName:
+      configRef: geneva.logs.adminCertSan
+    dependsOn:
+    - resourceGroup: singleton
+      step: global-kv-private-issuer
+    automatedRetry:
+      errorContainsAny:
+      - "InternalServerError"
+      - "ServiceUnavailable"
+      maximumRetryCount: 3
+      durationBetweenRetries: 1m
   - name: geneva-kv-private-issuer
     action: SetCertificateIssuer
     secretKeyVault:
@@ -99,6 +133,40 @@ resourceGroups:
         name: genevaActionKeyVaultUrl
     issuer:
       value: OneCertV2-PrivateCA
+  - name: geneva-actions-cert
+    action: CreateCertificate
+    manage:
+      configRef: geneva.actions.certificate.manage
+    secretKeyVault:
+      configRef: ev2.assistedId.certificate.keyVault
+    secretName:
+      configRef: ev2.assistedId.certificate.name
+    applicationId:
+      configRef: ev2.assistedId.applicationId
+    vaultBaseUrl:
+      input:
+        resourceGroup: singleton
+        step: output
+        name: genevaActionKeyVaultUrl
+    certificateName:
+      configRef: geneva.actions.certificate.name
+    contentType:
+      configRef: geneva.actions.certificate.contentType
+    san:
+      configRef: geneva.actions.certificate.san
+    issuer:
+      configRef: geneva.actions.certificate.issuer
+    commonName:
+      configRef: geneva.actions.certificate.san
+    dependsOn:
+    - resourceGroup: singleton
+      step: geneva-kv-private-issuer
+    automatedRetry:
+      errorContainsAny:
+      - "InternalServerError"
+      - "ServiceUnavailable"
+      maximumRetryCount: 3
+      durationBetweenRetries: 1m
   - name: geneva-identities
     action: ARM
     template: templates/geneva-identities.bicep
@@ -106,9 +174,9 @@ resourceGroups:
     deploymentLevel: ResourceGroup
     dependsOn:
     - resourceGroup: singleton
-      step: global-kv-private-issuer
+      step: geneva-actions-cert
     - resourceGroup: singleton
-      step: geneva-kv-private-issuer
+      step: geneva-logs-cert
     # The Entra app/service-principal owners relationships are written through
     # Microsoft Graph, which intermittently fails to commit the relationship and
     # asks the caller to retry later. Retry the deployment on that transient error.
