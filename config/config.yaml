@@ -1314,6 +1314,7 @@ clouds:
           zoneRedundantMode: Disabled
       # Metrics
       monitoring:
+        alertsEnabled: true
         icm:
           manageConnection: false
         grafanaName: arohcp-dev
@@ -1380,10 +1381,6 @@ clouds:
             cosmosDB:
               private: false
               zoneRedundantMode: 'Disabled'
-        regions:
-          westus3:
-            monitoring:
-              alertsEnabled: true
       cspr:
         # this is the cluster service PR check and full cycle test environment
         defaults:
@@ -1443,10 +1440,6 @@ clouds:
             cosmosDB:
               private: false
               zoneRedundantMode: 'Disabled'
-        regions:
-          westus3:
-            monitoring:
-              alertsEnabled: true
       pers:
         # Regional overrides
         regions:
@@ -1477,12 +1470,6 @@ clouds:
                   vmSize: 'Standard_D2s_v3'
                 systemAgentPool:
                   zones: '1'
-          westus3:
-            monitoring:
-              alertsEnabled: true
-          eastus:
-            monitoring:
-              alertsEnabled: true
         # this is the personal DEV environment
         defaults:
           kusto:
@@ -1594,10 +1581,6 @@ clouds:
                 vmSize: 'Standard_D16s_v3'
                 osDiskSizeGB: 128
                 secondaryNicCount: 7
-        regions:
-          westus3:
-            monitoring:
-              alertsEnabled: true
       ci00:
         defaults:
           kusto:
@@ -1689,9 +1672,6 @@ clouds:
                 vmSize: Standard_D4ds_v6
             jaeger:
               deploy: true
-        regions:
-          monitoring:
-            alertsEnabled: true
       ci01:
         # prow infra shard1 - deploys into "ARO HCP E2E Infrastructure" subscription
         defaults:
@@ -1790,6 +1770,3 @@ clouds:
                 vmSize: Standard_D4ds_v6
             jaeger:
               deploy: true
-        regions:
-          monitoring:
-            alertsEnabled: true
