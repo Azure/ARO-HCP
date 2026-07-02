@@ -2,6 +2,7 @@ prometheusRules:
   rulesFolders:
   - alerts/access-cluster-slo-prometheusRule.yaml
   - alerts/nodepool-slo-prometheusRule.yaml
+  - alerts/ingress-prometheusRule.yaml
   untestedRules: []
   testDependencies:
   - recording-rules-services.yaml
