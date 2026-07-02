@@ -32,20 +32,18 @@ import (
 const desireCollectInterval = 30 * time.Second
 
 type desireCollector struct {
-	applyStore  cache.Store
-	deleteStore cache.Store
-	readStore   cache.Store
-	total       *prometheus.GaugeVec
+	applyStore cache.Store
+	readStore  cache.Store
+	total      *prometheus.GaugeVec
 }
 
 func newDesireCollector(
-	applyStore, deleteStore, readStore cache.Store,
+	applyStore, readStore cache.Store,
 	registerer prometheus.Registerer,
 ) *desireCollector {
 	return &desireCollector{
-		applyStore:  applyStore,
-		deleteStore: deleteStore,
-		readStore:   readStore,
+		applyStore: applyStore,
+		readStore:  readStore,
 		total: promauto.With(registerer).NewGaugeVec(
 			prometheus.GaugeOpts{
 				Name: "kube_applier_desires",
