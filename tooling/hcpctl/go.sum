@@ -20,8 +20,8 @@ cloud.google.com/go/storage v1.62.1 h1:Os0G3XbUbjZumkpDUf2Y0rLoXJTCF1kU2kWUujKYX
 cloud.google.com/go/storage v1.62.1/go.mod h1:cpYz/kRVZ+UQAF1uHeea10/9ewcRbxGoGNKsS9daSXA=
 cloud.google.com/go/trace v1.11.7 h1:kDNDX8JkaAG3R2nq1lIdkb7FCSi1rCmsEtKVsty7p+U=
 cloud.google.com/go/trace v1.11.7/go.mod h1:TNn9d5V3fQVf6s4SCveVMIBS2LJUqo73GACmq/Tky0s=
-github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260630104810-b6b7b3f3b40a h1:YS5faKavbpbiTUdSyTQrsNWv3EoKn4OlQa/7fs6pLf0=
-github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260630104810-b6b7b3f3b40a/go.mod h1:H9gQZNrqfswjQXfmHtTYbC8nMPdZIv8JmlME/wXjcJY=
+github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260617060128-2277df76598b h1:psPLBjS9jx/N+k01CW2MDxccyu4UNPInjmcVQ/1q9OU=
+github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260617060128-2277df76598b/go.mod h1:bin6OKbbloNkD5EYEgXz6d6JGQsWhClgcbVUQrEJ2BQ=
 github.com/Azure/azure-kusto-go/azkustodata v1.2.1 h1:De25JIENJVLYUMB4Z9LfAFzbgjGz1ozYJiL2zprs1KA=
 github.com/Azure/azure-kusto-go/azkustodata v1.2.1/go.mod h1:pYbM6A7z4XDU+3S0+OgoyUOuCOWPUe/hyEfnOCT6Gok=
 github.com/Azure/azure-sdk-for-go/sdk/azcore v1.21.1 h1:jHb/wfvRikGdxMXYV3QG/SzUOPYN9KEUUuC0Yd0/vC0=
@@ -34,8 +34,8 @@ github.com/Azure/azure-sdk-for-go/sdk/internal v1.12.0 h1:fhqpLE3UEXi9lPaBRpQ6Xu
 github.com/Azure/azure-sdk-for-go/sdk/internal v1.12.0/go.mod h1:7dCRMLwisfRH3dBupKeNCioWYUZ4SS09Z14H+7i8ZoY=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice v1.0.0 h1:figxyQZXzZQIcP3njhC68bYUiTw45J8/SsHaLW8Ax0M=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice v1.0.0/go.mod h1:TmlMW4W5OvXOmOyKNnor8nlMMiO1ctIyzmHme/VHsrA=
-github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resourcegraph/armresourcegraph v0.10.0 h1:+1fJwTilk/X7inNqwREnYEOgFCdg8ut7GULxARDbu34=
-github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resourcegraph/armresourcegraph v0.10.0/go.mod h1:EGwSLlGqrrfYQhtCi9JcIkPQKl9WxsL6ZPJd+63Vy1A=
+github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resourcegraph/armresourcegraph v0.9.0 h1:zLzoX5+W2l95UJoVwiyNS4dX8vHyQ6x2xRLoBBL9wMk=
+github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resourcegraph/armresourcegraph v0.9.0/go.mod h1:wVEOJfGTj0oPAUGA1JuRAvz/lxXQsWW16axmHPP47Bk=
 github.com/Azure/go-ansiterm v0.0.0-20250102033503-faa5f7b0171c h1:udKWzYgxTojEKWjV8V+WSxDXJ4NFATAsZjh8iIbsQIg=
 github.com/Azure/go-ansiterm v0.0.0-20250102033503-faa5f7b0171c/go.mod h1:xomTg63KZ2rFqZQzSB4Vz2SUXa1BpHTVz9L5PTmPC4E=
 github.com/Azure/go-autorest v14.2.0+incompatible h1:V5VMDjClD3GiElqLWO7mz2MxNAK/vTfRHdAubSIPRgs=
