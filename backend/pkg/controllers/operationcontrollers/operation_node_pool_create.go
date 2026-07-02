@@ -144,18 +144,18 @@ func (c *operationNodePoolCreate) SynchronizeOperation(ctx context.Context, key 
 	}
 
 	var persistErr *arm.CloudErrorBody
-	if operationalState.provisioningState == arm.ProvisioningStateFailed {
+	if operationalState.ProvisioningState == arm.ProvisioningStateFailed {
 		persistErr = &arm.CloudErrorBody{
 			// TODO for now we always set the error code to InternalServerError, but we should improve to be able
 			// to be more specific than that when we calculate operationalState. When work is done to improve on this, we
 			// should design it in a way where no internal details are exposed to the operation's error.
 			Code:    arm.CloudErrorCodeInternalServerError,
-			Message: operationalState.message,
+			Message: operationalState.Message,
 		}
 	}
 
 	logger.Info("updating status")
-	err = UpdateOperationStatus(ctx, c.clock, c.resourcesDBClient, operation, operationalState.provisioningState, persistErr, postAsyncNotificationFn(c.notificationClient))
+	err = UpdateOperationStatus(ctx, c.clock, c.resourcesDBClient, operation, operationalState.ProvisioningState, persistErr, postAsyncNotificationFn(c.notificationClient))
 	if database.IsPreconditionFailedError(err) {
 		// if we have a conflict error, then we're guaranteed that our informer will eventually see an update and trigger us again.
 		return nil
@@ -180,7 +180,7 @@ func (c *operationNodePoolCreate) determineOperationState(ctx context.Context, o
 	if state, err := c.nodePoolServiceCreateOperationState(ctx, operation, nodePool); err != nil {
 		errs = append(errs, utils.TrackError(err))
 	} else {
-		operationStates = append(operationStates, state)
+		operationStates = append(operationStates, state.withSource("clusterServiceNodePoolStatus"))
 	}
 
 	if err := errors.Join(errs...); err != nil {
@@ -198,7 +198,7 @@ func (c *operationNodePoolCreate) determineOperationState(ctx context.Context, o
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
-	logger.Info("picked node pool create operation status", "provisioningState", picked.provisioningState, "message", picked.message)
+	logger.Info("picked node pool create operation status", "provisioningState", picked.ProvisioningState, "message", picked.Message)
 	return picked, nil
 }
 
