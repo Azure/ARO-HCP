@@ -34,6 +34,6 @@ tests:
         subscription_id: "sub-1"
         cluster: "svc-1"
       exp_annotations:
-        summary: "svc-1: Cluster stuck deleting"
+        summary: "svc-1: Cluster /sub/1/cluster/stuck-1 stuck deleting"
         description: "Cluster /sub/1/cluster/stuck-1 has been in a deleting state for more than 2 hours. \nThis may indicate that finalizers are stuck or resources are failing to cleanup.\n"
         runbook_url: TBD
