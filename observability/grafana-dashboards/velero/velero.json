@@ -4,28 +4,22 @@
       {
         "builtIn": 1,
         "datasource": {
-          "type": "datasource",
-          "uid": "grafana"
+          "type": "grafana",
+          "uid": "-- Grafana --"
         },
         "enable": true,
         "hide": true,
         "iconColor": "rgba(0, 211, 255, 1)",
         "name": "Annotations & Alerts",
-        "target": {
-          "limit": 100,
-          "matchAny": false,
-          "tags": [],
-          "type": "dashboard"
-        },
         "type": "dashboard"
       }
     ]
   },
   "description": "Velero Backup and Restore Monitoring",
-  "editable": false,
+  "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
-  "id": 107,
+  "id": null,
   "links": [],
   "panels": [
     {
@@ -36,7 +30,7 @@
         "x": 0,
         "y": 0
       },
-      "id": 1,
+      "id": 101,
       "panels": [],
       "title": "Backup Health Overview",
       "type": "row"
@@ -76,12 +70,12 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 5,
-        "w": 6,
+        "h": 4,
+        "w": 4,
         "x": 0,
         "y": 1
       },
-      "id": 2,
+      "id": 102,
       "options": {
         "colorMode": "value",
         "graphMode": "area",
@@ -114,6 +108,384 @@
         }
       ],
       "title": "Backup Total",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 2,
+          "mappings": [],
+          "max": 1,
+          "min": 0,
+          "noValue": "0",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#2f6863"
+              },
+              {
+                "color": "#eca440",
+                "value": 0.05
+              },
+              {
+                "color": "#c4233b",
+                "value": 0.2
+              }
+            ]
+          },
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 4,
+        "y": 1
+      },
+      "id": 103,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "value",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "sum(max without(prometheus_replica) (increase(velero_backup_failure_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[$__range]))) / clamp_min(sum(max without(prometheus_replica) (increase(velero_backup_attempt_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[$__range]))), 1)",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "__auto",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "title": "Backup Failure Rate",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 2,
+          "mappings": [],
+          "max": 1,
+          "min": 0,
+          "noValue": "0",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#2f6863"
+              },
+              {
+                "color": "#eca440",
+                "value": 0.05
+              },
+              {
+                "color": "#c4233b",
+                "value": 0.2
+              }
+            ]
+          },
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 8,
+        "y": 1
+      },
+      "id": 104,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "value",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "sum(max without(prometheus_replica) (increase(velero_csi_snapshot_failure_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[$__range]))) / clamp_min(sum(max without(prometheus_replica) (increase(velero_csi_snapshot_attempt_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[$__range]))), 1)",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "__auto",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "title": "CSI Snapshot Failure Rate",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 2,
+          "mappings": [],
+          "max": 1,
+          "min": 0,
+          "noValue": "0",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#2f6863"
+              },
+              {
+                "color": "#eca440",
+                "value": 0.05
+              },
+              {
+                "color": "#c4233b",
+                "value": 0.2
+              }
+            ]
+          },
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 12,
+        "y": 1
+      },
+      "id": 105,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "value",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "sum(max without(prometheus_replica) (increase(velero_backup_deletion_failure_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[$__range]))) / clamp_min(sum(max without(prometheus_replica) (increase(velero_backup_deletion_attempt_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[$__range]))), 1)",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "__auto",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "title": "Backup Deletion Failure Rate",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 2,
+          "mappings": [],
+          "noValue": "0",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#2f6863"
+              },
+              {
+                "color": "#c4233b",
+                "value": 1
+              }
+            ]
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 16,
+        "y": 1
+      },
+      "id": 106,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "value",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "count(ALERTS{alertname=~\"Velero.*\", alertstate=\"firing\", cluster=~\"$cluster\"}) or vector(0)",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "__auto",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "title": "Active Velero Backup Alerts",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 2,
+          "mappings": [],
+          "noValue": "0",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#2f6863"
+              },
+              {
+                "color": "#c4233b",
+                "value": 1
+              }
+            ]
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 20,
+        "y": 1
+      },
+      "id": 107,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "value",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "count(max without(prometheus_replica) (velero_backup_last_status{cluster=~\"$cluster\", schedule=~\"$schedule\"}) == 0) or vector(0)",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "__auto",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "title": "Schedules with Failed Last Backup",
       "type": "stat"
     },
     {
@@ -160,11 +532,11 @@
       },
       "gridPos": {
         "h": 5,
-        "w": 6,
-        "x": 6,
-        "y": 1
+        "w": 8,
+        "x": 0,
+        "y": 5
       },
-      "id": 3,
+      "id": 108,
       "options": {
         "minVizHeight": 75,
         "minVizWidth": 75,
@@ -188,7 +560,7 @@
             "uid": "${datasource}"
           },
           "editorMode": "code",
-          "expr": "sum(max without(prometheus_replica) (velero_backup_success_total{cluster=~\"$cluster\", schedule=~\"$schedule\"})) / sum(max without(prometheus_replica) (velero_backup_attempt_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}))",
+          "expr": "sum(max without(prometheus_replica) (velero_backup_success_total{cluster=~\"$cluster\", schedule=~\"$schedule\"})) / clamp_min(sum(max without(prometheus_replica) (velero_backup_attempt_total{cluster=~\"$cluster\", schedule=~\"$schedule\"})), 1)",
           "format": "time_series",
           "range": true,
           "refId": "A"
@@ -240,11 +612,11 @@
       },
       "gridPos": {
         "h": 5,
-        "w": 6,
-        "x": 12,
-        "y": 1
+        "w": 8,
+        "x": 8,
+        "y": 5
       },
-      "id": 4,
+      "id": 109,
       "options": {
         "minVizHeight": 75,
         "minVizWidth": 75,
@@ -268,7 +640,7 @@
             "uid": "${datasource}"
           },
           "exemplar": false,
-          "expr": "sum(max without(prometheus_replica) (velero_backup_deletion_success_total{cluster=~\"$cluster\", schedule=~\"$schedule\"})) / sum(max without(prometheus_replica) (velero_backup_deletion_attempt_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}))",
+          "expr": "sum(max without(prometheus_replica) (velero_backup_deletion_success_total{cluster=~\"$cluster\", schedule=~\"$schedule\"})) / clamp_min(sum(max without(prometheus_replica) (velero_backup_deletion_attempt_total{cluster=~\"$cluster\", schedule=~\"$schedule\"})), 1)",
           "format": "time_series",
           "refId": "A"
         }
@@ -319,11 +691,11 @@
       },
       "gridPos": {
         "h": 5,
-        "w": 6,
-        "x": 18,
-        "y": 1
+        "w": 8,
+        "x": 16,
+        "y": 5
       },
-      "id": 5,
+      "id": 110,
       "options": {
         "minVizHeight": 75,
         "minVizWidth": 75,
@@ -347,122 +719,13 @@
             "uid": "${datasource}"
           },
           "exemplar": false,
-          "expr": "sum(max without(prometheus_replica) (velero_volume_snapshot_success_total{cluster=~\"$cluster\", schedule=~\"$schedule\"})) / sum(max without(prometheus_replica) (velero_volume_snapshot_attempt_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}))",
+          "expr": "sum(max without(prometheus_replica) (velero_volume_snapshot_success_total{cluster=~\"$cluster\", schedule=~\"$schedule\"})) / clamp_min(sum(max without(prometheus_replica) (velero_volume_snapshot_attempt_total{cluster=~\"$cluster\", schedule=~\"$schedule\"})), 1)",
           "format": "time_series",
           "refId": "A"
         }
       ],
       "title": "Volume Snapshot Success Rate",
       "type": "gauge"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "description": "Last backup status per schedule (1=Success, 0=Failure)",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "custom": {
-            "align": "auto",
-            "cellOptions": {
-              "mode": "basic",
-              "type": "color-background"
-            },
-            "inspect": false
-          },
-          "mappings": [
-            {
-              "options": {
-                "0": {
-                  "color": "dark-red",
-                  "text": "FAILED"
-                },
-                "1": {
-                  "color": "dark-green",
-                  "text": "SUCCESS"
-                }
-              },
-              "type": "value"
-            }
-          ],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "dark-red"
-              },
-              {
-                "color": "dark-green",
-                "value": 1
-              }
-            ]
-          },
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 6
-      },
-      "id": 6,
-      "options": {
-        "cellHeight": "sm",
-        "footer": {
-          "countRows": false,
-          "fields": "",
-          "reducer": [
-            "sum"
-          ],
-          "show": false
-        },
-        "showHeader": true
-      },
-      "pluginVersion": "11.6.9",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "exemplar": false,
-          "expr": "max without(prometheus_replica) (velero_backup_last_status{cluster=~\"$cluster\", schedule=~\"$schedule\", schedule!=\"\"})",
-          "instant": true,
-          "legendFormat": "{{schedule}}",
-          "refId": "A"
-        }
-      ],
-      "title": "Backup Last Status",
-      "transformations": [
-        {
-          "id": "reduce",
-          "options": {
-            "includeTimeField": false,
-            "labelsToFields": false,
-            "reducers": [
-              "lastNotNull"
-            ]
-          }
-        },
-        {
-          "id": "organize",
-          "options": {
-            "excludeByName": {},
-            "indexByName": {},
-            "renameByName": {
-              "Field": "Schedule",
-              "Last *": "Status"
-            }
-          }
-        }
-      ],
-      "type": "table"
     },
     {
       "datasource": {
@@ -520,11 +783,11 @@
       },
       "gridPos": {
         "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 6
+        "w": 8,
+        "x": 0,
+        "y": 10
       },
-      "id": 7,
+      "id": 111,
       "options": {
         "cellHeight": "sm",
         "footer": {
@@ -545,7 +808,7 @@
             "uid": "${datasource}"
           },
           "exemplar": false,
-          "expr": "(time() - max without(prometheus_replica) (velero_backup_last_successful_timestamp{cluster=~\"$cluster\", schedule!=\"\"})) / 60 / 60",
+          "expr": "(time() - max without(prometheus_replica) (velero_backup_last_successful_timestamp{cluster=~\"$cluster\", schedule=~\"$schedule\", schedule!=\"\"})) / 60 / 60",
           "instant": true,
           "legendFormat": "{{schedule}}",
           "refId": "A"
@@ -578,15 +841,995 @@
       "type": "table"
     },
     {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#2f6863"
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 10
+      },
+      "id": 112,
+      "options": {
+        "cellHeight": "sm",
+        "filterable": true,
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "ALERTS{alertname=~\"Velero.*\", alertstate=\"firing\", cluster=~\"$cluster\"}",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "alert",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "title": "Active Velero Alerts (Detail)",
+      "transformations": [
+        {
+          "id": "labelsToFields",
+          "options": {
+            "mode": "columns"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "Value": true,
+              "__name__": true,
+              "_cluster": true,
+              "alertname": true,
+              "alertstate": true,
+              "container": true,
+              "endpoint": true,
+              "env": true,
+              "instance": true,
+              "is_global": true,
+              "job": true,
+              "namespace": true,
+              "pod": true,
+              "prometheus": true,
+              "rhobs_cell": true,
+              "service": true,
+              "source": true,
+              "tenant_id": true,
+              "prometheus_replica": true
+            },
+            "renameByName": {
+              "severity": "severity"
+            }
+          }
+        }
+      ],
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "Last backup status per schedule (1=Success, 0=Failure)",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "mode": "basic",
+              "type": "color-background"
+            },
+            "inspect": false
+          },
+          "mappings": [
+            {
+              "options": {
+                "0": {
+                  "color": "dark-red",
+                  "text": "FAILED"
+                },
+                "1": {
+                  "color": "dark-green",
+                  "text": "SUCCESS"
+                }
+              },
+              "type": "value"
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "dark-red"
+              },
+              {
+                "color": "dark-green",
+                "value": 1
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 10
+      },
+      "id": 113,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "exemplar": false,
+          "expr": "max without(prometheus_replica) (velero_backup_last_status{cluster=~\"$cluster\", schedule=~\"$schedule\", schedule!=\"\"})",
+          "instant": true,
+          "legendFormat": "{{schedule}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Backup Last Status",
+      "transformations": [
+        {
+          "id": "reduce",
+          "options": {
+            "includeTimeField": false,
+            "labelsToFields": false,
+            "reducers": [
+              "lastNotNull"
+            ]
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {},
+            "indexByName": {},
+            "renameByName": {
+              "Field": "Schedule",
+              "Last *": "Status"
+            }
+          }
+        }
+      ],
+      "type": "table"
+    },
+    {
       "collapsed": true,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 14
+        "y": 18
       },
-      "id": 8,
+      "id": 300,
+      "title": "Velero CR Inventory",
+      "type": "row",
       "panels": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "description": "Total number of Velero Backup custom resources",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "thresholds"
+              },
+              "mappings": [
+                {
+                  "options": {
+                    "match": "null",
+                    "result": {
+                      "text": "N/A"
+                    }
+                  },
+                  "type": "special"
+                }
+              ],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green"
+                  }
+                ]
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 4,
+            "w": 12,
+            "x": 0,
+            "y": 1
+          },
+          "id": 301,
+          "options": {
+            "colorMode": "value",
+            "graphMode": "area",
+            "justifyMode": "auto",
+            "orientation": "auto",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "showPercentChange": false,
+            "textMode": "auto",
+            "wideLayout": true
+          },
+          "pluginVersion": "11.6.9",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "exemplar": false,
+              "expr": "count(max without(prometheus_replica) (veleroBackup_phase{cluster=~\"$cluster\"}) == 1)",
+              "format": "time_series",
+              "instant": true,
+              "legendFormat": "",
+              "refId": "A"
+            }
+          ],
+          "title": "Backup CRs Total",
+          "type": "stat"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "description": "Backup CRs in non-terminal phases (New, InProgress, WaitingForPluginOperations)",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "thresholds"
+              },
+              "mappings": [
+                {
+                  "options": {
+                    "match": "null",
+                    "result": {
+                      "text": "N/A"
+                    }
+                  },
+                  "type": "special"
+                }
+              ],
+              "noValue": "0",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green"
+                  },
+                  {
+                    "color": "orange",
+                    "value": 5
+                  },
+                  {
+                    "color": "red",
+                    "value": 20
+                  }
+                ]
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 4,
+            "w": 12,
+            "x": 12,
+            "y": 1
+          },
+          "id": 302,
+          "options": {
+            "colorMode": "value",
+            "graphMode": "area",
+            "justifyMode": "auto",
+            "orientation": "auto",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "showPercentChange": false,
+            "textMode": "auto",
+            "wideLayout": true
+          },
+          "pluginVersion": "11.6.9",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "exemplar": false,
+              "expr": "count(max without(prometheus_replica) (veleroBackup_phase{cluster=~\"$cluster\", phase=~\"New|InProgress|WaitingForPluginOperations|WaitingForPluginOperationsPartiallyFailed\"}) == 1) or vector(0)",
+              "format": "time_series",
+              "instant": true,
+              "legendFormat": "",
+              "refId": "A"
+            }
+          ],
+          "title": "Backup CRs Enqueued",
+          "type": "stat"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 10,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "showPoints": "never",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 5
+          },
+          "id": 303,
+          "options": {
+            "legend": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "displayMode": "table",
+              "placement": "right",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "none"
+            }
+          },
+          "pluginVersion": "11.6.9",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "exemplar": false,
+              "expr": "count by (cluster) (max without(prometheus_replica) (veleroBackup_phase{phase=~\"New|InProgress|WaitingForPluginOperations|WaitingForPluginOperationsPartiallyFailed\"}) == 1)",
+              "format": "time_series",
+              "instant": false,
+              "legendFormat": "{{cluster}}",
+              "refId": "A",
+              "range": true
+            }
+          ],
+          "title": "Backup CRs Enqueued - All Clusters",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 10,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "showPoints": "never",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 12,
+            "y": 5
+          },
+          "id": 304,
+          "options": {
+            "legend": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "displayMode": "table",
+              "placement": "right",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "none"
+            }
+          },
+          "pluginVersion": "11.6.9",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "exemplar": false,
+              "expr": "count by (cluster) (max without(prometheus_replica) (veleroBackup_phase{cluster=~\"$cluster\", phase=~\"New|InProgress|WaitingForPluginOperations|WaitingForPluginOperationsPartiallyFailed\"}) == 1)",
+              "format": "time_series",
+              "instant": false,
+              "legendFormat": "{{cluster}}",
+              "refId": "A",
+              "range": true
+            }
+          ],
+          "title": "Backup CRs Enqueued - Cluster Level",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "description": "Backup CR count by phase",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "thresholds"
+              },
+              "custom": {
+                "align": "auto",
+                "cellOptions": {
+                  "type": "auto"
+                },
+                "inspect": false
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green"
+                  }
+                ]
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 10,
+            "w": 12,
+            "x": 0,
+            "y": 13
+          },
+          "id": 305,
+          "options": {
+            "cellHeight": "sm",
+            "footer": {
+              "show": false
+            },
+            "showHeader": true,
+            "sortBy": [
+              {
+                "desc": true,
+                "field": "Count"
+              }
+            ]
+          },
+          "pluginVersion": "11.6.9",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "exemplar": false,
+              "expr": "sum(max without(prometheus_replica) (veleroBackup_phase{cluster=~\"$cluster\", phase=\"Completed\"}) == 1) or vector(0)",
+              "format": "time_series",
+              "instant": true,
+              "legendFormat": "Comp",
+              "refId": "A"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "exemplar": false,
+              "expr": "sum(max without(prometheus_replica) (veleroBackup_phase{cluster=~\"$cluster\", phase=\"Failed\"}) == 1) or vector(0)",
+              "format": "time_series",
+              "instant": true,
+              "legendFormat": "Fail",
+              "refId": "B"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "exemplar": false,
+              "expr": "sum(max without(prometheus_replica) (veleroBackup_phase{cluster=~\"$cluster\", phase=\"PartiallyFailed\"}) == 1) or vector(0)",
+              "format": "time_series",
+              "instant": true,
+              "legendFormat": "PartFail",
+              "refId": "C"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "exemplar": false,
+              "expr": "sum(max without(prometheus_replica) (veleroBackup_phase{cluster=~\"$cluster\", phase=\"FailedValidation\"}) == 1) or vector(0)",
+              "format": "time_series",
+              "instant": true,
+              "legendFormat": "FailVal",
+              "refId": "D"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "exemplar": false,
+              "expr": "sum(max without(prometheus_replica) (veleroBackup_phase{cluster=~\"$cluster\", phase=\"New\"}) == 1) or vector(0)",
+              "format": "time_series",
+              "instant": true,
+              "legendFormat": "New",
+              "refId": "E"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "exemplar": false,
+              "expr": "sum(max without(prometheus_replica) (veleroBackup_phase{cluster=~\"$cluster\", phase=\"InProgress\"}) == 1) or vector(0)",
+              "format": "time_series",
+              "instant": true,
+              "legendFormat": "InProg",
+              "refId": "F"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "exemplar": false,
+              "expr": "sum(max without(prometheus_replica) (veleroBackup_phase{cluster=~\"$cluster\", phase=\"Finalizing\"}) == 1) or vector(0)",
+              "format": "time_series",
+              "instant": true,
+              "legendFormat": "Fin",
+              "refId": "G"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "exemplar": false,
+              "expr": "sum(max without(prometheus_replica) (veleroBackup_phase{cluster=~\"$cluster\", phase=\"FinalizingPartiallyFailed\"}) == 1) or vector(0)",
+              "format": "time_series",
+              "instant": true,
+              "legendFormat": "FinPartFail",
+              "refId": "H"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "exemplar": false,
+              "expr": "sum(max without(prometheus_replica) (veleroBackup_phase{cluster=~\"$cluster\", phase=\"WaitingForPluginOperations\"}) == 1) or vector(0)",
+              "format": "time_series",
+              "instant": true,
+              "legendFormat": "WPO",
+              "refId": "I"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "exemplar": false,
+              "expr": "sum(max without(prometheus_replica) (veleroBackup_phase{cluster=~\"$cluster\", phase=\"WaitingForPluginOperationsPartiallyFailed\"}) == 1) or vector(0)",
+              "format": "time_series",
+              "instant": true,
+              "legendFormat": "WPOPF",
+              "refId": "J"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "exemplar": false,
+              "expr": "sum(max without(prometheus_replica) (veleroBackup_phase{cluster=~\"$cluster\", phase=\"Deleting\"}) == 1) or vector(0)",
+              "format": "time_series",
+              "instant": true,
+              "legendFormat": "Del",
+              "refId": "K"
+            }
+          ],
+          "title": "Backup CRs by Phase",
+          "transformations": [
+            {
+              "id": "reduce",
+              "options": {
+                "includeTimeField": false,
+                "labelsToFields": false,
+                "reducers": [
+                  "lastNotNull"
+                ]
+              }
+            },
+            {
+              "id": "organize",
+              "options": {
+                "excludeByName": {},
+                "indexByName": {},
+                "renameByName": {
+                  "Field": "Phase",
+                  "Last *": "Count"
+                }
+              }
+            },
+            {
+              "id": "sortBy",
+              "options": {
+                "fields": {},
+                "sort": [
+                  {
+                    "desc": true,
+                    "field": "Count"
+                  }
+                ]
+              }
+            }
+          ],
+          "type": "table"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 10,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "showPoints": "never",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "normal"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 10,
+            "w": 12,
+            "x": 12,
+            "y": 13
+          },
+          "id": 306,
+          "options": {
+            "legend": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "displayMode": "table",
+              "placement": "right",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "none"
+            }
+          },
+          "pluginVersion": "11.6.9",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "exemplar": false,
+              "expr": "count by (phase) (max without(prometheus_replica) (veleroBackup_phase{cluster=~\"$cluster\"}) == 1)",
+              "format": "time_series",
+              "instant": false,
+              "legendFormat": "{{phase}}",
+              "refId": "A",
+              "range": true
+            }
+          ],
+          "title": "Backup CRs by Phase Over Time",
+          "type": "timeseries"
+        }
+      ]
+    },
+    {
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 19
+      },
+      "id": 122,
+      "panels": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "thresholds"
+              },
+              "custom": {
+                "align": "auto",
+                "cellOptions": {
+                  "mode": "basic",
+                  "type": "color-background"
+                },
+                "inspect": false
+              },
+              "decimals": 4,
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "dark-green"
+                  },
+                  {
+                    "color": "dark-orange",
+                    "value": 0.01
+                  },
+                  {
+                    "color": "dark-red",
+                    "value": 0.05
+                  }
+                ]
+              },
+              "unit": "percentunit"
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Cluster"
+                },
+                "properties": [
+                  {
+                    "id": "custom.cellOptions",
+                    "value": {
+                      "type": "auto"
+                    }
+                  },
+                  {
+                    "id": "unit",
+                    "value": "string"
+                  }
+                ]
+              }
+            ]
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 8,
+            "x": 0,
+            "y": 1
+          },
+          "id": 123,
+          "options": {
+            "cellHeight": "sm",
+            "filterable": true,
+            "footer": {
+              "show": false
+            },
+            "showHeader": true
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "exemplar": false,
+              "expr": "sum by (cluster) (max without(prometheus_replica) (increase(velero_backup_failure_total{schedule!=\"\"}[$__range]))) / clamp_min(sum by (cluster) (max without(prometheus_replica) (increase(velero_backup_attempt_total{schedule!=\"\"}[$__range]))), 1)",
+              "format": "time_series",
+              "instant": true,
+              "legendFormat": "{{cluster}}",
+              "refId": "A"
+            }
+          ],
+          "title": "Clusters by Backup Failure Rate",
+          "transformations": [
+            {
+              "id": "reduce",
+              "options": {
+                "includeTimeField": false,
+                "labelsToFields": false,
+                "reducers": [
+                  "lastNotNull"
+                ]
+              }
+            },
+            {
+              "id": "organize",
+              "options": {
+                "excludeByName": {},
+                "indexByName": {},
+                "renameByName": {
+                  "Field": "Cluster",
+                  "Last *": "Failure Rate"
+                }
+              }
+            },
+            {
+              "id": "sortBy",
+              "options": {
+                "fields": {},
+                "sort": [
+                  {
+                    "desc": true,
+                    "field": "Failure Rate"
+                  }
+                ]
+              }
+            }
+          ],
+          "type": "table"
+        },
         {
           "datasource": {
             "type": "prometheus",
@@ -684,12 +1927,12 @@
             ]
           },
           "gridPos": {
-            "h": 10,
-            "w": 12,
-            "x": 0,
-            "y": 15
+            "h": 8,
+            "w": 8,
+            "x": 16,
+            "y": 1
           },
-          "id": 9,
+          "id": 201,
           "options": {
             "cellHeight": "sm",
             "footer": {
@@ -717,7 +1960,7 @@
               },
               "editorMode": "code",
               "exemplar": false,
-              "expr": "sum by (schedule) (max without(prometheus_replica) (velero_backup_success_total{cluster=~\"$cluster\", schedule=~\"$schedule\", schedule!=\"\"})) / sum by (schedule) (max without(prometheus_replica) (velero_backup_attempt_total{cluster=~\"$cluster\", schedule=~\"$schedule\", schedule!=\"\"}))",
+              "expr": "sum by (schedule) (max without(prometheus_replica) (velero_backup_success_total{cluster=~\"$cluster\", schedule=~\"$schedule\", schedule!=\"\"})) / (sum by (schedule) (max without(prometheus_replica) (velero_backup_attempt_total{cluster=~\"$cluster\", schedule=~\"$schedule\", schedule!=\"\"})) > 0)",
               "instant": true,
               "legendFormat": "{{schedule}}",
               "refId": "A"
@@ -744,6 +1987,133 @@
                   "Field": "Schedule",
                   "Last *": "Success Rate"
                 }
+              }
+            }
+          ],
+          "type": "table"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "thresholds"
+              },
+              "custom": {
+                "align": "auto",
+                "cellOptions": {
+                  "mode": "basic",
+                  "type": "color-background"
+                },
+                "inspect": false
+              },
+              "decimals": 4,
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "dark-green"
+                  },
+                  {
+                    "color": "dark-orange",
+                    "value": 0.01
+                  },
+                  {
+                    "color": "dark-red",
+                    "value": 0.05
+                  }
+                ]
+              },
+              "unit": "percentunit"
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Schedule"
+                },
+                "properties": [
+                  {
+                    "id": "custom.cellOptions",
+                    "value": {
+                      "type": "auto"
+                    }
+                  },
+                  {
+                    "id": "unit",
+                    "value": "string"
+                  }
+                ]
+              }
+            ]
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 8,
+            "x": 8,
+            "y": 1
+          },
+          "id": 124,
+          "options": {
+            "cellHeight": "sm",
+            "filterable": true,
+            "footer": {
+              "show": false
+            },
+            "showHeader": true
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "exemplar": false,
+              "expr": "max without(prometheus_replica) (increase(velero_backup_failure_total{cluster=~\"$cluster\", schedule=~\"$schedule\", schedule!=\"\"}[$__range])) / clamp_min(max without(prometheus_replica) (increase(velero_backup_attempt_total{cluster=~\"$cluster\", schedule=~\"$schedule\", schedule!=\"\"}[$__range])), 1)",
+              "format": "time_series",
+              "instant": true,
+              "legendFormat": "{{schedule}}",
+              "refId": "A"
+            }
+          ],
+          "title": "Schedules by Backup Failure Rate (Selected Cluster)",
+          "transformations": [
+            {
+              "id": "reduce",
+              "options": {
+                "includeTimeField": false,
+                "labelsToFields": false,
+                "reducers": [
+                  "lastNotNull"
+                ]
+              }
+            },
+            {
+              "id": "organize",
+              "options": {
+                "excludeByName": {},
+                "indexByName": {},
+                "renameByName": {
+                  "Field": "Schedule",
+                  "Last *": "Failure Rate"
+                }
+              }
+            },
+            {
+              "id": "sortBy",
+              "options": {
+                "fields": {},
+                "sort": [
+                  {
+                    "desc": true,
+                    "field": "Failure Rate"
+                  }
+                ]
               }
             }
           ],
@@ -876,12 +2246,12 @@
             ]
           },
           "gridPos": {
-            "h": 10,
-            "w": 12,
-            "x": 12,
-            "y": 15
+            "h": 8,
+            "w": 24,
+            "x": 0,
+            "y": 9
           },
-          "id": 10,
+          "id": 125,
           "options": {
             "legend": {
               "calcs": [
@@ -906,7 +2276,7 @@
                 "type": "prometheus",
                 "uid": "${datasource}"
               },
-              "expr": "sum(max without(prometheus_replica) (increase(velero_backup_success_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[1h]))) > 0",
+              "expr": "round(sum(max without(prometheus_replica) (increase(velero_backup_success_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[1h])))) > 0",
               "legendFormat": "Backup success",
               "refId": "A"
             },
@@ -915,7 +2285,7 @@
                 "type": "prometheus",
                 "uid": "${datasource}"
               },
-              "expr": "sum(max without(prometheus_replica) (increase(velero_backup_failure_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[1h]))) > 0",
+              "expr": "round(sum(max without(prometheus_replica) (increase(velero_backup_failure_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[1h])))) > 0",
               "hide": false,
               "legendFormat": "Backup failure",
               "refId": "B"
@@ -925,7 +2295,7 @@
                 "type": "prometheus",
                 "uid": "${datasource}"
               },
-              "expr": "sum(max without(prometheus_replica) (increase(velero_backup_partial_failure_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[1h]))) > 0",
+              "expr": "round(sum(max without(prometheus_replica) (increase(velero_backup_partial_failure_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[1h])))) > 0",
               "legendFormat": "Backup partial failure",
               "refId": "C"
             },
@@ -934,7 +2304,7 @@
                 "type": "prometheus",
                 "uid": "${datasource}"
               },
-              "expr": "sum(max without(prometheus_replica) (increase(velero_backup_validation_failure_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[1h]))) > 0",
+              "expr": "round(sum(max without(prometheus_replica) (increase(velero_backup_validation_failure_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[1h])))) > 0",
               "legendFormat": "Backup validation failure",
               "refId": "D"
             },
@@ -943,7 +2313,7 @@
                 "type": "prometheus",
                 "uid": "${datasource}"
               },
-              "expr": "sum(max without(prometheus_replica) (increase(velero_backup_warning_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[1h]))) > 0",
+              "expr": "round(sum(max without(prometheus_replica) (increase(velero_backup_warning_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[1h])))) > 0",
               "legendFormat": "Backup warning",
               "refId": "E"
             },
@@ -952,7 +2322,7 @@
                 "type": "prometheus",
                 "uid": "${datasource}"
               },
-              "expr": "sum(max without(prometheus_replica) (increase(velero_backup_deletion_success_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[1h]))) > 0",
+              "expr": "round(sum(max without(prometheus_replica) (increase(velero_backup_deletion_success_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[1h])))) > 0",
               "legendFormat": "Backup deletion success",
               "refId": "F"
             },
@@ -961,7 +2331,7 @@
                 "type": "prometheus",
                 "uid": "${datasource}"
               },
-              "expr": "sum(max without(prometheus_replica) (increase(velero_backup_deletion_failure_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[1h]))) > 0",
+              "expr": "round(sum(max without(prometheus_replica) (increase(velero_backup_deletion_failure_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[1h])))) > 0",
               "legendFormat": "Backup deletion failure",
               "refId": "G"
             }
@@ -1031,12 +2401,12 @@
             "overrides": []
           },
           "gridPos": {
-            "h": 10,
+            "h": 8,
             "w": 24,
             "x": 0,
-            "y": 25
+            "y": 17
           },
-          "id": 11,
+          "id": 126,
           "options": {
             "legend": {
               "calcs": [
@@ -1063,18 +2433,6 @@
               "hide": false,
               "legendFormat": "Backup Total",
               "refId": "A"
-            },
-            {
-              "datasource": {
-                "type": "prometheus",
-                "uid": "${datasource}"
-              },
-              "editorMode": "code",
-              "expr": "max without(prometheus_replica) (velero_backup_active_total{cluster=~\"$cluster\", schedule=~\"$schedule\"})",
-              "hide": false,
-              "legendFormat": "Active {{schedule}}",
-              "range": true,
-              "refId": "B"
             }
           ],
           "title": "Total Backup Count",
@@ -1090,10 +2448,81 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 15
+        "y": 20
       },
-      "id": 12,
+      "id": 127,
       "panels": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisPlacement": "auto",
+                "drawStyle": "line",
+                "fillOpacity": 30,
+                "lineInterpolation": "linear",
+                "showPoints": "auto",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "normal"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "#2f6863"
+                  }
+                ]
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 8,
+            "x": 0,
+            "y": 1
+          },
+          "id": 128,
+          "options": {
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "max by (cluster) (max without(prometheus_replica) (velero_backup_items_total))",
+              "format": "time_series",
+              "instant": false,
+              "legendFormat": "{{cluster}}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "Backup Items - All Clusters",
+          "type": "timeseries"
+        },
         {
           "datasource": {
             "type": "prometheus",
@@ -1177,12 +2606,12 @@
             ]
           },
           "gridPos": {
-            "h": 10,
-            "w": 24,
-            "x": 0,
-            "y": 16
+            "h": 8,
+            "w": 8,
+            "x": 8,
+            "y": 1
           },
-          "id": 13,
+          "id": 129,
           "options": {
             "legend": {
               "calcs": [
@@ -1228,6 +2657,161 @@
             }
           ],
           "title": "Backup Items Total vs Errors",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisPlacement": "auto",
+                "drawStyle": "line",
+                "fillOpacity": 0,
+                "lineInterpolation": "linear",
+                "showPoints": "auto",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "#2f6863"
+                  }
+                ]
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 8,
+            "x": 16,
+            "y": 1
+          },
+          "id": 130,
+          "options": {
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "max by (schedule) (max without(prometheus_replica) (velero_backup_items_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}))",
+              "format": "time_series",
+              "instant": false,
+              "legendFormat": "{{schedule}}-items_total",
+              "range": true,
+              "refId": "A"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "max by (schedule) (max without(prometheus_replica) (velero_backup_items_errors{cluster=~\"$cluster\", schedule=~\"$schedule\"}))",
+              "format": "time_series",
+              "instant": false,
+              "legendFormat": "{{schedule}}-items_errors",
+              "range": true,
+              "refId": "B"
+            }
+          ],
+          "title": "Backup Items - Schedule Level",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisPlacement": "auto",
+                "drawStyle": "line",
+                "fillOpacity": 0,
+                "lineInterpolation": "linear",
+                "showPoints": "auto",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "#2f6863"
+                  }
+                ]
+              },
+              "unit": "s"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 9
+          },
+          "id": 131,
+          "options": {
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "max by (cluster) (max without(prometheus_replica) (velero_backup_duration_seconds_sum))",
+              "format": "time_series",
+              "instant": false,
+              "legendFormat": "{{cluster}}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "Slowest Backup Duration - All Clusters",
           "type": "timeseries"
         },
         {
@@ -1293,12 +2877,12 @@
             "overrides": []
           },
           "gridPos": {
-            "h": 10,
+            "h": 8,
             "w": 12,
-            "x": 0,
-            "y": 26
+            "x": 12,
+            "y": 9
           },
-          "id": 14,
+          "id": 132,
           "options": {
             "legend": {
               "calcs": [
@@ -1325,7 +2909,7 @@
                 "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "max by (schedule) (max without(prometheus_replica) (velero_backup_duration_seconds{cluster=~\"$cluster\", schedule=~\"$schedule\", schedule!=\"\"}))",
+              "expr": "max by (schedule) (max without(prometheus_replica) (velero_backup_duration_seconds_sum{cluster=~\"$cluster\", schedule=~\"$schedule\", schedule!=\"\"}))",
               "legendFormat": "{{schedule}}",
               "range": true,
               "refId": "A"
@@ -1341,65 +2925,52 @@
           },
           "fieldConfig": {
             "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
               "custom": {
-                "hideFrom": {
-                  "legend": false,
-                  "tooltip": false,
-                  "viz": false
-                },
-                "scaleDistribution": {
-                  "type": "linear"
+                "axisPlacement": "auto",
+                "drawStyle": "line",
+                "fillOpacity": 30,
+                "lineInterpolation": "linear",
+                "showPoints": "auto",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "normal"
                 }
-              }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "#2f6863"
+                  }
+                ]
+              },
+              "unit": "bytes"
             },
             "overrides": []
           },
           "gridPos": {
-            "h": 10,
+            "h": 8,
             "w": 12,
-            "x": 12,
-            "y": 26
+            "x": 0,
+            "y": 17
           },
-          "id": 15,
+          "id": 134,
           "options": {
-            "calculate": false,
-            "calculation": {},
-            "cellGap": 2,
-            "cellValues": {},
-            "color": {
-              "exponent": 0.5,
-              "fill": "#1F60C4",
-              "mode": "scheme",
-              "reverse": false,
-              "scale": "exponential",
-              "scheme": "Spectral",
-              "steps": 128
-            },
-            "exemplars": {
-              "color": "rgba(255,0,255,0.7)"
-            },
-            "filterValues": {
-              "le": 1e-9
-            },
             "legend": {
-              "show": true
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
             },
-            "rowsFrame": {
-              "layout": "auto"
-            },
-            "showValue": "never",
             "tooltip": {
-              "mode": "single",
-              "showColorScale": false,
-              "yHistogram": true
-            },
-            "yAxis": {
-              "axisPlacement": "left",
-              "reverse": false,
-              "unit": "s"
+              "mode": "multi",
+              "sort": "desc"
             }
           },
-          "pluginVersion": "11.6.9",
           "targets": [
             {
               "datasource": {
@@ -1407,17 +2978,16 @@
                 "uid": "${datasource}"
               },
               "editorMode": "code",
-              "exemplar": false,
-              "expr": "sum(max without(prometheus_replica) (increase(velero_backup_duration_seconds_bucket{cluster=~\"$cluster\", schedule=~\"$schedule\",le!=\"+Inf\"}[1h]))) by (le)",
-              "format": "heatmap",
-              "hide": false,
-              "legendFormat": "{{le}}",
+              "expr": "max by (cluster) (max without(prometheus_replica) (velero_backup_tarball_size_bytes))",
+              "format": "time_series",
+              "instant": false,
+              "legendFormat": "{{cluster}}",
               "range": true,
               "refId": "A"
             }
           ],
-          "title": "Backup Duration Heatmap",
-          "type": "heatmap"
+          "title": "Backup Size - All Clusters",
+          "type": "timeseries"
         },
         {
           "datasource": {
@@ -1483,11 +3053,11 @@
           },
           "gridPos": {
             "h": 8,
-            "w": 24,
-            "x": 0,
-            "y": 36
+            "w": 12,
+            "x": 12,
+            "y": 17
           },
-          "id": 16,
+          "id": 135,
           "options": {
             "legend": {
               "calcs": [
@@ -1534,6 +3104,91 @@
           ],
           "title": "Backup Size per Schedule",
           "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "scaleDistribution": {
+                  "type": "linear"
+                }
+              }
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 24,
+            "x": 0,
+            "y": 25
+          },
+          "id": 137,
+          "options": {
+            "calculate": false,
+            "calculation": {},
+            "cellGap": 2,
+            "cellValues": {},
+            "color": {
+              "exponent": 0.5,
+              "fill": "#1F60C4",
+              "mode": "scheme",
+              "reverse": false,
+              "scale": "exponential",
+              "scheme": "Spectral",
+              "steps": 128
+            },
+            "exemplars": {
+              "color": "rgba(255,0,255,0.7)"
+            },
+            "filterValues": {
+              "le": 1e-09
+            },
+            "legend": {
+              "show": true
+            },
+            "rowsFrame": {
+              "layout": "auto"
+            },
+            "showValue": "never",
+            "tooltip": {
+              "mode": "single",
+              "showColorScale": false,
+              "yHistogram": true
+            },
+            "yAxis": {
+              "axisPlacement": "left",
+              "reverse": false,
+              "unit": "s"
+            }
+          },
+          "pluginVersion": "11.6.9",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "exemplar": false,
+              "expr": "sum(max without(prometheus_replica) (increase(velero_backup_duration_seconds_bucket{cluster=~\"$cluster\", schedule=~\"$schedule\",le!=\"+Inf\"}[1h]))) by (le)",
+              "format": "heatmap",
+              "hide": false,
+              "legendFormat": "{{le}}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "Backup Duration Heatmap",
+          "type": "heatmap"
         }
       ],
       "title": "Backup Resource Metrics",
@@ -1545,9 +3200,766 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 16
+        "y": 21
       },
-      "id": 17,
+      "id": 138,
+      "panels": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "thresholds"
+              },
+              "custom": {
+                "align": "auto",
+                "cellOptions": {
+                  "mode": "basic",
+                  "type": "color-background"
+                },
+                "inspect": false
+              },
+              "decimals": 4,
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "dark-green"
+                  },
+                  {
+                    "color": "dark-orange",
+                    "value": 0.01
+                  },
+                  {
+                    "color": "dark-red",
+                    "value": 0.05
+                  }
+                ]
+              },
+              "unit": "percentunit"
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Cluster"
+                },
+                "properties": [
+                  {
+                    "id": "custom.cellOptions",
+                    "value": {
+                      "type": "auto"
+                    }
+                  },
+                  {
+                    "id": "unit",
+                    "value": "string"
+                  }
+                ]
+              }
+            ]
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 1
+          },
+          "id": 139,
+          "options": {
+            "cellHeight": "sm",
+            "filterable": true,
+            "footer": {
+              "show": false
+            },
+            "showHeader": true
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "exemplar": false,
+              "expr": "sum by (cluster) (max without(prometheus_replica) (increase(velero_csi_snapshot_failure_total{schedule!=\"\"}[$__range]))) / clamp_min(sum by (cluster) (max without(prometheus_replica) (increase(velero_csi_snapshot_attempt_total{schedule!=\"\"}[$__range]))), 1)",
+              "format": "time_series",
+              "instant": true,
+              "legendFormat": "{{cluster}}",
+              "refId": "A"
+            }
+          ],
+          "title": "Clusters by CSI Snapshot Failure Rate",
+          "transformations": [
+            {
+              "id": "reduce",
+              "options": {
+                "includeTimeField": false,
+                "labelsToFields": false,
+                "reducers": [
+                  "lastNotNull"
+                ]
+              }
+            },
+            {
+              "id": "organize",
+              "options": {
+                "excludeByName": {},
+                "indexByName": {},
+                "renameByName": {
+                  "Field": "Cluster",
+                  "Last *": "Failure Rate"
+                }
+              }
+            },
+            {
+              "id": "sortBy",
+              "options": {
+                "fields": {},
+                "sort": [
+                  {
+                    "desc": true,
+                    "field": "Failure Rate"
+                  }
+                ]
+              }
+            }
+          ],
+          "type": "table"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "thresholds"
+              },
+              "custom": {
+                "align": "auto",
+                "cellOptions": {
+                  "mode": "basic",
+                  "type": "color-background"
+                },
+                "inspect": false
+              },
+              "decimals": 4,
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "dark-green"
+                  },
+                  {
+                    "color": "dark-orange",
+                    "value": 0.01
+                  },
+                  {
+                    "color": "dark-red",
+                    "value": 0.05
+                  }
+                ]
+              },
+              "unit": "percentunit"
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Schedule"
+                },
+                "properties": [
+                  {
+                    "id": "custom.cellOptions",
+                    "value": {
+                      "type": "auto"
+                    }
+                  },
+                  {
+                    "id": "unit",
+                    "value": "string"
+                  }
+                ]
+              }
+            ]
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 12,
+            "y": 1
+          },
+          "id": 140,
+          "options": {
+            "cellHeight": "sm",
+            "filterable": true,
+            "footer": {
+              "show": false
+            },
+            "showHeader": true
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "exemplar": false,
+              "expr": "sum by (schedule) (max without(prometheus_replica) (increase(velero_csi_snapshot_failure_total{cluster=~\"$cluster\", schedule=~\"$schedule\", schedule!=\"\"}[$__range]))) / clamp_min(sum by (schedule) (max without(prometheus_replica) (increase(velero_csi_snapshot_attempt_total{cluster=~\"$cluster\", schedule=~\"$schedule\", schedule!=\"\"}[$__range]))), 1)",
+              "format": "time_series",
+              "instant": true,
+              "legendFormat": "{{schedule}}",
+              "refId": "A"
+            }
+          ],
+          "title": "Schedules by CSI Snapshot Failure Rate (Selected Cluster)",
+          "transformations": [
+            {
+              "id": "reduce",
+              "options": {
+                "includeTimeField": false,
+                "labelsToFields": false,
+                "reducers": [
+                  "lastNotNull"
+                ]
+              }
+            },
+            {
+              "id": "organize",
+              "options": {
+                "excludeByName": {},
+                "indexByName": {},
+                "renameByName": {
+                  "Field": "Schedule",
+                  "Last *": "Failure Rate"
+                }
+              }
+            },
+            {
+              "id": "sortBy",
+              "options": {
+                "fields": {},
+                "sort": [
+                  {
+                    "desc": true,
+                    "field": "Failure Rate"
+                  }
+                ]
+              }
+            }
+          ],
+          "type": "table"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "drawStyle": "line",
+                "fillOpacity": 100,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "stepAfter",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "never",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "normal"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "decimals": 0,
+              "links": [],
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green"
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 24,
+            "x": 0,
+            "y": 9
+          },
+          "id": 141,
+          "options": {
+            "legend": {
+              "calcs": [
+                "mean",
+                "max",
+                "lastNotNull"
+              ],
+              "displayMode": "table",
+              "placement": "right",
+              "showLegend": true
+            },
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "multi",
+              "sort": "none"
+            }
+          },
+          "pluginVersion": "11.6.9",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "exemplar": false,
+              "expr": "round(sum(max without(prometheus_replica) (increase(velero_csi_snapshot_attempt_total{cluster=~\"$cluster\", schedule=~\"$schedule\", backupName=~\"$csi_backup_name\"}[1h]))))",
+              "legendFormat": "CSI Snapshot attempt",
+              "refId": "A"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "exemplar": false,
+              "expr": "round(sum(max without(prometheus_replica) (increase(velero_csi_snapshot_success_total{cluster=~\"$cluster\", schedule=~\"$schedule\", backupName=~\"$csi_backup_name\"}[1h]))))",
+              "hide": false,
+              "legendFormat": "CSI Snapshot success",
+              "refId": "B"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "exemplar": false,
+              "expr": "round(sum(max without(prometheus_replica) (increase(velero_csi_snapshot_failure_total{cluster=~\"$cluster\", schedule=~\"$schedule\", backupName=~\"$csi_backup_name\"}[1h]))))",
+              "hide": false,
+              "legendFormat": "CSI Snapshot failure",
+              "refId": "C"
+            }
+          ],
+          "title": "CSI Snapshots per Hour",
+          "type": "timeseries"
+        }
+      ],
+      "title": "CSI Snapshot Operations",
+      "type": "row"
+    },
+    {
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 22
+      },
+      "id": 142,
+      "panels": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "thresholds"
+              },
+              "custom": {
+                "align": "auto",
+                "cellOptions": {
+                  "mode": "basic",
+                  "type": "color-background"
+                },
+                "inspect": false
+              },
+              "decimals": 4,
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "dark-green"
+                  },
+                  {
+                    "color": "dark-orange",
+                    "value": 0.01
+                  },
+                  {
+                    "color": "dark-red",
+                    "value": 0.05
+                  }
+                ]
+              },
+              "unit": "percentunit"
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Cluster"
+                },
+                "properties": [
+                  {
+                    "id": "custom.cellOptions",
+                    "value": {
+                      "type": "auto"
+                    }
+                  },
+                  {
+                    "id": "unit",
+                    "value": "string"
+                  }
+                ]
+              }
+            ]
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 1
+          },
+          "id": 143,
+          "options": {
+            "cellHeight": "sm",
+            "filterable": true,
+            "footer": {
+              "show": false
+            },
+            "showHeader": true
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "exemplar": false,
+              "expr": "sum by (cluster) (max without(prometheus_replica) (increase(velero_backup_deletion_failure_total{schedule!=\"\"}[$__range]))) / clamp_min(sum by (cluster) (max without(prometheus_replica) (increase(velero_backup_deletion_attempt_total{schedule!=\"\"}[$__range]))), 1)",
+              "format": "time_series",
+              "instant": true,
+              "legendFormat": "{{cluster}}",
+              "refId": "A"
+            }
+          ],
+          "title": "Clusters by Deletion Failure Rate",
+          "transformations": [
+            {
+              "id": "reduce",
+              "options": {
+                "includeTimeField": false,
+                "labelsToFields": false,
+                "reducers": [
+                  "lastNotNull"
+                ]
+              }
+            },
+            {
+              "id": "organize",
+              "options": {
+                "excludeByName": {},
+                "indexByName": {},
+                "renameByName": {
+                  "Field": "Cluster",
+                  "Last *": "Failure Rate"
+                }
+              }
+            },
+            {
+              "id": "sortBy",
+              "options": {
+                "fields": {},
+                "sort": [
+                  {
+                    "desc": true,
+                    "field": "Failure Rate"
+                  }
+                ]
+              }
+            }
+          ],
+          "type": "table"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "thresholds"
+              },
+              "custom": {
+                "align": "auto",
+                "cellOptions": {
+                  "mode": "basic",
+                  "type": "color-background"
+                },
+                "inspect": false
+              },
+              "decimals": 4,
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "dark-green"
+                  },
+                  {
+                    "color": "dark-orange",
+                    "value": 0.01
+                  },
+                  {
+                    "color": "dark-red",
+                    "value": 0.05
+                  }
+                ]
+              },
+              "unit": "percentunit"
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Schedule"
+                },
+                "properties": [
+                  {
+                    "id": "custom.cellOptions",
+                    "value": {
+                      "type": "auto"
+                    }
+                  },
+                  {
+                    "id": "unit",
+                    "value": "string"
+                  }
+                ]
+              }
+            ]
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 12,
+            "y": 1
+          },
+          "id": 144,
+          "options": {
+            "cellHeight": "sm",
+            "filterable": true,
+            "footer": {
+              "show": false
+            },
+            "showHeader": true
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "exemplar": false,
+              "expr": "max without(prometheus_replica) (increase(velero_backup_deletion_failure_total{cluster=~\"$cluster\", schedule=~\"$schedule\", schedule!=\"\"}[$__range])) / clamp_min(max without(prometheus_replica) (increase(velero_backup_deletion_attempt_total{cluster=~\"$cluster\", schedule=~\"$schedule\", schedule!=\"\"}[$__range])), 1)",
+              "format": "time_series",
+              "instant": true,
+              "legendFormat": "{{schedule}}",
+              "refId": "A"
+            }
+          ],
+          "title": "Schedules by Deletion Failure Rate (Selected Cluster)",
+          "transformations": [
+            {
+              "id": "reduce",
+              "options": {
+                "includeTimeField": false,
+                "labelsToFields": false,
+                "reducers": [
+                  "lastNotNull"
+                ]
+              }
+            },
+            {
+              "id": "organize",
+              "options": {
+                "excludeByName": {},
+                "indexByName": {},
+                "renameByName": {
+                  "Field": "Schedule",
+                  "Last *": "Failure Rate"
+                }
+              }
+            },
+            {
+              "id": "sortBy",
+              "options": {
+                "fields": {},
+                "sort": [
+                  {
+                    "desc": true,
+                    "field": "Failure Rate"
+                  }
+                ]
+              }
+            }
+          ],
+          "type": "table"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisPlacement": "auto",
+                "drawStyle": "bars",
+                "fillOpacity": 80,
+                "lineWidth": 1,
+                "showPoints": "never",
+                "stacking": {
+                  "group": "A",
+                  "mode": "normal"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "#2f6863"
+                  }
+                ]
+              },
+              "unit": "none"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 24,
+            "x": 0,
+            "y": 9
+          },
+          "id": 145,
+          "options": {
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "sum by (schedule) (max without(prometheus_replica) (increase(velero_backup_deletion_success_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[1h])))",
+              "format": "time_series",
+              "instant": false,
+              "legendFormat": "{{schedule}}-success",
+              "range": true,
+              "refId": "A"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "sum by (schedule) (max without(prometheus_replica) (increase(velero_backup_deletion_failure_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[1h])))",
+              "format": "time_series",
+              "instant": false,
+              "legendFormat": "{{schedule}}-failure",
+              "range": true,
+              "refId": "B"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "sum by (schedule) (max without(prometheus_replica) (increase(velero_backup_deletion_attempt_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[1h])))",
+              "format": "time_series",
+              "instant": false,
+              "legendFormat": "{{schedule}}-attempt",
+              "range": true,
+              "refId": "C"
+            }
+          ],
+          "title": "Deletion Operations (Schedule Level)",
+          "type": "timeseries"
+        }
+      ],
+      "title": "Backup Deletion Operations",
+      "type": "row"
+    },
+    {
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 23
+      },
+      "id": 146,
       "panels": [
         {
           "datasource": {
@@ -1585,11 +3997,11 @@
           },
           "gridPos": {
             "h": 5,
-            "w": 6,
+            "w": 8,
             "x": 0,
-            "y": 17
+            "y": 1
           },
-          "id": 18,
+          "id": 147,
           "options": {
             "colorMode": "value",
             "graphMode": "area",
@@ -1622,6 +4034,78 @@
             }
           ],
           "title": "Restore Total",
+          "type": "stat"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "thresholds"
+              },
+              "decimals": 2,
+              "mappings": [],
+              "noValue": "0",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "#2f6863"
+                  },
+                  {
+                    "color": "#eca440",
+                    "value": 0.05
+                  },
+                  {
+                    "color": "#c4233b",
+                    "value": 0.2
+                  }
+                ]
+              },
+              "unit": "percentunit"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 5,
+            "w": 8,
+            "x": 8,
+            "y": 1
+          },
+          "id": 148,
+          "options": {
+            "colorMode": "value",
+            "graphMode": "none",
+            "justifyMode": "auto",
+            "orientation": "auto",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "textMode": "value"
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "sum(max without(prometheus_replica) (increase(velero_restore_failed_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[$__range]))) / clamp_min(sum(max without(prometheus_replica) (increase(velero_restore_attempt_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[$__range]))), 1)",
+              "format": "table",
+              "instant": true,
+              "legendFormat": "__auto",
+              "range": false,
+              "refId": "A"
+            }
+          ],
+          "title": "Restore Failure Rate",
           "type": "stat"
         },
         {
@@ -1667,11 +4151,11 @@
           },
           "gridPos": {
             "h": 5,
-            "w": 6,
-            "x": 6,
-            "y": 17
+            "w": 8,
+            "x": 16,
+            "y": 1
           },
-          "id": 19,
+          "id": 149,
           "options": {
             "minVizHeight": 75,
             "minVizWidth": 75,
@@ -1695,13 +4179,267 @@
                 "uid": "${datasource}"
               },
               "exemplar": false,
-              "expr": "sum(max without(prometheus_replica) (velero_restore_success_total{cluster=~\"$cluster\", schedule=~\"$schedule\"})) / sum(max without(prometheus_replica) (velero_restore_attempt_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}))",
+              "expr": "sum(max without(prometheus_replica) (velero_restore_success_total{cluster=~\"$cluster\", schedule=~\"$schedule\"})) / clamp_min(sum(max without(prometheus_replica) (velero_restore_attempt_total{cluster=~\"$cluster\", schedule=~\"$schedule\"})), 1)",
               "format": "time_series",
               "refId": "A"
             }
           ],
           "title": "Restore Success Rate",
           "type": "gauge"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "thresholds"
+              },
+              "custom": {
+                "align": "auto",
+                "cellOptions": {
+                  "mode": "basic",
+                  "type": "color-background"
+                },
+                "inspect": false
+              },
+              "decimals": 4,
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "dark-green"
+                  },
+                  {
+                    "color": "dark-orange",
+                    "value": 0.01
+                  },
+                  {
+                    "color": "dark-red",
+                    "value": 0.05
+                  }
+                ]
+              },
+              "unit": "percentunit"
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Cluster"
+                },
+                "properties": [
+                  {
+                    "id": "custom.cellOptions",
+                    "value": {
+                      "type": "auto"
+                    }
+                  },
+                  {
+                    "id": "unit",
+                    "value": "string"
+                  }
+                ]
+              }
+            ]
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 8,
+            "x": 0,
+            "y": 6
+          },
+          "id": 150,
+          "options": {
+            "cellHeight": "sm",
+            "filterable": true,
+            "footer": {
+              "show": false
+            },
+            "showHeader": true
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "exemplar": false,
+              "expr": "sum by (cluster) (max without(prometheus_replica) (increase(velero_restore_failed_total{schedule!=\"\"}[$__range]))) / clamp_min(sum by (cluster) (max without(prometheus_replica) (increase(velero_restore_attempt_total{schedule!=\"\"}[$__range]))), 1)",
+              "format": "time_series",
+              "instant": true,
+              "legendFormat": "{{cluster}}",
+              "refId": "A"
+            }
+          ],
+          "title": "Clusters by Restore Failure Rate",
+          "transformations": [
+            {
+              "id": "reduce",
+              "options": {
+                "includeTimeField": false,
+                "labelsToFields": false,
+                "reducers": [
+                  "lastNotNull"
+                ]
+              }
+            },
+            {
+              "id": "organize",
+              "options": {
+                "excludeByName": {},
+                "indexByName": {},
+                "renameByName": {
+                  "Field": "Cluster",
+                  "Last *": "Failure Rate"
+                }
+              }
+            },
+            {
+              "id": "sortBy",
+              "options": {
+                "fields": {},
+                "sort": [
+                  {
+                    "desc": true,
+                    "field": "Failure Rate"
+                  }
+                ]
+              }
+            }
+          ],
+          "type": "table"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "thresholds"
+              },
+              "custom": {
+                "align": "auto",
+                "cellOptions": {
+                  "mode": "basic",
+                  "type": "color-background"
+                },
+                "inspect": false
+              },
+              "decimals": 4,
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "dark-green"
+                  },
+                  {
+                    "color": "dark-orange",
+                    "value": 0.01
+                  },
+                  {
+                    "color": "dark-red",
+                    "value": 0.05
+                  }
+                ]
+              },
+              "unit": "percentunit"
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Schedule"
+                },
+                "properties": [
+                  {
+                    "id": "custom.cellOptions",
+                    "value": {
+                      "type": "auto"
+                    }
+                  },
+                  {
+                    "id": "unit",
+                    "value": "string"
+                  }
+                ]
+              }
+            ]
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 8,
+            "x": 8,
+            "y": 6
+          },
+          "id": 151,
+          "options": {
+            "cellHeight": "sm",
+            "filterable": true,
+            "footer": {
+              "show": false
+            },
+            "showHeader": true
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "exemplar": false,
+              "expr": "max without(prometheus_replica) (increase(velero_restore_failed_total{cluster=~\"$cluster\", schedule=~\"$schedule\", schedule!=\"\"}[$__range])) / clamp_min(max without(prometheus_replica) (increase(velero_restore_attempt_total{cluster=~\"$cluster\", schedule=~\"$schedule\", schedule!=\"\"}[$__range])), 1)",
+              "format": "time_series",
+              "instant": true,
+              "legendFormat": "{{schedule}}",
+              "refId": "A"
+            }
+          ],
+          "title": "Schedules by Restore Failure Rate (Selected Cluster)",
+          "transformations": [
+            {
+              "id": "reduce",
+              "options": {
+                "includeTimeField": false,
+                "labelsToFields": false,
+                "reducers": [
+                  "lastNotNull"
+                ]
+              }
+            },
+            {
+              "id": "organize",
+              "options": {
+                "excludeByName": {},
+                "indexByName": {},
+                "renameByName": {
+                  "Field": "Schedule",
+                  "Last *": "Failure Rate"
+                }
+              }
+            },
+            {
+              "id": "sortBy",
+              "options": {
+                "fields": {},
+                "sort": [
+                  {
+                    "desc": true,
+                    "field": "Failure Rate"
+                  }
+                ]
+              }
+            }
+          ],
+          "type": "table"
         },
         {
           "datasource": {
@@ -1764,12 +4502,12 @@
             ]
           },
           "gridPos": {
-            "h": 5,
-            "w": 12,
-            "x": 12,
-            "y": 17
+            "h": 8,
+            "w": 8,
+            "x": 16,
+            "y": 6
           },
-          "id": 20,
+          "id": 202,
           "options": {
             "cellHeight": "sm",
             "footer": {
@@ -1797,7 +4535,7 @@
               },
               "editorMode": "code",
               "exemplar": false,
-              "expr": "sum by (schedule) (max without(prometheus_replica) (velero_restore_success_total{cluster=~\"$cluster\", schedule=~\"$schedule\", schedule!=\"\"})) / sum by (schedule) (max without(prometheus_replica) (velero_restore_attempt_total{cluster=~\"$cluster\", schedule=~\"$schedule\", schedule!=\"\"}))",
+              "expr": "sum by (schedule) (max without(prometheus_replica) (velero_restore_success_total{cluster=~\"$cluster\", schedule=~\"$schedule\", schedule!=\"\"})) / (sum by (schedule) (max without(prometheus_replica) (velero_restore_attempt_total{cluster=~\"$cluster\", schedule=~\"$schedule\", schedule!=\"\"})) > 0)",
               "instant": true,
               "legendFormat": "{{schedule}}",
               "refId": "A"
@@ -1892,12 +4630,12 @@
             "overrides": []
           },
           "gridPos": {
-            "h": 10,
+            "h": 8,
             "w": 12,
             "x": 0,
-            "y": 22
+            "y": 14
           },
-          "id": 21,
+          "id": 152,
           "options": {
             "legend": {
               "calcs": [
@@ -1923,7 +4661,7 @@
                 "uid": "${datasource}"
               },
               "exemplar": false,
-              "expr": "round(sum(max without(prometheus_replica) (increase(velero_restore_success_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[1h]))))",
+              "expr": "round(sum(max without(prometheus_replica) (increase(velero_restore_success_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[1h])))) > 0",
               "legendFormat": "Restore success",
               "refId": "A"
             },
@@ -1933,7 +4671,7 @@
                 "uid": "${datasource}"
               },
               "exemplar": false,
-              "expr": "round(sum(max without(prometheus_replica) (increase(velero_restore_failed_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[1h]))))",
+              "expr": "round(sum(max without(prometheus_replica) (increase(velero_restore_failed_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[1h])))) > 0",
               "hide": false,
               "legendFormat": "Restore failure",
               "refId": "B"
@@ -1944,7 +4682,7 @@
                 "uid": "${datasource}"
               },
               "exemplar": false,
-              "expr": "round(sum(max without(prometheus_replica) (increase(velero_restore_validation_failed_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[1h]))))",
+              "expr": "round(sum(max without(prometheus_replica) (increase(velero_restore_validation_failed_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[1h])))) > 0",
               "hide": false,
               "legendFormat": "Restore validation failure",
               "refId": "C"
@@ -1955,7 +4693,7 @@
                 "uid": "${datasource}"
               },
               "exemplar": false,
-              "expr": "round(sum(max without(prometheus_replica) (increase(velero_restore_partial_failure_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[1h]))))",
+              "expr": "round(sum(max without(prometheus_replica) (increase(velero_restore_partial_failure_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[1h])))) > 0",
               "hide": false,
               "legendFormat": "Restore partial failure",
               "refId": "D"
@@ -2026,12 +4764,12 @@
             "overrides": []
           },
           "gridPos": {
-            "h": 10,
+            "h": 8,
             "w": 12,
             "x": 12,
-            "y": 22
+            "y": 14
           },
-          "id": 22,
+          "id": 153,
           "options": {
             "legend": {
               "calcs": [
@@ -2074,9 +4812,9 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 17
+        "y": 24
       },
-      "id": 23,
+      "id": 154,
       "panels": [
         {
           "datasource": {
@@ -2141,12 +4879,12 @@
             "overrides": []
           },
           "gridPos": {
-            "h": 10,
+            "h": 8,
             "w": 24,
             "x": 0,
-            "y": 18
+            "y": 1
           },
-          "id": 24,
+          "id": 155,
           "options": {
             "legend": {
               "calcs": [
@@ -2164,17 +4902,15 @@
               "sort": "none"
             }
           },
-          "pluginVersion": "11.6.9",
           "targets": [
             {
               "datasource": {
                 "type": "prometheus",
                 "uid": "${datasource}"
               },
-              "editorMode": "code",
               "exemplar": false,
-              "expr": "round(sum(max without(prometheus_replica) (increase(velero_csi_snapshot_attempt_total{cluster=~\"$cluster\", schedule=~\"$schedule\", backupName=~\"$csi_backup_name\"}[1h]))))",
-              "legendFormat": "CSI Snapshot attempt",
+              "expr": "round(sum(max without(prometheus_replica) (increase(podvolume_data_upload_success_total{cluster=~\"$cluster\"}[1h])))) > 0",
+              "legendFormat": "Data upload success",
               "refId": "A"
             },
             {
@@ -2183,9 +4919,9 @@
                 "uid": "${datasource}"
               },
               "exemplar": false,
-              "expr": "round(sum(max without(prometheus_replica) (increase(velero_csi_snapshot_success_total{cluster=~\"$cluster\", schedule=~\"$schedule\", backupName=~\"$csi_backup_name\"}[1h]))))",
+              "expr": "round(sum(max without(prometheus_replica) (increase(podvolume_data_upload_failure_total{cluster=~\"$cluster\"}[1h])))) > 0",
               "hide": false,
-              "legendFormat": "CSI Snapshot success",
+              "legendFormat": "Data upload failure",
               "refId": "B"
             },
             {
@@ -2194,23 +4930,24 @@
                 "uid": "${datasource}"
               },
               "exemplar": false,
-              "expr": "round(sum(max without(prometheus_replica) (increase(velero_csi_snapshot_failure_total{cluster=~\"$cluster\", schedule=~\"$schedule\", backupName=~\"$csi_backup_name\"}[1h]))))",
+              "expr": "round(sum(max without(prometheus_replica) (increase(podvolume_data_upload_cancel_total{cluster=~\"$cluster\"}[1h])))) > 0",
               "hide": false,
-              "legendFormat": "CSI Snapshot failure",
+              "legendFormat": "Data upload cancelled",
               "refId": "C"
             }
           ],
-          "title": "CSI Snapshots per Hour",
-          "type": "timeseries"
+          "title": "Volume Snapshot Uploads per Hour",
+          "type": "timeseries",
+          "description": "Tracks OADP node-agent uploads of CSI volume snapshot data to the backup storage location (e.g. object store). Success, failure, and cancellation rates."
         }
       ],
-      "title": "CSI Snapshot Operations",
+      "title": "Volume Data Movement",
       "type": "row"
     }
   ],
   "preload": false,
-  "refresh": "",
-  "schemaVersion": 39,
+  "refresh": "1m",
+  "schemaVersion": 41,
   "tags": [
     "velero",
     "backup"
@@ -2218,10 +4955,7 @@
   "templating": {
     "list": [
       {
-        "current": {
-          "text": "Managed_Prometheus_services-bntsch",
-          "value": "services-bntsch"
-        },
+        "current": {},
         "includeAll": false,
         "label": "Datasource",
         "name": "datasource",
@@ -2285,11 +5019,16 @@
       },
       {
         "current": {
-          "text": "All",
-          "value": "$__all"
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
         },
         "datasource": {
-          "uid": "$datasource"
+          "type": "prometheus",
+          "uid": "${datasource}"
         },
         "definition": "label_values(velero_csi_snapshot_attempt_total{cluster=~\"$cluster\", schedule=~\"$schedule\"},backupName)",
         "includeAll": true,
@@ -2314,7 +5053,7 @@
   },
   "timepicker": {},
   "timezone": "browser",
-  "title": "Velero Overview",
+  "title": "Velero",
   "uid": "ozk-vlr-mon",
   "version": 1
 }
