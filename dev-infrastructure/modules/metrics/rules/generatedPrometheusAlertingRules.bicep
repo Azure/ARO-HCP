@@ -1910,14 +1910,14 @@ resource leaderelection 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03
         }
         annotations: {
           correlationId: 'LeaderElectionLeaseStale/{{ $labels.cluster }}'
-          description: 'Leader election lease {{ $labels.lease }} in namespace {{ $labels.namespace }} on cluster {{ $labels.cluster }} has not been renewed for more than 15 minutes. The component may have lost leadership or stopped running.'
-          info: 'Leader election lease {{ $labels.lease }} in namespace {{ $labels.namespace }} on cluster {{ $labels.cluster }} has not been renewed for more than 15 minutes. The component may have lost leadership or stopped running.'
+          description: 'Leader election lease {{ $labels.lease }} in namespace {{ $labels.namespace }} on cluster {{ $labels.cluster }} has not been renewed for more than 20 minutes. The component may have lost leadership or stopped running.'
+          info: 'Leader election lease {{ $labels.lease }} in namespace {{ $labels.namespace }} on cluster {{ $labels.cluster }} has not been renewed for more than 20 minutes. The component may have lost leadership or stopped running.'
           runbook_url: 'TBD'
-          summary: 'Leader election lease {{ $labels.lease }} in {{ $labels.namespace }} on {{ $labels.cluster }} stale for more than 15 minutes'
-          title: 'Leader election lease {{ $labels.lease }} in {{ $labels.namespace }} on {{ $labels.cluster }} stale for more than 15 minutes'
+          summary: 'Leader election lease {{ $labels.lease }} in {{ $labels.namespace }} on {{ $labels.cluster }} stale for more than 20 minutes'
+          title: 'Leader election lease {{ $labels.lease }} in {{ $labels.namespace }} on {{ $labels.cluster }} stale for more than 20 minutes'
         }
         expression: 'time() - max without (prometheus_replica) (kube_lease_renew_time{lease!~"cluster-storage-operator-lock|controller-leader-election-capz|csi-snapshot-controller-operator-lock|hosted-cluster-config-operator-leader-elect|.*package-operator-lock",namespace!~"kube-system|kube-public|kube-node-lease|default"}) > 300'
-        for: 'PT10M'
+        for: 'PT15M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
     ]
