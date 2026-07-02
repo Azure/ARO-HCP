@@ -607,7 +607,7 @@ model CustomerManagedEncryptionProfile {
 
 /** Configure etcd encryption Key Management Service (KMS) key.
  * Your Microsoft Entra application used to create the cluster must be authorized to access this keyvault,
- * e.g using the AzureCLI: `az keyvault set-policy -n $KEYVAULT_NAME --key-permissions decrypt encrypt --spn (YOUR APPLICATION CLIENT ID)`
+ * e.g. using the AzureCLI: `az role assignment create --role 'Key Vault Crypto User' --assignee <YOUR_APPLICATION_CLIENT_ID> --scope /subscriptions/<SUB_ID>/resourceGroups/<RG_NAME>/providers/Microsoft.KeyVault/vaults/<KEYVAULT_NAME>`
  */
 model KmsEncryptionProfile {
   /** vaultName is the name of the keyvault that contains the secret. */
