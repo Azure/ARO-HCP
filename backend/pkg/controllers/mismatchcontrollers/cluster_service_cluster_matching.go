@@ -143,6 +143,10 @@ func (c *clusterServiceClusterMatching) synchronizeAllClusters(ctx context.Conte
 	return nil
 }
 
+func (c *clusterServiceClusterMatching) QueueForInformers(resyncDuration time.Duration, notifiers ...controllerutils.Notifier) error {
+	panic("not implemented")
+}
+
 func (c *clusterServiceClusterMatching) SyncOnce(ctx context.Context, _ any) error {
 	logger := utils.LoggerFromContext(ctx)
 

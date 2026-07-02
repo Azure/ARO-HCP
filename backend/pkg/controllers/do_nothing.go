@@ -110,6 +110,10 @@ func (c *doNothingExample) synchronizeHCPCluster(ctx context.Context, key contro
 	return nil
 }
 
+func (c *doNothingExample) QueueForInformers(resyncDuration time.Duration, notifiers ...controllerutils.Notifier) error {
+	panic("not implemented")
+}
+
 func (c *doNothingExample) SyncOnce(ctx context.Context, keyObj any) error {
 	key := keyObj.(controllerutils.HCPClusterKey)
 

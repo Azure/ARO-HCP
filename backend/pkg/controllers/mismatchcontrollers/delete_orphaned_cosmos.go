@@ -274,6 +274,10 @@ func (c *deleteOrphanedCosmosResources) sweepOrphanedDesires(
 	return errors.Join(errs...)
 }
 
+func (c *deleteOrphanedCosmosResources) QueueForInformers(resyncDuration time.Duration, notifiers ...controllerutils.Notifier) error {
+	panic("not implemented")
+}
+
 func (c *deleteOrphanedCosmosResources) SyncOnce(ctx context.Context, subscription any) error {
 	logger := utils.LoggerFromContext(ctx)
 

@@ -371,6 +371,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 
 	backendInformers := informers.NewBackendInformers(ctx,
 		b.options.ResourcesDBClient.ResourcesGlobalListers(),
+		b.options.ResourcesDBClient,
 		b.options.BillingDBClient.BillingGlobalListers(),
 	)
 
@@ -422,7 +423,8 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	_, controllerLister := backendInformers.Controllers()
 
 	subscriptionNonClusterDataDumpController := datadumpcontrollers.NewSubscriptionNonClusterDataDumpController(b.options.ResourcesDBClient, activeOperationLister, backendInformers)
-	clusterRecursiveDataDumpController := datadumpcontrollers.NewClusterRecursiveDataDumpController(b.options.ResourcesDBClient, b.options.KubeApplierDBClients, managementClusterLister, activeOperationLister, backendInformers, unionKubeApplierInformers)
+	_, serviceProviderNodePoolListerForDump := backendInformers.ServiceProviderNodePools()
+	clusterRecursiveDataDumpController := datadumpcontrollers.NewClusterRecursiveDataDumpController(b.options.ResourcesDBClient, b.options.KubeApplierDBClients, managementClusterLister, activeOperationLister, nodePoolLister, serviceProviderNodePoolListerForDump, backendInformers, unionKubeApplierInformers)
 	csStateDumpController := datadumpcontrollers.NewCSStateDumpController(b.options.ResourcesDBClient, activeOperationLister, backendInformers, unionKubeApplierInformers, b.options.ClustersServiceClient)
 	billingDumpController := datadumpcontrollers.NewBillingDumpController(b.options.ResourcesDBClient, b.options.BillingDBClient, activeOperationLister, backendInformers, unionKubeApplierInformers)
 	managementClusterDumpController := datadumpcontrollers.NewManagementClusterDataDumpController(b.options.FleetDBClient, managementClusterLister, fleetInformers)

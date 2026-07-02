@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"runtime/debug"
 	"strings"
+	"time"
 
 	"github.com/go-logr/logr"
 
@@ -36,6 +37,7 @@ import (
 )
 
 type Controller interface {
+	QueueForInformers(resyncDuration time.Duration, notifiers ...Notifier) error
 	SyncOnce(ctx context.Context, keyObj any) error
 	Run(ctx context.Context, threadiness int)
 }
