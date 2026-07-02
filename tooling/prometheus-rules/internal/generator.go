@@ -152,9 +152,6 @@ func readRulesFile(filename string) (*monitoringv1.PrometheusRule, error) {
 }
 
 func (o *Options) Complete(configFilePath string, promtoolPath string) error {
-	if promtoolPath == "" {
-		return fmt.Errorf("promtoolPath cannot be an empty string")
-	}
 	o.promtoolPath = promtoolPath
 
 	o.ruleFiles = make([]alertingRuleFile, 0)
@@ -268,7 +265,9 @@ func (o *Options) Complete(configFilePath string, promtoolPath string) error {
 			}
 
 			if d.Type().IsRegular() {
-				if strings.Contains(path, "_test") {
+				// Match on the filename only: a parent directory containing
+				// "_test" must not cause every rule under it to be skipped.
+				if strings.Contains(filepath.Base(path), "_test") {
 					return nil
 				}
 

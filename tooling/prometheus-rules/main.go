@@ -15,11 +15,11 @@
 package main
 
 import (
-	"flag"
+	"fmt"
 	"os"
-	"strings"
 
 	"github.com/sirupsen/logrus"
+	"github.com/spf13/cobra"
 
 	"sigs.k8s.io/yaml"
 
@@ -30,53 +30,67 @@ func main() {
 	if os.Getenv("DEBUG") == "true" {
 		logrus.SetLevel(logrus.DebugLevel)
 	}
-	var configFilePath string
-	var promtoolPath string
-	var correlationMap bool
-	var preserveAggregationLabels string
 
-	flag.CommandLine.StringVar(&configFilePath, "config-file", "", "Path to configuration")
-	flag.CommandLine.StringVar(&promtoolPath, "promtool-path", "promtool", "Path to promtool binary ")
-	flag.CommandLine.BoolVar(&correlationMap, "correlation-map", false, "Output a YAML correlation map instead of generating Bicep")
-	flag.CommandLine.StringVar(&preserveAggregationLabels, "preserve-aggregation-labels", "region", "Comma-separated labels that must survive every aggregation in a rule's PromQL")
-	flag.Parse()
-
-	if correlationMap {
-		configs := flag.Args()
-		if configFilePath != "" {
-			configs = append([]string{configFilePath}, configs...)
-		}
-		if len(configs) == 0 {
-			logrus.Fatal("at least one config file must be provided via --config-file or as arguments")
-		}
-		entries, err := prometheusrules.GenerateCorrelationMap(configs)
-		if err != nil {
-			logrus.WithError(err).Fatal("error generating correlation map")
-		}
-		out, err := yaml.Marshal(entries)
-		if err != nil {
-			logrus.WithError(err).Fatal("error marshaling correlation map")
-		}
-		os.Stdout.Write(out)
-		return
+	cmd, err := newCommand()
+	if err != nil {
+		logrus.WithError(err).Fatal("failed to create command")
 	}
 
-	if err := prometheusrules.Validate(flag.Args(), configFilePath, promtoolPath); err != nil {
-		logrus.WithError(err).Fatal("invalid options")
-	}
-
-	if err := prometheusrules.GenerateFromConfig(configFilePath, false, promtoolPath, splitAndTrim(preserveAggregationLabels)); err != nil {
+	if err := cmd.Execute(); err != nil {
 		logrus.WithError(err).Fatal("error running generator")
 	}
 }
 
-// splitAndTrim splits a comma-separated list, trimming whitespace and dropping empties.
-func splitAndTrim(csv string) []string {
-	var out []string
-	for _, part := range strings.Split(csv, ",") {
-		if trimmed := strings.TrimSpace(part); trimmed != "" {
-			out = append(out, trimmed)
-		}
+func newCommand() (*cobra.Command, error) {
+	opts := prometheusrules.DefaultOptions()
+	cmd := &cobra.Command{
+		Use:           "prometheus-rules",
+		Short:         "Generate Azure Bicep templates from Prometheus rules",
+		SilenceErrors: true,
+		SilenceUsage:  true,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if opts.CorrelationMap {
+				configs := args
+				if opts.ConfigFile != "" {
+					configs = append([]string{opts.ConfigFile}, configs...)
+				}
+				if len(configs) == 0 {
+					return fmt.Errorf("at least one config file must be provided via --config-file or as arguments")
+				}
+				entries, err := prometheusrules.GenerateCorrelationMap(configs)
+				if err != nil {
+					return fmt.Errorf("error generating correlation map: %w", err)
+				}
+				out, err := yaml.Marshal(entries)
+				if err != nil {
+					return fmt.Errorf("error marshaling correlation map: %w", err)
+				}
+				if _, err := cmd.OutOrStdout().Write(out); err != nil {
+					return fmt.Errorf("error writing correlation map: %w", err)
+				}
+				return nil
+			}
+
+			if len(args) > 0 {
+				return fmt.Errorf("unexpected positional arguments: %v", args)
+			}
+			return run(opts)
+		},
 	}
-	return out
+	if err := prometheusrules.BindOptions(opts, cmd); err != nil {
+		return nil, err
+	}
+	return cmd, nil
+}
+
+func run(opts *prometheusrules.RawOptions) error {
+	validated, err := opts.Validate()
+	if err != nil {
+		return err
+	}
+	completed, err := validated.Complete()
+	if err != nil {
+		return err
+	}
+	return completed.Run()
 }
