@@ -394,7 +394,7 @@ generate-kiota:
 #
 PERS_OVERRIDE_FILE ?= /tmp/personal-dev-override.yaml
 
-build-services:
+build-services: $(TEMPLATIZE)
 	$(MAKE) $(BUILD_SERVICES_OPTS) build-frontend build-backend build-admin build-sessiongate build-mgmt-agent build-kube-applier build-fleet
 .PHONY: build-services
 
