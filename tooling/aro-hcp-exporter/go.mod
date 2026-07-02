@@ -6,7 +6,7 @@ require (
 	github.com/Azure/ARO-HCP/tooling/hcpctl v0.0.0-20260323141821-e06bce560a90
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.21.1
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.13.1
-	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resourcegraph/armresourcegraph v0.9.0
+	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resourcegraph/armresourcegraph v0.10.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armsubscriptions v1.3.0
 	github.com/go-logr/logr v1.4.3
 	github.com/go-viper/mapstructure/v2 v2.5.0

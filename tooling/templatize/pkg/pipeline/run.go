@@ -838,6 +838,11 @@ func RunStep(id graph.Identifier, s types.Step, ctx context.Context, executionTa
 			return nil, nil, fmt.Errorf("error running Grafana Datasources Step, %v", err)
 		}
 		return nil, nil, nil
+	case *types.GrafanaManageStep:
+		if err := runGrafanaManageStep(id, step, ctx, options, executionTarget, state); err != nil {
+			return nil, nil, fmt.Errorf("error running Grafana Manage Step: %w", err)
+		}
+		return nil, nil, nil
 	case *types.ARMStep:
 		a, err := newArmClient(executionTarget.GetSubscriptionID(), executionTarget.GetRegion(), options.BicepClient)
 		if err != nil {
