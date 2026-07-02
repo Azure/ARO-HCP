@@ -141,6 +141,11 @@ model HcpOpenShiftClusterProperties {
   @visibility(Lifecycle.Read)
   @added(Versions.v2026_06_30_preview)
   status?: ResourceStatus;
+
+  /** Cryptographic restrictions for kernel and userspace libraries */
+  @added(Versions.v2026_06_30_preview)
+  @visibility(Lifecycle.Read, Lifecycle.Create)
+  cryptoRestrictions?: CryptoRestrictions = CryptoRestrictions.None;
 }
 
 /** The resource provisioning state. */
@@ -170,6 +175,18 @@ union ExternalAuthProvisioningState {
 
   /** Non-terminal state indicating the resource is awaiting secret */
   "AwaitingSecret",
+}
+
+/** Cryptographic restrictions for kernel and userspace libraries */
+@added(Versions.v2026_06_30_preview)
+union CryptoRestrictions {
+  string,
+
+  /** No restrictions */
+  None: "None",
+
+  /** Use only FIPS-validated algorithms and implementations */
+  FIPS: "FIPS",
 }
 
 /** Versions represents an OpenShift version. */

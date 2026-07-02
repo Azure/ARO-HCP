@@ -80,6 +80,24 @@ func PossibleCreatedByTypeValues() []CreatedByType {
 	}
 }
 
+// CryptoRestrictions - Cryptographic restrictions for kernel and userspace libraries
+type CryptoRestrictions string
+
+const (
+	// CryptoRestrictionsFIPS - Use only FIPS-validated algorithms and implementations
+	CryptoRestrictionsFIPS CryptoRestrictions = "FIPS"
+	// CryptoRestrictionsNone - No restrictions
+	CryptoRestrictionsNone CryptoRestrictions = "None"
+)
+
+// PossibleCryptoRestrictionsValues returns the possible values for the CryptoRestrictions const type.
+func PossibleCryptoRestrictionsValues() []CryptoRestrictions {
+	return []CryptoRestrictions{
+		CryptoRestrictionsFIPS,
+		CryptoRestrictionsNone,
+	}
+}
+
 // CustomerManagedEncryptionType - The encryption type used. By default, "KMS" is used.
 type CustomerManagedEncryptionType string
 
