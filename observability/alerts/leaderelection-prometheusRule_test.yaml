@@ -2,7 +2,7 @@ rule_files:
 - leaderelection-prometheusRule.yaml
 evaluation_interval: 1m
 tests:
-# Test: LeaderElectionLeaseStale fires when lease has not been renewed for >2m (>120s)
+# Test: LeaderElectionLeaseStale fires when lease has not been renewed for >15m (5m expr threshold + 10m for:)
 - interval: 1m
   input_series:
   - series: 'kube_lease_renew_time{namespace="kube-applier", lease="kube-applier", cluster="test-cluster"}'
