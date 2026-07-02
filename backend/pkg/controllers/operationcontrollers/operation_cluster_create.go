@@ -162,7 +162,7 @@ func (c *operationClusterCreate) SynchronizeOperation(ctx context.Context, key c
 	if err != nil {
 		return utils.TrackError(err)
 	}
-	logger.Info("new status via cosmos", "newStatus", cosmosNewOperationState.provisioningState, "newOperationMessage", cosmosNewOperationState.message)
+	logger.Info("new status via cosmos", "newStatus", cosmosNewOperationState.ProvisioningState, "newOperationMessage", cosmosNewOperationState.Message)
 
 	newOperationStatus, opError, err := convertClusterStatus(ctx, c.clusterServiceClient, operation, clusterStatus, clusterServiceID)
 	if err != nil {
@@ -170,11 +170,11 @@ func (c *operationClusterCreate) SynchronizeOperation(ctx context.Context, key c
 	}
 	logger.Info("new status via cluster-service", "newStatus", newOperationStatus, "newOperationError", opError)
 
-	if newOperationStatus == arm.ProvisioningStateSucceeded && cosmosNewOperationState.provisioningState != arm.ProvisioningStateSucceeded {
+	if newOperationStatus == arm.ProvisioningStateSucceeded && cosmosNewOperationState.ProvisioningState != arm.ProvisioningStateSucceeded {
 		// we want to require that the cosmos view of cluster creation is also complete before we mark it.  This ensures (among other things)
 		// that our ability to read maestro is successful.
 		// Once we have confidence in our ability to determine that cluster is functional, we'll stop checking cluster-service at all.
-		return fmt.Errorf("cosmos operation status is %q, but cluster-service operation status is %q: %s", cosmosNewOperationState.provisioningState, newOperationStatus, cosmosNewOperationState.message)
+		return fmt.Errorf("cosmos operation status is %q, but cluster-service operation status is %q: %s", cosmosNewOperationState.ProvisioningState, newOperationStatus, cosmosNewOperationState.Message)
 	}
 
 	logger.Info("updating status")
@@ -198,12 +198,12 @@ func (c *operationClusterCreate) determineOperationStatus(ctx context.Context, o
 	if currState, err := c.hostedClusterOperationStatus(ctx, operation); err != nil {
 		errs = append(errs, utils.TrackError(err))
 	} else {
-		operationStates = append(operationStates, currState)
+		operationStates = append(operationStates, currState.withSource("hypershiftHostedCluster"))
 	}
 	if currState, err := c.clusterOperationStatus(ctx, operation); err != nil {
 		errs = append(errs, utils.TrackError(err))
 	} else {
-		operationStates = append(operationStates, currState)
+		operationStates = append(operationStates, currState.withSource("cosmosCluster"))
 	}
 
 	if err := errors.Join(errs...); err != nil {
@@ -224,7 +224,7 @@ func (c *operationClusterCreate) determineOperationStatus(ctx context.Context, o
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
-	logger.Info("picked cluster create operation status", "provisioningState", picked.provisioningState, "message", picked.message)
+	logger.Info("picked cluster create operation status", "picked", picked)
 	return picked, nil
 }
 
