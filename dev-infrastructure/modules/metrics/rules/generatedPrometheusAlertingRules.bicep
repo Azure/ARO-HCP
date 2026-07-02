@@ -1611,17 +1611,17 @@ resource hcpDeletionRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-
         }
         annotations: {
           correlationId: 'HCPClusterStuckDeleting/{{ $labels.cluster }}'
-          description: '''Cluster {{ $labels.cluster_external_id }} has been in a deleting state for more than 2 hours. 
+          description: '''Cluster {{ $labels.resource_id }} has been in a deleting state for more than 2 hours. 
 This may indicate that finalizers are stuck or resources are failing to cleanup.
 '''
-          info: '''Cluster {{ $labels.cluster_external_id }} has been in a deleting state for more than 2 hours. 
+          info: '''Cluster {{ $labels.resource_id }} has been in a deleting state for more than 2 hours. 
 This may indicate that finalizers are stuck or resources are failing to cleanup.
 '''
           runbook_url: 'TBD'
-          summary: 'Cluster stuck deleting'
-          title: 'Cluster stuck deleting'
+          summary: '{{ $labels.cluster }}: Cluster stuck deleting'
+          title: '{{ $labels.cluster }}: Cluster stuck deleting'
         }
-        expression: 'label_replace(max by (cluster_id, cluster_external_id, region, management_cluster) (cluster_deprovision_duration_seconds), "cluster", "$1", "management_cluster", "(.*)") > 7200'
+        expression: '( max by (resource_id, subscription_id, cluster) ( time() - backend_resource_operation_start_time_seconds{ resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="delete" } ) and max by (resource_id, subscription_id, cluster) ( backend_resource_operation_phase_info{ resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", phase="deleting" } ) == 1 ) > 7200'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
