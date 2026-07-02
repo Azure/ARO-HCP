@@ -20,6 +20,7 @@ spec:
           max by (resource_id, subscription_id, cluster) (
             backend_resource_operation_phase_info{
               resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
+              operation_type="delete",
               phase="deleting"
             }
           ) == 1
