@@ -41,7 +41,7 @@ Check the status of the Prometheus pods, service endpoints, and network connecti
 This may indicate that the Prometheus server is down, unreachable due to network issues, or experiencing a crash loop.
 Check the status of the Prometheus pods, service endpoints, and network connectivity.
 '''
-          runbook_url: 'TBD'
+          runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/Prometheus.md'
           summary: 'Prometheus is unreachable for 10 minutes.'
           title: 'Prometheus is unreachable for 10 minutes.'
         }
@@ -74,7 +74,7 @@ Please check the status of the Prometheus pods, service endpoints, and network c
 This may indicate that the Prometheus server is down, experiencing network issues, or stuck in a crash loop.
 Please check the status of the Prometheus pods, service endpoints, and network connectivity.
 '''
-          runbook_url: 'TBD'
+          runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/Prometheus.md'
           summary: 'Prometheus is unreachable for 1 day.'
           title: 'Prometheus is unreachable for 1 day.'
         }
@@ -109,7 +109,7 @@ Unlike PrometheusUptime which averages existing samples, this alert treats data 
 Complete metric absence (no samples) will also trigger PrometheusMetricsAbsentPerCluster.
 Check the PrometheusAgent pod status, remote write pipeline, and PodMonitor configuration.
 '''
-          runbook_url: 'TBD'
+          runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/Prometheus.md'
           summary: 'Prometheus sample count below 95% SLO threshold for 24 hours.'
           title: 'Prometheus sample count below 95% SLO threshold for 24 hours.'
         }
@@ -142,7 +142,7 @@ Check the PrometheusAgent pod status and remote write configuration on the affec
 This indicates the Prometheus agent on this specific cluster is dead or its remote write pipeline is broken.
 Check the PrometheusAgent pod status and remote write configuration on the affected cluster.
 '''
-          runbook_url: 'TBD'
+          runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/Prometheus.md'
           summary: 'Prometheus metrics absent for cluster {{ $labels.cluster }}.'
           title: 'Prometheus metrics absent for cluster {{ $labels.cluster }}.'
         }
@@ -179,7 +179,7 @@ a bottleneck or issue with the remote write endpoint, network connectivity, or P
 If this condition persists, it could lead to increased memory usage and potential data loss if the buffer overflows.
 Investigate the health and performance of the remote storage endpoint, network latency, and Prometheus resource utilization.
 '''
-          runbook_url: 'TBD'
+          runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/Prometheus.md'
           summary: 'Prometheus pending sample rate is above 40%.'
           title: 'Prometheus pending sample rate is above 40%.'
         }
@@ -216,7 +216,7 @@ issues with the remote write endpoint, network instability, or Prometheus resour
 Persistent failures may result in increased memory usage and potential data loss if the buffer overflows.
 Please check the health and performance of the remote storage endpoint, network connectivity, and Prometheus resource utilization.
 '''
-          runbook_url: 'TBD'
+          runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/Prometheus.md'
           summary: 'Prometheus failed sample rate to remote storage is above 10%.'
           title: 'Prometheus failed sample rate to remote storage is above 10%.'
         }
@@ -337,7 +337,7 @@ resource prometheusRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
           correlationId: 'PrometheusScrapeSampleLimitHit/{{ $labels.cluster }}'
           description: 'Prometheus {{$labels.namespace}}/{{$labels.pod}} has failed {{ printf "%.0f" $value }} scrapes in the last 5m because some targets exceeded the configured sample_limit.'
           info: 'Prometheus {{$labels.namespace}}/{{$labels.pod}} has failed {{ printf "%.0f" $value }} scrapes in the last 5m because some targets exceeded the configured sample_limit.'
-          runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/prometheus/prometheusscrapesamplelimithit'
+          runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/Prometheus.md'
           summary: 'Prometheus has failed scrapes that have exceeded the configured sample limit.'
           title: 'Prometheus has failed scrapes that have exceeded the configured sample limit.'
         }
