@@ -703,6 +703,8 @@ mgmt:
         - name: EncryptionAtHost
           poll: true
         poll: true
+      Microsoft.ContainerInstance:
+        poll: true
       Microsoft.ContainerService:
         features:
         - name: IstioNativeSidecarModePreview
