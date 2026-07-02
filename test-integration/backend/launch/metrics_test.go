@@ -38,9 +38,7 @@ import (
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
-	apisconfigv1 "github.com/Azure/ARO-HCP/backend/pkg/apis/config/v1"
 	"github.com/Azure/ARO-HCP/backend/pkg/app"
-	azureconfig "github.com/Azure/ARO-HCP/backend/pkg/azure/config"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
@@ -97,9 +95,6 @@ func TestBackendExposesMetrics(t *testing.T) {
 		_, err = resourcesDBClient.Operations(clusterResourceID.SubscriptionID).Create(ctx, operation, nil)
 		require.NoError(t, err)
 
-		cloudEnvironment, err := azureconfig.NewAzureCloudEnvironment(apisconfigv1.AzurePublicCloud, nil)
-		require.NoError(t, err)
-
 		metricsListener := newMetricsTestListener(t)
 		metricsAddress := metricsListener.Addr().String()
 		backendOptions := &app.BackendOptions{
@@ -119,7 +114,6 @@ func TestBackendExposesMetrics(t *testing.T) {
 			TracerProviderShutdownFunc:         func(context.Context) error { return nil },
 			MaestroSourceEnvironmentIdentifier: "test",
 			ExitOnPanic:                        false,
-			CloudEnvironment:                   cloudEnvironment,
 		}
 
 		backendErrCh := make(chan error, 1)
