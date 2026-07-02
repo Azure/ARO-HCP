@@ -332,15 +332,6 @@ param backendNamespace string
 @description('The service account name of the backend managed identity')
 param backendServiceAccountName string
 
-@description('The name of the FPA certificate in the SVC keyvault')
-param fpaCertificateName string
-
-@description('The issuer of the FPA certificate')
-param fpaCertificateIssuer string
-
-@description('Whether to create the FPA certificate in the SVC keyvault')
-param manageFpaCertificate bool
-
 @description('The service tag for Geneva Actions')
 param genevaActionsServiceTag string
 
@@ -1069,27 +1060,6 @@ module sessiongateDNS '../modules/dns/a-record.bicep' = {
     recordName: sessiongateDns.recordName
     ipAddress: opsIngressGatewayIPAddress.outputs.ipAddress
     ttl: 300
-  }
-}
-
-//
-//   F P A   C E R T I F I C A T E
-//
-
-var fpaCertificateSNI = '${fpaCertificateName}.${svcDNSZoneName}'
-
-module fpaCertificate '../modules/keyvault/key-vault-cert.bicep' = if (manageFpaCertificate) {
-  name: 'fpa-certificate-${uniqueString(resourceGroup().name)}'
-  scope: resourceGroup(serviceKeyVaultSubscription, serviceKeyVaultResourceGroup)
-  params: {
-    keyVaultName: serviceKeyVaultName
-    subjectName: 'CN=${fpaCertificateSNI}'
-    certName: fpaCertificateName
-    keyVaultManagedIdentityId: globalMSIId
-    dnsNames: [
-      fpaCertificateSNI
-    ]
-    issuerName: fpaCertificateIssuer
   }
 }
 

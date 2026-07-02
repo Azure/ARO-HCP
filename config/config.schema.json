@@ -1234,14 +1234,23 @@
         "issuer": {
           "$ref": "#/definitions/certificateIssuer"
         },
+        "san": {
+          "type": "string"
+        },
+        "contentType": {
+          "type": "string"
+        },
         "manage": {
-          "type": "boolean"
+          "type": "string",
+          "enum": ["Enabled", "Disabled"]
         }
       },
       "additionalProperties": false,
       "required": [
         "name",
         "issuer",
+        "san",
+        "contentType",
         "manage"
       ]
     },
@@ -3547,6 +3556,10 @@
     {
       "rule": "self.maestro.agent.certSAN == self.maestro.agent.consumerName + '.maestro.' + self.dns.regionalSubdomain + '.' + self.dns.svcParentZoneName",
       "message": "maestro.agent.certSAN must equal consumerName + '.maestro.' + dns.regionalSubdomain + '.' + dns.svcParentZoneName"
+    },
+    {
+      "rule": "self.firstPartyAppCertificate.san == '' || self.firstPartyAppCertificate.san == self.firstPartyAppCertificate.name + '.' + self.dns.svcParentZoneName",
+      "message": "firstPartyAppCertificate.san must equal firstPartyAppCertificate.name + '.' + dns.svcParentZoneName"
     }
   ]
 }

@@ -144,10 +144,6 @@ param frontendIngressCertSAN = '{{ .frontend.cert.san }}'
 param genevaActionsServiceTag = '{{ .geneva.actions.serviceTag }}'
 param sreServiceTag = '{{ .administration.sreServiceTag }}'
 
-param fpaCertificateName = '{{ .firstPartyAppCertificate.name }}'
-param fpaCertificateIssuer = '{{ .firstPartyAppCertificate.issuer }}'
-param manageFpaCertificate = {{ .firstPartyAppCertificate.manage }}
-
 // Azure Monitor Workspace
 param azureMonitoringWorkspaceId = '__azureMonitoringWorkspaceId__'
 
