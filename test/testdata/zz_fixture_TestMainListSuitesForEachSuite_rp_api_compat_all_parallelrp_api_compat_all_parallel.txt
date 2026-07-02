@@ -11,6 +11,7 @@ Customer should be able to create an HCP cluster and custom node pool osDisk siz
 Create HCPOpenShiftCluster with Private KeyVault should create a cluster with private keyvault using v20251223preview API
 Customer should create a cluster using the 2026-06-30-preview API version
 ARO HCP Service should successfully provision cluster when MI role assignments are added after cluster creation
+Customer should be able to source the default ingress serving certificate from an Azure Key Vault and have rotations propagate automatically
 Customer should be able to create an HCP cluster and manage pull secrets
 Update HCPOpenShiftCluster Positive creates a cluster and updates tags with a PATCH request
 Customer should be able to create an HCP cluster with back-level version 4.19
