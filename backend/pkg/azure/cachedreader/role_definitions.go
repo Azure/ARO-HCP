@@ -16,8 +16,6 @@
 // thin interfaces in backend/pkg/azure/client.
 package cachedreader
 
-//go:generate $MOCKGEN -typed -source=role_definitions.go -destination=mock_role_definitions_cached_reader.go -package cachedreader RoleDefinitionsCachedReader
-
 import (
 	"context"
 	"sync"
