@@ -730,6 +730,53 @@ func TestOptionsGenerate(t *testing.T) {
 		assert.NotContains(t, generated, "namespace: {{ $labels.namespace }}")
 	})
 
+	t.Run("labelsToExtract orders labels but auto-extraction still captures unlisted ones", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		outputFile := filepath.Join(tmpDir, "generatedAlertingRules.bicep")
+
+		opts := &Options{
+			outputBicep: outputFile,
+			// Only "pod" is in labelsToExtract — "namespace" and "node" are not
+			labelsToExtract: []string{"pod"},
+			ruleFiles: []alertingRuleFile{
+				{
+					Rules: monitoringv1.PrometheusRule{
+						Spec: monitoringv1.PrometheusRuleSpec{
+							Groups: []monitoringv1.RuleGroup{
+								{
+									Name: "test-group",
+									Rules: []monitoringv1.Rule{
+										{
+											Alert: "OrderingAlert",
+											Expr:  intstr.FromString("up == 0"),
+											Labels: map[string]string{
+												"severity": "warning",
+											},
+											Annotations: map[string]string{
+												"summary":     "Something is wrong",
+												"description": "Issue on {{ $labels.namespace }}/{{ $labels.pod }} node {{ $labels.node }}",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+
+		err := opts.Generate()
+		assert.NoError(t, err)
+
+		content, err := os.ReadFile(outputFile)
+		assert.NoError(t, err)
+		generated := string(content)
+
+		// "pod" is in labelsToExtract so it comes first, then "namespace" and "node" follow in description order
+		assert.Contains(t, generated, "correlationId: 'OrderingAlert/{{ $labels.cluster }}/{{ $labels.pod }}/{{ $labels.namespace }}/{{ $labels.node }}'")
+	})
+
 	t.Run("does not enrich title when summary is absent", func(t *testing.T) {
 		tmpDir := t.TempDir()
 		outputFile := filepath.Join(tmpDir, "generatedAlertingRules.bicep")
@@ -773,6 +820,102 @@ func TestOptionsGenerate(t *testing.T) {
 
 		assert.Contains(t, generated, "title: 'NoSummaryAlert'")
 		assert.NotContains(t, generated, "title: 'NoSummaryAlert namespace:")
+	})
+
+	t.Run("auto-extracts labels from description into correlationId when labelsToExtract is not configured", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		outputFile := filepath.Join(tmpDir, "generatedAlertingRules.bicep")
+
+		opts := &Options{
+			outputBicep: outputFile,
+			// labelsToExtract is intentionally NOT set
+			ruleFiles: []alertingRuleFile{
+				{
+					Rules: monitoringv1.PrometheusRule{
+						Spec: monitoringv1.PrometheusRuleSpec{
+							Groups: []monitoringv1.RuleGroup{
+								{
+									Name: "test-group",
+									Rules: []monitoringv1.Rule{
+										{
+											Alert: "AutoExtractAlert",
+											Expr:  intstr.FromString("up == 0"),
+											Labels: map[string]string{
+												"severity": "warning",
+											},
+											Annotations: map[string]string{
+												"summary":     "Pod {{ $labels.pod }} in namespace {{ $labels.namespace }} is down",
+												"description": "Pod {{ $labels.namespace }}/{{ $labels.pod }} on node {{ $labels.node }} has issues",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+
+		err := opts.Generate()
+		assert.NoError(t, err)
+
+		content, err := os.ReadFile(outputFile)
+		assert.NoError(t, err)
+		generated := string(content)
+
+		// Should auto-extract all labels from description and include them in correlationId
+		assert.Contains(t, generated, "correlationId: 'AutoExtractAlert/{{ $labels.cluster }}/{{ $labels.namespace }}/{{ $labels.pod }}/{{ $labels.node }}'")
+		// Should not duplicate cluster if it appears in description
+		assert.NotContains(t, generated, "{{ $labels.cluster }}/{{ $labels.cluster }}")
+	})
+
+	t.Run("auto-extracts labels into title when labelsToExtract is not configured", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		outputFile := filepath.Join(tmpDir, "generatedAlertingRules.bicep")
+
+		opts := &Options{
+			outputBicep: outputFile,
+			// labelsToExtract is intentionally NOT set
+			ruleFiles: []alertingRuleFile{
+				{
+					Rules: monitoringv1.PrometheusRule{
+						Spec: monitoringv1.PrometheusRuleSpec{
+							Groups: []monitoringv1.RuleGroup{
+								{
+									Name: "test-group",
+									Rules: []monitoringv1.Rule{
+										{
+											Alert: "AutoTitleAlert",
+											Expr:  intstr.FromString("up == 0"),
+											Labels: map[string]string{
+												"severity": "warning",
+											},
+											Annotations: map[string]string{
+												"summary":     "Instance is down",
+												"description": "Instance {{ $labels.instance }} in job {{ $labels.job }} is down",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+
+		err := opts.Generate()
+		assert.NoError(t, err)
+
+		content, err := os.ReadFile(outputFile)
+		assert.NoError(t, err)
+		generated := string(content)
+
+		// Should append extracted labels to the title
+		assert.Contains(t, generated, "title: 'Instance is down instance:{{ $labels.instance }} job:{{ $labels.job }}'")
+		// Should also include them in correlationId
+		assert.Contains(t, generated, "correlationId: 'AutoTitleAlert/{{ $labels.cluster }}/{{ $labels.instance }}/{{ $labels.job }}'")
 	})
 
 	t.Run("deps excluded from output", func(t *testing.T) {

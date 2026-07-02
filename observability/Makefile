@@ -12,6 +12,10 @@ alerts: verify-no-prom-alerts-in-bicep
 	EXTRA_FLAGS=$(GENERATOR_FLAGS) make -C ../tooling/prometheus-rules alerts
 .PHONY: alerts
 
+correlation-map:
+	@make -C ../tooling/prometheus-rules correlation-map OUTPUT=$(OUTPUT)
+.PHONY: correlation-map
+
 recording-rules:
 	EXTRA_FLAGS=$(GENERATOR_FLAGS) make -C ../tooling/prometheus-rules recording-rules
 .PHONY: recording-rules

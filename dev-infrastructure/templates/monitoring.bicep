@@ -110,6 +110,15 @@ module serviceAlerts '../modules/metrics/service-rules.bicep' = {
   }
 }
 
+module svcKubeAlerts '../modules/metrics/svc-kube-rules.bicep' = {
+  name: 'svcKubeAlerts'
+  params: {
+    azureMonitoringWorkspaceId: azureMonitoringWorkspaceId
+    actionGroups: slActionGroups
+    severityCeiling: alertSeverityCeiling
+  }
+}
+
 module hcpAlerts '../modules/metrics/hcp-rules.bicep' = {
   name: 'hcpAlerts'
   params: {
@@ -155,11 +164,9 @@ module msftAlerts '../modules/metrics/msft-rules.bicep' = {
   }
 }
 
-module svcIngestionAlerts '../modules/metrics/amw-ingestion-alerts.bicep' = {
-  name: 'svcIngestionAlerts'
+module ingestionAlerts '../modules/metrics/amw-ingestion-alerts.bicep' = {
+  name: 'ingestionAlerts'
   params: {
-    azureMonitorWorkspaceId: azureMonitoringWorkspaceId
-    workspaceLabel: 'svc'
     actionGroups: slActionGroups
     enabled: alertsEnabled
     lowEventIngestionThreshold: 1
@@ -174,6 +181,18 @@ module hcpIngestionAlerts '../modules/metrics/amw-ingestion-alerts.bicep' = {
     actionGroups: slActionGroups
     enabled: alertsEnabled
     lowEventIngestionThreshold: 1
+    workspaces: [
+      {
+        id: azureMonitoringWorkspaceId
+        label: 'svc'
+        lowEventIngestionThreshold: 1
+      }
+      {
+        id: hcpAzureMonitoringWorkspaceId
+        label: 'hcp'
+        lowEventIngestionThreshold: 5
+      }
+    ]
   }
 }
 
