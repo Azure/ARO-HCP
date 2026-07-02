@@ -345,6 +345,7 @@ module vnetCreation '../modules/network/vnet.bicep' = {
     vnetName: vnetName
     vnetAddressPrefix: vnetAddressPrefix
     enableSwift: aksEnableSwiftVnet
+    deploymentMsiId: globalMSIId
   }
 }
 
