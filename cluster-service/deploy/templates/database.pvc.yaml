@@ -1,3 +1,4 @@
+{{- if not .Values.useAzureDB }}
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
@@ -9,3 +10,4 @@ spec:
   resources:
     requests:
       storage: '{{ .Values.databaseVolumeCapacity }}'
+{{- end }}
