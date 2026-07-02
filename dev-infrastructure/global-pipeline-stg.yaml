@@ -53,6 +53,11 @@ resourceGroups:
     dependsOn:
     - resourceGroup: singleton
       step: infra
+    # output-global.bicep reads the SVC/OCP ACRs as `existing`; depend on acrs so a
+    # greenfield deploy (new subscription, no pre-existing ACRs) doesn't race and fail
+    # with ResourceNotFound before acrs creates them.
+    - resourceGroup: singleton
+      step: acrs
   # TODO(ARO-28044): re-enable after ARO-28040
   # - name: grafana-monitoring-reader
   #   action: ARM
