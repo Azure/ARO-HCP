@@ -424,6 +424,8 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		"ExternalAuthMetrics", externalAuthInformer, externalAuthHandler)
 
 	_, controllerLister := backendInformers.Controllers()
+	_, serviceProviderClusterLister := backendInformers.ServiceProviderClusters()
+	_, serviceProviderNodePoolLister := backendInformers.ServiceProviderNodePools()
 
 	subscriptionNonClusterDataDumpController := datadumpcontrollers.NewSubscriptionNonClusterDataDumpController(b.options.ResourcesDBClient, activeOperationLister, backendInformers)
 	clusterRecursiveDataDumpController := datadumpcontrollers.NewClusterRecursiveDataDumpController(b.options.ResourcesDBClient, b.options.KubeApplierDBClients, managementClusterLister, activeOperationLister, backendInformers, unionKubeApplierInformers)
@@ -533,6 +535,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		validations.NewAlwaysSuccessValidation(),
 		activeOperationLister,
 		b.options.ResourcesDBClient,
+		serviceProviderClusterLister,
 		backendInformers,
 		unionKubeApplierInformers,
 	)
@@ -547,6 +550,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	controlPlaneActiveVersionController := upgradecontrollers.NewControlPlaneActiveVersionController(
 		b.options.ResourcesDBClient,
 		activeOperationLister,
+		serviceProviderClusterLister,
 		backendInformers,
 		unionKubeApplierInformers,
 		unionReadDesireLister,
@@ -556,6 +560,8 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		b.options.ResourcesDBClient,
 		b.options.ClustersServiceClient,
 		activeOperationLister,
+		serviceProviderClusterLister,
+		serviceProviderNodePoolLister,
 		backendInformers,
 		unionKubeApplierInformers,
 		unionReadDesireLister,
@@ -566,6 +572,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		b.options.ResourcesDBClient,
 		b.options.ClustersServiceClient,
 		activeOperationLister,
+		serviceProviderClusterLister,
 		backendInformers,
 		unionKubeApplierInformers,
 	)
@@ -630,11 +637,13 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 
 	createClusterScopedReadDesiresController := controllers.NewCreateClusterScopedReadDesiresController(
 		activeOperationLister, b.options.ResourcesDBClient, b.options.KubeApplierDBClients,
+		serviceProviderClusterLister,
 		backendInformers, b.options.MaestroSourceEnvironmentIdentifier,
 	)
 
 	createNodePoolScopedReadDesiresController := controllers.NewCreateNodePoolScopedReadDesiresController(
 		activeOperationLister, b.options.ResourcesDBClient, b.options.KubeApplierDBClients,
+		serviceProviderClusterLister,
 		backendInformers, b.options.MaestroSourceEnvironmentIdentifier,
 	)
 
@@ -643,6 +652,20 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		b.options.KubeApplierDBClients,
 		backendInformers,
 		5*time.Minute,
+	)
+	createServiceProviderClusterController := controllers.NewCreateServiceProviderClusterController(
+		b.options.ResourcesDBClient,
+		activeOperationLister,
+		clusterLister,
+		serviceProviderClusterLister,
+		backendInformers,
+	)
+	createServiceProviderNodePoolController := controllers.NewCreateServiceProviderNodePoolController(
+		b.options.ResourcesDBClient,
+		activeOperationLister,
+		nodePoolLister,
+		serviceProviderNodePoolLister,
+		backendInformers,
 	)
 
 	cleanOrphanedClusterManagedResourceGroupController := controllers.NewCleanOrphanedClusterManagedResourceGroupController(
@@ -657,6 +680,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		validations.NewAzureResourceProvidersRegistrationValidation(b.options.FPAClientBuilder),
 		activeOperationLister,
 		b.options.ResourcesDBClient,
+		serviceProviderClusterLister,
 		backendInformers,
 		unionKubeApplierInformers,
 	)
@@ -664,6 +688,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		validations.NewAzureClusterResourceGroupExistenceValidation(b.options.FPAClientBuilder),
 		activeOperationLister,
 		b.options.ResourcesDBClient,
+		serviceProviderClusterLister,
 		backendInformers,
 		unionKubeApplierInformers,
 	)
@@ -671,6 +696,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		validations.NewAzureClusterManagedIdentitiesExistenceValidation(b.options.SMIClientBuilder),
 		activeOperationLister,
 		b.options.ResourcesDBClient,
+		serviceProviderClusterLister,
 		backendInformers,
 		unionKubeApplierInformers,
 	)
@@ -709,6 +735,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		b.options.ResourcesDBClient,
 		b.options.ClustersServiceClient,
 		activeOperationLister,
+		serviceProviderNodePoolLister,
 		backendInformers,
 		unionKubeApplierInformers,
 	)
@@ -879,6 +906,8 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go nodePoolActiveVersionController.Run(ctx, 20)
 				go createClusterScopedReadDesiresController.Run(ctx, 20)
 				go createNodePoolScopedReadDesiresController.Run(ctx, 20)
+				go createServiceProviderClusterController.Run(ctx, 20)
+				go createServiceProviderNodePoolController.Run(ctx, 20)
 				go cleanOrphanedClusterManagedResourceGroupController.Run(ctx, 20)
 				go triggerNodePoolUpgradeController.Run(ctx, 20)
 				go nodePoolDeletionClusterServiceDeleteDispatchController.Run(ctx, 20)

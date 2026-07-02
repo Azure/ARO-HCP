@@ -36,8 +36,9 @@ import (
 // nodePoolValidationSyncer is a NodePool syncer that performs a NodePool
 // validation.
 type nodePoolValidationSyncer struct {
-	cooldownChecker   controllerutil.CooldownChecker
-	resourcesDBClient database.ResourcesDBClient
+	cooldownChecker               controllerutil.CooldownChecker
+	resourcesDBClient             database.ResourcesDBClient
+	serviceProviderNodePoolLister listers.ServiceProviderNodePoolLister
 
 	// validation is the validation to perform on the node pool.
 	validation validations.NodePoolValidation
@@ -51,14 +52,16 @@ func NewNodePoolValidationController(
 	validation validations.NodePoolValidation,
 	activeOperationLister listers.ActiveOperationLister,
 	resourcesDBClient database.ResourcesDBClient,
+	serviceProviderNodePoolLister listers.ServiceProviderNodePoolLister,
 	informers informers.BackendInformers,
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 ) controllerutils.Controller {
 
 	syncer := &nodePoolValidationSyncer{
-		cooldownChecker:   controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
-		resourcesDBClient: resourcesDBClient,
-		validation:        validation,
+		cooldownChecker:               controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
+		resourcesDBClient:             resourcesDBClient,
+		serviceProviderNodePoolLister: serviceProviderNodePoolLister,
+		validation:                    validation,
 	}
 
 	controller := controllerutils.NewNodePoolWatchingController(
@@ -96,15 +99,20 @@ func (c *nodePoolValidationSyncer) SyncOnce(ctx context.Context, key controlleru
 		return nil
 	}
 
-	existingServiceProviderNodePool, err := database.GetOrCreateServiceProviderNodePool(ctx, c.resourcesDBClient, key.GetResourceID())
+	cachedServiceProviderNodePool, err := c.serviceProviderNodePoolLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPNodePoolName)
+	if database.IsNotFoundError(err) {
+		// CreateServiceProviderNodePool will populate it; we'll be re-enqueued via the ServiceProviderNodePool informer.
+		return nil
+	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get or create ServiceProviderNodePool: %w", err))
+		return utils.TrackError(fmt.Errorf("failed to get ServiceProviderNodePool: %w", err))
 	}
 
-	shouldProcess := c.shouldProcess(existingServiceProviderNodePool)
+	shouldProcess := c.shouldProcess(cachedServiceProviderNodePool)
 	if !shouldProcess {
 		return nil // no work to do
 	}
+	existingServiceProviderNodePool := cachedServiceProviderNodePool.DeepCopy()
 	subscription, err := c.resourcesDBClient.Subscriptions().Get(ctx, existingNodePool.ID.SubscriptionID)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get Subscription: %w", err))

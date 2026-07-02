@@ -155,10 +155,10 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 			},
 		},
 		{
-			name:                    "customer minor mismatch without ControlPlaneDesiredVersion IntentFailed leaves operation accepted when first seen within 29s",
+			name:                    "customer minor mismatch without ControlPlaneDesiredVersion IntentFailed leaves operation accepted when first seen within 129s",
 			clusterState:            arohcpv1alpha1.ClusterStateReady,
 			customerVersionID:       "4.20",
-			seedMismatchFirstSeenAt: testClockNow.Add(-20 * time.Second),
+			seedMismatchFirstSeenAt: testClockNow.Add(-120 * time.Second),
 			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *clusterTestFixture) {
 				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
 				require.NoError(t, err)
@@ -172,10 +172,10 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 			},
 		},
 		{
-			name:                    "customer minor mismatch without IntentFailed fails when mismatch first seen exceeds 29s",
+			name:                    "customer minor mismatch without IntentFailed fails when mismatch first seen exceeds 129s",
 			clusterState:            arohcpv1alpha1.ClusterStateReady,
 			customerVersionID:       "4.20",
-			seedMismatchFirstSeenAt: testClockNow.Add(-30 * time.Second),
+			seedMismatchFirstSeenAt: testClockNow.Add(-130 * time.Second),
 			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *clusterTestFixture) {
 				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
 				require.NoError(t, err)
@@ -186,7 +186,7 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 				cluster, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
 				require.NoError(t, err)
 				wantMsg := fmt.Sprintf(
-					"timed out after 29s waiting for resolution of desired version from '%s' cluster version",
+					"timed out after 129s waiting for resolution of desired version from '%s' cluster version",
 					cluster.CustomerProperties.Version.ID,
 				)
 				assert.Equal(t, wantMsg, op.Error.Message)
