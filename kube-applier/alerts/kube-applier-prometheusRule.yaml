@@ -1,0 +1,26 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    app.kubernetes.io/name: kube-prometheus
+    app.kubernetes.io/part-of: kube-prometheus
+    prometheus: k8s
+    role: alert-rules
+  name: kube-applier-monitoring-rules
+  namespace: monitoring
+spec:
+  groups:
+  - name: kube-applier
+    rules:
+    - alert: KubeApplierDesiresMetricNotPresent
+      # Fires when at least instance of kube-applier is running but the kube_applier_desires metric is not present for 5 minutes.
+      expr:  |
+        kube_applier_health == 1 unless on(cluster, namespace) kube_applier_desires
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        description: 'kube-applier on cluster {{ $labels.cluster }} lacks kube_applier_desires metric for 5 minutes.'
+        runbook_url: 'TBD'
+        summary: 'kube-applier on cluster {{ $labels.cluster }} lacks kube_applier_desires metric'
+        title: 'kube-applier on cluster {{ $labels.cluster }} lacks kube_applier_desires metric'
