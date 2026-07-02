@@ -106,15 +106,15 @@ createApps() {
 
     echo "Assigning Key Vault Certificates Officer role to current user"
     az role assignment create \
-    --role "a4417e6f-fecd-4de8-b567-7b0420556985" \
+    --role "Key Vault Certificates Officer" \
     --assignee "$CURRENT_USER_ID" \
-    --scope "$KEY_VAULT_ID"
+    --scope "$KEY_VAULT_ID" || true
 
     echo "Assigning Key Vault Secrets User role to current user"
     az role assignment create \
-    --role "4633458b-17de-408a-b874-0445c86b69e6" \
+    --role "Key Vault Secrets User" \
     --assignee "$CURRENT_USER_ID" \
-    --scope "$KEY_VAULT_ID"
+    --scope "$KEY_VAULT_ID" || true
 
     # Create a custom role definition if it doesn't exist already
     echo "Checking if role definition $FP_ROLE_DEFINITION_NAME exists"
