@@ -368,6 +368,10 @@ defaults:
   # Monitoring
   monitoring:
     grafanaName: "arohcp-{{ .ctx.environment }}"
+    # Zone redundancy for the managed Grafana instance. Consumed by the
+    # GrafanaManage pipeline step, whose schema only accepts Enabled/Disabled.
+    # Default matches Azure's default and the existing instances; dev overrides it.
+    grafanaZoneRedundantMode: Disabled
     # Format:
     #   Multiline string using '>-' YAML block scalar
     #   One item per line, formatted as: UUID/PrincipalType/RoleName
