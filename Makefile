@@ -449,13 +449,14 @@ record-services-override: $(YQ) $(ORAS)
 # Query ACR for the latest image digest of each service (no build/push)
 #
 latest-services-override: $(YQ)
-	$(MAKE) -C frontend record-latest-override OVERRIDE_CONFIG_FILE=/tmp/_frontend-override.yaml
-	$(MAKE) -C backend record-latest-override OVERRIDE_CONFIG_FILE=/tmp/_backend-override.yaml
-	$(MAKE) -C admin record-latest-override OVERRIDE_CONFIG_FILE=/tmp/_admin-override.yaml
-	$(MAKE) -C sessiongate record-latest-override OVERRIDE_CONFIG_FILE=/tmp/_sessiongate-override.yaml
-	$(MAKE) -C mgmt-agent record-latest-override OVERRIDE_CONFIG_FILE=/tmp/_mgmt-agent-override.yaml
-	$(MAKE) -C kube-applier record-latest-override OVERRIDE_CONFIG_FILE=/tmp/_kube-applier-override.yaml
-	$(MAKE) -C fleet record-latest-override OVERRIDE_CONFIG_FILE=/tmp/_fleet-override.yaml
+	$(MAKE) -C frontend record-latest-override OVERRIDE_CONFIG_FILE=/tmp/_frontend-override.yaml &
+	$(MAKE) -C backend record-latest-override OVERRIDE_CONFIG_FILE=/tmp/_backend-override.yaml &
+	$(MAKE) -C admin record-latest-override OVERRIDE_CONFIG_FILE=/tmp/_admin-override.yaml &
+	$(MAKE) -C sessiongate record-latest-override OVERRIDE_CONFIG_FILE=/tmp/_sessiongate-override.yaml &
+	$(MAKE) -C mgmt-agent record-latest-override OVERRIDE_CONFIG_FILE=/tmp/_mgmt-agent-override.yaml &
+	$(MAKE) -C kube-applier record-latest-override OVERRIDE_CONFIG_FILE=/tmp/_kube-applier-override.yaml &
+	$(MAKE) -C fleet record-latest-override OVERRIDE_CONFIG_FILE=/tmp/_fleet-override.yaml &
+	wait
 	$(YQ) eval-all '. as $$item ireduce ({}; . * $$item)' \
 	  /tmp/_frontend-override.yaml \
 	  /tmp/_backend-override.yaml \
