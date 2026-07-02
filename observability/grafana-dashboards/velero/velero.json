@@ -22,7 +22,7 @@
     ]
   },
   "description": "Velero Backup and Restore Monitoring",
-  "editable": false,
+  "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
   "id": 107,
@@ -188,7 +188,7 @@
             "uid": "${datasource}"
           },
           "editorMode": "code",
-          "expr": "sum(max without(prometheus_replica) (velero_backup_success_total{cluster=~\"$cluster\", schedule=~\"$schedule\"})) / sum(max without(prometheus_replica) (velero_backup_attempt_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}))",
+          "expr": "sum(max without(prometheus_replica) (velero_backup_success_total{cluster=~\"$cluster\", schedule=~\"$schedule\"})) / (sum(max without(prometheus_replica) (velero_backup_attempt_total{cluster=~\"$cluster\", schedule=~\"$schedule\"})) > 0)",
           "format": "time_series",
           "range": true,
           "refId": "A"
@@ -268,7 +268,7 @@
             "uid": "${datasource}"
           },
           "exemplar": false,
-          "expr": "sum(max without(prometheus_replica) (velero_backup_deletion_success_total{cluster=~\"$cluster\", schedule=~\"$schedule\"})) / sum(max without(prometheus_replica) (velero_backup_deletion_attempt_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}))",
+          "expr": "sum(max without(prometheus_replica) (velero_backup_deletion_success_total{cluster=~\"$cluster\", schedule=~\"$schedule\"})) / (sum(max without(prometheus_replica) (velero_backup_deletion_attempt_total{cluster=~\"$cluster\", schedule=~\"$schedule\"})) > 0)",
           "format": "time_series",
           "refId": "A"
         }
@@ -347,7 +347,7 @@
             "uid": "${datasource}"
           },
           "exemplar": false,
-          "expr": "sum(max without(prometheus_replica) (velero_volume_snapshot_success_total{cluster=~\"$cluster\", schedule=~\"$schedule\"})) / sum(max without(prometheus_replica) (velero_volume_snapshot_attempt_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}))",
+          "expr": "sum(max without(prometheus_replica) (velero_volume_snapshot_success_total{cluster=~\"$cluster\", schedule=~\"$schedule\"})) / (sum(max without(prometheus_replica) (velero_volume_snapshot_attempt_total{cluster=~\"$cluster\", schedule=~\"$schedule\"})) > 0)",
           "format": "time_series",
           "refId": "A"
         }
@@ -545,7 +545,7 @@
             "uid": "${datasource}"
           },
           "exemplar": false,
-          "expr": "(time() - max without(prometheus_replica) (velero_backup_last_successful_timestamp{cluster=~\"$cluster\", schedule!=\"\"})) / 60 / 60",
+          "expr": "(time() - max without(prometheus_replica) (velero_backup_last_successful_timestamp{cluster=~\"$cluster\", schedule=~\"$schedule\", schedule!=\"\"})) / 60 / 60",
           "instant": true,
           "legendFormat": "{{schedule}}",
           "refId": "A"
@@ -717,7 +717,7 @@
               },
               "editorMode": "code",
               "exemplar": false,
-              "expr": "sum by (schedule) (max without(prometheus_replica) (velero_backup_success_total{cluster=~\"$cluster\", schedule=~\"$schedule\", schedule!=\"\"})) / sum by (schedule) (max without(prometheus_replica) (velero_backup_attempt_total{cluster=~\"$cluster\", schedule=~\"$schedule\", schedule!=\"\"}))",
+              "expr": "sum by (schedule) (max without(prometheus_replica) (velero_backup_success_total{cluster=~\"$cluster\", schedule=~\"$schedule\", schedule!=\"\"})) / (sum by (schedule) (max without(prometheus_replica) (velero_backup_attempt_total{cluster=~\"$cluster\", schedule=~\"$schedule\", schedule!=\"\"})) > 0)",
               "instant": true,
               "legendFormat": "{{schedule}}",
               "refId": "A"
@@ -906,7 +906,7 @@
                 "type": "prometheus",
                 "uid": "${datasource}"
               },
-              "expr": "sum(max without(prometheus_replica) (increase(velero_backup_success_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[1h]))) > 0",
+              "expr": "round(sum(max without(prometheus_replica) (increase(velero_backup_success_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[1h])))) > 0",
               "legendFormat": "Backup success",
               "refId": "A"
             },
@@ -915,7 +915,7 @@
                 "type": "prometheus",
                 "uid": "${datasource}"
               },
-              "expr": "sum(max without(prometheus_replica) (increase(velero_backup_failure_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[1h]))) > 0",
+              "expr": "round(sum(max without(prometheus_replica) (increase(velero_backup_failure_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[1h])))) > 0",
               "hide": false,
               "legendFormat": "Backup failure",
               "refId": "B"
@@ -925,7 +925,7 @@
                 "type": "prometheus",
                 "uid": "${datasource}"
               },
-              "expr": "sum(max without(prometheus_replica) (increase(velero_backup_partial_failure_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[1h]))) > 0",
+              "expr": "round(sum(max without(prometheus_replica) (increase(velero_backup_partial_failure_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[1h])))) > 0",
               "legendFormat": "Backup partial failure",
               "refId": "C"
             },
@@ -934,7 +934,7 @@
                 "type": "prometheus",
                 "uid": "${datasource}"
               },
-              "expr": "sum(max without(prometheus_replica) (increase(velero_backup_validation_failure_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[1h]))) > 0",
+              "expr": "round(sum(max without(prometheus_replica) (increase(velero_backup_validation_failure_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[1h])))) > 0",
               "legendFormat": "Backup validation failure",
               "refId": "D"
             },
@@ -943,7 +943,7 @@
                 "type": "prometheus",
                 "uid": "${datasource}"
               },
-              "expr": "sum(max without(prometheus_replica) (increase(velero_backup_warning_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[1h]))) > 0",
+              "expr": "round(sum(max without(prometheus_replica) (increase(velero_backup_warning_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[1h])))) > 0",
               "legendFormat": "Backup warning",
               "refId": "E"
             },
@@ -952,7 +952,7 @@
                 "type": "prometheus",
                 "uid": "${datasource}"
               },
-              "expr": "sum(max without(prometheus_replica) (increase(velero_backup_deletion_success_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[1h]))) > 0",
+              "expr": "round(sum(max without(prometheus_replica) (increase(velero_backup_deletion_success_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[1h])))) > 0",
               "legendFormat": "Backup deletion success",
               "refId": "F"
             },
@@ -961,7 +961,7 @@
                 "type": "prometheus",
                 "uid": "${datasource}"
               },
-              "expr": "sum(max without(prometheus_replica) (increase(velero_backup_deletion_failure_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[1h]))) > 0",
+              "expr": "round(sum(max without(prometheus_replica) (increase(velero_backup_deletion_failure_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[1h])))) > 0",
               "legendFormat": "Backup deletion failure",
               "refId": "G"
             }
@@ -1325,7 +1325,7 @@
                 "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "max by (schedule) (max without(prometheus_replica) (velero_backup_duration_seconds{cluster=~\"$cluster\", schedule=~\"$schedule\", schedule!=\"\"}))",
+              "expr": "max by (schedule) (max without(prometheus_replica) (velero_backup_duration_seconds_sum{cluster=~\"$cluster\", schedule=~\"$schedule\", schedule!=\"\"}))",
               "legendFormat": "{{schedule}}",
               "range": true,
               "refId": "A"
@@ -1379,7 +1379,7 @@
               "color": "rgba(255,0,255,0.7)"
             },
             "filterValues": {
-              "le": 1e-9
+              "le": 1e-09
             },
             "legend": {
               "show": true
@@ -1695,7 +1695,7 @@
                 "uid": "${datasource}"
               },
               "exemplar": false,
-              "expr": "sum(max without(prometheus_replica) (velero_restore_success_total{cluster=~\"$cluster\", schedule=~\"$schedule\"})) / sum(max without(prometheus_replica) (velero_restore_attempt_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}))",
+              "expr": "sum(max without(prometheus_replica) (velero_restore_success_total{cluster=~\"$cluster\", schedule=~\"$schedule\"})) / (sum(max without(prometheus_replica) (velero_restore_attempt_total{cluster=~\"$cluster\", schedule=~\"$schedule\"})) > 0)",
               "format": "time_series",
               "refId": "A"
             }
@@ -1797,7 +1797,7 @@
               },
               "editorMode": "code",
               "exemplar": false,
-              "expr": "sum by (schedule) (max without(prometheus_replica) (velero_restore_success_total{cluster=~\"$cluster\", schedule=~\"$schedule\", schedule!=\"\"})) / sum by (schedule) (max without(prometheus_replica) (velero_restore_attempt_total{cluster=~\"$cluster\", schedule=~\"$schedule\", schedule!=\"\"}))",
+              "expr": "sum by (schedule) (max without(prometheus_replica) (velero_restore_success_total{cluster=~\"$cluster\", schedule=~\"$schedule\", schedule!=\"\"})) / (sum by (schedule) (max without(prometheus_replica) (velero_restore_attempt_total{cluster=~\"$cluster\", schedule=~\"$schedule\", schedule!=\"\"})) > 0)",
               "instant": true,
               "legendFormat": "{{schedule}}",
               "refId": "A"
@@ -1923,7 +1923,7 @@
                 "uid": "${datasource}"
               },
               "exemplar": false,
-              "expr": "round(sum(max without(prometheus_replica) (increase(velero_restore_success_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[1h]))))",
+              "expr": "round(sum(max without(prometheus_replica) (increase(velero_restore_success_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[1h])))) > 0",
               "legendFormat": "Restore success",
               "refId": "A"
             },
@@ -1933,7 +1933,7 @@
                 "uid": "${datasource}"
               },
               "exemplar": false,
-              "expr": "round(sum(max without(prometheus_replica) (increase(velero_restore_failed_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[1h]))))",
+              "expr": "round(sum(max without(prometheus_replica) (increase(velero_restore_failed_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[1h])))) > 0",
               "hide": false,
               "legendFormat": "Restore failure",
               "refId": "B"
@@ -1944,7 +1944,7 @@
                 "uid": "${datasource}"
               },
               "exemplar": false,
-              "expr": "round(sum(max without(prometheus_replica) (increase(velero_restore_validation_failed_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[1h]))))",
+              "expr": "round(sum(max without(prometheus_replica) (increase(velero_restore_validation_failed_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[1h])))) > 0",
               "hide": false,
               "legendFormat": "Restore validation failure",
               "refId": "C"
@@ -1955,7 +1955,7 @@
                 "uid": "${datasource}"
               },
               "exemplar": false,
-              "expr": "round(sum(max without(prometheus_replica) (increase(velero_restore_partial_failure_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[1h]))))",
+              "expr": "round(sum(max without(prometheus_replica) (increase(velero_restore_partial_failure_total{cluster=~\"$cluster\", schedule=~\"$schedule\"}[1h])))) > 0",
               "hide": false,
               "legendFormat": "Restore partial failure",
               "refId": "D"
@@ -2206,10 +2206,147 @@
       ],
       "title": "CSI Snapshot Operations",
       "type": "row"
+    },
+    {
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 18
+      },
+      "id": 25,
+      "panels": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "drawStyle": "line",
+                "fillOpacity": 100,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "stepAfter",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "never",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "normal"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "decimals": 0,
+              "links": [],
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green"
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 10,
+            "w": 24,
+            "x": 0,
+            "y": 19
+          },
+          "id": 26,
+          "options": {
+            "legend": {
+              "calcs": [
+                "mean",
+                "max",
+                "lastNotNull"
+              ],
+              "displayMode": "table",
+              "placement": "right",
+              "showLegend": true
+            },
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "multi",
+              "sort": "none"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "exemplar": false,
+              "expr": "round(sum(max without(prometheus_replica) (increase(podvolume_data_upload_success_total{cluster=~\"$cluster\"}[1h])))) > 0",
+              "legendFormat": "Data upload success",
+              "refId": "A"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "exemplar": false,
+              "expr": "round(sum(max without(prometheus_replica) (increase(podvolume_data_upload_failure_total{cluster=~\"$cluster\"}[1h])))) > 0",
+              "hide": false,
+              "legendFormat": "Data upload failure",
+              "refId": "B"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "exemplar": false,
+              "expr": "round(sum(max without(prometheus_replica) (increase(podvolume_data_upload_cancel_total{cluster=~\"$cluster\"}[1h])))) > 0",
+              "hide": false,
+              "legendFormat": "Data upload cancelled",
+              "refId": "C"
+            }
+          ],
+          "title": "Data Mover Uploads per Hour",
+          "type": "timeseries"
+        }
+      ],
+      "title": "Data Mover Operations",
+      "type": "row"
     }
   ],
   "preload": false,
-  "refresh": "",
+  "refresh": "1m",
   "schemaVersion": 39,
   "tags": [
     "velero",
@@ -2218,10 +2355,7 @@
   "templating": {
     "list": [
       {
-        "current": {
-          "text": "Managed_Prometheus_services-bntsch",
-          "value": "services-bntsch"
-        },
+        "current": {},
         "includeAll": false,
         "label": "Datasource",
         "name": "datasource",
@@ -2285,11 +2419,16 @@
       },
       {
         "current": {
-          "text": "All",
-          "value": "$__all"
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
         },
         "datasource": {
-          "uid": "$datasource"
+          "type": "prometheus",
+          "uid": "${datasource}"
         },
         "definition": "label_values(velero_csi_snapshot_attempt_total{cluster=~\"$cluster\", schedule=~\"$schedule\"},backupName)",
         "includeAll": true,
