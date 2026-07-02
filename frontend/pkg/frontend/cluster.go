@@ -667,16 +667,12 @@ func (f *Frontend) updateHCPClusterInCosmos(ctx context.Context, writer http.Res
 		if err != nil {
 			return utils.TrackError(err)
 		}
-		newClusterServiceClusterBuilder, newClusterServiceAutoscalerBuilder, err := ocm.BuildCSCluster(oldInternalCluster.ID, tenantID, newInternalCluster, nil, oldClusterServiceCluster, admissionContext.ServiceProviderCluster)
+		newClusterServiceClusterBuilder, _, err := ocm.BuildCSCluster(oldInternalCluster.ID, tenantID, newInternalCluster, nil, oldClusterServiceCluster, admissionContext.ServiceProviderCluster)
 		if err != nil {
 			return utils.TrackError(err)
 		}
 
 		logger.Info(fmt.Sprintf("updating resource %s", oldInternalCluster.ID))
-		_, err = f.clusterServiceClient.UpdateClusterAutoscaler(ctx, *oldInternalCluster.ServiceProviderProperties.ClusterServiceID, newClusterServiceAutoscalerBuilder)
-		if err != nil {
-			return utils.TrackError(err)
-		}
 		_, err = f.clusterServiceClient.UpdateCluster(ctx, *oldInternalCluster.ServiceProviderProperties.ClusterServiceID, newClusterServiceClusterBuilder)
 		if err != nil {
 			return utils.TrackError(err)

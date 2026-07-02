@@ -445,6 +445,9 @@ func BuildCSCluster(resourceID *azcorearm.ResourceID, tenantID string, hcpCluste
 		delete(properties, CSPropertyCPOImageOverride)
 	}
 	clusterBuilder = clusterBuilder.Properties(properties)
+	if clusterAutoscalerBuilder != nil {
+		clusterBuilder = clusterBuilder.Autoscaler(clusterAutoscalerBuilder)
+	}
 
 	return clusterBuilder, clusterAutoscalerBuilder, nil
 }

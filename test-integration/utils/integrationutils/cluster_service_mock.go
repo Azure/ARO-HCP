@@ -98,12 +98,18 @@ func (s *ClusterServiceMock) setupMockClusterService(t *testing.T) {
 		return ret, nil
 	}).AnyTimes()
 	s.MockClusterServiceClient.EXPECT().UpdateCluster(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, id ocm.InternalID, builder *arohcpv1alpha1.ClusterBuilder) (*arohcpv1alpha1.Cluster, error) {
+		internalID := id.String()
+
 		ret, err := builder.Build()
 		if err != nil {
 			return nil, err
 		}
 
-		internalIDToCluster[id.String()] = append(internalIDToCluster[id.String()], ret)
+		if autoscaler, ok := ret.GetAutoscaler(); ok {
+			internalIDToAutoscaler[internalID] = append(internalIDToAutoscaler[internalID], autoscaler)
+		}
+
+		internalIDToCluster[internalID] = append(internalIDToCluster[internalID], ret)
 		return ret, nil
 	}).AnyTimes()
 	s.MockClusterServiceClient.EXPECT().DeleteCluster(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, id ocm.InternalID) error {
@@ -115,15 +121,6 @@ func (s *ClusterServiceMock) setupMockClusterService(t *testing.T) {
 		delete(internalIDToAutoscaler, id.String())
 
 		return nil
-	}).AnyTimes()
-	s.MockClusterServiceClient.EXPECT().UpdateClusterAutoscaler(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, internalID ocm.InternalID, builder *arohcpv1alpha1.ClusterAutoscalerBuilder) (*arohcpv1alpha1.ClusterAutoscaler, error) {
-		ret, err := builder.HREF(internalID.String()).Build()
-		if err != nil {
-			return nil, err
-		}
-
-		internalIDToAutoscaler[internalID.String()] = append(internalIDToAutoscaler[internalID.String()], ret)
-		return ret, nil
 	}).AnyTimes()
 	s.MockClusterServiceClient.EXPECT().GetCluster(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, id ocm.InternalID) (*csarhcpv1alpha1.Cluster, error) {
 		ret, err := mergeClusterServiceClusterAndAutoscaler(internalIDToCluster[id.String()], internalIDToAutoscaler[id.String()])
