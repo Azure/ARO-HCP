@@ -1140,24 +1140,25 @@ func (tc *perItOrDescribeTestContext) PullSecretPath() string {
 	return tc.perBinaryInvocationTestContext.pullSecretPath
 }
 
-// LocationHasAvailabilityZones checks if the given VM SKU has at least one
-// non-restricted availability zone in the current test location by querying the
-// Azure Resource SKUs API.
-func (tc *perItOrDescribeTestContext) LocationHasAvailabilityZones(ctx context.Context, vmSize string) (bool, error) {
+// AvailableZones returns the sorted list of non-restricted availability zones
+// for the given VM SKU in the current test location, querying the Azure Resource
+// SKUs API. Zone-restricted zones (e.g. SkuNotAvailable for the subscription)
+// are subtracted from the advertised list, so every returned zone is guaranteed
+// to be usable for the SKU. An empty slice means the location/SKU combination
+// exposes no usable availability zones.
+func (tc *perItOrDescribeTestContext) AvailableZones(ctx context.Context, vmSize string) ([]string, error) {
 	location := tc.Location()
 	skus, err := tc.listVirtualMachineResourceSKUs(ctx, location)
 	if err != nil {
-		return false, err
+		return nil, err
 	}
 	for _, sku := range skus {
 		if sku.Name == nil || *sku.Name != vmSize {
 			continue
 		}
-		if len(availableZones(sku, location)) > 0 {
-			return true, nil
-		}
+		return availableZones(sku, location), nil
 	}
-	return false, nil
+	return nil, nil
 }
 
 func (tc *perItOrDescribeTestContext) SubscriptionID(ctx context.Context) (string, error) {

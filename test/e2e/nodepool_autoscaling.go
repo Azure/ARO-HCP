@@ -48,7 +48,6 @@ var _ = Describe("Customer", func() {
 				azNodePoolName         = "autoscale-az"
 				azAutoscalingMin int32 = 3
 				azAutoscalingMax int32 = 500
-				availabilityZone       = "1"
 
 				noAZNodePoolName         = "autoscale-noaz"
 				noAZAutoscalingMin int32 = 3
@@ -64,8 +63,13 @@ var _ = Describe("Customer", func() {
 			By("resolving the default worker VM size and checking if the region supports availability zones")
 			workerVMSize, err := tc.SelectVMSize(ctx, framework.DefaultWorkerVMSizeSelector())
 			Expect(err).NotTo(HaveOccurred(), "failed to resolve the default worker VM size")
-			hasAZ, err := tc.LocationHasAvailabilityZones(ctx, workerVMSize)
-			Expect(err).NotTo(HaveOccurred(), "failed to check availability zone support")
+			availableZones, err := tc.AvailableZones(ctx, workerVMSize)
+			Expect(err).NotTo(HaveOccurred(), "failed to resolve available availability zones for worker VM size %s", workerVMSize)
+			hasAZ := len(availableZones) > 0
+			var availabilityZone string
+			if hasAZ {
+				availabilityZone = availableZones[0]
+			}
 
 			By("creating a resource group")
 			resourceGroup, err := tc.NewResourceGroup(ctx, "np-autoscaling", tc.Location())
@@ -127,7 +131,7 @@ var _ = Describe("Customer", func() {
 			if !hasAZ {
 				By("skipping AZ nodepool creation: region does not support availability zones")
 			} else {
-				By("creating the AZ nodepool with 500 max replicas")
+				By("creating the AZ nodepool with 500 max replicas in availability zone " + availabilityZone)
 				azNodePoolParams := framework.NewDefaultNodePoolParams20240610()
 				azNodePoolParams.ClusterName = customerClusterName
 				azNodePoolParams.NodePoolName = azNodePoolName
