@@ -13,5 +13,6 @@
   "should be able to forward control plane logs to a storage account and Event Hub via shoebox diagnostic settings",
   "should confirm the HCP cluster is deleted (not found)",
   "should create an HCP cluster and validate TLS certificates",
-  "should deny pods with images from disallowed registries"
+  "should deny pods with images from disallowed registries",
+  "validates node pool rollout after upgrade"
 ]
