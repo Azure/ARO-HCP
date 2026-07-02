@@ -227,6 +227,9 @@ var (
 	toImageDigestMirrors = func(oldObj *api.HCPOpenShiftClusterCustomerProperties) []api.ImageDigestMirror {
 		return oldObj.ImageDigestMirrors
 	}
+	toCryptoRestrictions = func(oldObj *api.HCPOpenShiftClusterCustomerProperties) *api.CryptoRestrictions {
+		return &oldObj.CryptoRestrictions
+	}
 )
 
 func validateClusterCustomerProperties(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.HCPOpenShiftClusterCustomerProperties) field.ErrorList {
@@ -274,6 +277,10 @@ func validateClusterCustomerProperties(ctx context.Context, op operation.Operati
 		nil, nil,
 		validateImageDigestMirror,
 	)...)
+
+	// CryptoRestrictions
+	errs = append(errs, immutableByCompare(ctx, op, fldPath.Child("cryptoRestrictions"), &newObj.CryptoRestrictions, safe.Field(oldObj, toCryptoRestrictions))...)
+	errs = append(errs, validate.Enum(ctx, op, fldPath.Child("cryptoRestrictions"), &newObj.CryptoRestrictions, nil, api.ValidCryptoRestrictions, nil)...)
 
 	return errs
 }

@@ -1897,6 +1897,66 @@ func TestValidateClusterUpdate(t *testing.T) {
 			},
 		},
 		{
+			name: "immutable CryptoRestrictions - update (None to FIPS)",
+			newCluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.CryptoRestrictions = api.CryptoRestrictionsFIPS
+				return c
+			}(),
+			oldCluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.CryptoRestrictions = api.CryptoRestrictionsNone
+				return c
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "field is immutable", FieldPath: "customerProperties.cryptoRestrictions"},
+			},
+		},
+		{
+			name: "immutable CryptoRestrictions - update (FIPS to None)",
+			newCluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.CryptoRestrictions = api.CryptoRestrictionsNone
+				return c
+			}(),
+			oldCluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.CryptoRestrictions = api.CryptoRestrictionsFIPS
+				return c
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "field is immutable", FieldPath: "customerProperties.cryptoRestrictions"},
+			},
+		},
+		{
+			name: "CryptoRestrictions unchanged - update (both None)",
+			newCluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.CryptoRestrictions = api.CryptoRestrictionsNone
+				return c
+			}(),
+			oldCluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.CryptoRestrictions = api.CryptoRestrictionsNone
+				return c
+			}(),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name: "CryptoRestrictions unchanged - update (both FIPS)",
+			newCluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.CryptoRestrictions = api.CryptoRestrictionsFIPS
+				return c
+			}(),
+			oldCluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.CryptoRestrictions = api.CryptoRestrictionsFIPS
+				return c
+			}(),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
 			name: "invalid new field value on update - update",
 			newCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
