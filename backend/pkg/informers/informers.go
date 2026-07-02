@@ -103,7 +103,8 @@ func NewSubscriptionInformerWithRelistDuration(lister database.GlobalLister[arm.
 		&listWatchWithoutWatchListSemantics{lw},
 		&arm.Subscription{},
 		cache.SharedIndexInformerOptions{
-			ResyncPeriod: 1 * time.Hour, // this is only a default.  Shorter resyncs can be added when registering handlers.
+			ResyncPeriod:      1 * time.Hour, // this is only a default.  Shorter resyncs can be added when registering handlers.
+			ObjectDescription: "Subscription",
 		},
 	)
 }
@@ -153,6 +154,7 @@ func NewBillingInformerWithRelistDuration(lister database.GlobalLister[database.
 			Indexers: cache.Indexers{
 				listers.BySubscription: billingDocSubscriptionIndexFunc,
 			},
+			ObjectDescription: "BillingDocument",
 		},
 	)
 }
@@ -201,6 +203,7 @@ func NewClusterInformerWithRelistDuration(lister database.GlobalLister[api.HCPOp
 			Indexers: cache.Indexers{
 				listers.ByResourceGroup: resourceGroupIndexFunc,
 			},
+			ObjectDescription: "HCPOpenShiftCluster",
 		},
 	)
 }
@@ -250,6 +253,7 @@ func NewNodePoolInformerWithRelistDuration(lister database.GlobalLister[api.HCPO
 				listers.ByResourceGroup: resourceGroupIndexFunc,
 				listers.ByCluster:       clusterResourceIDIndexFunc,
 			},
+			ObjectDescription: "HCPOpenShiftClusterNodePool",
 		},
 	)
 }
@@ -299,6 +303,7 @@ func NewExternalAuthInformerWithRelistDuration(lister database.GlobalLister[api.
 				listers.ByResourceGroup: resourceGroupIndexFunc,
 				listers.ByCluster:       clusterResourceIDIndexFunc,
 			},
+			ObjectDescription: "HCPOpenShiftClusterExternalAuth",
 		},
 	)
 }
@@ -347,6 +352,7 @@ func NewServiceProviderClusterInformerWithRelistDuration(lister database.GlobalL
 			Indexers: cache.Indexers{
 				listers.ByCluster: clusterResourceIDIndexFunc,
 			},
+			ObjectDescription: "ServiceProviderCluster",
 		},
 	)
 }
@@ -396,6 +402,7 @@ func NewManagementClusterContentInformerWithRelistDuration(lister database.Globa
 				listers.ByCluster:  clusterResourceIDIndexFunc,
 				listers.ByNodePool: nodePoolResourceIDIndexFunc,
 			},
+			ObjectDescription: "ManagementClusterContent",
 		},
 	)
 }
@@ -444,6 +451,7 @@ func NewServiceProviderNodePoolInformerWithRelistDuration(lister database.Global
 			Indexers: cache.Indexers{
 				listers.ByNodePool: nodePoolResourceIDIndexFunc,
 			},
+			ObjectDescription: "ServiceProviderNodePool",
 		},
 	)
 }
@@ -495,6 +503,7 @@ func NewControllerInformerWithRelistDuration(lister database.GlobalLister[api.Co
 				listers.ByNodePool:      nodePoolResourceIDIndexFunc,
 				listers.ByExternalAuth:  externalAuthResourceIDIndexFunc,
 			},
+			ObjectDescription: "Controller",
 		},
 	)
 }
@@ -541,7 +550,8 @@ func NewOperationInformerWithRelistDuration(lister database.GlobalLister[api.Ope
 		&listWatchWithoutWatchListSemantics{lw},
 		&api.Operation{},
 		cache.SharedIndexInformerOptions{
-			ResyncPeriod: 1 * time.Hour,
+			ResyncPeriod:      1 * time.Hour,
+			ObjectDescription: "Operation",
 		},
 	)
 }
@@ -595,6 +605,7 @@ func NewActiveOperationInformerWithRelistDuration(lister database.GlobalLister[a
 				listers.ByNodePool:      activeOperationNodePoolIndexFunc,
 				listers.ByExternalAuth:  activeOperationExternalAuthIndexFunc,
 			},
+			ObjectDescription: "ActiveOperation",
 		},
 	)
 }

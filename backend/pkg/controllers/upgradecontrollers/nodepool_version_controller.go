@@ -89,14 +89,22 @@ func NewNodePoolVersionController(
 		cincinnatiClientCache:         cincinnati.NewClientCache(),
 	}
 
+	resyncDuration := 5 * time.Minute
 	controller := controllerutils.NewNodePoolWatchingController(
 		NodepoolVersionControllerName,
 		resourcesDBClient,
 		informers,
 		kubeApplierInformers,
-		5*time.Minute, // Check for upgrades every 5 minutes
+		resyncDuration, // Check for upgrades every 5 minutes
 		syncer,
 	)
+
+	// we need to trigger on serviceProviderCluster changes because we rely on a version field there to make decisions
+	serviceProviderClusterInformer, _ := informers.ServiceProviderClusters()
+	err := controller.QueueForInformers(resyncDuration, serviceProviderClusterInformer)
+	if err != nil {
+		panic(err) // coding error
+	}
 
 	return controller
 }
@@ -110,8 +118,12 @@ func NewNodePoolVersionController(
 //
 // Both arguments must be non-nil; SyncOnce gates the cache miss before calling
 // NeedsWork.
-func (c *nodePoolVersionSyncer) NeedsWork(nodePool *api.HCPOpenShiftClusterNodePool, serviceProviderNodePool *api.ServiceProviderNodePool) bool {
+func (c *nodePoolVersionSyncer) NeedsWork(nodePool *api.HCPOpenShiftClusterNodePool, serviceProviderNodePool *api.ServiceProviderNodePool, serviceProviderCluster *api.ServiceProviderCluster) bool {
 	if len(nodePool.Properties.Version.ID) == 0 {
+		return false
+	}
+	if len(serviceProviderCluster.Status.ControlPlaneVersion.ActiveVersions) == 0 {
+		// we need this information to make validation decisions
 		return false
 	}
 	if serviceProviderNodePool.Spec.NodePoolVersion.DesiredVersion == nil {
@@ -123,7 +135,11 @@ func (c *nodePoolVersionSyncer) NeedsWork(nodePool *api.HCPOpenShiftClusterNodeP
 		// we don't suppress work just because we can't parse it here.
 		return true
 	}
-	return !customerDesiredVersion.EQ(*serviceProviderNodePool.Spec.NodePoolVersion.DesiredVersion)
+	if customerDesiredVersion.NE(*serviceProviderNodePool.Spec.NodePoolVersion.DesiredVersion) {
+		return true
+	}
+
+	return false
 }
 
 // SyncOnce validates and persists the customer's desired node pool version on
@@ -162,15 +178,6 @@ func (c *nodePoolVersionSyncer) SyncOnce(ctx context.Context, key controllerutil
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get ServiceProviderNodePool from cache: %w", err))
 	}
-	if !c.NeedsWork(cachedNodePool, cachedServiceProviderNodePool) {
-		// if the cache doesn't need work, then we'll be retriggered if those values change when the cache updates.
-		return nil
-	}
-
-	customerDesiredVersion, err := semver.Parse(cachedNodePool.Properties.Version.ID)
-	if err != nil {
-		return utils.TrackError(err)
-	}
 
 	// Pull the ServiceProviderCluster and Subscription from cache rather than
 	// re-fetching live: validation only reads them, and if either isn't yet
@@ -181,6 +188,16 @@ func (c *nodePoolVersionSyncer) SyncOnce(ctx context.Context, key controllerutil
 	}
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get ServiceProviderCluster from cache: %w", err))
+	}
+
+	if !c.NeedsWork(cachedNodePool, cachedServiceProviderNodePool, cachedServiceProviderCluster) {
+		// if the cache doesn't need work, then we'll be retriggered if those values change when the cache updates.
+		return nil
+	}
+
+	customerDesiredVersion, err := semver.Parse(cachedNodePool.Properties.Version.ID)
+	if err != nil {
+		return utils.TrackError(err)
 	}
 
 	subscription, err := c.subscriptionLister.Get(ctx, key.SubscriptionID)

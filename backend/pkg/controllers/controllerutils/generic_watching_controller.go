@@ -158,6 +158,12 @@ func (c *genericWatchingController[T]) QueueForInformers(resyncDuration time.Dur
 // It is exposed so that individual controllers can add other items to requeue based on easily.
 func (c *genericWatchingController[T]) QueueForInformersWithMaxDepth(resyncDuration time.Duration, maxDepth int, notifiers ...Notifier) error {
 	errs := []error{}
+
+	logger := utils.DefaultLogger()
+	logger = logger.WithValues(
+		utils.LogValues{}.AddControllerName(c.name)...,
+	)
+
 	for _, notifier := range notifiers {
 		_, err := notifier.AddEventHandlerWithOptions(
 			cache.ResourceEventHandlerFuncs{
@@ -165,6 +171,7 @@ func (c *genericWatchingController[T]) QueueForInformersWithMaxDepth(resyncDurat
 				UpdateFunc: c.enqueueCosmosUpdateFunc(maxDepth),
 			},
 			cache.HandlerOptions{
+				Logger:       &logger,
 				ResyncPeriod: ptr.To(resyncDuration),
 			})
 		errs = append(errs, err)
