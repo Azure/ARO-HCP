@@ -46,7 +46,11 @@ func isResponseError(err error, statusCode int) bool {
 		return false
 	}
 	var responseError *azcore.ResponseError
-	return errors.As(err, &responseError) && responseError.StatusCode == statusCode
+	if errors.As(err, &responseError) && responseError.StatusCode == statusCode {
+		return true
+	}
+	var stepError *transactionStepError
+	return errors.As(err, &stepError) && stepError.httpStatusCode == statusCode
 }
 
 // IsNotFoundError returns true if err represents an HTTP 404 Not Found response.

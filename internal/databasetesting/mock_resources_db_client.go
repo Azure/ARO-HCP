@@ -17,12 +17,14 @@ package databasetesting
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
@@ -319,9 +321,13 @@ func (t *mockTransaction) Execute(ctx context.Context, o *azcosmos.Transactional
 	}
 
 	// Execute all steps
-	for _, step := range t.steps {
-		cosmosID, data, err := step.execute()
+	for step, s := range t.steps {
+		cosmosID, data, err := s.execute()
 		if err != nil {
+			var responseErr *azcore.ResponseError
+			if errors.As(err, &responseErr) {
+				return nil, database.NewTransactionStepError(step+1, len(t.steps), responseErr.StatusCode)
+			}
 			return nil, err
 		}
 		if data != nil {
