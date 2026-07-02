@@ -129,7 +129,8 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create Kubernetes client from admin REST config")
 
 			if !hasAZ {
-				By("skipping AZ nodepool creation: region does not support availability zones")
+				By("skipping AZ nodepool creation: no usable availability zones for worker VM size " +
+					workerVMSize + " in " + tc.Location())
 			} else {
 				By("creating the AZ nodepool with 500 max replicas in availability zone " + availabilityZone)
 				azNodePoolParams := framework.NewDefaultNodePoolParams20240610()
