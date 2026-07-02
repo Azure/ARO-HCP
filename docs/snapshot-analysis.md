@@ -16,7 +16,10 @@ The workflow has two steps:
 - GitHub Copilot CLI [installed](https://docs.github.com/en/copilot/how-tos/copilot-cli/set-up-copilot-cli/install-copilot-cli)
   and authenticated (`gh auth login`) — needed for the analysis agent.
 - Local git checkouts of the four repositories at the commits that were deployed
-  when the test ran: ARO-HCP, HyperShift, Maestro, and Clusters Service.
+  when the test ran: ARO-HCP (this repository),
+  [HyperShift](https://github.com/openshift/hypershift),
+  [Maestro](https://github.com/openshift-online/maestro),
+  and [Clusters Service](https://github.com/openshift-online/aro-hcp-clusters-service).
 
 ## Step 1: Gather
 
