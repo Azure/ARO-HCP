@@ -296,29 +296,7 @@ tests:
   - eval_time: 70m
     alertname: ClustersServiceAPILatency6hto3dP99ErrorBudgetBurn
     # Should not fire - no requests are slow
-# Test 10: P90 Latency - Normal operation (no latency issues, no alert should fire)
-- interval: 1m
-  input_series:
-  - series: 'api_inbound_request_count{cluster="test-cluster", namespace="clusters-service", service="clusters-service-metrics", code="200"}'
-    # 1000 successful requests per minute
-    values: "1000+1000x80"
-  - series: 'api_inbound_request_duration_bucket{cluster="test-cluster", namespace="clusters-service", service="clusters-service-metrics", le="0.1", code="200"}'
-    # 1000 requests under 0.1s (100% - perfect P90 performance)
-    values: "1000+1000x80"
-  - series: 'api_inbound_request_duration_bucket{cluster="test-cluster", namespace="clusters-service", service="clusters-service-metrics", le="1", code="200"}'
-    # All requests under 1s
-    values: "1000+1000x80"
-  - series: 'api_inbound_request_duration_bucket{cluster="test-cluster", namespace="clusters-service", service="clusters-service-metrics", le="+Inf", code="200"}'
-    # All requests
-    values: "1000+1000x80"
-  alert_rule_test:
-  - eval_time: 70m
-    alertname: ClustersServiceAPILatency5mto1hor30mto6hP90ErrorBudgetBurn
-    # Should not fire - no requests are slow
-  - eval_time: 70m
-    alertname: ClustersServiceAPILatency6hto3dP90ErrorBudgetBurn
-    # Should not fire - no requests are slow
-# Test 11: P99 Latency - Critical burn rate triggering alert
+# Test 10: P99 Latency - Critical burn rate triggering alert
 # This test simulates a latency degradation where only 80% of requests complete within 1s.
 # P99 SLO: 99% of requests should complete within 1s, but we only have 80%.
 # Latency error rate: (1 - 80%) = 20% of requests violate the 1s threshold
@@ -354,38 +332,7 @@ tests:
         description: "API is rapidly burning its 28 day 1s latency error budget (99% SLO)"
         runbook_url: "aka.ms/arohcp-runbook/cs-slo-monitoring"
         summary: "Cluster Service API P99 latency error budget burn rate is too high"
-# Test 12: P90 Latency - Critical burn rate triggering alert
-- interval: 1m
-  input_series:
-  - series: 'api_inbound_request_count{cluster="test-cluster", namespace="clusters-service", service="clusters-service-metrics", code="200"}'
-    # 1000 requests per minute
-    values: "1000+1000x80"
-  - series: 'api_inbound_request_duration_bucket{cluster="test-cluster", namespace="clusters-service", service="clusters-service-metrics", le="0.1", code="200"}'
-    # 200 under 0.1s (20% - severely violating P90 SLO)
-    values: "200+200x80"
-  - series: 'api_inbound_request_duration_bucket{cluster="test-cluster", namespace="clusters-service", service="clusters-service-metrics", le="1", code="200"}'
-    # 950 under 1s
-    values: "950+950x80"
-  - series: 'api_inbound_request_duration_bucket{cluster="test-cluster", namespace="clusters-service", service="clusters-service-metrics", le="+Inf", code="200"}'
-    # All requests
-    values: "1000+1000x80"
-  alert_rule_test:
-  - eval_time: 70m
-    alertname: ClustersServiceAPILatency5mto1hor30mto6hP90ErrorBudgetBurn
-    exp_alerts:
-    - exp_labels:
-        cluster: "test-cluster"
-        namespace: "clusters-service"
-        service: "clusters-service-metrics"
-        long: "6h"
-        severity: "warning"
-        short: "30m"
-        slo: "api-latency-p90"
-      exp_annotations:
-        description: "API is rapidly burning its 28 day 0.1s latency error budget (90% SLO)"
-        runbook_url: "aka.ms/arohcp-runbook/cs-slo-monitoring"
-        summary: "Cluster Service API P90 latency error budget burn rate is too high"
-# Test 13: P99 Latency - Slow burn rate triggering warning alert
+# Test 11: P99 Latency - Slow burn rate triggering warning alert
 - interval: 1m
   input_series:
   - series: 'api_inbound_request_count{cluster="test-cluster", namespace="clusters-service", service="clusters-service-metrics", code="200"}'
@@ -412,34 +359,5 @@ tests:
         slo: "api-latency-p99"
       exp_annotations:
         summary: "API is slowly but steadily burning its 28 day 1s latency error budget (99% SLO)"
-        description: "This indicates persistent underperformance that needs investigation to avoid an SLO breach. The alert will fire if the current burn rate exceeds 0.934 times the allowed rate for the last 6 hours and 3 days."
-        runbook_url: "aka.ms/arohcp-runbook/cs-slo-monitoring"
-# Test 14: P90 Latency - Slow burn rate triggering warning alert
-- interval: 1m
-  input_series:
-  - series: 'api_inbound_request_count{cluster="test-cluster", namespace="clusters-service", service="clusters-service-metrics", code="200"}'
-    # 1000 requests per minute for consistent data over 3 days
-    values: "1000+1000x4320" # 3 days worth of data
-  - series: 'api_inbound_request_duration_bucket{cluster="test-cluster", namespace="clusters-service", service="clusters-service-metrics", le="0.1", code="200"}'
-    # 800 under 0.1s (80% - persistent P90 violation)
-    values: "800+800x4320"
-  - series: 'api_inbound_request_duration_bucket{cluster="test-cluster", namespace="clusters-service", service="clusters-service-metrics", le="1", code="200"}'
-    # 990 under 1s
-    values: "990+990x4320"
-  - series: 'api_inbound_request_duration_bucket{cluster="test-cluster", namespace="clusters-service", service="clusters-service-metrics", le="+Inf", code="200"}'
-    # All requests
-    values: "1000+1000x4320"
-  alert_rule_test:
-  - eval_time: 4400m # After 3 days + buffer
-    alertname: ClustersServiceAPILatency6hto3dP90ErrorBudgetBurn
-    exp_alerts:
-    - exp_labels:
-        cluster: "test-cluster"
-        namespace: "clusters-service"
-        service: "clusters-service-metrics"
-        severity: "warning"
-        slo: "api-latency-p90"
-      exp_annotations:
-        summary: "API is slowly but steadily burning its 28 day 0.1s latency error budget (90% SLO)"
         description: "This indicates persistent underperformance that needs investigation to avoid an SLO breach. The alert will fire if the current burn rate exceeds 0.934 times the allowed rate for the last 6 hours and 3 days."
         runbook_url: "aka.ms/arohcp-runbook/cs-slo-monitoring"
