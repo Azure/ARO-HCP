@@ -667,6 +667,13 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		backendInformers,
 		unionKubeApplierInformers,
 	)
+	acrPullMIPermissionValidationController := validationcontrollers.NewClusterValidationController(
+		validations.NewAcrPullManagedIdentityPermissionValidation(b.options.SMIClientBuilder, b.options.CheckAccessV2ClientBuilder),
+		activeOperationLister,
+		b.options.ResourcesDBClient,
+		backendInformers,
+		unionKubeApplierInformers,
+	)
 	nodePoolVersionController := upgradecontrollers.NewNodePoolVersionController(
 		b.options.ResourcesDBClient,
 		activeOperationLister,
@@ -842,6 +849,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go azureRPRegistrationValidationController.Run(ctx, 20)
 				go azureClusterResourceGroupExistenceValidationController.Run(ctx, 20)
 				go azureClusterManagedIdentitiesExistenceValidationController.Run(ctx, 20)
+				go acrPullMIPermissionValidationController.Run(ctx, 20)
 				go nodePoolVersionController.Run(ctx, 20)
 				go nodePoolActiveVersionController.Run(ctx, 20)
 				go createClusterScopedReadDesiresController.Run(ctx, 20)
