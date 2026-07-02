@@ -21,20 +21,18 @@ environments:
       slot_count: 6
       identity_container_prefix: aro-hcp-msi-container-dev-shard1
       identity_container_count: 50
-    # shard2: capacity is still limited to 4000 role assignments.
     - subscription_name: "ARO HCP E2E Hosted Clusters - Dev - 02"
       region: westus3
       region_mode: runtime-selected
       resource_type: aro-hcp-dev-shard2-slot
-      slot_count: 3
+      slot_count: 6
       identity_container_prefix: aro-hcp-msi-container-dev-shard2
       identity_container_count: 50
-    # shard3: capacity is still limited to 4000 role assignments.
     - subscription_name: "ARO HCP E2E Hosted Clusters - Dev - 03"
       region: westus3
       region_mode: runtime-selected
       resource_type: aro-hcp-dev-shard3-slot
-      slot_count: 3
+      slot_count: 6
       identity_container_prefix: aro-hcp-msi-container-dev-shard3
       identity_container_count: 50
     - subscription_name: "Hypershift Managed Azure"
