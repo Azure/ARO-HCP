@@ -216,6 +216,18 @@ func setupCli() *cobra.Command {
 		TestTimeout: &rpApiCompatTestTimeout,
 	})
 
+	// upgrade/in-place runs the full end-to-end in-place HypershiftOperator upgrade in a single
+	// spec: provision cluster+nodepool, capture baseline node hash, run make pipeline/RP.HypershiftOperator
+	upgradeInPlaceTimeout := 120 * time.Minute
+	ext.AddSuite(e.Suite{
+		Name: "upgrade/in-place",
+		Qualifiers: []string{
+			fmt.Sprintf(`labels.exists(l, l=="%s")`, labels.UpgradeInPlace[0]),
+		},
+		Parallelism: 1,
+		TestTimeout: &upgradeInPlaceTimeout,
+	})
+
 	// If using Ginkgo, build test specs automatically
 	specs, err := g.BuildExtensionTestSpecsFromOpenShiftGinkgoSuite()
 	if err != nil {
