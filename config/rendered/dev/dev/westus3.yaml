@@ -252,9 +252,11 @@ ev2:
       name: ""
     dstsHost: usnorth-dsts.dsts.core.windows.net
 firstPartyAppCertificate:
+  contentType: x-pkcs12
   issuer: Self
-  manage: false
+  manage: Disabled
   name: firstPartyCert2
+  san: firstPartyCert2.hcpsvc.osadev.cloud
 firstPartyAppClientId: b3cb2fab-15cb-4583-ad06-f91da9bfe2d1
 fleet:
   image:
@@ -321,9 +323,11 @@ geneva:
       name: arohcp-ga-dev
       useSNI: false
     certificate:
+      contentType: x-pkcs12
       issuer: Self
-      manage: true
+      manage: Enabled
       name: genevaAction
+      san: genevaAction.hcp-global.osadev.cloud
     endpointName: westus3
     endpointUrl: ""
     genevaActionsPrincipalId: ""
@@ -344,6 +348,7 @@ geneva:
     targetRegion: West US 3
   logs:
     adminCertName: geneva-logs-admin
+    adminCertSan: geneva-logs-admin.geneva.keyvault.aro-hcp-global.azure.com
     adminCertificateDomain: geneva.keyvault.aro-hcp-global.azure.com
     administrators:
       alias:
@@ -357,8 +362,9 @@ geneva:
       namespace: ""
       san: ""
       secretName: clusterlogs
+    contentType: x-pkcs12
     environment: Test
-    manageCertificates: true
+    manage: Enabled
     rp:
       accountName: placeholder
       configVersion: "1"

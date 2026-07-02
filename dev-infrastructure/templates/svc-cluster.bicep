@@ -332,15 +332,6 @@ param backendNamespace string
 @description('The service account name of the backend managed identity')
 param backendServiceAccountName string
 
-@description('The name of the FPA certificate in the SVC keyvault')
-param fpaCertificateName string
-
-@description('The issuer of the FPA certificate')
-param fpaCertificateIssuer string
-
-@description('Whether to create the FPA certificate in the SVC keyvault')
-param manageFpaCertificate bool
-
 @description('The service tag for Geneva Actions')
 param genevaActionsServiceTag string
 
@@ -387,17 +378,8 @@ param svcNSPAccessMode string
 @description('Access mode for this NSP')
 param serviceKeyVaultAsignNSP bool = true
 
-@description('Domain used for creation of geneva auth certificates')
-param genevaCertificateDomain string
-
-@description('Issuer of certificate for Geneva Authentication')
-param genevaCertificateIssuer string = 'Self'
-
 @description('Name of certificate in Keyvault and hostname used in SAN')
 param genevaRpLogsName string
-
-@description('Should geneva certificates be managed')
-param genevaManageCertificates bool
 
 @description('The name of the Admin API managed identity')
 param adminApiMIName string
@@ -1073,41 +1055,17 @@ module sessiongateDNS '../modules/dns/a-record.bicep' = {
 }
 
 //
-//   F P A   C E R T I F I C A T E
+//   G E N E V A   C E R T I F I C A T E   A C C E S S
 //
 
-var fpaCertificateSNI = '${fpaCertificateName}.${svcDNSZoneName}'
-
-module fpaCertificate '../modules/keyvault/key-vault-cert.bicep' = if (manageFpaCertificate) {
-  name: 'fpa-certificate-${uniqueString(resourceGroup().name)}'
+module genevaRpLogsCertCSIAccess '../modules/keyvault/keyvault-secret-access.bicep' = {
+  name: 'geneva-crt-access-${uniqueString(resourceGroup().name)}'
   scope: resourceGroup(serviceKeyVaultSubscription, serviceKeyVaultResourceGroup)
   params: {
     keyVaultName: serviceKeyVaultName
-    subjectName: 'CN=${fpaCertificateSNI}'
-    certName: fpaCertificateName
-    keyVaultManagedIdentityId: globalMSIId
-    dnsNames: [
-      fpaCertificateSNI
-    ]
-    issuerName: fpaCertificateIssuer
-  }
-}
-
-//
-//   G E N E V A   C E R T I F I C A T E
-//
-
-module genevaRPCertificate '../modules/keyvault/key-vault-cert-with-access.bicep' = if (genevaManageCertificates) {
-  name: 'geneva-rp-certificate-${uniqueString(resourceGroup().name)}'
-  scope: resourceGroup(serviceKeyVaultSubscription, serviceKeyVaultResourceGroup)
-  params: {
-    keyVaultName: serviceKeyVaultName
-    kvCertOfficerManagedIdentityResourceId: globalMSIId
-    certDomain: genevaCertificateDomain
-    certificateIssuer: genevaCertificateIssuer
-    hostName: genevaRpLogsName
-    keyVaultCertificateName: genevaRpLogsName
-    certificateAccessManagedIdentityPrincipalId: svcCluster.outputs.aksClusterKeyVaultSecretsProviderPrincipalId
+    roleName: 'Key Vault Secrets User'
+    managedIdentityPrincipalIds: [svcCluster.outputs.aksClusterKeyVaultSecretsProviderPrincipalId]
+    secretName: genevaRpLogsName
   }
 }
 

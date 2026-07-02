@@ -685,6 +685,13 @@
         "OneCertV2-PrivateCA"
       ]
     },
+    "certificateManage": {
+      "type": "string",
+      "enum": [
+        "Enabled",
+        "Disabled"
+      ]
+    },
     "clusterScopedIdentitiesConfig": {
       "type": "object",
       "properties": {
@@ -1234,14 +1241,22 @@
         "issuer": {
           "$ref": "#/definitions/certificateIssuer"
         },
+        "san": {
+          "type": "string"
+        },
+        "contentType": {
+          "type": "string"
+        },
         "manage": {
-          "type": "boolean"
+          "$ref": "#/definitions/certificateManage"
         }
       },
       "additionalProperties": false,
       "required": [
         "name",
         "issuer",
+        "san",
+        "contentType",
         "manage"
       ]
     },
@@ -1829,6 +1844,15 @@
             "adminCertificateDomain": {
               "type": "string"
             },
+            "adminCertSan": {
+              "type": "string"
+            },
+            "contentType": {
+              "type": "string"
+            },
+            "manage": {
+              "$ref": "#/definitions/certificateManage"
+            },
             "administrators": {
               "type": "object",
               "additionalProperties": false,
@@ -1844,9 +1868,6 @@
                 "alias",
                 "securityGroup"
               ]
-            },
-            "manageCertificates": {
-              "type": "boolean"
             },
             "certificateIssuer": {
               "$ref": "#/definitions/certificateIssuer"
@@ -1933,14 +1954,22 @@
                 "issuer": {
                   "$ref": "#/definitions/certificateIssuer"
                 },
+                "san": {
+                  "type": "string"
+                },
+                "contentType": {
+                  "type": "string"
+                },
                 "manage": {
-                  "type": "boolean"
+                  "$ref": "#/definitions/certificateManage"
                 }
               },
               "additionalProperties": false,
               "required": [
                 "name",
                 "issuer",
+                "san",
+                "contentType",
                 "manage"
               ]
             },
@@ -3547,6 +3576,18 @@
     {
       "rule": "self.maestro.agent.certSAN == self.maestro.agent.consumerName + '.maestro.' + self.dns.regionalSubdomain + '.' + self.dns.svcParentZoneName",
       "message": "maestro.agent.certSAN must equal consumerName + '.maestro.' + dns.regionalSubdomain + '.' + dns.svcParentZoneName"
+    },
+    {
+      "rule": "self.firstPartyAppCertificate.san == self.firstPartyAppCertificate.name + '.' + self.dns.svcParentZoneName",
+      "message": "firstPartyAppCertificate.san must equal firstPartyAppCertificate.name + '.' + dns.svcParentZoneName"
+    },
+    {
+      "rule": "self.geneva.actions.certificate.san == self.geneva.actions.certificate.name + '.' + self.dns.globalCertificatesDomain",
+      "message": "geneva.actions.certificate.san must equal geneva.actions.certificate.name + '.' + dns.globalCertificatesDomain"
+    },
+    {
+      "rule": "self.geneva.logs.adminCertSan == self.geneva.logs.adminCertName + '.' + self.geneva.logs.adminCertificateDomain",
+      "message": "geneva.logs.adminCertSan must equal geneva.logs.adminCertName + '.' + geneva.logs.adminCertificateDomain"
     }
   ]
 }
