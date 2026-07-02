@@ -577,7 +577,7 @@ module eventGrindPrivateEndpoint '../modules/private-endpoint.bicep' = if (maest
 var rpCosmosDbAccountRef = res.cosmosDBAccountRefFromId(rpCosmosDbAccountId)
 
 module kubeApplierCosmos '../modules/rp-cosmos-kube-applier.bicep' = if (rpCosmosDbAccountId != '') {
-  name: 'kube-applier-cosmos'
+  name: 'kube-applier-cosmos-${uniqueString(resourceGroup().name)}'
   scope: resourceGroup(rpCosmosDbAccountRef.resourceGroup.subscriptionId, rpCosmosDbAccountRef.resourceGroup.name)
   params: {
     cosmosDBAccountName: rpCosmosDbAccountRef.name
