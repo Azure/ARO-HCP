@@ -1618,8 +1618,8 @@ This may indicate that finalizers are stuck or resources are failing to cleanup.
 This may indicate that finalizers are stuck or resources are failing to cleanup.
 '''
           runbook_url: 'TBD'
-          summary: '{{ $labels.cluster }}: Cluster stuck deleting'
-          title: '{{ $labels.cluster }}: Cluster stuck deleting'
+          summary: '{{ $labels.cluster }}: Cluster {{ $labels.resource_id }} stuck deleting'
+          title: '{{ $labels.cluster }}: Cluster {{ $labels.resource_id }} stuck deleting'
         }
         expression: '(max by (resource_id, subscription_id, cluster) (time() - backend_resource_operation_start_time_seconds{operation_type="delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) and max by (resource_id, subscription_id, cluster) (backend_resource_operation_phase_info{operation_type="delete",phase="deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) == 1) > 7200'
         for: 'PT5M'
