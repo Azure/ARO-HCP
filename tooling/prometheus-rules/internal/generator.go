@@ -63,6 +63,7 @@ type GroupAlerts struct {
 
 type Options struct {
 	promtoolPath            string
+	skipTests               bool
 	outputBicep             string
 	includedAlerts          map[string][]string
 	namespaceFilters        map[string][]string
@@ -112,11 +113,9 @@ func readRulesFile(filename string) (*monitoringv1.PrometheusRule, error) {
 	return &rules, nil
 }
 
-func (o *Options) Complete(configFilePath string, promtoolPath string) error {
-	if promtoolPath == "" {
-		return fmt.Errorf("promtoolPath cannot be an empty string")
-	}
+func (o *Options) Complete(configFilePath string, promtoolPath string, skipTests bool) error {
 	o.promtoolPath = promtoolPath
+	o.skipTests = skipTests
 
 	o.ruleFiles = make([]alertingRuleFile, 0)
 

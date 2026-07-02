@@ -12,9 +12,9 @@ alerts: verify-no-prom-alerts-in-bicep
 	EXTRA_FLAGS=$(GENERATOR_FLAGS) make -C ../tooling/prometheus-rules alerts
 .PHONY: alerts
 
-recording-rules:
-	EXTRA_FLAGS=$(GENERATOR_FLAGS) make -C ../tooling/prometheus-rules recording-rules
-.PHONY: recording-rules
+alerts-and-test: verify-no-prom-alerts-in-bicep
+	EXTRA_FLAGS=$(GENERATOR_FLAGS) make -C ../tooling/prometheus-rules alerts-and-test
+.PHONY: alerts-and-test
 
 verify:
 	go run ../tooling/grafanactl/main.go verify dashboards --config-file observability.yaml

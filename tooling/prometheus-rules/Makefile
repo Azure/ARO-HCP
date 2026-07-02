@@ -20,45 +20,28 @@ fmt-devinfra:
 	$(MAKE) -C ../../dev-infrastructure fmt
 .PHONY: fmt-devinfra
 
-run: alerts recording-rules
-.PHONY: run
+CONFIGS = alerts-sl-services alerts-sl-hcps alerts-sre-hcps alerts-sre-services alerts-rp-services alerts-msft-services recording-rules-services recording-rules-hcps
 
-alerts: run-sl-services run-sl-hcps run-sre-hcps run-sre-services run-rp-services run-msft-services
+alerts: $(BINARY)
+	@set -e; for cfg in $(CONFIGS); do \
+		./$(BINARY) --skip-tests --config-file ../../observability/$${cfg}.yaml $(EXTRA_FLAGS); \
+	done
 	$(MAKE) fmt-devinfra
 .PHONY: alerts
 
-recording-rules: run-recording-rules-services run-recording-rules-hcps
+alerts-and-test: $(BINARY)
+	@set -e; for cfg in $(CONFIGS); do \
+		./$(BINARY) --config-file ../../observability/$${cfg}.yaml $(EXTRA_FLAGS); \
+	done
 	$(MAKE) fmt-devinfra
-.PHONY: recording-rules
+.PHONY: alerts-and-test
 
-run-sl-services:
-	go run ./...  --config-file ../../observability/alerts-sl-services.yaml $(EXTRA_FLAGS)
-.PHONY: run-sl-services
+run: alerts
+.PHONY: run
 
-run-sl-hcps:
-	go run ./...  --config-file ../../observability/alerts-sl-hcps.yaml $(EXTRA_FLAGS)
-.PHONY: run-sl-hcps
+RUN_TARGETS = $(addprefix run-,$(CONFIGS))
 
-run-sre-hcps:
-	go run ./...  --config-file ../../observability/alerts-sre-hcps.yaml $(EXTRA_FLAGS)
-.PHONY: run-sre-hcps
+$(RUN_TARGETS): run-%: $(BINARY)
+	./$(BINARY) --config-file ../../observability/$*.yaml $(EXTRA_FLAGS)
 
-run-sre-services:
-	go run ./...  --config-file ../../observability/alerts-sre-services.yaml $(EXTRA_FLAGS)
-.PHONY: run-sre-services
-
-run-rp-services:
-	go run ./...  --config-file ../../observability/alerts-rp-services.yaml $(EXTRA_FLAGS)
-.PHONY: run-rp-services
-
-run-msft-services:
-	go run ./...  --config-file ../../observability/alerts-msft-services.yaml $(EXTRA_FLAGS)
-.PHONY: run-msft-services
-
-run-recording-rules-services:
-	go run ./...  --config-file ../../observability/recording-rules-services.yaml $(EXTRA_FLAGS)
-.PHONY: run-recording-rules-services
-
-run-recording-rules-hcps:
-	go run ./...  --config-file ../../observability/recording-rules-hcps.yaml $(EXTRA_FLAGS)
-.PHONY: run-recording-rules-hcps
+.PHONY: $(RUN_TARGETS)
