@@ -13,7 +13,7 @@ spec:
   - name: leaderelection
     rules:
     - alert: LeaderElectionLeaseStale
-      # Fires when a leader election lease has not been renewed for >5m; excludes standard k8s system namespaces (kube-node-lease has node heartbeat leases that are not leader election).
+      # Fires when a leader election lease has not been renewed for >15m; excludes standard k8s system namespaces (kube-node-lease has node heartbeat leases that are not leader election).
       expr: |
         time() - max without(prometheus_replica) (
           kube_lease_renew_time{namespace!~"kube-system|kube-public|kube-node-lease|default", lease!~"cluster-storage-operator-lock|controller-leader-election-capz|csi-snapshot-controller-operator-lock|hosted-cluster-config-operator-leader-elect|.*package-operator-lock"}
@@ -22,7 +22,7 @@ spec:
       labels:
         severity: warning
       annotations:
-        description: 'Leader election lease {{ $labels.lease }} in namespace {{ $labels.namespace }} on cluster {{ $labels.cluster }} has not been renewed for more than 5 minutes. The component may have lost leadership or stopped running.'
+        description: 'Leader election lease {{ $labels.lease }} in namespace {{ $labels.namespace }} on cluster {{ $labels.cluster }} has not been renewed for more than 15 minutes. The component may have lost leadership or stopped running.'
         runbook_url: 'TBD'
-        summary: 'Leader election lease {{ $labels.lease }} in {{ $labels.namespace }} on {{ $labels.cluster }} stale for more than 5 minutes'
-        title: 'Leader election lease {{ $labels.lease }} in {{ $labels.namespace }} on {{ $labels.cluster }} stale for more than 5 minutes'
+        summary: 'Leader election lease {{ $labels.lease }} in {{ $labels.namespace }} on {{ $labels.cluster }} stale for more than 15 minutes'
+        title: 'Leader election lease {{ $labels.lease }} in {{ $labels.namespace }} on {{ $labels.cluster }} stale for more than 15 minutes'
