@@ -8,14 +8,14 @@ import "time"
 
 // APIProfile - Information about the API of a cluster.
 type APIProfile struct {
-	// The internet visibility of the OpenShift API server
-	Visibility *Visibility
-
 	// READ-ONLY; URL endpoint for the API server
 	URL *string
 
 	// The list of authorized IPv4 CIDR blocks allowed to access the API server. Maximum 500 entries.
 	AuthorizedCIDRs []*string
+
+	// The internet visibility of the OpenShift API server
+	Visibility *Visibility
 }
 
 // AzureResourceManagerCommonTypesManagedServiceIdentityUpdate - Managed service identity (system assigned and/or user assigned
@@ -380,6 +380,9 @@ type HcpOpenShiftClusterProperties struct {
 	// WARNING: Updating this array will redeploy all node pools in the cluster.
 	ImageDigestMirrors []*ImageDigestMirror
 
+	// The cluster ingress configuration
+	Ingress *IngressProfile
+
 	// Cluster network configuration
 	Network *NetworkProfile
 
@@ -557,6 +560,12 @@ type ImageDigestMirror struct {
 	// * [*.]host
 	// for more information about the format, see: https://github.com/containers/image/blob/main/docs/containers-registries.conf.5.md#choosing-a-registry-toml-table
 	Source *string
+}
+
+// IngressProfile - Information about the Ingress of a cluster.
+type IngressProfile struct {
+	// The type of the default cluster ingress.
+	Type *IngressType
 }
 
 // KmsEncryptionProfile - Configure etcd encryption Key Management Service (KMS) key. Your Microsoft Entra application used
