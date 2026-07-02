@@ -770,7 +770,7 @@ mise:
 monitoring:
   alertRuleOwningTeamTag: ""
   alertSeverityCeiling: 0
-  alertsEnabled: false
+  alertsEnabled: true
   crossTenantSecurityGroup: ""
   grafanaMajorVersion: "11"
   grafanaName: arohcp-dev
