@@ -131,8 +131,8 @@ var _ = Describe("Customer", func() {
 
 			By("verifying nodes count and ready status")
 			totalNodeCount := mainNodeCount + oneNodeCount
-			Expect(verifiers.VerifyNodeCount(customerClusterName, totalNodeCount).Verify(ctx, adminRESTConfig)).To(Succeed(), "failed to verify initial node count of %d", totalNodeCount)
-			Expect(verifiers.VerifyNodesReady().Verify(ctx, adminRESTConfig)).To(Succeed(), "failed to verify all nodes are ready after initial creation")
+			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig, verifiers.VerifyNodeCount(customerClusterName, totalNodeCount), verifiers.VerifyNodesReady())
+			Expect(err).NotTo(HaveOccurred(), "failed to verify node count of %d and ready status after initial creation", totalNodeCount)
 
 			By("scaling up the nodepool replicas from 2 to 3 replicas")
 			mainNodeCount = 3
@@ -156,8 +156,8 @@ var _ = Describe("Customer", func() {
 
 			By("verifying nodes count and ready status")
 			totalNodeCount = mainNodeCount + oneNodeCount
-			Expect(verifiers.VerifyNodeCount(customerClusterName, totalNodeCount).Verify(ctx, adminRESTConfig)).To(Succeed(), "failed to verify node count of %d after scale up", totalNodeCount)
-			Expect(verifiers.VerifyNodesReady().Verify(ctx, adminRESTConfig)).To(Succeed(), "failed to verify all nodes are ready after scale up")
+			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig, verifiers.VerifyNodeCount(customerClusterName, totalNodeCount), verifiers.VerifyNodesReady())
+			Expect(err).NotTo(HaveOccurred(), "failed to verify node count of %d and ready status after scale up", totalNodeCount)
 
 			nodePoolsClient := tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient()
 
@@ -183,8 +183,8 @@ var _ = Describe("Customer", func() {
 
 			By("verifying nodes count and ready status")
 			totalNodeCount = mainNodeCount + oneNodeCount
-			Expect(verifiers.VerifyNodeCount(customerClusterName, totalNodeCount).Verify(ctx, adminRESTConfig)).To(Succeed(), "failed to verify node count of %d after scale down", totalNodeCount)
-			Expect(verifiers.VerifyNodesReady().Verify(ctx, adminRESTConfig)).To(Succeed(), "failed to verify all nodes are ready after scale down")
+			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig, verifiers.VerifyNodeCount(customerClusterName, totalNodeCount), verifiers.VerifyNodesReady())
+			Expect(err).NotTo(HaveOccurred(), "failed to verify node count of %d and ready status after scale down", totalNodeCount)
 
 			By("updating the one-replica nodepool replicas to 0 and enabling autoscaling with a PATCH")
 			update = hcpsdk20240610preview.NodePoolUpdate{
@@ -215,7 +215,7 @@ var _ = Describe("Customer", func() {
 			By("verifying nodes count and ready status")
 			oneNodeCount = 2
 			totalNodeCount = mainNodeCount + oneNodeCount
-			Expect(verifiers.VerifyNodeCount(customerClusterName, totalNodeCount).Verify(ctx, adminRESTConfig)).To(Succeed(), "failed to verify node count of %d after enabling autoscaling", totalNodeCount)
-			Expect(verifiers.VerifyNodesReady().Verify(ctx, adminRESTConfig)).To(Succeed(), "failed to verify all nodes are ready after enabling autoscaling")
+			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig, verifiers.VerifyNodeCount(customerClusterName, totalNodeCount), verifiers.VerifyNodesReady())
+			Expect(err).NotTo(HaveOccurred(), "failed to verify node count of %d and ready status after enabling autoscaling", totalNodeCount)
 		})
 })
