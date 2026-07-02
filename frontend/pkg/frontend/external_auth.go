@@ -471,21 +471,7 @@ func (f *Frontend) updateExternalAuthInCosmos(ctx context.Context, writer http.R
 		return utils.TrackError(err)
 	}
 
-	// Temporary check until creation and update interaction with CS is moved to the backend: If an update arrives after the externalauth
-	// has been created in Cosmos but before it exists in CS, or before its ClusterServiceID has been persisted in Cosmos, return an error.
-	if oldInternalExternalAuth.ServiceProviderProperties.ClusterServiceID == nil || len(oldInternalExternalAuth.ServiceProviderProperties.ClusterServiceID.String()) == 0 {
-		return utils.TrackError(fmt.Errorf("serviceProviderProperties.clusterServiceID is required to update an external auth"))
-	}
-
-	csExternalAuthBuilder, err := ocm.BuildCSExternalAuth(ctx, newInternalExternalAuth, true)
-	if err != nil {
-		return utils.TrackError(err)
-	}
 	logger.Info(fmt.Sprintf("updating resource %s", oldInternalExternalAuth.ID))
-	_, err = f.clusterServiceClient.UpdateExternalAuth(ctx, *oldInternalExternalAuth.ServiceProviderProperties.ClusterServiceID, csExternalAuthBuilder)
-	if err != nil {
-		return utils.TrackError(err)
-	}
 
 	transaction := f.resourcesDBClient.NewTransaction(oldInternalExternalAuth.ID.SubscriptionID)
 

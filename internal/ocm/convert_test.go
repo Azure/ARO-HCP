@@ -626,7 +626,7 @@ func getBaseCSClusterBuilder(updating bool) *arohcpv1alpha1.ClusterBuilder {
 		Properties(map[string]string{}).
 		API(clusterAPIBuilder.CIDRBlockAccess(arohcpv1alpha1.NewCIDRBlockAccess().
 			Allow(arohcpv1alpha1.NewCIDRBlockAllowAccess().
-				Mode(csCIDRBlockAllowAccessModeAllowAll)))).
+				Mode(CSCIDRBlockAllowAccessModeAllowAll)))).
 		RegistryConfig(arohcpv1alpha1.NewClusterRegistryConfig().ImageDigestMirrors())
 }
 
@@ -674,7 +674,7 @@ func TestBuildCSCluster(t *testing.T) {
 					Listening(arohcpv1alpha1.ListeningMethodInternal).
 					CIDRBlockAccess(arohcpv1alpha1.NewCIDRBlockAccess().
 						Allow(arohcpv1alpha1.NewCIDRBlockAllowAccess().
-							Mode(csCIDRBlockAllowAccessModeAllowList).
+							Mode(CSCIDRBlockAllowAccessModeAllowList).
 							Values("10.0.0.0/8", "192.168.0.0/16")))),
 		},
 		{
@@ -745,7 +745,7 @@ func TestBuildCSCluster(t *testing.T) {
 				API(arohcpv1alpha1.NewClusterAPI().
 					CIDRBlockAccess(arohcpv1alpha1.NewCIDRBlockAccess().
 						Allow(arohcpv1alpha1.NewCIDRBlockAllowAccess().
-							Mode(csCIDRBlockAllowAccessModeAllowList).
+							Mode(CSCIDRBlockAllowAccessModeAllowList).
 							Values("172.16.0.0/12", "203.0.113.0/24")))),
 		},
 		{
@@ -1017,7 +1017,7 @@ func TestBuildCSCluster(t *testing.T) {
 					Listening(arohcpv1alpha1.ListeningMethodExternal).
 					CIDRBlockAccess(arohcpv1alpha1.NewCIDRBlockAccess().
 						Allow(arohcpv1alpha1.NewCIDRBlockAllowAccess().
-							Mode(csCIDRBlockAllowAccessModeAllowAll)))).
+							Mode(CSCIDRBlockAllowAccessModeAllowAll)))).
 				Ingresses(arohcpv1alpha1.NewIngressList().Items(
 					arohcpv1alpha1.NewIngress().Default(true).Listening(arohcpv1alpha1.ListeningMethodExternal),
 				)).
@@ -1087,7 +1087,7 @@ func TestBuildCSCluster(t *testing.T) {
 					Listening(arohcpv1alpha1.ListeningMethodExternal).
 					CIDRBlockAccess(arohcpv1alpha1.NewCIDRBlockAccess().
 						Allow(arohcpv1alpha1.NewCIDRBlockAllowAccess().
-							Mode(csCIDRBlockAllowAccessModeAllowAll)))).
+							Mode(CSCIDRBlockAllowAccessModeAllowAll)))).
 				Ingresses(arohcpv1alpha1.NewIngressList().Items(
 					arohcpv1alpha1.NewIngress().Default(true).Listening(arohcpv1alpha1.ListeningMethodExternal),
 				)).
@@ -1166,67 +1166,48 @@ func TestBuildCSCluster(t *testing.T) {
 	}
 }
 
-func TestDesiredHostedClusterSizeOverride(t *testing.T) {
+func TestConvertHostedClusterSizeOverrideToCS(t *testing.T) {
 	largeStr := "Large"
-	spcWithSize := func(s *string) *api.ServiceProviderCluster {
-		return &api.ServiceProviderCluster{
-			Spec: api.ServiceProviderClusterSpec{
-				DesiredHostedClusterControlPlaneSize: s,
-			},
-		}
-	}
-	clusterWithPodSizing := func(p api.ControlPlanePodSizing) *api.HCPOpenShiftCluster {
-		c := &api.HCPOpenShiftCluster{}
-		c.ServiceProviderProperties.ExperimentalFeatures.ControlPlanePodSizing = p
-		return c
-	}
 
 	tests := []struct {
-		name         string
-		spc          *api.ServiceProviderCluster
-		hcpCluster   *api.HCPOpenShiftCluster
-		expectValue  string
-		expectActive bool
+		name                         string
+		clusterControlPlanePodSizing api.ControlPlanePodSizing
+		spcControlPlaneSize          *string
+		expectValue                  string
+		expectActive                 bool
 	}{
 		{
-			name:         "SPC size wins over experimental feature",
-			spc:          spcWithSize(&largeStr),
-			hcpCluster:   clusterWithPodSizing(api.MinimalControlPlanePodSizing),
-			expectValue:  "large",
-			expectActive: true,
+			name:                         "SPC size wins over experimental feature",
+			clusterControlPlanePodSizing: api.MinimalControlPlanePodSizing,
+			spcControlPlaneSize:          &largeStr,
+			expectValue:                  "large",
+			expectActive:                 true,
 		},
 		{
-			name:         "SPC size set, no experimental feature",
-			spc:          spcWithSize(&largeStr),
-			hcpCluster:   clusterWithPodSizing(""),
-			expectValue:  "large",
-			expectActive: true,
+			name:                         "SPC size set, no experimental feature",
+			clusterControlPlanePodSizing: "",
+			spcControlPlaneSize:          &largeStr,
+			expectValue:                  "large",
+			expectActive:                 true,
 		},
 		{
-			name:         "SPC nil, experimental feature active → legacy sentinel",
-			spc:          nil,
-			hcpCluster:   clusterWithPodSizing(api.MinimalControlPlanePodSizing),
-			expectValue:  CSPropertyE2EMinimalControlPlaneSize,
-			expectActive: true,
+			name:                         "SPC nil, experimental feature active returns legacy sentinel",
+			clusterControlPlanePodSizing: api.MinimalControlPlanePodSizing,
+			spcControlPlaneSize:          nil,
+			expectValue:                  CSPropertyE2EMinimalControlPlaneSize,
+			expectActive:                 true,
 		},
 		{
-			name:         "SPC has nil size, experimental feature active → legacy sentinel",
-			spc:          spcWithSize(nil),
-			hcpCluster:   clusterWithPodSizing(api.MinimalControlPlanePodSizing),
-			expectValue:  CSPropertyE2EMinimalControlPlaneSize,
-			expectActive: true,
-		},
-		{
-			name:         "neither input set → property absent",
-			spc:          nil,
-			hcpCluster:   clusterWithPodSizing(""),
-			expectActive: false,
+			name:                         "neither input set returns property absent",
+			clusterControlPlanePodSizing: "",
+			spcControlPlaneSize:          nil,
+			expectActive:                 false,
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			value, active := DesiredHostedClusterSizeOverride(tc.spc, tc.hcpCluster)
+			value, active := ConvertHostedClusterSizeOverrideToCS(tc.clusterControlPlanePodSizing, tc.spcControlPlaneSize)
 			assert.Equal(t, tc.expectActive, active)
 			if tc.expectActive {
 				assert.Equal(t, tc.expectValue, value)

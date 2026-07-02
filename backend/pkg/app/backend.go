@@ -41,9 +41,11 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/billingcontrollers"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/clusterdeletion"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/clusterpropertiescontroller"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/clusterupdate"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/datadumpcontrollers"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/externalauthdeletion"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/externalauthupdate"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/managementclustercontrollers"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/metricscontrollers"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/mismatchcontrollers"
@@ -457,8 +459,10 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		b.clock,
 		b.options.ResourcesDBClient,
 		b.options.ClustersServiceClient,
+		unionReadDesireLister,
 		http.DefaultClient,
 		activeOperationInformer,
+		backendInformers,
 	)
 	operationClusterDeleteController := operationcontrollers.NewOperationClusterDeleteController(
 		b.clock,
@@ -501,8 +505,10 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		b.clock,
 		b.options.ResourcesDBClient,
 		b.options.ClustersServiceClient,
+		unionReadDesireLister,
 		http.DefaultClient,
 		activeOperationInformer,
+		backendInformers,
 	)
 	operationExternalAuthDeleteController := operationcontrollers.NewOperationExternalAuthDeleteController(
 		b.clock,
@@ -737,6 +743,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		backendInformers,
 		unionKubeApplierInformers,
 	)
+
 	nodePoolClusterServiceIDClearerController := nodepooldeletion.NewNodePoolClusterServiceIDClearerController(
 		b.options.ResourcesDBClient,
 		b.options.ClustersServiceClient,
@@ -811,6 +818,20 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		utilsclock.RealClock{},
 		b.options.ResourcesDBClient,
 		b.options.BillingDBClient,
+		activeOperationLister,
+		backendInformers,
+	)
+
+	clusterClusterServiceUpdateDispatchController := clusterupdate.NewClusterClusterServiceUpdateDispatchController(
+		b.options.ResourcesDBClient,
+		b.options.ClustersServiceClient,
+		activeOperationLister,
+		backendInformers,
+	)
+
+	externalAuthClusterServiceUpdateDispatchController := externalauthupdate.NewExternalAuthClusterServiceUpdateDispatchController(
+		b.options.ResourcesDBClient,
+		b.options.ClustersServiceClient,
 		activeOperationLister,
 		backendInformers,
 	)
@@ -893,6 +914,8 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go clusterClusterServiceIDClearerController.Run(ctx, 20)
 				go clusterChildResourcesCleanupController.Run(ctx, 20)
 				go clusterDeletionController.Run(ctx, 20)
+				go clusterClusterServiceUpdateDispatchController.Run(ctx, 20)
+				go externalAuthClusterServiceUpdateDispatchController.Run(ctx, 20)
 				go operationPhaseMetricsController.Run(ctx, 1)
 				go clusterMetricsController.Run(ctx, 1)
 				go clusterVersionMetricsController.Run(ctx, 1)

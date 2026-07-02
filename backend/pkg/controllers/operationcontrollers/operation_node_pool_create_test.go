@@ -148,7 +148,7 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateFailed, op.Status)
 				assert.NotNil(t, op.Error)
-				assert.Equal(t, "node pool creation failed", op.Error.Message)
+				assert.Equal(t, "[clusterServiceNodePoolStatus] node pool creation failed", op.Error.Message)
 
 				nodePool, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).NodePools(testClusterName).Get(ctx, testNodePoolName)
 				require.NoError(t, err)
