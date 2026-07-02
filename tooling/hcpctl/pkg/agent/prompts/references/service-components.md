@@ -56,6 +56,23 @@ N specs to the broker, and the agent should get N specs from the broker and appl
 the cluster. If the agent sees X status updates from the cluster, we should see X status events
 to the broker, X status events processed by the server and at least X notifications to subscribers. 
 
+## Kube Applier (`kube-applier`)
+
+Bridge from the backend (service cluster) to the management cluster kube-apiserver without direct
+cross-cluster API access.
+
+**Responsibilities:**
+- Reconciles `ApplyDesire`, `DeleteDesire`, and `ReadDesire` documents the backend writes to Cosmos
+  (partitioned per management cluster)
+- Applies, deletes, or watches individual Kubernetes objects on the local management cluster
+- Reports outcome via `Successful` and `Degraded` conditions on each desire
+
+**Key identifiers:**
+- Desire documents in the kube-applier Cosmos container (partition = management cluster name)
+- Parent resource ID linking a desire back to the HCP cluster or node pool
+
+**Failure modes:** Desire stuck with `Successful=False` or `Degraded=True`, kube API errors (`KubeAPIError`), pre-check failures, orphaned desires after parent deletion.
+
 ## HyperShift
 
 Operator running on management clusters that reconciles HostedCluster and NodePool custom resources

@@ -26,5 +26,6 @@ A healthy cluster should have conditions like:
 
 ## Where to Go Next
 
-- Check `hostedClusterConditionTimeline` for the full history of condition changes.
+- Check `conditions/hypershift/hostedClusterConditionTimeline.md` for the full history of condition changes.
+- If `Degraded` or `Available` names a control plane component, review `events/hypershift/controlPlaneEvents.md` and filter by that pod prefix (for example `etcd-`, `kube-apiserver-`).
 - Check the control plane operator's pod events to see if the operator was healthy during reconciliation.
