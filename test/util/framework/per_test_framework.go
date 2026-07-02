@@ -1143,9 +1143,11 @@ func (tc *perItOrDescribeTestContext) PullSecretPath() string {
 // AvailableZones returns the sorted list of non-restricted availability zones
 // for the given VM SKU in the current test location, querying the Azure Resource
 // SKUs API. Zone-restricted zones (e.g. SkuNotAvailable for the subscription)
-// are subtracted from the advertised list, so every returned zone is guaranteed
-// to be usable for the SKU. An empty slice means the location/SKU combination
-// exposes no usable availability zones.
+// are subtracted from the advertised list, and a SKU that is entirely restricted
+// in the location (Location-type restriction) yields no zones, so every returned
+// zone is guaranteed to be usable for the SKU. An empty slice means the
+// location/SKU combination exposes no usable availability zones. An error is
+// returned if the SKU is not present in the location's Resource SKUs response.
 func (tc *perItOrDescribeTestContext) AvailableZones(ctx context.Context, vmSize string) ([]string, error) {
 	location := tc.Location()
 	skus, err := tc.listVirtualMachineResourceSKUs(ctx, location)
@@ -1156,9 +1158,12 @@ func (tc *perItOrDescribeTestContext) AvailableZones(ctx context.Context, vmSize
 		if sku.Name == nil || *sku.Name != vmSize {
 			continue
 		}
+		if skuRestrictedInLocation(sku, location) {
+			return nil, nil
+		}
 		return availableZones(sku, location), nil
 	}
-	return nil, nil
+	return nil, fmt.Errorf("VM size %q not found in Resource SKUs for location %q", vmSize, location)
 }
 
 func (tc *perItOrDescribeTestContext) SubscriptionID(ctx context.Context) (string, error) {
