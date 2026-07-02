@@ -173,7 +173,7 @@ module hcpIngestionAlerts '../modules/metrics/amw-ingestion-alerts.bicep' = {
     workspaceLabel: 'hcp'
     actionGroups: slActionGroups
     enabled: alertsEnabled
-    lowEventIngestionThreshold: 5
+    lowEventIngestionThreshold: 1
   }
 }
 
