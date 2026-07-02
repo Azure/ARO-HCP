@@ -77,8 +77,8 @@ const (
 	csOutboundType                      string = "load_balancer"
 	csUsernameClaimPrefixPolicyNoPrefix string = "NoPrefix"
 	csUsernameClaimPrefixPolicyPrefix   string = "Prefix"
-	csCIDRBlockAllowAccessModeAllowAll  string = "allow_all"
-	csCIDRBlockAllowAccessModeAllowList string = "allow_list"
+	CSCIDRBlockAllowAccessModeAllowAll  string = "allow_all"
+	CSCIDRBlockAllowAccessModeAllowList string = "allow_list"
 	csOsDiskPersistencePersistent       string = "persistent"
 	csOsDiskPersistenceEphemeral        string = "ephemeral"
 	CSProvisionShardStatusActive        string = "active"
@@ -276,9 +276,9 @@ func convertCIDRBlockAllowAccessRPToCS(in api.CustomerAPIProfile) (*arohcpv1alph
 	cidrBlockAllowAccess := arohcpv1alpha1.NewCIDRBlockAllowAccess()
 
 	if in.AuthorizedCIDRs == nil {
-		cidrBlockAllowAccess.Mode(csCIDRBlockAllowAccessModeAllowAll)
+		cidrBlockAllowAccess.Mode(CSCIDRBlockAllowAccessModeAllowAll)
 	} else if len(in.AuthorizedCIDRs) > 0 {
-		cidrBlockAllowAccess.Mode(csCIDRBlockAllowAccessModeAllowList)
+		cidrBlockAllowAccess.Mode(CSCIDRBlockAllowAccessModeAllowList)
 		cidrBlockAllowAccess.Values(in.AuthorizedCIDRs...)
 	} else {
 		// Unreachable: empty AuthorizedCIDRs list is disallowed by validation
@@ -397,28 +397,9 @@ func BuildCSCluster(resourceID *azcorearm.ResourceID, tenantID string, hcpCluste
 		))
 	}
 
-	clusterBuilder.NodeDrainGracePeriod(arohcpv1alpha1.NewValue().
-		Unit(csNodeDrainGracePeriodUnit).
-		Value(float64(hcpCluster.CustomerProperties.NodeDrainTimeoutMinutes)))
-
-	cidrBlockAccess, err := convertCIDRBlockAllowAccessRPToCS(hcpCluster.CustomerProperties.API)
-	if err != nil {
-		return nil, nil, err
-	}
-	clusterBuilder.API(clusterAPIBuilder.CIDRBlockAccess(cidrBlockAccess))
-
-	clusterBuilder.RegistryConfig(arohcpv1alpha1.NewClusterRegistryConfig().
-		ImageDigestMirrors(convertImageDigestMirrorsToCSBuilder(hcpCluster.CustomerProperties.ImageDigestMirrors)...))
-
-	clusterAutoscalerBuilder, err := convertRpAutoscalarToCSBuilder(&hcpCluster.CustomerProperties.Autoscaling)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	// Property layering: preserve existing CS properties (on update), then
-	// overlay caller-specified properties, then experimental features.
-	// Experimental feature properties are added when enabled and deleted
-	// when disabled to ensure tag removal clears previously set values.
+	// Property layering for CS Properties(): preserve existing values (on update),
+	// overlay caller-specified properties, then clusterUpdateDispatchConfig.applyToCSBuilders overlays
+	// dispatch-managed experimental features.
 	properties := map[string]string{}
 	if oldClusterServiceCluster != nil {
 		for k, v := range oldClusterServiceCluster.Properties() {
@@ -428,51 +409,46 @@ func BuildCSCluster(resourceID *azcorearm.ResourceID, tenantID string, hcpCluste
 	for k, v := range requiredProperties {
 		properties[k] = v
 	}
-	experimentalFeatures := hcpCluster.ServiceProviderProperties.ExperimentalFeatures
-	if experimentalFeatures.ControlPlaneAvailability == api.SingleReplicaControlPlane {
-		properties[CSPropertySingleReplica] = CSPropertyEnabled
-	} else {
-		delete(properties, CSPropertySingleReplica)
+
+	clusterUpdateDispatchConfig := clusterUpdateDispatchConfigFromRP(hcpCluster, serviceProviderCluster)
+	err = clusterUpdateDispatchConfig.applyToCSBuilders(clusterBuilder, clusterAPIBuilder, properties)
+	if err != nil {
+		return nil, nil, err
 	}
-	if value, ok := DesiredHostedClusterSizeOverride(serviceProviderCluster, hcpCluster); ok {
-		properties[CSPropertySizeOverride] = value
-	} else {
-		delete(properties, CSPropertySizeOverride)
+
+	clusterAutoscalerBuilder, err := clusterUpdateDispatchConfig.autoscalerBuilder()
+	if err != nil {
+		return nil, nil, err
 	}
-	if experimentalFeatures.ControlPlaneOperatorImage != "" {
-		properties[CSPropertyCPOImageOverride] = experimentalFeatures.ControlPlaneOperatorImage
-	} else {
-		delete(properties, CSPropertyCPOImageOverride)
-	}
-	clusterBuilder = clusterBuilder.Properties(properties)
 
 	return clusterBuilder, clusterAutoscalerBuilder, nil
 }
 
-// DesiredHostedClusterSizeOverride returns the value the CSPropertySizeOverride
-// entry should have for a given (ServiceProviderCluster, HCP cluster) pair,
-// and whether the property should be present at all. This is the single
-// source of truth for computing the override and is shared between the
-// BuildCSCluster property layering (frontend update path) and the
+// ConvertHostedClusterSizeOverrideToCS returns the value the CSPropertySizeOverride
+// entry should have when receiving desiredClusterControlPlanePodSizing, which is the Cosmos
+// level ControlPlanePodSizing configuration, as well as the ServiceProviderCluster level one.
+// It also returns whether the property should be set at all on CS side.
+// This is the single source of truth for computing the override and is shared between the
+// BuildCSCluster property layering (used in the cluster update dispatch properties controller path) and the
 // desired-control-plane-size reconciler (backend ServiceProviderCluster-driven
 // path) so the two cannot disagree.
 //
 // Precedence:
-//  1. ServiceProviderCluster.Spec.DesiredHostedClusterControlPlaneSize, when
-//     set, wins. Returned lowercased because cluster-service's
+//  1. desiredServiceProviderClusterControlPlanePodSizing, when set to non nil wins. Returned lowercased because cluster-service's
 //     clustersizingconfiguration uses lowercase tier names.
-//  2. Otherwise, hcpCluster.ServiceProviderProperties.ExperimentalFeatures.
-//     ControlPlanePodSizing == MinimalControlPlanePodSizing returns
+//  2. Otherwise, desiredClusterControlPlanePodSizing == MinimalControlPlanePodSizing returns
 //     CSPropertyE2EMinimalControlPlaneSize ("e2e_minimal"), the named
 //     internal-only tier cluster-service uses for the e2e minimal layout.
-//  3. Otherwise the property is absent.
-func DesiredHostedClusterSizeOverride(serviceProviderCluster *api.ServiceProviderCluster, hcpCluster *api.HCPOpenShiftCluster) (string, bool) {
-	if serviceProviderCluster != nil && serviceProviderCluster.Spec.DesiredHostedClusterControlPlaneSize != nil {
-		return strings.ToLower(*serviceProviderCluster.Spec.DesiredHostedClusterControlPlaneSize), true
+//  3. Otherwise the property is determined to need to be absent
+func ConvertHostedClusterSizeOverrideToCS(desiredClusterControlPlanePodSizing api.ControlPlanePodSizing, desiredServiceProviderClusterControlPlanePodSizing *string) (string, bool) {
+	if desiredServiceProviderClusterControlPlanePodSizing != nil {
+		return strings.ToLower(*desiredServiceProviderClusterControlPlanePodSizing), true
 	}
-	if hcpCluster != nil && hcpCluster.ServiceProviderProperties.ExperimentalFeatures.ControlPlanePodSizing == api.MinimalControlPlanePodSizing {
+
+	if desiredClusterControlPlanePodSizing == api.MinimalControlPlanePodSizing {
 		return CSPropertyE2EMinimalControlPlaneSize, true
 	}
+
 	return "", false
 }
 
@@ -605,33 +581,7 @@ func BuildCSNodePool(ctx context.Context, nodePool *api.HCPOpenShiftClusterNodeP
 			AutoRepair(nodePool.Properties.AutoRepair)
 	}
 
-	nodePoolBuilder.Labels(nodePool.Properties.Labels)
-
-	if nodePool.Properties.AutoScaling != nil {
-		nodePoolBuilder.Autoscaling(arohcpv1alpha1.NewNodePoolAutoscaling().
-			MinReplica(int(nodePool.Properties.AutoScaling.Min)).
-			MaxReplica(int(nodePool.Properties.AutoScaling.Max)))
-	} else {
-		nodePoolBuilder.Replicas(int(nodePool.Properties.Replicas))
-	}
-
-	if nodePool.Properties.Taints != nil {
-		taintBuilders := []*arohcpv1alpha1.TaintBuilder{}
-		for _, t := range nodePool.Properties.Taints {
-			newTaintBuilder := arohcpv1alpha1.NewTaint().
-				Effect(string(t.Effect)).
-				Key(t.Key).
-				Value(t.Value)
-			taintBuilders = append(taintBuilders, newTaintBuilder)
-		}
-		nodePoolBuilder.Taints(taintBuilders...)
-	}
-
-	if nodePool.Properties.NodeDrainTimeoutMinutes != nil {
-		nodePoolBuilder.NodeDrainGracePeriod(arohcpv1alpha1.NewValue().
-			Unit(csNodeDrainGracePeriodUnit).
-			Value(float64(*nodePool.Properties.NodeDrainTimeoutMinutes)))
-	}
+	nodePoolUpdateDispatchConfigFromRP(nodePool).applyToCSBuilder(nodePoolBuilder)
 
 	return nodePoolBuilder, nil
 }
