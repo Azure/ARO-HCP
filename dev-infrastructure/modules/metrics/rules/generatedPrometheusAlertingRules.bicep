@@ -1886,3 +1886,43 @@ resource kustoLogsAgeRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
     ]
   }
 }
+
+resource leaderelection 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'leaderelection'
+  location: location
+  properties: {
+    interval: 'PT1M'
+    rules: [
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'LeaderElectionLeaseStale'
+        enabled: true
+        labels: {
+          severity: 'warning'
+        }
+        annotations: {
+          correlationId: 'LeaderElectionLeaseStale/{{ $labels.cluster }}'
+          description: 'Leader election lease {{ $labels.lease }} in namespace {{ $labels.namespace }} on cluster {{ $labels.cluster }} has not been renewed for more than 15 minutes. The component may have lost leadership or stopped running.'
+          info: 'Leader election lease {{ $labels.lease }} in namespace {{ $labels.namespace }} on cluster {{ $labels.cluster }} has not been renewed for more than 15 minutes. The component may have lost leadership or stopped running.'
+          runbook_url: 'TBD'
+          summary: 'Leader election lease {{ $labels.lease }} in {{ $labels.namespace }} on {{ $labels.cluster }} stale for more than 15 minutes'
+          title: 'Leader election lease {{ $labels.lease }} in {{ $labels.namespace }} on {{ $labels.cluster }} stale for more than 15 minutes'
+        }
+        expression: 'time() - max without (prometheus_replica) (kube_lease_renew_time{lease!~"cluster-storage-operator-lock|controller-leader-election-capz|csi-snapshot-controller-operator-lock|hosted-cluster-config-operator-leader-elect|.*package-operator-lock",namespace!~"kube-system|kube-public|kube-node-lease|default"}) > 300'
+        for: 'PT10M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+    ]
+    scopes: [
+      azureMonitoring
+    ]
+  }
+}
