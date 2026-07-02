@@ -110,7 +110,7 @@ func runArmStackStep(
 		return nil, nil, fmt.Errorf("failed to get input values: %w", err)
 	}
 
-	template, params, err := transformParameters(ctx, options.BicepClient, options.Configuration, inputValues, step.Parameters, options.PipelineDirectory)
+	template, params, err := transformParameters(ctx, options.BicepClient, options.Configuration, inputValues, step.Parameters, options.PipelineDirectory, options.SkipBicepparamValidation)
 	if err != nil {
 		return nil, nil, err
 	}

@@ -82,6 +82,8 @@ type BaseRunOptions struct {
 	StepCacheDir             string
 	BicepClient              *bicep.LSPClient
 
+	SkipBicepparamValidation bool
+
 	SubscriptionIdToAzureConfigDirectory map[string]string
 }
 
