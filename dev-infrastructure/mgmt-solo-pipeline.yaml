@@ -78,6 +78,11 @@ resourceGroups:
     action: Shell
     command: ./swift-vnet.sh
     workingDir: ./scripts
+    shellIdentity:
+      input:
+        resourceGroup: global
+        step: output
+        name: globalMSIId
     variables:
     - name: ENABLE_SWIFT
       configRef: mgmt.aks.enableSwiftV2Vnet
@@ -168,6 +173,11 @@ resourceGroups:
     aksCluster: '{{ .mgmt.aks.name }}'
     action: Shell
     command: make -C ../mgmt-fixes deploy
+    shellIdentity:
+      input:
+        resourceGroup: global
+        step: output
+        name: globalMSIId
     variables:
     - name: APPLY_KUBELET_FIXES
       configRef: mgmt.applyKubeletFixes
