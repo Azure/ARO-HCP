@@ -2337,12 +2337,16 @@
             },
             "digest": {
               "type": "string"
+            },
+            "repository": {
+              "type": "string"
             }
           },
           "required": [
             "subscriptionKey",
             "rg",
-            "digest"
+            "digest",
+            "repository"
           ]
         },
         "subscription": {

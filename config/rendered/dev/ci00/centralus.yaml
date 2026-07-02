@@ -376,6 +376,7 @@ geneva:
 global:
   billing:
     digest: placeholder
+    repository: billing
     rg: placeholder
     subscriptionKey: hcp-billng-ci00
   globalMSIName: global-rollout-identity
