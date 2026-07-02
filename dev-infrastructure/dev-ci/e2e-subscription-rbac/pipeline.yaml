@@ -34,6 +34,12 @@ resourceGroups:
   resourceGroup: '{{ .global.rg }}'
   subscription: '{{ .global.subscription.key }}'
   steps:
+  - name: global-identity
+    action: ARM
+    template: ../../templates/output-opstool-global-identity.bicep
+    parameters: ../../configurations/output-opstool-global-identity.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
   - name: ci-bot-identity
     action: ARM
     template: ../../templates/ci-bot-identity.bicep
@@ -43,6 +49,11 @@ resourceGroups:
     action: Shell
     command: ./ci-bot-ensure-secret.sh
     workingDir: ../../scripts
+    shellIdentity:
+      input:
+        resourceGroup: ci-bots
+        step: global-identity
+        name: globalMSIId
     variables:
     - name: APP_NAME
       configRef: ci.int.bot.applicationName
@@ -57,6 +68,11 @@ resourceGroups:
     action: Shell
     command: ./ci-bot-ensure-secret.sh
     workingDir: ../../scripts
+    shellIdentity:
+      input:
+        resourceGroup: ci-bots
+        step: global-identity
+        name: globalMSIId
     variables:
     - name: APP_NAME
       configRef: ci.stg.bot.applicationName
@@ -71,6 +87,11 @@ resourceGroups:
     action: Shell
     command: ./ci-bot-ensure-secret.sh
     workingDir: ../../scripts
+    shellIdentity:
+      input:
+        resourceGroup: ci-bots
+        step: global-identity
+        name: globalMSIId
     variables:
     - name: APP_NAME
       configRef: ci.prod.bot.applicationName
