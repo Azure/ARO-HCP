@@ -19,6 +19,7 @@ import (
 
 	"github.com/google/uuid"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/utils/ptr"
 
@@ -261,6 +262,18 @@ func newKmsKey(from *api.KmsKey) generated.KmsKey {
 	}
 }
 
+func newConditions(from []metav1.Condition) []*generated.Condition {
+	// TODO (bvesel): propose a method for how we want to translate our internal metav1.Conditions type to this external
+	// type.  Until then, we'll plumb it with empty data.
+	return []*generated.Condition{}
+}
+
+func newResourceStatus(from []metav1.Condition) *generated.ResourceStatus {
+	return &generated.ResourceStatus{
+		Conditions: newConditions(from),
+	}
+}
+
 func newClusterImageRegistryProfile(from *api.ClusterImageRegistryProfile) generated.ClusterImageRegistryProfile {
 	if from == nil {
 		return generated.ClusterImageRegistryProfile{}
@@ -368,6 +381,7 @@ func (v version) NewHCPOpenShiftCluster(from *api.HCPOpenShiftCluster) api.Versi
 				ClusterImageRegistry:    api.PtrOrNil(newClusterImageRegistryProfile(&from.CustomerProperties.ClusterImageRegistry)),
 				Etcd:                    api.PtrOrNil(newEtcdProfile(&from.CustomerProperties.Etcd)),
 				ImageDigestMirrors:      newImageDigestMirrors(from.CustomerProperties.ImageDigestMirrors),
+				Status:                  newResourceStatus(from.Status.Conditions),
 			},
 			Identity: newManagedServiceIdentity(from.Identity),
 		},

@@ -129,6 +129,11 @@ model HcpOpenShiftClusterProperties {
   /** OpenShift internal image registry */
   @visibility(Lifecycle.Read, Lifecycle.Create)
   clusterImageRegistry?: ClusterImageRegistryProfile;
+
+  /** Status of the cluster resource */
+  @visibility(Lifecycle.Read)
+  @added(Versions.v2026_06_30_preview)
+  status?: ResourceStatus;
 }
 
 /** The resource provisioning state. */
@@ -716,6 +721,11 @@ model NodePoolProperties {
    */
   @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   nodeDrainTimeoutMinutes?: int32;
+
+  /** Status of the node pool resource */
+  @visibility(Lifecycle.Read)
+  @added(Versions.v2026_06_30_preview)
+  status?: ResourceStatus;
 }
 
 /** The taint effect the same as in Kubernetes */
@@ -963,6 +973,11 @@ model ExternalAuthProperties {
   @removed(Versions.v2026_06_30_preview)
   condition?: ExternalAuthCondition;
 
+  /** Status of the external auth resource */
+  @visibility(Lifecycle.Read)
+  @added(Versions.v2026_06_30_preview)
+  status?: ResourceStatus;
+
   /** Token Issuer profile */
   issuer: TokenIssuerProfile;
 
@@ -977,6 +992,73 @@ model ExternalAuthProperties {
    * This configures how claims are validated and applied.
    */
   claim: ExternalAuthClaimProfile;
+}
+
+/** ResourceStatus represents the observed status of the resource. */
+@added(Versions.v2026_06_30_preview)
+model ResourceStatus {
+  /** The conditions on the resource */
+  @visibility(Lifecycle.Read)
+  @identifiers(#["type"])
+  @maxItems(10)
+  conditions?: Condition[];
+}
+
+/** Condition represents an observation of a resource's state. */
+@added(Versions.v2026_06_30_preview)
+model Condition {
+  /** Type of the condition.
+   * This is a PascalCase identifier representing the type of the condition.
+   */
+  @visibility(Lifecycle.Read)
+  @maxLength(316)
+  @pattern(
+    "^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?([A-Za-z0-9]([-A-Za-z0-9_.]*[A-Za-z0-9])?)$",
+    "Condition type format following Kubernetes condition type conventions."
+  )
+  type: ConditionType;
+
+  /** The status of the condition. */
+  @visibility(Lifecycle.Read)
+  status: StatusType;
+
+  /** The last time the condition transitioned from one status to another. */
+  @visibility(Lifecycle.Read)
+  lastTransitionTime: utcDateTime;
+
+  /** A programmatic identifier indicating the reason for the condition's last transition.
+   * This value should be a CamelCase string.
+   */
+  @visibility(Lifecycle.Read)
+  @minLength(1)
+  @maxLength(1024)
+  @pattern(
+    "^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$",
+    "Reason must be a CamelCase string."
+  )
+  reason: string;
+
+  /** A human readable message indicating details about the transition.
+   * This may be an empty string.
+   */
+  @visibility(Lifecycle.Read)
+  @maxLength(32768)
+  message: string;
+}
+
+/** Representation of the possible condition types. */
+@added(Versions.v2026_06_30_preview)
+union ConditionType {
+  string,
+
+  /** Indicates that the resource is available. */
+  Available: "Available",
+
+  /** Indicates that the resource is in a degraded state. */
+  Degraded: "Degraded",
+
+  /** Indicates that the resource is in a progressing state. */
+  Progressing: "Progressing",
 }
 
 /** Condition defines an observation of the external auth state. */
@@ -1004,7 +1086,7 @@ model ExternalAuthCondition {
   message: string;
 }
 
-/** Representation of the possible values of a external auths condition status. */
+/** Representation of the possible values of a condition status. */
 union StatusType {
   string,
 

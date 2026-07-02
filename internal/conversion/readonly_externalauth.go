@@ -35,4 +35,5 @@ func CopyReadOnlyExternalAuthValues(dest, src *api.HCPOpenShiftClusterExternalAu
 
 	dest.Properties.ProvisioningState = src.Properties.ProvisioningState
 	dest.ServiceProviderProperties = *src.ServiceProviderProperties.DeepCopy()
+	dest.Status = *src.Status.DeepCopy()
 }

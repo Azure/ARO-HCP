@@ -3457,7 +3457,7 @@
     },
     "StatusType": {
       "type": "string",
-      "description": "Representation of the possible values of a external auths condition status.",
+      "description": "Representation of the possible values of a condition status.",
       "enum": [
         "True",
         "False",
