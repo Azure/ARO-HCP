@@ -33,6 +33,9 @@ type ExperimentalFeatures struct {
 	// the control_plane_operator_image CS cluster property, which CS
 	// translates into the HostedCluster annotation.
 	ControlPlaneOperatorImage string `json:"controlPlaneOperatorImage,omitempty"`
+
+	// FIPSEnabled controls the fips mode for a new ARO-HCP cluster installation.
+	FIPSEnabled bool `json:"fipsEnabled,omitempty"`
 }
 
 // ControlPlaneAvailability controls the AvailabilityPolicy for control plane components.
