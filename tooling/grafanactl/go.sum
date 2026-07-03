@@ -1,7 +1,7 @@
-github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260617060128-2277df76598b h1:psPLBjS9jx/N+k01CW2MDxccyu4UNPInjmcVQ/1q9OU=
-github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260617060128-2277df76598b/go.mod h1:bin6OKbbloNkD5EYEgXz6d6JGQsWhClgcbVUQrEJ2BQ=
-github.com/Azure/ARO-Tools/tools/grafanactl v0.0.0-20260617060128-2277df76598b h1:op983BIuyIJVMhmoAS5JkSsb2V4OQl3eIiH1BS07H1E=
-github.com/Azure/ARO-Tools/tools/grafanactl v0.0.0-20260617060128-2277df76598b/go.mod h1:zxoZ1tIwd5xvd3O25IGAcsai1XbeGua4FsGrN4PZZl4=
+github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260703091318-4612291d5420 h1:PFr4ITvRGRIx1PpEyJzZyXs5sXXegU442IVwLW5RiUw=
+github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260703091318-4612291d5420/go.mod h1:H9gQZNrqfswjQXfmHtTYbC8nMPdZIv8JmlME/wXjcJY=
+github.com/Azure/ARO-Tools/tools/grafanactl v0.0.0-20260703091318-4612291d5420 h1:P3djv9Yi9Bm+WN1+lf7xv6uPsEvOnOpp8c7cv3eRgR0=
+github.com/Azure/ARO-Tools/tools/grafanactl v0.0.0-20260703091318-4612291d5420/go.mod h1:YrrfIHROa3fg+mMyE6OhqM3pjcUXXAmcbcdHLwMb6ac=
 github.com/Azure/azure-sdk-for-go/sdk/azcore v1.21.1 h1:jHb/wfvRikGdxMXYV3QG/SzUOPYN9KEUUuC0Yd0/vC0=
 github.com/Azure/azure-sdk-for-go/sdk/azcore v1.21.1/go.mod h1:pzBXCYn05zvYIrwLgtK8Ap8QcjRg+0i76tMQdWN6wOk=
 github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.13.1 h1:Hk5QBxZQC1jb2Fwj6mpzme37xbCDdNTxU7O9eb5+LB4=
@@ -16,6 +16,8 @@ github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/internal/v2 v2.0.0 h1:PTFG
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/internal/v2 v2.0.0/go.mod h1:LRr2FzBTQlONPPa5HREE5+RjSCTXl7BwOvYOaWTqCaI=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/monitor/armmonitor v0.11.0 h1:Ds0KRF8ggpEGg4Vo42oX1cIt/IfOhHWJBikksZbVxeg=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/monitor/armmonitor v0.11.0/go.mod h1:jj6P8ybImR+5topJ+eH6fgcemSFBmU6/6bFF8KkwuDI=
+github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resourcegraph/armresourcegraph v0.10.0 h1:+1fJwTilk/X7inNqwREnYEOgFCdg8ut7GULxARDbu34=
+github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resourcegraph/armresourcegraph v0.10.0/go.mod h1:EGwSLlGqrrfYQhtCi9JcIkPQKl9WxsL6ZPJd+63Vy1A=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources v1.2.0 h1:Dd+RhdJn0OTtVGaeDLZpcumkIVCtA/3/Fo42+eoYvVM=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources v1.2.0/go.mod h1:5kakwfW5CjC9KK+Q4wjXAg+ShuIm2mBMua0ZFj2C8PE=
 github.com/AzureAD/microsoft-authentication-extensions-for-go/cache v0.1.1 h1:WJTmL004Abzc5wDB5VtZG2PJk5ndYDgVacGqfirKxjM=
