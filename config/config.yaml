@@ -385,7 +385,7 @@ defaults:
     maxEventsPerMinute: 2000000
     maxEventsPerMinuteMillions: 2
     alertRuleOwningTeamTag: ""
-    alertsEnabled: false
+    alertsEnabled: true
     alertSeverityCeiling: 0
     icm:
       manageConnection: true
