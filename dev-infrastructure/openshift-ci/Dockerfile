@@ -40,6 +40,20 @@ RUN cd /tmp/aro-hcp && \
     GOFLAGS='-mod=readonly' GOBIN=/usr/local/bin make install-tools && \
     go clean -cache -modcache && \
     rm -rf /tmp/aro-hcp
-RUN mkdir -p /go/pkg/mod /go/bin && \
+# Runtime Go builds in CI run as an arbitrary OpenShift UID against a cold module
+# cache. On a checksum miss Go consults the checksum DB and writes
+# /go/pkg/sumdb/sum.golang.org/latest; the runner presents that path read-only to
+# the pod, causing intermittent
+# "verifying module: ... open /go/pkg/sumdb/sum.golang.org/latest: permission denied".
+# GOSUMDB=off removes the sumdb dependency entirely. Integrity is still enforced by the
+# committed go.sum / go.work.sum, which are verified on every build; GOSUMDB is only
+# consulted to authenticate a module hash that is not already recorded in the consulted
+# sum file (e.g. on a cold cache), so disabling it in CI trusts the committed sums alone.
+# Set after install-tools so build-time tool compilation keeps sumdb verification; the
+# ENV persists into the running container, covering the arbitrary-UID runtime builds.
+ENV GOSUMDB=off
+# Pre-create /go/pkg/sumdb so the group-writable perms below also cover it
+# (defense in depth alongside GOSUMDB=off).
+RUN mkdir -p /go/pkg/mod /go/pkg/sumdb /go/bin && \
     chgrp -R 0 /go && \
     chmod -R g=u /go
