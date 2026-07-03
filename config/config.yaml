@@ -266,7 +266,10 @@ defaults:
         securityGroup: AME\TM-AzureRedHatOpenShift-Leads
       adminCertificateDomain: "geneva.keyvault.aro-hcp-global.azure.com"
       adminCertName: "geneva-logs-admin"
+      adminCertSan: "geneva-logs-admin.geneva.keyvault.aro-hcp-global.azure.com"
+      adminCertContentType: x-pkcs12
       manageCertificates: true
+      manage: Enabled
       certificateIssuer: Self
       certificateDomain: "geneva.keyvault.aro-hcp.azure.com"
       typeName: ""
@@ -1430,6 +1433,7 @@ clouds:
           geneva:
             logs:
               manageCertificates: false
+              manage: Disabled
           # DNS
           dns:
             regionalSubdomain: '{{ .ctx.region }}-cs'
@@ -1507,6 +1511,7 @@ clouds:
           geneva:
             logs:
               manageCertificates: false
+              manage: Disabled
           # DNS
           dns:
             regionalSubdomain: '{{ .ctx.regionShort }}'
@@ -1626,6 +1631,7 @@ clouds:
           geneva:
             logs:
               manageCertificates: false
+              manage: Disabled
           # DNS
           dns:
             regionalSubdomain: '{{ .ctx.regionShort }}'
@@ -1723,6 +1729,7 @@ clouds:
           geneva:
             logs:
               manageCertificates: false
+              manage: Disabled
           # DNS
           dns:
             regionalSubdomain: '{{ .ctx.regionShort }}'

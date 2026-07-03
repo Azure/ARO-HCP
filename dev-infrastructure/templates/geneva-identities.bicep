@@ -1,42 +1,9 @@
-import {
-  csvToArray
-} from '../modules/common.bicep'
-
-param globalKeyVaultName string
-param ev2MsiName string
-
-// genva logs certificate
-param genevaLogCertificateDomain string
-param genevaLogCertificateHostName string
-param genevaLogCertificateIssuer string
-param genevaLogsAccountAdmin string
-param genevaLogManageCertificates bool
-
-// geneva actions certificate
+// geneva actions app registration
 param genevaActionsCertificateDomain string
 param genevaActionApplicationName string
 param entraAppOwnerIds string
 param genevaActionApplicationManage bool
 param genevaActionApplicationUseSNI bool
-
-resource ev2MSI 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
-  name: ev2MsiName
-}
-
-//   G E N E V A    L O G S   C E R T I F I C A T E
-
-module genevaRPCertificate '../modules/keyvault/key-vault-cert-with-access.bicep' = if (genevaLogManageCertificates) {
-  name: 'geveva-logs-account-admin-certificate'
-  params: {
-    keyVaultName: globalKeyVaultName
-    kvCertOfficerManagedIdentityResourceId: ev2MSI.id
-    certDomain: genevaLogCertificateDomain
-    certificateIssuer: genevaLogCertificateIssuer
-    hostName: genevaLogCertificateHostName
-    keyVaultCertificateName: genevaLogsAccountAdmin
-    certificateAccessManagedIdentityPrincipalId: ev2MSI.properties.principalId
-  }
-}
 
 // //   G E N E V A    A C T I O N S   A P P   R E G I S T R A T I O N
 //

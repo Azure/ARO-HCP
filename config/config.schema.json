@@ -1844,6 +1844,15 @@
             "adminCertificateDomain": {
               "type": "string"
             },
+            "adminCertSan": {
+              "type": "string"
+            },
+            "adminCertContentType": {
+              "type": "string"
+            },
+            "manage": {
+              "$ref": "#/definitions/certificateManage"
+            },
             "administrators": {
               "type": "object",
               "additionalProperties": false,
@@ -3578,6 +3587,10 @@
     {
       "rule": "self.geneva.actions.certificate.san == '' || self.geneva.actions.certificate.san == self.geneva.actions.certificate.name + '.' + self.dns.globalCertificatesDomain",
       "message": "geneva.actions.certificate.san must equal geneva.actions.certificate.name + '.' + dns.globalCertificatesDomain"
+    },
+    {
+      "rule": "self.geneva.logs.adminCertSan == '' || self.geneva.logs.adminCertSan == self.geneva.logs.adminCertName + '.' + self.geneva.logs.adminCertificateDomain",
+      "message": "geneva.logs.adminCertSan must equal geneva.logs.adminCertName + '.' + geneva.logs.adminCertificateDomain"
     }
   ]
 }
