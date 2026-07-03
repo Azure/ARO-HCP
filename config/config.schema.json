@@ -2020,6 +2020,10 @@
         "hostedControlPlaneLogsDatabase": {
           "type": "string"
         },
+        "monitoringEventsDatabase": {
+          "type": "string",
+          "description": "Name of the Kusto database for monitoring events (e.g. alert events from Event Hub)"
+        },
         "adminGroups": {
           "$ref": "#/definitions/csvPrincipalList",
           "description": "CSV separated list of AAD groups to grant AllDatabasesAdmin on the Kusto cluster."
@@ -2076,6 +2080,7 @@
         "tier",
         "serviceLogsDatabase",
         "hostedControlPlaneLogsDatabase",
+        "monitoringEventsDatabase",
         "adminGroups",
         "viewerGroups",
         "kustoName",
@@ -2122,6 +2127,30 @@
         "kustoConsumerGroupName",
         "kustoDataConnectionName",
         "rg"
+      ]
+    },
+    "alertEventsEventHub": {
+      "type": "object",
+      "description": "Configuration for the alert events Event Hub used to send alert firings to Kusto",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Name of the Event Hub entity for alert events"
+        },
+        "kustoConsumerGroupName": {
+          "type": "string",
+          "description": "Name of the consumer group for Kusto data connection"
+        },
+        "kustoDataConnectionName": {
+          "type": "string",
+          "description": "Name of the Kusto data connection for alert events"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "kustoConsumerGroupName",
+        "kustoDataConnectionName"
       ]
     },
     "mise": {
@@ -2900,6 +2929,20 @@
           "minimum": 0,
           "maximum": 4,
           "description": "The minimum IcM severity level (highest priority) that alerts can fire at. Alerts with a severity more critical (lower number) than this ceiling will be degraded to this value. For example, setting this to 3 means SEV2 alerts will fire as SEV3. A value of 0 means no ceiling is applied."
+        },
+        "eventHubAlerting": {
+          "type": "object",
+          "description": "Configuration for sending alert events to an Event Hub for Kusto ingestion",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Whether to create the Event Hub action group for sending alerts to Kusto"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "enabled"
+          ]
         },
         "icm": {
           "type": "object",

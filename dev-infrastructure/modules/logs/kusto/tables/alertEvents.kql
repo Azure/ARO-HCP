@@ -1,0 +1,51 @@
+// Staging table for raw alert events from Event Hub (Common Alert Schema JSON)
+.create-merge table rawAlertEvents (
+    raw: dynamic
+)
+with (docstring = "Staging table for metric alert events ingested from Event Hub")
+
+.alter-merge table rawAlertEvents policy retention softdelete = 0s recoverability = disabled
+
+.create-or-alter table rawAlertEvents ingestion json mapping "rawAlertEventsMapping"
+```
+[
+  {"column":"raw","path":"$","datatype":"dynamic"}
+]
+```
+
+// Materialized table with Common Alert Schema essentials unpacked
+.create-merge table alertEvents (
+    alertId: string,
+    alertRule: string,
+    severity: string,
+    monitorCondition: string,
+    signalType: string,
+    monitoringService: string,
+    firedDateTime: datetime,
+    resolvedDateTime: datetime,
+    targetResourceId: string,
+    targetResourceType: string,
+    alertContext: dynamic
+)
+with (docstring = "Alert events with top-level Common Alert Schema fields extracted")
+
+.create-or-alter function
+with (docstring = 'unpack common alert schema events', skipvalidation = "true")
+rawAlertEventsTransform() {
+    rawAlertEvents
+    | extend essentials = raw.data.essentials
+    | project
+        alertId = tostring(essentials.alertId),
+        alertRule = tostring(essentials.alertRule),
+        severity = tostring(essentials.severity),
+        monitorCondition = tostring(essentials.monitorCondition),
+        signalType = tostring(essentials.signalType),
+        monitoringService = tostring(essentials.monitoringService),
+        firedDateTime = todatetime(essentials.firedDateTime),
+        resolvedDateTime = todatetime(essentials.resolvedDateTime),
+        targetResourceId = tostring(essentials.alertTargetIDs[0]),
+        targetResourceType = tostring(essentials.targetResourceType),
+        alertContext = raw.data.alertContext
+}
+
+.alter table alertEvents policy update @'[{"IsEnabled": true, "Source": "rawAlertEvents", "Query": "rawAlertEventsTransform()", "IsTransactional": true, "PropagateIngestionProperties": false}]'

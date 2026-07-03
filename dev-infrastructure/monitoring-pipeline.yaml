@@ -70,3 +70,8 @@ resourceGroups:
         resourceGroup: regional
         step: monitoring
         name: actionGroupSL
+    - name: actionGroupAlertEH
+      input:
+        resourceGroup: regional
+        step: monitoring
+        name: actionGroupAlertEH

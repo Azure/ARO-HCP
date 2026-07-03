@@ -16,6 +16,9 @@ param serviceLogsDatabase string
 @description('Name of the hosted control plane logs database.')
 param hostedControlPlaneLogsDatabase string
 
+@description('Name of the monitoring events database.')
+param monitoringEventsDatabase string
+
 @description('CSV separated list of groups to assign admin in the Kusto cluster')
 param adminGroups string
 
@@ -40,9 +43,10 @@ param enableAutoScale bool
 var db = {
   serviceLogs: serviceLogsDatabase
   hostedControlPlaneLogs: hostedControlPlaneLogsDatabase
+  monitoringEvents: monitoringEventsDatabase
 }
 
-var databases = [db.serviceLogs, db.hostedControlPlaneLogs]
+var databases = [db.serviceLogs, db.hostedControlPlaneLogs, db.monitoringEvents]
 
 var dummyScript = '.create-or-alter function with (docstring = \'dummy function to run last and to remove permission\') dummyFunction() {print \'dummy\'}'
 
@@ -60,6 +64,10 @@ var allServiceLogsTablesKQL = {
 var allCustomerLogsTablesKQL = {
   containerlogs: loadTextContent('tables/containerLogs.kql')
   kubernetesEvents: loadTextContent('tables/kubernetesEvents.kql')
+}
+
+var allMonitoringEventsTablesKQL = {
+  alertEvents: loadTextContent('tables/alertEvents.kql')
 }
 
 // 1. Cluster
@@ -104,6 +112,18 @@ module hostedControlPlaneLogs 'database.bicep' = {
   dependsOn: [serviceLogs]
 }
 
+module monitoringEvents 'database.bicep' = {
+  name: 'monitoringEvents'
+  params: {
+    location: location
+    kustoName: kustoName
+    databaseName: db.monitoringEvents
+    softDeletePeriod: 'P90D'
+    hotCachePeriod: 'P2D'
+  }
+  dependsOn: [hostedControlPlaneLogs]
+}
+
 // 3. Create Tables
 module serviceLogsTables 'script.bicep' = [
   for tableName in objectKeys(allServiceLogsTablesKQL): {
@@ -135,6 +155,21 @@ module hostedControlPlaneLogsTables 'script.bicep' = [
   }
 ]
 
+module monitoringEventsTables 'script.bicep' = [
+  for tableName in objectKeys(allMonitoringEventsTablesKQL): {
+    name: 'monitoringEventsTablesScript-${tableName}'
+    params: {
+      kustoName: kustoName
+      databaseName: db.monitoringEvents
+      scriptName: tableName
+      scriptContent: allMonitoringEventsTablesKQL[tableName]
+      principalPermissionsAction: 'RetainPermissionOnScriptCompletion'
+      continueOnErrors: false
+    }
+    dependsOn: [monitoringEvents]
+  }
+]
+
 // 4. User-add scripts per database (one script resource per dSTS group)
 module databaseUserScripts 'database-users.bicep' = [
   for (database, i) in databases: {
@@ -145,7 +180,9 @@ module databaseUserScripts 'database-users.bicep' = [
       dstsGroups: dstsGroups
       continueOnErrors: false
     }
-    dependsOn: database == db.hostedControlPlaneLogs ? [hostedControlPlaneLogs] : [serviceLogs]
+    dependsOn: database == db.hostedControlPlaneLogs
+      ? [hostedControlPlaneLogs]
+      : database == db.monitoringEvents ? [monitoringEvents] : [serviceLogs]
   }
 ]
 
@@ -166,6 +203,7 @@ module removePermission 'script.bicep' = [
       databaseUserScripts
       serviceLogsTables
       hostedControlPlaneLogsTables
+      monitoringEventsTables
     ]
   }
 ]

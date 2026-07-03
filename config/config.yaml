@@ -323,6 +323,7 @@ defaults:
     kustoName: "hcp-{{ .ctx.environment }}-{{ .ev2.geoShortId }}"
     serviceLogsDatabase: "ServiceLogs"
     hostedControlPlaneLogsDatabase: "HostedControlPlaneLogs"
+    monitoringEventsDatabase: "MonitoringEvents"
     adminGroups: ""
     viewerGroups: ""
     viewerIdentities: ""
@@ -336,6 +337,10 @@ defaults:
     kustoConsumerGroupName: "AuditLogsToKusto"
     kustoDataConnectionName: "{{ .ctx.environment }}-{{ .ctx.region }}-auditlogs"
     rg: "{{ .ctx.region }}-shared-resources"
+  alertEventsEventHub:
+    name: "metric-alerts"
+    kustoConsumerGroupName: "AlertEventsToKusto"
+    kustoDataConnectionName: "{{ .ctx.environment }}-{{ .ctx.region }}-alert-events"
   # Hypershift
   hypershift:
     image:
@@ -387,6 +392,8 @@ defaults:
     alertRuleOwningTeamTag: ""
     alertsEnabled: false
     alertSeverityCeiling: 0
+    eventHubAlerting:
+      enabled: false
     icm:
       manageConnection: true
       connectionName: ""
@@ -1322,6 +1329,8 @@ clouds:
       # Metrics
       monitoring:
         alertsEnabled: true
+        eventHubAlerting:
+          enabled: true
         icm:
           manageConnection: false
         grafanaName: arohcp-dev
