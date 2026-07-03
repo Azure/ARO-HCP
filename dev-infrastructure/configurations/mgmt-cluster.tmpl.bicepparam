@@ -51,9 +51,10 @@ param mgmtAgentNamespace = '{{ .mgmtAgent.k8s.namespace }}'
 param mgmtAgentServiceAccountName = '{{ .mgmtAgent.k8s.serviceAccountName }}'
 
 param maestroConsumerName = '{{ .maestro.agent.consumerName }}'
-param maestroConsumerCertSAN = '{{ .maestro.agent.certSAN }}'
-param maestroCertIssuer = '{{ .maestro.certIssuer }}'
 param maestroEventGridNamespaceId = '__maestroEventGridNamespaceId__'
+param maestroCertDomain = '{{ .maestro.certDomain }}'
+param maestroCertIssuer = '{{ .maestro.certIssuer }}'
+param regionalSvcDNSZoneName = '{{ .dns.regionalSubdomain }}.{{ .dns.svcParentZoneName }}'
 
 // Kube Applier
 param kubeApplierMIName = '{{ .kubeApplier.managedIdentityName }}'
