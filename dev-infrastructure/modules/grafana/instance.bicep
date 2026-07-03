@@ -51,6 +51,11 @@ resource grafana 'Microsoft.Dashboard/grafana@2024-10-01' = {
       }
     : {}
   properties: {
+    grafanaConfigurations: {
+      users: {
+        viewersCanEdit: true
+      }
+    }
     grafanaIntegrations: {
       azureMonitorWorkspaceIntegrations: [
         for workspaceId in azureMonitorWorkspaceIds: {
