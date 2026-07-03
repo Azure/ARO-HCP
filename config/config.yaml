@@ -990,7 +990,7 @@ defaults:
       # Manually pinned: the next digest (b17f6fe, vcs-ref ee741db) reproducibly
       # breaks e2e-parallel — candidate 4.22/5.0 data-plane ingress never becomes
       # reachable. Do not let the automated image bump advance this until fixed.
-      digest: sha256:6a49b32884d56e707aafba6d73258cb57857087c261f606df71c74f2a9336bf7 # pinned, see AROSLSRE-1395
+      digest: sha256:6a49b32884d56e707aafba6d73258cb57857087c261f606df71c74f2a9336bf7 # 18b5a25df4baa3fabe4a2dab97dcca51a5828c79 (2026-06-19 10:48)
     # controls how many HCPs can be placed on an MC, sadly not configurable per MC
     provisionShardClusterLimit: 100
     provisionShardStatus: active
