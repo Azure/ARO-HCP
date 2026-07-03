@@ -661,6 +661,64 @@ resource arohcpCsSloAvailabilityAlerts 'Microsoft.AlertsManagement/prometheusRul
         for: 'PT30M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'ClustersServiceAPILatency5mto1hor30mto6hP90ErrorBudgetBurn'
+        enabled: true
+        labels: {
+          long: '6h'
+          severity: 'warning'
+          short: '30m'
+          slo: 'api-latency-p90'
+        }
+        annotations: {
+          correlationId: 'ClustersServiceAPILatency5mto1hor30mto6hP90ErrorBudgetBurn/{{ $labels.cluster }}'
+          description: 'API is rapidly burning its 28 day 0.1s latency error budget (90% SLO)'
+          info: 'API is rapidly burning its 28 day 0.1s latency error budget (90% SLO)'
+          runbook_url: 'aka.ms/arohcp-runbook/cs-slo-monitoring'
+          summary: 'Cluster Service API P90 latency error budget burn rate is too high'
+          title: 'Cluster Service API P90 latency error budget burn rate is too high'
+        }
+        expression: '(sum by (cluster, namespace, service) (max without (prometheus_replica) (latency:api_inbound_request_duration:p90_burnrate5m{namespace="clusters-service",service="clusters-service-metrics"})) > (13.44 * (1 - 0.9)) and sum by (cluster, namespace, service) (max without (prometheus_replica) (latency:api_inbound_request_duration:p90_burnrate1h{namespace="clusters-service",service="clusters-service-metrics"})) > (13.44 * (1 - 0.9))) or (sum by (cluster, namespace, service) (max without (prometheus_replica) (latency:api_inbound_request_duration:p90_burnrate30m{namespace="clusters-service",service="clusters-service-metrics"})) > (5.6 * (1 - 0.9)) and sum by (cluster, namespace, service) (max without (prometheus_replica) (latency:api_inbound_request_duration:p90_burnrate6h{namespace="clusters-service",service="clusters-service-metrics"})) > (5.6 * (1 - 0.9)))'
+        for: 'PT5M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'ClustersServiceAPILatency6hto3dP90ErrorBudgetBurn'
+        enabled: true
+        labels: {
+          severity: 'warning'
+          slo: 'api-latency-p90'
+        }
+        annotations: {
+          correlationId: 'ClustersServiceAPILatency6hto3dP90ErrorBudgetBurn/{{ $labels.cluster }}'
+          description: 'This indicates persistent underperformance that needs investigation to avoid an SLO breach. The alert will fire if the current burn rate exceeds 0.934 times the allowed rate for the last 6 hours and 3 days.'
+          info: 'This indicates persistent underperformance that needs investigation to avoid an SLO breach. The alert will fire if the current burn rate exceeds 0.934 times the allowed rate for the last 6 hours and 3 days.'
+          runbook_url: 'aka.ms/arohcp-runbook/cs-slo-monitoring'
+          summary: 'API is slowly but steadily burning its 28 day 0.1s latency error budget (90% SLO)'
+          title: 'API is slowly but steadily burning its 28 day 0.1s latency error budget (90% SLO)'
+        }
+        expression: 'sum by (cluster, namespace, service) (max without (prometheus_replica) (latency:api_inbound_request_duration:p90_burnrate6h{namespace="clusters-service",service="clusters-service-metrics"})) > (0.934 * (1 - 0.9)) and sum by (cluster, namespace, service) (max without (prometheus_replica) (latency:api_inbound_request_duration:p90_burnrate3d{namespace="clusters-service",service="clusters-service-metrics"})) > (0.934 * (1 - 0.9))'
+        for: 'PT30M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
     ]
     scopes: [
       azureMonitoring
