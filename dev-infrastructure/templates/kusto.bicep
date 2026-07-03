@@ -16,6 +16,9 @@ param serviceLogsDatabase string
 @description('Name of the hosted control plane logs database.')
 param hostedControlPlaneLogsDatabase string
 
+@description('Name of the monitoring events database.')
+param monitoringEventsDatabase string
+
 @description('CSV separated list of groups to assign admin in the Kusto cluster')
 param adminGroups string
 
@@ -47,6 +50,7 @@ module kusto '../modules/logs/kusto/main.bicep' = if (manageInstance) {
     tier: tier
     serviceLogsDatabase: serviceLogsDatabase
     hostedControlPlaneLogsDatabase: hostedControlPlaneLogsDatabase
+    monitoringEventsDatabase: monitoringEventsDatabase
     adminGroups: adminGroups
     viewerGroups: viewerGroups
     viewerIdentities: viewerIdentities
