@@ -214,7 +214,9 @@ For the live DEV slot-managed path:
 
 - update `test/e2e-config/e2e-slots.yaml`
 - sync or validate the release-side Boskos inventory with `./test/aro-hcp-tests slot-manager sync-boskos-config` and `./test/aro-hcp-tests slot-manager validate-boskos-config`
-- apply the identity pool with `./test/aro-hcp-tests slot-manager apply-identity-pool --environment dev`
+- apply the identity pool with `make -C test apply-identity-pool ENVIRONMENT=dev`
+
+  Always apply through this Make target rather than `go run` or a hand-built binary. The target rebuilds `aro-hcp-tests` and, as part of that, regenerates the Bicep-derived ARM artifacts (e.g. `msi-pools.json`) from the source-of-truth Bicep in `test/e2e-setup/bicep/`. The generated artifacts under `test/e2e/test-artifacts/generated-test-artifacts/` are git-ignored build outputs, so bypassing the Make build can embed and apply a stale template — which manifests as resource groups being deleted and recreated instead of updated in place.
 - follow [DEV E2E Subscription Onboarding](dev-e2e-subscription-onboarding.md) for the full operator runbook when adding another customer subscription
 
 For higher environments, the identity-container acquisition path is still the older ci-operator `leases:` model. Those jobs are not yet wired to slot-manager acquire or release, so changes there still have to respect the existing `openshift/release` Boskos inventory and job configuration.

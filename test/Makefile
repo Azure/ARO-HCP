@@ -40,6 +40,16 @@ $(PROW_JOB_EXECUTOR): $(PROW_JOB_EXECUTOR_SOURCES) $(MAKEFILE_LIST) $(TEST_DIR)/
 build: $(PROW_JOB_EXECUTOR) $(ARO_HCP_TESTS)
 .PHONY: build
 
+# Apply the slot-managed identity pool ARM deployment stack for a given environment.
+# Depends on $(ARO_HCP_TESTS), whose own prerequisites regenerate the Bicep-derived
+# ARM artifacts (e.g. msi-pools.json) from the source-of-truth Bicep before the binary
+# is (re)built and embeds them. Always run through this target instead of `go run`/
+# `go build`, otherwise a stale, git-ignored artifact may be embedded and applied.
+apply-identity-pool: $(ARO_HCP_TESTS)
+	$(ARO_HCP_TESTS) slot-manager apply-identity-pool \
+		--environment "$${ENVIRONMENT:?ENVIRONMENT must be set (e.g. dev, int, stg, prod)}"
+.PHONY: apply-identity-pool
+
 int-e2e:
 	PROW_JOB_NAME="$$(yq .clouds.public.environments.int.defaults.e2e.regionTest.prowJobName < ../config/config.msft.clouds-overlay.yaml)" \
 	REGION="uksouth" \
