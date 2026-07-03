@@ -101,7 +101,7 @@ resourceGroups:
     certificateName:
       configRef: geneva.logs.adminCertName
     contentType:
-      configRef: geneva.logs.adminCertContentType
+      configRef: geneva.logs.contentType
     san:
       configRef: geneva.logs.adminCertSan
     issuer:
@@ -173,9 +173,6 @@ resourceGroups:
     template: templates/geneva-identities.bicep
     parameters: configurations/geneva-identities-stg.tmpl.bicepparam
     deploymentLevel: ResourceGroup
-    dependsOn:
-    - resourceGroup: singleton
-      step: geneva-actions-cert
     # The Entra app/service-principal owners relationships are written through
     # Microsoft Graph, which intermittently fails to commit the relationship and
     # asks the caller to retry later. Retry the deployment on that transient error.

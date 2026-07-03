@@ -267,8 +267,7 @@ defaults:
       adminCertificateDomain: "geneva.keyvault.aro-hcp-global.azure.com"
       adminCertName: "geneva-logs-admin"
       adminCertSan: "geneva-logs-admin.geneva.keyvault.aro-hcp-global.azure.com"
-      adminCertContentType: x-pkcs12
-      manageCertificates: true
+      contentType: x-pkcs12
       manage: Enabled
       certificateIssuer: Self
       certificateDomain: "geneva.keyvault.aro-hcp.azure.com"
@@ -1432,7 +1431,6 @@ clouds:
           # Geneva
           geneva:
             logs:
-              manageCertificates: false
               manage: Disabled
           # DNS
           dns:
@@ -1510,7 +1508,6 @@ clouds:
           # Geneva
           geneva:
             logs:
-              manageCertificates: false
               manage: Disabled
           # DNS
           dns:
@@ -1630,7 +1627,6 @@ clouds:
           # Geneva
           geneva:
             logs:
-              manageCertificates: false
               manage: Disabled
           # DNS
           dns:
@@ -1728,7 +1724,6 @@ clouds:
           # Geneva
           geneva:
             logs:
-              manageCertificates: false
               manage: Disabled
           # DNS
           dns:

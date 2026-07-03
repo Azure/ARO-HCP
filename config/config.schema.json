@@ -1847,7 +1847,7 @@
             "adminCertSan": {
               "type": "string"
             },
-            "adminCertContentType": {
+            "contentType": {
               "type": "string"
             },
             "manage": {
@@ -1868,9 +1868,6 @@
                 "alias",
                 "securityGroup"
               ]
-            },
-            "manageCertificates": {
-              "type": "boolean"
             },
             "certificateIssuer": {
               "$ref": "#/definitions/certificateIssuer"
