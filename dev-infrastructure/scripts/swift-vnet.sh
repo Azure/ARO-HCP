@@ -53,10 +53,6 @@ az container delete \
 read -r -d '' CONTAINER_SCRIPT <<EOF || true
 set -euo pipefail
 
-echo "Logging in with the Swift-registered managed identity..."
-az login --identity --username "${DEPLOYMENT_MSI_ID}" --output none
-az account set --subscription "${SUBSCRIPTION_ID}"
-
 MAX_WAIT=180
 POLL_INTERVAL=5
 
@@ -67,10 +63,17 @@ retry() {
       echo "'\$*' still failing after \$((SECONDS - start))s" >&2
       return 1
     fi
-    echo "Command failed (likely RBAC propagation); retrying in \${POLL_INTERVAL}s..." >&2
+    echo "Command failed (likely RBAC propagation or network cold-start); retrying in \${POLL_INTERVAL}s..." >&2
     sleep "\${POLL_INTERVAL}"
   done
 }
+
+# Log in as globalMSI. The container's network/DNS stack may not be ready the instant it
+# starts, so az login can fail with a transient DNS error ([Errno -3] Try again) on a cold
+# start. Wrap login and account-set in retry so that self-heals instead of killing the step.
+echo "Logging in with the Swift-registered managed identity..."
+retry az login --identity --username "${DEPLOYMENT_MSI_ID}" --output none
+retry az account set --subscription "${SUBSCRIPTION_ID}"
 
 # Wait until the managed identity can actually read the resource group before deciding whether
 # the VNet exists. The Network/Tag Contributor assignments are created in a preceding step and
