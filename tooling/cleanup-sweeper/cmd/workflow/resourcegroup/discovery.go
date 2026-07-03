@@ -162,6 +162,7 @@ func sortDeletionTargets(
 			continue
 		}
 		deletionTargets.Insert(name)
+		deletionTargetsLower.Insert(strings.ToLower(name))
 		candidateSources[name] = fmt.Sprintf("managed child of deletion target %q", parsed.ResourceGroupName)
 		logger.Info("Adding managed RG to deletion targets (parent scheduled for deletion)",
 			"resourceGroup", name,
