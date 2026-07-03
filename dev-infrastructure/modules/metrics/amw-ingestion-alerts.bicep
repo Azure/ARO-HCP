@@ -40,7 +40,7 @@ resource approachingActiveTimeSeries 'Microsoft.Insights/metricAlerts@2018-03-01
       actions: [
         for g in actionGroups: {
           actionGroupId: g
-          actionProperties: {
+          webHookProperties: {
             'IcM.CorrelationId': 'AMWActiveTimeSeriesLimit/${ws.label}/${last(split(ws.id, '/'))}'
           }
         }
@@ -79,7 +79,7 @@ resource highRiskActiveTimeSeries 'Microsoft.Insights/metricAlerts@2018-03-01' =
       actions: [
         for g in actionGroups: {
           actionGroupId: g
-          actionProperties: {
+          webHookProperties: {
             'IcM.CorrelationId': 'AMWActiveTimeSeriesLimit/${ws.label}/${last(split(ws.id, '/'))}'
           }
         }
@@ -118,7 +118,7 @@ resource approachingEventIngestion 'Microsoft.Insights/metricAlerts@2018-03-01' 
       actions: [
         for g in actionGroups: {
           actionGroupId: g
-          actionProperties: {
+          webHookProperties: {
             'IcM.CorrelationId': 'AMWEventIngestionLimit/${ws.label}/${last(split(ws.id, '/'))}'
           }
         }
@@ -157,7 +157,7 @@ resource highRiskEventIngestion 'Microsoft.Insights/metricAlerts@2018-03-01' = [
       actions: [
         for g in actionGroups: {
           actionGroupId: g
-          actionProperties: {
+          webHookProperties: {
             'IcM.CorrelationId': 'AMWEventIngestionLimit/${ws.label}/${last(split(ws.id, '/'))}'
           }
         }
@@ -196,7 +196,7 @@ resource lowEventIngestion 'Microsoft.Insights/metricAlerts@2018-03-01' = [
       actions: [
         for g in actionGroups: {
           actionGroupId: g
-          actionProperties: {
+          webHookProperties: {
             'IcM.CorrelationId': 'AMWEventIngestionLimit/${ws.label}/${last(split(ws.id, '/'))}'
           }
         }

@@ -96,10 +96,10 @@ module actionGroups '../modules/metrics/actiongroups.bicep' = if (manageConnecti
   }
 }
 
-var slActionGroups = manageConnection ? [actionGroups.outputs.actionGroupsSL] : []
-var rpActionGroups = manageConnection ? [actionGroups.outputs.actionGroupsRP] : []
-var sreActionGroups = manageConnection ? [actionGroups.outputs.actionGroupsSRE] : []
-var msftActionGroups = manageConnection ? [actionGroups.outputs.actionGroupsMSFT] : []
+var slActionGroups = manageConnection ? [actionGroups!.outputs.actionGroupsSL] : []
+var rpActionGroups = manageConnection ? [actionGroups!.outputs.actionGroupsRP] : []
+var sreActionGroups = manageConnection ? [actionGroups!.outputs.actionGroupsSRE] : []
+var msftActionGroups = manageConnection ? [actionGroups!.outputs.actionGroupsMSFT] : []
 
 module serviceAlerts '../modules/metrics/service-rules.bicep' = {
   name: 'serviceAlerts'
@@ -169,18 +169,6 @@ module ingestionAlerts '../modules/metrics/amw-ingestion-alerts.bicep' = {
   params: {
     actionGroups: slActionGroups
     enabled: alertsEnabled
-    lowEventIngestionThreshold: 1
-  }
-}
-
-module hcpIngestionAlerts '../modules/metrics/amw-ingestion-alerts.bicep' = {
-  name: 'hcpIngestionAlerts'
-  params: {
-    azureMonitorWorkspaceId: hcpAzureMonitoringWorkspaceId
-    workspaceLabel: 'hcp'
-    actionGroups: slActionGroups
-    enabled: alertsEnabled
-    lowEventIngestionThreshold: 1
     workspaces: [
       {
         id: azureMonitoringWorkspaceId
@@ -196,4 +184,4 @@ module hcpIngestionAlerts '../modules/metrics/amw-ingestion-alerts.bicep' = {
   }
 }
 
-output actionGroupSL string = manageConnection ? actionGroups.outputs.actionGroupsSL : ''
+output actionGroupSL string = manageConnection ? actionGroups!.outputs.actionGroupsSL : ''
