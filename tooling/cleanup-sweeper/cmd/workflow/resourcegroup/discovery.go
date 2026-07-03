@@ -146,7 +146,8 @@ func sortDeletionTargets(
 			continue
 		}
 		name := *rg.Name
-		if excludedResourceGroups.Has(strings.ToLower(name)) {
+		nameLower := strings.ToLower(name)
+		if excludedResourceGroups.Has(nameLower) {
 			continue
 		}
 		parsed, err := azcorearm.ParseResourceID(*rg.ManagedBy)
@@ -158,11 +159,11 @@ func sortDeletionTargets(
 			continue
 		}
 		imminentOrphans.Insert(name)
-		if deletionTargets.Has(name) {
+		if deletionTargetsLower.Has(nameLower) {
 			continue
 		}
 		deletionTargets.Insert(name)
-		deletionTargetsLower.Insert(strings.ToLower(name))
+		deletionTargetsLower.Insert(nameLower)
 		candidateSources[name] = fmt.Sprintf("managed child of deletion target %q", parsed.ResourceGroupName)
 		logger.Info("Adding managed RG to deletion targets (parent scheduled for deletion)",
 			"resourceGroup", name,
