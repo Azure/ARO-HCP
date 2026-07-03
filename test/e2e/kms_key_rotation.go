@@ -36,7 +36,7 @@ var _ = Describe("Customer", func() {
 	timeBombDeadline := framework.Must(time.Parse(time.RFC3339, "2026-07-31T00:00:00Z"))
 
 	It("should be able to rotate KMS key for a cluster with version >= 4.22",
-		labels.RequireNothing, labels.High, labels.Positive,
+		labels.RequireNothing, labels.High, labels.Positive, labels.AroRpApiCompatible,
 		func(ctx context.Context) {
 			const (
 				clusterName = "kms-key-rotate-422"
