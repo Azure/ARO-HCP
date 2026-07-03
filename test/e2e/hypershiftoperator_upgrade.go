@@ -20,6 +20,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 	"time"
@@ -149,6 +150,24 @@ func nodePoolDataSecretName(ctx context.Context, mcClient dynamic.Interface, nod
 	return secretName, nil
 }
 
+// repoRoot derives the repository root from the test binary path.
+// The binary is built at <repo-root>/test/aro-hcp-tests (see test/Makefile),
+// so the repo root is two directory levels above the executable.
+// Using the executable path rather than os.Getwd() makes make invocations
+// resilient when the test is launched from any working directory.
+func repoRoot() (string, error) {
+	exe, err := os.Executable()
+	if err != nil {
+		return "", fmt.Errorf("resolving executable path: %w", err)
+	}
+	real, err := filepath.EvalSymlinks(exe)
+	if err != nil {
+		return "", fmt.Errorf("evaluating symlinks for %q: %w", exe, err)
+	}
+	// real == <repo-root>/test/aro-hcp-tests → Dir→ test/ → Dir→ repo root
+	return filepath.Dir(filepath.Dir(real)), nil
+}
+
 var _ = Describe("HypershiftOperator in-place upgrade", func() {
 	It("validates node pool rollout after upgrade",
 		labels.Critical,
@@ -269,7 +288,10 @@ var _ = Describe("HypershiftOperator in-place upgrade", func() {
 			// OVERRIDE_CONFIG_FILE, DEPLOY_ENV, and any pipeline flags (SKIP_CONFIRM,
 			// PERSIST) set by the openshift/release step script are passed through.
 			// stdout/stderr are forwarded to GinkgoWriter so they appear in the test log.
+			root, err := repoRoot()
+			Expect(err).NotTo(HaveOccurred(), "failed to determine repo root for make invocation")
 			makeRunner := &framework.MakeRunner{
+				WorkDir:  root,
 				ExtraEnv: []string{"SKIP_CONFIRM=true"},
 				Logger:   GinkgoLogr,
 			}

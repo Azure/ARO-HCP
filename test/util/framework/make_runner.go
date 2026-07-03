@@ -127,11 +127,16 @@ func (r *MakeRunner) run(ctx context.Context, target string, stdout, stderr inte
 
 	case <-ctx.Done():
 		// SIGTERM first, SIGKILL after grace period.
-		pgid, pgidErr := syscall.Getpgid(cmd.Process.Pid)
+		pid := cmd.Process.Pid
+		pgid, pgidErr := syscall.Getpgid(pid)
 		if pgidErr == nil {
 			r.Logger.Info("context cancelled — sending SIGTERM to make process group",
 				"target", target, "pgid", pgid)
 			_ = syscall.Kill(-pgid, syscall.SIGTERM)
+		} else {
+			r.Logger.Info("context cancelled — sending SIGTERM to make pid (pgid lookup failed)",
+				"target", target, "pid", pid, "error", pgidErr)
+			_ = syscall.Kill(pid, syscall.SIGTERM)
 		}
 
 		select {
@@ -142,6 +147,10 @@ func (r *MakeRunner) run(ctx context.Context, target string, stdout, stderr inte
 				r.Logger.Info("grace period elapsed — sending SIGKILL to make process group",
 					"target", target, "pgid", pgid)
 				_ = syscall.Kill(-pgid, syscall.SIGKILL)
+			} else {
+				r.Logger.Info("grace period elapsed — sending SIGKILL to make pid (pgid lookup failed)",
+					"target", target, "pid", pid, "error", pgidErr)
+				_ = syscall.Kill(pid, syscall.SIGKILL)
 			}
 			<-waitCh
 		}
