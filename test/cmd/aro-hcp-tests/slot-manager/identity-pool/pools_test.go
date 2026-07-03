@@ -193,6 +193,57 @@ environments:
 	}
 }
 
+func TestLoadIdentityPoolsIgnoresEmptyFilterEntries(t *testing.T) {
+	t.Parallel()
+
+	catalogDir := t.TempDir()
+	catalogPath := filepath.Join(catalogDir, "e2e-slots.yaml")
+	catalog := `version: 1
+environments:
+  dev:
+    deploy_envs:
+      - ci00
+    pools:
+      - subscription_name: managed-sub
+        region: westus3
+        region_mode: fixed
+        resource_type: aro-hcp-dev-westus3-slot
+        slot_count: 1
+        identity_container_prefix: aro-hcp-msi-container-dev-a
+        identity_container_count: 1
+      - subscription_name: unmanaged-sub
+        region: eastus2
+        region_mode: fixed
+        identity_provisioning: unmanaged
+        resource_type: aro-hcp-dev-eastus2-slot
+        slot_count: 1
+        identity_container_prefix: aro-hcp-msi-container-dev-b
+        identity_container_count: 1
+`
+	if err := os.WriteFile(catalogPath, []byte(catalog), 0o644); err != nil {
+		t.Fatalf("expected catalog write to succeed: %v", err)
+	}
+
+	resolver := fakeResolver(map[string]string{
+		"managed-sub":   "00000000-0000-0000-0000-000000000001",
+		"unmanaged-sub": "00000000-0000-0000-0000-000000000002",
+	})
+
+	// A wrapper passing an unset env var can yield an empty (or whitespace-only)
+	// filter entry. Those must be ignored so the call behaves like an empty
+	// filter (unmanaged pools skipped) instead of silently matching nothing.
+	pools, err := loadIdentityPools(context.Background(), catalogPath, "dev", []string{"", "   "}, resolver)
+	if err != nil {
+		t.Fatalf("expected identity pools to load: %v", err)
+	}
+	if len(pools) != 1 {
+		t.Fatalf("expected 1 pool (empty filter ignored, unmanaged skipped), got %d", len(pools))
+	}
+	if pools[0].SubscriptionName != "managed-sub" {
+		t.Fatalf("expected only the managed pool, got %q", pools[0].SubscriptionName)
+	}
+}
+
 func TestLoadIdentityPoolsResolutionFailure(t *testing.T) {
 	t.Parallel()
 

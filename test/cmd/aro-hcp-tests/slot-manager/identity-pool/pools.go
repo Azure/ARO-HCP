@@ -17,6 +17,7 @@ package identitypool
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/Azure/ARO-HCP/test/cmd/aro-hcp-tests/slot-manager/slots"
 )
@@ -53,6 +54,13 @@ func loadIdentityPools(ctx context.Context, catalogPath, environment string, sub
 
 	filterSet := make(map[string]struct{}, len(subscriptionFilter))
 	for _, name := range subscriptionFilter {
+		// Ignore empty/whitespace-only entries so that a wrapper passing an
+		// empty --subscription value (e.g. an unset env var) does not produce
+		// a non-empty filter that silently skips every pool.
+		name = strings.TrimSpace(name)
+		if name == "" {
+			continue
+		}
 		filterSet[name] = struct{}{}
 	}
 
