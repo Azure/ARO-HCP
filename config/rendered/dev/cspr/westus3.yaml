@@ -25,7 +25,7 @@ acr:
 acrDNSSuffix: azurecr.io
 acrPull:
   image:
-    digest: sha256:f70b19d8e09517058036ea87a9931440110246ee4e4df09c341c59ec3716e46c
+    digest: sha256:17dda36c3ba6059411e813b03a6ee9fc11f1a4f737cf42e1239bd6fef558b9c5
     registry: mcr.microsoft.com
     repository: aks/msi-acrpull
 adminApi:
@@ -67,7 +67,7 @@ armHelperTenantId: 64dc69e4-d083-49fc-9569-ebece1dd1408
 arobit:
   forwarder:
     image:
-      digest: sha256:be5eade9ea7263de7142a52cecd2f39d919ed65556c17910953f340d14947f1c
+      digest: sha256:a402acb7d350516073b59597b71c78fac91c9ade9ac8effae78adf5623f2120f
       registry: mcr.microsoft.com
       repository: oss/v2/fluent/fluent-bit
     resources:
@@ -83,7 +83,7 @@ arobit:
   mdsd:
     enabled: false
     image:
-      digest: sha256:b7537284064d047322a6044b4dc003437e59e2a30e9032e5b5acd5ffa090ada5
+      digest: sha256:a3bba18872ebd50e09ff268206a8c2e5defbdd19b58efc7f60acafb8b0f5a39a
       registry: mcr.microsoft.com
       repository: geneva/distroless/mdsd
 auditLogsEventHub:
@@ -455,7 +455,7 @@ imageSync:
   ocMirror:
     enabled: true
     image:
-      digest: sha256:535c625e50392d40af6b178154d2cf8de765c8c77d5eb2e9d38e085b6b34cdb3
+      digest: sha256:466f3c3a8d1cd960d4b853ceaee14fdae024c80dcf5f39f989a2fd01c7e49648
       registry: arohcpsvcdev.azurecr.io
       repository: image-sync/oc-mirror
     jobNamePrefix: ""
@@ -487,7 +487,7 @@ kubeApplier:
 kubeEvents:
   enabled: true
   image:
-    digest: sha256:f7559fa4f82caa8959eb350a358900581c5b414abf414975a88d1bde21715233
+    digest: sha256:38f1ce881c66b5d560b53da00ae03bd659c6d480909e3652bd90a15f39b19f8b
     registry: kubernetesshared.azurecr.io
     repository: shared/kube-events
   k8s:
@@ -539,7 +539,7 @@ maestro:
     managedIdentityName: maestro-consumer
     sidecar:
       image:
-        digest: sha256:90e8b621e7b75bd0e8738dc41aca5fe7de6e0449bf39bea3210370ab8626b354
+        digest: sha256:bef7ab720cea4ae7cd19a0ee03418a59c4a9233ded75b233143cf792d8ca0741
         registry: mcr.microsoft.com
         repository: azurelinux/base/nginx
   certIssuer: Self
@@ -653,7 +653,7 @@ mgmt:
           sha: 01038e7de14b78d702d2849c3aad72fd25903c4765af63cf16aa3398f5d5f2dd
     kubeStateMetrics:
       image:
-        digest: sha256:e39c4ef50f0558940d7cd4e956a48d1166ca960498f9baae03a4ecf848a85f00
+        digest: sha256:bcc4295e27f42dc603ed5207d169a0130322939d48d8e2cf38dd7d04ac33392a
         registry: mcr.microsoft.com/oss/v2
         repository: kubernetes/kube-state-metrics
     namespace: prometheus
@@ -662,18 +662,18 @@ mgmt:
       image:
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus-config-reloader
-        sha: 67a388022a2d78224f9b68f12c5b9118114334b59cce72b20f2cc199de953948
+        sha: b590d4ed9814d384a42fe70e341549b98c18e55b5dd0a1a88a9bb64154451770
     prometheusOperator:
       image:
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus-operator
-        sha: e7bbcd13ba6b9e1dec02a7f0fa882444b46d17fb06dc7f7bcde3f927b663c77e
+        sha: e775642d6bb670cd5a500830291d9d8591ee16054e7f9e51931f009c7df3d130
       version: ""
     prometheusSpec:
       image:
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus
-        sha: 436aef842b67b5d11d7f72776138401f8a4005c8be5cf82238aa0eb7599cdf2e
+        sha: d62d16b8a33a13f9e9a12ee3679ebcb64e9c0a7bb7dc1d8a56ac46be54c1ebc1
       replicas: 2
       resources:
         limits:
@@ -882,7 +882,7 @@ secretSyncController:
         memory: 100Mi
     serviceAccountName: secrets-store-sync-controller-manager
   providerImage:
-    digest: sha256:fb9dbdb107f3435e60986a2240b464c36768af9a85deb484ed367ad69421e334
+    digest: sha256:2dd80e1752f669a189501e3b0ddccaff9a1c589cd2a9be07592dd157801c3d14
     registry: mcr.microsoft.com
     repository: oss/v2/azure/secrets-store/provider-azure
 serviceKeyVault:
@@ -971,7 +971,7 @@ svc:
   istio:
     ingressGatewayIPAddressIPTags: ""
     ingressGatewayIPAddressName: aro-hcp-istio-ingress
-    istioctlVersion: 1.30.1
+    istioctlVersion: 1.30.2
     tag: prod-stable
     targetVersion: asm-1-28
     versions: asm-1-28
@@ -991,7 +991,7 @@ svc:
           sha: 01038e7de14b78d702d2849c3aad72fd25903c4765af63cf16aa3398f5d5f2dd
     kubeStateMetrics:
       image:
-        digest: sha256:e39c4ef50f0558940d7cd4e956a48d1166ca960498f9baae03a4ecf848a85f00
+        digest: sha256:bcc4295e27f42dc603ed5207d169a0130322939d48d8e2cf38dd7d04ac33392a
         registry: mcr.microsoft.com/oss/v2
         repository: kubernetes/kube-state-metrics
     namespace: prometheus
@@ -1000,18 +1000,18 @@ svc:
       image:
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus-config-reloader
-        sha: 67a388022a2d78224f9b68f12c5b9118114334b59cce72b20f2cc199de953948
+        sha: b590d4ed9814d384a42fe70e341549b98c18e55b5dd0a1a88a9bb64154451770
     prometheusOperator:
       image:
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus-operator
-        sha: e7bbcd13ba6b9e1dec02a7f0fa882444b46d17fb06dc7f7bcde3f927b663c77e
+        sha: e775642d6bb670cd5a500830291d9d8591ee16054e7f9e51931f009c7df3d130
       version: ""
     prometheusSpec:
       image:
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus
-        sha: 436aef842b67b5d11d7f72776138401f8a4005c8be5cf82238aa0eb7599cdf2e
+        sha: d62d16b8a33a13f9e9a12ee3679ebcb64e9c0a7bb7dc1d8a56ac46be54c1ebc1
       replicas: 2
       resources:
         limits:
@@ -1065,14 +1065,14 @@ svc:
 tenantId: 64dc69e4-d083-49fc-9569-ebece1dd1408
 velero:
   azurePlugin:
-    digest: sha256:6caa5c6353ed05d209782e5c5fef6ce674d9f760184c6068b5c885c4649b56a5
+    digest: sha256:d0a28097f90c26293091f35ab14c4da8712584bdbda7e7bdfd97e76b23d62c52
     registry: registry.stage.redhat.io
     repository: oadp/oadp-velero-plugin-for-microsoft-azure-rhel9
   hypershiftPlugin:
-    digest: sha256:07d5ca63256268fa35e6b6936896005e97dac6f63daeed9710f425aeb5111976
+    digest: sha256:875431efdb4a7ba23988028f24b7b1a28d9386ab38055ada42c422cbfec2f09d
     registry: registry.stage.redhat.io
     repository: oadp/oadp-hypershift-velero-plugin-rhel9
   server:
-    digest: sha256:7e7c60f3bb3c8d2c09a48e2a85c4620e33eb5d30bfb2baaf7098afd597c7bece
+    digest: sha256:ff2717fda74b3a0dce5e28bf7eb3bbf3e2df5d9518cb4feb5a08a46b1f6d50dd
     registry: registry.stage.redhat.io
     repository: oadp/oadp-velero-rhel9
