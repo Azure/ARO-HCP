@@ -341,7 +341,7 @@ defaults:
     image:
       registry: quay.io
       repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
-      digest: sha256:9775a90c9bf7affe17341f04769b4817b8835c2a83c923019b169c33d23b070e # 9acec4759a16c86f0f87792c18a1d738b3b85129 (2026-06-25 05:28)
+      digest: sha256:c22bdb0f0f1c8388fe5169c2fc3a38480c9b9720fe91217b92e948a5ae46cbb0 # 9aeb1f3b64b5dbdd060374a396764545e0935b48 (2026-07-02 13:17)
     namespace: hypershift
     additionalInstallArg: '--enable-cpo-overrides'
     # By default we set it to empty as this tag is only required for msft environments. We override
