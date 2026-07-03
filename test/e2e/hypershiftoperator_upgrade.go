@@ -21,14 +21,19 @@ import (
 	"fmt"
 	"os"
 	"sort"
+	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/rand"
+	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/tools/clientcmd"
 
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
@@ -69,6 +74,79 @@ func nodePoolHash(ctx context.Context, kubeClient kubernetes.Interface, nodePool
 		)
 	}
 	return hex.EncodeToString(h.Sum(nil)), nil
+}
+
+// haProxyImage returns the container image used by the apiserver-haproxy static
+// pod(s) running in kube-system on the hosted cluster nodes. The pod is
+// embedded in a MachineConfig by the Hypershift node-pool controller and named
+// "kube-apiserver-proxy-<nodeName>" (or similar containing "haproxy"). All pods
+// originating from the same MachineConfig carry the same image; the function
+// errors if inconsistent images are found across pods.
+func haProxyImage(ctx context.Context, kubeClient kubernetes.Interface) (string, error) {
+	pods, err := kubeClient.CoreV1().Pods("kube-system").List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return "", fmt.Errorf("list kube-system pods: %w", err)
+	}
+
+	var image string
+	for _, pod := range pods.Items {
+		if !strings.Contains(pod.Name, "haproxy") {
+			continue
+		}
+		for _, c := range pod.Spec.Containers {
+			if c.Image == "" {
+				continue
+			}
+			if image == "" {
+				image = c.Image
+			} else if image != c.Image {
+				return "", fmt.Errorf("inconsistent haproxy container images across pods: %q vs %q", image, c.Image)
+			}
+		}
+	}
+	if image == "" {
+		return "", fmt.Errorf("no haproxy pod found in kube-system")
+	}
+	return image, nil
+}
+
+// nodePoolDataSecretName returns the bootstrap DataSecretName from the
+// MachineDeployment that Hypershift manages for nodePoolName on the management
+// cluster.
+//
+// mcClient must be a dynamic client built from the management cluster kubeconfig
+// (KUBECONFIG env var). The function lists MachineDeployments labelled with
+// hypershift.openshift.io/nodepool-name=<nodePoolName> across all namespaces.
+func nodePoolDataSecretName(ctx context.Context, mcClient dynamic.Interface, nodePoolName string) (string, error) {
+	mdGVR := schema.GroupVersionResource{
+		Group:    "cluster.x-k8s.io",
+		Version:  "v1beta1",
+		Resource: "machinedeployments",
+	}
+	list, err := mcClient.Resource(mdGVR).Namespace(metav1.NamespaceAll).List(ctx, metav1.ListOptions{
+		LabelSelector: "hypershift.openshift.io/nodepool-name=" + nodePoolName,
+	})
+	if err != nil {
+		return "", fmt.Errorf("list MachineDeployments for nodepool %q: %w", nodePoolName, err)
+	}
+	if len(list.Items) == 0 {
+		return "", fmt.Errorf("no MachineDeployment found for nodepool %q", nodePoolName)
+	}
+	if len(list.Items) > 1 {
+		return "", fmt.Errorf("expected 1 MachineDeployment for nodepool %q, found %d", nodePoolName, len(list.Items))
+	}
+
+	secretName, found, err := unstructured.NestedString(
+		list.Items[0].Object,
+		"spec", "template", "spec", "bootstrap", "dataSecretName",
+	)
+	if err != nil {
+		return "", fmt.Errorf("reading dataSecretName from MachineDeployment for nodepool %q: %w", nodePoolName, err)
+	}
+	if !found || secretName == "" {
+		return "", fmt.Errorf("dataSecretName not set in MachineDeployment for nodepool %q", nodePoolName)
+	}
+	return secretName, nil
 }
 
 var _ = Describe("HypershiftOperator in-place upgrade", func() {
@@ -164,7 +242,27 @@ var _ = Describe("HypershiftOperator in-place upgrade", func() {
 
 			baselineHash, err := nodePoolHash(ctx, kubeClient, nodePoolName)
 			Expect(err).NotTo(HaveOccurred(), "failed to compute baseline node pool hash for %q", nodePoolName)
-			GinkgoLogr.Info("baseline node pool hash captured", "nodepool", nodePoolName, "hash", baselineHash)
+
+			baselineHAProxyImage, err := haProxyImage(ctx, kubeClient)
+			Expect(err).NotTo(HaveOccurred(), "failed to capture baseline haproxy image for cluster %q", clusterName)
+
+			mcRESTConfig, err := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
+				clientcmd.NewDefaultClientConfigLoadingRules(),
+				&clientcmd.ConfigOverrides{},
+			).ClientConfig()
+			Expect(err).NotTo(HaveOccurred(), "failed to load management cluster kubeconfig — ensure KUBECONFIG is set")
+			mcClient, err := dynamic.NewForConfig(mcRESTConfig)
+			Expect(err).NotTo(HaveOccurred(), "failed to create MC dynamic client")
+
+			baselineDataSecretName, err := nodePoolDataSecretName(ctx, mcClient, nodePoolName)
+			Expect(err).NotTo(HaveOccurred(), "failed to get baseline MC DataSecretName for nodepool %q", nodePoolName)
+
+			GinkgoLogr.Info("baseline captured",
+				"nodepool", nodePoolName,
+				"hash", baselineHash,
+				"haproxyImage", baselineHAProxyImage,
+				"dataSecretName", baselineDataSecretName,
+			)
 
 			By("running make pipeline/RP.HypershiftOperator to deploy upgraded operator")
 			// MakeRunner inherits all environment variables from the test process so that
@@ -187,15 +285,31 @@ var _ = Describe("HypershiftOperator in-place upgrade", func() {
 			)
 			observationStart := time.Now()
 			Consistently(func(g Gomega) {
+				elapsed := time.Since(observationStart).Round(time.Second)
+
 				currentHash, hashErr := nodePoolHash(ctx, kubeClient, nodePoolName)
 				g.Expect(hashErr).NotTo(HaveOccurred(), "failed to compute post-upgrade node pool hash for %q", nodePoolName)
 				g.Expect(currentHash).To(Equal(baselineHash),
 					"node pool %q hash changed after %s (cluster %q): was %s, now %s",
-					nodePoolName, time.Since(observationStart).Round(time.Second), clusterName, baselineHash, currentHash,
+					nodePoolName, elapsed, clusterName, baselineHash, currentHash,
+				)
+
+				currentHAProxyImage, haproxyErr := haProxyImage(ctx, kubeClient)
+				g.Expect(haproxyErr).NotTo(HaveOccurred(), "failed to retrieve haproxy image for cluster %q", clusterName)
+				g.Expect(currentHAProxyImage).To(Equal(baselineHAProxyImage),
+					"haproxy image changed after %s (cluster %q): registry-override substitution fired — was %s, now %s",
+					elapsed, clusterName, baselineHAProxyImage, currentHAProxyImage,
+				)
+
+				currentDataSecretName, dsErr := nodePoolDataSecretName(ctx, mcClient, nodePoolName)
+				g.Expect(dsErr).NotTo(HaveOccurred(), "failed to retrieve MC DataSecretName for nodepool %q", nodePoolName)
+				g.Expect(currentDataSecretName).To(Equal(baselineDataSecretName),
+					"MC DataSecretName changed after %s (nodepool %q, cluster %q): mcoRawConfig hash rotated — was %s, now %s",
+					elapsed, nodePoolName, clusterName, baselineDataSecretName, currentDataSecretName,
 				)
 			}, rolloutObservationWindow, rolloutPollInterval).Should(Succeed(),
-				"node pool %q showed unexpected hash change within %s after upgrade (cluster %q)",
-				nodePoolName, rolloutObservationWindow, clusterName,
+				"unexpected change detected within %s after upgrade (cluster %q, nodepool %q)",
+				rolloutObservationWindow, clusterName, nodePoolName,
 			)
 		})
 })
