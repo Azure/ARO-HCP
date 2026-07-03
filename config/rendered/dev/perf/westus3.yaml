@@ -1,12 +1,12 @@
 acm:
   mce:
     bundle:
-      digest: sha256:843195fbb2b7caed6d5961212d932c8b6bd68c3df44a185a6a111dfdbd528ec9
+      digest: sha256:88e2a92d2a5e8ca5767943e55451e0d7256a16fb4d824684180afd5211324178
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-211
   operator:
     bundle:
-      digest: sha256:7d637c6366708b2f2a85ded051c762cbabedecb48a72586ebed5e00c135111d8
+      digest: sha256:51182cc5b31beff616e827c1e1cb642e733971bcf986f7cf6775a0ce76d1b8f3
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-216
 acr:
