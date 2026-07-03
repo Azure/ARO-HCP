@@ -17,12 +17,14 @@ package resourcegroup
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"strings"
 
 	"github.com/go-logr/logr"
 
 	"k8s.io/apimachinery/pkg/util/sets"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 )
 
@@ -37,12 +39,15 @@ func discoverCandidates(ctx context.Context, opts RunOptions) ([]string, error) 
 		candidateSources[resourceGroup] = "provided via CLI args"
 	}
 
-	discoveredCandidates, err := discoverPolicyCandidates(ctx, opts, candidateSources)
+	discoveredCandidates, allResourceGroups, err := discoverPolicyCandidates(ctx, opts, candidateSources)
 	if err != nil {
 		return nil, fmt.Errorf("failed to discover resource groups: %w", err)
 	}
 
-	finalCandidates := sets.List(opts.ResourceGroups.Union(discoveredCandidates))
+	deletionTargets := opts.ResourceGroups.Union(discoveredCandidates)
+	excluded := sets.New(opts.Policy.ExcludedResourceGroups...)
+	finalCandidates := sortDeletionTargets(logger, deletionTargets, allResourceGroups, excluded, candidateSources)
+
 	for _, resourceGroup := range finalCandidates {
 		source := candidateSources[resourceGroup]
 		if strings.TrimSpace(source) == "" {
@@ -69,7 +74,7 @@ func discoverPolicyCandidates(
 	ctx context.Context,
 	opts RunOptions,
 	candidateSources map[string]string,
-) (sets.Set[string], error) {
+) (sets.Set[string], []*armresources.ResourceGroup, error) {
 	logger, err := logr.FromContext(ctx)
 	if err != nil {
 		panic(err)
@@ -77,15 +82,15 @@ func discoverPolicyCandidates(
 
 	discoveredResourceGroups := sets.New[string]()
 	if len(opts.Policy.Discovery.Rules) == 0 {
-		return discoveredResourceGroups, nil
+		return discoveredResourceGroups, nil, nil
 	}
 	if opts.ReferenceTime.IsZero() {
-		return nil, fmt.Errorf("reference time is required for resource group discovery")
+		return nil, nil, fmt.Errorf("reference time is required for resource group discovery")
 	}
 
 	rgClient, err := armresources.NewResourceGroupsClient(opts.SubscriptionID, opts.AzureCredential, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create resource groups client: %w", err)
+		return nil, nil, fmt.Errorf("failed to create resource groups client: %w", err)
 	}
 
 	resourceGroups, err := listResourceGroups(ctx, rgClient)
@@ -94,7 +99,7 @@ func discoverPolicyCandidates(
 			"Best-effort mode: failed to list resource groups; continuing with explicit targets only",
 			"error", err,
 		)
-		return discoveredResourceGroups, nil
+		return discoveredResourceGroups, nil, nil
 	}
 
 	excludedResourceGroups := sets.New(opts.Policy.ExcludedResourceGroups...)
@@ -116,8 +121,64 @@ func discoverPolicyCandidates(
 		logger.Info("Discovered RG candidate from policy", "resourceGroup", *rg.Name, "reason", reason.String())
 	}
 
-	return discoveredResourceGroups, nil
+	return discoveredResourceGroups, resourceGroups, nil
 }
+
+// sortDeletionTargets ensures managed (child) RGs are deleted before their
+// parents. If a parent RG is a deletion target, its managed children are
+// added to the target set and placed first in the returned list, unblocking
+// the parent's VNet/NSG deletion.
+func sortDeletionTargets(
+	logger logr.Logger,
+	deletionTargets sets.Set[string],
+	allResourceGroups []*armresources.ResourceGroup,
+	excludedResourceGroups sets.Set[string],
+	candidateSources map[string]string,
+) []string {
+	imminentOrphans := sets.New[string]()
+	deletionTargetsLower := sets.New[string]()
+	for t := range deletionTargets {
+		deletionTargetsLower.Insert(strings.ToLower(t))
+	}
+
+	for _, rg := range allResourceGroups {
+		if rg.Name == nil || rg.ManagedBy == nil {
+			continue
+		}
+		name := *rg.Name
+		if excludedResourceGroups.Has(strings.ToLower(name)) {
+			continue
+		}
+		parsed, err := azcorearm.ParseResourceID(*rg.ManagedBy)
+		if err != nil {
+			slog.Warn("failed to parse managedBy resource ID", "managedBy", *rg.ManagedBy, "error", err)
+			continue
+		}
+		if !deletionTargetsLower.Has(strings.ToLower(parsed.ResourceGroupName)) {
+			continue
+		}
+		imminentOrphans.Insert(name)
+		if deletionTargets.Has(name) {
+			continue
+		}
+		deletionTargets.Insert(name)
+		candidateSources[name] = fmt.Sprintf("managed child of deletion target %q", parsed.ResourceGroupName)
+		logger.Info("Adding managed RG to deletion targets (parent scheduled for deletion)",
+			"resourceGroup", name,
+			"parentResourceGroup", parsed.ResourceGroupName,
+		)
+	}
+
+	sorted := make([]string, 0, deletionTargets.Len())
+	sorted = append(sorted, sets.List(imminentOrphans)...)
+	for _, t := range sets.List(deletionTargets) {
+		if !imminentOrphans.Has(t) {
+			sorted = append(sorted, t)
+		}
+	}
+	return sorted
+}
+
 func listResourceGroups(
 	ctx context.Context,
 	rgClient *armresources.ResourceGroupsClient,
