@@ -275,12 +275,12 @@ resource msftKubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@202
           severity: 'warning'
         }
         annotations: {
-          correlationId: 'KubeContainerWaiting/{{ $labels.cluster }}/{{ $labels.namespace }}/{{ $labels.pod }}'
+          correlationId: 'KubeContainerWaiting/{{ $labels.cluster }}/{{ $labels.namespace }}/{{ $labels.pod }}/{{ $labels.container }}'
           description: 'pod/{{ $labels.pod }} in namespace {{ $labels.namespace }} on container {{ $labels.container}} has been in waiting state for longer than 1 hour.'
           info: 'pod/{{ $labels.pod }} in namespace {{ $labels.namespace }} on container {{ $labels.container}} has been in waiting state for longer than 1 hour.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubecontainerwaiting'
           summary: 'Pod container waiting longer than 1 hour'
-          title: 'Pod container waiting longer than 1 hour namespace:{{ $labels.namespace }} pod:{{ $labels.pod }}'
+          title: 'Pod container waiting longer than 1 hour namespace:{{ $labels.namespace }} pod:{{ $labels.pod }} container:{{ $labels.container }}'
         }
         expression: 'sum by (namespace, pod, container, cluster) (kube_pod_container_status_waiting_reason{job="kube-state-metrics",namespace=~"billing|credential-refresher"}) > 0'
         for: 'PT1H'
@@ -409,12 +409,12 @@ resource msftKubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@202
           severity: 'warning'
         }
         annotations: {
-          correlationId: 'KubeHpaReplicasMismatch/{{ $labels.cluster }}/{{ $labels.namespace }}'
+          correlationId: 'KubeHpaReplicasMismatch/{{ $labels.cluster }}/{{ $labels.namespace }}/{{ $labels.horizontalpodautoscaler }}'
           description: 'HPA {{ $labels.namespace }}/{{ $labels.horizontalpodautoscaler  }} has not matched the desired number of replicas for longer than 15 minutes.'
           info: 'HPA {{ $labels.namespace }}/{{ $labels.horizontalpodautoscaler  }} has not matched the desired number of replicas for longer than 15 minutes.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubehpareplicasmismatch'
           summary: 'HPA has not matched desired number of replicas.'
-          title: 'HPA has not matched desired number of replicas. namespace:{{ $labels.namespace }}'
+          title: 'HPA has not matched desired number of replicas. namespace:{{ $labels.namespace }} horizontalpodautoscaler:{{ $labels.horizontalpodautoscaler }}'
         }
         expression: '(kube_horizontalpodautoscaler_status_desired_replicas{job="kube-state-metrics",namespace=~"billing|credential-refresher"} != kube_horizontalpodautoscaler_status_current_replicas{job="kube-state-metrics",namespace=~"billing|credential-refresher"}) and (kube_horizontalpodautoscaler_status_current_replicas{job="kube-state-metrics",namespace=~"billing|credential-refresher"} > kube_horizontalpodautoscaler_spec_min_replicas{job="kube-state-metrics",namespace=~"billing|credential-refresher"}) and (kube_horizontalpodautoscaler_status_current_replicas{job="kube-state-metrics",namespace=~"billing|credential-refresher"} < kube_horizontalpodautoscaler_spec_max_replicas{job="kube-state-metrics",namespace=~"billing|credential-refresher"}) and changes(kube_horizontalpodautoscaler_status_current_replicas{job="kube-state-metrics",namespace=~"billing|credential-refresher"}[15m]) == 0'
         for: 'PT15M'
@@ -436,12 +436,12 @@ resource msftKubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@202
           severity: 'warning'
         }
         annotations: {
-          correlationId: 'KubeHpaMaxedOut/{{ $labels.cluster }}/{{ $labels.namespace }}'
+          correlationId: 'KubeHpaMaxedOut/{{ $labels.cluster }}/{{ $labels.namespace }}/{{ $labels.horizontalpodautoscaler }}'
           description: 'HPA {{ $labels.namespace }}/{{ $labels.horizontalpodautoscaler  }} has been running at max replicas for longer than 15 minutes.'
           info: 'HPA {{ $labels.namespace }}/{{ $labels.horizontalpodautoscaler  }} has been running at max replicas for longer than 15 minutes.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubehpamaxedout'
           summary: 'HPA is running at max replicas'
-          title: 'HPA is running at max replicas namespace:{{ $labels.namespace }}'
+          title: 'HPA is running at max replicas namespace:{{ $labels.namespace }} horizontalpodautoscaler:{{ $labels.horizontalpodautoscaler }}'
         }
         expression: 'kube_horizontalpodautoscaler_status_current_replicas{job="kube-state-metrics",namespace=~"billing|credential-refresher"} == kube_horizontalpodautoscaler_spec_max_replicas{job="kube-state-metrics",namespace=~"billing|credential-refresher"}'
         for: 'PT15M'
@@ -575,7 +575,7 @@ resource msftKubernetesStorage 'Microsoft.AlertsManagement/prometheusRuleGroups@
           info: 'The PersistentVolume claimed by {{ $labels.persistentvolumeclaim }} in Namespace {{ $labels.namespace }} {{ with $labels.cluster -}} on Cluster {{ . }} {{- end }} is only {{ $value | humanizePercentage }} free.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubepersistentvolumefillingup'
           summary: 'PersistentVolume is filling up.'
-          title: 'PersistentVolume is filling up. persistentvolumeclaim:{{ $labels.persistentvolumeclaim }} namespace:{{ $labels.namespace }}'
+          title: 'PersistentVolume is filling up. persistentvolumeclaim:{{ $labels.persistentvolumeclaim }} namespace:{{ $labels.namespace }} cluster:{{ $labels.cluster }}'
         }
         expression: '(kubelet_volume_stats_available_bytes{job="kubelet",metrics_path="/metrics",namespace=~"billing|credential-refresher"} / kubelet_volume_stats_capacity_bytes{job="kubelet",metrics_path="/metrics",namespace=~"billing|credential-refresher"}) < 0.03 and kubelet_volume_stats_used_bytes{job="kubelet",metrics_path="/metrics",namespace=~"billing|credential-refresher"} > 0 unless on (cluster, namespace, persistentvolumeclaim) kube_persistentvolumeclaim_access_mode{access_mode="ReadOnlyMany",namespace=~"billing|credential-refresher"} == 1 unless on (cluster, namespace, persistentvolumeclaim) kube_persistentvolumeclaim_labels{label_excluded_from_alerts="true",namespace=~"billing|credential-refresher"} == 1'
         for: 'PT1M'
@@ -602,7 +602,7 @@ resource msftKubernetesStorage 'Microsoft.AlertsManagement/prometheusRuleGroups@
           info: 'Based on recent sampling, the PersistentVolume claimed by {{ $labels.persistentvolumeclaim }} in Namespace {{ $labels.namespace }} {{ with $labels.cluster -}} on Cluster {{ . }} {{- end }} is expected to fill up within four days. Currently {{ $value | humanizePercentage }} is available.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubepersistentvolumefillingup'
           summary: 'PersistentVolume is filling up.'
-          title: 'PersistentVolume is filling up. persistentvolumeclaim:{{ $labels.persistentvolumeclaim }} namespace:{{ $labels.namespace }}'
+          title: 'PersistentVolume is filling up. persistentvolumeclaim:{{ $labels.persistentvolumeclaim }} namespace:{{ $labels.namespace }} cluster:{{ $labels.cluster }}'
         }
         expression: '(kubelet_volume_stats_available_bytes{job="kubelet",metrics_path="/metrics",namespace=~"billing|credential-refresher"} / kubelet_volume_stats_capacity_bytes{job="kubelet",metrics_path="/metrics",namespace=~"billing|credential-refresher"}) < 0.15 and kubelet_volume_stats_used_bytes{job="kubelet",metrics_path="/metrics",namespace=~"billing|credential-refresher"} > 0 and predict_linear(kubelet_volume_stats_available_bytes{job="kubelet",metrics_path="/metrics",namespace=~"billing|credential-refresher"}[6h], 4 * 24 * 3600) < 0 unless on (cluster, namespace, persistentvolumeclaim) kube_persistentvolumeclaim_access_mode{access_mode="ReadOnlyMany",namespace=~"billing|credential-refresher"} == 1 unless on (cluster, namespace, persistentvolumeclaim) kube_persistentvolumeclaim_labels{label_excluded_from_alerts="true",namespace=~"billing|credential-refresher"} == 1'
         for: 'PT1H'
@@ -629,7 +629,7 @@ resource msftKubernetesStorage 'Microsoft.AlertsManagement/prometheusRuleGroups@
           info: 'The PersistentVolume claimed by {{ $labels.persistentvolumeclaim }} in Namespace {{ $labels.namespace }} {{ with $labels.cluster -}} on Cluster {{ . }} {{- end }} only has {{ $value | humanizePercentage }} free inodes.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubepersistentvolumeinodesfillingup'
           summary: 'PersistentVolumeInodes are filling up.'
-          title: 'PersistentVolumeInodes are filling up. persistentvolumeclaim:{{ $labels.persistentvolumeclaim }} namespace:{{ $labels.namespace }}'
+          title: 'PersistentVolumeInodes are filling up. persistentvolumeclaim:{{ $labels.persistentvolumeclaim }} namespace:{{ $labels.namespace }} cluster:{{ $labels.cluster }}'
         }
         expression: '(kubelet_volume_stats_inodes_free{job="kubelet",metrics_path="/metrics",namespace=~"billing|credential-refresher"} / kubelet_volume_stats_inodes{job="kubelet",metrics_path="/metrics",namespace=~"billing|credential-refresher"}) < 0.03 and kubelet_volume_stats_inodes_used{job="kubelet",metrics_path="/metrics",namespace=~"billing|credential-refresher"} > 0 unless on (cluster, namespace, persistentvolumeclaim) kube_persistentvolumeclaim_access_mode{access_mode="ReadOnlyMany",namespace=~"billing|credential-refresher"} == 1 unless on (cluster, namespace, persistentvolumeclaim) kube_persistentvolumeclaim_labels{label_excluded_from_alerts="true",namespace=~"billing|credential-refresher"} == 1'
         for: 'PT1M'
@@ -656,7 +656,7 @@ resource msftKubernetesStorage 'Microsoft.AlertsManagement/prometheusRuleGroups@
           info: 'Based on recent sampling, the PersistentVolume claimed by {{ $labels.persistentvolumeclaim }} in Namespace {{ $labels.namespace }} {{ with $labels.cluster -}} on Cluster {{ . }} {{- end }} is expected to run out of inodes within four days. Currently {{ $value | humanizePercentage }} of its inodes are free.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubepersistentvolumeinodesfillingup'
           summary: 'PersistentVolumeInodes are filling up.'
-          title: 'PersistentVolumeInodes are filling up. persistentvolumeclaim:{{ $labels.persistentvolumeclaim }} namespace:{{ $labels.namespace }}'
+          title: 'PersistentVolumeInodes are filling up. persistentvolumeclaim:{{ $labels.persistentvolumeclaim }} namespace:{{ $labels.namespace }} cluster:{{ $labels.cluster }}'
         }
         expression: '(kubelet_volume_stats_inodes_free{job="kubelet",metrics_path="/metrics",namespace=~"billing|credential-refresher"} / kubelet_volume_stats_inodes{job="kubelet",metrics_path="/metrics",namespace=~"billing|credential-refresher"}) < 0.15 and kubelet_volume_stats_inodes_used{job="kubelet",metrics_path="/metrics",namespace=~"billing|credential-refresher"} > 0 and predict_linear(kubelet_volume_stats_inodes_free{job="kubelet",metrics_path="/metrics",namespace=~"billing|credential-refresher"}[6h], 4 * 24 * 3600) < 0 unless on (cluster, namespace, persistentvolumeclaim) kube_persistentvolumeclaim_access_mode{access_mode="ReadOnlyMany",namespace=~"billing|credential-refresher"} == 1 unless on (cluster, namespace, persistentvolumeclaim) kube_persistentvolumeclaim_labels{label_excluded_from_alerts="true",namespace=~"billing|credential-refresher"} == 1'
         for: 'PT1H'
@@ -683,7 +683,7 @@ resource msftKubernetesStorage 'Microsoft.AlertsManagement/prometheusRuleGroups@
           info: 'The persistent volume {{ $labels.persistentvolume }} {{ with $labels.cluster -}} on Cluster {{ . }} {{- end }} has status {{ $labels.phase }}.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubepersistentvolumeerrors'
           summary: 'PersistentVolume is having issues with provisioning.'
-          title: 'PersistentVolume is having issues with provisioning. persistentvolume:{{ $labels.persistentvolume }} phase:{{ $labels.phase }}'
+          title: 'PersistentVolume is having issues with provisioning. persistentvolume:{{ $labels.persistentvolume }} phase:{{ $labels.phase }} cluster:{{ $labels.cluster }}'
         }
         expression: 'kube_persistentvolume_status_phase{job="kube-state-metrics",namespace=~"billing|credential-refresher",phase=~"Failed|Pending"} > 0'
         for: 'PT5M'
@@ -763,7 +763,7 @@ resource msftMsiCredentialRefresher 'Microsoft.AlertsManagement/prometheusRuleGr
           info: 'Credential(s) for customer cluster monitored by {{ $labels.cluster }} are expiring in less than 30 days.'
           runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/troubleshooting/tsgs/credential-refresher-expiring-cert'
           summary: 'Customer cluster credential expiring in less than 30 days'
-          title: 'Customer cluster credential expiring in less than 30 days'
+          title: 'Customer cluster credential expiring in less than 30 days cluster:{{ $labels.cluster }}'
         }
         expression: 'sum by (cluster) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le=~"^30([.]0)?$"}[30m])) - sum by (cluster) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le=~"^0([.]0)?$"}[30m])) > 0'
         for: 'PT5M'
@@ -790,7 +790,7 @@ resource msftMsiCredentialRefresher 'Microsoft.AlertsManagement/prometheusRuleGr
           info: 'Credential(s) for customer cluster monitored by {{ $labels.cluster }} expired.'
           runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/troubleshooting/tsgs/credential-refresher-expiring-cert'
           summary: 'Customer cluster credential expired'
-          title: 'Customer cluster credential expired'
+          title: 'Customer cluster credential expired cluster:{{ $labels.cluster }}'
         }
         expression: 'sum by (cluster) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le=~"^0([.]0)?$"}[30m])) - sum by (cluster) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le=~"^-90([.]0)?$"}[30m])) > 0'
         for: 'PT5M'
@@ -817,7 +817,7 @@ resource msftMsiCredentialRefresher 'Microsoft.AlertsManagement/prometheusRuleGr
           info: 'Credential(s) for customer cluster monitored by {{ $labels.cluster }} are no longer renewable.'
           runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/troubleshooting/tsgs/credential-refresher-expiring-cert'
           summary: 'Customer cluster credential is no longer renewable'
-          title: 'Customer cluster credential is no longer renewable'
+          title: 'Customer cluster credential is no longer renewable cluster:{{ $labels.cluster }}'
         }
         expression: 'sum by (cluster) (increase(credential_refresher_days_until_msi_credential_expiration_bucket{le=~"^-90([.]0)?$"}[30m])) > 0'
         for: 'PT5M'

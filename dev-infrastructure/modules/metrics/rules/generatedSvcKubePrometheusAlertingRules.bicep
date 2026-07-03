@@ -10,8 +10,8 @@ param severityCeiling int = 0
 #disable-next-line no-unused-params
 param location string = resourceGroup().location
 
-resource kubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
-  name: 'kubernetes-apps'
+resource svcKubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'svc-kubernetes-apps'
   location: location
   properties: {
     interval: 'PT1M'
@@ -454,8 +454,8 @@ resource kubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03
   }
 }
 
-resource kubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
-  name: 'kubernetes-resources'
+resource svcKubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'svc-kubernetes-resources'
   location: location
   properties: {
     interval: 'PT1M'
@@ -683,8 +683,8 @@ resource kubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroups@20
   }
 }
 
-resource kubernetesStorage 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
-  name: 'kubernetes-storage'
+resource svcKubernetesStorage 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'svc-kubernetes-storage'
   location: location
   properties: {
     interval: 'PT1M'
@@ -831,8 +831,8 @@ resource kubernetesStorage 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
   }
 }
 
-resource kubernetesSystem 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
-  name: 'kubernetes-system'
+resource svcKubernetesSystem 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'svc-kubernetes-system'
   location: location
   properties: {
     interval: 'PT1M'
@@ -898,8 +898,8 @@ resource kubernetesSystem 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-
   }
 }
 
-resource kubeApiserverSlos 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
-  name: 'kube-apiserver-slos'
+resource svcKubeApiserverSlos 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'svc-kube-apiserver-slos'
   location: location
   properties: {
     interval: 'PT1M'
@@ -1027,8 +1027,8 @@ resource kubeApiserverSlos 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
   }
 }
 
-resource kubernetesSystemApiserver 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
-  name: 'kubernetes-system-apiserver'
+resource svcKubernetesSystemApiserver 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'svc-kubernetes-system-apiserver'
   location: location
   properties: {
     interval: 'PT1M'
@@ -1201,8 +1201,8 @@ resource kubernetesSystemApiserver 'Microsoft.AlertsManagement/prometheusRuleGro
   }
 }
 
-resource kubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
-  name: 'kubernetes-system-kubelet'
+resource svcKubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'svc-kubernetes-system-kubelet'
   location: location
   properties: {
     interval: 'PT1M'
@@ -1561,8 +1561,8 @@ resource kubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGroup
   }
 }
 
-resource kubernetesSystemScheduler 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
-  name: 'kubernetes-system-scheduler'
+resource svcKubernetesSystemScheduler 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'svc-kubernetes-system-scheduler'
   location: location
   properties: {
     interval: 'PT1M'
@@ -1601,8 +1601,8 @@ resource kubernetesSystemScheduler 'Microsoft.AlertsManagement/prometheusRuleGro
   }
 }
 
-resource kubernetesSystemControllerManager 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
-  name: 'kubernetes-system-controller-manager'
+resource svcKubernetesSystemControllerManager 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'svc-kubernetes-system-controller-manager'
   location: location
   properties: {
     interval: 'PT1M'
@@ -1633,106 +1633,6 @@ resource kubernetesSystemControllerManager 'Microsoft.AlertsManagement/prometheu
         expression: 'count by (cluster) (up{job="controlplane-kube-controller-manager"} == 1) == 0'
         for: 'PT15M'
         severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
-      }
-    ]
-    scopes: [
-      azureMonitoring
-    ]
-  }
-}
-
-resource mgmtCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
-  name: 'mgmt-capacity-rules'
-  location: location
-  properties: {
-    interval: 'PT1M'
-    rules: [
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'MgmtClusterHCPCapacityWarning'
-        enabled: true
-        labels: {
-          severity: 'info'
-          team: 'hcp-sl'
-        }
-        annotations: {
-          correlationId: 'MgmtClusterHCPCapacityWarning/{{ $labels.cluster }}'
-          description: 'Management cluster {{ $labels.cluster }} is at {{ $value | humanizePercentage }} of its HCP capacity (60 HCP limit). Current count exceeds warning threshold of 60%.'
-          info: 'Management cluster {{ $labels.cluster }} is at {{ $value | humanizePercentage }} of its HCP capacity (60 HCP limit). Current count exceeds warning threshold of 60%.'
-          owning_team: 'hcp-sl'
-          runbook_url: 'https://aka.ms/arohcp-runbook/mgmt-cluster-capacity'
-          summary: 'Management cluster HCP capacity is approaching limit (60% threshold).'
-          title: 'Management cluster HCP capacity is approaching limit (60% threshold). cluster:{{ $labels.cluster }}'
-        }
-        expression: '(count by (cluster) (kube_namespace_labels{namespace=~"^ocm-[^-]+-[^-]+$"}) / 60) > 0.6'
-        for: 'PT15M'
-        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
-      }
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'MgmtClusterNodeSwiftNICCapacityZero'
-        enabled: true
-        labels: {
-          severity: 'critical'
-          team: 'hcp-sl'
-        }
-        annotations: {
-          correlationId: 'MgmtClusterNodeSwiftNICCapacityZero/{{ $labels.cluster }}/{{ $labels.node }}'
-          description: 'Node {{ $labels.node }} on management cluster {{ $labels.cluster }} has zero SWIFT NIC capacity. No HCPs can be scheduled on this node until NIC capacity is restored.'
-          info: 'Node {{ $labels.node }} on management cluster {{ $labels.cluster }} has zero SWIFT NIC capacity. No HCPs can be scheduled on this node until NIC capacity is restored.'
-          owning_team: 'hcp-sl'
-          runbook_url: 'https://portal.microsofticm.com/imp/v5/incidents/details/802529667'
-          summary: 'Management cluster node has zero SWIFT NIC capacity.'
-          title: 'Management cluster node has zero SWIFT NIC capacity. node:{{ $labels.node }} cluster:{{ $labels.cluster }}'
-        }
-        expression: 'kube_node_status_capacity{node=~"user.*",resource="aro_openshift_io_swift_nic"} == 0'
-        for: 'PT10M'
-        severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
-      }
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'MgmtClusterHCPCapacityCritical'
-        enabled: true
-        labels: {
-          severity: 'info'
-          team: 'hcp-sl'
-        }
-        annotations: {
-          correlationId: 'MgmtClusterHCPCapacityCritical/{{ $labels.cluster }}'
-          description: 'Management cluster {{ $labels.cluster }} is at {{ $value | humanizePercentage }} of its HCP capacity (60 HCP limit). Current count exceeds critical threshold of 85%. Immediate action required to provision additional management cluster capacity.'
-          info: 'Management cluster {{ $labels.cluster }} is at {{ $value | humanizePercentage }} of its HCP capacity (60 HCP limit). Current count exceeds critical threshold of 85%. Immediate action required to provision additional management cluster capacity.'
-          owning_team: 'hcp-sl'
-          runbook_url: 'https://aka.ms/arohcp-runbook/mgmt-cluster-capacity'
-          summary: 'Management cluster HCP capacity is critically high (85% threshold).'
-          title: 'Management cluster HCP capacity is critically high (85% threshold). cluster:{{ $labels.cluster }}'
-        }
-        expression: '(count by (cluster) (kube_namespace_labels{namespace=~"^ocm-[^-]+-[^-]+$"}) / 60) > 0.85'
-        for: 'PT5M'
-        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
     ]
     scopes: [

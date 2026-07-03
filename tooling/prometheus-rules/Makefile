@@ -23,7 +23,7 @@ fmt-devinfra:
 run: alerts recording-rules
 .PHONY: run
 
-alerts: run-sl-services run-sl-hcps run-sre-hcps run-sre-services run-rp-services run-msft-services
+alerts: run-sl-services run-sl-svc-kube run-sl-hcps run-sre-hcps run-sre-services run-rp-services run-msft-services
 	$(MAKE) fmt-devinfra
 .PHONY: alerts
 
@@ -34,6 +34,10 @@ recording-rules: run-recording-rules-services run-recording-rules-hcps
 run-sl-services:
 	go run ./...  --config-file ../../observability/alerts-sl-services.yaml $(EXTRA_FLAGS)
 .PHONY: run-sl-services
+
+run-sl-svc-kube:
+	go run ./...  --config-file ../../observability/alerts-sl-svc-kube.yaml $(EXTRA_FLAGS)
+.PHONY: run-sl-svc-kube
 
 run-sl-hcps:
 	go run ./...  --config-file ../../observability/alerts-sl-hcps.yaml $(EXTRA_FLAGS)
@@ -62,3 +66,16 @@ run-recording-rules-services:
 run-recording-rules-hcps:
 	go run ./...  --config-file ../../observability/recording-rules-hcps.yaml $(EXTRA_FLAGS)
 .PHONY: run-recording-rules-hcps
+
+ALERT_CONFIGS = \
+	../../observability/alerts-sl-services.yaml \
+	../../observability/alerts-sl-svc-kube.yaml \
+	../../observability/alerts-sl-hcps.yaml \
+	../../observability/alerts-sre-hcps.yaml \
+	../../observability/alerts-sre-services.yaml \
+	../../observability/alerts-rp-services.yaml \
+	../../observability/alerts-msft-services.yaml
+
+correlation-map:
+	go run ./... --correlation-map $(ALERT_CONFIGS) > $(OUTPUT)
+.PHONY: correlation-map
