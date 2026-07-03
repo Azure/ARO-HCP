@@ -43,7 +43,7 @@ jobs:
         # For custom queries, add: queries: security-and-quality
     # Autobuild attempts to build any compiled languages (Go, C/C++, C#, Java, etc.)
     - name: Autobuild
-      uses: github/codeql-action/autobuild@7211b7c8077ea37d8641b6271f6a365a22a5fbfa # v4.36.0
+      uses: github/codeql-action/autobuild@54f647b7e1bb85c95cddabcd46b0c578ec92bc1a # v4.36.3
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@7211b7c8077ea37d8641b6271f6a365a22a5fbfa # v4.36.0
       with:
