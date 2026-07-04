@@ -30,7 +30,6 @@ param azureFrontDoorSkuName = '{{ .oidc.frontdoor.sku }}'
 param azureFrontDoorKeyVaultName = '{{ .oidc.frontdoor.keyVault.name }}'
 param azureFrontDoorKeyVaultTagKey = '{{ .oidc.frontdoor.keyVault.tagKey }}'
 param azureFrontDoorKeyVaultTagValue = '{{ .oidc.frontdoor.keyVault.tagValue }}'
-param azureFrontDoorUseManagedCertificates = {{ .oidc.frontdoor.useManagedCertificates }}
 param keyVaultAdminPrincipalId = '{{ .kvCertOfficerPrincipalId }}'
 param oidcMsiName = '{{ .oidc.frontdoor.msiName }}'
 param azureFrontDoorManage = {{ .oidc.frontdoor.manage }}
