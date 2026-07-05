@@ -15,7 +15,6 @@
 package middleware
 
 import (
-	"fmt"
 	"net/http"
 	"strings"
 
@@ -31,13 +30,16 @@ const (
 func MiddlewareClientPrincipal(w http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
 	logger := utils.LoggerFromContext(r.Context())
 
-	var headers []string
-	for name, values := range r.Header {
+	// Log only the header names, never their values: the x-ms-client-principal-*
+	// headers carry user-supplied, credential-bearing identity data (e.g. principal
+	// name/UPN and object id) that must not be disclosed in cleartext to the logs.
+	var headerNames []string
+	for name := range r.Header {
 		if strings.HasPrefix(strings.ToLower(name), "x-ms-client-principal-") {
-			headers = append(headers, fmt.Sprintf("%s=%s", name, strings.Join(values, ",")))
+			headerNames = append(headerNames, name)
 		}
 	}
-	logger.Info("Geneva Action client principal headers", "headers", strings.Join(headers, "; "))
+	logger.Info("Geneva Action client principal headers", "headerNames", strings.Join(headerNames, "; "))
 
 	clientPrincipalName := r.Header.Get(ClientPrincipalNameHeader)
 	if clientPrincipalName == "" {
