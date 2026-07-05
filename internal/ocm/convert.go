@@ -540,8 +540,7 @@ func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, hcpC
 			MachineCIDR(hcpCluster.CustomerProperties.Network.MachineCIDR).
 			HostPrefix(int(hcpCluster.CustomerProperties.Network.HostPrefix))).
 		ImageRegistry(arohcpv1alpha1.NewClusterImageRegistry().
-			State(clusterImageRegistryState)).
-		FIPS(hcpCluster.ServiceProviderProperties.ExperimentalFeatures.FIPSEnabled)
+			State(clusterImageRegistryState))
 	azureBuilder := arohcpv1alpha1.NewAzure().
 		TenantID(tenantID).
 		SubscriptionID(strings.ToLower(subscriptionID)).
