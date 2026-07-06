@@ -108,12 +108,12 @@ func TestSortDeletionTargets(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		name             string
-		deletionTargets  sets.Set[string]
+		name              string
+		deletionTargets   sets.Set[string]
 		allResourceGroups []*armresources.ResourceGroup
-		excludedRGs      []string
-		want             []string
-		wantTargetsAdded []string
+		excludedRGs       []string
+		want              []string
+		wantTargetsAdded  []string
 	}{
 		{
 			name:            "managed child of target is added and sorted first",
