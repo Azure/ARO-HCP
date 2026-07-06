@@ -15,14 +15,23 @@ package recoverycontroller
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
+
+	velerov1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/utils/controllerutils"
+	hcprecoveryv1alpha1 "github.com/Azure/ARO-HCP/hcp-recovery/pkg/apis/hcprecovery/v1alpha1"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplierapi"
+	"github.com/Azure/ARO-HCP/internal/backup"
 	internalcontrollerutils "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/corecosmosstorage"
 	"github.com/Azure/ARO-HCP/internal/database/cosmosstorage/cosmosstorageutils"
@@ -112,7 +121,7 @@ func (c *recoverySyncer) SyncOnce(ctx context.Context, key controllerutils.HCPCl
 	}
 	rdCrud, err := kaClient.ReadDesiresForCluster(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get recovery desires for cluster: %w", err))
+		return utils.TrackError(fmt.Errorf("failed to get read desires for cluster: %w", err))
 	}
 
 	clusterID := existingCluster.ServiceProviderProperties.ClusterServiceID.ID()
@@ -191,14 +200,176 @@ func (c *recoverySyncer) updateSpcStatus(ctx context.Context, state recoverySync
 }
 
 func (c *recoverySyncer) process(ctx context.Context, state recoverySyncState) error {
-
+	if state.recoveryRequestStatusToProcess.CompletedAt != nil {
+		// Request completed, no further processing needed
+		return nil
+	}
+	if state.recoveryRequestStatusToProcess.StartedAt == nil {
+		state.recoveryRequestStatusToProcess.StartedAt = &metav1.Time{Time: time.Now()}
+	}
 	if state.spc.Spec.BackupScheduleState != coreapi.BackupScheduleStateDisabled {
 		state.spc.Spec.BackupScheduleState = coreapi.BackupScheduleStateDisabled
 		return nil
 	}
+	// Fetch Schedule Read Desires for cluster and make sure pause was applied
+	schedules, err := fetchSchedules(ctx, state)
+	if err != nil {
+		return fmt.Errorf("failed to fetch schedules: %w", err)
+	}
+	if !areAllSchedulesPaused(schedules) {
+		return fmt.Errorf("waiting for all schedules to be paused")
+	}
+
+	// Schedules are paused, check for active hcprecovery
+	_, err = state.adCrud.Get(ctx, backup.RecoveryDesireNamePrefix+state.recoveryRequestToProcess.RecoveryId)
+	if err != nil {
+		if cosmosstorageutils.IsNotFoundError(err) {
+			err = createRecoveryApplyDesire(ctx, state)
+			if err != nil {
+				return fmt.Errorf("failed to create recovery apply desire: %w", err)
+			}
+			return nil
+		}
+		return fmt.Errorf("failed to fetch hcprecovery: %w", err)
+	}
+
+	// Fetch hcpRecoveryReadDesire and check status, if its terminal set recoveryRequestStatusToProcess completedAt
+	_, err = state.rdCrud.Get(ctx, backup.RecoveryDesireNamePrefix+state.recoveryRequestToProcess.RecoveryId)
+	if err != nil {
+		if cosmosstorageutils.IsNotFoundError(err) {
+			err = createRecoveryReadDesire(ctx, state)
+			if err != nil {
+				return fmt.Errorf("failed to create recovery read desire: %w", err)
+			}
+			return nil
+		}
+		return fmt.Errorf("failed to fetch recovery read desire: %w", err)
+	}
 
 	return nil
+}
 
+func createRecoveryReadDesire(ctx context.Context, state recoverySyncState) error {
+	desireName := backup.RecoveryDesireNamePrefix + state.recoveryRequestToProcess.RecoveryId
+	resourceIDStr := kubeapplierapi.ToClusterScopedReadDesireResourceIDString(
+		state.key.SubscriptionID,
+		state.key.ResourceGroupName,
+		state.key.HCPClusterName,
+		desireName,
+	)
+	resourceID, err := azcorearm.ParseResourceID(resourceIDStr)
+	if err != nil {
+		return fmt.Errorf("failed to parse read desire resource ID: %w", err)
+	}
+
+	readDesire := &kubeapplierapi.ReadDesire{
+		CosmosMetadata: coreapi.CosmosMetadata{
+			ResourceID:   resourceID,
+			PartitionKey: strings.ToLower(state.mcResourceID.String()),
+		},
+		Spec: kubeapplierapi.ReadDesireSpec{
+			ManagementCluster: state.mcResourceID,
+			TargetItem: kubeapplierapi.ResourceReference{
+				Group:     "hcprecovery.aro-hcp.azure.com",
+				Version:   "v1alpha1",
+				Resource:  "hcprecoveries",
+				Namespace: "hcp-recovery",
+				Name:      state.recoveryRequestToProcess.RecoveryId,
+			},
+		},
+	}
+
+	if _, err := state.rdCrud.Create(ctx, readDesire, nil); err != nil {
+		return fmt.Errorf("failed to create recovery read desire: %w", err)
+	}
+	return nil
+}
+
+func createRecoveryApplyDesire(ctx context.Context, state recoverySyncState) error {
+	recoveryCr := hcprecoveryv1alpha1.HCPRecovery{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: state.recoveryRequestToProcess.RecoveryId,
+		},
+		Spec: hcprecoveryv1alpha1.HCPRecoverySpec{
+			ClusterId: state.clusterID,
+			BackupId:  state.recoveryRequestToProcess.BackupId,
+		},
+		Status: hcprecoveryv1alpha1.HCPRecoveryStatus{},
+	}
+	desireName := backup.RecoveryDesireNamePrefix + state.recoveryRequestToProcess.RecoveryId
+	resourceIDStr := kubeapplierapi.ToClusterScopedApplyDesireResourceIDString(
+		state.key.SubscriptionID,
+		state.key.ResourceGroupName,
+		state.key.HCPClusterName,
+		desireName,
+	)
+	resourceID, err := azcorearm.ParseResourceID(resourceIDStr)
+	if err != nil {
+		return fmt.Errorf("failed to parse apply desire resource ID: %w", err)
+	}
+
+	raw, err := json.Marshal(recoveryCr)
+	if err != nil {
+		return fmt.Errorf("failed to marshal HCPRecovery: %w", err)
+	}
+
+	applyDesire := &kubeapplierapi.ApplyDesire{
+		CosmosMetadata: coreapi.CosmosMetadata{
+			ResourceID:   resourceID,
+			PartitionKey: strings.ToLower(state.mcResourceID.String()),
+		},
+		Spec: kubeapplierapi.ApplyDesireSpec{
+			ManagementCluster: state.mcResourceID,
+			Type:              kubeapplierapi.ApplyDesireTypeServerSideApply,
+			TargetItem: kubeapplierapi.ResourceReference{
+				Group:     "hcprecovery.aro-hcp.azure.com",
+				Version:   "v1alpha1",
+				Resource:  "hcprecoveries",
+				Namespace: "hcp-recovery",
+				Name:      state.recoveryRequestToProcess.RecoveryId,
+			},
+			ServerSideApply: &kubeapplierapi.ServerSideApplyConfig{
+				KubeContent: &runtime.RawExtension{Raw: raw},
+			},
+		},
+	}
+
+	if _, err := state.adCrud.Create(ctx, applyDesire, nil); err != nil {
+		return fmt.Errorf("failed to create recovery apply desire: %w", err)
+	}
+	return nil
+}
+
+func fetchSchedules(ctx context.Context, state recoverySyncState) ([]*kubeapplierapi.ReadDesire, error) {
+	iterator, err := state.rdCrud.List(ctx, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list ReadDesires: %w", err)
+	}
+	var scheduleDesires []*kubeapplierapi.ReadDesire
+
+	for _, rd := range iterator.Items(ctx) {
+		if strings.HasPrefix(rd.ResourceID.Name, backup.BackupScheduleDesireNamePrefix) {
+			scheduleDesires = append(scheduleDesires, rd)
+		}
+	}
+
+	if err := iterator.GetError(); err != nil {
+		return nil, fmt.Errorf("failed to iterate ReadDesires: %w", err)
+	}
+
+	return scheduleDesires, nil
+}
+
+func areAllSchedulesPaused(schedulesReadDesires []*kubeapplierapi.ReadDesire) bool {
+	for _, sd := range schedulesReadDesires {
+		var schedule velerov1.Schedule
+		if err := json.Unmarshal(sd.Status.KubeContent.Raw, &schedule); err == nil {
+			if schedule.Spec.Paused == false {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 func isTerminal(restoreState coreapi.RecoveryState) bool {

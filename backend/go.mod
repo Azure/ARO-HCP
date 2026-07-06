@@ -3,6 +3,7 @@ module github.com/Azure/ARO-HCP/backend
 go 1.25.7
 
 require (
+	github.com/Azure/ARO-HCP/hcp-recovery v0.0.0-00010101000000-000000000000
 	github.com/Azure/ARO-HCP/internal v0.0.0-00010101000000-000000000000
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.21.1
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.13.1
@@ -132,7 +133,6 @@ require (
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	golang.org/x/crypto v0.52.0 // indirect
 	golang.org/x/exp v0.0.0-20260218203240-3dfff04db8fa // indirect
-	golang.org/x/mod v0.36.0 // indirect
 	golang.org/x/net v0.55.0 // indirect
 	golang.org/x/oauth2 v0.36.0 // indirect
 	golang.org/x/sys v0.45.0 // indirect
@@ -154,4 +154,7 @@ require (
 	sigs.k8s.io/structured-merge-diff/v6 v6.3.2 // indirect
 )
 
-replace github.com/Azure/ARO-HCP/internal => ../internal
+replace (
+	github.com/Azure/ARO-HCP/hcp-recovery => ../hcp-recovery
+	github.com/Azure/ARO-HCP/internal => ../internal
+)

@@ -32,6 +32,8 @@ const (
 	VeleroVersion                  = "v1"
 	VeleroScheduleResource         = "schedules"
 	VeleroNamespace                = "velero"
+	OndemandBackupDesireNamePrefix = "ondemandbackup-"
+	RecoveryDesireNamePrefix       = "hcprecovery-"
 )
 
 var backupIncludedResources = []string{

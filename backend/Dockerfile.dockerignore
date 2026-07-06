@@ -1,6 +1,7 @@
 **
 !image-environment
 !internal/
+!hcp-recovery/
 !backend/
 !test-integration/
 
