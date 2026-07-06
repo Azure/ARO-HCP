@@ -2694,10 +2694,6 @@
     "maestro": {
       "type": "object",
       "properties": {
-        "certDomain": {
-          "type": "string",
-          "description": "Optional SAN base domain for Maestro Eventgrid certificates. If missing, defaults to maestro.${dns.regionalSubdomain}.${dns.svcParentZoneName}"
-        },
         "certIssuer": {
           "$ref": "#/definitions/certificateIssuer"
         },
@@ -2706,6 +2702,10 @@
           "properties": {
             "mqttClientName": {
               "type": "string"
+            },
+            "certSAN": {
+              "type": "string",
+              "description": "SAN and CN for the Maestro server EventGrid certificate"
             },
             "managedIdentityName": {
               "type": "string"
@@ -2723,6 +2723,7 @@
           "additionalProperties": false,
           "required": [
             "mqttClientName",
+            "certSAN",
             "managedIdentityName",
             "loglevel",
             "k8s"
@@ -2734,6 +2735,10 @@
             "consumerName": {
               "type": "string",
               "maxLength": 128
+            },
+            "certSAN": {
+              "type": "string",
+              "description": "SAN and CN for the Maestro consumer EventGrid certificate"
             },
             "loglevel": {
               "type": "integer"
@@ -2757,6 +2762,7 @@
           "additionalProperties": false,
           "required": [
             "consumerName",
+            "certSAN",
             "loglevel",
             "sidecar",
             "managedIdentityName",
@@ -3576,6 +3582,14 @@
     {
       "rule": "self.sessiongate.cert.san == 'sessiongate.' + self.dns.regionalSubdomain + '.' + self.dns.svcParentZoneName",
       "message": "sessiongate.cert.san must equal 'sessiongate.' + dns.regionalSubdomain + '.' + dns.svcParentZoneName"
+    },
+    {
+      "rule": "self.maestro.server.certSAN == self.maestro.server.mqttClientName + '.maestro.' + self.dns.regionalSubdomain + '.' + self.dns.svcParentZoneName",
+      "message": "maestro.server.certSAN must equal mqttClientName + '.maestro.' + dns.regionalSubdomain + '.' + dns.svcParentZoneName"
+    },
+    {
+      "rule": "self.maestro.agent.certSAN == self.maestro.agent.consumerName + '.maestro.' + self.dns.regionalSubdomain + '.' + self.dns.svcParentZoneName",
+      "message": "maestro.agent.certSAN must equal consumerName + '.maestro.' + dns.regionalSubdomain + '.' + dns.svcParentZoneName"
     }
   ]
 }

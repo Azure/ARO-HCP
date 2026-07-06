@@ -156,14 +156,14 @@ param rpCosmosDbAccountId string
 @description('The resourcegroup for regional infrastructure')
 param regionalResourceGroup string
 
-@description('The domain to use to use for the maestro certificate. Relevant only for environments where OneCert can be used.')
-param maestroCertDomain string
-
-@description('The issuer of the maestro certificate.')
-param maestroCertIssuer string
-
 @description('The name of the eventgrid namespace for Maestro.')
 param maestroEventGridNamespacesName string
+
+@description('The SAN and CN for the Maestro server EventGrid certificate.')
+param maestroServerCertSAN string
+
+@description('The issuer of the Maestro certificate.')
+param maestroCertIssuer string
 
 @description('Deploy CS Postgres if true')
 param csPostgresDeploy bool
@@ -803,8 +803,6 @@ output frontend_mi_client_id string = frontendMI.uamiClientID
 //   M A E S T R O
 //
 
-var effectiveMaestroCertDomain = !empty(maestroCertDomain) ? maestroCertDomain : 'maestro.${regionalSvcDNSZoneName}'
-
 module maestroServer '../modules/maestro/maestro-server.bicep' = {
   name: 'maestro-server'
   params: {
@@ -815,9 +813,8 @@ module maestroServer '../modules/maestro/maestro-server.bicep' = {
     certKeyVaultName: serviceKeyVaultName
     certKeyVaultResourceGroup: serviceKeyVaultResourceGroup
     certKeyVaultSubscription: serviceKeyVaultSubscription
-    keyVaultOfficerManagedIdentityName: globalMSIId
-    maestroCertificateDomain: effectiveMaestroCertDomain
-    maestroCertificateIssuer: maestroCertIssuer
+    certificateSAN: maestroServerCertSAN
+    certificateIssuer: maestroCertIssuer
     deployPostgres: deployMaestroPostgres
     postgresServerName: maestroPostgresServerName
     postgresServerVersion: maestroPostgresServerVersion
