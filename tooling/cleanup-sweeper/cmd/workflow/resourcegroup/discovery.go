@@ -46,7 +46,7 @@ func discoverCandidates(ctx context.Context, opts RunOptions) ([]string, error) 
 
 	deletionTargets := opts.ResourceGroups.Union(discoveredCandidates)
 	excluded := sets.New(opts.Policy.ExcludedResourceGroups...)
-	finalCandidates := sortDeletionTargets(logger, deletionTargets, allResourceGroups, excluded, candidateSources)
+	finalCandidates := promoteAndSortDeletionTargets(logger, deletionTargets, allResourceGroups, excluded, candidateSources)
 
 	for _, resourceGroup := range finalCandidates {
 		source := candidateSources[resourceGroup]
@@ -124,11 +124,8 @@ func discoverPolicyCandidates(
 	return discoveredResourceGroups, resourceGroups, nil
 }
 
-// sortDeletionTargets ensures managed (child) RGs are deleted before their
-// parents. If a parent RG is a deletion target, its managed children are
-// added to the target set and placed first in the returned list, unblocking
-// the parent's VNet/NSG deletion.
-func sortDeletionTargets(
+// promoteAndSortDeletionTargets ensures that for each deletion target, all managed children are also targets (promoting if necessary) and that children are deleted first.
+func promoteAndSortDeletionTargets(
 	logger logr.Logger,
 	deletionTargets sets.Set[string],
 	allResourceGroups []*armresources.ResourceGroup,

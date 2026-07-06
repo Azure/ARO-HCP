@@ -193,7 +193,7 @@ func TestSortDeletionTargets(t *testing.T) {
 			excluded := sets.New(tc.excludedRGs...)
 			candidateSources := map[string]string{}
 
-			got := sortDeletionTargets(logger, tc.deletionTargets, tc.allResourceGroups, excluded, candidateSources)
+			got := promoteAndSortDeletionTargets(logger, tc.deletionTargets, tc.allResourceGroups, excluded, candidateSources)
 
 			if len(got) != len(tc.want) {
 				t.Fatalf("expected %v, got %v", tc.want, got)
