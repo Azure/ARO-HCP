@@ -256,9 +256,11 @@ ev2:
       name: ""
     dstsHost: usnorth-dsts.dsts.core.windows.net
 firstPartyAppCertificate:
+  contentType: x-pkcs12
   issuer: Self
-  manage: false
+  manage: Disabled
   name: firstPartyCert2
+  san: firstPartyCert2.hcpsvc.osadev.cloud
 firstPartyAppClientId: b3cb2fab-15cb-4583-ad06-f91da9bfe2d1
 fleet:
   image:
@@ -325,9 +327,11 @@ geneva:
       name: arohcp-ga-dev
       useSNI: false
     certificate:
+      contentType: x-pkcs12
       issuer: Self
-      manage: true
+      manage: Enabled
       name: genevaAction
+      san: genevaAction.hcp-global.osadev.cloud
     endpointName: centralus
     endpointUrl: ""
     genevaActionsPrincipalId: ""
@@ -348,6 +352,7 @@ geneva:
     targetRegion: Central US
   logs:
     adminCertName: geneva-logs-admin
+    adminCertSan: geneva-logs-admin.geneva.keyvault.aro-hcp-global.azure.com
     adminCertificateDomain: geneva.keyvault.aro-hcp-global.azure.com
     administrators:
       alias:
@@ -361,8 +366,9 @@ geneva:
       namespace: ""
       san: ""
       secretName: clusterlogs
+    contentType: x-pkcs12
     environment: Test
-    manageCertificates: false
+    manage: Disabled
     rp:
       accountName: placeholder
       configVersion: "1"
@@ -534,6 +540,7 @@ logs:
     subscriptions: []
 maestro:
   agent:
+    certSAN: hcp-underlay-j7654321-mgmt-1.maestro.j7654321.hcpsvc.osadev.cloud
     consumerName: hcp-underlay-j7654321-mgmt-1
     k8s:
       namespace: maestro
@@ -546,7 +553,6 @@ maestro:
         digest: sha256:bef7ab720cea4ae7cd19a0ee03418a59c4a9233ded75b233143cf792d8ca0741
         registry: mcr.microsoft.com
         repository: azurelinux/base/nginx
-  certDomain: selfsigned.maestro.keyvault.azure.com
   certIssuer: Self
   eventGrid:
     maxClientSessionsPerAuthName: 6
@@ -575,6 +581,7 @@ maestro:
     zoneRedundantMode: Auto
   restrictIstioIngress: true
   server:
+    certSAN: maestro-server-j7654321.maestro.j7654321.hcpsvc.osadev.cloud
     k8s:
       namespace: maestro
       replicas: 2

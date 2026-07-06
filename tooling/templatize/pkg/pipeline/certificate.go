@@ -16,16 +16,20 @@ package pipeline
 
 import (
 	"context"
+	"encoding/hex"
 	"errors"
 	"fmt"
+	"maps"
 	"net/http"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/go-logr/logr"
 
 	"k8s.io/utils/ptr"
 
+	configtypes "github.com/Azure/ARO-Tools/config/types"
 	"github.com/Azure/ARO-Tools/pipelines/graph"
 	"github.com/Azure/ARO-Tools/pipelines/types"
 	"github.com/Azure/ARO-Tools/tools/cmdutils"
@@ -81,6 +85,15 @@ func runCreateCertificateStep(ctx context.Context, step *types.CreateCertificate
 	state.RLock()
 	outputs := state.Outputs
 	state.RUnlock()
+
+	skip, err := shouldSkipCertificateStep(step.Manage, options.Configuration, outputs, id.ServiceGroup)
+	if err != nil {
+		return err
+	}
+	if skip {
+		logger.Info("Skipping certificate step, manage is Disabled", "step", step.StepName())
+		return nil
+	}
 
 	vaultBaseUrl, err := resolveValue(step.VaultBaseUrl, options.Configuration, outputs, id.ServiceGroup)
 	if err != nil {
@@ -153,7 +166,7 @@ func runCreateCertificateStep(ctx context.Context, step *types.CreateCertificate
 	}
 	if err == nil && existing.Policy != nil && policyMatches(existing.Policy, &desiredPolicy) {
 		logger.Info("Certificate already exists with matching policy, skipping creation", "certificateName", certificateName)
-		return nil
+		return storeCertificateThumbprintTag(ctx, logger, client, certificateName, vaultBaseUrl)
 	}
 	if err == nil {
 		logger.Info("Certificate exists but policy differs, recreating", "certificateName", certificateName)
@@ -173,7 +186,64 @@ func runCreateCertificateStep(ctx context.Context, step *types.CreateCertificate
 	}
 
 	logger.Info("Certificate created successfully", "certificateName", certificateName)
+	return storeCertificateThumbprintTag(ctx, logger, client, certificateName, vaultBaseUrl)
+}
+
+// storeCertificateThumbprintTag fetches the certificate thumbprint and stores it as a tag
+// on the certificate. Tags set on certificates propagate to their associated secrets,
+// making the thumbprint readable from ARM/bicep via the secret's tags.
+//
+// WARNING: The tag becomes stale when Key Vault auto-renews the certificate
+// and is only reconciled on the next pipeline run. Do not rely on tag-based
+// thumbprint lookup outside of dev environments. We will discontinue this feature
+// once we remove Maestro and EventGrid.
+func storeCertificateThumbprintTag(ctx context.Context, logger logr.Logger, client *azcertificates.Client, certificateName, vaultBaseUrl string) error {
+	certResp, err := client.GetCertificate(ctx, certificateName, "", nil)
+	if err != nil {
+		return fmt.Errorf("failed to get certificate %q for thumbprint tagging in vault %q: %w", certificateName, vaultBaseUrl, err)
+	}
+
+	thumbprint := strings.ToUpper(hex.EncodeToString(certResp.X509Thumbprint))
+	if len(thumbprint) == 0 {
+		return fmt.Errorf("certificate %q in vault %q has empty X509Thumbprint", certificateName, vaultBaseUrl)
+	}
+
+	if certResp.Tags != nil && ptr.Deref(certResp.Tags["thumbprint"], "") == thumbprint {
+		logger.Info("Certificate thumbprint tag already set", "certificateName", certificateName, "thumbprint", thumbprint)
+		return nil
+	}
+
+	tags := make(map[string]*string)
+	maps.Copy(tags, certResp.Tags)
+	tags["thumbprint"] = to.Ptr(thumbprint)
+
+	_, err = client.UpdateCertificate(ctx, certificateName, "", azcertificates.UpdateCertificateParameters{
+		Tags: tags,
+	}, nil)
+	if err != nil {
+		return fmt.Errorf("failed to update thumbprint tag on certificate %q in vault %q: %w", certificateName, vaultBaseUrl, err)
+	}
+
+	logger.Info("Certificate thumbprint tag updated", "certificateName", certificateName, "thumbprint", thumbprint)
 	return nil
+}
+
+func shouldSkipCertificateStep(manage *types.Value, cfg configtypes.Configuration, outputs Outputs, serviceGroup string) (bool, error) {
+	if manage == nil {
+		return false, nil
+	}
+	resolved, err := resolveValue(*manage, cfg, outputs, serviceGroup)
+	if err != nil {
+		return false, err
+	}
+	switch resolved {
+	case types.CertificateManageEnabled:
+		return false, nil
+	case types.CertificateManageDisabled:
+		return true, nil
+	default:
+		return false, fmt.Errorf("manage field must be %q or %q, got %q", types.CertificateManageEnabled, types.CertificateManageDisabled, resolved)
+	}
 }
 
 // waitForCertificateOperation polls until a certificate operation reaches a terminal state.

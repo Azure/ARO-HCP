@@ -64,7 +64,7 @@ param maestroNamespace = '{{ .maestro.server.k8s.namespace }}'
 param maestroServiceAccountName = '{{ .maestro.server.k8s.serviceAccountName }}'
 param maestroEventGridNamespacesName = '{{ .maestro.eventGrid.name }}'
 param maestroServerMqttClientName = '{{ .maestro.server.mqttClientName }}'
-param maestroCertDomain = '{{ .maestro.certDomain }}'
+param maestroServerCertSAN = '{{ .maestro.server.certSAN }}'
 param maestroCertIssuer = '{{ .maestro.certIssuer }}'
 param maestroPostgresServerName = '{{ .maestro.postgres.name }}'
 param maestroPostgresServerMinTLSVersion = '{{ .maestro.postgres.minTLSVersion }}'
@@ -144,10 +144,6 @@ param frontendIngressCertSAN = '{{ .frontend.cert.san }}'
 param genevaActionsServiceTag = '{{ .geneva.actions.serviceTag }}'
 param sreServiceTag = '{{ .administration.sreServiceTag }}'
 
-param fpaCertificateName = '{{ .firstPartyAppCertificate.name }}'
-param fpaCertificateIssuer = '{{ .firstPartyAppCertificate.issuer }}'
-param manageFpaCertificate = {{ .firstPartyAppCertificate.manage }}
-
 // Azure Monitor Workspace
 param azureMonitoringWorkspaceId = '__azureMonitoringWorkspaceId__'
 
@@ -161,10 +157,7 @@ param svcNSPAccessMode = '{{ .svc.nsp.accessMode }}'
 param serviceKeyVaultAsignNSP = {{ .serviceKeyVault.assignNSP }}
 
 // Geneva logging settings
-param genevaCertificateDomain = '{{ .geneva.logs.certificateDomain }}'
-param genevaCertificateIssuer = '{{ .geneva.logs.certificateIssuer }}'
 param genevaRpLogsName = '{{ .geneva.logs.rp.secretName }}'
-param genevaManageCertificates = {{ .geneva.logs.manageCertificates }}
 
 // Alert rules tag value
 param owningTeamTagValue = '{{ .monitoring.alertRuleOwningTeamTag }}'

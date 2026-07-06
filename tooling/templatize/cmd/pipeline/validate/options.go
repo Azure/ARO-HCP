@@ -349,6 +349,12 @@ func handleService(logger logr.Logger, context string, group *errgroup.Group, t 
 						variable: specificStep.CommonName,
 						ref:      fmt.Sprintf("resourceGroups[%d].steps[%d].commonName", i, j),
 					})
+					if specificStep.Manage != nil {
+						variables = append(variables, variableRef{
+							variable: *specificStep.Manage,
+							ref:      fmt.Sprintf("resourceGroups[%d].steps[%d].manage", i, j),
+						})
+					}
 					// SecretKeyVault, SecretName, ApplicationId are consumed by EV2 only, not by templatize runtime
 					variables = append(variables, variableRef{
 						variable: specificStep.SecretKeyVault,

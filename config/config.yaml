@@ -266,7 +266,9 @@ defaults:
         securityGroup: AME\TM-AzureRedHatOpenShift-Leads
       adminCertificateDomain: "geneva.keyvault.aro-hcp-global.azure.com"
       adminCertName: "geneva-logs-admin"
-      manageCertificates: true
+      adminCertSan: "geneva-logs-admin.geneva.keyvault.aro-hcp-global.azure.com"
+      contentType: x-pkcs12
+      manage: Enabled
       certificateIssuer: Self
       certificateDomain: "geneva.keyvault.aro-hcp.azure.com"
       typeName: ""
@@ -297,7 +299,9 @@ defaults:
       certificate:
         name: genevaAction
         issuer: OneCertV2-PrivateCA
-        manage: true
+        san: ""
+        contentType: x-pkcs12
+        manage: Enabled
       allowedAcisExtensions: "AzureRedHatHypershiftExtension,Azure Red Hat Hypershift"
       genevaActionsPrincipalId: ""
       application:
@@ -972,7 +976,6 @@ defaults:
         image: ""
         pvcCapacity: ""
     restrictIstioIngress: true
-    certDomain: ""
     image:
       registry: quay.io
       repository: redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro
@@ -1191,7 +1194,9 @@ clouds:
       firstPartyAppCertificate:
         name: firstPartyCert2
         issuer: Self
-        manage: false
+        san: firstPartyCert2.hcpsvc.osadev.cloud
+        contentType: x-pkcs12
+        manage: Disabled
       # Mock Managed Identities Service Princiapl
       miMockClientId: e8723db7-9b9e-46a4-9f7d-64d75c3534f0
       miMockPrincipalId: d6b62dfa-87f5-49b3-bbcb-4a687c4faa96
@@ -1211,8 +1216,11 @@ clouds:
           manage: false
       # Maestro
       maestro:
-        certDomain: selfsigned.maestro.keyvault.azure.com
         certIssuer: Self
+        server:
+          certSAN: 'maestro-server-{{ .ctx.regionShort }}.maestro.{{ .ctx.region }}.hcpsvc.osadev.cloud'
+        agent:
+          certSAN: 'hcp-underlay-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}.maestro.{{ .ctx.region }}.hcpsvc.osadev.cloud'
         postgres:
           enhancedMetricsEnabled: true
       # Cluster Service
@@ -1353,6 +1361,7 @@ clouds:
             name: "arohcpdev-geneva-kv" # [globally-unique]
           certificate:
             issuer: Self
+            san: genevaAction.hcp-global.osadev.cloud
     environments:
       dev:
         # this is the integrated DEV environment
@@ -1385,6 +1394,7 @@ clouds:
           maestro:
             server:
               mqttClientName: 'maestro-server-{{ .ctx.regionShort }}-dev'
+              certSAN: 'maestro-server-{{ .ctx.regionShort }}-dev.maestro.{{ .ctx.region }}.hcpsvc.osadev.cloud'
               tracing:
                 address: "http://ingest.observability:4318"
                 exporter: "otlp"
@@ -1434,7 +1444,7 @@ clouds:
           # Geneva
           geneva:
             logs:
-              manageCertificates: false
+              manage: Disabled
           # DNS
           dns:
             regionalSubdomain: '{{ .ctx.region }}-cs'
@@ -1449,6 +1459,10 @@ clouds:
           # Maestro
           maestro:
             restrictIstioIngress: false
+            server:
+              certSAN: 'maestro-server-{{ .ctx.regionShort }}.maestro.{{ .ctx.region }}-cs.hcpsvc.osadev.cloud'
+            agent:
+              certSAN: 'hcp-underlay-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}.maestro.{{ .ctx.region }}-cs.hcpsvc.osadev.cloud'
           # Frontend
           frontend:
             cert:
@@ -1507,7 +1521,7 @@ clouds:
           # Geneva
           geneva:
             logs:
-              manageCertificates: false
+              manage: Disabled
           # DNS
           dns:
             regionalSubdomain: '{{ .ctx.regionShort }}'
@@ -1521,9 +1535,12 @@ clouds:
                 pvcCapacity: 512Mi
             server:
               mqttClientName: 'maestro-server-{{ .ctx.regionShort }}'
+              certSAN: 'maestro-server-{{ .ctx.regionShort }}.maestro.{{ .ctx.regionShort }}.hcpsvc.osadev.cloud'
               tracing:
                 address: "http://ingest.observability:4318"
                 exporter: "otlp"
+            agent:
+              certSAN: 'hcp-underlay-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}.maestro.{{ .ctx.regionShort }}.hcpsvc.osadev.cloud'
           # Backend
           backend:
             tracing:
@@ -1581,6 +1598,11 @@ clouds:
             assignNSP: false
           dns:
             regionalSubdomain: '{{ .ctx.regionShort }}'
+          maestro:
+            server:
+              certSAN: 'maestro-server-{{ .ctx.regionShort }}.maestro.{{ .ctx.regionShort }}.hcpsvc.osadev.cloud'
+            agent:
+              certSAN: 'hcp-underlay-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}.maestro.{{ .ctx.regionShort }}.hcpsvc.osadev.cloud'
           # SVC
           svc:
             rg: "hcp-underlay-{{ .ctx.environment }}-{{ .ctx.regionShort }}-svc"
@@ -1618,7 +1640,7 @@ clouds:
           # Geneva
           geneva:
             logs:
-              manageCertificates: false
+              manage: Disabled
           # DNS
           dns:
             regionalSubdomain: '{{ .ctx.regionShort }}'
@@ -1632,9 +1654,12 @@ clouds:
                 pvcCapacity: 512Mi
             server:
               mqttClientName: 'maestro-server-{{ .ctx.regionShort }}'
+              certSAN: 'maestro-server-{{ .ctx.regionShort }}.maestro.{{ .ctx.regionShort }}.hcpsvc.osadev.cloud'
               tracing:
                 address: "http://ingest.observability:4318"
                 exporter: "otlp"
+            agent:
+              certSAN: 'hcp-underlay-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}.maestro.{{ .ctx.regionShort }}.hcpsvc.osadev.cloud'
           # Backend
           backend:
             tracing:
@@ -1712,7 +1737,7 @@ clouds:
           # Geneva
           geneva:
             logs:
-              manageCertificates: false
+              manage: Disabled
           # DNS
           dns:
             regionalSubdomain: '{{ .ctx.regionShort }}'
@@ -1726,9 +1751,12 @@ clouds:
                 pvcCapacity: 512Mi
             server:
               mqttClientName: 'maestro-server-{{ .ctx.regionShort }}'
+              certSAN: 'maestro-server-{{ .ctx.regionShort }}.maestro.{{ .ctx.regionShort }}.hcpsvc.osadev.cloud'
               tracing:
                 address: "http://ingest.observability:4318"
                 exporter: "otlp"
+            agent:
+              certSAN: 'hcp-underlay-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}.maestro.{{ .ctx.regionShort }}.hcpsvc.osadev.cloud'
           # Backend
           backend:
             tracing:

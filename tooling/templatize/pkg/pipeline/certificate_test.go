@@ -17,6 +17,7 @@ package pipeline
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -430,4 +431,75 @@ func TestPolicyMatches(t *testing.T) {
 
 func ptrPolicy(p azcertificates.CertificatePolicy) *azcertificates.CertificatePolicy {
 	return &p
+}
+
+func TestShouldSkipCertificateStep(t *testing.T) {
+	cfg := configtypes.Configuration{
+		"cert": map[string]any{
+			"manage":        types.CertificateManageDisabled,
+			"manageEnabled": types.CertificateManageEnabled,
+		},
+	}
+	outputs := Outputs{}
+
+	tests := []struct {
+		name       string
+		manage     *types.Value
+		expectSkip bool
+		expectErr  string
+	}{
+		{
+			name:       "nil does not skip",
+			manage:     nil,
+			expectSkip: false,
+		},
+		{
+			name:       "Enabled does not skip",
+			manage:     &types.Value{Value: types.CertificateManageEnabled},
+			expectSkip: false,
+		},
+		{
+			name:       "Disabled skips",
+			manage:     &types.Value{Value: types.CertificateManageDisabled},
+			expectSkip: true,
+		},
+		{
+			name:      "invalid value errors",
+			manage:    &types.Value{Value: "bogus"},
+			expectErr: `manage field must be "Enabled" or "Disabled", got "bogus"`,
+		},
+		{
+			name:       "config ref Disabled skips",
+			manage:     &types.Value{ConfigRef: "cert.manage"},
+			expectSkip: true,
+		},
+		{
+			name:       "config ref Enabled does not skip",
+			manage:     &types.Value{ConfigRef: "cert.manageEnabled"},
+			expectSkip: false,
+		},
+		{
+			name:      "resolve error",
+			manage:    &types.Value{ConfigRef: "nonexistent.path"},
+			expectErr: "not found",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			skip, err := shouldSkipCertificateStep(tt.manage, cfg, outputs, "test-svc")
+
+			if len(tt.expectErr) > 0 && err == nil {
+				t.Fatal("expected error, got nil")
+			}
+			if len(tt.expectErr) > 0 && !strings.Contains(err.Error(), tt.expectErr) {
+				t.Errorf("error %q does not contain %q", err.Error(), tt.expectErr)
+			}
+			if len(tt.expectErr) == 0 && err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if len(tt.expectErr) == 0 && skip != tt.expectSkip {
+				t.Errorf("shouldSkipCertificateStep() = %v, want %v", skip, tt.expectSkip)
+			}
+		})
+	}
 }
