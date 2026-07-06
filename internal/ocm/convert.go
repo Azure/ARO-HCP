@@ -188,6 +188,19 @@ func convertUsernameClaimPrefixPolicyRPToCS(prefixPolicyRP api.UsernameClaimPref
 	}
 }
 
+func convertUsernameClaimPrefixPolicyCSToRP(prefixPolicyCS string) (api.UsernameClaimPrefixPolicy, error) {
+	switch prefixPolicyCS {
+	case csUsernameClaimPrefixPolicyPrefix:
+		return api.UsernameClaimPrefixPolicyPrefix, nil
+	case csUsernameClaimPrefixPolicyNoPrefix:
+		return api.UsernameClaimPrefixPolicyNoPrefix, nil
+	case "":
+		return api.UsernameClaimPrefixPolicyNone, nil
+	default:
+		return "", conversionError[api.UsernameClaimPrefixPolicy](prefixPolicyCS)
+	}
+}
+
 func convertEnableEncryptionAtHostToCSBuilder(in api.NodePoolPlatformProfile) *arohcpv1alpha1.AzureNodePoolEncryptionAtHostBuilder {
 	var state string
 
@@ -230,6 +243,28 @@ func convertExternalAuthClientTypeRPToCS(externalAuthClientTypeRP api.ExternalAu
 		return arohcpv1alpha1.ExternalAuthClientTypePublic, nil
 	default:
 		return "", conversionError[arohcpv1alpha1.ExternalAuthClientType](externalAuthClientTypeRP)
+	}
+}
+
+func convertExternalAuthClientTypeCSToRP(externalAuthClientTypeCS arohcpv1alpha1.ExternalAuthClientType) (api.ExternalAuthClientType, error) {
+	switch externalAuthClientTypeCS {
+	case arohcpv1alpha1.ExternalAuthClientTypeConfidential:
+		return api.ExternalAuthClientTypeConfidential, nil
+	case arohcpv1alpha1.ExternalAuthClientTypePublic:
+		return api.ExternalAuthClientTypePublic, nil
+	default:
+		return "", conversionError[api.ExternalAuthClientType](externalAuthClientTypeCS)
+	}
+}
+
+func convertTokenClaimValidationRuleRPToCS(rule externalAuthUpdateDispatchConfigValidationRule) (*arohcpv1alpha1.TokenClaimValidationRuleBuilder, error) {
+	switch rule.Type {
+	case api.TokenValidationRuleTypeRequiredClaim:
+		return arohcpv1alpha1.NewTokenClaimValidationRule().
+			Claim(rule.RequiredClaim.Claim).
+			RequiredValue(rule.RequiredClaim.RequiredValue), nil
+	default:
+		return nil, conversionError[*arohcpv1alpha1.TokenClaimValidationRuleBuilder](rule.Type)
 	}
 }
 
@@ -638,74 +673,16 @@ func BuildCSExternalAuth(ctx context.Context, externalAuth *api.HCPOpenShiftClus
 		externalAuthBuilder.ID(strings.ToLower(externalAuth.Name))
 	}
 
-	externalAuthBuilder.Issuer(arohcpv1alpha1.NewTokenIssuer().
-		URL(externalAuth.Properties.Issuer.URL).
-		CA(externalAuth.Properties.Issuer.CA).
-		Audiences(externalAuth.Properties.Issuer.Audiences...),
-	)
-
-	clientConfigs := []*arohcpv1alpha1.ExternalAuthClientConfigBuilder{}
-	for _, t := range externalAuth.Properties.Clients {
-		clientType, err := convertExternalAuthClientTypeRPToCS(t.Type)
-		if err != nil {
-			return nil, err
-		}
-
-		newClientConfig := arohcpv1alpha1.NewExternalAuthClientConfig().
-			ID(t.ClientID).
-			Component(arohcpv1alpha1.NewClientComponent().
-				Name(t.Component.Name).
-				Namespace(t.Component.AuthClientNamespace),
-			).
-			ExtraScopes(t.ExtraScopes...).
-			Type(clientType)
-		clientConfigs = append(clientConfigs, newClientConfig)
+	dispatchConfig, err := externalAuthUpdateDispatchConfigFromRP(externalAuth)
+	if err != nil {
+		return nil, err
 	}
-	externalAuthBuilder.Clients(clientConfigs...)
-
-	err := buildClaims(externalAuthBuilder, *externalAuth)
+	err = dispatchConfig.applyToCSBuilder(externalAuthBuilder)
 	if err != nil {
 		return nil, err
 	}
 
 	return externalAuthBuilder, nil
-}
-
-func buildClaims(externalAuthBuilder *arohcpv1alpha1.ExternalAuthBuilder, hcpExternalAuth api.HCPOpenShiftClusterExternalAuth) error {
-	usernameClaimPrefixPolicy, err := convertUsernameClaimPrefixPolicyRPToCS(hcpExternalAuth.Properties.Claim.Mappings.Username.PrefixPolicy)
-	if err != nil {
-		return err
-	}
-
-	tokenClaimMappingsBuilder := arohcpv1alpha1.NewTokenClaimMappings().
-		UserName(arohcpv1alpha1.NewUsernameClaim().
-			Claim(hcpExternalAuth.Properties.Claim.Mappings.Username.Claim).
-			Prefix(hcpExternalAuth.Properties.Claim.Mappings.Username.Prefix).
-			PrefixPolicy(usernameClaimPrefixPolicy),
-		)
-	if hcpExternalAuth.Properties.Claim.Mappings.Groups != nil {
-		tokenClaimMappingsBuilder = tokenClaimMappingsBuilder.Groups(
-			arohcpv1alpha1.NewGroupsClaim().
-				Claim(hcpExternalAuth.Properties.Claim.Mappings.Groups.Claim).
-				Prefix(hcpExternalAuth.Properties.Claim.Mappings.Groups.Prefix),
-		)
-	}
-
-	validationRules := []*arohcpv1alpha1.TokenClaimValidationRuleBuilder{}
-	for _, t := range hcpExternalAuth.Properties.Claim.ValidationRules {
-		newClientConfig := arohcpv1alpha1.NewTokenClaimValidationRule().
-			Claim(t.RequiredClaim.Claim).
-			RequiredValue(t.RequiredClaim.RequiredValue)
-		validationRules = append(validationRules, newClientConfig)
-	}
-
-	externalAuthBuilder.
-		Claim(arohcpv1alpha1.NewExternalAuthClaim().
-			Mappings(tokenClaimMappingsBuilder).
-			ValidationRules(validationRules...),
-		)
-
-	return nil
 }
 
 // ConvertCStoAdminCredential converts a CS BreakGlassCredential object into an HCPOpenShiftClusterAdminCredential object.
