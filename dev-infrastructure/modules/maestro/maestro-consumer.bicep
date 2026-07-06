@@ -62,6 +62,6 @@ module evengGridAccess 'maestro-eventgrid-access.bicep' = {
     clientRole: 'consumer'
     certificateSAN: certificateSAN
     certificateIssuer: certificateIssuer
-    certificateThumbprint: certSecret.tags.?thumbprint ?? ''
+    certificateThumbprint: certSecret.?tags.?thumbprint ?? ''
   }
 }
