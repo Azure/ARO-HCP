@@ -35,7 +35,7 @@ spec:
             - "5"
             - -o
             - /dev/null
-            - echo-b-host-headless:31414/public
+            - echo-b:8080/public
         livenessProbe:
           timeoutSeconds: 7
           exec:
@@ -47,7 +47,7 @@ spec:
             - "5"
             - -o
             - /dev/null
-            - echo-b-host-headless:31414/public
+            - echo-b:8080/public
       affinity:
         podAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
