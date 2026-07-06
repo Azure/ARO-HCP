@@ -529,6 +529,7 @@ logs:
     subscriptions: []
 maestro:
   agent:
+    certSAN: hcp-underlay-usw3ptest-mgmt-1.maestro.usw3ptest.hcpsvc.osadev.cloud
     consumerName: hcp-underlay-usw3ptest-mgmt-1
     k8s:
       namespace: maestro
@@ -541,7 +542,6 @@ maestro:
         digest: sha256:90e8b621e7b75bd0e8738dc41aca5fe7de6e0449bf39bea3210370ab8626b354
         registry: mcr.microsoft.com
         repository: azurelinux/base/nginx
-  certDomain: selfsigned.maestro.keyvault.azure.com
   certIssuer: Self
   eventGrid:
     maxClientSessionsPerAuthName: 6
@@ -570,6 +570,7 @@ maestro:
     zoneRedundantMode: Auto
   restrictIstioIngress: true
   server:
+    certSAN: maestro-server-usw3ptest.maestro.usw3ptest.hcpsvc.osadev.cloud
     k8s:
       namespace: maestro
       replicas: 2
