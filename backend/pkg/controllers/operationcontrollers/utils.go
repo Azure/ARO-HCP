@@ -562,40 +562,6 @@ func convertExternalAuthStatus(operation *api.Operation, externalAuthStatus *aro
 	return newOperationStatus, opError, err
 }
 
-// pollExternalAuthStatus converts an external auth status from Cluster
-// Service to info for an Azure async operation status endpoint.
-func pollExternalAuthStatus(
-	ctx context.Context,
-	clock utilsclock.PassiveClock,
-	resourcesDBClient database.ResourcesDBClient,
-	clusterServiceClient ocm.ClusterServiceClientSpec,
-	operation *api.Operation,
-	notificationClient *http.Client) error {
-	// XXX This is currently called by the operationExternalAuthCreate and
-	//     operationExternalAuthUpdate controllers because the logic flows
-	//     are identical. If the logic flows ever diverge, then this
-	//     function should be split up and the pieces moved back to
-	//     their respective controllers.
-
-	logger := utils.LoggerFromContext(ctx)
-
-	_, err := clusterServiceClient.GetExternalAuth(ctx, operation.InternalID)
-	if err != nil {
-		return utils.TrackError(err)
-	}
-
-	newOperationStatus := arm.ProvisioningStateSucceeded
-	logger.Info("new status", "newStatus", newOperationStatus)
-
-	logger.Info("updating status")
-	err = UpdateOperationStatus(ctx, clock, resourcesDBClient, operation, newOperationStatus, nil, postAsyncNotificationFn(notificationClient))
-	if err != nil {
-		return utils.TrackError(err)
-	}
-
-	return nil
-}
-
 // convertInflightChecks gets a cluster internal ID, fetches inflight check errors from CS endpoint, and converts them
 // to arm.CloudErrorBody type.
 // The function should be triggered only if inflight errors occurred with provision error code OCM4001.

@@ -46,6 +46,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/datadumpcontrollers"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/externalauthcreationcontrollers"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/externalauthdeletion"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/externalauthupdate"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/managementclustercontrollers"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/metricscontrollers"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/mismatchcontrollers"
@@ -506,8 +507,10 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		b.clock,
 		b.options.ResourcesDBClient,
 		b.options.ClustersServiceClient,
+		unionReadDesireLister,
 		http.DefaultClient,
 		activeOperationInformer,
+		backendInformers,
 	)
 	operationExternalAuthDeleteController := operationcontrollers.NewOperationExternalAuthDeleteController(
 		b.clock,
@@ -832,6 +835,12 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		activeOperationLister,
 		backendInformers,
 	)
+	externalAuthClusterServiceUpdateDispatchController := externalauthupdate.NewExternalAuthClusterServiceUpdateDispatchController(
+		b.options.ResourcesDBClient,
+		b.options.ClustersServiceClient,
+		activeOperationLister,
+		backendInformers,
+	)
 
 	leaderElectionConfig := leaderelection.LeaderElectionConfig{
 		Lock:          b.options.LeaderElectionLock,
@@ -914,6 +923,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go clusterDeletionController.Run(ctx, 20)
 				go clusterClusterServiceUpdateDispatchController.Run(ctx, 20)
 				go nodePoolClusterServiceUpdateDispatchController.Run(ctx, 20)
+				go externalAuthClusterServiceUpdateDispatchController.Run(ctx, 20)
 				go operationPhaseMetricsController.Run(ctx, 1)
 				go clusterMetricsController.Run(ctx, 1)
 				go clusterVersionMetricsController.Run(ctx, 1)
