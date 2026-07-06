@@ -20,8 +20,6 @@ import (
 	"slices"
 	"strings"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	configv1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/hypershift/api/hypershift/v1beta1"
@@ -56,9 +54,9 @@ func (c *operationExternalAuthUpdate) hypershiftHostedClusterExternalAuthOperati
 		return newOperationState(arm.ProvisioningStateUpdating, message), nil
 	}
 
-	if matches, message := c.hypershiftHostedClusterExternalAuthStatusMatchesDesired(externalAuth, hostedCluster); !matches {
-		return newOperationState(arm.ProvisioningStateUpdating, message), nil
-	}
+	// TODO compare with Hypershift HostedCluster relevant parts of status.configuration.authentication when possible.
+	// At the moment of writing this (2026-06-29) the status.configuration.authentication is only available on
+	// HostedClusters >= 4.21.
 
 	return newOperationState(arm.ProvisioningStateSucceeded, ""), nil
 }
@@ -282,129 +280,6 @@ func (c *operationExternalAuthUpdate) hypershiftHostedClusterExternalAuthValidat
 				i, desiredRule.Type,
 			)
 		}
-	}
-
-	return true, ""
-}
-
-// hypershiftHostedClusterExternalAuthStatusMatchesDesired reports whether Hypershift HostedCluster .Status fields
-// relevant to external auth match desired state. Returns false and a diagnostic message when any leaf check fails.
-func (c *operationExternalAuthUpdate) hypershiftHostedClusterExternalAuthStatusMatchesDesired(externalAuth *api.HCPOpenShiftClusterExternalAuth, hostedCluster *v1beta1.HostedCluster) (bool, string) {
-	if hostedCluster.Status.Configuration == nil {
-		return false, "hypershift HostedCluster status has no configuration"
-	}
-
-	observedOIDCClientStatuses := hostedCluster.Status.Configuration.Authentication.OIDCClients
-	if len(observedOIDCClientStatuses) == 0 && len(externalAuth.Properties.Clients) > 0 {
-		return false, "hypershift HostedCluster status has no OIDCClient statuses"
-	}
-
-	desiredProviderName := strings.ToLower(externalAuth.Name)
-
-	for _, desiredClient := range externalAuth.Properties.Clients {
-		if matches, message := c.hypershiftHostedClusterExternalAuthOIDCClientStatusMatchesDesired(desiredClient, desiredProviderName, externalAuth.Properties.Issuer.URL, observedOIDCClientStatuses); !matches {
-			return false, message
-		}
-	}
-
-	return true, ""
-}
-
-// hypershiftHostedClusterExternalAuthOIDCClientStatusMatchesDesired reports whether HostedCluster OIDCClientStatus
-// for a desired external auth client reflects a ready, correctly configured client.
-func (c *operationExternalAuthUpdate) hypershiftHostedClusterExternalAuthOIDCClientStatusMatchesDesired(desired api.ExternalAuthClientProfile, desiredProviderName string, desiredIssuerURL string, observed []configv1.OIDCClientStatus) (bool, string) {
-	var observedMatchingStatus *configv1.OIDCClientStatus
-	for i := range observed {
-		if observed[i].ComponentName == desired.Component.Name &&
-			observed[i].ComponentNamespace == desired.Component.AuthClientNamespace {
-			observedMatchingStatus = &observed[i]
-			break
-		}
-	}
-	if observedMatchingStatus == nil {
-		return false, fmt.Sprintf(
-			"hypershift HostedCluster status has no OIDCClientStatus for component %s/%s",
-			desired.Component.AuthClientNamespace, desired.Component.Name,
-		)
-	}
-
-	if matches, message := c.hypershiftHostedClusterExternalAuthOIDCClientStatusConditionsMatchDesired(desired, observedMatchingStatus.Conditions); !matches {
-		return false, message
-	}
-
-	if matches, message := c.hypershiftHostedClusterExternalAuthOIDCClientStatusCurrentClientsMatchDesired(desired, desiredProviderName, desiredIssuerURL, observedMatchingStatus.CurrentOIDCClients); !matches {
-		return false, message
-	}
-
-	return true, ""
-}
-
-// hypershiftHostedClusterExternalAuthOIDCClientStatusConditionsMatchDesired reports whether HostedCluster
-// OIDCClientStatus conditions indicate the desired external auth client is ready.
-func (c *operationExternalAuthUpdate) hypershiftHostedClusterExternalAuthOIDCClientStatusConditionsMatchDesired(desired api.ExternalAuthClientProfile, observed []metav1.Condition) (bool, string) {
-	for _, condition := range observed {
-		if condition.Type == "Available" && condition.Status != metav1.ConditionTrue {
-			return false, fmt.Sprintf(
-				"hypershift HostedCluster OIDCClientStatus for %s/%s Available condition is %s: %s",
-				desired.Component.AuthClientNamespace, desired.Component.Name,
-				condition.Status, condition.Message,
-			)
-		}
-		if condition.Type == "Degraded" && condition.Status == metav1.ConditionTrue {
-			return false, fmt.Sprintf(
-				"hypershift HostedCluster OIDCClientStatus for %s/%s is Degraded: %s",
-				desired.Component.AuthClientNamespace, desired.Component.Name,
-				condition.Message,
-			)
-		}
-		if condition.Type == "Progressing" && condition.Status == metav1.ConditionTrue {
-			return false, fmt.Sprintf(
-				"hypershift HostedCluster OIDCClientStatus for %s/%s is still Progressing: %s",
-				desired.Component.AuthClientNamespace, desired.Component.Name,
-				condition.Message,
-			)
-		}
-	}
-	return true, ""
-}
-
-// hypershiftHostedClusterExternalAuthOIDCClientStatusCurrentClientsMatchDesired reports whether HostedCluster
-// OIDCClientStatus CurrentOIDCClients reflects the desired external auth client configuration.
-func (c *operationExternalAuthUpdate) hypershiftHostedClusterExternalAuthOIDCClientStatusCurrentClientsMatchDesired(desired api.ExternalAuthClientProfile, desiredProviderName string, desiredIssuerURL string, observed []configv1.OIDCClientReference) (bool, string) {
-	if len(observed) == 0 {
-		return false, fmt.Sprintf(
-			"hypershift HostedCluster OIDCClientStatus for %s/%s has no CurrentOIDCClients",
-			desired.Component.AuthClientNamespace, desired.Component.Name,
-		)
-	}
-
-	var matchingObservedRef *configv1.OIDCClientReference
-	for i := range observed {
-		if observed[i].ClientID == desired.ClientID {
-			matchingObservedRef = &observed[i]
-			break
-		}
-	}
-	if matchingObservedRef == nil {
-		return false, fmt.Sprintf(
-			"hypershift HostedCluster OIDCClientStatus for %s/%s has no CurrentOIDCClient with clientID %q",
-			desired.Component.AuthClientNamespace, desired.Component.Name,
-			desired.ClientID,
-		)
-	}
-
-	if !strings.EqualFold(matchingObservedRef.OIDCProviderName, desiredProviderName) {
-		return false, fmt.Sprintf(
-			"hypershift HostedCluster OIDCClientStatus CurrentOIDCClient for clientID %q references provider %q, want %q",
-			desired.ClientID, matchingObservedRef.OIDCProviderName, desiredProviderName,
-		)
-	}
-
-	if matchingObservedRef.IssuerURL != desiredIssuerURL {
-		return false, fmt.Sprintf(
-			"hypershift HostedCluster OIDCClientStatus CurrentOIDCClient for clientID %q has issuerURL %q, want %q",
-			desired.ClientID, matchingObservedRef.IssuerURL, desiredIssuerURL,
-		)
 	}
 
 	return true, ""
