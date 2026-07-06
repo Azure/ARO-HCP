@@ -19,19 +19,13 @@ import (
 	"crypto/tls"
 	"fmt"
 	"net/http"
-	"slices"
 	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
-
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 
@@ -47,6 +41,9 @@ import (
 // v2026-06-30-preview API version smoke test — verifying cluster creation,
 // credentials, and cluster health — to avoid creating multiple clusters in CI.
 var _ = Describe("Customer", func() {
+	// Deadline for v20260630preview API deployment in non-dev environments
+	timeBombDeadline := framework.Must(time.Parse(time.RFC3339, "2026-07-31T00:00:00Z"))
+
 	It("should create a cluster with private ingress using v20260630preview and verify the ingress is internal",
 		labels.RequireNothing,
 		labels.Critical,
@@ -57,37 +54,9 @@ var _ = Describe("Customer", func() {
 			const (
 				customerClusterName  = "private-ingress"
 				customerNodePoolName = "np-1"
-				apiVersion           = "2026-06-30-preview"
 			)
 
 			tc := framework.NewTestContext()
-
-			By("checking API version availability")
-			if !framework.IsDevelopmentEnvironment() {
-				resourcesFactory, err := tc.GetARMResourcesClientFactory(ctx)
-				Expect(err).NotTo(HaveOccurred(), "failed to get ARM resources client factory")
-
-				providersClient := resourcesFactory.NewProvidersClient()
-				provider, err := providersClient.Get(ctx, "Microsoft.RedHatOpenShift", nil)
-				Expect(err).NotTo(HaveOccurred(), "failed to get Microsoft.RedHatOpenShift resource provider")
-
-				available := slices.ContainsFunc(provider.ResourceTypes, func(rt *armresources.ProviderResourceType) bool {
-					if rt.ResourceType == nil || !strings.EqualFold(*rt.ResourceType, "hcpOpenShiftClusters") {
-						return false
-					}
-					return slices.ContainsFunc(rt.APIVersions, func(v *string) bool {
-						return v != nil && strings.EqualFold(*v, apiVersion)
-					})
-				})
-
-				if !available {
-					if time.Now().After(framework.Must(time.Parse(time.RFC3339, "2026-07-31T00:00:00Z"))) {
-						Fail(fmt.Sprintf("API version %s should be available for Microsoft.RedHatOpenShift/hcpOpenShiftClusters by 2026-07-31 00:00 UTC", apiVersion))
-					}
-					Skip(fmt.Sprintf("API version %s is not available for Microsoft.RedHatOpenShift/hcpOpenShiftClusters in this environment", apiVersion))
-				}
-				GinkgoLogr.Info("API version available", "version", apiVersion)
-			}
 
 			if tc.UsePooledIdentities() {
 				err := tc.AssignIdentityContainers(ctx, 1, framework.IdentityContainerAssignmentRetryInterval)
@@ -153,6 +122,12 @@ var _ = Describe("Customer", func() {
 				nil,
 				framework.ClusterCreationTimeout,
 			)
+			if isAPINotDeployedError(err) {
+				if time.Now().Before(timeBombDeadline) {
+					Skip(fmt.Sprintf("v20260630preview API not yet deployed; skipping until %s", timeBombDeadline.Format(time.RFC3339)))
+				}
+				Fail(fmt.Sprintf("v20260630preview API still not deployed as of %s deadline", timeBombDeadline.Format(time.RFC3339)))
+			}
 			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster %q with private ingress", customerClusterName)
 
 			By("verifying cluster was created with private ingress type via ARM GET")
@@ -209,12 +184,11 @@ var _ = Describe("Customer", func() {
 			dynamicClient, err := dynamic.NewForConfig(adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred(), "failed to create dynamic client from admin REST config")
 
-			appNamespace, appRouteHost, err := deploySampleApp(ctx, dynamicClient)
+			_, appRouteHost, err := framework.DeploySampleApp(ctx, dynamicClient)
 			Expect(err).NotTo(HaveOccurred(), "failed to deploy sample web app for ingress connectivity test")
-			defer cleanupSampleApp(ctx, dynamicClient, appNamespace)
 
 			appURL := "https://" + appRouteHost
-			GinkgoLogr.Info("Sample app deployed", "namespace", appNamespace, "url", appURL)
+			GinkgoLogr.Info("Sample app deployed", "url", appURL)
 
 			By("verifying ingress is reachable from VM inside the VNet")
 			curlCmd := fmt.Sprintf("curl -k -s -o /dev/null -w '%%{http_code}' --connect-timeout 10 %s", appURL)
@@ -240,159 +214,6 @@ var _ = Describe("Customer", func() {
 		},
 	)
 })
-
-// deploySampleApp creates a simple web app (agnhost serve-hostname) with a
-// Service and Route in a new namespace. Returns the namespace name and the
-// route host, or an error.
-func deploySampleApp(ctx context.Context, dynamicClient dynamic.Interface) (string, string, error) {
-	// Create namespace
-	nsObj := &unstructured.Unstructured{
-		Object: map[string]interface{}{
-			"apiVersion": "v1",
-			"kind":       "Namespace",
-			"metadata": map[string]interface{}{
-				"generateName": "e2e-private-ingress-",
-			},
-		},
-	}
-	ns, err := dynamicClient.Resource(schema.GroupVersionResource{Version: "v1", Resource: "namespaces"}).
-		Create(ctx, nsObj, metav1.CreateOptions{})
-	if err != nil {
-		return "", "", fmt.Errorf("failed to create namespace: %w", err)
-	}
-	nsName := ns.GetName()
-
-	// Create deployment
-	deployment := &unstructured.Unstructured{
-		Object: map[string]interface{}{
-			"apiVersion": "apps/v1",
-			"kind":       "Deployment",
-			"metadata": map[string]interface{}{
-				"name": "agnhost-server",
-			},
-			"spec": map[string]interface{}{
-				"replicas": int64(1),
-				"selector": map[string]interface{}{
-					"matchLabels": map[string]interface{}{"app": "agnhost"},
-				},
-				"template": map[string]interface{}{
-					"metadata": map[string]interface{}{
-						"labels": map[string]interface{}{"app": "agnhost"},
-					},
-					"spec": map[string]interface{}{
-						"containers": []interface{}{
-							map[string]interface{}{
-								"name":  "agnhost",
-								"image": "registry.k8s.io/e2e-test-images/agnhost:2.39",
-								"args":  []interface{}{"serve-hostname", "--port=8080"},
-								"ports": []interface{}{
-									map[string]interface{}{
-										"name":          "http",
-										"containerPort": int64(8080),
-										"protocol":      "TCP",
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-	}
-	_, err = dynamicClient.Resource(schema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "deployments"}).
-		Namespace(nsName).Create(ctx, deployment, metav1.CreateOptions{})
-	if err != nil {
-		return nsName, "", fmt.Errorf("failed to create deployment: %w", err)
-	}
-
-	// Create service
-	service := &unstructured.Unstructured{
-		Object: map[string]interface{}{
-			"apiVersion": "v1",
-			"kind":       "Service",
-			"metadata": map[string]interface{}{
-				"name": "agnhost",
-			},
-			"spec": map[string]interface{}{
-				"ports": []interface{}{
-					map[string]interface{}{
-						"name":       "http",
-						"port":       int64(80),
-						"targetPort": int64(8080),
-						"protocol":   "TCP",
-					},
-				},
-				"selector": map[string]interface{}{"app": "agnhost"},
-				"type":     "ClusterIP",
-			},
-		},
-	}
-	_, err = dynamicClient.Resource(schema.GroupVersionResource{Version: "v1", Resource: "services"}).
-		Namespace(nsName).Create(ctx, service, metav1.CreateOptions{})
-	if err != nil {
-		return nsName, "", fmt.Errorf("failed to create service: %w", err)
-	}
-
-	// Create route
-	route := &unstructured.Unstructured{
-		Object: map[string]interface{}{
-			"apiVersion": "route.openshift.io/v1",
-			"kind":       "Route",
-			"metadata": map[string]interface{}{
-				"name": "agnhost",
-			},
-			"spec": map[string]interface{}{
-				"port": map[string]interface{}{
-					"targetPort": "http",
-				},
-				"tls": map[string]interface{}{
-					"termination": "edge",
-				},
-				"to": map[string]interface{}{
-					"kind":   "Service",
-					"name":   "agnhost",
-					"weight": int64(100),
-				},
-			},
-		},
-	}
-	routeGVR := schema.GroupVersionResource{Group: "route.openshift.io", Version: "v1", Resource: "routes"}
-	_, err = dynamicClient.Resource(routeGVR).Namespace(nsName).Create(ctx, route, metav1.CreateOptions{})
-	if err != nil {
-		return nsName, "", fmt.Errorf("failed to create route: %w", err)
-	}
-
-	// Wait for route to get a host
-	var host string
-	pollCtx, cancel := context.WithTimeout(ctx, 5*time.Minute)
-	defer cancel()
-	for {
-		r, err := dynamicClient.Resource(routeGVR).Namespace(nsName).Get(pollCtx, "agnhost", metav1.GetOptions{})
-		if err == nil {
-			h, _, _ := unstructured.NestedString(r.Object, "spec", "host")
-			if h != "" {
-				host = h
-				break
-			}
-		}
-		select {
-		case <-pollCtx.Done():
-			return nsName, "", fmt.Errorf("timed out waiting for route host to be assigned")
-		case <-time.After(5 * time.Second):
-		}
-	}
-
-	return nsName, host, nil
-}
-
-// cleanupSampleApp removes the namespace created by deploySampleApp.
-func cleanupSampleApp(ctx context.Context, dynamicClient dynamic.Interface, namespace string) {
-	if namespace == "" {
-		return
-	}
-	_ = dynamicClient.Resource(schema.GroupVersionResource{Version: "v1", Resource: "namespaces"}).
-		Delete(ctx, namespace, metav1.DeleteOptions{})
-}
 
 // testIngressConnectivity attempts an HTTPS connection to the given URL.
 // Returns nil if the connection succeeds, or an error if it fails.
