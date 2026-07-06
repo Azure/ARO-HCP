@@ -684,3 +684,167 @@ func TestAdmitCluster_Update(t *testing.T) {
 		})
 	}
 }
+
+func TestAdmitCluster_PlatformResourceIDs(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+
+	const subscriptionID = "6b690bec-0c16-4ecb-8f67-781caf40bba7"
+
+	subnetID := api.Must(azcorearm.ParseResourceID(
+		"/subscriptions/" + subscriptionID + "/resourceGroups/customer/providers/Microsoft.Network/virtualNetworks/vnet/subnets/cluster-subnet"))
+	otherSubnetID := api.Must(azcorearm.ParseResourceID(
+		"/subscriptions/" + subscriptionID + "/resourceGroups/other/providers/Microsoft.Network/virtualNetworks/vnet/subnets/other"))
+	nsgID := api.Must(azcorearm.ParseResourceID(
+		"/subscriptions/" + subscriptionID + "/resourceGroups/customer/providers/Microsoft.Network/networkSecurityGroups/cluster-nsg"))
+	otherNsgID := api.Must(azcorearm.ParseResourceID(
+		"/subscriptions/" + subscriptionID + "/resourceGroups/other/providers/Microsoft.Network/networkSecurityGroups/other-nsg"))
+
+	makeCluster := func(name, managedResourceGroup string, subnet, nsg *azcorearm.ResourceID) *api.HCPOpenShiftCluster {
+		resourceID := api.Must(azcorearm.ParseResourceID(fmt.Sprintf(
+			"/subscriptions/%s/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/%s",
+			subscriptionID, name)))
+		return &api.HCPOpenShiftCluster{
+			TrackedResource: arm.NewTrackedResource(resourceID, "eastus"),
+			CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+				Platform: api.CustomerPlatformProfile{
+					ManagedResourceGroup:   managedResourceGroup,
+					SubnetID:               subnet,
+					NetworkSecurityGroupID: nsg,
+				},
+			},
+		}
+	}
+
+	makeNodePool := func(clusterName, nodePoolName string, subnet *azcorearm.ResourceID) *api.HCPOpenShiftClusterNodePool {
+		resourceID := api.Must(azcorearm.ParseResourceID(fmt.Sprintf(
+			"/subscriptions/%s/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/%s/hcpOpenShiftClusterNodePools/%s",
+			subscriptionID, clusterName, nodePoolName)))
+		return &api.HCPOpenShiftClusterNodePool{
+			TrackedResource: arm.NewTrackedResource(resourceID, "eastus"),
+			Properties: api.HCPOpenShiftClusterNodePoolProperties{
+				Platform: api.NodePoolPlatformProfile{
+					SubnetID: subnet,
+				},
+			},
+		}
+	}
+
+	tests := []struct {
+		name                  string
+		subscriptionClusters  []*api.HCPOpenShiftCluster
+		subscriptionNodePools []*api.HCPOpenShiftClusterNodePool
+		newCluster            *api.HCPOpenShiftCluster
+		expectErrors          []utils.ExpectedError
+	}{
+		{
+			name:                 "create with empty subscription clusters",
+			subscriptionClusters: nil,
+			newCluster:           makeCluster("new-cluster", "mrg-new", subnetID, nsgID),
+			expectErrors:         []utils.ExpectedError{},
+		},
+		{
+			name: "create rejects duplicate subnet",
+			subscriptionClusters: []*api.HCPOpenShiftCluster{
+				makeCluster("existing-cluster", "mrg-existing", subnetID, nsgID),
+			},
+			newCluster: makeCluster("new-cluster", "mrg-new", subnetID, otherNsgID),
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.platform.subnetId", Message: "already in use by another cluster"},
+			},
+		},
+		{
+			name: "create rejects duplicate network security group",
+			subscriptionClusters: []*api.HCPOpenShiftCluster{
+				makeCluster("existing-cluster", "mrg-existing", subnetID, nsgID),
+			},
+			newCluster: makeCluster("new-cluster", "mrg-new", otherSubnetID, nsgID),
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.platform.networkSecurityGroupId", Message: "already in use by another cluster"},
+			},
+		},
+		{
+			name: "create rejects duplicate managed resource group",
+			subscriptionClusters: []*api.HCPOpenShiftCluster{
+				makeCluster("existing-cluster", "shared-mrg", subnetID, nsgID),
+			},
+			newCluster: makeCluster("new-cluster", "shared-mrg", otherSubnetID, otherNsgID),
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.platform.managedResourceGroup", Message: "please provide a unique managed resource group name"},
+			},
+		},
+		{
+			name: "create rejects duplicate subnet used by node pool",
+			subscriptionClusters: []*api.HCPOpenShiftCluster{
+				makeCluster("existing-cluster", "mrg-existing", otherSubnetID, nsgID),
+			},
+			subscriptionNodePools: []*api.HCPOpenShiftClusterNodePool{
+				makeNodePool("existing-cluster", "workers", subnetID),
+			},
+			newCluster: makeCluster("new-cluster", "mrg-new", subnetID, otherNsgID),
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.platform.subnetId", Message: "already in use by another cluster"},
+			},
+		},
+		{
+			name: "create allows distinct platform values",
+			subscriptionClusters: []*api.HCPOpenShiftCluster{
+				makeCluster("existing-cluster", "mrg-existing", subnetID, nsgID),
+			},
+			newCluster:   makeCluster("new-cluster", "mrg-new", otherSubnetID, otherNsgID),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name: "create with nil new platform resource IDs returns required errors",
+			subscriptionClusters: []*api.HCPOpenShiftCluster{
+				makeCluster("existing-cluster", "mrg-existing", subnetID, nsgID),
+			},
+			newCluster: makeCluster("new-cluster", "mrg-new", nil, nil),
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.platform.subnetId", Message: "Required value"},
+				{FieldPath: "properties.platform.networkSecurityGroupId", Message: "Required value"},
+			},
+		},
+		{
+			name: "create with existing cluster missing platform resource IDs returns internal errors",
+			subscriptionClusters: []*api.HCPOpenShiftCluster{
+				makeCluster("existing-cluster", "mrg-existing", nil, nil),
+			},
+			newCluster: makeCluster("new-cluster", "mrg-new", subnetID, nsgID),
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.platform.subnetId", Message: "existing cluster is missing subnetId"},
+				{FieldPath: "properties.platform.networkSecurityGroupId", Message: "existing cluster is missing networkSecurityGroupId"},
+			},
+		},
+		{
+			name: "create with existing node pool missing subnet returns internal error",
+			subscriptionClusters: []*api.HCPOpenShiftCluster{
+				makeCluster("existing-cluster", "mrg-existing", otherSubnetID, nsgID),
+			},
+			subscriptionNodePools: []*api.HCPOpenShiftClusterNodePool{
+				makeNodePool("existing-cluster", "workers", nil),
+			},
+			newCluster: makeCluster("new-cluster", "mrg-new", subnetID, otherNsgID),
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.platform.subnetId", Message: "existing node pool is missing subnetId"},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			admissionContext := &ClusterAdmissionContext{
+				OriginalCluster:       tt.newCluster.DeepCopy(),
+				SubscriptionClusters:  tt.subscriptionClusters,
+				SubscriptionNodePools: tt.subscriptionNodePools,
+			}
+
+			errs := AdmitCluster(ctx, admissionContext, operation.Operation{Type: operation.Create}, tt.newCluster, nil)
+
+			utils.VerifyErrorsMatch(t, tt.expectErrors, errs)
+		})
+	}
+}
