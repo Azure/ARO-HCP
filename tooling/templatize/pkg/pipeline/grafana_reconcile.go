@@ -19,26 +19,67 @@ import (
 	"fmt"
 	"time"
 
+	configtypes "github.com/Azure/ARO-Tools/config/types"
 	"github.com/Azure/ARO-Tools/pipelines/graph"
 	"github.com/Azure/ARO-Tools/pipelines/types"
 	"github.com/Azure/ARO-Tools/tools/grafanactl/cmd/manage"
 )
 
-func runGrafanaManageStep(_ graph.Identifier, step *types.GrafanaManageStep, ctx context.Context, _ *StepRunOptions, executionTarget ExecutionTarget, _ *ExecutionState) error {
+func resolveOptionalValue(v types.Value, cfg configtypes.Configuration, outputs Outputs, serviceGroup string) (string, error) {
+	if v.Value == nil && v.ConfigRef == "" && v.Input == nil {
+		return "", nil
+	}
+	return resolveValue(v, cfg, outputs, serviceGroup)
+}
+
+func runGrafanaManageStep(id graph.Identifier, step *types.GrafanaManageStep, ctx context.Context, options *StepRunOptions, executionTarget ExecutionTarget, state *ExecutionState) error {
+	state.RLock()
+	outputs := state.Outputs
+	state.RUnlock()
+
+	grafanaName, err := resolveValue(step.GrafanaName, options.Configuration, outputs, id.ServiceGroup)
+	if err != nil {
+		return fmt.Errorf("failed to resolve grafanaName: %w", err)
+	}
+	location, err := resolveValue(step.Location, options.Configuration, outputs, id.ServiceGroup)
+	if err != nil {
+		return fmt.Errorf("failed to resolve location: %w", err)
+	}
+
 	opts := manage.DefaultReconcileOptions()
-	opts.GrafanaName = step.GrafanaName
+	opts.GrafanaName = grafanaName
 	opts.SubscriptionID = executionTarget.GetSubscriptionID()
 	opts.ResourceGroup = executionTarget.GetResourceGroup()
-	opts.Location = step.Location
-	if step.SKU != "" {
-		opts.SKU = step.SKU
+	opts.Location = location
+
+	sku, err := resolveOptionalValue(step.SKU, options.Configuration, outputs, id.ServiceGroup)
+	if err != nil {
+		return fmt.Errorf("failed to resolve sku: %w", err)
 	}
-	opts.MajorVersion = step.MajorVersion
-	if step.ZoneRedundancy != "" {
-		opts.ZoneRedundancy = step.ZoneRedundancy
+	if sku != "" {
+		opts.SKU = sku
 	}
-	opts.CrossTenantSecurityGroup = step.CrossTenantSecurityGroup
-	opts.Tags = step.Tags
+
+	majorVersion, err := resolveOptionalValue(step.MajorVersion, options.Configuration, outputs, id.ServiceGroup)
+	if err != nil {
+		return fmt.Errorf("failed to resolve majorVersion: %w", err)
+	}
+	opts.MajorVersion = majorVersion
+
+	zoneRedundancy, err := resolveOptionalValue(step.ZoneRedundancy, options.Configuration, outputs, id.ServiceGroup)
+	if err != nil {
+		return fmt.Errorf("failed to resolve zoneRedundancy: %w", err)
+	}
+	if zoneRedundancy != "" {
+		opts.ZoneRedundancy = zoneRedundancy
+	}
+
+	crossTenantSecurityGroup, err := resolveOptionalValue(step.CrossTenantSecurityGroup, options.Configuration, outputs, id.ServiceGroup)
+	if err != nil {
+		return fmt.Errorf("failed to resolve crossTenantSecurityGroup: %w", err)
+	}
+	opts.CrossTenantSecurityGroup = crossTenantSecurityGroup
+
 	if step.Timeout != "" {
 		d, err := time.ParseDuration(step.Timeout)
 		if err != nil {

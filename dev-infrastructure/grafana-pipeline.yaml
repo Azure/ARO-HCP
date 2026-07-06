@@ -20,11 +20,16 @@ resourceGroups:
     outputOnly: true
   - name: grafana-reconcile
     action: GrafanaManage
-    grafanaName: "{{ .monitoring.grafanaName }}"
-    location: "{{ .global.region }}"
-    majorVersion: "{{ .monitoring.grafanaMajorVersion }}"
-    zoneRedundancy: "{{ .monitoring.grafanaZoneRedundantMode }}"
-    crossTenantSecurityGroup: "{{ .monitoring.crossTenantSecurityGroup }}"
+    grafanaName:
+      configRef: monitoring.grafanaName
+    location:
+      configRef: global.region
+    majorVersion:
+      configRef: monitoring.grafanaMajorVersion
+    zoneRedundancy:
+      configRef: monitoring.grafanaZoneRedundantMode
+    crossTenantSecurityGroup:
+      configRef: monitoring.crossTenantSecurityGroup
     identityFrom:
       resourceGroup: singleton
       step: output
