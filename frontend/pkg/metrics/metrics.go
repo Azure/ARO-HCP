@@ -107,6 +107,7 @@ func (sc *SubscriptionCollector) Run(ctx context.Context) {
 	sc.refresh(ctx)
 
 	t := time.NewTicker(30 * time.Second)
+	defer t.Stop()
 	for {
 		select {
 		case <-ctx.Done():
