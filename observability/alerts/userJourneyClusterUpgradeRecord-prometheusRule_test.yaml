@@ -14,6 +14,11 @@ tests:
   - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1", version="4.19.20", state="partial"}'
     values: "0x10 1x25"
   promql_expr_test:
+  - expr: hosted_control_plane_upgrade:upgrade_eligible:info{cluster="svc-1", resource_id="/sub/1/rg/c1"}
+    eval_time: 9m
+    exp_samples:
+    - labels: 'hosted_control_plane_upgrade:upgrade_eligible:info{cluster="svc-1", cluster_uuid="uuid-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1"}'
+      value: 1
   - expr: hosted_control_plane_upgrade:duration_in_desired:seconds{cluster="svc-1", resource_id="/sub/1/rg/c1", version="4.19.20"}
     eval_time: 9m
     exp_samples:
@@ -36,6 +41,11 @@ tests:
   - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/2/rg/c3", subscription_id="sub-2", cluster_uuid="uuid-3", version="4.19.20", state="completed"}'
     values: "1+0x50"
   promql_expr_test:
+  - expr: hosted_control_plane_upgrade:upgrade_eligible:info{cluster="svc-1", resource_id="/sub/2/rg/c2"}
+    eval_time: 35m
+    exp_samples:
+    - labels: 'hosted_control_plane_upgrade:upgrade_eligible:info{cluster="svc-1", cluster_uuid="uuid-2", resource_id="/sub/2/rg/c2", subscription_id="sub-2"}'
+      value: 1
   - expr: hosted_control_plane_upgrade:duration_in_desired:seconds{cluster="svc-1", resource_id="/sub/2/rg/c2", version="4.19.21", state="desired"}
     eval_time: 35m
     exp_samples:
@@ -64,6 +74,9 @@ tests:
   - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/3/rg/c4", subscription_id="sub-3", cluster_uuid="uuid-4", version="4.19.20", state="desired"}'
     values: "1+0x50"
   promql_expr_test:
+  - expr: hosted_control_plane_upgrade:upgrade_eligible:info{cluster="svc-1", resource_id="/sub/3/rg/c4"}
+    eval_time: 35m
+    exp_samples: []
   - expr: hosted_control_plane_upgrade:duration_in_desired:seconds{cluster="svc-1", resource_id="/sub/3/rg/c4", version="4.19.20", state="desired"}
     eval_time: 35m
     exp_samples: []
@@ -133,3 +146,35 @@ tests:
     exp_samples:
     - labels: 'hosted_control_plane_upgrade:in_progress:stuck_over_30m:ratio{cluster="svc-1"}'
       value: 1
+# ========================================
+# Test 6: Two versions without completed — not upgrade eligible
+# ========================================
+- interval: 1m
+  input_series:
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/4/rg/c5", subscription_id="sub-4", cluster_uuid="uuid-5", version="4.19.19", state="partial"}'
+    values: "1+0x50"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/4/rg/c5", subscription_id="sub-4", cluster_uuid="uuid-5", version="4.19.20", state="desired"}'
+    values: "1+0x50"
+  promql_expr_test:
+  - expr: hosted_control_plane_upgrade:upgrade_eligible:info{cluster="svc-1", resource_id="/sub/4/rg/c5"}
+    eval_time: 35m
+    exp_samples: []
+  - expr: hosted_control_plane_upgrade:duration_in_desired:seconds{cluster="svc-1", resource_id="/sub/4/rg/c5", version="4.19.20", state="desired"}
+    eval_time: 35m
+    exp_samples: []
+  - expr: hosted_control_plane_upgrade:in_progress:count{cluster="svc-1"}
+    eval_time: 35m
+    exp_samples:
+    - labels: 'hosted_control_plane_upgrade:in_progress:count{cluster="svc-1"}'
+      value: 0
+# ========================================
+# Test 7: Single completed version only — not upgrade eligible
+# ========================================
+- interval: 1m
+  input_series:
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/5/rg/c6", subscription_id="sub-5", cluster_uuid="uuid-6", version="4.19.20", state="completed"}'
+    values: "1+0x50"
+  promql_expr_test:
+  - expr: hosted_control_plane_upgrade:upgrade_eligible:info{cluster="svc-1", resource_id="/sub/5/rg/c6"}
+    eval_time: 35m
+    exp_samples: []

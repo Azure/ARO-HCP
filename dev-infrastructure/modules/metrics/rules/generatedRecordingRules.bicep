@@ -28,6 +28,32 @@ resource arohcpAccessClusterSloRecordingRules 'Microsoft.AlertsManagement/promet
   }
 }
 
+resource userJourneyClusterUpgradeSharedRecordingRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'user-journey-cluster-upgrade-shared-recording-rules'
+  location: location
+  properties: {
+    scopes: [
+      azureMonitoring
+    ]
+    enabled: true
+    interval: 'PT1M'
+    rules: [
+      {
+        record: 'hosted_control_plane_upgrade:upgrade_eligible:info'
+        expression: '((count by (cluster, resource_id, subscription_id, cluster_uuid) (count by (cluster, resource_id, subscription_id, cluster_uuid, version) (backend_cluster_version_info == 1)) >= 2) and on (cluster, resource_id) (count by (cluster, resource_id) (backend_cluster_version_info{state="completed"} == 1) >= 1)) * 0 + 1'
+      }
+      {
+        record: 'hosted_control_plane_upgrade:version_state_first_seen:timestamp'
+        expression: 'min without (prometheus_replica) (min by (cluster, resource_id, subscription_id, cluster_uuid, version, state) (hosted_control_plane_upgrade:version_state_first_seen:timestamp or (timestamp(backend_cluster_version_info{state=~"desired|partial"} == 1) and on (cluster, resource_id) (hosted_control_plane_upgrade:upgrade_eligible:info == 1)) or timestamp(backend_cluster_version_info{state="completed"} == 1)))'
+      }
+      {
+        record: 'hosted_control_plane_upgrade:in_progress:count'
+        expression: 'count by (cluster) (count by (cluster, resource_id) (backend_cluster_version_info{state=~"desired|partial"} == 1) >= 1 and on (cluster, resource_id) (hosted_control_plane_upgrade:upgrade_eligible:info == 1)) or 0 * count by (cluster) (backend_cluster_version_info)'
+      }
+    ]
+  }
+}
+
 resource userJourneyClusterUpgradeReachPartialRecordingRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
   name: 'user-journey-cluster-upgrade-reach-partial-recording-rules'
   location: location
@@ -39,16 +65,8 @@ resource userJourneyClusterUpgradeReachPartialRecordingRules 'Microsoft.AlertsMa
     interval: 'PT1M'
     rules: [
       {
-        record: 'hosted_control_plane_upgrade:version_state_first_seen:timestamp'
-        expression: 'min without (prometheus_replica) (min by (cluster, resource_id, subscription_id, cluster_uuid, version, state) (hosted_control_plane_upgrade:version_state_first_seen:timestamp or (timestamp(backend_cluster_version_info{state=~"desired|partial"} == 1) and on (cluster, resource_id) (count by (cluster, resource_id) (backend_cluster_version_info{state="completed"} == 1 unless on (cluster, resource_id, version) backend_cluster_version_info{state=~"desired|partial"} == 1) >= 1)) or timestamp(backend_cluster_version_info{state="completed"} == 1)))'
-      }
-      {
-        record: 'hosted_control_plane_upgrade:in_progress:count'
-        expression: 'count by (cluster) (count by (cluster, resource_id) (backend_cluster_version_info{state=~"desired|partial"} == 1) >= 1 and on (cluster, resource_id) (count by (cluster, resource_id) (backend_cluster_version_info{state="completed"} == 1 unless on (cluster, resource_id, version) backend_cluster_version_info{state=~"desired|partial"} == 1) >= 1)) or 0 * count by (cluster) (backend_cluster_version_info)'
-      }
-      {
         record: 'hosted_control_plane_upgrade:duration_in_desired:seconds'
-        expression: '(time() - hosted_control_plane_upgrade:version_state_first_seen:timestamp{state="desired"}) and on (cluster, resource_id, subscription_id, cluster_uuid, version) (backend_cluster_version_info{state="desired"} == 1) and on (cluster, resource_id) (count by (cluster, resource_id) (backend_cluster_version_info{state="completed"} == 1 unless on (cluster, resource_id, version) backend_cluster_version_info{state=~"desired|partial"} == 1) >= 1)'
+        expression: '(time() - hosted_control_plane_upgrade:version_state_first_seen:timestamp{state="desired"}) and on (cluster, resource_id, subscription_id, cluster_uuid, version) (backend_cluster_version_info{state="desired"} == 1) and on (cluster, resource_id) (hosted_control_plane_upgrade:upgrade_eligible:info == 1)'
       }
       {
         record: 'hosted_control_plane_upgrade:desired:stuck_over_20m:count'
@@ -94,7 +112,7 @@ resource userJourneyClusterUpgradeCompleteRecordingRules 'Microsoft.AlertsManage
     rules: [
       {
         record: 'hosted_control_plane_upgrade:duration_in_progress:seconds'
-        expression: '(time() - hosted_control_plane_upgrade:version_state_first_seen:timestamp{state="desired"}) unless on (cluster, resource_id, subscription_id, cluster_uuid, version) (backend_cluster_version_info{state="completed"} == 1) and on (cluster, resource_id, subscription_id, cluster_uuid, version) (backend_cluster_version_info{state=~"desired|partial"} == 1) and on (cluster, resource_id) (count by (cluster, resource_id) (backend_cluster_version_info{state="completed"} == 1 unless on (cluster, resource_id, version) backend_cluster_version_info{state=~"desired|partial"} == 1) >= 1)'
+        expression: '(time() - hosted_control_plane_upgrade:version_state_first_seen:timestamp{state="desired"}) unless on (cluster, resource_id, subscription_id, cluster_uuid, version) (backend_cluster_version_info{state="completed"} == 1) and on (cluster, resource_id, subscription_id, cluster_uuid, version) (backend_cluster_version_info{state=~"desired|partial"} == 1) and on (cluster, resource_id) (hosted_control_plane_upgrade:upgrade_eligible:info == 1)'
       }
       {
         record: 'hosted_control_plane_upgrade:in_progress:stuck_over_30m:count'
