@@ -806,6 +806,7 @@ func TestClusterValidate(t *testing.T) {
 						// Use a different resource group name to avoid a subnet ID error.
 						SubnetID:                api.Must(azcorearm.ParseResourceID(path.Join("/subscriptions", api.TestSubscriptionID, "resourceGroups", "anotherResourceGroup", "providers", "Microsoft.Network", "virtualNetworks", api.TestVirtualNetworkName, "subnets", api.TestSubnetName))),
 						VnetIntegrationSubnetID: api.Must(azcorearm.ParseResourceID(path.Join("/subscriptions", api.TestSubscriptionID, "resourceGroups", "anotherResourceGroup", "providers", "Microsoft.Network", "virtualNetworks", api.TestVirtualNetworkName, "subnets", api.TestVnetIntegrationSubnetName))),
+						NetworkSecurityGroupID:  api.Must(azcorearm.ParseResourceID(path.Join("/subscriptions", api.TestSubscriptionID, "resourceGroups", "anotherResourceGroup", "providers", "Microsoft.Network", "networkSecurityGroups", api.TestNetworkSecurityGroupName))),
 					},
 				},
 			},

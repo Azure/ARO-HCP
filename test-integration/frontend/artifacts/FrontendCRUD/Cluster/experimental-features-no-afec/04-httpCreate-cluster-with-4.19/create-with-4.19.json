@@ -36,10 +36,10 @@
 			"serviceCidr": "172.30.0.0/16"
 		},
 		"platform": {
-			"managedResourceGroup": "managed-resource-group-name",
-			"networkSecurityGroupId": "/subscriptions/a1b2c3d4-0000-0000-0000-afec00000000/resourceGroups/bar/providers/Microsoft.Network/networkSecurityGroups/nsg",
+			"managedResourceGroup": "managed-resource-group-create-with-419",
+			"networkSecurityGroupId": "/subscriptions/a1b2c3d4-0000-0000-0000-afec00000000/resourceGroups/bar/providers/Microsoft.Network/networkSecurityGroups/nsg-create-with-419",
 			"outboundType": "LoadBalancer",
-			"subnetId": "/subscriptions/a1b2c3d4-0000-0000-0000-afec00000000/resourceGroups/bar/providers/Microsoft.Network/virtualNetworks/vnet/subnets/subnet"
+			"subnetId": "/subscriptions/a1b2c3d4-0000-0000-0000-afec00000000/resourceGroups/bar/providers/Microsoft.Network/virtualNetworks/vnet/subnets/subnet-create-with-419"
 		},
 		"version": {
 			"channelGroup": "stable",

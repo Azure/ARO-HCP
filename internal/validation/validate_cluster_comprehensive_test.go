@@ -369,7 +369,7 @@ func TestValidateClusterCreate(t *testing.T) {
 			name: "wrong NSG resource type - create",
 			cluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.CustomerProperties.Platform.NetworkSecurityGroupID = api.Must(azcorearm.ParseResourceID("/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks/test-vnet"))
+				c.CustomerProperties.Platform.NetworkSecurityGroupID = api.Must(azcorearm.ParseResourceID("/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks/test-vnet"))
 				return c
 			}(),
 			expectErrors: []utils.ExpectedError{
@@ -744,6 +744,7 @@ func TestValidateClusterCreate(t *testing.T) {
 			}(),
 			expectErrors: []utils.ExpectedError{
 				{Message: "must not be the same resource group name", FieldPath: "customerProperties.platform.subnetId"},
+				{Message: "must not be the same resource group name", FieldPath: "customerProperties.platform.networkSecurityGroupId"},
 				{Message: "must not be the same resource group name", FieldPath: "customerProperties.platform.vnetIntegrationSubnetId"},
 				{Message: "must not be the same resource group name", FieldPath: "customerProperties.platform.managedResourceGroup"},
 				{Message: "must not be the same resource group name", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator]"},
@@ -759,6 +760,28 @@ func TestValidateClusterCreate(t *testing.T) {
 			}(),
 			expectErrors: []utils.ExpectedError{
 				{Message: "must be in the same Azure subscription", FieldPath: "customerProperties.platform.subnetId"},
+			},
+		},
+		{
+			name: "network security group in different subscription - create",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Platform.NetworkSecurityGroupID = api.Must(azcorearm.ParseResourceID("/subscriptions/different-sub/resourceGroups/test-rg/providers/Microsoft.Network/networkSecurityGroups/test-nsg"))
+				return c
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "must be in the same Azure subscription", FieldPath: "customerProperties.platform.networkSecurityGroupId"},
+			},
+		},
+		{
+			name: "network security group in managed resource group - create",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Platform.NetworkSecurityGroupID = api.Must(azcorearm.ParseResourceID("/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/managed-rg/providers/Microsoft.Network/networkSecurityGroups/test-nsg"))
+				return c
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "must not be the same resource group name", FieldPath: "customerProperties.platform.networkSecurityGroupId"},
 			},
 		},
 		{

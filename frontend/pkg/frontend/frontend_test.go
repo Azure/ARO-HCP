@@ -476,6 +476,8 @@ func TestDeploymentPreflight(t *testing.T) {
 				{message: "Unsupported value: \"invisible\": supported values: \"Private\", \"Public\"", target: "properties.api.visibility"},
 				{message: "Required value", target: "properties.platform.subnetId"},
 				{message: "Required value", target: "properties.platform.networkSecurityGroupId"},
+				{message: "Required value", target: "properties.platform.subnetId"},
+				{message: "Required value", target: "properties.platform.networkSecurityGroupId"},
 			},
 		},
 		{

@@ -57,6 +57,16 @@ type ClusterAdmissionContext struct {
 	// ClusterNodePools is the list of node pools belonging to the cluster, used
 	// for minor-version skew checks against the desired cluster version.
 	ClusterNodePools []ClusterAdmissionNodePool
+	// SubscriptionClusters lists cluster documents in the same subscription
+	// (not including the current cluster being admitted), used
+	// for cross-cluster platform resource uniqueness on CREATE.
+	// The list is empty on UPDATE.
+	SubscriptionClusters []*api.HCPOpenShiftCluster
+	// SubscriptionNodePools lists node pool documents under SubscriptionClusters,
+	// used to ensure a cluster subnet is not already assigned to another cluster's
+	// node pool on CREATE.
+	// The list is empty on UPDATE.
+	SubscriptionNodePools []*api.HCPOpenShiftClusterNodePool
 }
 
 // ClusterAdmissionNodePool is a single node pool plus its prefetched service
@@ -267,6 +277,143 @@ func admitClusterCustomerProperties(ctx context.Context, admissionContext *Clust
 	errs := field.ErrorList{}
 
 	errs = append(errs, admitClusterVersionProfile(ctx, admissionContext, op, fldPath.Child("version"), &newObj.Version, safe.Field(oldObj, validation.ToClusterCustomerPropertiesVersion))...)
+	errs = append(errs, admitClusterPlatform(ctx, admissionContext, op, fldPath.Child("platform"), &newObj.Platform)...)
+
+	return errs
+}
+
+func admitClusterPlatform(ctx context.Context, admissionContext *ClusterAdmissionContext, op operation.Operation, fldPath *field.Path, newObj *api.CustomerPlatformProfile) field.ErrorList {
+	errs := field.ErrorList{}
+
+	errs = append(errs, admitClusterManagedResourceGroupName(ctx, admissionContext, op, fldPath, newObj)...)
+	errs = append(errs, admitClusterSubnetResourceID(ctx, admissionContext, op, fldPath, newObj)...)
+	errs = append(errs, admitClusterNetworkSecurityGroupResourceID(ctx, admissionContext, op, fldPath, newObj)...)
+	return errs
+}
+
+// admitClusterManagedResourceGroupName ensures the managed resource group name
+// is unique within the subscription on CREATE.
+//
+// Best-effort only: compares against SubscriptionClusters prefetched before
+// admission runs. Concurrent creates with the same MRG name can both succeed.
+func admitClusterManagedResourceGroupName(_ context.Context, admissionContext *ClusterAdmissionContext, op operation.Operation, fldPath *field.Path, newObj *api.CustomerPlatformProfile) field.ErrorList {
+	if op.Type != operation.Create {
+		return nil
+	}
+
+	if admissionContext.OriginalCluster == nil {
+		return field.ErrorList{field.InternalError(fldPath, errors.New("original cluster is required for admission"))}
+	}
+
+	mrgPath := fldPath.Child("managedResourceGroup")
+	if len(newObj.ManagedResourceGroup) == 0 {
+		return field.ErrorList{field.Required(mrgPath, "")}
+	}
+
+	subscriptionID := admissionContext.OriginalCluster.ID.SubscriptionID
+	var errs field.ErrorList
+
+	for _, existing := range admissionContext.SubscriptionClusters {
+		if strings.EqualFold(newObj.ManagedResourceGroup, existing.CustomerProperties.Platform.ManagedResourceGroup) {
+			errs = append(errs, field.Invalid(
+				mrgPath,
+				newObj.ManagedResourceGroup,
+				fmt.Sprintf("Cluster with managed resource group name '%s' in subscription '%s' "+
+					"already exists, please provide a unique managed resource group name",
+					newObj.ManagedResourceGroup, subscriptionID),
+			))
+			break
+		}
+	}
+
+	return errs
+}
+
+// admitClusterSubnetResourceID ensures that the subnet ID is not already in use by any other
+// cluster or node pool within the same subscription when creating a new cluster.
+//
+// Best-effort only: compares against SubscriptionClusters and SubscriptionNodePools
+// prefetched before admission runs. Concurrent creates (or a create racing with a
+// node pool create) using the same subnet can both succeed.
+func admitClusterSubnetResourceID(_ context.Context, admissionContext *ClusterAdmissionContext, op operation.Operation, fldPath *field.Path, newObj *api.CustomerPlatformProfile) field.ErrorList {
+	if op.Type != operation.Create {
+		return nil
+	}
+
+	subnetPath := fldPath.Child("subnetId")
+	if newObj.SubnetID == nil {
+		return field.ErrorList{field.Required(subnetPath, "")}
+	}
+	subnetID := newObj.SubnetID.String()
+	var errs field.ErrorList
+
+	for _, existing := range admissionContext.SubscriptionClusters {
+		existingSubnet := existing.CustomerProperties.Platform.SubnetID
+		if existingSubnet == nil {
+			errs = append(errs, field.InternalError(subnetPath, errors.New("existing cluster is missing subnetId")))
+			continue
+		}
+		if strings.EqualFold(subnetID, existingSubnet.String()) {
+			errs = append(errs, field.Invalid(
+				subnetPath,
+				subnetID,
+				fmt.Sprintf("Subnet '%s' is already in use by another cluster", subnetID),
+			))
+			break
+		}
+	}
+
+	for _, nodePool := range admissionContext.SubscriptionNodePools {
+		nodePoolSubnet := nodePool.Properties.Platform.SubnetID
+		if nodePoolSubnet == nil {
+			errs = append(errs, field.InternalError(subnetPath, errors.New("existing node pool is missing subnetId")))
+			continue
+		}
+		if strings.EqualFold(subnetID, nodePoolSubnet.String()) {
+			errs = append(errs, field.Invalid(
+				subnetPath,
+				subnetID,
+				fmt.Sprintf("Subnet '%s' is already in use by another cluster", subnetID),
+			))
+			break
+		}
+	}
+
+	return errs
+}
+
+// admitClusterNetworkSecurityGroupResourceID ensures that the network security group ID is not already in use by any other
+// cluster within the same subscription when creating a new cluster.
+//
+// Best-effort only: compares against SubscriptionClusters prefetched before
+// admission runs. Concurrent creates with the same NSG can both succeed.
+func admitClusterNetworkSecurityGroupResourceID(_ context.Context, admissionContext *ClusterAdmissionContext, op operation.Operation, fldPath *field.Path, newObj *api.CustomerPlatformProfile) field.ErrorList {
+	if op.Type != operation.Create {
+		return nil
+	}
+
+	nsgPath := fldPath.Child("networkSecurityGroupId")
+	if newObj.NetworkSecurityGroupID == nil {
+		return field.ErrorList{field.Required(nsgPath, "")}
+	}
+	nsgID := newObj.NetworkSecurityGroupID.String()
+	var errs field.ErrorList
+
+	for _, existing := range admissionContext.SubscriptionClusters {
+		existingNSG := existing.CustomerProperties.Platform.NetworkSecurityGroupID
+		if existingNSG == nil {
+			errs = append(errs, field.InternalError(nsgPath, errors.New("existing cluster is missing networkSecurityGroupId")))
+			continue
+		}
+		if strings.EqualFold(nsgID, existingNSG.String()) {
+			errs = append(errs, field.Invalid(
+				nsgPath,
+				nsgID,
+				fmt.Sprintf("Network Security Group '%s' is already in use by another cluster", nsgID),
+			))
+			break
+		}
+	}
 
 	return errs
 }
