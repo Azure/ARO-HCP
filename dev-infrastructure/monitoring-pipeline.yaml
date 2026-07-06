@@ -26,6 +26,11 @@ resourceGroups:
     deploymentLevel: ResourceGroup
     actionOnUnmanage: delete
     bypassStackOutOfSyncError: false
+    automatedRetry:
+      errorContainsAny:
+      - "DeploymentStackInNonTerminalState"
+      maximumRetryCount: 3
+      durationBetweenRetries: 2m
     variables:
     - name: azureMonitoringWorkspaceId
       input:
@@ -54,6 +59,11 @@ resourceGroups:
     deploymentLevel: ResourceGroup
     actionOnUnmanage: delete
     bypassStackOutOfSyncError: false
+    automatedRetry:
+      errorContainsAny:
+      - "DeploymentStackInNonTerminalState"
+      maximumRetryCount: 3
+      durationBetweenRetries: 2m
     variables:
     - name: kustoClusterId
       input:
