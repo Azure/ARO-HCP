@@ -149,7 +149,7 @@ func promoteAndSortDeletionTargets(
 		}
 		parsed, err := azcorearm.ParseResourceID(*rg.ManagedBy)
 		if err != nil {
-			slog.Warn("failed to parse managedBy resource ID", "managedBy", *rg.ManagedBy, "error", err)
+			slog.Warn("failed to parse managedBy resource ID", "resourceGroup", name, "managedBy", *rg.ManagedBy, "error", err)
 			continue
 		}
 		if !deletionTargetsLower.Has(strings.ToLower(parsed.ResourceGroupName)) {
