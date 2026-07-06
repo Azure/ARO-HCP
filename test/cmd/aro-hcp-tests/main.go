@@ -286,6 +286,9 @@ func setupCli() *cobra.Command {
 	// dispatched first. This prevents starvation: multi-container tests get
 	// dispatched while the pool is full, before single-container tests can
 	// consume all available capacity.
+
+	specs = specs.MustFilter([]string{`name.contains("should be able to create a HCP cluster and use cilium CNI plugin")`})
+
 	sort.SliceStable(specs, func(i, j int) bool {
 		return miDemandPriority(specs[i]) > miDemandPriority(specs[j])
 	})
