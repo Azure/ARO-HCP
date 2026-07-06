@@ -60,6 +60,10 @@ aksCommandRuntime:
     digest: sha256:07e516155014ed9c2c85de1cf7f0c38f92def33d62dbd297dc15664d779601ef
     registry: mcr.microsoft.com
     repository: aks/command/runtime
+alertEventsEventHub:
+  kustoConsumerGroupName: AlertEventsToKusto
+  kustoDataConnectionName: ci01-centralus-alert-events
+  name: metric-alerts
 armHelperCertName: armHelperCert2
 armHelperClientId: 3331e670-0804-48e8-a086-6241671ddc93
 armHelperFPAPrincipalId: 47f69502-0065-4d9a-b19b-d403e183d2f4
@@ -508,6 +512,7 @@ kusto:
   kustoName: hcp-dev-us-2
   location: eastus2
   manageInstance: false
+  monitoringEventsDatabase: MonitoringEvents
   rg: hcp-kusto-us
   serviceLogsDatabase: ServiceLogs
   sku: Standard_E8ads_v5
@@ -774,6 +779,8 @@ monitoring:
   alertSeverityCeiling: 0
   alertsEnabled: true
   crossTenantSecurityGroup: ""
+  eventHubAlerting:
+    enabled: true
   grafanaMajorVersion: "11"
   grafanaName: arohcp-dev
   grafanaRoles: 6b6d3adf-8476-4727-9812-20ffdef2b85c/Group/Admin
