@@ -1,5 +1,5 @@
-github.com/Azure/ARO-Tools/pipelines v0.0.0-20260703091318-4612291d5420 h1:tsoX5xquLl9OqF0DdYcrZtzFZH9te33nuhVcIoUdL2k=
-github.com/Azure/ARO-Tools/pipelines v0.0.0-20260703091318-4612291d5420/go.mod h1:WPsexqTqWP0/yJTOXhvVMfTrK73SXofVUE0XMudAnt8=
+github.com/Azure/ARO-Tools/pipelines v0.0.0-20260630104810-b6b7b3f3b40a h1:qlc5TuyOmVecD6gjfYKeNIr+WAdYzgrCKz/4V0CEnG8=
+github.com/Azure/ARO-Tools/pipelines v0.0.0-20260630104810-b6b7b3f3b40a/go.mod h1:WPsexqTqWP0/yJTOXhvVMfTrK73SXofVUE0XMudAnt8=
 github.com/cpuguy83/go-md2man/v2 v2.0.6/go.mod h1:oOW0eioCTA6cOiMLiUPZOpcVxMig6NIQQ7OS05n1F4g=
 github.com/dusted-go/logging v1.3.0 h1:SL/EH1Rp27oJQIte+LjWvWACSnYDTqNx5gZULin0XRY=
 github.com/dusted-go/logging v1.3.0/go.mod h1:s58+s64zE5fxSWWZfp+b8ZV0CHyKHjamITGyuY1wzGg=
