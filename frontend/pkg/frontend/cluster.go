@@ -266,6 +266,32 @@ func (f *Frontend) newClusterAdmissionContext(ctx context.Context, op operation.
 		OriginalCluster: originalCluster.DeepCopy(),
 	}
 
+	if op.Type == operation.Create {
+		subscriptionID := originalCluster.ID.SubscriptionID
+		clusterIterator, err := f.resourcesDBClient.HCPClusters(subscriptionID, "").List(ctx, nil)
+		if err != nil {
+			return nil, fmt.Errorf("cannot list clusters for cluster admission: %w", err)
+		}
+		for _, cluster := range clusterIterator.Items(ctx) {
+			admissionContext.SubscriptionClusters = append(admissionContext.SubscriptionClusters, cluster)
+
+			nodePoolIterator, err := f.resourcesDBClient.HCPClusters(subscriptionID, cluster.ID.ResourceGroupName).NodePools(cluster.ID.Name).List(ctx, nil)
+			if err != nil {
+				return nil, fmt.Errorf("cannot list node pools for cluster admission: %w", err)
+			}
+			for _, nodePool := range nodePoolIterator.Items(ctx) {
+				admissionContext.SubscriptionNodePools = append(admissionContext.SubscriptionNodePools, nodePool)
+			}
+			if err := nodePoolIterator.GetError(); err != nil {
+				return nil, fmt.Errorf("cannot list node pools for cluster admission: %w", err)
+			}
+		}
+		if err := clusterIterator.GetError(); err != nil {
+			return nil, fmt.Errorf("cannot list clusters for cluster admission: %w", err)
+		}
+		return admissionContext, nil
+	}
+
 	if op.Type != operation.Update {
 		return admissionContext, nil
 	}
