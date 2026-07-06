@@ -16,6 +16,7 @@ package middleware
 
 import (
 	"net/http"
+	"sort"
 	"strings"
 
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -39,7 +40,9 @@ func MiddlewareClientPrincipal(w http.ResponseWriter, r *http.Request, next http
 			headerNames = append(headerNames, name)
 		}
 	}
-	logger.Info("Geneva Action client principal headers", "headerNames", strings.Join(headerNames, "; "))
+	// r.Header iteration order is randomized; sort so the logged value is stable.
+	sort.Strings(headerNames)
+	logger.Info("Geneva Action client principal headers", "headers", strings.Join(headerNames, "; "))
 
 	clientPrincipalName := r.Header.Get(ClientPrincipalNameHeader)
 	if clientPrincipalName == "" {
