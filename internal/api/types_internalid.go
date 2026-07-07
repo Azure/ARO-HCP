@@ -35,6 +35,10 @@ const (
 	// SystemAdminCredentialRequestKind is the Kind value for InternalIDs that point at
 	// a SystemAdminCredentialRequest ARM resource ID rather than a cluster-service HREF.
 	SystemAdminCredentialRequestKind = "SystemAdminCredentialRequest"
+
+	// SystemAdminCredentialRevocationKind is the Kind value for InternalIDs that point at
+	// a SystemAdminCredentialRevocation ARM resource ID rather than a cluster-service HREF.
+	SystemAdminCredentialRevocationKind = "SystemAdminCredentialRevocation"
 )
 
 var (
@@ -45,6 +49,14 @@ var (
 		strings.ToLower(ProviderNamespace) + "/" +
 		strings.ToLower(ClusterResourceTypeName) + "/*/" +
 		strings.ToLower(SystemAdminCredentialRequestResourceTypeName) + "/*"
+
+	// ARM-style resource ID pattern for SystemAdminCredentialRevocation docs.
+	// Used when Operation.InternalID holds a SystemAdminCredentialRevocation resource ID
+	// instead of a cluster-service HREF.
+	armSystemAdminCredentialRevocationPattern = "/subscriptions/*/resourcegroups/*/providers/" +
+		strings.ToLower(ProviderNamespace) + "/" +
+		strings.ToLower(ClusterResourceTypeName) + "/*/" +
+		strings.ToLower(SystemAdminCredentialRevocationResourceTypeName) + "/*"
 
 	v1Pattern                     = "/api/clusters_mgmt/v1"
 	v1ClusterPattern              = path.Join(v1Pattern, clusterKey, "*")
@@ -123,6 +135,12 @@ func (id *InternalID) validate() error {
 	// ARM-style resource ID for SystemAdminCredentialRequest documents.
 	if match, _ = path.Match(armSystemAdminCredentialRequestPattern, id.path); match {
 		id.kind = SystemAdminCredentialRequestKind
+		return nil
+	}
+
+	// ARM-style resource ID for SystemAdminCredentialRevocation documents.
+	if match, _ = path.Match(armSystemAdminCredentialRevocationPattern, id.path); match {
+		id.kind = SystemAdminCredentialRevocationKind
 		return nil
 	}
 

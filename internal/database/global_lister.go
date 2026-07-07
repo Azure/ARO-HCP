@@ -48,6 +48,7 @@ type ResourcesGlobalListers interface {
 	// is nested as a direct child resource. Those types are registered on the lister implementation.
 	ManagementClusterContents() GlobalLister[api.ManagementClusterContent]
 	SystemAdminCredentialRequests() GlobalLister[api.SystemAdminCredentialRequest]
+	SystemAdminCredentialRevocations() GlobalLister[api.SystemAdminCredentialRevocation]
 	Operations() GlobalLister[api.Operation]
 	ActiveOperations() GlobalLister[api.Operation]
 }
@@ -111,6 +112,13 @@ func (g *cosmosResourcesGlobalListers) SystemAdminCredentialRequests() GlobalLis
 	return &cosmosGlobalLister[api.SystemAdminCredentialRequest, GenericDocument[api.SystemAdminCredentialRequest]]{
 		containerClient: g.resources,
 		resourceTypes:   []azcorearm.ResourceType{api.SystemAdminCredentialRequestResourceType},
+	}
+}
+
+func (g *cosmosResourcesGlobalListers) SystemAdminCredentialRevocations() GlobalLister[api.SystemAdminCredentialRevocation] {
+	return &cosmosGlobalLister[api.SystemAdminCredentialRevocation, GenericDocument[api.SystemAdminCredentialRevocation]]{
+		containerClient: g.resources,
+		resourceTypes:   []azcorearm.ResourceType{api.SystemAdminCredentialRevocationResourceType},
 	}
 }
 

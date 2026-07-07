@@ -63,21 +63,21 @@ func init() {
 }
 
 const (
-	ProviderNamespace                                = "Microsoft.RedHatOpenShift"
-	ClusterResourceTypeName                          = "hcpOpenShiftClusters"
-	ServiceProviderClusterResourceTypeName           = "serviceProviderClusters"
-	ServiceProviderNodePoolResourceTypeName          = "serviceProviderNodePools"
-	VersionResourceTypeName                          = "hcpOpenShiftVersions"
-	NodePoolResourceTypeName                         = "nodePools"
-	ExternalAuthResourceTypeName                     = "externalAuths"
-	OperationResultResourceTypeName                  = "hcpOperationResults"
-	OperationStatusResourceTypeName                  = "hcpOperationStatuses"
-	ControllerResourceTypeName                       = "hcpOpenShiftControllers"
-	RequestAdminCredentialActionTypeName             = "requestadmincredential"
-	RevokeAdminCredentialsActionTypeName             = "revokecredentials"
-	ManagementClusterContentResourceTypeName         = "managementClusterContents"
-	SystemAdminCredentialRequestResourceTypeName     = "systemAdminCredentialRequests"
-	SystemAdminCredentialsRevocationResourceTypeName = "systemAdminCredentialsRevocations"
+	ProviderNamespace                               = "Microsoft.RedHatOpenShift"
+	ClusterResourceTypeName                         = "hcpOpenShiftClusters"
+	ServiceProviderClusterResourceTypeName          = "serviceProviderClusters"
+	ServiceProviderNodePoolResourceTypeName         = "serviceProviderNodePools"
+	VersionResourceTypeName                         = "hcpOpenShiftVersions"
+	NodePoolResourceTypeName                        = "nodePools"
+	ExternalAuthResourceTypeName                    = "externalAuths"
+	OperationResultResourceTypeName                 = "hcpOperationResults"
+	OperationStatusResourceTypeName                 = "hcpOperationStatuses"
+	ControllerResourceTypeName                      = "hcpOpenShiftControllers"
+	RequestAdminCredentialActionTypeName            = "requestadmincredential"
+	RevokeAdminCredentialsActionTypeName            = "revokecredentials"
+	ManagementClusterContentResourceTypeName        = "managementClusterContents"
+	SystemAdminCredentialRequestResourceTypeName    = "systemAdminCredentialRequests"
+	SystemAdminCredentialRevocationResourceTypeName = "systemAdminCredentialRevocations"
 )
 
 var (
@@ -102,8 +102,8 @@ var (
 	SystemAdminCredentialRequestResourceType = azcorearm.NewResourceType(ProviderNamespace, ClusterResourceTypeName+"/"+SystemAdminCredentialRequestResourceTypeName)
 	// SystemAdminCredentialRequestControllerResourceType is controllers nested under systemAdminCredentialRequests
 	SystemAdminCredentialRequestControllerResourceType = azcorearm.NewResourceType(ProviderNamespace, filepath.Join(ClusterResourceTypeName, SystemAdminCredentialRequestResourceTypeName, ControllerResourceTypeName))
-	// SystemAdminCredentialsRevocationResourceType is systemAdminCredentialsRevocations nested directly under a Cluster
-	SystemAdminCredentialsRevocationResourceType = azcorearm.NewResourceType(ProviderNamespace, ClusterResourceTypeName+"/"+SystemAdminCredentialsRevocationResourceTypeName)
+	// SystemAdminCredentialRevocationResourceType is systemAdminCredentialRevocations nested directly under a Cluster
+	SystemAdminCredentialRevocationResourceType = azcorearm.NewResourceType(ProviderNamespace, ClusterResourceTypeName+"/"+SystemAdminCredentialRevocationResourceTypeName)
 )
 
 type VersionedResource interface {

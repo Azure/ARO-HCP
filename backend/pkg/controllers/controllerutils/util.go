@@ -219,6 +219,45 @@ func (k SystemAdminCredentialRequestKey) InitialController(controllerName string
 	}
 }
 
+// SystemAdminCredentialRevocationKey is for driving workqueues keyed for revocations
+type SystemAdminCredentialRevocationKey struct {
+	SubscriptionID    string `json:"subscriptionID"`
+	ResourceGroupName string `json:"resourceGroupName"`
+	HCPClusterName    string `json:"hcpClusterName"`
+	RevocationName    string `json:"revocationName"`
+}
+
+func (k SystemAdminCredentialRevocationKey) GetResourceID() *azcorearm.ResourceID {
+	return api.Must(api.ToSystemAdminCredentialRevocationResourceID(k.SubscriptionID, k.ResourceGroupName, k.HCPClusterName, k.RevocationName))
+}
+
+func (k SystemAdminCredentialRevocationKey) GetClusterResourceID() *azcorearm.ResourceID {
+	return api.Must(api.ToClusterResourceID(k.SubscriptionID, k.ResourceGroupName, k.HCPClusterName))
+}
+
+func (k SystemAdminCredentialRevocationKey) AddLoggerValues(logger logr.Logger) logr.Logger {
+	return logger.WithValues(
+		utils.LogValues{}.
+			AddLogValuesForResourceID(k.GetResourceID())...)
+}
+
+// InitialController returns a cluster-scoped controller document. The revocation
+// controllers write their status through the cluster's Controllers CRUD, so the
+// document's resource ID must be cluster-scoped for reads and writes to agree.
+func (k SystemAdminCredentialRevocationKey) InitialController(controllerName string) *api.Controller {
+	resourceID := api.Must(azcorearm.ParseResourceID(k.GetClusterResourceID().String() + "/" + api.ControllerResourceTypeName + "/" + controllerName))
+	return &api.Controller{
+		CosmosMetadata: api.CosmosMetadata{
+			ResourceID:   resourceID,
+			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
+		},
+		ExternalID: k.GetClusterResourceID(),
+		Status: api.ControllerStatus{
+			Conditions: []metav1.Condition{},
+		},
+	}
+}
+
 // controllerMutationFunc is called when trying to write a controller. It gives a spot for computation of a value.
 // It should only perform short calls, not long lookups.  It must not fail. Think of it as a way to write information
 // that you have already precomputed.
