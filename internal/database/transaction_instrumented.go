@@ -56,11 +56,28 @@ func InstrumentTransaction(txn DBTransaction, txnType string, registerer prometh
 	}
 }
 
+// UnwrapTransaction returns the innermost DBTransaction, peeling off any
+// instrumentedTransaction decorators added by InstrumentTransaction. Production
+// code should treat a DBTransaction opaquely, but test doubles that need the
+// concrete underlying transaction (for example to inspect queued steps) must
+// call this first: once a transaction is wrapped, a direct type assertion to the
+// concrete type would otherwise fail.
+func UnwrapTransaction(txn DBTransaction) DBTransaction {
+	for {
+		wrapped, ok := txn.(*instrumentedTransaction)
+		if !ok {
+			return txn
+		}
+		txn = wrapped.inner
+	}
+}
+
 // observe records one counter increment and one histogram observation for a
 // completed transaction. The status code is derived from err by codeForError:
-// nil -> 200, an azcore.ResponseError (possibly wrapped) -> its HTTP status, and
-// any other error -> 500. A TransactionStepError is not an azcore.ResponseError,
-// so a failed batch step is reported as 500.
+// nil -> 200, an azcore.ResponseError or a transactionStepError (possibly
+// wrapped) -> its HTTP status, and any other error -> 500. A failing batch step
+// therefore surfaces its real status (e.g. 412 for a precondition failure)
+// rather than a generic 500.
 func (t *instrumentedTransaction) observe(start time.Time, err error) {
 	code := codeForError(err)
 	t.metrics.transactionTotal.WithLabelValues(t.transactionType, code).Inc()

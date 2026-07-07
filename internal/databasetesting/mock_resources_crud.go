@@ -317,7 +317,7 @@ func (m *mockResourceCRUD[InternalAPIType, InternalAPITypePointer, CosmosAPIType
 	}
 	cosmosID := cosmosMetadata.GetCosmosUID()
 
-	mockTx, ok := transaction.(*mockTransaction)
+	mockTx, ok := database.UnwrapTransaction(transaction).(*mockTransaction)
 	if !ok {
 		return "", fmt.Errorf("expected mockTransaction, got %T", transaction)
 	}
@@ -355,7 +355,7 @@ func (m *mockResourceCRUD[InternalAPIType, InternalAPITypePointer, CosmosAPIType
 	cosmosID := cosmosMetadata.GetCosmosUID()
 	expectedETag := cosmosMetadata.CosmosETag
 
-	mockTx, ok := transaction.(*mockTransaction)
+	mockTx, ok := database.UnwrapTransaction(transaction).(*mockTransaction)
 	if !ok {
 		return "", fmt.Errorf("expected mockTransaction, got %T", transaction)
 	}

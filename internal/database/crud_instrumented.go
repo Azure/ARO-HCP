@@ -204,8 +204,9 @@ func (c *instrumentedCRUD[T, TP]) observe(verb string, start time.Time, err erro
 
 // codeForError maps an operation result to the HTTP status code used as the
 // "code" metric label. A nil error is reported as 200. An azcore.ResponseError
-// (possibly wrapped) contributes its HTTP StatusCode. Any other error is
-// reported as 500.
+// (possibly wrapped) contributes its HTTP StatusCode. A transactionStepError
+// (from a failed Cosmos transactional-batch step, e.g. a 412 precondition
+// failure) contributes its HTTP status code. Any other error is reported as 500.
 func codeForError(err error) string {
 	if err == nil {
 		return strconv.Itoa(200)
@@ -213,6 +214,10 @@ func codeForError(err error) string {
 	var respErr *azcore.ResponseError
 	if errors.As(err, &respErr) {
 		return strconv.Itoa(respErr.StatusCode)
+	}
+	var stepErr *transactionStepError
+	if errors.As(err, &stepErr) {
+		return strconv.Itoa(stepErr.httpStatusCode)
 	}
 	return strconv.Itoa(500)
 }

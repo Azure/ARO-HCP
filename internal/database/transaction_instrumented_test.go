@@ -134,6 +134,16 @@ func TestInstrumentedTransactionErrorCodes(t *testing.T) {
 			fmt.Errorf("batch failed: %w", &azcore.ResponseError{StatusCode: http.StatusPreconditionFailed}),
 			"412",
 		},
+		{
+			"transaction_step_error",
+			NewTransactionStepError(2, 3, http.StatusPreconditionFailed),
+			"412",
+		},
+		{
+			"wrapped_transaction_step_error",
+			fmt.Errorf("execute failed: %w", NewTransactionStepError(1, 2, http.StatusConflict)),
+			"409",
+		},
 		{"generic_error", errors.New("connection reset"), "500"},
 	}
 
