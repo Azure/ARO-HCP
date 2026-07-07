@@ -158,7 +158,6 @@ func (c *kubeApplierCosmosDBClient) ApplyDesiresForCluster(subscriptionID, resou
 	return NewCosmosResourceCRUDWithStrategies[kubeapplier.ApplyDesire, *kubeapplier.ApplyDesire, GenericDocument[kubeapplier.ApplyDesire]](
 		c.kubeApplier, parentID, kubeapplier.ClusterScopedApplyDesireResourceType,
 		KubeApplierPartitionKeyDeriver{ManagementClusterResourceID: c.managementClusterResourceID}, ClusterNestedResourceIDBuilder{},
-		"ApplyDesire",
 		legacyregistry.Registerer(),
 	), nil
 }
@@ -171,7 +170,6 @@ func (c *kubeApplierCosmosDBClient) ApplyDesiresForNodePool(subscriptionID, reso
 	return NewCosmosResourceCRUDWithStrategies[kubeapplier.ApplyDesire, *kubeapplier.ApplyDesire, GenericDocument[kubeapplier.ApplyDesire]](
 		c.kubeApplier, parentID, kubeapplier.NodePoolScopedApplyDesireResourceType,
 		KubeApplierPartitionKeyDeriver{ManagementClusterResourceID: c.managementClusterResourceID}, ClusterNestedResourceIDBuilder{},
-		"ApplyDesire",
 		legacyregistry.Registerer(),
 	), nil
 }
@@ -184,7 +182,6 @@ func (c *kubeApplierCosmosDBClient) ReadDesiresForCluster(subscriptionID, resour
 	return NewCosmosResourceCRUDWithStrategies[kubeapplier.ReadDesire, *kubeapplier.ReadDesire, GenericDocument[kubeapplier.ReadDesire]](
 		c.kubeApplier, parentID, kubeapplier.ClusterScopedReadDesireResourceType,
 		KubeApplierPartitionKeyDeriver{ManagementClusterResourceID: c.managementClusterResourceID}, ClusterNestedResourceIDBuilder{},
-		"ReadDesire",
 		legacyregistry.Registerer(),
 	), nil
 }
@@ -197,7 +194,6 @@ func (c *kubeApplierCosmosDBClient) ReadDesiresForNodePool(subscriptionID, resou
 	return NewCosmosResourceCRUDWithStrategies[kubeapplier.ReadDesire, *kubeapplier.ReadDesire, GenericDocument[kubeapplier.ReadDesire]](
 		c.kubeApplier, parentID, kubeapplier.NodePoolScopedReadDesireResourceType,
 		KubeApplierPartitionKeyDeriver{ManagementClusterResourceID: c.managementClusterResourceID}, ClusterNestedResourceIDBuilder{},
-		"ReadDesire",
 		legacyregistry.Registerer(),
 	), nil
 }

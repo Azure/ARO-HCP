@@ -62,7 +62,7 @@ func NewOperationCRUD(containerClient *azcosmos.ContainerClient, subscriptionID 
 
 	raw := newCosmosResourceCRUD[api.Operation, *api.Operation, GenericDocument[api.Operation]](containerClient, parentResourceID, api.OperationStatusResourceType)
 	return &operationCRUD{
-		ResourceCRUD:     NewInstrumentedCRUD[api.Operation, *api.Operation](raw, "Operation", registerer),
+		ResourceCRUD:     NewInstrumentedCRUD[api.Operation, *api.Operation](raw, api.OperationStatusResourceType, registerer),
 		containerClient:  containerClient,
 		parentResourceID: parentResourceID,
 	}
@@ -132,7 +132,7 @@ func NewHCPClusterCRUD(containerClient *azcosmos.ContainerClient, subscriptionID
 
 	raw := newCosmosResourceCRUD[api.HCPOpenShiftCluster, *api.HCPOpenShiftCluster, GenericDocument[api.HCPOpenShiftCluster]](containerClient, parentResourceID, api.ClusterResourceType)
 	return &hcpClusterCRUD{
-		ResourceCRUD:     NewInstrumentedCRUD[api.HCPOpenShiftCluster, *api.HCPOpenShiftCluster](raw, "HCPOpenShiftCluster", registerer),
+		ResourceCRUD:     NewInstrumentedCRUD[api.HCPOpenShiftCluster, *api.HCPOpenShiftCluster](raw, api.ClusterResourceType, registerer),
 		containerClient:  containerClient,
 		parentResourceID: parentResourceID,
 		resourceType:     api.ClusterResourceType,
@@ -176,7 +176,7 @@ func (h *hcpClusterCRUD) ExternalAuth(hcpClusterName string) ExternalAuthsCRUD {
 		api.ExternalAuthResourceType,
 	)
 	return &externalAuthCRUD{
-		ResourceCRUD:     NewInstrumentedCRUD[api.HCPOpenShiftClusterExternalAuth, *api.HCPOpenShiftClusterExternalAuth](raw, "HCPOpenShiftClusterExternalAuth", h.registerer),
+		ResourceCRUD:     NewInstrumentedCRUD[api.HCPOpenShiftClusterExternalAuth, *api.HCPOpenShiftClusterExternalAuth](raw, api.ExternalAuthResourceType, h.registerer),
 		containerClient:  h.containerClient,
 		parentResourceID: parentResourceID,
 		resourceType:     api.ExternalAuthResourceType,
@@ -198,7 +198,7 @@ func (h *hcpClusterCRUD) NodePools(hcpClusterName string) NodePoolsCRUD {
 		parentResourceID,
 		api.NodePoolResourceType)
 	return &nodePoolsCRUD{
-		ResourceCRUD:     NewInstrumentedCRUD[api.HCPOpenShiftClusterNodePool, *api.HCPOpenShiftClusterNodePool](raw, "HCPOpenShiftClusterNodePool", h.registerer),
+		ResourceCRUD:     NewInstrumentedCRUD[api.HCPOpenShiftClusterNodePool, *api.HCPOpenShiftClusterNodePool](raw, api.NodePoolResourceType, h.registerer),
 		containerClient:  h.containerClient,
 		parentResourceID: parentResourceID,
 		resourceType:     api.NodePoolResourceType,
@@ -231,7 +231,6 @@ func (h *hcpClusterCRUD) ManagementClusterContents(hcpClusterName string) Resour
 		h.containerClient,
 		parentResourceID,
 		api.ClusterScopedManagementClusterContentResourceType,
-		"ManagementClusterContent",
 		h.registerer,
 	)
 }
@@ -286,7 +285,6 @@ func (h *nodePoolsCRUD) ManagementClusterContents(nodePoolName string) ResourceC
 		h.containerClient,
 		parentResourceID,
 		api.NodePoolScopedManagementClusterContentResourceType,
-		"ManagementClusterContent",
 		h.registerer,
 	)
 }
@@ -294,5 +292,5 @@ func (h *nodePoolsCRUD) ManagementClusterContents(nodePoolName string) ResourceC
 func NewControllerCRUD(
 	containerClient *azcosmos.ContainerClient, parentResourceID *azcorearm.ResourceID, resourceType azcorearm.ResourceType, registerer prometheus.Registerer) ResourceCRUD[api.Controller, *api.Controller] {
 
-	return NewCosmosResourceCRUD[api.Controller, *api.Controller, GenericDocument[api.Controller]](containerClient, parentResourceID, resourceType, "Controller", registerer)
+	return NewCosmosResourceCRUD[api.Controller, *api.Controller, GenericDocument[api.Controller]](containerClient, parentResourceID, resourceType, registerer)
 }

@@ -90,7 +90,7 @@ func (c *cosmosFleetDBClient) Stamps() StampsCRUD {
 				validation.ValidateStampCreate,
 				validation.ValidateStampUpdate,
 			),
-			"Stamp",
+			fleet.StampResourceType,
 			legacyregistry.Registerer(),
 		),
 		containerClient: c.container,
@@ -121,7 +121,7 @@ func (s *cosmosStampsCRUD) ManagementClusters(stampIdentifier string) Management
 				validation.ValidateManagementClusterCreate,
 				validation.ValidateManagementClusterUpdate,
 			),
-			"ManagementCluster",
+			fleet.ManagementClusterResourceType,
 			legacyregistry.Registerer(),
 		),
 		containerClient: s.containerClient,
@@ -142,7 +142,7 @@ func (m *cosmosManagementClustersCRUD) Controllers() ResourceCRUD[api.Controller
 	}
 	return NewCosmosResourceCRUDWithStrategies[api.Controller, *api.Controller, GenericDocument[api.Controller]](
 		m.containerClient, mcResourceID, fleet.ManagementClusterControllerResourceType,
-		FleetPartitionKeyDeriver{}, FleetResourceIDBuilder{}, "Controller", legacyregistry.Registerer())
+		FleetPartitionKeyDeriver{}, FleetResourceIDBuilder{}, legacyregistry.Registerer())
 }
 
 type cosmosFleetGlobalListers struct {

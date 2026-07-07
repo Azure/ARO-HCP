@@ -17,6 +17,7 @@ package database
 import (
 	"context"
 	"errors"
+	"regexp"
 	"strconv"
 	"sync"
 	"time"
@@ -27,6 +28,7 @@ import (
 	"k8s.io/component-base/metrics/legacyregistry"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
@@ -36,14 +38,12 @@ import (
 // They are kept as constants so the instrumented decorator and its tests refer
 // to exactly the same strings.
 const (
-	verbGetByID                 = "get_by_id"
-	verbGet                     = "get"
-	verbList                    = "list"
-	verbCreate                  = "create"
-	verbReplace                 = "replace"
-	verbDelete                  = "delete"
-	verbAddCreateToTransaction  = "add_create_to_transaction"
-	verbAddReplaceToTransaction = "add_replace_to_transaction"
+	verbGetByID = "get_by_id"
+	verbGet     = "get"
+	verbList    = "list"
+	verbCreate  = "create"
+	verbReplace = "replace"
+	verbDelete  = "delete"
 )
 
 // databaseRequestBuckets mirrors the latency buckets used by the
@@ -128,31 +128,49 @@ func sharedDatabaseMetrics(r prometheus.Registerer) *databaseMetrics {
 // metrics: one counter and one latency histogram, labelled by verb, subject
 // (resource_type) and HTTP status code.
 type instrumentedCRUD[T any, TP arm.CosmosMetadataAccessorPtr[T]] struct {
-	inner        ResourceCRUD[T, TP]
-	resourceType string
-	metrics      *databaseMetrics
+	inner             ResourceCRUD[T, TP]
+	resourceTypeLabel string
+	metrics           *databaseMetrics
 }
 
 // NewInstrumentedCRUD returns a ResourceCRUD that delegates to inner while
 // recording database_request_total and database_request_duration_seconds for
-// every operation, labelling each sample with the supplied resourceType. The
-// collectors are registered on registerer (see sharedDatabaseMetrics); pass
-// legacyregistry.Registerer() in production so the metrics land on the registry
-// exposed by /metrics, or a dedicated prometheus.NewRegistry() in tests.
-func NewInstrumentedCRUD[T any, TP arm.CosmosMetadataAccessorPtr[T]](inner ResourceCRUD[T, TP], resourceType string, registerer prometheus.Registerer) ResourceCRUD[T, TP] {
+// every operation, labelling each sample with the resource_type derived from
+// resourceType (see sanitizeResourceType). The collectors are registered on
+// registerer (see sharedDatabaseMetrics); pass legacyregistry.Registerer() in
+// production so the metrics land on the registry exposed by /metrics, or a
+// dedicated prometheus.NewRegistry() in tests.
+func NewInstrumentedCRUD[T any, TP arm.CosmosMetadataAccessorPtr[T]](inner ResourceCRUD[T, TP], resourceType azcorearm.ResourceType, registerer prometheus.Registerer) ResourceCRUD[T, TP] {
 	return &instrumentedCRUD[T, TP]{
-		inner:        inner,
-		resourceType: resourceType,
-		metrics:      sharedDatabaseMetrics(registerer),
+		inner:             inner,
+		resourceTypeLabel: sanitizeResourceType(resourceType),
+		metrics:           sharedDatabaseMetrics(registerer),
 	}
+}
+
+// resourceTypeLabelSanitizer matches every character that is not valid in the
+// stable, readable resource_type label we want. ARM ResourceType.String()
+// values look like "Microsoft.RedHatOpenShift/hcpOpenShiftClusters/nodePools";
+// their "." and "/" separators are the characters this replaces.
+var resourceTypeLabelSanitizer = regexp.MustCompile(`[^a-zA-Z0-9_]`)
+
+// sanitizeResourceType converts an ARM ResourceType into a Prometheus-safe
+// resource_type label by replacing every character outside [a-zA-Z0-9_] with an
+// underscore. For example the ResourceType whose String() is
+// "Microsoft.RedHatOpenShift/hcpOpenShiftClusters" becomes
+// "Microsoft_RedHatOpenShift_hcpOpenShiftClusters". Deriving the label from the
+// ResourceType constant, rather than a hand-written string, keeps the metric
+// label in lock-step with the resource type the CRUD actually serves.
+func sanitizeResourceType(rt azcorearm.ResourceType) string {
+	return resourceTypeLabelSanitizer.ReplaceAllString(rt.String(), "_")
 }
 
 // observe records one counter increment and one histogram observation for a
 // completed operation. The status code is derived from err.
 func (c *instrumentedCRUD[T, TP]) observe(verb string, start time.Time, err error) {
 	code := codeForError(err)
-	c.metrics.requestTotal.WithLabelValues(verb, c.resourceType, code).Inc()
-	c.metrics.requestDuration.WithLabelValues(verb, c.resourceType, code).Observe(time.Since(start).Seconds())
+	c.metrics.requestTotal.WithLabelValues(verb, c.resourceTypeLabel, code).Inc()
+	c.metrics.requestDuration.WithLabelValues(verb, c.resourceTypeLabel, code).Observe(time.Since(start).Seconds())
 }
 
 // codeForError maps an operation result to the HTTP status code used as the
@@ -182,6 +200,13 @@ func (c *instrumentedCRUD[T, TP]) Get(ctx context.Context, resourceID string) (_
 	return c.inner.Get(ctx, resourceID)
 }
 
+// List instruments only the construction of the result iterator, not the
+// Cosmos queries themselves. The Cosmos SDK pages lazily: the actual query work
+// happens while the caller ranges over the returned iterator's Items(), which
+// runs outside this decorator. The recorded list duration therefore reflects
+// "time to build the pager", not "time to read all pages", and undercounts real
+// query latency. This is a known limitation of instrumenting at the CRUD
+// boundary.
 func (c *instrumentedCRUD[T, TP]) List(ctx context.Context, opts *DBClientListResourceDocsOptions) (_ DBClientIterator[T], err error) {
 	start := time.Now()
 	defer func() { c.observe(verbList, start, err) }()
@@ -206,14 +231,17 @@ func (c *instrumentedCRUD[T, TP]) Delete(ctx context.Context, resourceID string)
 	return c.inner.Delete(ctx, resourceID)
 }
 
-func (c *instrumentedCRUD[T, TP]) AddCreateToTransaction(ctx context.Context, transaction DBTransaction, newObj *T, opts *azcosmos.TransactionalBatchItemOptions) (_ string, err error) {
-	start := time.Now()
-	defer func() { c.observe(verbAddCreateToTransaction, start, err) }()
+// AddCreateToTransaction and AddReplaceToTransaction are intentionally NOT
+// instrumented. Neither performs a Cosmos request: they only enqueue an
+// operation onto the DBTransaction batch. The actual Cosmos call is made later,
+// once, by DBTransaction.Execute(). Recording a "request" here would inflate the
+// request counters with enqueue operations that never touch the database and
+// measure only enqueue time rather than execution latency, so these methods
+// delegate straight through to the wrapped CRUD.
+func (c *instrumentedCRUD[T, TP]) AddCreateToTransaction(ctx context.Context, transaction DBTransaction, newObj *T, opts *azcosmos.TransactionalBatchItemOptions) (string, error) {
 	return c.inner.AddCreateToTransaction(ctx, transaction, newObj, opts)
 }
 
-func (c *instrumentedCRUD[T, TP]) AddReplaceToTransaction(ctx context.Context, transaction DBTransaction, newObj *T, opts *azcosmos.TransactionalBatchItemOptions) (_ string, err error) {
-	start := time.Now()
-	defer func() { c.observe(verbAddReplaceToTransaction, start, err) }()
+func (c *instrumentedCRUD[T, TP]) AddReplaceToTransaction(ctx context.Context, transaction DBTransaction, newObj *T, opts *azcosmos.TransactionalBatchItemOptions) (string, error) {
 	return c.inner.AddReplaceToTransaction(ctx, transaction, newObj, opts)
 }

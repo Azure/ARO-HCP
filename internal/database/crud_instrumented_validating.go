@@ -20,6 +20,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
@@ -38,22 +39,23 @@ import (
 // including validation errors. It reuses the metric collectors, verb labels and
 // codeForError helper defined alongside instrumentedCRUD.
 type instrumentedValidatingCRUD[T any, TP arm.CosmosMetadataAccessorPtr[T]] struct {
-	inner        ValidatingResourceCRUD[T, TP]
-	resourceType string
-	metrics      *databaseMetrics
+	inner             ValidatingResourceCRUD[T, TP]
+	resourceTypeLabel string
+	metrics           *databaseMetrics
 }
 
 // NewInstrumentedValidatingCRUD returns a ValidatingResourceCRUD that delegates
 // to inner while recording database_request_total and
 // database_request_duration_seconds for every operation, labelling each sample
-// with the supplied resourceType. As with NewInstrumentedCRUD, the collectors
-// are registered on registerer (see sharedDatabaseMetrics) so both decorators
-// share a single set of collectors per registry.
-func NewInstrumentedValidatingCRUD[T any, TP arm.CosmosMetadataAccessorPtr[T]](inner ValidatingResourceCRUD[T, TP], resourceType string, registerer prometheus.Registerer) ValidatingResourceCRUD[T, TP] {
+// with the resource_type derived from resourceType (see sanitizeResourceType).
+// As with NewInstrumentedCRUD, the collectors are registered on registerer (see
+// sharedDatabaseMetrics) so both decorators share a single set of collectors per
+// registry.
+func NewInstrumentedValidatingCRUD[T any, TP arm.CosmosMetadataAccessorPtr[T]](inner ValidatingResourceCRUD[T, TP], resourceType azcorearm.ResourceType, registerer prometheus.Registerer) ValidatingResourceCRUD[T, TP] {
 	return &instrumentedValidatingCRUD[T, TP]{
-		inner:        inner,
-		resourceType: resourceType,
-		metrics:      sharedDatabaseMetrics(registerer),
+		inner:             inner,
+		resourceTypeLabel: sanitizeResourceType(resourceType),
+		metrics:           sharedDatabaseMetrics(registerer),
 	}
 }
 
@@ -61,8 +63,8 @@ func NewInstrumentedValidatingCRUD[T any, TP arm.CosmosMetadataAccessorPtr[T]](i
 // completed operation. The status code is derived from err by codeForError.
 func (c *instrumentedValidatingCRUD[T, TP]) observe(verb string, start time.Time, err error) {
 	code := codeForError(err)
-	c.metrics.requestTotal.WithLabelValues(verb, c.resourceType, code).Inc()
-	c.metrics.requestDuration.WithLabelValues(verb, c.resourceType, code).Observe(time.Since(start).Seconds())
+	c.metrics.requestTotal.WithLabelValues(verb, c.resourceTypeLabel, code).Inc()
+	c.metrics.requestDuration.WithLabelValues(verb, c.resourceTypeLabel, code).Observe(time.Since(start).Seconds())
 }
 
 func (c *instrumentedValidatingCRUD[T, TP]) GetByID(ctx context.Context, cosmosID string) (_ *T, err error) {
@@ -77,6 +79,13 @@ func (c *instrumentedValidatingCRUD[T, TP]) Get(ctx context.Context, resourceID 
 	return c.inner.Get(ctx, resourceID)
 }
 
+// List instruments only the construction of the result iterator, not the
+// Cosmos queries themselves. The Cosmos SDK pages lazily: the actual query work
+// happens while the caller ranges over the returned iterator's Items(), which
+// runs outside this decorator. The recorded list duration therefore reflects
+// "time to build the pager", not "time to read all pages", and undercounts real
+// query latency. This is a known limitation of instrumenting at the CRUD
+// boundary.
 func (c *instrumentedValidatingCRUD[T, TP]) List(ctx context.Context, opts *DBClientListResourceDocsOptions) (_ DBClientIterator[T], err error) {
 	start := time.Now()
 	defer func() { c.observe(verbList, start, err) }()

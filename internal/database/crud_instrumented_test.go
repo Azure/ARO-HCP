@@ -28,6 +28,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
@@ -111,7 +112,8 @@ func histogramSampleCount(t *testing.T, m *databaseMetrics, verb, resourceType, 
 // code="200" on success and the configured resource_type label.
 func TestInstrumentedCRUDRecordsMetrics(t *testing.T) {
 	ctx := context.Background()
-	const resourceType = "test.records/resources"
+	resourceType := azcorearm.NewResourceType("test.records", "resources")
+	resourceTypeLabel := sanitizeResourceType(resourceType)
 
 	cases := []struct {
 		verb string
@@ -140,14 +142,6 @@ func TestInstrumentedCRUDRecordsMetrics(t *testing.T) {
 		{verbDelete, func(c ResourceCRUD[fakeResource, *fakeResource]) error {
 			return c.Delete(ctx, "resource-id")
 		}},
-		{verbAddCreateToTransaction, func(c ResourceCRUD[fakeResource, *fakeResource]) error {
-			_, err := c.AddCreateToTransaction(ctx, nil, &fakeResource{}, nil)
-			return err
-		}},
-		{verbAddReplaceToTransaction, func(c ResourceCRUD[fakeResource, *fakeResource]) error {
-			_, err := c.AddReplaceToTransaction(ctx, nil, &fakeResource{}, nil)
-			return err
-		}},
 	}
 
 	// A dedicated registry keeps this test's series isolated from every other
@@ -160,14 +154,14 @@ func TestInstrumentedCRUDRecordsMetrics(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.verb, func(t *testing.T) {
-			beforeCount := counterValue(t, metrics, tc.verb, resourceType, "200")
-			beforeSamples := histogramSampleCount(t, metrics, tc.verb, resourceType, "200")
+			beforeCount := counterValue(t, metrics, tc.verb, resourceTypeLabel, "200")
+			beforeSamples := histogramSampleCount(t, metrics, tc.verb, resourceTypeLabel, "200")
 
 			require.NoError(t, tc.call(crud), "operation should succeed")
 
-			assert.Equal(t, beforeCount+1, counterValue(t, metrics, tc.verb, resourceType, "200"),
+			assert.Equal(t, beforeCount+1, counterValue(t, metrics, tc.verb, resourceTypeLabel, "200"),
 				"counter should increment by one for a successful %s", tc.verb)
-			assert.Equal(t, beforeSamples+1, histogramSampleCount(t, metrics, tc.verb, resourceType, "200"),
+			assert.Equal(t, beforeSamples+1, histogramSampleCount(t, metrics, tc.verb, resourceTypeLabel, "200"),
 				"histogram should record one observation for a successful %s", tc.verb)
 		})
 	}
@@ -201,7 +195,8 @@ func TestInstrumentedCRUDErrorCodes(t *testing.T) {
 			// absolute assertions (sample count == 1) are stable.
 			reg := prometheus.NewRegistry()
 			metrics := sharedDatabaseMetrics(reg)
-			resourceType := "test.errorcodes/" + tc.name
+			resourceType := azcorearm.NewResourceType("test.errorcodes", tc.name)
+			resourceTypeLabel := sanitizeResourceType(resourceType)
 			crud := NewInstrumentedCRUD[fakeResource, *fakeResource](&mockCRUD{err: tc.err}, resourceType, reg)
 
 			_, err := crud.Get(ctx, "resource-id")
@@ -211,9 +206,9 @@ func TestInstrumentedCRUDErrorCodes(t *testing.T) {
 				require.Error(t, err)
 			}
 
-			assert.Equal(t, float64(1), counterValue(t, metrics, verbGet, resourceType, tc.wantCode),
+			assert.Equal(t, float64(1), counterValue(t, metrics, verbGet, resourceTypeLabel, tc.wantCode),
 				"counter for code %s should be one", tc.wantCode)
-			assert.Equal(t, uint64(1), histogramSampleCount(t, metrics, verbGet, resourceType, tc.wantCode),
+			assert.Equal(t, uint64(1), histogramSampleCount(t, metrics, verbGet, resourceTypeLabel, tc.wantCode),
 				"histogram for code %s should record one observation", tc.wantCode)
 
 			// No other code label should have been touched for this resource type.
@@ -221,7 +216,7 @@ func TestInstrumentedCRUDErrorCodes(t *testing.T) {
 				if otherCode == tc.wantCode {
 					continue
 				}
-				assert.Zero(t, counterValue(t, metrics, verbGet, resourceType, otherCode),
+				assert.Zero(t, counterValue(t, metrics, verbGet, resourceTypeLabel, otherCode),
 					"counter for unexpected code %s should be zero", otherCode)
 			}
 		})
@@ -234,8 +229,10 @@ func TestInstrumentedCRUDErrorCodes(t *testing.T) {
 func TestInstrumentedCRUDResourceTypeLabel(t *testing.T) {
 	ctx := context.Background()
 
-	const typeA = "test.rtlabel/typeA"
-	const typeB = "test.rtlabel/typeB"
+	typeA := azcorearm.NewResourceType("test.rtlabel", "typeA")
+	typeB := azcorearm.NewResourceType("test.rtlabel", "typeB")
+	labelA := sanitizeResourceType(typeA)
+	labelB := sanitizeResourceType(typeB)
 
 	// Both decorators share a single registry so the two resource types are
 	// independent series within the same collectors.
@@ -244,24 +241,66 @@ func TestInstrumentedCRUDResourceTypeLabel(t *testing.T) {
 	crudA := NewInstrumentedCRUD[fakeResource, *fakeResource](&mockCRUD{}, typeA, reg)
 	crudB := NewInstrumentedCRUD[fakeResource, *fakeResource](&mockCRUD{}, typeB, reg)
 
-	beforeA := counterValue(t, metrics, verbGet, typeA, "200")
-	beforeB := counterValue(t, metrics, verbGet, typeB, "200")
+	beforeA := counterValue(t, metrics, verbGet, labelA, "200")
+	beforeB := counterValue(t, metrics, verbGet, labelB, "200")
 
 	_, err := crudA.Get(ctx, "resource-id")
 	require.NoError(t, err)
 
 	// An operation on crudA affects only typeA's series.
-	assert.Equal(t, beforeA+1, counterValue(t, metrics, verbGet, typeA, "200"),
+	assert.Equal(t, beforeA+1, counterValue(t, metrics, verbGet, labelA, "200"),
 		"typeA counter should increment after an operation on crudA")
-	assert.Equal(t, beforeB, counterValue(t, metrics, verbGet, typeB, "200"),
+	assert.Equal(t, beforeB, counterValue(t, metrics, verbGet, labelB, "200"),
 		"typeB counter should be unaffected by an operation on crudA")
 
 	_, err = crudB.Get(ctx, "resource-id")
 	require.NoError(t, err)
 
 	// An operation on crudB affects only typeB's series.
-	assert.Equal(t, beforeB+1, counterValue(t, metrics, verbGet, typeB, "200"),
+	assert.Equal(t, beforeB+1, counterValue(t, metrics, verbGet, labelB, "200"),
 		"typeB counter should increment after an operation on crudB")
-	assert.Equal(t, beforeA+1, counterValue(t, metrics, verbGet, typeA, "200"),
+	assert.Equal(t, beforeA+1, counterValue(t, metrics, verbGet, labelA, "200"),
 		"typeA counter should be unchanged by an operation on crudB")
+}
+
+// TestSanitizeResourceType verifies that ARM ResourceType values are converted
+// into stable, Prometheus-safe resource_type labels: the "." and "/" separators
+// in ResourceType.String() become underscores while the rest of the identifier
+// is preserved verbatim. The cases mirror the real ARO resource types the CRUD
+// decorators serve.
+func TestSanitizeResourceType(t *testing.T) {
+	cases := []struct {
+		name         string
+		resourceType azcorearm.ResourceType
+		want         string
+	}{
+		{
+			name:         "top_level_cluster",
+			resourceType: azcorearm.NewResourceType("Microsoft.RedHatOpenShift", "hcpOpenShiftClusters"),
+			want:         "Microsoft_RedHatOpenShift_hcpOpenShiftClusters",
+		},
+		{
+			name:         "nested_node_pool",
+			resourceType: azcorearm.NewResourceType("Microsoft.RedHatOpenShift", "hcpOpenShiftClusters/nodePools"),
+			want:         "Microsoft_RedHatOpenShift_hcpOpenShiftClusters_nodePools",
+		},
+		{
+			name:         "nested_external_auth",
+			resourceType: azcorearm.NewResourceType("Microsoft.RedHatOpenShift", "hcpOpenShiftClusters/externalAuths"),
+			want:         "Microsoft_RedHatOpenShift_hcpOpenShiftClusters_externalAuths",
+		},
+		{
+			name:         "operation_statuses",
+			resourceType: azcorearm.NewResourceType("Microsoft.RedHatOpenShift", "locations/operationStatuses"),
+			want:         "Microsoft_RedHatOpenShift_locations_operationStatuses",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := sanitizeResourceType(tc.resourceType)
+			assert.Equal(t, tc.want, got, "sanitized label for %q", tc.resourceType.String())
+			assert.Regexp(t, `^[a-zA-Z0-9_]+$`, got, "label must contain only Prometheus-safe characters")
+		})
+	}
 }
