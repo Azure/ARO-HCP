@@ -16,59 +16,49 @@ package systemadmincredentialcontrollers
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/cache"
 	utilsclock "k8s.io/utils/clock"
 
-	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/operationcontrollers"
-	"github.com/Azure/ARO-HCP/backend/pkg/maestrohelpers"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/database"
-	"github.com/Azure/ARO-HCP/internal/systemadmincredential"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 type dispatchRevokeCredentials struct {
-	clock                utilsclock.PassiveClock
-	resourcesDBClient    database.ResourcesDBClient
-	kubeApplierDBClients database.KubeApplierDBClients
-
-	hostedClusterNamespaceEnvIdentifier string
+	clock             utilsclock.PassiveClock
+	resourcesDBClient database.ResourcesDBClient
 }
 
-// NewDispatchRevokeCredentialsController returns a Controller that handles
-// RevokeCredentials operations. It lists every active credential under the
-// cluster, flips each to AwaitingRevocation, and creates the cluster-scoped
-// CRR ApplyDesire + ReadDesire.
+// NewDispatchRevokeCredentialsController returns a Controller that handles the
+// first step of a RevokeCredentials operation: it creates a single
+// SystemAdminCredentialRevocation document nested under the cluster, records its
+// resource ID on the operation's InternalID, and moves the operation to
+// Deleting. The actual revocation work (marking credential requests for
+// deletion, driving the CertificateRevocationRequest desires, and tearing them
+// down) is performed by the dedicated SystemAdminCredentialRevocation
+// controllers. The operation completes once the revocation document is gone.
 //
 // Operation documents relevant to this controller will have the following values:
 //
 //	ResourceType: Microsoft.RedHatOpenShift/hcpOpenShiftClusters
 //	     Request: RevokeCredentials
 //	      Status: Accepted
+//	  InternalID: an empty value
 func NewDispatchRevokeCredentialsController(
 	clock utilsclock.PassiveClock,
 	resourcesDBClient database.ResourcesDBClient,
-	kubeApplierDBClients database.KubeApplierDBClients,
 	activeOperationInformer cache.SharedIndexInformer,
-	hostedClusterNamespaceEnvIdentifier string,
 ) controllerutils.Controller {
 	syncer := &dispatchRevokeCredentials{
-		clock:                               clock,
-		resourcesDBClient:                   resourcesDBClient,
-		kubeApplierDBClients:                kubeApplierDBClients,
-		hostedClusterNamespaceEnvIdentifier: hostedClusterNamespaceEnvIdentifier,
+		clock:             clock,
+		resourcesDBClient: resourcesDBClient,
 	}
 
 	controller := operationcontrollers.NewGenericOperationController(
@@ -121,150 +111,63 @@ func (c *dispatchRevokeCredentials) SynchronizeOperation(ctx context.Context, ke
 		return nil
 	}
 
-	// List all active credentials and flip them to AwaitingRevocation.
-	credCRUD := c.resourcesDBClient.SystemAdminCredentialRequests(
-		operation.ExternalID.SubscriptionID,
-		operation.ExternalID.ResourceGroupName,
-		operation.ExternalID.Name,
-	)
-	iter, err := credCRUD.List(ctx, nil)
-	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to list credentials: %w", err))
-	}
-
-	for _, cred := range iter.Items(ctx) {
-		if !cred.Status.IsPending() && !cred.Status.IsIssued() {
-			continue
-		}
-		replacement := cred.DeepCopy()
-		replacement.Status.SetCondition(api.SystemAdminCredentialRequestConditionAwaitingRevocation, metav1.ConditionTrue, "RevocationRequested", "Revocation has been requested")
-		if _, err := credCRUD.Replace(ctx, replacement, nil); err != nil {
-			return utils.TrackError(fmt.Errorf("failed to flip credential to AwaitingRevocation: %w", err))
-		}
-	}
-	if err := iter.GetError(); err != nil {
-		return utils.TrackError(fmt.Errorf("failed to iterate credentials: %w", err))
-	}
-
-	// Write the cluster-scoped CRR ApplyDesire + ReadDesire.
+	// A revoke operation ID is a UUID; derive a short, stable suffix used to
+	// name the revocation document and its CRR objects.
 	revokeOpSuffix := strings.ReplaceAll(operation.OperationID.Name, "-", "")
 	if len(revokeOpSuffix) > 16 {
 		revokeOpSuffix = revokeOpSuffix[:16]
 	}
 
-	spc, err := database.GetOrCreateServiceProviderCluster(ctx, c.resourcesDBClient, operation.ExternalID)
+	revocationCRUD := c.resourcesDBClient.SystemAdminCredentialRevocations(
+		operation.ExternalID.SubscriptionID,
+		operation.ExternalID.ResourceGroupName,
+		operation.ExternalID.Name,
+	)
+
+	revocationResourceID, err := api.ToSystemAdminCredentialRevocationResourceID(
+		operation.ExternalID.SubscriptionID,
+		operation.ExternalID.ResourceGroupName,
+		operation.ExternalID.Name,
+		revokeOpSuffix,
+	)
 	if err != nil {
-		return utils.TrackError(err)
-	}
-	mcResourceID := spc.Status.ManagementClusterResourceID
-	if mcResourceID == nil {
-		return fmt.Errorf("management cluster resource ID not set for cluster")
+		return utils.TrackError(fmt.Errorf("failed to build revocation resource ID: %w", err))
 	}
 
-	csClusterID := cluster.ServiceProviderProperties.ClusterServiceID.ID()
-	hcpNamespace := fmt.Sprintf("ocm-%s-%s", c.hostedClusterNamespaceEnvIdentifier, csClusterID)
-
-	clusterResourceID := operation.ExternalID
-
-	// Create CRR ApplyDesire
-	kaClient := c.kubeApplierDBClients.For(ctx, mcResourceID)
-	if kaClient == nil {
-		return fmt.Errorf("no kube-applier client for management cluster")
-	}
-
-	crrObj := systemadmincredential.BuildRevocationRequest(clusterResourceID, revokeOpSuffix, hcpNamespace)
-	crrDesireName := fmt.Sprintf("systemAdminCredentialRevocation-%s", revokeOpSuffix)
-
-	applyCRUD, err := kaClient.ApplyDesiresForCluster(operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName, operation.ExternalID.Name)
-	if err != nil {
-		return utils.TrackError(err)
-	}
-
-	if err := c.createCRRApplyDesire(ctx, applyCRUD, operation.ExternalID, crrDesireName, mcResourceID, hcpNamespace, crrObj); err != nil {
-		return err
-	}
-
-	// Create CRR ReadDesire
-	readCRUD, err := kaClient.ReadDesiresForCluster(operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName, operation.ExternalID.Name)
-	if err != nil {
-		return utils.TrackError(err)
-	}
-
-	crrReadDesireName := maestrohelpers.ReadDesireNameForSystemAdminCredentialRequestRevocation(revokeOpSuffix)
-	readResourceIDStr := kubeapplier.ToClusterScopedReadDesireResourceIDString(
-		operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName, operation.ExternalID.Name, crrReadDesireName)
-	readResourceID, _ := azcorearm.ParseResourceID(readResourceIDStr)
-
-	readDesire := &kubeapplier.ReadDesire{
-		CosmosMetadata: api.CosmosMetadata{
-			ResourceID:   readResourceID,
-			PartitionKey: strings.ToLower(mcResourceID.String()),
-		},
-		Spec: kubeapplier.ReadDesireSpec{
-			ManagementCluster: mcResourceID,
-			TargetItem: kubeapplier.ResourceReference{
-				Group:     "certificates.hypershift.openshift.io",
-				Version:   "v1alpha1",
-				Resource:  "certificaterevocationrequests",
-				Namespace: hcpNamespace,
-				Name:      crrObj.Name,
+	// Create the revocation document if it does not already exist.
+	if _, err := revocationCRUD.Get(ctx, revokeOpSuffix); database.IsNotFoundError(err) {
+		newRevocation := &api.SystemAdminCredentialRevocation{
+			CosmosMetadata: api.CosmosMetadata{
+				ResourceID:   revocationResourceID,
+				PartitionKey: strings.ToLower(operation.ExternalID.SubscriptionID),
 			},
-		},
-	}
-	if _, err := readCRUD.Create(ctx, readDesire, nil); err != nil && !database.IsConflictError(err) {
-		return utils.TrackError(fmt.Errorf("create CRR ReadDesire: %w", err))
+			Spec: api.SystemAdminCredentialRevocationSpec{
+				OperationID:    operation.OperationID.Name,
+				RevokeOpSuffix: revokeOpSuffix,
+			},
+		}
+		if _, err := revocationCRUD.Create(ctx, newRevocation, nil); err != nil && !database.IsConflictError(err) {
+			return utils.TrackError(fmt.Errorf("failed to create SystemAdminCredentialRevocation: %w", err))
+		}
+	} else if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to get SystemAdminCredentialRevocation: %w", err))
 	}
 
-	// Move the operation to Deleting.
+	// Record the revocation's resource ID on the operation and move it to
+	// Deleting so the poll controller waits for the revocation to complete.
+	internalID, err := api.NewInternalID(revocationResourceID.String())
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to parse revocation resource ID: %w", err))
+	}
+
 	replacement := operation.DeepCopy()
+	replacement.InternalID = internalID
 	replacement.Status = arm.ProvisioningStateDeleting
 	replacement.LastTransitionTime = c.clock.Now()
 	if _, err := c.resourcesDBClient.Operations(key.SubscriptionID).Replace(ctx, replacement, nil); err != nil {
 		return utils.TrackError(err)
 	}
 
-	logger.Info("dispatched revocation", "revokeOpSuffix", revokeOpSuffix)
-	return nil
-}
-
-func (c *dispatchRevokeCredentials) createCRRApplyDesire(
-	ctx context.Context,
-	crud database.ResourceCRUD[kubeapplier.ApplyDesire, *kubeapplier.ApplyDesire],
-	clusterID *azcorearm.ResourceID,
-	desireName string,
-	mcResourceID *azcorearm.ResourceID,
-	hcpNamespace string,
-	obj interface{},
-) error {
-	resourceIDStr := kubeapplier.ToClusterScopedApplyDesireResourceIDString(
-		clusterID.SubscriptionID, clusterID.ResourceGroupName, clusterID.Name, desireName)
-	resourceID, _ := azcorearm.ParseResourceID(resourceIDStr)
-
-	rawJSON, err := json.Marshal(obj)
-	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to marshal CRR: %w", err))
-	}
-
-	desire := &kubeapplier.ApplyDesire{
-		CosmosMetadata: api.CosmosMetadata{
-			ResourceID:   resourceID,
-			PartitionKey: strings.ToLower(mcResourceID.String()),
-		},
-		Spec: kubeapplier.ApplyDesireSpec{
-			ManagementCluster: mcResourceID,
-			TargetItem: kubeapplier.ResourceReference{
-				Group:     "certificates.hypershift.openshift.io",
-				Version:   "v1alpha1",
-				Resource:  "certificaterevocationrequests",
-				Namespace: hcpNamespace,
-				Name:      fmt.Sprintf("system-admin-credential-revocation-%s", strings.ReplaceAll(desireName, "systemAdminCredentialRevocation-", "")),
-			},
-			KubeContent: &runtime.RawExtension{Raw: rawJSON},
-		},
-	}
-
-	if _, err := crud.Create(ctx, desire, nil); err != nil && !database.IsConflictError(err) {
-		return utils.TrackError(fmt.Errorf("create CRR ApplyDesire: %w", err))
-	}
+	logger.Info("dispatched revocation", "revokeOpSuffix", revokeOpSuffix, "revocation_resource_id", revocationResourceID.String())
 	return nil
 }

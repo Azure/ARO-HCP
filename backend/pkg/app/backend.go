@@ -442,9 +442,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	adminCredentialsDispatchRevokeCredentialsController := systemadmincredentialcontrollers.NewDispatchRevokeCredentialsController(
 		b.clock,
 		b.options.ResourcesDBClient,
-		b.options.KubeApplierDBClients,
 		activeOperationInformer,
-		b.options.MaestroSourceEnvironmentIdentifier,
 	)
 	adminCredentialsOperationRequestCredentialPollController := systemadmincredentialcontrollers.NewOperationRequestCredentialPollController(
 		b.clock,
@@ -455,7 +453,6 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	adminCredentialsOperationRevokeCredentialsPollController := systemadmincredentialcontrollers.NewOperationRevokeCredentialsPollController(
 		b.clock,
 		b.options.ResourcesDBClient,
-		unionReadDesireLister,
 		http.DefaultClient,
 		activeOperationInformer,
 	)
@@ -510,7 +507,27 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		backendInformers,
 		unionKubeApplierInformers,
 	)
-
+	adminCredentialsRevocationMarkRequestsController := systemadmincredentialcontrollers.NewRevocationMarkRequestsController(
+		b.clock,
+		activeOperationLister,
+		b.options.ResourcesDBClient,
+		backendInformers,
+	)
+	adminCredentialsRevocationDesiresController := systemadmincredentialcontrollers.NewRevocationDesiresController(
+		b.clock,
+		activeOperationLister,
+		b.options.ResourcesDBClient,
+		b.options.KubeApplierDBClients,
+		backendInformers,
+		unionReadDesireLister,
+		b.options.MaestroSourceEnvironmentIdentifier,
+	)
+	adminCredentialsRevocationDeletionController := systemadmincredentialcontrollers.NewRevocationDeletionController(
+		activeOperationLister,
+		b.options.ResourcesDBClient,
+		b.options.KubeApplierDBClients,
+		backendInformers,
+	)
 	operationClusterCreateController := operationcontrollers.NewOperationClusterCreateController(
 		b.clock,
 		b.options.ResourcesDBClient,
@@ -896,6 +913,9 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go adminCredentialsServingCAReadDesireCreatorController.Run(ctx, 20)
 				go adminCredentialsCABundleSyncController.Run(ctx, 20)
 				go adminCredentialsClusterDeletionCleanupController.Run(ctx, 20)
+				go adminCredentialsRevocationMarkRequestsController.Run(ctx, 20)
+				go adminCredentialsRevocationDesiresController.Run(ctx, 20)
+				go adminCredentialsRevocationDeletionController.Run(ctx, 20)
 				go clusterClusterServiceCreateController.Run(ctx, 20)
 				go nodePoolClusterServiceCreateController.Run(ctx, 20)
 				go externalAuthClusterServiceCreateController.Run(ctx, 20)

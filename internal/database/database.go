@@ -142,9 +142,9 @@ type ResourcesDBClient interface {
 	// nested under a specific cluster.
 	SystemAdminCredentialRequests(subscriptionID, resourceGroupName, clusterName string) ResourceCRUD[api.SystemAdminCredentialRequest, *api.SystemAdminCredentialRequest]
 
-	// SystemAdminCredentialsRevocations retrieves a CRUD interface for managing SystemAdminCredentialsRevocation documents
+	// SystemAdminCredentialRevocations retrieves a CRUD interface for managing SystemAdminCredentialRevocation documents
 	// nested under a specific cluster.
-	SystemAdminCredentialsRevocations(subscriptionID, resourceGroupName, clusterName string) ResourceCRUD[api.SystemAdminCredentialsRevocation, *api.SystemAdminCredentialsRevocation]
+	SystemAdminCredentialRevocations(subscriptionID, resourceGroupName, clusterName string) ResourceCRUD[api.SystemAdminCredentialRevocation, *api.SystemAdminCredentialRevocation]
 
 	ChangeFeedClient
 }
@@ -214,10 +214,10 @@ func (d *resourcesCosmosDBClient) SystemAdminCredentialRequests(subscriptionID, 
 		d.resources, clusterResourceID, api.SystemAdminCredentialRequestResourceType)
 }
 
-func (d *resourcesCosmosDBClient) SystemAdminCredentialsRevocations(subscriptionID, resourceGroupName, clusterName string) ResourceCRUD[api.SystemAdminCredentialsRevocation, *api.SystemAdminCredentialsRevocation] {
+func (d *resourcesCosmosDBClient) SystemAdminCredentialRevocations(subscriptionID, resourceGroupName, clusterName string) ResourceCRUD[api.SystemAdminCredentialRevocation, *api.SystemAdminCredentialRevocation] {
 	clusterResourceID := api.Must(api.ToClusterResourceID(subscriptionID, resourceGroupName, clusterName))
-	return NewCosmosResourceCRUD[api.SystemAdminCredentialsRevocation, *api.SystemAdminCredentialsRevocation, GenericDocument[api.SystemAdminCredentialsRevocation]](
-		d.resources, clusterResourceID, api.SystemAdminCredentialsRevocationResourceType)
+	return NewCosmosResourceCRUD[api.SystemAdminCredentialRevocation, *api.SystemAdminCredentialRevocation, GenericDocument[api.SystemAdminCredentialRevocation]](
+		d.resources, clusterResourceID, api.SystemAdminCredentialRevocationResourceType)
 }
 
 func (d *resourcesCosmosDBClient) UntypedCRUD(parentResourceID azcorearm.ResourceID) (UntypedResourceCRUD, error) {

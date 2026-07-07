@@ -147,10 +147,10 @@ func (m *MockResourcesDBClient) SystemAdminCredentialRequests(subscriptionID, re
 	return newMockResourceCRUD[api.SystemAdminCredentialRequest, *api.SystemAdminCredentialRequest, database.GenericDocument[api.SystemAdminCredentialRequest]](m, clusterResourceID, api.SystemAdminCredentialRequestResourceType)
 }
 
-// SystemAdminCredentialsRevocations returns a CRUD interface for SystemAdminCredentialsRevocation resources.
-func (m *MockResourcesDBClient) SystemAdminCredentialsRevocations(subscriptionID, resourceGroupName, clusterName string) database.ResourceCRUD[api.SystemAdminCredentialsRevocation, *api.SystemAdminCredentialsRevocation] {
+// SystemAdminCredentialRevocations returns a CRUD interface for SystemAdminCredentialRevocation resources.
+func (m *MockResourcesDBClient) SystemAdminCredentialRevocations(subscriptionID, resourceGroupName, clusterName string) database.ResourceCRUD[api.SystemAdminCredentialRevocation, *api.SystemAdminCredentialRevocation] {
 	clusterResourceID := api.Must(api.ToClusterResourceID(subscriptionID, resourceGroupName, clusterName))
-	return newMockResourceCRUD[api.SystemAdminCredentialsRevocation, *api.SystemAdminCredentialsRevocation, database.GenericDocument[api.SystemAdminCredentialsRevocation]](m, clusterResourceID, api.SystemAdminCredentialsRevocationResourceType)
+	return newMockResourceCRUD[api.SystemAdminCredentialRevocation, *api.SystemAdminCredentialRevocation, database.GenericDocument[api.SystemAdminCredentialRevocation]](m, clusterResourceID, api.SystemAdminCredentialRevocationResourceType)
 }
 
 // LoadFromDirectory loads cosmos-record context data from a directory.
