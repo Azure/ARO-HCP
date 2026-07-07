@@ -80,14 +80,14 @@ func (c *postIssuanceCleanup) SyncOnce(ctx context.Context, key controllerutils.
 	logger := utils.LoggerFromContext(ctx)
 
 	// Get the management cluster resource ID.
-	spc, err := c.serviceProviderClusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
+	serviceProviderCluster, err := c.serviceProviderClusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if database.IsNotFoundError(err) {
 		return nil
 	}
 	if err != nil {
 		return utils.TrackError(err)
 	}
-	mcResourceID := spc.Status.ManagementClusterResourceID
+	mcResourceID := serviceProviderCluster.Status.ManagementClusterResourceID
 	if mcResourceID == nil {
 		return nil
 	}

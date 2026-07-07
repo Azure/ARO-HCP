@@ -101,7 +101,7 @@ func (c *clusterDeletionCleanup) SyncOnce(ctx context.Context, key controlleruti
 	}
 
 	// Check if we already set the condition on ServiceProviderCluster.
-	spc, err := c.serviceProviderClusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
+	serviceProviderCluster, err := c.serviceProviderClusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if database.IsNotFoundError(err) {
 		return nil
 	}
@@ -109,7 +109,7 @@ func (c *clusterDeletionCleanup) SyncOnce(ctx context.Context, key controlleruti
 		return utils.TrackError(err)
 	}
 
-	mcResourceID := spc.Status.ManagementClusterResourceID
+	mcResourceID := serviceProviderCluster.Status.ManagementClusterResourceID
 
 	// Drive desire teardown via kube-applier DB.
 	var hasOutstanding bool
@@ -160,7 +160,7 @@ func (c *clusterDeletionCleanup) SyncOnce(ctx context.Context, key controlleruti
 
 	// All credential requests deleted — set condition on ServiceProviderCluster.
 	// Re-read SPC to avoid stale writes.
-	spc, err = c.serviceProviderClusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
+	serviceProviderCluster, err = c.serviceProviderClusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if database.IsNotFoundError(err) {
 		return nil
 	}
@@ -169,13 +169,13 @@ func (c *clusterDeletionCleanup) SyncOnce(ctx context.Context, key controlleruti
 	}
 
 	// Already done — no-op.
-	for _, cond := range spc.Status.Validations {
+	for _, cond := range serviceProviderCluster.Status.Validations {
 		if cond.Type == "SystemAdminCredentialContentDeleted" && cond.Status == "True" {
 			return nil
 		}
 	}
 
-	replacement := spc.DeepCopy()
+	replacement := serviceProviderCluster.DeepCopy()
 	conditionSet := false
 	for i := range replacement.Status.Validations {
 		if replacement.Status.Validations[i].Type == "SystemAdminCredentialContentDeleted" {
