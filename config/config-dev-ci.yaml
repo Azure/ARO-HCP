@@ -38,7 +38,7 @@ clouds:
           vnetAddressPrefix: "10.0.0.0/16"
           subnetPrefix: "10.0.1.0/24"
           podSubnetPrefix: "10.0.2.0/24"
-          kubernetesVersion: 1.32.5
+          kubernetesVersion: "1.33"
           networkDataplane: "cilium"
           networkPolicy: "cilium"
           clusterOutboundIPAddressIPTags: ""
