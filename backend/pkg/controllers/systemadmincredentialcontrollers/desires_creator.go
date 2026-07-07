@@ -15,6 +15,7 @@
 package systemadmincredentialcontrollers
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -36,6 +37,8 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
+	dblisters "github.com/Azure/ARO-HCP/internal/database/listers"
+	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/systemadmincredential"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -49,6 +52,8 @@ type desiresCreator struct {
 	resourcesDBClient            database.ResourcesDBClient
 	kubeApplierDBClients         database.KubeApplierDBClients
 	serviceProviderClusterLister listers.ServiceProviderClusterLister
+	applyDesireLister            dblisters.ApplyDesireLister
+	readDesireLister             dblisters.ReadDesireLister
 
 	hostedClusterNamespaceEnvIdentifier string
 }
@@ -59,20 +64,29 @@ var _ controllerutils.CredentialRequestSyncer = (*desiresCreator)(nil)
 // creates the per-credential ApplyDesires (CSR, CSRA, 3 RBAC bundles) and
 // ReadDesire (CSR) for individual SystemAdminCredentialRequest documents that are
 // pending.
+//
+// The controller also fires on ReadDesire changes and consults the ApplyDesire /
+// ReadDesire listers before writing so it skips the create entirely when a desire
+// already exists with the desired content.
 func NewDesiresCreatorController(
 	activeOperationLister listers.ActiveOperationLister,
 	resourcesDBClient database.ResourcesDBClient,
 	kubeApplierDBClients database.KubeApplierDBClients,
 	backendInformers informers.BackendInformers,
+	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 	hostedClusterNamespaceEnvIdentifier string,
 ) controllerutils.Controller {
 	_, serviceProviderClusterLister := backendInformers.ServiceProviderClusters()
+	_, applyDesireLister := kubeApplierInformers.ApplyDesires()
+	_, readDesireLister := kubeApplierInformers.ReadDesires()
 
 	syncer := &desiresCreator{
 		cooldownChecker:                     controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
 		resourcesDBClient:                   resourcesDBClient,
 		kubeApplierDBClients:                kubeApplierDBClients,
 		serviceProviderClusterLister:        serviceProviderClusterLister,
+		applyDesireLister:                   applyDesireLister,
+		readDesireLister:                    readDesireLister,
 		hostedClusterNamespaceEnvIdentifier: hostedClusterNamespaceEnvIdentifier,
 	}
 
@@ -80,7 +94,7 @@ func NewDesiresCreatorController(
 		"SystemAdminCredentialDesiresCreator",
 		resourcesDBClient,
 		backendInformers,
-		nil,
+		kubeApplierInformers,
 		1*time.Minute,
 		syncer,
 	)
@@ -276,6 +290,16 @@ func (c *desiresCreator) ensureApplyDesire(
 		},
 	}
 
+	// Consult the lister first: if an ApplyDesire already exists with the
+	// desired content there is nothing to do, and we skip the Cosmos write.
+	existing, err := c.applyDesireLister.GetForCluster(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, strings.ToLower(desireName))
+	if err != nil && !database.IsNotFoundError(err) {
+		return utils.TrackError(fmt.Errorf("get ApplyDesire %s from lister: %w", desireName, err))
+	}
+	if existing != nil && applyDesireSpecEqual(existing.Spec, desire.Spec) {
+		return nil
+	}
+
 	_, err = crud.Create(ctx, desire, nil)
 	if err != nil && !database.IsConflictError(err) {
 		return utils.TrackError(fmt.Errorf("create ApplyDesire %s: %w", desireName, err))
@@ -305,11 +329,49 @@ func (c *desiresCreator) ensureReadDesire(
 		},
 	}
 
-	_, err := crud.Create(ctx, desire, nil)
+	// Consult the lister first: if a ReadDesire already exists with the desired
+	// content there is nothing to do, and we skip the Cosmos write.
+	existing, err := c.readDesireLister.GetForCluster(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, strings.ToLower(desireName))
+	if err != nil && !database.IsNotFoundError(err) {
+		return utils.TrackError(fmt.Errorf("get ReadDesire %s from lister: %w", desireName, err))
+	}
+	if existing != nil && readDesireSpecEqual(existing.Spec, desire.Spec) {
+		return nil
+	}
+
+	_, err = crud.Create(ctx, desire, nil)
 	if err != nil && !database.IsConflictError(err) {
 		return utils.TrackError(fmt.Errorf("create ReadDesire %s: %w", desireName, err))
 	}
 	return nil
+}
+
+// applyDesireSpecEqual reports whether an existing ApplyDesire spec already
+// matches the desired spec (same management cluster, target, and rendered
+// content), so the controller can avoid a redundant Cosmos write.
+func applyDesireSpecEqual(existing, desired kubeapplier.ApplyDesireSpec) bool {
+	if !controllerutil.ResourceIDsEqual(existing.ManagementCluster, desired.ManagementCluster) {
+		return false
+	}
+	if existing.TargetItem != desired.TargetItem {
+		return false
+	}
+	var existingRaw, desiredRaw []byte
+	if existing.KubeContent != nil {
+		existingRaw = existing.KubeContent.Raw
+	}
+	if desired.KubeContent != nil {
+		desiredRaw = desired.KubeContent.Raw
+	}
+	return bytes.Equal(existingRaw, desiredRaw)
+}
+
+// readDesireSpecEqual reports whether an existing ReadDesire spec already matches
+// the desired spec (same management cluster and target), so the controller can
+// avoid a redundant Cosmos write.
+func readDesireSpecEqual(existing, desired kubeapplier.ReadDesireSpec) bool {
+	return controllerutil.ResourceIDsEqual(existing.ManagementCluster, desired.ManagementCluster) &&
+		existing.TargetItem == desired.TargetItem
 }
 
 // csrTarget builds the ResourceReference for a CertificateSigningRequest.
