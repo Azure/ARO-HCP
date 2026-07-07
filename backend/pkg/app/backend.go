@@ -434,32 +434,32 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	billingDumpController := datadumpcontrollers.NewBillingDumpController(b.options.ResourcesDBClient, b.options.BillingDBClient, activeOperationLister, backendInformers, unionKubeApplierInformers)
 	managementClusterDumpController := datadumpcontrollers.NewManagementClusterDataDumpController(b.options.FleetDBClient, managementClusterLister, fleetInformers)
 	doNothingController := controllers.NewDoNothingExampleController(b.options.ResourcesDBClient, subscriptionLister)
-	sacDispatchRequestCredentialController := systemadmincredentialcontrollers.NewDispatchRequestCredentialController(
+	adminCredentialsDispatchRequestCredentialController := systemadmincredentialcontrollers.NewDispatchRequestCredentialController(
 		b.clock,
 		b.options.ResourcesDBClient,
 		activeOperationInformer,
 	)
-	sacDispatchRevokeCredentialsController := systemadmincredentialcontrollers.NewDispatchRevokeCredentialsController(
+	adminCredentialsDispatchRevokeCredentialsController := systemadmincredentialcontrollers.NewDispatchRevokeCredentialsController(
 		b.clock,
 		b.options.ResourcesDBClient,
 		b.options.KubeApplierDBClients,
 		activeOperationInformer,
 		b.options.MaestroSourceEnvironmentIdentifier,
 	)
-	sacOperationRequestCredentialPollController := systemadmincredentialcontrollers.NewOperationRequestCredentialPollController(
+	adminCredentialsOperationRequestCredentialPollController := systemadmincredentialcontrollers.NewOperationRequestCredentialPollController(
 		b.clock,
 		b.options.ResourcesDBClient,
 		http.DefaultClient,
 		activeOperationInformer,
 	)
-	sacOperationRevokeCredentialsPollController := systemadmincredentialcontrollers.NewOperationRevokeCredentialsPollController(
+	adminCredentialsOperationRevokeCredentialsPollController := systemadmincredentialcontrollers.NewOperationRevokeCredentialsPollController(
 		b.clock,
 		b.options.ResourcesDBClient,
 		unionReadDesireLister,
 		http.DefaultClient,
 		activeOperationInformer,
 	)
-	sacIssuanceObserverController := systemadmincredentialcontrollers.NewIssuanceObserverController(
+	adminCredentialsIssuanceObserverController := systemadmincredentialcontrollers.NewIssuanceObserverController(
 		b.clock,
 		b.options.ResourcesDBClient,
 		activeOperationLister,
@@ -467,27 +467,27 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		unionKubeApplierInformers,
 		unionReadDesireLister,
 	)
-	sacDesiresCreatorController := systemadmincredentialcontrollers.NewDesiresCreatorController(
+	adminCredentialsDesiresCreatorController := systemadmincredentialcontrollers.NewDesiresCreatorController(
 		activeOperationLister,
 		b.options.ResourcesDBClient,
 		b.options.KubeApplierDBClients,
 		backendInformers,
 		b.options.MaestroSourceEnvironmentIdentifier,
 	)
-	sacPostIssuanceCleanupController := systemadmincredentialcontrollers.NewPostIssuanceCleanupController(
+	adminCredentialsPostIssuanceCleanupController := systemadmincredentialcontrollers.NewPostIssuanceCleanupController(
 		activeOperationLister,
 		b.options.ResourcesDBClient,
 		b.options.KubeApplierDBClients,
 		backendInformers,
 		unionKubeApplierInformers,
 	)
-	sacRevokedGCController := systemadmincredentialcontrollers.NewRevokedGCController(
+	adminCredentialsRevokedGCController := systemadmincredentialcontrollers.NewRevokedGCController(
 		b.clock,
 		activeOperationLister,
 		b.options.ResourcesDBClient,
 		backendInformers,
 	)
-	sacServingCAReadDesireCreatorController := systemadmincredentialcontrollers.NewServingCAReadDesireCreatorController(
+	adminCredentialsServingCAReadDesireCreatorController := systemadmincredentialcontrollers.NewServingCAReadDesireCreatorController(
 		activeOperationLister,
 		b.options.ResourcesDBClient,
 		b.options.KubeApplierDBClients,
@@ -495,14 +495,14 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		unionKubeApplierInformers,
 		b.options.MaestroSourceEnvironmentIdentifier,
 	)
-	sacCABundleSyncController := systemadmincredentialcontrollers.NewCABundleSyncController(
+	adminCredentialsCABundleSyncController := systemadmincredentialcontrollers.NewCABundleSyncController(
 		activeOperationLister,
 		b.options.ResourcesDBClient,
 		backendInformers,
 		unionKubeApplierInformers,
 		unionReadDesireLister,
 	)
-	sacClusterDeletionCleanupController := systemadmincredentialcontrollers.NewClusterDeletionCleanupController(
+	adminCredentialsClusterDeletionCleanupController := systemadmincredentialcontrollers.NewClusterDeletionCleanupController(
 		activeOperationLister,
 		b.options.ResourcesDBClient,
 		b.options.KubeApplierDBClients,
@@ -884,17 +884,17 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go billingDumpController.Run(ctx, 20)
 				go managementClusterDumpController.Run(ctx, 20)
 				go doNothingController.Run(ctx, 20)
-				go sacDispatchRequestCredentialController.Run(ctx, 20)
-				go sacDispatchRevokeCredentialsController.Run(ctx, 20)
-				go sacOperationRequestCredentialPollController.Run(ctx, 20)
-				go sacOperationRevokeCredentialsPollController.Run(ctx, 20)
-				go sacIssuanceObserverController.Run(ctx, 20)
-				go sacDesiresCreatorController.Run(ctx, 20)
-				go sacPostIssuanceCleanupController.Run(ctx, 20)
-				go sacRevokedGCController.Run(ctx, 20)
-				go sacServingCAReadDesireCreatorController.Run(ctx, 20)
-				go sacCABundleSyncController.Run(ctx, 20)
-				go sacClusterDeletionCleanupController.Run(ctx, 20)
+				go adminCredentialsDispatchRequestCredentialController.Run(ctx, 20)
+				go adminCredentialsDispatchRevokeCredentialsController.Run(ctx, 20)
+				go adminCredentialsOperationRequestCredentialPollController.Run(ctx, 20)
+				go adminCredentialsOperationRevokeCredentialsPollController.Run(ctx, 20)
+				go adminCredentialsIssuanceObserverController.Run(ctx, 20)
+				go adminCredentialsDesiresCreatorController.Run(ctx, 20)
+				go adminCredentialsPostIssuanceCleanupController.Run(ctx, 20)
+				go adminCredentialsRevokedGCController.Run(ctx, 20)
+				go adminCredentialsServingCAReadDesireCreatorController.Run(ctx, 20)
+				go adminCredentialsCABundleSyncController.Run(ctx, 20)
+				go adminCredentialsClusterDeletionCleanupController.Run(ctx, 20)
 				go clusterClusterServiceCreateController.Run(ctx, 20)
 				go nodePoolClusterServiceCreateController.Run(ctx, 20)
 				go externalAuthClusterServiceCreateController.Run(ctx, 20)
