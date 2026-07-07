@@ -43,9 +43,6 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
-// credentialDesirePrefix is used to identify credential-related desires by name prefix.
-const credentialDesirePrefix = "systemAdminCredential"
-
 type desiresCreator struct {
 	cooldownChecker controllerutil.CooldownChecker
 

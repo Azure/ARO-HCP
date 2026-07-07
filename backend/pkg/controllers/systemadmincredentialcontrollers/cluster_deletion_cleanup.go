@@ -33,27 +33,29 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
-type clusterDeletionCleanup struct {
+type credentialRequestDeletion struct {
 	cooldownChecker              controllerutil.CooldownChecker
 	resourcesDBClient            database.ResourcesDBClient
 	kubeApplierDBClients         database.KubeApplierDBClients
 	serviceProviderClusterLister listers.ServiceProviderClusterLister
 }
 
-var _ controllerutils.CredentialRequestSyncer = (*clusterDeletionCleanup)(nil)
+var _ controllerutils.CredentialRequestSyncer = (*credentialRequestDeletion)(nil)
 
 // NewClusterDeletionCleanupController returns a CredentialRequestWatchingController
-// that deletes SystemAdminCredentialRequest resources. When
-// SystemAdminCredentialRequest.Status.DeleteTimestamp is set, this controller:
+// that deletes a single SystemAdminCredentialRequest resource. It fires on every
+// SystemAdminCredentialRequest change and only does work once that request's
+// Status.DeleteTimestamp is set. For that one request it:
 //
-//  1. Deletes the ApplyDesires it created for this credential request.
-//  2. Creates DeleteDesires for all the ApplyDesires it created before.
-//  3. Checks all DeleteDesires for them to have successfully deleted.
-//  4. Deletes all the DeleteDesires and ReadDesires.
+//  1. Creates a DeleteDesire for each ApplyDesire it created before.
+//  2. Waits for those DeleteDesires to report success.
+//  3. Deletes the now-torn-down ApplyDesires, the DeleteDesires, and the
+//     ReadDesires belonging to this credential request.
+//  4. Deletes the SystemAdminCredentialRequest document itself.
 //
-// Once all desires are cleaned up, the controller deletes the credential
-// request document itself and sets SystemAdminCredentialContentDeleted=True
-// on ServiceProviderCluster so the cluster-deletion finalizer can advance.
+// The controller is deliberately scoped to the single credential request named
+// by the key — it never touches desires or documents belonging to other
+// credential requests on the same cluster.
 func NewClusterDeletionCleanupController(
 	activeOperationLister listers.ActiveOperationLister,
 	resourcesDBClient database.ResourcesDBClient,
@@ -63,7 +65,7 @@ func NewClusterDeletionCleanupController(
 ) controllerutils.Controller {
 	_, serviceProviderClusterLister := backendInformers.ServiceProviderClusters()
 
-	syncer := &clusterDeletionCleanup{
+	syncer := &credentialRequestDeletion{
 		cooldownChecker:              controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
 		resourcesDBClient:            resourcesDBClient,
 		kubeApplierDBClients:         kubeApplierDBClients,
@@ -80,14 +82,19 @@ func NewClusterDeletionCleanupController(
 	)
 }
 
-func (c *clusterDeletionCleanup) CooldownChecker() controllerutil.CooldownChecker {
+func (c *credentialRequestDeletion) CooldownChecker() controllerutil.CooldownChecker {
 	return c.cooldownChecker
 }
 
-func (c *clusterDeletionCleanup) SyncOnce(ctx context.Context, key controllerutils.SystemAdminCredentialRequestKey) error {
+// needsWork reports whether deletion has been requested for this credential
+// request. The controller only acts once Status.DeleteTimestamp is set.
+func (c *credentialRequestDeletion) needsWork(cred *api.SystemAdminCredentialRequest) bool {
+	return cred.Status.DeleteTimestamp != nil
+}
+
+func (c *credentialRequestDeletion) SyncOnce(ctx context.Context, key controllerutils.SystemAdminCredentialRequestKey) error {
 	logger := utils.LoggerFromContext(ctx)
 
-	// Only run when the SystemAdminCredentialRequest has a DeleteTimestamp set.
 	credCRUD := c.resourcesDBClient.SystemAdminCredentialRequests(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	cred, err := credCRUD.Get(ctx, key.CredentialName)
 	if database.IsNotFoundError(err) {
@@ -96,11 +103,12 @@ func (c *clusterDeletionCleanup) SyncOnce(ctx context.Context, key controlleruti
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get SystemAdminCredentialRequest: %w", err))
 	}
-	if cred.Status.DeleteTimestamp == nil {
+	if !c.needsWork(cred) {
 		return nil
 	}
 
-	// Check if we already set the condition on ServiceProviderCluster.
+	// The management cluster resource ID tells us which kube-applier partition
+	// holds this credential's desires.
 	serviceProviderCluster, err := c.serviceProviderClusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if database.IsNotFoundError(err) {
 		return nil
@@ -110,104 +118,47 @@ func (c *clusterDeletionCleanup) SyncOnce(ctx context.Context, key controlleruti
 	}
 
 	mcResourceID := serviceProviderCluster.Status.ManagementClusterResourceID
-
-	// Drive desire teardown via kube-applier DB.
-	var hasOutstanding bool
-	if mcResourceID != nil {
-		kaClient := c.kubeApplierDBClients.For(ctx, mcResourceID)
-		if kaClient != nil {
-			outstanding, err := c.driveDesireTeardown(ctx, key, kaClient)
-			if err != nil {
-				return err
-			}
-			if outstanding {
-				hasOutstanding = true
-			}
-		} else {
-			hasOutstanding = true
-		}
-	}
-
-	if hasOutstanding {
-		logger.Info("credential desires still outstanding, waiting")
+	if mcResourceID == nil {
+		logger.Info("waiting to tear down credential desires: ServiceProviderCluster has no ManagementClusterResourceID yet",
+			"credential", key.CredentialName)
 		return nil
 	}
 
-	// All desires cleaned up — delete the credential request document.
+	kaClient := c.kubeApplierDBClients.For(ctx, mcResourceID)
+	if kaClient == nil {
+		logger.Info("waiting to tear down credential desires: no kube-applier client for management cluster",
+			"credential", key.CredentialName, "managementCluster", mcResourceID.String())
+		return nil
+	}
+
+	hasOutstanding, err := c.driveDesireTeardown(ctx, key, kaClient)
+	if err != nil {
+		return err
+	}
+	if hasOutstanding {
+		logger.Info("waiting for management-cluster teardown of this credential's desires (ApplyDesires deleted via DeleteDesires, then DeleteDesires and ReadDesires removed)",
+			"credential", key.CredentialName, "managementCluster", mcResourceID.String())
+		return nil
+	}
+
+	// All of this credential request's desires are gone — delete the document.
 	if err := credCRUD.Delete(ctx, key.CredentialName); err != nil && !database.IsNotFoundError(err) {
 		return utils.TrackError(fmt.Errorf("failed to delete credential %s: %w", key.CredentialName, err))
 	}
-	logger.Info("deleted credential during cleanup", "credential", key.CredentialName)
-
-	// Check if there are any remaining credential requests for this cluster.
-	// Only set the condition when all are gone.
-	iter, err := credCRUD.List(ctx, nil)
-	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to list SystemAdminCredentialRequests: %w", err))
-	}
-	hasRemaining := false
-	for range iter.Items(ctx) {
-		hasRemaining = true
-		break
-	}
-	if err := iter.GetError(); err != nil {
-		return utils.TrackError(fmt.Errorf("failed to iterate SystemAdminCredentialRequests: %w", err))
-	}
-	if hasRemaining {
-		// Other credential requests still exist; don't set the cluster-level condition yet.
-		return nil
-	}
-
-	// All credential requests deleted — set condition on ServiceProviderCluster.
-	// Re-read SPC to avoid stale writes.
-	serviceProviderCluster, err = c.serviceProviderClusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
-	if database.IsNotFoundError(err) {
-		return nil
-	}
-	if err != nil {
-		return utils.TrackError(err)
-	}
-
-	// Already done — no-op.
-	for _, cond := range serviceProviderCluster.Status.Validations {
-		if cond.Type == "SystemAdminCredentialContentDeleted" && cond.Status == "True" {
-			return nil
-		}
-	}
-
-	replacement := serviceProviderCluster.DeepCopy()
-	conditionSet := false
-	for i := range replacement.Status.Validations {
-		if replacement.Status.Validations[i].Type == "SystemAdminCredentialContentDeleted" {
-			replacement.Status.Validations[i].Status = "True"
-			conditionSet = true
-			break
-		}
-	}
-	if !conditionSet {
-		replacement.Status.Validations = append(replacement.Status.Validations, api.SystemAdminCredentialContentDeletedCondition())
-	}
-
-	if _, err := c.resourcesDBClient.ServiceProviderClusters(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName).Replace(ctx, replacement, nil); err != nil {
-		if database.IsPreconditionFailedError(err) {
-			// Will be retriggered by the informer.
-			return nil
-		}
-		return utils.TrackError(fmt.Errorf("failed to set SystemAdminCredentialContentDeleted condition: %w", err))
-	}
-
-	logger.Info("SystemAdminCredentialContentDeleted condition set")
+	logger.Info("deleted credential request after tearing down its desires", "credential", key.CredentialName)
 	return nil
 }
 
-// driveDesireTeardown implements the 4-step teardown for a single credential request:
-//  1. For Apply desires matching the credential prefix: create a DeleteDesire.
-//  2. For Apply desires with a completed DeleteDesire: delete the ApplyDesire.
-//  3. For Delete desires that have succeeded: delete them.
-//  4. For Read desires matching the credential prefix: delete directly.
+// driveDesireTeardown implements the 4-step teardown for the single credential
+// request named by key:
+//  1. For this credential's Apply desires: create a DeleteDesire.
+//  2. For this credential's Apply desires with a completed DeleteDesire: delete the ApplyDesire.
+//  3. For this credential's Delete desires that have succeeded: delete them.
+//  4. For this credential's Read desires: delete directly.
 //
-// Returns true if there are still outstanding desires.
-func (c *clusterDeletionCleanup) driveDesireTeardown(
+// Only desires that belong to this credential request (matched by name) are
+// touched. Returns true if there are still outstanding desires.
+func (c *credentialRequestDeletion) driveDesireTeardown(
 	ctx context.Context,
 	key controllerutils.SystemAdminCredentialRequestKey,
 	kaClient database.KubeApplierDBClient,
@@ -227,7 +178,7 @@ func (c *clusterDeletionCleanup) driveDesireTeardown(
 
 	hasOutstanding := false
 
-	// Step 1 & 2: Process apply desires matching credential prefix.
+	// Step 1 & 2: process only this credential request's apply desires.
 	// For each ApplyDesire: create a DeleteDesire, wait for it to succeed, then delete both.
 	applyIter, err := applyCRUD.List(ctx, nil)
 	if err != nil {
@@ -235,7 +186,7 @@ func (c *clusterDeletionCleanup) driveDesireTeardown(
 	}
 	for _, desire := range applyIter.Items(ctx) {
 		desireName := desire.ResourceID.Name
-		if !strings.HasPrefix(strings.ToLower(desireName), strings.ToLower(credentialDesirePrefix)) {
+		if !isCredentialDesire(desireName, key.CredentialName) {
 			continue
 		}
 		removed, err := c.removeApplyDesireDuringDeletion(ctx, key, desireName, applyCRUD, deleteCRUD)
@@ -250,14 +201,14 @@ func (c *clusterDeletionCleanup) driveDesireTeardown(
 		return false, utils.TrackError(fmt.Errorf("iterate ApplyDesires: %w", err))
 	}
 
-	// Step 3: Clean up any remaining delete desires that have completed.
+	// Step 3: clean up this credential request's completed delete desires.
 	deleteIter, err := deleteCRUD.List(ctx, nil)
 	if err != nil {
 		return false, utils.TrackError(fmt.Errorf("list DeleteDesires: %w", err))
 	}
 	for _, desire := range deleteIter.Items(ctx) {
 		desireName := desire.ResourceID.Name
-		if !strings.HasPrefix(strings.ToLower(desireName), strings.ToLower(credentialDesirePrefix)) {
+		if !isCredentialDesire(desireName, key.CredentialName) {
 			continue
 		}
 		// Only delete completed DeleteDesires.
@@ -280,14 +231,14 @@ func (c *clusterDeletionCleanup) driveDesireTeardown(
 		return false, utils.TrackError(fmt.Errorf("iterate DeleteDesires: %w", err))
 	}
 
-	// Step 4: Delete read desires matching credential prefix.
+	// Step 4: delete this credential request's read desires.
 	readIter, err := readCRUD.List(ctx, nil)
 	if err != nil {
 		return false, utils.TrackError(fmt.Errorf("list ReadDesires: %w", err))
 	}
 	for _, desire := range readIter.Items(ctx) {
 		desireName := desire.ResourceID.Name
-		if !strings.HasPrefix(strings.ToLower(desireName), strings.ToLower(credentialDesirePrefix)) {
+		if !isCredentialDesire(desireName, key.CredentialName) {
 			continue
 		}
 		if err := readCRUD.Delete(ctx, strings.ToLower(desireName)); err != nil && !database.IsNotFoundError(err) {
@@ -301,7 +252,7 @@ func (c *clusterDeletionCleanup) driveDesireTeardown(
 	return hasOutstanding, nil
 }
 
-func (c *clusterDeletionCleanup) removeApplyDesireDuringDeletion(
+func (c *credentialRequestDeletion) removeApplyDesireDuringDeletion(
 	ctx context.Context,
 	key controllerutils.SystemAdminCredentialRequestKey,
 	desireName string,
