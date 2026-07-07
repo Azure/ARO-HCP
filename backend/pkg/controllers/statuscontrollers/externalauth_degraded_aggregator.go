@@ -120,6 +120,9 @@ func (c *externalAuthDegradedAggregator) SyncOnce(ctx context.Context, key contr
 	if database.IsPreconditionFailedError(err) {
 		return nil
 	}
+	if database.IsNotFoundError(err) {
+		return nil
+	}
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to replace ExternalAuth: %w", err))
 	}

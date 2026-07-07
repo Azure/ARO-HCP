@@ -123,6 +123,9 @@ func (c *nodePoolDegradedAggregator) SyncOnce(ctx context.Context, key controlle
 	if database.IsPreconditionFailedError(err) {
 		return nil
 	}
+	if database.IsNotFoundError(err) {
+		return nil
+	}
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to replace NodePool: %w", err))
 	}
