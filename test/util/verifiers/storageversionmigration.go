@@ -20,6 +20,7 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"time"
 
 	storagemigrationv1beta1 "k8s.io/api/storagemigration/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -27,21 +28,29 @@ import (
 	"k8s.io/client-go/rest"
 )
 
-// VerifyStorageVersionMigrationSucceeded returns a verifier that checks all
+// VerifyStorageVersionMigrationSucceeded returns a verifier that polls until all
 // StorageVersionMigration resources are in "Succeeded" state. This is important
 // after rotating KMS encryption keys to ensure all Kubernetes objects have been
 // re-encrypted with the new key.
-func VerifyStorageVersionMigrationSucceeded() HostedClusterVerifier {
-	return verifyStorageVersionMigrationSucceeded{}
+func VerifyStorageVersionMigrationSucceeded(timeout time.Duration) HostedClusterVerifier {
+	return verifyStorageVersionMigrationSucceeded{timeout: timeout}
 }
 
-type verifyStorageVersionMigrationSucceeded struct{}
+type verifyStorageVersionMigrationSucceeded struct {
+	timeout time.Duration
+}
 
 func (v verifyStorageVersionMigrationSucceeded) Name() string {
 	return "VerifyStorageVersionMigrationSucceeded"
 }
 
 func (v verifyStorageVersionMigrationSucceeded) Verify(ctx context.Context, restConfig *rest.Config) error {
+	return pollUntilReady(ctx, v.Name(), v.timeout, DefaultPollInterval, restConfig, DefaultDiagnoseTimeout, nil, func(ctx context.Context) error {
+		return v.checkOnce(ctx, restConfig)
+	})
+}
+
+func (v verifyStorageVersionMigrationSucceeded) checkOnce(ctx context.Context, restConfig *rest.Config) error {
 	kubeClient, err := kubernetes.NewForConfig(restConfig)
 	if err != nil {
 		return fmt.Errorf("failed to create kubernetes client: %w", err)

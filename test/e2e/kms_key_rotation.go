@@ -43,7 +43,6 @@ var _ = Describe("Customer", func() {
 
 				// Timeout for StorageVersionMigration to complete re-encryption after KMS key rotation
 				storageVersionMigrationTimeout = 15 * time.Minute
-				verifierPollInterval           = 15 * time.Second
 			)
 
 			tc := framework.NewTestContext()
@@ -195,12 +194,8 @@ var _ = Describe("Customer", func() {
 				"cluster should reference the new KMS key version after round-trip GET")
 
 			By("verifying StorageVersionMigration succeeded for re-encryption")
-			verifiers.EventuallyVerify(ctx,
-				verifiers.VerifyStorageVersionMigrationSucceeded(),
-				adminRESTConfig,
-				storageVersionMigrationTimeout,
-				verifierPollInterval,
-				"all StorageVersionMigration resources should reach Succeeded state after KMS key rotation")
+			err = verifiers.VerifyStorageVersionMigrationSucceeded(storageVersionMigrationTimeout).Verify(ctx, adminRESTConfig)
+			Expect(err).NotTo(HaveOccurred(), "all StorageVersionMigration resources should reach Succeeded state after KMS key rotation")
 		},
 	)
 })
