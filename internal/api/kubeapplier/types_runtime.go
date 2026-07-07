@@ -15,6 +15,7 @@
 package kubeapplier
 
 import (
+	"strconv"
 	"strings"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -36,6 +37,8 @@ func (o *ApplyDesire) GetObjectMeta() metav1.Object {
 	if o.GetResourceID() != nil {
 		om.Name = strings.ToLower(o.GetResourceID().String())
 	}
+	// shared_informer uses ResourceVersion to determine if an event is a sync
+	om.ResourceVersion = strconv.Itoa(int(o.InstanceVersion))
 	return om
 }
 
@@ -68,6 +71,8 @@ func (o *ReadDesire) GetObjectMeta() metav1.Object {
 	if o.GetResourceID() != nil {
 		om.Name = strings.ToLower(o.GetResourceID().String())
 	}
+	// shared_informer uses ResourceVersion to determine if an event is a sync
+	om.ResourceVersion = strconv.Itoa(int(o.InstanceVersion))
 	return om
 }
 
