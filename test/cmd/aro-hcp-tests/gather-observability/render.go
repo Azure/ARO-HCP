@@ -17,14 +17,18 @@ package gatherobservability
 import (
 	"bytes"
 	"embed"
+	"encoding/json"
 	"fmt"
 	"html/template"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/alertsmanagement/armalertsmanagement"
 )
+
+var filterLabelKeys = []string{"alertname", "cluster", "namespace"}
 
 //go:embed artifacts/*.html.tmpl
 var templatesFS embed.FS
@@ -51,9 +55,11 @@ type timeWindow struct {
 
 // alertsOutput is written to alerts.json and passed to the HTML template.
 type alertsOutput struct {
-	TimeWindow timeWindow    `json:"timeWindow"`
-	Summary    alertsSummary `json:"summary"`
-	Alerts     []alert       `json:"alerts"`
+	TimeWindow    timeWindow          `json:"timeWindow"`
+	Summary       alertsSummary       `json:"summary"`
+	Alerts        []alert             `json:"alerts"`
+	FilterKeys    []string            `json:"filterKeys"`
+	FilterOptions map[string][]string `json:"filterOptions"`
 }
 
 // Template helpers for the HTML template.
@@ -82,6 +88,75 @@ func sanitizeTitle(title string) string {
 	return strings.Trim(title, "-")
 }
 
+var filterKeyOrder = append(filterLabelKeys, "workspace", "classification")
+
+func collectFilterOptions(alerts []alert) ([]string, map[string][]string) {
+	seen := map[string]map[string]bool{}
+	for _, key := range filterLabelKeys {
+		seen[key] = map[string]bool{}
+	}
+	seen["workspace"] = map[string]bool{}
+
+	for _, a := range alerts {
+		for _, key := range filterLabelKeys {
+			if v, ok := a.Alert.Labels[key]; ok && len(v) > 0 {
+				seen[key][v] = true
+			} else if key == "alertname" && len(a.Alert.Name) > 0 {
+				seen[key][a.Alert.Name] = true
+			}
+		}
+		if len(a.Metadata.MonitoringWorkspaceType) > 0 {
+			seen["workspace"][a.Metadata.MonitoringWorkspaceType] = true
+		}
+	}
+
+	options := map[string][]string{}
+	for key, vals := range seen {
+		if len(vals) == 0 {
+			continue
+		}
+		sorted := make([]string, 0, len(vals))
+		for v := range vals {
+			sorted = append(sorted, v)
+		}
+		slices.Sort(sorted)
+		options[key] = sorted
+	}
+	options["classification"] = []string{"unknown", "known"}
+
+	keys := make([]string, 0, len(options))
+	for _, key := range filterKeyOrder {
+		if _, ok := options[key]; ok {
+			keys = append(keys, key)
+		}
+	}
+	return keys, options
+}
+
+func alertFilterJSON(a alert) template.JS {
+	m := map[string]string{}
+	for _, key := range filterLabelKeys {
+		if v, ok := a.Alert.Labels[key]; ok {
+			m[key] = v
+		} else if key == "alertname" && len(a.Alert.Name) > 0 {
+			m[key] = a.Alert.Name
+		}
+	}
+	if len(a.Metadata.MonitoringWorkspaceType) > 0 {
+		m["workspace"] = a.Metadata.MonitoringWorkspaceType
+	}
+	if a.Metadata.KnownIssue {
+		m["classification"] = "known"
+	} else {
+		m["classification"] = "unknown"
+	}
+	data, err := json.Marshal(m)
+	if err != nil {
+		return template.JS("{}")
+	}
+	return template.JS(data)
+}
+
 func renderTemplate(outputPath string, data any) error {
 	funcMap := template.FuncMap{
 		"formatTime": func(t *time.Time) string {
@@ -107,6 +182,7 @@ func renderTemplate(outputPath string, data any) error {
 		"annotation": func(annotations map[string]string, key string) string {
 			return annotations[key]
 		},
+		"alertFilterJSON": alertFilterJSON,
 		"relativeTime": func(windowStart string, t *time.Time) string {
 			if t == nil {
 				return ""
