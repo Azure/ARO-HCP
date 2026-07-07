@@ -608,6 +608,10 @@ func (m *mockOperationCRUD) ListByExternalID(externalID *azcorearm.ResourceID, i
 			continue
 		}
 
+		if !strings.EqualFold(typedDoc.PartitionKey, strings.ToLower(m.parentResourceID.SubscriptionID)) {
+			continue
+		}
+
 		if typedDoc.ResourceID == nil {
 			continue
 		}
