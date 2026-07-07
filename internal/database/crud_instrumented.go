@@ -70,6 +70,18 @@ type databaseMetrics struct {
 	// requestDuration records the wall-clock latency of every ResourceCRUD
 	// operation with the same label set as requestTotal.
 	requestDuration *prometheus.HistogramVec
+
+	// transactionTotal counts every DBTransaction.Execute, partitioned by the
+	// caller-supplied transaction type and the HTTP status code derived from the
+	// returned error. Unlike requestTotal, a transaction executes a whole
+	// TransactionalBatch (potentially many document writes) as a single Cosmos
+	// request, so this measures the actual batch round-trip rather than the
+	// per-document enqueue captured by the CRUD verbs.
+	transactionTotal *prometheus.CounterVec
+
+	// transactionDuration records the wall-clock latency of every
+	// DBTransaction.Execute with the same label set as transactionTotal.
+	transactionDuration *prometheus.HistogramVec
 }
 
 // newDatabaseMetrics constructs the database CRUD collectors and registers them
@@ -92,6 +104,21 @@ func newDatabaseMetrics(r prometheus.Registerer) *databaseMetrics {
 				Buckets: databaseRequestBuckets,
 			},
 			[]string{"verb", "resource_type", "code"},
+		),
+		transactionTotal: promauto.With(r).NewCounterVec(
+			prometheus.CounterOpts{
+				Name: "database_transaction_total",
+				Help: "Total number of database transactions executed, partitioned by transaction type and HTTP status code.",
+			},
+			[]string{"transaction_type", "code"},
+		),
+		transactionDuration: promauto.With(r).NewHistogramVec(
+			prometheus.HistogramOpts{
+				Name:    "database_transaction_duration_seconds",
+				Help:    "Duration of database transactions in seconds, partitioned by transaction type and HTTP status code.",
+				Buckets: databaseRequestBuckets,
+			},
+			[]string{"transaction_type", "code"},
 		),
 	}
 }

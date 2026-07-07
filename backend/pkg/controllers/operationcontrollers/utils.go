@@ -24,6 +24,7 @@ import (
 
 	"github.com/go-logr/logr"
 
+	"k8s.io/component-base/metrics/legacyregistry"
 	utilsclock "k8s.io/utils/clock"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
@@ -107,6 +108,7 @@ func UpdateOperationStatus(ctx context.Context, clock utilsclock.PassiveClock, r
 	// operation and resource documents are partitioned by subscription ID. If the
 	// partition key scheme changes the transaction creation here must be updated accordingly.
 	transaction := resourcesDBClient.NewTransaction(updatedOperation.OperationID.SubscriptionID)
+	transaction = database.InstrumentTransaction(transaction, "BackendOperationStatusUpdate", legacyregistry.Registerer())
 
 	// Add the operation document replace to the transaction.
 	if _, err := resourcesDBClient.Operations(updatedOperation.OperationID.SubscriptionID).AddReplaceToTransaction(ctx, transaction, updatedOperation, nil); err != nil {

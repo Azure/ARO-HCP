@@ -23,6 +23,7 @@ import (
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/component-base/metrics/legacyregistry"
 	"k8s.io/utils/ptr"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -274,6 +275,7 @@ func (f *Frontend) createExternalAuth(writer http.ResponseWriter, request *http.
 	operationRequest := database.OperationRequestCreate
 
 	transaction := f.resourcesDBClient.NewTransaction(newInternalExternalAuth.ID.SubscriptionID)
+	transaction = database.InstrumentTransaction(transaction, "FrontendExternalAuthCreate", legacyregistry.Registerer())
 
 	createExternalAuthOperation := database.NewOperation(
 		operationRequest,
@@ -488,6 +490,7 @@ func (f *Frontend) updateExternalAuthInCosmos(ctx context.Context, writer http.R
 	}
 
 	transaction := f.resourcesDBClient.NewTransaction(oldInternalExternalAuth.ID.SubscriptionID)
+	transaction = database.InstrumentTransaction(transaction, "FrontendExternalAuthUpdate", legacyregistry.Registerer())
 
 	externalAuthUpdateOperation := database.NewOperation(
 		database.OperationRequestUpdate,
@@ -580,6 +583,7 @@ func (f *Frontend) DeleteExternalAuth(writer http.ResponseWriter, request *http.
 	logger.Info(fmt.Sprintf("deleting resource %s", externalAuth.ID))
 
 	transaction := f.resourcesDBClient.NewTransaction(externalAuth.ID.SubscriptionID)
+	transaction = database.InstrumentTransaction(transaction, "FrontendExternalAuthDelete", legacyregistry.Registerer())
 	if err := f.addDeleteExternalAuthToTransaction(ctx, writer, request, transaction, externalAuth); err != nil {
 		return utils.TrackError(err)
 	}

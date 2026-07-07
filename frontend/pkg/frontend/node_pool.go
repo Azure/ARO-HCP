@@ -25,6 +25,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/api/operation"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/component-base/metrics/legacyregistry"
 	"k8s.io/utils/ptr"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -322,6 +323,7 @@ func (f *Frontend) createNodePool(writer http.ResponseWriter, request *http.Requ
 	newInternalNodePool.ServiceProviderProperties.ClusterServiceID = &csNodePoolID
 
 	transaction := f.resourcesDBClient.NewTransaction(newInternalNodePool.ID.SubscriptionID)
+	transaction = database.InstrumentTransaction(transaction, "FrontendNodePoolCreate", legacyregistry.Registerer())
 
 	createNodePoolOperation := database.NewOperation(
 		database.OperationRequestCreate,
@@ -611,6 +613,7 @@ func (f *Frontend) updateNodePoolInCosmos(ctx context.Context, writer http.Respo
 	// The controllers will take care of handle the upgrade
 
 	transaction := f.resourcesDBClient.NewTransaction(oldInternalNodePool.ID.SubscriptionID)
+	transaction = database.InstrumentTransaction(transaction, "FrontendNodePoolUpdate", legacyregistry.Registerer())
 
 	// Always create an operation, even for version-only changes. This provides consistent
 	// ARM API behavior and avoids the complexity of detecting what changed.
@@ -733,6 +736,7 @@ func (f *Frontend) DeleteNodePool(writer http.ResponseWriter, request *http.Requ
 	}
 
 	transaction := f.resourcesDBClient.NewTransaction(nodePool.ID.SubscriptionID)
+	transaction = database.InstrumentTransaction(transaction, "FrontendNodePoolDelete", legacyregistry.Registerer())
 	if err := f.addDeleteNodePoolToTransaction(ctx, writer, request, transaction, nodePool); err != nil {
 		return utils.TrackError(err)
 	}
