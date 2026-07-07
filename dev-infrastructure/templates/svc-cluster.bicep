@@ -1058,13 +1058,12 @@ module sessiongateDNS '../modules/dns/a-record.bicep' = {
 //   G E N E V A   C E R T I F I C A T E   A C C E S S
 //
 
-module genevaRpLogsCertCSIAccess '../modules/keyvault/keyvault-secret-access.bicep' = {
+module genevaRpLogsCertCSIAccess '../modules/keyvault/key-vault-secret-access.bicep' = {
   name: 'geneva-crt-access-${uniqueString(resourceGroup().name)}'
   scope: resourceGroup(serviceKeyVaultSubscription, serviceKeyVaultResourceGroup)
   params: {
     keyVaultName: serviceKeyVaultName
-    roleName: 'Key Vault Secrets User'
-    managedIdentityPrincipalIds: [svcCluster.outputs.aksClusterKeyVaultSecretsProviderPrincipalId]
+    principalId: svcCluster.outputs.aksClusterKeyVaultSecretsProviderPrincipalId
     secretName: genevaRpLogsName
   }
 }

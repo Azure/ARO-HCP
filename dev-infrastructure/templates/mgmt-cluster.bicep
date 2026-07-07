@@ -497,22 +497,20 @@ resource mgmtKeyVault 'Microsoft.KeyVault/vaults@2024-04-01-preview' existing = 
 //   G E N E V A   C E R T I F I C A T E   A C C E S S
 //
 
-module genevaRpLogsCertCSIAccess '../modules/keyvault/keyvault-secret-access.bicep' = {
+module genevaRpLogsCertCSIAccess '../modules/keyvault/key-vault-secret-access.bicep' = {
   name: 'geneva-mgmt-rp-certificate'
   params: {
     keyVaultName: mgmtKeyVaultName
-    roleName: 'Key Vault Secrets User'
-    managedIdentityPrincipalIds: [mgmtCluster.outputs.aksClusterKeyVaultSecretsProviderPrincipalId]
+    principalId: mgmtCluster.outputs.aksClusterKeyVaultSecretsProviderPrincipalId
     secretName: genevaRpLogsName
   }
 }
 
-module genevaClusterLogsCertCSIAccess '../modules/keyvault/keyvault-secret-access.bicep' = {
+module genevaClusterLogsCertCSIAccess '../modules/keyvault/key-vault-secret-access.bicep' = {
   name: 'geneva-cluster-log-certificate'
   params: {
     keyVaultName: mgmtKeyVaultName
-    roleName: 'Key Vault Secrets User'
-    managedIdentityPrincipalIds: [mgmtCluster.outputs.aksClusterKeyVaultSecretsProviderPrincipalId]
+    principalId: mgmtCluster.outputs.aksClusterKeyVaultSecretsProviderPrincipalId
     secretName: genevaClusterLogsName
   }
 }
