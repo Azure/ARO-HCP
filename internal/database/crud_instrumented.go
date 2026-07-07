@@ -38,12 +38,14 @@ import (
 // They are kept as constants so the instrumented decorator and its tests refer
 // to exactly the same strings.
 const (
-	verbGetByID = "get_by_id"
-	verbGet     = "get"
-	verbList    = "list"
-	verbCreate  = "create"
-	verbReplace = "replace"
-	verbDelete  = "delete"
+	verbGetByID                 = "get_by_id"
+	verbGet                     = "get"
+	verbList                    = "list"
+	verbCreate                  = "create"
+	verbReplace                 = "replace"
+	verbDelete                  = "delete"
+	verbAddCreateToTransaction  = "add_create_to_transaction"
+	verbAddReplaceToTransaction = "add_replace_to_transaction"
 )
 
 // databaseRequestBuckets mirrors the latency buckets used by the
@@ -231,17 +233,22 @@ func (c *instrumentedCRUD[T, TP]) Delete(ctx context.Context, resourceID string)
 	return c.inner.Delete(ctx, resourceID)
 }
 
-// AddCreateToTransaction and AddReplaceToTransaction are intentionally NOT
-// instrumented. Neither performs a Cosmos request: they only enqueue an
-// operation onto the DBTransaction batch. The actual Cosmos call is made later,
-// once, by DBTransaction.Execute(). Recording a "request" here would inflate the
-// request counters with enqueue operations that never touch the database and
-// measure only enqueue time rather than execution latency, so these methods
-// delegate straight through to the wrapped CRUD.
-func (c *instrumentedCRUD[T, TP]) AddCreateToTransaction(ctx context.Context, transaction DBTransaction, newObj *T, opts *azcosmos.TransactionalBatchItemOptions) (string, error) {
+// AddCreateToTransaction and AddReplaceToTransaction measure the enqueue
+// operation: the time spent adding an op to the DBTransaction batch, not the
+// Cosmos round-trip. The batch is sent to Cosmos later, as a single request,
+// when DBTransaction.Execute() runs — that execution latency is captured
+// separately by Execute, not here. Instrumenting these keeps all eight
+// ResourceCRUD methods covered by the same counter and duration histogram; the
+// "code" label therefore reflects only enqueue errors, not the batch's eventual
+// execution result.
+func (c *instrumentedCRUD[T, TP]) AddCreateToTransaction(ctx context.Context, transaction DBTransaction, newObj *T, opts *azcosmos.TransactionalBatchItemOptions) (_ string, err error) {
+	start := time.Now()
+	defer func() { c.observe(verbAddCreateToTransaction, start, err) }()
 	return c.inner.AddCreateToTransaction(ctx, transaction, newObj, opts)
 }
 
-func (c *instrumentedCRUD[T, TP]) AddReplaceToTransaction(ctx context.Context, transaction DBTransaction, newObj *T, opts *azcosmos.TransactionalBatchItemOptions) (string, error) {
+func (c *instrumentedCRUD[T, TP]) AddReplaceToTransaction(ctx context.Context, transaction DBTransaction, newObj *T, opts *azcosmos.TransactionalBatchItemOptions) (_ string, err error) {
+	start := time.Now()
+	defer func() { c.observe(verbAddReplaceToTransaction, start, err) }()
 	return c.inner.AddReplaceToTransaction(ctx, transaction, newObj, opts)
 }

@@ -142,6 +142,14 @@ func TestInstrumentedCRUDRecordsMetrics(t *testing.T) {
 		{verbDelete, func(c ResourceCRUD[fakeResource, *fakeResource]) error {
 			return c.Delete(ctx, "resource-id")
 		}},
+		{verbAddCreateToTransaction, func(c ResourceCRUD[fakeResource, *fakeResource]) error {
+			_, err := c.AddCreateToTransaction(ctx, nil, &fakeResource{}, nil)
+			return err
+		}},
+		{verbAddReplaceToTransaction, func(c ResourceCRUD[fakeResource, *fakeResource]) error {
+			_, err := c.AddReplaceToTransaction(ctx, nil, &fakeResource{}, nil)
+			return err
+		}},
 	}
 
 	// A dedicated registry keeps this test's series isolated from every other
@@ -163,6 +171,51 @@ func TestInstrumentedCRUDRecordsMetrics(t *testing.T) {
 				"counter should increment by one for a successful %s", tc.verb)
 			assert.Equal(t, beforeSamples+1, histogramSampleCount(t, metrics, tc.verb, resourceTypeLabel, "200"),
 				"histogram should record one observation for a successful %s", tc.verb)
+		})
+	}
+}
+
+// TestInstrumentedCRUDTransactionMethodErrors verifies that the two batch
+// enqueue methods (AddCreateToTransaction, AddReplaceToTransaction) record the
+// request counter and duration histogram on the error path, with the "code"
+// label derived from the returned error, and that the success ("200") series is
+// left untouched when the enqueue fails.
+func TestInstrumentedCRUDTransactionMethodErrors(t *testing.T) {
+	ctx := context.Background()
+
+	cases := []struct {
+		verb string
+		call func(ResourceCRUD[fakeResource, *fakeResource]) error
+	}{
+		{verbAddCreateToTransaction, func(c ResourceCRUD[fakeResource, *fakeResource]) error {
+			_, err := c.AddCreateToTransaction(ctx, nil, &fakeResource{}, nil)
+			return err
+		}},
+		{verbAddReplaceToTransaction, func(c ResourceCRUD[fakeResource, *fakeResource]) error {
+			_, err := c.AddReplaceToTransaction(ctx, nil, &fakeResource{}, nil)
+			return err
+		}},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.verb, func(t *testing.T) {
+			// A dedicated registry per case keeps each series isolated so the
+			// absolute assertions below are stable.
+			reg := prometheus.NewRegistry()
+			metrics := sharedDatabaseMetrics(reg)
+			resourceType := azcorearm.NewResourceType("test.txnerr", tc.verb)
+			resourceTypeLabel := sanitizeResourceType(resourceType)
+			wantErr := &azcore.ResponseError{StatusCode: http.StatusConflict}
+			crud := NewInstrumentedCRUD[fakeResource, *fakeResource](&mockCRUD{err: wantErr}, resourceType, reg)
+
+			require.Error(t, tc.call(crud), "enqueue should return the configured error")
+
+			assert.Equal(t, float64(1), counterValue(t, metrics, tc.verb, resourceTypeLabel, "409"),
+				"counter should increment once for a failed %s", tc.verb)
+			assert.Equal(t, uint64(1), histogramSampleCount(t, metrics, tc.verb, resourceTypeLabel, "409"),
+				"histogram should record one observation for a failed %s", tc.verb)
+			assert.Zero(t, counterValue(t, metrics, tc.verb, resourceTypeLabel, "200"),
+				"success counter should be untouched on the error path for %s", tc.verb)
 		})
 	}
 }
