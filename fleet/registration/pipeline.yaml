@@ -81,6 +81,8 @@ resourceGroups:
     releaseNamespace: '{{ .fleet.k8s.namespace }}'
     chartDir: ./deploy
     valuesFile: ./values.yaml
+    namespaceFiles:
+    - namespace.yaml
     kustoEndpoint:
       resourceGroup: kusto
       step: kusto-lookup
