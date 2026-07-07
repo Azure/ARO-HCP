@@ -27,7 +27,6 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/api"
-	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -50,7 +49,6 @@ import (
 // without round-tripping to CS — the only signal that the previously-applied
 // property still needs to be cleared from CS.
 type desiredControlPlaneSizeSyncer struct {
-	cooldownChecker              controllerutil.CooldownChecker
 	serviceProviderClusterLister listers.ServiceProviderClusterLister
 	clusterLister                listers.ClusterLister
 	resourcesDBClient            database.ResourcesDBClient
@@ -65,7 +63,6 @@ var _ controllerutils.ClusterSyncer = (*desiredControlPlaneSizeSyncer)(nil)
 func NewDesiredControlPlaneSizeController(
 	resourcesDBClient database.ResourcesDBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
-	activeOperationLister listers.ActiveOperationLister,
 	informers informers.BackendInformers,
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 ) controllerutils.Controller {
@@ -73,7 +70,6 @@ func NewDesiredControlPlaneSizeController(
 	_, clusterLister := informers.Clusters()
 
 	syncer := &desiredControlPlaneSizeSyncer{
-		cooldownChecker:              controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
 		serviceProviderClusterLister: serviceProviderClusterLister,
 		clusterLister:                clusterLister,
 		resourcesDBClient:            resourcesDBClient,
@@ -88,10 +84,6 @@ func NewDesiredControlPlaneSizeController(
 		5*time.Minute,
 		syncer,
 	)
-}
-
-func (c *desiredControlPlaneSizeSyncer) CooldownChecker() controllerutil.CooldownChecker {
-	return c.cooldownChecker
 }
 
 // NeedsWork reports whether ServiceProviderCluster.Spec.DesiredHostedClusterControlPlaneSize

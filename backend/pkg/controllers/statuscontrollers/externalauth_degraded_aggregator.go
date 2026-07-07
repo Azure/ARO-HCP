@@ -27,7 +27,6 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
-	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -36,7 +35,6 @@ import (
 // up onto HCPOpenShiftClusterExternalAuth.Status.Conditions. See the
 // package and clusterDegradedAggregator docs for the overall design.
 type externalAuthDegradedAggregator struct {
-	cooldownChecker    controllerutil.CooldownChecker
 	externalAuthLister listers.ExternalAuthLister
 	controllerLister   listers.ControllerLister
 	resourcesDBClient  database.ResourcesDBClient
@@ -66,7 +64,6 @@ func NewExternalAuthDegradedAggregatorController(
 	resourcesDBClient database.ResourcesDBClient,
 	externalAuthLister listers.ExternalAuthLister,
 	controllerLister listers.ControllerLister,
-	activeOperationLister listers.ActiveOperationLister,
 	informers informers.BackendInformers,
 	clock utilsclock.PassiveClock,
 ) controllerutils.Controller {
@@ -74,7 +71,6 @@ func NewExternalAuthDegradedAggregatorController(
 		clock = utilsclock.RealClock{}
 	}
 	syncer := &externalAuthDegradedAggregator{
-		cooldownChecker:    controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
 		externalAuthLister: externalAuthLister,
 		controllerLister:   controllerLister,
 		resourcesDBClient:  resourcesDBClient,
@@ -89,10 +85,6 @@ func NewExternalAuthDegradedAggregatorController(
 		1*time.Minute,
 		syncer,
 	)
-}
-
-func (c *externalAuthDegradedAggregator) CooldownChecker() controllerutil.CooldownChecker {
-	return c.cooldownChecker
 }
 
 func (c *externalAuthDegradedAggregator) SyncOnce(ctx context.Context, key controllerutils.HCPExternalAuthKey) error {

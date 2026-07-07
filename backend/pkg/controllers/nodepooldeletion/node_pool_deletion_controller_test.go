@@ -148,7 +148,6 @@ func TestNodePoolDeletionController_SyncOnce(t *testing.T) {
 			}
 
 			syncer := &nodePoolDeletionController{
-				cooldownChecker:               &alwaysSyncCooldownChecker{},
 				nodePoolLister:                &listertesting.SliceNodePoolLister{NodePools: nodePoolsForLister},
 				serviceProviderNodePoolLister: &listertesting.SliceServiceProviderNodePoolLister{ServiceProviderNodePools: spnpForLister},
 				resourcesDBClient:             mockResourcesDBClient,

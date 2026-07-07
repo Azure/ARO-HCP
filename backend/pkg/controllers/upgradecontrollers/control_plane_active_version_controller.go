@@ -26,7 +26,6 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
-	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/backend/pkg/maestrohelpers"
 	"github.com/Azure/ARO-HCP/internal/api"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
@@ -40,7 +39,6 @@ import (
 // versions in ServiceProviderCluster status by reading the version from the per-cluster
 // ReadDesire kubeContent (the kube-applier's mirror of the management cluster's HostedCluster).
 type controlPlaneActiveVersionSyncer struct {
-	cooldownChecker   controllerutil.CooldownChecker
 	resourcesDBClient database.ResourcesDBClient
 	readDesireLister  dblisters.ReadDesireLister
 }
@@ -52,13 +50,11 @@ var _ controllerutils.ClusterSyncer = (*controlPlaneActiveVersionSyncer)(nil)
 // observed HostedCluster.
 func NewControlPlaneActiveVersionController(
 	resourcesDBClient database.ResourcesDBClient,
-	activeOperationLister listers.ActiveOperationLister,
 	informers informers.BackendInformers,
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 	readDesireLister dblisters.ReadDesireLister,
 ) controllerutils.Controller {
 	syncer := &controlPlaneActiveVersionSyncer{
-		cooldownChecker:   controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
 		resourcesDBClient: resourcesDBClient,
 		readDesireLister:  readDesireLister,
 	}
@@ -71,10 +67,6 @@ func NewControlPlaneActiveVersionController(
 		5*time.Minute,
 		syncer,
 	)
-}
-
-func (c *controlPlaneActiveVersionSyncer) CooldownChecker() controllerutil.CooldownChecker {
-	return c.cooldownChecker
 }
 
 // SyncOnce updates ServiceProviderCluster.Status.ControlPlaneVersion.ActiveVersions

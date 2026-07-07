@@ -123,7 +123,6 @@ func TestExternalAuthDeletionController_SyncOnce(t *testing.T) {
 			}
 
 			syncer := &externalAuthDeletionController{
-				cooldownChecker:    &alwaysSyncCooldownChecker{},
 				externalAuthLister: &listertesting.SliceExternalAuthLister{ExternalAuths: externalAuthsForLister},
 				resourcesDBClient:  mockResourcesDBClient,
 			}

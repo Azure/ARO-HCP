@@ -53,12 +53,6 @@ const (
 	testNodePoolCSIDStr     = testClusterServiceIDStr + "/node_pools/" + testNodePoolName
 )
 
-type alwaysSyncCooldownChecker struct{}
-
-func (c *alwaysSyncCooldownChecker) CanSync(ctx context.Context, key any) bool {
-	return true
-}
-
 func TestNodePoolClusterServiceDeleteDispatchSyncer_SyncOnce(t *testing.T) {
 	fixedClockTime := time.Now().UTC().Truncate(time.Second)
 
@@ -260,7 +254,6 @@ func TestNodePoolClusterServiceDeleteDispatchSyncer_SyncOnce(t *testing.T) {
 
 			syncer := &nodePoolClusterServiceDeleteDispatchSyncer{
 				clock:                           clocktesting.NewFakePassiveClock(fixedClockTime),
-				cooldownChecker:                 &alwaysSyncCooldownChecker{},
 				nodePoolLister:                  &listertesting.SliceNodePoolLister{NodePools: nodePoolsForLister},
 				resourcesDBClient:               mockResourcesDBClient,
 				clusterServiceClient:            mockCSClient,
@@ -300,7 +293,6 @@ func TestNodePoolClusterServiceDeleteDispatchSyncer_SyncOnce_cacheShortCircuit(t
 
 	syncer := &nodePoolClusterServiceDeleteDispatchSyncer{
 		clock:                           clocktesting.NewFakePassiveClock(fixedClockTime),
-		cooldownChecker:                 &alwaysSyncCooldownChecker{},
 		nodePoolLister:                  &listertesting.SliceNodePoolLister{NodePools: []*api.HCPOpenShiftClusterNodePool{cachedNodePool}},
 		resourcesDBClient:               mockResourcesDBClient,
 		clusterServiceClient:            ocm.NewMockClusterServiceClientSpec(ctrl),
@@ -337,7 +329,6 @@ func TestNodePoolClusterServiceDeleteDispatchSyncer_SyncOnce_firstSeenDeletionCa
 	firstSeenDeletionTimestampCache := lru.New(10)
 	syncer := &nodePoolClusterServiceDeleteDispatchSyncer{
 		clock:                           clocktesting.NewFakePassiveClock(fixedClockTime),
-		cooldownChecker:                 &alwaysSyncCooldownChecker{},
 		nodePoolLister:                  &listertesting.SliceNodePoolLister{NodePools: []*api.HCPOpenShiftClusterNodePool{nodePool}},
 		resourcesDBClient:               mockResourcesDBClient,
 		clusterServiceClient:            ocm.NewMockClusterServiceClientSpec(ctrl),
@@ -381,7 +372,6 @@ func TestNodePoolClusterServiceDeleteDispatchSyncer_SyncOnce_firstSeenDeletionCa
 
 	syncer := &nodePoolClusterServiceDeleteDispatchSyncer{
 		clock:                           clocktesting.NewFakePassiveClock(fixedClockTime),
-		cooldownChecker:                 &alwaysSyncCooldownChecker{},
 		nodePoolLister:                  &listertesting.SliceNodePoolLister{NodePools: []*api.HCPOpenShiftClusterNodePool{nodePool}},
 		resourcesDBClient:               mockResourcesDBClient,
 		clusterServiceClient:            mockCSClient,

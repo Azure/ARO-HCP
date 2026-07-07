@@ -262,7 +262,6 @@ func TestDesiredControlPlaneSizeSyncer_SyncOnce(t *testing.T) {
 			}
 
 			syncer := &desiredControlPlaneSizeSyncer{
-				cooldownChecker:              &alwaysSyncCooldownChecker{},
 				serviceProviderClusterLister: serviceProviderClusterListerStub,
 				clusterLister:                clusterLister,
 				resourcesDBClient:            mockResourcesDBClient,

@@ -166,7 +166,6 @@ func TestNodePoolClusterServiceIDClearer_SyncOnce(t *testing.T) {
 			}
 
 			syncer := &nodePoolClusterServiceIDClearer{
-				cooldownChecker:      &alwaysSyncCooldownChecker{},
 				nodePoolLister:       &listertesting.SliceNodePoolLister{NodePools: nodePoolsForLister},
 				resourcesDBClient:    mockResourcesDBClient,
 				clusterServiceClient: mockCSClient,
