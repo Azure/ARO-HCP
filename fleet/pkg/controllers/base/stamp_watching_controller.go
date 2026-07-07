@@ -157,6 +157,11 @@ func NewStampWatchingController(
 // and consult the cooldown gate otherwise.
 func (c *StampWatchingController) QueueForInformers(resyncDuration time.Duration, notifiers ...Notifier) error {
 	errs := []error{}
+	logger := utils.DefaultLogger()
+	logger = logger.WithValues(
+		utils.LogValues{}.AddControllerName(c.name)...,
+	)
+
 	for _, notifier := range notifiers {
 		_, err := notifier.AddEventHandlerWithOptions(
 			cache.ResourceEventHandlerFuncs{
@@ -164,6 +169,7 @@ func (c *StampWatchingController) QueueForInformers(resyncDuration time.Duration
 				UpdateFunc: c.handleUpdate,
 			},
 			cache.HandlerOptions{
+				Logger:       &logger,
 				ResyncPeriod: &resyncDuration,
 			},
 		)

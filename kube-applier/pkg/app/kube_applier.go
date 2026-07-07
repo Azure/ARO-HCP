@@ -140,8 +140,8 @@ func (o *Options) runControllersUnderLeaderElection(
 	// scoped to this pod's MC; Listers() lists exactly that container's *Desires.
 	listers := o.KubeApplierDBClient.Listers()
 
-	applyInformer := informers.NewApplyDesireInformer(listers.ApplyDesires())
-	readInformer := informers.NewReadDesireInformer(listers.ReadDesires())
+	applyInformer := informers.NewApplyDesireInformer(listers.ApplyDesires(), o.KubeApplierDBClient)
+	readInformer := informers.NewReadDesireInformer(listers.ReadDesires(), o.KubeApplierDBClient)
 
 	collector := newDesireCollector(
 		applyInformer.GetStore(),

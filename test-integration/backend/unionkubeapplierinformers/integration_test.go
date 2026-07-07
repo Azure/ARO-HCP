@@ -223,7 +223,7 @@ func (factory *cosmosKubeApplierFactory) NewKubeApplierInformers(
 	if client == nil {
 		return nil
 	}
-	return dbinformers.NewKubeApplierInformersWithRelistDuration(ctx, client.Listers(), &factory.relistDuration)
+	return dbinformers.NewKubeApplierInformersWithRelistDuration(ctx, client.Listers(), client, &factory.relistDuration)
 }
 
 // applyDesireRecorder records the ApplyDesires that arrive through the

@@ -15,7 +15,6 @@
 package app
 
 import (
-	"context"
 	"fmt"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
@@ -31,9 +30,7 @@ import (
 // MC's container; the backend opens all of them via KubeApplierDBClients.
 // Credentials resolve via the Azure default credential chain (workload identity
 // in production).
-func NewKubeApplierDBClient(
-	ctx context.Context, cosmosDBURL, cosmosDBName, cosmosContainerName string, managementClusterPartitionKey *azcorearm.ResourceID,
-) (database.KubeApplierDBClient, error) {
+func NewKubeApplierDBClient(cosmosDBURL, cosmosDBName, cosmosContainerName string, managementClusterPartitionKey *azcorearm.ResourceID) (database.KubeApplierDBClient, error) {
 	clientOptions := azcore.ClientOptions{Cloud: cloud.AzurePublic}
 
 	cosmosDatabaseClient, err := database.NewCosmosDatabaseClient(cosmosDBURL, cosmosDBName, clientOptions)
@@ -44,6 +41,5 @@ func NewKubeApplierDBClient(
 	if err != nil {
 		return nil, utils.TrackError(fmt.Errorf("failed to create KubeApplierDBClient: %w", err))
 	}
-	_ = ctx
 	return client, nil
 }

@@ -53,5 +53,5 @@ func (factory *kubeApplierInformerFactory) NewKubeApplierInformers(
 	if client == nil {
 		return nil
 	}
-	return informers.NewKubeApplierInformersWithRelistDuration(ctx, client.Listers(), factory.relistDuration)
+	return informers.NewKubeApplierInformersWithRelistDuration(ctx, client.Listers(), client, factory.relistDuration)
 }

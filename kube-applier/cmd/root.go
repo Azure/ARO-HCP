@@ -15,7 +15,6 @@
 package cmd
 
 import (
-	"context"
 	"fmt"
 	"log/slog"
 	"os"
@@ -112,7 +111,7 @@ func (f *KubeApplierRootCmdFlags) validate() error {
 // ToKubeApplierOptions resolves flags into the wired Options that the app
 // layer consumes. Each external dependency (kubeconfig, leader-election lock,
 // Cosmos client) is constructed here so that Run() never sees raw flag values.
-func (f *KubeApplierRootCmdFlags) ToKubeApplierOptions(ctx context.Context, cmd *cobra.Command) (*app.Options, error) {
+func (f *KubeApplierRootCmdFlags) ToKubeApplierOptions() (*app.Options, error) {
 	kubeconfig, err := app.NewKubeconfig(f.Kubeconfig)
 	if err != nil {
 		return nil, utils.TrackError(fmt.Errorf("failed to create Kubernetes configuration: %w", err))
@@ -130,7 +129,7 @@ func (f *KubeApplierRootCmdFlags) ToKubeApplierOptions(ctx context.Context, cmd 
 	if err != nil {
 		return nil, utils.TrackError(fmt.Errorf("failed to parse management cluster resource ID: %w", err))
 	}
-	kubeApplierDBClient, err := app.NewKubeApplierDBClient(ctx, f.AzureCosmosDBURL, f.AzureCosmosDBName, f.AzureCosmosContainerName, managementClusterResourceID)
+	kubeApplierDBClient, err := app.NewKubeApplierDBClient(f.AzureCosmosDBURL, f.AzureCosmosDBName, f.AzureCosmosContainerName, managementClusterResourceID)
 	if err != nil {
 		return nil, utils.TrackError(fmt.Errorf("failed to create kube-applier Cosmos client: %w", err))
 	}
@@ -213,7 +212,7 @@ func RunRootCmd(cmd *cobra.Command, flags *KubeApplierRootCmdFlags) error {
 	ctx = utils.ContextWithLogger(ctx, logger)
 	klog.SetLogger(logger)
 
-	options, err := flags.ToKubeApplierOptions(ctx, cmd)
+	options, err := flags.ToKubeApplierOptions()
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to convert flags to options: %w", err))
 	}
