@@ -32,6 +32,7 @@ echo ""
 echo "Fetching CI monitoring endpoints..."
 
 : "${GLOBAL_RESOURCE_GROUP:?GLOBAL_RESOURCE_GROUP must be set (resource group containing the ci-monitoring deployment)}"
+
 export CI_DCR_URL=$(az deployment group show \
   --resource-group "${GLOBAL_RESOURCE_GROUP}" \
   --name ci-monitoring \
@@ -44,9 +45,11 @@ export CI_HCP_DCR_URL=$(az deployment group show \
   --query 'properties.outputs.ciHcpDcrRemoteWriteUrl.value' \
   -o tsv 2>/dev/null || echo "")
 
+# Set to "NONE" if empty (Prometheus template checks for "NONE" to disable remote write)
 if [ -z "$CI_HCP_DCR_URL" ]; then
   CI_HCP_DCR_URL="NONE"
 fi
+
 if [ -z "$CI_DCR_URL" ]; then
   echo "ERROR: Could not retrieve CI DCR remote write URL"
   echo "Ensure ci-monitoring deployment exists in resource group: ${GLOBAL_RESOURCE_GROUP}"
@@ -95,5 +98,5 @@ echo ""
 echo "These labels enable post-job analysis in Grafana even after cluster deletion."
 echo ""
 echo "Ready to deploy Prometheus with CI job metadata."
-echo "Use: make deploy-prometheus VALUES_FILE=$CI_VALUES_FILE"
+echo "Deploy using the templated values file: $CI_VALUES_FILE"
 echo ""

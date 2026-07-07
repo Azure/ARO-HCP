@@ -17,6 +17,9 @@ param grafanaResourceId string
 @description('Whether to create HCP workspace for CI')
 param createHcpWorkspace bool = false
 
+@description('Principal ID of the Prometheus workload identity that will write metrics')
+param prometheusPrincipalId string
+
 import * as res from '../modules/resource.bicep'
 
 var grafanaRef = res.grafanaRefFromId(grafanaResourceId)
@@ -168,6 +171,30 @@ resource ciHcpGrafanaRoleAssignment 'Microsoft.Authorization/roleAssignments@202
     principalId: grafana.identity.principalId
     principalType: 'ServicePrincipal'
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', dataReader)
+  }
+}
+
+// Prometheus Workload Identity - Grant Monitoring Metrics Publisher role on Services DCR
+var metricsPublisher = '3913510d-42f4-4e42-8a64-420c390055eb' // Monitoring Metrics Publisher role
+
+resource ciPrometheusMetricsPublisher 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(ciDcr.id, prometheusPrincipalId, metricsPublisher)
+  scope: ciDcr
+  properties: {
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', metricsPublisher)
+    principalId: prometheusPrincipalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
+// Prometheus Workload Identity - Grant Monitoring Metrics Publisher role on HCP DCR (if enabled)
+resource ciHcpPrometheusMetricsPublisher 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (createHcpWorkspace) {
+  name: guid(ciHcpDcr.id, prometheusPrincipalId, metricsPublisher)
+  scope: ciHcpDcr
+  properties: {
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', metricsPublisher)
+    principalId: prometheusPrincipalId
+    principalType: 'ServicePrincipal'
   }
 }
 
