@@ -73,7 +73,8 @@ func (l *listByExternalIDStep) StepID() StepID {
 func (l *listByExternalIDStep) RunTest(ctx context.Context, t *testing.T, stepInput StepInput) {
 	resourceCRUDClient := NewCosmosCRUD[api.Operation](t, stepInput.ResourcesDBClient, l.key.ParentResourceID, l.key.ResourceType.ResourceType)
 
-	operationsCRUD := any(resourceCRUDClient).(database.OperationCRUD)
+	operationsCRUD, ok := any(resourceCRUDClient).(database.OperationCRUD)
+	require.True(t, ok, "resource CRUD does not implement database.OperationCRUD")
 
 	externalID, err := azcorearm.ParseResourceID(l.key.ExternalID)
 	require.NoError(t, err, "failed to parse externalId from key")
