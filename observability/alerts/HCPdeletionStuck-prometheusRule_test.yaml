@@ -4,27 +4,27 @@ evaluation_interval: 1m
 tests:
 - interval: 1m
   input_series:
-  # Scenario 1: A cluster stuck deleting for > 2 hours, with prometheus shard duplicates
-  # start_time = 0 (epoch). At eval_time=130m (7800s), duration = 7800 > 7200.
-  # Alert has for: 5m, threshold crossed at 120m, fires at 125m. Eval at 130m confirms.
+  # Scenario 1: A cluster stuck deleting for > 3 hours, with prometheus shard duplicates
+  # start_time = 0 (epoch). At eval_time=190m (11400s), duration = 11400 > 10800.
+  # Alert has for: 5m, threshold crossed at 180m, fires at 185m. Eval at 190m confirms.
   # Two replicas (shard duplicates) — should produce only ONE alert via max by(...)
   # Replica 0
   - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/1/cluster/stuck-1", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="delete", phase="deleting", cluster="svc-1", prometheus_replica="prom-0"}'
-    values: "0+0x135"
+    values: "0+0x195"
   - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/stuck-1", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="delete", phase="deleting", cluster="svc-1", prometheus_replica="prom-0"}'
-    values: "1+0x135"
+    values: "1+0x195"
   # Replica 1
   - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/1/cluster/stuck-1", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="delete", phase="deleting", cluster="svc-1", prometheus_replica="prom-1"}'
-    values: "0+0x135"
+    values: "0+0x195"
   - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/stuck-1", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="delete", phase="deleting", cluster="svc-1", prometheus_replica="prom-1"}'
-    values: "1+0x135"
-  # Scenario 2: A cluster deleting but only for ~4800s at eval time (under threshold)
+    values: "1+0x195"
+  # Scenario 2: A cluster deleting but only for ~8400s at eval time (under 10800 threshold)
   - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/1/cluster/recent-1", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="delete", phase="deleting", cluster="svc-1", prometheus_replica="prom-0"}'
-    values: "3000+0x135"
+    values: "3000+0x195"
   - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/recent-1", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="delete", phase="deleting", cluster="svc-1", prometheus_replica="prom-0"}'
-    values: "1+0x135"
+    values: "1+0x195"
   alert_rule_test:
-  - eval_time: 130m
+  - eval_time: 190m
     alertname: HCPClusterStuckDeleting
     exp_alerts:
     - exp_labels:
@@ -35,5 +35,5 @@ tests:
         cluster: "svc-1"
       exp_annotations:
         summary: "svc-1: Cluster /sub/1/cluster/stuck-1 stuck deleting"
-        description: "Cluster /sub/1/cluster/stuck-1 has been in a deleting state for more than 2 hours. \nThis may indicate that finalizers are stuck or resources are failing to cleanup.\n"
+        description: "Cluster /sub/1/cluster/stuck-1 has been in a deleting state for more than 3 hours. \nThis may indicate that finalizers are stuck or resources are failing to cleanup.\n"
         runbook_url: TBD

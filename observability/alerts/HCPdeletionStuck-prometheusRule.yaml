@@ -24,11 +24,11 @@ spec:
               phase="deleting"
             }
           ) == 1
-        ) > 7200
+        ) > 10800
       for: 5m
       labels:
         severity: warning
       annotations:
         summary: "{{ $labels.cluster }}: Cluster {{ $labels.resource_id }} stuck deleting"
-        description: "Cluster {{ $labels.resource_id }} has been in a deleting state for more than 2 hours. \nThis may indicate that finalizers are stuck or resources are failing to cleanup.\n"
+        description: "Cluster {{ $labels.resource_id }} has been in a deleting state for more than 3 hours. \nThis may indicate that finalizers are stuck or resources are failing to cleanup.\n"
         runbook_url: TBD
