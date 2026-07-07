@@ -79,6 +79,18 @@ param alertEventsEventHubNamespaceName string = ''
 @description('Event Hub name for alert events')
 param alertEventsEventHubName string = ''
 
+@description('Whether the SRE IcM action group is wired to SRE alert rules. When false, SRE rules still evaluate in Prometheus but do not deliver to IcM.')
+param icmEnabledSRE bool = true
+
+@description('Whether the SL IcM action group is wired to SL alert rules. When false, SL rules still evaluate in Prometheus but do not deliver to IcM.')
+param icmEnabledSL bool = true
+
+@description('Whether the RP IcM action group is wired to RP alert rules. When false, RP rules still evaluate in Prometheus but do not deliver to IcM.')
+param icmEnabledRP bool = true
+
+@description('Whether the MSFT IcM action group is wired to MSFT alert rules. When false, MSFT rules still evaluate in Prometheus but do not deliver to IcM.')
+param icmEnabledMSFT bool = true
+
 module actionGroups '../modules/metrics/actiongroups.bicep' = if (manageConnection) {
   name: 'actionGroups'
   params: {
@@ -117,16 +129,17 @@ module eventHubActionGroup '../modules/metrics/eventhub-actiongroup.bicep' = if 
 var ehActionGroups = eventHubAlertingEnabled ? [eventHubActionGroup!.outputs.actionGroupId] : []
 
 // Action group arrays per IcM team, combined with the Event Hub action group.
-// Each alert module receives one of these arrays, determining where its alerts route:
-//   - To IcM + Kusto: use one of the team-specific arrays (e.g., slActionGroups)
-//   - To Kusto only (no IcM): use ehActionGroups directly
-// This choice is made per module call below — one call per generated Bicep file.
-var slActionGroups = manageConnection ? concat([actionGroups!.outputs.actionGroupsSL], ehActionGroups) : ehActionGroups
-var rpActionGroups = manageConnection ? concat([actionGroups!.outputs.actionGroupsRP], ehActionGroups) : ehActionGroups
-var sreActionGroups = manageConnection
+// Each lane's icmEnabled flag is a second guard so that lane's rules can evaluate without delivering IcM tickets.
+var slActionGroups = manageConnection && icmEnabledSL
+  ? concat([actionGroups!.outputs.actionGroupsSL], ehActionGroups)
+  : ehActionGroups
+var rpActionGroups = manageConnection && icmEnabledRP
+  ? concat([actionGroups!.outputs.actionGroupsRP], ehActionGroups)
+  : ehActionGroups
+var sreActionGroups = manageConnection && icmEnabledSRE
   ? concat([actionGroups!.outputs.actionGroupsSRE], ehActionGroups)
   : ehActionGroups
-var msftActionGroups = manageConnection
+var msftActionGroups = manageConnection && icmEnabledMSFT
   ? concat([actionGroups!.outputs.actionGroupsMSFT], ehActionGroups)
   : ehActionGroups
 
