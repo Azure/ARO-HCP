@@ -54,11 +54,16 @@ type Pool struct {
 	Region                     string `yaml:"region"`
 	RegionMode                 string `yaml:"region_mode,omitempty"`
 	IdentityProvisioningRegion string `yaml:"identity_provisioning_region,omitempty"`
+	IdentityProvisioning       string `yaml:"identity_provisioning,omitempty"`
 	ResourceType               string `yaml:"resource_type"`
 	SlotCount                  int    `yaml:"slot_count"`
 	IdentityContainerPrefix    string `yaml:"identity_container_prefix"`
 	IdentityContainerCount     int    `yaml:"identity_container_count"`
 }
+
+const (
+	IdentityProvisioningUnmanaged = "unmanaged"
+)
 
 type ExpandedSlot struct {
 	Environment             string `yaml:"environment"`
@@ -163,10 +168,13 @@ func (c *Catalog) Validate() error {
 			pool.IdentityProvisioningRegion = strings.TrimSpace(pool.IdentityProvisioningRegion)
 			pool.ResourceType = strings.TrimSpace(pool.ResourceType)
 			pool.IdentityContainerPrefix = strings.TrimSpace(pool.IdentityContainerPrefix)
+			pool.IdentityProvisioning = strings.TrimSpace(pool.IdentityProvisioning)
 
 			switch {
 			case pool.SubscriptionName == "":
 				return fmt.Errorf("environment %q has a pool with empty subscription_name", environmentName)
+			case pool.IdentityProvisioning != "" && pool.IdentityProvisioning != IdentityProvisioningUnmanaged:
+				return fmt.Errorf("environment %q pool %s has invalid identity_provisioning %q (must be empty or %q)", environmentName, describePool(*pool), pool.IdentityProvisioning, IdentityProvisioningUnmanaged)
 			case pool.Region == "":
 				return fmt.Errorf("environment %q has a pool with empty region", environmentName)
 			case pool.RegionMode != RegionModeFixed && pool.RegionMode != RegionModeRuntimeSelected:
@@ -377,6 +385,10 @@ func (c *Catalog) FindSlotByResourceName(resourceName string) (*ExpandedSlot, er
 	}
 
 	return nil, fmt.Errorf("failed to find slot for leased resource %q", resourceName)
+}
+
+func (p Pool) IsUnmanaged() bool {
+	return p.IdentityProvisioning == IdentityProvisioningUnmanaged
 }
 
 func (p Pool) EffectiveRegionMode() string {

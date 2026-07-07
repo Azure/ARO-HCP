@@ -304,7 +304,7 @@ Jobs only consume the Boskos key and the static `msi-mock-pool.yaml` catalog at 
 When you need to change or debug identity leasing, start here:
 
 - [CI Execution](execution.md)
-- [DEV E2E Subscription Onboarding](dev-e2e-subscription-onboarding.md)
+- [E2E Subscription Onboarding](e2e-subscription-onboarding.md)
 - [slot-manager design](../../test/cmd/aro-hcp-tests/slot-manager/DESIGN.md)
 - ARO HCP test framework: `test/util/framework/identities_helper.go`
 - slot-managed identity-pool code: `test/cmd/aro-hcp-tests/slot-manager/identity-pool/`
@@ -325,7 +325,7 @@ When you need to change or debug identity leasing, start here:
 
 - [CI Overview](README.md)
 - [CI Execution](execution.md)
-- [DEV E2E Subscription Onboarding](dev-e2e-subscription-onboarding.md)
+- [E2E Subscription Onboarding](e2e-subscription-onboarding.md)
 - [CI Quota Monitoring](quota-monitoring.md)
 - [CI Operations](operations.md)
 - [CI EV2 Integration](ev2-integration.md)
