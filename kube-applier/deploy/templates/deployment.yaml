@@ -37,6 +37,7 @@ spec:
           matchLabels:
             app: kube-applier
       serviceAccountName: '{{ .Values.serviceAccount.name }}'
+      priorityClassName: service-lifecycle-critical
       containers:
       - name: kube-applier
         image: '{{ .Values.deployment.imageName }}'
