@@ -104,7 +104,7 @@ func (c *caBundleSync) SyncOnce(ctx context.Context, key controllerutils.HCPClus
 
 	// Read the current ServiceProviderCluster and check if the CA bundle
 	// needs updating.
-	spc, err := c.serviceProviderClusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
+	serviceProviderCluster, err := c.serviceProviderClusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if database.IsNotFoundError(err) {
 		return nil
 	}
@@ -112,13 +112,13 @@ func (c *caBundleSync) SyncOnce(ctx context.Context, key controllerutils.HCPClus
 		return utils.TrackError(fmt.Errorf("failed to get ServiceProviderCluster: %w", err))
 	}
 
-	if spc.Status.ServingCABundle == caBundlePEM {
+	if serviceProviderCluster.Status.ServingCABundle == caBundlePEM {
 		// No change needed.
 		return nil
 	}
 
 	// Update the CA bundle.
-	replacement := spc.DeepCopy()
+	replacement := serviceProviderCluster.DeepCopy()
 	replacement.Status.ServingCABundle = caBundlePEM
 	if _, err := c.resourcesDBClient.ServiceProviderClusters(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName).Replace(ctx, replacement, nil); err != nil {
 		if database.IsPreconditionFailedError(err) {
