@@ -124,6 +124,10 @@ func (c *ChangeFeedListWatcher[InternalAPIType, InternalAPITypePointer, CosmosAP
 }
 
 func (c *ChangeFeedListWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPIType]) Watch(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
+	logger := utils.LoggerFromContext(ctx)
+	logger.Info("watching")
+	defer logger.Info("returned watcher")
+
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
@@ -227,8 +231,8 @@ func (c *ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPITyp
 		AddResourceTypes(c.desiredResourceTypes...)...)
 	ctx = utils.ContextWithLogger(ctx, logger)
 
-	logger.Info("starting change feed watcher")
-	defer logger.Info("finished change feed watcher")
+	logger.Info("starting change feed watchers")
+	defer logger.Info("finished change feed watchers")
 
 	var wg sync.WaitGroup
 	defer wg.Wait()
@@ -236,7 +240,14 @@ func (c *ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPITyp
 	ctx, cancel := context.WithCancelCause(ctx)
 	defer cancel(fmt.Errorf("finished"))
 
-	feedRanges := c.changeFeedClient.GetFeedRanges()
+	feedRanges, err := c.changeFeedClient.GetFeedRanges(ctx)
+	if err != nil {
+		retErr := utils.TrackError(err)
+		utilruntime.HandleError(retErr)
+		c.Stop()
+		cancel(retErr)
+		return
+	}
 
 	// Initialize the workqueue with feed ranges.
 	for _, feedRange := range feedRanges {
@@ -402,8 +413,8 @@ func (c *ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPITyp
 func (c *ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPIType]) runReadFeedRangeFn(feedRange azcosmos.FeedRange) func(ctx context.Context) {
 	return func(ctx context.Context) {
 		logger := utils.LoggerFromContext(ctx)
-		logger.Info("starting reading feed range")
-		defer logger.Info("finished reading feed range")
+		logger.V(4).Info("starting reading feed range")
+		defer logger.V(4).Info("finished reading feed range")
 
 		err := c.readFeedRange(ctx, feedRange)
 		if err != nil {
@@ -430,7 +441,7 @@ func (c *ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPITyp
 			options.FeedRange = api.Ptr(feedRange)
 		}
 
-		logger.Info("reading feed range", "options", options)
+		logger.V(4).Info("reading feed range", "options", options)
 		response, err := c.changeFeedClient.GetChangeFeed(ctx, options)
 		if err != nil {
 			return utils.TrackError(err)

@@ -43,6 +43,11 @@ type MockResourcesDBClient struct {
 
 	// globalListers is an optional custom global listers implementation for testing
 	globalListers database.ResourcesGlobalListers
+
+	// changeFeed records each successful StoreDocument call so the
+	// production change-feed consumer can be exercised against the
+	// in-memory mock the same way it is against real Cosmos.
+	changeFeed mockChangeFeed
 }
 
 // NewMockResourcesDBClient creates a new mock ResourcesDBClient with empty storage.
@@ -112,6 +117,28 @@ func (m *MockResourcesDBClient) ServiceProviderClusters(subscriptionID, resource
 func (m *MockResourcesDBClient) ServiceProviderNodePools(subscriptionID, resourceGroupName, clusterName, nodePoolName string) database.ResourceCRUD[api.ServiceProviderNodePool, *api.ServiceProviderNodePool] {
 	nodePoolResourceID := api.Must(api.ToNodePoolResourceID(subscriptionID, resourceGroupName, clusterName, nodePoolName))
 	return newMockServiceProviderNodePoolCRUD(m, nodePoolResourceID)
+}
+
+// GetChangeFeed reads the in-memory change-feed log. Each
+// successful StoreDocument call records a snapshot of the document;
+// reads return everything past the position encoded in
+// options.Continuation. Deletes are not recorded, which mirrors
+// "latest version" mode in real Cosmos DB.
+func (m *MockResourcesDBClient) GetChangeFeed(ctx context.Context, options *azcosmos.ChangeFeedOptions) (azcosmos.ChangeFeedResponse, error) {
+	var continuation string
+	if options != nil && options.Continuation != nil {
+		continuation = *options.Continuation
+	}
+	docs, nextToken, hasNew := m.changeFeed.read(continuation)
+	return buildMockChangeFeedResponse(docs, nextToken, hasNew), nil
+}
+
+// GetFeedRanges returns the single feed range the mock
+// advertises. Real Cosmos may report many ranges; one is enough for
+// the in-memory mock because there is no partition-level parallelism
+// to model.
+func (m *MockResourcesDBClient) GetFeedRanges(ctx context.Context) ([]azcosmos.FeedRange, error) {
+	return []azcosmos.FeedRange{mockChangeFeedFeedRange}, nil
 }
 
 // LoadFromDirectory loads cosmos-record context data from a directory.
@@ -192,11 +219,14 @@ func (m *MockResourcesDBClient) ListAllDocuments(ctx context.Context) ([]*databa
 	return results, nil
 }
 
-// StoreDocument stores a raw JSON document in the mock database.
+// StoreDocument stores a raw JSON document in the mock database and
+// appends it to the in-memory change-feed log so that consumers of
+// GetChangeFeed see the mutation.
 func (m *MockResourcesDBClient) StoreDocument(cosmosID string, data json.RawMessage) {
 	m.mu.Lock()
-	defer m.mu.Unlock()
 	m.documents[strings.ToLower(cosmosID)] = data
+	m.mu.Unlock()
+	m.changeFeed.record(data)
 }
 
 // GetDocument retrieves a raw JSON document from the mock database.

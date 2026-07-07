@@ -152,7 +152,7 @@ func (s *stubFactory) NewKubeApplierInformers(
 		s.missCntr.Add(1)
 		return nil
 	}
-	inf := informers.NewKubeApplierInformersWithRelistDuration(ctx, mock.Listers(), &s.relist)
+	inf := informers.NewKubeApplierInformersWithRelistDuration(ctx, mock.Listers(), mock, &s.relist)
 	s.mu.Lock()
 	s.started = append(s.started, &stubFactoryRun{rid: rid, inf: inf})
 	s.mu.Unlock()
