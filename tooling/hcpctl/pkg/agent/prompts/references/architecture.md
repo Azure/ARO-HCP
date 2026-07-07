@@ -9,21 +9,25 @@ A customer operation (e.g. create cluster) flows through the following component
 
 ```
 Customer → ARM → Frontend → Backend (async) → Clusters Service → Maestro → HyperShift
+                                    └→ kube-applier (desires) ────────────────┘
 ```
 
 1. **ARM** delivers the request to the **Frontend** (RP), which validates it and creates an async operation.
-2. The **Backend** picks up the async operation, translates it into Clusters Service API calls. Over time,
-   the backend will take over from CS; check the codebase for clear distinction of responsibilities.
+2. The **Backend** picks up the async operation, translates it into Clusters Service API calls, and may also
+   write kube-applier desires to Cosmos for direct management-cluster changes. Over time, the backend will take
+   over from CS; check the codebase for clear distinction of responsibilities.
 3. **Clusters Service** (CS) manages the cluster/nodepool lifecycle via its own state machine, producing
    Maestro resource bundles that describe the desired state on the management cluster.
 4. **Maestro server** delivers those bundles to the management cluster as ManifestWork objects.
-5. **Maestro agent** applies the objects to the management cluster and pushes status back to the server. 
-5. **HyperShift** reconciles HostedCluster and NodePool custom resources on the management cluster,
+5. **Maestro agent** applies the objects to the management cluster and pushes status back to the server.
+6. **Kube Applier** (on each management cluster) reconciles backend `ApplyDesire` / `DeleteDesire` / `ReadDesire`
+   documents from Cosmos against the local kube-apiserver.
+7. **HyperShift** reconciles HostedCluster and NodePool custom resources on the management cluster,
    creating the actual control plane pods in a hosted-control-plane namespace.
 
 ## Topology
 
-- **Management clusters**: Run HyperShift, Maestro agent, and hosted control planes for many customers.
+- **Management clusters**: Run HyperShift, Maestro agent, kube-applier, and hosted control planes for many customers.
 - **Service clusters**: Run the Frontend, Backend, Clusters Service, and Maestro server.
 - Each environment has its own Kusto cluster with two databases:
   - **Service database**: Frontend, Backend, and Clusters Service logs.
@@ -42,6 +46,33 @@ Each cluster resource maps to downstream objects:
 - Maestro bundle IDs and ManifestWork names
 - A HyperShift HostedCluster in a namespace on the management cluster
 - A HyperShift HostedControlPlane in its own namespace (`<hc-namespace>-<hc-name>`)
+
+## Kubernetes events
+
+The `kube-events` collector on each service and management cluster ingests Kubernetes API **Event** objects into
+**`ServiceLogs.kubernetesEvents`**. Filter by `cluster`, `eventNamespace`, `objectKind`, `objectName`, `reason`, and
+`message`. Snapshot summaries (`hypershift/controlPlaneEvents`, `hypershift/events`, `maestro/events`, …) all query
+this table in the Service database.
+
+This is not mgmt-agent output: K8s Events report API-level reasons (mount failures, scheduling, probes). Use mgmt-agent
+`pod event` logs when you need container waiting/termination timelines that Events do not capture.
+
+## mgmt-agent resource snapshots and pod state change logs (management cluster)
+
+mgmt-agent runs on each management cluster. Besides reconcilers (SWIFT NIC capacity on nodes, optional
+kube-state-metrics per HCP), it includes two **watch-only** informers that log full object snapshots to
+Kusto on every relevant change:
+
+| Watcher | Log message | When emitted | Typical use |
+|---|---|---|---|
+| **ResourceWatcher** | `resource event` | Add/Update/Delete on discovered API groups (Hypershift, ACM, CAPI, `multitenancy.acn.azure.com`, …) | CR status timelines — e.g. `PodNetworkInstance` readiness |
+| **PodWatcher** | `pod event` | Pod add/delete; pod update when a container's state **type** changes (`waiting`→`running`, etc.) | Control plane pod lifecycle without scraping container logs |
+
+PodWatcher does not emit on field-level changes within the same state type (for example a new `waiting.reason` while still `waiting`).
+
+Both log from container `mgmt-agent-controller` into the **Service** Kusto database (`containerLogs` table,
+`cluster` = management cluster name). Fields include `log.event`, `log.namespace`, `log.name`, and a full
+`log.object` payload.
 
 ## Key Repositories
 

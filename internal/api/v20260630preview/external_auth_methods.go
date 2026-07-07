@@ -16,7 +16,6 @@ package v20260630preview
 
 import (
 	"strings"
-	"time"
 
 	"k8s.io/utils/ptr"
 
@@ -94,16 +93,6 @@ func (h *ExternalAuth) ConvertToInternal(existing *api.HCPOpenShiftClusterExtern
 	if h.Properties != nil {
 		if h.Properties.ProvisioningState != nil {
 			out.Properties.ProvisioningState = arm.ProvisioningState(*h.Properties.ProvisioningState)
-		}
-
-		if h.Properties.Condition != nil {
-			out.Properties.Condition = api.ExternalAuthCondition{
-				Type:               api.ExternalAuthConditionType(ptr.Deref(h.Properties.Condition.Type, "")),
-				Status:             api.ConditionStatusType(ptr.Deref(h.Properties.Condition.Status, "")),
-				LastTransitionTime: ptr.Deref(h.Properties.Condition.LastTransitionTime, time.Time{}),
-				Reason:             ptr.Deref(h.Properties.Condition.Reason, ""),
-				Message:            ptr.Deref(h.Properties.Condition.Message, ""),
-			}
 		}
 
 		if h.Properties.Issuer != nil {
@@ -207,19 +196,6 @@ func normalizeTokenClaimValidationRule(p *generated.TokenClaimValidationRule, ou
 
 type HcpOpenShiftClusterExternalAuth struct {
 	generated.ExternalAuth
-}
-
-func newExternalAuthCondition(from *api.ExternalAuthCondition) generated.ExternalAuthCondition {
-	if from == nil {
-		return generated.ExternalAuthCondition{}
-	}
-	return generated.ExternalAuthCondition{
-		Type:               api.PtrOrNil(generated.ExternalAuthConditionType(from.Type)),
-		Status:             api.PtrOrNil(generated.StatusType(from.Status)),
-		LastTransitionTime: api.PtrOrNil(from.LastTransitionTime),
-		Reason:             api.PtrOrNil(from.Reason),
-		Message:            api.PtrOrNil(from.Message),
-	}
 }
 
 func newTokenIssuerProfile(from *api.TokenIssuerProfile) generated.TokenIssuerProfile {
@@ -328,7 +304,7 @@ func (v version) NewHCPOpenShiftClusterExternalAuth(from *api.HCPOpenShiftCluste
 			SystemData: api.PtrOrNil(newSystemData(from.SystemData)),
 			Properties: &generated.ExternalAuthProperties{
 				ProvisioningState: api.PtrOrNil(generated.ExternalAuthProvisioningState(from.Properties.ProvisioningState)),
-				Condition:         api.PtrOrNil(newExternalAuthCondition(&from.Properties.Condition)),
+				Status:            newResourceStatus(from.Status.Conditions),
 				Issuer:            api.PtrOrNil(newTokenIssuerProfile(&from.Properties.Issuer)),
 				Claim:             api.PtrOrNil(newExternalAuthClaimProfile(&from.Properties.Claim)),
 			},

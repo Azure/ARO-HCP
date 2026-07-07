@@ -47,7 +47,7 @@ const (
 	testNodePoolName              = "test-nodepool"
 	testExternalAuthName          = "test-external-auth"
 	testClusterServiceIDStr       = "/api/clusters_mgmt/v1/clusters/abc123"
-	testNodePoolIDStr             = "/api/clusters_mgmt/v1/clusters/abc123/node_pools/np123"
+	testNodePoolIDStr             = "/api/aro_hcp/v1alpha1/clusters/abc123/node_pools/test-nodepool"
 	testExternalAuthIDStr         = "/api/clusters_mgmt/v1/clusters/abc123/external_auth_config/external_auths/ea123"
 	testBreakGlassCredentialIDStr = "/api/clusters_mgmt/v1/clusters/abc123/break_glass_credentials/bgc123"
 	testOperationName             = "test-operation-id"

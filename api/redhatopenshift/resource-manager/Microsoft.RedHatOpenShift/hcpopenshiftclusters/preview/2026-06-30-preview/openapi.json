@@ -1568,6 +1568,81 @@
         }
       }
     },
+    "Condition": {
+      "type": "object",
+      "description": "Condition represents an observation of a resource's state.",
+      "properties": {
+        "type": {
+          "$ref": "#/definitions/ConditionType",
+          "description": "Type of the condition.\nThis is a PascalCase identifier representing the type of the condition.",
+          "maxLength": 316,
+          "pattern": "^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?([A-Za-z0-9]([-A-Za-z0-9_.]*[A-Za-z0-9])?)$",
+          "readOnly": true
+        },
+        "status": {
+          "$ref": "#/definitions/StatusType",
+          "description": "The status of the condition.",
+          "readOnly": true
+        },
+        "lastTransitionTime": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The last time the condition transitioned from one status to another.",
+          "readOnly": true
+        },
+        "reason": {
+          "type": "string",
+          "description": "A programmatic identifier indicating the reason for the condition's last transition.\nThis value should be a CamelCase string.",
+          "minLength": 1,
+          "maxLength": 1024,
+          "pattern": "^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$",
+          "readOnly": true
+        },
+        "message": {
+          "type": "string",
+          "description": "A human readable message indicating details about the transition.\nThis may be an empty string.",
+          "maxLength": 32768,
+          "readOnly": true
+        }
+      },
+      "required": [
+        "type",
+        "status",
+        "lastTransitionTime",
+        "reason",
+        "message"
+      ]
+    },
+    "ConditionType": {
+      "type": "string",
+      "description": "Representation of the possible condition types.",
+      "enum": [
+        "Available",
+        "Degraded",
+        "Progressing"
+      ],
+      "x-ms-enum": {
+        "name": "ConditionType",
+        "modelAsString": true,
+        "values": [
+          {
+            "name": "Available",
+            "value": "Available",
+            "description": "Indicates that the resource is available."
+          },
+          {
+            "name": "Degraded",
+            "value": "Degraded",
+            "description": "Indicates that the resource is in a degraded state."
+          },
+          {
+            "name": "Progressing",
+            "value": "Progressing",
+            "description": "Indicates that the resource is in a progressing state."
+          }
+        ]
+      }
+    },
     "ConsoleProfile": {
       "type": "object",
       "description": "Configuration of the cluster web console",
@@ -1877,75 +1952,6 @@
         ]
       }
     },
-    "ExternalAuthCondition": {
-      "type": "object",
-      "description": "Condition defines an observation of the external auth state.",
-      "properties": {
-        "type": {
-          "$ref": "#/definitions/ExternalAuthConditionType",
-          "description": "This is a PascalCase (or in foo.example.com/PascalCase) code to represent the type of condition.",
-          "readOnly": true
-        },
-        "status": {
-          "$ref": "#/definitions/StatusType",
-          "description": "The status of the condition.",
-          "readOnly": true
-        },
-        "lastTransitionTime": {
-          "type": "string",
-          "format": "date-time",
-          "description": "The last time the condition transitioned from one status to another.",
-          "readOnly": true
-        },
-        "reason": {
-          "type": "string",
-          "description": "This contains a programmatic identifier indicating the reason for the condition's last transition.",
-          "readOnly": true
-        },
-        "message": {
-          "type": "string",
-          "description": "This is a human readable message indicating details about the transition.\nThis may be an empty string.",
-          "readOnly": true
-        }
-      },
-      "required": [
-        "type",
-        "status",
-        "lastTransitionTime",
-        "reason",
-        "message"
-      ]
-    },
-    "ExternalAuthConditionType": {
-      "type": "string",
-      "description": "Representation of the possible types of a external auths condition.",
-      "enum": [
-        "Available",
-        "Degraded",
-        "Progressing"
-      ],
-      "x-ms-enum": {
-        "name": "ExternalAuthConditionType",
-        "modelAsString": true,
-        "values": [
-          {
-            "name": "Available",
-            "value": "Available",
-            "description": "Indicates that the external auth resource is available."
-          },
-          {
-            "name": "Degraded",
-            "value": "Degraded",
-            "description": "Indicates that the external auth resource is in a degraded state."
-          },
-          {
-            "name": "Progressing",
-            "value": "Progressing",
-            "description": "Indicates that the external auth resource is in a progressing state."
-          }
-        ]
-      }
-    },
     "ExternalAuthListResult": {
       "type": "object",
       "description": "The response of a ExternalAuth list operation.",
@@ -1976,9 +1982,9 @@
           "description": "Provisioning state",
           "readOnly": true
         },
-        "condition": {
-          "$ref": "#/definitions/ExternalAuthCondition",
-          "description": "An observation of the current state with additional information.",
+        "status": {
+          "$ref": "#/definitions/ResourceStatus",
+          "description": "Status of the external auth resource",
           "readOnly": true
         },
         "issuer": {
@@ -2256,6 +2262,14 @@
             "create"
           ]
         },
+        "ingress": {
+          "$ref": "#/definitions/IngressProfile",
+          "description": "The cluster ingress configuration",
+          "x-ms-mutability": [
+            "read",
+            "create"
+          ]
+        },
         "platform": {
           "$ref": "#/definitions/PlatformProfile",
           "description": "Azure platform configuration",
@@ -2317,6 +2331,11 @@
             "read",
             "create"
           ]
+        },
+        "status": {
+          "$ref": "#/definitions/ResourceStatus",
+          "description": "Status of the cluster resource",
+          "readOnly": true
         }
       },
       "required": [
@@ -2557,6 +2576,47 @@
       "type": "string",
       "description": "ImageRepository describes a repository for container images.",
       "maxLength": 255
+    },
+    "IngressProfile": {
+      "type": "object",
+      "description": "Information about the Ingress of a cluster.",
+      "properties": {
+        "type": {
+          "type": "string",
+          "description": "The type of the default cluster ingress.",
+          "default": "Public",
+          "enum": [
+            "Public",
+            "Private",
+            "Disabled"
+          ],
+          "x-ms-enum": {
+            "name": "IngressType",
+            "modelAsString": true,
+            "values": [
+              {
+                "name": "Public",
+                "value": "Public",
+                "description": "The default ingress is visible from the internet."
+              },
+              {
+                "name": "Private",
+                "value": "Private",
+                "description": "The default ingress is not visible from the internet."
+              },
+              {
+                "name": "Disabled",
+                "value": "Disabled",
+                "description": "The default ingress is disabled."
+              }
+            ]
+          },
+          "x-ms-mutability": [
+            "read",
+            "create"
+          ]
+        }
+      }
     },
     "KeyVaultVisibility": {
       "type": "string",
@@ -2950,6 +3010,11 @@
             "update",
             "create"
           ]
+        },
+        "status": {
+          "$ref": "#/definitions/ResourceStatus",
+          "description": "Status of the node pool resource",
+          "readOnly": true
         }
       },
       "required": [
@@ -3422,6 +3487,24 @@
       },
       "readOnly": true
     },
+    "ResourceStatus": {
+      "type": "object",
+      "description": "ResourceStatus represents the observed status of the resource.",
+      "properties": {
+        "conditions": {
+          "type": "array",
+          "description": "The conditions on the resource",
+          "maxItems": 10,
+          "items": {
+            "$ref": "#/definitions/Condition"
+          },
+          "readOnly": true,
+          "x-ms-identifiers": [
+            "type"
+          ]
+        }
+      }
+    },
     "RoleDefinition": {
       "type": "object",
       "description": "A single role definition required by a given operator",
@@ -3457,7 +3540,7 @@
     },
     "StatusType": {
       "type": "string",
-      "description": "Representation of the possible values of a external auths condition status.",
+      "description": "Representation of the possible values of a condition status.",
       "enum": [
         "True",
         "False",

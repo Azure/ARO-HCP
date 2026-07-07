@@ -110,10 +110,16 @@ var _ = Describe("Nodepool Ephemeral OS Disk", func() {
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster %s", customerClusterName)
 
+			By("selecting a VM size that supports ephemeral OS disks")
+			vmSize, err := tc.SelectVMSize(ctx, framework.EphemeralOSDiskWorkerVMSizeSelector())
+			Expect(err).NotTo(HaveOccurred(), "failed to select a VM size with ephemeral OS disk support; "+
+				"this typically indicates a SKU restriction or quota issue in the test subscription/region")
+
 			By("creating nodepool with ephemeral OS disk and autoRepair enabled")
 			nodePoolParams := framework.NewDefaultNodePoolParams20251223()
 			nodePoolParams.ClusterName = customerClusterName
 			nodePoolParams.NodePoolName = customerNodePoolName
+			nodePoolParams.VMSize = vmSize
 			nodePoolParams.DiskType = hcpsdk20251223preview.OsDiskTypeEphemeral
 			nodePoolParams.AutoRepair = true
 			err = tc.CreateNodePoolFromParam20251223(

@@ -52,7 +52,6 @@ out at the type level by keeping two separate client surfaces:
 // at construction; methods never take a management cluster argument.
 type KubeApplierDBClient interface {
     ApplyDesires(parent ResourceParent) (ResourceCRUD[kubeapplier.ApplyDesire], error)
-    DeleteDesires(parent ResourceParent) (ResourceCRUD[kubeapplier.DeleteDesire], error)
     ReadDesires(parent ResourceParent) (ResourceCRUD[kubeapplier.ReadDesire], error)
 
     // Listers across this container (one MC's worth of data).
@@ -64,7 +63,6 @@ type KubeApplierDBClient interface {
 
 type KubeApplierListers interface {
     ApplyDesires() GlobalLister[kubeapplier.ApplyDesire]
-    DeleteDesires() GlobalLister[kubeapplier.DeleteDesire]
     ReadDesires() GlobalLister[kubeapplier.ReadDesire]
 }
 
@@ -144,7 +142,7 @@ func NewDBBackedManagementClusterLister(fleetClient FleetDBClient) ManagementClu
 ## Cosmos document wrapper
 
 We continue to use `GenericDocument[T]` as the cosmos envelope, and the
-type-switch in `convert_any.go` routes the three `*Desire` types through
+type-switch in `convert_any.go` routes the two `*Desire` types through
 `InternalToCosmosKubeApplier[T]`, which sets `partitionKey` from
 `spec.managementCluster`. This was the model in the single-container era and
 remains valid in the per-MC world: it just so happens that every document in

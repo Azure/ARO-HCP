@@ -4,13 +4,13 @@ connection information for a cosmos container.
 
 It reads content from cosmos that use the APIs from `internal/api/kubeapplier` to decide what actions to take.
 At a high level:
-1. `ApplyDesire` indicates a kube manifest in .spec.kubeContent to issues a server-side-apply for.
-   Success/failure to be written to the `.status.conditions["Successful"]` condition..
-2. `DeleteDesire` indicates a kube item in .spec.targetItem to issues a delete for.
-   Success/failure to be written to the `.status.conditions["Successful"]` condition..
-3. `ReadDesire` indicates a kube item in .spec.targetItem to issue a list/watch+informer for.
+1. `ApplyDesire` is a discriminated union with a `.spec.type` field that selects the operation:
+   - When `Type=ServerSideApply`: indicates a kube manifest in `.spec.serverSideApply.kubeContent` to issue a server-side-apply for.
+   - When `Type=Delete`: indicates a kube item in `.spec.targetItem` to issue a delete for.
+   Success/failure to be written to the `.status.conditions["Successful"]` condition.
+2. `ReadDesire` indicates a kube item in .spec.targetItem to issue a list/watch+informer for.
    The actual list/watch result to be written to `.status.kubeContent`.
-   Success/failure to be written to the `.status.conditions["Successful"]` condition..
+   Success/failure to be written to the `.status.conditions["Successful"]` condition.
 
 ## Scale
 The scale of the kube-applier is tiny: it covers a single management cluster.
@@ -21,10 +21,10 @@ We'll probably actually use a larger burst and smaller QPS, but it's an easy sca
 The scale of a region is larger, but is handled by cosmos so it will scale far beyond our needs.
 
 ## API structure
-The API types for this will live in `internal/api/kubeapplier`.
+The API types for this live in `internal/api/kubeapplier`.
 
-Every `*Desire` API will interact with a single kubernetes resource instance.
-We will not support lists, we will not support label selection, and we will not support list all.
+Every `*Desire` API interacts with a single kubernetes resource instance.
+Lists, label selection, and list all are not supported.
 This is for simplicity in reasoning about the status.
 We may eventually add support for `ReadManyDesire`, but only if we find a need for it.
 
@@ -33,7 +33,7 @@ Every `*Desire` API has a `.spec.managementCluster` field.
 This is the name of the management cluster that the `kube-applier` is running in.
 It matches the value the kube-applier binary was started with via `--management-cluster`,
 and it is used as the Cosmos partition key inside that management cluster's container.
-It is reasonably likely that will someday before an `*azcorearm.ResourceID`, but if that happens we'll adjust the string format first,
+It is reasonably likely that this will someday become an `*azcorearm.ResourceID`, but if that happens we'll adjust the string format first,
 rewrite everything, then change the type.
 No need to do so now since the type is a string.
 
@@ -41,8 +41,8 @@ No need to do so now since the type is a string.
 Each `*Desire` API a list of conditions.
 One of those conditions is the "Successful" condition.
 Successful is true if the operation succeeded.
-1. For ApplyDesire, this means a successful server-side-apply.
-2. For DeleteDesire, this means the item is no longer present in the cluster.
+1. For ApplyDesire with Type=ServerSideApply, this means a successful server-side-apply.
+2. For ApplyDesire with Type=Delete, this means the item is no longer present in the cluster.
    This is NOT the same as the delete call succeeded, remember that kubernetes has finalizers.
 3. For ReadDesire, this means the list/watch succeeded and the informer synced.
 
@@ -80,7 +80,6 @@ The golang types live in `internal/database`.
 `KubeApplierDBClient` is the per-container handle. It carries an open Cosmos container
 client plus the management cluster's partition-key value, and exposes:
 - `ApplyDesires(parent) ResourceCRUD[ApplyDesire]`
-- `DeleteDesires(parent) ResourceCRUD[DeleteDesire]`
 - `ReadDesires(parent) ResourceCRUD[ReadDesire]`
 - `Listers()` — per-container cross-type listers for feeding informers.
 - `UntypedCRUD(parentResourceID)` — TypedDocument prefix walk for cross-cutting cleanup.
@@ -101,7 +100,7 @@ The `internal/database/informers`, `internal/database/listers`, and
 `*Desire` APIs.
 
 ## Controller structure
-The `kube-applier` binary will be controller-based with many controllers structured similarly to the `backend` binary today.
+The `kube-applier` binary is controller-based with many controllers structured similarly to the `backend` binary.
 Instead of using the `Controller` type to communicate `Degraded` status, that will be communicated on the `*Desire` `.status.conditions["Degraded"]` field.
 Several controllers will exist
 
@@ -138,9 +137,15 @@ relaunch from a process restart — so it is not surfaced.
 
 When a `ReadDesire` is deleted, the `ReadDesireKubernetesController` instance will be stopped and discarded.
 
-### DeleteDesireController
-This controller will use the `DeleteDesire` informer to feed a sync function for `DeleteDesire` instances.
-When the sync loop runs, it will
+### ApplyDesireController
+This controller will use the `ApplyDesire` informer to feed a sync function for `ApplyDesire` instances.
+It handles both `Type=ServerSideApply` and `Type=Delete` via the discriminated union on `.spec.type`.
+
+When the sync loop runs for `Type=ServerSideApply`, it will
+1. issue a server-side apply with force for `.spec.serverSideApply.kubeContent`
+2. it will use the standard rules for `.status.conditions["Successful"]`
+
+When the sync loop runs for `Type=Delete`, it will
 1. issue a get for the `.spec.targetItem`
    1. If it doesn't exist, write success and return
    2. If it does exist and has a deletion timestamp, indicate
@@ -156,13 +161,7 @@ When the sync loop runs, it will
             2. `.status.conditions["Successful"].reason` is "WaitingForDeletion"
             3. `.status.conditions["Successful"].message` contains a message that includes the deletion timestamp and UID
             4. and return
-This controller must resync every 60 seconds.
-
-### ApplyDesireController
-This controller will use the `ApplyDesire` informer to feed a sync function for `ApplyDesire` instances.
-When the sync loop runs, it will
-1. issue a server-side apply with force the `.spec.kubeContent`
-2. it will use the standard rules for `.status.conditions["Successful"]`
+This controller must resync every 60 seconds for `Type=Delete` instances.
 
 #### Adopting existing resources
 SSA's `force=true` claims field ownership over fields the kube-applier writes
@@ -171,7 +170,7 @@ delete fields the prior owner wrote that are no longer in our object — those
 remain owned by the prior manager. Adopting resources that pre-date the
 kube-applier (e.g. created by hand or by maestro) therefore needs a one-time
 sweep to clear stale managedFields entries, or careful authoring of the
-ApplyDesire's `.spec.kubeContent` to cover every field of interest. We will
+ApplyDesire's `.spec.serverSideApply.kubeContent` to cover every field of interest. We will
 solve this case-by-case rather than baking adoption logic into the kube-applier.
 
 ## Testing

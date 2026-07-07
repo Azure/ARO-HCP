@@ -38,7 +38,7 @@ import (
 // informer.
 //
 // Add and Remove are serialized by mu so two concurrent registry mutations
-// can't interleave their six sub-registrations (three informers, three
+// can't interleave their four sub-registrations (two informers, two
 // listers). Readers on the individual union informers/listers do NOT take
 // mu — each underlying surface has its own internal lock, so each surface
 // presents a consistent view in isolation, but a reader that consults
@@ -49,26 +49,22 @@ import (
 type UnionKubeApplierInformers struct {
 	mu sync.Mutex
 
-	applyInformer  *UnionDesireInformer
-	deleteInformer *UnionDesireInformer
-	readInformer   *UnionDesireInformer
+	applyInformer *UnionDesireInformer
+	readInformer  *UnionDesireInformer
 
-	applyLister  *unionlisterskubeapplier.UnionDesireLister[kubeapplier.ApplyDesire]
-	deleteLister *unionlisterskubeapplier.UnionDesireLister[kubeapplier.DeleteDesire]
-	readLister   *unionlisterskubeapplier.UnionDesireLister[kubeapplier.ReadDesire]
+	applyLister *unionlisterskubeapplier.UnionDesireLister[kubeapplier.ApplyDesire]
+	readLister  *unionlisterskubeapplier.UnionDesireLister[kubeapplier.ReadDesire]
 }
 
 // NewUnionKubeApplierInformers returns an empty aggregator. Call Add to
 // register per-management-cluster KubeApplierInformers.
 func NewUnionKubeApplierInformers() *UnionKubeApplierInformers {
 	return &UnionKubeApplierInformers{
-		applyInformer:  NewUnionDesireInformer(),
-		deleteInformer: NewUnionDesireInformer(),
-		readInformer:   NewUnionDesireInformer(),
+		applyInformer: NewUnionDesireInformer(),
+		readInformer:  NewUnionDesireInformer(),
 
-		applyLister:  unionlisterskubeapplier.NewUnionDesireLister[kubeapplier.ApplyDesire](),
-		deleteLister: unionlisterskubeapplier.NewUnionDesireLister[kubeapplier.DeleteDesire](),
-		readLister:   unionlisterskubeapplier.NewUnionDesireLister[kubeapplier.ReadDesire](),
+		applyLister: unionlisterskubeapplier.NewUnionDesireLister[kubeapplier.ApplyDesire](),
+		readLister:  unionlisterskubeapplier.NewUnionDesireLister[kubeapplier.ReadDesire](),
 	}
 }
 
@@ -79,24 +75,19 @@ func (u *UnionKubeApplierInformers) ApplyDesires() (*UnionDesireInformer, lister
 	return u.applyInformer, u.applyLister
 }
 
-// DeleteDesires returns the union DeleteDesire informer and lister.
-func (u *UnionKubeApplierInformers) DeleteDesires() (*UnionDesireInformer, listers.DeleteDesireLister) {
-	return u.deleteInformer, u.deleteLister
-}
-
 // ReadDesires returns the union ReadDesire informer and lister.
 func (u *UnionKubeApplierInformers) ReadDesires() (*UnionDesireInformer, listers.ReadDesireLister) {
 	return u.readInformer, u.readLister
 }
 
 // Add registers a per-management-cluster KubeApplierInformers under the
-// given resourceID. The sub's three informers and three listers are wired
+// given resourceID. The sub's two informers and two listers are wired
 // into the matching union informers and listers under u.mu, so concurrent
 // callers see the registration atomically.
 //
 // Add does not start the sub-informer; the caller is responsible for that
 // (typically by calling sub.RunWithContext on a per-MC ctx). Re-Add under
-// the same resourceID replaces the previous registration on all six union
+// the same resourceID replaces the previous registration on all four union
 // surfaces.
 //
 // A nil resourceID or nil sub is a no-op. The error is non-nil only when a
@@ -107,7 +98,6 @@ func (u *UnionKubeApplierInformers) Add(managementClusterResourceID *azcorearm.R
 		return nil
 	}
 	applyInf, applyLister := sub.ApplyDesires()
-	deleteInf, deleteLister := sub.DeleteDesires()
 	readInf, readLister := sub.ReadDesires()
 
 	u.mu.Lock()
@@ -116,24 +106,18 @@ func (u *UnionKubeApplierInformers) Add(managementClusterResourceID *azcorearm.R
 	if err := u.applyInformer.Add(managementClusterResourceID, applyInf); err != nil {
 		return err
 	}
-	if err := u.deleteInformer.Add(managementClusterResourceID, deleteInf); err != nil {
-		u.applyInformer.Remove(managementClusterResourceID)
-		return err
-	}
 	if err := u.readInformer.Add(managementClusterResourceID, readInf); err != nil {
 		u.applyInformer.Remove(managementClusterResourceID)
-		u.deleteInformer.Remove(managementClusterResourceID)
 		return err
 	}
 
 	u.applyLister.Add(managementClusterResourceID, applyLister)
-	u.deleteLister.Add(managementClusterResourceID, deleteLister)
 	u.readLister.Add(managementClusterResourceID, readLister)
 	return nil
 }
 
 // Remove deregisters the sub-informers and sublisters previously Added for
-// the given resourceID across all six union surfaces. The sub-informers
+// the given resourceID across all four union surfaces. The sub-informers
 // themselves are not stopped — the caller owns that lifecycle. Unknown or
 // nil resourceID is a no-op.
 func (u *UnionKubeApplierInformers) Remove(managementClusterResourceID *azcorearm.ResourceID) {
@@ -144,17 +128,15 @@ func (u *UnionKubeApplierInformers) Remove(managementClusterResourceID *azcorear
 	defer u.mu.Unlock()
 
 	u.applyInformer.Remove(managementClusterResourceID)
-	u.deleteInformer.Remove(managementClusterResourceID)
 	u.readInformer.Remove(managementClusterResourceID)
 
 	u.applyLister.Remove(managementClusterResourceID)
-	u.deleteLister.Remove(managementClusterResourceID)
 	u.readLister.Remove(managementClusterResourceID)
 }
 
-// HasSynced returns true only when every sub-informer (across all three
+// HasSynced returns true only when every sub-informer (across both
 // *Desire types and every registered management cluster) has synced. An
 // empty union is vacuously synced.
 func (u *UnionKubeApplierInformers) HasSynced() bool {
-	return u.applyInformer.HasSynced() && u.deleteInformer.HasSynced() && u.readInformer.HasSynced()
+	return u.applyInformer.HasSynced() && u.readInformer.HasSynced()
 }

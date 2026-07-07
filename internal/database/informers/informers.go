@@ -33,9 +33,8 @@ import (
 // the kube-applier sees newly-created desires within one cycle even when the
 // expiring-watcher protocol drops events.
 const (
-	ApplyDesireRelistDuration  = 30 * time.Second
-	DeleteDesireRelistDuration = 30 * time.Second
-	ReadDesireRelistDuration   = 30 * time.Second
+	ApplyDesireRelistDuration = 30 * time.Second
+	ReadDesireRelistDuration  = 30 * time.Second
 )
 
 // desireIndexers is the standard set registered on every *Desire informer.
@@ -85,56 +84,6 @@ func NewApplyDesireInformerWithRelistDuration(
 	return cache.NewSharedIndexInformerWithOptions(
 		&listWatchWithoutWatchListSemantics{lw},
 		&kubeapplier.ApplyDesire{},
-		cache.SharedIndexInformerOptions{
-			// ResyncPeriod doubles as the informer's resync check period:
-			// per-handler resyncs cannot fire faster than this. Tying it to
-			// relistDuration keeps "how often the informer re-checks Cosmos"
-			// aligned with "how often handlers can be resynced," which is
-			// what kube-applier's cooldown-gated controllers want.
-			ResyncPeriod: relistDuration,
-			Indexers:     desireIndexers(),
-		},
-	)
-}
-
-// NewDeleteDesireInformer creates an unstarted SharedIndexInformer for DeleteDesires
-// using the default relist duration.
-func NewDeleteDesireInformer(lister database.GlobalLister[kubeapplier.DeleteDesire]) cache.SharedIndexInformer {
-	return NewDeleteDesireInformerWithRelistDuration(lister, DeleteDesireRelistDuration)
-}
-
-// NewDeleteDesireInformerWithRelistDuration creates an unstarted SharedIndexInformer
-// for DeleteDesires with a configurable relist duration.
-func NewDeleteDesireInformerWithRelistDuration(
-	lister database.GlobalLister[kubeapplier.DeleteDesire], relistDuration time.Duration,
-) cache.SharedIndexInformer {
-	lw := &cache.ListWatch{
-		ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
-			logger := utils.LoggerFromContext(ctx)
-			logger.Info("listing DeleteDesires")
-			defer logger.Info("finished listing DeleteDesires")
-
-			iter, err := lister.List(ctx, nil)
-			if err != nil {
-				return nil, err
-			}
-			list := &kubeapplier.DeleteDesireList{}
-			list.ResourceVersion = "0"
-			for _, d := range iter.Items(ctx) {
-				list.Items = append(list.Items, *d)
-			}
-			if err := iter.GetError(); err != nil {
-				return nil, err
-			}
-			return list, nil
-		},
-		WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
-			return newExpiringWatcher(ctx, relistDuration), nil
-		},
-	}
-	return cache.NewSharedIndexInformerWithOptions(
-		&listWatchWithoutWatchListSemantics{lw},
-		&kubeapplier.DeleteDesire{},
 		cache.SharedIndexInformerOptions{
 			// ResyncPeriod doubles as the informer's resync check period:
 			// per-handler resyncs cannot fire faster than this. Tying it to

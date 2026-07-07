@@ -201,9 +201,12 @@ func ToClusterCustomerPropertiesVersion(oldObj *api.HCPOpenShiftClusterCustomerP
 }
 
 var (
-	toCustomerDNS      = func(oldObj *api.HCPOpenShiftClusterCustomerProperties) *api.CustomerDNSProfile { return &oldObj.DNS }
-	toNetwork          = func(oldObj *api.HCPOpenShiftClusterCustomerProperties) *api.NetworkProfile { return &oldObj.Network }
-	toCustomerAPI      = func(oldObj *api.HCPOpenShiftClusterCustomerProperties) *api.CustomerAPIProfile { return &oldObj.API }
+	toCustomerDNS     = func(oldObj *api.HCPOpenShiftClusterCustomerProperties) *api.CustomerDNSProfile { return &oldObj.DNS }
+	toNetwork         = func(oldObj *api.HCPOpenShiftClusterCustomerProperties) *api.NetworkProfile { return &oldObj.Network }
+	toCustomerAPI     = func(oldObj *api.HCPOpenShiftClusterCustomerProperties) *api.CustomerAPIProfile { return &oldObj.API }
+	toCustomerIngress = func(oldObj *api.HCPOpenShiftClusterCustomerProperties) *api.CustomerIngressProfile {
+		return &oldObj.Ingress
+	}
 	toCustomerPlatform = func(oldObj *api.HCPOpenShiftClusterCustomerProperties) *api.CustomerPlatformProfile {
 		return &oldObj.Platform
 	}
@@ -235,6 +238,9 @@ func validateClusterCustomerProperties(ctx context.Context, op operation.Operati
 
 	// API                     CustomerAPIProfile                  `json:"api,omitempty"`
 	errs = append(errs, validateCustomerAPIProfile(ctx, op, fldPath.Child("api"), &newObj.API, safe.Field(oldObj, toCustomerAPI))...)
+
+	// Ingress                 CustomerIngressProfile              `json:"ingress,omitempty"`
+	errs = append(errs, validateCustomerIngressProfile(ctx, op, fldPath.Child("ingress"), &newObj.Ingress, safe.Field(oldObj, toCustomerIngress))...)
 
 	// Platform                CustomerPlatformProfile             `json:"platform,omitempty"`
 	errs = append(errs, immutableByReflect(ctx, op, fldPath.Child("platform"), &newObj.Platform, safe.Field(oldObj, toCustomerPlatform))...)
@@ -289,6 +295,9 @@ var (
 	toServiceProviderManagedIdentitiesDataPlaneIdentityURL = func(oldObj *api.HCPOpenShiftClusterServiceProviderProperties) *string {
 		return &oldObj.ManagedIdentitiesDataPlaneIdentityURL
 	}
+	toExperimentalFeaturesFIPSEnabled = func(oldObj *api.HCPOpenShiftClusterServiceProviderProperties) *bool {
+		return &oldObj.ExperimentalFeatures.FIPSEnabled
+	}
 )
 
 // ToClusterServiceProviderPropertiesClusterUID returns a pointer to the
@@ -340,6 +349,9 @@ func validateClusterServiceProviderProperties(ctx context.Context, op operation.
 		errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("clusterUID"), &newObj.ClusterUID, nil)...)
 	}
 	errs = append(errs, immutableByCompare(ctx, op, fldPath.Child("clusterUID"), &newObj.ClusterUID, safe.Field(oldObj, ToClusterServiceProviderPropertiesClusterUID))...)
+
+	// ExperimentalFeatures.FIPSEnabled is immutable
+	errs = append(errs, immutableByCompare(ctx, op, fldPath.Child("tags").Key(api.TagClusterFIPSEnabled), &newObj.ExperimentalFeatures.FIPSEnabled, safe.Field(oldObj, toExperimentalFeaturesFIPSEnabled))...)
 
 	return errs
 }
@@ -541,6 +553,21 @@ func validateCustomerAPIProfile(ctx context.Context, op operation.Operation, fld
 			nil, nil,
 			NoExtraWhitespace,
 		)...)
+
+	return errs
+}
+
+var (
+	toIngressType = func(oldObj *api.CustomerIngressProfile) *api.IngressType { return &oldObj.Type }
+)
+
+func validateCustomerIngressProfile(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.CustomerIngressProfile) field.ErrorList {
+	errs := field.ErrorList{}
+
+	// Type      IngressType `json:"type,omitempty"`
+	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("type"), &newObj.Type, nil)...)
+	errs = append(errs, immutableByCompare(ctx, op, fldPath.Child("type"), &newObj.Type, safe.Field(oldObj, toIngressType))...)
+	errs = append(errs, validate.Enum(ctx, op, fldPath.Child("type"), &newObj.Type, nil, api.ValidIngressTypes, nil)...)
 
 	return errs
 }

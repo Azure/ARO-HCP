@@ -48,7 +48,6 @@ var _ = Describe("Customer", func() {
 				azNodePoolName         = "autoscale-az"
 				azAutoscalingMin int32 = 3
 				azAutoscalingMax int32 = 500
-				availabilityZone       = "1"
 
 				noAZNodePoolName         = "autoscale-noaz"
 				noAZAutoscalingMin int32 = 3
@@ -61,9 +60,16 @@ var _ = Describe("Customer", func() {
 				Expect(err).NotTo(HaveOccurred(), "failed to assign pooled identity containers")
 			}
 
-			By("checking if the region supports availability zones")
-			hasAZ, err := tc.LocationHasAvailabilityZones(ctx, "Standard_D8s_v3")
-			Expect(err).NotTo(HaveOccurred(), "failed to check availability zone support")
+			By("resolving the default worker VM size and its usable availability zones")
+			workerVMSize, err := tc.SelectVMSize(ctx, framework.DefaultWorkerVMSizeSelector())
+			Expect(err).NotTo(HaveOccurred(), "failed to resolve the default worker VM size")
+			availableZones, err := tc.AvailableZones(ctx, workerVMSize)
+			Expect(err).NotTo(HaveOccurred(), "failed to resolve usable availability zones for worker VM size %s", workerVMSize)
+			hasAZ := len(availableZones) > 0
+			var availabilityZone string
+			if hasAZ {
+				availabilityZone = availableZones[0]
+			}
 
 			By("creating a resource group")
 			resourceGroup, err := tc.NewResourceGroup(ctx, "np-autoscaling", tc.Location())
@@ -123,9 +129,10 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create Kubernetes client from admin REST config")
 
 			if !hasAZ {
-				By("skipping AZ nodepool creation: region does not support availability zones")
+				By("skipping AZ nodepool creation: no usable availability zones for worker VM size " +
+					workerVMSize + " in " + tc.Location())
 			} else {
-				By("creating the AZ nodepool with 500 max replicas")
+				By("creating the AZ nodepool with 500 max replicas in availability zone " + availabilityZone)
 				azNodePoolParams := framework.NewDefaultNodePoolParams20240610()
 				azNodePoolParams.ClusterName = customerClusterName
 				azNodePoolParams.NodePoolName = azNodePoolName

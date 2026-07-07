@@ -68,6 +68,25 @@ type ClusterImageRegistryProfile struct {
 	State *ClusterImageRegistryState
 }
 
+// Condition represents an observation of a resource's state.
+type Condition struct {
+	// READ-ONLY; The last time the condition transitioned from one status to another.
+	LastTransitionTime *time.Time
+
+	// READ-ONLY; A human readable message indicating details about the transition. This may be an empty string.
+	Message *string
+
+	// READ-ONLY; A programmatic identifier indicating the reason for the condition's last transition. This value should be a
+	// CamelCase string.
+	Reason *string
+
+	// READ-ONLY; The status of the condition.
+	Status *StatusType
+
+	// READ-ONLY; Type of the condition. This is a PascalCase identifier representing the type of the condition.
+	Type *ConditionType
+}
+
 // ConsoleProfile - Configuration of the cluster web console
 type ConsoleProfile struct {
 	// READ-ONLY; The cluster web console URL endpoint
@@ -177,24 +196,6 @@ type ExternalAuthClientProfile struct {
 	ExtraScopes []*string
 }
 
-// ExternalAuthCondition - Condition defines an observation of the external auth state.
-type ExternalAuthCondition struct {
-	// READ-ONLY; The last time the condition transitioned from one status to another.
-	LastTransitionTime *time.Time
-
-	// READ-ONLY; This is a human readable message indicating details about the transition. This may be an empty string.
-	Message *string
-
-	// READ-ONLY; This contains a programmatic identifier indicating the reason for the condition's last transition.
-	Reason *string
-
-	// READ-ONLY; The status of the condition.
-	Status *StatusType
-
-	// READ-ONLY; This is a PascalCase (or in foo.example.com/PascalCase) code to represent the type of condition.
-	Type *ExternalAuthConditionType
-}
-
 // ExternalAuthListResult - The response of a ExternalAuth list operation.
 type ExternalAuthListResult struct {
 	// REQUIRED; The ExternalAuth items on this page
@@ -215,11 +216,11 @@ type ExternalAuthProperties struct {
 	// External Auth OIDC clients There must not be more than 20 entries and entries must have unique namespace/name pairs.
 	Clients []*ExternalAuthClientProfile
 
-	// READ-ONLY; An observation of the current state with additional information.
-	Condition *ExternalAuthCondition
-
 	// READ-ONLY; Provisioning state
 	ProvisioningState *ExternalAuthProvisioningState
+
+	// READ-ONLY; Status of the external auth resource
+	Status *ResourceStatus
 }
 
 // ExternalAuthPropertiesUpdate - External Auth profile
@@ -348,6 +349,9 @@ type HcpOpenShiftClusterProperties struct {
 	// WARNING: Updating this array will redeploy all node pools in the cluster.
 	ImageDigestMirrors []*ImageDigestMirror
 
+	// The cluster ingress configuration
+	Ingress *IngressProfile
+
 	// Cluster network configuration
 	Network *NetworkProfile
 
@@ -366,6 +370,9 @@ type HcpOpenShiftClusterProperties struct {
 
 	// READ-ONLY; The status of the last operation.
 	ProvisioningState *ProvisioningState
+
+	// READ-ONLY; Status of the cluster resource
+	Status *ResourceStatus
 }
 
 // HcpOpenShiftClusterPropertiesUpdate - HCP cluster properties
@@ -525,6 +532,12 @@ type ImageDigestMirror struct {
 	// * [*.]host
 	// for more information about the format, see: https://github.com/containers/image/blob/main/docs/containers-registries.conf.5.md#choosing-a-registry-toml-table
 	Source *string
+}
+
+// IngressProfile - Information about the Ingress of a cluster.
+type IngressProfile struct {
+	// The type of the default cluster ingress.
+	Type *IngressType
 }
 
 // KmsEncryptionProfile - Configure etcd encryption Key Management Service (KMS) key. Your Microsoft Entra application used
@@ -707,6 +720,9 @@ type NodePoolProperties struct {
 
 	// READ-ONLY; Provisioning state
 	ProvisioningState *ProvisioningState
+
+	// READ-ONLY; Status of the node pool resource
+	Status *ResourceStatus
 }
 
 // NodePoolPropertiesUpdate - Represents the node pool properties
@@ -921,6 +937,12 @@ type PlatformProfile struct {
 type PlatformProfileUpdate struct {
 	// The configuration that the operators of the cluster have to authenticate to Azure
 	OperatorsAuthentication *OperatorsAuthenticationProfileUpdate
+}
+
+// ResourceStatus represents the observed status of the resource.
+type ResourceStatus struct {
+	// READ-ONLY; The conditions on the resource
+	Conditions []*Condition
 }
 
 // RoleDefinition - A single role definition required by a given operator

@@ -671,12 +671,25 @@
         }
       ]
     },
+    "certificateContentType": {
+      "type": "string",
+      "enum": [
+        "x-pkcs12"
+      ]
+    },
     "certificateIssuer": {
       "type": "string",
       "enum": [
         "Self",
         "OneCertV2-PublicCA",
         "OneCertV2-PrivateCA"
+      ]
+    },
+    "certificateManage": {
+      "type": "string",
+      "enum": [
+        "Enabled",
+        "Disabled"
       ]
     },
     "clusterScopedIdentitiesConfig": {
@@ -1228,14 +1241,22 @@
         "issuer": {
           "$ref": "#/definitions/certificateIssuer"
         },
+        "san": {
+          "type": "string"
+        },
+        "contentType": {
+          "type": "string"
+        },
         "manage": {
-          "type": "boolean"
+          "$ref": "#/definitions/certificateManage"
         }
       },
       "additionalProperties": false,
       "required": [
         "name",
         "issuer",
+        "san",
+        "contentType",
         "manage"
       ]
     },
@@ -1341,14 +1362,23 @@
               "maxLength": 127,
               "pattern": "^[a-zA-Z0-9-]+$"
             },
+            "san": {
+              "type": "string",
+              "description": "SAN and CN for the sessiongate ingress certificate"
+            },
             "issuer": {
               "$ref": "#/definitions/certificateIssuer"
+            },
+            "contentType": {
+              "$ref": "#/definitions/certificateContentType"
             }
           },
           "additionalProperties": false,
           "required": [
             "name",
-            "issuer"
+            "san",
+            "issuer",
+            "contentType"
           ]
         }
       },
@@ -1495,14 +1525,23 @@
               "maxLength": 127,
               "pattern": "^[a-zA-Z0-9-]+$"
             },
+            "san": {
+              "type": "string",
+              "description": "SAN and CN for the admin API ingress certificate"
+            },
             "issuer": {
               "$ref": "#/definitions/certificateIssuer"
+            },
+            "contentType": {
+              "$ref": "#/definitions/certificateContentType"
             }
           },
           "additionalProperties": false,
           "required": [
             "name",
-            "issuer"
+            "san",
+            "issuer",
+            "contentType"
           ]
         }
       },
@@ -1577,14 +1616,23 @@
               "maxLength": 127,
               "pattern": "^[a-zA-Z0-9-]+$"
             },
+            "san": {
+              "type": "string",
+              "description": "SAN and CN for the frontend ingress certificate"
+            },
             "issuer": {
               "$ref": "#/definitions/certificateIssuer"
+            },
+            "contentType": {
+              "$ref": "#/definitions/certificateContentType"
             }
           },
           "additionalProperties": false,
           "required": [
             "name",
-            "issuer"
+            "san",
+            "issuer",
+            "contentType"
           ]
         },
         "exitOnPanic": {
@@ -1796,6 +1844,15 @@
             "adminCertificateDomain": {
               "type": "string"
             },
+            "adminCertSan": {
+              "type": "string"
+            },
+            "contentType": {
+              "type": "string"
+            },
+            "manage": {
+              "$ref": "#/definitions/certificateManage"
+            },
             "administrators": {
               "type": "object",
               "additionalProperties": false,
@@ -1811,9 +1868,6 @@
                 "alias",
                 "securityGroup"
               ]
-            },
-            "manageCertificates": {
-              "type": "boolean"
             },
             "certificateIssuer": {
               "$ref": "#/definitions/certificateIssuer"
@@ -1900,14 +1954,22 @@
                 "issuer": {
                   "$ref": "#/definitions/certificateIssuer"
                 },
+                "san": {
+                  "type": "string"
+                },
+                "contentType": {
+                  "type": "string"
+                },
                 "manage": {
-                  "type": "boolean"
+                  "$ref": "#/definitions/certificateManage"
                 }
               },
               "additionalProperties": false,
               "required": [
                 "name",
                 "issuer",
+                "san",
+                "contentType",
                 "manage"
               ]
             },
@@ -1987,6 +2049,10 @@
         "hostedControlPlaneLogsDatabase": {
           "type": "string"
         },
+        "monitoringEventsDatabase": {
+          "type": "string",
+          "description": "Name of the Kusto database for monitoring events (e.g. alert events from Event Hub)"
+        },
         "adminGroups": {
           "$ref": "#/definitions/csvPrincipalList",
           "description": "CSV separated list of AAD groups to grant AllDatabasesAdmin on the Kusto cluster."
@@ -1998,12 +2064,6 @@
         "viewerIdentities": {
           "$ref": "#/definitions/csvPrincipalList",
           "description": "CSV separated list of app/managed identity principals to grant AllDatabasesViewer on the Kusto cluster."
-        },
-        "crossClusterServiceLogsScript": {
-          "type": "string"
-        },
-        "crossClusterHostedControlPlaneLogsScript": {
-          "type": "string"
         },
         "enableAutoScale": {
           "type": "boolean"
@@ -2049,6 +2109,7 @@
         "tier",
         "serviceLogsDatabase",
         "hostedControlPlaneLogsDatabase",
+        "monitoringEventsDatabase",
         "adminGroups",
         "viewerGroups",
         "kustoName",
@@ -2095,6 +2156,30 @@
         "kustoConsumerGroupName",
         "kustoDataConnectionName",
         "rg"
+      ]
+    },
+    "alertEventsEventHub": {
+      "type": "object",
+      "description": "Configuration for the alert events Event Hub used to send alert firings to Kusto",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Name of the Event Hub entity for alert events"
+        },
+        "kustoConsumerGroupName": {
+          "type": "string",
+          "description": "Name of the consumer group for Kusto data connection"
+        },
+        "kustoDataConnectionName": {
+          "type": "string",
+          "description": "Name of the Kusto data connection for alert events"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "kustoConsumerGroupName",
+        "kustoDataConnectionName"
       ]
     },
     "mise": {
@@ -2310,12 +2395,16 @@
             },
             "digest": {
               "type": "string"
+            },
+            "repository": {
+              "type": "string"
             }
           },
           "required": [
             "subscriptionKey",
             "rg",
-            "digest"
+            "digest",
+            "repository"
           ]
         },
         "subscription": {
@@ -2634,10 +2723,6 @@
     "maestro": {
       "type": "object",
       "properties": {
-        "certDomain": {
-          "type": "string",
-          "description": "Optional SAN base domain for Maestro Eventgrid certificates. If missing, defaults to maestro.${dns.regionalSubdomain}.${dns.svcParentZoneName}"
-        },
         "certIssuer": {
           "$ref": "#/definitions/certificateIssuer"
         },
@@ -2646,6 +2731,10 @@
           "properties": {
             "mqttClientName": {
               "type": "string"
+            },
+            "certSAN": {
+              "type": "string",
+              "description": "SAN and CN for the Maestro server EventGrid certificate"
             },
             "managedIdentityName": {
               "type": "string"
@@ -2663,6 +2752,7 @@
           "additionalProperties": false,
           "required": [
             "mqttClientName",
+            "certSAN",
             "managedIdentityName",
             "loglevel",
             "k8s"
@@ -2674,6 +2764,10 @@
             "consumerName": {
               "type": "string",
               "maxLength": 128
+            },
+            "certSAN": {
+              "type": "string",
+              "description": "SAN and CN for the Maestro consumer EventGrid certificate"
             },
             "loglevel": {
               "type": "integer"
@@ -2697,6 +2791,7 @@
           "additionalProperties": false,
           "required": [
             "consumerName",
+            "certSAN",
             "loglevel",
             "sidecar",
             "managedIdentityName",
@@ -2864,6 +2959,26 @@
           "type": "boolean",
           "description": "Whether ICM alerting is enabled for this region. When false, action groups will be disabled."
         },
+        "alertSeverityCeiling": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4,
+          "description": "The minimum IcM severity level (highest priority) that alerts can fire at. Alerts with a severity more critical (lower number) than this ceiling will be degraded to this value. For example, setting this to 3 means SEV2 alerts will fire as SEV3. A value of 0 means no ceiling is applied."
+        },
+        "eventHubAlerting": {
+          "type": "object",
+          "description": "Configuration for sending alert events to an Event Hub for Kusto ingestion",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Whether to create the Event Hub action group for sending alerts to Kusto"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "enabled"
+          ]
+        },
         "icm": {
           "type": "object",
           "properties": {
@@ -2908,9 +3023,17 @@
           "type": "integer",
           "description": "Maximum active time series limit for Azure Monitor Workspace (2M initial, bump when hitting 50% utilization)"
         },
+        "maxActiveTimeSeriesMillions": {
+          "type": "integer",
+          "description": "Maximum active time series limit for Azure Monitor Workspace, expressed in millions (e.g. 2 = 2,000,000). Preferred over maxActiveTimeSeries to avoid scientific notation in Go rendering."
+        },
         "maxEventsPerMinute": {
           "type": "integer",
           "description": "Maximum events per minute limit for Azure Monitor Workspace (2M initial, bump when hitting 50% utilization)"
+        },
+        "maxEventsPerMinuteMillions": {
+          "type": "integer",
+          "description": "Maximum events per minute limit for Azure Monitor Workspace, expressed in millions (e.g. 2 = 2,000,000). Preferred over maxEventsPerMinute to avoid scientific notation in Go rendering."
         }
       },
       "additionalProperties": false,
@@ -3292,6 +3415,63 @@
         "ocp"
       ]
     },
+    "stgGlobalV2": {
+      "type": "object",
+      "description": "TRANSIENT: distinct globally-unique resource names for the parallel STG-global 'V2' pipelines that deploy into a dedicated STG-global subscription during coexistence with the shared subscription. Real values are set in the cloud overlay for stg; defaults are empty-sentinel. Removed once the migration is decommissioned.",
+      "properties": {
+        "acrSvcName": {
+          "type": "string"
+        },
+        "acrOcpName": {
+          "type": "string"
+        },
+        "globalKeyVaultName": {
+          "type": "string"
+        },
+        "genevaKeyVaultName": {
+          "type": "string"
+        },
+        "frontDoorName": {
+          "type": "string"
+        },
+        "frontDoorKeyVaultName": {
+          "type": "string"
+        },
+        "oidcStorageAccountName": {
+          "type": "string"
+        },
+        "svcParentZoneName": {
+          "type": "string"
+        },
+        "cxParentZoneName": {
+          "type": "string"
+        },
+        "kustoName": {
+          "type": "string"
+        },
+        "grafanaName": {
+          "type": "string"
+        },
+        "grafanaMajorVersion": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "acrSvcName",
+        "acrOcpName",
+        "globalKeyVaultName",
+        "genevaKeyVaultName",
+        "frontDoorName",
+        "frontDoorKeyVaultName",
+        "oidcStorageAccountName",
+        "svcParentZoneName",
+        "cxParentZoneName",
+        "kustoName",
+        "grafanaName",
+        "grafanaMajorVersion"
+      ]
+    },
     "releaseApprover": {
       "type": "object",
       "properties": {
@@ -3418,5 +3598,39 @@
     "acrDNSSuffix",
     "e2e",
     "entraAppOwnerIds"
+  ],
+  "x-cel-validations": [
+    {
+      "rule": "self.frontend.cert.san == 'rp.' + self.dns.regionalSubdomain + '.' + self.dns.svcParentZoneName",
+      "message": "frontend.cert.san must equal 'rp.' + dns.regionalSubdomain + '.' + dns.svcParentZoneName"
+    },
+    {
+      "rule": "self.adminApi.cert.san == 'admin.' + self.dns.regionalSubdomain + '.' + self.dns.svcParentZoneName",
+      "message": "adminApi.cert.san must equal 'admin.' + dns.regionalSubdomain + '.' + dns.svcParentZoneName"
+    },
+    {
+      "rule": "self.sessiongate.cert.san == 'sessiongate.' + self.dns.regionalSubdomain + '.' + self.dns.svcParentZoneName",
+      "message": "sessiongate.cert.san must equal 'sessiongate.' + dns.regionalSubdomain + '.' + dns.svcParentZoneName"
+    },
+    {
+      "rule": "self.maestro.server.certSAN == self.maestro.server.mqttClientName + '.maestro.' + self.dns.regionalSubdomain + '.' + self.dns.svcParentZoneName",
+      "message": "maestro.server.certSAN must equal mqttClientName + '.maestro.' + dns.regionalSubdomain + '.' + dns.svcParentZoneName"
+    },
+    {
+      "rule": "self.maestro.agent.certSAN == self.maestro.agent.consumerName + '.maestro.' + self.dns.regionalSubdomain + '.' + self.dns.svcParentZoneName",
+      "message": "maestro.agent.certSAN must equal consumerName + '.maestro.' + dns.regionalSubdomain + '.' + dns.svcParentZoneName"
+    },
+    {
+      "rule": "self.firstPartyAppCertificate.san == self.firstPartyAppCertificate.name + '.' + self.dns.svcParentZoneName",
+      "message": "firstPartyAppCertificate.san must equal firstPartyAppCertificate.name + '.' + dns.svcParentZoneName"
+    },
+    {
+      "rule": "self.geneva.actions.certificate.san == self.geneva.actions.certificate.name + '.' + self.dns.globalCertificatesDomain",
+      "message": "geneva.actions.certificate.san must equal geneva.actions.certificate.name + '.' + dns.globalCertificatesDomain"
+    },
+    {
+      "rule": "self.geneva.logs.adminCertSan == self.geneva.logs.adminCertName + '.' + self.geneva.logs.adminCertificateDomain",
+      "message": "geneva.logs.adminCertSan must equal geneva.logs.adminCertName + '.' + geneva.logs.adminCertificateDomain"
+    }
   ]
 }

@@ -1,0 +1,317 @@
+// Copyright 2025 Microsoft Corporation
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package framework
+
+import (
+	"errors"
+	"regexp"
+	"testing"
+
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v5"
+)
+
+const testLocation = "uksouth"
+
+type skuOpt func(*armcompute.ResourceSKU)
+
+func withCapability(name, value string) skuOpt {
+	return func(s *armcompute.ResourceSKU) {
+		s.Capabilities = append(s.Capabilities, &armcompute.ResourceSKUCapabilities{
+			Name:  to.Ptr(name),
+			Value: to.Ptr(value),
+		})
+	}
+}
+
+func withZones(location string, zones ...string) skuOpt {
+	return func(s *armcompute.ResourceSKU) {
+		zonePtrs := make([]*string, 0, len(zones))
+		for _, z := range zones {
+			zonePtrs = append(zonePtrs, to.Ptr(z))
+		}
+		s.LocationInfo = append(s.LocationInfo, &armcompute.ResourceSKULocationInfo{
+			Location: to.Ptr(location),
+			Zones:    zonePtrs,
+		})
+	}
+}
+
+func withLocationRestriction(location string) skuOpt {
+	return func(s *armcompute.ResourceSKU) {
+		s.Restrictions = append(s.Restrictions, &armcompute.ResourceSKURestrictions{
+			Type:       to.Ptr(armcompute.ResourceSKURestrictionsTypeLocation),
+			ReasonCode: to.Ptr(armcompute.ResourceSKURestrictionsReasonCodeNotAvailableForSubscription),
+			RestrictionInfo: &armcompute.ResourceSKURestrictionInfo{
+				Locations: []*string{to.Ptr(location)},
+			},
+			Values: []*string{to.Ptr(location)},
+		})
+	}
+}
+
+func withZoneRestriction(location string, zones ...string) skuOpt {
+	return func(s *armcompute.ResourceSKU) {
+		zonePtrs := make([]*string, 0, len(zones))
+		for _, z := range zones {
+			zonePtrs = append(zonePtrs, to.Ptr(z))
+		}
+		s.Restrictions = append(s.Restrictions, &armcompute.ResourceSKURestrictions{
+			Type:       to.Ptr(armcompute.ResourceSKURestrictionsTypeZone),
+			ReasonCode: to.Ptr(armcompute.ResourceSKURestrictionsReasonCodeNotAvailableForSubscription),
+			RestrictionInfo: &armcompute.ResourceSKURestrictionInfo{
+				Locations: []*string{to.Ptr(location)},
+				Zones:     zonePtrs,
+			},
+		})
+	}
+}
+
+func makeSKU(name, location string, opts ...skuOpt) *armcompute.ResourceSKU {
+	sku := &armcompute.ResourceSKU{
+		Name:         to.Ptr(name),
+		ResourceType: to.Ptr("virtualMachines"),
+		Locations:    []*string{to.Ptr(location)},
+	}
+	// Default LocationInfo with no zones so the SKU is advertised in the location.
+	sku.LocationInfo = []*armcompute.ResourceSKULocationInfo{{Location: to.Ptr(location)}}
+	for _, opt := range opts {
+		opt(sku)
+	}
+	return sku
+}
+
+func TestSelectVMSize(t *testing.T) {
+	dPattern := regexp.MustCompile(`^Standard_D\d+s_v[345]$`)
+
+	tests := []struct {
+		name     string
+		skus     []*armcompute.ResourceSKU
+		selector VMSizeSelector
+		want     string
+		wantErr  error
+	}{
+		{
+			name: "preferred SKU is chosen when usable",
+			skus: []*armcompute.ResourceSKU{
+				makeSKU("Standard_D8s_v3", testLocation, withCapability(capabilityVCPUs, "8")),
+				makeSKU("Standard_D8s_v5", testLocation, withCapability(capabilityVCPUs, "8")),
+			},
+			selector: VMSizeSelector{
+				Name:        "default-worker",
+				Preferred:   []string{"Standard_D8s_v3", "Standard_D8s_v5"},
+				NamePattern: dPattern,
+				MinVCPUs:    8,
+			},
+			want: "Standard_D8s_v3",
+		},
+		{
+			name: "first usable preferred wins when earlier is restricted",
+			skus: []*armcompute.ResourceSKU{
+				makeSKU("Standard_D8s_v3", testLocation, withCapability(capabilityVCPUs, "8"), withLocationRestriction(testLocation)),
+				makeSKU("Standard_D8s_v5", testLocation, withCapability(capabilityVCPUs, "8")),
+			},
+			selector: VMSizeSelector{
+				Name:      "default-worker",
+				Preferred: []string{"Standard_D8s_v3", "Standard_D8s_v5"},
+				MinVCPUs:  8,
+			},
+			want: "Standard_D8s_v5",
+		},
+		{
+			name: "falls back to deterministic sorted pick when no preferred usable",
+			skus: []*armcompute.ResourceSKU{
+				makeSKU("Standard_D8s_v3", testLocation, withCapability(capabilityVCPUs, "8"), withLocationRestriction(testLocation)),
+				makeSKU("Standard_D16s_v5", testLocation, withCapability(capabilityVCPUs, "16")),
+				makeSKU("Standard_D8s_v4", testLocation, withCapability(capabilityVCPUs, "8")),
+			},
+			selector: VMSizeSelector{
+				Name:        "default-worker",
+				Preferred:   []string{"Standard_D8s_v3"},
+				NamePattern: dPattern,
+				MinVCPUs:    8,
+			},
+			want: "Standard_D16s_v5", // sorts before Standard_D8s_v4
+		},
+		{
+			name: "SKU not advertised in location is excluded",
+			skus: []*armcompute.ResourceSKU{
+				makeSKU("Standard_D8s_v3", "westeurope", withCapability(capabilityVCPUs, "8")),
+			},
+			selector: VMSizeSelector{
+				Name:      "default-worker",
+				Preferred: []string{"Standard_D8s_v3"},
+				MinVCPUs:  8,
+			},
+			wantErr: ErrNoUsableVMSize,
+		},
+		{
+			name: "MinVCPUs filters out too-small SKUs",
+			skus: []*armcompute.ResourceSKU{
+				makeSKU("Standard_D2s_v3", testLocation, withCapability(capabilityVCPUs, "2")),
+			},
+			selector: VMSizeSelector{
+				Name:        "default-worker",
+				NamePattern: dPattern,
+				MinVCPUs:    8,
+			},
+			wantErr: ErrNoUsableVMSize,
+		},
+		{
+			name: "CPUArchitecture constraint is enforced",
+			skus: []*armcompute.ResourceSKU{
+				makeSKU("Standard_D4ps_v6", testLocation, withCapability(capabilityCPUArchitecture, "Arm64")),
+				makeSKU("Standard_D4s_v5", testLocation, withCapability(capabilityCPUArchitecture, "x64")),
+			},
+			selector: VMSizeSelector{
+				Name:            "arm64",
+				NamePattern:     regexp.MustCompile(`^Standard_`),
+				CPUArchitecture: "Arm64",
+			},
+			want: "Standard_D4ps_v6",
+		},
+		{
+			name: "RequireGPU selects only GPU SKUs",
+			skus: []*armcompute.ResourceSKU{
+				makeSKU("Standard_D8s_v3", testLocation, withCapability(capabilityVCPUs, "8")),
+				makeSKU("Standard_NC4as_T4_v3", testLocation, withCapability(capabilityGPUs, "1")),
+			},
+			selector: VMSizeSelector{
+				Name:        "gpu",
+				Preferred:   []string{"Standard_NC4as_T4_v3"},
+				NamePattern: regexp.MustCompile(`^Standard_N`),
+				RequireGPU:  true,
+			},
+			want: "Standard_NC4as_T4_v3",
+		},
+		{
+			name: "RequireZones excludes zoneless SKUs",
+			skus: []*armcompute.ResourceSKU{
+				makeSKU("Standard_D8s_v3", testLocation, withCapability(capabilityVCPUs, "8")),
+			},
+			selector: VMSizeSelector{
+				Name:         "zoned",
+				Preferred:    []string{"Standard_D8s_v3"},
+				RequireZones: true,
+			},
+			wantErr: ErrNoUsableVMSize,
+		},
+		{
+			name: "RequireZones accepts SKU with a non-restricted zone",
+			skus: []*armcompute.ResourceSKU{
+				makeSKU("Standard_D8s_v3", testLocation, withCapability(capabilityVCPUs, "8"), withZones(testLocation, "1", "2", "3")),
+			},
+			selector: VMSizeSelector{
+				Name:         "zoned",
+				Preferred:    []string{"Standard_D8s_v3"},
+				RequireZones: true,
+			},
+			want: "Standard_D8s_v3",
+		},
+		{
+			name: "RequireZones excludes SKU whose only zones are restricted",
+			skus: []*armcompute.ResourceSKU{
+				makeSKU("Standard_D8s_v3", testLocation,
+					withCapability(capabilityVCPUs, "8"),
+					withZones(testLocation, "1"),
+					withZoneRestriction(testLocation, "1"),
+				),
+			},
+			selector: VMSizeSelector{
+				Name:         "zoned",
+				Preferred:    []string{"Standard_D8s_v3"},
+				RequireZones: true,
+			},
+			wantErr: ErrNoUsableVMSize,
+		},
+		{
+			name: "NamePattern does not constrain preferred entries",
+			skus: []*armcompute.ResourceSKU{
+				makeSKU("Standard_NC4as_T4_v3", testLocation, withCapability(capabilityGPUs, "1")),
+			},
+			selector: VMSizeSelector{
+				Name:        "gpu",
+				Preferred:   []string{"Standard_NC4as_T4_v3"},
+				NamePattern: dPattern, // would not match the preferred name
+				RequireGPU:  true,
+			},
+			want: "Standard_NC4as_T4_v3",
+		},
+		{
+			name:     "no SKUs yields ErrNoUsableVMSize",
+			skus:     nil,
+			selector: VMSizeSelector{Name: "default-worker", Preferred: []string{"Standard_D8s_v3"}},
+			wantErr:  ErrNoUsableVMSize,
+		},
+		{
+			name: "RequireEphemeralOSDisk selects SKU with EphemeralOSDiskSupported=True",
+			skus: []*armcompute.ResourceSKU{
+				makeSKU("Standard_D8s_v5", testLocation, withCapability(capabilityVCPUs, "8")),
+				makeSKU("Standard_D8ds_v5", testLocation, withCapability(capabilityVCPUs, "8"), withCapability(capabilityEphemeralOSDiskSupported, "True")),
+			},
+			selector: VMSizeSelector{
+				Name:                   "ephemeral",
+				Preferred:              []string{"Standard_D8s_v5", "Standard_D8ds_v5"},
+				MinVCPUs:               8,
+				RequireEphemeralOSDisk: true,
+			},
+			want: "Standard_D8ds_v5",
+		},
+		{
+			name: "RequireEphemeralOSDisk excludes all SKUs when none support ephemeral",
+			skus: []*armcompute.ResourceSKU{
+				makeSKU("Standard_D8s_v5", testLocation, withCapability(capabilityVCPUs, "8")),
+			},
+			selector: VMSizeSelector{
+				Name:                   "ephemeral",
+				Preferred:              []string{"Standard_D8s_v5"},
+				NamePattern:            regexp.MustCompile(`^Standard_D`),
+				RequireEphemeralOSDisk: true,
+			},
+			wantErr: ErrNoUsableVMSize,
+		},
+		{
+			name: "RequireEphemeralOSDisk preferred ordering is preserved",
+			skus: []*armcompute.ResourceSKU{
+				makeSKU("Standard_D8s_v3", testLocation, withCapability(capabilityVCPUs, "8"), withCapability(capabilityEphemeralOSDiskSupported, "True")),
+				makeSKU("Standard_D8ds_v5", testLocation, withCapability(capabilityVCPUs, "8"), withCapability(capabilityEphemeralOSDiskSupported, "True")),
+			},
+			selector: VMSizeSelector{
+				Name:                   "ephemeral",
+				Preferred:              []string{"Standard_D8s_v3", "Standard_D8ds_v5"},
+				RequireEphemeralOSDisk: true,
+			},
+			want: "Standard_D8s_v3",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, _, err := selectVMSize(tt.skus, testLocation, tt.selector)
+			if tt.wantErr != nil {
+				if !errors.Is(err, tt.wantErr) {
+					t.Fatalf("expected error %v, got %v", tt.wantErr, err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if got != tt.want {
+				t.Fatalf("expected %q, got %q", tt.want, got)
+			}
+		})
+	}
+}

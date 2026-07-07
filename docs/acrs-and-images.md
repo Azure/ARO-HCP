@@ -28,7 +28,7 @@ Image mirroring ensures ARO HCP environments maintain current OpenShift releases
 
 ### ACR Cache Rules
 
-ACR Cache copies images from a connected registry over upon requesting the image the first time. It is configured for OCP Images in the corresponding bicep: [global-acr.bicep](..dev-infrastructure/templates/global-acr.bicep)
+ACR Cache copies images from a connected registry over upon requesting the image the first time. It is configured for OCP Images in the corresponding bicep: [global-acr.bicep](../dev-infrastructure/templates/global-acr.bicep)
 We rely on `quay.io/openshift-release-dev/*` images in all environments. 
 
 ### On-demand Sync

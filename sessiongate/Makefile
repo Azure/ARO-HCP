@@ -85,6 +85,13 @@ record-override: $(YQ) $(ORAS)
 
 # Dev work
 
+record-latest-override: $(YQ)
+	@../hack/record-latest-image-override.sh \
+		"$(ARO_HCP_IMAGE_ACR)" "$(ARO_HCP_IMAGE_REGISTRY)" \
+		"$(SESSION_GATE_GENERATED_IMAGE_REPOSITORY)" "$(DEPLOY_ENV)" \
+		"sessiongate" "$(OVERRIDE_CONFIG_FILE)" "$(YQ)"
+.PHONY: record-latest-override
+
 deploy: build-and-push record-override
 	make -C .. pipeline/SessionGate OVERRIDE_CONFIG_FILE=$(OVERRIDE_CONFIG_FILE)
 .PHONY: deploy

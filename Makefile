@@ -119,7 +119,6 @@ mocks: $(MOCKGEN) $(GOIMPORTS)
 .PHONY: mocks
 
 install-tools: $(BINGO) $(HELM_LINK) $(YQ_LINK) $(JQ) $(ORAS_LINK)
-	$(BINGO) get
 .PHONY: install-tools
 
 licenses: $(ADDLICENSE)
@@ -355,9 +354,8 @@ rebase:
 	hack/rebase-n-materialize.sh
 .PHONY: rebase
 
-validate-config-pipelines: $(YQ)
-	$(MAKE) -C tooling/templatize templatize
-	tooling/templatize/templatize pipeline validate --topology-config-file topology.yaml --service-config-file "$(CONFIG_FILE)" --dev-mode --dev-region $(shell $(YQ) '.environments[] | select(.name == "dev") | .defaults.region' <tooling/templatize/settings.yaml) $(ONLY_CHANGED)
+validate-config-pipelines: $(YQ) $(TEMPLATIZE)
+	$(TEMPLATIZE) pipeline validate --topology-config-file topology.yaml --service-config-file "$(CONFIG_FILE)" --dev-mode --dev-region $(shell $(YQ) '.environments[] | select(.name == "dev") | .defaults.region' <tooling/templatize/settings.yaml) $(ONLY_CHANGED)
 
 validate-changed-config-pipelines:
 	$(MAKE) validate-config-pipelines DEV_MODE="--dev-mode --dev-region uksouth" ONLY_CHANGED="--only-changed"
@@ -448,10 +446,37 @@ record-services-override: $(YQ) $(ORAS)
 .PHONY: record-services-override
 
 #
+# Query ACR for the latest image digest of each service (no build/push)
+#
+latest-services-override: $(YQ)
+	$(MAKE) -C frontend record-latest-override OVERRIDE_CONFIG_FILE=/tmp/_frontend-override.yaml &
+	$(MAKE) -C backend record-latest-override OVERRIDE_CONFIG_FILE=/tmp/_backend-override.yaml &
+	$(MAKE) -C admin record-latest-override OVERRIDE_CONFIG_FILE=/tmp/_admin-override.yaml &
+	$(MAKE) -C sessiongate record-latest-override OVERRIDE_CONFIG_FILE=/tmp/_sessiongate-override.yaml &
+	$(MAKE) -C mgmt-agent record-latest-override OVERRIDE_CONFIG_FILE=/tmp/_mgmt-agent-override.yaml &
+	$(MAKE) -C kube-applier record-latest-override OVERRIDE_CONFIG_FILE=/tmp/_kube-applier-override.yaml &
+	$(MAKE) -C fleet record-latest-override OVERRIDE_CONFIG_FILE=/tmp/_fleet-override.yaml &
+	wait
+	$(YQ) eval-all '. as $$item ireduce ({}; . * $$item)' \
+	  /tmp/_frontend-override.yaml \
+	  /tmp/_backend-override.yaml \
+	  /tmp/_admin-override.yaml \
+	  /tmp/_sessiongate-override.yaml \
+	  /tmp/_mgmt-agent-override.yaml \
+	  /tmp/_kube-applier-override.yaml \
+	  /tmp/_fleet-override.yaml \
+	  > $(PERS_OVERRIDE_FILE)
+.PHONY: latest-services-override
+
+#
 # One-Step Personal Dev Environment
 #
 ifeq ($(DEPLOY_ENV),$(filter $(DEPLOY_ENV),pers swft))
+ifdef USE_LATEST_IMAGES
+personal-dev-env: latest-services-override install-tools
+else
 personal-dev-env: build-services record-services-override install-tools
+endif
 	$(MAKE) entrypoint/Region OVERRIDE_CONFIG_FILE=$(PERS_OVERRIDE_FILE)
 	$(MAKE) infra.svc.aks.kubeconfig infra.mgmt.aks.kubeconfig infra.tracing infra.cosmos.access
 else

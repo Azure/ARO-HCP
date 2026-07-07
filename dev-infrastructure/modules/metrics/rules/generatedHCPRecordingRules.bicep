@@ -18,7 +18,7 @@ resource hcpKmsRecordingRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2
       }
       {
         record: 'hostedClusterAPI_kubeapiserver_available:ratio_avg_7d'
-        expression: 'avg by (name, namespace, _id, cluster) (avg_over_time(hostedClusterAPI_kubeapiserver_available{status="True"}[7d])) and on (name, namespace, _id, cluster) count by (name, namespace, _id, cluster) (hostedClusterAPI_kubeapiserver_available)'
+        expression: 'avg by (name, namespace, _id, cluster) (avg_over_time(hostedClusterAPI_kubeapiserver_available{status="True"}[1w])) and on (name, namespace, _id, cluster) count by (name, namespace, _id, cluster) (hostedClusterAPI_kubeapiserver_available)'
       }
       {
         record: 'hostedClusterAPI_kubeapiserver_available:ratio_avg_1d'
@@ -70,27 +70,19 @@ resource hcpKmsRecordingRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2
       }
       {
         record: 'hostedClusterAPI_kubeapiserver_available:sli_sum_15m'
-        expression: 'sum by (name, namespace, _id, cluster) ( sum_over_time( ( hostedClusterAPI_kubeapiserver_available{status="True"} and on (name, namespace, _id, cluster) max by (name, namespace, _id, cluster) ((hostedClusterAPI_kubeapiserver_available offset 15m) >= 0) )[15m:1m] ) ) and on (name, namespace, _id, cluster) count by (name, namespace, _id, cluster) (hostedClusterAPI_kubeapiserver_available)'
+        expression: 'sum by (name, namespace, _id, cluster) (sum_over_time((hostedClusterAPI_kubeapiserver_available{status="True"} and on (name, namespace, _id, cluster) max by (name, namespace, _id, cluster) ((hostedClusterAPI_kubeapiserver_available offset 15m) >= 0))[15m:1m])) and on (name, namespace, _id, cluster) count by (name, namespace, _id, cluster) (hostedClusterAPI_kubeapiserver_available)'
       }
       {
         record: 'hostedClusterAPI_kubeapiserver_available:sli_count_15m'
-        expression: 'sum by (name, namespace, _id, cluster) ( count_over_time( ( max by (name, namespace, _id, cluster) (hostedClusterAPI_kubeapiserver_available) and on (name, namespace, _id, cluster) max by (name, namespace, _id, cluster) ((hostedClusterAPI_kubeapiserver_available offset 15m) >= 0) )[15m:1m] ) ) and on (name, namespace, _id, cluster) count by (name, namespace, _id, cluster) (hostedClusterAPI_kubeapiserver_available)'
+        expression: 'sum by (name, namespace, _id, cluster) (count_over_time((max by (name, namespace, _id, cluster) (hostedClusterAPI_kubeapiserver_available) and on (name, namespace, _id, cluster) max by (name, namespace, _id, cluster) ((hostedClusterAPI_kubeapiserver_available offset 15m) >= 0))[15m:1m])) and on (name, namespace, _id, cluster) count by (name, namespace, _id, cluster) (hostedClusterAPI_kubeapiserver_available)'
       }
       {
         record: 'hostedClusterAPI_kubeapiserver_available:sli_sum_6h'
-        expression: 'sum by (name, namespace, _id, cluster) ( sum_over_time( ( hostedClusterAPI_kubeapiserver_available{status="True"} and on (name, namespace, _id, cluster) max by (name, namespace, _id, cluster) ((hostedClusterAPI_kubeapiserver_available offset 15m) >= 0) )[6h:5m] ) ) and on (name, namespace, _id, cluster) count by (name, namespace, _id, cluster) (hostedClusterAPI_kubeapiserver_available)'
+        expression: 'sum by (name, namespace, _id, cluster) (sum_over_time((hostedClusterAPI_kubeapiserver_available{status="True"} and on (name, namespace, _id, cluster) max by (name, namespace, _id, cluster) ((hostedClusterAPI_kubeapiserver_available offset 15m) >= 0))[6h:5m])) and on (name, namespace, _id, cluster) count by (name, namespace, _id, cluster) (hostedClusterAPI_kubeapiserver_available)'
       }
       {
         record: 'hostedClusterAPI_kubeapiserver_available:sli_count_6h'
-        expression: 'sum by (name, namespace, _id, cluster) ( count_over_time( ( max by (name, namespace, _id, cluster) (hostedClusterAPI_kubeapiserver_available) and on (name, namespace, _id, cluster) max by (name, namespace, _id, cluster) ((hostedClusterAPI_kubeapiserver_available offset 15m) >= 0) )[6h:5m] ) ) and on (name, namespace, _id, cluster) count by (name, namespace, _id, cluster) (hostedClusterAPI_kubeapiserver_available)'
-      }
-      {
-        record: 'hostedClusterAPI_kubeapiserver_available:sli_sum_3d'
-        expression: 'sum by (name, namespace, _id, cluster) ( sum_over_time( ( hostedClusterAPI_kubeapiserver_available{status="True"} and on (name, namespace, _id, cluster) max by (name, namespace, _id, cluster) ((hostedClusterAPI_kubeapiserver_available offset 15m) >= 0) )[3d:30m] ) ) and on (name, namespace, _id, cluster) count by (name, namespace, _id, cluster) (hostedClusterAPI_kubeapiserver_available)'
-      }
-      {
-        record: 'hostedClusterAPI_kubeapiserver_available:sli_count_3d'
-        expression: 'sum by (name, namespace, _id, cluster) ( count_over_time( ( max by (name, namespace, _id, cluster) (hostedClusterAPI_kubeapiserver_available) and on (name, namespace, _id, cluster) max by (name, namespace, _id, cluster) ((hostedClusterAPI_kubeapiserver_available offset 15m) >= 0) )[3d:30m] ) ) and on (name, namespace, _id, cluster) count by (name, namespace, _id, cluster) (hostedClusterAPI_kubeapiserver_available)'
+        expression: 'sum by (name, namespace, _id, cluster) (count_over_time((max by (name, namespace, _id, cluster) (hostedClusterAPI_kubeapiserver_available) and on (name, namespace, _id, cluster) max by (name, namespace, _id, cluster) ((hostedClusterAPI_kubeapiserver_available offset 15m) >= 0))[6h:5m])) and on (name, namespace, _id, cluster) count by (name, namespace, _id, cluster) (hostedClusterAPI_kubeapiserver_available)'
       }
     ]
   }
@@ -112,7 +104,7 @@ resource hcpKasApiserverRequestRecordingRules 'Microsoft.AlertsManagement/promet
       }
       {
         record: 'kas:apiserver_request_5xx:rate5m'
-        expression: 'sum by (namespace, cluster) (rate(apiserver_request_total{namespace=~"ocm-.*", code=~"5.."}[5m]))'
+        expression: 'sum by (namespace, cluster) (rate(apiserver_request_total{code=~"5..",namespace=~"ocm-.*"}[5m]))'
       }
       {
         record: 'kas:apiserver_request_total:rate_avg_30d'
@@ -178,7 +170,7 @@ resource hcpKasLatencyRecordingRules 'Microsoft.AlertsManagement/prometheusRuleG
     rules: [
       {
         record: 'kas:apiserver_request_latency:sli_ratio:rate5m'
-        expression: 'sum by (namespace, cluster) ( rate(apiserver_request_sli_duration_seconds_bucket{ namespace=~"ocm-.*", verb=~"POST|PUT|PATCH|DELETE", scope=~"resource|namespace|cluster", subresource!~"proxy|attach|log|exec|portforward", le="1.0" }[5m]) or rate(apiserver_request_sli_duration_seconds_bucket{ namespace=~"ocm-.*", verb=~"GET|LIST", scope="resource", subresource!~"proxy|attach|log|exec|portforward", le="1.0" }[5m]) or rate(apiserver_request_sli_duration_seconds_bucket{ namespace=~"ocm-.*", verb=~"GET|LIST", scope="namespace", subresource!~"proxy|attach|log|exec|portforward", le="5.0" }[5m]) or rate(apiserver_request_sli_duration_seconds_bucket{ namespace=~"ocm-.*", verb=~"GET|LIST", scope="cluster", subresource!~"proxy|attach|log|exec|portforward", le="30.0" }[5m]) ) / sum by (namespace, cluster) ( rate(apiserver_request_sli_duration_seconds_count{ namespace=~"ocm-.*", verb=~"POST|PUT|PATCH|DELETE|GET|LIST", scope=~"resource|namespace|cluster", subresource!~"proxy|attach|log|exec|portforward" }[5m]) )'
+        expression: 'sum by (namespace, cluster) (rate(apiserver_request_sli_duration_seconds_bucket{le="1.0",namespace=~"ocm-.*",scope=~"resource|namespace|cluster",subresource!~"proxy|attach|log|exec|portforward",verb=~"POST|PUT|PATCH|DELETE"}[5m]) or rate(apiserver_request_sli_duration_seconds_bucket{le="1.0",namespace=~"ocm-.*",scope="resource",subresource!~"proxy|attach|log|exec|portforward",verb=~"GET|LIST"}[5m]) or rate(apiserver_request_sli_duration_seconds_bucket{le="5.0",namespace=~"ocm-.*",scope="namespace",subresource!~"proxy|attach|log|exec|portforward",verb=~"GET|LIST"}[5m]) or rate(apiserver_request_sli_duration_seconds_bucket{le="30.0",namespace=~"ocm-.*",scope="cluster",subresource!~"proxy|attach|log|exec|portforward",verb=~"GET|LIST"}[5m])) / sum by (namespace, cluster) (rate(apiserver_request_sli_duration_seconds_count{namespace=~"ocm-.*",scope=~"resource|namespace|cluster",subresource!~"proxy|attach|log|exec|portforward",verb=~"POST|PUT|PATCH|DELETE|GET|LIST"}[5m]))'
       }
       {
         record: 'kas:apiserver_request_latency:sli_ratio:rate_avg_30m'
@@ -199,44 +191,6 @@ resource hcpKasLatencyRecordingRules 'Microsoft.AlertsManagement/prometheusRuleG
       {
         record: 'kas:apiserver_request_latency:sli_ratio:rate_avg_30d'
         expression: 'avg_over_time(kas:apiserver_request_latency:sli_ratio:rate5m[30d:5m])'
-      }
-    ]
-  }
-}
-
-resource ujKubeapiserverAvailabilityRecordingRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
-  name: 'uj-kubeapiserver-availability-recording-rules'
-  location: location
-  properties: {
-    scopes: [
-      azureMonitoring
-    ]
-    enabled: true
-    interval: 'PT1M'
-    rules: [
-      {
-        record: 'hostedClusterAPI_kubeapiserver_available:sli_sum_5m'
-        expression: 'sum by (name, namespace, _id, cluster) ( sum_over_time( ( hostedClusterAPI_kubeapiserver_available{status="True"} and on (name, namespace, _id, cluster) max by (name, namespace, _id, cluster) ((hostedClusterAPI_kubeapiserver_available offset 15m) >= 0) )[5m:1m] ) ) and on (name, namespace, _id, cluster) count by (name, namespace, _id, cluster) (hostedClusterAPI_kubeapiserver_available)'
-      }
-      {
-        record: 'hostedClusterAPI_kubeapiserver_available:sli_count_5m'
-        expression: 'sum by (name, namespace, _id, cluster) ( count_over_time( ( max by (name, namespace, _id, cluster) (hostedClusterAPI_kubeapiserver_available) and on (name, namespace, _id, cluster) max by (name, namespace, _id, cluster) ((hostedClusterAPI_kubeapiserver_available offset 15m) >= 0) )[5m:1m] ) ) and on (name, namespace, _id, cluster) count by (name, namespace, _id, cluster) (hostedClusterAPI_kubeapiserver_available)'
-      }
-      {
-        record: 'hostedClusterAPI_kubeapiserver_available:sli_sum_1h'
-        expression: 'sum by (name, namespace, _id, cluster) ( sum_over_time( ( hostedClusterAPI_kubeapiserver_available{status="True"} and on (name, namespace, _id, cluster) max by (name, namespace, _id, cluster) ((hostedClusterAPI_kubeapiserver_available offset 15m) >= 0) )[1h:1m] ) ) and on (name, namespace, _id, cluster) count by (name, namespace, _id, cluster) (hostedClusterAPI_kubeapiserver_available)'
-      }
-      {
-        record: 'hostedClusterAPI_kubeapiserver_available:sli_count_1h'
-        expression: 'sum by (name, namespace, _id, cluster) ( count_over_time( ( max by (name, namespace, _id, cluster) (hostedClusterAPI_kubeapiserver_available) and on (name, namespace, _id, cluster) max by (name, namespace, _id, cluster) ((hostedClusterAPI_kubeapiserver_available offset 15m) >= 0) )[1h:1m] ) ) and on (name, namespace, _id, cluster) count by (name, namespace, _id, cluster) (hostedClusterAPI_kubeapiserver_available)'
-      }
-      {
-        record: 'hostedClusterAPI_kubeapiserver_available:sli_sum_30m'
-        expression: 'sum by (name, namespace, _id, cluster) ( sum_over_time( ( hostedClusterAPI_kubeapiserver_available{status="True"} and on (name, namespace, _id, cluster) max by (name, namespace, _id, cluster) ((hostedClusterAPI_kubeapiserver_available offset 15m) >= 0) )[30m:1m] ) ) and on (name, namespace, _id, cluster) count by (name, namespace, _id, cluster) (hostedClusterAPI_kubeapiserver_available)'
-      }
-      {
-        record: 'hostedClusterAPI_kubeapiserver_available:sli_count_30m'
-        expression: 'sum by (name, namespace, _id, cluster) ( count_over_time( ( max by (name, namespace, _id, cluster) (hostedClusterAPI_kubeapiserver_available) and on (name, namespace, _id, cluster) max by (name, namespace, _id, cluster) ((hostedClusterAPI_kubeapiserver_available offset 15m) >= 0) )[30m:1m] ) ) and on (name, namespace, _id, cluster) count by (name, namespace, _id, cluster) (hostedClusterAPI_kubeapiserver_available)'
       }
     ]
   }

@@ -1,4 +1,17 @@
 ---
+# Source: backend/templates/backend.poddisruptionbudget.yaml
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: aro-hcp-backend
+  namespace: aro-hcp
+spec:
+  minAvailable: 1
+  unhealthyPodEvictionPolicy: AlwaysAllow
+  selector:
+    matchLabels:
+      app: aro-hcp-backend
+---
 # Source: backend/templates/serviceaccount.yaml
 apiVersion: v1
 kind: ServiceAccount

@@ -16,6 +16,9 @@ param serviceLogsDatabase string
 @description('Name of the hosted control plane logs database.')
 param hostedControlPlaneLogsDatabase string
 
+@description('Name of the monitoring events database.')
+param monitoringEventsDatabase string
+
 @description('CSV separated list of groups to assign admin in the Kusto cluster')
 param adminGroups string
 
@@ -37,19 +40,13 @@ param autoScaleMax int
 @description('Toggle if autoscale should be enabled')
 param enableAutoScale bool
 
-@description('Optional cross-cluster ServiceLogs Kusto script content.')
-@secure()
-param crossClusterServiceLogsScript string = ''
-
-@description('Optional cross-cluster HostedControlPlaneLogs Kusto script content.')
-@secure()
-param crossClusterHostedControlPlaneLogsScript string = ''
 var db = {
   serviceLogs: serviceLogsDatabase
   hostedControlPlaneLogs: hostedControlPlaneLogsDatabase
+  monitoringEvents: monitoringEventsDatabase
 }
 
-var databases = [db.serviceLogs, db.hostedControlPlaneLogs]
+var databases = [db.serviceLogs, db.hostedControlPlaneLogs, db.monitoringEvents]
 
 var dummyScript = '.create-or-alter function with (docstring = \'dummy function to run last and to remove permission\') dummyFunction() {print \'dummy\'}'
 
@@ -69,8 +66,9 @@ var allCustomerLogsTablesKQL = {
   kubernetesEvents: loadTextContent('tables/kubernetesEvents.kql')
 }
 
-var deployCrossClusterServiceLogsScript = !empty(crossClusterServiceLogsScript)
-var deployCrossClusterHostedControlPlaneLogsScript = !empty(crossClusterHostedControlPlaneLogsScript)
+var allMonitoringEventsTablesKQL = {
+  alertEvents: loadTextContent('tables/alertEvents.kql')
+}
 
 // 1. Cluster
 module cluster 'cluster.bicep' = {
@@ -114,6 +112,18 @@ module hostedControlPlaneLogs 'database.bicep' = {
   dependsOn: [serviceLogs]
 }
 
+module monitoringEvents 'database.bicep' = {
+  name: 'monitoringEvents'
+  params: {
+    location: location
+    kustoName: kustoName
+    databaseName: db.monitoringEvents
+    softDeletePeriod: 'P90D'
+    hotCachePeriod: 'P2D'
+  }
+  dependsOn: [hostedControlPlaneLogs]
+}
+
 // 3. Create Tables
 module serviceLogsTables 'script.bicep' = [
   for tableName in objectKeys(allServiceLogsTablesKQL): {
@@ -145,6 +155,21 @@ module hostedControlPlaneLogsTables 'script.bicep' = [
   }
 ]
 
+module monitoringEventsTables 'script.bicep' = [
+  for tableName in objectKeys(allMonitoringEventsTablesKQL): {
+    name: 'monitoringEventsTablesScript-${tableName}'
+    params: {
+      kustoName: kustoName
+      databaseName: db.monitoringEvents
+      scriptName: tableName
+      scriptContent: allMonitoringEventsTablesKQL[tableName]
+      principalPermissionsAction: 'RetainPermissionOnScriptCompletion'
+      continueOnErrors: false
+    }
+    dependsOn: [monitoringEvents]
+  }
+]
+
 // 4. User-add scripts per database (one script resource per dSTS group)
 module databaseUserScripts 'database-users.bicep' = [
   for (database, i) in databases: {
@@ -155,46 +180,13 @@ module databaseUserScripts 'database-users.bicep' = [
       dstsGroups: dstsGroups
       continueOnErrors: false
     }
-    dependsOn: database == db.hostedControlPlaneLogs ? [hostedControlPlaneLogs] : [serviceLogs]
+    dependsOn: database == db.hostedControlPlaneLogs
+      ? [hostedControlPlaneLogs]
+      : database == db.monitoringEvents ? [monitoringEvents] : [serviceLogs]
   }
 ]
 
-// 5. Cross-cluster query scripts (executed when their script content is provided)
-module crossClusterServiceLogsQueryScript 'script.bicep' = if (deployCrossClusterServiceLogsScript) {
-  name: 'crossClusterServiceLogsScript'
-  params: {
-    kustoName: kustoName
-    databaseName: db.serviceLogs
-    scriptName: 'crossClusterQueries'
-    scriptContent: crossClusterServiceLogsScript
-    principalPermissionsAction: 'RetainPermissionOnScriptCompletion'
-    continueOnErrors: false
-  }
-  dependsOn: [
-    databaseUserScripts
-    serviceLogsTables
-    hostedControlPlaneLogsTables
-  ]
-}
-
-module crossClusterHostedControlPlaneLogsQueryScript 'script.bicep' = if (deployCrossClusterHostedControlPlaneLogsScript) {
-  name: 'crossClusterHostedControlPlaneLogsScript'
-  params: {
-    kustoName: kustoName
-    databaseName: db.hostedControlPlaneLogs
-    scriptName: 'crossClusterQueries'
-    scriptContent: crossClusterHostedControlPlaneLogsScript
-    principalPermissionsAction: 'RetainPermissionOnScriptCompletion'
-    continueOnErrors: false
-  }
-  dependsOn: [
-    databaseUserScripts
-    serviceLogsTables
-    hostedControlPlaneLogsTables
-  ]
-}
-
-// 6. Remove the caller principal
+// 5. Remove the caller principal
 // THIS MUST BE THE LAST SCRIPT TO RUN
 module removePermission 'script.bicep' = [
   for (database, i) in databases: {
@@ -211,8 +203,7 @@ module removePermission 'script.bicep' = [
       databaseUserScripts
       serviceLogsTables
       hostedControlPlaneLogsTables
-      crossClusterServiceLogsQueryScript
-      crossClusterHostedControlPlaneLogsQueryScript
+      monitoringEventsTables
     ]
   }
 ]

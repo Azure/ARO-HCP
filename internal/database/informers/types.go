@@ -34,7 +34,6 @@ import (
 // cluster; the backend constructs one per management cluster it talks to.
 type KubeApplierInformers interface {
 	ApplyDesires() (cache.SharedIndexInformer, listers.ApplyDesireLister)
-	DeleteDesires() (cache.SharedIndexInformer, listers.DeleteDesireLister)
 	ReadDesires() (cache.SharedIndexInformer, listers.ReadDesireLister)
 
 	// RunWithContext starts every informer and blocks until ctx is cancelled.
@@ -45,19 +44,12 @@ type kubeApplierInformers struct {
 	applyDesireInformer cache.SharedIndexInformer
 	applyDesireLister   listers.ApplyDesireLister
 
-	deleteDesireInformer cache.SharedIndexInformer
-	deleteDesireLister   listers.DeleteDesireLister
-
 	readDesireInformer cache.SharedIndexInformer
 	readDesireLister   listers.ReadDesireLister
 }
 
 func (k *kubeApplierInformers) ApplyDesires() (cache.SharedIndexInformer, listers.ApplyDesireLister) {
 	return k.applyDesireInformer, k.applyDesireLister
-}
-
-func (k *kubeApplierInformers) DeleteDesires() (cache.SharedIndexInformer, listers.DeleteDesireLister) {
-	return k.deleteDesireInformer, k.deleteDesireLister
 }
 
 func (k *kubeApplierInformers) ReadDesires() (cache.SharedIndexInformer, listers.ReadDesireLister) {
@@ -80,21 +72,17 @@ func NewKubeApplierInformersWithRelistDuration(
 	ctx context.Context, gl database.KubeApplierListers, relistDuration *time.Duration,
 ) KubeApplierInformers {
 	apply := ApplyDesireRelistDuration
-	delete := DeleteDesireRelistDuration
 	read := ReadDesireRelistDuration
 	if relistDuration != nil {
 		apply = *relistDuration
-		delete = *relistDuration
 		read = *relistDuration
 	}
 
 	ret := &kubeApplierInformers{}
 	ret.applyDesireInformer = NewApplyDesireInformerWithRelistDuration(gl.ApplyDesires(), apply)
-	ret.deleteDesireInformer = NewDeleteDesireInformerWithRelistDuration(gl.DeleteDesires(), delete)
 	ret.readDesireInformer = NewReadDesireInformerWithRelistDuration(gl.ReadDesires(), read)
 
 	ret.applyDesireLister = listers.NewApplyDesireLister(ret.applyDesireInformer.GetIndexer())
-	ret.deleteDesireLister = listers.NewDeleteDesireLister(ret.deleteDesireInformer.GetIndexer())
 	ret.readDesireLister = listers.NewReadDesireLister(ret.readDesireInformer.GetIndexer())
 
 	return ret
@@ -113,12 +101,6 @@ func (k *kubeApplierInformers) RunWithContext(ctx context.Context) {
 		defer utilruntime.HandleCrash()
 		defer wg.Done()
 		k.applyDesireInformer.RunWithContext(ctx)
-	}()
-	wg.Add(1)
-	go func() {
-		defer utilruntime.HandleCrash()
-		defer wg.Done()
-		k.deleteDesireInformer.RunWithContext(ctx)
 	}()
 	wg.Add(1)
 	go func() {

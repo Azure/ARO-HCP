@@ -31,7 +31,7 @@
 </head>
 <body>
 {{range .Charts}}
-    <div class="chart-section">
+    <div class="chart-section" data-min-peak-threshold="{{.MinPeakThreshold}}">
     {{if .HasData}}
         {{.ChartHTML}}
     {{else}}
@@ -58,5 +58,162 @@
 {{end}}
     <!-- workaround for spyglass cutting off page bottoms -->
     <div style="height: 30px;"></div>
+<script>
+(function() {
+    var items = document.querySelectorAll('.item');
+    for (var i = 0; i < items.length; i++) {
+        var inst = echarts.getInstanceByDom(items[i]);
+        if (!inst) continue;
+        var section = items[i].closest('.chart-section');
+        var initialThreshold = section ? parseFloat(section.getAttribute('data-min-peak-threshold')) || 0 : 0;
+        initSlider(inst, items[i], initialThreshold);
+    }
+
+    function initSlider(chart, chartDom, initialThreshold) {
+        var option = chart.getOption();
+        if (!option.series || option.series.length < 2) return;
+
+        var seriesPeaks = computePeaks(option.series);
+        var globalMax = Math.max.apply(null, seriesPeaks.map(function(s) { return s.peak; }));
+        if (globalMax <= 0) return;
+
+        var gridRect = chart.getModel().getComponent('grid', 0).coordinateSystem.getRect();
+        var yExtent = chart.getModel().getComponent('yAxis', 0).axis.scale.getExtent();
+        var yRange = yExtent[1] - yExtent[0];
+        if (!isFinite(yRange) || yRange <= 0) return;
+
+        // Pin Y axis and grid dimensions so resizing the container doesn't rescale the plot
+        chart.setOption({
+            yAxis: {min: yExtent[0], max: yExtent[1]},
+            grid: {top: gridRect.y, height: gridRect.height}
+        });
+
+        chartDom.style.position = 'relative';
+
+        // Vertical slider aligned with Y axis
+        var slider = document.createElement('input');
+        slider.type = 'range';
+        slider.min = String(yExtent[0]);
+        slider.max = String(yExtent[1]);
+        slider.value = String(yExtent[0]);
+        slider.step = String(yRange / 200);
+        slider.style.cssText =
+            'position:absolute;' +
+            'writing-mode:vertical-lr;direction:rtl;' +
+            'left:' + (gridRect.x - 50) + 'px;' +
+            'top:' + gridRect.y + 'px;' +
+            'height:' + gridRect.height + 'px;' +
+            'width:20px;margin:0;padding:0;' +
+            'cursor:ns-resize;accent-color:#F44336;opacity:0.5;z-index:10;';
+        slider.title = 'Filter series by minimum peak value';
+        chartDom.appendChild(slider);
+
+        slider.addEventListener('mouseenter', function() { this.style.opacity = '0.9'; });
+        slider.addEventListener('mouseleave', function() { this.style.opacity = '0.5'; });
+
+        // Info display above slider
+        var info = document.createElement('div');
+        info.style.cssText =
+            'position:absolute;' +
+            'left:0;top:' + (gridRect.y - 16) + 'px;' +
+            'width:' + gridRect.x + 'px;' +
+            'font-size:10px;color:#666;text-align:center;' +
+            'white-space:nowrap;z-index:10;';
+        info.textContent = seriesPeaks.length + '/' + seriesPeaks.length;
+        chartDom.appendChild(info);
+
+        var allNames = seriesPeaks.map(function(s) { return s.name; });
+
+        function legendHeight(names) {
+            if (names.length === 0) return 40;
+            var rows = 1, rowWidth = 0;
+            for (var i = 0; i < names.length; i++) {
+                var w = names[i].length * 7 + 40;
+                if (rowWidth + w > 1200 && rowWidth > 0) { rows++; rowWidth = w; }
+                else { rowWidth += w; }
+            }
+            return Math.max(40, rows * 22);
+        }
+
+        function applyThreshold() {
+            var threshold = parseFloat(slider.value);
+            var visibleNames = [];
+            var selected = {};
+            seriesPeaks.forEach(function(s) {
+                var show = s.peak >= threshold;
+                selected[s.name] = show;
+                if (show) visibleNames.push(s.name);
+            });
+
+            info.textContent = visibleNames.length + '/' + seriesPeaks.length +
+                (threshold > yExtent[0] ? ' ≥' + formatVal(threshold) : '');
+
+            chart.setOption({
+                legend: {data: visibleNames, selected: selected}
+            });
+
+            // Move legend up below the grid and shrink the container to eliminate the gap
+            var newLH = legendHeight(visibleNames);
+            var legendTop = gridRect.y + gridRect.height + 30;
+            chart.setOption({legend: {bottom: null, top: legendTop}});
+            var newHeight = legendTop + newLH + 10;
+            chartDom.style.height = newHeight + 'px';
+            chart.resize({height: newHeight});
+
+            var py = chart.convertToPixel({gridIndex: 0}, [0, threshold]);
+            chart.setOption({
+                graphic: {elements: [{
+                    id: 'thresh',
+                    type: 'line',
+                    silent: true,
+                    shape: {x1: gridRect.x, y1: py[1], x2: gridRect.x + gridRect.width, y2: py[1]},
+                    style: {
+                        stroke: '#F44336', lineDash: [4, 4], lineWidth: 1,
+                        opacity: threshold > yExtent[0] ? 0.6 : 0
+                    },
+                    z: 100
+                }]}
+            });
+        }
+
+        slider.addEventListener('input', applyThreshold);
+
+        if (initialThreshold > 0 && initialThreshold <= yExtent[1]) {
+            slider.value = String(initialThreshold);
+            applyThreshold();
+        }
+    }
+
+    function computePeaks(series) {
+        return series.map(function(s) {
+            var peak = 0;
+            if (s.data) {
+                s.data.forEach(function(d) {
+                    var val = null;
+                    if (Array.isArray(d)) {
+                        val = d.length >= 2 ? d[1] : null;
+                    } else if (d && typeof d === 'object' && d.value) {
+                        val = Array.isArray(d.value) && d.value.length >= 2 ? d.value[1] : d.value;
+                    }
+                    if (typeof val === 'number' && val > peak) {
+                        peak = val;
+                    }
+                });
+            }
+            return {name: s.name, peak: peak};
+        });
+    }
+
+    function formatVal(v) {
+        if (v >= 1e9) return (v/1e9).toFixed(1) + 'G';
+        if (v >= 1e6) return (v/1e6).toFixed(1) + 'M';
+        if (v >= 1e3) return (v/1e3).toFixed(1) + 'k';
+        if (v >= 1) return v.toFixed(2);
+        if (v >= 0.01) return v.toFixed(3);
+        if (v === 0) return '0';
+        return v.toExponential(1);
+    }
+})();
+</script>
 </body>
 </html>

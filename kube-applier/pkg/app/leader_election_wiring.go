@@ -16,45 +16,25 @@ package app
 
 import (
 	"fmt"
-	"time"
 
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
 
-	"github.com/Azure/ARO-HCP/internal/utils"
-)
-
-const (
-	leaderElectionLeaseDuration = 15 * time.Second
-	leaderElectionRenewDeadline = 10 * time.Second
-	leaderElectionRetryPeriod   = 2 * time.Second
+	"github.com/Azure/ARO-HCP/internal/leaderelection"
 )
 
 // NewLeaderElectionLock builds a Leases-backed lock in kubeNamespace named
 // leaseName. leaseHolderIdentity should be the pod hostname so concurrent
-// replicas distinguish themselves. The lock is constructed off a copy of
-// kubeconfig with elevated QPS/Burst so renewals are never throttled by other
-// API traffic sharing the same client.
+// replicas distinguish themselves.
 func NewLeaderElectionLock(
 	leaseHolderIdentity string,
 	kubeconfig *rest.Config,
 	kubeNamespace string,
 	leaseName string,
 ) (resourcelock.Interface, error) {
-	leKubeconfig := rest.CopyConfig(kubeconfig)
-	leKubeconfig.QPS = 20
-	leKubeconfig.Burst = 40
-
-	lock, err := resourcelock.NewFromKubeconfig(
-		resourcelock.LeasesResourceLock,
-		kubeNamespace,
-		leaseName,
-		resourcelock.ResourceLockConfig{Identity: leaseHolderIdentity},
-		leKubeconfig,
-		leaderElectionRenewDeadline,
-	)
+	lock, err := leaderelection.NewLeaderElectionLock(leaseHolderIdentity, kubeconfig, kubeNamespace, leaseName, leaderelection.RecommendedRenewDeadline)
 	if err != nil {
-		return nil, utils.TrackError(fmt.Errorf("failed to create leader election lock: %w", err))
+		return nil, fmt.Errorf("leader election lock %s/%s: %w", kubeNamespace, leaseName, err)
 	}
 	return lock, nil
 }

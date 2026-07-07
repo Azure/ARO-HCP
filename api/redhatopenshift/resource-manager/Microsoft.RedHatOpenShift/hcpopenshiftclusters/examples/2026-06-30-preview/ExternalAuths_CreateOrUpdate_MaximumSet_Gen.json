@@ -63,13 +63,6 @@
       "body": {
         "properties": {
           "provisioningState": "Succeeded",
-          "condition": {
-            "type": "Available",
-            "status": "True",
-            "lastTransitionTime": "2025-07-03T17:28:03.180Z",
-            "reason": "A good reason",
-            "message": "An even better message."
-          },
           "issuer": {
             "url": "https://microsoft.com/a",
             "audiences": [
@@ -137,13 +130,6 @@
       "body": {
         "properties": {
           "provisioningState": "Succeeded",
-          "condition": {
-            "type": "Available",
-            "status": "True",
-            "lastTransitionTime": "2025-07-03T17:28:03.180Z",
-            "reason": "A good reason",
-            "message": "An even better message."
-          },
           "issuer": {
             "url": "https://microsoft.com/a",
             "audiences": [

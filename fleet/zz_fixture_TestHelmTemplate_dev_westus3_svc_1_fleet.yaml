@@ -1,4 +1,17 @@
 ---
+# Source: fleet/templates/fleet-controller.poddisruptionbudget.yaml
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: fleet-controller
+  namespace: fleet
+spec:
+  minAvailable: 1
+  unhealthyPodEvictionPolicy: AlwaysAllow
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: fleet-controller
+---
 # Source: fleet/templates/serviceaccount.yaml
 apiVersion: v1
 kind: ServiceAccount

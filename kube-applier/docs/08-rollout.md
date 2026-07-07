@@ -27,6 +27,8 @@ Before any implementation:
 Single PR.
 
 - [ ] Add deepcopy markers + `doc.go` to `internal/api/kubeapplier`.
+      `ApplyDesire` uses a discriminated union with `Type=ServerSideApply|Delete`
+      (no separate `DeleteDesire` type).
 - [ ] Run generators; commit `zz_generated.deepcopy.go`.
 - [ ] Add `ResourceType` constants and resource-ID helpers.
 - [ ] Add condition-name and reason-string constants.
@@ -40,13 +42,13 @@ package yet.
 Single PR.
 
 - [ ] Add the per-MC `KubeApplierDBClient` interface with direct
-      `ApplyDesires`/`DeleteDesires`/`ReadDesires` accessors, `Listers()`,
+      `ApplyDesires`/`ReadDesires` accessors, `Listers()`,
       and `UntypedCRUD(parentResourceID)`.
 - [ ] Add the plural `KubeApplierDBClients` registry with thread-safe lazy
       caching and `ManagementClusterResourceIDs()` iteration.
 - [ ] Add `NewKubeApplierDBClient`, `NewKubeApplierDBClientFromDatabase`,
       `NewKubeApplierDBClients` constructors.
-- [ ] Add `database.Kube{Apply,Delete,Read}Desire` envelope types.
+- [ ] Add `database.Kube{Apply,Read}Desire` envelope types.
 - [ ] Update `internal/databasetesting` mocks: both `MockKubeApplierDBClient`
       (single container) and `MockKubeApplierDBClients` (registry).
 
@@ -107,36 +109,36 @@ the lease, exposes `/healthz` and `/metrics`, then exits cleanly on signal.
 Single PR.
 
 - [ ] Implement the controller with statuswriter + condition helpers.
+- [ ] Dispatch on `ApplyDesire.Type`: `ServerSideApply` performs SSA;
+      `Delete` performs the delete operation (previously DeleteDesireController).
 - [ ] Wire it up in `Run`.
-- [ ] Manifestclient-based unit tests covering the matrix in Doc 07.2.
+- [ ] Manifestclient-based unit tests covering the matrix in Doc 07.2,
+      including delete-type ApplyDesires.
 
-Exit criteria: in cspr, a hand-inserted ApplyDesire produces the expected
-kube object and `.status.conditions["Successful"]=True`.
+Exit criteria: in cspr, a hand-inserted ApplyDesire with `Type=ServerSideApply`
+produces the expected kube object and `.status.conditions["Successful"]=True`;
+an ApplyDesire with `Type=Delete` removes the target object.
 
-## Phase 8 &mdash; DeleteDesireController (Doc 05.2)
-
-Single PR. Same shape as Phase 7.
-
-## Phase 9 &mdash; ReadDesire controllers (Doc 05.3 + 5.4)
+## Phase 8 &mdash; ReadDesire controllers (Doc 05.3 + 5.4)
 
 Recommended split:
 
-- 9a: `ReadDesireKubernetesController` plus a degenerate manager that hard-codes
+- 8a: `ReadDesireKubernetesController` plus a degenerate manager that hard-codes
        a single ReadDesire (so the per-instance controller can be tested
        end-to-end without the full lifecycle logic).
-- 9b: `ReadDesireInformerManagingController` lifecycle (start/stop/recreate
+- 8b: `ReadDesireInformerManagingController` lifecycle (start/stop/recreate
        on TargetItem change).
 
 Each is its own PR.
 
-## Phase 10 &mdash; Integration tests (Doc 07.3)
+## Phase 9 &mdash; Integration tests (Doc 07.3)
 
 Single PR after the controllers are in place.
 
 - [ ] KIND-based integration tests under `test-integration/kube-applier/`.
 - [ ] Add to CI.
 
-## Phase 11 &mdash; Production deployment
+## Phase 10 &mdash; Production deployment
 
 - [ ] Tighten the kube-applier ClusterRole (off `cluster-admin`) once we
       know the GVR allowlist from real workloads.
@@ -159,5 +161,5 @@ Single PR after the controllers are in place.
 | Per-partition Cosmos role doesn't exist / isn't fine-grained enough | Phase 0 confirmation; if blocked, fall back to a less-isolated single role and document the gap. |
 | `manifestclient` doesn't support SSA replay accurately | Validate in Phase 1 with a throwaway test; fall back to envtest if needed. |
 | Per-instance dynamic informers leak goroutines | Integration test specifically asserts goroutine count after rapid create/delete churn. |
-| Cluster-admin RBAC blocks production approval | Tighten in Phase 11 before SRE-level deployment; do not ship cluster-admin to `int+`. |
+| Cluster-admin RBAC blocks production approval | Tighten in Phase 10 before SRE-level deployment; do not ship cluster-admin to `int+`. |
 | RESTMapper cache staleness when CRDs install | Use `DeferredDiscoveryRESTMapper` and reset on `NoKindMatch`. |

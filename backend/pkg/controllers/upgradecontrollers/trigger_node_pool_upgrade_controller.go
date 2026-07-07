@@ -29,6 +29,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
+	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -50,6 +51,7 @@ func NewTriggerNodePoolUpgradeController(
 	clusterServiceClient ocm.ClusterServiceClientSpec,
 	activeOperationLister listers.ActiveOperationLister,
 	informers informers.BackendInformers,
+	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 ) controllerutils.Controller {
 	syncer := &triggerNodePoolUpgradeSyncer{
 		cooldownChecker:      controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
@@ -61,6 +63,7 @@ func NewTriggerNodePoolUpgradeController(
 		"TriggerNodePoolUpgrade",
 		resourcesDBClient,
 		informers,
+		kubeApplierInformers,
 		5*time.Minute,
 		syncer,
 	)
@@ -76,8 +79,9 @@ func (c *triggerNodePoolUpgradeSyncer) CooldownChecker() controllerutil.Cooldown
 //
 // High-level flow:
 //  1. Fetch the node pool and service provider node pool state
-//  2. Check if desiredVersion differs from latest actual version
-//  3. If different, create a NodePoolUpgradePolicy to trigger upgrade
+//  2. Skips upgrade trigger if no active versions exist yet (during installation)
+//  3. Check if desiredVersion differs from latest actual version
+//  4. If different, create a NodePoolUpgradePolicy to trigger upgrade
 func (c *triggerNodePoolUpgradeSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPNodePoolKey) error {
 	existingNodePool, err := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).
 		NodePools(key.HCPClusterName).Get(ctx, key.HCPNodePoolName)
@@ -105,11 +109,13 @@ func (c *triggerNodePoolUpgradeSyncer) SyncOnce(ctx context.Context, key control
 		return nil // No desired version set
 	}
 
-	// Get latest actual version from active versions
-	var actualLatestVersion *semver.Version
-	if len(existingServiceProviderNodePool.Status.NodePoolVersion.ActiveVersions) > 0 {
-		actualLatestVersion = existingServiceProviderNodePool.Status.NodePoolVersion.ActiveVersions[0].Version
+	// No active version yet (installation ongoing); skip upgrade trigger.
+	if len(existingServiceProviderNodePool.Status.NodePoolVersion.ActiveVersions) == 0 {
+		return nil
 	}
+
+	// Get latest actual version from active versions
+	actualLatestVersion := existingServiceProviderNodePool.Status.NodePoolVersion.ActiveVersions[0].Version
 
 	// If desired version matches latest actual version, nothing to do
 	if actualLatestVersion != nil && desiredVersion.EQ(*actualLatestVersion) {

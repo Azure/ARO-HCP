@@ -4,6 +4,12 @@ entrypoints:
     name: Global
     scopeDoc: high-level-architecture.md
     incremental: "true"
+# TRANSIENT - new root entrypoint for the parallel STG-global "V2" stack. Kept
+# separate from HCP.Global so EV2 never co-deploys the two. Removed at decommission.
+- identifier: 'Microsoft.Azure.ARO.HCP.Global.StgGlobal'
+  metadata:
+    name: Global STG V2
+    scopeDoc: high-level-architecture.md
 - identifier: 'Microsoft.Azure.ARO.HCP.Region'
   metadata:
     name: Region
@@ -85,6 +91,17 @@ services:
     purpose: Deploy geography-level shared infrastructure.
   pipelinePath: dev-infrastructure/global-pipeline.yaml
   purpose: Deploy global shared infrastructure.
+# TRANSIENT - STG-global "V2" parallel global stack under the new
+# HCP.Global.StgGlobal entrypoint (NOT under HCP.Global). Deploys global +
+# geography into the dedicated hcp-stg-global subscription during coexistence.
+# Removed at decommission.
+- serviceGroup: Microsoft.Azure.ARO.HCP.Global.StgGlobal
+  children:
+  - serviceGroup: Microsoft.Azure.ARO.HCP.Geography.StgGlobal
+    pipelinePath: dev-infrastructure/geography-pipeline-stg.yaml
+    purpose: Deploy geography-level shared infrastructure (STG V2).
+  pipelinePath: dev-infrastructure/global-pipeline-stg.yaml
+  purpose: Deploy global shared infrastructure (STG V2).
 # Cleanup pipelines
 - serviceGroup: Microsoft.Azure.ARO.HCP.Management.Delete
   pipelinePath: dev-infrastructure/cleanup/delete.mgmt.pipeline.yaml

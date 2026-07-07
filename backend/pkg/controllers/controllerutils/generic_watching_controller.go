@@ -128,7 +128,7 @@ func (c *genericWatchingController[T]) processNextWorkItem(ctx context.Context) 
 	defer c.queue.Done(ref)
 
 	logger := utils.LoggerFromContext(ctx)
-	logger = AddLoggerValues(logger, ref)
+	logger = utils.AddLoggerValues(logger, ref)
 	ctx = utils.ContextWithLogger(ctx, logger)
 
 	ReconcileTotal.WithLabelValues(c.name).Inc()
@@ -207,7 +207,7 @@ func (c *genericWatchingController[T]) EnqueueResourceIDAddWithMaxDepth(resource
 
 	logger := utils.DefaultLogger()
 	logger = logger.WithValues(utils.LogValues{}.AddControllerName(c.name)...)
-	logger = AddLoggerValues(logger, key)
+	logger = utils.AddLoggerValues(logger, key)
 	ctx := logr.NewContext(context.TODO(), logger)
 	ctx = utils.ContextWithControllerName(ctx, c.name)
 

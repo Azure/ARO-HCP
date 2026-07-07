@@ -19,6 +19,7 @@ import (
 
 	"github.com/google/uuid"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/utils/ptr"
 
@@ -72,6 +73,12 @@ func SetDefaultValuesCluster(obj *HcpOpenShiftCluster) {
 	}
 	if obj.Properties.API.Visibility == nil {
 		obj.Properties.API.Visibility = ptr.To(generated.VisibilityPublic)
+	}
+	if obj.Properties.Ingress == nil {
+		obj.Properties.Ingress = &generated.IngressProfile{}
+	}
+	if obj.Properties.Ingress.Type == nil {
+		obj.Properties.Ingress.Type = ptr.To(generated.IngressTypePublic)
 	}
 	if obj.Properties.Platform == nil {
 		obj.Properties.Platform = &generated.PlatformProfile{}
@@ -171,6 +178,15 @@ func newAPIProfile(from *api.CustomerAPIProfile, from2 *api.ServiceProviderAPIPr
 	}
 }
 
+func newIngressProfile(from *api.CustomerIngressProfile) generated.IngressProfile {
+	if from == nil {
+		return generated.IngressProfile{}
+	}
+	return generated.IngressProfile{
+		Type: api.PtrOrNil(generated.IngressType(from.Type)),
+	}
+}
+
 func newPlatformProfile(from *api.CustomerPlatformProfile, from2 *api.ServiceProviderPlatformProfile) generated.PlatformProfile {
 	if from == nil {
 		return generated.PlatformProfile{}
@@ -243,6 +259,18 @@ func newKmsKey(from *api.KmsKey) generated.KmsKey {
 	return generated.KmsKey{
 		Name:    api.PtrOrNil(from.Name),
 		Version: api.PtrOrNil(from.Version),
+	}
+}
+
+func newConditions(from []metav1.Condition) []*generated.Condition {
+	// TODO (bvesel): propose a method for how we want to translate our internal metav1.Conditions type to this external
+	// type.  Until then, we'll plumb it with empty data.
+	return []*generated.Condition{}
+}
+
+func newResourceStatus(from []metav1.Condition) *generated.ResourceStatus {
+	return &generated.ResourceStatus{
+		Conditions: newConditions(from),
 	}
 }
 
@@ -345,6 +373,7 @@ func (v version) NewHCPOpenShiftCluster(from *api.HCPOpenShiftCluster) api.Versi
 				Network:           api.PtrOrNil(newNetworkProfile(&from.CustomerProperties.Network)),
 				Console:           api.PtrOrNil(newConsoleProfile(&from.ServiceProviderProperties.Console)),
 				API:               api.PtrOrNil(newAPIProfile(&from.CustomerProperties.API, &from.ServiceProviderProperties.API)),
+				Ingress:           api.PtrOrNil(newIngressProfile(&from.CustomerProperties.Ingress)),
 				Platform:          api.PtrOrNil(newPlatformProfile(&from.CustomerProperties.Platform, &from.ServiceProviderProperties.Platform)),
 				Autoscaling:       api.PtrOrNil(newClusterAutoscalingProfile(&from.CustomerProperties.Autoscaling)),
 				// Use Ptr (not PtrOrNil) to ensure int32 zero value is preserved in JSON response.
@@ -352,6 +381,7 @@ func (v version) NewHCPOpenShiftCluster(from *api.HCPOpenShiftCluster) api.Versi
 				ClusterImageRegistry:    api.PtrOrNil(newClusterImageRegistryProfile(&from.CustomerProperties.ClusterImageRegistry)),
 				Etcd:                    api.PtrOrNil(newEtcdProfile(&from.CustomerProperties.Etcd)),
 				ImageDigestMirrors:      newImageDigestMirrors(from.CustomerProperties.ImageDigestMirrors),
+				Status:                  newResourceStatus(from.Status.Conditions),
 			},
 			Identity: newManagedServiceIdentity(from.Identity),
 		},
@@ -462,6 +492,9 @@ func (c *HcpOpenShiftCluster) ConvertToInternal(existing *api.HCPOpenShiftCluste
 		if c.Properties.API != nil {
 			normalizeAPI(c.Properties.API, &out.CustomerProperties.API, &out.ServiceProviderProperties.API)
 		}
+		if c.Properties.Ingress != nil {
+			normalizeIngress(c.Properties.Ingress, &out.CustomerProperties.Ingress)
+		}
 		if c.Properties.Platform != nil {
 			errs = append(errs, normalizePlatform(field.NewPath("properties", "platform"), c.Properties.Platform, &out.CustomerProperties.Platform, &out.ServiceProviderProperties.Platform)...)
 		}
@@ -541,6 +574,10 @@ func normalizeAPI(p *generated.APIProfile, out *api.CustomerAPIProfile, out2 *ap
 	out2.URL = api.Deref(p.URL)
 	out.Visibility = api.Visibility(api.Deref(p.Visibility))
 	out.AuthorizedCIDRs = api.StringPtrSliceToStringSlice(p.AuthorizedCIDRs)
+}
+
+func normalizeIngress(p *generated.IngressProfile, out *api.CustomerIngressProfile) {
+	out.Type = api.IngressType(api.Deref(p.Type))
 }
 
 func normalizePlatform(fldPath *field.Path, p *generated.PlatformProfile, out *api.CustomerPlatformProfile, out2 *api.ServiceProviderPlatformProfile) field.ErrorList {

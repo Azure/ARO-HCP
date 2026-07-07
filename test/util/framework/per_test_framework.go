@@ -27,7 +27,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -1141,89 +1140,30 @@ func (tc *perItOrDescribeTestContext) PullSecretPath() string {
 	return tc.perBinaryInvocationTestContext.pullSecretPath
 }
 
-// FindVirtualMachineSizeMatching queries Azure for available VM sizes in the test location
-// and returns a randomly selected size name that matches the provided regex pattern.
-// This is useful for finding VM sizes that meet specific criteria (e.g., matching a family like "Standard_D.*")
-// while avoiding bias towards any particular size.
-func (tc *perItOrDescribeTestContext) FindVirtualMachineSizeMatching(ctx context.Context, pattern *regexp.Regexp) (string, error) {
-	if pattern == nil {
-		return "", fmt.Errorf("pattern cannot be nil")
-	}
-
-	clientFactory, err := tc.GetARMComputeClientFactory(ctx)
-	if err != nil {
-		return "", fmt.Errorf("failed to get ARM compute client factory: %w", err)
-	}
-
+// AvailableZones returns the sorted list of non-restricted availability zones
+// for the given VM SKU in the current test location, querying the Azure Resource
+// SKUs API. Zone-restricted zones (e.g. SkuNotAvailable for the subscription)
+// are subtracted from the advertised list, and a SKU that is entirely restricted
+// in the location (Location-type restriction) yields no zones, so every returned
+// zone is guaranteed to be usable for the SKU. An empty slice means the
+// location/SKU combination exposes no usable availability zones. An error is
+// returned if the SKU is not present in the location's Resource SKUs response.
+func (tc *perItOrDescribeTestContext) AvailableZones(ctx context.Context, vmSize string) ([]string, error) {
 	location := tc.Location()
-	matches := make([]string, 0)
-
-	vmSizesClient := clientFactory.NewVirtualMachineSizesClient()
-	pager := vmSizesClient.NewListPager(location, nil)
-	for pager.More() {
-		page, err := pager.NextPage(ctx)
-		if err != nil {
-			return "", fmt.Errorf("failed to list VM sizes in %s: %w", location, err)
-		}
-		if page.Value == nil {
+	skus, err := tc.listVirtualMachineResourceSKUs(ctx, location)
+	if err != nil {
+		return nil, err
+	}
+	for _, sku := range skus {
+		if sku.Name == nil || *sku.Name != vmSize {
 			continue
 		}
-		for _, size := range page.Value {
-			if size.Name == nil {
-				continue
-			}
-			if pattern.MatchString(*size.Name) {
-				matches = append(matches, *size.Name)
-			}
+		if skuRestrictedInLocation(sku, location) {
+			return nil, nil
 		}
+		return availableZones(sku, location), nil
 	}
-
-	if len(matches) == 0 {
-		return "", fmt.Errorf("no VM size matching %q found in %s", pattern.String(), location)
-	}
-
-	// Randomly select a VM size from the matches to avoid bias towards the first or last size in the list.
-	selected := matches[rand.Intn(len(matches))]
-	return selected, nil
-}
-
-// LocationHasAvailabilityZones checks if the given VM SKU has availability zones
-// in the current test location by querying the Azure Resource SKUs API.
-func (tc *perItOrDescribeTestContext) LocationHasAvailabilityZones(ctx context.Context, vmSize string) (bool, error) {
-	clientFactory, err := tc.GetARMComputeClientFactory(ctx)
-	if err != nil {
-		return false, fmt.Errorf("failed to get ARM compute client factory: %w", err)
-	}
-
-	location := tc.Location()
-	skuClient := clientFactory.NewResourceSKUsClient()
-	filter := fmt.Sprintf("location eq '%s'", location)
-	pager := skuClient.NewListPager(&armcompute.ResourceSKUsClientListOptions{
-		Filter: &filter,
-	})
-	for pager.More() {
-		page, err := pager.NextPage(ctx)
-		if err != nil {
-			return false, fmt.Errorf("failed to list resource SKUs in %s: %w", location, err)
-		}
-		for _, sku := range page.Value {
-			if sku.Name == nil || *sku.Name != vmSize {
-				continue
-			}
-			if sku.ResourceType == nil || *sku.ResourceType != "virtualMachines" {
-				continue
-			}
-			for _, locationInfo := range sku.LocationInfo {
-				if locationInfo.Location == nil || !strings.EqualFold(*locationInfo.Location, location) {
-					continue
-				}
-				if len(locationInfo.Zones) > 0 {
-					return true, nil
-				}
-			}
-		}
-	}
-	return false, nil
+	return nil, fmt.Errorf("VM size %q not found in Resource SKUs for location %q", vmSize, location)
 }
 
 func (tc *perItOrDescribeTestContext) SubscriptionID(ctx context.Context) (string, error) {

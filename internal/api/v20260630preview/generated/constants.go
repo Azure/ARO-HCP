@@ -39,6 +39,27 @@ func PossibleClusterImageRegistryStateValues() []ClusterImageRegistryState {
 	}
 }
 
+// ConditionType - Representation of the possible condition types.
+type ConditionType string
+
+const (
+	// ConditionTypeAvailable - Indicates that the resource is available.
+	ConditionTypeAvailable ConditionType = "Available"
+	// ConditionTypeDegraded - Indicates that the resource is in a degraded state.
+	ConditionTypeDegraded ConditionType = "Degraded"
+	// ConditionTypeProgressing - Indicates that the resource is in a progressing state.
+	ConditionTypeProgressing ConditionType = "Progressing"
+)
+
+// PossibleConditionTypeValues returns the possible values for the ConditionType const type.
+func PossibleConditionTypeValues() []ConditionType {
+	return []ConditionType{
+		ConditionTypeAvailable,
+		ConditionTypeDegraded,
+		ConditionTypeProgressing,
+	}
+}
+
 // CreatedByType - The type of identity that created the resource.
 type CreatedByType string
 
@@ -157,27 +178,6 @@ func PossibleExternalAuthClientTypeValues() []ExternalAuthClientType {
 	}
 }
 
-// ExternalAuthConditionType - Representation of the possible types of a external auths condition.
-type ExternalAuthConditionType string
-
-const (
-	// ExternalAuthConditionTypeAvailable - Indicates that the external auth resource is available.
-	ExternalAuthConditionTypeAvailable ExternalAuthConditionType = "Available"
-	// ExternalAuthConditionTypeDegraded - Indicates that the external auth resource is in a degraded state.
-	ExternalAuthConditionTypeDegraded ExternalAuthConditionType = "Degraded"
-	// ExternalAuthConditionTypeProgressing - Indicates that the external auth resource is in a progressing state.
-	ExternalAuthConditionTypeProgressing ExternalAuthConditionType = "Progressing"
-)
-
-// PossibleExternalAuthConditionTypeValues returns the possible values for the ExternalAuthConditionType const type.
-func PossibleExternalAuthConditionTypeValues() []ExternalAuthConditionType {
-	return []ExternalAuthConditionType{
-		ExternalAuthConditionTypeAvailable,
-		ExternalAuthConditionTypeDegraded,
-		ExternalAuthConditionTypeProgressing,
-	}
-}
-
 // ExternalAuthProvisioningState - The resource provisioning state.
 type ExternalAuthProvisioningState string
 
@@ -211,6 +211,27 @@ func PossibleExternalAuthProvisioningStateValues() []ExternalAuthProvisioningSta
 		ExternalAuthProvisioningStateProvisioning,
 		ExternalAuthProvisioningStateSucceeded,
 		ExternalAuthProvisioningStateUpdating,
+	}
+}
+
+// IngressType - The type of the default cluster ingress.
+type IngressType string
+
+const (
+	// IngressTypeDisabled - The default ingress is disabled.
+	IngressTypeDisabled IngressType = "Disabled"
+	// IngressTypePrivate - The default ingress is not visible from the internet.
+	IngressTypePrivate IngressType = "Private"
+	// IngressTypePublic - The default ingress is visible from the internet.
+	IngressTypePublic IngressType = "Public"
+)
+
+// PossibleIngressTypeValues returns the possible values for the IngressType const type.
+func PossibleIngressTypeValues() []IngressType {
+	return []IngressType{
+		IngressTypeDisabled,
+		IngressTypePrivate,
+		IngressTypePublic,
 	}
 }
 
@@ -378,7 +399,7 @@ func PossibleProvisioningStateValues() []ProvisioningState {
 	}
 }
 
-// StatusType - Representation of the possible values of a external auths condition status.
+// StatusType - Representation of the possible values of a condition status.
 type StatusType string
 
 const (

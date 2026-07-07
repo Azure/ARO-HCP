@@ -29,6 +29,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
+	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -68,6 +69,7 @@ func NewNodePoolDegradedAggregatorController(
 	controllerLister listers.ControllerLister,
 	activeOperationLister listers.ActiveOperationLister,
 	informers informers.BackendInformers,
+	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 	clock utilsclock.PassiveClock,
 ) controllerutils.Controller {
 	if clock == nil {
@@ -86,6 +88,7 @@ func NewNodePoolDegradedAggregatorController(
 		"NodePoolDegradedAggregator",
 		resourcesDBClient,
 		informers,
+		kubeApplierInformers,
 		1*time.Minute,
 		syncer,
 	)

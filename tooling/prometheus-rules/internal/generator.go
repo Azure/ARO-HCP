@@ -56,14 +56,16 @@ type alertingRuleFile struct {
 }
 
 type GroupAlerts struct {
-	GroupName string   `json:"groupName"`
-	Alerts    []string `json:"alerts"`
+	GroupName  string   `json:"groupName"`
+	Alerts     []string `json:"alerts"`
+	Namespaces []string `json:"namespaces,omitempty"`
 }
 
 type Options struct {
 	promtoolPath            string
 	outputBicep             string
 	includedAlerts          map[string][]string
+	namespaceFilters        map[string][]string
 	labelsToExtract         []string
 	ruleFiles               []alertingRuleFile
 	outputReplacements      []Replacements
@@ -159,8 +161,12 @@ func (o *Options) Complete(configFilePath string, promtoolPath string) error {
 
 	// Convert includedAlertsByGroup to a map
 	o.includedAlerts = make(map[string][]string)
+	o.namespaceFilters = make(map[string][]string)
 	for _, ga := range config.PrometheusRules.IncludedAlertsByGroup {
 		o.includedAlerts[ga.GroupName] = ga.Alerts
+		if len(ga.Namespaces) > 0 {
+			o.namespaceFilters[ga.GroupName] = ga.Namespaces
+		}
 	}
 
 	for _, untestedRules := range config.PrometheusRules.UntestedRules {
@@ -327,30 +333,40 @@ func (o *Options) RunTests() error {
 }
 
 var whitespaceMatcher = regexp.MustCompile(`\s*\n\s*`)
+var labelReferenceMatcher = regexp.MustCompile(`\$labels\.([^\s}]+)`)
 
 func (o *Options) labelsFromTextInConfiguredOrder(text string) []string {
-	if len(o.labelsToExtract) == 0 || text == "" {
+	if text == "" {
 		return nil
 	}
 
-	labelsInDescription := set.New[string]()
-	for _, label := range o.labelsToExtract {
-		if strings.Contains(text, labelTemplateToken(label)) {
-			labelsInDescription.Insert(label)
-		}
-	}
-	orderedLabels := make([]string, 0, len(o.labelsToExtract))
+	// Extract all label references from the text. This ensures that the correlationId
+	// includes all dimensions mentioned in the description, providing sufficiently
+	// specific IDs so alerts don't get incorrectly aggregated under one IcM incident.
 	seen := set.New[string]()
+	var orderedLabels []string
 
-	for _, labelToExtract := range o.labelsToExtract {
-		if !labelsInDescription.Has(labelToExtract) {
+	// When labelsToExtract is configured, emit those labels first (in the configured
+	// order) — but only the ones actually referenced in the text.
+	for _, label := range o.labelsToExtract {
+		if !strings.Contains(text, labelTemplateToken(label)) {
 			continue
 		}
-		if seen.Has(labelToExtract) {
+		if seen.Has(label) {
 			continue
 		}
-		seen.Insert(labelToExtract)
-		orderedLabels = append(orderedLabels, labelToExtract)
+		seen.Insert(label)
+		orderedLabels = append(orderedLabels, label)
+	}
+
+	// Then append any remaining labels found in the text that weren't already covered.
+	for _, match := range labelReferenceMatcher.FindAllStringSubmatch(text, -1) {
+		label := match[1]
+		if seen.Has(label) {
+			continue
+		}
+		seen.Insert(label)
+		orderedLabels = append(orderedLabels, label)
 	}
 
 	return orderedLabels
@@ -383,6 +399,9 @@ param azureMonitoring string
 
 #disable-next-line no-unused-params
 param actionGroups array
+
+@description('The minimum IcM severity level (highest priority) that alerts can fire at. Alerts more critical than this ceiling will be degraded to this value. 0 means no ceiling.')
+param severityCeiling int = 0
 
 #disable-next-line no-unused-params
 param location string = resourceGroup().location
@@ -510,29 +529,57 @@ param location string = resourceGroup().location
 
 				// Filter rules based on the output file type
 				if rule.Alert != "" && isAlertingRulesFile {
+					exprStr := strings.TrimSpace(
+						whitespaceMatcher.ReplaceAllString(rule.Expr.String(), " "),
+					)
+					if namespaces, ok := o.namespaceFilters[group.Name]; ok && len(namespaces) > 0 {
+						filtered, err := injectNamespaceFilter(exprStr, namespaces)
+						if err != nil {
+							return fmt.Errorf("failed to inject namespace filter for alert %s in group %s: %w", rule.Alert, group.Name, err)
+						}
+						exprStr = filtered
+					} else {
+						normalized, err := normalizeExpr(exprStr)
+						if err != nil {
+							return fmt.Errorf("failed to normalize expression for alert %s in group %s: %w", rule.Alert, group.Name, err)
+						}
+						exprStr = normalized
+					}
+					severity, err := severityFor(labels)
+					if err != nil {
+						return fmt.Errorf("alert %q: %w", rule.Alert, err)
+					}
 					armGroup.Properties.Rules = append(armGroup.Properties.Rules, &armprometheusrulegroups.PrometheusRule{
 						Alert:       ptr.To(rule.Alert),
 						Enabled:     ptr.To(true),
 						Labels:      labels,
 						Annotations: annotations,
 						For:         parseToAzureDurationString(rule.For),
-						Expression: ptr.To(
-							strings.TrimSpace(
-								whitespaceMatcher.ReplaceAllString(rule.Expr.String(), " "),
-							),
-						),
-						Severity: severityFor(labels),
+						Expression:  ptr.To(exprStr),
+						Severity:    severity,
 					})
 				} else if rule.Record != "" && isRecordingRulesFile {
+					exprStr := strings.TrimSpace(
+						whitespaceMatcher.ReplaceAllString(rule.Expr.String(), " "),
+					)
+					if namespaces, ok := o.namespaceFilters[group.Name]; ok && len(namespaces) > 0 {
+						filtered, err := injectNamespaceFilter(exprStr, namespaces)
+						if err != nil {
+							return fmt.Errorf("failed to inject namespace filter for record %s in group %s: %w", rule.Record, group.Name, err)
+						}
+						exprStr = filtered
+					} else {
+						normalized, err := normalizeExpr(exprStr)
+						if err != nil {
+							return fmt.Errorf("failed to normalize expression for record %s in group %s: %w", rule.Record, group.Name, err)
+						}
+						exprStr = normalized
+					}
 					armGroup.Properties.Rules = append(armGroup.Properties.Rules, &armprometheusrulegroups.PrometheusRule{
-						Record:  ptr.To(rule.Record),
-						Enabled: ptr.To(true),
-						Labels:  labels,
-						Expression: ptr.To(
-							strings.TrimSpace(
-								whitespaceMatcher.ReplaceAllString(rule.Expr.String(), " "),
-							),
-						),
+						Record:     ptr.To(rule.Record),
+						Enabled:    ptr.To(true),
+						Labels:     labels,
+						Expression: ptr.To(exprStr),
 					})
 				}
 			}
@@ -581,8 +628,6 @@ resource {{.name}} 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' 
           actionProperties: {
             'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
             'IcM.CorrelationId': '#$.annotations.correlationId#'
-            'IcM.Description': '#$.annotations.info#'
-            'IcM.TsgId': '#$.annotations.runbook_url#'
           }
         }]
         alert: '{{.Alert}}'
@@ -609,7 +654,7 @@ resource {{.name}} 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' 
 {{- if .For }}
         for: '{{.For}}'
 {{- end }}
-        severity: {{.Severity}}
+        severity: severityCeiling > 0 ? max({{.Severity}}, severityCeiling) : {{.Severity}}
       }
 {{- end}}
     ]
@@ -716,24 +761,162 @@ func parseToAzureDurationString(d *monitoringv1.Duration) *string {
 	return ptr.To("PT" + strings.ToUpper(parsedDuration.String()))
 }
 
-func severityFor(labels map[string]*string) *int32 {
+func severityFor(labels map[string]*string) (*int32, error) {
 	severity, ok := labels["severity"]
 	if !ok || severity == nil {
-		return nil
+		return nil, nil
 	}
 
-	// Severity level mapping
+	// Severity follows the Azure CEN standard and maps directly to the
+	// IcM severity number. Set independently of burn rate.
 	// https://msazure.visualstudio.com/AzureRedHatOpenShift/_wiki/wikis/ARO.wiki/838022/IcM-best-practices?anchor=severity-levels
-
 	switch *severity {
+	// Canonical Azure CEN vocabulary: the severity label is the IcM Sev number.
+	case "2":
+		return ptr.To(int32(2)), nil
+	case "2.5", "25":
+		return ptr.To(int32(25)), nil // IcM encodes Sev 2.5 as integer 25
+	case "3":
+		return ptr.To(int32(3)), nil
+	case "4":
+		return ptr.To(int32(4)), nil
+	// Deprecated vocabulary, retained for backward compatibility.
 	case "critical":
-		return ptr.To(int32(2)) // SEV 2: Single service SLA impact.
+		return ptr.To(int32(2)), nil
 	case "warning":
-		return ptr.To(int32(3)) // SEV 3: Urgent/high business impact, no SLA impact.
+		return ptr.To(int32(3)), nil
 	case "info":
-		return ptr.To(int32(4)) // SEV 4: Not urgent, no SLA impact.
+		return ptr.To(int32(4)), nil
+	// Azure CEN reserves Sev 1 for declared major incidents, so alerts must not
+	// self-classify as Sev 1. Reject it with an explicit message.
+	case "1":
+		return nil, fmt.Errorf(`invalid severity label "1": Sev 1 is reserved for declared major incidents (use 2, 2.5, 3, or 4)`)
 	default:
-		logrus.Warnf("unknown severity label %q, defaulting to verbose", *severity)
-		return ptr.To(int32(4)) // Sev 4 - Verbose
+		// Fail fast rather than silently defaulting to Sev 4.
+		return nil, fmt.Errorf("invalid severity label %q (use 2, 2.5, 3, or 4)", *severity)
 	}
+}
+
+// CorrelationIDSegment is a single segment of a parsed correlation ID.
+// Each segment is either a literal string value or a reference to a Prometheus label.
+type CorrelationIDSegment struct {
+	Type  string `json:"type"`
+	Value string `json:"value,omitempty"`
+	Name  string `json:"name,omitempty"`
+}
+
+// CorrelationMapEntry holds the mapping between a monitor identifier and its parsed correlation ID segments.
+type CorrelationMapEntry struct {
+	Alert    string                 `json:"alert"`
+	Segments []CorrelationIDSegment `json:"correlationId"`
+}
+
+// correlationIDSegmentMatcher matches `{{ $labels.X }}` tokens in a correlation ID string.
+var correlationIDSegmentMatcher = regexp.MustCompile(`\{\{\s*\$labels\.([^\s}]+)\s*\}\}`)
+
+// parseCorrelationID splits a correlation ID string like
+// "AlertName/{{ $labels.cluster }}/{{ $labels.namespace }}" into typed segments.
+func parseCorrelationID(raw string) []CorrelationIDSegment {
+	var segments []CorrelationIDSegment
+	for raw != "" {
+		loc := correlationIDSegmentMatcher.FindStringIndex(raw)
+		if loc == nil {
+			// No more label references; the rest is literal.
+			for _, part := range strings.Split(raw, "/") {
+				if part != "" {
+					segments = append(segments, CorrelationIDSegment{Type: "literal", Value: part})
+				}
+			}
+			break
+		}
+		// Everything before the match is literal text containing slash-separated segments.
+		if loc[0] > 0 {
+			prefix := raw[:loc[0]]
+			for _, part := range strings.Split(prefix, "/") {
+				if part != "" {
+					segments = append(segments, CorrelationIDSegment{Type: "literal", Value: part})
+				}
+			}
+		}
+		// The match itself is a label reference.
+		match := correlationIDSegmentMatcher.FindStringSubmatch(raw)
+		segments = append(segments, CorrelationIDSegment{Type: "label", Name: match[1]})
+		raw = raw[loc[1]:]
+		// Consume a trailing slash separator if present.
+		raw = strings.TrimPrefix(raw, "/")
+	}
+	return segments
+}
+
+// CorrelationMap iterates all alerting rules (using the same logic as Generate)
+// and returns the mapping between group/alert names and their parsed correlation ID segments.
+func (o *Options) CorrelationMap() ([]CorrelationMapEntry, error) {
+	var entries []CorrelationMapEntry
+
+	for _, irf := range o.ruleFiles {
+		if irf.testDependency {
+			continue
+		}
+		for _, group := range irf.Rules.Spec.Groups {
+			if len(o.includedAlerts) > 0 {
+				if _, exists := o.includedAlerts[group.Name]; !exists {
+					continue
+				}
+			}
+
+			groupName := o.groupNamePrefix + group.Name
+
+			for _, rule := range group.Rules {
+				if rule.Alert == "" {
+					continue
+				}
+
+				if len(o.includedAlerts) > 0 {
+					if includedAlerts, exists := o.includedAlerts[group.Name]; exists {
+						shouldInclude := false
+						for _, includedAlert := range includedAlerts {
+							if rule.Alert == includedAlert {
+								shouldInclude = true
+								break
+							}
+						}
+						if !shouldInclude {
+							continue
+						}
+					}
+				}
+
+				annotations := map[string]*string{}
+				for k, v := range rule.Annotations {
+					annotations[k] = ptr.To(v)
+				}
+
+				descriptionText := ""
+				if description, exists := annotations["description"]; exists {
+					descriptionText = ptr.Deref(description, "")
+				}
+
+				extractedLabels := o.labelsFromTextInConfiguredOrder(descriptionText)
+
+				var correlationID string
+				if override, hasOverride := annotations["correlationId"]; hasOverride {
+					correlationID = ptr.Deref(override, "")
+				} else {
+					correlationID = rule.Alert + "/{{ $labels.cluster }}"
+					for _, label := range extractedLabels {
+						if strings.Contains(correlationID, labelTemplateToken(label)) {
+							continue
+						}
+						correlationID += "/" + labelTemplateToken(label)
+					}
+				}
+
+				entries = append(entries, CorrelationMapEntry{
+					Alert:    groupName + "/" + rule.Alert,
+					Segments: parseCorrelationID(correlationID),
+				})
+			}
+		}
+	}
+	return entries, nil
 }

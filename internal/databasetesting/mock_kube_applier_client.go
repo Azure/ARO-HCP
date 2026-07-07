@@ -55,7 +55,6 @@ func NewMockKubeApplierDBClient() *MockKubeApplierDBClient {
 // NewMockKubeApplierDBClientWithResources creates a MockKubeApplierDBClient and
 // populates it with the given *Desire resources. Supported types:
 //   - *kubeapplier.ApplyDesire
-//   - *kubeapplier.DeleteDesire
 //   - *kubeapplier.ReadDesire
 func NewMockKubeApplierDBClientWithResources(ctx context.Context, resources []any) (*MockKubeApplierDBClient, error) {
 	mock := NewMockKubeApplierDBClient()
@@ -154,30 +153,6 @@ func (m *MockKubeApplierDBClient) ApplyDesiresForNodePool(
 	), nil
 }
 
-func (m *MockKubeApplierDBClient) DeleteDesiresForCluster(
-	subscriptionID, resourceGroupName, clusterName string,
-) (database.ResourceCRUD[kubeapplier.DeleteDesire, *kubeapplier.DeleteDesire], error) {
-	parentID, err := api.ToClusterResourceID(subscriptionID, resourceGroupName, clusterName)
-	if err != nil {
-		return nil, err
-	}
-	return newMockResourceCRUD[kubeapplier.DeleteDesire, *kubeapplier.DeleteDesire, database.GenericDocument[kubeapplier.DeleteDesire]](
-		m, parentID, kubeapplier.ClusterScopedDeleteDesireResourceType,
-	), nil
-}
-
-func (m *MockKubeApplierDBClient) DeleteDesiresForNodePool(
-	subscriptionID, resourceGroupName, clusterName, nodePoolName string,
-) (database.ResourceCRUD[kubeapplier.DeleteDesire, *kubeapplier.DeleteDesire], error) {
-	parentID, err := api.ToNodePoolResourceID(subscriptionID, resourceGroupName, clusterName, nodePoolName)
-	if err != nil {
-		return nil, err
-	}
-	return newMockResourceCRUD[kubeapplier.DeleteDesire, *kubeapplier.DeleteDesire, database.GenericDocument[kubeapplier.DeleteDesire]](
-		m, parentID, kubeapplier.NodePoolScopedDeleteDesireResourceType,
-	), nil
-}
-
 func (m *MockKubeApplierDBClient) ReadDesiresForCluster(
 	subscriptionID, resourceGroupName, clusterName string,
 ) (database.ResourceCRUD[kubeapplier.ReadDesire, *kubeapplier.ReadDesire], error) {
@@ -224,16 +199,6 @@ func (g *mockKubeApplierListers) ApplyDesires() database.GlobalLister[kubeapplie
 		resourceTypes: []azcorearm.ResourceType{
 			kubeapplier.ClusterScopedApplyDesireResourceType,
 			kubeapplier.NodePoolScopedApplyDesireResourceType,
-		},
-	}
-}
-
-func (g *mockKubeApplierListers) DeleteDesires() database.GlobalLister[kubeapplier.DeleteDesire] {
-	return &mockGlobalLister[kubeapplier.DeleteDesire, database.GenericDocument[kubeapplier.DeleteDesire]]{
-		client: g.store,
-		resourceTypes: []azcorearm.ResourceType{
-			kubeapplier.ClusterScopedDeleteDesireResourceType,
-			kubeapplier.NodePoolScopedDeleteDesireResourceType,
 		},
 	}
 }
@@ -345,8 +310,6 @@ func (m *MockKubeApplierDBClient) addResource(ctx context.Context, resource any)
 	switch r := resource.(type) {
 	case *kubeapplier.ApplyDesire:
 		return m.addApplyDesire(ctx, r)
-	case *kubeapplier.DeleteDesire:
-		return m.addDeleteDesire(ctx, r)
 	case *kubeapplier.ReadDesire:
 		return m.addReadDesire(ctx, r)
 	default:
@@ -364,24 +327,6 @@ func (m *MockKubeApplierDBClient) addApplyDesire(ctx context.Context, d *kubeapp
 		crud, err = m.ApplyDesiresForNodePool(subscriptionID, resourceGroupName, clusterName, nodePoolName)
 	} else {
 		crud, err = m.ApplyDesiresForCluster(subscriptionID, resourceGroupName, clusterName)
-	}
-	if err != nil {
-		return err
-	}
-	_, err = crud.Create(ctx, d, nil)
-	return err
-}
-
-func (m *MockKubeApplierDBClient) addDeleteDesire(ctx context.Context, d *kubeapplier.DeleteDesire) error {
-	subscriptionID, resourceGroupName, clusterName, nodePoolName, err := parentForKubeApplierDesire(d.GetResourceID())
-	if err != nil {
-		return err
-	}
-	var crud database.ResourceCRUD[kubeapplier.DeleteDesire, *kubeapplier.DeleteDesire]
-	if len(nodePoolName) != 0 {
-		crud, err = m.DeleteDesiresForNodePool(subscriptionID, resourceGroupName, clusterName, nodePoolName)
-	} else {
-		crud, err = m.DeleteDesiresForCluster(subscriptionID, resourceGroupName, clusterName)
 	}
 	if err != nil {
 		return err

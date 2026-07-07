@@ -12,6 +12,7 @@ panels:
     unit: seconds
     workspace: svc
     step: "60s"
+    minPeakThreshold: 2.5
 - title: "Backend Metrics"
   queries:
   - title: "Controller Workqueue Retry Ratio"
@@ -33,6 +34,7 @@ panels:
     unit: ratio
     workspace: svc
     step: "60s"
+    minPeakThreshold: 0.5
   - title: "Controller Workqueue Depth"
     description: "Number of items waiting to be processed in each controller workqueue. Sustained depth indicates the controller cannot keep up with incoming work items."
     query: |
@@ -44,6 +46,7 @@ panels:
     unit: items
     workspace: svc
     step: "60s"
+    minPeakThreshold: 10
   - title: "Controller Panic Rate"
     description: "Rate of panics caught by the runtime panic handler, per controller. Any non-zero rate indicates a controller is actively crashing and recovering via the panic handler."
     query: |
@@ -74,6 +77,7 @@ panels:
     unit: ratio
     workspace: svc
     step: "60s"
+    minPeakThreshold: 0.5
   - title: "Controller Workqueue Depth"
     description: "Number of items waiting to be processed in each fleet controller workqueue. Sustained depth indicates the controller cannot keep up with incoming work items."
     query: |
@@ -85,6 +89,7 @@ panels:
     unit: items
     workspace: svc
     step: "60s"
+    minPeakThreshold: 10
   - title: "Controller Reconcile Rate"
     description: "Rate of reconciliations per fleet controller. Shows how much work each controller is processing."
     query: |

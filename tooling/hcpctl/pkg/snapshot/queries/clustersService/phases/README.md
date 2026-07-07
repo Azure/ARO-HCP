@@ -28,5 +28,7 @@ Node pools do something similar, without an uninstalling phase:
 ## Where to Go Next
 
 If the cluster or node pool:
-- never reaches the 'installing' phase, review the `logs/clustersService/logs.md` query output for failed Azure infrastructure provisioning or Maestro interactions.
-- reaches the 'installing' but never reaches the 'ready' phase, review `conditions/hypershift/hostedClusterConditions.md` or `conditions/hypershift/nodePoolConditions.md` for the next layer of the stack
+- reaches `validating` but not `pending`, review `logs/clustersService/inflightChecks.md` to see which inflight check is stuck or failing.
+- reaches `pending` but not `installing`, review `logs/clustersService/provisionSteps.md` to see which provision step is stuck or failing.
+- reaches `installing` but not `ready`, review `logs/clustersService/logs.md` paying attention to timestamps, and review `conditions/hypershift/hostedClusterConditions.md` or `conditions/hypershift/nodePoolConditions.md` for the next layer of the stack.
+- reaches `ready` in Clusters Service but the ARM create operation stays `Provisioning`, review `conditions/backend/resourceControllerConditions.md` and `conditions/hypershift/hostedClusterConditions.md`.

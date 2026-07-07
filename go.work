@@ -4,8 +4,7 @@ use (
 	./admin/client
 	./admin/server
 	./backend
-	./dev-infrastructure/scripts/recreate-broken-pools
-	./dev-infrastructure/scripts/recreate-system-pool
+	./dev-infrastructure/scripts/postgres-access
 	./fleet
 	./frontend
 	./hack/verify-gomega-assertions

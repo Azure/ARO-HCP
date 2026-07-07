@@ -325,6 +325,7 @@ func (v version) NewHCPOpenShiftClusterNodePool(from *api.HCPOpenShiftClusterNod
 				// Use Ptr (not PtrOrNil) to ensure int32 zero value is preserved in JSON response.
 				Replicas:                api.Ptr(from.Properties.Replicas),
 				NodeDrainTimeoutMinutes: from.Properties.NodeDrainTimeoutMinutes,
+				Status:                  newResourceStatus(from.Status.Conditions),
 			},
 			Identity: newManagedServiceIdentity(from.Identity),
 		},

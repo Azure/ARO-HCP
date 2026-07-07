@@ -140,10 +140,10 @@ param aksEnableSwiftNodepools bool
 @description('The name of the maestro consumer.')
 param maestroConsumerName string
 
-@description('The domain to use to use for the maestro certificate. Relevant only for environments where OneCert can be used.')
-param maestroCertDomain string
+@description('The SAN and CN for the Maestro consumer EventGrid certificate.')
+param maestroConsumerCertSAN string
 
-@description('The issuer of the maestro certificate.')
+@description('The issuer of the Maestro certificate.')
 param maestroCertIssuer string
 
 @description('The Azure resource ID of the eventgrid namespace for Maestro.')
@@ -188,9 +188,6 @@ param mgmtAgentNamespace string
 @description('The service account name of the mgmt-agent controller.')
 param mgmtAgentServiceAccountName string
 
-@description('The regional SVC DNS zone name.')
-param regionalSvcDNSZoneName string
-
 @description('The name of the CX KeyVault')
 param cxKeyVaultName string
 
@@ -219,20 +216,11 @@ param logsMSI string
 @description('The service account name of the logs managed identity')
 param logsServiceAccount string
 
-@description('Issuer of certificate for Geneva Authentication')
-param genevaCertificateIssuer string = 'Self'
-
 @description('Name of certificate in Keyvault and hostname used in SAN')
 param genevaRpLogsName string
 
 @description('Name of certificate in Keyvault and hostname used in SAN')
 param genevaClusterLogsName string
-
-@description('Domain used for creation of geneva auth certificates')
-param genevaCertificateDomain string
-
-@description('Should geneva certificates be managed')
-param genevaManageCertificates bool
 
 @description('The name of the Azure Storage account to create for HCP Backups')
 param hcpBackupsStorageAccountName string
@@ -345,7 +333,6 @@ module vnetCreation '../modules/network/vnet.bicep' = {
     vnetName: vnetName
     vnetAddressPrefix: vnetAddressPrefix
     enableSwift: aksEnableSwiftVnet
-    deploymentMsiId: globalMSIId
   }
 }
 
@@ -446,6 +433,17 @@ module dataCollection '../modules/metrics/datacollection.bicep' = {
   ]
 }
 
+// Declare this management cluster in the authoritative underlay-cluster inventory (see the module
+// for details). Instantiated per stamp, so each management cluster emits its own series and they
+// are torn down individually when a stamp is decommissioned.
+module underlayClusterMetric '../modules/metrics/underlay-clusters-metric.bicep' = {
+  name: 'underlay-clusters-metric'
+  params: {
+    azureMonitoringWorkspaceId: azureMonitoringWorkspaceId
+    clusterName: aksClusterName
+  }
+}
+
 //
 // K E Y V A U L T S
 //
@@ -496,40 +494,30 @@ resource mgmtKeyVault 'Microsoft.KeyVault/vaults@2024-04-01-preview' existing = 
 }
 
 //
-//   G E N E V A   C E R T I F I C A T E
+//   G E N E V A   C E R T I F I C A T E   A C C E S S
 //
 
-module genevaRPCertificate '../modules/keyvault/key-vault-cert-with-access.bicep' = if (genevaManageCertificates) {
+module genevaRpLogsCertCSIAccess '../modules/keyvault/key-vault-secret-access.bicep' = {
   name: 'geneva-mgmt-rp-certificate'
   params: {
     keyVaultName: mgmtKeyVaultName
-    kvCertOfficerManagedIdentityResourceId: globalMSIId
-    certDomain: genevaCertificateDomain
-    certificateIssuer: genevaCertificateIssuer
-    hostName: genevaRpLogsName
-    keyVaultCertificateName: genevaRpLogsName
-    certificateAccessManagedIdentityPrincipalId: mgmtCluster.outputs.aksClusterKeyVaultSecretsProviderPrincipalId
+    principalId: mgmtCluster.outputs.aksClusterKeyVaultSecretsProviderPrincipalId
+    secretName: genevaRpLogsName
   }
 }
 
-module genevaClusterLogCertificate '../modules/keyvault/key-vault-cert-with-access.bicep' = if (genevaManageCertificates) {
+module genevaClusterLogsCertCSIAccess '../modules/keyvault/key-vault-secret-access.bicep' = {
   name: 'geneva-cluster-log-certificate'
   params: {
     keyVaultName: mgmtKeyVaultName
-    kvCertOfficerManagedIdentityResourceId: globalMSIId
-    certDomain: genevaCertificateDomain
-    certificateIssuer: genevaCertificateIssuer
-    hostName: genevaClusterLogsName
-    keyVaultCertificateName: genevaClusterLogsName
-    certificateAccessManagedIdentityPrincipalId: mgmtCluster.outputs.aksClusterKeyVaultSecretsProviderPrincipalId
+    principalId: mgmtCluster.outputs.aksClusterKeyVaultSecretsProviderPrincipalId
+    secretName: genevaClusterLogsName
   }
 }
 
 //
 //   M A E S T R O
 //
-
-var effectiveMaestroCertDomain = !empty(maestroCertDomain) ? maestroCertDomain : 'maestro.${regionalSvcDNSZoneName}'
 
 module maestroConsumer '../modules/maestro/maestro-consumer.bicep' = if (maestroEventGridNamespaceId != '') {
   name: 'maestro-consumer'
@@ -541,9 +529,8 @@ module maestroConsumer '../modules/maestro/maestro-consumer.bicep' = if (maestro
     maestroConsumerName: maestroConsumerName
     maestroEventGridNamespaceId: maestroEventGridNamespaceId
     certKeyVaultName: mgmtKeyVaultName
-    keyVaultOfficerManagedIdentityName: globalMSIId
-    maestroCertificateDomain: effectiveMaestroCertDomain
-    maestroCertificateIssuer: maestroCertIssuer
+    certificateSAN: maestroConsumerCertSAN
+    certificateIssuer: maestroCertIssuer
   }
   dependsOn: [
     mgmtKeyVault

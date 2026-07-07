@@ -2,14 +2,16 @@
 
 ## Current state
 
-The package already exists with three minimal types:
+The package already exists with two minimal types:
 
 - `internal/api/kubeapplier/types_apply_desire.go` &mdash; `ApplyDesire`
-- `internal/api/kubeapplier/types_delete_desire.go` &mdash; `DeleteDesire`
-- `internal/api/kubeapplier/types_read_desire.go` &mdash; `ReadDesire` + `ResourceReference`
+- `internal/api/kubeapplier/types_read_desire.go` &mdash; `ReadDesire`
+- `internal/api/kubeapplier/types_resource_reference.go` &mdash; `ResourceReference`
 
-Each embeds `api.CosmosMetadata` and exposes a `Spec` and `Status`. The
-`Status.Conditions` is `[]metav1.Condition`.
+`ApplyDesire` uses a discriminated union via `ApplyDesireSpec.Type`
+(`ServerSideApply` | `Delete`) to handle both server-side-apply and delete
+operations. Each type embeds `api.CosmosMetadata` and exposes a `Spec` and
+`Status`. The `Status.Conditions` is `[]metav1.Condition`.
 
 Reference patterns to follow:
 
@@ -23,8 +25,8 @@ Reference patterns to follow:
 
 ### 2.1 Generate deepcopy
 
-Add the following marker above each of `ApplyDesire`, `DeleteDesire`, and
-`ReadDesire`:
+Add the following marker above each of `ApplyDesire`, `ReadDesire`, and
+`ServerSideApplyConfig`:
 
 ```go
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
@@ -45,9 +47,9 @@ extend it to include this subpackage).
 Acceptance:
 
 - `internal/api/kubeapplier/zz_generated.deepcopy.go` exists.
-- Each `*Desire` implements `runtime.Object` (`DeepCopyObject`,
-  `GetObjectKind` &mdash; we may also need to embed `metav1.TypeMeta` for the
-  latter; see 2.3).
+- Each of `ApplyDesire` and `ReadDesire` implements `runtime.Object`
+  (`DeepCopyObject`, `GetObjectKind` &mdash; we may also need to embed
+  `metav1.TypeMeta` for the latter; see 2.3).
 
 ### 2.2 Register `ResourceType` constants
 
@@ -62,9 +64,8 @@ package kubeapplier
 import azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 var (
-    ApplyDesireResourceType  = azcorearm.NewResourceType(api.ProviderNamespace, "applydesires")
-    DeleteDesireResourceType = azcorearm.NewResourceType(api.ProviderNamespace, "deletedesires")
-    ReadDesireResourceType   = azcorearm.NewResourceType(api.ProviderNamespace, "readdesires")
+    ApplyDesireResourceType = azcorearm.NewResourceType(api.ProviderNamespace, "applydesires")
+    ReadDesireResourceType  = azcorearm.NewResourceType(api.ProviderNamespace, "readdesires")
 )
 ```
 
@@ -128,20 +129,22 @@ Mirror the existing `api.ToClusterResourceIDString` helpers
 // internal/api/kubeapplier/resource_ids.go
 func ToApplyDesireResourceIDString(sub, rg, cluster, name string) string
 func ToApplyDesireUnderNodePoolResourceIDString(sub, rg, cluster, np, name string) string
-// ... and DeleteDesire / ReadDesire variants
+func ToReadDesireResourceIDString(sub, rg, cluster, name string) string
+func ToReadDesireUnderNodePoolResourceIDString(sub, rg, cluster, np, name string) string
 func ParseDesireResourceID(id string) (DesireKey, error)
 ```
 
-These are the canonical way to build the `*Desire` resource IDs and to
-extract index keys (see Doc 04 for `ByCluster` / `ByNodePool` indexers).
+These are the canonical way to build the `ApplyDesire` and `ReadDesire`
+resource IDs and to extract index keys (see Doc 04 for `ByCluster` /
+`ByNodePool` indexers).
 
 ## Acceptance for this layer
 
 - `go build ./internal/api/...` passes.
 - Generated deepcopy compiles and is committed.
 - Hand-written unit tests in `internal/api/kubeapplier/*_test.go` cover:
-  - Round-trip JSON for each `*Desire` (mirror existing tests on
-    `HCPOpenShiftCluster`).
+  - Round-trip JSON for each of `ApplyDesire` and `ReadDesire` (mirror
+    existing tests on `HCPOpenShiftCluster`).
   - Resource-ID parse/format symmetry.
 - No code outside `internal/api/kubeapplier` and `internal/api` itself depends
   on this package yet (so this layer can ship in its own PR).

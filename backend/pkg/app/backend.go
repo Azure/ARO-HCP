@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"sync"
 	"time"
 
 	_ "k8s.io/component-base/metrics/prometheus/clientgo"
@@ -45,6 +46,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/managementclustercontrollers"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/metricscontrollers"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/mismatchcontrollers"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/nodepoolcreationcontrollers"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/nodepooldeletion"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/operationcontrollers"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/statuscontrollers"
@@ -52,11 +54,11 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/validationcontrollers"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/validationcontrollers/validations"
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
-	"github.com/Azure/ARO-HCP/backend/pkg/maestro"
 	internalazure "github.com/Azure/ARO-HCP/internal/azure"
 	"github.com/Azure/ARO-HCP/internal/database"
 	dbinformers "github.com/Azure/ARO-HCP/internal/database/informers"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
+	sharedleaderelection "github.com/Azure/ARO-HCP/internal/leaderelection"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -109,8 +111,6 @@ type backendMetricsServer struct {
 }
 
 func (o *BackendOptions) RunBackend(ctx context.Context) error {
-	logger := utils.LoggerFromContext(ctx)
-
 	ctx, cancel := context.WithCancelCause(ctx)
 	defer cancel(fmt.Errorf("function returned"))
 
@@ -118,23 +118,27 @@ func (o *BackendOptions) RunBackend(ctx context.Context) error {
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to construct backend: %w", err))
 	}
-	runErrCh := make(chan error, 1)
+
+	var (
+		mu   sync.Mutex
+		errs []error
+		wg   sync.WaitGroup
+	)
+
+	wg.Add(1)
 	go func() {
+		defer cancel(fmt.Errorf("backend exited"))
+		defer wg.Done()
 		defer k8sutilruntime.HandleCrash()
-		runErrCh <- backend.Run(ctx)
-		cancel(fmt.Errorf("backend exited"))
+		if err := backend.Run(ctx); err != nil {
+			mu.Lock()
+			errs = append(errs, utils.TrackError(fmt.Errorf("failed to run backend: %w", err)))
+			mu.Unlock()
+		}
 	}()
 
-	<-ctx.Done()
-	logger.Info("context closed")
-
-	logger.Info("waiting for backend run to finish")
-	runErr := <-runErrCh
-	if runErr != nil {
-		return utils.TrackError(fmt.Errorf("failed to run backend: %w", runErr))
-	}
-
-	return nil
+	wg.Wait()
+	return errors.Join(errs...)
 }
 
 func (o *BackendOptions) NewBackend() (*Backend, error) {
@@ -198,17 +202,11 @@ func (b *Backend) Run(ctx context.Context) error {
 	// Create HealthzAdaptor for leader election
 	electionChecker := leaderelection.NewLeaderHealthzAdaptor(time.Second * 20)
 
-	// Launch servers and leader election as independent goroutines.
-	// Each goroutine sends its result on errCh when done. On first
-	// error or context cancellation, cancel propagates to all.
-	goroutines := 1 // leader election always runs
-	if b.options.HealthzServerListenAddress != "" {
-		goroutines++
-	}
-	if b.options.MetricsServerListenAddress != "" || b.options.MetricsServerListener != nil {
-		goroutines++
-	}
-	errCh := make(chan error, goroutines)
+	var (
+		mu   sync.Mutex
+		errs []error
+		wg   sync.WaitGroup
+	)
 
 	if b.options.HealthzServerListenAddress != "" {
 		s := &backendHealthzServer{
@@ -216,13 +214,16 @@ func (b *Backend) Run(ctx context.Context) error {
 			metricsRegisterer: b.options.MetricsRegisterer,
 			electionChecker:   electionChecker,
 		}
+		wg.Add(1)
 		go func() {
+			defer cancel(fmt.Errorf("healthz server exited"))
+			defer wg.Done()
 			defer k8sutilruntime.HandleCrash()
-			err := s.Run(ctx)
-			if err != nil {
-				cancel(fmt.Errorf("healthz server exited: %w", err))
+			if err := s.Run(ctx); err != nil {
+				mu.Lock()
+				errs = append(errs, err)
+				mu.Unlock()
 			}
-			errCh <- err
 		}()
 	}
 
@@ -233,33 +234,32 @@ func (b *Backend) Run(ctx context.Context) error {
 			metricsRegisterer: b.options.MetricsRegisterer,
 			metricsGatherer:   b.options.MetricsGatherer,
 		}
+		wg.Add(1)
 		go func() {
+			defer cancel(fmt.Errorf("metrics server exited"))
+			defer wg.Done()
 			defer k8sutilruntime.HandleCrash()
-			err := s.Run(ctx)
-			if err != nil {
-				cancel(fmt.Errorf("metrics server exited: %w", err))
+			if err := s.Run(ctx); err != nil {
+				mu.Lock()
+				errs = append(errs, err)
+				mu.Unlock()
 			}
-			errCh <- err
 		}()
 	}
 
+	wg.Add(1)
 	go func() {
+		defer cancel(fmt.Errorf("backend controllers leader election exited"))
+		defer wg.Done()
 		defer k8sutilruntime.HandleCrash()
-		err := b.runBackendControllersUnderLeaderElection(ctx, electionChecker)
-		// When leader election exits (e.g. lost lease), cancel so Run() unblocks and performs shutdown.
-		cancel(fmt.Errorf("backend controllers leader election exited"))
-		errCh <- err
+		if err := b.runBackendControllersUnderLeaderElection(ctx, electionChecker); err != nil {
+			mu.Lock()
+			errs = append(errs, err)
+			mu.Unlock()
+		}
 	}()
 
-	<-ctx.Done()
-
-	errs := []error{}
-	for range goroutines {
-		if err := <-errCh; err != nil && !errors.Is(err, http.ErrServerClosed) {
-			logger.Info("goroutine completed", "message", err.Error())
-			errs = append(errs, err)
-		}
-	}
+	wg.Wait()
 
 	logger.Info(fmt.Sprintf("%s (%s) stopped", b.options.AppShortDescriptionName, b.options.AppVersion))
 
@@ -367,6 +367,8 @@ func shutdownHTTPServer(ctx context.Context, server *http.Server, name string) e
 // runBackendControllersUnderLeaderElection runs the backen controllers under
 // a leader election loop.
 func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, electionChecker *leaderelection.HealthzAdaptor) error {
+	logger := utils.LoggerFromContext(ctx)
+
 	backendInformers := informers.NewBackendInformers(ctx,
 		b.options.ResourcesDBClient.ResourcesGlobalListers(),
 		b.options.BillingDBClient.BillingGlobalListers(),
@@ -419,9 +421,6 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 
 	_, controllerLister := backendInformers.Controllers()
 
-	maestroMetrics := maestro.NewMaestroMetrics(b.options.MetricsRegisterer)
-	maestroClientBuilder := maestro.NewMaestroClientBuilder(maestroMetrics)
-
 	subscriptionNonClusterDataDumpController := datadumpcontrollers.NewSubscriptionNonClusterDataDumpController(b.options.ResourcesDBClient, activeOperationLister, backendInformers)
 	clusterRecursiveDataDumpController := datadumpcontrollers.NewClusterRecursiveDataDumpController(b.options.ResourcesDBClient, b.options.KubeApplierDBClients, managementClusterLister, activeOperationLister, backendInformers, unionKubeApplierInformers)
 	csStateDumpController := datadumpcontrollers.NewCSStateDumpController(b.options.ResourcesDBClient, activeOperationLister, backendInformers, unionKubeApplierInformers, b.options.ClustersServiceClient)
@@ -440,6 +439,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		b.options.ClustersServiceClient,
 		activeOperationInformer,
 	)
+
 	operationClusterCreateController := operationcontrollers.NewOperationClusterCreateController(
 		b.clock,
 		b.options.ResourcesDBClient,
@@ -470,6 +470,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		b.options.ClustersServiceClient,
 		http.DefaultClient,
 		activeOperationInformer,
+		backendInformers,
 	)
 	operationNodePoolUpdateController := operationcontrollers.NewOperationNodePoolUpdateController(
 		b.clock,
@@ -547,6 +548,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		unionReadDesireLister,
 	)
 	controlPlaneDesiredVersionController := upgradecontrollers.NewControlPlaneDesiredVersionController(
+		b.clock,
 		b.options.ResourcesDBClient,
 		b.options.ClustersServiceClient,
 		activeOperationLister,
@@ -556,6 +558,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		subscriptionLister,
 	)
 	triggerControlPlaneUpgradeController := upgradecontrollers.NewTriggerControlPlaneUpgradeController(
+		b.clock,
 		b.options.ResourcesDBClient,
 		b.options.ClustersServiceClient,
 		activeOperationLister,
@@ -583,6 +586,13 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		backendInformers,
 		unionKubeApplierInformers,
 	)
+	desiredControlPlaneSizeController := clusterpropertiescontroller.NewDesiredControlPlaneSizeController(
+		b.options.ResourcesDBClient,
+		b.options.ClustersServiceClient,
+		activeOperationLister,
+		backendInformers,
+		unionKubeApplierInformers,
+	)
 
 	// Each aggregator hardcodes its own inertia inside the statuscontrollers
 	// package so subsystem-specific tuning lives next to the controller that
@@ -602,6 +612,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		controllerLister,
 		activeOperationLister,
 		backendInformers,
+		unionKubeApplierInformers,
 		b.clock,
 	)
 	externalAuthDegradedAggregatorController := statuscontrollers.NewExternalAuthDegradedAggregatorController(
@@ -623,20 +634,19 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		backendInformers, b.options.MaestroSourceEnvironmentIdentifier,
 	)
 
-	maestroDeleteOrphanedReadonlyBundlesController := controllers.NewDeleteOrphanedMaestroReadonlyBundlesController(
+	cosmosMigrationController := controllers.NewCosmosMigrationController(
 		b.options.ResourcesDBClient,
-		b.options.ClustersServiceClient,
-		maestroClientBuilder,
-		b.options.MaestroSourceEnvironmentIdentifier,
+		b.options.KubeApplierDBClients,
+		backendInformers,
+		5*time.Minute,
 	)
-	// Migration controller: drains the MaestroReadonlyBundles field on
-	// every ServiceProvider*. Retire once telemetry shows no SPC/SPNP
-	// still has the field populated.
-	cleanupLegacyMaestroReadonlyBundlesController := controllers.NewCleanupLegacyMaestroReadonlyBundlesController(
+
+	cleanOrphanedClusterManagedResourceGroupController := controllers.NewCleanOrphanedClusterManagedResourceGroupController(
+		b.options.AzureLocation,
+		activeOperationLister,
 		b.options.ResourcesDBClient,
-		managementClusterLister,
-		maestroClientBuilder,
-		b.options.MaestroSourceEnvironmentIdentifier,
+		b.options.FPAClientBuilder,
+		backendInformers,
 	)
 
 	azureRPRegistrationValidationController := validationcontrollers.NewClusterValidationController(
@@ -662,17 +672,25 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	)
 	nodePoolVersionController := upgradecontrollers.NewNodePoolVersionController(
 		b.options.ResourcesDBClient,
-		b.options.ClustersServiceClient,
+		activeOperationLister,
+		subscriptionLister,
+		backendInformers,
+		unionKubeApplierInformers,
+		unionReadDesireLister,
+	)
+	nodePoolActiveVersionController := upgradecontrollers.NewNodePoolActiveVersionController(
+		b.options.ResourcesDBClient,
 		activeOperationLister,
 		backendInformers,
+		unionKubeApplierInformers,
 		unionReadDesireLister,
-		subscriptionLister,
 	)
 	triggerNodePoolUpgradeController := upgradecontrollers.NewTriggerNodePoolUpgradeController(
 		b.options.ResourcesDBClient,
 		b.options.ClustersServiceClient,
 		activeOperationLister,
 		backendInformers,
+		unionKubeApplierInformers,
 	)
 	placementSyncController := managementclustercontrollers.NewManagementClusterPlacementSyncController(
 		b.options.ResourcesDBClient,
@@ -683,29 +701,41 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		unionKubeApplierInformers,
 	)
 
+	nodePoolClusterServiceCreateController := nodepoolcreationcontrollers.NewNodePoolClusterServiceCreateController(
+		b.options.ResourcesDBClient,
+		b.options.ClustersServiceClient,
+		activeOperationLister,
+		backendInformers,
+		unionKubeApplierInformers,
+	)
+
 	nodePoolDeletionClusterServiceDeleteDispatchController := nodepooldeletion.NewNodePoolClusterServiceDeleteDispatchController(
 		utilsclock.RealClock{},
 		b.options.ResourcesDBClient,
 		b.options.ClustersServiceClient,
 		activeOperationLister,
 		backendInformers,
+		unionKubeApplierInformers,
 	)
 	nodePoolClusterServiceIDClearerController := nodepooldeletion.NewNodePoolClusterServiceIDClearerController(
 		b.options.ResourcesDBClient,
 		b.options.ClustersServiceClient,
 		activeOperationLister,
 		backendInformers,
+		unionKubeApplierInformers,
 	)
 	nodePoolChildResourcesCleanupController := nodepooldeletion.NewNodePoolChildResourcesCleanupController(
 		b.options.ResourcesDBClient,
 		b.options.KubeApplierDBClients,
 		activeOperationLister,
 		backendInformers,
+		unionKubeApplierInformers,
 	)
 	nodePoolDeletionController := nodepooldeletion.NewNodePoolDeletionController(
 		b.options.ResourcesDBClient,
 		activeOperationLister,
 		backendInformers,
+		unionKubeApplierInformers,
 	)
 
 	externalAuthDeletionClusterServiceDeleteDispatchController := externalauthdeletion.NewExternalAuthClusterServiceDeleteDispatchController(
@@ -765,11 +795,11 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		backendInformers,
 	)
 
-	le, err := leaderelection.NewLeaderElector(leaderelection.LeaderElectionConfig{
+	leaderElectionConfig := leaderelection.LeaderElectionConfig{
 		Lock:          b.options.LeaderElectionLock,
-		LeaseDuration: leaderElectionLeaseDuration,
-		RenewDeadline: leaderElectionRenewDeadline,
-		RetryPeriod:   leaderElectionRetryPeriod,
+		LeaseDuration: sharedleaderelection.RecommendedLeaseDuration,
+		RenewDeadline: sharedleaderelection.RecommendedRenewDeadline,
+		RetryPeriod:   sharedleaderelection.RecommendedRetryPeriod,
 		Callbacks: leaderelection.LeaderCallbacks{
 			OnStartedLeading: func(ctx context.Context) {
 				// start the SharedInformers
@@ -790,6 +820,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go doNothingController.Run(ctx, 20)
 				go dispatchRequestCredentialController.Run(ctx, 20)
 				go dispatchRevokeCredentialsController.Run(ctx, 20)
+				go nodePoolClusterServiceCreateController.Run(ctx, 20)
 				go operationClusterCreateController.Run(ctx, 20)
 				go operationClusterUpdateController.Run(ctx, 20)
 				go operationClusterDeleteController.Run(ctx, 20)
@@ -819,14 +850,15 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go clusterDegradedAggregatorController.Run(ctx, 20)
 				go nodePoolDegradedAggregatorController.Run(ctx, 20)
 				go externalAuthDegradedAggregatorController.Run(ctx, 20)
+				go desiredControlPlaneSizeController.Run(ctx, 20)
 				go azureRPRegistrationValidationController.Run(ctx, 20)
 				go azureClusterResourceGroupExistenceValidationController.Run(ctx, 20)
 				go azureClusterManagedIdentitiesExistenceValidationController.Run(ctx, 20)
 				go nodePoolVersionController.Run(ctx, 20)
+				go nodePoolActiveVersionController.Run(ctx, 20)
 				go createClusterScopedReadDesiresController.Run(ctx, 20)
 				go createNodePoolScopedReadDesiresController.Run(ctx, 20)
-				go maestroDeleteOrphanedReadonlyBundlesController.Run(ctx, 20)
-				go cleanupLegacyMaestroReadonlyBundlesController.Run(ctx, 1)
+				go cleanOrphanedClusterManagedResourceGroupController.Run(ctx, 20)
 				go triggerNodePoolUpgradeController.Run(ctx, 20)
 				go nodePoolDeletionClusterServiceDeleteDispatchController.Run(ctx, 20)
 				go nodePoolClusterServiceIDClearerController.Run(ctx, 20)
@@ -846,6 +878,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go nodePoolMetricsController.Run(ctx, 1)
 				go externalAuthMetricsController.Run(ctx, 1)
 				go placementSyncController.Run(ctx, 20)
+				go cosmosMigrationController.Run(ctx, 5)
 			},
 			OnStoppedLeading: func() {
 				// This needs to be defined even though it does nothing.
@@ -854,7 +887,11 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		ReleaseOnCancel: true,
 		WatchDog:        electionChecker,
 		Name:            leaderElectionLockName,
-	})
+	}
+
+	sharedleaderelection.LogLeaseProperties(logger, leaderElectionConfig)
+
+	le, err := leaderelection.NewLeaderElector(leaderElectionConfig)
 	if err != nil {
 		return err
 	}

@@ -41,6 +41,7 @@ import (
 	"github.com/Azure/ARO-HCP/fleet/pkg/controllers/maestroregistration"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/database/informers"
+	sharedleaderelection "github.com/Azure/ARO-HCP/internal/leaderelection"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/internal/version"
@@ -76,10 +77,11 @@ func (m *Manager) Run(ctx context.Context) error {
 
 	electionChecker := leaderelection.NewLeaderHealthzAdaptor(healthzAdaptorTimeout)
 
-	var healthzServer, metricsServer *http.Server
-
-	errCh := make(chan error, 3)
-	wg := sync.WaitGroup{}
+	var (
+		mu   sync.Mutex
+		errs []error
+		wg   sync.WaitGroup
+	)
 
 	if len(m.HealthzListenAddr) > 0 {
 		healthGauge := promauto.With(legacyregistry.Registerer()).NewGauge(prometheus.GaugeOpts{
@@ -96,17 +98,17 @@ func (m *Manager) Run(ctx context.Context) error {
 			w.WriteHeader(http.StatusOK)
 			healthGauge.Set(1)
 		})
-		healthzServer = &http.Server{Addr: m.HealthzListenAddr, Handler: mux}
+		server := &http.Server{Addr: m.HealthzListenAddr, Handler: mux}
 		wg.Add(1)
 		go func() {
-			defer utilruntime.HandleCrash()
+			defer cancel(fmt.Errorf("healthz server exited"))
 			defer wg.Done()
-			logger.Info("healthz server listening", "address", m.HealthzListenAddr)
-			err := healthzServer.ListenAndServe()
-			if err != nil {
-				cancel(fmt.Errorf("healthz server exited: %w", err))
+			defer utilruntime.HandleCrash()
+			if err := runHTTPServer(ctx, server, "healthz server"); err != nil {
+				mu.Lock()
+				errs = append(errs, err)
+				mu.Unlock()
 			}
-			errCh <- err
 		}()
 	}
 
@@ -116,45 +118,33 @@ func (m *Manager) Run(ctx context.Context) error {
 			legacyregistry.Registerer(),
 			promhttp.HandlerFor(prometheus.Gatherers{legacyregistry.DefaultGatherer}, promhttp.HandlerOpts{}),
 		))
-		metricsServer = &http.Server{Addr: m.MetricsListenAddr, Handler: mux}
+		server := &http.Server{Addr: m.MetricsListenAddr, Handler: mux}
 		wg.Add(1)
 		go func() {
-			defer utilruntime.HandleCrash()
+			defer cancel(fmt.Errorf("metrics server exited"))
 			defer wg.Done()
-			logger.Info("metrics server listening", "address", m.MetricsListenAddr)
-			err := metricsServer.ListenAndServe()
-			if err != nil {
-				cancel(fmt.Errorf("metrics server exited: %w", err))
+			defer utilruntime.HandleCrash()
+			if err := runHTTPServer(ctx, server, "metrics server"); err != nil {
+				mu.Lock()
+				errs = append(errs, err)
+				mu.Unlock()
 			}
-			errCh <- err
 		}()
 	}
 
 	wg.Add(1)
 	go func() {
-		defer utilruntime.HandleCrash()
+		defer cancel(fmt.Errorf("leader election exited"))
 		defer wg.Done()
-		err := m.runControllersUnderLeaderElection(ctx, electionChecker)
-		cancel(fmt.Errorf("leader election exited"))
-		errCh <- err
+		defer utilruntime.HandleCrash()
+		if err := m.runControllersUnderLeaderElection(ctx, electionChecker); err != nil {
+			mu.Lock()
+			errs = append(errs, err)
+			mu.Unlock()
+		}
 	}()
 
-	<-ctx.Done()
-
-	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), httpServerShutdownTime)
-	defer shutdownCancel()
-	_ = shutdownHTTPServer(shutdownCtx, metricsServer, "metrics server")
-	_ = shutdownHTTPServer(shutdownCtx, healthzServer, "healthz server")
-
 	wg.Wait()
-	close(errCh)
-
-	errs := []error{}
-	for err := range errCh {
-		if err != nil && !errors.Is(err, http.ErrServerClosed) {
-			errs = append(errs, err)
-		}
-	}
 	logger.Info("stopped", "component", name, "commit", version.CommitSHA)
 	return errors.Join(errs...)
 }
@@ -164,7 +154,8 @@ func (m *Manager) runControllersUnderLeaderElection(
 ) error {
 	logger := utils.LoggerFromContext(ctx)
 
-	fleetInformers := informers.NewFleetInformers(ctx, m.FleetDBClient.GlobalListers())
+	relistDuration := 10 * time.Second
+	fleetInformers := informers.NewFleetInformersWithRelistDuration(ctx, m.FleetDBClient.GlobalListers(), &relistDuration)
 
 	stampInformer, stampLister := fleetInformers.Stamps()
 	managementClusterInformer, managementClusterLister := fleetInformers.ManagementClusters()
@@ -176,7 +167,7 @@ func (m *Manager) runControllersUnderLeaderElection(
 		m.ClustersServiceClient,
 		stampLister,
 		m.Region,
-		base.StampWatchingControllerConfig{},
+		base.StampWatchingControllerConfig{Cooldown: base.DefaultRegistrationAwareCooldown(managementClusterLister)},
 	)
 
 	maestroRegistrationController := maestroregistration.NewMaestroRegistrationController(
@@ -185,13 +176,13 @@ func (m *Manager) runControllersUnderLeaderElection(
 		m.FleetDBClient,
 		m.MaestroConsumerClientFactory,
 		stampLister,
-		base.StampWatchingControllerConfig{},
+		base.StampWatchingControllerConfig{Cooldown: base.DefaultRegistrationAwareCooldown(managementClusterLister)},
 	)
 
 	lifecycleController := lifecycle.NewManagementClusterLifecycleController(
 		managementClusterInformer,
 		m.FleetDBClient,
-		base.StampWatchingControllerConfig{},
+		base.StampWatchingControllerConfig{Cooldown: base.DefaultRegistrationAwareCooldown(managementClusterLister)},
 	)
 
 	dataDumpController := datadump.NewStampDataDumpController(
@@ -202,11 +193,11 @@ func (m *Manager) runControllersUnderLeaderElection(
 		base.StampWatchingControllerConfig{CooldownPeriod: 4 * time.Minute},
 	)
 
-	leaderElector, err := leaderelection.NewLeaderElector(leaderelection.LeaderElectionConfig{
+	leaderElectionConfig := leaderelection.LeaderElectionConfig{
 		Lock:          m.LeaderElectionLock,
-		LeaseDuration: LeaderElectionLeaseDuration,
-		RenewDeadline: LeaderElectionRenewDeadline,
-		RetryPeriod:   LeaderElectionRetryPeriod,
+		LeaseDuration: sharedleaderelection.RecommendedLeaseDuration,
+		RenewDeadline: sharedleaderelection.RecommendedRenewDeadline,
+		RetryPeriod:   sharedleaderelection.RecommendedRetryPeriod,
 		Callbacks: leaderelection.LeaderCallbacks{
 			OnStartedLeading: func(ctx context.Context) {
 				logger.Info("acquired leader election lease; starting informers")
@@ -231,7 +222,11 @@ func (m *Manager) runControllersUnderLeaderElection(
 		ReleaseOnCancel: true,
 		WatchDog:        electionChecker,
 		Name:            "fleet-controller",
-	})
+	}
+
+	sharedleaderelection.LogLeaseProperties(logger, leaderElectionConfig)
+
+	leaderElector, err := leaderelection.NewLeaderElector(leaderElectionConfig)
 	if err != nil {
 		return err
 	}
@@ -239,16 +234,34 @@ func (m *Manager) runControllersUnderLeaderElection(
 	return nil
 }
 
-func shutdownHTTPServer(ctx context.Context, server *http.Server, serverName string) error {
-	if server == nil {
+// runHTTPServer runs the server and shuts it down when ctx is cancelled.
+// It returns nil if the server was shut down cleanly (http.ErrServerClosed),
+// or the underlying error if ListenAndServe failed for another reason.
+func runHTTPServer(ctx context.Context, server *http.Server, name string) error {
+	logger := utils.LoggerFromContext(ctx)
+
+	done := make(chan struct{})
+	defer close(done)
+	go func() {
+		defer utilruntime.HandleCrash()
+		select {
+		case <-ctx.Done():
+			shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), httpServerShutdownTime)
+			defer shutdownCancel()
+			logger.Info("shutting down server", "server", name)
+			if err := server.Shutdown(shutdownCtx); err != nil {
+				logger.Error(err, "failed to shut down server", "server", name)
+			} else {
+				logger.Info("server shut down completed", "server", name)
+			}
+		case <-done:
+		}
+	}()
+
+	logger.Info("server listening", "server", name, "address", server.Addr)
+	err := server.ListenAndServe()
+	if errors.Is(err, http.ErrServerClosed) {
 		return nil
 	}
-	logger := utils.LoggerFromContext(ctx)
-	logger.Info("shutting down server", "server", serverName)
-	if err := server.Shutdown(ctx); err != nil {
-		logger.Error(err, "failed to shut down server", "server", serverName)
-		return err
-	}
-	logger.Info("server shut down completed", "server", serverName)
-	return nil
+	return err
 }

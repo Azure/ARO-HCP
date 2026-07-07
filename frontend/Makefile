@@ -82,6 +82,13 @@ record-override: $(YQ) $(ORAS)
 	" > $(OVERRIDE_CONFIG_FILE)
 .PHONY: record-override
 
+record-latest-override: $(YQ)
+	@../hack/record-latest-image-override.sh \
+		"$(ARO_HCP_IMAGE_ACR)" "$(ARO_HCP_IMAGE_REGISTRY)" \
+		"$(FRONTEND_GENERATED_IMAGE_REPOSITORY)" "$(DEPLOY_ENV)" \
+		"frontend" "$(OVERRIDE_CONFIG_FILE)" "$(YQ)"
+.PHONY: record-latest-override
+
 deploy: build-and-push record-override
 	make -C .. pipeline/RP.Frontend OVERRIDE_CONFIG_FILE=$(OVERRIDE_CONFIG_FILE)
 .PHONY: deploy

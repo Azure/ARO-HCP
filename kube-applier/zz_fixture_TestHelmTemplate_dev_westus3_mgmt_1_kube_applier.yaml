@@ -1,4 +1,17 @@
 ---
+# Source: kube-applier/templates/kube-applier.poddisruptionbudget.yaml
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: kube-applier
+  namespace: kube-applier
+spec:
+  minAvailable: 1
+  unhealthyPodEvictionPolicy: AlwaysAllow
+  selector:
+    matchLabels:
+      app: kube-applier
+---
 # Source: kube-applier/templates/serviceaccount.yaml
 apiVersion: v1
 kind: ServiceAccount
@@ -150,6 +163,24 @@ subjects:
   name: 'kube-applier'
   namespace: 'kube-applier'
 ---
+# Source: kube-applier/templates/metrics.service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: kube-applier
+    port: metrics
+  name: kube-applier-metrics
+  namespace: 'kube-applier'
+spec:
+  ports:
+  - port: 8081
+    protocol: TCP
+    targetPort: 8081
+    name: metrics
+  selector:
+    app: kube-applier
+---
 # Source: kube-applier/templates/deployment.yaml
 apiVersion: apps/v1
 kind: Deployment
@@ -160,7 +191,7 @@ metadata:
   namespace: 'kube-applier'
 spec:
   progressDeadlineSeconds: 600
-  replicas: 1
+  replicas: 2
   revisionHistoryLimit: 10
   selector:
     matchLabels:
@@ -190,6 +221,7 @@ spec:
           matchLabels:
             app: kube-applier
       serviceAccountName: 'kube-applier'
+      priorityClassName: service-lifecycle-critical
       containers:
       - name: kube-applier
         image: 'arohcpsvcdev.azurecr.io/kube-applier@sha256:1234567890'
@@ -250,4 +282,24 @@ spec:
       clientID: '__imagePullerMsiClientId__'
       tenantID: '__imagePullerMsiTenantId__'
   serviceAccountName: 'kube-applier'
+---
+# Source: kube-applier/templates/servicemonitor.yaml
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: kube-applier
+  namespace: 'kube-applier'
+spec:
+  endpoints:
+  - interval: 30s
+    path: /metrics
+    port: metrics
+    scheme: http
+  namespaceSelector:
+    matchNames:
+    - 'kube-applier'
+  selector:
+    matchLabels:
+      app: kube-applier
+      port: metrics
 

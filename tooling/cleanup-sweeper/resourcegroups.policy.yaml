@@ -1,19 +1,26 @@
 # cleanup-sweeper rg-ordered discovery policy (first matching rule wins).
-# - excludedResourceGroups: never candidates (global, hcp-kusto-us, westus3-shared-resources).
-# - Skip managed RGs (managedBy set).
+# - excludedResourceGroups: never candidates (see list below).
+# - Skip managed RGs (managedBy alive).
+# - Skip *-shared-resources RGs.
 # - hcp-underlay-pers-*: delete after 15d if persist=true; after 2d if persist is absent or not "true".
 # - hcp-underlay-prow-*: delete after 6h (transitional, remove after rename rollout).
 # - Name prefix hcp-underlay-ci*: delete after 6h (covers ci00, ci01, etc.).
-# - Skip any RG with persist=true (after pers-* and CI rules).
+# - Known shared envs (cspr/dev/perf/int/stg/prod) with persist=true: skipped.
+# - Any RG with persist=true (not already matched above): delete after 15d.
 # - Default: delete any other RG after 2d.
 # Delete rules need a parseable tags.createdAt; see docs/cleanup.md and scripts/ for Azure Policy.
 rgOrdered:
   # Keep known long-lived/shared groups out of rg-ordered deletion candidates.
   excludedResourceGroups:
+  - cs-shared-oidc-storage
+  - dashboards
   - global
+  - hcp-eastus-shared-rg
   - hcp-kusto-us
-  - westus3-shared-resources
-  - centralus-shared-resources
+  - hcp-westeurope-shared-rg
+  - opstool-westus3
+  - perf-scale-rg
+  - pr-check-e2e-tests-resources
   discovery:
     # Rules are evaluated in order; first match wins.
     rules:
@@ -22,7 +29,11 @@ rgOrdered:
       match:
         any: true
       conditions:
-        managedBySet: true
+        managedByAlive: true
+    - name: skip-shared-resources
+      action: skip
+      match:
+        nameRegex: "-shared-resources$"
     - name: pers-persist-delete-after-15d
       action: delete
       match:
@@ -51,13 +62,21 @@ rgOrdered:
       match:
         namePrefix: "hcp-underlay-ci"
       olderThan: "6h"
-    - name: skip-persist-true-globally
+    - name: skip-shared-env-persist-true
       action: skip
+      match:
+        nameRegex: "^hcp-underlay-(cspr|dev|perf|int|stg|prod)-"
+      conditions:
+        tagsEq:
+          persist: "true"
+    - name: persist-true-delete-after-15d
+      action: delete
       match:
         any: true
       conditions:
         tagsEq:
           persist: "true"
+      olderThan: "360h"
     - name: global-default-delete-after-2d
       action: delete
       match:

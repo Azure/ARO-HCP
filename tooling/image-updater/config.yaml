@@ -47,7 +47,14 @@ images:
     group: cs
     source:
       image: quay.io/app-sre/aro-hcp-clusters-service
-      tag: "latest"
+      # Pinned, see AROSLSRE-1395. The `latest` build (vcs-ref ee741db, ARO-26913)
+      # sets AzurePlatformSpec.Topology=PublicAndPrivate on the HostedCluster, which
+      # makes HyperShift configure the guest ingress LB scope Internal; on candidate
+      # 4.22/5.0 payloads the guest ingress-operator then flips it back to External,
+      # leaving the *.apps route unreachable and failing e2e-parallel. Keep pinned to
+      # the last-known-good build (vcs-ref 18b5a25) until the topology regression is
+      # fixed, then restore `tag: "latest"`.
+      tag: "18b5a25"
       versionLabel: "vcs-ref"
       useAuth: true
       keyVault:
@@ -203,7 +210,7 @@ images:
   velero-server:
     group: velero
     source:
-      image: registry.redhat.io/oadp/oadp-velero-rhel9
+      image: registry.stage.redhat.io/oadp/oadp-velero-rhel9
       tagPattern: "^\\d+\\.\\d+\\.\\d+$"
       multiArch: true
       useAuth: true
@@ -216,7 +223,7 @@ images:
   velero-azure-plugin:
     group: velero
     source:
-      image: registry.redhat.io/oadp/oadp-velero-plugin-for-microsoft-azure-rhel9
+      image: registry.stage.redhat.io/oadp/oadp-velero-plugin-for-microsoft-azure-rhel9
       tagPattern: "^\\d+\\.\\d+\\.\\d+$"
       multiArch: true
       useAuth: true
@@ -229,7 +236,7 @@ images:
   velero-hypershift-plugin:
     group: velero
     source:
-      image: registry.redhat.io/oadp/oadp-hypershift-velero-plugin-rhel9
+      image: registry.stage.redhat.io/oadp/oadp-hypershift-velero-plugin-rhel9
       tagPattern: "^\\d+\\.\\d+\\.\\d+$"
       multiArch: true
       useAuth: true

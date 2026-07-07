@@ -370,6 +370,49 @@ spec:
 			},
 		},
 		{
+			name: "config with includedAlertsByGroup and namespaces",
+			configFile: `
+prometheusRules:
+  untestedRules:
+  - untested.yaml
+  outputBicep: generated.bicep
+  includedAlertsByGroup:
+  - groupName: kubernetes-resources
+    namespaces:
+    - aro-hcp
+    - clusters-service
+    alerts:
+    - KubeQuotaAlmostFull
+  - groupName: kubernetes-system
+    alerts:
+    - KubeClientErrors
+`,
+			setupFiles: func(tmpDir string) error {
+				ruleContent := `
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: test-rules
+spec:
+  groups:
+  - name: kubernetes-resources
+    rules:
+    - alert: KubeQuotaAlmostFull
+      expr: up == 0
+`
+				return os.WriteFile(filepath.Join(tmpDir, "untested.yaml"), []byte(ruleContent), 0644)
+			},
+			expectError: false,
+			validateFunc: func(t *testing.T, opts *Options) {
+				assert.Len(t, opts.includedAlerts, 2)
+				assert.Len(t, opts.namespaceFilters, 1)
+				assert.Contains(t, opts.namespaceFilters, "kubernetes-resources")
+				assert.Equal(t, []string{"aro-hcp", "clusters-service"}, opts.namespaceFilters["kubernetes-resources"])
+				// Group without namespaces should not appear in namespaceFilters
+				assert.NotContains(t, opts.namespaceFilters, "kubernetes-system")
+			},
+		},
+		{
 			name:       "config with explicit deps for promtool",
 			configFile: "prometheusRules:\n  rulesFolders:\n  - alerts\n  testDependencies:\n  - recording-rules.yaml\n  outputBicep: generated.bicep\n",
 			setupFiles: func(tmpDir string) error {
@@ -537,9 +580,10 @@ func TestOptionsGenerate(t *testing.T) {
 		assert.Contains(t, generated, "#disable-next-line no-unused-params")
 		assert.Contains(t, generated, "param azureMonitoring string")
 		assert.Contains(t, generated, "param actionGroups array")
+		assert.Contains(t, generated, "param severityCeiling int = 0")
 		assert.Contains(t, generated, "Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01")
 		assert.Contains(t, generated, "alert: 'TestAlert'")
-		assert.Contains(t, generated, "severity: 2")
+		assert.Contains(t, generated, "severity: severityCeiling > 0 ? max(2, severityCeiling) : 2")
 	})
 
 	t.Run("with included alerts", func(t *testing.T) {
@@ -686,6 +730,53 @@ func TestOptionsGenerate(t *testing.T) {
 		assert.NotContains(t, generated, "namespace: {{ $labels.namespace }}")
 	})
 
+	t.Run("labelsToExtract orders labels but auto-extraction still captures unlisted ones", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		outputFile := filepath.Join(tmpDir, "generatedAlertingRules.bicep")
+
+		opts := &Options{
+			outputBicep: outputFile,
+			// Only "pod" is in labelsToExtract — "namespace" and "node" are not
+			labelsToExtract: []string{"pod"},
+			ruleFiles: []alertingRuleFile{
+				{
+					Rules: monitoringv1.PrometheusRule{
+						Spec: monitoringv1.PrometheusRuleSpec{
+							Groups: []monitoringv1.RuleGroup{
+								{
+									Name: "test-group",
+									Rules: []monitoringv1.Rule{
+										{
+											Alert: "OrderingAlert",
+											Expr:  intstr.FromString("up == 0"),
+											Labels: map[string]string{
+												"severity": "warning",
+											},
+											Annotations: map[string]string{
+												"summary":     "Something is wrong",
+												"description": "Issue on {{ $labels.namespace }}/{{ $labels.pod }} node {{ $labels.node }}",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+
+		err := opts.Generate()
+		assert.NoError(t, err)
+
+		content, err := os.ReadFile(outputFile)
+		assert.NoError(t, err)
+		generated := string(content)
+
+		// "pod" is in labelsToExtract so it comes first, then "namespace" and "node" follow in description order
+		assert.Contains(t, generated, "correlationId: 'OrderingAlert/{{ $labels.cluster }}/{{ $labels.pod }}/{{ $labels.namespace }}/{{ $labels.node }}'")
+	})
+
 	t.Run("does not enrich title when summary is absent", func(t *testing.T) {
 		tmpDir := t.TempDir()
 		outputFile := filepath.Join(tmpDir, "generatedAlertingRules.bicep")
@@ -729,6 +820,102 @@ func TestOptionsGenerate(t *testing.T) {
 
 		assert.Contains(t, generated, "title: 'NoSummaryAlert'")
 		assert.NotContains(t, generated, "title: 'NoSummaryAlert namespace:")
+	})
+
+	t.Run("auto-extracts labels from description into correlationId when labelsToExtract is not configured", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		outputFile := filepath.Join(tmpDir, "generatedAlertingRules.bicep")
+
+		opts := &Options{
+			outputBicep: outputFile,
+			// labelsToExtract is intentionally NOT set
+			ruleFiles: []alertingRuleFile{
+				{
+					Rules: monitoringv1.PrometheusRule{
+						Spec: monitoringv1.PrometheusRuleSpec{
+							Groups: []monitoringv1.RuleGroup{
+								{
+									Name: "test-group",
+									Rules: []monitoringv1.Rule{
+										{
+											Alert: "AutoExtractAlert",
+											Expr:  intstr.FromString("up == 0"),
+											Labels: map[string]string{
+												"severity": "warning",
+											},
+											Annotations: map[string]string{
+												"summary":     "Pod {{ $labels.pod }} in namespace {{ $labels.namespace }} is down",
+												"description": "Pod {{ $labels.namespace }}/{{ $labels.pod }} on node {{ $labels.node }} has issues",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+
+		err := opts.Generate()
+		assert.NoError(t, err)
+
+		content, err := os.ReadFile(outputFile)
+		assert.NoError(t, err)
+		generated := string(content)
+
+		// Should auto-extract all labels from description and include them in correlationId
+		assert.Contains(t, generated, "correlationId: 'AutoExtractAlert/{{ $labels.cluster }}/{{ $labels.namespace }}/{{ $labels.pod }}/{{ $labels.node }}'")
+		// Should not duplicate cluster if it appears in description
+		assert.NotContains(t, generated, "{{ $labels.cluster }}/{{ $labels.cluster }}")
+	})
+
+	t.Run("auto-extracts labels into title when labelsToExtract is not configured", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		outputFile := filepath.Join(tmpDir, "generatedAlertingRules.bicep")
+
+		opts := &Options{
+			outputBicep: outputFile,
+			// labelsToExtract is intentionally NOT set
+			ruleFiles: []alertingRuleFile{
+				{
+					Rules: monitoringv1.PrometheusRule{
+						Spec: monitoringv1.PrometheusRuleSpec{
+							Groups: []monitoringv1.RuleGroup{
+								{
+									Name: "test-group",
+									Rules: []monitoringv1.Rule{
+										{
+											Alert: "AutoTitleAlert",
+											Expr:  intstr.FromString("up == 0"),
+											Labels: map[string]string{
+												"severity": "warning",
+											},
+											Annotations: map[string]string{
+												"summary":     "Instance is down",
+												"description": "Instance {{ $labels.instance }} in job {{ $labels.job }} is down",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+
+		err := opts.Generate()
+		assert.NoError(t, err)
+
+		content, err := os.ReadFile(outputFile)
+		assert.NoError(t, err)
+		generated := string(content)
+
+		// Should append extracted labels to the title
+		assert.Contains(t, generated, "title: 'Instance is down instance:{{ $labels.instance }} job:{{ $labels.job }}'")
+		// Should also include them in correlationId
+		assert.Contains(t, generated, "correlationId: 'AutoTitleAlert/{{ $labels.cluster }}/{{ $labels.instance }}/{{ $labels.job }}'")
 	})
 
 	t.Run("deps excluded from output", func(t *testing.T) {
@@ -792,6 +979,106 @@ func TestOptionsGenerate(t *testing.T) {
 
 		assert.Contains(t, generated, "alert: 'RealAlert'")
 		assert.NotContains(t, generated, "DependencyAlert")
+	})
+
+	t.Run("with namespace filter", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		outputFile := filepath.Join(tmpDir, "generatedAlertingRules.bicep")
+
+		opts := &Options{
+			outputBicep: outputFile,
+			includedAlerts: map[string][]string{
+				"test-group": {"QuotaAlert"},
+			},
+			namespaceFilters: map[string][]string{
+				"test-group": {"aro-hcp", "clusters-service"},
+			},
+			ruleFiles: []alertingRuleFile{
+				{
+					Rules: monitoringv1.PrometheusRule{
+						Spec: monitoringv1.PrometheusRuleSpec{
+							Groups: []monitoringv1.RuleGroup{
+								{
+									Name: "test-group",
+									Rules: []monitoringv1.Rule{
+										{
+											Alert: "QuotaAlert",
+											Expr:  intstr.FromString(`kube_resourcequota{job="kube-state-metrics", type="used"} > 0.9`),
+											Labels: map[string]string{
+												"severity": "warning",
+											},
+											Annotations: map[string]string{
+												"summary": "Quota almost full",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+
+		err := opts.Generate()
+		assert.NoError(t, err)
+
+		content, err := os.ReadFile(outputFile)
+		assert.NoError(t, err)
+		generated := string(content)
+
+		assert.Contains(t, generated, "alert: 'QuotaAlert'")
+		assert.Contains(t, generated, `namespace=~"aro-hcp|clusters-service"`)
+	})
+
+	t.Run("namespace filter does not modify selectors with existing namespace matcher", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		outputFile := filepath.Join(tmpDir, "generatedAlertingRules.bicep")
+
+		opts := &Options{
+			outputBicep: outputFile,
+			includedAlerts: map[string][]string{
+				"test-group": {"ScopedAlert"},
+			},
+			namespaceFilters: map[string][]string{
+				"test-group": {"aro-hcp"},
+			},
+			ruleFiles: []alertingRuleFile{
+				{
+					Rules: monitoringv1.PrometheusRule{
+						Spec: monitoringv1.PrometheusRuleSpec{
+							Groups: []monitoringv1.RuleGroup{
+								{
+									Name: "test-group",
+									Rules: []monitoringv1.Rule{
+										{
+											Alert: "ScopedAlert",
+											Expr:  intstr.FromString(`up{namespace="already-scoped"}`),
+											Labels: map[string]string{
+												"severity": "warning",
+											},
+											Annotations: map[string]string{
+												"summary": "Already scoped alert",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+
+		err := opts.Generate()
+		assert.NoError(t, err)
+
+		content, err := os.ReadFile(outputFile)
+		assert.NoError(t, err)
+		generated := string(content)
+
+		assert.Contains(t, generated, `namespace="already-scoped"`)
+		assert.NotContains(t, generated, `namespace=~"aro-hcp"`)
 	})
 }
 
@@ -878,20 +1165,38 @@ func TestParseToAzureDurationString(t *testing.T) {
 
 func TestSeverityFor(t *testing.T) {
 	tests := []struct {
-		labels   map[string]*string
-		expected *int32
+		labels    map[string]*string
+		expected  *int32
+		expectErr bool
 	}{
-		{map[string]*string{"severity": ptr.To("critical")}, ptr.To(int32(2))},
-		{map[string]*string{"severity": ptr.To("warning")}, ptr.To(int32(3))},
-		{map[string]*string{"severity": ptr.To("info")}, ptr.To(int32(4))},
-		{map[string]*string{"severity": ptr.To("unknown")}, ptr.To(int32(4))},
-		{map[string]*string{}, nil},
-		{map[string]*string{"other": ptr.To("value")}, nil},
+		// Canonical Azure CEN vocabulary: the severity label is the IcM Sev number.
+		{map[string]*string{"severity": ptr.To("2")}, ptr.To(int32(2)), false},
+		{map[string]*string{"severity": ptr.To("2.5")}, ptr.To(int32(25)), false},
+		{map[string]*string{"severity": ptr.To("25")}, ptr.To(int32(25)), false},
+		{map[string]*string{"severity": ptr.To("3")}, ptr.To(int32(3)), false},
+		{map[string]*string{"severity": ptr.To("4")}, ptr.To(int32(4)), false},
+		// Deprecated vocabulary, still accepted.
+		{map[string]*string{"severity": ptr.To("critical")}, ptr.To(int32(2)), false},
+		{map[string]*string{"severity": ptr.To("warning")}, ptr.To(int32(3)), false},
+		{map[string]*string{"severity": ptr.To("info")}, ptr.To(int32(4)), false},
+		// "1" (Sev 1) is rejected: Azure CEN reserves Sev 1 for declared incidents.
+		{map[string]*string{"severity": ptr.To("1")}, nil, true},
+		// Unknown values fail fast instead of silently defaulting to Sev 4.
+		{map[string]*string{"severity": ptr.To("unknown")}, nil, true},
+		// No severity label: nil, no error.
+		{map[string]*string{}, nil, false},
+		{map[string]*string{"other": ptr.To("value")}, nil, false},
 	}
 
 	for _, tt := range tests {
 		t.Run(fmt.Sprintf("labels_%v", tt.labels), func(t *testing.T) {
-			result := severityFor(tt.labels)
+			result, err := severityFor(tt.labels)
+			if tt.expectErr {
+				require.Error(t, err)
+				assert.Nil(t, result)
+				return
+			}
+			require.NoError(t, err)
 			if tt.expected == nil {
 				assert.Nil(t, result)
 			} else {

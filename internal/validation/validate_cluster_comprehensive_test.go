@@ -1193,6 +1193,17 @@ func TestValidateClusterCreate(t *testing.T) {
 				{Message: "must be at least 4.20", FieldPath: "customerProperties.version.id"},
 			},
 		},
+		{
+			name: "unsupported ingress type Disabled - create",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Ingress.Type = api.IngressTypeDisabled
+				return c
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "Unsupported value", FieldPath: "customerProperties.ingress.type"},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -1530,6 +1541,22 @@ func TestValidateClusterUpdate(t *testing.T) {
 			}(),
 			expectErrors: []utils.ExpectedError{
 				{Message: "field is immutable", FieldPath: "customerProperties.api.visibility"},
+			},
+		},
+		{
+			name: "immutable ingress type - update",
+			newCluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Ingress.Type = api.IngressTypePrivate
+				return c
+			}(),
+			oldCluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Ingress.Type = api.IngressTypePublic
+				return c
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "field is immutable", FieldPath: "customerProperties.ingress.type"},
 			},
 		},
 		{
@@ -2008,6 +2035,83 @@ func TestValidateClusterUpdate(t *testing.T) {
 				{Message: "field is immutable", FieldPath: "customerProperties.api.visibility"},
 				{Message: "field is immutable", FieldPath: "serviceProviderProperties.managedIdentitiesDataPlaneIdentityURL"},
 			},
+		},
+		// Test cases for FIPS tag immutability
+		{
+			name: "update FIPS from true to false - rejected",
+			newCluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.ServiceProviderProperties.ExperimentalFeatures.FIPSEnabled = false
+				return c
+			}(),
+			oldCluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.ServiceProviderProperties.ExperimentalFeatures.FIPSEnabled = true
+				return c
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "field is immutable", FieldPath: "serviceProviderProperties.tags[aro-hcp.experimental.cluster.fips-enabled]"},
+			},
+		},
+		{
+			name: "update FIPS from false to true - rejected",
+			newCluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.ServiceProviderProperties.ExperimentalFeatures.FIPSEnabled = true
+				return c
+			}(),
+			oldCluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.ServiceProviderProperties.ExperimentalFeatures.FIPSEnabled = false
+				return c
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "field is immutable", FieldPath: "serviceProviderProperties.tags[aro-hcp.experimental.cluster.fips-enabled]"},
+			},
+		},
+		{
+			name: "update with FIPS unchanged at true - allowed",
+			newCluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.ServiceProviderProperties.ExperimentalFeatures.FIPSEnabled = true
+				return c
+			}(),
+			oldCluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.ServiceProviderProperties.ExperimentalFeatures.FIPSEnabled = true
+				return c
+			}(),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name: "update with FIPS unchanged at false - allowed",
+			newCluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.ServiceProviderProperties.ExperimentalFeatures.FIPSEnabled = false
+				return c
+			}(),
+			oldCluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.ServiceProviderProperties.ExperimentalFeatures.FIPSEnabled = false
+				return c
+			}(),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name: "update with other fields changed but FIPS unchanged - allowed",
+			newCluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.ServiceProviderProperties.ExperimentalFeatures.FIPSEnabled = true
+				c.CustomerProperties.NodeDrainTimeoutMinutes = 60
+				return c
+			}(),
+			oldCluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.ServiceProviderProperties.ExperimentalFeatures.FIPSEnabled = true
+				c.CustomerProperties.NodeDrainTimeoutMinutes = 30
+				return c
+			}(),
+			expectErrors: []utils.ExpectedError{},
 		},
 		// Test cases for version.id requirement validation on update
 		// The new validation rules for version.id are:

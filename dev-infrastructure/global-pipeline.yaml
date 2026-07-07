@@ -49,6 +49,11 @@ resourceGroups:
     dependsOn:
     - resourceGroup: singleton
       step: infra
+    # output-global.bicep reads the SVC/OCP ACRs as `existing`; depend on acrs so a
+    # greenfield deploy (new subscription, no pre-existing ACRs) doesn't race and fail
+    # with ResourceNotFound before acrs creates them.
+    - resourceGroup: singleton
+      step: acrs
   - name: ci-monitoring
     action: ARM
     template: templates/ci-monitoring.bicep
@@ -64,21 +69,22 @@ resourceGroups:
     - resourceGroup: singleton
       step: infra
     - resourceGroup: singleton
-      step: output
-  - name: grafana-monitoring-reader
-    action: ARM
-    template: templates/grafana-monitoring-reader.bicep
-    parameters: configurations/grafana-monitoring-reader.tmpl.bicepparam
-    deploymentLevel: Subscription
-    variables:
-    - name: grafanaPrincipalId
-      input:
-        resourceGroup: singleton
-        step: output
-        name: grafanaPrincipalId
-    dependsOn:
-    - resourceGroup: singleton
-      step: output
+      step: output  
+  # TODO(ARO-28044): re-enable after ARO-28040
+  # - name: grafana-monitoring-reader
+  #   action: ARM
+  #   template: templates/grafana-monitoring-reader.bicep
+  #   parameters: configurations/grafana-monitoring-reader.tmpl.bicepparam
+  #   deploymentLevel: Subscription
+  #   variables:
+  #   - name: grafanaPrincipalId
+  #     input:
+  #       resourceGroup: singleton
+  #       step: output
+  #       name: grafanaPrincipalId
+  #   dependsOn:
+  #   - resourceGroup: singleton
+  #     step: output
   - name: global-kv-private-issuer
     action: SetCertificateIssuer
     secretKeyVault:
@@ -94,6 +100,40 @@ resourceGroups:
         name: globalKeyVaultUrl
     issuer:
       value: OneCertV2-PrivateCA
+  - name: geneva-logs-cert
+    action: CreateCertificate
+    manage:
+      configRef: geneva.logs.manage
+    secretKeyVault:
+      configRef: ev2.assistedId.certificate.keyVault
+    secretName:
+      configRef: ev2.assistedId.certificate.name
+    applicationId:
+      configRef: ev2.assistedId.applicationId
+    vaultBaseUrl:
+      input:
+        resourceGroup: singleton
+        step: output
+        name: globalKeyVaultUrl
+    certificateName:
+      configRef: geneva.logs.adminCertName
+    contentType:
+      configRef: geneva.logs.contentType
+    san:
+      configRef: geneva.logs.adminCertSan
+    issuer:
+      configRef: geneva.logs.certificateIssuer
+    commonName:
+      configRef: geneva.logs.adminCertSan
+    dependsOn:
+    - resourceGroup: singleton
+      step: global-kv-private-issuer
+    automatedRetry:
+      errorContainsAny:
+      - "InternalServerError"
+      - "ServiceUnavailable"
+      maximumRetryCount: 3
+      durationBetweenRetries: 1m
   - name: geneva-kv-private-issuer
     action: SetCertificateIssuer
     secretKeyVault:
@@ -109,6 +149,40 @@ resourceGroups:
         name: genevaActionKeyVaultUrl
     issuer:
       value: OneCertV2-PrivateCA
+  - name: geneva-actions-cert
+    action: CreateCertificate
+    manage:
+      configRef: geneva.actions.certificate.manage
+    secretKeyVault:
+      configRef: ev2.assistedId.certificate.keyVault
+    secretName:
+      configRef: ev2.assistedId.certificate.name
+    applicationId:
+      configRef: ev2.assistedId.applicationId
+    vaultBaseUrl:
+      input:
+        resourceGroup: singleton
+        step: output
+        name: genevaActionKeyVaultUrl
+    certificateName:
+      configRef: geneva.actions.certificate.name
+    contentType:
+      configRef: geneva.actions.certificate.contentType
+    san:
+      configRef: geneva.actions.certificate.san
+    issuer:
+      configRef: geneva.actions.certificate.issuer
+    commonName:
+      configRef: geneva.actions.certificate.san
+    dependsOn:
+    - resourceGroup: singleton
+      step: geneva-kv-private-issuer
+    automatedRetry:
+      errorContainsAny:
+      - "InternalServerError"
+      - "ServiceUnavailable"
+      maximumRetryCount: 3
+      durationBetweenRetries: 1m
   - name: geneva-identities
     action: ARM
     template: templates/geneva-identities.bicep
@@ -116,9 +190,9 @@ resourceGroups:
     deploymentLevel: ResourceGroup
     dependsOn:
     - resourceGroup: singleton
-      step: global-kv-private-issuer
+      step: geneva-actions-cert
     - resourceGroup: singleton
-      step: geneva-kv-private-issuer
+      step: geneva-logs-cert
     # The Entra app/service-principal owners relationships are written through
     # Microsoft Graph, which intermittently fails to commit the relationship and
     # asks the caller to retry later. Retry the deployment on that transient error.
@@ -162,6 +236,20 @@ resourceGroups:
       step: output
     - resourceGroup: singleton
       step: ci-monitoring
+  # TODO(ARO-28044): re-enable after ARO-28040
+  # - name: grafana-dashboards
+  #   action: GrafanaDashboards
+  #   grafanaName: "{{ .monitoring.grafanaName }}"
+  #   observabilityConfig: ./../observability/observability.yaml
+  #   identityFrom:
+  #     resourceGroup: singleton
+  #     step: output
+  #     name: globalMSIId
+  #   dependsOn:
+  #   - resourceGroup: singleton
+  #     step: housekeeping
+  #   - resourceGroup: singleton
+  #     step: output
   # creates DNS delegation for the ARO HCP global SVC zone
   - name: svcChildZone
     action: DelegateChildZone
