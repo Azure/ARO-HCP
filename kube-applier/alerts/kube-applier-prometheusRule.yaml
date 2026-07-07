@@ -14,7 +14,7 @@ spec:
     rules:
     - alert: KubeApplierDesiresMetricNotPresent
       # Fires when at least one instance of kube-applier is running but the kube_applier_desires metric is not present for 5 minutes.
-      expr:  |
+      expr: |
         kube_applier_health == 1 unless on(cluster, namespace) kube_applier_desires
       for: 5m
       labels:
