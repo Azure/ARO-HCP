@@ -294,8 +294,11 @@ func (c *revocationDesires) ensureApplyDesire(
 		},
 		Spec: kubeapplier.ApplyDesireSpec{
 			ManagementCluster: mcResourceID,
+			Type:              kubeapplier.ApplyDesireTypeServerSideApply,
 			TargetItem:        target,
-			KubeContent:       &runtime.RawExtension{Raw: rawJSON},
+			ServerSideApply: &kubeapplier.ServerSideApplyConfig{
+				KubeContent: &runtime.RawExtension{Raw: rawJSON},
+			},
 		},
 	}
 	if _, err := crud.Create(ctx, desire, nil); err != nil && !database.IsConflictError(err) {

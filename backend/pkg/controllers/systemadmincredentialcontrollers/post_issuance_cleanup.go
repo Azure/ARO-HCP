@@ -20,8 +20,6 @@ import (
 	"strings"
 	"time"
 
-	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
@@ -138,11 +136,6 @@ func (c *postIssuanceCleanup) cleanupDesires(
 	if err != nil {
 		return utils.TrackError(err)
 	}
-	deleteCRUD, err := kaClient.DeleteDesiresForCluster(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
-	if err != nil {
-		return utils.TrackError(err)
-	}
-
 	// Find apply desires matching this credential by name pattern.
 	applyIter, err := applyCRUD.List(ctx, nil)
 	if err != nil {
@@ -154,7 +147,7 @@ func (c *postIssuanceCleanup) cleanupDesires(
 		if !isCredentialDesire(desireName, credName) {
 			continue
 		}
-		removed, err := c.removeApplyDesire(ctx, key, desireName, applyCRUD, deleteCRUD)
+		removed, err := c.removeApplyDesire(ctx, desireName, applyCRUD)
 		if err != nil {
 			return err
 		}
@@ -191,82 +184,47 @@ func (c *postIssuanceCleanup) cleanupDesires(
 	return nil
 }
 
+// removeApplyDesire tears down a single ApplyDesire by converting it to a
+// Type=Delete desire (so the kube-applier deletes spec.targetItem from the
+// management cluster) and, once that delete reports success, removing the
+// desire document. It returns true once the ApplyDesire is gone.
 func (c *postIssuanceCleanup) removeApplyDesire(
 	ctx context.Context,
-	key controllerutils.SystemAdminCredentialRequestKey,
 	desireName string,
 	applyCRUD database.ResourceCRUD[kubeapplier.ApplyDesire, *kubeapplier.ApplyDesire],
-	deleteCRUD database.ResourceCRUD[kubeapplier.DeleteDesire, *kubeapplier.DeleteDesire],
 ) (bool, error) {
-	// For ApplyDesires, issue a DeleteDesire to remove the MC-side object,
-	// then wait for it to confirm, then remove both.
-	if err := c.ensureDeleteDesire(ctx, key, desireName, applyCRUD, deleteCRUD); err != nil {
-		return false, err
-	}
-
-	// Check if the DeleteDesire has completed.
-	deleteDesire, err := deleteCRUD.Get(ctx, strings.ToLower(desireName))
+	applyDesire, err := applyCRUD.Get(ctx, strings.ToLower(desireName))
 	if database.IsNotFoundError(err) {
-		// DeleteDesire doesn't exist yet; we'll create it next time.
-		return false, nil
+		// Already gone.
+		return true, nil
 	}
 	if err != nil {
-		return false, utils.TrackError(err)
+		return false, utils.TrackError(fmt.Errorf("get ApplyDesire %s: %w", desireName, err))
 	}
 
-	// Check if the DeleteDesire has succeeded.
-	for _, cond := range deleteDesire.Status.Conditions {
+	// If the desire is still a ServerSideApply, flip it to a Delete so the
+	// kube-applier tears down the applied object. TargetItem already names what
+	// to delete; the ServerSideApply payload is cleared.
+	if applyDesire.Spec.Type != kubeapplier.ApplyDesireTypeDelete {
+		applyDesire.Spec.Type = kubeapplier.ApplyDesireTypeDelete
+		applyDesire.Spec.ServerSideApply = nil
+		if _, err := applyCRUD.Replace(ctx, applyDesire, nil); err != nil && !database.IsNotFoundError(err) {
+			return false, utils.TrackError(fmt.Errorf("convert ApplyDesire %s to Delete: %w", desireName, err))
+		}
+		return false, nil
+	}
+
+	// The desire is a Delete — remove the document once the delete has succeeded.
+	for _, cond := range applyDesire.Status.Conditions {
 		if cond.Type == "Successful" && cond.Status == "True" {
-			// Clean up: delete both the ApplyDesire and DeleteDesire.
 			if err := applyCRUD.Delete(ctx, strings.ToLower(desireName)); err != nil && !database.IsNotFoundError(err) {
 				return false, utils.TrackError(fmt.Errorf("delete ApplyDesire %s: %w", desireName, err))
-			}
-			if err := deleteCRUD.Delete(ctx, strings.ToLower(desireName)); err != nil && !database.IsNotFoundError(err) {
-				return false, utils.TrackError(fmt.Errorf("delete DeleteDesire %s: %w", desireName, err))
 			}
 			return true, nil
 		}
 	}
-	// DeleteDesire not yet successful; wait.
+	// Delete not yet successful; wait.
 	return false, nil
-}
-
-func (c *postIssuanceCleanup) ensureDeleteDesire(
-	ctx context.Context,
-	key controllerutils.SystemAdminCredentialRequestKey,
-	applyDesireName string,
-	applyCRUD database.ResourceCRUD[kubeapplier.ApplyDesire, *kubeapplier.ApplyDesire],
-	deleteCRUD database.ResourceCRUD[kubeapplier.DeleteDesire, *kubeapplier.DeleteDesire],
-) error {
-	// Get the ApplyDesire to copy its TargetItem.
-	applyDesire, err := applyCRUD.Get(ctx, strings.ToLower(applyDesireName))
-	if database.IsNotFoundError(err) {
-		// ApplyDesire already gone.
-		return nil
-	}
-	if err != nil {
-		return utils.TrackError(fmt.Errorf("get ApplyDesire %s: %w", applyDesireName, err))
-	}
-
-	deleteResourceIDStr := kubeapplier.ToClusterScopedDeleteDesireResourceIDString(
-		key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, applyDesireName)
-	deleteResourceID, _ := azcorearm.ParseResourceID(deleteResourceIDStr)
-
-	deleteDesire := &kubeapplier.DeleteDesire{
-		CosmosMetadata: api.CosmosMetadata{
-			ResourceID:   deleteResourceID,
-			PartitionKey: applyDesire.PartitionKey,
-		},
-		Spec: kubeapplier.DeleteDesireSpec{
-			ManagementCluster: applyDesire.Spec.ManagementCluster,
-			TargetItem:        applyDesire.Spec.TargetItem,
-		},
-	}
-
-	if _, err := deleteCRUD.Create(ctx, deleteDesire, nil); err != nil && !database.IsConflictError(err) {
-		return utils.TrackError(fmt.Errorf("create DeleteDesire %s: %w", applyDesireName, err))
-	}
-	return nil
 }
 
 // isCredentialDesire returns true if the desire name contains the credential

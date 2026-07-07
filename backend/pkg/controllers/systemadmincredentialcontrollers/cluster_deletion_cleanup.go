@@ -20,8 +20,6 @@ import (
 	"strings"
 	"time"
 
-	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
@@ -47,10 +45,10 @@ var _ controllerutils.CredentialRequestSyncer = (*credentialRequestDeletion)(nil
 // SystemAdminCredentialRequest change and only does work once that request's
 // Status.DeleteTimestamp is set. For that one request it:
 //
-//  1. Creates a DeleteDesire for each ApplyDesire it created before.
-//  2. Waits for those DeleteDesires to report success.
-//  3. Deletes the now-torn-down ApplyDesires, the DeleteDesires, and the
-//     ReadDesires belonging to this credential request.
+//  1. Flips each ApplyDesire it created before to Type=Delete so the
+//     kube-applier tears down the applied object.
+//  2. Waits for those Delete desires to report success, then removes them.
+//  3. Deletes the ReadDesires belonging to this credential request.
 //  4. Deletes the SystemAdminCredentialRequest document itself.
 //
 // The controller is deliberately scoped to the single credential request named
@@ -136,7 +134,7 @@ func (c *credentialRequestDeletion) SyncOnce(ctx context.Context, key controller
 		return err
 	}
 	if hasOutstanding {
-		logger.Info("waiting for management-cluster teardown of this credential's desires (ApplyDesires deleted via DeleteDesires, then DeleteDesires and ReadDesires removed)",
+		logger.Info("waiting for management-cluster teardown of this credential's desires (ApplyDesires flipped to Delete, then removed along with ReadDesires)",
 			"credential", key.CredentialName, "managementCluster", mcResourceID.String())
 		return nil
 	}
@@ -149,12 +147,12 @@ func (c *credentialRequestDeletion) SyncOnce(ctx context.Context, key controller
 	return nil
 }
 
-// driveDesireTeardown implements the 4-step teardown for the single credential
+// driveDesireTeardown implements the teardown for the single credential
 // request named by key:
-//  1. For this credential's Apply desires: create a DeleteDesire.
-//  2. For this credential's Apply desires with a completed DeleteDesire: delete the ApplyDesire.
-//  3. For this credential's Delete desires that have succeeded: delete them.
-//  4. For this credential's Read desires: delete directly.
+//  1. For this credential's ApplyDesires: flip each to Type=Delete so the
+//     kube-applier tears down the applied object, then remove the desire once
+//     the delete has succeeded.
+//  2. For this credential's ReadDesires: delete directly.
 //
 // Only desires that belong to this credential request (matched by name) are
 // touched. Returns true if there are still outstanding desires.
@@ -171,15 +169,12 @@ func (c *credentialRequestDeletion) driveDesireTeardown(
 	if err != nil {
 		return false, utils.TrackError(err)
 	}
-	deleteCRUD, err := kaClient.DeleteDesiresForCluster(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
-	if err != nil {
-		return false, utils.TrackError(err)
-	}
 
 	hasOutstanding := false
 
-	// Step 1 & 2: process only this credential request's apply desires.
-	// For each ApplyDesire: create a DeleteDesire, wait for it to succeed, then delete both.
+	// Step 1: process only this credential request's apply desires. Each
+	// ApplyDesire is flipped to Type=Delete, and once the delete succeeds the
+	// desire document is removed.
 	applyIter, err := applyCRUD.List(ctx, nil)
 	if err != nil {
 		return false, utils.TrackError(fmt.Errorf("list ApplyDesires: %w", err))
@@ -189,7 +184,7 @@ func (c *credentialRequestDeletion) driveDesireTeardown(
 		if !isCredentialDesire(desireName, key.CredentialName) {
 			continue
 		}
-		removed, err := c.removeApplyDesireDuringDeletion(ctx, key, desireName, applyCRUD, deleteCRUD)
+		removed, err := c.removeApplyDesireDuringDeletion(ctx, desireName, applyCRUD)
 		if err != nil {
 			return false, err
 		}
@@ -201,37 +196,7 @@ func (c *credentialRequestDeletion) driveDesireTeardown(
 		return false, utils.TrackError(fmt.Errorf("iterate ApplyDesires: %w", err))
 	}
 
-	// Step 3: clean up this credential request's completed delete desires.
-	deleteIter, err := deleteCRUD.List(ctx, nil)
-	if err != nil {
-		return false, utils.TrackError(fmt.Errorf("list DeleteDesires: %w", err))
-	}
-	for _, desire := range deleteIter.Items(ctx) {
-		desireName := desire.ResourceID.Name
-		if !isCredentialDesire(desireName, key.CredentialName) {
-			continue
-		}
-		// Only delete completed DeleteDesires.
-		isSuccessful := false
-		for _, cond := range desire.Status.Conditions {
-			if cond.Type == "Successful" && cond.Status == "True" {
-				isSuccessful = true
-				break
-			}
-		}
-		if isSuccessful {
-			if err := deleteCRUD.Delete(ctx, strings.ToLower(desireName)); err != nil && !database.IsNotFoundError(err) {
-				return false, utils.TrackError(fmt.Errorf("delete DeleteDesire %s: %w", desireName, err))
-			}
-		} else {
-			hasOutstanding = true
-		}
-	}
-	if err := deleteIter.GetError(); err != nil {
-		return false, utils.TrackError(fmt.Errorf("iterate DeleteDesires: %w", err))
-	}
-
-	// Step 4: delete this credential request's read desires.
+	// Step 2: delete this credential request's read desires.
 	readIter, err := readCRUD.List(ctx, nil)
 	if err != nil {
 		return false, utils.TrackError(fmt.Errorf("list ReadDesires: %w", err))
@@ -252,14 +217,15 @@ func (c *credentialRequestDeletion) driveDesireTeardown(
 	return hasOutstanding, nil
 }
 
+// removeApplyDesireDuringDeletion tears down a single ApplyDesire by converting
+// it to a Type=Delete desire (so the kube-applier deletes spec.targetItem from
+// the management cluster) and, once that delete reports success, removing the
+// desire document. It returns true once the ApplyDesire is gone.
 func (c *credentialRequestDeletion) removeApplyDesireDuringDeletion(
 	ctx context.Context,
-	key controllerutils.SystemAdminCredentialRequestKey,
 	desireName string,
 	applyCRUD database.ResourceCRUD[kubeapplier.ApplyDesire, *kubeapplier.ApplyDesire],
-	deleteCRUD database.ResourceCRUD[kubeapplier.DeleteDesire, *kubeapplier.DeleteDesire],
 ) (bool, error) {
-	// Get the ApplyDesire to extract TargetItem for DeleteDesire creation.
 	applyDesire, err := applyCRUD.Get(ctx, strings.ToLower(desireName))
 	if database.IsNotFoundError(err) {
 		// Already gone.
@@ -269,43 +235,27 @@ func (c *credentialRequestDeletion) removeApplyDesireDuringDeletion(
 		return false, utils.TrackError(fmt.Errorf("get ApplyDesire %s: %w", desireName, err))
 	}
 
-	// Step 1: Create a DeleteDesire for this ApplyDesire.
-	deleteResourceIDStr := kubeapplier.ToClusterScopedDeleteDesireResourceIDString(
-		key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, desireName)
-	deleteResourceID, _ := azcorearm.ParseResourceID(deleteResourceIDStr)
-
-	deleteDesire := &kubeapplier.DeleteDesire{
-		CosmosMetadata: api.CosmosMetadata{
-			ResourceID:   deleteResourceID,
-			PartitionKey: applyDesire.PartitionKey,
-		},
-		Spec: kubeapplier.DeleteDesireSpec{
-			ManagementCluster: applyDesire.Spec.ManagementCluster,
-			TargetItem:        applyDesire.Spec.TargetItem,
-		},
-	}
-	if _, err := deleteCRUD.Create(ctx, deleteDesire, nil); err != nil && !database.IsConflictError(err) {
-		return false, utils.TrackError(fmt.Errorf("create DeleteDesire %s: %w", desireName, err))
-	}
-
-	// Step 2: Check if DeleteDesire succeeded.
-	existingDelete, err := deleteCRUD.Get(ctx, strings.ToLower(desireName))
-	if database.IsNotFoundError(err) {
+	// Step 1: if the desire is still a ServerSideApply, flip it to a Delete so
+	// the kube-applier tears down the applied object. TargetItem already names
+	// what to delete; the ServerSideApply payload is cleared.
+	if applyDesire.Spec.Type != kubeapplier.ApplyDesireTypeDelete {
+		applyDesire.Spec.Type = kubeapplier.ApplyDesireTypeDelete
+		applyDesire.Spec.ServerSideApply = nil
+		if _, err := applyCRUD.Replace(ctx, applyDesire, nil); err != nil && !database.IsNotFoundError(err) {
+			return false, utils.TrackError(fmt.Errorf("convert ApplyDesire %s to Delete: %w", desireName, err))
+		}
 		return false, nil
 	}
-	if err != nil {
-		return false, utils.TrackError(err)
-	}
 
-	for _, cond := range existingDelete.Status.Conditions {
+	// Step 2: the desire is a Delete — once it reports success, remove the document.
+	for _, cond := range applyDesire.Status.Conditions {
 		if cond.Type == "Successful" && cond.Status == "True" {
-			// Delete succeeded — remove the ApplyDesire.
 			if err := applyCRUD.Delete(ctx, strings.ToLower(desireName)); err != nil && !database.IsNotFoundError(err) {
 				return false, utils.TrackError(fmt.Errorf("delete ApplyDesire %s: %w", desireName, err))
 			}
 			return true, nil
 		}
 	}
-	// Not yet successful.
+	// Delete not yet successful; wait.
 	return false, nil
 }

@@ -282,8 +282,11 @@ func (c *desiresCreator) ensureApplyDesire(
 		},
 		Spec: kubeapplier.ApplyDesireSpec{
 			ManagementCluster: mcResourceID,
+			Type:              kubeapplier.ApplyDesireTypeServerSideApply,
 			TargetItem:        target,
-			KubeContent:       &runtime.RawExtension{Raw: rawJSON},
+			ServerSideApply: &kubeapplier.ServerSideApplyConfig{
+				KubeContent: &runtime.RawExtension{Raw: rawJSON},
+			},
 		},
 	}
 
@@ -353,12 +356,15 @@ func applyDesireSpecEqual(existing, desired kubeapplier.ApplyDesireSpec) bool {
 	if existing.TargetItem != desired.TargetItem {
 		return false
 	}
-	var existingRaw, desiredRaw []byte
-	if existing.KubeContent != nil {
-		existingRaw = existing.KubeContent.Raw
+	if existing.Type != desired.Type {
+		return false
 	}
-	if desired.KubeContent != nil {
-		desiredRaw = desired.KubeContent.Raw
+	var existingRaw, desiredRaw []byte
+	if existing.ServerSideApply != nil && existing.ServerSideApply.KubeContent != nil {
+		existingRaw = existing.ServerSideApply.KubeContent.Raw
+	}
+	if desired.ServerSideApply != nil && desired.ServerSideApply.KubeContent != nil {
+		desiredRaw = desired.ServerSideApply.KubeContent.Raw
 	}
 	return bytes.Equal(existingRaw, desiredRaw)
 }
