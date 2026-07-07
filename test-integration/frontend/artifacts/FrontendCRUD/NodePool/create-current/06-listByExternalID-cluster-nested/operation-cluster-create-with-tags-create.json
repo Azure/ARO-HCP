@@ -5,11 +5,11 @@
 	},
 	"externalId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/create-with-tags",
 	"operationId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/providers/Microsoft.RedHatOpenShift/locations/fake-location/hcpOperationStatuses/00000000-0000-0000-0000-000000000000",
-	"resourceId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/providers/Microsoft.RedHatOpenShift/hcpOperationStatuses/00000000-0000-0000-0000-000000000000",
 	"request": "Create",
+	"resourceId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/providers/Microsoft.RedHatOpenShift/hcpOperationStatuses/00000000-0000-0000-0000-000000000000",
 	"status": "Succeeded",
 	"tenantId": "00000000-0000-0000-0000-000000000000",
-	"usesNewNodePoolDeletionApproach": false,
+	"usesNewClusterDeletionApproach": false,
 	"usesNewExternalAuthDeletionApproach": false,
-	"usesNewClusterDeletionApproach": false
+	"usesNewNodePoolDeletionApproach": false
 }
