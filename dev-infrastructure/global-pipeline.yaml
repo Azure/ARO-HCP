@@ -40,6 +40,34 @@ resourceGroups:
     template: templates/global-infra.bicep
     parameters: configurations/global-infra.tmpl.bicepparam
     deploymentLevel: ResourceGroup
+  - name: grafana-reconcile
+    action: GrafanaManage
+    grafanaName:
+      configRef: monitoring.grafanaName
+    location:
+      configRef: global.region
+    majorVersion:
+      configRef: monitoring.grafanaMajorVersion
+    zoneRedundancy:
+      configRef: monitoring.grafanaZoneRedundantMode
+    crossTenantSecurityGroup:
+      configRef: monitoring.crossTenantSecurityGroup
+    timeout: "15m"
+    identityFrom:
+      resourceGroup: singleton
+      step: infra
+      name: globalMSIId
+    dependsOn:
+    - resourceGroup: singleton
+      step: infra
+  - name: grafana-roles
+    action: ARM
+    template: templates/grafana-roles.bicep
+    parameters: configurations/grafana-roles.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    dependsOn:
+    - resourceGroup: singleton
+      step: grafana-reconcile
   - name: output
     action: ARM
     template: templates/output-global.bicep
@@ -54,21 +82,22 @@ resourceGroups:
     # with ResourceNotFound before acrs creates them.
     - resourceGroup: singleton
       step: acrs
-  # TODO(ARO-28044): re-enable after ARO-28040
-  # - name: grafana-monitoring-reader
-  #   action: ARM
-  #   template: templates/grafana-monitoring-reader.bicep
-  #   parameters: configurations/grafana-monitoring-reader.tmpl.bicepparam
-  #   deploymentLevel: Subscription
-  #   variables:
-  #   - name: grafanaPrincipalId
-  #     input:
-  #       resourceGroup: singleton
-  #       step: output
-  #       name: grafanaPrincipalId
-  #   dependsOn:
-  #   - resourceGroup: singleton
-  #     step: output
+    - resourceGroup: singleton
+      step: grafana-reconcile
+  - name: grafana-monitoring-reader
+    action: ARM
+    template: templates/grafana-monitoring-reader.bicep
+    parameters: configurations/grafana-monitoring-reader.tmpl.bicepparam
+    deploymentLevel: Subscription
+    variables:
+    - name: grafanaPrincipalId
+      input:
+        resourceGroup: singleton
+        step: output
+        name: grafanaPrincipalId
+    dependsOn:
+    - resourceGroup: singleton
+      step: output
   - name: global-kv-private-issuer
     action: SetCertificateIssuer
     secretKeyVault:
@@ -205,20 +234,20 @@ resourceGroups:
     dependsOn:
     - resourceGroup: singleton
       step: infra
-  # TODO(ARO-28044): re-enable after ARO-28040
-  # - name: grafana-dashboards
-  #   action: GrafanaDashboards
-  #   grafanaName: "{{ .monitoring.grafanaName }}"
-  #   observabilityConfig: ./../observability/observability.yaml
-  #   identityFrom:
-  #     resourceGroup: singleton
-  #     step: output
-  #     name: globalMSIId
-  #   dependsOn:
-  #   - resourceGroup: singleton
-  #     step: housekeeping
-  #   - resourceGroup: singleton
-  #     step: output
+  - name: grafana-dashboards
+    action: GrafanaDashboards
+    grafanaName: "{{ .monitoring.grafanaName }}"
+    observabilityConfig: ./../observability/observability.yaml
+    timeout: "15m"
+    identityFrom:
+      resourceGroup: singleton
+      step: output
+      name: globalMSIId
+    dependsOn:
+    - resourceGroup: singleton
+      step: housekeeping
+    - resourceGroup: singleton
+      step: output
   # creates DNS delegation for the ARO HCP global SVC zone
   - name: svcChildZone
     action: DelegateChildZone

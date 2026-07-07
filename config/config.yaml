@@ -1338,7 +1338,7 @@ clouds:
         icm:
           manageConnection: false
         grafanaName: arohcp-dev
-        grafanaMajorVersion: '11'
+        grafanaMajorVersion: '12'
         grafanaZoneRedundantMode: Disabled
         grafanaRoles: >-
           6b6d3adf-8476-4727-9812-20ffdef2b85c/Group/Admin
