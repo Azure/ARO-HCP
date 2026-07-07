@@ -26,10 +26,10 @@ import (
 
 // Resource represents a basic ARM resource
 type Resource struct {
-	ID         *azcorearm.ResourceID `json:"id,omitempty"`
-	Name       string                `json:"name,omitempty"`
-	Type       string                `json:"type,omitempty"`
-	SystemData *SystemData           `json:"systemData,omitempty"`
+	ID         *azcorearm.ResourceID `json:"id,omitempty" redact:"notraverse"`
+	Name       string                `json:"name,omitempty" redact:"nonsecret"`
+	Type       string                `json:"type,omitempty" redact:"nonsecret"`
+	SystemData *SystemData           `json:"systemData,omitempty" redact:"nonsecret"`
 }
 
 // NewResource returns a Resource initialized from resourceID.
@@ -48,8 +48,8 @@ func NewResource(resourceID *azcorearm.ResourceID) Resource {
 // TrackedResource represents a tracked ARM resource
 type TrackedResource struct {
 	Resource
-	Location string            `json:"location,omitempty"`
-	Tags     map[string]string `json:"tags,omitempty"`
+	Location string            `json:"location,omitempty" redact:"nonsecret"`
+	Tags     map[string]string `json:"tags,omitempty" redact:"nonsecret"`
 }
 
 // NewTrackedResource returns a TrackedResource initialized from resourceID.
@@ -94,17 +94,17 @@ var (
 // See https://eng.ms/docs/products/arm/api_contracts/resourcesystemdata
 type SystemData struct {
 	// CreatedBy is a string identifier for the identity that created the resource
-	CreatedBy string `json:"createdBy,omitempty"`
+	CreatedBy string `json:"createdBy,omitempty" redact:""`
 	// CreatedByType is the type of identity that created the resource: User, Application, ManagedIdentity
-	CreatedByType CreatedByType `json:"createdByType,omitempty"`
+	CreatedByType CreatedByType `json:"createdByType,omitempty" redact:"nonsecret"`
 	// The timestamp of resource creation (UTC)
-	CreatedAt *time.Time `json:"createdAt,omitempty"`
+	CreatedAt *time.Time `json:"createdAt,omitempty" redact:"nonsecret"`
 	// LastModifiedBy is a string identifier for the identity that last modified the resource
-	LastModifiedBy string `json:"lastModifiedBy,omitempty"`
+	LastModifiedBy string `json:"lastModifiedBy,omitempty" redact:""`
 	// LastModifiedByType is the type of identity that last modified the resource: User, Application, ManagedIdentity
-	LastModifiedByType CreatedByType `json:"lastModifiedByType,omitempty"`
+	LastModifiedByType CreatedByType `json:"lastModifiedByType,omitempty" redact:"nonsecret"`
 	// LastModifiedAt is the timestamp of resource last modification (UTC)
-	LastModifiedAt *time.Time `json:"lastModifiedAt,omitempty"`
+	LastModifiedAt *time.Time `json:"lastModifiedAt,omitempty" redact:"nonsecret"`
 }
 
 // ProvisioningState represents the asynchronous provisioning state of an ARM resource

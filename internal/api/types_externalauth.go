@@ -27,12 +27,12 @@ import (
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type HCPOpenShiftClusterExternalAuth struct {
 	// PartitionKey holds the lowercased subscriptionID.
-	CosmosMetadata `json:"cosmosMetadata"`
+	CosmosMetadata `json:"cosmosMetadata" redact:"nonsecret"`
 
 	arm.ProxyResource
-	Properties                HCPOpenShiftClusterExternalAuthProperties                `json:"properties"`
-	ServiceProviderProperties HCPOpenShiftClusterExternalAuthServiceProviderProperties `json:"serviceProviderProperties,omitempty"`
-	Status                    HCPOpenShiftClusterExternalAuthStatus                    `json:"status"`
+	Properties                HCPOpenShiftClusterExternalAuthProperties                `json:"properties" redact:"nonsecret"`
+	ServiceProviderProperties HCPOpenShiftClusterExternalAuthServiceProviderProperties `json:"serviceProviderProperties,omitempty" redact:"nonsecret"`
+	Status                    HCPOpenShiftClusterExternalAuthStatus                    `json:"status" redact:"nonsecret"`
 }
 
 // HCPOpenShiftClusterExternalAuthStatus contains the observed state of the external auth.
@@ -44,7 +44,7 @@ type HCPOpenShiftClusterExternalAuthStatus struct {
 	// +patchStrategy=merge
 	// +listType=map
 	// +listMapKey=type
-	Conditions []metav1.Condition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type"`
+	Conditions []metav1.Condition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type" redact:"notraverse"`
 }
 
 // EnsureDefaults fills in default values for fields that may be absent in
@@ -66,19 +66,19 @@ var _ arm.CosmosPersistable = &HCPOpenShiftClusterExternalAuth{}
 // HCPOpenShiftClusterNodePoolProperties represents the property bag of a
 // HCPOpenShiftClusterNodePool resource.
 type HCPOpenShiftClusterExternalAuthProperties struct {
-	ProvisioningState arm.ProvisioningState       `json:"provisioningState"`
-	Issuer            TokenIssuerProfile          `json:"issuer"`
-	Clients           []ExternalAuthClientProfile `json:"clients"`
-	Claim             ExternalAuthClaimProfile    `json:"claim"`
+	ProvisioningState arm.ProvisioningState       `json:"provisioningState" redact:"nonsecret"`
+	Issuer            TokenIssuerProfile          `json:"issuer" redact:"nonsecret"`
+	Clients           []ExternalAuthClientProfile `json:"clients" redact:"nonsecret"`
+	Claim             ExternalAuthClaimProfile    `json:"claim" redact:"nonsecret"`
 }
 
 type HCPOpenShiftClusterExternalAuthServiceProviderProperties struct {
-	ClusterServiceID  *InternalID `json:"clusterServiceID,omitempty"`
-	ActiveOperationID string      `json:"activeOperationId,omitempty"`
+	ClusterServiceID  *InternalID `json:"clusterServiceID,omitempty" redact:"nonsecret"`
+	ActiveOperationID string      `json:"activeOperationId,omitempty" redact:"nonsecret"`
 	// DeletionTimestamp is the timestamp at which the ExternalAuth deletion was requested.
 	// The timestamp is in UTC.
 	// A nil value indicates that the ExternalAuth deletion has not been requested.
-	DeletionTimestamp *metav1.Time `json:"deletionTimestamp,omitempty"`
+	DeletionTimestamp *metav1.Time `json:"deletionTimestamp,omitempty" redact:"nonsecret"`
 	// ClusterServiceDeletionTimestamp is written when a dispatch of a Cluster
 	// Service Delete ExternalAuth request against Cluster Service for this
 	// external auth has been handled. It is set after a successful
@@ -91,14 +91,14 @@ type HCPOpenShiftClusterExternalAuthServiceProviderProperties struct {
 	// A nil value indicates that the Cluster Service Deletion has not been requested.
 	// The timestamp is in UTC.
 	// TODO this attribute is not in use yet. Do not rely on it.
-	ClusterServiceDeletionTimestamp *metav1.Time `json:"clusterServiceDeletionTimestamp,omitempty"`
+	ClusterServiceDeletionTimestamp *metav1.Time `json:"clusterServiceDeletionTimestamp,omitempty" redact:"nonsecret"`
 
 	// TODO Temporary field to track whether the external auth operation is using the new deletion approach.
 	// We are migrating from the external auth CS deletion synchronous in frontend to the backend, to be fully asynchronous.
 	// This boolean is true for ExternalAuth delete operations that are created with new deletion approach.
 	// This will be removed once all external auths whose deletion was triggered before the new approach is fully rolled out have been
 	// fully deleted in all ARO-HCP permanent environments, for all regions.
-	UsesNewExternalAuthDeletionApproach bool `json:"usesNewExternalAuthDeletionApproach"`
+	UsesNewExternalAuthDeletionApproach bool `json:"usesNewExternalAuthDeletionApproach" redact:"nonsecret"`
 }
 
 // Token issuer profile
@@ -106,42 +106,42 @@ type HCPOpenShiftClusterExternalAuthServiceProviderProperties struct {
 // how tokens issued from the identity provider are evaluated by the Kubernetes API server.
 // Visbility for the entire struct is "read create update".
 type TokenIssuerProfile struct {
-	URL       string   `json:"url"`
-	Audiences []string `json:"audiences"`
-	CA        string   `json:"ca"`
+	URL       string   `json:"url" redact:"nonsecret"`
+	Audiences []string `json:"audiences" redact:"nonsecret"`
+	CA        string   `json:"ca" redact:"nonsecret"`
 }
 
 // External Auth client profile
 // This configures how on-cluster, platform clients should request tokens from the identity provider.
 // Visibility for the entire struct is "read create update".
 type ExternalAuthClientProfile struct {
-	Component   ExternalAuthClientComponentProfile `json:"component"`
-	ClientID    string                             `json:"clientId"`
-	ExtraScopes []string                           `json:"extraScopes"`
-	Type        ExternalAuthClientType             `json:"type"`
+	Component   ExternalAuthClientComponentProfile `json:"component" redact:"nonsecret"`
+	ClientID    string                             `json:"clientId" redact:"nonsecret"`
+	ExtraScopes []string                           `json:"extraScopes" redact:"nonsecret"`
+	Type        ExternalAuthClientType             `json:"type" redact:"nonsecret"`
 }
 
 // External Auth component profile
 // Must have unique namespace/name pairs.
 // Visibility for the entire struct is "read create update".
 type ExternalAuthClientComponentProfile struct {
-	Name                string `json:"name"`
-	AuthClientNamespace string `json:"authClientNamespace"`
+	Name                string `json:"name" redact:"nonsecret"`
+	AuthClientNamespace string `json:"authClientNamespace" redact:"nonsecret"`
 }
 
 // External Auth claim profile
 // Visibility for the entire struct is "read create update".
 type ExternalAuthClaimProfile struct {
-	Mappings        TokenClaimMappingsProfile  `json:"mappings"`
-	ValidationRules []TokenClaimValidationRule `json:"validationRules"`
+	Mappings        TokenClaimMappingsProfile  `json:"mappings" redact:"nonsecret"`
+	ValidationRules []TokenClaimValidationRule `json:"validationRules" redact:"nonsecret"`
 }
 
 // External Auth claim mappings profile.
 // At a minimum username or groups must be defined.
 // Visibility for the entire struct is "read create update".
 type TokenClaimMappingsProfile struct {
-	Username UsernameClaimProfile `json:"username"`
-	Groups   *GroupClaimProfile   `json:"groups"`
+	Username UsernameClaimProfile `json:"username" redact:"nonsecret"`
+	Groups   *GroupClaimProfile   `json:"groups" redact:"nonsecret"`
 }
 
 // External Auth claim profile
@@ -154,8 +154,8 @@ type TokenClaimMappingsProfile struct {
 //
 // Visibility for the entire struct is "read create update".
 type GroupClaimProfile struct {
-	Claim  string `json:"claim"`
-	Prefix string `json:"prefix"`
+	Claim  string `json:"claim" redact:"nonsecret"`
+	Prefix string `json:"prefix" redact:"nonsecret"`
 }
 
 // External Auth claim profile
@@ -163,23 +163,23 @@ type GroupClaimProfile struct {
 // from the claims in a JWT token issued by the identity provider.
 // Visibility for the entire struct is "read create update".
 type UsernameClaimProfile struct {
-	Claim        string                    `json:"claim"`
-	Prefix       string                    `json:"prefix"`
-	PrefixPolicy UsernameClaimPrefixPolicy `json:"prefixPolicy"`
+	Claim        string                    `json:"claim" redact:"nonsecret"`
+	Prefix       string                    `json:"prefix" redact:"nonsecret"`
+	PrefixPolicy UsernameClaimPrefixPolicy `json:"prefixPolicy" redact:"nonsecret"`
 }
 
 // External Auth claim validation rule
 // Visibility for the entire struct is "read create update".
 type TokenClaimValidationRule struct {
-	Type          TokenValidationRuleType `json:"type"`
-	RequiredClaim TokenRequiredClaim      `json:"requiredClaim"`
+	Type          TokenValidationRuleType `json:"type" redact:"nonsecret"`
+	RequiredClaim TokenRequiredClaim      `json:"requiredClaim" redact:"nonsecret"`
 }
 
 // Token required claim validation rule.
 // Visibility for the entire struct is "read create update".
 type TokenRequiredClaim struct {
-	Claim         string `json:"claim"`
-	RequiredValue string `json:"requiredValue"`
+	Claim         string `json:"claim" redact:"nonsecret"`
+	RequiredValue string `json:"requiredValue" redact:"nonsecret"`
 }
 
 func NewDefaultHCPOpenShiftClusterExternalAuth(resourceID *azcorearm.ResourceID) *HCPOpenShiftClusterExternalAuth {

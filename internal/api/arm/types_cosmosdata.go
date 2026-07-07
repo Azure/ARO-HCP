@@ -28,25 +28,25 @@ import (
 // CosmosMetadata contains the information that persisted resources must have for us to support CRUD against them.
 // These are not (currently) all stored in the same place in our various types.
 type CosmosMetadata struct {
-	ResourceID *azcorearm.ResourceID `json:"resourceID"`
+	ResourceID *azcorearm.ResourceID `json:"resourceID" redact:"notraverse"`
 
 	// ExistingCosmosUID exists to allow for a migration path from where we are today to a uuid based cosmosID
 	// and this will be deleted afterwards.
-	ExistingCosmosUID string `json:"-"`
+	ExistingCosmosUID string `json:"-" redact:"nonsecret"`
 
-	CosmosETag azcore.ETag `json:"etag,omitempty"`
+	CosmosETag azcore.ETag `json:"etag,omitempty" redact:"nonsecret"`
 
 	// InstanceVersion is a field that auto-increments every time the resource is updated.  This gives us the ability to
 	// compare two instances of stored resources and determine which one is newer.  We will use this field to integrate
 	// changefeeds for controllers and decide which changes are newer than the level we have already observed so that we
 	// can periodically re-list all items.
 	// The auto-incrementing happens automatically in the storage layer for conditional updates.
-	InstanceVersion int64 `json:"instanceVersion"`
+	InstanceVersion int64 `json:"instanceVersion" redact:"nonsecret"`
 
 	// PartitionKey is the partition key for the CosmosDB document, it must be set before creation and must be all lowercase.
 	// On the read-path, during our migration we will fill in an empty value based on the type we're reading.
 	// Every type that embeds this struct must comment about what the PartitionKey is. For instance, subscriptionID, managementClusterID, etc.
-	PartitionKey string `json:"partitionKey"`
+	PartitionKey string `json:"partitionKey" redact:"nonsecret"`
 }
 
 var (

@@ -31,13 +31,13 @@ import (
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type HCPOpenShiftClusterNodePool struct {
 	// PartitionKey holds the lowercased subscriptionID.
-	CosmosMetadata `json:"cosmosMetadata"`
+	CosmosMetadata `json:"cosmosMetadata" redact:"nonsecret"`
 
 	arm.TrackedResource
-	Properties                HCPOpenShiftClusterNodePoolProperties                `json:"properties,omitempty"`
-	ServiceProviderProperties HCPOpenShiftClusterNodePoolServiceProviderProperties `json:"serviceProviderProperties,omitempty"`
-	Identity                  *arm.ManagedServiceIdentity                          `json:"identity,omitempty"`
-	Status                    HCPOpenShiftClusterNodePoolStatus                    `json:"status"`
+	Properties                HCPOpenShiftClusterNodePoolProperties                `json:"properties,omitempty" redact:"nonsecret"`
+	ServiceProviderProperties HCPOpenShiftClusterNodePoolServiceProviderProperties `json:"serviceProviderProperties,omitempty" redact:"nonsecret"`
+	Identity                  *arm.ManagedServiceIdentity                          `json:"identity,omitempty" redact:"nonsecret"`
+	Status                    HCPOpenShiftClusterNodePoolStatus                    `json:"status" redact:"nonsecret"`
 }
 
 // HCPOpenShiftClusterNodePoolStatus contains the observed state of the node pool.
@@ -49,7 +49,7 @@ type HCPOpenShiftClusterNodePoolStatus struct {
 	// +patchStrategy=merge
 	// +listType=map
 	// +listMapKey=type
-	Conditions []metav1.Condition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type"`
+	Conditions []metav1.Condition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type" redact:"notraverse"`
 }
 
 var _ arm.CosmosPersistable = &HCPOpenShiftClusterNodePool{}
@@ -57,24 +57,24 @@ var _ arm.CosmosPersistable = &HCPOpenShiftClusterNodePool{}
 // HCPOpenShiftClusterNodePoolProperties represents the property bag of a
 // HCPOpenShiftClusterNodePool resource.
 type HCPOpenShiftClusterNodePoolProperties struct {
-	ProvisioningState       arm.ProvisioningState   `json:"provisioningState,omitempty"`
-	Version                 NodePoolVersionProfile  `json:"version,omitempty"`
-	Platform                NodePoolPlatformProfile `json:"platform,omitempty"`
-	Replicas                int32                   `json:"replicas,omitempty"`
-	AutoRepair              bool                    `json:"autoRepair,omitempty"`
-	AutoScaling             *NodePoolAutoScaling    `json:"autoScaling,omitempty"`
-	Labels                  map[string]string       `json:"labels,omitempty"`
-	Taints                  []Taint                 `json:"taints,omitempty"`
-	NodeDrainTimeoutMinutes *int32                  `json:"nodeDrainTimeoutMinutes,omitempty"`
+	ProvisioningState       arm.ProvisioningState   `json:"provisioningState,omitempty" redact:"nonsecret"`
+	Version                 NodePoolVersionProfile  `json:"version,omitempty" redact:"nonsecret"`
+	Platform                NodePoolPlatformProfile `json:"platform,omitempty" redact:"nonsecret"`
+	Replicas                int32                   `json:"replicas,omitempty" redact:"nonsecret"`
+	AutoRepair              bool                    `json:"autoRepair,omitempty" redact:"nonsecret"`
+	AutoScaling             *NodePoolAutoScaling    `json:"autoScaling,omitempty" redact:"nonsecret"`
+	Labels                  map[string]string       `json:"labels,omitempty" redact:"nonsecret"`
+	Taints                  []Taint                 `json:"taints,omitempty" redact:"nonsecret"`
+	NodeDrainTimeoutMinutes *int32                  `json:"nodeDrainTimeoutMinutes,omitempty" redact:"nonsecret"`
 }
 
 type HCPOpenShiftClusterNodePoolServiceProviderProperties struct {
-	ClusterServiceID  *InternalID `json:"clusterServiceID,omitempty"`
-	ActiveOperationID string      `json:"activeOperationId,omitempty"`
+	ClusterServiceID  *InternalID `json:"clusterServiceID,omitempty" redact:"nonsecret"`
+	ActiveOperationID string      `json:"activeOperationId,omitempty" redact:"nonsecret"`
 	// DeletionTimestamp is the timestamp at which the NodePool deletion was requested
 	// The timestamp is in UTC.
 	// A nil value indicates that the NodePool deletion has not been requested.
-	DeletionTimestamp *metav1.Time `json:"deletionTimestamp,omitempty"`
+	DeletionTimestamp *metav1.Time `json:"deletionTimestamp,omitempty" redact:"nonsecret"`
 	// ClusterServiceDeletionTimestamp is written when a dispatch of a Cluster
 	// Service Delete NodePool request against Cluster Service for this node
 	// pool has been handled. It is set after a successful DeleteNodePool call
@@ -86,21 +86,21 @@ type HCPOpenShiftClusterNodePoolServiceProviderProperties struct {
 	// A nil value indicates that the Cluster Service Deletion has not been requested.
 	// The timestamp is in UTC.
 	// TODO this attribute is not in use yet. Do not rely on it.
-	ClusterServiceDeletionTimestamp *metav1.Time `json:"clusterServiceDeletionTimestamp,omitempty"`
+	ClusterServiceDeletionTimestamp *metav1.Time `json:"clusterServiceDeletionTimestamp,omitempty" redact:"nonsecret"`
 
 	// TODO Temporary field to track whether the node pool operation is using the new deletion approach.
 	// We are migrating from the node pool cs deletion synchronous in frontend to the backend, to be fully asynchronous
 	// This boolean is true for NodePool delete operations that are created with new deletion approach.
 	// This will be removed once all nodepools whose deletion was triggered before the new approach is fully rolled out have been
 	// fully deleted in all ARO-HCP permanent environments, for all regions.
-	UsesNewNodePoolDeletionApproach bool `json:"usesNewNodePoolDeletionApproach"`
+	UsesNewNodePoolDeletionApproach bool `json:"usesNewNodePoolDeletionApproach" redact:"nonsecret"`
 }
 
 // NodePoolVersionProfile represents the worker node pool version.
 // Visbility for the entire struct is "read create update".
 type NodePoolVersionProfile struct {
-	ID           string `json:"id,omitempty"`
-	ChannelGroup string `json:"channelGroup,omitempty"`
+	ID           string `json:"id,omitempty" redact:"nonsecret"`
+	ChannelGroup string `json:"channelGroup,omitempty" redact:"nonsecret"`
 }
 
 // NodePoolPlatformProfile represents a worker node pool configuration.
@@ -112,10 +112,10 @@ type NodePoolPlatformProfile struct {
 	// * The same subnet may be used across Node Pools of the same cluster (and may match
 	//   the parent cluster's subnet), but a subnet cannot be reused across different
 	//   ARO-HCP Clusters.
-	SubnetID               *azcorearm.ResourceID `json:"subnetId,omitempty"`
-	VMSize                 string                `json:"vmSize,omitempty"`
-	EnableEncryptionAtHost bool                  `json:"enableEncryptionAtHost"`
-	OSDisk                 OSDiskProfile         `json:"osDisk"`
+	SubnetID               *azcorearm.ResourceID `json:"subnetId,omitempty" redact:"notraverse"`
+	VMSize                 string                `json:"vmSize,omitempty" redact:"nonsecret"`
+	EnableEncryptionAtHost bool                  `json:"enableEncryptionAtHost" redact:"nonsecret"`
+	OSDisk                 OSDiskProfile         `json:"osDisk" redact:"nonsecret"`
 	// AvailabilityZone can be empty.
 	// * If AvailabilityZone is not specified during creation, then the Node Pool is not part of any Availability Zone and the Node Pool's
 	//   virtual machines are included in an Availability Set.
@@ -123,32 +123,32 @@ type NodePoolPlatformProfile struct {
 	// * It must not be specified for Node Pools whose parent cluster is in an Azure location that does not support Availability Zones
 	// * It is a logical Availability Zone
 	// * It is optional during creation and immutable
-	AvailabilityZone string `json:"availabilityZone,omitempty"`
+	AvailabilityZone string `json:"availabilityZone,omitempty" redact:"nonsecret"`
 }
 
 // OSDiskProfile represents a OS Disk configuration.
 // Visibility for the entire struct is "read create".
 type OSDiskProfile struct {
-	SizeGiB                *int32                 `json:"sizeGiB,omitempty"`
-	DiskStorageAccountType DiskStorageAccountType `json:"diskStorageAccountType,omitempty"`
-	EncryptionSetID        *azcorearm.ResourceID  `json:"encryptionSetId,omitempty"`
-	DiskType               OsDiskType             `json:"diskType,omitempty"`
+	SizeGiB                *int32                 `json:"sizeGiB,omitempty" redact:"nonsecret"`
+	DiskStorageAccountType DiskStorageAccountType `json:"diskStorageAccountType,omitempty" redact:"nonsecret"`
+	EncryptionSetID        *azcorearm.ResourceID  `json:"encryptionSetId,omitempty" redact:"notraverse"`
+	DiskType               OsDiskType             `json:"diskType,omitempty" redact:"nonsecret"`
 }
 
 // NodePoolAutoScaling represents a node pool autoscaling configuration.
 // Visibility for the entire struct is "read create update".
 // max=200 for both Min and Max when the node pool's Platform.AvailabilityZone is unset.
 type NodePoolAutoScaling struct {
-	Min int32 `json:"min,omitempty"`
-	Max int32 `json:"max,omitempty"`
+	Min int32 `json:"min,omitempty" redact:"nonsecret"`
+	Max int32 `json:"max,omitempty" redact:"nonsecret"`
 }
 
 // Taint represents a Kubernetes taint for a node.
 // Visibility for the entire struct is "read create update".
 type Taint struct {
-	Effect Effect `json:"effect,omitempty"`
-	Key    string `json:"key,omitempty"`
-	Value  string `json:"value,omitempty"`
+	Effect Effect `json:"effect,omitempty" redact:"nonsecret"`
+	Key    string `json:"key,omitempty" redact:"nonsecret"`
+	Value  string `json:"value,omitempty" redact:"nonsecret"`
 }
 
 func NewDefaultHCPOpenShiftClusterNodePool(resourceID *azcorearm.ResourceID, azureLocation string) *HCPOpenShiftClusterNodePool {

@@ -16,13 +16,16 @@ package serverutils
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
+	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/redact"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -61,9 +64,13 @@ func DumpDataToLogger(
 	if err != nil {
 		return utils.TrackError(err)
 	}
+	redactedContent, err := redactTypedDocument(startingCosmosRecord)
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to redact starting cosmos record: %w", err))
+	}
 	logger.Info(fmt.Sprintf("dumping resourceID %v", startingCosmosRecord.ResourceID),
 		"currentResourceID", resourceIDToString(startingCosmosRecord.ResourceID),
-		"content", startingCosmosRecord,
+		"content", redactedContent,
 	)
 
 	allCosmosRecords, err := cosmosCRUD.ListRecursive(ctx, nil)
@@ -73,10 +80,15 @@ func DumpDataToLogger(
 
 	errs := []error{}
 	for _, typedDocument := range allCosmosRecords.Items(ctx) {
-		logger.Info(fmt.Sprintf("dumping resourceID %v", typedDocument.ResourceID),
-			"currentResourceID", resourceIDToString(typedDocument.ResourceID),
-			"content", typedDocument,
-		)
+		redactedContent, err := redactTypedDocument(typedDocument)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("failed to redact typed document for %v: %w", resourceIDToString(typedDocument.ResourceID), err))
+		} else {
+			logger.Info(fmt.Sprintf("dumping resourceID %v", typedDocument.ResourceID),
+				"currentResourceID", resourceIDToString(typedDocument.ResourceID),
+				"content", redactedContent,
+			)
+		}
 	}
 	if err := allCosmosRecords.GetError(); err != nil {
 		errs = append(errs, err)
@@ -160,10 +172,15 @@ func dumpKubeApplierData(
 			continue
 		}
 		for _, doc := range desireIterator.Items(ctx) {
-			mcLogger.Info(fmt.Sprintf("dumping kube-applier resourceID %v", doc.ResourceID),
-				"currentResourceID", resourceIDToString(doc.ResourceID),
-				"content", doc,
-			)
+			redactedContent, err := redactTypedDocument(doc)
+			if err != nil {
+				errs = append(errs, fmt.Errorf("failed to redact kube-applier document for %v: %w", resourceIDToString(doc.ResourceID), err))
+			} else {
+				mcLogger.Info(fmt.Sprintf("dumping kube-applier resourceID %v", doc.ResourceID),
+					"currentResourceID", resourceIDToString(doc.ResourceID),
+					"content", redactedContent,
+				)
+			}
 		}
 		if err := desireIterator.GetError(); err != nil {
 			errs = append(errs, utils.TrackError(err))
@@ -212,4 +229,50 @@ func DumpBillingToLogger(ctx context.Context, resourcesDBClient database.Resourc
 	)
 
 	return nil
+}
+
+// redactTypedDocument returns a redacted TypedDocument.
+// For documents needing redacting, it unmarshals Properties, redacts sensitive fields,
+// and returns a copied TypedDocument with redacted Properties.
+// For other document types, it returns the original document unchanged.
+// Returns an error if unmarshalling, redaction, or marshalling fails.
+func redactTypedDocument(d *database.TypedDocument) (*database.TypedDocument, error) {
+	resourceType := strings.ToLower(d.ResourceType)
+
+	switch resourceType {
+	case strings.ToLower(api.ClusterResourceType.String()):
+		var cluster api.HCPOpenShiftCluster
+		return redactAndMarshal(d, &cluster)
+	case strings.ToLower(api.NodePoolResourceType.String()):
+		var nodePool api.HCPOpenShiftClusterNodePool
+		return redactAndMarshal(d, &nodePool)
+	case strings.ToLower(api.ExternalAuthResourceType.String()):
+		var externalAuth api.HCPOpenShiftClusterExternalAuth
+		return redactAndMarshal(d, &externalAuth)
+	case strings.ToLower(api.VersionResourceType.String()):
+		var version api.HCPOpenShiftVersion
+		return redactAndMarshal(d, &version)
+	default:
+		return d, nil
+	}
+}
+
+func redactAndMarshal[T any](d *database.TypedDocument, unmarshalInto *T) (*database.TypedDocument, error) {
+	if err := json.Unmarshal(d.Properties, unmarshalInto); err != nil {
+		return nil, err
+	}
+
+	if err := redact.Redact(unmarshalInto); err != nil {
+		return nil, err
+	}
+
+	redactedProps, err := json.Marshal(unmarshalInto)
+	if err != nil {
+		return nil, err
+	}
+
+	output := d.Clone()
+	output.Properties = redactedProps
+
+	return output, nil
 }

@@ -21,21 +21,21 @@ type ExperimentalFeatures struct {
 	// ControlPlaneAvailability controls the AvailabilityPolicy for control
 	// plane components. When set to SingleReplica, CS configures the cluster
 	// with AvailabilityPolicy set to SingleReplica.
-	ControlPlaneAvailability ControlPlaneAvailability `json:"singleReplica,omitempty"`
+	ControlPlaneAvailability ControlPlaneAvailability `json:"singleReplica,omitempty" redact:"nonsecret"`
 
 	// ControlPlanePodSizing controls resource request sizing for hosted
 	// control plane components. When set to Minimal, CS sets the
 	// ClusterSizeOverride annotation for reduced resource requests.
-	ControlPlanePodSizing ControlPlanePodSizing `json:"sizeOverride,omitempty"`
+	ControlPlanePodSizing ControlPlanePodSizing `json:"sizeOverride,omitempty" redact:"nonsecret"`
 
 	// ControlPlaneOperatorImage overrides the control plane operator
 	// image for a HostedCluster. When non-empty, the OCM converter sets
 	// the control_plane_operator_image CS cluster property, which CS
 	// translates into the HostedCluster annotation.
-	ControlPlaneOperatorImage string `json:"controlPlaneOperatorImage,omitempty"`
+	ControlPlaneOperatorImage string `json:"controlPlaneOperatorImage,omitempty" redact:"nonsecret"`
 
 	// FIPSEnabled controls the fips mode for a new ARO-HCP cluster installation.
-	FIPSEnabled bool `json:"fipsEnabled,omitempty"`
+	FIPSEnabled bool `json:"fipsEnabled,omitempty" redact:"nonsecret"`
 }
 
 // ControlPlaneAvailability controls the AvailabilityPolicy for control plane components.

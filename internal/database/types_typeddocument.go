@@ -26,8 +26,29 @@ import (
 // implements the DocumentProperties interface.
 type TypedDocument struct {
 	BaseDocument
-	PartitionKey string                `json:"partitionKey"`
-	ResourceID   *azcorearm.ResourceID `json:"resourceID"`
-	ResourceType string                `json:"resourceType"`
-	Properties   json.RawMessage       `json:"properties"`
+	PartitionKey string                `json:"partitionKey" redact:"nonsecret"`
+	ResourceID   *azcorearm.ResourceID `json:"resourceID" redact:"notraverse"`
+	ResourceType string                `json:"resourceType" redact:"nonsecret"`
+	Properties   json.RawMessage       `json:"properties" redact:"nonsecret"`
+}
+
+// Clone returns a copy of the TypedDocument that does not share mutable state
+// with the source. ResourceID and Properties are deep-copied.
+func (d *TypedDocument) Clone() *TypedDocument {
+	if d == nil {
+		return nil
+	}
+
+	clone := *d
+
+	if d.ResourceID != nil {
+		resourceIDCopy := *d.ResourceID
+		clone.ResourceID = &resourceIDCopy
+	}
+
+	if d.Properties != nil {
+		clone.Properties = append(json.RawMessage(nil), d.Properties...)
+	}
+
+	return &clone
 }

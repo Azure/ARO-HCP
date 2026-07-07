@@ -18,16 +18,16 @@ import "k8s.io/apimachinery/pkg/util/sets"
 
 // Represents to support the ManagedServiceIdentity ARM resource.
 type ManagedServiceIdentity struct {
-	PrincipalID            string                           `json:"principalId,omitempty"`
-	TenantID               string                           `json:"tenantId,omitempty"`
-	Type                   ManagedServiceIdentityType       `json:"type"`
-	UserAssignedIdentities map[string]*UserAssignedIdentity `json:"userAssignedIdentities,omitempty"`
+	PrincipalID            string                           `json:"principalId,omitempty" redact:"nonsecret"`
+	TenantID               string                           `json:"tenantId,omitempty" redact:"nonsecret"`
+	Type                   ManagedServiceIdentityType       `json:"type" redact:"nonsecret"`
+	UserAssignedIdentities map[string]*UserAssignedIdentity `json:"userAssignedIdentities,omitempty" redact:"nonsecret"`
 }
 
 // UserAssignedIdentity - User assigned identity properties https://azure.github.io/typespec-azure/docs/libraries/azure-resource-manager/reference/data-types/#Azure.ResourceManager.CommonTypes.UserAssignedIdentity
 type UserAssignedIdentity struct {
-	ClientID    *string `json:"clientId,omitempty"`
-	PrincipalID *string `json:"principalId,omitempty"`
+	ClientID    *string `json:"clientId,omitempty" redact:"nonsecret"`
+	PrincipalID *string `json:"principalId,omitempty" redact:"nonsecret"`
 }
 
 type ManagedServiceIdentityType string
