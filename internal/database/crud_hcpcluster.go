@@ -46,7 +46,9 @@ type OperationCRUD interface {
 }
 
 type operationCRUD struct {
-	*nestedCosmosResourceCRUD[api.Operation, *api.Operation, GenericDocument[api.Operation]]
+	ResourceCRUD[api.Operation, *api.Operation]
+	containerClient  *azcosmos.ContainerClient
+	parentResourceID *azcorearm.ResourceID
 }
 
 func NewOperationCRUD(containerClient *azcosmos.ContainerClient, subscriptionID string) OperationCRUD {
@@ -56,8 +58,11 @@ func NewOperationCRUD(containerClient *azcosmos.ContainerClient, subscriptionID 
 	}
 	parentResourceID := api.Must(azcorearm.ParseResourceID(path.Join(parts...)))
 
+	raw := newCosmosResourceCRUD[api.Operation, *api.Operation, GenericDocument[api.Operation]](containerClient, parentResourceID, api.OperationStatusResourceType)
 	return &operationCRUD{
-		nestedCosmosResourceCRUD: NewCosmosResourceCRUD[api.Operation, *api.Operation, GenericDocument[api.Operation]](containerClient, parentResourceID, api.OperationStatusResourceType),
+		ResourceCRUD:     NewInstrumentedCRUD[api.Operation, *api.Operation](raw, "Operation"),
+		containerClient:  containerClient,
+		parentResourceID: parentResourceID,
 	}
 }
 
@@ -123,8 +128,12 @@ func NewHCPClusterCRUD(containerClient *azcosmos.ContainerClient, subscriptionID
 		parentResourceID = api.Must(arm.ToSubscriptionResourceID(subscriptionID))
 	}
 
+	raw := newCosmosResourceCRUD[api.HCPOpenShiftCluster, *api.HCPOpenShiftCluster, GenericDocument[api.HCPOpenShiftCluster]](containerClient, parentResourceID, api.ClusterResourceType)
 	return &hcpClusterCRUD{
-		nestedCosmosResourceCRUD: NewCosmosResourceCRUD[api.HCPOpenShiftCluster, *api.HCPOpenShiftCluster, GenericDocument[api.HCPOpenShiftCluster]](containerClient, parentResourceID, api.ClusterResourceType),
+		ResourceCRUD:     NewInstrumentedCRUD[api.HCPOpenShiftCluster, *api.HCPOpenShiftCluster](raw, "HCPOpenShiftCluster"),
+		containerClient:  containerClient,
+		parentResourceID: parentResourceID,
+		resourceType:     api.ClusterResourceType,
 	}
 }
 
@@ -140,7 +149,10 @@ type ExternalAuthsCRUD interface {
 }
 
 type hcpClusterCRUD struct {
-	*nestedCosmosResourceCRUD[api.HCPOpenShiftCluster, *api.HCPOpenShiftCluster, GenericDocument[api.HCPOpenShiftCluster]]
+	ResourceCRUD[api.HCPOpenShiftCluster, *api.HCPOpenShiftCluster]
+	containerClient  *azcosmos.ContainerClient
+	parentResourceID *azcorearm.ResourceID
+	resourceType     azcorearm.ResourceType
 }
 
 var _ HCPClusterCRUD = &hcpClusterCRUD{}
@@ -154,12 +166,16 @@ func (h *hcpClusterCRUD) ExternalAuth(hcpClusterName string) ExternalAuthsCRUD {
 			h.resourceType.Type,
 			hcpClusterName)))
 
+	raw := newCosmosResourceCRUD[api.HCPOpenShiftClusterExternalAuth, *api.HCPOpenShiftClusterExternalAuth, GenericDocument[api.HCPOpenShiftClusterExternalAuth]](
+		h.containerClient,
+		parentResourceID,
+		api.ExternalAuthResourceType,
+	)
 	return &externalAuthCRUD{
-		nestedCosmosResourceCRUD: NewCosmosResourceCRUD[api.HCPOpenShiftClusterExternalAuth, *api.HCPOpenShiftClusterExternalAuth, GenericDocument[api.HCPOpenShiftClusterExternalAuth]](
-			h.containerClient,
-			parentResourceID,
-			api.ExternalAuthResourceType,
-		),
+		ResourceCRUD:     NewInstrumentedCRUD[api.HCPOpenShiftClusterExternalAuth, *api.HCPOpenShiftClusterExternalAuth](raw, "HCPOpenShiftClusterExternalAuth"),
+		containerClient:  h.containerClient,
+		parentResourceID: parentResourceID,
+		resourceType:     api.ExternalAuthResourceType,
 	}
 }
 
@@ -172,11 +188,15 @@ func (h *hcpClusterCRUD) NodePools(hcpClusterName string) NodePoolsCRUD {
 			h.resourceType.Type,
 			hcpClusterName)))
 
+	raw := newCosmosResourceCRUD[api.HCPOpenShiftClusterNodePool, *api.HCPOpenShiftClusterNodePool, GenericDocument[api.HCPOpenShiftClusterNodePool]](
+		h.containerClient,
+		parentResourceID,
+		api.NodePoolResourceType)
 	return &nodePoolsCRUD{
-		nestedCosmosResourceCRUD: NewCosmosResourceCRUD[api.HCPOpenShiftClusterNodePool, *api.HCPOpenShiftClusterNodePool, GenericDocument[api.HCPOpenShiftClusterNodePool]](
-			h.containerClient,
-			parentResourceID,
-			api.NodePoolResourceType),
+		ResourceCRUD:     NewInstrumentedCRUD[api.HCPOpenShiftClusterNodePool, *api.HCPOpenShiftClusterNodePool](raw, "HCPOpenShiftClusterNodePool"),
+		containerClient:  h.containerClient,
+		parentResourceID: parentResourceID,
+		resourceType:     api.NodePoolResourceType,
 	}
 }
 
@@ -205,11 +225,15 @@ func (h *hcpClusterCRUD) ManagementClusterContents(hcpClusterName string) Resour
 		h.containerClient,
 		parentResourceID,
 		api.ClusterScopedManagementClusterContentResourceType,
+		"ManagementClusterContent",
 	)
 }
 
 type externalAuthCRUD struct {
-	*nestedCosmosResourceCRUD[api.HCPOpenShiftClusterExternalAuth, *api.HCPOpenShiftClusterExternalAuth, GenericDocument[api.HCPOpenShiftClusterExternalAuth]]
+	ResourceCRUD[api.HCPOpenShiftClusterExternalAuth, *api.HCPOpenShiftClusterExternalAuth]
+	containerClient  *azcosmos.ContainerClient
+	parentResourceID *azcorearm.ResourceID
+	resourceType     azcorearm.ResourceType
 }
 
 func (h *externalAuthCRUD) Controllers(externalAuthName string) ResourceCRUD[api.Controller, *api.Controller] {
@@ -224,7 +248,10 @@ func (h *externalAuthCRUD) Controllers(externalAuthName string) ResourceCRUD[api
 }
 
 type nodePoolsCRUD struct {
-	*nestedCosmosResourceCRUD[api.HCPOpenShiftClusterNodePool, *api.HCPOpenShiftClusterNodePool, GenericDocument[api.HCPOpenShiftClusterNodePool]]
+	ResourceCRUD[api.HCPOpenShiftClusterNodePool, *api.HCPOpenShiftClusterNodePool]
+	containerClient  *azcosmos.ContainerClient
+	parentResourceID *azcorearm.ResourceID
+	resourceType     azcorearm.ResourceType
 }
 
 func (h *nodePoolsCRUD) Controllers(nodePoolName string) ResourceCRUD[api.Controller, *api.Controller] {
@@ -250,11 +277,12 @@ func (h *nodePoolsCRUD) ManagementClusterContents(nodePoolName string) ResourceC
 		h.containerClient,
 		parentResourceID,
 		api.NodePoolScopedManagementClusterContentResourceType,
+		"ManagementClusterContent",
 	)
 }
 
 func NewControllerCRUD(
 	containerClient *azcosmos.ContainerClient, parentResourceID *azcorearm.ResourceID, resourceType azcorearm.ResourceType) ResourceCRUD[api.Controller, *api.Controller] {
 
-	return NewCosmosResourceCRUD[api.Controller, *api.Controller, GenericDocument[api.Controller]](containerClient, parentResourceID, resourceType)
+	return NewCosmosResourceCRUD[api.Controller, *api.Controller, GenericDocument[api.Controller]](containerClient, parentResourceID, resourceType, "Controller")
 }
