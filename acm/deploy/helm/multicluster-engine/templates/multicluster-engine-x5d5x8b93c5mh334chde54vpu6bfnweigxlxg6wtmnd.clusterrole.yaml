@@ -1,7 +1,7 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: multicluster-engin-2jizw78jh572r0kmnx26lw5n2uj0ws375neqnn6jtbr7
+  name: multicluster-engine-x5d5x8b93c5mh334chde54vpu6bfnweigxlxg6wtmnd
 rules:
 - apiGroups:
   - ""
@@ -1085,6 +1085,7 @@ rules:
   - config.openshift.io
   resources:
   - apiservers
+  - authentications
   - clusteroperators
   - clusterversions
   - dnses
