@@ -47,8 +47,8 @@ build: $(PROW_JOB_EXECUTOR) $(ARO_HCP_TESTS)
 # `go build`, otherwise a stale, git-ignored artifact may be embedded and applied.
 #
 # Set the optional SUBSCRIPTION variable to limit provisioning to the named
-# subscription(s); this is required to provision externally-managed pools
-# (identity_provisioning: external), which are skipped otherwise. Example:
+# subscription(s); this is required to provision unmanaged pools
+# (identity_provisioning: unmanaged), which are skipped otherwise. Example:
 #   make -C test apply-identity-pool ENVIRONMENT=dev SUBSCRIPTION="Hypershift Managed Azure"
 apply-identity-pool: $(ARO_HCP_TESTS)
 	$(ARO_HCP_TESTS) slot-manager apply-identity-pool \
