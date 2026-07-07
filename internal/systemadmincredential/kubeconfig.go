@@ -28,11 +28,16 @@ const (
 	kubeconfigContextName = "admin"
 )
 
-// BuildKubeconfig assembles a kubeconfig from the signed certificate (base64-DER),
-// the private key (PEM), the cluster's serving CA bundle (PEM), and the API URL.
-// This is a pure function — no I/O.
+// BuildKubeconfig assembles a kubeconfig from the signed certificate, the private
+// key (PEM), the cluster's serving CA bundle (PEM), and the API URL. This is a
+// pure function — no I/O.
+//
+// signedCertificateBase64 is the base64 encoding of the CSR's Status.Certificate,
+// which the Kubernetes API guarantees to be PEM-encoded. client-go's clientcmd
+// expects ClientCertificateData / CertificateAuthorityData in PEM, so the decoded
+// bytes are used directly (no DER→PEM wrapping is required).
 func BuildKubeconfig(signedCertificateBase64, privateKeyPEM, servingCABundlePEM, apiURL string) ([]byte, error) {
-	certDER, err := base64.StdEncoding.DecodeString(signedCertificateBase64)
+	certPEM, err := base64.StdEncoding.DecodeString(signedCertificateBase64)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode signed certificate: %w", err)
 	}
@@ -43,7 +48,7 @@ func BuildKubeconfig(signedCertificateBase64, privateKeyPEM, servingCABundlePEM,
 		CertificateAuthorityData: []byte(servingCABundlePEM),
 	}
 	config.AuthInfos[kubeconfigUserName] = &clientcmdapi.AuthInfo{
-		ClientCertificateData: certDER,
+		ClientCertificateData: certPEM,
 		ClientKeyData:         []byte(privateKeyPEM),
 	}
 	config.Contexts[kubeconfigContextName] = &clientcmdapi.Context{
