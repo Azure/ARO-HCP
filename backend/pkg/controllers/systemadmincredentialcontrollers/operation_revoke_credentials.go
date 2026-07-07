@@ -18,46 +18,41 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"strings"
 	"time"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/cache"
 	utilsclock "k8s.io/utils/clock"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/operationcontrollers"
-	"github.com/Azure/ARO-HCP/backend/pkg/maestrohelpers"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
-	dblisters "github.com/Azure/ARO-HCP/internal/database/listers"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 type operationRevokeCredentialsPoll struct {
 	clock              utilsclock.PassiveClock
 	resourcesDBClient  database.ResourcesDBClient
-	readDesireLister   dblisters.ReadDesireLister
 	notificationClient *http.Client
 }
 
-// NewOperationRevokeCredentialsPollController returns a Controller that follows
-// a RevokeCredentials operation through its three-phase lifecycle:
-//   - Phase R-1: wait for the CRR to confirm PreviousCertificatesRevoked=True
-//   - Phase R-2: flip per-credential docs to Revoked, clear their private keys
-//   - Phase R-3: clear the cluster sentinel, mark the operation Succeeded
+// NewOperationRevokeCredentialsPollController returns a Controller that follows a
+// RevokeCredentials operation to completion. The dispatch controller creates a
+// SystemAdminCredentialRevocation document, records it on the operation's
+// InternalID, and moves the operation to Deleting. The dedicated revocation
+// controllers then drive the revocation and delete that document when finished.
+// This poll controller simply waits for the document to disappear; once it is
+// gone it clears the cluster's revoke sentinel and marks the operation Succeeded.
 func NewOperationRevokeCredentialsPollController(
 	clock utilsclock.PassiveClock,
 	resourcesDBClient database.ResourcesDBClient,
-	readDesireLister dblisters.ReadDesireLister,
 	notificationClient *http.Client,
 	activeOperationInformer cache.SharedIndexInformer,
 ) controllerutils.Controller {
 	syncer := &operationRevokeCredentialsPoll{
 		clock:              clock,
 		resourcesDBClient:  resourcesDBClient,
-		readDesireLister:   readDesireLister,
 		notificationClient: notificationClient,
 	}
 
@@ -100,90 +95,40 @@ func (c *operationRevokeCredentialsPoll) SynchronizeOperation(ctx context.Contex
 		return nil
 	}
 
-	revokeOpSuffix := strings.ReplaceAll(operation.OperationID.Name, "-", "")
-	if len(revokeOpSuffix) > 16 {
-		revokeOpSuffix = revokeOpSuffix[:16]
-	}
-
-	// Phase R-1: check if the CRR has confirmed revocation.
-	cachedCRR, err := maestrohelpers.GetCachedCertificateRevocationRequestForCluster(
-		ctx, c.readDesireLister,
-		operation.ExternalID.SubscriptionID,
-		operation.ExternalID.ResourceGroupName,
-		operation.ExternalID.Name,
-		revokeOpSuffix,
-	)
-	if err != nil {
-		return utils.TrackError(err)
-	}
-	if cachedCRR == nil {
-		// CRR not yet mirrored; wait for next reconcile.
-		logger.Info("CRR not yet mirrored")
+	// The dispatch controller records the revocation document's resource ID on
+	// the operation. Until it does, there is nothing to wait on yet.
+	if len(operation.InternalID.String()) == 0 {
+		logger.Info("waiting for revocation to be dispatched")
 		return nil
 	}
 
-	// Check for PreviousCertificatesRevoked condition.
-	revoked := false
-	for _, cond := range cachedCRR.Status.Conditions {
-		if cond.Type == "PreviousCertificatesRevoked" && cond.Status == metav1.ConditionTrue {
-			revoked = true
-			break
-		}
-	}
-	if !revoked {
-		logger.Info("CRR has not yet confirmed revocation")
-		return nil
-	}
-
-	// Phase R-2: flip all AwaitingRevocation credentials to Revoked.
-	credCRUD := c.resourcesDBClient.SystemAdminCredentialRequests(
+	revocationName := operation.InternalID.ID()
+	_, err = c.resourcesDBClient.SystemAdminCredentialRevocations(
 		operation.ExternalID.SubscriptionID,
 		operation.ExternalID.ResourceGroupName,
 		operation.ExternalID.Name,
-	)
-
-	allRevoked := true
-	iter, err := credCRUD.List(ctx, nil)
-	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to list credentials: %w", err))
+	).Get(ctx, revocationName)
+	if err == nil {
+		// Revocation still in progress.
+		logger.Info("waiting for revocation to complete", "revocation", revocationName)
+		return nil
+	}
+	if !database.IsNotFoundError(err) {
+		return utils.TrackError(fmt.Errorf("failed to get SystemAdminCredentialRevocation: %w", err))
 	}
 
-	now := c.clock.Now()
-	for _, cred := range iter.Items(ctx) {
-		if !cred.Status.IsAwaitingRevocation() {
-			continue
-		}
-
-		replacement := cred.DeepCopy()
-		replacement.Status.SetCondition(api.SystemAdminCredentialRequestConditionRevoked, metav1.ConditionTrue, "Revoked", "Credential has been revoked")
-		revokedAt := metav1.NewTime(now)
-		replacement.Status.RevokedAt = &revokedAt
-		// Zero out private key.
-		replacement.Spec.PrivateKeyPEM = ""
-
-		if _, err := credCRUD.Replace(ctx, replacement, nil); err != nil {
-			allRevoked = false
-			logger.Error(err, "failed to revoke credential", "credential", cred.ResourceID.Name)
-		}
-	}
-	if err := iter.GetError(); err != nil {
-		return utils.TrackError(fmt.Errorf("failed to iterate credentials: %w", err))
-	}
-
-	if !allRevoked {
-		return fmt.Errorf("not all credentials could be revoked")
-	}
-
-	// Phase R-3: clear cluster sentinel and mark operation Succeeded.
+	// The revocation document is gone: revocation is complete. Clear the cluster
+	// sentinel and mark the operation Succeeded.
 	cluster, err := c.resourcesDBClient.HCPClusters(operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName).Get(ctx, operation.ExternalID.Name)
-	if err != nil {
+	if err != nil && !database.IsNotFoundError(err) {
 		return utils.TrackError(err)
 	}
-
-	clusterReplacement := cluster.DeepCopy()
-	clusterReplacement.ServiceProviderProperties.RevokeCredentialsOperationID = ""
-	if _, err := c.resourcesDBClient.HCPClusters(operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName).Replace(ctx, clusterReplacement, nil); err != nil {
-		return utils.TrackError(fmt.Errorf("failed to clear RevokeCredentialsOperationID: %w", err))
+	if err == nil && cluster.ServiceProviderProperties.RevokeCredentialsOperationID == operation.OperationID.Name {
+		clusterReplacement := cluster.DeepCopy()
+		clusterReplacement.ServiceProviderProperties.RevokeCredentialsOperationID = ""
+		if _, err := c.resourcesDBClient.HCPClusters(operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName).Replace(ctx, clusterReplacement, nil); err != nil {
+			return utils.TrackError(fmt.Errorf("failed to clear RevokeCredentialsOperationID: %w", err))
+		}
 	}
 
 	var notifyFn operationcontrollers.PostAsyncNotificationFunc
@@ -193,11 +138,10 @@ func (c *operationRevokeCredentialsPoll) SynchronizeOperation(ctx context.Contex
 			return operationcontrollers.PostAsyncNotification(ctx, client, op)
 		}
 	}
-	err = operationcontrollers.UpdateOperationStatus(ctx, c.clock, c.resourcesDBClient, operation, arm.ProvisioningStateSucceeded, nil, notifyFn)
-	if err != nil {
+	if err := operationcontrollers.UpdateOperationStatus(ctx, c.clock, c.resourcesDBClient, operation, arm.ProvisioningStateSucceeded, nil, notifyFn); err != nil {
 		return utils.TrackError(err)
 	}
 
-	logger.Info("revocation complete")
+	logger.Info("revocation complete", "revocation", revocationName)
 	return nil
 }

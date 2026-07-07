@@ -107,17 +107,17 @@ func ToSystemAdminCredentialRequestResourceID(subscriptionName, resourceGroupNam
 	return azcorearm.ParseResourceID(ToSystemAdminCredentialRequestResourceIDString(subscriptionName, resourceGroupName, clusterName, credentialName))
 }
 
-func ToSystemAdminCredentialsRevocationResourceIDString(subscriptionName, resourceGroupName, clusterName, revocationName string) string {
+func ToSystemAdminCredentialRevocationResourceIDString(subscriptionName, resourceGroupName, clusterName, revocationName string) string {
 	return strings.ToLower(path.Join(
 		"/subscriptions", subscriptionName,
 		"resourceGroups", resourceGroupName,
 		"providers", ClusterResourceType.String(), clusterName,
-		SystemAdminCredentialsRevocationResourceTypeName, revocationName,
+		SystemAdminCredentialRevocationResourceTypeName, revocationName,
 	))
 }
 
-func ToSystemAdminCredentialsRevocationResourceID(subscriptionName, resourceGroupName, clusterName, revocationName string) (*azcorearm.ResourceID, error) {
-	return azcorearm.ParseResourceID(ToSystemAdminCredentialsRevocationResourceIDString(subscriptionName, resourceGroupName, clusterName, revocationName))
+func ToSystemAdminCredentialRevocationResourceID(subscriptionName, resourceGroupName, clusterName, revocationName string) (*azcorearm.ResourceID, error) {
+	return azcorearm.ParseResourceID(ToSystemAdminCredentialRevocationResourceIDString(subscriptionName, resourceGroupName, clusterName, revocationName))
 }
 
 func ToServiceProviderNodePoolResourceIDString(subscriptionName, resourceGroupName, clusterName, nodePoolName string) string {

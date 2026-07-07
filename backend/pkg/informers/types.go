@@ -45,6 +45,7 @@ type BackendInformers interface {
 	// to different resource types.
 	ManagementClusterContents() (cache.SharedIndexInformer, listers.ManagementClusterContentLister)
 	SystemAdminCredentialRequests() (cache.SharedIndexInformer, listers.SystemAdminCredentialRequestLister)
+	SystemAdminCredentialRevocations() (cache.SharedIndexInformer, listers.SystemAdminCredentialRevocationLister)
 	BillingDocs() (cache.SharedIndexInformer, listers.BillingLister)
 
 	RunWithContext(ctx context.Context)
@@ -81,6 +82,9 @@ type backendInformers struct {
 
 	systemAdminCredentialRequestInformer cache.SharedIndexInformer
 	systemAdminCredentialRequestLister   listers.SystemAdminCredentialRequestLister
+
+	systemAdminCredentialRevocationInformer cache.SharedIndexInformer
+	systemAdminCredentialRevocationLister   listers.SystemAdminCredentialRevocationLister
 
 	billingInformer cache.SharedIndexInformer
 	billingLister   listers.BillingLister
@@ -130,6 +134,10 @@ func (b *backendInformers) SystemAdminCredentialRequests() (cache.SharedIndexInf
 	return b.systemAdminCredentialRequestInformer, b.systemAdminCredentialRequestLister
 }
 
+func (b *backendInformers) SystemAdminCredentialRevocations() (cache.SharedIndexInformer, listers.SystemAdminCredentialRevocationLister) {
+	return b.systemAdminCredentialRevocationInformer, b.systemAdminCredentialRevocationLister
+}
+
 func (b *backendInformers) BillingDocs() (cache.SharedIndexInformer, listers.BillingLister) {
 	return b.billingInformer, b.billingLister
 }
@@ -148,6 +156,7 @@ func NewBackendInformersWithRelistDuration(ctx context.Context, resourcesGlobalL
 	controllerRelistDuration := ControllerRelistDuration
 	managementClusterContentRelistDuration := ManagementClusterContentRelistDuration
 	systemAdminCredentialRequestRelistDuration := SystemAdminCredentialRequestRelistDuration
+	systemAdminCredentialRevocationRelistDuration := SystemAdminCredentialRevocationRelistDuration
 	allOperationsRelistDuration := AllOperationsRelistDuration
 	activeOperationsRelistDuration := ActiveOperationsRelistDuration
 	billingRelistDuration := BillingRelistDuration
@@ -161,6 +170,7 @@ func NewBackendInformersWithRelistDuration(ctx context.Context, resourcesGlobalL
 		controllerRelistDuration = *relistDuration
 		managementClusterContentRelistDuration = *relistDuration
 		systemAdminCredentialRequestRelistDuration = *relistDuration
+		systemAdminCredentialRevocationRelistDuration = *relistDuration
 		allOperationsRelistDuration = *relistDuration
 		activeOperationsRelistDuration = *relistDuration
 		billingRelistDuration = *relistDuration
@@ -178,6 +188,7 @@ func NewBackendInformersWithRelistDuration(ctx context.Context, resourcesGlobalL
 	ret.controllerInformer = NewControllerInformerWithRelistDuration(resourcesGlobalListers.Controllers(), resourcesDBClient, controllerRelistDuration)
 	ret.managementClusterContentInformer = NewManagementClusterContentInformerWithRelistDuration(resourcesGlobalListers.ManagementClusterContents(), managementClusterContentRelistDuration)
 	ret.systemAdminCredentialRequestInformer = NewSystemAdminCredentialRequestInformerWithRelistDuration(resourcesGlobalListers.SystemAdminCredentialRequests(), systemAdminCredentialRequestRelistDuration)
+	ret.systemAdminCredentialRevocationInformer = NewSystemAdminCredentialRevocationInformerWithRelistDuration(resourcesGlobalListers.SystemAdminCredentialRevocations(), systemAdminCredentialRevocationRelistDuration)
 	ret.billingInformer = NewBillingInformerWithRelistDuration(billingGlobalListers.BillingDocs(), billingRelistDuration)
 
 	ret.subscriptionLister = listers.NewSubscriptionLister(ret.subscriptionInformer.GetIndexer())
@@ -190,6 +201,7 @@ func NewBackendInformersWithRelistDuration(ctx context.Context, resourcesGlobalL
 	ret.controllerLister = listers.NewControllerLister(ret.controllerInformer.GetIndexer())
 	ret.managementClusterContentLister = listers.NewManagementClusterContentLister(ret.managementClusterContentInformer.GetIndexer())
 	ret.systemAdminCredentialRequestLister = listers.NewSystemAdminCredentialRequestLister(ret.systemAdminCredentialRequestInformer.GetIndexer())
+	ret.systemAdminCredentialRevocationLister = listers.NewSystemAdminCredentialRevocationLister(ret.systemAdminCredentialRevocationInformer.GetIndexer())
 	ret.billingLister = listers.NewBillingLister(ret.billingInformer.GetIndexer())
 
 	return ret
@@ -298,6 +310,12 @@ func (b *backendInformers) RunWithContext(ctx context.Context) {
 		defer utilruntime.HandleCrash()
 		defer wg.Done()
 		b.systemAdminCredentialRequestInformer.RunWithContext(ctx)
+	}()
+	wg.Add(1)
+	go func() {
+		defer utilruntime.HandleCrash()
+		defer wg.Done()
+		b.systemAdminCredentialRevocationInformer.RunWithContext(ctx)
 	}()
 	wg.Add(1)
 	go func() {
