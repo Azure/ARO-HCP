@@ -1916,7 +1916,7 @@ resource leaderelection 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03
           summary: 'Leader election lease {{ $labels.lease }} in {{ $labels.namespace }} on {{ $labels.cluster }} stale for more than 20 minutes'
           title: 'Leader election lease {{ $labels.lease }} in {{ $labels.namespace }} on {{ $labels.cluster }} stale for more than 20 minutes'
         }
-        expression: 'time() - max without (prometheus_replica) (kube_lease_renew_time{lease!~"cluster-storage-operator-lock|controller-leader-election-capz|csi-snapshot-controller-operator-lock|hosted-cluster-config-operator-leader-elect|.*package-operator-lock",namespace!~"kube-system|kube-public|kube-node-lease|default"}) > 300'
+        expression: 'time() - max without (prometheus_replica) (kube_lease_renew_time{namespace!~"kube-system|kube-public|kube-node-lease|default"}) > 300'
         for: 'PT15M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
