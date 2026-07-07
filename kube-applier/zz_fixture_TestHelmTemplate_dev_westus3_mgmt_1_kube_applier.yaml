@@ -221,6 +221,7 @@ spec:
           matchLabels:
             app: kube-applier
       serviceAccountName: 'kube-applier'
+      priorityClassName: service-lifecycle-critical
       containers:
       - name: kube-applier
         image: 'arohcpsvcdev.azurecr.io/kube-applier@sha256:1234567890'
