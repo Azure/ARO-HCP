@@ -1,0 +1,64 @@
+rule_files:
+- hcp-test-clusters-prometheusRule.yaml
+evaluation_interval: 1m
+tests:
+# HCPClusterOlderThan3Hours - alert fires for int clusters older than 3 hours
+- interval: 1m
+  input_series:
+  - series: 'backend_cluster_created_time_seconds{cluster="int-uksouth-svc-1",environment="int",resource_id="/subscriptions/00000000-0000-0000-0000-000000000000/resourcegroups/test-rg/providers/microsoft.redhatopenshift/hcpopenshiftclusters/test-cluster"}'
+    values: "0+0x200"
+  alert_rule_test:
+  - eval_time: 3h6m
+    alertname: HCPClusterOlderThan3Hours
+    exp_alerts:
+    - exp_labels:
+        alertname: HCPClusterOlderThan3Hours
+        severity: "3"
+        cluster: int-uksouth-svc-1
+        environment: int
+        resource_id: /subscriptions/00000000-0000-0000-0000-000000000000/resourcegroups/test-rg/providers/microsoft.redhatopenshift/hcpopenshiftclusters/test-cluster
+      exp_annotations:
+        correlationId: 'IntStgClusterOlderThan3Hours/subscriptions/00000000-0000-0000-0000-000000000000/resourcegroups/test-rg/providers/microsoft.redhatopenshift/hcpopenshiftclusters/test-cluster'
+        description: |
+          HCP cluster /subscriptions/00000000-0000-0000-0000-000000000000/resourcegroups/test-rg/providers/microsoft.redhatopenshift/hcpopenshiftclusters/test-cluster in int on service cluster int-uksouth-svc-1 has existed for more than 3 hours.
+        runbook_url: TBD
+        summary: HCP in int is older than 3h
+# HCPClusterOlderThan3Hours - alert fires for stg clusters older than 3 hours
+- interval: 1m
+  input_series:
+  - series: 'backend_cluster_created_time_seconds{cluster="stg-uksouth-svc-1",environment="stg",resource_id="/subscriptions/00000000-0000-0000-0000-000000000000/resourcegroups/test-rg/providers/microsoft.redhatopenshift/hcpopenshiftclusters/test-cluster"}'
+    values: "0+0x200"
+  alert_rule_test:
+  - eval_time: 3h6m
+    alertname: HCPClusterOlderThan3Hours
+    exp_alerts:
+    - exp_labels:
+        alertname: HCPClusterOlderThan3Hours
+        severity: "3"
+        cluster: stg-uksouth-svc-1
+        environment: stg
+        resource_id: /subscriptions/00000000-0000-0000-0000-000000000000/resourcegroups/test-rg/providers/microsoft.redhatopenshift/hcpopenshiftclusters/test-cluster
+      exp_annotations:
+        correlationId: 'IntStgClusterOlderThan3Hours/subscriptions/00000000-0000-0000-0000-000000000000/resourcegroups/test-rg/providers/microsoft.redhatopenshift/hcpopenshiftclusters/test-cluster'
+        description: |
+          HCP cluster /subscriptions/00000000-0000-0000-0000-000000000000/resourcegroups/test-rg/providers/microsoft.redhatopenshift/hcpopenshiftclusters/test-cluster in stg on service cluster stg-uksouth-svc-1 has existed for more than 3 hours.
+        runbook_url: TBD
+        summary: HCP in stg is older than 3h
+# HCPClusterOlderThan3Hours - no alert for prod clusters
+- interval: 1m
+  input_series:
+  - series: 'backend_cluster_created_time_seconds{cluster="prod-uksouth-svc-1",environment="prod",resource_id="/subscriptions/00000000-0000-0000-0000-000000000000/resourcegroups/test-rg/providers/microsoft.redhatopenshift/hcpopenshiftclusters/test-cluster"}'
+    values: "0+0x200"
+  alert_rule_test:
+  - eval_time: 3h6m
+    alertname: HCPClusterOlderThan3Hours
+    exp_alerts: []
+# HCPClusterOlderThan3Hours - no alert before the cluster is older than 3 hours
+- interval: 1m
+  input_series:
+  - series: 'backend_cluster_created_time_seconds{cluster="int-uksouth-svc-1",environment="int",resource_id="/subscriptions/00000000-0000-0000-0000-000000000000/resourcegroups/test-rg/providers/microsoft.redhatopenshift/hcpopenshiftclusters/test-cluster"}'
+    values: "0+0x200"
+  alert_rule_test:
+  - eval_time: 3h4m
+    alertname: HCPClusterOlderThan3Hours
+    exp_alerts: []

@@ -1642,6 +1642,48 @@ This may indicate that finalizers are stuck or resources are failing to cleanup.
   }
 }
 
+resource hcpTestClustersRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'hcp-test-clusters-rules'
+  location: location
+  properties: {
+    interval: 'PT1M'
+    rules: [
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'HCPClusterOlderThan3Hours'
+        enabled: true
+        labels: {
+          severity: '3'
+        }
+        annotations: {
+          correlationId: 'IntStgClusterOlderThan3Hours{{ $labels.resource_id }}'
+          description: '''HCP cluster {{ $labels.resource_id }} in {{ $labels.environment }} on service cluster {{ $labels.cluster }} has existed for more than 3 hours.
+'''
+          info: '''HCP cluster {{ $labels.resource_id }} in {{ $labels.environment }} on service cluster {{ $labels.cluster }} has existed for more than 3 hours.
+'''
+          runbook_url: 'TBD'
+          summary: 'HCP in {{ $labels.environment }} is older than 3h'
+          title: 'HCP in {{ $labels.environment }} is older than 3h resource_id:{{ $labels.resource_id }} cluster:{{ $labels.cluster }}'
+        }
+        expression: 'max by (cluster, resource_id, environment) (time() - backend_cluster_created_time_seconds{environment=~"int|stg"}) > 3 * 3600'
+        for: 'PT5M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+    ]
+    scopes: [
+      azureMonitoring
+    ]
+  }
+}
+
 resource kubeContainerOomRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
   name: 'kube-container-oom-rules'
   location: location
