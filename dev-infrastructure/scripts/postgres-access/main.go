@@ -189,6 +189,20 @@ func run(ctx context.Context) error {
 		if err := ensureEntraAdmin(ctx, cred, cfg, claims); err != nil {
 			return fmt.Errorf("enroll operator as Entra admin: %w", err)
 		}
+	} else if !isManagedIdentityToken(claims) {
+		// Running as a service principal (Prow CI). templatize ignores
+		// shellIdentity, so the token belongs to the CI SP, not the rollout
+		// MSI. Enrol the SP as an Entra admin and connect as its appId.
+		// MSI tokens also carry appid but are distinguished by the
+		// xms_mirid claim — those take the default adminUserName path.
+		appID := servicePrincipalAppID(claims)
+		if appID == "" {
+			return fmt.Errorf("token has no UPN, appid, or xms_mirid — cannot determine caller identity")
+		}
+		pgUser = appID
+		if err := ensureEntraAdmin(ctx, cred, cfg, claims); err != nil {
+			return fmt.Errorf("enroll CI service principal as Entra admin: %w", err)
+		}
 	}
 
 	slog.Info("granting database access",
@@ -249,14 +263,23 @@ func lookupIdentityPrincipalID(ctx context.Context, cred azcore.TokenCredential,
 	return *resp.Properties.PrincipalID, nil
 }
 
-// ensureEntraAdmin idempotently enrols the signed-in operator as a server Entra
-// admin. Used only on the local-operator path; EV2 runs as the admin MI.
+// ensureEntraAdmin idempotently enrols the caller as a server Entra admin.
+// Used for the local-operator path (UPN) and the Prow CI path (service
+// principal). EV2 runs as the rollout MSI which is already the admin.
 func ensureEntraAdmin(ctx context.Context, cred azcore.TokenCredential, cfg *config, claims map[string]any) error {
 	objectID, _ := claims["oid"].(string)
 	tenantID, _ := claims["tid"].(string)
-	principalName := userPrincipalName(claims)
 	if objectID == "" || tenantID == "" {
 		return fmt.Errorf("token is missing oid/tid claims required for admin enrolment")
+	}
+
+	principalName := userPrincipalName(claims)
+	principalType := armpostgresqlflexibleservers.PrincipalTypeUser
+	if principalName == "" {
+		// Service principal — use appId as the display name and set the
+		// correct principal type so Entra registers it properly.
+		principalName = servicePrincipalAppID(claims)
+		principalType = armpostgresqlflexibleservers.PrincipalTypeServicePrincipal
 	}
 
 	client, err := armpostgresqlflexibleservers.NewAdministratorsClient(cfg.subscriptionID, cred, nil)
@@ -273,18 +296,18 @@ func ensureEntraAdmin(ctx context.Context, cred azcore.TokenCredential, cfg *con
 		for _, admin := range page.Value {
 			if admin.Properties != nil && admin.Properties.ObjectID != nil &&
 				strings.EqualFold(*admin.Properties.ObjectID, objectID) {
-				slog.Info("operator already enrolled as Entra admin", "objectId", objectID)
+				slog.Info("caller already enrolled as Entra admin", "objectId", objectID)
 				return nil
 			}
 		}
 	}
 
-	slog.Info("enrolling operator as a temporary Entra admin for local execution", "principal", principalName)
+	slog.Info("enrolling caller as Entra admin", "principal", principalName, "principalType", principalType)
 	poller, err := client.BeginCreate(ctx, cfg.resourceGroup, cfg.serverName, objectID,
 		armpostgresqlflexibleservers.ActiveDirectoryAdministratorAdd{
 			Properties: &armpostgresqlflexibleservers.AdministratorPropertiesForAdd{
 				PrincipalName: to.Ptr(principalName),
-				PrincipalType: to.Ptr(armpostgresqlflexibleservers.PrincipalTypeUser),
+				PrincipalType: to.Ptr(principalType),
 				TenantID:      to.Ptr(tenantID),
 			},
 		}, nil)
@@ -409,6 +432,26 @@ func parseTokenClaims(token string) map[string]any {
 // managed-identity / service token (which has no UPN).
 func userPrincipalName(claims map[string]any) string {
 	for _, key := range []string{"upn", "unique_name", "preferred_username"} {
+		if v, ok := claims[key].(string); ok && v != "" {
+			return v
+		}
+	}
+	return ""
+}
+
+// isManagedIdentityToken returns true when the token was issued to an Azure
+// Managed Identity. MSI tokens carry an "xms_mirid" claim containing the ARM
+// resource ID of the identity; service-principal tokens do not.
+func isManagedIdentityToken(claims map[string]any) bool {
+	v, ok := claims["xms_mirid"].(string)
+	return ok && v != ""
+}
+
+// servicePrincipalAppID returns the appid from a service-principal token, or
+// "" for user tokens. SP and MSI tokens both carry "appid"/"azp", so callers
+// must use isManagedIdentityToken first to distinguish the two.
+func servicePrincipalAppID(claims map[string]any) string {
+	for _, key := range []string{"appid", "azp"} {
 		if v, ok := claims[key].(string); ok && v != "" {
 			return v
 		}
