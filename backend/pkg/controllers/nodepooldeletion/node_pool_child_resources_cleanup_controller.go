@@ -26,7 +26,6 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/api"
-	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -40,7 +39,6 @@ import (
 // the parent cluster's ServiceProviderCluster placement. The orphan scraper
 // handles controller status after the NodePool document itself is removed.
 type nodePoolChildResourcesCleanupController struct {
-	cooldownChecker      controllerutil.CooldownChecker
 	nodePoolLister       listers.NodePoolLister
 	resourcesDBClient    database.ResourcesDBClient
 	kubeApplierDBClients database.KubeApplierDBClients
@@ -51,13 +49,11 @@ var _ controllerutils.NodePoolSyncer = (*nodePoolChildResourcesCleanupController
 func NewNodePoolChildResourcesCleanupController(
 	resourcesDBClient database.ResourcesDBClient,
 	kubeApplierDBClients database.KubeApplierDBClients,
-	activeOperationLister listers.ActiveOperationLister,
 	informers informers.BackendInformers,
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 ) controllerutils.Controller {
 	_, nodePoolLister := informers.NodePools()
 	syncer := &nodePoolChildResourcesCleanupController{
-		cooldownChecker:      controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
 		nodePoolLister:       nodePoolLister,
 		resourcesDBClient:    resourcesDBClient,
 		kubeApplierDBClients: kubeApplierDBClients,
@@ -71,10 +67,6 @@ func NewNodePoolChildResourcesCleanupController(
 		time.Minute,
 		syncer,
 	)
-}
-
-func (c *nodePoolChildResourcesCleanupController) CooldownChecker() controllerutil.CooldownChecker {
-	return c.cooldownChecker
 }
 
 func (c *nodePoolChildResourcesCleanupController) NeedsWork(nodePool *api.HCPOpenShiftClusterNodePool) bool {

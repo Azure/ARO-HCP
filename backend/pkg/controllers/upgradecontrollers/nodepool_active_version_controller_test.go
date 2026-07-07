@@ -306,7 +306,6 @@ func TestNodePoolActiveVersionSyncer_SyncOnce(t *testing.T) {
 			}
 
 			syncer := &nodePoolActiveVersionSyncer{
-				cooldownChecker:               &alwaysSyncCooldownChecker{},
 				serviceProviderNodePoolLister: &listertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockDB},
 				resourcesDBClient:             mockDB,
 				readDesireLister:              &internallistertesting.SliceReadDesireLister{Desires: desires},
@@ -338,7 +337,6 @@ func TestNodePoolActiveVersionSyncer_NoReplaceWhenVersionsUnchanged(t *testing.T
 	beforeETag := before.CosmosETag
 
 	syncer := &nodePoolActiveVersionSyncer{
-		cooldownChecker:               &alwaysSyncCooldownChecker{},
 		serviceProviderNodePoolLister: &listertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockDB},
 		resourcesDBClient:             mockDB,
 		readDesireLister: &internallistertesting.SliceReadDesireLister{

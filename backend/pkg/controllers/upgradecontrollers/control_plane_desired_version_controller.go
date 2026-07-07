@@ -19,7 +19,6 @@ import (
 	"errors"
 	"fmt"
 	"slices"
-	"strings"
 	"time"
 
 	"github.com/blang/semver/v4"
@@ -40,7 +39,6 @@ import (
 	"github.com/Azure/ARO-HCP/internal/admission"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/cincinnati"
-	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	dblisters "github.com/Azure/ARO-HCP/internal/database/listers"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
@@ -63,7 +61,6 @@ const controlPlaneDesiredVersionControllerName = "ControlPlaneDesiredVersion"
 // version upgrades by selecting the appropriate z-stream within the user-desired minor version.
 type controlPlaneDesiredVersionSyncer struct {
 	clock                 utilsclock.PassiveClock
-	cooldownChecker       controllerutil.CooldownChecker
 	readDesireLister      dblisters.ReadDesireLister
 	resourcesDBClient     database.ResourcesDBClient
 	clusterServiceClient  ocm.ClusterServiceClientSpec
@@ -90,7 +87,6 @@ func NewControlPlaneDesiredVersionController(
 ) controllerutils.Controller {
 	syncer := &controlPlaneDesiredVersionSyncer{
 		clock:                 clock,
-		cooldownChecker:       controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
 		readDesireLister:      readDesireLister,
 		cincinnatiClientCache: cincinnati.NewClientCache(),
 		resourcesDBClient:     resourcesDBClient,
@@ -109,10 +105,6 @@ func NewControlPlaneDesiredVersionController(
 	)
 
 	return controller
-}
-
-func (c *controlPlaneDesiredVersionSyncer) CooldownChecker() controllerutil.CooldownChecker {
-	return c.cooldownChecker
 }
 
 // SyncOnce performs a single reconciliation of the desired control plane version for a given cluster.
@@ -149,7 +141,7 @@ func (c *controlPlaneDesiredVersionSyncer) SyncOnce(ctx context.Context, key con
 	// 1. if existingServiceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion is empty, then we must run so we can fill it in.
 	// 2. if the cluster was created more than two hours ago, then we can run
 	// 3. if there is no active operation that is a create, then we can run
-	shouldRun, err := c.shouldDetermineDesiredVersion(ctx, key, existingCluster, existingServiceProviderCluster)
+	shouldRun, err := c.shouldDetermineDesiredVersion(ctx, existingCluster, existingServiceProviderCluster)
 	if err != nil {
 		logger.Error(err, "error determining if desired version should be determined")
 	} else if !shouldRun {
@@ -591,14 +583,14 @@ func selectBestVersionFromCandidates(
 // Otherwise (DesiredVersion already set, cluster still young, Create in
 // flight) we skip so a freshly created cluster doesn't have its initial
 // desired version overwritten while creation is still in progress.
-func (c *controlPlaneDesiredVersionSyncer) shouldDetermineDesiredVersion(ctx context.Context, key controllerutils.HCPClusterKey, cluster *api.HCPOpenShiftCluster, spc *api.ServiceProviderCluster) (bool, error) {
+func (c *controlPlaneDesiredVersionSyncer) shouldDetermineDesiredVersion(ctx context.Context, cluster *api.HCPOpenShiftCluster, spc *api.ServiceProviderCluster) (bool, error) {
 	if spc.Spec.ControlPlaneVersion.DesiredVersion == nil {
 		return true, nil
 	}
 	if c.clusterOlderThanGracePeriod(cluster) {
 		return true, nil
 	}
-	hasCreate, err := c.hasActiveClusterCreateOperation(ctx, key)
+	hasCreate, err := c.clusterHasActiveCreateOperation(ctx, cluster)
 	if err != nil {
 		return true, err
 	}
@@ -620,22 +612,24 @@ func (c *controlPlaneDesiredVersionSyncer) clusterOlderThanGracePeriod(cluster *
 // Create operation whose ExternalID is the cluster itself. Operations on
 // child resources (node pools, external auths) under the cluster are
 // ignored on purpose: they don't gate control-plane upgrade selection.
-func (c *controlPlaneDesiredVersionSyncer) hasActiveClusterCreateOperation(ctx context.Context, key controllerutils.HCPClusterKey) (bool, error) {
-	ops, err := c.activeOperationLister.ListActiveOperationsForCluster(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
+func (c *controlPlaneDesiredVersionSyncer) clusterHasActiveCreateOperation(ctx context.Context, cluster *api.HCPOpenShiftCluster) (bool, error) {
+	logger := utils.LoggerFromContext(ctx)
+	if len(cluster.ServiceProviderProperties.ActiveOperationID) == 0 {
+		logger.Info("Cluster has no active create operation", "cluster", cluster.Name)
+		return false, nil
+	}
+	operation, err := c.activeOperationLister.Get(ctx, cluster.ResourceID.SubscriptionID, cluster.ServiceProviderProperties.ActiveOperationID)
 	if err != nil {
-		return false, fmt.Errorf("failed to list active operations for cluster: %w", err)
+		return false, fmt.Errorf("failed to get operations %q for cluster: %w", cluster.ServiceProviderProperties.ActiveOperationID, err)
 	}
-	clusterRIDLower := api.ToClusterResourceIDString(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
-	for _, op := range ops {
-		if op.Request != database.OperationRequestCreate {
-			continue
-		}
-		if op.ExternalID == nil {
-			continue
-		}
-		if strings.EqualFold(op.ExternalID.String(), clusterRIDLower) {
-			return true, nil
-		}
+	if operation.Request != database.OperationRequestCreate {
+		logger.Info("Cluster has active create operation but it is not a create operation", "cluster", cluster.Name, "operation", operation.Request)
+		return false, nil
 	}
-	return false, nil
+	if operation.Status.IsTerminal() {
+		logger.Info("Cluster has active create operation but it is terminal", "cluster", cluster.Name, "operation", operation.Request)
+		return false, nil
+	}
+	logger.Info("Cluster has active create operation", "cluster", cluster.Name, "operation", operation.Request)
+	return true, nil
 }

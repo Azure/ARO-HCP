@@ -28,7 +28,6 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/backend/pkg/maestrohelpers"
-	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	dblisters "github.com/Azure/ARO-HCP/internal/database/listers"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
@@ -42,7 +41,6 @@ import (
 //   - ServiceProviderProperties.API.URL
 //   - ServiceProviderProperties.Platform.IssuerURL
 type clusterPropertiesSyncer struct {
-	cooldownChecker   controllerutil.CooldownChecker
 	clusterLister     listers.ClusterLister
 	resourcesDBClient database.ResourcesDBClient
 	readDesireLister  dblisters.ReadDesireLister
@@ -54,7 +52,6 @@ var _ controllerutils.ClusterSyncer = (*clusterPropertiesSyncer)(nil)
 // cluster properties from the HostedCluster ReadDesire mirror to Cosmos DB.
 func NewClusterPropertiesSyncController(
 	resourcesDBClient database.ResourcesDBClient,
-	activeOperationLister listers.ActiveOperationLister,
 	informers informers.BackendInformers,
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 	readDesireLister dblisters.ReadDesireLister,
@@ -62,7 +59,6 @@ func NewClusterPropertiesSyncController(
 	_, clusterLister := informers.Clusters()
 
 	syncer := &clusterPropertiesSyncer{
-		cooldownChecker:   controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
 		clusterLister:     clusterLister,
 		resourcesDBClient: resourcesDBClient,
 		readDesireLister:  readDesireLister,
@@ -76,10 +72,6 @@ func NewClusterPropertiesSyncController(
 		5*time.Minute,
 		syncer,
 	)
-}
-
-func (c *clusterPropertiesSyncer) CooldownChecker() controllerutil.CooldownChecker {
-	return c.cooldownChecker
 }
 
 func (c *clusterPropertiesSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {

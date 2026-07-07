@@ -24,7 +24,6 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/api"
-	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -36,7 +35,6 @@ import (
 // have been deleted from the ServiceProviderNodePool, and all nodepool-scoped kube-applier
 // *Desire documents have been deleted.
 type nodePoolDeletionController struct {
-	cooldownChecker               controllerutil.CooldownChecker
 	nodePoolLister                listers.NodePoolLister
 	serviceProviderNodePoolLister listers.ServiceProviderNodePoolLister
 	resourcesDBClient             database.ResourcesDBClient
@@ -46,14 +44,12 @@ var _ controllerutils.NodePoolSyncer = (*nodePoolDeletionController)(nil)
 
 func NewNodePoolDeletionController(
 	resourcesDBClient database.ResourcesDBClient,
-	activeOperationLister listers.ActiveOperationLister,
 	informers informers.BackendInformers,
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 ) controllerutils.Controller {
 	_, nodePoolLister := informers.NodePools()
 	_, serviceProviderNodePoolLister := informers.ServiceProviderNodePools()
 	syncer := &nodePoolDeletionController{
-		cooldownChecker:               controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
 		nodePoolLister:                nodePoolLister,
 		serviceProviderNodePoolLister: serviceProviderNodePoolLister,
 		resourcesDBClient:             resourcesDBClient,
@@ -67,10 +63,6 @@ func NewNodePoolDeletionController(
 		time.Minute,
 		syncer,
 	)
-}
-
-func (c *nodePoolDeletionController) CooldownChecker() controllerutil.CooldownChecker {
-	return c.cooldownChecker
 }
 
 // NeedsWork reports whether the deleter has unfinished business for the given

@@ -258,7 +258,6 @@ func TestExternalAuthChildResourcesCleanupController_SyncOnce(t *testing.T) {
 			}
 
 			syncer := &externalAuthChildResourcesCleanupController{
-				cooldownChecker:    &alwaysSyncCooldownChecker{},
 				externalAuthLister: &listertesting.SliceExternalAuthLister{ExternalAuths: externalAuthsForLister},
 				resourcesDBClient:  mockResourcesDBClient,
 			}

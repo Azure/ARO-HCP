@@ -508,7 +508,6 @@ func TestClusterChildResourcesCleanupController_SyncOnce(t *testing.T) {
 			mockKubeApplierDBClients.Register(managementClusterResourceID, mockKubeApplierClient)
 
 			syncer := &clusterChildResourcesCleanupController{
-				cooldownChecker:      &alwaysSyncCooldownChecker{},
 				clusterLister:        &listertesting.SliceClusterLister{Clusters: clustersForLister},
 				resourcesDBClient:    mockResourcesDBClient,
 				kubeApplierDBClients: mockKubeApplierDBClients,

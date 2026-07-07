@@ -161,9 +161,3 @@ func newTestHostedClusterReadDesire(t *testing.T, opts ...func(*hsv1beta1.Hosted
 		},
 	}
 }
-
-type alwaysSyncCooldownChecker struct{}
-
-func (c *alwaysSyncCooldownChecker) CanSync(ctx context.Context, key any) bool {
-	return true
-}

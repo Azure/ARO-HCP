@@ -26,7 +26,6 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -37,8 +36,6 @@ import (
 // from Cluster Service to Cosmos DB. It ensures that the Identity.UserAssignedIdentities
 // field is populated for clusters that were created before all identity state was held in Cosmos.
 type identityMigrationSyncer struct {
-	cooldownChecker controllerutil.CooldownChecker
-
 	clusterLister        listers.ClusterLister
 	resourcesDBClient    database.ResourcesDBClient
 	clusterServiceClient ocm.ClusterServiceClientSpec
@@ -53,14 +50,12 @@ var _ controllerutils.ClusterSyncer = (*identityMigrationSyncer)(nil)
 func NewIdentityMigrationController(
 	resourcesDBClient database.ResourcesDBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
-	activeOperationLister listers.ActiveOperationLister,
 	informers informers.BackendInformers,
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 ) controllerutils.Controller {
 	_, clusterLister := informers.Clusters()
 
 	syncer := &identityMigrationSyncer{
-		cooldownChecker:      controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
 		clusterLister:        clusterLister,
 		resourcesDBClient:    resourcesDBClient,
 		clusterServiceClient: clusterServiceClient,
@@ -76,10 +71,6 @@ func NewIdentityMigrationController(
 	)
 
 	return controller
-}
-
-func (c *identityMigrationSyncer) CooldownChecker() controllerutil.CooldownChecker {
-	return c.cooldownChecker
 }
 
 func (c *identityMigrationSyncer) NeedsWork(ctx context.Context, existingCluster *api.HCPOpenShiftCluster) bool {

@@ -27,7 +27,6 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/api"
-	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -41,7 +40,6 @@ import (
 // NodePool and, on 404, zero out the stored ClusterServiceID so downstream
 // code knows the CS resource is fully gone.
 type nodePoolClusterServiceIDClearer struct {
-	cooldownChecker      controllerutil.CooldownChecker
 	nodePoolLister       listers.NodePoolLister
 	resourcesDBClient    database.ResourcesDBClient
 	clusterServiceClient ocm.ClusterServiceClientSpec
@@ -52,13 +50,11 @@ var _ controllerutils.NodePoolSyncer = (*nodePoolClusterServiceIDClearer)(nil)
 func NewNodePoolClusterServiceIDClearerController(
 	resourcesDBClient database.ResourcesDBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
-	activeOperationLister listers.ActiveOperationLister,
 	informers informers.BackendInformers,
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 ) controllerutils.Controller {
 	_, nodePoolLister := informers.NodePools()
 	syncer := &nodePoolClusterServiceIDClearer{
-		cooldownChecker:      controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
 		nodePoolLister:       nodePoolLister,
 		resourcesDBClient:    resourcesDBClient,
 		clusterServiceClient: clusterServiceClient,
@@ -72,10 +68,6 @@ func NewNodePoolClusterServiceIDClearerController(
 		time.Minute,
 		syncer,
 	)
-}
-
-func (c *nodePoolClusterServiceIDClearer) CooldownChecker() controllerutil.CooldownChecker {
-	return c.cooldownChecker
 }
 
 // NeedsWork reports whether this controller has unfinished business for the

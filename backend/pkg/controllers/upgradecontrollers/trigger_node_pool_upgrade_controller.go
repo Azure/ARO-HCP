@@ -25,9 +25,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
-	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/api"
-	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -36,7 +34,6 @@ import (
 
 // triggerNodePoolUpgradeSyncer is a NodePool syncer that triggers node pool upgrades
 type triggerNodePoolUpgradeSyncer struct {
-	cooldownChecker      controllerutil.CooldownChecker
 	resourcesDBClient    database.ResourcesDBClient
 	clusterServiceClient ocm.ClusterServiceClientSpec
 }
@@ -49,12 +46,10 @@ var _ controllerutils.NodePoolSyncer = (*triggerNodePoolUpgradeSyncer)(nil)
 func NewTriggerNodePoolUpgradeController(
 	resourcesDBClient database.ResourcesDBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
-	activeOperationLister listers.ActiveOperationLister,
 	informers informers.BackendInformers,
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 ) controllerutils.Controller {
 	syncer := &triggerNodePoolUpgradeSyncer{
-		cooldownChecker:      controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
 		resourcesDBClient:    resourcesDBClient,
 		clusterServiceClient: clusterServiceClient,
 	}
@@ -69,10 +64,6 @@ func NewTriggerNodePoolUpgradeController(
 	)
 
 	return controller
-}
-
-func (c *triggerNodePoolUpgradeSyncer) CooldownChecker() controllerutil.CooldownChecker {
-	return c.cooldownChecker
 }
 
 // SyncOnce performs a single reconciliation to trigger a node pool upgrade if needed.

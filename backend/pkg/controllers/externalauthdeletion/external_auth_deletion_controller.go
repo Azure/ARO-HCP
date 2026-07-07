@@ -24,7 +24,6 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/api"
-	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -34,7 +33,6 @@ import (
 // ClusterServiceDeletionTimestamp set and their ClusterServiceID
 // cleared, once all child resources have been cleaned up.
 type externalAuthDeletionController struct {
-	cooldownChecker    controllerutil.CooldownChecker
 	externalAuthLister listers.ExternalAuthLister
 	resourcesDBClient  database.ResourcesDBClient
 }
@@ -43,12 +41,10 @@ var _ controllerutils.ExternalAuthSyncer = (*externalAuthDeletionController)(nil
 
 func NewExternalAuthDeletionController(
 	resourcesDBClient database.ResourcesDBClient,
-	activeOperationLister listers.ActiveOperationLister,
 	informers informers.BackendInformers,
 ) controllerutils.Controller {
 	_, externalAuthLister := informers.ExternalAuths()
 	syncer := &externalAuthDeletionController{
-		cooldownChecker:    controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
 		externalAuthLister: externalAuthLister,
 		resourcesDBClient:  resourcesDBClient,
 	}
@@ -60,10 +56,6 @@ func NewExternalAuthDeletionController(
 		time.Minute,
 		syncer,
 	)
-}
-
-func (c *externalAuthDeletionController) CooldownChecker() controllerutil.CooldownChecker {
-	return c.cooldownChecker
 }
 
 // NeedsWork reports whether the deleter has unfinished business for the

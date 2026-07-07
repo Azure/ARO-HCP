@@ -30,7 +30,6 @@ import (
 )
 
 type clusterRecursiveDataDump struct {
-	cooldownChecker         controllerutil.CooldownChecker
 	resourcesDBClient       database.ResourcesDBClient
 	kubeApplierDBClients    database.KubeApplierDBClients
 	managementClusterLister dblisters.ManagementClusterLister
@@ -49,7 +48,6 @@ func NewClusterRecursiveDataDumpController(
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 ) controllerutils.Controller {
 	syncer := &clusterRecursiveDataDump{
-		cooldownChecker:         controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
 		resourcesDBClient:       resourcesDBClient,
 		kubeApplierDBClients:    kubeApplierDBClients,
 		managementClusterLister: managementClusterLister,
@@ -81,8 +79,4 @@ func (c *clusterRecursiveDataDump) SyncOnce(ctx context.Context, key controlleru
 	}
 
 	return nil
-}
-
-func (c *clusterRecursiveDataDump) CooldownChecker() controllerutil.CooldownChecker {
-	return c.cooldownChecker
 }

@@ -44,8 +44,6 @@ import (
 // Replaces createClusterScopedMaestroReadonlyBundlesSyncer, which used
 // Maestro to mirror the same content.
 type createClusterScopedReadDesiresSyncer struct {
-	cooldownChecker controllerutil.CooldownChecker
-
 	activeOperationLister listers.ActiveOperationLister
 
 	resourcesDBClient    database.ResourcesDBClient
@@ -72,7 +70,6 @@ func NewCreateClusterScopedReadDesiresController(
 	hostedClusterNamespaceEnvIdentifier string,
 ) controllerutils.Controller {
 	syncer := &createClusterScopedReadDesiresSyncer{
-		cooldownChecker:                     controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
 		activeOperationLister:               activeOperationLister,
 		resourcesDBClient:                   resourcesDBClient,
 		kubeApplierDBClients:                kubeApplierDBClients,
@@ -177,10 +174,6 @@ func (c *createClusterScopedReadDesiresSyncer) SyncOnce(ctx context.Context, key
 		return utils.TrackError(fmt.Errorf("replace ReadDesire: %w", err))
 	}
 	return nil
-}
-
-func (c *createClusterScopedReadDesiresSyncer) CooldownChecker() controllerutil.CooldownChecker {
-	return c.cooldownChecker
 }
 
 // readDesireNameReadonlyHostedCluster is the well-known ReadDesire name

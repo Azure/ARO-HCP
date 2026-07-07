@@ -88,3 +88,15 @@ func (c *TimeBasedCooldownChecker) CanSync(_ context.Context, key any) bool {
 	}
 	return false
 }
+
+type ZeroCooldown struct {
+}
+
+// NewZeroCooldown always returns tru
+func NewZeroCooldown() *ZeroCooldown {
+	return &ZeroCooldown{}
+}
+
+func (c *ZeroCooldown) CanSync(_ context.Context, _ any) bool {
+	return true
+}

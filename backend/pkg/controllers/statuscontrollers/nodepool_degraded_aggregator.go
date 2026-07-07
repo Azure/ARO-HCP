@@ -27,7 +27,6 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
-	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -37,7 +36,6 @@ import (
 // onto HCPOpenShiftClusterNodePool.Status.Conditions. See the package and
 // clusterDegradedAggregator docs for the overall design.
 type nodePoolDegradedAggregator struct {
-	cooldownChecker   controllerutil.CooldownChecker
 	nodePoolLister    listers.NodePoolLister
 	controllerLister  listers.ControllerLister
 	resourcesDBClient database.ResourcesDBClient
@@ -67,7 +65,6 @@ func NewNodePoolDegradedAggregatorController(
 	resourcesDBClient database.ResourcesDBClient,
 	nodePoolLister listers.NodePoolLister,
 	controllerLister listers.ControllerLister,
-	activeOperationLister listers.ActiveOperationLister,
 	informers informers.BackendInformers,
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 	clock utilsclock.PassiveClock,
@@ -76,7 +73,6 @@ func NewNodePoolDegradedAggregatorController(
 		clock = utilsclock.RealClock{}
 	}
 	syncer := &nodePoolDegradedAggregator{
-		cooldownChecker:   controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
 		nodePoolLister:    nodePoolLister,
 		controllerLister:  controllerLister,
 		resourcesDBClient: resourcesDBClient,
@@ -92,10 +88,6 @@ func NewNodePoolDegradedAggregatorController(
 		1*time.Minute,
 		syncer,
 	)
-}
-
-func (c *nodePoolDegradedAggregator) CooldownChecker() controllerutil.CooldownChecker {
-	return c.cooldownChecker
 }
 
 func (c *nodePoolDegradedAggregator) SyncOnce(ctx context.Context, key controllerutils.HCPNodePoolKey) error {

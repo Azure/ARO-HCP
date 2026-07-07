@@ -27,7 +27,6 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
-	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -40,8 +39,6 @@ import (
 //
 // Replaces createNodePoolScopedMaestroReadonlyBundlesSyncer.
 type createNodePoolScopedReadDesiresSyncer struct {
-	cooldownChecker controllerutil.CooldownChecker
-
 	activeOperationLister listers.ActiveOperationLister
 
 	resourcesDBClient    database.ResourcesDBClient
@@ -60,7 +57,6 @@ func NewCreateNodePoolScopedReadDesiresController(
 	hostedClusterNamespaceEnvIdentifier string,
 ) controllerutils.Controller {
 	syncer := &createNodePoolScopedReadDesiresSyncer{
-		cooldownChecker:                     controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
 		activeOperationLister:               activeOperationLister,
 		resourcesDBClient:                   resourcesDBClient,
 		kubeApplierDBClients:                kubeApplierDBClients,
@@ -164,10 +160,6 @@ func (c *createNodePoolScopedReadDesiresSyncer) SyncOnce(ctx context.Context, ke
 		return utils.TrackError(fmt.Errorf("replace ReadDesire: %w", err))
 	}
 	return nil
-}
-
-func (c *createNodePoolScopedReadDesiresSyncer) CooldownChecker() controllerutil.CooldownChecker {
-	return c.cooldownChecker
 }
 
 // readDesireNameReadonlyNodePool is the well-known ReadDesire name the

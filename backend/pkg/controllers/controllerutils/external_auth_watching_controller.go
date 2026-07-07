@@ -31,7 +31,6 @@ import (
 
 type ExternalAuthSyncer interface {
 	SyncOnce(ctx context.Context, keyObj HCPExternalAuthKey) error
-	CooldownChecker() controllerutil.CooldownChecker
 }
 
 type externalAuthWatchingController struct {
@@ -95,7 +94,7 @@ func (c *externalAuthWatchingController) SyncOnce(ctx context.Context, key HCPEx
 }
 
 func (c *externalAuthWatchingController) CooldownChecker() controllerutil.CooldownChecker {
-	return c.syncer.CooldownChecker()
+	return nil
 }
 
 func (c *externalAuthWatchingController) MakeKey(resourceID *azcorearm.ResourceID) HCPExternalAuthKey {

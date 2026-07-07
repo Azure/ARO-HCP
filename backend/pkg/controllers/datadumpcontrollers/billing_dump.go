@@ -29,7 +29,6 @@ import (
 )
 
 type billingDump struct {
-	cooldownChecker   controllerutil.CooldownChecker
 	resourcesDBClient database.ResourcesDBClient
 	billingDBClient   database.BillingDBClient
 
@@ -46,7 +45,6 @@ func NewBillingDumpController(
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 ) controllerutils.Controller {
 	syncer := &billingDump{
-		cooldownChecker:   controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
 		resourcesDBClient: resourcesDBClient,
 		billingDBClient:   billingDBClient,
 		nextDumpChecker:   controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
@@ -75,8 +73,4 @@ func (c *billingDump) SyncOnce(ctx context.Context, key controllerutils.HCPClust
 	}
 
 	return nil
-}
-
-func (c *billingDump) CooldownChecker() controllerutil.CooldownChecker {
-	return c.cooldownChecker
 }
