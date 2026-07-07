@@ -28,8 +28,9 @@ const (
 
 // Deletion timeouts
 const (
-	HCPClusterDeletionTimeout   = 45 * time.Minute
-	ExternalAuthDeletionTimeout = 25 * time.Minute
+	HCPClusterDeletionTimeout   = 25 * time.Minute
+	NodePoolDeletionTimeout     = 25 * time.Minute
+	ExternalAuthDeletionTimeout = 15 * time.Minute
 )
 
 // Resource Update timeouts
