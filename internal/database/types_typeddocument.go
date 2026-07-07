@@ -16,8 +16,12 @@ package database
 
 import (
 	"encoding/json"
+	"log/slog"
+	"strings"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
+	"github.com/Azure/ARO-HCP/internal/api"
 )
 
 // TypedDocument is a BaseDocument with a ResourceType field to
@@ -30,4 +34,26 @@ type TypedDocument struct {
 	ResourceID   *azcorearm.ResourceID `json:"resourceID"`
 	ResourceType string                `json:"resourceType"`
 	Properties   json.RawMessage       `json:"properties"`
+}
+
+// rawTypedDocument is an alias used to log TypedDocument without recursing
+// back into LogValue.
+type rawTypedDocument TypedDocument
+
+// LogValue implements slog.LogValuer. For HCP cluster documents, Properties is
+// deserialized into the typed struct so that SystemData.LogValue() can redact
+// createdBy/lastModifiedBy. All other resource types are logged as-is.
+func (d TypedDocument) LogValue() slog.Value {
+	if strings.EqualFold(d.ResourceType, api.ClusterResourceType.String()) {
+		var cluster api.HCPOpenShiftCluster
+		if err := json.Unmarshal(d.Properties, &cluster); err != nil {
+			return slog.GroupValue(
+				slog.String("resourceType", d.ResourceType),
+				slog.Any("resourceID", d.ResourceID),
+				slog.String("unmarshalError", err.Error()),
+			)
+		}
+		return slog.AnyValue(cluster)
+	}
+	return slog.AnyValue(rawTypedDocument(d))
 }

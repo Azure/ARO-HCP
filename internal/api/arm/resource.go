@@ -16,6 +16,7 @@ package arm
 
 import (
 	"iter"
+	"log/slog"
 	"slices"
 	"time"
 
@@ -105,6 +106,17 @@ type SystemData struct {
 	LastModifiedByType CreatedByType `json:"lastModifiedByType,omitempty"`
 	// LastModifiedAt is the timestamp of resource last modification (UTC)
 	LastModifiedAt *time.Time `json:"lastModifiedAt,omitempty"`
+}
+
+func (s SystemData) LogValue() slog.Value {
+	return slog.GroupValue(
+		slog.String("createdBy", "[REDACTED]"),
+		slog.Any("createdByType", s.CreatedByType),
+		slog.Any("createdAt", s.CreatedAt),
+		slog.String("lastModifiedBy", "[REDACTED]"),
+		slog.Any("lastModifiedByType", s.LastModifiedByType),
+		slog.Any("lastModifiedAt", s.LastModifiedAt),
+	)
 }
 
 // ProvisioningState represents the asynchronous provisioning state of an ARM resource
