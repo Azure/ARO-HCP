@@ -19,6 +19,10 @@
                 {
                   "name": "Azure Red Hat OpenShift Hosted Control Planes Cluster API Provider",
                   "resourceId": "/providers/Microsoft.Authorization/roleDefinitions/88366f10-ed47-4cc0-9fab-c8a06148393e"
+                },
+                {
+                  "name": "Security Reader",
+                  "resourceId": "/providers/Microsoft.Authorization/roleDefinitions/39bc4728-0917-49c7-9d2c-d95423bc2eb4"
                 }
               ]
             },
