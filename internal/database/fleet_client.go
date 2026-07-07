@@ -17,6 +17,8 @@ package database
 import (
 	"fmt"
 
+	"k8s.io/component-base/metrics/legacyregistry"
+
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
@@ -89,6 +91,7 @@ func (c *cosmosFleetDBClient) Stamps() StampsCRUD {
 				validation.ValidateStampUpdate,
 			),
 			"Stamp",
+			legacyregistry.Registerer(),
 		),
 		containerClient: c.container,
 	}
@@ -119,6 +122,7 @@ func (s *cosmosStampsCRUD) ManagementClusters(stampIdentifier string) Management
 				validation.ValidateManagementClusterUpdate,
 			),
 			"ManagementCluster",
+			legacyregistry.Registerer(),
 		),
 		containerClient: s.containerClient,
 		stampIdentifier: stampIdentifier,
@@ -138,7 +142,7 @@ func (m *cosmosManagementClustersCRUD) Controllers() ResourceCRUD[api.Controller
 	}
 	return NewCosmosResourceCRUDWithStrategies[api.Controller, *api.Controller, GenericDocument[api.Controller]](
 		m.containerClient, mcResourceID, fleet.ManagementClusterControllerResourceType,
-		FleetPartitionKeyDeriver{}, FleetResourceIDBuilder{}, "Controller")
+		FleetPartitionKeyDeriver{}, FleetResourceIDBuilder{}, "Controller", legacyregistry.Registerer())
 }
 
 type cosmosFleetGlobalListers struct {

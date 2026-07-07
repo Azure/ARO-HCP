@@ -20,6 +20,8 @@ import (
 	"path"
 	"strings"
 
+	"github.com/prometheus/client_golang/prometheus"
+
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
@@ -314,11 +316,12 @@ func newCosmosResourceCRUDWithStrategies[InternalAPIType any, InternalAPITypePoi
 // database_request_duration_seconds under the supplied resourceType label. The
 // underlying (uninstrumented) CRUD is built by newCosmosResourceCRUD.
 func NewCosmosResourceCRUD[InternalAPIType any, InternalAPITypePointer arm.CosmosMetadataAccessorPtr[InternalAPIType], CosmosAPIType any](
-	containerClient *azcosmos.ContainerClient, parentResourceID *azcorearm.ResourceID, resourceType azcorearm.ResourceType, resourceTypeLabel string) ResourceCRUD[InternalAPIType, InternalAPITypePointer] {
+	containerClient *azcosmos.ContainerClient, parentResourceID *azcorearm.ResourceID, resourceType azcorearm.ResourceType, resourceTypeLabel string, registerer prometheus.Registerer) ResourceCRUD[InternalAPIType, InternalAPITypePointer] {
 
 	return NewInstrumentedCRUD[InternalAPIType, InternalAPITypePointer](
 		newCosmosResourceCRUD[InternalAPIType, InternalAPITypePointer, CosmosAPIType](containerClient, parentResourceID, resourceType),
 		resourceTypeLabel,
+		registerer,
 	)
 }
 
@@ -326,11 +329,12 @@ func NewCosmosResourceCRUD[InternalAPIType any, InternalAPITypePointer arm.Cosmo
 // with a caller-chosen partition key policy and the standard ARM-style path
 // builder. Metrics are recorded under the supplied resourceType label.
 func NewCosmosResourceCRUDWithPartitionKey[InternalAPIType any, InternalAPITypePointer arm.CosmosMetadataAccessorPtr[InternalAPIType], CosmosAPIType any](
-	containerClient *azcosmos.ContainerClient, parentResourceID *azcorearm.ResourceID, resourceType azcorearm.ResourceType, partitionKeyDeriver PartitionKeyDeriver, resourceTypeLabel string) ResourceCRUD[InternalAPIType, InternalAPITypePointer] {
+	containerClient *azcosmos.ContainerClient, parentResourceID *azcorearm.ResourceID, resourceType azcorearm.ResourceType, partitionKeyDeriver PartitionKeyDeriver, resourceTypeLabel string, registerer prometheus.Registerer) ResourceCRUD[InternalAPIType, InternalAPITypePointer] {
 
 	return NewInstrumentedCRUD[InternalAPIType, InternalAPITypePointer](
 		newCosmosResourceCRUDWithPartitionKey[InternalAPIType, InternalAPITypePointer, CosmosAPIType](containerClient, parentResourceID, resourceType, partitionKeyDeriver),
 		resourceTypeLabel,
+		registerer,
 	)
 }
 
@@ -339,11 +343,12 @@ func NewCosmosResourceCRUDWithPartitionKey[InternalAPIType any, InternalAPITypeP
 // back containers whose layout deviates from the standard ARO scheme (fleet,
 // kube-applier). Metrics are recorded under the supplied resourceType label.
 func NewCosmosResourceCRUDWithStrategies[InternalAPIType any, InternalAPITypePointer arm.CosmosMetadataAccessorPtr[InternalAPIType], CosmosAPIType any](
-	containerClient *azcosmos.ContainerClient, parentResourceID *azcorearm.ResourceID, resourceType azcorearm.ResourceType, partitionKeyDeriver PartitionKeyDeriver, resourceIDBuilder ResourceIDBuilder, resourceTypeLabel string) ResourceCRUD[InternalAPIType, InternalAPITypePointer] {
+	containerClient *azcosmos.ContainerClient, parentResourceID *azcorearm.ResourceID, resourceType azcorearm.ResourceType, partitionKeyDeriver PartitionKeyDeriver, resourceIDBuilder ResourceIDBuilder, resourceTypeLabel string, registerer prometheus.Registerer) ResourceCRUD[InternalAPIType, InternalAPITypePointer] {
 
 	return NewInstrumentedCRUD[InternalAPIType, InternalAPITypePointer](
 		newCosmosResourceCRUDWithStrategies[InternalAPIType, InternalAPITypePointer, CosmosAPIType](containerClient, parentResourceID, resourceType, partitionKeyDeriver, resourceIDBuilder),
 		resourceTypeLabel,
+		registerer,
 	)
 }
 

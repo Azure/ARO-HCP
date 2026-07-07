@@ -18,6 +18,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
@@ -38,16 +40,20 @@ import (
 type instrumentedValidatingCRUD[T any, TP arm.CosmosMetadataAccessorPtr[T]] struct {
 	inner        ValidatingResourceCRUD[T, TP]
 	resourceType string
+	metrics      *databaseMetrics
 }
 
 // NewInstrumentedValidatingCRUD returns a ValidatingResourceCRUD that delegates
 // to inner while recording database_request_total and
 // database_request_duration_seconds for every operation, labelling each sample
-// with the supplied resourceType.
-func NewInstrumentedValidatingCRUD[T any, TP arm.CosmosMetadataAccessorPtr[T]](inner ValidatingResourceCRUD[T, TP], resourceType string) ValidatingResourceCRUD[T, TP] {
+// with the supplied resourceType. As with NewInstrumentedCRUD, the collectors
+// are registered on registerer (see sharedDatabaseMetrics) so both decorators
+// share a single set of collectors per registry.
+func NewInstrumentedValidatingCRUD[T any, TP arm.CosmosMetadataAccessorPtr[T]](inner ValidatingResourceCRUD[T, TP], resourceType string, registerer prometheus.Registerer) ValidatingResourceCRUD[T, TP] {
 	return &instrumentedValidatingCRUD[T, TP]{
 		inner:        inner,
 		resourceType: resourceType,
+		metrics:      sharedDatabaseMetrics(registerer),
 	}
 }
 
@@ -55,8 +61,8 @@ func NewInstrumentedValidatingCRUD[T any, TP arm.CosmosMetadataAccessorPtr[T]](i
 // completed operation. The status code is derived from err by codeForError.
 func (c *instrumentedValidatingCRUD[T, TP]) observe(verb string, start time.Time, err error) {
 	code := codeForError(err)
-	databaseRequestTotal.WithLabelValues(verb, c.resourceType, code).Inc()
-	databaseRequestDuration.WithLabelValues(verb, c.resourceType, code).Observe(time.Since(start).Seconds())
+	c.metrics.requestTotal.WithLabelValues(verb, c.resourceType, code).Inc()
+	c.metrics.requestDuration.WithLabelValues(verb, c.resourceType, code).Observe(time.Since(start).Seconds())
 }
 
 func (c *instrumentedValidatingCRUD[T, TP]) GetByID(ctx context.Context, cosmosID string) (_ *T, err error) {
