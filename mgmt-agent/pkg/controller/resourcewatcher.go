@@ -48,9 +48,8 @@ type ServerResourceDiscoverer interface {
 	ServerGroupsAndResources() ([]*metav1.APIGroup, []*metav1.APIResourceList, error)
 }
 
-// ResourceWatcher discovers API resources matching a set of group suffixes
-// and watches them via dynamic informers, logging every event to stdout as
-// structured JSON.
+// ResourceWatcher discovers API resources matching a set of group suffixes, also
+// watches core/v1/namespaces, and logs every event via dynamic informers as structured JSON.
 type ResourceWatcher struct {
 	dynamicClient   dynamic.Interface
 	discoveryClient ServerResourceDiscoverer
@@ -64,9 +63,9 @@ func NewResourceWatcher(dynamicClient dynamic.Interface, discoveryClient ServerR
 	}
 }
 
-// Run discovers GVRs for the configured group suffixes, starts dynamic informers
-// for each, and blocks until the context is cancelled. Events are logged as
-// structured JSON via klog. A CRD informer watches for new CustomResourceDefinitions;
+// Run discovers GVRs for the configured group suffixes, also watches core/v1/namespaces,
+// starts dynamic informers for each, and blocks until the context is cancelled. Events are
+// logged as structured JSON via klog. A CRD informer watches for new CustomResourceDefinitions;
 // if a new CRD is registered whose group matches the watched suffixes and introduces
 // GVRs not known at startup, the process exits so the pod restarts and picks them up.
 func (w *ResourceWatcher) Run(ctx context.Context) error {
@@ -77,6 +76,7 @@ func (w *ResourceWatcher) Run(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	gvrs = append(gvrs, schema.GroupVersionResource{Group: "", Version: "v1", Resource: "namespaces"})
 	logger.Info("Discovered resources to watch", "count", len(gvrs))
 
 	knownGVRs := sets.New[schema.GroupVersionResource](gvrs...)
