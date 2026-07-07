@@ -1,3 +1,4 @@
+{{- if not .Values.useAzureDB }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -66,3 +67,4 @@ spec:
       - name: '{{ .Values.databaseServiceName }}-data'
         persistentVolumeClaim:
           claimName: '{{ .Values.databaseServiceName }}'
+{{- end }}

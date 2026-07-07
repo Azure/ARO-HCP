@@ -196,7 +196,7 @@ spec:
         - --db-password=@/secrets/rds/db.password
         - --db-disable-tls={{ .Values.databaseDisableTls }}
         - --db-auth-method={{ .Values.databaseAuthMethod }}
-        - --gateway-url={{ .Values.gatewayURL }}
+        - --gateway-url={{ .Values.gatewayUrl }}
         - --client-id=@/secrets/service/client.id
         - --client-secret=@/secrets/service/client.secret
         - --client-scopes={{ .Values.clientScopes }}
