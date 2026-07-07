@@ -67,11 +67,6 @@ func TestResourceIDStrings(t *testing.T) {
 			want: testCredentialRequestIDPrefix + "/applydesires/mydesire",
 		},
 		{
-			name: "DeleteDesire under credential request",
-			got:  ToCredentialRequestScopedDeleteDesireResourceIDString(sub, rg, cluster, cred, name),
-			want: testCredentialRequestIDPrefix + "/deletedesires/mydesire",
-		},
-		{
 			name: "ReadDesire under credential request",
 			got:  ToCredentialRequestScopedReadDesireResourceIDString(sub, rg, cluster, cred, name),
 			want: testCredentialRequestIDPrefix + "/readdesires/mydesire",
@@ -127,11 +122,6 @@ func TestResourceIDsParseToExpectedTypes(t *testing.T) {
 			name:     "credential-request-scoped ApplyDesire",
 			idStr:    ToCredentialRequestScopedApplyDesireResourceIDString(sub, rg, cluster, cred, name),
 			wantType: CredentialRequestScopedApplyDesireResourceType.String(),
-		},
-		{
-			name:     "credential-request-scoped DeleteDesire",
-			idStr:    ToCredentialRequestScopedDeleteDesireResourceIDString(sub, rg, cluster, cred, name),
-			wantType: CredentialRequestScopedDeleteDesireResourceType.String(),
 		},
 		{
 			name:     "credential-request-scoped ReadDesire",
