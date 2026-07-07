@@ -3,6 +3,7 @@ prometheusRules:
   - alerts/prometheus-prometheusRule.yaml
   - ../frontend/alerts/frontend-prometheusRule.yaml
   - ../backend/alerts/backend-prometheusRule.yaml
+  - ../backend/alerts/backend-async-operations-prometheusRule.yaml
   - ../fleet/alerts/fleet-prometheusRule.yaml
   - ../admin/alerts/admin-prometheusRule.yaml
   - ../maestro/alerts/maestro-prometheusRule.yaml

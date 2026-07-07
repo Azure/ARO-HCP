@@ -1,0 +1,361 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    app.kubernetes.io/name: kube-prometheus
+    app.kubernetes.io/part-of: kube-prometheus
+    prometheus: k8s
+    role: alert-rules
+  name: backend-async-operations-rules
+  namespace: monitoring
+spec:
+  groups:
+  # ========================================
+  # Backend Async Operation Stuck Alerts
+  # ========================================
+  # These alerts fire when an async operation has been running longer than
+  # the corresponding e2e test timeout. Thresholds are anchored to the
+  # canonical timeout constants in test/util/framework/constants.go.
+  #
+  # Metric: backend_resource_operation_start_time_seconds (total wall-clock
+  # time since the operation was created). Combined with phase_info to
+  # restrict to operations still in non-terminal phases.
+  #
+  # No `for` clause: the phase filter already ensures we only alert on
+  # in-flight operations. Once an operation reaches succeeded/failed/canceled,
+  # the phase no longer matches and the alert resolves immediately.
+  #
+  # All expressions use max by(...) to deduplicate across Prometheus
+  # replicas/shards, preventing duplicate alerts for the same operation.
+  - name: backend-async-operations
+    rules:
+    # ----------------------------------------
+    # Cluster operations
+    # ----------------------------------------
+    # Cluster create: e2e timeout = 20 minutes (ClusterCreationTimeout)
+    - alert: BackendAsyncOperationClusterCreateStuck
+      expr: |
+        (
+          max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (
+            time() - backend_resource_operation_start_time_seconds{
+              resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
+              operation_type="create"
+            }
+          )
+          and
+          max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (
+            backend_resource_operation_phase_info{
+              resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
+              operation_type="create",
+              phase=~"accepted|provisioning"
+            }
+          ) == 1
+        ) > 1200
+      labels:
+        severity: "3"
+      annotations:
+        correlationId: 'BackendAsyncOperationStuck/{{ $labels.cluster }}/{{ $labels.resource_id }}'
+        summary: 'Cluster create operation stuck'
+        description: 'Cluster create operation for {{ $labels.resource_id }} has been running for over 20 minutes and is currently in {{ $labels.phase }} phase (e2e timeout: ClusterCreationTimeout).'
+        runbook_url: TBD
+    # Cluster update: e2e timeout = 45 minutes (HCPClusterVersionUpgradeTimeout)
+    # This covers both property updates and version upgrades, since both
+    # use operation_type=update. The higher timeout accommodates upgrades.
+    - alert: BackendAsyncOperationClusterUpdateStuck
+      expr: |
+        (
+          max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (
+            time() - backend_resource_operation_start_time_seconds{
+              resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
+              operation_type="update"
+            }
+          )
+          and
+          max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (
+            backend_resource_operation_phase_info{
+              resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
+              operation_type="update",
+              phase=~"accepted|updating"
+            }
+          ) == 1
+        ) > 2700
+      labels:
+        severity: "3"
+      annotations:
+        correlationId: 'BackendAsyncOperationStuck/{{ $labels.cluster }}/{{ $labels.resource_id }}'
+        summary: 'Cluster update operation stuck'
+        description: 'Cluster update operation for {{ $labels.resource_id }} has been running for over 45 minutes and is currently in {{ $labels.phase }} phase (e2e timeout: HCPClusterVersionUpgradeTimeout).'
+        runbook_url: TBD
+    # Cluster delete: e2e timeout = 25 minutes (HCPClusterDeletionTimeout)
+    # Delete operations start directly in "deleting" phase, skipping "accepted".
+    - alert: BackendAsyncOperationClusterDeleteStuck
+      expr: |
+        (
+          max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (
+            time() - backend_resource_operation_start_time_seconds{
+              resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
+              operation_type="delete"
+            }
+          )
+          and
+          max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (
+            backend_resource_operation_phase_info{
+              resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
+              operation_type="delete",
+              phase="deleting"
+            }
+          ) == 1
+        ) > 1500
+      labels:
+        severity: "3"
+      annotations:
+        correlationId: 'BackendAsyncOperationStuck/{{ $labels.cluster }}/{{ $labels.resource_id }}'
+        summary: 'Cluster delete operation stuck'
+        description: 'Cluster delete operation for {{ $labels.resource_id }} has been running for over 25 minutes and is currently in deleting phase (e2e timeout: HCPClusterDeletionTimeout).'
+        runbook_url: TBD
+    # ----------------------------------------
+    # Credential operations
+    # ----------------------------------------
+    # Request credential: e2e timeout = 10 minutes (GetAdminRESTConfigTimeout)
+    - alert: BackendAsyncOperationCredentialRequestStuck
+      expr: |
+        (
+          max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (
+            time() - backend_resource_operation_start_time_seconds{
+              resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
+              operation_type="requestcredential"
+            }
+          )
+          and
+          max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (
+            backend_resource_operation_phase_info{
+              resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
+              operation_type="requestcredential",
+              phase=~"accepted|provisioning"
+            }
+          ) == 1
+        ) > 600
+      labels:
+        severity: "3"
+      annotations:
+        correlationId: 'BackendAsyncOperationStuck/{{ $labels.cluster }}/{{ $labels.resource_id }}'
+        summary: 'Credential request operation stuck'
+        description: 'Credential request operation for {{ $labels.resource_id }} has been running for over 10 minutes and is currently in {{ $labels.phase }} phase (e2e timeout: GetAdminRESTConfigTimeout).'
+        runbook_url: TBD
+    # Revoke credentials: e2e timeout = 15 minutes (ExternalAuthDeletionTimeout used as proxy)
+    - alert: BackendAsyncOperationCredentialRevokeStuck
+      expr: |
+        (
+          max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (
+            time() - backend_resource_operation_start_time_seconds{
+              resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
+              operation_type="revokecredentials"
+            }
+          )
+          and
+          max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (
+            backend_resource_operation_phase_info{
+              resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
+              operation_type="revokecredentials",
+              phase=~"accepted|deleting"
+            }
+          ) == 1
+        ) > 900
+      labels:
+        severity: "3"
+      annotations:
+        correlationId: 'BackendAsyncOperationStuck/{{ $labels.cluster }}/{{ $labels.resource_id }}'
+        summary: 'Credential revoke operation stuck'
+        description: 'Credential revoke operation for {{ $labels.resource_id }} has been running for over 15 minutes and is currently in {{ $labels.phase }} phase.'
+        runbook_url: TBD
+    # ----------------------------------------
+    # Node pool operations
+    # ----------------------------------------
+    # Node pool create: e2e timeout = 20 minutes (NodePoolCreationTimeout)
+    - alert: BackendAsyncOperationNodePoolCreateStuck
+      expr: |
+        (
+          max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (
+            time() - backend_resource_operation_start_time_seconds{
+              resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools",
+              operation_type="create"
+            }
+          )
+          and
+          max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (
+            backend_resource_operation_phase_info{
+              resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools",
+              operation_type="create",
+              phase=~"accepted|provisioning"
+            }
+          ) == 1
+        ) > 1200
+      labels:
+        severity: "3"
+      annotations:
+        correlationId: 'BackendAsyncOperationStuck/{{ $labels.cluster }}/{{ $labels.resource_id }}'
+        summary: 'Node pool create operation stuck'
+        description: 'Node pool create operation for {{ $labels.resource_id }} has been running for over 20 minutes and is currently in {{ $labels.phase }} phase (e2e timeout: NodePoolCreationTimeout).'
+        runbook_url: TBD
+    # Node pool update: e2e timeout = 45 minutes (NodePoolVersionUpgradeTimeout)
+    # Covers both property updates and version upgrades.
+    - alert: BackendAsyncOperationNodePoolUpdateStuck
+      expr: |
+        (
+          max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (
+            time() - backend_resource_operation_start_time_seconds{
+              resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools",
+              operation_type="update"
+            }
+          )
+          and
+          max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (
+            backend_resource_operation_phase_info{
+              resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools",
+              operation_type="update",
+              phase=~"accepted|updating"
+            }
+          ) == 1
+        ) > 2700
+      labels:
+        severity: "3"
+      annotations:
+        correlationId: 'BackendAsyncOperationStuck/{{ $labels.cluster }}/{{ $labels.resource_id }}'
+        summary: 'Node pool update operation stuck'
+        description: 'Node pool update operation for {{ $labels.resource_id }} has been running for over 45 minutes and is currently in {{ $labels.phase }} phase (e2e timeout: NodePoolVersionUpgradeTimeout).'
+        runbook_url: TBD
+    # Node pool delete: e2e timeout = 25 minutes (NodePoolDeletionTimeout)
+    - alert: BackendAsyncOperationNodePoolDeleteStuck
+      expr: |
+        (
+          max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (
+            time() - backend_resource_operation_start_time_seconds{
+              resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools",
+              operation_type="delete"
+            }
+          )
+          and
+          max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (
+            backend_resource_operation_phase_info{
+              resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools",
+              operation_type="delete",
+              phase="deleting"
+            }
+          ) == 1
+        ) > 1500
+      labels:
+        severity: "3"
+      annotations:
+        correlationId: 'BackendAsyncOperationStuck/{{ $labels.cluster }}/{{ $labels.resource_id }}'
+        summary: 'Node pool delete operation stuck'
+        description: 'Node pool delete operation for {{ $labels.resource_id }} has been running for over 25 minutes and is currently in deleting phase (e2e timeout: NodePoolDeletionTimeout).'
+        runbook_url: TBD
+    # ----------------------------------------
+    # External auth operations
+    # ----------------------------------------
+    # External auth create: e2e timeout = 15 minutes (ExternalAuthCreationTimeout)
+    # Includes the awaitingsecret phase, which is specific to external auth.
+    - alert: BackendAsyncOperationExternalAuthCreateStuck
+      expr: |
+        (
+          max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (
+            time() - backend_resource_operation_start_time_seconds{
+              resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths",
+              operation_type="create"
+            }
+          )
+          and
+          max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (
+            backend_resource_operation_phase_info{
+              resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths",
+              operation_type="create",
+              phase=~"accepted|awaitingsecret|provisioning"
+            }
+          ) == 1
+        ) > 900
+      labels:
+        severity: "3"
+      annotations:
+        correlationId: 'BackendAsyncOperationStuck/{{ $labels.cluster }}/{{ $labels.resource_id }}'
+        summary: 'External auth create operation stuck'
+        description: 'External auth create operation for {{ $labels.resource_id }} has been running for over 15 minutes and is currently in {{ $labels.phase }} phase (e2e timeout: ExternalAuthCreationTimeout).'
+        runbook_url: TBD
+    # External auth update: no explicit e2e constant, using 10 minutes as
+    # a reasonable default (no VM provisioning involved).
+    - alert: BackendAsyncOperationExternalAuthUpdateStuck
+      expr: |
+        (
+          max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (
+            time() - backend_resource_operation_start_time_seconds{
+              resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths",
+              operation_type="update"
+            }
+          )
+          and
+          max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (
+            backend_resource_operation_phase_info{
+              resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths",
+              operation_type="update",
+              phase=~"accepted|updating"
+            }
+          ) == 1
+        ) > 600
+      labels:
+        severity: "3"
+      annotations:
+        correlationId: 'BackendAsyncOperationStuck/{{ $labels.cluster }}/{{ $labels.resource_id }}'
+        summary: 'External auth update operation stuck'
+        description: 'External auth update operation for {{ $labels.resource_id }} has been running for over 10 minutes and is currently in {{ $labels.phase }} phase.'
+        runbook_url: TBD
+    # External auth delete: e2e timeout = 15 minutes (ExternalAuthDeletionTimeout)
+    - alert: BackendAsyncOperationExternalAuthDeleteStuck
+      expr: |
+        (
+          max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (
+            time() - backend_resource_operation_start_time_seconds{
+              resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths",
+              operation_type="delete"
+            }
+          )
+          and
+          max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (
+            backend_resource_operation_phase_info{
+              resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths",
+              operation_type="delete",
+              phase="deleting"
+            }
+          ) == 1
+        ) > 900
+      labels:
+        severity: "3"
+      annotations:
+        correlationId: 'BackendAsyncOperationStuck/{{ $labels.cluster }}/{{ $labels.resource_id }}'
+        summary: 'External auth delete operation stuck'
+        description: 'External auth delete operation for {{ $labels.resource_id }} has been running for over 15 minutes and is currently in deleting phase (e2e timeout: ExternalAuthDeletionTimeout).'
+        runbook_url: TBD
+    # ----------------------------------------
+    # Backstop: any async operation not covered above
+    # ----------------------------------------
+    # Catches any future operation types that don't have explicit alerts.
+    # Threshold (60 min) is higher than the longest specific alert (45 min for upgrades).
+    # Double-fires with specific alerts correlate to the same IcM incident via shared correlationId.
+    - alert: BackendAsyncOperationStuck
+      expr: |
+        (
+          max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (
+            time() - backend_resource_operation_start_time_seconds
+          )
+          and
+          max by (resource_id, subscription_id, resource_type, operation_type, phase, cluster) (
+            backend_resource_operation_phase_info{
+              phase=~"accepted|provisioning|updating|deleting|awaitingsecret"
+            }
+          ) == 1
+        ) > 3600
+      labels:
+        severity: "3"
+      annotations:
+        correlationId: 'BackendAsyncOperationStuck/{{ $labels.cluster }}/{{ $labels.resource_id }}'
+        summary: 'Async operation stuck'
+        description: 'Async {{ $labels.operation_type }} operation for {{ $labels.resource_id }} ({{ $labels.resource_type }}) has been running for over 60 minutes and is currently in {{ $labels.phase }} phase.'
+        runbook_url: TBD
