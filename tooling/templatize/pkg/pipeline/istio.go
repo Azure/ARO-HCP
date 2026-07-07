@@ -91,5 +91,13 @@ func runIstioUpgradeStep(id graph.Identifier, step *types.IstioUpgradeStep, ctx 
 	opts.RegionRG = configString(regionRG)
 	opts.DryRun = step.DryRun
 
+	switch step.Phase {
+	case "install":
+		opts.StopAfter = istio.StopAfterCanaryStart
+	case "upgrade", "":
+	default:
+		return fmt.Errorf("unknown IstioUpgrade phase %q: must be \"install\" or \"upgrade\"", step.Phase)
+	}
+
 	return istio.RunUpgrade(ctx, opts, aksClient, kubeClient)
 }
