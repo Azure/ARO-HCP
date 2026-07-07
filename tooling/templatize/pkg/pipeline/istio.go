@@ -37,6 +37,17 @@ func configString(val any) string {
 	return fmt.Sprintf("%v", val)
 }
 
+func stopAfterForPhase(phase string) (istio.StopAfter, error) {
+	switch phase {
+	case "install":
+		return istio.StopAfterCanaryStart, nil
+	case "upgrade", "":
+		return "", nil
+	default:
+		return "", fmt.Errorf("unknown IstioUpgrade phase %q: must be \"install\", \"upgrade\", or empty", phase)
+	}
+}
+
 func runIstioUpgradeStep(id graph.Identifier, step *types.IstioUpgradeStep, ctx context.Context, options *StepRunOptions, executionTarget ExecutionTarget) error {
 	logger := logr.FromContextOrDiscard(ctx).WithValues("stepID", id)
 
@@ -91,13 +102,11 @@ func runIstioUpgradeStep(id graph.Identifier, step *types.IstioUpgradeStep, ctx 
 	opts.RegionRG = configString(regionRG)
 	opts.DryRun = step.DryRun
 
-	switch step.Phase {
-	case "install":
-		opts.StopAfter = istio.StopAfterCanaryStart
-	case "upgrade", "":
-	default:
-		return fmt.Errorf("unknown IstioUpgrade phase %q: must be \"install\" or \"upgrade\"", step.Phase)
+	stopAfter, err := stopAfterForPhase(step.Phase)
+	if err != nil {
+		return err
 	}
+	opts.StopAfter = stopAfter
 
 	return istio.RunUpgrade(ctx, opts, aksClient, kubeClient)
 }
