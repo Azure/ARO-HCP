@@ -9,6 +9,13 @@ set -euo pipefail
 # uniqueName to applicationName, which is exactly what mock-identity-apps.bicep
 # passes.
 
+if [ -n "${DRY_RUN:-}" ]; then
+  echo "DRY_RUN mode enabled - will only show what would be patched, not actually patch anything"
+  DRY_RUN_MODE=true
+else
+  DRY_RUN_MODE=false
+fi
+
 APPS=(
   # DEV shared identities
   "aro-dev-first-party2"
@@ -52,12 +59,16 @@ for APP_NAME in "${APPS[@]}"; do
     continue
   fi
 
-  echo -n "PATCH ${APP_NAME} ... "
-  az rest --method PATCH \
-    --url "https://graph.microsoft.com/beta/applications/${OBJECT_ID}" \
-    --body "{\"uniqueName\": \"${APP_NAME}\"}" \
-    -o none
-  echo "done"
+  if [ "$DRY_RUN_MODE" = true ]; then
+    echo "NEEDS ${APP_NAME} (uniqueName not set, would patch)"
+  else
+    echo -n "PATCH ${APP_NAME} ... "
+    az rest --method PATCH \
+      --url "https://graph.microsoft.com/beta/applications/${OBJECT_ID}" \
+      --body "{\"uniqueName\": \"${APP_NAME}\"}" \
+      -o none
+    echo "done"
+  fi
 done
 
 if [[ ${ERRORS} -gt 0 ]]; then
