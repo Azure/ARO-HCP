@@ -30,7 +30,6 @@ The tree of pipelines making up the ARO HCP service are documented here from the
 - Microsoft.Azure.ARO.HCP.Management.Delete ([ref](https://github.com/Azure/ARO-HCP/tree/main/dev-infrastructure/cleanup/delete.mgmt.pipeline.yaml)): Delete the management resources and management resource group
 - Microsoft.Azure.ARO.HCP.Service.Delete ([ref](https://github.com/Azure/ARO-HCP/tree/main/dev-infrastructure/cleanup/delete.svc.pipeline.yaml)): Delete the service resources and service resource group
 - Microsoft.Azure.ARO.HCP.Region.Delete ([ref](https://github.com/Azure/ARO-HCP/tree/main/dev-infrastructure/cleanup/delete.region.pipeline.yaml)): Delete the region resources and resource group
-- Microsoft.Azure.ARO.HCP.Grafana ([ref](https://github.com/Azure/ARO-HCP/tree/main/dev-infrastructure/grafana-pipeline.yaml)): Test pipeline for Grafana reconciliation.
 - Microsoft.Azure.ARO.HCP.Observability ([ref](https://github.com/Azure/ARO-HCP/tree/main/observability/tracing/pipeline.yaml)): Deploy the development tracing stack.
 - Microsoft.Azure.ARO.HCP.Kusto.Delete ([ref](https://github.com/Azure/ARO-HCP/tree/main/dev-infrastructure/cleanup/delete.kusto.instance.pipeline.yaml)): Delete the kusto instance.
 - Microsoft.Azure.ARO.HCP.Service.Kubeconfig ([ref](https://github.com/Azure/ARO-HCP/tree/main/dev-infrastructure/svc-kubeconfig.yaml)): Grant access to AKS SVC AKS Clusters, mainly intended for E2E test setup.
