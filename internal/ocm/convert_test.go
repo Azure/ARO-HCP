@@ -137,28 +137,6 @@ func TestWithImmutableAttributes(t *testing.T) {
 			want: ocmCluster(t, ocmClusterDefaults(api.TestLocation).Version(
 				arohcpv1alpha1.NewVersion().ID("openshift-v4.21.20").ChannelGroup("stable"))),
 		},
-		{
-			name: "with FIPS enabled",
-			hcpCluster: &api.HCPOpenShiftCluster{
-				ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
-					ExperimentalFeatures: api.ExperimentalFeatures{
-						FIPSEnabled: true,
-					},
-				},
-			},
-			want: ocmCluster(t, ocmClusterDefaults(api.TestLocation).FIPS(true)),
-		},
-		{
-			name: "with FIPS disabled",
-			hcpCluster: &api.HCPOpenShiftCluster{
-				ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
-					ExperimentalFeatures: api.ExperimentalFeatures{
-						FIPSEnabled: false,
-					},
-				},
-			},
-			want: ocmCluster(t, ocmClusterDefaults(api.TestLocation).FIPS(false)),
-		},
 	}
 
 	for _, tc := range testCases {
@@ -266,8 +244,7 @@ func ocmClusterDefaults(azureLocation string) *arohcpv1alpha1.ClusterBuilder {
 		ImageRegistry(arohcpv1alpha1.NewClusterImageRegistry().
 			State(csImageRegistryStateEnabled)).
 		RegistryConfig(arohcpv1alpha1.NewClusterRegistryConfig().
-			ImageDigestMirrors()).
-		FIPS(false)
+			ImageDigestMirrors())
 }
 
 func getHCPNodePoolResource(opts ...func(*api.HCPOpenShiftClusterNodePool)) *api.HCPOpenShiftClusterNodePool {
