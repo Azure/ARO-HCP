@@ -415,6 +415,30 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 			},
 		},
 		{
+			name:            "operation older than one hour transitions to failed without calling cluster service",
+			existingCluster: newClusterWithCustomerVersion("4.19"),
+			existingOperation: func() *api.Operation {
+				op := newOperationAccepted()
+				op.StartTime = testClockNow.Add(-clusterUpdateOperationTimeout - time.Second)
+				return op
+			}(),
+			existingServiceProviderCluster: newServiceProviderClusterWithSpecControlPlaneVersion("4.19"),
+			cachedHostedClusterReadDesire:    newPassingCachedHostedClusterReadDesire(),
+			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
+				require.NoError(t, err)
+				assert.Equal(t, arm.ProvisioningStateFailed, op.Status)
+				require.NotNil(t, op.Error)
+				assert.Equal(t, arm.CloudErrorCodeInvalidRequestContent, op.Error.Code)
+				assert.Contains(t, op.Error.Message, "timed out after 1h0m0s waiting for cluster update to complete")
+
+				cluster, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
+				require.NoError(t, err)
+				assert.Equal(t, arm.ProvisioningStateFailed, cluster.ServiceProviderProperties.ProvisioningState)
+				assert.Empty(t, cluster.ServiceProviderProperties.ActiveOperationID)
+			},
+		},
+		{
 			name: "cs cluster ready with hypershift autoscaling spec mismatch keeps operation updating",
 			existingCluster: newClusterWithCustomerVersion("4.19", func(cluster *api.HCPOpenShiftCluster) {
 				cluster.CustomerProperties.Autoscaling.MaxNodesTotal = 10

@@ -44,6 +44,12 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
+// clusterUpdateOperationTimeout is the maximum time a cluster update operation
+// may remain in a non-terminal state before it is marked Failed. Elapsed time
+// is measured from Operation.StartTime, which is set when the frontend creates
+// the operation document.
+const clusterUpdateOperationTimeout = 1 * time.Hour
+
 type operationClusterUpdate struct {
 	clock                           utilsclock.PassiveClock
 	resourcesDBClient               database.ResourcesDBClient
@@ -185,6 +191,17 @@ func (c *operationClusterUpdate) SynchronizeOperation(ctx context.Context, key c
 func (c *operationClusterUpdate) determineOperationState(ctx context.Context, operation *api.Operation, existingCluster *api.HCPOpenShiftCluster) (*operationState, error) {
 	logger := utils.LoggerFromContext(ctx)
 
+	// Fail fast on operation timeout before calling downstream checks. If the operation has timed out, we
+	// return the timeout state instead of the other states.
+	timeoutState, err := c.operationTimeoutOperationState(operation)
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+	if timeoutState != nil {
+		logger.Info("cluster update operation timed out", "startTime", operation.StartTime, "timeout", clusterUpdateOperationTimeout)
+		return timeoutState.withSource("operationTimeout"), nil
+	}
+
 	clusterCSID := existingCluster.ServiceProviderProperties.ClusterServiceID
 	existingCSCluster, err := c.clusterServiceClient.GetCluster(ctx, *clusterCSID)
 	if err != nil {
@@ -238,6 +255,24 @@ func (c *operationClusterUpdate) determineOperationState(ctx context.Context, op
 	}
 	logger.Info("picked cluster update operation status", "picked", picked)
 	return picked, nil
+}
+
+// operationTimeoutOperationState checks whether the cluster update operation
+// has exceeded clusterUpdateOperationTimeout. Returns (nil, nil) while the
+// operation is still within the deadline, (Failed, nil) once timed out, or an
+// error if StartTime is unset. Called before downstream status checks so a
+// timed-out operation is marked as Failed and not evaluated further in that case.
+func (c *operationClusterUpdate) operationTimeoutOperationState(operation *api.Operation) (*operationState, error) {
+	if operation.StartTime.IsZero() {
+		return nil, fmt.Errorf("operation %q has no start time", operation.ResourceID.Name)
+	}
+	if c.clock.Since(operation.StartTime) <= clusterUpdateOperationTimeout {
+		return nil, nil
+	}
+	return newOperationState(
+		arm.ProvisioningStateFailed,
+		fmt.Sprintf("timed out after %s waiting for cluster update to complete", clusterUpdateOperationTimeout),
+	), nil
 }
 
 func (c *operationClusterUpdate) desiredVersionResolutionOperationState(ctx context.Context, operation *api.Operation, existingCluster *api.HCPOpenShiftCluster, existingServiceProviderCluster *api.ServiceProviderCluster) (*operationState, error) {

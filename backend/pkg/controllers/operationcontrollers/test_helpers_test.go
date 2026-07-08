@@ -123,6 +123,7 @@ func (f *clusterTestFixture) newOperation(request database.OperationRequest) *ap
 		ExternalID:  f.clusterResourceID,
 		InternalID:  f.clusterInternalID,
 		OperationID: f.operationID,
+		StartTime:   mustParseTime("2024-06-01T12:00:00Z"),
 	}
 }
 
