@@ -40,6 +40,7 @@ ResourceRequestsAllowlist:
 - Job/velero-install/generate-manifest
 # Cluster Service (CS) charts - containers missing resources.requests.memory
 - Deployment/clusters-service/clusters-service-init # initContainer has no resources set
+- Deployment/ocm-cs-db/postgresql # postgresql container has no resources set
 # Components exempt from requiring resources.limits.memory
 ResourceMemoryLimitsAllowlist:
 # Standing exemptions
@@ -95,3 +96,4 @@ ResourceMemoryLimitsAllowlist:
 # Cluster Service (CS) charts - containers missing resources.limits.memory
 - Deployment/clusters-service/clusters-service-init # initContainer has no resources set
 - Deployment/clusters-service/clusters-service-server # config sets memory: unlimited (template omits limits)
+- Deployment/ocm-cs-db/postgresql # postgresql container has no resources set
