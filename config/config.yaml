@@ -1682,7 +1682,7 @@ clouds:
                 vmSize: Standard_D4ds_v6
               userAgentPool:
                 maxCount: 14
-                minCount: 5
+                minCount: 6
                 osDiskSizeGB: 100
                 vmSize: Standard_E16ds_v6
                 secondaryNicCount: 7
@@ -1781,7 +1781,7 @@ clouds:
                 vmSize: Standard_D4ds_v6
               userAgentPool:
                 maxCount: 14
-                minCount: 5
+                minCount: 6
                 osDiskSizeGB: 100
                 vmSize: Standard_E16ds_v6
                 secondaryNicCount: 7
