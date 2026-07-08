@@ -68,15 +68,21 @@ environments:
       identity_container_prefix: aro-hcp-msi-container-stg-shard0
       # provisionShardClusterLimit is configured to 25 in STG
       identity_container_count: 25
-
-# prod:
-#   deploy_envs:
-#     - prod
-#   pools:
-#     - subscription_name: "ARO HCP E2E"
-#       region: uksouth
-#       region_mode: runtime-selected
-#       resource_type: aro-hcp-prod-shard0-slot
-#       slot_count: 1
-#       identity_container_prefix: aro-hcp-msi-container-prod
-#       identity_container_count: 15
+  prod:
+    deploy_envs:
+    - prod
+    pools:
+    - subscription_name: "ARO HCP E2E Hosted Clusters - Prod - 00"
+      region: uksouth
+      region_mode: runtime-selected
+      resource_type: aro-hcp-prod-shard0-slot
+      slot_count: 12
+      identity_container_prefix: aro-hcp-msi-container-prod
+      identity_container_count: 25
+    - subscription_name: "ARO HCP E2E Hosted Clusters - Prod - 01"
+      region: uksouth
+      region_mode: runtime-selected
+      resource_type: aro-hcp-prod-shard1-slot
+      slot_count: 12
+      identity_container_prefix: aro-hcp-msi-container-prod
+      identity_container_count: 25
