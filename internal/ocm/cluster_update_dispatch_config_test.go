@@ -361,34 +361,6 @@ func TestClusterUpdateDispatchConfigFromCS(t *testing.T) {
 	}
 }
 
-func TestClusterUpdateDispatchConfigDiffers(t *testing.T) {
-	hcpCluster := &api.HCPOpenShiftCluster{
-		CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
-			NodeDrainTimeoutMinutes: 30,
-		},
-	}
-	spc := &api.ServiceProviderCluster{}
-
-	oldClusterServiceCluster, err := arohcpv1alpha1.NewCluster().Build()
-	require.NoError(t, err)
-
-	// We pass a non nil oldClusterServiceCluster so when we call BuildCSCluster, it will consider
-	// it is an update, so it will not attempt to set the immutable attributes.
-	matchingBuilder, matchingAutoscalerBuilder, err := BuildCSCluster(nil, "11111111-1111-1111-1111-111111111111", hcpCluster, nil, oldClusterServiceCluster, spc)
-	require.NoError(t, err)
-	matchingCSCluster, err := matchingBuilder.Autoscaler(matchingAutoscalerBuilder).Build()
-	require.NoError(t, err)
-
-	differs, err := ClusterUpdateDispatchConfigDiffers(hcpCluster, spc, matchingCSCluster)
-	require.NoError(t, err)
-	assert.False(t, differs)
-
-	hcpCluster.CustomerProperties.NodeDrainTimeoutMinutes = 60
-	differs, err = ClusterUpdateDispatchConfigDiffers(hcpCluster, spc, matchingCSCluster)
-	require.NoError(t, err)
-	assert.True(t, differs)
-}
-
 func TestClusterUpdateDispatchConfigAuthorizedCIDRsFromCS(t *testing.T) {
 	t.Parallel()
 
@@ -523,6 +495,12 @@ func TestClusterUpdateDispatchConfigJSONFromRPAndCS(t *testing.T) {
 			API: api.CustomerAPIProfile{
 				AuthorizedCIDRs: []string{"10.0.0.0/8"},
 			},
+			Autoscaling: api.ClusterAutoscalingProfile{
+				MaxNodesTotal:               12,
+				MaxPodGracePeriodSeconds:    600,
+				MaxNodeProvisionTimeSeconds: 900,
+				PodPriorityThreshold:        -10,
+			},
 		},
 	}
 	spc := &api.ServiceProviderCluster{}
@@ -542,8 +520,22 @@ func TestClusterUpdateDispatchConfigJSONFromRPAndCS(t *testing.T) {
 	require.NoError(t, err)
 	actualJSON, err := ClusterUpdateDispatchConfigJSONFromCS(csCluster)
 	require.NoError(t, err)
+
+	// We assert both semantic and byte-for-byte JSON equality on purpose:
+	//   - JSONEq checks that RP and CS projections represent the same config (values and structure).
+	//   - Equal checks that canonicalJSON produces identical strings on both sides. The cluster
+	//     service update dispatch controller uses string equality (==) for drift detection, so
+	//     this must hold whenever the configs match; JSONEq alone would not catch encoding
+	//     differences such as key ordering or whitespace that would cause a false drift signal.
 	assert.JSONEq(t, desiredJSON, actualJSON)
+	assert.Equal(t, desiredJSON, actualJSON)
 	assert.Contains(t, desiredJSON, `"nodeDrainTimeoutMinutes":45`)
+	assert.Contains(t, desiredJSON, `"maxNodesTotal":12`)
+
+	hcpCluster.CustomerProperties.Autoscaling.MaxNodesTotal = 20
+	desiredJSON, err = ClusterUpdateDispatchConfigJSONFromRP(hcpCluster, spc)
+	require.NoError(t, err)
+	assert.NotEqual(t, desiredJSON, actualJSON)
 }
 
 func TestClusterUpdateDispatchConfigApplyToCSBuilders(t *testing.T) {

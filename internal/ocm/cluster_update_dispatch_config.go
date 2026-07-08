@@ -148,28 +148,6 @@ type clusterUpdateDispatchConfigServiceProviderClusterDispatch struct {
 	DesiredHostedClusterControlPlaneSize *string `json:"desiredHostedClusterControlPlaneSize,omitempty"`
 }
 
-// ClusterUpdateDispatchConfigDiffers reports whether the dispatch-managed configuration
-// projected from RP differs from that projected from the live Cluster Service cluster.
-// Comparison uses a SHA-256 hash of each side's canonical JSON representation.
-func ClusterUpdateDispatchConfigDiffers(cluster *api.HCPOpenShiftCluster, serviceProviderCluster *api.ServiceProviderCluster, csCluster *arohcpv1alpha1.Cluster) (bool, error) {
-	desiredConfig := clusterUpdateDispatchConfigFromRP(cluster, serviceProviderCluster)
-	desiredHash, err := desiredConfig.hash()
-	if err != nil {
-		return false, err
-	}
-
-	actualConfig, err := clusterUpdateDispatchConfigFromCS(csCluster)
-	if err != nil {
-		return false, err
-	}
-	actualHash, err := actualConfig.hash()
-	if err != nil {
-		return false, err
-	}
-
-	return desiredHash != actualHash, nil
-}
-
 // ClusterUpdateDispatchConfigJSONFromRP returns the canonical JSON of the dispatch config
 // projected from RP desired state.
 func ClusterUpdateDispatchConfigJSONFromRP(cluster *api.HCPOpenShiftCluster, serviceProviderCluster *api.ServiceProviderCluster) (string, error) {
@@ -422,8 +400,7 @@ func clusterUpdateDispatchConfigHash(cluster *api.HCPOpenShiftCluster, servicePr
 	return clusterUpdateDispatchConfigFromRP(cluster, serviceProviderCluster).hash()
 }
 
-// hash returns a SHA-256 hex digest of c's canonical JSON. This is the encoding used by
-// ClusterUpdateDispatchConfigDiffers to compare RP and Cluster Service projections.
+// hash returns a SHA-256 hex digest of c's canonical JSON.
 func (c *clusterUpdateDispatchConfig) hash() (string, error) {
 	return hashUpdateDispatchConfig(c)
 }

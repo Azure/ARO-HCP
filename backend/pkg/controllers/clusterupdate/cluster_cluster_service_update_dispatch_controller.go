@@ -187,17 +187,8 @@ func (c *clusterClusterServiceUpdateDispatchSyncer) SyncOnce(ctx context.Context
 
 	// We check if the desired config coming from cosmos differs from the actual config coming from cluster service.
 	// If it doesn't, we are done and don't need to dispatch an update. If it does, we need to dispatch an update to
-	// cluster service
-	needsUpdate, err := ocm.ClusterUpdateDispatchConfigDiffers(cluster, serviceProviderCluster, clusterServiceCluster)
-	if err != nil {
-		return utils.TrackError(err)
-	}
-	if !needsUpdate {
-		return nil
-	}
-
-	// We marshal the desired config coming from cosmos and the actual config coming from cluster service into JSON for
-	// logging purposes
+	// cluster service. Comparison uses canonical JSON (sorted object keys at every level) so we can compare them
+	// using direct string equality.
 	desiredConfigJSON, err := ocm.ClusterUpdateDispatchConfigJSONFromRP(cluster, serviceProviderCluster)
 	if err != nil {
 		return utils.TrackError(err)
@@ -206,6 +197,10 @@ func (c *clusterClusterServiceUpdateDispatchSyncer) SyncOnce(ctx context.Context
 	if err != nil {
 		return utils.TrackError(err)
 	}
+	if desiredConfigJSON == actualConfigJSON {
+		return nil
+	}
+
 	logger.Info("update dispatch config differs between RP and CS",
 		"clusterServiceID", clusterCSID.String(),
 		"desiredConfig", desiredConfigJSON,
