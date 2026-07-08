@@ -1851,7 +1851,7 @@ resource leaderelection 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03
           severity: 'warning'
         }
         annotations: {
-          correlationId: 'LeaderElectionLeaseStale/{{ $labels.cluster }}'
+          correlationId: 'LeaderElectionLeaseStale/{{ $labels.cluster }}/{{ $labels.lease }}/{{ $labels.namespace }}'
           description: 'Leader election lease {{ $labels.lease }} in namespace {{ $labels.namespace }} on cluster {{ $labels.cluster }} has not been renewed for more than 20 minutes. The component may have lost leadership or stopped running.'
           info: 'Leader election lease {{ $labels.lease }} in namespace {{ $labels.namespace }} on cluster {{ $labels.cluster }} has not been renewed for more than 20 minutes. The component may have lost leadership or stopped running.'
           runbook_url: 'TBD'
