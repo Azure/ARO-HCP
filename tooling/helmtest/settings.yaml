@@ -41,6 +41,7 @@ ResourceRequestsAllowlist:
 # Cluster Service (CS) charts - containers missing resources.requests.memory
 - Deployment/clusters-service/clusters-service-init # initContainer has no resources set
 - Deployment/ocm-cs-db/postgresql # postgresql container has no resources set
+- Job/shell-script-executor-1/cs-shell-script-executor # cs-debug-jobs debug job has no resources set
 # Components exempt from requiring resources.limits.memory
 ResourceMemoryLimitsAllowlist:
 # Standing exemptions
@@ -97,3 +98,4 @@ ResourceMemoryLimitsAllowlist:
 - Deployment/clusters-service/clusters-service-init # initContainer has no resources set
 - Deployment/clusters-service/clusters-service-server # config sets memory: unlimited (template omits limits)
 - Deployment/ocm-cs-db/postgresql # postgresql container has no resources set
+- Job/shell-script-executor-1/cs-shell-script-executor # cs-debug-jobs debug job has no resources set
