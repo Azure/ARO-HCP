@@ -25,13 +25,21 @@ import (
 	certificatesv1 "k8s.io/api/certificates/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	"sigs.k8s.io/controller-runtime/pkg/client"
+	"k8s.io/apimachinery/pkg/runtime"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	certificatesv1alpha1 "github.com/openshift/hypershift/api/certificates/v1alpha1"
 )
+
+// KubeObject is the subset of a typed Kubernetes object that our builders
+// produce and our controllers serialize. It combines object metadata access
+// (metav1.Object) with runtime.Object so callers can read name/namespace/GVK and
+// JSON-marshal the object without depending on sigs.k8s.io/controller-runtime.
+type KubeObject interface {
+	metav1.Object
+	runtime.Object
+}
 
 const (
 	// ownerAnnotationKey is the annotation applied to every k8s object we land
@@ -115,8 +123,8 @@ func BuildCSR(owner *azcorearm.ResourceID, credName, username, hcpNamespace stri
 	}, nil
 }
 
-// BuildCSRA builds a CertificateSigningRequestApproval for a system admin credential.
-func BuildCSRA(owner *azcorearm.ResourceID, credName, hcpNamespace string) *certificatesv1alpha1.CertificateSigningRequestApproval {
+// BuildCSRApproval builds a CertificateSigningRequestApproval for a system admin credential.
+func BuildCSRApproval(owner *azcorearm.ResourceID, credName, hcpNamespace string) *certificatesv1alpha1.CertificateSigningRequestApproval {
 	requireOwner(owner)
 	return &certificatesv1alpha1.CertificateSigningRequestApproval{
 		TypeMeta: metav1.TypeMeta{
@@ -154,11 +162,11 @@ func BuildRevocationRequest(owner *azcorearm.ResourceID, revokeOpSuffix, hcpName
 // BuildRBACGiveCSRPerm returns a ClusterRole + ClusterRoleBinding pair that
 // grants the klusterlet permission to manage CertificateSigningRequests for
 // this credential.
-func BuildRBACGiveCSRPerm(owner *azcorearm.ResourceID, credName string) []client.Object {
+func BuildRBACGiveCSRPerm(owner *azcorearm.ResourceID, credName string) []KubeObject {
 	requireOwner(owner)
 	name := fmt.Sprintf("system-admin-credential-give-csr-perm-%s", credName)
 	annotations := ownerAnnotation(owner)
-	return []client.Object{
+	return []KubeObject{
 		&rbacv1.ClusterRole{
 			TypeMeta: metav1.TypeMeta{
 				APIVersion: "rbac.authorization.k8s.io/v1",
@@ -202,13 +210,13 @@ func BuildRBACGiveCSRPerm(owner *azcorearm.ResourceID, credName string) []client
 	}
 }
 
-// BuildRBACCSRA returns a Role + RoleBinding pair that grants the klusterlet
+// BuildRBACCSRApproval returns a Role + RoleBinding pair that grants the klusterlet
 // permission to manage CertificateSigningRequestApprovals for this credential.
-func BuildRBACCSRA(owner *azcorearm.ResourceID, credName, hcpNamespace string) []client.Object {
+func BuildRBACCSRApproval(owner *azcorearm.ResourceID, credName, hcpNamespace string) []KubeObject {
 	requireOwner(owner)
-	name := fmt.Sprintf("system-admin-credential-csra-perm-%s", credName)
+	name := fmt.Sprintf("system-admin-credential-csrapproval-perm-%s", credName)
 	annotations := ownerAnnotation(owner)
-	return []client.Object{
+	return []KubeObject{
 		&rbacv1.Role{
 			TypeMeta: metav1.TypeMeta{
 				APIVersion: "rbac.authorization.k8s.io/v1",
@@ -256,11 +264,11 @@ func BuildRBACCSRA(owner *azcorearm.ResourceID, credName, hcpNamespace string) [
 
 // BuildRBACRevocation returns a Role + RoleBinding pair that grants the klusterlet
 // permission to manage CertificateRevocationRequests for this credential.
-func BuildRBACRevocation(owner *azcorearm.ResourceID, credName, hcpNamespace string) []client.Object {
+func BuildRBACRevocation(owner *azcorearm.ResourceID, credName, hcpNamespace string) []KubeObject {
 	requireOwner(owner)
 	name := fmt.Sprintf("system-admin-credential-revocation-perm-%s", credName)
 	annotations := ownerAnnotation(owner)
-	return []client.Object{
+	return []KubeObject{
 		&rbacv1.Role{
 			TypeMeta: metav1.TypeMeta{
 				APIVersion: "rbac.authorization.k8s.io/v1",

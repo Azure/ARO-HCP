@@ -20,6 +20,7 @@ import (
 	"net/http"
 	"time"
 
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/client-go/tools/cache"
 	utilsclock "k8s.io/utils/clock"
 
@@ -128,7 +129,7 @@ func (c *operationRequestCredentialPoll) SynchronizeOperation(ctx context.Contex
 			Message: "Failed to provision cluster credential",
 		}
 		// If there's a condition with more detail, use it.
-		if c := cred.Status.GetCondition(api.SystemAdminCredentialRequestConditionFailed); c != nil {
+		if c := meta.FindStatusCondition(cred.Status.Conditions, api.SystemAdminCredentialRequestConditionFailed); c != nil {
 			newOperationError.Message = c.Message
 		}
 	case cred.Status.IsAwaitingRevocation(), cred.Status.IsRevoked():
