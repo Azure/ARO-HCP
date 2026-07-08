@@ -20,8 +20,11 @@ import (
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/ptr"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
+	"github.com/openshift/hypershift/api/hypershift/v1beta1"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
@@ -120,6 +123,7 @@ func (f *clusterTestFixture) newOperation(request database.OperationRequest) *ap
 		ExternalID:  f.clusterResourceID,
 		InternalID:  f.clusterInternalID,
 		OperationID: f.operationID,
+		StartTime:   mustParseTime("2024-06-01T12:00:00Z"),
 	}
 }
 
@@ -358,5 +362,20 @@ func (f *externalAuthTestFixture) operationKey() controllerutils.OperationKey {
 		SubscriptionID:   testSubscriptionID,
 		OperationName:    testOperationName,
 		ParentResourceID: f.externalAuthResourceID.String(),
+	}
+}
+
+// testClusterUpdateMatchingHostedClusterSpec returns a HostedCluster spec that matches the
+// default cluster fixture for cluster update state calculation tests.
+func testClusterUpdateMatchingHostedClusterSpec() v1beta1.HostedClusterSpec {
+	return v1beta1.HostedClusterSpec{
+		Autoscaling: v1beta1.ClusterAutoscaling{
+			MaxNodesTotal:        ptr.To[int32](0),
+			MaxPodGracePeriod:    ptr.To[int32](0),
+			MaxNodeProvisionTime: "0m",
+			PodPriorityThreshold: ptr.To[int32](0),
+		},
+		ControllerAvailabilityPolicy:     v1beta1.HighlyAvailable,
+		InfrastructureAvailabilityPolicy: v1beta1.HighlyAvailable,
 	}
 }

@@ -31,18 +31,33 @@ import (
 	utilsclock "k8s.io/utils/clock"
 	"k8s.io/utils/lru"
 
+	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
+
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
+	"github.com/Azure/ARO-HCP/backend/pkg/informers"
+	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
+	dblisters "github.com/Azure/ARO-HCP/internal/database/listers"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
+
+// clusterUpdateOperationTimeout is the maximum time a cluster update operation
+// may remain in a non-terminal state before it is marked Failed. Elapsed time
+// is measured from Operation.StartTime, which is set when the frontend creates
+// the operation document.
+const clusterUpdateOperationTimeout = 1 * time.Hour
 
 type operationClusterUpdate struct {
 	clock                           utilsclock.PassiveClock
 	resourcesDBClient               database.ResourcesDBClient
 	clusterServiceClient            ocm.ClusterServiceClientSpec
+	clusterLister                   listers.ClusterLister
+	serviceProviderClusterLister    listers.ServiceProviderClusterLister
+	readDesireLister                dblisters.ReadDesireLister
+	activeOperationsLister          listers.ActiveOperationLister
 	notificationClient              *http.Client
 	desiredVersionMismatchFirstSeen *lru.Cache
 }
@@ -65,13 +80,23 @@ func NewOperationClusterUpdateController(
 	clock utilsclock.PassiveClock,
 	resourcesDBClient database.ResourcesDBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
+	readDesireLister dblisters.ReadDesireLister,
 	notificationClient *http.Client,
 	activeOperationInformer cache.SharedIndexInformer,
+	backendInformers informers.BackendInformers,
 ) controllerutils.Controller {
+	_, clusterLister := backendInformers.Clusters()
+	_, serviceProviderClusterLister := backendInformers.ServiceProviderClusters()
+	_, activeOperationsLister := backendInformers.ActiveOperations()
+
 	syncer := &operationClusterUpdate{
 		clock:                           clock,
 		resourcesDBClient:               resourcesDBClient,
 		clusterServiceClient:            clusterServiceClient,
+		clusterLister:                   clusterLister,
+		serviceProviderClusterLister:    serviceProviderClusterLister,
+		readDesireLister:                readDesireLister,
+		activeOperationsLister:          activeOperationsLister,
 		notificationClient:              notificationClient,
 		desiredVersionMismatchFirstSeen: lru.New(100000),
 	}
@@ -100,11 +125,16 @@ func (c *operationClusterUpdate) ShouldProcess(ctx context.Context, operation *a
 	return true
 }
 
+func (c *operationClusterUpdate) shouldReconcileOperationAndResourceStatus(cluster *api.HCPOpenShiftCluster) bool {
+	return cluster.ServiceProviderProperties.DeletionTimestamp == nil &&
+		cluster.ServiceProviderProperties.ClusterServiceID != nil
+}
+
 func (c *operationClusterUpdate) SynchronizeOperation(ctx context.Context, key controllerutils.OperationKey) error {
 	logger := utils.LoggerFromContext(ctx)
 	logger.Info("checking operation")
 
-	operation, err := c.resourcesDBClient.Operations(key.SubscriptionID).Get(ctx, key.OperationName)
+	operation, err := c.activeOperationsLister.Get(ctx, key.SubscriptionID, key.OperationName)
 	if database.IsNotFoundError(err) {
 		return nil // no work to do
 	}
@@ -114,46 +144,98 @@ func (c *operationClusterUpdate) SynchronizeOperation(ctx context.Context, key c
 	if !c.ShouldProcess(ctx, operation) {
 		return nil // no work to do
 	}
-	if len(operation.InternalID.String()) == 0 {
-		// we cannot proceed: yet.
-		// TODO when we update to make clusterserice creation async, we need to handle this correctly.
+
+	existingCluster, err := c.clusterLister.Get(ctx, operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName, operation.ExternalID.Name)
+	if database.IsNotFoundError(err) {
+		logger.Info("cluster not found in cache, waiting")
+		return nil // no work to do
+	}
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to get cluster: %w", err))
+	}
+
+	if operation.ResourceID.Name != existingCluster.ServiceProviderProperties.ActiveOperationID {
+		logger.Info("cluster active operation id mismatch, returning early", "synchronizedActiveOperationID", operation.ResourceID.Name, "clusterActiveOperationID", existingCluster.ServiceProviderProperties.ActiveOperationID)
 		return nil
 	}
 
-	operationalState, err := c.determineOperationState(ctx, operation)
+	if !c.shouldReconcileOperationAndResourceStatus(existingCluster) {
+		return nil // no work to do
+	}
+
+	operationalState, err := c.determineOperationState(ctx, operation, existingCluster)
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
 	var persistErr *arm.CloudErrorBody
-	if operationalState.provisioningState == arm.ProvisioningStateFailed {
+	if operationalState.ProvisioningState == arm.ProvisioningStateFailed {
 		persistErr = &arm.CloudErrorBody{
 			Code:    arm.CloudErrorCodeInvalidRequestContent,
-			Message: operationalState.message,
+			Message: operationalState.Message,
 		}
 	}
 
 	logger.Info("updating status")
-	if err := UpdateOperationStatus(ctx, c.clock, c.resourcesDBClient, operation, operationalState.provisioningState, persistErr, postAsyncNotificationFn(c.notificationClient)); err != nil {
+	err = UpdateOperationStatus(ctx, c.clock, c.resourcesDBClient, operation, operationalState.ProvisioningState, persistErr, postAsyncNotificationFn(c.notificationClient))
+	if database.IsPreconditionFailedError(err) {
+		// if we have a conflict error, then we're guaranteed that our informer will eventually see an update and trigger us again.
+		return nil
+	}
+	if err != nil {
 		return utils.TrackError(err)
 	}
 	return nil
 }
 
-func (c *operationClusterUpdate) determineOperationState(ctx context.Context, operation *api.Operation) (*operationState, error) {
+func (c *operationClusterUpdate) determineOperationState(ctx context.Context, operation *api.Operation, existingCluster *api.HCPOpenShiftCluster) (*operationState, error) {
 	logger := utils.LoggerFromContext(ctx)
+
+	// Fail fast on operation timeout before calling downstream checks. If the operation has timed out, we
+	// return the timeout state instead of the other states.
+	timeoutState, err := c.operationTimeoutOperationState(operation)
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+	if timeoutState != nil {
+		logger.Info("cluster update operation timed out", "startTime", operation.StartTime, "timeout", clusterUpdateOperationTimeout)
+		return timeoutState.withSource("operationTimeout"), nil
+	}
+
+	clusterCSID := existingCluster.ServiceProviderProperties.ClusterServiceID
+	existingCSCluster, err := c.clusterServiceClient.GetCluster(ctx, *clusterCSID)
+	if err != nil {
+		return nil, utils.TrackError(fmt.Errorf("failed to get cluster from cluster service: %w", err))
+	}
+
+	existingServiceProviderCluster, err := c.serviceProviderClusterLister.Get(ctx, operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName, operation.ExternalID.Name)
+	if err != nil {
+		return nil, utils.TrackError(fmt.Errorf("failed to get service provider cluster from cache: %w", err))
+	}
+
 	errs := []error{}
 	operationStates := []*operationState{}
 
-	if operationState, err := c.desiredVersionResolutionOperationState(ctx, operation); err != nil {
+	if operationState, err := c.desiredVersionResolutionOperationState(ctx, operation, existingCluster, existingServiceProviderCluster); err != nil {
 		errs = append(errs, utils.TrackError(err))
 	} else {
-		operationStates = append(operationStates, operationState)
+		operationStates = append(operationStates, operationState.withSource("controlPlaneDesiredVersionResolution"))
 	}
-	if operationState, csErr := c.clusterServiceUpdateOperationState(ctx, operation); csErr != nil {
+	if operationState, csErr := c.clusterServiceClusterStatusOperationState(ctx, operation, existingCSCluster.Status()); csErr != nil {
 		errs = append(errs, utils.TrackError(csErr))
 	} else {
-		operationStates = append(operationStates, operationState)
+		operationStates = append(operationStates, operationState.withSource("clusterServiceClusterStatus"))
+	}
+	if operationState, csErr := c.clusterServiceClusterSpecOperationState(existingCluster, existingCSCluster); csErr != nil {
+		errs = append(errs, utils.TrackError(csErr))
+	} else {
+		operationStates = append(operationStates, operationState.withSource("clusterServiceClusterSpec"))
+	}
+
+	if operationState, hsErr := c.hypershiftHostedClusterOperationState(ctx, existingCluster, existingServiceProviderCluster); hsErr != nil {
+		errs = append(errs, utils.TrackError(hsErr))
+	} else {
+		operationStates = append(operationStates, operationState.withSource("hypershiftHostedCluster"))
 	}
 
 	if err := errors.Join(errs...); err != nil {
@@ -171,19 +253,29 @@ func (c *operationClusterUpdate) determineOperationState(ctx context.Context, op
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
-	logger.Info("picked cluster update operation status", "provisioningState", picked.provisioningState, "message", picked.message)
+	logger.Info("picked cluster update operation status", "picked", picked)
 	return picked, nil
 }
 
-func (c *operationClusterUpdate) desiredVersionResolutionOperationState(ctx context.Context, operation *api.Operation) (*operationState, error) {
-	existingCluster, err := c.resourcesDBClient.HCPClusters(operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName).Get(ctx, operation.ExternalID.Name)
-	if err != nil {
-		return nil, utils.TrackError(err)
+// operationTimeoutOperationState checks whether the cluster update operation
+// has exceeded clusterUpdateOperationTimeout. Returns (nil, nil) while the
+// operation is still within the deadline, (Failed, nil) once timed out, or an
+// error if StartTime is unset. Called before downstream status checks so a
+// timed-out operation is marked as Failed and not evaluated further in that case.
+func (c *operationClusterUpdate) operationTimeoutOperationState(operation *api.Operation) (*operationState, error) {
+	if operation.StartTime.IsZero() {
+		return nil, fmt.Errorf("operation %q has no start time", operation.ResourceID.Name)
 	}
-	existingServiceProviderCluster, err := c.resourcesDBClient.ServiceProviderClusters(operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName, operation.ExternalID.Name).Get(ctx, api.ServiceProviderClusterResourceName)
-	if err != nil {
-		return nil, utils.TrackError(err)
+	if c.clock.Since(operation.StartTime) <= clusterUpdateOperationTimeout {
+		return nil, nil
 	}
+	return newOperationState(
+		arm.ProvisioningStateFailed,
+		fmt.Sprintf("timed out after %s waiting for cluster update to complete", clusterUpdateOperationTimeout),
+	), nil
+}
+
+func (c *operationClusterUpdate) desiredVersionResolutionOperationState(ctx context.Context, operation *api.Operation, existingCluster *api.HCPOpenShiftCluster, existingServiceProviderCluster *api.ServiceProviderCluster) (*operationState, error) {
 	resultingDesiredVersion := existingServiceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion
 	if resultingDesiredVersion == nil {
 		return nil, utils.TrackError(fmt.Errorf("service provider cluster has no desired version"))
@@ -241,13 +333,10 @@ func (c *operationClusterUpdate) desiredVersionResolutionOperationState(ctx cont
 	return newOperationState(arm.ProvisioningStateFailed, intentFailedCondition.Message), nil
 }
 
-func (c *operationClusterUpdate) clusterServiceUpdateOperationState(ctx context.Context, operation *api.Operation) (*operationState, error) {
+func (c *operationClusterUpdate) clusterServiceClusterStatusOperationState(ctx context.Context, operation *api.Operation, existingCSClusterStatus *arohcpv1alpha1.ClusterStatus) (*operationState, error) {
 	logger := utils.LoggerFromContext(ctx)
-	clusterStatus, err := c.clusterServiceClient.GetClusterStatus(ctx, operation.InternalID)
-	if err != nil {
-		return nil, utils.TrackError(err)
-	}
-	newOperationStatus, opError, err := convertClusterStatus(ctx, c.clusterServiceClient, operation, clusterStatus)
+
+	newOperationStatus, opError, err := convertClusterStatus(ctx, c.clusterServiceClient, operation, existingCSClusterStatus)
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
@@ -256,5 +345,6 @@ func (c *operationClusterUpdate) clusterServiceUpdateOperationState(ctx context.
 	if opError != nil {
 		msg = opError.Message
 	}
+
 	return newOperationState(newOperationStatus, msg), nil
 }
