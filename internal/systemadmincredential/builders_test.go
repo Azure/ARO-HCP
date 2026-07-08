@@ -45,13 +45,13 @@ func TestBuildCSR(t *testing.T) {
 	assert.Equal(t, strings.ToLower(owner.String()), csr.Annotations[ownerAnnotationKey], "owner annotation must be set")
 }
 
-func TestBuildCSRA(t *testing.T) {
+func TestBuildCSRApproval(t *testing.T) {
 	owner := testOwner(t)
-	csra := BuildCSRA(owner, "abc123", "ocm-dev-clusterid")
+	csrApproval := BuildCSRApproval(owner, "abc123", "ocm-dev-clusterid")
 
-	assert.Equal(t, "system-admin-credential-abc123", csra.Name, "CSRA name should match CSR name")
-	assert.Equal(t, "ocm-dev-clusterid", csra.Namespace, "CSRA should be in HCP namespace")
-	assert.Equal(t, strings.ToLower(owner.String()), csra.Annotations[ownerAnnotationKey], "owner annotation must be set")
+	assert.Equal(t, "system-admin-credential-abc123", csrApproval.Name, "CSRApproval name should match CSR name")
+	assert.Equal(t, "ocm-dev-clusterid", csrApproval.Namespace, "CSRApproval should be in HCP namespace")
+	assert.Equal(t, strings.ToLower(owner.String()), csrApproval.Annotations[ownerAnnotationKey], "owner annotation must be set")
 }
 
 func TestBuildRevocationRequest(t *testing.T) {
@@ -75,12 +75,12 @@ func TestBuildRBACGiveCSRPerm(t *testing.T) {
 	assert.Equal(t, strings.ToLower(owner.String()), objects[1].GetAnnotations()[ownerAnnotationKey], "owner annotation on ClusterRoleBinding")
 }
 
-func TestBuildRBACCSRA(t *testing.T) {
+func TestBuildRBACCSRApproval(t *testing.T) {
 	owner := testOwner(t)
-	objects := BuildRBACCSRA(owner, "abc123", "ocm-dev-clusterid")
+	objects := BuildRBACCSRApproval(owner, "abc123", "ocm-dev-clusterid")
 
 	require.Len(t, objects, 2, "should return Role + RoleBinding")
-	assert.Equal(t, "system-admin-credential-csra-perm-abc123", objects[0].GetName(), "Role name")
+	assert.Equal(t, "system-admin-credential-csrapproval-perm-abc123", objects[0].GetName(), "Role name")
 	assert.Equal(t, "ocm-dev-clusterid", objects[0].GetNamespace(), "Role namespace should be HCP namespace")
 	assert.Equal(t, strings.ToLower(owner.String()), objects[0].GetAnnotations()[ownerAnnotationKey], "owner annotation on Role")
 }

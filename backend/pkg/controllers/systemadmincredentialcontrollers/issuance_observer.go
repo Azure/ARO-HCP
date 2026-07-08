@@ -21,6 +21,7 @@ import (
 	"time"
 
 	certificatesv1 "k8s.io/api/certificates/v1"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilsclock "k8s.io/utils/clock"
 
@@ -138,7 +139,12 @@ func (c *issuanceObserver) observeCSR(
 	signedCert := base64.StdEncoding.EncodeToString(cachedCSR.Status.Certificate)
 
 	replacement := cred.DeepCopy()
-	replacement.Status.SetCondition(api.SystemAdminCredentialRequestConditionIssued, metav1.ConditionTrue, "Issued", "CSR has been signed")
+	meta.SetStatusCondition(&replacement.Status.Conditions, metav1.Condition{
+		Type:    api.SystemAdminCredentialRequestConditionIssued,
+		Status:  metav1.ConditionTrue,
+		Reason:  "Issued",
+		Message: "CSR has been signed",
+	})
 	replacement.Status.SignedCertificate = signedCert
 
 	_, err = credCRUD.Replace(ctx, replacement, nil)
@@ -157,7 +163,12 @@ func (c *issuanceObserver) failCredential(
 	message string,
 ) error {
 	replacement := cred.DeepCopy()
-	replacement.Status.SetCondition(api.SystemAdminCredentialRequestConditionFailed, metav1.ConditionTrue, "CSRFailed", message)
+	meta.SetStatusCondition(&replacement.Status.Conditions, metav1.Condition{
+		Type:    api.SystemAdminCredentialRequestConditionFailed,
+		Status:  metav1.ConditionTrue,
+		Reason:  "CSRFailed",
+		Message: message,
+	})
 
 	_, err := credCRUD.Replace(ctx, replacement, nil)
 	if err != nil {

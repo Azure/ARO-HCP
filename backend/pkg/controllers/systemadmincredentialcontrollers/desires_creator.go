@@ -15,17 +15,11 @@
 package systemadmincredentialcontrollers
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
-	"strings"
 	"time"
 
 	certificatesv1 "k8s.io/api/certificates/v1"
-	"k8s.io/apimachinery/pkg/runtime"
-
-	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
@@ -58,7 +52,7 @@ type desiresCreator struct {
 var _ controllerutils.CredentialRequestSyncer = (*desiresCreator)(nil)
 
 // NewDesiresCreatorController returns a CredentialRequestWatchingController that
-// creates the per-credential ApplyDesires (CSR, CSRA, 3 RBAC bundles) and
+// creates the per-credential ApplyDesires (CSR, CSRApproval, 2 RBAC bundles) and
 // ReadDesire (CSR) for individual SystemAdminCredentialRequest documents that are
 // pending.
 //
@@ -101,6 +95,20 @@ func (c *desiresCreator) CooldownChecker() controllerutil.CooldownChecker {
 	return c.cooldownChecker
 }
 
+// needsWork reports whether the desires-creator has anything to do for this
+// credential request. It bundles the preconditions that gate creation: the
+// cluster must be live (not being deleted, and already mapped to a
+// cluster-service ID) and the credential must still be pending issuance.
+func (c *desiresCreator) needsWork(cluster *api.HCPOpenShiftCluster, cred *api.SystemAdminCredentialRequest) bool {
+	if cluster.ServiceProviderProperties.DeletionTimestamp != nil {
+		return false
+	}
+	if cluster.ServiceProviderProperties.ClusterServiceID == nil {
+		return false
+	}
+	return cred.Status.IsPending()
+}
+
 func (c *desiresCreator) SyncOnce(ctx context.Context, key controllerutils.SystemAdminCredentialRequestKey) error {
 	logger := utils.LoggerFromContext(ctx)
 
@@ -111,13 +119,24 @@ func (c *desiresCreator) SyncOnce(ctx context.Context, key controllerutils.Syste
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get Cluster: %w", err))
 	}
-	if existingCluster.ServiceProviderProperties.DeletionTimestamp != nil {
+
+	// Get the specific credential request.
+	credCRUD := c.resourcesDBClient.SystemAdminCredentialRequests(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
+	cred, err := credCRUD.Get(ctx, key.CredentialName)
+	if database.IsNotFoundError(err) {
 		return nil
 	}
-	if existingCluster.ServiceProviderProperties.ClusterServiceID == nil {
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to get SystemAdminCredentialRequest: %w", err))
+	}
+
+	if !c.needsWork(existingCluster, cred) {
 		return nil
 	}
 
+	// Preconditions satisfied — resolve the management cluster and kube-applier
+	// client. These are readiness checks: if the mapping is not available yet we
+	// return and wait to be retriggered.
 	serviceProviderCluster, err := c.serviceProviderClusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if database.IsNotFoundError(err) {
 		return nil
@@ -130,8 +149,8 @@ func (c *desiresCreator) SyncOnce(ctx context.Context, key controllerutils.Syste
 		return nil
 	}
 
-	kaClient := c.kubeApplierDBClients.For(ctx, mcResourceID)
-	if kaClient == nil {
+	kubeApplierClient := c.kubeApplierDBClients.For(ctx, mcResourceID)
+	if kubeApplierClient == nil {
 		return nil
 	}
 
@@ -141,21 +160,7 @@ func (c *desiresCreator) SyncOnce(ctx context.Context, key controllerutils.Syste
 	// Owner for annotations is the cluster's ARM resource ID.
 	clusterResourceID := key.GetClusterResourceID()
 
-	// Get the specific credential request.
-	credCRUD := c.resourcesDBClient.SystemAdminCredentialRequests(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
-	cred, err := credCRUD.Get(ctx, key.CredentialName)
-	if database.IsNotFoundError(err) {
-		return nil
-	}
-	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get SystemAdminCredentialRequest: %w", err))
-	}
-
-	if !cred.Status.IsPending() {
-		return nil
-	}
-
-	if err := c.ensureDesires(ctx, key, cred, key.CredentialName, hcpNamespace, clusterResourceID, mcResourceID, kaClient); err != nil {
+	if err := c.ensureDesires(ctx, key, cred, key.CredentialName, hcpNamespace, clusterResourceID, mcResourceID, kubeApplierClient); err != nil {
 		return err
 	}
 
@@ -169,36 +174,32 @@ func (c *desiresCreator) ensureDesires(
 	cred *api.SystemAdminCredentialRequest,
 	credName, hcpNamespace string,
 	owner, mcResourceID *azcorearm.ResourceID,
-	kaClient database.KubeApplierDBClient,
+	kubeApplierClient database.KubeApplierDBClient,
 ) error {
-	logger := utils.LoggerFromContext(ctx)
-
-	applyCRUD, err := kaClient.ApplyDesiresForCluster(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
+	applyCRUD, err := kubeApplierClient.ApplyDesiresForCluster(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("get ApplyDesire CRUD: %w", err))
 	}
-	readCRUD, err := kaClient.ReadDesiresForCluster(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
+	readCRUD, err := kubeApplierClient.ReadDesiresForCluster(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("get ReadDesire CRUD: %w", err))
 	}
 
-	// 1-3. RBAC bundles (created before CSR/CSRA so permissions are in place).
+	// 1-2. RBAC bundles (created before CSR/CSRApproval so permissions are in place).
 	rbacSpecs := []struct {
 		desireName string
-		builder    func() []client.Object
+		builder    func() []systemadmincredential.KubeObject
 	}{
 		{
 			desireName: fmt.Sprintf("systemAdminCredentialRBACGiveCSRPerm-%s", credName),
-			builder:    func() []client.Object { return systemadmincredential.BuildRBACGiveCSRPerm(owner, credName) },
+			builder: func() []systemadmincredential.KubeObject {
+				return systemadmincredential.BuildRBACGiveCSRPerm(owner, credName)
+			},
 		},
 		{
-			desireName: fmt.Sprintf("systemAdminCredentialRBACCSRA-%s", credName),
-			builder:    func() []client.Object { return systemadmincredential.BuildRBACCSRA(owner, credName, hcpNamespace) },
-		},
-		{
-			desireName: fmt.Sprintf("systemAdminCredentialRBACRevocation-%s", credName),
-			builder: func() []client.Object {
-				return systemadmincredential.BuildRBACRevocation(owner, credName, hcpNamespace)
+			desireName: fmt.Sprintf("systemAdminCredentialRBACCSRApproval-%s", credName),
+			builder: func() []systemadmincredential.KubeObject {
+				return systemadmincredential.BuildRBACCSRApproval(owner, credName, hcpNamespace)
 			},
 		},
 	}
@@ -211,176 +212,58 @@ func (c *desiresCreator) ensureDesires(
 				suffix = fmt.Sprintf("-%d", i)
 			}
 			dName := rbacSpec.desireName + suffix
-			ref := targetRefForClientObject(obj)
-			if err := c.ensureApplyDesire(ctx, applyCRUD, key, dName, mcResourceID, ref, obj); err != nil {
+			ref := targetRefForKubeObject(obj)
+			if err := ensureApplyDesire(ctx, applyCRUD, c.applyDesireLister,
+				key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName,
+				dName, mcResourceID, ref, obj); err != nil {
 				return err
 			}
 		}
 	}
 
-	// 4. CSR ApplyDesire
+	// 3. CSR ApplyDesire
 	csrDesireName := fmt.Sprintf("systemAdminCredentialCSR-%s", credName)
 	csrObj, err := systemadmincredential.BuildCSR(owner, credName, cred.Spec.Username, hcpNamespace, []byte(cred.Spec.PrivateKeyPEM))
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to build CSR: %w", err))
 	}
-	if err := c.ensureApplyDesire(ctx, applyCRUD, key, csrDesireName, mcResourceID, csrTarget(csrObj), csrObj); err != nil {
-		return err
-	}
-	logger.Info("created CSR ApplyDesire", "credential", credName)
-
-	// 5. CSRA ApplyDesire
-	csraDesireName := fmt.Sprintf("systemAdminCredentialCSRA-%s", credName)
-	csraObj := systemadmincredential.BuildCSRA(owner, credName, hcpNamespace)
-	if err := c.ensureApplyDesire(ctx, applyCRUD, key, csraDesireName, mcResourceID,
-		kubeapplier.ResourceReference{
-			Group:     "certificates.hypershift.openshift.io",
-			Version:   "v1alpha1",
-			Resource:  "certificatesigningrequestapprovals",
-			Namespace: hcpNamespace,
-			Name:      csraObj.Name,
-		}, csraObj); err != nil {
+	if err := ensureApplyDesire(ctx, applyCRUD, c.applyDesireLister,
+		key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName,
+		csrDesireName, mcResourceID, csrTarget(csrObj), csrObj); err != nil {
 		return err
 	}
 
-	// 6. CSR ReadDesire
+	// 4. CSRApproval ApplyDesire
+	csrApprovalDesireName := fmt.Sprintf("systemAdminCredentialCSRApproval-%s", credName)
+	csrApprovalObj := systemadmincredential.BuildCSRApproval(owner, credName, hcpNamespace)
+	csrApprovalTarget := kubeapplier.ResourceReference{
+		Group:     "certificates.hypershift.openshift.io",
+		Version:   "v1alpha1",
+		Resource:  "certificatesigningrequestapprovals",
+		Namespace: hcpNamespace,
+		Name:      csrApprovalObj.Name,
+	}
+	if err := ensureApplyDesire(ctx, applyCRUD, c.applyDesireLister,
+		key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName,
+		csrApprovalDesireName, mcResourceID, csrApprovalTarget, csrApprovalObj); err != nil {
+		return err
+	}
+
+	// 5. CSR ReadDesire
 	csrReadDesireName := maestrohelpers.ReadDesireNameForSystemAdminCredentialRequestCSR(credName)
-	if err := c.ensureReadDesire(ctx, readCRUD, key, csrReadDesireName, mcResourceID, kubeapplier.ResourceReference{
+	csrReadTarget := kubeapplier.ResourceReference{
 		Group:    "certificates.k8s.io",
 		Version:  "v1",
 		Resource: "certificatesigningrequests",
 		Name:     fmt.Sprintf("system-admin-credential-%s", credName),
-	}); err != nil {
+	}
+	if err := ensureReadDesire(ctx, readCRUD, c.readDesireLister,
+		key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName,
+		csrReadDesireName, mcResourceID, csrReadTarget); err != nil {
 		return err
 	}
-	logger.Info("created CSR ReadDesire", "credential", credName)
 
 	return nil
-}
-
-func (c *desiresCreator) ensureApplyDesire(
-	ctx context.Context,
-	crud database.ResourceCRUD[kubeapplier.ApplyDesire, *kubeapplier.ApplyDesire],
-	key controllerutils.SystemAdminCredentialRequestKey,
-	desireName string,
-	mcResourceID *azcorearm.ResourceID,
-	target kubeapplier.ResourceReference,
-	obj client.Object,
-) error {
-	resourceIDStr := kubeapplier.ToClusterScopedApplyDesireResourceIDString(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, desireName)
-	// resourceIDStr is produced by an internal ID builder from already-validated key
-	// components, so a parse failure indicates a programming error; fail fast rather
-	// than silently writing a Cosmos document with a nil ResourceID.
-	resourceID := api.Must(azcorearm.ParseResourceID(resourceIDStr))
-
-	rawJSON, err := json.Marshal(obj)
-	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to marshal kube object: %w", err))
-	}
-
-	desire := &kubeapplier.ApplyDesire{
-		CosmosMetadata: api.CosmosMetadata{
-			ResourceID:   resourceID,
-			PartitionKey: strings.ToLower(mcResourceID.String()),
-		},
-		Spec: kubeapplier.ApplyDesireSpec{
-			ManagementCluster: mcResourceID,
-			Type:              kubeapplier.ApplyDesireTypeServerSideApply,
-			TargetItem:        target,
-			ServerSideApply: &kubeapplier.ServerSideApplyConfig{
-				KubeContent: &runtime.RawExtension{Raw: rawJSON},
-			},
-		},
-	}
-
-	// Consult the lister first: if an ApplyDesire already exists with the
-	// desired content there is nothing to do, and we skip the Cosmos write.
-	existing, err := c.applyDesireLister.GetForCluster(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, strings.ToLower(desireName))
-	if err != nil && !database.IsNotFoundError(err) {
-		return utils.TrackError(fmt.Errorf("get ApplyDesire %s from lister: %w", desireName, err))
-	}
-	if existing != nil && applyDesireSpecEqual(existing.Spec, desire.Spec) {
-		return nil
-	}
-
-	_, err = crud.Create(ctx, desire, nil)
-	if err != nil && !database.IsConflictError(err) {
-		return utils.TrackError(fmt.Errorf("create ApplyDesire %s: %w", desireName, err))
-	}
-	return nil
-}
-
-func (c *desiresCreator) ensureReadDesire(
-	ctx context.Context,
-	crud database.ResourceCRUD[kubeapplier.ReadDesire, *kubeapplier.ReadDesire],
-	key controllerutils.SystemAdminCredentialRequestKey,
-	desireName string,
-	mcResourceID *azcorearm.ResourceID,
-	target kubeapplier.ResourceReference,
-) error {
-	resourceIDStr := kubeapplier.ToClusterScopedReadDesireResourceIDString(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, desireName)
-	// resourceIDStr is produced by an internal ID builder from already-validated key
-	// components, so a parse failure indicates a programming error; fail fast rather
-	// than silently writing a Cosmos document with a nil ResourceID.
-	resourceID := api.Must(azcorearm.ParseResourceID(resourceIDStr))
-
-	desire := &kubeapplier.ReadDesire{
-		CosmosMetadata: api.CosmosMetadata{
-			ResourceID:   resourceID,
-			PartitionKey: strings.ToLower(mcResourceID.String()),
-		},
-		Spec: kubeapplier.ReadDesireSpec{
-			ManagementCluster: mcResourceID,
-			TargetItem:        target,
-		},
-	}
-
-	// Consult the lister first: if a ReadDesire already exists with the desired
-	// content there is nothing to do, and we skip the Cosmos write.
-	existing, err := c.readDesireLister.GetForCluster(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, strings.ToLower(desireName))
-	if err != nil && !database.IsNotFoundError(err) {
-		return utils.TrackError(fmt.Errorf("get ReadDesire %s from lister: %w", desireName, err))
-	}
-	if existing != nil && readDesireSpecEqual(existing.Spec, desire.Spec) {
-		return nil
-	}
-
-	_, err = crud.Create(ctx, desire, nil)
-	if err != nil && !database.IsConflictError(err) {
-		return utils.TrackError(fmt.Errorf("create ReadDesire %s: %w", desireName, err))
-	}
-	return nil
-}
-
-// applyDesireSpecEqual reports whether an existing ApplyDesire spec already
-// matches the desired spec (same management cluster, target, and rendered
-// content), so the controller can avoid a redundant Cosmos write.
-func applyDesireSpecEqual(existing, desired kubeapplier.ApplyDesireSpec) bool {
-	if !controllerutil.ResourceIDsEqual(existing.ManagementCluster, desired.ManagementCluster) {
-		return false
-	}
-	if existing.TargetItem != desired.TargetItem {
-		return false
-	}
-	if existing.Type != desired.Type {
-		return false
-	}
-	var existingRaw, desiredRaw []byte
-	if existing.ServerSideApply != nil && existing.ServerSideApply.KubeContent != nil {
-		existingRaw = existing.ServerSideApply.KubeContent.Raw
-	}
-	if desired.ServerSideApply != nil && desired.ServerSideApply.KubeContent != nil {
-		desiredRaw = desired.ServerSideApply.KubeContent.Raw
-	}
-	return bytes.Equal(existingRaw, desiredRaw)
-}
-
-// readDesireSpecEqual reports whether an existing ReadDesire spec already matches
-// the desired spec (same management cluster and target), so the controller can
-// avoid a redundant Cosmos write.
-func readDesireSpecEqual(existing, desired kubeapplier.ReadDesireSpec) bool {
-	return controllerutil.ResourceIDsEqual(existing.ManagementCluster, desired.ManagementCluster) &&
-		existing.TargetItem == desired.TargetItem
 }
 
 // csrTarget builds the ResourceReference for a CertificateSigningRequest.
@@ -390,18 +273,5 @@ func csrTarget(csr *certificatesv1.CertificateSigningRequest) kubeapplier.Resour
 		Version:  "v1",
 		Resource: "certificatesigningrequests",
 		Name:     csr.Name,
-	}
-}
-
-// targetRefForClientObject builds a ResourceReference for known RBAC types.
-func targetRefForClientObject(obj client.Object) kubeapplier.ResourceReference {
-	gvk := obj.GetObjectKind().GroupVersionKind()
-	resource := strings.ToLower(gvk.Kind) + "s"
-	return kubeapplier.ResourceReference{
-		Group:     gvk.Group,
-		Version:   gvk.Version,
-		Resource:  resource,
-		Namespace: obj.GetNamespace(),
-		Name:      obj.GetName(),
 	}
 }

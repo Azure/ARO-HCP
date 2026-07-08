@@ -16,16 +16,8 @@ package systemadmincredentialcontrollers
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"strings"
 	"time"
-
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
-	utilsclock "k8s.io/utils/clock"
-
-	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
@@ -33,7 +25,6 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/backend/pkg/maestrohelpers"
-	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
@@ -44,10 +35,10 @@ import (
 
 type revocationDesires struct {
 	cooldownChecker              controllerutil.CooldownChecker
-	clock                        utilsclock.PassiveClock
 	resourcesDBClient            database.ResourcesDBClient
 	kubeApplierDBClients         database.KubeApplierDBClients
 	serviceProviderClusterLister listers.ServiceProviderClusterLister
+	applyDesireLister            dblisters.ApplyDesireLister
 	readDesireLister             dblisters.ReadDesireLister
 
 	hostedClusterNamespaceEnvIdentifier string
@@ -58,16 +49,15 @@ var _ controllerutils.RevocationSyncer = (*revocationDesires)(nil)
 // NewRevocationDesiresController returns a RevocationWatchingController that
 // manages the CertificateRevocationRequest (CRR) desires used to revoke a
 // cluster's already-issued certificates. It creates the RBAC, CRR ApplyDesire,
-// and CRR ReadDesire, watches the mirrored CRR for confirmation, and — once the
-// hosted cluster confirms revocation and the credential requests have been
-// marked for deletion — marks the revocation Complete and stamps its
-// DeleteTimestamp so the deletion controller can tear everything down.
+// and CRR ReadDesire so the hosted cluster can process the revocation. Observing
+// the CRR for confirmation and marking the revocation complete is handled by the
+// separate revocation-completion controller.
 func NewRevocationDesiresController(
-	clock utilsclock.PassiveClock,
 	activeOperationLister listers.ActiveOperationLister,
 	resourcesDBClient database.ResourcesDBClient,
 	kubeApplierDBClients database.KubeApplierDBClients,
 	backendInformers informers.BackendInformers,
+	applyDesireLister dblisters.ApplyDesireLister,
 	readDesireLister dblisters.ReadDesireLister,
 	hostedClusterNamespaceEnvIdentifier string,
 ) controllerutils.Controller {
@@ -75,10 +65,10 @@ func NewRevocationDesiresController(
 
 	syncer := &revocationDesires{
 		cooldownChecker:                     controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
-		clock:                               clock,
 		resourcesDBClient:                   resourcesDBClient,
 		kubeApplierDBClients:                kubeApplierDBClients,
 		serviceProviderClusterLister:        serviceProviderClusterLister,
+		applyDesireLister:                   applyDesireLister,
 		readDesireLister:                    readDesireLister,
 		hostedClusterNamespaceEnvIdentifier: hostedClusterNamespaceEnvIdentifier,
 	}
@@ -137,8 +127,8 @@ func (c *revocationDesires) SyncOnce(ctx context.Context, key controllerutils.Sy
 		return nil
 	}
 
-	kaClient := c.kubeApplierDBClients.For(ctx, mcResourceID)
-	if kaClient == nil {
+	kubeApplierClient := c.kubeApplierDBClients.For(ctx, mcResourceID)
+	if kubeApplierClient == nil {
 		logger.Info("waiting for kube-applier client for management cluster", "managementCluster", mcResourceID.String())
 		return nil
 	}
@@ -148,63 +138,8 @@ func (c *revocationDesires) SyncOnce(ctx context.Context, key controllerutils.Sy
 	hcpNamespace := fmt.Sprintf("ocm-%s-%s", c.hostedClusterNamespaceEnvIdentifier, csClusterID)
 	clusterResourceID := key.GetClusterResourceID()
 
-	if err := c.ensureRevocationDesires(ctx, key, suffix, hcpNamespace, clusterResourceID, mcResourceID, kaClient); err != nil {
+	if err := c.ensureRevocationDesires(ctx, key, suffix, hcpNamespace, clusterResourceID, mcResourceID, kubeApplierClient); err != nil {
 		return err
-	}
-
-	// Check whether the hosted cluster has confirmed the certificates are revoked.
-	if !revocation.Status.IsCertificatesRevoked() {
-		cachedCRR, err := maestrohelpers.GetCachedCertificateRevocationRequestForCluster(
-			ctx, c.readDesireLister,
-			key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, suffix)
-		if err != nil {
-			return utils.TrackError(err)
-		}
-		if cachedCRR == nil {
-			logger.Info("waiting for CertificateRevocationRequest to be mirrored back from the hosted cluster")
-			return nil
-		}
-		revoked := false
-		for _, cond := range cachedCRR.Status.Conditions {
-			if cond.Type == "PreviousCertificatesRevoked" && cond.Status == metav1.ConditionTrue {
-				revoked = true
-				break
-			}
-		}
-		if !revoked {
-			logger.Info("waiting for the hosted cluster to confirm certificate revocation")
-			return nil
-		}
-		replacement := revocation.DeepCopy()
-		replacement.Status.SetCondition(
-			api.SystemAdminCredentialRevocationConditionCertificatesRevoked,
-			metav1.ConditionTrue, "CertificatesRevoked", "Hosted cluster confirmed previously-issued certificates are revoked")
-		if _, err := revocationCRUD.Replace(ctx, replacement, nil); err != nil {
-			if database.IsPreconditionFailedError(err) {
-				return nil
-			}
-			return utils.TrackError(fmt.Errorf("failed to set CertificatesRevoked condition: %w", err))
-		}
-		revocation = replacement
-	}
-
-	// The revocation is complete once the certificates are revoked and every
-	// credential request has been marked for deletion. Stamp the DeleteTimestamp
-	// so the deletion controller can tear the desires down and remove the doc.
-	if revocation.Status.IsCertificatesRevoked() && revocation.Status.IsCredentialsMarkedForDeletion() {
-		replacement := revocation.DeepCopy()
-		replacement.Status.SetCondition(
-			api.SystemAdminCredentialRevocationConditionComplete,
-			metav1.ConditionTrue, "Complete", "Revocation is complete and ready for teardown")
-		now := metav1.NewTime(c.clock.Now())
-		replacement.Status.DeleteTimestamp = &now
-		if _, err := revocationCRUD.Replace(ctx, replacement, nil); err != nil {
-			if database.IsPreconditionFailedError(err) {
-				return nil
-			}
-			return utils.TrackError(fmt.Errorf("failed to mark revocation complete: %w", err))
-		}
-		logger.Info("revocation complete, marked for deletion")
 	}
 
 	return nil
@@ -218,13 +153,13 @@ func (c *revocationDesires) ensureRevocationDesires(
 	key controllerutils.SystemAdminCredentialRevocationKey,
 	suffix, hcpNamespace string,
 	owner, mcResourceID *azcorearm.ResourceID,
-	kaClient database.KubeApplierDBClient,
+	kubeApplierClient database.KubeApplierDBClient,
 ) error {
-	applyCRUD, err := kaClient.ApplyDesiresForCluster(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
+	applyCRUD, err := kubeApplierClient.ApplyDesiresForCluster(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("get ApplyDesire CRUD: %w", err))
 	}
-	readCRUD, err := kaClient.ReadDesiresForCluster(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
+	readCRUD, err := kubeApplierClient.ReadDesiresForCluster(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("get ReadDesire CRUD: %w", err))
 	}
@@ -236,7 +171,9 @@ func (c *revocationDesires) ensureRevocationDesires(
 		if i > 0 {
 			dName = fmt.Sprintf("%s-%d", dName, i)
 		}
-		if err := c.ensureApplyDesire(ctx, applyCRUD, key, dName, mcResourceID, targetRefForClientObject(obj), obj); err != nil {
+		if err := ensureApplyDesire(ctx, applyCRUD, c.applyDesireLister,
+			key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName,
+			dName, mcResourceID, targetRefForKubeObject(obj), obj); err != nil {
 			return err
 		}
 	}
@@ -251,97 +188,19 @@ func (c *revocationDesires) ensureRevocationDesires(
 		Name:      crrObj.Name,
 	}
 	crrDesireName := fmt.Sprintf("systemAdminCredentialRevocation-%s", suffix)
-	if err := c.ensureApplyDesire(ctx, applyCRUD, key, crrDesireName, mcResourceID, crrTarget, crrObj); err != nil {
+	if err := ensureApplyDesire(ctx, applyCRUD, c.applyDesireLister,
+		key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName,
+		crrDesireName, mcResourceID, crrTarget, crrObj); err != nil {
 		return err
 	}
 
-	// 3. CRR ReadDesire so the CRR status is mirrored back for the poll above.
+	// 3. CRR ReadDesire so the CRR status is mirrored back for the completion controller.
 	crrReadDesireName := maestrohelpers.ReadDesireNameForSystemAdminCredentialRequestRevocation(suffix)
-	if err := c.ensureReadDesire(ctx, readCRUD, key, crrReadDesireName, mcResourceID, crrTarget); err != nil {
+	if err := ensureReadDesire(ctx, readCRUD, c.readDesireLister,
+		key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName,
+		crrReadDesireName, mcResourceID, crrTarget); err != nil {
 		return err
 	}
 
-	return nil
-}
-
-func (c *revocationDesires) ensureApplyDesire(
-	ctx context.Context,
-	crud database.ResourceCRUD[kubeapplier.ApplyDesire, *kubeapplier.ApplyDesire],
-	key controllerutils.SystemAdminCredentialRevocationKey,
-	desireName string,
-	mcResourceID *azcorearm.ResourceID,
-	target kubeapplier.ResourceReference,
-	obj client.Object,
-) error {
-	if _, err := crud.Get(ctx, strings.ToLower(desireName)); err == nil {
-		return nil
-	} else if !database.IsNotFoundError(err) {
-		return utils.TrackError(fmt.Errorf("get ApplyDesire %s: %w", desireName, err))
-	}
-
-	resourceIDStr := kubeapplier.ToClusterScopedApplyDesireResourceIDString(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, desireName)
-	// resourceIDStr is produced by an internal ID builder from already-validated key
-	// components, so a parse failure indicates a programming error; fail fast rather
-	// than silently writing a Cosmos document with a nil ResourceID.
-	resourceID := api.Must(azcorearm.ParseResourceID(resourceIDStr))
-
-	rawJSON, err := json.Marshal(obj)
-	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to marshal kube object: %w", err))
-	}
-
-	desire := &kubeapplier.ApplyDesire{
-		CosmosMetadata: api.CosmosMetadata{
-			ResourceID:   resourceID,
-			PartitionKey: strings.ToLower(mcResourceID.String()),
-		},
-		Spec: kubeapplier.ApplyDesireSpec{
-			ManagementCluster: mcResourceID,
-			Type:              kubeapplier.ApplyDesireTypeServerSideApply,
-			TargetItem:        target,
-			ServerSideApply: &kubeapplier.ServerSideApplyConfig{
-				KubeContent: &runtime.RawExtension{Raw: rawJSON},
-			},
-		},
-	}
-	if _, err := crud.Create(ctx, desire, nil); err != nil && !database.IsConflictError(err) {
-		return utils.TrackError(fmt.Errorf("create ApplyDesire %s: %w", desireName, err))
-	}
-	return nil
-}
-
-func (c *revocationDesires) ensureReadDesire(
-	ctx context.Context,
-	crud database.ResourceCRUD[kubeapplier.ReadDesire, *kubeapplier.ReadDesire],
-	key controllerutils.SystemAdminCredentialRevocationKey,
-	desireName string,
-	mcResourceID *azcorearm.ResourceID,
-	target kubeapplier.ResourceReference,
-) error {
-	if _, err := crud.Get(ctx, strings.ToLower(desireName)); err == nil {
-		return nil
-	} else if !database.IsNotFoundError(err) {
-		return utils.TrackError(fmt.Errorf("get ReadDesire %s: %w", desireName, err))
-	}
-
-	resourceIDStr := kubeapplier.ToClusterScopedReadDesireResourceIDString(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, desireName)
-	// resourceIDStr is produced by an internal ID builder from already-validated key
-	// components, so a parse failure indicates a programming error; fail fast rather
-	// than silently writing a Cosmos document with a nil ResourceID.
-	resourceID := api.Must(azcorearm.ParseResourceID(resourceIDStr))
-
-	desire := &kubeapplier.ReadDesire{
-		CosmosMetadata: api.CosmosMetadata{
-			ResourceID:   resourceID,
-			PartitionKey: strings.ToLower(mcResourceID.String()),
-		},
-		Spec: kubeapplier.ReadDesireSpec{
-			ManagementCluster: mcResourceID,
-			TargetItem:        target,
-		},
-	}
-	if _, err := crud.Create(ctx, desire, nil); err != nil && !database.IsConflictError(err) {
-		return utils.TrackError(fmt.Errorf("create ReadDesire %s: %w", desireName, err))
-	}
 	return nil
 }

@@ -403,6 +403,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	)
 	unionKubeApplierInformers := unionKubeApplierInformersController.Union()
 	_, unionReadDesireLister := unionKubeApplierInformers.ReadDesires()
+	_, unionApplyDesireLister := unionKubeApplierInformers.ApplyDesires()
 
 	clusterInformer, clusterLister := backendInformers.Clusters()
 	clusterHandler := metricscontrollers.NewClusterMetricsHandler(b.options.MetricsRegisterer)
@@ -516,13 +517,20 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		backendInformers,
 	)
 	adminCredentialsRevocationDesiresController := systemadmincredentialcontrollers.NewRevocationDesiresController(
-		b.clock,
 		activeOperationLister,
 		b.options.ResourcesDBClient,
 		b.options.KubeApplierDBClients,
 		backendInformers,
+		unionApplyDesireLister,
 		unionReadDesireLister,
 		b.options.MaestroSourceEnvironmentIdentifier,
+	)
+	adminCredentialsRevocationCompletionController := systemadmincredentialcontrollers.NewRevocationCompletionController(
+		b.clock,
+		activeOperationLister,
+		b.options.ResourcesDBClient,
+		backendInformers,
+		unionReadDesireLister,
 	)
 	adminCredentialsRevocationDeletionController := systemadmincredentialcontrollers.NewRevocationDeletionController(
 		activeOperationLister,
@@ -947,6 +955,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go adminCredentialsClusterDeletionCleanupController.Run(ctx, 20)
 				go adminCredentialsRevocationMarkRequestsController.Run(ctx, 20)
 				go adminCredentialsRevocationDesiresController.Run(ctx, 20)
+				go adminCredentialsRevocationCompletionController.Run(ctx, 20)
 				go adminCredentialsRevocationDeletionController.Run(ctx, 20)
 				go clusterClusterServiceCreateController.Run(ctx, 20)
 				go nodePoolClusterServiceCreateController.Run(ctx, 20)
