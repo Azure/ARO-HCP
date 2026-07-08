@@ -371,8 +371,8 @@
             "$ref": "#/$defs/InfraSubscriptionReference"
           }
         },
-        "devMockIdentities": {
-          "$ref": "#/$defs/DevMockIdentities"
+        "mockIdentities": {
+          "$ref": "#/$defs/MockIdentities"
         }
       },
       "required": ["bot", "e2eSubscriptions"]
@@ -400,41 +400,59 @@
       },
       "required": ["name", "id"]
     },
-    "DevMockIdentities": {
+    "MockIdentities": {
       "type": "object",
-      "description": "DEV-only mock identities to simulate FPA behavior; absent from stg/prod",
+      "description": "DEV-only mock identity Entra app definitions; principalIds are resolved at deployment time via Graph lookup",
       "properties": {
-        "homeSubscriptionId": {
-          "type": "string",
-          "description": "Subscription ID where custom role definitions for mock identities are created"
+        "firstParty": {
+          "$ref": "#/$defs/MockIdentityApp"
         },
-        "sharedPrincipals": {
-          "type": "object",
-          "properties": {
-            "firstParty": {
-              "$ref": "#/$defs/PrincipalReference"
-            },
-            "armHelper": {
-              "$ref": "#/$defs/PrincipalReference"
-            },
-            "miMock": {
-              "$ref": "#/$defs/PrincipalReference"
-            }
-          }
+        "armHelper": {
+          "$ref": "#/$defs/MockIdentityApp"
         },
-        "msiMockPool": {
-          "type": "object",
-          "properties": {
-            "principals": {
-              "type": "object",
-              "additionalProperties": {
-                "$ref": "#/$defs/PrincipalReference"
-              }
-            }
-          }
+        "msiMock": {
+          "$ref": "#/$defs/MockIdentityApp"
+        },
+        "pool": {
+          "$ref": "#/$defs/MockIdentityPool"
         }
       },
-      "required": ["homeSubscriptionId", "sharedPrincipals"]
+      "required": ["firstParty", "armHelper", "msiMock", "pool"]
+    },
+    "MockIdentityApp": {
+      "type": "object",
+      "description": "Entra application definition for a mock identity",
+      "properties": {
+        "applicationName": {
+          "type": "string",
+          "description": "Entra application display name (also used as uniqueName)"
+        },
+        "certDns": {
+          "type": "string",
+          "description": "Certificate DNS name for SNI authentication"
+        }
+      },
+      "required": ["applicationName", "certDns"]
+    },
+    "MockIdentityPool": {
+      "type": "object",
+      "description": "Pool of MSI mock identities for throttle distribution",
+      "properties": {
+        "appBaseName": {
+          "type": "string",
+          "description": "Base application name; pool members are named {appBaseName}-{index}"
+        },
+        "certBaseDns": {
+          "type": "string",
+          "description": "Base certificate DNS; pool members use {index}.{certBaseDns}"
+        },
+        "size": {
+          "type": "integer",
+          "description": "Number of pool members to create",
+          "minimum": 0
+        }
+      },
+      "required": ["appBaseName", "certBaseDns", "size"]
     },
     "SubscriptionReference": {
       "type": "object",
@@ -443,13 +461,6 @@
         "id": { "type": "string" }
       },
       "required": ["name", "id"]
-    },
-    "PrincipalReference": {
-      "type": "object",
-      "properties": {
-        "principalId": { "type": "string" }
-      },
-      "required": ["principalId"]
     },
     "Image": {
       "type": "object",

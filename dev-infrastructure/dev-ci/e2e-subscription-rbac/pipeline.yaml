@@ -12,6 +12,56 @@ rolloutName: Dev CI E2E Subscription RBAC Rollout
 # entrypoint, which is run on demand by an OWNERS-group member
 # (`make dev-ci-privileged-local-run`).
 resourceGroups:
+- name: mock-identities
+  resourceGroup: '{{ .global.rg }}'
+  subscription: '{{ .global.subscription.key }}'
+  steps:
+  - name: mock-identity-apps
+    action: ARM
+    template: ../../templates/mock-identity-apps.bicep
+    parameters: ../../configurations/mock-identity-apps.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    automatedRetry:
+      errorContainsAny:
+      - "Failed to update one or more relationships in 'owners'"
+      maximumRetryCount: 3
+      durationBetweenRetries: 1m
+  - name: mock-identity-rbac
+    action: ARM
+    template: ../../templates/mock-identity-rbac.bicep
+    parameters: ../../configurations/mock-identity-rbac.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    automatedRetry:
+      errorContainsAny:
+      - "does not exist or one of its queried"
+      maximumRetryCount: 3
+      durationBetweenRetries: 1m
+    dependsOn:
+    - resourceGroup: mock-identities
+      step: mock-identity-apps
+  - name: mock-identity-apps-int
+    action: ARM
+    template: ../../templates/mock-identity-apps.bicep
+    parameters: ../../configurations/mock-identity-apps-int.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    automatedRetry:
+      errorContainsAny:
+      - "Failed to update one or more relationships in 'owners'"
+      maximumRetryCount: 3
+      durationBetweenRetries: 1m
+  - name: mock-identity-rbac-int
+    action: ARM
+    template: ../../templates/mock-identity-rbac.bicep
+    parameters: ../../configurations/mock-identity-rbac-int.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    automatedRetry:
+      errorContainsAny:
+      - "does not exist or one of its queried"
+      maximumRetryCount: 3
+      durationBetweenRetries: 1m
+    dependsOn:
+    - resourceGroup: mock-identities
+      step: mock-identity-apps-int
 - name: ci-bots
   resourceGroup: '{{ .global.rg }}'
   subscription: '{{ .global.subscription.key }}'

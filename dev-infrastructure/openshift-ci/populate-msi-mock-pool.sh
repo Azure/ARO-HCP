@@ -20,7 +20,7 @@ for i in $(seq 0 $((MSI_MOCK_POOL_SIZE - 1))); do
     PRINCIPAL_ID=$(az ad sp list --filter "displayName eq '${APP_NAME}'" --query '[*].id' -o tsv)
 
     if [ -z "$CLIENT_ID" ] || [ -z "$PRINCIPAL_ID" ]; then
-        echo "ERROR: Could not find SP ${APP_NAME} — run 'make create-msi-mock-pool' first"
+        echo "ERROR: Could not find SP ${APP_NAME} — deploy mock-identity-apps.bicep first"
         exit 1
     fi
 
