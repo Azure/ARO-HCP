@@ -446,9 +446,8 @@ func clusterCSVersionID(serviceProviderCluster *api.ServiceProviderCluster, hcpC
 // level ControlPlanePodSizing configuration, as well as the ServiceProviderCluster level one.
 // It also returns whether the property should be set at all on CS side.
 // This is the single source of truth for computing the override and is shared between the
-// BuildCSCluster property layering (used in the cluster update dispatch properties controller path) and the
-// desired-control-plane-size reconciler (backend ServiceProviderCluster-driven
-// path) so the two cannot disagree.
+// cluster update dispatch controller (CS writer) and the desired-control-plane-size
+// status reconciler (SPC Status confirmation) so the two cannot disagree.
 //
 // Precedence:
 //  1. desiredServiceProviderClusterControlPlanePodSizing, when set to non nil wins. Returned lowercased because cluster-service's
