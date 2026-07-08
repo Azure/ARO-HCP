@@ -170,11 +170,6 @@ func (c *clusterClusterServiceUpdateDispatchSyncer) SyncOnce(ctx context.Context
 	}
 
 	clusterCSID := cluster.ServiceProviderProperties.ClusterServiceID
-	clusterServiceCluster, err := c.clusterServiceClient.GetCluster(ctx, *clusterCSID)
-	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get cluster from Cluster Service: %w", err))
-	}
-
 	serviceProviderCluster, err := c.resourcesDBClient.ServiceProviderClusters(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName, cluster.ID.Name).Get(ctx, api.ServiceProviderClusterResourceName)
 	if database.IsNotFoundError(err) {
 		// We expect the service provider cluster to be created when the cluster exists. If it doesn't exist, we wait for the next sync.
@@ -183,6 +178,11 @@ func (c *clusterClusterServiceUpdateDispatchSyncer) SyncOnce(ctx context.Context
 	}
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get service provider cluster: %w", err))
+	}
+
+	clusterServiceCluster, err := c.clusterServiceClient.GetCluster(ctx, *clusterCSID)
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to get cluster from Cluster Service: %w", err))
 	}
 
 	// We check if the desired config coming from cosmos differs from the actual config coming from cluster service.
