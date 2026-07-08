@@ -182,7 +182,10 @@ func (c *servingCAReadDesireCreator) SyncOnce(ctx context.Context, key controlle
 }
 
 func buildServingCAReadDesire(resourceIDString string, managementCluster *azcorearm.ResourceID, target kubeapplier.ResourceReference) *kubeapplier.ReadDesire {
-	resourceID, _ := azcorearm.ParseResourceID(resourceIDString)
+	// The resourceIDString is produced by an internal kube-applier ID builder from
+	// already-validated key components, so a parse failure indicates a programming
+	// error; fail fast rather than silently writing a document with a nil ResourceID.
+	resourceID := api.Must(azcorearm.ParseResourceID(resourceIDString))
 	return &kubeapplier.ReadDesire{
 		CosmosMetadata: api.CosmosMetadata{
 			ResourceID:   resourceID,

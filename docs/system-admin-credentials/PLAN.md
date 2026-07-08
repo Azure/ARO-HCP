@@ -112,7 +112,7 @@ type SystemAdminCredentialRevocation struct {
 
 ### Desire Scoping
 
-Desire resources (ApplyDesire, ReadDesire, DeleteDesire) support being nested
+Desire resources (ApplyDesire, ReadDesire) support being nested
 under `SystemAdminCredentialRequest` as a parent resource, in addition to
 cluster-scoped and node-pool-scoped nesting. This means resource IDs follow
 the pattern:
@@ -175,14 +175,14 @@ revocation), a controller sets `Status.DeleteTimestamp` on the
 `ClusterDeletionCleanup`) fires on every credential request change and, for the
 **single** request named by its key, drives a 4-step teardown:
 
-1. **Delete ApplyDesires**: For each ApplyDesire belonging to *this* credential
-   request, create a corresponding DeleteDesire so the kube-applier removes the
-   management-cluster-side objects.
-2. **Wait for DeleteDesires**: Check that all DeleteDesires have the
+1. **Flip ApplyDesires to Delete**: For each ApplyDesire belonging to *this*
+   credential request, set `Spec.Type=Delete` (clearing the ServerSideApply
+   payload) so the kube-applier removes the management-cluster-side objects.
+2. **Wait for the Delete desires**: Check that each flipped ApplyDesire has the
    `Successful=True` condition, indicating the kube-applier has confirmed
    deletion on the management cluster.
-3. **Clean up DeleteDesires and ReadDesires**: Delete the completed DeleteDesires
-   and this credential request's ReadDesires.
+3. **Clean up the desires**: Delete the completed Delete-type ApplyDesires and
+   this credential request's ReadDesires.
 4. **Delete credential document**: Once all of this request's desires are cleaned
    up, delete the `SystemAdminCredentialRequest` document itself.
 
@@ -226,8 +226,8 @@ dispatch controller:
    `Complete` and stamps the revocation's own `DeleteTimestamp`.
 4. **RevocationDeletion** (revocation-keyed): once the revocation carries a
    `DeleteTimestamp`, tears down the revocation's desires (matched by the
-   revocation suffix) via DeleteDesires and, when they are all gone, deletes the
-   `SystemAdminCredentialRevocation` document.
+   revocation suffix) by flipping their ApplyDesires to `Type=Delete` and, when
+   they are all gone, deletes the `SystemAdminCredentialRevocation` document.
 
 The `OperationRevokeCredentialsPoll` controller no longer performs revocation
 work; it simply marks the operation `Succeeded` (and clears the cluster's revoke
