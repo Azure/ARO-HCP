@@ -350,7 +350,7 @@ defaults:
     image:
       registry: quay.io
       repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
-      digest: sha256:c633163045fc7f53c6634b37b6f1cb13f60e0132f35439a84a5697e36e02ef24 # 1aca7541076d98e120f880db026dbca726ea1b20 (2026-07-07 23:00)
+      digest: sha256:b58f27b32b4b827090b44934e347f682037be4289755be39acf8a7998a746a29 # 8b5103a5875ba0d57b78c56bca2bfe39843f0b22 (2026-07-08 11:43)
     namespace: hypershift
     additionalInstallArg: '--enable-cpo-overrides'
     # By default we set it to empty as this tag is only required for msft environments. We override
@@ -436,15 +436,15 @@ defaults:
     server:
       registry: registry.stage.redhat.io
       repository: oadp/oadp-velero-rhel9
-      digest: sha256:60cebd3341d2383de4dc4fc98f9cb4c37e92e07d580d798446a4aa65c15a26ac # 1.6.1 (2026-07-07 22:15)
+      digest: sha256:aee0432bc370f2e1d4a3f4245b365dc36ca3ca744b741c98af16bd40e0c7beb8 # 1.6.1 (2026-07-08 06:42)
     azurePlugin:
       registry: registry.stage.redhat.io
       repository: oadp/oadp-velero-plugin-for-microsoft-azure-rhel9
-      digest: sha256:33db7f292ad82aefaa9373950947bd43a6ad083e5b3973f141e53a98c2df7ab2 # 1.6.1 (2026-07-07 22:16)
+      digest: sha256:8b51e7ed709b146f9cc44065e479493f30b2d235731a54e5305a721ac3740ebd # 1.6.1 (2026-07-08 06:36)
     hypershiftPlugin:
       registry: registry.stage.redhat.io
       repository: oadp/oadp-hypershift-velero-plugin-rhel9
-      digest: sha256:2c64b5df5469eee89b14f8f7edd62b4dcb7a8a25e0bdea62be08d2a3c08e7a24 # 1.6.1 (2026-07-07 22:21)
+      digest: sha256:bdc6e3d056050e817941fdd4006ba2fed300bec14d7fcd1c3004ec7840ba33a3 # 1.6.1 (2026-07-08 06:36)
   # SVC cluster specifics
   svc:
     subscription:
@@ -577,7 +577,7 @@ defaults:
           registry: arohcpsvcdev.azurecr.io
           repository: thanos/thanos
           tag: v0.41.0
-          sha: cf3e9b292e4302ad4a4955b56379703aea39516607d382a57604a3d003c35d10
+          sha: cc1975aaeb64a744dc11319892345f4822f72860f0efcff030111fe08328bfa4 # v0.42.0 (2026-07-08 13:51)
   # MGMT cluster specifics
   mgmt:
     stamps:
@@ -707,7 +707,7 @@ defaults:
           registry: arohcpsvcdev.azurecr.io
           repository: thanos/thanos
           tag: v0.41.0
-          sha: cf3e9b292e4302ad4a4955b56379703aea39516607d382a57604a3d003c35d10
+          sha: cc1975aaeb64a744dc11319892345f4822f72860f0efcff030111fe08328bfa4 # v0.42.0 (2026-07-08 13:51)
   # Backend
   backend:
     image:
@@ -953,7 +953,7 @@ defaults:
         image:
           registry: mcr.microsoft.com
           repository: azurelinux/base/nginx
-          digest: sha256:bef7ab720cea4ae7cd19a0ee03418a59c4a9233ded75b233143cf792d8ca0741 # 1.28.3-5-azl3.0.20260616 (2026-06-19 09:14)
+          digest: sha256:eb2f01cc220dac1d970bd45f9bf8bcfda3cc5e6840e59b1698dd7b6c4f84d37c # 1.28.3-6-azl3.0.20260706 (2026-07-06 13:27)
     eventGrid:
       name: "arohcp-{{ .ctx.environment }}-maestro-{{ .ctx.regionShort }}" # [globally-unique]
       maxClientSessionsPerAuthName: 6
@@ -986,12 +986,12 @@ defaults:
       bundle:
         registry: quay.io
         repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-216
-        digest: sha256:6d40c4bc4bfd4b82f16b34bbc1cdc17926831eb3bdd080a703e6b263ba885f90 # v2.16.3-506 (2026-07-08 05:10)
+        digest: sha256:94e71eeae6bf40c544dd8b64e57a25b18425ac9a949d62c79b9d440a281349cb # v2.16.3-508 (2026-07-08 16:47)
     mce:
       bundle:
         registry: quay.io
         repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-211
-        digest: sha256:b09723f609a9eec9d62b2c7698e0f4233b47cbf49178aef3dacde84dc581a446 # v2.11.4-546 (2026-07-08 05:05)
+        digest: sha256:076552812a726460398e01cccf0af1bb2110365b100d8e13d8a55224185bf3b5 # v2.11.4-546 (2026-07-08 16:39)
   # Cluster Service
   clustersService:
     image:
@@ -1059,7 +1059,7 @@ defaults:
       image:
         registry: arohcpsvcdev.azurecr.io
         repository: image-sync/oc-mirror
-        digest: sha256:f29ec92390a6ea840289785ed1962d462bb5a3c54470754de11c2ffef4ee20a8 # 63a7330 (2026-07-08 04:37)
+        digest: sha256:fc9ccbe3844a75dc757b43d090d0bd44d0d555e390dbaec62e3ca33f19d97572 # 50e62e1 (2026-07-08 21:10)
       pullSecretName: ocmirror-pull-secret
       operatorVersionsToMirror: "4.18,4.19,4.20,4.21,4.22"
   # Automation Account
