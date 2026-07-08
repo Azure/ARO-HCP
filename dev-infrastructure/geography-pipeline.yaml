@@ -64,6 +64,14 @@ resourceGroups:
       - "Internal server error"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
+  - name: action-groups
+    action: ARM
+    template: templates/geography-actiongroups.bicep
+    parameters: configurations/geography-actiongroups.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    dependsOn:
+    - resourceGroup: kusto-infra
+      step: deploy
   - name: kusto-lookup
     action: ARM
     template: templates/kusto-lookup.bicep
@@ -96,6 +104,13 @@ resourceGroups:
         resourceGroup: kusto-infra
         step: kusto-lookup
         name: kustoRegion
+    - name: actionGroupSL
+      input:
+        resourceGroup: kusto-infra
+        step: action-groups
+        name: actionGroupsSL
     dependsOn:
     - resourceGroup: kusto-infra
       step: kusto-lookup
+    - resourceGroup: kusto-infra
+      step: action-groups
