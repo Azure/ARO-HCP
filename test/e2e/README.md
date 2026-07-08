@@ -245,6 +245,8 @@ Framework helpers include an API version suffix. See [`test/AGENTS.md`](../AGENT
 | Provisioning | `ExternalAuthCreationTimeout` | `CreateOrUpdateExternalAuthAndWait20240610` |
 | Access cluster | `GetAdminRESTConfigTimeout` | `GetAdminRESTConfigForHCPCluster20240610` |
 | Deletion | `HCPClusterDeletionTimeout` | `DeleteHCPCluster20240610`, `DeleteAllHCPClusters20240610`, inline delete pollers |
+| Deletion | `NodePoolDeletionTimeout` | `DeleteNodePool20240610`, inline node pool delete pollers |
+| Deletion | `ExternalAuthDeletionTimeout` | `DeleteExternalAuth20240610`, inline external auth delete pollers |
 | Update | `UpdateHCPClusterTimeout` | `UpdateHCPCluster20240610` (tags, IDMS, autoscaling PATCH); preview: `UpdateHCPCluster20251223` |
 | Update | `HCPClusterVersionUpgradeTimeout` | Control plane version upgrades (`UpdateHCPCluster20240610`, `Eventually` verifiers) |
 | Update | `NodePoolVersionUpgradeTimeout` | Node pool version upgrades (`UpdateNodePoolAndWait20240610`, `Eventually` verifiers) |
@@ -268,6 +270,38 @@ database('ServiceLogs').table('backendLogs')
     by resource_id, resource_type
 | where isnotempty(provisioning_time) and isnotempty(succeeded_time)
 | extend duration = succeeded_time - provisioning_time
+| summarize
+    count  = count(),
+    avg    = avg(duration),
+    p50    = percentile(duration, 50),
+    p90    = percentile(duration, 90),
+    p95    = percentile(duration, 95),
+    p99    = percentile(duration, 99),
+    p999   = percentile(duration, 99.9),
+    p9999  = percentile(duration, 99.99)
+    by resource_type
+```
+
+### Deletion durations (Kusto)
+
+For **delete** timeouts, run the following query. The key differences from the provisioning query are: `controller_name endswith 'delete'`, start is detected via `log.msg == 'checking operation'`, and end via `log.newStatus == 'Succeeded'`.
+
+```kql
+database('ServiceLogs').table('backendLogs')
+| where timestamp between (ago(7d) .. now())
+| where container_name == 'aro-hcp-backend'
+| where log.controller_name endswith 'delete'
+| where log.msg == 'checking operation'
+    or (log.msg has 'Updating operation status' and log.newStatus == 'Succeeded')
+| project timestamp, resource_id = tostring(log.resource_id), resource_type = tostring(log.resourceType),
+    is_start = log.msg == 'checking operation',
+    is_end   = log.newStatus == 'Succeeded'
+| summarize
+    start_time     = minif(timestamp, tobool(is_start)),
+    succeeded_time = minif(timestamp, tobool(is_end))
+    by resource_id, resource_type
+| where isnotempty(start_time) and isnotempty(succeeded_time)
+| extend duration = succeeded_time - start_time
 | summarize
     count  = count(),
     avg    = avg(duration),

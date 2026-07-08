@@ -17,7 +17,7 @@
 * **Timeouts:** Add named constants in [`test/util/framework/constants.go`](util/framework/constants.go) only for durations **shared across multiple test cases** (same ARM operation, framework helper, or verifier pattern). A timeout that is unique to one test and used once can stay as a local literal (e.g. in an `Eventually` block). When several tests need the same budget, use the matching constant instead of repeating a magic number:
   * **Provisioning:** `ClusterCreationTimeout`, `NodePoolCreationTimeout`, `ExternalAuthCreationTimeout`
   * **Access Cluster:** `GetAdminRESTConfigTimeout` (for `GetAdminRESTConfigForHCPClusterYYYYMMDD` and similar credential fetches)
-  * **Deletion:** `HCPClusterDeletionTimeout` (for `DeleteHCPClusterYYYYMMDD`, inline delete pollers, and per-cluster deletes in `DeleteAllHCPClusters`)
+  * **Deletion:** `HCPClusterDeletionTimeout` (for `DeleteHCPClusterYYYYMMDD`, inline delete pollers, and per-cluster deletes in `DeleteAllHCPClusters`), `NodePoolDeletionTimeout` (for `DeleteNodePoolYYYYMMDD`), `ExternalAuthDeletionTimeout` (for `DeleteExternalAuthYYYYMMDD`)
   * **Updates:** `UpdateHCPClusterTimeout` (PATCH/update cluster properties), `HCPClusterVersionUpgradeTimeout` (control plane version upgrades), `NodePoolVersionUpgradeTimeout` (node pool version upgrades), `NodePoolScalingTimeout` (replica changes and autoscaling updates)
   Add a new constant only when a second (or later) test needs the same duration. See [`test/e2e/README.md`](e2e/README.md#updating-e2e-timeouts) for the constant table and how to tune shared values from telemetry.
 
