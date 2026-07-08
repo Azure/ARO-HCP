@@ -1,0 +1,23 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: hcp-test-clusters-monitoring-rules
+  namespace: monitoring
+spec:
+  groups:
+  - name: hcp-test-clusters-rules
+    rules:
+    - alert: HCPClusterOlderThan3Hours
+      expr: |
+        max by (cluster, resource_id, environment) (
+          time() - backend_cluster_created_time_seconds{environment=~"int|stg"}
+        ) > 3 * 3600
+      for: 5m
+      labels:
+        severity: "3"
+      annotations:
+        correlationId: 'IntStgClusterOlderThan3Hours{{ $labels.resource_id }}'
+        description: |
+          HCP cluster {{ $labels.resource_id }} in {{ $labels.environment }} on service cluster {{ $labels.cluster }} has existed for more than 3 hours.
+        runbook_url: TBD
+        summary: HCP in {{ $labels.environment }} is older than 3h
