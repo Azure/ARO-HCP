@@ -113,9 +113,6 @@ services:
   pipelinePath: dev-infrastructure/cleanup/delete.region.pipeline.yaml
   purpose: Delete the region resources and resource group
 # Dev-only pipelines
-- serviceGroup: Microsoft.Azure.ARO.HCP.Grafana
-  pipelinePath: dev-infrastructure/grafana-pipeline.yaml
-  purpose: Test pipeline for Grafana reconciliation.
 - serviceGroup: Microsoft.Azure.ARO.HCP.Observability
   pipelinePath: observability/tracing/pipeline.yaml
   purpose: Deploy the development tracing stack.
