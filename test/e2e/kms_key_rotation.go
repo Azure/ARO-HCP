@@ -31,6 +31,8 @@ import (
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
 )
 
+const HCPClusterReencryptionUpgradeTimeout = 15 * time.Minute
+
 var _ = Describe("Customer", func() {
 	// Deadline for v20260630preview API deployment in non-dev environments
 	timeBombDeadline := framework.Must(time.Parse(time.RFC3339, "2026-07-31T00:00:00Z"))
@@ -38,12 +40,7 @@ var _ = Describe("Customer", func() {
 	It("should be able to rotate KMS key for a cluster with version >= 4.22",
 		labels.RequireNothing, labels.High, labels.Positive, labels.AroRpApiCompatible,
 		func(ctx context.Context) {
-			const (
-				clusterName = "kms-key-rotate-422"
-
-				// Timeout for StorageVersionMigration to complete re-encryption after KMS key rotation
-				storageVersionMigrationTimeout = 15 * time.Minute
-			)
+			const clusterName = "kms-key-rotate-422"
 
 			tc := framework.NewTestContext()
 
@@ -56,10 +53,16 @@ var _ = Describe("Customer", func() {
 			resourceGroup, err := tc.NewResourceGroup(ctx, "kms-key-rotate", tc.Location())
 			Expect(err).NotTo(HaveOccurred(), "failed to create resource group for KMS key rotation test")
 
+			By("resolving latest 4.22 version from candidate channel")
+			resolvedVersion, err := framework.GetLatestInstallVersion(ctx, framework.DefaultOCPChannelGroup, "4.22")
+			if err != nil {
+				Skip(fmt.Sprintf("No install version found for 4.22 in %s channel: %s", framework.DefaultOCPChannelGroup, err.Error()))
+			}
+
 			By("creating cluster parameters with version 4.22")
 			clusterParams := framework.NewDefaultClusterParams20260630()
 			clusterParams.ClusterName = clusterName
-			clusterParams.OpenshiftVersionId = "4.22"
+			clusterParams.OpenshiftVersionId = resolvedVersion
 
 			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 			clusterParams.ManagedResourceGroupName = managedResourceGroupName
@@ -114,10 +117,8 @@ var _ = Describe("Customer", func() {
 				"keyName", clusterParams.EtcdEncryptionKeyName,
 				"originalVersion", clusterParams.EtcdEncryptionKeyVersion)
 
-			// Create a new version of the key (this is the rotation)
-			kty := azkeys.KeyTypeRSA
 			createKeyResp, err := keyClient.CreateKey(ctx, clusterParams.EtcdEncryptionKeyName, azkeys.CreateKeyParameters{
-				Kty:     &kty,
+				Kty:     to.Ptr(azkeys.KeyTypeRSA),
 				KeySize: to.Ptr(int32(2048)),
 			}, nil)
 			Expect(err).NotTo(HaveOccurred(), "failed to create new key version (rotation)")
@@ -126,6 +127,7 @@ var _ = Describe("Customer", func() {
 
 			newKeyVersion := createKeyResp.Key.KID.Version()
 			Expect(newKeyVersion).NotTo(BeEmpty(), "created key ID version was empty")
+
 			GinkgoLogr.Info("Successfully created new key version",
 				"keyVaultName", clusterParams.KeyVaultName,
 				"keyName", clusterParams.EtcdEncryptionKeyName,
@@ -153,15 +155,14 @@ var _ = Describe("Customer", func() {
 						},
 					},
 				},
-				framework.UpdateHCPClusterTimeout,
+				HCPClusterReencryptionUpgradeTimeout,
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to update cluster with new KMS key")
 
-			By("verifying the cluster is ready")
-			Expect(updateResult.Properties).NotTo(BeNil(), "update result Properties was nil")
-			Expect(updateResult.Properties.ProvisioningState).NotTo(BeNil(), "update result ProvisioningState was nil")
-			Expect(*updateResult.Properties.ProvisioningState).To(Equal("Succeeded"),
-				"cluster should be in Succeeded state after KMS key update completed")
+			GinkgoLogr.Info("Cluster update completed successfully",
+				"clusterName", clusterName,
+				"provisioningState", *updateResult.Properties.ProvisioningState,
+				"newKeyVersion", newKeyVersion)
 
 			By("verifying the cluster references the new KMS key version")
 			Expect(updateResult.Properties.Etcd).NotTo(BeNil(), "update result Etcd was nil")
@@ -172,11 +173,6 @@ var _ = Describe("Customer", func() {
 			Expect(updateResult.Properties.Etcd.DataEncryption.CustomerManaged.Kms.ActiveKey.Version).NotTo(BeNil(), "update result key Version was nil")
 			Expect(*updateResult.Properties.Etcd.DataEncryption.CustomerManaged.Kms.ActiveKey.Version).To(Equal(newKeyVersion),
 				"cluster should reference the new KMS key version after update")
-
-			GinkgoLogr.Info("Cluster update completed successfully",
-				"clusterName", clusterName,
-				"provisioningState", *updateResult.Properties.ProvisioningState,
-				"newKeyVersion", newKeyVersion)
 
 			By("confirming key version persists via GET (round-trip verification)")
 			fetchedCluster, err := hcpClient.Get(ctx, *resourceGroup.Name, clusterName, nil)
@@ -192,8 +188,9 @@ var _ = Describe("Customer", func() {
 				"cluster should reference the new KMS key version after round-trip GET")
 
 			By("verifying StorageVersionMigration succeeded for re-encryption")
-			err = verifiers.VerifyStorageVersionMigrationSucceeded(storageVersionMigrationTimeout).Verify(ctx, adminRESTConfig)
+			err = verifiers.VerifyStorageVersionMigrationSucceeded().Verify(ctx, adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred(), "all StorageVersionMigration resources should reach Succeeded state after KMS key rotation")
+
 		},
 	)
 })

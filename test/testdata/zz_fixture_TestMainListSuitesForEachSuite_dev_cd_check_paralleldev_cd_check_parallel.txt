@@ -60,6 +60,7 @@ Customer should be able to lifecycle and confirm external auth on a cluster
 Fleet should have registered stamps with ready management clusters
 Customer should be able to create an HCP cluster and manage ImageDigestMirrors
 Customer should be able to create an HCP cluster with Image Registry not present
+Customer should be able to rotate KMS key for a cluster with version >= 4.22
 Engineering should be able to retrieve kusto logs for a cluster and services
 Customer should be able to create a cluster with default autoscaling and a nodepool with autoscaling enabled up to replica limits
 Nodepool Ephemeral OS Disk should create a nodepool with ephemeral OS disk when autoRepair is enabled

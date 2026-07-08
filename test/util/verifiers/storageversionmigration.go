@@ -16,73 +16,141 @@ package verifiers
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
-	"slices"
 	"sort"
 	"strings"
-	"time"
 
-	storagemigrationv1beta1 "k8s.io/api/storagemigration/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/rest"
 )
 
-// VerifyStorageVersionMigrationSucceeded returns a verifier that polls until all
-// StorageVersionMigration resources are in "Succeeded" state. This is important
-// after rotating KMS encryption keys to ensure all Kubernetes objects have been
-// re-encrypted with the new key.
-func VerifyStorageVersionMigrationSucceeded(timeout time.Duration) HostedClusterVerifier {
-	return verifyStorageVersionMigrationSucceeded{timeout: timeout}
+// HyperShift uses the out-of-tree migration.k8s.io CRD (not the in-tree storagemigration.k8s.io),
+// which has no typed client in client-go, so we use the dynamic client.
+var svmGVR = schema.GroupVersionResource{
+	Group:    "migration.k8s.io",
+	Version:  "v1alpha1",
+	Resource: "storageversionmigrations",
 }
 
-type verifyStorageVersionMigrationSucceeded struct {
-	timeout time.Duration
+// VerifyStorageVersionMigrationSucceeded returns a verifier that checks all
+// encryption-migration-* StorageVersionMigration resources are in Succeeded state.
+// HCCO re-encryption controller creates StorageVersionMigration resources with this prefix
+// https://github.com/muraee/enhancements/blob/hypershift-etcd-reencryption/enhancements/hypershift/etcd-data-reencryption-on-key-rotation.md#component-2-re-encryption-orchestration-hcco
+func VerifyStorageVersionMigrationSucceeded() HostedClusterVerifier {
+	return verifyStorageVersionMigrationSucceeded{}
 }
+
+type verifyStorageVersionMigrationSucceeded struct{}
 
 func (v verifyStorageVersionMigrationSucceeded) Name() string {
 	return "VerifyStorageVersionMigrationSucceeded"
 }
 
 func (v verifyStorageVersionMigrationSucceeded) Verify(ctx context.Context, restConfig *rest.Config) error {
-	return pollUntilReady(ctx, v.Name(), v.timeout, DefaultPollInterval, restConfig, DefaultDiagnoseTimeout, nil, func(ctx context.Context) error {
-		return v.checkOnce(ctx, restConfig)
-	})
-}
-
-func (v verifyStorageVersionMigrationSucceeded) checkOnce(ctx context.Context, restConfig *rest.Config) error {
-	kubeClient, err := kubernetes.NewForConfig(restConfig)
+	dynClient, err := dynamic.NewForConfig(restConfig)
 	if err != nil {
-		return fmt.Errorf("failed to create kubernetes client: %w", err)
+		return fmt.Errorf("failed to create dynamic client: %w", err)
 	}
 
-	svmList, err := kubeClient.StoragemigrationV1beta1().StorageVersionMigrations().List(ctx, metav1.ListOptions{})
+	svmList, err := dynClient.Resource(svmGVR).List(ctx, metav1.ListOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to list StorageVersionMigration resources: %w", err)
 	}
 
-	if len(svmList.Items) == 0 {
-		return fmt.Errorf("no StorageVersionMigration resources found - expected at least one after KMS key rotation")
-	}
-
-	var failedMigrations []string
+	var encryptionMigrations []unstructured.Unstructured
 	for i := range svmList.Items {
-		if !storageVersionMigrationSucceeded(&svmList.Items[i]) {
-			failedMigrations = append(failedMigrations, fmt.Sprintf("%s: not in Succeeded state", svmList.Items[i].GetName()))
+		if strings.HasPrefix(svmList.Items[i].GetName(), "encryption-migration-") {
+			encryptionMigrations = append(encryptionMigrations, svmList.Items[i])
 		}
 	}
 
-	if len(failedMigrations) > 0 {
-		sort.Strings(failedMigrations)
-		return fmt.Errorf("StorageVersionMigration verification failed:\n%s", strings.Join(failedMigrations, "\n"))
+	if len(encryptionMigrations) == 0 {
+		return fmt.Errorf("no encryption-migration-* StorageVersionMigration resources found")
+	}
+
+	var notSucceeded []string
+	for i := range encryptionMigrations {
+		if !storageVersionMigrationSucceeded(&encryptionMigrations[i]) {
+			notSucceeded = append(notSucceeded, encryptionMigrations[i].GetName())
+		}
+	}
+
+	if len(notSucceeded) > 0 {
+		sort.Strings(notSucceeded)
+		summaries := summarizeMigrations(encryptionMigrations)
+		summariesJSON, err := json.Marshal(summaries)
+		if err != nil {
+			return fmt.Errorf("%d encryption StorageVersionMigration resources not Succeeded: %s", len(notSucceeded), strings.Join(notSucceeded, ", "))
+		}
+		return fmt.Errorf("%d encryption StorageVersionMigration resources not Succeeded: %s; migrations=%s",
+			len(notSucceeded), strings.Join(notSucceeded, ", "), string(summariesJSON))
 	}
 
 	return nil
 }
 
-// storageVersionMigrationSucceeded returns true if the StorageVersionMigration has Succeeded condition status True.
-func storageVersionMigrationSucceeded(svm *storagemigrationv1beta1.StorageVersionMigration) bool {
-	return slices.ContainsFunc(svm.Status.Conditions, func(c metav1.Condition) bool {
-		return c.Type == "Succeeded" && c.Status == metav1.ConditionTrue
-	})
+type migrationSummary struct {
+	Name       string             `json:"name"`
+	Resource   string             `json:"resource,omitempty"`
+	Conditions []conditionSummary `json:"conditions,omitempty"`
+}
+
+type conditionSummary struct {
+	Type   string `json:"type"`
+	Status string `json:"status"`
+}
+
+func summarizeMigrations(migrations []unstructured.Unstructured) []migrationSummary {
+	summaries := make([]migrationSummary, len(migrations))
+	for i := range migrations {
+		obj := &migrations[i]
+		s := migrationSummary{Name: obj.GetName()}
+
+		resource, _, _ := unstructured.NestedString(obj.Object, "spec", "resource", "resource")
+		if resource != "" {
+			group, _, _ := unstructured.NestedString(obj.Object, "spec", "resource", "group")
+			if group != "" {
+				s.Resource = group + "/" + resource
+			} else {
+				s.Resource = resource
+			}
+		}
+
+		conditions, found, err := unstructured.NestedSlice(obj.Object, "status", "conditions")
+		if err == nil && found {
+			for _, c := range conditions {
+				cond, ok := c.(map[string]interface{})
+				if !ok {
+					continue
+				}
+				t, _ := cond["type"].(string)
+				status, _ := cond["status"].(string)
+				s.Conditions = append(s.Conditions, conditionSummary{Type: t, Status: status})
+			}
+		}
+
+		summaries[i] = s
+	}
+	return summaries
+}
+
+func storageVersionMigrationSucceeded(obj *unstructured.Unstructured) bool {
+	conditions, found, err := unstructured.NestedSlice(obj.Object, "status", "conditions")
+	if err != nil || !found {
+		return false
+	}
+	for _, c := range conditions {
+		cond, ok := c.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		if cond["type"] == "Succeeded" && cond["status"] == "True" {
+			return true
+		}
+	}
+	return false
 }
