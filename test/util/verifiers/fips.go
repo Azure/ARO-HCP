@@ -80,14 +80,16 @@ func checkNodeFIPSMode(ctx context.Context, kubeClient *kubernetes.Clientset, no
 		_ = kubeClient.CoreV1().Namespaces().Delete(ctx, namespace.Name, metav1.DeleteOptions{})
 	}()
 
+	disableSAToken := false
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName: "fips-check-",
 			Namespace:    namespace.Name,
 		},
 		Spec: corev1.PodSpec{
-			NodeName:      node.Name,
-			RestartPolicy: corev1.RestartPolicyNever,
+			NodeName:                      node.Name,
+			RestartPolicy:                 corev1.RestartPolicyNever,
+			AutomountServiceAccountToken:  &disableSAToken,
 			Containers: []corev1.Container{
 				{
 					Name:    "fips-check",
