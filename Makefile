@@ -242,10 +242,6 @@ infra.mgmt:
 	@cd dev-infrastructure && DEPLOY_ENV=$(DEPLOY_ENV) make mgmt.init
 .PHONY: infra.mgmt
 
-infra.mgmt.solo:
-	@cd dev-infrastructure && DEPLOY_ENV=$(DEPLOY_ENV) make mgmt.solo.init
-.PHONY: infra.mgmt.solo
-
 infra.mgmt.aks.kubeconfig:
 	@cd dev-infrastructure && DEPLOY_ENV=$(DEPLOY_ENV) make -s mgmt.aks.kubeconfig
 .PHONY: infra.mgmt.aks.kubeconfig

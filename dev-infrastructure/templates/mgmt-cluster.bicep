@@ -519,7 +519,7 @@ module genevaClusterLogsCertCSIAccess '../modules/keyvault/key-vault-secret-acce
 //   M A E S T R O
 //
 
-module maestroConsumer '../modules/maestro/maestro-consumer.bicep' = if (maestroEventGridNamespaceId != '') {
+module maestroConsumer '../modules/maestro/maestro-consumer.bicep' = {
   name: 'maestro-consumer'
   params: {
     maestroAgentManagedIdentityPrincipalId: mi.getManagedIdentityByName(
@@ -541,7 +541,7 @@ module maestroConsumer '../modules/maestro/maestro-consumer.bicep' = if (maestro
 //  E V E N T   G R I D   P R I V A T E   E N D P O I N T   C O N N E C T I O N
 //
 
-module eventGrindPrivateEndpoint '../modules/private-endpoint.bicep' = if (maestroEventGridNamespaceId != '') {
+module eventGrindPrivateEndpoint '../modules/private-endpoint.bicep' = {
   name: 'eventGridPrivateEndpoint'
   params: {
     location: location
