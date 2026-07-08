@@ -25,8 +25,6 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"k8s.io/client-go/dynamic"
-
 	operatorv1 "github.com/openshift/api/operator/v1"
 
 	hcpsdk20260630preview "github.com/Azure/ARO-HCP/test/sdk/v20260630preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
@@ -180,13 +178,10 @@ var _ = Describe("Customer", func() {
 			GinkgoLogr.Info("Cluster health and IngressController scope verified")
 
 			By("deploying a sample web app to verify ingress connectivity")
-			dynamicClient, err := dynamic.NewForConfig(adminRESTConfig)
-			Expect(err).NotTo(HaveOccurred(), "failed to create dynamic client from admin REST config")
-
-			_, appRouteHost, err := framework.DeploySampleApp(ctx, dynamicClient)
+			sampleApp, err := verifiers.DeploySampleApp(ctx, adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred(), "failed to deploy sample web app for ingress connectivity test")
 
-			appURL := "https://" + appRouteHost
+			appURL := "https://" + sampleApp.RouteHost
 			GinkgoLogr.Info("Sample app deployed", "url", appURL)
 
 			By("verifying ingress is reachable from VM inside the VNet")
