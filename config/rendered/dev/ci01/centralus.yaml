@@ -630,12 +630,12 @@ mgmt:
       name: system
       osDiskSizeGB: 32
       poolCount: 1
-      vmSize: Standard_D4ds_v6
+      vmSize: Standard_D16ds_v6
       zoneRedundantMode: Auto
       zones: ""
     userAgentPool:
       maxCount: 14
-      minCount: 6
+      minCount: 7
       name: userswft
       osDiskSizeGB: 100
       poolCount: 3
