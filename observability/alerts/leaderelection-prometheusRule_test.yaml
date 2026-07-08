@@ -46,7 +46,7 @@ tests:
   - series: 'kube_lease_renew_time{namespace="kube-applier", lease="kube-applier", cluster="test-cluster"}'
     values: "0+60x25" # renewTime advances 60s/min — diff always 0
   alert_rule_test:
-  - eval_time: 10m
+  - eval_time: 21m
     alertname: LeaderElectionLeaseStale
     exp_alerts: []
 # Test: LeaderElectionLeaseStale does not fire for excluded system namespaces
@@ -55,6 +55,6 @@ tests:
   - series: 'kube_lease_renew_time{namespace="kube-system", lease="kube-controller-manager", cluster="test-cluster"}'
     values: "0x25" # stale, but namespace excluded
   alert_rule_test:
-  - eval_time: 10m
+  - eval_time: 21m
     alertname: LeaderElectionLeaseStale
     exp_alerts: []
