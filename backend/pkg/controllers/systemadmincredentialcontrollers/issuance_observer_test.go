@@ -31,7 +31,7 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
-	"github.com/Azure/ARO-HCP/backend/pkg/maestrohelpers"
+	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/database/listertesting"
@@ -190,7 +190,7 @@ func makeReadDesireListerWithCSR(t *testing.T, credName string, csr *certificate
 	csrBytes, err := json.Marshal(csr)
 	require.NoError(t, err)
 
-	desireName := maestrohelpers.ReadDesireNameForSystemAdminCredentialRequestCSR(credName)
+	desireName := kubeapplierhelpers.ReadDesireNameForSystemAdminCredentialRequestCSR(credName)
 	resourceIDStr := kubeapplier.ToClusterScopedReadDesireResourceIDString(
 		testSubscriptionID, testResourceGroupName, testClusterName, desireName,
 	)

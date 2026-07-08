@@ -21,8 +21,8 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
+	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
-	"github.com/Azure/ARO-HCP/backend/pkg/maestrohelpers"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	dblisters "github.com/Azure/ARO-HCP/internal/database/listers"
@@ -82,7 +82,7 @@ func (c *caBundleSync) SyncOnce(ctx context.Context, key controllerutils.HCPClus
 	logger := utils.LoggerFromContext(ctx)
 
 	// Read the serving CA Secret from the ReadDesire cache.
-	cachedSecret, err := maestrohelpers.GetCachedServingCASecretForCluster(
+	cachedSecret, err := kubeapplierhelpers.GetCachedServingCASecretForCluster(
 		ctx, c.readDesireLister,
 		key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName,
 	)

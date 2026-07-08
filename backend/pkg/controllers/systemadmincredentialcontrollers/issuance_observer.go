@@ -27,8 +27,8 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
+	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
-	"github.com/Azure/ARO-HCP/backend/pkg/maestrohelpers"
 	"github.com/Azure/ARO-HCP/internal/api"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
@@ -105,7 +105,7 @@ func (c *issuanceObserver) observeCSR(
 	credCRUD database.ResourceCRUD[api.SystemAdminCredentialRequest, *api.SystemAdminCredentialRequest],
 ) error {
 	logger := utils.LoggerFromContext(ctx)
-	cachedCSR, err := maestrohelpers.GetCachedCSRForSystemAdminCredentialRequest(
+	cachedCSR, err := kubeapplierhelpers.GetCachedCSRForSystemAdminCredentialRequest(
 		ctx, c.readDesireLister,
 		key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, credName,
 	)

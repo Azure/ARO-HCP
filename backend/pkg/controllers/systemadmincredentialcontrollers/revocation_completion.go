@@ -25,8 +25,8 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
+	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
-	"github.com/Azure/ARO-HCP/backend/pkg/maestrohelpers"
 	"github.com/Azure/ARO-HCP/internal/api"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
@@ -99,7 +99,7 @@ func (c *revocationCompletion) SyncOnce(ctx context.Context, key controllerutils
 
 	// Observe the mirrored CRR to confirm the certificates have been revoked.
 	if !revocation.Status.IsCertificatesRevoked() {
-		cachedCRR, err := maestrohelpers.GetCachedCertificateRevocationRequestForCluster(
+		cachedCRR, err := kubeapplierhelpers.GetCachedCertificateRevocationRequestForCluster(
 			ctx, c.readDesireLister,
 			key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, revocation.Spec.RevokeOpSuffix)
 		if err != nil {

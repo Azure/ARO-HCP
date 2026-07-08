@@ -23,8 +23,8 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
+	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
-	"github.com/Azure/ARO-HCP/backend/pkg/maestrohelpers"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
@@ -195,7 +195,7 @@ func (c *revocationDesires) ensureRevocationDesires(
 	}
 
 	// 3. CRR ReadDesire so the CRR status is mirrored back for the completion controller.
-	crrReadDesireName := maestrohelpers.ReadDesireNameForSystemAdminCredentialRequestRevocation(suffix)
+	crrReadDesireName := kubeapplierhelpers.ReadDesireNameForSystemAdminCredentialRequestRevocation(suffix)
 	if err := ensureReadDesire(ctx, readCRUD, c.readDesireLister,
 		key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName,
 		crrReadDesireName, mcResourceID, crrTarget); err != nil {

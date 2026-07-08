@@ -25,8 +25,8 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
+	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
-	"github.com/Azure/ARO-HCP/backend/pkg/maestrohelpers"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
@@ -250,7 +250,7 @@ func (c *desiresCreator) ensureDesires(
 	}
 
 	// 5. CSR ReadDesire
-	csrReadDesireName := maestrohelpers.ReadDesireNameForSystemAdminCredentialRequestCSR(credName)
+	csrReadDesireName := kubeapplierhelpers.ReadDesireNameForSystemAdminCredentialRequestCSR(credName)
 	csrReadTarget := kubeapplier.ResourceReference{
 		Group:    "certificates.k8s.io",
 		Version:  "v1",
