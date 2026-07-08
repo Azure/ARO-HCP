@@ -1620,18 +1620,18 @@ resource hcpDeletionRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-
           severity: 'warning'
         }
         annotations: {
-          correlationId: 'HCPClusterStuckDeleting/{{ $labels.cluster }}/{{ $labels.exported_namespace }}'
-          description: '''Cluster {{ $labels.exported_namespace }} has been in a deleting state for more than 2 hours. 
+          correlationId: 'HCPClusterStuckDeleting/{{ $labels.cluster }}/{{ $labels.resource_id }}'
+          description: '''Cluster {{ $labels.resource_id }} has been in a deleting state for more than 3 hours. 
 This may indicate that finalizers are stuck or resources are failing to cleanup.
 '''
-          info: '''Cluster {{ $labels.exported_namespace }} has been in a deleting state for more than 2 hours. 
+          info: '''Cluster {{ $labels.resource_id }} has been in a deleting state for more than 3 hours. 
 This may indicate that finalizers are stuck or resources are failing to cleanup.
 '''
           runbook_url: 'TBD'
-          summary: 'Cluster stuck deleting'
-          title: 'Cluster stuck deleting exported_namespace:{{ $labels.exported_namespace }}'
+          summary: '{{ $labels.cluster }}: Cluster {{ $labels.resource_id }} stuck deleting'
+          title: '{{ $labels.cluster }}: Cluster {{ $labels.resource_id }} stuck deleting'
         }
-        expression: 'sum by (cluster, exported_namespace, name) (hypershift_cluster_deleting_duration_seconds) > 7200'
+        expression: '(max by (resource_id, subscription_id, cluster) (time() - backend_resource_operation_start_time_seconds{operation_type="delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) and max by (resource_id, subscription_id, cluster) (backend_resource_operation_phase_info{operation_type="delete",phase="deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) == 1) > 10800'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }

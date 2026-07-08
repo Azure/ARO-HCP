@@ -8,12 +8,27 @@ spec:
   - name: hcp-deletion-rules
     rules:
     - alert: HCPClusterStuckDeleting
-      # Trigger if deletion duration > 2 hours (7200 seconds)
-      expr: sum by (cluster, exported_namespace, name) (hypershift_cluster_deleting_duration_seconds) > 7200
+      expr: |
+        (
+          max by (resource_id, subscription_id, cluster) (
+            time() - backend_resource_operation_start_time_seconds{
+              resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
+              operation_type="delete"
+            }
+          )
+          and
+          max by (resource_id, subscription_id, cluster) (
+            backend_resource_operation_phase_info{
+              resource_type="microsoft.redhatopenshift/hcpopenshiftclusters",
+              operation_type="delete",
+              phase="deleting"
+            }
+          ) == 1
+        ) > 10800
       for: 5m
       labels:
         severity: warning
       annotations:
-        summary: "Cluster stuck deleting"
-        description: "Cluster {{ $labels.exported_namespace }} has been in a deleting state for more than 2 hours. \nThis may indicate that finalizers are stuck or resources are failing to cleanup.\n"
+        summary: "{{ $labels.cluster }}: Cluster {{ $labels.resource_id }} stuck deleting"
+        description: "Cluster {{ $labels.resource_id }} has been in a deleting state for more than 3 hours. \nThis may indicate that finalizers are stuck or resources are failing to cleanup.\n"
         runbook_url: TBD
