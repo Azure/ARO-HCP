@@ -17,9 +17,7 @@
     "node": ">=22.0.0"
   },
   "scripts": {
-    "format": "prettier --write --plugin @typespec/compiler/internals/prettier-formatter \"redhatopenshift/**/*.tsp\"",
-    "format-check": "prettier --check --plugin @typespec/compiler/internals/prettier-formatter \"redhatopenshift/**/*.tsp\"",
-    "compile": "tsp compile redhatopenshift/resource-manager/Microsoft.RedHatOpenShift/hcpopenshiftclusters --warn-as-error"
+    "format-check": "prettier --check --plugin @typespec/compiler/internals/prettier-formatter \"redhatopenshift/**/*.tsp\""
   },
   "devDependencies": {
     "@microsoft.azure/openapi-validator": "2.2.4",

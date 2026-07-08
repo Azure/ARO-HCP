@@ -28,14 +28,23 @@ endif
 .PHONY: generate
 generate: swagger models
 
+.PHONY: fmt
+fmt:
+	npx prettier \
+		--write \
+		--plugin @typespec/compiler/internals/prettier-formatter \
+		"redhatopenshift/**/*.tsp"
+
+swagger: fmt
+	npx tsp compile $(SPEC_BASE_DIR) \
+		--warn-as-error \
+		--config $(SPEC_BASE_DIR)/tspconfig.yaml
 .PHONY: swagger
-swagger:
-	npm run format-check
-	npm run compile
 
 .PHONY: models
 models: $(GOIMPORTS)
 	npx tsp compile $(SPEC_BASE_DIR) \
+		--warn-as-error \
 		--emit @azure-tools/typespec-go \
 		--option "@azure-tools/typespec-go.emitter-output-dir=$(CURDIR)/$(TYPESPEC_GO_OUTPUT_DIR)" \
 		--option "@azure-tools/typespec-go.module=github.com/Azure/ARO-HCP/internal/api/$(VERSION)/generated" \
@@ -46,7 +55,8 @@ models: $(GOIMPORTS)
 		--option "@azure-tools/typespec-go.flavor=azure" \
 		--option "@azure-tools/typespec-go.generate-samples=false" \
 		--option "@azure-tools/typespec-go.head-as-boolean=false" \
-		--option "@azure-tools/typespec-go.service-dir="
+		--option "@azure-tools/typespec-go.service-dir=" \
+		--config redhatopenshift/resource-manager/Microsoft.RedHatOpenShift/hcpopenshiftclusters/tspconfig.yaml
 	$(GOIMPORTS) -w -local github.com/Azure/ARO-HCP ../internal
 	# Remove client API files, keep only constants and models.
 	rm $(RM_FORCE) ${TYPESPEC_GO_OUTPUT_DIR}/client_factory.go
@@ -62,6 +72,7 @@ models: $(GOIMPORTS)
 .PHONY: testsdk
 testsdk: $(GOIMPORTS)
 	npx tsp compile $(SPEC_BASE_DIR) \
+		--warn-as-error \
 		--emit @azure-tools/typespec-go \
 		--option "@azure-tools/typespec-go.emitter-output-dir=$(CURDIR)/$(TESTSDK_OUTPUT_DIR)" \
 		--option "@azure-tools/typespec-go.module=github.com/Azure/ARO-HCP/test/sdk/$(VERSION)/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp" \
@@ -70,12 +81,9 @@ testsdk: $(GOIMPORTS)
 		--option "@azure-tools/typespec-go.flavor=azure" \
 		--option "@azure-tools/typespec-go.generate-samples=false" \
 		--option "@azure-tools/typespec-go.head-as-boolean=false" \
-		--option "@azure-tools/typespec-go.service-dir="
+		--option "@azure-tools/typespec-go.service-dir=" \
+		--config redhatopenshift/resource-manager/Microsoft.RedHatOpenShift/hcpopenshiftclusters/tspconfig.yaml
 	$(GOIMPORTS) -w -local github.com/Azure/ARO-HCP ../test/sdk
-
-.PHONY: fmt
-fmt:
-	npm run format
 
 .PHONY: validate-examples
 validate-examples:
@@ -94,5 +102,5 @@ lint-openapi:
 		version=$$(basename $$(dirname $$spec_path)); \
 		echo ""; \
 		echo "==> Linting $$version"; \
-		npx spectral lint --ruleset node_modules/@microsoft.azure/openapi-validator-rulesets/dist/spectral/az-arm.js $$spec_path || exit 1; \
+		npx spectral lint --verbose --ruleset node_modules/@microsoft.azure/openapi-validator-rulesets/dist/spectral/az-arm.js $$spec_path || exit 1; \
 	done

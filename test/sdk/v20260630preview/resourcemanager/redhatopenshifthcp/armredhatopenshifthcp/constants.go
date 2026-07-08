@@ -41,6 +41,27 @@ func PossibleClusterImageRegistryStateValues() []ClusterImageRegistryState {
 	}
 }
 
+// ConditionType - Representation of the possible condition types.
+type ConditionType string
+
+const (
+	// ConditionTypeAvailable - Indicates that the resource is available.
+	ConditionTypeAvailable ConditionType = "Available"
+	// ConditionTypeDegraded - Indicates that the resource is in a degraded state.
+	ConditionTypeDegraded ConditionType = "Degraded"
+	// ConditionTypeProgressing - Indicates that the resource is in a progressing state.
+	ConditionTypeProgressing ConditionType = "Progressing"
+)
+
+// PossibleConditionTypeValues returns the possible values for the ConditionType const type.
+func PossibleConditionTypeValues() []ConditionType {
+	return []ConditionType{
+		ConditionTypeAvailable,
+		ConditionTypeDegraded,
+		ConditionTypeProgressing,
+	}
+}
+
 // CreatedByType - The kind of entity that created the resource.
 type CreatedByType string
 
@@ -387,6 +408,27 @@ func PossibleProvisioningStateValues() []ProvisioningState {
 		ProvisioningStateProvisioning,
 		ProvisioningStateSucceeded,
 		ProvisioningStateUpdating,
+	}
+}
+
+// StatusType - Representation of the possible values of a condition status.
+type StatusType string
+
+const (
+	// StatusTypeFalse - Indicates that the condition status is False.
+	StatusTypeFalse StatusType = "False"
+	// StatusTypeTrue - Indicates that the condition status is True.
+	StatusTypeTrue StatusType = "True"
+	// StatusTypeUnknown - Indicates that the condition status is unknown.
+	StatusTypeUnknown StatusType = "Unknown"
+)
+
+// PossibleStatusTypeValues returns the possible values for the StatusType const type.
+func PossibleStatusTypeValues() []StatusType {
+	return []StatusType{
+		StatusTypeFalse,
+		StatusTypeTrue,
+		StatusTypeUnknown,
 	}
 }
 
