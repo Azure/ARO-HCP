@@ -3,12 +3,25 @@
 # Managed Resources:
 # * Azure Monitor Metrics resources for services
 # * Azure Monitor Metrics resources for hosted control planes
-# * Action Groups & Prometheus alerting rules
+# * Prometheus alerting rules
+#
+# Action groups are created at geography level (geography-pipeline.yaml)
+# and looked up here for wiring into regional alert rules.
 #
 $schema: "pipeline.schema.v1"
 serviceGroup: Microsoft.Azure.ARO.HCP.Monitoring
 rolloutName: Monitoring Rollout
 resourceGroups:
+- name: kusto
+  resourceGroup: '{{ .kusto.rg }}'
+  subscription: '{{ .global.subscription.key }}'
+  steps:
+  - name: actiongroup-lookup
+    action: ARM
+    template: templates/actiongroups-lookup.bicep
+    parameters: configurations/actiongroups-lookup.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
 - name: regional
   resourceGroup: '{{ .regionRG }}'
   subscription: '{{ .svc.subscription.key }}'
@@ -42,46 +55,23 @@ resourceGroups:
         resourceGroup: regional
         step: output
         name: hcpAzureMonitoringWorkspaceId
-- name: kusto
-  resourceGroup: '{{ .kusto.rg }}'
-  subscription: '{{ .global.subscription.key }}'
-  steps:
-  - name: output
-    action: ARM
-    template: templates/kusto-lookup.bicep
-    parameters: configurations/kusto-lookup.tmpl.bicepparam
-    deploymentLevel: ResourceGroup
-    outputOnly: true
-  - name: kusto-monitoring
-    action: ARMStack
-    template: templates/kusto-monitoring.bicep
-    parameters: configurations/kusto-monitoring.tmpl.bicepparam
-    deploymentLevel: ResourceGroup
-    actionOnUnmanage: delete
-    bypassStackOutOfSyncError: false
-    automatedRetry:
-      errorContainsAny:
-      - "DeploymentStackInNonTerminalState"
-      maximumRetryCount: 3
-      durationBetweenRetries: 2m
-    variables:
-    - name: kustoClusterId
-      input:
-        resourceGroup: kusto
-        step: output
-        name: kustoResourceId
-    - name: kustoRegion
-      input:
-        resourceGroup: kusto
-        step: output
-        name: kustoRegion
     - name: actionGroupSL
       input:
-        resourceGroup: regional
-        step: monitoring
-        name: actionGroupSL
-    - name: actionGroupAlertEH
+        resourceGroup: kusto
+        step: actiongroup-lookup
+        name: actionGroupsSL
+    - name: actionGroupsSRE
       input:
-        resourceGroup: regional
-        step: monitoring
-        name: actionGroupAlertEH
+        resourceGroup: kusto
+        step: actiongroup-lookup
+        name: actionGroupsSRE
+    - name: actionGroupsRP
+      input:
+        resourceGroup: kusto
+        step: actiongroup-lookup
+        name: actionGroupsRP
+    - name: actionGroupsMSFT
+      input:
+        resourceGroup: kusto
+        step: actiongroup-lookup
+        name: actionGroupsMSFT

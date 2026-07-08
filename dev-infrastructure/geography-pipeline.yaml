@@ -64,3 +64,38 @@ resourceGroups:
       - "Internal server error"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
+  - name: kusto-lookup
+    action: ARM
+    template: templates/kusto-lookup.bicep
+    parameters: configurations/kusto-lookup.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
+    dependsOn:
+    - resourceGroup: kusto-infra
+      step: deploy
+  - name: kusto-monitoring
+    action: ARMStack
+    template: templates/kusto-monitoring.bicep
+    parameters: configurations/kusto-monitoring.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    actionOnUnmanage: delete
+    bypassStackOutOfSyncError: false
+    automatedRetry:
+      errorContainsAny:
+      - "DeploymentStackInNonTerminalState"
+      maximumRetryCount: 3
+      durationBetweenRetries: 2m
+    variables:
+    - name: kustoClusterId
+      input:
+        resourceGroup: kusto-infra
+        step: kusto-lookup
+        name: kustoResourceId
+    - name: kustoRegion
+      input:
+        resourceGroup: kusto-infra
+        step: kusto-lookup
+        name: kustoRegion
+    dependsOn:
+    - resourceGroup: kusto-infra
+      step: kusto-lookup
