@@ -234,8 +234,8 @@ resource arohcpAccessClusterSaturationAlerts 'Microsoft.AlertsManagement/prometh
   }
 }
 
-resource rpUserJourneyClusterUpgradeReachPartialMonitorRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
-  name: 'rp-user-journey-cluster-upgrade-reach-partial-monitor-rules'
+resource rpUserJourneyClusterUpgradeMonitorRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'rp-user-journey-cluster-upgrade-monitor-rules'
   location: location
   properties: {
     interval: 'PT1M'
@@ -250,29 +250,25 @@ resource rpUserJourneyClusterUpgradeReachPartialMonitorRules 'Microsoft.AlertsMa
             }
           }
         ]
-        alert: 'userJourneyClusterUpgradeReachPartial1h5m'
+        alert: 'userJourneyClusterUpgradeStuckInDesired'
         enabled: true
         labels: {
-          long_window: '1h'
           severity: 'info'
-          short_window: '5m'
           slo: 'cluster-upgrade-reach-partial'
         }
         annotations: {
-          correlationId: 'userJourneyClusterUpgradeReachPartial/{{ $labels.cluster }}'
-          description: '''More than 14.4x of the 99.95% cluster upgrade reach-partial error budget is being consumed. Cluster upgrades are stuck for over 20 minutes without the target version reaching partial. Partial is when the target version becomes active (recognized as active) on the HCP cluster; the upgrade is in progress but not yet complete. Investigate backend_cluster_version_info on affected clusters.
-Window: 1h/5m
-Management Cluster: {{ $labels.cluster }}
+          correlationId: 'userJourneyClusterUpgradeStuckInDesired/{{ $labels.resource_id }}/{{ $labels.version }}'
+          description: '''Cluster upgrade target version {{ $labels.version }} has been in desired for over 20 minutes without reaching partial. Partial is when the target version becomes active (recognized as active) on the HCP cluster; the upgrade is in progress but not yet complete. Investigate backend_cluster_version_info on the affected cluster.
+Service Cluster: {{ $labels.cluster }}
 '''
-          info: '''More than 14.4x of the 99.95% cluster upgrade reach-partial error budget is being consumed. Cluster upgrades are stuck for over 20 minutes without the target version reaching partial. Partial is when the target version becomes active (recognized as active) on the HCP cluster; the upgrade is in progress but not yet complete. Investigate backend_cluster_version_info on affected clusters.
-Window: 1h/5m
-Management Cluster: {{ $labels.cluster }}
+          info: '''Cluster upgrade target version {{ $labels.version }} has been in desired for over 20 minutes without reaching partial. Partial is when the target version becomes active (recognized as active) on the HCP cluster; the upgrade is in progress but not yet complete. Investigate backend_cluster_version_info on the affected cluster.
+Service Cluster: {{ $labels.cluster }}
 '''
           runbook_url: 'https://aka.ms/arohcp-runbook-cluster-upgrade'
-          summary: '[HCPUpgradeReachPartialBurn] {{ $labels.cluster }}'
-          title: '[HCPUpgradeReachPartialBurn] {{ $labels.cluster }}'
+          summary: '[HCPUpgradeStuckInDesired] {{ $labels.resource_id }}'
+          title: '[HCPUpgradeStuckInDesired] {{ $labels.resource_id }} version:{{ $labels.version }} cluster:{{ $labels.cluster }}'
         }
-        expression: 'hosted_control_plane_upgrade:desired:stuck_over_20m:burnrate5m > 14.4 and hosted_control_plane_upgrade:desired:stuck_over_20m:burnrate1h > 14.4'
+        expression: 'hosted_control_plane_upgrade:duration_in_desired:seconds > 1200'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
@@ -286,187 +282,26 @@ Management Cluster: {{ $labels.cluster }}
             }
           }
         ]
-        alert: 'userJourneyClusterUpgradeReachPartial6h30m'
+        alert: 'userJourneyClusterUpgradeStuckInProgress'
         enabled: true
         labels: {
-          long_window: '6h'
           severity: 'info'
-          short_window: '30m'
-          slo: 'cluster-upgrade-reach-partial'
-        }
-        annotations: {
-          correlationId: 'userJourneyClusterUpgradeReachPartial/{{ $labels.cluster }}'
-          description: '''More than 6x of the 99.95% cluster upgrade reach-partial error budget is being consumed. Cluster upgrades are stuck for over 20 minutes without the target version reaching partial. Partial is when the target version becomes active (recognized as active) on the HCP cluster; the upgrade is in progress but not yet complete. Investigate backend_cluster_version_info on affected clusters.
-Window: 6h/30m
-Management Cluster: {{ $labels.cluster }}
-'''
-          info: '''More than 6x of the 99.95% cluster upgrade reach-partial error budget is being consumed. Cluster upgrades are stuck for over 20 minutes without the target version reaching partial. Partial is when the target version becomes active (recognized as active) on the HCP cluster; the upgrade is in progress but not yet complete. Investigate backend_cluster_version_info on affected clusters.
-Window: 6h/30m
-Management Cluster: {{ $labels.cluster }}
-'''
-          runbook_url: 'https://aka.ms/arohcp-runbook-cluster-upgrade'
-          summary: '[HCPUpgradeReachPartialBurn] {{ $labels.cluster }}'
-          title: '[HCPUpgradeReachPartialBurn] {{ $labels.cluster }}'
-        }
-        expression: 'hosted_control_plane_upgrade:desired:stuck_over_20m:burnrate30m > 6 and hosted_control_plane_upgrade:desired:stuck_over_20m:burnrate6h > 6'
-        for: 'PT30M'
-        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
-      }
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'userJourneyClusterUpgradeReachPartial3d6h'
-        enabled: true
-        labels: {
-          long_window: '3d'
-          severity: 'info'
-          short_window: '6h'
-          slo: 'cluster-upgrade-reach-partial'
-        }
-        annotations: {
-          correlationId: 'userJourneyClusterUpgradeReachPartial/{{ $labels.cluster }}'
-          description: '''Cluster upgrade reach-partial has been steadily consuming the 99.95% SLO error budget (1x burn). Cluster upgrades are stuck for over 20 minutes without reaching partial. Partial is when the target version becomes active (recognized as active) on the HCP cluster; the upgrade is in progress but not yet complete. Investigate backend_cluster_version_info on affected clusters.
-Window: 3d/6h
-Management Cluster: {{ $labels.cluster }}
-'''
-          info: '''Cluster upgrade reach-partial has been steadily consuming the 99.95% SLO error budget (1x burn). Cluster upgrades are stuck for over 20 minutes without reaching partial. Partial is when the target version becomes active (recognized as active) on the HCP cluster; the upgrade is in progress but not yet complete. Investigate backend_cluster_version_info on affected clusters.
-Window: 3d/6h
-Management Cluster: {{ $labels.cluster }}
-'''
-          runbook_url: 'https://aka.ms/arohcp-runbook-cluster-upgrade'
-          summary: '[HCPUpgradeReachPartialBurn] {{ $labels.cluster }}'
-          title: '[HCPUpgradeReachPartialBurn] {{ $labels.cluster }}'
-        }
-        expression: 'hosted_control_plane_upgrade:desired:stuck_over_20m:burnrate6h > 1 and hosted_control_plane_upgrade:desired:stuck_over_20m:burnrate3d > 1'
-        for: 'PT30M'
-        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
-      }
-    ]
-    scopes: [
-      azureMonitoring
-    ]
-  }
-}
-
-resource rpUserJourneyClusterUpgradeCompleteMonitorRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
-  name: 'rp-user-journey-cluster-upgrade-complete-monitor-rules'
-  location: location
-  properties: {
-    interval: 'PT1M'
-    rules: [
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'userJourneyClusterUpgradeComplete1h5m'
-        enabled: true
-        labels: {
-          long_window: '1h'
-          severity: 'info'
-          short_window: '5m'
           slo: 'cluster-upgrade-complete'
         }
         annotations: {
-          correlationId: 'userJourneyClusterUpgradeComplete/{{ $labels.cluster }}'
-          description: '''More than 14.4x of the 99.95% cluster upgrade complete error budget is being consumed. Cluster upgrades are stuck for over 30 minutes without reaching completed. Completed is when the target version upgrade has finished and is reported as complete on the HCP cluster. Investigate backend_cluster_version_info on affected clusters.
-Window: 1h/5m
-Management Cluster: {{ $labels.cluster }}
+          correlationId: 'userJourneyClusterUpgradeStuckInProgress/{{ $labels.resource_id }}/{{ $labels.version }}'
+          description: '''Cluster upgrade target version {{ $labels.version }} has been in progress for over 30 minutes without reaching completed. Completed is when the target version upgrade has finished and is reported as complete on the HCP cluster. Investigate backend_cluster_version_info on the affected cluster.
+Service Cluster: {{ $labels.cluster }}
 '''
-          info: '''More than 14.4x of the 99.95% cluster upgrade complete error budget is being consumed. Cluster upgrades are stuck for over 30 minutes without reaching completed. Completed is when the target version upgrade has finished and is reported as complete on the HCP cluster. Investigate backend_cluster_version_info on affected clusters.
-Window: 1h/5m
-Management Cluster: {{ $labels.cluster }}
+          info: '''Cluster upgrade target version {{ $labels.version }} has been in progress for over 30 minutes without reaching completed. Completed is when the target version upgrade has finished and is reported as complete on the HCP cluster. Investigate backend_cluster_version_info on the affected cluster.
+Service Cluster: {{ $labels.cluster }}
 '''
           runbook_url: 'https://aka.ms/arohcp-runbook-cluster-upgrade'
-          summary: '[HCPUpgradeCompleteBurn] {{ $labels.cluster }}'
-          title: '[HCPUpgradeCompleteBurn] {{ $labels.cluster }}'
+          summary: '[HCPUpgradeStuckInProgress] {{ $labels.resource_id }}'
+          title: '[HCPUpgradeStuckInProgress] {{ $labels.resource_id }} version:{{ $labels.version }} cluster:{{ $labels.cluster }}'
         }
-        expression: 'hosted_control_plane_upgrade:in_progress:stuck_over_30m:burnrate5m > 14.4 and hosted_control_plane_upgrade:in_progress:stuck_over_30m:burnrate1h > 14.4'
+        expression: 'hosted_control_plane_upgrade:duration_in_progress:seconds > 1800'
         for: 'PT5M'
-        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
-      }
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'userJourneyClusterUpgradeComplete6h30m'
-        enabled: true
-        labels: {
-          long_window: '6h'
-          severity: 'info'
-          short_window: '30m'
-          slo: 'cluster-upgrade-complete'
-        }
-        annotations: {
-          correlationId: 'userJourneyClusterUpgradeComplete/{{ $labels.cluster }}'
-          description: '''More than 6x of the 99.95% cluster upgrade complete error budget is being consumed. Cluster upgrades are stuck for over 30 minutes without reaching completed. Completed is when the target version upgrade has finished and is reported as complete on the HCP cluster. Investigate backend_cluster_version_info on affected clusters.
-Window: 6h/30m
-Management Cluster: {{ $labels.cluster }}
-'''
-          info: '''More than 6x of the 99.95% cluster upgrade complete error budget is being consumed. Cluster upgrades are stuck for over 30 minutes without reaching completed. Completed is when the target version upgrade has finished and is reported as complete on the HCP cluster. Investigate backend_cluster_version_info on affected clusters.
-Window: 6h/30m
-Management Cluster: {{ $labels.cluster }}
-'''
-          runbook_url: 'https://aka.ms/arohcp-runbook-cluster-upgrade'
-          summary: '[HCPUpgradeCompleteBurn] {{ $labels.cluster }}'
-          title: '[HCPUpgradeCompleteBurn] {{ $labels.cluster }}'
-        }
-        expression: 'hosted_control_plane_upgrade:in_progress:stuck_over_30m:burnrate30m > 6 and hosted_control_plane_upgrade:in_progress:stuck_over_30m:burnrate6h > 6'
-        for: 'PT30M'
-        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
-      }
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'userJourneyClusterUpgradeComplete3d6h'
-        enabled: true
-        labels: {
-          long_window: '3d'
-          severity: 'info'
-          short_window: '6h'
-          slo: 'cluster-upgrade-complete'
-        }
-        annotations: {
-          correlationId: 'userJourneyClusterUpgradeComplete/{{ $labels.cluster }}'
-          description: '''Cluster upgrade complete has been steadily consuming the 99.95% SLO error budget (1x burn). Cluster upgrades are stuck for over 30 minutes without reaching completed. Completed is when the target version upgrade has finished and is reported as complete on the HCP cluster. Investigate backend_cluster_version_info on affected clusters.
-Window: 3d/6h
-Management Cluster: {{ $labels.cluster }}
-'''
-          info: '''Cluster upgrade complete has been steadily consuming the 99.95% SLO error budget (1x burn). Cluster upgrades are stuck for over 30 minutes without reaching completed. Completed is when the target version upgrade has finished and is reported as complete on the HCP cluster. Investigate backend_cluster_version_info on affected clusters.
-Window: 3d/6h
-Management Cluster: {{ $labels.cluster }}
-'''
-          runbook_url: 'https://aka.ms/arohcp-runbook-cluster-upgrade'
-          summary: '[HCPUpgradeCompleteBurn] {{ $labels.cluster }}'
-          title: '[HCPUpgradeCompleteBurn] {{ $labels.cluster }}'
-        }
-        expression: 'hosted_control_plane_upgrade:in_progress:stuck_over_30m:burnrate6h > 1 and hosted_control_plane_upgrade:in_progress:stuck_over_30m:burnrate3d > 1'
-        for: 'PT30M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
     ]

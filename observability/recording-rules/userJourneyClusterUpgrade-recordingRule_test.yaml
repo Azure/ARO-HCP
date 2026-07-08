@@ -24,10 +24,54 @@ tests:
     exp_samples:
     - labels: 'hosted_control_plane_upgrade:duration_in_desired:seconds{cluster="svc-1", cluster_uuid="uuid-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", version="4.19.20", state="desired"}'
       value: 540
-  - expr: hosted_control_plane_upgrade:desired:stuck_over_20m:count{cluster="svc-1"}
-    eval_time: 9m
+  - expr: hosted_control_plane_upgrade:duration_in_desired:seconds{cluster="svc-1", resource_id="/sub/1/rg/c1", version="4.19.20"}
+    eval_time: 15m
+    exp_samples: []
+  - expr: hosted_control_plane_upgrade:duration_in_desired:seconds{cluster="svc-1", resource_id="/sub/1/rg/c1", version="4.19.20"}
+    eval_time: 25m
+    exp_samples: []
+  - expr: hosted_control_plane_upgrade:duration_in_progress:seconds{cluster="svc-1", resource_id="/sub/1/rg/c1", version="4.19.20", state="partial"}
+    eval_time: 15m
     exp_samples:
-    - labels: 'hosted_control_plane_upgrade:desired:stuck_over_20m:count{cluster="svc-1"}'
+    - labels: 'hosted_control_plane_upgrade:duration_in_progress:seconds{cluster="svc-1", cluster_uuid="uuid-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", version="4.19.20", state="partial"}'
+      value: 900
+# ========================================
+# Test 1b: Partial with stale desired — must not count as stuck in desired
+# ========================================
+- interval: 1m
+  input_series:
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1", version="4.19.19", state="completed"}'
+    values: "1+0x35"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1", version="4.19.20", state="desired"}'
+    values: "1+0x35"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1", version="4.19.20", state="partial"}'
+    values: "0x10 1x25"
+  promql_expr_test:
+  - expr: hosted_control_plane_upgrade:duration_in_desired:seconds{cluster="svc-1", resource_id="/sub/1/rg/c1", version="4.19.20"}
+    eval_time: 25m
+    exp_samples: []
+# ========================================
+# Test 1c: Completed with stale desired — must not count as stuck in desired or in progress
+# ========================================
+- interval: 1m
+  input_series:
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1", version="4.19.19", state="completed"}'
+    values: "1+0x35"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1", version="4.19.20", state="desired"}'
+    values: "1+0x35"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1", version="4.19.20", state="completed"}'
+    values: "0x10 1x25"
+  promql_expr_test:
+  - expr: hosted_control_plane_upgrade:duration_in_desired:seconds{cluster="svc-1", resource_id="/sub/1/rg/c1", version="4.19.20"}
+    eval_time: 25m
+    exp_samples: []
+  - expr: hosted_control_plane_upgrade:duration_in_progress:seconds{cluster="svc-1", resource_id="/sub/1/rg/c1", version="4.19.20"}
+    eval_time: 25m
+    exp_samples: []
+  - expr: hosted_control_plane_upgrade:in_progress:count{cluster="svc-1"}
+    eval_time: 25m
+    exp_samples:
+    - labels: 'hosted_control_plane_upgrade:in_progress:count{cluster="svc-1"}'
       value: 0
 # ========================================
 # Test 2: Stuck in desired — 1 of 1 active upgrades stuck >20m
@@ -56,16 +100,6 @@ tests:
     exp_samples:
     - labels: 'hosted_control_plane_upgrade:in_progress:count{cluster="svc-1"}'
       value: 1
-  - expr: hosted_control_plane_upgrade:desired:stuck_over_20m:count{cluster="svc-1"}
-    eval_time: 35m
-    exp_samples:
-    - labels: 'hosted_control_plane_upgrade:desired:stuck_over_20m:count{cluster="svc-1"}'
-      value: 1
-  - expr: hosted_control_plane_upgrade:desired:stuck_over_20m:ratio{cluster="svc-1"}
-    eval_time: 35m
-    exp_samples:
-    - labels: 'hosted_control_plane_upgrade:desired:stuck_over_20m:ratio{cluster="svc-1"}'
-      value: 1
 # ========================================
 # Test 3: Install only — desired without completed is excluded from SLO
 # ========================================
@@ -85,11 +119,6 @@ tests:
     exp_samples:
     - labels: 'hosted_control_plane_upgrade:in_progress:count{cluster="svc-1"}'
       value: 0
-  - expr: hosted_control_plane_upgrade:desired:stuck_over_20m:count{cluster="svc-1"}
-    eval_time: 35m
-    exp_samples:
-    - labels: 'hosted_control_plane_upgrade:desired:stuck_over_20m:count{cluster="svc-1"}'
-      value: 0
 # ========================================
 # Test 4: Complete — desired transitions to completed within 30m (upgrade)
 # ========================================
@@ -107,11 +136,40 @@ tests:
     exp_samples:
     - labels: 'hosted_control_plane_upgrade:duration_in_progress:seconds{cluster="svc-1", cluster_uuid="uuid-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", version="4.19.20", state="desired"}'
       value: 540
-  - expr: hosted_control_plane_upgrade:in_progress:stuck_over_30m:count{cluster="svc-1"}
-    eval_time: 9m
+  - expr: hosted_control_plane_upgrade:version_state_first_seen:timestamp{cluster="svc-1", resource_id="/sub/1/rg/c1", version="4.19.20"}
+    eval_time: 15m
+    exp_samples: []
+  - expr: hosted_control_plane_upgrade:duration_in_progress:seconds{cluster="svc-1", resource_id="/sub/1/rg/c1", version="4.19.20"}
+    eval_time: 15m
+    exp_samples: []
+  - expr: hosted_control_plane_upgrade:duration_in_desired:seconds{cluster="svc-1", resource_id="/sub/1/rg/c1", version="4.19.20"}
+    eval_time: 15m
+    exp_samples: []
+  - expr: hosted_control_plane_upgrade:in_progress:count{cluster="svc-1"}
+    eval_time: 15m
     exp_samples:
-    - labels: 'hosted_control_plane_upgrade:in_progress:stuck_over_30m:count{cluster="svc-1"}'
+    - labels: 'hosted_control_plane_upgrade:in_progress:count{cluster="svc-1"}'
       value: 0
+# ========================================
+# Test 4b: Completed with stale partial — must not count as in progress or emit duration
+# ========================================
+- interval: 1m
+  input_series:
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1", version="4.19.19", state="completed"}'
+    values: "1+0x35"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1", version="4.19.20", state="partial"}'
+    values: "1+0x35"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1", version="4.19.20", state="completed"}'
+    values: "1+0x35"
+  promql_expr_test:
+  - expr: hosted_control_plane_upgrade:in_progress:count{cluster="svc-1"}
+    eval_time: 35m
+    exp_samples:
+    - labels: 'hosted_control_plane_upgrade:in_progress:count{cluster="svc-1"}'
+      value: 0
+  - expr: hosted_control_plane_upgrade:duration_in_progress:seconds{cluster="svc-1", resource_id="/sub/1/rg/c1", version="4.19.20"}
+    eval_time: 35m
+    exp_samples: []
 # ========================================
 # Test 5: Stuck in progress — partial without completed after 35m
 # ========================================
@@ -126,25 +184,15 @@ tests:
   - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/2/rg/c3", subscription_id="sub-2", cluster_uuid="uuid-3", version="4.19.20", state="completed"}'
     values: "1+0x50"
   promql_expr_test:
-  - expr: hosted_control_plane_upgrade:duration_in_progress:seconds{cluster="svc-1", resource_id="/sub/2/rg/c2", version="4.19.21", state="desired"}
+  - expr: hosted_control_plane_upgrade:duration_in_progress:seconds{cluster="svc-1", resource_id="/sub/2/rg/c2", version="4.19.21", state="partial"}
     eval_time: 35m
     exp_samples:
-    - labels: 'hosted_control_plane_upgrade:duration_in_progress:seconds{cluster="svc-1", cluster_uuid="uuid-2", resource_id="/sub/2/rg/c2", subscription_id="sub-2", version="4.19.21", state="desired"}'
+    - labels: 'hosted_control_plane_upgrade:duration_in_progress:seconds{cluster="svc-1", cluster_uuid="uuid-2", resource_id="/sub/2/rg/c2", subscription_id="sub-2", version="4.19.21", state="partial"}'
       value: 2100
   - expr: hosted_control_plane_upgrade:in_progress:count{cluster="svc-1"}
     eval_time: 35m
     exp_samples:
     - labels: 'hosted_control_plane_upgrade:in_progress:count{cluster="svc-1"}'
-      value: 1
-  - expr: hosted_control_plane_upgrade:in_progress:stuck_over_30m:count{cluster="svc-1"}
-    eval_time: 35m
-    exp_samples:
-    - labels: 'hosted_control_plane_upgrade:in_progress:stuck_over_30m:count{cluster="svc-1"}'
-      value: 1
-  - expr: hosted_control_plane_upgrade:in_progress:stuck_over_30m:ratio{cluster="svc-1"}
-    eval_time: 35m
-    exp_samples:
-    - labels: 'hosted_control_plane_upgrade:in_progress:stuck_over_30m:ratio{cluster="svc-1"}'
       value: 1
 # ========================================
 # Test 6: Two versions without completed — not upgrade eligible

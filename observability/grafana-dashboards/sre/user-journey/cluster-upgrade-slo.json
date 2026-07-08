@@ -1,0 +1,318 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "gridPos": { "h": 4, "w": 24, "x": 0, "y": 0 },
+      "id": 1,
+      "options": {
+        "code": { "language": "plaintext", "showLineNumbers": false, "showMiniMap": false },
+        "content": "### Cluster Upgrade SLOs\n\nPer-upgrade observability from `backend_cluster_version_info` via `hosted_control_plane_upgrade:*` recording rules.\n\n| SLO | Target | Alert |\n|-----|--------|-------|\n| **Reach partial** | `partial` within 20m | `userJourneyClusterUpgradeStuckInDesired` (>20m in `desired`) |\n| **Upgrade complete** | `completed` within 30m | `userJourneyClusterUpgradeStuckInProgress` (>30m in progress) |\n\n**Runbook:** [https://aka.ms/arohcp-runbook-cluster-upgrade](https://aka.ms/arohcp-runbook-cluster-upgrade)",
+        "mode": "markdown"
+      },
+      "pluginVersion": "11.6.9",
+      "title": "Dashboard Info",
+      "type": "text"
+    },
+    {
+      "datasource": { "type": "datasource", "uid": "-- Mixed --" },
+      "description": "Upgrade-eligible clusters with a version upgrade currently in progress (desired or partial, not yet completed).",
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 4 },
+      "id": 2,
+      "options": {
+        "showHeader": true,
+        "sortBy": [{ "desc": true, "displayName": "Time in Progress (Minutes)" }]
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "editorMode": "code",
+          "expr": "hosted_control_plane_upgrade:duration_in_progress:seconds{cluster=~\"$cluster\"} / 60",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ],
+      "title": "In-Flight Upgrades",
+      "transformations": [
+        { "id": "seriesToRows", "options": {} },
+        { "id": "merge", "options": {} },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": { "Time": true, "__name__": true },
+            "renameByName": {
+              "Value": "Time in Progress (Minutes)",
+              "cluster": "Service Cluster",
+              "cluster_uuid": "Cluster UUID",
+              "resource_id": "Resource ID",
+              "state": "Current State",
+              "subscription_id": "Subscription",
+              "version": "Target Version"
+            }
+          }
+        }
+      ],
+      "type": "table"
+    },
+    {
+      "datasource": { "type": "datasource", "uid": "-- Mixed --" },
+      "description": "Upgrade-eligible clusters with a version upgrade currently in progress (desired or partial, not yet completed).",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "blue" }]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 8, "x": 0, "y": 12 },
+      "id": 3,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "editorMode": "code",
+          "expr": "sum(hosted_control_plane_upgrade:in_progress:count{cluster=~\"$cluster\"}) or vector(0)",
+          "instant": true,
+          "legendFormat": "In-flight",
+          "refId": "A"
+        }
+      ],
+      "title": "In-Flight",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "datasource", "uid": "-- Mixed --" },
+      "description": "Upgrades stuck in desired for over 20 minutes without reaching partial. Matches userJourneyClusterUpgradeStuckInDesired.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green" },
+              { "color": "red", "value": 1 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 8, "x": 8, "y": 12 },
+      "id": 4,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "editorMode": "code",
+          "expr": "sum(count by (cluster) (hosted_control_plane_upgrade:duration_in_desired:seconds{cluster=~\"$cluster\"} > 1200) or (0 * hosted_control_plane_upgrade:in_progress:count{cluster=~\"$cluster\"})) or vector(0)",
+          "instant": true,
+          "legendFormat": "Stuck in desired",
+          "refId": "A"
+        }
+      ],
+      "title": "Stuck in Desired (>20m)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "datasource", "uid": "-- Mixed --" },
+      "description": "Upgrades stuck in desired or partial for over 30 minutes without reaching completed. Matches userJourneyClusterUpgradeStuckInProgress.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green" },
+              { "color": "red", "value": 1 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 8, "x": 16, "y": 12 },
+      "id": 5,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "editorMode": "code",
+          "expr": "sum(count by (cluster) (hosted_control_plane_upgrade:duration_in_progress:seconds{cluster=~\"$cluster\"} > 1800) or (0 * hosted_control_plane_upgrade:in_progress:count{cluster=~\"$cluster\"})) or vector(0)",
+          "instant": true,
+          "legendFormat": "Stuck in progress",
+          "refId": "A"
+        }
+      ],
+      "title": "Stuck in Progress (>30m)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "datasource", "uid": "-- Mixed --" },
+      "description": "Clusters with upgrades stuck past the 20 minute reach-partial window.",
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 16 },
+      "id": 6,
+      "options": {
+        "showHeader": true,
+        "sortBy": [{ "desc": true, "displayName": "Time in Desired (Minutes)" }]
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "editorMode": "code",
+          "expr": "(\n  hosted_control_plane_upgrade:duration_in_desired:seconds{cluster=~\"$cluster\"}\n  and\n  hosted_control_plane_upgrade:duration_in_desired:seconds{cluster=~\"$cluster\"} > 1200\n) / 60",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ],
+      "title": "Stuck in Desired Detail",
+      "transformations": [
+        { "id": "seriesToRows", "options": {} },
+        { "id": "merge", "options": {} },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": { "Time": true, "__name__": true, "state": true },
+            "renameByName": {
+              "Value": "Time in Desired (Minutes)",
+              "cluster": "Service Cluster",
+              "cluster_uuid": "Cluster UUID",
+              "resource_id": "Resource ID",
+              "subscription_id": "Subscription",
+              "version": "Target Version"
+            }
+          }
+        }
+      ],
+      "type": "table"
+    },
+    {
+      "datasource": { "type": "datasource", "uid": "-- Mixed --" },
+      "description": "Clusters with upgrades stuck past the 30 minute upgrade-complete window.",
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 24 },
+      "id": 7,
+      "options": {
+        "showHeader": true,
+        "sortBy": [{ "desc": true, "displayName": "Time in Progress (Minutes)" }]
+      },
+      "pluginVersion": "11.6.9",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "$datasource" },
+          "editorMode": "code",
+          "expr": "(\n  hosted_control_plane_upgrade:duration_in_progress:seconds{cluster=~\"$cluster\"}\n  and\n  hosted_control_plane_upgrade:duration_in_progress:seconds{cluster=~\"$cluster\"} > 1800\n) / 60",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ],
+      "title": "Stuck in Progress Detail",
+      "transformations": [
+        { "id": "seriesToRows", "options": {} },
+        { "id": "merge", "options": {} },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": { "Time": true, "__name__": true, "state": true },
+            "renameByName": {
+              "Value": "Time in Progress (Minutes)",
+              "cluster": "Service Cluster",
+              "cluster_uuid": "Cluster UUID",
+              "resource_id": "Resource ID",
+              "subscription_id": "Subscription",
+              "version": "Target Version"
+            }
+          }
+        }
+      ],
+      "type": "table"
+    }
+  ],
+  "schemaVersion": 39,
+  "tags": [
+    "cluster-upgrade",
+    "aro-hcp",
+    "slo",
+    "user-journey"
+  ],
+  "templating": {
+    "list": [
+      {
+        "allowCustomValue": false,
+        "current": { "text": "All", "value": "$__all" },
+        "includeAll": true,
+        "name": "datasource",
+        "options": [],
+        "query": "prometheus",
+        "refresh": 1,
+        "regex": "^Managed_Prometheus_services-.*$",
+        "type": "datasource"
+      },
+      {
+        "allValue": ".*",
+        "current": { "text": "All", "value": "$__all" },
+        "datasource": { "type": "prometheus", "uid": "$datasource" },
+        "definition": "label_values(backend_cluster_version_info, cluster)",
+        "includeAll": true,
+        "multi": true,
+        "name": "cluster",
+        "query": "label_values(backend_cluster_version_info, cluster)",
+        "refresh": 2,
+        "type": "query"
+      }
+    ]
+  },
+  "time": { "from": "now-7d", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Cluster Upgrade SLO",
+  "uid": "cluster-upgrade-slo",
+  "version": 1
+}

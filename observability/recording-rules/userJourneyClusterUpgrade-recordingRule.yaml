@@ -11,17 +11,18 @@ metadata:
 spec:
   groups:
   # ========================================
-  # Cluster Upgrade — shared recording rules
+  # Cluster Upgrade recording rules
   # ========================================
-  # Shared eligibility, first-seen timestamps, and in-progress fleet counts for both upgrade SLOs.
+  # Eligibility, first-seen timestamps, in-progress fleet counts, and per-upgrade
+  # duration metrics used by stuck alerts and the cluster-upgrade SLO dashboard.
   #
-  # upgrade_eligible:info must be evaluated before version_state_first_seen in this group (same cycle).
+  # upgrade_eligible:info must be evaluated before version_state_first_seen (same cycle).
   # Eligibility: per resource_id, at least two distinct version labels and at least one completed.
   # Excludes initial install. Cluster create bounds when install ends (operation_cluster_create.go):
   # https://github.com/Azure/ARO-HCP/blob/main/backend/pkg/controllers/operationcontrollers/operation_cluster_create.go#L316-L320
   #
   # Naming: level:metric:operations per https://prometheus.io/docs/practices/rules/#naming
-  - name: user-journey-cluster-upgrade-shared-recording-rules
+  - name: arohcp_user_journey_cluster_upgrade_recording_rules
     interval: 1m
     rules:
     - record: hosted_control_plane_upgrade:upgrade_eligible:info
@@ -40,30 +41,37 @@ spec:
             ) >= 1
           )
         ) * 0 + 1
-    # When each upgrade target version first entered desired, partial, or completed (start time for SLO durations).
-    # Upgrade-only: excludes initial install — see upgrade_eligible:info.
+    # When each upgrade target version first entered desired or partial (start time for SLO durations).
+    # Stop recording once the version reaches completed so latched timestamps do not persist forever.
     - record: hosted_control_plane_upgrade:version_state_first_seen:timestamp
       expr: |
         min without(prometheus_replica) (
           min by (cluster, resource_id, subscription_id, cluster_uuid, version, state) (
-            hosted_control_plane_upgrade:version_state_first_seen:timestamp
-            or
             (
-              timestamp(backend_cluster_version_info{state=~"desired|partial"} == 1)
-              and on (cluster, resource_id) (
-                hosted_control_plane_upgrade:upgrade_eligible:info == 1
+              hosted_control_plane_upgrade:version_state_first_seen:timestamp
+              or
+              (
+                timestamp(backend_cluster_version_info{state=~"desired|partial"} == 1)
+                and on (cluster, resource_id) (
+                  hosted_control_plane_upgrade:upgrade_eligible:info == 1
+                )
               )
             )
-            or
-            timestamp(backend_cluster_version_info{state="completed"} == 1)
+            unless on(cluster, resource_id, subscription_id, cluster_uuid, version) (
+              backend_cluster_version_info{state="completed"} == 1
+            )
           )
         )
-    # Count of clusters with an upgrade currently in progress (desired or partial on a new target version).
+    # Count of clusters with an upgrade currently in progress (desired or partial on a target version, without being completed).
     - record: hosted_control_plane_upgrade:in_progress:count
       expr: |
         count by (cluster) (
           count by (cluster, resource_id) (
-            backend_cluster_version_info{state=~"desired|partial"} == 1
+            (
+              backend_cluster_version_info{state=~"desired|partial"} == 1
+              unless on(cluster, resource_id, subscription_id, cluster_uuid, version)
+                backend_cluster_version_info{state="completed"} == 1
+            )
           ) >= 1
           and on (cluster, resource_id) (
             hosted_control_plane_upgrade:upgrade_eligible:info == 1
@@ -71,129 +79,48 @@ spec:
         )
         or
         0 * count by (cluster) (backend_cluster_version_info)
-  # ========================================
-  # Cluster Upgrade — reach-partial SLO (20m)
-  # ========================================
-  # SLO: 99.95% of cluster upgrades reach partial within 20 minutes of selecting the target version.
-  # Partial is the time for the target version to become active (recognized as active). It indicates
-  # the upgrade is in progress on the HCP cluster but not yet complete.
-  # Error budget: 0.05% (1 - 0.9995)
-  #
-  # Scope: upgrades only — gated by hosted_control_plane_upgrade:upgrade_eligible:info.
-  - name: user-journey-cluster-upgrade-reach-partial-recording-rules
-    interval: 1m
-    rules:
-    # Seconds the target version has been in desired without reaching partial. Upgrade-only.
+    # Seconds the target version has been in desired without reaching partial or completed.
     - record: hosted_control_plane_upgrade:duration_in_desired:seconds
       expr: |
         (
           time() - hosted_control_plane_upgrade:version_state_first_seen:timestamp{state="desired"}
         )
         and on(cluster, resource_id, subscription_id, cluster_uuid, version) (
-          backend_cluster_version_info{state="desired"} == 1
+          (
+            backend_cluster_version_info{state="desired"} == 1
+            unless on(cluster, resource_id, subscription_id, cluster_uuid, version) (
+              backend_cluster_version_info{state="partial"} == 1
+              or
+              backend_cluster_version_info{state="completed"} == 1
+            )
+          )
         )
         and on (cluster, resource_id) (
           hosted_control_plane_upgrade:upgrade_eligible:info == 1
         )
-    # Clusters whose target version has been in desired longer than 20 minutes (reach-partial SLO miss).
-    - record: hosted_control_plane_upgrade:desired:stuck_over_20m:count
-      expr: |
-        count by (cluster) (hosted_control_plane_upgrade:duration_in_desired:seconds > 1200)
-        or
-        0 * hosted_control_plane_upgrade:in_progress:count
-    # Share of in-progress upgrades stuck in desired over 20 minutes (reach-partial error rate).
-    - record: hosted_control_plane_upgrade:desired:stuck_over_20m:ratio
-      expr: |
-        hosted_control_plane_upgrade:desired:stuck_over_20m:count
-        /
-        clamp_min(hosted_control_plane_upgrade:in_progress:count, 1)
-    # Reach-partial error-budget burn rate over 5 minutes (99.95% SLO).
-    - record: hosted_control_plane_upgrade:desired:stuck_over_20m:burnrate5m
-      expr: |
-        avg_over_time(hosted_control_plane_upgrade:desired:stuck_over_20m:ratio[5m])
-        / (1 - 0.9995)
-    # Reach-partial error-budget burn rate over 30 minutes.
-    - record: hosted_control_plane_upgrade:desired:stuck_over_20m:burnrate30m
-      expr: |
-        avg_over_time(hosted_control_plane_upgrade:desired:stuck_over_20m:ratio[30m])
-        / (1 - 0.9995)
-    # Reach-partial error-budget burn rate over 1 hour.
-    - record: hosted_control_plane_upgrade:desired:stuck_over_20m:burnrate1h
-      expr: |
-        avg_over_time(hosted_control_plane_upgrade:desired:stuck_over_20m:ratio[1h])
-        / (1 - 0.9995)
-    # Reach-partial error-budget burn rate over 6 hours.
-    - record: hosted_control_plane_upgrade:desired:stuck_over_20m:burnrate6h
-      expr: |
-        avg_over_time(hosted_control_plane_upgrade:desired:stuck_over_20m:ratio[6h])
-        / (1 - 0.9995)
-    # Reach-partial error-budget burn rate over 3 days.
-    - record: hosted_control_plane_upgrade:desired:stuck_over_20m:burnrate3d
-      expr: |
-        avg_over_time(hosted_control_plane_upgrade:desired:stuck_over_20m:ratio[3d])
-        / (1 - 0.9995)
-  # ========================================
-  # Cluster Upgrade — complete SLO (30m)
-  # ========================================
-  # SLO: 99.95% of cluster upgrades complete within 30 minutes of selecting the target version.
-  # Error budget: 0.05% (1 - 0.9995)
-  #
-  # Success: desired first-seen to completed first-seen <= 1800s.
-  # In-flight: desired or partial without completed for the target version.
-  # Upgrade-only scope: gated by hosted_control_plane_upgrade:upgrade_eligible:info.
-  - name: user-journey-cluster-upgrade-complete-recording-rules
-    interval: 1m
-    rules:
-    # Seconds since the target version was selected until it completes; stops when that version reaches completed.
-    # Upgrade-only: excludes initial install — see upgrade_eligible:info.
+    # Seconds since the target version was selected until it completes (desired or partial on a target version, without being completed).
     - record: hosted_control_plane_upgrade:duration_in_progress:seconds
       expr: |
         (
-          time() - hosted_control_plane_upgrade:version_state_first_seen:timestamp{state="desired"}
+          sum without(state) (
+            (
+              time() - hosted_control_plane_upgrade:version_state_first_seen:timestamp{state="desired"}
+            )
+            and on (cluster, resource_id) (
+              hosted_control_plane_upgrade:upgrade_eligible:info == 1
+            )
+          )
+          unless on(cluster, resource_id, subscription_id, cluster_uuid, version) (
+            backend_cluster_version_info{state="completed"} == 1
+          )
         )
-        unless on(cluster, resource_id, subscription_id, cluster_uuid, version) (
-          backend_cluster_version_info{state="completed"} == 1
-        )
-        and on(cluster, resource_id, subscription_id, cluster_uuid, version) (
-          backend_cluster_version_info{state=~"desired|partial"} == 1
-        )
-        and on (cluster, resource_id) (
-          hosted_control_plane_upgrade:upgrade_eligible:info == 1
-        )
-    # Clusters whose upgrade has been in progress longer than 30 minutes without completing (complete SLO miss).
-    - record: hosted_control_plane_upgrade:in_progress:stuck_over_30m:count
-      expr: |
-        count by (cluster) (hosted_control_plane_upgrade:duration_in_progress:seconds > 1800)
-        or
-        0 * hosted_control_plane_upgrade:in_progress:count
-    # Share of in-progress upgrades stuck over 30 minutes without completing (complete error rate).
-    - record: hosted_control_plane_upgrade:in_progress:stuck_over_30m:ratio
-      expr: |
-        hosted_control_plane_upgrade:in_progress:stuck_over_30m:count
-        /
-        clamp_min(hosted_control_plane_upgrade:in_progress:count, 1)
-    # Complete error-budget burn rate over 5 minutes (99.95% SLO).
-    - record: hosted_control_plane_upgrade:in_progress:stuck_over_30m:burnrate5m
-      expr: |
-        avg_over_time(hosted_control_plane_upgrade:in_progress:stuck_over_30m:ratio[5m])
-        / (1 - 0.9995)
-    # Complete error-budget burn rate over 30 minutes.
-    - record: hosted_control_plane_upgrade:in_progress:stuck_over_30m:burnrate30m
-      expr: |
-        avg_over_time(hosted_control_plane_upgrade:in_progress:stuck_over_30m:ratio[30m])
-        / (1 - 0.9995)
-    # Complete error-budget burn rate over 1 hour.
-    - record: hosted_control_plane_upgrade:in_progress:stuck_over_30m:burnrate1h
-      expr: |
-        avg_over_time(hosted_control_plane_upgrade:in_progress:stuck_over_30m:ratio[1h])
-        / (1 - 0.9995)
-    # Complete error-budget burn rate over 6 hours.
-    - record: hosted_control_plane_upgrade:in_progress:stuck_over_30m:burnrate6h
-      expr: |
-        avg_over_time(hosted_control_plane_upgrade:in_progress:stuck_over_30m:ratio[6h])
-        / (1 - 0.9995)
-    # Complete error-budget burn rate over 3 days.
-    - record: hosted_control_plane_upgrade:in_progress:stuck_over_30m:burnrate3d
-      expr: |
-        avg_over_time(hosted_control_plane_upgrade:in_progress:stuck_over_30m:ratio[3d])
-        / (1 - 0.9995)
+        * on(cluster, resource_id, subscription_id, cluster_uuid, version) group_left(state)
+          (
+            backend_cluster_version_info{state="partial"} == 1
+            or
+            (
+              backend_cluster_version_info{state="desired"} == 1
+              unless on(cluster, resource_id, subscription_id, cluster_uuid, version)
+                backend_cluster_version_info{state="partial"} == 1
+            )
+          )
