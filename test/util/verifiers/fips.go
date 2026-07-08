@@ -80,6 +80,15 @@ func checkNodeFIPSMode(ctx context.Context, kubeClient *kubernetes.Clientset, no
 		_ = kubeClient.CoreV1().Namespaces().Delete(ctx, namespace.Name, metav1.DeleteOptions{})
 	}()
 
+	sa, err := kubeClient.CoreV1().ServiceAccounts(namespace.Name).Create(ctx, &corev1.ServiceAccount{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "fips-check",
+		},
+	}, metav1.CreateOptions{})
+	if err != nil {
+		return false, fmt.Errorf("failed to create service account: %w", err)
+	}
+
 	automountSAToken := false
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -89,6 +98,7 @@ func checkNodeFIPSMode(ctx context.Context, kubeClient *kubernetes.Clientset, no
 		Spec: corev1.PodSpec{
 			NodeName:                     node.Name,
 			RestartPolicy:                corev1.RestartPolicyNever,
+			ServiceAccountName:           sa.Name,
 			AutomountServiceAccountToken: &automountSAToken,
 			Containers: []corev1.Container{
 				{
