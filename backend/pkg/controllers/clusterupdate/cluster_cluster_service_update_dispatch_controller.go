@@ -23,6 +23,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
@@ -201,10 +202,13 @@ func (c *clusterClusterServiceUpdateDispatchSyncer) SyncOnce(ctx context.Context
 		return nil
 	}
 
+	configDiff := cmp.Diff(desiredConfigJSON, actualConfigJSON)
+
 	logger.Info("update dispatch config differs between RP and CS",
 		"clusterServiceID", clusterCSID.String(),
 		"desiredConfig", desiredConfigJSON,
 		"actualConfig", actualConfigJSON,
+		"configDiff", configDiff,
 	)
 
 	csClusterBuilder, csAutoscalerBuilder, err := ocm.BuildCSCluster(cluster.ID, *subscription.Properties.TenantId, cluster, nil, clusterServiceCluster, serviceProviderCluster)

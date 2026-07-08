@@ -26,7 +26,8 @@ import (
 // canonicalJSONForUpdateDispatchConfig returns canonical JSON for hashing any
 // update-dispatch config struct. The value is marshaled first so json tags and
 // omitempty apply, then round-tripped through map[string]any so object keys
-// are emitted in sorted order at every level.
+// are emitted in sorted order at every level, and finally marshaled with
+// json.MarshalIndent (pretty-printed) using two-space indentation.
 func canonicalJSONForUpdateDispatchConfig(v any) ([]byte, error) {
 	raw, err := json.Marshal(v)
 	if err != nil {
@@ -38,7 +39,7 @@ func canonicalJSONForUpdateDispatchConfig(v any) ([]byte, error) {
 		return nil, utils.TrackError(fmt.Errorf("failed to unmarshal update dispatch config: %w", err))
 	}
 
-	raw, err = json.Marshal(payload)
+	raw, err = json.MarshalIndent(payload, "", "  ")
 	if err != nil {
 		return nil, utils.TrackError(fmt.Errorf("failed to marshal update dispatch config payload: %w", err))
 	}

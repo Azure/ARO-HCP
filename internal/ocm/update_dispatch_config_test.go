@@ -53,7 +53,7 @@ func TestUpdateDispatchConfigCanonicalJSONAndHash(t *testing.T) {
 			input: func(t *testing.T) any {
 				return fieldOrderProbe{Zebra: "z", Alpha: "a"}
 			},
-			want: `{"alpha":"a","zebra":"z"}`,
+			want: "{\n  \"alpha\": \"a\",\n  \"zebra\": \"z\"\n}",
 		},
 		{
 			name: "sorts nested object keys too",
@@ -63,14 +63,14 @@ func TestUpdateDispatchConfigCanonicalJSONAndHash(t *testing.T) {
 					Alpha: nestedInner{A: "1", Z: "2"},
 				}
 			},
-			want: `{"alpha":{"a":"1","z":"2"},"zebra":{"a":"a","z":"z"}}`,
+			want: "{\n  \"alpha\": {\n    \"a\": \"1\",\n    \"z\": \"2\"\n  },\n  \"zebra\": {\n    \"a\": \"a\",\n    \"z\": \"z\"\n  }\n}",
 		},
 		{
 			name: "honors omitempty before sorting",
 			input: func(t *testing.T) any {
 				return omitProbe{Alpha: "a"}
 			},
-			want: `{"alpha":"a"}`,
+			want: "{\n  \"alpha\": \"a\"\n}",
 		},
 		{
 			name: "JSON fixture loaded into struct",
@@ -79,7 +79,7 @@ func TestUpdateDispatchConfigCanonicalJSONAndHash(t *testing.T) {
 				require.NoError(t, json.Unmarshal([]byte(`{"zebra":"from-json","alpha":"fixture"}`), &probe))
 				return probe
 			},
-			want: `{"alpha":"fixture","zebra":"from-json"}`,
+			want: "{\n  \"alpha\": \"fixture\",\n  \"zebra\": \"from-json\"\n}",
 		},
 		{
 			name: "map input round-trips with sorted keys",
@@ -89,7 +89,7 @@ func TestUpdateDispatchConfigCanonicalJSONAndHash(t *testing.T) {
 					"alpha": "input",
 				}
 			},
-			want: `{"alpha":"input","zebra":"from-map"}`,
+			want: "{\n  \"alpha\": \"input\",\n  \"zebra\": \"from-map\"\n}",
 		},
 	}
 

@@ -529,8 +529,8 @@ func TestClusterUpdateDispatchConfigJSONFromRPAndCS(t *testing.T) {
 	//     differences such as key ordering or whitespace that would cause a false drift signal.
 	assert.JSONEq(t, desiredJSON, actualJSON)
 	assert.Equal(t, desiredJSON, actualJSON)
-	assert.Contains(t, desiredJSON, `"nodeDrainTimeoutMinutes":45`)
-	assert.Contains(t, desiredJSON, `"maxNodesTotal":12`)
+	assert.Contains(t, desiredJSON, `"nodeDrainTimeoutMinutes": 45`)
+	assert.Contains(t, desiredJSON, `"maxNodesTotal": 12`)
 
 	hcpCluster.CustomerProperties.Autoscaling.MaxNodesTotal = 20
 	desiredJSON, err = ClusterUpdateDispatchConfigJSONFromRP(hcpCluster, spc)
