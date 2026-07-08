@@ -16,6 +16,7 @@ package controller
 
 import (
 	"fmt"
+	"time"
 )
 
 const (
@@ -25,10 +26,11 @@ const (
 	// LabelManagedBy identifies resources managed by the hcp-recovery controller
 	LabelManagedBy = "app.kubernetes.io/managed-by"
 
-	// TODO: Add additional constants as needed, e.g.:
-	// - Annotation keys for cross-cluster ownership
-	// - Timeout durations
-	// - Condition type strings
+	// pollingInterval is the fixed requeue delay used when polling for external state changes
+	// (namespace deletion, Velero restore progress, HostedCluster availability).
+	// A fixed interval prevents the exponential backoff from accumulating across many poll
+	// iterations and causing multi-minute gaps between condition updates.
+	pollingInterval = 15 * time.Second
 )
 
 // ManagedByLabelSelector returns a label selector string for resources managed by this controller.

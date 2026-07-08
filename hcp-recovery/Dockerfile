@@ -11,7 +11,7 @@ COPY . .
 ENV CGO_ENABLED=1 GOFLAGS='-tags=requirefips'
 ARG ARO_HCP_IMAGE_TAG
 ARG ARO_HCP_REVISION
-RUN make --directory hcp-recovery build ARO_HCP_IMAGE_TAG=${ARO_HCP_IMAGE_TAG} ARO_HCP_REVISION=${ARO_HCP_REVISION}
+RUN cd hcp-recovery && go build -o bin/hcp-recovery .
 
 FROM --platform=${PLATFORM} mcr.microsoft.com/azurelinux/distroless/base:3.0
 USER 65532:65532

@@ -181,12 +181,13 @@ var _ = Describe("HCP Recovery", func() {
 			By(fmt.Sprintf("creating a restore from backup %s", createdBackup.Name))
 			restoreResp, err := createRestoreViaAdminAPI(ctx, httpClient, adminAPIAddress, hcpResourceID, createdBackup.Name)
 			Expect(err).NotTo(HaveOccurred())
+			Expect(restoreResp.RecoveryID).NotTo(BeEmpty(), "POST restore must return non-empty recoveryID")
 			Expect(restoreResp.RecoveryState).To(Equal("Pending"))
 
 			By("waiting for the restore to complete")
 			var previousState string
 			Eventually(func() (string, error) {
-				resp, err := getRestoreStatusViaAdminAPI(ctx, httpClient, adminAPIAddress, hcpResourceID)
+				resp, err := getRestoreStatusViaAdminAPI(ctx, httpClient, adminAPIAddress, hcpResourceID, restoreResp.RecoveryID)
 				if err != nil {
 					return "", err
 				}
@@ -196,7 +197,7 @@ var _ = Describe("HCP Recovery", func() {
 					previousState = resp.RecoveryState
 				}
 				if resp.RecoveryState == "Failed" {
-					return "", fmt.Errorf("restore failed: lastCondition=%s, phase=%s", resp.LastCondition, resp.Phase)
+					StopTrying(fmt.Sprintf("restore permanently failed: lastCondition=%s, phase=%s", resp.LastCondition, resp.Phase)).Now()
 				}
 				return resp.RecoveryState, nil
 			}, 60*time.Minute, 30*time.Second).Should(Equal("Completed"))
@@ -262,6 +263,7 @@ var _ = Describe("HCP Recovery", func() {
 
 type restoreResponse struct {
 	ResourceID    string `json:"resourceID"`
+	RecoveryID    string `json:"recoveryID,omitempty"`
 	RecoveryState string `json:"recoveryState"`
 	BackupID      string `json:"backupID,omitempty"`
 	StartedAt     string `json:"startedAt,omitempty"`
@@ -303,8 +305,8 @@ func createRestoreViaAdminAPI(ctx context.Context, httpClient *http.Client, admi
 	return result, nil
 }
 
-func getRestoreStatusViaAdminAPI(ctx context.Context, httpClient *http.Client, adminAPIAddress, resourceID string) (restoreResponse, error) {
-	url := fmt.Sprintf("%s/admin/v1/hcp%s/restore", adminAPIAddress, resourceID)
+func getRestoreStatusViaAdminAPI(ctx context.Context, httpClient *http.Client, adminAPIAddress, resourceID, recoveryID string) (restoreResponse, error) {
+	url := fmt.Sprintf("%s/admin/v1/hcp%s/restore?recoveryID=%s", adminAPIAddress, resourceID, recoveryID)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return restoreResponse{}, fmt.Errorf("failed to create request: %w", err)

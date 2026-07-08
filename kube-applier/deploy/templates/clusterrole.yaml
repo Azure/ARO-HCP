@@ -114,3 +114,15 @@ rules:
   - update
   - patch
   - delete
+- apiGroups:
+  - hcprecovery.aro-hcp.azure.com
+  resources:
+  - hcprecoveries
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete

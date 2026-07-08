@@ -103,13 +103,8 @@ func (c *HCPRecoveryController) collectDeploymentFinalizerRemovals(ctx context.C
 func (c *HCPRecoveryController) removeCloudResourcesFinalizers(ctx context.Context, recovery *hcprecoveryv1alpha1.HCPRecovery) (bool, *actions, error) {
 	logger := klog.FromContext(ctx)
 
-	for _, condition := range recovery.Status.Conditions {
-		if condition.Type == hcprecoveryv1alpha1.ConditionNamespaceFullyRemoved && condition.Status == metav1.ConditionTrue {
-			return false, nil, nil
-		}
-		if condition.Type == hcprecoveryv1alpha1.ConditionCloudFinalizersRemoved && condition.Status == metav1.ConditionTrue {
-			return false, nil, nil
-		}
+	if shouldSkip(recovery, []string{hcprecoveryv1alpha1.ConditionNamespaceFullyRemoved}) {
+		return false, nil, nil
 	}
 
 	hostedCluster, err := c.getHostedCluster(ctx, recovery.Spec.ClusterId)
@@ -189,13 +184,8 @@ func (c *HCPRecoveryController) removeCloudResourcesFinalizers(ctx context.Conte
 func (c *HCPRecoveryController) removeDeploymentResourceFinalizers(ctx context.Context, recovery *hcprecoveryv1alpha1.HCPRecovery) (bool, *actions, error) {
 	logger := klog.FromContext(ctx)
 
-	for _, condition := range recovery.Status.Conditions {
-		if condition.Type == hcprecoveryv1alpha1.ConditionNamespaceFullyRemoved && condition.Status == metav1.ConditionTrue {
-			return false, nil, nil
-		}
-		if condition.Type == hcprecoveryv1alpha1.ConditionDeploymentFinalizersRemoved && condition.Status == metav1.ConditionTrue {
-			return false, nil, nil
-		}
+	if shouldSkip(recovery, []string{hcprecoveryv1alpha1.ConditionNamespaceFullyRemoved}) {
+		return false, nil, nil
 	}
 
 	hostedCluster, err := c.getHostedCluster(ctx, recovery.Spec.ClusterId)

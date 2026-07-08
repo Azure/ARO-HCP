@@ -190,6 +190,7 @@ func (c *HCPRecoveryController) syncRecovery(ctx context.Context, recovery *hcpr
 			c.eventRecorder.Eventf(recovery, v1.EventTypeNormal, action.Event.Reason, action.Event.MessageFmt, action.Event.Args...)
 		}
 
+		key := cache.ObjectName{Namespace: recovery.Namespace, Name: recovery.Name}
 		switch {
 		case action.StatusUpdate != nil:
 			_, err = c.hcpRecoveryClient.HcprecoveryV1alpha1().HCPRecoveries(recovery.Namespace).ApplyStatus(ctx, action.StatusUpdate, metav1.ApplyOptions{FieldManager: ControllerAgentName})
@@ -205,19 +206,19 @@ func (c *HCPRecoveryController) syncRecovery(ctx context.Context, recovery *hcpr
 			}
 		case len(action.RemoveDeploymentResourceFinalizers) > 0:
 			for _, removal := range action.RemoveDeploymentResourceFinalizers {
-				_, err := c.kubeClient.AppsV1().Deployments(removal.object.GetNamespace()).Patch(ctx, removal.object.GetName(), types.MergePatchType, []byte(`{"metadata":{"finalizers":null}}`), metav1.PatchOptions{})
-				if err != nil {
+				if _, patchErr := c.kubeClient.AppsV1().Deployments(removal.object.GetNamespace()).Patch(ctx, removal.object.GetName(), types.MergePatchType, []byte(`{"metadata":{"finalizers":null}}`), metav1.PatchOptions{}); patchErr != nil {
+					err = patchErr
 					break
 				}
 			}
 		case action.CreateVeleroRestore != nil:
 			err = c.ctrlClient.Create(ctx, action.CreateVeleroRestore)
-		case len(action.PatchVeleroSchedules) > 0:
-			for i := range action.PatchVeleroSchedules {
-				if err = c.ctrlClient.Update(ctx, &action.PatchVeleroSchedules[i]); err != nil {
-					break
-				}
-			}
+		case action.RequeueAfter != nil:
+			// Polling wait: reset the rate-limiter counter and schedule a fixed-delay requeue
+			// so backoff doesn't accumulate across many polling iterations.
+			c.workqueue.Forget(key)
+			c.workqueue.AddAfter(key, *action.RequeueAfter)
+			return nil
 		}
 		if err != nil {
 			logger.Error(err, "Error executing action")
@@ -225,7 +226,7 @@ func (c *HCPRecoveryController) syncRecovery(ctx context.Context, recovery *hcpr
 		}
 
 		// Requeue immediately so the next step runs without waiting for relist
-		c.workqueue.Add(cache.ObjectName{Namespace: recovery.Namespace, Name: recovery.Name})
+		c.workqueue.Add(key)
 	}
 	return nil
 }
@@ -248,7 +249,10 @@ type actions struct {
 	RemoveCloudResourceFinalizers      []finalizerRemoval
 	RemoveDeploymentResourceFinalizers []finalizerRemoval
 	CreateVeleroRestore                *velerov1api.Restore
-	PatchVeleroSchedules               []velerov1api.Schedule
+	//PatchVeleroSchedules               []velerov1api.Schedule
+	// RequeueAfter schedules a fixed-delay requeue without rate-limiter backoff.
+	// Use this for polling steps so backoff doesn't accumulate across many iterations.
+	RequeueAfter *time.Duration
 }
 
 func (a *actions) validate() error {
@@ -271,7 +275,7 @@ func (a *actions) validate() error {
 	if a.CreateVeleroRestore != nil {
 		set += 1
 	}
-	if len(a.PatchVeleroSchedules) > 0 {
+	if a.RequeueAfter != nil {
 		set += 1
 	}
 	if set > 1 {
@@ -304,7 +308,6 @@ func (c *HCPRecoveryController) process(ctx context.Context, recovery *hcprecove
 
 	steps := []recoveryStep{
 		c.validateBackup,
-		c.pauseBackupSchedule,
 		c.pauseHostedCluster,
 		c.deleteHcpNamespace,
 		c.removeCloudResourcesFinalizers,
@@ -312,9 +315,15 @@ func (c *HCPRecoveryController) process(ctx context.Context, recovery *hcprecove
 		c.waitForHcpNamespaceDeletion,
 		c.deleteHcNamespace,
 		c.waitForHcNamespaceDeletion,
+		// TODO: implement machines restore phase before the main HCP restore.
+		// Restore machine+azuremachine objects first so CAPI can adopt existing
+		// Azure VMs rather than orphan them. After restore, strip the
+		// azuremachine.infrastructure.cluster.x-k8s.io finalizer from all
+		// restored AzureMachines so deletion is not blocked when the recovered
+		// cluster's CAPZ identity differs from the original. The main restore
+		// below (createVeleroRestore) must then exclude machine and azuremachine.
 		c.createVeleroRestore,
 		c.validateHostedCluster,
-		c.unpauseBackupSchedule,
 		c.unpauseHostedCluster,
 	}
 	for _, step := range steps {
@@ -360,14 +369,17 @@ func (c *HCPRecoveryController) handlePermanentError(recovery *hcprecoveryv1alph
 }
 
 // handleRetryableError sets a condition if necessary (which triggers a re-sync
-// via the informer), otherwise returns the error to requeue with rate limiting.
-func (c *HCPRecoveryController) handleRetryableError(recovery *hcprecoveryv1alpha1.HCPRecovery, condition *applyv1.ConditionApplyConfiguration, err error) (bool, *actions, error) {
+// via the informer), otherwise schedules a fixed-delay requeue to poll for the
+// expected state change. Using a fixed delay prevents the exponential backoff
+// from accumulating across many polling iterations and causing multi-minute gaps.
+func (c *HCPRecoveryController) handleRetryableError(recovery *hcprecoveryv1alpha1.HCPRecovery, condition *applyv1.ConditionApplyConfiguration, _ error) (bool, *actions, error) {
 	statusUpdate, needsUpdate := NewStatus(recovery.Status).
 		WithConditions(condition).AsApplyConfiguration(recovery)
 	if needsUpdate {
 		return true, &actions{StatusUpdate: statusUpdate}, nil
 	}
-	return true, nil, err
+	d := pollingInterval
+	return true, &actions{RequeueAfter: &d}, nil
 }
 
 func restoreName(recoveryName, uid string) string {

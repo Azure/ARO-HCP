@@ -63,6 +63,10 @@ func newRestoreResponse(resourceID string, recoveryID string, spc *api.ServicePr
 			break
 		}
 	}
+	// Request exists in Spec but not yet picked up by the controller.
+	if resp.RecoveryState == "" && resp.BackupID != "" {
+		resp.RecoveryState = string(api.RecoveryStatePending)
+	}
 	return resp
 }
 
@@ -91,9 +95,17 @@ func PostRestore(dbClient database.ResourcesDBClient) http.Handler {
 			return
 		}
 
+		terminalRecoveryIDs := make(map[string]bool)
 		for _, recovery := range spc.Status.Recoveries {
 			if !isTerminal(recovery.State) {
 				http.Error(writer, fmt.Sprintf("recovery already in progress (id: %s, state: %s)", recovery.RecoveryId, recovery.State), http.StatusConflict)
+				return
+			}
+			terminalRecoveryIDs[recovery.RecoveryId] = true
+		}
+		for _, pending := range spc.Spec.RecoveryRequests {
+			if !terminalRecoveryIDs[pending.RecoveryId] {
+				http.Error(writer, fmt.Sprintf("recovery already queued (id: %s)", pending.RecoveryId), http.StatusConflict)
 				return
 			}
 		}

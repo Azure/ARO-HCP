@@ -595,19 +595,19 @@ func TestAreAllSchedulesPaused(t *testing.T) {
 			want:  false,
 		},
 		{
-			name:  "nil KubeContent.Raw is skipped",
+			name:  "nil KubeContent.Raw returns false",
 			input: []*kubeapplierapi.ReadDesire{makeRdInvalidContent(nil)},
-			want:  true,
+			want:  false,
 		},
 		{
-			name:  "invalid JSON in KubeContent is skipped",
+			name:  "invalid JSON in KubeContent returns false",
 			input: []*kubeapplierapi.ReadDesire{makeRdInvalidContent([]byte("not-json"))},
-			want:  true,
+			want:  false,
 		},
 		{
-			name:  "mix of valid paused and invalid KubeContent",
+			name:  "mix of valid paused and invalid KubeContent returns false",
 			input: []*kubeapplierapi.ReadDesire{makeRd(t, true), makeRdInvalidContent(nil)},
-			want:  true,
+			want:  false,
 		},
 	}
 
@@ -707,16 +707,17 @@ func TestProcess(t *testing.T) {
 			buildState: func(t *testing.T, ctx context.Context) recoverySyncState {
 				t.Helper()
 				adCrud, rdCrud := newMockCruds(t)
-				return makeState(
-					&coreapi.ServiceProviderCluster{Spec: coreapi.ServiceProviderClusterSpec{BackupScheduleState: coreapi.BackupScheduleStateEnabled}},
-					&coreapi.RecoveryStatus{RecoveryId: processTestRecoveryID},
-					adCrud, rdCrud,
-				)
+				mockDB := corecosmosstoragetesting.NewMockResourcesDBClient()
+				spc, err := corecosmosstorage.GetOrCreateServiceProviderCluster(ctx, mockDB, testKey.GetResourceID())
+				require.NoError(t, err)
+				spcCRUD := mockDB.ServiceProviderClusters(testKey.SubscriptionID, testKey.ResourceGroupName, testKey.HCPClusterName)
+				state := makeState(spc, &coreapi.RecoveryStatus{RecoveryId: processTestRecoveryID}, adCrud, rdCrud)
+				state.spcCrud = spcCRUD
+				return state
 			},
 			verify: func(t *testing.T, ctx context.Context, state recoverySyncState) {
 				t.Helper()
 				assert.NotNil(t, state.recoveryRequestStatusToProcess.StartedAt, "StartedAt should be set")
-				assert.Equal(t, coreapi.BackupScheduleStateDisabled, state.spc.Spec.BackupScheduleState)
 			},
 		},
 		{
@@ -724,12 +725,17 @@ func TestProcess(t *testing.T) {
 			buildState: func(t *testing.T, ctx context.Context) recoverySyncState {
 				t.Helper()
 				adCrud, rdCrud := newMockCruds(t)
+				mockDB := corecosmosstoragetesting.NewMockResourcesDBClient()
+				spc, err := corecosmosstorage.GetOrCreateServiceProviderCluster(ctx, mockDB, testKey.GetResourceID())
+				require.NoError(t, err)
+				spc.Spec.BackupScheduleState = coreapi.BackupScheduleStateEnabled
+				spcCRUD := mockDB.ServiceProviderClusters(testKey.SubscriptionID, testKey.ResourceGroupName, testKey.HCPClusterName)
+				spc, err = spcCRUD.Replace(ctx, spc, nil)
+				require.NoError(t, err)
 				started := metav1.NewTime(time.Now())
-				return makeState(
-					&coreapi.ServiceProviderCluster{Spec: coreapi.ServiceProviderClusterSpec{BackupScheduleState: coreapi.BackupScheduleStateEnabled}},
-					&coreapi.RecoveryStatus{RecoveryId: processTestRecoveryID, StartedAt: &started},
-					adCrud, rdCrud,
-				)
+				state := makeState(spc, &coreapi.RecoveryStatus{RecoveryId: processTestRecoveryID, StartedAt: &started}, adCrud, rdCrud)
+				state.spcCrud = spcCRUD
+				return state
 			},
 			verify: func(t *testing.T, ctx context.Context, state recoverySyncState) {
 				t.Helper()

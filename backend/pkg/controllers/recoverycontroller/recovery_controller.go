@@ -124,6 +124,9 @@ func (c *recoverySyncer) SyncOnce(ctx context.Context, key controllerutils.HCPCl
 		return utils.TrackError(fmt.Errorf("failed to get read desires for cluster: %w", err))
 	}
 
+	if existingCluster.ServiceProviderProperties.ClusterServiceID == nil {
+		return nil
+	}
 	clusterID := existingCluster.ServiceProviderProperties.ClusterServiceID.ID()
 
 	recoveryRequestToProcess, recoveryRequestStatusToProcess, err := findActiveRecovery(spc)
@@ -138,6 +141,7 @@ func (c *recoverySyncer) SyncOnce(ctx context.Context, key controllerutils.HCPCl
 	state := recoverySyncState{
 		key:                            key,
 		spc:                            spc,
+		spcCrud:                        c.cosmosClient.ServiceProviderClusters(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName),
 		clusterID:                      clusterID,
 		mcResourceID:                   mcResourceID,
 		rdCrud:                         rdCrud,
@@ -196,6 +200,9 @@ func findActiveRecovery(spc *coreapi.ServiceProviderCluster) (*coreapi.RecoveryR
 }
 
 func (c *recoverySyncer) updateSpcStatus(ctx context.Context, state recoverySyncState) error {
+	if _, err := state.spcCrud.Replace(ctx, state.spc, nil); err != nil {
+		return utils.TrackError(fmt.Errorf("failed to update ServiceProviderCluster: %w", err))
+	}
 	return nil
 }
 
@@ -206,10 +213,11 @@ func (c *recoverySyncer) process(ctx context.Context, state recoverySyncState) e
 	}
 	if state.recoveryRequestStatusToProcess.StartedAt == nil {
 		state.recoveryRequestStatusToProcess.StartedAt = &metav1.Time{Time: time.Now()}
+		return c.updateSpcStatus(ctx, state)
 	}
 	if state.spc.Spec.BackupScheduleState != coreapi.BackupScheduleStateDisabled {
 		state.spc.Spec.BackupScheduleState = coreapi.BackupScheduleStateDisabled
-		return nil
+		return c.updateSpcStatus(ctx, state)
 	}
 	// Fetch Schedule Read Desires for cluster and make sure pause was applied
 	schedules, err := fetchSchedules(ctx, state)
@@ -234,7 +242,7 @@ func (c *recoverySyncer) process(ctx context.Context, state recoverySyncState) e
 	}
 
 	// Fetch hcpRecoveryReadDesire and check status, if its terminal set recoveryRequestStatusToProcess completedAt
-	_, err = state.rdCrud.Get(ctx, backup.RecoveryDesireNamePrefix+state.recoveryRequestToProcess.RecoveryId)
+	rd, err := state.rdCrud.Get(ctx, backup.RecoveryDesireNamePrefix+state.recoveryRequestToProcess.RecoveryId)
 	if err != nil {
 		if cosmosstorageutils.IsNotFoundError(err) {
 			err = createRecoveryReadDesire(ctx, state)
@@ -246,6 +254,36 @@ func (c *recoverySyncer) process(ctx context.Context, state recoverySyncState) e
 		return fmt.Errorf("failed to fetch recovery read desire: %w", err)
 	}
 
+	// found a rd, fetch the status and do the next step or skip
+	var recovery hcprecoveryv1alpha1.HCPRecovery
+	if rd.Status.KubeContent == nil || rd.Status.KubeContent.Raw == nil {
+		// Not read yet?
+		return nil
+	}
+	err = json.Unmarshal(rd.Status.KubeContent.Raw, &recovery)
+	if err != nil {
+		return fmt.Errorf("failed to unmarshal recovery read desire: %w", err)
+	}
+
+	// Check for a terminal state
+	switch recovery.Status.Phase {
+	case hcprecoveryv1alpha1.RestoreStateFailed:
+		state.recoveryRequestStatusToProcess.CompletedAt = recovery.Status.CompletedAt
+		state.recoveryRequestStatusToProcess.State = coreapi.RecoveryStateFailed
+		return c.updateSpcStatus(ctx, state)
+		// THINK about what we can do based on conditions from the recovery cr
+		//
+	case hcprecoveryv1alpha1.RestoreStateCompleted:
+		if state.spc.Spec.BackupScheduleState == coreapi.BackupScheduleStateDisabled {
+			state.spc.Spec.BackupScheduleState = coreapi.BackupScheduleStateEnabled
+			state.recoveryRequestStatusToProcess.CompletedAt = recovery.Status.CompletedAt
+			state.recoveryRequestStatusToProcess.State = coreapi.RecoveryStateCompleted
+			return c.updateSpcStatus(ctx, state)
+		}
+	// TODO: Mark in progress
+	default:
+		return nil
+	}
 	return nil
 }
 
@@ -270,10 +308,10 @@ func createRecoveryReadDesire(ctx context.Context, state recoverySyncState) erro
 		Spec: kubeapplierapi.ReadDesireSpec{
 			ManagementCluster: state.mcResourceID,
 			TargetItem: kubeapplierapi.ResourceReference{
-				Group:     "hcprecovery.aro-hcp.azure.com",
-				Version:   "v1alpha1",
-				Resource:  "hcprecoveries",
-				Namespace: "hcp-recovery",
+				Group:     hcprecoveryv1alpha1.SchemeGroupVersion.Group,
+				Version:   hcprecoveryv1alpha1.SchemeGroupVersion.Version,
+				Resource:  hcprecoveryv1alpha1.HCPRecoveryResource,
+				Namespace: hcprecoveryv1alpha1.HCPRecoveryNamespace,
 				Name:      state.recoveryRequestToProcess.RecoveryId,
 			},
 		},
@@ -287,6 +325,10 @@ func createRecoveryReadDesire(ctx context.Context, state recoverySyncState) erro
 
 func createRecoveryApplyDesire(ctx context.Context, state recoverySyncState) error {
 	recoveryCr := hcprecoveryv1alpha1.HCPRecovery{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: hcprecoveryv1alpha1.SchemeGroupVersion.String(),
+			Kind:       "HCPRecovery",
+		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: state.recoveryRequestToProcess.RecoveryId,
 		},
@@ -322,10 +364,10 @@ func createRecoveryApplyDesire(ctx context.Context, state recoverySyncState) err
 			ManagementCluster: state.mcResourceID,
 			Type:              kubeapplierapi.ApplyDesireTypeServerSideApply,
 			TargetItem: kubeapplierapi.ResourceReference{
-				Group:     "hcprecovery.aro-hcp.azure.com",
-				Version:   "v1alpha1",
-				Resource:  "hcprecoveries",
-				Namespace: "hcp-recovery",
+				Group:     hcprecoveryv1alpha1.SchemeGroupVersion.Group,
+				Version:   hcprecoveryv1alpha1.SchemeGroupVersion.Version,
+				Resource:  hcprecoveryv1alpha1.HCPRecoveryResource,
+				Namespace: hcprecoveryv1alpha1.HCPRecoveryNamespace,
 				Name:      state.recoveryRequestToProcess.RecoveryId,
 			},
 			ServerSideApply: &kubeapplierapi.ServerSideApplyConfig{
@@ -362,11 +404,15 @@ func fetchSchedules(ctx context.Context, state recoverySyncState) ([]*kubeapplie
 
 func areAllSchedulesPaused(schedulesReadDesires []*kubeapplierapi.ReadDesire) bool {
 	for _, sd := range schedulesReadDesires {
+		if sd.Status.KubeContent == nil {
+			return false
+		}
 		var schedule velerov1.Schedule
-		if err := json.Unmarshal(sd.Status.KubeContent.Raw, &schedule); err == nil {
-			if schedule.Spec.Paused == false {
-				return false
-			}
+		if err := json.Unmarshal(sd.Status.KubeContent.Raw, &schedule); err != nil {
+			return false
+		}
+		if !schedule.Spec.Paused {
+			return false
 		}
 	}
 	return true
