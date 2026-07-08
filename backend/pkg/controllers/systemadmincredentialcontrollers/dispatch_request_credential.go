@@ -190,6 +190,7 @@ func (c *dispatchRequestCredential) SynchronizeOperation(ctx context.Context, ke
 		},
 		Spec: api.SystemAdminCredentialRequestSpec{
 			Username:            username,
+			CreationTimestamp:   metav1.NewTime(c.clock.Now()),
 			ExpirationTimestamp: metav1.NewTime(c.clock.Now().Add(24 * time.Hour)),
 			OperationID:         operationIDStr,
 			PublicKeyPEM:        string(pubPEM),

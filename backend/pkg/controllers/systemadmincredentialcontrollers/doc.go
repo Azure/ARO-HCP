@@ -29,4 +29,8 @@
 //  9. SystemAdminCredentialRevokedGC — deletes revoked docs after 48h
 //  10. SystemAdminCredentialServingCAReadDesireCreator — seeds the CA ReadDesire
 //  11. SystemAdminCredentialDesiresCreator — creates ApplyDesires/ReadDesires for each credential
+//  12. SystemAdminCredentialRevocationMarkRequests — marks credential requests for deletion
+//  13. SystemAdminCredentialRevocationDesires — creates the CRR/RBAC revocation desires
+//  14. SystemAdminCredentialRevocationCompletion — observes the CRR and marks the revocation complete
+//  15. SystemAdminCredentialRevocationDeletion — tears down the revocation's desires and doc
 package systemadmincredentialcontrollers

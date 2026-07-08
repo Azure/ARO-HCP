@@ -30,8 +30,8 @@ import (
 )
 
 const (
-	// revokedGCRetention is how long a Revoked credential doc stays in
-	// Cosmos before it is garbage-collected.
+	// revokedGCRetention is how long a credential request doc stays in Cosmos
+	// after creation before it is garbage-collected.
 	revokedGCRetention = 48 * time.Hour
 )
 
@@ -44,8 +44,8 @@ type revokedGC struct {
 var _ controllerutils.CredentialRequestSyncer = (*revokedGC)(nil)
 
 // NewRevokedGCController returns a CredentialRequestWatchingController that
-// deletes individual SystemAdminCredentialRequest documents 48 hours after they
-// reach Revoked state.
+// deletes every SystemAdminCredentialRequest document 48 hours after it was
+// created, regardless of the request's status.
 func NewRevokedGCController(
 	clock utilsclock.PassiveClock,
 	activeOperationLister listers.ActiveOperationLister,
@@ -84,24 +84,21 @@ func (c *revokedGC) SyncOnce(ctx context.Context, key controllerutils.SystemAdmi
 		return utils.TrackError(fmt.Errorf("failed to get SystemAdminCredentialRequest: %w", err))
 	}
 
-	if !cred.Status.IsRevoked() {
+	// Delete every credential request once it is older than the retention window,
+	// regardless of its status. A missing creation timestamp means we cannot
+	// determine the age yet, so leave the document alone.
+	if cred.Spec.CreationTimestamp.IsZero() {
 		return nil
 	}
-	if cred.Status.RevokedAt == nil {
-		return nil
-	}
-
-	now := c.clock.Now()
-	age := now.Sub(cred.Status.RevokedAt.Time)
+	age := c.clock.Now().Sub(cred.Spec.CreationTimestamp.Time)
 	if age < revokedGCRetention {
 		return nil
 	}
 
 	if err := credCRUD.Delete(ctx, key.CredentialName); err != nil && !database.IsNotFoundError(err) {
-		logger.Error(err, "failed to delete revoked credential", "credential", key.CredentialName)
-		return nil
+		return utils.TrackError(fmt.Errorf("failed to delete credential %s: %w", key.CredentialName, err))
 	}
-	logger.Info("garbage-collected revoked credential", "credential", key.CredentialName, "age", age.String())
+	logger.Info("garbage-collected credential request", "credential", key.CredentialName, "age", age.String())
 
 	return nil
 }

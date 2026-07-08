@@ -44,13 +44,13 @@ func TestRevokedGC_SyncOnce(t *testing.T) {
 		verify      func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient)
 	}{
 		{
-			name:     "deletes credential revoked more than 48h ago",
+			name:     "deletes credential created more than 48h ago regardless of status",
 			credName: "old-revoked",
 			setupDB: func(db *databasetesting.MockResourcesDBClient) {
-				revokedAt := metav1.NewTime(fixedTime.Add(-49 * time.Hour))
+				createdAt := metav1.NewTime(fixedTime.Add(-49 * time.Hour))
 				createTestCredentialRequest(t, db, "old-revoked",
 					withCondition(api.SystemAdminCredentialRequestConditionRevoked),
-					withRevokedAt(revokedAt))
+					withCreationTimestamp(createdAt))
 			},
 			expectError: false,
 			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
@@ -62,17 +62,39 @@ func TestRevokedGC_SyncOnce(t *testing.T) {
 					count++
 				}
 				require.NoError(t, iter.GetError())
-				assert.Equal(t, 0, count, "revoked credential should have been garbage-collected")
+				assert.Equal(t, 0, count, "credential older than the retention window should have been garbage-collected")
 			},
 		},
 		{
-			name:     "does not delete credential revoked less than 48h ago",
+			name:     "deletes issued credential created more than 48h ago",
+			credName: "old-issued",
+			setupDB: func(db *databasetesting.MockResourcesDBClient) {
+				createdAt := metav1.NewTime(fixedTime.Add(-49 * time.Hour))
+				createTestCredentialRequest(t, db, "old-issued",
+					withCondition(api.SystemAdminCredentialRequestConditionIssued),
+					withCreationTimestamp(createdAt))
+			},
+			expectError: false,
+			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+				credCRUD := db.SystemAdminCredentialRequests(testSubscriptionID, testResourceGroupName, testClusterName)
+				iter, err := credCRUD.List(ctx, nil)
+				require.NoError(t, err)
+				var count int
+				for range iter.Items(ctx) {
+					count++
+				}
+				require.NoError(t, iter.GetError())
+				assert.Equal(t, 0, count, "issued credential older than the retention window should be garbage-collected regardless of status")
+			},
+		},
+		{
+			name:     "does not delete credential created less than 48h ago",
 			credName: "recent-revoked",
 			setupDB: func(db *databasetesting.MockResourcesDBClient) {
-				revokedAt := metav1.NewTime(fixedTime.Add(-24 * time.Hour))
+				createdAt := metav1.NewTime(fixedTime.Add(-24 * time.Hour))
 				createTestCredentialRequest(t, db, "recent-revoked",
 					withCondition(api.SystemAdminCredentialRequestConditionRevoked),
-					withRevokedAt(revokedAt))
+					withCreationTimestamp(createdAt))
 			},
 			expectError: false,
 			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
@@ -84,34 +106,14 @@ func TestRevokedGC_SyncOnce(t *testing.T) {
 					count++
 				}
 				require.NoError(t, iter.GetError())
-				assert.Equal(t, 1, count, "recently revoked credential should not be garbage-collected")
+				assert.Equal(t, 1, count, "credential within the retention window should not be garbage-collected")
 			},
 		},
 		{
-			name:     "skips non-revoked credentials",
-			credName: "issued-cred",
+			name:     "skips credentials without a creation timestamp",
+			credName: "no-ts",
 			setupDB: func(db *databasetesting.MockResourcesDBClient) {
-				createTestCredentialRequest(t, db, "issued-cred",
-					withCondition(api.SystemAdminCredentialRequestConditionIssued))
-			},
-			expectError: false,
-			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
-				credCRUD := db.SystemAdminCredentialRequests(testSubscriptionID, testResourceGroupName, testClusterName)
-				iter, err := credCRUD.List(ctx, nil)
-				require.NoError(t, err)
-				var count int
-				for range iter.Items(ctx) {
-					count++
-				}
-				require.NoError(t, iter.GetError())
-				assert.Equal(t, 1, count, "issued credential should not be touched")
-			},
-		},
-		{
-			name:     "skips revoked credentials without RevokedAt",
-			credName: "revoked-no-ts",
-			setupDB: func(db *databasetesting.MockResourcesDBClient) {
-				createTestCredentialRequest(t, db, "revoked-no-ts",
+				createTestCredentialRequest(t, db, "no-ts",
 					withCondition(api.SystemAdminCredentialRequestConditionRevoked))
 			},
 			expectError: false,
@@ -124,7 +126,7 @@ func TestRevokedGC_SyncOnce(t *testing.T) {
 					count++
 				}
 				require.NoError(t, iter.GetError())
-				assert.Equal(t, 1, count, "revoked credential without RevokedAt should not be garbage-collected")
+				assert.Equal(t, 1, count, "credential without a creation timestamp should not be garbage-collected")
 			},
 		},
 		{

@@ -136,18 +136,21 @@ func (c *servingCAReadDesireCreator) SyncOnce(ctx context.Context, key controlle
 		Name:      servingCASecretName,
 	}
 
-	desired := buildServingCAReadDesire(
+	desired, err := buildServingCAReadDesire(
 		kubeapplier.ToClusterScopedReadDesireResourceIDString(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, readDesireNameServingCA),
 		mcResourceID,
 		target,
 	)
+	if err != nil {
+		return err
+	}
 
-	kaClient := c.kubeApplierDBClients.For(ctx, mcResourceID)
-	if kaClient == nil {
+	kubeApplierClient := c.kubeApplierDBClients.For(ctx, mcResourceID)
+	if kubeApplierClient == nil {
 		return nil
 	}
 
-	crud, err := kaClient.ReadDesiresForCluster(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
+	crud, err := kubeApplierClient.ReadDesiresForCluster(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("get ReadDesire CRUD: %w", err))
 	}
@@ -181,11 +184,11 @@ func (c *servingCAReadDesireCreator) SyncOnce(ctx context.Context, key controlle
 	return nil
 }
 
-func buildServingCAReadDesire(resourceIDString string, managementCluster *azcorearm.ResourceID, target kubeapplier.ResourceReference) *kubeapplier.ReadDesire {
-	// The resourceIDString is produced by an internal kube-applier ID builder from
-	// already-validated key components, so a parse failure indicates a programming
-	// error; fail fast rather than silently writing a document with a nil ResourceID.
-	resourceID := api.Must(azcorearm.ParseResourceID(resourceIDString))
+func buildServingCAReadDesire(resourceIDString string, managementCluster *azcorearm.ResourceID, target kubeapplier.ResourceReference) (*kubeapplier.ReadDesire, error) {
+	resourceID, err := azcorearm.ParseResourceID(resourceIDString)
+	if err != nil {
+		return nil, utils.TrackError(fmt.Errorf("failed to parse ReadDesire resource ID %q: %w", resourceIDString, err))
+	}
 	return &kubeapplier.ReadDesire{
 		CosmosMetadata: api.CosmosMetadata{
 			ResourceID:   resourceID,
@@ -195,5 +198,5 @@ func buildServingCAReadDesire(resourceIDString string, managementCluster *azcore
 			ManagementCluster: managementCluster,
 			TargetItem:        target,
 		},
-	}
+	}, nil
 }

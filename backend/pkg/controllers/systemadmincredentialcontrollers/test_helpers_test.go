@@ -21,6 +21,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -137,13 +138,19 @@ func createTestCredentialRequest(t *testing.T, db *databasetesting.MockResources
 // withCondition returns an option function that sets a condition to True on the credential request.
 func withCondition(condType string) func(*api.SystemAdminCredentialRequest) {
 	return func(cred *api.SystemAdminCredentialRequest) {
-		cred.Status.SetCondition(condType, metav1.ConditionTrue, condType, "test")
+		meta.SetStatusCondition(&cred.Status.Conditions, metav1.Condition{
+			Type:    condType,
+			Status:  metav1.ConditionTrue,
+			Reason:  condType,
+			Message: "test",
+		})
 	}
 }
 
-// withRevokedAt returns an option function that sets the RevokedAt timestamp on a credential request.
-func withRevokedAt(ts metav1.Time) func(*api.SystemAdminCredentialRequest) {
+// withCreationTimestamp returns an option function that sets the creation
+// timestamp on a credential request's spec.
+func withCreationTimestamp(ts metav1.Time) func(*api.SystemAdminCredentialRequest) {
 	return func(cred *api.SystemAdminCredentialRequest) {
-		cred.Status.RevokedAt = &ts
+		cred.Spec.CreationTimestamp = ts
 	}
 }

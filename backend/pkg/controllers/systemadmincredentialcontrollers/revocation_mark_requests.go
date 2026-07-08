@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"time"
 
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilsclock "k8s.io/utils/clock"
 
@@ -101,11 +102,10 @@ func (c *revocationMarkRequests) SyncOnce(ctx context.Context, key controlleruti
 		replacement := cred.DeepCopy()
 		now := metav1.NewTime(c.clock.Now())
 		replacement.Status.DeleteTimestamp = &now
+		// This controller is keyed on the revocation, not the credential request,
+		// so a failed credential write is NOT retriggered by our informer. Return
+		// an error (including on precondition failure) so the workqueue retries.
 		if _, err := credCRUD.Replace(ctx, replacement, nil); err != nil {
-			if database.IsPreconditionFailedError(err) {
-				// Will be retriggered by the informer.
-				return nil
-			}
 			return utils.TrackError(fmt.Errorf("failed to mark credential %s for deletion: %w", cred.ResourceID.Name, err))
 		}
 		logger.Info("marked credential request for deletion", "credential", cred.ResourceID.Name)
@@ -117,9 +117,12 @@ func (c *revocationMarkRequests) SyncOnce(ctx context.Context, key controlleruti
 	// Every credential request now carries a DeleteTimestamp; record that on the
 	// revocation so the desires controller can proceed to completion.
 	replacement := revocation.DeepCopy()
-	replacement.Status.SetCondition(
-		api.SystemAdminCredentialRevocationConditionCredentialsMarkedForDeletion,
-		metav1.ConditionTrue, "CredentialsMarked", "All credential requests have been marked for deletion")
+	meta.SetStatusCondition(&replacement.Status.Conditions, metav1.Condition{
+		Type:    api.SystemAdminCredentialRevocationConditionCredentialsMarkedForDeletion,
+		Status:  metav1.ConditionTrue,
+		Reason:  "CredentialsMarked",
+		Message: "All credential requests have been marked for deletion",
+	})
 	if _, err := revocationCRUD.Replace(ctx, replacement, nil); err != nil {
 		if database.IsPreconditionFailedError(err) {
 			// Will be retriggered by the informer.
