@@ -134,7 +134,7 @@ func GetInstallVersionForZStreamUpgrade(ctx context.Context, channelGroup string
 			return "", false, err
 		}
 		if len(upgradeTargets) > 0 {
-			return candidates[i+1].String(), true, nil
+			return candidates[i].String(), true, nil
 		}
 	}
 	return candidates[0].String(), false, nil
