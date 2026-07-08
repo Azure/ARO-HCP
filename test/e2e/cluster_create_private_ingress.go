@@ -178,7 +178,7 @@ var _ = Describe("Customer", func() {
 			GinkgoLogr.Info("Cluster health and IngressController scope verified")
 
 			By("deploying a sample web app to verify ingress connectivity")
-			sampleApp, err := verifiers.DeploySampleApp(ctx, adminRESTConfig)
+			sampleApp, err := framework.DeploySampleApp(ctx, adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred(), "failed to deploy sample web app for ingress connectivity test")
 
 			appURL := "https://" + sampleApp.RouteHost

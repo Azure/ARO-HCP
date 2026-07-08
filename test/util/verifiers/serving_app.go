@@ -28,7 +28,6 @@ import (
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -57,7 +56,7 @@ func (v verifySimpleWebApp) Verify(ctx context.Context, adminRESTConfig *rest.Co
 		}
 	}()
 
-	app, err := DeploySampleApp(ctx, adminRESTConfig, v.nodeSelector)
+	app, err := framework.DeploySampleApp(ctx, adminRESTConfig, v.nodeSelector)
 	if err != nil {
 		return err
 	}
@@ -197,14 +196,6 @@ func printNegotiatedCertificate(ctx context.Context, host string) {
 	)
 }
 
-func gvr(group, version, resource string) schema.GroupVersionResource {
-	return schema.GroupVersionResource{
-		Group:    group,
-		Version:  version,
-		Resource: resource,
-	}
-}
-
 func (v verifySimpleWebApp) cleanup(ctx context.Context, adminRESTConfig *rest.Config) error {
 	if len(v.namespaceName) == 0 {
 		return nil
@@ -246,11 +237,4 @@ func VerifySimpleWebApp(nodeSelector ...map[string]string) HostedClusterVerifier
 		ns = nodeSelector[0]
 	}
 	return verifySimpleWebApp{nodeSelector: ns}
-}
-
-func must[T any](v T, err error) T {
-	if err != nil {
-		panic("error: " + err.Error())
-	}
-	return v
 }

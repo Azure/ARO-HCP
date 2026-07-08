@@ -12,24 +12,32 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package verifiers
+package framework
 
 import (
 	"context"
+	"embed"
 	"fmt"
 	"time"
 
 	"go.yaml.in/yaml/v2"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/klog/v2"
+
+	sigyaml "sigs.k8s.io/yaml"
 )
+
+//go:embed artifacts/serving_app
+var servingAppFiles embed.FS
 
 // SampleAppDeployment holds the resources created by DeploySampleApp.
 type SampleAppDeployment struct {
@@ -66,7 +74,10 @@ func DeploySampleApp(ctx context.Context, adminRESTConfig *rest.Config, nodeSele
 		return nil, fmt.Errorf("failed to create dynamic client: %w", err)
 	}
 
-	deploymentYAML := must(staticFiles.ReadFile("artifacts/serving_app/deployment.yaml"))
+	deploymentYAML, err := servingAppFiles.ReadFile("artifacts/serving_app/deployment.yaml")
+	if err != nil {
+		return nil, fmt.Errorf("failed to read deployment.yaml: %w", err)
+	}
 
 	if len(nodeSelector) > 0 && nodeSelector[0] != nil {
 		var deploymentMap map[string]any
@@ -88,15 +99,24 @@ func DeploySampleApp(ctx context.Context, adminRESTConfig *rest.Config, nodeSele
 		}
 	}
 
-	deployment, err := createArbitraryResource(ctx, dynamicClient, nsName, deploymentYAML)
+	serviceYAML, err := servingAppFiles.ReadFile("artifacts/serving_app/service.yaml")
+	if err != nil {
+		return nil, fmt.Errorf("failed to read service.yaml: %w", err)
+	}
+	routeYAML, err := servingAppFiles.ReadFile("artifacts/serving_app/route.yaml")
+	if err != nil {
+		return nil, fmt.Errorf("failed to read route.yaml: %w", err)
+	}
+
+	deployment, err := createResource(ctx, dynamicClient, nsName, deploymentYAML)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create deployment: %w", err)
 	}
-	service, err := createArbitraryResource(ctx, dynamicClient, nsName, must(staticFiles.ReadFile("artifacts/serving_app/service.yaml")))
+	service, err := createResource(ctx, dynamicClient, nsName, serviceYAML)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create service: %w", err)
 	}
-	route, err := createArbitraryResource(ctx, dynamicClient, nsName, must(staticFiles.ReadFile("artifacts/serving_app/route.yaml")))
+	route, err := createResource(ctx, dynamicClient, nsName, routeYAML)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create route: %w", err)
 	}
@@ -107,11 +127,13 @@ func DeploySampleApp(ctx context.Context, adminRESTConfig *rest.Config, nodeSele
 		"route", route.GetName(),
 	)
 
+	routeGVR := schema.GroupVersionResource{Group: "route.openshift.io", Version: "v1", Resource: "routes"}
+
 	// Wait for route to get a hostname
 	var host string
 	var lastErr error
 	err = wait.PollUntilContextTimeout(ctx, 10*time.Second, 5*time.Minute, true, func(ctx context.Context) (done bool, err error) {
-		currRoute, err := dynamicClient.Resource(gvr("route.openshift.io", "v1", "routes")).
+		currRoute, err := dynamicClient.Resource(routeGVR).
 			Namespace(nsName).Get(ctx, route.GetName(), metav1.GetOptions{})
 		if err != nil {
 			lastErr = err
@@ -131,4 +153,19 @@ func DeploySampleApp(ctx context.Context, adminRESTConfig *rest.Config, nodeSele
 		Namespace: nsName,
 		RouteHost: host,
 	}, nil
+}
+
+// createResource unmarshals YAML into an unstructured object and creates it
+// via the dynamic client.
+func createResource(ctx context.Context, dynamicClient dynamic.Interface, namespace string, resourceBytes []byte) (*unstructured.Unstructured, error) {
+	desiredObj := &unstructured.Unstructured{}
+	if err := sigyaml.Unmarshal(resourceBytes, desiredObj); err != nil {
+		return nil, err
+	}
+	desiredObj.SetNamespace(namespace)
+
+	gvk := desiredObj.GroupVersionKind()
+	gvr, _ := meta.UnsafeGuessKindToResource(gvk)
+
+	return dynamicClient.Resource(gvr).Namespace(namespace).Create(ctx, desiredObj, metav1.CreateOptions{})
 }
