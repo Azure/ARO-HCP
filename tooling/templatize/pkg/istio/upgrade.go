@@ -156,6 +156,10 @@ func RunUpgrade(ctx context.Context, opts UpgradeOptions, aksClient AKSClusterCl
 	case ActionInstall:
 		return runInitialInstall(ctx, logger, aksClient, kubeClient, opts, target)
 	case ActionResume:
+		if opts.StopAfter == StopAfterCanaryStart {
+			logger.Info("Canary already in progress — install phase complete, nothing to do")
+			return nil
+		}
 		return runCanaryPostInstall(ctx, logger, aksClient, kubeClient, opts, target, meshProfile.Revisions)
 	case ActionUpgrade:
 		return runCanaryUpgrade(ctx, logger, aksClient, kubeClient, opts, target, meshProfile.Revisions)

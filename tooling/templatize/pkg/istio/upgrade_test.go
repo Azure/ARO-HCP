@@ -476,6 +476,23 @@ func TestRunUpgrade_Resume(t *testing.T) {
 	assert.Equal(t, "asm-1-29", cm.Labels["istio.io/rev"])
 }
 
+func TestRunUpgrade_ResumeWithStopAfterCanaryStart(t *testing.T) {
+	aks := &fakeAKSClient{
+		clusterInfo: &ClusterInfo{ProvisioningState: "Succeeded"},
+		meshProfile: &MeshProfile{Revisions: []string{"asm-1-28", "asm-1-29"}},
+		upgradeInfo: &MeshUpgradeInfo{UpgradeInProgress: true},
+	}
+	kubeClient := healthyKubeClient()
+
+	opts := baseOpts()
+	opts.StopAfter = StopAfterCanaryStart
+
+	err := RunUpgrade(testCtx(t), opts, aks, kubeClient)
+	require.NoError(t, err)
+	assert.NotContains(t, aks.calls, "StartCanaryUpgrade", "should not start canary — already in progress")
+	assert.NotContains(t, aks.calls, "CompleteCanaryUpgrade", "should not complete canary — install phase is done")
+}
+
 func TestRunUpgrade_TagBasedNamespacesWithoutTagConfig(t *testing.T) {
 	aks := &fakeAKSClient{
 		clusterInfo: &ClusterInfo{ProvisioningState: "Succeeded"},
