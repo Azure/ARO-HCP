@@ -1,6 +1,7 @@
 {
 	"backup": {
 		"completionTimestamp": "",
+		"keyVersion": "",
 		"name": "fixed-value-20240115103000",
 		"phase": "New",
 		"startTimestamp": ""

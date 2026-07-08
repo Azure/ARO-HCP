@@ -31,8 +31,6 @@ import (
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
 )
 
-const HCPClusterReencryptionUpgradeTimeout = 18 * time.Minute
-
 var _ = Describe("Customer", func() {
 	// Deadline for v20260630preview API deployment in non-dev environments
 	timeBombDeadline := framework.Must(time.Parse(time.RFC3339, "2026-07-31T00:00:00Z"))
@@ -157,7 +155,7 @@ var _ = Describe("Customer", func() {
 						},
 					},
 				},
-				HCPClusterReencryptionUpgradeTimeout,
+				framework.HCPClusterReencryptionUpgradeTimeout,
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to update cluster with new KMS key")
 
@@ -260,7 +258,7 @@ var _ = Describe("Customer", func() {
 						},
 					},
 				},
-				HCPClusterReencryptionUpgradeTimeout,
+				framework.HCPClusterReencryptionUpgradeTimeout,
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to update cluster with new KMS key with the second rotation")
 

@@ -26,17 +26,18 @@ import (
 	"github.com/Azure/ARO-HCP/internal/backup"
 )
 
-func NewScheduledBackup(clusterID, clusterName, hcNamespace, hcpNamespace, backupName, cronSchedule string, ttl time.Duration, paused bool) *velerov1api.Schedule {
+func NewScheduledBackup(clusterID, clusterName, hcNamespace, hcpNamespace, backupName, cronSchedule, keyVersion string, ttl time.Duration, paused bool) *velerov1api.Schedule {
 	scheduleName := fmt.Sprintf("%s-%s", clusterID, backupName)
-	backup := backup.NewBackup(scheduleName, clusterID, ttl, hcNamespace, hcpNamespace)
+	b := backup.NewBackup(scheduleName, clusterID, keyVersion, ttl, hcNamespace, hcpNamespace)
 	schedule := builder.ForSchedule("velero", scheduleName).
 		CronSchedule(cronSchedule).
-		Template(backup.Spec).
+		Template(b.Spec).
 		ObjectMeta(func(object metav1.Object) {
 			object.SetLabels(map[string]string{
 				"velero.io/storage-location":                       "default",
 				"hypershift.openshift.io/hosted-cluster":           clusterName,
 				"hypershift.openshift.io/hosted-cluster-namespace": hcNamespace,
+				backup.KmsKeyVersionLabel:                          keyVersion,
 				"api.openshift.com/id":                             clusterID,
 			})
 		})

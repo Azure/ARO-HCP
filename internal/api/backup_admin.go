@@ -20,6 +20,7 @@ type BackupResponse struct {
 	StartTimestamp      string `json:"startTimestamp"`
 	CompletionTimestamp string `json:"completionTimestamp"`
 	Phase               string `json:"phase"`
+	KeyVersion          string `json:"keyVersion"`
 }
 
 // GetBackupResponse is the JSON response for GET backup endpoints.

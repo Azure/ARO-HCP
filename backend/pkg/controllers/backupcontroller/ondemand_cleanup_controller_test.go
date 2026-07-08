@@ -45,7 +45,7 @@ func makeOnDemandAD(t *testing.T, mcResourceID *azcorearm.ResourceID, name strin
 			ManagementCluster: mcResourceID,
 			Type:              kubeapplier.ApplyDesireTypeServerSideApply,
 			TargetItem: kubeapplier.ResourceReference{
-				Group: veleroScheduleGroup, Version: veleroScheduleVersion,
+				Group: veleroGroup, Version: veleroVersion,
 				Resource: "backups", Namespace: veleroNamespace, Name: name,
 			},
 			ServerSideApply: &kubeapplier.ServerSideApplyConfig{

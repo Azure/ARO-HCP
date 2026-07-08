@@ -30,6 +30,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
+	"github.com/Azure/ARO-HCP/backend/pkg/maestrohelpers"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/backup"
@@ -48,6 +49,7 @@ type backupScheduleSyncer struct {
 	clusterLister                listers.ClusterLister
 	serviceProviderClusterLister listers.ServiceProviderClusterLister
 	applyDesireLister            dblisters.ApplyDesireLister
+	readDesireLister             dblisters.ReadDesireLister
 
 	kubeApplierDBClients database.KubeApplierDBClients
 
@@ -67,6 +69,7 @@ func NewBackupScheduleController(
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 	hostedClusterNamespaceEnvIdentifier string,
 	backupConfig *BackupConfig,
+	readDesireLister dblisters.ReadDesireLister,
 ) controllerutils.Controller {
 
 	_, clusterLister := informers.Clusters()
@@ -81,6 +84,7 @@ func NewBackupScheduleController(
 		kubeApplierDBClients:                kubeApplierDBClients,
 		hostedClusterNamespaceEnvIdentifier: hostedClusterNamespaceEnvIdentifier,
 		backupConfig:                        backupConfig,
+		readDesireLister:                    readDesireLister,
 	}
 
 	return controllerutils.NewClusterWatchingController(
@@ -154,14 +158,22 @@ func (c *backupScheduleSyncer) SyncOnce(ctx context.Context, key controllerutils
 	clusterID := cachedCluster.ServiceProviderProperties.ClusterServiceID.ID()
 	hcNamespace := controllers.HostedClusterNamespace(c.hostedClusterNamespaceEnvIdentifier, clusterID)
 	hcpNamespace := fmt.Sprintf("%s-%s", hcNamespace, clusterName)
-
+	hostedCluster, err := maestrohelpers.GetCachedHostedClusterForCluster(ctx, c.readDesireLister, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to get HostedCluster: %w", err))
+	}
+	if hostedCluster == nil {
+		return nil
+	}
+	kmsKeyVersion := hostedCluster.Status.SecretEncryption.ActiveKey.Azure.KeyVersion
 	clusterPaused := cachedSPC.Spec.BackupState == api.BackupScheduleStatePaused
 
 	configSchedules := c.backupConfig.Schedules()
 	schedules := make([]*velerov1api.Schedule, 0, len(configSchedules))
+
 	for _, sc := range configSchedules {
 		paused := c.backupConfig.Paused || clusterPaused
-		schedule := NewScheduledBackup(clusterID, clusterName, hcNamespace, hcpNamespace, sc.Name, sc.Schedule, sc.TTL, paused)
+		schedule := NewScheduledBackup(clusterID, clusterName, hcNamespace, hcpNamespace, sc.Name, sc.Schedule, kmsKeyVersion, sc.TTL, paused)
 		schedules = append(schedules, schedule)
 	}
 

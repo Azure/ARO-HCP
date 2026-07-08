@@ -52,3 +52,8 @@ const (
 	BackupWaitTimeout  = 6 * time.Minute
 	BackupWaitInterval = 30 * time.Second
 )
+
+// Re-encryption timeouts
+const (
+	HCPClusterReencryptionUpgradeTimeout = 18 * time.Minute
+)

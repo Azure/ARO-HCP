@@ -26,6 +26,7 @@ import (
 const (
 	BackupScheduleDesireNamePrefix = "backupschedule-"
 	OndemandBackupDesireNamePrefix = "ondemandbackup-"
+	KmsKeyVersionLabel             = "hypershift.openshift.io/secret-encryption-key-version"
 )
 
 var backupIncludedResources = []string{
@@ -57,11 +58,12 @@ var backupIncludedResources = []string{
 	"clusterdeployment",
 }
 
-func NewBackup(backupName, clusterID string, ttl time.Duration, namespaces ...string) *velerov1api.Backup {
+func NewBackup(backupName, clusterID, keyVersion string, ttl time.Duration, namespaces ...string) *velerov1api.Backup {
 	backup := builder.ForBackup("velero", backupName).
 		StorageLocation("default").
 		ObjectMeta(func(object metav1.Object) {
-			object.SetLabels(map[string]string{"api.openshift.com/id": clusterID})
+			object.SetLabels(map[string]string{"api.openshift.com/id": clusterID,
+				KmsKeyVersionLabel: keyVersion})
 		}).
 		IncludedNamespaces(namespaces...).
 		IncludedResources(backupIncludedResources...).

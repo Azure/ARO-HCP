@@ -29,6 +29,8 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
+	hsv1beta1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
+
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
@@ -57,6 +59,7 @@ type backupContext struct {
 	hcp                         *api.HCPOpenShiftCluster
 	managementClusterResourceID *azcorearm.ResourceID
 	time                        utilsclock.PassiveClock
+	keyVersion                  string
 }
 
 func resolveBackupContext(
@@ -220,17 +223,18 @@ func backupResponseFromReadDesire(rd *kubeapplier.ReadDesire, backupName string)
 	if rd.Status.KubeContent == nil || rd.Status.KubeContent.Raw == nil {
 		return resp
 	}
-	var backup velerov1api.Backup
-	if err := json.Unmarshal(rd.Status.KubeContent.Raw, &backup); err != nil {
+	var b velerov1api.Backup
+	if err := json.Unmarshal(rd.Status.KubeContent.Raw, &b); err != nil {
 		resp.Phase = "Unknown"
 		return resp
 	}
-	resp.Phase = string(backup.Status.Phase)
-	if backup.Status.StartTimestamp != nil {
-		resp.StartTimestamp = backup.Status.StartTimestamp.String()
+	resp.Phase = string(b.Status.Phase)
+	resp.KeyVersion = b.Labels[backup.KmsKeyVersionLabel]
+	if b.Status.StartTimestamp != nil {
+		resp.StartTimestamp = b.Status.StartTimestamp.String()
 	}
-	if backup.Status.CompletionTimestamp != nil {
-		resp.CompletionTimestamp = backup.Status.CompletionTimestamp.String()
+	if b.Status.CompletionTimestamp != nil {
+		resp.CompletionTimestamp = b.Status.CompletionTimestamp.String()
 	}
 	return resp
 }
@@ -277,10 +281,16 @@ func CreateBackup(
 		}
 		hcpNamespace := fmt.Sprintf("%s-%s", hcNamespace, clusterName)
 
+		kmsKeyVersion, err := kmsKeyVersionFromReadDesire(hcReadDesire)
+		if err != nil {
+			return fmt.Errorf("failed to extract key version from HostedCluster: %w", err)
+		}
+		bCtx.keyVersion = kmsKeyVersion
+
 		timestamp := bCtx.time.Now().Format("20060102150405")
 		backupName := fmt.Sprintf("%s-%s", clusterServiceID, timestamp)
 		ttl := 7 * 24 * time.Hour
-		hcpBackup := backup.NewBackup(backupName, clusterServiceID, ttl, hcNamespace, hcpNamespace)
+		hcpBackup := backup.NewBackup(backupName, clusterServiceID, kmsKeyVersion, ttl, hcNamespace, hcpNamespace)
 
 		adCrud, err := kaClient.ApplyDesiresForCluster(bCtx.resourceID.SubscriptionID, bCtx.resourceID.ResourceGroupName, bCtx.resourceID.Name)
 		if err != nil {
@@ -303,14 +313,29 @@ func CreateBackup(
 		}
 
 		response := api.BackupResponse{
-			Name:  backupName,
-			Phase: "New",
+			Name:       backupName,
+			Phase:      "New",
+			KeyVersion: kmsKeyVersion,
 		}
 
 		writer.Header().Set("Content-Type", "application/json")
 		writer.WriteHeader(http.StatusAccepted)
 		return json.NewEncoder(writer).Encode(response)
 	}
+}
+
+func kmsKeyVersionFromReadDesire(rd *kubeapplier.ReadDesire) (string, error) {
+	if rd.Status.KubeContent == nil || len(rd.Status.KubeContent.Raw) == 0 {
+		return "", nil
+	}
+	var hc hsv1beta1.HostedCluster
+	if err := json.Unmarshal(rd.Status.KubeContent.Raw, &hc); err != nil {
+		return "", fmt.Errorf("failed to unmarshal HostedCluster: %w", err)
+	}
+
+	// TODO: missing a fallback for <4.22
+
+	return hc.Status.SecretEncryption.ActiveKey.Azure.KeyVersion, nil
 }
 
 // HCPGetBackupScheduleHandler handles GET requests for backup schedule.

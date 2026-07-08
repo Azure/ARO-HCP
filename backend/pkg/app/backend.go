@@ -610,6 +610,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		unionKubeApplierInformers,
 		b.options.MaestroSourceEnvironmentIdentifier,
 		b.options.BackupConfig,
+		unionReadDesireLister,
 	)
 	onDemandBackupCleanupController := backupcontroller.NewOnDemandBackupCleanupController(
 		b.options.ResourcesDBClient,

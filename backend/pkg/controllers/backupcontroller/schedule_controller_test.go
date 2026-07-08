@@ -30,15 +30,19 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
+	"github.com/openshift/hypershift/api/hypershift/v1beta1"
+
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	backendlistertesting "github.com/Azure/ARO-HCP/backend/pkg/listertesting"
+	"github.com/Azure/ARO-HCP/backend/pkg/maestrohelpers"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/api/fleet"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/backup"
 	"github.com/Azure/ARO-HCP/internal/database"
+	dblisters "github.com/Azure/ARO-HCP/internal/database/listers"
 	dblistertesting "github.com/Azure/ARO-HCP/internal/database/listertesting"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
 )
@@ -47,11 +51,12 @@ func TestBuildApplyDesiresFromSchedules(t *testing.T) {
 	clusterID := "11111111111111111111111111111111"
 	hcNamespace := controllers.HostedClusterNamespace("testenv", clusterID)
 	hcpNamespace := hcNamespace + "-test-domprefix"
+	keyVersion := "abc123"
 	mcResourceID := api.Must(fleet.ToManagementClusterResourceID("mc1"))
 
-	hourlySchedule := NewScheduledBackup(clusterID, "test-domprefix", hcNamespace, hcpNamespace, "hourly", "0 */1 * * *", 48*time.Hour, false)
-	dailySchedule := NewScheduledBackup(clusterID, "test-domprefix", hcNamespace, hcpNamespace, "daily", "0 2 * * *", 336*time.Hour, false)
-	weeklySchedule := NewScheduledBackup(clusterID, "test-domprefix", hcNamespace, hcpNamespace, "weekly", "0 3 * * 0", 2160*time.Hour, false)
+	hourlySchedule := NewScheduledBackup(clusterID, "test-domprefix", hcNamespace, hcpNamespace, "hourly", "0 */1 * * *", keyVersion, 48*time.Hour, false)
+	dailySchedule := NewScheduledBackup(clusterID, "test-domprefix", hcNamespace, hcpNamespace, "daily", "0 2 * * *", keyVersion, 336*time.Hour, false)
+	weeklySchedule := NewScheduledBackup(clusterID, "test-domprefix", hcNamespace, hcpNamespace, "weekly", "0 3 * * 0", keyVersion, 2160*time.Hour, false)
 
 	schedules := []*velerov1api.Schedule{hourlySchedule, dailySchedule, weeklySchedule}
 	desires, err := buildApplyDesiresFromSchedules("test-sub", "test-rg", "test-cluster", mcResourceID, schedules)
@@ -61,7 +66,7 @@ func TestBuildApplyDesiresFromSchedules(t *testing.T) {
 	for i, s := range schedules {
 		ad := desires[i]
 		assert.Equal(t, backupApplyDesireName(s.Name), ad.ResourceID.Name)
-		assert.Equal(t, veleroScheduleGroup, ad.Spec.TargetItem.Group)
+		assert.Equal(t, veleroGroup, ad.Spec.TargetItem.Group)
 		assert.Equal(t, veleroScheduleResource, ad.Spec.TargetItem.Resource)
 		assert.Equal(t, veleroNamespace, ad.Spec.TargetItem.Namespace)
 		assert.Equal(t, s.Name, ad.Spec.TargetItem.Name)
@@ -82,8 +87,9 @@ func TestBuildReadDesiresFromSchedules(t *testing.T) {
 	hcNamespace := controllers.HostedClusterNamespace("testenv", clusterID)
 	hcpNamespace := hcNamespace + "-test-domprefix"
 	mcResourceID := api.Must(fleet.ToManagementClusterResourceID("mc1"))
+	keyVersion := "abc123"
 
-	hourlySchedule := NewScheduledBackup(clusterID, "test-domprefix", hcNamespace, hcpNamespace, "hourly", "0 */1 * * *", 48*time.Hour, false)
+	hourlySchedule := NewScheduledBackup(clusterID, "test-domprefix", hcNamespace, hcpNamespace, "hourly", "0 */1 * * *", keyVersion, 48*time.Hour, false)
 
 	desires, err := buildReadDesiresFromSchedules("test-sub", "test-rg", "test-cluster", mcResourceID, []*velerov1api.Schedule{hourlySchedule})
 	require.NoError(t, err)
@@ -91,7 +97,7 @@ func TestBuildReadDesiresFromSchedules(t *testing.T) {
 
 	rd := desires[0]
 	assert.Equal(t, backupApplyDesireName(hourlySchedule.Name), rd.ResourceID.Name)
-	assert.Equal(t, veleroScheduleGroup, rd.Spec.TargetItem.Group)
+	assert.Equal(t, veleroGroup, rd.Spec.TargetItem.Group)
 	assert.Equal(t, veleroScheduleResource, rd.Spec.TargetItem.Resource)
 	assert.Equal(t, veleroNamespace, rd.Spec.TargetItem.Namespace)
 	assert.Equal(t, hourlySchedule.Name, rd.Spec.TargetItem.Name)
@@ -110,7 +116,7 @@ func TestEnsureDesireCreated(t *testing.T) {
 				ManagementCluster: mcResourceID,
 				Type:              kubeapplier.ApplyDesireTypeServerSideApply,
 				TargetItem: kubeapplier.ResourceReference{
-					Group: veleroScheduleGroup, Version: veleroScheduleVersion,
+					Group: veleroGroup, Version: veleroVersion,
 					Resource: veleroScheduleResource, Namespace: veleroNamespace, Name: name,
 				},
 				ServerSideApply: &kubeapplier.ServerSideApplyConfig{
@@ -128,7 +134,7 @@ func TestEnsureDesireCreated(t *testing.T) {
 			Spec: kubeapplier.ReadDesireSpec{
 				ManagementCluster: mcResourceID,
 				TargetItem: kubeapplier.ResourceReference{
-					Group: veleroScheduleGroup, Version: veleroScheduleVersion,
+					Group: veleroGroup, Version: veleroVersion,
 					Resource: veleroScheduleResource, Namespace: veleroNamespace, Name: name,
 				},
 			},
@@ -148,7 +154,7 @@ func TestEnsureDesireCreated(t *testing.T) {
 		{
 			name:           "creates missing AD and RD",
 			seedKA:         func(ka *databasetesting.MockKubeApplierDBClient) {},
-			desiredADs:     []*kubeapplier.ApplyDesire{makeDesiredAD(backup.BackupScheduleDesireNamePrefix+"hourly", `{"schedule":"0 */1 * * *"}`)},
+			desiredADs:     []*kubeapplier.ApplyDesire{makeDesiredAD(backup.BackupScheduleDesireNamePrefix+"hourly", `{"schedule":"0 */1 * * *","keyVersion":"abc123"}`)},
 			desiredRDs:     []*kubeapplier.ReadDesire{makeDesiredRD(backup.BackupScheduleDesireNamePrefix + "hourly")},
 			expectADExists: true,
 			expectRDExists: true,
@@ -157,16 +163,16 @@ func TestEnsureDesireCreated(t *testing.T) {
 			name: "skips existing AD",
 			seedKA: func(ka *databasetesting.MockKubeApplierDBClient) {
 				crud, _ := ka.ApplyDesiresForCluster("test-sub", "test-rg", "test-cluster")
-				_, _ = crud.Create(context.Background(), makeDesiredAD(backup.BackupScheduleDesireNamePrefix+"hourly", `{"schedule":"0 */1 * * *"}`), nil)
+				_, _ = crud.Create(context.Background(), makeDesiredAD(backup.BackupScheduleDesireNamePrefix+"hourly", `{"schedule":"0 */1 * * *","keyVersion":"abc123"}`), nil)
 			},
-			desiredADs:     []*kubeapplier.ApplyDesire{makeDesiredAD(backup.BackupScheduleDesireNamePrefix+"hourly", `{"schedule":"0 */1 * * *"}`)},
+			desiredADs:     []*kubeapplier.ApplyDesire{makeDesiredAD(backup.BackupScheduleDesireNamePrefix+"hourly", `{"schedule":"0 */1 * * *","keyVersion":"abc123"}`)},
 			desiredRDs:     []*kubeapplier.ReadDesire{makeDesiredRD(backup.BackupScheduleDesireNamePrefix + "hourly")},
 			expectADExists: true,
 		},
 		{
 			name:           "DB error on Get returns error",
 			adCrudOverride: &erroringADCrud{err: fmt.Errorf("cosmos unavailable")},
-			desiredADs:     []*kubeapplier.ApplyDesire{makeDesiredAD(backup.BackupScheduleDesireNamePrefix+"hourly", `{"schedule":"0 */1 * * *"}`)},
+			desiredADs:     []*kubeapplier.ApplyDesire{makeDesiredAD(backup.BackupScheduleDesireNamePrefix+"hourly", `{"schedule":"0 */1 * * *","keyVersion":"abc123"}`)},
 			expectError:    true,
 		},
 	}
@@ -220,7 +226,7 @@ func TestEnsureDesireUpdated(t *testing.T) {
 				ManagementCluster: mcResourceID,
 				Type:              kubeapplier.ApplyDesireTypeServerSideApply,
 				TargetItem: kubeapplier.ResourceReference{
-					Group: veleroScheduleGroup, Version: veleroScheduleVersion,
+					Group: veleroGroup, Version: veleroVersion,
 					Resource: veleroScheduleResource, Namespace: veleroNamespace, Name: name,
 				},
 				ServerSideApply: &kubeapplier.ServerSideApplyConfig{
@@ -233,22 +239,22 @@ func TestEnsureDesireUpdated(t *testing.T) {
 	t.Run("matching content is no-op", func(t *testing.T) {
 		mockKA := databasetesting.NewMockKubeApplierDBClient()
 		adCrud, _ := mockKA.ApplyDesiresForCluster("test-sub", "test-rg", "test-cluster")
-		_, _ = adCrud.Create(context.Background(), makeDesiredAD(backup.BackupScheduleDesireNamePrefix+"hourly", `{"schedule":"0 */1 * * *"}`), nil)
+		_, _ = adCrud.Create(context.Background(), makeDesiredAD(backup.BackupScheduleDesireNamePrefix+"hourly", `{"schedule":"0 */1 * * *","keyVersion":"abc123"}`), nil)
 
 		syncer := &backupScheduleSyncer{}
 		_, err := syncer.ensureDesireUpdated(context.Background(), adCrud,
-			[]*kubeapplier.ApplyDesire{makeDesiredAD(backup.BackupScheduleDesireNamePrefix+"hourly", `{"schedule":"0 */1 * * *"}`)})
+			[]*kubeapplier.ApplyDesire{makeDesiredAD(backup.BackupScheduleDesireNamePrefix+"hourly", `{"schedule":"0 */1 * * *","keyVersion":"abc123"}`)})
 		require.NoError(t, err)
 	})
 
 	t.Run("drifted content replaces", func(t *testing.T) {
 		mockKA := databasetesting.NewMockKubeApplierDBClient()
 		adCrud, _ := mockKA.ApplyDesiresForCluster("test-sub", "test-rg", "test-cluster")
-		_, _ = adCrud.Create(context.Background(), makeDesiredAD(backup.BackupScheduleDesireNamePrefix+"hourly", `{"schedule":"0 */6 * * *"}`), nil)
+		_, _ = adCrud.Create(context.Background(), makeDesiredAD(backup.BackupScheduleDesireNamePrefix+"hourly", `{"schedule":"0 */6 * * *","keyVersion":"abc123"}`), nil)
 
 		syncer := &backupScheduleSyncer{}
 		_, err := syncer.ensureDesireUpdated(context.Background(), adCrud,
-			[]*kubeapplier.ApplyDesire{makeDesiredAD(backup.BackupScheduleDesireNamePrefix+"hourly", `{"schedule":"*/5 * * * *"}`)})
+			[]*kubeapplier.ApplyDesire{makeDesiredAD(backup.BackupScheduleDesireNamePrefix+"hourly", `{"schedule":"*/5 * * * *","keyVersion":"abc123"}`)})
 		require.NoError(t, err)
 
 		ad, err := adCrud.Get(context.Background(), backup.BackupScheduleDesireNamePrefix+"hourly")
@@ -285,7 +291,7 @@ func TestDeleteStaleDesires(t *testing.T) {
 
 		staleAD := makeDesiredAD(backup.BackupScheduleDesireNamePrefix + "old")
 		staleAD.Spec.TargetItem = kubeapplier.ResourceReference{
-			Group: veleroScheduleGroup, Version: veleroScheduleVersion,
+			Group: veleroGroup, Version: veleroVersion,
 			Resource: veleroScheduleResource, Namespace: veleroNamespace, Name: "old-schedule",
 		}
 		_, _ = adCrud.Create(context.Background(), staleAD, nil)
@@ -434,7 +440,7 @@ func TestBackupScheduleSyncer_SyncOnce(t *testing.T) {
 		}
 	}
 
-	seedAllDesiresForConfig := func(t *testing.T, ctx context.Context, mockKA *databasetesting.MockKubeApplierDBClient, config *BackupConfig) {
+	seedAllDesiresForConfig := func(t *testing.T, ctx context.Context, mockKA *databasetesting.MockKubeApplierDBClient, config *BackupConfig, keyVersion string) {
 		t.Helper()
 		hcNamespace := controllers.HostedClusterNamespace(testEnvID, testClusterID)
 		hcpNamespace := fmt.Sprintf("%s-%s", hcNamespace, testDomainPrefix)
@@ -442,7 +448,7 @@ func TestBackupScheduleSyncer_SyncOnce(t *testing.T) {
 		configSchedules := config.Schedules()
 		schedules := make([]*velerov1api.Schedule, 0, len(configSchedules))
 		for _, sc := range configSchedules {
-			schedules = append(schedules, NewScheduledBackup(testClusterID, testDomainPrefix, hcNamespace, hcpNamespace, sc.Name, sc.Schedule, sc.TTL, false))
+			schedules = append(schedules, NewScheduledBackup(testClusterID, testDomainPrefix, hcNamespace, hcpNamespace, sc.Name, sc.Schedule, keyVersion, sc.TTL, false))
 		}
 		ads, err := buildApplyDesiresFromSchedules(testKey.SubscriptionID, testKey.ResourceGroupName, testKey.HCPClusterName, mcResourceID, schedules)
 		require.NoError(t, err)
@@ -462,17 +468,46 @@ func TestBackupScheduleSyncer_SyncOnce(t *testing.T) {
 		}
 	}
 
+	newHostedClusterReadDesireLister := func(key controllerutils.HCPClusterKey, keyVersion string) *dblistertesting.SliceReadDesireLister {
+		hc := &v1beta1.HostedCluster{
+			Status: v1beta1.HostedClusterStatus{
+				SecretEncryption: v1beta1.SecretEncryptionStatus{
+					ActiveKey: v1beta1.SecretEncryptionKeyStatus{
+						Azure: v1beta1.AzureKMSKey{KeyVersion: keyVersion},
+					},
+				},
+			},
+		}
+		raw, _ := json.Marshal(hc)
+		resourceID := api.Must(azcorearm.ParseResourceID(
+			kubeapplier.ToClusterScopedReadDesireResourceIDString(
+				key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName,
+				maestrohelpers.ReadDesireNameReadonlyHostedCluster)))
+		return &dblistertesting.SliceReadDesireLister{
+			Desires: []*kubeapplier.ReadDesire{{
+				CosmosMetadata: api.CosmosMetadata{
+					ResourceID:   resourceID,
+					PartitionKey: strings.ToLower(resourceID.SubscriptionID),
+				},
+				Status: kubeapplier.ReadDesireStatus{
+					KubeContent: &runtime.RawExtension{Raw: raw},
+				},
+			}},
+		}
+	}
+
 	tests := []struct {
-		name          string
-		seedDB        func(t *testing.T, ctx context.Context, mockDB *databasetesting.MockResourcesDBClient)
-		seedKA        func(t *testing.T, ctx context.Context, mockKA *databasetesting.MockKubeApplierDBClient)
-		hasPlacement  bool
-		backupConfig  *BackupConfig
-		syncCount     int
-		clusterOpts   []func(*api.HCPOpenShiftCluster)
-		expectError   bool
-		errorContains string
-		verify        func(t *testing.T, ctx context.Context, mockDB *databasetesting.MockResourcesDBClient, mockKA *databasetesting.MockKubeApplierDBClient)
+		name             string
+		seedDB           func(t *testing.T, ctx context.Context, mockDB *databasetesting.MockResourcesDBClient)
+		seedKA           func(t *testing.T, ctx context.Context, mockKA *databasetesting.MockKubeApplierDBClient)
+		readDesireLister dblisters.ReadDesireLister
+		hasPlacement     bool
+		backupConfig     *BackupConfig
+		syncCount        int
+		clusterOpts      []func(*api.HCPOpenShiftCluster)
+		expectError      bool
+		errorContains    string
+		verify           func(t *testing.T, ctx context.Context, mockDB *databasetesting.MockResourcesDBClient, mockKA *databasetesting.MockKubeApplierDBClient)
 	}{
 		{
 			name: "cluster not found in DB is no-op",
@@ -519,7 +554,8 @@ func TestBackupScheduleSyncer_SyncOnce(t *testing.T) {
 				_, err := mockDB.HCPClusters(testKey.SubscriptionID, testKey.ResourceGroupName).Create(ctx, newTestCluster(), nil)
 				require.NoError(t, err)
 			},
-			hasPlacement: true,
+			hasPlacement:     true,
+			readDesireLister: newHostedClusterReadDesireLister(testKey, ""),
 			// One sync per missing AD, then one sync per missing RD.
 			// Production cadence has 3 schedules: 3 AD syncs + 3 RD syncs = 6.
 			syncCount: 6,
@@ -544,10 +580,40 @@ func TestBackupScheduleSyncer_SyncOnce(t *testing.T) {
 				_, err := mockDB.HCPClusters(testKey.SubscriptionID, testKey.ResourceGroupName).Create(ctx, newTestCluster(), nil)
 				require.NoError(t, err)
 			},
-			hasPlacement: true,
+			hasPlacement:     true,
+			readDesireLister: newHostedClusterReadDesireLister(testKey, ""),
 			seedKA: func(t *testing.T, ctx context.Context, mockKA *databasetesting.MockKubeApplierDBClient) {
 				t.Helper()
-				seedAllDesiresForConfig(t, ctx, mockKA, testBackupConfig)
+				seedAllDesiresForConfig(t, ctx, mockKA, testBackupConfig, "")
+			},
+		},
+		{
+			name: "propagates keyVersion from HostedCluster into Schedule labels",
+			seedDB: func(t *testing.T, ctx context.Context, mockDB *databasetesting.MockResourcesDBClient) {
+				t.Helper()
+				_, err := mockDB.HCPClusters(testKey.SubscriptionID, testKey.ResourceGroupName).Create(ctx, newTestCluster(), nil)
+				require.NoError(t, err)
+			},
+			hasPlacement:     true,
+			syncCount:        6,
+			readDesireLister: newHostedClusterReadDesireLister(testKey, "test-key-v1"),
+			verify: func(t *testing.T, ctx context.Context, _ *databasetesting.MockResourcesDBClient, mockKA *databasetesting.MockKubeApplierDBClient) {
+				t.Helper()
+				adCrud, err := mockKA.ApplyDesiresForCluster(testKey.SubscriptionID, testKey.ResourceGroupName, testKey.HCPClusterName)
+				require.NoError(t, err)
+				for _, sc := range testBackupConfig.Schedules() {
+					desireName := backupApplyDesireName(fmt.Sprintf("%s-%s", testClusterID, sc.Name))
+					ad, err := adCrud.Get(ctx, desireName)
+					require.NoError(t, err, "ApplyDesire %s should exist", desireName)
+					require.NotNil(t, ad.Spec.ServerSideApply)
+					require.NotNil(t, ad.Spec.ServerSideApply.KubeContent)
+
+					var schedule velerov1api.Schedule
+					err = json.Unmarshal(ad.Spec.ServerSideApply.KubeContent.Raw, &schedule)
+					require.NoError(t, err, "failed to unmarshal Schedule from ApplyDesire %s", desireName)
+					assert.Equal(t, "test-key-v1", schedule.Labels[backup.KmsKeyVersionLabel],
+						"Schedule %s should have keyVersion label", desireName)
+				}
 			},
 		},
 		{
@@ -559,7 +625,9 @@ func TestBackupScheduleSyncer_SyncOnce(t *testing.T) {
 				}), nil)
 				require.NoError(t, err)
 			},
-			hasPlacement: true,
+			hasPlacement:     true,
+			readDesireLister: newHostedClusterReadDesireLister(testKey, ""),
+			syncCount:        6,
 			verify: func(t *testing.T, ctx context.Context, _ *databasetesting.MockResourcesDBClient, mockKA *databasetesting.MockKubeApplierDBClient) {
 				t.Helper()
 				adCrud, err := mockKA.ApplyDesiresForCluster(testKey.SubscriptionID, testKey.ResourceGroupName, testKey.HCPClusterName)
@@ -577,10 +645,11 @@ func TestBackupScheduleSyncer_SyncOnce(t *testing.T) {
 				_, err := mockDB.HCPClusters(testKey.SubscriptionID, testKey.ResourceGroupName).Create(ctx, newTestCluster(), nil)
 				require.NoError(t, err)
 			},
-			hasPlacement: true,
+			hasPlacement:     true,
+			readDesireLister: newHostedClusterReadDesireLister(testKey, ""),
 			seedKA: func(t *testing.T, ctx context.Context, mockKA *databasetesting.MockKubeApplierDBClient) {
 				t.Helper()
-				seedAllDesiresForConfig(t, ctx, mockKA, testBackupConfig)
+				seedAllDesiresForConfig(t, ctx, mockKA, testBackupConfig, "")
 			},
 			backupConfig: &BackupConfig{
 				Cadence: BackupCadenceTesting,
@@ -622,7 +691,9 @@ func TestBackupScheduleSyncer_SyncOnce(t *testing.T) {
 			mockKAClients := databasetesting.NewMockKubeApplierDBClients()
 			mockKAClients.Register(testMgmtClusterResourceID(), mockKA)
 
-			tt.seedDB(t, ctx, mockDB)
+			if tt.seedDB != nil {
+				tt.seedDB(t, ctx, mockDB)
+			}
 			if tt.seedKA != nil {
 				tt.seedKA(t, ctx, mockKA)
 			}
@@ -641,6 +712,11 @@ func TestBackupScheduleSyncer_SyncOnce(t *testing.T) {
 				spcList = []*api.ServiceProviderCluster{newTestSPC()}
 			}
 
+			var rdLister dblisters.ReadDesireLister = &dblistertesting.SliceReadDesireLister{}
+			if tt.readDesireLister != nil {
+				rdLister = tt.readDesireLister
+			}
+
 			syncer := &backupScheduleSyncer{
 				cosmosClient:                        mockDB,
 				clusterLister:                       clusterLister,
@@ -649,6 +725,7 @@ func TestBackupScheduleSyncer_SyncOnce(t *testing.T) {
 				kubeApplierDBClients:                mockKAClients,
 				hostedClusterNamespaceEnvIdentifier: testEnvID,
 				backupConfig:                        cfg,
+				readDesireLister:                    rdLister,
 			}
 
 			syncCount := max(tt.syncCount, 1)
