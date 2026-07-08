@@ -200,7 +200,7 @@ func (c *dispatchRequestCredential) SynchronizeOperation(ctx context.Context, ke
 
 	_, err = credCRUD.Create(ctx, newCred, nil)
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to create SystemAdminCredential: %w", err))
+		return utils.TrackError(fmt.Errorf("failed to create SystemAdminCredentialRequest: %w", err))
 	}
 
 	// Stamp Operation.InternalID so downstream controllers can find the credential.

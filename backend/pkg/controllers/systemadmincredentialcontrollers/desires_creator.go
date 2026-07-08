@@ -268,7 +268,10 @@ func (c *desiresCreator) ensureApplyDesire(
 	obj client.Object,
 ) error {
 	resourceIDStr := kubeapplier.ToClusterScopedApplyDesireResourceIDString(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, desireName)
-	resourceID, _ := azcorearm.ParseResourceID(resourceIDStr)
+	// resourceIDStr is produced by an internal ID builder from already-validated key
+	// components, so a parse failure indicates a programming error; fail fast rather
+	// than silently writing a Cosmos document with a nil ResourceID.
+	resourceID := api.Must(azcorearm.ParseResourceID(resourceIDStr))
 
 	rawJSON, err := json.Marshal(obj)
 	if err != nil {
@@ -316,7 +319,10 @@ func (c *desiresCreator) ensureReadDesire(
 	target kubeapplier.ResourceReference,
 ) error {
 	resourceIDStr := kubeapplier.ToClusterScopedReadDesireResourceIDString(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, desireName)
-	resourceID, _ := azcorearm.ParseResourceID(resourceIDStr)
+	// resourceIDStr is produced by an internal ID builder from already-validated key
+	// components, so a parse failure indicates a programming error; fail fast rather
+	// than silently writing a Cosmos document with a nil ResourceID.
+	resourceID := api.Must(azcorearm.ParseResourceID(resourceIDStr))
 
 	desire := &kubeapplier.ReadDesire{
 		CosmosMetadata: api.CosmosMetadata{

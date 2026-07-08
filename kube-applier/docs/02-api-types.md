@@ -129,7 +129,8 @@ Mirror the existing `api.ToClusterResourceIDString` helpers
 // internal/api/kubeapplier/types_cosmosdata.go
 func ToClusterScopedApplyDesireResourceIDString(sub, rg, cluster, name string) string
 func ToNodePoolScopedApplyDesireResourceIDString(sub, rg, cluster, np, name string) string
-// ... and DeleteDesire / ReadDesire variants
+// ... and ReadDesire variants
+// (there is no DeleteDesire type; deletion is an ApplyDesire with Spec.Type=Delete)
 ```
 
 These are the canonical way to build the `*Desire` resource IDs and to
@@ -145,16 +146,20 @@ they belong to.
 **Resource types** (in `registry.go`):
 
 ```go
-CredentialRequestScopedApplyDesireResourceType  = nestedResourceType(ClusterResourceTypeName, SystemAdminCredentialRequestResourceTypeName, ApplyDesireResourceTypeName)
-CredentialRequestScopedDeleteDesireResourceType = nestedResourceType(ClusterResourceTypeName, SystemAdminCredentialRequestResourceTypeName, DeleteDesireResourceTypeName)
-CredentialRequestScopedReadDesireResourceType   = nestedResourceType(ClusterResourceTypeName, SystemAdminCredentialRequestResourceTypeName, ReadDesireResourceTypeName)
+CredentialRequestScopedApplyDesireResourceType = nestedResourceType(ClusterResourceTypeName, SystemAdminCredentialRequestResourceTypeName, ApplyDesireResourceTypeName)
+CredentialRequestScopedReadDesireResourceType  = nestedResourceType(ClusterResourceTypeName, SystemAdminCredentialRequestResourceTypeName, ReadDesireResourceTypeName)
 ```
+
+> There is no `DeleteDesire` resource type. Deletion is modeled as an
+> `ApplyDesire` whose `Spec.Type` is `Delete` (the `ApplyDesireSpec.Type`
+> discriminated union described under "Current state" above), so
+> credential-request teardown reuses the ApplyDesire type rather than a
+> distinct DeleteDesire.
 
 **Resource ID builders** (in `types_cosmosdata.go`):
 
 ```go
 func ToCredentialRequestScopedApplyDesireResourceIDString(sub, rg, cluster, credReq, name string) string
-func ToCredentialRequestScopedDeleteDesireResourceIDString(sub, rg, cluster, credReq, name string) string
 func ToCredentialRequestScopedReadDesireResourceIDString(sub, rg, cluster, credReq, name string) string
 ```
 
