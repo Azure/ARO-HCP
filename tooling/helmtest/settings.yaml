@@ -38,6 +38,8 @@ ResourceRequestsAllowlist:
 - Job/unannotate-default-sc/finalize
 - Job/velero-install/apply-manifest
 - Job/velero-install/generate-manifest
+# Cluster Service (CS) charts - containers missing resources.requests.memory
+- Deployment/clusters-service/clusters-service-init # initContainer has no resources set
 # Components exempt from requiring resources.limits.memory
 ResourceMemoryLimitsAllowlist:
 # Standing exemptions
@@ -90,3 +92,6 @@ ResourceMemoryLimitsAllowlist:
 - Job/unannotate-default-sc/finalize
 - Job/velero-install/apply-manifest
 - Job/velero-install/generate-manifest
+# Cluster Service (CS) charts - containers missing resources.limits.memory
+- Deployment/clusters-service/clusters-service-init # initContainer has no resources set
+- Deployment/clusters-service/clusters-service-server # config sets memory: unlimited (template omits limits)
