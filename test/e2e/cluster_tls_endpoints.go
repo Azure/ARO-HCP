@@ -95,28 +95,45 @@ var _ = Describe("Customer", func() {
 
 			By("ensuring the API TLS certificate is signed by a trusted Azure CA")
 			clusterClient := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
+			var lastAPIErr string
+			defer func() {
+				if lastAPIErr != "" {
+					GinkgoLogr.Info("API certificate final state", "error", lastAPIErr)
+				}
+			}()
 			Eventually(func(ctx context.Context) error {
-				clusterResp, err := clusterClient.Get(ctx, *resourceGroup.Name, customerClusterName, nil)
-				if err != nil {
-					return fmt.Errorf("failed to get cluster: %w", err)
-				}
+				err := func() error {
+					clusterResp, err := clusterClient.Get(ctx, *resourceGroup.Name, customerClusterName, nil)
+					if err != nil {
+						return fmt.Errorf("failed to get cluster: %w", err)
+					}
 
-				if clusterResp.Properties == nil || clusterResp.Properties.API == nil || clusterResp.Properties.API.URL == nil {
-					return fmt.Errorf("cluster API URL not yet available")
-				}
+					if clusterResp.Properties == nil || clusterResp.Properties.API == nil || clusterResp.Properties.API.URL == nil {
+						return fmt.Errorf("cluster API URL not yet available")
+					}
 
-				apiServerURL := clusterResp.Properties.API.URL
-				actualAPICerts, err := tlsCertsFromURL(ctx, *apiServerURL)
-				if err != nil {
-					return fmt.Errorf("failed to fetch TLS certificate from %s: %w", *apiServerURL, err)
-				}
+					apiServerURL := clusterResp.Properties.API.URL
+					actualAPICerts, err := tlsCertsFromURL(ctx, *apiServerURL)
+					if err != nil {
+						return fmt.Errorf("failed to fetch TLS certificate from %s: %w", *apiServerURL, err)
+					}
 
-				err = verifyCertChain(actualAPICerts, trustedCAs)
+					err = verifyCertChain(actualAPICerts, trustedCAs)
+					if err != nil {
+						return fmt.Errorf("certificate verification failed for %s (issuer: %v): %w",
+							*apiServerURL, actualAPICerts[0].Issuer, err)
+					}
+					GinkgoLogr.Info("API certificate issuer", "issuer", actualAPICerts[0].Issuer)
+					return nil
+				}()
 				if err != nil {
-					return fmt.Errorf("certificate verification failed for %s (issuer: %v): %w",
-						*apiServerURL, actualAPICerts[0].Issuer, err)
+					if err.Error() != lastAPIErr {
+						GinkgoLogr.Info("API certificate check", "status", "failed", "error", err.Error())
+						lastAPIErr = err.Error()
+					}
+					return err
 				}
-				GinkgoLogr.Info("API certificate issuer", "issuer", actualAPICerts[0].Issuer)
+				lastAPIErr = ""
 				return nil
 			}).WithContext(ctx).WithTimeout(10*time.Minute).WithPolling(10*time.Second).Should(Succeed(),
 				"expect API certificate to be signed by a trusted Azure CA")
@@ -141,30 +158,74 @@ var _ = Describe("Customer", func() {
 
 			By("waiting for the console URL to become available")
 			var consoleURL string
-			Eventually(func() bool {
-				resp, err := hcpOpenShiftClustersClient.Get(ctx, *resourceGroup.Name, customerClusterName, nil)
-				if err != nil || resp.Properties == nil || resp.Properties.Console == nil || resp.Properties.Console.URL == nil {
-					return false
+			var lastConsoleErr string
+			defer func() {
+				if lastConsoleErr != "" {
+					GinkgoLogr.Info("Console URL final state", "error", lastConsoleErr)
 				}
-				Expect(resp.Properties.Console.URL).NotTo(BeNil(), "cluster Properties.Console.URL was nil")
-				consoleURL = *resp.Properties.Console.URL
-				GinkgoLogr.Info("Console URL found", "url", consoleURL)
-				return true
-			}).WithTimeout(15 * time.Minute).WithPolling(10 * time.Second).Should(BeTrue())
+			}()
+			Eventually(func(ctx context.Context) error {
+				err := func() error {
+					resp, err := hcpOpenShiftClustersClient.Get(ctx, *resourceGroup.Name, customerClusterName, nil)
+					if err != nil {
+						return fmt.Errorf("failed to get cluster: %w", err)
+					}
+					if resp.Properties == nil || resp.Properties.Console == nil || resp.Properties.Console.URL == nil {
+						return fmt.Errorf("cluster console URL not yet available")
+					}
+					consoleURL = *resp.Properties.Console.URL
+					GinkgoLogr.Info("Console URL found", "url", consoleURL)
+					return nil
+				}()
+				if err != nil {
+					if err.Error() != lastConsoleErr {
+						GinkgoLogr.Info("Console URL check", "status", "failed", "error", err.Error())
+						lastConsoleErr = err.Error()
+					}
+					return err
+				}
+				lastConsoleErr = ""
+				return nil
+			}).WithContext(ctx).WithTimeout(15*time.Minute).WithPolling(10*time.Second).Should(Succeed(),
+				"expect cluster console URL to become available")
 
 			By("examining the server certificate returned by the default ingress when routing the console URL")
 			// Wait for the certificate to be loaded after console starts
 			consoleUrlWithPort := fmt.Sprintf("%s:%d", consoleURL, 443)
 
-			Eventually(func() error {
+			var lastIngressIssuer, lastIngressErr string
+			defer func() {
+				kv := []any{"issuer", lastIngressIssuer}
+				if lastIngressErr != "" {
+					kv = append(kv, "error", lastIngressErr)
+				}
+				GinkgoLogr.Info("Ingress certificate final state", kv...)
+			}()
+			Eventually(func(ctx context.Context) error {
 				certs, err := tlsCertsFromURL(ctx, consoleUrlWithPort)
 				if err != nil {
-					GinkgoLogr.Info("Ingress certificate check", "status", "failed", "error", err.Error())
+					if err.Error() != lastIngressErr {
+						GinkgoLogr.Info("Ingress certificate check", "status", "failed", "error", err.Error())
+						lastIngressErr = err.Error()
+					}
 					return err
 				}
-				GinkgoLogr.Info("Ingress certificate issuer", "issuer", certs[0].Issuer.String())
-				return verifyCertChain(certs, trustedCAs)
-			}).WithTimeout(10*time.Minute).WithPolling(10*time.Second).Should(Succeed(),
+				issuer := certs[0].Issuer.String()
+				if issuer != lastIngressIssuer {
+					GinkgoLogr.Info("Ingress certificate issuer", "issuer", issuer)
+					lastIngressIssuer = issuer
+				}
+				verifyErr := verifyCertChain(certs, trustedCAs)
+				if verifyErr != nil {
+					if verifyErr.Error() != lastIngressErr {
+						GinkgoLogr.Info("Ingress certificate check", "status", "failed", "error", verifyErr.Error())
+						lastIngressErr = verifyErr.Error()
+					}
+					return verifyErr
+				}
+				lastIngressErr = ""
+				return nil
+			}).WithContext(ctx).WithTimeout(10*time.Minute).WithPolling(10*time.Second).Should(Succeed(),
 				"expect ingress certificate to be signed by a trusted Azure CA")
 		})
 })
