@@ -129,6 +129,7 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to get Microsoft Graph client")
 
 			baseTime := time.Now()
+			// Start time shifted 5 minutes into the past to handle clock skew between test runner and Graph API
 			pass, err := graphClient.AddPassword(ctx, app.ID, "external-auth-pass", baseTime.Add(-5*time.Minute), baseTime.Add(24*time.Hour))
 			Expect(err).NotTo(HaveOccurred(), "failed to add password to app registration")
 

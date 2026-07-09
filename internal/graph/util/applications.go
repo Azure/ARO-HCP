@@ -106,9 +106,9 @@ func (c *Client) AddPassword(ctx context.Context, appID, displayName string, sta
 		result, err = c.graphClient.Applications().ByApplicationId(appID).AddPassword().Post(ctx, reqBody, nil)
 		if err != nil {
 			lastErr = err
-			// Retry on known transient errors (404, 429, 5xx). For unknown
-			// error shapes returned by the Graph SDK, also retry to tolerate
-			// eventual-consistency propagation delays.
+			// Retry all errors for the first 3 attempts to handle transient issues
+			// and eventual-consistency propagation delays. After 3 attempts, only
+			// retry known transient errors (404, 429, 5xx).
 			var odataErr *odataerrors.ODataError
 			if errors.As(err, &odataErr) {
 				code := odataErr.ResponseStatusCode
