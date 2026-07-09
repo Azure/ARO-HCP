@@ -113,6 +113,8 @@ func (c *Client) AddPassword(ctx context.Context, appID, displayName string, sta
 			if errors.As(err, &odataErr) {
 				code := odataErr.ResponseStatusCode
 				lastStatusCode = code
+				// Reset diagnostic strings before re-reading to avoid stale values
+				lastErrorCode, lastErrorMessage = "", ""
 				odataError := odataErr.GetErrorEscaped()
 				if odataError != nil {
 					if errCode := odataError.GetCode(); errCode != nil {
@@ -138,6 +140,11 @@ func (c *Client) AddPassword(ctx context.Context, appID, displayName string, sta
 				lastStatusCode = 0
 				lastErrorCode = ""
 				lastErrorMessage = ""
+
+				// After 3 attempts, stop retrying non-OData errors
+				if attempts > 3 {
+					return false, err
+				}
 			}
 			return false, nil
 		}

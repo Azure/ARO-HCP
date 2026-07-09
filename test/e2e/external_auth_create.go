@@ -128,7 +128,8 @@ var _ = Describe("Customer", func() {
 			graphClient, err := tc.GetGraphClient(ctx)
 			Expect(err).NotTo(HaveOccurred(), "failed to get Microsoft Graph client")
 
-			pass, err := graphClient.AddPassword(ctx, app.ID, "external-auth-pass", time.Now().Add(-5*time.Minute), time.Now().Add(24*time.Hour))
+			baseTime := time.Now()
+			pass, err := graphClient.AddPassword(ctx, app.ID, "external-auth-pass", baseTime.Add(-5*time.Minute), baseTime.Add(24*time.Hour))
 			Expect(err).NotTo(HaveOccurred(), "failed to add password to app registration")
 
 			By("creating an external auth config with a prefix")
