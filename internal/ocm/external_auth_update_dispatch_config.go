@@ -177,31 +177,6 @@ type externalAuthUpdateDispatchConfigRequiredClaim struct {
 	RequiredValue string `json:"requiredValue"`
 }
 
-// ExternalAuthUpdateDispatchConfigDiffers reports whether the dispatch-managed configuration
-// projected from RP differs from that projected from the live Cluster Service external auth.
-// Comparison uses a SHA-256 hash of each side's canonical JSON representation.
-func ExternalAuthUpdateDispatchConfigDiffers(externalAuth *api.HCPOpenShiftClusterExternalAuth, csExternalAuth *arohcpv1alpha1.ExternalAuth) (bool, error) {
-	desiredConfig, err := externalAuthUpdateDispatchConfigFromRP(externalAuth)
-	if err != nil {
-		return false, err
-	}
-	desiredHash, err := desiredConfig.hash()
-	if err != nil {
-		return false, err
-	}
-
-	actualConfig, err := externalAuthUpdateDispatchConfigFromCS(csExternalAuth)
-	if err != nil {
-		return false, err
-	}
-	actualHash, err := actualConfig.hash()
-	if err != nil {
-		return false, err
-	}
-
-	return desiredHash != actualHash, nil
-}
-
 // ExternalAuthUpdateDispatchConfigJSONFromRP returns the canonical JSON of the dispatch config
 // projected from RP desired state.
 func ExternalAuthUpdateDispatchConfigJSONFromRP(externalAuth *api.HCPOpenShiftClusterExternalAuth) (string, error) {
@@ -409,8 +384,7 @@ func externalAuthUpdateDispatchConfigValidationRulesFromCS(rules []*arohcpv1alph
 	return out
 }
 
-// hash returns a SHA-256 hex digest of c's canonical JSON. This is the encoding used by
-// ExternalAuthUpdateDispatchConfigDiffers to compare RP and Cluster Service projections.
+// hash returns a SHA-256 hex digest of c's canonical JSON.
 func (c *externalAuthUpdateDispatchConfig) hash() (string, error) {
 	return hashUpdateDispatchConfig(c)
 }

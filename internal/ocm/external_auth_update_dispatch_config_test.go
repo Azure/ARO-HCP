@@ -229,38 +229,6 @@ func TestExternalAuthUpdateDispatchConfigFromCSRoundTripMultipleClients(t *testi
 	assert.Equal(t, desiredHash, actualHash)
 }
 
-func TestExternalAuthUpdateDispatchConfigDiffers(t *testing.T) {
-	ea := newTestExternalAuth()
-
-	csBuilder, err := BuildCSExternalAuth(context.Background(), ea, true)
-	require.NoError(t, err)
-	csExternalAuth, err := csBuilder.Build()
-	require.NoError(t, err)
-
-	differs, err := ExternalAuthUpdateDispatchConfigDiffers(ea, csExternalAuth)
-	require.NoError(t, err)
-	assert.False(t, differs)
-
-	ea.Properties.Issuer.URL = "https://changed.example.com"
-	differs, err = ExternalAuthUpdateDispatchConfigDiffers(ea, csExternalAuth)
-	require.NoError(t, err)
-	assert.True(t, differs)
-
-	ea = newTestExternalAuth()
-	csBuilder, err = BuildCSExternalAuth(context.Background(), ea, true)
-	require.NoError(t, err)
-	csExternalAuth, err = csBuilder.Build()
-	require.NoError(t, err)
-	differs, err = ExternalAuthUpdateDispatchConfigDiffers(ea, csExternalAuth)
-	require.NoError(t, err)
-	assert.False(t, differs)
-
-	ea.Properties.Claim.ValidationRules[0].RequiredClaim.RequiredValue = "changed.example.com"
-	differs, err = ExternalAuthUpdateDispatchConfigDiffers(ea, csExternalAuth)
-	require.NoError(t, err)
-	assert.True(t, differs)
-}
-
 func TestExternalAuthUpdateDispatchConfigJSONFromRPAndCS(t *testing.T) {
 	ea := newTestExternalAuth()
 
@@ -273,12 +241,25 @@ func TestExternalAuthUpdateDispatchConfigJSONFromRPAndCS(t *testing.T) {
 	require.NoError(t, err)
 	actualJSON, err := ExternalAuthUpdateDispatchConfigJSONFromCS(csExternalAuth)
 	require.NoError(t, err)
+
+	// We assert both semantic and byte-for-byte JSON equality on purpose:
+	//   - JSONEq checks that RP and CS projections represent the same config (values and structure).
+	//   - Equal checks that canonicalJSON produces identical strings on both sides. The external auth
+	//     service update dispatch controller uses string equality (==) for drift detection, so
+	//     this must hold whenever the configs match; JSONEq alone would not catch encoding
+	//     differences such as key ordering or whitespace that would cause a false drift signal.
 	assert.JSONEq(t, desiredJSON, actualJSON)
-	assert.Contains(t, desiredJSON, `"url":"https://issuer.example.com"`)
-	assert.Contains(t, desiredJSON, `"clientId":"client-id-1"`)
-	assert.Contains(t, desiredJSON, `"type":"RequiredClaim"`)
-	assert.Contains(t, desiredJSON, `"requiredClaim":{"claim":"hd","requiredValue":"example.com"}`)
-	assert.Contains(t, desiredJSON, `"type":"Public"`)
+	assert.Equal(t, desiredJSON, actualJSON)
+	assert.Contains(t, desiredJSON, `"url": "https://issuer.example.com"`)
+	assert.Contains(t, desiredJSON, `"clientId": "client-id-1"`)
+	assert.Contains(t, desiredJSON, `"type": "RequiredClaim"`)
+	assert.Contains(t, desiredJSON, `"requiredValue": "example.com"`)
+	assert.Contains(t, desiredJSON, `"type": "Public"`)
+
+	ea.Properties.Issuer.URL = "https://changed.example.com"
+	desiredJSON, err = ExternalAuthUpdateDispatchConfigJSONFromRP(ea)
+	require.NoError(t, err)
+	assert.NotEqual(t, desiredJSON, actualJSON)
 }
 
 func TestExternalAuthUpdateDispatchConfigClientPreservesOrderFromRP(t *testing.T) {

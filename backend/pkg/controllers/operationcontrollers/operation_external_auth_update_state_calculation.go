@@ -300,14 +300,6 @@ func (c *operationExternalAuthUpdate) clusterServiceExternalAuthSpecOperationSta
 // relevant to the external auth update operation match desired state. Returns false and a diagnostic
 // message when any leaf check fails.
 func (c *operationExternalAuthUpdate) clusterServiceExternalAuthSpecMatchesDesired(externalAuth *api.HCPOpenShiftClusterExternalAuth, csExternalAuth *arohcpv1alpha1.ExternalAuth) (bool, string, error) {
-	differs, err := ocm.ExternalAuthUpdateDispatchConfigDiffers(externalAuth, csExternalAuth)
-	if err != nil {
-		return false, "", err
-	}
-	if !differs {
-		return true, "", nil
-	}
-
 	desiredJSON, err := ocm.ExternalAuthUpdateDispatchConfigJSONFromRP(externalAuth)
 	if err != nil {
 		return false, "", err
@@ -316,5 +308,12 @@ func (c *operationExternalAuthUpdate) clusterServiceExternalAuthSpecMatchesDesir
 	if err != nil {
 		return false, "", err
 	}
+	// We check if the desired config coming from cosmos differs from the actual config coming from cluster service.
+	// Comparison uses canonical JSON (sorted object keys at every level) so we can compare them
+	// using direct string equality.
+	if desiredJSON == observedJSON {
+		return true, "", nil
+	}
+
 	return false, fmt.Sprintf("Cluster Service external auth spec does not match desired: desired=%s, actual=%s", desiredJSON, observedJSON), nil
 }
