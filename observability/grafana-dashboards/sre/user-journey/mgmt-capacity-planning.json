@@ -849,7 +849,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "node"
+              "options": "instance"
             },
             "properties": [
               {
@@ -973,7 +973,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "node"
+              "options": "instance"
             },
             "properties": [
               {
@@ -1089,7 +1089,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Cluster"
+              "options": "cluster"
             },
             "properties": [
               {
@@ -1107,7 +1107,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "CPU Commitment %"
+              "options": "Value #CPU_COMMIT"
             },
             "properties": [
               {
@@ -1138,7 +1138,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Memory Commitment %"
+              "options": "Value #MEM_COMMIT"
             },
             "properties": [
               {
@@ -1169,7 +1169,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Node Count"
+              "options": "Value #NODE_COUNT"
             },
             "properties": [
               {
