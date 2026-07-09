@@ -16,7 +16,7 @@ from yaml.resolver import BaseResolver
 # $ python update_instance_types.py --region eastus --output cloud-resources-config.yaml
 
 parser = argparse.ArgumentParser(description='Generates a list of available instance types in the given region. '
-                                             'Requires an active az session to run "az vm list-sizes" on the shell.')
+                                             'Requires an active az session to run "az vm list-skus" on the shell.')
 parser.add_argument('--region', default="westus3", help='the azure region, by default westus3')
 parser.add_argument('--input', default="deploy/templates/cloud-resources-config.configmap.yaml",
                     help='the input configmap, by default the cloud resources-config in the helm template directory')
@@ -45,24 +45,43 @@ with open(args.input) as f:
         raise RuntimeError(f"Error parsing input YAML file {args.input}: {e}")
 
 # shelling out here to avoid importing all kinds of Azure libraries via pip
-json_out = os.popen(f"az vm list-sizes --location \"{args.region}\"").read()
+json_out = os.popen(f"az vm list-skus --location \"{args.region}\"").read()
 if not json_out.strip():
-    raise RuntimeError("Unable to list vm sizes. Please check that an azure session is active and is able to run az commands.")
+    raise RuntimeError("Unable to list vm skus. Please check that an azure session is active and is able to run az commands.")
 types = json.loads(json_out)
+
+def capability_value(capabilities, name):
+    for capability in capabilities:
+        if capability.get("name") == name:
+            return capability.get("value")
+    return None
 
 instance_types_set = {}
 instance_types_list = []
 for i in range(len(types)):
     vm_type = types[i]
+    if vm_type.get("resourceType") != "virtualMachines":
+        continue
+
     type_name = vm_type['name']
     print(f"processing {vm_type['name']}")
+
+    capabilities = vm_type.get("capabilities") or []
+    vcpus = capability_value(capabilities, "vCPUs")
+    memory_gb = capability_value(capabilities, "MemoryGB")
+    family = vm_type.get("family")
+    if vcpus is None or memory_gb is None or not family:
+        print(f"skipping {type_name}")
+        continue
+
     instance_type = {
         "cloud_provider_id": "azure",
         "id": type_name,
         "name": type_name,
         "generic_name": type_name.lower(),
-        "cpu_cores": int(vm_type["numberOfCores"]),
-        "memory": int(vm_type["memoryInMB"]) * 1024 * 1024,
+        "cpu_cores": int(vcpus),
+        "family": family,
+        "memory": int(float(memory_gb)) * 1024 * 1024 * 1024,
     }
 
     if "L" in type_name:
