@@ -82,6 +82,7 @@ resource msiMockRole 'Microsoft.Authorization/roleDefinitions@2022-04-01' = {
           'Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials/read'
           'Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials/write'
           'Microsoft.ManagedIdentity/userAssignedIdentities/read'
+          'Microsoft.ManagedIdentity/userAssignedIdentities/assign/action'
           'Microsoft.Network/loadBalancers/backendAddressPools/read'
           'Microsoft.Network/loadBalancers/backendAddressPools/write'
           'Microsoft.Network/loadBalancers/read'
