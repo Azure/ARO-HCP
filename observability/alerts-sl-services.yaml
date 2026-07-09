@@ -2,7 +2,6 @@ prometheusRules:
   rulesFolders:
   - alerts/prometheus-prometheusRule.yaml
   - ../frontend/alerts/frontend-prometheusRule.yaml
-  - ../cluster-service/alerts/cluster-service-slo-rules.yaml
   - ../backend/alerts/backend-prometheusRule.yaml
   - ../fleet/alerts/fleet-prometheusRule.yaml
   - ../admin/alerts/admin-prometheusRule.yaml
