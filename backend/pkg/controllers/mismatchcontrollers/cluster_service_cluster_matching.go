@@ -17,6 +17,7 @@ package mismatchcontrollers
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -128,6 +129,17 @@ func (c *clusterServiceClusterMatching) synchronizeAllClusters(ctx context.Conte
 
 	_, allClusterServiceClusters, err := c.getAllClusterServiceObjs(ctx)
 	if err != nil {
+		if strings.Contains(err.Error(), "no healthy upstream") {
+			// this error happens when cluster-service is down.  If cluster-service is down and we have content in cosmos to work on
+			// other controllers will start reporting errors.
+			// this particular controller fires based purely on time, so there might actually be no content.
+			// In that case we don't want to fail and report a retrying controller, so we'll suppress the string
+			// we get back
+			//    expected response content type 'application/json' but received 'text/plain' and content 'no healthy upstream'
+			logger.Error(err, "failed to get cluster-service clusters, probably because cluster-service is down")
+			return nil
+		}
+
 		return utils.TrackError(err)
 	}
 
