@@ -790,6 +790,8 @@ monitoring:
   grafanaName: arohcp-dev
   grafanaRoles: 6b6d3adf-8476-4727-9812-20ffdef2b85c/Group/Admin
   grafanaZoneRedundantMode: Disabled
+  hcpMaxActiveTimeSeriesMillions: 2
+  hcpMaxEventsPerMinuteMillions: 2
   hcpWorkspaceName: hcps-usw3ptest
   icm:
     connectionId: ""
@@ -816,10 +818,8 @@ monitoring:
       actionGroupShortName: ""
       automitigationEnabled: ""
       routingId: ""
-  maxActiveTimeSeries: 2000000
-  maxActiveTimeSeriesMillions: 2
-  maxEventsPerMinute: 2000000
-  maxEventsPerMinuteMillions: 2
+  svcMaxActiveTimeSeriesMillions: 2
+  svcMaxEventsPerMinuteMillions: 2
   svcWorkspaceName: services-usw3ptest
 msiCredentialsRefresher:
   certificate:
