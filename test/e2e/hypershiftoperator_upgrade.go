@@ -116,10 +116,12 @@ func haProxyImage(ctx context.Context, kubeClient kubernetes.Interface) (string,
 // cluster.
 //
 // mcClient must be a dynamic client built from the management cluster kubeconfig
-// (KUBECONFIG env var). Hypershift sets the annotation
-// hypershift.openshift.io/nodePool=<namespace>/<name> referencing the NodePool
-// on the service cluster. The function lists all MachineDeployments and filters
-// client-side on that annotation.
+// (KUBECONFIG env var). Hypershift does not label MachineDeployments with the
+// NodePool name; instead it sets the annotation
+// hypershift.openshift.io/nodePool=<namespace>/<crName> where <crName> is
+// <clusterID>-<nodepoolName> on ARO-HCP management clusters. The function
+// lists all MachineDeployments, strips the namespace prefix from the annotation
+// value, and matches on the CR name ending with -<nodepoolName>.
 func nodePoolDataSecretName(ctx context.Context, mcClient dynamic.Interface, nodePoolName string) (string, error) {
 	mdGVR := schema.GroupVersionResource{
 		Group:    "cluster.x-k8s.io",
@@ -131,18 +133,29 @@ func nodePoolDataSecretName(ctx context.Context, mcClient dynamic.Interface, nod
 		return "", fmt.Errorf("list MachineDeployments: %w", err)
 	}
 
-	// The annotation value is "<namespace>/<name>" on the service cluster.
+	// The annotation value is "<namespace>/<name>" on the management cluster.
 	// We don't know the namespace here, so match on the name suffix.
 	const nodepoolAnnotation = "hypershift.openshift.io/nodePool"
 	var matches []string
+	// Collect all annotation values for diagnostics when no match is found.
+	annotationValues := make([]string, 0, len(list.Items))
 	for _, md := range list.Items {
 		v := md.GetAnnotations()[nodepoolAnnotation]
-		if v == nodePoolName || strings.HasSuffix(v, "/"+nodePoolName) {
+		annotationValues = append(annotationValues, fmt.Sprintf("%s=%q", md.GetName(), v))
+		// Annotation format: "<namespace>/<crName>" where <crName> is
+		// "<clusterID>-<nodepoolName>" on ARO-HCP management clusters.
+		// Match the nodepool name as an exact suffix of the CR name component.
+		crName := v
+		if i := strings.LastIndex(v, "/"); i >= 0 {
+			crName = v[i+1:]
+		}
+		if crName == nodePoolName || strings.HasSuffix(crName, "-"+nodePoolName) {
 			matches = append(matches, md.GetName())
 		}
 	}
 	if len(matches) == 0 {
-		return "", fmt.Errorf("no MachineDeployment found for nodepool %q (annotation %s)", nodePoolName, nodepoolAnnotation)
+		return "", fmt.Errorf("no MachineDeployment found for nodepool %q; found %d MachineDeployments with annotations: %v",
+			nodePoolName, len(list.Items), annotationValues)
 	}
 	if len(matches) > 1 {
 		return "", fmt.Errorf("expected 1 MachineDeployment for nodepool %q, found %d: %v", nodePoolName, len(matches), matches)
