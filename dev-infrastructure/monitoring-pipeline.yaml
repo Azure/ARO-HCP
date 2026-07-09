@@ -4,8 +4,9 @@
 # * Azure Monitor Metrics resources for services
 # * Azure Monitor Metrics resources for hosted control planes
 # * Prometheus alerting rules
+# * Event Hub action group (region-scoped, for forwarding alerts to Kusto)
 #
-# Action groups are created at geography level (geography-pipeline.yaml)
+# ICM action groups are created at geography level (geography-pipeline.yaml)
 # and looked up here for wiring into regional alert rules.
 #
 $schema: "pipeline.schema.v1"

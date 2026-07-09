@@ -58,7 +58,7 @@ param icmAutomitigationEnabledMSFT string
 @description('Enable creating ICM action groups')
 param manageConnection bool
 
-@description('Whether ICM alerting is enabled for this region')
+@description('Whether alerting is enabled')
 param alertsEnabled bool
 
 @description('Whether to create the Event Hub action group for sending alerts to Kusto')
