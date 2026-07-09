@@ -52,17 +52,17 @@ func (listWatchWithoutWatchListSemantics) IsWatchListSemanticsUnSupported() bool
 const (
 	// These durations indicate the maximum time it will take for us to notice a new instance of a particular type.
 	// Remember that these will not fire in order, so it's entirely possible to get an operation for subscription we have no observed.
-	SubscriptionRelistDuration             = 30 * time.Minute
-	ClusterRelistDuration                  = 30 * time.Minute
-	NodePoolRelistDuration                 = 30 * time.Minute
-	ExternalAuthRelistDuration             = 30 * time.Minute
-	ServiceProviderClusterRelistDuration   = 30 * time.Minute
-	ServiceProviderNodePoolRelistDuration  = 30 * time.Minute
-	ControllerRelistDuration               = 30 * time.Minute
-	AllOperationsRelistDuration            = 30 * time.Minute
-	ActiveOperationsRelistDuration         = 30 * time.Minute
-	ManagementClusterContentRelistDuration = 30 * time.Second
-	BillingRelistDuration                  = 30 * time.Second
+	SubscriptionRelistDuration             = 3 * time.Minute
+	ClusterRelistDuration                  = 3 * time.Minute
+	NodePoolRelistDuration                 = 3 * time.Minute
+	ExternalAuthRelistDuration             = 3 * time.Minute
+	ServiceProviderClusterRelistDuration   = 3 * time.Minute
+	ServiceProviderNodePoolRelistDuration  = 3 * time.Minute
+	ControllerRelistDuration               = 3 * time.Minute
+	AllOperationsRelistDuration            = 3 * time.Minute
+	ActiveOperationsRelistDuration         = 3 * time.Minute
+	ManagementClusterContentRelistDuration = 3 * time.Second
+	BillingRelistDuration                  = 3 * time.Second
 )
 
 // NewSubscriptionInformer creates an unstarted SharedIndexInformer for subscriptions

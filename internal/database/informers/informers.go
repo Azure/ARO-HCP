@@ -30,8 +30,8 @@ import (
 // Default relist durations. With changefeed, the relist is only a safety net;
 // near-real-time updates arrive via the change feed poll loop.
 const (
-	ApplyDesireRelistDuration = 30 * time.Minute
-	ReadDesireRelistDuration  = 30 * time.Minute
+	ApplyDesireRelistDuration = 3 * time.Minute
+	ReadDesireRelistDuration  = 3 * time.Minute
 )
 
 // desireIndexers is the standard set registered on every *Desire informer.
