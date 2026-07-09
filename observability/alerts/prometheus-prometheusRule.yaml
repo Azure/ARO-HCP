@@ -71,6 +71,30 @@ spec:
           Check the PrometheusAgent pod status and remote write configuration on the affected cluster.
         runbook_url: https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/Prometheus.md
         summary: Prometheus metrics absent for cluster {{ $labels.cluster }}.
+    - alert: UnderlayClusterInventoryEntryMissing
+      expr: group by (cluster) (count_over_time(underlay_clusters[7d])) unless on(cluster) group by (cluster) (underlay_clusters)
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        description: |
+          Underlay cluster {{ $labels.cluster }} was present in the underlay cluster inventory within the last 7 days, but is no longer present.
+          The underlay cluster inventory is static deployment-time data and entries should not disappear while their service or management clusters still exist.
+          Investigate the underlay_clusters recording rule and the cluster's deployment state.
+        runbook_url: https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/underlay_clusters.md
+        summary: Underlay cluster inventory entry disappeared for {{ $labels.cluster }}.
+    - alert: UnderlayClusterInventoryTooSmall
+      expr: count(count by (cluster) (underlay_clusters)) <= 2 or absent(underlay_clusters)
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        description: |
+          The underlay cluster inventory has two or fewer cluster labels, or the underlay_clusters metric is completely absent.
+          The inventory should include all service and management clusters and should never be this small.
+          Investigate the underlay_clusters recording rules before dependent alerts lose their source of truth.
+        runbook_url: https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/underlay_clusters.md
+        summary: Underlay cluster inventory has too few entries.
     - alert: PrometheusPendingRate
       expr: |
         (

@@ -905,6 +905,83 @@ tests:
           This indicates the Prometheus agent on this specific cluster is dead or its remote write pipeline is broken.
           Check the PrometheusAgent pod status and remote write configuration on the affected cluster.
         runbook_url: https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/Prometheus.md
+# Test UnderlayClusterInventoryEntryMissing - inventory entry disappeared
+- interval: 1m
+  input_series:
+  - series: 'underlay_clusters{cluster="missing-cluster",source="bicep"}'
+    values: "1+0x20"
+  alert_rule_test:
+  - eval_time: 40m
+    alertname: UnderlayClusterInventoryEntryMissing
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+        cluster: missing-cluster
+      exp_annotations:
+        summary: Underlay cluster inventory entry disappeared for missing-cluster.
+        description: |
+          Underlay cluster missing-cluster was present in the underlay cluster inventory within the last 7 days, but is no longer present.
+          The underlay cluster inventory is static deployment-time data and entries should not disappear while their service or management clusters still exist.
+          Investigate the underlay_clusters recording rule and the cluster's deployment state.
+        runbook_url: https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/underlay_clusters.md
+# Test UnderlayClusterInventoryEntryMissing - inventory entry still present
+- interval: 1m
+  input_series:
+  - series: 'underlay_clusters{cluster="present-cluster",source="bicep"}'
+    values: "1+0x50"
+  alert_rule_test:
+  - eval_time: 40m
+    alertname: UnderlayClusterInventoryEntryMissing
+    exp_alerts: []
+# Test UnderlayClusterInventoryTooSmall - fewer than expected cluster labels
+- interval: 1m
+  input_series:
+  - series: 'underlay_clusters{cluster="svc-1",source="bicep"}'
+    values: "1+0x15"
+  - series: 'underlay_clusters{cluster="mgmt-1",source="bicep"}'
+    values: "1+0x15"
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: UnderlayClusterInventoryTooSmall
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+      exp_annotations:
+        summary: Underlay cluster inventory has too few entries.
+        description: |
+          The underlay cluster inventory has two or fewer cluster labels, or the underlay_clusters metric is completely absent.
+          The inventory should include all service and management clusters and should never be this small.
+          Investigate the underlay_clusters recording rules before dependent alerts lose their source of truth.
+        runbook_url: https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/underlay_clusters.md
+# Test UnderlayClusterInventoryTooSmall - metric is absent
+- interval: 1m
+  input_series: []
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: UnderlayClusterInventoryTooSmall
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+      exp_annotations:
+        summary: Underlay cluster inventory has too few entries.
+        description: |
+          The underlay cluster inventory has two or fewer cluster labels, or the underlay_clusters metric is completely absent.
+          The inventory should include all service and management clusters and should never be this small.
+          Investigate the underlay_clusters recording rules before dependent alerts lose their source of truth.
+        runbook_url: https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/underlay_clusters.md
+# Test UnderlayClusterInventoryTooSmall - inventory has enough cluster labels
+- interval: 1m
+  input_series:
+  - series: 'underlay_clusters{cluster="svc-1",source="bicep"}'
+    values: "1+0x15"
+  - series: 'underlay_clusters{cluster="mgmt-1",source="bicep"}'
+    values: "1+0x15"
+  - series: 'underlay_clusters{cluster="mgmt-2",source="bicep"}'
+    values: "1+0x15"
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: UnderlayClusterInventoryTooSmall
+    exp_alerts: []
 # Test multiple namespaces and jobs
 - interval: 1m
   input_series:
