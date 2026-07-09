@@ -312,7 +312,7 @@ resourceGroups:
     issuer:
       configRef: maestro.certIssuer
     commonName:
-      configRef: maestro.server.certSAN
+      configRef: maestro.server.certCN
     dependsOn:
     - resourceGroup: service
       step: infra-output

@@ -268,7 +268,8 @@
         },
         "san": {
           "description": "Geneva logs account certificate SAN",
-          "type": "string"
+          "type": "string",
+          "maxLength": 64
         },
         "configVersion": {
           "description": "Geneva logs account namespace configuration version",
@@ -1242,7 +1243,8 @@
           "$ref": "#/definitions/certificateIssuer"
         },
         "san": {
-          "type": "string"
+          "type": "string",
+          "maxLength": 64
         },
         "contentType": {
           "type": "string"
@@ -1364,7 +1366,8 @@
             },
             "san": {
               "type": "string",
-              "description": "SAN and CN for the sessiongate ingress certificate"
+              "description": "SAN and CN for the sessiongate ingress certificate",
+              "maxLength": 64
             },
             "issuer": {
               "$ref": "#/definitions/certificateIssuer"
@@ -1527,7 +1530,8 @@
             },
             "san": {
               "type": "string",
-              "description": "SAN and CN for the admin API ingress certificate"
+              "description": "SAN and CN for the admin API ingress certificate",
+              "maxLength": 64
             },
             "issuer": {
               "$ref": "#/definitions/certificateIssuer"
@@ -1618,7 +1622,8 @@
             },
             "san": {
               "type": "string",
-              "description": "SAN and CN for the frontend ingress certificate"
+              "description": "SAN and CN for the frontend ingress certificate",
+              "maxLength": 64
             },
             "issuer": {
               "$ref": "#/definitions/certificateIssuer"
@@ -1845,7 +1850,8 @@
               "type": "string"
             },
             "adminCertSan": {
-              "type": "string"
+              "type": "string",
+              "maxLength": 64
             },
             "contentType": {
               "type": "string"
@@ -1955,7 +1961,8 @@
                   "$ref": "#/definitions/certificateIssuer"
                 },
                 "san": {
-                  "type": "string"
+                  "type": "string",
+                  "maxLength": 64
                 },
                 "contentType": {
                   "type": "string"
@@ -2734,7 +2741,12 @@
             },
             "certSAN": {
               "type": "string",
-              "description": "SAN and CN for the Maestro server EventGrid certificate"
+              "description": "SAN for the Maestro server EventGrid certificate"
+            },
+            "certCN": {
+              "type": "string",
+              "description": "CN for the Maestro server EventGrid certificate",
+              "maxLength": 64
             },
             "managedIdentityName": {
               "type": "string"
@@ -2767,7 +2779,12 @@
             },
             "certSAN": {
               "type": "string",
-              "description": "SAN and CN for the Maestro consumer EventGrid certificate"
+              "description": "SAN for the Maestro consumer EventGrid certificate"
+            },
+            "certCN": {
+              "type": "string",
+              "description": "CN for the Maestro consumer EventGrid certificate",
+              "maxLength": 64
             },
             "loglevel": {
               "type": "integer"
@@ -2864,6 +2881,10 @@
         },
         "applyKubeletFixes": {
           "type": "boolean"
+        },
+        "stampIdentifier": {
+          "type": "string",
+          "description": "The identifier for the management cluster stamp"
         },
         "defaultStorageClassSkuName": {
           "type": "string"
@@ -3619,6 +3640,14 @@
     {
       "rule": "self.maestro.agent.certSAN == self.maestro.agent.consumerName + '.maestro.' + self.dns.regionalSubdomain + '.' + self.dns.svcParentZoneName",
       "message": "maestro.agent.certSAN must equal consumerName + '.maestro.' + dns.regionalSubdomain + '.' + dns.svcParentZoneName"
+    },
+    {
+      "rule": "self.maestro.server.certCN == 'server.maestro.' + self.dns.regionalSubdomain + '.' + self.dns.svcParentZoneName",
+      "message": "maestro.server.certCN must equal 'server.maestro.' + dns.regionalSubdomain + '.' + dns.svcParentZoneName"
+    },
+    {
+      "rule": "self.maestro.agent.certCN == 'mgmt-' + self.mgmt.stampIdentifier + '.maestro.' + self.dns.regionalSubdomain + '.' + self.dns.svcParentZoneName",
+      "message": "maestro.agent.certCN must equal 'mgmt-' + mgmt.stampIdentifier + '.maestro.' + dns.regionalSubdomain + '.' + dns.svcParentZoneName"
     },
     {
       "rule": "self.firstPartyAppCertificate.san == self.firstPartyAppCertificate.name + '.' + self.dns.svcParentZoneName",

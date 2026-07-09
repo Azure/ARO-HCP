@@ -1215,8 +1215,10 @@ clouds:
         certIssuer: Self
         server:
           certSAN: 'maestro-server-{{ .ctx.regionShort }}.maestro.{{ .ctx.region }}.hcpsvc.osadev.cloud'
+          certCN: 'server.maestro.{{ .ctx.region }}.hcpsvc.osadev.cloud'
         agent:
           certSAN: 'hcp-underlay-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}.maestro.{{ .ctx.region }}.hcpsvc.osadev.cloud'
+          certCN: 'mgmt-{{ .ctx.stamp }}.maestro.{{ .ctx.region }}.hcpsvc.osadev.cloud'
         postgres:
           enhancedMetricsEnabled: true
       # Cluster Service
@@ -1290,6 +1292,7 @@ clouds:
           prometheusSpec:
             shards: 1
       mgmt:
+        stampIdentifier: '{{ .ctx.stamp }}'
         subscription:
           key: ARO Hosted Control Planes (EA Subscription 1)
           certificateDomains:
@@ -1391,6 +1394,7 @@ clouds:
             server:
               mqttClientName: 'maestro-server-{{ .ctx.regionShort }}-dev'
               certSAN: 'maestro-server-{{ .ctx.regionShort }}-dev.maestro.{{ .ctx.region }}.hcpsvc.osadev.cloud'
+              certCN: 'server.maestro.{{ .ctx.region }}.hcpsvc.osadev.cloud'
               tracing:
                 address: "http://ingest.observability:4318"
                 exporter: "otlp"
@@ -1457,8 +1461,10 @@ clouds:
             restrictIstioIngress: false
             server:
               certSAN: 'maestro-server-{{ .ctx.regionShort }}.maestro.{{ .ctx.region }}-cs.hcpsvc.osadev.cloud'
+              certCN: 'server.maestro.{{ .ctx.region }}-cs.hcpsvc.osadev.cloud'
             agent:
               certSAN: 'hcp-underlay-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}.maestro.{{ .ctx.region }}-cs.hcpsvc.osadev.cloud'
+              certCN: 'mgmt-{{ .ctx.stamp }}.maestro.{{ .ctx.region }}-cs.hcpsvc.osadev.cloud'
           # Frontend
           frontend:
             cert:
@@ -1532,11 +1538,13 @@ clouds:
             server:
               mqttClientName: 'maestro-server-{{ .ctx.regionShort }}'
               certSAN: 'maestro-server-{{ .ctx.regionShort }}.maestro.{{ .ctx.regionShort }}.hcpsvc.osadev.cloud'
+              certCN: 'server.maestro.{{ .ctx.regionShort }}.hcpsvc.osadev.cloud'
               tracing:
                 address: "http://ingest.observability:4318"
                 exporter: "otlp"
             agent:
               certSAN: 'hcp-underlay-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}.maestro.{{ .ctx.regionShort }}.hcpsvc.osadev.cloud'
+              certCN: 'mgmt-{{ .ctx.stamp }}.maestro.{{ .ctx.regionShort }}.hcpsvc.osadev.cloud'
           # Backend
           backend:
             tracing:
@@ -1597,8 +1605,10 @@ clouds:
           maestro:
             server:
               certSAN: 'maestro-server-{{ .ctx.regionShort }}.maestro.{{ .ctx.regionShort }}.hcpsvc.osadev.cloud'
+              certCN: 'server.maestro.{{ .ctx.regionShort }}.hcpsvc.osadev.cloud'
             agent:
               certSAN: 'hcp-underlay-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}.maestro.{{ .ctx.regionShort }}.hcpsvc.osadev.cloud'
+              certCN: 'mgmt-{{ .ctx.stamp }}.maestro.{{ .ctx.regionShort }}.hcpsvc.osadev.cloud'
           # SVC
           svc:
             rg: "hcp-underlay-{{ .ctx.environment }}-{{ .ctx.regionShort }}-svc"
@@ -1651,11 +1661,13 @@ clouds:
             server:
               mqttClientName: 'maestro-server-{{ .ctx.regionShort }}'
               certSAN: 'maestro-server-{{ .ctx.regionShort }}.maestro.{{ .ctx.regionShort }}.hcpsvc.osadev.cloud'
+              certCN: 'server.maestro.{{ .ctx.regionShort }}.hcpsvc.osadev.cloud'
               tracing:
                 address: "http://ingest.observability:4318"
                 exporter: "otlp"
             agent:
               certSAN: 'hcp-underlay-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}.maestro.{{ .ctx.regionShort }}.hcpsvc.osadev.cloud'
+              certCN: 'mgmt-{{ .ctx.stamp }}.maestro.{{ .ctx.regionShort }}.hcpsvc.osadev.cloud'
           # Backend
           backend:
             tracing:
@@ -1748,11 +1760,13 @@ clouds:
             server:
               mqttClientName: 'maestro-server-{{ .ctx.regionShort }}'
               certSAN: 'maestro-server-{{ .ctx.regionShort }}.maestro.{{ .ctx.regionShort }}.hcpsvc.osadev.cloud'
+              certCN: 'server.maestro.{{ .ctx.regionShort }}.hcpsvc.osadev.cloud'
               tracing:
                 address: "http://ingest.observability:4318"
                 exporter: "otlp"
             agent:
               certSAN: 'hcp-underlay-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}.maestro.{{ .ctx.regionShort }}.hcpsvc.osadev.cloud'
+              certCN: 'mgmt-{{ .ctx.stamp }}.maestro.{{ .ctx.regionShort }}.hcpsvc.osadev.cloud'
           # Backend
           backend:
             tracing:

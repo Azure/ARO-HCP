@@ -540,6 +540,7 @@ logs:
     subscriptions: []
 maestro:
   agent:
+    certCN: mgmt-1.maestro.j7654321.hcpsvc.osadev.cloud
     certSAN: hcp-underlay-j7654321-mgmt-1.maestro.j7654321.hcpsvc.osadev.cloud
     consumerName: hcp-underlay-j7654321-mgmt-1
     k8s:
@@ -581,6 +582,7 @@ maestro:
     zoneRedundantMode: Auto
   restrictIstioIngress: true
   server:
+    certCN: server.maestro.j7654321.hcpsvc.osadev.cloud
     certSAN: maestro-server-j7654321.maestro.j7654321.hcpsvc.osadev.cloud
     k8s:
       namespace: maestro
@@ -702,6 +704,7 @@ mgmt:
         sha: cc1975aaeb64a744dc11319892345f4822f72860f0efcff030111fe08328bfa4
         tag: v0.41.0
   rg: hcp-underlay-ci00-j7654321-mgmt-1
+  stampIdentifier: "1"
   stamps:
     count: 1
   subscription:
