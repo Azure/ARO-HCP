@@ -123,7 +123,7 @@ func haProxyImage(ctx context.Context, kubeClient kubernetes.Interface) (string,
 func nodePoolDataSecretName(ctx context.Context, mcClient dynamic.Interface, nodePoolName string) (string, error) {
 	mdGVR := schema.GroupVersionResource{
 		Group:    "cluster.x-k8s.io",
-		Version:  "v1beta1",
+		Version:  "v1beta2",
 		Resource: "machinedeployments",
 	}
 	list, err := mcClient.Resource(mdGVR).Namespace(metav1.NamespaceAll).List(ctx, metav1.ListOptions{})
