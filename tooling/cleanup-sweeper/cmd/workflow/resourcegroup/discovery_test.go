@@ -104,7 +104,7 @@ func TestDiscoverCandidates(t *testing.T) {
 
 func ptr(s string) *string { return &s }
 
-func TestSortDeletionTargets(t *testing.T) {
+func TestPromoteAndSortDeletionTargets(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
