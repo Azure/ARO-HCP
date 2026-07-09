@@ -10,12 +10,6 @@ metadata:
 spec:
   disabled: false
   remediationAction: enforce
-  dependencies:
-  - apiVersion: policy.open-cluster-management.io/v1
-    compliance: Compliant
-    kind: Policy
-    name: ingress-controller-check
-    namespace: '{{ .Release.Namespace }}'
   policy-templates:
   - objectDefinition:
       apiVersion: policy.open-cluster-management.io/v1
@@ -44,7 +38,7 @@ spec:
                 tls.crt: {{ `{{hub fromSecret $ns $certName "tls.crt" hub}}` }}
                 tls.key: {{ `{{hub fromSecret $ns $certName "tls.key" hub}}` }}
           {{ `{{hub- end hub}}` }}
-        pruneObjectBehavior: DeleteIfCreated
+        pruneObjectBehavior: None
         remediationAction: enforce
         severity: low
   - objectDefinition:
