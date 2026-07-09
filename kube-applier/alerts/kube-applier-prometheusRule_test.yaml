@@ -1,0 +1,51 @@
+rule_files:
+- kube-applier-prometheusRule.yaml
+evaluation_interval: 1m
+tests:
+# Test: KubeApplierDesiresMetricNotPresent fires when health=1 but kube_applier_desires absent for 5m
+- interval: 1m
+  input_series:
+  - series: 'kube_applier_health{cluster="test-cluster", namespace="kube-applier"}'
+    values: "1x10" # health stays at 1 for 10 minutes
+  alert_rule_test:
+  - eval_time: 6m
+    alertname: KubeApplierDesiresMetricNotPresent
+    exp_alerts:
+    - exp_labels:
+        cluster: test-cluster
+        namespace: kube-applier
+        severity: warning
+      exp_annotations:
+        description: 'kube-applier on cluster test-cluster lacks kube_applier_desires metric for 5 minutes.'
+        runbook_url: 'TBD'
+        summary: 'kube-applier on cluster test-cluster lacks kube_applier_desires metric'
+        title: 'kube-applier on cluster test-cluster lacks kube_applier_desires metric'
+# Test: KubeApplierDesiresMetricNotPresent does not fire when kube_applier_desires is present
+- interval: 1m
+  input_series:
+  - series: 'kube_applier_health{cluster="test-cluster", namespace="kube-applier"}'
+    values: "1x10"
+  - series: 'kube_applier_desires{cluster="test-cluster", namespace="kube-applier", type="apply", condition="Successful"}'
+    values: "3x10"
+  alert_rule_test:
+  - eval_time: 6m
+    alertname: KubeApplierDesiresMetricNotPresent
+    exp_alerts: []
+# Test: KubeApplierDesiresMetricNotPresent does not fire when kube-applier is not running (health=0)
+- interval: 1m
+  input_series:
+  - series: 'kube_applier_health{cluster="test-cluster", namespace="kube-applier"}'
+    values: "0x10" # health=0, kube-applier not healthy/running
+  alert_rule_test:
+  - eval_time: 6m
+    alertname: KubeApplierDesiresMetricNotPresent
+    exp_alerts: []
+# Test: KubeApplierDesiresMetricNotPresent does not fire before the 5m threshold
+- interval: 1m
+  input_series:
+  - series: 'kube_applier_health{cluster="test-cluster", namespace="kube-applier"}'
+    values: "1x10"
+  alert_rule_test:
+  - eval_time: 4m
+    alertname: KubeApplierDesiresMetricNotPresent
+    exp_alerts: []
