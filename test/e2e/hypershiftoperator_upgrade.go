@@ -77,23 +77,23 @@ func nodePoolHash(ctx context.Context, kubeClient kubernetes.Interface, nodePool
 	return hex.EncodeToString(h.Sum(nil)), nil
 }
 
-// haProxyImage returns the container image used by the apiserver-haproxy static
-// pod(s) running in kube-system on the hosted cluster nodes. The pod is
-// embedded in a MachineConfig by the Hypershift node-pool controller and named
-// "kube-apiserver-proxy-<nodeName>" (or similar containing "haproxy"). All pods
-// originating from the same MachineConfig carry the same image; the function
-// errors if inconsistent images are found across pods.
+// haProxyImage returns the container image used by the kube-apiserver-proxy
+// static pod(s) running in kube-system on the hosted cluster nodes. Hypershift
+// embeds this pod (named "kube-apiserver-proxy") in a MachineConfig; kubelet
+// appends the node name so each instance appears as
+// "kube-apiserver-proxy-<nodeName>" in the API. All pods originating from the
+// same MachineConfig carry the same image; the function errors if inconsistent
+// images are found across pods.
 func haProxyImage(ctx context.Context, kubeClient kubernetes.Interface) (string, error) {
-	pods, err := kubeClient.CoreV1().Pods("kube-system").List(ctx, metav1.ListOptions{})
+	pods, err := kubeClient.CoreV1().Pods("kube-system").List(ctx, metav1.ListOptions{
+		LabelSelector: "k8s-app=kube-apiserver-proxy",
+	})
 	if err != nil {
-		return "", fmt.Errorf("list kube-system pods: %w", err)
+		return "", fmt.Errorf("list kube-apiserver-proxy pods in kube-system: %w", err)
 	}
 
 	var image string
 	for _, pod := range pods.Items {
-		if !strings.Contains(pod.Name, "haproxy") {
-			continue
-		}
 		for _, c := range pod.Spec.Containers {
 			if c.Image == "" {
 				continue
@@ -106,7 +106,7 @@ func haProxyImage(ctx context.Context, kubeClient kubernetes.Interface) (string,
 		}
 	}
 	if image == "" {
-		return "", fmt.Errorf("no haproxy pod found in kube-system")
+		return "", fmt.Errorf("no kube-apiserver-proxy pod found in kube-system (label k8s-app=kube-apiserver-proxy)")
 	}
 	return image, nil
 }
@@ -116,29 +116,49 @@ func haProxyImage(ctx context.Context, kubeClient kubernetes.Interface) (string,
 // cluster.
 //
 // mcClient must be a dynamic client built from the management cluster kubeconfig
-// (KUBECONFIG env var). The function lists MachineDeployments labelled with
-// hypershift.openshift.io/nodepool-name=<nodePoolName> across all namespaces.
+// (KUBECONFIG env var). Hypershift sets the annotation
+// hypershift.openshift.io/nodePool=<namespace>/<name> referencing the NodePool
+// on the service cluster. The function lists all MachineDeployments and filters
+// client-side on that annotation.
 func nodePoolDataSecretName(ctx context.Context, mcClient dynamic.Interface, nodePoolName string) (string, error) {
 	mdGVR := schema.GroupVersionResource{
 		Group:    "cluster.x-k8s.io",
 		Version:  "v1beta1",
 		Resource: "machinedeployments",
 	}
-	list, err := mcClient.Resource(mdGVR).Namespace(metav1.NamespaceAll).List(ctx, metav1.ListOptions{
-		LabelSelector: "hypershift.openshift.io/nodepool-name=" + nodePoolName,
-	})
+	list, err := mcClient.Resource(mdGVR).Namespace(metav1.NamespaceAll).List(ctx, metav1.ListOptions{})
 	if err != nil {
-		return "", fmt.Errorf("list MachineDeployments for nodepool %q: %w", nodePoolName, err)
+		return "", fmt.Errorf("list MachineDeployments: %w", err)
 	}
-	if len(list.Items) == 0 {
-		return "", fmt.Errorf("no MachineDeployment found for nodepool %q", nodePoolName)
+
+	// The annotation value is "<namespace>/<name>" on the service cluster.
+	// We don't know the namespace here, so match on the name suffix.
+	const nodepoolAnnotation = "hypershift.openshift.io/nodePool"
+	var matches []string
+	for _, md := range list.Items {
+		v := md.GetAnnotations()[nodepoolAnnotation]
+		if v == nodePoolName || strings.HasSuffix(v, "/"+nodePoolName) {
+			matches = append(matches, md.GetName())
+		}
 	}
-	if len(list.Items) > 1 {
-		return "", fmt.Errorf("expected 1 MachineDeployment for nodepool %q, found %d", nodePoolName, len(list.Items))
+	if len(matches) == 0 {
+		return "", fmt.Errorf("no MachineDeployment found for nodepool %q (annotation %s)", nodePoolName, nodepoolAnnotation)
+	}
+	if len(matches) > 1 {
+		return "", fmt.Errorf("expected 1 MachineDeployment for nodepool %q, found %d: %v", nodePoolName, len(matches), matches)
+	}
+
+	// Re-fetch the matched item from the original list for the DataSecretName.
+	var matched map[string]interface{}
+	for _, md := range list.Items {
+		if md.GetName() == matches[0] {
+			matched = md.Object
+			break
+		}
 	}
 
 	secretName, found, err := unstructured.NestedString(
-		list.Items[0].Object,
+		matched,
 		"spec", "template", "spec", "bootstrap", "dataSecretName",
 	)
 	if err != nil {
