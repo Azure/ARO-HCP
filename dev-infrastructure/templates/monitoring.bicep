@@ -4,6 +4,9 @@ param azureMonitoringWorkspaceId string
 @description('ID of the Azure Monitor Workspace for hosted control planes')
 param hcpAzureMonitoringWorkspaceId string
 
+@description('ARO HCP region name')
+param region string
+
 @description('The ICM environment')
 param icmEnvironment string
 
@@ -198,6 +201,7 @@ module ingestionAlerts '../modules/metrics/amw-ingestion-alerts.bicep' = {
   params: {
     actionGroups: slActionGroups
     enabled: alertsEnabled
+    region: region
     workspaces: [
       {
         id: azureMonitoringWorkspaceId
