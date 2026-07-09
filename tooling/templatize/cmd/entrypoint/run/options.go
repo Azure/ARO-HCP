@@ -18,8 +18,10 @@ import (
 	"compress/gzip"
 	"context"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -136,7 +138,17 @@ func (o *Options) Run(ctx context.Context) error {
 		}
 	}
 
-	subscriptionIdToAzureConfigDirectory, err := pipeline.GetAllRequiredAzureClients(ctx, o.Pipelines, o.Subscriptions)
+	allPipelines := slices.Collect(maps.Values(o.Pipelines))
+	for _, stampPipelines := range o.StampPipelines {
+		allPipelines = append(allPipelines, slices.Collect(maps.Values(stampPipelines))...)
+	}
+
+	subscriptionIDs, err := pipeline.ResolvePipelineSubscriptions(ctx, pipeline.LookupSubscriptionID(o.Subscriptions), allPipelines...)
+	if err != nil {
+		return fmt.Errorf("failed to resolve pipeline subscriptions: %w", err)
+	}
+
+	subscriptionIdToAzureConfigDirectory, err := pipeline.GetAllRequiredAzureClients(ctx, subscriptionIDs)
 	if err != nil {
 		return fmt.Errorf("failed to get all required Azure clients: %w", err)
 	}
@@ -149,7 +161,7 @@ func (o *Options) Run(ctx context.Context) error {
 	// Extract target resource group names from config for precheck
 	var regionRGNames []string
 	if o.AbortIfRegionalExist {
-		regionRGNames = entrypointutils.RegionalResourceGroupNames(o.Config)
+		regionRGNames = entrypointutils.RegionalResourceGroupNames(o.StampConfigs)
 	}
 
 	runOpts := &pipeline.PipelineRunOptions{
@@ -165,13 +177,14 @@ func (o *Options) Run(ctx context.Context) error {
 		TopoDirLookupFunc:     o.Topo.GetTopologyDirForServiceGroup,
 		Region:                o.Region,
 		Environment:           o.DeployEnv,
-		Stamp:                 o.Stamp,
 		SubsciptionLookupFunc: pipeline.LookupSubscriptionID(o.Subscriptions),
 		Concurrency:           o.Concurrency,
 		TimingOutputFile:      o.TimingOutputFile,
 		JUnitOutputFile:       o.JUnitOutputFile,
 		AbortIfRegionalExist:  o.AbortIfRegionalExist,
 		RegionRGNames:         regionRGNames,
+		StampConfigs:          o.StampConfigs,
+		StampPipelines:        o.StampPipelines,
 	}
 
 	if o.Entrypoint != nil {
@@ -179,7 +192,7 @@ func (o *Options) Run(ctx context.Context) error {
 		return err
 	}
 
-	_, err = pipeline.RunPipeline(o.Service, o.Pipelines[o.Service.ServiceGroup], ctx, runOpts, pipeline.RunStep)
+	_, err = pipeline.RunStampedPipeline(o.Service, o.Pipelines[o.Service.ServiceGroup], ctx, runOpts, pipeline.RunStep)
 	return err
 }
 

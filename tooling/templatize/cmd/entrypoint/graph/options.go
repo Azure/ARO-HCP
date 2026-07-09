@@ -30,6 +30,7 @@ import (
 	"k8s.io/utils/ptr"
 
 	"github.com/Azure/ARO-Tools/pipelines/graph"
+	"github.com/Azure/ARO-Tools/pipelines/topology"
 
 	"github.com/Azure/ARO-HCP/tooling/templatize/cmd/entrypoint/entrypointutils"
 )
@@ -137,20 +138,20 @@ func (o *Options) Run(ctx context.Context) error {
 			return fmt.Errorf("service group only had %d parts: %s", len(parts), o.Entrypoint.Identifier)
 		}
 		title = fmt.Sprintf("entrypoint/%s", strings.Join(parts[4:], "."))
-		executionGraph, err = graph.ForEntrypoint(&o.Topo.Topology, o.Entrypoint, o.Pipelines)
+		executionGraph, err = graph.ForStampedEntrypoints(&o.Topo.Topology, []*topology.Entrypoint{o.Entrypoint}, o.StampPipelines)
 	} else {
 		parts := strings.Split(o.Service.ServiceGroup, ".")
 		if len(parts) < 5 {
 			return fmt.Errorf("service group only had %d parts: %s", len(parts), o.Service.ServiceGroup)
 		}
 		title = fmt.Sprintf("pipeline/%s", strings.Join(parts[4:], "."))
-		executionGraph, err = graph.ForPipeline(o.Service, o.Pipelines[o.Service.ServiceGroup])
+		executionGraph, err = graph.ForStampedPipeline(o.Service, o.StampPipelines)
 	}
 	if err != nil {
 		return err
 	}
 
-	rawDot, err := graph.MarshalDOT(executionGraph.Nodes, executionGraph.ServiceValidationSteps)
+	rawDot, err := graph.MarshalDOT(executionGraph)
 	if err != nil {
 		return fmt.Errorf("unable to marshal graph to DOT: %w", err)
 	}
