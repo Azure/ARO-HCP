@@ -5,7 +5,7 @@ go 1.25.7
 require (
 	cloud.google.com/go/storage v1.62.1
 	github.com/Azure/ARO-HCP/tooling/utilitytypes v0.0.0-00010101000000-000000000000
-	github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260703091318-4612291d5420
+	github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260709090636-c3198b56b79a
 	github.com/Azure/azure-kusto-go/azkustodata v1.2.1
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.21.1
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.13.1
