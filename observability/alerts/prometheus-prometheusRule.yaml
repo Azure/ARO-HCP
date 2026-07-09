@@ -62,7 +62,7 @@ spec:
       annotations:
         description: |
           Prometheus has delivered fewer than 95% of expected samples in the past 24 hours (expected 2880 at 30s interval, threshold 2736).
-          Unlike PrometheusUptime which averages existing samples, this alert treats data gaps as downtime.
+          Unlike PrometheusUptime which evaluates the health of present samples, this alert treats data gaps as downtime.
           Complete metric absence (no samples) will also trigger PrometheusMetricsAbsentPerCluster.
           Check the PrometheusAgent pod status, remote write pipeline, and PodMonitor configuration.
         runbook_url: https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/Prometheus.md
