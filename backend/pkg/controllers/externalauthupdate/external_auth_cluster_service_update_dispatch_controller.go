@@ -23,6 +23,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
@@ -174,10 +176,13 @@ func (c *externalAuthClusterServiceUpdateDispatchSyncer) SyncOnce(ctx context.Co
 		return nil
 	}
 
+	configDiff := cmp.Diff(desiredConfigJSON, actualConfigJSON)
+
 	logger.Info("external auth update dispatch config differs between RP and CS",
 		"clusterServiceID", externalAuthCSID.String(),
 		"desiredConfig", desiredConfigJSON,
 		"actualConfig", actualConfigJSON,
+		"configDiff", configDiff,
 	)
 
 	// We marshal the external auth CS builder config we are going to submit for cs external auth update for logging purposes
