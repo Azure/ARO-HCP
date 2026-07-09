@@ -58,7 +58,7 @@ spec:
              echo "collector.netclass.netlink parameter has been updated in node-exporter configuration"
           fi
           sleep infinity
-        image: alpine
+        image: "{{ .Values.image }}"
         imagePullPolicy: IfNotPresent
         name: kubelet-parameters
         resources:

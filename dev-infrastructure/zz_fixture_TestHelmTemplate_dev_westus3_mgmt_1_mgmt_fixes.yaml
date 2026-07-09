@@ -59,7 +59,7 @@ spec:
              echo "collector.netclass.netlink parameter has been updated in node-exporter configuration"
           fi
           sleep infinity
-        image: alpine
+        image: mcr.microsoft.com/aks/command/runtime@sha256:07e516155014ed9c2c85de1cf7f0c38f92def33d62dbd297dc15664d779601ef
         imagePullPolicy: IfNotPresent
         name: kubelet-parameters
         resources:
@@ -83,4 +83,3 @@ spec:
       maxSurge: 0
       maxUnavailable: 1
     type: RollingUpdate
-
