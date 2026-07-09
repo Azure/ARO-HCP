@@ -5,7 +5,7 @@ tests:
 # Test: Service cluster exists but mise metric is missing - alert should fire
 - interval: 1s
   input_series:
-  - series: 'up{job="kube-state-metrics", cluster="test-svc-1"}'
+  - series: 'underlay_clusters{cluster="test-svc-1", source="bicep"}'
     values: '1x600'
   alert_rule_test:
   - eval_time: 301s # alert should fire after 5m
@@ -22,7 +22,7 @@ tests:
 # Test: Service cluster exists and mise metric is present - no alert
 - interval: 1s
   input_series:
-  - series: 'up{job="kube-state-metrics", cluster="test-svc-1"}'
+  - series: 'underlay_clusters{cluster="test-svc-1", source="bicep"}'
     values: '1x600'
   - series: 'up{endpoint="http-envoy-prom", container="istio-proxy", namespace="mise", cluster="test-svc-1"}'
     values: '1x600'
@@ -33,7 +33,7 @@ tests:
 # Test: Service cluster exists, mise metric was present but goes down - alert should fire
 - interval: 1s
   input_series:
-  - series: 'up{job="kube-state-metrics", cluster="test-svc-2"}'
+  - series: 'underlay_clusters{cluster="test-svc-2", source="bicep"}'
     values: '1x600'
   - series: 'up{endpoint="http-envoy-prom", container="istio-proxy", namespace="mise", cluster="test-svc-2"}'
     values: '1x100 0x500' # 100s healthy, then down

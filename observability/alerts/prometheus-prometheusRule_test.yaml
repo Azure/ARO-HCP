@@ -5,7 +5,7 @@ tests:
 # prometheus-slo-rules group tests
 - interval: 1m
   input_series:
-  - series: 'up{job="kubelet",cluster="test"}'
+  - series: 'underlay_clusters{cluster="test",source="bicep"}'
     values: "1+0x15"
   - series: 'up{job="prometheus/prometheus",namespace="prometheus",cluster="test"}'
     values: "0+0x15"
@@ -188,7 +188,7 @@ tests:
 # Additional test scenarios with multiple instances
 - interval: 1m
   input_series:
-  - series: 'up{job="kubelet",cluster="test"}'
+  - series: 'underlay_clusters{cluster="test",source="bicep"}'
     values: "1+0x15"
   - series: 'up{job="prometheus/prometheus",namespace="prometheus",instance="prometheus-0",cluster="test"}'
     values: "0+0x15"
@@ -211,7 +211,7 @@ tests:
 # Test no alert scenario for PrometheusJobUp
 - interval: 1m
   input_series:
-  - series: 'up{job="kubelet",cluster="test"}'
+  - series: 'underlay_clusters{cluster="test",source="bicep"}'
     values: "1+0x15"
   - series: 'up{job="prometheus/prometheus",namespace="prometheus",cluster="test"}'
     values: "1+0x15"
@@ -419,7 +419,7 @@ tests:
 # Test PrometheusJobUp with sustained outage
 - interval: 1m
   input_series:
-  - series: 'up{job="kubelet",cluster="test"}'
+  - series: 'underlay_clusters{cluster="test",source="bicep"}'
     values: "1+0x15"
   - series: 'up{job="prometheus/prometheus",namespace="prometheus",cluster="test"}'
     values: "0+0x15" # Continuously down
@@ -664,7 +664,7 @@ tests:
 # Test that alert does not fire before for: 10m is reached
 - interval: 1m
   input_series:
-  - series: 'up{job="kubelet",cluster="test"}'
+  - series: 'underlay_clusters{cluster="test",source="bicep"}'
     values: "1+0x10"
   - series: 'up{job="prometheus/prometheus",namespace="prometheus",cluster="test"}'
     values: "0+0x10"
@@ -675,7 +675,7 @@ tests:
 # Test that alert fires once for: 10m is reached
 - interval: 1m
   input_series:
-  - series: 'up{job="kubelet",cluster="test"}'
+  - series: 'underlay_clusters{cluster="test",source="bicep"}'
     values: "1+0x15"
   - series: 'up{job="prometheus/prometheus",namespace="prometheus",cluster="test"}'
     values: "0+0x15"
@@ -766,7 +766,7 @@ tests:
 # Test recovery after alert condition
 - interval: 1m
   input_series:
-  - series: 'up{job="kubelet",cluster="test"}'
+  - series: 'underlay_clusters{cluster="test",source="bicep"}'
     values: "1+0x25"
   - series: 'up{job="prometheus/prometheus",namespace="prometheus",cluster="test"}'
     values: "0+0x12 1+0x13" # Down for 12 minutes, then up
@@ -846,10 +846,12 @@ tests:
     alertname: PrometheusUptimeSampleCount
     exp_alerts: []
 # Test PrometheusMetricsAbsentPerCluster - cluster went dead
-# 20 samples at 1m interval (t=0 to t=19m), then nothing.
-# At eval_time=40m: [7d] window has 20 samples, [10m] window (t=30m-40m) has 0 → fires.
+# The underlay inventory declares the cluster, and Prometheus reports for 20m before going absent.
+# At eval_time=40m, the [10m] window (t=30m-40m) has 0 samples → fires.
 - interval: 1m
   input_series:
+  - series: 'underlay_clusters{cluster="dead-cluster",source="bicep"}'
+    values: "1+0x50"
   - series: 'up{job="prometheus/prometheus",namespace="prometheus",cluster="dead-cluster"}'
     values: "1+0x20"
   alert_rule_test:
@@ -862,13 +864,15 @@ tests:
       exp_annotations:
         summary: Prometheus metrics absent for cluster dead-cluster.
         description: |
-          Prometheus on cluster dead-cluster has not reported any up metrics in the last 10 minutes, but was reporting within the last 7 days.
+          Prometheus on cluster dead-cluster has not reported any up metrics in the last 10 minutes, but is declared in the underlay cluster inventory.
           This indicates the Prometheus agent on this specific cluster is dead or its remote write pipeline is broken.
           Check the PrometheusAgent pod status and remote write configuration on the affected cluster.
         runbook_url: https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/Prometheus.md
 # Test PrometheusMetricsAbsentPerCluster - healthy cluster (continuous data)
 - interval: 1m
   input_series:
+  - series: 'underlay_clusters{cluster="healthy-cluster",source="bicep"}'
+    values: "1+0x50"
   - series: 'up{job="prometheus/prometheus",namespace="prometheus",cluster="healthy-cluster"}'
     values: "1+0x50"
   alert_rule_test:
@@ -879,6 +883,10 @@ tests:
 # Only the dead cluster should fire.
 - interval: 1m
   input_series:
+  - series: 'underlay_clusters{cluster="alive",source="bicep"}'
+    values: "1+0x50"
+  - series: 'underlay_clusters{cluster="dead",source="bicep"}'
+    values: "1+0x50"
   - series: 'up{job="prometheus/prometheus",namespace="prometheus",cluster="alive"}'
     values: "1+0x50"
   - series: 'up{job="prometheus/prometheus",namespace="prometheus",cluster="dead"}'
@@ -893,14 +901,14 @@ tests:
       exp_annotations:
         summary: Prometheus metrics absent for cluster dead.
         description: |
-          Prometheus on cluster dead has not reported any up metrics in the last 10 minutes, but was reporting within the last 7 days.
+          Prometheus on cluster dead has not reported any up metrics in the last 10 minutes, but is declared in the underlay cluster inventory.
           This indicates the Prometheus agent on this specific cluster is dead or its remote write pipeline is broken.
           Check the PrometheusAgent pod status and remote write configuration on the affected cluster.
         runbook_url: https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/Prometheus.md
 # Test multiple namespaces and jobs
 - interval: 1m
   input_series:
-  - series: 'up{job="kubelet",cluster="test"}'
+  - series: 'underlay_clusters{cluster="test",source="bicep"}'
     values: "1+0x15"
   - series: 'up{job="prometheus/prometheus",namespace="monitoring",cluster="test"}'
     values: "0+0x15"
