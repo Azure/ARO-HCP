@@ -2,6 +2,24 @@ $schema: pipeline.schema.v1
 rolloutName: Geography Rollout
 serviceGroup: Microsoft.Azure.ARO.HCP.Geography
 resourceGroups:
+- name: global
+  resourceGroup: '{{ .global.rg }}'
+  subscription: '{{ .global.subscription.key }}'
+  steps:
+  - name: output
+    action: ARM
+    template: templates/output-global.bicep
+    parameters: configurations/output-global.tmpl.bicepparam
+- name: svc
+  resourceGroup: '{{ .regionRG }}'
+  subscription: '{{ .svc.subscription.key }}'
+  steps:
+  - name: subscription-lookup
+    action: ARM
+    template: templates/subscription-lookup.bicep
+    parameters: configurations/subscription-lookup.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
 - name: kusto-infra
   resourceGroup: '{{ .kusto.rg }}'
   subscription: '{{ .global.subscription.key }}'
@@ -50,9 +68,17 @@ resourceGroups:
     template: templates/geography-actiongroups.bicep
     parameters: configurations/geography-actiongroups.tmpl.bicepparam
     deploymentLevel: ResourceGroup
+    variables:
+    - name: svcSubscriptionId
+      input:
+        resourceGroup: svc
+        step: subscription-lookup
+        name: subscriptionId
     dependsOn:
     - resourceGroup: kusto-infra
       step: deploy
+    - resourceGroup: svc
+      step: subscription-lookup
   - name: kusto-lookup
     action: ARM
     template: templates/kusto-lookup.bicep
@@ -90,6 +116,11 @@ resourceGroups:
         resourceGroup: kusto-infra
         step: action-groups
         name: actionGroupsSL
+    - name: actionGroupAlertEH
+      input:
+        resourceGroup: kusto-infra
+        step: action-groups
+        name: actionGroupAlertEH
     dependsOn:
     - resourceGroup: kusto-infra
       step: kusto-lookup
