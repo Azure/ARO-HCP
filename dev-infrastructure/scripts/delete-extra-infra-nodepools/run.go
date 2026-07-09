@@ -35,8 +35,10 @@
 //   (b) has provisioningState == "Succeeded", and
 //   (c) has at least POOL_MIN_COUNT schedulable-ready Kubernetes nodes.
 //
-// If any expected pool fails this check the binary exits non-zero and no
-// pool is touched. This ensures we never remove infra capacity when the
+// If any expected pool fails this check, no pool is touched. In live mode
+// (DRY_RUN=false) the binary exits non-zero; under DRY_RUN=true (the default)
+// it logs the blocked gate and exits 0 so the pipeline step does not fail
+// while we observe. This ensures we never remove infra capacity when the
 // desired state is not yet healthy.
 //
 // Additionally, as an independent production-safety invariant, the binary
@@ -61,7 +63,8 @@
 //                       (default: "true")
 //   DRAIN_TIMEOUT_MIN   Drain timeout per node in minutes (default 10)
 //   READY_TIMEOUT_MIN   Timeout to wait for expected-pool readiness (default 5)
-//   LOG_VERBOSITY       logr verbosity level (default 0)
+//   LOG_VERBOSITY       slog handler verbosity; higher = more verbose,
+//                       mapped to a negative slog level (default 0)
 
 package main
 
