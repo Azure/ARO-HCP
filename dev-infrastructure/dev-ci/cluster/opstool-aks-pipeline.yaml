@@ -58,7 +58,7 @@ resourceGroups:
     outputOnly: true
     dependsOn:
     - resourceGroup: opstool
-      step: cluster
+      step: upgrade-aks-cluster
   # Placeholder kusto output for schema compatibility (opstool doesn't use kusto - a breaking fix)
   - name: kusto-placeholder
     action: ARM
@@ -76,7 +76,7 @@ resourceGroups:
     deploymentLevel: ResourceGroup
     dependsOn:
     - resourceGroup: opstool
-      step: cluster
+      step: upgrade-aks-cluster
   - name: prometheus
     aksCluster: '{{ .opstool.aks.name }}'
     action: Helm
