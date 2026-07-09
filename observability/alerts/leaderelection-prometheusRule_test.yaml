@@ -5,25 +5,6 @@ tests:
 # Test: LeaderElectionLeaseStale fires when lease has not been renewed for >20m (5m expr threshold + 15m for:)
 - interval: 1m
   input_series:
-  - series: 'kube_lease_renew_time{namespace="kube-applier", lease="kube-applier", cluster="test-cluster"}'
-    values: "0x25" # renewTime frozen; at t=6m diff=360s > 300s, for:15m met at t=21m
-  alert_rule_test:
-  - eval_time: 21m
-    alertname: LeaderElectionLeaseStale
-    exp_alerts:
-    - exp_labels:
-        severity: warning
-        cluster: test-cluster
-        lease: kube-applier
-        namespace: kube-applier
-      exp_annotations:
-        description: 'Leader election lease kube-applier in namespace kube-applier on cluster test-cluster has not been renewed for more than 20 minutes. The component may have lost leadership or stopped running.'
-        runbook_url: 'TBD'
-        summary: 'Leader election lease kube-applier in kube-applier on test-cluster stale for more than 20 minutes'
-        title: 'Leader election lease kube-applier in kube-applier on test-cluster stale for more than 20 minutes'
-# Test: LeaderElectionLeaseStale fires for a service with tight timing (mgmt-agent)
-- interval: 1m
-  input_series:
   - series: 'kube_lease_renew_time{namespace="mgmt-agent", lease="mgmt-agent-controller-leader", cluster="test-cluster"}'
     values: "0x25" # renewTime frozen
   alert_rule_test:
@@ -36,14 +17,14 @@ tests:
         lease: mgmt-agent-controller-leader
         namespace: mgmt-agent
       exp_annotations:
-        description: 'Leader election lease mgmt-agent-controller-leader in namespace mgmt-agent on cluster test-cluster has not been renewed for more than 20 minutes. The component may have lost leadership or stopped running.'
+        description: 'Leader election lease mgmt-agent-controller-leader in namespace mgmt-agent on cluster test-cluster has not been renewed for more than 15 minutes. The leadership election might be broken or the component stopped running.'
         runbook_url: 'TBD'
-        summary: 'Leader election lease mgmt-agent-controller-leader in mgmt-agent on test-cluster stale for more than 20 minutes'
-        title: 'Leader election lease mgmt-agent-controller-leader in mgmt-agent on test-cluster stale for more than 20 minutes'
+        summary: 'Leader election lease mgmt-agent-controller-leader in mgmt-agent on test-cluster stale for more than 15 minutes'
+        title: 'Leader election lease mgmt-agent-controller-leader in mgmt-agent on test-cluster stale for more than 15 minutes'
 # Test: LeaderElectionLeaseStale does not fire when lease is renewed every minute
 - interval: 1m
   input_series:
-  - series: 'kube_lease_renew_time{namespace="kube-applier", lease="kube-applier", cluster="test-cluster"}'
+  - series: 'kube_lease_renew_time{namespace="mgmt-agent", lease="mgmt-agent-controller-leader", cluster="test-cluster"}'
     values: "0+60x25" # renewTime advances 60s/min — diff always 0
   alert_rule_test:
   - eval_time: 21m
@@ -56,5 +37,42 @@ tests:
     values: "0x25" # stale, but namespace excluded
   alert_rule_test:
   - eval_time: 21m
+    alertname: LeaderElectionLeaseStale
+    exp_alerts: []
+# Test: fast rule fires when lease has not been renewed for >2.5m (1.5m expr threshold + 1m for:) for a lease in an included namespace
+- interval: 1m
+  input_series:
+  - series: 'kube_lease_renew_time{namespace="kube-applier", lease="kube-applier", cluster="test-cluster"}'
+    values: "0x3"
+  alert_rule_test:
+  - eval_time: 3m
+    alertname: LeaderElectionLeaseStaleFast
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+        cluster: test-cluster
+        lease: kube-applier
+        namespace: kube-applier
+      exp_annotations:
+        description: 'Leader election lease kube-applier in namespace kube-applier on cluster test-cluster has not been renewed for more than 2.5 minutes. The leadership election might be broken or the component stopped running.'
+        runbook_url: 'TBD'
+        summary: 'Leader election lease kube-applier in namespace kube-applier on cluster test-cluster stale for more than 2.5 minutes'
+        title: 'Leader election lease kube-applier in namespace kube-applier on cluster test-cluster stale for more than 2.5 minutes'
+# Test: fast rule does not fire when lease is renewed every minute for a lease in an included namespace
+- interval: 1m
+  input_series:
+  - series: 'kube_lease_renew_time{namespace="kube-applier", lease="kube-applier", cluster="test-cluster"}'
+    values: "0+60x3" # renewTime advances 60s/min — diff always 0
+  alert_rule_test:
+  - eval_time: 3m
+    alertname: LeaderElectionLeaseStaleFast
+    exp_alerts: []
+# Test: fast rule does not fire for a lease in a namespace that is not explicitly included in the rule
+- interval: 1m
+  input_series:
+  - series: 'kube_lease_renew_time{namespace="kube-system", lease="kube-controller-manager", cluster="test-cluster"}'
+    values: "0x25" # stale, but namespace not included
+  alert_rule_test:
+  - eval_time: 3m
     alertname: LeaderElectionLeaseStale
     exp_alerts: []
