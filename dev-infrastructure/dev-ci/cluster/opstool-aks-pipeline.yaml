@@ -25,6 +25,31 @@ resourceGroups:
     dependsOn:
     - resourceGroup: opstool
       step: network
+  # Upgrade the AKS control plane and node pools to the configured Kubernetes
+  # version. The `cluster` ARM step only moves the control plane; node pools
+  # keep their orchestrator version on a managedCluster PUT, so an explicit
+  # `az aks upgrade` (mirroring svc/mgmt) is required to roll the node pools.
+  - name: upgrade-aks-cluster
+    action: Shell
+    command: ./upgrade-aks-cluster.sh
+    workingDir: ../../scripts
+    shellIdentity:
+      input:
+        resourceGroup: global
+        step: global-identity
+        name: globalMSIId
+    variables:
+    - name: CLUSTER_NAME
+      configRef: opstool.aks.name
+    - name: RESOURCE_GROUP
+      configRef: svc.rg
+    - name: KUBERNETES_VERSION
+      configRef: opstool.aks.kubernetesVersion
+    dependsOn:
+    - resourceGroup: opstool
+      step: cluster
+    - resourceGroup: global
+      step: global-identity
   - name: cluster-output
     action: ARM
     template: ../../templates/output-opstool-cluster.bicep
@@ -33,7 +58,7 @@ resourceGroups:
     outputOnly: true
     dependsOn:
     - resourceGroup: opstool
-      step: cluster
+      step: upgrade-aks-cluster
   # Placeholder kusto output for schema compatibility (opstool doesn't use kusto - a breaking fix)
   - name: kusto-placeholder
     action: ARM
@@ -51,7 +76,7 @@ resourceGroups:
     deploymentLevel: ResourceGroup
     dependsOn:
     - resourceGroup: opstool
-      step: cluster
+      step: upgrade-aks-cluster
   - name: prometheus
     aksCluster: '{{ .opstool.aks.name }}'
     action: Helm
@@ -83,3 +108,15 @@ resourceGroups:
       resourceGroup: opstool
       step: cluster-output
       name: prometheusUAMIId
+- name: global
+  resourceGroup: '{{ .global.rg }}'
+  subscription: '{{ .global.subscription.key }}'
+  steps:
+  # Expose the shared global rollout identity so the upgrade-aks-cluster Shell
+  # step can assume it (same identity used by svc/mgmt upgrade steps).
+  - name: global-identity
+    action: ARM
+    template: ../../templates/output-opstool-global-identity.bicep
+    parameters: ../../configurations/output-opstool-global-identity.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
