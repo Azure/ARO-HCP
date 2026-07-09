@@ -27,17 +27,23 @@ spec:
         runbook_url: https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/Prometheus.md
         summary: Prometheus is unreachable for 10 minutes.
     - alert: PrometheusUptime
-      expr: avg by (job, namespace, cluster) (avg_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d])) < 0.95
+      expr: |
+        (
+          sum by (job, namespace, cluster) (sum_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d]))
+          /
+          sum by (job, namespace, cluster) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d]))
+        ) < 0.95
       for: 10m
       labels:
         severity: critical
       annotations:
         description: |
-          Prometheus has been unreachable for more than 5% of the time over the past 24 hours.
+          Fewer than 95% of present Prometheus self-up samples were healthy over the past 24 hours.
           This may indicate that the Prometheus server is down, experiencing network issues, or stuck in a crash loop.
+          Missing samples are covered separately by PrometheusUptimeSampleCount.
           Please check the status of the Prometheus pods, service endpoints, and network connectivity.
         runbook_url: https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/Prometheus.md
-        summary: Prometheus is unreachable for 1 day.
+        summary: Prometheus uptime below 95% over 24 hours.
     - alert: PrometheusUptimeSampleCount
       # The divisor 30 matches spec.scrapeInterval (30s) in prometheus.yaml. Update both together if the interval changes.
       # sum (not min) so pod restarts don't false-fire: old + new instance samples cover the full day.
