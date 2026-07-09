@@ -60,19 +60,19 @@ resourceGroups:
       input:
         resourceGroup: kusto
         step: actiongroup-lookup
-        name: actionGroupsSL
+        name: actionGroupSL
     - name: actionGroupSRE
       input:
         resourceGroup: kusto
         step: actiongroup-lookup
-        name: actionGroupsSRE
+        name: actionGroupSRE
     - name: actionGroupRP
       input:
         resourceGroup: kusto
         step: actiongroup-lookup
-        name: actionGroupsRP
+        name: actionGroupRP
     - name: actionGroupMSFT
       input:
         resourceGroup: kusto
         step: actiongroup-lookup
-        name: actionGroupsMSFT
+        name: actionGroupMSFT
