@@ -60,17 +60,17 @@ resourceGroups:
         resourceGroup: kusto
         step: actiongroup-lookup
         name: actionGroupsSL
-    - name: actionGroupsSRE
+    - name: actionGroupSRE
       input:
         resourceGroup: kusto
         step: actiongroup-lookup
         name: actionGroupsSRE
-    - name: actionGroupsRP
+    - name: actionGroupRP
       input:
         resourceGroup: kusto
         step: actiongroup-lookup
         name: actionGroupsRP
-    - name: actionGroupsMSFT
+    - name: actionGroupMSFT
       input:
         resourceGroup: kusto
         step: actiongroup-lookup

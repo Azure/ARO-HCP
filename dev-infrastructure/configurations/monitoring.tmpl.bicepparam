@@ -5,9 +5,9 @@ param hcpAzureMonitoringWorkspaceId = '__hcpAzureMonitoringWorkspaceId__'
 param region = '{{ .region }}'
 
 param actionGroupSL = '__actionGroupSL__'
-param actionGroupsSRE = '__actionGroupsSRE__'
-param actionGroupsRP = '__actionGroupsRP__'
-param actionGroupsMSFT = '__actionGroupsMSFT__'
+param actionGroupSRE = '__actionGroupSRE__'
+param actionGroupRP = '__actionGroupRP__'
+param actionGroupMSFT = '__actionGroupMSFT__'
 
 param alertsEnabled = {{ .monitoring.alertsEnabled }}
 param alertSeverityCeiling = {{ .monitoring.alertSeverityCeiling }}

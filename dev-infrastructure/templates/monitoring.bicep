@@ -11,13 +11,13 @@ param region string
 param actionGroupSL string
 
 @description('Resource ID of the SRE ICM action group (empty string if not managed)')
-param actionGroupsSRE string
+param actionGroupSRE string
 
 @description('Resource ID of the RP ICM action group (empty string if not managed)')
-param actionGroupsRP string
+param actionGroupRP string
 
 @description('Resource ID of the MSFT ICM action group (empty string if not managed)')
-param actionGroupsMSFT string
+param actionGroupMSFT string
 
 @description('Whether ICM alerting is enabled for this region')
 param alertsEnabled bool
@@ -64,14 +64,14 @@ var ehActionGroups = eventHubAlertingEnabled ? [eventHubActionGroup!.outputs.act
 var slActionGroups = actionGroupSL != '' && icmEnabledSL
   ? concat([actionGroupSL], ehActionGroups)
   : ehActionGroups
-var rpActionGroups = actionGroupsRP != '' && icmEnabledRP
-  ? concat([actionGroupsRP], ehActionGroups)
+var rpActionGroups = actionGroupRP != '' && icmEnabledRP
+  ? concat([actionGroupRP], ehActionGroups)
   : ehActionGroups
-var sreActionGroups = actionGroupsSRE != '' && icmEnabledSRE
-  ? concat([actionGroupsSRE], ehActionGroups)
+var sreActionGroups = actionGroupSRE != '' && icmEnabledSRE
+  ? concat([actionGroupSRE], ehActionGroups)
   : ehActionGroups
-var msftActionGroups = actionGroupsMSFT != '' && icmEnabledMSFT
-  ? concat([actionGroupsMSFT], ehActionGroups)
+var msftActionGroups = actionGroupMSFT != '' && icmEnabledMSFT
+  ? concat([actionGroupMSFT], ehActionGroups)
   : ehActionGroups
 
 module serviceAlerts '../modules/metrics/service-rules.bicep' = {
