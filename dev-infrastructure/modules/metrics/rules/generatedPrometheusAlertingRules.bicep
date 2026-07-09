@@ -66,19 +66,21 @@ Check the status of the Prometheus pods, service endpoints, and network connecti
         }
         annotations: {
           correlationId: 'PrometheusUptime/{{ $labels.cluster }}'
-          description: '''Prometheus has been unreachable for more than 5% of the time over the past 24 hours.
+          description: '''Fewer than 95% of present Prometheus self-up samples were healthy over the past 24 hours.
 This may indicate that the Prometheus server is down, experiencing network issues, or stuck in a crash loop.
+Missing samples are covered separately by PrometheusUptimeSampleCount.
 Please check the status of the Prometheus pods, service endpoints, and network connectivity.
 '''
-          info: '''Prometheus has been unreachable for more than 5% of the time over the past 24 hours.
+          info: '''Fewer than 95% of present Prometheus self-up samples were healthy over the past 24 hours.
 This may indicate that the Prometheus server is down, experiencing network issues, or stuck in a crash loop.
+Missing samples are covered separately by PrometheusUptimeSampleCount.
 Please check the status of the Prometheus pods, service endpoints, and network connectivity.
 '''
           runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/Prometheus.md'
-          summary: 'Prometheus is unreachable for 1 day.'
-          title: 'Prometheus is unreachable for 1 day.'
+          summary: 'Prometheus uptime below 95% over 24 hours.'
+          title: 'Prometheus uptime below 95% over 24 hours.'
         }
-        expression: 'avg by (job, namespace, cluster) (avg_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d])) < 0.95'
+        expression: '(sum by (job, namespace, cluster) (sum_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d])) / sum by (job, namespace, cluster) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[1d]))) < 0.95'
         for: 'PT10M'
         severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
       }
@@ -100,12 +102,12 @@ Please check the status of the Prometheus pods, service endpoints, and network c
         annotations: {
           correlationId: 'PrometheusUptimeSampleCount/{{ $labels.cluster }}'
           description: '''Prometheus has delivered fewer than 95% of expected samples in the past 24 hours (expected 2880 at 30s interval, threshold 2736).
-Unlike PrometheusUptime which averages existing samples, this alert treats data gaps as downtime.
+Unlike PrometheusUptime which evaluates the health of present samples, this alert treats data gaps as downtime.
 Complete metric absence (no samples) will also trigger PrometheusMetricsAbsentPerCluster.
 Check the PrometheusAgent pod status, remote write pipeline, and PodMonitor configuration.
 '''
           info: '''Prometheus has delivered fewer than 95% of expected samples in the past 24 hours (expected 2880 at 30s interval, threshold 2736).
-Unlike PrometheusUptime which averages existing samples, this alert treats data gaps as downtime.
+Unlike PrometheusUptime which evaluates the health of present samples, this alert treats data gaps as downtime.
 Complete metric absence (no samples) will also trigger PrometheusMetricsAbsentPerCluster.
 Check the PrometheusAgent pod status, remote write pipeline, and PodMonitor configuration.
 '''
