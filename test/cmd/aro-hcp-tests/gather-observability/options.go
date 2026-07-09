@@ -232,6 +232,7 @@ func (o Options) Run(ctx context.Context) error {
 
 	logger.Info("classified alerts", "known", knownCount, "unknown", unknownCount)
 
+	filterKeys, filterOptions := collectFilterOptions(alerts)
 	output := alertsOutput{
 		Alerts: alerts,
 		Summary: alertsSummary{
@@ -244,6 +245,8 @@ func (o Options) Run(ctx context.Context) error {
 			Start: o.TimeWindow.Start.UTC().Format(time.RFC3339),
 			End:   o.TimeWindow.End.UTC().Format(time.RFC3339),
 		},
+		FilterKeys:    filterKeys,
+		FilterOptions: filterOptions,
 	}
 
 	// Write JSON artifact
