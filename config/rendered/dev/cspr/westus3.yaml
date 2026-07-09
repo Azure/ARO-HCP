@@ -364,7 +364,7 @@ geneva:
       accountName: placeholder
       configVersion: "1"
       namespace: ""
-      san: ""
+      san: empty-sentinel
       secretName: clusterlogs
     contentType: x-pkcs12
     environment: Test
@@ -373,7 +373,7 @@ geneva:
       accountName: placeholder
       configVersion: "1"
       namespace: ""
-      san: ""
+      san: empty-sentinel
       secretName: rplogs
     typeName: ""
   metrics:

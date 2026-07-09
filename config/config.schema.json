@@ -34,6 +34,11 @@
         }
       ]
     },
+    "rfc5280CommonName": {
+      "type": "string",
+      "maxLength": 64,
+      "pattern": "^[a-zA-Z0-9][a-zA-Z0-9.\\-]*[a-zA-Z0-9]$"
+    },
     "entraApplication": {
       "type": "object",
       "properties": {
@@ -268,8 +273,7 @@
         },
         "san": {
           "description": "Geneva logs account certificate SAN",
-          "type": "string",
-          "maxLength": 64
+          "$ref": "#/definitions/rfc5280CommonName"
         },
         "configVersion": {
           "description": "Geneva logs account namespace configuration version",
@@ -1243,8 +1247,7 @@
           "$ref": "#/definitions/certificateIssuer"
         },
         "san": {
-          "type": "string",
-          "maxLength": 64
+          "$ref": "#/definitions/rfc5280CommonName"
         },
         "contentType": {
           "type": "string"
@@ -1365,9 +1368,8 @@
               "pattern": "^[a-zA-Z0-9-]+$"
             },
             "san": {
-              "type": "string",
               "description": "SAN and CN for the sessiongate ingress certificate",
-              "maxLength": 64
+              "$ref": "#/definitions/rfc5280CommonName"
             },
             "issuer": {
               "$ref": "#/definitions/certificateIssuer"
@@ -1529,9 +1531,8 @@
               "pattern": "^[a-zA-Z0-9-]+$"
             },
             "san": {
-              "type": "string",
               "description": "SAN and CN for the admin API ingress certificate",
-              "maxLength": 64
+              "$ref": "#/definitions/rfc5280CommonName"
             },
             "issuer": {
               "$ref": "#/definitions/certificateIssuer"
@@ -1621,9 +1622,8 @@
               "pattern": "^[a-zA-Z0-9-]+$"
             },
             "san": {
-              "type": "string",
               "description": "SAN and CN for the frontend ingress certificate",
-              "maxLength": 64
+              "$ref": "#/definitions/rfc5280CommonName"
             },
             "issuer": {
               "$ref": "#/definitions/certificateIssuer"
@@ -1850,8 +1850,8 @@
               "type": "string"
             },
             "adminCertSan": {
-              "type": "string",
-              "maxLength": 64
+              "description": "SAN and CN for the Geneva Logs account certificate",
+              "$ref": "#/definitions/rfc5280CommonName"
             },
             "contentType": {
               "type": "string"
@@ -1961,8 +1961,8 @@
                   "$ref": "#/definitions/certificateIssuer"
                 },
                 "san": {
-                  "type": "string",
-                  "maxLength": 64
+                  "description": "SAN and CN for the Geneva Actions certificate",
+                  "$ref": "#/definitions/rfc5280CommonName"
                 },
                 "contentType": {
                   "type": "string"
@@ -2744,9 +2744,8 @@
               "description": "SAN for the Maestro server EventGrid certificate"
             },
             "certCN": {
-              "type": "string",
               "description": "CN for the Maestro server EventGrid certificate",
-              "maxLength": 64
+              "$ref": "#/definitions/rfc5280CommonName"
             },
             "managedIdentityName": {
               "type": "string"
@@ -2765,6 +2764,7 @@
           "required": [
             "mqttClientName",
             "certSAN",
+            "certCN",
             "managedIdentityName",
             "loglevel",
             "k8s"
@@ -2782,9 +2782,8 @@
               "description": "SAN for the Maestro consumer EventGrid certificate"
             },
             "certCN": {
-              "type": "string",
               "description": "CN for the Maestro consumer EventGrid certificate",
-              "maxLength": 64
+              "$ref": "#/definitions/rfc5280CommonName"
             },
             "loglevel": {
               "type": "integer"
@@ -2809,6 +2808,7 @@
           "required": [
             "consumerName",
             "certSAN",
+            "certCN",
             "loglevel",
             "sidecar",
             "managedIdentityName",
@@ -2884,7 +2884,9 @@
         },
         "stampIdentifier": {
           "type": "string",
-          "description": "The identifier for the management cluster stamp"
+          "description": "The identifier for the management cluster stamp",
+          "minLength": 1,
+          "pattern": "^[0-9]+$"
         },
         "defaultStorageClassSkuName": {
           "type": "string"

@@ -277,13 +277,13 @@ defaults:
         secretName: clusterlogs
         accountName: placeholder
         namespace: ""
-        san: ""
+        san: "empty-sentinel"
         configVersion: "1"
       rp:
         secretName: rplogs
         accountName: placeholder
         namespace: ""
-        san: ""
+        san: "empty-sentinel"
         configVersion: "1"
     actions:
       serviceTag: GenevaActions
