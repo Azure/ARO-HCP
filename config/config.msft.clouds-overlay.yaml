@@ -6,9 +6,7 @@ clouds:
         defaults:
           # Monitoring - Int needs higher limits
           monitoring:
-            maxActiveTimeSeries: 4000000
             maxActiveTimeSeriesMillions: 4
-            maxEventsPerMinute: 4000000
             maxEventsPerMinuteMillions: 4
           # E2E
           e2e:

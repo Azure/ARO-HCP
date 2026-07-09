@@ -818,9 +818,7 @@ monitoring:
       actionGroupShortName: ""
       automitigationEnabled: ""
       routingId: ""
-  maxActiveTimeSeries: 2000000
   maxActiveTimeSeriesMillions: 2
-  maxEventsPerMinute: 2000000
   maxEventsPerMinuteMillions: 2
   svcWorkspaceName: services-usw3test
 msiCredentialsRefresher:
