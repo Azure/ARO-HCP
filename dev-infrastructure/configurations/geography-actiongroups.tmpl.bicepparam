@@ -21,3 +21,7 @@ param icmActionGroupNameMSFT = '{{ .monitoring.icm.msft.actionGroupName }}'
 param icmActionGroupShortNameMSFT = '{{ .monitoring.icm.msft.actionGroupShortName }}'
 param icmRoutingIdMSFT = '{{ .monitoring.icm.msft.routingId }}'
 param icmAutomitigationEnabledMSFT = '{{ .monitoring.icm.msft.automitigationEnabled }}'
+param eventHubAlertingEnabled = {{ .monitoring.eventHubAlerting.enabled }}
+param alertEventsEventHubNamespaceName = '{{ .auditLogsEventHub.namespace }}'
+param alertEventsEventHubName = '{{ .alertEventsEventHub.name }}'
+param eventHubSubscriptionId = '__svcSubscriptionId__'

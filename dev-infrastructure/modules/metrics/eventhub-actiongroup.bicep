@@ -7,6 +7,9 @@ param alertEventsEventHubNamespaceName string
 @description('Event Hub name for alert events')
 param alertEventsEventHubName string
 
+@description('Subscription ID where the Event Hub namespace resides. Defaults to the current deployment subscription.')
+param eventHubSubscriptionId string = subscription().subscriptionId
+
 resource alertEventsEH 'Microsoft.Insights/actionGroups@2024-10-01-preview' = {
   name: 'alert-eventhub-action-group'
   location: 'global'
@@ -18,7 +21,7 @@ resource alertEventsEH 'Microsoft.Insights/actionGroups@2024-10-01-preview' = {
         name: 'alertEventsEventHub'
         eventHubNameSpace: alertEventsEventHubNamespaceName
         eventHubName: alertEventsEventHubName
-        subscriptionId: subscription().subscriptionId
+        subscriptionId: eventHubSubscriptionId
         tenantId: tenant().tenantId
         useCommonAlertSchema: true
       }

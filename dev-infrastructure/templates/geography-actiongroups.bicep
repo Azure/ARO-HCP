@@ -61,6 +61,28 @@ param manageConnection bool
 @description('Whether ICM alerting is enabled for this region')
 param alertsEnabled bool
 
+@description('Whether to create the Event Hub action group for sending alerts to Kusto')
+param eventHubAlertingEnabled bool = false
+
+@description('Event Hub namespace name for alert events')
+param alertEventsEventHubNamespaceName string = ''
+
+@description('Event Hub name for alert events')
+param alertEventsEventHubName string = ''
+
+@description('Subscription ID where the Event Hub namespace resides')
+param eventHubSubscriptionId string = subscription().subscriptionId
+
+module eventHubActionGroup '../modules/metrics/eventhub-actiongroup.bicep' = if (eventHubAlertingEnabled) {
+  name: 'eventHubActionGroup'
+  params: {
+    alertingEnabled: alertsEnabled
+    alertEventsEventHubNamespaceName: alertEventsEventHubNamespaceName
+    alertEventsEventHubName: alertEventsEventHubName
+    eventHubSubscriptionId: eventHubSubscriptionId
+  }
+}
+
 module actionGroups '../modules/metrics/actiongroups.bicep' = if (manageConnection) {
   name: 'actionGroups'
   params: {
@@ -91,3 +113,4 @@ output actionGroupsSL string = manageConnection ? actionGroups!.outputs.actionGr
 output actionGroupsSRE string = manageConnection ? actionGroups!.outputs.actionGroupsSRE : ''
 output actionGroupsRP string = manageConnection ? actionGroups!.outputs.actionGroupsRP : ''
 output actionGroupsMSFT string = manageConnection ? actionGroups!.outputs.actionGroupsMSFT : ''
+output actionGroupAlertEH string = eventHubAlertingEnabled ? eventHubActionGroup!.outputs.actionGroupId : ''
