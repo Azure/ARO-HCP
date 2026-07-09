@@ -32,3 +32,4 @@ If the cluster or node pool:
 - reaches `pending` but not `installing`, review `logs/clustersService/provisionSteps.md` to see which provision step is stuck or failing.
 - reaches `installing` but not `ready`, review `logs/clustersService/logs.md` paying attention to timestamps, and review `conditions/hypershift/hostedClusterConditions.md` or `conditions/hypershift/nodePoolConditions.md` for the next layer of the stack.
 - reaches `ready` in Clusters Service but the ARM create operation stays `Provisioning`, review `conditions/backend/resourceControllerConditions.md` and `conditions/hypershift/hostedClusterConditions.md`.
+- reaches `uninstalling` but never completes, review `clustersService/logs` for repeated `Not continuing to the next destructor` messages, and check `mgmtAgent/podEvictions` for addon pre-delete pod evictions that may be blocking the destruct chain.

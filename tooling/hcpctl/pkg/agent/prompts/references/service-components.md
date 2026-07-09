@@ -122,9 +122,9 @@ can finish detaching. Until all addons are cleaned up, the destruct chain is blo
   Detaching state indefinitely, blocking the entire deletion chain.
 
 **Key logs:**
-- Pod eviction: `kubernetesEvents` — `reason == 'Evicted'` or message containing
-  `The node had condition: [MemoryPressure]` in the cluster ID namespace.
-- Node conditions: `kubernetesEvents` — `objectKind == 'Node'` with `reason` containing
-  `MemoryPressure` or `NodeNotReady`.
-- Destruct chain: `clustersServiceLogs` — messages containing `hypershift-managed-cluster-destructor`
-  and `Not continuing to the next destructor`.
+- Pod lifecycle (including eviction): `containerLogs` from `mgmt-agent` namespace —
+  `log.msg == 'pod event'` and `log.namespace == 'klusterlet-<cluster-id>'`. Evicted pods
+  have `log.object.status.reason == 'Evicted'` with `log.object.status.message` containing
+  the node condition (e.g. `"The node was low on resource: memory"`).
+- Destruct chain: `clustersServiceLogs` — filter for `log has '<cluster-id>'` and
+  `log has 'destructor'` to see which destructor is blocking and how many iterations.
