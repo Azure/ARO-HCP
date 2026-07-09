@@ -199,6 +199,7 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 			hsInformers.Hypershift().V1beta1().HostedControlPlanes(),
 			ksmKubeInformers.Apps().V1().Deployments().Informer(),
 			ksmKubeInformers.Core().V1().Services().Informer(),
+			ksmKubeInformers.Core().V1().ConfigMaps().Informer(),
 			dynInformers.ForResource(ksmhcp.ServiceMonitorGVR).Informer(),
 			o.KSMImage,
 		)
