@@ -997,6 +997,126 @@ resource maestro 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = 
   }
 }
 
+resource kubeApplier 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'kube-applier'
+  location: location
+  properties: {
+    interval: 'PT1M'
+    rules: [
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'KubeApplierReconcileStuck'
+        enabled: true
+        labels: {
+          severity: 'warning'
+        }
+        annotations: {
+          correlationId: 'KubeApplierReconcileStuck/{{ $labels.cluster }}'
+          description: 'kube-applier on cluster {{ $labels.cluster }} has {{ $labels.type }} desires pending but no controller processed any items for more than 15 minutes.'
+          info: 'kube-applier on cluster {{ $labels.cluster }} has {{ $labels.type }} desires pending but no controller processed any items for more than 15 minutes.'
+          runbook_url: 'TBD'
+          summary: 'kube-applier on {{ $labels.cluster }}: {{ $labels.type }} controllers are not processing items'
+          title: 'kube-applier on {{ $labels.cluster }}: {{ $labels.type }} controllers are not processing items'
+        }
+        expression: '(sum without (condition) (max without (prometheus_replica) (kube_applier_desires{namespace="kube-applier"})) > 0) and on (cluster, namespace) (sum without (prometheus_replica, name) (increase(workqueue_work_duration_seconds_count{name=~".*Desire.*",namespace="kube-applier"}[15m])) == 0)'
+        for: 'PT5M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+    ]
+    scopes: [
+      azureMonitoring
+    ]
+  }
+}
+
+resource leaderelection 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'leaderelection'
+  location: location
+  properties: {
+    interval: 'PT1M'
+    rules: [
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'LeaderElectionLeaseStale'
+        enabled: true
+        labels: {
+          severity: 'warning'
+        }
+        annotations: {
+          correlationId: 'LeaderElectionLeaseStale/{{ $labels.cluster }}'
+          description: 'Leader election lease {{ $labels.lease }} in namespace {{ $labels.namespace }} on cluster {{ $labels.cluster }} has not been renewed for more than 5 minutes. The component may have lost leadership or stopped running.'
+          info: 'Leader election lease {{ $labels.lease }} in namespace {{ $labels.namespace }} on cluster {{ $labels.cluster }} has not been renewed for more than 5 minutes. The component may have lost leadership or stopped running.'
+          runbook_url: 'TBD'
+          summary: 'Leader election lease {{ $labels.lease }} in {{ $labels.namespace }} on {{ $labels.cluster }} stale for more than 5 minutes'
+          title: 'Leader election lease {{ $labels.lease }} in {{ $labels.namespace }} on {{ $labels.cluster }} stale for more than 5 minutes'
+        }
+        expression: 'time() - max without (prometheus_replica) (kube_lease_renew_time{namespace!~"kube-system|kube-public|kube-node-lease|default"}) > 300'
+        for: 'PT10M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+    ]
+    scopes: [
+      azureMonitoring
+    ]
+  }
+}
+
+resource workqueueRetryhotloop 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'workqueue-retryhotloop'
+  location: location
+  properties: {
+    interval: 'PT1M'
+    rules: [
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'WorkqueueControllerRetryHotLoop'
+        enabled: true
+        labels: {
+          severity: 'warning'
+        }
+        annotations: {
+          correlationId: 'WorkqueueControllerRetryHotLoop/{{ $labels.cluster }}/{{ $labels.namespace }}/{{ $labels.name }}'
+          description: 'Workqueue {{ $labels.name }} in namespace {{ $labels.namespace }} on cluster {{ $labels.cluster }} has a retry ratio of > 50% sustained over 10 minutes, indicating most queue activity is failed retries rather than fresh work.'
+          info: 'Workqueue {{ $labels.name }} in namespace {{ $labels.namespace }} on cluster {{ $labels.cluster }} has a retry ratio of > 50% sustained over 10 minutes, indicating most queue activity is failed retries rather than fresh work.'
+          runbook_url: 'TBD'
+          summary: 'Workqueue {{ $labels.name }} in {{ $labels.namespace }} on {{ $labels.cluster }} retry hot loop'
+          title: 'Workqueue {{ $labels.name }} in {{ $labels.namespace }} on {{ $labels.cluster }} retry hot loop'
+        }
+        expression: '(sum by (name, namespace, cluster) (max without (prometheus_replica) (rate(workqueue_retries_total{namespace!~"kube-system|kube-public|kube-node-lease|default|monitoring"}[10m]))) / sum by (name, namespace, cluster) (max without (prometheus_replica) (rate(workqueue_adds_total{namespace!~"kube-system|kube-public|kube-node-lease|default|monitoring"}[10m])))) > 0.5'
+        for: 'PT10M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+    ]
+    scopes: [
+      azureMonitoring
+    ]
+  }
+}
+
 resource arobitRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
   name: 'arobit-rules'
   location: location

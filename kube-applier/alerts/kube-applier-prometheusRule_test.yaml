@@ -1,0 +1,84 @@
+rule_files:
+- kube-applier-prometheusRule.yaml
+evaluation_interval: 1m
+tests:
+# Test: KubeApplierReconcileStuck fires when desires exist but all controllers idle for >15m
+- interval: 1m
+  input_series:
+  - series: 'kube_applier_desires{type="apply", condition="Successful", namespace="kube-applier", cluster="test-cluster"}'
+    values: "5x25" # 5 apply desires
+  - series: 'workqueue_work_duration_seconds_count{name="ApplyDesireController", namespace="kube-applier", cluster="test-cluster"}'
+    values: "100x25" # frozen
+  - series: 'workqueue_work_duration_seconds_count{name="DeleteDesireController", namespace="kube-applier", cluster="test-cluster"}'
+    values: "50x25" # frozen
+  - series: 'workqueue_work_duration_seconds_count{name="ReadDesireInformerManagingController", namespace="kube-applier", cluster="test-cluster"}'
+    values: "20x25" # frozen
+  alert_rule_test:
+  - eval_time: 21m
+    alertname: KubeApplierReconcileStuck
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+        cluster: test-cluster
+        namespace: kube-applier
+        type: apply
+      exp_annotations:
+        description: 'kube-applier on cluster test-cluster has apply desires pending but no controller processed any items for more than 15 minutes.'
+        runbook_url: 'TBD'
+        summary: 'kube-applier on test-cluster: apply controllers are not processing items'
+        title: 'kube-applier on test-cluster: apply controllers are not processing items'
+# Test: KubeApplierReconcileStuck does not fire when any controller is processing
+- interval: 1m
+  input_series:
+  - series: 'kube_applier_desires{type="apply", condition="Successful", namespace="kube-applier", cluster="test-cluster"}'
+    values: "5x25"
+  - series: 'workqueue_work_duration_seconds_count{name="ApplyDesireController", namespace="kube-applier", cluster="test-cluster"}'
+    values: "0+1x25" # increasing — processing happening
+  - series: 'workqueue_work_duration_seconds_count{name="DeleteDesireController", namespace="kube-applier", cluster="test-cluster"}'
+    values: "50x25" # frozen
+  - series: 'workqueue_work_duration_seconds_count{name="ReadDesireInformerManagingController", namespace="kube-applier", cluster="test-cluster"}'
+    values: "20x25" # frozen
+  alert_rule_test:
+  - eval_time: 21m
+    alertname: KubeApplierReconcileStuck
+    exp_alerts: []
+# Test: KubeApplierReconcileStuck does not fire when no desires exist
+- interval: 1m
+  input_series:
+  - series: 'kube_applier_desires{type="apply", condition="Successful", namespace="kube-applier", cluster="test-cluster"}'
+    values: "0x25" # no desires
+  - series: 'workqueue_work_duration_seconds_count{name="ApplyDesireController", namespace="kube-applier", cluster="test-cluster"}'
+    values: "100x25" # frozen
+  - series: 'workqueue_work_duration_seconds_count{name="DeleteDesireController", namespace="kube-applier", cluster="test-cluster"}'
+    values: "50x25" # frozen
+  - series: 'workqueue_work_duration_seconds_count{name="ReadDesireInformerManagingController", namespace="kube-applier", cluster="test-cluster"}'
+    values: "20x25" # frozen
+  alert_rule_test:
+  - eval_time: 21m
+    alertname: KubeApplierReconcileStuck
+    exp_alerts: []
+# Test: KubeApplierReconcileStuck fires when only delete desires exist and all controllers idle
+- interval: 1m
+  input_series:
+  - series: 'kube_applier_desires{type="delete", condition="Successful", namespace="kube-applier", cluster="test-cluster"}'
+    values: "3x25" # delete desires — all types covered by LHS
+  - series: 'workqueue_work_duration_seconds_count{name="ApplyDesireController", namespace="kube-applier", cluster="test-cluster"}'
+    values: "100x25" # frozen
+  - series: 'workqueue_work_duration_seconds_count{name="DeleteDesireController", namespace="kube-applier", cluster="test-cluster"}'
+    values: "50x25" # frozen
+  - series: 'workqueue_work_duration_seconds_count{name="ReadDesireInformerManagingController", namespace="kube-applier", cluster="test-cluster"}'
+    values: "20x25" # frozen
+  alert_rule_test:
+  - eval_time: 21m
+    alertname: KubeApplierReconcileStuck
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+        cluster: test-cluster
+        namespace: kube-applier
+        type: delete
+      exp_annotations:
+        description: 'kube-applier on cluster test-cluster has delete desires pending but no controller processed any items for more than 15 minutes.'
+        runbook_url: 'TBD'
+        summary: 'kube-applier on test-cluster: delete controllers are not processing items'
+        title: 'kube-applier on test-cluster: delete controllers are not processing items'
