@@ -171,7 +171,7 @@ interactive debugging session.
 
 ## Worked-example analyses
 
-Two fully-worked end-to-end analyses (causal chain, queries, code citations)
+Fully-worked end-to-end analyses (causal chain, queries, code citations)
 live in
 [tooling/hcpctl/pkg/agent/prompts/exemplars/](../../tooling/hcpctl/pkg/agent/prompts/exemplars/):
 
