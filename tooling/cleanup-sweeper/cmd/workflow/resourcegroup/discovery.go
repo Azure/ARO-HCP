@@ -80,10 +80,9 @@ func discoverPolicyCandidates(
 	}
 
 	discoveredResourceGroups := sets.New[string]()
-	if len(opts.Policy.Discovery.Rules) == 0 {
-		return discoveredResourceGroups, nil, nil
-	}
-	if opts.ReferenceTime.IsZero() {
+	hasRules := len(opts.Policy.Discovery.Rules) > 0
+
+	if hasRules && opts.ReferenceTime.IsZero() {
 		return nil, nil, fmt.Errorf("reference time is required for resource group discovery")
 	}
 
@@ -99,6 +98,10 @@ func discoverPolicyCandidates(
 			"error", err,
 		)
 		return discoveredResourceGroups, nil, nil
+	}
+
+	if !hasRules {
+		return discoveredResourceGroups, resourceGroups, nil
 	}
 
 	excludedResourceGroups := sets.New(opts.Policy.ExcludedResourceGroups...)
