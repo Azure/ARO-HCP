@@ -23,11 +23,6 @@ param firstPartyRoleName string = 'dev-first-party-mock'
 @description('Custom role name for the MSI mock principal')
 param msiMockRoleName string = 'dev-msi-mock'
 
-@description('Custom role name for the KMS plugin role')
-param kmsPluginRoleName string = 'Azure Red Hat OpenShift KMS Plugin - Dev'
-
-var homeSubscriptionId = subscription().subscriptionId
-
 module firstPartyLookup './entra-app-lookup.bicep' = {
   name: 'lookup-first-party'
   params: {
@@ -66,25 +61,21 @@ module poolLookups './entra-app-lookup.bicep' = [
   }
 ]
 
-var poolPrincipals = [
-  for i in range(0, poolSize): {
-    name: '${poolAppBaseName}-${i}'
-    principalId: poolLookups[i].outputs.principalId
-  }
-]
-
 module homeSubscriptionRbac './e2e-subscription-rbac-assignment-subscription.bicep' = {
   name: 'mock-rbac-home'
-  scope: subscription(homeSubscriptionId)
+  scope: subscription()
   params: {
-    homeSubscriptionId: homeSubscriptionId
     firstPartyPrincipalId: firstPartyLookup.outputs.principalId
     armHelperPrincipalId: armHelperLookup.outputs.principalId
     miMockPrincipalId: msiMockLookup.outputs.principalId
-    msiMockPoolPrincipals: poolPrincipals
+    msiMockPoolPrincipals: [
+      for i in range(0, poolSize): {
+        name: '${poolAppBaseName}-${i}'
+        principalId: poolLookups[i].outputs.principalId
+      }
+    ]
     firstPartyRoleName: firstPartyRoleName
     msiMockRoleName: msiMockRoleName
-    kmsPluginRoleName: kmsPluginRoleName
   }
 }
 
@@ -93,14 +84,17 @@ module e2eSubscriptionRbac './e2e-subscription-rbac-assignment-subscription.bice
     name: 'mock-rbac-e2e-${index}'
     scope: subscription(subId)
     params: {
-      homeSubscriptionId: homeSubscriptionId
       firstPartyPrincipalId: firstPartyLookup.outputs.principalId
       armHelperPrincipalId: armHelperLookup.outputs.principalId
       miMockPrincipalId: msiMockLookup.outputs.principalId
-      msiMockPoolPrincipals: poolPrincipals
+      msiMockPoolPrincipals: [
+        for i in range(0, poolSize): {
+          name: '${poolAppBaseName}-${i}'
+          principalId: poolLookups[i].outputs.principalId
+        }
+      ]
       firstPartyRoleName: firstPartyRoleName
       msiMockRoleName: msiMockRoleName
-      kmsPluginRoleName: kmsPluginRoleName
     }
   }
 ]

@@ -6,6 +6,9 @@ param msiMockAppName = '{{ .ci.int.mockIdentities.msiMock.applicationName }}'
 param poolAppBaseName = '{{ .ci.int.mockIdentities.pool.appBaseName }}'
 param poolSize = {{ .ci.int.mockIdentities.pool.size }}
 
+param firstPartyRoleName = 'int-first-party'
+param msiMockRoleName = 'int-msi-mock'
+
 param e2eSubscriptionIds = [
 {{ range .ci.int.e2eSubscriptions }}  '{{ .id }}'
 {{ end }}]
