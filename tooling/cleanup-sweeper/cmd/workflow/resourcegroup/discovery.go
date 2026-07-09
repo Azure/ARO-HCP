@@ -17,7 +17,6 @@ package resourcegroup
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"strings"
 
 	"github.com/go-logr/logr"
@@ -149,7 +148,7 @@ func promoteAndSortDeletionTargets(
 		}
 		parsed, err := azcorearm.ParseResourceID(*rg.ManagedBy)
 		if err != nil {
-			slog.Warn("failed to parse managedBy resource ID", "resourceGroup", name, "managedBy", *rg.ManagedBy, "error", err)
+			logger.Info("failed to parse managedBy resource ID, skipping", "resourceGroup", name, "managedBy", *rg.ManagedBy, "error", err)
 			continue
 		}
 		if !deletionTargetsLower.Has(strings.ToLower(parsed.ResourceGroupName)) {
