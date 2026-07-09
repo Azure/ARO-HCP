@@ -311,7 +311,8 @@ func (c *nodePoolUpdateDispatchConfig) hash() (string, error) {
 }
 
 // canonicalJSON returns the deterministic JSON encoding of c used for hashing and comparison.
-// Keys are sorted at every object level; see canonicalJSONForUpdateDispatchConfig.
+// Keys are sorted at every object level and the payload is indented with two spaces; see
+// canonicalJSONForUpdateDispatchConfig.
 func (c *nodePoolUpdateDispatchConfig) canonicalJSON() ([]byte, error) {
 	return canonicalJSONForUpdateDispatchConfig(c)
 }

@@ -23,6 +23,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
@@ -174,10 +176,13 @@ func (c *nodePoolClusterServiceUpdateDispatchSyncer) SyncOnce(ctx context.Contex
 		return nil
 	}
 
+	configDiff := cmp.Diff(desiredConfigJSON, actualConfigJSON)
+
 	logger.Info("node pool update dispatch config differs between RP and CS",
 		"clusterServiceID", nodePoolCSID.String(),
 		"desiredConfig", desiredConfigJSON,
 		"actualConfig", actualConfigJSON,
+		"configDiff", configDiff,
 	)
 
 	// We marshal the node pool CS builder config we are going to submit for cs node pool update for logging purposes
