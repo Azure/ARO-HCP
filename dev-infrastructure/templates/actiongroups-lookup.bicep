@@ -17,7 +17,7 @@ resource icmMSFT 'Microsoft.Insights/actionGroups@2024-10-01-preview' existing =
   name: 'icm-action-group-msft'
 }
 
-output actionGroupsSL string = manageConnection ? icmSL.id : ''
-output actionGroupsSRE string = manageConnection ? icmSRE.id : ''
-output actionGroupsRP string = manageConnection ? icmRP.id : ''
-output actionGroupsMSFT string = manageConnection ? icmMSFT.id : ''
+output actionGroupSL string = manageConnection ? icmSL.id : ''
+output actionGroupSRE string = manageConnection ? icmSRE.id : ''
+output actionGroupRP string = manageConnection ? icmRP.id : ''
+output actionGroupMSFT string = manageConnection ? icmMSFT.id : ''

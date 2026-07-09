@@ -61,15 +61,9 @@ var ehActionGroups = eventHubAlertingEnabled ? [eventHubActionGroup!.outputs.act
 // ICM action groups are created at geography level and looked up via pipeline variables.
 // Each lane's icmEnabled flag is a second guard so that lane's rules can evaluate without delivering IcM tickets.
 // The Event Hub action group is created here (region-specific).
-var slActionGroups = actionGroupSL != '' && icmEnabledSL
-  ? concat([actionGroupSL], ehActionGroups)
-  : ehActionGroups
-var rpActionGroups = actionGroupRP != '' && icmEnabledRP
-  ? concat([actionGroupRP], ehActionGroups)
-  : ehActionGroups
-var sreActionGroups = actionGroupSRE != '' && icmEnabledSRE
-  ? concat([actionGroupSRE], ehActionGroups)
-  : ehActionGroups
+var slActionGroups = actionGroupSL != '' && icmEnabledSL ? concat([actionGroupSL], ehActionGroups) : ehActionGroups
+var rpActionGroups = actionGroupRP != '' && icmEnabledRP ? concat([actionGroupRP], ehActionGroups) : ehActionGroups
+var sreActionGroups = actionGroupSRE != '' && icmEnabledSRE ? concat([actionGroupSRE], ehActionGroups) : ehActionGroups
 var msftActionGroups = actionGroupMSFT != '' && icmEnabledMSFT
   ? concat([actionGroupMSFT], ehActionGroups)
   : ehActionGroups

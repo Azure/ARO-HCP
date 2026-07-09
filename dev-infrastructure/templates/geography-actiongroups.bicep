@@ -109,8 +109,8 @@ module actionGroups '../modules/metrics/actiongroups.bicep' = if (manageConnecti
   }
 }
 
-output actionGroupsSL string = manageConnection ? actionGroups!.outputs.actionGroupsSL : ''
-output actionGroupsSRE string = manageConnection ? actionGroups!.outputs.actionGroupsSRE : ''
-output actionGroupsRP string = manageConnection ? actionGroups!.outputs.actionGroupsRP : ''
-output actionGroupsMSFT string = manageConnection ? actionGroups!.outputs.actionGroupsMSFT : ''
+output actionGroupSL string = manageConnection ? actionGroups!.outputs.actionGroupsSL : ''
+output actionGroupSRE string = manageConnection ? actionGroups!.outputs.actionGroupsSRE : ''
+output actionGroupRP string = manageConnection ? actionGroups!.outputs.actionGroupsRP : ''
+output actionGroupMSFT string = manageConnection ? actionGroups!.outputs.actionGroupsMSFT : ''
 output actionGroupAlertEH string = eventHubAlertingEnabled ? eventHubActionGroup!.outputs.actionGroupId : ''

@@ -106,7 +106,7 @@ resourceGroups:
     parameters: configurations/geography-actiongroups.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     variables:
-    - name: svcSubscriptionId
+    - name: eventHubSubscriptionId
       input:
         resourceGroup: svc
         step: subscription-lookup
@@ -152,7 +152,7 @@ resourceGroups:
       input:
         resourceGroup: kusto-infra
         step: action-groups
-        name: actionGroupsSL
+        name: actionGroupSL
     - name: actionGroupAlertEH
       input:
         resourceGroup: kusto-infra

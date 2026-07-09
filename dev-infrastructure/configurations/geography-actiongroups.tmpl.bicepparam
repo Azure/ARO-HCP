@@ -24,4 +24,4 @@ param icmAutomitigationEnabledMSFT = '{{ .monitoring.icm.msft.automitigationEnab
 param eventHubAlertingEnabled = {{ .monitoring.eventHubAlerting.enabled }}
 param alertEventsEventHubNamespaceName = '{{ .auditLogsEventHub.namespace }}'
 param alertEventsEventHubName = '{{ .alertEventsEventHub.name }}'
-param eventHubSubscriptionId = '__svcSubscriptionId__'
+param eventHubSubscriptionId = '__eventHubSubscriptionId__'
