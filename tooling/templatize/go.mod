@@ -5,15 +5,15 @@ go 1.25.7
 require (
 	github.com/Azure/ARO-HCP/tooling/cleanup-sweeper v0.0.0-20260409032928-501433c68f7d
 	github.com/Azure/ARO-Tools/config v0.0.0-20260703091318-4612291d5420
-	github.com/Azure/ARO-Tools/pipelines v0.0.0-20260703091318-4612291d5420
+	github.com/Azure/ARO-Tools/pipelines v0.0.0-20260706062319-3679b625efda
 	github.com/Azure/ARO-Tools/testutil v0.0.0-20260703091318-4612291d5420
 	github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260703091318-4612291d5420
-	github.com/Azure/ARO-Tools/tools/grafanactl v0.0.0-20260703091318-4612291d5420
+	github.com/Azure/ARO-Tools/tools/grafanactl v0.0.0-20260706062319-3679b625efda
 	github.com/Azure/ARO-Tools/tools/helm v0.0.0-20260703091318-4612291d5420
 	github.com/Azure/ARO-Tools/tools/prow-job-executor v0.0.0-20260703091318-4612291d5420
 	github.com/Azure/ARO-Tools/tools/registration v0.0.0-20260703091318-4612291d5420
 	github.com/Azure/ARO-Tools/tools/secret-sync v0.0.0-20260703091318-4612291d5420
-	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.21.1
+	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.22.0
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.13.1
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v3 v3.0.0-beta.2
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice v1.0.0

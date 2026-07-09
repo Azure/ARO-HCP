@@ -6,7 +6,7 @@ require (
 	github.com/Azure/ARO-HCP/admin/server v0.0.0-00010101000000-000000000000
 	github.com/Azure/ARO-HCP/backend v0.0.0-20260513195720-7c0637c01c58
 	github.com/Azure/ARO-HCP/internal v0.0.0-00010101000000-000000000000
-	github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp v0.0.0-00010101000000-000000000000
+	github.com/Azure/ARO-HCP/test/sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp v0.0.0-00010101000000-000000000000
 	github.com/Azure/ARO-HCP/test/sdk/v20251223preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp v0.0.0-00010101000000-000000000000
 	github.com/Azure/ARO-HCP/test/sdk/v20260630preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp v0.0.0-00010101000000-000000000000
 	github.com/Azure/ARO-HCP/tooling/hcpctl v0.0.0-20260113131010-8f869ff652e6
@@ -69,9 +69,9 @@ require (
 	cloud.google.com/go/monitoring v1.24.3 // indirect
 	cloud.google.com/go/storage v1.62.1 // indirect
 	dario.cat/mergo v1.0.1 // indirect
-	github.com/Azure/ARO-Tools/pipelines v0.0.0-20260703091318-4612291d5420 // indirect
+	github.com/Azure/ARO-Tools/pipelines v0.0.0-20260706062319-3679b625efda // indirect
 	github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260703091318-4612291d5420 // indirect
-	github.com/Azure/ARO-Tools/tools/grafanactl v0.0.0-20260703091318-4612291d5420 // indirect
+	github.com/Azure/ARO-Tools/tools/grafanactl v0.0.0-20260706062319-3679b625efda // indirect
 	github.com/Azure/ARO-Tools/tools/helm v0.0.0-20260703091318-4612291d5420 // indirect
 	github.com/Azure/ARO-Tools/tools/registration v0.0.0-20260703091318-4612291d5420 // indirect
 	github.com/Azure/ARO-Tools/tools/secret-sync v0.0.0-20260703091318-4612291d5420 // indirect
@@ -345,7 +345,7 @@ require (
 )
 
 require (
-	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.21.1
+	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.22.0
 	github.com/Azure/azure-sdk-for-go/sdk/internal v1.12.0 // indirect
 )
 
@@ -372,7 +372,7 @@ replace github.com/Azure/ARO-HCP/tooling/hcpctl => ../tooling/hcpctl
 
 replace github.com/Azure/ARO-HCP/tooling/utilitytypes => ../tooling/utilitytypes
 
-replace github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp => ./sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp
+replace github.com/Azure/ARO-HCP/test/sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp => ./sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp
 
 replace github.com/Azure/ARO-HCP/test/sdk/v20251223preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp => ./sdk/v20251223preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp
 

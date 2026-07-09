@@ -29,7 +29,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 
-	hcpsdk "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
+	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/v20240610preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 )
@@ -85,21 +85,21 @@ var _ = Describe("Customer", func() {
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster for external auth list test")
 
-			expectedExternalAuth := hcpsdk.ExternalAuth{
+			expectedExternalAuth := hcpsdk20240610preview.ExternalAuth{
 				Name: to.Ptr(testingPrefix),
-				Properties: &hcpsdk.ExternalAuthProperties{
-					Issuer: &hcpsdk.TokenIssuerProfile{
+				Properties: &hcpsdk20240610preview.ExternalAuthProperties{
+					Issuer: &hcpsdk20240610preview.TokenIssuerProfile{
 						URL:       to.Ptr(fmt.Sprintf("https://login.microsoftonline.com/%s/v2.0", tc.TenantID())),
 						Audiences: []*string{to.Ptr(dummyUID)},
 					},
-					Claim: &hcpsdk.ExternalAuthClaimProfile{
-						Mappings: &hcpsdk.TokenClaimMappingsProfile{
-							Username: &hcpsdk.UsernameClaimProfile{
+					Claim: &hcpsdk20240610preview.ExternalAuthClaimProfile{
+						Mappings: &hcpsdk20240610preview.TokenClaimMappingsProfile{
+							Username: &hcpsdk20240610preview.UsernameClaimProfile{
 								Claim:        to.Ptr("sub"), // objectID of SP
-								PrefixPolicy: to.Ptr(hcpsdk.UsernameClaimPrefixPolicyPrefix),
+								PrefixPolicy: to.Ptr(hcpsdk20240610preview.UsernameClaimPrefixPolicyPrefix),
 								Prefix:       to.Ptr(testingPrefix),
 							},
-							Groups: &hcpsdk.GroupClaimProfile{
+							Groups: &hcpsdk20240610preview.GroupClaimProfile{
 								Claim: to.Ptr("groups"),
 							},
 						},
@@ -127,7 +127,7 @@ var _ = Describe("Customer", func() {
 				*expectedExternalAuth.Name,
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to get external auth config from cluster %s", clusterName)
-			Expect(*result.Properties.ProvisioningState).To(Equal(hcpsdk.ExternalAuthProvisioningStateSucceeded), "external auth provisioning state should be Succeeded")
+			Expect(*result.Properties.ProvisioningState).To(Equal(hcpsdk20240610preview.ExternalAuthProvisioningStateSucceeded), "external auth provisioning state should be Succeeded")
 
 			By("confirming we're only allowed to create a single external auth")
 			anotherExternalAuth := expectedExternalAuth
@@ -146,7 +146,7 @@ var _ = Describe("Customer", func() {
 			By("listing all external auth configs to verify a list call works")
 			externalAuthClient := tc.Get20240610ClientFactoryOrDie(ctx).NewExternalAuthsClient()
 			pager := externalAuthClient.NewListByParentPager(*resourceGroup.Name, clusterName, nil)
-			var extAuthResult []hcpsdk.ExternalAuth
+			var extAuthResult []hcpsdk20240610preview.ExternalAuth
 			for pager.More() {
 				page, err := pager.NextPage(ctx)
 				Expect(err).NotTo(HaveOccurred(), "failed to list external auth configs on cluster %s", clusterName)
@@ -199,7 +199,7 @@ var _ = Describe("Customer", func() {
 				*expectedExternalAuth.Name,
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to get updated external auth config from cluster %s", clusterName)
-			Expect(*updatedResult.Properties.ProvisioningState).To(Equal(hcpsdk.ExternalAuthProvisioningStateSucceeded), "updated external auth provisioning state should be Succeeded")
+			Expect(*updatedResult.Properties.ProvisioningState).To(Equal(hcpsdk20240610preview.ExternalAuthProvisioningStateSucceeded), "updated external auth provisioning state should be Succeeded")
 			Expect(*updatedResult.Properties.Claim.Mappings.Username.Prefix).To(Equal(*expectedExternalAuth.Properties.Claim.Mappings.Username.Prefix), "updated external auth Username.Prefix should match expected value")
 
 			By("deleting the external auth")
