@@ -307,52 +307,6 @@ func TestNodePoolUpdateDispatchConfigFromCS(t *testing.T) {
 	}
 }
 
-func TestNodePoolUpdateDispatchConfigDiffers(t *testing.T) {
-	nodePool := &api.HCPOpenShiftClusterNodePool{
-		Properties: api.HCPOpenShiftClusterNodePoolProperties{
-			Replicas:                3,
-			NodeDrainTimeoutMinutes: ptr.To(int32(30)),
-		},
-	}
-
-	csNodePoolBuilder, err := BuildCSNodePool(context.Background(), nodePool, true)
-	require.NoError(t, err)
-	csNodePool, err := csNodePoolBuilder.Build()
-	require.NoError(t, err)
-
-	differs, err := NodePoolUpdateDispatchConfigDiffers(nodePool, csNodePool)
-	require.NoError(t, err)
-	assert.False(t, differs)
-
-	nodePool.Properties.Replicas = 5
-	differs, err = NodePoolUpdateDispatchConfigDiffers(nodePool, csNodePool)
-	require.NoError(t, err)
-	assert.True(t, differs)
-}
-
-func TestNodePoolUpdateDispatchConfigDiffersIgnoresCSDrainTimeoutWhenRPUnset(t *testing.T) {
-	nodePool := &api.HCPOpenShiftClusterNodePool{
-		Properties: api.HCPOpenShiftClusterNodePoolProperties{
-			Replicas: 3,
-		},
-	}
-
-	csNodePool := &api.HCPOpenShiftClusterNodePool{
-		Properties: api.HCPOpenShiftClusterNodePoolProperties{
-			Replicas:                3,
-			NodeDrainTimeoutMinutes: ptr.To(int32(4)),
-		},
-	}
-	csNodePoolBuilder, err := BuildCSNodePool(context.Background(), csNodePool, true)
-	require.NoError(t, err)
-	csNodePoolBuilt, err := csNodePoolBuilder.Build()
-	require.NoError(t, err)
-
-	differs, err := NodePoolUpdateDispatchConfigDiffers(nodePool, csNodePoolBuilt)
-	require.NoError(t, err)
-	assert.False(t, differs, "RP nil drain timeout must not fight CS frozen value")
-}
-
 func TestNodePoolUpdateDispatchConfigNodeDrainTimeoutFromCS(t *testing.T) {
 	t.Parallel()
 
@@ -532,6 +486,7 @@ func TestNodePoolUpdateDispatchConfigDiffJSONIgnoresCSDrainTimeoutWhenRPUnset(t 
 	desiredJSON, actualJSON, err := NodePoolUpdateDispatchConfigDiffJSON(nodePool, csNodePoolBuilt)
 	require.NoError(t, err)
 	assert.JSONEq(t, desiredJSON, actualJSON)
+	assert.Equal(t, desiredJSON, actualJSON)
 	assert.NotContains(t, actualJSON, "nodeDrainTimeoutMinutes")
 }
 
@@ -553,9 +508,22 @@ func TestNodePoolUpdateDispatchConfigJSONFromRPAndCS(t *testing.T) {
 	require.NoError(t, err)
 	actualJSON, err := NodePoolUpdateDispatchConfigJSONFromCS(csNodePool)
 	require.NoError(t, err)
+
+	// We assert both semantic and byte-for-byte JSON equality on purpose:
+	//   - JSONEq checks that RP and CS projections represent the same config (values and structure).
+	//   - Equal checks that canonicalJSON produces identical strings on both sides. The node pool
+	//     service update dispatch controller uses string equality (==) for drift detection, so
+	//     this must hold whenever the configs match; JSONEq alone would not catch encoding
+	//     differences such as key ordering or whitespace that would cause a false drift signal.
 	assert.JSONEq(t, desiredJSON, actualJSON)
-	assert.Contains(t, desiredJSON, `"nodeDrainTimeoutMinutes":45`)
-	assert.Contains(t, desiredJSON, `"replicas":3`)
+	assert.Equal(t, desiredJSON, actualJSON)
+	assert.Contains(t, desiredJSON, `"nodeDrainTimeoutMinutes": 45`)
+	assert.Contains(t, desiredJSON, `"replicas": 3`)
+
+	nodePool.Properties.Replicas = 5
+	desiredJSON, actualJSON, err = NodePoolUpdateDispatchConfigDiffJSON(nodePool, csNodePool)
+	require.NoError(t, err)
+	assert.NotEqual(t, desiredJSON, actualJSON)
 }
 
 func TestNodePoolUpdateDispatchConfigTaintsFromCS(t *testing.T) {

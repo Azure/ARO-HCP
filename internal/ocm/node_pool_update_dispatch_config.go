@@ -138,24 +138,6 @@ type NodePoolUpdateDispatchConfigTaint struct {
 	Value  string `json:"value,omitempty"`
 }
 
-// NodePoolUpdateDispatchConfigDiffers reports whether the dispatch-managed configuration
-// projected from RP differs from that projected from the live Cluster Service node pool.
-// Comparison uses a SHA-256 hash of each side's canonical JSON representation.
-func NodePoolUpdateDispatchConfigDiffers(nodePool *api.HCPOpenShiftClusterNodePool, csNodePool *arohcpv1alpha1.NodePool) (bool, error) {
-	desiredConfig, actualConfig := nodePoolUpdateDispatchConfigsForDiff(nodePool, csNodePool)
-	desiredHash, err := desiredConfig.hash()
-	if err != nil {
-		return false, err
-	}
-
-	actualHash, err := actualConfig.hash()
-	if err != nil {
-		return false, err
-	}
-
-	return desiredHash != actualHash, nil
-}
-
 // NodePoolUpdateDispatchConfigDiffJSON returns canonical JSON for both sides of the
 // dispatch diff comparison, including drain-timeout normalization when RP has no override.
 func NodePoolUpdateDispatchConfigDiffJSON(nodePool *api.HCPOpenShiftClusterNodePool, csNodePool *arohcpv1alpha1.NodePool) (string, string, error) {
@@ -323,8 +305,7 @@ func nodePoolUpdateDispatchConfigHash(nodePool *api.HCPOpenShiftClusterNodePool)
 	return nodePoolUpdateDispatchConfigFromRP(nodePool).hash()
 }
 
-// hash returns a SHA-256 hex digest of c's canonical JSON. This is the encoding used by
-// NodePoolUpdateDispatchConfigDiffers to compare RP and Cluster Service projections.
+// hash returns a SHA-256 hex digest of c's canonical JSON.
 func (c *nodePoolUpdateDispatchConfig) hash() (string, error) {
 	return hashUpdateDispatchConfig(c)
 }

@@ -163,20 +163,15 @@ func (c *nodePoolClusterServiceUpdateDispatchSyncer) SyncOnce(ctx context.Contex
 
 	// We check if the desired config coming from cosmos differs from the actual config coming from cluster service.
 	// If it doesn't, we are done and don't need to dispatch an update. If it does, we need to dispatch an update to
-	// cluster service
-	needsUpdate, err := ocm.NodePoolUpdateDispatchConfigDiffers(nodePool, csNodePool)
-	if err != nil {
-		return err
-	}
-	if !needsUpdate {
-		return nil
-	}
-
-	// We marshal the desired config coming from cosmos and the actual config coming from cluster service into JSON for
-	// logging purposes
+	// cluster service. Comparison uses canonical JSON (sorted object keys at every level) so we can compare them
+	// using direct string equality. For the particular case of the node drain-timeout attribute,
+	// normalization is applied when RP has no override.
 	desiredConfigJSON, actualConfigJSON, err := ocm.NodePoolUpdateDispatchConfigDiffJSON(nodePool, csNodePool)
 	if err != nil {
 		return err
+	}
+	if desiredConfigJSON == actualConfigJSON {
+		return nil
 	}
 
 	logger.Info("node pool update dispatch config differs between RP and CS",
