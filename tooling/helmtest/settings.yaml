@@ -6,10 +6,7 @@ Replace:
 # Components exempt from requiring resources.requests.memory
 ResourceRequestsAllowlist:
 # Standing exemptions
-- Deployment/acrpull/acrpull-controller # acrpull standing exemption
-- DaemonSet/arobit-forwarder/fluentbit # arobit-fluentbit standing exemption
-- DaemonSet/*/fluentbit # arobit-fluentbit standing exemption (pattern match)
-- Deployment/multicluster-engine-operator/backplane-operator # mce standing exemption
+# (no standing exemptions for requests at the moment)
 # Upstream charts - currently missing requests
 - Deployment/*/kube-state-metrics # upstream kube-state-metrics chart
 - Deployment/prometheus-operator/kube-prometheus-stack # upstream prometheus-operator chart
@@ -45,10 +42,8 @@ ResourceRequestsAllowlist:
 # Components exempt from requiring resources.limits.memory
 ResourceMemoryLimitsAllowlist:
 # Standing exemptions
-- Deployment/acrpull/acrpull-controller # acrpull standing exemption
 - DaemonSet/arobit-forwarder/fluentbit # arobit-fluentbit standing exemption
 - DaemonSet/*/fluentbit # arobit-fluentbit standing exemption (pattern match)
-- Deployment/multicluster-engine-operator/backplane-operator # mce standing exemption
 # Config unlimited / NONE sentinels
 - Deployment/aro-hcp-exporter/* # config sets memory: unlimited
 - Deployment/kube-events/* # config sets memory: unlimited
