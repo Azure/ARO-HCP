@@ -67,13 +67,13 @@ const (
 
 // NewSubscriptionInformer creates an unstarted SharedIndexInformer for subscriptions
 // using the default relist duration.
-func NewSubscriptionInformer(lister database.GlobalLister[arm.Subscription], cosmosClient database.ResourcesDBClient) cache.SharedIndexInformer {
+func NewSubscriptionInformer(lister database.GlobalLister[arm.Subscription], cosmosClient database.ChangeFeedClient) cache.SharedIndexInformer {
 	return NewSubscriptionInformerWithRelistDuration(lister, cosmosClient, SubscriptionRelistDuration)
 }
 
 // NewSubscriptionInformerWithRelistDuration creates an unstarted SharedIndexInformer for subscriptions
 // with a configurable relist duration.
-func NewSubscriptionInformerWithRelistDuration(lister database.GlobalLister[arm.Subscription], cosmosClient database.ResourcesDBClient, relistDuration time.Duration) cache.SharedIndexInformer {
+func NewSubscriptionInformerWithRelistDuration(lister database.GlobalLister[arm.Subscription], cosmosClient database.ChangeFeedClient, relistDuration time.Duration) cache.SharedIndexInformer {
 	lw := dbinformers.NewChangeFeedListWatcher[arm.Subscription, *arm.Subscription, database.GenericDocument[arm.Subscription]](
 		[]azcorearm.ResourceType{azcorearm.NewResourceType("Microsoft.Resources", "subscriptions")},
 		utilsclock.RealClock{},
@@ -144,13 +144,13 @@ func NewBillingInformerWithRelistDuration(lister database.GlobalLister[database.
 
 // NewClusterInformer creates an unstarted SharedIndexInformer for clusters
 // with a resource group index using the default relist duration.
-func NewClusterInformer(lister database.GlobalLister[api.HCPOpenShiftCluster], cosmosClient database.ResourcesDBClient) cache.SharedIndexInformer {
+func NewClusterInformer(lister database.GlobalLister[api.HCPOpenShiftCluster], cosmosClient database.ChangeFeedClient) cache.SharedIndexInformer {
 	return NewClusterInformerWithRelistDuration(lister, cosmosClient, ClusterRelistDuration)
 }
 
 // NewClusterInformerWithRelistDuration creates an unstarted SharedIndexInformer for clusters
 // with a resource group index and a configurable relist duration.
-func NewClusterInformerWithRelistDuration(lister database.GlobalLister[api.HCPOpenShiftCluster], cosmosClient database.ResourcesDBClient, relistDuration time.Duration) cache.SharedIndexInformer {
+func NewClusterInformerWithRelistDuration(lister database.GlobalLister[api.HCPOpenShiftCluster], cosmosClient database.ChangeFeedClient, relistDuration time.Duration) cache.SharedIndexInformer {
 	lw := dbinformers.NewChangeFeedListWatcher[api.HCPOpenShiftCluster, *api.HCPOpenShiftCluster, database.GenericDocument[api.HCPOpenShiftCluster]](
 		[]azcorearm.ResourceType{api.ClusterResourceType},
 		utilsclock.RealClock{},
@@ -174,13 +174,13 @@ func NewClusterInformerWithRelistDuration(lister database.GlobalLister[api.HCPOp
 
 // NewNodePoolInformer creates an unstarted SharedIndexInformer for node pools
 // with resource group and cluster indexes using the default relist duration.
-func NewNodePoolInformer(lister database.GlobalLister[api.HCPOpenShiftClusterNodePool], cosmosClient database.ResourcesDBClient) cache.SharedIndexInformer {
+func NewNodePoolInformer(lister database.GlobalLister[api.HCPOpenShiftClusterNodePool], cosmosClient database.ChangeFeedClient) cache.SharedIndexInformer {
 	return NewNodePoolInformerWithRelistDuration(lister, cosmosClient, NodePoolRelistDuration)
 }
 
 // NewNodePoolInformerWithRelistDuration creates an unstarted SharedIndexInformer for node pools
 // with resource group and cluster indexes and a configurable relist duration.
-func NewNodePoolInformerWithRelistDuration(lister database.GlobalLister[api.HCPOpenShiftClusterNodePool], cosmosClient database.ResourcesDBClient, relistDuration time.Duration) cache.SharedIndexInformer {
+func NewNodePoolInformerWithRelistDuration(lister database.GlobalLister[api.HCPOpenShiftClusterNodePool], cosmosClient database.ChangeFeedClient, relistDuration time.Duration) cache.SharedIndexInformer {
 	lw := dbinformers.NewChangeFeedListWatcher[api.HCPOpenShiftClusterNodePool, *api.HCPOpenShiftClusterNodePool, database.GenericDocument[api.HCPOpenShiftClusterNodePool]](
 		[]azcorearm.ResourceType{api.NodePoolResourceType},
 		utilsclock.RealClock{},
@@ -205,13 +205,13 @@ func NewNodePoolInformerWithRelistDuration(lister database.GlobalLister[api.HCPO
 
 // NewExternalAuthInformer creates an unstarted SharedIndexInformer for external auths
 // with resource group and cluster indexes using the default relist duration.
-func NewExternalAuthInformer(lister database.GlobalLister[api.HCPOpenShiftClusterExternalAuth], cosmosClient database.ResourcesDBClient) cache.SharedIndexInformer {
+func NewExternalAuthInformer(lister database.GlobalLister[api.HCPOpenShiftClusterExternalAuth], cosmosClient database.ChangeFeedClient) cache.SharedIndexInformer {
 	return NewExternalAuthInformerWithRelistDuration(lister, cosmosClient, ExternalAuthRelistDuration)
 }
 
 // NewExternalAuthInformerWithRelistDuration creates an unstarted SharedIndexInformer for external auths
 // with resource group and cluster indexes and a configurable relist duration.
-func NewExternalAuthInformerWithRelistDuration(lister database.GlobalLister[api.HCPOpenShiftClusterExternalAuth], cosmosClient database.ResourcesDBClient, relistDuration time.Duration) cache.SharedIndexInformer {
+func NewExternalAuthInformerWithRelistDuration(lister database.GlobalLister[api.HCPOpenShiftClusterExternalAuth], cosmosClient database.ChangeFeedClient, relistDuration time.Duration) cache.SharedIndexInformer {
 	lw := dbinformers.NewChangeFeedListWatcher[api.HCPOpenShiftClusterExternalAuth, *api.HCPOpenShiftClusterExternalAuth, database.GenericDocument[api.HCPOpenShiftClusterExternalAuth]](
 		[]azcorearm.ResourceType{api.ExternalAuthResourceType},
 		utilsclock.RealClock{},
@@ -236,13 +236,13 @@ func NewExternalAuthInformerWithRelistDuration(lister database.GlobalLister[api.
 
 // NewServiceProviderClusterInformer creates an unstarted SharedIndexInformer for service provider clusters
 // with a cluster index using the default relist duration.
-func NewServiceProviderClusterInformer(lister database.GlobalLister[api.ServiceProviderCluster], cosmosClient database.ResourcesDBClient) cache.SharedIndexInformer {
+func NewServiceProviderClusterInformer(lister database.GlobalLister[api.ServiceProviderCluster], cosmosClient database.ChangeFeedClient) cache.SharedIndexInformer {
 	return NewServiceProviderClusterInformerWithRelistDuration(lister, cosmosClient, ServiceProviderClusterRelistDuration)
 }
 
 // NewServiceProviderClusterInformerWithRelistDuration creates an unstarted SharedIndexInformer for service provider clusters
 // with a cluster index and a configurable relist duration.
-func NewServiceProviderClusterInformerWithRelistDuration(lister database.GlobalLister[api.ServiceProviderCluster], cosmosClient database.ResourcesDBClient, relistDuration time.Duration) cache.SharedIndexInformer {
+func NewServiceProviderClusterInformerWithRelistDuration(lister database.GlobalLister[api.ServiceProviderCluster], cosmosClient database.ChangeFeedClient, relistDuration time.Duration) cache.SharedIndexInformer {
 	lw := dbinformers.NewChangeFeedListWatcher[api.ServiceProviderCluster, *api.ServiceProviderCluster, database.GenericDocument[api.ServiceProviderCluster]](
 		[]azcorearm.ResourceType{api.ServiceProviderClusterResourceType},
 		utilsclock.RealClock{},
@@ -316,13 +316,13 @@ func NewManagementClusterContentInformerWithRelistDuration(lister database.Globa
 
 // NewServiceProviderNodePoolInformer creates an unstarted SharedIndexInformer for service provider node pools
 // with a node pool index using the default relist duration.
-func NewServiceProviderNodePoolInformer(lister database.GlobalLister[api.ServiceProviderNodePool], cosmosClient database.ResourcesDBClient) cache.SharedIndexInformer {
+func NewServiceProviderNodePoolInformer(lister database.GlobalLister[api.ServiceProviderNodePool], cosmosClient database.ChangeFeedClient) cache.SharedIndexInformer {
 	return NewServiceProviderNodePoolInformerWithRelistDuration(lister, cosmosClient, ServiceProviderNodePoolRelistDuration)
 }
 
 // NewServiceProviderNodePoolInformerWithRelistDuration creates an unstarted SharedIndexInformer for service provider node pools
 // with a node pool index and a configurable relist duration.
-func NewServiceProviderNodePoolInformerWithRelistDuration(lister database.GlobalLister[api.ServiceProviderNodePool], cosmosClient database.ResourcesDBClient, relistDuration time.Duration) cache.SharedIndexInformer {
+func NewServiceProviderNodePoolInformerWithRelistDuration(lister database.GlobalLister[api.ServiceProviderNodePool], cosmosClient database.ChangeFeedClient, relistDuration time.Duration) cache.SharedIndexInformer {
 	lw := dbinformers.NewChangeFeedListWatcher[api.ServiceProviderNodePool, *api.ServiceProviderNodePool, database.GenericDocument[api.ServiceProviderNodePool]](
 		[]azcorearm.ResourceType{api.ServiceProviderNodePoolResourceType},
 		utilsclock.RealClock{},
@@ -346,7 +346,7 @@ func NewServiceProviderNodePoolInformerWithRelistDuration(lister database.Global
 
 // NewControllerInformer creates an unstarted SharedIndexInformer for controllers
 // using the default relist duration.
-func NewControllerInformer(lister database.GlobalLister[api.Controller], cosmosClient database.ResourcesDBClient) cache.SharedIndexInformer {
+func NewControllerInformer(lister database.GlobalLister[api.Controller], cosmosClient database.ChangeFeedClient) cache.SharedIndexInformer {
 	return NewControllerInformerWithRelistDuration(lister, cosmosClient, ControllerRelistDuration)
 }
 
@@ -354,7 +354,7 @@ func NewControllerInformer(lister database.GlobalLister[api.Controller], cosmosC
 // with a configurable relist duration. Controllers live under three different
 // ARM resource types (cluster-scoped, nodepool-scoped, externalauth-scoped) so
 // the change feed filter accepts all three.
-func NewControllerInformerWithRelistDuration(lister database.GlobalLister[api.Controller], cosmosClient database.ResourcesDBClient, relistDuration time.Duration) cache.SharedIndexInformer {
+func NewControllerInformerWithRelistDuration(lister database.GlobalLister[api.Controller], cosmosClient database.ChangeFeedClient, relistDuration time.Duration) cache.SharedIndexInformer {
 	lw := dbinformers.NewChangeFeedListWatcher[api.Controller, *api.Controller, database.GenericDocument[api.Controller]](
 		[]azcorearm.ResourceType{
 			api.ClusterControllerResourceType,
@@ -387,13 +387,13 @@ func NewControllerInformerWithRelistDuration(lister database.GlobalLister[api.Co
 // operations (including terminal) using the default relist duration. This is
 // used by the metrics controller so that completed operations remain visible
 // in Prometheus until the 7-day Cosmos TTL removes them.
-func NewOperationInformer(lister database.GlobalLister[api.Operation], cosmosClient database.ResourcesDBClient) cache.SharedIndexInformer {
+func NewOperationInformer(lister database.GlobalLister[api.Operation], cosmosClient database.ChangeFeedClient) cache.SharedIndexInformer {
 	return NewOperationInformerWithRelistDuration(lister, cosmosClient, AllOperationsRelistDuration)
 }
 
 // NewOperationInformerWithRelistDuration creates an unstarted SharedIndexInformer
 // for all operations (including terminal) with a configurable relist duration.
-func NewOperationInformerWithRelistDuration(lister database.GlobalLister[api.Operation], cosmosClient database.ResourcesDBClient, relistDuration time.Duration) cache.SharedIndexInformer {
+func NewOperationInformerWithRelistDuration(lister database.GlobalLister[api.Operation], cosmosClient database.ChangeFeedClient, relistDuration time.Duration) cache.SharedIndexInformer {
 	lw := dbinformers.NewChangeFeedListWatcher[api.Operation, *api.Operation, database.GenericDocument[api.Operation]](
 		[]azcorearm.ResourceType{api.OperationStatusResourceType},
 		utilsclock.RealClock{},
@@ -415,14 +415,14 @@ func NewOperationInformerWithRelistDuration(lister database.GlobalLister[api.Ope
 // NewActiveOperationInformer creates an unstarted SharedIndexInformer for
 // active (non-terminal) operations with resource group and cluster indexes
 // using the default relist duration.
-func NewActiveOperationInformer(lister database.GlobalLister[api.Operation], cosmosClient database.ResourcesDBClient) cache.SharedIndexInformer {
+func NewActiveOperationInformer(lister database.GlobalLister[api.Operation], cosmosClient database.ChangeFeedClient) cache.SharedIndexInformer {
 	return NewActiveOperationInformerWithRelistDuration(lister, cosmosClient, ActiveOperationsRelistDuration)
 }
 
 // NewActiveOperationInformerWithRelistDuration creates an unstarted SharedIndexInformer for
 // active (non-terminal) operations with resource group and cluster indexes
 // and a configurable relist duration.
-func NewActiveOperationInformerWithRelistDuration(lister database.GlobalLister[api.Operation], cosmosClient database.ResourcesDBClient, relistDuration time.Duration) cache.SharedIndexInformer {
+func NewActiveOperationInformerWithRelistDuration(lister database.GlobalLister[api.Operation], cosmosClient database.ChangeFeedClient, relistDuration time.Duration) cache.SharedIndexInformer {
 	lw := dbinformers.NewChangeFeedListWatcher[api.Operation, *api.Operation, database.GenericDocument[api.Operation]](
 		[]azcorearm.ResourceType{api.OperationStatusResourceType},
 		utilsclock.RealClock{},

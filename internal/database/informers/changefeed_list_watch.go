@@ -96,6 +96,10 @@ func (c *ChangeFeedListWatcher[InternalAPIType, InternalAPITypePointer, CosmosAP
 
 	iter, err := c.globalLister.List(ctx, nil)
 	if err != nil {
+		// cleanup the watcher we aren't going to use. This would happen when we re-enter anyway, but we can do slightly better here
+		c.currentWatcher.Stop()
+		c.currentWatcher = nil
+
 		return nil, err
 	}
 
@@ -115,6 +119,10 @@ func (c *ChangeFeedListWatcher[InternalAPIType, InternalAPITypePointer, CosmosAP
 			})
 	}
 	if err := iter.GetError(); err != nil {
+		// cleanup the watcher we aren't going to use. This would happen when we re-enter anyway, but we can do slightly better here
+		c.currentWatcher.Stop()
+		c.currentWatcher = nil
+
 		return nil, err
 	}
 
@@ -235,7 +243,10 @@ func (c *ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPITyp
 	defer logger.Info("finished change feed watchers")
 
 	var wg sync.WaitGroup
-	defer wg.Wait()
+	defer func() {
+		wg.Wait()
+		close(c.result)
+	}()
 
 	ctx, cancel := context.WithCancelCause(ctx)
 	defer cancel(fmt.Errorf("finished"))
