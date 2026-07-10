@@ -275,6 +275,7 @@ var _ = Describe("Customer", func() {
 							SecurityContext: &corev1.SecurityContext{
 								AllowPrivilegeEscalation: to.Ptr(false),
 								RunAsNonRoot:             to.Ptr(true),
+								RunAsUser:                to.Ptr(int64(1000)),
 								SeccompProfile: &corev1.SeccompProfile{
 									Type: corev1.SeccompProfileTypeRuntimeDefault,
 								},
