@@ -275,7 +275,6 @@ var _ = Describe("Customer", func() {
 							SecurityContext: &corev1.SecurityContext{
 								AllowPrivilegeEscalation: to.Ptr(false),
 								RunAsNonRoot:             to.Ptr(true),
-								RunAsUser:                to.Ptr(int64(1000)),
 								SeccompProfile: &corev1.SeccompProfile{
 									Type: corev1.SeccompProfileTypeRuntimeDefault,
 								},
@@ -292,7 +291,7 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create pull-secret-test pod in %s", pullTestNamespace)
 
 			By("waiting for image from registry.redhat.io to be pulled successfully")
-			err = verifiers.VerifyImagePulled(pullTestNamespace, "registry.redhat.io", "ubi-minimal", imagePullTimeout).
+			err = verifiers.VerifyImagePulled(pullTestNamespace, redhatRegistryHost, "ubi-minimal", imagePullTimeout).
 				Verify(ctx, adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred(), "failed to wait for image from registry.redhat.io to be pulled successfully with the added pull secret")
 		})
