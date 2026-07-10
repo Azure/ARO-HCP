@@ -13,7 +13,7 @@ spec:
   - name: leaderelection
     rules:
     - alert: LeaderElectionLeaseStale
-      # Fires when a leader election lease has not been renewed for >15m; excludes the namespaces from LeaderElectionLeaseStaleFast and standard k8s system namespaces (kube-node-lease has node heartbeat leases that are not leader election).
+      # Fires when a leader election lease has not been renewed for >15m; excludes namespaces covered by LeaderElectionLeaseStaleCritical and standard k8s system namespaces (kube-node-lease has node heartbeat leases that are not leader election).
       expr: |
         time() - max without(prometheus_replica) (
           kube_lease_renew_time{namespace!~"^(kube-system|kube-public|kube-node-lease|default|kube-applier)$"}
