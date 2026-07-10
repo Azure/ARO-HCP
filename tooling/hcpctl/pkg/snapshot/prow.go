@@ -656,6 +656,112 @@ func downloadObject(ctx context.Context, gcsClient *storage.Client, path string)
 	return data, nil
 }
 
+// NodeConsoleLogFile holds a downloaded VM serial console log file from GCS.
+type NodeConsoleLogFile struct {
+	// NodeName is the Azure VM name, derived from the filename minus the "-console.log" suffix.
+	NodeName string
+
+	// FileName is the base filename (e.g. "cilium-cluster-cilium-np-75x6r-4rwqj-console.log").
+	FileName string
+
+	// Content is the cleaned file content, with ANSI escape sequences stripped,
+	// GRUB preamble removed, and blank lines removed. The original unprocessed
+	// file is available via ArtifactURL.
+	Content []byte
+
+	// ArtifactURL is the gcsweb URL for downloading the original artifact.
+	ArtifactURL string
+}
+
+// sanitizeTestNameForGCS replicates the test framework's sanitization logic
+// from test/util/framework/per_test_framework.go:sanitizeTestName. This is
+// different from SanitizeTestName (which is stricter) — the test framework
+// only replaces / \ : * ? " < > | and space with underscores, keeping
+// characters like commas and parentheses intact.
+func sanitizeTestNameForGCS(name string) string {
+	name = strings.Map(func(r rune) rune {
+		if r == '/' || r == '\\' || r == ':' || r == '*' || r == '?' || r == '"' || r == '<' || r == '>' || r == '|' {
+			return '_'
+		}
+		if r == ' ' {
+			return '_'
+		}
+		return r
+	}, name)
+	if len(name) > 200 {
+		name = name[:200]
+	}
+	return name
+}
+
+// FetchNodeConsoleLogs downloads VM serial console log files (*-console.log) from
+// the GCS artifacts for a specific test. These files are written by the test framework's
+// DownloadAllVirtualMachineConsoleLogs function into the per-test artifact directory.
+// Returns nil (not an error) if no console logs are found — not every test creates VMs.
+func FetchNodeConsoleLogs(ctx context.Context, info *ProwJobInfo, testName string) ([]NodeConsoleLogFile, error) {
+	logger := logr.FromContextOrDiscard(ctx)
+
+	gcsClient, err := storage.NewClient(ctx, option.WithoutAuthentication())
+	if err != nil {
+		return nil, fmt.Errorf("failed to create GCS client: %w", err)
+	}
+	defer gcsClient.Close()
+
+	artifactDir, err := findArtifactDir(ctx, gcsClient, info.JobName, info.GCSPrefix)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find artifact directory: %w", err)
+	}
+
+	testStep := testStepPersistent
+	if info.IsPullRequest() {
+		testStep = testStepLocal
+	}
+
+	sanitizedName := sanitizeTestNameForGCS(testName)
+	prefix := fmt.Sprintf("%s/artifacts/%s/%s/artifacts/%s/", info.GCSPrefix, artifactDir, testStep, sanitizedName)
+
+	logger.V(1).Info("Searching for console logs", "prefix", prefix)
+	objects, err := listObjects(ctx, gcsClient, prefix)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list console log objects: %w", err)
+	}
+
+	var consoleLogs []NodeConsoleLogFile
+	for _, objPath := range objects {
+		fileName := objPath[strings.LastIndex(objPath, "/")+1:]
+		if !strings.HasSuffix(fileName, "-console.log") {
+			continue
+		}
+
+		data, err := downloadObject(ctx, gcsClient, objPath)
+		if err != nil {
+			logger.Error(err, "Failed to download console log, skipping", "path", objPath)
+			continue
+		}
+
+		nodeName := strings.TrimSuffix(fileName, "-console.log")
+		artifactURL := (&url.URL{
+			Scheme: "https",
+			Host:   "gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com",
+			Path:   "/gcs/" + gcsBucket + "/" + objPath,
+		}).String()
+
+		consoleLogs = append(consoleLogs, NodeConsoleLogFile{
+			NodeName:    nodeName,
+			FileName:    fileName,
+			Content:     CleanConsoleLog(data),
+			ArtifactURL: artifactURL,
+		})
+		logger.V(1).Info("Downloaded console log", "node", nodeName, "size", len(data))
+	}
+
+	if len(consoleLogs) > 0 {
+		logger.Info("Found node console logs", "count", len(consoleLogs))
+	}
+
+	return consoleLogs, nil
+}
+
 // SanitizeTestName replaces characters that are not alphanumeric, dashes, or
 // underscores with underscores, producing a valid filesystem path component.
 func SanitizeTestName(name string) string {

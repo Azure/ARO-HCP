@@ -47,33 +47,6 @@ Each cluster resource maps to downstream objects:
 - A HyperShift HostedCluster in a namespace on the management cluster
 - A HyperShift HostedControlPlane in its own namespace (`<hc-namespace>-<hc-name>`)
 
-## Kubernetes events
-
-The `kube-events` collector on each service and management cluster ingests Kubernetes API **Event** objects into
-**`ServiceLogs.kubernetesEvents`**. Filter by `cluster`, `eventNamespace`, `objectKind`, `objectName`, `reason`, and
-`message`. Snapshot summaries (`hypershift/controlPlaneEvents`, `hypershift/events`, `maestro/events`, …) all query
-this table in the Service database.
-
-This is not mgmt-agent output: K8s Events report API-level reasons (mount failures, scheduling, probes). Use mgmt-agent
-`pod event` logs when you need container waiting/termination timelines that Events do not capture.
-
-## mgmt-agent resource snapshots and pod state change logs (management cluster)
-
-mgmt-agent runs on each management cluster. Besides reconcilers (SWIFT NIC capacity on nodes, optional
-kube-state-metrics per HCP), it includes two **watch-only** informers that log full object snapshots to
-Kusto on every relevant change:
-
-| Watcher | Log message | When emitted | Typical use |
-|---|---|---|---|
-| **ResourceWatcher** | `resource event` | Add/Update/Delete on discovered API groups (Hypershift, ACM, CAPI, `multitenancy.acn.azure.com`, …) and core `v1/namespaces` | CR status timelines — e.g. `PodNetworkInstance` readiness; HCP namespace lifecycle (HostedCluster CR namespace + HCP control-plane namespace per cluster) |
-| **PodWatcher** | `pod event` | Pod add/delete; pod update when a container's state **type** changes (`waiting`→`running`, etc.) | Control plane pod lifecycle without scraping container logs |
-
-PodWatcher does not emit on field-level changes within the same state type (for example a new `waiting.reason` while still `waiting`).
-
-Both log from container `mgmt-agent-controller` into the **Service** Kusto database (`containerLogs` table,
-`cluster` = management cluster name). Fields include `log.event`, `log.namespace`, `log.name`, and a full
-`log.object` payload.
-
 ## Key Repositories
 
 | Repository | Contains |

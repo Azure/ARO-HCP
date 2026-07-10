@@ -64,6 +64,10 @@ type GatherForTestOptions struct {
 	// Concurrency is the maximum number of concurrent Kusto queries.
 	// A value of 0 defaults to 4 * runtime.NumCPU().
 	Concurrency int
+
+	// NodeConsoleLogs contains VM serial console log files downloaded from
+	// the Prow job's GCS artifacts. These are optional — not every test creates VMs.
+	NodeConsoleLogs []NodeConsoleLogFile
 }
 
 // GatherForTestResult contains metadata about what was gathered.
@@ -111,6 +115,11 @@ func GatherForTest(ctx context.Context, opts GatherForTestOptions) (*GatherForTe
 		return nil, fmt.Errorf("failed to write test logs: %w", err)
 	}
 
+	// Write node console logs (if any).
+	if err := WriteNodeConsoleLogs(opts.OutputDir, opts.NodeConsoleLogs); err != nil {
+		return nil, fmt.Errorf("failed to write node console logs: %w", err)
+	}
+
 	// Build the gather input with 5-minute padding.
 	startTime := test.StartTime.Add(-5 * time.Minute)
 	endTime := test.EndTime.Add(5 * time.Minute)
@@ -147,6 +156,13 @@ func GatherForTest(ctx context.Context, opts GatherForTestOptions) (*GatherForTe
 	// Enrich manifest with test metadata.
 	manifest.TestName = test.Name
 	manifest.ProwJobURL = opts.ProwJobURL
+	for _, cl := range opts.NodeConsoleLogs {
+		manifest.NodeConsoleLogs = append(manifest.NodeConsoleLogs, NodeConsoleLog{
+			NodeName:    cl.NodeName,
+			File:        fmt.Sprintf("node_boot_logs/%s", cl.FileName),
+			ArtifactURL: cl.ArtifactURL,
+		})
+	}
 	if err := WriteManifest(opts.OutputDir, manifest); err != nil {
 		return nil, fmt.Errorf("failed to write manifest: %w", err)
 	}

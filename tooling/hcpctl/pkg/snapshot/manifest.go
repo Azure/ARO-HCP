@@ -48,6 +48,11 @@ type Manifest struct {
 	// Phases lists the per-phase manifests for the test and cleanup phases.
 	Phases []PhaseManifest `json:"phases"`
 
+	// NodeConsoleLogs lists VM serial console log files captured from nodes
+	// that were part of the test. These are written by the test framework when
+	// node pool creation fails, providing boot diagnostic output.
+	NodeConsoleLogs []NodeConsoleLog `json:"node_console_logs,omitempty"`
+
 	// DirectoryLayout describes the output directory structure.
 	DirectoryLayout map[string]string `json:"directory_layout"`
 }
@@ -148,6 +153,21 @@ type RequestInfo struct {
 	Dir string `json:"dir"`
 }
 
+// NodeConsoleLog describes a VM serial console log file captured from a node
+// that was part of the test.
+type NodeConsoleLog struct {
+	// NodeName is the Azure VM name (e.g. "cilium-cluster-cilium-np-75x6r-4rwqj").
+	NodeName string `json:"node_name"`
+
+	// File is the path to the console log file, relative to the snapshot root
+	// (e.g. "node_boot_logs/cilium-cluster-cilium-np-75x6r-4rwqj-console.log").
+	File string `json:"file"`
+
+	// ArtifactURL is the gcsweb URL for downloading the original artifact from
+	// the Prow job's GCS bucket.
+	ArtifactURL string `json:"artifact_url"`
+}
+
 // directoryLayout returns the static directory layout descriptions.
 func directoryLayout() map[string]string {
 	return map[string]string{
@@ -161,6 +181,7 @@ func directoryLayout() map[string]string {
 		"conditions":     "<phase>/resources/<type>/<name>/conditions/ — status condition transition summaries (HyperShift conditions, controller conditions)",
 		"logs":           "<phase>/resources/<type>/<name>/logs/ — filtered or aggregated container and audit logs (operator logs, Maestro server/agent logs)",
 		"requests":       "<phase>/resources/<type>/<name>/requests/<METHOD>-<client_request_id>/ — per-request trace data with state/ and logs/ subdirectories",
+		"node_boot_logs": "node_boot_logs/ — VM serial console output (boot diagnostics) from nodes in the test. Files are named <node-name>-console.log. Each entry in manifest.json node_console_logs includes an artifact_url for downloading the original from the Prow job artifacts.",
 	}
 }
 

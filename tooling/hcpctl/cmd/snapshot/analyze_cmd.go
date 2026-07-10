@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
@@ -271,6 +272,33 @@ func (o *validatedAnalyzeOptions) run(ctx context.Context) error {
 	testOutput := readFileOrEmpty(filepath.Join(o.dataDir, "test_logs", "output.log"))
 	siblingTests := readFileOrEmpty(filepath.Join(o.dataDir, "sibling_tests.json"))
 
+	// Load node console logs from disk (if present).
+	nodeConsoleLogs := make(map[string]string)
+	nodeConsoleLogURLs := make(map[string]string)
+	absDataDir, err := filepath.Abs(o.dataDir)
+	if err != nil {
+		return fmt.Errorf("failed to resolve data directory: %w", err)
+	}
+	nodeBootLogsDir := filepath.Join(absDataDir, "node_boot_logs")
+	for _, cl := range manifest.NodeConsoleLogs {
+		fileName := filepath.Base(cl.File)
+		resolved, err := filepath.EvalSymlinks(filepath.Join(absDataDir, cl.File))
+		if err != nil {
+			logger.Error(err, "Skipping console log: failed to resolve path", "file", cl.File)
+			continue
+		}
+		rel, err := filepath.Rel(nodeBootLogsDir, resolved)
+		if err != nil || strings.HasPrefix(rel, "..") {
+			logger.Error(fmt.Errorf("path %q resolves outside node_boot_logs directory", cl.File), "Skipping console log with suspicious path")
+			continue
+		}
+		content := readFileOrEmpty(resolved)
+		if content != "" {
+			nodeConsoleLogs[fileName] = content
+			nodeConsoleLogURLs[fileName] = cl.ArtifactURL
+		}
+	}
+
 	// Create Azure credential for Kusto access.
 	cred, err := azidentity.NewDefaultAzureCredential(&azidentity.DefaultAzureCredentialOptions{
 		AdditionallyAllowedTenants:   []string{"*"},
@@ -369,6 +397,8 @@ func (o *validatedAnalyzeOptions) run(ctx context.Context) error {
 		KustoDatabase:       manifest.KustoDatabase,
 		MaxValidationRounds: o.maxRounds,
 		ReviewRounds:        o.reviewRounds,
+		NodeConsoleLogs:     nodeConsoleLogs,
+		NodeConsoleLogURLs:  nodeConsoleLogURLs,
 	})
 	if err != nil {
 		analysisErr = err

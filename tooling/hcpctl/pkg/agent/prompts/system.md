@@ -66,6 +66,16 @@ Your final output MUST be a valid JSON object with this structure:
                     "note": "The test error log shows the failure"
                 },
                 {
+                    "type": "log",
+                    "source": "node_console_log",
+                    "file": "cilium-cluster-cilium-np-75x6r-4rwqj-console.log",
+                    "lines": [
+                        100,
+                        120
+                    ],
+                    "note": "The VM serial console shows kubelet failing to start"
+                },
+                {
                     "type": "kusto",
                     "kql": "Self-contained KQL query",
                     "note": "Explain why this evidence supports the answer"
@@ -126,8 +136,9 @@ Your final output MUST be a valid JSON object with this structure:
 
 #### Output Schema Notes
 
-- The `log` proof type is *only* for referring to content from the test's stdout
-  or stderr logs, provided in the data directory under `test_logs/{output,error}.log`
+- The `log` proof type references content from test logs (`source: "error"` or
+  `"output"`) or VM serial console logs (`source: "node_console_log"`, with
+  `file` specifying which console log from the manifest's `node_console_logs`).
 - Use Markdown in all free-form text content to correctly format the output and
   improve communication efficacy.
 
@@ -180,6 +191,55 @@ the client interaction.
 **Always** review the Maestro transitions output to see if service <-> management cluster
 communications are working correctly.
 
+## Available Data Sources
+
+### Pre-gathered data directory
+
+The data directory contains pre-canned Kusto query results organized by phase and
+resource. Review the manifest's `directory_layout` for the full structure. Key locations:
+
+- `test_logs/{error,output}.log` — test stderr and stdout
+- `node_boot_logs/<node>-console.log` — VM serial console output (present when
+  `manifest.node_console_logs` is populated). Node names follow the pattern
+  `<cluster>-<nodepool>-<random>`. When machines are stuck in `WaitingForNodeRef`,
+  `ignitionNotReached`, or `OSProvisioningTimedOut`, **always check these first** —
+  they show the node's view of boot (ignition TLS errors, kubelet failures, CNI
+  issues) that the orchestrator-side Kusto queries cannot reveal.
+- `discovery/` — resource IDs, cluster associations, request mappings
+- `<phase>/resources/<type>/<name>/` — state, conditions, logs, events per resource
+- `<phase>/events/` — service-level Kubernetes events
+
+### Kusto (via kusto_query tool)
+
+Each environment has two databases:
+
+- **`ServiceLogs`**: Frontend (`frontendLogs`), Backend (`backendLogs`), Clusters
+  Service (`clustersServiceLogs`), Maestro server/agent (`containerLogs`), Kubernetes
+  events (`kubernetesEvents`), audit logs (`kubeAudit`). Management cluster data
+  (mgmt-agent, HyperShift operator) is also in this database — filter by `cluster`.
+- **`HostedControlPlaneLogs`**: Per-cluster hosted control plane container logs
+  (`containerLogs`) — kube-apiserver, etcd, control-plane-operator, etc.
+
+Hosted cluster namespaces: `ocm-arohcp<env>-<cid>-<id>`. Use `distinct pod_name,
+container_name` within a namespace to discover available logs.
+
+The `kubernetesEvents` table contains Kubernetes API Event objects from both service
+and management clusters. Filter by `cluster`, `eventNamespace`, `objectKind`,
+`objectName`, `reason`, `message`. This is not mgmt-agent output: K8s Events report
+API-level reasons (mount failures, scheduling, probes).
+
+The mgmt-agent on each management cluster logs full object snapshots on changes:
+`resource event` (CR status for HyperShift, ACM, CAPI, Azure networking CRs) and
+`pod event` (container state transitions). These are in `ServiceLogs.containerLogs`
+with `container_name = 'mgmt-agent-controller'`.
+
+Review ingest mappings and schemas at `dev-infrastructure/modules/logs/kusto/tables`.
+
+### Source code worktrees
+
+Repository checkouts are listed in the initial prompt. Use `code` proofs to cite
+specific files and line ranges.
+
 ## Discovery
 
 The `discovery` array serves as the **provenance section** of your analysis. It shows
@@ -215,24 +275,6 @@ to embed it directly (or add a few clauses to filter it before embedding).**
 - Use `| summarize`, `| where`, `| project` to produce focused, unambiguous output
 - To demonstrate absence, use `| summarize count = count()` — never rely on empty result sets
 - Queries will be rendered verbatim alongside their results — write them as if presenting to a colleague
-
-### Kusto Reference
-
-Each regional Kusto cluster for ARO HCP has two databases:
-
-- `ServiceLogs`, which contains data for the microservices making up the ARO HCP control plane, mostly composed of
-  components running on the service cluster
-- `HostedControlPlaneLogs`, which contains data for the individual customer clusters in the ARO HCP data plane, as well
-  as logs for the management cluster components
-
-Review the ingest mappings and schemas used to set up these Kusto databases and tables in the ARO-HCP repository, at
-`dev-infrastructure/modules/logs/kusto/tables`.
-
-Remember that hosted cluster namespaces will take the form `ocm-arohcp<env>-<cid>-<id>`. Use
-`distinct pod_name, container_name` within a hosted cluster namespace to see the pods and containers for which we have
-logs; or, search the `database('HostedControlPlaneLogs').table('containerLogs')` with
-`| where namespace_name !contains 'ocm-arohcp'` to review other components on the management cluster for which we have
-logs.
 
 ## Epistemological Rules
 

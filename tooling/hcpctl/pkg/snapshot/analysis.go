@@ -94,6 +94,34 @@ func WriteSiblingTests(outputDir string, summaries []TestSummary) error {
 	return nil
 }
 
+// WriteNodeConsoleLogs writes VM serial console log files to the node_boot_logs/
+// subdirectory of the output directory. These files contain boot diagnostic output
+// from VMs that were part of the test, captured by the test framework when node
+// pool creation fails.
+func WriteNodeConsoleLogs(outputDir string, logs []NodeConsoleLogFile) error {
+	if len(logs) == 0 {
+		return nil
+	}
+	dir := filepath.Join(outputDir, "node_boot_logs")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return fmt.Errorf("failed to create node_boot_logs dir: %w", err)
+	}
+	for _, log := range logs {
+		// Sanitize the filename to prevent path traversal: use only the
+		// base name component and reject any filename where Base() differs
+		// from the original (which would indicate embedded separators or
+		// directory components like "../" or "foo/bar").
+		safeName := filepath.Base(log.FileName)
+		if safeName != log.FileName || safeName == "." || safeName == ".." {
+			return fmt.Errorf("console log filename %q contains path separators or is invalid", log.FileName)
+		}
+		if err := os.WriteFile(filepath.Join(dir, safeName), log.Content, 0o644); err != nil {
+			return fmt.Errorf("failed to write console log %s: %w", safeName, err)
+		}
+	}
+	return nil
+}
+
 // RecoverTimeWindow reads sibling_tests.json from a previously gathered data
 // directory and returns the start/end/cleanup-start times for the named test.
 // This is used when reusing gathered data from a previous run where the time

@@ -41,6 +41,9 @@ type ValidationContext struct {
 	TestError string
 	// TestOutput is the contents of the test output.log file.
 	TestOutput string
+	// NodeConsoleLogs maps console log filenames to their contents.
+	// Used for validating node_console_log proof items.
+	NodeConsoleLogs map[string]string
 }
 
 // ValidateDraft checks a DraftChain for structural problems and executes every
@@ -119,11 +122,41 @@ func ValidateDraft(ctx context.Context, client KustoClient, draft *DraftChain, v
 					}
 				}
 			case "log":
-				if proof.Source != "error" && proof.Source != "output" {
+				if proof.Source != "error" && proof.Source != "output" && proof.Source != "node_console_log" {
 					problems = append(problems, fmt.Sprintf(
-						"- Chain link %d (%q), proof #%d: log proof has invalid source %q (must be \"error\" or \"output\").",
+						"- Chain link %d (%q), proof #%d: log proof has invalid source %q (must be \"error\", \"output\", or \"node_console_log\").",
 						i, link.Question, j+1, proof.Source,
 					))
+				} else if proof.Source == "node_console_log" {
+					if proof.File == "" {
+						problems = append(problems, fmt.Sprintf(
+							"- Chain link %d (%q), proof #%d: node_console_log proof is missing the file field specifying which console log to reference.",
+							i, link.Question, j+1,
+						))
+					} else if proof.Lines[0] < 1 || proof.Lines[1] < proof.Lines[0] {
+						problems = append(problems, fmt.Sprintf(
+							"- Chain link %d (%q), proof #%d: log proof has invalid line range [%d, %d] (must be 1-indexed with start <= end).",
+							i, link.Question, j+1, proof.Lines[0], proof.Lines[1],
+						))
+					} else if logContent, ok := vc.NodeConsoleLogs[proof.File]; !ok {
+						var available []string
+						for f := range vc.NodeConsoleLogs {
+							available = append(available, fmt.Sprintf("%q", f))
+						}
+						sort.Strings(available)
+						problems = append(problems, fmt.Sprintf(
+							"- Chain link %d (%q), proof #%d: node_console_log proof references file %q which is not available. Available console logs: %s.",
+							i, link.Question, j+1, proof.File, strings.Join(available, ", "),
+						))
+					} else {
+						lineCount := strings.Count(logContent, "\n") + 1
+						if proof.Lines[1] > lineCount {
+							problems = append(problems, fmt.Sprintf(
+								"- Chain link %d (%q), proof #%d: log proof line range [%d, %d] exceeds the console log %q length (%d lines).",
+								i, link.Question, j+1, proof.Lines[0], proof.Lines[1], proof.File, lineCount,
+							))
+						}
+					}
 				} else if proof.Lines[0] < 1 || proof.Lines[1] < proof.Lines[0] {
 					problems = append(problems, fmt.Sprintf(
 						"- Chain link %d (%q), proof #%d: log proof has invalid line range [%d, %d] (must be 1-indexed with start <= end).",
