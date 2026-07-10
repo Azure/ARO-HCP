@@ -802,21 +802,25 @@ monitoring:
       actionGroupName: ""
       actionGroupShortName: ""
       automitigationEnabled: ""
+      enabled: true
       routingId: ""
     rp:
       actionGroupName: ""
       actionGroupShortName: ""
       automitigationEnabled: ""
+      enabled: true
       routingId: ""
     sl:
       actionGroupName: ""
       actionGroupShortName: ""
       automitigationEnabled: ""
+      enabled: true
       routingId: ""
     sre:
       actionGroupName: ""
       actionGroupShortName: ""
       automitigationEnabled: ""
+      enabled: true
       routingId: ""
   svcMaxActiveTimeSeriesMillions: 2
   svcMaxEventsPerMinuteMillions: 2
