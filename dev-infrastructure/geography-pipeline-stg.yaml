@@ -32,3 +32,9 @@ resourceGroups:
     template: templates/kusto.bicep
     parameters: configurations/kusto-stg.tmpl.bicepparam
     deploymentLevel: ResourceGroup
+    automatedRetry:
+      errorContainsAny:
+      - "InternalServerError"
+      - "Internal server error"
+      maximumRetryCount: 3
+      durationBetweenRetries: 1m

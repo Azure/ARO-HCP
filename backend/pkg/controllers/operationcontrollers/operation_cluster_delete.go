@@ -183,7 +183,7 @@ func (c *operationClusterDelete) reconcileOperationAndResourceStatus(ctx context
 		return nil
 	}
 
-	newOperationStatus, newOperationError, err := convertClusterStatus(ctx, c.clusterServiceClient, operation, csClusterStatus)
+	newOperationStatus, newOperationError, err := convertClusterStatus(ctx, c.clusterServiceClient, operation, csClusterStatus, *clusterCSID)
 	if err != nil {
 		return utils.TrackError(err)
 	}

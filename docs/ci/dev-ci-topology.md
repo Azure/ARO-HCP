@@ -97,6 +97,6 @@ When you need to change or debug the standalone `dev-ci` topology, start here:
 
 - [CI Overview](README.md)
 - [CI Execution](execution.md)
-- [DEV E2E Subscription Onboarding](dev-e2e-subscription-onboarding.md)
+- [E2E Subscription Onboarding](e2e-subscription-onboarding.md)
 - [CI Identity Leasing](identity-leasing.md)
 - [CI Operations](operations.md)

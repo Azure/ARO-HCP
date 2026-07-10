@@ -15,9 +15,12 @@
 package cleanup
 
 import (
+	"cmp"
 	"context"
 	"fmt"
+	"maps"
 	"os"
+	"slices"
 
 	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
@@ -26,6 +29,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 
 	"github.com/Azure/ARO-Tools/pipelines/graph"
+	"github.com/Azure/ARO-Tools/pipelines/topology"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 
@@ -152,9 +156,9 @@ func (o *Options) CleanUpResources(ctx context.Context) error {
 
 	var executionGraph *graph.Graph
 	if o.Entrypoint != nil {
-		executionGraph, err = graph.ForEntrypoint(&o.Topo.Topology, o.Entrypoint, o.Pipelines)
+		executionGraph, err = graph.ForStampedEntrypoints(&o.Topo.Topology, []*topology.Entrypoint{o.Entrypoint}, o.StampPipelines)
 	} else {
-		executionGraph, err = graph.ForPipeline(o.Service, o.Pipelines[o.Service.ServiceGroup])
+		executionGraph, err = graph.ForStampedPipeline(o.Service, o.StampPipelines)
 	}
 	if err != nil {
 		return fmt.Errorf("failed to generate execution graph: %w", err)
@@ -162,12 +166,20 @@ func (o *Options) CleanUpResources(ctx context.Context) error {
 
 	var regionalRGs sets.Set[string]
 	if o.OnlyRegional {
-		regionalRGs = sets.New(entrypointutils.RegionalResourceGroupNames(o.Config)...)
+		regionalRGs = sets.New(entrypointutils.RegionalResourceGroupNames(o.StampConfigs)...)
 	}
 
 	group, groupCtx := errgroup.WithContext(ctx)
 
-	for _, resourceGroup := range executionGraph.ResourceGroups {
+	sortedKeys := slices.SortedFunc(maps.Keys(executionGraph.ResourceGroups), func(a, b graph.ResourceGroupKey) int {
+		if c := cmp.Compare(a.Stamp.String(), b.Stamp.String()); c != 0 {
+			return c
+		}
+		return cmp.Compare(a.Name, b.Name)
+	})
+
+	for _, key := range sortedKeys {
+		resourceGroup := executionGraph.ResourceGroups[key]
 		rgLogger := logger.WithValues("resourceGroup", resourceGroup.ResourceGroup)
 
 		if o.OnlyRegional && !regionalRGs.Has(resourceGroup.ResourceGroup) {

@@ -1,0 +1,6 @@
+values: ../values.yaml
+name: cs-debugjobs-disabled
+namespace: clusters-service
+testData:
+  clustersService:
+    deployDebugJobs: false

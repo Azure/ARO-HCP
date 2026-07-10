@@ -497,22 +497,20 @@ resource mgmtKeyVault 'Microsoft.KeyVault/vaults@2024-04-01-preview' existing = 
 //   G E N E V A   C E R T I F I C A T E   A C C E S S
 //
 
-module genevaRpLogsCertCSIAccess '../modules/keyvault/keyvault-secret-access.bicep' = {
+module genevaRpLogsCertCSIAccess '../modules/keyvault/key-vault-secret-access.bicep' = {
   name: 'geneva-mgmt-rp-certificate'
   params: {
     keyVaultName: mgmtKeyVaultName
-    roleName: 'Key Vault Secrets User'
-    managedIdentityPrincipalIds: [mgmtCluster.outputs.aksClusterKeyVaultSecretsProviderPrincipalId]
+    principalId: mgmtCluster.outputs.aksClusterKeyVaultSecretsProviderPrincipalId
     secretName: genevaRpLogsName
   }
 }
 
-module genevaClusterLogsCertCSIAccess '../modules/keyvault/keyvault-secret-access.bicep' = {
+module genevaClusterLogsCertCSIAccess '../modules/keyvault/key-vault-secret-access.bicep' = {
   name: 'geneva-cluster-log-certificate'
   params: {
     keyVaultName: mgmtKeyVaultName
-    roleName: 'Key Vault Secrets User'
-    managedIdentityPrincipalIds: [mgmtCluster.outputs.aksClusterKeyVaultSecretsProviderPrincipalId]
+    principalId: mgmtCluster.outputs.aksClusterKeyVaultSecretsProviderPrincipalId
     secretName: genevaClusterLogsName
   }
 }
@@ -521,7 +519,7 @@ module genevaClusterLogsCertCSIAccess '../modules/keyvault/keyvault-secret-acces
 //   M A E S T R O
 //
 
-module maestroConsumer '../modules/maestro/maestro-consumer.bicep' = if (maestroEventGridNamespaceId != '') {
+module maestroConsumer '../modules/maestro/maestro-consumer.bicep' = {
   name: 'maestro-consumer'
   params: {
     maestroAgentManagedIdentityPrincipalId: mi.getManagedIdentityByName(
@@ -543,7 +541,7 @@ module maestroConsumer '../modules/maestro/maestro-consumer.bicep' = if (maestro
 //  E V E N T   G R I D   P R I V A T E   E N D P O I N T   C O N N E C T I O N
 //
 
-module eventGrindPrivateEndpoint '../modules/private-endpoint.bicep' = if (maestroEventGridNamespaceId != '') {
+module eventGrindPrivateEndpoint '../modules/private-endpoint.bicep' = {
   name: 'eventGridPrivateEndpoint'
   params: {
     location: location
@@ -562,7 +560,7 @@ module eventGrindPrivateEndpoint '../modules/private-endpoint.bicep' = if (maest
 var rpCosmosDbAccountRef = res.cosmosDBAccountRefFromId(rpCosmosDbAccountId)
 
 module kubeApplierCosmos '../modules/rp-cosmos-kube-applier.bicep' = if (rpCosmosDbAccountId != '') {
-  name: 'kube-applier-cosmos'
+  name: 'kube-applier-cosmos-${uniqueString(resourceGroup().name)}'
   scope: resourceGroup(rpCosmosDbAccountRef.resourceGroup.subscriptionId, rpCosmosDbAccountRef.resourceGroup.name)
   params: {
     cosmosDBAccountName: rpCosmosDbAccountRef.name

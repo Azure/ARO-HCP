@@ -91,7 +91,7 @@ func (a *armClient) runArmStep(ctx context.Context, options *StepRunOptions, rgN
 		return nil, nil, fmt.Errorf("failed to ensure resource group exists: %w", err)
 	}
 
-	return doWaitForDeployment(ctx, a.bicepClient, a.deploymentClient, a.getOperationsClient, a.subscriptionID, id.ServiceGroup, rgName, step, options.PipelineDirectory, options.StepCacheDir, options.Configuration, options.DeploymentTimeoutSeconds, options.RetryAttempt, state)
+	return doWaitForDeployment(ctx, a.bicepClient, a.deploymentClient, a.getOperationsClient, a.subscriptionID, id.ServiceGroup, id.Stamp, rgName, step, options.PipelineDirectory, options.StepCacheDir, options.Configuration, options.DeploymentTimeoutSeconds, options.RetryAttempt, state)
 }
 
 func createError(errors armresources.ErrorResponse) error {
@@ -145,11 +145,11 @@ func armOutputFromOutputs(outputs any) ArmOutput {
 	return nil
 }
 
-func doWaitForDeployment(ctx context.Context, bicepClient *bicep.LSPClient, client *armresources.DeploymentsClient, getOperationsClient OperationsClientGetter, subscriptionID, sgName, rgName string, step *types.ARMStep, pipelineWorkingDir, stepCacheDir string, cfg configtypes.Configuration, timeoutSeconds int, retryAttempt int, state *ExecutionState) (Output, DetailsProducer, error) {
+func doWaitForDeployment(ctx context.Context, bicepClient *bicep.LSPClient, client *armresources.DeploymentsClient, getOperationsClient OperationsClientGetter, subscriptionID, serviceGroup string, stamp graph.Stamp, rgName string, step *types.ARMStep, pipelineWorkingDir, stepCacheDir string, cfg configtypes.Configuration, timeoutSeconds int, retryAttempt int, state *ExecutionState) (Output, DetailsProducer, error) {
 	logger := logr.FromContextOrDiscard(ctx)
 
 	state.RLock()
-	inputValues, err := getInputValues(sgName, step.Variables, cfg, state.Outputs)
+	inputValues, err := getInputValues(serviceGroup, step.Variables, cfg, state.GetOutputs(stamp))
 	state.RUnlock()
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to get input values: %w", err)

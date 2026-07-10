@@ -1,12 +1,12 @@
 acm:
   mce:
     bundle:
-      digest: sha256:456c9f02419101b515601236d7cb16aa8ad5182bc5194b6b10fa5de21d9bfd3f
+      digest: sha256:076552812a726460398e01cccf0af1bb2110365b100d8e13d8a55224185bf3b5
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-211
   operator:
     bundle:
-      digest: sha256:3ab374c6b915adb531fb5d9938007a1e7740ecc2789d0e9efbaf847444bd02ef
+      digest: sha256:94e71eeae6bf40c544dd8b64e57a25b18425ac9a949d62c79b9d440a281349cb
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-216
 acr:
@@ -171,7 +171,7 @@ clustersService:
   deployDebugJobs: false
   environment: arohcpdev
   image:
-    digest: sha256:6a49b32884d56e707aafba6d73258cb57857087c261f606df71c74f2a9336bf7
+    digest: sha256:00ffebc8fe99adfd59de6d296933fcc4cc553674b7673c2f5578fa15479b94c9
     registry: quay.io
     repository: app-sre/aro-hcp-clusters-service
   k8s:
@@ -364,7 +364,7 @@ geneva:
       accountName: placeholder
       configVersion: "1"
       namespace: ""
-      san: ""
+      san: empty-sentinel
       secretName: clusterlogs
     contentType: x-pkcs12
     environment: Test
@@ -373,7 +373,7 @@ geneva:
       accountName: placeholder
       configVersion: "1"
       namespace: ""
-      san: ""
+      san: empty-sentinel
       secretName: rplogs
     typeName: ""
   metrics:
@@ -447,7 +447,7 @@ hcpRecovery:
 hypershift:
   additionalInstallArg: --enable-cpo-overrides
   image:
-    digest: sha256:a0da39b5e3c6c2b3ba6a84e1a70efba88ed899f80dc17c85b2f60deec1cabe6f
+    digest: sha256:b58f27b32b4b827090b44934e347f682037be4289755be39acf8a7998a746a29
     registry: quay.io
     repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
   limitClusterSizes: true
@@ -465,7 +465,7 @@ imageSync:
   ocMirror:
     enabled: true
     image:
-      digest: sha256:4cd6b7335871b5e8bfc43bc56bb60638088d53c2312fdbc40c1f6c2ac4ffed24
+      digest: sha256:fc9ccbe3844a75dc757b43d090d0bd44d0d555e390dbaec62e3ca33f19d97572
       registry: arohcpsvcdev.azurecr.io
       repository: image-sync/oc-mirror
     jobNamePrefix: ""
@@ -524,7 +524,7 @@ kusto:
   sku: Standard_E8ads_v5
   tier: Standard
   viewerGroups: 64dc69e4-d083-49fc-9569-ebece1dd1408/6b6d3adf-8476-4727-9812-20ffdef2b85c
-  viewerIdentities: ""
+  viewerIdentities: 64dc69e4-d083-49fc-9569-ebece1dd1408/5990dc26-1b73-4547-9bba-9a5bd64a0165
 kvCertAccessPrincipalId: c9b1819d-bb29-4ac2-9abe-39e4fe9b59eb
 kvCertAccessRoleId: ""
 kvCertOfficerPrincipalId: c9b1819d-bb29-4ac2-9abe-39e4fe9b59eb
@@ -540,6 +540,7 @@ logs:
     subscriptions: []
 maestro:
   agent:
+    certCN: mgmt-1.maestro.westus3.hcpsvc.osadev.cloud
     certSAN: hcp-underlay-usw3-mgmt-1.maestro.westus3.hcpsvc.osadev.cloud
     consumerName: hcp-underlay-usw3-mgmt-1
     k8s:
@@ -550,7 +551,7 @@ maestro:
     managedIdentityName: maestro-consumer
     sidecar:
       image:
-        digest: sha256:bef7ab720cea4ae7cd19a0ee03418a59c4a9233ded75b233143cf792d8ca0741
+        digest: sha256:eb2f01cc220dac1d970bd45f9bf8bcfda3cc5e6840e59b1698dd7b6c4f84d37c
         registry: mcr.microsoft.com
         repository: azurelinux/base/nginx
   certIssuer: Self
@@ -581,6 +582,7 @@ maestro:
     zoneRedundantMode: Auto
   restrictIstioIngress: true
   server:
+    certCN: server.maestro.westus3.hcpsvc.osadev.cloud
     certSAN: maestro-server-usw3-dev.maestro.westus3.hcpsvc.osadev.cloud
     k8s:
       namespace: maestro
@@ -697,9 +699,10 @@ mgmt:
       image:
         registry: arohcpsvcdev.azurecr.io
         repository: thanos/thanos
-        sha: cf3e9b292e4302ad4a4955b56379703aea39516607d382a57604a3d003c35d10
+        sha: cc1975aaeb64a744dc11319892345f4822f72860f0efcff030111fe08328bfa4
         tag: v0.41.0
   rg: hcp-underlay-dev-westus3-mgmt-1
+  stampIdentifier: "1"
   stamps:
     count: 1
   subscription:
@@ -790,6 +793,8 @@ monitoring:
   grafanaName: arohcp-dev
   grafanaRoles: 6b6d3adf-8476-4727-9812-20ffdef2b85c/Group/Admin
   grafanaZoneRedundantMode: Disabled
+  hcpMaxActiveTimeSeriesMillions: 2
+  hcpMaxEventsPerMinuteMillions: 2
   hcpWorkspaceName: hcps-usw3
   icm:
     connectionId: ""
@@ -800,26 +805,28 @@ monitoring:
       actionGroupName: ""
       actionGroupShortName: ""
       automitigationEnabled: ""
+      enabled: true
       routingId: ""
     rp:
       actionGroupName: ""
       actionGroupShortName: ""
       automitigationEnabled: ""
+      enabled: true
       routingId: ""
     sl:
       actionGroupName: ""
       actionGroupShortName: ""
       automitigationEnabled: ""
+      enabled: true
       routingId: ""
     sre:
       actionGroupName: ""
       actionGroupShortName: ""
       automitigationEnabled: ""
+      enabled: true
       routingId: ""
-  maxActiveTimeSeries: 2000000
-  maxActiveTimeSeriesMillions: 2
-  maxEventsPerMinute: 2000000
-  maxEventsPerMinuteMillions: 2
+  svcMaxActiveTimeSeriesMillions: 2
+  svcMaxEventsPerMinuteMillions: 2
   svcWorkspaceName: services-usw3
 msiCredentialsRefresher:
   certificate:
@@ -1038,7 +1045,7 @@ svc:
       image:
         registry: arohcpsvcdev.azurecr.io
         repository: thanos/thanos
-        sha: cf3e9b292e4302ad4a4955b56379703aea39516607d382a57604a3d003c35d10
+        sha: cc1975aaeb64a744dc11319892345f4822f72860f0efcff030111fe08328bfa4
         tag: v0.41.0
   rg: hcp-underlay-dev-westus3-svc
   subscription:
@@ -1078,14 +1085,14 @@ svc:
 tenantId: 64dc69e4-d083-49fc-9569-ebece1dd1408
 velero:
   azurePlugin:
-    digest: sha256:d0a28097f90c26293091f35ab14c4da8712584bdbda7e7bdfd97e76b23d62c52
+    digest: sha256:8b51e7ed709b146f9cc44065e479493f30b2d235731a54e5305a721ac3740ebd
     registry: registry.stage.redhat.io
     repository: oadp/oadp-velero-plugin-for-microsoft-azure-rhel9
   hypershiftPlugin:
-    digest: sha256:875431efdb4a7ba23988028f24b7b1a28d9386ab38055ada42c422cbfec2f09d
+    digest: sha256:bdc6e3d056050e817941fdd4006ba2fed300bec14d7fcd1c3004ec7840ba33a3
     registry: registry.stage.redhat.io
     repository: oadp/oadp-hypershift-velero-plugin-rhel9
   server:
-    digest: sha256:ff2717fda74b3a0dce5e28bf7eb3bbf3e2df5d9518cb4feb5a08a46b1f6d50dd
+    digest: sha256:aee0432bc370f2e1d4a3f4245b365dc36ca3ca744b741c98af16bd40e0c7beb8
     registry: registry.stage.redhat.io
     repository: oadp/oadp-velero-rhel9

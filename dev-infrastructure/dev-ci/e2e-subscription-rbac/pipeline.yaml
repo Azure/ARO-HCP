@@ -2,20 +2,6 @@ $schema: "pipeline.schema.v1"
 serviceGroup: Microsoft.Azure.ARO.HCP.DevCI.E2ESubscriptionRBAC
 rolloutName: Dev CI E2E Subscription RBAC Rollout
 resourceGroups:
-- name: home
-  resourceGroup: '{{ .global.rg }}'
-  subscription: '{{ .global.subscription.key }}'
-  steps:
-  - name: operator-roles
-    action: ARM
-    template: ../../templates/dev-operator-roles.bicep
-    parameters: ../../configurations/dev-operator-roles.tmpl.bicepparam
-    deploymentLevel: Subscription
-  - name: mock-identity-roles
-    action: ARM
-    template: ../../templates/mock-identity-roles.bicep
-    parameters: ../../configurations/mock-identity-roles.tmpl.bicepparam
-    deploymentLevel: Subscription
 - name: grants
   resourceGroup: '{{ .global.rg }}'
   subscription: '{{ .global.subscription.key }}'
@@ -25,11 +11,6 @@ resourceGroups:
     template: ../../templates/e2e-subscription-rbac-assignments.bicep
     parameters: ../../configurations/e2e-subscription-rbac-assignments.tmpl.bicepparam
     deploymentLevel: Subscription
-    dependsOn:
-    - resourceGroup: home
-      step: operator-roles
-    - resourceGroup: home
-      step: mock-identity-roles
 - name: ci-bots
   resourceGroup: '{{ .global.rg }}'
   subscription: '{{ .global.subscription.key }}'
@@ -102,6 +83,21 @@ resourceGroups:
     dependsOn:
     - resourceGroup: ci-bots
       step: ci-bot-identity
+  # The DEV Release Bot RBAC is still managed imperatively by the legacy
+  # grant-openshift-release-bot-dev.sh script, which created role assignments
+  # under random (non-deterministic) names. Enabling this step before those
+  # legacy assignments are removed fails with RoleAssignmentExists, because the
+  # deterministic guid()-named assignments this template creates collide with
+  # the pre-existing ones. Keep it commented until the DEV bot RBAC migration
+  # (delete legacy assignments, then enable this step) has been performed.
+  # - name: ci-bot-rbac-dev
+  #   action: ARM
+  #   template: ../../templates/ci-bot-rbac.bicep
+  #   parameters: ../../configurations/ci-bot-rbac-dev.tmpl.bicepparam
+  #   deploymentLevel: ResourceGroup
+  #   dependsOn:
+  #   - resourceGroup: ci-bots
+  #     step: ci-bot-identity
   - name: ci-bot-rbac-int
     action: ARM
     template: ../../templates/ci-bot-rbac.bicep

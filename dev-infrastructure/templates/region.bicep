@@ -51,11 +51,17 @@ param svcMonitorName string
 @description('Name of the Azure Monitor Workspace for hosted control planes')
 param hcpMonitorName string
 
-@description('Maximum active time series limit for Azure Monitor Workspaces in millions (2M initial, bump when hitting 50% utilization)')
-param amwMaxActiveTimeSeriesMillions int = 2
+@description('Maximum active time series limit for the service Azure Monitor Workspace in millions (2M initial, bump when hitting 50% utilization)')
+param svcAmwMaxActiveTimeSeriesMillions int = 2
 
-@description('Maximum events per minute limit for Azure Monitor Workspaces in millions (2M initial, bump when hitting 50% utilization)')
-param amwMaxEventsPerMinuteMillions int = 2
+@description('Maximum events per minute limit for the service Azure Monitor Workspace in millions (2M initial, bump when hitting 50% utilization)')
+param svcAmwMaxEventsPerMinuteMillions int = 2
+
+@description('Maximum active time series limit for the HCP Azure Monitor Workspace in millions (2M initial, bump when hitting 50% utilization)')
+param hcpAmwMaxActiveTimeSeriesMillions int = 2
+
+@description('Maximum events per minute limit for the HCP Azure Monitor Workspace in millions (2M initial, bump when hitting 50% utilization)')
+param hcpAmwMaxEventsPerMinuteMillions int = 2
 
 @description('Use the internal Microsoft API version for the HCP Azure Monitor Workspace')
 param hcpMonitorUseInternalApi bool = false
@@ -183,8 +189,8 @@ module svcMonitorIngestionLimits '../modules/metrics/amw-ingestion-limits.bicep'
   params: {
     azureMonitorWorkspaceName: svcMonitorName
     location: location
-    maxActiveTimeSeriesMillions: amwMaxActiveTimeSeriesMillions
-    maxEventsPerMinuteMillions: amwMaxEventsPerMinuteMillions
+    maxActiveTimeSeriesMillions: svcAmwMaxActiveTimeSeriesMillions
+    maxEventsPerMinuteMillions: svcAmwMaxEventsPerMinuteMillions
   }
   dependsOn: [svcMonitor]
 }
@@ -194,8 +200,8 @@ module hcpMonitorIngestionLimits '../modules/metrics/amw-ingestion-limits.bicep'
   params: {
     azureMonitorWorkspaceName: hcpMonitorName
     location: location
-    maxActiveTimeSeriesMillions: amwMaxActiveTimeSeriesMillions
-    maxEventsPerMinuteMillions: amwMaxEventsPerMinuteMillions
+    maxActiveTimeSeriesMillions: hcpAmwMaxActiveTimeSeriesMillions
+    maxEventsPerMinuteMillions: hcpAmwMaxEventsPerMinuteMillions
   }
   dependsOn: [hcpMonitor]
 }

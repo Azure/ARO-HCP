@@ -277,13 +277,13 @@ defaults:
         secretName: clusterlogs
         accountName: placeholder
         namespace: ""
-        san: ""
+        san: "empty-sentinel"
         configVersion: "1"
       rp:
         secretName: rplogs
         accountName: placeholder
         namespace: ""
-        san: ""
+        san: "empty-sentinel"
         configVersion: "1"
     actions:
       serviceTag: GenevaActions
@@ -350,7 +350,7 @@ defaults:
     image:
       registry: quay.io
       repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
-      digest: sha256:a0da39b5e3c6c2b3ba6a84e1a70efba88ed899f80dc17c85b2f60deec1cabe6f # 9b3e234b2605b9df981822b656e7b54dfe9ed61d (2026-07-06 10:14)
+      digest: sha256:b58f27b32b4b827090b44934e347f682037be4289755be39acf8a7998a746a29 # 8b5103a5875ba0d57b78c56bca2bfe39843f0b22 (2026-07-08 11:43)
     namespace: hypershift
     additionalInstallArg: '--enable-cpo-overrides'
     # By default we set it to empty as this tag is only required for msft environments. We override
@@ -389,11 +389,12 @@ defaults:
     hcpWorkspaceName: 'hcps-{{ .ctx.region }}'
     # Azure Monitor Workspace ingestion limits
     # 2M initial limit, bump per env when hitting 50% utilization (Azure requires <200% increase)
-    maxActiveTimeSeries: 2000000
-    maxActiveTimeSeriesMillions: 2
-    maxEventsPerMinute: 2000000
-    maxEventsPerMinuteMillions: 2
+    svcMaxActiveTimeSeriesMillions: 2
+    svcMaxEventsPerMinuteMillions: 2
+    hcpMaxActiveTimeSeriesMillions: 2
+    hcpMaxEventsPerMinuteMillions: 2
     alertRuleOwningTeamTag: ""
+    # alertsEnabled: disables the Azure Action Group resource (affects all lanes: SRE, SL, RP, MSFT)
     alertsEnabled: false
     alertSeverityCeiling: 0
     eventHubAlerting:
@@ -403,22 +404,29 @@ defaults:
       connectionName: ""
       connectionId: ""
       environment: ""
+      # enabled: per-lane switch. When false, the lane's action group is removed from
+      # its rule wiring, so those rules still evaluate in Prometheus but do not generate
+      # IcM tickets. Only has effect when manageConnection=true and alertsEnabled=true.
       sre:
+        enabled: true
         actionGroupName: ""
         actionGroupShortName: ""
         routingId: ""
         automitigationEnabled: ""
       sl:
+        enabled: true
         actionGroupName: ""
         actionGroupShortName: ""
         routingId: ""
         automitigationEnabled: ""
       rp:
+        enabled: true
         actionGroupName: ""
         actionGroupShortName: ""
         routingId: ""
         automitigationEnabled: ""
       msft:
+        enabled: true
         actionGroupName: ""
         actionGroupShortName: ""
         routingId: ""
@@ -436,15 +444,15 @@ defaults:
     server:
       registry: registry.stage.redhat.io
       repository: oadp/oadp-velero-rhel9
-      digest: sha256:ff2717fda74b3a0dce5e28bf7eb3bbf3e2df5d9518cb4feb5a08a46b1f6d50dd # 1.6.1 (2026-07-02 00:07)
+      digest: sha256:aee0432bc370f2e1d4a3f4245b365dc36ca3ca744b741c98af16bd40e0c7beb8 # 1.6.1 (2026-07-08 06:42)
     azurePlugin:
       registry: registry.stage.redhat.io
       repository: oadp/oadp-velero-plugin-for-microsoft-azure-rhel9
-      digest: sha256:d0a28097f90c26293091f35ab14c4da8712584bdbda7e7bdfd97e76b23d62c52 # 1.6.1 (2026-07-02 17:36)
+      digest: sha256:8b51e7ed709b146f9cc44065e479493f30b2d235731a54e5305a721ac3740ebd # 1.6.1 (2026-07-08 06:36)
     hypershiftPlugin:
       registry: registry.stage.redhat.io
       repository: oadp/oadp-hypershift-velero-plugin-rhel9
-      digest: sha256:875431efdb4a7ba23988028f24b7b1a28d9386ab38055ada42c422cbfec2f09d # 1.6.1 (2026-07-02 21:34)
+      digest: sha256:bdc6e3d056050e817941fdd4006ba2fed300bec14d7fcd1c3004ec7840ba33a3 # 1.6.1 (2026-07-08 06:36)
   # SVC cluster specifics
   svc:
     subscription:
@@ -577,7 +585,7 @@ defaults:
           registry: arohcpsvcdev.azurecr.io
           repository: thanos/thanos
           tag: v0.41.0
-          sha: cf3e9b292e4302ad4a4955b56379703aea39516607d382a57604a3d003c35d10
+          sha: cc1975aaeb64a744dc11319892345f4822f72860f0efcff030111fe08328bfa4 # v0.42.0 (2026-07-08 13:51)
   # MGMT cluster specifics
   mgmt:
     stamps:
@@ -707,7 +715,7 @@ defaults:
           registry: arohcpsvcdev.azurecr.io
           repository: thanos/thanos
           tag: v0.41.0
-          sha: cf3e9b292e4302ad4a4955b56379703aea39516607d382a57604a3d003c35d10
+          sha: cc1975aaeb64a744dc11319892345f4822f72860f0efcff030111fe08328bfa4 # v0.42.0 (2026-07-08 13:51)
   # Backend
   backend:
     image:
@@ -953,7 +961,7 @@ defaults:
         image:
           registry: mcr.microsoft.com
           repository: azurelinux/base/nginx
-          digest: sha256:bef7ab720cea4ae7cd19a0ee03418a59c4a9233ded75b233143cf792d8ca0741 # 1.28.3-5-azl3.0.20260616 (2026-06-19 09:14)
+          digest: sha256:eb2f01cc220dac1d970bd45f9bf8bcfda3cc5e6840e59b1698dd7b6c4f84d37c # 1.28.3-6-azl3.0.20260706 (2026-07-06 13:27)
     eventGrid:
       name: "arohcp-{{ .ctx.environment }}-maestro-{{ .ctx.regionShort }}" # [globally-unique]
       maxClientSessionsPerAuthName: 6
@@ -986,22 +994,18 @@ defaults:
       bundle:
         registry: quay.io
         repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-216
-        digest: sha256:3ab374c6b915adb531fb5d9938007a1e7740ecc2789d0e9efbaf847444bd02ef # v2.16.3-501 (2026-07-06 11:40)
+        digest: sha256:94e71eeae6bf40c544dd8b64e57a25b18425ac9a949d62c79b9d440a281349cb # v2.16.3-508 (2026-07-08 16:47)
     mce:
       bundle:
         registry: quay.io
         repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-211
-        digest: sha256:456c9f02419101b515601236d7cb16aa8ad5182bc5194b6b10fa5de21d9bfd3f # v2.11.4-546 (2026-07-06 11:41)
+        digest: sha256:076552812a726460398e01cccf0af1bb2110365b100d8e13d8a55224185bf3b5 # v2.11.4-546 (2026-07-08 16:39)
   # Cluster Service
   clustersService:
     image:
       registry: quay.io
       repository: app-sre/aro-hcp-clusters-service
-      # Manually pinned, see AROSLSRE-1395: the next digest (b17f6fe, vcs-ref
-      # ee741db) reproducibly breaks e2e-parallel — candidate 4.22/5.0 data-plane
-      # ingress never becomes reachable. Do not let the automated image bump
-      # advance this until fixed (source tag is pinned in image-updater/config.yaml).
-      digest: sha256:6a49b32884d56e707aafba6d73258cb57857087c261f606df71c74f2a9336bf7 # 18b5a25df4baa3fabe4a2dab97dcca51a5828c79 (2026-06-19 10:48)
+      digest: sha256:00ffebc8fe99adfd59de6d296933fcc4cc553674b7673c2f5578fa15479b94c9 # dcaf5af6aba786f50b1097483a5d32a5feaa4e6d (2026-07-06 14:17)
     # controls how many HCPs can be placed on an MC, sadly not configurable per MC
     provisionShardClusterLimit: 100
     provisionShardStatus: active
@@ -1063,7 +1067,7 @@ defaults:
       image:
         registry: arohcpsvcdev.azurecr.io
         repository: image-sync/oc-mirror
-        digest: sha256:4cd6b7335871b5e8bfc43bc56bb60638088d53c2312fdbc40c1f6c2ac4ffed24 # dd1bc6e (2026-07-06 14:09)
+        digest: sha256:fc9ccbe3844a75dc757b43d090d0bd44d0d555e390dbaec62e3ca33f19d97572 # 50e62e1 (2026-07-08 21:10)
       pullSecretName: ocmirror-pull-secret
       operatorVersionsToMirror: "4.18,4.19,4.20,4.21,4.22"
   # Automation Account
@@ -1151,6 +1155,8 @@ clouds:
         enableAutoScale: true
         adminGroups: ""
         viewerGroups: "64dc69e4-d083-49fc-9569-ebece1dd1408/6b6d3adf-8476-4727-9812-20ffdef2b85c"
+        # app registration associated with chai-bot
+        viewerIdentities: "64dc69e4-d083-49fc-9569-ebece1dd1408/5990dc26-1b73-4547-9bba-9a5bd64a0165"
         rg: "hcp-kusto-us"
       auditLogsEventHub:
         # Turning off audit log eventhubs for most dev environments due to the difficulty of
@@ -1219,8 +1225,10 @@ clouds:
         certIssuer: Self
         server:
           certSAN: 'maestro-server-{{ .ctx.regionShort }}.maestro.{{ .ctx.region }}.hcpsvc.osadev.cloud'
+          certCN: 'server.maestro.{{ .ctx.region }}.hcpsvc.osadev.cloud'
         agent:
           certSAN: 'hcp-underlay-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}.maestro.{{ .ctx.region }}.hcpsvc.osadev.cloud'
+          certCN: 'mgmt-{{ .ctx.stamp }}.maestro.{{ .ctx.region }}.hcpsvc.osadev.cloud'
         postgres:
           enhancedMetricsEnabled: true
       # Cluster Service
@@ -1294,6 +1302,7 @@ clouds:
           prometheusSpec:
             shards: 1
       mgmt:
+        stampIdentifier: '{{ .ctx.stamp }}'
         subscription:
           key: ARO Hosted Control Planes (EA Subscription 1)
           certificateDomains:
@@ -1395,6 +1404,7 @@ clouds:
             server:
               mqttClientName: 'maestro-server-{{ .ctx.regionShort }}-dev'
               certSAN: 'maestro-server-{{ .ctx.regionShort }}-dev.maestro.{{ .ctx.region }}.hcpsvc.osadev.cloud'
+              certCN: 'server.maestro.{{ .ctx.region }}.hcpsvc.osadev.cloud'
               tracing:
                 address: "http://ingest.observability:4318"
                 exporter: "otlp"
@@ -1461,8 +1471,10 @@ clouds:
             restrictIstioIngress: false
             server:
               certSAN: 'maestro-server-{{ .ctx.regionShort }}.maestro.{{ .ctx.region }}-cs.hcpsvc.osadev.cloud'
+              certCN: 'server.maestro.{{ .ctx.region }}-cs.hcpsvc.osadev.cloud'
             agent:
               certSAN: 'hcp-underlay-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}.maestro.{{ .ctx.region }}-cs.hcpsvc.osadev.cloud'
+              certCN: 'mgmt-{{ .ctx.stamp }}.maestro.{{ .ctx.region }}-cs.hcpsvc.osadev.cloud'
           # Frontend
           frontend:
             cert:
@@ -1536,11 +1548,13 @@ clouds:
             server:
               mqttClientName: 'maestro-server-{{ .ctx.regionShort }}'
               certSAN: 'maestro-server-{{ .ctx.regionShort }}.maestro.{{ .ctx.regionShort }}.hcpsvc.osadev.cloud'
+              certCN: 'server.maestro.{{ .ctx.regionShort }}.hcpsvc.osadev.cloud'
               tracing:
                 address: "http://ingest.observability:4318"
                 exporter: "otlp"
             agent:
               certSAN: 'hcp-underlay-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}.maestro.{{ .ctx.regionShort }}.hcpsvc.osadev.cloud'
+              certCN: 'mgmt-{{ .ctx.stamp }}.maestro.{{ .ctx.regionShort }}.hcpsvc.osadev.cloud'
           # Backend
           backend:
             tracing:
@@ -1601,8 +1615,10 @@ clouds:
           maestro:
             server:
               certSAN: 'maestro-server-{{ .ctx.regionShort }}.maestro.{{ .ctx.regionShort }}.hcpsvc.osadev.cloud'
+              certCN: 'server.maestro.{{ .ctx.regionShort }}.hcpsvc.osadev.cloud'
             agent:
               certSAN: 'hcp-underlay-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}.maestro.{{ .ctx.regionShort }}.hcpsvc.osadev.cloud'
+              certCN: 'mgmt-{{ .ctx.stamp }}.maestro.{{ .ctx.regionShort }}.hcpsvc.osadev.cloud'
           # SVC
           svc:
             rg: "hcp-underlay-{{ .ctx.environment }}-{{ .ctx.regionShort }}-svc"
@@ -1655,11 +1671,13 @@ clouds:
             server:
               mqttClientName: 'maestro-server-{{ .ctx.regionShort }}'
               certSAN: 'maestro-server-{{ .ctx.regionShort }}.maestro.{{ .ctx.regionShort }}.hcpsvc.osadev.cloud'
+              certCN: 'server.maestro.{{ .ctx.regionShort }}.hcpsvc.osadev.cloud'
               tracing:
                 address: "http://ingest.observability:4318"
                 exporter: "otlp"
             agent:
               certSAN: 'hcp-underlay-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}.maestro.{{ .ctx.regionShort }}.hcpsvc.osadev.cloud'
+              certCN: 'mgmt-{{ .ctx.stamp }}.maestro.{{ .ctx.regionShort }}.hcpsvc.osadev.cloud'
           # Backend
           backend:
             tracing:
@@ -1683,10 +1701,10 @@ clouds:
               systemAgentPool:
                 maxCount: 4
                 osDiskSizeGB: 32
-                vmSize: Standard_D4ds_v6
+                vmSize: Standard_D16ds_v6
               userAgentPool:
                 maxCount: 14
-                minCount: 5
+                minCount: 7
                 osDiskSizeGB: 100
                 vmSize: Standard_E16ds_v6
                 secondaryNicCount: 7
@@ -1752,11 +1770,13 @@ clouds:
             server:
               mqttClientName: 'maestro-server-{{ .ctx.regionShort }}'
               certSAN: 'maestro-server-{{ .ctx.regionShort }}.maestro.{{ .ctx.regionShort }}.hcpsvc.osadev.cloud'
+              certCN: 'server.maestro.{{ .ctx.regionShort }}.hcpsvc.osadev.cloud'
               tracing:
                 address: "http://ingest.observability:4318"
                 exporter: "otlp"
             agent:
               certSAN: 'hcp-underlay-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}.maestro.{{ .ctx.regionShort }}.hcpsvc.osadev.cloud'
+              certCN: 'mgmt-{{ .ctx.stamp }}.maestro.{{ .ctx.regionShort }}.hcpsvc.osadev.cloud'
           # Backend
           backend:
             tracing:
@@ -1782,10 +1802,10 @@ clouds:
               systemAgentPool:
                 maxCount: 4
                 osDiskSizeGB: 32
-                vmSize: Standard_D4ds_v6
+                vmSize: Standard_D16ds_v6
               userAgentPool:
                 maxCount: 14
-                minCount: 5
+                minCount: 7
                 osDiskSizeGB: 100
                 vmSize: Standard_E16ds_v6
                 secondaryNicCount: 7

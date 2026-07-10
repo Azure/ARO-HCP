@@ -767,7 +767,7 @@ func (f *Frontend) ArmDeploymentPreflight(writer http.ResponseWriter, request *h
 
 			op := operation.Operation{
 				Type:    operation.Create,
-				Options: validation.AFECsToValidationOptions(subscription.GetRegisteredFeatures()),
+				Options: validation.BuildValidationOptions(subscription.GetRegisteredFeatures(), api.APIVersion(versionedInterface.String())),
 			}
 			validationErrs := validation.ValidateNodePool(ctx, op, newInternalNodePool, nil)
 			preflightErr = arm.CloudErrorFromFieldErrors(validationErrs)

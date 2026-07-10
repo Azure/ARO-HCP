@@ -242,10 +242,6 @@ infra.mgmt:
 	@cd dev-infrastructure && DEPLOY_ENV=$(DEPLOY_ENV) make mgmt.init
 .PHONY: infra.mgmt
 
-infra.mgmt.solo:
-	@cd dev-infrastructure && DEPLOY_ENV=$(DEPLOY_ENV) make mgmt.solo.init
-.PHONY: infra.mgmt.solo
-
 infra.mgmt.aks.kubeconfig:
 	@cd dev-infrastructure && DEPLOY_ENV=$(DEPLOY_ENV) make -s mgmt.aks.kubeconfig
 .PHONY: infra.mgmt.aks.kubeconfig
@@ -535,7 +531,7 @@ ifeq ($(wildcard $(YQ)),$(YQ))
 $(addprefix entrypoint/,$(entrypoints)):
 endif
 entrypoint/%:
-	$(MAKE) local-run WHAT="--entrypoint Microsoft.Azure.ARO.HCP.$(notdir $@)"
+	$(MAKE) local-run WHAT="--entrypoint Microsoft.Azure.ARO.HCP.$(notdir $@)" EXTRA_ARGS="--stamp-count-config-ref=mgmt.stamps.count $(EXTRA_ARGS)"
 
 ifeq ($(wildcard $(YQ)),$(YQ))
 $(addprefix pipeline/,$(pipelines)):
@@ -595,7 +591,7 @@ ifeq ($(wildcard $(YQ)),$(YQ))
 $(addprefix cleanup-entrypoint/,$(entrypoints)):
 endif
 cleanup-entrypoint/%:
-	$(MAKE) cleanup WHAT="--entrypoint Microsoft.Azure.ARO.HCP.$(notdir $@)"
+	$(MAKE) cleanup WHAT="--entrypoint Microsoft.Azure.ARO.HCP.$(notdir $@)" EXTRA_ARGS="--stamp-count-config-ref=mgmt.stamps.count $(EXTRA_ARGS)"
 
 ifeq ($(wildcard $(YQ)),$(YQ))
 $(addprefix cleanup-pipeline/,$(pipelines)):
@@ -612,7 +608,7 @@ cleanup: $(TEMPLATIZE)
 								     --topology-config topology.yaml \
 								     --dev-settings-file tooling/templatize/settings.yaml \
 								     --dev-environment $(DEPLOY_ENV) \
-								     $(WHAT) \
+								     $(WHAT) $(EXTRA_ARGS) \
 								     --dry-run=$(CLEANUP_DRY_RUN) \
 								     --only-regional \
 								     --wait=$(CLEANUP_WAIT) \

@@ -16,15 +16,20 @@ package serverutils
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
+
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
+
+const RedactStr = "REDACTED"
 
 // DumpDataToLogger writes a structured-log entry for every document related
 // to resourceID. It covers three storage layers:
@@ -61,6 +66,10 @@ func DumpDataToLogger(
 	if err != nil {
 		return utils.TrackError(err)
 	}
+	err = redactTypedDocument(startingCosmosRecord)
+	if err != nil {
+		return utils.TrackError(err)
+	}
 	logger.Info(fmt.Sprintf("dumping resourceID %v", startingCosmosRecord.ResourceID),
 		"currentResourceID", resourceIDToString(startingCosmosRecord.ResourceID),
 		"content", startingCosmosRecord,
@@ -73,6 +82,10 @@ func DumpDataToLogger(
 
 	errs := []error{}
 	for _, typedDocument := range allCosmosRecords.Items(ctx) {
+		if err := redactTypedDocument(typedDocument); err != nil {
+			errs = append(errs, utils.TrackError(err))
+			continue
+		}
 		logger.Info(fmt.Sprintf("dumping resourceID %v", typedDocument.ResourceID),
 			"currentResourceID", resourceIDToString(typedDocument.ResourceID),
 			"content", typedDocument,
@@ -211,5 +224,44 @@ func DumpBillingToLogger(ctx context.Context, resourcesDBClient database.Resourc
 		"content", billingDoc,
 	)
 
+	return nil
+}
+
+func redactTypedDocument(d *database.TypedDocument) error {
+	if d == nil {
+		return fmt.Errorf("typed document is nil")
+	}
+
+	if len(d.Properties) == 0 {
+		return nil
+	}
+
+	var props unstructured.Unstructured
+	if err := json.Unmarshal(d.Properties, &props.Object); err != nil {
+		return fmt.Errorf("failed to unmarshal typed document properties for %s: %w", resourceIDToString(d.ResourceID), err)
+	}
+
+	if _, found, err := unstructured.NestedString(props.Object, "systemData", "createdBy"); err != nil {
+		return fmt.Errorf("failed to read systemData.createdBy for %s: %w", resourceIDToString(d.ResourceID), err)
+	} else if found {
+		if err := unstructured.SetNestedField(props.Object, RedactStr, "systemData", "createdBy"); err != nil {
+			return fmt.Errorf("failed to set systemData.createdBy for %s: %w", resourceIDToString(d.ResourceID), err)
+		}
+	}
+
+	if _, found, err := unstructured.NestedString(props.Object, "systemData", "lastModifiedBy"); err != nil {
+		return fmt.Errorf("failed to read systemData.lastModifiedBy for %s: %w", resourceIDToString(d.ResourceID), err)
+	} else if found {
+		if err := unstructured.SetNestedField(props.Object, RedactStr, "systemData", "lastModifiedBy"); err != nil {
+			return fmt.Errorf("failed to set systemData.lastModifiedBy for %s: %w", resourceIDToString(d.ResourceID), err)
+		}
+	}
+
+	redactedProps, err := json.Marshal(props.Object)
+	if err != nil {
+		return fmt.Errorf("failed to marshal redacted typed document properties for %s: %w", resourceIDToString(d.ResourceID), err)
+	}
+
+	d.Properties = redactedProps
 	return nil
 }

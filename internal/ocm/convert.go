@@ -372,12 +372,14 @@ func BuildCSCluster(resourceID *azcorearm.ResourceID, tenantID string, hcpCluste
 
 	// These attributes cannot be updated after cluster creation.
 	if oldClusterServiceCluster == nil {
+		csVersionID := clusterCSVersionID(serviceProviderCluster, hcpCluster)
 		// Add attributes that cannot be updated after cluster creation.
 		clusterBuilder, err = withImmutableAttributes(clusterBuilder, hcpCluster,
 			resourceID.SubscriptionID,
 			resourceID.ResourceGroupName,
 			tenantID,
 			hcpCluster.ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL,
+			csVersionID,
 		)
 		if err != nil {
 			return nil, nil, err
@@ -449,6 +451,21 @@ func BuildCSCluster(resourceID *azcorearm.ResourceID, tenantID string, hcpCluste
 	return clusterBuilder, clusterAutoscalerBuilder, nil
 }
 
+// clusterCSVersionID returns the OpenShift version ID for a new Cluster Service cluster.
+// ServiceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion is authoritative when set.
+// When unset (e.g. frontend install before ControlPlaneDesiredVersion runs), the customer
+// version on the HCP cluster document is used.
+// Once cluster install is migrated to backend, we can expect the desiredVersion field to always
+// be set on the ServiceProviderCluster.
+func clusterCSVersionID(serviceProviderCluster *api.ServiceProviderCluster, hcpCluster *api.HCPOpenShiftCluster) string {
+	channelGroup := hcpCluster.CustomerProperties.Version.ChannelGroup
+	if serviceProviderCluster != nil && serviceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion != nil {
+		return NewOpenShiftVersionXYZ(serviceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion.String(), channelGroup)
+	}
+	// Remove this once cluster install is migrated to backend
+	return NewOpenShiftVersionXYZ(hcpCluster.CustomerProperties.Version.ID, channelGroup)
+}
+
 // DesiredHostedClusterSizeOverride returns the value the CSPropertySizeOverride
 // entry should have for a given (ServiceProviderCluster, HCP cluster) pair,
 // and whether the property should be present at all. This is the single
@@ -476,7 +493,7 @@ func DesiredHostedClusterSizeOverride(serviceProviderCluster *api.ServiceProvide
 	return "", false
 }
 
-func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, hcpCluster *api.HCPOpenShiftCluster, subscriptionID, resourceGroupName, tenantID, identityURL string) (*arohcpv1alpha1.ClusterBuilder, error) {
+func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, hcpCluster *api.HCPOpenShiftCluster, subscriptionID, resourceGroupName, tenantID, identityURL, csVersionID string) (*arohcpv1alpha1.ClusterBuilder, error) {
 	clusterImageRegistryState, err := convertClusterImageRegistryStateRPToCS(hcpCluster.CustomerProperties.ClusterImageRegistry)
 	if err != nil {
 		return nil, err
@@ -498,7 +515,7 @@ func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, hcpC
 			Enabled(csHypershifEnabled)).
 		CCS(arohcpv1alpha1.NewCCS().Enabled(csCCSEnabled)).
 		Version(arohcpv1alpha1.NewVersion().
-			ID(NewOpenShiftVersionXYZ(hcpCluster.CustomerProperties.Version.ID, hcpCluster.CustomerProperties.Version.ChannelGroup)).
+			ID(csVersionID).
 			ChannelGroup(hcpCluster.CustomerProperties.Version.ChannelGroup)).
 		Network(arohcpv1alpha1.NewNetwork().
 			Type(string(hcpCluster.CustomerProperties.Network.NetworkType)).

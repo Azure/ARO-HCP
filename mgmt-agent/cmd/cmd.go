@@ -43,7 +43,10 @@ mgmt-agent runs two controllers under a single leader election:
 2. KSM HCP controller (enabled via --ksm-image): watches HostedControlPlane CRs
    and deploys a kube-state-metrics instance per HCP to scrape worker node health
    metrics (kube_node_status_condition, kube_node_info) from each HCP's API server.
-   Metrics are forwarded to the HCP Azure Managed Prometheus workspace.`,
+   Metrics are forwarded to the HCP Azure Managed Prometheus workspace.
+
+It also runs log-only watchers for Pod (when KSM is enabled) and selected CRD
+and core resources to aid operational troubleshooting.`,
 	}
 	subcommands := []func() (*cobra.Command, error){
 		NewControllerCommand,

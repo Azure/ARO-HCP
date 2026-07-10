@@ -86,30 +86,26 @@ func TestStepsWellFormed(t *testing.T) {
 			}
 
 			illFormed := map[string]map[string]map[string]string{}
-			for serviceGroupName, resourceGroups := range executionGraph.Steps {
-				for resourceGroupName, steps := range resourceGroups {
-					for stepName, step := range steps {
-						if !step.IsWellFormedOverInputs() {
-							reason := "unknown"
-							switch s := step.(type) {
-							case *types.ShellStep:
-								if strings.Contains(s.Command, "make") && strings.Contains(s.Command, "deploy") {
-									reason = "helm step needing migration"
-								} else if s.WorkingDir == "" {
-									reason = "raw shell step needing working directory"
-								}
-							}
-
-							if _, exists := illFormed[serviceGroupName]; !exists {
-								illFormed[serviceGroupName] = map[string]map[string]string{}
-							}
-							if _, exists := illFormed[serviceGroupName][resourceGroupName]; !exists {
-								illFormed[serviceGroupName][resourceGroupName] = map[string]string{}
-							}
-							illFormed[serviceGroupName][resourceGroupName][stepName] = reason
-							t.Errorf("%s/%s/%s: step is ill-formed over inputs: %v", serviceGroupName, resourceGroupName, stepName, reason)
+			for key, step := range executionGraph.Steps {
+				if !step.IsWellFormedOverInputs() {
+					reason := "unknown"
+					switch s := step.(type) {
+					case *types.ShellStep:
+						if strings.Contains(s.Command, "make") && strings.Contains(s.Command, "deploy") {
+							reason = "helm step needing migration"
+						} else if s.WorkingDir == "" {
+							reason = "raw shell step needing working directory"
 						}
 					}
+
+					if _, exists := illFormed[key.ServiceGroup]; !exists {
+						illFormed[key.ServiceGroup] = map[string]map[string]string{}
+					}
+					if _, exists := illFormed[key.ServiceGroup][key.ResourceGroup]; !exists {
+						illFormed[key.ServiceGroup][key.ResourceGroup] = map[string]string{}
+					}
+					illFormed[key.ServiceGroup][key.ResourceGroup][key.Step] = reason
+					t.Errorf("%s/%s/%s: step is ill-formed over inputs: %v", key.ServiceGroup, key.ResourceGroup, key.Step, reason)
 				}
 			}
 		})

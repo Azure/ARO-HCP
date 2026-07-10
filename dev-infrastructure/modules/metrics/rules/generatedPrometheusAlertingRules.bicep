@@ -540,134 +540,6 @@ resource frontend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' =
   }
 }
 
-resource arohcpCsSloAvailabilityAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
-  name: 'arohcp_cs_slo_availability_alerts'
-  location: location
-  properties: {
-    interval: 'PT1M'
-    rules: [
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'ClustersServiceAPIAvailability5mto1hor30mto6hErrorBudgetBurn'
-        enabled: true
-        labels: {
-          long: '6h'
-          severity: 'warning'
-          short: '30m'
-        }
-        annotations: {
-          correlationId: 'ClustersServiceAPIAvailability5mto1hor30mto6hErrorBudgetBurn/{{ $labels.cluster }}'
-          description: 'API is rapidly burning its 28 day availability error budget (99% SLO)'
-          info: 'API is rapidly burning its 28 day availability error budget (99% SLO)'
-          runbook_url: 'aka.ms/arohcp-runbook/cs-slo-monitoring'
-          summary: 'Cluster Service API availability error budget burn rate is too high'
-          title: 'Cluster Service API availability error budget burn rate is too high'
-        }
-        expression: '(sum by (cluster, namespace, service) (max without (prometheus_replica) (availability:api_inbound_request_count:burnrate5m{namespace="clusters-service",service="clusters-service-metrics"})) > (13.44 * (1 - 0.99)) and sum by (cluster, namespace, service) (max without (prometheus_replica) (availability:api_inbound_request_count:burnrate1h{namespace="clusters-service",service="clusters-service-metrics"})) > (13.44 * (1 - 0.99))) or (sum by (cluster, namespace, service) (max without (prometheus_replica) (availability:api_inbound_request_count:burnrate30m{namespace="clusters-service",service="clusters-service-metrics"})) > (5.6 * (1 - 0.99)) and sum by (cluster, namespace, service) (max without (prometheus_replica) (availability:api_inbound_request_count:burnrate6h{namespace="clusters-service",service="clusters-service-metrics"})) > (5.6 * (1 - 0.99)))'
-        for: 'PT5M'
-        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
-      }
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'ClustersServiceAPIAvailability6hto3dErrorBudgetBurn'
-        enabled: true
-        labels: {
-          severity: 'warning'
-          slo: 'api-availability'
-        }
-        annotations: {
-          correlationId: 'ClustersServiceAPIAvailability6hto3dErrorBudgetBurn/{{ $labels.cluster }}'
-          description: 'This indicates persistent underperformance that needs investigation to avoid an SLO breach. The alert will fire if the current burn rate exceeds 0.934 times the allowed rate for the last 6 hours and 3 days.'
-          info: 'This indicates persistent underperformance that needs investigation to avoid an SLO breach. The alert will fire if the current burn rate exceeds 0.934 times the allowed rate for the last 6 hours and 3 days.'
-          runbook_url: 'aka.ms/arohcp-runbook/cs-slo-monitoring'
-          summary: 'API is slowly but steadily burning its 28 day availability error budget (99% SLO)'
-          title: 'API is slowly but steadily burning its 28 day availability error budget (99% SLO)'
-        }
-        expression: 'sum by (cluster, namespace, service) (max without (prometheus_replica) (availability:api_inbound_request_count:burnrate6h{namespace="clusters-service",service="clusters-service-metrics"})) > (0.934 * (1 - 0.99)) and sum by (cluster, namespace, service) (max without (prometheus_replica) (availability:api_inbound_request_count:burnrate3d{namespace="clusters-service",service="clusters-service-metrics"})) > (0.934 * (1 - 0.99))'
-        for: 'PT30M'
-        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
-      }
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'ClustersServiceAPILatency5mto1hor30mto6hP99ErrorBudgetBurn'
-        enabled: true
-        labels: {
-          long: '6h'
-          severity: 'warning'
-          short: '30m'
-          slo: 'api-latency-p99'
-        }
-        annotations: {
-          correlationId: 'ClustersServiceAPILatency5mto1hor30mto6hP99ErrorBudgetBurn/{{ $labels.cluster }}'
-          description: 'API is rapidly burning its 28 day 1s latency error budget (99% SLO)'
-          info: 'API is rapidly burning its 28 day 1s latency error budget (99% SLO)'
-          runbook_url: 'aka.ms/arohcp-runbook/cs-slo-monitoring'
-          summary: 'Cluster Service API P99 latency error budget burn rate is too high'
-          title: 'Cluster Service API P99 latency error budget burn rate is too high'
-        }
-        expression: '(sum by (cluster, namespace, service) (max without (prometheus_replica) (latency:api_inbound_request_duration:p99_burnrate5m{namespace="clusters-service",service="clusters-service-metrics"})) > (13.44 * (1 - 0.99)) and sum by (cluster, namespace, service) (max without (prometheus_replica) (latency:api_inbound_request_duration:p99_burnrate1h{namespace="clusters-service",service="clusters-service-metrics"})) > (13.44 * (1 - 0.99))) or (sum by (cluster, namespace, service) (max without (prometheus_replica) (latency:api_inbound_request_duration:p99_burnrate30m{namespace="clusters-service",service="clusters-service-metrics"})) > (5.6 * (1 - 0.99)) and sum by (cluster, namespace, service) (max without (prometheus_replica) (latency:api_inbound_request_duration:p99_burnrate6h{namespace="clusters-service",service="clusters-service-metrics"})) > (5.6 * (1 - 0.99)))'
-        for: 'PT5M'
-        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
-      }
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'ClustersServiceAPILatency6hto3dP99ErrorBudgetBurn'
-        enabled: true
-        labels: {
-          severity: 'warning'
-          slo: 'api-latency-p99'
-        }
-        annotations: {
-          correlationId: 'ClustersServiceAPILatency6hto3dP99ErrorBudgetBurn/{{ $labels.cluster }}'
-          description: 'This indicates persistent underperformance that needs investigation to avoid an SLO breach. The alert will fire if the current burn rate exceeds 0.934 times the allowed rate for the last 6 hours and 3 days.'
-          info: 'This indicates persistent underperformance that needs investigation to avoid an SLO breach. The alert will fire if the current burn rate exceeds 0.934 times the allowed rate for the last 6 hours and 3 days.'
-          runbook_url: 'aka.ms/arohcp-runbook/cs-slo-monitoring'
-          summary: 'API is slowly but steadily burning its 28 day 1s latency error budget (99% SLO)'
-          title: 'API is slowly but steadily burning its 28 day 1s latency error budget (99% SLO)'
-        }
-        expression: 'sum by (cluster, namespace, service) (max without (prometheus_replica) (latency:api_inbound_request_duration:p99_burnrate6h{namespace="clusters-service",service="clusters-service-metrics"})) > (0.934 * (1 - 0.99)) and sum by (cluster, namespace, service) (max without (prometheus_replica) (latency:api_inbound_request_duration:p99_burnrate3d{namespace="clusters-service",service="clusters-service-metrics"})) > (0.934 * (1 - 0.99))'
-        for: 'PT30M'
-        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
-      }
-    ]
-    scopes: [
-      azureMonitoring
-    ]
-  }
-}
-
 resource backend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
   name: 'backend'
   location: location
@@ -1620,18 +1492,60 @@ resource hcpDeletionRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-
           severity: 'warning'
         }
         annotations: {
-          correlationId: 'HCPClusterStuckDeleting/{{ $labels.cluster }}/{{ $labels.exported_namespace }}'
-          description: '''Cluster {{ $labels.exported_namespace }} has been in a deleting state for more than 2 hours. 
+          correlationId: 'HCPClusterStuckDeleting/{{ $labels.cluster }}/{{ $labels.resource_id }}'
+          description: '''Cluster {{ $labels.resource_id }} has been in a deleting state for more than 3 hours. 
 This may indicate that finalizers are stuck or resources are failing to cleanup.
 '''
-          info: '''Cluster {{ $labels.exported_namespace }} has been in a deleting state for more than 2 hours. 
+          info: '''Cluster {{ $labels.resource_id }} has been in a deleting state for more than 3 hours. 
 This may indicate that finalizers are stuck or resources are failing to cleanup.
 '''
           runbook_url: 'TBD'
-          summary: 'Cluster stuck deleting'
-          title: 'Cluster stuck deleting exported_namespace:{{ $labels.exported_namespace }}'
+          summary: '{{ $labels.cluster }}: Cluster {{ $labels.resource_id }} stuck deleting'
+          title: '{{ $labels.cluster }}: Cluster {{ $labels.resource_id }} stuck deleting'
         }
-        expression: 'sum by (cluster, exported_namespace, name) (hypershift_cluster_deleting_duration_seconds) > 7200'
+        expression: '(max by (resource_id, subscription_id, cluster) (time() - backend_resource_operation_start_time_seconds{operation_type="delete",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) and max by (resource_id, subscription_id, cluster) (backend_resource_operation_phase_info{operation_type="delete",phase="deleting",resource_type="microsoft.redhatopenshift/hcpopenshiftclusters"}) == 1) > 10800'
+        for: 'PT5M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+    ]
+    scopes: [
+      azureMonitoring
+    ]
+  }
+}
+
+resource hcpTestClustersRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'hcp-test-clusters-rules'
+  location: location
+  properties: {
+    interval: 'PT1M'
+    rules: [
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'HCPClusterOlderThan3Hours'
+        enabled: true
+        labels: {
+          severity: '3'
+        }
+        annotations: {
+          correlationId: 'IntStgClusterOlderThan3Hours{{ $labels.resource_id }}'
+          description: '''HCP cluster {{ $labels.resource_id }} in {{ $labels.environment }} on service cluster {{ $labels.cluster }} has existed for more than 3 hours.
+'''
+          info: '''HCP cluster {{ $labels.resource_id }} in {{ $labels.environment }} on service cluster {{ $labels.cluster }} has existed for more than 3 hours.
+'''
+          runbook_url: 'TBD'
+          summary: 'HCP in {{ $labels.environment }} is older than 3h'
+          title: 'HCP in {{ $labels.environment }} is older than 3h resource_id:{{ $labels.resource_id }} cluster:{{ $labels.cluster }}'
+        }
+        expression: 'max by (cluster, resource_id, environment) (time() - backend_cluster_created_time_seconds{environment=~"int|stg"}) > 3 * 3600'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }

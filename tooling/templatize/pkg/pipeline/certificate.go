@@ -83,7 +83,7 @@ func runCreateCertificateStep(ctx context.Context, step *types.CreateCertificate
 	logger := logr.FromContextOrDiscard(ctx)
 
 	state.RLock()
-	outputs := state.Outputs
+	outputs := state.GetOutputs(id.Stamp)
 	state.RUnlock()
 
 	skip, err := shouldSkipCertificateStep(step.Manage, options.Configuration, outputs, id.ServiceGroup)

@@ -109,3 +109,43 @@ resource hcpClusterOperatorsRules 'Microsoft.AlertsManagement/prometheusRuleGrou
     ]
   }
 }
+
+resource kubeApplier 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'kube-applier'
+  location: location
+  properties: {
+    interval: 'PT1M'
+    rules: [
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'KubeApplierDesiresMetricNotPresent'
+        enabled: true
+        labels: {
+          severity: 'warning'
+        }
+        annotations: {
+          correlationId: 'KubeApplierDesiresMetricNotPresent/{{ $labels.cluster }}'
+          description: 'kube-applier on cluster {{ $labels.cluster }} lacks kube_applier_desires metric for 5 minutes.'
+          info: 'kube-applier on cluster {{ $labels.cluster }} lacks kube_applier_desires metric for 5 minutes.'
+          runbook_url: 'TBD'
+          summary: 'kube-applier on cluster {{ $labels.cluster }} lacks kube_applier_desires metric'
+          title: 'kube-applier on cluster {{ $labels.cluster }} lacks kube_applier_desires metric'
+        }
+        expression: 'kube_applier_health == 1 unless on (cluster, namespace) kube_applier_desires'
+        for: 'PT5M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+    ]
+    scopes: [
+      azureMonitoring
+    ]
+  }
+}

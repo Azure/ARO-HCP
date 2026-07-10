@@ -65,7 +65,7 @@ Kusto on every relevant change:
 
 | Watcher | Log message | When emitted | Typical use |
 |---|---|---|---|
-| **ResourceWatcher** | `resource event` | Add/Update/Delete on discovered API groups (Hypershift, ACM, CAPI, `multitenancy.acn.azure.com`, …) | CR status timelines — e.g. `PodNetworkInstance` readiness |
+| **ResourceWatcher** | `resource event` | Add/Update/Delete on discovered API groups (Hypershift, ACM, CAPI, `multitenancy.acn.azure.com`, …) and core `v1/namespaces` | CR status timelines — e.g. `PodNetworkInstance` readiness; HCP namespace lifecycle (HostedCluster CR namespace + HCP control-plane namespace per cluster) |
 | **PodWatcher** | `pod event` | Pod add/delete; pod update when a container's state **type** changes (`waiting`→`running`, etc.) | Control plane pod lifecycle without scraping container logs |
 
 PodWatcher does not emit on field-level changes within the same state type (for example a new `waiting.reason` while still `waiting`).
