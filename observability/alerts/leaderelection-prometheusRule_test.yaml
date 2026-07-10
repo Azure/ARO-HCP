@@ -39,7 +39,7 @@ tests:
   - eval_time: 16m
     alertname: LeaderElectionLeaseStale
     exp_alerts: []
-# Test: LeaderElectionLeaseStaleFast fires when lease has not been renewed for >6m (3m expr threshold + 3m for:) for a lease in an included namespace
+# Test: LeaderElectionLeaseStaleCritical fires when lease has not been renewed for >6m (3m expr threshold + 3m for:) for a lease in an included namespace
 # Note: expr uses strict >, so condition first becomes true at t=4m (240s > 180s); with for:3m, alert fires at t=7m
 - interval: 1m
   input_series:
@@ -47,10 +47,10 @@ tests:
     values: "0x7"
   alert_rule_test:
   - eval_time: 7m
-    alertname: LeaderElectionLeaseStaleFast
+    alertname: LeaderElectionLeaseStaleCritical
     exp_alerts:
     - exp_labels:
-        severity: warning
+        severity: critical
         cluster: test-cluster
         lease: kube-applier
         namespace: kube-applier
@@ -59,21 +59,21 @@ tests:
         runbook_url: 'TBD'
         summary: 'Leader election lease kube-applier in namespace kube-applier on cluster test-cluster stale for more than 6 minutes'
         title: 'Leader election lease kube-applier in namespace kube-applier on cluster test-cluster stale for more than 6 minutes'
-# Test: LeaderElectionLeaseStaleFast does not fire when lease is renewed every minute for a lease in an included namespace
+# Test: LeaderElectionLeaseStaleCritical does not fire when lease is renewed every minute for a lease in an included namespace
 - interval: 1m
   input_series:
   - series: 'kube_lease_renew_time{namespace="kube-applier", lease="kube-applier", cluster="test-cluster"}'
     values: "0+60x7" # renewTime advances 60s/min — diff always 0
   alert_rule_test:
   - eval_time: 7m
-    alertname: LeaderElectionLeaseStaleFast
+    alertname: LeaderElectionLeaseStaleCritical
     exp_alerts: []
-# Test: LeaderElectionLeaseStaleFast does not fire for a lease in a namespace that is not explicitly included in the rule
+# Test: LeaderElectionLeaseStaleCritical does not fire for a lease in a namespace that is not explicitly included in the rule
 - interval: 1m
   input_series:
   - series: 'kube_lease_renew_time{namespace="kube-system", lease="kube-controller-manager", cluster="test-cluster"}'
     values: "0x25" # stale, but namespace not included
   alert_rule_test:
   - eval_time: 3m
-    alertname: LeaderElectionLeaseStaleFast
+    alertname: LeaderElectionLeaseStaleCritical
     exp_alerts: []

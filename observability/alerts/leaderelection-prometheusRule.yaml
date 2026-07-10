@@ -16,7 +16,7 @@ spec:
       # Fires when a leader election lease has not been renewed for >15m; excludes the namespaces from LeaderElectionLeaseStaleFast and standard k8s system namespaces (kube-node-lease has node heartbeat leases that are not leader election).
       expr: |
         time() - max without(prometheus_replica) (
-          kube_lease_renew_time{namespace!~"^(kube-system|kube-public|kube-node-lease|default|kube-applier|fleet)$"}
+          kube_lease_renew_time{namespace!~"^(kube-system|kube-public|kube-node-lease|default|kube-applier)$"}
         ) > 600
       for: 5m
       labels:
@@ -26,15 +26,15 @@ spec:
         runbook_url: 'TBD'
         summary: 'Leader election lease {{ $labels.lease }} in {{ $labels.namespace }} on {{ $labels.cluster }} stale for more than 15 minutes'
         title: 'Leader election lease {{ $labels.lease }} in {{ $labels.namespace }} on {{ $labels.cluster }} stale for more than 15 minutes'
-    - alert: LeaderElectionLeaseStaleFast
-      # Fires when a leader election lease has not been renewed for >6m (3m expr threshold + 3m for:). Requires explicit definition of the namespaces that should be covered. Use this for critical components that are under our control
+    - alert: LeaderElectionLeaseStaleCritical
+      # Fires when a leader election lease has not been renewed for >6m (3m expr threshold + 3m for:). Requires explicit definition of the namespaces that should be covered. Use this for critical components.
       expr: |
         time() - max without(prometheus_replica) (
-          kube_lease_renew_time{namespace="kube-applier", lease="kube-applier"}
+          kube_lease_renew_time{namespace=~"^(kube-applier)$"}
         ) > 180
       for: 3m
       labels:
-        severity: warning
+        severity: critical
       annotations:
         description: 'Leader election lease {{ $labels.lease }} in namespace {{ $labels.namespace }} on cluster {{ $labels.cluster }} has not been renewed for more than 6 minutes. The leadership election might be broken or the component stopped running.'
         runbook_url: 'TBD'

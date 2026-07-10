@@ -1858,7 +1858,7 @@ resource leaderelection 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03
           summary: 'Leader election lease {{ $labels.lease }} in {{ $labels.namespace }} on {{ $labels.cluster }} stale for more than 15 minutes'
           title: 'Leader election lease {{ $labels.lease }} in {{ $labels.namespace }} on {{ $labels.cluster }} stale for more than 15 minutes'
         }
-        expression: 'time() - max without (prometheus_replica) (kube_lease_renew_time{namespace!~"^(kube-system|kube-public|kube-node-lease|default|kube-applier|fleet)$"}) > 600'
+        expression: 'time() - max without (prometheus_replica) (kube_lease_renew_time{namespace!~"^(kube-system|kube-public|kube-node-lease|default|kube-applier)$"}) > 600'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -1872,22 +1872,22 @@ resource leaderelection 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03
             }
           }
         ]
-        alert: 'LeaderElectionLeaseStaleFast'
+        alert: 'LeaderElectionLeaseStaleCritical'
         enabled: true
         labels: {
-          severity: 'warning'
+          severity: 'critical'
         }
         annotations: {
-          correlationId: 'LeaderElectionLeaseStaleFast/{{ $labels.cluster }}/{{ $labels.lease }}/{{ $labels.namespace }}'
+          correlationId: 'LeaderElectionLeaseStaleCritical/{{ $labels.cluster }}/{{ $labels.lease }}/{{ $labels.namespace }}'
           description: 'Leader election lease {{ $labels.lease }} in namespace {{ $labels.namespace }} on cluster {{ $labels.cluster }} has not been renewed for more than 6 minutes. The leadership election might be broken or the component stopped running.'
           info: 'Leader election lease {{ $labels.lease }} in namespace {{ $labels.namespace }} on cluster {{ $labels.cluster }} has not been renewed for more than 6 minutes. The leadership election might be broken or the component stopped running.'
           runbook_url: 'TBD'
           summary: 'Leader election lease {{ $labels.lease }} in namespace {{ $labels.namespace }} on cluster {{ $labels.cluster }} stale for more than 6 minutes'
           title: 'Leader election lease {{ $labels.lease }} in namespace {{ $labels.namespace }} on cluster {{ $labels.cluster }} stale for more than 6 minutes'
         }
-        expression: 'time() - max without (prometheus_replica) (kube_lease_renew_time{lease="kube-applier",namespace="kube-applier"}) > 180'
+        expression: 'time() - max without (prometheus_replica) (kube_lease_renew_time{namespace=~"^(kube-applier)$"}) > 180'
         for: 'PT3M'
-        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+        severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
       }
     ]
     scopes: [
