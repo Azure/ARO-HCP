@@ -1549,6 +1549,35 @@ resource hcpTestClustersRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'ProdE2EHCPClusterOlderThan3Hours'
+        enabled: true
+        labels: {
+          severity: '3'
+        }
+        annotations: {
+          correlationId: 'ProdE2EClusterOlderThan3Hours{{ $labels.resource_id }}'
+          description: '''Prod e2e HCP cluster {{ $labels.resource_id }} in subscription {{ $labels.subscription_id }} on service cluster {{ $labels.cluster }} has existed for more than 3 hours.
+'''
+          info: '''Prod e2e HCP cluster {{ $labels.resource_id }} in subscription {{ $labels.subscription_id }} on service cluster {{ $labels.cluster }} has existed for more than 3 hours.
+'''
+          runbook_url: 'TBD'
+          summary: 'Prod e2e HCP is older than 3h'
+          title: 'Prod e2e HCP is older than 3h resource_id:{{ $labels.resource_id }} subscription_id:{{ $labels.subscription_id }} cluster:{{ $labels.cluster }}'
+        }
+        expression: 'max by (cluster, resource_id, environment, subscription_id) (time() - backend_cluster_created_time_seconds{environment="prod",subscription_id=~"403d9de9-132b-4974-94a5-5b78bdfa191e|8d696692-794f-4cdb-ba25-9250c9e9ec4c|ec435068-e722-475f-8504-c91b72a5dc51"}) > 3 * 3600'
+        for: 'PT5M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
     ]
     scopes: [
       azureMonitoring
