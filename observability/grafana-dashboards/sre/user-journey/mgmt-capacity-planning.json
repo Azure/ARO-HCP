@@ -1281,7 +1281,7 @@
       ]
     }
   ],
-  "schemaVersion": 40,
+  "schemaVersion": 41,
   "tags": [
     "sre",
     "capacity",
