@@ -2,13 +2,14 @@ rule_files:
 - leaderelection-prometheusRule.yaml
 evaluation_interval: 1m
 tests:
-# Test: LeaderElectionLeaseStale fires when lease has not been renewed for >15m (10m expr threshold + 5m for:)
+# Test: LeaderElectionLeaseStale fires when lease has not been renewed for >37m (12m expr threshold + 25m for:)
+# Note: expr uses strict >, so condition first becomes true at t=13m (780s > 720s); with for:25m, alert fires at t=38m
 - interval: 1m
   input_series:
   - series: 'kube_lease_renew_time{namespace="mgmt-agent", lease="mgmt-agent-controller-leader", cluster="test-cluster"}'
-    values: "0x20" # renewTime frozen
+    values: "0x38" # renewTime frozen
   alert_rule_test:
-  - eval_time: 16m
+  - eval_time: 38m
     alertname: LeaderElectionLeaseStale
     exp_alerts:
     - exp_labels:
@@ -17,26 +18,26 @@ tests:
         lease: mgmt-agent-controller-leader
         namespace: mgmt-agent
       exp_annotations:
-        description: 'Leader election lease mgmt-agent-controller-leader in namespace mgmt-agent on cluster test-cluster has not been renewed for more than 15 minutes. The leadership election might be broken or the component stopped running.'
+        description: 'Leader election lease mgmt-agent-controller-leader in namespace mgmt-agent on cluster test-cluster has not been renewed for more than 37 minutes. The leadership election might be broken or the component stopped running.'
         runbook_url: 'TBD'
-        summary: 'Leader election lease mgmt-agent-controller-leader in mgmt-agent on test-cluster stale for more than 15 minutes'
-        title: 'Leader election lease mgmt-agent-controller-leader in mgmt-agent on test-cluster stale for more than 15 minutes'
+        summary: 'Leader election lease mgmt-agent-controller-leader in mgmt-agent on test-cluster stale for more than 37 minutes'
+        title: 'Leader election lease mgmt-agent-controller-leader in mgmt-agent on test-cluster stale for more than 37 minutes'
 # Test: LeaderElectionLeaseStale does not fire when lease is renewed every minute
 - interval: 1m
   input_series:
   - series: 'kube_lease_renew_time{namespace="mgmt-agent", lease="mgmt-agent-controller-leader", cluster="test-cluster"}'
-    values: "0+60x20" # renewTime advances 60s/min — diff always 0
+    values: "0+60x38" # renewTime advances 60s/min — diff always 0
   alert_rule_test:
-  - eval_time: 16m
+  - eval_time: 38m
     alertname: LeaderElectionLeaseStale
     exp_alerts: []
 # Test: LeaderElectionLeaseStale does not fire for excluded system namespaces
 - interval: 1m
   input_series:
   - series: 'kube_lease_renew_time{namespace="kube-system", lease="kube-controller-manager", cluster="test-cluster"}'
-    values: "0x20" # stale, but namespace excluded
+    values: "0x38" # stale, but namespace excluded
   alert_rule_test:
-  - eval_time: 16m
+  - eval_time: 38m
     alertname: LeaderElectionLeaseStale
     exp_alerts: []
 # Test: LeaderElectionLeaseStaleCritical fires when lease has not been renewed for >6m (3m expr threshold + 3m for:) for a lease in an included namespace
@@ -74,6 +75,6 @@ tests:
   - series: 'kube_lease_renew_time{namespace="kube-system", lease="kube-controller-manager", cluster="test-cluster"}'
     values: "0x25" # stale, but namespace not included
   alert_rule_test:
-  - eval_time: 3m
+  - eval_time: 7m
     alertname: LeaderElectionLeaseStaleCritical
     exp_alerts: []
