@@ -144,9 +144,10 @@ func TestOperationsList(t *testing.T) {
 			if assert.Contains(t, display, "operation") {
 				assert.NotEmpty(t, display["operation"].(string))
 			}
-			if assert.Contains(t, display, "description") {
-				assert.NotEmpty(t, display["description"].(string))
-			}
+			// XXX Disabled while we host ARO Classic operations.
+			//if assert.Contains(t, display, "description") {
+			//	assert.NotEmpty(t, display["description"].(string))
+			//}
 		}
 		if assert.Contains(t, operation, "isDataAction") {
 			// All ARO-HCP operations are for ARM/control-plane.

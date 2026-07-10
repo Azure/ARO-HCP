@@ -510,6 +510,16 @@ func (f *Frontend) ArmOperationsList(writer http.ResponseWriter, request *http.R
 		pagedResponse.AddValue(jsonBytes)
 	}
 
+	// XXX We are temporarily hosting an operation list for the
+	//     ARO "Classic" service. See routes.go for more context.
+	for _, operation := range AvailableClassicOperations {
+		jsonBytes, err := arm.MarshalJSON(operation)
+		if err != nil {
+			return utils.TrackError(err)
+		}
+		pagedResponse.AddValue(jsonBytes)
+	}
+
 	_, err := arm.WriteJSONResponse(writer, http.StatusOK, pagedResponse)
 	if err != nil {
 		return utils.TrackError(err)
