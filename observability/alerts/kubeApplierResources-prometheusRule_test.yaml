@@ -1,0 +1,80 @@
+rule_files:
+- kubeApplierResources-prometheusRule.yaml
+evaluation_interval: 1m
+tests:
+# KubeApplierMemoryDrift - alert fires when usage > 1.5x request
+- interval: 1m
+  input_series:
+  - series: 'container_memory_working_set_bytes{container="kube-applier", namespace="kube-applier", pod="kube-applier-0", cluster="test"}'
+    values: "220200960+0x20"
+  - series: 'kube_pod_container_resource_requests{container="kube-applier", namespace="kube-applier", pod="kube-applier-0", cluster="test", resource="memory", job="kube-state-metrics"}'
+    values: "134217728+0x20"
+  alert_rule_test:
+  - eval_time: 15m
+    alertname: KubeApplierMemoryDrift
+    exp_alerts:
+    - exp_labels:
+        alertname: KubeApplierMemoryDrift
+        severity: warning
+        team: hcp-sl
+        cluster: test
+        container: kube-applier
+        namespace: kube-applier
+        pod: kube-applier-0
+      exp_annotations:
+        summary: kube-applier memory exceeds 1.5x its request on cluster test.
+        description: |
+          kube-applier pod kube-applier-0 on cluster test is using 164.1% of its memory request for more than 15 minutes.
+          This may indicate a memory leak or workload growth that requires right-sizing the request in config.yaml.
+        runbook_url: TBD
+        owning_team: hcp-sl
+# KubeApplierMemoryDrift - no alert when usage is below 1.5x
+- interval: 1m
+  input_series:
+  - series: 'container_memory_working_set_bytes{container="kube-applier", namespace="kube-applier", pod="kube-applier-0", cluster="test"}'
+    values: "134217728+0x20"
+  - series: 'kube_pod_container_resource_requests{container="kube-applier", namespace="kube-applier", pod="kube-applier-0", cluster="test", resource="memory", job="kube-state-metrics"}'
+    values: "134217728+0x20"
+  alert_rule_test:
+  - eval_time: 15m
+    alertname: KubeApplierMemoryDrift
+    exp_alerts: []
+# KubeApplierMemoryTrend - alert fires when predict_linear projects > 2x request
+- interval: 1m
+  input_series:
+  - series: 'container_memory_working_set_bytes{container="kube-applier", namespace="kube-applier", pod="kube-applier-0", cluster="test"}'
+    # Starts at 134217728 (128Mi) and grows by 1048576 (1Mi) per minute over 6h+30m
+    values: "134217728+1048576x390"
+  - series: 'kube_pod_container_resource_requests{container="kube-applier", namespace="kube-applier", pod="kube-applier-0", cluster="test", resource="memory", job="kube-state-metrics"}'
+    values: "134217728+0x390"
+  alert_rule_test:
+  - eval_time: 390m
+    alertname: KubeApplierMemoryTrend
+    exp_alerts:
+    - exp_labels:
+        alertname: KubeApplierMemoryTrend
+        severity: info
+        team: hcp-sl
+        cluster: test
+        container: kube-applier
+        namespace: kube-applier
+        pod: kube-applier-0
+      exp_annotations:
+        summary: kube-applier memory trending toward 2x its request on cluster test.
+        description: |
+          kube-applier pod kube-applier-0 on cluster test memory is growing steadily.
+          At the current rate over the past 6 hours, it will exceed 2x its memory request within 4 hours.
+          Investigate for potential memory leaks or increased workload.
+        runbook_url: TBD
+        owning_team: hcp-sl
+# KubeApplierMemoryTrend - no alert when memory is stable
+- interval: 1m
+  input_series:
+  - series: 'container_memory_working_set_bytes{container="kube-applier", namespace="kube-applier", pod="kube-applier-0", cluster="test"}'
+    values: "134217728+0x390"
+  - series: 'kube_pod_container_resource_requests{container="kube-applier", namespace="kube-applier", pod="kube-applier-0", cluster="test", resource="memory", job="kube-state-metrics"}'
+    values: "134217728+0x390"
+  alert_rule_test:
+  - eval_time: 390m
+    alertname: KubeApplierMemoryTrend
+    exp_alerts: []
