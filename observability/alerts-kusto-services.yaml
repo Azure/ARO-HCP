@@ -1,4 +1,23 @@
 prometheusRules:
   rulesFolders: []
-  untestedRules: []
+  untestedRules:
+  - alerts/kubernetesControlPlane-prometheusRule.yaml
   outputBicep: ../dev-infrastructure/modules/metrics/rules/generatedKustoOnlyServicePrometheusAlertingRules.bicep
+  groupNamePrefix: "svc-"
+  outputReplacements:
+  - from: 'job="kube-scheduler"'
+    to: 'job="controlplane-kube-scheduler"'
+  - from: 'job="apiserver"'
+    to: 'job="controlplane-apiserver"'
+  - from: 'job="etcd"'
+    to: 'job="controlplane-etcd"'
+  - from: 'job="cluster-autoscaler"'
+    to: 'job="controlplane-cluster-autoscaler"'
+  - from: 'job="kube-controller-manager"'
+    to: 'job="controlplane-kube-controller-manager"'
+  regexOutputReplacements:
+  # absent alerts don't work correctly because they aren't associated with a specific cluster
+  # The alert ends up firing with {{target.cluster}} in the title and correlation id instead of
+  # an actual cluster name
+  - from: 'absent\(up{job="(.+)"} == 1\)'
+    to: 'count by (cluster) (up{job="$1"} == 1) == 0'
