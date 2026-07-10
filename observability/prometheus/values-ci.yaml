@@ -25,7 +25,7 @@ kube-prometheus-stack:
   kubeProxy:
     enabled: false
   kubelet:
-    enabled: false
+    enabled: true # Required for cAdvisor/container metrics used in CI dashboards
   kubeApiServer:
     enabled: false
   kubeStateMetrics:

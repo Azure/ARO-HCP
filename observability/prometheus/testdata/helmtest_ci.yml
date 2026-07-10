@@ -1,0 +1,55 @@
+values: ../values-ci.yaml
+name: helmtest-ci
+namespace: prometheus
+testData:
+  ctx:
+    cluster: ci-test-cluster
+    region: eastus
+  acr:
+    svc:
+      name: arohcpsvctest
+  acrDNSSuffix: azurecr.io
+  mgmt:
+    prometheus:
+      prometheusOperator:
+        image:
+          registry: mcr.microsoft.com/oss/v2
+          repository: prometheus/prometheus-operator
+          sha: sha256:test123
+      prometheusConfigReloader:
+        image:
+          registry: mcr.microsoft.com/oss/v2
+          repository: prometheus/prometheus-config-reloader
+          sha: sha256:test456
+      kubeStateMetrics:
+        image:
+          registry: mcr.microsoft.com/oss/v2
+          repository: kubernetes/kube-state-metrics
+          digest: sha256:test789
+      admissionWebhook:
+        patch:
+          image:
+            registry: arohcpsvctest.azurecr.io
+            repository: k8s-cache/ingress-nginx/kube-webhook-certgen
+            sha: sha256:testwebhook
+      thanos:
+        image:
+          repository: quay.io/thanos/thanos
+          tag: v0.35.1
+          sha: sha256:testthanos
+      prometheusSpec:
+        image:
+          registry: mcr.microsoft.com/oss/v2
+          repository: prometheus/prometheus
+          sha: sha256:testabc
+        version: v2.54.0
+        resources:
+          requests:
+            cpu: "1"
+            memory: 4Gi
+          limits:
+            memory: 8Gi
+        replicas: 1
+        shards: 1
+  prometheus:
+    clientId: test-client-id
