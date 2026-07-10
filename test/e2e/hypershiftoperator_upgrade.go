@@ -111,32 +111,41 @@ func haProxyImage(ctx context.Context, kubeClient kubernetes.Interface) (string,
 	return image, nil
 }
 
-// nodePoolDataSecretName returns the bootstrap DataSecretName from the
+// machineDeploymentGVR is the GroupVersionResource for CAPI MachineDeployments.
+var machineDeploymentGVR = schema.GroupVersionResource{
+	Group:    "cluster.x-k8s.io",
+	Version:  "v1beta2",
+	Resource: "machinedeployments",
+}
+
+// machineDeploymentRef identifies a MachineDeployment by its namespace and name.
+type machineDeploymentRef struct {
+	Namespace string
+	Name      string
+}
+
+func (r machineDeploymentRef) String() string {
+	return r.Namespace + "/" + r.Name
+}
+
+// resolveMachineDeploymentRef returns the namespace and name of the
 // MachineDeployment that Hypershift manages for nodePoolName on the management
-// cluster.
+// cluster. It is intended to be called once before the observation loop; the
+// ref is stable for the lifetime of the NodePool.
 //
-// mcClient must be a dynamic client built from the management cluster kubeconfig
-// (KUBECONFIG env var). Hypershift does not label MachineDeployments with the
-// NodePool name; instead it sets the annotation
-// hypershift.openshift.io/nodePool=<namespace>/<crName> where <crName> is
-// <clusterID>-<nodepoolName> on ARO-HCP management clusters. The function
-// lists all MachineDeployments, strips the namespace prefix from the annotation
-// value, and matches on the CR name ending with -<nodepoolName>.
-func nodePoolDataSecretName(ctx context.Context, mcClient dynamic.Interface, nodePoolName string) (string, error) {
-	mdGVR := schema.GroupVersionResource{
-		Group:    "cluster.x-k8s.io",
-		Version:  "v1beta2",
-		Resource: "machinedeployments",
-	}
-	list, err := mcClient.Resource(mdGVR).Namespace(metav1.NamespaceAll).List(ctx, metav1.ListOptions{})
+// Hypershift does not label MachineDeployments with the NodePool name; instead
+// it sets the annotation hypershift.openshift.io/nodePool=<namespace>/<crName>
+// where <crName> is <clusterID>-<nodepoolName> on ARO-HCP management clusters.
+// The function lists all MachineDeployments, strips the namespace prefix from
+// the annotation value, and matches on the CR name ending with -<nodepoolName>.
+func resolveMachineDeploymentRef(ctx context.Context, mcClient dynamic.Interface, nodePoolName string) (machineDeploymentRef, error) {
+	list, err := mcClient.Resource(machineDeploymentGVR).Namespace(metav1.NamespaceAll).List(ctx, metav1.ListOptions{})
 	if err != nil {
-		return "", fmt.Errorf("list MachineDeployments: %w", err)
+		return machineDeploymentRef{}, fmt.Errorf("list MachineDeployments: %w", err)
 	}
 
-	// The annotation value is "<namespace>/<name>" on the management cluster.
-	// We don't know the namespace here, so match on the name suffix.
 	const nodepoolAnnotation = "hypershift.openshift.io/nodePool"
-	var matches []string
+	var matches []machineDeploymentRef
 	// Collect all annotation values for diagnostics when no match is found.
 	annotationValues := make([]string, 0, len(list.Items))
 	for _, md := range list.Items {
@@ -150,35 +159,42 @@ func nodePoolDataSecretName(ctx context.Context, mcClient dynamic.Interface, nod
 			crName = v[i+1:]
 		}
 		if crName == nodePoolName || strings.HasSuffix(crName, "-"+nodePoolName) {
-			matches = append(matches, md.GetName())
+			matches = append(matches, machineDeploymentRef{Namespace: md.GetNamespace(), Name: md.GetName()})
 		}
 	}
 	if len(matches) == 0 {
-		return "", fmt.Errorf("no MachineDeployment found for nodepool %q; found %d MachineDeployments with annotations: %v",
+		return machineDeploymentRef{}, fmt.Errorf("no MachineDeployment found for nodepool %q; found %d MachineDeployments with annotations: %v",
 			nodePoolName, len(list.Items), annotationValues)
 	}
 	if len(matches) > 1 {
-		return "", fmt.Errorf("expected 1 MachineDeployment for nodepool %q, found %d: %v", nodePoolName, len(matches), matches)
+		return machineDeploymentRef{}, fmt.Errorf("expected 1 MachineDeployment for nodepool %q, found %d: %v", nodePoolName, len(matches), matches)
 	}
+	return matches[0], nil
+}
 
-	// Re-fetch the matched item from the original list for the DataSecretName.
-	var matched map[string]interface{}
-	for _, md := range list.Items {
-		if md.GetName() == matches[0] {
-			matched = md.Object
-			break
-		}
+// machineDeploymentDataSecretName returns the bootstrap DataSecretName from the
+// MachineDeployment identified by ref. It performs a single GET rather than a
+// list, making it cheap to call on every poll cycle.
+//
+// If the MachineDeployment no longer exists (e.g. because the upgrade caused it
+// to be deleted and recreated under a new name), the GET returns a not-found
+// error which surfaces as a Consistently failure — the correct outcome since
+// MachineDeployment recreation itself triggers a node rollout.
+func machineDeploymentDataSecretName(ctx context.Context, mcClient dynamic.Interface, ref machineDeploymentRef) (string, error) {
+	md, err := mcClient.Resource(machineDeploymentGVR).Namespace(ref.Namespace).Get(ctx, ref.Name, metav1.GetOptions{})
+	if err != nil {
+		return "", fmt.Errorf("get MachineDeployment %s: %w", ref, err)
 	}
 
 	secretName, found, err := unstructured.NestedString(
-		matched,
+		md.Object,
 		"spec", "template", "spec", "bootstrap", "dataSecretName",
 	)
 	if err != nil {
-		return "", fmt.Errorf("reading dataSecretName from MachineDeployment for nodepool %q: %w", nodePoolName, err)
+		return "", fmt.Errorf("reading dataSecretName from MachineDeployment %s: %w", ref, err)
 	}
 	if !found || secretName == "" {
-		return "", fmt.Errorf("dataSecretName not set in MachineDeployment for nodepool %q", nodePoolName)
+		return "", fmt.Errorf("dataSecretName not set in MachineDeployment %s", ref)
 	}
 	return secretName, nil
 }
@@ -306,7 +322,10 @@ var _ = Describe("HypershiftOperator in-place upgrade", func() {
 			mcClient, err := dynamic.NewForConfig(mcRESTConfig)
 			Expect(err).NotTo(HaveOccurred(), "failed to create MC dynamic client")
 
-			baselineDataSecretName, err := nodePoolDataSecretName(ctx, mcClient, nodePoolName)
+			mdRef, err := resolveMachineDeploymentRef(ctx, mcClient, nodePoolName)
+			Expect(err).NotTo(HaveOccurred(), "failed to resolve MachineDeployment ref for nodepool %q", nodePoolName)
+
+			baselineDataSecretName, err := machineDeploymentDataSecretName(ctx, mcClient, mdRef)
 			Expect(err).NotTo(HaveOccurred(), "failed to get baseline MC DataSecretName for nodepool %q", nodePoolName)
 
 			GinkgoLogr.Info("baseline captured",
@@ -356,7 +375,7 @@ var _ = Describe("HypershiftOperator in-place upgrade", func() {
 					elapsed, clusterName, baselineHAProxyImage, currentHAProxyImage,
 				)
 
-				currentDataSecretName, dsErr := nodePoolDataSecretName(ctx, mcClient, nodePoolName)
+				currentDataSecretName, dsErr := machineDeploymentDataSecretName(ctx, mcClient, mdRef)
 				g.Expect(dsErr).NotTo(HaveOccurred(), "failed to retrieve MC DataSecretName for nodepool %q", nodePoolName)
 				g.Expect(currentDataSecretName).To(Equal(baselineDataSecretName),
 					"MC DataSecretName changed after %s (nodepool %q, cluster %q): mcoRawConfig hash rotated — was %s, now %s",

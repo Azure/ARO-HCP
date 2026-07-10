@@ -25,7 +25,7 @@ import (
 	"github.com/go-logr/logr"
 )
 
-// commandFor is the default command factory used by MakeRunner.
+// defaultCommandFor is the default command factory used by MakeRunner.
 func defaultCommandFor(target string) *exec.Cmd {
 	return exec.Command("make", target)
 }
