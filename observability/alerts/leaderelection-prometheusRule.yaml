@@ -24,8 +24,8 @@ spec:
       annotations:
         description: 'Leader election lease {{ $labels.lease }} in namespace {{ $labels.namespace }} on cluster {{ $labels.cluster }} has not been renewed for more than 37 minutes. The leadership election might be broken or the component stopped running.'
         runbook_url: 'TBD'
-        summary: 'Leader election lease {{ $labels.lease }} in {{ $labels.namespace }} on {{ $labels.cluster }} stale for more than 37 minutes'
-        title: 'Leader election lease {{ $labels.lease }} in {{ $labels.namespace }} on {{ $labels.cluster }} stale for more than 37 minutes'
+        summary: 'Leader election lease {{ $labels.lease }} in namespace {{ $labels.namespace }} on cluster {{ $labels.cluster }} stale for more than 37 minutes'
+        title: 'Leader election lease {{ $labels.lease }} in namespace {{ $labels.namespace }} on cluster {{ $labels.cluster }} stale for more than 37 minutes'
     - alert: LeaderElectionLeaseStaleCritical
       # Fires when a leader election lease has not been renewed for >6m (3m expr threshold + 3m for:). Requires explicit definition of the namespaces that should be covered. Use this for critical components.
       expr: |

@@ -9,6 +9,9 @@ tests:
   - series: 'kube_lease_renew_time{namespace="mgmt-agent", lease="mgmt-agent-controller-leader", cluster="test-cluster"}'
     values: "0x39" # renewTime frozen
   alert_rule_test:
+  - eval_time: 37m
+    alertname: LeaderElectionLeaseStale
+    exp_alerts: []
   - eval_time: 38m
     alertname: LeaderElectionLeaseStale
     exp_alerts:
@@ -20,8 +23,8 @@ tests:
       exp_annotations:
         description: 'Leader election lease mgmt-agent-controller-leader in namespace mgmt-agent on cluster test-cluster has not been renewed for more than 37 minutes. The leadership election might be broken or the component stopped running.'
         runbook_url: 'TBD'
-        summary: 'Leader election lease mgmt-agent-controller-leader in mgmt-agent on test-cluster stale for more than 37 minutes'
-        title: 'Leader election lease mgmt-agent-controller-leader in mgmt-agent on test-cluster stale for more than 37 minutes'
+        summary: 'Leader election lease mgmt-agent-controller-leader in namespace mgmt-agent on cluster test-cluster stale for more than 37 minutes'
+        title: 'Leader election lease mgmt-agent-controller-leader in namespace mgmt-agent on cluster test-cluster stale for more than 37 minutes'
 # Test: LeaderElectionLeaseStale does not fire when lease is renewed every minute
 - interval: 1m
   input_series:
@@ -40,6 +43,15 @@ tests:
   - eval_time: 38m
     alertname: LeaderElectionLeaseStale
     exp_alerts: []
+# Test: LeaderElectionLeaseStale does not fire for kube-applier namespace (covered by LeaderElectionLeaseStaleCritical)
+- interval: 1m
+  input_series:
+  - series: 'kube_lease_renew_time{namespace="kube-applier", lease="kube-applier", cluster="test-cluster"}'
+    values: "0x39" # stale, but namespace excluded
+  alert_rule_test:
+  - eval_time: 38m
+    alertname: LeaderElectionLeaseStale
+    exp_alerts: []
 # Test: LeaderElectionLeaseStaleCritical fires when lease has not been renewed for >6m (3m expr threshold + 3m for:) for a lease in an included namespace
 # Note: expr uses strict >, so condition first becomes true at t=4m (240s > 180s); with for:3m, alert fires at t=7m
 - interval: 1m
@@ -47,6 +59,9 @@ tests:
   - series: 'kube_lease_renew_time{namespace="kube-applier", lease="kube-applier", cluster="test-cluster"}'
     values: "0x8"
   alert_rule_test:
+  - eval_time: 6m
+    alertname: LeaderElectionLeaseStaleCritical
+    exp_alerts: []
   - eval_time: 7m
     alertname: LeaderElectionLeaseStaleCritical
     exp_alerts:
