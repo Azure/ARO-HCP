@@ -147,6 +147,14 @@ for SUBSCRIPTION_NAME in "${SUBSCRIPTIONS[@]}"; do
     if [[ "${SUBSCRIPTION_NAME}" == "${GLOBAL_SUBSCRIPTION_NAME}" ]]; then
         GLOBAL_SUBSCRIPTION_ID="${SUBSCRIPTION_ID}"
     fi
+
+    # Assign Key Vault Crypto Officer for calling Key Vault data plane directly
+    # Used for create/enable/update/delete keys
+    echo "  Assigning Key Vault Crypto Officer role..."
+    az role assignment create \
+        --assignee "${APP_ID}" \
+        --role "Key Vault Crypto Officer" \
+        --scope "/subscriptions/${SUBSCRIPTION_ID}" 2>/dev/null || echo "    (already assigned)"
 done
 
 if [[ -z "${GLOBAL_SUBSCRIPTION_ID:-}" ]]; then

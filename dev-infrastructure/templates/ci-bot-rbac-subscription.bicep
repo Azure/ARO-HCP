@@ -19,6 +19,8 @@ var userAccessAdminRole = '18d7d88d-d35e-4fb5-a5c3-7773c20a72d9'
 var keyVaultAdminRole = '00482a5a-887f-4fb3-b363-3b7fe8e74483'
 var grafanaAdminRole = '22926164-76b3-42b3-bc55-97df8dab3e41'
 
+var keyVaultCryptoOfficerRole = '14b46e9e-c2b7-41b4-b07b-48a6ebf60603'
+
 resource contributorAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   name: guid(subscription().id, botPrincipalId, contributorRole)
   scope: subscription()
@@ -69,5 +71,15 @@ resource grafanaAdminAssignment 'Microsoft.Authorization/roleAssignments@2022-04
     principalId: botPrincipalId
     principalType: 'ServicePrincipal'
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', grafanaAdminRole)
+  }
+}
+
+resource keyVaultCryptoOfficerAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(subscription().id, botPrincipalId, keyVaultCryptoOfficerRole)
+  scope: subscription()
+  properties: {
+    principalId: botPrincipalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', keyVaultCryptoOfficerRole)
   }
 }
