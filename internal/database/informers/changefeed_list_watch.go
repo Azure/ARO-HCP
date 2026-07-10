@@ -43,6 +43,8 @@ import (
 
 const feedRangePollInterval = 1 * time.Second
 
+type ShouldDeliverFunc[InternalAPITypePointer any] func(obj InternalAPITypePointer) bool
+
 type ChangeFeedListWatcher[InternalAPIType any, InternalAPITypePointer arm.CosmosMetadataAccessorPtr[InternalAPIType], CosmosAPIType any] struct {
 	lock sync.Mutex
 
@@ -51,6 +53,7 @@ type ChangeFeedListWatcher[InternalAPIType any, InternalAPITypePointer arm.Cosmo
 	clock                utilsclock.Clock
 	globalLister         database.GlobalLister[InternalAPIType]
 	changeFeedClient     database.ChangeFeedClient
+	shouldDeliverItemFn  ShouldDeliverFunc[InternalAPITypePointer]
 
 	currentWatcher *ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPIType]
 }
@@ -65,6 +68,11 @@ func NewChangeFeedListWatcher[InternalAPIType any, InternalAPITypePointer arm.Co
 		changeFeedClient:     changeFeedClient,
 		relistDuration:       relistDuration,
 	}
+}
+
+func (c *ChangeFeedListWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPIType]) WithShouldDeliverItemFn(shouldDeliverItemFn ShouldDeliverFunc[InternalAPITypePointer]) *ChangeFeedListWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPIType] {
+	c.shouldDeliverItemFn = shouldDeliverItemFn
+	return c
 }
 
 func (c *ChangeFeedListWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPIType]) List(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
@@ -89,7 +97,7 @@ func (c *ChangeFeedListWatcher[InternalAPIType, InternalAPITypePointer, CosmosAP
 		prevFeedWatcher.Stop()
 	}
 
-	c.currentWatcher = newChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPIType](c.desiredResourceTypes, c.clock, c.changeFeedClient, c.clock.Now(), c.relistDuration)
+	c.currentWatcher = newChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPIType](c.desiredResourceTypes, c.clock, c.changeFeedClient, c.clock.Now(), c.relistDuration, c.shouldDeliverItemFn)
 	go c.currentWatcher.Run(ctx)
 
 	resourceIDToInstanceVersion := &sync.Map{}
@@ -182,6 +190,7 @@ type ChangeFeedWatcher[InternalAPIType any, InternalAPITypePointer arm.CosmosMet
 	clock                utilsclock.Clock
 	changeFeedClient     database.ChangeFeedClient
 	startFrom            time.Time
+	shouldDeliverItemFn  ShouldDeliverFunc[InternalAPITypePointer]
 
 	// This is a map of feed ranges to continuation token strings.
 	// No two worker goroutines should be processing the same feed
@@ -207,13 +216,14 @@ type ChangeFeedWatcher[InternalAPIType any, InternalAPITypePointer arm.CosmosMet
 }
 
 func newChangeFeedWatcher[InternalAPIType any, InternalAPITypePointer arm.CosmosMetadataAccessorPtr[InternalAPIType], CosmosAPIType any](
-	desiredResourceTypes []azcorearm.ResourceType, clock utilsclock.Clock, changeFeedClient database.ChangeFeedClient, startFrom time.Time, maxWatchDuration time.Duration) *ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPIType] {
+	desiredResourceTypes []azcorearm.ResourceType, clock utilsclock.Clock, changeFeedClient database.ChangeFeedClient, startFrom time.Time, maxWatchDuration time.Duration, shouldDeliverFn ShouldDeliverFunc[InternalAPITypePointer]) *ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPIType] {
 	return &ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPIType]{
 		desiredResourceTypes:        desiredResourceTypes,
 		maxWatchDuration:            maxWatchDuration,
 		clock:                       clock,
 		changeFeedClient:            changeFeedClient,
 		startFrom:                   startFrom.Add(-2 * time.Second), // go back in time just a little bit so we collect everything
+		shouldDeliverItemFn:         shouldDeliverFn,
 		continuationTokens:          sync.Map{},
 		beginDelivery:               make(chan struct{}),
 		resourceIDToInstanceVersion: nil,
@@ -371,20 +381,40 @@ func (c *ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPITyp
 		logger.Info("skipping document", "instanceVersion", internalObj.GetInstanceVersion(), "initialInstanceVersion", initialInstanceVersion)
 		return nil
 	}
+
+	objDeleted := false
+	if c.shouldDeliverItemFn != nil && !c.shouldDeliverItemFn(internalObj) {
+		if objPreviouslySeen {
+			objDeleted = true
+			// we need to deliver a delete, so fall through
+		} else {
+			logger.Info("should not deliver document", "content", cosmosObj)
+			return nil
+		}
+	}
+
 	logger.Info("delivering change feed item",
 		"content", cosmosObj,
 		"internalObj", internalObj,
 	)
-	c.resourceIDToInstanceVersion.Store(canonicalResourceID, internalObj.GetInstanceVersion())
+	if objDeleted {
+		c.resourceIDToInstanceVersion.Delete(canonicalResourceID)
+	} else {
+		c.resourceIDToInstanceVersion.Store(canonicalResourceID, internalObj.GetInstanceVersion())
+	}
 
 	watchEvent := watch.Event{
 		Object: any(internalObj).(runtime.Object),
 	}
-	if objPreviouslySeen {
+	switch {
+	case objDeleted:
+		watchEvent.Type = watch.Deleted
+	case objPreviouslySeen:
 		watchEvent.Type = watch.Modified
-	} else {
+	default:
 		watchEvent.Type = watch.Added
 	}
+
 	sent := false
 	for !sent {
 		select {

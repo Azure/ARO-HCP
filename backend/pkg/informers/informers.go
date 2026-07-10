@@ -429,7 +429,9 @@ func NewActiveOperationInformerWithRelistDuration(lister database.GlobalLister[a
 		lister,
 		cosmosClient,
 		relistDuration,
-	)
+	).WithShouldDeliverItemFn(func(obj *api.Operation) bool {
+		return !obj.Status.IsTerminal()
+	})
 
 	return cache.NewSharedIndexInformerWithOptions(
 		&listWatchWithoutWatchListSemantics{lw.ToListWatch()},
