@@ -524,7 +524,7 @@ kusto:
   sku: Standard_E8ads_v5
   tier: Standard
   viewerGroups: 64dc69e4-d083-49fc-9569-ebece1dd1408/6b6d3adf-8476-4727-9812-20ffdef2b85c
-  viewerIdentities: ""
+  viewerIdentities: 64dc69e4-d083-49fc-9569-ebece1dd1408/5990dc26-1b73-4547-9bba-9a5bd64a0165
 kvCertAccessPrincipalId: c9b1819d-bb29-4ac2-9abe-39e4fe9b59eb
 kvCertAccessRoleId: ""
 kvCertOfficerPrincipalId: c9b1819d-bb29-4ac2-9abe-39e4fe9b59eb
