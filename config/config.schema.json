@@ -34,6 +34,11 @@
         }
       ]
     },
+    "rfc5280CommonName": {
+      "type": "string",
+      "maxLength": 64,
+      "pattern": "^[a-zA-Z0-9][a-zA-Z0-9.\\-]*[a-zA-Z0-9]$"
+    },
     "entraApplication": {
       "type": "object",
       "properties": {
@@ -272,7 +277,7 @@
         },
         "san": {
           "description": "Geneva logs account certificate SAN",
-          "type": "string"
+          "$ref": "#/definitions/rfc5280CommonName"
         },
         "configVersion": {
           "description": "Geneva logs account namespace configuration version",
@@ -1246,7 +1251,7 @@
           "$ref": "#/definitions/certificateIssuer"
         },
         "san": {
-          "type": "string"
+          "$ref": "#/definitions/rfc5280CommonName"
         },
         "contentType": {
           "type": "string"
@@ -1367,8 +1372,8 @@
               "pattern": "^[a-zA-Z0-9-]+$"
             },
             "san": {
-              "type": "string",
-              "description": "SAN and CN for the sessiongate ingress certificate"
+              "description": "SAN and CN for the sessiongate ingress certificate",
+              "$ref": "#/definitions/rfc5280CommonName"
             },
             "issuer": {
               "$ref": "#/definitions/certificateIssuer"
@@ -1530,8 +1535,8 @@
               "pattern": "^[a-zA-Z0-9-]+$"
             },
             "san": {
-              "type": "string",
-              "description": "SAN and CN for the admin API ingress certificate"
+              "description": "SAN and CN for the admin API ingress certificate",
+              "$ref": "#/definitions/rfc5280CommonName"
             },
             "issuer": {
               "$ref": "#/definitions/certificateIssuer"
@@ -1621,8 +1626,8 @@
               "pattern": "^[a-zA-Z0-9-]+$"
             },
             "san": {
-              "type": "string",
-              "description": "SAN and CN for the frontend ingress certificate"
+              "description": "SAN and CN for the frontend ingress certificate",
+              "$ref": "#/definitions/rfc5280CommonName"
             },
             "issuer": {
               "$ref": "#/definitions/certificateIssuer"
@@ -1849,7 +1854,8 @@
               "type": "string"
             },
             "adminCertSan": {
-              "type": "string"
+              "description": "SAN and CN for the Geneva Logs account certificate",
+              "$ref": "#/definitions/rfc5280CommonName"
             },
             "contentType": {
               "type": "string"
@@ -1959,7 +1965,8 @@
                   "$ref": "#/definitions/certificateIssuer"
                 },
                 "san": {
-                  "type": "string"
+                  "description": "SAN and CN for the Geneva Actions certificate",
+                  "$ref": "#/definitions/rfc5280CommonName"
                 },
                 "contentType": {
                   "type": "string"
@@ -2738,7 +2745,11 @@
             },
             "certSAN": {
               "type": "string",
-              "description": "SAN and CN for the Maestro server EventGrid certificate"
+              "description": "SAN for the Maestro server EventGrid certificate"
+            },
+            "certCN": {
+              "description": "CN for the Maestro server EventGrid certificate",
+              "$ref": "#/definitions/rfc5280CommonName"
             },
             "managedIdentityName": {
               "type": "string"
@@ -2757,6 +2768,7 @@
           "required": [
             "mqttClientName",
             "certSAN",
+            "certCN",
             "managedIdentityName",
             "loglevel",
             "k8s"
@@ -2771,7 +2783,11 @@
             },
             "certSAN": {
               "type": "string",
-              "description": "SAN and CN for the Maestro consumer EventGrid certificate"
+              "description": "SAN for the Maestro consumer EventGrid certificate"
+            },
+            "certCN": {
+              "description": "CN for the Maestro consumer EventGrid certificate",
+              "$ref": "#/definitions/rfc5280CommonName"
             },
             "loglevel": {
               "type": "integer"
@@ -2796,6 +2812,7 @@
           "required": [
             "consumerName",
             "certSAN",
+            "certCN",
             "loglevel",
             "sidecar",
             "managedIdentityName",
@@ -2868,6 +2885,12 @@
         },
         "applyKubeletFixes": {
           "type": "boolean"
+        },
+        "stampIdentifier": {
+          "type": "string",
+          "description": "The identifier for the management cluster stamp",
+          "minLength": 1,
+          "pattern": "^[0-9]+$"
         },
         "defaultStorageClassSkuName": {
           "type": "string"
@@ -3623,6 +3646,14 @@
     {
       "rule": "self.maestro.agent.certSAN == self.maestro.agent.consumerName + '.maestro.' + self.dns.regionalSubdomain + '.' + self.dns.svcParentZoneName",
       "message": "maestro.agent.certSAN must equal consumerName + '.maestro.' + dns.regionalSubdomain + '.' + dns.svcParentZoneName"
+    },
+    {
+      "rule": "self.maestro.server.certCN == 'server.maestro.' + self.dns.regionalSubdomain + '.' + self.dns.svcParentZoneName",
+      "message": "maestro.server.certCN must equal 'server.maestro.' + dns.regionalSubdomain + '.' + dns.svcParentZoneName"
+    },
+    {
+      "rule": "self.maestro.agent.certCN == 'mgmt-' + self.mgmt.stampIdentifier + '.maestro.' + self.dns.regionalSubdomain + '.' + self.dns.svcParentZoneName",
+      "message": "maestro.agent.certCN must equal 'mgmt-' + mgmt.stampIdentifier + '.maestro.' + dns.regionalSubdomain + '.' + dns.svcParentZoneName"
     },
     {
       "rule": "self.firstPartyAppCertificate.san == self.firstPartyAppCertificate.name + '.' + self.dns.svcParentZoneName",

@@ -364,7 +364,7 @@ geneva:
       accountName: placeholder
       configVersion: "1"
       namespace: ""
-      san: ""
+      san: empty-sentinel
       secretName: clusterlogs
     contentType: x-pkcs12
     environment: Test
@@ -373,7 +373,7 @@ geneva:
       accountName: placeholder
       configVersion: "1"
       namespace: ""
-      san: ""
+      san: empty-sentinel
       secretName: rplogs
     typeName: ""
   metrics:
@@ -540,6 +540,7 @@ logs:
     subscriptions: []
 maestro:
   agent:
+    certCN: mgmt-1.maestro.usw3ptest.hcpsvc.osadev.cloud
     certSAN: hcp-underlay-usw3ptest-mgmt-1.maestro.usw3ptest.hcpsvc.osadev.cloud
     consumerName: hcp-underlay-usw3ptest-mgmt-1
     k8s:
@@ -581,6 +582,7 @@ maestro:
     zoneRedundantMode: Auto
   restrictIstioIngress: true
   server:
+    certCN: server.maestro.usw3ptest.hcpsvc.osadev.cloud
     certSAN: maestro-server-usw3ptest.maestro.usw3ptest.hcpsvc.osadev.cloud
     k8s:
       namespace: maestro
@@ -700,6 +702,7 @@ mgmt:
         sha: cc1975aaeb64a744dc11319892345f4822f72860f0efcff030111fe08328bfa4
         tag: v0.41.0
   rg: hcp-underlay-perf-usw3ptest-mgmt-1
+  stampIdentifier: "1"
   stamps:
     count: 1
   subscription:

@@ -215,7 +215,7 @@ resourceGroups:
     issuer:
       configRef: maestro.certIssuer
     commonName:
-      configRef: maestro.agent.certSAN
+      configRef: maestro.agent.certCN
     dependsOn:
     - resourceGroup: management
       step: infra-output
