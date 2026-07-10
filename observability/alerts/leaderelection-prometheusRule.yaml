@@ -27,16 +27,16 @@ spec:
         summary: 'Leader election lease {{ $labels.lease }} in {{ $labels.namespace }} on {{ $labels.cluster }} stale for more than 15 minutes'
         title: 'Leader election lease {{ $labels.lease }} in {{ $labels.namespace }} on {{ $labels.cluster }} stale for more than 15 minutes'
     - alert: LeaderElectionLeaseStaleFast
-      # Fires when a leader election lease has not been renewed for >2.5m. Requires explicit definition of the namespaces that should be covered. Use this for critical components that are under our control.
+      # Fires when a leader election lease has not been renewed for >6m (3m expr threshold + 3m for:). Requires explicit definition of the namespaces that should be covered. Use this for critical components that are under our control
       expr: |
         time() - max without(prometheus_replica) (
-          kube_lease_renew_time{namespace=~"^(kube-applier|fleet)$"}
-        ) > 90
-      for: 1m
+          kube_lease_renew_time{namespace="kube-applier", lease="kube-applier"}
+        ) > 180
+      for: 3m
       labels:
         severity: warning
       annotations:
-        description: 'Leader election lease {{ $labels.lease }} in namespace {{ $labels.namespace }} on cluster {{ $labels.cluster }} has not been renewed for more than 2.5 minutes. The leadership election might be broken or the component stopped running.'
+        description: 'Leader election lease {{ $labels.lease }} in namespace {{ $labels.namespace }} on cluster {{ $labels.cluster }} has not been renewed for more than 6 minutes. The leadership election might be broken or the component stopped running.'
         runbook_url: 'TBD'
-        summary: 'Leader election lease {{ $labels.lease }} in namespace {{ $labels.namespace }} on cluster {{ $labels.cluster }} stale for more than 2.5 minutes'
-        title: 'Leader election lease {{ $labels.lease }} in namespace {{ $labels.namespace }} on cluster {{ $labels.cluster }} stale for more than 2.5 minutes'
+        summary: 'Leader election lease {{ $labels.lease }} in namespace {{ $labels.namespace }} on cluster {{ $labels.cluster }} stale for more than 6 minutes'
+        title: 'Leader election lease {{ $labels.lease }} in namespace {{ $labels.namespace }} on cluster {{ $labels.cluster }} stale for more than 6 minutes'

@@ -1879,14 +1879,14 @@ resource leaderelection 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03
         }
         annotations: {
           correlationId: 'LeaderElectionLeaseStaleFast/{{ $labels.cluster }}/{{ $labels.lease }}/{{ $labels.namespace }}'
-          description: 'Leader election lease {{ $labels.lease }} in namespace {{ $labels.namespace }} on cluster {{ $labels.cluster }} has not been renewed for more than 2.5 minutes. The leadership election might be broken or the component stopped running.'
-          info: 'Leader election lease {{ $labels.lease }} in namespace {{ $labels.namespace }} on cluster {{ $labels.cluster }} has not been renewed for more than 2.5 minutes. The leadership election might be broken or the component stopped running.'
+          description: 'Leader election lease {{ $labels.lease }} in namespace {{ $labels.namespace }} on cluster {{ $labels.cluster }} has not been renewed for more than 6 minutes. The leadership election might be broken or the component stopped running.'
+          info: 'Leader election lease {{ $labels.lease }} in namespace {{ $labels.namespace }} on cluster {{ $labels.cluster }} has not been renewed for more than 6 minutes. The leadership election might be broken or the component stopped running.'
           runbook_url: 'TBD'
-          summary: 'Leader election lease {{ $labels.lease }} in namespace {{ $labels.namespace }} on cluster {{ $labels.cluster }} stale for more than 2.5 minutes'
-          title: 'Leader election lease {{ $labels.lease }} in namespace {{ $labels.namespace }} on cluster {{ $labels.cluster }} stale for more than 2.5 minutes'
+          summary: 'Leader election lease {{ $labels.lease }} in namespace {{ $labels.namespace }} on cluster {{ $labels.cluster }} stale for more than 6 minutes'
+          title: 'Leader election lease {{ $labels.lease }} in namespace {{ $labels.namespace }} on cluster {{ $labels.cluster }} stale for more than 6 minutes'
         }
-        expression: 'time() - max without (prometheus_replica) (kube_lease_renew_time{namespace=~"^(kube-applier|fleet)$"}) > 90'
-        for: 'PT1M'
+        expression: 'time() - max without (prometheus_replica) (kube_lease_renew_time{lease="kube-applier",namespace="kube-applier"}) > 180'
+        for: 'PT3M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
     ]
