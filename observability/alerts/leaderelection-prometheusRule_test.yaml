@@ -7,7 +7,7 @@ tests:
 - interval: 1m
   input_series:
   - series: 'kube_lease_renew_time{namespace="mgmt-agent", lease="mgmt-agent-controller-leader", cluster="test-cluster"}'
-    values: "0x38" # renewTime frozen
+    values: "0x39" # renewTime frozen
   alert_rule_test:
   - eval_time: 38m
     alertname: LeaderElectionLeaseStale
@@ -26,7 +26,7 @@ tests:
 - interval: 1m
   input_series:
   - series: 'kube_lease_renew_time{namespace="mgmt-agent", lease="mgmt-agent-controller-leader", cluster="test-cluster"}'
-    values: "0+60x38" # renewTime advances 60s/min — diff always 0
+    values: "0+60x39" # renewTime advances 60s/min — diff always 0
   alert_rule_test:
   - eval_time: 38m
     alertname: LeaderElectionLeaseStale
@@ -35,7 +35,7 @@ tests:
 - interval: 1m
   input_series:
   - series: 'kube_lease_renew_time{namespace="kube-system", lease="kube-controller-manager", cluster="test-cluster"}'
-    values: "0x38" # stale, but namespace excluded
+    values: "0x39" # stale, but namespace excluded
   alert_rule_test:
   - eval_time: 38m
     alertname: LeaderElectionLeaseStale
@@ -45,7 +45,7 @@ tests:
 - interval: 1m
   input_series:
   - series: 'kube_lease_renew_time{namespace="kube-applier", lease="kube-applier", cluster="test-cluster"}'
-    values: "0x7"
+    values: "0x8"
   alert_rule_test:
   - eval_time: 7m
     alertname: LeaderElectionLeaseStaleCritical
@@ -64,7 +64,7 @@ tests:
 - interval: 1m
   input_series:
   - series: 'kube_lease_renew_time{namespace="kube-applier", lease="kube-applier", cluster="test-cluster"}'
-    values: "0+60x7" # renewTime advances 60s/min — diff always 0
+    values: "0+60x8" # renewTime advances 60s/min — diff always 0
   alert_rule_test:
   - eval_time: 7m
     alertname: LeaderElectionLeaseStaleCritical
@@ -73,7 +73,7 @@ tests:
 - interval: 1m
   input_series:
   - series: 'kube_lease_renew_time{namespace="kube-system", lease="kube-controller-manager", cluster="test-cluster"}'
-    values: "0x25" # stale, but namespace not included
+    values: "0x8" # stale, but namespace not included
   alert_rule_test:
   - eval_time: 7m
     alertname: LeaderElectionLeaseStaleCritical
