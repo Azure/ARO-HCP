@@ -407,15 +407,23 @@ func skuCapabilityInt(sku *armcompute.ResourceSKU, name string) (int, bool) {
 // default node pool. Standard_D8s_v3 is preferred to preserve historical
 // behaviour; the fallback keeps the D-series general-purpose, >=8 vCPU shape.
 //
+// Candidates are restricted to SKU families that are enabled in the ARO-HCP RP
+// instance-type allowlist (see cluster-service
+// cloud-resource-constraints-config: only the plain "s" and AMD "as" D-series
+// variants are enabled; the "ds"/"lds"/"ads" local-disk variants are NOT). A
+// SKU that Azure advertises but the RP rejects would otherwise be selected as a
+// fallback and fail node pool creation with InvalidRequestContent.
+//
 // The fallback pattern is capped at D8 (8 vCPUs) to avoid selecting large SKUs
 // (D32, D64, D96) that are slow to provision and easily exhaust subscription
-// quota in test environments. The [^p] exclusion prevents matching Arm64 "p"
-// variants (e.g. Standard_D8ps_v6).
+// quota in test environments. The (?:a)? in the pattern matches only the plain
+// "s" and "as" variants and excludes the non-allowlisted local-disk ("ds",
+// "lds", "ads") and Arm64 "p" (e.g. Standard_D8ps_v6) variants.
 func DefaultWorkerVMSizeSelector() VMSizeSelector {
 	return VMSizeSelector{
 		Name:        "default-worker",
-		Preferred:   []string{DefaultWorkerVMSize, "Standard_D8ds_v5", "Standard_D8as_v5", "Standard_D8lds_v6"},
-		NamePattern: regexp.MustCompile(`^Standard_D[4-8][^p]*s_v[3456]$`),
+		Preferred:   []string{DefaultWorkerVMSize, "Standard_D8s_v5", "Standard_D8as_v5", "Standard_D8s_v6"},
+		NamePattern: regexp.MustCompile(`^Standard_D[4-8](?:a)?s_v[3456]$`),
 		MinVCPUs:    8,
 	}
 }
@@ -423,13 +431,14 @@ func DefaultWorkerVMSizeSelector() VMSizeSelector {
 // SmallWorkerVMSizeSelector selects a smaller general-purpose worker SKU used by
 // tests that want faster provisioning.
 //
-// The fallback pattern is capped at D4 to keep provisioning fast and quota use
-// low. The [^p] exclusion prevents matching Arm64 variants.
+// Candidates are restricted to RP-allowlisted D-series families (plain "s" and
+// AMD "as" only); see DefaultWorkerVMSizeSelector for the rationale. The
+// fallback pattern is capped at D4 to keep provisioning fast and quota use low.
 func SmallWorkerVMSizeSelector() VMSizeSelector {
 	return VMSizeSelector{
 		Name:        "small-worker",
-		Preferred:   []string{SmallWorkerVMSize, "Standard_D4ds_v5", "Standard_D4as_v5", "Standard_D4lds_v6"},
-		NamePattern: regexp.MustCompile(`^Standard_D[2-4][^p]*s_v[3456]$`),
+		Preferred:   []string{SmallWorkerVMSize, "Standard_D4s_v5", "Standard_D4as_v5", "Standard_D4s_v6"},
+		NamePattern: regexp.MustCompile(`^Standard_D[2-4](?:a)?s_v[3456]$`),
 		MinVCPUs:    4,
 	}
 }
@@ -449,18 +458,22 @@ func JumpboxVMSizeSelector() VMSizeSelector {
 }
 
 // EphemeralOSDiskWorkerVMSizeSelector selects a general-purpose worker SKU that
-// supports ephemeral OS disks (requires local/cache storage). Standard_D8s_v3
-// is preferred because its cache disk supports ephemeral placement; the dd
-// variants (Ddsv5) and lds variants (Dldsv6, NVMe placement) are fallbacks.
+// supports ephemeral OS disks (requires local/cache storage) and is enabled in
+// the ARO-HCP RP instance-type allowlist.
 //
-// SKUs without local storage (e.g. Dsv5) are automatically excluded via the
-// RequireEphemeralOSDisk constraint. The [^p] exclusion prevents matching Arm64
-// variants.
+// Among the RP-allowlisted non-ARM D-series families, only the v3 "s" series
+// (Dsv3) supports ephemeral OS disks via its cache disk. The allowlisted v4/v5/
+// v6 "s" variants have no local storage, and the local-disk "ds"/"lds" variants
+// (which do support ephemeral placement) are NOT in the allowlist. Selecting
+// one of those would fail node pool creation with InvalidRequestContent, so the
+// candidates are restricted to the Dsv3 family (larger sizes act as an
+// availability fallback). SKUs without local storage are additionally excluded
+// via the RequireEphemeralOSDisk constraint.
 func EphemeralOSDiskWorkerVMSizeSelector() VMSizeSelector {
 	return VMSizeSelector{
 		Name:                   "ephemeral-osdisk-worker",
-		Preferred:              []string{DefaultWorkerVMSize, "Standard_D8ds_v5", "Standard_D8ads_v5", "Standard_D8lds_v6"},
-		NamePattern:            regexp.MustCompile(`^Standard_D[4-8][^p]*s_v[3456]$`),
+		Preferred:              []string{DefaultWorkerVMSize, "Standard_D16s_v3", "Standard_D32s_v3"},
+		NamePattern:            regexp.MustCompile(`^Standard_D(?:8|16|32)s_v3$`),
 		MinVCPUs:               8,
 		RequireEphemeralOSDisk: true,
 	}
