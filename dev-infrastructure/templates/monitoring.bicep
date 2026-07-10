@@ -161,6 +161,15 @@ module svcKubeAlerts '../modules/metrics/svc-kube-rules.bicep' = {
   }
 }
 
+module kustoServiceAlerts '../modules/metrics/kusto-service-rules.bicep' = {
+  name: 'kustoServiceAlerts'
+  params: {
+    azureMonitoringWorkspaceId: azureMonitoringWorkspaceId
+    actionGroups: ehActionGroups
+    severityCeiling: alertSeverityCeiling
+  }
+}
+
 module hcpAlerts '../modules/metrics/hcp-rules.bicep' = {
   name: 'hcpAlerts'
   params: {
@@ -175,6 +184,15 @@ module slHcpAlerts '../modules/metrics/sl-hcp-rules.bicep' = {
   params: {
     azureMonitoringWorkspaceId: hcpAzureMonitoringWorkspaceId
     actionGroups: slActionGroups
+    severityCeiling: alertSeverityCeiling
+  }
+}
+
+module kustoHcpAlerts '../modules/metrics/kusto-hcp-rules.bicep' = {
+  name: 'kustoHcpAlerts'
+  params: {
+    azureMonitoringWorkspaceId: hcpAzureMonitoringWorkspaceId
+    actionGroups: ehActionGroups
     severityCeiling: alertSeverityCeiling
   }
 }
