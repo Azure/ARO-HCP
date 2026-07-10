@@ -1490,7 +1490,10 @@
           "properties": {
             "stampIdentifier": {
               "type": "string",
-              "description": "The identifier of the stamp to register"
+              "description": "The identifier of the stamp to register",
+              "minLength": 1,
+              "maxLength": 3,
+              "pattern": "^[0-9]+$"
             },
             "autoApproveStamps": {
               "type": "boolean"
@@ -2890,6 +2893,7 @@
           "type": "string",
           "description": "The identifier for the management cluster stamp",
           "minLength": 1,
+          "maxLength": 3,
           "pattern": "^[0-9]+$"
         },
         "defaultStorageClassSkuName": {
