@@ -845,3 +845,53 @@ func ConvertOpenShiftVersionAddPrefix(v string) string {
 	}
 	return v
 }
+
+// FindClusterByAzureInfo searches Cluster Service for a cluster matching the
+// given Azure metadata (subscription, resource group, resource name, tenant,
+// managed resource group). Returns (nil, nil) when no match exists. Returns an
+// error if more than one matching cluster is found.
+func FindClusterByAzureInfo(ctx context.Context, client ClusterServiceClientSpec, subscriptionID, resourceGroupName, resourceName, tenantID, managedResourceGroupName string) (*arohcpv1alpha1.Cluster, error) {
+	wantSub := strings.ToLower(subscriptionID)
+	wantRG := strings.ToLower(resourceGroupName)
+	wantName := strings.ToLower(resourceName)
+	wantTenant := tenantID
+	wantMRG := managedResourceGroupName
+
+	search := fmt.Sprintf(
+		"azure.subscription_id = '%s' and azure.resource_group_name = '%s' and azure.resource_name = '%s' and "+
+			"azure.tenant_id = '%s' and azure.managed_resource_group_name = '%s'",
+		wantSub, wantRG, wantName, wantTenant, wantMRG,
+	)
+
+	it := client.ListClusters(search)
+	var matches []*arohcpv1alpha1.Cluster
+	for csCluster := range it.Items(ctx) {
+		az := csCluster.Azure()
+		if az == nil {
+			continue
+		}
+		if az.SubscriptionID() != wantSub ||
+			az.ResourceGroupName() != wantRG ||
+			az.ResourceName() != wantName ||
+			az.TenantID() != wantTenant ||
+			az.ManagedResourceGroupName() != wantMRG {
+			continue
+		}
+		matches = append(matches, csCluster)
+	}
+	if err := it.GetError(); err != nil {
+		return nil, err
+	}
+
+	if len(matches) > 1 {
+		return nil, fmt.Errorf(
+			"cluster service returned %d clusters for one Azure resource (expected exactly 1): "+
+				"subscription_id=%q resource_group=%q resource_name=%q tenant_id=%q managed_resource_group=%q",
+			len(matches), wantSub, wantRG, wantName, wantTenant, wantMRG,
+		)
+	}
+	if len(matches) == 1 {
+		return matches[0], nil
+	}
+	return nil, nil
+}

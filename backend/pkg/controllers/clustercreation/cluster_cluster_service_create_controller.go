@@ -17,7 +17,6 @@ package clustercreation
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
@@ -126,7 +125,7 @@ func (c *clusterClusterServiceCreateSyncer) SyncOnce(ctx context.Context, key co
 	tenantID := *subscription.Properties.TenantId
 	mrg := cluster.CustomerProperties.Platform.ManagedResourceGroup
 
-	csCluster, err := c.findAROHCPClusterByAzureInfo(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, tenantID, mrg)
+	csCluster, err := ocm.FindClusterByAzureInfo(ctx, c.clustersServiceClient, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, tenantID, mrg)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -167,69 +166,6 @@ func (c *clusterClusterServiceCreateSyncer) createPreconditionDesiredVersionReso
 	}
 	logger.Info("DesiredVersion not yet set, waiting for ControlPlaneDesiredVersion controller")
 	return false, nil
-}
-
-// findAROHCPClusterByAzureInfo returns the Cluster Service cluster whose Azure
-// metadata matches the given subscription, resource group, ARM resource name,
-// tenant ID, and managed resource group name (MRG).
-// It returns (nil, nil) when no such cluster exists.
-// An error is returned if more than one cluster is returned matching the Azure metadata, as it should be unique.
-func (c *clusterClusterServiceCreateSyncer) findAROHCPClusterByAzureInfo(ctx context.Context, subscriptionID, resourceGroupName, resourceName, tenantID, managedResourceGroupName string) (*arohcpv1alpha1.Cluster, error) {
-	// Subscription ID, resource group, and cluster name are lowercased when building the Cluster Service
-	// cluster (see withImmutableAttributes in convert.go).
-	wantSub := strings.ToLower(subscriptionID)
-	wantRG := strings.ToLower(resourceGroupName)
-	wantName := strings.ToLower(resourceName)
-	// Tenant ID and managed resource group are not lowercased in the OCM CS
-	// builder (see withImmutableAttributes in convert.go), we keep the casing as it is.
-	wantTenant := tenantID
-	wantMRG := managedResourceGroupName
-	search := c.clustersServiceClusterByAzureInfoSearchString(wantSub, wantRG, wantName, wantTenant, wantMRG)
-	matches, err := c.csClustersMatchingClusterByAzureInfo(ctx, c.clustersServiceClient.ListClusters(search), wantSub, wantRG, wantName, wantTenant, wantMRG)
-	if err != nil {
-		return nil, err
-	}
-	if len(matches) > 1 {
-		return nil, fmt.Errorf(
-			"cluster service returned %d clusters for one Azure resource (expected exactly 1): "+
-				"subscription_id=%q resource_group=%q resource_name=%q tenant_id=%q managed_resource_group=%q",
-			len(matches), wantSub, wantRG, wantName, wantTenant, wantMRG,
-		)
-	}
-	if len(matches) == 1 {
-		return matches[0], nil
-	}
-	return nil, nil
-}
-
-func (c *clusterClusterServiceCreateSyncer) clustersServiceClusterByAzureInfoSearchString(wantSub, wantRG, wantName, wantTenant, wantMRG string) string {
-	return fmt.Sprintf(
-		"azure.subscription_id = '%s' and azure.resource_group_name = '%s' and azure.resource_name = '%s' and "+
-			"azure.tenant_id = '%s' and azure.managed_resource_group_name = '%s'",
-		wantSub, wantRG, wantName, wantTenant, wantMRG,
-	)
-}
-
-func (c *clusterClusterServiceCreateSyncer) csClustersMatchingClusterByAzureInfo(ctx context.Context, it ocm.ClusterListIterator, wantSub, wantRG, wantName, wantTenant, wantMRG string) ([]*arohcpv1alpha1.Cluster, error) {
-	var res []*arohcpv1alpha1.Cluster
-	for csCluster := range it.Items(ctx) {
-		az := csCluster.Azure()
-		if az == nil {
-			continue
-		}
-		if az.SubscriptionID() != wantSub ||
-			az.ResourceGroupName() != wantRG ||
-			az.ResourceName() != wantName ||
-			az.TenantID() != wantTenant ||
-			az.ManagedResourceGroupName() != wantMRG {
-			continue
-		}
-		res = append(res, csCluster)
-	}
-	if err := it.GetError(); err != nil {
-		return nil, err
-	}
-	return res, nil
 }
 
 func (c *clusterClusterServiceCreateSyncer) createClusterServiceCluster(ctx context.Context, cluster *api.HCPOpenShiftCluster, serviceProviderCluster *api.ServiceProviderCluster, tenantID string) (*arohcpv1alpha1.Cluster, error) {

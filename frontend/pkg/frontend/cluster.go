@@ -369,24 +369,46 @@ func (f *Frontend) createHCPCluster(writer http.ResponseWriter, request *http.Re
 		tenantID = *subscription.Properties.TenantId
 	}
 
-	initialClusterProperties := map[string]string{}
-	if len(f.clusterServiceProvisionShard) != 0 {
-		initialClusterProperties[ocm.CSPropertyProvisionShardID] = f.clusterServiceProvisionShard
-	}
-	if f.clusterServiceNoopProvision {
-		initialClusterProperties[ocm.CSPropertyNoopProvision] = ocm.CSPropertyEnabled
-	}
-	if f.clusterServiceNoopDeprovision {
-		initialClusterProperties[ocm.CSPropertyNoopDeprovision] = ocm.CSPropertyEnabled
-	}
-	newClusterServiceClusterBuilder, newClusterServiceAutoscalerBuilder, err := ocm.BuildCSCluster(newInternalCluster.ID, tenantID, newInternalCluster, initialClusterProperties, nil, nil)
-	if err != nil {
-		return utils.TrackError(err)
-	}
 	logger.Info(fmt.Sprintf("creating resource %s", newInternalCluster.ID))
-	resultingClusterServiceCluster, err := f.clusterServiceClient.PostCluster(ctx, newClusterServiceClusterBuilder, newClusterServiceAutoscalerBuilder)
+
+	// Check if CS already has a cluster with matching Azure metadata. This
+	// handles the retry-after-partial-failure scenario: a prior attempt may
+	// have created the CS cluster but failed to write the Cosmos documents,
+	// leaving an orphan in CS that would cause PostCluster to reject with
+	// "Duplicate ARO-HCP cluster name" (see ARO-27951).
+	resultingClusterServiceCluster, err := ocm.FindClusterByAzureInfo(
+		ctx, f.clusterServiceClient,
+		newInternalCluster.ID.SubscriptionID,
+		newInternalCluster.ID.ResourceGroupName,
+		newInternalCluster.Name,
+		tenantID,
+		newInternalCluster.CustomerProperties.Platform.ManagedResourceGroup,
+	)
 	if err != nil {
 		return utils.TrackError(err)
+	}
+
+	if resultingClusterServiceCluster == nil {
+		initialClusterProperties := map[string]string{}
+		if len(f.clusterServiceProvisionShard) != 0 {
+			initialClusterProperties[ocm.CSPropertyProvisionShardID] = f.clusterServiceProvisionShard
+		}
+		if f.clusterServiceNoopProvision {
+			initialClusterProperties[ocm.CSPropertyNoopProvision] = ocm.CSPropertyEnabled
+		}
+		if f.clusterServiceNoopDeprovision {
+			initialClusterProperties[ocm.CSPropertyNoopDeprovision] = ocm.CSPropertyEnabled
+		}
+		newClusterServiceClusterBuilder, newClusterServiceAutoscalerBuilder, err := ocm.BuildCSCluster(newInternalCluster.ID, tenantID, newInternalCluster, initialClusterProperties, nil, nil)
+		if err != nil {
+			return utils.TrackError(err)
+		}
+		resultingClusterServiceCluster, err = f.clusterServiceClient.PostCluster(ctx, newClusterServiceClusterBuilder, newClusterServiceAutoscalerBuilder)
+		if err != nil {
+			return utils.TrackError(err)
+		}
+	} else {
+		logger.Info("Reusing existing Cluster Service cluster found by Azure metadata", "csClusterHREF", resultingClusterServiceCluster.HREF())
 	}
 
 	csID, err := api.NewInternalID(resultingClusterServiceCluster.HREF())

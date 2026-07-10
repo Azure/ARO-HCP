@@ -201,7 +201,7 @@ func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 			setupMockCS: func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec {
 				mockCS := ocm.NewMockClusterServiceClientSpec(ctrl)
 				// Build the CS cluster with Azure fields matching the test cluster so it
-				// passes the csClustersMatchingClusterByAzureInfo filter.
+				// passes the FindClusterByAzureInfo filter.
 				csCluster, err := arohcpv1alpha1.NewCluster().
 					HREF(testClusterServiceIDStr).
 					Azure(arohcpv1alpha1.NewAzure().
@@ -276,7 +276,7 @@ func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 	}
 }
 
-func TestClusterClusterServiceCreate_findAROHCPClusterByAzureInfo(t *testing.T) {
+func TestFindClusterByAzureInfo(t *testing.T) {
 	azureTestCluster := func(t *testing.T, sub, rg, name, tenant, mrg string) *arohcpv1alpha1.Cluster {
 		t.Helper()
 		c, err := arohcpv1alpha1.NewCluster().
@@ -300,7 +300,9 @@ func TestClusterClusterServiceCreate_findAROHCPClusterByAzureInfo(t *testing.T) 
 	defaultMRG := "arohcp-mycluster-uuid"
 
 	searchString := func(sub, rg, name, tenant, mrg string) string {
-		return (&clusterClusterServiceCreateSyncer{}).clustersServiceClusterByAzureInfoSearchString(
+		return fmt.Sprintf(
+			"azure.subscription_id = '%s' and azure.resource_group_name = '%s' and azure.resource_name = '%s' and "+
+				"azure.tenant_id = '%s' and azure.managed_resource_group_name = '%s'",
 			strings.ToLower(sub), strings.ToLower(rg), strings.ToLower(name), tenant, mrg,
 		)
 	}
@@ -496,8 +498,7 @@ func TestClusterClusterServiceCreate_findAROHCPClusterByAzureInfo(t *testing.T) 
 			ctrl := gomock.NewController(t)
 			mockCS, want := tt.setupMockCS(t, ctrl, wantSearch)
 
-			s := &clusterClusterServiceCreateSyncer{clustersServiceClient: mockCS}
-			got, err := s.findAROHCPClusterByAzureInfo(ctx, sub, rg, resName, tenant, mrg)
+			got, err := ocm.FindClusterByAzureInfo(ctx, mockCS, sub, rg, resName, tenant, mrg)
 
 			if tt.wantErr {
 				require.Error(t, err)
