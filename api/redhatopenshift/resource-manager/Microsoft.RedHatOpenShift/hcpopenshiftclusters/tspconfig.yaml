@@ -14,7 +14,7 @@ options:
     arm-types-dir: "{project-root}/../../../../common-types/resource-management"
   "@azure-typespec/http-client-csharp-mgmt":
     emitter-output-dir: "{output-dir}/{service-dir}/{namespace}"
-    namespace: "Azure.ResourceManager.RedHatOpenShiftHCP"
+    namespace: "Azure.ResourceManager.RedHatOpenShiftHcp"
   "@azure-tools/typespec-go":
     emitter-output-dir: "{output-dir}/{service-dir}/armredhatopenshifthcp"
     fix-const-stuttering: true
