@@ -54,22 +54,29 @@ resourceGroups:
     # with ResourceNotFound before acrs creates them.
     - resourceGroup: singleton
       step: acrs
-  - name: ci-monitoring
-    action: ARM
-    template: templates/ci-monitoring.bicep
-    parameters: configurations/ci-monitoring.tmpl.bicepparam
-    deploymentLevel: ResourceGroup
-    parameterOverrides:
-      grafanaResourceId:
-        input:
-          resourceGroup: singleton
-          step: output
-          name: grafanaResourceId
-    dependsOn:
-    - resourceGroup: singleton
-      step: infra
-    - resourceGroup: singleton
-      step: output  
+  # TODO(ARO-28044): ci-monitoring is paused while Grafana reconciliation is paused.
+  # Re-enable after ARO-28040 and ensure prometheusPrincipalId is available in output-global.bicep
+  # - name: ci-monitoring
+  #   action: ARM
+  #   template: templates/ci-monitoring.bicep
+  #   parameters: configurations/ci-monitoring.tmpl.bicepparam
+  #   deploymentLevel: ResourceGroup
+  #   parameterOverrides:
+  #     grafanaResourceId:
+  #       input:
+  #         resourceGroup: singleton
+  #         step: output
+  #         name: grafanaResourceId
+  #     prometheusPrincipalId:
+  #       input:
+  #         resourceGroup: singleton
+  #         step: output
+  #         name: prometheusPrincipalId
+  #   dependsOn:
+  #   - resourceGroup: singleton
+  #     step: infra
+  #   - resourceGroup: singleton
+  #     step: output
   # TODO(ARO-28044): re-enable after ARO-28040
   # - name: grafana-monitoring-reader
   #   action: ARM
@@ -234,8 +241,9 @@ resourceGroups:
       step: housekeeping
     - resourceGroup: singleton
       step: output
-    - resourceGroup: singleton
-      step: ci-monitoring
+    # TODO(ARO-28044): re-add ci-monitoring dependency after it's re-enabled
+    # - resourceGroup: singleton
+    #   step: ci-monitoring
   # TODO(ARO-28044): re-enable after ARO-28040
   # - name: grafana-dashboards
   #   action: GrafanaDashboards

@@ -99,9 +99,9 @@ spec:
     whenUnsatisfiable: ScheduleAnyway
   walCompression: true
   externalLabels:
-{{ range $key, $value := .Values.prometheusSpec.externalLabels }}
-    {{ $key }}: '{{ $value }}'
-{{ end }}
+{{- range $key, $value := .Values.prometheusSpec.externalLabels | keys | sortAlpha }}
+    {{ $key }}: {{ index $.Values.prometheusSpec.externalLabels $key | quote }}
+{{- end }}
   remoteWrite:
   - url: '{{ .Values.prometheusSpec.remoteWriteUrl }}'
     azureAd:
