@@ -477,7 +477,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${datasource_svc}"
+        "uid": "${datasource_hcp}"
       },
       "description": "How many pods are in each state right now (Running, Pending, Failed, Succeeded).",
       "fieldConfig": {
@@ -587,36 +587,44 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${datasource_svc}"
+            "uid": "${datasource_hcp}"
           },
-          "expr": "sum(kube_pod_status_phase{cluster=\"$cluster\", namespace=\"$namespace\", phase=\"Running\"})",
+          "expr": "sum(kube_pod_status_phase{cluster=\"$cluster\", namespace=\"$namespace\", phase=\"running\"})",
+          "instant": true,
+          "range": false,
           "legendFormat": "Running",
           "refId": "A"
         },
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${datasource_svc}"
+            "uid": "${datasource_hcp}"
           },
-          "expr": "sum(kube_pod_status_phase{cluster=\"$cluster\", namespace=\"$namespace\", phase=\"Pending\"})",
+          "expr": "sum(kube_pod_status_phase{cluster=\"$cluster\", namespace=\"$namespace\", phase=\"pending\"})",
+          "instant": true,
+          "range": false,
           "legendFormat": "Pending",
           "refId": "B"
         },
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${datasource_svc}"
+            "uid": "${datasource_hcp}"
           },
-          "expr": "sum(kube_pod_status_phase{cluster=\"$cluster\", namespace=\"$namespace\", phase=\"Failed\"})",
+          "expr": "sum(kube_pod_status_phase{cluster=\"$cluster\", namespace=\"$namespace\", phase=\"failed\"})",
+          "instant": true,
+          "range": false,
           "legendFormat": "Failed",
           "refId": "C"
         },
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${datasource_svc}"
+            "uid": "${datasource_hcp}"
           },
-          "expr": "sum(kube_pod_status_phase{cluster=\"$cluster\", namespace=\"$namespace\", phase=\"Succeeded\"})",
+          "expr": "sum(kube_pod_status_phase{cluster=\"$cluster\", namespace=\"$namespace\", phase=\"succeeded\"})",
+          "instant": true,
+          "range": false,
           "legendFormat": "Succeeded",
           "refId": "D"
         }
@@ -627,7 +635,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${datasource_svc}"
+        "uid": "${datasource_hcp}"
       },
       "description": "Container restarts in the last hour per pod (more useful for triage than total restarts since pod started).",
       "fieldConfig": {
@@ -710,7 +718,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${datasource_svc}"
+            "uid": "${datasource_hcp}"
           },
           "expr": "sum by (pod) (increase(kube_pod_container_status_restarts_total{cluster=\"$cluster\", namespace=\"$namespace\"}[1h]))",
           "legendFormat": "{{pod}}",
@@ -723,7 +731,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${datasource_svc}"
+        "uid": "${datasource_hcp}"
       },
       "description": "OOMKilled events timeline. Note: changes() counts value transitions not discrete events - may miss kills between scrapes.",
       "fieldConfig": {
@@ -806,7 +814,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${datasource_svc}"
+            "uid": "${datasource_hcp}"
           },
           "expr": "sum by (container) (changes(kube_pod_container_status_terminated_reason{cluster=\"$cluster\", namespace=\"$namespace\", reason=\"OOMKilled\"}[5m]))",
           "legendFormat": "{{container}}",
@@ -819,7 +827,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${datasource_svc}"
+        "uid": "${datasource_hcp}"
       },
       "description": "Why each container exited last time (OOMKilled, Error, Completed, etc).",
       "fieldConfig": {
@@ -884,7 +892,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${datasource_svc}"
+            "uid": "${datasource_hcp}"
           },
           "expr": "kube_pod_container_status_last_terminated_reason{cluster=\"$cluster\", namespace=\"$namespace\"}",
           "format": "table",
