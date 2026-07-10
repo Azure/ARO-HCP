@@ -1772,7 +1772,7 @@ resource leaderelection 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03
           summary: 'Leader election lease {{ $labels.lease }} in namespace {{ $labels.namespace }} on cluster {{ $labels.cluster }} stale for more than 37 minutes'
           title: 'Leader election lease {{ $labels.lease }} in namespace {{ $labels.namespace }} on cluster {{ $labels.cluster }} stale for more than 37 minutes'
         }
-        expression: 'time() - max without (prometheus_replica) (kube_lease_renew_time{namespace!~"^(kube-system|kube-public|kube-node-lease|default|kube-applier)$"}) > 720'
+        expression: 'time() - max without (prometheus_replica) (kube_lease_renew_time{namespace!~"^(kube-system|kube-public|kube-node-lease|default|kube-applier|aro-hcp|mgmt-agent)$"}) > 720'
         for: 'PT25M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -1799,7 +1799,7 @@ resource leaderelection 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03
           summary: 'Leader election lease {{ $labels.lease }} in namespace {{ $labels.namespace }} on cluster {{ $labels.cluster }} stale for more than 6 minutes'
           title: 'Leader election lease {{ $labels.lease }} in namespace {{ $labels.namespace }} on cluster {{ $labels.cluster }} stale for more than 6 minutes'
         }
-        expression: 'time() - max without (prometheus_replica) (kube_lease_renew_time{namespace=~"^(kube-applier)$"}) > 180'
+        expression: 'time() - max without (prometheus_replica) (kube_lease_renew_time{namespace=~"^(kube-applier|aro-hcp|mgmt-agent)$"}) > 180'
         for: 'PT3M'
         severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
       }
