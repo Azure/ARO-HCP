@@ -201,11 +201,14 @@ func (c *triggerControlPlaneUpgradeSyncer) shouldTriggerUpgrade(ctx context.Cont
 	}
 	hasCreate, err := c.clusterHasActiveCreateOperation(ctx, cluster)
 	if err != nil {
-		logger.Info("Failed to check if cluster has active create operation, skipping upgrade trigger", "cluster", cluster.Name, "error", err.Error())
+		logger.Error(err, "Failed to check if cluster has active create operation, checking upgrade trigger", "cluster", cluster.Name)
 		return true, err
 	}
-	logger.Info("Cluster has active create operation", "cluster", cluster.Name, "hasCreate", hasCreate)
-	return !hasCreate, nil
+	if hasCreate {
+		logger.Info("Cluster has active create operation", "cluster", cluster.Name, "hasCreate", hasCreate)
+		return false, nil
+	}
+	return true, nil
 }
 
 // clusterOlderThanGracePeriod returns true when the cluster's ARM CreatedAt

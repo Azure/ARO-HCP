@@ -75,6 +75,20 @@ func (c *ChangeFeedListWatcher[InternalAPIType, InternalAPITypePointer, CosmosAP
 	return c
 }
 
+func waitForWatcher[InternalAPIType any, InternalAPITypePointer arm.CosmosMetadataAccessorPtr[InternalAPIType], CosmosAPIType any](ctx context.Context, clock utilsclock.Clock, watcher *ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPIType]) error {
+	logger := utils.LoggerFromContext(ctx)
+	for {
+		select {
+		case <-watcher.Finished():
+			return nil
+		case <-ctx.Done():
+			return fmt.Errorf("failed to stop previous watcher before timeout: %w", ctx.Err())
+		case <-clock.After(5 * time.Second):
+			logger.Info("waiting for previous watcher to stop")
+		}
+	}
+}
+
 func (c *ChangeFeedListWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPIType]) List(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
@@ -95,6 +109,9 @@ func (c *ChangeFeedListWatcher[InternalAPIType, InternalAPITypePointer, CosmosAP
 	c.currentWatcher = nil
 	if prevFeedWatcher != nil {
 		prevFeedWatcher.Stop()
+		if err := waitForWatcher(ctx, c.clock, prevFeedWatcher); err != nil {
+			logger.Error(err, "failed to wait for previous watcher to stop, continuing")
+		}
 	}
 
 	c.currentWatcher = newChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPIType](c.desiredResourceTypes, c.clock, c.changeFeedClient, c.clock.Now(), c.relistDuration, c.shouldDeliverItemFn)
@@ -104,8 +121,10 @@ func (c *ChangeFeedListWatcher[InternalAPIType, InternalAPITypePointer, CosmosAP
 
 	iter, err := c.globalLister.List(ctx, nil)
 	if err != nil {
-		// cleanup the watcher we aren't going to use. This would happen when we re-enter anyway, but we can do slightly better here
 		c.currentWatcher.Stop()
+		if err := waitForWatcher(ctx, c.clock, c.currentWatcher); err != nil {
+			logger.Error(err, "failed to wait for current watcher to stop, continuing")
+		}
 		c.currentWatcher = nil
 
 		return nil, err
@@ -127,8 +146,10 @@ func (c *ChangeFeedListWatcher[InternalAPIType, InternalAPITypePointer, CosmosAP
 			})
 	}
 	if err := iter.GetError(); err != nil {
-		// cleanup the watcher we aren't going to use. This would happen when we re-enter anyway, but we can do slightly better here
 		c.currentWatcher.Stop()
+		if err := waitForWatcher(ctx, c.clock, c.currentWatcher); err != nil {
+			logger.Error(err, "failed to wait for current watcher to stop, continuing")
+		}
 		c.currentWatcher = nil
 
 		return nil, err

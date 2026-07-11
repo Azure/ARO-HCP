@@ -213,9 +213,6 @@ func (d *resourcesCosmosDBClient) GetChangeFeed(ctx context.Context, options *az
 }
 
 func (d *resourcesCosmosDBClient) GetFeedRanges(ctx context.Context) ([]azcosmos.FeedRange, error) {
-	// Cache feed ranges for the duration of the DBClient instance.
-	// Even if Cosmos DB splits a physical partition due to throughput
-	// or data size limits being exceeded, the feed ranges remain valid.
 	resourcesFeedRanges, err := d.resources.GetFeedRanges(ctx)
 	if err != nil {
 		return nil, utils.TrackError(err)

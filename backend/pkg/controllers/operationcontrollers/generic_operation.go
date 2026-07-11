@@ -116,6 +116,7 @@ func (c *genericOperation) controllerCRUD(key controllerutils.OperationKey) data
 }
 
 func (c *genericOperation) QueueForInformers(resyncDuration time.Duration, notifiers ...controllerutils.Notifier) error {
+	// panic so that the developer error is noticed immediately
 	panic("not implemented")
 }
 

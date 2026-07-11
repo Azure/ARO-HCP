@@ -40,7 +40,7 @@ func (s *Subscription) GetObjectMeta() metav1.Object {
 		om.Name = strings.ToLower(s.ResourceID.String())
 	}
 	// shared_informer uses ResourceVersion to determine if an event is a sync
-	om.ResourceVersion = strconv.Itoa(int(s.InstanceVersion))
+	om.ResourceVersion = strconv.FormatInt(s.InstanceVersion, 10)
 	return om
 }
 

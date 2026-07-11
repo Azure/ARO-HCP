@@ -130,8 +130,7 @@ type kubeApplierCosmosDBClient struct {
 
 var _ KubeApplierDBClient = &kubeApplierCosmosDBClient{}
 
-// NewKubeApplierDBClient wraps a pre-opened Cosmos container client for a single
-// management cluster. Feed ranges are fetched and cached at construction time.
+// NewKubeApplierDBClient wraps a pre-opened Cosmos container client for a single management cluster.
 func NewKubeApplierDBClient(container *azcosmos.ContainerClient, managementClusterResourceID *azcorearm.ResourceID) (KubeApplierDBClient, error) {
 	return &kubeApplierCosmosDBClient{
 		kubeApplier:                 container,
@@ -209,9 +208,6 @@ func (c *kubeApplierCosmosDBClient) GetChangeFeed(ctx context.Context, options *
 }
 
 func (c *kubeApplierCosmosDBClient) GetFeedRanges(ctx context.Context) ([]azcosmos.FeedRange, error) {
-	// Cache feed ranges for the duration of the DBClient instance.
-	// Even if Cosmos DB splits a physical partition due to throughput
-	// or data size limits being exceeded, the feed ranges remain valid.
 	resourcesFeedRanges, err := c.kubeApplier.GetFeedRanges(ctx)
 	if err != nil {
 		return nil, utils.TrackError(err)

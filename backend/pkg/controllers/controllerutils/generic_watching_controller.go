@@ -228,7 +228,7 @@ func (c *genericWatchingController[T]) EnqueueResourceIDAddWithMaxDepth(resource
 		return
 	}
 
-	if cooldownChecker := c.syncer.CooldownChecker(); cooldownChecker != nil && !c.syncer.CooldownChecker().CanSync(ctx, key) {
+	if cooldownChecker := c.syncer.CooldownChecker(); cooldownChecker != nil && !cooldownChecker.CanSync(ctx, key) {
 		logger.Info("Skipping notification")
 		return
 	}

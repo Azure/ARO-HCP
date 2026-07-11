@@ -38,7 +38,7 @@ func (o *ApplyDesire) GetObjectMeta() metav1.Object {
 		om.Name = strings.ToLower(o.GetResourceID().String())
 	}
 	// shared_informer uses ResourceVersion to determine if an event is a sync
-	om.ResourceVersion = strconv.Itoa(int(o.InstanceVersion))
+	om.ResourceVersion = strconv.FormatInt(o.InstanceVersion, 10)
 	return om
 }
 
@@ -72,7 +72,7 @@ func (o *ReadDesire) GetObjectMeta() metav1.Object {
 		om.Name = strings.ToLower(o.GetResourceID().String())
 	}
 	// shared_informer uses ResourceVersion to determine if an event is a sync
-	om.ResourceVersion = strconv.Itoa(int(o.InstanceVersion))
+	om.ResourceVersion = strconv.FormatInt(o.InstanceVersion, 10)
 	return om
 }
 
