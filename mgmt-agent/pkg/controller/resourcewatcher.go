@@ -245,6 +245,7 @@ func logResourceEvent(ctx context.Context, eventType string, gvr schema.GroupVer
 		return
 	}
 	logger.Info("resource event",
+		"snapshotType", "kubernetes",
 		"event", eventType,
 		"gvr", gvr.String(),
 		"namespace", u.GetNamespace(),

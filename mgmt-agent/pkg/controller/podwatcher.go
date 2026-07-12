@@ -154,12 +154,16 @@ func containerStateType(state corev1.ContainerState) string {
 }
 
 // logPodEvent logs a pod event with structured key-value pairs including
-// the full pod object.
+// the full pod object. A shallow copy is made so that setting TypeMeta
+// (which typed informers leave empty) does not mutate the shared cache object.
 func logPodEvent(eventType string, pod *corev1.Pod) {
+	podCopy := *pod
+	podCopy.SetGroupVersionKind(corev1.SchemeGroupVersion.WithKind("Pod"))
 	klog.InfoS("pod event",
+		"snapshotType", "kubernetes",
 		"event", eventType,
-		"namespace", pod.Namespace,
-		"name", pod.Name,
-		"object", pod,
+		"namespace", podCopy.Namespace,
+		"name", podCopy.Name,
+		"object", &podCopy,
 	)
 }
