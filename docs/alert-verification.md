@@ -19,12 +19,12 @@ Luckily with [alert-tester][alert-tester-repo] we have a faster approach (in cas
 
 > [!IMPORTANT]
 >
-> All commands below need to be executed on a machine from which you can login to your b- account!
+> All commands below need to be executed on a machine from which you can log in to your b- account!
 
 ## Verifying alerts with [alert-tester][alert-tester-repo]
 
-In a linux shell (on a machine from which you can login to your b- account), e.g. WSL or Git Bash:
-```
+In a Linux shell (on a machine from which you can log in to your b- account), e.g. WSL or Git Bash:
+```bash
 git clone https://github.com/mmazur/alert-tester
 cd alert-tester
 make build
@@ -32,7 +32,7 @@ make build
 
 You can now use `alert-tester`, e.g.
 
-```
+```bash
 export ATEST_GRAFANA_BEARER_TOKEN=$(az account get-access-token \
       --resource ce34e7e5-485f-4d76-964f-b3d2b16d1e4f \
       --query accessToken -o tsv)
@@ -62,16 +62,16 @@ analysis:
 - for 3m: 2 firings
 ```
 
-for more options and a detailed description see [README.md][alert-tester-readme].
+For more options and a detailed description, see [README.md][alert-tester-readme].
 
 ### AI-Generated Reports
 
-The basic `atest` tool usage is already very helpful. But if you want to check multiple data sources and have a nice report, you might want to use the [aro-hcp-test-alerts skill][aro-hcp-test-alerts-skill]. To do so, you can
+The basic `atest` tool usage is already very helpful. But if you want to check multiple data sources and have a nice report, you might want to use the [aro-hcp-test-alerts skill][aro-hcp-test-alerts-skill]. To do so, you can:
 
-1. make sure you have [alert-tester][alert-tester-repo] cloned and built on a machine from which you can login to your b- account (see above)
-2. [make sure you have copilot properly set up][copilot-setup]
-3. have copilot (or claude with copilot access) run from within the `alert-tester` dir
-4. ask copilot something like
+1. Make sure you have [alert-tester][alert-tester-repo] cloned and built on a machine from which you can log in to your b- account (see above)
+2. [Make sure you have Copilot properly set up][copilot-setup]
+3. Have Copilot (or Claude with Copilot access) run from within the `alert-tester` dir
+4. Ask Copilot something like
    ```
    /aro-hcp-test-alerts review PR https://github.com/Azure/ARO-HCP/pull/5896
    ```
@@ -94,7 +94,7 @@ The basic `atest` tool usage is already very helpful. But if you want to check m
 
 ### Ad Hoc Explorer
 
-If you want to see your query results in PROD Grafana, you can use the AdHoc Explorer (on a machine from which you can login to your b- account):
+If you want to see your query results in PROD Grafana, you can use the Ad Hoc Explorer (on a machine from which you can log in to your b- account):
 
 * [Ad Hoc Explorer][grafana-adhoc-explorer]
 
@@ -102,11 +102,11 @@ Once you've selected a datasource, you will be able to enter a PromQL query.
 
 ### Grafana Datasource
 
-[grafana-datasource][grafana-datasource-repo] is a tool that automates Grafana datasource configuration. You can set it up on a machine from which you can login to your b- account:
+[grafana-datasource][grafana-datasource-repo] is a tool that automates Grafana datasource configuration. You can set it up on a machine from which you can log in to your b- account:
 
-1. [make sure you have copilot properly set up][copilot-setup]
+1. [Make sure you have Copilot properly set up][copilot-setup]
 2. Clone [grafana-datasource][grafana-datasource-repo]
-3. Run copilot from within the `grafana-datasource` directory and ask it to set up Grafana
+3. Run Copilot from within the `grafana-datasource` directory and ask it to set up Grafana
 
 ## Links
 

@@ -189,7 +189,7 @@ If the metrics are already present in PROD, you can verify your alerts:
 
 ### 5. Generate Bicep & Run Tests
 
-The rules need to be converted from the `.yaml` representation and merged into `.bicep` files (located in [/dev-infrastructure/modules/metrics/rules](/dev-infrastructure/modules/metrics/rules)). Use the following command before committing - which will also execute the prometheus alert test:
+The rules need to be converted from the `.yaml` representation and merged into `.bicep` files (located in [/dev-infrastructure/modules/metrics/rules](/dev-infrastructure/modules/metrics/rules)). Use the following command before committing — it will also run Prometheus rule tests via promtool:
 
 ```bash
 make -C observability/ alerts
