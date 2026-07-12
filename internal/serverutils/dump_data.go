@@ -31,6 +31,46 @@ import (
 
 const RedactStr = "REDACTED"
 
+// ObjectMetadata provides per-document identity for the cosmosResourceSnapshots
+// Kusto table. It is emitted as a structured log field alongside the document content.
+type ObjectMetadata struct {
+	CosmosContainer string `json:"cosmosContainer"`
+	SubscriptionID  string `json:"subscriptionID"`
+	ResourceGroup   string `json:"resourceGroup"`
+	ResourceType    string `json:"resourceType"`
+	ResourceName    string `json:"resourceName"`
+	ResourceID      string `json:"resourceID"`
+}
+
+func objectMetadataForTypedDocument(container string, doc *database.TypedDocument) ObjectMetadata {
+	if doc == nil || doc.ResourceID == nil {
+		return ObjectMetadata{CosmosContainer: container}
+	}
+	return ObjectMetadata{
+		CosmosContainer: container,
+		SubscriptionID:  doc.ResourceID.SubscriptionID,
+		ResourceGroup:   doc.ResourceID.ResourceGroupName,
+		ResourceType:    doc.ResourceType,
+		ResourceName:    doc.ResourceID.Name,
+		ResourceID:      doc.ResourceID.String(),
+	}
+}
+
+// ObjectMetadataForResourceID builds ObjectMetadata from an ARM resource ID.
+func ObjectMetadataForResourceID(container string, resourceID *azcorearm.ResourceID) ObjectMetadata {
+	if resourceID == nil {
+		return ObjectMetadata{CosmosContainer: container}
+	}
+	return ObjectMetadata{
+		CosmosContainer: container,
+		SubscriptionID:  resourceID.SubscriptionID,
+		ResourceGroup:   resourceID.ResourceGroupName,
+		ResourceType:    resourceID.ResourceType.String(),
+		ResourceName:    resourceID.Name,
+		ResourceID:      resourceID.String(),
+	}
+}
+
 // DumpDataToLogger writes a structured-log entry for every document related
 // to resourceID. It covers three storage layers:
 //
@@ -71,7 +111,9 @@ func DumpDataToLogger(
 		return utils.TrackError(err)
 	}
 	logger.Info(fmt.Sprintf("dumping resourceID %v", startingCosmosRecord.ResourceID),
+		"snapshotType", "cosmos",
 		"currentResourceID", resourceIDToString(startingCosmosRecord.ResourceID),
+		"objectMetadata", objectMetadataForTypedDocument("resources", startingCosmosRecord),
 		"content", startingCosmosRecord,
 	)
 
@@ -87,7 +129,9 @@ func DumpDataToLogger(
 			continue
 		}
 		logger.Info(fmt.Sprintf("dumping resourceID %v", typedDocument.ResourceID),
+			"snapshotType", "cosmos",
 			"currentResourceID", resourceIDToString(typedDocument.ResourceID),
+			"objectMetadata", objectMetadataForTypedDocument("resources", typedDocument),
 			"content", typedDocument,
 		)
 	}
@@ -105,7 +149,9 @@ func DumpDataToLogger(
 		currOperationTarget := strings.ToLower(operation.ExternalID.String())
 		if strings.HasPrefix(currOperationTarget, resourceIDString) {
 			logger.Info(fmt.Sprintf("dumping resourceID %v", operation.ResourceID),
+				"snapshotType", "cosmos",
 				"currentResourceID", resourceIDToString(operation.ResourceID),
+				"objectMetadata", ObjectMetadataForResourceID("operations", operation.ResourceID),
 				"content", operation,
 			)
 		}
@@ -174,7 +220,9 @@ func dumpKubeApplierData(
 		}
 		for _, doc := range desireIterator.Items(ctx) {
 			mcLogger.Info(fmt.Sprintf("dumping kube-applier resourceID %v", doc.ResourceID),
+				"snapshotType", "cosmos",
 				"currentResourceID", resourceIDToString(doc.ResourceID),
+				"objectMetadata", objectMetadataForTypedDocument("kubeApplier", doc),
 				"content", doc,
 			)
 		}
@@ -220,7 +268,9 @@ func DumpBillingToLogger(ctx context.Context, resourcesDBClient database.Resourc
 	}
 
 	logger.Info(fmt.Sprintf("dumping billing document for resourceID %v", billingDoc.ResourceID),
+		"snapshotType", "cosmos",
 		"currentResourceID", billingDoc.ResourceID.String(),
+		"objectMetadata", ObjectMetadataForResourceID("billing", billingDoc.ResourceID),
 		"content", billingDoc,
 	)
 
