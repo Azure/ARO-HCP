@@ -23,7 +23,7 @@ Luckily with [alert-tester][alert-tester-repo] we have a faster approach (in cas
 
 ## Verifying alerts with [alert-tester][alert-tester-repo]
 
-In a Linux shell (on a machine from which you can log in to your b- account), e.g. WSL or Git Bash:
+In a bash shell (on a machine from which you can log in to your b- account), e.g. WSL, Linux, or Git Bash:
 ```bash
 git clone https://github.com/mmazur/alert-tester
 cd alert-tester
@@ -75,7 +75,7 @@ The basic `atest` tool usage is already very helpful. But if you want to check m
    ```
    /aro-hcp-test-alerts review PR https://github.com/Azure/ARO-HCP/pull/5896
    ```
-   That will create a nicely formatted report in `./reports` according to [./reports/TEMPLATE.md][report-template]. Just FYI: [aro-hcp-test-alerts][aro-hcp-test-alerts-skill] does not need to be installed explicitly, because it's located in the project's `.claude/skills` dir.
+   That will create a nicely formatted report in `./reports` according to [./reports/TEMPLATE.md][report-template]. Just FYI: [aro-hcp-test-alerts][aro-hcp-test-alerts-skill] does not need to be installed explicitly, because it's located in the `alert-tester` repo's `.claude/skills` dir.
 
 > [!IMPORTANT]
 >
