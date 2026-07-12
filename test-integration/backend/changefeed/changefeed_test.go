@@ -724,7 +724,6 @@ func drainEvents(watcher *clusterChangeFeedWatcher, within time.Duration) []watc
 func TestActiveOperationInformer(t *testing.T) {
 	integrationutils.WithAndWithoutCosmos(t, func(t *testing.T, withMock bool) {
 		ctx, cancel := context.WithTimeout(t.Context(), 90*time.Second)
-		defer cancel()
 		ctx = utils.ContextWithLogger(ctx, integrationutils.DefaultLogger(t))
 
 		var (
@@ -737,10 +736,6 @@ func TestActiveOperationInformer(t *testing.T) {
 			storage, err = integrationutils.NewCosmosFromTestingEnv(ctx, t)
 		}
 		require.NoError(t, err, "create test storage")
-		defer func() {
-			cleanupCtx := utils.ContextWithLogger(context.Background(), integrationutils.DefaultLogger(t))
-			storage.Cleanup(cleanupCtx)
-		}()
 
 		resourcesDBClient := storage.ResourcesDBClient()
 
@@ -770,7 +765,17 @@ func TestActiveOperationInformer(t *testing.T) {
 		require.NoError(t, err, "AddEventHandler")
 
 		// Start the informer and wait for the initial list to sync.
-		go activeOpInformer.RunWithContext(ctx)
+		informerDone := make(chan struct{})
+		go func() {
+			defer close(informerDone)
+			activeOpInformer.RunWithContext(ctx)
+		}()
+		defer func() {
+			cancel()
+			<-informerDone
+			cleanupCtx := utils.ContextWithLogger(context.Background(), integrationutils.DefaultLogger(t))
+			storage.Cleanup(cleanupCtx)
+		}()
 		require.True(t, cache.WaitForCacheSync(ctx.Done(), activeOpInformer.HasSynced),
 			"informer cache did not sync")
 
