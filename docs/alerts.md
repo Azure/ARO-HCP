@@ -183,7 +183,7 @@ If your alert should also appear in the MSFT environment, add it to `observabili
 
 ### 4. Verify Alerts
 
-If the metrics are already present in PROD, you can verify your alerts - see
+If the metrics are already present in PROD, you can verify your alerts:
 
 * [Alert Verification Guide](./alert-verification.md)
 
