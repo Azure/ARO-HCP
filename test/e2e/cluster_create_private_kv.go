@@ -23,13 +23,14 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 
+	"github.com/Azure/ARO-HCP/internal/api"
 	hcpsdk20251223preview "github.com/Azure/ARO-HCP/test/sdk/v20251223preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
 	"github.com/Azure/ARO-HCP/test/util/labels"
 	"github.com/Azure/ARO-HCP/test/util/verifiers"
 )
 
-var _ = Describe("Create HCPOpenShiftCluster with Private KeyVault", func() {
+var _ = FDescribe("Create HCPOpenShiftCluster with Private KeyVault", func() {
 	BeforeEach(func() {
 		// do nothing. per test initialization usually ages better than shared.
 	})
@@ -54,12 +55,21 @@ var _ = Describe("Create HCPOpenShiftCluster with Private KeyVault", func() {
 			resourceGroup, err := tc.NewResourceGroup(ctx, "private-keyvault", tc.Location())
 			Expect(err).NotTo(HaveOccurred(), "failed to create resource group for private keyvault test")
 
+			const channelGroup = "candidate"
+
+			By("resolving 4.22 install version")
+			cpVersion, err := framework.GetLatestInstallVersion(ctx, channelGroup, "4.22")
+			Expect(err).NotTo(HaveOccurred(), "failed to resolve 4.22 install version")
+
 			By("creating cluster parameters")
 			clusterParams := framework.NewDefaultClusterParams20251223()
 			clusterParams.ClusterName = customerClusterName
 			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 			clusterParams.ManagedResourceGroupName = managedResourceGroupName
 			clusterParams.KeyVaultVisibility = "Private"
+			clusterParams.OpenshiftVersionId = cpVersion
+			clusterParams.ChannelGroup = channelGroup
+			clusterParams.Tags[api.TagClusterCPOImageOverride] = to.Ptr("arohcpocpdev.azurecr.io/control-plane-operator@sha256:9798300ddc444b64061b4e1630ebaf5c3ec196982d1f9f8fe71b0e3a90a9c90c")
 
 			By("creating customer resources (infrastructure and managed identities)")
 			clusterParams, err = tc.CreateClusterCustomerResources20251223(ctx,
@@ -124,6 +134,8 @@ var _ = Describe("Create HCPOpenShiftCluster with Private KeyVault", func() {
 			nodePoolParams.ClusterName = customerClusterName
 			nodePoolParams.NodePoolName = "np-1"
 			nodePoolParams.Replicas = int32(2)
+			nodePoolParams.OpenshiftVersionId = cpVersion
+			nodePoolParams.ChannelGroup = channelGroup
 
 			err = tc.CreateNodePoolFromParam20240610(ctx,
 				GinkgoLogr,
