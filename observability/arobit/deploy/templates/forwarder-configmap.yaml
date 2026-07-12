@@ -216,6 +216,27 @@ data:
         Emitter_Mem_Buf_Limit  20M
         Emitter_Storage.type   filesystem
 
+    [FILTER]
+        # Route backend logs with snapshotType=cosmos
+        # to a dedicated tag for the cosmosResourceSnapshots Kusto table.
+        Name            rewrite_tag
+        Alias           filter.cosmos_snapshot_router
+        Match           aro-hcp-backend.logs
+        Rule            $snapshotType ^cosmos$ cosmos-snapshots.logs true
+        Emitter_Name    re_emitted_cosmos_snapshot_router
+        Emitter_Mem_Buf_Limit  20M
+        Emitter_Storage.type   filesystem
+
+    [FILTER]
+        # Route frontend logs with snapshotType=cosmos
+        # to the same cosmosResourceSnapshots Kusto table.
+        Name            rewrite_tag
+        Alias           filter.cosmos_snapshot_router_frontend
+        Match           aro-hcp-frontend.logs
+        Rule            $snapshotType ^cosmos$ cosmos-snapshots.logs true
+        Emitter_Name    re_emitted_cosmos_snapshot_router_frontend
+        Emitter_Mem_Buf_Limit  20M
+        Emitter_Storage.type   filesystem
 {{- if and .Values.forwarder.mdsd.enabled (eq .Values.forwarder.clusterType "mgmt") }}
   filter-shoebox.conf: |
     # Route control plane logs from OCM namespaces for Shoebox transformation
@@ -475,6 +496,24 @@ data:
         Table_Name kubernetesResourceSnapshots
         ingestion_mapping_reference ingestionMapping
         azure_kusto_buffer_key resourceSnapshots
+        buffer_dir "{{ .Values.forwarder.kusto.buffer_dir }}"
+{{- if .Values.forwarder.kusto.buffering }}
+        {{- template "buffer_settings" . }}
+{{- end }}
+
+    [OUTPUT]
+        Match cosmos-snapshots.logs
+        Name azure_kusto
+        Retry_Limit 5
+        auth_type workload_identity
+        tenant_id {{ .Values.forwarder.tenantId }}
+        client_id {{ .Values.forwarder.msiClientId }}
+        workload_identity_token_file ${AZURE_FEDERATED_TOKEN_FILE}
+        Ingestion_Endpoint {{ .Values.forwarder.kusto.ingestionEndpoint }}
+        Database_Name {{ .Values.forwarder.kusto.serviceLogsDatabase }}
+        Table_Name cosmosResourceSnapshots
+        ingestion_mapping_reference ingestionMapping
+        azure_kusto_buffer_key cosmosResourceSnapshots
         buffer_dir "{{ .Values.forwarder.kusto.buffer_dir }}"
 {{- if .Values.forwarder.kusto.buffering }}
         {{- template "buffer_settings" . }}

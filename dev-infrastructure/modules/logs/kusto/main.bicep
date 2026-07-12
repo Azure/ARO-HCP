@@ -60,6 +60,7 @@ var allServiceLogsTablesKQL = {
   aksEvents: loadTextContent('tables/aksEvents.kql')
   systemdLogs: loadTextContent('tables/systemdLogs.kql')
   resourceSnapshots: loadTextContent('tables/kubernetesResourceSnapshots.kql')
+  cosmosResourceSnapshots: loadTextContent('tables/cosmosResourceSnapshots.kql')
 }
 
 var allCustomerLogsTablesKQL = {

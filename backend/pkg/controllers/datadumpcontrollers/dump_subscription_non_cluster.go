@@ -24,6 +24,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/serverutils"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -75,7 +76,9 @@ func (c *subscriptionNonClusterDataDump) SyncOnce(ctx context.Context, key contr
 	}
 
 	logger.Info(fmt.Sprintf("dumping resourceID %v", key.GetResourceID()),
+		"snapshotType", "cosmos",
 		"currentResourceID", key.GetResourceID().String(),
+		"objectMetadata", serverutils.ObjectMetadataForResourceID("resources", key.GetResourceID()),
 		"content", subscription,
 	)
 

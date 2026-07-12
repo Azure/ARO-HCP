@@ -209,6 +209,28 @@ data:
         Emitter_Name    re_emitted_resource_snapshot_router
         Emitter_Mem_Buf_Limit  20M
         Emitter_Storage.type   filesystem
+
+    [FILTER]
+        # Route backend logs with snapshotType=cosmos
+        # to a dedicated tag for the cosmosResourceSnapshots Kusto table.
+        Name            rewrite_tag
+        Alias           filter.cosmos_snapshot_router
+        Match           aro-hcp-backend.logs
+        Rule            $snapshotType ^cosmos$ cosmos-snapshots.logs true
+        Emitter_Name    re_emitted_cosmos_snapshot_router
+        Emitter_Mem_Buf_Limit  20M
+        Emitter_Storage.type   filesystem
+
+    [FILTER]
+        # Route frontend logs with snapshotType=cosmos
+        # to the same cosmosResourceSnapshots Kusto table.
+        Name            rewrite_tag
+        Alias           filter.cosmos_snapshot_router_frontend
+        Match           aro-hcp-frontend.logs
+        Rule            $snapshotType ^cosmos$ cosmos-snapshots.logs true
+        Emitter_Name    re_emitted_cosmos_snapshot_router_frontend
+        Emitter_Mem_Buf_Limit  20M
+        Emitter_Storage.type   filesystem
   output.conf: |
     [OUTPUT]
         Name  prometheus_exporter
@@ -289,6 +311,21 @@ data:
         Table_Name kubernetesResourceSnapshots
         ingestion_mapping_reference ingestionMapping
         azure_kusto_buffer_key resourceSnapshots
+        buffer_dir "/var/kusto"
+
+    [OUTPUT]
+        Match cosmos-snapshots.logs
+        Name azure_kusto
+        Retry_Limit 5
+        auth_type workload_identity
+        tenant_id __tenantId__
+        client_id __msiClientId__
+        workload_identity_token_file ${AZURE_FEDERATED_TOKEN_FILE}
+        Ingestion_Endpoint __kustoDataIngestionUri__
+        Database_Name ServiceLogs
+        Table_Name cosmosResourceSnapshots
+        ingestion_mapping_reference ingestionMapping
+        azure_kusto_buffer_key cosmosResourceSnapshots
         buffer_dir "/var/kusto"
 
     [OUTPUT]
@@ -440,7 +477,7 @@ spec:
         app: arobit-forwarder
         azure.workload.identity/use: "true"
       annotations:
-        checksum/configmap: 5110c975037c707e5700f48c2690edee0842247750d67d20c7dfd8a47d813158
+        checksum/configmap: fc8ecf2d00f28090a8f57c5943fc8f7055bc991f55c268e65aba5fe772259349
     spec:
       priorityClassName: service-lifecycle-critical
       serviceAccountName: 'arobit-forwarder'
