@@ -34,9 +34,13 @@ import (
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
 	utilsclock "k8s.io/utils/clock"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
+
 	"github.com/Azure/ARO-HCP/backend/pkg/azure/cachedreader"
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/amwscaling"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/billingcontrollers"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/clustercreation"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/clusterdeletion"
@@ -95,6 +99,10 @@ type BackendOptions struct {
 	SMIClientBuilder                   azureclient.ServiceManagedIdentityClientBuilder
 	CheckAccessV2ClientBuilder         azureclient.CheckAccessV2ClientBuilder
 	ClusterScopedIdentitiesConfig      *internalazure.ClusterScopedIdentitiesConfig
+	AMWWorkspaceResourceIDs            []string
+	AMWScalingPollInterval             time.Duration
+	BackendIdentityCredential          azcore.TokenCredential
+	AzureClientOptions                 *policy.ClientOptions
 }
 
 const backendShutdownTimeout = 31 * time.Second
@@ -812,6 +820,13 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		backendInformers,
 	)
 
+	amwScalingController := amwscaling.NewController(
+		b.options.AMWScalingPollInterval,
+		b.options.AMWWorkspaceResourceIDs,
+		b.options.BackendIdentityCredential,
+		b.options.AzureClientOptions,
+	)
+
 	leaderElectionConfig := leaderelection.LeaderElectionConfig{
 		Lock:          b.options.LeaderElectionLock,
 		LeaseDuration: sharedleaderelection.RecommendedLeaseDuration,
@@ -898,6 +913,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go externalAuthMetricsController.Run(ctx, 1)
 				go placementSyncController.Run(ctx, 20)
 				go cosmosMigrationController.Run(ctx, 5)
+				go amwScalingController.Run(ctx)
 			},
 			OnStoppedLeading: func() {
 				// This needs to be defined even though it does nothing.

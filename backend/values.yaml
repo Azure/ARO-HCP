@@ -87,3 +87,7 @@ exitOnPanic: {{ .backend.exitOnPanic }}
 logVerbosity: {{ .backend.logVerbosity }}
 clusterScopedIdentitiesConfig:
   roleSetName: "{{ .backend.clusterScopedIdentitiesConfig.roleSetName }}"
+amwScaling:
+  pollInterval: "{{ .backend.amwScaling.pollInterval }}"
+  svcAzureMonitorWorkspaceId: "__svcAzureMonitorWorkspaceId__"
+  hcpAzureMonitorWorkspaceId: "__hcpAzureMonitorWorkspaceId__"

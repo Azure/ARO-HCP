@@ -18,6 +18,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v2"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
@@ -31,7 +32,8 @@ import (
 // NewBackendIdentityAzureClients creates a new BackendIdentityAzureClients instance that
 // contains the Azure clients that are used to interact with the Azure platform as the
 // backend identity. The backend identity is used to interact with Red Hat side Azure infrastructure.
-func NewBackendIdentityAzureClients(ctx context.Context, azureConfig *azureconfig.AzureConfig) (*azureclient.BackendIdentityAzureClients, error) {
+// It also returns the underlying credential for reuse by other components (e.g. the AMW scaling controller).
+func NewBackendIdentityAzureClients(ctx context.Context, azureConfig *azureconfig.AzureConfig) (*azureclient.BackendIdentityAzureClients, azcore.TokenCredential, error) {
 	// Backend's identity uses the DefaultAzureCredential.
 	// See https://learn.microsoft.com/en-us/azure/developer/go/sdk/authentication/credential-chains#defaultazurecredential-overview
 	// for more details on it.
@@ -42,7 +44,7 @@ func NewBackendIdentityAzureClients(ctx context.Context, azureConfig *azureconfi
 		},
 	)
 	if err != nil {
-		return nil, utils.TrackError(fmt.Errorf("failed to create backend identity Azure credential: %w", err))
+		return nil, nil, utils.TrackError(fmt.Errorf("failed to create backend identity Azure credential: %w", err))
 	}
 
 	blobStorageClient, err := azblob.NewClient(
@@ -53,12 +55,12 @@ func NewBackendIdentityAzureClients(ctx context.Context, azureConfig *azureconfi
 		},
 	)
 	if err != nil {
-		return nil, utils.TrackError(fmt.Errorf("failed to create dataplane identities OIDC configuration blob storage client: %w", err))
+		return nil, nil, utils.TrackError(fmt.Errorf("failed to create dataplane identities OIDC configuration blob storage client: %w", err))
 	}
 
 	roleDefinitionsClient, err := armauthorization.NewRoleDefinitionsClient(defaultAzureCredential, azureConfig.CloudEnvironment.ARMClientOptions())
 	if err != nil {
-		return nil, utils.TrackError(fmt.Errorf("failed to create role definitions client: %w", err))
+		return nil, nil, utils.TrackError(fmt.Errorf("failed to create role definitions client: %w", err))
 	}
 
 	clients := &azureclient.BackendIdentityAzureClients{
@@ -66,7 +68,7 @@ func NewBackendIdentityAzureClients(ctx context.Context, azureConfig *azureconfi
 		RoleDefinitionsClient: roleDefinitionsClient,
 	}
 
-	return clients, nil
+	return clients, defaultAzureCredential, nil
 }
 
 func NewBackendIdentityAzureCachedReaders(ctx context.Context, backendIdentityClients *azureclient.BackendIdentityAzureClients) (*cachedreader.BackendIdentityAzureCachedReaders, error) {

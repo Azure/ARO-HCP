@@ -4,12 +4,6 @@ clouds:
       int:
         # this is the MSFT INT environment
         defaults:
-          # Monitoring - Int needs higher limits
-          monitoring:
-            svcMaxActiveTimeSeriesMillions: 4
-            svcMaxEventsPerMinuteMillions: 4
-            hcpMaxActiveTimeSeriesMillions: 4
-            hcpMaxEventsPerMinuteMillions: 4
           # E2E
           e2e:
             regionTest:

@@ -102,6 +102,8 @@ automationDryRun: false
 azureGeoShortId: us
 azureRegionAvailabilityZoneCount: 4
 backend:
+  amwScaling:
+    pollInterval: 30s
   azureRuntimeConfig:
     tlsCertificatesIssuer: Self
   clusterScopedIdentitiesConfig:
@@ -793,8 +795,6 @@ monitoring:
   grafanaName: arohcp-dev
   grafanaRoles: 6b6d3adf-8476-4727-9812-20ffdef2b85c/Group/Admin
   grafanaZoneRedundantMode: Disabled
-  hcpMaxActiveTimeSeriesMillions: 2
-  hcpMaxEventsPerMinuteMillions: 2
   hcpWorkspaceName: hcps-usw3ptest
   icm:
     connectionId: ""
@@ -825,8 +825,6 @@ monitoring:
       automitigationEnabled: ""
       enabled: true
       routingId: ""
-  svcMaxActiveTimeSeriesMillions: 2
-  svcMaxEventsPerMinuteMillions: 2
   svcWorkspaceName: services-usw3ptest
 msiCredentialsRefresher:
   certificate:

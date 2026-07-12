@@ -90,6 +90,12 @@ spec:
         {{- end }}
         - "--azure-cluster-scoped-identities-role-set-name"
         - "{{ .Values.clusterScopedIdentitiesConfig.roleSetName }}"
+        - "--amw-scaling-poll-interval"
+        - "{{ .Values.amwScaling.pollInterval }}"
+        - "--amw-workspace-resource-id"
+        - "{{ .Values.amwScaling.svcAzureMonitorWorkspaceId }}"
+        - "--amw-workspace-resource-id"
+        - "{{ .Values.amwScaling.hcpAzureMonitorWorkspaceId }}"
         env:
         - name: DB_NAME
           valueFrom:

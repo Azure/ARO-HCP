@@ -387,12 +387,8 @@ defaults:
     crossTenantSecurityGroup: ""
     svcWorkspaceName: 'services-{{ .ctx.region }}'
     hcpWorkspaceName: 'hcps-{{ .ctx.region }}'
-    # Azure Monitor Workspace ingestion limits
-    # 2M initial limit, bump per env when hitting 50% utilization (Azure requires <200% increase)
-    svcMaxActiveTimeSeriesMillions: 2
-    svcMaxEventsPerMinuteMillions: 2
-    hcpMaxActiveTimeSeriesMillions: 2
-    hcpMaxEventsPerMinuteMillions: 2
+    # Azure Monitor Workspace ingestion limits are managed dynamically by the
+    # AMW scaling controller in the backend (backend/pkg/controllers/amwscaling).
     alertRuleOwningTeamTag: ""
     # alertsEnabled: disables the Azure Action Group resource (affects all lanes: SRE, SL, RP, MSFT)
     alertsEnabled: false
@@ -744,6 +740,8 @@ defaults:
     logVerbosity: 4
     clusterScopedIdentitiesConfig:
       roleSetName: "public"
+    amwScaling:
+      pollInterval: 30m
   # Fleet
   fleet:
     managedIdentityName: fleet
@@ -1263,6 +1261,8 @@ clouds:
           tlsCertificatesIssuer: Self
         clusterScopedIdentitiesConfig:
           roleSetName: dev
+        amwScaling:
+          pollInterval: 30s
       # Image Sync
       imageSync:
         ocMirror:

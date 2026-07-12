@@ -1335,6 +1335,19 @@
         },
         "clusterScopedIdentitiesConfig": {
           "$ref": "#/definitions/clusterScopedIdentitiesConfig"
+        },
+        "amwScaling": {
+          "type": "object",
+          "properties": {
+            "pollInterval": {
+              "type": "string",
+              "description": "Interval at which the AMW ingestion limits scaling controller checks utilization. Go duration format (e.g. 30m, 1m)."
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "pollInterval"
+          ]
         }
       },
       "additionalProperties": false,
@@ -1347,7 +1360,8 @@
         "maestro",
         "exitOnPanic",
         "logVerbosity",
-        "clusterScopedIdentitiesConfig"
+        "clusterScopedIdentitiesConfig",
+        "amwScaling"
       ]
     },
     "sessiongate": {
@@ -3049,22 +3063,6 @@
             "sre",
             "sl"
           ]
-        },
-        "svcMaxActiveTimeSeriesMillions": {
-          "type": "integer",
-          "description": "Maximum active time series limit for the service Azure Monitor Workspace, expressed in millions (e.g. 2 = 2,000,000)"
-        },
-        "svcMaxEventsPerMinuteMillions": {
-          "type": "integer",
-          "description": "Maximum events per minute limit for the service Azure Monitor Workspace, expressed in millions (e.g. 2 = 2,000,000)"
-        },
-        "hcpMaxActiveTimeSeriesMillions": {
-          "type": "integer",
-          "description": "Maximum active time series limit for the HCP Azure Monitor Workspace, expressed in millions (e.g. 2 = 2,000,000)"
-        },
-        "hcpMaxEventsPerMinuteMillions": {
-          "type": "integer",
-          "description": "Maximum events per minute limit for the HCP Azure Monitor Workspace, expressed in millions (e.g. 2 = 2,000,000)"
         }
       },
       "additionalProperties": false,

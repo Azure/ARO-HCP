@@ -20,6 +20,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
@@ -64,6 +65,8 @@ type BackendRootCmdFlags struct {
 	InsecureIgnoreUserAzureManagedIdentitiesThatNeedManagedIdentitiesDataplaneAvailableAndUseMock bool
 	ExitOnPanic                                                                                   bool
 	AzureClusterScopedIdentitiesRoleSetName                                                       string
+	AMWWorkspaceResourceIDs                                                                       []string
+	AMWScalingPollInterval                                                                        time.Duration
 }
 
 func (f *BackendRootCmdFlags) AddFlags(cmd *cobra.Command) {
@@ -195,6 +198,20 @@ func (f *BackendRootCmdFlags) AddFlags(cmd *cobra.Command) {
 		"The name of the cluster scoped identities role set to use. It is used to select the appropriate set of operator role definitions associated to the cluster scoped identities. Accepted values: [dev, public].",
 	)
 
+	cmd.Flags().StringArrayVar(
+		&f.AMWWorkspaceResourceIDs,
+		"amw-workspace-resource-id",
+		f.AMWWorkspaceResourceIDs,
+		"Azure Monitor Workspace resource ID to manage ingestion limits for. Can be specified multiple times.",
+	)
+
+	cmd.Flags().DurationVar(
+		&f.AMWScalingPollInterval,
+		"amw-scaling-poll-interval",
+		f.AMWScalingPollInterval,
+		"Interval at which the AMW ingestion limits scaling controller checks utilization and scales limits.",
+	)
+
 	cmd.MarkFlagsRequiredTogether("cosmos-name", "cosmos-url")
 }
 
@@ -228,6 +245,15 @@ func (f *BackendRootCmdFlags) validate() error {
 	}
 	if len(f.MaestroSourceEnvironmentIdentifier) > 10 {
 		return utils.TrackError(fmt.Errorf("--maestro-source-environment-identifier must be less than 10 characters"))
+	}
+
+	for _, id := range f.AMWWorkspaceResourceIDs {
+		if len(id) == 0 {
+			return utils.TrackError(fmt.Errorf("--amw-workspace-resource-id values must not be empty"))
+		}
+	}
+	if len(f.AMWWorkspaceResourceIDs) > 0 && f.AMWScalingPollInterval <= 0 {
+		return utils.TrackError(fmt.Errorf("--amw-scaling-poll-interval must be positive when AMW workspaces are configured"))
 	}
 
 	// If InsecureIgnoreUserAzureManagedIdentitiesThatNeedManagedIdentitiesDataplaneAvailableAndUseMock is set,
@@ -330,7 +356,7 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 		return nil, utils.TrackError(fmt.Errorf("failed to create FPA client builder: %w", err))
 	}
 
-	backendIdentityAzureClients, err := app.NewBackendIdentityAzureClients(ctx, azureConfig)
+	backendIdentityAzureClients, backendIdentityCredential, err := app.NewBackendIdentityAzureClients(ctx, azureConfig)
 	if err != nil {
 		return nil, utils.TrackError(fmt.Errorf("failed to create backend identity azure clients: %w", err))
 	}
@@ -446,6 +472,10 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 		ClusterScopedIdentitiesConfig:      clusterScopedIdentitiesConfig,
 		MetricsRegisterer:                  legacyregistry.Registerer(),
 		MetricsGatherer:                    legacyregistry.DefaultGatherer,
+		AMWWorkspaceResourceIDs:            f.AMWWorkspaceResourceIDs,
+		AMWScalingPollInterval:             f.AMWScalingPollInterval,
+		BackendIdentityCredential:          backendIdentityCredential,
+		AzureClientOptions:                 azureConfig.CloudEnvironment.AZCoreClientOptions(),
 	}
 
 	return backendOptions, nil
@@ -467,6 +497,7 @@ func NewBackendRootCmdFlags() *BackendRootCmdFlags {
 		LogVerbosity:                                    0,
 		MaestroSourceEnvironmentIdentifier:              "",
 		ExitOnPanic:                                     true,
+		AMWScalingPollInterval:                          30 * time.Minute,
 	}
 
 	return flags

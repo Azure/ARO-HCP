@@ -13,6 +13,12 @@ param rpCosmosDbName string
 @description('The name of the Storage Account used by Backend to configure OIDC in ARO-HCP clusters')
 param regionalOidcStorageAccountName string
 
+@description('The name of the SVC Azure Monitor Workspace')
+param svcMonitorName string
+
+@description('The name of the HCP Azure Monitor Workspace')
+param hcpMonitorName string
+
 //
 //   I M A G E   P U L L E R   L O O K U P
 //
@@ -61,3 +67,20 @@ resource regionalOidcStorageAccount 'Microsoft.Storage/storageAccounts@2025-06-0
 
 output regionalOidcStorageAccountBlobEndpoint string = regionalOidcStorageAccount.properties.primaryEndpoints.blob
 output regionalOidcStorageAccountWebEndpoint string = regionalOidcStorageAccount.properties.primaryEndpoints.web
+
+//
+//   A Z U R E   M O N I T O R   W O R K S P A C E   L O O K U P
+//
+
+resource svcMonitor 'Microsoft.Monitor/accounts@2021-06-03-preview' existing = {
+  scope: resourceGroup(regionalResourceGroup)
+  name: svcMonitorName
+}
+
+resource hcpMonitor 'Microsoft.Monitor/accounts@2021-06-03-preview' existing = {
+  scope: resourceGroup(regionalResourceGroup)
+  name: hcpMonitorName
+}
+
+output svcAzureMonitorWorkspaceId string = svcMonitor.id
+output hcpAzureMonitorWorkspaceId string = hcpMonitor.id

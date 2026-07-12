@@ -114,6 +114,14 @@ resourceGroups:
         resourceGroup: global
         step: output
         name: ocpAcrLoginServer
+      svcAzureMonitorWorkspaceId:
+        resourceGroup: service
+        step: output
+        name: svcAzureMonitorWorkspaceId
+      hcpAzureMonitorWorkspaceId:
+        resourceGroup: service
+        step: output
+        name: hcpAzureMonitorWorkspaceId
     dependsOn:
     - resourceGroup: global
       step: mirror-image
