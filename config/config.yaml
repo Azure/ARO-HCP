@@ -389,10 +389,10 @@ defaults:
     hcpWorkspaceName: 'hcps-{{ .ctx.region }}'
     # Azure Monitor Workspace ingestion limits
     # 2M initial limit, bump per env when hitting 50% utilization (Azure requires <200% increase)
-    svcMaxActiveTimeSeriesMillions: 2
-    svcMaxEventsPerMinuteMillions: 2
-    hcpMaxActiveTimeSeriesMillions: 2
-    hcpMaxEventsPerMinuteMillions: 2
+    svcMaxActiveTimeSeriesMillions: 4
+    svcMaxEventsPerMinuteMillions: 4
+    hcpMaxActiveTimeSeriesMillions: 4
+    hcpMaxEventsPerMinuteMillions: 4
     alertRuleOwningTeamTag: ""
     # alertsEnabled: disables the Azure Action Group resource (affects all lanes: SRE, SL, RP, MSFT)
     alertsEnabled: false
