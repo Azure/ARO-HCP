@@ -49,7 +49,7 @@ export ATEST_GRAFANA_BEARER_TOKEN=$(az account get-access-token \
 
 This will give you a nice output like
 
-```
+```text
 ...
 
 expr: time() - max without (prometheus_replica) (kube_lease_renew_time{namespace=~"^(kube-applier)$"})
@@ -72,7 +72,7 @@ The basic `atest` tool usage is already very helpful. But if you want to check m
 2. [Make sure you have Copilot properly set up][copilot-setup]
 3. Have Copilot (or Claude with Copilot access) run from within the `alert-tester` dir
 4. Ask Copilot something like
-   ```
+   ```text
    /aro-hcp-test-alerts review PR https://github.com/Azure/ARO-HCP/pull/5896
    ```
    That will create a nicely formatted report in `./reports` according to [./reports/TEMPLATE.md][report-template]. Just FYI: [aro-hcp-test-alerts][aro-hcp-test-alerts-skill] does not need to be installed explicitly, because it's located in the `alert-tester` repo's `.claude/skills` dir.
@@ -80,7 +80,7 @@ The basic `atest` tool usage is already very helpful. But if you want to check m
 > [!IMPORTANT]
 >
 > [aro-hcp-test-alerts][aro-hcp-test-alerts-skill] will use defaults (e.g. previous Mon–Sun week, across uksouth/eastus2/australiaeast), which you might have to adapt to your concrete scenario, e.g.
-> ```
+> ```text
 > /aro-hcp-test-alerts review PR https://github.com/Azure/ARO-HCP/pull/5896 querying the last two weeks
 > ```
 
