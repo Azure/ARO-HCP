@@ -167,6 +167,27 @@ admin credential responses. Marking a cluster as created before the CA bundle
 is available would allow credential request operations to proceed but fail to
 produce usable kubeconfigs.
 
+### Serving CA Source: root-ca ConfigMap
+
+**What the ServingCAReadDesireCreator targets** (review feedback from deads2k):
+The serving CA ReadDesire targets the **`root-ca` ConfigMap** — not a Secret —
+in the HyperShift hosted control plane namespace, which is named
+`clusters-<clusterName>` (the cluster's domain prefix), not the `ocm-*`
+HostedCluster namespace. The public CA bundle is read from the ConfigMap's
+`ca-bundle.crt` data key.
+
+Using the ConfigMap (rather than a Secret such as `kube-apiserver-server-ca`)
+means we only mirror the **public** CA bundle and never the private key. The
+`CABundleSync` controller reads `ca-bundle.crt` from the mirrored ConfigMap and
+writes it to `ServiceProviderClusterStatus.ServingCABundle`; the frontend uses
+that PEM string verbatim as `CertificateAuthorityData` when assembling
+kubeconfigs.
+
+The `root-ca` ConfigMap only exists in the hosted control plane namespace for
+**OCP 4.20+** clusters, so the ReadDesire is created (and therefore consumed)
+only for clusters at or above that version; earlier clusters are skipped by a
+version gate in the creator.
+
 ### Credential Request Deletion via DeleteTimestamp
 
 When a credential request needs to be cleaned up (during cluster deletion or
@@ -279,9 +300,9 @@ let the informer re-trigger the controller, rather than propagating the error
 | 5 | OperationRevokeCredentialsPoll | Operation | Operation (RevokeCredentials, Deleting) | Complete the operation once the revocation document is gone |
 | 6 | ClusterDeletionCleanup | CredentialRequest | CredentialRequest + ReadDesire informers | Tear down a single credential request's desires and doc when its DeleteTimestamp is set |
 | 7 | PostIssuanceCleanup | CredentialRequest | CredentialRequest + ReadDesire informers | Tear down MC objects after issuance |
-| 8 | CABundleSync | Cluster | Cluster + ReadDesire informers | Sync serving CA to ServiceProviderCluster |
+| 8 | CABundleSync | Cluster | Cluster + ReadDesire informers | Sync serving CA bundle (root-ca ConfigMap `ca-bundle.crt`) to ServiceProviderCluster |
 | 9 | RevokedGC | CredentialRequest | CredentialRequest informer (1h interval) | Delete revoked credential docs after 48h |
-| 10 | ServingCAReadDesireCreator | Cluster | Cluster + ReadDesire informers | Ensure serving CA ReadDesire exists |
+| 10 | ServingCAReadDesireCreator | Cluster | Cluster + ReadDesire informers | Ensure serving CA ReadDesire exists (root-ca ConfigMap in `clusters-<clusterName>`, OCP 4.20+ only) |
 | 11 | DesiresCreator | CredentialRequest | CredentialRequest + ReadDesire informers | Create CSR/CSRA/RBAC desires for pending requests (skips writes when a lister shows the desire already matches) |
 | 12 | RevocationMarkRequests | Revocation | SystemAdminCredentialRevocation informer | Stamp every credential request with a DeleteTimestamp |
 | 13 | RevocationDesires | Revocation | SystemAdminCredentialRevocation informer | Manage CRR desires, detect revocation, mark the revocation complete/for-deletion |

@@ -36,6 +36,10 @@ const (
 // which the Kubernetes API guarantees to be PEM-encoded. client-go's clientcmd
 // expects ClientCertificateData / CertificateAuthorityData in PEM, so the decoded
 // bytes are used directly (no DER→PEM wrapping is required).
+//
+// servingCABundlePEM is the public serving CA bundle sourced from the hosted
+// control plane's root-ca ConfigMap ("ca-bundle.crt" data key), which is already
+// a PEM-encoded string and is used verbatim as CertificateAuthorityData.
 func BuildKubeconfig(signedCertificateBase64, privateKeyPEM, servingCABundlePEM, apiURL string) ([]byte, error) {
 	certPEM, err := base64.StdEncoding.DecodeString(signedCertificateBase64)
 	if err != nil {

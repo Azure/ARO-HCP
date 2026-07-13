@@ -118,9 +118,11 @@ func GetCachedCertificateRevocationRequestForCluster(
 	return crr, nil
 }
 
-// GetCachedServingCASecretForCluster reads the serving CA Secret mirror from
-// the per-cluster ReadDesire. The ReadDesire's Status.KubeContent.Raw carries
-// the observed Secret JSON; we decode it directly and return the typed object.
+// GetCachedServingCAConfigMapForCluster reads the serving CA ConfigMap mirror
+// from the per-cluster ReadDesire. The ReadDesire's Status.KubeContent.Raw
+// carries the observed root-ca ConfigMap JSON; we decode it directly and return
+// the typed object. The public CA bundle lives under the ConfigMap's
+// "ca-bundle.crt" data key.
 //
 // Returns (nil, nil) when:
 //   - the ReadDesire has not been created yet (NotFound),
@@ -129,11 +131,11 @@ func GetCachedCertificateRevocationRequestForCluster(
 //
 // Returns a non-nil error only for hard failures: a non-NotFound lister
 // error, or unmarshal failure.
-func GetCachedServingCASecretForCluster(
+func GetCachedServingCAConfigMapForCluster(
 	ctx context.Context,
 	readDesireLister dblisters.ReadDesireLister,
 	subscriptionName, resourceGroupName, clusterName string,
-) (*corev1.Secret, error) {
+) (*corev1.ConfigMap, error) {
 	desireName := ReadDesireNameForSystemAdminCredentialRequestServingCA()
 	readDesire, err := readDesireLister.GetForCluster(ctx, subscriptionName, resourceGroupName, clusterName, desireName)
 	if database.IsNotFoundError(err) {
@@ -145,9 +147,9 @@ func GetCachedServingCASecretForCluster(
 	if readDesire.Status.KubeContent == nil || len(readDesire.Status.KubeContent.Raw) == 0 {
 		return nil, nil
 	}
-	secret := &corev1.Secret{}
-	if err := json.Unmarshal(readDesire.Status.KubeContent.Raw, secret); err != nil {
-		return nil, utils.TrackError(fmt.Errorf("failed to unmarshal Secret from ReadDesire kubeContent: %w", err))
+	configMap := &corev1.ConfigMap{}
+	if err := json.Unmarshal(readDesire.Status.KubeContent.Raw, configMap); err != nil {
+		return nil, utils.TrackError(fmt.Errorf("failed to unmarshal ConfigMap from ReadDesire kubeContent: %w", err))
 	}
-	return secret, nil
+	return configMap, nil
 }
