@@ -509,7 +509,8 @@
           "description": "Maximum number or percentage of nodes surged during upgrade.",
           "oneOf": [
             {
-              "type": "integer"
+              "type": "integer",
+              "minimum": 0
             },
             {
               "type": "string"
@@ -520,14 +521,19 @@
           "description": "Maximum number or percentage of nodes unavailable during upgrade.",
           "oneOf": [
             {
-              "type": "integer"
+              "type": "integer",
+              "minimum": 0
             },
             {
               "type": "string"
             }
           ]
         }
-      }
+      },
+      "required": [
+        "maxSurge",
+        "maxUnavailable"
+      ]
     },
     "aksConfig": {
       "type": "object",
