@@ -138,74 +138,17 @@ desire types.
 
 ### Controller Pattern
 
-**Cluster-scoped controllers** (CABundleSync, ServingCAReadDesireCreator) use
-`ClusterWatchingController` because they operate on cluster-level data shared
-across all credential requests (e.g., serving CA bundle). They fire on cluster
-and ServiceProviderCluster informer events.
-
-**Why ClusterWatchingController for these** (review feedback from deads2k):
-The CA bundle sync and serving CA read desire creator are inherently
-cluster-scoped operations. The serving CA is the same for all credential
-requests on a cluster. Using `CredentialRequestWatchingController` for them
-was incorrect — it would fire per-credential-request even though the work is
-identical regardless of which credential request triggered it.
-
 **Credential-scoped controllers** (DesiresCreator, ClusterDeletionCleanup,
 IssuanceObserver, etc.) use `CredentialRequestWatchingController` because
 they react to individual credential request lifecycle changes.
 
-### Cluster Create Operation Requires CA Bundle
+### Kubeconfig Omits the Cluster CA Bundle
 
-The cluster create operation (`operationClusterCreate`) requires the
-`ServingCABundle` field on `ServiceProviderClusterStatus` to be populated
-before considering the cluster created. This ensures that the serving CA is
-available for building kubeconfigs before the cluster is marked as ready.
-
-**Why this is a precondition** (review feedback from deads2k): Without the
-serving CA bundle, the frontend cannot construct valid kubeconfigs for system
-admin credential responses. Marking a cluster as created before the CA bundle
-is available would allow credential request operations to proceed but fail to
-produce usable kubeconfigs.
-
-### Serving CA Source: root-ca ConfigMap
-
-**What the ServingCAReadDesireCreator targets** (review feedback from deads2k):
-The serving CA ReadDesire targets the **`root-ca` ConfigMap** — not a Secret —
-in the HyperShift hosted control plane namespace, which is named
-`clusters-<clusterName>` (the cluster's domain prefix), not the `ocm-*`
-HostedCluster namespace. The public CA bundle is read from the ConfigMap's
-`ca-bundle.crt` data key.
-
-Using the ConfigMap (rather than a Secret such as `kube-apiserver-server-ca`)
-means we only mirror the **public** CA bundle and never the private key. The
-`CABundleSync` controller reads `ca-bundle.crt` from the mirrored ConfigMap and
-writes it to `ServiceProviderClusterStatus.ServingCABundle`.
-
-The `root-ca` ConfigMap only exists in the hosted control plane namespace for
-**OCP 4.20+** clusters, so the ReadDesire is created (and therefore consumed)
-only for clusters at or above that version; earlier clusters are skipped by a
-version gate in the creator.
-
-### Serving CA Bundle Is Intentionally Omitted From Kubeconfigs
-
-**Change of plan** (review feedback from deads2k): The serving CA infrastructure
-described above — the `ServingCAReadDesireCreator` controller, the `CABundleSync`
-controller, and the `ServiceProviderCluster.Status.ServingCABundle` field — is
-**kept and still populated**, but the resulting CA bundle is deliberately **not
-consumed** when assembling kubeconfigs.
-
-A HyperShift shortcoming currently prevents the mirrored serving CA bundle from
-being usable as `CertificateAuthorityData`. Rather than ship a CA bundle that
-does not work, `internal/systemadmincredential/kubeconfig.go` always sets
-`CertificateAuthorityData` to **nil**, forcing callers to verify the API server
-against their **system trust bundle** instead. Correspondingly, the frontend no
-longer reads `ServiceProviderCluster.Status.ServingCABundle` and no longer passes
-a serving CA to `BuildKubeconfig` (the parameter was removed from the builder so
-a CA bundle cannot be injected).
-
-The controllers and the `ServingCABundle` field are retained — rather than
-deleted — so the mirroring pipeline is ready to be re-wired into kubeconfig
-assembly with minimal effort once the HyperShift shortcoming is resolved.
+`internal/systemadmincredential/kubeconfig.go` always sets
+`CertificateAuthorityData` to **nil** when assembling admin credential
+kubeconfigs. `BuildKubeconfig` does not accept a CA bundle parameter, so
+clients must verify the API server against their **system trust bundle**
+instead.
 
 ### Credential Request Deletion via DeleteTimestamp
 
@@ -319,13 +262,11 @@ let the informer re-trigger the controller, rather than propagating the error
 | 5 | OperationRevokeCredentialsPoll | Operation | Operation (RevokeCredentials, Deleting) | Complete the operation once the revocation document is gone |
 | 6 | ClusterDeletionCleanup | CredentialRequest | CredentialRequest + ReadDesire informers | Tear down a single credential request's desires and doc when its DeleteTimestamp is set |
 | 7 | PostIssuanceCleanup | CredentialRequest | CredentialRequest + ReadDesire informers | Tear down MC objects after issuance |
-| 8 | CABundleSync | Cluster | Cluster + ReadDesire informers | Sync serving CA bundle (root-ca ConfigMap `ca-bundle.crt`) to ServiceProviderCluster |
-| 9 | RevokedGC | CredentialRequest | CredentialRequest informer (1h interval) | Delete revoked credential docs after 48h |
-| 10 | ServingCAReadDesireCreator | Cluster | Cluster + ReadDesire informers | Ensure serving CA ReadDesire exists (root-ca ConfigMap in `clusters-<clusterName>`, OCP 4.20+ only) |
-| 11 | DesiresCreator | CredentialRequest | CredentialRequest + ReadDesire informers | Create CSR/CSRA/RBAC desires for pending requests (skips writes when a lister shows the desire already matches) |
-| 12 | RevocationMarkRequests | Revocation | SystemAdminCredentialRevocation informer | Stamp every credential request with a DeleteTimestamp |
-| 13 | RevocationDesires | Revocation | SystemAdminCredentialRevocation informer | Manage CRR desires, detect revocation, mark the revocation complete/for-deletion |
-| 14 | RevocationDeletion | Revocation | SystemAdminCredentialRevocation informer | Tear down the revocation's desires and delete the revocation doc |
+| 8 | RevokedGC | CredentialRequest | CredentialRequest informer (1h interval) | Delete revoked credential docs after 48h |
+| 9 | DesiresCreator | CredentialRequest | CredentialRequest + ReadDesire informers | Create CSR/CSRA/RBAC desires for pending requests (skips writes when a lister shows the desire already matches) |
+| 10 | RevocationMarkRequests | Revocation | SystemAdminCredentialRevocation informer | Stamp every credential request with a DeleteTimestamp |
+| 11 | RevocationDesires | Revocation | SystemAdminCredentialRevocation informer | Manage CRR desires, detect revocation, mark the revocation complete/for-deletion |
+| 12 | RevocationDeletion | Revocation | SystemAdminCredentialRevocation informer | Tear down the revocation's desires and delete the revocation doc |
 
 ## RBAC Object Ordering
 

@@ -36,14 +36,8 @@ const (
 // expects ClientCertificateData in PEM, so the decoded bytes are used directly
 // (no DER→PEM wrapping is required).
 //
-// The resulting kubeconfig deliberately carries no CertificateAuthorityData. A
-// HyperShift shortcoming currently prevents the mirrored serving CA bundle from
-// being usable here, so the CA bundle is always nil and callers must fall back to
-// their system trust bundle to verify the API server. The serving CA
-// ReadDesire (ServingCAReadDesireCreator) and the
-// ServiceProviderCluster.Status.ServingCABundle field are intentionally kept —
-// but left unused for kubeconfig assembly — so they are ready for future use once
-// that HyperShift shortcoming is resolved.
+// The resulting kubeconfig deliberately carries no CertificateAuthorityData, so
+// callers must fall back to their system trust bundle to verify the API server.
 func BuildKubeconfig(signedCertificateBase64, privateKeyPEM, apiURL string) ([]byte, error) {
 	certPEM, err := base64.StdEncoding.DecodeString(signedCertificateBase64)
 	if err != nil {
@@ -54,8 +48,6 @@ func BuildKubeconfig(signedCertificateBase64, privateKeyPEM, apiURL string) ([]b
 	config.Clusters[kubeconfigClusterName] = &clientcmdapi.Cluster{
 		Server: apiURL,
 		// CA bundle is intentionally nil — callers must use system trust bundles.
-		// The serving CA ReadDesire and ServiceProviderCluster field are maintained
-		// for future use once a HyperShift shortcoming is resolved.
 		CertificateAuthorityData: nil,
 	}
 	config.AuthInfos[kubeconfigUserName] = &clientcmdapi.AuthInfo{
