@@ -57,9 +57,9 @@ var _ = FDescribe("Create HCPOpenShiftCluster with Private KeyVault", func() {
 
 			const channelGroup = "candidate"
 
-			By("resolving 4.22 install version")
-			cpVersion, err := framework.GetLatestInstallVersion(ctx, channelGroup, "4.22")
-			Expect(err).NotTo(HaveOccurred(), "failed to resolve 4.22 install version")
+			By("resolving 5.0 install version")
+			cpVersion, err := framework.GetLatestInstallVersion(ctx, channelGroup, "5.0")
+			Expect(err).NotTo(HaveOccurred(), "failed to resolve 5.0 install version")
 
 			By("creating cluster parameters")
 			clusterParams := framework.NewDefaultClusterParams20251223()
@@ -69,7 +69,7 @@ var _ = FDescribe("Create HCPOpenShiftCluster with Private KeyVault", func() {
 			clusterParams.KeyVaultVisibility = "Private"
 			clusterParams.OpenshiftVersionId = cpVersion
 			clusterParams.ChannelGroup = channelGroup
-			clusterParams.Tags[api.TagClusterCPOImageOverride] = to.Ptr("arohcpocpdev.azurecr.io/control-plane-operator@sha256:9798300ddc444b64061b4e1630ebaf5c3ec196982d1f9f8fe71b0e3a90a9c90c")
+			clusterParams.Tags[api.TagClusterCPOImageOverride] = to.Ptr("arohcpocpdev.azurecr.io/control-plane-operator@sha256:edb375fd935a683a08e56d7594513595d2fd05c8c9d10b4afab3e450fca0b674") // d565a6ed5b
 
 			By("creating customer resources (infrastructure and managed identities)")
 			clusterParams, err = tc.CreateClusterCustomerResources20251223(ctx,
