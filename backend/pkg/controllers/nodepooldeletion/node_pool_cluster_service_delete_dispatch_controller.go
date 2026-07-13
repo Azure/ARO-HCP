@@ -32,6 +32,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/api"
+	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -120,18 +121,18 @@ func (c *nodePoolClusterServiceDeleteDispatchSyncer) NeedsWork(nodePool *api.HCP
 //
 // In either terminal case - CS delete issued or wait abandoned - we stamp
 // ClusterServiceDeletionTimestamp so the next sync short-circuits.
-func (c *nodePoolClusterServiceDeleteDispatchSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPNodePoolKey) error {
+func (c *nodePoolClusterServiceDeleteDispatchSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPNodePoolKey) (controllerutil.SyncResult, error) {
 	logger := utils.LoggerFromContext(ctx)
 
 	cachedNodePool, err := c.nodePoolLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPNodePoolName)
 	if database.IsNotFoundError(err) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get node pool from cache: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to get node pool from cache: %w", err))
 	}
 	if !c.NeedsWork(cachedNodePool) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
 	// Confirm against the live document. The cache can lag behind a write that
@@ -140,13 +141,13 @@ func (c *nodePoolClusterServiceDeleteDispatchSyncer) SyncOnce(ctx context.Contex
 	nodePoolCRUD := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).NodePools(key.HCPClusterName)
 	nodePool, err := nodePoolCRUD.Get(ctx, key.HCPNodePoolName)
 	if database.IsNotFoundError(err) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get node pool: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to get node pool: %w", err))
 	}
 	if !c.NeedsWork(nodePool) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
 	// We check if we have seen the deletion marker being set for this node pool.
@@ -169,7 +170,7 @@ func (c *nodePoolClusterServiceDeleteDispatchSyncer) SyncOnce(ctx context.Contex
 			// The frontend may still be in the middle of creating the cluster-service
 			// NodePool, or the controller that does so hasn't run yet. Re-check on the
 			// next sync. The resync interval and informer change events drive retries.
-			return nil
+			return controllerutil.SyncResult{}, nil
 		}
 		logger.Info("giving up on cluster-service NodePool delete - ClusterServiceID never appeared",
 			"nodePoolDeletionTimestamp", nodePoolDeletionTimestamp, "nodePoolFirstSeenDeletionTimestamp", firstSeenNodePoolDeletionTimestamp)
@@ -193,11 +194,11 @@ func (c *nodePoolClusterServiceDeleteDispatchSyncer) SyncOnce(ctx context.Contex
 			// create. Wait before treating the NodePool as definitively gone
 			elapsed := c.clock.Since(firstSeenNodePoolDeletionTimestamp)
 			if elapsed < missingClusterServiceIDTimeout {
-				return nil
+				return controllerutil.SyncResult{}, nil
 			}
 			logger.Info("cluster-service NodePool already deleted or race against in-flight CS create", "clusterServiceID", csID.String())
 		default:
-			return utils.TrackError(fmt.Errorf("failed to delete cluster-service NodePool: %w", err))
+			return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to delete cluster-service NodePool: %w", err))
 		}
 	} else {
 		logger.Info("requested cluster-service NodePool delete", "clusterServiceID", csID.String())
@@ -208,12 +209,12 @@ func (c *nodePoolClusterServiceDeleteDispatchSyncer) SyncOnce(ctx context.Contex
 	_, err = nodePoolCRUD.Replace(ctx, replacement, nil)
 	if database.IsPreconditionFailedError(err) {
 		// if we have a conflict error, then we're guaranteed that our informer will eventually see an update and trigger us again.
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to stamp ClusterServiceDeletionTimestamp: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to stamp ClusterServiceDeletionTimestamp: %w", err))
 	}
 	c.firstSeenDeletionTimestampCache.Remove(cacheKey)
 
-	return nil
+	return controllerutil.SyncResult{}, nil
 }

@@ -150,12 +150,13 @@ func TestNodePoolActiveVersionSyncer_RealCosmosFixture(t *testing.T) {
 		},
 	}
 
-	require.NoError(t, syncer.SyncOnce(runCtx, controllerutils.HCPNodePoolKey{
+	_, err = syncer.SyncOnce(runCtx, controllerutils.HCPNodePoolKey{
 		SubscriptionID:    clusterRID.SubscriptionID,
 		ResourceGroupName: clusterRID.ResourceGroupName,
 		HCPClusterName:    clusterRID.Name,
 		HCPNodePoolName:   nodePoolRID.Name,
-	}))
+	})
+	require.NoError(t, err)
 
 	after, err := mockDB.ServiceProviderNodePools(
 		clusterRID.SubscriptionID, clusterRID.ResourceGroupName, clusterRID.Name, nodePoolRID.Name,

@@ -20,6 +20,8 @@ import (
 	"strings"
 	"time"
 
+	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
+
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/util/workqueue"
@@ -160,7 +162,7 @@ func (c *clusterServiceClusterMatching) QueueForInformers(resyncDuration time.Du
 	panic("not implemented")
 }
 
-func (c *clusterServiceClusterMatching) SyncOnce(ctx context.Context, _ any) error {
+func (c *clusterServiceClusterMatching) SyncOnce(ctx context.Context, _ any) (controllerutil.SyncResult, error) {
 	logger := utils.LoggerFromContext(ctx)
 
 	syncErr := c.synchronizeAllClusters(ctx) // we'll handle this is a moment.
@@ -168,7 +170,7 @@ func (c *clusterServiceClusterMatching) SyncOnce(ctx context.Context, _ any) err
 		logger.Error(syncErr, "unable to synchronize all clusters")
 	}
 
-	return utils.TrackError(syncErr)
+	return controllerutil.SyncResult{}, utils.TrackError(syncErr)
 }
 
 func (c *clusterServiceClusterMatching) Run(ctx context.Context, threadiness int) {
@@ -219,14 +221,11 @@ func (c *clusterServiceClusterMatching) processNextWorkItem(ctx context.Context)
 	ctx = utils.ContextWithLogger(ctx, logger)
 
 	controllerutils.ReconcileTotal.WithLabelValues(c.name).Inc()
-	err := c.SyncOnce(ctx, ref)
-	if err == nil {
-		c.queue.Forget(ref)
-		return true
+	result, err := c.SyncOnce(ctx, ref)
+	if err != nil {
+		utilruntime.HandleErrorWithContext(ctx, err, "Error syncing; requeuing for later retry", "objectReference", ref)
 	}
 
-	utilruntime.HandleErrorWithContext(ctx, err, "Error syncing; requeuing for later retry", "objectReference", ref)
-	c.queue.AddRateLimited(ref)
-
+	controllerutils.HandleSyncResult(c.queue, ref, result, err)
 	return true
 }

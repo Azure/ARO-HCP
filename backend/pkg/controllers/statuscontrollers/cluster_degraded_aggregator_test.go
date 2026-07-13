@@ -271,7 +271,7 @@ func TestClusterDegradedAggregator_SyncOnce(t *testing.T) {
 				firstObservedBad:  newFirstObservedBadCache(clock),
 			}
 
-			err = syncer.SyncOnce(ctx, controllerutils.HCPClusterKey{
+			_, err = syncer.SyncOnce(ctx, controllerutils.HCPClusterKey{
 				SubscriptionID:    testSubscriptionID,
 				ResourceGroupName: testResourceGroupName,
 				HCPClusterName:    testClusterName,
@@ -340,7 +340,8 @@ func TestClusterDegradedAggregator_MissingDegradedFlipsAfterInertia(t *testing.T
 	// First reconcile at fixedNow: cache records first-observed-bad as now,
 	// synthesized entry is age=0 -> within the 30s inertia -> aggregate stays
 	// at the default Degraded=False/AsExpected.
-	require.NoError(t, syncer.SyncOnce(ctx, key))
+	_, err = syncer.SyncOnce(ctx, key)
+	require.NoError(t, err)
 
 	afterFirst, err := mockDB.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
 	require.NoError(t, err)
@@ -354,7 +355,8 @@ func TestClusterDegradedAggregator_MissingDegradedFlipsAfterInertia(t *testing.T
 	// Advance the clock past the 30s default inertia. The cache entry is
 	// sticky, so the synthesized entry is now elder.
 	clock.SetTime(fixedNow.Add(DefaultInertia + time.Second))
-	require.NoError(t, syncer.SyncOnce(ctx, key))
+	_, err = syncer.SyncOnce(ctx, key)
+	require.NoError(t, err)
 
 	afterSecond, err := mockDB.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
 	require.NoError(t, err)

@@ -22,6 +22,8 @@ import (
 	"strings"
 	"time"
 
+	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
+
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -279,7 +281,7 @@ func (c *deleteOrphanedCosmosResources) QueueForInformers(resyncDuration time.Du
 	panic("not implemented")
 }
 
-func (c *deleteOrphanedCosmosResources) SyncOnce(ctx context.Context, subscription any) error {
+func (c *deleteOrphanedCosmosResources) SyncOnce(ctx context.Context, subscription any) (controllerutil.SyncResult, error) {
 	logger := utils.LoggerFromContext(ctx)
 
 	syncErr := c.synchronizeSubscription(ctx, subscription.(string)) // we'll handle this is a moment.
@@ -287,7 +289,7 @@ func (c *deleteOrphanedCosmosResources) SyncOnce(ctx context.Context, subscripti
 		logger.Error(syncErr, "unable to synchronize all clusters")
 	}
 
-	return utils.TrackError(syncErr)
+	return controllerutil.SyncResult{}, utils.TrackError(syncErr)
 }
 
 func (c *deleteOrphanedCosmosResources) queueAllSubscriptions(ctx context.Context) {
@@ -350,14 +352,11 @@ func (c *deleteOrphanedCosmosResources) processNextWorkItem(ctx context.Context)
 	ctx = utils.ContextWithLogger(ctx, logger)
 
 	controllerutils.ReconcileTotal.WithLabelValues(c.name).Inc()
-	err := c.SyncOnce(ctx, ref)
-	if err == nil {
-		c.queue.Forget(ref)
-		return true
+	result, err := c.SyncOnce(ctx, ref)
+	if err != nil {
+		utilruntime.HandleErrorWithContext(ctx, err, "Error syncing; requeuing for later retry", "objectReference", ref)
 	}
 
-	utilruntime.HandleErrorWithContext(ctx, err, "Error syncing; requeuing for later retry", "objectReference", ref)
-	c.queue.AddRateLimited(ref)
-
+	controllerutils.HandleSyncResult(c.queue, ref, result, err)
 	return true
 }

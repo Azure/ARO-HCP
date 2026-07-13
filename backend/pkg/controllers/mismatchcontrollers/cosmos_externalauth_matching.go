@@ -168,9 +168,9 @@ func (c *cosmosExternalAuthMatching) synchronizeAllExternalAuths(ctx context.Con
 	return nil
 }
 
-func (c *cosmosExternalAuthMatching) SyncOnce(ctx context.Context, keyObj controllerutils.HCPClusterKey) error {
+func (c *cosmosExternalAuthMatching) SyncOnce(ctx context.Context, keyObj controllerutils.HCPClusterKey) (controllerutil.SyncResult, error) {
 	syncErr := c.synchronizeAllExternalAuths(ctx, keyObj)
-	return utils.TrackError(syncErr)
+	return controllerutil.SyncResult{}, utils.TrackError(syncErr)
 }
 
 func (c *cosmosExternalAuthMatching) CooldownChecker() controllerutil.CooldownChecker {

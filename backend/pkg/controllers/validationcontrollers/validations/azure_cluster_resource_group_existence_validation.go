@@ -21,7 +21,6 @@ import (
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 // AzureClusterResourceGroupExistenceValidation validates that the Azure Resource
@@ -44,22 +43,56 @@ func (a *AzureClusterResourceGroupExistenceValidation) Name() string {
 
 func (a *AzureClusterResourceGroupExistenceValidation) Validate(
 	ctx context.Context, clusterSubscription *arm.Subscription, cluster *api.HCPOpenShiftCluster,
-) error {
+) ValidationResult {
 	rgClient, err := a.azureFPAClientBuilder.ResourceGroupsClient(
 		*clusterSubscription.Properties.TenantId,
 		cluster.ID.SubscriptionID,
 	)
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get resource groups client: %w", err))
+		return ValidationResult{
+			Outcome: ValidationOutcome{
+				Type: OutcomeUnknown,
+				Unknown: &UnknownResult{
+					Reason:                 "InternalError",
+					ServiceProviderMessage: fmt.Sprintf("failed to get resource groups client: %v", err),
+					UserMessage:            "An internal error occurred while performing the validation.",
+					ReportingPolicy:        ReportingPolicyReportError,
+				},
+			},
+		}
 	}
 
 	_, err = rgClient.Get(ctx, cluster.ID.ResourceGroupName, nil)
 	if azureclient.IsResourceGroupNotFoundErr(err) {
-		return utils.TrackError(fmt.Errorf("resource group does not exist: %w", err))
+		return ValidationResult{
+			Outcome: ValidationOutcome{
+				Type: OutcomeFailed,
+				Failed: &FailedResult{
+					Reason:                 "ResourceGroupNotFound",
+					ServiceProviderMessage: fmt.Sprintf("resource group does not exist: %v", err),
+					UserMessage:            "The specified resource group does not exist.",
+				},
+			},
+		}
 	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get resource group: %w", err))
+		return ValidationResult{
+			Outcome: ValidationOutcome{
+				Type: OutcomeUnknown,
+				Unknown: &UnknownResult{
+					Reason:                 "InternalError",
+					ServiceProviderMessage: fmt.Sprintf("failed to get resource group: %v", err),
+					UserMessage:            "An internal error occurred while performing the validation.",
+					ReportingPolicy:        ReportingPolicyReportError,
+				},
+			},
+		}
 	}
 
-	return nil
+	return ValidationResult{
+		Outcome: ValidationOutcome{
+			Type:   OutcomePassed,
+			Passed: &PassedResult{},
+		},
+	}
 }

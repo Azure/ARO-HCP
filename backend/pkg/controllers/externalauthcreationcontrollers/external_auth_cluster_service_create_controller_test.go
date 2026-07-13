@@ -281,7 +281,7 @@ func TestExternalAuthClusterServiceCreateSyncer_SyncOnce(t *testing.T) {
 				clustersServiceClient: mockCSClient,
 			}
 
-			err = syncer.SyncOnce(ctx, testKey)
+			_, err = syncer.SyncOnce(ctx, testKey)
 			if tc.wantErr {
 				require.Error(t, err)
 				if len(tc.wantErrContain) > 0 {

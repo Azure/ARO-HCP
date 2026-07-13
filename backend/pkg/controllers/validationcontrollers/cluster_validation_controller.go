@@ -1,5 +1,3 @@
-package validationcontrollers
-
 // Copyright 2026 Microsoft Corporation
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,18 +12,20 @@ package validationcontrollers
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+package validationcontrollers
+
 import (
 	"context"
 	"fmt"
 	"time"
 
-	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/validationcontrollers/validations"
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/internal/api"
+	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -68,68 +68,63 @@ func NewClusterValidationController(
 	return controller
 }
 
-func (c *clusterValidationSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
+func (c *clusterValidationSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) (controllerutil.SyncResult, error) {
 	existingCluster, err := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Get(ctx, key.HCPClusterName)
 	if database.IsNotFoundError(err) {
-		return nil // cluster doesn't exist, no work to do
+		return controllerutil.SyncResult{}, nil // cluster doesn't exist, no work to do
 	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get Cluster: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to get Cluster: %w", err))
 	}
 	if existingCluster.ServiceProviderProperties.DeletionTimestamp != nil {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
 	existingServiceProviderCluster, err := database.GetOrCreateServiceProviderCluster(ctx, c.resourcesDBClient, key.GetResourceID())
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get or create ServiceProviderCluster: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to get or create ServiceProviderCluster: %w", err))
 	}
 
 	shouldProcess := c.shouldProcess(existingServiceProviderCluster)
 	if !shouldProcess {
-		return nil // no work to do
+		return controllerutil.SyncResult{}, nil // no work to do
 	}
 	subscription, err := c.resourcesDBClient.Subscriptions().Get(ctx, existingCluster.ID.SubscriptionID)
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get Subscription: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to get Subscription: %w", err))
 	}
 
 	// We store the validation error in a separate variable and we use that as the
 	// error to return to the caller. This allows us to perform other remaining
 	// tasks in the syncer even if the validation fails, and we ultimately
 	// drive the behavior of its controller through the outcome of the validation.
-	validationErr := c.validation.Validate(ctx, subscription, existingCluster)
-
-	validationCondition := metav1.Condition{
-		Type: c.validation.Name(),
-	}
-	if validationErr != nil {
-		validationCondition.Status = metav1.ConditionFalse
-		validationCondition.Reason = "Failed"
-		validationCondition.Message = fmt.Sprintf("Validation failed: %s", validationErr.Error())
-	} else {
-		validationCondition.Status = metav1.ConditionTrue
-		validationCondition.Reason = "Succeeded"
-		validationCondition.Message = "Validation succeeded"
-	}
+	result := c.validation.Validate(ctx, subscription, existingCluster)
+	updatedValidation := validationResultToStatus(c.validation.Name(), result, time.Now())
 	replacement := existingServiceProviderCluster.DeepCopy()
-	meta.SetStatusCondition(&replacement.Status.Validations, validationCondition)
+	replacement.Status.Validations = upsertValidationStatus(replacement.Status.Validations, updatedValidation)
 
 	serviceProviderClustersCosmosClient := c.resourcesDBClient.ServiceProviderClusters(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	_, err = serviceProviderClustersCosmosClient.Replace(ctx, replacement, nil)
 	if database.IsPreconditionFailedError(err) {
 		// if we have a conflict error, then we're guaranteed that our informer will eventually see an update and trigger us again.
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to replace ServiceProviderCluster: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to replace ServiceProviderCluster: %w", err))
 	}
 
-	return validationErr
+	return validationResultToSyncResult(result), validationResultToError(result)
 }
 
 // shouldProcess returns true when the condition associated to the validation does not exist or when it exists but
 // it failed to run successfully in a previous attempt.
 func (c *clusterValidationSyncer) shouldProcess(serviceProviderCluster *api.ServiceProviderCluster) bool {
-	return !meta.IsStatusConditionTrue(serviceProviderCluster.Status.Validations, c.validation.Name())
+	for _, v := range serviceProviderCluster.Status.Validations {
+		if v.Type != c.validation.Name() {
+			continue
+		}
+		// Re-run unless it is Passed.
+		return v.Condition.Status != metav1.ConditionTrue
+	}
+	return true
 }

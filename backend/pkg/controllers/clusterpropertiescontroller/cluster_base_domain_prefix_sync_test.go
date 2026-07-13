@@ -105,7 +105,7 @@ func TestClusterBaseDomainPrefixSyncer_SyncOnce(t *testing.T) {
 				ResourceGroupName: testResourceGroupName,
 				HCPClusterName:    tc.existingCluster.Name,
 			}
-			err = syncer.SyncOnce(ctx, key)
+			_, err = syncer.SyncOnce(ctx, key)
 			require.NoError(t, err)
 
 			updatedCluster, err := mockResourcesDB.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, tc.existingCluster.Name)

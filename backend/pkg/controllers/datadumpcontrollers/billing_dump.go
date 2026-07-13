@@ -60,9 +60,9 @@ func NewBillingDumpController(
 	)
 }
 
-func (c *billingDump) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
+func (c *billingDump) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) (controllerutil.SyncResult, error) {
 	if !c.nextDumpChecker.CanSync(ctx, key) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
 	logger := utils.LoggerFromContext(ctx)
@@ -72,5 +72,5 @@ func (c *billingDump) SyncOnce(ctx context.Context, key controllerutils.HCPClust
 		logger.Error(err, "failed to dump billing to logger")
 	}
 
-	return nil
+	return controllerutil.SyncResult{}, nil
 }

@@ -26,6 +26,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/api"
+	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -80,30 +81,30 @@ func (c *clusterChildResourcesCleanupController) NeedsWork(cluster *api.HCPOpenS
 		cluster.ServiceProviderProperties.ClusterServiceID == nil
 }
 
-func (c *clusterChildResourcesCleanupController) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
+func (c *clusterChildResourcesCleanupController) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) (controllerutil.SyncResult, error) {
 	logger := utils.LoggerFromContext(ctx)
 
 	cachedCluster, err := c.clusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if database.IsNotFoundError(err) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get cluster from cache: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to get cluster from cache: %w", err))
 	}
 	if !c.NeedsWork(cachedCluster) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
 	clusterCRUD := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName)
 	cluster, err := clusterCRUD.Get(ctx, key.HCPClusterName)
 	if database.IsNotFoundError(err) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get cluster: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to get cluster: %w", err))
 	}
 	if !c.NeedsWork(cluster) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
 	// We must not delete cluster-scoped resources (like ServiceProviderCluster,
@@ -116,20 +117,20 @@ func (c *clusterChildResourcesCleanupController) SyncOnce(ctx context.Context, k
 	// pipeline.
 	allNodePoolsGone, err := deletePreconditionAllNodePoolsDeleted(ctx, c.resourcesDBClient, key)
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to check nodepool precondition: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to check nodepool precondition: %w", err))
 	}
 	if !allNodePoolsGone {
 		logger.Info("waiting for all nodepools to be deleted before cleaning up cluster child resources")
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
 	allExternalAuthsGone, err := deletePreconditionAllExternalAuthsDeleted(ctx, c.resourcesDBClient, key)
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to check externalauth precondition: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to check externalauth precondition: %w", err))
 	}
 	if !allExternalAuthsGone {
 		logger.Info("waiting for all external auths to be deleted before cleaning up cluster child resources")
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
 	clusterResourceID := cluster.ID
@@ -153,21 +154,21 @@ func (c *clusterChildResourcesCleanupController) SyncOnce(ctx context.Context, k
 	}
 
 	if err := c.ensureClusterScopedKubeApplierResourcesDeleted(ctx, clusterResourceID); err != nil {
-		return utils.TrackError(fmt.Errorf("failed to delete cluster-scoped kube-applier content: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to delete cluster-scoped kube-applier content: %w", err))
 	}
 
 	untypedCRUD, err := c.resourcesDBClient.UntypedCRUD(*clusterResourceID)
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to create untyped CRUD for cluster children: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to create untyped CRUD for cluster children: %w", err))
 	}
 
 	childIterator, err := untypedCRUD.ListRecursive(ctx, nil)
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to list cluster child resources: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to list cluster child resources: %w", err))
 	}
 	for _, childResource := range childIterator.Items(ctx) {
 		if childResource.ResourceID == nil {
-			return utils.TrackError(fmt.Errorf("child resource at cosmosID %q has no resourceID; refusing to delete", childResource.ID))
+			return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("child resource at cosmosID %q has no resourceID; refusing to delete", childResource.ID))
 		}
 
 		if hasSkippedResourceTypePrefix(childResource.ResourceID, skipSubtreeTypes) {
@@ -178,7 +179,7 @@ func (c *clusterChildResourcesCleanupController) SyncOnce(ctx context.Context, k
 		if ok {
 			shouldDelete, err := extraDeleteGate(ctx, childResource.ResourceID)
 			if err != nil {
-				return utils.TrackError(err)
+				return controllerutil.SyncResult{}, utils.TrackError(err)
 			}
 			if !shouldDelete {
 				continue
@@ -187,16 +188,16 @@ func (c *clusterChildResourcesCleanupController) SyncOnce(ctx context.Context, k
 
 		logger.Info("deleting child resource", "childResourceID", childResource.ResourceID)
 		if err := untypedCRUD.Delete(ctx, childResource.ResourceID); err != nil {
-			return utils.TrackError(err)
+			return controllerutil.SyncResult{}, utils.TrackError(err)
 		}
 	}
 	if err := childIterator.GetError(); err != nil {
-		return utils.TrackError(err)
+		return controllerutil.SyncResult{}, utils.TrackError(err)
 	}
 
 	logger.Info("all included cluster cosmos child resources deleted")
 
-	return nil
+	return controllerutil.SyncResult{}, nil
 }
 
 // hasSkippedResourceTypePrefix returns true if the resource's type path starts with

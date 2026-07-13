@@ -256,7 +256,7 @@ func TestExternalAuthClusterServiceDeleteDispatchSyncer_SyncOnce(t *testing.T) {
 				firstSeenDeletionTimestampCache: firstSeenDeletionTimestampCache,
 			}
 
-			err = syncer.SyncOnce(ctx, testKey)
+			_, err = syncer.SyncOnce(ctx, testKey)
 			if tc.wantErr {
 				require.Error(t, err)
 				if len(tc.wantErrContain) > 0 {
@@ -302,7 +302,8 @@ func TestExternalAuthClusterServiceDeleteDispatchSyncer_SyncOnce_cacheShortCircu
 		HCPExternalAuthName: testExternalAuthName,
 	}
 
-	require.NoError(t, syncer.SyncOnce(ctx, key))
+	_, err = syncer.SyncOnce(ctx, key)
+	require.NoError(t, err)
 
 	stored, err := mockResourcesDBClient.HCPClusters(testSubscriptionID, testResourceGroupName).
 		ExternalAuth(testClusterName).Get(ctx, testExternalAuthName)
@@ -338,7 +339,8 @@ func TestExternalAuthClusterServiceDeleteDispatchSyncer_SyncOnce_firstSeenDeleti
 		HCPExternalAuthName: testExternalAuthName,
 	}
 
-	require.NoError(t, syncer.SyncOnce(ctx, key))
+	_, err = syncer.SyncOnce(ctx, key)
+	require.NoError(t, err)
 
 	cacheKey := strings.ToLower(externalAuth.ID.String())
 	firstSeenEntry, ok := firstSeenDeletionTimestampCache.Get(cacheKey)
@@ -381,7 +383,8 @@ func TestExternalAuthClusterServiceDeleteDispatchSyncer_SyncOnce_firstSeenDeleti
 		HCPExternalAuthName: testExternalAuthName,
 	}
 
-	require.NoError(t, syncer.SyncOnce(ctx, key))
+	_, err = syncer.SyncOnce(ctx, key)
+	require.NoError(t, err)
 
 	_, ok := firstSeenDeletionTimestampCache.Get(cacheKey)
 	assert.False(t, ok, "expected first seen deletion cache entry to be removed after terminal sync")

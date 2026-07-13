@@ -30,8 +30,13 @@ func (v *AlwaysSuccessValidation) Name() string {
 	return "AlwaysSuccessValidation"
 }
 
-func (v *AlwaysSuccessValidation) Validate(ctx context.Context, clusterSubscription *arm.Subscription, cluster *api.HCPOpenShiftCluster) error {
-	return nil
+func (v *AlwaysSuccessValidation) Validate(ctx context.Context, clusterSubscription *arm.Subscription, cluster *api.HCPOpenShiftCluster) ValidationResult {
+	return ValidationResult{
+		Outcome: ValidationOutcome{
+			Type:   OutcomePassed,
+			Passed: &PassedResult{},
+		},
+	}
 }
 
 func NewAlwaysSuccessValidation() ClusterValidation {

@@ -96,7 +96,7 @@ func (c *nodePoolActiveVersionSyncer) NeedsWork(spnp *api.ServiceProviderNodePoo
 // will hold one entry per (OCPVersion, KubeletVersion) tuple that any node is
 // running; we dedupe on OCPVersion and order newest-semver first so the SPNP
 // reflects exactly what is live on the management cluster.
-func (c *nodePoolActiveVersionSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPNodePoolKey) error {
+func (c *nodePoolActiveVersionSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPNodePoolKey) (internalcontrollerutils.SyncResult, error) {
 	logger := utils.LoggerFromContext(ctx)
 
 	// Cheap cache check: skip when the ServiceProviderNodePool hasn't been
@@ -104,42 +104,42 @@ func (c *nodePoolActiveVersionSyncer) SyncOnce(ctx context.Context, key controll
 	// retrigger us.
 	cachedServiceProviderNodePool, err := c.serviceProviderNodePoolLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPNodePoolName)
 	if database.IsNotFoundError(err) {
-		return nil
+		return internalcontrollerutils.SyncResult{}, nil
 	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get ServiceProviderNodePool from cache: %w", err))
+		return internalcontrollerutils.SyncResult{}, utils.TrackError(fmt.Errorf("failed to get ServiceProviderNodePool from cache: %w", err))
 	}
 	if !c.NeedsWork(cachedServiceProviderNodePool) {
-		return nil
+		return internalcontrollerutils.SyncResult{}, nil
 	}
 
 	hsNodePool, err := maestrohelpers.GetCachedNodePoolForNodePool(ctx, c.readDesireLister, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPNodePoolName)
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get NodePool from ReadDesire: %w", err))
+		return internalcontrollerutils.SyncResult{}, utils.TrackError(fmt.Errorf("failed to get NodePool from ReadDesire: %w", err))
 	}
 	if hsNodePool == nil {
 		// ReadDesire absent or kubeContent not yet observed; retrigger
 		// once the kube-applier writes status.
-		return nil
+		return internalcontrollerutils.SyncResult{}, nil
 	}
 	if len(hsNodePool.Status.NodesInfo.NodeVersions) == 0 {
 		// Mirror exists but the Hypershift NodePool hasn't reported any
 		// node versions yet; nothing to record.
-		return nil
+		return internalcontrollerutils.SyncResult{}, nil
 	}
 
 	newActiveVersions, err := activeVersionsFromNodeVersions(ctx, hsNodePool.Status.NodesInfo.NodeVersions)
 	if err != nil {
-		return utils.TrackError(err)
+		return internalcontrollerutils.SyncResult{}, utils.TrackError(err)
 	}
 	if len(newActiveVersions) == 0 {
 		// Every NodeVersions entry had an empty/unparseable OCPVersion;
 		// nothing usable to record, wait for the next reconcile.
-		return nil
+		return internalcontrollerutils.SyncResult{}, nil
 	}
 
 	if !internalcontrollerutils.NeedsUpdate(cachedServiceProviderNodePool.Status.NodePoolVersion.ActiveVersions, newActiveVersions) {
-		return nil
+		return internalcontrollerutils.SyncResult{}, nil
 	}
 
 	logger.Info("Active versions changed",
@@ -150,12 +150,12 @@ func (c *nodePoolActiveVersionSyncer) SyncOnce(ctx context.Context, key controll
 	_, err = c.resourcesDBClient.ServiceProviderNodePools(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPNodePoolName).Replace(ctx, replacement, nil)
 	if database.IsPreconditionFailedError(err) {
 		// the cache will update eventually since we're out of date and we'll enter this controller again. No need to fail.
-		return nil
+		return internalcontrollerutils.SyncResult{}, nil
 	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to replace ServiceProviderNodePool: %w", err))
+		return internalcontrollerutils.SyncResult{}, utils.TrackError(fmt.Errorf("failed to replace ServiceProviderNodePool: %w", err))
 	}
-	return nil
+	return internalcontrollerutils.SyncResult{}, nil
 }
 
 // activeVersionsFromNodeVersions reduces a list of Hypershift NodeVersion entries

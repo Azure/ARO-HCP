@@ -118,7 +118,7 @@ func TestClusterPropertiesSyncer_SyncOnce(t *testing.T) {
 				ResourceGroupName: testResourceGroupName,
 				HCPClusterName:    tc.existingCluster.Name,
 			}
-			err = syncer.SyncOnce(ctx, key)
+			_, err = syncer.SyncOnce(ctx, key)
 			if tc.wantErr {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), unexpectedKubeAPIServerDNSName)

@@ -86,7 +86,7 @@ func NewCreateClusterScopedReadDesiresController(
 	)
 }
 
-func (c *createClusterScopedReadDesiresSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
+func (c *createClusterScopedReadDesiresSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) (controllerutil.SyncResult, error) {
 	logger := utils.LoggerFromContext(ctx).WithValues(utils.LogValues{}.
 		AddSubscriptionID(key.SubscriptionID).
 		AddResourceGroup(key.ResourceGroupName).
@@ -98,17 +98,17 @@ func (c *createClusterScopedReadDesiresSyncer) SyncOnce(ctx context.Context, key
 
 	existingCluster, err := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Get(ctx, key.HCPClusterName)
 	if database.IsNotFoundError(err) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get Cluster: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to get Cluster: %w", err))
 	}
 	if existingCluster.ServiceProviderProperties.DeletionTimestamp != nil {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 	if existingCluster.ServiceProviderProperties.ClusterServiceID == nil {
 		// We don't have a CS reference yet; we'll retrigger once it's set.
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
 	// In the per-management-cluster container model, every kube-applier
@@ -119,11 +119,11 @@ func (c *createClusterScopedReadDesiresSyncer) SyncOnce(ctx context.Context, key
 	// the next reconcile cycle.
 	spc, err := database.GetOrCreateServiceProviderCluster(ctx, c.resourcesDBClient, key.GetResourceID())
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get or create ServiceProviderCluster: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to get or create ServiceProviderCluster: %w", err))
 	}
 	mcResourceID := spc.Status.ManagementClusterResourceID
 	if mcResourceID == nil {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
 	// Pull the domain prefix from cosmos rather than Cluster Service: the
@@ -132,7 +132,7 @@ func (c *createClusterScopedReadDesiresSyncer) SyncOnce(ctx context.Context, key
 	// work. Skip until that sync has happened; we'll retrigger on relist.
 	csClusterDomainPrefix := existingCluster.CustomerProperties.DNS.BaseDomainPrefix
 	if len(csClusterDomainPrefix) == 0 {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 	csClusterID := existingCluster.ServiceProviderProperties.ClusterServiceID.ID()
 
@@ -149,31 +149,31 @@ func (c *createClusterScopedReadDesiresSyncer) SyncOnce(ctx context.Context, key
 		// lister hasn't caught up). Skip and rely on retrigger. When the MC
 		// document is registered but misconfigured (e.g. missing its
 		// kube-applier container name), For() surfaces that loudly.
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 	crud, err := kaClient.ReadDesiresForCluster(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("get ReadDesire CRUD: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("get ReadDesire CRUD: %w", err))
 	}
 	existing, err := getExistingReadDesire(ctx, crud, readDesireNameReadonlyHostedCluster)
 	if err != nil {
-		return err
+		return controllerutil.SyncResult{}, err
 	}
 	if !readDesireNeedsWork(existing, desired) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 	if existing == nil {
 		if _, err := crud.Create(ctx, desired, nil); err != nil {
-			return utils.TrackError(fmt.Errorf("create ReadDesire: %w", err))
+			return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("create ReadDesire: %w", err))
 		}
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 	replacement := existing.DeepCopy()
 	replacement.Spec = *desired.Spec.DeepCopy()
 	if _, err := crud.Replace(ctx, replacement, nil); err != nil {
-		return utils.TrackError(fmt.Errorf("replace ReadDesire: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("replace ReadDesire: %w", err))
 	}
-	return nil
+	return controllerutil.SyncResult{}, nil
 }
 
 // readDesireNameReadonlyHostedCluster is the well-known ReadDesire name

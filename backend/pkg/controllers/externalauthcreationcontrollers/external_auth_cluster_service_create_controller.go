@@ -75,32 +75,32 @@ func (c *externalAuthClusterServiceCreateSyncer) needsWork(externalAuth *api.HCP
 		(externalAuth.ServiceProviderProperties.ClusterServiceID == nil || len(externalAuth.ServiceProviderProperties.ClusterServiceID.String()) == 0)
 }
 
-func (c *externalAuthClusterServiceCreateSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPExternalAuthKey) error {
+func (c *externalAuthClusterServiceCreateSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPExternalAuthKey) (controllerutil.SyncResult, error) {
 	logger := utils.LoggerFromContext(ctx)
 
 	externalAuth, err := c.externalAuthLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPExternalAuthName)
 	if database.IsNotFoundError(err) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 	if err != nil {
-		return utils.TrackError(err)
+		return controllerutil.SyncResult{}, utils.TrackError(err)
 	}
 
 	if !c.needsWork(externalAuth) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
 	// For the ExternalAuth, we retrieve from the actual database because we are about to use its data to interact with cluster-service.
 	externalAuth, err = c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).ExternalAuth(key.HCPClusterName).Get(ctx, key.HCPExternalAuthName)
 	if database.IsNotFoundError(err) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 	if err != nil {
-		return utils.TrackError(err)
+		return controllerutil.SyncResult{}, utils.TrackError(err)
 	}
 
 	if !c.needsWork(externalAuth) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
 	// For the Cluster, we retrieve from the cache because we are not about to use its data to interact with cluster-service. At
@@ -109,10 +109,10 @@ func (c *externalAuthClusterServiceCreateSyncer) SyncOnce(ctx context.Context, k
 	// can change over time, we will need to retrieve from the database instead.
 	cluster, err := c.clusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if err != nil {
-		return utils.TrackError(err)
+		return controllerutil.SyncResult{}, utils.TrackError(err)
 	}
 	if cluster.ServiceProviderProperties.ClusterServiceID == nil || len(cluster.ServiceProviderProperties.ClusterServiceID.String()) == 0 {
-		return utils.TrackError(fmt.Errorf("cluster %s has no ClusterServiceID", key.HCPClusterName))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("cluster %s has no ClusterServiceID", key.HCPClusterName))
 	}
 	clusterCSInternalID := *cluster.ServiceProviderProperties.ClusterServiceID
 
@@ -121,18 +121,18 @@ func (c *externalAuthClusterServiceCreateSyncer) SyncOnce(ctx context.Context, k
 	csExternalAuthHREF := ocm.GenerateAROHCPExternalAuthHREF(clusterCSInternalID.ID(), strings.ToLower(key.HCPExternalAuthName))
 	externalAuthCSInternalID, err := api.NewInternalID(csExternalAuthHREF)
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("build external auth internal ID for adoption lookup: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("build external auth internal ID for adoption lookup: %w", err))
 	}
 
 	existing, err := c.findCSExternalAuth(ctx, externalAuthCSInternalID)
 	if err != nil {
-		return utils.TrackError(err)
+		return controllerutil.SyncResult{}, utils.TrackError(err)
 	}
 
 	if existing == nil {
 		csExternalAuthBuilder, err := ocm.BuildCSExternalAuth(ctx, externalAuth, false)
 		if err != nil {
-			return utils.TrackError(err)
+			return controllerutil.SyncResult{}, utils.TrackError(err)
 		}
 		logger.Info("performing POST external auth to Cluster Service", "cs_external_auth_href", csExternalAuthHREF, "external_auth_resource_id", externalAuth.ID.String())
 		_, err = c.clustersServiceClient.PostExternalAuth(ctx, clusterCSInternalID, csExternalAuthBuilder)
@@ -140,7 +140,7 @@ func (c *externalAuthClusterServiceCreateSyncer) SyncOnce(ctx context.Context, k
 			logger.Error(err, "CS external auth POST returned OCM error with HTTP 400 status code", "cs_external_auth_href", csExternalAuthHREF, "external_auth_resource_id", externalAuth.ID.String())
 		}
 		if err != nil {
-			return utils.TrackError(err)
+			return controllerutil.SyncResult{}, utils.TrackError(err)
 		}
 	}
 
@@ -150,13 +150,13 @@ func (c *externalAuthClusterServiceCreateSyncer) SyncOnce(ctx context.Context, k
 	_, err = c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).ExternalAuth(key.HCPClusterName).Replace(ctx, replacement, nil)
 	if database.IsPreconditionFailedError(err) {
 		// if we have a conflict error, then we're guaranteed that our informer will eventually see an update and trigger us again.
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 	if err != nil {
-		return utils.TrackError(err)
+		return controllerutil.SyncResult{}, utils.TrackError(err)
 	}
 
-	return nil
+	return controllerutil.SyncResult{}, nil
 }
 
 // findCSExternalAuth performs GetExternalAuth for the given Cluster Service external auth InternalID.

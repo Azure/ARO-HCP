@@ -110,9 +110,9 @@ func (c *cosmosClusterMatching) synchronizeClusters(ctx context.Context, keyObj 
 	return nil
 }
 
-func (c *cosmosClusterMatching) SyncOnce(ctx context.Context, keyObj controllerutils.HCPClusterKey) error {
+func (c *cosmosClusterMatching) SyncOnce(ctx context.Context, keyObj controllerutils.HCPClusterKey) (controllerutil.SyncResult, error) {
 	syncErr := c.synchronizeClusters(ctx, keyObj)
-	return utils.TrackError(syncErr)
+	return controllerutil.SyncResult{}, utils.TrackError(syncErr)
 }
 
 func (c *cosmosClusterMatching) CooldownChecker() controllerutil.CooldownChecker {

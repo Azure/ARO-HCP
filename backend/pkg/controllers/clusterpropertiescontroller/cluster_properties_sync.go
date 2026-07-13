@@ -28,6 +28,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/backend/pkg/maestrohelpers"
+	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	dblisters "github.com/Azure/ARO-HCP/internal/database/listers"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
@@ -74,26 +75,26 @@ func NewClusterPropertiesSyncController(
 	)
 }
 
-func (c *clusterPropertiesSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
+func (c *clusterPropertiesSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) (controllerutil.SyncResult, error) {
 	logger := utils.LoggerFromContext(ctx)
 
 	existingCluster, err := c.clusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if database.IsNotFoundError(err) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get cluster from cache: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to get cluster from cache: %w", err))
 	}
 	if len(existingCluster.CustomerProperties.DNS.BaseDomainPrefix) == 0 {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
 	hostedCluster, err := maestrohelpers.GetCachedHostedClusterForCluster(ctx, c.readDesireLister, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get HostedCluster from ReadDesire: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to get HostedCluster from ReadDesire: %w", err))
 	}
 	if hostedCluster == nil {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
 	replacement := existingCluster.DeepCopy()
@@ -101,7 +102,7 @@ func (c *clusterPropertiesSyncer) SyncOnce(ctx context.Context, key controllerut
 	kubeAPIServerDNSNamePrefix := fmt.Sprintf("api.%s.", replacement.CustomerProperties.DNS.BaseDomainPrefix)
 	// A mismatch should not happen in normal operation; error so any regression is visible.
 	if !strings.HasPrefix(hostedCluster.Spec.KubeAPIServerDNSName, kubeAPIServerDNSNamePrefix) {
-		return utils.TrackError(fmt.Errorf(
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf(
 			"failed to derive DNS base domain from kubeAPIServerDNSName %q: does not have expected prefix %q",
 			hostedCluster.Spec.KubeAPIServerDNSName,
 			kubeAPIServerDNSNamePrefix,
@@ -117,17 +118,17 @@ func (c *clusterPropertiesSyncer) SyncOnce(ctx context.Context, key controllerut
 	replacement.ServiceProviderProperties.Platform.IssuerURL = hostedCluster.Spec.IssuerURL
 
 	if equality.Semantic.DeepEqual(existingCluster, replacement) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
 	if _, err := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Replace(ctx, replacement, nil); database.IsPreconditionFailedError(err) {
 		// if we have a conflict error, then we're guaranteed that our informer will eventually see an update and trigger us again.
 		// there is no need to report an error since the retry will happen when the reflector sees the update and puts an Update into the informer.
-		return nil
+		return controllerutil.SyncResult{}, nil
 	} else if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to replace Cluster: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to replace Cluster: %w", err))
 	}
 
 	logger.Info("synced cluster properties")
-	return nil
+	return controllerutil.SyncResult{}, nil
 }

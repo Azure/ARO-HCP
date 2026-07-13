@@ -56,9 +56,9 @@ func (c *subscriptionNonClusterDataDump) CooldownChecker() controllerutil.Cooldo
 	return c.nextDataDumpChecker
 }
 
-func (c *subscriptionNonClusterDataDump) SyncOnce(ctx context.Context, key controllerutils.SubscriptionKey) error {
+func (c *subscriptionNonClusterDataDump) SyncOnce(ctx context.Context, key controllerutils.SubscriptionKey) (controllerutil.SyncResult, error) {
 	if !c.nextDataDumpChecker.CanSync(ctx, key) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
 	logger := utils.LoggerFromContext(ctx)
@@ -66,13 +66,13 @@ func (c *subscriptionNonClusterDataDump) SyncOnce(ctx context.Context, key contr
 	cosmosCRUD, err := c.resourcesDBClient.UntypedCRUD(*key.GetResourceID())
 	if err != nil {
 		logger.Error(err, "failed to get cosmos CRUD")
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
 	subscription, err := cosmosCRUD.Get(ctx, key.GetResourceID())
 	if err != nil {
 		logger.Error(err, "failed to get subscription")
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
 	logger.Info(fmt.Sprintf("dumping resourceID %v", key.GetResourceID()),
@@ -82,5 +82,5 @@ func (c *subscriptionNonClusterDataDump) SyncOnce(ctx context.Context, key contr
 		"content", subscription,
 	)
 
-	return nil
+	return controllerutil.SyncResult{}, nil
 }

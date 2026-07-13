@@ -12,19 +12,24 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package validations
+package controllerutils
 
 import (
-	"context"
+	"errors"
+	"testing"
+	"time"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/stretchr/testify/require"
 )
 
-// ClusterValidation represents a validation that can be performed on a cluster.
-type ClusterValidation interface {
-	// Name returns the name of the validation.
-	Name() string
-	// Validate validates the Cluster and returns a structured ValidationResult.
-	Validate(ctx context.Context, clusterSubscription *arm.Subscription, cluster *api.HCPOpenShiftCluster) ValidationResult
+func TestRequeueAfterDuration(t *testing.T) {
+	result := RequeueAfterDuration(2 * time.Minute)
+	require.Equal(t, 2*time.Minute, result.RequeueAfter)
+}
+
+func TestSyncResultFromErr(t *testing.T) {
+	err := errors.New("boom")
+	result, gotErr := SyncResultFromErr(err)
+	require.Equal(t, SyncResult{}, result)
+	require.Equal(t, err, gotErr)
 }

@@ -20,6 +20,8 @@ import (
 	"fmt"
 	"time"
 
+	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
+
 	"k8s.io/apimachinery/pkg/api/meta"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -115,7 +117,7 @@ func (c *doNothingExample) QueueForInformers(resyncDuration time.Duration, notif
 	panic("not implemented")
 }
 
-func (c *doNothingExample) SyncOnce(ctx context.Context, keyObj any) error {
+func (c *doNothingExample) SyncOnce(ctx context.Context, keyObj any) (controllerutil.SyncResult, error) {
 	key := keyObj.(controllerutils.HCPClusterKey)
 
 	syncErr := c.synchronizeHCPCluster(ctx, key) // we'll handle this is a moment.
@@ -128,7 +130,7 @@ func (c *doNothingExample) SyncOnce(ctx context.Context, keyObj any) error {
 		controllerutils.ReportSyncError(syncErr),
 	)
 
-	return errors.Join(syncErr, controllerWriteErr)
+	return controllerutil.SyncResult{}, errors.Join(syncErr, controllerWriteErr)
 }
 
 func (c *doNothingExample) queueAllHCPClusters(ctx context.Context) {
@@ -216,26 +218,11 @@ func (c *doNothingExample) processNextWorkItem(ctx context.Context) bool {
 
 	// Process the object reference.  This method will contains your "do stuff" logic
 	controllerutils.ReconcileTotal.WithLabelValues(c.name).Inc()
-	err := c.SyncOnce(ctx, ref)
-	if err == nil {
-		// if you had no error, tell the queue to stop tracking history for your
-		// item. This will reset things like failure counts for per-item rate
-		// limiting
-		c.queue.Forget(ref)
-		return true
+	result, err := c.SyncOnce(ctx, ref)
+	if err != nil {
+		utilruntime.HandleErrorWithContext(ctx, err, "Error syncing; requeuing for later retry", "objectReference", ref)
 	}
 
-	// there was a failure so be sure to report it.  This method allows for
-	// pluggable error handling which can be used for things like
-	// cluster-monitoring
-	utilruntime.HandleErrorWithContext(ctx, err, "Error syncing; requeuing for later retry", "objectReference", ref)
-
-	// since we failed, we should requeue the item to work on later.  This
-	// method will add a backoff to avoid hotlooping on particular items
-	// (they're probably still not going to work right away) and overall
-	// controller protection (everything I've done is broken, this controller
-	// needs to calm down or it can starve other useful work) cases.
-	c.queue.AddRateLimited(ref)
-
+	controllerutils.HandleSyncResult(c.queue, ref, result, err)
 	return true
 }

@@ -76,33 +76,33 @@ func (c *createBillingDoc) NeedsWork(ctx context.Context, existingCluster *api.H
 	return true
 }
 
-func (c *createBillingDoc) SyncOnce(ctx context.Context, keyObj controllerutils.HCPClusterKey) error {
+func (c *createBillingDoc) SyncOnce(ctx context.Context, keyObj controllerutils.HCPClusterKey) (controllerutil.SyncResult, error) {
 	logger := keyObj.AddLoggerValues(utils.LoggerFromContext(ctx))
 
 	cachedCluster, err := c.clusterLister.Get(ctx, keyObj.SubscriptionID, keyObj.ResourceGroupName, keyObj.HCPClusterName)
 	if database.IsNotFoundError(err) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get cluster from cache: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to get cluster from cache: %w", err))
 	}
 	if !c.NeedsWork(ctx, cachedCluster) {
 		// if the cache doesn't need work, then we'll be retriggered if those values change when the cache updates.
 		// if the values don't change, then we still have no work to do.
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
 	clusterCRUD := c.resourcesDBClient.HCPClusters(keyObj.SubscriptionID, keyObj.ResourceGroupName)
 	existingCluster, err := clusterCRUD.Get(ctx, keyObj.HCPClusterName)
 	if database.IsNotFoundError(err) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get Cluster: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to get Cluster: %w", err))
 	}
 	// check if we need to do work again. Sometimes the live data is more fresh than the cache and obviates the need to any work
 	if !c.NeedsWork(ctx, existingCluster) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
 	logger.Info("ensuring billing document exists",
@@ -115,14 +115,14 @@ func (c *createBillingDoc) SyncOnce(ctx context.Context, keyObj controllerutils.
 	// Try cache first
 	doc, err := c.billingLister.GetByID(ctx, clusterUID)
 	if err != nil && !database.IsNotFoundError(err) {
-		return utils.TrackError(fmt.Errorf("failed to get billing document from cache: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to get billing document from cache: %w", err))
 	}
 
 	// If not in cache, check database
 	if doc == nil {
 		doc, err = billingDocCRUD.GetByID(ctx, clusterUID)
 		if err != nil && !database.IsNotFoundError(err) {
-			return utils.TrackError(fmt.Errorf("failed to get billing document from database: %w", err))
+			return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to get billing document from database: %w", err))
 		}
 	}
 
@@ -131,13 +131,13 @@ func (c *createBillingDoc) SyncOnce(ctx context.Context, keyObj controllerutils.
 		// Billing document doesn't exist yet, create it
 		subscription, err := c.resourcesDBClient.Subscriptions().Get(ctx, existingCluster.ID.SubscriptionID)
 		if err != nil {
-			return utils.TrackError(err)
+			return controllerutil.SyncResult{}, utils.TrackError(err)
 		}
 
 		fallbackTime := c.clock.Now()
 		creationTime := ptr.Deref(existingCluster.SystemData.CreatedAt, fallbackTime)
 		if creationTime.IsZero() {
-			return utils.TrackError(errors.New("cluster creation time is zero"))
+			return controllerutil.SyncResult{}, utils.TrackError(errors.New("cluster creation time is zero"))
 		}
 
 		doc = database.NewBillingDocument(clusterUID, existingCluster.ID)
@@ -154,7 +154,7 @@ func (c *createBillingDoc) SyncOnce(ctx context.Context, keyObj controllerutils.
 
 		err = billingDocCRUD.Create(ctx, doc)
 		if err != nil {
-			return utils.TrackError(err)
+			return controllerutil.SyncResult{}, utils.TrackError(err)
 		}
 
 		logger.Info("created billing document for cluster",
@@ -168,7 +168,7 @@ func (c *createBillingDoc) SyncOnce(ctx context.Context, keyObj controllerutils.
 	replacement.ServiceProviderProperties.BillingDocumentCosmosID = doc.ID
 	_, err = clusterCRUD.Replace(ctx, replacement, nil)
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to update cluster with billing document ID: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to update cluster with billing document ID: %w", err))
 	}
 
 	logger.Info("updated cluster with billing document ID",
@@ -176,7 +176,7 @@ func (c *createBillingDoc) SyncOnce(ctx context.Context, keyObj controllerutils.
 		"billingDocID", doc.ID,
 	)
 
-	return nil
+	return controllerutil.SyncResult{}, nil
 }
 
 func (c *createBillingDoc) CooldownChecker() controllerutil.CooldownChecker {

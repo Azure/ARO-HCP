@@ -299,7 +299,7 @@ func TestControlPlaneActiveVersionSyncer_SyncOnce(t *testing.T) {
 				readDesireLister:  &internallistertesting.SliceReadDesireLister{Desires: desires},
 			}
 
-			err := syncer.SyncOnce(runCtx, testKey)
+			_, err := syncer.SyncOnce(runCtx, testKey)
 
 			assertSyncResult(t, err, tt.expectedError, "")
 
@@ -337,11 +337,12 @@ func TestControlPlaneActiveVersionSyncer_NoReplaceWhenVersionsUnchanged(t *testi
 		resourcesDBClient: mockResourcesDBClient,
 		readDesireLister:  &internallistertesting.SliceReadDesireLister{Desires: desires},
 	}
-	require.NoError(t, syncer.SyncOnce(runCtx, controllerutils.HCPClusterKey{
+	_, err = syncer.SyncOnce(runCtx, controllerutils.HCPClusterKey{
 		SubscriptionID:    testSubscriptionID,
 		ResourceGroupName: testResourceGroupName,
 		HCPClusterName:    testClusterName,
-	}))
+	})
+	require.NoError(t, err)
 
 	after, err := spcCRUD.Get(runCtx, api.ServiceProviderClusterResourceName)
 	require.NoError(t, err)

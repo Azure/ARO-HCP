@@ -27,6 +27,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/api"
+	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -88,30 +89,30 @@ func (c *externalAuthClusterServiceIDClearer) NeedsWork(externalAuth *api.HCPOpe
 // cluster-service reports 404, the deletion has finished and we zero out
 // ClusterServiceID. Any other state means cluster-service is still
 // processing the deletion. We retry on the next sync.
-func (c *externalAuthClusterServiceIDClearer) SyncOnce(ctx context.Context, key controllerutils.HCPExternalAuthKey) error {
+func (c *externalAuthClusterServiceIDClearer) SyncOnce(ctx context.Context, key controllerutils.HCPExternalAuthKey) (controllerutil.SyncResult, error) {
 	logger := utils.LoggerFromContext(ctx)
 
 	cachedExternalAuth, err := c.externalAuthLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPExternalAuthName)
 	if database.IsNotFoundError(err) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get external auth from cache: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to get external auth from cache: %w", err))
 	}
 	if !c.NeedsWork(cachedExternalAuth) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
 	externalAuthCRUD := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).ExternalAuth(key.HCPClusterName)
 	externalAuth, err := externalAuthCRUD.Get(ctx, key.HCPExternalAuthName)
 	if database.IsNotFoundError(err) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get external auth: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to get external auth: %w", err))
 	}
 	if !c.NeedsWork(externalAuth) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
 	csID := externalAuth.ServiceProviderProperties.ClusterServiceID
@@ -119,18 +120,18 @@ func (c *externalAuthClusterServiceIDClearer) SyncOnce(ctx context.Context, key 
 	if err != nil {
 		var ocmError *ocmerrors.Error
 		if !errors.As(err, &ocmError) || ocmError.Status() != http.StatusNotFound {
-			return utils.TrackError(fmt.Errorf("failed to get cluster-service ExternalAuth: %w", err))
+			return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to get cluster-service ExternalAuth: %w", err))
 		}
 		// 404 - cluster-service has finished deleting the ExternalAuth, clear the CS ID.
 		logger.Info("cluster-service ExternalAuth gone. Clearing ClusterServiceID", "clusterServiceID", csID.String())
 		replacement := externalAuth.DeepCopy()
 		replacement.ServiceProviderProperties.ClusterServiceID = nil
 		if _, err := externalAuthCRUD.Replace(ctx, replacement, nil); err != nil {
-			return utils.TrackError(fmt.Errorf("failed to clear ClusterServiceID: %w", err))
+			return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to clear ClusterServiceID: %w", err))
 		}
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
 	// ExternalAuth still exists in cluster-service. Nothing to do yet.
-	return nil
+	return controllerutil.SyncResult{}, nil
 }

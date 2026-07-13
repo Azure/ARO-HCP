@@ -125,7 +125,7 @@ func (c *clusterClusterServiceUpdateDispatchSyncer) CooldownChecker() controller
 	return c.cooldownChecker
 }
 
-func (c *clusterClusterServiceUpdateDispatchSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
+func (c *clusterClusterServiceUpdateDispatchSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) (controllerutil.SyncResult, error) {
 	logger := utils.LoggerFromContext(ctx)
 
 	// Because this controller ends up calling Cluster Service each time it's reconciled and it's reconciled
@@ -134,41 +134,41 @@ func (c *clusterClusterServiceUpdateDispatchSyncer) SyncOnce(ctx context.Context
 	// TODO in the future, we could remove this cooldown checker by persisting a hash of the update dispatch configuration
 	// sent to Cluster Service and checking if it has changed since the last time we sent it.
 	if !c.minimumReconcileTimeCooldownChecker.CanSync(ctx, key) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
 	cachedCluster, err := c.clusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if database.IsNotFoundError(err) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get cluster from cache: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to get cluster from cache: %w", err))
 	}
 	if !needsWork(cachedCluster) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
 	clusterCRUD := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName)
 	cluster, err := clusterCRUD.Get(ctx, key.HCPClusterName)
 	if database.IsNotFoundError(err) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get cluster: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to get cluster: %w", err))
 	}
 	if !needsWork(cluster) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
 	subscription, err := c.subscriptionLister.Get(ctx, key.SubscriptionID)
 	if database.IsNotFoundError(err) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get subscription from cache: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to get subscription from cache: %w", err))
 	}
 	if subscription.Properties == nil || subscription.Properties.TenantId == nil {
-		return utils.TrackError(fmt.Errorf("subscription properties or subscription tenant ID is nil"))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("subscription properties or subscription tenant ID is nil"))
 	}
 
 	clusterCSID := cluster.ServiceProviderProperties.ClusterServiceID
@@ -176,15 +176,15 @@ func (c *clusterClusterServiceUpdateDispatchSyncer) SyncOnce(ctx context.Context
 	if database.IsNotFoundError(err) {
 		// We expect the service provider cluster to be created when the cluster exists. If it doesn't exist, we wait for the next sync.
 		logger.Info("service provider cluster not found, waiting")
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get service provider cluster: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to get service provider cluster: %w", err))
 	}
 
 	clusterServiceCluster, err := c.clusterServiceClient.GetCluster(ctx, *clusterCSID)
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get cluster from Cluster Service: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to get cluster from Cluster Service: %w", err))
 	}
 
 	// We check if the desired config coming from cosmos differs from the actual config coming from cluster service.
@@ -193,14 +193,14 @@ func (c *clusterClusterServiceUpdateDispatchSyncer) SyncOnce(ctx context.Context
 	// using direct string equality.
 	desiredConfigJSON, err := ocm.ClusterUpdateDispatchConfigJSONFromRP(cluster, serviceProviderCluster)
 	if err != nil {
-		return utils.TrackError(err)
+		return controllerutil.SyncResult{}, utils.TrackError(err)
 	}
 	actualConfigJSON, err := ocm.ClusterUpdateDispatchConfigJSONFromCS(clusterServiceCluster)
 	if err != nil {
-		return utils.TrackError(err)
+		return controllerutil.SyncResult{}, utils.TrackError(err)
 	}
 	if desiredConfigJSON == actualConfigJSON {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
 	configDiff := cmp.Diff(desiredConfigJSON, actualConfigJSON)
@@ -214,13 +214,13 @@ func (c *clusterClusterServiceUpdateDispatchSyncer) SyncOnce(ctx context.Context
 
 	csClusterBuilder, csAutoscalerBuilder, err := ocm.BuildCSCluster(cluster.ID, *subscription.Properties.TenantId, cluster, nil, clusterServiceCluster, serviceProviderCluster)
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to build CS cluster: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to build CS cluster: %w", err))
 	}
 
 	// We marshal the autoscaler CS builder config we are going to submit for cs cluster autoscaler update for logging purposes
 	clusterAutoscalerPayload, err := c.marshalClusterServiceClusterAutoscalerUpdatePayload(csAutoscalerBuilder)
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to marshal Cluster Service autoscaler update payload: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to marshal Cluster Service autoscaler update payload: %w", err))
 	}
 
 	logger.Info("dispatching cluster autoscaler update to Cluster Service",
@@ -247,9 +247,9 @@ func (c *clusterClusterServiceUpdateDispatchSyncer) SyncOnce(ctx context.Context
 				"clusterServiceID", clusterCSID.String(),
 				"error", err.Error(),
 			)
-			return nil
+			return controllerutil.SyncResult{}, nil
 		}
-		return utils.TrackError(fmt.Errorf("failed to update cluster-service ClusterAutoscaler: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to update cluster-service ClusterAutoscaler: %w", err))
 	}
 
 	logger.Info("dispatched cluster autoscaler update to Cluster Service", "clusterServiceID", clusterCSID.String())
@@ -257,7 +257,7 @@ func (c *clusterClusterServiceUpdateDispatchSyncer) SyncOnce(ctx context.Context
 	// We marshal the cluster CS builder config we are going to submit for cs cluster update for logging purposes
 	clusterPayload, err := c.marshalClusterServiceClusterUpdatePayload(csClusterBuilder)
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to marshal Cluster Service cluster update payload: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to marshal Cluster Service cluster update payload: %w", err))
 	}
 
 	logger.Info("dispatching cluster update to Cluster Service",
@@ -284,13 +284,13 @@ func (c *clusterClusterServiceUpdateDispatchSyncer) SyncOnce(ctx context.Context
 				"clusterServiceID", clusterCSID.String(),
 				"error", err.Error(),
 			)
-			return nil
+			return controllerutil.SyncResult{}, nil
 		}
-		return utils.TrackError(fmt.Errorf("failed to update cluster-service Cluster: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to update cluster-service Cluster: %w", err))
 	}
 
 	logger.Info("dispatched cluster update to Cluster Service", "clusterServiceID", clusterCSID.String())
-	return nil
+	return controllerutil.SyncResult{}, nil
 }
 
 // marshalClusterServiceClusterUpdatePayload serializes the cluster PATCH body for logging.

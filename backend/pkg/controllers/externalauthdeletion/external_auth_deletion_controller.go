@@ -24,6 +24,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/api"
+	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -78,48 +79,48 @@ func (c *externalAuthDeletionController) NeedsWork(externalAuth *api.HCPOpenShif
 
 // SyncOnce calls Cosmos to delete the ExternalAuth when the NeedsWork
 // condition is met and all the delete preconditions are met.
-func (c *externalAuthDeletionController) SyncOnce(ctx context.Context, key controllerutils.HCPExternalAuthKey) error {
+func (c *externalAuthDeletionController) SyncOnce(ctx context.Context, key controllerutils.HCPExternalAuthKey) (controllerutil.SyncResult, error) {
 	logger := utils.LoggerFromContext(ctx)
 
 	cachedExternalAuth, err := c.externalAuthLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPExternalAuthName)
 	if database.IsNotFoundError(err) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get external auth from cache: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to get external auth from cache: %w", err))
 	}
 	if !c.NeedsWork(cachedExternalAuth) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
 	externalAuthCRUD := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).ExternalAuth(key.HCPClusterName)
 	externalAuth, err := externalAuthCRUD.Get(ctx, key.HCPExternalAuthName)
 	if database.IsNotFoundError(err) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get external auth: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to get external auth: %w", err))
 	}
 	if !c.NeedsWork(externalAuth) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
 	preconditionMet, err := c.deletePreconditionCosmosChildResourcesDeleted(ctx, key)
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to check precondition: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to check precondition: %w", err))
 	}
 	if !preconditionMet {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
 	logger.Info("deleting external auth from Cosmos")
 	err = externalAuthCRUD.Delete(ctx, key.HCPExternalAuthName)
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to delete external auth from Cosmos: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to delete external auth from Cosmos: %w", err))
 	}
 	logger.Info("external auth deleted from Cosmos")
 
-	return nil
+	return controllerutil.SyncResult{}, nil
 }
 
 // deletePreconditionCosmosChildResourcesDeleted checks if the cosmos

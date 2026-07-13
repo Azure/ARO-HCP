@@ -24,7 +24,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -122,8 +121,24 @@ var _ validations.NodePoolValidation = (*mockNodePoolValidation)(nil)
 
 func (m *mockNodePoolValidation) Name() string { return m.name }
 
-func (m *mockNodePoolValidation) Validate(_ context.Context, _ *api.HCPOpenShiftCluster, _ *arm.Subscription, _ *api.HCPOpenShiftClusterNodePool) error {
-	return m.validateErr
+func (m *mockNodePoolValidation) Validate(_ context.Context, _ *api.HCPOpenShiftCluster, _ *arm.Subscription, _ *api.HCPOpenShiftClusterNodePool) validations.ValidationResult {
+	if m.validateErr != nil {
+		return validations.ValidationResult{
+			Outcome: validations.ValidationOutcome{
+				Type: validations.OutcomeFailed,
+				Failed: &validations.FailedResult{
+					Reason:      "MockFailed",
+					UserMessage: m.validateErr.Error(),
+				},
+			},
+		}
+	}
+	return validations.ValidationResult{
+		Outcome: validations.ValidationOutcome{
+			Type:   validations.OutcomePassed,
+			Passed: &validations.PassedResult{},
+		},
+	}
 }
 
 func TestNodePoolValidationSyncer_SyncOnce(t *testing.T) {
@@ -182,7 +197,7 @@ func TestNodePoolValidationSyncer_SyncOnce(t *testing.T) {
 				name:        testValidationName,
 				validateErr: fmt.Errorf("quota exceeded"),
 			},
-			wantErr:             true,
+			wantErr:             false,
 			wantConditionStatus: api.Ptr(metav1.ConditionFalse),
 		},
 		{
@@ -202,11 +217,14 @@ func TestNodePoolValidationSyncer_SyncOnce(t *testing.T) {
 						PartitionKey: strings.ToLower(spnpResourceID.SubscriptionID),
 					},
 					Status: api.ServiceProviderNodePoolStatus{
-						Validations: []metav1.Condition{
+						Validations: []api.ValidationStatus{
 							{
-								Type:   testValidationName,
-								Status: metav1.ConditionTrue,
-								Reason: "Succeeded",
+								Type: testValidationName,
+								Condition: metav1.Condition{
+									Type:   testValidationName,
+									Status: metav1.ConditionTrue,
+									Reason: "Succeeded",
+								},
 							},
 						},
 					},
@@ -235,7 +253,7 @@ func TestNodePoolValidationSyncer_SyncOnce(t *testing.T) {
 				validation:        tc.validation,
 			}
 
-			err := syncer.SyncOnce(ctx, newTestNodePoolKey())
+			_, err := syncer.SyncOnce(ctx, newTestNodePoolKey())
 			if tc.wantErr {
 				require.Error(t, err)
 			} else {
@@ -248,12 +266,19 @@ func TestNodePoolValidationSyncer_SyncOnce(t *testing.T) {
 				).Get(ctx, "default")
 				require.NoError(t, spnpErr)
 
-				cond := meta.FindStatusCondition(spnp.Status.Validations, testValidationName)
+				var cond *metav1.Condition
+				for i := range spnp.Status.Validations {
+					if spnp.Status.Validations[i].Type != testValidationName {
+						continue
+					}
+					cond = &spnp.Status.Validations[i].Condition
+					break
+				}
 				require.NotNil(t, cond, "expected validation condition to be set")
 				assert.Equal(t, *tc.wantConditionStatus, cond.Status)
 
 				if tc.validation.validateErr != nil {
-					assert.Equal(t, "Failed", cond.Reason)
+					assert.Equal(t, "MockFailed", cond.Reason)
 					assert.Contains(t, cond.Message, tc.validation.validateErr.Error())
 				} else {
 					assert.Equal(t, "Succeeded", cond.Reason)

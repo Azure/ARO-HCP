@@ -27,6 +27,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
+	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -73,20 +74,20 @@ func NewCreateNodePoolScopedReadDesiresController(
 	)
 }
 
-func (c *createNodePoolScopedReadDesiresSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPNodePoolKey) error {
+func (c *createNodePoolScopedReadDesiresSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPNodePoolKey) (controllerutil.SyncResult, error) {
 	existingNodePool, err := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).NodePools(key.HCPClusterName).Get(ctx, key.HCPNodePoolName)
 	if database.IsNotFoundError(err) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get NodePool: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to get NodePool: %w", err))
 	}
 	if existingNodePool.ServiceProviderProperties.DeletionTimestamp != nil {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 	if existingNodePool.ServiceProviderProperties.ClusterServiceID == nil ||
 		len(existingNodePool.ServiceProviderProperties.ClusterServiceID.String()) == 0 {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
 	// Resolve the management cluster via the parent cluster's
@@ -99,11 +100,11 @@ func (c *createNodePoolScopedReadDesiresSyncer) SyncOnce(ctx context.Context, ke
 	}
 	spc, err := database.GetOrCreateServiceProviderCluster(ctx, c.resourcesDBClient, clusterKey.GetResourceID())
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get or create ServiceProviderCluster: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to get or create ServiceProviderCluster: %w", err))
 	}
 	mcResourceID := spc.Status.ManagementClusterResourceID
 	if mcResourceID == nil {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
 	// Pull the parent cluster's domain prefix from cosmos rather than Cluster
@@ -112,14 +113,14 @@ func (c *createNodePoolScopedReadDesiresSyncer) SyncOnce(ctx context.Context, ke
 	// HCPCluster. Skip until that sync has happened; we'll retrigger on relist.
 	parentCluster, err := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Get(ctx, key.HCPClusterName)
 	if database.IsNotFoundError(err) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get parent Cluster: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to get parent Cluster: %w", err))
 	}
 	csClusterDomainPrefix := parentCluster.CustomerProperties.DNS.BaseDomainPrefix
 	if len(csClusterDomainPrefix) == 0 {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 	csClusterID := existingNodePool.ServiceProviderProperties.ClusterServiceID.ClusterID()
 
@@ -135,31 +136,31 @@ func (c *createNodePoolScopedReadDesiresSyncer) SyncOnce(ctx context.Context, ke
 
 	kaClient := c.kubeApplierDBClients.For(ctx, mcResourceID)
 	if kaClient == nil {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 	crud, err := kaClient.ReadDesiresForNodePool(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPNodePoolName)
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("get ReadDesire CRUD: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("get ReadDesire CRUD: %w", err))
 	}
 	existing, err := getExistingReadDesire(ctx, crud, readDesireNameReadonlyNodePool)
 	if err != nil {
-		return err
+		return controllerutil.SyncResult{}, err
 	}
 	if !readDesireNeedsWork(existing, desired) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 	if existing == nil {
 		if _, err := crud.Create(ctx, desired, nil); err != nil {
-			return utils.TrackError(fmt.Errorf("create ReadDesire: %w", err))
+			return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("create ReadDesire: %w", err))
 		}
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 	replacement := existing.DeepCopy()
 	replacement.Spec = *desired.Spec.DeepCopy()
 	if _, err := crud.Replace(ctx, replacement, nil); err != nil {
-		return utils.TrackError(fmt.Errorf("replace ReadDesire: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("replace ReadDesire: %w", err))
 	}
-	return nil
+	return controllerutil.SyncResult{}, nil
 }
 
 // readDesireNameReadonlyNodePool is the well-known ReadDesire name the

@@ -66,9 +66,9 @@ func NewClusterRecursiveDataDumpController(
 	return controller
 }
 
-func (c *clusterRecursiveDataDump) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
+func (c *clusterRecursiveDataDump) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) (controllerutil.SyncResult, error) {
 	if !c.nextDataDumpChecker.CanSync(ctx, key) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
 	logger := utils.LoggerFromContext(ctx)
@@ -78,5 +78,5 @@ func (c *clusterRecursiveDataDump) SyncOnce(ctx context.Context, key controlleru
 		logger.Error(err, "failed to dump data to logger")
 	}
 
-	return nil
+	return controllerutil.SyncResult{}, nil
 }

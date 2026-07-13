@@ -56,9 +56,9 @@ func NewManagementClusterDataDumpController(
 	)
 }
 
-func (c *managementClusterDataDump) SyncOnce(ctx context.Context, key controllerutils.ManagementClusterKey) error {
+func (c *managementClusterDataDump) SyncOnce(ctx context.Context, key controllerutils.ManagementClusterKey) (controllerutil.SyncResult, error) {
 	if !c.nextDataDumpChecker.CanSync(ctx, key) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
 	logger := utils.LoggerFromContext(ctx)
@@ -66,7 +66,7 @@ func (c *managementClusterDataDump) SyncOnce(ctx context.Context, key controller
 	mc, err := c.managementClusterLister.Get(ctx, key.StampIdentifier)
 	if err != nil {
 		logger.Error(err, "failed to get management cluster")
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
 	logger.Info(fmt.Sprintf("dumping resourceID %v", mc.CosmosMetadata.ResourceID),
@@ -76,7 +76,7 @@ func (c *managementClusterDataDump) SyncOnce(ctx context.Context, key controller
 		"content", mc,
 	)
 
-	return nil
+	return controllerutil.SyncResult{}, nil
 }
 
 func (c *managementClusterDataDump) CooldownChecker() controllerutil.CooldownChecker {

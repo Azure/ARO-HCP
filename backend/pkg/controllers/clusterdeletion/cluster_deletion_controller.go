@@ -29,6 +29,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/api"
+	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -99,73 +100,73 @@ func (c *clusterDeletionController) NeedsWork(cluster *api.HCPOpenShiftCluster) 
 // Before removing the cluster document, the corresponding billing document is
 // marked as deleted (idempotent). Returns nil without acting when NeedsWork is
 // false or any precondition is not yet met.
-func (c *clusterDeletionController) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
+func (c *clusterDeletionController) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) (controllerutil.SyncResult, error) {
 	logger := utils.LoggerFromContext(ctx)
 
 	cachedCluster, err := c.clusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if database.IsNotFoundError(err) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get cluster from cache: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to get cluster from cache: %w", err))
 	}
 	if !c.NeedsWork(cachedCluster) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
 	// Quick cache check for Maestro readonly bundles
 	cachedSPC, spcCacheErr := c.serviceProviderClusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if spcCacheErr == nil && len(cachedSPC.Status.MaestroReadonlyBundles) > 0 {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
 	// Confirm against the live document.
 	clusterCRUD := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName)
 	cluster, err := clusterCRUD.Get(ctx, key.HCPClusterName)
 	if database.IsNotFoundError(err) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get cluster: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to get cluster: %w", err))
 	}
 	if !c.NeedsWork(cluster) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
 	// Precondition: all cluster-scoped Maestro readonly bundles must be cleared
 	preconditionMet, err := c.deletePreconditionAllMaestroClusterScopedReadonlyBundlesCleared(ctx, key)
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to check precondition: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to check precondition: %w", err))
 	}
 	if !preconditionMet {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
 	// Precondition: all node pool Cosmos docs must be deleted
 	preconditionMet, err = deletePreconditionAllNodePoolsDeleted(ctx, c.resourcesDBClient, key)
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to check precondition: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to check precondition: %w", err))
 	}
 	if !preconditionMet {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
 	// Precondition: all external auth Cosmos docs must be deleted
 	preconditionMet, err = deletePreconditionAllExternalAuthsDeleted(ctx, c.resourcesDBClient, key)
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to check precondition: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to check precondition: %w", err))
 	}
 	if !preconditionMet {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
 	// Precondition: all Cosmos child resources must be deleted (except controllers)
 	preconditionMet, err = c.deletePreconditionCosmosChildResourcesDeleted(ctx, key)
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to check precondition: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to check precondition: %w", err))
 	}
 	if !preconditionMet {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
 	// Mark billing document as deleted before deleting the cluster document.
@@ -177,17 +178,17 @@ func (c *clusterDeletionController) SyncOnce(ctx context.Context, key controller
 	if errors.Is(err, database.ErrAmbiguousResult) {
 		logger.Error(err, "Failed to mark CosmosDB billing record for deletion")
 	} else if err != nil {
-		return utils.TrackError(err)
+		return controllerutil.SyncResult{}, utils.TrackError(err)
 	}
 
 	logger.Info("deleting cluster from Cosmos")
 	err = clusterCRUD.Delete(ctx, key.HCPClusterName)
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to delete cluster from Cosmos: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to delete cluster from Cosmos: %w", err))
 	}
 	logger.Info("cluster deleted from Cosmos")
 
-	return nil
+	return controllerutil.SyncResult{}, nil
 }
 
 // deletePreconditionAllMaestroClusterScopedReadonlyBundlesCleared checks if the

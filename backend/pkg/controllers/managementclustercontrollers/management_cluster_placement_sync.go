@@ -23,6 +23,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/api"
+	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	dblisters "github.com/Azure/ARO-HCP/internal/database/listers"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
@@ -82,35 +83,35 @@ func (c *managementClusterPlacementSyncer) needsWork(spc *api.ServiceProviderClu
 // SyncOnce resolves the management cluster placement for a single HCP cluster.
 // It fetches the provision shard from Cluster Service, resolves it to a ManagementCluster
 // document in CosmosDB, and sets ManagementClusterResourceID on the ServiceProviderCluster.
-func (c *managementClusterPlacementSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
+func (c *managementClusterPlacementSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) (controllerutil.SyncResult, error) {
 	logger := utils.LoggerFromContext(ctx)
 
 	// do the super cheap cache check first
 	cachedSPC, err := c.serviceProviderClusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if database.IsNotFoundError(err) {
 		logger.V(1).Info("ServiceProviderCluster not found in cache, skipping")
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get ServiceProviderCluster from cache: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to get ServiceProviderCluster from cache: %w", err))
 	}
 	if !c.needsWork(cachedSPC) {
 		logger.V(1).Info("ServiceProviderCluster already has ManagementClusterResourceID, skipping")
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
 	// Get the cluster from cache to check if it has a CS ID to query
 	cachedCluster, err := c.clusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if database.IsNotFoundError(err) {
 		logger.V(1).Info("Cluster not found in cache, skipping")
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get cluster from cache: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to get cluster from cache: %w", err))
 	}
 	if cachedCluster.ServiceProviderProperties.ClusterServiceID == nil || len(cachedCluster.ServiceProviderProperties.ClusterServiceID.String()) == 0 {
 		logger.V(1).Info("Cluster has no ClusterServiceID, skipping")
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
 	// Get the ServiceProviderCluster from Cosmos (live read)
@@ -118,36 +119,36 @@ func (c *managementClusterPlacementSyncer) SyncOnce(ctx context.Context, key con
 	existingSPC, err := spcCRUD.Get(ctx, api.ServiceProviderClusterResourceName)
 	if database.IsNotFoundError(err) {
 		logger.V(1).Info("ServiceProviderCluster not found in Cosmos, skipping")
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get ServiceProviderCluster: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to get ServiceProviderCluster: %w", err))
 	}
 	// check if we need to do work again. Sometimes the live data is more fresh than the cache
 	if !c.needsWork(existingSPC) {
 		logger.V(1).Info("ServiceProviderCluster already has ManagementClusterResourceID (live read), skipping")
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
 	// Get the provision shard from Cluster Service via the dedicated endpoint.
 	csShard, err := c.clusterServiceClient.GetClusterProvisionShard(ctx, *cachedCluster.ServiceProviderProperties.ClusterServiceID)
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get provision shard from Cluster Service: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to get provision shard from Cluster Service: %w", err))
 	}
 
 	if len(csShard.HREF()) == 0 {
 		logger.V(1).Info("Provision shard not yet allocated by Cluster Service, skipping")
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 	provisionShardID, err := api.NewInternalID(csShard.HREF())
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to parse provision shard href: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to parse provision shard href: %w", err))
 	}
 
 	// Resolve the provision shard to a management cluster in CosmosDB
 	managementCluster, err := c.managementClusterLister.GetByCSProvisionShardID(ctx, provisionShardID.ID())
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to resolve provision shard %q to management cluster: %w", provisionShardID.Path(), err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to resolve provision shard %q to management cluster: %w", provisionShardID.Path(), err))
 	}
 
 	// Set the ManagementClusterResourceID on the ServiceProviderCluster
@@ -155,11 +156,11 @@ func (c *managementClusterPlacementSyncer) SyncOnce(ctx context.Context, key con
 	replacement.Status.ManagementClusterResourceID = managementCluster.ResourceID
 
 	if _, err := spcCRUD.Replace(ctx, replacement, nil); err != nil {
-		return utils.TrackError(fmt.Errorf("failed to update ServiceProviderCluster: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to update ServiceProviderCluster: %w", err))
 	}
 
 	logger.Info("synced management cluster placement",
 		"managementClusterID", managementCluster.ResourceID.String(),
 	)
-	return nil
+	return controllerutil.SyncResult{}, nil
 }

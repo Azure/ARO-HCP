@@ -24,6 +24,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/api"
+	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -87,25 +88,25 @@ func (c *nodePoolDeletionController) NeedsWork(nodePool *api.HCPOpenShiftCluster
 // all the delete preconditions are met:
 //  1. All nodepool-scoped Maestro readonly bundles are cleared.
 //  2. All other Cosmos child resources are deleted.
-func (c *nodePoolDeletionController) SyncOnce(ctx context.Context, key controllerutils.HCPNodePoolKey) error {
+func (c *nodePoolDeletionController) SyncOnce(ctx context.Context, key controllerutils.HCPNodePoolKey) (controllerutil.SyncResult, error) {
 	logger := utils.LoggerFromContext(ctx)
 
 	cachedNodePool, err := c.nodePoolLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPNodePoolName)
 	if database.IsNotFoundError(err) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get node pool from cache: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to get node pool from cache: %w", err))
 	}
 	if !c.NeedsWork(cachedNodePool) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
 	// We do a quick check to see if the ServiceProviderNodePool has any Maestro readonly bundles.
 	// If it does, we return early as we need to wait for the bundles to be deleted.
 	cachedSPNP, spnpCacheErr := c.serviceProviderNodePoolLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPNodePoolName)
 	if spnpCacheErr == nil && len(cachedSPNP.Status.MaestroReadonlyBundles) > 0 {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
 	// Confirm against the live document. The cache can lag behind a write that
@@ -113,41 +114,41 @@ func (c *nodePoolDeletionController) SyncOnce(ctx context.Context, key controlle
 	nodePoolCRUD := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).NodePools(key.HCPClusterName)
 	nodePool, err := nodePoolCRUD.Get(ctx, key.HCPNodePoolName)
 	if database.IsNotFoundError(err) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get node pool: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to get node pool: %w", err))
 	}
 	if !c.NeedsWork(nodePool) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
 	// We do not proceed until we know that all the maestro readonly bundles have been eliminated
 	preconditionMet, err := c.deletePreconditionAllMaestroNodePoolScopedReadonlyBundlesCleared(ctx, key)
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to check precondition: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to check precondition: %w", err))
 	}
 	if !preconditionMet {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
 	// We do not proceed until we know that the cosmos child resources have been eliminated
 	preconditionMet, err = c.deletePreconditionCosmosChildResourcesDeleted(ctx, key)
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to check precondition: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to check precondition: %w", err))
 	}
 	if !preconditionMet {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
 	logger.Info("deleting node pool from Cosmos")
 	err = nodePoolCRUD.Delete(ctx, key.HCPNodePoolName)
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to delete node pool from Cosmos: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to delete node pool from Cosmos: %w", err))
 	}
 	logger.Info("node pool deleted from Cosmos")
 
-	return nil
+	return controllerutil.SyncResult{}, nil
 }
 
 // deletePreconditionAllMaestroNodePoolScopedReadonlyBundlesCleared checks if the ServiceProviderNodePool has any Maestro readonly bundles.

@@ -32,6 +32,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/api"
+	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -113,31 +114,31 @@ func (c *clusterClusterServiceDeleteDispatchSyncer) NeedsWork(cluster *api.HCPOp
 //
 // In either terminal case - CS delete issued or wait abandoned - we stamp
 // ClusterServiceDeletionTimestamp so the next sync short-circuits.
-func (c *clusterClusterServiceDeleteDispatchSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
+func (c *clusterClusterServiceDeleteDispatchSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) (controllerutil.SyncResult, error) {
 	logger := utils.LoggerFromContext(ctx)
 
 	cachedCluster, err := c.clusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if database.IsNotFoundError(err) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get cluster from cache: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to get cluster from cache: %w", err))
 	}
 	if !c.NeedsWork(cachedCluster) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
 	// Confirm against the live document.
 	clusterCRUD := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName)
 	cluster, err := clusterCRUD.Get(ctx, key.HCPClusterName)
 	if database.IsNotFoundError(err) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get cluster: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to get cluster: %w", err))
 	}
 	if !c.NeedsWork(cluster) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
 	clusterDeletionTimestamp := cluster.ServiceProviderProperties.DeletionTimestamp.Time
@@ -158,7 +159,7 @@ func (c *clusterClusterServiceDeleteDispatchSyncer) SyncOnce(ctx context.Context
 			// The frontend may still be in the middle of creating the cluster-service
 			// Cluster, or the controller that does so hasn't run yet. Re-check on the
 			// next sync. The resync interval and informer change events drive retries.
-			return nil
+			return controllerutil.SyncResult{}, nil
 		}
 		logger.Info("giving up on cluster-service Cluster delete - ClusterServiceID never appeared",
 			"clusterDeletionTimestamp", clusterDeletionTimestamp, "clusterFirstSeenDeletionTimestamp", firstSeenClusterDeletionTimestamp)
@@ -171,11 +172,11 @@ func (c *clusterClusterServiceDeleteDispatchSyncer) SyncOnce(ctx context.Context
 			// create. Wait before treating the Cluster as definitively gone
 			elapsed := c.clock.Since(firstSeenClusterDeletionTimestamp)
 			if elapsed < missingClusterServiceIDTimeout {
-				return nil
+				return controllerutil.SyncResult{}, nil
 			}
 			logger.Info("cluster-service Cluster already deleted or race against in-flight CS create", "clusterServiceID", csID.String())
 		default:
-			return utils.TrackError(fmt.Errorf("failed to delete cluster-service Cluster: %w", err))
+			return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to delete cluster-service Cluster: %w", err))
 		}
 	} else {
 		logger.Info("requested cluster-service Cluster delete", "clusterServiceID", csID.String())
@@ -185,12 +186,12 @@ func (c *clusterClusterServiceDeleteDispatchSyncer) SyncOnce(ctx context.Context
 	_, err = clusterCRUD.Replace(ctx, cluster, nil)
 	if database.IsPreconditionFailedError(err) {
 		// if we have a conflict error, then we're guaranteed that our informer will eventually see an update and trigger us again.
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to stamp ClusterServiceDeletionTimestamp: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to stamp ClusterServiceDeletionTimestamp: %w", err))
 	}
 	c.firstSeenDeletionTimestampCache.Remove(cacheKey)
 
-	return nil
+	return controllerutil.SyncResult{}, nil
 }

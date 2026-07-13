@@ -243,7 +243,7 @@ func TestSyncOnceSkipsAlreadyCompletedSubscription(t *testing.T) {
 
 	// SyncOnce should return nil immediately without touching the DB clients
 	// (which are nil and would panic if accessed).
-	err := controller.SyncOnce(ctx, key)
+	_, err := controller.SyncOnce(ctx, key)
 	require.NoError(t, err)
 }
 
@@ -265,7 +265,7 @@ func TestSyncOnceMarksSubscriptionComplete(t *testing.T) {
 	// SyncOnce should return an error because the stub Subscriptions() CRUD
 	// returns a deterministic error, so the subscription should NOT be
 	// marked as completed.
-	err := controller.SyncOnce(context.Background(), key)
+	_, err := controller.SyncOnce(context.Background(), key)
 	require.Error(t, err, "SyncOnce should return an error when migration fails")
 
 	_, loaded = controller.completedSubscriptions.Load("sub-new")

@@ -30,7 +30,7 @@ import (
 )
 
 type ExternalAuthSyncer interface {
-	SyncOnce(ctx context.Context, keyObj HCPExternalAuthKey) error
+	SyncOnce(ctx context.Context, keyObj HCPExternalAuthKey) (controllerutil.SyncResult, error)
 }
 
 type externalAuthWatchingController struct {
@@ -73,14 +73,14 @@ func NewExternalAuthWatchingController(
 	return externalAuthGenericWatchingController
 }
 
-func (c *externalAuthWatchingController) SyncOnce(ctx context.Context, key HCPExternalAuthKey) error {
+func (c *externalAuthWatchingController) SyncOnce(ctx context.Context, key HCPExternalAuthKey) (controllerutil.SyncResult, error) {
 	defer utilruntime.HandleCrash(DegradedControllerPanicHandler(
 		ctx,
 		c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).ExternalAuth(key.HCPClusterName).Controllers(key.HCPExternalAuthName),
 		c.name,
 		key.InitialController))
 
-	syncErr := c.syncer.SyncOnce(ctx, key) // we'll handle this is a moment.
+	syncResult, syncErr := c.syncer.SyncOnce(ctx, key) // we'll handle this is a moment.
 
 	controllerWriteErr := WriteController(
 		ctx,
@@ -90,7 +90,7 @@ func (c *externalAuthWatchingController) SyncOnce(ctx context.Context, key HCPEx
 		ReportSyncError(syncErr),
 	)
 
-	return errors.Join(syncErr, controllerWriteErr)
+	return syncResult, errors.Join(syncErr, controllerWriteErr)
 }
 
 func (c *externalAuthWatchingController) CooldownChecker() controllerutil.CooldownChecker {

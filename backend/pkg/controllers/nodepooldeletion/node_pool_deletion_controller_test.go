@@ -160,7 +160,7 @@ func TestNodePoolDeletionController_SyncOnce(t *testing.T) {
 				HCPNodePoolName:   testNodePoolName,
 			}
 
-			err = syncer.SyncOnce(ctx, key)
+			_, err = syncer.SyncOnce(ctx, key)
 			if tc.wantErr {
 				require.Error(t, err)
 				return

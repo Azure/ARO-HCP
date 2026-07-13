@@ -35,6 +35,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/maestrohelpers"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/cincinnati"
+	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	dblisters "github.com/Azure/ARO-HCP/internal/database/listers"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
@@ -153,26 +154,26 @@ func (c *nodePoolVersionSyncer) NeedsWork(nodePool *api.HCPOpenShiftClusterNodeP
 // Active version tracking lives in nodePoolActiveVersionSyncer, which reads the
 // Hypershift NodePool from the per-node-pool ReadDesire kubeContent rather than
 // round-tripping through Cluster Service.
-func (c *nodePoolVersionSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPNodePoolKey) error {
+func (c *nodePoolVersionSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPNodePoolKey) (controllerutil.SyncResult, error) {
 	logger := utils.LoggerFromContext(ctx)
 
 	// Do the super cheap cache check first.
 	cachedNodePool, err := c.nodePoolLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPNodePoolName)
 	if database.IsNotFoundError(err) {
 		// we'll be re-fired if it is created again
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get node pool from cache: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to get node pool from cache: %w", err))
 	}
 	// SPNP must be in cache. If a sibling controller hasn't created it yet,
 	// skip this sync; the informer will retrigger us when it lands.
 	cachedServiceProviderNodePool, err := c.serviceProviderNodePoolLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPNodePoolName)
 	if database.IsNotFoundError(err) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get ServiceProviderNodePool from cache: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to get ServiceProviderNodePool from cache: %w", err))
 	}
 
 	// Pull the ServiceProviderCluster and Subscription from cache rather than
@@ -180,28 +181,28 @@ func (c *nodePoolVersionSyncer) SyncOnce(ctx context.Context, key controllerutil
 	// observed by the informer we'll be retriggered when it lands.
 	cachedServiceProviderCluster, err := c.serviceProviderClusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if database.IsNotFoundError(err) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get ServiceProviderCluster from cache: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to get ServiceProviderCluster from cache: %w", err))
 	}
 
 	if !c.NeedsWork(cachedNodePool, cachedServiceProviderNodePool, cachedServiceProviderCluster) {
 		// if the cache doesn't need work, then we'll be retriggered if those values change when the cache updates.
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
 	customerDesiredVersion, err := semver.Parse(cachedNodePool.Properties.Version.ID)
 	if err != nil {
-		return utils.TrackError(err)
+		return controllerutil.SyncResult{}, utils.TrackError(err)
 	}
 
 	subscription, err := c.subscriptionLister.Get(ctx, key.SubscriptionID)
 	if database.IsNotFoundError(err) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get Subscription from cache: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to get Subscription from cache: %w", err))
 	}
 
 	// Resolve the cluster UUID from the cached HostedCluster so we can build the Cincinnati client.
@@ -239,11 +240,11 @@ func (c *nodePoolVersionSyncer) SyncOnce(ctx context.Context, key controllerutil
 						Message: utils.ErrorMessageWithoutLineTracking(err),
 					})
 				}); writeErr != nil {
-				return utils.TrackError(writeErr)
+				return controllerutil.SyncResult{}, utils.TrackError(writeErr)
 			}
-			return nil
+			return controllerutil.SyncResult{}, nil
 		}
-		return utils.TrackError(err)
+		return controllerutil.SyncResult{}, utils.TrackError(err)
 	}
 
 	// Update the serviceProviderNodePool DesiredVersion
@@ -252,10 +253,10 @@ func (c *nodePoolVersionSyncer) SyncOnce(ctx context.Context, key controllerutil
 	_, err = c.resourcesDBClient.ServiceProviderNodePools(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPNodePoolName).Replace(ctx, replacement, nil)
 	if database.IsPreconditionFailedError(err) {
 		// the cache will update eventually since we're out of date and we'll enter this controller again. No need to fail.
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to replace ServiceProviderNodePool: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to replace ServiceProviderNodePool: %w", err))
 	}
 	logger.Info("Updated ServiceProviderNodePool with new desired version", "desiredVersion", customerDesiredVersion.String())
 
@@ -271,10 +272,10 @@ func (c *nodePoolVersionSyncer) SyncOnce(ctx context.Context, key controllerutil
 				Message: "",
 			})
 		}); err != nil {
-		return utils.TrackError(err)
+		return controllerutil.SyncResult{}, utils.TrackError(err)
 	}
 
-	return nil
+	return controllerutil.SyncResult{}, nil
 }
 
 // validateDesiredNodePoolVersion checks that the desired node pool version is a valid change.

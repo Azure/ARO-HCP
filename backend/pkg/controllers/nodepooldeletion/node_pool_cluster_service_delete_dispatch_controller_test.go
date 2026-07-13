@@ -260,7 +260,7 @@ func TestNodePoolClusterServiceDeleteDispatchSyncer_SyncOnce(t *testing.T) {
 				firstSeenDeletionTimestampCache: firstSeenDeletionTimestampCache,
 			}
 
-			err = syncer.SyncOnce(ctx, testKey)
+			_, err = syncer.SyncOnce(ctx, testKey)
 			if tc.wantErr {
 				require.Error(t, err)
 				if len(tc.wantErrContain) > 0 {
@@ -306,7 +306,8 @@ func TestNodePoolClusterServiceDeleteDispatchSyncer_SyncOnce_cacheShortCircuit(t
 		HCPNodePoolName:   testNodePoolName,
 	}
 
-	require.NoError(t, syncer.SyncOnce(ctx, key))
+	_, err = syncer.SyncOnce(ctx, key)
+	require.NoError(t, err)
 
 	stored, err := mockResourcesDBClient.HCPClusters(testSubscriptionID, testResourceGroupName).
 		NodePools(testClusterName).Get(ctx, testNodePoolName)
@@ -342,7 +343,8 @@ func TestNodePoolClusterServiceDeleteDispatchSyncer_SyncOnce_firstSeenDeletionCa
 		HCPNodePoolName:   testNodePoolName,
 	}
 
-	require.NoError(t, syncer.SyncOnce(ctx, key))
+	_, err = syncer.SyncOnce(ctx, key)
+	require.NoError(t, err)
 
 	cacheKey := strings.ToLower(nodePool.ID.String())
 	firstSeenEntry, ok := firstSeenDeletionTimestampCache.Get(cacheKey)
@@ -385,7 +387,8 @@ func TestNodePoolClusterServiceDeleteDispatchSyncer_SyncOnce_firstSeenDeletionCa
 		HCPNodePoolName:   testNodePoolName,
 	}
 
-	require.NoError(t, syncer.SyncOnce(ctx, key))
+	_, err = syncer.SyncOnce(ctx, key)
+	require.NoError(t, err)
 
 	_, ok := firstSeenDeletionTimestampCache.Get(cacheKey)
 	assert.False(t, ok, "expected first seen deletion cache entry to be removed after terminal sync")

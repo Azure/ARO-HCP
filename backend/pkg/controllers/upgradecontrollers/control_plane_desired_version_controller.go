@@ -39,6 +39,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/admission"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/cincinnati"
+	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	dblisters "github.com/Azure/ARO-HCP/internal/database/listers"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
@@ -118,23 +119,23 @@ func NewControlPlaneDesiredVersionController(
 //     Only SRE-enforced rollback targets are permitted to decrease desired; automatic graph
 //     resolution must not lower a previously selected z-stream.
 //  5. Save the updated service provider cluster state
-func (c *controlPlaneDesiredVersionSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
+func (c *controlPlaneDesiredVersionSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) (controllerutil.SyncResult, error) {
 	logger := utils.LoggerFromContext(ctx)
 
 	existingCluster, err := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Get(ctx, key.HCPClusterName)
 	if database.IsNotFoundError(err) {
-		return nil // cluster doesn't exist, no work to do
+		return controllerutil.SyncResult{}, nil // cluster doesn't exist, no work to do
 	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get Cluster: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to get Cluster: %w", err))
 	}
 	if existingCluster.ServiceProviderProperties.DeletionTimestamp != nil {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
 	existingServiceProviderCluster, err := database.GetOrCreateServiceProviderCluster(ctx, c.resourcesDBClient, key.GetResourceID())
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get or create ServiceProviderCluster: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to get or create ServiceProviderCluster: %w", err))
 	}
 
 	// here we check to see if we should be determining upgrade versions. We do this by
@@ -145,7 +146,7 @@ func (c *controlPlaneDesiredVersionSyncer) SyncOnce(ctx context.Context, key con
 	if err != nil {
 		logger.Error(err, "error determining if desired version should be determined")
 	} else if !shouldRun {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
 	// Resolve the cluster UUID from the cached HostedCluster so we can build the Cincinnati client.
@@ -164,7 +165,7 @@ func (c *controlPlaneDesiredVersionSyncer) SyncOnce(ctx context.Context, key con
 	activeVersions := existingServiceProviderCluster.Status.ControlPlaneVersion.ActiveVersions
 	subscription, err := c.subscriptionLister.Get(ctx, key.SubscriptionID)
 	if err != nil {
-		return utils.TrackError(err)
+		return controllerutil.SyncResult{}, utils.TrackError(err)
 	}
 	operation := operation.Operation{
 		Type:    operation.Update,
@@ -190,11 +191,11 @@ func (c *controlPlaneDesiredVersionSyncer) SyncOnce(ctx context.Context, key con
 						Message: utils.ErrorMessageWithoutLineTracking(err),
 					})
 				}); writeErr != nil {
-				return utils.TrackError(writeErr)
+				return controllerutil.SyncResult{}, utils.TrackError(writeErr)
 			}
-			return nil
+			return controllerutil.SyncResult{}, nil
 		}
-		return utils.TrackError(err)
+		return controllerutil.SyncResult{}, utils.TrackError(err)
 	}
 
 	previousDesiredVersion := existingServiceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion
@@ -211,7 +212,7 @@ func (c *controlPlaneDesiredVersionSyncer) SyncOnce(ctx context.Context, key con
 		serviceProviderClustersCosmosClient := c.resourcesDBClient.ServiceProviderClusters(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 		_, err := serviceProviderClustersCosmosClient.Replace(ctx, replacement, nil)
 		if err != nil {
-			return utils.TrackError(fmt.Errorf("failed to replace ServiceProviderCluster: %w", err))
+			return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to replace ServiceProviderCluster: %w", err))
 		}
 	}
 
@@ -225,9 +226,9 @@ func (c *controlPlaneDesiredVersionSyncer) SyncOnce(ctx context.Context, key con
 				Message: "",
 			})
 		}); err != nil {
-		return utils.TrackError(err)
+		return controllerutil.SyncResult{}, utils.TrackError(err)
 	}
-	return nil
+	return controllerutil.SyncResult{}, nil
 }
 
 // desiredControlPlaneZVersion determines the desired z-stream version for the control plane.

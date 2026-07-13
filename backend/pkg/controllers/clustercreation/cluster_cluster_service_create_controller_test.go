@@ -261,7 +261,7 @@ func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 				HCPClusterName:    testClusterName,
 			}
 
-			err = syncer.SyncOnce(ctx, key)
+			_, err = syncer.SyncOnce(ctx, key)
 
 			if tt.expectError {
 				require.Error(t, err)

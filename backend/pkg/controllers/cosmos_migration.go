@@ -103,13 +103,13 @@ func MigrateAllSubscriptionsOrDie(ctx context.Context, resourcesDBClient databas
 	}
 }
 
-func (c *cosmosMigrationController) SyncOnce(ctx context.Context, key controllerutils.SubscriptionKey) error {
+func (c *cosmosMigrationController) SyncOnce(ctx context.Context, key controllerutils.SubscriptionKey) (controllerutil.SyncResult, error) {
 	// Only process each subscription once per process lifetime.
 	// The workqueue guarantees that a given subscription key is processed by at
 	// most one goroutine at a time, so the separate Load → Store sequence below
 	// does not need to be atomic (no concurrent writer for the same key).
 	if _, alreadyDone := c.completedSubscriptions.Load(key.SubscriptionID); alreadyDone {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
 	logger := utils.LoggerFromContext(ctx)
@@ -120,12 +120,12 @@ func (c *cosmosMigrationController) SyncOnce(ctx context.Context, key controller
 	err := c.migrateSubscription(ctx, logger, key.SubscriptionID)
 	if err != nil {
 		logger.Error(err, "cosmos migration encountered errors for subscription")
-		return err
+		return controllerutil.SyncResult{}, err
 	}
 
 	c.completedSubscriptions.Store(key.SubscriptionID, struct{}{})
 	logger.Info("cosmos migration completed successfully for subscription")
-	return nil
+	return controllerutil.SyncResult{}, nil
 }
 
 // migrateSubscription performs a depth-first read/write migration of every document

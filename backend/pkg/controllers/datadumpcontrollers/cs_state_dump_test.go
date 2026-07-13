@@ -200,7 +200,7 @@ func TestCSStateDump_SyncOnce(t *testing.T) {
 				tt.setupCSClient(mockCSClient, csID)
 			}
 
-			err := syncer.SyncOnce(ctx, key)
+			_, err := syncer.SyncOnce(ctx, key)
 
 			if tt.wantErr {
 				assert.Error(t, err)
@@ -244,7 +244,7 @@ func TestCSStateDump_SyncOnce_CooldownPreventsSync(t *testing.T) {
 		HCPClusterName:    "test-cluster",
 	}
 
-	err := syncer.SyncOnce(context.Background(), key)
+	_, err := syncer.SyncOnce(context.Background(), key)
 	assert.NoError(t, err)
 }
 

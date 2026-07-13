@@ -316,7 +316,7 @@ func TestClusterUpdateDispatchSyncer_SyncOnce(t *testing.T) {
 				HCPClusterName:    testClusterName,
 			}
 
-			err = syncer.SyncOnce(ctx, key)
+			_, err = syncer.SyncOnce(ctx, key)
 			if tc.wantErr {
 				require.Error(t, err)
 				if tc.wantErrContain != "" {

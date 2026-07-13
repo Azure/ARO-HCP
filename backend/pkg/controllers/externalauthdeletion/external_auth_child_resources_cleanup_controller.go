@@ -26,6 +26,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/api"
+	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -76,36 +77,36 @@ func (c *externalAuthChildResourcesCleanupController) NeedsWork(externalAuth *ap
 		externalAuth.ServiceProviderProperties.ClusterServiceID == nil
 }
 
-func (c *externalAuthChildResourcesCleanupController) SyncOnce(ctx context.Context, key controllerutils.HCPExternalAuthKey) error {
+func (c *externalAuthChildResourcesCleanupController) SyncOnce(ctx context.Context, key controllerutils.HCPExternalAuthKey) (controllerutil.SyncResult, error) {
 	logger := utils.LoggerFromContext(ctx)
 
 	cachedExternalAuth, err := c.externalAuthLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPExternalAuthName)
 	if database.IsNotFoundError(err) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get external auth from cache: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to get external auth from cache: %w", err))
 	}
 	if !c.NeedsWork(cachedExternalAuth) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
 	externalAuthCRUD := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).ExternalAuth(key.HCPClusterName)
 	externalAuth, err := externalAuthCRUD.Get(ctx, key.HCPExternalAuthName)
 	if database.IsNotFoundError(err) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get external auth: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to get external auth: %w", err))
 	}
 	if !c.NeedsWork(externalAuth) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
 	externalAuthResourceID := key.GetResourceID()
 	untypedCRUD, err := c.resourcesDBClient.UntypedCRUD(*externalAuthResourceID)
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to create untyped CRUD for external auth children: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to create untyped CRUD for external auth children: %w", err))
 	}
 
 	// extraDeleteGates determines which child resource types should be skipped during cleanup.
@@ -117,18 +118,18 @@ func (c *externalAuthChildResourcesCleanupController) SyncOnce(ctx context.Conte
 
 	childIterator, err := untypedCRUD.ListRecursive(ctx, nil)
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to list external auth child resources: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to list external auth child resources: %w", err))
 	}
 	for _, childResource := range childIterator.Items(ctx) {
 		if childResource.ResourceID == nil {
-			return utils.TrackError(fmt.Errorf("child resource at cosmosID %q has no resourceID; refusing to delete", childResource.ID))
+			return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("child resource at cosmosID %q has no resourceID; refusing to delete", childResource.ID))
 		}
 
 		extraDeleteGate, ok := extraDeleteGates[strings.ToLower(childResource.ResourceType)]
 		if ok {
 			shouldDelete, err := extraDeleteGate(ctx, childResource.ResourceID)
 			if err != nil {
-				return utils.TrackError(err)
+				return controllerutil.SyncResult{}, utils.TrackError(err)
 			}
 			if !shouldDelete {
 				continue
@@ -137,14 +138,14 @@ func (c *externalAuthChildResourcesCleanupController) SyncOnce(ctx context.Conte
 
 		logger.Info("deleting child resource", "childResourceID", childResource.ResourceID)
 		if err := untypedCRUD.Delete(ctx, childResource.ResourceID); err != nil {
-			return utils.TrackError(err)
+			return controllerutil.SyncResult{}, utils.TrackError(err)
 		}
 	}
 	if err := childIterator.GetError(); err != nil {
-		return utils.TrackError(err)
+		return controllerutil.SyncResult{}, utils.TrackError(err)
 	}
 
 	logger.Info("all included external auth cosmos child resources deleted")
 
-	return nil
+	return controllerutil.SyncResult{}, nil
 }

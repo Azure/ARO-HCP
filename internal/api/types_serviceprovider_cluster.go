@@ -149,11 +149,11 @@ type ServiceProviderClusterStatus struct {
 	ControlPlaneVersion ServiceProviderClusterStatusVersion `json:"control_plane_version,omitempty"`
 
 	// Validations is a list of conditions that tracks the status of each cluster validation.
-	// Each Condition Type represents a validation and it should be unique among all validations.
-	// A Condition Status of True means that the validation passed successfully, and a Condition Status of False means that the validation failed.
-	// The Condition Reason and Message are used to provide more details about the validation status.
-	// The Condition LastTransitionTime is used to track the last time the validation transitioned from one status to another.
-	Validations []metav1.Condition `json:"validations,omitempty"`
+	// Each entry is keyed by Type and contains both user-facing condition information and internal details.
+	// +optional
+	// +listType=map
+	// +listMapKey=type
+	Validations []ValidationStatus `json:"validations,omitempty"`
 	// MaestroReadonlyBundles contains a list of Maestro readonly bundles references.
 	// These bundles are used to retrieve particular K8s resources from the Management Cluster.
 	// The reference contains a mapping between the logical name we give to the Maestro bundle internally
@@ -172,6 +172,27 @@ type ServiceProviderClusterStatus struct {
 	// is no signal on Spec alone that dispatch still needs to clear the CS
 	// property.
 	DesiredHostedClusterControlPlaneSize *string `json:"desiredHostedClusterControlPlaneSize,omitempty"`
+}
+
+type ValidationStatus struct {
+	// Type is the validation name. It must match Condition.Type.
+	// +listMapKey
+	Type string `json:"type"`
+
+	// Condition is the user-facing condition information. Fields must be non-sensitive.
+	Condition metav1.Condition `json:"condition"`
+
+	// Internal holds richer operator-facing information. Fields must be non-sensitive.
+	Internal ValidationInternalStatus `json:"internal,omitempty"`
+}
+
+type ValidationInternalStatus struct {
+	Outcome                string `json:"outcome,omitempty"`
+	ServiceProviderMessage string `json:"serviceProviderMessage,omitempty"`
+	ReportingPolicy        string `json:"reportingPolicy,omitempty"`
+
+	// EarliestRetryAfterSeconds is the minimum delay recommended before retrying this validation.
+	EarliestRetryAfterSeconds *int64 `json:"earliestRetryAfterSeconds,omitempty"`
 }
 
 // ServiceProviderClusterStatusVersion contains the actual version information.

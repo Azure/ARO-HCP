@@ -27,6 +27,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
+	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -106,18 +107,18 @@ func NewClusterDegradedAggregatorController(
 	)
 }
 
-func (c *clusterDegradedAggregator) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
+func (c *clusterDegradedAggregator) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) (controllerutil.SyncResult, error) {
 	existing, err := c.clusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if database.IsNotFoundError(err) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get Cluster from cache: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to get Cluster from cache: %w", err))
 	}
 
 	controllers, err := c.controllerLister.ListForCluster(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to list Controllers from cache: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to list Controllers from cache: %w", err))
 	}
 
 	aggregated := UnionCondition(
@@ -131,19 +132,19 @@ func (c *clusterDegradedAggregator) SyncOnce(ctx context.Context, key controller
 	replacement := existing.DeepCopy()
 	apimeta.SetStatusCondition(&replacement.Status.Conditions, aggregated)
 	if equality.Semantic.DeepEqual(existing.Status.Conditions, replacement.Status.Conditions) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
 	clusterCRUD := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName)
 	_, err = clusterCRUD.Replace(ctx, replacement, nil)
 	if database.IsPreconditionFailedError(err) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 	if database.IsNotFoundError(err) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to replace Cluster: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to replace Cluster: %w", err))
 	}
-	return nil
+	return controllerutil.SyncResult{}, nil
 }

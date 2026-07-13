@@ -32,6 +32,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/api"
+	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -116,30 +117,30 @@ func (c *externalAuthClusterServiceDeleteDispatchSyncer) NeedsWork(externalAuth 
 //
 // In either terminal case -- CS delete issued or wait abandoned -- we
 // stamp ClusterServiceDeletionTimestamp so the next sync short-circuits.
-func (c *externalAuthClusterServiceDeleteDispatchSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPExternalAuthKey) error {
+func (c *externalAuthClusterServiceDeleteDispatchSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPExternalAuthKey) (controllerutil.SyncResult, error) {
 	logger := utils.LoggerFromContext(ctx)
 
 	cachedExternalAuth, err := c.externalAuthLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPExternalAuthName)
 	if database.IsNotFoundError(err) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get external auth from cache: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to get external auth from cache: %w", err))
 	}
 	if !c.NeedsWork(cachedExternalAuth) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
 	externalAuthCRUD := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).ExternalAuth(key.HCPClusterName)
 	externalAuth, err := externalAuthCRUD.Get(ctx, key.HCPExternalAuthName)
 	if database.IsNotFoundError(err) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get external auth: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to get external auth: %w", err))
 	}
 	if !c.NeedsWork(externalAuth) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
 	externalAuthDeletionTimestamp := externalAuth.ServiceProviderProperties.DeletionTimestamp.Time
@@ -160,7 +161,7 @@ func (c *externalAuthClusterServiceDeleteDispatchSyncer) SyncOnce(ctx context.Co
 			// The frontend may still be in the middle of creating the cluster-service
 			// ExternalAuth, or the controller that does so hasn't run yet. Re-check on the
 			// next sync. The resync interval and informer change events drive retries.
-			return nil
+			return controllerutil.SyncResult{}, nil
 		}
 		logger.Info("giving up on cluster-service ExternalAuth delete - ClusterServiceID never appeared",
 			"externalAuthDeletionTimestamp", externalAuthDeletionTimestamp, "externalAuthFirstSeenDeletionTimestamp", firstSeenExternalAuthDeletionTimestamp)
@@ -184,11 +185,11 @@ func (c *externalAuthClusterServiceDeleteDispatchSyncer) SyncOnce(ctx context.Co
 			// create. Wait before treating the ExternalAuth as definitively gone.
 			elapsed := c.clock.Since(firstSeenExternalAuthDeletionTimestamp)
 			if elapsed < missingClusterServiceIDTimeout {
-				return nil
+				return controllerutil.SyncResult{}, nil
 			}
 			logger.Info("cluster-service ExternalAuth already deleted or race against in-flight CS create", "clusterServiceID", csID.String())
 		default:
-			return utils.TrackError(fmt.Errorf("failed to delete cluster-service ExternalAuth: %w", err))
+			return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to delete cluster-service ExternalAuth: %w", err))
 		}
 	} else {
 		logger.Info("requested cluster-service ExternalAuth delete", "clusterServiceID", csID.String())
@@ -199,12 +200,12 @@ func (c *externalAuthClusterServiceDeleteDispatchSyncer) SyncOnce(ctx context.Co
 	_, err = externalAuthCRUD.Replace(ctx, replacement, nil)
 	if database.IsPreconditionFailedError(err) {
 		// if we have a conflict error, then we're guaranteed that our informer will eventually see an update and trigger us again.
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to stamp ClusterServiceDeletionTimestamp: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to stamp ClusterServiceDeletionTimestamp: %w", err))
 	}
 	c.firstSeenDeletionTimestampCache.Remove(cacheKey)
 
-	return nil
+	return controllerutil.SyncResult{}, nil
 }

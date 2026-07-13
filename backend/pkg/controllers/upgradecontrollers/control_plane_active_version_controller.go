@@ -72,36 +72,36 @@ func NewControlPlaneActiveVersionController(
 // SyncOnce updates ServiceProviderCluster.Status.ControlPlaneVersion.ActiveVersions
 // from the per-cluster ReadDesire's observed HostedCluster. Each active version
 // includes Version and State (Completed or Partial) and is persisted on replace.
-func (c *controlPlaneActiveVersionSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
+func (c *controlPlaneActiveVersionSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) (controllerutil.SyncResult, error) {
 	existingCluster, err := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Get(ctx, key.HCPClusterName)
 	if database.IsNotFoundError(err) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get Cluster: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to get Cluster: %w", err))
 	}
 	if existingCluster.ServiceProviderProperties.DeletionTimestamp != nil {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
 	hostedCluster, err := maestrohelpers.GetCachedHostedClusterForCluster(ctx, c.readDesireLister, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get HostedCluster from ReadDesire: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to get HostedCluster from ReadDesire: %w", err))
 	}
 	if hostedCluster == nil {
 		// ReadDesire absent or kubeContent not yet observed; retrigger
 		// once the kube-applier writes status.
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
 	newActiveVersions, err := c.getHostedClusterActiveVersions(ctx, hostedCluster)
 	if err != nil {
-		return utils.TrackError(err)
+		return controllerutil.SyncResult{}, utils.TrackError(err)
 	}
 
 	existingServiceProviderCluster, err := database.GetOrCreateServiceProviderCluster(ctx, c.resourcesDBClient, key.GetResourceID())
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get or create ServiceProviderCluster: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to get or create ServiceProviderCluster: %w", err))
 	}
 	// Use NeedsUpdate (semantic equality) instead of slices.Equal: HCPClusterActiveVersion holds
 	// *semver.Version, and Go's `==` (which slices.Equal relies on) compares those pointers, not
@@ -110,7 +110,7 @@ func (c *controlPlaneActiveVersionSyncer) SyncOnce(ctx context.Context, key cont
 	// when the active versions were semantically identical.
 	oldActiveVersions := existingServiceProviderCluster.Status.ControlPlaneVersion.ActiveVersions
 	if !controllerutil.NeedsUpdate(oldActiveVersions, newActiveVersions) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 	logger := utils.LoggerFromContext(ctx)
 	logger.Info("Active versions changed", "oldActiveVersions", oldActiveVersions, "newActiveVersions", newActiveVersions)
@@ -119,10 +119,10 @@ func (c *controlPlaneActiveVersionSyncer) SyncOnce(ctx context.Context, key cont
 	serviceProviderClustersCosmosClient := c.resourcesDBClient.ServiceProviderClusters(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	_, err = serviceProviderClustersCosmosClient.Replace(ctx, replacement, nil)
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to replace ServiceProviderCluster: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to replace ServiceProviderCluster: %w", err))
 	}
 
-	return nil
+	return controllerutil.SyncResult{}, nil
 }
 
 // getHostedClusterActiveVersions derives active versions from HostedCluster version history (newest first).

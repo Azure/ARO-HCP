@@ -31,6 +31,7 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
+	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/internal/utils/armhelpers"
@@ -38,7 +39,7 @@ import (
 
 type Controller interface {
 	QueueForInformers(resyncDuration time.Duration, notifiers ...Notifier) error
-	SyncOnce(ctx context.Context, keyObj any) error
+	SyncOnce(ctx context.Context, keyObj any) (controllerutil.SyncResult, error)
 	Run(ctx context.Context, threadiness int)
 }
 

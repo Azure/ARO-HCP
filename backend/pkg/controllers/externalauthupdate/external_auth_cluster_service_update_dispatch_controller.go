@@ -119,7 +119,7 @@ func (c *externalAuthClusterServiceUpdateDispatchSyncer) CooldownChecker() contr
 	return c.cooldownChecker
 }
 
-func (c *externalAuthClusterServiceUpdateDispatchSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPExternalAuthKey) error {
+func (c *externalAuthClusterServiceUpdateDispatchSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPExternalAuthKey) (controllerutil.SyncResult, error) {
 	logger := utils.LoggerFromContext(ctx)
 
 	// Because this controller ends up calling Cluster Service each time it's reconciled and it's reconciled
@@ -128,36 +128,36 @@ func (c *externalAuthClusterServiceUpdateDispatchSyncer) SyncOnce(ctx context.Co
 	// TODO in the future, we could remove this cooldown checker by persisting a hash of the update dispatch configuration
 	// sent to Cluster Service and checking if it has changed since the last time we sent it.
 	if !c.minimumReconcileTimeCooldownChecker.CanSync(ctx, key) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
 	cachedExternalAuth, err := c.externalAuthLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPExternalAuthName)
 	if database.IsNotFoundError(err) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get external auth from cache: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to get external auth from cache: %w", err))
 	}
 	if !needsWork(cachedExternalAuth) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
 	externalAuthCRUD := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).ExternalAuth(key.HCPClusterName)
 	externalAuth, err := externalAuthCRUD.Get(ctx, key.HCPExternalAuthName)
 	if database.IsNotFoundError(err) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get external auth: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to get external auth: %w", err))
 	}
 	if !needsWork(externalAuth) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
 	externalAuthCSID := externalAuth.ServiceProviderProperties.ClusterServiceID
 	csExternalAuth, err := c.clusterServiceClient.GetExternalAuth(ctx, *externalAuthCSID)
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get external auth from Cluster Service: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to get external auth from Cluster Service: %w", err))
 	}
 
 	// We check if the desired config coming from cosmos differs from the actual config coming from cluster service.
@@ -166,14 +166,14 @@ func (c *externalAuthClusterServiceUpdateDispatchSyncer) SyncOnce(ctx context.Co
 	// using direct string equality.
 	desiredConfigJSON, err := ocm.ExternalAuthUpdateDispatchConfigJSONFromRP(externalAuth)
 	if err != nil {
-		return utils.TrackError(err)
+		return controllerutil.SyncResult{}, utils.TrackError(err)
 	}
 	actualConfigJSON, err := ocm.ExternalAuthUpdateDispatchConfigJSONFromCS(csExternalAuth)
 	if err != nil {
-		return utils.TrackError(err)
+		return controllerutil.SyncResult{}, utils.TrackError(err)
 	}
 	if desiredConfigJSON == actualConfigJSON {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
 	configDiff := cmp.Diff(desiredConfigJSON, actualConfigJSON)
@@ -188,7 +188,7 @@ func (c *externalAuthClusterServiceUpdateDispatchSyncer) SyncOnce(ctx context.Co
 	// We marshal the external auth CS builder config we are going to submit for cs external auth update for logging purposes
 	externalAuthPayload, err := c.marshalClusterServiceExternalAuthUpdatePayload(ctx, externalAuth)
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to marshal Cluster Service external auth update payload: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to marshal Cluster Service external auth update payload: %w", err))
 	}
 
 	logger.Info("dispatching external auth update to Cluster Service",
@@ -198,7 +198,7 @@ func (c *externalAuthClusterServiceUpdateDispatchSyncer) SyncOnce(ctx context.Co
 
 	csExternalAuthBuilder, err := ocm.BuildCSExternalAuth(ctx, externalAuth, true)
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to build CS external auth builder: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to build CS external auth builder: %w", err))
 	}
 
 	_, err = c.clusterServiceClient.UpdateExternalAuth(ctx, *externalAuthCSID, csExternalAuthBuilder)
@@ -220,7 +220,7 @@ func (c *externalAuthClusterServiceUpdateDispatchSyncer) SyncOnce(ctx context.Co
 				"clusterServiceID", externalAuthCSID.String(),
 				"error", err.Error(),
 			)
-			return nil
+			return controllerutil.SyncResult{}, nil
 		}
 		// XXX Matching an error message is brittle, but Clusters Service
 		//     returns 400 Bad Request for a wide range of errors and there
@@ -235,13 +235,13 @@ func (c *externalAuthClusterServiceUpdateDispatchSyncer) SyncOnce(ctx context.Co
 				"clusterServiceID", externalAuthCSID.String(),
 				"error", err.Error(),
 			)
-			return nil
+			return controllerutil.SyncResult{}, nil
 		}
-		return utils.TrackError(fmt.Errorf("failed to update cluster-service ExternalAuth: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to update cluster-service ExternalAuth: %w", err))
 	}
 
 	logger.Info("dispatched external auth update to Cluster Service", "clusterServiceID", externalAuthCSID.String())
-	return nil
+	return controllerutil.SyncResult{}, nil
 }
 
 // marshalClusterServiceExternalAuthUpdatePayload serializes the external auth PATCH body for logging.

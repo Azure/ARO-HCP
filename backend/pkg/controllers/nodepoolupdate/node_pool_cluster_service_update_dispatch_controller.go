@@ -120,7 +120,7 @@ func (c *nodePoolClusterServiceUpdateDispatchSyncer) CooldownChecker() controlle
 	return c.cooldownChecker
 }
 
-func (c *nodePoolClusterServiceUpdateDispatchSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPNodePoolKey) error {
+func (c *nodePoolClusterServiceUpdateDispatchSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPNodePoolKey) (controllerutil.SyncResult, error) {
 	logger := utils.LoggerFromContext(ctx)
 
 	// Because this controller ends up calling Cluster Service each time it's reconciled and it's reconciled
@@ -129,36 +129,36 @@ func (c *nodePoolClusterServiceUpdateDispatchSyncer) SyncOnce(ctx context.Contex
 	// TODO in the future, we could remove this cooldown checker by persisting a hash of the update dispatch configuration
 	// sent to Cluster Service and checking if it has changed since the last time we sent it.
 	if !c.minimumReconcileTimeCooldownChecker.CanSync(ctx, key) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
 	cachedNodePool, err := c.nodePoolLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPNodePoolName)
 	if database.IsNotFoundError(err) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get node pool from cache: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to get node pool from cache: %w", err))
 	}
 	if !needsWork(cachedNodePool) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
 	nodePoolCRUD := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).NodePools(key.HCPClusterName)
 	nodePool, err := nodePoolCRUD.Get(ctx, key.HCPNodePoolName)
 	if database.IsNotFoundError(err) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get node pool: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to get node pool: %w", err))
 	}
 	if !needsWork(nodePool) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
 	nodePoolCSID := nodePool.ServiceProviderProperties.ClusterServiceID
 	csNodePool, err := c.clusterServiceClient.GetNodePool(ctx, *nodePoolCSID)
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get node pool from Cluster Service: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to get node pool from Cluster Service: %w", err))
 	}
 
 	// We check if the desired config coming from cosmos differs from the actual config coming from cluster service.
@@ -168,10 +168,10 @@ func (c *nodePoolClusterServiceUpdateDispatchSyncer) SyncOnce(ctx context.Contex
 	// normalization is applied when RP has no override.
 	desiredConfigJSON, actualConfigJSON, err := ocm.NodePoolUpdateDispatchConfigDiffJSON(nodePool, csNodePool)
 	if err != nil {
-		return err
+		return controllerutil.SyncResult{}, err
 	}
 	if desiredConfigJSON == actualConfigJSON {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
 	configDiff := cmp.Diff(desiredConfigJSON, actualConfigJSON)
@@ -186,7 +186,7 @@ func (c *nodePoolClusterServiceUpdateDispatchSyncer) SyncOnce(ctx context.Contex
 	// We marshal the node pool CS builder config we are going to submit for cs node pool update for logging purposes
 	nodePoolPayload, err := c.marshalClusterServiceNodePoolUpdatePayload(ctx, nodePool)
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to marshal Cluster Service node pool update payload: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to marshal Cluster Service node pool update payload: %w", err))
 	}
 
 	logger.Info("dispatching node pool update to Cluster Service",
@@ -196,7 +196,7 @@ func (c *nodePoolClusterServiceUpdateDispatchSyncer) SyncOnce(ctx context.Contex
 
 	csNodePoolBuilder, err := c.buildNodePoolUpdateBuilder(ctx, nodePool)
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to build CS node pool builder: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to build CS node pool builder: %w", err))
 	}
 
 	_, err = c.clusterServiceClient.UpdateNodePool(ctx, *nodePoolCSID, csNodePoolBuilder)
@@ -219,7 +219,7 @@ func (c *nodePoolClusterServiceUpdateDispatchSyncer) SyncOnce(ctx context.Contex
 				"clusterServiceID", nodePoolCSID.String(),
 				"error", err.Error(),
 			)
-			return nil
+			return controllerutil.SyncResult{}, nil
 		}
 		// XXX Matching an error message is brittle, but Clusters Service
 		//     returns 400 Bad Request for a wide range of errors and there
@@ -237,13 +237,13 @@ func (c *nodePoolClusterServiceUpdateDispatchSyncer) SyncOnce(ctx context.Contex
 				"clusterServiceID", nodePoolCSID.String(),
 				"error", err.Error(),
 			)
-			return nil
+			return controllerutil.SyncResult{}, nil
 		}
-		return utils.TrackError(fmt.Errorf("failed to update cluster-service NodePool: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to update cluster-service NodePool: %w", err))
 	}
 
 	logger.Info("dispatched node pool update to Cluster Service", "clusterServiceID", nodePoolCSID.String())
-	return nil
+	return controllerutil.SyncResult{}, nil
 }
 
 // buildNodePoolUpdateBuilder builds the Cluster Service node pool PATCH payload from RP desired state.

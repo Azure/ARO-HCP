@@ -26,6 +26,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
+	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -146,49 +147,49 @@ func needsWorkForIdentityKey(userAssignedIdentities map[string]*arm.UserAssigned
 // and if so, fetches the values from Cluster Service using
 // GetClusterServiceUserAssignedIdentities and updates Cosmos with
 // the Identity.UserAssignedIdentities only.
-func (c *identityMigrationSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
+func (c *identityMigrationSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) (controllerutil.SyncResult, error) {
 	logger := utils.LoggerFromContext(ctx)
 
 	// do the super cheap cache check first
 	cachedCluster, err := c.clusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if database.IsNotFoundError(err) {
 		// we'll be re-fired if it is created again
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get cluster from cache: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to get cluster from cache: %w", err))
 	}
 	if !c.NeedsWork(ctx, cachedCluster) {
 		// if the cache doesn't need work, then we'll be retriggered if those values change when the cache updates.
 		// if the values don't change, then we still have no work to do.
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
 	// Get the cluster from Cosmos
 	clusterCRUD := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName)
 	existingCluster, err := clusterCRUD.Get(ctx, key.HCPClusterName)
 	if database.IsNotFoundError(err) {
-		return nil // cluster doesn't exist, no work to do
+		return controllerutil.SyncResult{}, nil // cluster doesn't exist, no work to do
 	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get Cluster: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to get Cluster: %w", err))
 	}
 	// check if we need to do work again. Sometimes the live data is ahead of the cache and obviates the need to do any work
 	if !c.NeedsWork(ctx, existingCluster) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
 	// Fetch the cluster from Cluster Service
 	csCluster, err := c.clusterServiceClient.GetCluster(ctx, *existingCluster.ServiceProviderProperties.ClusterServiceID)
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get cluster from Cluster Service: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to get cluster from Cluster Service: %w", err))
 	}
 
 	// Use GetClusterServiceUserAssignedIdentities on a deep copy to extract identity data
 	userAssignedIdentities := ocm.GetClusterServiceUserAssignedIdentities(csCluster)
 	if len(userAssignedIdentities) == 0 {
 		// nothing to set
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
 	// Only assign the Identity.UserAssignedIdentities from the converted cluster
@@ -200,9 +201,9 @@ func (c *identityMigrationSyncer) SyncOnce(ctx context.Context, key controllerut
 
 	// Write the updated cluster back to Cosmos
 	if _, err := clusterCRUD.Replace(ctx, replacement, nil); err != nil {
-		return utils.TrackError(fmt.Errorf("failed to replace Cluster: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to replace Cluster: %w", err))
 	}
 
 	logger.Info("migrated identity information from Cluster Service")
-	return nil
+	return controllerutil.SyncResult{}, nil
 }

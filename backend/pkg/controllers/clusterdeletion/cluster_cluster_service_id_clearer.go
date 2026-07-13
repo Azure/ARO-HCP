@@ -27,6 +27,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/api"
+	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -87,30 +88,30 @@ func (c *clusterClusterServiceIDClearer) NeedsWork(cluster *api.HCPOpenShiftClus
 
 // SyncOnce reads the Cluster from cluster-service. If cluster-service reports
 // 404, the deletion has finished and we zero out ClusterServiceID.
-func (c *clusterClusterServiceIDClearer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
+func (c *clusterClusterServiceIDClearer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) (controllerutil.SyncResult, error) {
 	logger := utils.LoggerFromContext(ctx)
 
 	cachedCluster, err := c.clusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if database.IsNotFoundError(err) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get cluster from cache: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to get cluster from cache: %w", err))
 	}
 	if !c.NeedsWork(cachedCluster) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
 	clusterCRUD := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName)
 	cluster, err := clusterCRUD.Get(ctx, key.HCPClusterName)
 	if database.IsNotFoundError(err) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get cluster: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to get cluster: %w", err))
 	}
 	if !c.NeedsWork(cluster) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
 	csID := cluster.ServiceProviderProperties.ClusterServiceID
@@ -118,17 +119,17 @@ func (c *clusterClusterServiceIDClearer) SyncOnce(ctx context.Context, key contr
 	if err != nil {
 		var ocmError *ocmerrors.Error
 		if !errors.As(err, &ocmError) || ocmError.Status() != http.StatusNotFound {
-			return utils.TrackError(fmt.Errorf("failed to get cluster-service Cluster: %w", err))
+			return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to get cluster-service Cluster: %w", err))
 		}
 		// 404 - cluster-service has finished deleting the Cluster, clear the CS ID.
 		logger.Info("cluster-service Cluster gone. Clearing ClusterServiceID", "clusterServiceID", csID.String())
 		cluster.ServiceProviderProperties.ClusterServiceID = nil
 		if _, err := clusterCRUD.Replace(ctx, cluster, nil); err != nil {
-			return utils.TrackError(fmt.Errorf("failed to clear ClusterServiceID: %w", err))
+			return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to clear ClusterServiceID: %w", err))
 		}
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
 	// Cluster still exists in cluster-service. Nothing to do yet.
-	return nil
+	return controllerutil.SyncResult{}, nil
 }

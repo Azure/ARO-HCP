@@ -26,6 +26,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/internal/api"
+	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -73,36 +74,36 @@ func NewTriggerNodePoolUpgradeController(
 //  2. Skips upgrade trigger if no active versions exist yet (during installation)
 //  3. Check if desiredVersion differs from latest actual version
 //  4. If different, create a NodePoolUpgradePolicy to trigger upgrade
-func (c *triggerNodePoolUpgradeSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPNodePoolKey) error {
+func (c *triggerNodePoolUpgradeSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPNodePoolKey) (controllerutil.SyncResult, error) {
 	existingNodePool, err := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).
 		NodePools(key.HCPClusterName).Get(ctx, key.HCPNodePoolName)
 	if database.IsNotFoundError(err) {
-		return nil // node pool doesn't exist, no work to do
+		return controllerutil.SyncResult{}, nil // node pool doesn't exist, no work to do
 	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get NodePool: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to get NodePool: %w", err))
 	}
 	if existingNodePool.ServiceProviderProperties.DeletionTimestamp != nil {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 	// if we have no clusterservice nodepool, we have nothing to trigger.
 	if existingNodePool.ServiceProviderProperties.ClusterServiceID == nil || len(existingNodePool.ServiceProviderProperties.ClusterServiceID.String()) == 0 {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
 	existingServiceProviderNodePool, err := database.GetOrCreateServiceProviderNodePool(ctx, c.resourcesDBClient, key.GetResourceID())
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get or create ServiceProviderNodePool: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to get or create ServiceProviderNodePool: %w", err))
 	}
 
 	desiredVersion := existingServiceProviderNodePool.Spec.NodePoolVersion.DesiredVersion
 	if desiredVersion == nil {
-		return nil // No desired version set
+		return controllerutil.SyncResult{}, nil // No desired version set
 	}
 
 	// No active version yet (installation ongoing); skip upgrade trigger.
 	if len(existingServiceProviderNodePool.Status.NodePoolVersion.ActiveVersions) == 0 {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
 	// Get latest actual version from active versions
@@ -110,10 +111,10 @@ func (c *triggerNodePoolUpgradeSyncer) SyncOnce(ctx context.Context, key control
 
 	// If desired version matches latest actual version, nothing to do
 	if actualLatestVersion != nil && desiredVersion.EQ(*actualLatestVersion) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
-	return c.createUpgradePolicyIfNeeded(ctx, desiredVersion, *existingNodePool.ServiceProviderProperties.ClusterServiceID)
+	return controllerutil.SyncResult{}, c.createUpgradePolicyIfNeeded(ctx, desiredVersion, *existingNodePool.ServiceProviderProperties.ClusterServiceID)
 }
 
 // createUpgradePolicyIfNeeded ensures a node pool upgrade policy exists for the desired version.
