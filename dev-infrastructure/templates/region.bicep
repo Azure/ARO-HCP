@@ -63,9 +63,6 @@ param hcpAmwMaxActiveTimeSeriesMillions int = 2
 @description('Maximum events per minute limit for the HCP Azure Monitor Workspace in millions (2M initial, bump when hitting 50% utilization)')
 param hcpAmwMaxEventsPerMinuteMillions int = 2
 
-@description('Use the internal Microsoft API version for the HCP Azure Monitor Workspace')
-param hcpMonitorUseInternalApi bool = false
-
 import { determineZoneRedundancyForRegion } from '../modules/common.bicep'
 import * as res from '../modules/resource.bicep'
 
@@ -178,7 +175,6 @@ module hcpMonitor '../modules/metrics/monitor.bicep' = {
     grafanaResourceId: grafanaResourceId
     monitorName: hcpMonitorName
     purpose: 'hcps'
-    useInternalApiVersion: hcpMonitorUseInternalApi
   }
 }
 
