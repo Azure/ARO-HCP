@@ -506,28 +506,14 @@
       "additionalProperties": false,
       "properties": {
         "maxSurge": {
-          "description": "Maximum number or percentage of nodes surged during upgrade.",
-          "oneOf": [
-            {
-              "type": "integer",
-              "minimum": 0
-            },
-            {
-              "type": "string"
-            }
-          ]
+          "description": "Maximum number or percentage of nodes surged during upgrade. Must be a string (e.g. \"1\" or \"10%\") because it is rendered into a string bicep parameter and passed through the Ev2 placeholder resolver, which cannot represent non-string scalars in the generated bicepparam.",
+          "type": "string",
+          "pattern": "^[0-9]+%?$"
         },
         "maxUnavailable": {
-          "description": "Maximum number or percentage of nodes unavailable during upgrade.",
-          "oneOf": [
-            {
-              "type": "integer",
-              "minimum": 0
-            },
-            {
-              "type": "string"
-            }
-          ]
+          "description": "Maximum number or percentage of nodes unavailable during upgrade. Must be a string (e.g. \"0\" or \"10%\") because it is rendered into a string bicep parameter and passed through the Ev2 placeholder resolver, which cannot represent non-string scalars in the generated bicepparam.",
+          "type": "string",
+          "pattern": "^[0-9]+%?$"
         }
       },
       "required": [
