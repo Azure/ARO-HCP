@@ -18,12 +18,17 @@ import (
 	"context"
 
 	"k8s.io/apimachinery/pkg/api/operation"
+	"k8s.io/apimachinery/pkg/api/safe"
 	"k8s.io/apimachinery/pkg/api/validate"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
+)
+
+var (
+	toSubscriptionProperties = func(oldObj *arm.Subscription) *arm.SubscriptionProperties { return oldObj.Properties }
 )
 
 func ValidateSubscriptionCreate(ctx context.Context, newObj *arm.Subscription) field.ErrorList {
@@ -50,7 +55,20 @@ func validateSubscription(ctx context.Context, op operation.Operation, newObj, o
 	}
 
 	//Properties       *SubscriptionProperties `json:"properties"`
+	errs = append(errs, validateSubscriptionProperties(ctx, op, field.NewPath("properties"), newObj.Properties, safe.Field(oldObj, toSubscriptionProperties))...)
+
 	//LastUpdated int `json:"-"`
+
+	return errs
+}
+
+func validateSubscriptionProperties(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *arm.SubscriptionProperties) field.ErrorList {
+	errs := field.ErrorList{}
+
+	// TenantId is optional according to the Resource Provider Contract but the
+	// ARO-HCP backend relies on it for cluster creation. The frontend tries to
+	// ensure its presence, cherry-picking from request headers if necessary.
+	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("tenantId"), &newObj.TenantId, nil)...)
 
 	return errs
 }
