@@ -251,6 +251,25 @@ Custom tools in `tooling/`:
 - `secret-sync` - Secret management utilities
 - `prometheus-rules` - Monitoring rule generation
 
+## Cosmos Data Flow Documentation
+
+`backend/cosmos-data-flow.md` documents every Cosmos DB read and write performed by frontend endpoints and backend controllers. It must be kept in sync with the code.
+
+### When to regenerate
+Regenerate `backend/cosmos-data-flow.md` (using the generation prompt at the bottom of that file) whenever a change touches:
+- `frontend/pkg/frontend/` — any handler that writes to Cosmos
+- `backend/pkg/controllers/` — any controller that reads or writes Cosmos fields
+- `internal/api/types_*.go` — any struct field that is stored in Cosmos
+- `internal/database/` — any change to CRUD operations or precondition logic
+
+### Field-level writer annotations
+Every leaf struct field in `internal/api/types_*.go` files (the types stored in Cosmos) must have a `// Written by:` comment listing the actors (frontend endpoints and/or backend controllers) that set it. For example:
+```go
+// Written by: Frontend PUT Cluster (Create), ClusterClusterServiceCreate
+ClusterServiceID *InternalID `json:"clusterServiceID,omitempty"`
+```
+When adding or modifying a field, update this comment. When adding or modifying a controller or frontend endpoint that writes a field, update the comment on the field it writes.
+
 ## Subdirectory Guidance
 
 Several subdirectories have their own AI guidance files with domain-specific detail:
