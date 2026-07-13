@@ -1074,7 +1074,13 @@ func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Req
 
 // assembleAdminCredentialFromCosmos looks up the SystemAdminCredentialRequest Cosmos
 // document pointed to by Operation.InternalID and assembles a kubeconfig from
-// its signed certificate, private key, and the cluster's serving CA bundle.
+// its signed certificate and private key.
+//
+// The kubeconfig deliberately omits the cluster's serving CA bundle: a HyperShift
+// shortcoming prevents that field from being usable, so the CA bundle is left nil
+// and clients must rely on their system trust bundle. The serving CA controllers
+// still populate ServiceProviderCluster.Status.ServingCABundle for future use, but
+// it is intentionally not read here.
 func (f *Frontend) assembleAdminCredentialFromCosmos(ctx context.Context, op *api.Operation) (*api.HCPOpenShiftClusterAdminCredential, error) {
 	credResourceID, err := azcorearm.ParseResourceID(op.InternalID.String())
 	if err != nil {
@@ -1095,26 +1101,22 @@ func (f *Frontend) assembleAdminCredentialFromCosmos(ctx context.Context, op *ap
 		return nil, fmt.Errorf("credential request is not in Issued state")
 	}
 
-	// Get the cluster's API URL and serving CA from their respective docs.
+	// Get the cluster's API URL.
 	cluster, err := f.resourcesDBClient.HCPClusters(op.ExternalID.SubscriptionID, op.ExternalID.ResourceGroupName).Get(ctx, op.ExternalID.Name)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get cluster: %w", err)
 	}
 	apiURL := cluster.ServiceProviderProperties.API.URL
 
-	spc, err := database.GetOrCreateServiceProviderCluster(ctx, f.resourcesDBClient, op.ExternalID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get ServiceProviderCluster: %w", err)
-	}
-	servingCA := spc.Status.ServingCABundle
-	if len(servingCA) == 0 {
-		return nil, fmt.Errorf("serving CA bundle not yet available on ServiceProviderCluster")
-	}
-
+	// The serving CA bundle (ServiceProviderCluster.Status.ServingCABundle) is
+	// intentionally not read here and not passed to the kubeconfig builder. A
+	// HyperShift shortcoming prevents that field from being usable, so the
+	// kubeconfig's CA bundle is left nil and clients fall back to their system
+	// trust bundle. The serving CA controllers still populate the field for future
+	// use once that shortcoming is resolved.
 	kubeconfigBytes, err := systemadmincredential.BuildKubeconfig(
 		cred.Status.SignedCertificate,
 		cred.Spec.PrivateKeyPEM,
-		servingCA,
 		apiURL,
 	)
 	if err != nil {
