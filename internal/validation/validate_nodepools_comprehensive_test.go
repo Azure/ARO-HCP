@@ -149,6 +149,46 @@ func TestValidateNodePoolCreate(t *testing.T) {
 			expectErrors: []utils.ExpectedError{},
 		},
 		{
+			name: "valid nodepool with node drain timeout zero - create",
+			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.NodeDrainTimeoutMinutes = ptr.To[int32](0)
+				return np
+			}(),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name: "valid nodepool with node drain timeout at maximum - create",
+			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.NodeDrainTimeoutMinutes = ptr.To[int32](10080)
+				return np
+			}(),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name: "negative node drain timeout - create",
+			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.NodeDrainTimeoutMinutes = ptr.To[int32](-1)
+				return np
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "must be greater than or equal to 0", FieldPath: "properties.nodeDrainTimeoutMinutes"},
+			},
+		},
+		{
+			name: "node drain timeout too large - create",
+			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.NodeDrainTimeoutMinutes = ptr.To[int32](10081)
+				return np
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "must be less than or equal to 10080", FieldPath: "properties.nodeDrainTimeoutMinutes"},
+			},
+		},
+		{
 			name: "valid nodepool with version ID - create",
 			nodePool: func() *api.HCPOpenShiftClusterNodePool {
 				np := createValidNodePool()
@@ -986,6 +1026,30 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 				return np
 			}(),
 			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name: "negative node drain timeout - update",
+			newNodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.NodeDrainTimeoutMinutes = ptr.To[int32](-1)
+				return np
+			}(),
+			oldNodePool: createValidNodePool(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "must be greater than or equal to 0", FieldPath: "properties.nodeDrainTimeoutMinutes"},
+			},
+		},
+		{
+			name: "node drain timeout too large - update",
+			newNodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.NodeDrainTimeoutMinutes = ptr.To[int32](10081)
+				return np
+			}(),
+			oldNodePool: createValidNodePool(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "must be less than or equal to 10080", FieldPath: "properties.nodeDrainTimeoutMinutes"},
+			},
 		},
 		{
 			name: "valid nodepool update - version change",

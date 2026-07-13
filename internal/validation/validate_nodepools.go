@@ -115,6 +115,10 @@ func toNodePoolPropertiesTaints(oldObj *api.HCPOpenShiftClusterNodePoolPropertie
 	return oldObj.Taints
 }
 
+func toNodePoolPropertiesNodeDrainTimeoutMinutes(oldObj *api.HCPOpenShiftClusterNodePoolProperties) *int32 {
+	return oldObj.NodeDrainTimeoutMinutes
+}
+
 func validateNodePoolProperties(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.HCPOpenShiftClusterNodePoolProperties) field.ErrorList {
 	errs := field.ErrorList{}
 
@@ -173,7 +177,8 @@ func validateNodePoolProperties(ctx context.Context, op operation.Operation, fld
 	)...)
 
 	//NodeDrainTimeoutMinutes *int32                  `json:"nodeDrainTimeoutMinutes,omitempty"`
-	// TODO why do we allow this to be negative?
+	errs = append(errs, validate.Minimum(ctx, op, fldPath.Child("nodeDrainTimeoutMinutes"), newObj.NodeDrainTimeoutMinutes, safe.Field(oldObj, toNodePoolPropertiesNodeDrainTimeoutMinutes), 0)...)
+	errs = append(errs, Maximum(ctx, op, fldPath.Child("nodeDrainTimeoutMinutes"), newObj.NodeDrainTimeoutMinutes, safe.Field(oldObj, toNodePoolPropertiesNodeDrainTimeoutMinutes), 10080)...)
 
 	return errs
 }
