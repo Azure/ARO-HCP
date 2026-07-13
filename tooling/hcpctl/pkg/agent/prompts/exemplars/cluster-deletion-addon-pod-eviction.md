@@ -22,29 +22,8 @@ the `ManagedClusterAddon` finalizers were never removed, and the destruct chain 
 
 ### Why did the test fail?
 
-The test client timed out waiting for the ARO HCP cluster deletion to complete during cleanup.
-
-#### Proof 1: Test Error (lines 1-5)
-
-The proximal failure was a cleanup timeout during cluster deletion:
-
-```
-fail [github.com/Azure/ARO-HCP/test/util/framework/per_test_framework.go:283]:
-Unexpected error:
-    <*errors.joinError | 0xc0014a22e8>:
-    failed to cleanup resource group: at least one hcp cluster failed to delete: failed waiting for hcpCluster="np-autoscale-cluster" in resourcegroup="np-autoscaling-5zzp9q" to finish deleting: context canceled
-    ...
-occurred
-```
-
-#### Proof 2: Test Log (lines 28-30)
-
-The test log confirms we are in the `DeferCleanup (Each)` phase, where a node timeout occurred:
-
-```
-  [TIMEDOUT] in [DeferCleanup (Each)] - tear down test context | per_test_framework.go:200 @ 07/01/26 12:54:21.881
-"ts"="2026-07-01 12:54:21.883924" "msg"="at least one resource group failed to delete" "error"="failed to cleanup resource group: at least one hcp cluster failed to delete: failed waiting for hcpCluster=\"np-autoscale-cluster\" in resourcegroup=\"np-autoscaling-5zzp9q\" to finish deleting: context canceled"
-```
+The test client timed out waiting for the ARO HCP cluster deletion to complete during cleanup. Clusters Service moved
+the cluster to `'uninstalling'` but never completed the deletion.
 
 ### Why did the cluster deletion never complete?
 
