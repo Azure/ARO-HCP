@@ -34,7 +34,7 @@ func resolveOptionalValue(v types.Value, cfg configtypes.Configuration, outputs 
 
 func runGrafanaManageStep(id graph.Identifier, step *types.GrafanaManageStep, ctx context.Context, options *StepRunOptions, executionTarget ExecutionTarget, state *ExecutionState) error {
 	state.RLock()
-	outputs := state.Outputs
+	outputs := state.GetOutputs(id.Stamp)
 	state.RUnlock()
 
 	grafanaName, err := resolveValue(step.GrafanaName, options.Configuration, outputs, id.ServiceGroup)
