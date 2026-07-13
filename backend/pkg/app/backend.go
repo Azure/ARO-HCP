@@ -488,20 +488,6 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		b.options.ResourcesDBClient,
 		backendInformers,
 	)
-	adminCredentialsServingCAReadDesireCreatorController := systemadmincredentialcontrollers.NewServingCAReadDesireCreatorController(
-		activeOperationLister,
-		b.options.ResourcesDBClient,
-		b.options.KubeApplierDBClients,
-		backendInformers,
-		unionKubeApplierInformers,
-	)
-	adminCredentialsCABundleSyncController := systemadmincredentialcontrollers.NewCABundleSyncController(
-		activeOperationLister,
-		b.options.ResourcesDBClient,
-		backendInformers,
-		unionKubeApplierInformers,
-		unionReadDesireLister,
-	)
 	adminCredentialsClusterDeletionCleanupController := systemadmincredentialcontrollers.NewClusterDeletionCleanupController(
 		activeOperationLister,
 		b.options.ResourcesDBClient,
@@ -949,8 +935,6 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go adminCredentialsDesiresCreatorController.Run(ctx, 20)
 				go adminCredentialsPostIssuanceCleanupController.Run(ctx, 20)
 				go adminCredentialsRevokedGCController.Run(ctx, 20)
-				go adminCredentialsServingCAReadDesireCreatorController.Run(ctx, 20)
-				go adminCredentialsCABundleSyncController.Run(ctx, 20)
 				go adminCredentialsClusterDeletionCleanupController.Run(ctx, 20)
 				go adminCredentialsRevocationMarkRequestsController.Run(ctx, 20)
 				go adminCredentialsRevocationDesiresController.Run(ctx, 20)
