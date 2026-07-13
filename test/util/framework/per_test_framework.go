@@ -55,6 +55,7 @@ import (
 	hcpsdk20260630preview "github.com/Azure/ARO-HCP/test/sdk/v20260630preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/timing"
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/pipeline"
+	"github.com/Azure/ARO-HCP/tooling/testlib"
 )
 
 type perItOrDescribeTestContext struct {
@@ -93,7 +94,7 @@ func setupTestLogDir(artifactDir string) string {
 	}
 
 	report := ginkgo.CurrentSpecReport()
-	testName := sanitizeTestName(append(report.ContainerHierarchyTexts, report.LeafNodeText))
+	testName := testlib.SanitizeTestName(strings.Join(append(report.ContainerHierarchyTexts, report.LeafNodeText), "_"))
 	logDirPath := filepath.Join(artifactDir, testName)
 
 	if err := os.MkdirAll(logDirPath, 0755); err != nil {
@@ -163,25 +164,6 @@ func NewTestContext() *perItOrDescribeTestContext {
 	}
 
 	return tc
-}
-
-// sanitizeTestName creates a filesystem-safe directory name from a test's hierarchy of texts.
-func sanitizeTestName(parts []string) string {
-	name := strings.Join(parts, "_")
-	name = strings.Map(func(r rune) rune {
-		if r == '/' || r == '\\' || r == ':' || r == '*' || r == '?' || r == '"' || r == '<' || r == '>' || r == '|' {
-			return '_'
-		}
-		if r == ' ' {
-			return '_'
-		}
-		return r
-	}, name)
-	// Truncate to a reasonable length for filesystem paths
-	if len(name) > 200 {
-		name = name[:200]
-	}
-	return name
 }
 
 // BeforeEach gives a chance for initialization (none yet) and registers the cleanup

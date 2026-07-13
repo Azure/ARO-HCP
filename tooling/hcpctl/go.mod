@@ -4,6 +4,7 @@ go 1.25.7
 
 require (
 	cloud.google.com/go/storage v1.62.1
+	github.com/Azure/ARO-HCP/tooling/testlib v0.0.0-00010101000000-000000000000
 	github.com/Azure/ARO-HCP/tooling/utilitytypes v0.0.0-00010101000000-000000000000
 	github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260707132038-40c92763218a
 	github.com/Azure/azure-kusto-go/azkustodata v1.2.1
@@ -186,5 +187,7 @@ require (
 	sigs.k8s.io/randfill v1.0.0 // indirect
 	sigs.k8s.io/structured-merge-diff/v6 v6.3.2 // indirect
 )
+
+replace github.com/Azure/ARO-HCP/tooling/testlib => ../testlib
 
 replace github.com/Azure/ARO-HCP/tooling/utilitytypes => ../utilitytypes

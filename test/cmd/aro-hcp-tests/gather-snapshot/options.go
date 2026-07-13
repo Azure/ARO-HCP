@@ -33,6 +33,7 @@ import (
 	"github.com/Azure/ARO-HCP/test/util/timing"
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/kusto"
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/snapshot"
+	"github.com/Azure/ARO-HCP/tooling/testlib"
 )
 
 func DefaultOptions() *RawOptions {
@@ -220,7 +221,7 @@ func (o Options) Run(ctx context.Context) error {
 		}
 
 		for _, rg := range ti.ResourceGroupNames {
-			testOutputDir := filepath.Join(o.OutputDir, snapshot.SanitizeTestName(testName), rg)
+			testOutputDir := filepath.Join(o.OutputDir, testlib.SanitizeTestName(testName), rg)
 
 			logger.Info("Gathering snapshot",
 				"test", testName,

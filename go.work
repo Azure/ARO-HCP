@@ -28,6 +28,7 @@ use (
 	./tooling/secret-sync
 	./tooling/templatize
 	./tooling/tenant-quota
+	./tooling/testlib
 	./tooling/utilitytypes
 	./tooling/yamlwrap
 )

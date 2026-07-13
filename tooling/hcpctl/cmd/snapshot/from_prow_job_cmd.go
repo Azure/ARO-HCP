@@ -29,7 +29,9 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 
 	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/kusto"
+	"github.com/Azure/ARO-HCP/tooling/testlib"
 	snapshotpkg "github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/snapshot"
+
 )
 
 // RawFromProwJobOptions holds the unvalidated CLI options for from-prow-job.
@@ -178,7 +180,7 @@ func (o *validatedFromProwJobOptions) run(ctx context.Context) error {
 	var gatherErrors []error
 	for i := range tests {
 		test := &tests[i]
-		testName := snapshotpkg.SanitizeTestName(test.Name)
+		testName := testlib.SanitizeTestName(test.Name)
 		testOutputDir := filepath.Join(o.outputDir, o.prowInfo.JobName, o.prowInfo.ProwID, testName)
 
 		logger.Info("Gathering snapshot for test",
