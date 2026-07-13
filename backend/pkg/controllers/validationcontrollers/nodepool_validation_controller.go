@@ -19,8 +19,10 @@ import (
 	"fmt"
 	"time"
 
+	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/lru"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/validationcontrollers/validations"
@@ -36,8 +38,11 @@ import (
 // nodePoolValidationSyncer is a NodePool syncer that performs a NodePool
 // validation.
 type nodePoolValidationSyncer struct {
-	cooldownChecker   controllerutil.CooldownChecker
-	resourcesDBClient database.ResourcesDBClient
+	cooldownChecker          controllerutil.CooldownChecker
+	retryCooldownChecker     *controllerutil.SettableCooldownChecker
+	enqueueAfter             controllerutils.AfterEnqueuer
+	resourcesDBClient        database.ResourcesDBClient
+	consecutiveUnknownCounts *lru.Cache
 
 	// validation is the validation to perform on the node pool.
 	validation validations.NodePoolValidation
@@ -56,9 +61,11 @@ func NewNodePoolValidationController(
 ) controllerutils.Controller {
 
 	syncer := &nodePoolValidationSyncer{
-		cooldownChecker:   controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
-		resourcesDBClient: resourcesDBClient,
-		validation:        validation,
+		cooldownChecker:          controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
+		retryCooldownChecker:     controllerutil.NewSettableCooldownChecker(),
+		resourcesDBClient:        resourcesDBClient,
+		consecutiveUnknownCounts: lru.New(1000000),
+		validation:               validation,
 	}
 
 	controller := controllerutils.NewNodePoolWatchingController(
@@ -69,6 +76,12 @@ func NewNodePoolValidationController(
 		1*time.Minute,
 		syncer,
 	)
+
+	if enqueuer, ok := controller.(controllerutils.AfterEnqueuer); ok {
+		syncer.enqueueAfter = enqueuer
+	} else {
+		panic("ClusterValidationController must implement AfterEnqueuer")
+	}
 
 	return controller
 }
@@ -101,46 +114,97 @@ func (c *nodePoolValidationSyncer) SyncOnce(ctx context.Context, key controlleru
 		return utils.TrackError(fmt.Errorf("failed to get or create ServiceProviderNodePool: %w", err))
 	}
 
-	shouldProcess := c.shouldProcess(existingServiceProviderNodePool)
-	if !shouldProcess {
-		return nil // no work to do
+	if !c.shouldProcess(existingServiceProviderNodePool) {
+		return nil
+	}
+	if !c.retryCooldownChecker.CanSync(ctx, key) {
+		c.enqueueAfter.EnqueueAfter(key, c.retryCooldownChecker.TimeUntilReady(key)+time.Second)
+		return nil
 	}
 	subscription, err := c.resourcesDBClient.Subscriptions().Get(ctx, existingNodePool.ID.SubscriptionID)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get Subscription: %w", err))
 	}
 
-	// We store the validation error in a separate variable and we use that as the
-	// error to return to the caller. This allows us to perform other remaining
-	// tasks in the syncer even if the validation fails, and we ultimately
-	// drive the behavior of its controller through the outcome of the validation.
-	validationErr := c.validation.Validate(ctx, existingCluster, subscription, existingNodePool)
+	result := c.validation.Validate(ctx, existingCluster, subscription, existingNodePool)
+	result = validations.DefaultResult(result)
 
-	validationCondition := metav1.Condition{
-		Type: c.validation.Name(),
+	logger := utils.LoggerFromContext(ctx)
+	validationCondition := validations.BuildCondition(c.validation.Name(), result)
+	switch result.Outcome {
+	case validations.OutcomeTypeUnknown:
+		count := c.incrementUnknownCount(key)
+		if existingCondition := meta.FindStatusCondition(existingServiceProviderNodePool.Status.Validations, c.validation.Name()); existingCondition != nil && existingCondition.Status != metav1.ConditionUnknown && count <= maxConsecutiveUnknownsBeforeWrite {
+			logger.Info("Validation returned Unknown but previous condition exists, so preserving previous state for a few attempts",
+				"previousStatus", existingCondition.Status,
+				"previousReason", existingCondition.Reason,
+				"unknownReason", validationCondition.Reason,
+				"unknownMessage", validationCondition.Message,
+				"serviceProviderMessage", result.Unknown.ServiceProviderMessage,
+				"consecutiveUnknownCount", count,
+			)
+			c.handleRequeue(key, result)
+			return nil
+		}
+		logger.Info("Writing unknown state",
+			"reason", validationCondition.Reason,
+			"serviceProviderMessage", result.Unknown.ServiceProviderMessage,
+			"consecutiveUnknownCount", count,
+		)
+	case validations.OutcomeTypeFailed:
+		logger.Info("Writing failed state",
+			"reason", result.Failed.Reason,
+			"userMessage", result.Failed.UserMessage,
+			"serviceProviderMessage", result.Failed.ServiceProviderMessage,
+		)
+	case validations.OutcomeTypePassed:
+		logger.Info("Writing passed state")
 	}
-	if validationErr != nil {
-		validationCondition.Status = metav1.ConditionFalse
-		validationCondition.Reason = "Failed"
-		validationCondition.Message = fmt.Sprintf("Validation failed: %s", validationErr.Error())
-	} else {
-		validationCondition.Status = metav1.ConditionTrue
-		validationCondition.Reason = "Succeeded"
-		validationCondition.Message = "Validation succeeded"
-	}
-	meta.SetStatusCondition(&existingServiceProviderNodePool.Status.Validations, validationCondition)
+	// if we get here, we're going to overwrite the previous status
+	c.resetUnknownCount(key)
 
-	serviceProviderNodePoolsCosmosClient := c.resourcesDBClient.ServiceProviderNodePools(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPNodePoolName)
-	_, err = serviceProviderNodePoolsCosmosClient.Replace(ctx, existingServiceProviderNodePool, nil)
-	if database.IsPreconditionFailedError(err) {
-		// if we have a conflict error, then we're guaranteed that our informer will eventually see an update and trigger us again.
-		return nil
-	}
-	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to replace ServiceProviderNodePool: %w", err))
+	replacement := existingServiceProviderNodePool.DeepCopy()
+	meta.SetStatusCondition(&replacement.Status.Validations, validationCondition)
+
+	if !equality.Semantic.DeepEqual(existingServiceProviderNodePool, replacement) {
+		serviceProviderNodePoolsCosmosClient := c.resourcesDBClient.ServiceProviderNodePools(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPNodePoolName)
+		_, err = serviceProviderNodePoolsCosmosClient.Replace(ctx, replacement, nil)
+		if database.IsPreconditionFailedError(err) {
+			return nil
+		}
+		if err != nil {
+			return utils.TrackError(fmt.Errorf("failed to replace ServiceProviderNodePool: %w", err))
+		}
 	}
 
-	return validationErr
+	c.handleRequeue(key, result)
+	return nil
+}
+
+func (c *nodePoolValidationSyncer) handleRequeue(key controllerutils.HCPNodePoolKey, result *validations.ValidationResult) {
+	if result.EarliestRetryAfter != nil {
+		c.retryCooldownChecker.SetCooldown(key, *result.EarliestRetryAfter)
+	}
+
+	if result.Outcome == validations.OutcomeTypePassed {
+		return
+	}
+
+	retryAfter := *result.EarliestRetryAfter + time.Second
+	c.enqueueAfter.EnqueueAfter(key, retryAfter)
+}
+
+func (c *nodePoolValidationSyncer) incrementUnknownCount(key controllerutils.HCPNodePoolKey) int {
+	count := 1
+	if existing, ok := c.consecutiveUnknownCounts.Get(key); ok {
+		count = existing.(int) + 1
+	}
+	c.consecutiveUnknownCounts.Add(key, count)
+	return count
+}
+
+func (c *nodePoolValidationSyncer) resetUnknownCount(key controllerutils.HCPNodePoolKey) {
+	c.consecutiveUnknownCounts.Remove(key)
 }
 
 // shouldProcess returns true when the condition associated to the validation does not exist or when it exists but

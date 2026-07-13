@@ -18,11 +18,13 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
+
+	"k8s.io/utils/ptr"
 
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 // The RpRegistrationValidation struct validates the states of several
@@ -45,7 +47,7 @@ func (v *AzureResourceProvidersRegistrationValidation) Name() string {
 
 func (v *AzureResourceProvidersRegistrationValidation) Validate(
 	ctx context.Context, clusterSubscription *arm.Subscription, cluster *api.HCPOpenShiftCluster,
-) error {
+) *ValidationResult {
 	resourceProvidersToCheck := []string{
 		"Microsoft.Authorization",
 		"Microsoft.Compute",
@@ -53,20 +55,37 @@ func (v *AzureResourceProvidersRegistrationValidation) Validate(
 		"Microsoft.Storage",
 	}
 
-	missingResourcesProviders := []string{}
-
 	rpClient, err := v.azureFPAClientBuilder.ResourceProvidersClient(
 		*clusterSubscription.Properties.TenantId,
 		cluster.ID.SubscriptionID,
 	)
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get resource providers client: %w", err))
+		return &ValidationResult{
+			Outcome: OutcomeTypeUnknown,
+			Unknown: &UnknownResult{
+				Reason:                 "ClientError",
+				ServiceProviderMessage: fmt.Sprintf("failed to get resource providers client: %s", err),
+				UserMessage:            "Failed to check resource provider registration status.",
+				ReportingPolicy:        ReportingPolicyTypeError,
+			},
+			EarliestRetryAfter: ptr.To(60 * time.Second),
+		}
 	}
 
+	var missingResourcesProviders []string
 	for _, rp := range resourceProvidersToCheck {
 		providerResp, err := rpClient.Get(ctx, rp, nil)
 		if err != nil {
-			return err
+			return &ValidationResult{
+				Outcome: OutcomeTypeUnknown,
+				Unknown: &UnknownResult{
+					Reason:                 "APIError",
+					ServiceProviderMessage: fmt.Sprintf("failed to get resource provider %s: %s", rp, err),
+					UserMessage:            "Failed to check resource provider registration status.",
+					ReportingPolicy:        ReportingPolicyTypeError,
+				},
+				EarliestRetryAfter: ptr.To(60 * time.Second),
+			}
 		}
 		if providerResp.RegistrationState == nil ||
 			*providerResp.RegistrationState != "Registered" {
@@ -75,9 +94,16 @@ func (v *AzureResourceProvidersRegistrationValidation) Validate(
 	}
 
 	if len(missingResourcesProviders) > 0 {
-		return utils.TrackError(fmt.Errorf("%v of the resource providers are not registered, or their state is empty: %s",
-			len(missingResourcesProviders), strings.Join(missingResourcesProviders, ", ")))
+		return &ValidationResult{
+			Outcome: OutcomeTypeFailed,
+			Failed: &FailedResult{
+				Reason:                 "ResourceProvidersNotRegistered",
+				ServiceProviderMessage: fmt.Sprintf("%d resource providers not registered: %s", len(missingResourcesProviders), strings.Join(missingResourcesProviders, ", ")),
+				UserMessage:            fmt.Sprintf("The following Azure resource providers must be registered in the subscription: %s", strings.Join(missingResourcesProviders, ", ")),
+			},
+			EarliestRetryAfter: ptr.To(60 * time.Second),
+		}
 	}
 
-	return nil
+	return &ValidationResult{Outcome: OutcomeTypePassed}
 }

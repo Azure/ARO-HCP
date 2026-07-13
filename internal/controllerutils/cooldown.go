@@ -88,3 +88,52 @@ func (c *TimeBasedCooldownChecker) CanSync(_ context.Context, key any) bool {
 	}
 	return false
 }
+
+// SettableCooldownChecker is a cooldown gate where the per-key cooldown
+// duration is set explicitly by the caller via SetCooldown, rather than
+// being fixed at construction time. A key with no cooldown set is always
+// allowed.
+type SettableCooldownChecker struct {
+	clock        utilsclock.PassiveClock
+	nextExecTime *lru.Cache
+}
+
+func NewSettableCooldownChecker() *SettableCooldownChecker {
+	return &SettableCooldownChecker{
+		clock:        utilsclock.RealClock{},
+		nextExecTime: lru.New(1000000),
+	}
+}
+
+func (c *SettableCooldownChecker) SetClock(clock utilsclock.PassiveClock) {
+	c.clock = clock
+}
+
+// SetCooldown records that the given key should not be re-synced until
+// now+duration has elapsed.
+func (c *SettableCooldownChecker) SetCooldown(key any, duration time.Duration) {
+	c.nextExecTime.Add(key, c.clock.Now().Add(duration))
+}
+
+func (c *SettableCooldownChecker) CanSync(_ context.Context, key any) bool {
+	now := c.clock.Now()
+	nextExecTime, ok := c.nextExecTime.Get(key)
+	if !ok {
+		return true
+	}
+	return now.After(nextExecTime.(time.Time))
+}
+
+// TimeUntilReady returns the duration until the key's cooldown expires.
+// Returns 0 if the key has no cooldown set or the cooldown has already expired.
+func (c *SettableCooldownChecker) TimeUntilReady(key any) time.Duration {
+	nextExecTime, ok := c.nextExecTime.Get(key)
+	if !ok {
+		return 0
+	}
+	d := nextExecTime.(time.Time).Sub(c.clock.Now())
+	if d < 0 {
+		return 0
+	}
+	return d
+}
