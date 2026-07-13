@@ -113,7 +113,7 @@ func (o *validatedFromProwJobOptions) run(ctx context.Context) error {
 		return fmt.Errorf("failed to fetch Prow job config: %w", err)
 	}
 
-	allTests, err := snapshotpkg.FetchProwJobTestResults(ctx, o.prowInfo)
+	prowResults, err := snapshotpkg.FetchProwJobTestResults(ctx, o.prowInfo)
 	if err != nil {
 		return fmt.Errorf("failed to fetch Prow job test results: %w", err)
 	}
@@ -122,17 +122,17 @@ func (o *validatedFromProwJobOptions) run(ctx context.Context) error {
 	// Otherwise, only gather data for failed tests.
 	var tests []snapshotpkg.TestResult
 	if o.testSelector != "" {
-		for _, t := range allTests {
+		for _, t := range prowResults.Tests {
 			if strings.Contains(t.Name, o.testSelector) {
 				tests = append(tests, t)
 			}
 		}
 		if len(tests) == 0 {
-			return fmt.Errorf("no tests match selector %q (found %d tests total)", o.testSelector, len(allTests))
+			return fmt.Errorf("no tests match selector %q (found %d tests total)", o.testSelector, len(prowResults.Tests))
 		}
-		logger.Info("Filtered tests by selector", "selector", o.testSelector, "matched", len(tests), "total", len(allTests))
+		logger.Info("Filtered tests by selector", "selector", o.testSelector, "matched", len(tests), "total", len(prowResults.Tests))
 	} else {
-		for _, t := range allTests {
+		for _, t := range prowResults.Tests {
 			if t.Failed {
 				tests = append(tests, t)
 			}
@@ -146,7 +146,7 @@ func (o *validatedFromProwJobOptions) run(ctx context.Context) error {
 	logger.Info("Processing tests", "count", len(tests))
 
 	// Compute sibling test summaries once for all tests.
-	siblingTests := snapshotpkg.ConvertTestResults(allTests)
+	siblingTests := snapshotpkg.ConvertTestResults(prowResults.Tests)
 
 	// Phase 1 (per-job): Create Kusto client from the job's config.
 	kustoEndpoint, err := kusto.KustoEndpoint(jobConfig.KustoName, jobConfig.Region)
@@ -188,6 +188,17 @@ func (o *validatedFromProwJobOptions) run(ctx context.Context) error {
 			"resourceGroup", test.ResourceGroup,
 			"outputDir", testOutputDir,
 		)
+
+		// Fetch test artifact files (eg. console logs) from GCS and write to
+		// test_artifacts directory.
+		artifactFiles, err := snapshotpkg.FetchTestArtifacts(ctx, o.prowInfo, prowResults.ArtifactDir, prowResults.TestStep, test.Name)
+		if err != nil {
+			return fmt.Errorf("failed to fetch artifacts of %s test: %w", test.Name, err)
+		}
+		err = snapshotpkg.WriteTestArtifacts(testOutputDir, artifactFiles)
+		if err != nil {
+			return fmt.Errorf("failed to write artifacts of %s test: %w", test.Name, err)
+		}
 
 		result, err := snapshotpkg.GatherForTest(ctx, snapshotpkg.GatherForTestOptions{
 			Gatherer:              gatherer,

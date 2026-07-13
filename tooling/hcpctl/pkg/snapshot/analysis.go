@@ -77,6 +77,24 @@ func WriteTestLogs(outputDir string, test *TestResult) error {
 	return nil
 }
 
+// WriteTestArtifacts writes test artifact files (such as console logs) to the
+// test_artifacts/ subdirectory of the output directory.
+func WriteTestArtifacts(outputDir string, files map[string][]byte) error {
+	if len(files) == 0 {
+		return nil
+	}
+	dir := filepath.Join(outputDir, "test_artifacts")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return fmt.Errorf("failed to create test_artifacts dir: %w", err)
+	}
+	for name, data := range files {
+		if err := os.WriteFile(filepath.Join(dir, name), data, 0o644); err != nil {
+			return fmt.Errorf("failed to write %s: %w", name, err)
+		}
+	}
+	return nil
+}
+
 // WriteSiblingTests writes the sibling test summaries to sibling_tests.json
 // in the output directory. This provides the analysis agent with visibility
 // into all tests from the same Prow job run.

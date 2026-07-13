@@ -153,6 +153,7 @@ func directoryLayout() map[string]string {
 	return map[string]string{
 		"discovery":      "discovery/ — phase-independent query results: frontend requests, resource IDs, cluster associations, etc.",
 		"test_logs":      "test_logs/ — the test's error.log and output.log from the Prow job",
+		"test_artifacts": "test_artifacts/ — *.console.log files from the test step artifacts in GCS (if present)",
 		"test_phase":     "test_phase/ — diagnostic data from the test phase (between test start and cleanup start)",
 		"cleanup_phase":  "cleanup_phase/ — diagnostic data from the cleanup phase (between cleanup start and overall end)",
 		"serviceEvents":  "<phase>/events/ — Kubernetes events for service-level components (frontend, backend, clusters-service, maestro) during the phase",

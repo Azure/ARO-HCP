@@ -40,6 +40,7 @@ import (
 	"github.com/openshift-eng/openshift-tests-extension/pkg/extension/extensiontests"
 
 	"github.com/Azure/ARO-HCP/tooling/utilitytypes/timing"
+	"github.com/Azure/ARO-HCP/tooling/testlib"
 )
 
 const (
@@ -137,6 +138,16 @@ func extractEV2Annotations(data []byte) (*ev2Annotations, error) {
 		return nil, fmt.Errorf("prowjob.json is missing required ev2.rollout annotations: %s", strings.Join(missing, ", "))
 	}
 	return result, nil
+}
+
+// ProwJobResults holds the test results and GCS location metadata returned by
+// FetchProwJobTestResults. Callers that need to make further per-test GCS
+// requests (e.g. fetching console logs) use ArtifactDir and TestStep to build
+// the correct object paths.
+type ProwJobResults struct {
+	Tests       []TestResult
+	ArtifactDir string
+	TestStep    string
 }
 
 // TestResult represents a single test with its metadata.
@@ -326,7 +337,9 @@ func fetchNonPRJobConfig(ctx context.Context, info *ProwJobInfo, sdpPipelinesDir
 
 // FetchProwJobTestResults downloads test results and timing metadata from a
 // Prow job's GCS artifacts. This is independent of the config resolution path.
-func FetchProwJobTestResults(ctx context.Context, info *ProwJobInfo) ([]TestResult, error) {
+// The returned ProwJobResults also carries ArtifactDir and TestStep so that
+// callers can make further per-test GCS requests without rediscovering them.
+func FetchProwJobTestResults(ctx context.Context, info *ProwJobInfo) (*ProwJobResults, error) {
 	logger := logr.FromContextOrDiscard(ctx)
 
 	gcsClient, err := storage.NewClient(ctx, option.WithoutAuthentication())
@@ -408,7 +421,54 @@ func FetchProwJobTestResults(ctx context.Context, info *ProwJobInfo) ([]TestResu
 		}
 	}
 
-	return tests, nil
+	return &ProwJobResults{
+		Tests:       tests,
+		ArtifactDir: artifactDir,
+		TestStep:    testStep,
+	}, nil
+}
+
+// FetchTestArtifacts downloads *.console.log files for a single test
+// from its Prow step artifact directory. The artifactDir and testStep values
+// come from ProwJobResults returned by FetchProwJobTestResults. An empty
+// map is returned (without error) when no console logs are present.
+// The function can be extended to fetch other log files if we need to include
+// more evidence during snapshot analysis.
+func FetchTestArtifacts(ctx context.Context, info *ProwJobInfo, artifactDir, testStep, testName string) (map[string][]byte, error) {
+	logger := logr.FromContextOrDiscard(ctx)
+
+	gcsClient, err := storage.NewClient(ctx, option.WithoutAuthentication())
+	if err != nil {
+		return nil, fmt.Errorf("failed to create GCS client: %w", err)
+	}
+	defer gcsClient.Close()
+
+	testLogDirPath := getTestLogDirPath(info.GCSPrefix, artifactDir, testStep, testName)
+	objects, err := listObjects(ctx, gcsClient, testLogDirPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list artifacts in test logDirPath: %w", err)
+	}
+
+	files := make(map[string][]byte)
+	for _, objPath := range objects {
+		if !strings.HasSuffix(objPath, ".console.log") {
+			continue
+		}
+		fileName := objPath[strings.LastIndex(objPath, "/")+1:]
+		data, err := downloadObject(ctx, gcsClient, objPath)
+		if err != nil {
+			logger.V(1).Info("Failed to download console log, skipping", "path", objPath, "err", err)
+			continue
+		}
+		files[fileName] = data
+	}
+
+	return files, nil
+}
+
+// getTestLogDirPath returns the GCS prefix for a test's artifact directory.
+func getTestLogDirPath(gcsPrefix string, artifactDir string, testStep string, testName string) string {
+	return fmt.Sprintf("%s/artifacts/%s/%s/artifacts/%s/", gcsPrefix, artifactDir, testStep, testlib.SanitizeTestName(testName))
 }
 
 const timingMetadataPath = "aro-hcp-gather-test-visualization/artifacts/test-timing/"
