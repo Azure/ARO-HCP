@@ -157,4 +157,4 @@ prometheusSpec:
 prometheus:
   serviceAccount:
     managedIdentity: "__prometheusUAMIClientId__"
-environment: "ci"  # Used for namespace filtering
+environment: "{{ .clustersService.environment }}"  # Used for namespace filtering
