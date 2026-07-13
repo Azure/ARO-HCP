@@ -11,7 +11,7 @@ The timings below are approximate and exclude Azure Monitor evaluation jitter, I
 | `PrometheusJobUp` | 10m | critical | The cluster exists according to the external anchor, but `up{job="prometheus/prometheus", namespace="prometheus"} == 1` is not present. This catches Prometheus down, unreachable, or reporting `up=0`. |
 | `PrometheusMetricsAbsentPerCluster` | 10m | critical | No Prometheus self-`up` samples have arrived for a cluster that should be reporting. With `underlay_clusters`, this means a declared underlay cluster has no Prometheus self-metrics in the recent window. |
 | `PrometheusUptimeSampleCount` | 10m | warning | Fewer than 95% of expected Prometheus self-`up` samples arrived over 24h. This treats missing samples as downtime. |
-| `PrometheusUptime` | 10m | critical | More than 5% of present Prometheus self-`up` samples over 24h were `0`. This does not count missing samples as downtime. |
+| `PrometheusUptime` | 10m | critical | More than 5% of present Prometheus self-`up` samples over 24h were `0`, weighted by sample count across all observed series. This does not count missing samples as downtime. |
 | `PrometheusPendingRate` | 15m | critical | Prometheus remote-write queue pressure is high: too many samples are pending relative to in-flight samples. |
 | `PrometheusFailedRate` | 15m | critical | More than 10% of remote-write samples are failing over the short rate window. |
 | `PrometheusRemoteStorageFailures` | 15m | critical | Upstream Prometheus Operator alert: more than 1% of samples failed to send to remote storage. Metrics and alerts may be missing or inaccurate. |
@@ -30,7 +30,7 @@ This table assumes the worst useful "Prometheus is down" shape for each alert: P
 | `PrometheusJobUp` | 10m | critical | ~10-15m | It can fire as soon as the latest good `up == 1` sample is no longer selected, then the `for: 10m` timer completes. The upper bound accounts for PromQL lookback of the last good sample. |
 | `PrometheusMetricsAbsentPerCluster` | 10m | critical | ~20m | `count_over_time(...[10m])` remains non-empty until the last sample is older than 10m, then the `for: 10m` timer completes. |
 | `PrometheusUptimeSampleCount` | 10m | warning | ~82m | It fires once more than 5% of the expected 24h samples are missing: 72m of missing samples plus `for: 10m`. |
-| `PrometheusUptime` | 10m | critical | Never for pure absence; ~82m if `up=0` samples continue | `avg_over_time(up[1d])` averages only samples that exist. Missing samples do not lower the average. |
+| `PrometheusUptime` | 10m | critical | Never for pure absence; ~82m if `up=0` samples continue | It compares successful present `up` samples with total present `up` samples. Missing samples do not lower the average. |
 | `PrometheusPendingRate` | 15m | critical | Never | Needs Prometheus to emit remote-write queue metrics. |
 | `PrometheusFailedRate` | 15m | critical | Never | Needs Prometheus to emit remote-write failure counters. |
 | `PrometheusRemoteStorageFailures` | 15m | critical | Never | Needs Prometheus to emit remote storage success/failure counters. |
@@ -61,7 +61,7 @@ Primary alerts:
 | Alert | Signal |
 |---|---|
 | `PrometheusJobUp` | Fires after 10m because the expected healthy `up == 1` series is absent. |
-| `PrometheusUptime` | Fires after more than 5% of the 24h window contains present `up=0` samples, plus `for: 10m`. |
+| `PrometheusUptime` | Fires after more than 5% of the present Prometheus self-`up` samples in the 24h window are `0`, plus `for: 10m`. Short-lived target identities are weighted only by their actual sample count. |
 
 `PrometheusUptimeSampleCount` does not detect this by itself because the samples are present. It only counts how many samples arrived, not whether they were `0` or `1`.
 

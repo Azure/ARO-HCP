@@ -56,6 +56,9 @@ param networkDataplane string
 param networkPolicy string
 param enableSwiftV2Nodepools bool
 
+param upgradeSettingsMaxSurge string
+param upgradeSettingsMaxUnavailable string
+
 param aksClusterUserDefinedManagedIdentityName string
 
 @description('IPTags to be set on the cluster outbound IP address in the format of ipTagType:tag,ipTagType:tag')
@@ -503,6 +506,8 @@ module userAgentPools '../modules/aks/pool.bicep' = {
     vnetSubnetId: nodeSubnetId
     podSubnetId: aksPodSubnet.id
     zoneRedundantMode: userZoneRedundantMode
+    upgradeSettingsMaxSurge: upgradeSettingsMaxSurge
+    upgradeSettingsMaxUnavailable: upgradeSettingsMaxUnavailable
     maxPods: 225
   }
 }
@@ -524,6 +529,8 @@ module infraAgentPools '../modules/aks/pool.bicep' = {
     vnetSubnetId: nodeSubnetId
     podSubnetId: aksPodSubnet.id
     zoneRedundantMode: infraZoneRedundantMode
+    upgradeSettingsMaxSurge: upgradeSettingsMaxSurge
+    upgradeSettingsMaxUnavailable: upgradeSettingsMaxUnavailable
     maxPods: 225
     taints: [
       'infra=true:NoSchedule'

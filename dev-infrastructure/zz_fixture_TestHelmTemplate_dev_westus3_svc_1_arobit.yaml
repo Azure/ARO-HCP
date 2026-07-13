@@ -185,6 +185,7 @@ data:
         Rule            $kubernetes['container_name'] ^clusters-service* clusters-service.logs true
         Rule            $kubernetes['container_name'] ^fleet-controller* fleet-controller.logs true
         Rule            $kubernetes['container_name'] ^kube-events* kube-events.logs true
+        Rule            $kubernetes['container_name'] ^mgmt-agent-controller* mgmt-agent.logs true
         Emitter_Name    re_emitted_container_name_router
         Emitter_Mem_Buf_Limit  20M
         Emitter_Storage.type   filesystem
@@ -192,11 +193,44 @@ data:
     [FILTER]
         # Parse the log key and make it a json object again under $
         Name Parser
-        Match_regex (aro-hcp-(frontend|backend)|kube-events|clusters-service|fleet-controller)\.logs
+        Match_regex (aro-hcp-(frontend|backend)|kube-events|clusters-service|fleet-controller|mgmt-agent)\.logs
         Key_Name log
         Parser containerlogs
         Preserve_Key On
         Reserve_Data On
+
+    [FILTER]
+        # Route mgmt-agent logs with snapshotType=kubernetes
+        # to a dedicated tag for the kubernetesResourceSnapshots Kusto table.
+        Name            rewrite_tag
+        Alias           filter.resource_snapshot_router
+        Match           mgmt-agent.logs
+        Rule            $snapshotType ^kubernetes$ resource-snapshots.logs true
+        Emitter_Name    re_emitted_resource_snapshot_router
+        Emitter_Mem_Buf_Limit  20M
+        Emitter_Storage.type   filesystem
+
+    [FILTER]
+        # Route backend logs with snapshotType=cosmos
+        # to a dedicated tag for the cosmosResourceSnapshots Kusto table.
+        Name            rewrite_tag
+        Alias           filter.cosmos_snapshot_router
+        Match           aro-hcp-backend.logs
+        Rule            $snapshotType ^cosmos$ cosmos-snapshots.logs true
+        Emitter_Name    re_emitted_cosmos_snapshot_router
+        Emitter_Mem_Buf_Limit  20M
+        Emitter_Storage.type   filesystem
+
+    [FILTER]
+        # Route frontend logs with snapshotType=cosmos
+        # to the same cosmosResourceSnapshots Kusto table.
+        Name            rewrite_tag
+        Alias           filter.cosmos_snapshot_router_frontend
+        Match           aro-hcp-frontend.logs
+        Rule            $snapshotType ^cosmos$ cosmos-snapshots.logs true
+        Emitter_Name    re_emitted_cosmos_snapshot_router_frontend
+        Emitter_Mem_Buf_Limit  20M
+        Emitter_Storage.type   filesystem
   output.conf: |
     [OUTPUT]
         Name  prometheus_exporter
@@ -304,6 +338,57 @@ data:
         scheduler_max_retries       9
         delete_on_max_upload_error  true
         io_timeout                  60s
+
+    [OUTPUT]
+        Match resource-snapshots.logs
+        Name azure_kusto
+        Retry_Limit 5
+        auth_type workload_identity
+        tenant_id __tenantId__
+        client_id __msiClientId__
+        workload_identity_token_file ${AZURE_FEDERATED_TOKEN_FILE}
+        Ingestion_Endpoint __kustoDataIngestionUri__
+        Database_Name ServiceLogs
+        Table_Name kubernetesResourceSnapshots
+        ingestion_mapping_reference ingestionMapping
+        azure_kusto_buffer_key resourceSnapshots
+        buffer_dir "/var/kusto"
+        buffering_enabled           true 
+        upload_timeout              1m
+        upload_file_size            16M
+        buffer_file_delete_early    false
+        unify_tag                   true
+        store_dir_limit_size        1.8GB
+        blob_uri_length             128
+        scheduler_max_retries       9
+        delete_on_max_upload_error  true
+        io_timeout                  60s
+
+    [OUTPUT]
+        Match cosmos-snapshots.logs
+        Name azure_kusto
+        Retry_Limit 5
+        auth_type workload_identity
+        tenant_id __tenantId__
+        client_id __msiClientId__
+        workload_identity_token_file ${AZURE_FEDERATED_TOKEN_FILE}
+        Ingestion_Endpoint __kustoDataIngestionUri__
+        Database_Name ServiceLogs
+        Table_Name cosmosResourceSnapshots
+        ingestion_mapping_reference ingestionMapping
+        azure_kusto_buffer_key cosmosResourceSnapshots
+        buffer_dir "/var/kusto"
+        buffering_enabled           true 
+        upload_timeout              1m
+        upload_file_size            16M
+        buffer_file_delete_early    false
+        unify_tag                   true
+        store_dir_limit_size        1.8GB
+        blob_uri_length             128
+        scheduler_max_retries       9
+        delete_on_max_upload_error  true
+        io_timeout                  60s
+
     [OUTPUT]
         Match kubernetes.*
         Name azure_kusto
@@ -483,7 +568,7 @@ spec:
         app: arobit-forwarder
         azure.workload.identity/use: "true"
       annotations:
-        checksum/configmap: dadd4d46b94263a3545e2e0cbfa77a848648dd0b35259ce52d79c7a9c46fdd81
+        checksum/configmap: 7d62e084ce38da5386f0334e7c207089acd67818e8cabab1a83c3e5894cdc1fa
     spec:
       priorityClassName: service-lifecycle-critical
       serviceAccountName: 'arobit-forwarder'

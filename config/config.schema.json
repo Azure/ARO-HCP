@@ -501,6 +501,40 @@
         "zoneRedundantMode"
       ]
     },
+    "aksUpgradeSettings": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "maxSurge": {
+          "description": "Maximum number or percentage of nodes surged during upgrade.",
+          "oneOf": [
+            {
+              "type": "integer",
+              "minimum": 0
+            },
+            {
+              "type": "string"
+            }
+          ]
+        },
+        "maxUnavailable": {
+          "description": "Maximum number or percentage of nodes unavailable during upgrade.",
+          "oneOf": [
+            {
+              "type": "integer",
+              "minimum": 0
+            },
+            {
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "required": [
+        "maxSurge",
+        "maxUnavailable"
+      ]
+    },
     "aksConfig": {
       "type": "object",
       "additionalProperties": false,
@@ -558,6 +592,9 @@
         },
         "enableSwiftV2Nodepools": {
           "type": "boolean"
+        },
+        "upgradeSettings": {
+          "$ref": "#/definitions/aksUpgradeSettings"
         }
       },
       "required": [

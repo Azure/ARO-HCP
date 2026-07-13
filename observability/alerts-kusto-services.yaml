@@ -2,7 +2,7 @@ prometheusRules:
   rulesFolders: []
   untestedRules:
   - alerts/kubernetesControlPlane-prometheusRule.yaml
-  outputBicep: ../dev-infrastructure/modules/metrics/rules/generatedSvcKubePrometheusAlertingRules.bicep
+  outputBicep: ../dev-infrastructure/modules/metrics/rules/generatedKustoOnlyServicePrometheusAlertingRules.bicep
   groupNamePrefix: "svc-"
   outputReplacements:
   - from: 'job="kube-scheduler"'
