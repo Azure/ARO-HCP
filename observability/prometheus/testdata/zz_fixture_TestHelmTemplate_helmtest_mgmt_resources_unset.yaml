@@ -68632,9 +68632,9 @@ spec:
     whenUnsatisfiable: ScheduleAnyway
   walCompression: true
   externalLabels:
-    cluster: 'dev-westus3-mgmt-1'
-    region: 'westus3'
-    environment: 'dev'
+    cluster: "dev-westus3-mgmt-1"
+    environment: "dev"
+    region: "westus3"
   remoteWrite:
   - url: '__dcrRemoteWriteUrl__'
     azureAd:

@@ -99,7 +99,7 @@ spec:
     whenUnsatisfiable: ScheduleAnyway
   walCompression: true
   externalLabels:
-{{- range $key, $value := .Values.prometheusSpec.externalLabels | keys | sortAlpha }}
+{{- range $key := .Values.prometheusSpec.externalLabels | keys | sortAlpha }}
     {{ $key }}: {{ index $.Values.prometheusSpec.externalLabels $key | quote }}
 {{- end }}
   remoteWrite:
