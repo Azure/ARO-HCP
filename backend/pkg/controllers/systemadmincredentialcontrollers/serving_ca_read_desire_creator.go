@@ -20,6 +20,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/blang/semver/v4"
+
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
@@ -35,12 +37,20 @@ import (
 
 const (
 	// readDesireNameServingCA is the well-known ReadDesire name used to
-	// mirror the kube-apiserver serving CA secret from the management cluster.
+	// mirror the serving CA bundle ConfigMap from the management cluster.
 	readDesireNameServingCA = "systemadmincredential-serving-ca"
 
-	// servingCASecretName is the name of the HyperShift-managed Secret
-	// containing the kube-apiserver serving CA in the hosted cluster namespace.
-	servingCASecretName = "kube-apiserver-server-ca"
+	// servingCAConfigMapName is the name of the HyperShift-managed ConfigMap
+	// holding the public serving CA bundle (the "ca-bundle.crt" key, with no
+	// private key) in the hosted control plane namespace on the management
+	// cluster.
+	servingCAConfigMapName = "root-ca"
+
+	// minServingCAConfigMapOCPVersion is the minimum OCP version whose hosted
+	// control plane publishes the root-ca ConfigMap. The serving CA ReadDesire
+	// is only created for clusters at or above this version, and is therefore
+	// only consumed for those clusters.
+	minServingCAConfigMapOCPVersion = "4.20"
 )
 
 type servingCAReadDesireCreator struct {
@@ -50,36 +60,35 @@ type servingCAReadDesireCreator struct {
 	kubeApplierDBClients database.KubeApplierDBClients
 
 	serviceProviderClusterLister listers.ServiceProviderClusterLister
-
-	hostedClusterNamespaceEnvIdentifier string
 }
 
 var _ controllerutils.ClusterSyncer = (*servingCAReadDesireCreator)(nil)
 
 // NewServingCAReadDesireCreatorController returns a ClusterWatchingController
-// that ensures a ReadDesire exists per cluster pointing at the kube-apiserver
-// serving CA Secret in the hosted cluster namespace on the management cluster.
-// The kube-applier mirrors the Secret content into ReadDesire.Status.KubeContent;
-// controller #8 (CABundleSync) reads from there.
+// that ensures a ReadDesire exists per cluster pointing at the root-ca
+// ConfigMap in the hosted control plane namespace ("clusters-<clusterName>")
+// on the management cluster. The kube-applier mirrors the ConfigMap content
+// into ReadDesire.Status.KubeContent; controller #8 (CABundleSync) reads the
+// public "ca-bundle.crt" bundle from there.
 //
 // This is a cluster-scoped operation — the serving CA is shared across all
-// credential requests for a given cluster.
+// credential requests for a given cluster. The root-ca ConfigMap only exists
+// for OCP 4.20+ hosted control planes, so the ReadDesire is only created for
+// clusters at or above that version.
 func NewServingCAReadDesireCreatorController(
 	activeOperationLister listers.ActiveOperationLister,
 	resourcesDBClient database.ResourcesDBClient,
 	kubeApplierDBClients database.KubeApplierDBClients,
 	backendInformers informers.BackendInformers,
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
-	hostedClusterNamespaceEnvIdentifier string,
 ) controllerutils.Controller {
 	_, serviceProviderClusterLister := backendInformers.ServiceProviderClusters()
 
 	syncer := &servingCAReadDesireCreator{
-		cooldownChecker:                     controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
-		resourcesDBClient:                   resourcesDBClient,
-		kubeApplierDBClients:                kubeApplierDBClients,
-		serviceProviderClusterLister:        serviceProviderClusterLister,
-		hostedClusterNamespaceEnvIdentifier: hostedClusterNamespaceEnvIdentifier,
+		cooldownChecker:              controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
+		resourcesDBClient:            resourcesDBClient,
+		kubeApplierDBClients:         kubeApplierDBClients,
+		serviceProviderClusterLister: serviceProviderClusterLister,
 	}
 
 	return controllerutils.NewClusterWatchingController(
@@ -113,6 +122,18 @@ func (c *servingCAReadDesireCreator) SyncOnce(ctx context.Context, key controlle
 		return nil
 	}
 
+	// The root-ca ConfigMap that carries the public serving CA bundle only
+	// exists in the hosted control plane namespace for OCP 4.20 and later.
+	// Skip clusters below that version so we never create a ReadDesire that
+	// could never be fulfilled.
+	atLeastMinVersion, err := clusterVersionAtLeast(existingCluster.CustomerProperties.Version.ID, minServingCAConfigMapOCPVersion)
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to evaluate cluster version for serving CA ReadDesire: %w", err))
+	}
+	if !atLeastMinVersion {
+		return nil
+	}
+
 	serviceProviderCluster, err := c.serviceProviderClusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if database.IsNotFoundError(err) {
 		return nil
@@ -125,15 +146,23 @@ func (c *servingCAReadDesireCreator) SyncOnce(ctx context.Context, key controlle
 		return nil
 	}
 
-	csClusterID := existingCluster.ServiceProviderProperties.ClusterServiceID.ID()
-	hcpNamespace := fmt.Sprintf("ocm-%s-%s", c.hostedClusterNamespaceEnvIdentifier, csClusterID)
+	// HyperShift publishes the root-ca ConfigMap into the hosted control plane
+	// namespace, which is named "clusters-<clusterName>" where the cluster name
+	// is the cluster's domain prefix. The prefix is mirrored from Cluster
+	// Service asynchronously, so skip until it is populated and re-trigger on
+	// relist.
+	clusterName := existingCluster.CustomerProperties.DNS.BaseDomainPrefix
+	if len(clusterName) == 0 {
+		return nil
+	}
+	hcpNamespace := hostedControlPlaneNamespace(clusterName)
 
 	target := kubeapplier.ResourceReference{
 		Group:     "",
 		Version:   "v1",
-		Resource:  "secrets",
+		Resource:  "configmaps",
 		Namespace: hcpNamespace,
-		Name:      servingCASecretName,
+		Name:      servingCAConfigMapName,
 	}
 
 	desired, err := buildServingCAReadDesire(
@@ -199,4 +228,32 @@ func buildServingCAReadDesire(resourceIDString string, managementCluster *azcore
 			TargetItem:        target,
 		},
 	}, nil
+}
+
+// hostedControlPlaneNamespace returns the HyperShift hosted control plane
+// namespace on the management cluster for a cluster with the given name.
+// HyperShift places the hosted control plane objects — including the root-ca
+// ConfigMap that carries the public serving CA bundle — in
+// "clusters-<clusterName>".
+func hostedControlPlaneNamespace(clusterName string) string {
+	return fmt.Sprintf("clusters-%s", clusterName)
+}
+
+// clusterVersionAtLeast reports whether the cluster's OCP version is greater
+// than or equal to minVersion. An empty version string (not yet populated)
+// reports false without error so the caller can skip until the version is
+// known. ParseTolerant handles both "4.20" and "4.20.15" style inputs.
+func clusterVersionAtLeast(versionID, minVersion string) (bool, error) {
+	if len(versionID) == 0 {
+		return false, nil
+	}
+	current, err := semver.ParseTolerant(versionID)
+	if err != nil {
+		return false, fmt.Errorf("failed to parse cluster version %q: %w", versionID, err)
+	}
+	minimum, err := semver.ParseTolerant(minVersion)
+	if err != nil {
+		return false, fmt.Errorf("failed to parse minimum version %q: %w", minVersion, err)
+	}
+	return current.GE(minimum), nil
 }

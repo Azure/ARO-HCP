@@ -492,7 +492,6 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		b.options.KubeApplierDBClients,
 		backendInformers,
 		unionKubeApplierInformers,
-		b.options.MaestroSourceEnvironmentIdentifier,
 	)
 	adminCredentialsCABundleSyncController := systemadmincredentialcontrollers.NewCABundleSyncController(
 		activeOperationLister,
