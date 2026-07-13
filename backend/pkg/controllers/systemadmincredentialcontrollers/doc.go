@@ -14,7 +14,7 @@
 
 // Package systemadmincredentialcontrollers holds the controllers that
 // implement the SystemAdminCredentialRequest lifecycle — credential request,
-// issuance observation, revocation, cleanup, and the serving-CA mirror.
+// issuance observation, revocation, and cleanup.
 //
 // The controllers are:
 //
@@ -25,12 +25,10 @@
 //  5. OperationRevokeCredentialsPoll — drives CRR and per-credential teardown
 //  6. SystemAdminCredentialClusterDeletionCleanup — cluster-deletion gate
 //  7. SystemAdminCredentialPostIssuanceCleanup — eager teardown after Issued
-//  8. SystemAdminCredentialCABundleSync — writes serving CA to ServiceProviderCluster
-//  9. SystemAdminCredentialRevokedGC — deletes revoked docs after 48h
-//  10. SystemAdminCredentialServingCAReadDesireCreator — seeds the CA ReadDesire
-//  11. SystemAdminCredentialDesiresCreator — creates ApplyDesires/ReadDesires for each credential
-//  12. SystemAdminCredentialRevocationMarkRequests — marks credential requests for deletion
-//  13. SystemAdminCredentialRevocationDesires — creates the CRR/RBAC revocation desires
-//  14. SystemAdminCredentialRevocationCompletion — observes the CRR and marks the revocation complete
-//  15. SystemAdminCredentialRevocationDeletion — tears down the revocation's desires and doc
+//  8. SystemAdminCredentialRevokedGC — deletes revoked docs after 48h
+//  9. SystemAdminCredentialDesiresCreator — creates ApplyDesires/ReadDesires for each credential
+//  10. SystemAdminCredentialRevocationMarkRequests — marks credential requests for deletion
+//  11. SystemAdminCredentialRevocationDesires — creates the CRR/RBAC revocation desires
+//  12. SystemAdminCredentialRevocationCompletion — observes the CRR and marks the revocation complete
+//  13. SystemAdminCredentialRevocationDeletion — tears down the revocation's desires and doc
 package systemadmincredentialcontrollers
