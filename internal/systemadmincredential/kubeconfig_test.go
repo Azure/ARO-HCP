@@ -28,10 +28,9 @@ func TestBuildKubeconfig(t *testing.T) {
 	// Use dummy values for the test
 	fakeCert := base64.StdEncoding.EncodeToString([]byte("fake-cert-data"))
 	fakeKey := "-----BEGIN PRIVATE KEY-----\nfake-key-data\n-----END PRIVATE KEY-----"
-	fakeCA := "-----BEGIN CERTIFICATE-----\nfake-ca-data\n-----END CERTIFICATE-----"
 	fakeURL := "https://api.cluster.example.com:6443"
 
-	kubeconfigBytes, err := BuildKubeconfig(fakeCert, fakeKey, fakeCA, fakeURL)
+	kubeconfigBytes, err := BuildKubeconfig(fakeCert, fakeKey, fakeURL)
 	require.NoError(t, err, "BuildKubeconfig should succeed")
 
 	// Parse the kubeconfig to verify its structure
@@ -43,7 +42,7 @@ func TestBuildKubeconfig(t *testing.T) {
 	cluster, ok := config.Clusters[kubeconfigClusterName]
 	require.True(t, ok, "cluster should exist in kubeconfig")
 	assert.Equal(t, fakeURL, cluster.Server, "cluster server should match API URL")
-	assert.Equal(t, []byte(fakeCA), cluster.CertificateAuthorityData, "cluster CA should match")
+	assert.Empty(t, cluster.CertificateAuthorityData, "cluster CA must be nil so callers fall back to system trust bundles")
 
 	authInfo, ok := config.AuthInfos[kubeconfigUserName]
 	require.True(t, ok, "user should exist in kubeconfig")

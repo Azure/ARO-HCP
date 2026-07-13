@@ -29,18 +29,22 @@ const (
 )
 
 // BuildKubeconfig assembles a kubeconfig from the signed certificate, the private
-// key (PEM), the cluster's serving CA bundle (PEM), and the API URL. This is a
-// pure function — no I/O.
+// key (PEM), and the API URL. This is a pure function — no I/O.
 //
 // signedCertificateBase64 is the base64 encoding of the CSR's Status.Certificate,
 // which the Kubernetes API guarantees to be PEM-encoded. client-go's clientcmd
-// expects ClientCertificateData / CertificateAuthorityData in PEM, so the decoded
-// bytes are used directly (no DER→PEM wrapping is required).
+// expects ClientCertificateData in PEM, so the decoded bytes are used directly
+// (no DER→PEM wrapping is required).
 //
-// servingCABundlePEM is the public serving CA bundle sourced from the hosted
-// control plane's root-ca ConfigMap ("ca-bundle.crt" data key), which is already
-// a PEM-encoded string and is used verbatim as CertificateAuthorityData.
-func BuildKubeconfig(signedCertificateBase64, privateKeyPEM, servingCABundlePEM, apiURL string) ([]byte, error) {
+// The resulting kubeconfig deliberately carries no CertificateAuthorityData. A
+// HyperShift shortcoming currently prevents the mirrored serving CA bundle from
+// being usable here, so the CA bundle is always nil and callers must fall back to
+// their system trust bundle to verify the API server. The serving CA
+// ReadDesire (ServingCAReadDesireCreator) and the
+// ServiceProviderCluster.Status.ServingCABundle field are intentionally kept —
+// but left unused for kubeconfig assembly — so they are ready for future use once
+// that HyperShift shortcoming is resolved.
+func BuildKubeconfig(signedCertificateBase64, privateKeyPEM, apiURL string) ([]byte, error) {
 	certPEM, err := base64.StdEncoding.DecodeString(signedCertificateBase64)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode signed certificate: %w", err)
@@ -48,8 +52,11 @@ func BuildKubeconfig(signedCertificateBase64, privateKeyPEM, servingCABundlePEM,
 
 	config := clientcmdapi.NewConfig()
 	config.Clusters[kubeconfigClusterName] = &clientcmdapi.Cluster{
-		Server:                   apiURL,
-		CertificateAuthorityData: []byte(servingCABundlePEM),
+		Server: apiURL,
+		// CA bundle is intentionally nil — callers must use system trust bundles.
+		// The serving CA ReadDesire and ServiceProviderCluster field are maintained
+		// for future use once a HyperShift shortcoming is resolved.
+		CertificateAuthorityData: nil,
 	}
 	config.AuthInfos[kubeconfigUserName] = &clientcmdapi.AuthInfo{
 		ClientCertificateData: certPEM,

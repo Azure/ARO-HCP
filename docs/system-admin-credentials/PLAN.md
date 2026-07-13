@@ -179,14 +179,33 @@ HostedCluster namespace. The public CA bundle is read from the ConfigMap's
 Using the ConfigMap (rather than a Secret such as `kube-apiserver-server-ca`)
 means we only mirror the **public** CA bundle and never the private key. The
 `CABundleSync` controller reads `ca-bundle.crt` from the mirrored ConfigMap and
-writes it to `ServiceProviderClusterStatus.ServingCABundle`; the frontend uses
-that PEM string verbatim as `CertificateAuthorityData` when assembling
-kubeconfigs.
+writes it to `ServiceProviderClusterStatus.ServingCABundle`.
 
 The `root-ca` ConfigMap only exists in the hosted control plane namespace for
 **OCP 4.20+** clusters, so the ReadDesire is created (and therefore consumed)
 only for clusters at or above that version; earlier clusters are skipped by a
 version gate in the creator.
+
+### Serving CA Bundle Is Intentionally Omitted From Kubeconfigs
+
+**Change of plan** (review feedback from deads2k): The serving CA infrastructure
+described above — the `ServingCAReadDesireCreator` controller, the `CABundleSync`
+controller, and the `ServiceProviderCluster.Status.ServingCABundle` field — is
+**kept and still populated**, but the resulting CA bundle is deliberately **not
+consumed** when assembling kubeconfigs.
+
+A HyperShift shortcoming currently prevents the mirrored serving CA bundle from
+being usable as `CertificateAuthorityData`. Rather than ship a CA bundle that
+does not work, `internal/systemadmincredential/kubeconfig.go` always sets
+`CertificateAuthorityData` to **nil**, forcing callers to verify the API server
+against their **system trust bundle** instead. Correspondingly, the frontend no
+longer reads `ServiceProviderCluster.Status.ServingCABundle` and no longer passes
+a serving CA to `BuildKubeconfig` (the parameter was removed from the builder so
+a CA bundle cannot be injected).
+
+The controllers and the `ServingCABundle` field are retained — rather than
+deleted — so the mirroring pipeline is ready to be re-wired into kubeconfig
+assembly with minimal effort once the HyperShift shortcoming is resolved.
 
 ### Credential Request Deletion via DeleteTimestamp
 
