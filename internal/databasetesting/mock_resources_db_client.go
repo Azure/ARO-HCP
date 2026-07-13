@@ -122,8 +122,9 @@ func (m *MockResourcesDBClient) ServiceProviderNodePools(subscriptionID, resourc
 // GetChangeFeed reads the in-memory change-feed log. Each
 // successful StoreDocument call records a snapshot of the document;
 // reads return everything past the position encoded in
-// options.Continuation. Deletes are not recorded, which mirrors
-// "latest version" mode in real Cosmos DB.
+// options.Continuation. Hard deletes are not recorded, which mirrors
+// "latest version" mode in real Cosmos DB. Soft deletes go through
+// StoreDocument and are therefore recorded.
 func (m *MockResourcesDBClient) GetChangeFeed(ctx context.Context, options *azcosmos.ChangeFeedOptions) (azcosmos.ChangeFeedResponse, error) {
 	var continuation string
 	if options != nil && options.Continuation != nil {
@@ -245,6 +246,7 @@ func (m *MockResourcesDBClient) DeleteDocument(cosmosID string) {
 }
 
 // ListDocuments returns all documents matching the given resource type and prefix.
+// Soft-deleted documents (those with a DeletionTimestamp set) are excluded.
 func (m *MockResourcesDBClient) ListDocuments(resourceType *azcorearm.ResourceType, prefix string) []json.RawMessage {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -259,6 +261,10 @@ func (m *MockResourcesDBClient) ListDocuments(resourceType *azcorearm.ResourceTy
 		// Mirror the production query, which requires IS_DEFINED(c.resourceID);
 		// documents without a resourceID are never returned by list.
 		if typedDoc.ResourceID == nil {
+			continue
+		}
+
+		if typedDoc.DeletionTimestamp != nil {
 			continue
 		}
 
