@@ -409,6 +409,8 @@ global:
   rg: global
   safeDnsIntAppObjectId: ""
   subscription:
+    certificateDomains:
+    - '*.aro-hcp-global.azure.com'
     displayName: Azure Red Hat OpenShift HCP - ci00 - Global
     key: ARO Hosted Control Planes (EA Subscription 1)
     providers:

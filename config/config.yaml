@@ -41,6 +41,9 @@ defaults:
     subscription:
       key: hcp-global
       displayName: "Azure Red Hat OpenShift HCP - {{ .ctx.environment }} - Global"
+      # OneCert domains this sub may request certs for; tied at provisioning.
+      certificateDomains:
+      - '*.aro-hcp-global.azure.com'
       providers:
         'Microsoft.Cdn':
           poll: true
