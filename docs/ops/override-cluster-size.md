@@ -11,23 +11,16 @@ Hosted Cluster control plane sizing is driven by worker node count via the `Clus
 - You need to increase control plane resources (memory, inflight limits) beyond what the current node-count-based tier provides
 - You are responding to an incident where API server throttling is causing customer-visible impact
 
-## Available Methods
-
-| Method | Persistence | Use When |
-|--------|------------|----------|
-| **Option A: Admin API** (recommended) | Persistent — survives Maestro reconciliation | Production overrides that must remain durable |
-| **Option B: Direct Annotation** | Ephemeral — may be reverted by Maestro | Quick debugging, or when the Admin API is unavailable |
-
 ## Prerequisites
 
-- JIT access to the target environment's service cluster and/or management cluster
+- JIT access to the target environment's service cluster and management cluster
 - `kubectl` and `jq` available
-- For Option A: Service cluster access via `hcpctl sc breakglass <sc-name>`
-- For Option B: Management cluster access via `hcpctl mc breakglass <mc-name>`
+- Service cluster access via `hcpctl sc breakglass <sc-name>`
+- Management cluster access via `hcpctl mc breakglass <mc-name>` (for verification)
 
 ## Size Tiers
 
-Size tiers and their effects (inflight limits, KAS memory, GoMemLimit) are defined in the [`ClusterSizingConfiguration`](../../hypershiftoperator/deploy/templates/cluster.clustersizingconfiguration.yaml). Valid size names are: `Small`, `Medium`, `Large`, `Xlarge`, `XXlarge` (Admin API, case-sensitive) or lowercase equivalents for direct annotation.
+Size tiers and their effects (inflight limits, KAS memory, GoMemLimit) are defined in the [`ClusterSizingConfiguration`](../../hypershiftoperator/deploy/templates/cluster.clustersizingconfiguration.yaml). Valid size names are: `Small`, `Medium`, `Large`, `Xlarge`, `XXlarge` (case-sensitive).
 
 To check the currently deployed tiers on a management cluster:
 
@@ -40,9 +33,11 @@ kubectl get clustersizingconfiguration cluster -o json | \
 
 ---
 
-## Option A: Admin API (Persistent — Recommended)
+## Procedure
 
-This method calls the Admin API on the service cluster, which writes the desired size to the `ServiceProviderCluster` document in Cosmos DB. The backend controller syncs this to Cluster Service, which propagates it through Maestro to the management cluster. The override **survives Maestro reconciliation** because it is part of the source-of-truth pipeline.
+This procedure uses the Admin API on the service cluster to set a persistent size override. The override is stored in Cosmos DB and propagates through the full Maestro pipeline, so it **survives Maestro reconciliation**.
+
+> **Future**: A Geneva Action frontend for this endpoint is planned ([ARO-27690](https://redhat.atlassian.net/browse/ARO-27690)). Once available, the port-forward and manual curl steps below will be replaced by the Geneva Action workflow.
 
 **Data flow:** Admin API → Cosmos DB (`ServiceProviderCluster.Spec.DesiredHostedClusterControlPlaneSize`) → Backend controller → Cluster Service (`CSPropertySizeOverride`) → Maestro ResourceBundle → ManifestWork → HostedCluster annotation on MC
 
@@ -89,20 +84,7 @@ A `200 OK` response confirms the override was written to Cosmos DB.
 
 > **Important**: Port 8443 serves HTTP, not HTTPS. Using `https://` will produce a TLS error.
 
-### Step 4: Clear the Override (Rollback)
-
-To remove the override and let the cluster revert to node-count-based sizing, send `null` for the size:
-
-```bash
-curl -s -X POST \
-  "http://localhost:8443/admin/v1/hcp/subscriptions/<subscription-id>/resourcegroups/<resource-group>/providers/microsoft.redhatopenshift/hcpopenshiftclusters/<cluster-name>/desiredcontrolplanesize" \
-  -H "Content-Type: application/json" \
-  -H "X-Ms-Client-Principal-Name: <your-email>" \
-  -H "X-Ms-Client-Principal-Type: dstsUser" \
-  -d '{"size": null}' | jq .
-```
-
-### Step 5: Verify on the Management Cluster
+### Step 4: Verify on the Management Cluster
 
 The override propagates through the full pipeline (Cosmos DB → Backend → Cluster Service → Maestro → ManifestWork → HostedCluster). This typically takes 1–3 minutes.
 
@@ -135,98 +117,24 @@ kubectl get pods -l app=kube-apiserver -n "$CP_NS" -o wide
 
 All 3 KAS replicas should be `Running` with all containers ready (typically `6/6`).
 
-> **If the HostedCluster still shows the old size after 5 minutes**, check for a SSA field ownership conflict — see [Troubleshooting: SSA Field Ownership Conflict](#ssa-field-ownership-conflict-option-a-fails-after-previous-option-b).
+> **If the HostedCluster still shows the old size after 5 minutes**, check for a SSA field ownership conflict — see [Troubleshooting: SSA Field Ownership Conflict](#ssa-field-ownership-conflict-after-prior-manual-annotation).
 
 After the override is confirmed, monitor the [Grafana APF dashboard](../../observability/grafana-dashboards/perfscale-dashboards/api-performance.json) (`apiserver_flowcontrol_*` metrics) to verify the new inflight limits are in effect under load.
 
----
+## Rollback
 
-## Option B: Direct Annotation (Ephemeral)
-
-This method annotates the HostedCluster directly on the management cluster. The override takes effect immediately but **may be reverted by Maestro** on the next ResourceBundle reconciliation (e.g. during upgrades or config changes), because the annotation is not in the Maestro source pipeline.
-
-Use this method only for quick debugging or when the Admin API is unavailable.
-
-### Step 1: Get Management Cluster Access
+To remove the override and let the cluster revert to node-count-based sizing, send `null` for the size:
 
 ```bash
-hcpctl mc breakglass <mc-name>
-export KUBECONFIG=<path-from-output>
+curl -s -X POST \
+  "http://localhost:8443/admin/v1/hcp/subscriptions/<subscription-id>/resourcegroups/<resource-group>/providers/microsoft.redhatopenshift/hcpopenshiftclusters/<cluster-name>/desiredcontrolplanesize" \
+  -H "Content-Type: application/json" \
+  -H "X-Ms-Client-Principal-Name: <your-email>" \
+  -H "X-Ms-Client-Principal-Type: dstsUser" \
+  -d '{"size": null}' | jq .
 ```
 
-### Step 2: Identify the HostedCluster
-
-See [Identifying the HostedCluster](#identifying-the-hostedcluster-on-the-management-cluster) below.
-
-### Step 3: Check Current Size
-
-```bash
-HC_NS="<namespace>"
-HC_NAME="<name>"
-
-kubectl get hostedcluster "$HC_NAME" -n "$HC_NS" \
-  -o json | jq '{
-    size: .metadata.labels["hypershift.openshift.io/hosted-cluster-size"],
-    maxRequests: .metadata.annotations["hypershift.openshift.io/kube-apiserver-max-requests-inflight"],
-    maxMutating: .metadata.annotations["hypershift.openshift.io/kube-apiserver-max-mutating-requests-inflight"],
-    kasMemory: .metadata.annotations["resource-request-override.hypershift.openshift.io/kube-apiserver.kube-apiserver"]
-  }'
-```
-
-### Step 4: Apply the Size Override
-
-```bash
-kubectl annotate hostedcluster "$HC_NAME" -n "$HC_NS" \
-  hypershift.openshift.io/cluster-size-override=large --overwrite
-```
-
-### Step 5: Verify the Override Took Effect
-
-The sizing controller reconciles with `increase` delay of `0s`, so changes apply quickly.
-
-```bash
-# Confirm label changed
-kubectl get hostedcluster "$HC_NAME" -n "$HC_NS" \
-  -o jsonpath='{.metadata.labels.hypershift\.openshift\.io/hosted-cluster-size}'
-
-# Confirm annotations updated
-kubectl get hostedcluster "$HC_NAME" -n "$HC_NS" \
-  -o json | jq '.metadata.annotations | with_entries(select(.key | test("max-requests|max-mutating|resource-request-override|gomemlimit")))'
-```
-
-After confirming, monitor the [Grafana APF dashboard](../../observability/grafana-dashboards/perfscale-dashboards/api-performance.json) (`apiserver_flowcontrol_*` metrics) to verify the new limits under load.
-
-### Step 6: Verify KAS Rollout
-
-```bash
-CP_NS="${HC_NS}-${HC_NAME}"
-kubectl rollout status deployment/kube-apiserver -n "$CP_NS"
-kubectl get pods -l app=kube-apiserver -n "$CP_NS" -o wide
-```
-
-### Durability Warning
-
-The HostedCluster is owned by a Maestro `AppliedManifestWork`. The `cluster-size-override` annotation is **not** in the original ResourceBundle, so Maestro may strip it on the next reconciliation.
-
-To watch whether the annotation persists:
-
-```bash
-kubectl get hostedcluster "$HC_NAME" -n "$HC_NS" -w \
-  -o jsonpath='{.metadata.annotations.hypershift\.openshift\.io/cluster-size-override}{"\t"}{.metadata.labels.hypershift\.openshift\.io/hosted-cluster-size}{"\n"}'
-```
-
-If durability is required, switch to [Option A](#option-a-admin-api-persistent--recommended).
-
-### Rollback
-
-To remove the annotation (the trailing `-` is kubectl syntax to delete an annotation):
-
-```bash
-kubectl annotate hostedcluster "$HC_NAME" -n "$HC_NS" \
-  hypershift.openshift.io/cluster-size-override- --overwrite
-```
-
-> **Note**: The `transitionDelay.decrease` is `20m`, so the cluster will take up to 20 minutes to scale back down after the annotation is removed.
+> **Note**: The `transitionDelay.decrease` is `20m`, so the cluster will take up to 20 minutes to scale back down after the override is cleared.
 
 ---
 
@@ -259,9 +167,9 @@ kubectl get hostedclusters -A -l "api.openshift.com/name=<display-name>" \
 
 ## Troubleshooting
 
-### SSA Field Ownership Conflict (Option A fails after previous Option B)
+### SSA Field Ownership Conflict (after prior manual annotation)
 
-If a cluster previously had an ephemeral annotation override (Option B via `kubectl annotate`), the Admin API persistent override (Option A) may fail at the ManifestWork apply step. The ManifestWork will show `Applied=False` / `AppliedManifestWorkFailed` even though the desired `xlarge` value is present in the ManifestWork spec.
+If someone previously used `kubectl annotate` to set the `cluster-size-override` annotation directly on the HostedCluster, the Admin API override may fail at the ManifestWork apply step. **Do not manually annotate HostedClusters — always use the Admin API.**
 
 **Symptom:** Admin API returns `200 OK`, but the HostedCluster on the MC still shows the old size. The ManifestWork condition shows:
 
@@ -281,7 +189,7 @@ kubectl get hostedcluster "$HC_NAME" -n "$HC_NS" -o json | \
   jq '.metadata.managedFields[] | select(.manager=="kubectl-annotate") | {manager, operation, time}'
 ```
 
-If this returns results mentioning `kubectl-annotate`, the conflict exists.
+If this returns results, the conflict exists.
 
 **Fix:** Remove the annotation to release field manager ownership, then ManifestWork will immediately reapply it:
 
@@ -298,8 +206,6 @@ kubectl get hostedcluster "$HC_NAME" -n "$HC_NS" -w \
 ```
 
 The annotation will briefly disappear, then ManifestWork will reapply it with the correct value within seconds.
-
-> **Prevention:** When migrating a cluster from Option B (ephemeral) to Option A (persistent), always remove the ephemeral annotation first before calling the Admin API.
 
 ### ManifestWork Not Updating
 
@@ -319,10 +225,10 @@ If the Admin API returns `200 OK` but the ManifestWork on the MC does not contai
 - **ARM tag admission**: [internal/admission/admit_cluster.go](../../internal/admission/admit_cluster.go) — handles `aro-hcp.experimental.cluster.size-override` tag
 - **HyperShift sizing controller**: upstream `hostedclustersizing_controller.go` — consumes the annotation
 - **Grafana APF dashboard**: `observability/grafana-dashboards/perfscale-dashboards/api-performance.json` — monitor `apiserver_flowcontrol_*` metrics after override
-- **Admin API feature tracking**: [ARO-27690](https://redhat.atlassian.net/browse/ARO-27690) — Expose cluster-size-override via Admin API
+- **Admin API feature tracking**: [ARO-27690](https://redhat.atlassian.net/browse/ARO-27690) — Expose cluster-size-override via Admin API (includes future Geneva Action work)
 
 ## Production References
 
 - **ARO-27679**: First validated on `jude-hcp-eastus2` — ephemeral override `small` → `large` during Adobe load testing incident (IcM 814707269)
 - **ARO-28258**: Admin API persistent override validated on `jude-hcp-eastus2` — `small` → `xlarge` via `POST /desiredcontrolplanesize`, confirmed durable across ~5 hours of Maestro reconciliation (July 2025)
-- **ARO-28342**: Production resize of `arohcp4` (Canada Central) — `large` → `xlarge` via Admin API for Adobe/IBM customer APF throttling. Encountered and resolved SSA field ownership conflict from prior ephemeral annotation (July 2025)
+- **ARO-28342**: Production resize of `arohcp4` (Canada Central) — `large` → `xlarge` via Admin API for Adobe/IBM customer APF throttling. Encountered and resolved SSA field ownership conflict from prior manual annotation (July 2025)
