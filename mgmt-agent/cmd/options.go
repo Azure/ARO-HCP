@@ -170,11 +170,15 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 
 	resourceWatcher := controller.NewResourceWatcher(dynamicClient, discoveryClient)
 
+	clusterWideKubeInformers := kubeinformers.NewSharedInformerFactory(kubeClientset, 0)
+	podWatcher, err := controller.NewPodWatcher(clusterWideKubeInformers.Core().V1().Pods())
+	if err != nil {
+		return nil, fmt.Errorf("failed to create pod watcher: %w", err)
+	}
+
 	var ksmCtrl *ksmhcp.KSMHCPController
-	var podWatcher *controller.PodWatcher
 	var hsInformers hypershiftinformers.SharedInformerFactory
 	var ksmKubeInformers kubeinformers.SharedInformerFactory
-	var clusterWideKubeInformers kubeinformers.SharedInformerFactory
 	var dynInformers dynamicinformer.DynamicSharedInformerFactory
 	if o.KSMImage != "" {
 		hsClient, err := hypershiftclient.NewForConfig(kubeConfig)
@@ -204,13 +208,6 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create KSM HCP controller: %w", err)
-		}
-
-		clusterWideKubeInformers = kubeinformers.NewSharedInformerFactory(kubeClientset, 0)
-
-		podWatcher, err = controller.NewPodWatcher(clusterWideKubeInformers.Core().V1().Pods())
-		if err != nil {
-			return nil, fmt.Errorf("failed to create pod watcher: %w", err)
 		}
 	}
 
