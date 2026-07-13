@@ -30,9 +30,9 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
-// servingCABundleDataKey is the key in the kube-apiserver-server-ca Secret
-// that holds the PEM-encoded CA bundle.
-const servingCABundleDataKey = "ca.crt"
+// servingCABundleDataKey is the key in the root-ca ConfigMap that holds the
+// PEM-encoded public CA bundle.
+const servingCABundleDataKey = "ca-bundle.crt"
 
 type caBundleSync struct {
 	cooldownChecker              controllerutil.CooldownChecker
@@ -81,26 +81,25 @@ func (c *caBundleSync) CooldownChecker() controllerutil.CooldownChecker {
 func (c *caBundleSync) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
 	logger := utils.LoggerFromContext(ctx)
 
-	// Read the serving CA Secret from the ReadDesire cache.
-	cachedSecret, err := kubeapplierhelpers.GetCachedServingCASecretForCluster(
+	// Read the serving CA ConfigMap from the ReadDesire cache.
+	cachedConfigMap, err := kubeapplierhelpers.GetCachedServingCAConfigMapForCluster(
 		ctx, c.readDesireLister,
 		key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName,
 	)
 	if err != nil {
 		return utils.TrackError(err)
 	}
-	if cachedSecret == nil {
+	if cachedConfigMap == nil {
 		// ReadDesire not yet created or kube-applier has not observed it yet.
 		return nil
 	}
 
-	// Extract the CA bundle from the Secret data.
-	caBundle, ok := cachedSecret.Data[servingCABundleDataKey]
-	if !ok || len(caBundle) == 0 {
-		logger.Info("serving CA Secret does not contain expected key", "key", servingCABundleDataKey)
+	// Extract the public CA bundle from the ConfigMap data.
+	caBundlePEM, ok := cachedConfigMap.Data[servingCABundleDataKey]
+	if !ok || len(caBundlePEM) == 0 {
+		logger.Info("serving CA ConfigMap does not contain expected key", "key", servingCABundleDataKey)
 		return nil
 	}
-	caBundlePEM := string(caBundle)
 
 	// Read the current ServiceProviderCluster and check if the CA bundle
 	// needs updating.
