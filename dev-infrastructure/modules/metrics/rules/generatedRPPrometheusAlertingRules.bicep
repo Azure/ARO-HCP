@@ -262,7 +262,7 @@ resource arohcpNodepoolSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRule
           correlationId: 'UJNodePoolErrors1h5m/{{ $labels.cluster }}'
           description: 'More than 72% of node pool operations are in failed state, indicating a fast error budget burn (14.4x) that would exhaust the 95% SLO budget in ~12 hours.'
           info: 'More than 72% of node pool operations are in failed state, indicating a fast error budget burn (14.4x) that would exhaust the 95% SLO budget in ~12 hours.'
-          runbook_url: 'aka.ms/arohcp-runbook-nodepool'
+          runbook_url: 'https://aka.ms/arohcp-runbook-nodepool'
           summary: '{{ $labels.cluster }}: Node Pool operation error rate critically high (>72%)'
           title: '{{ $labels.cluster }}: Node Pool operation error rate critically high (>72%)'
         }
@@ -292,7 +292,7 @@ resource arohcpNodepoolSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRule
           correlationId: 'UJNodePoolErrors6h30m/{{ $labels.cluster }}'
           description: 'More than 30% of node pool operations are in failed state sustained over 30 minutes, indicating a medium error budget burn (6x) that would exhaust the 95% SLO budget in ~28 hours.'
           info: 'More than 30% of node pool operations are in failed state sustained over 30 minutes, indicating a medium error budget burn (6x) that would exhaust the 95% SLO budget in ~28 hours.'
-          runbook_url: 'aka.ms/arohcp-runbook-nodepool'
+          runbook_url: 'https://aka.ms/arohcp-runbook-nodepool'
           summary: '{{ $labels.cluster }}: Node Pool operation error rate elevated (>30%) for 30+ minutes'
           title: '{{ $labels.cluster }}: Node Pool operation error rate elevated (>30%) for 30+ minutes'
         }
@@ -321,7 +321,7 @@ resource arohcpNodepoolSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRule
           correlationId: 'UJNodePoolErrors3d/{{ $labels.cluster }}'
           description: 'More than 5% of node pool operations are in failed state sustained over 6 hours, indicating persistent degradation at the 95% SLO boundary that would exhaust the error budget in ~7 days.'
           info: 'More than 5% of node pool operations are in failed state sustained over 6 hours, indicating persistent degradation at the 95% SLO boundary that would exhaust the error budget in ~7 days.'
-          runbook_url: 'aka.ms/arohcp-runbook-nodepool'
+          runbook_url: 'https://aka.ms/arohcp-runbook-nodepool'
           summary: '{{ $labels.cluster }}: Node Pool operation error rate exceeds SLO target (>5%) for 6+ hours'
           title: '{{ $labels.cluster }}: Node Pool operation error rate exceeds SLO target (>5%) for 6+ hours'
         }
@@ -349,7 +349,7 @@ resource arohcpNodepoolSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRule
           correlationId: 'UJNodePoolErrorsDegradation/{{ $labels.cluster }}'
           description: 'The node pool operation failure rate has been above 15% for 30 minutes. This provides early warning of degradation before SLO-based burn rate alerts fire.'
           info: 'The node pool operation failure rate has been above 15% for 30 minutes. This provides early warning of degradation before SLO-based burn rate alerts fire.'
-          runbook_url: 'aka.ms/arohcp-runbook-nodepool'
+          runbook_url: 'https://aka.ms/arohcp-runbook-nodepool'
           summary: '{{ $labels.cluster }}: Node Pool operation failure rate exceeds 15% for 30 minutes'
           title: '{{ $labels.cluster }}: Node Pool operation failure rate exceeds 15% for 30 minutes'
         }
@@ -376,7 +376,7 @@ resource arohcpNodepoolSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRule
           correlationId: 'UJNodePoolStuckOperation/{{ $labels.cluster }}/{{ $labels.resource_id }}/{{ $labels.phase }}'
           description: 'Node pool operation for {{ $labels.resource_id }} has been in {{ $labels.phase }} phase for over 2 hours. Stuck operations are invisible to success/failure SLIs and require investigation.'
           info: 'Node pool operation for {{ $labels.resource_id }} has been in {{ $labels.phase }} phase for over 2 hours. Stuck operations are invisible to success/failure SLIs and require investigation.'
-          runbook_url: 'aka.ms/arohcp-runbook-nodepool'
+          runbook_url: 'https://aka.ms/arohcp-runbook-nodepool'
           summary: '{{ $labels.cluster }}: Node Pool operation stuck in {{ $labels.phase }} for over 2 hours'
           title: '{{ $labels.cluster }}: Node Pool operation stuck in {{ $labels.phase }} for over 2 hours resource_id:{{ $labels.resource_id }}'
         }
@@ -416,7 +416,7 @@ resource arohcpNodepoolSaturationAlerts 'Microsoft.AlertsManagement/prometheusRu
           correlationId: 'UJNodePoolSaturationQueueDepth/{{ $labels.cluster }}/{{ $labels.name }}'
           description: 'Node pool controller workqueue {{ $labels.name }} has had a depth > 10 for more than 5 minutes, indicating work is accumulating faster than it can be processed.'
           info: 'Node pool controller workqueue {{ $labels.name }} has had a depth > 10 for more than 5 minutes, indicating work is accumulating faster than it can be processed.'
-          runbook_url: 'aka.ms/arohcp-runbook-nodepool'
+          runbook_url: 'https://aka.ms/arohcp-runbook-nodepool'
           summary: '{{ $labels.cluster }}: Node Pool controller workqueue {{ $labels.name }} depth is high'
           title: '{{ $labels.cluster }}: Node Pool controller workqueue {{ $labels.name }} depth is high'
         }
@@ -443,7 +443,7 @@ resource arohcpNodepoolSaturationAlerts 'Microsoft.AlertsManagement/prometheusRu
           correlationId: 'UJNodePoolSaturationRetryHotLoop/{{ $labels.cluster }}/{{ $labels.name }}'
           description: 'Node pool controller workqueue {{ $labels.name }} has a retry ratio > 50% sustained over 10 minutes, indicating most queue activity is failed retries rather than fresh work.'
           info: 'Node pool controller workqueue {{ $labels.name }} has a retry ratio > 50% sustained over 10 minutes, indicating most queue activity is failed retries rather than fresh work.'
-          runbook_url: 'aka.ms/arohcp-runbook-nodepool'
+          runbook_url: 'https://aka.ms/arohcp-runbook-nodepool'
           summary: '{{ $labels.cluster }}: Node Pool controller workqueue {{ $labels.name }} retry hot loop'
           title: '{{ $labels.cluster }}: Node Pool controller workqueue {{ $labels.name }} retry hot loop'
         }
