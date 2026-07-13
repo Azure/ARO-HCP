@@ -256,20 +256,6 @@ func (f *Frontend) createExternalAuth(writer http.ResponseWriter, request *http.
 		return utils.TrackError(fmt.Errorf("cluster %s has no ClusterServiceID", cluster.ID))
 	}
 
-	csExternalAuthBuilder, err := ocm.BuildCSExternalAuth(ctx, newInternalExternalAuth, false)
-	if err != nil {
-		return utils.TrackError(err)
-	}
-	csExternalAuth, err := f.clusterServiceClient.PostExternalAuth(ctx, *cluster.ServiceProviderProperties.ClusterServiceID, csExternalAuthBuilder)
-	if err != nil {
-		return utils.TrackError(err)
-	}
-	csExternalAuthID, err := api.NewInternalID(csExternalAuth.HREF())
-	if err != nil {
-		return utils.TrackError(err)
-	}
-	newInternalExternalAuth.ServiceProviderProperties.ClusterServiceID = &csExternalAuthID
-
 	operationRequest := database.OperationRequestCreate
 
 	transaction := f.resourcesDBClient.NewTransaction(newInternalExternalAuth.ID.SubscriptionID)
@@ -277,7 +263,7 @@ func (f *Frontend) createExternalAuth(writer http.ResponseWriter, request *http.
 	createExternalAuthOperation := database.NewOperation(
 		operationRequest,
 		newInternalExternalAuth.ID,
-		*newInternalExternalAuth.ServiceProviderProperties.ClusterServiceID,
+		api.InternalID{},
 		f.azureLocation,
 		request.Header.Get(arm.HeaderNameHomeTenantID),
 		request.Header.Get(arm.HeaderNameClientObjectID),
