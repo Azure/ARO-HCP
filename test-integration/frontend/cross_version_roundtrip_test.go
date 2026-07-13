@@ -739,6 +739,17 @@ func createExternalAuthAndComplete(
 
 	parsedID := api.Must(azcorearm.ParseResourceID(resourceID))
 	require.NoError(t, integrationutils.MarkOperationsCompleteForName(ctx, testInfo.ResourcesDBClient(), subscriptionID, parsedID.Name))
+
+	// Setting the Cluster Service ID for the external auth is needed until we move all cs interactions to the backend.
+	csID, err := integrationutils.DeriveClusterServiceID(
+		ctx,
+		testInfo.ResourcesDBClient(),
+		testInfo.ClusterServiceMock,
+		t.Name(),
+		resourceID,
+	)
+	require.NoError(t, err)
+	require.NoError(t, integrationutils.SetClusterServiceID(ctx, testInfo.ResourcesDBClient(), resourceID, csID))
 }
 
 // getResourceResponse returns the resource GET response as raw JSON bytes and
