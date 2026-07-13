@@ -364,6 +364,11 @@ var (
 
 	azureVMName      = `^[a-zA-Z0-9]([a-zA-Z0-9._-]{0,62}[a-zA-Z0-9_])?$`
 	azureVMNameRegex = regexp.MustCompile(azureVMName)
+
+	// diskEncryptionSetName See https://learn.microsoft.com/en-us/azure/azure-resource-manager/management/resource-name-rules#microsoftcompute
+	diskEncryptionSetName            = `^[a-zA-Z0-9_-]+$`
+	diskEncryptionSetNameRegex       = regexp.MustCompile(diskEncryptionSetName)
+	diskEncryptionSetNameErrorString = `(must contain only alphanumeric characters, underscores, and hyphens)`
 )
 
 func MatchesRegex(_ context.Context, _ operation.Operation, fldPath *field.Path, value, _ *string, regex *regexp.Regexp, errorString string) field.ErrorList {

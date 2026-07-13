@@ -16,6 +16,7 @@ package validation
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -359,6 +360,38 @@ func TestValidateNodePoolCreate(t *testing.T) {
 			}(),
 			expectErrors: []utils.ExpectedError{
 				{Message: "resource ID must reference an instance of type", FieldPath: "properties.platform.osDisk.encryptionSetId"},
+			},
+		},
+		{
+			name: "encryption set name at maximum length - create",
+			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Platform.OSDisk.EncryptionSetID = api.Must(azcorearm.ParseResourceID("/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Compute/diskEncryptionSets/" + strings.Repeat("a", MaxDiskEncryptionSetNameLen)))
+				return np
+			}(),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name: "encryption set name too long - create",
+			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Platform.OSDisk.EncryptionSetID = api.Must(azcorearm.ParseResourceID("/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Compute/diskEncryptionSets/" + strings.Repeat("a", MaxDiskEncryptionSetNameLen+1)))
+				return np
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "Too long", FieldPath: "properties.platform.osDisk.encryptionSetId"},
+			},
+		},
+		{
+			name: "encryption set name with invalid characters - create",
+			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Platform.OSDisk.EncryptionSetID = api.Must(azcorearm.ParseResourceID("/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Compute/diskEncryptionSets/test-des"))
+				np.Properties.Platform.OSDisk.EncryptionSetID.Name = "test.des"
+				return np
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "must contain only alphanumeric characters, underscores, and hyphens", FieldPath: "properties.platform.osDisk.encryptionSetId"},
 			},
 		},
 		{

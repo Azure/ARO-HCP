@@ -31,6 +31,9 @@ import (
 const (
 	// See https://learn.microsoft.com/en-us/azure/azure-resource-manager/management/azure-subscription-service-limits#azure-virtual-machines-limits---azure-resource-manager
 	MaxNodePoolNodes = 200
+
+	// See https://learn.microsoft.com/en-us/azure/azure-resource-manager/management/resource-name-rules#microsoftcompute
+	MaxDiskEncryptionSetNameLen = 80
 )
 
 func ValidateNodePool(ctx context.Context, op operation.Operation, newObj, oldObj *api.HCPOpenShiftClusterNodePool) field.ErrorList {
@@ -278,6 +281,10 @@ func validateOSDiskProfile(ctx context.Context, op operation.Operation, fldPath 
 
 	//EncryptionSetID        string                 `json:"encryptionSetId,omitempty"`
 	errs = append(errs, RestrictedResourceIDWithResourceGroup(ctx, op, fldPath.Child("encryptionSetId"), newObj.EncryptionSetID, safe.Field(oldObj, toOSDiskProfileEncryptionSetID), "Microsoft.Compute/diskEncryptionSets")...)
+	if newObj.EncryptionSetID != nil {
+		errs = append(errs, MaxLen(ctx, op, fldPath.Child("encryptionSetId"), &newObj.EncryptionSetID.Name, nil, MaxDiskEncryptionSetNameLen)...)
+		errs = append(errs, MatchesRegex(ctx, op, fldPath.Child("encryptionSetId"), &newObj.EncryptionSetID.Name, nil, diskEncryptionSetNameRegex, diskEncryptionSetNameErrorString)...)
+	}
 
 	return errs
 }
