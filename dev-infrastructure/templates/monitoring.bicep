@@ -19,7 +19,7 @@ param actionGroupRP string
 @description('Resource ID of the MSFT ICM action group (empty string if not managed)')
 param actionGroupMSFT string
 
-@description('Whether ICM alerting is enabled for this region')
+@description('Whether alerting is enabled for this region')
 param alertsEnabled bool
 
 @description('The minimum IcM severity level (highest priority) that alerts can fire at. Alerts more critical than this ceiling will be degraded to this value. 0 means no ceiling.')
