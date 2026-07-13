@@ -217,8 +217,8 @@ func repoRoot() (string, error) {
 	return filepath.Dir(filepath.Dir(real)), nil
 }
 
-var _ = Describe("HypershiftOperator in-place upgrade", func() {
-	It("validates node pool rollout after upgrade",
+var _ = Describe("Region in-place upgrade", func() {
+	It("validates node pool stability after full region upgrade",
 		labels.Critical,
 		labels.Positive,
 		labels.UpgradeInPlace,
@@ -233,10 +233,10 @@ var _ = Describe("HypershiftOperator in-place upgrade", func() {
 			// Validate required env vars before provisioning any resources.
 			overrideConfigFile := os.Getenv("OVERRIDE_CONFIG_FILE")
 			Expect(overrideConfigFile).NotTo(BeEmpty(),
-				"OVERRIDE_CONFIG_FILE must be set to the hypershift operator override config path")
+				"OVERRIDE_CONFIG_FILE must be set to the region override config path")
 
 			deployEnv := os.Getenv("DEPLOY_ENV")
-			Expect(deployEnv).NotTo(BeEmpty(), "DEPLOY_ENV must be set for make pipeline/RP.HypershiftOperator")
+			Expect(deployEnv).NotTo(BeEmpty(), "DEPLOY_ENV must be set for make entrypoint/Region")
 
 			suffix := rand.String(6)
 			clusterName := framework.SuffixName("e2e-upgrade", suffix, 64)
@@ -335,11 +335,14 @@ var _ = Describe("HypershiftOperator in-place upgrade", func() {
 				"dataSecretName", baselineDataSecretName,
 			)
 
-			By("running make pipeline/RP.HypershiftOperator to deploy upgraded operator")
+			By("running make entrypoint/Region to upgrade all regional services")
 			// MakeRunner inherits all environment variables from the test process so that
 			// OVERRIDE_CONFIG_FILE, DEPLOY_ENV, and any pipeline flags (SKIP_CONFIRM,
 			// PERSIST) set by the openshift/release step script are passed through.
 			// stdout/stderr are forwarded to GinkgoWriter so they appear in the test log.
+			// Infrastructure (bicep) steps are idempotent when only image digests change,
+			// so re-running the full Region entrypoint is safe and upgrades all services
+			// on both the service and management clusters in one invocation.
 			root, err := repoRoot()
 			Expect(err).NotTo(HaveOccurred(), "failed to determine repo root for make invocation")
 			makeRunner := &framework.MakeRunner{
@@ -347,9 +350,9 @@ var _ = Describe("HypershiftOperator in-place upgrade", func() {
 				ExtraEnv: []string{"SKIP_CONFIRM=true"},
 				Logger:   GinkgoLogr,
 			}
-			err = makeRunner.RunWithOutput(ctx, "pipeline/RP.HypershiftOperator", GinkgoWriter, GinkgoWriter)
-			Expect(err).NotTo(HaveOccurred(), "make pipeline/RP.HypershiftOperator failed")
-			GinkgoLogr.Info("HypershiftOperator pipeline deploy completed")
+			err = makeRunner.RunWithOutput(ctx, "entrypoint/Region", GinkgoWriter, GinkgoWriter)
+			Expect(err).NotTo(HaveOccurred(), "make entrypoint/Region failed")
+			GinkgoLogr.Info("Region entrypoint deploy completed")
 
 			By("confirming node pool hash remains stable after upgrade")
 			GinkgoLogr.Info("starting stability observation",

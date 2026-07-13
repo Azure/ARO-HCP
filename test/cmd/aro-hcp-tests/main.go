@@ -216,8 +216,9 @@ func setupCli() *cobra.Command {
 		TestTimeout: &rpApiCompatTestTimeout,
 	})
 
-	// upgrade/in-place runs the full end-to-end in-place HypershiftOperator upgrade in a single
-	// spec: provision cluster+nodepool, capture baseline node hash, run make pipeline/RP.HypershiftOperator
+	// upgrade/in-place runs the full end-to-end in-place region upgrade in a single spec:
+	// provision cluster+nodepool, capture baseline metrics, run make entrypoint/Region,
+	// then assert node pool stability (hash, haproxy image, MachineDeployment DataSecretName).
 	upgradeInPlaceTimeout := 120 * time.Minute
 	ext.AddSuite(e.Suite{
 		Name: "upgrade/in-place",

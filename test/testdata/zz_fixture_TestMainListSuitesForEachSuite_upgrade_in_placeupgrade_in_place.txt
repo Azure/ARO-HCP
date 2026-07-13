@@ -1,1 +1,1 @@
-HypershiftOperator in-place upgrade validates node pool rollout after upgrade
+Region in-place upgrade validates node pool stability after full region upgrade
