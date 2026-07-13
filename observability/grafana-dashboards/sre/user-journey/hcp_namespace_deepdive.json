@@ -26,7 +26,7 @@
         "type": "prometheus",
         "uid": "${datasource_svc}"
       },
-      "description": "CPU usage rate (cores) per container, averaged over 5m. Colored by control plane component.",
+      "description": "CPU usage rate (cores) per container. Colored by control plane component.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -168,8 +168,8 @@
             "type": "prometheus",
             "uid": "${datasource_svc}"
           },
-          "expr": "sum by (container) (rate(container_cpu_usage_seconds_total{cluster=\"$cluster\", namespace=\"$namespace\", container!=\"\", container!=\"POD\"}[5m]))",
-          "legendFormat": "{{container}}",
+          "expr": "sum by (pod, container) (rate(container_cpu_usage_seconds_total{cluster=\"$cluster\", namespace=\"$namespace\", container!=\"\", container!=\"POD\"}[$__rate_interval]))",
+          "legendFormat": "{{pod}}/{{container}}",
           "refId": "A"
         }
       ],
@@ -262,8 +262,8 @@
             "type": "prometheus",
             "uid": "${datasource_svc}"
           },
-          "expr": "sum by (container) (container_memory_working_set_bytes{cluster=\"$cluster\", namespace=\"$namespace\", container!=\"\", container!=\"POD\"})",
-          "legendFormat": "{{container}}",
+          "expr": "sum by (pod, container) (container_memory_working_set_bytes{cluster=\"$cluster\", namespace=\"$namespace\", container!=\"\", container!=\"POD\"})",
+          "legendFormat": "{{pod}}/{{container}}",
           "refId": "A"
         }
       ],
@@ -275,7 +275,7 @@
         "type": "prometheus",
         "uid": "${datasource_svc}"
       },
-      "description": "Shows memory usage vs ClusterSizingConfig request. HCPs have NO limits, only requests. Tiers: small=8Gi, medium=16Gi, large=32Gi, xlarge=64Gi, xxlarge=96Gi",
+      "description": "Memory working set per container (actual usage from cadvisor metrics)",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -295,18 +295,10 @@
               {
                 "color": "green",
                 "value": null
-              },
-              {
-                "color": "yellow",
-                "value": 0.7
-              },
-              {
-                "color": "red",
-                "value": 0.9
               }
             ]
           },
-          "unit": "percentunit"
+          "unit": "bytes"
         },
         "overrides": [
           {
@@ -317,39 +309,7 @@
             "properties": [
               {
                 "id": "custom.width",
-                "value": 250
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Usage"
-            },
-            "properties": [
-              {
-                "id": "unit",
-                "value": "bytes"
-              },
-              {
-                "id": "decimals",
-                "value": 2
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Request"
-            },
-            "properties": [
-              {
-                "id": "unit",
-                "value": "bytes"
-              },
-              {
-                "id": "decimals",
-                "value": 2
+                "value": 200
               }
             ]
           }
@@ -357,7 +317,7 @@
       },
       "gridPos": {
         "h": 8,
-        "w": 24,
+        "w": 12,
         "x": 0,
         "y": 9
       },
@@ -376,7 +336,7 @@
         "sortBy": [
           {
             "desc": true,
-            "displayName": "Usage/Request Ratio"
+            "displayName": "Value"
           }
         ]
       },
@@ -390,71 +350,125 @@
           "expr": "sum by (container) (container_memory_working_set_bytes{cluster=\"$cluster\", namespace=\"$namespace\", container!=\"\", container!=\"POD\"})",
           "format": "table",
           "instant": true,
+          "range": false,
           "legendFormat": "__auto",
-          "refId": "Usage"
+          "refId": "A"
+        }
+      ],
+      "title": "Memory Usage per Container",
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "renameByName": {
+              "Value": "Usage (bytes)",
+              "container": "Container"
+            }
+          }
+        }
+      ],
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource_hcp}"
+      },
+      "description": "Memory requests per container from kube-state-metrics (pod spec resource requests). HCPs have NO limits, only requests. Tiers: small=8Gi, medium=16Gi, large=32Gi, xlarge=64Gi, xxlarge=96Gi",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "bytes"
         },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Container"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 200
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 9
+      },
+      "id": 22,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "Value"
+          }
+        ]
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${datasource_svc}"
+            "uid": "${datasource_hcp}"
           },
-          "expr": "sum by (container) (kube_pod_container_resource_requests{cluster=\"$cluster\", namespace=\"$namespace\", resource=\"memory\"})",
+          "expr": "sum by (container) (kube_pod_container_resource_requests{cluster=\"$cluster\", namespace=\"$namespace\", resource=\"memory\", container!=\"\", container!=\"POD\"})",
           "format": "table",
           "instant": true,
+          "range": false,
           "legendFormat": "__auto",
-          "refId": "Request"
+          "refId": "A"
         }
       ],
-      "title": "Memory Usage vs ClusterSizingConfig Request",
+      "title": "Memory Requests per Container",
       "transformations": [
-        {
-          "id": "joinByField",
-          "options": {
-            "byField": "container",
-            "mode": "outer"
-          }
-        },
         {
           "id": "organize",
           "options": {
             "excludeByName": {
               "Time": true,
-              "Time 1": true,
-              "Time 2": true,
-              "__name__": true,
-              "__name__ 1": true,
-              "__name__ 2": true,
-              "cluster": true,
-              "cluster 1": true,
-              "cluster 2": true,
-              "job": true,
-              "job 1": true,
-              "job 2": true,
-              "namespace": true,
-              "namespace 1": true,
-              "namespace 2": true,
               "resource": true
             },
-            "indexByName": {},
             "renameByName": {
-              "Value #Request": "Request",
-              "Value #Usage": "Usage",
+              "Value": "Request (bytes)",
               "container": "Container"
-            }
-          }
-        },
-        {
-          "id": "calculateField",
-          "options": {
-            "alias": "Usage/Request Ratio",
-            "binary": {
-              "left": "Usage",
-              "operator": "/",
-              "right": "Request"
-            },
-            "mode": "binary",
-            "reduce": {
-              "reducer": "sum"
             }
           }
         }
@@ -816,7 +830,7 @@
             "type": "prometheus",
             "uid": "${datasource_hcp}"
           },
-          "expr": "sum by (container) (changes(kube_pod_container_status_terminated_reason{cluster=\"$cluster\", namespace=\"$namespace\", reason=\"OOMKilled\"}[5m]))",
+          "expr": "sum by (container) (changes(kube_pod_container_status_terminated_reason{cluster=\"$cluster\", namespace=\"$namespace\", reason=\"OOMKilled\"}[$__rate_interval]))",
           "legendFormat": "{{container}}",
           "refId": "A"
         }
@@ -1041,7 +1055,7 @@
             "type": "prometheus",
             "uid": "${datasource_svc}"
           },
-          "expr": "sum by (pod) (rate(container_network_receive_bytes_total{cluster=\"$cluster\", namespace=\"$namespace\"}[5m]))",
+          "expr": "sum by (pod) (rate(container_network_receive_bytes_total{cluster=\"$cluster\", namespace=\"$namespace\"}[$__rate_interval]))",
           "legendFormat": "{{pod}}",
           "refId": "A"
         }
@@ -1135,7 +1149,7 @@
             "type": "prometheus",
             "uid": "${datasource_svc}"
           },
-          "expr": "sum by (pod) (rate(container_network_transmit_bytes_total{cluster=\"$cluster\", namespace=\"$namespace\"}[5m]))",
+          "expr": "sum by (pod) (rate(container_network_transmit_bytes_total{cluster=\"$cluster\", namespace=\"$namespace\"}[$__rate_interval]))",
           "legendFormat": "{{pod}}",
           "refId": "A"
         }
@@ -1232,7 +1246,7 @@
             "type": "prometheus",
             "uid": "${datasource_svc}"
           },
-          "expr": "sum by (pod) (rate(container_network_receive_errors_total{cluster=\"$cluster\", namespace=\"$namespace\"}[5m]))",
+          "expr": "sum by (pod) (rate(container_network_receive_errors_total{cluster=\"$cluster\", namespace=\"$namespace\"}[$__rate_interval]))",
           "legendFormat": "{{pod}} - RX Errors",
           "refId": "A"
         },
@@ -1241,7 +1255,7 @@
             "type": "prometheus",
             "uid": "${datasource_svc}"
           },
-          "expr": "sum by (pod) (rate(container_network_transmit_errors_total{cluster=\"$cluster\", namespace=\"$namespace\"}[5m]))",
+          "expr": "sum by (pod) (rate(container_network_transmit_errors_total{cluster=\"$cluster\", namespace=\"$namespace\"}[$__rate_interval]))",
           "legendFormat": "{{pod}} - TX Errors",
           "refId": "B"
         }
@@ -1267,7 +1281,7 @@
         "type": "prometheus",
         "uid": "${datasource_svc}"
       },
-      "description": "How much disk space each container is using (warning at 8GB, critical at 20GB).",
+      "description": "Persistent volume usage per PVC in the namespace (from kubelet_volume_stats_used_bytes). Shows actual disk usage for each etcd data volume.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1302,7 +1316,7 @@
               "mode": "none"
             },
             "thresholdsStyle": {
-              "mode": "off"
+              "mode": "line"
             }
           },
           "mappings": [],
@@ -1315,11 +1329,11 @@
               },
               {
                 "color": "yellow",
-                "value": 8589934592
+                "value": 21474836480
               },
               {
                 "color": "red",
-                "value": 21474836480
+                "value": 28991029248
               }
             ]
           },
@@ -1355,12 +1369,12 @@
             "type": "prometheus",
             "uid": "${datasource_svc}"
           },
-          "expr": "sum by (container) (container_fs_usage_bytes{cluster=\"$cluster\", namespace=\"$namespace\", container!=\"\", container!=\"POD\"})",
-          "legendFormat": "{{container}}",
+          "expr": "kubelet_volume_stats_used_bytes{cluster=\"$cluster\", namespace=\"$namespace\"}",
+          "legendFormat": "{{persistentvolumeclaim}}",
           "refId": "A"
         }
       ],
-      "title": "Filesystem Usage per Container",
+      "title": "Filesystem Usage per Volume",
       "type": "timeseries"
     },
     {
@@ -1449,8 +1463,8 @@
             "type": "prometheus",
             "uid": "${datasource_svc}"
           },
-          "expr": "sum by (container) (rate(container_fs_reads_bytes_total{cluster=\"$cluster\", namespace=\"$namespace\", container!=\"\", container!=\"POD\"}[5m]))",
-          "legendFormat": "{{container}}",
+          "expr": "sum by (pod, container) (rate(container_fs_reads_bytes_total{cluster=\"$cluster\", namespace=\"$namespace\", container!=\"\", container!=\"POD\"}[$__rate_interval]))",
+          "legendFormat": "{{pod}}/{{container}}",
           "refId": "A"
         }
       ],
@@ -1543,8 +1557,8 @@
             "type": "prometheus",
             "uid": "${datasource_svc}"
           },
-          "expr": "sum by (container) (rate(container_fs_writes_bytes_total{cluster=\"$cluster\", namespace=\"$namespace\", container!=\"\", container!=\"POD\"}[5m]))",
-          "legendFormat": "{{container}}",
+          "expr": "sum by (pod, container) (rate(container_fs_writes_bytes_total{cluster=\"$cluster\", namespace=\"$namespace\", container!=\"\", container!=\"POD\"}[$__rate_interval]))",
+          "legendFormat": "{{pod}}/{{container}}",
           "refId": "A"
         }
       ],
@@ -1569,7 +1583,7 @@
         "type": "prometheus",
         "uid": "${datasource_hcp}"
       },
-      "description": "etcd metrics from HCP AMW (hcps-{region}). WAL fsync latency should be <10ms for healthy etcd.",
+      "description": "p99 WAL fsync latency per etcd member. Warning at 10ms, critical at 20ms. Azure rarely meets the etcd-recommended 10ms SLO, and latency varies by region.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1621,7 +1635,7 @@
               },
               {
                 "color": "red",
-                "value": 0.1
+                "value": 0.02
               }
             ]
           },
@@ -1658,7 +1672,7 @@
             "type": "prometheus",
             "uid": "${datasource_hcp}"
           },
-          "expr": "histogram_quantile(0.99, sum(rate(etcd_disk_wal_fsync_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\"}[5m])) by (le, pod))",
+          "expr": "histogram_quantile(0.99, sum(rate(etcd_disk_wal_fsync_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\"}[$__rate_interval])) by (le, pod))",
           "legendFormat": "{{pod}} - p99 WAL fsync",
           "refId": "A"
         }
@@ -1677,6 +1691,7 @@
           "color": {
             "mode": "thresholds"
           },
+          "decimals": 2,
           "mappings": [],
           "thresholds": {
             "mode": "absolute",
@@ -1687,15 +1702,15 @@
               },
               {
                 "color": "yellow",
-                "value": 2147483648
+                "value": 2
               },
               {
                 "color": "red",
-                "value": 8589934592
+                "value": 8
               }
             ]
           },
-          "unit": "bytes"
+          "unit": "decgbytes"
         },
         "overrides": []
       },
@@ -1729,11 +1744,14 @@
             "type": "prometheus",
             "uid": "${datasource_hcp}"
           },
-          "expr": "sum(etcd_mvcc_db_total_size_in_bytes{cluster=\"$cluster\", namespace=\"$namespace\"})",
+          "expr": "etcd_mvcc_db_total_size_in_bytes{cluster=\"$cluster\", namespace=\"$namespace\"} / 1024 / 1024 / 1024",
+          "instant": true,
+          "legendFormat": "{{pod}}",
+          "range": false,
           "refId": "A"
         }
       ],
-      "title": "etcd DB Size",
+      "title": "etcd DB Size (GB)",
       "type": "stat"
     },
     {
@@ -1799,7 +1817,10 @@
             "type": "prometheus",
             "uid": "${datasource_hcp}"
           },
-          "expr": "sum(increase(etcd_server_leader_changes_seen_total{cluster=\"$cluster\", namespace=\"$namespace\"}[1h]))",
+          "expr": "increase(etcd_server_leader_changes_seen_total{cluster=\"$cluster\", namespace=\"$namespace\"}[1h])",
+          "instant": true,
+          "legendFormat": "{{pod}}",
+          "range": false,
           "refId": "A"
         }
       ],
