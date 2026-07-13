@@ -16,9 +16,9 @@ package validationcontrollers
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/go-logr/logr/testr"
 	"github.com/stretchr/testify/assert"
@@ -26,6 +26,8 @@ import (
 
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/lru"
+	"k8s.io/utils/ptr"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
@@ -113,6 +115,20 @@ func newTestSubscription() *arm.Subscription {
 	}
 }
 
+// mockNodePoolValidation implements validations.NodePoolValidation for tests.
+type mockNodePoolValidation struct {
+	name   string
+	result *validations.ValidationResult
+}
+
+var _ validations.NodePoolValidation = (*mockNodePoolValidation)(nil)
+
+func (m *mockNodePoolValidation) Name() string { return m.name }
+
+func (m *mockNodePoolValidation) Validate(_ context.Context, _ *api.HCPOpenShiftCluster, _ *arm.Subscription, _ *api.HCPOpenShiftClusterNodePool) *validations.ValidationResult {
+	return m.result
+}
+
 // alwaysSyncCooldownChecker always allows syncing.
 type alwaysSyncCooldownChecker struct{}
 
@@ -120,18 +136,18 @@ func (a *alwaysSyncCooldownChecker) CanSync(_ context.Context, _ any) bool { ret
 
 var _ controllerutil.CooldownChecker = (*alwaysSyncCooldownChecker)(nil)
 
-// mockNodePoolValidation implements validations.NodePoolValidation for tests.
-type mockNodePoolValidation struct {
-	name        string
-	validateErr error
+// mockAfterEnqueuer records EnqueueAfter calls.
+type mockAfterEnqueuer struct {
+	calls []enqueueAfterCall
 }
 
-var _ validations.NodePoolValidation = (*mockNodePoolValidation)(nil)
+type enqueueAfterCall struct {
+	key      any
+	duration time.Duration
+}
 
-func (m *mockNodePoolValidation) Name() string { return m.name }
-
-func (m *mockNodePoolValidation) Validate(_ context.Context, _ *api.HCPOpenShiftCluster, _ *arm.Subscription, _ *api.HCPOpenShiftClusterNodePool) error {
-	return m.validateErr
+func (m *mockAfterEnqueuer) EnqueueAfter(keyObj any, duration time.Duration) {
+	m.calls = append(m.calls, enqueueAfterCall{key: keyObj, duration: duration})
 }
 
 func TestNodePoolValidationSyncer_SyncOnce(t *testing.T) {
@@ -150,8 +166,9 @@ func TestNodePoolValidationSyncer_SyncOnce(t *testing.T) {
 		name                string
 		setupDB             func(t *testing.T, ctx context.Context, mockDB *databasetesting.MockResourcesDBClient)
 		validation          *mockNodePoolValidation
-		wantErr             bool
+		wantEnqueueCount    int
 		wantConditionStatus *metav1.ConditionStatus
+		wantConditionReason string
 	}{
 		{
 			name: "cluster not found -- no-op",
@@ -179,19 +196,61 @@ func TestNodePoolValidationSyncer_SyncOnce(t *testing.T) {
 			name:    "validation succeeds -- condition set to True",
 			setupDB: defaultSetupDB,
 			validation: &mockNodePoolValidation{
-				name: testValidationName,
+				name:   testValidationName,
+				result: &validations.ValidationResult{Outcome: validations.OutcomeTypePassed},
 			},
 			wantConditionStatus: api.Ptr(metav1.ConditionTrue),
+			wantConditionReason: "AsExpected",
 		},
 		{
-			name:    "validation fails -- condition set to False and error returned",
+			name:    "validation fails -- condition set to False and enqueued for retry",
 			setupDB: defaultSetupDB,
 			validation: &mockNodePoolValidation{
-				name:        testValidationName,
-				validateErr: fmt.Errorf("quota exceeded"),
+				name: testValidationName,
+				result: &validations.ValidationResult{
+					Outcome: validations.OutcomeTypeFailed,
+					Failed: &validations.FailedResult{
+						Reason:                 "QuotaExceeded",
+						ServiceProviderMessage: "quota exceeded",
+						UserMessage:            "Quota exceeded.",
+					},
+					EarliestRetryAfter: ptr.To(60 * time.Second),
+				},
 			},
-			wantErr:             true,
+			wantEnqueueCount:    1,
 			wantConditionStatus: api.Ptr(metav1.ConditionFalse),
+			wantConditionReason: "QuotaExceeded",
+		},
+		{
+			name:    "nil validation result -- treated as Unknown and enqueued for retry",
+			setupDB: defaultSetupDB,
+			validation: &mockNodePoolValidation{
+				name:   testValidationName,
+				result: nil,
+			},
+			wantEnqueueCount:    1,
+			wantConditionStatus: api.Ptr(metav1.ConditionUnknown),
+			wantConditionReason: "NilResult",
+		},
+		{
+			name:    "unknown with LogOnly -- condition set to Unknown, enqueued for retry",
+			setupDB: defaultSetupDB,
+			validation: &mockNodePoolValidation{
+				name: testValidationName,
+				result: &validations.ValidationResult{
+					Outcome: validations.OutcomeTypeUnknown,
+					Unknown: &validations.UnknownResult{
+						Reason:                 "Transient",
+						ServiceProviderMessage: "transient issue",
+						UserMessage:            "Validation status is unknown.",
+						ReportingPolicy:        validations.ReportingPolicyTypeLogOnly,
+					},
+					EarliestRetryAfter: ptr.To(60 * time.Second),
+				},
+			},
+			wantEnqueueCount:    1,
+			wantConditionStatus: api.Ptr(metav1.ConditionUnknown),
+			wantConditionReason: "Transient",
 		},
 		{
 			name: "already-succeeded validation -- skipped",
@@ -223,8 +282,15 @@ func TestNodePoolValidationSyncer_SyncOnce(t *testing.T) {
 				require.NoError(t, err)
 			},
 			validation: &mockNodePoolValidation{
-				name:        testValidationName,
-				validateErr: fmt.Errorf("should not be called"),
+				name: testValidationName,
+				result: &validations.ValidationResult{
+					Outcome: validations.OutcomeTypeFailed,
+					Failed: &validations.FailedResult{
+						Reason:                 "ShouldNotBeCalled",
+						ServiceProviderMessage: "should not be called",
+						UserMessage:            "should not be called",
+					},
+				},
 			},
 		},
 	}
@@ -238,18 +304,20 @@ func TestNodePoolValidationSyncer_SyncOnce(t *testing.T) {
 				tc.setupDB(t, ctx, mockDB)
 			}
 
+			mockEnqueuer := &mockAfterEnqueuer{}
 			syncer := &nodePoolValidationSyncer{
-				cooldownChecker:   &alwaysSyncCooldownChecker{},
-				resourcesDBClient: mockDB,
-				validation:        tc.validation,
+				cooldownChecker:          &alwaysSyncCooldownChecker{},
+				retryCooldownChecker:     controllerutil.NewSettableCooldownChecker(),
+				enqueueAfter:             mockEnqueuer,
+				resourcesDBClient:        mockDB,
+				consecutiveUnknownCounts: lru.New(100),
+				validation:               tc.validation,
 			}
 
 			err := syncer.SyncOnce(ctx, newTestNodePoolKey())
-			if tc.wantErr {
-				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
-			}
+			require.NoError(t, err)
+
+			assert.Len(t, mockEnqueuer.calls, tc.wantEnqueueCount)
 
 			if tc.wantConditionStatus != nil {
 				spnp, spnpErr := mockDB.ServiceProviderNodePools(
@@ -261,13 +329,165 @@ func TestNodePoolValidationSyncer_SyncOnce(t *testing.T) {
 				require.NotNil(t, cond, "expected validation condition to be set")
 				assert.Equal(t, *tc.wantConditionStatus, cond.Status)
 
-				if tc.validation.validateErr != nil {
-					assert.Equal(t, "Failed", cond.Reason)
-					assert.Contains(t, cond.Message, tc.validation.validateErr.Error())
-				} else {
-					assert.Equal(t, "Succeeded", cond.Reason)
+				if tc.wantConditionReason != "" {
+					assert.Equal(t, tc.wantConditionReason, cond.Reason)
 				}
 			}
 		})
 	}
+}
+
+func TestNodePoolValidationSyncer_EnqueueAfterTiming(t *testing.T) {
+	ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+
+	mockDB := databasetesting.NewMockResourcesDBClient()
+	_, err := mockDB.HCPClusters(testSubscriptionID, testResourceGroup).Create(ctx, newTestCluster(t), nil)
+	require.NoError(t, err)
+	_, err = mockDB.HCPClusters(testSubscriptionID, testResourceGroup).NodePools(testClusterName).Create(ctx, newTestNodePool(t), nil)
+	require.NoError(t, err)
+	_, err = mockDB.Subscriptions().Create(ctx, newTestSubscription(), nil)
+	require.NoError(t, err)
+
+	mockEnqueuer := &mockAfterEnqueuer{}
+	syncer := &nodePoolValidationSyncer{
+		cooldownChecker:          &alwaysSyncCooldownChecker{},
+		retryCooldownChecker:     controllerutil.NewSettableCooldownChecker(),
+		enqueueAfter:             mockEnqueuer,
+		resourcesDBClient:        mockDB,
+		consecutiveUnknownCounts: lru.New(100),
+		validation: &mockNodePoolValidation{
+			name: testValidationName,
+			result: &validations.ValidationResult{
+				Outcome: validations.OutcomeTypeFailed,
+				Failed: &validations.FailedResult{
+					Reason:                 "QuotaExceeded",
+					ServiceProviderMessage: "quota exceeded",
+					UserMessage:            "Quota exceeded.",
+				},
+				EarliestRetryAfter: ptr.To(120 * time.Second),
+			},
+		},
+	}
+
+	err = syncer.SyncOnce(ctx, newTestNodePoolKey())
+	require.NoError(t, err)
+	require.Len(t, mockEnqueuer.calls, 1)
+	assert.Equal(t, 121*time.Second, mockEnqueuer.calls[0].duration)
+}
+
+func TestClusterValidationSyncer_SyncOnce(t *testing.T) {
+	newTestClusterKey := func() controllerutils.HCPClusterKey {
+		return controllerutils.HCPClusterKey{
+			SubscriptionID:    testSubscriptionID,
+			ResourceGroupName: testResourceGroup,
+			HCPClusterName:    testClusterName,
+		}
+	}
+
+	defaultSetupDB := func(t *testing.T, ctx context.Context, mockDB *databasetesting.MockResourcesDBClient) {
+		t.Helper()
+		_, err := mockDB.HCPClusters(testSubscriptionID, testResourceGroup).Create(ctx, newTestCluster(t), nil)
+		require.NoError(t, err)
+		_, err = mockDB.Subscriptions().Create(ctx, newTestSubscription(), nil)
+		require.NoError(t, err)
+	}
+
+	testCases := []struct {
+		name                string
+		setupDB             func(t *testing.T, ctx context.Context, mockDB *databasetesting.MockResourcesDBClient)
+		result              *validations.ValidationResult
+		wantEnqueueCount    int
+		wantConditionStatus *metav1.ConditionStatus
+		wantConditionReason string
+	}{
+		{
+			name: "cluster not found -- no-op",
+			setupDB: func(t *testing.T, ctx context.Context, mockDB *databasetesting.MockResourcesDBClient) {
+				t.Helper()
+				_, err := mockDB.Subscriptions().Create(ctx, newTestSubscription(), nil)
+				require.NoError(t, err)
+			},
+		},
+		{
+			name:                "validation succeeds -- condition set to True",
+			setupDB:             defaultSetupDB,
+			result:              &validations.ValidationResult{Outcome: validations.OutcomeTypePassed},
+			wantConditionStatus: api.Ptr(metav1.ConditionTrue),
+			wantConditionReason: "AsExpected",
+		},
+		{
+			name:    "validation fails -- condition set to False, enqueued for retry",
+			setupDB: defaultSetupDB,
+			result: &validations.ValidationResult{
+				Outcome: validations.OutcomeTypeFailed,
+				Failed: &validations.FailedResult{
+					Reason:                 "QuotaExceeded",
+					ServiceProviderMessage: "quota exceeded",
+					UserMessage:            "Quota exceeded.",
+				},
+				EarliestRetryAfter: ptr.To(60 * time.Second),
+			},
+			wantEnqueueCount:    1,
+			wantConditionStatus: api.Ptr(metav1.ConditionFalse),
+			wantConditionReason: "QuotaExceeded",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+
+			mockDB := databasetesting.NewMockResourcesDBClient()
+			if tc.setupDB != nil {
+				tc.setupDB(t, ctx, mockDB)
+			}
+
+			mockEnqueuer := &mockAfterEnqueuer{}
+			syncer := &clusterValidationSyncer{
+				cooldownChecker:          &alwaysSyncCooldownChecker{},
+				retryCooldownChecker:     controllerutil.NewSettableCooldownChecker(),
+				enqueueAfter:             mockEnqueuer,
+				resourcesDBClient:        mockDB,
+				consecutiveUnknownCounts: lru.New(100),
+				validation: &mockClusterValidation{
+					name:   testValidationName,
+					result: tc.result,
+				},
+			}
+
+			err := syncer.SyncOnce(ctx, newTestClusterKey())
+			require.NoError(t, err)
+
+			assert.Len(t, mockEnqueuer.calls, tc.wantEnqueueCount)
+
+			if tc.wantConditionStatus != nil {
+				spc, spcErr := mockDB.ServiceProviderClusters(
+					testSubscriptionID, testResourceGroup, testClusterName,
+				).Get(ctx, "default")
+				require.NoError(t, spcErr)
+
+				cond := meta.FindStatusCondition(spc.Status.Validations, testValidationName)
+				require.NotNil(t, cond, "expected validation condition to be set")
+				assert.Equal(t, *tc.wantConditionStatus, cond.Status)
+
+				if tc.wantConditionReason != "" {
+					assert.Equal(t, tc.wantConditionReason, cond.Reason)
+				}
+			}
+		})
+	}
+}
+
+// mockClusterValidation implements validations.ClusterValidation for tests.
+type mockClusterValidation struct {
+	name   string
+	result *validations.ValidationResult
+}
+
+var _ validations.ClusterValidation = (*mockClusterValidation)(nil)
+
+func (m *mockClusterValidation) Name() string { return m.name }
+
+func (m *mockClusterValidation) Validate(_ context.Context, _ *arm.Subscription, _ *api.HCPOpenShiftCluster) *validations.ValidationResult {
+	return m.result
 }

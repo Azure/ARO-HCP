@@ -18,6 +18,9 @@ import (
 	"context"
 	"time"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/ptr"
+
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
@@ -49,11 +52,11 @@ type OutcomeType string
 
 var (
 	// OutcomeTypePassed becomes a .status.validation.status = True, .reason=AsExpected, .message=As expected.
-	OutcomeTypePassed = "Passed"
+	OutcomeTypePassed OutcomeType = "Passed"
 	// OutcomeTypeFailed becomes a .status.validation.status=False, .reason= validationResult.Failed.Reason, .message=validationResult.Failed.UserMessage
-	OutcomeTypeFailed = "Failed"
-	// OutcomeTypeFailed becomes a .status.validation.status=Unknown, .reason= validationResult.Unknown.Reason, .message=validationResult.Unknown.UserMessage
-	OutcomeTypeUnknown = "Unknown"
+	OutcomeTypeFailed OutcomeType = "Failed"
+	// OutcomeTypeUnknown becomes a .status.validation.status=Unknown, .reason= validationResult.Unknown.Reason, .message=validationResult.Unknown.UserMessage
+	OutcomeTypeUnknown OutcomeType = "Unknown"
 )
 
 type FailedResult struct {
@@ -82,7 +85,63 @@ type ReportingPolicyType string
 var (
 
 	// ReportingPolicyTypeLogOnly means to return nil from the controller so it doesn't count in metrics.  Useful for certain types of failures.
-	ReportingPolicyTypeLogOnly = "LogOnly"
+	ReportingPolicyTypeLogOnly ReportingPolicyType = "LogOnly"
 	// ReportingPolicyTypeError will return an error for rapid retry, but the EarliestRetryAfter will prevent rapid retry and queue (without error) for a time after that.
-	ReportingPolicyTypeError = "ReportError"
+	ReportingPolicyTypeError ReportingPolicyType = "ReportError"
 )
+
+// DefaultResult returns a non-nil result with defaults applied. A nil input
+// is treated as Unknown with a 60s retry. A non-nil input with no
+// EarliestRetryAfter gets a 60s default.
+func DefaultResult(result *ValidationResult) *ValidationResult {
+	if result == nil {
+		return &ValidationResult{
+			Outcome: OutcomeTypeUnknown,
+			Unknown: &UnknownResult{
+				Reason:                 "NilResult",
+				ServiceProviderMessage: "Validation returned nil result.",
+				UserMessage:            "Validation status is unknown.",
+				ReportingPolicy:        ReportingPolicyTypeError,
+			},
+			EarliestRetryAfter: ptr.To(60 * time.Second),
+		}
+	}
+	if result.EarliestRetryAfter == nil {
+		result.EarliestRetryAfter = ptr.To(60 * time.Second)
+	}
+	return result
+}
+
+// BuildCondition converts a ValidationResult into a metav1.Condition with the
+// given condition type (typically the validation's Name()).
+func BuildCondition(conditionType string, result *ValidationResult) metav1.Condition {
+	switch result.Outcome {
+	case OutcomeTypePassed:
+		return metav1.Condition{
+			Type:    conditionType,
+			Status:  metav1.ConditionTrue,
+			Reason:  "AsExpected",
+			Message: "As expected.",
+		}
+	case OutcomeTypeFailed:
+		return metav1.Condition{
+			Type:    conditionType,
+			Status:  metav1.ConditionFalse,
+			Reason:  result.Failed.Reason,
+			Message: result.Failed.UserMessage,
+		}
+	default:
+		reason := "Unknown"
+		message := "Validation status is unknown."
+		if result.Unknown != nil {
+			reason = result.Unknown.Reason
+			message = result.Unknown.UserMessage
+		}
+		return metav1.Condition{
+			Type:    conditionType,
+			Status:  metav1.ConditionUnknown,
+			Reason:  reason,
+			Message: message,
+		}
+	}
+}

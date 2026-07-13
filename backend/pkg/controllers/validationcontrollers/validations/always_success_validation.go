@@ -21,8 +21,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
 
-// AlwaysSuccessValidation is a validation that always succeeds. This is,
-// it returns no error.
+// AlwaysSuccessValidation is a validation that always succeeds.
 type AlwaysSuccessValidation struct {
 }
 
@@ -30,8 +29,8 @@ func (v *AlwaysSuccessValidation) Name() string {
 	return "AlwaysSuccessValidation"
 }
 
-func (v *AlwaysSuccessValidation) Validate(ctx context.Context, clusterSubscription *arm.Subscription, cluster *api.HCPOpenShiftCluster) error {
-	return nil
+func (v *AlwaysSuccessValidation) Validate(ctx context.Context, clusterSubscription *arm.Subscription, cluster *api.HCPOpenShiftCluster) *ValidationResult {
+	return &ValidationResult{Outcome: OutcomeTypePassed}
 }
 
 func NewAlwaysSuccessValidation() ClusterValidation {

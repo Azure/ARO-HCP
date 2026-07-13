@@ -19,8 +19,10 @@ import (
 	"fmt"
 	"time"
 
+	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/lru"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/validationcontrollers/validations"
@@ -36,12 +38,22 @@ import (
 // clusterValidationSyncer is a Cluster syncer that performs a Cluster
 // validation.
 type clusterValidationSyncer struct {
-	cooldownChecker   controllerutil.CooldownChecker
-	resourcesDBClient database.ResourcesDBClient
+	cooldownChecker      controllerutil.CooldownChecker
+	retryCooldownChecker *controllerutil.SettableCooldownChecker
+	enqueueAfter         controllerutils.AfterEnqueuer
+	resourcesDBClient    database.ResourcesDBClient
+
+	// consecutiveUnknownCounts tracks how many consecutive Unknown results
+	// each key has produced. When a previous condition exists and the
+	// result is Unknown, the stored condition is preserved for the first
+	// maxConsecutiveUnknownsBeforeWrite attempts.
+	consecutiveUnknownCounts *lru.Cache
 
 	// validation is the validation to perform on the cluster.
 	validation validations.ClusterValidation
 }
+
+const maxConsecutiveUnknownsBeforeWrite = 10
 
 var _ controllerutils.ClusterSyncer = (*clusterValidationSyncer)(nil)
 
@@ -56,9 +68,11 @@ func NewClusterValidationController(
 ) controllerutils.Controller {
 
 	syncer := &clusterValidationSyncer{
-		cooldownChecker:   controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
-		resourcesDBClient: resourcesDBClient,
-		validation:        validation,
+		cooldownChecker:          controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
+		retryCooldownChecker:     controllerutil.NewSettableCooldownChecker(),
+		resourcesDBClient:        resourcesDBClient,
+		consecutiveUnknownCounts: lru.New(1000000),
+		validation:               validation,
 	}
 
 	controller := controllerutils.NewClusterWatchingController(
@@ -70,10 +84,18 @@ func NewClusterValidationController(
 		syncer,
 	)
 
+	if enqueuer, ok := controller.(controllerutils.AfterEnqueuer); ok {
+		syncer.enqueueAfter = enqueuer
+	} else {
+		panic("ClusterValidationController must implement AfterEnqueuer")
+	}
+
 	return controller
 }
 
 func (c *clusterValidationSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
+	logger := utils.LoggerFromContext(ctx)
+
 	existingCluster, err := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Get(ctx, key.HCPClusterName)
 	if database.IsNotFoundError(err) {
 		return nil // cluster doesn't exist, no work to do
@@ -90,47 +112,97 @@ func (c *clusterValidationSyncer) SyncOnce(ctx context.Context, key controllerut
 		return utils.TrackError(fmt.Errorf("failed to get or create ServiceProviderCluster: %w", err))
 	}
 
-	shouldProcess := c.shouldProcess(existingServiceProviderCluster)
-	if !shouldProcess {
-		return nil // no work to do
+	if !c.shouldProcess(existingServiceProviderCluster) {
+		return nil
+	}
+	if !c.retryCooldownChecker.CanSync(ctx, key) {
+		if c.enqueueAfter != nil {
+			c.enqueueAfter.EnqueueAfter(key, c.retryCooldownChecker.TimeUntilReady(key)+time.Second)
+		}
+		return nil
 	}
 	subscription, err := c.resourcesDBClient.Subscriptions().Get(ctx, existingCluster.ID.SubscriptionID)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get Subscription: %w", err))
 	}
 
-	// We store the validation error in a separate variable and we use that as the
-	// error to return to the caller. This allows us to perform other remaining
-	// tasks in the syncer even if the validation fails, and we ultimately
-	// drive the behavior of its controller through the outcome of the validation.
-	validationErr := c.validation.Validate(ctx, subscription, existingCluster)
+	result := c.validation.Validate(ctx, subscription, existingCluster)
+	result = validations.DefaultResult(result)
 
-	validationCondition := metav1.Condition{
-		Type: c.validation.Name(),
+	validationCondition := validations.BuildCondition(c.validation.Name(), result)
+	switch result.Outcome {
+	case validations.OutcomeTypeUnknown:
+		count := c.incrementUnknownCount(key)
+		if existingCondition := meta.FindStatusCondition(existingServiceProviderCluster.Status.Validations, c.validation.Name()); existingCondition != nil && existingCondition.Status != metav1.ConditionUnknown && count <= maxConsecutiveUnknownsBeforeWrite {
+			logger.Info("Validation returned Unknown but previous condition exists, so preserving previous state for a few attempts",
+				"previousStatus", existingCondition.Status,
+				"previousReason", existingCondition.Reason,
+				"unknownReason", validationCondition.Reason,
+				"unknownMessage", validationCondition.Message,
+				"serviceProviderMessage", result.Unknown.ServiceProviderMessage,
+				"consecutiveUnknownCount", count,
+			)
+			c.handleRequeue(key, result)
+			return nil
+		}
+		logger.Info("Writing unknown state",
+			"reason", validationCondition.Reason,
+			"serviceProviderMessage", result.Unknown.ServiceProviderMessage,
+			"consecutiveUnknownCount", count,
+		)
+	case validations.OutcomeTypeFailed:
+		logger.Info("Writing failed state",
+			"reason", result.Failed.Reason,
+			"serviceProviderMessage", result.Failed.ServiceProviderMessage,
+		)
+	case validations.OutcomeTypePassed:
+		logger.Info("Writing passed state")
 	}
-	if validationErr != nil {
-		validationCondition.Status = metav1.ConditionFalse
-		validationCondition.Reason = "Failed"
-		validationCondition.Message = fmt.Sprintf("Validation failed: %s", validationErr.Error())
-	} else {
-		validationCondition.Status = metav1.ConditionTrue
-		validationCondition.Reason = "Succeeded"
-		validationCondition.Message = "Validation succeeded"
-	}
+	// if we get here, we're going to overwrite the previous status
+	c.resetUnknownCount(key)
+
 	replacement := existingServiceProviderCluster.DeepCopy()
 	meta.SetStatusCondition(&replacement.Status.Validations, validationCondition)
 
-	serviceProviderClustersCosmosClient := c.resourcesDBClient.ServiceProviderClusters(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
-	_, err = serviceProviderClustersCosmosClient.Replace(ctx, replacement, nil)
-	if database.IsPreconditionFailedError(err) {
-		// if we have a conflict error, then we're guaranteed that our informer will eventually see an update and trigger us again.
-		return nil
-	}
-	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to replace ServiceProviderCluster: %w", err))
+	if !equality.Semantic.DeepEqual(existingServiceProviderCluster, replacement) {
+		serviceProviderClustersCosmosClient := c.resourcesDBClient.ServiceProviderClusters(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
+		_, err = serviceProviderClustersCosmosClient.Replace(ctx, replacement, nil)
+		if database.IsPreconditionFailedError(err) {
+			return nil
+		}
+		if err != nil {
+			return utils.TrackError(fmt.Errorf("failed to replace ServiceProviderCluster: %w", err))
+		}
 	}
 
-	return validationErr
+	c.handleRequeue(key, result)
+	return nil
+}
+
+func (c *clusterValidationSyncer) handleRequeue(key controllerutils.HCPClusterKey, result *validations.ValidationResult) {
+	if result.EarliestRetryAfter != nil {
+		c.retryCooldownChecker.SetCooldown(key, *result.EarliestRetryAfter)
+	}
+
+	if result.Outcome == validations.OutcomeTypePassed {
+		return
+	}
+
+	retryAfter := *result.EarliestRetryAfter + time.Second
+	c.enqueueAfter.EnqueueAfter(key, retryAfter)
+}
+
+func (c *clusterValidationSyncer) incrementUnknownCount(key controllerutils.HCPClusterKey) int {
+	count := 1
+	if existing, ok := c.consecutiveUnknownCounts.Get(key); ok {
+		count = existing.(int) + 1
+	}
+	c.consecutiveUnknownCounts.Add(key, count)
+	return count
+}
+
+func (c *clusterValidationSyncer) resetUnknownCount(key controllerutils.HCPClusterKey) {
+	c.consecutiveUnknownCounts.Remove(key)
 }
 
 // shouldProcess returns true when the condition associated to the validation does not exist or when it exists but
