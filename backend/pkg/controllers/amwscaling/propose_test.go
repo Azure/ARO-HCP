@@ -22,9 +22,8 @@ import (
 
 func TestProposeLimits(t *testing.T) {
 	const (
-		defaultLimit = int64(2_000_000)
-		maxLimit     = int64(20_000_000)
-		threshold    = 85.0
+		maxLimit  = int64(20_000_000)
+		threshold = 85.0
 	)
 
 	tests := []struct {
@@ -36,8 +35,36 @@ func TestProposeLimits(t *testing.T) {
 		expected    *AMWLimits
 	}{
 		{
-			name:        "no scaling when both below threshold",
-			current:     AMWLimits{MaxActiveTimeSeries: defaultLimit, MaxEventsPerMinute: defaultLimit},
+			// Both below 2M — bump both to 2M regardless of utilization.
+			name:        "below auto-approve limit bumps to 2M unconditionally",
+			current:     AMWLimits{MaxActiveTimeSeries: 1_000_000, MaxEventsPerMinute: 1_000_000},
+			utilization: AMWUtilization{ActiveTimeSeriesPercent: 10, EventsPerMinutePercent: 10},
+			threshold:   threshold,
+			maxLimit:    maxLimit,
+			expected:    &AMWLimits{MaxActiveTimeSeries: 2_000_000, MaxEventsPerMinute: 2_000_000},
+		},
+		{
+			// One below 2M, one at 2M with low utilization — only the sub-2M one changes.
+			name:        "only sub-2M dimension bumped when other is at 2M with low usage",
+			current:     AMWLimits{MaxActiveTimeSeries: 1_000_000, MaxEventsPerMinute: 2_000_000},
+			utilization: AMWUtilization{ActiveTimeSeriesPercent: 50, EventsPerMinutePercent: 50},
+			threshold:   threshold,
+			maxLimit:    maxLimit,
+			expected:    &AMWLimits{MaxActiveTimeSeries: 2_000_000, MaxEventsPerMinute: 2_000_000},
+		},
+		{
+			// One below 2M, one at 2M with high utilization — both change.
+			// ATS: bumped to 2M. EPM: 90% of 2M = 1.8M, 175% = 3,150,000.
+			name:        "sub-2M dimension bumped and high-usage dimension scaled",
+			current:     AMWLimits{MaxActiveTimeSeries: 1_000_000, MaxEventsPerMinute: 2_000_000},
+			utilization: AMWUtilization{ActiveTimeSeriesPercent: 50, EventsPerMinutePercent: 90},
+			threshold:   threshold,
+			maxLimit:    maxLimit,
+			expected:    &AMWLimits{MaxActiveTimeSeries: 2_000_000, MaxEventsPerMinute: 3_150_000},
+		},
+		{
+			name:        "no scaling when at 2M with both below threshold",
+			current:     AMWLimits{MaxActiveTimeSeries: 2_000_000, MaxEventsPerMinute: 2_000_000},
 			utilization: AMWUtilization{ActiveTimeSeriesPercent: 30, EventsPerMinutePercent: 40},
 			threshold:   threshold,
 			maxLimit:    maxLimit,
@@ -45,7 +72,7 @@ func TestProposeLimits(t *testing.T) {
 		},
 		{
 			name:        "no scaling when exactly at threshold",
-			current:     AMWLimits{MaxActiveTimeSeries: defaultLimit, MaxEventsPerMinute: defaultLimit},
+			current:     AMWLimits{MaxActiveTimeSeries: 2_000_000, MaxEventsPerMinute: 2_000_000},
 			utilization: AMWUtilization{ActiveTimeSeriesPercent: 85, EventsPerMinutePercent: 85},
 			threshold:   threshold,
 			maxLimit:    maxLimit,
@@ -54,25 +81,25 @@ func TestProposeLimits(t *testing.T) {
 		{
 			// 90% of 2M = 1.8M usage. 175% of 1.8M = 3,150,000.
 			name:        "scales active time series to 175% of usage",
-			current:     AMWLimits{MaxActiveTimeSeries: defaultLimit, MaxEventsPerMinute: defaultLimit},
+			current:     AMWLimits{MaxActiveTimeSeries: 2_000_000, MaxEventsPerMinute: 2_000_000},
 			utilization: AMWUtilization{ActiveTimeSeriesPercent: 90, EventsPerMinutePercent: 50},
 			threshold:   threshold,
 			maxLimit:    maxLimit,
-			expected:    &AMWLimits{MaxActiveTimeSeries: 3_150_000, MaxEventsPerMinute: defaultLimit},
+			expected:    &AMWLimits{MaxActiveTimeSeries: 3_150_000, MaxEventsPerMinute: 2_000_000},
 		},
 		{
 			// 95% of 2M = 1.9M. 175% of 1.9M = 3,325,000. Rounded = 3,320,000.
 			name:        "scales events per minute to 175% of usage",
-			current:     AMWLimits{MaxActiveTimeSeries: defaultLimit, MaxEventsPerMinute: defaultLimit},
+			current:     AMWLimits{MaxActiveTimeSeries: 2_000_000, MaxEventsPerMinute: 2_000_000},
 			utilization: AMWUtilization{ActiveTimeSeriesPercent: 50, EventsPerMinutePercent: 95},
 			threshold:   threshold,
 			maxLimit:    maxLimit,
-			expected:    &AMWLimits{MaxActiveTimeSeries: defaultLimit, MaxEventsPerMinute: 3_320_000},
+			expected:    &AMWLimits{MaxActiveTimeSeries: 2_000_000, MaxEventsPerMinute: 3_320_000},
 		},
 		{
 			// 90% of 2M → 3,150,000. 95% of 2M → 3,320,000.
 			name:        "scales both dimensions",
-			current:     AMWLimits{MaxActiveTimeSeries: defaultLimit, MaxEventsPerMinute: defaultLimit},
+			current:     AMWLimits{MaxActiveTimeSeries: 2_000_000, MaxEventsPerMinute: 2_000_000},
 			utilization: AMWUtilization{ActiveTimeSeriesPercent: 90, EventsPerMinutePercent: 95},
 			threshold:   threshold,
 			maxLimit:    maxLimit,
@@ -114,9 +141,9 @@ func TestProposeLimits(t *testing.T) {
 			expected:    &AMWLimits{MaxActiveTimeSeries: 7_000_000, MaxEventsPerMinute: 14_000_000},
 		},
 		{
-			// 86% of 2M = 1,720,000. 175% = 3,010,000. Rounded = 3,010,000.
+			// 86% of 2M = 1,720,000. 175% = 3,010,000.
 			name:        "just above threshold produces increase rounded to 10k",
-			current:     AMWLimits{MaxActiveTimeSeries: defaultLimit, MaxEventsPerMinute: defaultLimit},
+			current:     AMWLimits{MaxActiveTimeSeries: 2_000_000, MaxEventsPerMinute: 2_000_000},
 			utilization: AMWUtilization{ActiveTimeSeriesPercent: 86, EventsPerMinutePercent: 86},
 			threshold:   threshold,
 			maxLimit:    maxLimit,
@@ -127,11 +154,21 @@ func TestProposeLimits(t *testing.T) {
 			// 95% of 2M = 1,900,000. 175% = 3,325,000. Rounded = 3,320,000.
 			// 163% of 2M = 3,260,000. 175% = 5,705,000. Rounded = 5,700,000.
 			name:        "over 100% utilization requests 175% of actual usage",
-			current:     AMWLimits{MaxActiveTimeSeries: defaultLimit, MaxEventsPerMinute: defaultLimit},
+			current:     AMWLimits{MaxActiveTimeSeries: 2_000_000, MaxEventsPerMinute: 2_000_000},
 			utilization: AMWUtilization{ActiveTimeSeriesPercent: 95, EventsPerMinutePercent: 163},
 			threshold:   threshold,
 			maxLimit:    maxLimit,
 			expected:    &AMWLimits{MaxActiveTimeSeries: 3_320_000, MaxEventsPerMinute: 5_700_000},
+		},
+		{
+			// Below 2M with high utilization — bumps to 2M (auto-approve), not 175% of usage.
+			// 126% of 1M = 1,260,000. 175% = 2,205,000. But auto-approve gives us 2M safely.
+			name:        "below auto-approve with high usage still proposes 2M not usage-based",
+			current:     AMWLimits{MaxActiveTimeSeries: 1_000_000, MaxEventsPerMinute: 1_000_000},
+			utilization: AMWUtilization{ActiveTimeSeriesPercent: 126, EventsPerMinutePercent: 400},
+			threshold:   threshold,
+			maxLimit:    maxLimit,
+			expected:    &AMWLimits{MaxActiveTimeSeries: 2_000_000, MaxEventsPerMinute: 2_000_000},
 		},
 	}
 

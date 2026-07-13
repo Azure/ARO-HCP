@@ -166,6 +166,8 @@ var _ = Describe("Customer", func() {
 				return verifyCertChain(certs, trustedCAs)
 			}).WithTimeout(10*time.Minute).WithPolling(10*time.Second).Should(Succeed(),
 				"expect ingress certificate to be signed by a trusted Azure CA")
+
+			time.Sleep(10 * time.Hour)
 		})
 })
 
