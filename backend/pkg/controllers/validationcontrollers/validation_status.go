@@ -94,11 +94,26 @@ func validationResultToStatus(validationType string, result validations.Validati
 	return vs
 }
 
+// upsertValidationStatus merges updated into list by validation Type.
+//
+// Condition persistence policy:
+//   - Passed and Failed outcomes always overwrite the stored Condition.
+//   - Unknown with Reason "InternalError" does not overwrite an existing Condition.
+//     The previous user-facing Status/Reason/Message is kept so transient service
+//     errors do not flap the API from True/False to Unknown.
+//   - Internal always reflects the latest reconcile attempt (Outcome, ServiceProviderMessage,
+//     ReportingPolicy, EarliestRetryAfterSeconds). When Condition is preserved, Internal may
+//     show Outcome=Unknown while Condition still shows the last known Passed/Failed state.
+//   - If there is no prior entry, InternalError Unknown is persisted as Condition Unknown.
 func upsertValidationStatus(list []api.ValidationStatus, updated api.ValidationStatus) []api.ValidationStatus {
 	out := make([]api.ValidationStatus, 0, len(list)+1)
 	replaced := false
 	for _, existing := range list {
 		if existing.Type == updated.Type {
+			if updated.Condition.Status == metav1.ConditionUnknown && updated.Condition.Reason == "InternalError" {
+				updated.Condition = existing.Condition
+			}
+
 			// Preserve lastTransitionTime unless the condition Status changed.
 			// This matches metav1.Condition conventions: LastTransitionTime tracks status transitions,
 			// not message or reason updates.

@@ -98,8 +98,14 @@ type ServiceProviderNodePoolStatus struct {
 	// }
 	NodePoolVersion ServiceProviderNodePoolStatusVersion `json:"nodePoolVersion,omitempty"`
 
-	// Validations is a list of conditions that tracks the status of each node pool validation.
-	// Each entry is keyed by Type and contains both user-facing condition information and internal details.
+	// Validations tracks the status of each node pool validation, keyed by Type.
+	// Each entry has two layers:
+	//   - condition: user-facing state (last definitive Passed or Failed result)
+	//   - internal: operator-facing details for the latest reconcile attempt
+	// When a reconcile attempt fails with an internal error, condition is not overwritten
+	// so transient service errors do not flap the API from True/False to Unknown.
+	// internal still reflects the latest attempt and may show outcome=Unknown while
+	// condition remains the last known Passed/Failed state.
 	// +optional
 	// +listType=map
 	// +listMapKey=type

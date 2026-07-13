@@ -148,8 +148,14 @@ type ServiceProviderClusterStatus struct {
 	// }
 	ControlPlaneVersion ServiceProviderClusterStatusVersion `json:"control_plane_version,omitempty"`
 
-	// Validations is a list of conditions that tracks the status of each cluster validation.
-	// Each entry is keyed by Type and contains both user-facing condition information and internal details.
+	// Validations tracks the status of each cluster validation, keyed by Type.
+	// Each entry has two layers:
+	//   - condition: user-facing state (last definitive Passed or Failed result)
+	//   - internal: operator-facing details for the latest reconcile attempt
+	// When a reconcile attempt fails with an internal error, condition is not overwritten
+	// so transient service errors do not flap the API from True/False to Unknown.
+	// internal still reflects the latest attempt and may show outcome=Unknown while
+	// condition remains the last known Passed/Failed state.
 	// +optional
 	// +listType=map
 	// +listMapKey=type
@@ -179,14 +185,20 @@ type ValidationStatus struct {
 	// +listMapKey
 	Type string `json:"type"`
 
-	// Condition is the user-facing condition information. Fields must be non-sensitive.
+	// Condition is the user-facing validation state. Fields must be non-sensitive.
+	// It reflects the last definitive Passed or Failed result. When a reconcile attempt
+	// fails with an internal error, Condition is not overwritten and may remain True/False
+	// while Internal.Outcome is Unknown. See Internal for the latest attempt.
 	Condition metav1.Condition `json:"condition"`
 
-	// Internal holds richer operator-facing information. Fields must be non-sensitive.
+	// Internal holds operator-facing details for the latest reconcile attempt.
+	// Fields must be non-sensitive. Internal may diverge from Condition when a transient
+	// internal error prevents re-evaluation but the last known user-facing state is preserved.
 	Internal ValidationInternalStatus `json:"internal,omitempty"`
 }
 
 type ValidationInternalStatus struct {
+	// Outcome is the result of the latest reconcile attempt (Passed, Failed, or Unknown).
 	Outcome                string `json:"outcome,omitempty"`
 	ServiceProviderMessage string `json:"serviceProviderMessage,omitempty"`
 	ReportingPolicy        string `json:"reportingPolicy,omitempty"`
