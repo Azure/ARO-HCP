@@ -30,16 +30,21 @@ type HCPOpenShiftCluster struct {
 
 	arm.TrackedResource
 
-	CustomerProperties        HCPOpenShiftClusterCustomerProperties        `json:"customerProperties,omitempty"`
+	// Written by: Frontend PUT/PATCH Cluster, ClusterBaseDomainPrefixSync
+	CustomerProperties HCPOpenShiftClusterCustomerProperties `json:"customerProperties,omitempty"`
+	// Written by: Frontend PUT/PATCH/DELETE Cluster, all Operation*Cluster controllers, ClusterPropertiesSync, ClusterClusterServiceCreate, ClusterDeletion* controllers, CreateBillingDoc
 	ServiceProviderProperties HCPOpenShiftClusterServiceProviderProperties `json:"serviceProviderProperties,omitempty"`
-	Identity                  *arm.ManagedServiceIdentity                  `json:"identity,omitempty"`
-	Status                    HCPOpenShiftClusterStatus                    `json:"status"`
+	// Written by: Frontend PUT/PATCH Cluster (Create/Update), IdentityMigration
+	Identity *arm.ManagedServiceIdentity `json:"identity,omitempty"`
+	// Written by: ClusterDegradedAggregator
+	Status HCPOpenShiftClusterStatus `json:"status"`
 }
 
 // HCPOpenShiftClusterStatus contains the observed state of the cluster.
 type HCPOpenShiftClusterStatus struct {
 	// Conditions are the top-level HCPOpenShiftCluster status conditions.
 	// Each Condition Type represents a condition and it should be unique among all conditions.
+	// Written by: ClusterDegradedAggregator
 	// +optional
 	// +patchMergeKey=type
 	// +patchStrategy=merge
@@ -52,50 +57,69 @@ var _ arm.CosmosPersistable = &HCPOpenShiftCluster{}
 
 // HCPOpenShiftClusterCustomerProperties represents the property bag of a HCPOpenShiftCluster resource.
 type HCPOpenShiftClusterCustomerProperties struct {
-	Version                 VersionProfile              `json:"version,omitempty"`
-	DNS                     CustomerDNSProfile          `json:"dns,omitempty"`
-	Network                 NetworkProfile              `json:"network,omitempty"`
-	API                     CustomerAPIProfile          `json:"api,omitempty"`
-	Ingress                 CustomerIngressProfile      `json:"ingress,omitempty"`
-	Platform                CustomerPlatformProfile     `json:"platform,omitempty"`
-	Autoscaling             ClusterAutoscalingProfile   `json:"autoscaling,omitempty"`
-	NodeDrainTimeoutMinutes int32                       `json:"nodeDrainTimeoutMinutes,omitempty"`
-	Etcd                    EtcdProfile                 `json:"etcd,omitempty"`
-	ClusterImageRegistry    ClusterImageRegistryProfile `json:"clusterImageRegistry,omitempty"`
-	ImageDigestMirrors      []ImageDigestMirror         `json:"imageDigestMirrors,omitempty"`
+	// Written by: Frontend PUT/PATCH Cluster
+	Version VersionProfile `json:"version,omitempty"`
+	// Written by: Frontend PUT/PATCH Cluster, ClusterBaseDomainPrefixSync (BaseDomainPrefix only)
+	DNS CustomerDNSProfile `json:"dns,omitempty"`
+	// Written by: Frontend PUT Cluster (Create)
+	Network NetworkProfile `json:"network,omitempty"`
+	// Written by: Frontend PUT/PATCH Cluster
+	API CustomerAPIProfile `json:"api,omitempty"`
+	// Written by: Frontend PUT/PATCH Cluster
+	Ingress CustomerIngressProfile `json:"ingress,omitempty"`
+	// Written by: Frontend PUT/PATCH Cluster
+	Platform CustomerPlatformProfile `json:"platform,omitempty"`
+	// Written by: Frontend PUT/PATCH Cluster
+	Autoscaling ClusterAutoscalingProfile `json:"autoscaling,omitempty"`
+	// Written by: Frontend PUT/PATCH Cluster
+	NodeDrainTimeoutMinutes int32 `json:"nodeDrainTimeoutMinutes,omitempty"`
+	// Written by: Frontend PUT/PATCH Cluster
+	Etcd EtcdProfile `json:"etcd,omitempty"`
+	// Written by: Frontend PUT/PATCH Cluster
+	ClusterImageRegistry ClusterImageRegistryProfile `json:"clusterImageRegistry,omitempty"`
+	// Written by: Frontend PUT/PATCH Cluster
+	ImageDigestMirrors []ImageDigestMirror `json:"imageDigestMirrors,omitempty"`
 }
 
-// HCPOpenShiftClusterCustomerProperties represents the property bag of a HCPOpenShiftCluster resource.
+// HCPOpenShiftClusterServiceProviderProperties represents the service-provider-managed property bag of a HCPOpenShiftCluster resource.
 type HCPOpenShiftClusterServiceProviderProperties struct {
-	ProvisioningState            arm.ProvisioningState          `json:"provisioningState,omitempty"`
-	ClusterServiceID             *InternalID                    `json:"clusterServiceID,omitempty"`
-	ActiveOperationID            string                         `json:"activeOperationId,omitempty"`
-	RevokeCredentialsOperationID string                         `json:"revokeCredentialsOperationId,omitempty"`
-	DNS                          ServiceProviderDNSProfile      `json:"dns,omitempty"`
-	Console                      ServiceProviderConsoleProfile  `json:"console,omitempty"`
-	API                          ServiceProviderAPIProfile      `json:"api,omitempty"`
-	Platform                     ServiceProviderPlatformProfile `json:"platform,omitempty"`
+	// Written by: Frontend PUT/PATCH/DELETE Cluster, OperationClusterCreate, OperationClusterUpdate, OperationClusterDelete
+	ProvisioningState arm.ProvisioningState `json:"provisioningState,omitempty"`
+	// Written by: Frontend PUT Cluster (Create), ClusterClusterServiceCreate, ClusterDeletionClusterServiceIDClearer
+	ClusterServiceID *InternalID `json:"clusterServiceID,omitempty"`
+	// Written by: Frontend PUT/PATCH/DELETE Cluster, OperationClusterCreate, OperationClusterUpdate, OperationClusterDelete
+	ActiveOperationID string `json:"activeOperationId,omitempty"`
+	// Written by: Frontend POST RevokeCredentials, OperationRevokeCredentials
+	RevokeCredentialsOperationID string `json:"revokeCredentialsOperationId,omitempty"`
+	// Written by: ClusterPropertiesSync
+	DNS ServiceProviderDNSProfile `json:"dns,omitempty"`
+	// Written by: ClusterPropertiesSync
+	Console ServiceProviderConsoleProfile `json:"console,omitempty"`
+	// Written by: ClusterPropertiesSync
+	API ServiceProviderAPIProfile `json:"api,omitempty"`
+	// Written by: ClusterPropertiesSync
+	Platform ServiceProviderPlatformProfile `json:"platform,omitempty"`
 
 	// ExperimentalFeatures captures experimental feature state evaluated from
 	// AFEC and per-resource tags. Stored in Cosmos but NOT exposed via ARM API.
+	// Written by: Frontend PUT Cluster (Create)
 	ExperimentalFeatures ExperimentalFeatures `json:"experimentalFeatures,omitzero"`
 	// ManagedIdentitiesDataPlaneIdentityURL is the Managed Identities Data Plane
 	// Identity URL associated with the cluster. It is the URL that will be used
 	// to communicate with the Managed Identities Resource Provider (MI RP).
-	// When an ARO-HCP Cluster is created, ARM sends a HTTP header X-Ms-Identity-Url
-	// that contains the cluster's identity url. For ARO-HCP environments where
-	// the Managed Identities Dataplane service is not available the http header
-	// is set to a dummy value by our tools/testsuites/developers when
-	// creating ARO-HCP Clusters
+	// Written by: Frontend PUT Cluster (Create)
 	ManagedIdentitiesDataPlaneIdentityURL string `json:"managedIdentitiesDataPlaneIdentityURL,omitempty"`
-	ClusterUID                            string `json:"clusterUID,omitempty"`
+	// Written by: BackfillClusterUID
+	ClusterUID string `json:"clusterUID,omitempty"`
 	// BillingDocumentCosmosID is the Cosmos DB document ID of the billing document
 	// associated with this cluster. It is set when the billing document is created
 	// and used to avoid redundant creation attempts.
+	// Written by: CreateBillingDoc
 	BillingDocumentCosmosID string `json:"billingDocumentCosmosID,omitempty"`
 	// DeletionTimestamp is the timestamp at which the Cluster deletion was requested.
 	// The timestamp is in UTC.
 	// A nil value indicates that the Cluster deletion has not been requested.
+	// Written by: Frontend DELETE Cluster
 	DeletionTimestamp *metav1.Time `json:"deletionTimestamp,omitempty"`
 	// ClusterServiceDeletionTimestamp is written when a dispatch of a Cluster
 	// Service Delete Cluster request against Cluster Service for this cluster
@@ -105,14 +129,11 @@ type HCPOpenShiftClusterServiceProviderProperties struct {
 	// successfully issued.
 	// A nil value indicates that the Cluster Service Deletion has not been requested.
 	// The timestamp is in UTC.
-	// TODO this attribute is not in use yet. Do not rely on it.
+	// Written by: ClusterClusterServiceDeleteDispatch
 	ClusterServiceDeletionTimestamp *metav1.Time `json:"clusterServiceDeletionTimestamp,omitempty"`
 
 	// TODO Temporary field to track whether the cluster operation is using the new deletion approach.
-	// We are migrating from the cluster CS deletion synchronous in frontend to the backend, to be fully asynchronous.
-	// This boolean is true for Cluster delete operations that are created with new deletion approach.
-	// This will be removed once all clusters whose deletion was triggered before the new approach is fully rolled out have been
-	// fully deleted in all ARO-HCP permanent environments, for all regions.
+	// Written by: Frontend DELETE Cluster
 	UsesNewClusterDeletionApproach bool `json:"usesNewClusterDeletionApproach"`
 }
 
