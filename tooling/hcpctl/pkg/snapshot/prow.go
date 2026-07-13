@@ -154,9 +154,10 @@ type TestResult struct {
 }
 
 // ParseProwURL extracts job name, Prow ID, GCS prefix, and PR status from a Prow job URL.
-// Supports two formats:
+// Supports three formats:
 //   - Periodic/postsubmit: https://prow.ci.openshift.org/view/gs/test-platform-results/logs/<job>/<prow-id>
 //   - Presubmit (PR): https://prow.ci.openshift.org/view/gs/test-platform-results/pr-logs/pull/<org_repo>/<pr>/<job>/<prow-id>
+//   - Batch: https://prow.ci.openshift.org/view/gs/test-platform-results/pr-logs/pull/batch/<job>/<prow-id>
 func ParseProwURL(rawURL string) (*ProwJobInfo, error) {
 	u, err := url.Parse(rawURL)
 	if err != nil {
@@ -172,11 +173,29 @@ func ParseProwURL(rawURL string) (*ProwJobInfo, error) {
 
 	for i, seg := range segments {
 		if seg == "pr-logs" {
+			if i+2 >= len(segments) || segments[i+1] != "pull" {
+				return nil, fmt.Errorf("expected \"pull\" after \"pr-logs\" in URL path, got %q", u.Path)
+			}
+			// Batch jobs use "batch" instead of <org_repo>/<pr>:
+			//   pr-logs/pull/batch/<job>/<prow-id>
+			if segments[i+2] == "batch" {
+				if i+4 >= len(segments) {
+					return nil, fmt.Errorf("URL path must contain pr-logs/pull/batch/<job>/<prow-id>, got %q", u.Path)
+				}
+				prowID := segments[i+4]
+				if _, err := strconv.ParseUint(prowID, 10, 64); err != nil {
+					return nil, fmt.Errorf("prow ID %q is not a valid number", prowID)
+				}
+				return &ProwJobInfo{
+					URL:       rawURL,
+					JobName:   segments[i+3],
+					ProwID:    prowID,
+					GCSPrefix: strings.Join(segments[i:i+5], "/"),
+				}, nil
+			}
+			// Regular PR jobs: pr-logs/pull/<org_repo>/<pr>/<job>/<prow-id>
 			if i+5 >= len(segments) {
 				return nil, fmt.Errorf("URL path must contain pr-logs/pull/<org_repo>/<pr>/<job>/<prow-id>, got %q", u.Path)
-			}
-			if segments[i+1] != "pull" {
-				return nil, fmt.Errorf("expected \"pull\" after \"pr-logs\" in URL path, got %q", segments[i+1])
 			}
 			prowID := segments[i+5]
 			if _, err := strconv.ParseUint(prowID, 10, 64); err != nil {
