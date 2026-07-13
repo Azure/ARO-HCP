@@ -586,7 +586,7 @@ spec:
             defaultMode: 0755
 ---
 # Source: arobit/templates/forwarder-servicemonitor.yaml
-apiVersion: monitoring.coreos.com/v1
+apiVersion: azmonitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
   name: arobit-forwarder

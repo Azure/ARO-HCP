@@ -275,7 +275,7 @@ spec:
   serviceAccountName: velero
 ---
 # Source: velero-hcp-cli/templates/node-agent-podmonitor.yaml
-apiVersion: monitoring.coreos.com/v1
+apiVersion: azmonitoring.coreos.com/v1
 kind: PodMonitor
 metadata:
   name: node-agent
@@ -294,7 +294,7 @@ spec:
     interval: 30s
 ---
 # Source: velero-hcp-cli/templates/velero-podmonitor.yaml
-apiVersion: monitoring.coreos.com/v1
+apiVersion: azmonitoring.coreos.com/v1
 kind: PodMonitor
 metadata:
   name: velero

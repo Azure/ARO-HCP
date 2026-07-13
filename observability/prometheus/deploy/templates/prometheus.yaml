@@ -1,3 +1,4 @@
+{{- if .Values.prometheusAgent.enabled }}
 {{- $none := "NONE" -}}
 {{- $setRequests := or (ne (.Values.prometheusSpec.resources.requests.cpu | toString) $none) (ne (.Values.prometheusSpec.resources.requests.memory | toString) $none) -}}
 {{- $setLimits := ne (.Values.prometheusSpec.resources.limits.memory | toString) $none -}}
@@ -145,3 +146,4 @@ spec:
         action: keep
     {{- end }}
   {{- end }}
+{{- end }}

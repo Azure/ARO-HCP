@@ -1,3 +1,4 @@
+{{- if .Values.prometheusAgent.enabled }}
 apiVersion: monitoring.coreos.com/v1
 kind: PodMonitor
 metadata:
@@ -13,3 +14,4 @@ spec:
     matchLabels:
       app.kubernetes.io/instance: prometheus
       app.kubernetes.io/managed-by: prometheus-operator
+{{- end }}

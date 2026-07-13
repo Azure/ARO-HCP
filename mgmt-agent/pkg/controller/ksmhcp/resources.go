@@ -140,7 +140,7 @@ func buildService(namespace string, ownerRef metav1.OwnerReference) *coreac.Serv
 func buildServiceMonitor(namespace string, ownerRef metav1.OwnerReference) (*unstructured.Unstructured, error) {
 	sm := &monitoringv1.ServiceMonitor{
 		TypeMeta: metav1.TypeMeta{
-			APIVersion: "monitoring.coreos.com/v1",
+			APIVersion: "azmonitoring.coreos.com/v1",
 			Kind:       "ServiceMonitor",
 		},
 		ObjectMeta: metav1.ObjectMeta{

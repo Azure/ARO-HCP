@@ -3683,7 +3683,7 @@ spec:
     value: "true"
 ---
 # Source: multicluster-engine/templates/clusterlifecycle-state-metrics-v2.servicemonitor.yaml
-apiVersion: monitoring.coreos.com/v1
+apiVersion: azmonitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
   name: clusterlifecycle-state-metrics-v2

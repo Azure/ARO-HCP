@@ -1,0 +1,373 @@
+# HELP cluster_installer Reports info about the installation process and, if applicable, the install tool. The type is either 'openshift-install', indicating that openshift-install was used to install the cluster, or 'other', indicating that an unknown process installed the cluster. The invoker is 'user' by default, but it may be overridden by a consuming tool. The version reported is that of the openshift-install that was used to generate the manifests and, if applicable, provision the infrastructure.
+# TYPE cluster_installer gauge
+cluster_installer{invoker="hypershift",type="openshift-install",version="4.20.28"} 1
+# HELP cluster_operator_condition_transitions Reports the number of times that a condition on a cluster operator changes status
+# TYPE cluster_operator_condition_transitions gauge
+cluster_operator_condition_transitions{condition="Available",name="console"} 2
+cluster_operator_condition_transitions{condition="Available",name="csi-snapshot-controller"} 3
+cluster_operator_condition_transitions{condition="Available",name="dns"} 2
+cluster_operator_condition_transitions{condition="Available",name="image-registry"} 3
+cluster_operator_condition_transitions{condition="Available",name="ingress"} 2
+cluster_operator_condition_transitions{condition="Available",name="insights"} 1
+cluster_operator_condition_transitions{condition="Available",name="kube-apiserver"} 1
+cluster_operator_condition_transitions{condition="Available",name="kube-controller-manager"} 1
+cluster_operator_condition_transitions{condition="Available",name="kube-scheduler"} 1
+cluster_operator_condition_transitions{condition="Available",name="kube-storage-version-migrator"} 3
+cluster_operator_condition_transitions{condition="Available",name="monitoring"} 2
+cluster_operator_condition_transitions{condition="Available",name="network"} 2
+cluster_operator_condition_transitions{condition="Available",name="node-tuning"} 2
+cluster_operator_condition_transitions{condition="Available",name="openshift-apiserver"} 1
+cluster_operator_condition_transitions{condition="Available",name="openshift-controller-manager"} 1
+cluster_operator_condition_transitions{condition="Available",name="openshift-samples"} 2
+cluster_operator_condition_transitions{condition="Available",name="operator-lifecycle-manager"} 1
+cluster_operator_condition_transitions{condition="Available",name="operator-lifecycle-manager-catalog"} 1
+cluster_operator_condition_transitions{condition="Available",name="operator-lifecycle-manager-packageserver"} 1
+cluster_operator_condition_transitions{condition="Available",name="service-ca"} 2
+cluster_operator_condition_transitions{condition="Available",name="storage"} 4
+cluster_operator_condition_transitions{condition="ClusterTransferAvailable",name="insights"} 2
+cluster_operator_condition_transitions{condition="Degraded",name="console"} 2
+cluster_operator_condition_transitions{condition="Degraded",name="csi-snapshot-controller"} 1
+cluster_operator_condition_transitions{condition="Degraded",name="dns"} 3
+cluster_operator_condition_transitions{condition="Degraded",name="image-registry"} 3
+cluster_operator_condition_transitions{condition="Degraded",name="ingress"} 3
+cluster_operator_condition_transitions{condition="Degraded",name="insights"} 1
+cluster_operator_condition_transitions{condition="Degraded",name="kube-apiserver"} 1
+cluster_operator_condition_transitions{condition="Degraded",name="kube-controller-manager"} 1
+cluster_operator_condition_transitions{condition="Degraded",name="kube-scheduler"} 1
+cluster_operator_condition_transitions{condition="Degraded",name="kube-storage-version-migrator"} 2
+cluster_operator_condition_transitions{condition="Degraded",name="monitoring"} 2
+cluster_operator_condition_transitions{condition="Degraded",name="network"} 3
+cluster_operator_condition_transitions{condition="Degraded",name="node-tuning"} 1
+cluster_operator_condition_transitions{condition="Degraded",name="openshift-apiserver"} 1
+cluster_operator_condition_transitions{condition="Degraded",name="openshift-controller-manager"} 1
+cluster_operator_condition_transitions{condition="Degraded",name="openshift-samples"} 1
+cluster_operator_condition_transitions{condition="Degraded",name="operator-lifecycle-manager"} 1
+cluster_operator_condition_transitions{condition="Degraded",name="operator-lifecycle-manager-catalog"} 1
+cluster_operator_condition_transitions{condition="Degraded",name="operator-lifecycle-manager-packageserver"} 1
+cluster_operator_condition_transitions{condition="Degraded",name="service-ca"} 2
+cluster_operator_condition_transitions{condition="Degraded",name="storage"} 2
+cluster_operator_condition_transitions{condition="Disabled",name="insights"} 1
+cluster_operator_condition_transitions{condition="EvaluationConditionsDetected",name="console"} 1
+cluster_operator_condition_transitions{condition="EvaluationConditionsDetected",name="csi-snapshot-controller"} 1
+cluster_operator_condition_transitions{condition="EvaluationConditionsDetected",name="ingress"} 1
+cluster_operator_condition_transitions{condition="EvaluationConditionsDetected",name="kube-storage-version-migrator"} 1
+cluster_operator_condition_transitions{condition="EvaluationConditionsDetected",name="service-ca"} 1
+cluster_operator_condition_transitions{condition="EvaluationConditionsDetected",name="storage"} 1
+cluster_operator_condition_transitions{condition="GatheringDisabled",name="insights"} 1
+cluster_operator_condition_transitions{condition="ManagementStateDegraded",name="network"} 1
+cluster_operator_condition_transitions{condition="Progressing",name="console"} 1
+cluster_operator_condition_transitions{condition="Progressing",name="csi-snapshot-controller"} 3
+cluster_operator_condition_transitions{condition="Progressing",name="dns"} 6
+cluster_operator_condition_transitions{condition="Progressing",name="image-registry"} 5
+cluster_operator_condition_transitions{condition="Progressing",name="ingress"} 2
+cluster_operator_condition_transitions{condition="Progressing",name="insights"} 1
+cluster_operator_condition_transitions{condition="Progressing",name="kube-apiserver"} 1
+cluster_operator_condition_transitions{condition="Progressing",name="kube-controller-manager"} 1
+cluster_operator_condition_transitions{condition="Progressing",name="kube-scheduler"} 1
+cluster_operator_condition_transitions{condition="Progressing",name="kube-storage-version-migrator"} 3
+cluster_operator_condition_transitions{condition="Progressing",name="monitoring"} 2
+cluster_operator_condition_transitions{condition="Progressing",name="network"} 3
+cluster_operator_condition_transitions{condition="Progressing",name="node-tuning"} 2
+cluster_operator_condition_transitions{condition="Progressing",name="openshift-apiserver"} 1
+cluster_operator_condition_transitions{condition="Progressing",name="openshift-controller-manager"} 1
+cluster_operator_condition_transitions{condition="Progressing",name="openshift-samples"} 1
+cluster_operator_condition_transitions{condition="Progressing",name="operator-lifecycle-manager"} 1
+cluster_operator_condition_transitions{condition="Progressing",name="operator-lifecycle-manager-catalog"} 2
+cluster_operator_condition_transitions{condition="Progressing",name="operator-lifecycle-manager-packageserver"} 1
+cluster_operator_condition_transitions{condition="Progressing",name="service-ca"} 3
+cluster_operator_condition_transitions{condition="Progressing",name="storage"} 4
+cluster_operator_condition_transitions{condition="RemoteConfigurationAvailable",name="insights"} 1
+cluster_operator_condition_transitions{condition="RemoteConfigurationValid",name="insights"} 1
+cluster_operator_condition_transitions{condition="SCAAvailable",name="insights"} 2
+cluster_operator_condition_transitions{condition="Upgradeable",name="console"} 4
+cluster_operator_condition_transitions{condition="Upgradeable",name="csi-snapshot-controller"} 1
+cluster_operator_condition_transitions{condition="Upgradeable",name="dns"} 1
+cluster_operator_condition_transitions{condition="Upgradeable",name="ingress"} 1
+cluster_operator_condition_transitions{condition="Upgradeable",name="kube-apiserver"} 1
+cluster_operator_condition_transitions{condition="Upgradeable",name="kube-controller-manager"} 1
+cluster_operator_condition_transitions{condition="Upgradeable",name="kube-scheduler"} 1
+cluster_operator_condition_transitions{condition="Upgradeable",name="kube-storage-version-migrator"} 2
+cluster_operator_condition_transitions{condition="Upgradeable",name="monitoring"} 2
+cluster_operator_condition_transitions{condition="Upgradeable",name="network"} 1
+cluster_operator_condition_transitions{condition="Upgradeable",name="openshift-apiserver"} 1
+cluster_operator_condition_transitions{condition="Upgradeable",name="openshift-controller-manager"} 1
+cluster_operator_condition_transitions{condition="Upgradeable",name="operator-lifecycle-manager"} 1
+cluster_operator_condition_transitions{condition="Upgradeable",name="operator-lifecycle-manager-catalog"} 1
+cluster_operator_condition_transitions{condition="Upgradeable",name="operator-lifecycle-manager-packageserver"} 1
+cluster_operator_condition_transitions{condition="Upgradeable",name="service-ca"} 2
+cluster_operator_condition_transitions{condition="Upgradeable",name="storage"} 2
+# HELP cluster_operator_conditions Report the conditions for active cluster operators. 0 is False and 1 is True.
+# TYPE cluster_operator_conditions gauge
+cluster_operator_conditions{condition="Available",name="console",reason="RouteHealth_StatusError"} 0
+cluster_operator_conditions{condition="Available",name="csi-snapshot-controller",reason="AsExpected"} 1
+cluster_operator_conditions{condition="Available",name="dns",reason="AsExpected"} 1
+cluster_operator_conditions{condition="Available",name="image-registry",reason="Ready"} 1
+cluster_operator_conditions{condition="Available",name="ingress",reason="IngressAvailable"} 1
+cluster_operator_conditions{condition="Available",name="insights",reason="AsExpected"} 1
+cluster_operator_conditions{condition="Available",name="kube-apiserver",reason="AsExpected"} 1
+cluster_operator_conditions{condition="Available",name="kube-controller-manager",reason="AsExpected"} 1
+cluster_operator_conditions{condition="Available",name="kube-scheduler",reason="AsExpected"} 1
+cluster_operator_conditions{condition="Available",name="kube-storage-version-migrator",reason="AsExpected"} 1
+cluster_operator_conditions{condition="Available",name="monitoring",reason="RollOutDone"} 1
+cluster_operator_conditions{condition="Available",name="network",reason=""} 1
+cluster_operator_conditions{condition="Available",name="node-tuning",reason="AsExpected"} 1
+cluster_operator_conditions{condition="Available",name="openshift-apiserver",reason="AsExpected"} 1
+cluster_operator_conditions{condition="Available",name="openshift-controller-manager",reason="AsExpected"} 1
+cluster_operator_conditions{condition="Available",name="openshift-samples",reason=""} 1
+cluster_operator_conditions{condition="Available",name="operator-lifecycle-manager",reason=""} 1
+cluster_operator_conditions{condition="Available",name="operator-lifecycle-manager-catalog",reason=""} 1
+cluster_operator_conditions{condition="Available",name="operator-lifecycle-manager-packageserver",reason="AsExpected"} 1
+cluster_operator_conditions{condition="Available",name="service-ca",reason="AsExpected"} 1
+cluster_operator_conditions{condition="Available",name="storage",reason="AsExpected"} 1
+cluster_operator_conditions{condition="Available",name="version",reason=""} 0
+cluster_operator_conditions{condition="ClusterTransferAvailable",name="insights",reason="Disconnected"} 0
+cluster_operator_conditions{condition="Degraded",name="console",reason="OAuthClientSecretGet_FailedGet::RouteHealth_StatusError"} 1
+cluster_operator_conditions{condition="Degraded",name="csi-snapshot-controller",reason="AsExpected"} 0
+cluster_operator_conditions{condition="Degraded",name="dns",reason="DNSNotDegraded"} 0
+cluster_operator_conditions{condition="Degraded",name="image-registry",reason="AsExpected"} 0
+cluster_operator_conditions{condition="Degraded",name="ingress",reason="IngressNotDegraded"} 0
+cluster_operator_conditions{condition="Degraded",name="insights",reason="AsExpected"} 0
+cluster_operator_conditions{condition="Degraded",name="kube-apiserver",reason="AsExpected"} 0
+cluster_operator_conditions{condition="Degraded",name="kube-controller-manager",reason="AsExpected"} 0
+cluster_operator_conditions{condition="Degraded",name="kube-scheduler",reason="AsExpected"} 0
+cluster_operator_conditions{condition="Degraded",name="kube-storage-version-migrator",reason="AsExpected"} 0
+cluster_operator_conditions{condition="Degraded",name="monitoring",reason="PrometheusDataPersistenceNotConfigured"} 0
+cluster_operator_conditions{condition="Degraded",name="network",reason=""} 0
+cluster_operator_conditions{condition="Degraded",name="node-tuning",reason="AsExpected"} 0
+cluster_operator_conditions{condition="Degraded",name="openshift-apiserver",reason="AsExpected"} 0
+cluster_operator_conditions{condition="Degraded",name="openshift-controller-manager",reason="AsExpected"} 0
+cluster_operator_conditions{condition="Degraded",name="openshift-samples",reason=""} 0
+cluster_operator_conditions{condition="Degraded",name="operator-lifecycle-manager",reason=""} 0
+cluster_operator_conditions{condition="Degraded",name="operator-lifecycle-manager-catalog",reason=""} 0
+cluster_operator_conditions{condition="Degraded",name="operator-lifecycle-manager-packageserver",reason="AsExpected"} 0
+cluster_operator_conditions{condition="Degraded",name="service-ca",reason="AsExpected"} 0
+cluster_operator_conditions{condition="Degraded",name="storage",reason="AsExpected"} 0
+cluster_operator_conditions{condition="Disabled",name="insights",reason="NoToken"} 1
+cluster_operator_conditions{condition="EvaluationConditionsDetected",name="ingress",reason="AsExpected"} 0
+cluster_operator_conditions{condition="Failing",name="version",reason="ClusterOperatorNotAvailable"} 1
+cluster_operator_conditions{condition="GatheringDisabled",name="insights",reason="NoToken"} 1
+cluster_operator_conditions{condition="ImplicitlyEnabledCapabilities",name="version",reason="AsExpected"} 0
+cluster_operator_conditions{condition="ManagementStateDegraded",name="network",reason=""} 0
+cluster_operator_conditions{condition="Progressing",name="console",reason="AsExpected"} 0
+cluster_operator_conditions{condition="Progressing",name="csi-snapshot-controller",reason="AsExpected"} 0
+cluster_operator_conditions{condition="Progressing",name="dns",reason="AsExpected"} 0
+cluster_operator_conditions{condition="Progressing",name="image-registry",reason="Ready"} 0
+cluster_operator_conditions{condition="Progressing",name="ingress",reason="AsExpected"} 0
+cluster_operator_conditions{condition="Progressing",name="insights",reason="AsExpected"} 0
+cluster_operator_conditions{condition="Progressing",name="kube-apiserver",reason="AsExpected"} 0
+cluster_operator_conditions{condition="Progressing",name="kube-controller-manager",reason="AsExpected"} 0
+cluster_operator_conditions{condition="Progressing",name="kube-scheduler",reason="AsExpected"} 0
+cluster_operator_conditions{condition="Progressing",name="kube-storage-version-migrator",reason="AsExpected"} 0
+cluster_operator_conditions{condition="Progressing",name="monitoring",reason=""} 0
+cluster_operator_conditions{condition="Progressing",name="network",reason=""} 0
+cluster_operator_conditions{condition="Progressing",name="node-tuning",reason="AsExpected"} 0
+cluster_operator_conditions{condition="Progressing",name="openshift-apiserver",reason="AsExpected"} 0
+cluster_operator_conditions{condition="Progressing",name="openshift-controller-manager",reason="AsExpected"} 0
+cluster_operator_conditions{condition="Progressing",name="openshift-samples",reason="FailedImageImports"} 0
+cluster_operator_conditions{condition="Progressing",name="operator-lifecycle-manager",reason=""} 0
+cluster_operator_conditions{condition="Progressing",name="operator-lifecycle-manager-catalog",reason=""} 0
+cluster_operator_conditions{condition="Progressing",name="operator-lifecycle-manager-packageserver",reason="AsExpected"} 0
+cluster_operator_conditions{condition="Progressing",name="service-ca",reason="AsExpected"} 0
+cluster_operator_conditions{condition="Progressing",name="storage",reason="AsExpected"} 0
+cluster_operator_conditions{condition="Progressing",name="version",reason="ClusterOperatorNotAvailable"} 1
+cluster_operator_conditions{condition="ReleaseAccepted",name="version",reason="PayloadLoaded"} 1
+cluster_operator_conditions{condition="RemoteConfigurationAvailable",name="insights",reason="NoToken"} 0
+cluster_operator_conditions{condition="RetrievedUpdates",name="version",reason=""} 1
+cluster_operator_conditions{condition="SCAAvailable",name="insights",reason="NonHTTPError"} 0
+cluster_operator_conditions{condition="Upgradeable",name="console",reason="AsExpected"} 1
+cluster_operator_conditions{condition="Upgradeable",name="csi-snapshot-controller",reason="AsExpected"} 1
+cluster_operator_conditions{condition="Upgradeable",name="dns",reason="DNSUpgradeable"} 1
+cluster_operator_conditions{condition="Upgradeable",name="ingress",reason="IngressControllersUpgradeable"} 1
+cluster_operator_conditions{condition="Upgradeable",name="kube-apiserver",reason="AsExpected"} 1
+cluster_operator_conditions{condition="Upgradeable",name="kube-controller-manager",reason="AsExpected"} 1
+cluster_operator_conditions{condition="Upgradeable",name="kube-scheduler",reason="AsExpected"} 1
+cluster_operator_conditions{condition="Upgradeable",name="kube-storage-version-migrator",reason="AsExpected"} 1
+cluster_operator_conditions{condition="Upgradeable",name="monitoring",reason=""} 1
+cluster_operator_conditions{condition="Upgradeable",name="network",reason=""} 1
+cluster_operator_conditions{condition="Upgradeable",name="openshift-apiserver",reason="AsExpected"} 1
+cluster_operator_conditions{condition="Upgradeable",name="openshift-controller-manager",reason="AsExpected"} 1
+cluster_operator_conditions{condition="Upgradeable",name="operator-lifecycle-manager",reason=""} 1
+cluster_operator_conditions{condition="Upgradeable",name="operator-lifecycle-manager-catalog",reason=""} 1
+cluster_operator_conditions{condition="Upgradeable",name="operator-lifecycle-manager-packageserver",reason="AsExpected"} 1
+cluster_operator_conditions{condition="Upgradeable",name="service-ca",reason="AsExpected"} 1
+cluster_operator_conditions{condition="Upgradeable",name="storage",reason="AsExpected"} 1
+cluster_operator_conditions{condition="Upgradeable",name="version",reason="UpdateInProgress"} 0
+# HELP cluster_operator_payload_errors Report the number of errors encountered applying the payload.
+# TYPE cluster_operator_payload_errors gauge
+cluster_operator_payload_errors{version="4.20.28"} 217
+# HELP cluster_operator_up 1 if a cluster operator is Available=True.  0 otherwise, including if a cluster operator sets no Available condition.  The 'version' label tracks the 'operator' version.  The 'reason' label is passed through from the Available condition, unless the cluster operator sets no Available condition, in which case NoAvailableCondition is used.
+# TYPE cluster_operator_up gauge
+cluster_operator_up{name="console",reason="RouteHealth_StatusError",version="4.20.28"} 0
+cluster_operator_up{name="csi-snapshot-controller",reason="AsExpected",version="4.20.28"} 1
+cluster_operator_up{name="dns",reason="AsExpected",version="4.20.28"} 1
+cluster_operator_up{name="image-registry",reason="Ready",version="4.20.28"} 1
+cluster_operator_up{name="ingress",reason="IngressAvailable",version="4.20.28"} 1
+cluster_operator_up{name="insights",reason="AsExpected",version="4.20.28"} 1
+cluster_operator_up{name="kube-apiserver",reason="AsExpected",version="4.20.28"} 1
+cluster_operator_up{name="kube-controller-manager",reason="AsExpected",version="4.20.28"} 1
+cluster_operator_up{name="kube-scheduler",reason="AsExpected",version="4.20.28"} 1
+cluster_operator_up{name="kube-storage-version-migrator",reason="AsExpected",version="4.20.28"} 1
+cluster_operator_up{name="monitoring",reason="RollOutDone",version="4.20.28"} 1
+cluster_operator_up{name="network",reason="",version="4.20.28"} 1
+cluster_operator_up{name="node-tuning",reason="AsExpected",version="4.20.28"} 1
+cluster_operator_up{name="openshift-apiserver",reason="AsExpected",version="4.20.28"} 1
+cluster_operator_up{name="openshift-controller-manager",reason="AsExpected",version="4.20.28"} 1
+cluster_operator_up{name="openshift-samples",reason="",version="4.20.28"} 1
+cluster_operator_up{name="operator-lifecycle-manager",reason="",version="4.20.28"} 1
+cluster_operator_up{name="operator-lifecycle-manager-catalog",reason="",version="4.20.28"} 1
+cluster_operator_up{name="operator-lifecycle-manager-packageserver",reason="AsExpected",version="4.20.28"} 1
+cluster_operator_up{name="service-ca",reason="AsExpected",version="4.20.28"} 1
+cluster_operator_up{name="storage",reason="AsExpected",version="4.20.28"} 1
+cluster_operator_up{name="version",reason="",version=""} 0
+# HELP cluster_version Reports the version of the cluster in terms of seconds since\nthe epoch. Type 'current' is the version being applied and\nthe value is the creation date of the payload. The type\n'desired' is returned if spec.desiredUpdate is set but the\noperator has not yet updated and the value is the most \nrecent status transition time. The type 'failure' is set \nif an error is preventing sync or upgrade with the last \ntransition timestamp of the condition. The type 'completed' \nis the timestamp when the last image was successfully\napplied. The type 'cluster' is the creation date of the\ncluster version object and the current version. The type\n'updating' is set when the cluster is transitioning to a\nnew version but has not reached the completed state and\nis the time the update was started. The type 'initial' is\nset to the oldest entry in the history. The from_version label\nwill be set to the last completed version for most types, the\ninitial version for 'cluster', empty for 'initial', and the\npenultimate completed version for 'completed'.\n.
+# TYPE cluster_version gauge
+cluster_version{from_version="",image="arohcpocpdev.azurecr.io/openshift-release-dev/ocp-release@sha256:fb06372d5084a9e780e4a16a8320602008c9096271093b03a3c07f6578f38d33",type="cluster",version="4.20.28"} 1.783929948e+09
+cluster_version{from_version="",image="arohcpocpdev.azurecr.io/openshift-release-dev/ocp-release@sha256:fb06372d5084a9e780e4a16a8320602008c9096271093b03a3c07f6578f38d33",type="current",version="4.20.28"} 1.783003901e+09
+cluster_version{from_version="",image="arohcpocpdev.azurecr.io/openshift-release-dev/ocp-release@sha256:fb06372d5084a9e780e4a16a8320602008c9096271093b03a3c07f6578f38d33",type="failure",version="4.20.28"} 1.783930007e+09
+cluster_version{from_version="",image="arohcpocpdev.azurecr.io/openshift-release-dev/ocp-release@sha256:fb06372d5084a9e780e4a16a8320602008c9096271093b03a3c07f6578f38d33",type="initial",version="4.20.28"} 1.783929948e+09
+cluster_version{from_version="",image="arohcpocpdev.azurecr.io/openshift-release-dev/ocp-release@sha256:fb06372d5084a9e780e4a16a8320602008c9096271093b03a3c07f6578f38d33",type="updating",version="4.20.28"} 1.783929962e+09
+# HELP cluster_version_available_updates Report the count of available versions for an upstream and channel.
+# TYPE cluster_version_available_updates gauge
+cluster_version_available_updates{channel="candidate-4.20",upstream="<default>"} 0
+# HELP cluster_version_capability Report currently enabled cluster capabilities.  0 is disabled, and 1 is enabled.
+# TYPE cluster_version_capability gauge
+cluster_version_capability{name="Build"} 1
+cluster_version_capability{name="CSISnapshot"} 1
+cluster_version_capability{name="CloudControllerManager"} 1
+cluster_version_capability{name="CloudCredential"} 1
+cluster_version_capability{name="Console"} 1
+cluster_version_capability{name="DeploymentConfig"} 1
+cluster_version_capability{name="ImageRegistry"} 1
+cluster_version_capability{name="Ingress"} 1
+cluster_version_capability{name="Insights"} 1
+cluster_version_capability{name="MachineAPI"} 1
+cluster_version_capability{name="NodeTuning"} 1
+cluster_version_capability{name="OperatorLifecycleManager"} 1
+cluster_version_capability{name="OperatorLifecycleManagerV1"} 1
+cluster_version_capability{name="Storage"} 1
+cluster_version_capability{name="baremetal"} 0
+cluster_version_capability{name="marketplace"} 1
+cluster_version_capability{name="openshift-samples"} 1
+# HELP cluster_version_operator_update_retrieval_timestamp_seconds Reports when updates were last successfully retrieved.
+# TYPE cluster_version_operator_update_retrieval_timestamp_seconds gauge
+cluster_version_operator_update_retrieval_timestamp_seconds{name=""} 1.783931539e+09
+# HELP cluster_version_payload Report the number of entries in the payload.
+# TYPE cluster_version_payload gauge
+cluster_version_payload{type="applied",version="4.20.28"} 639
+cluster_version_payload{type="pending",version="4.20.28"} 32
+# HELP go_gc_duration_seconds A summary of the pause duration of garbage collection cycles.
+# TYPE go_gc_duration_seconds summary
+go_gc_duration_seconds{quantile="0"} 3.42e-05
+go_gc_duration_seconds{quantile="0.25"} 7.57e-05
+go_gc_duration_seconds{quantile="0.5"} 9.9601e-05
+go_gc_duration_seconds{quantile="0.75"} 0.000231703
+go_gc_duration_seconds{quantile="1"} 0.125187073
+go_gc_duration_seconds_sum 0.592576142
+go_gc_duration_seconds_count 265
+# HELP go_goroutines Number of goroutines that currently exist.
+# TYPE go_goroutines gauge
+go_goroutines 104
+# HELP go_info Information about the Go environment.
+# TYPE go_info gauge
+go_info{version="go1.24.13 (Red Hat 1.24.13-5.el9_6) X:strictfipsruntime"} 1
+# HELP go_memstats_alloc_bytes Number of bytes allocated and still in use.
+# TYPE go_memstats_alloc_bytes gauge
+go_memstats_alloc_bytes 3.180224e+07
+# HELP go_memstats_alloc_bytes_total Total number of bytes allocated, even if freed.
+# TYPE go_memstats_alloc_bytes_total counter
+go_memstats_alloc_bytes_total 5.387763824e+09
+# HELP go_memstats_buck_hash_sys_bytes Number of bytes used by the profiling bucket hash table.
+# TYPE go_memstats_buck_hash_sys_bytes gauge
+go_memstats_buck_hash_sys_bytes 6164
+# HELP go_memstats_frees_total Total number of frees.
+# TYPE go_memstats_frees_total counter
+go_memstats_frees_total 3.0073761e+07
+# HELP go_memstats_gc_sys_bytes Number of bytes used for garbage collection system metadata.
+# TYPE go_memstats_gc_sys_bytes gauge
+go_memstats_gc_sys_bytes 4.836272e+06
+# HELP go_memstats_heap_alloc_bytes Number of heap bytes allocated and still in use.
+# TYPE go_memstats_heap_alloc_bytes gauge
+go_memstats_heap_alloc_bytes 3.180224e+07
+# HELP go_memstats_heap_idle_bytes Number of heap bytes waiting to be used.
+# TYPE go_memstats_heap_idle_bytes gauge
+go_memstats_heap_idle_bytes 6.2988288e+07
+# HELP go_memstats_heap_inuse_bytes Number of heap bytes that are in use.
+# TYPE go_memstats_heap_inuse_bytes gauge
+go_memstats_heap_inuse_bytes 4.4261376e+07
+# HELP go_memstats_heap_objects Number of allocated objects.
+# TYPE go_memstats_heap_objects gauge
+go_memstats_heap_objects 253505
+# HELP go_memstats_heap_released_bytes Number of heap bytes released to OS.
+# TYPE go_memstats_heap_released_bytes gauge
+go_memstats_heap_released_bytes 4.8652288e+07
+# HELP go_memstats_heap_sys_bytes Number of heap bytes obtained from system.
+# TYPE go_memstats_heap_sys_bytes gauge
+go_memstats_heap_sys_bytes 1.07249664e+08
+# HELP go_memstats_last_gc_time_seconds Number of seconds since 1970 of last garbage collection.
+# TYPE go_memstats_last_gc_time_seconds gauge
+go_memstats_last_gc_time_seconds 1.7839316039673624e+09
+# HELP go_memstats_lookups_total Total number of pointer lookups.
+# TYPE go_memstats_lookups_total counter
+go_memstats_lookups_total 0
+# HELP go_memstats_mallocs_total Total number of mallocs.
+# TYPE go_memstats_mallocs_total counter
+go_memstats_mallocs_total 3.0327266e+07
+# HELP go_memstats_mcache_inuse_bytes Number of bytes in use by mcache structures.
+# TYPE go_memstats_mcache_inuse_bytes gauge
+go_memstats_mcache_inuse_bytes 4832
+# HELP go_memstats_mcache_sys_bytes Number of bytes used for mcache structures obtained from system.
+# TYPE go_memstats_mcache_sys_bytes gauge
+go_memstats_mcache_sys_bytes 15704
+# HELP go_memstats_mspan_inuse_bytes Number of bytes in use by mspan structures.
+# TYPE go_memstats_mspan_inuse_bytes gauge
+go_memstats_mspan_inuse_bytes 667040
+# HELP go_memstats_mspan_sys_bytes Number of bytes used for mspan structures obtained from system.
+# TYPE go_memstats_mspan_sys_bytes gauge
+go_memstats_mspan_sys_bytes 1.53408e+06
+# HELP go_memstats_next_gc_bytes Number of heap bytes when next garbage collection will take place.
+# TYPE go_memstats_next_gc_bytes gauge
+go_memstats_next_gc_bytes 6.3173362e+07
+# HELP go_memstats_other_sys_bytes Number of bytes used for other system allocations.
+# TYPE go_memstats_other_sys_bytes gauge
+go_memstats_other_sys_bytes 876164
+# HELP go_memstats_stack_inuse_bytes Number of bytes in use by the stack allocator.
+# TYPE go_memstats_stack_inuse_bytes gauge
+go_memstats_stack_inuse_bytes 1.80224e+06
+# HELP go_memstats_stack_sys_bytes Number of bytes obtained from system for stack allocator.
+# TYPE go_memstats_stack_sys_bytes gauge
+go_memstats_stack_sys_bytes 1.80224e+06
+# HELP go_memstats_sys_bytes Number of bytes obtained from system.
+# TYPE go_memstats_sys_bytes gauge
+go_memstats_sys_bytes 1.16320288e+08
+# HELP go_threads Number of OS threads created.
+# TYPE go_threads gauge
+go_threads 17
+# HELP process_cpu_seconds_total Total user and system CPU time spent in seconds.
+# TYPE process_cpu_seconds_total counter
+process_cpu_seconds_total 45.19
+# HELP process_max_fds Maximum number of open file descriptors.
+# TYPE process_max_fds gauge
+process_max_fds 1.048576e+06
+# HELP process_open_fds Number of open file descriptors.
+# TYPE process_open_fds gauge
+process_open_fds 13
+# HELP process_resident_memory_bytes Resident memory size in bytes.
+# TYPE process_resident_memory_bytes gauge
+process_resident_memory_bytes 1.22064896e+08
+# HELP process_start_time_seconds Start time of the process since unix epoch in seconds.
+# TYPE process_start_time_seconds gauge
+process_start_time_seconds 1.78392995343e+09
+# HELP process_virtual_memory_bytes Virtual memory size in bytes.
+# TYPE process_virtual_memory_bytes gauge
+process_virtual_memory_bytes 2.532036608e+09
+# HELP process_virtual_memory_max_bytes Maximum amount of virtual memory available in bytes.
+# TYPE process_virtual_memory_max_bytes gauge
+process_virtual_memory_max_bytes 1.8446744073709552e+19
+# HELP promhttp_metric_handler_requests_in_flight Current number of scrapes being served.
+# TYPE promhttp_metric_handler_requests_in_flight gauge
+promhttp_metric_handler_requests_in_flight 1
+# HELP promhttp_metric_handler_requests_total Total number of scrapes by HTTP status code.
+# TYPE promhttp_metric_handler_requests_total counter
+promhttp_metric_handler_requests_total{code="200"} 112
+promhttp_metric_handler_requests_total{code="500"} 0
+promhttp_metric_handler_requests_total{code="503"} 0

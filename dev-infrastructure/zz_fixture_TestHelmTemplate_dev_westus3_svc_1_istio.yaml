@@ -66,7 +66,7 @@ spec:
     mode: STRICT
 ---
 # Source: istio/templates/envoy-stats.podmonitor.yml
-apiVersion: monitoring.coreos.com/v1
+apiVersion: azmonitoring.coreos.com/v1
 kind: PodMonitor
 metadata:
   name: envoy-stats
@@ -106,7 +106,7 @@ spec:
   resolution: STATIC
 ---
 # Source: istio/templates/istiod.servicemonitor.yml
-apiVersion: monitoring.coreos.com/v1
+apiVersion: azmonitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
   name: istiod

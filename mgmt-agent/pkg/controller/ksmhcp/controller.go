@@ -58,7 +58,7 @@ const (
 )
 
 var ServiceMonitorGVR = schema.GroupVersionResource{
-	Group:    "monitoring.coreos.com",
+	Group:    "azmonitoring.coreos.com",
 	Version:  "v1",
 	Resource: "servicemonitors",
 }

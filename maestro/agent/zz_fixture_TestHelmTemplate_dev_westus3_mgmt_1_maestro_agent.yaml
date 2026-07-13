@@ -419,7 +419,7 @@ spec:
 #
 ---
 # Source: maestro-agent/templates/maestro-agent.podmonitor.yaml
-apiVersion: monitoring.coreos.com/v1
+apiVersion: azmonitoring.coreos.com/v1
 kind: PodMonitor
 metadata:
   name: maestro-agent

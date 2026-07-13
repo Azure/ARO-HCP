@@ -29,12 +29,21 @@ data:
         regex:        ".*"
         sourceLabels: ["__name__"]
     kubeControllerManager:
+      - action:       "drop"
+        regex:        "workqueue_(work|queue)_duration_seconds_.*|rest_client_(request|rate_limiter)_duration_seconds_.*|kubernetes_feature_enabled|go_godebug_non_default_behavior_.*"
+        sourceLabels: ["__name__"]
       - action:       "keep"
         regex:        ".*"
         sourceLabels: ["__name__"]
     openshiftAPIServer:
       - action:       "drop"
         regex:        "apiserver_request_duration_seconds_.*|apiserver_request_slo_duration_seconds_.*|apiserver_response_sizes_.*|apiserver_request_body_size_bytes_.*|apiserver_admission_(controller|step)_admission_duration_seconds_.*"
+        sourceLabels: ["__name__"]
+      - action:       "drop"
+        regex:        "apiserver_watch_cache_read_wait_seconds_.*|apiserver_watch_events_sizes_.*|apiserver_request_filter_duration_seconds_.*|field_validation_request_duration_seconds_.*|etcd_request_duration_seconds_.*"
+        sourceLabels: ["__name__"]
+      - action:       "drop"
+        regex:        "workqueue_(work|queue)_duration_seconds_.*|rest_client_(request|rate_limiter)_duration_seconds_.*"
         sourceLabels: ["__name__"]
       - action:       "drop"
         regex:        "grpc_(client|server)_(handled|started|msg_received|msg_sent)_total"

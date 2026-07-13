@@ -1,5 +1,5 @@
 # Purpose: Prometheus scraping - tells Prometheus Operator to scrape metrics from the tenant-quota-collector service
-apiVersion: monitoring.coreos.com/v1
+apiVersion: azmonitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
   name: tenant-quota-collector
