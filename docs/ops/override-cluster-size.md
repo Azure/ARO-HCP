@@ -135,6 +135,8 @@ kubectl get pods -l app=kube-apiserver -n "$CP_NS" -o wide
 
 All 3 KAS replicas should be `Running` with all containers ready (typically `6/6`).
 
+> **If the HostedCluster still shows the old size after 5 minutes**, check for a SSA field ownership conflict — see [Troubleshooting: SSA Field Ownership Conflict](#ssa-field-ownership-conflict-option-a-fails-after-previous-option-b).
+
 After the override is confirmed, monitor the [Grafana APF dashboard](../../observability/grafana-dashboards/perfscale-dashboards/api-performance.json) (`apiserver_flowcontrol_*` metrics) to verify the new inflight limits are in effect under load.
 
 ---
@@ -255,6 +257,60 @@ kubectl get hostedclusters -A -l "api.openshift.com/name=<display-name>" \
 
 ---
 
+## Troubleshooting
+
+### SSA Field Ownership Conflict (Option A fails after previous Option B)
+
+If a cluster previously had an ephemeral annotation override (Option B via `kubectl annotate`), the Admin API persistent override (Option A) may fail at the ManifestWork apply step. The ManifestWork will show `Applied=False` / `AppliedManifestWorkFailed` even though the desired `xlarge` value is present in the ManifestWork spec.
+
+**Symptom:** Admin API returns `200 OK`, but the HostedCluster on the MC still shows the old size. The ManifestWork condition shows:
+
+```
+Failed to apply manifest:
+Apply failed with 1 conflict:
+conflict with "kubectl-annotate" using hypershift.openshift.io/v1beta1:
+.metadata.annotations.hypershift.openshift.io/cluster-size-override
+```
+
+**Root cause:** `kubectl annotate` registers `kubectl-annotate` as the SSA field manager for the annotation. When ManifestWork tries to apply the same annotation via server-side apply, Kubernetes rejects it due to the field ownership conflict.
+
+**Check for the conflict:**
+
+```bash
+kubectl get hostedcluster "$HC_NAME" -n "$HC_NS" -o json | \
+  jq '.metadata.managedFields[] | select(.manager=="kubectl-annotate") | {manager, operation, time}'
+```
+
+If this returns results mentioning `kubectl-annotate`, the conflict exists.
+
+**Fix:** Remove the annotation to release field manager ownership, then ManifestWork will immediately reapply it:
+
+```bash
+kubectl annotate hostedcluster "$HC_NAME" -n "$HC_NS" \
+  hypershift.openshift.io/cluster-size-override-
+```
+
+Watch for ManifestWork to reapply:
+
+```bash
+kubectl get hostedcluster "$HC_NAME" -n "$HC_NS" -w \
+  -o jsonpath='{.metadata.annotations.hypershift\.openshift\.io/cluster-size-override}{"\t"}{.metadata.labels.hypershift\.openshift\.io/hosted-cluster-size}{"\n"}'
+```
+
+The annotation will briefly disappear, then ManifestWork will reapply it with the correct value within seconds.
+
+> **Prevention:** When migrating a cluster from Option B (ephemeral) to Option A (persistent), always remove the ephemeral annotation first before calling the Admin API.
+
+### ManifestWork Not Updating
+
+If the Admin API returns `200 OK` but the ManifestWork on the MC does not contain the new size override, the pipeline has stalled between Cosmos DB and Maestro. Check:
+
+1. **Backend controller logs** (service cluster): `kubectl logs -n aro-hcp deployment/backend -c backend --since=10m | grep -i "size"`
+2. **Cluster Service ResourceBundle**: Port-forward to Maestro and check the ResourceBundle contains the updated annotation
+3. **ManifestWork content**: `kubectl get manifestwork -n local-cluster -o json | jq '.items[] | select(.spec.workload.manifests[]? | select(.kind=="HostedCluster" and .metadata.name=="<hc-name>")) | .status.conditions'`
+
+---
+
 ## Related Components
 
 - **ClusterSizingConfiguration**: [hypershiftoperator/deploy/templates/cluster.clustersizingconfiguration.yaml](../../hypershiftoperator/deploy/templates/cluster.clustersizingconfiguration.yaml) — defines available size tiers and their effects
@@ -269,3 +325,4 @@ kubectl get hostedclusters -A -l "api.openshift.com/name=<display-name>" \
 
 - **ARO-27679**: First validated on `jude-hcp-eastus2` — ephemeral override `small` → `large` during Adobe load testing incident (IcM 814707269)
 - **ARO-28258**: Admin API persistent override validated on `jude-hcp-eastus2` — `small` → `xlarge` via `POST /desiredcontrolplanesize`, confirmed durable across ~5 hours of Maestro reconciliation (July 2025)
+- **ARO-28342**: Production resize of `arohcp4` (Canada Central) — `large` → `xlarge` via Admin API for Adobe/IBM customer APF throttling. Encountered and resolved SSA field ownership conflict from prior ephemeral annotation (July 2025)
