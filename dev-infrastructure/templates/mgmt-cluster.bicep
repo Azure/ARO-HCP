@@ -137,6 +137,12 @@ param aksEnableSwiftVnet bool
 @description('Enable Swift V2 for the AKS cluster nodepools')
 param aksEnableSwiftNodepools bool
 
+@description('Maximum surge for AKS node pool upgrades')
+param aksUpgradeSettingsMaxSurge string
+
+@description('Maximum unavailable for AKS node pool upgrades')
+param aksUpgradeSettingsMaxUnavailable string
+
 @description('The name of the maestro consumer.')
 param maestroConsumerName string
 
@@ -405,6 +411,8 @@ module mgmtCluster '../modules/aks-cluster-base.bicep' = {
     networkPolicy: aksNetworkPolicy
     deploymentMsiId: globalMSIId
     enableSwiftV2Nodepools: aksEnableSwiftNodepools
+    upgradeSettingsMaxSurge: aksUpgradeSettingsMaxSurge
+    upgradeSettingsMaxUnavailable: aksUpgradeSettingsMaxUnavailable
     owningTeamTagValue: owningTeamTagValue
     aksClusterUserDefinedManagedIdentityName: aksClusterUserDefinedManagedIdentity.name
   }

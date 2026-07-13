@@ -635,6 +635,9 @@ mgmt:
       vmSize: Standard_E8s_v3
       zoneRedundantMode: Auto
       zones: ""
+    upgradeSettings:
+      maxSurge: 10%
+      maxUnavailable: 0
     userAgentPool:
       maxCount: 3
       minCount: 1
@@ -978,6 +981,9 @@ svc:
       vmSize: Standard_D2s_v3
       zoneRedundantMode: Auto
       zones: ""
+    upgradeSettings:
+      maxSurge: 10%
+      maxUnavailable: 0
     userAgentPool:
       maxCount: 12
       minCount: 2

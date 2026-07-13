@@ -635,6 +635,9 @@ mgmt:
       vmSize: Standard_D16ds_v6
       zoneRedundantMode: Auto
       zones: ""
+    upgradeSettings:
+      maxSurge: 10%
+      maxUnavailable: 0
     userAgentPool:
       maxCount: 14
       minCount: 7
@@ -980,6 +983,9 @@ svc:
       vmSize: Standard_D4ds_v6
       zoneRedundantMode: Auto
       zones: ""
+    upgradeSettings:
+      maxSurge: 10%
+      maxUnavailable: 0
     userAgentPool:
       maxCount: 3
       minCount: 1
