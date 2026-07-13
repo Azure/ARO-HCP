@@ -28,7 +28,7 @@ spec:
   - name: arohcp_access_cluster_slo_error_alerts
     rules:
     # ----------------------------------------
-    # Fast Burn Alert (non-paging for now)
+    # Fast Burn Alert (IcM Sev 3 — RP lane / customer-facing UJ)
     # ----------------------------------------
     # 14.4x burn rate → >72% failure rate sustained for 5 minutes
     # Would exhaust 7-day error budget in ~12 hours
@@ -37,7 +37,7 @@ spec:
         errors:backend_credential_operation:error_rate > 0.72
       for: 5m
       labels:
-        severity: info
+        severity: "3"
         slo: access-cluster-errors
         long_window: 1h
         short_window: 5m
@@ -46,7 +46,7 @@ spec:
         description: "More than 72% of credential operations (requestcredential/revokecredentials) are in failed state, indicating a fast error budget burn (14.4x) that would exhaust the 95% SLO budget in ~12 hours."
         runbook_url: "aka.ms/arohcp-runbook-access-cluster"
     # ----------------------------------------
-    # Medium Burn Alert (non-paging for now)
+    # Medium Burn Alert (IcM Sev 3)
     # ----------------------------------------
     # 6x burn rate → >30% failure rate sustained for 30 minutes
     # Would exhaust 7-day error budget in ~28 hours
@@ -55,7 +55,7 @@ spec:
         errors:backend_credential_operation:error_rate > 0.30
       for: 30m
       labels:
-        severity: info
+        severity: "3"
         slo: access-cluster-errors
         long_window: 6h
         short_window: 30m
@@ -64,9 +64,9 @@ spec:
         description: "More than 30% of credential operations are in failed state sustained over 30 minutes, indicating a medium error budget burn (6x) that would exhaust the 95% SLO budget in ~28 hours."
         runbook_url: "aka.ms/arohcp-runbook-access-cluster"
     # ----------------------------------------
-    # Slow Burn Alert (Sev 4 — ticket)
+    # Slow Burn Alert (IcM Sev 4 — ticket)
     # ----------------------------------------
-    # Per ADR: slow burn alerts generate Jira ticket, not a page.
+    # Per ADR: slow burn alerts generate a ticket, not a page.
     # 1x burn rate → >5% failure rate sustained for 6 hours
     # Would exhaust 7-day error budget in ~7 days
     - alert: userJourneyAccessClusterErrors3d
@@ -74,7 +74,7 @@ spec:
         errors:backend_credential_operation:error_rate > 0.05
       for: 6h
       labels:
-        severity: info
+        severity: "4"
         slo: access-cluster-errors
         long_window: 3d
       annotations:
@@ -82,7 +82,7 @@ spec:
         description: "More than 5% of credential operations are in failed state sustained over 6 hours, indicating persistent degradation at the 95% SLO boundary that would exhaust the error budget in ~7 days."
         runbook_url: "aka.ms/arohcp-runbook-access-cluster"
     # ----------------------------------------
-    # Degradation Alert (Sev 4 — ticket)
+    # Degradation Alert (IcM Sev 4 — ticket)
     # ----------------------------------------
     # With a 95% SLO, the fast-burn threshold only fires at ~72% failure rate.
     # This provides early warning at 15% failure rate before burn-rate alerts fire.
@@ -92,7 +92,7 @@ spec:
         errors:backend_credential_operation:error_rate > 0.15
       for: 30m
       labels:
-        severity: info
+        severity: "4"
         slo: access-cluster-errors
       annotations:
         summary: "{{ $labels.cluster }}: Credential operation failure rate exceeds 15% for 30 minutes"
@@ -121,7 +121,7 @@ spec:
         ) > 3600
       for: 15m
       labels:
-        severity: info
+        severity: "4"
       annotations:
         summary: "{{ $labels.cluster }}: Credential operation stuck in {{ $labels.phase }} for over 1 hour"
         description: "Credential operation for {{ $labels.resource_id }} has been in {{ $labels.phase }} phase for over 1 hour. Stuck operations are invisible to success/failure SLIs and require investigation."
@@ -130,7 +130,7 @@ spec:
   # Access the Cluster Alerts — Saturation
   # ========================================
   # Queue depth and retry rates for credential controllers.
-  # Sev 4 (precursor).
+  # IcM Sev 4 (precursor).
   - name: arohcp_access_cluster_saturation_alerts
     rules:
     # Queue depth: credential controller workqueue accumulating work
@@ -143,7 +143,7 @@ spec:
         ) > 10
       for: 5m
       labels:
-        severity: info
+        severity: "4"
       annotations:
         summary: "{{ $labels.cluster }}: Credential controller workqueue {{ $labels.name }} depth is high"
         description: "Credential controller workqueue {{ $labels.name }} has had a depth > 10 for more than 5 minutes, indicating work is accumulating faster than it can be processed."
@@ -166,7 +166,7 @@ spec:
         ) > 0.5
       for: 10m
       labels:
-        severity: info
+        severity: "4"
       annotations:
         summary: "{{ $labels.cluster }}: Credential controller workqueue {{ $labels.name }} retry hot loop"
         description: "Credential controller workqueue {{ $labels.name }} has a retry ratio > 50% sustained over 10 minutes, indicating most queue activity is failed retries rather than fresh work."
