@@ -20,7 +20,9 @@ Hosted Cluster control plane sizing is driven by worker node count via the `Clus
 
 ## Size Tiers
 
-Size tiers and their effects (inflight limits, KAS memory, GoMemLimit) are defined in the [`ClusterSizingConfiguration`](../../hypershiftoperator/deploy/templates/cluster.clustersizingconfiguration.yaml). Valid size names are: `Small`, `Medium`, `Large`, `Xlarge`, `XXlarge` (case-sensitive).
+Size tiers and their effects (inflight limits, KAS memory, GoMemLimit) are defined in the [`ClusterSizingConfiguration`](../../hypershiftoperator/deploy/templates/cluster.clustersizingconfiguration.yaml).
+
+The Admin API requires **PascalCase** size names: `Small`, `Medium`, `Large`, `Xlarge`, `XXlarge`. Note that the `ClusterSizingConfiguration` CR on the management cluster uses lowercase names (`small`, `medium`, `large`, `xlarge`, `xxlarge`) — do not copy those directly into the Admin API request or it will return a `400` error. This case-sensitivity mismatch is an implementation detail of the Admin API that is outside the scope of this SOP; it will become irrelevant once the Geneva Action frontend is available ([ARO-27690](https://redhat.atlassian.net/browse/ARO-27690)).
 
 To check the currently deployed tiers on a management cluster:
 
@@ -229,6 +231,6 @@ If the Admin API returns `200 OK` but the ManifestWork on the MC does not contai
 
 ## Production References
 
-- **ARO-27679**: First validated on `jude-hcp-eastus2` — ephemeral override `small` → `large` during Adobe load testing incident (IcM 814707269)
-- **ARO-28258**: Admin API persistent override validated on `jude-hcp-eastus2` — `small` → `xlarge` via `POST /desiredcontrolplanesize`, confirmed durable across ~5 hours of Maestro reconciliation (July 2025)
-- **ARO-28342**: Production resize of `arohcp4` (Canada Central) — `large` → `xlarge` via Admin API for Adobe/IBM customer APF throttling. Encountered and resolved SSA field ownership conflict from prior manual annotation (July 2025)
+- **ARO-27679**: First validated on `jude-hcp-eastus2` — ephemeral override Small → Large during Adobe load testing incident (IcM 814707269)
+- **ARO-28258**: Admin API persistent override validated on `jude-hcp-eastus2` — Small → Xlarge via `POST /desiredcontrolplanesize`, confirmed durable across ~5 hours of Maestro reconciliation (July 2025)
+- **ARO-28342**: Production resize of `arohcp4` (Canada Central) — Large → Xlarge via Admin API for Adobe/IBM customer APF throttling. Encountered and resolved SSA field ownership conflict from prior manual annotation (July 2025)
