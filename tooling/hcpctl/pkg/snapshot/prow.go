@@ -658,6 +658,7 @@ func downloadObject(ctx context.Context, gcsClient *storage.Client, path string)
 
 // SanitizeTestName replaces characters that are not alphanumeric, dashes, or
 // underscores with underscores, producing a valid filesystem path component.
+// Names longer than 200 characters are truncated.
 func SanitizeTestName(name string) string {
 	var b strings.Builder
 	for _, r := range name {
@@ -667,5 +668,9 @@ func SanitizeTestName(name string) string {
 			b.WriteRune('_')
 		}
 	}
-	return b.String()
+	s := b.String()
+	if len(s) > 200 {
+		s = s[:200]
+	}
+	return s
 }

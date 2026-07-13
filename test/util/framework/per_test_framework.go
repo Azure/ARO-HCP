@@ -54,6 +54,7 @@ import (
 	hcpsdk20251223preview "github.com/Azure/ARO-HCP/test/sdk/v20251223preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	hcpsdk20260630preview "github.com/Azure/ARO-HCP/test/sdk/v20260630preview/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/timing"
+	"github.com/Azure/ARO-HCP/tooling/hcpctl/pkg/snapshot"
 	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/pipeline"
 )
 
@@ -167,21 +168,7 @@ func NewTestContext() *perItOrDescribeTestContext {
 
 // sanitizeTestName creates a filesystem-safe directory name from a test's hierarchy of texts.
 func sanitizeTestName(parts []string) string {
-	name := strings.Join(parts, "_")
-	name = strings.Map(func(r rune) rune {
-		if r == '/' || r == '\\' || r == ':' || r == '*' || r == '?' || r == '"' || r == '<' || r == '>' || r == '|' {
-			return '_'
-		}
-		if r == ' ' {
-			return '_'
-		}
-		return r
-	}, name)
-	// Truncate to a reasonable length for filesystem paths
-	if len(name) > 200 {
-		name = name[:200]
-	}
-	return name
+	return snapshot.SanitizeTestName(strings.Join(parts, "_"))
 }
 
 // BeforeEach gives a chance for initialization (none yet) and registers the cleanup
