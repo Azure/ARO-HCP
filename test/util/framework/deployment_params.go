@@ -261,9 +261,10 @@ func NewDefaultClusterParams20240610() ClusterParams20240610 {
 		ImageRegistryState:          "Enabled",
 		ChannelGroup:                DefaultOpenshiftChannelGroup(),
 		// NOTE: The E2E subscription must have the ExperimentalReleaseFeatures AFEC
-		// registered for this tag to be honored.
+		// registered for these tags to be honored.
 		Tags: map[string]*string{
-			api.TagClusterSizeOverride: to.Ptr(string(api.MinimalControlPlanePodSizing)),
+			api.TagClusterSizeOverride:        to.Ptr(string(api.MinimalControlPlanePodSizing)),
+			api.TagClusterMaxCreationDuration: to.Ptr((ClusterCreationTimeout - time.Minute).String()),
 		},
 	}
 }
@@ -285,9 +286,10 @@ func NewDefaultClusterParams20251223() ClusterParams20251223 {
 		ImageRegistryState:          "Enabled",
 		ChannelGroup:                DefaultOpenshiftChannelGroup(),
 		// NOTE: The E2E subscription must have the ExperimentalReleaseFeatures AFEC
-		// registered for this tag to be honored.
+		// registered for these tags to be honored.
 		Tags: map[string]*string{
-			api.TagClusterSizeOverride: to.Ptr(string(api.MinimalControlPlanePodSizing)),
+			api.TagClusterSizeOverride:        to.Ptr(string(api.MinimalControlPlanePodSizing)),
+			api.TagClusterMaxCreationDuration: to.Ptr((ClusterCreationTimeout - time.Minute).String()),
 		},
 	}
 }
@@ -309,9 +311,10 @@ func NewDefaultClusterParams20260630() ClusterParams20260630 {
 		ImageRegistryState:          "Enabled",
 		ChannelGroup:                DefaultOpenshiftChannelGroup(),
 		// NOTE: The E2E subscription must have the ExperimentalReleaseFeatures AFEC
-		// registered for this tag to be honored.
+		// registered for these tags to be honored.
 		Tags: map[string]*string{
-			api.TagClusterSizeOverride: to.Ptr(string(api.MinimalControlPlanePodSizing)),
+			api.TagClusterSizeOverride:        to.Ptr(string(api.MinimalControlPlanePodSizing)),
+			api.TagClusterMaxCreationDuration: to.Ptr((ClusterCreationTimeout - time.Minute).String()),
 		},
 	}
 }
@@ -332,6 +335,7 @@ type NodePoolParams20240610 struct {
 	// AutoScaling enables nodepool autoscaling. When set, Replicas is ignored.
 	AutoScaling      *NodePoolAutoScalingParams
 	AvailabilityZone string
+	Tags             map[string]*string
 }
 
 type NodePoolParams20251223 struct {
@@ -352,6 +356,7 @@ type NodePoolParams20251223 struct {
 	AutoScaling      *NodePoolAutoScalingParams
 	AvailabilityZone string
 	AutoRepair       bool
+	Tags             map[string]*string
 }
 
 type NodePoolParams20260630 struct {
@@ -372,6 +377,7 @@ type NodePoolParams20260630 struct {
 	AutoScaling      *NodePoolAutoScalingParams
 	AvailabilityZone string
 	AutoRepair       bool
+	Tags             map[string]*string
 }
 
 // NodePoolAutoScalingParams contains min/max node counts for nodepool autoscaling
@@ -392,6 +398,11 @@ func NewDefaultNodePoolParams20240610() NodePoolParams20240610 {
 		OSDiskSizeGiB:          int32(64),
 		DiskStorageAccountType: DefaultDiskStorageAccountType,
 		ChannelGroup:           DefaultOpenshiftNodePoolChannelGroup(),
+		// NOTE: The E2E subscription must have the ExperimentalReleaseFeatures AFEC
+		// registered for these tags to be honored.
+		Tags: map[string]*string{
+			api.TagNodePoolMaxCreationDuration: to.Ptr((NodePoolCreationTimeout - time.Minute).String()),
+		},
 	}
 }
 
@@ -406,6 +417,11 @@ func NewDefaultNodePoolParams20251223() NodePoolParams20251223 {
 		OSDiskSizeGiB:          int32(64),
 		DiskStorageAccountType: DefaultDiskStorageAccountType,
 		ChannelGroup:           DefaultOpenshiftNodePoolChannelGroup(),
+		// NOTE: The E2E subscription must have the ExperimentalReleaseFeatures AFEC
+		// registered for these tags to be honored.
+		Tags: map[string]*string{
+			api.TagNodePoolMaxCreationDuration: to.Ptr((NodePoolCreationTimeout - time.Minute).String()),
+		},
 	}
 }
 
@@ -420,6 +436,11 @@ func NewDefaultNodePoolParams20260630() NodePoolParams20260630 {
 		OSDiskSizeGiB:          int32(64),
 		DiskStorageAccountType: DefaultDiskStorageAccountType,
 		ChannelGroup:           DefaultOpenshiftNodePoolChannelGroup(),
+		// NOTE: The E2E subscription must have the ExperimentalReleaseFeatures AFEC
+		// registered for these tags to be honored.
+		Tags: map[string]*string{
+			api.TagNodePoolMaxCreationDuration: to.Ptr((NodePoolCreationTimeout - time.Minute).String()),
+		},
 	}
 }
 

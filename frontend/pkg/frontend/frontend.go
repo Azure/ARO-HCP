@@ -32,6 +32,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/api/operation"
 	k8sutilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	utilsclock "k8s.io/utils/clock"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
@@ -54,6 +55,7 @@ import (
 )
 
 type Frontend struct {
+	clock                utilsclock.PassiveClock
 	clusterServiceClient ocm.ClusterServiceClientSpec
 	listener             net.Listener
 	metricsListener      net.Listener
@@ -104,6 +106,7 @@ func NewFrontend(
 	api.Must[any](nil, v20260630preview.RegisterVersion(apiRegistry))
 
 	f := &Frontend{
+		clock:                utilsclock.RealClock{},
 		clusterServiceClient: csClient,
 		listener:             listener,
 		metricsListener:      metricsListener,

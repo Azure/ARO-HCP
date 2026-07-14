@@ -19,10 +19,13 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/blang/semver/v4"
 
 	"k8s.io/apimachinery/pkg/api/operation"
+	utilsclock "k8s.io/utils/clock"
+	clocktesting "k8s.io/utils/clock/testing"
 	"k8s.io/utils/ptr"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -277,6 +280,27 @@ func TestMutateCluster(t *testing.T) {
 			expectErrors:        []utils.ExpectedError{},
 			expectedFIPSEnabled: true,
 		},
+		{
+			name:               "AFEC registered with max-creation-duration tag is recognized",
+			subscription:       afecRegistered,
+			tags:               map[string]string{api.TagClusterMaxCreationDuration: "19m"},
+			expectErrors:       []utils.ExpectedError{},
+			expectZeroFeatures: true,
+		},
+		{
+			name:               "no AFEC registered ignores max-creation-duration tag",
+			subscription:       noAFEC,
+			tags:               map[string]string{api.TagClusterMaxCreationDuration: "19m"},
+			expectErrors:       []utils.ExpectedError{},
+			expectZeroFeatures: true,
+		},
+		{
+			name:               "AFEC registered with case insensitive max-creation-duration tag key",
+			subscription:       afecRegistered,
+			tags:               map[string]string{"ARO-HCP.Experimental.Cluster.Max-Creation-Duration": "19m"},
+			expectErrors:       []utils.ExpectedError{},
+			expectZeroFeatures: true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -287,6 +311,7 @@ func TestMutateCluster(t *testing.T) {
 				},
 			}
 			admissionContext := &ClusterAdmissionContext{
+				Clock:           utilsclock.RealClock{},
 				Subscription:    tt.subscription,
 				OriginalCluster: cluster.DeepCopy(),
 			}
@@ -315,6 +340,184 @@ func TestMutateCluster(t *testing.T) {
 			if cluster.ServiceProviderProperties.ExperimentalFeatures.FIPSEnabled != tt.expectedFIPSEnabled {
 				t.Errorf("expected FIPSEnabled %t, got %t",
 					tt.expectedFIPSEnabled, cluster.ServiceProviderProperties.ExperimentalFeatures.FIPSEnabled)
+			}
+		})
+	}
+}
+
+func TestMutateCreateOperationCompletionDeadline(t *testing.T) {
+	afecRegistered := &arm.Subscription{
+		Properties: &arm.SubscriptionProperties{
+			RegisteredFeatures: &[]arm.Feature{
+				{
+					Name:  ptr.To(api.FeatureExperimentalReleaseFeatures),
+					State: ptr.To("Registered"),
+				},
+			},
+		},
+	}
+	noAFEC := &arm.Subscription{
+		Properties: &arm.SubscriptionProperties{},
+	}
+
+	tests := []struct {
+		name             string
+		subscription     *arm.Subscription
+		tags             map[string]string
+		op               operation.Operation
+		expectErrors     []utils.ExpectedError
+		expectDeadline   bool
+		expectedDuration time.Duration
+	}{
+		{
+			name:             "CREATE defaults to 60 minutes",
+			subscription:     noAFEC,
+			tags:             nil,
+			op:               operation.Operation{Type: operation.Create},
+			expectDeadline:   true,
+			expectedDuration: 60 * time.Minute,
+		},
+		{
+			name:         "UPDATE does not set deadline",
+			subscription: noAFEC,
+			tags:         nil,
+			op:           operation.Operation{Type: operation.Update},
+		},
+		{
+			name:             "AFEC registered with max-creation-duration tag overrides default",
+			subscription:     afecRegistered,
+			tags:             map[string]string{api.TagClusterMaxCreationDuration: "19m"},
+			op:               operation.Operation{Type: operation.Create},
+			expectDeadline:   true,
+			expectedDuration: 19 * time.Minute,
+		},
+		{
+			name:             "AFEC registered without tag uses default",
+			subscription:     afecRegistered,
+			tags:             nil,
+			op:               operation.Operation{Type: operation.Create},
+			expectDeadline:   true,
+			expectedDuration: 60 * time.Minute,
+		},
+		{
+			name:             "no AFEC ignores max-creation-duration tag, uses default",
+			subscription:     noAFEC,
+			tags:             map[string]string{api.TagClusterMaxCreationDuration: "19m"},
+			op:               operation.Operation{Type: operation.Create},
+			expectDeadline:   true,
+			expectedDuration: 60 * time.Minute,
+		},
+		{
+			name:         "AFEC registered with invalid duration value",
+			subscription: afecRegistered,
+			tags:         map[string]string{api.TagClusterMaxCreationDuration: "not-a-duration"},
+			op:           operation.Operation{Type: operation.Create},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "tags", Message: "must be a valid Go duration string"},
+			},
+		},
+		{
+			name:             "nil subscription still sets default deadline",
+			subscription:     nil,
+			op:               operation.Operation{Type: operation.Create},
+			expectDeadline:   true,
+			expectedDuration: 60 * time.Minute,
+		},
+		{
+			name:             "AFEC registered with empty string tag uses default",
+			subscription:     afecRegistered,
+			tags:             map[string]string{api.TagClusterMaxCreationDuration: ""},
+			op:               operation.Operation{Type: operation.Create},
+			expectDeadline:   true,
+			expectedDuration: 60 * time.Minute,
+		},
+		{
+			name:             "AFEC registered with case insensitive tag key",
+			subscription:     afecRegistered,
+			tags:             map[string]string{"ARO-HCP.Experimental.Cluster.Max-Creation-Duration": "25m"},
+			op:               operation.Operation{Type: operation.Create},
+			expectDeadline:   true,
+			expectedDuration: 25 * time.Minute,
+		},
+		{
+			name:             "AFEC registered with compound duration",
+			subscription:     afecRegistered,
+			tags:             map[string]string{api.TagClusterMaxCreationDuration: "1h30m"},
+			op:               operation.Operation{Type: operation.Create},
+			expectDeadline:   true,
+			expectedDuration: 90 * time.Minute,
+		},
+		{
+			name:         "AFEC registered with duration less than one minute is rejected",
+			subscription: afecRegistered,
+			tags:         map[string]string{api.TagClusterMaxCreationDuration: "30s"},
+			op:           operation.Operation{Type: operation.Create},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "tags", Message: "must be at least 1m0s"},
+			},
+		},
+		{
+			name:         "AFEC registered with zero duration is rejected",
+			subscription: afecRegistered,
+			tags:         map[string]string{api.TagClusterMaxCreationDuration: "0s"},
+			op:           operation.Operation{Type: operation.Create},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "tags", Message: "must be at least 1m0s"},
+			},
+		},
+		{
+			name:         "AFEC registered with negative duration is rejected",
+			subscription: afecRegistered,
+			tags:         map[string]string{api.TagClusterMaxCreationDuration: "-5m"},
+			op:           operation.Operation{Type: operation.Create},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "tags", Message: "must be at least 1m0s"},
+			},
+		},
+		{
+			name:             "AFEC registered with exactly one minute is accepted",
+			subscription:     afecRegistered,
+			tags:             map[string]string{api.TagClusterMaxCreationDuration: "1m"},
+			op:               operation.Operation{Type: operation.Create},
+			expectDeadline:   true,
+			expectedDuration: time.Minute,
+		},
+	}
+
+	fixedNow, _ := time.Parse(time.RFC3339, "2025-01-15T10:00:00Z")
+	fakeClock := clocktesting.NewFakePassiveClock(fixedNow)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cluster := &api.HCPOpenShiftCluster{
+				TrackedResource: arm.TrackedResource{
+					Tags: tt.tags,
+				},
+			}
+			admissionContext := &ClusterAdmissionContext{
+				Clock:           fakeClock,
+				Subscription:    tt.subscription,
+				OriginalCluster: cluster.DeepCopy(),
+			}
+			errs := MutateCluster(context.Background(), admissionContext, tt.op, cluster, nil)
+
+			utils.VerifyErrorsMatch(t, tt.expectErrors, errs)
+
+			if !tt.expectDeadline {
+				if cluster.ServiceProviderProperties.CreateOperationCompletionDeadline != nil {
+					t.Errorf("expected no deadline, got %v", cluster.ServiceProviderProperties.CreateOperationCompletionDeadline)
+				}
+				return
+			}
+
+			deadline := cluster.ServiceProviderProperties.CreateOperationCompletionDeadline
+			if deadline == nil {
+				t.Fatal("expected deadline to be set, got nil")
+			}
+
+			expected := fixedNow.Add(tt.expectedDuration)
+			if !deadline.Time.Equal(expected) {
+				t.Errorf("expected deadline %v, got %v", expected, deadline.Time)
 			}
 		})
 	}

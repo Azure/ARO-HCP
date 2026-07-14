@@ -1058,6 +1058,7 @@ func BuildNodePoolFromParams20240610(
 
 	nodePool := hcpsdk20240610preview.NodePool{
 		Location: to.Ptr(location),
+		Tags:     parameters.Tags,
 		Properties: &hcpsdk20240610preview.NodePoolProperties{
 			Version: &hcpsdk20240610preview.NodePoolVersionProfile{
 				ID:           to.Ptr(parameters.OpenshiftVersionId),
@@ -1094,6 +1095,7 @@ func BuildNodePoolFromParams20251223(
 
 	nodePool := hcpsdk20251223preview.NodePool{
 		Location: to.Ptr(location),
+		Tags:     parameters.Tags,
 		Properties: &hcpsdk20251223preview.NodePoolProperties{
 			Version: &hcpsdk20251223preview.NodePoolVersionProfile{
 				ID:           to.Ptr(parameters.OpenshiftVersionId),
@@ -1673,6 +1675,7 @@ func BuildNodePoolFromParams20260630(
 
 	nodePool := hcpsdk20260630preview.NodePool{
 		Location: to.Ptr(location),
+		Tags:     parameters.Tags,
 		Properties: &hcpsdk20260630preview.NodePoolProperties{
 			Version: &hcpsdk20260630preview.NodePoolVersionProfile{
 				ID:           to.Ptr(parameters.OpenshiftVersionId),

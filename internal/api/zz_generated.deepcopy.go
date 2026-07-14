@@ -800,6 +800,10 @@ func (in *HCPOpenShiftClusterNodePoolServiceProviderProperties) DeepCopyInto(out
 		in, out := &in.ClusterServiceDeletionTimestamp, &out.ClusterServiceDeletionTimestamp
 		*out = (*in).DeepCopy()
 	}
+	if in.CreateOperationCompletionDeadline != nil {
+		in, out := &in.CreateOperationCompletionDeadline, &out.CreateOperationCompletionDeadline
+		*out = (*in).DeepCopy()
+	}
 	return
 }
 
@@ -855,6 +859,10 @@ func (in *HCPOpenShiftClusterServiceProviderProperties) DeepCopyInto(out *HCPOpe
 	}
 	if in.ClusterServiceDeletionTimestamp != nil {
 		in, out := &in.ClusterServiceDeletionTimestamp, &out.ClusterServiceDeletionTimestamp
+		*out = (*in).DeepCopy()
+	}
+	if in.CreateOperationCompletionDeadline != nil {
+		in, out := &in.CreateOperationCompletionDeadline, &out.CreateOperationCompletionDeadline
 		*out = (*in).DeepCopy()
 	}
 	return

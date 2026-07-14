@@ -225,7 +225,7 @@ func decodeDesiredNodePoolCreate(ctx context.Context, azureLocation string) (*ap
 // admission checks that depend on runtime state (e.g., version upgrade validation).
 // For UPDATE operations, these parameters are required and the function will fail if they're nil.
 // For CREATE operations, these can be nil since no prior state exists.
-func (f *Frontend) newNodePoolAdmissionContext(ctx context.Context, op operation.Operation, cluster *api.HCPOpenShiftCluster, spCluster *api.ServiceProviderCluster, spNodePool *api.ServiceProviderNodePool) (*admission.NodePoolAdmissionContext, error) {
+func (f *Frontend) newNodePoolAdmissionContext(ctx context.Context, op operation.Operation, subscription *arm.Subscription, originalNodePool *api.HCPOpenShiftClusterNodePool, cluster *api.HCPOpenShiftCluster, spCluster *api.ServiceProviderCluster, spNodePool *api.ServiceProviderNodePool) (*admission.NodePoolAdmissionContext, error) {
 	if cluster == nil {
 		return nil, fmt.Errorf("cluster is required for admission context")
 	}
@@ -240,6 +240,9 @@ func (f *Frontend) newNodePoolAdmissionContext(ctx context.Context, op operation
 	}
 
 	return &admission.NodePoolAdmissionContext{
+		Clock:                   f.clock,
+		Subscription:            subscription,
+		OriginalNodePool:        originalNodePool.DeepCopy(),
 		Cluster:                 cluster,
 		ServiceProviderCluster:  spCluster,
 		ServiceProviderNodePool: spNodePool,
@@ -287,7 +290,7 @@ func (f *Frontend) createNodePool(writer http.ResponseWriter, request *http.Requ
 		Type:    operation.Create,
 		Options: validation.BuildValidationOptions(subscription.GetRegisteredFeatures(), api.APIVersion(versionedInterface.String())),
 	}
-	admissionContext, err := f.newNodePoolAdmissionContext(ctx, restOperation, cluster, nil, nil)
+	admissionContext, err := f.newNodePoolAdmissionContext(ctx, restOperation, subscription, newInternalNodePool, cluster, nil, nil)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -563,7 +566,7 @@ func (f *Frontend) updateNodePoolInCosmos(ctx context.Context, writer http.Respo
 		Type:    operation.Update,
 		Options: validation.BuildValidationOptions(subscription.GetRegisteredFeatures(), api.APIVersion(versionedInterface.String())),
 	}
-	admissionContext, err := f.newNodePoolAdmissionContext(ctx, restOperation, cluster, spCluster, spNodePool)
+	admissionContext, err := f.newNodePoolAdmissionContext(ctx, restOperation, subscription, newInternalNodePool, cluster, spCluster, spNodePool)
 	if err != nil {
 		return utils.TrackError(err)
 	}
