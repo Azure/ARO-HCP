@@ -608,8 +608,6 @@ func (f *Frontend) patchHCPCluster(writer http.ResponseWriter, request *http.Req
 }
 
 func (f *Frontend) updateHCPClusterInCosmos(ctx context.Context, writer http.ResponseWriter, request *http.Request, httpStatusCode int, newInternalCluster, oldInternalCluster *api.HCPOpenShiftCluster) error {
-	logger := utils.LoggerFromContext(ctx)
-
 	subscription, err := f.resourcesDBClient.Subscriptions().Get(ctx, oldInternalCluster.ID.SubscriptionID)
 	if err != nil {
 		return utils.TrackError(err)
@@ -654,37 +652,11 @@ func (f *Frontend) updateHCPClusterInCosmos(ctx context.Context, writer http.Res
 	}
 	completeClusterIdentity(newInternalCluster, existingUserAssignedIdentities)
 
-	var tenantID string
-	if subscription.Properties != nil && subscription.Properties.TenantId != nil {
-		tenantID = *subscription.Properties.TenantId
-	}
-
-	if oldInternalCluster.ServiceProviderProperties.ClusterServiceID != nil {
-		oldClusterServiceCluster, err := f.clusterServiceClient.GetCluster(ctx, *oldInternalCluster.ServiceProviderProperties.ClusterServiceID)
-		if err != nil {
-			return utils.TrackError(err)
-		}
-		newClusterServiceClusterBuilder, newClusterServiceAutoscalerBuilder, err := ocm.BuildCSCluster(oldInternalCluster.ID, tenantID, newInternalCluster, nil, oldClusterServiceCluster, admissionContext.ServiceProviderCluster)
-		if err != nil {
-			return utils.TrackError(err)
-		}
-
-		logger.Info(fmt.Sprintf("updating resource %s", oldInternalCluster.ID))
-		_, err = f.clusterServiceClient.UpdateClusterAutoscaler(ctx, *oldInternalCluster.ServiceProviderProperties.ClusterServiceID, newClusterServiceAutoscalerBuilder)
-		if err != nil {
-			return utils.TrackError(err)
-		}
-		_, err = f.clusterServiceClient.UpdateCluster(ctx, *oldInternalCluster.ServiceProviderProperties.ClusterServiceID, newClusterServiceClusterBuilder)
-		if err != nil {
-			return utils.TrackError(err)
-		}
-	}
-
 	transaction := f.resourcesDBClient.NewTransaction(oldInternalCluster.ID.SubscriptionID)
 	clusterUpdateOperation := database.NewOperation(
 		database.OperationRequestUpdate,
 		oldInternalCluster.ID,
-		ptr.Deref(oldInternalCluster.ServiceProviderProperties.ClusterServiceID, api.InternalID{}),
+		api.InternalID{},
 		f.azureLocation,
 		request.Header.Get(arm.HeaderNameHomeTenantID),
 		request.Header.Get(arm.HeaderNameClientObjectID),
