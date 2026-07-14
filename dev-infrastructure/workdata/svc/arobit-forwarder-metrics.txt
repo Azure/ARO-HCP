@@ -1,0 +1,557 @@
+# HELP fluentbit_uptime Number of seconds that Fluent Bit has been running.
+# TYPE fluentbit_uptime counter
+fluentbit_uptime{hostname="arobit-forwarder-dt867"} 20220
+# HELP fluentbit_hot_reloaded_times Collect the count of hot reloaded times.
+# TYPE fluentbit_hot_reloaded_times counter
+fluentbit_hot_reloaded_times{hostname="arobit-forwarder-dt867"} 0
+# HELP fluentbit_logger_logs_total Total number of logs
+# TYPE fluentbit_logger_logs_total counter
+fluentbit_logger_logs_total{message_type="error"} 0
+fluentbit_logger_logs_total{message_type="warn"} 3
+fluentbit_logger_logs_total{message_type="info"} 388
+fluentbit_logger_logs_total{message_type="debug"} 0
+fluentbit_logger_logs_total{message_type="trace"} 0
+# HELP fluentbit_logger_queue_enqueued_total Total number of logger queue enqueues
+# TYPE fluentbit_logger_queue_enqueued_total counter
+fluentbit_logger_queue_enqueued_total 391
+# HELP fluentbit_logger_queue_dropped_total Total number of logger queue drops
+# TYPE fluentbit_logger_queue_dropped_total counter
+fluentbit_logger_queue_dropped_total 0
+# HELP fluentbit_logger_queue_drained_total Total number of logger queue records drained
+# TYPE fluentbit_logger_queue_drained_total counter
+fluentbit_logger_queue_drained_total 391
+# HELP fluentbit_routing_logs_records_total Total log records routed from input to output
+# TYPE fluentbit_routing_logs_records_total counter
+fluentbit_routing_logs_records_total{input="systemd",output="azure_kusto.9"} 1760
+fluentbit_routing_logs_records_total{input="emitter_for_filter.multiline_klog",output="azure_kusto.7"} 358551
+fluentbit_routing_logs_records_total{input="re_emitted_container_name_router",output="azure_kusto.8"} 169208
+fluentbit_routing_logs_records_total{input="re_emitted_container_name_router",output="azure_kusto.3"} 42
+fluentbit_routing_logs_records_total{input="re_emitted_container_name_router",output="azure_kusto.1"} 536
+fluentbit_routing_logs_records_total{input="re_emitted_container_name_router",output="azure_kusto.2"} 28616
+fluentbit_routing_logs_records_total{input="re_emitted_container_name_router",output="azure_kusto.4"} 133481
+fluentbit_routing_logs_records_total{input="re_emitted_cosmos_snapshot_router",output="azure_kusto.6"} 4557
+# HELP fluentbit_routing_logs_bytes_total Total bytes routed from input to output (logs)
+# TYPE fluentbit_routing_logs_bytes_total counter
+fluentbit_routing_logs_bytes_total{input="systemd",output="azure_kusto.9"} 5203007
+fluentbit_routing_logs_bytes_total{input="emitter_for_filter.multiline_klog",output="azure_kusto.7"} 666560218
+fluentbit_routing_logs_bytes_total{input="re_emitted_container_name_router",output="azure_kusto.8"} 617283346
+fluentbit_routing_logs_bytes_total{input="re_emitted_container_name_router",output="azure_kusto.3"} 75294
+fluentbit_routing_logs_bytes_total{input="re_emitted_container_name_router",output="azure_kusto.1"} 928221
+fluentbit_routing_logs_bytes_total{input="re_emitted_container_name_router",output="azure_kusto.2"} 80640251
+fluentbit_routing_logs_bytes_total{input="re_emitted_container_name_router",output="azure_kusto.4"} 209834094
+fluentbit_routing_logs_bytes_total{input="re_emitted_cosmos_snapshot_router",output="azure_kusto.6"} 38883844
+# HELP fluentbit_input_bytes_total Number of input bytes.
+# TYPE fluentbit_input_bytes_total counter
+fluentbit_input_bytes_total{name="tail.container"} 382780874
+fluentbit_input_bytes_total{name="input.forward"} 0
+fluentbit_input_bytes_total{name="metrics.fluentbit"} 49686341
+fluentbit_input_bytes_total{name="otlp"} 0
+fluentbit_input_bytes_total{name="systemd"} 5113247
+fluentbit_input_bytes_total{name="storage_backlog.5"} 0
+fluentbit_input_bytes_total{name="emitter_for_filter.multiline_klog"} 381898022
+fluentbit_input_bytes_total{name="re_emitted_namespace_router"} 0
+fluentbit_input_bytes_total{name="re_emitted_container_name_router"} 634792471
+fluentbit_input_bytes_total{name="re_emitted_resource_snapshot_router"} 0
+fluentbit_input_bytes_total{name="re_emitted_cosmos_snapshot_router"} 38883844
+fluentbit_input_bytes_total{name="re_emitted_cosmos_snapshot_router_frontend"} 0
+# HELP fluentbit_input_records_total Number of input records.
+# TYPE fluentbit_input_records_total counter
+fluentbit_input_records_total{name="tail.container"} 369827
+fluentbit_input_records_total{name="input.forward"} 0
+fluentbit_input_records_total{name="metrics.fluentbit"} 1347
+fluentbit_input_records_total{name="otlp"} 0
+fluentbit_input_records_total{name="systemd"} 1760
+fluentbit_input_records_total{name="storage_backlog.5"} 0
+fluentbit_input_records_total{name="emitter_for_filter.multiline_klog"} 358552
+fluentbit_input_records_total{name="re_emitted_namespace_router"} 0
+fluentbit_input_records_total{name="re_emitted_container_name_router"} 331883
+fluentbit_input_records_total{name="re_emitted_resource_snapshot_router"} 0
+fluentbit_input_records_total{name="re_emitted_cosmos_snapshot_router"} 4557
+fluentbit_input_records_total{name="re_emitted_cosmos_snapshot_router_frontend"} 0
+# HELP fluentbit_input_ring_buffer_writes_total Number of ring buffer writes.
+# TYPE fluentbit_input_ring_buffer_writes_total counter
+fluentbit_input_ring_buffer_writes_total{name="tail.container"} 80595
+fluentbit_input_ring_buffer_writes_total{name="input.forward"} 0
+fluentbit_input_ring_buffer_writes_total{name="metrics.fluentbit"} 0
+fluentbit_input_ring_buffer_writes_total{name="otlp"} 0
+fluentbit_input_ring_buffer_writes_total{name="systemd"} 437
+fluentbit_input_ring_buffer_writes_total{name="storage_backlog.5"} 0
+fluentbit_input_ring_buffer_writes_total{name="emitter_for_filter.multiline_klog"} 0
+fluentbit_input_ring_buffer_writes_total{name="re_emitted_namespace_router"} 0
+fluentbit_input_ring_buffer_writes_total{name="re_emitted_container_name_router"} 0
+fluentbit_input_ring_buffer_writes_total{name="re_emitted_resource_snapshot_router"} 0
+fluentbit_input_ring_buffer_writes_total{name="re_emitted_cosmos_snapshot_router"} 0
+fluentbit_input_ring_buffer_writes_total{name="re_emitted_cosmos_snapshot_router_frontend"} 0
+# HELP fluentbit_input_ring_buffer_retries_total Number of ring buffer retries.
+# TYPE fluentbit_input_ring_buffer_retries_total counter
+fluentbit_input_ring_buffer_retries_total{name="tail.container"} 0
+fluentbit_input_ring_buffer_retries_total{name="input.forward"} 0
+fluentbit_input_ring_buffer_retries_total{name="metrics.fluentbit"} 0
+fluentbit_input_ring_buffer_retries_total{name="otlp"} 0
+fluentbit_input_ring_buffer_retries_total{name="systemd"} 0
+fluentbit_input_ring_buffer_retries_total{name="storage_backlog.5"} 0
+fluentbit_input_ring_buffer_retries_total{name="emitter_for_filter.multiline_klog"} 0
+fluentbit_input_ring_buffer_retries_total{name="re_emitted_namespace_router"} 0
+fluentbit_input_ring_buffer_retries_total{name="re_emitted_container_name_router"} 0
+fluentbit_input_ring_buffer_retries_total{name="re_emitted_resource_snapshot_router"} 0
+fluentbit_input_ring_buffer_retries_total{name="re_emitted_cosmos_snapshot_router"} 0
+fluentbit_input_ring_buffer_retries_total{name="re_emitted_cosmos_snapshot_router_frontend"} 0
+# HELP fluentbit_input_ring_buffer_retry_failures_total Number of ring buffer retry failures.
+# TYPE fluentbit_input_ring_buffer_retry_failures_total counter
+fluentbit_input_ring_buffer_retry_failures_total{name="tail.container"} 0
+fluentbit_input_ring_buffer_retry_failures_total{name="input.forward"} 0
+fluentbit_input_ring_buffer_retry_failures_total{name="metrics.fluentbit"} 0
+fluentbit_input_ring_buffer_retry_failures_total{name="otlp"} 0
+fluentbit_input_ring_buffer_retry_failures_total{name="systemd"} 0
+fluentbit_input_ring_buffer_retry_failures_total{name="storage_backlog.5"} 0
+fluentbit_input_ring_buffer_retry_failures_total{name="emitter_for_filter.multiline_klog"} 0
+fluentbit_input_ring_buffer_retry_failures_total{name="re_emitted_namespace_router"} 0
+fluentbit_input_ring_buffer_retry_failures_total{name="re_emitted_container_name_router"} 0
+fluentbit_input_ring_buffer_retry_failures_total{name="re_emitted_resource_snapshot_router"} 0
+fluentbit_input_ring_buffer_retry_failures_total{name="re_emitted_cosmos_snapshot_router"} 0
+fluentbit_input_ring_buffer_retry_failures_total{name="re_emitted_cosmos_snapshot_router_frontend"} 0
+# HELP fluentbit_input_files_opened_total Total number of opened files
+# TYPE fluentbit_input_files_opened_total counter
+fluentbit_input_files_opened_total{name="tail.container"} 73
+# HELP fluentbit_input_files_closed_total Total number of closed files
+# TYPE fluentbit_input_files_closed_total counter
+fluentbit_input_files_closed_total{name="tail.container"} 20
+# HELP fluentbit_input_files_rotated_total Total number of rotated files
+# TYPE fluentbit_input_files_rotated_total counter
+fluentbit_input_files_rotated_total{name="tail.container"} 6
+# HELP fluentbit_input_metrics_scrapes_total Number of total metrics scrapes
+# TYPE fluentbit_input_metrics_scrapes_total counter
+fluentbit_input_metrics_scrapes_total{name="metrics.fluentbit"} 1348
+# HELP fluentbit_input_http_server_ingress_queue_busy_total Number of deferred HTTP server ingress queue busy events.
+# TYPE fluentbit_input_http_server_ingress_queue_busy_total counter
+fluentbit_input_http_server_ingress_queue_busy_total{name="otlp"} 0
+# HELP fluentbit_filter_records_total Total number of new records processed.
+# TYPE fluentbit_filter_records_total counter
+fluentbit_filter_records_total{name="filter.multiline_klog"} 728379
+fluentbit_filter_records_total{name="filter.drop_kube_proxy_topology_noise"} 0
+fluentbit_filter_records_total{name="modify.2"} 1760
+fluentbit_filter_records_total{name="modify.3"} 358552
+fluentbit_filter_records_total{name="filter.kubernetes"} 358552
+fluentbit_filter_records_total{name="filter.namespace_router"} 358552
+fluentbit_filter_records_total{name="filter.container_name_router"} 358552
+fluentbit_filter_records_total{name="parser.7"} 331883
+fluentbit_filter_records_total{name="filter.resource_snapshot_router"} 0
+fluentbit_filter_records_total{name="filter.cosmos_snapshot_router"} 28616
+fluentbit_filter_records_total{name="filter.cosmos_snapshot_router_frontend"} 536
+# HELP fluentbit_filter_bytes_total Total number of new bytes processed.
+# TYPE fluentbit_filter_bytes_total counter
+fluentbit_filter_bytes_total{name="filter.multiline_klog"} 0
+fluentbit_filter_bytes_total{name="filter.drop_kube_proxy_topology_noise"} 0
+fluentbit_filter_bytes_total{name="modify.2"} 5203007
+fluentbit_filter_bytes_total{name="modify.3"} 400901278
+fluentbit_filter_bytes_total{name="filter.kubernetes"} 666561505
+fluentbit_filter_bytes_total{name="filter.namespace_router"} 0
+fluentbit_filter_bytes_total{name="filter.container_name_router"} 634792471
+fluentbit_filter_bytes_total{name="parser.7"} 908761206
+fluentbit_filter_bytes_total{name="filter.resource_snapshot_router"} 0
+fluentbit_filter_bytes_total{name="filter.cosmos_snapshot_router"} 41456889
+fluentbit_filter_bytes_total{name="filter.cosmos_snapshot_router_frontend"} 0
+# HELP fluentbit_filter_add_records_total Total number of new added records.
+# TYPE fluentbit_filter_add_records_total counter
+fluentbit_filter_add_records_total{name="filter.multiline_klog"} 0
+fluentbit_filter_add_records_total{name="filter.drop_kube_proxy_topology_noise"} 0
+fluentbit_filter_add_records_total{name="modify.2"} 0
+fluentbit_filter_add_records_total{name="modify.3"} 0
+fluentbit_filter_add_records_total{name="filter.kubernetes"} 0
+fluentbit_filter_add_records_total{name="filter.namespace_router"} 0
+fluentbit_filter_add_records_total{name="filter.container_name_router"} 0
+fluentbit_filter_add_records_total{name="parser.7"} 0
+fluentbit_filter_add_records_total{name="filter.resource_snapshot_router"} 0
+fluentbit_filter_add_records_total{name="filter.cosmos_snapshot_router"} 0
+fluentbit_filter_add_records_total{name="filter.cosmos_snapshot_router_frontend"} 0
+# HELP fluentbit_filter_drop_records_total Total number of dropped records.
+# TYPE fluentbit_filter_drop_records_total counter
+fluentbit_filter_drop_records_total{name="filter.multiline_klog"} 369827
+fluentbit_filter_drop_records_total{name="filter.drop_kube_proxy_topology_noise"} 0
+fluentbit_filter_drop_records_total{name="modify.2"} 0
+fluentbit_filter_drop_records_total{name="modify.3"} 0
+fluentbit_filter_drop_records_total{name="filter.kubernetes"} 0
+fluentbit_filter_drop_records_total{name="filter.namespace_router"} 0
+fluentbit_filter_drop_records_total{name="filter.container_name_router"} 0
+fluentbit_filter_drop_records_total{name="parser.7"} 0
+fluentbit_filter_drop_records_total{name="filter.resource_snapshot_router"} 0
+fluentbit_filter_drop_records_total{name="filter.cosmos_snapshot_router"} 0
+fluentbit_filter_drop_records_total{name="filter.cosmos_snapshot_router_frontend"} 0
+# HELP fluentbit_filter_drop_bytes_total Total number of dropped bytes.
+# TYPE fluentbit_filter_drop_bytes_total counter
+fluentbit_filter_drop_bytes_total{name="filter.multiline_klog"} 382780874
+fluentbit_filter_drop_bytes_total{name="filter.drop_kube_proxy_topology_noise"} 0
+fluentbit_filter_drop_bytes_total{name="modify.2"} 0
+fluentbit_filter_drop_bytes_total{name="modify.3"} 0
+fluentbit_filter_drop_bytes_total{name="filter.kubernetes"} 0
+fluentbit_filter_drop_bytes_total{name="filter.namespace_router"} 0
+fluentbit_filter_drop_bytes_total{name="filter.container_name_router"} 0
+fluentbit_filter_drop_bytes_total{name="parser.7"} 0
+fluentbit_filter_drop_bytes_total{name="filter.resource_snapshot_router"} 0
+fluentbit_filter_drop_bytes_total{name="filter.cosmos_snapshot_router"} 0
+fluentbit_filter_drop_bytes_total{name="filter.cosmos_snapshot_router_frontend"} 0
+# HELP fluentbit_filter_emit_records_total Total number of emitted records
+# TYPE fluentbit_filter_emit_records_total counter
+fluentbit_filter_emit_records_total{name="filter.multiline_klog"} 369827
+fluentbit_filter_emit_records_total{name="filter.container_name_router"} 331883
+fluentbit_filter_emit_records_total{name="filter.cosmos_snapshot_router"} 4557
+# HELP fluentbit_output_proc_records_total Number of processed output records.
+# TYPE fluentbit_output_proc_records_total counter
+fluentbit_output_proc_records_total{name="exporter.fluentbit"} 1347
+fluentbit_output_proc_records_total{name="azure_kusto.1"} 536
+fluentbit_output_proc_records_total{name="azure_kusto.2"} 28616
+fluentbit_output_proc_records_total{name="azure_kusto.3"} 42
+fluentbit_output_proc_records_total{name="azure_kusto.4"} 133481
+fluentbit_output_proc_records_total{name="azure_kusto.5"} 0
+fluentbit_output_proc_records_total{name="azure_kusto.6"} 4557
+fluentbit_output_proc_records_total{name="azure_kusto.7"} 358551
+fluentbit_output_proc_records_total{name="azure_kusto.8"} 169208
+fluentbit_output_proc_records_total{name="azure_kusto.9"} 1760
+# HELP fluentbit_output_proc_bytes_total Number of processed output bytes.
+# TYPE fluentbit_output_proc_bytes_total counter
+fluentbit_output_proc_bytes_total{name="exporter.fluentbit"} 49686341
+fluentbit_output_proc_bytes_total{name="azure_kusto.1"} 928221
+fluentbit_output_proc_bytes_total{name="azure_kusto.2"} 80640251
+fluentbit_output_proc_bytes_total{name="azure_kusto.3"} 75294
+fluentbit_output_proc_bytes_total{name="azure_kusto.4"} 209834094
+fluentbit_output_proc_bytes_total{name="azure_kusto.5"} 0
+fluentbit_output_proc_bytes_total{name="azure_kusto.6"} 38883844
+fluentbit_output_proc_bytes_total{name="azure_kusto.7"} 666560218
+fluentbit_output_proc_bytes_total{name="azure_kusto.8"} 617283346
+fluentbit_output_proc_bytes_total{name="azure_kusto.9"} 5203007
+# HELP fluentbit_output_errors_total Number of output errors.
+# TYPE fluentbit_output_errors_total counter
+fluentbit_output_errors_total{name="exporter.fluentbit"} 0
+fluentbit_output_errors_total{name="azure_kusto.1"} 0
+fluentbit_output_errors_total{name="azure_kusto.2"} 0
+fluentbit_output_errors_total{name="azure_kusto.3"} 0
+fluentbit_output_errors_total{name="azure_kusto.4"} 0
+fluentbit_output_errors_total{name="azure_kusto.5"} 0
+fluentbit_output_errors_total{name="azure_kusto.6"} 0
+fluentbit_output_errors_total{name="azure_kusto.7"} 0
+fluentbit_output_errors_total{name="azure_kusto.8"} 0
+fluentbit_output_errors_total{name="azure_kusto.9"} 0
+# HELP fluentbit_output_retries_total Number of output retries.
+# TYPE fluentbit_output_retries_total counter
+fluentbit_output_retries_total{name="exporter.fluentbit"} 0
+fluentbit_output_retries_total{name="azure_kusto.1"} 0
+fluentbit_output_retries_total{name="azure_kusto.2"} 0
+fluentbit_output_retries_total{name="azure_kusto.3"} 0
+fluentbit_output_retries_total{name="azure_kusto.4"} 0
+fluentbit_output_retries_total{name="azure_kusto.5"} 0
+fluentbit_output_retries_total{name="azure_kusto.6"} 0
+fluentbit_output_retries_total{name="azure_kusto.7"} 0
+fluentbit_output_retries_total{name="azure_kusto.8"} 0
+fluentbit_output_retries_total{name="azure_kusto.9"} 0
+# HELP fluentbit_output_retries_failed_total Number of abandoned batches because the maximum number of re-tries was reached.
+# TYPE fluentbit_output_retries_failed_total counter
+fluentbit_output_retries_failed_total{name="exporter.fluentbit"} 0
+fluentbit_output_retries_failed_total{name="azure_kusto.1"} 0
+fluentbit_output_retries_failed_total{name="azure_kusto.2"} 0
+fluentbit_output_retries_failed_total{name="azure_kusto.3"} 0
+fluentbit_output_retries_failed_total{name="azure_kusto.4"} 0
+fluentbit_output_retries_failed_total{name="azure_kusto.5"} 0
+fluentbit_output_retries_failed_total{name="azure_kusto.6"} 0
+fluentbit_output_retries_failed_total{name="azure_kusto.7"} 0
+fluentbit_output_retries_failed_total{name="azure_kusto.8"} 0
+fluentbit_output_retries_failed_total{name="azure_kusto.9"} 0
+# HELP fluentbit_output_dropped_records_total Number of dropped records.
+# TYPE fluentbit_output_dropped_records_total counter
+fluentbit_output_dropped_records_total{name="exporter.fluentbit"} 0
+fluentbit_output_dropped_records_total{name="azure_kusto.1"} 0
+fluentbit_output_dropped_records_total{name="azure_kusto.2"} 0
+fluentbit_output_dropped_records_total{name="azure_kusto.3"} 0
+fluentbit_output_dropped_records_total{name="azure_kusto.4"} 0
+fluentbit_output_dropped_records_total{name="azure_kusto.5"} 0
+fluentbit_output_dropped_records_total{name="azure_kusto.6"} 0
+fluentbit_output_dropped_records_total{name="azure_kusto.7"} 0
+fluentbit_output_dropped_records_total{name="azure_kusto.8"} 0
+fluentbit_output_dropped_records_total{name="azure_kusto.9"} 0
+# HELP fluentbit_output_retried_records_total Number of retried records.
+# TYPE fluentbit_output_retried_records_total counter
+fluentbit_output_retried_records_total{name="exporter.fluentbit"} 0
+fluentbit_output_retried_records_total{name="azure_kusto.1"} 0
+fluentbit_output_retried_records_total{name="azure_kusto.2"} 0
+fluentbit_output_retried_records_total{name="azure_kusto.3"} 0
+fluentbit_output_retried_records_total{name="azure_kusto.4"} 0
+fluentbit_output_retried_records_total{name="azure_kusto.5"} 0
+fluentbit_output_retried_records_total{name="azure_kusto.6"} 0
+fluentbit_output_retried_records_total{name="azure_kusto.7"} 0
+fluentbit_output_retried_records_total{name="azure_kusto.8"} 0
+fluentbit_output_retried_records_total{name="azure_kusto.9"} 0
+# HELP fluentbit_process_start_time_seconds Start time of the process since unix epoch in seconds.
+# TYPE fluentbit_process_start_time_seconds gauge
+fluentbit_process_start_time_seconds{hostname="arobit-forwarder-dt867"} 1783926560
+# HELP fluentbit_build_info Build version information.
+# TYPE fluentbit_build_info gauge
+fluentbit_build_info{hostname="arobit-forwarder-dt867",version="5.0.4",os="linux"} 1783926560
+# HELP fluentbit_storage_chunks Total number of chunks in the storage layer.
+# TYPE fluentbit_storage_chunks gauge
+fluentbit_storage_chunks 1
+# HELP fluentbit_storage_mem_chunks Total number of memory chunks.
+# TYPE fluentbit_storage_mem_chunks gauge
+fluentbit_storage_mem_chunks 1
+# HELP fluentbit_storage_fs_chunks Total number of filesystem chunks.
+# TYPE fluentbit_storage_fs_chunks gauge
+fluentbit_storage_fs_chunks 0
+# HELP fluentbit_storage_fs_chunks_up Total number of filesystem chunks up in memory.
+# TYPE fluentbit_storage_fs_chunks_up gauge
+fluentbit_storage_fs_chunks_up 0
+# HELP fluentbit_storage_fs_chunks_down Total number of filesystem chunks down.
+# TYPE fluentbit_storage_fs_chunks_down gauge
+fluentbit_storage_fs_chunks_down 0
+# HELP fluentbit_input_ingestion_paused Is the input paused or not?
+# TYPE fluentbit_input_ingestion_paused gauge
+fluentbit_input_ingestion_paused{name="tail.container"} 0
+fluentbit_input_ingestion_paused{name="input.forward"} 0
+fluentbit_input_ingestion_paused{name="metrics.fluentbit"} 0
+fluentbit_input_ingestion_paused{name="otlp"} 0
+fluentbit_input_ingestion_paused{name="systemd"} 0
+fluentbit_input_ingestion_paused{name="storage_backlog.5"} 0
+fluentbit_input_ingestion_paused{name="emitter_for_filter.multiline_klog"} 0
+fluentbit_input_ingestion_paused{name="re_emitted_namespace_router"} 0
+fluentbit_input_ingestion_paused{name="re_emitted_container_name_router"} 0
+fluentbit_input_ingestion_paused{name="re_emitted_resource_snapshot_router"} 0
+fluentbit_input_ingestion_paused{name="re_emitted_cosmos_snapshot_router"} 0
+fluentbit_input_ingestion_paused{name="re_emitted_cosmos_snapshot_router_frontend"} 0
+# HELP fluentbit_input_storage_overlimit Is the input memory usage overlimit ?.
+# TYPE fluentbit_input_storage_overlimit gauge
+fluentbit_input_storage_overlimit{name="tail.container"} 0
+fluentbit_input_storage_overlimit{name="input.forward"} 0
+fluentbit_input_storage_overlimit{name="metrics.fluentbit"} 0
+fluentbit_input_storage_overlimit{name="otlp"} 0
+fluentbit_input_storage_overlimit{name="systemd"} 0
+fluentbit_input_storage_overlimit{name="storage_backlog.5"} 0
+fluentbit_input_storage_overlimit{name="emitter_for_filter.multiline_klog"} 0
+fluentbit_input_storage_overlimit{name="re_emitted_namespace_router"} 0
+fluentbit_input_storage_overlimit{name="re_emitted_container_name_router"} 0
+fluentbit_input_storage_overlimit{name="re_emitted_resource_snapshot_router"} 0
+fluentbit_input_storage_overlimit{name="re_emitted_cosmos_snapshot_router"} 0
+fluentbit_input_storage_overlimit{name="re_emitted_cosmos_snapshot_router_frontend"} 0
+# HELP fluentbit_input_storage_memory_bytes Memory bytes used by the chunks.
+# TYPE fluentbit_input_storage_memory_bytes gauge
+fluentbit_input_storage_memory_bytes{name="tail.container"} 0
+fluentbit_input_storage_memory_bytes{name="input.forward"} 0
+fluentbit_input_storage_memory_bytes{name="metrics.fluentbit"} 0
+fluentbit_input_storage_memory_bytes{name="otlp"} 0
+fluentbit_input_storage_memory_bytes{name="systemd"} 0
+fluentbit_input_storage_memory_bytes{name="storage_backlog.5"} 0
+fluentbit_input_storage_memory_bytes{name="emitter_for_filter.multiline_klog"} 0
+fluentbit_input_storage_memory_bytes{name="re_emitted_namespace_router"} 0
+fluentbit_input_storage_memory_bytes{name="re_emitted_container_name_router"} 0
+fluentbit_input_storage_memory_bytes{name="re_emitted_resource_snapshot_router"} 0
+fluentbit_input_storage_memory_bytes{name="re_emitted_cosmos_snapshot_router"} 0
+fluentbit_input_storage_memory_bytes{name="re_emitted_cosmos_snapshot_router_frontend"} 0
+# HELP fluentbit_input_storage_chunks Total number of chunks.
+# TYPE fluentbit_input_storage_chunks gauge
+fluentbit_input_storage_chunks{name="tail.container"} 0
+fluentbit_input_storage_chunks{name="input.forward"} 0
+fluentbit_input_storage_chunks{name="metrics.fluentbit"} 0
+fluentbit_input_storage_chunks{name="otlp"} 0
+fluentbit_input_storage_chunks{name="systemd"} 0
+fluentbit_input_storage_chunks{name="storage_backlog.5"} 0
+fluentbit_input_storage_chunks{name="emitter_for_filter.multiline_klog"} 0
+fluentbit_input_storage_chunks{name="re_emitted_namespace_router"} 0
+fluentbit_input_storage_chunks{name="re_emitted_container_name_router"} 0
+fluentbit_input_storage_chunks{name="re_emitted_resource_snapshot_router"} 0
+fluentbit_input_storage_chunks{name="re_emitted_cosmos_snapshot_router"} 0
+fluentbit_input_storage_chunks{name="re_emitted_cosmos_snapshot_router_frontend"} 0
+# HELP fluentbit_input_storage_chunks_up Total number of chunks up in memory.
+# TYPE fluentbit_input_storage_chunks_up gauge
+fluentbit_input_storage_chunks_up{name="tail.container"} 0
+fluentbit_input_storage_chunks_up{name="input.forward"} 0
+fluentbit_input_storage_chunks_up{name="metrics.fluentbit"} 0
+fluentbit_input_storage_chunks_up{name="otlp"} 0
+fluentbit_input_storage_chunks_up{name="systemd"} 0
+fluentbit_input_storage_chunks_up{name="storage_backlog.5"} 0
+fluentbit_input_storage_chunks_up{name="emitter_for_filter.multiline_klog"} 0
+fluentbit_input_storage_chunks_up{name="re_emitted_namespace_router"} 0
+fluentbit_input_storage_chunks_up{name="re_emitted_container_name_router"} 0
+fluentbit_input_storage_chunks_up{name="re_emitted_resource_snapshot_router"} 0
+fluentbit_input_storage_chunks_up{name="re_emitted_cosmos_snapshot_router"} 0
+fluentbit_input_storage_chunks_up{name="re_emitted_cosmos_snapshot_router_frontend"} 0
+# HELP fluentbit_input_storage_chunks_down Total number of chunks down.
+# TYPE fluentbit_input_storage_chunks_down gauge
+fluentbit_input_storage_chunks_down{name="tail.container"} 0
+fluentbit_input_storage_chunks_down{name="input.forward"} 0
+fluentbit_input_storage_chunks_down{name="metrics.fluentbit"} 0
+fluentbit_input_storage_chunks_down{name="otlp"} 0
+fluentbit_input_storage_chunks_down{name="systemd"} 0
+fluentbit_input_storage_chunks_down{name="storage_backlog.5"} 0
+fluentbit_input_storage_chunks_down{name="emitter_for_filter.multiline_klog"} 0
+fluentbit_input_storage_chunks_down{name="re_emitted_namespace_router"} 0
+fluentbit_input_storage_chunks_down{name="re_emitted_container_name_router"} 0
+fluentbit_input_storage_chunks_down{name="re_emitted_resource_snapshot_router"} 0
+fluentbit_input_storage_chunks_down{name="re_emitted_cosmos_snapshot_router"} 0
+fluentbit_input_storage_chunks_down{name="re_emitted_cosmos_snapshot_router_frontend"} 0
+# HELP fluentbit_input_storage_chunks_busy Total number of chunks in a busy state.
+# TYPE fluentbit_input_storage_chunks_busy gauge
+fluentbit_input_storage_chunks_busy{name="tail.container"} 0
+fluentbit_input_storage_chunks_busy{name="input.forward"} 0
+fluentbit_input_storage_chunks_busy{name="metrics.fluentbit"} 0
+fluentbit_input_storage_chunks_busy{name="otlp"} 0
+fluentbit_input_storage_chunks_busy{name="systemd"} 0
+fluentbit_input_storage_chunks_busy{name="storage_backlog.5"} 0
+fluentbit_input_storage_chunks_busy{name="emitter_for_filter.multiline_klog"} 0
+fluentbit_input_storage_chunks_busy{name="re_emitted_namespace_router"} 0
+fluentbit_input_storage_chunks_busy{name="re_emitted_container_name_router"} 0
+fluentbit_input_storage_chunks_busy{name="re_emitted_resource_snapshot_router"} 0
+fluentbit_input_storage_chunks_busy{name="re_emitted_cosmos_snapshot_router"} 0
+fluentbit_input_storage_chunks_busy{name="re_emitted_cosmos_snapshot_router_frontend"} 0
+# HELP fluentbit_input_storage_chunks_busy_bytes Total number of bytes used by chunks in a busy state.
+# TYPE fluentbit_input_storage_chunks_busy_bytes gauge
+fluentbit_input_storage_chunks_busy_bytes{name="tail.container"} 0
+fluentbit_input_storage_chunks_busy_bytes{name="input.forward"} 0
+fluentbit_input_storage_chunks_busy_bytes{name="metrics.fluentbit"} 0
+fluentbit_input_storage_chunks_busy_bytes{name="otlp"} 0
+fluentbit_input_storage_chunks_busy_bytes{name="systemd"} 0
+fluentbit_input_storage_chunks_busy_bytes{name="storage_backlog.5"} 0
+fluentbit_input_storage_chunks_busy_bytes{name="emitter_for_filter.multiline_klog"} 0
+fluentbit_input_storage_chunks_busy_bytes{name="re_emitted_namespace_router"} 0
+fluentbit_input_storage_chunks_busy_bytes{name="re_emitted_container_name_router"} 0
+fluentbit_input_storage_chunks_busy_bytes{name="re_emitted_resource_snapshot_router"} 0
+fluentbit_input_storage_chunks_busy_bytes{name="re_emitted_cosmos_snapshot_router"} 0
+fluentbit_input_storage_chunks_busy_bytes{name="re_emitted_cosmos_snapshot_router_frontend"} 0
+# HELP fluentbit_input_http_server_ingress_queue_pending_events Current number of deferred HTTP server ingress queue events.
+# TYPE fluentbit_input_http_server_ingress_queue_pending_events gauge
+fluentbit_input_http_server_ingress_queue_pending_events{name="otlp"} 0
+# HELP fluentbit_input_http_server_ingress_queue_pending_bytes Current number of deferred HTTP server ingress queue bytes.
+# TYPE fluentbit_input_http_server_ingress_queue_pending_bytes gauge
+fluentbit_input_http_server_ingress_queue_pending_bytes{name="otlp"} 0
+# HELP fluentbit_output_upstream_total_connections Total Connection count.
+# TYPE fluentbit_output_upstream_total_connections gauge
+fluentbit_output_upstream_total_connections{name="exporter.fluentbit"} 0
+fluentbit_output_upstream_total_connections{name="azure_kusto.1"} 0
+fluentbit_output_upstream_total_connections{name="azure_kusto.2"} 0
+fluentbit_output_upstream_total_connections{name="azure_kusto.3"} 0
+fluentbit_output_upstream_total_connections{name="azure_kusto.4"} 0
+fluentbit_output_upstream_total_connections{name="azure_kusto.5"} 0
+fluentbit_output_upstream_total_connections{name="azure_kusto.6"} 0
+fluentbit_output_upstream_total_connections{name="azure_kusto.7"} 0
+fluentbit_output_upstream_total_connections{name="azure_kusto.8"} 0
+fluentbit_output_upstream_total_connections{name="azure_kusto.9"} 0
+# HELP fluentbit_output_upstream_busy_connections Busy Connection count.
+# TYPE fluentbit_output_upstream_busy_connections gauge
+fluentbit_output_upstream_busy_connections{name="exporter.fluentbit"} 0
+fluentbit_output_upstream_busy_connections{name="azure_kusto.1"} 0
+fluentbit_output_upstream_busy_connections{name="azure_kusto.2"} 0
+fluentbit_output_upstream_busy_connections{name="azure_kusto.3"} 0
+fluentbit_output_upstream_busy_connections{name="azure_kusto.4"} 0
+fluentbit_output_upstream_busy_connections{name="azure_kusto.5"} 0
+fluentbit_output_upstream_busy_connections{name="azure_kusto.6"} 0
+fluentbit_output_upstream_busy_connections{name="azure_kusto.7"} 0
+fluentbit_output_upstream_busy_connections{name="azure_kusto.8"} 0
+fluentbit_output_upstream_busy_connections{name="azure_kusto.9"} 0
+# HELP fluentbit_output_chunk_available_capacity_percent Available chunk capacity (percent)
+# TYPE fluentbit_output_chunk_available_capacity_percent gauge
+fluentbit_output_chunk_available_capacity_percent{name="exporter.fluentbit"} 100
+fluentbit_output_chunk_available_capacity_percent{name="azure_kusto.1"} 100
+fluentbit_output_chunk_available_capacity_percent{name="azure_kusto.2"} 100
+fluentbit_output_chunk_available_capacity_percent{name="azure_kusto.3"} 100
+fluentbit_output_chunk_available_capacity_percent{name="azure_kusto.4"} 100
+fluentbit_output_chunk_available_capacity_percent{name="azure_kusto.5"} 100
+fluentbit_output_chunk_available_capacity_percent{name="azure_kusto.6"} 100
+fluentbit_output_chunk_available_capacity_percent{name="azure_kusto.7"} 100
+fluentbit_output_chunk_available_capacity_percent{name="azure_kusto.8"} 100
+fluentbit_output_chunk_available_capacity_percent{name="azure_kusto.9"} 100
+# HELP fluentbit_output_latency_seconds End-to-end latency in seconds
+# TYPE fluentbit_output_latency_seconds histogram
+fluentbit_output_latency_seconds_bucket{le="0.5",input="metrics.fluentbit",output="exporter.fluentbit"} 3
+fluentbit_output_latency_seconds_bucket{le="1.0",input="metrics.fluentbit",output="exporter.fluentbit"} 16
+fluentbit_output_latency_seconds_bucket{le="1.5",input="metrics.fluentbit",output="exporter.fluentbit"} 1231
+fluentbit_output_latency_seconds_bucket{le="2.5",input="metrics.fluentbit",output="exporter.fluentbit"} 1345
+fluentbit_output_latency_seconds_bucket{le="5.0",input="metrics.fluentbit",output="exporter.fluentbit"} 1347
+fluentbit_output_latency_seconds_bucket{le="10.0",input="metrics.fluentbit",output="exporter.fluentbit"} 1347
+fluentbit_output_latency_seconds_bucket{le="20.0",input="metrics.fluentbit",output="exporter.fluentbit"} 1347
+fluentbit_output_latency_seconds_bucket{le="30.0",input="metrics.fluentbit",output="exporter.fluentbit"} 1347
+fluentbit_output_latency_seconds_bucket{le="+Inf",input="metrics.fluentbit",output="exporter.fluentbit"} 1347
+fluentbit_output_latency_seconds_sum{input="metrics.fluentbit",output="exporter.fluentbit"} 1472.0870914459229
+fluentbit_output_latency_seconds_count{input="metrics.fluentbit",output="exporter.fluentbit"} 1347
+fluentbit_output_latency_seconds_bucket{le="0.5",input="re_emitted_container_name_router",output="azure_kusto.1"} 5
+fluentbit_output_latency_seconds_bucket{le="1.0",input="re_emitted_container_name_router",output="azure_kusto.1"} 400
+fluentbit_output_latency_seconds_bucket{le="1.5",input="re_emitted_container_name_router",output="azure_kusto.1"} 521
+fluentbit_output_latency_seconds_bucket{le="2.5",input="re_emitted_container_name_router",output="azure_kusto.1"} 529
+fluentbit_output_latency_seconds_bucket{le="5.0",input="re_emitted_container_name_router",output="azure_kusto.1"} 529
+fluentbit_output_latency_seconds_bucket{le="10.0",input="re_emitted_container_name_router",output="azure_kusto.1"} 529
+fluentbit_output_latency_seconds_bucket{le="20.0",input="re_emitted_container_name_router",output="azure_kusto.1"} 529
+fluentbit_output_latency_seconds_bucket{le="30.0",input="re_emitted_container_name_router",output="azure_kusto.1"} 529
+fluentbit_output_latency_seconds_bucket{le="+Inf",input="re_emitted_container_name_router",output="azure_kusto.1"} 529
+fluentbit_output_latency_seconds_sum{input="re_emitted_container_name_router",output="azure_kusto.1"} 528.92783403396606
+fluentbit_output_latency_seconds_count{input="re_emitted_container_name_router",output="azure_kusto.1"} 529
+fluentbit_output_latency_seconds_bucket{le="0.5",input="re_emitted_container_name_router",output="azure_kusto.2"} 1346
+fluentbit_output_latency_seconds_bucket{le="1.0",input="re_emitted_container_name_router",output="azure_kusto.2"} 7509
+fluentbit_output_latency_seconds_bucket{le="1.5",input="re_emitted_container_name_router",output="azure_kusto.2"} 9758
+fluentbit_output_latency_seconds_bucket{le="2.5",input="re_emitted_container_name_router",output="azure_kusto.2"} 10089
+fluentbit_output_latency_seconds_bucket{le="5.0",input="re_emitted_container_name_router",output="azure_kusto.2"} 10093
+fluentbit_output_latency_seconds_bucket{le="10.0",input="re_emitted_container_name_router",output="azure_kusto.2"} 10095
+fluentbit_output_latency_seconds_bucket{le="20.0",input="re_emitted_container_name_router",output="azure_kusto.2"} 10095
+fluentbit_output_latency_seconds_bucket{le="30.0",input="re_emitted_container_name_router",output="azure_kusto.2"} 10095
+fluentbit_output_latency_seconds_bucket{le="+Inf",input="re_emitted_container_name_router",output="azure_kusto.2"} 10095
+fluentbit_output_latency_seconds_sum{input="re_emitted_container_name_router",output="azure_kusto.2"} 8983.9161529541016
+fluentbit_output_latency_seconds_count{input="re_emitted_container_name_router",output="azure_kusto.2"} 10095
+fluentbit_output_latency_seconds_bucket{le="0.5",input="re_emitted_container_name_router",output="azure_kusto.3"} 1
+fluentbit_output_latency_seconds_bucket{le="1.0",input="re_emitted_container_name_router",output="azure_kusto.3"} 6
+fluentbit_output_latency_seconds_bucket{le="1.5",input="re_emitted_container_name_router",output="azure_kusto.3"} 7
+fluentbit_output_latency_seconds_bucket{le="2.5",input="re_emitted_container_name_router",output="azure_kusto.3"} 8
+fluentbit_output_latency_seconds_bucket{le="5.0",input="re_emitted_container_name_router",output="azure_kusto.3"} 8
+fluentbit_output_latency_seconds_bucket{le="10.0",input="re_emitted_container_name_router",output="azure_kusto.3"} 8
+fluentbit_output_latency_seconds_bucket{le="20.0",input="re_emitted_container_name_router",output="azure_kusto.3"} 8
+fluentbit_output_latency_seconds_bucket{le="30.0",input="re_emitted_container_name_router",output="azure_kusto.3"} 8
+fluentbit_output_latency_seconds_bucket{le="+Inf",input="re_emitted_container_name_router",output="azure_kusto.3"} 8
+fluentbit_output_latency_seconds_sum{input="re_emitted_container_name_router",output="azure_kusto.3"} 7.6513633728027344
+fluentbit_output_latency_seconds_count{input="re_emitted_container_name_router",output="azure_kusto.3"} 8
+fluentbit_output_latency_seconds_bucket{le="0.5",input="re_emitted_container_name_router",output="azure_kusto.4"} 1031
+fluentbit_output_latency_seconds_bucket{le="1.0",input="re_emitted_container_name_router",output="azure_kusto.4"} 6652
+fluentbit_output_latency_seconds_bucket{le="1.5",input="re_emitted_container_name_router",output="azure_kusto.4"} 8709
+fluentbit_output_latency_seconds_bucket{le="2.5",input="re_emitted_container_name_router",output="azure_kusto.4"} 9029
+fluentbit_output_latency_seconds_bucket{le="5.0",input="re_emitted_container_name_router",output="azure_kusto.4"} 9034
+fluentbit_output_latency_seconds_bucket{le="10.0",input="re_emitted_container_name_router",output="azure_kusto.4"} 9034
+fluentbit_output_latency_seconds_bucket{le="20.0",input="re_emitted_container_name_router",output="azure_kusto.4"} 9034
+fluentbit_output_latency_seconds_bucket{le="30.0",input="re_emitted_container_name_router",output="azure_kusto.4"} 9034
+fluentbit_output_latency_seconds_bucket{le="+Inf",input="re_emitted_container_name_router",output="azure_kusto.4"} 9034
+fluentbit_output_latency_seconds_sum{input="re_emitted_container_name_router",output="azure_kusto.4"} 8179.8979170322418
+fluentbit_output_latency_seconds_count{input="re_emitted_container_name_router",output="azure_kusto.4"} 9034
+fluentbit_output_latency_seconds_bucket{le="0.5",input="re_emitted_cosmos_snapshot_router",output="azure_kusto.6"} 79
+fluentbit_output_latency_seconds_bucket{le="1.0",input="re_emitted_cosmos_snapshot_router",output="azure_kusto.6"} 207
+fluentbit_output_latency_seconds_bucket{le="1.5",input="re_emitted_cosmos_snapshot_router",output="azure_kusto.6"} 228
+fluentbit_output_latency_seconds_bucket{le="2.5",input="re_emitted_cosmos_snapshot_router",output="azure_kusto.6"} 234
+fluentbit_output_latency_seconds_bucket{le="5.0",input="re_emitted_cosmos_snapshot_router",output="azure_kusto.6"} 234
+fluentbit_output_latency_seconds_bucket{le="10.0",input="re_emitted_cosmos_snapshot_router",output="azure_kusto.6"} 234
+fluentbit_output_latency_seconds_bucket{le="20.0",input="re_emitted_cosmos_snapshot_router",output="azure_kusto.6"} 234
+fluentbit_output_latency_seconds_bucket{le="30.0",input="re_emitted_cosmos_snapshot_router",output="azure_kusto.6"} 234
+fluentbit_output_latency_seconds_bucket{le="+Inf",input="re_emitted_cosmos_snapshot_router",output="azure_kusto.6"} 234
+fluentbit_output_latency_seconds_sum{input="re_emitted_cosmos_snapshot_router",output="azure_kusto.6"} 174.38653492927551
+fluentbit_output_latency_seconds_count{input="re_emitted_cosmos_snapshot_router",output="azure_kusto.6"} 234
+fluentbit_output_latency_seconds_bucket{le="0.5",input="emitter_for_filter.multiline_klog",output="azure_kusto.7"} 2683
+fluentbit_output_latency_seconds_bucket{le="1.0",input="emitter_for_filter.multiline_klog",output="azure_kusto.7"} 16970
+fluentbit_output_latency_seconds_bucket{le="1.5",input="emitter_for_filter.multiline_klog",output="azure_kusto.7"} 32860
+fluentbit_output_latency_seconds_bucket{le="2.5",input="emitter_for_filter.multiline_klog",output="azure_kusto.7"} 34016
+fluentbit_output_latency_seconds_bucket{le="5.0",input="emitter_for_filter.multiline_klog",output="azure_kusto.7"} 34031
+fluentbit_output_latency_seconds_bucket{le="10.0",input="emitter_for_filter.multiline_klog",output="azure_kusto.7"} 34035
+fluentbit_output_latency_seconds_bucket{le="20.0",input="emitter_for_filter.multiline_klog",output="azure_kusto.7"} 34035
+fluentbit_output_latency_seconds_bucket{le="30.0",input="emitter_for_filter.multiline_klog",output="azure_kusto.7"} 34035
+fluentbit_output_latency_seconds_bucket{le="+Inf",input="emitter_for_filter.multiline_klog",output="azure_kusto.7"} 34035
+fluentbit_output_latency_seconds_sum{input="emitter_for_filter.multiline_klog",output="azure_kusto.7"} 31243.779828071594
+fluentbit_output_latency_seconds_count{input="emitter_for_filter.multiline_klog",output="azure_kusto.7"} 34035
+fluentbit_output_latency_seconds_bucket{le="0.5",input="re_emitted_container_name_router",output="azure_kusto.8"} 734
+fluentbit_output_latency_seconds_bucket{le="1.0",input="re_emitted_container_name_router",output="azure_kusto.8"} 2996
+fluentbit_output_latency_seconds_bucket{le="1.5",input="re_emitted_container_name_router",output="azure_kusto.8"} 3738
+fluentbit_output_latency_seconds_bucket{le="2.5",input="re_emitted_container_name_router",output="azure_kusto.8"} 3870
+fluentbit_output_latency_seconds_bucket{le="5.0",input="re_emitted_container_name_router",output="azure_kusto.8"} 3885
+fluentbit_output_latency_seconds_bucket{le="10.0",input="re_emitted_container_name_router",output="azure_kusto.8"} 3885
+fluentbit_output_latency_seconds_bucket{le="20.0",input="re_emitted_container_name_router",output="azure_kusto.8"} 3885
+fluentbit_output_latency_seconds_bucket{le="30.0",input="re_emitted_container_name_router",output="azure_kusto.8"} 3885
+fluentbit_output_latency_seconds_bucket{le="+Inf",input="re_emitted_container_name_router",output="azure_kusto.8"} 3885
+fluentbit_output_latency_seconds_sum{input="re_emitted_container_name_router",output="azure_kusto.8"} 3304.4852869510651
+fluentbit_output_latency_seconds_count{input="re_emitted_container_name_router",output="azure_kusto.8"} 3885
+fluentbit_output_latency_seconds_bucket{le="0.5",input="systemd",output="azure_kusto.9"} 58
+fluentbit_output_latency_seconds_bucket{le="1.0",input="systemd",output="azure_kusto.9"} 178
+fluentbit_output_latency_seconds_bucket{le="1.5",input="systemd",output="azure_kusto.9"} 181
+fluentbit_output_latency_seconds_bucket{le="2.5",input="systemd",output="azure_kusto.9"} 182
+fluentbit_output_latency_seconds_bucket{le="5.0",input="systemd",output="azure_kusto.9"} 182
+fluentbit_output_latency_seconds_bucket{le="10.0",input="systemd",output="azure_kusto.9"} 182
+fluentbit_output_latency_seconds_bucket{le="20.0",input="systemd",output="azure_kusto.9"} 182
+fluentbit_output_latency_seconds_bucket{le="30.0",input="systemd",output="azure_kusto.9"} 182
+fluentbit_output_latency_seconds_bucket{le="+Inf",input="systemd",output="azure_kusto.9"} 182
+fluentbit_output_latency_seconds_sum{input="systemd",output="azure_kusto.9"} 94.834580421447754
+fluentbit_output_latency_seconds_count{input="systemd",output="azure_kusto.9"} 182

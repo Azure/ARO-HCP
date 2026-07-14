@@ -13,7 +13,7 @@ data:
     cadvisor = true
     kubeproxy = true
     apiserver = true
-    kubestate = false # OSS prometheus scrapes kube-state-metrics so the HCP ksm are routed to the hcp Azure Monitor Workspace
+    kubestate = true
     nodeexporter = true
     windowsexporter = false
     windowskubeproxy = false

@@ -1,0 +1,983 @@
+# HELP api_inbound_request_count Number of requests sent.
+# TYPE api_inbound_request_count counter
+api_inbound_request_count{apiservice="ocm-aro_hcp",code="200",method="GET",path="/api/aro_hcp/v1alpha1/clusters"} 2
+api_inbound_request_count{apiservice="ocm-aro_hcp",code="200",method="GET",path="/api/aro_hcp/v1alpha1/clusters/-"} 42
+api_inbound_request_count{apiservice="ocm-aro_hcp",code="200",method="GET",path="/api/aro_hcp/v1alpha1/clusters/-/autoscaler"} 55
+api_inbound_request_count{apiservice="ocm-aro_hcp",code="200",method="GET",path="/api/aro_hcp/v1alpha1/clusters/-/control_plane_upgrade_policies"} 3
+api_inbound_request_count{apiservice="ocm-aro_hcp",code="200",method="GET",path="/api/aro_hcp/v1alpha1/clusters/-/external_auth_config/external_auths"} 4
+api_inbound_request_count{apiservice="ocm-aro_hcp",code="200",method="GET",path="/api/aro_hcp/v1alpha1/clusters/-/node_pools"} 4
+api_inbound_request_count{apiservice="ocm-aro_hcp",code="200",method="GET",path="/api/aro_hcp/v1alpha1/clusters/-/node_pools/-"} 19
+api_inbound_request_count{apiservice="ocm-aro_hcp",code="200",method="GET",path="/api/aro_hcp/v1alpha1/clusters/-/node_pools/-/status"} 3
+api_inbound_request_count{apiservice="ocm-aro_hcp",code="200",method="GET",path="/api/aro_hcp/v1alpha1/clusters/-/status"} 8
+api_inbound_request_count{apiservice="ocm-aro_hcp",code="200",method="GET",path="/api/aro_hcp/v1alpha1/provision_shards/-"} 18
+api_inbound_request_count{apiservice="ocm-aro_hcp",code="200",method="GET",path="/api/aro_hcp/v1alpha1/versions/-"} 28
+api_inbound_request_count{apiservice="ocm-aro_hcp",code="200",method="PATCH",path="/api/aro_hcp/v1alpha1/provision_shards/-"} 1
+api_inbound_request_count{apiservice="ocm-aro_hcp",code="201",method="POST",path="/api/aro_hcp/v1alpha1/clusters/-/control_plane_upgrade_policies"} 1
+api_inbound_request_count{apiservice="ocm-aro_hcp",code="202",method="POST",path="/api/aro_hcp/v1alpha1/clusters/-/node_pools"} 1
+api_inbound_request_count{apiservice="ocm-clusters-service",code="200",method="GET",path="/api/clusters_mgmt/v1"} 2009
+api_inbound_request_count{apiservice="ocm-clusters-service",code="200",method="GET",path="/api/clusters_mgmt/v1/clusters/-/break_glass_credentials/-"} 1
+# HELP api_inbound_request_duration Request duration in seconds.
+# TYPE api_inbound_request_duration histogram
+api_inbound_request_duration_bucket{apiservice="ocm-aro_hcp",code="200",method="GET",path="/api/aro_hcp/v1alpha1/clusters",le="0.1"} 2
+api_inbound_request_duration_bucket{apiservice="ocm-aro_hcp",code="200",method="GET",path="/api/aro_hcp/v1alpha1/clusters",le="1"} 2
+api_inbound_request_duration_bucket{apiservice="ocm-aro_hcp",code="200",method="GET",path="/api/aro_hcp/v1alpha1/clusters",le="10"} 2
+api_inbound_request_duration_bucket{apiservice="ocm-aro_hcp",code="200",method="GET",path="/api/aro_hcp/v1alpha1/clusters",le="30"} 2
+api_inbound_request_duration_bucket{apiservice="ocm-aro_hcp",code="200",method="GET",path="/api/aro_hcp/v1alpha1/clusters",le="+Inf"} 2
+api_inbound_request_duration_sum{apiservice="ocm-aro_hcp",code="200",method="GET",path="/api/aro_hcp/v1alpha1/clusters"} 0.070040574
+api_inbound_request_duration_count{apiservice="ocm-aro_hcp",code="200",method="GET",path="/api/aro_hcp/v1alpha1/clusters"} 2
+api_inbound_request_duration_bucket{apiservice="ocm-aro_hcp",code="200",method="GET",path="/api/aro_hcp/v1alpha1/clusters/-",le="0.1"} 42
+api_inbound_request_duration_bucket{apiservice="ocm-aro_hcp",code="200",method="GET",path="/api/aro_hcp/v1alpha1/clusters/-",le="1"} 42
+api_inbound_request_duration_bucket{apiservice="ocm-aro_hcp",code="200",method="GET",path="/api/aro_hcp/v1alpha1/clusters/-",le="10"} 42
+api_inbound_request_duration_bucket{apiservice="ocm-aro_hcp",code="200",method="GET",path="/api/aro_hcp/v1alpha1/clusters/-",le="30"} 42
+api_inbound_request_duration_bucket{apiservice="ocm-aro_hcp",code="200",method="GET",path="/api/aro_hcp/v1alpha1/clusters/-",le="+Inf"} 42
+api_inbound_request_duration_sum{apiservice="ocm-aro_hcp",code="200",method="GET",path="/api/aro_hcp/v1alpha1/clusters/-"} 1.2958455670000004
+api_inbound_request_duration_count{apiservice="ocm-aro_hcp",code="200",method="GET",path="/api/aro_hcp/v1alpha1/clusters/-"} 42
+api_inbound_request_duration_bucket{apiservice="ocm-aro_hcp",code="200",method="GET",path="/api/aro_hcp/v1alpha1/clusters/-/autoscaler",le="0.1"} 55
+api_inbound_request_duration_bucket{apiservice="ocm-aro_hcp",code="200",method="GET",path="/api/aro_hcp/v1alpha1/clusters/-/autoscaler",le="1"} 55
+api_inbound_request_duration_bucket{apiservice="ocm-aro_hcp",code="200",method="GET",path="/api/aro_hcp/v1alpha1/clusters/-/autoscaler",le="10"} 55
+api_inbound_request_duration_bucket{apiservice="ocm-aro_hcp",code="200",method="GET",path="/api/aro_hcp/v1alpha1/clusters/-/autoscaler",le="30"} 55
+api_inbound_request_duration_bucket{apiservice="ocm-aro_hcp",code="200",method="GET",path="/api/aro_hcp/v1alpha1/clusters/-/autoscaler",le="+Inf"} 55
+api_inbound_request_duration_sum{apiservice="ocm-aro_hcp",code="200",method="GET",path="/api/aro_hcp/v1alpha1/clusters/-/autoscaler"} 1.6594344800000003
+api_inbound_request_duration_count{apiservice="ocm-aro_hcp",code="200",method="GET",path="/api/aro_hcp/v1alpha1/clusters/-/autoscaler"} 55
+api_inbound_request_duration_bucket{apiservice="ocm-aro_hcp",code="200",method="GET",path="/api/aro_hcp/v1alpha1/clusters/-/control_plane_upgrade_policies",le="0.1"} 3
+api_inbound_request_duration_bucket{apiservice="ocm-aro_hcp",code="200",method="GET",path="/api/aro_hcp/v1alpha1/clusters/-/control_plane_upgrade_policies",le="1"} 3
+api_inbound_request_duration_bucket{apiservice="ocm-aro_hcp",code="200",method="GET",path="/api/aro_hcp/v1alpha1/clusters/-/control_plane_upgrade_policies",le="10"} 3
+api_inbound_request_duration_bucket{apiservice="ocm-aro_hcp",code="200",method="GET",path="/api/aro_hcp/v1alpha1/clusters/-/control_plane_upgrade_policies",le="30"} 3
+api_inbound_request_duration_bucket{apiservice="ocm-aro_hcp",code="200",method="GET",path="/api/aro_hcp/v1alpha1/clusters/-/control_plane_upgrade_policies",le="+Inf"} 3
+api_inbound_request_duration_sum{apiservice="ocm-aro_hcp",code="200",method="GET",path="/api/aro_hcp/v1alpha1/clusters/-/control_plane_upgrade_policies"} 0.10461404400000002
+api_inbound_request_duration_count{apiservice="ocm-aro_hcp",code="200",method="GET",path="/api/aro_hcp/v1alpha1/clusters/-/control_plane_upgrade_policies"} 3
+api_inbound_request_duration_bucket{apiservice="ocm-aro_hcp",code="200",method="GET",path="/api/aro_hcp/v1alpha1/clusters/-/external_auth_config/external_auths",le="0.1"} 4
+api_inbound_request_duration_bucket{apiservice="ocm-aro_hcp",code="200",method="GET",path="/api/aro_hcp/v1alpha1/clusters/-/external_auth_config/external_auths",le="1"} 4
+api_inbound_request_duration_bucket{apiservice="ocm-aro_hcp",code="200",method="GET",path="/api/aro_hcp/v1alpha1/clusters/-/external_auth_config/external_auths",le="10"} 4
+api_inbound_request_duration_bucket{apiservice="ocm-aro_hcp",code="200",method="GET",path="/api/aro_hcp/v1alpha1/clusters/-/external_auth_config/external_auths",le="30"} 4
+api_inbound_request_duration_bucket{apiservice="ocm-aro_hcp",code="200",method="GET",path="/api/aro_hcp/v1alpha1/clusters/-/external_auth_config/external_auths",le="+Inf"} 4
+api_inbound_request_duration_sum{apiservice="ocm-aro_hcp",code="200",method="GET",path="/api/aro_hcp/v1alpha1/clusters/-/external_auth_config/external_auths"} 0.151194776
+api_inbound_request_duration_count{apiservice="ocm-aro_hcp",code="200",method="GET",path="/api/aro_hcp/v1alpha1/clusters/-/external_auth_config/external_auths"} 4
+api_inbound_request_duration_bucket{apiservice="ocm-aro_hcp",code="200",method="GET",path="/api/aro_hcp/v1alpha1/clusters/-/node_pools",le="0.1"} 4
+api_inbound_request_duration_bucket{apiservice="ocm-aro_hcp",code="200",method="GET",path="/api/aro_hcp/v1alpha1/clusters/-/node_pools",le="1"} 4
+api_inbound_request_duration_bucket{apiservice="ocm-aro_hcp",code="200",method="GET",path="/api/aro_hcp/v1alpha1/clusters/-/node_pools",le="10"} 4
+api_inbound_request_duration_bucket{apiservice="ocm-aro_hcp",code="200",method="GET",path="/api/aro_hcp/v1alpha1/clusters/-/node_pools",le="30"} 4
+api_inbound_request_duration_bucket{apiservice="ocm-aro_hcp",code="200",method="GET",path="/api/aro_hcp/v1alpha1/clusters/-/node_pools",le="+Inf"} 4
+api_inbound_request_duration_sum{apiservice="ocm-aro_hcp",code="200",method="GET",path="/api/aro_hcp/v1alpha1/clusters/-/node_pools"} 0.138032814
+api_inbound_request_duration_count{apiservice="ocm-aro_hcp",code="200",method="GET",path="/api/aro_hcp/v1alpha1/clusters/-/node_pools"} 4
+api_inbound_request_duration_bucket{apiservice="ocm-aro_hcp",code="200",method="GET",path="/api/aro_hcp/v1alpha1/clusters/-/node_pools/-",le="0.1"} 19
+api_inbound_request_duration_bucket{apiservice="ocm-aro_hcp",code="200",method="GET",path="/api/aro_hcp/v1alpha1/clusters/-/node_pools/-",le="1"} 19
+api_inbound_request_duration_bucket{apiservice="ocm-aro_hcp",code="200",method="GET",path="/api/aro_hcp/v1alpha1/clusters/-/node_pools/-",le="10"} 19
+api_inbound_request_duration_bucket{apiservice="ocm-aro_hcp",code="200",method="GET",path="/api/aro_hcp/v1alpha1/clusters/-/node_pools/-",le="30"} 19
+api_inbound_request_duration_bucket{apiservice="ocm-aro_hcp",code="200",method="GET",path="/api/aro_hcp/v1alpha1/clusters/-/node_pools/-",le="+Inf"} 19
+api_inbound_request_duration_sum{apiservice="ocm-aro_hcp",code="200",method="GET",path="/api/aro_hcp/v1alpha1/clusters/-/node_pools/-"} 0.6320209639999999
+api_inbound_request_duration_count{apiservice="ocm-aro_hcp",code="200",method="GET",path="/api/aro_hcp/v1alpha1/clusters/-/node_pools/-"} 19
+api_inbound_request_duration_bucket{apiservice="ocm-aro_hcp",code="200",method="GET",path="/api/aro_hcp/v1alpha1/clusters/-/node_pools/-/status",le="0.1"} 3
+api_inbound_request_duration_bucket{apiservice="ocm-aro_hcp",code="200",method="GET",path="/api/aro_hcp/v1alpha1/clusters/-/node_pools/-/status",le="1"} 3
+api_inbound_request_duration_bucket{apiservice="ocm-aro_hcp",code="200",method="GET",path="/api/aro_hcp/v1alpha1/clusters/-/node_pools/-/status",le="10"} 3
+api_inbound_request_duration_bucket{apiservice="ocm-aro_hcp",code="200",method="GET",path="/api/aro_hcp/v1alpha1/clusters/-/node_pools/-/status",le="30"} 3
+api_inbound_request_duration_bucket{apiservice="ocm-aro_hcp",code="200",method="GET",path="/api/aro_hcp/v1alpha1/clusters/-/node_pools/-/status",le="+Inf"} 3
+api_inbound_request_duration_sum{apiservice="ocm-aro_hcp",code="200",method="GET",path="/api/aro_hcp/v1alpha1/clusters/-/node_pools/-/status"} 0.089203264
+api_inbound_request_duration_count{apiservice="ocm-aro_hcp",code="200",method="GET",path="/api/aro_hcp/v1alpha1/clusters/-/node_pools/-/status"} 3
+api_inbound_request_duration_bucket{apiservice="ocm-aro_hcp",code="200",method="GET",path="/api/aro_hcp/v1alpha1/clusters/-/status",le="0.1"} 8
+api_inbound_request_duration_bucket{apiservice="ocm-aro_hcp",code="200",method="GET",path="/api/aro_hcp/v1alpha1/clusters/-/status",le="1"} 8
+api_inbound_request_duration_bucket{apiservice="ocm-aro_hcp",code="200",method="GET",path="/api/aro_hcp/v1alpha1/clusters/-/status",le="10"} 8
+api_inbound_request_duration_bucket{apiservice="ocm-aro_hcp",code="200",method="GET",path="/api/aro_hcp/v1alpha1/clusters/-/status",le="30"} 8
+api_inbound_request_duration_bucket{apiservice="ocm-aro_hcp",code="200",method="GET",path="/api/aro_hcp/v1alpha1/clusters/-/status",le="+Inf"} 8
+api_inbound_request_duration_sum{apiservice="ocm-aro_hcp",code="200",method="GET",path="/api/aro_hcp/v1alpha1/clusters/-/status"} 0.236160453
+api_inbound_request_duration_count{apiservice="ocm-aro_hcp",code="200",method="GET",path="/api/aro_hcp/v1alpha1/clusters/-/status"} 8
+api_inbound_request_duration_bucket{apiservice="ocm-aro_hcp",code="200",method="GET",path="/api/aro_hcp/v1alpha1/provision_shards/-",le="0.1"} 18
+api_inbound_request_duration_bucket{apiservice="ocm-aro_hcp",code="200",method="GET",path="/api/aro_hcp/v1alpha1/provision_shards/-",le="1"} 18
+api_inbound_request_duration_bucket{apiservice="ocm-aro_hcp",code="200",method="GET",path="/api/aro_hcp/v1alpha1/provision_shards/-",le="10"} 18
+api_inbound_request_duration_bucket{apiservice="ocm-aro_hcp",code="200",method="GET",path="/api/aro_hcp/v1alpha1/provision_shards/-",le="30"} 18
+api_inbound_request_duration_bucket{apiservice="ocm-aro_hcp",code="200",method="GET",path="/api/aro_hcp/v1alpha1/provision_shards/-",le="+Inf"} 18
+api_inbound_request_duration_sum{apiservice="ocm-aro_hcp",code="200",method="GET",path="/api/aro_hcp/v1alpha1/provision_shards/-"} 0.084898802
+api_inbound_request_duration_count{apiservice="ocm-aro_hcp",code="200",method="GET",path="/api/aro_hcp/v1alpha1/provision_shards/-"} 18
+api_inbound_request_duration_bucket{apiservice="ocm-aro_hcp",code="200",method="GET",path="/api/aro_hcp/v1alpha1/versions/-",le="0.1"} 28
+api_inbound_request_duration_bucket{apiservice="ocm-aro_hcp",code="200",method="GET",path="/api/aro_hcp/v1alpha1/versions/-",le="1"} 28
+api_inbound_request_duration_bucket{apiservice="ocm-aro_hcp",code="200",method="GET",path="/api/aro_hcp/v1alpha1/versions/-",le="10"} 28
+api_inbound_request_duration_bucket{apiservice="ocm-aro_hcp",code="200",method="GET",path="/api/aro_hcp/v1alpha1/versions/-",le="30"} 28
+api_inbound_request_duration_bucket{apiservice="ocm-aro_hcp",code="200",method="GET",path="/api/aro_hcp/v1alpha1/versions/-",le="+Inf"} 28
+api_inbound_request_duration_sum{apiservice="ocm-aro_hcp",code="200",method="GET",path="/api/aro_hcp/v1alpha1/versions/-"} 0.11542770899999996
+api_inbound_request_duration_count{apiservice="ocm-aro_hcp",code="200",method="GET",path="/api/aro_hcp/v1alpha1/versions/-"} 28
+api_inbound_request_duration_bucket{apiservice="ocm-aro_hcp",code="200",method="PATCH",path="/api/aro_hcp/v1alpha1/provision_shards/-",le="0.1"} 1
+api_inbound_request_duration_bucket{apiservice="ocm-aro_hcp",code="200",method="PATCH",path="/api/aro_hcp/v1alpha1/provision_shards/-",le="1"} 1
+api_inbound_request_duration_bucket{apiservice="ocm-aro_hcp",code="200",method="PATCH",path="/api/aro_hcp/v1alpha1/provision_shards/-",le="10"} 1
+api_inbound_request_duration_bucket{apiservice="ocm-aro_hcp",code="200",method="PATCH",path="/api/aro_hcp/v1alpha1/provision_shards/-",le="30"} 1
+api_inbound_request_duration_bucket{apiservice="ocm-aro_hcp",code="200",method="PATCH",path="/api/aro_hcp/v1alpha1/provision_shards/-",le="+Inf"} 1
+api_inbound_request_duration_sum{apiservice="ocm-aro_hcp",code="200",method="PATCH",path="/api/aro_hcp/v1alpha1/provision_shards/-"} 0.015283776
+api_inbound_request_duration_count{apiservice="ocm-aro_hcp",code="200",method="PATCH",path="/api/aro_hcp/v1alpha1/provision_shards/-"} 1
+api_inbound_request_duration_bucket{apiservice="ocm-aro_hcp",code="201",method="POST",path="/api/aro_hcp/v1alpha1/clusters/-/control_plane_upgrade_policies",le="0.1"} 1
+api_inbound_request_duration_bucket{apiservice="ocm-aro_hcp",code="201",method="POST",path="/api/aro_hcp/v1alpha1/clusters/-/control_plane_upgrade_policies",le="1"} 1
+api_inbound_request_duration_bucket{apiservice="ocm-aro_hcp",code="201",method="POST",path="/api/aro_hcp/v1alpha1/clusters/-/control_plane_upgrade_policies",le="10"} 1
+api_inbound_request_duration_bucket{apiservice="ocm-aro_hcp",code="201",method="POST",path="/api/aro_hcp/v1alpha1/clusters/-/control_plane_upgrade_policies",le="30"} 1
+api_inbound_request_duration_bucket{apiservice="ocm-aro_hcp",code="201",method="POST",path="/api/aro_hcp/v1alpha1/clusters/-/control_plane_upgrade_policies",le="+Inf"} 1
+api_inbound_request_duration_sum{apiservice="ocm-aro_hcp",code="201",method="POST",path="/api/aro_hcp/v1alpha1/clusters/-/control_plane_upgrade_policies"} 0.038284443
+api_inbound_request_duration_count{apiservice="ocm-aro_hcp",code="201",method="POST",path="/api/aro_hcp/v1alpha1/clusters/-/control_plane_upgrade_policies"} 1
+api_inbound_request_duration_bucket{apiservice="ocm-aro_hcp",code="202",method="POST",path="/api/aro_hcp/v1alpha1/clusters/-/node_pools",le="0.1"} 1
+api_inbound_request_duration_bucket{apiservice="ocm-aro_hcp",code="202",method="POST",path="/api/aro_hcp/v1alpha1/clusters/-/node_pools",le="1"} 1
+api_inbound_request_duration_bucket{apiservice="ocm-aro_hcp",code="202",method="POST",path="/api/aro_hcp/v1alpha1/clusters/-/node_pools",le="10"} 1
+api_inbound_request_duration_bucket{apiservice="ocm-aro_hcp",code="202",method="POST",path="/api/aro_hcp/v1alpha1/clusters/-/node_pools",le="30"} 1
+api_inbound_request_duration_bucket{apiservice="ocm-aro_hcp",code="202",method="POST",path="/api/aro_hcp/v1alpha1/clusters/-/node_pools",le="+Inf"} 1
+api_inbound_request_duration_sum{apiservice="ocm-aro_hcp",code="202",method="POST",path="/api/aro_hcp/v1alpha1/clusters/-/node_pools"} 0.049701253
+api_inbound_request_duration_count{apiservice="ocm-aro_hcp",code="202",method="POST",path="/api/aro_hcp/v1alpha1/clusters/-/node_pools"} 1
+api_inbound_request_duration_bucket{apiservice="ocm-clusters-service",code="200",method="GET",path="/api/clusters_mgmt/v1",le="0.1"} 2009
+api_inbound_request_duration_bucket{apiservice="ocm-clusters-service",code="200",method="GET",path="/api/clusters_mgmt/v1",le="1"} 2009
+api_inbound_request_duration_bucket{apiservice="ocm-clusters-service",code="200",method="GET",path="/api/clusters_mgmt/v1",le="10"} 2009
+api_inbound_request_duration_bucket{apiservice="ocm-clusters-service",code="200",method="GET",path="/api/clusters_mgmt/v1",le="30"} 2009
+api_inbound_request_duration_bucket{apiservice="ocm-clusters-service",code="200",method="GET",path="/api/clusters_mgmt/v1",le="+Inf"} 2009
+api_inbound_request_duration_sum{apiservice="ocm-clusters-service",code="200",method="GET",path="/api/clusters_mgmt/v1"} 4.5058056890000024
+api_inbound_request_duration_count{apiservice="ocm-clusters-service",code="200",method="GET",path="/api/clusters_mgmt/v1"} 2009
+api_inbound_request_duration_bucket{apiservice="ocm-clusters-service",code="200",method="GET",path="/api/clusters_mgmt/v1/clusters/-/break_glass_credentials/-",le="0.1"} 0
+api_inbound_request_duration_bucket{apiservice="ocm-clusters-service",code="200",method="GET",path="/api/clusters_mgmt/v1/clusters/-/break_glass_credentials/-",le="1"} 1
+api_inbound_request_duration_bucket{apiservice="ocm-clusters-service",code="200",method="GET",path="/api/clusters_mgmt/v1/clusters/-/break_glass_credentials/-",le="10"} 1
+api_inbound_request_duration_bucket{apiservice="ocm-clusters-service",code="200",method="GET",path="/api/clusters_mgmt/v1/clusters/-/break_glass_credentials/-",le="30"} 1
+api_inbound_request_duration_bucket{apiservice="ocm-clusters-service",code="200",method="GET",path="/api/clusters_mgmt/v1/clusters/-/break_glass_credentials/-",le="+Inf"} 1
+api_inbound_request_duration_sum{apiservice="ocm-clusters-service",code="200",method="GET",path="/api/clusters_mgmt/v1/clusters/-/break_glass_credentials/-"} 0.581354212
+api_inbound_request_duration_count{apiservice="ocm-clusters-service",code="200",method="GET",path="/api/clusters_mgmt/v1/clusters/-/break_glass_credentials/-"} 1
+# HELP async_routine_manager_routine_instances Number of running instances of a given routine.
+# TYPE async_routine_manager_routine_instances gauge
+async_routine_manager_routine_instances{data="",routine_name="ARO-HCP delete node pools worker-enqueue"} 1
+async_routine_manager_routine_instances{data="",routine_name="ARO-HCP delete node pools worker-worker-0"} 1
+async_routine_manager_routine_instances{data="",routine_name="ARO-HCP delete node pools worker-worker-1"} 1
+async_routine_manager_routine_instances{data="",routine_name="ARO-HCP delete node pools worker-worker-10"} 1
+async_routine_manager_routine_instances{data="",routine_name="ARO-HCP delete node pools worker-worker-11"} 1
+async_routine_manager_routine_instances{data="",routine_name="ARO-HCP delete node pools worker-worker-12"} 1
+async_routine_manager_routine_instances{data="",routine_name="ARO-HCP delete node pools worker-worker-13"} 1
+async_routine_manager_routine_instances{data="",routine_name="ARO-HCP delete node pools worker-worker-14"} 1
+async_routine_manager_routine_instances{data="",routine_name="ARO-HCP delete node pools worker-worker-15"} 1
+async_routine_manager_routine_instances{data="",routine_name="ARO-HCP delete node pools worker-worker-16"} 1
+async_routine_manager_routine_instances{data="",routine_name="ARO-HCP delete node pools worker-worker-17"} 1
+async_routine_manager_routine_instances{data="",routine_name="ARO-HCP delete node pools worker-worker-18"} 1
+async_routine_manager_routine_instances{data="",routine_name="ARO-HCP delete node pools worker-worker-19"} 1
+async_routine_manager_routine_instances{data="",routine_name="ARO-HCP delete node pools worker-worker-2"} 1
+async_routine_manager_routine_instances{data="",routine_name="ARO-HCP delete node pools worker-worker-3"} 1
+async_routine_manager_routine_instances{data="",routine_name="ARO-HCP delete node pools worker-worker-4"} 1
+async_routine_manager_routine_instances{data="",routine_name="ARO-HCP delete node pools worker-worker-5"} 1
+async_routine_manager_routine_instances{data="",routine_name="ARO-HCP delete node pools worker-worker-6"} 1
+async_routine_manager_routine_instances{data="",routine_name="ARO-HCP delete node pools worker-worker-7"} 1
+async_routine_manager_routine_instances{data="",routine_name="ARO-HCP delete node pools worker-worker-8"} 1
+async_routine_manager_routine_instances{data="",routine_name="ARO-HCP delete node pools worker-worker-9"} 1
+async_routine_manager_routine_instances{data="",routine_name="ARO-HCP pending node pools worker-enqueue"} 1
+async_routine_manager_routine_instances{data="",routine_name="ARO-HCP pending node pools worker-worker-0"} 1
+async_routine_manager_routine_instances{data="",routine_name="ARO-HCP pending node pools worker-worker-1"} 1
+async_routine_manager_routine_instances{data="",routine_name="ARO-HCP pending node pools worker-worker-10"} 1
+async_routine_manager_routine_instances{data="",routine_name="ARO-HCP pending node pools worker-worker-11"} 1
+async_routine_manager_routine_instances{data="",routine_name="ARO-HCP pending node pools worker-worker-12"} 1
+async_routine_manager_routine_instances{data="",routine_name="ARO-HCP pending node pools worker-worker-13"} 1
+async_routine_manager_routine_instances{data="",routine_name="ARO-HCP pending node pools worker-worker-14"} 1
+async_routine_manager_routine_instances{data="",routine_name="ARO-HCP pending node pools worker-worker-15"} 1
+async_routine_manager_routine_instances{data="",routine_name="ARO-HCP pending node pools worker-worker-16"} 1
+async_routine_manager_routine_instances{data="",routine_name="ARO-HCP pending node pools worker-worker-17"} 1
+async_routine_manager_routine_instances{data="",routine_name="ARO-HCP pending node pools worker-worker-18"} 1
+async_routine_manager_routine_instances{data="",routine_name="ARO-HCP pending node pools worker-worker-19"} 1
+async_routine_manager_routine_instances{data="",routine_name="ARO-HCP pending node pools worker-worker-2"} 1
+async_routine_manager_routine_instances{data="",routine_name="ARO-HCP pending node pools worker-worker-3"} 1
+async_routine_manager_routine_instances{data="",routine_name="ARO-HCP pending node pools worker-worker-4"} 1
+async_routine_manager_routine_instances{data="",routine_name="ARO-HCP pending node pools worker-worker-5"} 1
+async_routine_manager_routine_instances{data="",routine_name="ARO-HCP pending node pools worker-worker-6"} 1
+async_routine_manager_routine_instances{data="",routine_name="ARO-HCP pending node pools worker-worker-7"} 1
+async_routine_manager_routine_instances{data="",routine_name="ARO-HCP pending node pools worker-worker-8"} 1
+async_routine_manager_routine_instances{data="",routine_name="ARO-HCP pending node pools worker-worker-9"} 1
+async_routine_manager_routine_instances{data="",routine_name="ARO-HCP validating node pools worker-enqueue"} 1
+async_routine_manager_routine_instances{data="",routine_name="ARO-HCP validating node pools worker-worker-0"} 1
+async_routine_manager_routine_instances{data="",routine_name="ARO-HCP validating node pools worker-worker-1"} 1
+async_routine_manager_routine_instances{data="",routine_name="ARO-HCP validating node pools worker-worker-10"} 1
+async_routine_manager_routine_instances{data="",routine_name="ARO-HCP validating node pools worker-worker-11"} 1
+async_routine_manager_routine_instances{data="",routine_name="ARO-HCP validating node pools worker-worker-12"} 1
+async_routine_manager_routine_instances{data="",routine_name="ARO-HCP validating node pools worker-worker-13"} 1
+async_routine_manager_routine_instances{data="",routine_name="ARO-HCP validating node pools worker-worker-14"} 1
+async_routine_manager_routine_instances{data="",routine_name="ARO-HCP validating node pools worker-worker-15"} 1
+async_routine_manager_routine_instances{data="",routine_name="ARO-HCP validating node pools worker-worker-16"} 1
+async_routine_manager_routine_instances{data="",routine_name="ARO-HCP validating node pools worker-worker-17"} 1
+async_routine_manager_routine_instances{data="",routine_name="ARO-HCP validating node pools worker-worker-18"} 1
+async_routine_manager_routine_instances{data="",routine_name="ARO-HCP validating node pools worker-worker-19"} 1
+async_routine_manager_routine_instances{data="",routine_name="ARO-HCP validating node pools worker-worker-2"} 1
+async_routine_manager_routine_instances{data="",routine_name="ARO-HCP validating node pools worker-worker-3"} 1
+async_routine_manager_routine_instances{data="",routine_name="ARO-HCP validating node pools worker-worker-4"} 1
+async_routine_manager_routine_instances{data="",routine_name="ARO-HCP validating node pools worker-worker-5"} 1
+async_routine_manager_routine_instances{data="",routine_name="ARO-HCP validating node pools worker-worker-6"} 1
+async_routine_manager_routine_instances{data="",routine_name="ARO-HCP validating node pools worker-worker-7"} 1
+async_routine_manager_routine_instances{data="",routine_name="ARO-HCP validating node pools worker-worker-8"} 1
+async_routine_manager_routine_instances{data="",routine_name="ARO-HCP validating node pools worker-worker-9"} 1
+async_routine_manager_routine_instances{data="",routine_name="api-server"} 1
+async_routine_manager_routine_instances{data="",routine_name="aro-hcp-cluster-worker"} 1
+async_routine_manager_routine_instances{data="",routine_name="aro-hcp-cluster-worker-chan-adapt"} 1
+async_routine_manager_routine_instances{data="",routine_name="aro-hcp-cluster-worker-enqueue"} 1
+async_routine_manager_routine_instances{data="",routine_name="aro-hcp-cluster-worker-worker-0"} 1
+async_routine_manager_routine_instances{data="",routine_name="aro-hcp-cluster-worker-worker-1"} 1
+async_routine_manager_routine_instances{data="",routine_name="aro-hcp-cluster-worker-worker-10"} 1
+async_routine_manager_routine_instances{data="",routine_name="aro-hcp-cluster-worker-worker-11"} 1
+async_routine_manager_routine_instances{data="",routine_name="aro-hcp-cluster-worker-worker-12"} 1
+async_routine_manager_routine_instances{data="",routine_name="aro-hcp-cluster-worker-worker-13"} 1
+async_routine_manager_routine_instances{data="",routine_name="aro-hcp-cluster-worker-worker-14"} 1
+async_routine_manager_routine_instances{data="",routine_name="aro-hcp-cluster-worker-worker-15"} 1
+async_routine_manager_routine_instances{data="",routine_name="aro-hcp-cluster-worker-worker-16"} 1
+async_routine_manager_routine_instances{data="",routine_name="aro-hcp-cluster-worker-worker-17"} 1
+async_routine_manager_routine_instances{data="",routine_name="aro-hcp-cluster-worker-worker-18"} 1
+async_routine_manager_routine_instances{data="",routine_name="aro-hcp-cluster-worker-worker-19"} 1
+async_routine_manager_routine_instances{data="",routine_name="aro-hcp-cluster-worker-worker-2"} 1
+async_routine_manager_routine_instances{data="",routine_name="aro-hcp-cluster-worker-worker-20"} 1
+async_routine_manager_routine_instances{data="",routine_name="aro-hcp-cluster-worker-worker-21"} 1
+async_routine_manager_routine_instances{data="",routine_name="aro-hcp-cluster-worker-worker-22"} 1
+async_routine_manager_routine_instances{data="",routine_name="aro-hcp-cluster-worker-worker-23"} 1
+async_routine_manager_routine_instances{data="",routine_name="aro-hcp-cluster-worker-worker-24"} 1
+async_routine_manager_routine_instances{data="",routine_name="aro-hcp-cluster-worker-worker-25"} 1
+async_routine_manager_routine_instances{data="",routine_name="aro-hcp-cluster-worker-worker-26"} 1
+async_routine_manager_routine_instances{data="",routine_name="aro-hcp-cluster-worker-worker-27"} 1
+async_routine_manager_routine_instances{data="",routine_name="aro-hcp-cluster-worker-worker-28"} 1
+async_routine_manager_routine_instances{data="",routine_name="aro-hcp-cluster-worker-worker-29"} 1
+async_routine_manager_routine_instances{data="",routine_name="aro-hcp-cluster-worker-worker-3"} 1
+async_routine_manager_routine_instances{data="",routine_name="aro-hcp-cluster-worker-worker-30"} 1
+async_routine_manager_routine_instances{data="",routine_name="aro-hcp-cluster-worker-worker-31"} 1
+async_routine_manager_routine_instances{data="",routine_name="aro-hcp-cluster-worker-worker-32"} 1
+async_routine_manager_routine_instances{data="",routine_name="aro-hcp-cluster-worker-worker-33"} 1
+async_routine_manager_routine_instances{data="",routine_name="aro-hcp-cluster-worker-worker-34"} 1
+async_routine_manager_routine_instances{data="",routine_name="aro-hcp-cluster-worker-worker-35"} 1
+async_routine_manager_routine_instances{data="",routine_name="aro-hcp-cluster-worker-worker-36"} 1
+async_routine_manager_routine_instances{data="",routine_name="aro-hcp-cluster-worker-worker-37"} 1
+async_routine_manager_routine_instances{data="",routine_name="aro-hcp-cluster-worker-worker-38"} 1
+async_routine_manager_routine_instances{data="",routine_name="aro-hcp-cluster-worker-worker-39"} 1
+async_routine_manager_routine_instances{data="",routine_name="aro-hcp-cluster-worker-worker-4"} 1
+async_routine_manager_routine_instances{data="",routine_name="aro-hcp-cluster-worker-worker-40"} 1
+async_routine_manager_routine_instances{data="",routine_name="aro-hcp-cluster-worker-worker-41"} 1
+async_routine_manager_routine_instances{data="",routine_name="aro-hcp-cluster-worker-worker-42"} 1
+async_routine_manager_routine_instances{data="",routine_name="aro-hcp-cluster-worker-worker-43"} 1
+async_routine_manager_routine_instances{data="",routine_name="aro-hcp-cluster-worker-worker-44"} 1
+async_routine_manager_routine_instances{data="",routine_name="aro-hcp-cluster-worker-worker-45"} 1
+async_routine_manager_routine_instances{data="",routine_name="aro-hcp-cluster-worker-worker-46"} 1
+async_routine_manager_routine_instances{data="",routine_name="aro-hcp-cluster-worker-worker-47"} 1
+async_routine_manager_routine_instances{data="",routine_name="aro-hcp-cluster-worker-worker-48"} 1
+async_routine_manager_routine_instances{data="",routine_name="aro-hcp-cluster-worker-worker-49"} 1
+async_routine_manager_routine_instances{data="",routine_name="aro-hcp-cluster-worker-worker-5"} 1
+async_routine_manager_routine_instances{data="",routine_name="aro-hcp-cluster-worker-worker-50"} 1
+async_routine_manager_routine_instances{data="",routine_name="aro-hcp-cluster-worker-worker-51"} 1
+async_routine_manager_routine_instances{data="",routine_name="aro-hcp-cluster-worker-worker-52"} 1
+async_routine_manager_routine_instances{data="",routine_name="aro-hcp-cluster-worker-worker-53"} 1
+async_routine_manager_routine_instances{data="",routine_name="aro-hcp-cluster-worker-worker-54"} 1
+async_routine_manager_routine_instances{data="",routine_name="aro-hcp-cluster-worker-worker-55"} 1
+async_routine_manager_routine_instances{data="",routine_name="aro-hcp-cluster-worker-worker-56"} 1
+async_routine_manager_routine_instances{data="",routine_name="aro-hcp-cluster-worker-worker-57"} 1
+async_routine_manager_routine_instances{data="",routine_name="aro-hcp-cluster-worker-worker-58"} 1
+async_routine_manager_routine_instances{data="",routine_name="aro-hcp-cluster-worker-worker-59"} 1
+async_routine_manager_routine_instances{data="",routine_name="aro-hcp-cluster-worker-worker-6"} 1
+async_routine_manager_routine_instances{data="",routine_name="aro-hcp-cluster-worker-worker-60"} 1
+async_routine_manager_routine_instances{data="",routine_name="aro-hcp-cluster-worker-worker-61"} 1
+async_routine_manager_routine_instances{data="",routine_name="aro-hcp-cluster-worker-worker-62"} 1
+async_routine_manager_routine_instances{data="",routine_name="aro-hcp-cluster-worker-worker-63"} 1
+async_routine_manager_routine_instances{data="",routine_name="aro-hcp-cluster-worker-worker-64"} 1
+async_routine_manager_routine_instances{data="",routine_name="aro-hcp-cluster-worker-worker-65"} 1
+async_routine_manager_routine_instances{data="",routine_name="aro-hcp-cluster-worker-worker-66"} 1
+async_routine_manager_routine_instances{data="",routine_name="aro-hcp-cluster-worker-worker-67"} 1
+async_routine_manager_routine_instances{data="",routine_name="aro-hcp-cluster-worker-worker-68"} 1
+async_routine_manager_routine_instances{data="",routine_name="aro-hcp-cluster-worker-worker-69"} 1
+async_routine_manager_routine_instances{data="",routine_name="aro-hcp-cluster-worker-worker-7"} 1
+async_routine_manager_routine_instances{data="",routine_name="aro-hcp-cluster-worker-worker-70"} 1
+async_routine_manager_routine_instances{data="",routine_name="aro-hcp-cluster-worker-worker-71"} 1
+async_routine_manager_routine_instances{data="",routine_name="aro-hcp-cluster-worker-worker-72"} 1
+async_routine_manager_routine_instances{data="",routine_name="aro-hcp-cluster-worker-worker-73"} 1
+async_routine_manager_routine_instances{data="",routine_name="aro-hcp-cluster-worker-worker-74"} 1
+async_routine_manager_routine_instances{data="",routine_name="aro-hcp-cluster-worker-worker-75"} 1
+async_routine_manager_routine_instances{data="",routine_name="aro-hcp-cluster-worker-worker-76"} 1
+async_routine_manager_routine_instances{data="",routine_name="aro-hcp-cluster-worker-worker-77"} 1
+async_routine_manager_routine_instances{data="",routine_name="aro-hcp-cluster-worker-worker-78"} 1
+async_routine_manager_routine_instances{data="",routine_name="aro-hcp-cluster-worker-worker-79"} 1
+async_routine_manager_routine_instances{data="",routine_name="aro-hcp-cluster-worker-worker-8"} 1
+async_routine_manager_routine_instances{data="",routine_name="aro-hcp-cluster-worker-worker-9"} 1
+async_routine_manager_routine_instances{data="",routine_name="aro-hcp-delete-node-pools-worker"} 1
+async_routine_manager_routine_instances{data="",routine_name="aro-hcp-delete-node-pools-worker-chan-adapt"} 1
+async_routine_manager_routine_instances{data="",routine_name="aro-hcp-node-pool-upgrade-policy-service-worker"} 1
+async_routine_manager_routine_instances{data="",routine_name="aro-hcp-ocp-versions-worker"} 1
+async_routine_manager_routine_instances{data="",routine_name="aro-hcp-pending-node-pools-worker"} 1
+async_routine_manager_routine_instances{data="",routine_name="aro-hcp-pending-node-pools-worker-chan-adapt"} 1
+async_routine_manager_routine_instances{data="",routine_name="aro-hcp-validating-node-pools-worker"} 1
+async_routine_manager_routine_instances{data="",routine_name="aro-hcp-validating-node-pools-worker-chan-adapt"} 1
+async_routine_manager_routine_instances{data="",routine_name="async-routine-monitor"} 1
+async_routine_manager_routine_instances{data="",routine_name="break-glass-credentials-worker"} 1
+async_routine_manager_routine_instances{data="",routine_name="control-plane-upgrade-policy-service-worker"} 1
+async_routine_manager_routine_instances{data="",routine_name="end-of-life-worker"} 1
+async_routine_manager_routine_instances{data="",routine_name="healthcheck-server"} 1
+async_routine_manager_routine_instances{data="",routine_name="inflight-service"} 1
+async_routine_manager_routine_instances{data="",routine_name="inflight-service-chan-adapt"} 1
+async_routine_manager_routine_instances{data="",routine_name="inflight-worker"} 1
+async_routine_manager_routine_instances{data="",routine_name="inflight-worker-0588c08f-0dc8-44be-bba7-4d4c7b932fea"} 0
+async_routine_manager_routine_instances{data="",routine_name="inflight-worker-1830f78c-e741-42ec-9793-e5c1c55498df"} 0
+async_routine_manager_routine_instances{data="",routine_name="inflight-worker-24966774-b9c2-415d-8e77-aebad858b3fe"} 0
+async_routine_manager_routine_instances{data="",routine_name="inflight-worker-27d523a1-0f70-41f9-be4f-b3fffd29ef7e"} 0
+async_routine_manager_routine_instances{data="",routine_name="inflight-worker-3d39e29e-7d83-4e3a-980b-5b1bfc8aeaad"} 0
+async_routine_manager_routine_instances{data="",routine_name="inflight-worker-4cd93c7b-2fcf-4f7c-a3a7-bd93376cda5d"} 0
+async_routine_manager_routine_instances{data="",routine_name="inflight-worker-60e4230e-8da4-4b5a-914e-cee70b298efb"} 0
+async_routine_manager_routine_instances{data="",routine_name="inflight-worker-9a35f5bd-3326-4912-8239-125dd12a6797"} 0
+async_routine_manager_routine_instances{data="",routine_name="inflight-worker-a7bfcd6c-0c3a-4ccb-bffe-799606ffdb6e"} 0
+async_routine_manager_routine_instances{data="",routine_name="inflight-worker-ff6537b7-ed4d-465e-9d21-707d2ea613e8"} 0
+async_routine_manager_routine_instances{data="",routine_name="limited-support-override-worker"} 1
+async_routine_manager_routine_instances{data="",routine_name="maestro-event-dispatcher-hcp-underlay-usw3jbol-mgmt-1"} 1
+async_routine_manager_routine_instances{data="",routine_name="maestro-event-processor-hcp-underlay-usw3jbol-mgmt-1-cluster.open-cluster-management.io/v1, Kind=ManagedCluster"} 1
+async_routine_manager_routine_instances{data="",routine_name="maestro-event-processor-hcp-underlay-usw3jbol-mgmt-1-work.open-cluster-management.io/v1, Kind=ManifestWork"} 1
+async_routine_manager_routine_instances{data="",routine_name="metric-server"} 1
+async_routine_manager_routine_instances{data="",routine_name="oidc-keypair-rotation-worker"} 1
+async_routine_manager_routine_instances{data="",routine_name="provision-shard-force-reload-worker"} 1
+async_routine_manager_routine_instances{data="",routine_name="provision-shard-sync-worker"} 1
+async_routine_manager_routine_instances{data="",routine_name="registry-worker"} 1
+async_routine_manager_routine_instances{data="",routine_name="upgrade-notification-worker"} 1
+async_routine_manager_routine_instances{data="",routine_name="upgrade-policy-service-worker"} 1
+async_routine_manager_routine_instances{data="",routine_name="validate-node-pool"} 0
+# HELP async_routine_manager_routines Number of running routines.
+# TYPE async_routine_manager_routines gauge
+async_routine_manager_routines 174
+# HELP build_info A metric with a constant '1' value labeled by version from which "ARO-HCP Clusters Service" was built.
+# TYPE build_info gauge
+build_info{version=""} 1
+# HELP certwatcher_read_certificate_errors_total Total number of certificate read errors
+# TYPE certwatcher_read_certificate_errors_total counter
+certwatcher_read_certificate_errors_total 0
+# HELP certwatcher_read_certificate_total Total number of certificate reads
+# TYPE certwatcher_read_certificate_total counter
+certwatcher_read_certificate_total 0
+# HELP cloudevents_received_total The total number of CloudEvents received by source.
+# TYPE cloudevents_received_total counter
+cloudevents_received_total{action="update_request",consumer="hcp-underlay-usw3jbol-mgmt-1",source="hcp-underlay-usw3jbol-mgmt-1-work-agent",subresource="status",type="io.open-cluster-management.works.v1alpha1.manifestbundles"} 96
+# HELP cloudevents_sent_total The total number of CloudEvents sent from source.
+# TYPE cloudevents_sent_total counter
+cloudevents_sent_total{action="create_request",consumer="hcp-underlay-usw3jbol-mgmt-1",source="arohcppers-3b04732b-ca29-43f7-b67f-06db2f496122",subresource="spec",type="io.open-cluster-management.works.v1alpha1.manifestbundles"} 6
+cloudevents_sent_total{action="delete_request",consumer="hcp-underlay-usw3jbol-mgmt-1",source="arohcppers-3b04732b-ca29-43f7-b67f-06db2f496122",subresource="spec",type="io.open-cluster-management.works.v1alpha1.manifestbundles"} 1
+cloudevents_sent_total{action="update_request",consumer="hcp-underlay-usw3jbol-mgmt-1",source="arohcppers-3b04732b-ca29-43f7-b67f-06db2f496122",subresource="spec",type="io.open-cluster-management.works.v1alpha1.manifestbundles"} 2
+# HELP cluster_console_url_ready_seconds The time in seconds it took a cluster's console url to be ready
+# TYPE cluster_console_url_ready_seconds gauge
+cluster_console_url_ready_seconds{cluster_external_id="578577ce-fce5-476c-b955-b5be2de7bad9",cluster_id="2rh4qi9ec2sa4cgf25vj4pnpctm8gqa0",hypershift="true",management_cluster="local-cluster",offering="aro-hcp",region="westus3",zero_egress="false"} 901.870663595
+# HELP cluster_console_url_ready_total The total number of console urls that are ready
+# TYPE cluster_console_url_ready_total counter
+cluster_console_url_ready_total{cluster_external_id="578577ce-fce5-476c-b955-b5be2de7bad9",cluster_id="2rh4qi9ec2sa4cgf25vj4pnpctm8gqa0",hypershift="true",management_cluster="local-cluster",offering="aro-hcp",region="westus3",zero_egress="false"} 1
+# HELP cluster_install_state_duration_seconds The time in seconds it took a cluster to move to the 'Install' state 
+# TYPE cluster_install_state_duration_seconds gauge
+cluster_install_state_duration_seconds{cluster_external_id="578577ce-fce5-476c-b955-b5be2de7bad9",cluster_id="2rh4qi9ec2sa4cgf25vj4pnpctm8gqa0",hypershift="true",management_cluster="local-cluster",offering="aro-hcp",region="westus3",slow="false",zero_egress="false"} 100.58394122199999
+# HELP cluster_install_state_timestamp_seconds The timestamp in seconds when a cluster moved to the 'Install' state
+# TYPE cluster_install_state_timestamp_seconds gauge
+cluster_install_state_timestamp_seconds{cluster_external_id="578577ce-fce5-476c-b955-b5be2de7bad9",cluster_id="2rh4qi9ec2sa4cgf25vj4pnpctm8gqa0",hypershift="true",management_cluster="local-cluster",offering="aro-hcp",region="westus3",slow="false",zero_egress="false"} 1.7839297744930649e+09
+# HELP cluster_pending_state_duration_seconds The time in seconds it took a cluster to reach the 'Pending' state
+# TYPE cluster_pending_state_duration_seconds gauge
+cluster_pending_state_duration_seconds{cluster_external_id="578577ce-fce5-476c-b955-b5be2de7bad9",cluster_id="2rh4qi9ec2sa4cgf25vj4pnpctm8gqa0",hypershift="true",management_cluster="",offering="aro-hcp",region="westus3",zero_egress="false"} 8.625031027
+# HELP cluster_pending_state_timestamp_seconds The timestamp in seconds when a cluster reached the 'Pending' state
+# TYPE cluster_pending_state_timestamp_seconds gauge
+cluster_pending_state_timestamp_seconds{cluster_external_id="578577ce-fce5-476c-b955-b5be2de7bad9",cluster_id="2rh4qi9ec2sa4cgf25vj4pnpctm8gqa0",hypershift="true",management_cluster="",offering="aro-hcp",region="westus3",zero_egress="false"} 1.7839296825341554e+09
+# HELP cluster_ready_state_duration_seconds The time in seconds it took a cluster to reach the 'Ready' state
+# TYPE cluster_ready_state_duration_seconds gauge
+cluster_ready_state_duration_seconds{cluster_external_id="578577ce-fce5-476c-b955-b5be2de7bad9",cluster_id="2rh4qi9ec2sa4cgf25vj4pnpctm8gqa0",hypershift="true",management_cluster="local-cluster",offering="aro-hcp",region="westus3",zero_egress="false"} 482.753844088
+# HELP cluster_ready_state_timestamp_seconds The timestamp in seconds when a cluster reached the 'Ready' state
+# TYPE cluster_ready_state_timestamp_seconds gauge
+cluster_ready_state_timestamp_seconds{cluster_external_id="578577ce-fce5-476c-b955-b5be2de7bad9",cluster_id="2rh4qi9ec2sa4cgf25vj4pnpctm8gqa0",hypershift="true",management_cluster="local-cluster",offering="aro-hcp",region="westus3",zero_egress="false"} 1.7839301566629674e+09
+# HELP control_plane_upgrade_started_duration_seconds The time in seconds it took for a control plane upgrade to start
+# TYPE control_plane_upgrade_started_duration_seconds gauge
+control_plane_upgrade_started_duration_seconds{cluster_external_id="578577ce-fce5-476c-b955-b5be2de7bad9",cluster_id="2rh4qi9ec2sa4cgf25vj4pnpctm8gqa0",control_plane_upgrade_policy_id="b7961eea-7eac-11f1-8b0f-ca39d03ea29b",control_plane_upgrade_type="ControlPlane",hypershift="true",management_cluster="local-cluster",offering="aro-hcp",region="westus3",slow="false",zero_egress="false"} 15.192747271
+# HELP control_plane_upgrade_started_timestamp_seconds The timestamp in seconds when a control plane upgrade started
+# TYPE control_plane_upgrade_started_timestamp_seconds gauge
+control_plane_upgrade_started_timestamp_seconds{cluster_external_id="578577ce-fce5-476c-b955-b5be2de7bad9",cluster_id="2rh4qi9ec2sa4cgf25vj4pnpctm8gqa0",control_plane_upgrade_policy_id="b7961eea-7eac-11f1-8b0f-ca39d03ea29b",control_plane_upgrade_type="ControlPlane",hypershift="true",management_cluster="local-cluster",offering="aro-hcp",region="westus3",slow="false",zero_egress="false"} 1.7839415856667798e+09
+# HELP controller_runtime_conversion_webhook_panics_total Total number of conversion webhook panics
+# TYPE controller_runtime_conversion_webhook_panics_total counter
+controller_runtime_conversion_webhook_panics_total 0
+# HELP controller_runtime_webhook_panics_total Total number of webhook panics
+# TYPE controller_runtime_webhook_panics_total counter
+controller_runtime_webhook_panics_total 0
+# HELP db_transaction_moderately_long_total Number of database transactions between '2s' and '10s' long duration
+# TYPE db_transaction_moderately_long_total counter
+db_transaction_moderately_long_total 1
+# HELP db_transaction_very_long_total Number of database transactions over a '10s' long duration
+# TYPE db_transaction_very_long_total counter
+db_transaction_very_long_total 0
+# HELP go_gc_duration_seconds A summary of the wall-time pause (stop-the-world) duration in garbage collection cycles.
+# TYPE go_gc_duration_seconds summary
+go_gc_duration_seconds{quantile="0"} 4.2282e-05
+go_gc_duration_seconds{quantile="0.25"} 5.2283e-05
+go_gc_duration_seconds{quantile="0.5"} 6.1594e-05
+go_gc_duration_seconds{quantile="0.75"} 7.7624e-05
+go_gc_duration_seconds{quantile="1"} 0.000174544
+go_gc_duration_seconds_sum 0.05232672
+go_gc_duration_seconds_count 736
+# HELP go_gc_gogc_percent Heap size target percentage configured by the user, otherwise 100. This value is set by the GOGC environment variable, and the runtime/debug.SetGCPercent function. Sourced from /gc/gogc:percent.
+# TYPE go_gc_gogc_percent gauge
+go_gc_gogc_percent 100
+# HELP go_gc_gomemlimit_bytes Go runtime memory limit configured by the user, otherwise math.MaxInt64. This value is set by the GOMEMLIMIT environment variable, and the runtime/debug.SetMemoryLimit function. Sourced from /gc/gomemlimit:bytes.
+# TYPE go_gc_gomemlimit_bytes gauge
+go_gc_gomemlimit_bytes 9.223372036854776e+18
+# HELP go_goroutines Number of goroutines that currently exist.
+# TYPE go_goroutines gauge
+go_goroutines 234
+# HELP go_info Information about the Go environment.
+# TYPE go_info gauge
+go_info{version="go1.25.11 X:boringcrypto"} 1
+# HELP go_memstats_alloc_bytes Number of bytes allocated in heap and currently in use. Equals to /memory/classes/heap/objects:bytes.
+# TYPE go_memstats_alloc_bytes gauge
+go_memstats_alloc_bytes 3.151152e+07
+# HELP go_memstats_alloc_bytes_total Total number of bytes allocated in heap until now, even if released already. Equals to /gc/heap/allocs:bytes.
+# TYPE go_memstats_alloc_bytes_total counter
+go_memstats_alloc_bytes_total 1.647148144e+10
+# HELP go_memstats_buck_hash_sys_bytes Number of bytes used by the profiling bucket hash table. Equals to /memory/classes/profiling/buckets:bytes.
+# TYPE go_memstats_buck_hash_sys_bytes gauge
+go_memstats_buck_hash_sys_bytes 3.576252e+06
+# HELP go_memstats_frees_total Total number of heap objects frees. Equals to /gc/heap/frees:objects + /gc/heap/tiny/allocs:objects.
+# TYPE go_memstats_frees_total counter
+go_memstats_frees_total 1.38209761e+08
+# HELP go_memstats_gc_sys_bytes Number of bytes used for garbage collection system metadata. Equals to /memory/classes/metadata/other:bytes.
+# TYPE go_memstats_gc_sys_bytes gauge
+go_memstats_gc_sys_bytes 4.975904e+06
+# HELP go_memstats_heap_alloc_bytes Number of heap bytes allocated and currently in use, same as go_memstats_alloc_bytes. Equals to /memory/classes/heap/objects:bytes.
+# TYPE go_memstats_heap_alloc_bytes gauge
+go_memstats_heap_alloc_bytes 3.151152e+07
+# HELP go_memstats_heap_idle_bytes Number of heap bytes waiting to be used. Equals to /memory/classes/heap/released:bytes + /memory/classes/heap/free:bytes.
+# TYPE go_memstats_heap_idle_bytes gauge
+go_memstats_heap_idle_bytes 5.6434688e+07
+# HELP go_memstats_heap_inuse_bytes Number of heap bytes that are in use. Equals to /memory/classes/heap/objects:bytes + /memory/classes/heap/unused:bytes
+# TYPE go_memstats_heap_inuse_bytes gauge
+go_memstats_heap_inuse_bytes 4.1476096e+07
+# HELP go_memstats_heap_objects Number of currently allocated objects. Equals to /gc/heap/objects:objects.
+# TYPE go_memstats_heap_objects gauge
+go_memstats_heap_objects 130660
+# HELP go_memstats_heap_released_bytes Number of heap bytes released to OS. Equals to /memory/classes/heap/released:bytes.
+# TYPE go_memstats_heap_released_bytes gauge
+go_memstats_heap_released_bytes 3.8838272e+07
+# HELP go_memstats_heap_sys_bytes Number of heap bytes obtained from system. Equals to /memory/classes/heap/objects:bytes + /memory/classes/heap/unused:bytes + /memory/classes/heap/released:bytes + /memory/classes/heap/free:bytes.
+# TYPE go_memstats_heap_sys_bytes gauge
+go_memstats_heap_sys_bytes 9.7910784e+07
+# HELP go_memstats_last_gc_time_seconds Number of seconds since 1970 of last garbage collection.
+# TYPE go_memstats_last_gc_time_seconds gauge
+go_memstats_last_gc_time_seconds 1.7839467885362384e+09
+# HELP go_memstats_mallocs_total Total number of heap objects allocated, both live and gc-ed. Semantically a counter version for go_memstats_heap_objects gauge. Equals to /gc/heap/allocs:objects + /gc/heap/tiny/allocs:objects.
+# TYPE go_memstats_mallocs_total counter
+go_memstats_mallocs_total 1.38340421e+08
+# HELP go_memstats_mcache_inuse_bytes Number of bytes in use by mcache structures. Equals to /memory/classes/metadata/mcache/inuse:bytes.
+# TYPE go_memstats_mcache_inuse_bytes gauge
+go_memstats_mcache_inuse_bytes 9664
+# HELP go_memstats_mcache_sys_bytes Number of bytes used for mcache structures obtained from system. Equals to /memory/classes/metadata/mcache/inuse:bytes + /memory/classes/metadata/mcache/free:bytes.
+# TYPE go_memstats_mcache_sys_bytes gauge
+go_memstats_mcache_sys_bytes 15704
+# HELP go_memstats_mspan_inuse_bytes Number of bytes in use by mspan structures. Equals to /memory/classes/metadata/mspan/inuse:bytes.
+# TYPE go_memstats_mspan_inuse_bytes gauge
+go_memstats_mspan_inuse_bytes 604160
+# HELP go_memstats_mspan_sys_bytes Number of bytes used for mspan structures obtained from system. Equals to /memory/classes/metadata/mspan/inuse:bytes + /memory/classes/metadata/mspan/free:bytes.
+# TYPE go_memstats_mspan_sys_bytes gauge
+go_memstats_mspan_sys_bytes 1.19136e+06
+# HELP go_memstats_next_gc_bytes Number of heap bytes when next garbage collection will take place. Equals to /gc/heap/goal:bytes.
+# TYPE go_memstats_next_gc_bytes gauge
+go_memstats_next_gc_bytes 5.180513e+07
+# HELP go_memstats_other_sys_bytes Number of bytes used for other system allocations. Equals to /memory/classes/other:bytes.
+# TYPE go_memstats_other_sys_bytes gauge
+go_memstats_other_sys_bytes 1.47434e+06
+# HELP go_memstats_stack_inuse_bytes Number of bytes obtained from system for stack allocator in non-CGO environments. Equals to /memory/classes/heap/stacks:bytes.
+# TYPE go_memstats_stack_inuse_bytes gauge
+go_memstats_stack_inuse_bytes 2.752512e+06
+# HELP go_memstats_stack_sys_bytes Number of bytes obtained from system for stack allocator. Equals to /memory/classes/heap/stacks:bytes + /memory/classes/os-stacks:bytes.
+# TYPE go_memstats_stack_sys_bytes gauge
+go_memstats_stack_sys_bytes 2.752512e+06
+# HELP go_memstats_sys_bytes Number of bytes obtained from system. Equals to /memory/classes/total:byte.
+# TYPE go_memstats_sys_bytes gauge
+go_memstats_sys_bytes 1.11896856e+08
+# HELP go_sched_gomaxprocs_threads The current runtime.GOMAXPROCS setting, or the number of operating system threads that can execute user-level Go code simultaneously. Sourced from /sched/gomaxprocs:threads.
+# TYPE go_sched_gomaxprocs_threads gauge
+go_sched_gomaxprocs_threads 8
+# HELP go_threads Number of OS threads created.
+# TYPE go_threads gauge
+go_threads 15
+# HELP maestro_handler_reconcile_duration_seconds Histogram of reconciliation loop durations
+# TYPE maestro_handler_reconcile_duration_seconds histogram
+maestro_handler_reconcile_duration_seconds_bucket{namespace="hcp-underlay-usw3jbol-mgmt-1",resource_type="ManagedCluster",le="0.005"} 0
+maestro_handler_reconcile_duration_seconds_bucket{namespace="hcp-underlay-usw3jbol-mgmt-1",resource_type="ManagedCluster",le="0.01"} 0
+maestro_handler_reconcile_duration_seconds_bucket{namespace="hcp-underlay-usw3jbol-mgmt-1",resource_type="ManagedCluster",le="0.025"} 0
+maestro_handler_reconcile_duration_seconds_bucket{namespace="hcp-underlay-usw3jbol-mgmt-1",resource_type="ManagedCluster",le="0.05"} 215
+maestro_handler_reconcile_duration_seconds_bucket{namespace="hcp-underlay-usw3jbol-mgmt-1",resource_type="ManagedCluster",le="0.1"} 301
+maestro_handler_reconcile_duration_seconds_bucket{namespace="hcp-underlay-usw3jbol-mgmt-1",resource_type="ManagedCluster",le="0.25"} 301
+maestro_handler_reconcile_duration_seconds_bucket{namespace="hcp-underlay-usw3jbol-mgmt-1",resource_type="ManagedCluster",le="0.5"} 301
+maestro_handler_reconcile_duration_seconds_bucket{namespace="hcp-underlay-usw3jbol-mgmt-1",resource_type="ManagedCluster",le="1"} 301
+maestro_handler_reconcile_duration_seconds_bucket{namespace="hcp-underlay-usw3jbol-mgmt-1",resource_type="ManagedCluster",le="2.5"} 301
+maestro_handler_reconcile_duration_seconds_bucket{namespace="hcp-underlay-usw3jbol-mgmt-1",resource_type="ManagedCluster",le="5"} 301
+maestro_handler_reconcile_duration_seconds_bucket{namespace="hcp-underlay-usw3jbol-mgmt-1",resource_type="ManagedCluster",le="10"} 301
+maestro_handler_reconcile_duration_seconds_bucket{namespace="hcp-underlay-usw3jbol-mgmt-1",resource_type="ManagedCluster",le="+Inf"} 301
+maestro_handler_reconcile_duration_seconds_sum{namespace="hcp-underlay-usw3jbol-mgmt-1",resource_type="ManagedCluster"} 14.528701695999995
+maestro_handler_reconcile_duration_seconds_count{namespace="hcp-underlay-usw3jbol-mgmt-1",resource_type="ManagedCluster"} 301
+maestro_handler_reconcile_duration_seconds_bucket{namespace="hcp-underlay-usw3jbol-mgmt-1",resource_type="ManifestWork",le="0.005"} 494
+maestro_handler_reconcile_duration_seconds_bucket{namespace="hcp-underlay-usw3jbol-mgmt-1",resource_type="ManifestWork",le="0.01"} 1013
+maestro_handler_reconcile_duration_seconds_bucket{namespace="hcp-underlay-usw3jbol-mgmt-1",resource_type="ManifestWork",le="0.025"} 1087
+maestro_handler_reconcile_duration_seconds_bucket{namespace="hcp-underlay-usw3jbol-mgmt-1",resource_type="ManifestWork",le="0.05"} 1594
+maestro_handler_reconcile_duration_seconds_bucket{namespace="hcp-underlay-usw3jbol-mgmt-1",resource_type="ManifestWork",le="0.1"} 1760
+maestro_handler_reconcile_duration_seconds_bucket{namespace="hcp-underlay-usw3jbol-mgmt-1",resource_type="ManifestWork",le="0.25"} 1762
+maestro_handler_reconcile_duration_seconds_bucket{namespace="hcp-underlay-usw3jbol-mgmt-1",resource_type="ManifestWork",le="0.5"} 1762
+maestro_handler_reconcile_duration_seconds_bucket{namespace="hcp-underlay-usw3jbol-mgmt-1",resource_type="ManifestWork",le="1"} 1762
+maestro_handler_reconcile_duration_seconds_bucket{namespace="hcp-underlay-usw3jbol-mgmt-1",resource_type="ManifestWork",le="2.5"} 1762
+maestro_handler_reconcile_duration_seconds_bucket{namespace="hcp-underlay-usw3jbol-mgmt-1",resource_type="ManifestWork",le="5"} 1762
+maestro_handler_reconcile_duration_seconds_bucket{namespace="hcp-underlay-usw3jbol-mgmt-1",resource_type="ManifestWork",le="10"} 1762
+maestro_handler_reconcile_duration_seconds_bucket{namespace="hcp-underlay-usw3jbol-mgmt-1",resource_type="ManifestWork",le="+Inf"} 1762
+maestro_handler_reconcile_duration_seconds_sum{namespace="hcp-underlay-usw3jbol-mgmt-1",resource_type="ManifestWork"} 36.16918292999999
+maestro_handler_reconcile_duration_seconds_count{namespace="hcp-underlay-usw3jbol-mgmt-1",resource_type="ManifestWork"} 1762
+# HELP maestro_handler_reconcile_errors_total Total number of reconciliation errors
+# TYPE maestro_handler_reconcile_errors_total counter
+maestro_handler_reconcile_errors_total{namespace="hcp-underlay-usw3jbol-mgmt-1",resource_type="ManifestWork"} 8
+# HELP maestro_handler_reconcile_total Total number of reconcile loops started
+# TYPE maestro_handler_reconcile_total counter
+maestro_handler_reconcile_total{namespace="hcp-underlay-usw3jbol-mgmt-1",resource_type="ManagedCluster"} 301
+maestro_handler_reconcile_total{namespace="hcp-underlay-usw3jbol-mgmt-1",resource_type="ManifestWork"} 1762
+# HELP maestro_watcher_event_loop_running Whether the main event loop is running (1 = yes, 0 = no)
+# TYPE maestro_watcher_event_loop_running gauge
+maestro_watcher_event_loop_running{namespace="hcp-underlay-usw3jbol-mgmt-1"} 1
+# HELP maestro_watcher_events_total Total number of events received by the watcher
+# TYPE maestro_watcher_events_total counter
+maestro_watcher_events_total{namespace="hcp-underlay-usw3jbol-mgmt-1"} 96
+# HELP ocm_external_event Ad-hoc events tracked in OCM.
+# TYPE ocm_external_event counter
+ocm_external_event{key="Cluster Console Ready"} 1
+ocm_external_event{key="Cluster Created"} 1
+# HELP process_cpu_seconds_total Total user and system CPU time spent in seconds.
+# TYPE process_cpu_seconds_total counter
+process_cpu_seconds_total 134.74
+# HELP process_max_fds Maximum number of open file descriptors.
+# TYPE process_max_fds gauge
+process_max_fds 1.048576e+06
+# HELP process_network_receive_bytes_total Number of bytes received by the process over the network.
+# TYPE process_network_receive_bytes_total counter
+process_network_receive_bytes_total 2.027670413e+09
+# HELP process_network_transmit_bytes_total Number of bytes sent by the process over the network.
+# TYPE process_network_transmit_bytes_total counter
+process_network_transmit_bytes_total 2.978761629e+09
+# HELP process_open_fds Number of open file descriptors.
+# TYPE process_open_fds gauge
+process_open_fds 20
+# HELP process_resident_memory_bytes Resident memory size in bytes.
+# TYPE process_resident_memory_bytes gauge
+process_resident_memory_bytes 1.74088192e+08
+# HELP process_start_time_seconds Start time of the process since unix epoch in seconds.
+# TYPE process_start_time_seconds gauge
+process_start_time_seconds 1.78392669696e+09
+# HELP process_virtual_memory_bytes Virtual memory size in bytes.
+# TYPE process_virtual_memory_bytes gauge
+process_virtual_memory_bytes 2.518028288e+09
+# HELP process_virtual_memory_max_bytes Maximum amount of virtual memory available in bytes.
+# TYPE process_virtual_memory_max_bytes gauge
+process_virtual_memory_max_bytes 1.8446744073709552e+19
+# HELP promhttp_metric_handler_errors_total Total number of internal errors encountered by the promhttp metric handler.
+# TYPE promhttp_metric_handler_errors_total counter
+promhttp_metric_handler_errors_total{cause="encoding"} 0
+promhttp_metric_handler_errors_total{cause="gathering"} 0
+# HELP promhttp_metric_handler_requests_in_flight Current number of scrapes being served.
+# TYPE promhttp_metric_handler_requests_in_flight gauge
+promhttp_metric_handler_requests_in_flight 1
+# HELP promhttp_metric_handler_requests_total Total number of scrapes by HTTP status code.
+# TYPE promhttp_metric_handler_requests_total counter
+promhttp_metric_handler_requests_total{code="200"} 1178
+promhttp_metric_handler_requests_total{code="500"} 0
+promhttp_metric_handler_requests_total{code="503"} 0
+# HELP region_proxy_dispatch_total The total number of requests dispatched by region proxy.
+# TYPE region_proxy_dispatch_total counter
+region_proxy_dispatch_total 0
+# HELP service_logs_sent_total The total number of service logs sent from sendServiceLog().
+# TYPE service_logs_sent_total counter
+service_logs_sent_total 0
+# HELP source_client_registered_watchers Number of registered watchers for a source client.
+# TYPE source_client_registered_watchers gauge
+source_client_registered_watchers{namespace="hcp-underlay-usw3jbol-mgmt-1",source="arohcppers-3b04732b-ca29-43f7-b67f-06db2f496122"} 1
+# HELP upgrade_policy_check_control_plane_expired_automatic_upgrades Number of expired automatic control plane upgrade policies processed in worker run
+# TYPE upgrade_policy_check_control_plane_expired_automatic_upgrades gauge
+upgrade_policy_check_control_plane_expired_automatic_upgrades 0
+# HELP upgrade_policy_check_control_plane_expired_manual_upgrades Number of expired manual control plane upgrade policies processed in worker run
+# TYPE upgrade_policy_check_control_plane_expired_manual_upgrades gauge
+upgrade_policy_check_control_plane_expired_manual_upgrades 0
+# HELP upgrade_policy_check_control_plane_pending_upgrades Number of pending control plane upgrade policies processed in worker run
+# TYPE upgrade_policy_check_control_plane_pending_upgrades gauge
+upgrade_policy_check_control_plane_pending_upgrades 0
+# HELP upgrade_policy_check_control_plane_upcoming_automatic_upgrades Number of upcoming automatic control plane upgrade policies processed in worker run
+# TYPE upgrade_policy_check_control_plane_upcoming_automatic_upgrades gauge
+upgrade_policy_check_control_plane_upcoming_automatic_upgrades 0
+# HELP upgrade_policy_check_control_plane_upgrades_to_start_duration_seconds Duration of checkUpgradesToStart
+# TYPE upgrade_policy_check_control_plane_upgrades_to_start_duration_seconds histogram
+upgrade_policy_check_control_plane_upgrades_to_start_duration_seconds_bucket{le="0.005"} 328
+upgrade_policy_check_control_plane_upgrades_to_start_duration_seconds_bucket{le="0.01"} 330
+upgrade_policy_check_control_plane_upgrades_to_start_duration_seconds_bucket{le="0.025"} 333
+upgrade_policy_check_control_plane_upgrades_to_start_duration_seconds_bucket{le="0.05"} 333
+upgrade_policy_check_control_plane_upgrades_to_start_duration_seconds_bucket{le="0.1"} 333
+upgrade_policy_check_control_plane_upgrades_to_start_duration_seconds_bucket{le="0.25"} 334
+upgrade_policy_check_control_plane_upgrades_to_start_duration_seconds_bucket{le="0.5"} 334
+upgrade_policy_check_control_plane_upgrades_to_start_duration_seconds_bucket{le="1"} 334
+upgrade_policy_check_control_plane_upgrades_to_start_duration_seconds_bucket{le="2.5"} 334
+upgrade_policy_check_control_plane_upgrades_to_start_duration_seconds_bucket{le="5"} 334
+upgrade_policy_check_control_plane_upgrades_to_start_duration_seconds_bucket{le="10"} 334
+upgrade_policy_check_control_plane_upgrades_to_start_duration_seconds_bucket{le="+Inf"} 334
+upgrade_policy_check_control_plane_upgrades_to_start_duration_seconds_sum 1.3124002109999993
+upgrade_policy_check_control_plane_upgrades_to_start_duration_seconds_count 334
+# HELP upgrade_policy_check_expired_automatic_control_plane_upgrades_duration_seconds Duration of checkExpiredAutomaticUpgrades
+# TYPE upgrade_policy_check_expired_automatic_control_plane_upgrades_duration_seconds histogram
+upgrade_policy_check_expired_automatic_control_plane_upgrades_duration_seconds_bucket{le="0.005"} 257
+upgrade_policy_check_expired_automatic_control_plane_upgrades_duration_seconds_bucket{le="0.01"} 290
+upgrade_policy_check_expired_automatic_control_plane_upgrades_duration_seconds_bucket{le="0.025"} 333
+upgrade_policy_check_expired_automatic_control_plane_upgrades_duration_seconds_bucket{le="0.05"} 334
+upgrade_policy_check_expired_automatic_control_plane_upgrades_duration_seconds_bucket{le="0.1"} 334
+upgrade_policy_check_expired_automatic_control_plane_upgrades_duration_seconds_bucket{le="0.25"} 334
+upgrade_policy_check_expired_automatic_control_plane_upgrades_duration_seconds_bucket{le="0.5"} 334
+upgrade_policy_check_expired_automatic_control_plane_upgrades_duration_seconds_bucket{le="1"} 334
+upgrade_policy_check_expired_automatic_control_plane_upgrades_duration_seconds_bucket{le="2.5"} 334
+upgrade_policy_check_expired_automatic_control_plane_upgrades_duration_seconds_bucket{le="5"} 334
+upgrade_policy_check_expired_automatic_control_plane_upgrades_duration_seconds_bucket{le="10"} 334
+upgrade_policy_check_expired_automatic_control_plane_upgrades_duration_seconds_bucket{le="+Inf"} 334
+upgrade_policy_check_expired_automatic_control_plane_upgrades_duration_seconds_sum 1.8005318260000005
+upgrade_policy_check_expired_automatic_control_plane_upgrades_duration_seconds_count 334
+# HELP upgrade_policy_check_expired_automatic_upgrades Number of expired automatic upgrade policies processed in worker run
+# TYPE upgrade_policy_check_expired_automatic_upgrades gauge
+upgrade_policy_check_expired_automatic_upgrades 0
+# HELP upgrade_policy_check_expired_automatic_upgrades_duration_seconds Duration of checkExpiredAutomaticUpgrades
+# TYPE upgrade_policy_check_expired_automatic_upgrades_duration_seconds histogram
+upgrade_policy_check_expired_automatic_upgrades_duration_seconds_bucket{le="0.005"} 137
+upgrade_policy_check_expired_automatic_upgrades_duration_seconds_bucket{le="0.01"} 221
+upgrade_policy_check_expired_automatic_upgrades_duration_seconds_bucket{le="0.025"} 334
+upgrade_policy_check_expired_automatic_upgrades_duration_seconds_bucket{le="0.05"} 334
+upgrade_policy_check_expired_automatic_upgrades_duration_seconds_bucket{le="0.1"} 334
+upgrade_policy_check_expired_automatic_upgrades_duration_seconds_bucket{le="0.25"} 334
+upgrade_policy_check_expired_automatic_upgrades_duration_seconds_bucket{le="0.5"} 334
+upgrade_policy_check_expired_automatic_upgrades_duration_seconds_bucket{le="1"} 334
+upgrade_policy_check_expired_automatic_upgrades_duration_seconds_bucket{le="2.5"} 334
+upgrade_policy_check_expired_automatic_upgrades_duration_seconds_bucket{le="5"} 334
+upgrade_policy_check_expired_automatic_upgrades_duration_seconds_bucket{le="10"} 334
+upgrade_policy_check_expired_automatic_upgrades_duration_seconds_bucket{le="+Inf"} 334
+upgrade_policy_check_expired_automatic_upgrades_duration_seconds_sum 2.6660181989999985
+upgrade_policy_check_expired_automatic_upgrades_duration_seconds_count 334
+# HELP upgrade_policy_check_expired_manual_control_plane_upgrades_duration_seconds Duration of checkExpiredManualUpgrades
+# TYPE upgrade_policy_check_expired_manual_control_plane_upgrades_duration_seconds histogram
+upgrade_policy_check_expired_manual_control_plane_upgrades_duration_seconds_bucket{le="0.005"} 281
+upgrade_policy_check_expired_manual_control_plane_upgrades_duration_seconds_bucket{le="0.01"} 308
+upgrade_policy_check_expired_manual_control_plane_upgrades_duration_seconds_bucket{le="0.025"} 334
+upgrade_policy_check_expired_manual_control_plane_upgrades_duration_seconds_bucket{le="0.05"} 334
+upgrade_policy_check_expired_manual_control_plane_upgrades_duration_seconds_bucket{le="0.1"} 334
+upgrade_policy_check_expired_manual_control_plane_upgrades_duration_seconds_bucket{le="0.25"} 334
+upgrade_policy_check_expired_manual_control_plane_upgrades_duration_seconds_bucket{le="0.5"} 334
+upgrade_policy_check_expired_manual_control_plane_upgrades_duration_seconds_bucket{le="1"} 334
+upgrade_policy_check_expired_manual_control_plane_upgrades_duration_seconds_bucket{le="2.5"} 334
+upgrade_policy_check_expired_manual_control_plane_upgrades_duration_seconds_bucket{le="5"} 334
+upgrade_policy_check_expired_manual_control_plane_upgrades_duration_seconds_bucket{le="10"} 334
+upgrade_policy_check_expired_manual_control_plane_upgrades_duration_seconds_bucket{le="+Inf"} 334
+upgrade_policy_check_expired_manual_control_plane_upgrades_duration_seconds_sum 1.5253815130000006
+upgrade_policy_check_expired_manual_control_plane_upgrades_duration_seconds_count 334
+# HELP upgrade_policy_check_expired_manual_upgrades Number of expired manual upgrade policies processed in worker run
+# TYPE upgrade_policy_check_expired_manual_upgrades gauge
+upgrade_policy_check_expired_manual_upgrades 0
+# HELP upgrade_policy_check_expired_manual_upgrades_duration_seconds Duration of checkExpiredManualUpgrades
+# TYPE upgrade_policy_check_expired_manual_upgrades_duration_seconds histogram
+upgrade_policy_check_expired_manual_upgrades_duration_seconds_bucket{le="0.005"} 177
+upgrade_policy_check_expired_manual_upgrades_duration_seconds_bucket{le="0.01"} 264
+upgrade_policy_check_expired_manual_upgrades_duration_seconds_bucket{le="0.025"} 334
+upgrade_policy_check_expired_manual_upgrades_duration_seconds_bucket{le="0.05"} 334
+upgrade_policy_check_expired_manual_upgrades_duration_seconds_bucket{le="0.1"} 334
+upgrade_policy_check_expired_manual_upgrades_duration_seconds_bucket{le="0.25"} 334
+upgrade_policy_check_expired_manual_upgrades_duration_seconds_bucket{le="0.5"} 334
+upgrade_policy_check_expired_manual_upgrades_duration_seconds_bucket{le="1"} 334
+upgrade_policy_check_expired_manual_upgrades_duration_seconds_bucket{le="2.5"} 334
+upgrade_policy_check_expired_manual_upgrades_duration_seconds_bucket{le="5"} 334
+upgrade_policy_check_expired_manual_upgrades_duration_seconds_bucket{le="10"} 334
+upgrade_policy_check_expired_manual_upgrades_duration_seconds_bucket{le="+Inf"} 334
+upgrade_policy_check_expired_manual_upgrades_duration_seconds_sum 2.210107496999999
+upgrade_policy_check_expired_manual_upgrades_duration_seconds_count 334
+# HELP upgrade_policy_check_for_hibernating_clusters_duration_seconds Duration of checkUpgradesForHibernatingClusters
+# TYPE upgrade_policy_check_for_hibernating_clusters_duration_seconds histogram
+upgrade_policy_check_for_hibernating_clusters_duration_seconds_bucket{le="0.005"} 313
+upgrade_policy_check_for_hibernating_clusters_duration_seconds_bucket{le="0.01"} 329
+upgrade_policy_check_for_hibernating_clusters_duration_seconds_bucket{le="0.025"} 334
+upgrade_policy_check_for_hibernating_clusters_duration_seconds_bucket{le="0.05"} 334
+upgrade_policy_check_for_hibernating_clusters_duration_seconds_bucket{le="0.1"} 334
+upgrade_policy_check_for_hibernating_clusters_duration_seconds_bucket{le="0.25"} 334
+upgrade_policy_check_for_hibernating_clusters_duration_seconds_bucket{le="0.5"} 334
+upgrade_policy_check_for_hibernating_clusters_duration_seconds_bucket{le="1"} 334
+upgrade_policy_check_for_hibernating_clusters_duration_seconds_bucket{le="2.5"} 334
+upgrade_policy_check_for_hibernating_clusters_duration_seconds_bucket{le="5"} 334
+upgrade_policy_check_for_hibernating_clusters_duration_seconds_bucket{le="10"} 334
+upgrade_policy_check_for_hibernating_clusters_duration_seconds_bucket{le="+Inf"} 334
+upgrade_policy_check_for_hibernating_clusters_duration_seconds_sum 1.3301687650000025
+upgrade_policy_check_for_hibernating_clusters_duration_seconds_count 334
+# HELP upgrade_policy_check_hibernating_upgrades Number of control plane for hibernating clusters processed in worker run
+# TYPE upgrade_policy_check_hibernating_upgrades gauge
+upgrade_policy_check_hibernating_upgrades 0
+# HELP upgrade_policy_check_pending_control_plane_upgrades_duration_seconds Duration of checkPendingUpgrades
+# TYPE upgrade_policy_check_pending_control_plane_upgrades_duration_seconds histogram
+upgrade_policy_check_pending_control_plane_upgrades_duration_seconds_bucket{le="0.005"} 81
+upgrade_policy_check_pending_control_plane_upgrades_duration_seconds_bucket{le="0.01"} 100
+upgrade_policy_check_pending_control_plane_upgrades_duration_seconds_bucket{le="0.025"} 160
+upgrade_policy_check_pending_control_plane_upgrades_duration_seconds_bucket{le="0.05"} 334
+upgrade_policy_check_pending_control_plane_upgrades_duration_seconds_bucket{le="0.1"} 334
+upgrade_policy_check_pending_control_plane_upgrades_duration_seconds_bucket{le="0.25"} 334
+upgrade_policy_check_pending_control_plane_upgrades_duration_seconds_bucket{le="0.5"} 334
+upgrade_policy_check_pending_control_plane_upgrades_duration_seconds_bucket{le="1"} 334
+upgrade_policy_check_pending_control_plane_upgrades_duration_seconds_bucket{le="2.5"} 334
+upgrade_policy_check_pending_control_plane_upgrades_duration_seconds_bucket{le="5"} 334
+upgrade_policy_check_pending_control_plane_upgrades_duration_seconds_bucket{le="10"} 334
+upgrade_policy_check_pending_control_plane_upgrades_duration_seconds_bucket{le="+Inf"} 334
+upgrade_policy_check_pending_control_plane_upgrades_duration_seconds_sum 7.2738518170000015
+upgrade_policy_check_pending_control_plane_upgrades_duration_seconds_count 334
+# HELP upgrade_policy_check_pending_upgrades Number of pending upgrade policies processed in worker run
+# TYPE upgrade_policy_check_pending_upgrades gauge
+upgrade_policy_check_pending_upgrades 0
+# HELP upgrade_policy_check_pending_upgrades_duration_seconds Duration of checkPendingUpgrades
+# TYPE upgrade_policy_check_pending_upgrades_duration_seconds histogram
+upgrade_policy_check_pending_upgrades_duration_seconds_bucket{le="0.005"} 228
+upgrade_policy_check_pending_upgrades_duration_seconds_bucket{le="0.01"} 277
+upgrade_policy_check_pending_upgrades_duration_seconds_bucket{le="0.025"} 287
+upgrade_policy_check_pending_upgrades_duration_seconds_bucket{le="0.05"} 334
+upgrade_policy_check_pending_upgrades_duration_seconds_bucket{le="0.1"} 334
+upgrade_policy_check_pending_upgrades_duration_seconds_bucket{le="0.25"} 334
+upgrade_policy_check_pending_upgrades_duration_seconds_bucket{le="0.5"} 334
+upgrade_policy_check_pending_upgrades_duration_seconds_bucket{le="1"} 334
+upgrade_policy_check_pending_upgrades_duration_seconds_bucket{le="2.5"} 334
+upgrade_policy_check_pending_upgrades_duration_seconds_bucket{le="5"} 334
+upgrade_policy_check_pending_upgrades_duration_seconds_bucket{le="10"} 334
+upgrade_policy_check_pending_upgrades_duration_seconds_bucket{le="+Inf"} 334
+upgrade_policy_check_pending_upgrades_duration_seconds_sum 2.9701158770000005
+upgrade_policy_check_pending_upgrades_duration_seconds_count 334
+# HELP upgrade_policy_check_upcoming_automatic_control_plane_upgrades_duration_seconds Duration of checkUpcomingAutomaticUpgrades
+# TYPE upgrade_policy_check_upcoming_automatic_control_plane_upgrades_duration_seconds histogram
+upgrade_policy_check_upcoming_automatic_control_plane_upgrades_duration_seconds_bucket{le="0.005"} 315
+upgrade_policy_check_upcoming_automatic_control_plane_upgrades_duration_seconds_bucket{le="0.01"} 327
+upgrade_policy_check_upcoming_automatic_control_plane_upgrades_duration_seconds_bucket{le="0.025"} 334
+upgrade_policy_check_upcoming_automatic_control_plane_upgrades_duration_seconds_bucket{le="0.05"} 334
+upgrade_policy_check_upcoming_automatic_control_plane_upgrades_duration_seconds_bucket{le="0.1"} 334
+upgrade_policy_check_upcoming_automatic_control_plane_upgrades_duration_seconds_bucket{le="0.25"} 334
+upgrade_policy_check_upcoming_automatic_control_plane_upgrades_duration_seconds_bucket{le="0.5"} 334
+upgrade_policy_check_upcoming_automatic_control_plane_upgrades_duration_seconds_bucket{le="1"} 334
+upgrade_policy_check_upcoming_automatic_control_plane_upgrades_duration_seconds_bucket{le="2.5"} 334
+upgrade_policy_check_upcoming_automatic_control_plane_upgrades_duration_seconds_bucket{le="5"} 334
+upgrade_policy_check_upcoming_automatic_control_plane_upgrades_duration_seconds_bucket{le="10"} 334
+upgrade_policy_check_upcoming_automatic_control_plane_upgrades_duration_seconds_bucket{le="+Inf"} 334
+upgrade_policy_check_upcoming_automatic_control_plane_upgrades_duration_seconds_sum 1.2729753419999992
+upgrade_policy_check_upcoming_automatic_control_plane_upgrades_duration_seconds_count 334
+# HELP upgrade_policy_check_upcoming_automatic_upgrades Number of upcoming automatic upgrade policies processed in worker run
+# TYPE upgrade_policy_check_upcoming_automatic_upgrades gauge
+upgrade_policy_check_upcoming_automatic_upgrades 0
+# HELP upgrade_policy_check_upcoming_automatic_upgrades_duration_seconds Duration of checkUpcomingAutomaticUpgrades
+# TYPE upgrade_policy_check_upcoming_automatic_upgrades_duration_seconds histogram
+upgrade_policy_check_upcoming_automatic_upgrades_duration_seconds_bucket{le="0.005"} 279
+upgrade_policy_check_upcoming_automatic_upgrades_duration_seconds_bucket{le="0.01"} 309
+upgrade_policy_check_upcoming_automatic_upgrades_duration_seconds_bucket{le="0.025"} 334
+upgrade_policy_check_upcoming_automatic_upgrades_duration_seconds_bucket{le="0.05"} 334
+upgrade_policy_check_upcoming_automatic_upgrades_duration_seconds_bucket{le="0.1"} 334
+upgrade_policy_check_upcoming_automatic_upgrades_duration_seconds_bucket{le="0.25"} 334
+upgrade_policy_check_upcoming_automatic_upgrades_duration_seconds_bucket{le="0.5"} 334
+upgrade_policy_check_upcoming_automatic_upgrades_duration_seconds_bucket{le="1"} 334
+upgrade_policy_check_upcoming_automatic_upgrades_duration_seconds_bucket{le="2.5"} 334
+upgrade_policy_check_upcoming_automatic_upgrades_duration_seconds_bucket{le="5"} 334
+upgrade_policy_check_upcoming_automatic_upgrades_duration_seconds_bucket{le="10"} 334
+upgrade_policy_check_upcoming_automatic_upgrades_duration_seconds_bucket{le="+Inf"} 334
+upgrade_policy_check_upcoming_automatic_upgrades_duration_seconds_sum 1.5597734019999976
+upgrade_policy_check_upcoming_automatic_upgrades_duration_seconds_count 334
+# HELP worker_leadership_flag_state State of the leadership flag; one if raised, zero if lowered.
+# TYPE worker_leadership_flag_state gauge
+worker_leadership_flag_state{name="worker",process="clusters-service-6bc84cdd68-5g488"} 1
+# HELP workqueue_adds_total Total number of adds handled by workqueue
+# TYPE workqueue_adds_total counter
+workqueue_adds_total{controller="ARO-HCP delete node pools worker",name="ARO-HCP delete node pools worker"} 0
+workqueue_adds_total{controller="ARO-HCP pending node pools worker",name="ARO-HCP pending node pools worker"} 1
+workqueue_adds_total{controller="ARO-HCP validating node pools worker",name="ARO-HCP validating node pools worker"} 1
+workqueue_adds_total{controller="aro-hcp-cluster-worker",name="aro-hcp-cluster-worker"} 3231
+workqueue_adds_total{controller="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-cluster.open-cluster-management.io-v1-ManagedCluster",name="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-cluster.open-cluster-management.io-v1-ManagedCluster"} 301
+workqueue_adds_total{controller="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-work.open-cluster-management.io-v1-ManifestWork",name="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-work.open-cluster-management.io-v1-ManifestWork"} 1763
+# HELP workqueue_depth Current depth of workqueue by workqueue and priority
+# TYPE workqueue_depth gauge
+workqueue_depth{controller="ARO-HCP delete node pools worker",name="ARO-HCP delete node pools worker",priority=""} 0
+workqueue_depth{controller="ARO-HCP pending node pools worker",name="ARO-HCP pending node pools worker",priority=""} 0
+workqueue_depth{controller="ARO-HCP validating node pools worker",name="ARO-HCP validating node pools worker",priority=""} 0
+workqueue_depth{controller="aro-hcp-cluster-worker",name="aro-hcp-cluster-worker",priority=""} 0
+workqueue_depth{controller="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-cluster.open-cluster-management.io-v1-ManagedCluster",name="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-cluster.open-cluster-management.io-v1-ManagedCluster",priority=""} 0
+workqueue_depth{controller="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-work.open-cluster-management.io-v1-ManifestWork",name="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-work.open-cluster-management.io-v1-ManifestWork",priority=""} 0
+# HELP workqueue_longest_running_processor_seconds How many seconds has the longest running processor for workqueue been running.
+# TYPE workqueue_longest_running_processor_seconds gauge
+workqueue_longest_running_processor_seconds{controller="ARO-HCP delete node pools worker",name="ARO-HCP delete node pools worker"} 0
+workqueue_longest_running_processor_seconds{controller="ARO-HCP pending node pools worker",name="ARO-HCP pending node pools worker"} 0
+workqueue_longest_running_processor_seconds{controller="ARO-HCP validating node pools worker",name="ARO-HCP validating node pools worker"} 0
+workqueue_longest_running_processor_seconds{controller="aro-hcp-cluster-worker",name="aro-hcp-cluster-worker"} 0
+workqueue_longest_running_processor_seconds{controller="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-cluster.open-cluster-management.io-v1-ManagedCluster",name="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-cluster.open-cluster-management.io-v1-ManagedCluster"} 0
+workqueue_longest_running_processor_seconds{controller="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-work.open-cluster-management.io-v1-ManifestWork",name="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-work.open-cluster-management.io-v1-ManifestWork"} 0
+# HELP workqueue_queue_duration_seconds How long in seconds an item stays in workqueue before being requested
+# TYPE workqueue_queue_duration_seconds histogram
+workqueue_queue_duration_seconds_bucket{controller="ARO-HCP delete node pools worker",name="ARO-HCP delete node pools worker",le="1e-08"} 0
+workqueue_queue_duration_seconds_bucket{controller="ARO-HCP delete node pools worker",name="ARO-HCP delete node pools worker",le="1e-07"} 0
+workqueue_queue_duration_seconds_bucket{controller="ARO-HCP delete node pools worker",name="ARO-HCP delete node pools worker",le="1e-06"} 0
+workqueue_queue_duration_seconds_bucket{controller="ARO-HCP delete node pools worker",name="ARO-HCP delete node pools worker",le="9.999999999999999e-06"} 0
+workqueue_queue_duration_seconds_bucket{controller="ARO-HCP delete node pools worker",name="ARO-HCP delete node pools worker",le="9.999999999999999e-05"} 0
+workqueue_queue_duration_seconds_bucket{controller="ARO-HCP delete node pools worker",name="ARO-HCP delete node pools worker",le="0.001"} 0
+workqueue_queue_duration_seconds_bucket{controller="ARO-HCP delete node pools worker",name="ARO-HCP delete node pools worker",le="0.01"} 0
+workqueue_queue_duration_seconds_bucket{controller="ARO-HCP delete node pools worker",name="ARO-HCP delete node pools worker",le="0.1"} 0
+workqueue_queue_duration_seconds_bucket{controller="ARO-HCP delete node pools worker",name="ARO-HCP delete node pools worker",le="1"} 0
+workqueue_queue_duration_seconds_bucket{controller="ARO-HCP delete node pools worker",name="ARO-HCP delete node pools worker",le="10"} 0
+workqueue_queue_duration_seconds_bucket{controller="ARO-HCP delete node pools worker",name="ARO-HCP delete node pools worker",le="100"} 0
+workqueue_queue_duration_seconds_bucket{controller="ARO-HCP delete node pools worker",name="ARO-HCP delete node pools worker",le="1000"} 0
+workqueue_queue_duration_seconds_bucket{controller="ARO-HCP delete node pools worker",name="ARO-HCP delete node pools worker",le="+Inf"} 0
+workqueue_queue_duration_seconds_sum{controller="ARO-HCP delete node pools worker",name="ARO-HCP delete node pools worker"} 0
+workqueue_queue_duration_seconds_count{controller="ARO-HCP delete node pools worker",name="ARO-HCP delete node pools worker"} 0
+workqueue_queue_duration_seconds_bucket{controller="ARO-HCP pending node pools worker",name="ARO-HCP pending node pools worker",le="1e-08"} 0
+workqueue_queue_duration_seconds_bucket{controller="ARO-HCP pending node pools worker",name="ARO-HCP pending node pools worker",le="1e-07"} 0
+workqueue_queue_duration_seconds_bucket{controller="ARO-HCP pending node pools worker",name="ARO-HCP pending node pools worker",le="1e-06"} 0
+workqueue_queue_duration_seconds_bucket{controller="ARO-HCP pending node pools worker",name="ARO-HCP pending node pools worker",le="9.999999999999999e-06"} 0
+workqueue_queue_duration_seconds_bucket{controller="ARO-HCP pending node pools worker",name="ARO-HCP pending node pools worker",le="9.999999999999999e-05"} 1
+workqueue_queue_duration_seconds_bucket{controller="ARO-HCP pending node pools worker",name="ARO-HCP pending node pools worker",le="0.001"} 1
+workqueue_queue_duration_seconds_bucket{controller="ARO-HCP pending node pools worker",name="ARO-HCP pending node pools worker",le="0.01"} 1
+workqueue_queue_duration_seconds_bucket{controller="ARO-HCP pending node pools worker",name="ARO-HCP pending node pools worker",le="0.1"} 1
+workqueue_queue_duration_seconds_bucket{controller="ARO-HCP pending node pools worker",name="ARO-HCP pending node pools worker",le="1"} 1
+workqueue_queue_duration_seconds_bucket{controller="ARO-HCP pending node pools worker",name="ARO-HCP pending node pools worker",le="10"} 1
+workqueue_queue_duration_seconds_bucket{controller="ARO-HCP pending node pools worker",name="ARO-HCP pending node pools worker",le="100"} 1
+workqueue_queue_duration_seconds_bucket{controller="ARO-HCP pending node pools worker",name="ARO-HCP pending node pools worker",le="1000"} 1
+workqueue_queue_duration_seconds_bucket{controller="ARO-HCP pending node pools worker",name="ARO-HCP pending node pools worker",le="+Inf"} 1
+workqueue_queue_duration_seconds_sum{controller="ARO-HCP pending node pools worker",name="ARO-HCP pending node pools worker"} 2.376e-05
+workqueue_queue_duration_seconds_count{controller="ARO-HCP pending node pools worker",name="ARO-HCP pending node pools worker"} 1
+workqueue_queue_duration_seconds_bucket{controller="ARO-HCP validating node pools worker",name="ARO-HCP validating node pools worker",le="1e-08"} 0
+workqueue_queue_duration_seconds_bucket{controller="ARO-HCP validating node pools worker",name="ARO-HCP validating node pools worker",le="1e-07"} 0
+workqueue_queue_duration_seconds_bucket{controller="ARO-HCP validating node pools worker",name="ARO-HCP validating node pools worker",le="1e-06"} 0
+workqueue_queue_duration_seconds_bucket{controller="ARO-HCP validating node pools worker",name="ARO-HCP validating node pools worker",le="9.999999999999999e-06"} 0
+workqueue_queue_duration_seconds_bucket{controller="ARO-HCP validating node pools worker",name="ARO-HCP validating node pools worker",le="9.999999999999999e-05"} 1
+workqueue_queue_duration_seconds_bucket{controller="ARO-HCP validating node pools worker",name="ARO-HCP validating node pools worker",le="0.001"} 1
+workqueue_queue_duration_seconds_bucket{controller="ARO-HCP validating node pools worker",name="ARO-HCP validating node pools worker",le="0.01"} 1
+workqueue_queue_duration_seconds_bucket{controller="ARO-HCP validating node pools worker",name="ARO-HCP validating node pools worker",le="0.1"} 1
+workqueue_queue_duration_seconds_bucket{controller="ARO-HCP validating node pools worker",name="ARO-HCP validating node pools worker",le="1"} 1
+workqueue_queue_duration_seconds_bucket{controller="ARO-HCP validating node pools worker",name="ARO-HCP validating node pools worker",le="10"} 1
+workqueue_queue_duration_seconds_bucket{controller="ARO-HCP validating node pools worker",name="ARO-HCP validating node pools worker",le="100"} 1
+workqueue_queue_duration_seconds_bucket{controller="ARO-HCP validating node pools worker",name="ARO-HCP validating node pools worker",le="1000"} 1
+workqueue_queue_duration_seconds_bucket{controller="ARO-HCP validating node pools worker",name="ARO-HCP validating node pools worker",le="+Inf"} 1
+workqueue_queue_duration_seconds_sum{controller="ARO-HCP validating node pools worker",name="ARO-HCP validating node pools worker"} 2.6122e-05
+workqueue_queue_duration_seconds_count{controller="ARO-HCP validating node pools worker",name="ARO-HCP validating node pools worker"} 1
+workqueue_queue_duration_seconds_bucket{controller="aro-hcp-cluster-worker",name="aro-hcp-cluster-worker",le="1e-08"} 0
+workqueue_queue_duration_seconds_bucket{controller="aro-hcp-cluster-worker",name="aro-hcp-cluster-worker",le="1e-07"} 0
+workqueue_queue_duration_seconds_bucket{controller="aro-hcp-cluster-worker",name="aro-hcp-cluster-worker",le="1e-06"} 0
+workqueue_queue_duration_seconds_bucket{controller="aro-hcp-cluster-worker",name="aro-hcp-cluster-worker",le="9.999999999999999e-06"} 0
+workqueue_queue_duration_seconds_bucket{controller="aro-hcp-cluster-worker",name="aro-hcp-cluster-worker",le="9.999999999999999e-05"} 3226
+workqueue_queue_duration_seconds_bucket{controller="aro-hcp-cluster-worker",name="aro-hcp-cluster-worker",le="0.001"} 3227
+workqueue_queue_duration_seconds_bucket{controller="aro-hcp-cluster-worker",name="aro-hcp-cluster-worker",le="0.01"} 3227
+workqueue_queue_duration_seconds_bucket{controller="aro-hcp-cluster-worker",name="aro-hcp-cluster-worker",le="0.1"} 3227
+workqueue_queue_duration_seconds_bucket{controller="aro-hcp-cluster-worker",name="aro-hcp-cluster-worker",le="1"} 3227
+workqueue_queue_duration_seconds_bucket{controller="aro-hcp-cluster-worker",name="aro-hcp-cluster-worker",le="10"} 3228
+workqueue_queue_duration_seconds_bucket{controller="aro-hcp-cluster-worker",name="aro-hcp-cluster-worker",le="100"} 3231
+workqueue_queue_duration_seconds_bucket{controller="aro-hcp-cluster-worker",name="aro-hcp-cluster-worker",le="1000"} 3231
+workqueue_queue_duration_seconds_bucket{controller="aro-hcp-cluster-worker",name="aro-hcp-cluster-worker",le="+Inf"} 3231
+workqueue_queue_duration_seconds_sum{controller="aro-hcp-cluster-worker",name="aro-hcp-cluster-worker"} 78.22257143799987
+workqueue_queue_duration_seconds_count{controller="aro-hcp-cluster-worker",name="aro-hcp-cluster-worker"} 3231
+workqueue_queue_duration_seconds_bucket{controller="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-cluster.open-cluster-management.io-v1-ManagedCluster",name="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-cluster.open-cluster-management.io-v1-ManagedCluster",le="1e-08"} 0
+workqueue_queue_duration_seconds_bucket{controller="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-cluster.open-cluster-management.io-v1-ManagedCluster",name="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-cluster.open-cluster-management.io-v1-ManagedCluster",le="1e-07"} 0
+workqueue_queue_duration_seconds_bucket{controller="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-cluster.open-cluster-management.io-v1-ManagedCluster",name="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-cluster.open-cluster-management.io-v1-ManagedCluster",le="1e-06"} 0
+workqueue_queue_duration_seconds_bucket{controller="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-cluster.open-cluster-management.io-v1-ManagedCluster",name="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-cluster.open-cluster-management.io-v1-ManagedCluster",le="9.999999999999999e-06"} 10
+workqueue_queue_duration_seconds_bucket{controller="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-cluster.open-cluster-management.io-v1-ManagedCluster",name="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-cluster.open-cluster-management.io-v1-ManagedCluster",le="9.999999999999999e-05"} 285
+workqueue_queue_duration_seconds_bucket{controller="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-cluster.open-cluster-management.io-v1-ManagedCluster",name="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-cluster.open-cluster-management.io-v1-ManagedCluster",le="0.001"} 300
+workqueue_queue_duration_seconds_bucket{controller="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-cluster.open-cluster-management.io-v1-ManagedCluster",name="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-cluster.open-cluster-management.io-v1-ManagedCluster",le="0.01"} 300
+workqueue_queue_duration_seconds_bucket{controller="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-cluster.open-cluster-management.io-v1-ManagedCluster",name="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-cluster.open-cluster-management.io-v1-ManagedCluster",le="0.1"} 301
+workqueue_queue_duration_seconds_bucket{controller="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-cluster.open-cluster-management.io-v1-ManagedCluster",name="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-cluster.open-cluster-management.io-v1-ManagedCluster",le="1"} 301
+workqueue_queue_duration_seconds_bucket{controller="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-cluster.open-cluster-management.io-v1-ManagedCluster",name="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-cluster.open-cluster-management.io-v1-ManagedCluster",le="10"} 301
+workqueue_queue_duration_seconds_bucket{controller="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-cluster.open-cluster-management.io-v1-ManagedCluster",name="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-cluster.open-cluster-management.io-v1-ManagedCluster",le="100"} 301
+workqueue_queue_duration_seconds_bucket{controller="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-cluster.open-cluster-management.io-v1-ManagedCluster",name="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-cluster.open-cluster-management.io-v1-ManagedCluster",le="1000"} 301
+workqueue_queue_duration_seconds_bucket{controller="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-cluster.open-cluster-management.io-v1-ManagedCluster",name="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-cluster.open-cluster-management.io-v1-ManagedCluster",le="+Inf"} 301
+workqueue_queue_duration_seconds_sum{controller="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-cluster.open-cluster-management.io-v1-ManagedCluster",name="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-cluster.open-cluster-management.io-v1-ManagedCluster"} 0.028983023000000004
+workqueue_queue_duration_seconds_count{controller="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-cluster.open-cluster-management.io-v1-ManagedCluster",name="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-cluster.open-cluster-management.io-v1-ManagedCluster"} 301
+workqueue_queue_duration_seconds_bucket{controller="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-work.open-cluster-management.io-v1-ManifestWork",name="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-work.open-cluster-management.io-v1-ManifestWork",le="1e-08"} 0
+workqueue_queue_duration_seconds_bucket{controller="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-work.open-cluster-management.io-v1-ManifestWork",name="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-work.open-cluster-management.io-v1-ManifestWork",le="1e-07"} 0
+workqueue_queue_duration_seconds_bucket{controller="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-work.open-cluster-management.io-v1-ManifestWork",name="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-work.open-cluster-management.io-v1-ManifestWork",le="1e-06"} 0
+workqueue_queue_duration_seconds_bucket{controller="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-work.open-cluster-management.io-v1-ManifestWork",name="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-work.open-cluster-management.io-v1-ManifestWork",le="9.999999999999999e-06"} 56
+workqueue_queue_duration_seconds_bucket{controller="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-work.open-cluster-management.io-v1-ManifestWork",name="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-work.open-cluster-management.io-v1-ManifestWork",le="9.999999999999999e-05"} 319
+workqueue_queue_duration_seconds_bucket{controller="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-work.open-cluster-management.io-v1-ManifestWork",name="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-work.open-cluster-management.io-v1-ManifestWork",le="0.001"} 379
+workqueue_queue_duration_seconds_bucket{controller="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-work.open-cluster-management.io-v1-ManifestWork",name="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-work.open-cluster-management.io-v1-ManifestWork",le="0.01"} 665
+workqueue_queue_duration_seconds_bucket{controller="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-work.open-cluster-management.io-v1-ManifestWork",name="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-work.open-cluster-management.io-v1-ManifestWork",le="0.1"} 1516
+workqueue_queue_duration_seconds_bucket{controller="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-work.open-cluster-management.io-v1-ManifestWork",name="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-work.open-cluster-management.io-v1-ManifestWork",le="1"} 1763
+workqueue_queue_duration_seconds_bucket{controller="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-work.open-cluster-management.io-v1-ManifestWork",name="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-work.open-cluster-management.io-v1-ManifestWork",le="10"} 1763
+workqueue_queue_duration_seconds_bucket{controller="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-work.open-cluster-management.io-v1-ManifestWork",name="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-work.open-cluster-management.io-v1-ManifestWork",le="100"} 1763
+workqueue_queue_duration_seconds_bucket{controller="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-work.open-cluster-management.io-v1-ManifestWork",name="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-work.open-cluster-management.io-v1-ManifestWork",le="1000"} 1763
+workqueue_queue_duration_seconds_bucket{controller="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-work.open-cluster-management.io-v1-ManifestWork",name="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-work.open-cluster-management.io-v1-ManifestWork",le="+Inf"} 1763
+workqueue_queue_duration_seconds_sum{controller="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-work.open-cluster-management.io-v1-ManifestWork",name="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-work.open-cluster-management.io-v1-ManifestWork"} 69.82772873199993
+workqueue_queue_duration_seconds_count{controller="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-work.open-cluster-management.io-v1-ManifestWork",name="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-work.open-cluster-management.io-v1-ManifestWork"} 1763
+# HELP workqueue_retries_total Total number of retries handled by workqueue
+# TYPE workqueue_retries_total counter
+workqueue_retries_total{controller="ARO-HCP delete node pools worker",name="ARO-HCP delete node pools worker"} 0
+workqueue_retries_total{controller="ARO-HCP pending node pools worker",name="ARO-HCP pending node pools worker"} 0
+workqueue_retries_total{controller="ARO-HCP validating node pools worker",name="ARO-HCP validating node pools worker"} 0
+workqueue_retries_total{controller="aro-hcp-cluster-worker",name="aro-hcp-cluster-worker"} 0
+workqueue_retries_total{controller="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-cluster.open-cluster-management.io-v1-ManagedCluster",name="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-cluster.open-cluster-management.io-v1-ManagedCluster"} 0
+workqueue_retries_total{controller="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-work.open-cluster-management.io-v1-ManifestWork",name="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-work.open-cluster-management.io-v1-ManifestWork"} 33
+# HELP workqueue_unfinished_work_seconds How many seconds of work has been done that is in progress and hasn't been observed by work_duration. Large values indicate stuck threads. One can deduce the number of stuck threads by observing the rate at which this increases.
+# TYPE workqueue_unfinished_work_seconds gauge
+workqueue_unfinished_work_seconds{controller="ARO-HCP delete node pools worker",name="ARO-HCP delete node pools worker"} 0
+workqueue_unfinished_work_seconds{controller="ARO-HCP pending node pools worker",name="ARO-HCP pending node pools worker"} 0
+workqueue_unfinished_work_seconds{controller="ARO-HCP validating node pools worker",name="ARO-HCP validating node pools worker"} 0
+workqueue_unfinished_work_seconds{controller="aro-hcp-cluster-worker",name="aro-hcp-cluster-worker"} 0
+workqueue_unfinished_work_seconds{controller="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-cluster.open-cluster-management.io-v1-ManagedCluster",name="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-cluster.open-cluster-management.io-v1-ManagedCluster"} 0
+workqueue_unfinished_work_seconds{controller="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-work.open-cluster-management.io-v1-ManifestWork",name="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-work.open-cluster-management.io-v1-ManifestWork"} 0
+# HELP workqueue_work_duration_seconds How long in seconds processing an item from workqueue takes.
+# TYPE workqueue_work_duration_seconds histogram
+workqueue_work_duration_seconds_bucket{controller="ARO-HCP delete node pools worker",name="ARO-HCP delete node pools worker",le="1e-08"} 0
+workqueue_work_duration_seconds_bucket{controller="ARO-HCP delete node pools worker",name="ARO-HCP delete node pools worker",le="1e-07"} 0
+workqueue_work_duration_seconds_bucket{controller="ARO-HCP delete node pools worker",name="ARO-HCP delete node pools worker",le="1e-06"} 0
+workqueue_work_duration_seconds_bucket{controller="ARO-HCP delete node pools worker",name="ARO-HCP delete node pools worker",le="9.999999999999999e-06"} 0
+workqueue_work_duration_seconds_bucket{controller="ARO-HCP delete node pools worker",name="ARO-HCP delete node pools worker",le="9.999999999999999e-05"} 0
+workqueue_work_duration_seconds_bucket{controller="ARO-HCP delete node pools worker",name="ARO-HCP delete node pools worker",le="0.001"} 0
+workqueue_work_duration_seconds_bucket{controller="ARO-HCP delete node pools worker",name="ARO-HCP delete node pools worker",le="0.01"} 0
+workqueue_work_duration_seconds_bucket{controller="ARO-HCP delete node pools worker",name="ARO-HCP delete node pools worker",le="0.1"} 0
+workqueue_work_duration_seconds_bucket{controller="ARO-HCP delete node pools worker",name="ARO-HCP delete node pools worker",le="1"} 0
+workqueue_work_duration_seconds_bucket{controller="ARO-HCP delete node pools worker",name="ARO-HCP delete node pools worker",le="10"} 0
+workqueue_work_duration_seconds_bucket{controller="ARO-HCP delete node pools worker",name="ARO-HCP delete node pools worker",le="100"} 0
+workqueue_work_duration_seconds_bucket{controller="ARO-HCP delete node pools worker",name="ARO-HCP delete node pools worker",le="1000"} 0
+workqueue_work_duration_seconds_bucket{controller="ARO-HCP delete node pools worker",name="ARO-HCP delete node pools worker",le="+Inf"} 0
+workqueue_work_duration_seconds_sum{controller="ARO-HCP delete node pools worker",name="ARO-HCP delete node pools worker"} 0
+workqueue_work_duration_seconds_count{controller="ARO-HCP delete node pools worker",name="ARO-HCP delete node pools worker"} 0
+workqueue_work_duration_seconds_bucket{controller="ARO-HCP pending node pools worker",name="ARO-HCP pending node pools worker",le="1e-08"} 0
+workqueue_work_duration_seconds_bucket{controller="ARO-HCP pending node pools worker",name="ARO-HCP pending node pools worker",le="1e-07"} 0
+workqueue_work_duration_seconds_bucket{controller="ARO-HCP pending node pools worker",name="ARO-HCP pending node pools worker",le="1e-06"} 0
+workqueue_work_duration_seconds_bucket{controller="ARO-HCP pending node pools worker",name="ARO-HCP pending node pools worker",le="9.999999999999999e-06"} 0
+workqueue_work_duration_seconds_bucket{controller="ARO-HCP pending node pools worker",name="ARO-HCP pending node pools worker",le="9.999999999999999e-05"} 0
+workqueue_work_duration_seconds_bucket{controller="ARO-HCP pending node pools worker",name="ARO-HCP pending node pools worker",le="0.001"} 0
+workqueue_work_duration_seconds_bucket{controller="ARO-HCP pending node pools worker",name="ARO-HCP pending node pools worker",le="0.01"} 0
+workqueue_work_duration_seconds_bucket{controller="ARO-HCP pending node pools worker",name="ARO-HCP pending node pools worker",le="0.1"} 0
+workqueue_work_duration_seconds_bucket{controller="ARO-HCP pending node pools worker",name="ARO-HCP pending node pools worker",le="1"} 0
+workqueue_work_duration_seconds_bucket{controller="ARO-HCP pending node pools worker",name="ARO-HCP pending node pools worker",le="10"} 1
+workqueue_work_duration_seconds_bucket{controller="ARO-HCP pending node pools worker",name="ARO-HCP pending node pools worker",le="100"} 1
+workqueue_work_duration_seconds_bucket{controller="ARO-HCP pending node pools worker",name="ARO-HCP pending node pools worker",le="1000"} 1
+workqueue_work_duration_seconds_bucket{controller="ARO-HCP pending node pools worker",name="ARO-HCP pending node pools worker",le="+Inf"} 1
+workqueue_work_duration_seconds_sum{controller="ARO-HCP pending node pools worker",name="ARO-HCP pending node pools worker"} 1.6825828440000001
+workqueue_work_duration_seconds_count{controller="ARO-HCP pending node pools worker",name="ARO-HCP pending node pools worker"} 1
+workqueue_work_duration_seconds_bucket{controller="ARO-HCP validating node pools worker",name="ARO-HCP validating node pools worker",le="1e-08"} 0
+workqueue_work_duration_seconds_bucket{controller="ARO-HCP validating node pools worker",name="ARO-HCP validating node pools worker",le="1e-07"} 0
+workqueue_work_duration_seconds_bucket{controller="ARO-HCP validating node pools worker",name="ARO-HCP validating node pools worker",le="1e-06"} 0
+workqueue_work_duration_seconds_bucket{controller="ARO-HCP validating node pools worker",name="ARO-HCP validating node pools worker",le="9.999999999999999e-06"} 0
+workqueue_work_duration_seconds_bucket{controller="ARO-HCP validating node pools worker",name="ARO-HCP validating node pools worker",le="9.999999999999999e-05"} 0
+workqueue_work_duration_seconds_bucket{controller="ARO-HCP validating node pools worker",name="ARO-HCP validating node pools worker",le="0.001"} 0
+workqueue_work_duration_seconds_bucket{controller="ARO-HCP validating node pools worker",name="ARO-HCP validating node pools worker",le="0.01"} 0
+workqueue_work_duration_seconds_bucket{controller="ARO-HCP validating node pools worker",name="ARO-HCP validating node pools worker",le="0.1"} 0
+workqueue_work_duration_seconds_bucket{controller="ARO-HCP validating node pools worker",name="ARO-HCP validating node pools worker",le="1"} 0
+workqueue_work_duration_seconds_bucket{controller="ARO-HCP validating node pools worker",name="ARO-HCP validating node pools worker",le="10"} 1
+workqueue_work_duration_seconds_bucket{controller="ARO-HCP validating node pools worker",name="ARO-HCP validating node pools worker",le="100"} 1
+workqueue_work_duration_seconds_bucket{controller="ARO-HCP validating node pools worker",name="ARO-HCP validating node pools worker",le="1000"} 1
+workqueue_work_duration_seconds_bucket{controller="ARO-HCP validating node pools worker",name="ARO-HCP validating node pools worker",le="+Inf"} 1
+workqueue_work_duration_seconds_sum{controller="ARO-HCP validating node pools worker",name="ARO-HCP validating node pools worker"} 2.185186789
+workqueue_work_duration_seconds_count{controller="ARO-HCP validating node pools worker",name="ARO-HCP validating node pools worker"} 1
+workqueue_work_duration_seconds_bucket{controller="aro-hcp-cluster-worker",name="aro-hcp-cluster-worker",le="1e-08"} 0
+workqueue_work_duration_seconds_bucket{controller="aro-hcp-cluster-worker",name="aro-hcp-cluster-worker",le="1e-07"} 0
+workqueue_work_duration_seconds_bucket{controller="aro-hcp-cluster-worker",name="aro-hcp-cluster-worker",le="1e-06"} 0
+workqueue_work_duration_seconds_bucket{controller="aro-hcp-cluster-worker",name="aro-hcp-cluster-worker",le="9.999999999999999e-06"} 0
+workqueue_work_duration_seconds_bucket{controller="aro-hcp-cluster-worker",name="aro-hcp-cluster-worker",le="9.999999999999999e-05"} 0
+workqueue_work_duration_seconds_bucket{controller="aro-hcp-cluster-worker",name="aro-hcp-cluster-worker",le="0.001"} 0
+workqueue_work_duration_seconds_bucket{controller="aro-hcp-cluster-worker",name="aro-hcp-cluster-worker",le="0.01"} 0
+workqueue_work_duration_seconds_bucket{controller="aro-hcp-cluster-worker",name="aro-hcp-cluster-worker",le="0.1"} 3227
+workqueue_work_duration_seconds_bucket{controller="aro-hcp-cluster-worker",name="aro-hcp-cluster-worker",le="1"} 3227
+workqueue_work_duration_seconds_bucket{controller="aro-hcp-cluster-worker",name="aro-hcp-cluster-worker",le="10"} 3227
+workqueue_work_duration_seconds_bucket{controller="aro-hcp-cluster-worker",name="aro-hcp-cluster-worker",le="100"} 3231
+workqueue_work_duration_seconds_bucket{controller="aro-hcp-cluster-worker",name="aro-hcp-cluster-worker",le="1000"} 3231
+workqueue_work_duration_seconds_bucket{controller="aro-hcp-cluster-worker",name="aro-hcp-cluster-worker",le="+Inf"} 3231
+workqueue_work_duration_seconds_sum{controller="aro-hcp-cluster-worker",name="aro-hcp-cluster-worker"} 170.30773493699957
+workqueue_work_duration_seconds_count{controller="aro-hcp-cluster-worker",name="aro-hcp-cluster-worker"} 3231
+workqueue_work_duration_seconds_bucket{controller="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-cluster.open-cluster-management.io-v1-ManagedCluster",name="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-cluster.open-cluster-management.io-v1-ManagedCluster",le="1e-08"} 0
+workqueue_work_duration_seconds_bucket{controller="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-cluster.open-cluster-management.io-v1-ManagedCluster",name="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-cluster.open-cluster-management.io-v1-ManagedCluster",le="1e-07"} 0
+workqueue_work_duration_seconds_bucket{controller="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-cluster.open-cluster-management.io-v1-ManagedCluster",name="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-cluster.open-cluster-management.io-v1-ManagedCluster",le="1e-06"} 0
+workqueue_work_duration_seconds_bucket{controller="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-cluster.open-cluster-management.io-v1-ManagedCluster",name="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-cluster.open-cluster-management.io-v1-ManagedCluster",le="9.999999999999999e-06"} 0
+workqueue_work_duration_seconds_bucket{controller="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-cluster.open-cluster-management.io-v1-ManagedCluster",name="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-cluster.open-cluster-management.io-v1-ManagedCluster",le="9.999999999999999e-05"} 0
+workqueue_work_duration_seconds_bucket{controller="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-cluster.open-cluster-management.io-v1-ManagedCluster",name="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-cluster.open-cluster-management.io-v1-ManagedCluster",le="0.001"} 0
+workqueue_work_duration_seconds_bucket{controller="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-cluster.open-cluster-management.io-v1-ManagedCluster",name="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-cluster.open-cluster-management.io-v1-ManagedCluster",le="0.01"} 0
+workqueue_work_duration_seconds_bucket{controller="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-cluster.open-cluster-management.io-v1-ManagedCluster",name="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-cluster.open-cluster-management.io-v1-ManagedCluster",le="0.1"} 301
+workqueue_work_duration_seconds_bucket{controller="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-cluster.open-cluster-management.io-v1-ManagedCluster",name="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-cluster.open-cluster-management.io-v1-ManagedCluster",le="1"} 301
+workqueue_work_duration_seconds_bucket{controller="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-cluster.open-cluster-management.io-v1-ManagedCluster",name="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-cluster.open-cluster-management.io-v1-ManagedCluster",le="10"} 301
+workqueue_work_duration_seconds_bucket{controller="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-cluster.open-cluster-management.io-v1-ManagedCluster",name="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-cluster.open-cluster-management.io-v1-ManagedCluster",le="100"} 301
+workqueue_work_duration_seconds_bucket{controller="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-cluster.open-cluster-management.io-v1-ManagedCluster",name="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-cluster.open-cluster-management.io-v1-ManagedCluster",le="1000"} 301
+workqueue_work_duration_seconds_bucket{controller="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-cluster.open-cluster-management.io-v1-ManagedCluster",name="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-cluster.open-cluster-management.io-v1-ManagedCluster",le="+Inf"} 301
+workqueue_work_duration_seconds_sum{controller="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-cluster.open-cluster-management.io-v1-ManagedCluster",name="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-cluster.open-cluster-management.io-v1-ManagedCluster"} 14.621825341999994
+workqueue_work_duration_seconds_count{controller="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-cluster.open-cluster-management.io-v1-ManagedCluster",name="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-cluster.open-cluster-management.io-v1-ManagedCluster"} 301
+workqueue_work_duration_seconds_bucket{controller="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-work.open-cluster-management.io-v1-ManifestWork",name="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-work.open-cluster-management.io-v1-ManifestWork",le="1e-08"} 0
+workqueue_work_duration_seconds_bucket{controller="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-work.open-cluster-management.io-v1-ManifestWork",name="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-work.open-cluster-management.io-v1-ManifestWork",le="1e-07"} 0
+workqueue_work_duration_seconds_bucket{controller="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-work.open-cluster-management.io-v1-ManifestWork",name="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-work.open-cluster-management.io-v1-ManifestWork",le="1e-06"} 0
+workqueue_work_duration_seconds_bucket{controller="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-work.open-cluster-management.io-v1-ManifestWork",name="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-work.open-cluster-management.io-v1-ManifestWork",le="9.999999999999999e-06"} 0
+workqueue_work_duration_seconds_bucket{controller="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-work.open-cluster-management.io-v1-ManifestWork",name="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-work.open-cluster-management.io-v1-ManifestWork",le="9.999999999999999e-05"} 0
+workqueue_work_duration_seconds_bucket{controller="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-work.open-cluster-management.io-v1-ManifestWork",name="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-work.open-cluster-management.io-v1-ManifestWork",le="0.001"} 1
+workqueue_work_duration_seconds_bucket{controller="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-work.open-cluster-management.io-v1-ManifestWork",name="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-work.open-cluster-management.io-v1-ManifestWork",le="0.01"} 1009
+workqueue_work_duration_seconds_bucket{controller="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-work.open-cluster-management.io-v1-ManifestWork",name="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-work.open-cluster-management.io-v1-ManifestWork",le="0.1"} 1761
+workqueue_work_duration_seconds_bucket{controller="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-work.open-cluster-management.io-v1-ManifestWork",name="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-work.open-cluster-management.io-v1-ManifestWork",le="1"} 1763
+workqueue_work_duration_seconds_bucket{controller="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-work.open-cluster-management.io-v1-ManifestWork",name="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-work.open-cluster-management.io-v1-ManifestWork",le="10"} 1763
+workqueue_work_duration_seconds_bucket{controller="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-work.open-cluster-management.io-v1-ManifestWork",name="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-work.open-cluster-management.io-v1-ManifestWork",le="100"} 1763
+workqueue_work_duration_seconds_bucket{controller="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-work.open-cluster-management.io-v1-ManifestWork",name="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-work.open-cluster-management.io-v1-ManifestWork",le="1000"} 1763
+workqueue_work_duration_seconds_bucket{controller="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-work.open-cluster-management.io-v1-ManifestWork",name="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-work.open-cluster-management.io-v1-ManifestWork",le="+Inf"} 1763
+workqueue_work_duration_seconds_sum{controller="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-work.open-cluster-management.io-v1-ManifestWork",name="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-work.open-cluster-management.io-v1-ManifestWork"} 37.45376577400002
+workqueue_work_duration_seconds_count{controller="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-work.open-cluster-management.io-v1-ManifestWork",name="maestro-watcher-workqueue-hcp-underlay-usw3jbol-mgmt-1-work.open-cluster-management.io-v1-ManifestWork"} 1763

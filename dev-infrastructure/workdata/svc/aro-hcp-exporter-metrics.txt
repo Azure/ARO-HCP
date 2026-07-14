@@ -1,0 +1,48 @@
+# HELP exporter_collector_duration_seconds Duration of metric collection in seconds
+# TYPE exporter_collector_duration_seconds histogram
+exporter_collector_duration_seconds_bucket{collector="kusto-logs-current",le="0.005"} 112
+exporter_collector_duration_seconds_bucket{collector="kusto-logs-current",le="0.01"} 112
+exporter_collector_duration_seconds_bucket{collector="kusto-logs-current",le="0.025"} 112
+exporter_collector_duration_seconds_bucket{collector="kusto-logs-current",le="0.05"} 112
+exporter_collector_duration_seconds_bucket{collector="kusto-logs-current",le="0.1"} 112
+exporter_collector_duration_seconds_bucket{collector="kusto-logs-current",le="0.25"} 112
+exporter_collector_duration_seconds_bucket{collector="kusto-logs-current",le="0.5"} 112
+exporter_collector_duration_seconds_bucket{collector="kusto-logs-current",le="1"} 153
+exporter_collector_duration_seconds_bucket{collector="kusto-logs-current",le="2.5"} 161
+exporter_collector_duration_seconds_bucket{collector="kusto-logs-current",le="5"} 168
+exporter_collector_duration_seconds_bucket{collector="kusto-logs-current",le="10"} 169
+exporter_collector_duration_seconds_bucket{collector="kusto-logs-current",le="+Inf"} 169
+exporter_collector_duration_seconds_sum{collector="kusto-logs-current"} 69.009990749
+exporter_collector_duration_seconds_count{collector="kusto-logs-current"} 169
+exporter_collector_duration_seconds_bucket{collector="service-tag-usage",le="0.005"} 0
+exporter_collector_duration_seconds_bucket{collector="service-tag-usage",le="0.01"} 0
+exporter_collector_duration_seconds_bucket{collector="service-tag-usage",le="0.025"} 0
+exporter_collector_duration_seconds_bucket{collector="service-tag-usage",le="0.05"} 0
+exporter_collector_duration_seconds_bucket{collector="service-tag-usage",le="0.1"} 0
+exporter_collector_duration_seconds_bucket{collector="service-tag-usage",le="0.25"} 4
+exporter_collector_duration_seconds_bucket{collector="service-tag-usage",le="0.5"} 119
+exporter_collector_duration_seconds_bucket{collector="service-tag-usage",le="1"} 153
+exporter_collector_duration_seconds_bucket{collector="service-tag-usage",le="2.5"} 164
+exporter_collector_duration_seconds_bucket{collector="service-tag-usage",le="5"} 166
+exporter_collector_duration_seconds_bucket{collector="service-tag-usage",le="10"} 169
+exporter_collector_duration_seconds_bucket{collector="service-tag-usage",le="+Inf"} 169
+exporter_collector_duration_seconds_sum{collector="service-tag-usage"} 109.61657350000002
+exporter_collector_duration_seconds_count{collector="service-tag-usage"} 169
+# HELP exporter_collector_errors_total Total number of errors encountered during metric collection
+# TYPE exporter_collector_errors_total counter
+exporter_collector_errors_total{collector="kusto-logs-current"} 0
+exporter_collector_errors_total{collector="service-tag-usage"} 0
+# HELP kusto_logs_age_in_seconds Age of last log in seconds from Kusto
+# TYPE kusto_logs_age_in_seconds gauge
+kusto_logs_age_in_seconds{cluster="pers-usw3jbol-mgmt-1",kusto_cluster="hcp-dev-us-2",table="infraServiceLogs"} 202.07021102
+kusto_logs_age_in_seconds{cluster="pers-usw3jbol-mgmt-1",kusto_cluster="hcp-dev-us-2",table="kubernetesEvents"} 319.742174581
+kusto_logs_age_in_seconds{cluster="pers-usw3jbol-mgmt-1",kusto_cluster="hcp-dev-us-2",table="systemdLogs"} 410.392206214
+kusto_logs_age_in_seconds{cluster="pers-usw3jbol-svc",kusto_cluster="hcp-dev-us-2",table="infraServiceLogs"} 4424.607597552
+kusto_logs_age_in_seconds{cluster="pers-usw3jbol-svc",kusto_cluster="hcp-dev-us-2",table="kubernetesEvents"} 1017.41362685
+kusto_logs_age_in_seconds{cluster="pers-usw3jbol-svc",kusto_cluster="hcp-dev-us-2",table="systemdLogs"} 4052.357760002
+# HELP public_ip_count_by_region_service_tag Number of public IP addresses in a region by service tag
+# TYPE public_ip_count_by_region_service_tag gauge
+public_ip_count_by_region_service_tag{region="eastus",service_tag_type="not-set",service_tag_value="not-set",subscription_id="1d3378d3-5a3f-4712-85a1-2485495dfc4b"} 1
+public_ip_count_by_region_service_tag{region="uksouth",service_tag_type="not-set",service_tag_value="not-set",subscription_id="1d3378d3-5a3f-4712-85a1-2485495dfc4b"} 20
+public_ip_count_by_region_service_tag{region="westeurope",service_tag_type="not-set",service_tag_value="not-set",subscription_id="1d3378d3-5a3f-4712-85a1-2485495dfc4b"} 1
+public_ip_count_by_region_service_tag{region="westus3",service_tag_type="not-set",service_tag_value="not-set",subscription_id="1d3378d3-5a3f-4712-85a1-2485495dfc4b"} 186

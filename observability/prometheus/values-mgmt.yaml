@@ -129,7 +129,7 @@ kube-prometheus-stack:
                   labelName: status
                   list: ["True", "False", "Unknown"]
 prometheusAgent:
-  enabled: false
+  enabled: true
 # this is our own config for the files in templates/
 prometheusSpec:
   image:

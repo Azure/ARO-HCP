@@ -1,5 +1,5 @@
 {{- if .Values.prometheusAgent.enabled }}
-apiVersion: monitoring.coreos.com/v1
+apiVersion: azmonitoring.coreos.com/v1
 kind: PodMonitor
 metadata:
   labels:

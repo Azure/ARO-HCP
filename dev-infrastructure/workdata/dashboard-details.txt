@@ -1,0 +1,557 @@
+# Dashboard Panel -> Prometheus Metrics Mapping
+# Total unique Prometheus metrics: 262
+# Total unique Azure Monitor metrics: 34
+# Total panels with metrics: 489
+# Dashboard files: 30
+#
+# Format: file:panel_title -> metric1, metric2, metric3
+# Azure Monitor metrics are prefixed with [AzureMonitor]
+
+### observability/grafana-dashboards/backend/backend.json
+observability/grafana-dashboards/backend/backend.json:Maestro GRPC Error Rate -> maestro_grpc_errors_total, maestro_grpc_operations_total
+observability/grafana-dashboards/backend/backend.json:Maestro GRPC Operations Rate -> maestro_grpc_operations_total
+observability/grafana-dashboards/backend/backend.json:Maestro GRPC P95 Latency -> maestro_grpc_operation_duration_seconds_bucket
+observability/grafana-dashboards/backend/backend.json:SLO Availability: Backend Health -> backend_health
+observability/grafana-dashboards/backend/backend.json:[template: cluster] -> up
+
+### observability/grafana-dashboards/clusters-service/cluster-service-slo-compund-metrics.json
+observability/grafana-dashboards/clusters-service/cluster-service-slo-compund-metrics.json:Availability -> availability:api_inbound_request_count:sli_ratio_28d
+observability/grafana-dashboards/clusters-service/cluster-service-slo-compund-metrics.json:Availability - Error Budget Burn Rate (28d) -> availability:api_inbound_request_count:sli_ratio_28d
+observability/grafana-dashboards/clusters-service/cluster-service-slo-compund-metrics.json:Critical Burn Rate Alert (30m & 6h) -> availability:api_inbound_request_count:burnrate30m, availability:api_inbound_request_count:burnrate6h
+observability/grafana-dashboards/clusters-service/cluster-service-slo-compund-metrics.json:Critical Burn Rate Alert (5m & 1h) -> availability:api_inbound_request_count:burnrate1h, availability:api_inbound_request_count:burnrate5m
+observability/grafana-dashboards/clusters-service/cluster-service-slo-compund-metrics.json:Error Budget Exhaustion (90%) -> latency:api_inbound_request_duration:p90_sli_ratio_28d
+observability/grafana-dashboards/clusters-service/cluster-service-slo-compund-metrics.json:Error Budget Exhaustion (99%) -> availability:api_inbound_request_count:sli_ratio_28d
+observability/grafana-dashboards/clusters-service/cluster-service-slo-compund-metrics.json:Error Budget Exhaustion (99%) -> latency:api_inbound_request_duration:p99_sli_ratio_28d
+observability/grafana-dashboards/clusters-service/cluster-service-slo-compund-metrics.json:P90 Critical Burn Rate Alert (30m & 6h) -> latency:api_inbound_request_duration:p90_burnrate30m, latency:api_inbound_request_duration:p90_burnrate6h
+observability/grafana-dashboards/clusters-service/cluster-service-slo-compund-metrics.json:P90 Critical Burn Rate Alert (5m & 1h) -> latency:api_inbound_request_duration:p90_burnrate1h, latency:api_inbound_request_duration:p90_burnrate5m
+observability/grafana-dashboards/clusters-service/cluster-service-slo-compund-metrics.json:P90 Latency (< 100ms) -> latency:api_inbound_request_duration:p90_sli_ratio_28d
+observability/grafana-dashboards/clusters-service/cluster-service-slo-compund-metrics.json:P90 Latency - Error Budget Burn Rate (28d) -> latency:api_inbound_request_duration:p90_sli_ratio_28d
+observability/grafana-dashboards/clusters-service/cluster-service-slo-compund-metrics.json:P90 Warning Burn Rate Alert (2h & 1d) -> latency:api_inbound_request_duration:p90_burnrate1d, latency:api_inbound_request_duration:p90_burnrate2h
+observability/grafana-dashboards/clusters-service/cluster-service-slo-compund-metrics.json:P90 Warning Burn Rate Alert (6h & 3d) -> latency:api_inbound_request_duration:p90_burnrate3d, latency:api_inbound_request_duration:p90_burnrate6h
+observability/grafana-dashboards/clusters-service/cluster-service-slo-compund-metrics.json:P99 Critical Burn Rate Alert (30m & 6h) -> latency:api_inbound_request_duration:p99_burnrate30m, latency:api_inbound_request_duration:p99_burnrate6h
+observability/grafana-dashboards/clusters-service/cluster-service-slo-compund-metrics.json:P99 Critical Burn Rate Alert (5m & 1h) -> latency:api_inbound_request_duration:p99_burnrate1h, latency:api_inbound_request_duration:p99_burnrate5m
+observability/grafana-dashboards/clusters-service/cluster-service-slo-compund-metrics.json:P99 Latency (< 1s) -> latency:api_inbound_request_duration:p99_sli_ratio_28d
+observability/grafana-dashboards/clusters-service/cluster-service-slo-compund-metrics.json:P99 Latency - Error Budget Burn Rate (28d) -> latency:api_inbound_request_duration:p99_sli_ratio_28d
+observability/grafana-dashboards/clusters-service/cluster-service-slo-compund-metrics.json:P99 Warning Burn Rate Alert (2h & 1d) -> latency:api_inbound_request_duration:p99_burnrate1d, latency:api_inbound_request_duration:p99_burnrate2h
+observability/grafana-dashboards/clusters-service/cluster-service-slo-compund-metrics.json:P99 Warning Burn Rate Alert (6h & 3d) -> latency:api_inbound_request_duration:p99_burnrate3d, latency:api_inbound_request_duration:p99_burnrate6h
+observability/grafana-dashboards/clusters-service/cluster-service-slo-compund-metrics.json:Warning Burn Rate Alert (2h & 1d) -> availability:api_inbound_request_count:burnrate1d, availability:api_inbound_request_count:burnrate2h
+observability/grafana-dashboards/clusters-service/cluster-service-slo-compund-metrics.json:Warning Burn Rate Alert (6h & 3d) -> availability:api_inbound_request_count:burnrate3d, availability:api_inbound_request_count:burnrate6h
+observability/grafana-dashboards/clusters-service/cluster-service-slo-compund-metrics.json:[template: cluster] -> up
+
+### observability/grafana-dashboards/clusters-service/cluster-service-slo.json
+observability/grafana-dashboards/clusters-service/cluster-service-slo.json:Availability -> api_inbound_request_count
+observability/grafana-dashboards/clusters-service/cluster-service-slo.json:Availability - Error Budget Burn Rate (28d) -> api_inbound_request_count
+observability/grafana-dashboards/clusters-service/cluster-service-slo.json:Critical Burn Rate Alert (30m & 6h) -> api_inbound_request_count
+observability/grafana-dashboards/clusters-service/cluster-service-slo.json:Critical Burn Rate Alert (5m & 1h) -> api_inbound_request_count
+observability/grafana-dashboards/clusters-service/cluster-service-slo.json:Error Budget Exhaustion (90%) -> api_inbound_request_count, api_inbound_request_duration_bucket
+observability/grafana-dashboards/clusters-service/cluster-service-slo.json:Error Budget Exhaustion (99%) -> api_inbound_request_count
+observability/grafana-dashboards/clusters-service/cluster-service-slo.json:Error Budget Exhaustion (99%) -> api_inbound_request_count, api_inbound_request_duration_bucket
+observability/grafana-dashboards/clusters-service/cluster-service-slo.json:Latency - Error Budget Burn Rate (28d) -> api_inbound_request_count, api_inbound_request_duration_bucket
+observability/grafana-dashboards/clusters-service/cluster-service-slo.json:P90 Critical Burn Rate Alert (30m & 6h) -> api_inbound_request_count, api_inbound_request_duration_bucket
+observability/grafana-dashboards/clusters-service/cluster-service-slo.json:P90 Critical Burn Rate Alert (5m & 1h) -> api_inbound_request_count, api_inbound_request_duration_bucket
+observability/grafana-dashboards/clusters-service/cluster-service-slo.json:P90 Latency (< 100ms) -> api_inbound_request_count, api_inbound_request_duration_bucket
+observability/grafana-dashboards/clusters-service/cluster-service-slo.json:P90 Latency - Error Budget Burn Rate (28d) -> api_inbound_request_count, api_inbound_request_duration_bucket
+observability/grafana-dashboards/clusters-service/cluster-service-slo.json:P90 Warning Burn Rate Alert (2h & 1d) -> api_inbound_request_count, api_inbound_request_duration_bucket
+observability/grafana-dashboards/clusters-service/cluster-service-slo.json:P90 Warning Burn Rate Alert (6h & 3d) -> api_inbound_request_count, api_inbound_request_duration_bucket
+observability/grafana-dashboards/clusters-service/cluster-service-slo.json:P99 Critical Burn Rate Alert (30m & 6h) -> api_inbound_request_count, api_inbound_request_duration_bucket
+observability/grafana-dashboards/clusters-service/cluster-service-slo.json:P99 Critical Burn Rate Alert (5m & 1h) -> api_inbound_request_count, api_inbound_request_duration_bucket
+observability/grafana-dashboards/clusters-service/cluster-service-slo.json:P99 Latency (< 1s) -> api_inbound_request_count, api_inbound_request_duration_bucket
+observability/grafana-dashboards/clusters-service/cluster-service-slo.json:P99 Warning Burn Rate Alert (2h & 1d) -> api_inbound_request_count, api_inbound_request_duration_bucket
+observability/grafana-dashboards/clusters-service/cluster-service-slo.json:P99 Warning Burn Rate Alert (6h & 3d) -> api_inbound_request_count, api_inbound_request_duration_bucket
+observability/grafana-dashboards/clusters-service/cluster-service-slo.json:Warning Burn Rate Alert (2h & 1d) -> api_inbound_request_count
+observability/grafana-dashboards/clusters-service/cluster-service-slo.json:Warning Burn Rate Alert (6h & 3d) -> api_inbound_request_count
+observability/grafana-dashboards/clusters-service/cluster-service-slo.json:[template: cluster] -> up
+
+### observability/grafana-dashboards/frontend/frontend.json
+observability/grafana-dashboards/frontend/frontend.json:Frontend Cluster Service >  SLO Availability: Frontend Cluster Service Client Request Success Rate by code,method,path -> frontend_clusters_service_client_request_count
+observability/grafana-dashboards/frontend/frontend.json:Frontend Cluster Service > SLI frontend_clusters_service_client_request_duration_count by code,method,path -> frontend_clusters_service_client_request_duration_count
+observability/grafana-dashboards/frontend/frontend.json:Frontend Cluster Service > SLO Error Rate: Frontend Cluster Service Client Request Errors (5xx) by code,method,path -> frontend_clusters_service_client_request_count
+observability/grafana-dashboards/frontend/frontend.json:Frontend Cluster Service > SLO Latency: Frontend Cluster Service Client Request Latency by code,method,path -> frontend_clusters_service_client_request_duration_bucket
+observability/grafana-dashboards/frontend/frontend.json:Frontend Cluster Service > SLO Request Volume: Total Frontend Cluster Service Client Requests by code,method,path -> frontend_clusters_service_client_request_count
+observability/grafana-dashboards/frontend/frontend.json:Frontend HTTP Request > SLO Availability: Frontend Request Success Rate -> frontend_http_requests_total
+observability/grafana-dashboards/frontend/frontend.json:Frontend HTTP Request > SLO Error Rate: Frontend Errors (5xx) -> frontend_http_requests_total
+observability/grafana-dashboards/frontend/frontend.json:Frontend HTTP Request > SLO Latency: Frontend Request Latency -> frontend_http_requests_duration_seconds_bucket
+observability/grafana-dashboards/frontend/frontend.json:Frontend HTTP Request > SLO Request Volume: Total Frontend Requests -> frontend_http_requests_total
+observability/grafana-dashboards/frontend/frontend.json:Frontend Lifecycle > SLI frontend_lifecycle_last_update_timestamp_seconds -> frontend_lifecycle_last_update_timestamp_seconds
+observability/grafana-dashboards/frontend/frontend.json:Frontend Lifecycle > SLI frontend_lifecycle_state -> frontend_lifecycle_state
+observability/grafana-dashboards/frontend/frontend.json:Frontend Subscription Collector > SLI frontend_subscription_collector_last_success_timestamp_seconds -> frontend_subscription_collector_last_success_timestamp_seconds
+observability/grafana-dashboards/frontend/frontend.json:Frontend Subscription Collector > SLO Error: Frontend Failed Syncs -> frontend_subscription_collector_failed_syncs_total, frontend_subscription_collector_syncs_total
+observability/grafana-dashboards/frontend/frontend.json:SLO Availability: Frontend Health -> frontend_health
+observability/grafana-dashboards/frontend/frontend.json:[template: cluster] -> up
+
+### observability/grafana-dashboards/frontend/mise.json
+observability/grafana-dashboards/frontend/mise.json:SLO Availability: MISE Envoy Up -> up
+observability/grafana-dashboards/frontend/mise.json:[template: cluster] -> up
+
+### observability/grafana-dashboards/infra-dashboards/arobit-forwarder.json
+observability/grafana-dashboards/infra-dashboards/arobit-forwarder.json:Fluentbit Input Bytes -> fluentbit_input_bytes_total
+observability/grafana-dashboards/infra-dashboards/arobit-forwarder.json:Fluentbit Input Record -> fluentbit_input_records_total
+observability/grafana-dashboards/infra-dashboards/arobit-forwarder.json:Fluentbit Output Bytes -> fluentbit_output_proc_bytes_total
+observability/grafana-dashboards/infra-dashboards/arobit-forwarder.json:Fluentbit Output Errors -> fluentbit_output_errors_total
+observability/grafana-dashboards/infra-dashboards/arobit-forwarder.json:Fluentbit Output Records -> fluentbit_output_proc_records_total
+observability/grafana-dashboards/infra-dashboards/arobit-forwarder.json:Fluentbit Output Retries/Fails -> fluentbit_output_retries_failed_total, fluentbit_output_retries_total
+observability/grafana-dashboards/infra-dashboards/arobit-forwarder.json:[template: fluentbit] -> fluentbit_input_bytes_total
+
+### observability/grafana-dashboards/infra-dashboards/cilium.json
+observability/grafana-dashboards/infra-dashboards/cilium.json:DNS Errors -> hubble_dns_responses_total
+observability/grafana-dashboards/infra-dashboards/cilium.json:DNS Requests -> hubble_dns_queries_total
+observability/grafana-dashboards/infra-dashboards/cilium.json:DNS Response IPs Returned -> hubble_dns_responses_total
+observability/grafana-dashboards/infra-dashboards/cilium.json:DNS Response Record Type -> hubble_dns_response_types_total
+observability/grafana-dashboards/infra-dashboards/cilium.json:DNS responses -> hubble_dns_responses_total
+observability/grafana-dashboards/infra-dashboards/cilium.json:Denied Packets by Protocol -> hubble_drop_total
+observability/grafana-dashboards/infra-dashboards/cilium.json:Denies by Reason -> hubble_drop_total
+observability/grafana-dashboards/infra-dashboards/cilium.json:Drop Reason -> hubble_drop_total
+observability/grafana-dashboards/infra-dashboards/cilium.json:Flows Types -> hubble_flows_processed_total
+observability/grafana-dashboards/infra-dashboards/cilium.json:Flows processed Per Node -> hubble_flows_processed_total
+observability/grafana-dashboards/infra-dashboards/cilium.json:Forwarded vs Dropped -> hubble_flows_processed_total
+observability/grafana-dashboards/infra-dashboards/cilium.json:HTTP Protocol Usage -> hubble_http_requests_total
+observability/grafana-dashboards/infra-dashboards/cilium.json:HTTP Request/Response Latency (p50) -> hubble_http_request_duration_seconds_bucket
+observability/grafana-dashboards/infra-dashboards/cilium.json:HTTP Request/Response Latency (p99) -> hubble_http_request_duration_seconds_bucket
+observability/grafana-dashboards/infra-dashboards/cilium.json:HTTP Requests -> hubble_http_requests_total
+observability/grafana-dashboards/infra-dashboards/cilium.json:HTTP responses -> hubble_http_responses_total
+observability/grafana-dashboards/infra-dashboards/cilium.json:ICMPv4 -> hubble_icmp_total
+observability/grafana-dashboards/infra-dashboards/cilium.json:ICMPv6 -> hubble_icmp_total
+observability/grafana-dashboards/infra-dashboards/cilium.json:L7 Flow Distribution -> hubble_flows_processed_total
+observability/grafana-dashboards/infra-dashboards/cilium.json:Missing DNS Responses -> hubble_dns_queries_total, hubble_dns_responses_total
+observability/grafana-dashboards/infra-dashboards/cilium.json:Missing ICMPv4 Echo-Reply -> hubble_icmp_total
+observability/grafana-dashboards/infra-dashboards/cilium.json:Missing ICMPv6 Echo-Reply -> hubble_icmp_total
+observability/grafana-dashboards/infra-dashboards/cilium.json:Missing TCPv4 SYN-ACKs -> hubble_tcp_flags_total
+observability/grafana-dashboards/infra-dashboards/cilium.json:Missing TCPv6 SYN-ACKs -> hubble_tcp_flags_total
+observability/grafana-dashboards/infra-dashboards/cilium.json:Pods with DNS errors -> hubble_dns_responses_total
+observability/grafana-dashboards/infra-dashboards/cilium.json:Protocol Usage -> hubble_port_distribution_total
+observability/grafana-dashboards/infra-dashboards/cilium.json:TCPv4 -> hubble_tcp_flags_total
+observability/grafana-dashboards/infra-dashboards/cilium.json:TCPv6 -> hubble_tcp_flags_total
+observability/grafana-dashboards/infra-dashboards/cilium.json:Top 10 DNS Queries per minute -> hubble_dns_queries_total
+observability/grafana-dashboards/infra-dashboards/cilium.json:Top 10 Destination Pods with Denied Packets -> hubble_drop_total
+observability/grafana-dashboards/infra-dashboards/cilium.json:Top 10 Port Distribution -> hubble_port_distribution_total
+observability/grafana-dashboards/infra-dashboards/cilium.json:Top 10 Source Pods with Denied Packets -> hubble_drop_total
+observability/grafana-dashboards/infra-dashboards/cilium.json:Trace Flow Distribution -> hubble_flows_processed_total
+
+### observability/grafana-dashboards/infra-dashboards/postgres-azure.json
+observability/grafana-dashboards/infra-dashboards/postgres-azure.json:Active Connections -> [AzureMonitor] $ns/active_connections
+observability/grafana-dashboards/infra-dashboards/postgres-azure.json:Backup Storage Used -> [AzureMonitor] $ns/backup_storage_used
+observability/grafana-dashboards/infra-dashboards/postgres-azure.json:CPU / Memory -> [AzureMonitor] $ns/cpu_percent, [AzureMonitor] $ns/memory_percent
+observability/grafana-dashboards/infra-dashboards/postgres-azure.json:CPU Usage (Avg) -> [AzureMonitor] microsoft.dbforpostgresql/flexibleservers/cpu_percent
+observability/grafana-dashboards/infra-dashboards/postgres-azure.json:Database Size -> [AzureMonitor] $ns/database_size_bytes
+observability/grafana-dashboards/infra-dashboards/postgres-azure.json:Deadlocks -> [AzureMonitor] $ns/deadlocks
+observability/grafana-dashboards/infra-dashboards/postgres-azure.json:Enhanced Metrics > Max Physical Replication Lag - On Primary -> [AzureMonitor] $ns/physical_replication_delay_in_bytes
+observability/grafana-dashboards/infra-dashboards/postgres-azure.json:Enhanced Metrics > Sessions By WaitEventType -> [AzureMonitor] $ns/sessions_by_wait_event_type
+observability/grafana-dashboards/infra-dashboards/postgres-azure.json:Enhanced Metrics > Sessions by State -> [AzureMonitor] $ns/sessions_by_state
+observability/grafana-dashboards/infra-dashboards/postgres-azure.json:Enhanced Metrics > Transactions Committed -> [AzureMonitor] $ns/xact_commit
+observability/grafana-dashboards/infra-dashboards/postgres-azure.json:Failed Connections -> [AzureMonitor] $ns/connections_failed
+observability/grafana-dashboards/infra-dashboards/postgres-azure.json:Historical Metrics (Last 30 days) >  Database availability (Last 30 days) -> [AzureMonitor] $ns/is_db_alive
+observability/grafana-dashboards/infra-dashboards/postgres-azure.json:Historical Metrics (Last 30 days) > Backup Storage Used (last 30 days) -> [AzureMonitor] $ns/backup_storage_used
+observability/grafana-dashboards/infra-dashboards/postgres-azure.json:Longest Query Time -> [AzureMonitor] $ns/longest_query_time_sec
+observability/grafana-dashboards/infra-dashboards/postgres-azure.json:Max Connections -> [AzureMonitor] $ns/max_connections
+observability/grafana-dashboards/infra-dashboards/postgres-azure.json:Max User Connections -> [AzureMonitor] $ns/max_connections
+observability/grafana-dashboards/infra-dashboards/postgres-azure.json:Memory Usage (Avg) -> [AzureMonitor] $ns/memory_percent
+observability/grafana-dashboards/infra-dashboards/postgres-azure.json:Network In (Bytes) -> [AzureMonitor] $ns/network_bytes_ingress
+observability/grafana-dashboards/infra-dashboards/postgres-azure.json:Network Out (Bytes) -> [AzureMonitor] $ns/network_bytes_egress
+observability/grafana-dashboards/infra-dashboards/postgres-azure.json:PGBouncer -> [AzureMonitor] $ns/total_pooled_connections
+observability/grafana-dashboards/infra-dashboards/postgres-azure.json:PgBouncer Metrics > Active client connections -> [AzureMonitor] $ns/client_connections_active
+observability/grafana-dashboards/infra-dashboards/postgres-azure.json:PgBouncer Metrics > Active server connections -> [AzureMonitor] $ns/server_connections_active
+observability/grafana-dashboards/infra-dashboards/postgres-azure.json:PgBouncer Metrics > Idle server connections -> [AzureMonitor] $ns/server_connections_idle
+observability/grafana-dashboards/infra-dashboards/postgres-azure.json:PgBouncer Metrics > Number of connection pools -> [AzureMonitor] $ns/num_pools
+observability/grafana-dashboards/infra-dashboards/postgres-azure.json:PgBouncer Metrics > Total pooled connections -> [AzureMonitor] $ns/total_pooled_connections
+observability/grafana-dashboards/infra-dashboards/postgres-azure.json:PgBouncer Metrics > Waiting client connections -> [AzureMonitor] $ns/client_connections_waiting
+observability/grafana-dashboards/infra-dashboards/postgres-azure.json:Read IOPS -> [AzureMonitor] $ns/read_iops
+observability/grafana-dashboards/infra-dashboards/postgres-azure.json:Read Throughput -> [AzureMonitor] $ns/read_throughput
+observability/grafana-dashboards/infra-dashboards/postgres-azure.json:Read-Replica -> [AzureMonitor] $ns/physical_replication_delay_in_bytes
+observability/grafana-dashboards/infra-dashboards/postgres-azure.json:Resource consumption metrics > Read/Write IOPS -> [AzureMonitor] $ns/read_iops, [AzureMonitor] $ns/write_iops
+observability/grafana-dashboards/infra-dashboards/postgres-azure.json:Resource consumption metrics > Read/Write throughput -> [AzureMonitor] $ns/read_throughput, [AzureMonitor] $ns/write_throughput
+observability/grafana-dashboards/infra-dashboards/postgres-azure.json:Resource consumption metrics > Server Connections -> [AzureMonitor] $ns/active_connections, [AzureMonitor] $ns/connections_failed, [AzureMonitor] $ns/connections_succeeded
+observability/grafana-dashboards/infra-dashboards/postgres-azure.json:Resource consumption metrics > Total Transactions by database (Top n) -> [AzureMonitor] $ns/xact_total
+observability/grafana-dashboards/infra-dashboards/postgres-azure.json:Resource consumption metrics > Transaction Log Storage Used (Bytes) -> [AzureMonitor] $ns/txlogs_storage_used
+observability/grafana-dashboards/infra-dashboards/postgres-azure.json:Resource consumption metrics > Transactions per second -> [AzureMonitor] $ns/tps
+observability/grafana-dashboards/infra-dashboards/postgres-azure.json:Server State -> [AzureMonitor] $ns/is_db_alive
+observability/grafana-dashboards/infra-dashboards/postgres-azure.json:Storage Usage Percent (Avg) -> [AzureMonitor] $ns/storage_percent
+observability/grafana-dashboards/infra-dashboards/postgres-azure.json:Storage Used -> [AzureMonitor] $ns/storage_used
+observability/grafana-dashboards/infra-dashboards/postgres-azure.json:Storage Used/Free -> [AzureMonitor] $ns/storage_free, [AzureMonitor] $ns/storage_used
+observability/grafana-dashboards/infra-dashboards/postgres-azure.json:T-Log Storage Used -> [AzureMonitor] $ns/txlogs_storage_used
+observability/grafana-dashboards/infra-dashboards/postgres-azure.json:Total Provisioned Storage -> [AzureMonitor] $ns/storage_free, [AzureMonitor] $ns/storage_used
+observability/grafana-dashboards/infra-dashboards/postgres-azure.json:Write IOPS -> [AzureMonitor] $ns/write_iops
+observability/grafana-dashboards/infra-dashboards/postgres-azure.json:Write Throughput -> [AzureMonitor] $ns/write_throughput
+
+### observability/grafana-dashboards/infra-dashboards/prometheus.json
+observability/grafana-dashboards/infra-dashboards/prometheus.json:API Request Rate by Handler -> http_request_duration_microseconds_count
+observability/grafana-dashboards/infra-dashboards/prometheus.json:Active Time Series by Instance -> prometheus_tsdb_head_series
+observability/grafana-dashboards/infra-dashboards/prometheus.json:Alert Notification Rate by Instance -> prometheus_notifications_sent_total
+observability/grafana-dashboards/infra-dashboards/prometheus.json:Average Service Uptime Percentage -> up
+observability/grafana-dashboards/infra-dashboards/prometheus.json:Configuration Freshness by Instance -> prometheus_config_last_reload_success_timestamp_seconds
+observability/grafana-dashboards/infra-dashboards/prometheus.json:Configuration Reload Status by Instance -> prometheus_config_last_reload_successful
+observability/grafana-dashboards/infra-dashboards/prometheus.json:Data Ingestion Rate by Instance -> prometheus_tsdb_head_samples_appended_total
+observability/grafana-dashboards/infra-dashboards/prometheus.json:Data Quality Issues by Type -> prometheus_target_scrapes_exceeded_sample_limit_total, prometheus_target_scrapes_sample_duplicate_timestamp_total, prometheus_target_scrapes_sample_out_of_bounds_total, prometheus_target_scrapes_sample_out_of_order_total
+observability/grafana-dashboards/infra-dashboards/prometheus.json:Garbage Collection Activity by Instance -> go_gc_duration_seconds_sum
+observability/grafana-dashboards/infra-dashboards/prometheus.json:Individual Scrape Duration by Instance -> scrape_duration_seconds
+observability/grafana-dashboards/infra-dashboards/prometheus.json:Query Engine Performance by Stage -> prometheus_engine_query_duration_seconds_sum
+observability/grafana-dashboards/infra-dashboards/prometheus.json:Remote Storage Batch Duration Distribution -> prometheus_remote_storage_sent_batch_duration_seconds_bucket
+observability/grafana-dashboards/infra-dashboards/prometheus.json:Remote Storage Error Rate -> prometheus_remote_storage_samples_failed_total, prometheus_remote_storage_samples_pending, prometheus_remote_storage_samples_retried_total
+observability/grafana-dashboards/infra-dashboards/prometheus.json:Remote Storage Health Metrics -> prometheus_remote_storage_samples_failed_total, prometheus_remote_storage_samples_pending, prometheus_remote_storage_samples_retried_total
+observability/grafana-dashboards/infra-dashboards/prometheus.json:Remote Storage Throughput -> prometheus_remote_storage_samples_failed_total, prometheus_remote_storage_samples_pending, prometheus_remote_storage_samples_retried_total, prometheus_remote_storage_samples_total
+observability/grafana-dashboards/infra-dashboards/prometheus.json:Rule Evaluation Iterations Missed [$interval] -> prometheus_evaluator_iterations_missed_total
+observability/grafana-dashboards/infra-dashboards/prometheus.json:Rule Evaluation Iterations Skipped [$interval] -> prometheus_evaluator_iterations_skipped_total
+observability/grafana-dashboards/infra-dashboards/prometheus.json:Rule Evaluation Performance by Instance -> prometheus_evaluator_duration_seconds_count, prometheus_evaluator_duration_seconds_sum
+observability/grafana-dashboards/infra-dashboards/prometheus.json:Rule Evaluation System Health -> prometheus_evaluator_iterations_missed_total, prometheus_evaluator_iterations_skipped_total, prometheus_evaluator_iterations_total
+observability/grafana-dashboards/infra-dashboards/prometheus.json:SLI: Remote Storage Failed % [28d] -> prometheus_remote_storage_samples_failed_total, prometheus_remote_storage_samples_total
+observability/grafana-dashboards/infra-dashboards/prometheus.json:SLI: Remote Storage Pending % [28d] -> prometheus_remote_storage_samples_pending, prometheus_remote_storage_samples_total
+observability/grafana-dashboards/infra-dashboards/prometheus.json:SLO: Remote Storage Failed Percentage [$interval] -> prometheus_remote_storage_samples_failed_total, prometheus_remote_storage_samples_total
+observability/grafana-dashboards/infra-dashboards/prometheus.json:SLO: Remote Storage Pending Sample Percentage [$interval] -> prometheus_remote_storage_samples_pending, prometheus_remote_storage_samples_total
+observability/grafana-dashboards/infra-dashboards/prometheus.json:SLO: Service Uptime % [28d] -> up
+observability/grafana-dashboards/infra-dashboards/prometheus.json:SLO: Service Uptime Percentage [$interval] -> up
+observability/grafana-dashboards/infra-dashboards/prometheus.json:Sample Limit Exceeded Count [$interval] -> prometheus_target_scrapes_exceeded_sample_limit_total
+observability/grafana-dashboards/infra-dashboards/prometheus.json:Service Availability Status -> up
+observability/grafana-dashboards/infra-dashboards/prometheus.json:Service Availability Timeline -> up
+observability/grafana-dashboards/infra-dashboards/prometheus.json:System Error Timeline -> net_conntrack_dialer_conn_failed_total, prometheus_evaluator_iterations_missed_total, prometheus_evaluator_iterations_skipped_total, prometheus_rule_evaluation_failures_total, prometheus_sd_azure_refresh_failures_total, prometheus_sd_consul_rpc_failures_total, prometheus_sd_dns_lookup_failures_total, prometheus_sd_ec2_refresh_failures_total, prometheus_sd_gce_refresh_failures_total, prometheus_sd_marathon_refresh_failures_total, prometheus_sd_openstack_refresh_failures_total, prometheus_sd_triton_refresh_failures_total, prometheus_target_scrapes_exceeded_sample_limit_total, prometheus_target_scrapes_sample_duplicate_timestamp_total, prometheus_target_scrapes_sample_out_of_bounds_total, prometheus_target_scrapes_sample_out_of_order_total, prometheus_treecache_zookeeper_failures_total, prometheus_tsdb_compactions_failed_total, prometheus_tsdb_head_series_not_found, prometheus_tsdb_reloads_failures_total
+observability/grafana-dashboards/infra-dashboards/prometheus.json:TSDB Memory Usage by Instance -> prometheus_tsdb_head_chunks
+observability/grafana-dashboards/infra-dashboards/prometheus.json:TSDB Reload Failures [$interval] -> prometheus_tsdb_reloads_failures_total
+observability/grafana-dashboards/infra-dashboards/prometheus.json:Target Sync Duration by Job -> prometheus_target_sync_length_seconds_sum
+observability/grafana-dashboards/infra-dashboards/prometheus.json:Target Synchronization Count by Job -> prometheus_target_scrape_pool_sync_total
+observability/grafana-dashboards/infra-dashboards/prometheus.json:Time Series Churn Rate -> prometheus_tsdb_head_series_created_total, prometheus_tsdb_head_series_removed_total
+observability/grafana-dashboards/infra-dashboards/prometheus.json:Total Active Chunks in Memory -> prometheus_tsdb_head_chunks
+observability/grafana-dashboards/infra-dashboards/prometheus.json:Total Active Time Series -> prometheus_tsdb_head_series
+observability/grafana-dashboards/infra-dashboards/prometheus.json:Total Scrape Data Quality Issues [$interval] -> prometheus_target_scrapes_exceeded_sample_limit_total, prometheus_target_scrapes_sample_duplicate_timestamp_total, prometheus_target_scrapes_sample_out_of_bounds_total, prometheus_target_scrapes_sample_out_of_order_total
+observability/grafana-dashboards/infra-dashboards/prometheus.json:[template: instance] -> up
+observability/grafana-dashboards/infra-dashboards/prometheus.json:[template: job] -> prometheus_tsdb_head_samples_appended_total
+
+### observability/grafana-dashboards/istio/control_plane_dashboard.json
+observability/grafana-dashboards/istio/control_plane_dashboard.json:CPU Usage -> container_cpu_usage_seconds_total
+observability/grafana-dashboards/istio/control_plane_dashboard.json:Connections -> envoy_cluster_upstream_cx_active, pilot_xds
+observability/grafana-dashboards/istio/control_plane_dashboard.json:Events -> pilot_k8s_cfg_events, pilot_k8s_reg_events, pilot_push_triggers
+observability/grafana-dashboards/istio/control_plane_dashboard.json:Goroutines -> go_goroutines
+observability/grafana-dashboards/istio/control_plane_dashboard.json:Injection -> sidecar_injection_failure_total, sidecar_injection_success_total
+observability/grafana-dashboards/istio/control_plane_dashboard.json:Memory Allocations -> go_memstats_alloc_bytes_total, go_memstats_mallocs_total
+observability/grafana-dashboards/istio/control_plane_dashboard.json:Memory Usage -> container_memory_working_set_bytes, go_memstats_heap_alloc_bytes, go_memstats_heap_inuse_bytes, go_memstats_stack_inuse_bytes
+observability/grafana-dashboards/istio/control_plane_dashboard.json:Pilot Versions -> istio_build
+observability/grafana-dashboards/istio/control_plane_dashboard.json:Push Errors -> pilot_total_xds_internal_errors, pilot_total_xds_rejects, pilot_xds_push_context_errors
+observability/grafana-dashboards/istio/control_plane_dashboard.json:Push Size -> pilot_xds_config_size_bytes_bucket
+observability/grafana-dashboards/istio/control_plane_dashboard.json:Push Time -> pilot_xds_push_time_bucket
+observability/grafana-dashboards/istio/control_plane_dashboard.json:Validation -> galley_validation_failed, galley_validation_passed
+observability/grafana-dashboards/istio/control_plane_dashboard.json:XDS Pushes -> pilot_xds_pushes
+
+### observability/grafana-dashboards/kas-ksm-monitor/kas_ksm_monitor_api_slo.json
+observability/grafana-dashboards/kas-ksm-monitor/kas_ksm_monitor_api_slo.json:HCP API Server Availability Distribution 1 Day (KSM) -> hostedClusterAPI_kubeapiserver_available:ratio_avg_1d
+observability/grafana-dashboards/kas-ksm-monitor/kas_ksm_monitor_api_slo.json:HCP API Server Availability Distribution 30 Days (KSM) -> hostedClusterAPI_kubeapiserver_available:ratio_avg_30d
+observability/grafana-dashboards/kas-ksm-monitor/kas_ksm_monitor_api_slo.json:HCP API Server Availability Distribution 7 Days (KSM) -> hostedClusterAPI_kubeapiserver_available:ratio_avg_7d
+
+### observability/grafana-dashboards/kas-monitor/kas_golden_signals.json
+observability/grafana-dashboards/kas-monitor/kas_golden_signals.json:5xx Errors by Resource -> apiserver_request_total
+observability/grafana-dashboards/kas-monitor/kas_golden_signals.json:Admission Controller Latency (p99) -> apiserver_admission_controller_admission_duration_seconds_bucket
+observability/grafana-dashboards/kas-monitor/kas_golden_signals.json:Client Errors (4xx) by Code -> apiserver_request_total
+observability/grafana-dashboards/kas-monitor/kas_golden_signals.json:Error Budget Burn Rate (1h / 6h) -> kas:apiserver_request_5xx:rate_avg_1h, kas:apiserver_request_5xx:rate_avg_6h, kas:apiserver_request_total:rate_avg_1h, kas:apiserver_request_total:rate_avg_6h
+observability/grafana-dashboards/kas-monitor/kas_golden_signals.json:Error Rate (5xx / total) -> apiserver_request_total
+observability/grafana-dashboards/kas-monitor/kas_golden_signals.json:In-Flight Requests -> apiserver_current_inflight_requests
+observability/grafana-dashboards/kas-monitor/kas_golden_signals.json:Latency Budget Burn Rate (1h / 6h) -> kas:apiserver_request_latency:sli_ratio:rate_avg_1h, kas:apiserver_request_latency:sli_ratio:rate_avg_6h
+observability/grafana-dashboards/kas-monitor/kas_golden_signals.json:Latency SLI by Verb/Scope Category -> apiserver_request_sli_duration_seconds_bucket, apiserver_request_sli_duration_seconds_count
+observability/grafana-dashboards/kas-monitor/kas_golden_signals.json:Latency SLI — % Requests Within Threshold (1h) -> kas:apiserver_request_latency:sli_ratio:rate_avg_1h
+observability/grafana-dashboards/kas-monitor/kas_golden_signals.json:Latency by Resource (p99) -> apiserver_request_sli_duration_seconds_bucket
+observability/grafana-dashboards/kas-monitor/kas_golden_signals.json:Long-Running Requests -> apiserver_longrunning_requests
+observability/grafana-dashboards/kas-monitor/kas_golden_signals.json:Read Request Latency (p50 / p90 / p99) - Successful Requests -> apiserver_request_sli_duration_seconds_bucket
+observability/grafana-dashboards/kas-monitor/kas_golden_signals.json:Request Rate by Resource (top 10) -> apiserver_request_total
+observability/grafana-dashboards/kas-monitor/kas_golden_signals.json:Request Rate by Verb -> apiserver_request_total
+observability/grafana-dashboards/kas-monitor/kas_golden_signals.json:Request Terminations -> apiserver_request_terminations_total
+observability/grafana-dashboards/kas-monitor/kas_golden_signals.json:SLA Budget Burn Rate (15m / 6h) -> hostedClusterAPI_kubeapiserver_available:sli_count_15m, hostedClusterAPI_kubeapiserver_available:sli_count_6h, hostedClusterAPI_kubeapiserver_available:sli_sum_15m, hostedClusterAPI_kubeapiserver_available:sli_sum_6h
+observability/grafana-dashboards/kas-monitor/kas_golden_signals.json:Server Errors (5xx) by Code -> apiserver_request_total
+observability/grafana-dashboards/kas-monitor/kas_golden_signals.json:Storage Objects -> apiserver_storage_objects
+observability/grafana-dashboards/kas-monitor/kas_golden_signals.json:WATCH Error Rate by Resource -> apiserver_request_total
+observability/grafana-dashboards/kas-monitor/kas_golden_signals.json:WATCH Request Rate by Resource -> apiserver_request_total
+observability/grafana-dashboards/kas-monitor/kas_golden_signals.json:Write Request Latency (p50 / p90 / p99) - Successful Requests -> apiserver_request_sli_duration_seconds_bucket
+observability/grafana-dashboards/kas-monitor/kas_golden_signals.json:[template: cluster] -> apiserver_request_total
+observability/grafana-dashboards/kas-monitor/kas_golden_signals.json:[template: namespace] -> hostedClusterAPI_kubeapiserver_available
+observability/grafana-dashboards/kas-monitor/kas_golden_signals.json:etcd Request Errors -> etcd_request_errors_total
+observability/grafana-dashboards/kas-monitor/kas_golden_signals.json:etcd Request Latency (p99) -> etcd_request_duration_seconds_bucket
+
+### observability/grafana-dashboards/kas-monitor/kas_monitor_api_slo.json
+observability/grafana-dashboards/kas-monitor/kas_monitor_api_slo.json:KAS API Server Availability Distribution 1 Day -> probe_success
+observability/grafana-dashboards/kas-monitor/kas_monitor_api_slo.json:KAS API Server Availability Distribution 30 Days -> probe_availability:ratio_avg_30d
+observability/grafana-dashboards/kas-monitor/kas_monitor_api_slo.json:KAS API Server Availability Distribution 7 Days -> probe_availability:ratio_avg_7d
+
+### observability/grafana-dashboards/maestro/maestro-agent-slo.json
+observability/grafana-dashboards/maestro/maestro-agent-slo.json:Maestro Agent REST Client Request > SLO Availability: Maestro Agent Rest Client Request Success Rate -> rest_client_requests_total
+observability/grafana-dashboards/maestro/maestro-agent-slo.json:Maestro Agent REST Client Request > SLO Latency: Maestro Agent Rest Client Request Latency -> rest_client_request_duration_seconds_bucket
+observability/grafana-dashboards/maestro/maestro-agent-slo.json:Maestro Agent Work Queue > SLO Available: Maestro Agent Work Queue Retry Ratio -> workqueue_adds_total, workqueue_retries_total
+observability/grafana-dashboards/maestro/maestro-agent-slo.json:Maestro Agent Work Queue > SLO Duration: Maestro Agent Work Queue Dequeue Duration -> workqueue_queue_duration_seconds_bucket
+observability/grafana-dashboards/maestro/maestro-agent-slo.json:Maestro Agent Work Queue > SLO Duration: Maestro Agent Work Queue Item Process Duration -> workqueue_work_duration_seconds_bucket
+observability/grafana-dashboards/maestro/maestro-agent-slo.json:SLO Availability: Maestro Agent -> kube_deployment_spec_replicas, kube_deployment_status_replicas_available
+
+### observability/grafana-dashboards/maestro/maestro-agent.json
+observability/grafana-dashboards/maestro/maestro-agent.json:CloudEvents Received Rate by Instance -> cloudevents_received_total
+observability/grafana-dashboards/maestro/maestro-agent.json:CloudEvents Sent Rate by Instance -> cloudevents_sent_total
+observability/grafana-dashboards/maestro/maestro-agent.json:Enqueue Rate -> workqueue_adds_total
+observability/grafana-dashboards/maestro/maestro-agent.json:Queue Depth -> workqueue_depth
+observability/grafana-dashboards/maestro/maestro-agent.json:Request Duration - P75 -> rest_client_request_duration_seconds_bucket
+observability/grafana-dashboards/maestro/maestro-agent.json:Request Rate -> rest_client_requests_total
+
+### observability/grafana-dashboards/maestro/maestro-server-slo.json
+observability/grafana-dashboards/maestro/maestro-server-slo.json:Maestro Server Advisory Lock > SLO Available: Maestro Server Advisory Lock Release Ratio -> advisory_lock_count, advisory_unlock_count
+observability/grafana-dashboards/maestro/maestro-server-slo.json:Maestro Server Advisory Lock > SLO Duration: Maestro Server Advisory Lock Duration -> advisory_lock_duration_bucket
+observability/grafana-dashboards/maestro/maestro-server-slo.json:Maestro Server REST HTTP Request > SLO Availability: Maestro Server Request Success Rate -> rest_api_inbound_request_count
+observability/grafana-dashboards/maestro/maestro-server-slo.json:Maestro Server REST HTTP Request > SLO Latency: Maestro Server Request Latency -> rest_api_inbound_request_duration_bucket
+observability/grafana-dashboards/maestro/maestro-server-slo.json:Maestro Server Spec Recync > Maestro Server Spec Resync Duration -> resources_spec_resync_duration_seconds_bucket
+observability/grafana-dashboards/maestro/maestro-server-slo.json:Maestro gRPC Server > SLO Duration: Maestro gRPC Server Call Duration -> grpc_server_processed_duration_seconds_bucket
+observability/grafana-dashboards/maestro/maestro-server-slo.json:SLO Availability: Maestro Server -> kube_deployment_spec_replicas, kube_deployment_status_replicas_available
+
+### observability/grafana-dashboards/maestro/maestro-server.json
+observability/grafana-dashboards/maestro/maestro-server.json:Advisory Lock Duration (p99) -> advisory_lock_duration_bucket
+observability/grafana-dashboards/maestro/maestro-server.json:Advisory Lock Requests Rate by Instance -> advisory_lock_count
+observability/grafana-dashboards/maestro/maestro-server.json:Advisory Unlock Requests Rate by Instance -> advisory_unlock_count
+observability/grafana-dashboards/maestro/maestro-server.json:CloudEvents Received Rate by Instance -> cloudevents_received_total
+observability/grafana-dashboards/maestro/maestro-server.json:CloudEvents Sent Rate by Instance -> cloudevents_sent_total
+observability/grafana-dashboards/maestro/maestro-server.json:REST API Inbound Request Duration -> rest_api_inbound_request_duration_bucket
+observability/grafana-dashboards/maestro/maestro-server.json:REST API Inbound Request Rate -> rest_api_inbound_request_count
+observability/grafana-dashboards/maestro/maestro-server.json:Resource Processed Rate by Action -> resource_processed_total
+observability/grafana-dashboards/maestro/maestro-server.json:gRPC Server Processed Total by Type -> grpc_server_processed_total
+
+### observability/grafana-dashboards/msi-credential-refresher/msi-credential-refresher.json
+observability/grafana-dashboards/msi-credential-refresher/msi-credential-refresher.json:Average Credential Refresher Process Time -> credential_refresher_process_time_seconds_count, credential_refresher_process_time_seconds_sum
+observability/grafana-dashboards/msi-credential-refresher/msi-credential-refresher.json:Credential Refresher Error vs Total Rate -> credential_refresher_process_time_seconds_count
+observability/grafana-dashboards/msi-credential-refresher/msi-credential-refresher.json:MSI Credential Expiration Distribution -> credential_refresher_days_until_msi_credential_expiration_bucket
+
+### observability/grafana-dashboards/perfscale-dashboards/aks-performance.json
+observability/grafana-dashboards/perfscale-dashboards/aks-performance.json:Cluster Details > Current Node Count -> kube_node_info, kube_node_status_condition
+observability/grafana-dashboards/perfscale-dashboards/aks-performance.json:Cluster Details > Current Pod Count -> kube_pod_status_phase
+observability/grafana-dashboards/perfscale-dashboards/aks-performance.json:Cluster Details > Current namespace Count -> kube_namespace_status_phase
+observability/grafana-dashboards/perfscale-dashboards/aks-performance.json:Cluster Details > Deployment count -> kube_deployment_labels
+observability/grafana-dashboards/perfscale-dashboards/aks-performance.json:Cluster Details > Goroutines count -> go_goroutines
+observability/grafana-dashboards/perfscale-dashboards/aks-performance.json:Cluster Details > Hypershift Shared Ingress RSS usage -> container_memory_rss
+observability/grafana-dashboards/perfscale-dashboards/aks-performance.json:Cluster Details > Hypershift Shared Ingress usage -> container_cpu_usage_seconds_total
+observability/grafana-dashboards/perfscale-dashboards/aks-performance.json:Cluster Details > Namespace count -> kube_namespace_status_phase
+observability/grafana-dashboards/perfscale-dashboards/aks-performance.json:Cluster Details > Number of nodes -> kube_node_info, kube_node_status_condition
+observability/grafana-dashboards/perfscale-dashboards/aks-performance.json:Cluster Details > PV Usage in % -> kubelet_volume_stats_capacity_bytes, kubelet_volume_stats_used_bytes
+observability/grafana-dashboards/perfscale-dashboards/aks-performance.json:Cluster Details > PV Usage in Byters -> kubelet_volume_stats_used_bytes
+observability/grafana-dashboards/perfscale-dashboards/aks-performance.json:Cluster Details > Pod Distribution -> kubelet_running_pods
+observability/grafana-dashboards/perfscale-dashboards/aks-performance.json:Cluster Details > Pod Distribution Heat Map -> kubelet_running_pods
+observability/grafana-dashboards/perfscale-dashboards/aks-performance.json:Cluster Details > Pod count -> kube_pod_status_phase
+observability/grafana-dashboards/perfscale-dashboards/aks-performance.json:Cluster Details > Secret & configmap count -> kube_configmap_info, kube_secret_info
+observability/grafana-dashboards/perfscale-dashboards/aks-performance.json:Cluster Details > Services count -> kube_service_info
+observability/grafana-dashboards/perfscale-dashboards/aks-performance.json:Cluster Details > Sum of HCP app CPU usage -> container_cpu_usage_seconds_total
+observability/grafana-dashboards/perfscale-dashboards/aks-performance.json:Cluster Details > Sum of HCP app memory usage -> container_memory_rss
+observability/grafana-dashboards/perfscale-dashboards/aks-performance.json:Cluster Details > Sum of non HCP  memory usage -> container_memory_rss
+observability/grafana-dashboards/perfscale-dashboards/aks-performance.json:Cluster Details > Sum of non HCP CPU usage -> container_cpu_usage_seconds_total
+observability/grafana-dashboards/perfscale-dashboards/aks-performance.json:Cluster Details > Top 10 Prometheus Collector container CPU -> container_cpu_usage_seconds_total
+observability/grafana-dashboards/perfscale-dashboards/aks-performance.json:Cluster Details > Top 10 Prometheus Collector container RSS  -> container_memory_rss
+observability/grafana-dashboards/perfscale-dashboards/aks-performance.json:Cluster Details > Top 10 container CPU(Excluding AMA) -> container_cpu_usage_seconds_total
+observability/grafana-dashboards/perfscale-dashboards/aks-performance.json:Cluster Details > Top 10 container RSS (Excluding AMA) -> container_memory_rss
+observability/grafana-dashboards/perfscale-dashboards/aks-performance.json:Cluster Details > container RSS system.slice -> container_memory_rss
+observability/grafana-dashboards/perfscale-dashboards/aks-performance.json:Cluster Kubelet > Containerd CPU usage -> container_cpu_usage_seconds_total
+observability/grafana-dashboards/perfscale-dashboards/aks-performance.json:Cluster Kubelet > Containerd memory usage -> container_memory_rss
+observability/grafana-dashboards/perfscale-dashboards/aks-performance.json:Cluster Kubelet > Sum of all worker CPU -> node_cpu_seconds_total
+observability/grafana-dashboards/perfscale-dashboards/aks-performance.json:Cluster Kubelet > Top 10 Kubelet CPU usage -> process_cpu_seconds_total
+observability/grafana-dashboards/perfscale-dashboards/aks-performance.json:Cluster Kubelet > Top 10 Kubelet memory usage -> process_resident_memory_bytes
+observability/grafana-dashboards/perfscale-dashboards/aks-performance.json:Worker: $_worker_node > CPU Basic: $_worker_node -> node_cpu_seconds_total
+observability/grafana-dashboards/perfscale-dashboards/aks-performance.json:Worker: $_worker_node > Conntrack stats: $_worker_node -> node_nf_conntrack_entries, node_nf_conntrack_entries_limit
+observability/grafana-dashboards/perfscale-dashboards/aks-performance.json:Worker: $_worker_node > Disk IOPS: $_worker_node -> node_disk_reads_completed_total, node_disk_writes_completed_total
+observability/grafana-dashboards/perfscale-dashboards/aks-performance.json:Worker: $_worker_node > Disk throughput: $_worker_node -> node_disk_read_bytes_total, node_disk_written_bytes_total
+observability/grafana-dashboards/perfscale-dashboards/aks-performance.json:Worker: $_worker_node > Network Packets: $_worker_node -> node_network_receive_packets_total, node_network_transmit_packets_total
+observability/grafana-dashboards/perfscale-dashboards/aks-performance.json:Worker: $_worker_node > Network Utilization: $_worker_node -> node_network_receive_bytes_total, node_network_transmit_bytes_total
+observability/grafana-dashboards/perfscale-dashboards/aks-performance.json:Worker: $_worker_node > Network packets drop: $_worker_node -> node_network_receive_drop_total, node_network_transmit_drop_total
+observability/grafana-dashboards/perfscale-dashboards/aks-performance.json:Worker: $_worker_node > System Memory: $_worker_node -> node_memory_Active_bytes, node_memory_Buffers_bytes, node_memory_Cached_bytes, node_memory_MemAvailable_bytes, node_memory_MemFree_bytes, node_memory_MemTotal_bytes
+observability/grafana-dashboards/perfscale-dashboards/aks-performance.json:Worker: $_worker_node > Top 10 HCP container CPU: $_worker_node -> container_cpu_usage_seconds_total
+observability/grafana-dashboards/perfscale-dashboards/aks-performance.json:Worker: $_worker_node > Top 10 HCP container RSS: $_worker_node -> container_memory_rss
+observability/grafana-dashboards/perfscale-dashboards/aks-performance.json:Worker: $_worker_node > Top 10 non HCP container CPU: $_worker_node -> container_cpu_usage_seconds_total
+observability/grafana-dashboards/perfscale-dashboards/aks-performance.json:Worker: $_worker_node > Top 10 non HCP container RSS: $_worker_node -> container_memory_rss
+observability/grafana-dashboards/perfscale-dashboards/aks-performance.json:[template: _worker_node] -> kube_node_info
+observability/grafana-dashboards/perfscale-dashboards/aks-performance.json:[template: block_device] -> node_disk_written_bytes_total
+observability/grafana-dashboards/perfscale-dashboards/aks-performance.json:[template: cluster] -> up
+observability/grafana-dashboards/perfscale-dashboards/aks-performance.json:[template: namespace] -> kube_pod_info
+
+### observability/grafana-dashboards/perfscale-dashboards/api-performance.json
+observability/grafana-dashboards/perfscale-dashboards/api-performance.json:Kube APIserver CPU usage -> process_cpu_seconds_total
+observability/grafana-dashboards/perfscale-dashboards/api-performance.json:Kube APIserver memory usage -> process_resident_memory_bytes
+observability/grafana-dashboards/perfscale-dashboards/api-performance.json:[template: cluster] -> up
+observability/grafana-dashboards/perfscale-dashboards/api-performance.json:[template: code] -> apiserver_request_duration_seconds_bucket
+observability/grafana-dashboards/perfscale-dashboards/api-performance.json:[template: instance] -> apiserver_request_total
+observability/grafana-dashboards/perfscale-dashboards/api-performance.json:[template: resource] -> apiserver_request_duration_seconds_bucket
+observability/grafana-dashboards/perfscale-dashboards/api-performance.json:[template: verb] -> apiserver_request_duration_seconds_bucket
+observability/grafana-dashboards/perfscale-dashboards/api-performance.json:long running requests -> apiserver_longrunning_request
+observability/grafana-dashboards/perfscale-dashboards/api-performance.json:p&f - concurrency limit by kube-apiserver -> apiserver_flowcontrol_request_concurrency_limit
+observability/grafana-dashboards/perfscale-dashboards/api-performance.json:p&f - pending in queue -> apiserver_flowcontrol_current_inqueue_requests
+observability/grafana-dashboards/perfscale-dashboards/api-performance.json:p&f - request dispatch rate -> apiserver_flowcontrol_dispatched_requests_total
+observability/grafana-dashboards/perfscale-dashboards/api-performance.json:p&f - request execution duration -> apiserver_flowcontrol_request_execution_seconds_bucket
+observability/grafana-dashboards/perfscale-dashboards/api-performance.json:p&f - request queue length -> apiserver_flowcontrol_request_queue_length_after_enqueue_bucket
+observability/grafana-dashboards/perfscale-dashboards/api-performance.json:p&f - request wait duration - 99th quantile -> apiserver_flowcontrol_request_wait_duration_seconds_bucket
+observability/grafana-dashboards/perfscale-dashboards/api-performance.json:request duration - 99th quantile -> apiserver_request_duration_seconds_bucket
+observability/grafana-dashboards/perfscale-dashboards/api-performance.json:request duration - 99th quantile -> apiserver_request_total
+observability/grafana-dashboards/perfscale-dashboards/api-performance.json:request duration - 99th quantile - by resource -> apiserver_request_duration_seconds_bucket
+observability/grafana-dashboards/perfscale-dashboards/api-performance.json:request duration - read vs write -> apiserver_request_duration_seconds_bucket
+observability/grafana-dashboards/perfscale-dashboards/api-performance.json:request in flight -> apiserver_current_inflight_requests
+observability/grafana-dashboards/perfscale-dashboards/api-performance.json:request rate - by instance -> apiserver_request_total
+observability/grafana-dashboards/perfscale-dashboards/api-performance.json:request rate - read vs write -> apiserver_request_total
+observability/grafana-dashboards/perfscale-dashboards/api-performance.json:requests status rate -> apiserver_request_total
+observability/grafana-dashboards/perfscale-dashboards/api-performance.json:requests terminated rate -> apiserver_request_terminations_total
+observability/grafana-dashboards/perfscale-dashboards/api-performance.json:response size - 99th quantile -> apiserver_response_sizes_bucket
+
+### observability/grafana-dashboards/perfscale-dashboards/etcd-performance.json
+observability/grafana-dashboards/perfscale-dashboards/etcd-performance.json:% DB Space Used -> etcd_mvcc_db_total_size_in_bytes, etcd_server_quota_backend_bytes
+observability/grafana-dashboards/perfscale-dashboards/etcd-performance.json:Active Streams -> grpc_server_handled_total, grpc_server_started_total
+observability/grafana-dashboards/perfscale-dashboards/etcd-performance.json:Compacted Keys -> etcd_debugging_mvcc_db_compaction_keys_total
+observability/grafana-dashboards/perfscale-dashboards/etcd-performance.json:DB Left capacity (with fragmented space) -> etcd_mvcc_db_total_size_in_bytes, etcd_server_quota_backend_bytes
+observability/grafana-dashboards/perfscale-dashboards/etcd-performance.json:DB Size -> etcd_mvcc_db_total_size_in_bytes, etcd_mvcc_db_total_size_in_use_in_bytes
+observability/grafana-dashboards/perfscale-dashboards/etcd-performance.json:DB Size Limit (Backend-bytes) -> etcd_server_quota_backend_bytes
+observability/grafana-dashboards/perfscale-dashboards/etcd-performance.json:Disk Backend Sync Duration -> etcd_disk_backend_commit_duration_seconds_bucket
+observability/grafana-dashboards/perfscale-dashboards/etcd-performance.json:Disk WAL Sync Duration -> etcd_disk_wal_fsync_duration_seconds_bucket
+observability/grafana-dashboards/perfscale-dashboards/etcd-performance.json:Etcd has a leader? -> etcd_server_has_leader
+observability/grafana-dashboards/perfscale-dashboards/etcd-performance.json:Heartbeat Failures -> etcd_server_health_failures, etcd_server_heartbeat_send_failures_total
+observability/grafana-dashboards/perfscale-dashboards/etcd-performance.json:Key Operations -> etcd_mvcc_delete_total, etcd_mvcc_put_total
+observability/grafana-dashboards/perfscale-dashboards/etcd-performance.json:Keys -> etcd_debugging_mvcc_keys_total
+observability/grafana-dashboards/perfscale-dashboards/etcd-performance.json:Leader Elections Per Day -> etcd_server_leader_changes_seen_total
+observability/grafana-dashboards/perfscale-dashboards/etcd-performance.json:Number of leader changes seen -> etcd_server_leader_changes_seen_total
+observability/grafana-dashboards/perfscale-dashboards/etcd-performance.json:Peer network traffic -> etcd_network_peer_received_bytes_total, etcd_network_peer_sent_bytes_total
+observability/grafana-dashboards/perfscale-dashboards/etcd-performance.json:Raft Proposals -> etcd_server_proposals_applied_total, etcd_server_proposals_committed_total, etcd_server_proposals_failed_total, etcd_server_proposals_pending
+observability/grafana-dashboards/perfscale-dashboards/etcd-performance.json:Slow Operations -> etcd_server_slow_apply_total, etcd_server_slow_read_indexes_total
+observability/grafana-dashboards/perfscale-dashboards/etcd-performance.json:Snapshot duration -> etcd_debugging_snap_save_total_duration_seconds_sum
+observability/grafana-dashboards/perfscale-dashboards/etcd-performance.json:Total number of failed proposals seen -> etcd_server_proposals_committed_total
+observability/grafana-dashboards/perfscale-dashboards/etcd-performance.json:[template: cluster] -> up
+observability/grafana-dashboards/perfscale-dashboards/etcd-performance.json:gRPC network traffic -> etcd_network_client_grpc_received_bytes_total, etcd_network_client_grpc_sent_bytes_total
+observability/grafana-dashboards/perfscale-dashboards/etcd-performance.json:p99 peer to peer latency -> etcd_network_peer_round_trip_time_seconds_bucket
+
+### observability/grafana-dashboards/perfscale-dashboards/kubernetes-provisioning-diagnostics.json
+observability/grafana-dashboards/perfscale-dashboards/kubernetes-provisioning-diagnostics.json:Container Restarts per Namespace (5m rate) -> kube_pod_container_status_restarts_total
+observability/grafana-dashboards/perfscale-dashboards/kubernetes-provisioning-diagnostics.json:Failed Pods per Namespace -> kube_pod_status_phase
+observability/grafana-dashboards/perfscale-dashboards/kubernetes-provisioning-diagnostics.json:Node Pressure Timeline -> kube_node_status_condition
+observability/grafana-dashboards/perfscale-dashboards/kubernetes-provisioning-diagnostics.json:Nodes Under Disk Pressure -> kube_node_status_condition
+observability/grafana-dashboards/perfscale-dashboards/kubernetes-provisioning-diagnostics.json:Nodes Under Memory Pressure -> kube_node_status_condition
+observability/grafana-dashboards/perfscale-dashboards/kubernetes-provisioning-diagnostics.json:Nodes Under PID Pressure -> kube_node_status_condition
+observability/grafana-dashboards/perfscale-dashboards/kubernetes-provisioning-diagnostics.json:Pending Pods per Namespace -> kube_pod_status_phase
+observability/grafana-dashboards/perfscale-dashboards/kubernetes-provisioning-diagnostics.json:Pod Distribution Heatmap (by Node and Namespace) -> kube_pod_info
+observability/grafana-dashboards/perfscale-dashboards/kubernetes-provisioning-diagnostics.json:Pod Phase Distribution -> kube_pod_status_phase
+observability/grafana-dashboards/perfscale-dashboards/kubernetes-provisioning-diagnostics.json:Running Pods per Namespace -> kube_pod_status_phase
+observability/grafana-dashboards/perfscale-dashboards/kubernetes-provisioning-diagnostics.json:Top 10 Restarting Pods (Last Hour) -> kube_pod_container_status_restarts_total
+observability/grafana-dashboards/perfscale-dashboards/kubernetes-provisioning-diagnostics.json:Unschedulable Pods -> kube_pod_status_unschedulable
+observability/grafana-dashboards/perfscale-dashboards/kubernetes-provisioning-diagnostics.json:[template: cluster] -> up
+observability/grafana-dashboards/perfscale-dashboards/kubernetes-provisioning-diagnostics.json:[template: namespace] -> kube_pod_info
+
+### observability/grafana-dashboards/sre/cluster-health/operations-overview.json
+observability/grafana-dashboards/sre/cluster-health/operations-overview.json:Active Operations -> backend_resource_operation_phase_info
+observability/grafana-dashboards/sre/cluster-health/operations-overview.json:Active Operations Over Time -> backend_resource_operation_phase_info
+observability/grafana-dashboards/sre/cluster-health/operations-overview.json:Create Operation Duration Distribution -> backend_resource_operation_last_transition_time_seconds, backend_resource_operation_start_time_seconds
+observability/grafana-dashboards/sre/cluster-health/operations-overview.json:Delete Operation Duration Distribution -> backend_resource_operation_last_transition_time_seconds, backend_resource_operation_start_time_seconds
+observability/grafana-dashboards/sre/cluster-health/operations-overview.json:Failed Operations -> backend_resource_operation_phase_info
+observability/grafana-dashboards/sre/cluster-health/operations-overview.json:Failed Operations Detail -> backend_resource_operation_phase_info
+observability/grafana-dashboards/sre/cluster-health/operations-overview.json:Operations by Phase & Type -> backend_resource_operation_phase_info
+observability/grafana-dashboards/sre/cluster-health/operations-overview.json:Stuck > 20 min -> backend_resource_operation_last_transition_time_seconds, backend_resource_operation_phase_info
+observability/grafana-dashboards/sre/cluster-health/operations-overview.json:Stuck Operations Detail -> backend_resource_operation_last_transition_time_seconds, backend_resource_operation_phase_info
+observability/grafana-dashboards/sre/cluster-health/operations-overview.json:Terminal Operations Over Time -> backend_resource_operation_phase_info
+
+### observability/grafana-dashboards/sre/cluster-health/per-cluster-drill-in.json
+observability/grafana-dashboards/sre/cluster-health/per-cluster-drill-in.json:Active Operations -> backend_resource_operation_phase_info
+observability/grafana-dashboards/sre/cluster-health/per-cluster-drill-in.json:Cluster State -> backend_cluster_provision_state
+observability/grafana-dashboards/sre/cluster-health/per-cluster-drill-in.json:KAS 5xx Error Rate -> apiserver_request_total
+observability/grafana-dashboards/sre/cluster-health/per-cluster-drill-in.json:KAS Availability (7d) -> hostedClusterAPI_kubeapiserver_available:ratio_avg_7d
+observability/grafana-dashboards/sre/cluster-health/per-cluster-drill-in.json:KAS Availability Over Time -> hostedClusterAPI_kubeapiserver_available:sli_count_15m, hostedClusterAPI_kubeapiserver_available:sli_sum_15m
+observability/grafana-dashboards/sre/cluster-health/per-cluster-drill-in.json:KAS Request Latency (p50/p90/p99) -> apiserver_request_sli_duration_seconds_bucket
+observability/grafana-dashboards/sre/cluster-health/per-cluster-drill-in.json:KAS Request Rate by Verb -> apiserver_request_total
+observability/grafana-dashboards/sre/cluster-health/per-cluster-drill-in.json:KAS Saturation (Inflight & Long-running) -> apiserver_current_inflight_requests, apiserver_longrunning_requests
+observability/grafana-dashboards/sre/cluster-health/per-cluster-drill-in.json:NodePool Provisioning State Over Time -> backend_node_pool_provision_state
+observability/grafana-dashboards/sre/cluster-health/per-cluster-drill-in.json:Nodepools (Succeeded) -> backend_node_pool_provision_state
+observability/grafana-dashboards/sre/cluster-health/per-cluster-drill-in.json:[template: namespace] -> hostedClusterAPI_kubeapiserver_available
+observability/grafana-dashboards/sre/cluster-health/per-cluster-drill-in.json:[template: resource_id] -> backend_cluster_provision_state
+observability/grafana-dashboards/sre/cluster-health/per-cluster-drill-in.json:etcd Backend Commit & Peer RTT (p99) -> etcd_disk_backend_commit_duration_seconds_bucket, etcd_network_peer_round_trip_time_seconds_bucket
+observability/grafana-dashboards/sre/cluster-health/per-cluster-drill-in.json:etcd Database Size -> etcd_mvcc_db_total_size_in_bytes
+observability/grafana-dashboards/sre/cluster-health/per-cluster-drill-in.json:etcd Leader Changes -> etcd_server_leader_changes_seen_total
+observability/grafana-dashboards/sre/cluster-health/per-cluster-drill-in.json:etcd Leader Changes (1h) -> etcd_server_leader_changes_seen_total
+observability/grafana-dashboards/sre/cluster-health/per-cluster-drill-in.json:etcd WAL Fsync Latency (p99) -> etcd_disk_wal_fsync_duration_seconds_bucket
+
+### observability/grafana-dashboards/sre/cluster-health/resource-state.json
+observability/grafana-dashboards/sre/cluster-health/resource-state.json:Clusters Per Region -> backend_cluster_provision_state
+observability/grafana-dashboards/sre/cluster-health/resource-state.json:Clusters by Provisioning State -> backend_cluster_provision_state
+observability/grafana-dashboards/sre/cluster-health/resource-state.json:Failed Clusters -> backend_cluster_provision_state
+observability/grafana-dashboards/sre/cluster-health/resource-state.json:Fleet Cluster Age Distribution -> backend_cluster_created_time_seconds
+observability/grafana-dashboards/sre/cluster-health/resource-state.json:Nodepools by Provisioning State -> backend_node_pool_provision_state
+observability/grafana-dashboards/sre/cluster-health/resource-state.json:Non-Succeeded Clusters -> backend_cluster_provision_state
+observability/grafana-dashboards/sre/cluster-health/resource-state.json:Non-Succeeded Clusters (Detail) -> backend_cluster_provision_state
+observability/grafana-dashboards/sre/cluster-health/resource-state.json:Total Cluster Over Time -> backend_cluster_provision_state
+observability/grafana-dashboards/sre/cluster-health/resource-state.json:Total Clusters -> backend_cluster_created_time_seconds
+observability/grafana-dashboards/sre/cluster-health/resource-state.json:Total Nodepools -> backend_node_pool_provision_state
+
+### observability/grafana-dashboards/sre/user-journey/access-cluster-slo.json
+observability/grafana-dashboards/sre/user-journey/access-cluster-slo.json:Completed Credential Operation Duration -> backend_resource_operation_last_transition_time_seconds, backend_resource_operation_start_time_seconds
+observability/grafana-dashboards/sre/user-journey/access-cluster-slo.json:Credential Operation Phase Distribution -> backend_resource_operation_phase_info
+observability/grafana-dashboards/sre/user-journey/access-cluster-slo.json:Credential Operation Success Rate -> backend_resource_operation_phase_info
+observability/grafana-dashboards/sre/user-journey/access-cluster-slo.json:Credential Operation Success Rate Over Time -> backend_resource_operation_phase_info
+observability/grafana-dashboards/sre/user-journey/access-cluster-slo.json:Credential Operations by Type and Outcome -> backend_resource_operation_phase_info
+observability/grafana-dashboards/sre/user-journey/access-cluster-slo.json:Credential Workqueue Add Rate (Traffic) -> workqueue_adds_total
+observability/grafana-dashboards/sre/user-journey/access-cluster-slo.json:Credential Workqueue Depth -> workqueue_depth
+observability/grafana-dashboards/sre/user-journey/access-cluster-slo.json:Credential Workqueue Retry Ratio -> workqueue_adds_total, workqueue_retries_total
+observability/grafana-dashboards/sre/user-journey/access-cluster-slo.json:Failed Credential Operations -> backend_resource_operation_phase_info
+observability/grafana-dashboards/sre/user-journey/access-cluster-slo.json:Failed Credential Operations Detail -> backend_resource_operation_phase_info
+observability/grafana-dashboards/sre/user-journey/access-cluster-slo.json:Frontend Credential Request Rate (Traffic) -> frontend_http_requests_total
+observability/grafana-dashboards/sre/user-journey/access-cluster-slo.json:In-Flight Credential Operation Duration -> backend_resource_operation_start_time_seconds
+observability/grafana-dashboards/sre/user-journey/access-cluster-slo.json:Stuck Credential Ops (>1h) -> backend_resource_operation_start_time_seconds
+observability/grafana-dashboards/sre/user-journey/access-cluster-slo.json:Total Credential Operations -> backend_resource_operation_phase_info
+
+### observability/grafana-dashboards/sre/user-journey/cluster-provisioning-slo.json
+observability/grafana-dashboards/sre/user-journey/cluster-provisioning-slo.json:Active Create Operations (Details) -> backend_resource_operation_phase_info
+observability/grafana-dashboards/sre/user-journey/cluster-provisioning-slo.json:Clusters by Provisioning State -> backend_cluster_provision_state
+observability/grafana-dashboards/sre/user-journey/cluster-provisioning-slo.json:Completed Create Attempts (Window) -> backend_resource_operation_last_transition_time_seconds, backend_resource_operation_phase_info
+observability/grafana-dashboards/sre/user-journey/cluster-provisioning-slo.json:Create Duration by Service Cluster (Rolling 1h) -> backend_resource_operation_last_transition_time_seconds, backend_resource_operation_start_time_seconds
+observability/grafana-dashboards/sre/user-journey/cluster-provisioning-slo.json:Create Duration p50 (min) -> backend_resource_operation_last_transition_time_seconds, backend_resource_operation_start_time_seconds
+observability/grafana-dashboards/sre/user-journey/cluster-provisioning-slo.json:Create Duration p95 (min) -> backend_resource_operation_last_transition_time_seconds, backend_resource_operation_start_time_seconds
+observability/grafana-dashboards/sre/user-journey/cluster-provisioning-slo.json:Create Duration p99 (min) -> backend_resource_operation_last_transition_time_seconds, backend_resource_operation_start_time_seconds
+observability/grafana-dashboards/sre/user-journey/cluster-provisioning-slo.json:Create Ops Stuck > 20 min -> backend_resource_operation_last_transition_time_seconds, backend_resource_operation_phase_info
+observability/grafana-dashboards/sre/user-journey/cluster-provisioning-slo.json:Failed / Canceled Attempts by Subscription (Window) -> backend_resource_operation_last_transition_time_seconds, backend_resource_operation_phase_info
+observability/grafana-dashboards/sre/user-journey/cluster-provisioning-slo.json:Failed / Canceled Create Attempts (Window) -> backend_resource_operation_last_transition_time_seconds, backend_resource_operation_phase_info
+observability/grafana-dashboards/sre/user-journey/cluster-provisioning-slo.json:Failure Ratio by Service Cluster (Rolling 1h) -> backend_resource_operation_last_transition_time_seconds, backend_resource_operation_phase_info
+observability/grafana-dashboards/sre/user-journey/cluster-provisioning-slo.json:Fleet Cluster Age Distribution -> backend_cluster_created_time_seconds
+observability/grafana-dashboards/sre/user-journey/cluster-provisioning-slo.json:Success SLO: Successful Creates -> backend_resource_operation_last_transition_time_seconds, backend_resource_operation_phase_info
+observability/grafana-dashboards/sre/user-journey/cluster-provisioning-slo.json:Terminal Create Attempts (Window) -> backend_resource_operation_last_transition_time_seconds, backend_resource_operation_phase_info
+observability/grafana-dashboards/sre/user-journey/cluster-provisioning-slo.json:Timeliness SLO: Successful Creates Within 20m -> backend_resource_operation_last_transition_time_seconds, backend_resource_operation_phase_info, backend_resource_operation_start_time_seconds
+observability/grafana-dashboards/sre/user-journey/cluster-provisioning-slo.json:Total Fleet Size -> backend_cluster_created_time_seconds
+
+### observability/grafana-dashboards/sre/user-journey/etcd-availability.json
+observability/grafana-dashboards/sre/user-journey/etcd-availability.json:Backend Commit SLO Violations -> etcd_disk_backend_commit_duration_seconds_bucket
+observability/grafana-dashboards/sre/user-journey/etcd-availability.json:Clusters with High Leader Churn -> etcd_server_leader_changes_seen_total
+observability/grafana-dashboards/sre/user-journey/etcd-availability.json:Clusters with Large DB Size -> etcd_mvcc_db_total_size_in_bytes
+observability/grafana-dashboards/sre/user-journey/etcd-availability.json:Clusters with Unstable Leaders -> etcd_server_leader_changes_seen_total
+observability/grafana-dashboards/sre/user-journey/etcd-availability.json:Etcd Health Distribution -> etcd_server_leader_changes_seen_total
+observability/grafana-dashboards/sre/user-journey/etcd-availability.json:Fleet Clusters Monitored -> etcd_server_leader_changes_seen_total
+observability/grafana-dashboards/sre/user-journey/etcd-availability.json:Fleet Disk Performance P99 (per-cluster lines) -> etcd_disk_backend_commit_duration_seconds_bucket, etcd_disk_wal_fsync_duration_seconds_bucket
+observability/grafana-dashboards/sre/user-journey/etcd-availability.json:Fleet Network Performance P99 (per-cluster lines) -> etcd_network_peer_round_trip_time_seconds_bucket
+observability/grafana-dashboards/sre/user-journey/etcd-availability.json:Fleet Proposal Metrics (per-cluster lines) -> etcd_server_proposals_applied_total, etcd_server_proposals_committed_total, etcd_server_proposals_failed_total
+observability/grafana-dashboards/sre/user-journey/etcd-availability.json:Fleet Total Leader Changes (24h) -> etcd_server_leader_changes_seen_total
+observability/grafana-dashboards/sre/user-journey/etcd-availability.json:Fleet Total Stable Clusters (24h) -> etcd_server_leader_changes_seen_total
+observability/grafana-dashboards/sre/user-journey/etcd-availability.json:Fleet Worst Cluster DB Size -> etcd_mvcc_db_total_size_in_bytes
+observability/grafana-dashboards/sre/user-journey/etcd-availability.json:Leader Instability (Hourly) -> etcd_server_leader_changes_seen_total
+observability/grafana-dashboards/sre/user-journey/etcd-availability.json:Peer RTT SLO Violations -> etcd_network_peer_round_trip_time_seconds_bucket
+observability/grafana-dashboards/sre/user-journey/etcd-availability.json:Per-Cluster Leader Changes (1h window) -> etcd_server_leader_changes_seen_total
+observability/grafana-dashboards/sre/user-journey/etcd-availability.json:Per-Cluster Leader Changes Rate -> etcd_server_leader_changes_seen_total
+observability/grafana-dashboards/sre/user-journey/etcd-availability.json:WAL Fsync SLO Violations -> etcd_disk_wal_fsync_duration_seconds_bucket
+observability/grafana-dashboards/sre/user-journey/etcd-availability.json:Worst Cluster P99 Backend Commit (5m) -> etcd_disk_backend_commit_duration_seconds_bucket
+observability/grafana-dashboards/sre/user-journey/etcd-availability.json:Worst Cluster P99 Peer RTT (5m) -> etcd_network_peer_round_trip_time_seconds_bucket
+observability/grafana-dashboards/sre/user-journey/etcd-availability.json:Worst Cluster P99 WAL Fsync (5m) -> etcd_disk_wal_fsync_duration_seconds_bucket
+
+### observability/grafana-dashboards/sre/user-journey/mgmt-cluster-triage.json
+observability/grafana-dashboards/sre/user-journey/mgmt-cluster-triage.json:CPU Utilization per Node (% of Allocatable) -> container_cpu_usage_seconds_total, kube_node_status_allocatable
+observability/grafana-dashboards/sre/user-journey/mgmt-cluster-triage.json:Disk Pressure -> kube_node_status_condition
+observability/grafana-dashboards/sre/user-journey/mgmt-cluster-triage.json:Evicted Pods by Namespace (Top 10) -> kube_pod_status_reason
+observability/grafana-dashboards/sre/user-journey/mgmt-cluster-triage.json:Memory Utilization per Node (% of Allocatable) -> container_memory_working_set_bytes, kube_node_status_allocatable
+observability/grafana-dashboards/sre/user-journey/mgmt-cluster-triage.json:Nodes NotReady -> kube_node_status_condition
+observability/grafana-dashboards/sre/user-journey/mgmt-cluster-triage.json:Nodes Ready -> kube_node_status_condition
+observability/grafana-dashboards/sre/user-journey/mgmt-cluster-triage.json:Nodes SchedulingDisabled -> kube_node_spec_unschedulable
+observability/grafana-dashboards/sre/user-journey/mgmt-cluster-triage.json:OOMKilled Containers by Namespace (Top 10) -> kube_pod_container_status_last_terminated_reason
+observability/grafana-dashboards/sre/user-journey/mgmt-cluster-triage.json:PID Pressure -> kube_node_status_condition
+observability/grafana-dashboards/sre/user-journey/mgmt-cluster-triage.json:Pod Restarts by Namespace (Top 10, Last 1h) -> kube_pod_container_status_restarts_total
+observability/grafana-dashboards/sre/user-journey/mgmt-cluster-triage.json:Pods Pending by Namespace (Top 10) -> kube_pod_status_phase
+observability/grafana-dashboards/sre/user-journey/mgmt-cluster-triage.json:Pods in CrashLoopBackOff by Namespace (Top 10) -> kube_pod_container_status_waiting_reason
+observability/grafana-dashboards/sre/user-journey/mgmt-cluster-triage.json:Top 10 HCP Namespaces by CPU Usage -> container_cpu_usage_seconds_total
+observability/grafana-dashboards/sre/user-journey/mgmt-cluster-triage.json:Top 10 HCP Namespaces by Memory Working Set -> container_memory_working_set_bytes
+observability/grafana-dashboards/sre/user-journey/mgmt-cluster-triage.json:Top 10 HCP Namespaces by Network I/O -> container_network_receive_bytes_total, container_network_transmit_bytes_total
+observability/grafana-dashboards/sre/user-journey/mgmt-cluster-triage.json:[template: cluster] -> up
+observability/grafana-dashboards/sre/user-journey/mgmt-cluster-triage.json:[template: hcp_namespace] -> kube_pod_info
+observability/grafana-dashboards/sre/user-journey/mgmt-cluster-triage.json:etcd Leader Changes (Last 1h) -> etcd_server_leader_changes_seen_total
+observability/grafana-dashboards/sre/user-journey/mgmt-cluster-triage.json:etcd WAL Fsync Latency p99 -> etcd_disk_wal_fsync_duration_seconds_bucket
+
+### observability/grafana-dashboards/sre/user-journey/nodepool-slo.json
+observability/grafana-dashboards/sre/user-journey/nodepool-slo.json:Completed Operation Duration -> backend_resource_operation_last_transition_time_seconds, backend_resource_operation_start_time_seconds
+observability/grafana-dashboards/sre/user-journey/nodepool-slo.json:Failed Operations -> backend_resource_operation_phase_info
+observability/grafana-dashboards/sre/user-journey/nodepool-slo.json:Failed Operations Detail -> backend_resource_operation_phase_info
+observability/grafana-dashboards/sre/user-journey/nodepool-slo.json:In-Flight Operation Duration -> backend_resource_operation_start_time_seconds
+observability/grafana-dashboards/sre/user-journey/nodepool-slo.json:Node Pool Provisioning State Distribution -> backend_nodepool_provision_state
+observability/grafana-dashboards/sre/user-journey/nodepool-slo.json:Operation Phase Distribution -> backend_resource_operation_phase_info
+observability/grafana-dashboards/sre/user-journey/nodepool-slo.json:Operation Success Rate -> backend_resource_operation_phase_info
+observability/grafana-dashboards/sre/user-journey/nodepool-slo.json:Operation Success Rate Over Time -> backend_resource_operation_phase_info
+observability/grafana-dashboards/sre/user-journey/nodepool-slo.json:Operations by Type and Outcome -> backend_resource_operation_phase_info
+observability/grafana-dashboards/sre/user-journey/nodepool-slo.json:Stuck Operations (>1h) -> backend_resource_operation_start_time_seconds
+observability/grafana-dashboards/sre/user-journey/nodepool-slo.json:Total Node Pools -> backend_nodepool_provision_state
+observability/grafana-dashboards/sre/user-journey/nodepool-slo.json:Workqueue Add Rate (Traffic) -> workqueue_adds_total
+observability/grafana-dashboards/sre/user-journey/nodepool-slo.json:Workqueue Depth -> workqueue_depth
+observability/grafana-dashboards/sre/user-journey/nodepool-slo.json:Workqueue Retry Ratio -> workqueue_adds_total, workqueue_retries_total

@@ -51,7 +51,6 @@ import (
 	sharedleaderelection "github.com/Azure/ARO-HCP/internal/leaderelection"
 	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/controller"
 	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/controller/ksmhcp"
-	"github.com/Azure/ARO-HCP/mgmt-agent/pkg/controller/monitortranslator"
 )
 
 const (
@@ -59,20 +58,18 @@ const (
 )
 
 type RawControllerOptions struct {
-	HealthAddress      string
-	Kubeconfig         string
-	Namespace          string
-	Workers            int
-	LogVerbosity       int
-	KSMImage           string
-	OCMNamespacePrefix string
+	HealthAddress string
+	Kubeconfig    string
+	Namespace     string
+	Workers       int
+	LogVerbosity  int
+	KSMImage      string
 }
 
 func DefaultControllerOptions() *RawControllerOptions {
 	return &RawControllerOptions{
-		HealthAddress:      ":8080",
-		Workers:            2,
-		OCMNamespacePrefix: "ocm-",
+		HealthAddress: ":8080",
+		Workers:       2,
 	}
 }
 
@@ -85,7 +82,6 @@ func (o *RawControllerOptions) BindFlags(cmd *cobra.Command) error {
 		"Log verbosity. 0 is the default verbosity level, equivalent to INFO. "+
 			"It must be a value >= 0, where a higher value means more verbose output.")
 	cmd.Flags().StringVar(&o.KSMImage, "ksm-image", o.KSMImage, "Container image for kube-state-metrics deployed per HCP namespace")
-	cmd.Flags().StringVar(&o.OCMNamespacePrefix, "ocm-namespace-prefix", o.OCMNamespacePrefix, "Namespace prefix for OCM/HyperShift namespaces to translate monitors for")
 
 	return nil
 }
@@ -101,7 +97,6 @@ type ValidatedControllerOptions struct {
 type completedControllerOptions struct {
 	ctrl                     *controller.SwiftNICController
 	ksmCtrl                  *ksmhcp.KSMHCPController
-	monitorTranslatorCtrl    *monitortranslator.MonitorTranslatorController
 	resourceWatcher          *controller.ResourceWatcher
 	podWatcher               *controller.PodWatcher
 	kubeInformers            kubeinformers.SharedInformerFactory
@@ -109,7 +104,6 @@ type completedControllerOptions struct {
 	clusterWideKubeInformers kubeinformers.SharedInformerFactory
 	hypershiftInformers      hypershiftinformers.SharedInformerFactory
 	dynamicInformers         dynamicinformer.DynamicSharedInformerFactory
-	translatorDynInformers   dynamicinformer.DynamicSharedInformerFactory
 	workers                  int
 	healthAddress            string
 	leaderElectionLock       resourcelock.Interface
@@ -177,13 +171,11 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 	resourceWatcher := controller.NewResourceWatcher(dynamicClient, discoveryClient)
 
 	var ksmCtrl *ksmhcp.KSMHCPController
-	var monitorTranslatorCtrl *monitortranslator.MonitorTranslatorController
 	var podWatcher *controller.PodWatcher
 	var hsInformers hypershiftinformers.SharedInformerFactory
 	var ksmKubeInformers kubeinformers.SharedInformerFactory
 	var clusterWideKubeInformers kubeinformers.SharedInformerFactory
 	var dynInformers dynamicinformer.DynamicSharedInformerFactory
-	var translatorDynInformers dynamicinformer.DynamicSharedInformerFactory
 	if o.KSMImage != "" {
 		hsClient, err := hypershiftclient.NewForConfig(kubeConfig)
 		if err != nil {
@@ -220,17 +212,6 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 		if err != nil {
 			return nil, fmt.Errorf("failed to create pod watcher: %w", err)
 		}
-
-		translatorDynInformers = dynamicinformer.NewDynamicSharedInformerFactory(dynamicClient, 10*time.Minute)
-		monitorTranslatorCtrl, err = monitortranslator.NewMonitorTranslatorController(
-			dynamicClient,
-			translatorDynInformers.ForResource(monitortranslator.SourceServiceMonitorGVR).Informer(),
-			translatorDynInformers.ForResource(monitortranslator.SourcePodMonitorGVR).Informer(),
-			o.OCMNamespacePrefix,
-		)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create monitor translator controller: %w", err)
-		}
 	}
 
 	hostname, err := os.Hostname()
@@ -247,7 +228,6 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 		completedControllerOptions: &completedControllerOptions{
 			ctrl:                     ctrl,
 			ksmCtrl:                  ksmCtrl,
-			monitorTranslatorCtrl:    monitorTranslatorCtrl,
 			resourceWatcher:          resourceWatcher,
 			podWatcher:               podWatcher,
 			kubeInformers:            kubeInformers,
@@ -255,7 +235,6 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 			clusterWideKubeInformers: clusterWideKubeInformers,
 			hypershiftInformers:      hsInformers,
 			dynamicInformers:         dynInformers,
-			translatorDynInformers:   translatorDynInformers,
 			workers:                  o.Workers,
 			healthAddress:            o.HealthAddress,
 			leaderElectionLock:       leaderElectionLock,
@@ -366,10 +345,6 @@ func (o *ControllerOptions) runControllersUnderLeaderElection(ctx context.Contex
 				if o.dynamicInformers != nil {
 					o.dynamicInformers.Start(ctx.Done())
 				}
-				if o.translatorDynInformers != nil {
-					o.translatorDynInformers.Start(ctx.Done())
-				}
-
 				go func() {
 					defer utilruntime.HandleCrash()
 					if err := o.ctrl.Run(ctx, o.workers); err != nil {
@@ -398,15 +373,6 @@ func (o *ControllerOptions) runControllersUnderLeaderElection(ctx context.Contex
 						}
 					}()
 				}
-				if o.monitorTranslatorCtrl != nil {
-					go func() {
-						defer utilruntime.HandleCrash()
-						if err := o.monitorTranslatorCtrl.Run(ctx, o.workers); err != nil {
-							logger.Error(err, "monitor translator controller failed")
-						}
-					}()
-				}
-
 				// Block until the leadership context is cancelled.
 				<-ctx.Done()
 			},
