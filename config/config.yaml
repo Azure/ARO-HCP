@@ -121,6 +121,8 @@ defaults:
     kustoName: "empty-sentinel"
     grafanaName: "empty-sentinel"
     grafanaMajorVersion: "empty-sentinel"
+    billingKustoName: "empty-sentinel"
+    billingKustoSku: "empty-sentinel"
   # Image Registry Policy
   imageRegistryPolicy:
     extraAllowedRegistries: ""

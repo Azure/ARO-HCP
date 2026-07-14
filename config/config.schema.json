@@ -3522,6 +3522,12 @@
         },
         "grafanaMajorVersion": {
           "type": "string"
+        },
+        "billingKustoName": {
+          "type": "string"
+        },
+        "billingKustoSku": {
+          "type": "string"
         }
       },
       "additionalProperties": false,
@@ -3537,7 +3543,9 @@
         "cxParentZoneName",
         "kustoName",
         "grafanaName",
-        "grafanaMajorVersion"
+        "grafanaMajorVersion",
+        "billingKustoName",
+        "billingKustoSku"
       ]
     },
     "releaseApprover": {
