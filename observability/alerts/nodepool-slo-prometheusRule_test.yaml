@@ -104,7 +104,7 @@ tests:
       exp_annotations:
         summary: "mgmt-1: Node Pool operation error rate critically high (>72%)"
         description: "More than 72% of node pool operations are in failed state, indicating a fast error budget burn (14.4x) that would exhaust the 95% SLO budget in ~12 hours."
-        runbook_url: "aka.ms/arohcp-runbook-nodepool"
+        runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
   # Degradation also fires (15% threshold met at 80%)
   - eval_time: 35m
     alertname: UJNodePoolErrorsDegradation
@@ -116,7 +116,7 @@ tests:
       exp_annotations:
         summary: "mgmt-1: Node Pool operation failure rate exceeds 15% for 30 minutes"
         description: "The node pool operation failure rate has been above 15% for 30 minutes. This provides early warning of degradation before SLO-based burn rate alerts fire."
-        runbook_url: "aka.ms/arohcp-runbook-nodepool"
+        runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
 # ========================================
 # Test 3: Degradation — 20% failure rate, only degradation alert fires
 # ========================================
@@ -167,7 +167,7 @@ tests:
       exp_annotations:
         summary: "mgmt-1: Node Pool operation failure rate exceeds 15% for 30 minutes"
         description: "The node pool operation failure rate has been above 15% for 30 minutes. This provides early warning of degradation before SLO-based burn rate alerts fire."
-        runbook_url: "aka.ms/arohcp-runbook-nodepool"
+        runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
 # ========================================
 # Test 4: Stuck operation — operation in "updating" for > 2 hours
 # ========================================
@@ -196,7 +196,7 @@ tests:
       exp_annotations:
         summary: "mgmt-1: Node Pool operation stuck in updating for over 2 hours"
         description: "Node pool operation for /sub/3/np/stuck has been in updating phase for over 2 hours. Stuck operations are invisible to success/failure SLIs and require investigation."
-        runbook_url: "aka.ms/arohcp-runbook-nodepool"
+        runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
 # ========================================
 # Test 5: No stuck operation — operation in "updating" for < 2 hours
 # ========================================
@@ -253,7 +253,7 @@ tests:
       exp_annotations:
         summary: "mgmt-1: Node Pool controller workqueue OperationNodePoolUpdate depth is high"
         description: "Node pool controller workqueue OperationNodePoolUpdate has had a depth > 10 for more than 5 minutes, indicating work is accumulating faster than it can be processed."
-        runbook_url: "aka.ms/arohcp-runbook-nodepool"
+        runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
 # ========================================
 # Test 8: Queue depth normal — below threshold, no alert
 # ========================================
@@ -284,7 +284,7 @@ tests:
       exp_annotations:
         summary: "mgmt-1: Node Pool controller workqueue OperationNodePoolUpdate retry hot loop"
         description: "Node pool controller workqueue OperationNodePoolUpdate has a retry ratio > 50% sustained over 10 minutes, indicating most queue activity is failed retries rather than fresh work."
-        runbook_url: "aka.ms/arohcp-runbook-nodepool"
+        runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
 # ========================================
 # Test 10: Retry hot loop — low retry ratio, no alert
 # ========================================
@@ -359,7 +359,7 @@ tests:
       exp_annotations:
         summary: "mgmt-1: Node Pool operation error rate elevated (>30%) for 30+ minutes"
         description: "More than 30% of node pool operations are in failed state sustained over 30 minutes, indicating a medium error budget burn (6x) that would exhaust the 95% SLO budget in ~28 hours."
-        runbook_url: "aka.ms/arohcp-runbook-nodepool"
+        runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
   # 50% < 72% → fast burn should NOT fire
   - eval_time: 35m
     alertname: UJNodePoolErrors1h5m
@@ -388,4 +388,4 @@ tests:
       exp_annotations:
         summary: "mgmt-1: Node Pool operation stuck in deleting for over 2 hours"
         description: "Node pool operation for /sub/7/np/stuck-del has been in deleting phase for over 2 hours. Stuck operations are invisible to success/failure SLIs and require investigation."
-        runbook_url: "aka.ms/arohcp-runbook-nodepool"
+        runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
