@@ -39,7 +39,7 @@ import (
 func TestDesiredControlPlaneSizeSyncer_SyncOnce(t *testing.T) {
 	largeStr := string(api.HostedClusterControlPlaneSizeLarge)
 	mediumStr := string(api.HostedClusterControlPlaneSizeMedium)
-	// CS stores the size override in lowercase (ocm.DesiredHostedClusterSizeOverride
+	// CS stores the size override in lowercase (ocm.ConvertHostedClusterSizeOverrideToCS
 	// normalizes it), so anything we seed into or expect from CS uses the
 	// lowercased form even though the API surface uses the capitalized enum.
 	largeCS := strings.ToLower(largeStr)
@@ -52,12 +52,7 @@ func TestDesiredControlPlaneSizeSyncer_SyncOnce(t *testing.T) {
 		seedServiceProviderCluster bool
 		csProperties               map[string]string
 		csGetErr                   error
-		csUpdateErr                error
 		expectCSGet                bool
-		expectCSPush               bool
-		// expectedProperties is the full properties map on the captured
-		// UpdateCluster builder. Only checked when expectCSPush is true.
-		expectedProperties map[string]string
 		// expectedStatusSize is what
 		// ServiceProviderCluster.Status.DesiredHostedClusterControlPlaneSize
 		// must equal after a successful reconcile. Nil pointer means absent.
@@ -111,7 +106,7 @@ func TestDesiredControlPlaneSizeSyncer_SyncOnce(t *testing.T) {
 			},
 		},
 		{
-			name: "set transition - writes CS and records Status",
+			name: "set transition - waits when cluster-service not yet updated",
 			setup: setup{
 				seedServiceProviderCluster: true,
 				specSize:                   &largeStr,
@@ -119,16 +114,10 @@ func TestDesiredControlPlaneSizeSyncer_SyncOnce(t *testing.T) {
 				cluster:                    newTestCluster(testClusterName),
 				csProperties:               nil,
 				expectCSGet:                true,
-				expectCSPush:               true,
-				expectedProperties: map[string]string{
-					ocm.CSPropertySizeOverride: largeCS,
-				},
-				expectedStatusSize:                &largeStr,
-				expectServiceProviderClusterWrite: true,
 			},
 		},
 		{
-			name: "change transition - overwrites stale CS and preserves other properties",
+			name: "change transition - waits when cluster-service still has stale value",
 			setup: setup{
 				seedServiceProviderCluster: true,
 				specSize:                   &mediumStr,
@@ -138,18 +127,11 @@ func TestDesiredControlPlaneSizeSyncer_SyncOnce(t *testing.T) {
 					ocm.CSPropertySizeOverride:  largeCS,
 					ocm.CSPropertySingleReplica: ocm.CSPropertyEnabled,
 				},
-				expectCSGet:  true,
-				expectCSPush: true,
-				expectedProperties: map[string]string{
-					ocm.CSPropertySizeOverride:  mediumCS,
-					ocm.CSPropertySingleReplica: ocm.CSPropertyEnabled,
-				},
-				expectedStatusSize:                &mediumStr,
-				expectServiceProviderClusterWrite: true,
+				expectCSGet: true,
 			},
 		},
 		{
-			name: "unset transition - clears CS property and clears Status",
+			name: "unset transition - waits when cluster-service still has override",
 			setup: setup{
 				seedServiceProviderCluster: true,
 				specSize:                   nil,
@@ -159,17 +141,11 @@ func TestDesiredControlPlaneSizeSyncer_SyncOnce(t *testing.T) {
 					ocm.CSPropertySizeOverride:  largeCS,
 					ocm.CSPropertySingleReplica: ocm.CSPropertyEnabled,
 				},
-				expectCSGet:  true,
-				expectCSPush: true,
-				expectedProperties: map[string]string{
-					ocm.CSPropertySingleReplica: ocm.CSPropertyEnabled,
-				},
-				expectedStatusSize:                nil,
-				expectServiceProviderClusterWrite: true,
+				expectCSGet: true,
 			},
 		},
 		{
-			name: "no CS write needed but Status drifted - just record Status",
+			name: "set transition - records Status when cluster-service already matches",
 			setup: setup{
 				seedServiceProviderCluster: true,
 				specSize:                   &largeStr,
@@ -179,8 +155,54 @@ func TestDesiredControlPlaneSizeSyncer_SyncOnce(t *testing.T) {
 					ocm.CSPropertySizeOverride: largeCS,
 				},
 				expectCSGet:                       true,
-				expectCSPush:                      false,
 				expectedStatusSize:                &largeStr,
+				expectServiceProviderClusterWrite: true,
+			},
+		},
+		{
+			name: "change transition - records Status when cluster-service already matches",
+			setup: setup{
+				seedServiceProviderCluster: true,
+				specSize:                   &mediumStr,
+				statusSize:                 &largeStr,
+				cluster:                    newTestCluster(testClusterName),
+				csProperties: map[string]string{
+					ocm.CSPropertySizeOverride: mediumCS,
+				},
+				expectCSGet:                       true,
+				expectedStatusSize:                &mediumStr,
+				expectServiceProviderClusterWrite: true,
+			},
+		},
+		{
+			name: "unset transition - records Status when cluster-service already cleared",
+			setup: setup{
+				seedServiceProviderCluster: true,
+				specSize:                   nil,
+				statusSize:                 &largeStr,
+				cluster:                    newTestCluster(testClusterName),
+				csProperties: map[string]string{
+					ocm.CSPropertySingleReplica: ocm.CSPropertyEnabled,
+				},
+				expectCSGet:                       true,
+				expectedStatusSize:                nil,
+				expectServiceProviderClusterWrite: true,
+			},
+		},
+		{
+			name: "unset transition - records Status when cluster-service has experimental fallback",
+			setup: setup{
+				seedServiceProviderCluster: true,
+				specSize:                   nil,
+				statusSize:                 &largeStr,
+				cluster: newTestCluster(testClusterName, func(c *api.HCPOpenShiftCluster) {
+					c.ServiceProviderProperties.ExperimentalFeatures.ControlPlanePodSizing = api.MinimalControlPlanePodSizing
+				}),
+				csProperties: map[string]string{
+					ocm.CSPropertySizeOverride: ocm.CSPropertyE2EMinimalControlPlaneSize,
+				},
+				expectCSGet:                       true,
+				expectedStatusSize:                nil,
 				expectServiceProviderClusterWrite: true,
 			},
 		},
@@ -193,18 +215,6 @@ func TestDesiredControlPlaneSizeSyncer_SyncOnce(t *testing.T) {
 				csGetErr:                   fmt.Errorf("boom"),
 				expectCSGet:                true,
 				expectErrContains:          "failed to get cluster from Cluster Service",
-			},
-		},
-		{
-			name: "CS UpdateCluster fails - error",
-			setup: setup{
-				seedServiceProviderCluster: true,
-				specSize:                   &largeStr,
-				cluster:                    newTestCluster(testClusterName),
-				csUpdateErr:                fmt.Errorf("boom"),
-				expectCSGet:                true,
-				expectCSPush:               true,
-				expectErrContains:          "failed to update cluster in Cluster Service",
 			},
 		},
 	}
@@ -251,15 +261,6 @@ func TestDesiredControlPlaneSizeSyncer_SyncOnce(t *testing.T) {
 					GetCluster(gomock.Any(), api.Must(api.NewInternalID(testClusterServiceIDStr))).
 					Return(buildBareCSCluster(t, tc.csProperties), tc.csGetErr)
 			}
-			var capturedBuilder *arohcpv1alpha1.ClusterBuilder
-			if tc.expectCSPush {
-				mockCSClient.EXPECT().
-					UpdateCluster(gomock.Any(), api.Must(api.NewInternalID(testClusterServiceIDStr)), gomock.Any()).
-					DoAndReturn(func(_ context.Context, _ api.InternalID, b *arohcpv1alpha1.ClusterBuilder) (*arohcpv1alpha1.Cluster, error) {
-						capturedBuilder = b
-						return buildBareCSCluster(t, tc.csProperties), tc.csUpdateErr
-					})
-			}
 
 			syncer := &desiredControlPlaneSizeSyncer{
 				serviceProviderClusterLister: serviceProviderClusterListerStub,
@@ -281,13 +282,6 @@ func TestDesiredControlPlaneSizeSyncer_SyncOnce(t *testing.T) {
 				return
 			}
 			require.NoError(t, err)
-
-			if tc.expectCSPush && tc.expectedProperties != nil {
-				require.NotNil(t, capturedBuilder, "expected an UpdateCluster call with a builder")
-				built, buildErr := capturedBuilder.Build()
-				require.NoError(t, buildErr)
-				assert.Equal(t, tc.expectedProperties, built.Properties())
-			}
 
 			if !tc.expectServiceProviderClusterWrite {
 				return

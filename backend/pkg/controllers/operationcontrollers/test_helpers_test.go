@@ -20,8 +20,12 @@ import (
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/ptr"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
+	configv1 "github.com/openshift/api/config/v1"
+	"github.com/openshift/hypershift/api/hypershift/v1beta1"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
@@ -358,5 +362,127 @@ func (f *externalAuthTestFixture) operationKey() controllerutils.OperationKey {
 		SubscriptionID:   testSubscriptionID,
 		OperationName:    testOperationName,
 		ParentResourceID: f.externalAuthResourceID.String(),
+	}
+}
+
+// testClusterUpdateMatchingHostedClusterSpec returns a HostedCluster spec that matches the
+// default cluster fixture for cluster update state calculation tests.
+func testClusterUpdateMatchingHostedClusterSpec() v1beta1.HostedClusterSpec {
+	return v1beta1.HostedClusterSpec{
+		Autoscaling: v1beta1.ClusterAutoscaling{
+			MaxNodesTotal:        ptr.To[int32](0),
+			MaxPodGracePeriod:    ptr.To[int32](0),
+			MaxNodeProvisionTime: "0m",
+			PodPriorityThreshold: ptr.To[int32](0),
+		},
+		ControllerAvailabilityPolicy:     v1beta1.HighlyAvailable,
+		InfrastructureAvailabilityPolicy: v1beta1.HighlyAvailable,
+	}
+}
+
+// newExternalAuthUpdateTestExternalAuth returns an external auth whose properties match
+// testExternalAuthUpdateMatchingOIDCProvider for external auth update state calculation tests.
+func newExternalAuthUpdateTestExternalAuth(mutate ...func(*api.HCPOpenShiftClusterExternalAuth)) *api.HCPOpenShiftClusterExternalAuth {
+	externalAuth := newExternalAuthTestFixture().newExternalAuth()
+	externalAuth.Properties = api.HCPOpenShiftClusterExternalAuthProperties{
+		ProvisioningState: arm.ProvisioningStateAccepted,
+		Issuer: api.TokenIssuerProfile{
+			URL:       "https://issuer.example.com",
+			Audiences: []string{"aud1", "aud2"},
+			CA:        "test-ca-cert",
+		},
+		Clients: []api.ExternalAuthClientProfile{
+			{
+				Component: api.ExternalAuthClientComponentProfile{
+					Name:                "console",
+					AuthClientNamespace: "openshift-console",
+				},
+				ClientID:    "client-id-1",
+				ExtraScopes: []string{"email", "profile"},
+				Type:        api.ExternalAuthClientTypePublic,
+			},
+		},
+		Claim: api.ExternalAuthClaimProfile{
+			Mappings: api.TokenClaimMappingsProfile{
+				Username: api.UsernameClaimProfile{
+					Claim:        "email",
+					PrefixPolicy: api.UsernameClaimPrefixPolicyNoPrefix,
+				},
+				Groups: &api.GroupClaimProfile{
+					Claim:  "groups",
+					Prefix: "oidc:",
+				},
+			},
+			ValidationRules: []api.TokenClaimValidationRule{
+				{
+					Type: api.TokenValidationRuleTypeRequiredClaim,
+					RequiredClaim: api.TokenRequiredClaim{
+						Claim:         "hd",
+						RequiredValue: "example.com",
+					},
+				},
+			},
+		},
+	}
+	for _, fn := range mutate {
+		if fn != nil {
+			fn(externalAuth)
+		}
+	}
+	return externalAuth
+}
+
+// testExternalAuthUpdateMatchingOIDCProvider returns an OIDCProvider that matches
+// newExternalAuthUpdateTestExternalAuth for external auth update state calculation tests.
+func testExternalAuthUpdateMatchingOIDCProvider() configv1.OIDCProvider {
+	return configv1.OIDCProvider{
+		Name: strings.ToLower(testExternalAuthName),
+		Issuer: configv1.TokenIssuer{
+			URL:       "https://issuer.example.com",
+			Audiences: []configv1.TokenAudience{"aud1", "aud2"},
+		},
+		OIDCClients: []configv1.OIDCClientConfig{
+			{
+				ComponentName:      "console",
+				ComponentNamespace: "openshift-console",
+				ClientID:           "client-id-1",
+				ExtraScopes:        []string{"email", "profile"},
+			},
+		},
+		ClaimMappings: configv1.TokenClaimMappings{
+			Username: configv1.UsernameClaimMapping{
+				Claim:        "email",
+				PrefixPolicy: configv1.NoPrefix,
+			},
+			Groups: configv1.PrefixedClaimMapping{
+				TokenClaimMapping: configv1.TokenClaimMapping{
+					Claim: "groups",
+				},
+				Prefix: "oidc:",
+			},
+		},
+		ClaimValidationRules: []configv1.TokenClaimValidationRule{
+			{
+				Type: configv1.TokenValidationRuleTypeRequiredClaim,
+				RequiredClaim: &configv1.TokenRequiredClaim{
+					Claim:         "hd",
+					RequiredValue: "example.com",
+				},
+			},
+		},
+	}
+}
+
+// testExternalAuthUpdateMatchingHostedClusterSpec returns a HostedCluster spec that matches
+// newExternalAuthUpdateTestExternalAuth for external auth update state calculation tests.
+func testExternalAuthUpdateMatchingHostedClusterSpec() v1beta1.HostedClusterSpec {
+	return v1beta1.HostedClusterSpec{
+		Configuration: &v1beta1.ClusterConfiguration{
+			Authentication: &configv1.AuthenticationSpec{
+				OIDCProviders: []configv1.OIDCProvider{
+					testExternalAuthUpdateMatchingOIDCProvider(),
+				},
+			},
+		},
 	}
 }
