@@ -47,6 +47,20 @@ func TestValidateExternalAuth(t *testing.T) {
 			expectErrors: nil,
 		},
 		{
+			name: "valid external auth with console confidential client",
+			newObj: testExternalAuthWithClients(
+				[]string{"console-client"},
+				testExternalAuthClientProfile(
+					api.ExternalAuthConsoleClientComponentName,
+					api.ExternalAuthConsoleClientComponentNamespace,
+					"console-client",
+					api.ExternalAuthClientTypeConfidential,
+				),
+			),
+			op:           operation.Operation{Type: operation.Create},
+			expectErrors: nil,
+		},
+		{
 			name: "valid external auth with multiple unique clients",
 			newObj: func() *api.HCPOpenShiftClusterExternalAuth {
 				obj := createValidExternalAuth()
@@ -58,7 +72,7 @@ func TestValidateExternalAuth(t *testing.T) {
 							AuthClientNamespace: "namespace1",
 						},
 						ClientID: "client1",
-						Type:     api.ExternalAuthClientTypeConfidential,
+						Type:     api.ExternalAuthClientTypePublic,
 					},
 					{
 						Component: api.ExternalAuthClientComponentProfile{
@@ -74,7 +88,7 @@ func TestValidateExternalAuth(t *testing.T) {
 							AuthClientNamespace: "namespace3",
 						},
 						ClientID: "client3",
-						Type:     api.ExternalAuthClientTypeConfidential,
+						Type:     api.ExternalAuthClientTypePublic,
 					},
 				}
 				return obj
@@ -212,7 +226,7 @@ func TestValidateExternalAuth(t *testing.T) {
 							AuthClientNamespace: "namespace" + string(rune('0'+i)),
 						},
 						ClientID: "audience1",
-						Type:     api.ExternalAuthClientTypeConfidential,
+						Type:     api.ExternalAuthClientTypePublic,
 					}
 				}
 				return obj
@@ -235,7 +249,7 @@ func TestValidateExternalAuth(t *testing.T) {
 							AuthClientNamespace: "test-namespace",
 						},
 						ClientID: "audience1",
-						Type:     api.ExternalAuthClientTypeConfidential,
+						Type:     api.ExternalAuthClientTypePublic,
 					},
 				}
 				return obj
@@ -301,7 +315,7 @@ func TestValidateExternalAuth(t *testing.T) {
 							AuthClientNamespace: "same-namespace",
 						},
 						ClientID: "client1",
-						Type:     api.ExternalAuthClientTypeConfidential,
+						Type:     api.ExternalAuthClientTypePublic,
 					},
 					{
 						Component: api.ExternalAuthClientComponentProfile{
@@ -331,7 +345,7 @@ func TestValidateExternalAuth(t *testing.T) {
 							AuthClientNamespace: "test-namespace",
 						},
 						ClientID: "nonexistent-client", // This doesn't match any audience
-						Type:     api.ExternalAuthClientTypeConfidential,
+						Type:     api.ExternalAuthClientTypePublic,
 					},
 				}
 				return obj
@@ -353,7 +367,7 @@ func TestValidateExternalAuth(t *testing.T) {
 							AuthClientNamespace: "namespace1",
 						},
 						ClientID: "audience1", // This matches
-						Type:     api.ExternalAuthClientTypeConfidential,
+						Type:     api.ExternalAuthClientTypePublic,
 					},
 					{
 						Component: api.ExternalAuthClientComponentProfile{
@@ -617,6 +631,31 @@ func TestValidateExternalAuth(t *testing.T) {
 			op:           operation.Operation{Type: operation.Update},
 			expectErrors: nil,
 		},
+		{
+			name: "update rejects confidential on unsupported component",
+			newObj: testExternalAuthWithClients(
+				[]string{"other-client"},
+				testExternalAuthClientProfile(
+					"component1",
+					"namespace1",
+					"other-client",
+					api.ExternalAuthClientTypeConfidential,
+				),
+			),
+			oldObj: testExternalAuthWithClients(
+				[]string{"other-client"},
+				testExternalAuthClientProfile(
+					"component1",
+					"namespace1",
+					"other-client",
+					api.ExternalAuthClientTypePublic,
+				),
+			),
+			op: operation.Operation{Type: operation.Update},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.clients[0].type", Message: "confidential client type is not allowed for this component"},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -859,7 +898,7 @@ func TestValidateExternalAuthCustomValidation(t *testing.T) {
 							AuthClientNamespace: "namespace1",
 						},
 						ClientID: "client1",
-						Type:     api.ExternalAuthClientTypeConfidential,
+						Type:     api.ExternalAuthClientTypePublic,
 					},
 				}
 				return obj
@@ -878,7 +917,7 @@ func TestValidateExternalAuthCustomValidation(t *testing.T) {
 							AuthClientNamespace: "namespace1",
 						},
 						ClientID: "nonexistent-client",
-						Type:     api.ExternalAuthClientTypeConfidential,
+						Type:     api.ExternalAuthClientTypePublic,
 					},
 				}
 				return obj
@@ -899,7 +938,7 @@ func TestValidateExternalAuthCustomValidation(t *testing.T) {
 							AuthClientNamespace: "namespace1",
 						},
 						ClientID: "client1",
-						Type:     api.ExternalAuthClientTypeConfidential,
+						Type:     api.ExternalAuthClientTypePublic,
 					},
 					{
 						Component: api.ExternalAuthClientComponentProfile{
@@ -944,6 +983,21 @@ func TestValidateExternalAuthCustomValidation(t *testing.T) {
 					api.ExternalAuthConsoleClientComponentName,
 					api.ExternalAuthConsoleClientComponentNamespace,
 				)},
+			},
+		},
+		{
+			name: "confidential client rejects unsupported component",
+			newObj: testExternalAuthWithClients(
+				[]string{"other-client"},
+				testExternalAuthClientProfile(
+					"component1",
+					"namespace1",
+					"other-client",
+					api.ExternalAuthClientTypeConfidential,
+				),
+			),
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.clients[0].type", Message: "confidential client type is not allowed for this component"},
 			},
 		},
 		{
@@ -1016,7 +1070,7 @@ func TestValidateExternalAuthCustomValidation(t *testing.T) {
 							AuthClientNamespace: "same-namespace",
 						},
 						ClientID: "client1-a",
-						Type:     api.ExternalAuthClientTypeConfidential,
+						Type:     api.ExternalAuthClientTypePublic,
 					},
 					{
 						Component: api.ExternalAuthClientComponentProfile{
@@ -1108,7 +1162,7 @@ func createValidExternalAuth() *api.HCPOpenShiftClusterExternalAuth {
 						AuthClientNamespace: "test-namespace",
 					},
 					ClientID: "audience1",
-					Type:     api.ExternalAuthClientTypeConfidential,
+					Type:     api.ExternalAuthClientTypePublic,
 				},
 			},
 			Claim: api.ExternalAuthClaimProfile{

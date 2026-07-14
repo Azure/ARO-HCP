@@ -314,7 +314,7 @@ func TestExternalAuthValidate(t *testing.T) {
 								Name:                ClientComponentName,
 								AuthClientNamespace: ClientComponentNamespace,
 							},
-							Type: api.ExternalAuthClientTypeConfidential,
+							Type: api.ExternalAuthClientTypePublic,
 						},
 					},
 					Claim: api.ExternalAuthClaimProfile{
@@ -342,7 +342,7 @@ func TestExternalAuthValidate(t *testing.T) {
 								AuthClientNamespace: ClientComponentNamespace,
 							},
 							ExtraScopes: []string{""},
-							Type:        api.ExternalAuthClientTypeConfidential,
+							Type:        api.ExternalAuthClientTypePublic,
 						},
 					},
 					Claim: api.ExternalAuthClaimProfile{
@@ -374,7 +374,7 @@ func TestExternalAuthValidate(t *testing.T) {
 								Name:                ClientComponentName,
 								AuthClientNamespace: ClientComponentNamespace,
 							},
-							Type: api.ExternalAuthClientTypeConfidential,
+							Type: api.ExternalAuthClientTypePublic,
 						},
 					},
 					Claim: api.ExternalAuthClaimProfile{
@@ -406,7 +406,7 @@ func TestExternalAuthValidate(t *testing.T) {
 								Name:                ClientComponentName,
 								AuthClientNamespace: ClientComponentNamespace,
 							},
-							Type: api.ExternalAuthClientTypeConfidential,
+							Type: api.ExternalAuthClientTypePublic,
 						},
 						{
 							ClientID: ClientID2,
@@ -414,7 +414,7 @@ func TestExternalAuthValidate(t *testing.T) {
 								Name:                ClientComponentName,
 								AuthClientNamespace: ClientComponentNamespace,
 							},
-							Type: api.ExternalAuthClientTypeConfidential,
+							Type: api.ExternalAuthClientTypePublic,
 						},
 					},
 					Claim: api.ExternalAuthClaimProfile{

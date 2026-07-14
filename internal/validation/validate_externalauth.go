@@ -209,6 +209,18 @@ var (
 	toExternalAuthClientProfileExtraScopes = func(oldObj *api.ExternalAuthClientProfile) []string { return oldObj.ExtraScopes }
 )
 
+// confidentialExternalAuthClientComponentKey is the map key for validConfidentialExternalAuthClientComponents.
+type confidentialExternalAuthClientComponentKey struct {
+	name      string
+	namespace string
+}
+
+// validConfidentialExternalAuthClientComponents lists component name and namespace
+// pairs that may use the Confidential client type.
+var validConfidentialExternalAuthClientComponents = map[confidentialExternalAuthClientComponentKey]struct{}{
+	{name: api.ExternalAuthConsoleClientComponentName, namespace: api.ExternalAuthConsoleClientComponentNamespace}: {},
+}
+
 func validateExternalAuthClientProfile(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.ExternalAuthClientProfile) field.ErrorList {
 	errs := field.ErrorList{}
 
@@ -243,6 +255,21 @@ func validateExternalAuthClientProfile(ctx context.Context, op operation.Operati
 				api.ExternalAuthConsoleClientComponentName,
 				api.ExternalAuthConsoleClientComponentNamespace,
 			),
+		))
+	}
+
+	// Confidential clients are restricted to platform components listed in
+	// validConfidentialExternalAuthClientComponents. This is independent of the
+	// console-specific type requirement above.
+	_, isAllowedConfidentialComponent := validConfidentialExternalAuthClientComponents[confidentialExternalAuthClientComponentKey{
+		name:      newObj.Component.Name,
+		namespace: newObj.Component.AuthClientNamespace,
+	}]
+	if newObj.Type == api.ExternalAuthClientTypeConfidential && !isAllowedConfidentialComponent {
+		errs = append(errs, field.Invalid(
+			fldPath.Child("type"),
+			newObj.Type,
+			"confidential client type is not allowed for this component",
 		))
 	}
 
