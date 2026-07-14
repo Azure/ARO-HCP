@@ -63,10 +63,9 @@ curl "${CURL_RETRY_OPTS[@]}" "$ISTIO_URL" -o "${ISTIO_TARBALL}"
 # Download the SHA-256 checksum file
 curl "${CURL_RETRY_OPTS[@]}" "$SHA256_URL" -o "${ISTIO_SHA256}"
 
-# Verify the downloaded file
-sha256sum -c "${ISTIO_SHA256}"
-
-# Check the result of the verification
+# Verify the downloaded file. Run the check once, inside the if, so the custom
+# failure message is reachable under `set -e` (a bare `sha256sum -c` would abort
+# the script before any messaging on mismatch).
 if sha256sum -c "${ISTIO_SHA256}"; then
     echo "Verification successful: The file is intact."
 else
