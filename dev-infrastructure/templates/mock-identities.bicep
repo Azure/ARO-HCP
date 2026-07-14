@@ -169,6 +169,7 @@ resource msiCustomRole 'Microsoft.Authorization/roleDefinitions@2022-04-01' = {
           'Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials/read'
           'Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials/write'
           'Microsoft.ManagedIdentity/userAssignedIdentities/read'
+          'Microsoft.ManagedIdentity/userAssignedIdentities/assign/action' // attach customer-provided MIs (e.g. ACR pull) to VMs via CAPZ
           'Microsoft.Network/loadBalancers/backendAddressPools/read' // read backend address pools of LB to check if the backend address pool already exists
           'Microsoft.Network/loadBalancers/backendAddressPools/write' // write backend address pools to LB
           'Microsoft.Network/loadBalancers/read' // to check if LB exists or not before writing to it
