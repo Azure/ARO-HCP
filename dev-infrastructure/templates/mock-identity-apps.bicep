@@ -19,6 +19,7 @@ module sharedApps '../modules/entra/app.bicep' = [
     name: 'mock-app-${identity.applicationName}'
     params: {
       applicationName: identity.applicationName
+      uniqueName: toLower(replace(identity.applicationName, ' ', '-'))
       manageSp: true
       trustedSubjectNameAndIssuers: [
         {
@@ -35,6 +36,7 @@ module poolApps '../modules/entra/app.bicep' = [
     name: 'mock-app-pool-${i}'
     params: {
       applicationName: '${poolAppBaseName}-${i}'
+      uniqueName: toLower(replace('${poolAppBaseName}-${i}', ' ', '-'))
       manageSp: true
       trustedSubjectNameAndIssuers: [
         {

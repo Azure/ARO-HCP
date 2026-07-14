@@ -26,7 +26,7 @@ param msiMockRoleName string = 'dev-msi-mock'
 module firstPartyLookup './entra-app-lookup.bicep' = {
   name: 'lookup-first-party'
   params: {
-    applicationName: firstPartyAppName
+    applicationName: toLower(replace(firstPartyAppName, ' ', '-'))
     manage: true
     lookupSp: true
   }
@@ -35,7 +35,7 @@ module firstPartyLookup './entra-app-lookup.bicep' = {
 module armHelperLookup './entra-app-lookup.bicep' = {
   name: 'lookup-arm-helper'
   params: {
-    applicationName: armHelperAppName
+    applicationName: toLower(replace(armHelperAppName, ' ', '-'))
     manage: true
     lookupSp: true
   }
@@ -44,7 +44,7 @@ module armHelperLookup './entra-app-lookup.bicep' = {
 module msiMockLookup './entra-app-lookup.bicep' = {
   name: 'lookup-msi-mock'
   params: {
-    applicationName: msiMockAppName
+    applicationName: toLower(replace(msiMockAppName, ' ', '-'))
     manage: true
     lookupSp: true
   }
@@ -54,7 +54,7 @@ module poolLookups './entra-app-lookup.bicep' = [
   for i in range(0, poolSize): {
     name: 'lookup-pool-${i}'
     params: {
-      applicationName: '${poolAppBaseName}-${i}'
+      applicationName: toLower(replace('${poolAppBaseName}-${i}', ' ', '-'))
       manage: true
       lookupSp: true
     }
