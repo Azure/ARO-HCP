@@ -99,9 +99,11 @@ type completedControllerOptions struct {
 	ksmCtrl                  *ksmhcp.KSMHCPController
 	resourceWatcher          *controller.ResourceWatcher
 	podWatcher               *controller.PodWatcher
+	configMapWatcher         *controller.ConfigMapWatcher
 	kubeInformers            kubeinformers.SharedInformerFactory
 	ksmKubeInformers         kubeinformers.SharedInformerFactory
 	clusterWideKubeInformers kubeinformers.SharedInformerFactory
+	cmWatcherInformers       kubeinformers.SharedInformerFactory
 	hypershiftInformers      hypershiftinformers.SharedInformerFactory
 	dynamicInformers         dynamicinformer.DynamicSharedInformerFactory
 	workers                  int
@@ -176,6 +178,16 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 		return nil, fmt.Errorf("failed to create pod watcher: %w", err)
 	}
 
+	cmWatcherInformers := kubeinformers.NewSharedInformerFactoryWithOptions(kubeClientset, 0,
+		kubeinformers.WithTweakListOptions(func(opts *metav1.ListOptions) {
+			opts.FieldSelector = "metadata.name=" + controller.RouterConfigMapName
+		}),
+	)
+	configMapWatcher, err := controller.NewConfigMapWatcher(cmWatcherInformers.Core().V1().ConfigMaps())
+	if err != nil {
+		return nil, fmt.Errorf("failed to create ConfigMap watcher: %w", err)
+	}
+
 	var ksmCtrl *ksmhcp.KSMHCPController
 	var hsInformers hypershiftinformers.SharedInformerFactory
 	var ksmKubeInformers kubeinformers.SharedInformerFactory
@@ -227,9 +239,11 @@ func (o *ValidatedControllerOptions) Complete(ctx context.Context) (*ControllerO
 			ksmCtrl:                  ksmCtrl,
 			resourceWatcher:          resourceWatcher,
 			podWatcher:               podWatcher,
+			configMapWatcher:         configMapWatcher,
 			kubeInformers:            kubeInformers,
 			ksmKubeInformers:         ksmKubeInformers,
 			clusterWideKubeInformers: clusterWideKubeInformers,
+			cmWatcherInformers:       cmWatcherInformers,
 			hypershiftInformers:      hsInformers,
 			dynamicInformers:         dynInformers,
 			workers:                  o.Workers,
@@ -342,6 +356,9 @@ func (o *ControllerOptions) runControllersUnderLeaderElection(ctx context.Contex
 				if o.dynamicInformers != nil {
 					o.dynamicInformers.Start(ctx.Done())
 				}
+				if o.cmWatcherInformers != nil {
+					o.cmWatcherInformers.Start(ctx.Done())
+				}
 
 				go func() {
 					defer utilruntime.HandleCrash()
@@ -349,12 +366,21 @@ func (o *ControllerOptions) runControllersUnderLeaderElection(ctx context.Contex
 						logger.Error(err, "SwiftNIC controller failed")
 					}
 				}()
+
 				go func() {
 					defer utilruntime.HandleCrash()
 					if err := o.resourceWatcher.Run(ctx); err != nil {
 						logger.Error(err, "resource watcher failed")
 					}
 				}()
+
+				go func() {
+					defer utilruntime.HandleCrash()
+					if err := o.configMapWatcher.Run(ctx); err != nil {
+						logger.Error(err, "ConfigMap watcher failed")
+					}
+				}()
+
 				if o.ksmCtrl != nil {
 					go func() {
 						defer utilruntime.HandleCrash()
