@@ -475,6 +475,11 @@ resourceGroups:
       - "There was a problem communicating with the identity service"
       - "DeploymentScriptExceededMaxAllowedTime"
       - "was not found in the AAD tenant"
+      # Transient Network Security Perimeter association failures against the RP
+      # Cosmos DB account (exclusive-lock contention / backend retry exhaustion).
+      - "AnmPreconditionFailedException"
+      - "MaxRetryCountReached"
+      - "ServiceUnavailable"
       maximumRetryCount: 3
       durationBetweenRetries: 2m
   - name: upgrade-aks-cluster
