@@ -58,6 +58,7 @@ spec:
             --platform-monitoring=None \
             --metrics-set=SRE \
             --enable-size-tagging=true \
+            --tech-preview-no-upgrade \
             --limit-crd-install=Azure \
             {{- if .Values.operatorEnvVars.sharedIngressIPTag }}
             --additional-operator-env-vars SHARED_INGRESS_AZURE_PIP_IP_TAGS={{ .Values.operatorEnvVars.sharedIngressIPTag }} \

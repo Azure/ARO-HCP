@@ -6,6 +6,9 @@ param backupsStorageAccountName string
 @description('The name of the Velero managed identity')
 param veleroMsiName string
 
+@description('The name of the etcd backup managed identity')
+param etcdBackupMsiName string
+
 resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-10-01' existing = {
   name: mgmtClusterName
 }
@@ -31,5 +34,12 @@ resource veleroIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-0
 }
 
 output veleroMsiClientId string = veleroIdentity.properties.clientId
+
+resource etcdBackupIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
+  scope: resourceGroup()
+  name: etcdBackupMsiName
+}
+
+output etcdBackupMsiClientId string = etcdBackupIdentity.properties.clientId
 output tenantId string = tenant().tenantId
 output subscriptionId string = subscription().subscriptionId

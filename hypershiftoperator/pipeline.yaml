@@ -104,6 +104,10 @@ resourceGroups:
         resourceGroup: management
         step: output
         name: csiSecretStoreClientId
+      etcdBackupMsiClientId:
+        resourceGroup: management
+        step: output
+        name: etcdBackupMsiClientId
     dependsOn:
     - resourceGroup: global
       step: mirror-image

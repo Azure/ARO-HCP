@@ -42,8 +42,9 @@ var backupIncludedResources = []string{
 	"sa",
 	"role",
 	"rolebinding",
-	"pvc", // Not required if using HcpEtcdBackup
-	"pv",  // Not required if using HcpEtcdBackup
+	"pod",
+	//"pvc", // Not required if using HcpEtcdBackup
+	//"pv",  // Not required if using HcpEtcdBackup
 	"configmap",
 	"priorityclasses",
 	"pdb",
@@ -75,11 +76,11 @@ func NewBackup(backupName, resourceID string, ttl time.Duration, namespaces ...s
 		IncludedNamespaces(namespaces...).
 		IncludedResources(backupIncludedResources...).
 		TTL(ttl).
-		SnapshotVolumes(true). // Set to false if using HcpEtcdBackup
+		SnapshotVolumes(false). // Set to false if using HcpEtcdBackup
 		DefaultVolumesToFsBackup(false).
 		DataMover("velero").
-		SnapshotMoveData(true). // Set to false if using HcpEtcdBackup
-		CSISnapshotTimeout(10 * time.Minute).
-		ItemOperationTimeout(15 * time.Minute)
+		SnapshotMoveData(false). // Set to false if using HcpEtcdBackup
+		//CSISnapshotTimeout(10 * time.Minute).
+		ItemOperationTimeout(30 * time.Minute)
 	return backup.Result()
 }

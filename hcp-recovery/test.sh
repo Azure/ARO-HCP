@@ -4,9 +4,9 @@ kubectl apply -f - <<EOF
 apiVersion: hcprecovery.aro-hcp.azure.com/v1alpha1
 kind: HCPRecovery
 metadata:
-  name: 2p87p8n535epvp43meqnp1i218s6lcqg-recovery-3
+  name: 2rhh9f6dfgebotch8jg0862245rreeel-2
   namespace: hcp-recovery
 spec:
-  clusterId: 2p87p8n535epvp43meqnp1i218s6lcqg
-  backupId: 2p87p8n535epvp43meqnp1i218s6lcqg-hourly-20260325180003
+  clusterId: 2rhh9f6dfgebotch8jg0862245rreeel
+  backupId: 2rhh9f6dfgebotch8jg0862245rreeel-20260713224338 
 EOF

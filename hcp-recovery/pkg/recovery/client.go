@@ -17,7 +17,6 @@ package recovery
 import (
 	"context"
 	"fmt"
-	"time"
 
 	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 
@@ -68,28 +67,6 @@ func (c *DrClient) ListBackupsForCluster(ctx context.Context, clusterId string) 
 		return nil, err
 	}
 	return backupList.Items, nil
-}
-
-func (c *DrClient) CreateBackupForCluster(ctx context.Context, clusterId string) (*velerov1api.Backup, error) {
-	hc, err := c.GetHostedCluster(ctx, clusterId)
-	if err != nil {
-		return nil, err
-	}
-	if hc == nil {
-		return nil, fmt.Errorf("hosted cluster %s not found", clusterId)
-	}
-
-	now := time.Now().UTC().Format("2006-01-02-150405")
-	backupName := fmt.Sprintf("%s-%s", clusterId, now)
-	hcpNamespace := fmt.Sprintf("%s-%s", hc.Namespace, hc.Name)
-
-	backup := NewBackup(backupName, clusterId, hc.Namespace, hcpNamespace)
-	err = c.client.Create(ctx, backup)
-	if err != nil {
-		return nil, err
-	}
-
-	return backup, nil
 }
 
 func (c *DrClient) GetHostedCluster(ctx context.Context, clusterId string) (*hypershiftv1beta1.HostedCluster, error) {

@@ -4,6 +4,9 @@ param storageAccountName string
 @description('Principal ID of the Velero managed identity')
 param veleroManagedIdentityPrincipalId string
 
+@description('Principal ID of the etcd backup managed identity')
+param etcdBackupManagedIdentityPrincipalId string
+
 // Storage Blob Data Contributor: Grants read, write, and delete access to blob containers and data
 // https://learn.microsoft.com/en-us/azure/role-based-access-control/built-in-roles#storage-blob-data-contributor
 var storageBlobDataContributorRole = 'ba92f5b4-2d11-453d-a403-e96b0029c9fe'
@@ -50,6 +53,41 @@ resource veleroReaderAssignment 'Microsoft.Authorization/roleAssignments@2022-04
   scope: hcpBackupsStorageAccount
   properties: {
     principalId: veleroManagedIdentityPrincipalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: resourceId('Microsoft.Authorization/roleDefinitions', readerRole)
+  }
+}
+
+// ============================================================================
+// Etcd Backup Managed Identity - Role Assignments
+// Roles: Storage Blob Data Contributor, Storage Account Key Operator, Reader
+// ============================================================================
+
+resource etcdBackupStorageBlobDataContributorAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(storageAccountName, 'etcd-backup-blob-contributor', storageBlobDataContributorRole)
+  scope: hcpBackupsStorageAccount
+  properties: {
+    principalId: etcdBackupManagedIdentityPrincipalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: resourceId('Microsoft.Authorization/roleDefinitions', storageBlobDataContributorRole)
+  }
+}
+
+resource etcdBackupStorageAccountKeyOperatorAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(storageAccountName, 'etcd-backup-key-operator', storageAccountKeyOperatorRole)
+  scope: hcpBackupsStorageAccount
+  properties: {
+    principalId: etcdBackupManagedIdentityPrincipalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: resourceId('Microsoft.Authorization/roleDefinitions', storageAccountKeyOperatorRole)
+  }
+}
+
+resource etcdBackupReaderAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(storageAccountName, 'etcd-backup-reader', readerRole)
+  scope: hcpBackupsStorageAccount
+  properties: {
+    principalId: etcdBackupManagedIdentityPrincipalId
     principalType: 'ServicePrincipal'
     roleDefinitionId: resourceId('Microsoft.Authorization/roleDefinitions', readerRole)
   }
