@@ -203,8 +203,9 @@ var (
 	toExternalAuthClientProfileComponent = func(oldObj *api.ExternalAuthClientProfile) *api.ExternalAuthClientComponentProfile {
 		return &oldObj.Component
 	}
-	toExternalAuthClientProfileClientID = func(oldObj *api.ExternalAuthClientProfile) *string { return &oldObj.ClientID }
-	toExternalAuthClientProfileType     = func(oldObj *api.ExternalAuthClientProfile) *api.ExternalAuthClientType { return &oldObj.Type }
+	toExternalAuthClientProfileClientID    = func(oldObj *api.ExternalAuthClientProfile) *string { return &oldObj.ClientID }
+	toExternalAuthClientProfileType        = func(oldObj *api.ExternalAuthClientProfile) *api.ExternalAuthClientType { return &oldObj.Type }
+	toExternalAuthClientProfileExtraScopes = func(oldObj *api.ExternalAuthClientProfile) []string { return oldObj.ExtraScopes }
 )
 
 func validateExternalAuthClientProfile(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.ExternalAuthClientProfile) field.ErrorList {
@@ -218,6 +219,12 @@ func validateExternalAuthClientProfile(ctx context.Context, op operation.Operati
 	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("clientId"), &newObj.ClientID, safe.Field(oldObj, toExternalAuthClientProfileClientID))...)
 
 	//ExtraScopes []string                           `json:"extraScopes"`
+	errs = append(errs, validate.EachSliceVal(
+		ctx, op, fldPath.Child("extraScopes"),
+		newObj.ExtraScopes, safe.Field(oldObj, toExternalAuthClientProfileExtraScopes),
+		nil, nil,
+		validate.RequiredValue,
+	)...)
 
 	//Type        ExternalAuthClientType             `json:"type"`
 	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("type"), &newObj.Type, safe.Field(oldObj, toExternalAuthClientProfileType))...)

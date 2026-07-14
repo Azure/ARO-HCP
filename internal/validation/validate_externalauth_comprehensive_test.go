@@ -383,6 +383,53 @@ func TestValidateExternalAuth(t *testing.T) {
 			},
 		},
 		{
+			name: "valid client extraScopes",
+			newObj: func() *api.HCPOpenShiftClusterExternalAuth {
+				obj := createValidExternalAuth()
+				obj.Properties.Clients[0].ExtraScopes = []string{"email", "profile"}
+				return obj
+			}(),
+			op:           operation.Operation{Type: operation.Create},
+			expectErrors: nil,
+		},
+		{
+			name: "empty client extraScope",
+			newObj: func() *api.HCPOpenShiftClusterExternalAuth {
+				obj := createValidExternalAuth()
+				obj.Properties.Clients[0].ExtraScopes = []string{""}
+				return obj
+			}(),
+			op: operation.Operation{Type: operation.Create},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.clients[0].extraScopes[0]", Message: "Required value"},
+			},
+		},
+		{
+			name: "empty client extraScope among valid extraScopes",
+			newObj: func() *api.HCPOpenShiftClusterExternalAuth {
+				obj := createValidExternalAuth()
+				obj.Properties.Clients[0].ExtraScopes = []string{"email", ""}
+				return obj
+			}(),
+			op: operation.Operation{Type: operation.Create},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.clients[0].extraScopes[1]", Message: "Required value"},
+			},
+		},
+		{
+			name: "multiple empty client extraScopes",
+			newObj: func() *api.HCPOpenShiftClusterExternalAuth {
+				obj := createValidExternalAuth()
+				obj.Properties.Clients[0].ExtraScopes = []string{"", ""}
+				return obj
+			}(),
+			op: operation.Operation{Type: operation.Create},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.clients[0].extraScopes[0]", Message: "Required value"},
+				{FieldPath: "properties.clients[0].extraScopes[1]", Message: "Required value"},
+			},
+		},
+		{
 			name: "invalid external auth resource name - empty",
 			newObj: func() *api.HCPOpenShiftClusterExternalAuth {
 				obj := createValidExternalAuth()

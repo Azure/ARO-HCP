@@ -327,6 +327,39 @@ func TestExternalAuthValidate(t *testing.T) {
 			expectErrors: nil,
 		},
 		{
+			name: "Bad properties.clients.extraScopes - empty extraScope value",
+			tweaks: &api.HCPOpenShiftClusterExternalAuth{
+				Properties: api.HCPOpenShiftClusterExternalAuthProperties{
+					Issuer: api.TokenIssuerProfile{
+						URL:       "https://example.com",
+						Audiences: []string{ClientID1},
+					},
+					Clients: []api.ExternalAuthClientProfile{
+						{
+							ClientID: ClientID1,
+							Component: api.ExternalAuthClientComponentProfile{
+								Name:                ClientComponentName,
+								AuthClientNamespace: ClientComponentNamespace,
+							},
+							ExtraScopes: []string{""},
+							Type:        api.ExternalAuthClientTypeConfidential,
+						},
+					},
+					Claim: api.ExternalAuthClaimProfile{
+						Mappings: api.TokenClaimMappingsProfile{
+							Username: api.UsernameClaimProfile{Claim: "email"},
+						},
+					},
+				},
+			},
+			expectErrors: []utils.ExpectedError{
+				{
+					Message:   "Required value",
+					FieldPath: "properties.clients[0].extraScopes[0]",
+				},
+			},
+		},
+		{
 			name: "Invalid ClientID not in audiences",
 			tweaks: &api.HCPOpenShiftClusterExternalAuth{
 				Properties: api.HCPOpenShiftClusterExternalAuthProperties{
