@@ -373,12 +373,12 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "rate(http_requests_total{job_id=\"$job_id\", pr_number=\"$pr_number\", service=~\"frontend|backend|maestro\"}[5m])",
-          "legendFormat": "{{service}} - {{method}} {{path}} [{{status_code}}]",
+          "expr": "sum by (method, route, code) (rate(frontend_http_requests_total{job_id=\"$job_id\", pr_number=\"$pr_number\"}[5m]))",
+          "legendFormat": "{{method}} {{route}} [{{code}}]",
           "refId": "A"
         }
       ],
-      "title": "HTTP Request Rate (Frontend/Backend/Maestro)",
+      "title": "Frontend HTTP Request Rate",
       "type": "timeseries"
     },
     {

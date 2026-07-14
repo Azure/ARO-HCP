@@ -32,18 +32,25 @@ echo ""
 echo "Fetching CI monitoring endpoints..."
 
 : "${GLOBAL_RESOURCE_GROUP:?GLOBAL_RESOURCE_GROUP must be set (resource group containing the ci-monitoring deployment)}"
+CI_MONITORING_DEPLOYMENT_NAME="${CI_MONITORING_DEPLOYMENT_NAME:-ci-monitoring}"
 
-export CI_DCR_URL=$(az deployment group show \
-  --resource-group "${GLOBAL_RESOURCE_GROUP}" \
-  --name ci-monitoring \
-  --query 'properties.outputs.ciDcrRemoteWriteUrl.value' \
-  -o tsv 2>/dev/null || echo "")
+if [ -z "${CI_DCR_URL:-}" ]; then
+  CI_DCR_URL=$(az deployment group show \
+    --resource-group "${GLOBAL_RESOURCE_GROUP}" \
+    --name "${CI_MONITORING_DEPLOYMENT_NAME}" \
+    --query 'properties.outputs.ciDcrRemoteWriteUrl.value' \
+    -o tsv 2>/dev/null || echo "")
+fi
 
-export CI_HCP_DCR_URL=$(az deployment group show \
-  --resource-group "${GLOBAL_RESOURCE_GROUP}" \
-  --name ci-monitoring \
-  --query 'properties.outputs.ciHcpDcrRemoteWriteUrl.value' \
-  -o tsv 2>/dev/null || echo "")
+if [ -z "${CI_HCP_DCR_URL:-}" ]; then
+  CI_HCP_DCR_URL=$(az deployment group show \
+    --resource-group "${GLOBAL_RESOURCE_GROUP}" \
+    --name "${CI_MONITORING_DEPLOYMENT_NAME}" \
+    --query 'properties.outputs.ciHcpDcrRemoteWriteUrl.value' \
+    -o tsv 2>/dev/null || echo "")
+fi
+
+export CI_DCR_URL CI_HCP_DCR_URL
 
 # Set to "NONE" if empty (Prometheus template checks for "NONE" to disable remote write)
 if [ -z "$CI_HCP_DCR_URL" ]; then
