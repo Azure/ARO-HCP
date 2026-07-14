@@ -122,6 +122,16 @@ data:
         Tag             systemd.*
         Systemd_Filter  _SYSTEMD_UNIT=containerd.service
         Systemd_Filter  _SYSTEMD_UNIT=kubelet.service
+        # AROSLSRE-1465: capture kernel ring-buffer (kmsg) messages so we can see
+        # the guest kernel stack (hung_task/soft-lockup/panic) in the seconds
+        # before a userswft node hard-freezes into NodeNotReady. Kernel journal
+        # records carry no _SYSTEMD_UNIT; they are matched by _TRANSPORT=kernel.
+        # Systemd_Filter entries are OR'd, so this only adds kernel lines. They
+        # flow to the existing systemdLogs Kusto table (no schema change): the
+        # full record is preserved in the `log` dynamic column, so _TRANSPORT /
+        # SYSLOG_IDENTIFIER / PRIORITY stay queryable, and `message` maps from
+        # $.log.MESSAGE. systemd_unit is simply empty for kernel lines.
+        Systemd_Filter  _TRANSPORT=kernel
         Read_From_Tail  On
         Strip_Underscores On
         DB              /var/fluent-bit/flb-storage/flb-systemdb.db
@@ -142,6 +152,24 @@ data:
         Alias   filter.drop_kube_proxy_topology_noise
         Match   kubernetes.var.log.containers.kube-proxy*
         Exclude log Ignoring same-(node|zone) topology hints
+
+    [FILTER]
+        # AROSLSRE-1465: the kernel journal (_TRANSPORT=kernel, captured by the
+        # systemd input above) carries SELinux/audit-subsystem records that are
+        # routed through kmsg: lines beginning with "audit:" (audit types such as
+        # 1300/1325/1327/1130/1131 -- syscall, netfilter and service-state audit
+        # events) and the "kauditd_printk_skb: N callbacks suppressed" throttle
+        # notices. These are process/security audit events, NOT kernel-health
+        # signals, and they account for ~87% of kernel-transport log volume. They
+        # are useless for diagnosing node hard-freezes (hung_task, soft lockup,
+        # RCU stall, OOM, MCE, kernel panic), so we drop them here and keep only
+        # actionable kernel diagnostics. kubelet/containerd systemd records and
+        # all non-audit kernel lines are unaffected (their MESSAGE never starts
+        # with these prefixes).
+        Name    grep
+        Alias   filter.drop_kernel_audit_noise
+        Match   systemd.*
+        Exclude MESSAGE ^(audit:|kauditd_printk_skb:)
 
     [FILTER]
         Name modify
@@ -780,7 +808,7 @@ spec:
         app: arobit-forwarder
         azure.workload.identity/use: "true"
       annotations:
-        checksum/configmap: 8a5e701d3d44ef5eea580e724c2b4543bcb94fccf28527f5e2e078d7c7a2d65c
+        checksum/configmap: 11ab5ef382c815cd496dd5ac1ea47145094ed1a3d3519bf4e62bf5a331800a56
     spec:
       priorityClassName: service-lifecycle-critical
       serviceAccountName: 'arobit-forwarder'
