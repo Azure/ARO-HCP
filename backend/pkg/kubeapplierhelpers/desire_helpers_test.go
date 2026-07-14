@@ -171,7 +171,7 @@ func TestEnsureApplyDesire(t *testing.T) {
 
 			err = EnsureApplyDesire(ctx, crud, applyLister, parent,
 				testSubscriptionID, testResourceGroupName, testClusterName, desireName,
-				testMCResourceID, testTarget(), testCSR(t))
+				testMCResourceID, testTarget(), testCSR(t), nil)
 
 			if tc.expectError {
 				require.Error(t, err)

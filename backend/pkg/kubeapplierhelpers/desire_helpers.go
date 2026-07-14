@@ -144,6 +144,7 @@ func EnsureApplyDesire(
 	managementCluster *azcorearm.ResourceID,
 	target kubeapplierapi.ResourceReference,
 	obj systemadmincredential.KubeObject,
+	tags map[string]string,
 ) error {
 	logger := utils.LoggerFromContext(ctx)
 
@@ -163,6 +164,7 @@ func EnsureApplyDesire(
 			ResourceID:   resourceID,
 			PartitionKey: strings.ToLower(managementCluster.String()),
 		},
+		Tags: tags,
 		Spec: kubeapplierapi.ApplyDesireSpec{
 			ManagementCluster: managementCluster,
 			Type:              kubeapplierapi.ApplyDesireTypeServerSideApply,

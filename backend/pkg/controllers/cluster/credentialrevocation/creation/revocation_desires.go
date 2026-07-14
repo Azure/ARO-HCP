@@ -179,7 +179,7 @@ func (c *revocationDesires) ensureRevocationDesires(
 	crrDesireName := "systemadmincredentialrevocation"
 	if err := kubeapplierhelpers.EnsureApplyDesire(ctx, applyCRUD, c.applyDesireLister, parent,
 		key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName,
-		crrDesireName, mcResourceID, crrTarget, crrObj); err != nil {
+		crrDesireName, mcResourceID, crrTarget, crrObj, nil); err != nil {
 		return err
 	}
 
