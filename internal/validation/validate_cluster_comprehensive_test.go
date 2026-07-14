@@ -670,6 +670,46 @@ func TestValidateClusterCreate(t *testing.T) {
 				return c
 			}(),
 			expectErrors: []utils.ExpectedError{
+				{Message: "must be unique within the cluster", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators"},
+				{Message: "identity is used multiple times", FieldPath: "identity.userAssignedIdentities[/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/shared-identity]"},
+			},
+		},
+		{
+			name: "duplicate managed identity across data plane operators - create",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				sharedIdentityID := "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/shared-dataplane-identity"
+				sharedIdentity := api.Must(azcorearm.ParseResourceID(sharedIdentityID))
+				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators = map[string]*azcorearm.ResourceID{
+					"dataplane-operator-1": sharedIdentity,
+					"dataplane-operator-2": sharedIdentity,
+				}
+				return c
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "must be unique within the cluster", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.dataPlaneOperators"},
+			},
+		},
+		{
+			name: "duplicate managed identity between control plane and service managed identity - create",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				identityID := "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/shared-identity"
+				identityResourceID := api.Must(azcorearm.ParseResourceID(identityID))
+				c.Identity = &arm.ManagedServiceIdentity{
+					Type: arm.ManagedServiceIdentityTypeUserAssigned,
+					UserAssignedIdentities: map[string]*arm.UserAssignedIdentity{
+						identityID: {},
+					},
+				}
+				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators = map[string]*azcorearm.ResourceID{
+					"test-operator": identityResourceID,
+				}
+				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity = identityResourceID
+				return c
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "must be unique within the cluster", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.serviceManagedIdentity"},
 				{Message: "identity is used multiple times", FieldPath: "identity.userAssignedIdentities[/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/shared-identity]"},
 			},
 		},
