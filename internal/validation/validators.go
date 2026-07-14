@@ -658,6 +658,24 @@ func SameSubscription(ctx context.Context, op operation.Operation, fldPath *fiel
 	return nil
 }
 
+// SameVirtualNetwork checks that value and otherSubnet belong to the same Azure VNet.
+// Both must be subnet resource IDs whose Parent is the VNet.
+func SameVirtualNetwork(_ context.Context, _ operation.Operation, fldPath *field.Path, value, _ *azcorearm.ResourceID, otherSubnet *azcorearm.ResourceID) field.ErrorList {
+	if value == nil || otherSubnet == nil || value.Parent == nil || otherSubnet.Parent == nil {
+		return nil
+	}
+
+	if !strings.EqualFold(value.Parent.String(), otherSubnet.Parent.String()) {
+		return field.ErrorList{field.Invalid(
+			fldPath,
+			value.String(),
+			fmt.Sprintf("must belong to the same VNet as subnetId '%s'", otherSubnet.String()),
+		)}
+	}
+
+	return nil
+}
+
 // ResourceID
 // 1. has subscription
 // 2. has name

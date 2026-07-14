@@ -819,15 +819,13 @@ func TestClusterValidate(t *testing.T) {
 		},
 		{
 			name: "Cluster with invalid subnet ID",
-			tweaks: &api.HCPOpenShiftCluster{
-				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
-					Platform: api.CustomerPlatformProfile{
-						ManagedResourceGroup:    "MRG",
-						SubnetID:                api.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/MRG/providers/Microsoft.Network/virtualNetworks/testVirtualNetwork/subnets/testSubnet")),
-						VnetIntegrationSubnetID: api.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/anotherResourceGroup/providers/Microsoft.Network/virtualNetworks/testVirtualNetwork/subnets/testVnetIntegrationSubnet")),
-					},
-				},
-			},
+			resource: func() *api.HCPOpenShiftCluster {
+				c := api.MinimumValidClusterTestCase()
+				c.CustomerProperties.Platform.ManagedResourceGroup = "MRG"
+				c.CustomerProperties.Platform.SubnetID = api.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/MRG/providers/Microsoft.Network/virtualNetworks/testVirtualNetwork/subnets/testSubnet"))
+				c.CustomerProperties.Platform.VnetIntegrationSubnetID = api.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/anotherResourceGroup/providers/Microsoft.Network/virtualNetworks/testVirtualNetwork/subnets/testVnetIntegrationSubnet"))
+				return c
+			}(),
 			expectErrors: []utils.ExpectedError{
 				{
 					Message:   "must not be the same resource group name: \"MRG\"",
@@ -836,6 +834,10 @@ func TestClusterValidate(t *testing.T) {
 				{
 					Message:   "must be in the same Azure subscription: \"11111111-1111-1111-1111-111111111111\"",
 					FieldPath: "customerProperties.platform.subnetId",
+				},
+				{
+					Message:   "must belong to the same VNet as subnetId",
+					FieldPath: "customerProperties.platform.vnetIntegrationSubnetId",
 				},
 				{
 					Message:   "must be in the same Azure subscription: \"11111111-1111-1111-1111-111111111111\"",
