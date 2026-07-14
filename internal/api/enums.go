@@ -164,13 +164,17 @@ const (
 	// EtcdDataEncryptionKeyManagementModeTypeCustomerManaged - Customer managed encryption key management mode type.
 	EtcdDataEncryptionKeyManagementModeTypeCustomerManaged EtcdDataEncryptionKeyManagementModeType = "CustomerManaged"
 	// EtcdDataEncryptionKeyManagementModeTypePlatformManaged - Platform managed encryption key management mode type.
+	// Not currently supported; left defined so EnsureDefaults / Cosmos defaults keep
+	// filling the historic value, but excluded from ValidEtcdDataEncryptionKeyManagementModeType until
+	// platform-managed etcd encryption is supported.
 	EtcdDataEncryptionKeyManagementModeTypePlatformManaged EtcdDataEncryptionKeyManagementModeType = "PlatformManaged"
 )
 
 var (
 	ValidEtcdDataEncryptionKeyManagementModeType = sets.New[EtcdDataEncryptionKeyManagementModeType](
 		EtcdDataEncryptionKeyManagementModeTypeCustomerManaged,
-		EtcdDataEncryptionKeyManagementModeTypePlatformManaged,
+		// TODO: re-enable once platform-managed etcd encryption is supported.
+		// EtcdDataEncryptionKeyManagementModeTypePlatformManaged,
 	)
 )
 
