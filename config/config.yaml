@@ -509,7 +509,7 @@ defaults:
       networkPolicy: "cilium"
       upgradeSettings:
         maxSurge: "10%"
-        maxUnavailable: 0
+        maxUnavailable: "0"
       systemAgentPool:
         name: 'system'
         minCount: 1
@@ -642,7 +642,7 @@ defaults:
       networkPolicy: "azure"
       upgradeSettings:
         maxSurge: "10%"
-        maxUnavailable: 0
+        maxUnavailable: "0"
       etcd:
         name: "ah-{{ .ctx.environment }}-me-{{ .ctx.regionShort }}-{{ .ctx.stamp }}" # [globally-unique]
         softDelete: true
