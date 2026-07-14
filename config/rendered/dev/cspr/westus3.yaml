@@ -637,7 +637,7 @@ mgmt:
       zones: ""
     upgradeSettings:
       maxSurge: 10%
-      maxUnavailable: 0
+      maxUnavailable: "0"
     userAgentPool:
       maxCount: 3
       minCount: 1
@@ -983,7 +983,7 @@ svc:
       zones: ""
     upgradeSettings:
       maxSurge: 10%
-      maxUnavailable: 0
+      maxUnavailable: "0"
     userAgentPool:
       maxCount: 12
       minCount: 2
