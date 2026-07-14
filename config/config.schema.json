@@ -3006,6 +3006,19 @@
           "pattern": "^[a-z0-9][a-z0-9-]*[a-z0-9]$",
           "description": "The workspace name should include 4-63 letters, digits or '-'. The '-' shouldn't be the first or the last symbol. We limit the name to 44 characters so we have a future option to use NSP: https://learn.microsoft.com/en-us/azure/private-link/network-security-perimeter-concepts"
         },
+        "amwScaling": {
+          "type": "object",
+          "properties": {
+            "pollInterval": {
+              "type": "string",
+              "description": "Interval at which the AMW ingestion limits scaling controller checks utilization. Go duration format (e.g. 30m, 1m)."
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "pollInterval"
+          ]
+        },
         "alertRuleOwningTeamTag": {
           "type": "string"
         },
@@ -3072,22 +3085,6 @@
             "sre",
             "sl"
           ]
-        },
-        "svcMaxActiveTimeSeriesMillions": {
-          "type": "integer",
-          "description": "Maximum active time series limit for the service Azure Monitor Workspace, expressed in millions (e.g. 2 = 2,000,000)"
-        },
-        "svcMaxEventsPerMinuteMillions": {
-          "type": "integer",
-          "description": "Maximum events per minute limit for the service Azure Monitor Workspace, expressed in millions (e.g. 2 = 2,000,000)"
-        },
-        "hcpMaxActiveTimeSeriesMillions": {
-          "type": "integer",
-          "description": "Maximum active time series limit for the HCP Azure Monitor Workspace, expressed in millions (e.g. 2 = 2,000,000)"
-        },
-        "hcpMaxEventsPerMinuteMillions": {
-          "type": "integer",
-          "description": "Maximum events per minute limit for the HCP Azure Monitor Workspace, expressed in millions (e.g. 2 = 2,000,000)"
         }
       },
       "additionalProperties": false,
@@ -3098,6 +3095,7 @@
         "grafanaZoneRedundantMode",
         "svcWorkspaceName",
         "hcpWorkspaceName",
+        "amwScaling",
         "alertRuleOwningTeamTag"
       ]
     },

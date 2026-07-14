@@ -83,7 +83,7 @@ verify-deepcopy: deepcopy
 	./hack/verify.sh deepcopy
 .PHONY: verify-deepcopy
 
-json-format: $(	JQ)
+json-format: $(JQ)
 	hack/update-json-format.sh $(JQ)
 .PHONY: json-format
 

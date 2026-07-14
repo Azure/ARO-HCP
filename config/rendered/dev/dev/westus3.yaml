@@ -789,6 +789,8 @@ monitoring:
   alertRuleOwningTeamTag: ""
   alertSeverityCeiling: 0
   alertsEnabled: true
+  amwScaling:
+    pollInterval: 30s
   crossTenantSecurityGroup: ""
   eventHubAlerting:
     enabled: true
@@ -796,8 +798,6 @@ monitoring:
   grafanaName: arohcp-dev
   grafanaRoles: 6b6d3adf-8476-4727-9812-20ffdef2b85c/Group/Admin
   grafanaZoneRedundantMode: Disabled
-  hcpMaxActiveTimeSeriesMillions: 2
-  hcpMaxEventsPerMinuteMillions: 2
   hcpWorkspaceName: hcps-usw3
   icm:
     connectionId: ""
@@ -828,8 +828,6 @@ monitoring:
       automitigationEnabled: ""
       enabled: true
       routingId: ""
-  svcMaxActiveTimeSeriesMillions: 2
-  svcMaxEventsPerMinuteMillions: 2
   svcWorkspaceName: services-usw3
 msiCredentialsRefresher:
   certificate:

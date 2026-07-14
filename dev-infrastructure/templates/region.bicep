@@ -51,18 +51,6 @@ param svcMonitorName string
 @description('Name of the Azure Monitor Workspace for hosted control planes')
 param hcpMonitorName string
 
-@description('Maximum active time series limit for the service Azure Monitor Workspace in millions (2M initial, bump when hitting 50% utilization)')
-param svcAmwMaxActiveTimeSeriesMillions int = 2
-
-@description('Maximum events per minute limit for the service Azure Monitor Workspace in millions (2M initial, bump when hitting 50% utilization)')
-param svcAmwMaxEventsPerMinuteMillions int = 2
-
-@description('Maximum active time series limit for the HCP Azure Monitor Workspace in millions (2M initial, bump when hitting 50% utilization)')
-param hcpAmwMaxActiveTimeSeriesMillions int = 2
-
-@description('Maximum events per minute limit for the HCP Azure Monitor Workspace in millions (2M initial, bump when hitting 50% utilization)')
-param hcpAmwMaxEventsPerMinuteMillions int = 2
-
 import { determineZoneRedundancyForRegion } from '../modules/common.bicep'
 import * as res from '../modules/resource.bicep'
 
@@ -178,26 +166,7 @@ module hcpMonitor '../modules/metrics/monitor.bicep' = {
   }
 }
 
-// Configure ingestion limits for Azure Monitor Workspaces
-// 2M initial limit - bump per environment when hitting 50% utilization
-module svcMonitorIngestionLimits '../modules/metrics/amw-ingestion-limits.bicep' = {
-  name: 'svc-monitor-ingestion-limits'
-  params: {
-    azureMonitorWorkspaceName: svcMonitorName
-    location: location
-    maxActiveTimeSeriesMillions: svcAmwMaxActiveTimeSeriesMillions
-    maxEventsPerMinuteMillions: svcAmwMaxEventsPerMinuteMillions
-  }
-  dependsOn: [svcMonitor]
-}
-
-module hcpMonitorIngestionLimits '../modules/metrics/amw-ingestion-limits.bicep' = {
-  name: 'hcp-monitor-ingestion-limits'
-  params: {
-    azureMonitorWorkspaceName: hcpMonitorName
-    location: location
-    maxActiveTimeSeriesMillions: hcpAmwMaxActiveTimeSeriesMillions
-    maxEventsPerMinuteMillions: hcpAmwMaxEventsPerMinuteMillions
-  }
-  dependsOn: [hcpMonitor]
-}
+// Ingestion limits for Azure Monitor Workspaces are managed dynamically by the
+// AMW scaling controller in the fleet component (fleet/pkg/controllers/amwscaling).
+// Do NOT set metricsContainers limits here — a region redeploy would overwrite
+// controller-driven increases back to static config values.
