@@ -187,6 +187,13 @@ func (o *validatedFromProwJobOptions) run(ctx context.Context) error {
 			"outputDir", testOutputDir,
 		)
 
+		// Download node console logs from GCS (optional — not every test creates VMs).
+		nodeConsoleLogs, err := snapshotpkg.FetchNodeConsoleLogs(ctx, o.prowInfo, test.Name)
+		if err != nil {
+			logger.Error(err, "Failed to fetch node console logs, continuing without them", "test", test.Name)
+			nodeConsoleLogs = nil
+		}
+
 		result, err := snapshotpkg.GatherForTest(ctx, snapshotpkg.GatherForTestOptions{
 			Gatherer:              gatherer,
 			Test:                  test,
@@ -200,6 +207,7 @@ func (o *validatedFromProwJobOptions) run(ctx context.Context) error {
 			OutputDir:             testOutputDir,
 			QueryTimeout:          o.queryTimeout,
 			Concurrency:           o.concurrency,
+			NodeConsoleLogs:       nodeConsoleLogs,
 		})
 		if err != nil {
 			logger.Error(err, "Failed to gather snapshot for test", "test", test.Name)

@@ -57,6 +57,14 @@ type AnalyzeOptions struct {
 
 	// ReviewRounds is the number of review passes. Zero defaults to 3.
 	ReviewRounds int
+
+	// NodeConsoleLogs maps console log filenames to their contents.
+	// Used for validating and hydrating node_console_log proof items.
+	NodeConsoleLogs map[string]string
+
+	// NodeConsoleLogURLs maps console log filenames to artifact download URLs.
+	// Used for populating ArtifactURL on hydrated node_console_log proof items.
+	NodeConsoleLogURLs map[string]string
 }
 
 // AnalyzeResult contains the output of a successful analysis.
@@ -101,11 +109,12 @@ func Analyze(ctx context.Context, logger logr.Logger, session LLMSession, kustoC
 		validRepos[repo] = true
 	}
 	vc := &ValidationContext{
-		ValidRepos:    validRepos,
-		WorktreePaths: opts.WorktreePaths,
-		DataDir:       opts.DataDir,
-		TestError:     opts.TestError,
-		TestOutput:    opts.TestOutput,
+		ValidRepos:      validRepos,
+		WorktreePaths:   opts.WorktreePaths,
+		DataDir:         opts.DataDir,
+		TestError:       opts.TestError,
+		TestOutput:      opts.TestOutput,
+		NodeConsoleLogs: opts.NodeConsoleLogs,
 	}
 
 	// Phase 2: Validate draft loop.
@@ -124,7 +133,7 @@ func Analyze(ctx context.Context, logger logr.Logger, session LLMSession, kustoC
 
 	// Phase 3: Hydration.
 	logger.Info("Hydrating analysis.")
-	hydrator := NewHydrator(kustoClient, opts.KustoCluster, opts.KustoDatabase, opts.WorktreePaths, opts.TestError, opts.TestOutput, opts.DataDir)
+	hydrator := NewHydrator(kustoClient, opts.KustoCluster, opts.KustoDatabase, opts.WorktreePaths, opts.TestError, opts.TestOutput, opts.NodeConsoleLogs, opts.NodeConsoleLogURLs, opts.DataDir)
 	hydratedChain, err := hydrator.Hydrate(ctx, draftChain)
 	if err != nil {
 		return nil, fmt.Errorf("hydration failed: %w", err)

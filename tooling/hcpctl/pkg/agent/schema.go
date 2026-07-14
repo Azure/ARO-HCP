@@ -62,13 +62,14 @@ type ProofItem struct {
 	KQL  string `json:"kql,omitempty"`
 	Note string `json:"note,omitempty"`
 
-	// Code proof fields
+	// Code proof fields (File is also used by node_console_log log proofs to
+	// specify which console log file to reference)
 	Repo  string `json:"repo,omitempty"`
 	File  string `json:"file,omitempty"`
 	Lines [2]int `json:"lines,omitempty"` // 1-indexed, inclusive; used by code and log proofs
 
 	// Log proof fields
-	Source string `json:"source,omitempty"` // "error" or "output"
+	Source string `json:"source,omitempty"` // "error", "output", or "node_console_log"
 }
 
 // HydratedChain extends DraftChain with query results and share URIs.
@@ -111,7 +112,12 @@ type HydratedProofItem struct {
 	CodeExcerpt string `json:"code_excerpt,omitempty"`
 
 	// Log proof field populated during hydration by extracting lines from test logs
+	// or node console logs.
 	LogExcerpt string `json:"log_excerpt,omitempty"`
+
+	// ArtifactURL is the download link for node console log proofs, populated
+	// during hydration from the manifest's node_console_logs entries.
+	ArtifactURL string `json:"artifact_url,omitempty"`
 }
 
 // ParseDraftChain parses the agent's final output as a DraftChain.
