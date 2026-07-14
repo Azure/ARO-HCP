@@ -1,7 +1,7 @@
-github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260707132038-40c92763218a h1:SWiXgb71YFpWqR0CF4/ih3+wlYPGFXyupn81k3npDCw=
-github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260707132038-40c92763218a/go.mod h1:H9gQZNrqfswjQXfmHtTYbC8nMPdZIv8JmlME/wXjcJY=
-github.com/Azure/ARO-Tools/tools/grafanactl v0.0.0-20260707132038-40c92763218a h1:C1Nu0ow06kwFcPcBgW/qK/y3nI2sfhZOYmNTA6anlTc=
-github.com/Azure/ARO-Tools/tools/grafanactl v0.0.0-20260707132038-40c92763218a/go.mod h1:YrrfIHROa3fg+mMyE6OhqM3pjcUXXAmcbcdHLwMb6ac=
+github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260715002326-2555e1130350 h1:OKEEHnv7jJhynBgOkRTTNvKt2Nq5KyiCAeu9kx+RM24=
+github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260715002326-2555e1130350/go.mod h1:H9gQZNrqfswjQXfmHtTYbC8nMPdZIv8JmlME/wXjcJY=
+github.com/Azure/ARO-Tools/tools/grafanactl v0.0.0-20260715002326-2555e1130350 h1:YExujwR+Hy8jE9ANIQg6DeNXqSB22HuSfVQ1apJdsaQ=
+github.com/Azure/ARO-Tools/tools/grafanactl v0.0.0-20260715002326-2555e1130350/go.mod h1:YrrfIHROa3fg+mMyE6OhqM3pjcUXXAmcbcdHLwMb6ac=
 github.com/Azure/azure-sdk-for-go/sdk/azcore v1.21.1 h1:jHb/wfvRikGdxMXYV3QG/SzUOPYN9KEUUuC0Yd0/vC0=
 github.com/Azure/azure-sdk-for-go/sdk/azcore v1.21.1/go.mod h1:pzBXCYn05zvYIrwLgtK8Ap8QcjRg+0i76tMQdWN6wOk=
 github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.13.1 h1:Hk5QBxZQC1jb2Fwj6mpzme37xbCDdNTxU7O9eb5+LB4=
