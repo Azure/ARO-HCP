@@ -31,6 +31,9 @@ import (
 const (
 	// See https://learn.microsoft.com/en-us/azure/azure-resource-manager/management/azure-subscription-service-limits#azure-virtual-machines-limits---azure-resource-manager
 	MaxNodePoolNodes = 200
+
+	// See https://learn.microsoft.com/en-us/azure/azure-resource-manager/management/resource-name-rules#microsoftcompute
+	MaxDiskEncryptionSetNameLen = 80
 )
 
 func ValidateNodePool(ctx context.Context, op operation.Operation, newObj, oldObj *api.HCPOpenShiftClusterNodePool) field.ErrorList {
@@ -112,6 +115,10 @@ func toNodePoolPropertiesTaints(oldObj *api.HCPOpenShiftClusterNodePoolPropertie
 	return oldObj.Taints
 }
 
+func toNodePoolPropertiesNodeDrainTimeoutMinutes(oldObj *api.HCPOpenShiftClusterNodePoolProperties) *int32 {
+	return oldObj.NodeDrainTimeoutMinutes
+}
+
 func validateNodePoolProperties(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.HCPOpenShiftClusterNodePoolProperties) field.ErrorList {
 	errs := field.ErrorList{}
 
@@ -170,7 +177,8 @@ func validateNodePoolProperties(ctx context.Context, op operation.Operation, fld
 	)...)
 
 	//NodeDrainTimeoutMinutes *int32                  `json:"nodeDrainTimeoutMinutes,omitempty"`
-	// TODO why do we allow this to be negative?
+	errs = append(errs, validate.Minimum(ctx, op, fldPath.Child("nodeDrainTimeoutMinutes"), newObj.NodeDrainTimeoutMinutes, safe.Field(oldObj, toNodePoolPropertiesNodeDrainTimeoutMinutes), 0)...)
+	errs = append(errs, Maximum(ctx, op, fldPath.Child("nodeDrainTimeoutMinutes"), newObj.NodeDrainTimeoutMinutes, safe.Field(oldObj, toNodePoolPropertiesNodeDrainTimeoutMinutes), 10080)...)
 
 	return errs
 }
@@ -241,6 +249,7 @@ func validateNodePoolPlatformProfile(ctx context.Context, op operation.Operation
 	//VMSize                 string        `json:"vmSize,omitempty"`
 	errs = append(errs, immutableByCompare(ctx, op, fldPath.Child("vmSize"), &newObj.VMSize, safe.Field(oldObj, toNodePoolPlatformProfileVMSize))...)
 	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("vmSize"), &newObj.VMSize, safe.Field(oldObj, toNodePoolPlatformProfileVMSize))...)
+	errs = append(errs, validate.Enum(ctx, op, fldPath.Child("vmSize"), &newObj.VMSize, safe.Field(oldObj, toNodePoolPlatformProfileVMSize), enabledNodePoolAzureVMSizes(), nil)...)
 
 	//EnableEncryptionAtHost bool          `json:"enableEncryptionAtHost"`
 	errs = append(errs, immutableByCompare(ctx, op, fldPath.Child("enableEncryptionAtHost"), &newObj.EnableEncryptionAtHost, safe.Field(oldObj, toNodePoolPlatformProfileEnableEncryptionAtHost))...)
@@ -277,6 +286,10 @@ func validateOSDiskProfile(ctx context.Context, op operation.Operation, fldPath 
 
 	//EncryptionSetID        string                 `json:"encryptionSetId,omitempty"`
 	errs = append(errs, RestrictedResourceIDWithResourceGroup(ctx, op, fldPath.Child("encryptionSetId"), newObj.EncryptionSetID, safe.Field(oldObj, toOSDiskProfileEncryptionSetID), "Microsoft.Compute/diskEncryptionSets")...)
+	if newObj.EncryptionSetID != nil {
+		errs = append(errs, MaxLen(ctx, op, fldPath.Child("encryptionSetId"), &newObj.EncryptionSetID.Name, nil, MaxDiskEncryptionSetNameLen)...)
+		errs = append(errs, MatchesRegex(ctx, op, fldPath.Child("encryptionSetId"), &newObj.EncryptionSetID.Name, nil, diskEncryptionSetNameRegex, diskEncryptionSetNameErrorString)...)
+	}
 
 	return errs
 }
