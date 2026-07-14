@@ -416,14 +416,16 @@ func skuCapabilityInt(sku *armcompute.ResourceSKU, name string) (int, bool) {
 //
 // The fallback pattern is capped at D8 (8 vCPUs) to avoid selecting large SKUs
 // (D32, D64, D96) that are slow to provision and easily exhaust subscription
-// quota in test environments. The (?:a)? in the pattern matches only the plain
-// "s" and "as" variants and excludes the non-allowlisted local-disk ("ds",
-// "lds", "ads") and Arm64 "p" (e.g. Standard_D8ps_v6) variants.
+// quota in test environments. The alternation matches only the RP-allowlisted
+// versions of each family: plain "s" is enabled for v3-v6, but AMD "as" is
+// enabled only for v4/v5 (as_v3 and as_v6 are NOT allowlisted). The pattern
+// also excludes the non-allowlisted local-disk ("ds", "lds", "ads") and Arm64
+// "p" (e.g. Standard_D8ps_v6) variants.
 func DefaultWorkerVMSizeSelector() VMSizeSelector {
 	return VMSizeSelector{
 		Name:        "default-worker",
 		Preferred:   []string{DefaultWorkerVMSize, "Standard_D8s_v5", "Standard_D8as_v5", "Standard_D8s_v6"},
-		NamePattern: regexp.MustCompile(`^Standard_D[4-8](?:a)?s_v[3456]$`),
+		NamePattern: regexp.MustCompile(`^Standard_D[4-8](s_v[3456]|as_v[45])$`),
 		MinVCPUs:    8,
 	}
 }
@@ -431,14 +433,16 @@ func DefaultWorkerVMSizeSelector() VMSizeSelector {
 // SmallWorkerVMSizeSelector selects a smaller general-purpose worker SKU used by
 // tests that want faster provisioning.
 //
-// Candidates are restricted to RP-allowlisted D-series families (plain "s" and
-// AMD "as" only); see DefaultWorkerVMSizeSelector for the rationale. The
-// fallback pattern is capped at D4 to keep provisioning fast and quota use low.
+// Candidates are restricted to RP-allowlisted D-series families (plain "s" for
+// v3-v6 and AMD "as" for v4/v5 only); see DefaultWorkerVMSizeSelector for the
+// rationale. The fallback pattern is capped at D4 to keep provisioning fast and
+// quota use low. MinVCPUs=4 additionally excludes the 2-vCPU (D2) sizes the
+// [2-4] range would otherwise admit.
 func SmallWorkerVMSizeSelector() VMSizeSelector {
 	return VMSizeSelector{
 		Name:        "small-worker",
 		Preferred:   []string{SmallWorkerVMSize, "Standard_D4s_v5", "Standard_D4as_v5", "Standard_D4s_v6"},
-		NamePattern: regexp.MustCompile(`^Standard_D[2-4](?:a)?s_v[3456]$`),
+		NamePattern: regexp.MustCompile(`^Standard_D[2-4](s_v[3456]|as_v[45])$`),
 		MinVCPUs:    4,
 	}
 }

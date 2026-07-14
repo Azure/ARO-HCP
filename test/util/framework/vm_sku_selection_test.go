@@ -315,3 +315,100 @@ func TestSelectVMSize(t *testing.T) {
 		})
 	}
 }
+
+// productionWorkerSelectors are the selectors whose fallback NamePattern is a
+// correctness boundary: their deterministic fallback must never select a SKU
+// outside the ARO-HCP RP instance-type allowlist (cluster-service
+// cloud-resource-constraints-config), or node pool creation fails with
+// InvalidRequestContent.
+func productionWorkerSelectors() []VMSizeSelector {
+	return []VMSizeSelector{
+		DefaultWorkerVMSizeSelector(),
+		SmallWorkerVMSizeSelector(),
+		EphemeralOSDiskWorkerVMSizeSelector(),
+	}
+}
+
+// TestWorkerSelectorPatternsRejectNonAllowlistedSKUs guards against future
+// widening of the fallback regexes. Every SKU below is advertised by Azure but
+// NOT in the RP allowlist; the fallback NamePattern must reject all of them.
+func TestWorkerSelectorPatternsRejectNonAllowlistedSKUs(t *testing.T) {
+	disallowed := []string{
+		// Local-disk variants (ds/lds/ads) are not allowlisted.
+		"Standard_D8ds_v5", "Standard_D4ds_v5",
+		"Standard_D8lds_v6", "Standard_D4lds_v6", "Standard_D2lds_v6",
+		"Standard_D8ads_v5", "Standard_D4ads_v5",
+		// AMD "as" is allowlisted only for v4/v5, not v3 or v6.
+		"Standard_D8as_v3", "Standard_D8as_v6",
+		"Standard_D4as_v3", "Standard_D4as_v6",
+		// Arm64 "p" variants are not allowlisted for these selectors.
+		"Standard_D8ps_v6", "Standard_D8plds_v6",
+	}
+	for _, sel := range productionWorkerSelectors() {
+		if sel.NamePattern == nil {
+			t.Fatalf("selector %q has no NamePattern; it is required as the allowlist boundary", sel.Name)
+		}
+		for _, name := range disallowed {
+			if sel.NamePattern.MatchString(name) {
+				t.Errorf("selector %q NamePattern must not match non-allowlisted SKU %q", sel.Name, name)
+			}
+		}
+	}
+}
+
+// TestWorkerSelectorPatternsAcceptAllowlistedSKUs ensures the patterns still
+// admit the RP-allowlisted SKUs each selector is expected to fall back to.
+func TestWorkerSelectorPatternsAcceptAllowlistedSKUs(t *testing.T) {
+	cases := map[string][]string{
+		"default-worker":          {"Standard_D8s_v3", "Standard_D8s_v4", "Standard_D8s_v5", "Standard_D8s_v6", "Standard_D8as_v4", "Standard_D8as_v5"},
+		"small-worker":            {"Standard_D4s_v3", "Standard_D4s_v4", "Standard_D4s_v5", "Standard_D4s_v6", "Standard_D4as_v4", "Standard_D4as_v5"},
+		"ephemeral-osdisk-worker": {"Standard_D8s_v3", "Standard_D16s_v3", "Standard_D32s_v3"},
+	}
+	byName := map[string]VMSizeSelector{}
+	for _, sel := range productionWorkerSelectors() {
+		byName[sel.Name] = sel
+	}
+	for name, skus := range cases {
+		sel, ok := byName[name]
+		if !ok {
+			t.Fatalf("no production selector named %q", name)
+		}
+		for _, sku := range skus {
+			if !sel.NamePattern.MatchString(sku) {
+				t.Errorf("selector %q NamePattern must match allowlisted SKU %q", name, sku)
+			}
+		}
+	}
+}
+
+// TestSelectVMSizeNeverPicksNonAllowlistedFallback reproduces the prod uksouth
+// failure: the preferred SKUs are unusable and only a non-allowlisted SKU
+// (Standard_D8lds_v6) is otherwise available. Selection must return
+// ErrNoUsableVMSize rather than the non-allowlisted SKU, which the RP rejects
+// with InvalidRequestContent.
+func TestSelectVMSizeNeverPicksNonAllowlistedFallback(t *testing.T) {
+	skus := []*armcompute.ResourceSKU{
+		makeSKU("Standard_D8lds_v6", testLocation, withCapability(capabilityVCPUs, "8")),
+	}
+	_, _, err := selectVMSize(skus, testLocation, DefaultWorkerVMSizeSelector())
+	if !errors.Is(err, ErrNoUsableVMSize) {
+		t.Fatalf("expected ErrNoUsableVMSize when only a non-allowlisted SKU is available, got err=%v", err)
+	}
+}
+
+// TestSelectVMSizeFallbackPrefersAllowlisted verifies that when both a
+// non-allowlisted and an allowlisted (but non-preferred) SKU are available, the
+// deterministic fallback selects the allowlisted one.
+func TestSelectVMSizeFallbackPrefersAllowlisted(t *testing.T) {
+	skus := []*armcompute.ResourceSKU{
+		makeSKU("Standard_D8lds_v6", testLocation, withCapability(capabilityVCPUs, "8")), // non-allowlisted, usable
+		makeSKU("Standard_D8s_v4", testLocation, withCapability(capabilityVCPUs, "8")),   // allowlisted, not in Preferred
+	}
+	got, _, err := selectVMSize(skus, testLocation, DefaultWorkerVMSizeSelector())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got != "Standard_D8s_v4" {
+		t.Fatalf("expected allowlisted fallback Standard_D8s_v4, got %q", got)
+	}
+}
