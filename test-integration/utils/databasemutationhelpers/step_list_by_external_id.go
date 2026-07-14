@@ -49,7 +49,7 @@ func newListByExternalIDStep(stepID StepID, stepDir fs.FS) (*listByExternalIDSte
 	}
 	var key listByExternalIDKey
 	if err := json.Unmarshal(keyBytes, &key); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal key.json: %w", err)
+		return nil, fmt.Errorf("failed to unmarshal 00-key.json: %w", err)
 	}
 
 	expectedResources, err := readResourcesInDir[api.Operation](stepDir)
