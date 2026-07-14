@@ -93,8 +93,8 @@ defaults:
       name: 'arohcpsvc{{ .ctx.environment }}' # [globally-unique]
       zoneRedundantMode: Enabled
       untaggedImagesRetention:
-        enabled: false
-        days: 365
+        enabled: true
+        days: 90
     ocp:
       name: 'arohcpocp{{ .ctx.environment }}' # [globally-unique]
       zoneRedundantMode: Enabled

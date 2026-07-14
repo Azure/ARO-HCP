@@ -21,20 +21,24 @@ param quayRepositoriesToCache = [
 
 param purgeJobs = [
   {
-    name: 'ocm-clusters-service-sandbox-purge'
-    purgeFilter: 'quay.io/app-sre/ocm-clusters-service-sandbox:.*'
+    name: 'sandbox-images-purge'
+    purgeFilters: [
+      'quay.io/app-sre/ocm-clusters-service-sandbox:.*'
+      'quay.io/app-sre/aro-hcp-clusters-service-sandbox:.*'
+    ]
     purgeAfter: '2d'
     imagesToKeep: 1
   }
   {
-    name: 'aro-hcp-clusters-service-sandbox-purge'
-    purgeFilter: 'quay.io/app-sre/aro-hcp-clusters-service-sandbox:.*'
-    purgeAfter: '2d'
-    imagesToKeep: 1
-  }
-  {
-    name: 'arohcpfrontend-purge'
-    purgeFilter: 'arohcpfrontend:.*'
+    name: 'service-images-purge'
+    purgeFilters: [
+      'arohcp*:.*'
+      'fleet:.*'
+      'kube-applier:.*'
+      'mgmt-agent:.*'
+      'test-*:.*'
+      'ci-op-*/*:.*'
+    ]
     purgeAfter: '7d'
     imagesToKeep: 3
   }
