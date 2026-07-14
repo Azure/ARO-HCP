@@ -151,56 +151,42 @@ func (c *operationClusterCreate) SynchronizeOperation(ctx context.Context, key c
 	if !c.shouldReconcileOperationAndResourceStatus(cluster) {
 		return nil
 	}
-	clusterServiceID := *cluster.ServiceProviderProperties.ClusterServiceID
-
-	clusterStatus, err := c.clusterServiceClient.GetClusterStatus(ctx, clusterServiceID)
+	operationalState, err := c.determineOperationState(ctx, operation, cluster)
 	if err != nil {
 		return utils.TrackError(err)
 	}
 
-	cosmosNewOperationState, err := c.determineOperationStatus(ctx, operation)
-	if err != nil {
-		return utils.TrackError(err)
+	var persistErr *arm.CloudErrorBody
+	if operationalState.ProvisioningState == arm.ProvisioningStateFailed {
+		persistErr = &arm.CloudErrorBody{
+			// TODO for now we always set the error code to InternalServerError, but we should improve to be able
+			// to be more specific than that when we calculate operationalState. When work is done to improve on this, we
+			// should design it in a way where no internal details are exposed to the operation's error.
+			Code:    arm.CloudErrorCodeInternalServerError,
+			Message: operationalState.Message,
+		}
 	}
-	logger.Info("new status via cosmos", "newStatus", cosmosNewOperationState.ProvisioningState, "newOperationMessage", cosmosNewOperationState.Message)
 
-	clusterServiceNewOperationStatus, opError, err := convertClusterStatus(ctx, c.clusterServiceClient, operation, clusterStatus, clusterServiceID)
-	if err != nil {
-		return utils.TrackError(err)
-	}
-	logger.Info("new status via cluster-service", "newStatus", clusterServiceNewOperationStatus, "newOperationError", opError)
-
-	operationIsSuccessful := clusterServiceNewOperationStatus == arm.ProvisioningStateSucceeded && cosmosNewOperationState.ProvisioningState == arm.ProvisioningStateSucceeded
-	operationIsFailed := clusterServiceNewOperationStatus == arm.ProvisioningStateFailed && cosmosNewOperationState.ProvisioningState == arm.ProvisioningStateFailed
-	operationIsTerminal := operationIsSuccessful || operationIsFailed
-
-	if !operationIsTerminal &&
+	if !operationalState.ProvisioningState.IsTerminal() &&
 		cluster.ServiceProviderProperties.CreateOperationCompletionDeadline != nil &&
 		c.clock.Now().After(cluster.ServiceProviderProperties.CreateOperationCompletionDeadline.Time) {
 
 		message := "cluster creation did not complete before the deadline"
-		if len(cosmosNewOperationState.Message) > 0 {
-			message = cosmosNewOperationState.Message
+		if len(operationalState.Message) > 0 {
+			message = operationalState.Message
 		}
 		logger.Info("create operation deadline exceeded, marking as failed",
 			"deadline", cluster.ServiceProviderProperties.CreateOperationCompletionDeadline.Time,
 			"message", message)
-		clusterServiceNewOperationStatus = arm.ProvisioningStateFailed
-		opError = &arm.CloudErrorBody{
+		operationalState.ProvisioningState = arm.ProvisioningStateFailed
+		persistErr = &arm.CloudErrorBody{
 			Code:    arm.CloudErrorCodeInternalServerError,
 			Message: message,
 		}
 	}
 
-	if clusterServiceNewOperationStatus == arm.ProvisioningStateSucceeded && cosmosNewOperationState.ProvisioningState != arm.ProvisioningStateSucceeded {
-		// we want to require that the cosmos view of cluster creation is also complete before we mark it.  This ensures (among other things)
-		// that our ability to read maestro is successful.
-		// Once we have confidence in our ability to determine that cluster is functional, we'll stop checking cluster-service at all.
-		return fmt.Errorf("cosmos operation status is %q, but cluster-service operation status is %q: %s", cosmosNewOperationState.ProvisioningState, clusterServiceNewOperationStatus, cosmosNewOperationState.Message)
-	}
-
 	logger.Info("updating status")
-	err = UpdateOperationStatus(ctx, c.clock, c.resourcesDBClient, operation, clusterServiceNewOperationStatus, opError, postAsyncNotificationFn(c.notificationClient))
+	err = UpdateOperationStatus(ctx, c.clock, c.resourcesDBClient, operation, operationalState.ProvisioningState, persistErr, postAsyncNotificationFn(c.notificationClient))
 	if database.IsPreconditionFailedError(err) {
 		return nil
 	}
@@ -211,7 +197,7 @@ func (c *operationClusterCreate) SynchronizeOperation(ctx context.Context, key c
 	return nil
 }
 
-func (c *operationClusterCreate) determineOperationStatus(ctx context.Context, operation *api.Operation) (*operationState, error) {
+func (c *operationClusterCreate) determineOperationState(ctx context.Context, operation *api.Operation, cluster *api.HCPOpenShiftCluster) (*operationState, error) {
 	logger := utils.LoggerFromContext(ctx)
 
 	errs := []error{}
@@ -227,6 +213,11 @@ func (c *operationClusterCreate) determineOperationStatus(ctx context.Context, o
 	} else {
 		operationStates = append(operationStates, currState.withSource("cosmosCluster"))
 	}
+	if currState, err := c.clusterServiceCreateOperationState(ctx, operation, cluster); err != nil {
+		errs = append(errs, utils.TrackError(err))
+	} else {
+		operationStates = append(operationStates, currState.withSource("clusterServiceClusterStatus"))
+	}
 
 	if err := errors.Join(errs...); err != nil {
 		return nil, err
@@ -236,7 +227,6 @@ func (c *operationClusterCreate) determineOperationStatus(ctx context.Context, o
 		return nil, errors.New("no operation states")
 	}
 	slices.SortStableFunc(operationStates, compareOperationState)
-
 	if operationStates[0] == nil {
 		return nil, errors.New("nil operation state")
 	}
@@ -246,8 +236,29 @@ func (c *operationClusterCreate) determineOperationStatus(ctx context.Context, o
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
-	logger.Info("picked cluster create operation status", "picked", picked)
+	logger.Info("picked cluster create operation status", "provisioningState", picked.ProvisioningState, "message", picked.Message)
 	return picked, nil
+}
+
+func (c *operationClusterCreate) clusterServiceCreateOperationState(ctx context.Context, operation *api.Operation, cluster *api.HCPOpenShiftCluster) (*operationState, error) {
+	logger := utils.LoggerFromContext(ctx)
+	clusterServiceID := *cluster.ServiceProviderProperties.ClusterServiceID
+
+	clusterStatus, err := c.clusterServiceClient.GetClusterStatus(ctx, clusterServiceID)
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+
+	newOperationStatus, opError, err := convertClusterStatus(ctx, c.clusterServiceClient, operation, clusterStatus, clusterServiceID)
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+	logger.Info("new status via cluster-service", "newStatus", newOperationStatus, "newOperationError", opError)
+	msg := ""
+	if opError != nil {
+		msg = opError.Message
+	}
+	return newOperationState(newOperationStatus, msg), nil
 }
 
 func (c *operationClusterCreate) clusterOperationStatus(ctx context.Context, operation *api.Operation) (*operationState, error) {
