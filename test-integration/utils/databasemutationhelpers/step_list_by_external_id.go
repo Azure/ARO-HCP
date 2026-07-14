@@ -45,7 +45,7 @@ type listByExternalIDStep struct {
 func newListByExternalIDStep(stepID StepID, stepDir fs.FS) (*listByExternalIDStep, error) {
 	keyBytes, err := fs.ReadFile(stepDir, "00-key.json")
 	if err != nil {
-		return nil, fmt.Errorf("failed to read key.json: %w", err)
+		return nil, fmt.Errorf("failed to read 00-key.json: %w", err)
 	}
 	var key listByExternalIDKey
 	if err := json.Unmarshal(keyBytes, &key); err != nil {
