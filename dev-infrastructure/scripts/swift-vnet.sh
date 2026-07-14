@@ -63,7 +63,13 @@ az container delete \
 read -r -d '' CONTAINER_SCRIPT <<EOF || true
 set -euo pipefail
 
-MAX_WAIT=300
+# MAX_WAIT is the per-stage readiness budget used by retry() below (DNS gate, az
+# login, vnet existence check). A freshly-created ACI in a delegated subnet has
+# been observed to take just over 300s for its resolver / RBAC to become ready
+# (DEV CI provision failures giving up at 302-306s), so 300s was too tight. 480s
+# absorbs that tail while staying well under the outer container TIMEOUT (900s):
+# only the first cold-start stage is slow, later stages succeed once warm.
+MAX_WAIT=480
 POLL_INTERVAL=5
 
 # retry <description> <command...>: run the command, polling at a fixed POLL_INTERVAL until it
