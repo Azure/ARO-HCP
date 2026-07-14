@@ -62,3 +62,80 @@ tests:
   - eval_time: 3h4m
     alertname: HCPClusterOlderThan3Hours
     exp_alerts: []
+# ProdE2EHCPClusterOlderThan3Hours - alert fires for prod e2e clusters older than 3 hours
+- interval: 1m
+  input_series:
+  - series: 'backend_cluster_created_time_seconds{cluster="prod-uksouth-svc-1",environment="prod",subscription_id="403d9de9-132b-4974-94a5-5b78bdfa191e",resource_id="/subscriptions/403d9de9-132b-4974-94a5-5b78bdfa191e/resourcegroups/test-rg/providers/microsoft.redhatopenshift/hcpopenshiftclusters/test-cluster"}'
+    values: "0+0x200"
+  alert_rule_test:
+  - eval_time: 3h6m
+    alertname: ProdE2EHCPClusterOlderThan3Hours
+    exp_alerts:
+    - exp_labels:
+        alertname: ProdE2EHCPClusterOlderThan3Hours
+        severity: "3"
+        cluster: prod-uksouth-svc-1
+        environment: prod
+        subscription_id: 403d9de9-132b-4974-94a5-5b78bdfa191e
+        resource_id: /subscriptions/403d9de9-132b-4974-94a5-5b78bdfa191e/resourcegroups/test-rg/providers/microsoft.redhatopenshift/hcpopenshiftclusters/test-cluster
+      exp_annotations:
+        correlationId: 'ProdE2EClusterOlderThan3Hours/subscriptions/403d9de9-132b-4974-94a5-5b78bdfa191e/resourcegroups/test-rg/providers/microsoft.redhatopenshift/hcpopenshiftclusters/test-cluster'
+        description: |
+          Prod e2e HCP cluster /subscriptions/403d9de9-132b-4974-94a5-5b78bdfa191e/resourcegroups/test-rg/providers/microsoft.redhatopenshift/hcpopenshiftclusters/test-cluster in subscription 403d9de9-132b-4974-94a5-5b78bdfa191e on service cluster prod-uksouth-svc-1 has existed for more than 3 hours.
+        runbook_url: TBD
+        summary: Prod e2e HCP is older than 3h
+# ProdE2EHCPClusterOlderThan3Hours - alert fires for all prod e2e subscriptions
+- interval: 1m
+  input_series:
+  - series: 'backend_cluster_created_time_seconds{cluster="prod-uksouth-svc-1",environment="prod",subscription_id="8d696692-794f-4cdb-ba25-9250c9e9ec4c",resource_id="/subscriptions/8d696692-794f-4cdb-ba25-9250c9e9ec4c/resourcegroups/test-rg/providers/microsoft.redhatopenshift/hcpopenshiftclusters/test-cluster"}'
+    values: "0+0x200"
+  - series: 'backend_cluster_created_time_seconds{cluster="prod-uksouth-svc-1",environment="prod",subscription_id="ec435068-e722-475f-8504-c91b72a5dc51",resource_id="/subscriptions/ec435068-e722-475f-8504-c91b72a5dc51/resourcegroups/test-rg/providers/microsoft.redhatopenshift/hcpopenshiftclusters/test-cluster"}'
+    values: "0+0x200"
+  alert_rule_test:
+  - eval_time: 3h6m
+    alertname: ProdE2EHCPClusterOlderThan3Hours
+    exp_alerts:
+    - exp_labels:
+        alertname: ProdE2EHCPClusterOlderThan3Hours
+        severity: "3"
+        cluster: prod-uksouth-svc-1
+        environment: prod
+        subscription_id: 8d696692-794f-4cdb-ba25-9250c9e9ec4c
+        resource_id: /subscriptions/8d696692-794f-4cdb-ba25-9250c9e9ec4c/resourcegroups/test-rg/providers/microsoft.redhatopenshift/hcpopenshiftclusters/test-cluster
+      exp_annotations:
+        correlationId: 'ProdE2EClusterOlderThan3Hours/subscriptions/8d696692-794f-4cdb-ba25-9250c9e9ec4c/resourcegroups/test-rg/providers/microsoft.redhatopenshift/hcpopenshiftclusters/test-cluster'
+        description: |
+          Prod e2e HCP cluster /subscriptions/8d696692-794f-4cdb-ba25-9250c9e9ec4c/resourcegroups/test-rg/providers/microsoft.redhatopenshift/hcpopenshiftclusters/test-cluster in subscription 8d696692-794f-4cdb-ba25-9250c9e9ec4c on service cluster prod-uksouth-svc-1 has existed for more than 3 hours.
+        runbook_url: TBD
+        summary: Prod e2e HCP is older than 3h
+    - exp_labels:
+        alertname: ProdE2EHCPClusterOlderThan3Hours
+        severity: "3"
+        cluster: prod-uksouth-svc-1
+        environment: prod
+        subscription_id: ec435068-e722-475f-8504-c91b72a5dc51
+        resource_id: /subscriptions/ec435068-e722-475f-8504-c91b72a5dc51/resourcegroups/test-rg/providers/microsoft.redhatopenshift/hcpopenshiftclusters/test-cluster
+      exp_annotations:
+        correlationId: 'ProdE2EClusterOlderThan3Hours/subscriptions/ec435068-e722-475f-8504-c91b72a5dc51/resourcegroups/test-rg/providers/microsoft.redhatopenshift/hcpopenshiftclusters/test-cluster'
+        description: |
+          Prod e2e HCP cluster /subscriptions/ec435068-e722-475f-8504-c91b72a5dc51/resourcegroups/test-rg/providers/microsoft.redhatopenshift/hcpopenshiftclusters/test-cluster in subscription ec435068-e722-475f-8504-c91b72a5dc51 on service cluster prod-uksouth-svc-1 has existed for more than 3 hours.
+        runbook_url: TBD
+        summary: Prod e2e HCP is older than 3h
+# ProdE2EHCPClusterOlderThan3Hours - no alert for other prod subscriptions
+- interval: 1m
+  input_series:
+  - series: 'backend_cluster_created_time_seconds{cluster="prod-uksouth-svc-1",environment="prod",subscription_id="00000000-0000-0000-0000-000000000000",resource_id="/subscriptions/00000000-0000-0000-0000-000000000000/resourcegroups/test-rg/providers/microsoft.redhatopenshift/hcpopenshiftclusters/test-cluster"}'
+    values: "0+0x200"
+  alert_rule_test:
+  - eval_time: 3h6m
+    alertname: ProdE2EHCPClusterOlderThan3Hours
+    exp_alerts: []
+# ProdE2EHCPClusterOlderThan3Hours - no alert before the cluster is older than 3 hours
+- interval: 1m
+  input_series:
+  - series: 'backend_cluster_created_time_seconds{cluster="prod-uksouth-svc-1",environment="prod",subscription_id="403d9de9-132b-4974-94a5-5b78bdfa191e",resource_id="/subscriptions/403d9de9-132b-4974-94a5-5b78bdfa191e/resourcegroups/test-rg/providers/microsoft.redhatopenshift/hcpopenshiftclusters/test-cluster"}'
+    values: "0+0x200"
+  alert_rule_test:
+  - eval_time: 3h4m
+    alertname: ProdE2EHCPClusterOlderThan3Hours
+    exp_alerts: []
