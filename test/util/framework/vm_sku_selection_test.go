@@ -354,6 +354,20 @@ func TestWorkerSelectorPatternsRejectNonAllowlistedSKUs(t *testing.T) {
 			}
 		}
 	}
+
+	// These are RP-allowlisted but exceed the 8-vCPU cap enforced by the worker
+	// selectors; their fallback patterns must reject them regardless.
+	tooBig := []string{
+		"Standard_D16s_v3", "Standard_D32s_v3", "Standard_D64s_v3",
+		"Standard_D16as_v4", "Standard_E16s_v3", "Standard_E16as_v4",
+	}
+	for _, sel := range productionWorkerSelectors() {
+		for _, name := range tooBig {
+			if sel.NamePattern.MatchString(name) {
+				t.Errorf("selector %q NamePattern must not match >8-vCPU SKU %q (worker selectors cap at 8 vCPUs)", sel.Name, name)
+			}
+		}
+	}
 }
 
 // TestWorkerSelectorPatternsAcceptAllowlistedSKUs ensures the patterns still
@@ -362,7 +376,7 @@ func TestWorkerSelectorPatternsAcceptAllowlistedSKUs(t *testing.T) {
 	cases := map[string][]string{
 		"default-worker":          {"Standard_D8s_v3", "Standard_D8s_v4", "Standard_D8s_v5", "Standard_D8s_v6", "Standard_D8as_v4", "Standard_D8as_v5"},
 		"small-worker":            {"Standard_D4s_v3", "Standard_D4s_v4", "Standard_D4s_v5", "Standard_D4s_v6", "Standard_D4as_v4", "Standard_D4as_v5"},
-		"ephemeral-osdisk-worker": {"Standard_D8s_v3", "Standard_D16s_v3", "Standard_D32s_v3"},
+		"ephemeral-osdisk-worker": {"Standard_D8s_v3", "Standard_D8as_v4", "Standard_E8s_v3", "Standard_E8as_v4"},
 	}
 	byName := map[string]VMSizeSelector{}
 	for _, sel := range productionWorkerSelectors() {
@@ -410,5 +424,44 @@ func TestSelectVMSizeFallbackPrefersAllowlisted(t *testing.T) {
 	}
 	if got != "Standard_D8s_v4" {
 		t.Fatalf("expected allowlisted fallback Standard_D8s_v4, got %q", got)
+	}
+}
+
+// TestEphemeralSelectorCapsAtEightVCPUs verifies the ephemeral OS disk worker
+// selector never selects a SKU larger than 8 vCPUs, even when a larger
+// ephemeral-capable, allowlisted SKU is the only one available.
+func TestEphemeralSelectorCapsAtEightVCPUs(t *testing.T) {
+	skus := []*armcompute.ResourceSKU{
+		makeSKU("Standard_D16s_v3", testLocation,
+			withCapability(capabilityVCPUs, "16"),
+			withCapability(capabilityEphemeralOSDiskSupported, "True")),
+	}
+	_, _, err := selectVMSize(skus, testLocation, EphemeralOSDiskWorkerVMSizeSelector())
+	if !errors.Is(err, ErrNoUsableVMSize) {
+		t.Fatalf("expected ErrNoUsableVMSize (>8-vCPU SKU must be rejected), got err=%v", err)
+	}
+}
+
+// TestEphemeralSelectorSelectsDifferentFamily verifies that when the Intel
+// D-series preferred SKUs are unusable, the selector falls through to an
+// ephemeral-capable, allowlisted SKU from a different family rather than a
+// larger size of the same family.
+func TestEphemeralSelectorSelectsDifferentFamily(t *testing.T) {
+	skus := []*armcompute.ResourceSKU{
+		// Same-family larger sizes are available but must not be chosen.
+		makeSKU("Standard_D16s_v3", testLocation,
+			withCapability(capabilityVCPUs, "16"),
+			withCapability(capabilityEphemeralOSDiskSupported, "True")),
+		// A different-family 8-vCPU ephemeral SKU that should be selected.
+		makeSKU("Standard_E8as_v4", testLocation,
+			withCapability(capabilityVCPUs, "8"),
+			withCapability(capabilityEphemeralOSDiskSupported, "True")),
+	}
+	got, _, err := selectVMSize(skus, testLocation, EphemeralOSDiskWorkerVMSizeSelector())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got != "Standard_E8as_v4" {
+		t.Fatalf("expected different-family SKU Standard_E8as_v4, got %q", got)
 	}
 }

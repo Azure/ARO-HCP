@@ -465,19 +465,25 @@ func JumpboxVMSizeSelector() VMSizeSelector {
 // supports ephemeral OS disks (requires local/cache storage) and is enabled in
 // the ARO-HCP RP instance-type allowlist.
 //
-// Among the RP-allowlisted non-ARM D-series families, only the v3 "s" series
-// (Dsv3) supports ephemeral OS disks via its cache disk. The allowlisted v4/v5/
-// v6 "s" variants have no local storage, and the local-disk "ds"/"lds" variants
-// (which do support ephemeral placement) are NOT in the allowlist. Selecting
-// one of those would fail node pool creation with InvalidRequestContent, so the
-// candidates are restricted to the Dsv3 family (larger sizes act as an
-// availability fallback). SKUs without local storage are additionally excluded
-// via the RequireEphemeralOSDisk constraint.
+// Ephemeral OS disk support depends on the SKU generation, not just the family:
+// among the RP-allowlisted x86 families, only a subset of 8-vCPU SKUs advertise
+// EphemeralOSDiskSupported=True. The fallbacks are drawn from distinct families
+// (Intel/AMD, D/E series) rather than larger sizes of the same family, because
+// SKU restrictions typically apply to an entire family in a region, so a
+// larger size of an already-restricted family is no more likely to be usable.
+// All candidates are capped at 8 vCPUs to keep provisioning fast and quota use
+// low. SKUs without local storage are additionally excluded via the
+// RequireEphemeralOSDisk constraint.
 func EphemeralOSDiskWorkerVMSizeSelector() VMSizeSelector {
 	return VMSizeSelector{
-		Name:                   "ephemeral-osdisk-worker",
-		Preferred:              []string{DefaultWorkerVMSize, "Standard_D16s_v3", "Standard_D32s_v3"},
-		NamePattern:            regexp.MustCompile(`^Standard_D(?:8|16|32)s_v3$`),
+		Name: "ephemeral-osdisk-worker",
+		Preferred: []string{
+			DefaultWorkerVMSize, // Standard_D8s_v3 - Intel D-series v3
+			"Standard_D8as_v4",  // AMD D-series v4
+			"Standard_E8s_v3",   // Intel E-series v3
+			"Standard_E8as_v4",  // AMD E-series v4
+		},
+		NamePattern:            regexp.MustCompile(`^Standard_[DE]8(s_v3|as_v4)$`),
 		MinVCPUs:               8,
 		RequireEphemeralOSDisk: true,
 	}
