@@ -40,11 +40,17 @@ esac
 
 ISTIO_URL="https://github.com/istio/istio/releases/download/${ISTIOCTL_VERSION}/istio-${ISTIOCTL_VERSION}-${OSEXT}-${ISTIO_ARCH}.tar.gz"
 SHA256_URL="https://github.com/istio/istio/releases/download/${ISTIOCTL_VERSION}/istio-${ISTIOCTL_VERSION}-${OSEXT}-${ISTIO_ARCH}.tar.gz.sha256"
+# Retry the downloads: these hit github.com from the pipeline container and a
+# single transient DNS blip (curl exit 6, "couldn't resolve host") has failed
+# provisioning. --retry-all-errors is required because DNS-resolution failures
+# are not in curl's default retryable set. -f makes HTTP 4xx/5xx fail (and retry).
+CURL_RETRY_OPTS=(-fsSL --retry 5 --retry-delay 5 --retry-all-errors)
+
 # Download the Istioctl binary
-curl -sL "$ISTIO_URL" -o istio-"${ISTIOCTL_VERSION}"-${OSEXT}-${ISTIO_ARCH}.tar.gz
+curl "${CURL_RETRY_OPTS[@]}" "$ISTIO_URL" -o istio-"${ISTIOCTL_VERSION}"-${OSEXT}-${ISTIO_ARCH}.tar.gz
 
 # Download the SHA-256 checksum file
-curl -sL "$SHA256_URL" -o istio-"${ISTIOCTL_VERSION}"-${OSEXT}-${ISTIO_ARCH}.tar.gz.sha256
+curl "${CURL_RETRY_OPTS[@]}" "$SHA256_URL" -o istio-"${ISTIOCTL_VERSION}"-${OSEXT}-${ISTIO_ARCH}.tar.gz.sha256
 
 # Verify the downloaded file
 sha256sum -c istio-"${ISTIOCTL_VERSION}"-${OSEXT}-${ISTIO_ARCH}.tar.gz.sha256
