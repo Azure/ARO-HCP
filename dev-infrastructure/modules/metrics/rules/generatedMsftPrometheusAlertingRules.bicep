@@ -752,6 +752,33 @@ resource msftMsiCredentialRefresher 'Microsoft.AlertsManagement/prometheusRuleGr
             }
           }
         ]
+        alert: 'ClusterCredentialMetricMissing'
+        enabled: true
+        labels: {
+          severity: 'warning'
+        }
+        annotations: {
+          correlationId: 'ClusterCredentialMetricMissing/{{ $labels.cluster }}'
+          description: 'Credential refresher expiration metric is missing for service cluster {{ $labels.cluster }}.'
+          info: 'Credential refresher expiration metric is missing for service cluster {{ $labels.cluster }}.'
+          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/troubleshooting/tsgs/credential-refresher-expiring-cert'
+          summary: 'Credential refresher metric missing for cluster {{ $labels.cluster }}'
+          title: 'Credential refresher metric missing for cluster {{ $labels.cluster }}'
+        }
+        expression: 'group by (cluster) (up{cluster=~".*-svc(-[0-9]+)?$",job="kubelet"}) unless on (cluster) group by (cluster) (credential_refresher_days_until_msi_credential_expiration_bucket{cluster=~".*-svc(-[0-9]+)?$"})'
+        for: 'PT30M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
         alert: 'ClusterCredentialExpiringSoon'
         enabled: true
         labels: {
