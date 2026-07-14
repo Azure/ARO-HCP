@@ -931,6 +931,14 @@ func TestClusterValidate(t *testing.T) {
 			},
 			expectErrors: []utils.ExpectedError{
 				{
+					Message:   "must be unique within the cluster",
+					FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators",
+				},
+				{
+					Message:   "must be unique within the cluster",
+					FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.serviceManagedIdentity",
+				},
+				{
 					Message:   "identity is used multiple times",
 					FieldPath: "identity.userAssignedIdentities",
 				},
