@@ -938,6 +938,8 @@ sessiongate:
 stgGlobalV2:
   acrOcpName: empty-sentinel
   acrSvcName: empty-sentinel
+  billingKustoName: empty-sentinel
+  billingKustoSku: empty-sentinel
   cxParentZoneName: empty-sentinel
   frontDoorKeyVaultName: empty-sentinel
   frontDoorName: empty-sentinel

@@ -52,6 +52,14 @@ clouds:
             # creation on 2026-06-15, so only major versions 12/13 are accepted.
             # The live grandfathered workspace stays on 11 (shared monitoring value).
             grafanaMajorVersion: "13"
+            # Dedicated STG billing Kusto in the new hcp-stg-global sub. Distinct from
+            # the shared billing.kusto.* (which Billing.Global keeps managing for stg),
+            # so the shared cluster is never touched. The SKU is E8a_v4 because the
+            # shared billing.kusto.sku (E8ads_v5) is not offered in uksouth, where this
+            # dedicated cluster lives. Consumed only by the transient Billing.StgGlobal
+            # bicepparam; promoted into stg.defaults billing.kusto.* at cutover.
+            billingKustoName: "arohcpHoBo{{ .ctx.environment }}"
+            billingKustoSku: "Standard_E8a_v4"
           # E2E
           e2e:
             regionTest:
