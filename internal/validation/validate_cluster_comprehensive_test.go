@@ -759,6 +759,7 @@ func TestValidateClusterCreate(t *testing.T) {
 				return c
 			}(),
 			expectErrors: []utils.ExpectedError{
+				{Message: "must belong to the same VNet as subnetId", FieldPath: "customerProperties.platform.vnetIntegrationSubnetId"},
 				{Message: "must be in the same Azure subscription", FieldPath: "customerProperties.platform.subnetId"},
 			},
 		},
@@ -811,6 +812,7 @@ func TestValidateClusterCreate(t *testing.T) {
 				return c
 			}(),
 			expectErrors: []utils.ExpectedError{
+				{Message: "must belong to the same VNet as subnetId", FieldPath: "customerProperties.platform.vnetIntegrationSubnetId"},
 				{Message: "must be in the same Azure subscription", FieldPath: "customerProperties.platform.vnetIntegrationSubnetId"},
 			},
 		},
@@ -824,6 +826,18 @@ func TestValidateClusterCreate(t *testing.T) {
 			}(),
 			expectErrors: []utils.ExpectedError{
 				{Message: "must not be the same resource group name", FieldPath: "customerProperties.platform.vnetIntegrationSubnetId"},
+				{Message: "must belong to the same VNet as subnetId", FieldPath: "customerProperties.platform.vnetIntegrationSubnetId"},
+			},
+		},
+		{
+			name: "vnet integration subnet in different VNet - create",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Platform.VnetIntegrationSubnetID = api.Must(azcorearm.ParseResourceID("/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.Network/virtualNetworks/other-vnet/subnets/test-vnet-integration-subnet"))
+				return c
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "must belong to the same VNet as subnetId", FieldPath: "customerProperties.platform.vnetIntegrationSubnetId"},
 			},
 		},
 		{
@@ -1618,6 +1632,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 			expectErrors: []utils.ExpectedError{
 				{Message: "field is immutable", FieldPath: "customerProperties.platform"},
 				{Message: "field is immutable", FieldPath: "customerProperties.platform.vnetIntegrationSubnetId"},
+				{Message: "must belong to the same VNet as subnetId", FieldPath: "customerProperties.platform.vnetIntegrationSubnetId"},
 				{Message: "must be in the same Azure subscription", FieldPath: "customerProperties.platform.vnetIntegrationSubnetId"},
 			},
 		},
@@ -1630,7 +1645,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 			}(),
 			oldCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.CustomerProperties.Platform.VnetIntegrationSubnetID = api.Must(azcorearm.ParseResourceID("/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks/test-vnet/subnets/old-vnet-integration-subnet"))
+				c.CustomerProperties.Platform.VnetIntegrationSubnetID = api.Must(azcorearm.ParseResourceID("/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.Network/virtualNetworks/test-vnet/subnets/old-vnet-integration-subnet"))
 				return c
 			}(),
 			expectErrors: []utils.ExpectedError{
@@ -1642,12 +1657,12 @@ func TestValidateClusterUpdate(t *testing.T) {
 			name: "valid vnet integration subnet unchanged - update",
 			newCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.CustomerProperties.Platform.VnetIntegrationSubnetID = api.Must(azcorearm.ParseResourceID("/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks/test-vnet/subnets/vnet-integration-subnet"))
+				c.CustomerProperties.Platform.VnetIntegrationSubnetID = api.Must(azcorearm.ParseResourceID("/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.Network/virtualNetworks/test-vnet/subnets/vnet-integration-subnet"))
 				return c
 			}(),
 			oldCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.CustomerProperties.Platform.VnetIntegrationSubnetID = api.Must(azcorearm.ParseResourceID("/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks/test-vnet/subnets/vnet-integration-subnet"))
+				c.CustomerProperties.Platform.VnetIntegrationSubnetID = api.Must(azcorearm.ParseResourceID("/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.Network/virtualNetworks/test-vnet/subnets/vnet-integration-subnet"))
 				return c
 			}(),
 		},
@@ -1668,7 +1683,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 			name: "cannot add vnet integration subnet on update - update",
 			newCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.CustomerProperties.Platform.VnetIntegrationSubnetID = api.Must(azcorearm.ParseResourceID("/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks/test-vnet/subnets/new-vnet-integration-subnet"))
+				c.CustomerProperties.Platform.VnetIntegrationSubnetID = api.Must(azcorearm.ParseResourceID("/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.Network/virtualNetworks/test-vnet/subnets/new-vnet-integration-subnet"))
 				return c
 			}(),
 			oldCluster: func() *api.HCPOpenShiftCluster {
