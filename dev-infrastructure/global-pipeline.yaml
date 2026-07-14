@@ -245,6 +245,8 @@ resourceGroups:
       name: globalMSIId
     dependsOn:
     - resourceGroup: singleton
+      step: grafana-roles
+    - resourceGroup: singleton
       step: housekeeping
     - resourceGroup: singleton
       step: output
