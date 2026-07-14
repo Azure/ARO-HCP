@@ -63,16 +63,12 @@ az container delete \
 read -r -d '' CONTAINER_SCRIPT <<EOF || true
 set -euo pipefail
 
-# MAX_WAIT is the readiness budget applied *per* retry() stage below (DNS gate,
-# az login, vnet existence check), not to the container as a whole. A freshly-
-# created ACI in a delegated subnet has been observed to take just over 300s for
-# its resolver / RBAC to become ready (DEV CI provision failures giving up at
-# 302-306s), so 300s was too tight; 480s covers that single cold-start tail. In
-# practice only the first stage is cold (later stages succeed immediately once
-# the resolver/token is warm), so real runtime is far below the sum of the
-# per-stage limits. Total container runtime is bounded independently by the
-# outer container-group TIMEOUT (900s), which terminates the ACI regardless of
-# how the per-stage budgets add up.
+# Per-stage readiness budget for retry() below (DNS gate, az login, vnet check),
+# not a whole-container limit. Sized to absorb the one-off ACI network cold-start
+# (resolver / RBAC readiness), which can run several minutes on the first stage
+# but is warm thereafter. Total container runtime is bounded independently by the
+# outer container-group TIMEOUT, which terminates the ACI regardless of how the
+# per-stage budgets add up.
 MAX_WAIT=480
 POLL_INTERVAL=5
 
