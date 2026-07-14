@@ -652,6 +652,7 @@ func TestRunEntrypointMultiStamp(t *testing.T) {
 				ResourceGroups: []*types.ResourceGroup{{
 					ResourceGroupMeta: &types.ResourceGroupMeta{
 						Name: "mgmt-rg", ResourceGroup: "mgmt-rg-" + stamp, Subscription: TEST_SUBSCRIPTION_ID,
+						Stamped: true,
 					},
 					Steps: []types.Step{
 						&types.ShellStep{StepMeta: types.StepMeta{Name: "deploy"}},
@@ -716,6 +717,7 @@ func TestStampOutputIsolation(t *testing.T) {
 				ResourceGroups: []*types.ResourceGroup{{
 					ResourceGroupMeta: &types.ResourceGroupMeta{
 						Name: "rg", ResourceGroup: "mgmt-rg-" + stamp, Subscription: "sub-" + stamp,
+						Stamped: true,
 					},
 					Steps: []types.Step{
 						&types.ShellStep{StepMeta: types.StepMeta{Name: "step1"}},
@@ -811,6 +813,7 @@ func TestStampSubscriptionResolution(t *testing.T) {
 				ResourceGroups: []*types.ResourceGroup{{
 					ResourceGroupMeta: &types.ResourceGroupMeta{
 						Name: "rg", ResourceGroup: "mgmt-rg-" + stamp, Subscription: subscription,
+						Stamped: true,
 					},
 					Steps: []types.Step{
 						&types.ShellStep{StepMeta: types.StepMeta{Name: "deploy"}},
@@ -900,6 +903,7 @@ func TestUnstampedOutputVisibleToStampedSteps(t *testing.T) {
 				ResourceGroups: []*types.ResourceGroup{{
 					ResourceGroupMeta: &types.ResourceGroupMeta{
 						Name: "mgmt-rg", ResourceGroup: "mgmt-rg-" + stamp, Subscription: TEST_SUBSCRIPTION_ID,
+						Stamped: true,
 					},
 					Steps: []types.Step{
 						&types.ShellStep{StepMeta: types.StepMeta{Name: "deploy"}},
@@ -986,6 +990,7 @@ func TestMultiStampErrorPropagation(t *testing.T) {
 				ResourceGroups: []*types.ResourceGroup{{
 					ResourceGroupMeta: &types.ResourceGroupMeta{
 						Name: "rg", ResourceGroup: "mgmt-rg-" + stamp, Subscription: TEST_SUBSCRIPTION_ID,
+						Stamped: true,
 					},
 					Steps: []types.Step{
 						&types.ShellStep{StepMeta: types.StepMeta{Name: "deploy"}},
