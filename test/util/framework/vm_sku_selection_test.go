@@ -465,3 +465,26 @@ func TestEphemeralSelectorSelectsDifferentFamily(t *testing.T) {
 		t.Fatalf("expected different-family SKU Standard_E8as_v4, got %q", got)
 	}
 }
+
+// TestWorkerSelectorPreferredEntriesAreAllowlisted closes the Preferred-list
+// gap in the allowlist-boundary guard. selectVMSize tries Preferred SKUs before
+// discovery and intentionally does NOT constrain them by NamePattern, so a
+// non-allowlisted SKU added to Preferred would bypass the pattern boundary
+// entirely. Asserting that every Preferred entry also matches its own
+// NamePattern keeps the two lists in sync and prevents a non-allowlisted SKU
+// from being reintroduced via Preferred.
+func TestWorkerSelectorPreferredEntriesAreAllowlisted(t *testing.T) {
+	for _, sel := range productionWorkerSelectors() {
+		if sel.NamePattern == nil {
+			t.Fatalf("selector %q has no NamePattern; it is required as the allowlist boundary", sel.Name)
+		}
+		if len(sel.Preferred) == 0 {
+			t.Errorf("selector %q has no Preferred entries; expected an allowlisted default", sel.Name)
+		}
+		for _, name := range sel.Preferred {
+			if !sel.NamePattern.MatchString(name) {
+				t.Errorf("selector %q Preferred entry %q does not match its NamePattern %q; Preferred must stay within the RP allowlist", sel.Name, name, sel.NamePattern.String())
+			}
+		}
+	}
+}
