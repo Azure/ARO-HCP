@@ -16,6 +16,7 @@ package validation
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -564,6 +565,58 @@ func TestValidateExternalAuth(t *testing.T) {
 				{FieldPath: "properties.provisioningState", Message: "field is immutable"},
 			},
 		},
+		{
+			name: "update rejects changing console client type to Public",
+			newObj: testExternalAuthWithClients(
+				[]string{"console-client"},
+				testExternalAuthClientProfile(
+					api.ExternalAuthConsoleClientComponentName,
+					api.ExternalAuthConsoleClientComponentNamespace,
+					"console-client",
+					api.ExternalAuthClientTypePublic,
+				),
+			),
+			oldObj: testExternalAuthWithClients(
+				[]string{"console-client"},
+				testExternalAuthClientProfile(
+					api.ExternalAuthConsoleClientComponentName,
+					api.ExternalAuthConsoleClientComponentNamespace,
+					"console-client",
+					api.ExternalAuthClientTypeConfidential,
+				),
+			),
+			op: operation.Operation{Type: operation.Update},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.clients[0].type", Message: fmt.Sprintf("must be %s when component name is %s and component namespace is %s",
+					api.ExternalAuthClientTypeConfidential,
+					api.ExternalAuthConsoleClientComponentName,
+					api.ExternalAuthConsoleClientComponentNamespace,
+				)},
+			},
+		},
+		{
+			name: "update accepts keeping console client Confidential",
+			newObj: testExternalAuthWithClients(
+				[]string{"console-client"},
+				testExternalAuthClientProfile(
+					api.ExternalAuthConsoleClientComponentName,
+					api.ExternalAuthConsoleClientComponentNamespace,
+					"console-client",
+					api.ExternalAuthClientTypeConfidential,
+				),
+			),
+			oldObj: testExternalAuthWithClients(
+				[]string{"console-client"},
+				testExternalAuthClientProfile(
+					api.ExternalAuthConsoleClientComponentName,
+					api.ExternalAuthConsoleClientComponentNamespace,
+					"console-client",
+					api.ExternalAuthClientTypeConfidential,
+				),
+			),
+			op:           operation.Operation{Type: operation.Update},
+			expectErrors: nil,
+		},
 	}
 
 	for _, tt := range tests {
@@ -862,6 +915,96 @@ func TestValidateExternalAuthCustomValidation(t *testing.T) {
 			expectErrors: nil,
 		},
 		{
+			name: "console client must be Confidential",
+			newObj: testExternalAuthWithClients(
+				[]string{"console-client"},
+				testExternalAuthClientProfile(
+					api.ExternalAuthConsoleClientComponentName,
+					api.ExternalAuthConsoleClientComponentNamespace,
+					"console-client",
+					api.ExternalAuthClientTypeConfidential,
+				),
+			),
+			expectErrors: nil,
+		},
+		{
+			name: "console client rejects Public type",
+			newObj: testExternalAuthWithClients(
+				[]string{"console-client"},
+				testExternalAuthClientProfile(
+					api.ExternalAuthConsoleClientComponentName,
+					api.ExternalAuthConsoleClientComponentNamespace,
+					"console-client",
+					api.ExternalAuthClientTypePublic,
+				),
+			),
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.clients[0].type", Message: fmt.Sprintf("must be %s when component name is %s and component namespace is %s",
+					api.ExternalAuthClientTypeConfidential,
+					api.ExternalAuthConsoleClientComponentName,
+					api.ExternalAuthConsoleClientComponentNamespace,
+				)},
+			},
+		},
+		{
+			name: "cli client in openshift-console namespace may be Public",
+			newObj: testExternalAuthWithClients(
+				[]string{"cli-client"},
+				testExternalAuthClientProfile(
+					"cli",
+					api.ExternalAuthConsoleClientComponentNamespace,
+					"cli-client",
+					api.ExternalAuthClientTypePublic,
+				),
+			),
+			expectErrors: nil,
+		},
+		{
+			name: "console name in different namespace may be Public",
+			newObj: testExternalAuthWithClients(
+				[]string{"console-client"},
+				testExternalAuthClientProfile(
+					api.ExternalAuthConsoleClientComponentName,
+					"other-namespace",
+					"console-client",
+					api.ExternalAuthClientTypePublic,
+				),
+			),
+			expectErrors: nil,
+		},
+		{
+			name: "openshift-console namespace with different name may be Public",
+			newObj: testExternalAuthWithClients(
+				[]string{"oauth-client"},
+				testExternalAuthClientProfile(
+					"oauth",
+					api.ExternalAuthConsoleClientComponentNamespace,
+					"oauth-client",
+					api.ExternalAuthClientTypePublic,
+				),
+			),
+			expectErrors: nil,
+		},
+		{
+			name: "default console and cli client pair",
+			newObj: testExternalAuthWithClients(
+				[]string{"shared-client-id"},
+				testExternalAuthClientProfile(
+					api.ExternalAuthConsoleClientComponentName,
+					api.ExternalAuthConsoleClientComponentNamespace,
+					"shared-client-id",
+					api.ExternalAuthClientTypeConfidential,
+				),
+				testExternalAuthClientProfile(
+					"cli",
+					api.ExternalAuthConsoleClientComponentNamespace,
+					"shared-client-id",
+					api.ExternalAuthClientTypePublic,
+				),
+			),
+			expectErrors: nil,
+		},
+		{
 			name: "duplicate client identifiers",
 			newObj: func() *api.HCPOpenShiftClusterExternalAuth {
 				obj := createValidExternalAuth()
@@ -900,6 +1043,26 @@ func TestValidateExternalAuthCustomValidation(t *testing.T) {
 			utils.VerifyErrorsMatch(t, tt.expectErrors, errs)
 		})
 	}
+}
+
+func testExternalAuthClientProfile(name, namespace, clientID string, clientType api.ExternalAuthClientType) api.ExternalAuthClientProfile {
+	return api.ExternalAuthClientProfile{
+		Component: api.ExternalAuthClientComponentProfile{
+			Name:                name,
+			AuthClientNamespace: namespace,
+		},
+		ClientID: clientID,
+		Type:     clientType,
+	}
+}
+
+func testExternalAuthWithClients(audiences []string, clients ...api.ExternalAuthClientProfile) *api.HCPOpenShiftClusterExternalAuth {
+	obj := createValidExternalAuth()
+	obj.Properties.Issuer.Audiences = audiences
+	obj.Properties.Clients = clients
+	// Avoid nil pointer issues in discriminated union validation during update tests.
+	obj.Properties.Claim.ValidationRules = []api.TokenClaimValidationRule{}
+	return obj
 }
 
 func createMinimalExternalAuth() *api.HCPOpenShiftClusterExternalAuth {

@@ -129,6 +129,13 @@ type ExternalAuthClientComponentProfile struct {
 	AuthClientNamespace string `json:"authClientNamespace"`
 }
 
+const (
+	// ExternalAuthConsoleClientComponentName is the name of the OpenShift console component to be configured to use the identity provider for authentication.
+	ExternalAuthConsoleClientComponentName = "console"
+	// ExternalAuthConsoleClientComponentNamespace is the namespace where the OpenShift console is deployed.
+	ExternalAuthConsoleClientComponentNamespace = "openshift-console"
+)
+
 // External Auth claim profile
 // Visibility for the entire struct is "read create update".
 type ExternalAuthClaimProfile struct {

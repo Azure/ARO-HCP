@@ -16,6 +16,7 @@ package validation
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 	"regexp"
 
@@ -229,6 +230,21 @@ func validateExternalAuthClientProfile(ctx context.Context, op operation.Operati
 	//Type        ExternalAuthClientType             `json:"type"`
 	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("type"), &newObj.Type, safe.Field(oldObj, toExternalAuthClientProfileType))...)
 	errs = append(errs, validate.Enum(ctx, op, fldPath.Child("type"), &newObj.Type, safe.Field(oldObj, toExternalAuthClientProfileType), api.ValidExternalAuthClientTypes, nil)...)
+
+	// The OpenShift console component must use the Confidential client type.
+	if newObj.Component.Name == api.ExternalAuthConsoleClientComponentName &&
+		newObj.Component.AuthClientNamespace == api.ExternalAuthConsoleClientComponentNamespace &&
+		newObj.Type != api.ExternalAuthClientTypeConfidential {
+		errs = append(errs, field.Invalid(
+			fldPath.Child("type"),
+			newObj.Type,
+			fmt.Sprintf("must be %s when component name is %s and component namespace is %s",
+				api.ExternalAuthClientTypeConfidential,
+				api.ExternalAuthConsoleClientComponentName,
+				api.ExternalAuthConsoleClientComponentNamespace,
+			),
+		))
+	}
 
 	return errs
 }
