@@ -626,6 +626,7 @@ func validateCustomerPlatformProfile(ctx context.Context, op operation.Operation
 		errs = append(errs, RestrictedResourceIDWithResourceGroup(ctx, op, fldPath.Child("vnetIntegrationSubnetId"), newObj.VnetIntegrationSubnetID, safe.Field(oldObj, toPlatformVnetIntegrationSubnetID), "Microsoft.Network/virtualNetworks/subnets")...)
 		errs = append(errs, DifferentResourceGroupNameFromResourceID(ctx, op, fldPath.Child("vnetIntegrationSubnetId"), newObj.VnetIntegrationSubnetID, nil, newObj.ManagedResourceGroup)...)
 		// SameSubscription is validated in validateResourceIDsAgainstClusterID against cluster subscription
+		errs = append(errs, SameVirtualNetwork(ctx, op, fldPath.Child("vnetIntegrationSubnetId"), newObj.VnetIntegrationSubnetID, nil, newObj.SubnetID)...)
 	}
 
 	//OutboundType            OutboundType                   `json:"outboundType,omitempty"`
