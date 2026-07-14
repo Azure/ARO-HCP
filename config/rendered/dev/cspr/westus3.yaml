@@ -6,7 +6,7 @@ acm:
       repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-211
   operator:
     bundle:
-      digest: sha256:6576eb946f40bf945160efcbc74901d1f0c89e882cda512d9e00572ed97e1b50
+      digest: sha256:eb671f317ce314623a34d5b08bb4b49ab72fa0f1b40b56a6b70cccddef5f4942
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-216
 acr:
@@ -57,7 +57,7 @@ administration:
   sreServiceTag: CorpNetSaw
 aksCommandRuntime:
   image:
-    digest: sha256:07e516155014ed9c2c85de1cf7f0c38f92def33d62dbd297dc15664d779601ef
+    digest: sha256:d01328a795b25e53de454b3a5fe987302d5df608ef286550f0eadab48881334f
     registry: mcr.microsoft.com
     repository: aks/command/runtime
 alertEventsEventHub:
@@ -465,7 +465,7 @@ imageSync:
   ocMirror:
     enabled: true
     image:
-      digest: sha256:c72a07c1f0d9a4bcde1f30fa588c7ced099f837e7bf5cb51898a2b12bed4b85b
+      digest: sha256:9efca5e32ebc95df2436cf9feeaa92632f82ca0d735656e2f353b0e86c240e9b
       registry: arohcpsvcdev.azurecr.io
       repository: image-sync/oc-mirror
     jobNamePrefix: ""
@@ -678,18 +678,18 @@ mgmt:
       image:
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus-config-reloader
-        sha: b590d4ed9814d384a42fe70e341549b98c18e55b5dd0a1a88a9bb64154451770
+        sha: 8e259204db001c773408a4dfe5f028ef4606c55d48f9e5273b8659abb559c7ff
     prometheusOperator:
       image:
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus-operator
-        sha: e775642d6bb670cd5a500830291d9d8591ee16054e7f9e51931f009c7df3d130
+        sha: dba7abd5f2d0045614ad81d3b594784a6145e18c2ed1fbec2b9030f920b53079
       version: ""
     prometheusSpec:
       image:
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus
-        sha: 3117ba4129f0d277a12b0c26432579103f1a58727ab58c67c522c1b027477d81
+        sha: 41b4e97fabeecabc304e9554a0ec1498d9735fe6780b9391bc265f175fe5ebec
       replicas: 2
       resources:
         limits:
@@ -905,7 +905,7 @@ secretSyncController:
         memory: 100Mi
     serviceAccountName: secrets-store-sync-controller-manager
   providerImage:
-    digest: sha256:2dd80e1752f669a189501e3b0ddccaff9a1c589cd2a9be07592dd157801c3d14
+    digest: sha256:a1e019fc8a1a43e5c28335f48d9ee7e2827a4d6e9b7a25fe6738e89ee1c6ec44
     registry: mcr.microsoft.com
     repository: oss/v2/azure/secrets-store/provider-azure
 serviceKeyVault:
@@ -1026,18 +1026,18 @@ svc:
       image:
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus-config-reloader
-        sha: b590d4ed9814d384a42fe70e341549b98c18e55b5dd0a1a88a9bb64154451770
+        sha: 8e259204db001c773408a4dfe5f028ef4606c55d48f9e5273b8659abb559c7ff
     prometheusOperator:
       image:
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus-operator
-        sha: e775642d6bb670cd5a500830291d9d8591ee16054e7f9e51931f009c7df3d130
+        sha: dba7abd5f2d0045614ad81d3b594784a6145e18c2ed1fbec2b9030f920b53079
       version: ""
     prometheusSpec:
       image:
         registry: mcr.microsoft.com/oss/v2
         repository: prometheus/prometheus
-        sha: 3117ba4129f0d277a12b0c26432579103f1a58727ab58c67c522c1b027477d81
+        sha: 41b4e97fabeecabc304e9554a0ec1498d9735fe6780b9391bc265f175fe5ebec
       replicas: 2
       resources:
         limits:

@@ -136,7 +136,7 @@ defaults:
     image:
       registry: mcr.microsoft.com
       repository: aks/command/runtime
-      digest: sha256:07e516155014ed9c2c85de1cf7f0c38f92def33d62dbd297dc15664d779601ef # master.260616.2 (2026-06-16 00:00)
+      digest: sha256:d01328a795b25e53de454b3a5fe987302d5df608ef286550f0eadab48881334f # master.260714.2 (2026-07-14 00:00)
   # Arobit
   arobit:
     forwarder:
@@ -233,7 +233,7 @@ defaults:
     providerImage:
       registry: mcr.microsoft.com
       repository: oss/v2/azure/secrets-store/provider-azure
-      digest: sha256:2dd80e1752f669a189501e3b0ddccaff9a1c589cd2a9be07592dd157801c3d14 # v1.8.2 (2026-06-26 19:58)
+      digest: sha256:a1e019fc8a1a43e5c28335f48d9ee7e2827a4d6e9b7a25fe6738e89ee1c6ec44 # v1.8.2 (2026-07-14 01:29)
     k8s:
       namespace: secret-sync-controller
       serviceAccountName: secrets-store-sync-controller-manager
@@ -551,13 +551,13 @@ defaults:
         image:
           registry: mcr.microsoft.com/oss/v2
           repository: prometheus/prometheus-operator
-          sha: e775642d6bb670cd5a500830291d9d8591ee16054e7f9e51931f009c7df3d130 # v0.92.1 (2026-06-30 11:33)
+          sha: dba7abd5f2d0045614ad81d3b594784a6145e18c2ed1fbec2b9030f920b53079 # v0.92.1 (2026-07-13 23:18)
         version: ""
       prometheusSpec:
         image:
           registry: mcr.microsoft.com/oss/v2
           repository: prometheus/prometheus
-          sha: 3117ba4129f0d277a12b0c26432579103f1a58727ab58c67c522c1b027477d81 # v3.12.0 (2026-07-10 14:58)
+          sha: 41b4e97fabeecabc304e9554a0ec1498d9735fe6780b9391bc265f175fe5ebec # v3.12.0 (2026-07-14 00:45)
         version: ""
         resources:
           requests:
@@ -571,7 +571,7 @@ defaults:
         image:
           registry: mcr.microsoft.com/oss/v2
           repository: prometheus/prometheus-config-reloader
-          sha: b590d4ed9814d384a42fe70e341549b98c18e55b5dd0a1a88a9bb64154451770 # v0.92.1 (2026-06-30 11:36)
+          sha: 8e259204db001c773408a4dfe5f028ef4606c55d48f9e5273b8659abb559c7ff # v0.92.1 (2026-07-14 01:51)
       kubeStateMetrics:
         image:
           registry: mcr.microsoft.com/oss/v2
@@ -685,13 +685,13 @@ defaults:
         image:
           registry: mcr.microsoft.com/oss/v2
           repository: prometheus/prometheus-operator
-          sha: e775642d6bb670cd5a500830291d9d8591ee16054e7f9e51931f009c7df3d130 # v0.92.1 (2026-06-30 11:33)
+          sha: dba7abd5f2d0045614ad81d3b594784a6145e18c2ed1fbec2b9030f920b53079 # v0.92.1 (2026-07-13 23:18)
         version: ""
       prometheusSpec:
         image:
           registry: mcr.microsoft.com/oss/v2
           repository: prometheus/prometheus
-          sha: 3117ba4129f0d277a12b0c26432579103f1a58727ab58c67c522c1b027477d81 # v3.12.0 (2026-07-10 14:58)
+          sha: 41b4e97fabeecabc304e9554a0ec1498d9735fe6780b9391bc265f175fe5ebec # v3.12.0 (2026-07-14 00:45)
         resources:
           requests:
             cpu: NONE
@@ -704,7 +704,7 @@ defaults:
         image:
           registry: mcr.microsoft.com/oss/v2
           repository: prometheus/prometheus-config-reloader
-          sha: b590d4ed9814d384a42fe70e341549b98c18e55b5dd0a1a88a9bb64154451770 # v0.92.1 (2026-06-30 11:36)
+          sha: 8e259204db001c773408a4dfe5f028ef4606c55d48f9e5273b8659abb559c7ff # v0.92.1 (2026-07-14 01:51)
       kubeStateMetrics:
         image:
           registry: mcr.microsoft.com/oss/v2
@@ -1000,7 +1000,7 @@ defaults:
       bundle:
         registry: quay.io
         repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-216
-        digest: sha256:6576eb946f40bf945160efcbc74901d1f0c89e882cda512d9e00572ed97e1b50 # v2.16.3-513 (2026-07-10 22:24)
+        digest: sha256:eb671f317ce314623a34d5b08bb4b49ab72fa0f1b40b56a6b70cccddef5f4942 # v2.16.3-514 (2026-07-14 05:06)
     mce:
       bundle:
         registry: quay.io
@@ -1073,7 +1073,7 @@ defaults:
       image:
         registry: arohcpsvcdev.azurecr.io
         repository: image-sync/oc-mirror
-        digest: sha256:c72a07c1f0d9a4bcde1f30fa588c7ced099f837e7bf5cb51898a2b12bed4b85b # a05bb66 (2026-07-13 17:22)
+        digest: sha256:9efca5e32ebc95df2436cf9feeaa92632f82ca0d735656e2f353b0e86c240e9b # ea52125 (2026-07-14 03:19)
       pullSecretName: ocmirror-pull-secret
       operatorVersionsToMirror: "4.18,4.19,4.20,4.21,4.22"
   # Automation Account
