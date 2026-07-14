@@ -19,8 +19,8 @@ acr:
   svc:
     name: arohcpsvcdev
     untaggedImagesRetention:
-      days: 365
-      enabled: false
+      days: 90
+      enabled: true
     zoneRedundantMode: Disabled
 acrDNSSuffix: azurecr.io
 acrPull:
