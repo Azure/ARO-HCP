@@ -69,7 +69,7 @@ var _ = FDescribe("Create HCPOpenShiftCluster with Private KeyVault", func() {
 			clusterParams.KeyVaultVisibility = "Private"
 			clusterParams.OpenshiftVersionId = cpVersion
 			clusterParams.ChannelGroup = channelGroup
-			clusterParams.Tags[api.TagClusterCPOImageOverride] = to.Ptr("arohcpocpdev.azurecr.io/control-plane-operator@sha256:edb375fd935a683a08e56d7594513595d2fd05c8c9d10b4afab3e450fca0b674") // d565a6ed5b
+			clusterParams.Tags[api.TagClusterCPOImageOverride] = to.Ptr(cpoOverrideImage)
 
 			By("creating customer resources (infrastructure and managed identities)")
 			clusterParams, err = tc.CreateClusterCustomerResources20251223(ctx,

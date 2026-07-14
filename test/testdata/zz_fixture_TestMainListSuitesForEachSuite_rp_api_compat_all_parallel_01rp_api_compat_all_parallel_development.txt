@@ -10,6 +10,8 @@ Authorized CIDRs Connectivity should allow API access only from authorized VM IP
 Customer should be able to create an HCP cluster with custom autoscaling
 Customer should be able to create a HCP cluster and use cilium CNI plugin
 Customer should be able to create a no-CNI private cluster with a private key vault, a nodepool and install cilium CNI successfully
+Create HCPOpenShiftCluster with CPO override (v20240610preview) should create a 5.0 cluster with CPO image override using v20240610preview API
+Create HCPOpenShiftCluster with CPO override (v20251223preview) should create a 5.0 cluster with CPO image override using v20251223preview API
 Customer should be able to create an HCP cluster and custom node pool osDisk size
 Create HCPOpenShiftCluster with Private KeyVault should create a cluster with private keyvault using v20251223preview API
 Customer should create a cluster using the 2026-06-30-preview API version
