@@ -28,4 +28,3 @@ param svcAmwMaxActiveTimeSeriesMillions = {{ .monitoring.svcMaxActiveTimeSeriesM
 param svcAmwMaxEventsPerMinuteMillions = {{ .monitoring.svcMaxEventsPerMinuteMillions }}
 param hcpAmwMaxActiveTimeSeriesMillions = {{ .monitoring.hcpMaxActiveTimeSeriesMillions }}
 param hcpAmwMaxEventsPerMinuteMillions = {{ .monitoring.hcpMaxEventsPerMinuteMillions }}
-param hcpMonitorUseInternalApi = {{ if eq .environmentName "int" }}true{{ else }}false{{ end }}
