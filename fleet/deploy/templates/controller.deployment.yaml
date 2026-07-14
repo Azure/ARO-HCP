@@ -55,6 +55,12 @@ spec:
         - 'http://clusters-service.{{ .Values.clustersService.namespace }}.svc.cluster.local:8000'
         - --kube-namespace
         - '{{ .Values.controller.namespace }}'
+        - "--amw-scaling-poll-interval"
+        - "{{ .Values.amwScaling.pollInterval }}"
+        - "--amw-workspace-resource-id"
+        - "{{ .Values.amwScaling.svcAzureMonitorWorkspaceId }}"
+        - "--amw-workspace-resource-id"
+        - "{{ .Values.amwScaling.hcpAzureMonitorWorkspaceId }}"
         ports:
         - name: healthz
           containerPort: 8080

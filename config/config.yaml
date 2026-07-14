@@ -387,12 +387,10 @@ defaults:
     crossTenantSecurityGroup: ""
     svcWorkspaceName: 'services-{{ .ctx.region }}'
     hcpWorkspaceName: 'hcps-{{ .ctx.region }}'
-    # Azure Monitor Workspace ingestion limits
-    # 2M initial limit, bump per env when hitting 50% utilization (Azure requires <200% increase)
-    svcMaxActiveTimeSeriesMillions: 2
-    svcMaxEventsPerMinuteMillions: 2
-    hcpMaxActiveTimeSeriesMillions: 2
-    hcpMaxEventsPerMinuteMillions: 2
+    amwScaling:
+      # Azure Monitor Workspace static ingestion limits (legacy, being replaced by AMW scaling controller)
+      # 2M initial limit, bump per env when hitting 50% utilization (Azure requires <200% increase)
+      pollInterval: 30m
     alertRuleOwningTeamTag: ""
     # alertsEnabled: disables the Azure Action Group resource (affects all lanes: SRE, SL, RP, MSFT)
     alertsEnabled: false
@@ -1363,6 +1361,8 @@ clouds:
           6b6d3adf-8476-4727-9812-20ffdef2b85c/Group/Admin
         svcWorkspaceName: 'services-{{ .ctx.regionShort }}'
         hcpWorkspaceName: 'hcps-{{ .ctx.regionShort }}'
+        amwScaling:
+          pollInterval: 30s
       kvCertOfficerPrincipalId: 'c9b1819d-bb29-4ac2-9abe-39e4fe9b59eb'
       kvCertAccessPrincipalId: 'c9b1819d-bb29-4ac2-9abe-39e4fe9b59eb'
       kvCertAccessRoleId: ""

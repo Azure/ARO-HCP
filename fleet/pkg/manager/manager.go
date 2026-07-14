@@ -34,6 +34,10 @@ import (
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
 	"k8s.io/component-base/metrics/legacyregistry"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
+
+	"github.com/Azure/ARO-HCP/fleet/pkg/controllers/amwscaling"
 	"github.com/Azure/ARO-HCP/fleet/pkg/controllers/base"
 	"github.com/Azure/ARO-HCP/fleet/pkg/controllers/clustersserviceregistration"
 	"github.com/Azure/ARO-HCP/fleet/pkg/controllers/datadump"
@@ -64,6 +68,10 @@ type Manager struct {
 	Region                       string
 	HealthzListenAddr            string
 	MetricsListenAddr            string
+	AMWWorkspaceResourceIDs      []string
+	AMWScalingPollInterval       time.Duration
+	AzureCredential              azcore.TokenCredential
+	AzureClientOptions           *policy.ClientOptions
 }
 
 // Run starts the fleet controller manager. It serves /healthz and /metrics,
@@ -193,6 +201,13 @@ func (m *Manager) runControllersUnderLeaderElection(
 		base.StampWatchingControllerConfig{CooldownPeriod: 4 * time.Minute},
 	)
 
+	amwScalingController := amwscaling.NewController(
+		m.AMWScalingPollInterval,
+		m.AMWWorkspaceResourceIDs,
+		m.AzureCredential,
+		m.AzureClientOptions,
+	)
+
 	leaderElectionConfig := leaderelection.LeaderElectionConfig{
 		Lock:          m.LeaderElectionLock,
 		LeaseDuration: sharedleaderelection.RecommendedLeaseDuration,
@@ -214,6 +229,7 @@ func (m *Manager) runControllersUnderLeaderElection(
 				go maestroRegistrationController.Run(ctx, 4)
 				go lifecycleController.Run(ctx, 1)
 				go dataDumpController.Run(ctx, 1)
+				go amwScalingController.Run(ctx)
 			},
 			OnStoppedLeading: func() {
 				logger.Info("lost leader election lease")
