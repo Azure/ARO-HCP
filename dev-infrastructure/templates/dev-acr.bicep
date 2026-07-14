@@ -97,7 +97,11 @@ steps:
     disableWorkingDirectoryOverride: true
     timeout: 3600
 ''',
-          reduce(map(purgeJob.purgeFilters, f => '--filter "${f}"'), '', (cur, next) => empty(cur) ? next : '${cur} ${next}'),
+          reduce(
+            map(purgeJob.purgeFilters, f => '--filter "${f}"'),
+            '',
+            (cur, next) => empty(cur) ? next : '${cur} ${next}'
+          ),
           purgeJob.imagesToKeep,
           purgeJob.purgeAfter
         ))
