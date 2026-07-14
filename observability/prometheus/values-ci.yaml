@@ -1,0 +1,160 @@
+kube-prometheus-stack:
+  fullnameOverride: "prometheus"
+  crds:
+    enabled: true
+  global:
+    rbac:
+      create: true
+  alertmanager:
+    enabled: false # Disabled for CI jobs
+  grafana:
+    enabled: false
+  # Azure Managed Prometheus will scrape or expose these metrics
+  coreDns:
+    enabled: false
+  kubeDns:
+    enabled: false
+  nodeExporter:
+    enabled: false
+  kubeEtcd:
+    enabled: false
+  kubeScheduler:
+    enabled: false
+  kubeControllerManager:
+    enabled: false
+  kubeProxy:
+    enabled: false
+  kubelet:
+    enabled: true # Required for cAdvisor/container metrics used in CI dashboards
+  kubeApiServer:
+    enabled: false
+  kubeStateMetrics:
+    enabled: true # OSS prometheus scrapes kube-state-metrics so the HCP ksm are routed to the hcp Azure Monitor Workspace
+  prometheus:
+    enabled: false # Prometheus is deployed using templates/prometheus.yaml
+  prometheusOperator:
+    enabled: true
+    fullnameOverride: ""
+    image:
+      registry: "{{ .mgmt.prometheus.prometheusOperator.image.registry }}"
+      repository: "{{ .mgmt.prometheus.prometheusOperator.image.repository }}"
+      sha: "{{ .mgmt.prometheus.prometheusOperator.image.sha }}"
+    thanosImage:
+      registry: "{{ .acr.svc.name }}.{{ .acrDNSSuffix }}"
+      repository: "{{ .mgmt.prometheus.thanos.image.repository }}"
+      tag: "{{ .mgmt.prometheus.thanos.image.tag }}"
+      sha: "{{ .mgmt.prometheus.thanos.image.sha }}"
+    prometheusConfigReloader:
+      image:
+        registry: "{{ .mgmt.prometheus.prometheusConfigReloader.image.registry }}"
+        repository: "{{ .mgmt.prometheus.prometheusConfigReloader.image.repository }}"
+        sha: "{{ .mgmt.prometheus.prometheusConfigReloader.image.sha }}"
+    affinity:
+      nodeAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          nodeSelectorTerms:
+          - matchExpressions:
+            - key: aro-hcp.azure.com/role
+              operator: In
+              values:
+              - "infra"
+    tolerations:
+    - key: "infra"
+      operator: "Equal"
+      value: "true"
+      effect: "NoSchedule"
+    admissionWebhooks:
+      patch:
+        enabled: true
+        image:
+          registry: "{{ .acr.svc.name }}.{{ .acrDNSSuffix }}"
+          repository: "{{ .mgmt.prometheus.admissionWebhook.patch.image.repository }}"
+          sha: "{{ .mgmt.prometheus.admissionWebhook.patch.image.sha }}"
+  ## Setting to true produces cleaner resource names, but requires a data migration because the name of the persistent volume changes. Therefore this should only be set once on initial installation.
+  cleanPrometheusOperatorObjectNames: true
+  # config for kube-state-metrics subchart that is imported by the kube-prometheus-stack chart conditionally
+  kube-state-metrics:
+    image:
+      registry: "{{ .mgmt.prometheus.kubeStateMetrics.image.registry }}"
+      repository: "{{ .mgmt.prometheus.kubeStateMetrics.image.repository }}"
+      sha: "{{ .mgmt.prometheus.kubeStateMetrics.image.digest }}"
+    rbac:
+      extraRules:
+      - apiGroups: ["hypershift.openshift.io"]
+        resources: ["hostedclusters"]
+        verbs: ["list", "watch"]
+    customResourceState:
+      enabled: true
+      create: true
+      name: "kube-state-metric-custom-resource-config"
+      key: config.yaml
+      config:
+        spec:
+          resources:
+          - groupVersionKind:
+              group: hypershift.openshift.io
+              kind: "HostedCluster"
+              version: "v1beta1"
+            metricNamePrefix: hostedClusterAPI
+            labelsFromPath:
+              name: [metadata, name]
+              namespace: [metadata, namespace]
+              api_url: [spec, services, "[service=APIServer]", servicePublishingStrategy, route, hostname]
+              _id: [spec, clusterID]
+            metrics:
+            - name: "kubeapiserver_available"
+              help: "KubeAPIServer availability condition"
+              each:
+                type: StateSet
+                stateSet:
+                  path: [status, conditions, "[type=KubeAPIServerAvailable]", status]
+                  labelName: status
+                  list: ["True", "False", "Unknown"]
+            - name: "available"
+              help: "Cluster availability condition"
+              each:
+                type: StateSet
+                stateSet:
+                  path: [status, conditions, "[type=Available]", status]
+                  labelName: status
+                  list: ["True", "False", "Unknown"]
+            - name: "progressing"
+              help: "Cluster progressing condition"
+              each:
+                type: StateSet
+                stateSet:
+                  path: [status, conditions, "[type=Progressing]", status]
+                  labelName: status
+                  list: ["True", "False", "Unknown"]
+# this is our own config for the files in templates/
+prometheusSpec:
+  image:
+    registry: "{{ .mgmt.prometheus.prometheusSpec.image.registry }}"
+    repository: "{{ .mgmt.prometheus.prometheusSpec.image.repository }}"
+    sha: "{{ .mgmt.prometheus.prometheusSpec.image.sha }}"
+  version: "" # derived from the sha
+  # CRITICAL: These labels identify the CI job for post-deletion analysis
+  externalLabels:
+    cluster: "{{ .mgmt.aks.name }}"
+    region: "{{ .region }}"
+    environment: "ci"
+    job_id: "__CI_JOB_ID__"              # Injected by CI bootstrap script
+    pr_number: "__CI_PR_NUMBER__"        # Injected by CI bootstrap script
+    git_sha: "__CI_GIT_SHA__"            # Injected by CI bootstrap script
+  # Remote write to SHARED CI AMW (not ephemeral, survives job deletion)
+  remoteWriteUrl: "__ciDcrRemoteWriteUrl__"
+  hcpRemoteWriteUrl: "__ciHcpDcrRemoteWriteUrl__"
+  zoneCount: {{ .azureRegionAvailabilityZoneCount }}
+  maximumStartupDurationSeconds: 360
+  shards: 1  # CI jobs don't need multiple shards (ephemeral)
+  replicas: 1  # CI jobs don't need HA
+  resources:
+    requests:
+      cpu: {{ .mgmt.prometheus.prometheusSpec.resources.requests.cpu }}
+      memory: {{ .mgmt.prometheus.prometheusSpec.resources.requests.memory }}
+    limits:
+      memory: {{ .mgmt.prometheus.prometheusSpec.resources.limits.memory }}
+prometheus:
+  serviceAccount:
+    managedIdentity: "__prometheusUAMIClientId__"
+environment: "{{ .clustersService.environment }}"  # Used for namespace filtering

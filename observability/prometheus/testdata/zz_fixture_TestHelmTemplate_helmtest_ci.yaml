@@ -67580,10 +67580,10 @@ metadata:
     app.kubernetes.io/component: metrics
     app.kubernetes.io/part-of: kube-state-metrics
     app.kubernetes.io/name: kube-state-metrics
-    app.kubernetes.io/instance: helmtest-mgmt-resources
+    app.kubernetes.io/instance: helmtest-ci
     app.kubernetes.io/version: "2.15.0"
-    release: helmtest-mgmt-resources
-  name: helmtest-mgmt-resources-kube-state-metrics
+    release: helmtest-ci
+  name: helmtest-ci-kube-state-metrics
   namespace: prometheus
 ---
 # Source: hcp-prometheus/charts/kube-prometheus-stack/templates/prometheus-operator/serviceaccount.yaml
@@ -67595,11 +67595,11 @@ metadata:
   labels:
     
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/instance: helmtest-mgmt-resources
+    app.kubernetes.io/instance: helmtest-ci
     app.kubernetes.io/version: "70.4.1"
     app.kubernetes.io/part-of: kube-prometheus-stack
     chart: kube-prometheus-stack-70.4.1
-    release: "helmtest-mgmt-resources"
+    release: "helmtest-ci"
     heritage: "Helm"
     app: kube-prometheus-stack-operator
     app.kubernetes.io/name: kube-prometheus-stack-prometheus-operator
@@ -67620,7 +67620,7 @@ metadata:
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: helmtest-mgmt-resources-kube-state-metrics-customresourcestate-config
+  name: helmtest-ci-kube-state-metrics-customresourcestate-config
   namespace: prometheus
   labels:    
     helm.sh/chart: kube-state-metrics-5.31.0
@@ -67628,9 +67628,9 @@ metadata:
     app.kubernetes.io/component: metrics
     app.kubernetes.io/part-of: kube-state-metrics
     app.kubernetes.io/name: kube-state-metrics
-    app.kubernetes.io/instance: helmtest-mgmt-resources
+    app.kubernetes.io/instance: helmtest-ci
     app.kubernetes.io/version: "2.15.0"
-    release: helmtest-mgmt-resources
+    release: helmtest-ci
 data:
   config.yaml: |
     spec:
@@ -67656,15 +67656,6 @@ data:
           namespace:
           - metadata
           - namespace
-          resource_id:
-          - metadata
-          - annotations
-          - azure.microsoft.com/hcp-cluster-azure-resource-id
-          subscription_id:
-          - spec
-          - platform
-          - azure
-          - subscriptionID
         metricNamePrefix: hostedClusterAPI
         metrics:
         - each:
@@ -67800,10 +67791,10 @@ metadata:
     app.kubernetes.io/component: metrics
     app.kubernetes.io/part-of: kube-state-metrics
     app.kubernetes.io/name: kube-state-metrics
-    app.kubernetes.io/instance: helmtest-mgmt-resources
+    app.kubernetes.io/instance: helmtest-ci
     app.kubernetes.io/version: "2.15.0"
-    release: helmtest-mgmt-resources
-  name: helmtest-mgmt-resources-kube-state-metrics
+    release: helmtest-ci
+  name: helmtest-ci-kube-state-metrics
 rules:
 
 - apiGroups: ["certificates.k8s.io"]
@@ -67967,11 +67958,11 @@ metadata:
   labels:
     
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/instance: helmtest-mgmt-resources
+    app.kubernetes.io/instance: helmtest-ci
     app.kubernetes.io/version: "70.4.1"
     app.kubernetes.io/part-of: kube-prometheus-stack
     chart: kube-prometheus-stack-70.4.1
-    release: "helmtest-mgmt-resources"
+    release: "helmtest-ci"
     heritage: "Helm"
     app: kube-prometheus-stack-operator
     app.kubernetes.io/name: kube-prometheus-stack-prometheus-operator
@@ -68118,17 +68109,17 @@ metadata:
     app.kubernetes.io/component: metrics
     app.kubernetes.io/part-of: kube-state-metrics
     app.kubernetes.io/name: kube-state-metrics
-    app.kubernetes.io/instance: helmtest-mgmt-resources
+    app.kubernetes.io/instance: helmtest-ci
     app.kubernetes.io/version: "2.15.0"
-    release: helmtest-mgmt-resources
-  name: helmtest-mgmt-resources-kube-state-metrics
+    release: helmtest-ci
+  name: helmtest-ci-kube-state-metrics
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: helmtest-mgmt-resources-kube-state-metrics
+  name: helmtest-ci-kube-state-metrics
 subjects:
 - kind: ServiceAccount
-  name: helmtest-mgmt-resources-kube-state-metrics
+  name: helmtest-ci-kube-state-metrics
   namespace: prometheus
 ---
 # Source: hcp-prometheus/charts/kube-prometheus-stack/templates/prometheus-operator/clusterrolebinding.yaml
@@ -68139,11 +68130,11 @@ metadata:
   labels:
     
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/instance: helmtest-mgmt-resources
+    app.kubernetes.io/instance: helmtest-ci
     app.kubernetes.io/version: "70.4.1"
     app.kubernetes.io/part-of: kube-prometheus-stack
     chart: kube-prometheus-stack-70.4.1
-    release: "helmtest-mgmt-resources"
+    release: "helmtest-ci"
     heritage: "Helm"
     app: kube-prometheus-stack-operator
     app.kubernetes.io/name: kube-prometheus-stack-prometheus-operator
@@ -68175,7 +68166,7 @@ subjects:
 apiVersion: v1
 kind: Service
 metadata:
-  name: helmtest-mgmt-resources-kube-state-metrics
+  name: helmtest-ci-kube-state-metrics
   namespace: prometheus
   labels:    
     helm.sh/chart: kube-state-metrics-5.31.0
@@ -68183,9 +68174,9 @@ metadata:
     app.kubernetes.io/component: metrics
     app.kubernetes.io/part-of: kube-state-metrics
     app.kubernetes.io/name: kube-state-metrics
-    app.kubernetes.io/instance: helmtest-mgmt-resources
+    app.kubernetes.io/instance: helmtest-ci
     app.kubernetes.io/version: "2.15.0"
-    release: helmtest-mgmt-resources
+    release: helmtest-ci
   annotations:
 spec:
   type: "ClusterIP"
@@ -68197,7 +68188,7 @@ spec:
   
   selector:    
     app.kubernetes.io/name: kube-state-metrics
-    app.kubernetes.io/instance: helmtest-mgmt-resources
+    app.kubernetes.io/instance: helmtest-ci
 ---
 # Source: hcp-prometheus/charts/kube-prometheus-stack/templates/prometheus-operator/service.yaml
 apiVersion: v1
@@ -68208,11 +68199,11 @@ metadata:
   labels:
     
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/instance: helmtest-mgmt-resources
+    app.kubernetes.io/instance: helmtest-ci
     app.kubernetes.io/version: "70.4.1"
     app.kubernetes.io/part-of: kube-prometheus-stack
     chart: kube-prometheus-stack-70.4.1
-    release: "helmtest-mgmt-resources"
+    release: "helmtest-ci"
     heritage: "Helm"
     app: kube-prometheus-stack-operator
     app.kubernetes.io/name: kube-prometheus-stack-prometheus-operator
@@ -68224,14 +68215,14 @@ spec:
     targetPort: https
   selector:
     app: kube-prometheus-stack-operator
-    release: "helmtest-mgmt-resources"
+    release: "helmtest-ci"
   type: "ClusterIP"
 ---
 # Source: hcp-prometheus/charts/kube-prometheus-stack/charts/kube-state-metrics/templates/deployment.yaml
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: helmtest-mgmt-resources-kube-state-metrics
+  name: helmtest-ci-kube-state-metrics
   namespace: prometheus
   labels:    
     helm.sh/chart: kube-state-metrics-5.31.0
@@ -68239,14 +68230,14 @@ metadata:
     app.kubernetes.io/component: metrics
     app.kubernetes.io/part-of: kube-state-metrics
     app.kubernetes.io/name: kube-state-metrics
-    app.kubernetes.io/instance: helmtest-mgmt-resources
+    app.kubernetes.io/instance: helmtest-ci
     app.kubernetes.io/version: "2.15.0"
-    release: helmtest-mgmt-resources
+    release: helmtest-ci
 spec:
   selector:
     matchLabels:      
       app.kubernetes.io/name: kube-state-metrics
-      app.kubernetes.io/instance: helmtest-mgmt-resources
+      app.kubernetes.io/instance: helmtest-ci
   replicas: 1
   strategy:
     type: RollingUpdate
@@ -68259,13 +68250,13 @@ spec:
         app.kubernetes.io/component: metrics
         app.kubernetes.io/part-of: kube-state-metrics
         app.kubernetes.io/name: kube-state-metrics
-        app.kubernetes.io/instance: helmtest-mgmt-resources
+        app.kubernetes.io/instance: helmtest-ci
         app.kubernetes.io/version: "2.15.0"
-        release: helmtest-mgmt-resources
+        release: helmtest-ci
     spec:
       automountServiceAccountToken: true
       hostNetwork: false
-      serviceAccountName: helmtest-mgmt-resources-kube-state-metrics
+      serviceAccountName: helmtest-ci-kube-state-metrics
       securityContext:
         fsGroup: 65534
         runAsGroup: 65534
@@ -68321,7 +68312,7 @@ spec:
       volumes:
         - name: customresourcestate-config
           configMap:
-            name: helmtest-mgmt-resources-kube-state-metrics-customresourcestate-config
+            name: helmtest-ci-kube-state-metrics-customresourcestate-config
 ---
 # Source: hcp-prometheus/charts/kube-prometheus-stack/templates/prometheus-operator/deployment.yaml
 apiVersion: apps/v1
@@ -68332,11 +68323,11 @@ metadata:
   labels:
     
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/instance: helmtest-mgmt-resources
+    app.kubernetes.io/instance: helmtest-ci
     app.kubernetes.io/version: "70.4.1"
     app.kubernetes.io/part-of: kube-prometheus-stack
     chart: kube-prometheus-stack-70.4.1
-    release: "helmtest-mgmt-resources"
+    release: "helmtest-ci"
     heritage: "Helm"
     app: kube-prometheus-stack-operator
     app.kubernetes.io/name: kube-prometheus-stack-prometheus-operator
@@ -68347,17 +68338,17 @@ spec:
   selector:
     matchLabels:
       app: kube-prometheus-stack-operator
-      release: "helmtest-mgmt-resources"
+      release: "helmtest-ci"
   template:
     metadata:
       labels:
         
         app.kubernetes.io/managed-by: Helm
-        app.kubernetes.io/instance: helmtest-mgmt-resources
+        app.kubernetes.io/instance: helmtest-ci
         app.kubernetes.io/version: "70.4.1"
         app.kubernetes.io/part-of: kube-prometheus-stack
         chart: kube-prometheus-stack-70.4.1
-        release: "helmtest-mgmt-resources"
+        release: "helmtest-ci"
         heritage: "Helm"
         app: kube-prometheus-stack-operator
         app.kubernetes.io/name: kube-prometheus-stack-prometheus-operator
@@ -68377,7 +68368,7 @@ spec:
             - --config-reloader-cpu-limit=0
             - --config-reloader-memory-request=0
             - --config-reloader-memory-limit=0
-            - --thanos-default-base-image=arohcpsvcdev.azurecr.io/thanos/thanos:v0.41.0@sha256:1234567890
+            - --thanos-default-base-image=arohcpsvctest.azurecr.io/quay.io/thanos/thanos:v0.35.1@sha256:sha256:testthanos
             - --secret-field-selector=type!=kubernetes.io/dockercfg,type!=kubernetes.io/service-account-token,type!=helm.sh/release.v1
             - --web.enable-tls=true
             - --web.cert-file=/cert/cert
@@ -68463,11 +68454,11 @@ metadata:
     app: kube-prometheus-stack-admission
     
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/instance: helmtest-mgmt-resources
+    app.kubernetes.io/instance: helmtest-ci
     app.kubernetes.io/version: "70.4.1"
     app.kubernetes.io/part-of: kube-prometheus-stack
     chart: kube-prometheus-stack-70.4.1
-    release: "helmtest-mgmt-resources"
+    release: "helmtest-ci"
     heritage: "Helm"
     app.kubernetes.io/name: kube-prometheus-stack-prometheus-operator
     app.kubernetes.io/component: prometheus-operator-webhook
@@ -68504,11 +68495,11 @@ metadata:
     app: kube-prometheus-stack-admission
     
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/instance: helmtest-mgmt-resources
+    app.kubernetes.io/instance: helmtest-ci
     app.kubernetes.io/version: "70.4.1"
     app.kubernetes.io/part-of: kube-prometheus-stack
     chart: kube-prometheus-stack-70.4.1
-    release: "helmtest-mgmt-resources"
+    release: "helmtest-ci"
     heritage: "Helm"
     app.kubernetes.io/name: kube-prometheus-stack-prometheus-operator
     app.kubernetes.io/component: prometheus-operator-webhook
@@ -68563,9 +68554,9 @@ spec:
   resources:
     requests:
       cpu: '1'
-      memory: '6Gi'
+      memory: '4Gi'
     limits:
-      memory: '10Gi'
+      memory: '8Gi'
   affinity:
     nodeAffinity:
       requiredDuringSchedulingIgnoredDuringExecution:
@@ -68591,7 +68582,7 @@ spec:
   probeSelector:
     matchLabels:
       release: arohcp-monitor
-  replicas: 2
+  replicas: 1
   routePrefix: /
   scrapeConfigNamespaceSelector: {}
   scrapeConfigSelector:
@@ -68608,7 +68599,7 @@ spec:
   serviceAccountName: prometheus
   serviceMonitorNamespaceSelector: {}
   serviceMonitorSelector: {}
-  shards: 2
+  shards: 1
   storage:
     volumeClaimTemplate:
       spec:
@@ -68639,10 +68630,13 @@ spec:
   walCompression: true
   externalLabels:
     cluster: "dev-westus3-mgmt-1"
-    environment: "dev"
+    environment: "ci"
+    git_sha: "__CI_GIT_SHA__"
+    job_id: "__CI_JOB_ID__"
+    pr_number: "__CI_PR_NUMBER__"
     region: "westus3"
   remoteWrite:
-  - url: '__dcrRemoteWriteUrl__'
+  - url: '__ciDcrRemoteWriteUrl__'
     azureAd:
       cloud: AzurePublic
       sdk: {}
@@ -68658,9 +68652,9 @@ spec:
       send: false
     writeRelabelConfigs:
       - sourceLabels: [namespace]
-        regex: '^ocm-arohcpdev.*'
+        regex: '^ocm-ci.*'
         action: drop
-  - url: '__hcpDcrRemoteWriteUrl__'
+  - url: '__ciHcpDcrRemoteWriteUrl__'
     azureAd:
       cloud: AzurePublic
       sdk: {}
@@ -68676,7 +68670,7 @@ spec:
       send: false
     writeRelabelConfigs:
       - sourceLabels: [namespace]
-        regex: '^ocm-arohcpdev.*'
+        regex: '^ocm-ci.*'
         action: keep
 ---
 # Source: hcp-prometheus/charts/kube-prometheus-stack/templates/prometheus/rules-1.14/alertmanager.rules.yaml
@@ -68689,11 +68683,11 @@ metadata:
     app: kube-prometheus-stack
     
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/instance: helmtest-mgmt-resources
+    app.kubernetes.io/instance: helmtest-ci
     app.kubernetes.io/version: "70.4.1"
     app.kubernetes.io/part-of: kube-prometheus-stack
     chart: kube-prometheus-stack-70.4.1
-    release: "helmtest-mgmt-resources"
+    release: "helmtest-ci"
     heritage: "Helm"
 spec:
   groups:
@@ -68832,11 +68826,11 @@ metadata:
     app: kube-prometheus-stack
     
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/instance: helmtest-mgmt-resources
+    app.kubernetes.io/instance: helmtest-ci
     app.kubernetes.io/version: "70.4.1"
     app.kubernetes.io/part-of: kube-prometheus-stack
     chart: kube-prometheus-stack-70.4.1
-    release: "helmtest-mgmt-resources"
+    release: "helmtest-ci"
     heritage: "Helm"
 spec:
   groups:
@@ -68864,11 +68858,11 @@ metadata:
     app: kube-prometheus-stack
     
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/instance: helmtest-mgmt-resources
+    app.kubernetes.io/instance: helmtest-ci
     app.kubernetes.io/version: "70.4.1"
     app.kubernetes.io/part-of: kube-prometheus-stack
     chart: kube-prometheus-stack-70.4.1
-    release: "helmtest-mgmt-resources"
+    release: "helmtest-ci"
     heritage: "Helm"
 spec:
   groups:
@@ -68932,11 +68926,11 @@ metadata:
     app: kube-prometheus-stack
     
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/instance: helmtest-mgmt-resources
+    app.kubernetes.io/instance: helmtest-ci
     app.kubernetes.io/version: "70.4.1"
     app.kubernetes.io/part-of: kube-prometheus-stack
     chart: kube-prometheus-stack-70.4.1
-    release: "helmtest-mgmt-resources"
+    release: "helmtest-ci"
     heritage: "Helm"
 spec:
   groups:
@@ -68960,11 +68954,11 @@ metadata:
     app: kube-prometheus-stack
     
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/instance: helmtest-mgmt-resources
+    app.kubernetes.io/instance: helmtest-ci
     app.kubernetes.io/version: "70.4.1"
     app.kubernetes.io/part-of: kube-prometheus-stack
     chart: kube-prometheus-stack-70.4.1
-    release: "helmtest-mgmt-resources"
+    release: "helmtest-ci"
     heritage: "Helm"
 spec:
   groups:
@@ -68987,11 +68981,11 @@ metadata:
     app: kube-prometheus-stack
     
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/instance: helmtest-mgmt-resources
+    app.kubernetes.io/instance: helmtest-ci
     app.kubernetes.io/version: "70.4.1"
     app.kubernetes.io/part-of: kube-prometheus-stack
     chart: kube-prometheus-stack-70.4.1
-    release: "helmtest-mgmt-resources"
+    release: "helmtest-ci"
     heritage: "Helm"
 spec:
   groups:
@@ -69014,11 +69008,11 @@ metadata:
     app: kube-prometheus-stack
     
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/instance: helmtest-mgmt-resources
+    app.kubernetes.io/instance: helmtest-ci
     app.kubernetes.io/version: "70.4.1"
     app.kubernetes.io/part-of: kube-prometheus-stack
     chart: kube-prometheus-stack-70.4.1
-    release: "helmtest-mgmt-resources"
+    release: "helmtest-ci"
     heritage: "Helm"
 spec:
   groups:
@@ -69041,11 +69035,11 @@ metadata:
     app: kube-prometheus-stack
     
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/instance: helmtest-mgmt-resources
+    app.kubernetes.io/instance: helmtest-ci
     app.kubernetes.io/version: "70.4.1"
     app.kubernetes.io/part-of: kube-prometheus-stack
     chart: kube-prometheus-stack-70.4.1
-    release: "helmtest-mgmt-resources"
+    release: "helmtest-ci"
     heritage: "Helm"
 spec:
   groups:
@@ -69068,11 +69062,11 @@ metadata:
     app: kube-prometheus-stack
     
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/instance: helmtest-mgmt-resources
+    app.kubernetes.io/instance: helmtest-ci
     app.kubernetes.io/version: "70.4.1"
     app.kubernetes.io/part-of: kube-prometheus-stack
     chart: kube-prometheus-stack-70.4.1
-    release: "helmtest-mgmt-resources"
+    release: "helmtest-ci"
     heritage: "Helm"
 spec:
   groups:
@@ -69157,11 +69151,11 @@ metadata:
     app: kube-prometheus-stack
     
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/instance: helmtest-mgmt-resources
+    app.kubernetes.io/instance: helmtest-ci
     app.kubernetes.io/version: "70.4.1"
     app.kubernetes.io/part-of: kube-prometheus-stack
     chart: kube-prometheus-stack-70.4.1
-    release: "helmtest-mgmt-resources"
+    release: "helmtest-ci"
     heritage: "Helm"
 spec:
   groups:
@@ -69225,11 +69219,11 @@ metadata:
     app: kube-prometheus-stack
     
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/instance: helmtest-mgmt-resources
+    app.kubernetes.io/instance: helmtest-ci
     app.kubernetes.io/version: "70.4.1"
     app.kubernetes.io/part-of: kube-prometheus-stack
     chart: kube-prometheus-stack-70.4.1
-    release: "helmtest-mgmt-resources"
+    release: "helmtest-ci"
     heritage: "Helm"
 spec:
   groups:
@@ -69250,11 +69244,11 @@ metadata:
     app: kube-prometheus-stack
     
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/instance: helmtest-mgmt-resources
+    app.kubernetes.io/instance: helmtest-ci
     app.kubernetes.io/version: "70.4.1"
     app.kubernetes.io/part-of: kube-prometheus-stack
     chart: kube-prometheus-stack-70.4.1
-    release: "helmtest-mgmt-resources"
+    release: "helmtest-ci"
     heritage: "Helm"
 spec:
   groups:
@@ -69283,11 +69277,11 @@ metadata:
     app: kube-prometheus-stack
     
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/instance: helmtest-mgmt-resources
+    app.kubernetes.io/instance: helmtest-ci
     app.kubernetes.io/version: "70.4.1"
     app.kubernetes.io/part-of: kube-prometheus-stack
     chart: kube-prometheus-stack-70.4.1
-    release: "helmtest-mgmt-resources"
+    release: "helmtest-ci"
     heritage: "Helm"
 spec:
   groups:
@@ -69342,6 +69336,39 @@ spec:
       labels:
         severity: critical
 ---
+# Source: hcp-prometheus/charts/kube-prometheus-stack/templates/prometheus/rules-1.14/kubelet.rules.yaml
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: prometheus-kubelet.rules
+  namespace: prometheus
+  labels:
+    app: kube-prometheus-stack
+    
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/instance: helmtest-ci
+    app.kubernetes.io/version: "70.4.1"
+    app.kubernetes.io/part-of: kube-prometheus-stack
+    chart: kube-prometheus-stack-70.4.1
+    release: "helmtest-ci"
+    heritage: "Helm"
+spec:
+  groups:
+  - name: kubelet.rules
+    rules:
+    - expr: histogram_quantile(0.99, sum(rate(kubelet_pleg_relist_duration_seconds_bucket{job="kubelet", metrics_path="/metrics"}[5m])) by (cluster, instance, le) * on (cluster, instance) group_left(node) kubelet_node_name{job="kubelet", metrics_path="/metrics"})
+      labels:
+        quantile: '0.99'
+      record: node_quantile:kubelet_pleg_relist_duration_seconds:histogram_quantile
+    - expr: histogram_quantile(0.9, sum(rate(kubelet_pleg_relist_duration_seconds_bucket{job="kubelet", metrics_path="/metrics"}[5m])) by (cluster, instance, le) * on (cluster, instance) group_left(node) kubelet_node_name{job="kubelet", metrics_path="/metrics"})
+      labels:
+        quantile: '0.9'
+      record: node_quantile:kubelet_pleg_relist_duration_seconds:histogram_quantile
+    - expr: histogram_quantile(0.5, sum(rate(kubelet_pleg_relist_duration_seconds_bucket{job="kubelet", metrics_path="/metrics"}[5m])) by (cluster, instance, le) * on (cluster, instance) group_left(node) kubelet_node_name{job="kubelet", metrics_path="/metrics"})
+      labels:
+        quantile: '0.5'
+      record: node_quantile:kubelet_pleg_relist_duration_seconds:histogram_quantile
+---
 # Source: hcp-prometheus/charts/kube-prometheus-stack/templates/prometheus/rules-1.14/kubernetes-apps.yaml
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
@@ -69352,11 +69379,11 @@ metadata:
     app: kube-prometheus-stack
     
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/instance: helmtest-mgmt-resources
+    app.kubernetes.io/instance: helmtest-ci
     app.kubernetes.io/version: "70.4.1"
     app.kubernetes.io/part-of: kube-prometheus-stack
     chart: kube-prometheus-stack-70.4.1
-    release: "helmtest-mgmt-resources"
+    release: "helmtest-ci"
     heritage: "Helm"
 spec:
   groups:
@@ -69611,11 +69638,11 @@ metadata:
     app: kube-prometheus-stack
     
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/instance: helmtest-mgmt-resources
+    app.kubernetes.io/instance: helmtest-ci
     app.kubernetes.io/version: "70.4.1"
     app.kubernetes.io/part-of: kube-prometheus-stack
     chart: kube-prometheus-stack-70.4.1
-    release: "helmtest-mgmt-resources"
+    release: "helmtest-ci"
     heritage: "Helm"
 spec:
   groups:
@@ -69734,11 +69761,11 @@ metadata:
     app: kube-prometheus-stack
     
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/instance: helmtest-mgmt-resources
+    app.kubernetes.io/instance: helmtest-ci
     app.kubernetes.io/version: "70.4.1"
     app.kubernetes.io/part-of: kube-prometheus-stack
     chart: kube-prometheus-stack-70.4.1
-    release: "helmtest-mgmt-resources"
+    release: "helmtest-ci"
     heritage: "Helm"
 spec:
   groups:
@@ -69848,11 +69875,11 @@ metadata:
     app: kube-prometheus-stack
     
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/instance: helmtest-mgmt-resources
+    app.kubernetes.io/instance: helmtest-ci
     app.kubernetes.io/version: "70.4.1"
     app.kubernetes.io/part-of: kube-prometheus-stack
     chart: kube-prometheus-stack-70.4.1
-    release: "helmtest-mgmt-resources"
+    release: "helmtest-ci"
     heritage: "Helm"
 spec:
   groups:
@@ -69920,11 +69947,11 @@ metadata:
     app: kube-prometheus-stack
     
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/instance: helmtest-mgmt-resources
+    app.kubernetes.io/instance: helmtest-ci
     app.kubernetes.io/version: "70.4.1"
     app.kubernetes.io/part-of: kube-prometheus-stack
     chart: kube-prometheus-stack-70.4.1
-    release: "helmtest-mgmt-resources"
+    release: "helmtest-ci"
     heritage: "Helm"
 spec:
   groups:
@@ -70100,11 +70127,11 @@ metadata:
     app: kube-prometheus-stack
     
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/instance: helmtest-mgmt-resources
+    app.kubernetes.io/instance: helmtest-ci
     app.kubernetes.io/version: "70.4.1"
     app.kubernetes.io/part-of: kube-prometheus-stack
     chart: kube-prometheus-stack-70.4.1
-    release: "helmtest-mgmt-resources"
+    release: "helmtest-ci"
     heritage: "Helm"
 spec:
   groups:
@@ -70143,11 +70170,11 @@ metadata:
     app: kube-prometheus-stack
     
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/instance: helmtest-mgmt-resources
+    app.kubernetes.io/instance: helmtest-ci
     app.kubernetes.io/version: "70.4.1"
     app.kubernetes.io/part-of: kube-prometheus-stack
     chart: kube-prometheus-stack-70.4.1
-    release: "helmtest-mgmt-resources"
+    release: "helmtest-ci"
     heritage: "Helm"
 spec:
   groups:
@@ -70226,11 +70253,11 @@ metadata:
     app: kube-prometheus-stack
     
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/instance: helmtest-mgmt-resources
+    app.kubernetes.io/instance: helmtest-ci
     app.kubernetes.io/version: "70.4.1"
     app.kubernetes.io/part-of: kube-prometheus-stack
     chart: kube-prometheus-stack-70.4.1
-    release: "helmtest-mgmt-resources"
+    release: "helmtest-ci"
     heritage: "Helm"
 spec:
   groups:
@@ -70564,11 +70591,11 @@ metadata:
     app: kube-prometheus-stack
     
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/instance: helmtest-mgmt-resources
+    app.kubernetes.io/instance: helmtest-ci
     app.kubernetes.io/version: "70.4.1"
     app.kubernetes.io/part-of: kube-prometheus-stack
     chart: kube-prometheus-stack-70.4.1
-    release: "helmtest-mgmt-resources"
+    release: "helmtest-ci"
     heritage: "Helm"
 spec:
   groups:
@@ -70594,11 +70621,11 @@ metadata:
     app: kube-prometheus-stack
     
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/instance: helmtest-mgmt-resources
+    app.kubernetes.io/instance: helmtest-ci
     app.kubernetes.io/version: "70.4.1"
     app.kubernetes.io/part-of: kube-prometheus-stack
     chart: kube-prometheus-stack-70.4.1
-    release: "helmtest-mgmt-resources"
+    release: "helmtest-ci"
     heritage: "Helm"
 spec:
   groups:
@@ -70651,11 +70678,11 @@ metadata:
     app: kube-prometheus-stack
     
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/instance: helmtest-mgmt-resources
+    app.kubernetes.io/instance: helmtest-ci
     app.kubernetes.io/version: "70.4.1"
     app.kubernetes.io/part-of: kube-prometheus-stack
     chart: kube-prometheus-stack-70.4.1
-    release: "helmtest-mgmt-resources"
+    release: "helmtest-ci"
     heritage: "Helm"
 spec:
   groups:
@@ -70744,11 +70771,11 @@ metadata:
     app: kube-prometheus-stack
     
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/instance: helmtest-mgmt-resources
+    app.kubernetes.io/instance: helmtest-ci
     app.kubernetes.io/version: "70.4.1"
     app.kubernetes.io/part-of: kube-prometheus-stack
     chart: kube-prometheus-stack-70.4.1
-    release: "helmtest-mgmt-resources"
+    release: "helmtest-ci"
     heritage: "Helm"
 spec:
   groups:
@@ -71028,7 +71055,7 @@ spec:
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
-  name: helmtest-mgmt-resources-kube-state-metrics
+  name: helmtest-ci-kube-state-metrics
   namespace: prometheus
   labels:    
     helm.sh/chart: kube-state-metrics-5.31.0
@@ -71036,18 +71063,132 @@ metadata:
     app.kubernetes.io/component: metrics
     app.kubernetes.io/part-of: kube-state-metrics
     app.kubernetes.io/name: kube-state-metrics
-    app.kubernetes.io/instance: helmtest-mgmt-resources
+    app.kubernetes.io/instance: helmtest-ci
     app.kubernetes.io/version: "2.15.0"
-    release: helmtest-mgmt-resources
+    release: helmtest-ci
 spec:
   jobLabel: app.kubernetes.io/name  
   selector:
     matchLabels:      
       app.kubernetes.io/name: kube-state-metrics
-      app.kubernetes.io/instance: helmtest-mgmt-resources
+      app.kubernetes.io/instance: helmtest-ci
   endpoints:
     - port: http
       honorLabels: true
+---
+# Source: hcp-prometheus/charts/kube-prometheus-stack/templates/exporters/kubelet/servicemonitor.yaml
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: prometheus-kubelet
+  namespace: prometheus
+  labels:
+    app: kube-prometheus-stack-kubelet    
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/instance: helmtest-ci
+    app.kubernetes.io/version: "70.4.1"
+    app.kubernetes.io/part-of: kube-prometheus-stack
+    chart: kube-prometheus-stack-70.4.1
+    release: "helmtest-ci"
+    heritage: "Helm"
+spec:
+  
+  attachMetadata:
+    node: false
+  jobLabel: k8s-app
+  namespaceSelector:
+    matchNames:
+    - kube-system
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: kubelet
+      k8s-app: kubelet
+  endpoints:
+  - port: https-metrics
+    scheme: https    
+    tlsConfig:
+      caFile: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+      insecureSkipVerify: true
+    bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+    honorLabels: true
+    honorTimestamps: true
+    metricRelabelings:
+    - action: drop
+      regex: (csi_operations|storage_operation_duration)_seconds_bucket;(0.25|2.5|15|25|120|600)(\.0)?
+      sourceLabels:
+      - __name__
+      - le
+    relabelings:
+    - action: replace
+      sourceLabels:
+      - __metrics_path__
+      targetLabel: metrics_path
+  - port: https-metrics
+    scheme: https
+    path: /metrics/cadvisor
+    interval: 10s
+    honorLabels: true
+    honorTimestamps: true
+    trackTimestampsStaleness: true    
+    tlsConfig:
+      caFile: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+      insecureSkipVerify: true
+    bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+    metricRelabelings:
+    - action: drop
+      regex: container_cpu_(cfs_throttled_seconds_total|load_average_10s|system_seconds_total|user_seconds_total)
+      sourceLabels:
+      - __name__
+    - action: drop
+      regex: container_fs_(io_current|io_time_seconds_total|io_time_weighted_seconds_total|reads_merged_total|sector_reads_total|sector_writes_total|writes_merged_total)
+      sourceLabels:
+      - __name__
+    - action: drop
+      regex: container_memory_(mapped_file|swap)
+      sourceLabels:
+      - __name__
+    - action: drop
+      regex: container_(file_descriptors|tasks_state|threads_max)
+      sourceLabels:
+      - __name__
+    - action: drop
+      regex: container_memory_failures_total;hierarchy
+      sourceLabels:
+      - __name__
+      - scope
+    - action: drop
+      regex: container_network_.*;(cali|cilium|cni|lxc|nodelocaldns|tunl).*
+      sourceLabels:
+      - __name__
+      - interface
+    - action: drop
+      regex: container_spec.*
+      sourceLabels:
+      - __name__
+    - action: drop
+      regex: .+;
+      sourceLabels:
+      - id
+      - pod
+    relabelings:
+    - action: replace
+      sourceLabels:
+      - __metrics_path__
+      targetLabel: metrics_path
+  - port: https-metrics
+    scheme: https
+    path: /metrics/probes
+    honorLabels: true
+    honorTimestamps: true    
+    tlsConfig:
+      caFile: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+      insecureSkipVerify: true
+    bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+    relabelings:
+    - action: replace
+      sourceLabels:
+      - __metrics_path__
+      targetLabel: metrics_path
 ---
 # Source: hcp-prometheus/charts/kube-prometheus-stack/templates/prometheus-operator/servicemonitor.yaml
 apiVersion: monitoring.coreos.com/v1
@@ -71058,11 +71199,11 @@ metadata:
   labels:
     
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/instance: helmtest-mgmt-resources
+    app.kubernetes.io/instance: helmtest-ci
     app.kubernetes.io/version: "70.4.1"
     app.kubernetes.io/part-of: kube-prometheus-stack
     chart: kube-prometheus-stack-70.4.1
-    release: "helmtest-mgmt-resources"
+    release: "helmtest-ci"
     heritage: "Helm"
     app: kube-prometheus-stack-operator
     app.kubernetes.io/name: kube-prometheus-stack-prometheus-operator
@@ -71083,7 +71224,7 @@ spec:
   selector:
     matchLabels:
       app: kube-prometheus-stack-operator
-      release: "helmtest-mgmt-resources"
+      release: "helmtest-ci"
   namespaceSelector:
     matchNames:
       - "prometheus"
@@ -71102,11 +71243,11 @@ metadata:
     app: kube-prometheus-stack-admission
     
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/instance: helmtest-mgmt-resources
+    app.kubernetes.io/instance: helmtest-ci
     app.kubernetes.io/version: "70.4.1"
     app.kubernetes.io/part-of: kube-prometheus-stack
     chart: kube-prometheus-stack-70.4.1
-    release: "helmtest-mgmt-resources"
+    release: "helmtest-ci"
     heritage: "Helm"
     app.kubernetes.io/name: kube-prometheus-stack-prometheus-operator
     app.kubernetes.io/component: prometheus-operator-webhook
@@ -71124,11 +71265,11 @@ metadata:
     app: kube-prometheus-stack-admission
     
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/instance: helmtest-mgmt-resources
+    app.kubernetes.io/instance: helmtest-ci
     app.kubernetes.io/version: "70.4.1"
     app.kubernetes.io/part-of: kube-prometheus-stack
     chart: kube-prometheus-stack-70.4.1
-    release: "helmtest-mgmt-resources"
+    release: "helmtest-ci"
     heritage: "Helm"
     app.kubernetes.io/name: kube-prometheus-stack-prometheus-operator
     app.kubernetes.io/component: prometheus-operator-webhook
@@ -71154,11 +71295,11 @@ metadata:
     app: kube-prometheus-stack-admission
     
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/instance: helmtest-mgmt-resources
+    app.kubernetes.io/instance: helmtest-ci
     app.kubernetes.io/version: "70.4.1"
     app.kubernetes.io/part-of: kube-prometheus-stack
     chart: kube-prometheus-stack-70.4.1
-    release: "helmtest-mgmt-resources"
+    release: "helmtest-ci"
     heritage: "Helm"
     app.kubernetes.io/name: kube-prometheus-stack-prometheus-operator
     app.kubernetes.io/component: prometheus-operator-webhook
@@ -71184,11 +71325,11 @@ metadata:
     app: kube-prometheus-stack-admission
     
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/instance: helmtest-mgmt-resources
+    app.kubernetes.io/instance: helmtest-ci
     app.kubernetes.io/version: "70.4.1"
     app.kubernetes.io/part-of: kube-prometheus-stack
     chart: kube-prometheus-stack-70.4.1
-    release: "helmtest-mgmt-resources"
+    release: "helmtest-ci"
     heritage: "Helm"
     app.kubernetes.io/name: kube-prometheus-stack-prometheus-operator
     app.kubernetes.io/component: prometheus-operator-webhook
@@ -71214,11 +71355,11 @@ metadata:
     app: kube-prometheus-stack-admission
     
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/instance: helmtest-mgmt-resources
+    app.kubernetes.io/instance: helmtest-ci
     app.kubernetes.io/version: "70.4.1"
     app.kubernetes.io/part-of: kube-prometheus-stack
     chart: kube-prometheus-stack-70.4.1
-    release: "helmtest-mgmt-resources"
+    release: "helmtest-ci"
     heritage: "Helm"
     app.kubernetes.io/name: kube-prometheus-stack-prometheus-operator
     app.kubernetes.io/component: prometheus-operator-webhook
@@ -71244,11 +71385,11 @@ metadata:
     app: kube-prometheus-stack-admission-create
     
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/instance: helmtest-mgmt-resources
+    app.kubernetes.io/instance: helmtest-ci
     app.kubernetes.io/version: "70.4.1"
     app.kubernetes.io/part-of: kube-prometheus-stack
     chart: kube-prometheus-stack-70.4.1
-    release: "helmtest-mgmt-resources"
+    release: "helmtest-ci"
     heritage: "Helm"
     app.kubernetes.io/name: kube-prometheus-stack-prometheus-operator
     app.kubernetes.io/component: prometheus-operator-webhook
@@ -71261,18 +71402,18 @@ spec:
         app: kube-prometheus-stack-admission-create
         
         app.kubernetes.io/managed-by: Helm
-        app.kubernetes.io/instance: helmtest-mgmt-resources
+        app.kubernetes.io/instance: helmtest-ci
         app.kubernetes.io/version: "70.4.1"
         app.kubernetes.io/part-of: kube-prometheus-stack
         chart: kube-prometheus-stack-70.4.1
-        release: "helmtest-mgmt-resources"
+        release: "helmtest-ci"
         heritage: "Helm"
         app.kubernetes.io/name: kube-prometheus-stack-prometheus-operator
         app.kubernetes.io/component: prometheus-operator-webhook
     spec:
       containers:
         - name: create
-          image: arohcpsvcdev.azurecr.io/k8s-cache/ingress-nginx/kube-webhook-certgen:v1.5.2@sha256:01038e7de14b78d702d2849c3aad72fd25903c4765af63cf16aa3398f5d5f2dd
+          image: arohcpsvctest.azurecr.io/k8s-cache/ingress-nginx/kube-webhook-certgen:v1.5.2@sha256:sha256:testwebhook
           imagePullPolicy: IfNotPresent
           args:
             - create
@@ -71310,11 +71451,11 @@ metadata:
     app: kube-prometheus-stack-admission-patch
     
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/instance: helmtest-mgmt-resources
+    app.kubernetes.io/instance: helmtest-ci
     app.kubernetes.io/version: "70.4.1"
     app.kubernetes.io/part-of: kube-prometheus-stack
     chart: kube-prometheus-stack-70.4.1
-    release: "helmtest-mgmt-resources"
+    release: "helmtest-ci"
     heritage: "Helm"
     app.kubernetes.io/name: kube-prometheus-stack-prometheus-operator
     app.kubernetes.io/component: prometheus-operator-webhook
@@ -71327,18 +71468,18 @@ spec:
         app: kube-prometheus-stack-admission-patch
         
         app.kubernetes.io/managed-by: Helm
-        app.kubernetes.io/instance: helmtest-mgmt-resources
+        app.kubernetes.io/instance: helmtest-ci
         app.kubernetes.io/version: "70.4.1"
         app.kubernetes.io/part-of: kube-prometheus-stack
         chart: kube-prometheus-stack-70.4.1
-        release: "helmtest-mgmt-resources"
+        release: "helmtest-ci"
         heritage: "Helm"
         app.kubernetes.io/name: kube-prometheus-stack-prometheus-operator
         app.kubernetes.io/component: prometheus-operator-webhook
     spec:
       containers:
         - name: patch
-          image: arohcpsvcdev.azurecr.io/k8s-cache/ingress-nginx/kube-webhook-certgen:v1.5.2@sha256:01038e7de14b78d702d2849c3aad72fd25903c4765af63cf16aa3398f5d5f2dd
+          image: arohcpsvctest.azurecr.io/k8s-cache/ingress-nginx/kube-webhook-certgen:v1.5.2@sha256:sha256:testwebhook
           imagePullPolicy: IfNotPresent
           args:
             - patch
