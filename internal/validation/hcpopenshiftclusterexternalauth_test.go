@@ -135,7 +135,12 @@ func TestExternalAuthValidate(t *testing.T) {
 					},
 				},
 			},
-			expectErrors: []utils.ExpectedError{}, // This field is not being validated for length in the actual function
+			expectErrors: []utils.ExpectedError{
+				{
+					Message:   "may not be more than 256 bytes",
+					FieldPath: "properties.claim.mappings.username.claim",
+				},
+			},
 		},
 		{
 			name: "Max not satisfied for properties.claim.mappings.groups.claim",

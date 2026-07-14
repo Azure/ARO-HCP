@@ -276,6 +276,22 @@ func TestValidateExternalAuth(t *testing.T) {
 			},
 		},
 		{
+			name: "username claim too long",
+			newObj: func() *api.HCPOpenShiftClusterExternalAuth {
+				obj := createValidExternalAuth()
+				longClaim := make([]byte, 257)
+				for i := range longClaim {
+					longClaim[i] = 'a'
+				}
+				obj.Properties.Claim.Mappings.Username.Claim = string(longClaim)
+				return obj
+			}(),
+			op: operation.Operation{Type: operation.Create},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.claim.mappings.username.claim", Message: "may not be more than 256 bytes"},
+			},
+		},
+		{
 			name: "group claim too long",
 			newObj: func() *api.HCPOpenShiftClusterExternalAuth {
 				obj := createValidExternalAuth()

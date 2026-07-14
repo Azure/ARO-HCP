@@ -348,6 +348,7 @@ func validateUsernameClaimProfile(ctx context.Context, op operation.Operation, f
 
 	//Claim        string                    `json:"claim"`
 	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("claim"), &newObj.Claim, safe.Field(oldObj, toUsernameClaimProfileClaim))...)
+	errs = append(errs, MaxLen(ctx, op, fldPath.Child("claim"), &newObj.Claim, safe.Field(oldObj, toUsernameClaimProfileClaim), 256)...)
 
 	//Prefix       string                    `json:"prefix"`
 
