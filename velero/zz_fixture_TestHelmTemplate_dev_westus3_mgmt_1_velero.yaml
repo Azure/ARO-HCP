@@ -274,6 +274,25 @@ spec:
       tenantID: '__imagePullerMsiTenantId__'
   serviceAccountName: velero
 ---
+# Source: velero-hcp-cli/templates/node-agent-podmonitor-azmonitor.yaml
+apiVersion: azmonitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: node-agent
+  namespace: 'velero'
+spec:
+  selector:
+    matchLabels:
+      name: node-agent
+  namespaceSelector:
+    matchNames:
+    - 'velero'
+  podMetricsEndpoints:
+  - path: /metrics
+    port: metrics
+    scheme: http
+    interval: 30s
+---
 # Source: velero-hcp-cli/templates/node-agent-podmonitor.yaml
 apiVersion: monitoring.coreos.com/v1
 kind: PodMonitor
@@ -284,6 +303,25 @@ spec:
   selector:
     matchLabels:
       name: node-agent
+  namespaceSelector:
+    matchNames:
+    - 'velero'
+  podMetricsEndpoints:
+  - path: /metrics
+    port: metrics
+    scheme: http
+    interval: 30s
+---
+# Source: velero-hcp-cli/templates/velero-podmonitor-azmonitor.yaml
+apiVersion: azmonitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: velero
+  namespace: 'velero'
+spec:
+  selector:
+    matchLabels:
+      deploy: velero
   namespaceSelector:
     matchNames:
     - 'velero'

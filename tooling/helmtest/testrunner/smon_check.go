@@ -9,7 +9,7 @@ import (
 	utilyaml "k8s.io/apimachinery/pkg/util/yaml"
 )
 
-type smonMeta struct {
+type monitorMeta struct {
 	ApiVersion string `json:"apiVersion"`
 	Kind       string `json:"kind"`
 	Metadata   struct {
@@ -18,43 +18,59 @@ type smonMeta struct {
 	} `json:"metadata"`
 }
 
-// returns (skip, azmonitorSmonExists && coreOsSmonExists, err)
-// skip is true if no smons exist in the manifest
-// azmonitorSmonExists && coreOsSmonExists is true if both smons exist in the manifest
-// err is an error if the smons are not found or the api version is unknown
-func checkAzmonitorAndCoreOsSmonsExists(manifest string, skipNamespaces []string) (bool, bool, error) {
-	var azmonitorSmonExists, coreOsSmonExists bool
+// returns (skip, err)
+// skip is true if no monitors exist in the manifest
+// err is an error if the monitors are not found or the api version is unknown
+func checkAzmonitorAndCoreOsMonitorsExist(manifest string, skipNamespaces []string) (bool, error) {
+	smonSkip, err := ensureKindsExist(manifest, "ServiceMonitor", skipNamespaces)
+	if err != nil {
+		return false, err
+	}
+	pmonSkip, err := ensureKindsExist(manifest, "PodMonitor", skipNamespaces)
+	if err != nil {
+		return false, err
+	}
+
+	if smonSkip && pmonSkip {
+		return true, nil
+	}
+
+	return false, nil
+}
+
+func ensureKindsExist(manifest string, kind string, skipNamespaces []string) (bool, error) {
+	var azmonitorExists, coreOsExists bool
 
 	decoder := utilyaml.NewYAMLToJSONDecoder(strings.NewReader(manifest))
 	for {
-		var smon smonMeta
-		if err := decoder.Decode(&smon); err != nil {
+		var m monitorMeta
+		if err := decoder.Decode(&m); err != nil {
 			if err == io.EOF {
 				break
 			}
 		}
-		if slices.Contains(skipNamespaces, smon.Metadata.Namespace) {
-			return true, false, nil
+		if slices.Contains(skipNamespaces, m.Metadata.Namespace) {
+			return true, nil
 		}
-		if smon.Kind == "ServiceMonitor" {
-			switch smon.ApiVersion {
+		if m.Kind == kind {
+			switch m.ApiVersion {
 			case "monitoring.coreos.com/v1":
-				coreOsSmonExists = true
+				coreOsExists = true
 			case "azmonitoring.coreos.com/v1":
-				azmonitorSmonExists = true
+				azmonitorExists = true
 			default:
-				return false, false, fmt.Errorf("unknown smon api version: %s", smon.ApiVersion)
+				return false, fmt.Errorf("unknown %s api version: %s", kind, m.ApiVersion)
 			}
 		}
 	}
-	if !azmonitorSmonExists && !coreOsSmonExists {
-		return true, false, nil
+	if !azmonitorExists && !coreOsExists {
+		return true, nil
 	}
-	if !azmonitorSmonExists {
-		return false, false, fmt.Errorf("azmonitor smon does not exist in the manifest")
+	if !azmonitorExists {
+		return false, fmt.Errorf("azmonitor %s does not exist in the manifest", kind)
 	}
-	if !coreOsSmonExists {
-		return false, false, fmt.Errorf("coreos smon does not exist in the manifest")
+	if !coreOsExists {
+		return false, fmt.Errorf("coreos %s does not exist in the manifest", kind)
 	}
-	return false, true, nil
+	return false, nil
 }
