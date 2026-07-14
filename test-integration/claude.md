@@ -93,7 +93,7 @@ artifacts/<SuiteName>/<ResourceType>/<TestCase>/
 | `cosmosCompare` | Assert entire cosmos state matches expected JSON documents |
 | `kubernetesCompare` | Assert K8s resource state matches expected JSON files (uses `ResourceInstanceEquals`) |
 | `completeOperation` | Mark an async operation as succeeded |
-| `simulateClusterServiceCreate` | Simulate backend cluster CS create (mock PostCluster + persist `clusterServiceID` on cluster doc). Used when `clusterServiceCompare` or cluster update runs before child httpCreate. Child httpCreate steps auto-provision parent CS ID via the same helper. |
+| `setClusterServiceID` | Stamp a Cluster Service internal ID onto a cluster/node pool/external auth doc. Derives deterministically from the resource name (clusters) or the parent's CS ID (node pools/external auths) unless an explicit `cluster-service-id.json` is provided. Child `httpCreate` steps auto-provision the parent cluster's CS ID via the same derive-and-set helper (`EnsureParentClusterServiceID`), so most tests never need this step explicitly for the parent cluster. |
 
 ## Step Directory Contents
 

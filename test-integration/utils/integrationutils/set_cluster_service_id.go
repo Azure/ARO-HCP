@@ -32,8 +32,6 @@ import (
 func DeriveClusterServiceID(
 	ctx context.Context,
 	resourcesDBClient database.ResourcesDBClient,
-	clusterServiceMock *ClusterServiceMock,
-	testName string,
 	resourceIDString string,
 ) (string, error) {
 	resourceID, err := azcorearm.ParseResourceID(resourceIDString)
@@ -43,20 +41,7 @@ func DeriveClusterServiceID(
 
 	switch {
 	case strings.EqualFold(resourceID.ResourceType.String(), api.ClusterResourceType.String()):
-		if clusterServiceMock == nil {
-			return "", utils.TrackError(fmt.Errorf(
-				"cluster %s: cannot derive clusterServiceID without cluster service mock; use cluster-service-id.json",
-				resourceIDString,
-			))
-		}
-		if href, ok := clusterServiceMock.FindClusterHREF(testName, resourceID.Name); ok {
-			return href, nil
-		}
-		return "", utils.TrackError(fmt.Errorf(
-			"cluster %s: no PostCluster HREF in mock for cluster name %q; call PostCluster first or use cluster-service-id.json",
-			resourceIDString,
-			resourceID.Name,
-		))
+		return ocm.GenerateAROHCPClusterHREF(resourceID.Name), nil
 
 	case strings.EqualFold(resourceID.ResourceType.String(), api.NodePoolResourceType.String()):
 		if resourceID.Parent == nil {
@@ -80,6 +65,47 @@ func DeriveClusterServiceID(
 
 	default:
 		return "", utils.TrackError(fmt.Errorf("resource %s: setClusterServiceID supports clusters, node pools, and external auths only", resourceIDString))
+	}
+}
+
+// EnsureParentClusterServiceID stamps a derived Cluster Service internal ID onto
+// a child resource's parent cluster when it doesn't already have one. This is used
+// when a child resource create requires the parent cluster to have a ClusterServiceID.
+func EnsureParentClusterServiceID(
+	ctx context.Context,
+	resourcesDBClient database.ResourcesDBClient,
+	childResourceIDString string,
+) error {
+	childResourceID, err := azcorearm.ParseResourceID(childResourceIDString)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+
+	switch {
+	case strings.EqualFold(childResourceID.ResourceType.String(), api.NodePoolResourceType.String()),
+		strings.EqualFold(childResourceID.ResourceType.String(), api.ExternalAuthResourceType.String()):
+		if childResourceID.Parent == nil {
+			return utils.TrackError(fmt.Errorf("resource %s has no parent cluster", childResourceIDString))
+		}
+		cluster, err := resourcesDBClient.HCPClusters(childResourceID.SubscriptionID, childResourceID.ResourceGroupName).
+			Get(ctx, childResourceID.Parent.Name)
+		if database.IsNotFoundError(err) {
+			return nil
+		}
+		if err != nil {
+			return utils.TrackError(err)
+		}
+		if cluster.ServiceProviderProperties.ClusterServiceID != nil &&
+			len(cluster.ServiceProviderProperties.ClusterServiceID.String()) > 0 {
+			return nil
+		}
+		clusterServiceID, err := DeriveClusterServiceID(ctx, resourcesDBClient, childResourceID.Parent.String())
+		if err != nil {
+			return err
+		}
+		return SetClusterServiceID(ctx, resourcesDBClient, childResourceID.Parent.String(), clusterServiceID)
+	default:
+		return nil
 	}
 }
 

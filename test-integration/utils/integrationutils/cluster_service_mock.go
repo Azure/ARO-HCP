@@ -502,45 +502,6 @@ func (s *ClusterServiceMock) GetOrCreateMockData(dataName string) map[string][]a
 	return newData
 }
 
-// FindClusterHREF returns the Cluster Service HREF for a cluster created via PostCluster
-// in this test, matched by OCM cluster name.
-func (s *ClusterServiceMock) FindClusterHREF(testName, clusterName string) (string, bool) {
-	data := s.GetOrCreateMockData(testName + "_clusters")
-	for _, history := range data {
-		if len(history) == 0 {
-			continue
-		}
-		cluster, ok := history[len(history)-1].(*arohcpv1alpha1.Cluster)
-		if !ok {
-			continue
-		}
-		if strings.EqualFold(cluster.Name(), clusterName) {
-			return cluster.HREF(), true
-		}
-	}
-	return "", false
-}
-
-// GetMergedClusters returns all clusters stored in the mock, each merged from
-// its full mutation history and serialized to a JSON map. The testName should
-// be t.Name() from the test that created the mock.
-func (s *ClusterServiceMock) GetMergedClusters(testName string) ([]map[string]any, error) {
-	data := s.GetOrCreateMockData(testName + "_clusters")
-	var result []map[string]any
-	for _, history := range data {
-		mergedJSON, err := mergeClusterServiceReturn(history)
-		if err != nil {
-			return nil, fmt.Errorf("merging cluster service return: %w", err)
-		}
-		var m map[string]any
-		if err := json.Unmarshal(mergedJSON, &m); err != nil {
-			return nil, fmt.Errorf("unmarshaling merged cluster JSON: %w", err)
-		}
-		result = append(result, m)
-	}
-	return result, nil
-}
-
 func mergeClusterServiceReturn(history []any) ([]byte, error) {
 	if len(history) == 0 {
 		retErr, err := ocmerrors.NewError().Status(http.StatusNotFound).Build()

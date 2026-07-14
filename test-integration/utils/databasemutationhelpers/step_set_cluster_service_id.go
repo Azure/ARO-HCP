@@ -90,8 +90,6 @@ func (l *setClusterServiceIDStep) RunTest(ctx context.Context, t *testing.T, ste
 		clusterServiceID, err = integrationutils.DeriveClusterServiceID(
 			ctx,
 			stepInput.ResourcesDBClient,
-			stepInput.ClusterServiceMockInfo,
-			t.Name(),
 			l.key.ResourceID,
 		)
 		require.NoError(t, err)

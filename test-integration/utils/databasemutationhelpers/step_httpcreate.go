@@ -72,15 +72,12 @@ func (l *httpCreateStep) StepID() StepID {
 }
 
 func (l *httpCreateStep) RunTest(ctx context.Context, t *testing.T, stepInput StepInput) {
-	if stepInput.ClusterServiceMockInfo != nil {
-		err := integrationutils.EnsureParentClusterServiceID(
-			ctx,
-			stepInput.ResourcesDBClient,
-			stepInput.ClusterServiceMockInfo,
-			l.key.ResourceID,
-		)
-		require.NoError(t, err)
-	}
+	err := integrationutils.EnsureParentClusterServiceID(
+		ctx,
+		stepInput.ResourcesDBClient,
+		l.key.ResourceID,
+	)
+	require.NoError(t, err)
 
 	accessor := stepInput.HTTPTestAccessor(l.key)
 

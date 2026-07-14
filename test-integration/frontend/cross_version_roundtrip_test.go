@@ -356,6 +356,13 @@ func createClusterAndComplete(
 
 	parsedID := api.Must(azcorearm.ParseResourceID(resourceID))
 	require.NoError(t, integrationutils.MarkOperationsCompleteForName(ctx, testInfo.ResourcesDBClient(), subscriptionID, parsedID.Name))
+
+	// Deliberately not stamping a ClusterServiceID on the cluster here (unlike
+	// createNodePoolAndComplete): cluster updates still synchronously call out to
+	// Cluster Service (GetCluster/UpdateCluster) when ServiceProviderProperties.ClusterServiceID
+	// is set, and most callers of this helper immediately PUT/PATCH the cluster afterward via
+	// a different API version. Node pool creation under this cluster still works because
+	// EnsureParentClusterServiceID lazily derives and stamps the parent's ID on demand.
 }
 
 // testCrossVersionClusterPUT verifies that a v2024 GET-then-PUT preserves
@@ -568,7 +575,6 @@ func createNodePoolAndComplete(
 	require.NoError(t, integrationutils.EnsureParentClusterServiceID(
 		ctx,
 		testInfo.ResourcesDBClient(),
-		testInfo.ClusterServiceMock,
 		resourceID,
 	))
 	accessor := databasemutationhelpers.NewVersionedHTTPTestAccessor(testInfo.FrontendURL, apiVersion)
@@ -578,13 +584,7 @@ func createNodePoolAndComplete(
 	require.NoError(t, integrationutils.MarkOperationsCompleteForName(ctx, testInfo.ResourcesDBClient(), subscriptionID, parsedID.Name))
 
 	// Setting the Cluster Service ID for the node pool is needed until we move all cs interactions to the backend.
-	csID, err := integrationutils.DeriveClusterServiceID(
-		ctx,
-		testInfo.ResourcesDBClient(),
-		testInfo.ClusterServiceMock,
-		t.Name(),
-		resourceID,
-	)
+	csID, err := integrationutils.DeriveClusterServiceID(ctx, testInfo.ResourcesDBClient(), resourceID)
 	require.NoError(t, err)
 	require.NoError(t, integrationutils.SetClusterServiceID(ctx, testInfo.ResourcesDBClient(), resourceID, csID))
 }
@@ -646,7 +646,6 @@ func createExternalAuthAndComplete(
 	require.NoError(t, integrationutils.EnsureParentClusterServiceID(
 		ctx,
 		testInfo.ResourcesDBClient(),
-		testInfo.ClusterServiceMock,
 		resourceID,
 	))
 	accessor := databasemutationhelpers.NewVersionedHTTPTestAccessor(testInfo.FrontendURL, apiVersion)

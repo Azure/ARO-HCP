@@ -136,7 +136,6 @@ func testVersionCompliance(t *testing.T, withMock bool) {
 				require.NoError(t, integrationutils.EnsureParentClusterServiceID(
 					ctx,
 					testInfo.ResourcesDBClient(),
-					testInfo.ClusterServiceMock,
 					scenario.ResourceID,
 				))
 			}
