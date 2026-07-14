@@ -369,8 +369,6 @@ func (f *Frontend) createHCPCluster(writer http.ResponseWriter, request *http.Re
 		tenantID = *subscription.Properties.TenantId
 	}
 
-	logger.Info(fmt.Sprintf("creating resource %s", newInternalCluster.ID))
-
 	// Check if CS already has a cluster with matching Azure metadata. This
 	// handles the retry-after-partial-failure scenario: a prior attempt may
 	// have created the CS cluster but failed to write the Cosmos documents,
@@ -389,6 +387,7 @@ func (f *Frontend) createHCPCluster(writer http.ResponseWriter, request *http.Re
 	}
 
 	if resultingClusterServiceCluster == nil {
+		logger.Info(fmt.Sprintf("creating resource %s", newInternalCluster.ID))
 		initialClusterProperties := map[string]string{}
 		if len(f.clusterServiceProvisionShard) != 0 {
 			initialClusterProperties[ocm.CSPropertyProvisionShardID] = f.clusterServiceProvisionShard

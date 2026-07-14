@@ -454,6 +454,23 @@ func TestFindClusterByAzureInfo(t *testing.T) {
 			},
 		},
 		{
+			name: "found among non-matching clusters",
+			setupMockCS: func(t *testing.T, ctrl *gomock.Controller, wantSearch string) (ocm.ClusterServiceClientSpec, *arohcpv1alpha1.Cluster) {
+				wantSub := strings.ToLower(defaultSub)
+				wantRG := strings.ToLower(defaultRG)
+				wantName := strings.ToLower(defaultResName)
+				match := azureTestCluster(t, wantSub, wantRG, wantName, defaultTenant, defaultMRG)
+				differentSub := azureTestCluster(t, "00000000-0000-0000-0000-000000000099", wantRG, wantName, defaultTenant, defaultMRG)
+				differentRG := azureTestCluster(t, wantSub, "other-rg", wantName, defaultTenant, defaultMRG)
+				differentName := azureTestCluster(t, wantSub, wantRG, "other-cluster", defaultTenant, defaultMRG)
+				mock := ocm.NewMockClusterServiceClientSpec(ctrl)
+				mock.EXPECT().
+					ListClusters(wantSearch).
+					Return(ocm.NewSimpleClusterListIterator([]*arohcpv1alpha1.Cluster{differentSub, differentRG, match, differentName}, nil))
+				return mock, match
+			},
+		},
+		{
 			name: "multiple matches error",
 			setupMockCS: func(t *testing.T, ctrl *gomock.Controller, wantSearch string) (ocm.ClusterServiceClientSpec, *arohcpv1alpha1.Cluster) {
 				wantSub := strings.ToLower(defaultSub)
