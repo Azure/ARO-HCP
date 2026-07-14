@@ -570,6 +570,26 @@ spec:
     usePodIdentity: "false"
   provider: azure
 ---
+# Source: maestro-server/templates/maestro.servicemonitor-azmonitor.yaml
+apiVersion: azmonitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: maestro-server
+  namespace: 'maestro'
+spec:
+  endpoints:
+  - interval: 30s
+    path: /metrics
+    port: metrics
+    scheme: http
+  namespaceSelector:
+    matchNames:
+    - 'maestro'
+  selector:
+    matchLabels:
+      app: maestro
+      port: metrics
+---
 # Source: maestro-server/templates/maestro.servicemonitor.yaml
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor

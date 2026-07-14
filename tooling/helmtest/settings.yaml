@@ -94,3 +94,5 @@ ResourceMemoryLimitsAllowlist:
 - Deployment/clusters-service/clusters-service-server # config sets memory: unlimited (template omits limits)
 - Deployment/ocm-cs-db/postgresql # postgresql container has no resources set
 - Job/shell-script-executor-1/cs-shell-script-executor # cs-debug-jobs debug job has no resources set
+smonSkipNamespaces:
+- prometheus

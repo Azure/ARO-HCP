@@ -200,6 +200,11 @@ func RunTestHelmTemplate(t *testing.T, settingsPath string) {
 					t.Error(v)
 				}
 
+				skip, smonsExist, err := checkAzmonitorAndCoreOsSmonsExists(manifest, settings.SmonSkipNamespaces)
+				if !skip {
+					require.NoError(t, err)
+					require.True(t, smonsExist)
+				}
 				// we want to place implicit test cases by the pipelines that created them, not the chart they happened to render.
 				// n.b. a more correct implementation would keep track of *where* the custom test case came from and use that dir
 				// exactly as the output directory - an exercise left for the future

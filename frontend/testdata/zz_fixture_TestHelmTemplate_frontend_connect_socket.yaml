@@ -394,6 +394,26 @@ spec:
     - objectName: frontend-cert
       key: tls.key
 ---
+# Source: frontend/templates/servicemonitor-azmonitor.yaml
+apiVersion: azmonitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: aro-hcp-frontend
+  namespace: 'aro-hcp'
+spec:
+  endpoints:
+  - interval: 30s
+    path: /metrics
+    port: metrics
+    scheme: http
+  namespaceSelector:
+    matchNames:
+    - 'aro-hcp'
+  selector:
+    matchLabels:
+      app.kubernetes.io/part-of: aro-hcp-frontend
+      port: metrics
+---
 # Source: frontend/templates/servicemonitor.yaml
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor

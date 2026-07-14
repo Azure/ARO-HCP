@@ -345,6 +345,25 @@ spec:
     - objectName: admin-api-cert
       key: tls.key
 ---
+# Source: ARO HCP Admin API/templates/admin.servicemonitor-azmonitor.yaml
+apiVersion: azmonitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: aro-hcp-admin-api
+  namespace: 'aro-hcp-admin-api'
+spec:
+  endpoints:
+  - interval: 30s
+    path: /metrics
+    port: metrics
+    scheme: http
+  namespaceSelector:
+    matchNames:
+    - 'aro-hcp-admin-api'
+  selector:
+    matchLabels:
+      app: admin-api-metrics
+---
 # Source: ARO HCP Admin API/templates/admin.servicemonitor.yaml
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor

@@ -111,6 +111,25 @@ spec:
             cpu: 100m
             memory: 128Mi
 ---
+# Source: aro-hcp-exporter/templates/servicemonitor-azmonitor.yaml
+apiVersion: azmonitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: 'aro-hcp-exporter'
+  namespace: 'aro-hcp-exporter'
+spec:
+  endpoints:
+  - interval: 30s
+    path: /metrics
+    port: metrics
+    scheme: http
+  namespaceSelector:
+    matchNames:
+    - 'aro-hcp-exporter'
+  selector:
+    matchLabels:
+      app: 'aro-hcp-exporter'
+---
 # Source: aro-hcp-exporter/templates/servicemonitor.yaml
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor

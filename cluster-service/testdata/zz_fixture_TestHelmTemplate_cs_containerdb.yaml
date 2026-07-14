@@ -8515,6 +8515,26 @@ spec:
     usePodIdentity: "false"
   provider: azure
 ---
+# Source: clusters-service/templates/servicemonitor-azmonitor.yaml
+apiVersion: azmonitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: clusters-service
+  namespace: 'clusters-service'
+spec:
+  endpoints:
+  - interval: 30s
+    path: /metrics
+    port: metrics
+    scheme: http
+  namespaceSelector:
+    matchNames:
+    - 'clusters-service'
+  selector:
+    matchLabels:
+      app: clusters-service
+      port: metrics
+---
 # Source: clusters-service/templates/servicemonitor.yaml
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor

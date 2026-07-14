@@ -283,6 +283,26 @@ spec:
       tenantID: '__imagePullerMsiTenantId__'
   serviceAccountName: 'kube-applier'
 ---
+# Source: kube-applier/templates/servicemonitor-azmonitor.yaml
+apiVersion: azmonitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: kube-applier
+  namespace: 'kube-applier'
+spec:
+  endpoints:
+  - interval: 30s
+    path: /metrics
+    port: metrics
+    scheme: http
+  namespaceSelector:
+    matchNames:
+    - 'kube-applier'
+  selector:
+    matchLabels:
+      app: kube-applier
+      port: metrics
+---
 # Source: kube-applier/templates/servicemonitor.yaml
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor

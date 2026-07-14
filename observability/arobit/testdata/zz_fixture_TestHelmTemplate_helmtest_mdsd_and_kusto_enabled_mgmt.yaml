@@ -1114,6 +1114,25 @@ spec:
     tenantId: "__tenantId__"
     usePodIdentity: "false"
 ---
+# Source: arobit/templates/forwarder-servicemonitor-azmonitor.yaml
+apiVersion: azmonitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: arobit-forwarder
+  namespace: 'arobit'
+spec:
+  endpoints:
+  - interval: 30s
+    path: /metrics
+    port: metrics
+    scheme: http
+  namespaceSelector:
+    matchNames:
+    - 'arobit'
+  selector:
+    matchLabels:
+      app: arobit-forwarder
+---
 # Source: arobit/templates/forwarder-servicemonitor.yaml
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor

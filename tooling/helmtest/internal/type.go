@@ -59,6 +59,7 @@ type Settings struct {
 	Replace                       []Replace
 	ResourceRequestsAllowlist     []string // Components exempt from requiring resources.requests.memory
 	ResourceMemoryLimitsAllowlist []string // Components exempt from requiring resources.limits.memory
+	SmonSkipNamespaces            []string // Namespaces to skip for smon checks
 }
 
 type Replace struct {

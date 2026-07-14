@@ -344,6 +344,26 @@ spec:
     usePodIdentity: "false"
   provider: azure
 ---
+# Source: backend/templates/servicemonitor-azmonitor.yaml
+apiVersion: azmonitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: aro-hcp-backend
+  namespace: 'aro-hcp'
+spec:
+  endpoints:
+  - interval: 30s
+    path: /metrics
+    port: metrics
+    scheme: http
+  namespaceSelector:
+    matchNames:
+    - 'aro-hcp'
+  selector:
+    matchLabels:
+      app: aro-hcp-backend
+      port: metrics
+---
 # Source: backend/templates/servicemonitor.yaml
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor

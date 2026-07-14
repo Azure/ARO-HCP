@@ -198,6 +198,26 @@ spec:
     8081:
       mode: PERMISSIVE
 ---
+# Source: fleet/templates/servicemonitor-azmonitor.yaml
+apiVersion: azmonitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: fleet-controller
+  namespace: 'fleet'
+spec:
+  endpoints:
+  - interval: 30s
+    path: /metrics
+    port: metrics
+    scheme: http
+  namespaceSelector:
+    matchNames:
+    - 'fleet'
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: fleet-controller
+      port: metrics
+---
 # Source: fleet/templates/servicemonitor.yaml
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor

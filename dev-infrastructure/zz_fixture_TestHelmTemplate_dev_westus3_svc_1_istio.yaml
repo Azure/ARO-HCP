@@ -105,6 +105,32 @@ spec:
     protocol: http
   resolution: STATIC
 ---
+# Source: istio/templates/istiod.servicemonitor-azmonitor.yml
+apiVersion: azmonitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: istiod
+  namespace: 'aks-istio-system'
+spec:
+  jobLabel: app
+  # The following limits - labelLimit, labelNameLengthLimit and labelValueLengthLimit should exist in the pod monitor CR
+  # These ensure that the metrics don't get dropped because labels/labelnames/labelvalues exceed the limits supported by the processing pipeline
+  labelLimit: 63
+  labelNameLengthLimit: 511
+  labelValueLengthLimit: 1023
+  selector:
+    matchExpressions:
+    - key: app
+      operator: In
+      values:
+      - istiod
+  namespaceSelector:
+    matchNames:
+    - aks-istio-system
+  endpoints:
+  - interval: 15s
+    port: http-monitoring
+---
 # Source: istio/templates/istiod.servicemonitor.yml
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor

@@ -1,0 +1,19 @@
+apiVersion: azmonitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  labels:
+    app: test-pods
+  name: test-pods
+  namespace: ocm-arohcppers-abc123-xyz
+  ownerReferences:
+  - apiVersion: monitoring.coreos.com/v1
+    kind: PodMonitor
+    name: test-pods
+    uid: source-uid-456
+spec:
+  podMetricsEndpoints:
+  - path: /metrics
+    port: metrics
+  selector:
+    matchLabels:
+      app: test-pods
