@@ -164,13 +164,28 @@ spec:
     # Operations stuck in non-terminal phases are invisible to success/failure SLIs.
     # Threshold: 2 hours (7200s) with 15m sustained observation to filter
     # slow-but-completing operations from genuinely stuck ones.
+    #
+    # Stickiness (max_over_time ... [6h:]): while a resource stays wedged, the raw
+    # condition can transiently clear -- most commonly when the backend retries the
+    # operation and resets backend_resource_operation_start_time_seconds, briefly
+    # dropping (time() - start_time) below the 7200s threshold. Each clear
+    # auto-resolves the IcM incident and the next re-fire opens a brand-new one,
+    # producing roughly one new incident every ~4h for the same wedged resource.
+    # (Azure Managed Prometheus has no keep_firing_for, so we express the hold in the
+    # PromQL.) Holding the condition firing over a 6h look-back collapses a
+    # continuously-stuck resource into a single long-lived incident; genuinely
+    # distinct stuck episodes more than 6h apart still get their own incident.
     - alert: UJNodePoolStuckOperation
       expr: |
-        (
-          (time() - backend_resource_operation_start_time_seconds{resource_type=~".*nodepools"})
-          and
-          backend_resource_operation_phase_info{resource_type=~".*nodepools", phase=~"updating|deleting"} == 1
-        ) > 7200
+        max_over_time(
+          (
+            (
+              (time() - backend_resource_operation_start_time_seconds{resource_type=~".*nodepools"})
+              and
+              backend_resource_operation_phase_info{resource_type=~".*nodepools", phase=~"updating|deleting"} == 1
+            ) > 7200
+          )[6h:5m]
+        )
       for: 15m
       labels:
         severity: info
