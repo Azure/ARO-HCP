@@ -736,11 +736,11 @@ spec:
         - /bin/sh
         - -c
         - |
-          hypershift install render \
-            --outputs=crds \
+          hypershift install \
+            --install-scope=crds \
             --managed-service ARO-HCP \
             --limit-crd-install=Azure \
-            --hypershift-image arohcpsvcdev.azurecr.io/redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator@sha256:1234567890 | kubectl apply -f -
+            --hypershift-image arohcpsvcdev.azurecr.io/redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator@sha256:1234567890
       restartPolicy: Never
       serviceAccountName: hypershift-installer
 ---
@@ -766,8 +766,8 @@ spec:
         - /bin/sh
         - -c
         - |
-          hypershift install render \
-            --outputs=resources \
+          hypershift install \
+            --install-scope=resources \
             --enable-conversion-webhook=false \
             --managed-service ARO-HCP \
             --aro-hcp-key-vault-users-client-id __csiSecretStoreClientId__ \
@@ -778,7 +778,7 @@ spec:
             --enable-size-tagging=true \
             --limit-crd-install=Azure \
             --additional-operator-env-vars IMAGE_SHARED_INGRESS_HAPROXY=arohcpocpdev.azurecr.io/redhat-user-workloads/crt-redhat-acm-tenant/hypershift-shared-ingress-main@sha256:1234567890 \
-            --enable-cpo-overrides | kubectl apply -f -
+            --enable-cpo-overrides
       restartPolicy: Never
       serviceAccountName: hypershift-installer
 ---

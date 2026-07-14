@@ -19,11 +19,11 @@ spec:
         - /bin/sh
         - -c
         - |
-          hypershift install render \
-            --outputs=crds \
+          hypershift install \
+            --install-scope=crds \
             --managed-service ARO-HCP \
             --limit-crd-install=Azure \
-            --hypershift-image {{ .Values.image }}@{{ .Values.imageDigest }} | kubectl apply -f -
+            --hypershift-image {{ .Values.image }}@{{ .Values.imageDigest }}
       restartPolicy: Never
       serviceAccountName: hypershift-installer
 ---
@@ -48,8 +48,8 @@ spec:
         - /bin/sh
         - -c
         - |
-          hypershift install render \
-            --outputs=resources \
+          hypershift install \
+            --install-scope=resources \
             --enable-conversion-webhook=false \
             --managed-service ARO-HCP \
             --aro-hcp-key-vault-users-client-id {{ .Values.azureKeyVaultClientId }} \
@@ -65,6 +65,6 @@ spec:
             {{- if .Values.operatorEnvVars.sharedIngressImage }}
             --additional-operator-env-vars IMAGE_SHARED_INGRESS_HAPROXY={{ .Values.operatorEnvVars.sharedIngressImage }} \
             {{- end }}
-            {{ .Values.additionalArgs }} | kubectl apply -f -
+            {{ .Values.additionalArgs }}
       restartPolicy: Never
       serviceAccountName: hypershift-installer
