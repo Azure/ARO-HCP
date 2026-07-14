@@ -225,7 +225,18 @@ func ocmClusterDefaults(azureLocation string) *arohcpv1alpha1.ClusterBuilder {
 		Azure(arohcpv1alpha1.NewAzure().
 			EtcdEncryption(arohcpv1alpha1.NewAzureEtcdEncryption().
 				DataEncryption(arohcpv1alpha1.NewAzureEtcdDataEncryption().
-					KeyManagementMode(csKeyManagementModePlatformManaged))).
+					KeyManagementMode(csKeyManagementModeCustomerManaged).
+					CustomerManaged(arohcpv1alpha1.NewAzureEtcdDataEncryptionCustomerManaged().
+						EncryptionType("kms").
+						Kms(arohcpv1alpha1.NewAzureKmsEncryption().
+							Visibility(arohcpv1alpha1.AzureKmsEncryptionVisibilityPublic).
+							ActiveKey(arohcpv1alpha1.NewAzureKmsKey().
+								KeyName("test-key").
+								KeyVaultName("test-vault").
+								KeyVersion("test-version"),
+							),
+						),
+					))).
 			ManagedResourceGroupName(api.TestManagedResourceGroupName).
 			NetworkSecurityGroupResourceID(api.TestNetworkSecurityGroupResourceID).
 			NodesOutboundConnectivity(arohcpv1alpha1.NewAzureNodesOutboundConnectivity().
