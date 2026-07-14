@@ -427,6 +427,45 @@ func (c *MockClusterServiceClientSpecGetClusterProvisionShardCall) DoAndReturn(f
 	return c
 }
 
+// GetClusterResources mocks base method.
+func (m *MockClusterServiceClientSpec) GetClusterResources(ctx context.Context, internalID InternalID) (*v1alpha1.ClusterResources, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetClusterResources", ctx, internalID)
+	ret0, _ := ret[0].(*v1alpha1.ClusterResources)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetClusterResources indicates an expected call of GetClusterResources.
+func (mr *MockClusterServiceClientSpecMockRecorder) GetClusterResources(ctx, internalID any) *MockClusterServiceClientSpecGetClusterResourcesCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetClusterResources", reflect.TypeOf((*MockClusterServiceClientSpec)(nil).GetClusterResources), ctx, internalID)
+	return &MockClusterServiceClientSpecGetClusterResourcesCall{Call: call}
+}
+
+// MockClusterServiceClientSpecGetClusterResourcesCall wrap *gomock.Call
+type MockClusterServiceClientSpecGetClusterResourcesCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockClusterServiceClientSpecGetClusterResourcesCall) Return(arg0 *v1alpha1.ClusterResources, arg1 error) *MockClusterServiceClientSpecGetClusterResourcesCall {
+	c.Call = c.Call.Return(arg0, arg1)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockClusterServiceClientSpecGetClusterResourcesCall) Do(f func(context.Context, InternalID) (*v1alpha1.ClusterResources, error)) *MockClusterServiceClientSpecGetClusterResourcesCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockClusterServiceClientSpecGetClusterResourcesCall) DoAndReturn(f func(context.Context, InternalID) (*v1alpha1.ClusterResources, error)) *MockClusterServiceClientSpecGetClusterResourcesCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
 // GetClusterStatus mocks base method.
 func (m *MockClusterServiceClientSpec) GetClusterStatus(ctx context.Context, internalID InternalID) (*v1alpha1.ClusterStatus, error) {
 	m.ctrl.T.Helper()
