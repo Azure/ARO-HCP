@@ -392,6 +392,19 @@ func TestValidateClusterCreate(t *testing.T) {
 			cluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
 				c.CustomerProperties.Etcd.DataEncryption.KeyManagementMode = "InvalidMode"
+				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged = nil
+				return c
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "Unsupported value", FieldPath: "customerProperties.etcd.dataEncryption.keyManagementMode"},
+			},
+		},
+		{
+			name: "platform managed etcd encryption is not supported - create",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Etcd.DataEncryption.KeyManagementMode = api.EtcdDataEncryptionKeyManagementModeTypePlatformManaged
+				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged = nil
 				return c
 			}(),
 			expectErrors: []utils.ExpectedError{
@@ -1741,17 +1754,17 @@ func TestValidateClusterUpdate(t *testing.T) {
 			newCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
 				c.CustomerProperties.Etcd.DataEncryption.KeyManagementMode = api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged
+				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged = nil
 				return c
 			}(),
 			oldCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.CustomerProperties.Etcd.DataEncryption.KeyManagementMode = api.EtcdDataEncryptionKeyManagementModeTypePlatformManaged
 				return c
 			}(),
 			expectErrors: []utils.ExpectedError{
 				{Message: "field is immutable", FieldPath: "customerProperties.etcd"},
 				{Message: "field is immutable", FieldPath: "customerProperties.etcd.dataEncryption"},
-				{Message: "field is immutable", FieldPath: "customerProperties.etcd.dataEncryption.keyManagementMode"},
+				{Message: "field is immutable", FieldPath: "customerProperties.etcd.dataEncryption.customerManaged"},
 				{Message: "must be specified when `keyManagementMode` is \"CustomerManaged\"", FieldPath: "customerProperties.etcd.dataEncryption.customerManaged"},
 			},
 		},
@@ -2531,6 +2544,20 @@ func createValidCluster() *api.HCPOpenShiftCluster {
 	}
 
 	cluster.ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL = api.TestManagedIdentitiesDataPlaneIdentityURL
+
+	// PlatformManaged etcd encryption is not currently supported; require CustomerManaged for a valid cluster.
+	cluster.CustomerProperties.Etcd.DataEncryption.KeyManagementMode = api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged
+	cluster.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &api.CustomerManagedEncryptionProfile{
+		EncryptionType: api.CustomerManagedEncryptionTypeKMS,
+		Kms: &api.KmsEncryptionProfile{
+			Visibility: api.KeyVaultVisibilityPublic,
+			ActiveKey: api.KmsKey{
+				Name:      "test-key",
+				VaultName: "test-vault",
+				Version:   "test-version",
+			},
+		},
+	}
 
 	return cluster
 }

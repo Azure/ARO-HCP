@@ -436,6 +436,22 @@ func TestDeploymentPreflight(t *testing.T) {
 						"subnetId":               api.TestSubnetResourceID,
 						"networkSecurityGroupId": api.TestNetworkSecurityGroupResourceID,
 					},
+					"etcd": map[string]any{
+						"dataEncryption": map[string]any{
+							"keyManagementMode": "CustomerManaged",
+							"customerManaged": map[string]any{
+								"encryptionType": "KMS",
+								"kms": map[string]any{
+									"visibility": "Public",
+									"activeKey": map[string]any{
+										"name":      "test-key",
+										"vaultName": "test-vault",
+										"version":   "test-version",
+									},
+								},
+							},
+						},
+					},
 				},
 			},
 			expectStatus: arm.DeploymentPreflightStatusSucceeded,
@@ -476,6 +492,7 @@ func TestDeploymentPreflight(t *testing.T) {
 				{message: "Unsupported value: \"invisible\": supported values: \"Private\", \"Public\"", target: "properties.api.visibility"},
 				{message: "Required value", target: "properties.platform.subnetId"},
 				{message: "Required value", target: "properties.platform.networkSecurityGroupId"},
+				{message: "Unsupported value: \"PlatformManaged\": supported values: \"CustomerManaged\"", target: "properties.etcd.dataEncryption.keyManagementMode"},
 				{message: "Required value", target: "properties.platform.subnetId"},
 				{message: "Required value", target: "properties.platform.networkSecurityGroupId"},
 			},

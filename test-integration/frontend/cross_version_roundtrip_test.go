@@ -198,7 +198,17 @@ func clusterCreatePayload(clusterName, apiVersion string) []byte {
     },
     "etcd": {
       "dataEncryption": {
-        "keyManagementMode": "PlatformManaged"
+        "customerManaged": {
+          "encryptionType": "KMS",
+          "kms": {
+            "activeKey": {
+              "name": "vc-encryption-key",
+              "vaultName": "vc-key-vault",
+              "version": "2024-12-01-preview"
+            }
+          }
+        },
+        "keyManagementMode": "CustomerManaged"
       }
     },
     "network": {
@@ -248,7 +258,18 @@ func clusterCreatePayload(clusterName, apiVersion string) []byte {
     },
     "etcd": {
       "dataEncryption": {
-        "keyManagementMode": "PlatformManaged"
+        "customerManaged": {
+          "encryptionType": "KMS",
+          "kms": {
+            "activeKey": {
+              "name": "vc-encryption-key",
+              "version": "2024-12-01-preview"
+            },
+            "vaultName": "vc-key-vault",
+            "visibility": "Public"
+          }
+        },
+        "keyManagementMode": "CustomerManaged"
       }
     },
     "nodeDrainTimeoutMinutes": 15,
@@ -300,7 +321,18 @@ func clusterCreatePayload(clusterName, apiVersion string) []byte {
     },
     "etcd": {
       "dataEncryption": {
-        "keyManagementMode": "PlatformManaged"
+        "customerManaged": {
+          "encryptionType": "KMS",
+          "kms": {
+            "activeKey": {
+              "name": "vc-encryption-key",
+              "version": "2024-12-01-preview"
+            },
+            "vaultName": "vc-key-vault",
+            "visibility": "Public"
+          }
+        },
+        "keyManagementMode": "CustomerManaged"
       }
     },
     "ingress": {
