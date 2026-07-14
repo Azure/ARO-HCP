@@ -963,6 +963,12 @@ func ValidateNodePoolVersionChange(desiredVersion semver.Version, activeVersions
 	}) {
 		return nil
 	}
+	if lowestCPVersion == nil {
+		return fmt.Errorf("cannot validate node pool version change because lowest control plane version is not known")
+	}
+	if highestCPVersion == nil {
+		return fmt.Errorf("cannot validate node pool version change because highest control plane version is not known")
+	}
 
 	lowest, highest := apihelpers.FindLowestAndHighestNodePoolVersion(activeVersions)
 

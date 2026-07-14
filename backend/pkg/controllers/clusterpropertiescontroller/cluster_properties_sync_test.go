@@ -108,7 +108,6 @@ func TestClusterPropertiesSyncer_SyncOnce(t *testing.T) {
 			require.NoError(t, err)
 
 			syncer := &clusterPropertiesSyncer{
-				cooldownChecker:   &alwaysSyncCooldownChecker{},
 				clusterLister:     &listertesting.DBClusterLister{ResourcesDBClient: mockResourcesDB},
 				resourcesDBClient: mockResourcesDB,
 				readDesireLister:  readDesireLister,

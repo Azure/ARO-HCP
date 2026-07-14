@@ -385,7 +385,7 @@ func buildPerMCInformers(t *testing.T, ctx context.Context, seed ...*kubeapplier
 		t.Fatalf("NewMockKubeApplierDBClientWithResources: %v", err)
 	}
 	relist := 250 * time.Millisecond
-	info := informers.NewKubeApplierInformersWithRelistDuration(ctx, mock.Listers(), &relist)
+	info := informers.NewKubeApplierInformersWithRelistDuration(ctx, mock.Listers(), mock, &relist)
 	go info.RunWithContext(ctx)
 	apply, _ := info.ApplyDesires()
 	read, _ := info.ReadDesires()

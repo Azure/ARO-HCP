@@ -32,7 +32,6 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/api"
-	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -55,7 +54,6 @@ const missingClusterServiceIDTimeout = 120 * time.Second
 // the delete on subsequent syncs.
 type externalAuthClusterServiceDeleteDispatchSyncer struct {
 	clock                utilsclock.PassiveClock
-	cooldownChecker      controllerutil.CooldownChecker
 	externalAuthLister   listers.ExternalAuthLister
 	resourcesDBClient    database.ResourcesDBClient
 	clusterServiceClient ocm.ClusterServiceClientSpec
@@ -72,13 +70,11 @@ func NewExternalAuthClusterServiceDeleteDispatchController(
 	clock utilsclock.PassiveClock,
 	resourcesDBClient database.ResourcesDBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
-	activeOperationLister listers.ActiveOperationLister,
 	informers informers.BackendInformers,
 ) controllerutils.Controller {
 	_, externalAuthLister := informers.ExternalAuths()
 	syncer := &externalAuthClusterServiceDeleteDispatchSyncer{
 		clock:                           clock,
-		cooldownChecker:                 controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
 		externalAuthLister:              externalAuthLister,
 		resourcesDBClient:               resourcesDBClient,
 		clusterServiceClient:            clusterServiceClient,
@@ -92,10 +88,6 @@ func NewExternalAuthClusterServiceDeleteDispatchController(
 		time.Minute,
 		syncer,
 	)
-}
-
-func (c *externalAuthClusterServiceDeleteDispatchSyncer) CooldownChecker() controllerutil.CooldownChecker {
-	return c.cooldownChecker
 }
 
 // NeedsWork reports whether the deleter has unfinished business for the given

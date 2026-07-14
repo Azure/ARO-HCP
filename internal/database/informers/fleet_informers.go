@@ -74,7 +74,8 @@ func NewStampInformerWithRelistDuration(lister database.GlobalLister[fleet.Stamp
 		&listWatchWithoutWatchListSemantics{lw},
 		&fleet.Stamp{},
 		cache.SharedIndexInformerOptions{
-			ResyncPeriod: 1 * time.Hour,
+			ResyncPeriod:      1 * time.Hour,
+			ObjectDescription: "Stamp",
 		},
 	)
 }
@@ -123,6 +124,7 @@ func NewManagementClusterInformerWithRelistDuration(lister database.GlobalLister
 			Indexers: cache.Indexers{
 				listers.ByCSProvisionShard: managementClusterProvisionShardIDIndexFunc,
 			},
+			ObjectDescription: "ManagementCluster",
 		},
 	)
 }

@@ -497,7 +497,6 @@ func TestNodePoolChildResourcesCleanupController_SyncOnce(t *testing.T) {
 			}
 
 			syncer := &nodePoolChildResourcesCleanupController{
-				cooldownChecker:      &alwaysSyncCooldownChecker{},
 				nodePoolLister:       &listertesting.SliceNodePoolLister{NodePools: nodePoolsForLister},
 				resourcesDBClient:    mockResourcesDBClient,
 				kubeApplierDBClients: mockKubeApplierDBClients,

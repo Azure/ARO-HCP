@@ -166,7 +166,6 @@ func TestExternalAuthClusterServiceIDClearer_SyncOnce(t *testing.T) {
 			}
 
 			syncer := &externalAuthClusterServiceIDClearer{
-				cooldownChecker:      &alwaysSyncCooldownChecker{},
 				externalAuthLister:   &listertesting.SliceExternalAuthLister{ExternalAuths: externalAuthsForLister},
 				resourcesDBClient:    mockResourcesDBClient,
 				clusterServiceClient: mockCSClient,

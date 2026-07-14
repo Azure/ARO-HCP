@@ -137,6 +137,16 @@ type ResourcesDBClient interface {
 	ResourcesGlobalListers() ResourcesGlobalListers
 
 	ServiceProviderNodePools(subscriptionID, resourceGroupName, clusterName, nodePoolName string) ResourceCRUD[api.ServiceProviderNodePool, *api.ServiceProviderNodePool]
+
+	ChangeFeedClient
+}
+
+// ChangeFeedClient is the narrow interface consumed by ChangeFeedListWatcher.
+// Any Cosmos container that exposes its change feed satisfies it — both the
+// shared "Resources" container and per-management-cluster kube-applier containers.
+type ChangeFeedClient interface {
+	GetChangeFeed(ctx context.Context, options *azcosmos.ChangeFeedOptions) (azcosmos.ChangeFeedResponse, error)
+	GetFeedRanges(ctx context.Context) ([]azcosmos.FeedRange, error)
 }
 
 var _ ResourcesDBClient = &resourcesCosmosDBClient{}
@@ -196,6 +206,19 @@ func (d *resourcesCosmosDBClient) UntypedCRUD(parentResourceID azcorearm.Resourc
 
 func (d *resourcesCosmosDBClient) ResourcesGlobalListers() ResourcesGlobalListers {
 	return NewCosmosResourcesGlobalListers(d.resources)
+}
+
+func (d *resourcesCosmosDBClient) GetChangeFeed(ctx context.Context, options *azcosmos.ChangeFeedOptions) (azcosmos.ChangeFeedResponse, error) {
+	return d.resources.GetChangeFeed(ctx, options)
+}
+
+func (d *resourcesCosmosDBClient) GetFeedRanges(ctx context.Context) ([]azcosmos.FeedRange, error) {
+	resourcesFeedRanges, err := d.resources.GetFeedRanges(ctx)
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+
+	return resourcesFeedRanges, nil
 }
 
 // NewCosmosDatabaseClient instantiates a generic Cosmos database client.

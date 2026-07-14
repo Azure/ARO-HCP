@@ -158,7 +158,6 @@ func TestClusterClusterServiceIDClearer_SyncOnce(t *testing.T) {
 			}
 
 			syncer := &clusterClusterServiceIDClearer{
-				cooldownChecker:      &alwaysSyncCooldownChecker{},
 				clusterLister:        &listertesting.SliceClusterLister{Clusters: clustersForLister},
 				resourcesDBClient:    mockResourcesDBClient,
 				clusterServiceClient: mockCSClient,

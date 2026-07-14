@@ -27,7 +27,6 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
-	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -49,7 +48,6 @@ const degradedConditionType = "Degraded"
 // Replace carries its own etag so optimistic concurrency still applies,
 // and a stale-etag failure just retries on the next reconcile.
 type clusterDegradedAggregator struct {
-	cooldownChecker   controllerutil.CooldownChecker
 	clusterLister     listers.ClusterLister
 	controllerLister  listers.ControllerLister
 	resourcesDBClient database.ResourcesDBClient
@@ -83,7 +81,6 @@ func NewClusterDegradedAggregatorController(
 	resourcesDBClient database.ResourcesDBClient,
 	clusterLister listers.ClusterLister,
 	controllerLister listers.ControllerLister,
-	activeOperationLister listers.ActiveOperationLister,
 	informers informers.BackendInformers,
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 	clock utilsclock.PassiveClock,
@@ -92,7 +89,6 @@ func NewClusterDegradedAggregatorController(
 		clock = utilsclock.RealClock{}
 	}
 	syncer := &clusterDegradedAggregator{
-		cooldownChecker:   controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
 		clusterLister:     clusterLister,
 		controllerLister:  controllerLister,
 		resourcesDBClient: resourcesDBClient,
@@ -108,10 +104,6 @@ func NewClusterDegradedAggregatorController(
 		1*time.Minute,
 		syncer,
 	)
-}
-
-func (c *clusterDegradedAggregator) CooldownChecker() controllerutil.CooldownChecker {
-	return c.cooldownChecker
 }
 
 func (c *clusterDegradedAggregator) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
@@ -145,6 +137,9 @@ func (c *clusterDegradedAggregator) SyncOnce(ctx context.Context, key controller
 	clusterCRUD := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName)
 	_, err = clusterCRUD.Replace(ctx, replacement, nil)
 	if database.IsPreconditionFailedError(err) {
+		return nil
+	}
+	if database.IsNotFoundError(err) {
 		return nil
 	}
 	if err != nil {

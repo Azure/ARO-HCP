@@ -32,7 +32,6 @@ import (
 
 type NodePoolSyncer interface {
 	SyncOnce(ctx context.Context, keyObj HCPNodePoolKey) error
-	CooldownChecker() controllerutil.CooldownChecker
 }
 
 type nodePoolWatchingController struct {
@@ -122,7 +121,7 @@ func (c *nodePoolWatchingController) SyncOnce(ctx context.Context, key HCPNodePo
 }
 
 func (c *nodePoolWatchingController) CooldownChecker() controllerutil.CooldownChecker {
-	return c.syncer.CooldownChecker()
+	return nil
 }
 
 func (c *nodePoolWatchingController) MakeKey(resourceID *azcorearm.ResourceID) HCPNodePoolKey {

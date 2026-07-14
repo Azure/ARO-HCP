@@ -157,7 +157,6 @@ func TestCSStateDump_SyncOnce(t *testing.T) {
 			mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)
 
 			syncer := &csStateDump{
-				cooldownChecker:   &alwaysSyncCooldownChecker{},
 				resourcesDBClient: mockResourcesDBClient,
 				csClient:          mockCSClient,
 				nextDumpChecker:   &alwaysSyncCooldownChecker{},
@@ -236,7 +235,6 @@ func newTestNodePool(name, clusterServiceIDStr string) *api.HCPOpenShiftClusterN
 
 func TestCSStateDump_SyncOnce_CooldownPreventsSync(t *testing.T) {
 	syncer := &csStateDump{
-		cooldownChecker: &alwaysSyncCooldownChecker{},
 		nextDumpChecker: &neverSyncCooldownChecker{},
 	}
 

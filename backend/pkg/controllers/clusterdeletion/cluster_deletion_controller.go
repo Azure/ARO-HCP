@@ -29,7 +29,6 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/api"
-	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -40,7 +39,6 @@ import (
 // have been deleted from the ServiceProviderCluster, and all child NodePool and
 // ExternalAuth Cosmos documents have been deleted.
 type clusterDeletionController struct {
-	cooldownChecker              controllerutil.CooldownChecker
 	clusterLister                listers.ClusterLister
 	serviceProviderClusterLister listers.ServiceProviderClusterLister
 	resourcesDBClient            database.ResourcesDBClient
@@ -54,13 +52,11 @@ func NewClusterDeletionController(
 	clock utilsclock.PassiveClock,
 	resourcesDBClient database.ResourcesDBClient,
 	billingDBClient database.BillingDBClient,
-	activeOperationLister listers.ActiveOperationLister,
 	informers informers.BackendInformers,
 ) controllerutils.Controller {
 	_, clusterLister := informers.Clusters()
 	_, serviceProviderClusterLister := informers.ServiceProviderClusters()
 	syncer := &clusterDeletionController{
-		cooldownChecker:              controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
 		clusterLister:                clusterLister,
 		serviceProviderClusterLister: serviceProviderClusterLister,
 		resourcesDBClient:            resourcesDBClient,
@@ -76,10 +72,6 @@ func NewClusterDeletionController(
 		time.Minute,
 		syncer,
 	)
-}
-
-func (c *clusterDeletionController) CooldownChecker() controllerutil.CooldownChecker {
-	return c.cooldownChecker
 }
 
 // NeedsWork reports whether the deleter has unfinished business for the given

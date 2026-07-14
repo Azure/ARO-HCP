@@ -1223,7 +1223,6 @@ func TestControlPlaneDesiredVersionSyncer_SyncOnce(t *testing.T) {
 			mockClientCache.EXPECT().GetOrCreateClient(gomock.Any()).Return(mockCincinnati).AnyTimes()
 
 			syncer := &controlPlaneDesiredVersionSyncer{
-				cooldownChecker:       &alwaysSyncCooldownChecker{},
 				readDesireLister:      newValidHostedClusterReadDesireLister(t),
 				resourcesDBClient:     mockResourcesDBClient,
 				clusterServiceClient:  mockCS,
@@ -1308,6 +1307,10 @@ type boomActiveOperationLister struct {
 	err error
 }
 
+func (b *boomActiveOperationLister) Get(_ context.Context, _, _ string) (*api.Operation, error) {
+	return nil, b.err
+}
+
 func (b *boomActiveOperationLister) ListActiveOperationsForCluster(_ context.Context, _, _, _ string) ([]*api.Operation, error) {
 	return nil, b.err
 }
@@ -1337,23 +1340,24 @@ func seedClusterCreateOperation(t *testing.T, ctx context.Context, mockDB *datab
 }
 
 func TestControlPlaneDesiredVersionSyncer_ShouldDetermineDesiredVersion(t *testing.T) {
-	clusterKey := controllerutils.HCPClusterKey{
-		SubscriptionID:    testSubscriptionID,
-		ResourceGroupName: testResourceGroupName,
-		HCPClusterName:    testClusterName,
-	}
 	clusterResourceID := api.Must(api.ToClusterResourceID(testSubscriptionID, testResourceGroupName, testClusterName))
 	now := time.Date(2026, 6, 25, 12, 0, 0, 0, time.UTC)
 	listerBoom := errors.New("active operation lister exploded")
 
-	newCluster := func(createdAt *time.Time) *api.HCPOpenShiftCluster {
+	newCluster := func(createdAt *time.Time, activeOperationID string) *api.HCPOpenShiftCluster {
 		c := &api.HCPOpenShiftCluster{
+			CosmosMetadata: api.CosmosMetadata{
+				ResourceID: clusterResourceID,
+			},
 			TrackedResource: arm.TrackedResource{
 				Resource: arm.Resource{
 					ID:   clusterResourceID,
 					Name: testClusterName,
 					Type: api.ClusterResourceType.String(),
 				},
+			},
+			ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
+				ActiveOperationID: activeOperationID,
 			},
 		}
 		if createdAt != nil {
@@ -1380,42 +1384,42 @@ func TestControlPlaneDesiredVersionSyncer_ShouldDetermineDesiredVersion(t *testi
 	}{
 		{
 			name:          "empty DesiredVersion runs even when create is in flight (gate 1)",
-			cluster:       newCluster(ptr.To(now.Add(-5 * time.Minute))),
+			cluster:       newCluster(ptr.To(now.Add(-5*time.Minute)), "op-create-1"),
 			spc:           newSPC(nil),
 			seedOperation: true,
 			wantShouldRun: true,
 		},
 		{
 			name:          "cluster older than grace period runs even with active create (gate 2)",
-			cluster:       newCluster(ptr.To(now.Add(-3 * time.Hour))),
+			cluster:       newCluster(ptr.To(now.Add(-3*time.Hour)), "op-create-1"),
 			spc:           newSPC(ptr.To(semver.MustParse("4.19.15"))),
 			seedOperation: true,
 			wantShouldRun: true,
 		},
 		{
 			name:          "cluster with no SystemData.CreatedAt runs (treated as old enough)",
-			cluster:       newCluster(nil),
+			cluster:       newCluster(nil, "op-create-1"),
 			spc:           newSPC(ptr.To(semver.MustParse("4.19.15"))),
 			seedOperation: true,
 			wantShouldRun: true,
 		},
 		{
 			name:          "cluster younger than grace period with no active create runs (gate 3)",
-			cluster:       newCluster(ptr.To(now.Add(-5 * time.Minute))),
+			cluster:       newCluster(ptr.To(now.Add(-5*time.Minute)), ""),
 			spc:           newSPC(ptr.To(semver.MustParse("4.19.15"))),
 			seedOperation: false,
 			wantShouldRun: true,
 		},
 		{
 			name:          "young cluster + DesiredVersion set + active create skips",
-			cluster:       newCluster(ptr.To(now.Add(-5 * time.Minute))),
+			cluster:       newCluster(ptr.To(now.Add(-5*time.Minute)), "op-create-1"),
 			spc:           newSPC(ptr.To(semver.MustParse("4.19.15"))),
 			seedOperation: true,
 			wantShouldRun: false,
 		},
 		{
 			name:    "cluster exactly at grace period boundary still skips (boundary is strict >)",
-			cluster: newCluster(ptr.To(now.Add(-clusterCreateGracePeriod))),
+			cluster: newCluster(ptr.To(now.Add(-clusterCreateGracePeriod)), "op-create-1"),
 			spc:     newSPC(ptr.To(semver.MustParse("4.19.15"))),
 			// active create present so without the boundary-is-strict gate, the
 			// cluster's age would have to push us through.
@@ -1428,14 +1432,14 @@ func TestControlPlaneDesiredVersionSyncer_ShouldDetermineDesiredVersion(t *testi
 			// so a flaky lister doesn't pin the controller in skip-forever
 			// mode for the rest of the grace window.
 			name:          "active operation lister error is propagated and fails open to shouldRun=true",
-			cluster:       newCluster(ptr.To(now.Add(-5 * time.Minute))),
+			cluster:       newCluster(ptr.To(now.Add(-5*time.Minute)), "op-broken"),
 			spc:           newSPC(ptr.To(semver.MustParse("4.19.15"))),
 			seedOperation: false,
 			opLister: func(_ *databasetesting.MockResourcesDBClient) listers.ActiveOperationLister {
 				return &boomActiveOperationLister{err: listerBoom}
 			},
 			wantShouldRun:  true,
-			wantErrContain: "failed to list active operations for cluster",
+			wantErrContain: "failed to get operations",
 		},
 	}
 
@@ -1459,7 +1463,7 @@ func TestControlPlaneDesiredVersionSyncer_ShouldDetermineDesiredVersion(t *testi
 				activeOperationLister: opLister,
 			}
 
-			gotShouldRun, err := syncer.shouldDetermineDesiredVersion(ctx, clusterKey, tt.cluster, tt.spc)
+			gotShouldRun, err := syncer.shouldDetermineDesiredVersion(ctx, tt.cluster, tt.spc)
 			if tt.wantErrContain != "" {
 				require.Error(t, err)
 				assert.ErrorContains(t, err, tt.wantErrContain)
@@ -1494,6 +1498,7 @@ func TestControlPlaneDesiredVersionSyncer_SyncOnceSkipsWhenGated(t *testing.T) {
 	updated := existing.DeepCopy()
 	createdAt := now.Add(-5 * time.Minute)
 	updated.SystemData = &arm.SystemData{CreatedAt: &createdAt}
+	updated.ServiceProviderProperties.ActiveOperationID = "op-create-1"
 	_, err = clusterCRUD.Replace(ctx, updated, nil)
 	require.NoError(t, err)
 
@@ -1511,7 +1516,6 @@ func TestControlPlaneDesiredVersionSyncer_SyncOnceSkipsWhenGated(t *testing.T) {
 
 	syncer := &controlPlaneDesiredVersionSyncer{
 		clock:                clocktesting.NewFakePassiveClock(now),
-		cooldownChecker:      &alwaysSyncCooldownChecker{},
 		readDesireLister:     newValidHostedClusterReadDesireLister(t),
 		resourcesDBClient:    mockDB,
 		clusterServiceClient: ocm.NewMockClusterServiceClientSpec(ctrl),

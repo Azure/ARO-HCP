@@ -213,7 +213,6 @@ func TestExternalAuthDegradedAggregator_SyncOnce(t *testing.T) {
 
 			clock := clocktesting.NewFakePassiveClock(fixedNow)
 			syncer := &externalAuthDegradedAggregator{
-				cooldownChecker:    alwaysSyncCooldownChecker{},
 				externalAuthLister: &listertesting.DBExternalAuthLister{ResourcesDBClient: mockDB},
 				controllerLister:   &listertesting.DBControllerLister{ResourcesDBClient: mockDB},
 				resourcesDBClient:  mockDB,

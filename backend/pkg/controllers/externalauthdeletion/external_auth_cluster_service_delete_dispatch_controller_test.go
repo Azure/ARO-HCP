@@ -53,12 +53,6 @@ const (
 	testExternalAuthCSIDStr = testClusterServiceIDStr + "/external_auth_config/external_auths/" + testExternalAuthName
 )
 
-type alwaysSyncCooldownChecker struct{}
-
-func (c *alwaysSyncCooldownChecker) CanSync(ctx context.Context, key any) bool {
-	return true
-}
-
 func TestExternalAuthClusterServiceDeleteDispatchSyncer_SyncOnce(t *testing.T) {
 	fixedClockTime := time.Now().UTC().Truncate(time.Second)
 
@@ -256,7 +250,6 @@ func TestExternalAuthClusterServiceDeleteDispatchSyncer_SyncOnce(t *testing.T) {
 
 			syncer := &externalAuthClusterServiceDeleteDispatchSyncer{
 				clock:                           clocktesting.NewFakePassiveClock(fixedClockTime),
-				cooldownChecker:                 &alwaysSyncCooldownChecker{},
 				externalAuthLister:              &listertesting.SliceExternalAuthLister{ExternalAuths: externalAuthsForLister},
 				resourcesDBClient:               mockResourcesDBClient,
 				clusterServiceClient:            mockCSClient,
@@ -296,7 +289,6 @@ func TestExternalAuthClusterServiceDeleteDispatchSyncer_SyncOnce_cacheShortCircu
 
 	syncer := &externalAuthClusterServiceDeleteDispatchSyncer{
 		clock:                           clocktesting.NewFakePassiveClock(fixedClockTime),
-		cooldownChecker:                 &alwaysSyncCooldownChecker{},
 		externalAuthLister:              &listertesting.SliceExternalAuthLister{ExternalAuths: []*api.HCPOpenShiftClusterExternalAuth{cachedExternalAuth}},
 		resourcesDBClient:               mockResourcesDBClient,
 		clusterServiceClient:            ocm.NewMockClusterServiceClientSpec(ctrl),
@@ -333,7 +325,6 @@ func TestExternalAuthClusterServiceDeleteDispatchSyncer_SyncOnce_firstSeenDeleti
 	firstSeenDeletionTimestampCache := lru.New(10)
 	syncer := &externalAuthClusterServiceDeleteDispatchSyncer{
 		clock:                           clocktesting.NewFakePassiveClock(fixedClockTime),
-		cooldownChecker:                 &alwaysSyncCooldownChecker{},
 		externalAuthLister:              &listertesting.SliceExternalAuthLister{ExternalAuths: []*api.HCPOpenShiftClusterExternalAuth{externalAuth}},
 		resourcesDBClient:               mockResourcesDBClient,
 		clusterServiceClient:            ocm.NewMockClusterServiceClientSpec(ctrl),
@@ -377,7 +368,6 @@ func TestExternalAuthClusterServiceDeleteDispatchSyncer_SyncOnce_firstSeenDeleti
 
 	syncer := &externalAuthClusterServiceDeleteDispatchSyncer{
 		clock:                           clocktesting.NewFakePassiveClock(fixedClockTime),
-		cooldownChecker:                 &alwaysSyncCooldownChecker{},
 		externalAuthLister:              &listertesting.SliceExternalAuthLister{ExternalAuths: []*api.HCPOpenShiftClusterExternalAuth{externalAuth}},
 		resourcesDBClient:               mockResourcesDBClient,
 		clusterServiceClient:            mockCSClient,

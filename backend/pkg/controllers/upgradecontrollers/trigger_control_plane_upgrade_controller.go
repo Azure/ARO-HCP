@@ -17,7 +17,6 @@ package upgradecontrollers
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/blang/semver/v4"
@@ -30,7 +29,6 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/api"
-	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -40,7 +38,6 @@ import (
 // triggerControlPlaneUpgradeSyncer is a Cluster syncer that triggers control plane upgrades
 type triggerControlPlaneUpgradeSyncer struct {
 	clock                 utilsclock.PassiveClock
-	cooldownChecker       controllerutil.CooldownChecker
 	resourcesDBClient     database.ResourcesDBClient
 	clusterServiceClient  ocm.ClusterServiceClientSpec
 	activeOperationLister listers.ActiveOperationLister
@@ -65,7 +62,6 @@ func NewTriggerControlPlaneUpgradeController(
 ) controllerutils.Controller {
 	syncer := &triggerControlPlaneUpgradeSyncer{
 		clock:                 clock,
-		cooldownChecker:       controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
 		resourcesDBClient:     resourcesDBClient,
 		clusterServiceClient:  clusterServiceClient,
 		activeOperationLister: activeOperationLister,
@@ -83,10 +79,6 @@ func NewTriggerControlPlaneUpgradeController(
 	return controller
 }
 
-func (c *triggerControlPlaneUpgradeSyncer) CooldownChecker() controllerutil.CooldownChecker {
-	return c.cooldownChecker
-}
-
 // SyncOnce performs a single reconciliation to trigger a control plane upgrade if needed.
 //
 // High-level flow:
@@ -95,6 +87,7 @@ func (c *triggerControlPlaneUpgradeSyncer) CooldownChecker() controllerutil.Cool
 //  3. If different, call version service API to trigger upgrade
 //  4. The version service API is idempotent and handles the actual upgrade orchestration
 func (c *triggerControlPlaneUpgradeSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
+	logger := utils.LoggerFromContext(ctx)
 	existingCluster, err := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Get(ctx, key.HCPClusterName)
 	if database.IsNotFoundError(err) {
 		return nil // cluster doesn't exist, no work to do
@@ -118,11 +111,11 @@ func (c *triggerControlPlaneUpgradeSyncer) SyncOnce(ctx context.Context, key con
 	// here we check to see if we should be triggering an upgrade. We do this by
 	// 1. if the cluster was created more than two hours ago, then we can run
 	// 2. if there is no active operation that is a create, then we can run
-	shouldRun, err := c.shouldTriggerUpgrade(ctx, key, existingCluster)
+	shouldRun, err := c.shouldTriggerUpgrade(ctx, existingCluster)
 	if err != nil {
-		logger := utils.LoggerFromContext(ctx)
 		logger.Error(err, "error determining if control plane upgrade should be triggered")
 	} else if !shouldRun {
+		logger.Info("Skipping control plane upgrade trigger", "cluster", existingCluster.Name)
 		return nil
 	}
 
@@ -200,15 +193,22 @@ func (c *triggerControlPlaneUpgradeSyncer) createUpgradePolicyIfNeeded(ctx conte
 // Otherwise (cluster still young, Create in flight) we skip so a freshly
 // created cluster doesn't have a control plane upgrade policy posted while
 // creation is still in progress.
-func (c *triggerControlPlaneUpgradeSyncer) shouldTriggerUpgrade(ctx context.Context, key controllerutils.HCPClusterKey, cluster *api.HCPOpenShiftCluster) (bool, error) {
+func (c *triggerControlPlaneUpgradeSyncer) shouldTriggerUpgrade(ctx context.Context, cluster *api.HCPOpenShiftCluster) (bool, error) {
+	logger := utils.LoggerFromContext(ctx)
 	if c.clusterOlderThanGracePeriod(cluster) {
+		logger.Info("Cluster is older than grace period, skipping upgrade trigger", "cluster", cluster.Name)
 		return true, nil
 	}
-	hasCreate, err := c.hasActiveClusterCreateOperation(ctx, key)
+	hasCreate, err := c.clusterHasActiveCreateOperation(ctx, cluster)
 	if err != nil {
+		logger.Error(err, "Failed to check if cluster has active create operation, checking upgrade trigger", "cluster", cluster.Name)
 		return true, err
 	}
-	return !hasCreate, nil
+	if hasCreate {
+		logger.Info("Cluster has active create operation", "cluster", cluster.Name, "hasCreate", hasCreate)
+		return false, nil
+	}
+	return true, nil
 }
 
 // clusterOlderThanGracePeriod returns true when the cluster's ARM CreatedAt
@@ -222,26 +222,28 @@ func (c *triggerControlPlaneUpgradeSyncer) clusterOlderThanGracePeriod(cluster *
 	return c.clock.Since(*cluster.SystemData.CreatedAt) > clusterCreateGracePeriod
 }
 
-// hasActiveClusterCreateOperation reports whether there is a non-terminal
+// clusterHasActiveCreateOperation reports whether there is a non-terminal
 // Create operation whose ExternalID is the cluster itself. Operations on
 // child resources (node pools, external auths) under the cluster are
 // ignored on purpose: they don't gate control-plane upgrade triggering.
-func (c *triggerControlPlaneUpgradeSyncer) hasActiveClusterCreateOperation(ctx context.Context, key controllerutils.HCPClusterKey) (bool, error) {
-	ops, err := c.activeOperationLister.ListActiveOperationsForCluster(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
+func (c *triggerControlPlaneUpgradeSyncer) clusterHasActiveCreateOperation(ctx context.Context, cluster *api.HCPOpenShiftCluster) (bool, error) {
+	logger := utils.LoggerFromContext(ctx)
+	if len(cluster.ServiceProviderProperties.ActiveOperationID) == 0 {
+		logger.Info("Cluster has no active create operation", "cluster", cluster.Name)
+		return false, nil
+	}
+	operation, err := c.activeOperationLister.Get(ctx, cluster.ResourceID.SubscriptionID, cluster.ServiceProviderProperties.ActiveOperationID)
 	if err != nil {
-		return false, fmt.Errorf("failed to list active operations for cluster: %w", err)
+		return false, fmt.Errorf("failed to get operations %q for cluster: %w", cluster.ServiceProviderProperties.ActiveOperationID, err)
 	}
-	clusterRIDLower := api.ToClusterResourceIDString(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
-	for _, op := range ops {
-		if op.Request != database.OperationRequestCreate {
-			continue
-		}
-		if op.ExternalID == nil {
-			continue
-		}
-		if strings.EqualFold(op.ExternalID.String(), clusterRIDLower) {
-			return true, nil
-		}
+	if operation.Request != database.OperationRequestCreate {
+		logger.Info("Cluster has active create operation but it is not a create operation", "cluster", cluster.Name, "operation", operation.Request)
+		return false, nil
 	}
-	return false, nil
+	if operation.Status.IsTerminal() {
+		logger.Info("Cluster has active create operation but it is terminal", "cluster", cluster.Name, "operation", operation.Request)
+		return false, nil
+	}
+	logger.Info("Cluster has active create operation", "cluster", cluster.Name, "operation", operation.Request)
+	return true, nil
 }

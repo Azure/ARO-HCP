@@ -32,7 +32,6 @@ import (
 
 type ClusterSyncer interface {
 	SyncOnce(ctx context.Context, keyObj HCPClusterKey) error
-	CooldownChecker() controllerutil.CooldownChecker
 }
 
 type clusterWatchingController struct {
@@ -122,7 +121,7 @@ func (c *clusterWatchingController) SyncOnce(ctx context.Context, key HCPCluster
 }
 
 func (c *clusterWatchingController) CooldownChecker() controllerutil.CooldownChecker {
-	return c.syncer.CooldownChecker()
+	return nil
 }
 
 func (c *clusterWatchingController) MakeKey(resourceID *azcorearm.ResourceID) HCPClusterKey {
