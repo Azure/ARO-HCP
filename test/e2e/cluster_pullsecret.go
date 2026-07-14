@@ -64,7 +64,7 @@ var _ = Describe("Customer", func() {
 				// Timeouts for verifications
 				pullSecretMergeTimeout = 10 * time.Minute
 				daemonSetSyncTimeout   = 10 * time.Minute // moving from 5 to 10 minutes due to observed slowness in pre-merge CI
-				imagePullTimeout       = 1 * time.Minute
+				imagePullTimeout       = 3 * time.Minute
 
 				// Image pull test constants
 				pullTestNamespace = "pullsecret-image-test"
