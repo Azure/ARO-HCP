@@ -144,6 +144,46 @@ func TestValidateExternalAuth(t *testing.T) {
 			},
 		},
 		{
+			name: "empty issuer audience",
+			newObj: func() *api.HCPOpenShiftClusterExternalAuth {
+				obj := createMinimalExternalAuth()
+				obj.Properties.Issuer.URL = "https://valid.example.com"
+				obj.Properties.Issuer.Audiences = []string{""}
+				return obj
+			}(),
+			op: operation.Operation{Type: operation.Create},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.issuer.audiences[0]", Message: "Required value"},
+			},
+		},
+		{
+			name: "empty issuer audience among valid audiences",
+			newObj: func() *api.HCPOpenShiftClusterExternalAuth {
+				obj := createMinimalExternalAuth()
+				obj.Properties.Issuer.URL = "https://valid.example.com"
+				obj.Properties.Issuer.Audiences = []string{"audience1", ""}
+				return obj
+			}(),
+			op: operation.Operation{Type: operation.Create},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.issuer.audiences[1]", Message: "Required value"},
+			},
+		},
+		{
+			name: "multiple empty issuer audiences",
+			newObj: func() *api.HCPOpenShiftClusterExternalAuth {
+				obj := createMinimalExternalAuth()
+				obj.Properties.Issuer.URL = "https://valid.example.com"
+				obj.Properties.Issuer.Audiences = []string{"", ""}
+				return obj
+			}(),
+			op: operation.Operation{Type: operation.Create},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.issuer.audiences[0]", Message: "Required value"},
+				{FieldPath: "properties.issuer.audiences[1]", Message: "Required value"},
+			},
+		},
+		{
 			name: "invalid CA certificate",
 			newObj: func() *api.HCPOpenShiftClusterExternalAuth {
 				obj := createMinimalExternalAuth()

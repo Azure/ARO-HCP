@@ -216,15 +216,21 @@ func TestExternalAuthValidate(t *testing.T) {
 			},
 		},
 		{
-			name: "Bad properties.issuer.audiences",
+			name: "Bad properties.issuer.audiences - empty audience value",
 			tweaks: &api.HCPOpenShiftClusterExternalAuth{
 				Properties: api.HCPOpenShiftClusterExternalAuthProperties{
 					Issuer: api.TokenIssuerProfile{
-						Audiences: []string{"omitempty"},
+						URL:       "https://example.com",
+						Audiences: []string{""},
 					},
 				},
 			},
-			expectErrors: nil,
+			expectErrors: []utils.ExpectedError{
+				{
+					Message:   "Required value",
+					FieldPath: "properties.issuer.audiences[0]",
+				},
+			},
 		},
 		{
 			name: "Missing prefix when policy is Prefix",

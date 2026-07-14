@@ -179,13 +179,13 @@ func validateTokenIssuerProfile(ctx context.Context, op operation.Operation, fld
 	errs = append(errs, validate.RequiredSlice(ctx, op, fldPath.Child("audiences"), newObj.Audiences, safe.Field(oldObj, toTokenIssuerProfileAudiences))...)
 	errs = append(errs, MinItems(ctx, op, fldPath.Child("audiences"), newObj.Audiences, safe.Field(oldObj, toTokenIssuerProfileAudiences), 1)...)
 	errs = append(errs, MaxItems(ctx, op, fldPath.Child("audiences"), newObj.Audiences, safe.Field(oldObj, toTokenIssuerProfileAudiences), 10)...)
+	errs = append(errs, validate.EachSliceVal(
+		ctx, op, fldPath.Child("audiences"),
+		newObj.Audiences, safe.Field(oldObj, toTokenIssuerProfileAudiences),
+		nil, nil,
+		validate.RequiredValue,
+	)...)
 	// TODO I bet these were forgotten
-	//errs = append(errs, validate.EachSliceVal(
-	//	ctx, op, fldPath.Child("audiences"),
-	//	newObj.Audiences, safe.Field(oldObj, toTokenIssuerProfileAudiences),
-	//	nil, nil,
-	//	validate.RequiredValue,
-	//)...)
 	//errs = append(errs, validate.EachSliceVal(
 	//	ctx, op, fldPath.Child("audiences"),
 	//	newObj.Audiences, safe.Field(oldObj, toTokenIssuerProfileAudiences),
