@@ -253,10 +253,10 @@ Custom tools in `tooling/`:
 
 ## Cosmos Data Flow Documentation
 
-`backend/cosmos-data-flow.md` documents every Cosmos DB read and write performed by frontend endpoints and backend controllers. It must be kept in sync with the code.
+`docs/cosmos-data-flow.md` documents every Cosmos DB read and write performed by frontend endpoints and backend controllers. It must be kept in sync with the code.
 
 ### When to regenerate
-Regenerate `backend/cosmos-data-flow.md` (using the generation prompt at the bottom of that file) whenever a change touches:
+Regenerate `docs/cosmos-data-flow.md` (using the generation prompt at the bottom of that file) whenever a change touches:
 - `frontend/pkg/frontend/` — any handler that writes to Cosmos
 - `backend/pkg/controllers/` — any controller that reads or writes Cosmos fields
 - `internal/api/types_*.go` — any struct field that is stored in Cosmos

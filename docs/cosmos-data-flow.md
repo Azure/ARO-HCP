@@ -35,8 +35,8 @@ transitively deletes all clusters (and their children) via transactional batches
 
 | Object | Fields Written |
 |--------|---------------|
-| `HCPOpenShiftCluster` | <ul><li>All `CustomerProperties.*` from request body</li><li>`TrackedResource` (ID, Name, Type, Location)</li><li>`Tags`</li><li>`SystemData` (CreatedAt, CreatedBy, CreatedByType, LastModifiedAt, LastModifiedBy, LastModifiedByType)</li><li>`Identity.UserAssignedIdentities` (cleared then rebuilt via `completeClusterIdentity`)</li><li>`ServiceProviderProperties.ClusterServiceID` (from CS POST response)</li><li>`ServiceProviderProperties.ActiveOperationID` (from new operation)</li><li>`ServiceProviderProperties.ProvisioningState` = `Accepted`</li><li>`ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL` (from `X-Ms-Identity-Url` header)</li></ul> |
-| `Operation` | <ul><li>`Request` = `Create`</li><li>`ExternalID` = cluster ARM resource ID</li><li>`InternalID` = CS cluster HREF</li><li>`Status` = `Accepted`</li><li>`TenantID`, `ClientID`, `NotificationURI` from headers</li><li>`StartTime`</li></ul> |
+| `HCPOpenShiftCluster` | <ul><li>All `CustomerProperties.*` from request body (unmarshaled, converted to internal, `EnsureDefaults()` applied)</li><li>`TrackedResource.ID` (from URL resource ID)</li><li>`TrackedResource.Name` (from URL resource ID)</li><li>`TrackedResource.Type` (from URL resource ID)</li><li>`TrackedResource.Location` = `azureLocation`</li><li>`Tags`</li><li>`SystemData.CreatedAt`, `SystemData.CreatedBy`, `SystemData.CreatedByType`</li><li>`SystemData.LastModifiedAt`, `SystemData.LastModifiedBy`, `SystemData.LastModifiedByType`</li><li>`CosmosMetadata.ResourceID`, `CosmosMetadata.PartitionKey`</li><li>`ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL` (from `X-Ms-Identity-Url` header)</li><li>`Identity.UserAssignedIdentities` (cleared then rebuilt via `completeClusterIdentity` from `CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators` and `.ServiceManagedIdentity`)</li><li>`ServiceProviderProperties.ClusterServiceID` = CS internal ID (from CS POST response HREF)</li><li>`ServiceProviderProperties.ActiveOperationID` = new operation's `ResourceID.Name`</li><li>`ServiceProviderProperties.ProvisioningState` = `Accepted`</li></ul> |
+| `Operation` | <ul><li>`Request` = `Create`</li><li>`ExternalID` = cluster ARM resource ID</li><li>`InternalID` = `*cluster.ServiceProviderProperties.ClusterServiceID`</li><li>`Status` = `Accepted`</li><li>`TenantID` (from `X-Ms-Home-Tenant-Id` header)</li><li>`ClientID` (from `X-Ms-Client-Object-Id` header)</li><li>`NotificationURI` (from `X-Ms-Async-Notification-Uri` header)</li><li>`StartTime` = now</li><li>`LastTransitionTime` = now</li><li>`OperationID` = generated ARM resource ID</li><li>`ResourceID` = generated ARM resource ID</li><li>`ClientRequestID`, `CorrelationRequestID` (from correlation data)</li></ul> |
 
 ---
 
@@ -48,8 +48,8 @@ transitively deletes all clusters (and their children) via transactional batches
 
 | Object | Fields Written |
 |--------|---------------|
-| `HCPOpenShiftCluster` | <ul><li>`CustomerProperties.*` (from request; `DNS.BaseDomainPrefix` and `Platform.ManagedResourceGroup` carried from old if empty)</li><li>`Tags` (nil in request = keep old; non-nil = replace)</li><li>`SystemData.LastModifiedAt`, `LastModifiedBy`, `LastModifiedByType`</li><li>`Identity.UserAssignedIdentities` (cleared then rebuilt with old identity data)</li><li>`ServiceProviderProperties.ActiveOperationID` (from new operation)</li><li>`ServiceProviderProperties.ProvisioningState` = `Accepted`</li><li>Read-only fields (`TrackedResource`, `ServiceProviderProperties.*` except ActiveOp/ProvState, `Status`) copied from old via `CopyReadOnlyClusterValues`</li></ul> |
-| `Operation` | <ul><li>`Request` = `Update`</li><li>`ExternalID`, `InternalID`, `Status` = `Accepted`</li><li>`TenantID`, `ClientID`, `NotificationURI`</li></ul> |
+| `HCPOpenShiftCluster` | <ul><li>`CustomerProperties.*` (from request body; `DNS.BaseDomainPrefix` and `Platform.ManagedResourceGroup` carried from old if empty)</li><li>`Tags` (nil in request = keep old; non-nil = replace)</li><li>`SystemData.LastModifiedAt`, `LastModifiedBy`, `LastModifiedByType`</li><li>Read-only fields copied from old via `CopyReadOnlyClusterValues`: `TrackedResource`, `CosmosMetadata`, `Identity` (PrincipalID, TenantID, non-nil UserAssignedIdentity values), `ServiceProviderProperties` (entire deep copy), `Status` (entire deep copy)</li><li>`Identity.UserAssignedIdentities` (cleared then rebuilt via `completeClusterIdentity` with old identity data)</li><li>`ServiceProviderProperties.ActiveOperationID` = new operation's `ResourceID.Name`</li><li>`ServiceProviderProperties.ProvisioningState` = `Accepted`</li></ul> |
+| `Operation` | <ul><li>`Request` = `Update`</li><li>`ExternalID` = cluster ARM resource ID</li><li>`InternalID` = `*oldCluster.ServiceProviderProperties.ClusterServiceID`</li><li>`Status` = `Accepted`</li><li>`TenantID`, `ClientID`, `NotificationURI` (from headers)</li><li>`StartTime`, `LastTransitionTime`, `OperationID`, `ResourceID`, `ClientRequestID`, `CorrelationRequestID`</li></ul> |
 
 ---
 
@@ -61,7 +61,7 @@ transitively deletes all clusters (and their children) via transactional batches
 
 | Object | Fields Written |
 |--------|---------------|
-| `HCPOpenShiftCluster` | <ul><li>`CustomerProperties.*` (old resource used as base, PATCH body overlaid, then converted to internal)</li><li>`Tags` (nil in request = keep old; non-nil = replace)</li><li>`SystemData.LastModifiedAt`, `LastModifiedBy`, `LastModifiedByType`</li><li>`Identity.UserAssignedIdentities` (cleared then rebuilt with old identity data)</li><li>`ServiceProviderProperties.ActiveOperationID` (from new operation)</li><li>`ServiceProviderProperties.ProvisioningState` = `Accepted`</li><li>Read-only fields (`TrackedResource`, `ServiceProviderProperties.*` except ActiveOp/ProvState, `Status`) copied from old via `CopyReadOnlyClusterValues`</li></ul> |
+| `HCPOpenShiftCluster` | <ul><li>`CustomerProperties.*` (old resource used as base, PATCH body overlaid, then converted to internal)</li><li>`Tags` (nil in request = keep old; non-nil = replace)</li><li>`SystemData.LastModifiedAt`, `LastModifiedBy`, `LastModifiedByType`</li><li>Read-only fields copied from old via `CopyReadOnlyClusterValues`: `TrackedResource`, `CosmosMetadata`, `Identity`, `ServiceProviderProperties`, `Status`</li><li>`Identity.UserAssignedIdentities` (cleared then rebuilt via `completeClusterIdentity` with old identity data)</li><li>`ServiceProviderProperties.ActiveOperationID` = new operation's `ResourceID.Name`</li><li>`ServiceProviderProperties.ProvisioningState` = `Accepted`</li></ul> |
 | `Operation` | <ul><li>`Request` = `Update`</li><li>`ExternalID`, `InternalID`, `Status` = `Accepted`</li><li>`TenantID`, `ClientID`, `NotificationURI`</li></ul> |
 
 ---
@@ -74,13 +74,13 @@ transitively deletes all clusters (and their children) via transactional batches
 
 | Object | Fields Written |
 |--------|---------------|
-| `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` = now (if nil)</li><li>`ServiceProviderProperties.ActiveOperationID` (from new operation)</li><li>`ServiceProviderProperties.ProvisioningState` = `Deleting`</li><li>`ServiceProviderProperties.UsesNewClusterDeletionApproach` = `true`</li></ul> |
-| `Operation` | <ul><li>`Request` = `Delete`</li><li>`ExternalID`, `Status` = `Accepted`</li><li>`UsesNewClusterDeletionApproach` = `true`</li><li>`TenantID`, `ClientID`, `NotificationURI` (if from user request)</li></ul> |
-| Child `NodePool`s (each) | <ul><li>`ServiceProviderProperties.DeletionTimestamp` = now (if nil)</li><li>`ServiceProviderProperties.ActiveOperationID` (from new per-NP delete operation)</li><li>`Properties.ProvisioningState` = `Deleting`</li><li>`ServiceProviderProperties.UsesNewNodePoolDeletionApproach` = `true`</li></ul> |
-| Child `NodePool` `Operation`s (each) | <ul><li>`Request` = `Delete`, `ExternalID`, `Status` = `Accepted`</li><li>`UsesNewNodePoolDeletionApproach` = `true`</li></ul> |
-| Child `ExternalAuth`s (each) | <ul><li>`ServiceProviderProperties.DeletionTimestamp` = now (if nil)</li><li>`ServiceProviderProperties.ActiveOperationID` (from new per-EA delete operation)</li><li>`Properties.ProvisioningState` = `Deleting`</li><li>`ServiceProviderProperties.UsesNewExternalAuthDeletionApproach` = `true`</li></ul> |
-| Child `ExternalAuth` `Operation`s (each) | <ul><li>`Request` = `Delete`, `ExternalID`, `Status` = `Accepted`</li><li>`UsesNewExternalAuthDeletionApproach` = `true`</li></ul> |
-| Canceled `Operation`s | <ul><li>Active operations on the cluster get `Status` = `Canceled`</li></ul> |
+| `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` = now (if nil)</li><li>`ServiceProviderProperties.ActiveOperationID` = new operation's `ResourceID.Name`</li><li>`ServiceProviderProperties.ProvisioningState` = `Deleting`</li><li>`ServiceProviderProperties.UsesNewClusterDeletionApproach` = `true`</li></ul> |
+| `Operation` | <ul><li>`Request` = `Delete`</li><li>`ExternalID` = cluster ARM resource ID</li><li>`InternalID` = empty</li><li>`Status` = `Deleting`</li><li>`UsesNewClusterDeletionApproach` = `true`</li><li>`TenantID`, `ClientID`, `NotificationURI` (if from user request)</li></ul> |
+| Child `NodePool`s (each) | <ul><li>`ServiceProviderProperties.DeletionTimestamp` = now (if nil)</li><li>`ServiceProviderProperties.ActiveOperationID` = new per-NP delete operation's `ResourceID.Name`</li><li>`Properties.ProvisioningState` = `Deleting`</li><li>`ServiceProviderProperties.UsesNewNodePoolDeletionApproach` = `true`</li></ul> |
+| Child `NodePool` `Operation`s (each) | <ul><li>`Request` = `Delete`, `ExternalID`, `Status` = `Deleting`</li><li>`UsesNewNodePoolDeletionApproach` = `true`</li></ul> |
+| Child `ExternalAuth`s (each) | <ul><li>`ServiceProviderProperties.DeletionTimestamp` = now (if nil)</li><li>`ServiceProviderProperties.ActiveOperationID` = new per-EA delete operation's `ResourceID.Name`</li><li>`Properties.ProvisioningState` = `Deleting`</li><li>`ServiceProviderProperties.UsesNewExternalAuthDeletionApproach` = `true`</li></ul> |
+| Child `ExternalAuth` `Operation`s (each) | <ul><li>`Request` = `Delete`, `ExternalID`, `Status` = `Deleting`</li><li>`UsesNewExternalAuthDeletionApproach` = `true`</li></ul> |
+| Canceled `Operation`s | <ul><li>Active operations on the cluster get `Status` = `Canceled`, `LastTransitionTime` = now</li></ul> |
 
 ---
 
@@ -92,8 +92,8 @@ transitively deletes all clusters (and their children) via transactional batches
 
 | Object | Fields Written |
 |--------|---------------|
-| `HCPOpenShiftClusterNodePool` | <ul><li>All `Properties.*` from request body</li><li>`TrackedResource` (ID, Name, Type, Location)</li><li>`Tags`, `SystemData`</li><li>`ServiceProviderProperties.ClusterServiceID` (from CS POST response)</li><li>`ServiceProviderProperties.ActiveOperationID` (from new operation)</li><li>`Properties.ProvisioningState` = `Accepted`</li></ul> |
-| `Operation` | <ul><li>`Request` = `Create`</li><li>`ExternalID`, `InternalID`, `Status` = `Accepted`</li><li>`TenantID`, `ClientID`, `NotificationURI`</li></ul> |
+| `HCPOpenShiftClusterNodePool` | <ul><li>All `Properties.*` from request body (unmarshaled, converted to internal, `EnsureDefaults()` applied)</li><li>`TrackedResource.ID`, `TrackedResource.Name`, `TrackedResource.Type`, `TrackedResource.Location`</li><li>`Tags`, `SystemData`</li><li>`CosmosMetadata.ResourceID`, `CosmosMetadata.PartitionKey`</li><li>`ServiceProviderProperties.ActiveOperationID` = new operation's `ResourceID.Name`</li><li>`Properties.ProvisioningState` = `Accepted`</li></ul> |
+| `Operation` | <ul><li>`Request` = `Create`</li><li>`ExternalID` = node pool ARM resource ID</li><li>`InternalID` = empty</li><li>`Status` = `Accepted`</li><li>`TenantID`, `ClientID`, `NotificationURI`</li></ul> |
 
 ---
 
@@ -105,8 +105,8 @@ transitively deletes all clusters (and their children) via transactional batches
 
 | Object | Fields Written |
 |--------|---------------|
-| `HCPOpenShiftClusterNodePool` | <ul><li>`Properties.*` (from request; `Version.ID` and `Platform.SubnetID` carried from old if empty)</li><li>`Tags`, `SystemData.LastModified*`</li><li>`ServiceProviderProperties.ActiveOperationID` (from new operation)</li><li>`Properties.ProvisioningState` = `Accepted`</li><li>Read-only fields copied from old via `CopyReadOnlyNodePoolValues`</li></ul> |
-| `Operation` | <ul><li>`Request` = `Update`</li><li>`ExternalID`, `InternalID`, `Status` = `Accepted`</li></ul> |
+| `HCPOpenShiftClusterNodePool` | <ul><li>`Properties.*` (from request; `Version.ID` carried from old if empty, `Platform.SubnetID` carried from old if nil)</li><li>`Tags` (nil in request = keep old; non-nil = replace)</li><li>`SystemData.LastModifiedAt`, `LastModifiedBy`, `LastModifiedByType`</li><li>Read-only fields copied from old via `CopyReadOnlyNodePoolValues`: `TrackedResource`, `CosmosMetadata`, `Identity`, `Properties.ProvisioningState`, `ServiceProviderProperties`, `Status`</li><li>`ServiceProviderProperties.ActiveOperationID` = new operation's `ResourceID.Name`</li><li>`Properties.ProvisioningState` = `Accepted`</li></ul> |
+| `Operation` | <ul><li>`Request` = `Update`</li><li>`ExternalID` = node pool ARM resource ID</li><li>`InternalID` = `*nodePool.ServiceProviderProperties.ClusterServiceID`</li><li>`Status` = `Accepted`</li></ul> |
 
 ---
 
@@ -118,8 +118,9 @@ transitively deletes all clusters (and their children) via transactional batches
 
 | Object | Fields Written |
 |--------|---------------|
-| `HCPOpenShiftClusterNodePool` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` = now (if nil)</li><li>`ServiceProviderProperties.ActiveOperationID` (from new operation)</li><li>`Properties.ProvisioningState` = `Deleting`</li><li>`ServiceProviderProperties.UsesNewNodePoolDeletionApproach` = `true`</li></ul> |
-| `Operation` | <ul><li>`Request` = `Delete`</li><li>`ExternalID`, `Status` = `Accepted`</li><li>`UsesNewNodePoolDeletionApproach` = `true`</li></ul> |
+| `HCPOpenShiftClusterNodePool` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` = now (if nil)</li><li>`ServiceProviderProperties.ActiveOperationID` = new operation's `ResourceID.Name`</li><li>`Properties.ProvisioningState` = `Deleting`</li><li>`ServiceProviderProperties.UsesNewNodePoolDeletionApproach` = `true`</li></ul> |
+| `Operation` | <ul><li>`Request` = `Delete`</li><li>`ExternalID`, `Status` = `Deleting`</li><li>`UsesNewNodePoolDeletionApproach` = `true`</li></ul> |
+| Canceled `Operation`s | <ul><li>Active operations on the node pool get `Status` = `Canceled`, `LastTransitionTime` = now</li></ul> |
 
 ---
 
@@ -131,8 +132,8 @@ transitively deletes all clusters (and their children) via transactional batches
 
 | Object | Fields Written |
 |--------|---------------|
-| `HCPOpenShiftClusterExternalAuth` | <ul><li>All `Properties.*` from request body</li><li>`ProxyResource` (ID, Name, Type)</li><li>`SystemData`</li><li>`ServiceProviderProperties.ClusterServiceID` (from CS POST response)</li><li>`ServiceProviderProperties.ActiveOperationID` (from new operation)</li><li>`Properties.ProvisioningState` = `Accepted`</li></ul> |
-| `Operation` | <ul><li>`Request` = `Create`</li><li>`ExternalID`, `InternalID`, `Status` = `Accepted`</li></ul> |
+| `HCPOpenShiftClusterExternalAuth` | <ul><li>All `Properties.*` from request body (unmarshaled, converted to internal, `EnsureDefaults()` applied)</li><li>`ProxyResource.ID`, `ProxyResource.Name`, `ProxyResource.Type`</li><li>`SystemData`</li><li>`CosmosMetadata.ResourceID`, `CosmosMetadata.PartitionKey`</li><li>`ServiceProviderProperties.ClusterServiceID` = CS internal ID (from CS POST response HREF)</li><li>`ServiceProviderProperties.ActiveOperationID` = new operation's `ResourceID.Name`</li><li>`Properties.ProvisioningState` = `Accepted`</li></ul> |
+| `Operation` | <ul><li>`Request` = `Create`</li><li>`ExternalID` = external auth ARM resource ID</li><li>`InternalID` = `*externalAuth.ServiceProviderProperties.ClusterServiceID`</li><li>`Status` = `Accepted`</li></ul> |
 
 ---
 
@@ -144,8 +145,8 @@ transitively deletes all clusters (and their children) via transactional batches
 
 | Object | Fields Written |
 |--------|---------------|
-| `HCPOpenShiftClusterExternalAuth` | <ul><li>`Properties.*` (from request)</li><li>`SystemData.LastModified*`</li><li>`ServiceProviderProperties.ActiveOperationID` (from new operation)</li><li>`Properties.ProvisioningState` = `Accepted`</li><li>Read-only fields copied from old via `CopyReadOnlyExternalAuthValues`</li></ul> |
-| `Operation` | <ul><li>`Request` = `Update`</li><li>`ExternalID`, `InternalID`, `Status` = `Accepted`</li></ul> |
+| `HCPOpenShiftClusterExternalAuth` | <ul><li>`Properties.*` (from request)</li><li>`SystemData.LastModifiedAt`, `LastModifiedBy`, `LastModifiedByType`</li><li>Read-only fields copied from old via `CopyReadOnlyExternalAuthValues`: `ProxyResource`, `CosmosMetadata`, `Properties.ProvisioningState`, `ServiceProviderProperties`, `Status`</li><li>`ServiceProviderProperties.ActiveOperationID` = new operation's `ResourceID.Name`</li><li>`Properties.ProvisioningState` = `Accepted`</li></ul> |
+| `Operation` | <ul><li>`Request` = `Update`</li><li>`ExternalID`, `InternalID` = `*externalAuth.ServiceProviderProperties.ClusterServiceID`</li><li>`Status` = `Accepted`</li></ul> |
 
 ---
 
@@ -157,8 +158,9 @@ transitively deletes all clusters (and their children) via transactional batches
 
 | Object | Fields Written |
 |--------|---------------|
-| `HCPOpenShiftClusterExternalAuth` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` = now (if nil)</li><li>`ServiceProviderProperties.ActiveOperationID` (from new operation)</li><li>`Properties.ProvisioningState` = `Deleting`</li><li>`ServiceProviderProperties.UsesNewExternalAuthDeletionApproach` = `true`</li></ul> |
-| `Operation` | <ul><li>`Request` = `Delete`</li><li>`ExternalID`, `Status` = `Accepted`</li><li>`UsesNewExternalAuthDeletionApproach` = `true`</li></ul> |
+| `HCPOpenShiftClusterExternalAuth` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` = now (if nil)</li><li>`ServiceProviderProperties.ActiveOperationID` = new operation's `ResourceID.Name`</li><li>`Properties.ProvisioningState` = `Deleting`</li><li>`ServiceProviderProperties.UsesNewExternalAuthDeletionApproach` = `true`</li></ul> |
+| `Operation` | <ul><li>`Request` = `Delete`</li><li>`ExternalID`, `Status` = `Deleting`</li><li>`UsesNewExternalAuthDeletionApproach` = `true`</li></ul> |
+| Canceled `Operation`s | <ul><li>Active operations on the external auth get `Status` = `Canceled`, `LastTransitionTime` = now</li></ul> |
 
 ---
 
@@ -170,7 +172,7 @@ transitively deletes all clusters (and their children) via transactional batches
 
 | Object | Fields Written |
 |--------|---------------|
-| `Operation` | <ul><li>`Request` = `RequestCredential`</li><li>`ExternalID` = cluster ARM resource ID</li><li>`InternalID` = empty</li><li>`Status` = `Accepted`</li></ul> |
+| `Operation` | <ul><li>`Request` = `RequestCredential`</li><li>`ExternalID` = parent cluster ARM resource ID</li><li>`InternalID` = empty</li><li>`Status` = `Accepted`</li><li>`TenantID`, `ClientID`, `NotificationURI` (from headers)</li></ul> |
 
 No resource document is modified.
 
@@ -184,9 +186,9 @@ No resource document is modified.
 
 | Object | Fields Written |
 |--------|---------------|
-| `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.RevokeCredentialsOperationID` = new operation ID</li></ul> |
-| `Operation` | <ul><li>`Request` = `RevokeCredentials`</li><li>`ExternalID`, `InternalID` (from cluster's CSID)</li><li>`Status` = `Accepted`</li></ul> |
-| Canceled `Operation`s | <ul><li>Active `RequestCredential` operations get `Status` = `Canceled`</li></ul> |
+| `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.RevokeCredentialsOperationID` = new operation's `OperationID.Name`</li></ul> |
+| `Operation` | <ul><li>`Request` = `RevokeCredentials`</li><li>`ExternalID` = parent cluster ARM resource ID</li><li>`InternalID` = `*cluster.ServiceProviderProperties.ClusterServiceID`</li><li>`Status` = `Accepted`</li></ul> |
+| Canceled `Operation`s | <ul><li>Active `RequestCredential` operations get `Status` = `Canceled`, `LastTransitionTime` = now</li></ul> |
 
 ---
 
@@ -200,7 +202,7 @@ which performs a **transactional batch** to atomically update the operation and 
 
 #### OperationClusterCreate
 
-**File:** [operation_cluster_create.go](pkg/controllers/operationcontrollers/operation_cluster_create.go)
+**File:** [operation_cluster_create.go](../backend/pkg/controllers/operationcontrollers/operation_cluster_create.go)
 **Gate (ShouldProcess on Operation):**
 - `Operation.Status.IsTerminal()` == false
 - `Operation.Request` == `Create`
@@ -212,34 +214,39 @@ which performs a **transactional batch** to atomically update the operation and 
 
 | | Object | Fields |
 |---|--------|--------|
-| Read | `Operation` | <ul><li>`Status` (ShouldProcess: must not be terminal)</li><li>`Request` (ShouldProcess: must be `Create`)</li><li>`ExternalID` (ShouldProcess: resource type must be `ClusterResourceType`)</li><li>`OperationID`</li></ul> |
+| Read | `Operation` | <ul><li>`Status` (ShouldProcess: must not be terminal)</li><li>`Request` (ShouldProcess: must be `Create`)</li><li>`ExternalID` (ShouldProcess: resource type must be `ClusterResourceType`)</li><li>`OperationID.Name`</li></ul> |
 | Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.ActiveOperationID` (mismatch check)</li><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: must be nil)</li><li>`ServiceProviderProperties.ClusterServiceID` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.API.URL`</li></ul> |
-| Read | ReadDesire (HostedCluster) | <ul><li>`Status.Conditions` (Successful)</li><li>`Status.KubeContent` -> HostedCluster `status.controlPlaneVersion.history`, `status.conditions`, `status.controlPlaneEndpoint`</li></ul> |
+| Read | ReadDesire (HostedCluster) | <ul><li>`Status.Conditions` (ConditionTypeSuccessful)</li><li>`Status.KubeContent` -> HostedCluster `status.controlPlaneVersion.history[].state`, `status.controlPlaneVersion.history[].version`, `status.conditions` (Available, Degraded), `status.controlPlaneEndpoint.host`, `status.controlPlaneEndpoint.port`</li></ul> |
 | Read | Cluster Service | <ul><li>cluster state, provision error</li></ul> |
 | **Write** | **`Operation`** | <ul><li>**`Status`** -> `Provisioning`/`Succeeded`/`Failed`</li><li>**`Error`** (on failure)</li><li>**`LastTransitionTime`**</li><li>**`NotificationURI`** (cleared after ARM notification)</li></ul> |
 | **Write** | **`HCPOpenShiftCluster`** | <ul><li>**`ServiceProviderProperties.ProvisioningState`** = new status</li><li>**`.ActiveOperationID`** = `""` (on terminal)</li></ul> |
 
 #### OperationClusterUpdate
 
-**File:** [operation_cluster_update.go](pkg/controllers/operationcontrollers/operation_cluster_update.go)
+**File:** [operation_cluster_update.go](../backend/pkg/controllers/operationcontrollers/operation_cluster_update.go)
 **Gate (ShouldProcess on Operation):**
 - `Operation.Status.IsTerminal()` == false
 - `Operation.Request` == `Update`
 - `Operation.ExternalID.ResourceType` == `ClusterResourceType`
 
+**Gate (shouldReconcileOperationAndResourceStatus on Cluster):**
+- `Cluster.ServiceProviderProperties.DeletionTimestamp` == nil
+- `Cluster.ServiceProviderProperties.ClusterServiceID` != nil
+
 | | Object | Fields |
 |---|--------|--------|
-| Read | `Operation` | <ul><li>`Status` (ShouldProcess: must not be terminal)</li><li>`Request` (ShouldProcess: must be `Update`)</li><li>`InternalID`</li></ul> |
-| Read | `HCPOpenShiftCluster` | <ul><li>`CustomerProperties.Version.ID`</li></ul> |
-| Read | `ServiceProviderCluster` | <ul><li>`Spec.ControlPlaneVersion.DesiredVersion`</li></ul> |
-| Read | Controller(`ControlPlaneDesiredVersion`) | <ul><li>`Status.Conditions[IntentFailed]`</li></ul> |
-| Read | Cluster Service | <ul><li>cluster status</li></ul> |
-| **Write** | **`Operation`** | <ul><li>**`Status`**, **`Error`**, **`LastTransitionTime`**</li></ul> |
-| **Write** | **`HCPOpenShiftCluster`** | <ul><li>**`ServiceProviderProperties.ProvisioningState`**, **`.ActiveOperationID`**</li></ul> |
+| Read | `Operation` | <ul><li>`Status` (ShouldProcess: must not be terminal)</li><li>`Request` (ShouldProcess: must be `Update`)</li><li>`ExternalID` (ShouldProcess: resource type must be `ClusterResourceType`)</li><li>`ResourceID.Name`</li></ul> |
+| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.ActiveOperationID` (mismatch check)</li><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: must be nil)</li><li>`ServiceProviderProperties.ClusterServiceID` (NeedsWork: must not be nil)</li><li>`CustomerProperties.Version.ID`</li><li>`CustomerProperties.API.AuthorizedCIDRs`</li><li>`CustomerProperties.NodeDrainTimeoutMinutes`</li><li>`CustomerProperties.Autoscaling.*`</li><li>`CustomerProperties.ImageDigestMirrors`</li><li>`ServiceProviderProperties.ExperimentalFeatures.ControlPlaneAvailability`</li><li>`ServiceProviderProperties.ExperimentalFeatures.ControlPlanePodSizing`</li><li>`ServiceProviderProperties.ExperimentalFeatures.ControlPlaneOperatorImage`</li></ul> |
+| Read | `ServiceProviderCluster` | <ul><li>`Spec.ControlPlaneVersion.DesiredVersion`</li><li>`Spec.DesiredHostedClusterControlPlaneSize`</li></ul> |
+| Read | Controller(`ControlPlaneDesiredVersion`) | <ul><li>`Status.Conditions[IntentFailed]` (Reason, Message)</li></ul> |
+| Read | ReadDesire (HostedCluster) | <ul><li>`Spec.Networking.APIServer.AllowedCIDRBlocks`</li><li>`Spec.ControllerAvailabilityPolicy`</li><li>`Spec.InfrastructureAvailabilityPolicy`</li><li>`Annotations[ClusterSizeOverrideAnnotation]`</li><li>`Annotations[ControlPlaneOperatorImageAnnotation]`</li><li>`Spec.Autoscaling.*`</li><li>`Spec.ImageContentSources`</li></ul> |
+| Read | Cluster Service | <ul><li>cluster status, API CIDRBlockAccess, NodeDrainGracePeriod</li></ul> |
+| **Write** | **`Operation`** | <ul><li>**`Status`** -> `Updating`/`Succeeded`/`Failed`</li><li>**`Error`** (on failure)</li><li>**`LastTransitionTime`**</li><li>**`NotificationURI`** (cleared after ARM notification)</li></ul> |
+| **Write** | **`HCPOpenShiftCluster`** | <ul><li>**`ServiceProviderProperties.ProvisioningState`** = new status</li><li>**`.ActiveOperationID`** = `""` (on terminal)</li></ul> |
 
 #### OperationClusterDelete
 
-**File:** [operation_cluster_delete.go](pkg/controllers/operationcontrollers/operation_cluster_delete.go)
+**File:** [operation_cluster_delete.go](../backend/pkg/controllers/operationcontrollers/operation_cluster_delete.go)
 **Gate (ShouldProcess on Operation):**
 - `Operation.Status.IsTerminal()` == false
 - `Operation.Request` == `Delete`
@@ -255,12 +262,12 @@ which performs a **transactional batch** to atomically update the operation and 
 | Read | `Operation` | <ul><li>`Status` (ShouldProcess: must not be terminal)</li><li>`Request` (ShouldProcess: must be `Delete`)</li><li>`UsesNewClusterDeletionApproach`</li></ul> |
 | Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.ClusterServiceDeletionTimestamp` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.ClusterServiceID` (NeedsWork: must not be nil)</li></ul> |
 | Read | Cluster Service | <ul><li>cluster status (or 404)</li></ul> |
-| **Write** | **`Operation`** | <ul><li>**`Status`** -> `Succeeded` (when cluster doc deleted)</li></ul> |
-| **Write** | **`HCPOpenShiftCluster`** | <ul><li>**`ServiceProviderProperties.ProvisioningState`**, **`.ActiveOperationID`**</li></ul> |
+| **Write** | **`Operation`** | <ul><li>**`Status`** -> `Succeeded` (when cluster doc deleted via `SetDeleteOperationAsCompleted`)</li><li>**`Error`**, **`LastTransitionTime`**</li></ul> |
+| **Write** | **`HCPOpenShiftCluster`** | <ul><li>**`ServiceProviderProperties.ProvisioningState`** = new status (while doc exists)</li><li>**`.ActiveOperationID`** = `""` (on terminal)</li></ul> |
 
 #### OperationNodePoolCreate
 
-**File:** [operation_node_pool_create.go](pkg/controllers/operationcontrollers/operation_node_pool_create.go)
+**File:** [operation_node_pool_create.go](../backend/pkg/controllers/operationcontrollers/operation_node_pool_create.go)
 **Gate (ShouldProcess on Operation):**
 - `Operation.Status.IsTerminal()` == false
 - `Operation.Request` == `Create`
@@ -272,7 +279,7 @@ which performs a **transactional batch** to atomically update the operation and 
 
 | | Object | Fields |
 |---|--------|--------|
-| Read | `Operation` | <ul><li>`Status` (ShouldProcess: must not be terminal)</li><li>`Request` (ShouldProcess: must be `Create`)</li><li>`ExternalID` (ShouldProcess: resource type must be `NodePoolResourceType`)</li><li>`OperationID`</li></ul> |
+| Read | `Operation` | <ul><li>`Status` (ShouldProcess: must not be terminal)</li><li>`Request` (ShouldProcess: must be `Create`)</li><li>`ExternalID` (ShouldProcess: resource type must be `NodePoolResourceType`)</li><li>`ResourceID.Name`</li></ul> |
 | Read | `HCPOpenShiftClusterNodePool` | <ul><li>`ServiceProviderProperties.ActiveOperationID` (mismatch check)</li><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: must be nil)</li><li>`ServiceProviderProperties.ClusterServiceID` (NeedsWork: must not be nil)</li></ul> |
 | Read | Cluster Service | <ul><li>node pool status</li></ul> |
 | **Write** | **`Operation`** | <ul><li>**`Status`** -> `Provisioning`/`Succeeded`/`Failed`</li><li>**`Error`** (on failure)</li><li>**`LastTransitionTime`**</li><li>**`NotificationURI`** (cleared after ARM notification)</li></ul> |
@@ -280,25 +287,30 @@ which performs a **transactional batch** to atomically update the operation and 
 
 #### OperationNodePoolUpdate
 
-**File:** [operation_node_pool_update.go](pkg/controllers/operationcontrollers/operation_node_pool_update.go)
+**File:** [operation_node_pool_update.go](../backend/pkg/controllers/operationcontrollers/operation_node_pool_update.go)
 **Gate (ShouldProcess on Operation):**
 - `Operation.Status.IsTerminal()` == false
 - `Operation.Request` == `Update`
 - `Operation.ExternalID.ResourceType` == `NodePoolResourceType`
 
+**Gate (shouldReconcileOperationAndResourceStatus on NodePool):**
+- `NodePool.ServiceProviderProperties.DeletionTimestamp` == nil
+- `NodePool.ServiceProviderProperties.ClusterServiceID` != nil
+
 | | Object | Fields |
 |---|--------|--------|
-| Read | `Operation` | <ul><li>`Status` (ShouldProcess: must not be terminal)</li><li>`Request` (ShouldProcess: must be `Update`)</li><li>`InternalID`</li></ul> |
-| Read | `HCPOpenShiftClusterNodePool` | <ul><li>`Properties.Version.ID`</li></ul> |
+| Read | `Operation` | <ul><li>`Status` (ShouldProcess: must not be terminal)</li><li>`Request` (ShouldProcess: must be `Update`)</li><li>`ExternalID` (ShouldProcess: resource type must be `NodePoolResourceType`)</li><li>`ResourceID.Name`, `ResourceID.String()`</li></ul> |
+| Read | `HCPOpenShiftClusterNodePool` | <ul><li>`ServiceProviderProperties.ActiveOperationID` (mismatch check)</li><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: must be nil)</li><li>`ServiceProviderProperties.ClusterServiceID` (NeedsWork: must not be nil)</li><li>`Properties.Version.ID`</li><li>`Properties.Labels`</li><li>`Properties.AutoScaling` (Min, Max)</li><li>`Properties.Replicas`</li><li>`Properties.Taints`</li><li>`Properties.NodeDrainTimeoutMinutes`</li></ul> |
 | Read | `ServiceProviderNodePool` | <ul><li>`Spec.NodePoolVersion.DesiredVersion`</li></ul> |
-| Read | Controller(`NodePoolVersion`) | <ul><li>`Status.Conditions[IntentFailed]`</li></ul> |
-| Read | Cluster Service | <ul><li>node pool status</li></ul> |
-| **Write** | **`Operation`** | <ul><li>**`Status`**, **`Error`**, **`LastTransitionTime`**</li></ul> |
+| Read | Controller(`NodepoolVersion`) | <ul><li>`Status.Conditions[IntentFailed]` (Status, Reason, Message)</li></ul> |
+| Read | ReadDesire (NodePool) | <ul><li>`Spec.NodeLabels`</li><li>`Spec.AutoScaling` (Min, Max)</li><li>`Spec.Replicas`</li><li>`Spec.Taints`</li><li>`Spec.NodeDrainTimeout`</li><li>`Status.Replicas`</li><li>`Status.Conditions` (AllMachinesReadyConditionType)</li></ul> |
+| Read | Cluster Service | <ul><li>node pool status, labels, taints, nodeDrainGracePeriod</li></ul> |
+| **Write** | **`Operation`** | <ul><li>**`Status`** -> `Updating`/`Succeeded`/`Failed`</li><li>**`Error`** (on failure)</li><li>**`LastTransitionTime`**</li></ul> |
 | **Write** | **`HCPOpenShiftClusterNodePool`** | <ul><li>**`Properties.ProvisioningState`** = new status</li><li>**`ServiceProviderProperties.ActiveOperationID`** = `""` (on terminal)</li></ul> |
 
 #### OperationNodePoolDelete
 
-**File:** [operation_node_pool_delete.go](pkg/controllers/operationcontrollers/operation_node_pool_delete.go)
+**File:** [operation_node_pool_delete.go](../backend/pkg/controllers/operationcontrollers/operation_node_pool_delete.go)
 **Gate (ShouldProcess on Operation):**
 - `Operation.Status.IsTerminal()` == false
 - `Operation.Request` == `Delete`
@@ -315,11 +327,11 @@ which performs a **transactional batch** to atomically update the operation and 
 | Read | `HCPOpenShiftClusterNodePool` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.ClusterServiceDeletionTimestamp` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.ClusterServiceID` (NeedsWork: must not be nil)</li></ul> |
 | Read | Cluster Service | <ul><li>node pool status (or 404)</li></ul> |
 | **Write** | **`Operation`** | <ul><li>**`Status`** -> `Succeeded` (when NP doc deleted)</li><li>**`Error`**, **`LastTransitionTime`**</li></ul> |
-| **Write** | **`HCPOpenShiftClusterNodePool`** | <ul><li>**`Properties.ProvisioningState`** = new status</li><li>**`ServiceProviderProperties.ActiveOperationID`** = `""` (on terminal)</li></ul> |
+| **Write** | **`HCPOpenShiftClusterNodePool`** | <ul><li>**`Properties.ProvisioningState`** = new status (while doc exists)</li><li>**`ServiceProviderProperties.ActiveOperationID`** = `""` (on terminal)</li></ul> |
 
 #### OperationExternalAuthCreate
 
-**File:** [operation_external_auth_create.go](pkg/controllers/operationcontrollers/operation_external_auth_create.go)
+**File:** [operation_external_auth_create.go](../backend/pkg/controllers/operationcontrollers/operation_external_auth_create.go)
 **Gate (ShouldProcess on Operation):**
 - `Operation.Status.IsTerminal()` == false
 - `Operation.Request` == `Create`
@@ -331,30 +343,36 @@ which performs a **transactional batch** to atomically update the operation and 
 
 | | Object | Fields |
 |---|--------|--------|
-| Read | `Operation` | <ul><li>`Status` (ShouldProcess: must not be terminal)</li><li>`Request` (ShouldProcess: must be `Create`)</li><li>`ExternalID` (ShouldProcess: resource type must be `ExternalAuthResourceType`)</li><li>`OperationID`</li></ul> |
+| Read | `Operation` | <ul><li>`Status` (ShouldProcess: must not be terminal)</li><li>`Request` (ShouldProcess: must be `Create`)</li><li>`ExternalID` (ShouldProcess: resource type must be `ExternalAuthResourceType`)</li><li>`ResourceID.Name`</li></ul> |
 | Read | `HCPOpenShiftClusterExternalAuth` | <ul><li>`ServiceProviderProperties.ActiveOperationID` (mismatch check)</li><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: must be nil)</li><li>`ServiceProviderProperties.ClusterServiceID` (NeedsWork: must not be nil)</li></ul> |
-| Read | Cluster Service | <ul><li>external auth status</li></ul> |
-| **Write** | **`Operation`** | <ul><li>**`Status`** -> `Provisioning`/`Succeeded`/`Failed`</li><li>**`Error`** (on failure)</li><li>**`LastTransitionTime`**</li><li>**`NotificationURI`** (cleared after ARM notification)</li></ul> |
+| Read | Cluster Service | <ul><li>external auth GET (success implies Succeeded)</li></ul> |
+| **Write** | **`Operation`** | <ul><li>**`Status`** -> `Succeeded`/`Failed`</li><li>**`Error`** (on failure)</li><li>**`LastTransitionTime`**</li><li>**`NotificationURI`** (cleared after ARM notification)</li></ul> |
 | **Write** | **`HCPOpenShiftClusterExternalAuth`** | <ul><li>**`Properties.ProvisioningState`** = new status</li><li>**`ServiceProviderProperties.ActiveOperationID`** = `""` (on terminal)</li></ul> |
 
 #### OperationExternalAuthUpdate
 
-**File:** [operation_external_auth_update.go](pkg/controllers/operationcontrollers/operation_external_auth_update.go)
+**File:** [operation_external_auth_update.go](../backend/pkg/controllers/operationcontrollers/operation_external_auth_update.go)
 **Gate (ShouldProcess on Operation):**
 - `Operation.Status.IsTerminal()` == false
 - `Operation.Request` == `Update`
 - `Operation.ExternalID.ResourceType` == `ExternalAuthResourceType`
 
+**Gate (shouldReconcileOperationAndResourceStatus on ExternalAuth):**
+- `ExternalAuth.ServiceProviderProperties.DeletionTimestamp` == nil
+- `ExternalAuth.ServiceProviderProperties.ClusterServiceID` != nil
+
 | | Object | Fields |
 |---|--------|--------|
-| Read | `Operation` | <ul><li>`Status` (ShouldProcess: must not be terminal)</li><li>`Request` (ShouldProcess: must be `Update`)</li><li>`InternalID`</li></ul> |
-| Read | Cluster Service | <ul><li>external auth status</li></ul> |
-| **Write** | **`Operation`** | <ul><li>**`Status`**, **`Error`**, **`LastTransitionTime`**</li></ul> |
+| Read | `Operation` | <ul><li>`Status` (ShouldProcess: must not be terminal)</li><li>`Request` (ShouldProcess: must be `Update`)</li><li>`ExternalID` (ShouldProcess: resource type must be `ExternalAuthResourceType`)</li><li>`ResourceID.Name`</li></ul> |
+| Read | `HCPOpenShiftClusterExternalAuth` | <ul><li>`ServiceProviderProperties.ActiveOperationID` (mismatch check)</li><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: must be nil)</li><li>`ServiceProviderProperties.ClusterServiceID` (NeedsWork: must not be nil)</li><li>`Name`</li><li>`Properties.Issuer` (URL, Audiences)</li><li>`Properties.Clients` (ClientID, Component.Name, Component.AuthClientNamespace, ExtraScopes)</li><li>`Properties.Claim` (Mappings.Username.Claim/PrefixPolicy/Prefix, Mappings.Groups.Claim/Prefix, ValidationRules)</li></ul> |
+| Read | ReadDesire (HostedCluster) | <ul><li>`Spec.Configuration.Authentication.OIDCProviders` (Name, Issuer, OIDCClients, ClaimMappings, ClaimValidationRules)</li></ul> |
+| Read | Cluster Service | <ul><li>external auth spec (canonical JSON comparison)</li></ul> |
+| **Write** | **`Operation`** | <ul><li>**`Status`** -> `Updating`/`Succeeded`/`Failed`</li><li>**`Error`** (on failure)</li><li>**`LastTransitionTime`**</li></ul> |
 | **Write** | **`HCPOpenShiftClusterExternalAuth`** | <ul><li>**`Properties.ProvisioningState`** = new status</li><li>**`ServiceProviderProperties.ActiveOperationID`** = `""` (on terminal)</li></ul> |
 
 #### OperationExternalAuthDelete
 
-**File:** [operation_external_auth_delete.go](pkg/controllers/operationcontrollers/operation_external_auth_delete.go)
+**File:** [operation_external_auth_delete.go](../backend/pkg/controllers/operationcontrollers/operation_external_auth_delete.go)
 **Gate (ShouldProcess on Operation):**
 - `Operation.Status.IsTerminal()` == false
 - `Operation.Request` == `Delete`
@@ -371,25 +389,53 @@ which performs a **transactional batch** to atomically update the operation and 
 | Read | `HCPOpenShiftClusterExternalAuth` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.ClusterServiceDeletionTimestamp` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.ClusterServiceID` (NeedsWork: must not be nil)</li></ul> |
 | Read | Cluster Service | <ul><li>external auth status (or 404)</li></ul> |
 | **Write** | **`Operation`** | <ul><li>**`Status`** -> `Succeeded` (when EA doc deleted)</li><li>**`Error`**, **`LastTransitionTime`**</li></ul> |
-| **Write** | **`HCPOpenShiftClusterExternalAuth`** | <ul><li>**`Properties.ProvisioningState`** = new status</li><li>**`ServiceProviderProperties.ActiveOperationID`** = `""` (on terminal)</li></ul> |
+| **Write** | **`HCPOpenShiftClusterExternalAuth`** | <ul><li>**`Properties.ProvisioningState`** = new status (while doc exists)</li><li>**`ServiceProviderProperties.ActiveOperationID`** = `""` (on terminal)</li></ul> |
 
-#### OperationRequestCredential
+#### DispatchRequestCredential
 
-**File:** [operation_request_credential.go](pkg/controllers/operationcontrollers/operation_request_credential.go)
+**File:** [dispatch_request_credential.go](../backend/pkg/controllers/operationcontrollers/dispatch_request_credential.go)
 **Gate (ShouldProcess on Operation):**
 - `Operation.Status.IsTerminal()` == false
 - `Operation.Request` == `RequestCredential`
-- `len(Operation.InternalID.String())` > 0
+- `len(Operation.InternalID.String())` == 0 (not yet dispatched)
+
+| | Object | Fields |
+|---|--------|--------|
+| Read | `Operation` | <ul><li>`Status` (ShouldProcess: must not be terminal)</li><li>`Request` (ShouldProcess: must be `RequestCredential`)</li><li>`InternalID` (ShouldProcess: must be empty)</li><li>`ExternalID`</li></ul> |
+| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.ClusterServiceID` (must not be nil)</li><li>`ServiceProviderProperties.RevokeCredentialsOperationID` (if non-empty, cancels operation)</li></ul> |
+| **Write** | **`Operation`** | <ul><li>**`InternalID`** = CS break-glass credential HREF (on success)</li><li>**`Status`** = `Canceled` (if revocation in progress, via `CancelOperation`)</li><li>**`LastTransitionTime`** (if canceled)</li></ul> |
+
+#### OperationRequestCredential
+
+**File:** [operation_request_credential.go](../backend/pkg/controllers/operationcontrollers/operation_request_credential.go)
+**Gate (ShouldProcess on Operation):**
+- `Operation.Status.IsTerminal()` == false
+- `Operation.Request` == `RequestCredential`
+- `len(Operation.InternalID.String())` > 0 (has been dispatched)
 
 | | Object | Fields |
 |---|--------|--------|
 | Read | `Operation` | <ul><li>`Status` (ShouldProcess: must not be terminal)</li><li>`Request` (ShouldProcess: must be `RequestCredential`)</li><li>`InternalID` (ShouldProcess: must be non-empty)</li></ul> |
 | Read | Cluster Service | <ul><li>break-glass credential status (Created/Failed/Issued)</li></ul> |
-| **Write** | **`Operation`** | <ul><li>**`Status`**, **`Error`**, **`LastTransitionTime`** (via `patchOperation`)</li></ul> |
+| **Write** | **`Operation`** | <ul><li>**`Status`** -> `Provisioning`/`Succeeded`/`Failed` (via `patchOperation`)</li><li>**`Error`** (on failure)</li><li>**`LastTransitionTime`**</li></ul> |
+
+#### DispatchRevokeCredentials
+
+**File:** [dispatch_revoke_credentials.go](../backend/pkg/controllers/operationcontrollers/dispatch_revoke_credentials.go)
+**Gate (ShouldProcess on Operation):**
+- `Operation.Status.IsTerminal()` == false
+- `Operation.Request` == `RevokeCredentials`
+- `Operation.Status` == `Accepted` (not yet dispatched)
+
+| | Object | Fields |
+|---|--------|--------|
+| Read | `Operation` | <ul><li>`Status` (ShouldProcess: must not be terminal, must be `Accepted`)</li><li>`Request` (ShouldProcess: must be `RevokeCredentials`)</li><li>`ExternalID`</li><li>`OperationID.Name`</li><li>`InternalID`</li></ul> |
+| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.RevokeCredentialsOperationID` (must match operation ID)</li></ul> |
+| **Write** | **`Operation`** | <ul><li>**`Status`** = `Deleting` (after CS dispatch)</li><li>**`Status`** = `Canceled` (if RevokeCredentialsOperationID mismatch, via `CancelOperation`)</li></ul> |
 
 #### OperationRevokeCredentials
 
-**File:** [operation_revoke_credentials.go](pkg/controllers/operationcontrollers/operation_revoke_credentials.go)
+**File:** [operation_revoke_credentials.go](../backend/pkg/controllers/operationcontrollers/operation_revoke_credentials.go)
 **Gate (ShouldProcess on Operation):**
 - `Operation.Status.IsTerminal()` == false
 - `Operation.Request` == `RevokeCredentials`
@@ -397,10 +443,10 @@ which performs a **transactional batch** to atomically update the operation and 
 
 | | Object | Fields |
 |---|--------|--------|
-| Read | `Operation` | <ul><li>`Status` (ShouldProcess: must not be terminal, must not be `Accepted`)</li><li>`Request` (ShouldProcess: must be `RevokeCredentials`)</li></ul> |
+| Read | `Operation` | <ul><li>`Status` (ShouldProcess: must not be terminal, must not be `Accepted`)</li><li>`Request` (ShouldProcess: must be `RevokeCredentials`)</li><li>`InternalID`</li><li>`OperationID.Name`</li></ul> |
 | Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.RevokeCredentialsOperationID`</li></ul> |
-| Read | Cluster Service | <ul><li>`ListBreakGlassCredentials` status</li></ul> |
-| **Write** | **`Operation`** | <ul><li>**`Status`**, **`Error`**, **`LastTransitionTime`**</li></ul> |
+| Read | Cluster Service | <ul><li>`ListBreakGlassCredentials` status (AwaitingRevocation/Revoked/Expired/Failed)</li></ul> |
+| **Write** | **`Operation`** | <ul><li>**`Status`** -> `Succeeded`/`Failed`</li><li>**`Error`** (on failure)</li><li>**`LastTransitionTime`**</li></ul> |
 | **Write** | **`HCPOpenShiftCluster`** | <ul><li>**`ServiceProviderProperties.RevokeCredentialsOperationID`** = `""` (cleared when matches)</li></ul> |
 
 ---
@@ -409,7 +455,7 @@ which performs a **transactional batch** to atomically update the operation and 
 
 #### ClusterClusterServiceCreate
 
-**File:** [cluster_cluster_service_create_controller.go](pkg/controllers/clustercreation/cluster_cluster_service_create_controller.go)
+**File:** [cluster_cluster_service_create_controller.go](../backend/pkg/controllers/clustercreation/cluster_cluster_service_create_controller.go)
 **Trigger:** Cluster informer, 1-minute resync
 **Gate (needsWork on Cluster):**
 - `Cluster.ServiceProviderProperties.DeletionTimestamp` == nil
@@ -417,11 +463,33 @@ which performs a **transactional batch** to atomically update the operation and 
 
 | | Object | Fields |
 |---|--------|--------|
-| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: must be nil)</li><li>`ServiceProviderProperties.ClusterServiceID` (NeedsWork: must be nil or empty)</li><li>All `CustomerProperties.*` (for building CS cluster request)</li><li>`ID`</li></ul> |
-| Read | `ServiceProviderCluster` | <ul><li>`Spec.ControlPlaneVersion.DesiredVersion` (must be non-nil)</li></ul> |
+| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: must be nil)</li><li>`ServiceProviderProperties.ClusterServiceID` (NeedsWork: must be nil or empty)</li><li>All `CustomerProperties.*` (for building CS cluster request)</li><li>`ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL`</li><li>`ServiceProviderProperties.ExperimentalFeatures.*`</li><li>`ID`</li></ul> |
+| Read | `ServiceProviderCluster` | <ul><li>`Spec.ControlPlaneVersion.DesiredVersion` (precondition: must be non-nil)</li><li>`Spec.DesiredHostedClusterControlPlaneSize`</li></ul> |
 | Read | `Subscription` | <ul><li>`Properties.TenantId`</li></ul> |
 | Read | Cluster Service | <ul><li>`ListClusters` (search by Azure info), `PostCluster`</li></ul> |
 | **Write** | **`HCPOpenShiftCluster`** | <ul><li>**`ServiceProviderProperties.ClusterServiceID`** = CS internal ID</li></ul> |
+| **Write** | **`ServiceProviderCluster`** | <ul><li>Created if not exists (via `GetOrCreateServiceProviderCluster`)</li></ul> |
+
+---
+
+### Cluster Update Controllers
+
+#### ClusterClusterServiceUpdateDispatch
+
+**File:** [cluster_cluster_service_update_dispatch_controller.go](../backend/pkg/controllers/clusterupdate/cluster_cluster_service_update_dispatch_controller.go)
+**Trigger:** Cluster informer, 1-minute resync
+**Gate (needsWork on Cluster):**
+- `Cluster.ServiceProviderProperties.DeletionTimestamp` == nil
+- `Cluster.ServiceProviderProperties.ClusterServiceID` != nil and non-empty
+
+| | Object | Fields |
+|---|--------|--------|
+| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: must be nil)</li><li>`ServiceProviderProperties.ClusterServiceID` (NeedsWork: must not be nil and non-empty)</li><li>`CustomerProperties.API.AuthorizedCIDRs`</li><li>`CustomerProperties.NodeDrainTimeoutMinutes`</li><li>`CustomerProperties.Autoscaling.*`</li><li>`CustomerProperties.ImageDigestMirrors`</li><li>`ServiceProviderProperties.ExperimentalFeatures.*`</li></ul> |
+| Read | `ServiceProviderCluster` | <ul><li>`Spec.DesiredHostedClusterControlPlaneSize`</li></ul> |
+| Read | `Subscription` | <ul><li>`Properties.TenantId`</li></ul> |
+| Read | Cluster Service | <ul><li>`GetCluster` (for config comparison)</li></ul> |
+
+No Cosmos writes. Dispatches updates to Cluster Service via PATCH.
 
 ---
 
@@ -429,7 +497,7 @@ which performs a **transactional batch** to atomically update the operation and 
 
 #### ClusterClusterServiceDeleteDispatch
 
-**File:** [cluster_cluster_service_delete_dispatch_controller.go](pkg/controllers/clusterdeletion/cluster_cluster_service_delete_dispatch_controller.go)
+**File:** [cluster_cluster_service_delete_dispatch_controller.go](../backend/pkg/controllers/clusterdeletion/cluster_cluster_service_delete_dispatch_controller.go)
 **Trigger:** Cluster informer, 1-minute resync
 **Gate (NeedsWork on Cluster):**
 - `Cluster.ServiceProviderProperties.UsesNewClusterDeletionApproach` == true
@@ -443,7 +511,7 @@ which performs a **transactional batch** to atomically update the operation and 
 
 #### ClusterDeletionClusterServiceIDClearer
 
-**File:** [cluster_cluster_service_id_clearer.go](pkg/controllers/clusterdeletion/cluster_cluster_service_id_clearer.go)
+**File:** [cluster_cluster_service_id_clearer.go](../backend/pkg/controllers/clusterdeletion/cluster_cluster_service_id_clearer.go)
 **Trigger:** Cluster informer, 1-minute resync
 **Gate (NeedsWork on Cluster):**
 - `Cluster.ServiceProviderProperties.UsesNewClusterDeletionApproach` == true
@@ -453,13 +521,13 @@ which performs a **transactional batch** to atomically update the operation and 
 
 | | Object | Fields |
 |---|--------|--------|
-| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.UsesNewClusterDeletionApproach` (NeedsWork: must be true)</li><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.ClusterServiceDeletionTimestamp` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.ClusterServiceID` (NeedsWork: must not be nil)</li></ul> |
+| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.UsesNewClusterDeletionApproach` (NeedsWork: must be true)</li><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.ClusterServiceDeletionTimestamp` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.ClusterServiceID` (NeedsWork: must not be nil and non-empty)</li></ul> |
 | Read | Cluster Service | <ul><li>expects 404</li></ul> |
 | **Write** | **`HCPOpenShiftCluster`** | <ul><li>**`ServiceProviderProperties.ClusterServiceID`** = `nil`</li></ul> |
 
 #### ClusterChildResourcesCleanupController
 
-**File:** [cluster_child_resources_cleanup_controller.go](pkg/controllers/clusterdeletion/cluster_child_resources_cleanup_controller.go)
+**File:** [cluster_child_resources_cleanup_controller.go](../backend/pkg/controllers/clusterdeletion/cluster_child_resources_cleanup_controller.go)
 **Trigger:** Cluster informer, 1-minute resync
 **Gate (NeedsWork on Cluster):**
 - `Cluster.ServiceProviderProperties.UsesNewClusterDeletionApproach` == true
@@ -473,11 +541,11 @@ which performs a **transactional batch** to atomically update the operation and 
 | Read | `ServiceProviderCluster` | <ul><li>`Status.ManagementClusterResourceID`</li><li>`Status.MaestroReadonlyBundles`</li></ul> |
 | Read | Child NodePools | <ul><li>list (must be empty)</li></ul> |
 | Read | Child ExternalAuths | <ul><li>list (must be empty)</li></ul> |
-| **Write** | Child Cosmos docs | <ul><li>**DELETES** ManagementClusterContent, ServiceProviderCluster, kube-applier desires</li></ul> |
+| **Write** | Child Cosmos docs | <ul><li>**DELETES** ServiceProviderCluster (when MaestroReadonlyBundles empty and kube-applier desires gone)</li><li>**DELETES** ManagementClusterContent docs</li><li>**DELETES** kube-applier desire documents</li></ul> |
 
 #### ClusterDeletionController
 
-**File:** [cluster_deletion_controller.go](pkg/controllers/clusterdeletion/cluster_deletion_controller.go)
+**File:** [cluster_deletion_controller.go](../backend/pkg/controllers/clusterdeletion/cluster_deletion_controller.go)
 **Trigger:** Cluster informer, 1-minute resync
 **Gate (NeedsWork on Cluster):**
 - `Cluster.ServiceProviderProperties.UsesNewClusterDeletionApproach` == true
@@ -488,7 +556,7 @@ which performs a **transactional batch** to atomically update the operation and 
 **Additional SyncOnce preconditions:**
 - All NodePools deleted
 - All ExternalAuths deleted
-- All child Cosmos resources deleted
+- All child Cosmos resources deleted (except controllers)
 - All Maestro readonly bundles cleared
 
 | | Object | Fields |
@@ -507,7 +575,7 @@ which performs a **transactional batch** to atomically update the operation and 
 
 #### NodePoolClusterServiceCreate
 
-**File:** [node_pool_cluster_service_create_controller.go](pkg/controllers/nodepoolcreationcontrollers/node_pool_cluster_service_create_controller.go)
+**File:** [node_pool_cluster_service_create_controller.go](../backend/pkg/controllers/nodepoolcreationcontrollers/node_pool_cluster_service_create_controller.go)
 **Trigger:** NodePool informer, 1-minute resync
 **Gate (needsWork on NodePool):**
 - `NodePool.ServiceProviderProperties.DeletionTimestamp` == nil
@@ -515,10 +583,29 @@ which performs a **transactional batch** to atomically update the operation and 
 
 | | Object | Fields |
 |---|--------|--------|
-| Read | `HCPOpenShiftClusterNodePool` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: must be nil)</li><li>`ServiceProviderProperties.ClusterServiceID` (NeedsWork: must be nil or empty)</li></ul> |
+| Read | `HCPOpenShiftClusterNodePool` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: must be nil)</li><li>`ServiceProviderProperties.ClusterServiceID` (NeedsWork: must be nil or empty)</li><li>All `Properties.*` (for building CS node pool request)</li></ul> |
 | Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.ClusterServiceID`</li></ul> |
 | Read | Cluster Service | <ul><li>`GetNodePool` (adoption check), `PostNodePool`</li></ul> |
 | **Write** | **`HCPOpenShiftClusterNodePool`** | <ul><li>**`ServiceProviderProperties.ClusterServiceID`** = CS internal ID</li></ul> |
+
+---
+
+### NodePool Update Controllers
+
+#### NodePoolClusterServiceUpdateDispatch
+
+**File:** [node_pool_cluster_service_update_dispatch_controller.go](../backend/pkg/controllers/nodepoolupdate/node_pool_cluster_service_update_dispatch_controller.go)
+**Trigger:** NodePool informer, 1-minute resync
+**Gate (needsWork on NodePool):**
+- `NodePool.ServiceProviderProperties.DeletionTimestamp` == nil
+- `NodePool.ServiceProviderProperties.ClusterServiceID` != nil and non-empty
+
+| | Object | Fields |
+|---|--------|--------|
+| Read | `HCPOpenShiftClusterNodePool` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: must be nil)</li><li>`ServiceProviderProperties.ClusterServiceID` (NeedsWork: must not be nil and non-empty)</li><li>`Properties.Labels`</li><li>`Properties.Taints`</li><li>`Properties.Replicas`</li><li>`Properties.AutoScaling`</li><li>`Properties.NodeDrainTimeoutMinutes`</li></ul> |
+| Read | Cluster Service | <ul><li>`GetNodePool` (for config comparison)</li></ul> |
+
+No Cosmos writes. Dispatches updates to Cluster Service via PATCH.
 
 ---
 
@@ -526,7 +613,7 @@ which performs a **transactional batch** to atomically update the operation and 
 
 #### NodePoolClusterServiceDeleteDispatch
 
-**File:** [node_pool_cluster_service_delete_dispatch_controller.go](pkg/controllers/nodepooldeletion/node_pool_cluster_service_delete_dispatch_controller.go)
+**File:** [node_pool_cluster_service_delete_dispatch_controller.go](../backend/pkg/controllers/nodepooldeletion/node_pool_cluster_service_delete_dispatch_controller.go)
 **Trigger:** NodePool informer, 1-minute resync
 **Gate (NeedsWork on NodePool):**
 - `NodePool.ServiceProviderProperties.UsesNewNodePoolDeletionApproach` == true
@@ -540,7 +627,7 @@ which performs a **transactional batch** to atomically update the operation and 
 
 #### NodePoolDeletionClusterServiceIDClearer
 
-**File:** [node_pool_cluster_service_id_clearer.go](pkg/controllers/nodepooldeletion/node_pool_cluster_service_id_clearer.go)
+**File:** [node_pool_cluster_service_id_clearer.go](../backend/pkg/controllers/nodepooldeletion/node_pool_cluster_service_id_clearer.go)
 **Trigger:** NodePool informer, 1-minute resync
 **Gate (NeedsWork on NodePool):**
 - `NodePool.ServiceProviderProperties.UsesNewNodePoolDeletionApproach` == true
@@ -550,13 +637,13 @@ which performs a **transactional batch** to atomically update the operation and 
 
 | | Object | Fields |
 |---|--------|--------|
-| Read | `HCPOpenShiftClusterNodePool` | <ul><li>`ServiceProviderProperties.UsesNewNodePoolDeletionApproach` (NeedsWork: must be true)</li><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.ClusterServiceDeletionTimestamp` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.ClusterServiceID` (NeedsWork: must not be nil)</li></ul> |
+| Read | `HCPOpenShiftClusterNodePool` | <ul><li>`ServiceProviderProperties.UsesNewNodePoolDeletionApproach` (NeedsWork: must be true)</li><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.ClusterServiceDeletionTimestamp` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.ClusterServiceID` (NeedsWork: must not be nil and non-empty)</li></ul> |
 | Read | Cluster Service | <ul><li>expects 404</li></ul> |
 | **Write** | **`HCPOpenShiftClusterNodePool`** | <ul><li>**`ServiceProviderProperties.ClusterServiceID`** = `nil`</li></ul> |
 
 #### NodePoolChildResourcesCleanupController
 
-**File:** [node_pool_child_resources_cleanup_controller.go](pkg/controllers/nodepooldeletion/node_pool_child_resources_cleanup_controller.go)
+**File:** [node_pool_child_resources_cleanup_controller.go](../backend/pkg/controllers/nodepooldeletion/node_pool_child_resources_cleanup_controller.go)
 **Trigger:** NodePool informer, 1-minute resync
 **Gate (NeedsWork on NodePool):**
 - `NodePool.ServiceProviderProperties.UsesNewNodePoolDeletionApproach` == true
@@ -569,11 +656,11 @@ which performs a **transactional batch** to atomically update the operation and 
 | Read | `HCPOpenShiftClusterNodePool` | <ul><li>`ServiceProviderProperties.UsesNewNodePoolDeletionApproach` (NeedsWork: must be true)</li><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.ClusterServiceDeletionTimestamp` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.ClusterServiceID` (NeedsWork: must be nil)</li></ul> |
 | Read | `ServiceProviderNodePool` | <ul><li>`Status.MaestroReadonlyBundles`</li></ul> |
 | Read | `ServiceProviderCluster` | <ul><li>`Status.ManagementClusterResourceID`</li></ul> |
-| **Write** | Child Cosmos docs | <ul><li>**DELETES** ManagementClusterContent docs under NodePool</li><li>**DELETES** ServiceProviderNodePool (when Maestro bundles cleared)</li><li>**DELETES** nodepool-scoped kube-applier ReadDesire documents</li></ul> |
+| **Write** | Child Cosmos docs | <ul><li>**DELETES** ManagementClusterContent docs under NodePool</li><li>**DELETES** ServiceProviderNodePool (when Maestro bundles cleared and kube-applier desires gone)</li><li>**DELETES** nodepool-scoped kube-applier desire documents</li></ul> |
 
 #### NodePoolDeletionController
 
-**File:** [node_pool_deletion_controller.go](pkg/controllers/nodepooldeletion/node_pool_deletion_controller.go)
+**File:** [node_pool_deletion_controller.go](../backend/pkg/controllers/nodepooldeletion/node_pool_deletion_controller.go)
 **Trigger:** NodePool informer, 1-minute resync
 **Gate (NeedsWork on NodePool):**
 - `NodePool.ServiceProviderProperties.UsesNewNodePoolDeletionApproach` == true
@@ -583,7 +670,7 @@ which performs a **transactional batch** to atomically update the operation and 
 
 **Additional SyncOnce preconditions:**
 - All Maestro readonly bundles cleared
-- All child Cosmos resources deleted
+- All child Cosmos resources deleted (except controllers)
 
 | | Object | Fields |
 |---|--------|--------|
@@ -598,7 +685,7 @@ which performs a **transactional batch** to atomically update the operation and 
 
 #### ExternalAuthClusterServiceCreate
 
-**File:** [external_auth_cluster_service_create_controller.go](pkg/controllers/externalauthcreationcontrollers/external_auth_cluster_service_create_controller.go)
+**File:** [external_auth_cluster_service_create_controller.go](../backend/pkg/controllers/externalauthcreationcontrollers/external_auth_cluster_service_create_controller.go)
 **Trigger:** ExternalAuth informer, 1-minute resync
 **Gate (needsWork on ExternalAuth):**
 - `ExternalAuth.ServiceProviderProperties.DeletionTimestamp` == nil
@@ -606,10 +693,29 @@ which performs a **transactional batch** to atomically update the operation and 
 
 | | Object | Fields |
 |---|--------|--------|
-| Read | `HCPOpenShiftClusterExternalAuth` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: must be nil)</li><li>`ServiceProviderProperties.ClusterServiceID` (NeedsWork: must be nil or empty)</li></ul> |
+| Read | `HCPOpenShiftClusterExternalAuth` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: must be nil)</li><li>`ServiceProviderProperties.ClusterServiceID` (NeedsWork: must be nil or empty)</li><li>All `Properties.*` (for building CS external auth request)</li></ul> |
 | Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.ClusterServiceID`</li></ul> |
 | Read | Cluster Service | <ul><li>`PostExternalAuth`</li></ul> |
 | **Write** | **`HCPOpenShiftClusterExternalAuth`** | <ul><li>**`ServiceProviderProperties.ClusterServiceID`** = CS internal ID</li></ul> |
+
+---
+
+### ExternalAuth Update Controllers
+
+#### ExternalAuthClusterServiceUpdateDispatch
+
+**File:** [external_auth_cluster_service_update_dispatch_controller.go](../backend/pkg/controllers/externalauthupdate/external_auth_cluster_service_update_dispatch_controller.go)
+**Trigger:** ExternalAuth informer, 1-minute resync
+**Gate (needsWork on ExternalAuth):**
+- `ExternalAuth.ServiceProviderProperties.DeletionTimestamp` == nil
+- `ExternalAuth.ServiceProviderProperties.ClusterServiceID` != nil and non-empty
+
+| | Object | Fields |
+|---|--------|--------|
+| Read | `HCPOpenShiftClusterExternalAuth` | <ul><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: must be nil)</li><li>`ServiceProviderProperties.ClusterServiceID` (NeedsWork: must not be nil and non-empty)</li><li>`Properties.Issuer` (URL, Audiences, CA)</li><li>`Properties.Clients` (ClientID, Component, ExtraScopes, Type)</li><li>`Properties.Claim` (Mappings, ValidationRules)</li></ul> |
+| Read | Cluster Service | <ul><li>`GetExternalAuth` (for config comparison)</li></ul> |
+
+No Cosmos writes. Dispatches updates to Cluster Service via PATCH.
 
 ---
 
@@ -617,7 +723,7 @@ which performs a **transactional batch** to atomically update the operation and 
 
 #### ExternalAuthClusterServiceDeleteDispatch
 
-**File:** [external_auth_cluster_service_delete_dispatch_controller.go](pkg/controllers/externalauthdeletion/external_auth_cluster_service_delete_dispatch_controller.go)
+**File:** [external_auth_cluster_service_delete_dispatch_controller.go](../backend/pkg/controllers/externalauthdeletion/external_auth_cluster_service_delete_dispatch_controller.go)
 **Trigger:** ExternalAuth informer, 1-minute resync
 **Gate (NeedsWork on ExternalAuth):**
 - `ExternalAuth.ServiceProviderProperties.UsesNewExternalAuthDeletionApproach` == true
@@ -631,7 +737,7 @@ which performs a **transactional batch** to atomically update the operation and 
 
 #### ExternalAuthDeletionClusterServiceIDClearer
 
-**File:** [external_auth_cluster_service_id_clearer.go](pkg/controllers/externalauthdeletion/external_auth_cluster_service_id_clearer.go)
+**File:** [external_auth_cluster_service_id_clearer.go](../backend/pkg/controllers/externalauthdeletion/external_auth_cluster_service_id_clearer.go)
 **Trigger:** ExternalAuth informer, 1-minute resync
 **Gate (NeedsWork on ExternalAuth):**
 - `ExternalAuth.ServiceProviderProperties.UsesNewExternalAuthDeletionApproach` == true
@@ -641,13 +747,13 @@ which performs a **transactional batch** to atomically update the operation and 
 
 | | Object | Fields |
 |---|--------|--------|
-| Read | `HCPOpenShiftClusterExternalAuth` | <ul><li>`ServiceProviderProperties.UsesNewExternalAuthDeletionApproach` (NeedsWork: must be true)</li><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.ClusterServiceDeletionTimestamp` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.ClusterServiceID` (NeedsWork: must not be nil)</li></ul> |
+| Read | `HCPOpenShiftClusterExternalAuth` | <ul><li>`ServiceProviderProperties.UsesNewExternalAuthDeletionApproach` (NeedsWork: must be true)</li><li>`ServiceProviderProperties.DeletionTimestamp` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.ClusterServiceDeletionTimestamp` (NeedsWork: must not be nil)</li><li>`ServiceProviderProperties.ClusterServiceID` (NeedsWork: must not be nil and non-empty)</li></ul> |
 | Read | Cluster Service | <ul><li>expects 404</li></ul> |
 | **Write** | **`HCPOpenShiftClusterExternalAuth`** | <ul><li>**`ServiceProviderProperties.ClusterServiceID`** = `nil`</li></ul> |
 
 #### ExternalAuthChildResourcesCleanupController
 
-**File:** [external_auth_child_resources_cleanup_controller.go](pkg/controllers/externalauthdeletion/external_auth_child_resources_cleanup_controller.go)
+**File:** [external_auth_child_resources_cleanup_controller.go](../backend/pkg/controllers/externalauthdeletion/external_auth_child_resources_cleanup_controller.go)
 **Trigger:** ExternalAuth informer, 1-minute resync
 **Gate (NeedsWork on ExternalAuth):**
 - `ExternalAuth.ServiceProviderProperties.UsesNewExternalAuthDeletionApproach` == true
@@ -662,7 +768,7 @@ which performs a **transactional batch** to atomically update the operation and 
 
 #### ExternalAuthDeletionController
 
-**File:** [external_auth_deletion_controller.go](pkg/controllers/externalauthdeletion/external_auth_deletion_controller.go)
+**File:** [external_auth_deletion_controller.go](../backend/pkg/controllers/externalauthdeletion/external_auth_deletion_controller.go)
 **Trigger:** ExternalAuth informer, 1-minute resync
 **Gate (NeedsWork on ExternalAuth):**
 - `ExternalAuth.ServiceProviderProperties.UsesNewExternalAuthDeletionApproach` == true
@@ -671,7 +777,7 @@ which performs a **transactional batch** to atomically update the operation and 
 - `ExternalAuth.ServiceProviderProperties.ClusterServiceID` == nil
 
 **Additional SyncOnce preconditions:**
-- All child resources deleted
+- All child resources deleted (except controllers)
 
 | | Object | Fields |
 |---|--------|--------|
@@ -685,9 +791,9 @@ which performs a **transactional batch** to atomically update the operation and 
 
 #### ControlPlaneDesiredVersion
 
-**File:** [control_plane_desired_version_controller.go](pkg/controllers/upgradecontrollers/control_plane_desired_version_controller.go)
+**File:** [control_plane_desired_version_controller.go](../backend/pkg/controllers/upgradecontrollers/control_plane_desired_version_controller.go)
 **Trigger:** Cluster informer, 5-minute resync
-**Gate:** No formal NeedsWork — always runs when cluster exists. Skips inside SyncOnce if `DeletionTimestamp != nil`, or if `DesiredVersion` already set AND cluster < 2hr old AND active Create operation exists.
+**Gate:** No formal NeedsWork. Skips inside SyncOnce if `DeletionTimestamp != nil`, or if `DesiredVersion` already set AND cluster < 2hr old AND active Create operation exists.
 
 | | Object | Fields |
 |---|--------|--------|
@@ -701,7 +807,7 @@ which performs a **transactional batch** to atomically update the operation and 
 
 #### ControlPlaneActiveVersions
 
-**File:** [control_plane_active_version_controller.go](pkg/controllers/upgradecontrollers/control_plane_active_version_controller.go)
+**File:** [control_plane_active_version_controller.go](../backend/pkg/controllers/upgradecontrollers/control_plane_active_version_controller.go)
 **Trigger:** Cluster informer, 5-minute resync
 
 | | Object | Fields |
@@ -711,15 +817,13 @@ which performs a **transactional batch** to atomically update the operation and 
 
 #### TriggerControlPlaneUpgrade
 
-**File:** [trigger_control_plane_upgrade_controller.go](pkg/controllers/upgradecontrollers/trigger_control_plane_upgrade_controller.go)
 **Trigger:** Cluster informer, 5-minute resync
-**Gate:** No formal NeedsWork. Skips inside SyncOnce if `DeletionTimestamp != nil`, `ClusterServiceID == nil`, `DesiredVersion == nil`, `ActiveVersions` empty, or desired == actual latest.
 
 No Cosmos writes. Posts `ControlPlaneUpgradePolicy` to Cluster Service.
 
 #### NodePoolVersion
 
-**File:** [nodepool_version_controller.go](pkg/controllers/upgradecontrollers/nodepool_version_controller.go)
+**File:** [nodepool_version_controller.go](../backend/pkg/controllers/upgradecontrollers/nodepool_version_controller.go)
 **Trigger:** NodePool informer, 5-minute resync
 **Gate (NeedsWork on NodePool + ServiceProviderNodePool):**
 - `len(NodePool.Properties.Version.ID)` > 0
@@ -735,7 +839,7 @@ No Cosmos writes. Posts `ControlPlaneUpgradePolicy` to Cluster Service.
 
 #### NodePoolActiveVersions
 
-**File:** [nodepool_active_version_controller.go](pkg/controllers/upgradecontrollers/nodepool_active_version_controller.go)
+**File:** [nodepool_active_version_controller.go](../backend/pkg/controllers/upgradecontrollers/nodepool_active_version_controller.go)
 **Trigger:** NodePool informer, 5-minute resync
 **Gate (NeedsWork on ServiceProviderNodePool):**
 - `ServiceProviderNodePool` != nil (document must exist)
@@ -757,7 +861,7 @@ No Cosmos writes. Posts `NodePoolUpgradePolicy` to Cluster Service.
 
 #### ClusterPropertiesSync
 
-**File:** [cluster_properties_sync.go](pkg/controllers/clusterpropertiescontroller/cluster_properties_sync.go)
+**File:** [cluster_properties_sync.go](../backend/pkg/controllers/clusterpropertiescontroller/cluster_properties_sync.go)
 **Trigger:** Cluster informer, 5-minute resync
 **Gate:** No formal NeedsWork. Skips inside SyncOnce if `CustomerProperties.DNS.BaseDomainPrefix` empty or HostedCluster ReadDesire does not exist.
 
@@ -769,7 +873,7 @@ No Cosmos writes. Posts `NodePoolUpgradePolicy` to Cluster Service.
 
 #### ClusterBaseDomainPrefixSync
 
-**File:** [cluster_base_domain_prefix_sync.go](pkg/controllers/clusterpropertiescontroller/cluster_base_domain_prefix_sync.go)
+**File:** [cluster_base_domain_prefix_sync.go](../backend/pkg/controllers/clusterpropertiescontroller/cluster_base_domain_prefix_sync.go)
 **Trigger:** Cluster informer, 5-minute resync
 **Gate (needsWork on Cluster):**
 - `Cluster.ServiceProviderProperties.ClusterServiceID` != nil and non-empty
@@ -783,7 +887,7 @@ No Cosmos writes. Posts `NodePoolUpgradePolicy` to Cluster Service.
 
 #### DesiredControlPlaneSize
 
-**File:** [desired_control_plane_size_sync.go](pkg/controllers/clusterpropertiescontroller/desired_control_plane_size_sync.go)
+**File:** [desired_control_plane_size_sync.go](../backend/pkg/controllers/clusterpropertiescontroller/desired_control_plane_size_sync.go)
 **Trigger:** Cluster informer, 5-minute resync
 **Gate (NeedsWork on ServiceProviderCluster):**
 - `ServiceProviderCluster.Spec.DesiredHostedClusterControlPlaneSize` != `ServiceProviderCluster.Status.DesiredHostedClusterControlPlaneSize` (pointer comparison via `ptrStringEqual`)
@@ -797,7 +901,7 @@ No Cosmos writes. Posts `NodePoolUpgradePolicy` to Cluster Service.
 
 #### IdentityMigration
 
-**File:** [identity_migration.go](pkg/controllers/clusterpropertiescontroller/identity_migration.go)
+**File:** [identity_migration.go](../backend/pkg/controllers/clusterpropertiescontroller/identity_migration.go)
 **Trigger:** Cluster informer, 60-minute resync
 **Gate (NeedsWork on Cluster):**
 - `Cluster.ServiceProviderProperties.ClusterServiceID` != nil and non-empty
@@ -815,7 +919,7 @@ No Cosmos writes. Posts `NodePoolUpgradePolicy` to Cluster Service.
 
 #### ManagementClusterPlacementSync
 
-**File:** [management_cluster_placement_sync.go](pkg/controllers/managementclustercontrollers/management_cluster_placement_sync.go)
+**File:** [management_cluster_placement_sync.go](../backend/pkg/controllers/managementclustercontrollers/management_cluster_placement_sync.go)
 **Trigger:** Cluster informer, 5-minute resync
 **Gate (needsWork on ServiceProviderCluster):**
 - `ServiceProviderCluster.Status.ManagementClusterResourceID` == nil
@@ -828,8 +932,22 @@ No Cosmos writes. Posts `NodePoolUpgradePolicy` to Cluster Service.
 | Read | `ManagementCluster` | <ul><li>`ResourceID` (via `GetByCSProvisionShardID`)</li></ul> |
 | **Write** | **`ServiceProviderCluster`** | <ul><li>**`Status.ManagementClusterResourceID`** = management cluster resource ID</li></ul> |
 
+#### BackfillClusterUID
+
+**File:** [backfill_cluster_uid.go](../backend/pkg/controllers/mismatchcontrollers/backfill_cluster_uid.go)
+**Trigger:** Cluster informer, 60-minute cooldown
+**Gate (NeedsWork on Cluster):**
+- `len(Cluster.ServiceProviderProperties.ClusterUID)` == 0
+
+| | Object | Fields |
+|---|--------|--------|
+| Read | `HCPOpenShiftCluster` | <ul><li>`ServiceProviderProperties.ClusterUID` (NeedsWork: must be empty)</li><li>`SystemData.CreatedAt`</li><li>`ID`</li></ul> |
+| Read | `BillingDocument` | <ul><li>`ListActiveForCluster` (matching creation time)</li></ul> |
+| **Write** | **`HCPOpenShiftCluster`** | <ul><li>**`ServiceProviderProperties.ClusterUID`** = billing doc ID or new UUID</li></ul> |
+
 #### CreateBillingDoc
 
+**File:** [create_billing_doc.go](../backend/pkg/controllers/billingcontrollers/create_billing_doc.go)
 **Trigger:** Cluster informer, 60-second cooldown
 **Gate (NeedsWork on Cluster):**
 - `len(Cluster.ServiceProviderProperties.ClusterUID)` > 0
@@ -845,6 +963,7 @@ No Cosmos writes. Posts `NodePoolUpgradePolicy` to Cluster Service.
 
 #### ClusterValidation / NodePoolValidation
 
+**File:** [cluster_validation_controller.go](../backend/pkg/controllers/validationcontrollers/cluster_validation_controller.go), [nodepool_validation_controller.go](../backend/pkg/controllers/validationcontrollers/nodepool_validation_controller.go)
 **Trigger:** Cluster/NodePool informer, 1-minute resync
 **Gate (shouldProcess on ServiceProviderCluster/ServiceProviderNodePool):**
 - `!meta.IsStatusConditionTrue(ServiceProviderCluster.Status.Validations, validation.Name())` (condition must not yet be True)
@@ -861,6 +980,7 @@ No Cosmos writes. Posts `NodePoolUpgradePolicy` to Cluster Service.
 
 #### DegradedAggregators (Cluster / NodePool / ExternalAuth)
 
+**File:** [cluster_degraded_aggregator.go](../backend/pkg/controllers/statuscontrollers/cluster_degraded_aggregator.go), [nodepool_degraded_aggregator.go](../backend/pkg/controllers/statuscontrollers/nodepool_degraded_aggregator.go), [externalauth_degraded_aggregator.go](../backend/pkg/controllers/statuscontrollers/externalauth_degraded_aggregator.go)
 **Trigger:** Resource informer, 1-minute resync
 
 | | Object | Fields |
@@ -872,6 +992,7 @@ No Cosmos writes. Posts `NodePoolUpgradePolicy` to Cluster Service.
 
 #### CreateClusterScopedReadDesires / CreateNodePoolScopedReadDesires
 
+**File:** [create_cluster_scoped_read_desires_controller.go](../backend/pkg/controllers/create_cluster_scoped_read_desires_controller.go), [create_nodepool_scoped_read_desires_controller.go](../backend/pkg/controllers/create_nodepool_scoped_read_desires_controller.go)
 **Trigger:** Cluster/NodePool informer, 1-minute resync
 **Gate (SyncOnce preconditions + readDesireNeedsWork):**
 - `Cluster.ServiceProviderProperties.DeletionTimestamp` == nil
@@ -924,7 +1045,11 @@ No Cosmos writes. Posts `NodePoolUpgradePolicy` to Cluster Service.
   (polls CS + ReadDesire status -> sets Operation.Status -> sets Cluster.SP.ProvisioningState)
               |
               v
-  CreateBillingDoc (gates on ProvisioningState=Succeeded)
+  BackfillClusterUID (gates on ClusterUID empty)
+  (sets Cluster.SP.ClusterUID)
+              |
+              v
+  CreateBillingDoc (gates on ProvisioningState=Succeeded + ClusterUID non-empty)
   (creates BillingDocument, sets Cluster.SP.BillingDocumentCosmosID)
 ```
 
@@ -936,9 +1061,12 @@ No Cosmos writes. Posts `NodePoolUpgradePolicy` to Cluster Service.
   creates Operation(Update)
   replaces HCPOpenShiftCluster
          |
-         v
-  ControlPlaneDesiredVersion
-  (advances SPC.Spec.DesiredVersion if version changed)
+         +----------------------------+
+         |                            |
+         v                            v
+  ControlPlaneDesiredVersion   ClusterClusterServiceUpdateDispatch
+  (advances SPC.Spec.          (PATCHes CS with dispatch config
+   DesiredVersion if changed)   for CIDRs, autoscaling, etc.)
          |
          v
   TriggerControlPlaneUpgrade
@@ -946,7 +1074,7 @@ No Cosmos writes. Posts `NodePoolUpgradePolicy` to Cluster Service.
          |
          v
   OperationClusterUpdate
-  (polls CS status -> sets Operation.Status -> sets Cluster.SP.ProvisioningState)
+  (polls CS status + ReadDesire -> sets Operation.Status -> sets Cluster.SP.ProvisioningState)
 ```
 
 ### Cluster Delete Flow
@@ -1098,6 +1226,14 @@ Each entry links to every actor that writes the field.
 
 Single writer, but gates the entire deletion pipeline.
 
+### `HCPOpenShiftCluster.ServiceProviderProperties.ClusterUID`
+
+| Actor | When |
+|-------|------|
+| [BackfillClusterUID](#backfillclusteruid) | Sets from billing doc ID or new UUID |
+
+Single writer, but gates `CreateBillingDoc`.
+
 ### `HCPOpenShiftCluster.ServiceProviderProperties.BillingDocumentCosmosID`
 
 | Actor | When |
@@ -1121,9 +1257,9 @@ Single writer.
 | [Frontend: PUT NodePool (Create)](#put-nodepool-create) | Sets to `Accepted` |
 | [Frontend: PUT/PATCH NodePool (Update)](#putpatch-nodepool-update) | Sets to `Accepted` |
 | [Frontend: DELETE NodePool](#delete-nodepool) | Sets to `Deleting` |
-| [OperationNodePoolCreate](#operationnodepoolcreate--update--delete) | Advances to `Provisioning`/`Succeeded`/`Failed` |
-| [OperationNodePoolUpdate](#operationnodepoolcreate--update--delete) | Advances to `Updating`/`Succeeded`/`Failed` |
-| [OperationNodePoolDelete](#operationnodepoolcreate--update--delete) | Advances to `Deleting`/`Succeeded`/`Failed` |
+| [OperationNodePoolCreate](#operationnodepoolcreate) | Advances to `Provisioning`/`Succeeded`/`Failed` |
+| [OperationNodePoolUpdate](#operationnodepoolupdate) | Advances to `Updating`/`Succeeded`/`Failed` |
+| [OperationNodePoolDelete](#operationnodepooldelete) | Advances to `Deleting`/`Succeeded`/`Failed` |
 
 ### `HCPOpenShiftClusterNodePool.ServiceProviderProperties.ActiveOperationID`
 
@@ -1132,32 +1268,44 @@ Single writer.
 | [Frontend: PUT NodePool (Create)](#put-nodepool-create) | Sets to new operation ID |
 | [Frontend: PUT/PATCH NodePool (Update)](#putpatch-nodepool-update) | Sets to new operation ID |
 | [Frontend: DELETE NodePool](#delete-nodepool) | Sets to new operation ID |
-| [OperationNodePoolCreate](#operationnodepoolcreate--update--delete) | Clears on terminal |
-| [OperationNodePoolUpdate](#operationnodepoolcreate--update--delete) | Clears on terminal |
-| [OperationNodePoolDelete](#operationnodepoolcreate--update--delete) | Clears on terminal |
+| [OperationNodePoolCreate](#operationnodepoolcreate) | Clears on terminal |
+| [OperationNodePoolUpdate](#operationnodepoolupdate) | Clears on terminal |
+| [OperationNodePoolDelete](#operationnodepooldelete) | Clears on terminal |
 
 ### `HCPOpenShiftClusterNodePool.ServiceProviderProperties.ClusterServiceID`
 
 | Actor | When |
 |-------|------|
-| [Frontend: PUT NodePool (Create)](#put-nodepool-create) | Sets from CS POST response |
-| [NodePoolClusterServiceCreate](#nodepool-creation--deletion-controllers) | Sets from CS POST (if frontend didn't) |
-| [NodePoolDeletionClusterServiceIDClearer](#nodepool-creation--deletion-controllers) | Clears to `nil` on CS 404 |
+| [NodePoolClusterServiceCreate](#nodepoolclusterservicecreate) | Sets from CS POST response |
+| [NodePoolDeletionClusterServiceIDClearer](#nodepooldeletionclusterserviceidclearer) | Clears to `nil` on CS 404 |
+
+### `HCPOpenShiftClusterExternalAuth.Properties.ProvisioningState`
+
+| Actor | When |
+|-------|------|
+| [Frontend: PUT ExternalAuth (Create)](#put-externalauth-create) | Sets to `Accepted` |
+| [Frontend: PUT/PATCH ExternalAuth (Update)](#putpatch-externalauth-update) | Sets to `Accepted` |
+| [Frontend: DELETE ExternalAuth](#delete-externalauth) | Sets to `Deleting` |
+| [OperationExternalAuthCreate](#operationexternalauthcreate) | Advances to `Succeeded`/`Failed` |
+| [OperationExternalAuthUpdate](#operationexternalauthupdate) | Advances to `Updating`/`Succeeded`/`Failed` |
+| [OperationExternalAuthDelete](#operationexternalauthdelete) | Advances to `Deleting`/`Succeeded`/`Failed` |
 
 ### `HCPOpenShiftClusterExternalAuth.ServiceProviderProperties.ClusterServiceID`
 
 | Actor | When |
 |-------|------|
 | [Frontend: PUT ExternalAuth (Create)](#put-externalauth-create) | Sets from CS POST response |
-| [ExternalAuthClusterServiceCreate](#externalauth-creation--deletion-controllers) | Sets from CS POST (if frontend didn't) |
-| [ExternalAuthDeletionClusterServiceIDClearer](#externalauth-creation--deletion-controllers) | Clears to `nil` on CS 404 |
+| [ExternalAuthClusterServiceCreate](#externalauthclusterservicecreate) | Sets from CS POST (if frontend didn't) |
+| [ExternalAuthDeletionClusterServiceIDClearer](#externalauthdeletionclusterserviceidclearer) | Clears to `nil` on CS 404 |
 
 ### `Operation.Status`
 
 | Actor | When |
 |-------|------|
-| [Frontend (all mutating endpoints)](#1-frontend-endpoint-writes) | Sets to `Accepted` |
+| [Frontend (all mutating endpoints)](#1-frontend-endpoint-writes) | Sets to `Accepted` (or `Deleting` for Delete operations) |
 | [All Operation* controllers](#operation-controllers) | Advances through lifecycle (`Provisioning`/`Updating`/`Deleting` -> `Succeeded`/`Failed`) |
+| [DispatchRequestCredential](#dispatchrequestcredential) | Sets to `Canceled` (if revocation in progress) or sets `InternalID` |
+| [DispatchRevokeCredentials](#dispatchrevokecredentials) | Sets to `Deleting` (after CS dispatch) or `Canceled` (on mismatch) |
 
 ### `ServiceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion`
 
@@ -1190,7 +1338,7 @@ into a conversation rooted in the ARO-HCP repo and edit the instructions to tast
 
 ```
 Examine the frontend and backend source code to produce a markdown file at
-backend/cosmos-data-flow.md that documents the Cosmos DB data flow for the
+docs/cosmos-data-flow.md that documents the Cosmos DB data flow for the
 ARO-HCP resource provider. The file must contain these sections in order:
 
 1. **Frontend Endpoint Writes** — For each mutating HTTP endpoint in
@@ -1257,7 +1405,7 @@ Key source locations to examine:
 Style rules:
 - Use tables for structured field lists, ASCII art for digraphs.
 - Use bullet points for lists within the table.
-- Link to source files with relative paths from backend/.
+- Link to source files with relative paths from docs/.
 - In the multi-writer section, link each actor back to its section heading.
 - Omit read-only / diagnostic controllers (data dumps, metrics, mismatch
   detectors) unless they write to Cosmos.
