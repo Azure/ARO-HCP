@@ -68446,7 +68446,6 @@ spec:
       cpu: '20'
       memory: '1Gi'
     limits:
-      cpu: '20'
       memory: '100Gi'
   affinity:
     nodeAffinity:
@@ -68473,7 +68472,7 @@ spec:
   probeSelector:
     matchLabels:
       release: arohcp-monitor
-  replicas: 1
+  replicas: 2
   routePrefix: /
   scrapeConfigNamespaceSelector: {}
   scrapeConfigSelector:
@@ -68490,7 +68489,7 @@ spec:
   serviceAccountName: prometheus
   serviceMonitorNamespaceSelector: {}
   serviceMonitorSelector: {}
-  shards: 1
+  shards: 2
   storage:
     volumeClaimTemplate:
       spec:
@@ -68521,16 +68520,18 @@ spec:
   walCompression: true
   externalLabels:
     cluster: 'dev-westus3-svc-1'
+    region: 'westus3'
+    environment: 'dev'
   remoteWrite:
   - url: '__dcrRemoteWriteUrl__'
     azureAd:
       cloud: AzurePublic
       sdk: {}
     queueConfig:
-      capacity: 2500
-      maxShards: 500
+      capacity: 50000
+      maxShards: 50
       minShards: 1
-      maxSamplesPerSend: 2000
+      maxSamplesPerSend: 10000
       batchSendDeadline: 60s
       minBackoff: 30ms
       maxBackoff: 256s
@@ -68545,10 +68546,10 @@ spec:
       cloud: AzurePublic
       sdk: {}
     queueConfig:
-      capacity: 2500
-      maxShards: 500
+      capacity: 50000
+      maxShards: 50
       minShards: 1
-      maxSamplesPerSend: 2000
+      maxSamplesPerSend: 10000
       batchSendDeadline: 60s
       minBackoff: 30ms
       maxBackoff: 256s

@@ -17,7 +17,7 @@ Using the `make run` target, the Frontend binary can be run locally.
 
 The local code can also be deployed directly into a personal DEV environment by running `make deploy`. Understand that this requires such an environment to be created first via `make personal-dev-env` from the root of the repository.
 
-`make deploy` builds a custom developer image from the local code and uploads it to the DEV service ACR (`arohcpsvcdev`) into a developer specific repository. This way developer images will not conflict with other develooper images or CI built ones. The actual deployment is delegated to the pipeline/AdminAPI target in the root of the repository, providing a configuration override for `frontend.image.repository` and `frontend.image.digest` respectively.
+`make deploy` builds a custom developer image from the local code and uploads it to the DEV service ACR (`arohcpsvcdev`) into a developer specific repository. This way developer images will not conflict with other developer images or CI built ones. The actual deployment is delegated to the pipeline/RP.Frontend target in the root of the repository, providing a configuration override for `frontend.image.repository` and `frontend.image.digest` respectively.
 
 ## Deployment
 
@@ -76,7 +76,7 @@ Create or Update a HcpOpenShiftClusterResource
 ```bash
 curl -X PUT "localhost:8443/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dev-test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/dev-test-cluster?api-version=2024-06-10-preview" \
   -H "X-Ms-Arm-Resource-System-Data: {\"createdBy\": \"aro-hcp-local-testing\", \"createdByType\": \"User\", \"createdAt\": \"2024-06-06T19:26:56+00:00\"}" \
-  -H "X-Ms-Identity-Url": https://dummyhost.identity.azure.net" \
+  -H "X-Ms-Identity-Url: https://dummyhost.identity.azure.net" \
   --json @cluster.json
 ```
 

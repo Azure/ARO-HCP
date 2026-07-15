@@ -47,6 +47,12 @@ param aksNetworkDataplane string
 @description('Network policy plugin for the AKS cluster')
 param aksNetworkPolicy string
 
+@description('Maximum surge for AKS node pool upgrades')
+param aksUpgradeSettingsMaxSurge string
+
+@description('Maximum unavailable for AKS node pool upgrades')
+param aksUpgradeSettingsMaxUnavailable string
+
 @description('Name of the user agent pool')
 param userAgentPoolName string
 
@@ -144,33 +150,26 @@ param opsIngressGatewayIPAddressName string = ''
 @description('IPTags to be set on the Admin API Istio Ingress Gateway IP address in the format of ipTagType:tag,ipTagType:tag')
 param opsIngressGatewayIPAddressTags string = ''
 
-// TODO: When the work around workload identity for the RP is finalized, change this to true
-@description('disableLocalAuth for the ARO HCP RP CosmosDB')
-param disableLocalAuth bool
-
-@description('Deploy ARO HCP RP Azure Cosmos DB if true')
-param deployFrontendCosmos bool
-
 @description('The name of the Cosmos DB for the RP')
 param rpCosmosDbName string
 
 @description('If true, make the Cosmos DB instance private')
 param rpCosmosDbPrivate bool
 
-@description('The zone redundant mode of Cosmos DB instance')
-param rpCosmosZoneRedundantMode string
+@description('The resource ID of the Cosmos DB account for the RP')
+param rpCosmosDbAccountId string
 
 @description('The resourcegroup for regional infrastructure')
 param regionalResourceGroup string
 
-@description('The domain to use to use for the maestro certificate. Relevant only for environments where OneCert can be used.')
-param maestroCertDomain string
-
-@description('The issuer of the maestro certificate.')
-param maestroCertIssuer string
-
 @description('The name of the eventgrid namespace for Maestro.')
 param maestroEventGridNamespacesName string
+
+@description('The SAN and CN for the Maestro server EventGrid certificate.')
+param maestroServerCertSAN string
+
+@description('The issuer of the Maestro certificate.')
+param maestroCertIssuer string
 
 @description('Deploy CS Postgres if true')
 param csPostgresDeploy bool
@@ -318,8 +317,8 @@ param regionalSvcDNSZoneName string
 @description('Frontend Ingress Certificate Name')
 param frontendIngressCertName string
 
-@description('Frontend Ingress Certificate Issuer')
-param frontendIngressCertIssuer string
+@description('The SAN and CN for the frontend ingress certificate')
+param frontendIngressCertSAN string
 
 @description('The name of the frontend managed identity')
 param frontendMIName string
@@ -338,15 +337,6 @@ param backendNamespace string
 
 @description('The service account name of the backend managed identity')
 param backendServiceAccountName string
-
-@description('The name of the FPA certificate in the SVC keyvault')
-param fpaCertificateName string
-
-@description('The issuer of the FPA certificate')
-param fpaCertificateIssuer string
-
-@description('Whether to create the FPA certificate in the SVC keyvault')
-param manageFpaCertificate bool
 
 @description('The service tag for Geneva Actions')
 param genevaActionsServiceTag string
@@ -394,17 +384,8 @@ param svcNSPAccessMode string
 @description('Access mode for this NSP')
 param serviceKeyVaultAsignNSP bool = true
 
-@description('Domain used for creation of geneva auth certificates')
-param genevaCertificateDomain string
-
-@description('Issuer of certificate for Geneva Authentication')
-param genevaCertificateIssuer string = 'Self'
-
 @description('Name of certificate in Keyvault and hostname used in SAN')
 param genevaRpLogsName string
-
-@description('Should geneva certificates be managed')
-param genevaManageCertificates bool
 
 @description('The name of the Admin API managed identity')
 param adminApiMIName string
@@ -418,8 +399,17 @@ param adminApiServiceAccountName string
 @description('The name of the Admin API certificate')
 param adminApiIngressCertName string
 
-@description('The issuer of the Admin API certificate')
-param adminApiIngressCertIssuer string
+@description('The SAN and CN for the admin API ingress certificate')
+param adminApiIngressCertSAN string
+
+@description('The name of the Fleet managed identity')
+param fleetMIName string
+
+@description('The namespace of the Fleet managed identity')
+param fleetNamespace string
+
+@description('The service account name of the Fleet managed identity')
+param fleetServiceAccountName string
 
 @description('The cluster tag value for the owning team')
 param owningTeamTagValue string
@@ -457,8 +447,8 @@ param sessiongateServiceAccountName string
 @description('The name of the Session Gate ingress certificate')
 param sessiongateIngressCertName string
 
-@description('The issuer of the Session Gate ingress certificate')
-param sessiongateIngressCertIssuer string
+@description('The SAN and CN for the sessiongate ingress certificate')
+param sessiongateIngressCertSAN string
 
 resource serviceKeyVault 'Microsoft.KeyVault/vaults@2024-04-01-preview' existing = {
   name: serviceKeyVaultName
@@ -524,6 +514,11 @@ var workloadIdentities = items({
     uamiName: exporterMIName
     namespace: exporterNamespace
     serviceAccountName: exporterServiceAccountName
+  }
+  fleet_wi: {
+    uamiName: fleetMIName
+    namespace: fleetNamespace
+    serviceAccountName: fleetServiceAccountName
   }
 })
 
@@ -624,7 +619,6 @@ module vnetCreation '../modules/network/vnet.bicep' = {
     vnetName: vnetName
     vnetAddressPrefix: vnetAddressPrefix
     enableSwift: false
-    deploymentMsiId: globalMSIId
   }
 }
 
@@ -697,6 +691,8 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
     pullAcrResourceIds: [svcAcrResourceId]
     deploymentMsiId: globalMSIId
     enableSwiftV2Nodepools: false
+    upgradeSettingsMaxSurge: aksUpgradeSettingsMaxSurge
+    upgradeSettingsMaxUnavailable: aksUpgradeSettingsMaxUnavailable
     owningTeamTagValue: owningTeamTagValue
     aksClusterUserDefinedManagedIdentityName: aksClusterUserDefinedManagedIdentity.name
   }
@@ -750,20 +746,27 @@ module dataCollection '../modules/metrics/datacollection.bicep' = {
   ]
 }
 
+// Declare this service cluster in the authoritative underlay-cluster inventory (see the module
+// for details). Lets absence alerts detect when this cluster stops reporting to the workspace.
+module underlayClusterMetric '../modules/metrics/underlay-clusters-metric.bicep' = {
+  name: 'underlay-clusters-metric'
+  params: {
+    azureMonitoringWorkspaceId: azureMonitoringWorkspaceId
+    clusterName: aksClusterName
+  }
+}
+
 var frontendMI = mi.getManagedIdentityByName(managedIdentities.outputs.managedIdentities, frontendMIName)
 var backendMI = mi.getManagedIdentityByName(managedIdentities.outputs.managedIdentities, backendMIName)
 var adminApiMI = mi.getManagedIdentityByName(managedIdentities.outputs.managedIdentities, adminApiMIName)
+var fleetMI = mi.getManagedIdentityByName(managedIdentities.outputs.managedIdentities, fleetMIName)
 
-module rpCosmosDb '../modules/rp-cosmos.bicep' = if (deployFrontendCosmos) {
+module rpCosmosDb '../modules/rp-cosmos.bicep' = if (rpCosmosDbAccountId != '') {
   name: 'rp_cosmos_db'
   scope: resourceGroup(regionalResourceGroup)
   params: {
-    name: rpCosmosDbName
-    location: location
-    zoneRedundant: determineZoneRedundancy(locationAvailabilityZoneList, rpCosmosZoneRedundantMode)
-    disableLocalAuth: disableLocalAuth
-    userAssignedMIs: [frontendMI, backendMI, adminApiMI]
-    private: rpCosmosDbPrivate
+    cosmosDBAccountName: rpCosmosDbName
+    userAssignedMIs: [frontendMI, backendMI, adminApiMI, fleetMI]
     resourceContainerMaxScale: resourceContainerMaxScale
     billingContainerMaxScale: billingContainerMaxScale
     locksContainerMaxScale: locksContainerMaxScale
@@ -771,26 +774,24 @@ module rpCosmosDb '../modules/rp-cosmos.bicep' = if (deployFrontendCosmos) {
   }
 }
 
-module rpCosmosdbPrivateEndpoint '../modules/private-endpoint.bicep' = if (rpCosmosDbPrivate) {
+module rpCosmosdbPrivateEndpoint '../modules/private-endpoint.bicep' = if (rpCosmosDbPrivate && rpCosmosDbAccountId != '') {
   name: 'rp-pe-${uniqueString(deployment().name)}'
   params: {
     location: location
     subnetIds: [nodeSubnetCreation.outputs.subnetId]
     vnetId: vnetCreation.outputs.vnetId
-    privateLinkServiceId: rpCosmosDb.outputs.cosmosDBAccountId
+    privateLinkServiceId: rpCosmosDbAccountId
     serviceType: 'cosmosdb'
     groupId: 'Sql'
   }
 }
 
-output cosmosDBName string = deployFrontendCosmos ? rpCosmosDb.outputs.cosmosDBName : ''
+output cosmosDBName string = rpCosmosDbName
 output frontend_mi_client_id string = frontendMI.uamiClientID
 
 //
 //   M A E S T R O
 //
-
-var effectiveMaestroCertDomain = !empty(maestroCertDomain) ? maestroCertDomain : 'maestro.${regionalSvcDNSZoneName}'
 
 module maestroServer '../modules/maestro/maestro-server.bicep' = {
   name: 'maestro-server'
@@ -802,9 +803,8 @@ module maestroServer '../modules/maestro/maestro-server.bicep' = {
     certKeyVaultName: serviceKeyVaultName
     certKeyVaultResourceGroup: serviceKeyVaultResourceGroup
     certKeyVaultSubscription: serviceKeyVaultSubscription
-    keyVaultOfficerManagedIdentityName: globalMSIId
-    maestroCertificateDomain: effectiveMaestroCertDomain
-    maestroCertificateIssuer: maestroCertIssuer
+    certificateSAN: maestroServerCertSAN
+    certificateIssuer: maestroCertIssuer
     deployPostgres: deployMaestroPostgres
     postgresServerName: maestroPostgresServerName
     postgresServerVersion: maestroPostgresServerVersion
@@ -827,7 +827,6 @@ module maestroServer '../modules/maestro/maestro-server.bicep' = {
       managedIdentities.outputs.managedIdentities,
       maestroMIName
     ).uamiPrincipalID
-    maestroServerManagedIdentityName: maestroMIName
   }
   dependsOn: [
     serviceKeyVault
@@ -860,8 +859,6 @@ module cs '../modules/cluster-service.bicep' = {
     postgresBackupRetentionDays: csPostgresBackupRetentionDays
     postgresGeoRedundantBackup: csPostgresGeoRedundantBackup
     postgresServerPrivate: clusterServicePostgresPrivate
-    clusterServiceManagedIdentityPrincipalId: csManagedIdentityPrincipalId
-    clusterServiceManagedIdentityName: csMIName
     serviceKeyVaultName: serviceKeyVault.name
     serviceKeyVaultResourceGroup: serviceKeyVaultResourceGroup
     regionalCXDNSZoneName: regionalCXDNSZoneName
@@ -954,7 +951,6 @@ module oidc '../modules/oidc/region/main.bicep' = {
     keyVaultName: azureFrontDoorKeyVaultName
     useManagedCertificates: azureFrontDoorUseManagedCertificates
     globalMSIId: globalMSIId
-    deploymentScriptLocation: location
     storageAccountBlobPublicAccess: oidcStorageAccountPublic
     frontDoorManage: azureFrontDoorManage
   }
@@ -986,23 +982,7 @@ module eventGrindPrivateEndpoint '../modules/private-endpoint.bicep' = {
 //   F R O N T E N D
 //
 
-var frontendDnsName = 'rp'
-var frontendDnsFQDN = '${frontendDnsName}.${regionalSvcDNSZoneName}'
-
-module frontendIngressCert '../modules/keyvault/key-vault-cert.bicep' = {
-  name: 'frontend-cert-${uniqueString(resourceGroup().name)}'
-  scope: resourceGroup(serviceKeyVaultSubscription, serviceKeyVaultResourceGroup)
-  params: {
-    keyVaultName: serviceKeyVaultName
-    subjectName: 'CN=${frontendDnsFQDN}'
-    certName: frontendIngressCertName
-    keyVaultManagedIdentityId: globalMSIId
-    dnsNames: [
-      frontendDnsFQDN
-    ]
-    issuerName: frontendIngressCertIssuer
-  }
-}
+var frontendDns = res.dnsRecordRefFromFqdn(frontendIngressCertSAN)
 
 module frontendIngressCertCSIAccess '../modules/keyvault/keyvault-secret-access.bicep' = {
   name: 'aks-svc-kv-access-${frontendIngressCertName}'
@@ -1019,8 +999,8 @@ module frontendDNS '../modules/dns/a-record.bicep' = {
   name: 'frontend-dns'
   scope: resourceGroup(regionalResourceGroup)
   params: {
-    zoneName: regionalSvcDNSZoneName
-    recordName: frontendDnsName
+    zoneName: frontendDns.zoneName
+    recordName: frontendDns.recordName
     ipAddress: istioIngressGatewayIPAddress.outputs.ipAddress
     ttl: 300
   }
@@ -1030,23 +1010,7 @@ module frontendDNS '../modules/dns/a-record.bicep' = {
 //   A D M I N   A P I
 //
 
-var adminApiDnsName = 'admin'
-var adminApiDnsFQDN = '${adminApiDnsName}.${regionalSvcDNSZoneName}'
-
-module adminApiCert '../modules/keyvault/key-vault-cert.bicep' = {
-  name: 'admin-api-cert-${uniqueString(resourceGroup().name)}'
-  scope: resourceGroup(serviceKeyVaultSubscription, serviceKeyVaultResourceGroup)
-  params: {
-    keyVaultName: serviceKeyVaultName
-    subjectName: 'CN=${adminApiDnsFQDN}'
-    certName: adminApiIngressCertName
-    keyVaultManagedIdentityId: globalMSIId
-    dnsNames: [
-      adminApiDnsFQDN
-    ]
-    issuerName: adminApiIngressCertIssuer
-  }
-}
+var adminApiDns = res.dnsRecordRefFromFqdn(adminApiIngressCertSAN)
 
 module adminApiIngressCertCSIAccess '../modules/keyvault/keyvault-secret-access.bicep' = {
   name: 'aks-svc-kv-access-${adminApiIngressCertName}'
@@ -1063,8 +1027,8 @@ module adminApiDNS '../modules/dns/a-record.bicep' = {
   name: 'admin-api-dns'
   scope: resourceGroup(regionalResourceGroup)
   params: {
-    zoneName: regionalSvcDNSZoneName
-    recordName: adminApiDnsName
+    zoneName: adminApiDns.zoneName
+    recordName: adminApiDns.recordName
     ipAddress: opsIngressGatewayIPAddress.outputs.ipAddress
     ttl: 300
   }
@@ -1074,23 +1038,7 @@ module adminApiDNS '../modules/dns/a-record.bicep' = {
 //   S E S S I O N G A T E
 //
 
-var sessiongateDnsName = 'sessiongate'
-var sessiongateDnsFQDN = '${sessiongateDnsName}.${regionalSvcDNSZoneName}'
-
-module sessiongateCert '../modules/keyvault/key-vault-cert.bicep' = {
-  name: 'sessiongate-cert-${uniqueString(resourceGroup().name)}'
-  scope: resourceGroup(serviceKeyVaultSubscription, serviceKeyVaultResourceGroup)
-  params: {
-    keyVaultName: serviceKeyVaultName
-    subjectName: 'CN=${sessiongateDnsFQDN}'
-    certName: sessiongateIngressCertName
-    keyVaultManagedIdentityId: globalMSIId
-    dnsNames: [
-      sessiongateDnsFQDN
-    ]
-    issuerName: sessiongateIngressCertIssuer
-  }
-}
+var sessiongateDns = res.dnsRecordRefFromFqdn(sessiongateIngressCertSAN)
 
 module sessiongateIngressCertCSIAccess '../modules/keyvault/keyvault-secret-access.bicep' = {
   name: 'aksSPCRead-${sessiongateIngressCertName}'
@@ -1107,49 +1055,24 @@ module sessiongateDNS '../modules/dns/a-record.bicep' = {
   name: 'sessiongate-dns'
   scope: resourceGroup(regionalResourceGroup)
   params: {
-    zoneName: regionalSvcDNSZoneName
-    recordName: sessiongateDnsName
+    zoneName: sessiongateDns.zoneName
+    recordName: sessiongateDns.recordName
     ipAddress: opsIngressGatewayIPAddress.outputs.ipAddress
     ttl: 300
   }
 }
 
 //
-//   F P A   C E R T I F I C A T E
+//   G E N E V A   C E R T I F I C A T E   A C C E S S
 //
 
-var fpaCertificateSNI = '${fpaCertificateName}.${svcDNSZoneName}'
-
-module fpaCertificate '../modules/keyvault/key-vault-cert.bicep' = if (manageFpaCertificate) {
-  name: 'fpa-certificate-${uniqueString(resourceGroup().name)}'
+module genevaRpLogsCertCSIAccess '../modules/keyvault/key-vault-secret-access.bicep' = {
+  name: 'geneva-crt-access-${uniqueString(resourceGroup().name)}'
   scope: resourceGroup(serviceKeyVaultSubscription, serviceKeyVaultResourceGroup)
   params: {
     keyVaultName: serviceKeyVaultName
-    subjectName: 'CN=${fpaCertificateSNI}'
-    certName: fpaCertificateName
-    keyVaultManagedIdentityId: globalMSIId
-    dnsNames: [
-      fpaCertificateSNI
-    ]
-    issuerName: fpaCertificateIssuer
-  }
-}
-
-//
-//   G E N E V A   C E R T I F I C A T E
-//
-
-module genevaRPCertificate '../modules/keyvault/key-vault-cert-with-access.bicep' = if (genevaManageCertificates) {
-  name: 'geneva-rp-certificate-${uniqueString(resourceGroup().name)}'
-  scope: resourceGroup(serviceKeyVaultSubscription, serviceKeyVaultResourceGroup)
-  params: {
-    keyVaultName: serviceKeyVaultName
-    kvCertOfficerManagedIdentityResourceId: globalMSIId
-    certDomain: genevaCertificateDomain
-    certificateIssuer: genevaCertificateIssuer
-    hostName: genevaRpLogsName
-    keyVaultCertificateName: genevaRpLogsName
-    certificateAccessManagedIdentityPrincipalId: svcCluster.outputs.aksClusterKeyVaultSecretsProviderPrincipalId
+    principalId: svcCluster.outputs.aksClusterKeyVaultSecretsProviderPrincipalId
+    secretName: genevaRpLogsName
   }
 }
 
@@ -1174,7 +1097,7 @@ module svcClusterNSPProfile '../modules/network/nsp-profile.bicep' = {
     location: location
     associatedResources: [
       svcCluster.outputs.etcKeyVaultId
-      rpCosmosDb.outputs.cosmosDBAccountId
+      rpCosmosDbAccountId
     ]
     // TODO Add EV2 access here
     subscriptions: [

@@ -21,6 +21,12 @@ import (
 	"github.com/Azure/ARO-HCP/tooling/prometheus-rules/internal"
 )
 
+// CorrelationMapEntry re-exports the internal type for callers.
+type CorrelationMapEntry = internal.CorrelationMapEntry
+
+// CorrelationIDSegment re-exports the internal type for callers.
+type CorrelationIDSegment = internal.CorrelationIDSegment
+
 // Validate checks CLI arguments for rule generation.
 func Validate(args []string, configFilePath, promtoolPath string) error {
 	if len(args) != 0 {
@@ -36,10 +42,11 @@ func Validate(args []string, configFilePath, promtoolPath string) error {
 }
 
 // GenerateFromConfig validates and renders rule files into Bicep output.
-func GenerateFromConfig(configFilePath string, forceInfoSeverity bool, promtoolPath string) error {
+// forceInfoSeverity is kept for compatibility with external callers and is ignored.
+func GenerateFromConfig(configFilePath string, _ bool, promtoolPath string) error {
 	o := internal.NewOptions()
 
-	if err := o.Complete(configFilePath, forceInfoSeverity, promtoolPath); err != nil {
+	if err := o.Complete(configFilePath, promtoolPath); err != nil {
 		return fmt.Errorf("could not complete options, %w", err)
 	}
 	if err := o.RunTests(); err != nil {
@@ -50,4 +57,22 @@ func GenerateFromConfig(configFilePath string, forceInfoSeverity bool, promtoolP
 	}
 
 	return nil
+}
+
+// GenerateCorrelationMap loads rule configs and returns a structured mapping
+// from group/alert to parsed correlation ID segments.
+func GenerateCorrelationMap(configFilePaths []string) ([]CorrelationMapEntry, error) {
+	var all []CorrelationMapEntry
+	for _, configFilePath := range configFilePaths {
+		o := internal.NewOptions()
+		if err := o.Complete(configFilePath, "true"); err != nil {
+			return nil, fmt.Errorf("could not complete options for %s: %w", configFilePath, err)
+		}
+		entries, err := o.CorrelationMap()
+		if err != nil {
+			return nil, fmt.Errorf("failed to generate correlation map for %s: %w", configFilePath, err)
+		}
+		all = append(all, entries...)
+	}
+	return all, nil
 }

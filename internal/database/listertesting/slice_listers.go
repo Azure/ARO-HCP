@@ -19,6 +19,8 @@ import (
 	"fmt"
 	"strings"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
 	"github.com/Azure/ARO-HCP/internal/api/fleet"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/database"
@@ -125,11 +127,15 @@ func (l *SliceApplyDesireLister) GetForNodePool(
 }
 
 func (l *SliceApplyDesireLister) ListForManagementCluster(
-	ctx context.Context, managementCluster string,
+	ctx context.Context, managementClusterResourceID *azcorearm.ResourceID,
 ) ([]*kubeapplier.ApplyDesire, error) {
+	if managementClusterResourceID == nil {
+		return nil, nil
+	}
+	want := managementClusterResourceID.String()
 	var out []*kubeapplier.ApplyDesire
 	for _, d := range l.Desires {
-		if strings.EqualFold(d.GetManagementCluster(), managementCluster) {
+		if mc := d.GetManagementCluster(); mc != nil && strings.EqualFold(mc.String(), want) {
 			out = append(out, d)
 		}
 	}
@@ -152,81 +158,6 @@ func (l *SliceApplyDesireLister) ListForNodePool(
 	ctx context.Context, subscriptionID, resourceGroupName, clusterName, nodePoolName string,
 ) ([]*kubeapplier.ApplyDesire, error) {
 	var out []*kubeapplier.ApplyDesire
-	for _, d := range l.Desires {
-		if underNodePool(resourceIDOf(d), subscriptionID, resourceGroupName, clusterName, nodePoolName) {
-			out = append(out, d)
-		}
-	}
-	return out, nil
-}
-
-// SliceDeleteDesireLister implements listers.DeleteDesireLister backed by a slice.
-type SliceDeleteDesireLister struct {
-	Desires []*kubeapplier.DeleteDesire
-}
-
-var _ listers.DeleteDesireLister = &SliceDeleteDesireLister{}
-
-func (l *SliceDeleteDesireLister) List(ctx context.Context) ([]*kubeapplier.DeleteDesire, error) {
-	return l.Desires, nil
-}
-
-func (l *SliceDeleteDesireLister) GetForCluster(
-	ctx context.Context, subscriptionID, resourceGroupName, clusterName, name string,
-) (*kubeapplier.DeleteDesire, error) {
-	want := kubeapplier.ToClusterScopedDeleteDesireResourceIDString(subscriptionID, resourceGroupName, clusterName, name)
-	for _, d := range l.Desires {
-		id := resourceIDOf(d)
-		if id != nil && strings.EqualFold(id.String(), want) {
-			return d, nil
-		}
-	}
-	return nil, database.NewNotFoundError()
-}
-
-func (l *SliceDeleteDesireLister) GetForNodePool(
-	ctx context.Context, subscriptionID, resourceGroupName, clusterName, nodePoolName, name string,
-) (*kubeapplier.DeleteDesire, error) {
-	want := kubeapplier.ToNodePoolScopedDeleteDesireResourceIDString(
-		subscriptionID, resourceGroupName, clusterName, nodePoolName, name,
-	)
-	for _, d := range l.Desires {
-		id := resourceIDOf(d)
-		if id != nil && strings.EqualFold(id.String(), want) {
-			return d, nil
-		}
-	}
-	return nil, database.NewNotFoundError()
-}
-
-func (l *SliceDeleteDesireLister) ListForManagementCluster(
-	ctx context.Context, managementCluster string,
-) ([]*kubeapplier.DeleteDesire, error) {
-	var out []*kubeapplier.DeleteDesire
-	for _, d := range l.Desires {
-		if strings.EqualFold(d.GetManagementCluster(), managementCluster) {
-			out = append(out, d)
-		}
-	}
-	return out, nil
-}
-
-func (l *SliceDeleteDesireLister) ListForCluster(
-	ctx context.Context, subscriptionID, resourceGroupName, clusterName string,
-) ([]*kubeapplier.DeleteDesire, error) {
-	var out []*kubeapplier.DeleteDesire
-	for _, d := range l.Desires {
-		if underCluster(resourceIDOf(d), subscriptionID, resourceGroupName, clusterName) {
-			out = append(out, d)
-		}
-	}
-	return out, nil
-}
-
-func (l *SliceDeleteDesireLister) ListForNodePool(
-	ctx context.Context, subscriptionID, resourceGroupName, clusterName, nodePoolName string,
-) ([]*kubeapplier.DeleteDesire, error) {
-	var out []*kubeapplier.DeleteDesire
 	for _, d := range l.Desires {
 		if underNodePool(resourceIDOf(d), subscriptionID, resourceGroupName, clusterName, nodePoolName) {
 			out = append(out, d)
@@ -275,11 +206,15 @@ func (l *SliceReadDesireLister) GetForNodePool(
 }
 
 func (l *SliceReadDesireLister) ListForManagementCluster(
-	ctx context.Context, managementCluster string,
+	ctx context.Context, managementClusterResourceID *azcorearm.ResourceID,
 ) ([]*kubeapplier.ReadDesire, error) {
+	if managementClusterResourceID == nil {
+		return nil, nil
+	}
+	want := managementClusterResourceID.String()
 	var out []*kubeapplier.ReadDesire
 	for _, d := range l.Desires {
-		if strings.EqualFold(d.GetManagementCluster(), managementCluster) {
+		if mc := d.GetManagementCluster(); mc != nil && strings.EqualFold(mc.String(), want) {
 			out = append(out, d)
 		}
 	}

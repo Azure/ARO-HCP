@@ -50,14 +50,16 @@ import (
 	"github.com/Azure/ARO-HCP/internal/database/informers"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/kube-applier/pkg/controllers/apply_desire"
-	"github.com/Azure/ARO-HCP/kube-applier/pkg/controllers/delete_desire"
 	"github.com/Azure/ARO-HCP/kube-applier/pkg/controllers/read_desire_manager"
 )
 
-// ManagementCluster is the partition key used by every test case. The
+// ManagementCluster is the partition-key value used by every test case. The
 // kube-applier process is single-tenant per management cluster, so a fixed
-// value is correct here.
-const ManagementCluster = "test-mgmt-1"
+// value is correct here. After the *Desire API changed Spec.ManagementCluster
+// from a free-form string to an azcorearm.ResourceID, the partition key value
+// must be the lowercased canonical form of that resourceID; tests' JSON fixtures
+// (e.g. artifacts/.../desire.json) likewise embed the same path string.
+const ManagementCluster = "/providers/microsoft.redhatopenshift/stamps/test/managementclusters/mgmt-1"
 
 const (
 	// fastRelist is short enough that controller reactions happen within a
@@ -185,7 +187,6 @@ func loadSteps(testDir fs.FS) ([]Step, error) {
 // shape in step_xxx.go's package-level comment.
 var stepConstructors = map[string]func(stepID string, stepDir fs.FS) (Step, error){
 	"loadApplyDesire":      newLoadApplyDesireStep,
-	"loadDeleteDesire":     newLoadDeleteDesireStep,
 	"loadReadDesire":       newLoadReadDesireStep,
 	"kubernetesLoad":       newKubernetesLoadStep,
 	"kubernetesApply":      newKubernetesApplyStep,
@@ -232,24 +233,19 @@ func startControllers(parent context.Context, t *testing.T, kac database.KubeApp
 	t.Helper()
 	ctx, cancel := context.WithCancel(parent)
 
-	partitionListers := kac.PartitionListers(ManagementCluster)
-	kubeApplierCRUD := kac.KubeApplier(ManagementCluster)
+	listers := kac.Listers()
 
-	applyInformer := informers.NewApplyDesireInformerWithRelistDuration(partitionListers.ApplyDesires(), fastRelist)
-	deleteInformer := informers.NewDeleteDesireInformerWithRelistDuration(partitionListers.DeleteDesires(), fastRelist)
-	readInformer := informers.NewReadDesireInformerWithRelistDuration(partitionListers.ReadDesires(), fastRelist)
+	applyInformer := informers.NewApplyDesireInformerWithRelistDuration(listers.ApplyDesires(), kac, fastRelist)
+	readInformer := informers.NewReadDesireInformerWithRelistDuration(listers.ReadDesires(), kac, fastRelist)
 
-	applyCtl, err := apply_desire.NewApplyDesireController(applyInformer, dyn, kubeApplierCRUD, apply_desire.Config{})
+	applyCtl, err := apply_desire.NewApplyDesireController(applyInformer, dyn, kac, apply_desire.Config{})
 	require.NoError(t, err)
-	deleteCtl, err := delete_desire.NewDeleteDesireController(deleteInformer, dyn, kubeApplierCRUD, delete_desire.Config{})
-	require.NoError(t, err)
-	readMgr, err := read_desire_manager.NewReadDesireInformerManagingController(readInformer, dyn, kubeApplierCRUD, read_desire_manager.Config{})
+	readMgr, err := read_desire_manager.NewReadDesireInformerManagingController(readInformer, dyn, kac, read_desire_manager.Config{})
 	require.NoError(t, err)
 
 	wg := &sync.WaitGroup{}
 	for _, fn := range []func(){
 		func() { applyInformer.RunWithContext(ctx) },
-		func() { deleteInformer.RunWithContext(ctx) },
 		func() { readInformer.RunWithContext(ctx) },
 	} {
 		wg.Add(1)
@@ -258,14 +254,13 @@ func startControllers(parent context.Context, t *testing.T, kac database.KubeApp
 	syncCtx, syncCancel := context.WithTimeout(ctx, 10*time.Second)
 	defer syncCancel()
 	if !cache.WaitForCacheSync(syncCtx.Done(),
-		applyInformer.HasSynced, deleteInformer.HasSynced, readInformer.HasSynced) {
+		applyInformer.HasSynced, readInformer.HasSynced) {
 		cancel()
 		wg.Wait()
 		t.Fatal("informer caches did not sync within 10s")
 	}
 	for _, fn := range []func(){
 		func() { applyCtl.Run(ctx, 1) },
-		func() { deleteCtl.Run(ctx, 1) },
 		func() { readMgr.Run(ctx, 1) },
 	} {
 		wg.Add(1)

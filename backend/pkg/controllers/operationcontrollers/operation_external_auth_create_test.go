@@ -18,14 +18,20 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/go-logr/logr/testr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	utilsclock "k8s.io/utils/clock"
+
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
+	"github.com/Azure/ARO-HCP/backend/pkg/listertesting"
+	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
@@ -34,15 +40,45 @@ import (
 )
 
 func TestOperationExternalAuthCreate_SynchronizeOperation(t *testing.T) {
+	defaultExternalAuth := func(fixture *externalAuthTestFixture) *api.HCPOpenShiftClusterExternalAuth {
+		return fixture.newExternalAuth()
+	}
+
+	externalAuthWithoutCSID := func(fixture *externalAuthTestFixture) *api.HCPOpenShiftClusterExternalAuth {
+		ea := fixture.newExternalAuth()
+		ea.ServiceProviderProperties.ClusterServiceID = nil
+		return ea
+	}
+
+	externalAuthWithDeletionTimestamp := func(fixture *externalAuthTestFixture) *api.HCPOpenShiftClusterExternalAuth {
+		ea := fixture.newExternalAuth()
+		ea.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: time.Now()}
+		return ea
+	}
+
+	externalAuthWithMismatchedActiveOperationID := func(fixture *externalAuthTestFixture) *api.HCPOpenShiftClusterExternalAuth {
+		ea := fixture.newExternalAuth()
+		ea.ServiceProviderProperties.ActiveOperationID = "other-operation"
+		return ea
+	}
+
+	externalAuthWithEmptyActiveOperationID := func(fixture *externalAuthTestFixture) *api.HCPOpenShiftClusterExternalAuth {
+		ea := fixture.newExternalAuth()
+		ea.ServiceProviderProperties.ActiveOperationID = ""
+		return ea
+	}
+
 	tests := []struct {
-		name        string
-		setupMock   func(ctrl *gomock.Controller, fixture *externalAuthTestFixture) ocm.ClusterServiceClientSpec
-		expectError bool
-		verify      func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *externalAuthTestFixture)
+		name         string
+		externalAuth func(fixture *externalAuthTestFixture) *api.HCPOpenShiftClusterExternalAuth
+		setupCSMock  func(ctrl *gomock.Controller, fixture *externalAuthTestFixture) ocm.ClusterServiceClientSpec
+		expectError  bool
+		verify       func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *externalAuthTestFixture)
 	}{
 		{
-			name: "external auth exists transitions to succeeded",
-			setupMock: func(ctrl *gomock.Controller, fixture *externalAuthTestFixture) ocm.ClusterServiceClientSpec {
+			name:         "external auth exists transitions to succeeded",
+			externalAuth: defaultExternalAuth,
+			setupCSMock: func(ctrl *gomock.Controller, fixture *externalAuthTestFixture) ocm.ClusterServiceClientSpec {
 				mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)
 				externalAuth, _ := arohcpv1alpha1.NewExternalAuth().
 					ID(testExternalAuthIDStr).
@@ -58,7 +94,6 @@ func TestOperationExternalAuthCreate_SynchronizeOperation(t *testing.T) {
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateSucceeded, op.Status)
 
-				// Verify external auth provisioning state was also updated
 				externalAuth, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).ExternalAuth(testClusterName).Get(ctx, testExternalAuthName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateSucceeded, externalAuth.Properties.ProvisioningState)
@@ -66,8 +101,9 @@ func TestOperationExternalAuthCreate_SynchronizeOperation(t *testing.T) {
 			},
 		},
 		{
-			name: "external auth get error returns error",
-			setupMock: func(ctrl *gomock.Controller, fixture *externalAuthTestFixture) ocm.ClusterServiceClientSpec {
+			name:         "external auth get error returns error",
+			externalAuth: defaultExternalAuth,
+			setupCSMock: func(ctrl *gomock.Controller, fixture *externalAuthTestFixture) ocm.ClusterServiceClientSpec {
 				mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)
 				mockCSClient.EXPECT().
 					GetExternalAuth(gomock.Any(), fixture.externalAuthInternalID).
@@ -76,6 +112,42 @@ func TestOperationExternalAuthCreate_SynchronizeOperation(t *testing.T) {
 			},
 			expectError: true,
 			verify:      nil,
+		},
+		{
+			name:         "ClusterServiceID nil skips reconciliation",
+			externalAuth: externalAuthWithoutCSID,
+			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *externalAuthTestFixture) {
+				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
+				require.NoError(t, err)
+				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
+			},
+		},
+		{
+			name:         "ActiveOperationID mismatch skips reconciliation",
+			externalAuth: externalAuthWithMismatchedActiveOperationID,
+			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *externalAuthTestFixture) {
+				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
+				require.NoError(t, err)
+				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
+			},
+		},
+		{
+			name:         "empty ActiveOperationID skips reconciliation",
+			externalAuth: externalAuthWithEmptyActiveOperationID,
+			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *externalAuthTestFixture) {
+				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
+				require.NoError(t, err)
+				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
+			},
+		},
+		{
+			name:         "DeletionTimestamp set skips reconciliation",
+			externalAuth: externalAuthWithDeletionTimestamp,
+			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *externalAuthTestFixture) {
+				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
+				require.NoError(t, err)
+				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
+			},
 		},
 	}
 
@@ -88,27 +160,36 @@ func TestOperationExternalAuthCreate_SynchronizeOperation(t *testing.T) {
 
 			fixture := newExternalAuthTestFixture()
 			cluster := fixture.newCluster()
-			externalAuth := fixture.newExternalAuth()
+			externalAuth := tt.externalAuth(fixture)
 			operation := fixture.newOperation(database.OperationRequestCreate)
 
-			mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, externalAuth, operation})
+			resources := []any{cluster, externalAuth, operation}
+
+			mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, resources)
 			require.NoError(t, err)
 
-			mockCSClient := tt.setupMock(ctrl, fixture)
+			var mockCSClient ocm.ClusterServiceClientSpec
+			if tt.setupCSMock != nil {
+				mockCSClient = tt.setupCSMock(ctrl, fixture)
+			} else {
+				mockCSClient = ocm.NewMockClusterServiceClientSpec(ctrl)
+			}
 
 			controller := &operationExternalAuthCreate{
-				resourcesDBClient:    mockResourcesDBClient,
-				clusterServiceClient: mockCSClient,
-				notificationClient:   nil,
+				clock:                  utilsclock.RealClock{},
+				resourcesDBClient:      mockResourcesDBClient,
+				activeOperationsLister: &listertesting.DBActiveOperationLister{ResourcesDBClient: mockResourcesDBClient},
+				externalAuthLister:     &listertesting.DBExternalAuthLister{ResourcesDBClient: mockResourcesDBClient},
+				clusterServiceClient:   mockCSClient,
+				notificationClient:     nil,
 			}
 
 			err = controller.SynchronizeOperation(ctx, fixture.operationKey())
-
 			if tt.expectError {
 				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
+				return
 			}
+			require.NoError(t, err)
 
 			if tt.verify != nil {
 				tt.verify(t, ctx, mockResourcesDBClient, fixture)

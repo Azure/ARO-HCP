@@ -37,13 +37,11 @@ data:
         Plugins_File              /fluent-bit/etc/plugins.conf
         HTTP_Server               On
         storage.path              /var/fluent-bit/flb-storage
-        # If the input plugin has enabled filesystem storage type, this property sets the maximum number of Chunks that can be up in memory.
-        # (default: 128)
-        storage.max_chunks_up     256
-        # This option configure a hint of maximum value of memory to use when processing the backlog data.
-        # (default: 5M)
-        storage.backlog.mem_limit 50M
+        storage.max_chunks_up     128
+        storage.backlog.mem_limit 15M
         storage.metrics           on
+        storage.delete_irrecoverable_chunks on
+        scheduler.cap             600
         Grace                     30
         # Based on the HC_Period, if the error number > HC_Errors_Count or the retry failure > HC_Retry_Failure_Count, fluent bit is considered as unhealthy.
         Health_Check              On
@@ -57,6 +55,21 @@ data:
         Time_Key    time
         Time_Format %Y-%m-%dT%H:%M:%S.%L
         Time_Keep   On
+
+    [MULTILINE_PARSER]
+        name          klog
+        type          regex
+        flush_timeout 1000
+        # A klog line starts with [IWEF] followed by 4 digits (mmdd) and a space
+        rule          "start_state"  "/^[IWEF]\d{4} /"               "cont"
+        # A JSON log line starts with { — treat as its own entry
+        rule          "start_state"  "/^\{/"                          "cont"
+        # A structured log line starts with an ISO 8601 timestamp
+        rule          "start_state"  "/^\d{4}-\d{2}-\d{2}T\d{2}:/"   "cont"
+        # Anything else is a continuation of the previous multiline entry
+        rule          "cont"         "/^[^IWEF{\d]/"                  "cont"
+        rule          "cont"         "/^[IWEF][^0-9]/"                "cont"
+        rule          "cont"         "/^\d(?!\d{3}-\d{2}-\d{2}T\d{2}:)/"  "cont"
 
   input.conf: |
     [INPUT]
@@ -73,8 +86,8 @@ data:
         DB.locking        true
         Refresh_Interval  15
         Read_from_Head    On
-        Buffer_Chunk_Size 128K
-        Buffer_Max_Size   2M
+        Buffer_Chunk_Size 32K
+        Buffer_Max_Size   256K
         Skip_Long_Lines   On
         storage.type      filesystem
         Threaded          On
@@ -99,6 +112,7 @@ data:
         Alias  otlp
         Listen 0.0.0.0
         Port   4318
+        Mem_Buf_Limit 50M
 
     [INPUT]
         Name            systemd
@@ -106,12 +120,55 @@ data:
         Tag             systemd.*
         Systemd_Filter  _SYSTEMD_UNIT=containerd.service
         Systemd_Filter  _SYSTEMD_UNIT=kubelet.service
+        # AROSLSRE-1465: capture kernel ring-buffer (kmsg) messages so we can see
+        # the guest kernel stack (hung_task/soft-lockup/panic) in the seconds
+        # before a userswft node hard-freezes into NodeNotReady. Kernel journal
+        # records carry no _SYSTEMD_UNIT; they are matched by _TRANSPORT=kernel.
+        # Systemd_Filter entries are OR'd, so this only adds kernel lines. They
+        # flow to the existing systemdLogs Kusto table (no schema change): the
+        # full record is preserved in the `log` dynamic column, so _TRANSPORT /
+        # SYSLOG_IDENTIFIER / PRIORITY stay queryable, and `message` maps from
+        # $.log.MESSAGE. systemd_unit is simply empty for kernel lines.
+        Systemd_Filter  _TRANSPORT=kernel
         Read_From_Tail  On
         Strip_Underscores On
         DB              /var/fluent-bit/flb-storage/flb-systemdb.db
         Threaded          On
         storage.type      filesystem
   filter.conf: |
+    [FILTER]
+        Name                  multiline
+        Alias                 filter.multiline_klog
+        Match                 kubernetes.*
+        multiline.parser      klog
+        multiline.key_content log
+
+    [FILTER]
+        # Drop noisy kube-proxy topology.go INFO messages that generate 10x log volume
+        # spikes during EndpointSlice reconciliation on mgmt clusters (ICM 825611890).
+        Name    grep
+        Alias   filter.drop_kube_proxy_topology_noise
+        Match   kubernetes.var.log.containers.kube-proxy*
+        Exclude log Ignoring same-(node|zone) topology hints
+
+    [FILTER]
+        # AROSLSRE-1465: the kernel journal (_TRANSPORT=kernel, captured by the
+        # systemd input above) carries SELinux/audit-subsystem records that are
+        # routed through kmsg: lines beginning with "audit:" (audit types such as
+        # 1300/1325/1327/1130/1131 -- syscall, netfilter and service-state audit
+        # events) and the "kauditd_printk_skb: N callbacks suppressed" throttle
+        # notices. These are process/security audit events, NOT kernel-health
+        # signals, and they account for ~87% of kernel-transport log volume. They
+        # are useless for diagnosing node hard-freezes (hung_task, soft lockup,
+        # RCU stall, OOM, MCE, kernel panic), so we drop them here and keep only
+        # actionable kernel diagnostics. kubelet/containerd systemd records and
+        # all non-audit kernel lines are unaffected (their MESSAGE never starts
+        # with these prefixes).
+        Name    grep
+        Alias   filter.drop_kernel_audit_noise
+        Match   systemd.*
+        Exclude MESSAGE ^(audit:|kauditd_printk_skb:)
+
     [FILTER]
         Name modify
         Match systemd.*
@@ -133,6 +190,7 @@ data:
         Kube_Tag_Prefix     kubernetes.var.log.containers.
         Annotations         Off
         K8S-Logging.Exclude On
+        Kube_Meta_Cache_TTL 300
         Buffer_Size         64k
 
     [FILTER]
@@ -153,7 +211,9 @@ data:
         Rule            $kubernetes['container_name'] ^aro-hcp-frontend* aro-hcp-frontend.logs true
         Rule            $kubernetes['container_name'] ^aro-hcp-backend* aro-hcp-backend.logs true
         Rule            $kubernetes['container_name'] ^clusters-service* clusters-service.logs true
+        Rule            $kubernetes['container_name'] ^fleet-controller* fleet-controller.logs true
         Rule            $kubernetes['container_name'] ^kube-events* kube-events.logs true
+        Rule            $kubernetes['container_name'] ^mgmt-agent-controller* mgmt-agent.logs true
         Emitter_Name    re_emitted_container_name_router
         Emitter_Mem_Buf_Limit  20M
         Emitter_Storage.type   filesystem
@@ -161,11 +221,44 @@ data:
     [FILTER]
         # Parse the log key and make it a json object again under $
         Name Parser
-        Match_regex (aro-hcp-(frontend|backend)|kube-events|clusters-service)\.logs
+        Match_regex (aro-hcp-(frontend|backend)|kube-events|clusters-service|fleet-controller|mgmt-agent)\.logs
         Key_Name log
         Parser containerlogs
         Preserve_Key On
         Reserve_Data On
+
+    [FILTER]
+        # Route mgmt-agent logs with snapshotType=kubernetes
+        # to a dedicated tag for the kubernetesResourceSnapshots Kusto table.
+        Name            rewrite_tag
+        Alias           filter.resource_snapshot_router
+        Match           mgmt-agent.logs
+        Rule            $snapshotType ^kubernetes$ resource-snapshots.logs true
+        Emitter_Name    re_emitted_resource_snapshot_router
+        Emitter_Mem_Buf_Limit  20M
+        Emitter_Storage.type   filesystem
+
+    [FILTER]
+        # Route backend logs with snapshotType=cosmos
+        # to a dedicated tag for the cosmosResourceSnapshots Kusto table.
+        Name            rewrite_tag
+        Alias           filter.cosmos_snapshot_router
+        Match           aro-hcp-backend.logs
+        Rule            $snapshotType ^cosmos$ cosmos-snapshots.logs true
+        Emitter_Name    re_emitted_cosmos_snapshot_router
+        Emitter_Mem_Buf_Limit  20M
+        Emitter_Storage.type   filesystem
+
+    [FILTER]
+        # Route frontend logs with snapshotType=cosmos
+        # to the same cosmosResourceSnapshots Kusto table.
+        Name            rewrite_tag
+        Alias           filter.cosmos_snapshot_router_frontend
+        Match           aro-hcp-frontend.logs
+        Rule            $snapshotType ^cosmos$ cosmos-snapshots.logs true
+        Emitter_Name    re_emitted_cosmos_snapshot_router_frontend
+        Emitter_Mem_Buf_Limit  20M
+        Emitter_Storage.type   filesystem
   output.conf: |
     [OUTPUT]
         Name  prometheus_exporter
@@ -177,6 +270,7 @@ data:
     [OUTPUT]
         Match aro-hcp-frontend.logs
         Name azure_kusto
+        Retry_Limit 5
         auth_type workload_identity
         tenant_id __tenantId__
         client_id __msiClientId__
@@ -190,6 +284,7 @@ data:
     [OUTPUT]
         Match aro-hcp-backend.logs
         Name azure_kusto
+        Retry_Limit 5
         auth_type workload_identity
         tenant_id __tenantId__
         client_id __msiClientId__
@@ -202,8 +297,24 @@ data:
         buffer_dir "/var/kusto"
 
     [OUTPUT]
+        Match fleet-controller.logs
+        Name azure_kusto
+        Retry_Limit 5
+        auth_type workload_identity
+        tenant_id __tenantId__
+        client_id __msiClientId__
+        workload_identity_token_file ${AZURE_FEDERATED_TOKEN_FILE}
+        Ingestion_Endpoint __kustoDataIngestionUri__
+        Database_Name ServiceLogs
+        Table_Name fleetLogs
+        ingestion_mapping_reference ingestionMapping
+        azure_kusto_buffer_key fleetLogs
+        buffer_dir "/var/kusto"
+
+    [OUTPUT]
         Match clusters-service.logs
         Name azure_kusto
+        Retry_Limit 5
         auth_type workload_identity
         tenant_id __tenantId__
         client_id __msiClientId__
@@ -214,9 +325,41 @@ data:
         ingestion_mapping_reference ingestionMapping
         azure_kusto_buffer_key clustersServiceLogs
         buffer_dir "/var/kusto"
+
+    [OUTPUT]
+        Match resource-snapshots.logs
+        Name azure_kusto
+        Retry_Limit 5
+        auth_type workload_identity
+        tenant_id __tenantId__
+        client_id __msiClientId__
+        workload_identity_token_file ${AZURE_FEDERATED_TOKEN_FILE}
+        Ingestion_Endpoint __kustoDataIngestionUri__
+        Database_Name ServiceLogs
+        Table_Name kubernetesResourceSnapshots
+        ingestion_mapping_reference ingestionMapping
+        azure_kusto_buffer_key resourceSnapshots
+        buffer_dir "/var/kusto"
+
+    [OUTPUT]
+        Match cosmos-snapshots.logs
+        Name azure_kusto
+        Retry_Limit 5
+        auth_type workload_identity
+        tenant_id __tenantId__
+        client_id __msiClientId__
+        workload_identity_token_file ${AZURE_FEDERATED_TOKEN_FILE}
+        Ingestion_Endpoint __kustoDataIngestionUri__
+        Database_Name ServiceLogs
+        Table_Name cosmosResourceSnapshots
+        ingestion_mapping_reference ingestionMapping
+        azure_kusto_buffer_key cosmosResourceSnapshots
+        buffer_dir "/var/kusto"
+
     [OUTPUT]
         Match kubernetes.*
         Name azure_kusto
+        Retry_Limit 5
         auth_type workload_identity
         tenant_id __tenantId__
         client_id __msiClientId__
@@ -231,6 +374,7 @@ data:
     [OUTPUT]
         Match kube-events.logs
         Name azure_kusto
+        Retry_Limit 5
         auth_type workload_identity
         tenant_id __tenantId__
         client_id __msiClientId__
@@ -242,19 +386,10 @@ data:
         azure_kusto_buffer_key kubernetesEvents
         buffer_dir "/var/kusto"
 
-  output-mdsd.conf: |
-    # Forward logs to mdsd instance (default port)
-    [OUTPUT]
-        Name  forward
-        Alias forward.mdsd.other
-        Match mdsd-other.logs
-        Host  127.0.0.1
-        Port  5001
-        Tag   akskubesystem
-
     [OUTPUT]
         Match systemd.*
         Name azure_kusto
+        Retry_Limit 5
         auth_type workload_identity
         tenant_id __tenantId__
         client_id __msiClientId__
@@ -265,6 +400,16 @@ data:
         ingestion_mapping_reference ingestionMapping
         azure_kusto_buffer_key systemdLogs
         buffer_dir "/var/kusto"
+
+  output-mdsd.conf: |
+    # Forward logs to mdsd instance (default port)
+    [OUTPUT]
+        Name  forward
+        Alias forward.mdsd.other
+        Match mdsd-other.logs
+        Host  127.0.0.1
+        Port  5001
+        Tag   akskubesystem
 ---
 # Source: arobit/templates/forwarder-clusterrole.yaml
 kind: ClusterRole
@@ -360,7 +505,7 @@ spec:
         app: arobit-forwarder
         azure.workload.identity/use: "true"
       annotations:
-        checksum/configmap: 49ad24d064241d58dbdcf15dded3d32901f320110de9a827f2ed85bfe2946764
+        checksum/configmap: 4c70eb054d1139eef9f2cf17f73fbcb6141a31e82243ec5c251b3d40a1278897
     spec:
       priorityClassName: service-lifecycle-critical
       serviceAccountName: 'arobit-forwarder'
@@ -417,7 +562,7 @@ spec:
               cpu: 100m
               memory: 256Mi
             limits:
-              memory: 1Gi
+              memory: 1248Mi
           volumeMounts:
             - name: var-kusto
               mountPath: /var/kusto

@@ -326,8 +326,8 @@ func (v version) NewHCPOpenShiftCluster(from *api.HCPOpenShiftCluster) api.Versi
 	}
 
 	idString := ""
-	if from.ID != nil {
-		idString = from.ID.String()
+	if from.ResourceID != nil {
+		idString = from.ResourceID.String()
 	}
 
 	out := &HcpOpenShiftCluster{
@@ -406,6 +406,7 @@ func (c *HcpOpenShiftCluster) ConvertToInternal(existing *api.HCPOpenShiftCluste
 
 	if c.ID != nil {
 		out.ID = api.Must(azcorearm.ParseResourceID(strings.ToLower(*c.ID)))
+		out.ResourceID = api.Must(azcorearm.ParseResourceID(strings.ToLower(*c.ID)))
 	}
 	if c.Name != nil {
 		out.Name = *c.Name
@@ -487,9 +488,10 @@ func (c *HcpOpenShiftCluster) ConvertToInternal(existing *api.HCPOpenShiftCluste
 }
 
 // preserveUnknownClusterFields copies customer-facing fields from existing that
-// this API version doesn't know about. Currently empty — no cross-version
-// customer fields exist yet between v20240610preview and v20251223preview.
+// this API version doesn't know about.
 func preserveUnknownClusterFields(from, to *api.HCPOpenShiftCluster) {
+	// Ingress was added in v2026_06_30_preview.
+	to.CustomerProperties.Ingress = from.CustomerProperties.Ingress
 }
 
 func normalizeManagedIdentity(identity *generated.ManagedServiceIdentity) *arm.ManagedServiceIdentity {

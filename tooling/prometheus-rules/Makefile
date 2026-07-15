@@ -20,32 +20,67 @@ fmt-devinfra:
 	$(MAKE) -C ../../dev-infrastructure fmt
 .PHONY: fmt-devinfra
 
-run:
-	go run ./...  --config-file ../../observability/observability.yaml $(EXTRA_FLAGS)
-	$(MAKE) fmt-devinfra
+run: alerts recording-rules
 .PHONY: run
 
-run-hcp:
-	go run ./...  --config-file ../../observability/observability-hcp.yaml $(EXTRA_FLAGS)
+alerts: run-sl-services run-sl-hcps run-sre-hcps run-sre-services run-rp-services run-msft-services run-kusto-services run-kusto-hcps
 	$(MAKE) fmt-devinfra
-.PHONY: run-hcp
+.PHONY: alerts
 
-run-rp:
-	go run ./...  --config-file ../../observability/observability-rp.yaml $(EXTRA_FLAGS)
+recording-rules: run-recording-rules-services run-recording-rules-hcps
 	$(MAKE) fmt-devinfra
-.PHONY: run-rp
+.PHONY: recording-rules
 
-run-msft:
-	go run ./...  --config-file ../../observability/observability-msft.yaml $(EXTRA_FLAGS)
-	$(MAKE) fmt-devinfra
-.PHONY: run-msft
+run-sl-services:
+	go run ./...  --config-file ../../observability/alerts-sl-services.yaml $(EXTRA_FLAGS)
+.PHONY: run-sl-services
 
-run-recording-rules:
-	go run ./...  --config-file ../../observability/observability-recording-rules.yaml
-	$(MAKE) fmt-devinfra
-.PHONY: run-recording-rules
+run-sl-hcps:
+	go run ./...  --config-file ../../observability/alerts-sl-hcps.yaml $(EXTRA_FLAGS)
+.PHONY: run-sl-hcps
 
-run-hcp-recording-rules:
-	go run ./...  --config-file ../../observability/observability-hcp-recording-rules.yaml
-	$(MAKE) fmt-devinfra
-.PHONY: run-hcp-recording-rules
+run-sre-hcps:
+	go run ./...  --config-file ../../observability/alerts-sre-hcps.yaml $(EXTRA_FLAGS)
+.PHONY: run-sre-hcps
+
+run-sre-services:
+	go run ./...  --config-file ../../observability/alerts-sre-services.yaml $(EXTRA_FLAGS)
+.PHONY: run-sre-services
+
+run-rp-services:
+	go run ./...  --config-file ../../observability/alerts-rp-services.yaml $(EXTRA_FLAGS)
+.PHONY: run-rp-services
+
+run-msft-services:
+	go run ./...  --config-file ../../observability/alerts-msft-services.yaml $(EXTRA_FLAGS)
+.PHONY: run-msft-services
+
+run-kusto-services:
+	go run ./...  --config-file ../../observability/alerts-kusto-services.yaml $(EXTRA_FLAGS)
+.PHONY: run-kusto-services
+
+run-kusto-hcps:
+	go run ./...  --config-file ../../observability/alerts-kusto-hcps.yaml $(EXTRA_FLAGS)
+.PHONY: run-kusto-hcps
+
+run-recording-rules-services:
+	go run ./...  --config-file ../../observability/recording-rules-services.yaml $(EXTRA_FLAGS)
+.PHONY: run-recording-rules-services
+
+run-recording-rules-hcps:
+	go run ./...  --config-file ../../observability/recording-rules-hcps.yaml $(EXTRA_FLAGS)
+.PHONY: run-recording-rules-hcps
+
+ALERT_CONFIGS = \
+	../../observability/alerts-sl-services.yaml \
+	../../observability/alerts-sl-hcps.yaml \
+	../../observability/alerts-sre-hcps.yaml \
+	../../observability/alerts-sre-services.yaml \
+	../../observability/alerts-rp-services.yaml \
+	../../observability/alerts-msft-services.yaml \
+	../../observability/alerts-kusto-services.yaml \
+	../../observability/alerts-kusto-hcps.yaml
+
+correlation-map:
+	go run ./... --correlation-map $(ALERT_CONFIGS) > $(OUTPUT)
+.PHONY: correlation-map

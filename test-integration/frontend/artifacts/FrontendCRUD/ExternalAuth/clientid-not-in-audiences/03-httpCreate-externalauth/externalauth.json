@@ -1,5 +1,5 @@
 {
-	"name": "clientid-not-in-audiences-auth",
+	"name": "ea-cid-aud",
 	"properties": {
 		"claim": {
 			"mappings": {

@@ -14,16 +14,26 @@
 
 package verifiers
 
+// NOTE: This file depends on the staticFiles embed.FS variable defined in
+// serving_app.go, which embeds the artifacts directory containing the
+// cilium-connectivity-check YAML files.
+
 import (
 	"context"
 	"fmt"
+	"io/fs"
+	"path/filepath"
+	"slices"
+	"strings"
 	"time"
 
 	"github.com/onsi/ginkgo/v2"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 )
@@ -53,6 +63,8 @@ func (v verifyCiliumOperational) Verify(ctx context.Context, adminRESTConfig *re
 
 	// Wait for all cilium pods to be running
 	var lastErr error
+	var lastErrMsg string
+	var lastNotRunningPods []string
 	err = wait.PollUntilContextTimeout(ctx, 30*time.Second, 10*time.Minute, true, func(ctx context.Context) (done bool, err error) {
 		listOptions := metav1.ListOptions{}
 		if v.ciliumLabelSelector != "" {
@@ -61,13 +73,21 @@ func (v verifyCiliumOperational) Verify(ctx context.Context, adminRESTConfig *re
 		pods, err := kubeClient.CoreV1().Pods(v.ciliumNamespace).List(ctx, listOptions)
 		if err != nil {
 			lastErr = fmt.Errorf("failed to list pods in %s namespace: %w", v.ciliumNamespace, err)
-			logger.Info("failed to list pods", "error", err)
+			lastNotRunningPods = nil
+			if msg := lastErr.Error(); msg != lastErrMsg {
+				logger.Info("failed to list pods", "error", err)
+				lastErrMsg = msg
+			}
 			return false, nil
 		}
 
 		if len(pods.Items) == 0 {
 			lastErr = fmt.Errorf("no cilium pods found in %s namespace", v.ciliumNamespace)
-			logger.Info("no cilium pods found yet in namespace", "namespace", v.ciliumNamespace)
+			lastNotRunningPods = nil
+			if msg := lastErr.Error(); msg != lastErrMsg {
+				logger.Info("no cilium pods found yet in namespace", "namespace", v.ciliumNamespace)
+				lastErrMsg = msg
+			}
 			return false, nil
 		}
 
@@ -79,33 +99,18 @@ func (v verifyCiliumOperational) Verify(ctx context.Context, adminRESTConfig *re
 		}
 
 		if len(notRunningPods) > 0 {
+			slices.Sort(notRunningPods)
 			lastErr = fmt.Errorf("cilium pods not yet running: %v", notRunningPods)
-			logger.Info("waiting for cilium pods to be running", "notRunning", notRunningPods)
+			if !slices.Equal(notRunningPods, lastNotRunningPods) {
+				logger.Info("waiting for cilium pods to be running", "notRunning", notRunningPods)
+				lastNotRunningPods = notRunningPods
+			}
 			return false, nil
 		}
 
 		return true, nil
 	})
 	if err != nil {
-		// Log all events in cilium namespace to help debug issues
-		events, eventsErr := kubeClient.CoreV1().Events(v.ciliumNamespace).List(ctx, metav1.ListOptions{})
-		if eventsErr != nil {
-			logger.Error(eventsErr, "failed to list events for debugging", "namespace", v.ciliumNamespace)
-		} else {
-			logger.Info("listing events for debugging", "namespace", v.ciliumNamespace, "eventCount", len(events.Items))
-			for _, event := range events.Items {
-				logger.Info("event",
-					"type", event.Type,
-					"reason", event.Reason,
-					"message", event.Message,
-					"object", fmt.Sprintf("%s/%s", event.InvolvedObject.Kind, event.InvolvedObject.Name),
-					"count", event.Count,
-					"firstTimestamp", event.FirstTimestamp,
-					"lastTimestamp", event.LastTimestamp,
-				)
-			}
-		}
-
 		if lastErr != nil {
 			return fmt.Errorf("not all pods in %s namespace are running: %w", v.ciliumNamespace, lastErr)
 		}
@@ -119,4 +124,286 @@ func (v verifyCiliumOperational) Verify(ctx context.Context, adminRESTConfig *re
 // Verifies that all Cilium pods are running in given namespace.
 func VerifyCiliumOperational(ciliumNamespace string, ciliumLabelSelector string) HostedClusterVerifier {
 	return verifyCiliumOperational{ciliumNamespace: ciliumNamespace, ciliumLabelSelector: ciliumLabelSelector}
+}
+
+type verifyCiliumConnectivityChecks struct {
+	ciliumVersion string
+}
+
+func (v verifyCiliumConnectivityChecks) Name() string {
+	return "VerifyCiliumConnectivityChecks"
+}
+
+func (v verifyCiliumConnectivityChecks) Verify(ctx context.Context, adminRESTConfig *rest.Config) error {
+	logger := ginkgo.GinkgoLogr
+
+	kubeClient, err := kubernetes.NewForConfig(adminRESTConfig)
+	if err != nil {
+		return fmt.Errorf("failed to create kubernetes client: %w", err)
+	}
+
+	dynamicClient, err := dynamic.NewForConfig(adminRESTConfig)
+	if err != nil {
+		return fmt.Errorf("failed to create dynamic client: %w", err)
+	}
+
+	// Create namespace for the connectivity check
+	namespaceName := "cilium-connectivity-check"
+	namespace, err := kubeClient.CoreV1().Namespaces().Create(
+		ctx,
+		&corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: namespaceName,
+			},
+		},
+		metav1.CreateOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to create test namespace: %w", err)
+	}
+	logger.Info("namespace for connectivity check was created", "namespace", namespaceName)
+
+	// Ensure namespace and SCCs cleanup on exit, SCCs are cluster-scoped so
+	// must be deleted explicitly
+	sccNames := []string{}
+	sccGVR := schema.GroupVersionResource{Group: "security.openshift.io", Version: "v1", Resource: "securitycontextconstraints"}
+	defer func() {
+		deleteCtx := context.Background()
+		for _, sccName := range sccNames {
+			err := dynamicClient.Resource(sccGVR).Delete(deleteCtx, sccName, metav1.DeleteOptions{})
+			if err != nil {
+				logger.Error(err, "failed to delete SCC", "name", sccName)
+			}
+		}
+		err := kubeClient.CoreV1().Namespaces().Delete(deleteCtx, namespaceName, metav1.DeleteOptions{})
+		if err != nil {
+			logger.Error(err, "failed to delete test namespace", "namespace", namespaceName)
+		}
+	}()
+
+	// Deploy all YAML files from the connectivity check directory.
+	// Several connectivity check deployments use requiredDuringScheduling
+	// podAntiAffinity against the echo-b label to enforce cross-node
+	// placement. Because this constraint is bidirectional, the scheduler
+	// also blocks echo-b from landing on a node that already hosts one of
+	// those anti-affinity pods. When all deployments are created at once,
+	// a scheduling race can prevent echo-b from ever being placed.
+	// To avoid this, we deploy echo-a and echo-b first and wait for their
+	// pods to be scheduled before creating the remaining resources.
+	expectedPodCount := 0
+	checkDir := fmt.Sprintf("artifacts/cilium-connectivity-check-%s", v.ciliumVersion)
+	entries, err := fs.ReadDir(staticFiles, checkDir)
+	if err != nil {
+		return fmt.Errorf("failed to read connectivity check artifacts directory: %w", err)
+	}
+
+	echoDeploymentNames := map[string]bool{"echo-a": true, "echo-b": true}
+	echoDeploymentsCreated := 0
+
+	createResource := func(entry fs.DirEntry) error {
+		filePath := filepath.Join(checkDir, entry.Name())
+		deploymentYAML, err := staticFiles.ReadFile(filePath)
+		if err != nil {
+			return fmt.Errorf("failed to read file %s: %w", filePath, err)
+		}
+
+		resource, err := createArbitraryResource(ctx, dynamicClient, namespace.Name, deploymentYAML)
+		if err != nil {
+			return fmt.Errorf("failed to create test resource from %s: %w", filePath, err)
+		}
+		if resource.GetKind() == "SecurityContextConstraints" {
+			sccNames = append(sccNames, resource.GetName())
+		}
+		if resource.GetKind() == "Deployment" {
+			replicas := int64(1)
+			if spec, ok := resource.Object["spec"].(map[string]any); ok {
+				if r, ok := spec["replicas"].(int64); ok {
+					replicas = r
+				}
+			}
+			expectedPodCount += int(replicas)
+
+			if echoDeploymentNames[resource.GetName()] {
+				echoDeploymentsCreated++
+			}
+		}
+
+		logger.Info("created resource",
+			"file", entry.Name(),
+			"kind", resource.GetKind(),
+			"name", resource.GetName(),
+			"namespace", resource.GetNamespace(),
+		)
+		return nil
+	}
+
+	// Phase 1: create resources up to and including both echo deployments.
+	phase2Start := 0
+	for i, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".yaml") {
+			continue
+		}
+		if err := createResource(entry); err != nil {
+			return err
+		}
+		if echoDeploymentsCreated >= len(echoDeploymentNames) {
+			phase2Start = i + 1
+			break
+		}
+	}
+
+	// Wait for echo-a and echo-b pods to be assigned to nodes before
+	// creating resources with anti-affinity rules against them.
+	if echoDeploymentsCreated >= len(echoDeploymentNames) {
+		logger.Info("waiting for echo-a and echo-b pods to be scheduled")
+		waitErr := wait.PollUntilContextTimeout(ctx, 2*time.Second, 2*time.Minute, true, func(ctx context.Context) (bool, error) {
+			pods, listErr := kubeClient.CoreV1().Pods(namespaceName).List(ctx, metav1.ListOptions{
+				LabelSelector: "name in (echo-a, echo-b)",
+			})
+			if listErr != nil {
+				return false, nil
+			}
+			scheduled := 0
+			for _, pod := range pods.Items {
+				if pod.Spec.NodeName != "" {
+					scheduled++
+				}
+			}
+			return scheduled >= 2, nil
+		})
+		if waitErr != nil {
+			return fmt.Errorf("echo-a/echo-b pods were not scheduled in time: %w", waitErr)
+		}
+		logger.Info("echo-a and echo-b pods are scheduled, deploying remaining resources")
+	}
+
+	// Phase 2: create remaining resources.
+	for _, entry := range entries[phase2Start:] {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".yaml") {
+			continue
+		}
+		if err := createResource(entry); err != nil {
+			return err
+		}
+	}
+
+	// Wait for all test pods to be running and ready. Any unhealthy pod
+	// indicates a failed connectivity check.
+	var lastErr error
+	logger.Info("expecting pods from deployed Deployments", "count", expectedPodCount)
+	var lastNotReadyPods []string
+	err = wait.PollUntilContextTimeout(ctx, 30*time.Second, 10*time.Minute, true, func(ctx context.Context) (done bool, err error) {
+		pods, err := kubeClient.CoreV1().Pods(namespaceName).List(ctx, metav1.ListOptions{})
+		if err != nil {
+			lastErr = fmt.Errorf("failed to list pods in %s namespace: %w", namespaceName, err)
+			return false, nil
+		}
+
+		if len(pods.Items) < expectedPodCount {
+			lastErr = fmt.Errorf("expected %d pods in %s namespace, found %d", expectedPodCount, namespaceName, len(pods.Items))
+			return false, nil
+		}
+
+		notReadyPods := []string{}
+		for _, pod := range pods.Items {
+			// Check if the pod is running, any other state (including
+			// succeeded) indicates an error reported by a connectivity check
+			if pod.Status.Phase != corev1.PodRunning {
+				notReadyPods = append(notReadyPods, fmt.Sprintf("%s (phase: %s)", pod.Name, pod.Status.Phase))
+				continue
+			}
+
+			// Check if pod is ready - this is critical for connectivity checks
+			// as readiness probes are used to indicate test success/failure
+			podReady := false
+			for _, condition := range pod.Status.Conditions {
+				if condition.Type == corev1.PodReady {
+					if condition.Status == corev1.ConditionTrue {
+						podReady = true
+					}
+					break
+				}
+			}
+
+			// Detect liveness probe failures: a failing liveness probe kills
+			// and restarts the container, leaving it in Waiting state
+			// (e.g. CrashLoopBackOff) while the pod phase stays Running.
+			livenessFailure := ""
+			for _, cs := range pod.Status.ContainerStatuses {
+				if cs.State.Waiting != nil && cs.State.Waiting.Reason != "" {
+					livenessFailure = fmt.Sprintf("container %s waiting: %s", cs.Name, cs.State.Waiting.Reason)
+					podReady = false
+					break
+				}
+			}
+
+			if !podReady {
+				if livenessFailure != "" {
+					notReadyPods = append(notReadyPods, fmt.Sprintf("%s (%s)", pod.Name, livenessFailure))
+				} else {
+					notReadyPods = append(notReadyPods, fmt.Sprintf("%s (running but not ready)", pod.Name))
+				}
+			}
+		}
+
+		if len(notReadyPods) > 0 {
+			// We are logging only status changes
+			slices.Sort(notReadyPods)
+			if !slices.Equal(notReadyPods, lastNotReadyPods) {
+				logger.Info("waiting for test pods to be ready", "notReady", notReadyPods)
+			}
+			lastErr = fmt.Errorf("test pods not yet ready: %v", notReadyPods)
+			lastNotReadyPods = notReadyPods
+			return false, nil
+		}
+
+		logger.Info("all connectivity check test pods are ready")
+
+		lastNotReadyPods = []string{}
+		return true, nil
+	})
+
+	// If the waiting failed on a timeout, some connectivity check pod must
+	// have failed, so we need to report what failed exactly.
+	if err != nil {
+		// The pods use "terminationMessagePolicy: FallbackToLogsOnError"
+		// to report errors, so we log termination messages
+		pods, podsErr := kubeClient.CoreV1().Pods(namespaceName).List(ctx, metav1.ListOptions{})
+		if podsErr != nil {
+			logger.Error(podsErr, "failed to list pods for error reporting purposes", "namespace", namespaceName)
+		} else {
+			for _, pod := range pods.Items {
+				for _, cs := range pod.Status.ContainerStatuses {
+					if t := cs.State.Terminated; t != nil {
+						logger.Info("terminated container",
+							"pod", pod.Name,
+							"container", cs.Name,
+							"exitCode", t.ExitCode,
+							"message", t.Message,
+						)
+					}
+					if t := cs.LastTerminationState.Terminated; t != nil {
+						logger.Info("last terminated container",
+							"pod", pod.Name,
+							"container", cs.Name,
+							"exitCode", t.ExitCode,
+							"message", t.Message,
+						)
+					}
+				}
+			}
+		}
+		if lastErr != nil {
+			return fmt.Errorf("connectivity check failed, not all pods in %s namespace are ready: %w", namespaceName, lastErr)
+		}
+		return fmt.Errorf("connectivity check failed waiting for pods in %s namespace: %w", namespaceName, err)
+	}
+
+	return nil
+}
+
+// Deploy and run Cilium Connectivity Checks, set of deployments that will
+// perform a series of connectivity checks via liveness and readiness checks.
+// An unhealthy/unready pod indicates a problem.
+func VerifyCiliumConnectivityChecks(ciliumVersion string) HostedClusterVerifier {
+	return verifyCiliumConnectivityChecks{ciliumVersion: ciliumVersion}
 }

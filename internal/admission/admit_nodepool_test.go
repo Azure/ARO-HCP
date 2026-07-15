@@ -147,39 +147,84 @@ func TestAdmitNodePool_SubnetVNet(t *testing.T) {
 		return np
 	}
 
+	newAdmissionContext := func(withServiceProvider bool) *NodePoolAdmissionContext {
+		admissionContext := &NodePoolAdmissionContext{
+			Cluster: cluster,
+		}
+		if withServiceProvider {
+			version := semver.MustParse("4.14.0")
+			admissionContext.ServiceProviderNodePool = &api.ServiceProviderNodePool{
+				Spec: api.ServiceProviderNodePoolSpec{
+					NodePoolVersion: api.ServiceProviderNodePoolSpecVersion{
+						DesiredVersion: &version,
+					},
+				},
+				Status: api.ServiceProviderNodePoolStatus{
+					NodePoolVersion: api.ServiceProviderNodePoolStatusVersion{
+						ActiveVersions: []api.HCPNodePoolActiveVersion{
+							{Version: &version},
+						},
+					},
+				},
+			}
+			admissionContext.ServiceProviderCluster = &api.ServiceProviderCluster{
+				Status: api.ServiceProviderClusterStatus{
+					ControlPlaneVersion: api.ServiceProviderClusterStatusVersion{
+						ActiveVersions: []api.HCPClusterActiveVersion{
+							{Version: &version},
+						},
+					},
+				},
+			}
+		}
+		return admissionContext
+	}
+
 	tests := []struct {
-		name         string
-		newObj       *api.HCPOpenShiftClusterNodePool
-		oldObj       *api.HCPOpenShiftClusterNodePool
-		expectErrors []utils.ExpectedError
+		name             string
+		op               operation.Type
+		newObj           *api.HCPOpenShiftClusterNodePool
+		oldObj           *api.HCPOpenShiftClusterNodePool
+		admissionContext *NodePoolAdmissionContext
+		expectErrors     []utils.ExpectedError
 	}{
 		{
-			name:         "create: subnet matches cluster subnet (same cluster reuse allowed)",
-			newObj:       nodePoolWithSubnet(clusterSubnet),
-			expectErrors: []utils.ExpectedError{},
+			name:             "create: subnet matches cluster subnet (same cluster reuse allowed)",
+			op:               operation.Create,
+			newObj:           nodePoolWithSubnet(clusterSubnet),
+			admissionContext: newAdmissionContext(false),
+			expectErrors:     []utils.ExpectedError{},
 		},
 		{
-			name:         "create: subnet in same VNet allowed",
-			newObj:       nodePoolWithSubnet(sameVNetSubnet),
-			expectErrors: []utils.ExpectedError{},
+			name:             "create: subnet in same VNet allowed",
+			op:               operation.Create,
+			newObj:           nodePoolWithSubnet(sameVNetSubnet),
+			admissionContext: newAdmissionContext(false),
+			expectErrors:     []utils.ExpectedError{},
 		},
 		{
-			name:   "create: subnet in different VNet rejected",
-			newObj: nodePoolWithSubnet(differentVNetSubnet),
+			name:             "create: subnet in different VNet rejected",
+			op:               operation.Create,
+			newObj:           nodePoolWithSubnet(differentVNetSubnet),
+			admissionContext: newAdmissionContext(false),
 			expectErrors: []utils.ExpectedError{
 				{FieldPath: "properties.platform.subnetId", Message: "must belong to the same VNet as the parent cluster VNet"},
 			},
 		},
 		{
-			name:         "update: unchanged subnet in different VNet not re-validated",
-			oldObj:       nodePoolWithSubnet(differentVNetSubnet),
-			newObj:       nodePoolWithSubnet(differentVNetSubnet),
-			expectErrors: []utils.ExpectedError{},
+			name:             "update: unchanged subnet in different VNet not re-validated",
+			op:               operation.Update,
+			oldObj:           nodePoolWithSubnet(differentVNetSubnet),
+			newObj:           nodePoolWithSubnet(differentVNetSubnet),
+			admissionContext: newAdmissionContext(true),
+			expectErrors:     []utils.ExpectedError{},
 		},
 		{
-			name:   "update: subnet changed to different VNet rejected",
-			oldObj: nodePoolWithSubnet(sameVNetSubnet),
-			newObj: nodePoolWithSubnet(differentVNetSubnet),
+			name:             "update: subnet changed to different VNet rejected",
+			op:               operation.Update,
+			oldObj:           nodePoolWithSubnet(sameVNetSubnet),
+			newObj:           nodePoolWithSubnet(differentVNetSubnet),
+			admissionContext: newAdmissionContext(true),
 			expectErrors: []utils.ExpectedError{
 				{FieldPath: "properties.platform.subnetId", Message: "must belong to the same VNet as the parent cluster VNet"},
 			},
@@ -188,7 +233,7 @@ func TestAdmitNodePool_SubnetVNet(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			errs := AdmitNodePool(tt.newObj, tt.oldObj, cluster)
+			errs := AdmitNodePool(context.Background(), tt.admissionContext, operation.Operation{Type: tt.op}, tt.newObj, tt.oldObj)
 			utils.VerifyErrorsMatch(t, tt.expectErrors, errs)
 		})
 	}
@@ -206,7 +251,7 @@ func assertNodePoolEqual(t *testing.T, expected, actual *api.HCPOpenShiftCluster
 	assert.Equal(t, string(expectedJSON), string(actualJSON))
 }
 
-func TestAdmitNodePoolUpdate_VersionValidation(t *testing.T) {
+func TestAdmitNodePool_VersionValidation(t *testing.T) {
 	tests := []struct {
 		name               string
 		newVersion         string
@@ -241,14 +286,76 @@ func TestAdmitNodePoolUpdate_VersionValidation(t *testing.T) {
 			expectErrors:    []utils.ExpectedError{},
 		},
 		{
-			name:            "downgrade not allowed",
+			name:            "z-stream downgrade within skew succeeds",
+			activeVersions:  []string{"4.18.5"},
+			newVersion:      "4.18.2",
+			clusterVersions: []string{"4.18.5"},
+			desiredVersion:  "4.18.5",
+		},
+		{
+			name:            "y-stream downgrade succeeds",
 			activeVersions:  []string{"4.18.0"},
 			newVersion:      "4.17.0",
 			clusterVersions: []string{"4.18.0"},
 			desiredVersion:  "4.18.0",
+		},
+		{
+			name:            "cross-major downgrade fails without flag",
+			activeVersions:  []string{"5.0.1"},
+			newVersion:      "4.22.0",
+			clusterVersions: []string{"5.0.1"},
+			desiredVersion:  "5.0.1",
 			expectErrors: []utils.ExpectedError{
-				{FieldPath: "properties.version.id", Message: "cannot downgrade from current version"},
-				{FieldPath: "properties.version.id", Message: "cannot downgrade from version"},
+				{FieldPath: "properties.version.id", Message: "major version changes are not supported"},
+			},
+		},
+		{
+			name:               "cross-major downgrade succeeds with flag",
+			activeVersions:     []string{"5.0.1"},
+			newVersion:         "4.22.0",
+			clusterVersions:    []string{"5.0.1"},
+			desiredVersion:     "5.0.1",
+			allowMajorUpgrades: true,
+			expectErrors:       []utils.ExpectedError{},
+		},
+		{
+			name:               "cross-major downgrade to unsupported minor fails",
+			activeVersions:     []string{"5.0.1"},
+			newVersion:         "4.20.0",
+			clusterVersions:    []string{"5.0.1"},
+			desiredVersion:     "5.0.1",
+			allowMajorUpgrades: true,
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.version.id", Message: "not allowed to coexist with a different-major control plane"},
+			},
+		},
+		{
+			name:               "cross-major downgrade to incompatible CP minor fails",
+			activeVersions:     []string{"5.0.1"},
+			newVersion:         "4.23.0",
+			clusterVersions:    []string{"5.0.1"},
+			desiredVersion:     "5.0.1",
+			allowMajorUpgrades: true,
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.version.id", Message: "cannot coexist with control plane version"},
+			},
+		},
+		{
+			name:            "downgrade at N-2 boundary succeeds (4.21 to 4.19)",
+			activeVersions:  []string{"4.21.5"},
+			newVersion:      "4.19.0",
+			clusterVersions: []string{"4.21.5"},
+			desiredVersion:  "4.21.5",
+			expectErrors:    []utils.ExpectedError{},
+		},
+		{
+			name:            "downgrade beyond N-2 fails",
+			activeVersions:  []string{"4.21.5"},
+			newVersion:      "4.18.0",
+			clusterVersions: []string{"4.21.5"},
+			desiredVersion:  "4.21.5",
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.version.id", Message: "must be within 2 minor versions"},
 			},
 		},
 		{
@@ -313,13 +420,21 @@ func TestAdmitNodePoolUpdate_VersionValidation(t *testing.T) {
 			},
 		},
 		{
-			name:            "skipping minor versions not allowed",
+			name:            "y-stream upgrade skipping two minor versions is allowed",
 			activeVersions:  []string{"4.16.0"},
 			newVersion:      "4.18.0",
 			clusterVersions: []string{"4.18.0"},
 			desiredVersion:  "4.16.0",
+			expectErrors:    []utils.ExpectedError{},
+		},
+		{
+			name:            "y-stream upgrade skipping three minor versions is rejected",
+			activeVersions:  []string{"4.16.0"},
+			newVersion:      "4.19.0",
+			clusterVersions: []string{"4.19.0"},
+			desiredVersion:  "4.16.0",
 			expectErrors: []utils.ExpectedError{
-				{FieldPath: "properties.version.id", Message: "skipping minor versions is not allowed"},
+				{FieldPath: "properties.version.id", Message: "skipping more than 2 minor versions"},
 			},
 		},
 		{
@@ -358,16 +473,111 @@ func TestAdmitNodePoolUpdate_VersionValidation(t *testing.T) {
 			desiredVersion:  "4.17.0",
 			expectErrors:    []utils.ExpectedError{},
 		},
+		// Multi-element activeVersions tests
 		{
-			name:            "multiple validation failures",
-			activeVersions:  []string{"4.18.0"},
-			newVersion:      "4.15.0",
-			clusterVersions: []string{"4.18.0"},
+			name:            "multi-active: upgrade skip uses lowest - fail",
+			activeVersions:  []string{"4.18.0", "4.20.0"},
+			newVersion:      "4.21.0",
+			clusterVersions: []string{"4.21.0"},
 			desiredVersion:  "4.18.0",
 			expectErrors: []utils.ExpectedError{
-				{FieldPath: "properties.version.id", Message: "cannot downgrade from current version"},
-				{FieldPath: "properties.version.id", Message: "cannot downgrade from version"},
+				{FieldPath: "properties.version.id", Message: "skipping more than 2 minor versions"},
 			},
+		},
+		{
+			name:            "multi-active: upgrade within +2 of lowest - pass",
+			activeVersions:  []string{"4.18.0", "4.20.0"},
+			newVersion:      "4.20.5",
+			clusterVersions: []string{"4.20.5"},
+			desiredVersion:  "4.18.0",
+			expectErrors:    []utils.ExpectedError{},
+		},
+		{
+			name:            "multi-active: mid-upgrade downgrade beyond N-2 - fail",
+			activeVersions:  []string{"4.18.0", "4.20.0"},
+			newVersion:      "4.17.0",
+			clusterVersions: []string{"4.20.0"},
+			desiredVersion:  "4.18.0",
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.version.id", Message: "must be within 2 minor versions of control plane"},
+			},
+		},
+		{
+			name:            "multi-active: mid-upgrade downgrade within N-2 - pass",
+			activeVersions:  []string{"4.18.0", "4.20.0"},
+			newVersion:      "4.18.5",
+			clusterVersions: []string{"4.20.0"},
+			desiredVersion:  "4.18.0",
+			expectErrors:    []utils.ExpectedError{},
+		},
+		// Cross-major downgrade: additional skew map entries
+		{
+			name:               "valid major downgrade 5.0 to 4.21",
+			activeVersions:     []string{"5.0.1"},
+			newVersion:         "4.21.0",
+			clusterVersions:    []string{"5.0.1"},
+			desiredVersion:     "5.0.1",
+			allowMajorUpgrades: true,
+			expectErrors:       []utils.ExpectedError{},
+		},
+		// Cross-major skew: same-major NP change when CP is different major
+		{
+			name:               "same-major NP change with cross-major CP - valid skew",
+			activeVersions:     []string{"4.22.0"},
+			newVersion:         "4.21.0",
+			clusterVersions:    []string{"5.0.1"},
+			desiredVersion:     "4.22.0",
+			allowMajorUpgrades: true,
+			expectErrors:       []utils.ExpectedError{},
+		},
+		{
+			name:               "same-major NP change with cross-major CP - invalid skew",
+			activeVersions:     []string{"4.22.0"},
+			newVersion:         "4.15.0",
+			clusterVersions:    []string{"5.0.1"},
+			desiredVersion:     "4.22.0",
+			allowMajorUpgrades: true,
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.version.id", Message: "not allowed to coexist with a different-major control plane"},
+			},
+		},
+		{
+			name:            "same-major NP change with cross-major CP - rejected without AFEC",
+			activeVersions:  []string{"4.22.0"},
+			newVersion:      "4.21.0",
+			clusterVersions: []string{"5.0.1"},
+			desiredVersion:  "4.22.0",
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.version.id", Message: "major version changes are not supported"},
+			},
+		},
+		// Multi-version CP: N-2 skew uses highest CP version
+		{
+			name:            "multi-CP: N-2 skew checked against highest CP version",
+			activeVersions:  []string{"4.21.0"},
+			newVersion:      "4.18.0",
+			clusterVersions: []string{"4.20.0", "4.21.0"},
+			desiredVersion:  "4.21.0",
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.version.id", Message: "must be within 2 minor versions"},
+			},
+		},
+		{
+			name:            "multi-CP: N-2 boundary passes against highest CP version",
+			activeVersions:  []string{"4.21.0"},
+			newVersion:      "4.19.0",
+			clusterVersions: []string{"4.20.0", "4.21.0"},
+			desiredVersion:  "4.21.0",
+			expectErrors:    []utils.ExpectedError{},
+		},
+		// Empty activeVersions with desired below CP
+		{
+			name:            "empty active versions with desired below CP - pass",
+			activeVersions:  []string{},
+			newVersion:      "4.17.0",
+			clusterVersions: []string{"4.18.0"},
+			desiredVersion:  "",
+			expectErrors:    []utils.ExpectedError{},
 		},
 		{
 			name:            "version already in active versions skips validation",
@@ -489,27 +699,22 @@ func TestAdmitNodePoolUpdate_VersionValidation(t *testing.T) {
 				},
 			}
 
-			errs := AdmitNodePoolUpdate(newNodePool, oldNodePool, cluster, spNodePool, spCluster, op)
+			errs := AdmitNodePool(context.Background(), &NodePoolAdmissionContext{
+				Cluster:                 cluster,
+				ServiceProviderNodePool: spNodePool,
+				ServiceProviderCluster:  spCluster,
+			}, op, newNodePool, oldNodePool)
 			utils.VerifyErrorsMatch(t, tt.expectErrors, errs)
 		})
 	}
 }
 
-func TestAdmitNodePoolUpdate_IncludesAdmitNodePoolChecks(t *testing.T) {
-	// Test that AdmitNodePoolUpdate also performs AdmitNodePool checks
+func TestAdmitNodePool_AllowsDifferentChannelGroupClusterAndNodePool(t *testing.T) {
 	newNodePool := &api.HCPOpenShiftClusterNodePool{
 		Properties: api.HCPOpenShiftClusterNodePoolProperties{
 			Version: api.NodePoolVersionProfile{
 				ID:           "4.17.0",
-				ChannelGroup: "fast", // Different from cluster
-			},
-		},
-	}
-	oldNodePool := &api.HCPOpenShiftClusterNodePool{
-		Properties: api.HCPOpenShiftClusterNodePoolProperties{
-			Version: api.NodePoolVersionProfile{
-				ID:           "4.16.0",
-				ChannelGroup: "stable", // Different from cluster
+				ChannelGroup: "fast",
 			},
 		},
 	}
@@ -517,12 +722,11 @@ func TestAdmitNodePoolUpdate_IncludesAdmitNodePoolChecks(t *testing.T) {
 		CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
 			Version: api.VersionProfile{
 				ID:           "4.18",
-				ChannelGroup: "stable", // Different from node pool
+				ChannelGroup: "stable",
 			},
 		},
 	}
 
-	// Create ServiceProviderNodePool with same version as new (so version validation is skipped)
 	ver := semver.MustParse("4.17.0")
 	spNodePool := &api.ServiceProviderNodePool{
 		Spec: api.ServiceProviderNodePoolSpec{
@@ -546,14 +750,81 @@ func TestAdmitNodePoolUpdate_IncludesAdmitNodePoolChecks(t *testing.T) {
 		},
 	}
 
-	// Empty update operation (no experimental features)
-	op := operation.Operation{Type: operation.Update}
+	op := operation.Operation{Type: operation.Create}
 
-	errs := AdmitNodePoolUpdate(newNodePool, oldNodePool, cluster, spNodePool, spCluster, op)
+	errs := AdmitNodePool(context.Background(), &NodePoolAdmissionContext{
+		Cluster:                 cluster,
+		ServiceProviderNodePool: spNodePool,
+		ServiceProviderCluster:  spCluster,
+	}, op, newNodePool, nil)
 
-	expectedErrors := []utils.ExpectedError{
-		{FieldPath: "properties.version.channelGroup", Message: "must be the same as control plane channel group"},
+	require.Empty(t, errs)
+}
+
+func TestAdmitNodePoolOnDelete(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	clusterResourceID := api.Must(azcorearm.ParseResourceID(
+		"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster"))
+
+	makeTestNodePool := func(name string) *api.HCPOpenShiftClusterNodePool {
+		nodePoolResourceID := api.Must(azcorearm.ParseResourceID(clusterResourceID.String() + "/nodePools/" + name))
+		return &api.HCPOpenShiftClusterNodePool{
+			CosmosMetadata: arm.CosmosMetadata{
+				ResourceID: nodePoolResourceID,
+			},
+			TrackedResource: arm.NewTrackedResource(nodePoolResourceID, "eastus"),
+		}
 	}
 
-	utils.VerifyErrorsMatch(t, expectedErrors, errs)
+	makeDeletingNodePool := func(name string) *api.HCPOpenShiftClusterNodePool {
+		nodePool := makeTestNodePool(name)
+		nodePool.Properties.ProvisioningState = arm.ProvisioningStateDeleting
+		return nodePool
+	}
+
+	tests := []struct {
+		name                 string
+		existingNodePools    []*api.HCPOpenShiftClusterNodePool
+		nodePoolBeingDeleted *api.HCPOpenShiftClusterNodePool
+		expectErrors         []utils.ExpectedError
+	}{
+		{
+			name:                 "allows delete when another node pool exists",
+			existingNodePools:    []*api.HCPOpenShiftClusterNodePool{makeTestNodePool("workers"), makeTestNodePool("infra")},
+			nodePoolBeingDeleted: makeTestNodePool("workers"),
+			expectErrors:         []utils.ExpectedError{},
+		},
+		{
+			name: "allows delete when the only other remaining node pool is being deleted",
+			existingNodePools: []*api.HCPOpenShiftClusterNodePool{
+				makeDeletingNodePool("workers"),
+				makeTestNodePool("infra"),
+			},
+			nodePoolBeingDeleted: makeTestNodePool("infra"),
+			expectErrors:         []utils.ExpectedError{},
+		},
+		{
+			name:                 "rejects delete of last node pool",
+			existingNodePools:    []*api.HCPOpenShiftClusterNodePool{makeTestNodePool("workers")},
+			nodePoolBeingDeleted: makeTestNodePool("workers"),
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "name", Message: "The last node pool can not be deleted from a cluster."},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			admissionContext := &NodePoolDeleteAdmissionContext{
+				ClusterNodePools: tt.existingNodePools,
+			}
+
+			errs := AdmitNodePoolOnDelete(ctx, admissionContext, tt.nodePoolBeingDeleted)
+			utils.VerifyErrorsMatch(t, tt.expectErrors, errs)
+		})
+	}
 }

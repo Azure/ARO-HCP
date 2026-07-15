@@ -1,31 +1,6 @@
-prometheusRules:
-  rulesFolders:
-  - ../observability/alerts/prometheus-prometheusRule.yaml
-  - ../frontend/alerts/frontend-prometheusRule.yaml
-  - ../cluster-service/alerts/cluster-service-slo-rules.yaml
-  - ../backend/alerts/backend-prometheusRule.yaml
-  - ../admin/alerts/admin-prometheusRule.yaml
-  - ../maestro/alerts/maestro-prometheusRule.yaml
-  - ../observability/alerts/arobit-prometheusRule.yaml
-  - alerts/service-tag-public-ip-usage.yaml
-  - ../observability/alerts/HCPdeletionStuck-prometheusRule.yaml
-  - ../observability/alerts/kubeContainerOOM-prometheusRule.yaml
-  - ../observability/alerts/kubeNode-prometheusRule.yaml
-  - alerts/kusto-logs-age-prometheusRule.yaml
-  untestedRules: []
-  outputBicep: ../dev-infrastructure/modules/metrics/rules/generatedPrometheusAlertingRules.bicep
-  prometheusOperatorVersion: e02554298cb62b5533f3407c8eacc664e80bc74b
-  outputReplacements:
-  - from: 'job="kube-scheduler"'
-    to: 'job="controlplane-kube-scheduler"'
-  - from: 'job="apiserver"'
-    to: 'job="controlplane-apiserver"'
-  - from: 'job="etcd"'
-    to: 'job="controlplane-etcd"'
-  - from: 'job="cluster-autoscaler"'
-    to: 'job="controlplane-cluster-autoscaler"'
-  - from: 'job="kube-controller-manager"'
-    to: 'job="controlplane-kube-controller-manager"'
+# This is just for dashboards now, do not put alerts here.
+# This should be renamed 'dashboards.yaml' really, but that's non-trivial
+# (and described in https://github.com/Azure/ARO-HCP/pull/5575)
 grafana-dashboards:
   azureManagedFolders:
   - Azure Managed Prometheus
@@ -54,5 +29,7 @@ grafana-dashboards:
     path: ./grafana-dashboards/kas-monitor
   - name: HCP Kube API Server KSM
     path: ./grafana-dashboards/kas-ksm-monitor
-  - name: User Journey
-    path: ./grafana-dashboards/user-journey
+  - name: SRE User Journey
+    path: ./grafana-dashboards/sre/user-journey
+  - name: SRE Cluster Health
+    path: ./grafana-dashboards/sre/cluster-health

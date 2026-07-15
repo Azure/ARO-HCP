@@ -16,6 +16,8 @@ package upgradecontrollers
 
 import (
 	"context"
+	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/blang/semver/v4"
@@ -23,9 +25,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime"
+	kruntime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/utils/ptr"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -36,6 +36,8 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
+	internallistertesting "github.com/Azure/ARO-HCP/internal/database/listertesting"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -48,11 +50,11 @@ func TestControlPlaneActiveVersionSyncer_SyncOnce(t *testing.T) {
 	}
 
 	tests := []struct {
-		name                  string
-		seedDB                func(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient)
-		expectedError         bool
-		expectedErrorContains string
-		validateAfter         func(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient)
+		name          string
+		seedDB        func(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient)
+		readDesires   func(t *testing.T) []*kubeapplier.ReadDesire
+		expectedError bool
+		validateAfter func(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient)
 	}{
 		{
 			name: "cluster not found in cosmos returns nil",
@@ -67,7 +69,7 @@ func TestControlPlaneActiveVersionSyncer_SyncOnce(t *testing.T) {
 			seedDB: func(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient) {
 				t.Helper()
 				createTestHCPCluster(t, ctx, mockResourcesDBClient)
-				// No ManagementClusterContent - Get returns not found, version is nil, no update.
+				// No ReadDesire - GetForCluster returns NotFound, syncer returns nil without writes.
 			},
 			expectedError: false,
 		},
@@ -77,9 +79,13 @@ func TestControlPlaneActiveVersionSyncer_SyncOnce(t *testing.T) {
 				t.Helper()
 				createTestHCPCluster(t, ctx, mockResourcesDBClient)
 				createServiceProviderClusterWithVersion(t, ctx, mockResourcesDBClient, "4.19.15")
-				createManagementClusterContentWithHostedClusterHistory(t, ctx, mockResourcesDBClient, []configv1.UpdateHistory{
-					{Version: "4.19.15", State: configv1.CompletedUpdate},
-				})
+			},
+			readDesires: func(t *testing.T) []*kubeapplier.ReadDesire {
+				return []*kubeapplier.ReadDesire{newHostedClusterReadDesireWithVersions(t, nil,
+					hsv1beta1.ControlPlaneVersionStatus{History: []hsv1beta1.ControlPlaneUpdateHistory{
+						{Version: "4.19.15", State: configv1.CompletedUpdate},
+					}},
+				)}
 			},
 			expectedError: false,
 			validateAfter: func(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient) {
@@ -96,10 +102,14 @@ func TestControlPlaneActiveVersionSyncer_SyncOnce(t *testing.T) {
 			seedDB: func(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient) {
 				t.Helper()
 				createTestHCPCluster(t, ctx, mockResourcesDBClient)
-				createManagementClusterContentWithHostedClusterHistory(t, ctx, mockResourcesDBClient, []configv1.UpdateHistory{
-					{Version: "4.19.17", State: configv1.PartialUpdate}, {Version: "4.19.16", State: configv1.PartialUpdate}, {Version: "4.19.15", State: configv1.CompletedUpdate},
-					{Version: "4.19.14", State: configv1.PartialUpdate}, {Version: "4.19.13", State: configv1.CompletedUpdate},
-				})
+			},
+			readDesires: func(t *testing.T) []*kubeapplier.ReadDesire {
+				return []*kubeapplier.ReadDesire{newHostedClusterReadDesireWithVersions(t, nil,
+					hsv1beta1.ControlPlaneVersionStatus{History: []hsv1beta1.ControlPlaneUpdateHistory{
+						{Version: "4.19.17", State: configv1.PartialUpdate}, {Version: "4.19.16", State: configv1.PartialUpdate}, {Version: "4.19.15", State: configv1.CompletedUpdate},
+						{Version: "4.19.14", State: configv1.PartialUpdate}, {Version: "4.19.13", State: configv1.CompletedUpdate},
+					}},
+				)}
 			},
 			expectedError: false,
 			validateAfter: func(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient) {
@@ -112,13 +122,17 @@ func TestControlPlaneActiveVersionSyncer_SyncOnce(t *testing.T) {
 			},
 		},
 		{
-			name: "one active version when version history has one element",
+			name: "one active version when control plane history has one element",
 			seedDB: func(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient) {
 				t.Helper()
 				createTestHCPCluster(t, ctx, mockResourcesDBClient)
-				createManagementClusterContentWithHostedClusterHistory(t, ctx, mockResourcesDBClient, []configv1.UpdateHistory{
-					{Version: "4.19.16", State: configv1.PartialUpdate},
-				})
+			},
+			readDesires: func(t *testing.T) []*kubeapplier.ReadDesire {
+				return []*kubeapplier.ReadDesire{newHostedClusterReadDesireWithVersions(t, nil,
+					hsv1beta1.ControlPlaneVersionStatus{History: []hsv1beta1.ControlPlaneUpdateHistory{
+						{Version: "4.19.16", State: configv1.PartialUpdate},
+					}},
+				)}
 			},
 			expectedError: false,
 			validateAfter: func(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient) {
@@ -131,11 +145,30 @@ func TestControlPlaneActiveVersionSyncer_SyncOnce(t *testing.T) {
 			},
 		},
 		{
-			name: "no active versions when version history is empty",
+			name: "no active versions when control plane history is empty",
 			seedDB: func(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient) {
 				t.Helper()
 				createTestHCPCluster(t, ctx, mockResourcesDBClient)
-				createManagementClusterContentWithHostedClusterHistory(t, ctx, mockResourcesDBClient, []configv1.UpdateHistory{})
+			},
+			readDesires: func(t *testing.T) []*kubeapplier.ReadDesire {
+				return []*kubeapplier.ReadDesire{newHostedClusterReadDesireWithVersions(t, nil, hsv1beta1.ControlPlaneVersionStatus{})}
+			},
+			expectedError: false,
+			validateAfter: func(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient) {
+				t.Helper()
+				spc, err := mockResourcesDBClient.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, api.ServiceProviderClusterResourceName)
+				require.NoError(t, err)
+				require.Empty(t, spc.Status.ControlPlaneVersion.ActiveVersions)
+			},
+		},
+		{
+			name: "no active versions when control plane history empty and version status nil",
+			seedDB: func(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient) {
+				t.Helper()
+				createTestHCPCluster(t, ctx, mockResourcesDBClient)
+			},
+			readDesires: func(t *testing.T) []*kubeapplier.ReadDesire {
+				return []*kubeapplier.ReadDesire{newHostedClusterReadDesireWithVersions(t, nil, hsv1beta1.ControlPlaneVersionStatus{})}
 			},
 			expectedError: false,
 			validateAfter: func(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient) {
@@ -150,11 +183,15 @@ func TestControlPlaneActiveVersionSyncer_SyncOnce(t *testing.T) {
 			seedDB: func(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient) {
 				t.Helper()
 				createTestHCPCluster(t, ctx, mockResourcesDBClient)
-				createManagementClusterContentWithHostedClusterHistory(t, ctx, mockResourcesDBClient, []configv1.UpdateHistory{
-					{Version: "", State: configv1.PartialUpdate},
-					{Version: "not-a-version", State: configv1.PartialUpdate},
-					{Version: "4.19.15", State: configv1.CompletedUpdate},
-				})
+			},
+			readDesires: func(t *testing.T) []*kubeapplier.ReadDesire {
+				return []*kubeapplier.ReadDesire{newHostedClusterReadDesireWithVersions(t, nil,
+					hsv1beta1.ControlPlaneVersionStatus{History: []hsv1beta1.ControlPlaneUpdateHistory{
+						{Version: "", State: configv1.PartialUpdate},
+						{Version: "not-a-version", State: configv1.PartialUpdate},
+						{Version: "4.19.15", State: configv1.CompletedUpdate},
+					}},
+				)}
 			},
 			expectedError: false,
 			validateAfter: func(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient) {
@@ -167,13 +204,43 @@ func TestControlPlaneActiveVersionSyncer_SyncOnce(t *testing.T) {
 			},
 		},
 		{
-			name: "nightly version in history is parsed and included",
+			name: "prefers controlPlaneVersion history over version history when both set",
 			seedDB: func(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient) {
 				t.Helper()
 				createTestHCPCluster(t, ctx, mockResourcesDBClient)
-				createManagementClusterContentWithHostedClusterHistory(t, ctx, mockResourcesDBClient, []configv1.UpdateHistory{
-					{Version: "4.19.0-0.nightly-multi-2026-01-10-204154", State: configv1.CompletedUpdate},
-				})
+			},
+			readDesires: func(t *testing.T) []*kubeapplier.ReadDesire {
+				return []*kubeapplier.ReadDesire{newHostedClusterReadDesireWithVersions(t,
+					&hsv1beta1.ClusterVersionStatus{History: []configv1.UpdateHistory{
+						{Version: "4.20.1", State: configv1.PartialUpdate},
+					}},
+					hsv1beta1.ControlPlaneVersionStatus{History: []hsv1beta1.ControlPlaneUpdateHistory{
+						{Version: "4.20.1", State: configv1.CompletedUpdate},
+					}},
+				)}
+			},
+			expectedError: false,
+			validateAfter: func(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient) {
+				t.Helper()
+				spc, err := mockResourcesDBClient.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, api.ServiceProviderClusterResourceName)
+				require.NoError(t, err)
+				assert.Equal(t, []api.HCPClusterActiveVersion{
+					{Version: ptr.To(semver.MustParse("4.20.1")), State: configv1.CompletedUpdate},
+				}, spc.Status.ControlPlaneVersion.ActiveVersions)
+			},
+		},
+		{
+			name: "nightly version in control plane history is parsed and included",
+			seedDB: func(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient) {
+				t.Helper()
+				createTestHCPCluster(t, ctx, mockResourcesDBClient)
+			},
+			readDesires: func(t *testing.T) []*kubeapplier.ReadDesire {
+				return []*kubeapplier.ReadDesire{newHostedClusterReadDesireWithVersions(t, nil,
+					hsv1beta1.ControlPlaneVersionStatus{History: []hsv1beta1.ControlPlaneUpdateHistory{
+						{Version: "4.19.0-0.nightly-multi-2026-01-10-204154", State: configv1.CompletedUpdate},
+					}},
+				)}
 			},
 			expectedError: false,
 			validateAfter: func(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient) {
@@ -186,29 +253,32 @@ func TestControlPlaneActiveVersionSyncer_SyncOnce(t *testing.T) {
 			},
 		},
 		{
-			name: "no HostedCluster in KubeContent returns error",
+			name: "falls back to version history when control plane history empty",
 			seedDB: func(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient) {
 				t.Helper()
 				createTestHCPCluster(t, ctx, mockResourcesDBClient)
-				cm := &unstructured.Unstructured{}
-				cm.SetAPIVersion("v1")
-				cm.SetKind("ConfigMap")
-				cm.SetName("other")
-				createManagementClusterContentWithKubeContentItems(t, ctx, mockResourcesDBClient, []runtime.RawExtension{{Object: cm}})
 			},
-			expectedError:         true,
-			expectedErrorContains: "no HostedCluster found in KubeContent",
-		},
-		{
-			name: "invalid management cluster content returns error",
-			seedDB: func(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient) {
+			readDesires: func(t *testing.T) []*kubeapplier.ReadDesire {
+				return []*kubeapplier.ReadDesire{newHostedClusterReadDesireWithVersions(t,
+					&hsv1beta1.ClusterVersionStatus{History: []configv1.UpdateHistory{
+						{Version: "4.19.17", State: configv1.PartialUpdate},
+						{Version: "4.19.16", State: configv1.PartialUpdate},
+						{Version: "4.19.15", State: configv1.CompletedUpdate},
+					}},
+					hsv1beta1.ControlPlaneVersionStatus{},
+				)}
+			},
+			expectedError: false,
+			validateAfter: func(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient) {
 				t.Helper()
-				createTestHCPCluster(t, ctx, mockResourcesDBClient)
-				// Empty RawExtension cannot be parsed and triggers an error.
-				createManagementClusterContentWithKubeContentItems(t, ctx, mockResourcesDBClient, []runtime.RawExtension{{}})
+				spc, err := mockResourcesDBClient.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, api.ServiceProviderClusterResourceName)
+				require.NoError(t, err)
+				assert.Equal(t, []api.HCPClusterActiveVersion{
+					{Version: ptr.To(semver.MustParse("4.19.17")), State: configv1.PartialUpdate},
+					{Version: ptr.To(semver.MustParse("4.19.16")), State: configv1.PartialUpdate},
+					{Version: ptr.To(semver.MustParse("4.19.15")), State: configv1.CompletedUpdate},
+				}, spc.Status.ControlPlaneVersion.ActiveVersions)
 			},
-			expectedError:         true,
-			expectedErrorContains: "RawExtension has no Object or Raw",
 		},
 	}
 
@@ -219,17 +289,19 @@ func TestControlPlaneActiveVersionSyncer_SyncOnce(t *testing.T) {
 
 			tt.seedDB(t, runCtx, mockResourcesDBClient)
 
+			var desires []*kubeapplier.ReadDesire
+			if tt.readDesires != nil {
+				desires = tt.readDesires(t)
+			}
+
 			syncer := &controlPlaneActiveVersionSyncer{
-				cooldownChecker:   &alwaysSyncCooldownChecker{},
 				resourcesDBClient: mockResourcesDBClient,
+				readDesireLister:  &internallistertesting.SliceReadDesireLister{Desires: desires},
 			}
 
 			err := syncer.SyncOnce(runCtx, testKey)
 
-			assertSyncResult(t, err, tt.expectedError, tt.expectedErrorContains)
-			if tt.expectedError && tt.expectedErrorContains != "" {
-				assert.Contains(t, err.Error(), tt.expectedErrorContains)
-			}
+			assertSyncResult(t, err, tt.expectedError, "")
 
 			if tt.validateAfter != nil && !tt.expectedError {
 				tt.validateAfter(t, runCtx, mockResourcesDBClient)
@@ -250,9 +322,11 @@ func TestControlPlaneActiveVersionSyncer_NoReplaceWhenVersionsUnchanged(t *testi
 
 	createTestHCPCluster(t, runCtx, mockResourcesDBClient)
 	createServiceProviderClusterWithVersion(t, runCtx, mockResourcesDBClient, "4.19.15")
-	createManagementClusterContentWithHostedClusterHistory(t, runCtx, mockResourcesDBClient, []configv1.UpdateHistory{
-		{Version: "4.19.15", State: configv1.CompletedUpdate},
-	})
+	desires := []*kubeapplier.ReadDesire{newHostedClusterReadDesireWithVersions(t, nil,
+		hsv1beta1.ControlPlaneVersionStatus{History: []hsv1beta1.ControlPlaneUpdateHistory{
+			{Version: "4.19.15", State: configv1.CompletedUpdate},
+		}},
+	)}
 
 	spcCRUD := mockResourcesDBClient.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName)
 	before, err := spcCRUD.Get(runCtx, api.ServiceProviderClusterResourceName)
@@ -260,8 +334,8 @@ func TestControlPlaneActiveVersionSyncer_NoReplaceWhenVersionsUnchanged(t *testi
 	beforeETag := before.CosmosETag
 
 	syncer := &controlPlaneActiveVersionSyncer{
-		cooldownChecker:   &alwaysSyncCooldownChecker{},
 		resourcesDBClient: mockResourcesDBClient,
+		readDesireLister:  &internallistertesting.SliceReadDesireLister{Desires: desires},
 	}
 	require.NoError(t, syncer.SyncOnce(runCtx, controllerutils.HCPClusterKey{
 		SubscriptionID:    testSubscriptionID,
@@ -286,6 +360,10 @@ func createTestHCPCluster(t *testing.T, ctx context.Context, mockResourcesDBClie
 	require.NoError(t, err)
 
 	cluster := &api.HCPOpenShiftCluster{
+		CosmosMetadata: arm.CosmosMetadata{
+			ResourceID:   clusterResourceID,
+			PartitionKey: strings.ToLower(clusterResourceID.SubscriptionID),
+		},
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
 				ID:   clusterResourceID,
@@ -303,47 +381,32 @@ func createTestHCPCluster(t *testing.T, ctx context.Context, mockResourcesDBClie
 	require.NoError(t, err)
 }
 
-// createManagementClusterContentWithHostedClusterHistory creates a ManagementClusterContent with
-// KubeContent containing a HostedCluster whose status.version.history is built from entries (newest first).
-func createManagementClusterContentWithHostedClusterHistory(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient, entries []configv1.UpdateHistory) {
+// newHostedClusterReadDesireWithVersions builds a ReadDesire whose
+// Status.KubeContent.Raw carries a marshaled HostedCluster with the given
+// status.version and status.controlPlaneVersion. Pass nil version to omit
+// status.version; history entries are newest first.
+func newHostedClusterReadDesireWithVersions(
+	t *testing.T,
+	version *hsv1beta1.ClusterVersionStatus,
+	controlPlaneVersion hsv1beta1.ControlPlaneVersionStatus,
+) *kubeapplier.ReadDesire {
 	t.Helper()
 
 	hc := &hsv1beta1.HostedCluster{}
 	hc.APIVersion = "hypershift.openshift.io/v1beta1"
 	hc.Kind = "HostedCluster"
 	hc.SetName(testClusterName)
-	hc.Status.Version = &hsv1beta1.ClusterVersionStatus{History: entries}
-	uObj, err := runtime.DefaultUnstructuredConverter.ToUnstructured(hc)
+	hc.Status.ControlPlaneVersion = controlPlaneVersion
+	hc.Status.Version = version
+	raw, err := json.Marshal(hc)
 	require.NoError(t, err)
-	u := &unstructured.Unstructured{Object: uObj}
-
-	// First item is not a HostedCluster so the controller must skip it and find the HostedCluster by APIVersion/Kind.
-	other := &unstructured.Unstructured{}
-	other.SetAPIVersion("v1")
-	other.SetKind("ConfigMap")
-	other.SetName("other")
-
-	createManagementClusterContentWithKubeContentItems(t, ctx, mockResourcesDBClient, []runtime.RawExtension{{Object: other}, {Object: u}})
-}
-
-// createManagementClusterContentWithKubeContentItems creates a ManagementClusterContent with
-// the given KubeContent items. Used to test error paths (e.g. invalid JSON or empty RawExtension).
-func createManagementClusterContentWithKubeContentItems(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient, items []runtime.RawExtension) {
-	t.Helper()
-
-	clusterRID := api.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID +
-		"/resourceGroups/" + testResourceGroupName +
-		"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName))
-	managementClusterContentResourceID := api.Must(azcorearm.ParseResourceID(clusterRID.String() + "/" + api.ManagementClusterContentResourceTypeName + "/" + string(api.MaestroBundleInternalNameReadonlyHypershiftHostedCluster)))
-
-	managementClusterContent := &api.ManagementClusterContent{
-		CosmosMetadata: api.CosmosMetadata{ResourceID: managementClusterContentResourceID},
-		Status: api.ManagementClusterContentStatus{
-			KubeContent: &metav1.List{
-				Items: items,
-			},
+	return &kubeapplier.ReadDesire{
+		CosmosMetadata: api.CosmosMetadata{
+			ResourceID:   hostedClusterReadDesireResourceID(t),
+			PartitionKey: strings.ToLower("management-cluster-resource-id"),
+		},
+		Status: kubeapplier.ReadDesireStatus{
+			KubeContent: &kruntime.RawExtension{Raw: raw},
 		},
 	}
-	_, err := mockResourcesDBClient.HCPClusters(testSubscriptionID, testResourceGroupName).ManagementClusterContents(testClusterName).Create(ctx, managementClusterContent, nil)
-	require.NoError(t, err)
 }

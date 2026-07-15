@@ -31,6 +31,9 @@ import (
 const (
 	// See https://learn.microsoft.com/en-us/azure/azure-resource-manager/management/azure-subscription-service-limits#azure-virtual-machines-limits---azure-resource-manager
 	MaxNodePoolNodes = 200
+
+	// See https://learn.microsoft.com/en-us/azure/azure-resource-manager/management/resource-name-rules#microsoftcompute
+	MaxDiskEncryptionSetNameLen = 80
 )
 
 func ValidateNodePool(ctx context.Context, op operation.Operation, newObj, oldObj *api.HCPOpenShiftClusterNodePool) field.ErrorList {
@@ -76,7 +79,11 @@ func toNodePoolPropertiesProvisioningState(oldObj *api.HCPOpenShiftClusterNodePo
 	return &oldObj.ProvisioningState
 }
 
-func toNodePoolPropertiesVersion(oldObj *api.HCPOpenShiftClusterNodePoolProperties) *api.NodePoolVersionProfile {
+// ToNodePoolPropertiesVersion returns a pointer to the Version field of node
+// pool properties. It is exported for use as a field accessor with safe.Field
+// by external callers (e.g. admission code) that need to navigate into the
+// Version subtree.
+func ToNodePoolPropertiesVersion(oldObj *api.HCPOpenShiftClusterNodePoolProperties) *api.NodePoolVersionProfile {
 	return &oldObj.Version
 }
 
@@ -108,6 +115,10 @@ func toNodePoolPropertiesTaints(oldObj *api.HCPOpenShiftClusterNodePoolPropertie
 	return oldObj.Taints
 }
 
+func toNodePoolPropertiesNodeDrainTimeoutMinutes(oldObj *api.HCPOpenShiftClusterNodePoolProperties) *int32 {
+	return oldObj.NodeDrainTimeoutMinutes
+}
+
 func validateNodePoolProperties(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.HCPOpenShiftClusterNodePoolProperties) field.ErrorList {
 	errs := field.ErrorList{}
 
@@ -115,7 +126,7 @@ func validateNodePoolProperties(ctx context.Context, op operation.Operation, fld
 	errs = append(errs, immutableByCompare(ctx, op, fldPath.Child("provisioningState"), &newObj.ProvisioningState, safe.Field(oldObj, toNodePoolPropertiesProvisioningState))...)
 
 	//Version                 NodePoolVersionProfile  `json:"version,omitempty"`
-	errs = append(errs, validateNodePoolVersionProfile(ctx, op, fldPath.Child("version"), &newObj.Version, safe.Field(oldObj, toNodePoolPropertiesVersion))...)
+	errs = append(errs, validateNodePoolVersionProfile(ctx, op, fldPath.Child("version"), &newObj.Version, safe.Field(oldObj, ToNodePoolPropertiesVersion))...)
 
 	//Platform                NodePoolPlatformProfile `json:"platform,omitempty"`
 	errs = append(errs, immutableByReflect(ctx, op, fldPath.Child("platform"), &newObj.Platform, safe.Field(oldObj, ToNodePoolPropertiesPlatform))...)
@@ -166,7 +177,8 @@ func validateNodePoolProperties(ctx context.Context, op operation.Operation, fld
 	)...)
 
 	//NodeDrainTimeoutMinutes *int32                  `json:"nodeDrainTimeoutMinutes,omitempty"`
-	// TODO why do we allow this to be negative?
+	errs = append(errs, validate.Minimum(ctx, op, fldPath.Child("nodeDrainTimeoutMinutes"), newObj.NodeDrainTimeoutMinutes, safe.Field(oldObj, toNodePoolPropertiesNodeDrainTimeoutMinutes), 0)...)
+	errs = append(errs, Maximum(ctx, op, fldPath.Child("nodeDrainTimeoutMinutes"), newObj.NodeDrainTimeoutMinutes, safe.Field(oldObj, toNodePoolPropertiesNodeDrainTimeoutMinutes), 10080)...)
 
 	return errs
 }
@@ -206,13 +218,14 @@ func validateNodePoolVersionProfile(ctx context.Context, op operation.Operation,
 	}
 
 	//ChannelGroup string `json:"channelGroup,omitempty"`
-	// this is required and is later checked for matching the control plane.
-	// TODO   Interestingly, they won't match long term since clusters can change channels and aren't check
 	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("channelGroup"), &newObj.ChannelGroup, safe.Field(oldObj, toNodePoolVersionProfileChannelGroup))...)
 
 	if !op.HasOption(api.FeatureExperimentalReleaseFeatures) {
+		errs = append(errs, validate.Enum(ctx, op, fldPath.Child("channelGroup"), &newObj.ChannelGroup, safe.Field(oldObj, toNodePoolVersionProfileChannelGroup), api.AllowedChannelGroups, nil)...)
 		// without feature flag, only allow version 4.20.8 and above
 		errs = append(errs, VersionMustBeAtLeast(ctx, op, fldPath.Child("id"), &newObj.ID, safe.Field(oldObj, toNodePoolVersionProfileID), "4.20.8")...)
+	} else {
+		errs = append(errs, validate.Enum(ctx, op, fldPath.Child("channelGroup"), &newObj.ChannelGroup, safe.Field(oldObj, toNodePoolVersionProfileChannelGroup), api.AllowedChannelGroupsWithExperimentalFlag, nil)...)
 	}
 
 	return errs
@@ -236,6 +249,7 @@ func validateNodePoolPlatformProfile(ctx context.Context, op operation.Operation
 	//VMSize                 string        `json:"vmSize,omitempty"`
 	errs = append(errs, immutableByCompare(ctx, op, fldPath.Child("vmSize"), &newObj.VMSize, safe.Field(oldObj, toNodePoolPlatformProfileVMSize))...)
 	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("vmSize"), &newObj.VMSize, safe.Field(oldObj, toNodePoolPlatformProfileVMSize))...)
+	errs = append(errs, validate.Enum(ctx, op, fldPath.Child("vmSize"), &newObj.VMSize, safe.Field(oldObj, toNodePoolPlatformProfileVMSize), enabledNodePoolAzureVMSizes(), nil)...)
 
 	//EnableEncryptionAtHost bool          `json:"enableEncryptionAtHost"`
 	errs = append(errs, immutableByCompare(ctx, op, fldPath.Child("enableEncryptionAtHost"), &newObj.EnableEncryptionAtHost, safe.Field(oldObj, toNodePoolPlatformProfileEnableEncryptionAtHost))...)
@@ -272,6 +286,10 @@ func validateOSDiskProfile(ctx context.Context, op operation.Operation, fldPath 
 
 	//EncryptionSetID        string                 `json:"encryptionSetId,omitempty"`
 	errs = append(errs, RestrictedResourceIDWithResourceGroup(ctx, op, fldPath.Child("encryptionSetId"), newObj.EncryptionSetID, safe.Field(oldObj, toOSDiskProfileEncryptionSetID), "Microsoft.Compute/diskEncryptionSets")...)
+	if newObj.EncryptionSetID != nil {
+		errs = append(errs, MaxLen(ctx, op, fldPath.Child("encryptionSetId"), &newObj.EncryptionSetID.Name, nil, MaxDiskEncryptionSetNameLen)...)
+		errs = append(errs, MatchesRegex(ctx, op, fldPath.Child("encryptionSetId"), &newObj.EncryptionSetID.Name, nil, diskEncryptionSetNameRegex, diskEncryptionSetNameErrorString)...)
+	}
 
 	return errs
 }

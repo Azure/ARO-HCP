@@ -18,6 +18,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
 	"github.com/Azure/ARO-HCP/internal/api"
 )
 
@@ -28,6 +30,10 @@ type ReadDesire struct {
 	// optionally a NodePool) so that listing the partition by parent prefix
 	// naturally returns the desires associated with that resource — and so
 	// that cluster/nodepool deletion can sweep them.
+	// PartitionKey holds the lowercased Spec.ManagementCluster resource ID
+	// (e.g. "/providers/microsoft.redhatopenshift/stamps/1/managementclusters/default")
+	// so that all desires for one management cluster live together in one Cosmos
+	// partition (and one container, in the per-MC container model).
 	api.CosmosMetadata `json:"cosmosMetadata"`
 
 	Spec ReadDesireSpec `json:"spec"`
@@ -40,8 +46,9 @@ type ReadDesireSpec struct {
 	// reconcile this desire. It is the cosmos partition key for the
 	// kube-applier container; entries from one management cluster never see
 	// entries from another.
-	// TODO this may end up changing to be a resourceID
-	ManagementCluster string `json:"managementCluster"`
+	// This is the same resourceID as the fleetapi.ManagementCluster.CosmosMetadata.ResourceID
+	// Example: "/providers/microsoft.redhatopenshift/stamps/1/managementclusters/default"
+	ManagementCluster *azcorearm.ResourceID `json:"managementCluster"`
 
 	// TargetItem identifies the single kube object to read. The kube-applier
 	// runs a per-instance list/watch+informer scoped to this exact name and

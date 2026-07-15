@@ -1,6 +1,6 @@
 ADMIN_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
-CONTAINER_ENGINE ?= $(shell command -v podman 2>/dev/null || echo docker)
 
+-include ../setup-env.mk
 -include ../setup-templatize-env.mk
 -include ../tooling/hcpctl/Variables.mk
 -include ../.bingo/Variables.mk
@@ -17,10 +17,8 @@ BINARY = aro-hcp-admin
 CLI_BINARY = aro-hcp-admin-cli
 
 # Build flags
-BUILD_DATE ?= $(shell date -u +'%Y-%m-%dT%H:%M:%SZ')
 LDFLAGS = -ldflags "\
-	-X github.com/Azure/ARO-HCP/admin/pkg/version.commit=${ARO_HCP_REVISION} \
-	-X github.com/Azure/ARO-HCP/admin/pkg/version.buildDate=${BUILD_DATE}"
+	-X github.com/Azure/ARO-HCP/internal/version.CommitSHA=${ARO_HCP_REVISION}"
 
 # Source files
 ADMIN_API_SOURCES = $(shell find server ../internal -name '*.go' -o -name 'go.mod' -o -name 'go.sum')
@@ -74,7 +72,7 @@ image:
 .PHONY: image
 
 build-and-push: image $(ORAS) $(YQ)
-	az acr login --name ${ARO_HCP_IMAGE_ACR}
+	$(acr-login)
 	@LOCAL_DIGEST=$$($(CONTAINER_ENGINE) image inspect --format '{{.Id}}' ${ADMIN_API_TAGGED_IMAGE} | sed 's/sha256://'); \
 	REMOTE_DIGEST=$$($(ORAS) manifest fetch ${ADMIN_API_TAGGED_IMAGE} 2>/dev/null | $(YQ) .config.digest | sed 's/sha256://'); \
 	if [ "$$LOCAL_DIGEST" = "$$REMOTE_DIGEST" ]; then \
@@ -101,6 +99,13 @@ record-override: $(YQ) $(ORAS)
 		.clouds.dev.environments.$(DEPLOY_ENV).defaults.adminApi.image.digest = \"$$DIGEST\" \
 	" > $(OVERRIDE_CONFIG_FILE)
 .PHONY: record-override
+
+record-latest-override: $(YQ)
+	@../hack/record-latest-image-override.sh \
+		"$(ARO_HCP_IMAGE_ACR)" "$(ARO_HCP_IMAGE_REGISTRY)" \
+		"$(ADMIN_API_GENERATED_IMAGE_REPOSITORY)" "$(DEPLOY_ENV)" \
+		"adminApi" "$(OVERRIDE_CONFIG_FILE)" "$(YQ)"
+.PHONY: record-latest-override
 
 deploy: build-and-push record-override
 	make -C .. pipeline/AdminAPI OVERRIDE_CONFIG_FILE=$(OVERRIDE_CONFIG_FILE)

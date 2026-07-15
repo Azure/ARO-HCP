@@ -1,0 +1,7 @@
+cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}').table('frontendLogs')
+| where timestamp between ({{ kqlDatetime .FullStartTime }} .. {{ kqlDatetime .FullEndTime }})
+{{- if and .ServiceClusterName .ManagementClusterName }}
+| where cluster in ('{{ .ServiceClusterName }}', '{{ .ManagementClusterName }}')
+{{- end }}
+| where log.client_request_id == '{{ .ClientRequestID }}'
+| project timestamp, msg=tostring(log.msg), err=tostring(log.err), method=tostring(log.method), path=tostring(log.path)

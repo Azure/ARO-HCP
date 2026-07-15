@@ -39,13 +39,11 @@ data:
         Plugins_File              /fluent-bit/etc/plugins.conf
         HTTP_Server               On
         storage.path              /var/fluent-bit/flb-storage
-        # If the input plugin has enabled filesystem storage type, this property sets the maximum number of Chunks that can be up in memory.
-        # (default: 128)
-        storage.max_chunks_up     256
-        # This option configure a hint of maximum value of memory to use when processing the backlog data.
-        # (default: 5M)
-        storage.backlog.mem_limit 50M
+        storage.max_chunks_up     128
+        storage.backlog.mem_limit 15M
         storage.metrics           on
+        storage.delete_irrecoverable_chunks on
+        scheduler.cap             600
         Grace                     30
         # Based on the HC_Period, if the error number > HC_Errors_Count or the retry failure > HC_Retry_Failure_Count, fluent bit is considered as unhealthy.
         Health_Check              On
@@ -59,6 +57,21 @@ data:
         Time_Key    time
         Time_Format %Y-%m-%dT%H:%M:%S.%L
         Time_Keep   On
+
+    [MULTILINE_PARSER]
+        name          klog
+        type          regex
+        flush_timeout 1000
+        # A klog line starts with [IWEF] followed by 4 digits (mmdd) and a space
+        rule          "start_state"  "/^[IWEF]\d{4} /"               "cont"
+        # A JSON log line starts with { — treat as its own entry
+        rule          "start_state"  "/^\{/"                          "cont"
+        # A structured log line starts with an ISO 8601 timestamp
+        rule          "start_state"  "/^\d{4}-\d{2}-\d{2}T\d{2}:/"   "cont"
+        # Anything else is a continuation of the previous multiline entry
+        rule          "cont"         "/^[^IWEF{\d]/"                  "cont"
+        rule          "cont"         "/^[IWEF][^0-9]/"                "cont"
+        rule          "cont"         "/^\d(?!\d{3}-\d{2}-\d{2}T\d{2}:)/"  "cont"
 
   input.conf: |
     [INPUT]
@@ -75,8 +88,8 @@ data:
         DB.locking        true
         Refresh_Interval  15
         Read_from_Head    On
-        Buffer_Chunk_Size 128K
-        Buffer_Max_Size   2M
+        Buffer_Chunk_Size 32K
+        Buffer_Max_Size   256K
         Skip_Long_Lines   On
         storage.type      filesystem
         Threaded          On
@@ -101,6 +114,7 @@ data:
         Alias  otlp
         Listen 0.0.0.0
         Port   4318
+        Mem_Buf_Limit 50M
 
     [INPUT]
         Name            systemd
@@ -108,12 +122,55 @@ data:
         Tag             systemd.*
         Systemd_Filter  _SYSTEMD_UNIT=containerd.service
         Systemd_Filter  _SYSTEMD_UNIT=kubelet.service
+        # AROSLSRE-1465: capture kernel ring-buffer (kmsg) messages so we can see
+        # the guest kernel stack (hung_task/soft-lockup/panic) in the seconds
+        # before a userswft node hard-freezes into NodeNotReady. Kernel journal
+        # records carry no _SYSTEMD_UNIT; they are matched by _TRANSPORT=kernel.
+        # Systemd_Filter entries are OR'd, so this only adds kernel lines. They
+        # flow to the existing systemdLogs Kusto table (no schema change): the
+        # full record is preserved in the `log` dynamic column, so _TRANSPORT /
+        # SYSLOG_IDENTIFIER / PRIORITY stay queryable, and `message` maps from
+        # $.log.MESSAGE. systemd_unit is simply empty for kernel lines.
+        Systemd_Filter  _TRANSPORT=kernel
         Read_From_Tail  On
         Strip_Underscores On
         DB              /var/fluent-bit/flb-storage/flb-systemdb.db
         Threaded          On
         storage.type      filesystem
   filter.conf: |
+    [FILTER]
+        Name                  multiline
+        Alias                 filter.multiline_klog
+        Match                 kubernetes.*
+        multiline.parser      klog
+        multiline.key_content log
+
+    [FILTER]
+        # Drop noisy kube-proxy topology.go INFO messages that generate 10x log volume
+        # spikes during EndpointSlice reconciliation on mgmt clusters (ICM 825611890).
+        Name    grep
+        Alias   filter.drop_kube_proxy_topology_noise
+        Match   kubernetes.var.log.containers.kube-proxy*
+        Exclude log Ignoring same-(node|zone) topology hints
+
+    [FILTER]
+        # AROSLSRE-1465: the kernel journal (_TRANSPORT=kernel, captured by the
+        # systemd input above) carries SELinux/audit-subsystem records that are
+        # routed through kmsg: lines beginning with "audit:" (audit types such as
+        # 1300/1325/1327/1130/1131 -- syscall, netfilter and service-state audit
+        # events) and the "kauditd_printk_skb: N callbacks suppressed" throttle
+        # notices. These are process/security audit events, NOT kernel-health
+        # signals, and they account for ~87% of kernel-transport log volume. They
+        # are useless for diagnosing node hard-freezes (hung_task, soft lockup,
+        # RCU stall, OOM, MCE, kernel panic), so we drop them here and keep only
+        # actionable kernel diagnostics. kubelet/containerd systemd records and
+        # all non-audit kernel lines are unaffected (their MESSAGE never starts
+        # with these prefixes).
+        Name    grep
+        Alias   filter.drop_kernel_audit_noise
+        Match   systemd.*
+        Exclude MESSAGE ^(audit:|kauditd_printk_skb:)
+
     [FILTER]
         Name modify
         Match systemd.*
@@ -135,6 +192,7 @@ data:
         Kube_Tag_Prefix     kubernetes.var.log.containers.
         Annotations         Off
         K8S-Logging.Exclude On
+        Kube_Meta_Cache_TTL 300
         Buffer_Size         64k
 
     [FILTER]
@@ -155,7 +213,9 @@ data:
         Rule            $kubernetes['container_name'] ^aro-hcp-frontend* aro-hcp-frontend.logs true
         Rule            $kubernetes['container_name'] ^aro-hcp-backend* aro-hcp-backend.logs true
         Rule            $kubernetes['container_name'] ^clusters-service* clusters-service.logs true
+        Rule            $kubernetes['container_name'] ^fleet-controller* fleet-controller.logs true
         Rule            $kubernetes['container_name'] ^kube-events* kube-events.logs true
+        Rule            $kubernetes['container_name'] ^mgmt-agent-controller* mgmt-agent.logs true
         Emitter_Name    re_emitted_container_name_router
         Emitter_Mem_Buf_Limit  20M
         Emitter_Storage.type   filesystem
@@ -163,11 +223,44 @@ data:
     [FILTER]
         # Parse the log key and make it a json object again under $
         Name Parser
-        Match_regex (aro-hcp-(frontend|backend)|kube-events|clusters-service)\.logs
+        Match_regex (aro-hcp-(frontend|backend)|kube-events|clusters-service|fleet-controller|mgmt-agent)\.logs
         Key_Name log
         Parser containerlogs
         Preserve_Key On
         Reserve_Data On
+
+    [FILTER]
+        # Route mgmt-agent logs with snapshotType=kubernetes
+        # to a dedicated tag for the kubernetesResourceSnapshots Kusto table.
+        Name            rewrite_tag
+        Alias           filter.resource_snapshot_router
+        Match           mgmt-agent.logs
+        Rule            $snapshotType ^kubernetes$ resource-snapshots.logs true
+        Emitter_Name    re_emitted_resource_snapshot_router
+        Emitter_Mem_Buf_Limit  20M
+        Emitter_Storage.type   filesystem
+
+    [FILTER]
+        # Route backend logs with snapshotType=cosmos
+        # to a dedicated tag for the cosmosResourceSnapshots Kusto table.
+        Name            rewrite_tag
+        Alias           filter.cosmos_snapshot_router
+        Match           aro-hcp-backend.logs
+        Rule            $snapshotType ^cosmos$ cosmos-snapshots.logs true
+        Emitter_Name    re_emitted_cosmos_snapshot_router
+        Emitter_Mem_Buf_Limit  20M
+        Emitter_Storage.type   filesystem
+
+    [FILTER]
+        # Route frontend logs with snapshotType=cosmos
+        # to the same cosmosResourceSnapshots Kusto table.
+        Name            rewrite_tag
+        Alias           filter.cosmos_snapshot_router_frontend
+        Match           aro-hcp-frontend.logs
+        Rule            $snapshotType ^cosmos$ cosmos-snapshots.logs true
+        Emitter_Name    re_emitted_cosmos_snapshot_router_frontend
+        Emitter_Mem_Buf_Limit  20M
+        Emitter_Storage.type   filesystem
   filter-shoebox.conf: |
     # Route control plane logs from OCM namespaces for Shoebox transformation
     [FILTER]
@@ -323,6 +416,7 @@ data:
     [OUTPUT]
         Match ocm.logs
         Name azure_kusto
+        Retry_Limit 5
         auth_type workload_identity
         tenant_id __tenantId__
         client_id __msiClientId__
@@ -347,6 +441,7 @@ data:
     [OUTPUT]
         Match aro-hcp-frontend.logs
         Name azure_kusto
+        Retry_Limit 5
         auth_type workload_identity
         tenant_id __tenantId__
         client_id __msiClientId__
@@ -371,6 +466,7 @@ data:
     [OUTPUT]
         Match aro-hcp-backend.logs
         Name azure_kusto
+        Retry_Limit 5
         auth_type workload_identity
         tenant_id __tenantId__
         client_id __msiClientId__
@@ -393,8 +489,34 @@ data:
         io_timeout                  60s
 
     [OUTPUT]
+        Match fleet-controller.logs
+        Name azure_kusto
+        Retry_Limit 5
+        auth_type workload_identity
+        tenant_id __tenantId__
+        client_id __msiClientId__
+        workload_identity_token_file ${AZURE_FEDERATED_TOKEN_FILE}
+        Ingestion_Endpoint __kustoDataIngestionUri__
+        Database_Name ServiceLogs
+        Table_Name fleetLogs
+        ingestion_mapping_reference ingestionMapping
+        azure_kusto_buffer_key fleetLogs
+        buffer_dir "/var/kusto"
+        buffering_enabled           true 
+        upload_timeout              1m
+        upload_file_size            16M
+        buffer_file_delete_early    false
+        unify_tag                   true
+        store_dir_limit_size        1.8GB
+        blob_uri_length             128
+        scheduler_max_retries       9
+        delete_on_max_upload_error  true
+        io_timeout                  60s
+
+    [OUTPUT]
         Match clusters-service.logs
         Name azure_kusto
+        Retry_Limit 5
         auth_type workload_identity
         tenant_id __tenantId__
         client_id __msiClientId__
@@ -415,9 +537,61 @@ data:
         scheduler_max_retries       9
         delete_on_max_upload_error  true
         io_timeout                  60s
+
+    [OUTPUT]
+        Match resource-snapshots.logs
+        Name azure_kusto
+        Retry_Limit 5
+        auth_type workload_identity
+        tenant_id __tenantId__
+        client_id __msiClientId__
+        workload_identity_token_file ${AZURE_FEDERATED_TOKEN_FILE}
+        Ingestion_Endpoint __kustoDataIngestionUri__
+        Database_Name ServiceLogs
+        Table_Name kubernetesResourceSnapshots
+        ingestion_mapping_reference ingestionMapping
+        azure_kusto_buffer_key resourceSnapshots
+        buffer_dir "/var/kusto"
+        buffering_enabled           true 
+        upload_timeout              1m
+        upload_file_size            16M
+        buffer_file_delete_early    false
+        unify_tag                   true
+        store_dir_limit_size        1.8GB
+        blob_uri_length             128
+        scheduler_max_retries       9
+        delete_on_max_upload_error  true
+        io_timeout                  60s
+
+    [OUTPUT]
+        Match cosmos-snapshots.logs
+        Name azure_kusto
+        Retry_Limit 5
+        auth_type workload_identity
+        tenant_id __tenantId__
+        client_id __msiClientId__
+        workload_identity_token_file ${AZURE_FEDERATED_TOKEN_FILE}
+        Ingestion_Endpoint __kustoDataIngestionUri__
+        Database_Name ServiceLogs
+        Table_Name cosmosResourceSnapshots
+        ingestion_mapping_reference ingestionMapping
+        azure_kusto_buffer_key cosmosResourceSnapshots
+        buffer_dir "/var/kusto"
+        buffering_enabled           true 
+        upload_timeout              1m
+        upload_file_size            16M
+        buffer_file_delete_early    false
+        unify_tag                   true
+        store_dir_limit_size        1.8GB
+        blob_uri_length             128
+        scheduler_max_retries       9
+        delete_on_max_upload_error  true
+        io_timeout                  60s
+
     [OUTPUT]
         Match kubernetes.*
         Name azure_kusto
+        Retry_Limit 5
         auth_type workload_identity
         tenant_id __tenantId__
         client_id __msiClientId__
@@ -442,6 +616,7 @@ data:
     [OUTPUT]
         Match kube-events.logs
         Name azure_kusto
+        Retry_Limit 5
         auth_type workload_identity
         tenant_id __tenantId__
         client_id __msiClientId__
@@ -463,19 +638,10 @@ data:
         delete_on_max_upload_error  true
         io_timeout                  60s
 
-  output-mdsd.conf: |
-    # Forward logs to mdsd instance (default port)
-    [OUTPUT]
-        Name  forward
-        Alias forward.mdsd.other
-        Match mdsd-other.logs
-        Host  127.0.0.1
-        Port  5001
-        Tag   akskubesystem
-
     [OUTPUT]
         Match systemd.*
         Name azure_kusto
+        Retry_Limit 5
         auth_type workload_identity
         tenant_id __tenantId__
         client_id __msiClientId__
@@ -496,6 +662,16 @@ data:
         scheduler_max_retries       9
         delete_on_max_upload_error  true
         io_timeout                  60s
+
+  output-mdsd.conf: |
+    # Forward logs to mdsd instance (default port)
+    [OUTPUT]
+        Name  forward
+        Alias forward.mdsd.other
+        Match mdsd-other.logs
+        Host  127.0.0.1
+        Port  5001
+        Tag   akskubesystem
 ---
 # Source: arobit/templates/forwarder-clusterrole.yaml
 kind: ClusterRole
@@ -533,6 +709,47 @@ subjects:
 - kind: ServiceAccount
   name: 'arobit-forwarder'
   namespace: 'arobit'
+---
+# Source: arobit/templates/forwarder-watchdog-rbac.yaml
+# AROSLSRE-879: namespace-scoped permissions for the mdsd-cert-watchdog sidecar
+# to delete its own pod when the Geneva auth secret never mounts (AKS
+# secrets-store CSI driver race). Pod-level CSI volumes can only be re-mounted
+# by recreating the pod, so the watchdog calls `kubectl delete pod` on itself;
+# the DaemonSet then schedules a replacement pod with a fresh
+# NodePublishVolume call.
+#
+# Granting `pods:delete` at namespace scope (Role + RoleBinding) keeps this
+# strictly less privileged than the cluster-wide arobit-forwarder ClusterRole.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: arobit-cert-watchdog
+  namespace: 'arobit'
+  labels:
+    app.kubernetes.io/name: arobit-forwarder
+    app.kubernetes.io/instance: 'helmtest-mdsd-and-kusto-enabled-mgmt'
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["delete"]
+---
+# Source: arobit/templates/forwarder-watchdog-rbac.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: arobit-cert-watchdog
+  namespace: 'arobit'
+  labels:
+    app.kubernetes.io/name: arobit-forwarder
+    app.kubernetes.io/instance: 'helmtest-mdsd-and-kusto-enabled-mgmt'
+roleRef:
+  kind: Role
+  apiGroup: rbac.authorization.k8s.io
+  name: arobit-cert-watchdog
+subjects:
+  - kind: ServiceAccount
+    name: 'arobit-forwarder'
+    namespace: 'arobit'
 ---
 # Source: arobit/templates/forwarder-service.yaml
 apiVersion: v1
@@ -591,7 +808,7 @@ spec:
         app: arobit-forwarder
         azure.workload.identity/use: "true"
       annotations:
-        checksum/configmap: 1bcf41031ddd939fc7fda8e95915cce0382741abc5ff4e73a4047e9ef9569141
+        checksum/configmap: 11ab5ef382c815cd496dd5ac1ea47145094ed1a3d3519bf4e62bf5a331800a56
     spec:
       priorityClassName: service-lifecycle-critical
       serviceAccountName: 'arobit-forwarder'
@@ -648,7 +865,7 @@ spec:
               cpu: 100m
               memory: 256Mi
             limits:
-              memory: 1Gi
+              memory: 1248Mi
           volumeMounts:
             - name: var-kusto
               mountPath: /var/kusto
@@ -671,11 +888,47 @@ spec:
         - name: mdsd-clusterlogs
           image: mcr.microsoft.com/geneva/distroless/mdsd@sha256:1234567890
           imagePullPolicy: 'IfNotPresent'
+          # AROSLSRE-879: defensively wait for the Geneva auth cert before exec'ing
+          # mdsd. The AKS secrets-store CSI driver can lose the initial
+          # NodePublishVolume race, leaving /geneva/geneva_auth/ empty; mdsd then
+          # panics with "No certificate was found that matched SAN" on every
+          # restart. The mdsd-cert-watchdog sidecar below recovers stuck pods by
+          # deleting them; this wrapper keeps the normal startup race window quiet.
+          # Upstream bug: kubernetes-sigs/secrets-store-csi-driver#1051
+          # Upstream fix: kubernetes-sigs/secrets-store-csi-driver#2025 (in flight)
+          # Remove this wrapper once #2025 lands and AKS ships the fixed driver.
+          # Polls for a non-empty cert file (mdsd does its own X.509 + SAN
+          # validation), then exec's the real entrypoint. If the cert never
+          # appears we exit non-zero so the kubelet restart counter increments and
+          # existing container-restart alerts still fire. Uses /bin/sh and
+          # /bin/sleep, both present in the distroless mdsd image (the watchdog
+          # sidecar already uses /bin/sleep directly). Timeout and poll interval
+          # are sourced from the watchdog's chart values so the two recovery
+          # windows stay coordinated when tuned.
           command:
-              - /start_mdsd.sh
+            - /bin/sh
+            - -c
+            - |
+              CERT=/geneva/geneva_auth/gcscert.pem
+              WAITED=0
+              while [ "$WAITED" -lt "$TIMEOUT_SECONDS" ]; do
+                if [ -s "$CERT" ]; then
+                  echo "[mdsd-init] Geneva auth cert present after ${WAITED}s; exec'ing mdsd"
+                  exec /start_mdsd.sh
+                fi
+                echo "[mdsd-init] Geneva auth cert not yet mounted at ${CERT} (waited ${WAITED}s of ${TIMEOUT_SECONDS}s)"
+                sleep "$INTERVAL_SECONDS"
+                WAITED=$((WAITED + INTERVAL_SECONDS))
+              done
+              echo "[mdsd-init] Giving up after ${TIMEOUT_SECONDS}s; Geneva auth cert never appeared at ${CERT}. This usually means the CSI driver lost the initial mount race; see AROSLSRE-879. Exiting to trigger container restart."
+              exit 1
           env:
+            - name: TIMEOUT_SECONDS
+              value: '300'
+            - name: INTERVAL_SECONDS
+              value: '15'
             - name: MONITORING_GCS_AUTH_ID
-              value: ''
+              value: 'empty-sentinel'
             - name: MONITORING_GCS_AUTH_ID_TYPE
               value: AuthKeyVault
             - name: MDSD_AKV_CERTIFICATE_STORE_PATH
@@ -754,6 +1007,71 @@ spec:
             - name: cacrt-host
               mountPath: /etc/ssl/certs/ca-certificates.crt
               readOnly: true
+            - mountPath: /geneva/geneva_auth/
+              name: geneva-certs-clusterlogs
+              readOnly: true
+        - name: mdsd-cert-watchdog
+          # AROSLSRE-879: the AKS secrets-store CSI driver can lose the initial
+          # NodePublishVolume mount race during DaemonSet rollouts, leaving
+          # /geneva/geneva_auth/ empty for the rest of the pod's lifetime.
+          # Pod-level CSI mounts are not retried on container restart, so the
+          # mdsd polling wrapper alone cannot recover; the pod has to be
+          # recreated to get another shot at NodePublishVolume.
+          #
+          # This watchdog waits for the cert to appear and, if it doesn't
+          # within the bounded window, asks the K8s API to delete this pod so
+          # the DaemonSet recreates it. The namespace-scoped Role grants only
+          # pods:delete (see forwarder-watchdog-rbac.yaml).
+          image: mcr.microsoft.com/aks/command/runtime@sha256:1234567890
+          imagePullPolicy: 'IfNotPresent'
+          command:
+            - /bin/sh
+            - -c
+            - |
+              CERT=/geneva/geneva_auth/gcscert.pem
+              WAITED=0
+              while [ "$WAITED" -lt "$TIMEOUT_SECONDS" ]; do
+                if [ -s "$CERT" ]; then
+                  echo "[cert-watchdog] Geneva auth cert present at ${CERT} after ${WAITED}s; sleeping idle until pod terminates"
+                  exec sleep infinity
+                fi
+                sleep "$INTERVAL_SECONDS"
+                WAITED=$((WAITED + INTERVAL_SECONDS))
+              done
+              echo "[cert-watchdog] Geneva auth cert never appeared at ${CERT} after ${TIMEOUT_SECONDS}s. The AKS secrets-store CSI driver likely lost the initial NodePublishVolume mount race (AROSLSRE-879). Requesting deletion of pod ${POD_NAMESPACE}/${POD_NAME} so the DaemonSet can recreate it with a fresh CSI mount."
+              if kubectl delete pod "$POD_NAME" --namespace "$POD_NAMESPACE" --grace-period=30 --wait=false; then
+                echo "[cert-watchdog] Pod delete requested; sleeping idle until kubelet terminates us"
+                exec sleep infinity
+              fi
+              echo "[cert-watchdog] kubectl delete pod failed; exiting non-zero so the kubelet retries us"
+              exit 1
+          env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: TIMEOUT_SECONDS
+              value: '300'
+            - name: INTERVAL_SECONDS
+              value: '15'
+          securityContext:
+            privileged: false
+            allowPrivilegeEscalation: false
+            runAsUser: 0
+            runAsGroup: 0
+            capabilities:
+              drop: ['ALL']
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 128Mi
+          volumeMounts:
             - mountPath: /geneva/geneva_auth/
               name: geneva-certs-clusterlogs
               readOnly: true

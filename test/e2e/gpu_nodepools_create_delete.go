@@ -17,7 +17,6 @@ package e2e
 import (
 	"context"
 	"fmt"
-	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -29,154 +28,140 @@ import (
 )
 
 var _ = Describe("HCP Nodepools GPU instances", func() {
-	// Mapping of human-friendly SKU identifiers to Azure VM size names
-	type gpuSKU struct {
-		display string
-		vmSize  string
-	}
-	gpuSkus := []gpuSKU{
-		{display: "NC4asT4v3", vmSize: "Standard_NC4as_T4_v3"},
-		/*{display: "NC8asT4v3", vmSize: "Standard_NC8as_T4_v3"},
-		{display: "NC12sv3", vmSize: "Standard_NC12s_v3"},
-		{display: "NC16asT4v3", vmSize: "Standard_NC16as_T4_v3"},
-		{display: "NC24sv3", vmSize: "Standard_NC24s_v3"},
-		{display: "NC24rsv3", vmSize: "Standard_NC24rs_v3"},
-		{display: "NC64asT4v3", vmSize: "Standard_NC64as_T4_v3"},
-		{display: "ND96asrv4", vmSize: "Standard_ND96asr_v4"},
-		{display: "NC24adsA100v4", vmSize: "Standard_NC24ads_A100_v4"},
-		{display: "NC48adsA100v4", vmSize: "Standard_NC48ads_A100_v4"},
-		{display: "NC96adsA100v4", vmSize: "Standard_NC96ads_A100_v4"},
-		{display: "ND96amsrA100v4", vmSize: "Standard_ND96amsr_A100_v4"},*/
-	}
+	It("creates and deletes a GPU nodepool in a single cluster",
+		labels.RequireNothing,
+		labels.Critical,
+		labels.Positive,
+		labels.IntegrationOnly,
+		func(ctx context.Context) {
+			const (
+				customerClusterName = "cluster-gpu-np"
+				defaultNodePoolName = "np-1"
+				gpuNodePoolName     = "gpu-np-1"
+			)
 
-	for _, sku := range gpuSkus {
-		sku := sku
-		It("creates and deletes vm type "+sku.display+" in a single cluster",
-			labels.RequireNothing,
-			labels.Critical,
-			labels.Positive,
-			labels.IntegrationOnly,
-			func(ctx context.Context) {
-				const (
-					customerClusterName = "cluster-gpu-np"
-					defaultNodePoolName = "np-1"
-					gpuNodePoolName     = "gpu-np-1"
-				)
+			tc := framework.NewTestContext()
 
-				tc := framework.NewTestContext()
+			By("discovering an available GPU VM size")
+			gpuVMSize, err := tc.SelectVMSize(ctx, framework.GPUNodePoolVMSizeSelector())
+			Expect(err).NotTo(HaveOccurred(), "failed to discover a GPU VM size")
 
-				if tc.UsePooledIdentities() {
-					err := tc.AssignIdentityContainers(ctx, 1, 60*time.Second)
-					Expect(err).NotTo(HaveOccurred())
-				}
+			if tc.UsePooledIdentities() {
+				err := tc.AssignIdentityContainers(ctx, 1, framework.IdentityContainerAssignmentRetryInterval)
+				Expect(err).NotTo(HaveOccurred(), "failed to assign pooled identity containers")
+			}
 
-				By("creating a resource group")
-				resourceGroup, err := tc.NewResourceGroup(ctx, "rg-gpu-nodepool-"+sku.display, tc.Location())
-				Expect(err).NotTo(HaveOccurred())
+			By("creating a resource group")
+			resourceGroup, err := tc.NewResourceGroup(ctx, "rg-gpu-nodepool", tc.Location())
+			Expect(err).NotTo(HaveOccurred(), "failed to create resource group for GPU nodepool test")
 
-				clusterParams := framework.NewDefaultClusterParams()
-				clusterParams.ClusterName = customerClusterName
-				clusterParams.ManagedResourceGroupName = framework.SuffixName(*resourceGroup.Name, "-managed", 64)
+			clusterParams := framework.NewDefaultClusterParams20240610()
+			clusterParams.ClusterName = customerClusterName
+			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
+			clusterParams.ManagedResourceGroupName = managedResourceGroupName
 
-				By("creating customer resources (infrastructure and managed identities) for cluster")
-				clusterParams, err = tc.CreateClusterCustomerResources(ctx,
-					resourceGroup,
-					clusterParams,
-					map[string]interface{}{},
-					TestArtifactsFS,
-					framework.RBACScopeResourceGroup,
-				)
-				Expect(err).NotTo(HaveOccurred())
+			By("creating customer resources (infrastructure and managed identities) for cluster")
+			clusterParams, err = tc.CreateClusterCustomerResources20240610(ctx,
+				resourceGroup,
+				clusterParams,
+				map[string]interface{}{},
+				TestArtifactsFS,
+				framework.RBACScopeResourceGroup,
+			)
+			Expect(err).NotTo(HaveOccurred(), "failed to create customer resources for GPU nodepool cluster")
 
-				By("creating the HCP cluster")
-				err = tc.CreateHCPClusterFromParam(ctx,
-					GinkgoLogr,
-					*resourceGroup.Name,
-					clusterParams,
-					45*time.Minute,
-				)
-				Expect(err).NotTo(HaveOccurred())
+			By("creating the HCP cluster")
+			err = tc.CreateHCPClusterFromParam20240610(ctx,
+				GinkgoLogr,
+				*resourceGroup.Name,
+				clusterParams,
+				framework.ClusterCreationTimeout,
+			)
+			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster for GPU nodepool test")
 
-				By("getting credentials and verifying cluster is viable")
-				adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster(
-					ctx,
-					tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
-					*resourceGroup.Name,
-					customerClusterName,
-					10*time.Minute,
-				)
-				Expect(err).NotTo(HaveOccurred())
-				Expect(verifiers.VerifyHCPCluster(ctx, adminRESTConfig)).To(Succeed())
+			By("getting credentials and verifying cluster is viable")
+			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20240610(
+				ctx,
+				tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
+				*resourceGroup.Name,
+				customerClusterName,
+				framework.GetAdminRESTConfigTimeout,
+			)
+			Expect(err).NotTo(HaveOccurred(), "failed to get admin REST config for cluster %s", customerClusterName)
+			Expect(verifiers.VerifyHCPCluster(ctx, adminRESTConfig)).To(Succeed(), "failed to verify basic cluster health for %s", customerClusterName)
 
-				// this test deletes gpu node pool later. if we only create gpu node pool and then delete it,
-				// we will get an error: "The last node pool can not be deleted from a cluster."
-				// that's why firstly we create a default node pool (which by the way is cheaper than gpu node pool)
-				// so that gpu node pool can be deleted later without any error.
-				// we create a default node pool with two replicas instead of one,
-				// because in the latter case we will get this error: "A hosted cluster requires at least 2 replicas"
-				By("creating default nodepool")
-				defaultNodePoolParams := framework.NewDefaultNodePoolParams()
-				defaultNodePoolParams.ClusterName = customerClusterName
-				defaultNodePoolParams.NodePoolName = defaultNodePoolName
-				defaultNodePoolParams.Replicas = int32(2)
+			// this test deletes gpu node pool later. if we only create gpu node pool and then delete it,
+			// we will get an error: "The last node pool can not be deleted from a cluster."
+			// that's why firstly we create a default node pool (which by the way is cheaper than gpu node pool)
+			// so that gpu node pool can be deleted later without any error.
+			// we create a default node pool with two replicas instead of one,
+			// because in the latter case we will get this error: "A hosted cluster requires at least 2 replicas"
+			By("creating default nodepool")
+			defaultNodePoolParams := framework.NewDefaultNodePoolParams20240610()
+			defaultNodePoolParams.ClusterName = customerClusterName
+			defaultNodePoolParams.NodePoolName = defaultNodePoolName
+			defaultNodePoolParams.Replicas = int32(2)
 
-				err = tc.CreateNodePoolFromParam(ctx,
-					*resourceGroup.Name,
-					customerClusterName,
-					defaultNodePoolParams,
-					45*time.Minute,
-				)
-				Expect(err).NotTo(HaveOccurred())
+			err = tc.CreateNodePoolFromParam20240610(ctx,
+				GinkgoLogr,
+				*resourceGroup.Name,
+				managedResourceGroupName,
+				customerClusterName,
+				defaultNodePoolParams,
+				framework.NodePoolCreationTimeout,
+			)
+			Expect(err).NotTo(HaveOccurred(), "failed to create default nodepool %s", defaultNodePoolName)
 
-				By(fmt.Sprintf("creating GPU nodepool with VM size %q", sku.vmSize))
-				gpuNodePoolParams := framework.NewDefaultNodePoolParams()
-				gpuNodePoolParams.ClusterName = customerClusterName
-				gpuNodePoolParams.NodePoolName = gpuNodePoolName
-				gpuNodePoolParams.Replicas = int32(1)
-				gpuNodePoolParams.VMSize = sku.vmSize
+			By(fmt.Sprintf("creating GPU nodepool with VM size %q", gpuVMSize))
+			gpuNodePoolParams := framework.NewDefaultNodePoolParams20240610()
+			gpuNodePoolParams.ClusterName = customerClusterName
+			gpuNodePoolParams.NodePoolName = gpuNodePoolName
+			gpuNodePoolParams.Replicas = int32(1)
+			gpuNodePoolParams.VMSize = gpuVMSize
 
-				err = tc.CreateNodePoolFromParam(ctx,
-					*resourceGroup.Name,
-					customerClusterName,
-					gpuNodePoolParams,
-					45*time.Minute,
-				)
-				Expect(err).NotTo(HaveOccurred())
+			err = tc.CreateNodePoolFromParam20240610(ctx,
+				GinkgoLogr,
+				*resourceGroup.Name,
+				managedResourceGroupName,
+				customerClusterName,
+				gpuNodePoolParams,
+				framework.NodePoolCreationTimeout,
+			)
+			Expect(err).NotTo(HaveOccurred(), "failed to create GPU nodepool %s with VM size %s", gpuNodePoolName, gpuVMSize)
 
-				By("verifying GPU nodepool provisioning succeeded with correct VM size")
-				created, err := framework.GetNodePool(ctx,
-					tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient(),
-					*resourceGroup.Name,
-					customerClusterName,
-					gpuNodePoolName,
-				)
-				Expect(err).NotTo(HaveOccurred())
-				Expect(created.Properties).ToNot(BeNil(), "GPU nodepool Properties was nil")
-				Expect(created.Properties.ProvisioningState).ToNot(BeNil(), "GPU nodepool Properties.ProvisioningState was nil")
-				Expect(*created.Properties.ProvisioningState).To(Equal(hcpsdk20240610preview.ProvisioningStateSucceeded))
-				Expect(created.Properties.Platform).ToNot(BeNil(), "GPU nodepool Properties.Platform was nil")
-				Expect(created.Properties.Platform.VMSize).ToNot(BeNil(), "GPU nodepool Properties.Platform.VMSize was nil")
-				Expect(*created.Properties.Platform.VMSize).To(Equal(sku.vmSize))
+			By("verifying GPU nodepool provisioning succeeded with correct VM size")
+			created, err := framework.GetNodePool20240610(ctx,
+				tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient(),
+				*resourceGroup.Name,
+				customerClusterName,
+				gpuNodePoolName,
+			)
+			Expect(err).NotTo(HaveOccurred(), "failed to get GPU nodepool %s", gpuNodePoolName)
+			Expect(created.Properties).ToNot(BeNil(), "GPU nodepool Properties was nil")
+			Expect(created.Properties.ProvisioningState).ToNot(BeNil(), "GPU nodepool Properties.ProvisioningState was nil")
+			Expect(*created.Properties.ProvisioningState).To(Equal(hcpsdk20240610preview.ProvisioningStateSucceeded), "GPU nodepool %s provisioning state should be Succeeded", gpuNodePoolName)
+			Expect(created.Properties.Platform).ToNot(BeNil(), "GPU nodepool Properties.Platform was nil")
+			Expect(created.Properties.Platform.VMSize).ToNot(BeNil(), "GPU nodepool Properties.Platform.VMSize was nil")
+			Expect(*created.Properties.Platform.VMSize).To(Equal(gpuVMSize), "GPU nodepool %s VM size should be %s", gpuNodePoolName, gpuVMSize)
 
-				By("deleting GPU nodepool")
-				Expect(framework.DeleteNodePool(
-					ctx,
-					tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient(),
-					*resourceGroup.Name,
-					customerClusterName,
-					gpuNodePoolName,
-					25*time.Minute,
-				)).To(Succeed())
+			By("deleting GPU nodepool")
+			Expect(framework.DeleteNodePool20240610(
+				ctx,
+				tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient(),
+				*resourceGroup.Name,
+				customerClusterName,
+				gpuNodePoolName,
+				framework.NodePoolDeletionTimeout,
+			)).To(Succeed(), "failed to delete GPU nodepool %s", gpuNodePoolName)
 
-				By("confirming GPU nodepool has been deleted")
-				_, getErr := framework.GetNodePool(ctx,
-					tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient(),
-					*resourceGroup.Name,
-					customerClusterName,
-					gpuNodePoolName,
-				)
-				Expect(getErr).To(HaveOccurred())
-			},
-		)
-	}
+			By("confirming GPU nodepool has been deleted")
+			_, getErr := framework.GetNodePool20240610(ctx,
+				tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient(),
+				*resourceGroup.Name,
+				customerClusterName,
+				gpuNodePoolName,
+			)
+			Expect(getErr).To(HaveOccurred(), "expected GPU nodepool %s to be deleted but it still exists", gpuNodePoolName)
+		},
+	)
 })

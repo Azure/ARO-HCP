@@ -51,6 +51,7 @@ func TestCrossVersionRoundTrip(t *testing.T) {
 const (
 	v2024 = "2024-06-10-preview"
 	v2025 = "2025-12-23-preview"
+	v2026 = "2026-06-30-preview"
 )
 
 func testCrossVersionRoundTrip(t *testing.T, withMock bool) {
@@ -74,6 +75,22 @@ func testCrossVersionRoundTrip(t *testing.T, withMock bool) {
 		{
 			name: "Cluster/PATCH/v2025-create-v2025-patch-v2025-verify",
 			fn:   testSameVersionClusterPATCH,
+		},
+		{
+			name: "Cluster/PUT/v2026-create-v2024-put-v2026-verify",
+			fn:   testCrossVersionClusterPUTv2026v2024,
+		},
+		{
+			name: "Cluster/PATCH/v2026-create-v2024-patch-v2026-verify",
+			fn:   testCrossVersionClusterPATCHv2026v2024,
+		},
+		{
+			name: "Cluster/PUT/v2026-create-v2025-put-v2026-verify",
+			fn:   testCrossVersionClusterPUTv2026v2025,
+		},
+		{
+			name: "Cluster/PATCH/v2026-create-v2025-patch-v2026-verify",
+			fn:   testCrossVersionClusterPATCHv2026v2025,
 		},
 		{
 			name: "NodePool/PUT/v2025-create-v2024-put-v2025-verify",
@@ -260,6 +277,60 @@ func clusterCreatePayload(clusterName, apiVersion string) []byte {
   "type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"
 }`, clusterName, subscriptionID, subscriptionID, subscriptionID))
 
+	case v2026:
+		// v2026 payload — includes all optional fields (autoscaling, nodeDrainTimeoutMinutes, ingress)
+		return []byte(fmt.Sprintf(`{
+  "identity": {
+    "type": "UserAssigned",
+    "userAssignedIdentities": {}
+  },
+  "name": "%s",
+  "properties": {
+    "api": {
+      "visibility": "Public"
+    },
+    "autoscaling": {
+      "maxNodeProvisionTimeSeconds": 1200,
+      "maxNodesTotal": 50,
+      "maxPodGracePeriodSeconds": 300,
+      "podPriorityThreshold": -5
+    },
+    "clusterImageRegistry": {
+      "state": "Disabled"
+    },
+    "etcd": {
+      "dataEncryption": {
+        "keyManagementMode": "PlatformManaged"
+      }
+    },
+    "ingress": {
+      "type": "Private"
+    },
+    "nodeDrainTimeoutMinutes": 15,
+    "network": {
+      "hostPrefix": 23,
+      "machineCidr": "10.0.0.0/16",
+      "networkType": "OVNKubernetes",
+      "podCidr": "10.128.0.0/14",
+      "serviceCidr": "172.30.0.0/16"
+    },
+    "platform": {
+      "managedResourceGroup": "managed-rg-xvrt",
+      "networkSecurityGroupId": "/subscriptions/%s/resourceGroups/bar/providers/Microsoft.Network/networkSecurityGroups/nsg",
+      "outboundType": "LoadBalancer",
+      "subnetId": "/subscriptions/%s/resourceGroups/bar/providers/Microsoft.Network/virtualNetworks/vnet/subnets/subnet",
+      "vnetIntegrationSubnetId": "/subscriptions/%s/resourceGroups/bar/providers/Microsoft.Network/virtualNetworks/vnet/subnets/swift-subnet"
+    },
+    "version": {
+      "channelGroup": "stable",
+      "id": "4.20"
+    }
+  },
+  "tags": {
+    "env": "test"
+  },
+  "type": "Microsoft.RedHatOpenShift/hcpOpenShiftClusters"
+}`, clusterName, subscriptionID, subscriptionID, subscriptionID))
 	default:
 		panic(fmt.Sprintf("unsupported apiVersion: %s", apiVersion))
 	}
@@ -499,6 +570,17 @@ func createNodePoolAndComplete(
 
 	parsedID := api.Must(azcorearm.ParseResourceID(resourceID))
 	require.NoError(t, integrationutils.MarkOperationsCompleteForName(ctx, testInfo.ResourcesDBClient(), subscriptionID, parsedID.Name))
+
+	// Setting the Cluster Service ID for the node pool is needed until we move all cs interactions to the backend.
+	csID, err := integrationutils.DeriveClusterServiceID(
+		ctx,
+		testInfo.ResourcesDBClient(),
+		testInfo.ClusterServiceMock,
+		t.Name(),
+		resourceID,
+	)
+	require.NoError(t, err)
+	require.NoError(t, integrationutils.SetClusterServiceID(ctx, testInfo.ResourcesDBClient(), resourceID, csID))
 }
 
 // externalAuthCreatePayload returns the ExternalAuth creation payload.
@@ -784,5 +866,151 @@ func testSameVersionClusterPATCH(t *testing.T, testInfo *integrationutils.Integr
 		t.Logf("before (tags equalized):\n%s", prettyJSON(t, beforeMap))
 		t.Logf("after:\n%s", prettyJSON(t, afterMap))
 		t.Errorf("same-version PATCH lost non-tag data:\n%s", diff)
+	}
+}
+
+// testCrossVersionClusterPUTv2026v2024 verifies that a v2024 GET-then-PUT
+// preserves all v2026 cluster fields, including ingress visibility.
+func testCrossVersionClusterPUTv2026v2024(t *testing.T, testInfo *integrationutils.IntegrationTestInfo, subscriptionID string) {
+	ctx := utils.ContextWithLogger(t.Context(), integrationutils.DefaultLogger(t))
+	clusterName := "xvrt-put-v26v24"
+	resourceID := clusterResourceID(clusterName)
+
+	// Step 1: Create cluster via v2026 with ingress visibility set
+	createClusterAndComplete(t, ctx, testInfo, v2026, subscriptionID, clusterName)
+
+	// Step 2: GET via v2026 → snapshot of all fields ("before")
+	_, beforeMap := getResourceResponse(t, ctx, testInfo, v2026, resourceID)
+
+	// Step 3: GET via v2024 → this drops v2026-only fields (ingress) from the response
+	v2024Body, _ := getResourceResponse(t, ctx, testInfo, v2024, resourceID)
+
+	// Step 4: PUT via v2024 using the v2024 GET response body
+	v2024Accessor := databasemutationhelpers.NewVersionedHTTPTestAccessor(testInfo.FrontendURL, v2024)
+	require.NoError(t, v2024Accessor.CreateOrUpdate(ctx, resourceID, v2024Body))
+
+	parsedID := api.Must(azcorearm.ParseResourceID(resourceID))
+	require.NoError(t, integrationutils.MarkOperationsCompleteForName(ctx, testInfo.ResourcesDBClient(), subscriptionID, parsedID.Name))
+
+	// Step 5: GET via v2026 → snapshot after the v2024 round-trip ("after")
+	_, afterMap := getResourceResponse(t, ctx, testInfo, v2026, resourceID)
+
+	// Step 6: Compare — all v2026 fields (including ingress) should be preserved
+	diff, equals := databasemutationhelpers.ResourceInstanceEquals(t, beforeMap, afterMap)
+	if !equals {
+		t.Logf("before (v2026 GET before v2024 PUT):\n%s", prettyJSON(t, beforeMap))
+		t.Logf("after (v2026 GET after v2024 PUT):\n%s", prettyJSON(t, afterMap))
+		t.Errorf("cross-version PUT data loss: v2024 GET-then-PUT lost v2026 fields:\n%s", diff)
+	}
+}
+
+// testCrossVersionClusterPATCHv2026v2024 verifies that a v2024 PATCH of an
+// unrelated cluster field preserves all v2026 fields, including ingress visibility.
+func testCrossVersionClusterPATCHv2026v2024(t *testing.T, testInfo *integrationutils.IntegrationTestInfo, subscriptionID string) {
+	ctx := utils.ContextWithLogger(t.Context(), integrationutils.DefaultLogger(t))
+	clusterName := "xvrt-patch-v26v24"
+	resourceID := clusterResourceID(clusterName)
+
+	// Step 1: Create cluster via v2026 with ingress visibility set
+	createClusterAndComplete(t, ctx, testInfo, v2026, subscriptionID, clusterName)
+
+	// Step 2: GET via v2026 → snapshot of all fields ("before")
+	_, beforeMap := getResourceResponse(t, ctx, testInfo, v2026, resourceID)
+
+	// Step 3: PATCH via v2024 — only change tags (unrelated to v2026-only fields)
+	patchBody := []byte(`{"tags": {"patched": "true"}}`)
+	v2024Accessor := databasemutationhelpers.NewVersionedHTTPTestAccessor(testInfo.FrontendURL, v2024)
+	require.NoError(t, v2024Accessor.Patch(ctx, resourceID, patchBody))
+
+	parsedID := api.Must(azcorearm.ParseResourceID(resourceID))
+	require.NoError(t, integrationutils.MarkOperationsCompleteForName(ctx, testInfo.ResourcesDBClient(), subscriptionID, parsedID.Name))
+
+	// Step 4: GET via v2026 → snapshot after the v2024 PATCH ("after")
+	_, afterMap := getResourceResponse(t, ctx, testInfo, v2026, resourceID)
+
+	// Step 5: Tags are what we changed — equalize them and compare everything else
+	afterTags, ok := afterMap["tags"].(map[string]any)
+	require.True(t, ok, "PATCH response should have tags")
+	require.Contains(t, afterTags, "patched", "PATCH should have added the new tag")
+	beforeMap["tags"] = afterMap["tags"]
+
+	diff, equals := databasemutationhelpers.ResourceInstanceEquals(t, beforeMap, afterMap)
+	if !equals {
+		t.Logf("before (v2026 GET before v2024 PATCH, tags equalized):\n%s", prettyJSON(t, beforeMap))
+		t.Logf("after (v2026 GET after v2024 PATCH):\n%s", prettyJSON(t, afterMap))
+		t.Errorf("cross-version PATCH data loss: v2024 PATCH lost v2026 fields:\n%s", diff)
+	}
+}
+
+// testCrossVersionClusterPUTv2026v2025 verifies that a v2025 GET-then-PUT
+// preserves all v2026 cluster fields, including ingress visibility.
+func testCrossVersionClusterPUTv2026v2025(t *testing.T, testInfo *integrationutils.IntegrationTestInfo, subscriptionID string) {
+	ctx := utils.ContextWithLogger(t.Context(), integrationutils.DefaultLogger(t))
+	clusterName := "xvrt-put-v26v25"
+	resourceID := clusterResourceID(clusterName)
+
+	// Step 1: Create cluster via v2026 with ingress visibility set
+	createClusterAndComplete(t, ctx, testInfo, v2026, subscriptionID, clusterName)
+
+	// Step 2: GET via v2026 → snapshot of all fields ("before")
+	_, beforeMap := getResourceResponse(t, ctx, testInfo, v2026, resourceID)
+
+	// Step 3: GET via v2025 → this drops v2026-only fields (ingress) from the response
+	v2025Body, _ := getResourceResponse(t, ctx, testInfo, v2025, resourceID)
+
+	// Step 4: PUT via v2025 using the v2025 GET response body
+	v2025Accessor := databasemutationhelpers.NewVersionedHTTPTestAccessor(testInfo.FrontendURL, v2025)
+	require.NoError(t, v2025Accessor.CreateOrUpdate(ctx, resourceID, v2025Body))
+
+	parsedID := api.Must(azcorearm.ParseResourceID(resourceID))
+	require.NoError(t, integrationutils.MarkOperationsCompleteForName(ctx, testInfo.ResourcesDBClient(), subscriptionID, parsedID.Name))
+
+	// Step 5: GET via v2026 → snapshot after the v2025 round-trip ("after")
+	_, afterMap := getResourceResponse(t, ctx, testInfo, v2026, resourceID)
+
+	// Step 6: Compare — all v2026 fields (including ingress) should be preserved
+	diff, equals := databasemutationhelpers.ResourceInstanceEquals(t, beforeMap, afterMap)
+	if !equals {
+		t.Logf("before (v2026 GET before v2025 PUT):\n%s", prettyJSON(t, beforeMap))
+		t.Logf("after (v2026 GET after v2025 PUT):\n%s", prettyJSON(t, afterMap))
+		t.Errorf("cross-version PUT data loss: v2025 GET-then-PUT lost v2026 fields:\n%s", diff)
+	}
+}
+
+// testCrossVersionClusterPATCHv2026v2025 verifies that a v2025 PATCH of an
+// unrelated cluster field preserves all v2026 fields, including ingress visibility.
+func testCrossVersionClusterPATCHv2026v2025(t *testing.T, testInfo *integrationutils.IntegrationTestInfo, subscriptionID string) {
+	ctx := utils.ContextWithLogger(t.Context(), integrationutils.DefaultLogger(t))
+	clusterName := "xvrt-patch-v26v25"
+	resourceID := clusterResourceID(clusterName)
+
+	// Step 1: Create cluster via v2026 with ingress visibility set
+	createClusterAndComplete(t, ctx, testInfo, v2026, subscriptionID, clusterName)
+
+	// Step 2: GET via v2026 → snapshot of all fields ("before")
+	_, beforeMap := getResourceResponse(t, ctx, testInfo, v2026, resourceID)
+
+	// Step 3: PATCH via v2025 — only change tags (unrelated to v2026-only fields)
+	patchBody := []byte(`{"tags": {"patched": "true"}}`)
+	v2025Accessor := databasemutationhelpers.NewVersionedHTTPTestAccessor(testInfo.FrontendURL, v2025)
+	require.NoError(t, v2025Accessor.Patch(ctx, resourceID, patchBody))
+
+	parsedID := api.Must(azcorearm.ParseResourceID(resourceID))
+	require.NoError(t, integrationutils.MarkOperationsCompleteForName(ctx, testInfo.ResourcesDBClient(), subscriptionID, parsedID.Name))
+
+	// Step 4: GET via v2026 → snapshot after the v2025 PATCH ("after")
+	_, afterMap := getResourceResponse(t, ctx, testInfo, v2026, resourceID)
+
+	// Step 5: Tags are what we changed — equalize them and compare everything else
+	afterTags, ok := afterMap["tags"].(map[string]any)
+	require.True(t, ok, "PATCH response should have tags")
+	require.Contains(t, afterTags, "patched", "PATCH should have added the new tag")
+	beforeMap["tags"] = afterMap["tags"]
+
+	diff, equals := databasemutationhelpers.ResourceInstanceEquals(t, beforeMap, afterMap)
+	if !equals {
+		t.Logf("before (v2026 GET before v2025 PATCH, tags equalized):\n%s", prettyJSON(t, beforeMap))
+		t.Logf("after (v2026 GET after v2025 PATCH):\n%s", prettyJSON(t, afterMap))
+		t.Errorf("cross-version PATCH data loss: v2025 PATCH lost v2026 fields:\n%s", diff)
 	}
 }

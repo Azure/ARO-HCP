@@ -16,8 +16,8 @@ package kubeapplier
 
 // ResourceReference identifies a single Kubernetes object on the management
 // cluster. It is shared by every *Desire spec.targetItem (ApplyDesire,
-// DeleteDesire, ReadDesire) so the kube-applier resolves the GVR and (if
-// applicable) namespace + name without consulting a RESTMapper.
+// ReadDesire) so the kube-applier resolves the GVR and (if applicable)
+// namespace + name without consulting a RESTMapper.
 type ResourceReference struct {
 	// Group is the API group of the target resource. Empty for the core API.
 	Group string `json:"group"`

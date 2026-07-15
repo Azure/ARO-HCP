@@ -42,6 +42,9 @@ func newTestCluster(t *testing.T, name string, state arm.ProvisioningState, crea
 	}
 
 	return &api.HCPOpenShiftCluster{
+		CosmosMetadata: arm.CosmosMetadata{
+			ResourceID: api.Must(azcorearm.ParseResourceID("/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + name)),
+		},
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
 				ID:         api.Must(azcorearm.ParseResourceID("/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + name)),
@@ -133,6 +136,7 @@ func TestNodePoolMetricsHandler_SetsMetrics(t *testing.T) {
 	handler := NewNodePoolMetricsHandler(reg)
 
 	nodePool := &api.HCPOpenShiftClusterNodePool{
+		CosmosMetadata: arm.CosmosMetadata{ResourceID: api.Must(azcorearm.ParseResourceID("/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1/nodePools/np-1"))},
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
 				ID:         api.Must(azcorearm.ParseResourceID("/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1/nodePools/np-1")),
@@ -167,6 +171,7 @@ func TestExternalAuthMetricsHandler_SetsMetrics(t *testing.T) {
 	handler := NewExternalAuthMetricsHandler(reg)
 
 	externalAuth := &api.HCPOpenShiftClusterExternalAuth{
+		CosmosMetadata: arm.CosmosMetadata{ResourceID: api.Must(azcorearm.ParseResourceID("/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1/externalAuths/ea-1"))},
 		ProxyResource: arm.ProxyResource{
 			Resource: arm.Resource{
 				ID:         api.Must(azcorearm.ParseResourceID("/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1/externalAuths/ea-1")),

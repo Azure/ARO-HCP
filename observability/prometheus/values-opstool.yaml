@@ -37,35 +37,6 @@ kube-prometheus-stack:
     fullnameOverride: ""
     admissionWebhooks:
       enabled: true
-      patch:
-        tolerations:
-        - key: "infra"
-          operator: "Equal"
-          value: "true"
-          effect: "NoSchedule"
-        affinity:
-          nodeAffinity:
-            requiredDuringSchedulingIgnoredDuringExecution:
-              nodeSelectorTerms:
-              - matchExpressions:
-                - key: aro-hcp.azure.com/role
-                  operator: In
-                  values:
-                  - infra
-    tolerations:
-    - key: "infra"
-      operator: "Equal"
-      value: "true"
-      effect: "NoSchedule"
-    affinity:
-      nodeAffinity:
-        requiredDuringSchedulingIgnoredDuringExecution:
-          nodeSelectorTerms:
-          - matchExpressions:
-            - key: aro-hcp.azure.com/role
-              operator: In
-              values:
-              - infra
     image:
       registry: "{{ .opstool.prometheus.prometheusOperator.image.registry }}"
       repository: "{{ .opstool.prometheus.prometheusOperator.image.repository }}"
@@ -81,20 +52,6 @@ kube-prometheus-stack:
       registry: "{{ .opstool.prometheus.kubeStateMetrics.image.registry }}"
       repository: "{{ .opstool.prometheus.kubeStateMetrics.image.repository }}"
       sha: "{{ .opstool.prometheus.kubeStateMetrics.image.digest }}"
-    tolerations:
-    - key: "infra"
-      operator: "Equal"
-      value: "true"
-      effect: "NoSchedule"
-    affinity:
-      nodeAffinity:
-        requiredDuringSchedulingIgnoredDuringExecution:
-          nodeSelectorTerms:
-          - matchExpressions:
-            - key: aro-hcp.azure.com/role
-              operator: In
-              values:
-              - infra
 # config for the files in templates/
 prometheusSpec:
   image:
@@ -104,6 +61,8 @@ prometheusSpec:
   version: ""
   externalLabels:
     cluster: "{{ .opstool.aks.name }}"
+    region: "{{ .region }}"
+    environment: "{{ .environmentName }}"
   remoteWriteUrl: "__dcrRemoteWriteUrl__"
   hcpRemoteWriteUrl: "__dcrRemoteWriteUrl__"
   zoneCount: 1
@@ -113,12 +72,10 @@ prometheusSpec:
       cpu: 500m
       memory: 1Gi
     limits:
-      cpu: 1
       memory: 2Gi
+  replicas: 1
+  shards: 1
 prometheus:
-  prometheusSpec:
-    shards: 1
-    replicas: 1
   serviceAccount:
     managedIdentity: "__prometheusUAMIClientId__"
 environment: "opstool"

@@ -12,7 +12,6 @@ param privateLinkLocation string
 param skuName string
 param keyVaultName string
 param useManagedCertificates bool
-param deploymentScriptLocation string
 param storageAccountBlobPublicAccess bool
 param globalMSIId string
 param storageAccountAccessPrincipalIds array
@@ -32,7 +31,6 @@ module storageAccount 'storage.bicep' = {
     principalIds: storageAccountAccessPrincipalIds
     skuName: skuName
     deploymentMsiId: globalMSIId
-    deploymentScriptLocation: deploymentScriptLocation
     allowBlobPublicAccess: storageAccountBlobPublicAccess
   }
 }

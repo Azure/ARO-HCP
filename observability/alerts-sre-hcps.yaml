@@ -1,0 +1,8 @@
+prometheusRules:
+  rulesFolders:
+  - alerts/mgmt-capacity-prometheusRule.yaml
+  - alerts/HCPkasRecord-prometheusRule-KSM.yaml
+  untestedRules: []
+  testDependencies:
+  - recording-rules-hcps.yaml
+  outputBicep: ../dev-infrastructure/modules/metrics/rules/generatedHCPPrometheusAlertingRules.bicep

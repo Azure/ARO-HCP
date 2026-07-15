@@ -10,6 +10,14 @@ param sharedActionGroupId string
 @description('Enable or disable alerting')
 param alertingEnabled bool = true
 
+// Usage/limit ratio excluding Network Watchers
+var azureQuotaUsageRatioFiltered = 'azure_quota_usage{localized_name!~"(?i)^network watchers$"} / azure_quota_limit{localized_name!~"(?i)^network watchers$"}'
+
+// E2E resource group alert thresholds — relaxed initially; see TODOs on each rule
+var e2eExpiredCountInfoThreshold = 10 // TODO: tighten to 0 once cleanup-sweeper reliably clears expired RGs
+var e2eExpiredCountEscalationThreshold = 25 // TODO: tighten to 5 once cleanup-sweeper baseline improves
+var e2eMaxExpiredAgeSeconds = 604800 // 7 days; TODO: tighten to 86400 (1 day)
+
 // Prometheus Rule Group for tenant-quota alerts
 resource tenantQuotaAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
   name: 'tenant-quota-alerts'
@@ -153,7 +161,7 @@ resource subscriptionQuotaAlerts 'Microsoft.AlertsManagement/prometheusRuleGroup
       {
         alert: 'AzureQuotaCritical'
         enabled: true
-        expression: 'azure_quota_usage / azure_quota_limit > 0.95'
+        expression: '${azureQuotaUsageRatioFiltered} > 0.95'
         for: 'PT5M'
         severity: 2
         labels: {
@@ -176,7 +184,7 @@ resource subscriptionQuotaAlerts 'Microsoft.AlertsManagement/prometheusRuleGroup
       {
         alert: 'AzureQuotaWarning'
         enabled: true
-        expression: 'azure_quota_usage / azure_quota_limit > 0.80 and azure_quota_usage / azure_quota_limit <= 0.95'
+        expression: '${azureQuotaUsageRatioFiltered} > 0.80 and ${azureQuotaUsageRatioFiltered} <= 0.95'
         for: 'PT10M'
         severity: 3
         labels: {
@@ -246,5 +254,112 @@ resource subscriptionQuotaAlerts 'Microsoft.AlertsManagement/prometheusRuleGroup
   }
 }
 
+resource e2eExpiredRGAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'e2e-expired-resource-group-alerts'
+  location: resourceGroup().location
+  properties: {
+    enabled: alertingEnabled
+    interval: 'PT1M'
+    scopes: [
+      azureMonitorWorkspaceId
+    ]
+    rules: [
+      {
+        alert: 'E2EExpiredResourceGroupsInfo'
+        enabled: true
+        expression: 'count by (subscription_id, subscription_name) (e2e_resource_group_expiry_timestamp < time()) > ${e2eExpiredCountInfoThreshold}'
+        for: 'PT2H'
+        severity: 4
+        labels: {
+          severity: 'info'
+        }
+        annotations: {
+          summary: 'Expired E2E resource groups detected'
+          description: '{{ $value }} E2E resource groups past their deleteAfter TTL in {{ $labels.subscription_name }}. Check the cleanup-sweeper and periodic cleanup job.'
+        }
+        actions: [
+          {
+            actionGroupId: sharedActionGroupId
+          }
+        ]
+        resolveConfiguration: {
+          autoResolved: true
+          timeToResolve: 'PT10M'
+        }
+      }
+      {
+        alert: 'E2EExpiredResourceGroupsEscalation'
+        enabled: true
+        expression: 'count by (subscription_id, subscription_name) (e2e_resource_group_expiry_timestamp < time()) > ${e2eExpiredCountEscalationThreshold}'
+        for: 'PT2H'
+        severity: 4
+        labels: {
+          severity: 'info'
+        }
+        annotations: {
+          summary: 'Many expired E2E resource groups detected'
+          description: '{{ $value }} E2E resource groups past their deleteAfter TTL in {{ $labels.subscription_name }}. Resource cleanup is likely broken.'
+        }
+        actions: [
+          {
+            actionGroupId: sharedActionGroupId
+          }
+        ]
+        resolveConfiguration: {
+          autoResolved: true
+          timeToResolve: 'PT10M'
+        }
+      }
+      {
+        alert: 'E2EExpiredResourceGroupStale'
+        enabled: true
+        expression: 'max by (subscription_id, subscription_name) (time() - (e2e_resource_group_expiry_timestamp < time())) > ${e2eMaxExpiredAgeSeconds}'
+        for: 'PT15M'
+        severity: 4
+        labels: {
+          severity: 'info'
+        }
+        annotations: {
+          summary: 'E2E resource group expired for over {{ $value | humanizeDuration }}'
+          description: 'Oldest expired E2E resource group in {{ $labels.subscription_name }} has been past its TTL for {{ $value | humanizeDuration }}. Manual cleanup may be required.'
+        }
+        actions: [
+          {
+            actionGroupId: sharedActionGroupId
+          }
+        ]
+        resolveConfiguration: {
+          autoResolved: true
+          timeToResolve: 'PT10M'
+        }
+      }
+      {
+        alert: 'E2EResourceGroupMetricsStale'
+        enabled: true
+        expression: 'absent(e2e_resource_group_expiry_timestamp)'
+        for: 'PT30M'
+        severity: 2
+        labels: {
+          severity: 'critical'
+        }
+        annotations: {
+          summary: 'E2E resource group metrics are stale'
+          description: 'No e2e_resource_group_expiry_timestamp metrics received for 30 minutes. The resource group collector may have stopped. Check the tenant-quota-collector pod status and Prometheus scrape target health.'
+        }
+        actions: [
+          {
+            actionGroupId: sharedActionGroupId
+          }
+        ]
+        resolveConfiguration: {
+          autoResolved: true
+          timeToResolve: 'PT10M'
+        }
+      }
+    ]
+  }
+}
+
 output alertRuleGroupId string = tenantQuotaAlerts.id
 output subscriptionAlertRuleGroupId string = subscriptionQuotaAlerts.id
+output e2eExpiredRGAlertRuleGroupId string = e2eExpiredRGAlerts.id

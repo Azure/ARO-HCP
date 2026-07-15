@@ -114,7 +114,7 @@ hcpctl hcp breakglass 12345678-1234-1234-1234-123456789abc
 # Access using Azure resource ID
 hcpctl hcp breakglass /subscriptions/sub-id/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpClusters/cluster-name
 
-# Privileged access (uses aro-sre-cluster-admin role instead of aro-sre)
+# Privileged access (uses system:masters group instead of system:cluster-readers)
 hcpctl hcp breakglass 12345678-1234-1234-1234-123456789abc --privileged
 ```
 
@@ -134,6 +134,14 @@ What is gathered?
 ```bash
 hcpctl must-gather  query --kusto $kusto --region $region  --subscription-id $subscription_id --resource-group $resource_group
 ```
+
+To split output files by pod name (useful for investigating timing and concurrency issues), add `--split-by-pod`:
+
+```bash
+hcpctl must-gather  query --kusto $kusto --region $region  --subscription-id $subscription_id --resource-group $resource_group --split-by-pod
+```
+
+Without this flag, logs from all pods of the same container are written to a single file (e.g. `cluster_namespace_container.jsonl`). With `--split-by-pod`, each pod gets its own file (e.g. `cluster_namespace_container_pod.jsonl`).
 
 If you get an error like, limit execeeded try reducing the amount of data by setting either limit or timestamps, i.e.:
 

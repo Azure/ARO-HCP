@@ -1,0 +1,98 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "cihealth.controllersName" . }}
+  namespace: {{ .Release.Namespace | quote }}
+  labels:
+    {{- include "cihealth.labels" . | nindent 4 }}
+    app.kubernetes.io/component: controllers
+spec:
+  replicas: {{ ternary 0 .Values.controllers.replicas .Values.disableRuntimeWorkloads }}
+  selector:
+    matchLabels:
+      {{- include "cihealth.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: controllers
+  template:
+    metadata:
+      labels:
+        {{- include "cihealth.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: controllers
+      annotations:
+        azure.workload.identity/use: "true"
+    spec:
+      serviceAccountName: {{ include "cihealth.serviceAccountName" . }}
+      {{- with .Values.image.pullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: controllers
+          image: {{ include "cihealth.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy | quote }}
+          command:
+            - /bin/sh
+            - -ec
+          args:
+            - |
+              export CIHEALTH_POSTGRES_USER="$(cat {{ include "cihealth.postgresUsernameFile" . }})"
+              export CIHEALTH_POSTGRES_PASSWORD="$(cat {{ include "cihealth.postgresPasswordFile" . }})"
+              export CIHEALTH_POSTGRES_DATABASE="$(cat {{ include "cihealth.postgresDatabaseFile" . }})"
+              set -- \
+                "run" \
+                "--history.weeks={{ .Values.controllers.historyWeeks }}" \
+                "--source.envs={{ join "," .Values.controllers.source.envs }}" \
+                "--source.sippy.base-url={{ .Values.controllers.source.sippyBaseUrl }}" \
+                "--source.sippy.org={{ .Values.controllers.source.sippyOrg }}" \
+                "--source.sippy.repo={{ .Values.controllers.source.sippyRepo }}" \
+                "--source.sippy.release.dev={{ .Values.controllers.source.sippyReleases.dev }}" \
+                "--source.sippy.release.int={{ .Values.controllers.source.sippyReleases.int }}" \
+                "--source.sippy.release.stg={{ .Values.controllers.source.sippyReleases.stg }}" \
+                "--source.sippy.release.prod={{ .Values.controllers.source.sippyReleases.prod }}" \
+                "--source.prow-artifacts.base-url={{ .Values.controllers.source.prowArtifactsBaseUrl }}" \
+                "--controllers.source.prow.runs.threads={{ .Values.controllers.threads.sourceProwRuns }}" \
+                "--controllers.source.sippy.runs.threads={{ .Values.controllers.threads.sourceSippyRuns }}" \
+                "--controllers.source.sippy.tests-daily.threads={{ .Values.controllers.threads.sourceSippyTestsDaily }}" \
+                "--controllers.source.github.pull-requests.threads={{ .Values.controllers.threads.sourceGitHubPullRequests }}" \
+                "--controllers.source.prow.failures.threads={{ .Values.controllers.threads.sourceProwFailures }}" \
+                "--controllers.facts.runs.threads={{ .Values.controllers.threads.factsRuns }}" \
+                "--controllers.facts.raw-failures.threads={{ .Values.controllers.threads.factsRawFailures }}" \
+                "--controllers.metrics.rollup.daily.threads={{ .Values.controllers.threads.metricsRollupDaily }}" \
+                "--storage.postgres.enabled=true" \
+                "--storage.postgres.embedded=false" \
+                "--storage.postgres.host={{ include "cihealth.postgresName" . }}" \
+                "--storage.postgres.port={{ .Values.postgres.service.port }}" \
+                "--storage.postgres.user=$CIHEALTH_POSTGRES_USER" \
+                "--storage.postgres.password=$CIHEALTH_POSTGRES_PASSWORD" \
+                "--storage.postgres.database=$CIHEALTH_POSTGRES_DATABASE" \
+                "--storage.postgres.sslmode={{ .Values.postgres.connection.sslMode }}" \
+                "--storage.postgres.initialize={{ ternary "true" "false" .Values.postgres.connection.initialize }}" \
+                "--storage.postgres.max-connections={{ .Values.postgres.connection.maxConnections }}" \
+                "--storage.postgres.min-connections={{ .Values.postgres.connection.minConnections }}" \
+                "--storage.postgres.connect-timeout-seconds={{ .Values.postgres.connection.connectTimeoutSeconds }}"
+              {{- with .Values.controllers.extraArgs }}
+              {{- range . }}
+              set -- "$@" {{ . | quote }}
+              {{- end }}
+              {{- end }}
+              exec /usr/local/bin/cihealth "$@"
+          {{- with .Values.controllers.extraEnv }}
+          env:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: secrets-store
+              mountPath: {{ include "cihealth.secretsStoreMountPath" . | quote }}
+              readOnly: true
+          resources:
+            {{- toYaml .Values.controllers.resources | nindent 12 }}
+      volumes:
+        - name: secrets-store
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: {{ include "cihealth.secretProviderClassName" . }}

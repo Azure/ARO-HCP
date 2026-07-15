@@ -26,6 +26,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
+	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -37,7 +38,7 @@ type cosmosNodePoolMatching struct {
 }
 
 // NewCosmosNodePoolMatchingController periodically looks for mismatched cluster-service and cosmos nodepool
-func NewCosmosNodePoolMatchingController(resourcesDBClient database.ResourcesDBClient, clusterServiceClient ocm.ClusterServiceClientSpec, informers informers.BackendInformers) controllerutils.Controller {
+func NewCosmosNodePoolMatchingController(resourcesDBClient database.ResourcesDBClient, clusterServiceClient ocm.ClusterServiceClientSpec, informers informers.BackendInformers, kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers) controllerutils.Controller {
 	syncer := &cosmosNodePoolMatching{
 		cooldownChecker:      controllerutil.NewTimeBasedCooldownChecker(1 * time.Hour),
 		resourcesDBClient:    resourcesDBClient,
@@ -50,6 +51,7 @@ func NewCosmosNodePoolMatchingController(resourcesDBClient database.ResourcesDBC
 		"CosmosMatchingNodePools",
 		resourcesDBClient,
 		informers,
+		kubeApplierInformers,
 		60*time.Minute,
 		syncer,
 	)

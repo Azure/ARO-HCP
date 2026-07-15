@@ -19,6 +19,7 @@ import (
 	"io/fs"
 	"path"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -48,7 +49,7 @@ func testDeleteOrphanedCosmosResourcesController(t *testing.T, withMock bool) {
 			ArtifactDir: api.Must(fs.Sub(artifacts, path.Join("artifacts/delete_orphaned_cosmos"))),
 			ControllerInitializerFn: func(ctx context.Context, t *testing.T, input *controllertesthelpers.ControllerInitializationInput) (controller controllerutils.Controller, testMemory map[string]any) {
 				return newSubscriptionKeyWrapper(
-					mismatchcontrollers.NewDeleteOrphanedCosmosResourcesController(input.ResourcesDBClient, input.SubscriptionLister),
+					mismatchcontrollers.NewDeleteOrphanedCosmosResourcesController(input.ResourcesDBClient, input.KubeApplierDBClients, input.SubscriptionLister, input.ManagementClusterLister),
 				), map[string]any{}
 			},
 			ControllerVerifierFn: func(ctx context.Context, t *testing.T, controller controllerutils.Controller, testMemory map[string]any, input *controllertesthelpers.ControllerInitializationInput) {
@@ -64,7 +65,7 @@ func testDeleteOrphanedCosmosResourcesController(t *testing.T, withMock bool) {
 			ArtifactDir: api.Must(fs.Sub(artifacts, path.Join("artifacts/delete_orphaned_cosmos"))),
 			ControllerInitializerFn: func(ctx context.Context, t *testing.T, input *controllertesthelpers.ControllerInitializationInput) (controller controllerutils.Controller, testMemory map[string]any) {
 				return newSubscriptionKeyWrapper(
-					mismatchcontrollers.NewDeleteOrphanedCosmosResourcesController(input.ResourcesDBClient, input.SubscriptionLister),
+					mismatchcontrollers.NewDeleteOrphanedCosmosResourcesController(input.ResourcesDBClient, input.KubeApplierDBClients, input.SubscriptionLister, input.ManagementClusterLister),
 				), map[string]any{}
 			},
 			ControllerVerifierFn: func(ctx context.Context, t *testing.T, controller controllerutils.Controller, testMemory map[string]any, input *controllertesthelpers.ControllerInitializationInput) {
@@ -98,7 +99,7 @@ func testDeleteOrphanedCosmosResourcesController(t *testing.T, withMock bool) {
 			ArtifactDir: api.Must(fs.Sub(artifacts, path.Join("artifacts/delete_orphaned_cosmos"))),
 			ControllerInitializerFn: func(ctx context.Context, t *testing.T, input *controllertesthelpers.ControllerInitializationInput) (controller controllerutils.Controller, testMemory map[string]any) {
 				return newSubscriptionKeyWrapper(
-					mismatchcontrollers.NewDeleteOrphanedCosmosResourcesController(input.ResourcesDBClient, input.SubscriptionLister),
+					mismatchcontrollers.NewDeleteOrphanedCosmosResourcesController(input.ResourcesDBClient, input.KubeApplierDBClients, input.SubscriptionLister, input.ManagementClusterLister),
 				), map[string]any{}
 			},
 			ControllerVerifierFn: func(ctx context.Context, t *testing.T, controller controllerutils.Controller, testMemory map[string]any, input *controllertesthelpers.ControllerInitializationInput) {
@@ -129,7 +130,7 @@ func testDeleteOrphanedCosmosResourcesController(t *testing.T, withMock bool) {
 			ArtifactDir: api.Must(fs.Sub(artifacts, path.Join("artifacts/delete_orphaned_cosmos"))),
 			ControllerInitializerFn: func(ctx context.Context, t *testing.T, input *controllertesthelpers.ControllerInitializationInput) (controller controllerutils.Controller, testMemory map[string]any) {
 				return newSubscriptionKeyWrapper(
-					mismatchcontrollers.NewDeleteOrphanedCosmosResourcesController(input.ResourcesDBClient, input.SubscriptionLister),
+					mismatchcontrollers.NewDeleteOrphanedCosmosResourcesController(input.ResourcesDBClient, input.KubeApplierDBClients, input.SubscriptionLister, input.ManagementClusterLister),
 				), map[string]any{}
 			},
 			ControllerVerifierFn: func(ctx context.Context, t *testing.T, controller controllerutils.Controller, testMemory map[string]any, input *controllertesthelpers.ControllerInitializationInput) {
@@ -166,6 +167,10 @@ type subscriptionKeyWrapper struct {
 
 func newSubscriptionKeyWrapper(delegate controllerutils.Controller) controllerutils.Controller {
 	return &subscriptionKeyWrapper{delegate: delegate}
+}
+
+func (w *subscriptionKeyWrapper) QueueForInformers(resyncDuration time.Duration, notifiers ...controllerutils.Notifier) error {
+	return w.delegate.QueueForInformers(resyncDuration, notifiers...)
 }
 
 func (w *subscriptionKeyWrapper) SyncOnce(ctx context.Context, keyObj any) error {

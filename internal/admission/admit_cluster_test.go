@@ -17,10 +17,10 @@ package admission
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/blang/semver/v4"
-	"github.com/stretchr/testify/assert"
 
 	"k8s.io/apimachinery/pkg/api/operation"
 	"k8s.io/utils/ptr"
@@ -29,7 +29,6 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -49,13 +48,15 @@ func TestMutateCluster(t *testing.T) {
 	}
 
 	tests := []struct {
-		name                             string
-		subscription                     *arm.Subscription
-		tags                             map[string]string
-		expectErrors                     []utils.ExpectedError
-		expectZeroFeatures               bool
-		expectedControlPlaneAvailability api.ControlPlaneAvailability
-		expectedControlPlanePodSizing    api.ControlPlanePodSizing
+		name                              string
+		subscription                      *arm.Subscription
+		tags                              map[string]string
+		expectErrors                      []utils.ExpectedError
+		expectZeroFeatures                bool
+		expectedControlPlaneAvailability  api.ControlPlaneAvailability
+		expectedControlPlanePodSizing     api.ControlPlanePodSizing
+		expectedControlPlaneOperatorImage string
+		expectedFIPSEnabled               bool
 	}{
 		{
 			name:               "nil subscription ignores all tags",
@@ -190,6 +191,92 @@ func TestMutateCluster(t *testing.T) {
 			expectErrors:       []utils.ExpectedError{},
 			expectZeroFeatures: true,
 		},
+		{
+			name:                              "AFEC registered with CPO image override tag",
+			subscription:                      afecRegistered,
+			tags:                              map[string]string{api.TagClusterCPOImageOverride: "quay.io/openshift/cpo:latest"},
+			expectErrors:                      []utils.ExpectedError{},
+			expectedControlPlaneOperatorImage: "quay.io/openshift/cpo:latest",
+		},
+		{
+			name:                              "AFEC registered with CPO image override tag with digest",
+			subscription:                      afecRegistered,
+			tags:                              map[string]string{api.TagClusterCPOImageOverride: "quay.io/openshift/cpo@sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890"},
+			expectErrors:                      []utils.ExpectedError{},
+			expectedControlPlaneOperatorImage: "quay.io/openshift/cpo@sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
+		},
+		{
+			name:               "AFEC registered with empty CPO image override tag",
+			subscription:       afecRegistered,
+			tags:               map[string]string{api.TagClusterCPOImageOverride: ""},
+			expectErrors:       []utils.ExpectedError{},
+			expectZeroFeatures: true,
+		},
+		{
+			name:         "AFEC registered with whitespace-only CPO image override tag",
+			subscription: afecRegistered,
+			tags:         map[string]string{api.TagClusterCPOImageOverride: "  "},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "tags", Message: "Invalid value"},
+			},
+		},
+		{
+			name:               "no AFEC registered ignores CPO image override tag",
+			subscription:       noAFEC,
+			tags:               map[string]string{api.TagClusterCPOImageOverride: "quay.io/openshift/cpo:latest"},
+			expectErrors:       []utils.ExpectedError{},
+			expectZeroFeatures: true,
+		},
+		{
+			name:                              "AFEC registered with case insensitive CPO image override tag",
+			subscription:                      afecRegistered,
+			tags:                              map[string]string{"ARO-HCP.Experimental.Cluster.Control-Plane-Operator-Image-Override": "quay.io/openshift/cpo:v1.0"},
+			expectErrors:                      []utils.ExpectedError{},
+			expectedControlPlaneOperatorImage: "quay.io/openshift/cpo:v1.0",
+		},
+		{
+			name:                "AFEC registered with FIPS enabled",
+			subscription:        afecRegistered,
+			tags:                map[string]string{api.TagClusterFIPSEnabled: "true"},
+			expectErrors:        []utils.ExpectedError{},
+			expectedFIPSEnabled: true,
+		},
+		{
+			name:                "AFEC registered with FIPS disabled",
+			subscription:        afecRegistered,
+			tags:                map[string]string{api.TagClusterFIPSEnabled: "false"},
+			expectErrors:        []utils.ExpectedError{},
+			expectedFIPSEnabled: false,
+		},
+		{
+			name:               "AFEC registered with FIPS empty string defaults to disabled",
+			subscription:       afecRegistered,
+			tags:               map[string]string{api.TagClusterFIPSEnabled: ""},
+			expectErrors:       []utils.ExpectedError{},
+			expectZeroFeatures: true,
+		},
+		{
+			name:         "AFEC registered with invalid FIPS value",
+			subscription: afecRegistered,
+			tags:         map[string]string{api.TagClusterFIPSEnabled: "yes"},
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "tags", Message: "must be true or false"},
+			},
+		},
+		{
+			name:               "no AFEC registered ignores FIPS tag",
+			subscription:       noAFEC,
+			tags:               map[string]string{api.TagClusterFIPSEnabled: "true"},
+			expectErrors:       []utils.ExpectedError{},
+			expectZeroFeatures: true,
+		},
+		{
+			name:                "AFEC registered with case insensitive FIPS tag key",
+			subscription:        afecRegistered,
+			tags:                map[string]string{"ARO-HCP.Experimental.Cluster.FIPS-Enabled": "true"},
+			expectErrors:        []utils.ExpectedError{},
+			expectedFIPSEnabled: true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -199,7 +286,11 @@ func TestMutateCluster(t *testing.T) {
 					Tags: tt.tags,
 				},
 			}
-			errs := MutateCluster(cluster, tt.subscription)
+			admissionContext := &ClusterAdmissionContext{
+				Subscription:    tt.subscription,
+				OriginalCluster: cluster.DeepCopy(),
+			}
+			errs := MutateCluster(context.Background(), admissionContext, operation.Operation{Type: operation.Create}, cluster, nil)
 
 			utils.VerifyErrorsMatch(t, tt.expectErrors, errs)
 
@@ -217,11 +308,19 @@ func TestMutateCluster(t *testing.T) {
 				t.Errorf("expected ControlPlanePodSizing %q, got %q",
 					tt.expectedControlPlanePodSizing, cluster.ServiceProviderProperties.ExperimentalFeatures.ControlPlanePodSizing)
 			}
+			if cluster.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneOperatorImage != tt.expectedControlPlaneOperatorImage {
+				t.Errorf("expected ControlPlaneOperatorImage %q, got %q",
+					tt.expectedControlPlaneOperatorImage, cluster.ServiceProviderProperties.ExperimentalFeatures.ControlPlaneOperatorImage)
+			}
+			if cluster.ServiceProviderProperties.ExperimentalFeatures.FIPSEnabled != tt.expectedFIPSEnabled {
+				t.Errorf("expected FIPSEnabled %t, got %t",
+					tt.expectedFIPSEnabled, cluster.ServiceProviderProperties.ExperimentalFeatures.FIPSEnabled)
+			}
 		})
 	}
 }
 
-func TestAdmitClusterOnUpdate(t *testing.T) {
+func TestAdmitCluster_Update(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
@@ -262,6 +361,10 @@ func TestAdmitClusterOnUpdate(t *testing.T) {
 		nodePoolResourceID := api.Must(azcorearm.ParseResourceID(
 			clusterResourceID.String() + "/nodePools/" + name))
 		return &api.HCPOpenShiftClusterNodePool{
+			CosmosMetadata: arm.CosmosMetadata{
+				ResourceID:   nodePoolResourceID,
+				PartitionKey: strings.ToLower(nodePoolResourceID.SubscriptionID),
+			},
 			TrackedResource: arm.NewTrackedResource(nodePoolResourceID, "eastus"),
 			Properties: api.HCPOpenShiftClusterNodePoolProperties{
 				Version: api.NodePoolVersionProfile{ID: versionID},
@@ -278,7 +381,7 @@ func TestAdmitClusterOnUpdate(t *testing.T) {
 			active = append(active, api.HCPNodePoolActiveVersion{Version: ptr.To(api.Must(semver.ParseTolerant(v)))})
 		}
 		return &api.ServiceProviderNodePool{
-			CosmosMetadata: api.CosmosMetadata{ResourceID: spResourceID},
+			CosmosMetadata: api.CosmosMetadata{ResourceID: spResourceID, PartitionKey: strings.ToLower(spResourceID.SubscriptionID)},
 			Status: api.ServiceProviderNodePoolStatus{
 				NodePoolVersion: api.ServiceProviderNodePoolStatusVersion{ActiveVersions: active},
 			},
@@ -538,19 +641,29 @@ func TestAdmitClusterOnUpdate(t *testing.T) {
 			t.Parallel()
 
 			serviceProviderCluster := &api.ServiceProviderCluster{
-				CosmosMetadata: api.CosmosMetadata{ResourceID: serviceProviderResourceID},
+				CosmosMetadata: api.CosmosMetadata{ResourceID: serviceProviderResourceID, PartitionKey: strings.ToLower(serviceProviderResourceID.SubscriptionID)},
 				Status:         tt.serviceProviderClusterStatus,
 			}
 
-			resources := []any{serviceProviderCluster}
+			// Pair each node pool with its matching service provider node pool
+			// by name. The frontend's newClusterAdmissionContext prefetches both
+			// from Cosmos and zips them together; we replicate that wiring here.
+			spByName := map[string]*api.ServiceProviderNodePool{}
+			for _, sp := range tt.serviceProviderNodePools {
+				spByName[sp.ResourceID.Parent.Name] = sp
+			}
+			var admissionNodePools []ClusterAdmissionNodePool
 			for _, nodePool := range tt.nodePools {
-				resources = append(resources, nodePool)
+				admissionNodePools = append(admissionNodePools, ClusterAdmissionNodePool{
+					NodePool:                nodePool,
+					ServiceProviderNodePool: spByName[nodePool.Name],
+				})
 			}
-			for _, serviceProviderNodePool := range tt.serviceProviderNodePools {
-				resources = append(resources, serviceProviderNodePool)
+
+			admissionContext := &ClusterAdmissionContext{
+				ServiceProviderCluster: serviceProviderCluster,
+				ClusterNodePools:       admissionNodePools,
 			}
-			mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, resources)
-			assert.NoError(t, err)
 
 			oldCluster := &api.HCPOpenShiftCluster{
 				TrackedResource: arm.NewTrackedResource(clusterResourceID, "eastus"),
@@ -565,7 +678,7 @@ func TestAdmitClusterOnUpdate(t *testing.T) {
 				},
 			}
 
-			errs := AdmitClusterOnUpdate(ctx, operation.Operation{Type: operation.Update}, mockResourcesDBClient, oldCluster, newCluster)
+			errs := AdmitCluster(ctx, admissionContext, operation.Operation{Type: operation.Update}, newCluster, oldCluster)
 
 			utils.VerifyErrorsMatch(t, tt.expectErrors, errs)
 		})

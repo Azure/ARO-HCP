@@ -93,6 +93,24 @@ var (
 	)
 )
 
+// IngressType represents the type of the default cluster ingress.
+type IngressType string
+
+const (
+	IngressTypePublic   IngressType = "Public"
+	IngressTypePrivate  IngressType = "Private"
+	IngressTypeDisabled IngressType = "Disabled"
+)
+
+var (
+	// ValidIngressTypes contains ingress types that are currently supported.
+	// Disabled is defined in the API but not yet supported.
+	ValidIngressTypes = sets.New[IngressType](
+		IngressTypePublic,
+		IngressTypePrivate,
+	)
+)
+
 // KeyVaultVisibility represents the visibility of a KeyVault resource.
 type KeyVaultVisibility string
 
@@ -201,44 +219,6 @@ var (
 	ValidExternalAuthClientTypes = sets.New[ExternalAuthClientType](
 		ExternalAuthClientTypeConfidential,
 		ExternalAuthClientTypePublic,
-	)
-)
-
-type ExternalAuthConditionType string
-
-const (
-	// ExternalAuthConditionTypeAvailable - the resource is in an available state.
-	ExternalAuthConditionTypeAvailable ExternalAuthConditionType = "Available"
-	// ExternalAuthConditionType - the resource is in a degraded state.
-	ExternalAuthConditionTypeDegraded ExternalAuthConditionType = "Degraded"
-	// ExternalAuthConditionTypeProgressing - the resource is in a progressing state.
-	ExternalAuthConditionTypeProgressing ExternalAuthConditionType = "Progressing"
-)
-
-var (
-	ValidExternalAuthConditionTypes = sets.New[ExternalAuthConditionType](
-		ExternalAuthConditionTypeAvailable,
-		ExternalAuthConditionTypeDegraded,
-		ExternalAuthConditionTypeProgressing,
-	)
-)
-
-type ConditionStatusType string
-
-const (
-	// ConditionStatusType - the condition status is true.
-	ConditionStatusTypeTrue ConditionStatusType = "True"
-	// ExternalAuthConditionTypeFalse - the condition status is false.
-	ConditionStatusTypeFalse ConditionStatusType = "False"
-	// ConditionStatusTypeUnknown - the condition status is unknown.
-	ConditionStatusTypeUnknown ConditionStatusType = "Unknown"
-)
-
-var (
-	ValidConditionStatusTypes = sets.New[ConditionStatusType](
-		ConditionStatusTypeTrue,
-		ConditionStatusTypeFalse,
-		ConditionStatusTypeUnknown,
 	)
 )
 

@@ -18,6 +18,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/go-logr/logr/testr"
@@ -115,14 +116,15 @@ func TestCheckForProvisioningStateConflict(t *testing.T) {
 					resourcesDBClient: mockResourcesDBClient,
 				}
 
-				doc := database.NewResourceDocument(resourceID)
-				doc.ProvisioningState = provisioningState
-
 				// Pre-populate the parent cluster in the database for nested resources (node pool, external auth)
 				if tt.parentConflict != nil {
 					parentResourceID := resourceID.Parent
 					clusterInternalID := api.Must(api.NewInternalID(ocm.GenerateOCMCommercialClusterHREF("testCluster")))
 					parentCluster := &api.HCPOpenShiftCluster{
+						CosmosMetadata: arm.CosmosMetadata{
+							ResourceID:   parentResourceID,
+							PartitionKey: strings.ToLower(parentResourceID.SubscriptionID),
+						},
 						TrackedResource: arm.TrackedResource{
 							Resource: arm.Resource{
 								ID: parentResourceID,
@@ -136,7 +138,7 @@ func TestCheckForProvisioningStateConflict(t *testing.T) {
 					_, _ = mockResourcesDBClient.HCPClusters(parentResourceID.SubscriptionID, parentResourceID.ResourceGroupName).Create(ctx, parentCluster, nil)
 				}
 
-				cloudError := checkForProvisioningStateConflict(ctx, frontend.resourcesDBClient, tt.operationRequest, doc.ResourceID, doc.ProvisioningState)
+				cloudError := checkForProvisioningStateConflict(ctx, frontend.resourcesDBClient, tt.operationRequest, resourceID, provisioningState)
 
 				if cloudError == nil {
 					if tt.directConflict(provisioningState) {
@@ -161,15 +163,15 @@ func TestCheckForProvisioningStateConflict(t *testing.T) {
 						resourcesDBClient: mockResourcesDBClient,
 					}
 
-					doc := database.NewResourceDocument(resourceID)
-					// Hold the provisioning state to something benign.
-					doc.ProvisioningState = arm.ProvisioningStateSucceeded
-
 					parentResourceID := resourceID.Parent
 					if parentResourceID.ResourceType.Namespace == resourceID.ResourceType.Namespace {
 						// Pre-populate the parent cluster with the test provisioning state
 						clusterInternalID := api.Must(api.NewInternalID(ocm.GenerateOCMCommercialClusterHREF("testCluster")))
 						parentCluster := &api.HCPOpenShiftCluster{
+							CosmosMetadata: arm.CosmosMetadata{
+								ResourceID:   parentResourceID,
+								PartitionKey: strings.ToLower(parentResourceID.SubscriptionID),
+							},
 							TrackedResource: arm.TrackedResource{
 								Resource: arm.Resource{
 									ID: parentResourceID,
@@ -187,7 +189,7 @@ func TestCheckForProvisioningStateConflict(t *testing.T) {
 							resourceID.ResourceType.Namespace)
 					}
 
-					cloudError := checkForProvisioningStateConflict(ctx, frontend.resourcesDBClient, tt.operationRequest, doc.ResourceID, doc.ProvisioningState)
+					cloudError := checkForProvisioningStateConflict(ctx, frontend.resourcesDBClient, tt.operationRequest, resourceID, arm.ProvisioningStateSucceeded)
 
 					if cloudError == nil {
 						if tt.parentConflict(provisioningState) {

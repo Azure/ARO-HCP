@@ -66,9 +66,9 @@ type RGDiscoveryMatch struct {
 
 // RGDiscoveryConditions defines additional rule predicates.
 type RGDiscoveryConditions struct {
-	ManagedBySet *bool             `json:"managedBySet,omitempty" yaml:"managedBySet,omitempty"`
-	TagsEq       map[string]string `json:"tagsEq,omitempty" yaml:"tagsEq,omitempty"`
-	TagsNotEq    map[string]string `json:"tagsNotEq,omitempty" yaml:"tagsNotEq,omitempty"`
+	ManagedByAlive *bool             `json:"managedByAlive,omitempty" yaml:"managedByAlive,omitempty"`
+	TagsEq         map[string]string `json:"tagsEq,omitempty" yaml:"tagsEq,omitempty"`
+	TagsNotEq      map[string]string `json:"tagsNotEq,omitempty" yaml:"tagsNotEq,omitempty"`
 }
 
 type rgDiscoveryRuleWireFormat struct {

@@ -25,6 +25,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"helm.sh/helm/v4/pkg/action"
 	"helm.sh/helm/v4/pkg/chart/common"
 	"helm.sh/helm/v4/pkg/chart/loader"
@@ -39,7 +40,19 @@ import (
 	"github.com/Azure/ARO-HCP/tooling/helmtest/internal"
 )
 
-func runTest(ctx context.Context, settings *internal.Settings, testCase internal.TestCase) (string, error) {
+type runTestOption func(*runTestOptions)
+
+type runTestOptions struct {
+	digestSkipPaths []string
+}
+
+func withDigestSkipPaths(paths []string) runTestOption {
+	return func(o *runTestOptions) {
+		o.digestSkipPaths = paths
+	}
+}
+
+func runTest(ctx context.Context, settings *internal.Settings, testCase internal.TestCase, opts ...runTestOption) (string, error) {
 	helmSettings := cli.New()
 	cfg := action.Configuration{}
 	err := cfg.Init(helmSettings.RESTClientGetter(), testCase.Namespace, "memory")
@@ -59,12 +72,17 @@ func runTest(ctx context.Context, settings *internal.Settings, testCase internal
 		Minor:   "30",
 	}
 
+	o := &runTestOptions{}
+	for _, opt := range opts {
+		opt(o)
+	}
+
 	cfgYaml, err := internal.LoadConfigAndMerge(settings.ConfigPath, testCase.TestData)
 	if err != nil {
 		return "", fmt.Errorf("error loading config, %v", err)
 	}
 
-	cfgYaml = internal.ReplaceImageDigest(cfgYaml)
+	cfgYaml = internal.ReplaceImageDigestExcluding(cfgYaml, o.digestSkipPaths)
 
 	values, err := config.PreprocessFile(testCase.Values, cfgYaml)
 	if err != nil {
@@ -144,13 +162,15 @@ func getCustomTestCases(chartDir string) ([]internal.TestCase, error) {
 
 func RunTestHelmTemplate(t *testing.T, settingsPath string) {
 	settings, err := internal.LoadSettings(settingsPath)
-	assert.NoError(t, err)
-	assert.NotNil(t, settings)
+	require.NoError(t, err)
+	require.NotNil(t, settings)
 
 	helmSteps, err := internal.FindHelmSteps(settings.TopologyDir, settings.ConfigPath)
-	assert.NoError(t, err)
-	assert.NotNil(t, helmSteps)
+	require.NoError(t, err)
+	require.NotNil(t, helmSteps)
 
+	resourceRequestsAllowlist := settings.ResourceRequestsAllowlist
+	resourceMemoryLimitsAllowlist := settings.ResourceMemoryLimitsAllowlist
 	chartDirsVisited := make(map[string]bool)
 
 	for _, helmStep := range helmSteps {
@@ -158,7 +178,7 @@ func RunTestHelmTemplate(t *testing.T, settingsPath string) {
 		if _, ok := chartDirsVisited[helmStep.ChartDirFromRoot(settings.TopologyDir)]; !ok {
 			// visit the chart directory only once. Some helm step definitions reference the directory, would cause duplicates.
 			customTestCases, err := getCustomTestCases(helmStep.ChartDirFromRoot(settings.TopologyDir))
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			allCases = append(allCases, customTestCases...)
 			chartDirsVisited[helmStep.ChartDirFromRoot(settings.TopologyDir)] = true
 		}
@@ -174,7 +194,12 @@ func RunTestHelmTemplate(t *testing.T, settingsPath string) {
 		for _, testCase := range allCases {
 			t.Run(testCase.Name, func(t *testing.T) {
 				manifest, err := runTest(t.Context(), settings, testCase)
-				assert.NoError(t, err)
+				require.NoError(t, err)
+
+				for _, v := range checkPolicyViolations(manifest, resourceRequestsAllowlist, resourceMemoryLimitsAllowlist) {
+					t.Error(v)
+				}
+
 				// we want to place implicit test cases by the pipelines that created them, not the chart they happened to render.
 				// n.b. a more correct implementation would keep track of *where* the custom test case came from and use that dir
 				// exactly as the output directory - an exercise left for the future

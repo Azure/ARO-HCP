@@ -27,6 +27,15 @@ type ExperimentalFeatures struct {
 	// control plane components. When set to Minimal, CS sets the
 	// ClusterSizeOverride annotation for reduced resource requests.
 	ControlPlanePodSizing ControlPlanePodSizing `json:"sizeOverride,omitempty"`
+
+	// ControlPlaneOperatorImage overrides the control plane operator
+	// image for a HostedCluster. When non-empty, the OCM converter sets
+	// the control_plane_operator_image CS cluster property, which CS
+	// translates into the HostedCluster annotation.
+	ControlPlaneOperatorImage string `json:"controlPlaneOperatorImage,omitempty"`
+
+	// FIPSEnabled controls the fips mode for a new ARO-HCP cluster installation.
+	FIPSEnabled bool `json:"fipsEnabled,omitempty"`
 }
 
 // ControlPlaneAvailability controls the AvailabilityPolicy for control plane components.

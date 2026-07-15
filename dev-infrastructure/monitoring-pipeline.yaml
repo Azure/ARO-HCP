@@ -26,6 +26,11 @@ resourceGroups:
     deploymentLevel: ResourceGroup
     actionOnUnmanage: delete
     bypassStackOutOfSyncError: false
+    automatedRetry:
+      errorContainsAny:
+      - "DeploymentStackInNonTerminalState"
+      maximumRetryCount: 3
+      durationBetweenRetries: 2m
     variables:
     - name: azureMonitoringWorkspaceId
       input:
@@ -37,3 +42,46 @@ resourceGroups:
         resourceGroup: regional
         step: output
         name: hcpAzureMonitoringWorkspaceId
+- name: kusto
+  resourceGroup: '{{ .kusto.rg }}'
+  subscription: '{{ .global.subscription.key }}'
+  steps:
+  - name: output
+    action: ARM
+    template: templates/kusto-lookup.bicep
+    parameters: configurations/kusto-lookup.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
+  - name: kusto-monitoring
+    action: ARMStack
+    template: templates/kusto-monitoring.bicep
+    parameters: configurations/kusto-monitoring.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    actionOnUnmanage: delete
+    bypassStackOutOfSyncError: false
+    automatedRetry:
+      errorContainsAny:
+      - "DeploymentStackInNonTerminalState"
+      maximumRetryCount: 3
+      durationBetweenRetries: 2m
+    variables:
+    - name: kustoClusterId
+      input:
+        resourceGroup: kusto
+        step: output
+        name: kustoResourceId
+    - name: kustoRegion
+      input:
+        resourceGroup: kusto
+        step: output
+        name: kustoRegion
+    - name: actionGroupSL
+      input:
+        resourceGroup: regional
+        step: monitoring
+        name: actionGroupSL
+    - name: actionGroupAlertEH
+      input:
+        resourceGroup: regional
+        step: monitoring
+        name: actionGroupAlertEH

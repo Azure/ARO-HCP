@@ -1,4 +1,17 @@
 ---
+# Source: sessiongate/templates/sessiongate.poddisruptionbudget.yaml
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: sessiongate
+  namespace: sessiongate
+spec:
+  minAvailable: 1
+  unhealthyPodEvictionPolicy: AlwaysAllow
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: sessiongate
+---
 # Source: sessiongate/templates/serviceaccount.yaml
 apiVersion: v1
 kind: ServiceAccount
@@ -485,6 +498,8 @@ spec:
           name: sessions
         securityContext:
           runAsNonRoot: true
+          runAsUser: 65532
+          runAsGroup: 65532
           seccompProfile:
             type: RuntimeDefault
           allowPrivilegeEscalation: false
@@ -542,7 +557,7 @@ spec:
       - command:
         - "/bin/sleep"
         - "infinity"
-        image: mcr.microsoft.com/cbl-mariner/busybox:2.0
+        image: mcr.microsoft.com/azurelinux/busybox:1.36
         name: init-container-msg-container-init
         volumeMounts:
         - name: secrets-store01-inline

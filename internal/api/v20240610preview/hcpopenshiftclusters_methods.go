@@ -307,8 +307,8 @@ func (v version) NewHCPOpenShiftCluster(from *api.HCPOpenShiftCluster) api.Versi
 	}
 
 	idString := ""
-	if from.ID != nil {
-		idString = from.ID.String()
+	if from.ResourceID != nil {
+		idString = from.ResourceID.String()
 	}
 
 	out := &HcpOpenShiftCluster{
@@ -349,6 +349,7 @@ func (c *HcpOpenShiftCluster) ConvertToInternal(existing *api.HCPOpenShiftCluste
 
 	if c.ID != nil {
 		out.ID = api.Must(azcorearm.ParseResourceID(strings.ToLower(*c.ID)))
+		out.ResourceID = api.Must(azcorearm.ParseResourceID(strings.ToLower(*c.ID)))
 	}
 	if c.Name != nil {
 		out.Name = *c.Name
@@ -437,6 +438,8 @@ func preserveUnknownClusterFields(from, to *api.HCPOpenShiftCluster) {
 	}
 	// VnetIntegrationSubnetID was added in v2025_12_23_preview.
 	to.CustomerProperties.Platform.VnetIntegrationSubnetID = from.CustomerProperties.Platform.VnetIntegrationSubnetID
+	// Ingress was added in v2026_06_30_preview.
+	to.CustomerProperties.Ingress = from.CustomerProperties.Ingress
 	// Visibility was added in v2025_12_23_preview.
 	if from.CustomerProperties.Etcd.DataEncryption.CustomerManaged != nil && from.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms != nil {
 		if to.CustomerProperties.Etcd.DataEncryption.CustomerManaged == nil {

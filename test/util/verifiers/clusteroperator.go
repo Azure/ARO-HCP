@@ -18,6 +18,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -45,17 +46,24 @@ func (v verifyAllClusterOperatorsAvailableImpl) Verify(ctx context.Context, admi
 
 	start := time.Now()
 	var lastErr error
+	var lastErrMsg string
 	verifyErr := wait.PollUntilContextTimeout(ctx, 20*time.Second, 30*time.Minute, true, func(ctx context.Context) (done bool, err error) {
 		clusterOperators, err := configClient.ClusterOperators().List(ctx, metav1.ListOptions{})
 		if err != nil {
 			lastErr = fmt.Errorf("failed to list ClusterOperators: %w", err)
-			ginkgo.GinkgoLogr.Info("Failed to list ClusterOperators, retrying.", "error", err)
+			if msg := lastErr.Error(); msg != lastErrMsg {
+				ginkgo.GinkgoLogr.Info("Failed to list ClusterOperators, retrying.", "error", err)
+				lastErrMsg = msg
+			}
 			return false, nil
 		}
 
 		if len(clusterOperators.Items) == 0 {
 			lastErr = errors.New("no ClusterOperators found in the cluster")
-			ginkgo.GinkgoLogr.Info("ClusterOperators not yet ready.", "error", lastErr)
+			if msg := lastErr.Error(); msg != lastErrMsg {
+				ginkgo.GinkgoLogr.Info("ClusterOperators not yet ready.", "error", lastErr)
+				lastErrMsg = msg
+			}
 			return false, nil
 		}
 
@@ -72,8 +80,12 @@ func (v verifyAllClusterOperatorsAvailableImpl) Verify(ctx context.Context, admi
 		}
 
 		if len(unavailableOperators) > 0 {
+			slices.Sort(unavailableOperators)
 			lastErr = fmt.Errorf("cluster operators not available: %s", strings.Join(unavailableOperators, ", "))
-			ginkgo.GinkgoLogr.Info("ClusterOperators not yet ready.", "unavailable", unavailableOperators)
+			if msg := lastErr.Error(); msg != lastErrMsg {
+				ginkgo.GinkgoLogr.Info("ClusterOperators not yet ready.", "unavailable", unavailableOperators)
+				lastErrMsg = msg
+			}
 			return false, nil
 		}
 

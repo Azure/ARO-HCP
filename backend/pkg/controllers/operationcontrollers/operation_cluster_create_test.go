@@ -18,6 +18,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -28,6 +29,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kruntime "k8s.io/apimachinery/pkg/runtime"
+	utilsclock "k8s.io/utils/clock"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
@@ -37,9 +39,13 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listertesting"
+	"github.com/Azure/ARO-HCP/backend/pkg/maestrohelpers"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/database"
+	dblisters "github.com/Azure/ARO-HCP/internal/database/listers"
+	internallistertesting "github.com/Azure/ARO-HCP/internal/database/listertesting"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -47,103 +53,178 @@ import (
 
 func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 	createdAt := mustParseTime("2025-01-15T10:30:00Z")
+	fixture := newClusterTestFixture()
 
-	tests := []struct {
-		name         string
-		clusterState arohcpv1alpha1.ClusterState
-		createdAt    *time.Time
-		expectError  bool
-		verify       func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *clusterTestFixture)
+	succeededDesire := func(t *testing.T) *kubeapplier.ReadDesire {
+		return newHostedClusterReadDesire(t, &v1beta1.HostedCluster{
+			Status: v1beta1.HostedClusterStatus{
+				Conditions: []metav1.Condition{
+					{Type: string(v1beta1.HostedClusterAvailable), Status: metav1.ConditionTrue},
+				},
+				ControlPlaneVersion: v1beta1.ControlPlaneVersionStatus{
+					History: []v1beta1.ControlPlaneUpdateHistory{
+						{Version: "4.17.3", State: configv1.CompletedUpdate},
+					},
+				},
+				ControlPlaneEndpoint: v1beta1.APIEndpoint{
+					Host: "api.example.com",
+					Port: 6443,
+				},
+			},
+		})
+	}
+
+	testCases := []struct {
+		name              string
+		existingCluster   *api.HCPOpenShiftCluster
+		existingOperation *api.Operation
+		setupCSMock       func(ctrl *gomock.Controller, fixture *clusterTestFixture) ocm.ClusterServiceClientSpec
+		wantErr           bool
+		verifyDB          func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient)
 	}{
 		{
-			name:         "successful create updates operation to succeeded",
-			clusterState: arohcpv1alpha1.ClusterStateReady,
-			createdAt:    &createdAt,
-			expectError:  false,
-			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *clusterTestFixture) {
+			name:              "successful create updates operation to succeeded",
+			existingCluster:   newClusterWithAPIURL("https://api.example.com", &createdAt),
+			existingOperation: fixture.newOperation(database.OperationRequestCreate),
+			setupCSMock: func(ctrl *gomock.Controller, fixture *clusterTestFixture) ocm.ClusterServiceClientSpec {
+				mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)
+				clusterStatus, err := arohcpv1alpha1.NewClusterStatus().
+					State(arohcpv1alpha1.ClusterStateReady).
+					Build()
+				require.NoError(t, err)
+				mockCSClient.EXPECT().
+					GetClusterStatus(gomock.Any(), fixture.clusterInternalID).
+					Return(clusterStatus, nil)
+				return mockCSClient
+			},
+			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
 				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateSucceeded, op.Status)
 			},
 		},
 		{
-			name:         "non-terminal cluster state updates to provisioning",
-			clusterState: arohcpv1alpha1.ClusterStateInstalling,
-			createdAt:    nil,
-			expectError:  false,
-			verify: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient, fixture *clusterTestFixture) {
+			name:              "non-terminal cluster state updates to provisioning",
+			existingCluster:   newClusterWithAPIURL("https://api.example.com", nil),
+			existingOperation: fixture.newOperation(database.OperationRequestCreate),
+			setupCSMock: func(ctrl *gomock.Controller, fixture *clusterTestFixture) ocm.ClusterServiceClientSpec {
+				mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)
+				clusterStatus, err := arohcpv1alpha1.NewClusterStatus().
+					State(arohcpv1alpha1.ClusterStateInstalling).
+					Build()
+				require.NoError(t, err)
+				mockCSClient.EXPECT().
+					GetClusterStatus(gomock.Any(), fixture.clusterInternalID).
+					Return(clusterStatus, nil)
+				return mockCSClient
+			},
+			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
 				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
 				require.NoError(t, err)
 				assert.Equal(t, arm.ProvisioningStateProvisioning, op.Status)
 			},
 		},
+		{
+			name:            "polls cluster service when operation InternalID is empty",
+			existingCluster: newClusterWithAPIURL("https://api.example.com", &createdAt),
+			existingOperation: func() *api.Operation {
+				op := fixture.newOperation(database.OperationRequestCreate)
+				op.InternalID = api.InternalID{}
+				return op
+			}(),
+			setupCSMock: func(ctrl *gomock.Controller, fixture *clusterTestFixture) ocm.ClusterServiceClientSpec {
+				mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)
+				clusterStatus, err := arohcpv1alpha1.NewClusterStatus().
+					State(arohcpv1alpha1.ClusterStateReady).
+					Build()
+				require.NoError(t, err)
+				mockCSClient.EXPECT().
+					GetClusterStatus(gomock.Any(), fixture.clusterInternalID).
+					Return(clusterStatus, nil)
+				return mockCSClient
+			},
+			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
+				require.NoError(t, err)
+				assert.Equal(t, arm.ProvisioningStateSucceeded, op.Status)
+			},
+		},
+		{
+			name: "waits when cluster ClusterServiceID is unset",
+			existingCluster: func() *api.HCPOpenShiftCluster {
+				cluster := newClusterWithAPIURL("https://api.example.com", &createdAt)
+				cluster.ServiceProviderProperties.ClusterServiceID = nil
+				return cluster
+			}(),
+			existingOperation: fixture.newOperation(database.OperationRequestCreate),
+			setupCSMock: func(ctrl *gomock.Controller, _ *clusterTestFixture) ocm.ClusterServiceClientSpec {
+				return ocm.NewMockClusterServiceClientSpec(ctrl)
+			},
+			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
+				require.NoError(t, err)
+				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
+			},
+		},
+		{
+			name: "returns early when cluster active operation id mismatches",
+			existingCluster: func() *api.HCPOpenShiftCluster {
+				cluster := newClusterWithAPIURL("https://api.example.com", &createdAt)
+				cluster.ServiceProviderProperties.ActiveOperationID = "other-operation"
+				return cluster
+			}(),
+			existingOperation: fixture.newOperation(database.OperationRequestCreate),
+			setupCSMock: func(ctrl *gomock.Controller, _ *clusterTestFixture) ocm.ClusterServiceClientSpec {
+				return ocm.NewMockClusterServiceClientSpec(ctrl)
+			},
+			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
+				require.NoError(t, err)
+				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
+			},
+		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
 			ctx := context.Background()
 			ctx = utils.ContextWithLogger(ctx, testr.New(t))
 			ctrl := gomock.NewController(t)
 			defer ctrl.Finish()
 
-			fixture := newClusterTestFixture()
-			cluster := fixture.newCluster(tt.createdAt)
-			operation := fixture.newOperation(database.OperationRequestCreate)
-
-			mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, operation})
+			mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, []any{tc.existingCluster, tc.existingOperation})
 			require.NoError(t, err)
 
-			mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)
-			clusterStatus, err := arohcpv1alpha1.NewClusterStatus().
-				State(tt.clusterState).
-				Build()
+			listerOperation, err := mockResourcesDBClient.Operations(testSubscriptionID).Get(ctx, testOperationName)
 			require.NoError(t, err)
 
-			mockCSClient.EXPECT().
-				GetClusterStatus(gomock.Any(), fixture.clusterInternalID).
-				Return(clusterStatus, nil)
-
-			// Provide listers so that determineOperationStatus can check cluster
-			// and hosted cluster state from cosmos.
-			succeededContent := newHostedClusterContent(t, &v1beta1.HostedCluster{
-				Status: v1beta1.HostedClusterStatus{
-					Conditions: []metav1.Condition{
-						{Type: string(v1beta1.HostedClusterAvailable), Status: metav1.ConditionTrue},
-					},
-					ControlPlaneVersion: v1beta1.ControlPlaneVersionStatus{
-						History: []v1beta1.ControlPlaneUpdateHistory{
-							{Version: "4.17.3", State: configv1.CompletedUpdate},
-						},
-					},
-					ControlPlaneEndpoint: v1beta1.APIEndpoint{
-						Host: "api.example.com",
-						Port: 6443,
-					},
-				},
-			})
+			mockCSClient := tc.setupCSMock(ctrl, fixture)
 
 			controller := &operationClusterCreate{
+				clock: utilsclock.RealClock{},
+				activeOperationLister: &listertesting.SliceActiveOperationLister{
+					Operations: []*api.Operation{listerOperation},
+				},
 				resourcesDBClient:    mockResourcesDBClient,
 				clusterServiceClient: mockCSClient,
 				notificationClient:   nil,
 				clusterLister: &listertesting.SliceClusterLister{
-					Clusters: []*api.HCPOpenShiftCluster{newClusterWithAPIURL("https://api.example.com")},
+					Clusters: []*api.HCPOpenShiftCluster{tc.existingCluster},
 				},
-				clusterManagementClusterContentLister: &listertesting.SliceManagementClusterContentLister{
-					Contents: []*api.ManagementClusterContent{succeededContent},
+				readDesireLister: &internallistertesting.SliceReadDesireLister{
+					Desires: []*kubeapplier.ReadDesire{succeededDesire(t)},
 				},
 			}
 
 			err = controller.SynchronizeOperation(ctx, fixture.operationKey())
-
-			if tt.expectError {
+			if tc.wantErr {
 				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
+				return
 			}
+			require.NoError(t, err)
 
-			if tt.verify != nil {
-				tt.verify(t, ctx, mockResourcesDBClient, fixture)
+			if tc.verifyDB != nil {
+				tc.verifyDB(t, ctx, mockResourcesDBClient)
 			}
 		})
 	}
@@ -164,57 +245,64 @@ func (l *errorClusterLister) ListForResourceGroup(_ context.Context, _, _ string
 	return nil, l.err
 }
 
-// errorManagementClusterContentLister always returns the configured error.
-type errorManagementClusterContentLister struct {
+// errorReadDesireLister always returns the configured error.
+type errorReadDesireLister struct {
 	err error
 }
 
-func (l *errorManagementClusterContentLister) List(_ context.Context) ([]*api.ManagementClusterContent, error) {
+func (l *errorReadDesireLister) List(_ context.Context) ([]*kubeapplier.ReadDesire, error) {
 	return nil, l.err
 }
-func (l *errorManagementClusterContentLister) GetForCluster(_ context.Context, _, _, _, _ string) (*api.ManagementClusterContent, error) {
+func (l *errorReadDesireLister) GetForCluster(_ context.Context, _, _, _, _ string) (*kubeapplier.ReadDesire, error) {
 	return nil, l.err
 }
-func (l *errorManagementClusterContentLister) ListForCluster(_ context.Context, _, _, _ string) ([]*api.ManagementClusterContent, error) {
+func (l *errorReadDesireLister) GetForNodePool(_ context.Context, _, _, _, _, _ string) (*kubeapplier.ReadDesire, error) {
 	return nil, l.err
 }
-func (l *errorManagementClusterContentLister) ListForNodePool(_ context.Context, _, _, _, _ string) ([]*api.ManagementClusterContent, error) {
+func (l *errorReadDesireLister) ListForManagementCluster(_ context.Context, _ *azcorearm.ResourceID) ([]*kubeapplier.ReadDesire, error) {
+	return nil, l.err
+}
+func (l *errorReadDesireLister) ListForCluster(_ context.Context, _, _, _ string) ([]*kubeapplier.ReadDesire, error) {
+	return nil, l.err
+}
+func (l *errorReadDesireLister) ListForNodePool(_ context.Context, _, _, _, _ string) ([]*kubeapplier.ReadDesire, error) {
 	return nil, l.err
 }
 
-func newHostedClusterContent(t *testing.T, hostedCluster *v1beta1.HostedCluster, conditions ...metav1.Condition) *api.ManagementClusterContent {
+// newHostedClusterReadDesire builds a ReadDesire whose Status.KubeContent.Raw
+// is the serialized HostedCluster. The ReadDesire itself defaults to a
+// Successful=True condition (the kube-applier has observed the target);
+// pass conditions to override.
+func newHostedClusterReadDesire(t *testing.T, hostedCluster *v1beta1.HostedCluster, conditions ...metav1.Condition) *kubeapplier.ReadDesire {
 	t.Helper()
 	raw, err := json.Marshal(hostedCluster)
 	require.NoError(t, err)
 	if conditions == nil {
-		// Default: not degraded (required for the content to be considered healthy)
+		// Default: kube-applier successfully observed the target.
 		conditions = []metav1.Condition{
-			{Type: "Degraded", Status: metav1.ConditionFalse},
+			{Type: kubeapplier.ConditionTypeSuccessful, Status: metav1.ConditionTrue, Reason: kubeapplier.ConditionReasonNoErrors},
 		}
 	}
 
-	contentResourceID := api.Must(azcorearm.ParseResourceID(
-		"/subscriptions/" + testSubscriptionID +
-			"/resourceGroups/" + testResourceGroupName +
-			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName +
-			"/managementClusterContents/" + string(api.MaestroBundleInternalNameReadonlyHypershiftHostedCluster)))
+	resourceID := api.Must(azcorearm.ParseResourceID(
+		kubeapplier.ToClusterScopedReadDesireResourceIDString(
+			testSubscriptionID, testResourceGroupName, testClusterName, maestrohelpers.ReadDesireNameReadonlyHostedCluster)))
 
-	return &api.ManagementClusterContent{
+	return &kubeapplier.ReadDesire{
 		CosmosMetadata: api.CosmosMetadata{
-			ResourceID: contentResourceID,
+			ResourceID:   resourceID,
+			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
 		},
-		Status: api.ManagementClusterContentStatus{
-			Conditions: conditions,
-			KubeContent: &metav1.List{
-				Items: []kruntime.RawExtension{{Raw: raw}},
-			},
+		Status: kubeapplier.ReadDesireStatus{
+			Conditions:  conditions,
+			KubeContent: &kruntime.RawExtension{Raw: raw},
 		},
 	}
 }
 
-func newClusterWithAPIURL(url string) *api.HCPOpenShiftCluster {
+func newClusterWithAPIURL(url string, createdAt *time.Time) *api.HCPOpenShiftCluster {
 	fixture := newClusterTestFixture()
-	cluster := fixture.newCluster(nil)
+	cluster := fixture.newCluster(createdAt)
 	cluster.ServiceProviderProperties.API = api.ServiceProviderAPIProfile{URL: url}
 	return cluster
 }
@@ -224,22 +312,22 @@ func TestDetermineOperationStatus(t *testing.T) {
 	operation := fixture.newOperation(database.OperationRequestCreate)
 
 	tests := []struct {
-		name            string
-		clusterLister   listers.ClusterLister
-		contentLister   listers.ManagementClusterContentLister
-		expectedState   arm.ProvisioningState
-		expectedMessage string
-		expectError     bool
-		errContains     string
+		name              string
+		clusterLister     listers.ClusterLister
+		readDesireLister  dblisters.ReadDesireLister
+		expectedState     arm.ProvisioningState
+		wantMessageSubstr string
+		expectError       bool
+		errContains       string
 	}{
 		{
 			name: "both checks succeed → Succeeded",
 			clusterLister: &listertesting.SliceClusterLister{
-				Clusters: []*api.HCPOpenShiftCluster{newClusterWithAPIURL("https://api.example.com")},
+				Clusters: []*api.HCPOpenShiftCluster{newClusterWithAPIURL("https://api.example.com", nil)},
 			},
-			contentLister: &listertesting.SliceManagementClusterContentLister{
-				Contents: []*api.ManagementClusterContent{
-					newHostedClusterContent(t, &v1beta1.HostedCluster{
+			readDesireLister: &internallistertesting.SliceReadDesireLister{
+				Desires: []*kubeapplier.ReadDesire{
+					newHostedClusterReadDesire(t, &v1beta1.HostedCluster{
 						Status: v1beta1.HostedClusterStatus{
 							Conditions: []metav1.Condition{
 								{Type: string(v1beta1.HostedClusterAvailable), Status: metav1.ConditionTrue},
@@ -257,17 +345,17 @@ func TestDetermineOperationStatus(t *testing.T) {
 					}),
 				},
 			},
-			expectedState:   arm.ProvisioningStateSucceeded,
-			expectedMessage: "",
+			expectedState:     arm.ProvisioningStateSucceeded,
+			wantMessageSubstr: "",
 		},
 		{
 			name: "cluster API URL empty → Provisioning (lowest priority wins)",
 			clusterLister: &listertesting.SliceClusterLister{
-				Clusters: []*api.HCPOpenShiftCluster{newClusterWithAPIURL("")},
+				Clusters: []*api.HCPOpenShiftCluster{newClusterWithAPIURL("", nil)},
 			},
-			contentLister: &listertesting.SliceManagementClusterContentLister{
-				Contents: []*api.ManagementClusterContent{
-					newHostedClusterContent(t, &v1beta1.HostedCluster{
+			readDesireLister: &internallistertesting.SliceReadDesireLister{
+				Desires: []*kubeapplier.ReadDesire{
+					newHostedClusterReadDesire(t, &v1beta1.HostedCluster{
 						Status: v1beta1.HostedClusterStatus{
 							Conditions: []metav1.Condition{
 								{Type: string(v1beta1.HostedClusterAvailable), Status: metav1.ConditionTrue},
@@ -285,23 +373,23 @@ func TestDetermineOperationStatus(t *testing.T) {
 					}),
 				},
 			},
-			expectedState:   arm.ProvisioningStateProvisioning,
-			expectedMessage: ".api.url is empty",
+			expectedState:     arm.ProvisioningStateProvisioning,
+			wantMessageSubstr: ".api.url is empty",
 		},
 		{
 			name: "hosted cluster not found → Provisioning",
 			clusterLister: &listertesting.SliceClusterLister{
-				Clusters: []*api.HCPOpenShiftCluster{newClusterWithAPIURL("https://api.example.com")},
+				Clusters: []*api.HCPOpenShiftCluster{newClusterWithAPIURL("https://api.example.com", nil)},
 			},
-			contentLister: &listertesting.SliceManagementClusterContentLister{},
-			expectedState: arm.ProvisioningStateProvisioning,
+			readDesireLister: &internallistertesting.SliceReadDesireLister{},
+			expectedState:    arm.ProvisioningStateProvisioning,
 		},
 		{
 			name:          "cluster lister error → error propagated",
 			clusterLister: &errorClusterLister{err: fmt.Errorf("cosmos error")},
-			contentLister: &listertesting.SliceManagementClusterContentLister{
-				Contents: []*api.ManagementClusterContent{
-					newHostedClusterContent(t, &v1beta1.HostedCluster{
+			readDesireLister: &internallistertesting.SliceReadDesireLister{
+				Desires: []*kubeapplier.ReadDesire{
+					newHostedClusterReadDesire(t, &v1beta1.HostedCluster{
 						Status: v1beta1.HostedClusterStatus{
 							Conditions: []metav1.Condition{
 								{Type: string(v1beta1.HostedClusterAvailable), Status: metav1.ConditionTrue},
@@ -323,41 +411,43 @@ func TestDetermineOperationStatus(t *testing.T) {
 			errContains: "cosmos error",
 		},
 		{
-			name: "management content lister non-404 error → error propagated",
+			name: "read desire lister non-404 error → error propagated",
 			clusterLister: &listertesting.SliceClusterLister{
-				Clusters: []*api.HCPOpenShiftCluster{newClusterWithAPIURL("https://api.example.com")},
+				Clusters: []*api.HCPOpenShiftCluster{newClusterWithAPIURL("https://api.example.com", nil)},
 			},
-			contentLister: &errorManagementClusterContentLister{err: fmt.Errorf("maestro error")},
-			expectError:   true,
-			errContains:   "maestro error",
+			readDesireLister: &errorReadDesireLister{err: fmt.Errorf("maestro error")},
+			expectError:      true,
+			errContains:      "maestro error",
 		},
 		{
-			name:          "both errors → joined error",
-			clusterLister: &errorClusterLister{err: fmt.Errorf("cluster error")},
-			contentLister: &errorManagementClusterContentLister{err: fmt.Errorf("content error")},
-			expectError:   true,
-			errContains:   "cluster error",
+			name:             "both errors → joined error",
+			clusterLister:    &errorClusterLister{err: fmt.Errorf("cluster error")},
+			readDesireLister: &errorReadDesireLister{err: fmt.Errorf("content error")},
+			expectError:      true,
+			errContains:      "cluster error",
 		},
 		{
-			name: "hosted cluster degraded → Provisioning",
+			name: "read desire not yet successful → Provisioning",
 			clusterLister: &listertesting.SliceClusterLister{
-				Clusters: []*api.HCPOpenShiftCluster{newClusterWithAPIURL("https://api.example.com")},
+				Clusters: []*api.HCPOpenShiftCluster{newClusterWithAPIURL("https://api.example.com", nil)},
 			},
-			contentLister: &listertesting.SliceManagementClusterContentLister{
-				Contents: []*api.ManagementClusterContent{
-					newHostedClusterContent(t, &v1beta1.HostedCluster{} /* no conditions → Degraded not false */),
+			readDesireLister: &internallistertesting.SliceReadDesireLister{
+				Desires: []*kubeapplier.ReadDesire{
+					newHostedClusterReadDesire(t, &v1beta1.HostedCluster{},
+						metav1.Condition{Type: kubeapplier.ConditionTypeSuccessful, Status: metav1.ConditionFalse, Reason: kubeapplier.ConditionReasonKubeAPIError, Message: "boom"}),
 				},
 			},
-			expectedState: arm.ProvisioningStateProvisioning,
+			expectedState:     arm.ProvisioningStateProvisioning,
+			wantMessageSubstr: "ReadDesire is not successful: KubeAPIError: boom",
 		},
 		{
 			name: "hosted cluster not available → Provisioning",
 			clusterLister: &listertesting.SliceClusterLister{
-				Clusters: []*api.HCPOpenShiftCluster{newClusterWithAPIURL("https://api.example.com")},
+				Clusters: []*api.HCPOpenShiftCluster{newClusterWithAPIURL("https://api.example.com", nil)},
 			},
-			contentLister: &listertesting.SliceManagementClusterContentLister{
-				Contents: []*api.ManagementClusterContent{
-					newHostedClusterContent(t, &v1beta1.HostedCluster{
+			readDesireLister: &internallistertesting.SliceReadDesireLister{
+				Desires: []*kubeapplier.ReadDesire{
+					newHostedClusterReadDesire(t, &v1beta1.HostedCluster{
 						Status: v1beta1.HostedClusterStatus{
 							Conditions: []metav1.Condition{
 								{Type: string(v1beta1.HostedClusterAvailable), Status: metav1.ConditionFalse, Reason: "NotReady", Message: "cluster is not ready"},
@@ -371,17 +461,17 @@ func TestDetermineOperationStatus(t *testing.T) {
 					}),
 				},
 			},
-			expectedState:   arm.ProvisioningStateProvisioning,
-			expectedMessage: "hosted cluster is not available: NotReady: cluster is not ready",
+			expectedState:     arm.ProvisioningStateProvisioning,
+			wantMessageSubstr: "hosted cluster is not available: NotReady: cluster is not ready",
 		},
 		{
 			name: "no control plane endpoint host → Provisioning",
 			clusterLister: &listertesting.SliceClusterLister{
-				Clusters: []*api.HCPOpenShiftCluster{newClusterWithAPIURL("https://api.example.com")},
+				Clusters: []*api.HCPOpenShiftCluster{newClusterWithAPIURL("https://api.example.com", nil)},
 			},
-			contentLister: &listertesting.SliceManagementClusterContentLister{
-				Contents: []*api.ManagementClusterContent{
-					newHostedClusterContent(t, &v1beta1.HostedCluster{
+			readDesireLister: &internallistertesting.SliceReadDesireLister{
+				Desires: []*kubeapplier.ReadDesire{
+					newHostedClusterReadDesire(t, &v1beta1.HostedCluster{
 						Status: v1beta1.HostedClusterStatus{
 							Conditions: []metav1.Condition{
 								{Type: string(v1beta1.HostedClusterAvailable), Status: metav1.ConditionTrue},
@@ -395,17 +485,17 @@ func TestDetermineOperationStatus(t *testing.T) {
 					}),
 				},
 			},
-			expectedState:   arm.ProvisioningStateProvisioning,
-			expectedMessage: "hosted cluster has no control plane endpoint host",
+			expectedState:     arm.ProvisioningStateProvisioning,
+			wantMessageSubstr: "hosted cluster has no control plane endpoint host",
 		},
 		{
 			name: "no control plane endpoint port → Provisioning",
 			clusterLister: &listertesting.SliceClusterLister{
-				Clusters: []*api.HCPOpenShiftCluster{newClusterWithAPIURL("https://api.example.com")},
+				Clusters: []*api.HCPOpenShiftCluster{newClusterWithAPIURL("https://api.example.com", nil)},
 			},
-			contentLister: &listertesting.SliceManagementClusterContentLister{
-				Contents: []*api.ManagementClusterContent{
-					newHostedClusterContent(t, &v1beta1.HostedCluster{
+			readDesireLister: &internallistertesting.SliceReadDesireLister{
+				Desires: []*kubeapplier.ReadDesire{
+					newHostedClusterReadDesire(t, &v1beta1.HostedCluster{
 						Status: v1beta1.HostedClusterStatus{
 							Conditions: []metav1.Condition{
 								{Type: string(v1beta1.HostedClusterAvailable), Status: metav1.ConditionTrue},
@@ -422,17 +512,17 @@ func TestDetermineOperationStatus(t *testing.T) {
 					}),
 				},
 			},
-			expectedState:   arm.ProvisioningStateProvisioning,
-			expectedMessage: "hosted cluster has no control plane endpoint port",
+			expectedState:     arm.ProvisioningStateProvisioning,
+			wantMessageSubstr: "hosted cluster has no control plane endpoint port",
 		},
 		{
 			name: "version with valid success condition but not installed → Provisioning",
 			clusterLister: &listertesting.SliceClusterLister{
-				Clusters: []*api.HCPOpenShiftCluster{newClusterWithAPIURL("https://api.example.com")},
+				Clusters: []*api.HCPOpenShiftCluster{newClusterWithAPIURL("https://api.example.com", nil)},
 			},
-			contentLister: &listertesting.SliceManagementClusterContentLister{
-				Contents: []*api.ManagementClusterContent{
-					newHostedClusterContent(t, &v1beta1.HostedCluster{
+			readDesireLister: &internallistertesting.SliceReadDesireLister{
+				Desires: []*kubeapplier.ReadDesire{
+					newHostedClusterReadDesire(t, &v1beta1.HostedCluster{
 						Status: v1beta1.HostedClusterStatus{
 							Conditions: []metav1.Condition{
 								{Type: string(v1beta1.HostedClusterAvailable), Status: metav1.ConditionTrue},
@@ -450,8 +540,8 @@ func TestDetermineOperationStatus(t *testing.T) {
 					}),
 				},
 			},
-			expectedState:   arm.ProvisioningStateProvisioning,
-			expectedMessage: "hosted cluster has no installed version",
+			expectedState:     arm.ProvisioningStateProvisioning,
+			wantMessageSubstr: "hosted cluster has no installed version",
 		},
 	}
 
@@ -460,8 +550,8 @@ func TestDetermineOperationStatus(t *testing.T) {
 			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
 
 			controller := &operationClusterCreate{
-				clusterLister:                         tt.clusterLister,
-				clusterManagementClusterContentLister: tt.contentLister,
+				clusterLister:    tt.clusterLister,
+				readDesireLister: tt.readDesireLister,
 			}
 
 			result, err := controller.determineOperationStatus(ctx, operation)
@@ -476,9 +566,9 @@ func TestDetermineOperationStatus(t *testing.T) {
 
 			require.NoError(t, err)
 			require.NotNil(t, result)
-			assert.Equal(t, tt.expectedState, result.provisioningState)
-			if tt.expectedMessage != "" {
-				assert.Equal(t, tt.expectedMessage, result.message)
+			assert.Equal(t, tt.expectedState, result.ProvisioningState)
+			if tt.wantMessageSubstr != "" {
+				assert.Contains(t, result.Message, tt.wantMessageSubstr)
 			}
 		})
 	}

@@ -39,7 +39,7 @@ var _ = Describe("Customer", func() {
 			versionsPager := versionsClient.NewListPager(tc.Location(), nil)
 
 			versions, err := versionsPager.NextPage(ctx)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to list HCP OpenShift versions")
 			Expect(versions.Value).NotTo(BeEmpty(), "Should return at least one OpenShift version")
 
 			By("validating version response structure and content")
@@ -52,11 +52,11 @@ var _ = Describe("Customer", func() {
 				Expect(*version.Name).To(MatchRegexp(`^\d+\.\d+\.\d+`), "Version should follow semantic versioning")
 
 				// Validate ID contains version-related path (works for both ARM and direct RP access)
-				Expect(*version.ID).To(ContainSubstring("/hcpOpenShiftVersions/"))
-				Expect(*version.ID).To(ContainSubstring(*version.Name))
+				Expect(*version.ID).To(ContainSubstring("/hcpOpenShiftVersions/"), "version ID should contain the hcpOpenShiftVersions resource path")
+				Expect(*version.ID).To(ContainSubstring(*version.Name), "version ID should contain the version name %s", *version.Name)
 			}
 
 			By("verifying at least one version is available for cluster creation")
-			Expect(len(versions.Value)).To(BeNumerically(">=", 1))
+			Expect(len(versions.Value)).To(BeNumerically(">=", 1), "at least one cluster version should be available")
 		})
 })

@@ -2242,11 +2242,7 @@
   "templating": {
     "list": [
       {
-        "current": {
-          "selected": false,
-          "text": "Managed_Prometheus_perf-scale-monitor-workspace-120",
-          "value": "perf-scale-monitor-workspace-120"
-        },
+        "current": {},
         "hide": 0,
         "includeAll": false,
         "label": "datasource",
@@ -2256,7 +2252,7 @@
         "query": "prometheus",
         "queryValue": "",
         "refresh": 1,
-        "regex": "",
+        "regex": "^Managed_Prometheus_.*$",
         "skipUrlSync": false,
         "type": "datasource"
       },

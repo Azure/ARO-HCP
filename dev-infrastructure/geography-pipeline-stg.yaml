@@ -1,0 +1,40 @@
+#
+# TRANSIENT — STG-global "V2" parallel copy of geography-pipeline.yaml.
+#
+# Deploys the geography-scoped Kusto cluster into the dedicated STG-global
+# subscription (hcp-stg-global). Differences from the canonical pipeline:
+#   * serviceGroup is Microsoft.Azure.ARO.HCP.Geography.StgGlobal (new subcomponent),
+#     a child of HCP.Global.StgGlobal under the new HCP.Global.StgGlobal root entrypoint.
+#   * subscription is hardcoded to 'hcp-stg-global'.
+#   * executionConstraints are stg/uksouth ONLY (prod & test render inert).
+#   * the globally-unique Kusto cluster name comes from stgGlobalV2.kustoName so it
+#     does not collide with the live cluster (hcp-stg-uk-2).
+# Removed at decommission.
+#
+$schema: pipeline.schema.v1
+rolloutName: Geography Rollout (STG V2)
+serviceGroup: Microsoft.Azure.ARO.HCP.Geography.StgGlobal
+resourceGroups:
+- name: kusto-infra
+  resourceGroup: '{{ .kusto.rg }}'
+  # Hardcoded on purpose — see global-pipeline-stg.yaml. Removed at decommission.
+  subscription: 'hcp-stg-global'
+  executionConstraints:
+  - clouds:
+    - public
+    environments:
+    - stg
+    regions:
+    - uksouth
+  steps:
+  - name: deploy
+    action: ARM
+    template: templates/kusto.bicep
+    parameters: configurations/kusto-stg.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    automatedRetry:
+      errorContainsAny:
+      - "InternalServerError"
+      - "Internal server error"
+      maximumRetryCount: 3
+      durationBetweenRetries: 1m

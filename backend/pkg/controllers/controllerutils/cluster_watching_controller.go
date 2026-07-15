@@ -27,11 +27,11 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
+	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 )
 
 type ClusterSyncer interface {
 	SyncOnce(ctx context.Context, keyObj HCPClusterKey) error
-	CooldownChecker() controllerutil.CooldownChecker
 }
 
 type clusterWatchingController struct {
@@ -46,10 +46,18 @@ type clusterWatchingController struct {
 // Since our detection of change is coarse, we are being triggered every few second without new information.
 // Until we get a changefeed, the cooldownDuration value is effectively the min resync time.
 // This does NOT prevent us from re-executing on errors, so errors will continue to trigger fast checks as expected.
+//
+// kubeApplierInformers is optional: when non-nil, the controller also enqueues
+// on ReadDesire events from the union kube-applier informer surface. The
+// status that the kube-applier writes back lives on the ReadDesire, so a
+// ReadDesire update is how this controller learns "the kube-applier
+// reported something new about a cluster". Apply/Delete desires are not
+// wired in because their status doesn't carry cluster-state signal.
 func NewClusterWatchingController(
 	name string,
 	resourcesDBClient database.ResourcesDBClient,
 	informers informers.BackendInformers,
+	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 	resyncDuration time.Duration,
 	syncer ClusterSyncer,
 ) Controller {
@@ -73,6 +81,18 @@ func NewClusterWatchingController(
 		// Limit the max depth of ManagementClusterContent to 1 to only consider the cluster-scoped ManagementClusterContents
 		err = clusterController.QueueForInformersWithMaxDepth(resyncDuration, 1, managementClusterContentInformer)
 		if err != nil {
+			panic(err) // coding error
+		}
+	}
+
+	if kubeApplierInformers != nil {
+		// Cluster-scoped ReadDesires sit one level below the cluster
+		// (.../hcpOpenShiftClusters/<cluster>/readDesires/<name>), so a
+		// maxDepth of 1 reaches the cluster and stops there. Node-pool-scoped
+		// ReadDesires live one level deeper and are ignored on purpose —
+		// this controller is "cluster-scoped only".
+		readDesireInformer, _ := kubeApplierInformers.ReadDesires()
+		if err := clusterController.QueueForInformersWithMaxDepth(resyncDuration, 1, readDesireInformer); err != nil {
 			panic(err) // coding error
 		}
 	}
@@ -101,7 +121,7 @@ func (c *clusterWatchingController) SyncOnce(ctx context.Context, key HCPCluster
 }
 
 func (c *clusterWatchingController) CooldownChecker() controllerutil.CooldownChecker {
-	return c.syncer.CooldownChecker()
+	return nil
 }
 
 func (c *clusterWatchingController) MakeKey(resourceID *azcorearm.ResourceID) HCPClusterKey {

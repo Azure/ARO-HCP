@@ -19,7 +19,11 @@ resourceGroups:
   - name: deploy
     aksCluster: '{{ .svc.aks.name }}'
     action: Shell
-    command: make deploy
+    command: |
+      kubectl apply -k deploy/
+      kubectl wait --for=condition=Available deployment -n observability otel-collector --timeout=60s
+      kubectl wait --for=condition=Available deployment -n observability jaeger --timeout=60s
+      kubectl wait --for=condition=Available deployment -n observability lgtm --timeout=60s
     shellIdentity:
       input:
         resourceGroup: global
@@ -32,7 +36,11 @@ resourceGroups:
   - name: deploy
     aksCluster: '{{ .mgmt.aks.name }}'
     action: Shell
-    command: make deploy
+    command: |
+      kubectl apply -k deploy/
+      kubectl wait --for=condition=Available deployment -n observability otel-collector --timeout=60s
+      kubectl wait --for=condition=Available deployment -n observability jaeger --timeout=60s
+      kubectl wait --for=condition=Available deployment -n observability lgtm --timeout=60s
     shellIdentity:
       input:
         resourceGroup: global

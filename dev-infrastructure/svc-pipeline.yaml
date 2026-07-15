@@ -3,7 +3,7 @@
 # Managed Resources:
 # * AKS SVC cluster
 # * SVC Key Vault with OneCert registration
-# * MIs, CosmosDB and RBAC for the RP
+# * MIs, CosmosDB containers and RBAC for the RP
 # * MIs, Postgres DB, OIDC storage and RBAC for Cluster Service
 # * MIs, Postgres DB, certificates and RBAC for the Maestro Server
 # * MIs and RBAC for ACRPull
@@ -15,6 +15,21 @@
 $schema: "pipeline.schema.v1"
 serviceGroup: Microsoft.Azure.ARO.HCP.Service.Infra
 rolloutName: Service Cluster Rollout
+# Pre-build the Go helpers invoked by Shell steps before the rollout runs.
+# The EV2 Shell runner image has no postgres client, so postgres-access grants
+# database access in Go (see scripts/postgres-access).
+buildStep:
+  command: bash
+  args:
+  - -c
+  - |
+    set -euo pipefail
+    tmp="$(mktemp ./scripts/postgres-access/postgres-access.XXXXXX)"
+    trap 'rm -f "${tmp}"' EXIT
+    CGO_ENABLED=0 go build -o "${tmp}" ./scripts/postgres-access
+    chmod 0755 "${tmp}"
+    mv "${tmp}" ./scripts/postgres-access/postgres-access
+    trap - EXIT
 resourceGroups:
 # Query parameters from global deployment, e.g. ACR resource IDs
 - name: global
@@ -50,6 +65,14 @@ resourceGroups:
     parameters: configurations/output-region.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     outputOnly: true
+  - name: fleet-amw-permissions
+    action: ARM
+    template: templates/fleet-amw-permissions.bicep
+    parameters: configurations/fleet-amw-permissions.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    dependsOn:
+    - resourceGroup: service
+      step: cluster
 - name: auditLogs
   resourceGroup: '{{ .auditLogsEventHub.rg }}'
   subscription: '{{ .svc.subscription.key }}'
@@ -84,6 +107,25 @@ resourceGroups:
   resourceGroup: '{{ .svc.rg }}'
   subscription: '{{ .svc.subscription.key }}'
   steps:
+  # Expose the service subscription id for the postgres-access Shell steps.
+  - name: subscription-output
+    action: ARM
+    template: templates/subscription-lookup.bicep
+    parameters: configurations/subscription-lookup.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
+  # TODO(ARO-28044): re-enable after ARO-28040
+  # - name: grafana-monitoring-reader
+  #   action: ARM
+  #   template: templates/grafana-monitoring-reader.bicep
+  #   parameters: configurations/grafana-monitoring-reader.tmpl.bicepparam
+  #   deploymentLevel: Subscription
+  #   variables:
+  #   - name: grafanaPrincipalId
+  #     input:
+  #       resourceGroup: global
+  #       step: output
+  #       name: grafanaPrincipalId
   # Create SVC KV
   - name: infra
     action: ARM
@@ -147,6 +189,227 @@ resourceGroups:
         name: svcKeyVaultUrl
     issuer:
       value: OneCertV2-PublicCA
+  # Create certificates
+  - name: frontend-cert
+    action: CreateCertificate
+    secretKeyVault:
+      configRef: ev2.assistedId.certificate.keyVault
+    secretName:
+      configRef: ev2.assistedId.certificate.name
+    applicationId:
+      configRef: ev2.assistedId.applicationId
+    vaultBaseUrl:
+      input:
+        resourceGroup: service
+        step: infra-output
+        name: svcKeyVaultUrl
+    certificateName:
+      configRef: frontend.cert.name
+    contentType:
+      configRef: frontend.cert.contentType
+    san:
+      configRef: frontend.cert.san
+    issuer:
+      configRef: frontend.cert.issuer
+    commonName:
+      configRef: frontend.cert.san
+    dependsOn:
+    - resourceGroup: service
+      step: infra-output
+    - resourceGroup: service
+      step: oncert-private-kv-issuer
+    - resourceGroup: service
+      step: oncert-public-kv-issuer
+    automatedRetry:
+      errorContainsAny:
+      - "InternalServerError"
+      - "ServiceUnavailable"
+      maximumRetryCount: 3
+      durationBetweenRetries: 1m
+  - name: admin-api-cert
+    action: CreateCertificate
+    secretKeyVault:
+      configRef: ev2.assistedId.certificate.keyVault
+    secretName:
+      configRef: ev2.assistedId.certificate.name
+    applicationId:
+      configRef: ev2.assistedId.applicationId
+    vaultBaseUrl:
+      input:
+        resourceGroup: service
+        step: infra-output
+        name: svcKeyVaultUrl
+    certificateName:
+      configRef: adminApi.cert.name
+    contentType:
+      configRef: adminApi.cert.contentType
+    san:
+      configRef: adminApi.cert.san
+    issuer:
+      configRef: adminApi.cert.issuer
+    commonName:
+      configRef: adminApi.cert.san
+    dependsOn:
+    - resourceGroup: service
+      step: infra-output
+    - resourceGroup: service
+      step: oncert-private-kv-issuer
+    - resourceGroup: service
+      step: oncert-public-kv-issuer
+    automatedRetry:
+      errorContainsAny:
+      - "InternalServerError"
+      - "ServiceUnavailable"
+      maximumRetryCount: 3
+      durationBetweenRetries: 1m
+  - name: sessiongate-cert
+    action: CreateCertificate
+    secretKeyVault:
+      configRef: ev2.assistedId.certificate.keyVault
+    secretName:
+      configRef: ev2.assistedId.certificate.name
+    applicationId:
+      configRef: ev2.assistedId.applicationId
+    vaultBaseUrl:
+      input:
+        resourceGroup: service
+        step: infra-output
+        name: svcKeyVaultUrl
+    certificateName:
+      configRef: sessiongate.cert.name
+    contentType:
+      configRef: sessiongate.cert.contentType
+    san:
+      configRef: sessiongate.cert.san
+    issuer:
+      configRef: sessiongate.cert.issuer
+    commonName:
+      configRef: sessiongate.cert.san
+    dependsOn:
+    - resourceGroup: service
+      step: infra-output
+    - resourceGroup: service
+      step: oncert-private-kv-issuer
+    - resourceGroup: service
+      step: oncert-public-kv-issuer
+    automatedRetry:
+      errorContainsAny:
+      - "InternalServerError"
+      - "ServiceUnavailable"
+      maximumRetryCount: 3
+      durationBetweenRetries: 1m
+  - name: maestro-server-cert
+    action: CreateCertificate
+    secretKeyVault:
+      configRef: ev2.assistedId.certificate.keyVault
+    secretName:
+      configRef: ev2.assistedId.certificate.name
+    applicationId:
+      configRef: ev2.assistedId.applicationId
+    vaultBaseUrl:
+      input:
+        resourceGroup: service
+        step: infra-output
+        name: svcKeyVaultUrl
+    certificateName:
+      configRef: maestro.server.mqttClientName
+    contentType:
+      value: x-pkcs12
+    san:
+      configRef: maestro.server.certSAN
+    issuer:
+      configRef: maestro.certIssuer
+    commonName:
+      configRef: maestro.server.certCN
+    dependsOn:
+    - resourceGroup: service
+      step: infra-output
+    - resourceGroup: service
+      step: oncert-private-kv-issuer
+    - resourceGroup: service
+      step: oncert-public-kv-issuer
+    automatedRetry:
+      errorContainsAny:
+      - "InternalServerError"
+      - "ServiceUnavailable"
+      maximumRetryCount: 3
+      durationBetweenRetries: 1m
+  - name: fpa-cert
+    action: CreateCertificate
+    manage:
+      configRef: firstPartyAppCertificate.manage
+    secretKeyVault:
+      configRef: ev2.assistedId.certificate.keyVault
+    secretName:
+      configRef: ev2.assistedId.certificate.name
+    applicationId:
+      configRef: ev2.assistedId.applicationId
+    vaultBaseUrl:
+      input:
+        resourceGroup: service
+        step: infra-output
+        name: svcKeyVaultUrl
+    certificateName:
+      configRef: firstPartyAppCertificate.name
+    contentType:
+      configRef: firstPartyAppCertificate.contentType
+    san:
+      configRef: firstPartyAppCertificate.san
+    issuer:
+      configRef: firstPartyAppCertificate.issuer
+    commonName:
+      configRef: firstPartyAppCertificate.san
+    dependsOn:
+    - resourceGroup: service
+      step: infra-output
+    - resourceGroup: service
+      step: oncert-private-kv-issuer
+    - resourceGroup: service
+      step: oncert-public-kv-issuer
+    automatedRetry:
+      errorContainsAny:
+      - "InternalServerError"
+      - "ServiceUnavailable"
+      maximumRetryCount: 3
+      durationBetweenRetries: 1m
+  - name: geneva-rp-logs-cert
+    action: CreateCertificate
+    manage:
+      configRef: geneva.logs.manage
+    secretKeyVault:
+      configRef: ev2.assistedId.certificate.keyVault
+    secretName:
+      configRef: ev2.assistedId.certificate.name
+    applicationId:
+      configRef: ev2.assistedId.applicationId
+    vaultBaseUrl:
+      input:
+        resourceGroup: service
+        step: infra-output
+        name: svcKeyVaultUrl
+    certificateName:
+      configRef: geneva.logs.rp.secretName
+    contentType:
+      configRef: geneva.logs.contentType
+    san:
+      configRef: geneva.logs.rp.san
+    issuer:
+      configRef: geneva.logs.certificateIssuer
+    commonName:
+      configRef: geneva.logs.rp.san
+    dependsOn:
+    - resourceGroup: service
+      step: infra-output
+    - resourceGroup: service
+      step: oncert-private-kv-issuer
+    - resourceGroup: service
+      step: oncert-public-kv-issuer
+    automatedRetry:
+      errorContainsAny:
+      - "InternalServerError"
+      - "ServiceUnavailable"
+      maximumRetryCount: 3
+      durationBetweenRetries: 1m
   # Create SVC cluster
   - name: cluster
     action: ARM
@@ -174,6 +437,11 @@ resourceGroups:
         resourceGroup: regional
         step: output
         name: azureMonitoringWorkspaceId
+    - name: rpCosmosDbAccountId
+      input:
+        resourceGroup: regional
+        step: output
+        name: rpCosmosDbAccountId
     - name: azureFrontDoorResourceId
       input:
         resourceGroup: global
@@ -191,9 +459,13 @@ resourceGroups:
         name: subscriptionId
     dependsOn:
     - resourceGroup: service
-      step: oncert-private-kv-issuer
+      step: frontend-cert
     - resourceGroup: service
-      step: oncert-public-kv-issuer
+      step: admin-api-cert
+    - resourceGroup: service
+      step: sessiongate-cert
+    - resourceGroup: service
+      step: maestro-server-cert
     automatedRetry:
       errorContainsAny:
       - "DeploymentScriptACIProvisioningTimeout"
@@ -202,28 +474,14 @@ resourceGroups:
       - "Resource is in Updating state"
       - "There was a problem communicating with the identity service"
       - "DeploymentScriptExceededMaxAllowedTime"
+      - "was not found in the AAD tenant"
+      # Transient Network Security Perimeter association failures against the RP
+      # Cosmos DB account (exclusive-lock contention / backend retry exhaustion).
+      - "AnmPreconditionFailedException"
+      - "MaxRetryCountReached"
+      - "ServiceUnavailable"
       maximumRetryCount: 3
       durationBetweenRetries: 2m
-  - name: delete-old-user-nodepools
-    aksCluster: '{{ .svc.aks.name }}'
-    action: Shell
-    command: ./delete-user-nodepools.sh
-    workingDir: ./scripts
-    shellIdentity:
-      input:
-        resourceGroup: global
-        step: output
-        name: globalMSIId
-    variables:
-    - name: CLUSTER_NAME
-      configRef: svc.aks.name
-    - name: RESOURCE_GROUP
-      configRef: svc.rg
-    - name: POOL_NAME_PATTERN
-      value: 'user(nz)?[0-9]+'
-    dependsOn:
-    - resourceGroup: service
-      step: cluster
   - name: upgrade-aks-cluster
     action: Shell
     command: ./upgrade-aks-cluster.sh
@@ -242,7 +500,90 @@ resourceGroups:
       configRef: svc.aks.kubernetesVersion
     dependsOn:
     - resourceGroup: service
-      step: delete-old-user-nodepools
+      step: cluster
+  - name: cs-postgres-access
+    action: Shell
+    command: ./scripts/postgres-access/postgres-access
+    workingDir: .
+    shellIdentity:
+      input:
+        resourceGroup: global
+        step: output
+        name: globalMSIId
+    variables:
+    - name: SUBSCRIPTION_ID
+      input:
+        resourceGroup: service
+        step: subscription-output
+        name: subscriptionId
+    - name: RESOURCE_GROUP
+      configRef: regionRG
+    - name: MI_RESOURCE_GROUP
+      configRef: svc.rg
+    - name: PG_SERVER_NAME
+      configRef: clustersService.postgres.name
+    - name: DATABASE_NAME
+      configRef: clustersService.postgres.databaseName
+    - name: NEW_USER_NAME
+      configRef: clustersService.managedIdentityName
+    - name: ADMIN_USER_NAME
+      configRef: global.globalMSIName
+    - name: DEPLOY_POSTGRES
+      configRef: clustersService.postgres.deploy
+    dependsOn:
+    - resourceGroup: service
+      step: cluster
+    - resourceGroup: service
+      step: subscription-output
+  - name: maestro-postgres-access
+    action: Shell
+    command: ./scripts/postgres-access/postgres-access
+    workingDir: .
+    shellIdentity:
+      input:
+        resourceGroup: global
+        step: output
+        name: globalMSIId
+    variables:
+    - name: SUBSCRIPTION_ID
+      input:
+        resourceGroup: service
+        step: subscription-output
+        name: subscriptionId
+    - name: RESOURCE_GROUP
+      configRef: regionRG
+    - name: MI_RESOURCE_GROUP
+      configRef: svc.rg
+    - name: PG_SERVER_NAME
+      configRef: maestro.postgres.name
+    - name: DATABASE_NAME
+      configRef: maestro.postgres.databaseName
+    - name: NEW_USER_NAME
+      configRef: maestro.server.managedIdentityName
+    - name: ADMIN_USER_NAME
+      configRef: global.globalMSIName
+    - name: DEPLOY_POSTGRES
+      configRef: maestro.postgres.deploy
+    dependsOn:
+    - resourceGroup: service
+      step: cluster
+    - resourceGroup: service
+      step: subscription-output
+  - name: oidc-storage-setup
+    action: Shell
+    command: ./storage.sh
+    workingDir: ./scripts
+    variables:
+    - name: StorageAccountName
+      configRef: oidc.storageAccount.name
+    dependsOn:
+    - resourceGroup: service
+      step: cluster
+    shellIdentity:
+      input:
+        resourceGroup: global
+        step: output
+        name: globalMSIId
   - name: cluster-output
     action: ARM
     template: templates/output-svc-cluster.bicep
@@ -254,6 +595,8 @@ resourceGroups:
       step: output
     - resourceGroup: service
       step: upgrade-aks-cluster
+    - resourceGroup: service
+      step: oidc-storage-setup
   - name: kusto-ingest-service-logs
     action: ARM
     template: templates/kusto-grant-ingest.bicep
@@ -294,6 +637,7 @@ resourceGroups:
     # Deploy prometheus first since istio depends on it's CRDs
     aksCluster: '{{ .svc.aks.name }}'
     action: Helm
+    timeout: 10m
     releaseName: 'arohcp-monitor'
     releaseNamespace: 'prometheus'
     namespaceFiles:
@@ -322,6 +666,8 @@ resourceGroups:
     dependsOn:
     - resourceGroup: service
       step: upgrade-aks-cluster
+    - resourceGroup: service
+      step: image-registry-policy
     identityFrom:
       resourceGroup: global
       step: output
@@ -464,6 +810,34 @@ resourceGroups:
       - "Internal error occurred"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
+  - name: image-registry-policy
+    aksCluster: '{{ .svc.aks.name }}'
+    action: Helm
+    releaseName: image-registry-policy
+    releaseNamespace: image-registry-policy
+    chartDir: ./../image-registry-policy/deploy
+    valuesFile: ./../image-registry-policy/values.yaml
+    kustoEndpoint:
+      resourceGroup: kusto
+      step: output
+      name: kustoUri
+    kustoDatabase: '{{ .kusto.serviceLogsDatabase }}'
+    kustoTable: 'containerLogs'
+    dependsOn:
+    - resourceGroup: service
+      step: cluster
+    - resourceGroup: service
+      step: upgrade-aks-cluster
+    identityFrom:
+      resourceGroup: global
+      step: output
+      name: globalMSIId
+    automatedRetry:
+      errorContainsAny:
+      - "500 Internal Server Error"
+      - "Internal error occurred"
+      maximumRetryCount: 3
+      durationBetweenRetries: 1m
   - name: arobit-output
     action: ARM
     template: templates/arobit-lookup.bicep
@@ -480,6 +854,7 @@ resourceGroups:
     releaseNamespace: 'arobit'
     chartDir: ../observability/arobit/deploy
     valuesFile: ../observability/arobit/values-svc.yaml
+    timeout: 10m
     kustoEndpoint:
       resourceGroup: kusto
       step: output
@@ -510,6 +885,7 @@ resourceGroups:
       errorContainsAny:
       - "500 Internal Server Error"
       - "Internal error occurred"
+      - "arobit-forwarder not ready. status: InProgress"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
   - name: kube-events
@@ -528,6 +904,8 @@ resourceGroups:
     dependsOn:
     - resourceGroup: service
       step: upgrade-aks-cluster
+    - resourceGroup: service
+      step: image-registry-policy
     identityFrom:
       resourceGroup: global
       step: output
@@ -607,6 +985,8 @@ resourceGroups:
       step: prometheus
     - resourceGroup: service
       step: mirror-exporter-image
+    - resourceGroup: service
+      step: image-registry-policy
     inputVariables:
       kustoRegion:
         resourceGroup: kusto

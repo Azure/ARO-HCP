@@ -65,6 +65,18 @@ func monitoringWorkspaceRefFromId(monitoringWorkspaceResourceId string) monitori
 }
 
 @export()
+type cosmosDBAccountRef = {
+  resourceGroup: resourceGroupReference
+  name: string
+}
+
+@export()
+func cosmosDBAccountRefFromId(cosmosDBAccountResourceId string) cosmosDBAccountRef => {
+  resourceGroup: resourceGroupFromResourceId(cosmosDBAccountResourceId)
+  name: last(split(cosmosDBAccountResourceId, '/'))
+}
+
+@export()
 type eventgridNamespaceRef = {
   resourceGroup: resourceGroupReference
   name: string
@@ -110,4 +122,16 @@ type kustoRef = {
 func kustoRefFromId(kustoResourceId string) kustoRef => {
   resourceGroup: resourceGroupFromResourceId(kustoResourceId)
   name: kustoResourceId != '' ? last(split(kustoResourceId, '/')) : ''
+}
+
+@export()
+type dnsRecordRef = {
+  recordName: string
+  zoneName: string
+}
+
+@export()
+func dnsRecordRefFromFqdn(fqdn string) dnsRecordRef => {
+  recordName: split(fqdn, '.')[0]
+  zoneName: join(skip(split(fqdn, '.'), 1), '.')
 }

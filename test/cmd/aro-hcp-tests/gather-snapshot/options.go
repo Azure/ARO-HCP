@@ -211,6 +211,9 @@ func (o Options) Run(ctx context.Context) error {
 	var allManifests []*snapshot.Manifest
 
 	for testName, ti := range o.TestTimingInfo {
+		if ctx.Err() != nil {
+			break
+		}
 		if len(ti.ResourceGroupNames) == 0 {
 			logger.V(1).Info("Skipping test without resource groups", "test", testName)
 			continue
@@ -232,15 +235,28 @@ func (o Options) Run(ctx context.Context) error {
 				HCPDatabase:     o.HCPDB,
 				ResourceGroup:   rg,
 				TimeWindow: snapshot.TimeWindow{
-					Start: ti.StartTime,
-					End:   ti.EndTime,
+					Start:           ti.StartTime,
+					End:             ti.EndTime,
+					SetupFinishTime: ti.SetupFinishTime,
 				},
-				QueryTimeout: 5 * time.Minute,
+				QueryTimeout:     5 * time.Minute,
+				TestStartTime:    ti.TestStartTime,
+				CleanupStartTime: ti.CleanupStartTime,
+			}
+
+			if input.TestStartTime.IsZero() {
+				return fmt.Errorf("test %q: TestStartTime is zero; timing metadata is incomplete", testName)
+			}
+			if input.CleanupStartTime.IsZero() {
+				return fmt.Errorf("test %q: CleanupStartTime is zero; timing metadata is incomplete", testName)
 			}
 
 			manifest, report, err := gatherer.Gather(ctx, input, testOutputDir)
 			if err != nil {
 				logger.Error(err, "Failed to gather snapshot", "test", testName, "resourceGroup", rg)
+				if ctx.Err() != nil {
+					break
+				}
 				continue
 			}
 
@@ -255,7 +271,7 @@ func (o Options) Run(ctx context.Context) error {
 			logger.Info("Snapshot complete",
 				"test", testName,
 				"resourceGroup", rg,
-				"resources", len(manifest.Resources),
+				"phases", len(manifest.Phases),
 				"verificationCases", len(report.Cases),
 			)
 		}
@@ -274,13 +290,22 @@ func (o Options) Run(ctx context.Context) error {
 		logger.Error(err, "Failed to write HTML overview")
 	}
 
-	// Check for failures.
-	var totalFailures int
-	for _, r := range allReports {
-		totalFailures += r.Failures()
+	// Dump the raw snapshot data so the rendering pipeline can be tested
+	// locally with real fixture data.
+	if err := WriteSnapshotData(o.OutputDir, allManifests, allReports); err != nil {
+		logger.Error(err, "Failed to write snapshot data")
 	}
-	if totalFailures > 0 {
-		return fmt.Errorf("%d verification failures detected across all tests", totalFailures)
+
+	// Exit non-zero only when the jUnit we just wrote contains at least one
+	// failing test case. This keeps the exit code aligned with what CI
+	// consumers actually see in the jUnit XML rather than the raw per-resource
+	// verification case count (which may be higher due to aggregation).
+	var junitFailures uint
+	for _, s := range suites.Suites {
+		junitFailures += s.NumFailed
+	}
+	if junitFailures > 0 {
+		return fmt.Errorf("%d jUnit test failure(s) detected across all tests", junitFailures)
 	}
 
 	return nil

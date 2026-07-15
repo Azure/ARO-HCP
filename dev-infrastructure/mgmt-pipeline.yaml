@@ -69,6 +69,24 @@ resourceGroups:
   resourceGroup: '{{ .mgmt.rg }}'
   subscription: '{{ .mgmt.subscription.key }}'
   steps:
+  # TODO(ARO-28044): re-enable after ARO-28040
+  # - name: grafana-monitoring-reader
+  #   action: ARM
+  #   template: templates/grafana-monitoring-reader.bicep
+  #   parameters: configurations/grafana-monitoring-reader.tmpl.bicepparam
+  #   deploymentLevel: Subscription
+  #   variables:
+  #   - name: grafanaPrincipalId
+  #     input:
+  #       resourceGroup: global
+  #       step: output
+  #       name: grafanaPrincipalId
+  - name: subscription-output
+    action: ARM
+    template: templates/subscription-lookup.bicep
+    parameters: configurations/subscription-lookup.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
   - name: rpRegistration
     action: ProviderFeatureRegistration
     providerConfigRef: mgmt.subscription.providers
@@ -175,7 +193,176 @@ resourceGroups:
         name: mgmtKeyVaultUrl
     issuer:
       value: OneCertV2-PublicCA
+  - name: maestro-consumer-cert
+    action: CreateCertificate
+    secretKeyVault:
+      configRef: ev2.assistedId.certificate.keyVault
+    secretName:
+      configRef: ev2.assistedId.certificate.name
+    applicationId:
+      configRef: ev2.assistedId.applicationId
+    vaultBaseUrl:
+      input:
+        resourceGroup: management
+        step: infra-output
+        name: mgmtKeyVaultUrl
+    certificateName:
+      configRef: maestro.agent.consumerName
+    contentType:
+      value: x-pkcs12
+    san:
+      configRef: maestro.agent.certSAN
+    issuer:
+      configRef: maestro.certIssuer
+    commonName:
+      configRef: maestro.agent.certCN
+    dependsOn:
+    - resourceGroup: management
+      step: infra-output
+    - resourceGroup: management
+      step: oncert-private-kv-issuer
+    - resourceGroup: management
+      step: oncert-public-kv-issuer
+    automatedRetry:
+      errorContainsAny:
+      - "InternalServerError"
+      - "ServiceUnavailable"
+      maximumRetryCount: 3
+      durationBetweenRetries: 1m
+  - name: geneva-rp-logs-cert
+    action: CreateCertificate
+    manage:
+      configRef: geneva.logs.manage
+    secretKeyVault:
+      configRef: ev2.assistedId.certificate.keyVault
+    secretName:
+      configRef: ev2.assistedId.certificate.name
+    applicationId:
+      configRef: ev2.assistedId.applicationId
+    vaultBaseUrl:
+      input:
+        resourceGroup: management
+        step: infra-output
+        name: mgmtKeyVaultUrl
+    certificateName:
+      configRef: geneva.logs.rp.secretName
+    contentType:
+      configRef: geneva.logs.contentType
+    san:
+      configRef: geneva.logs.rp.san
+    issuer:
+      configRef: geneva.logs.certificateIssuer
+    commonName:
+      configRef: geneva.logs.rp.san
+    dependsOn:
+    - resourceGroup: management
+      step: infra-output
+    - resourceGroup: management
+      step: oncert-private-kv-issuer
+    automatedRetry:
+      errorContainsAny:
+      - "InternalServerError"
+      - "ServiceUnavailable"
+      maximumRetryCount: 3
+      durationBetweenRetries: 1m
+  - name: geneva-cluster-logs-cert
+    action: CreateCertificate
+    manage:
+      configRef: geneva.logs.manage
+    secretKeyVault:
+      configRef: ev2.assistedId.certificate.keyVault
+    secretName:
+      configRef: ev2.assistedId.certificate.name
+    applicationId:
+      configRef: ev2.assistedId.applicationId
+    vaultBaseUrl:
+      input:
+        resourceGroup: management
+        step: infra-output
+        name: mgmtKeyVaultUrl
+    certificateName:
+      configRef: geneva.logs.cluster.secretName
+    contentType:
+      configRef: geneva.logs.contentType
+    san:
+      configRef: geneva.logs.cluster.san
+    issuer:
+      configRef: geneva.logs.certificateIssuer
+    commonName:
+      configRef: geneva.logs.cluster.san
+    dependsOn:
+    - resourceGroup: management
+      step: infra-output
+    - resourceGroup: management
+      step: oncert-private-kv-issuer
+    automatedRetry:
+      errorContainsAny:
+      - "InternalServerError"
+      - "ServiceUnavailable"
+      maximumRetryCount: 3
+      durationBetweenRetries: 1m
   # Build the MC
+  # The swift-vnet-permissions step runs unconditionally so the EV2 step graph is
+  # stable, but the Swift VNet RBAC grant inside it is gated at the Bicep layer via
+  # the enableSwift bicepparam (mgmt.aks.enableSwiftV2Vnet). A pipeline-level Go
+  # template guard would not work here: EV2 manifest generation renders pipeline
+  # config values as placeholders, so the guard would always evaluate truthy.
+  - name: swift-vnet-permissions
+    action: ARM
+    template: templates/swift-vnet-permissions.bicep
+    parameters: configurations/swift-vnet-permissions.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    variables:
+    - name: deploymentMsiId
+      input:
+        resourceGroup: global
+        step: output
+        name: globalMSIId
+    dependsOn:
+    - resourceGroup: management
+      step: subscription-output
+  # Create/tag the Swift VNet. The tag stampcreatorserviceinfo=true must be written by the
+  # Swift-registered globalMSI, so this step launches a container group assigned globalMSI and
+  # runs the create/tag AS globalMSI from inside it (scripts/swift-vnet.sh). Create, wait, log
+  # and cleanup all happen in this single Shell step, so there is no cross-step async race. The
+  # script is a no-op when ENABLE_SWIFT is false, keeping the EV2 step graph stable.
+  - name: swift-vnet
+    action: Shell
+    command: ./swift-vnet.sh
+    workingDir: ./scripts
+    shellIdentity:
+      input:
+        resourceGroup: global
+        step: output
+        name: globalMSIId
+    variables:
+    - name: ENABLE_SWIFT
+      configRef: mgmt.aks.enableSwiftV2Vnet
+    - name: VNET_NAME
+      value: aks-net
+    - name: VNET_ADDRESS_PREFIX
+      configRef: mgmt.aks.vnetAddressPrefix
+    - name: RESOURCE_GROUP
+      configRef: mgmt.rg
+    - name: SUBSCRIPTION_ID
+      input:
+        resourceGroup: management
+        step: subscription-output
+        name: subscriptionId
+    - name: DEPLOYMENT_MSI_ID
+      input:
+        resourceGroup: global
+        step: output
+        name: globalMSIId
+    dependsOn:
+    - resourceGroup: management
+      step: swift-vnet-permissions
+    automatedRetry:
+      errorContainsAny:
+      - "ContainerGroupDeploymentNotReady"
+      - "Timed out"
+      maximumRetryCount: 3
+      durationBetweenRetries: 1m
   - name: cluster
     action: ARM
     template: templates/mgmt-cluster.bicep
@@ -212,6 +399,11 @@ resourceGroups:
         resourceGroup: regional
         step: output
         name: maestroEventGridNamespaceId
+    - name: rpCosmosDbAccountId
+      input:
+        resourceGroup: regional
+        step: output
+        name: rpCosmosDbAccountId
     - name: auditLogsEventHubAuthRuleId
       input:
         resourceGroup: auditLogs
@@ -219,11 +411,15 @@ resourceGroups:
         name: auditLogsEventHubAuthRuleId
     dependsOn:
     - resourceGroup: management
+      step: maestro-consumer-cert
+    - resourceGroup: management
       step: cx-oncert-public-kv-issuer
     - resourceGroup: management
       step: oncert-private-kv-issuer
     - resourceGroup: management
       step: oncert-public-kv-issuer
+    - resourceGroup: management
+      step: swift-vnet
     automatedRetry:
       errorContainsAny:
       - "DeploymentScriptACIProvisioningTimeout"
@@ -249,26 +445,6 @@ resourceGroups:
     dependsOn:
     - resourceGroup: management
       step: cluster
-  - name: delete-non-swift-user-nodepools
-    aksCluster: '{{ .mgmt.aks.name }}'
-    action: Shell
-    command: ./scripts/delete-user-nodepools.sh
-    workingDir: .
-    shellIdentity:
-      input:
-        resourceGroup: global
-        step: output
-        name: globalMSIId
-    variables:
-    - name: CLUSTER_NAME
-      configRef: mgmt.aks.name
-    - name: RESOURCE_GROUP
-      configRef: mgmt.rg
-    - name: POOL_NAME_PATTERN
-      value: 'user[0-9]+'
-    dependsOn:
-    - resourceGroup: management
-      step: cluster
   - name: upgrade-aks-cluster
     action: Shell
     command: ./upgrade-aks-cluster.sh
@@ -287,7 +463,7 @@ resourceGroups:
       configRef: mgmt.aks.kubernetesVersion
     dependsOn:
     - resourceGroup: management
-      step: delete-non-swift-user-nodepools
+      step: cluster
   - name: nsp
     action: ARM
     omitFromServiceGroupCompletion: true
@@ -327,6 +503,29 @@ resourceGroups:
         resourceGroup: service
         step: output
         name: exporterPrincipalId
+  - name: mgmt-agent-output
+    action: ARM
+    template: modules/mgmt-agent/mgmt-agent-lookup.bicep
+    parameters: configurations/mgmt-agent-lookup.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
+    dependsOn:
+    - resourceGroup: management
+      step: cluster
+  - name: mgmt-agent-permissions
+    action: ARM
+    template: templates/mgmt-agent-permissions.bicep
+    parameters: configurations/mgmt-agent-permissions.tmpl.bicepparam
+    deploymentLevel: Subscription
+    variables:
+    - name: mgmtAgentPrincipalId
+      input:
+        resourceGroup: management
+        step: mgmt-agent-output
+        name: msiPrincipalId
+    dependsOn:
+    - resourceGroup: management
+      step: mgmt-agent-output
   - name: kusto-grant-ingest
     action: ARM
     template: templates/kusto-grant-ingest.bicep
@@ -356,6 +555,7 @@ resourceGroups:
   - name: prometheus
     aksCluster: '{{ .mgmt.aks.name }}'
     action: Helm
+    timeout: 10m
     releaseName: 'arohcp-monitor'
     releaseNamespace: 'prometheus'
     namespaceFiles:
@@ -384,6 +584,8 @@ resourceGroups:
     dependsOn:
     - resourceGroup: management
       step: upgrade-aks-cluster
+    - resourceGroup: management
+      step: image-registry-policy
     identityFrom:
       resourceGroup: global
       step: output
@@ -433,6 +635,34 @@ resourceGroups:
       - "Internal error occurred"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
+  - name: image-registry-policy
+    aksCluster: '{{ .mgmt.aks.name }}'
+    action: Helm
+    releaseName: image-registry-policy
+    releaseNamespace: image-registry-policy
+    chartDir: ./../image-registry-policy/deploy
+    valuesFile: ./../image-registry-policy/values.yaml
+    kustoEndpoint:
+      resourceGroup: kusto
+      step: output
+      name: kustoUri
+    kustoDatabase: '{{ .kusto.serviceLogsDatabase }}'
+    kustoTable: 'containerLogs'
+    dependsOn:
+    - resourceGroup: management
+      step: cluster
+    - resourceGroup: management
+      step: upgrade-aks-cluster
+    identityFrom:
+      resourceGroup: global
+      step: output
+      name: globalMSIId
+    automatedRetry:
+      errorContainsAny:
+      - "500 Internal Server Error"
+      - "Internal error occurred"
+      maximumRetryCount: 3
+      durationBetweenRetries: 1m
   - name: storageclass
     aksCluster: '{{ .mgmt.aks.name }}'
     action: Helm
@@ -449,6 +679,8 @@ resourceGroups:
     dependsOn:
     - resourceGroup: management
       step: upgrade-aks-cluster
+    - resourceGroup: management
+      step: image-registry-policy
     identityFrom:
       resourceGroup: global
       step: output
@@ -477,6 +709,8 @@ resourceGroups:
     dependsOn:
     - resourceGroup: management
       step: upgrade-aks-cluster
+    - resourceGroup: management
+      step: image-registry-policy
     identityFrom:
       resourceGroup: global
       step: output
@@ -503,6 +737,8 @@ resourceGroups:
     dependsOn:
     - resourceGroup: management
       step: upgrade-aks-cluster
+    - resourceGroup: management
+      step: image-registry-policy
     identityFrom:
       resourceGroup: global
       step: output
@@ -513,20 +749,6 @@ resourceGroups:
       - "Internal error occurred"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
-  # TODO: Remove this step once all management clusters have been cleaned up (ARO-23308)
-  - name: cleanup-pko
-    aksCluster: '{{ .mgmt.aks.name }}'
-    action: Shell
-    command: ./scripts/cleanup-pko.sh
-    workingDir: .
-    shellIdentity:
-      input:
-        resourceGroup: global
-        step: output
-        name: globalMSIId
-    dependsOn:
-    - resourceGroup: management
-      step: cluster
   - name: service-lifecycle
     aksCluster: '{{ .mgmt.aks.name }}'
     action: Helm
@@ -569,6 +791,7 @@ resourceGroups:
     releaseNamespace: 'arobit'
     chartDir: ../observability/arobit/deploy
     valuesFile: ../observability/arobit/values-mgmt.yaml
+    timeout: 10m
     kustoEndpoint:
       resourceGroup: kusto
       step: output
@@ -599,6 +822,7 @@ resourceGroups:
       errorContainsAny:
       - "500 Internal Server Error"
       - "Internal error occurred"
+      - "arobit-forwarder not ready. status: InProgress"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
   - name: kube-events
@@ -617,6 +841,8 @@ resourceGroups:
     dependsOn:
     - resourceGroup: management
       step: upgrade-aks-cluster
+    - resourceGroup: management
+      step: image-registry-policy
     identityFrom:
       resourceGroup: global
       step: output

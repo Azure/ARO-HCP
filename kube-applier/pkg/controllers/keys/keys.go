@@ -22,10 +22,14 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/go-logr/logr"
+
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 // ApplyDesireKey identifies a single ApplyDesire by the parts of its resource ID
@@ -41,38 +45,34 @@ type ApplyDesireKey struct {
 // IsNodePoolScoped reports whether this key targets a node-pool-scoped desire.
 func (k ApplyDesireKey) IsNodePoolScoped() bool { return len(k.NodePoolName) > 0 }
 
-// ResourceParent renders the cluster/nodepool ancestor of this desire as a
-// database.ResourceParent so a per-parent ResourceCRUD can be built from a
-// KubeApplierApplyDesireCRUD.
-func (k ApplyDesireKey) ResourceParent() database.ResourceParent {
-	return database.ResourceParent{
-		SubscriptionID:    k.SubscriptionID,
-		ResourceGroupName: k.ResourceGroupName,
-		ClusterName:       k.ClusterName,
-		NodePoolName:      k.NodePoolName,
+// CRUD returns the right per-scope CRUD for this key's parent.
+func (k ApplyDesireKey) CRUD(client database.KubeApplierApplyDesireCRUD) (database.ResourceCRUD[kubeapplier.ApplyDesire, *kubeapplier.ApplyDesire], error) {
+	if k.IsNodePoolScoped() {
+		return client.ApplyDesiresForNodePool(k.SubscriptionID, k.ResourceGroupName, k.ClusterName, k.NodePoolName)
 	}
+	return client.ApplyDesiresForCluster(k.SubscriptionID, k.ResourceGroupName, k.ClusterName)
 }
 
-// DeleteDesireKey identifies a single DeleteDesire.
-type DeleteDesireKey struct {
-	SubscriptionID    string
-	ResourceGroupName string
-	ClusterName       string
-	NodePoolName      string
-	Name              string
+// GetResourceID returns the desire's full resource ID. It uses the
+// cluster-scoped or node-pool-scoped builder depending on the key's shape.
+func (k ApplyDesireKey) GetResourceID() *azcorearm.ResourceID {
+	var s string
+	if k.IsNodePoolScoped() {
+		s = kubeapplier.ToNodePoolScopedApplyDesireResourceIDString(
+			k.SubscriptionID, k.ResourceGroupName, k.ClusterName, k.NodePoolName, k.Name)
+	} else {
+		s = kubeapplier.ToClusterScopedApplyDesireResourceIDString(
+			k.SubscriptionID, k.ResourceGroupName, k.ClusterName, k.Name)
+	}
+	return api.Must(azcorearm.ParseResourceID(s))
 }
 
-// IsNodePoolScoped reports whether this key targets a node-pool-scoped desire.
-func (k DeleteDesireKey) IsNodePoolScoped() bool { return len(k.NodePoolName) > 0 }
-
-// ResourceParent is the DeleteDesire peer of ApplyDesireKey.ResourceParent.
-func (k DeleteDesireKey) ResourceParent() database.ResourceParent {
-	return database.ResourceParent{
-		SubscriptionID:    k.SubscriptionID,
-		ResourceGroupName: k.ResourceGroupName,
-		ClusterName:       k.ClusterName,
-		NodePoolName:      k.NodePoolName,
-	}
+// AddLoggerValues implements utils.LoggableKey so the generic worker loop seeds
+// per-reconcile logger fields straight from the resource ID — same key set the
+// backend uses (subscription_id, resource_group, resource_name, resource_id,
+// hcp_cluster_name).
+func (k ApplyDesireKey) AddLoggerValues(logger logr.Logger) logr.Logger {
+	return logger.WithValues(utils.LogValues{}.AddLogValuesForResourceID(k.GetResourceID())...)
 }
 
 // ReadDesireKey identifies a single ReadDesire.
@@ -87,14 +87,32 @@ type ReadDesireKey struct {
 // IsNodePoolScoped reports whether this key targets a node-pool-scoped desire.
 func (k ReadDesireKey) IsNodePoolScoped() bool { return len(k.NodePoolName) > 0 }
 
-// ResourceParent is the ReadDesire peer of ApplyDesireKey.ResourceParent.
-func (k ReadDesireKey) ResourceParent() database.ResourceParent {
-	return database.ResourceParent{
-		SubscriptionID:    k.SubscriptionID,
-		ResourceGroupName: k.ResourceGroupName,
-		ClusterName:       k.ClusterName,
-		NodePoolName:      k.NodePoolName,
+// CRUD returns the right per-scope CRUD for this key's parent.
+func (k ReadDesireKey) CRUD(client database.KubeApplierReadDesireCRUD) (database.ResourceCRUD[kubeapplier.ReadDesire, *kubeapplier.ReadDesire], error) {
+	if k.IsNodePoolScoped() {
+		return client.ReadDesiresForNodePool(k.SubscriptionID, k.ResourceGroupName, k.ClusterName, k.NodePoolName)
 	}
+	return client.ReadDesiresForCluster(k.SubscriptionID, k.ResourceGroupName, k.ClusterName)
+}
+
+// GetResourceID returns the desire's full resource ID. It uses the
+// cluster-scoped or node-pool-scoped builder depending on the key's shape.
+func (k ReadDesireKey) GetResourceID() *azcorearm.ResourceID {
+	var s string
+	if k.IsNodePoolScoped() {
+		s = kubeapplier.ToNodePoolScopedReadDesireResourceIDString(
+			k.SubscriptionID, k.ResourceGroupName, k.ClusterName, k.NodePoolName, k.Name)
+	} else {
+		s = kubeapplier.ToClusterScopedReadDesireResourceIDString(
+			k.SubscriptionID, k.ResourceGroupName, k.ClusterName, k.Name)
+	}
+	return api.Must(azcorearm.ParseResourceID(s))
+}
+
+// AddLoggerValues implements utils.LoggableKey so the generic worker loop seeds
+// per-reconcile logger fields straight from the resource ID.
+func (k ReadDesireKey) AddLoggerValues(logger logr.Logger) logr.Logger {
+	return logger.WithValues(utils.LogValues{}.AddLogValuesForResourceID(k.GetResourceID())...)
 }
 
 // FromResourceID parses an ApplyDesireKey out of a *Desire's resource ID. The
@@ -111,15 +129,6 @@ func ApplyDesireKeyFromResourceID(id *azcorearm.ResourceID) (ApplyDesireKey, err
 		return ApplyDesireKey{}, err
 	}
 	return ApplyDesireKey(parts), nil
-}
-
-// DeleteDesireKeyFromResourceID is the DeleteDesire parallel of ApplyDesireKeyFromResourceID.
-func DeleteDesireKeyFromResourceID(id *azcorearm.ResourceID) (DeleteDesireKey, error) {
-	parts, err := parseDesireParts(id)
-	if err != nil {
-		return DeleteDesireKey{}, err
-	}
-	return DeleteDesireKey(parts), nil
 }
 
 // ReadDesireKeyFromResourceID is the ReadDesire parallel of ApplyDesireKeyFromResourceID.

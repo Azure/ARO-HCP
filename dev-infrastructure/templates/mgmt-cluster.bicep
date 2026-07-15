@@ -4,6 +4,7 @@ import {
 } from '../modules/common.bicep'
 
 import * as mi from '../modules/managed-identities.bicep'
+import * as res from '../modules/resource.bicep'
 
 @description('Azure Region Location')
 param location string = resourceGroup().location
@@ -136,13 +137,19 @@ param aksEnableSwiftVnet bool
 @description('Enable Swift V2 for the AKS cluster nodepools')
 param aksEnableSwiftNodepools bool
 
+@description('Maximum surge for AKS node pool upgrades')
+param aksUpgradeSettingsMaxSurge string
+
+@description('Maximum unavailable for AKS node pool upgrades')
+param aksUpgradeSettingsMaxUnavailable string
+
 @description('The name of the maestro consumer.')
 param maestroConsumerName string
 
-@description('The domain to use to use for the maestro certificate. Relevant only for environments where OneCert can be used.')
-param maestroCertDomain string
+@description('The SAN and CN for the Maestro consumer EventGrid certificate.')
+param maestroConsumerCertSAN string
 
-@description('The issuer of the maestro certificate.')
+@description('The issuer of the Maestro certificate.')
 param maestroCertIssuer string
 
 @description('The Azure resource ID of the eventgrid namespace for Maestro.')
@@ -157,8 +164,35 @@ param maestroConsumerNamespace string
 @description('The service account name of the maestro consumer.')
 param maestroConsumerServiceAccountName string
 
-@description('The regional SVC DNS zone name.')
-param regionalSvcDNSZoneName string
+@description('The resource ID of the Cosmos DB account for the RP')
+param rpCosmosDbAccountId string
+
+@description('If true, make the Cosmos DB instance private')
+param rpCosmosDbPrivate bool
+
+@description('The name of the kube-applier managed identity.')
+param kubeApplierMIName string
+
+@description('The namespace for kube-applier.')
+param kubeApplierNamespace string
+
+@description('The service account name for kube-applier.')
+param kubeApplierServiceAccountName string
+
+@description('The CosmosDB container name for kube-applier.')
+param kubeApplierContainerName string
+
+@description('The autoscale max throughput for the kube-applier CosmosDB container.')
+param kubeApplierContainerMaxScale int
+
+@description('The name of the mgmt-agent managed identity.')
+param mgmtAgentMIName string
+
+@description('The namespace of the mgmt-agent controller.')
+param mgmtAgentNamespace string
+
+@description('The service account name of the mgmt-agent controller.')
+param mgmtAgentServiceAccountName string
 
 @description('The name of the CX KeyVault')
 param cxKeyVaultName string
@@ -188,20 +222,11 @@ param logsMSI string
 @description('The service account name of the logs managed identity')
 param logsServiceAccount string
 
-@description('Issuer of certificate for Geneva Authentication')
-param genevaCertificateIssuer string = 'Self'
-
 @description('Name of certificate in Keyvault and hostname used in SAN')
 param genevaRpLogsName string
 
 @description('Name of certificate in Keyvault and hostname used in SAN')
 param genevaClusterLogsName string
-
-@description('Domain used for creation of geneva auth certificates')
-param genevaCertificateDomain string
-
-@description('Should geneva certificates be managed')
-param genevaManageCertificates bool
 
 @description('The name of the Azure Storage account to create for HCP Backups')
 param hcpBackupsStorageAccountName string
@@ -225,6 +250,11 @@ var workloadIdentities = items({
     namespace: maestroConsumerNamespace
     serviceAccountName: maestroConsumerServiceAccountName
   }
+  mgmt_agent_wi: {
+    uamiName: mgmtAgentMIName
+    namespace: mgmtAgentNamespace
+    serviceAccountName: mgmtAgentServiceAccountName
+  }
   logs_wi: {
     uamiName: logsMSI
     namespace: logsNamespace
@@ -239,6 +269,11 @@ var workloadIdentities = items({
     uamiName: 'velero'
     namespace: 'velero'
     serviceAccountName: 'velero'
+  }
+  kube_applier_wi: {
+    uamiName: kubeApplierMIName
+    namespace: kubeApplierNamespace
+    serviceAccountName: kubeApplierServiceAccountName
   }
 })
 
@@ -304,7 +339,6 @@ module vnetCreation '../modules/network/vnet.bicep' = {
     vnetName: vnetName
     vnetAddressPrefix: vnetAddressPrefix
     enableSwift: aksEnableSwiftVnet
-    deploymentMsiId: globalMSIId
   }
 }
 
@@ -377,6 +411,8 @@ module mgmtCluster '../modules/aks-cluster-base.bicep' = {
     networkPolicy: aksNetworkPolicy
     deploymentMsiId: globalMSIId
     enableSwiftV2Nodepools: aksEnableSwiftNodepools
+    upgradeSettingsMaxSurge: aksUpgradeSettingsMaxSurge
+    upgradeSettingsMaxUnavailable: aksUpgradeSettingsMaxUnavailable
     owningTeamTagValue: owningTeamTagValue
     aksClusterUserDefinedManagedIdentityName: aksClusterUserDefinedManagedIdentity.name
   }
@@ -403,6 +439,17 @@ module dataCollection '../modules/metrics/datacollection.bicep' = {
   dependsOn: [
     mgmtCluster
   ]
+}
+
+// Declare this management cluster in the authoritative underlay-cluster inventory (see the module
+// for details). Instantiated per stamp, so each management cluster emits its own series and they
+// are torn down individually when a stamp is decommissioned.
+module underlayClusterMetric '../modules/metrics/underlay-clusters-metric.bicep' = {
+  name: 'underlay-clusters-metric'
+  params: {
+    azureMonitoringWorkspaceId: azureMonitoringWorkspaceId
+    clusterName: aksClusterName
+  }
 }
 
 //
@@ -455,32 +502,24 @@ resource mgmtKeyVault 'Microsoft.KeyVault/vaults@2024-04-01-preview' existing = 
 }
 
 //
-//   G E N E V A   C E R T I F I C A T E
+//   G E N E V A   C E R T I F I C A T E   A C C E S S
 //
 
-module genevaRPCertificate '../modules/keyvault/key-vault-cert-with-access.bicep' = if (genevaManageCertificates) {
+module genevaRpLogsCertCSIAccess '../modules/keyvault/key-vault-secret-access.bicep' = {
   name: 'geneva-mgmt-rp-certificate'
   params: {
     keyVaultName: mgmtKeyVaultName
-    kvCertOfficerManagedIdentityResourceId: globalMSIId
-    certDomain: genevaCertificateDomain
-    certificateIssuer: genevaCertificateIssuer
-    hostName: genevaRpLogsName
-    keyVaultCertificateName: genevaRpLogsName
-    certificateAccessManagedIdentityPrincipalId: mgmtCluster.outputs.aksClusterKeyVaultSecretsProviderPrincipalId
+    principalId: mgmtCluster.outputs.aksClusterKeyVaultSecretsProviderPrincipalId
+    secretName: genevaRpLogsName
   }
 }
 
-module genevaClusterLogCertificate '../modules/keyvault/key-vault-cert-with-access.bicep' = if (genevaManageCertificates) {
+module genevaClusterLogsCertCSIAccess '../modules/keyvault/key-vault-secret-access.bicep' = {
   name: 'geneva-cluster-log-certificate'
   params: {
     keyVaultName: mgmtKeyVaultName
-    kvCertOfficerManagedIdentityResourceId: globalMSIId
-    certDomain: genevaCertificateDomain
-    certificateIssuer: genevaCertificateIssuer
-    hostName: genevaClusterLogsName
-    keyVaultCertificateName: genevaClusterLogsName
-    certificateAccessManagedIdentityPrincipalId: mgmtCluster.outputs.aksClusterKeyVaultSecretsProviderPrincipalId
+    principalId: mgmtCluster.outputs.aksClusterKeyVaultSecretsProviderPrincipalId
+    secretName: genevaClusterLogsName
   }
 }
 
@@ -488,9 +527,7 @@ module genevaClusterLogCertificate '../modules/keyvault/key-vault-cert-with-acce
 //   M A E S T R O
 //
 
-var effectiveMaestroCertDomain = !empty(maestroCertDomain) ? maestroCertDomain : 'maestro.${regionalSvcDNSZoneName}'
-
-module maestroConsumer '../modules/maestro/maestro-consumer.bicep' = if (maestroEventGridNamespaceId != '') {
+module maestroConsumer '../modules/maestro/maestro-consumer.bicep' = {
   name: 'maestro-consumer'
   params: {
     maestroAgentManagedIdentityPrincipalId: mi.getManagedIdentityByName(
@@ -500,9 +537,8 @@ module maestroConsumer '../modules/maestro/maestro-consumer.bicep' = if (maestro
     maestroConsumerName: maestroConsumerName
     maestroEventGridNamespaceId: maestroEventGridNamespaceId
     certKeyVaultName: mgmtKeyVaultName
-    keyVaultOfficerManagedIdentityName: globalMSIId
-    maestroCertificateDomain: effectiveMaestroCertDomain
-    maestroCertificateIssuer: maestroCertIssuer
+    certificateSAN: maestroConsumerCertSAN
+    certificateIssuer: maestroCertIssuer
   }
   dependsOn: [
     mgmtKeyVault
@@ -513,7 +549,7 @@ module maestroConsumer '../modules/maestro/maestro-consumer.bicep' = if (maestro
 //  E V E N T   G R I D   P R I V A T E   E N D P O I N T   C O N N E C T I O N
 //
 
-module eventGrindPrivateEndpoint '../modules/private-endpoint.bicep' = if (maestroEventGridNamespaceId != '') {
+module eventGrindPrivateEndpoint '../modules/private-endpoint.bicep' = {
   name: 'eventGridPrivateEndpoint'
   params: {
     location: location
@@ -522,6 +558,42 @@ module eventGrindPrivateEndpoint '../modules/private-endpoint.bicep' = if (maest
     vnetId: vnetCreation.outputs.vnetId
     serviceType: 'eventgrid'
     groupId: 'topicspace'
+  }
+}
+
+//
+//   K U B E   A P P L I E R
+//
+
+var rpCosmosDbAccountRef = res.cosmosDBAccountRefFromId(rpCosmosDbAccountId)
+
+module kubeApplierCosmos '../modules/rp-cosmos-kube-applier.bicep' = if (rpCosmosDbAccountId != '') {
+  name: 'kube-applier-cosmos-${uniqueString(resourceGroup().name)}'
+  scope: resourceGroup(rpCosmosDbAccountRef.resourceGroup.subscriptionId, rpCosmosDbAccountRef.resourceGroup.name)
+  params: {
+    cosmosDBAccountName: rpCosmosDbAccountRef.name
+    containerName: kubeApplierContainerName
+    containerMaxScale: kubeApplierContainerMaxScale
+    kubeApplierManagedIdentityPrincipalId: mi.getManagedIdentityByName(
+      managedIdentities.outputs.managedIdentities,
+      kubeApplierMIName
+    ).uamiPrincipalID
+  }
+}
+
+//
+//  C O S M O S D B   P R I V A T E   E N D P O I N T   C O N N E C T I O N
+//
+
+module cosmosDbPrivateEndpoint '../modules/private-endpoint.bicep' = if (rpCosmosDbPrivate && rpCosmosDbAccountId != '') {
+  name: 'cosmosDbPrivateEndpoint'
+  params: {
+    location: location
+    subnetIds: [nodeSubnetCreation.outputs.subnetId]
+    privateLinkServiceId: rpCosmosDbAccountId
+    vnetId: vnetCreation.outputs.vnetId
+    serviceType: 'cosmosdb'
+    groupId: 'Sql'
   }
 }
 

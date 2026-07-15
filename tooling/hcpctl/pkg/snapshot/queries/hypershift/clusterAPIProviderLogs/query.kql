@@ -1,0 +1,25 @@
+cluster('{{ .ClusterURI }}').database('{{ .HCPDatabase }}').table('containerLogs')
+| where timestamp between ({{ kqlDatetime .PhaseStartTime }} .. {{ kqlDatetime .PhaseEndTime }})
+{{- if and .ServiceClusterName .ManagementClusterName }}
+| where cluster in ('{{ .ServiceClusterName }}', '{{ .ManagementClusterName }}')
+{{- end }}
+| where namespace_name == '{{ .HostedControlPlaneNamespace }}'
+| where pod_name has 'capi-provider-'
+| extend logStr = tostring(log)
+| extend msg = extract(@']\s+"([^"]+)"', 1, logStr)
+| extend err = coalesce(
+    extract(@'err=<\n([\s\S]*?)\n\s*>', 1, logStr),
+    extract(@'err="((?:[^"\\]|\\.)*)"', 1, logStr))
+| extend controller = extract(@'controller="([^"]*)"', 1, logStr)
+| extend controllerGroup = extract(@'controllerGroup="([^"]*)"', 1, logStr)
+| extend controllerKind = extract(@'controllerKind="([^"]*)"', 1, logStr)
+| extend name = extract(@'\sname="([^"]*)"', 1, logStr)
+| extend namespace = extract(@'namespace="([^"]*)"', 1, logStr)
+| where controller contains 'azure'
+| project timestamp, msg, err, controller, controllerGroup, controllerKind, name, namespace
+| summarize
+    first_occurrence = min(timestamp),
+    last_occurrence = max(timestamp),
+    occurrences = count()
+  by msg, err, controller, controllerGroup, controllerKind, name, namespace
+| order by first_occurrence asc

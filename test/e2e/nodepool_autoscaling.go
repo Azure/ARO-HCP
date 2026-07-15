@@ -48,7 +48,6 @@ var _ = Describe("Customer", func() {
 				azNodePoolName         = "autoscale-az"
 				azAutoscalingMin int32 = 3
 				azAutoscalingMax int32 = 500
-				availabilityZone       = "1"
 
 				noAZNodePoolName         = "autoscale-noaz"
 				noAZAutoscalingMin int32 = 3
@@ -57,48 +56,56 @@ var _ = Describe("Customer", func() {
 			tc := framework.NewTestContext()
 
 			if tc.UsePooledIdentities() {
-				err := tc.AssignIdentityContainers(ctx, 1, 60*time.Second)
-				Expect(err).NotTo(HaveOccurred())
+				err := tc.AssignIdentityContainers(ctx, 1, framework.IdentityContainerAssignmentRetryInterval)
+				Expect(err).NotTo(HaveOccurred(), "failed to assign pooled identity containers")
 			}
 
-			By("checking if the region supports availability zones")
-			hasAZ, err := tc.LocationHasAvailabilityZones(ctx, "Standard_D8s_v3")
-			Expect(err).NotTo(HaveOccurred())
+			By("resolving the default worker VM size and its usable availability zones")
+			workerVMSize, err := tc.SelectVMSize(ctx, framework.DefaultWorkerVMSizeSelector())
+			Expect(err).NotTo(HaveOccurred(), "failed to resolve the default worker VM size")
+			availableZones, err := tc.AvailableZones(ctx, workerVMSize)
+			Expect(err).NotTo(HaveOccurred(), "failed to resolve usable availability zones for worker VM size %s", workerVMSize)
+			hasAZ := len(availableZones) > 0
+			var availabilityZone string
+			if hasAZ {
+				availabilityZone = availableZones[0]
+			}
 
 			By("creating a resource group")
 			resourceGroup, err := tc.NewResourceGroup(ctx, "np-autoscaling", tc.Location())
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create resource group for nodepool autoscaling test")
 
 			By("creating cluster parameters")
-			clusterParams := framework.NewDefaultClusterParams()
+			clusterParams := framework.NewDefaultClusterParams20240610()
 			clusterParams.ClusterName = customerClusterName
-			clusterParams.ManagedResourceGroupName = framework.SuffixName(*resourceGroup.Name, "-managed", 64)
+			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
+			clusterParams.ManagedResourceGroupName = managedResourceGroupName
 
 			By("creating customer resources")
-			clusterParams, err = tc.CreateClusterCustomerResources(ctx,
+			clusterParams, err = tc.CreateClusterCustomerResources20240610(ctx,
 				resourceGroup,
 				clusterParams,
 				map[string]any{},
 				TestArtifactsFS,
 				framework.RBACScopeResourceGroup,
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create cluster customer resources")
 
 			By("creating the HCP cluster")
-			err = tc.CreateHCPClusterFromParam(ctx,
+			err = tc.CreateHCPClusterFromParam20240610(ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
 				clusterParams,
-				45*time.Minute,
+				framework.ClusterCreationTimeout,
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster %s", customerClusterName)
 
 			By("verifying the cluster has default autoscaling parameters")
-			clusterResp, err := framework.GetHCPCluster(ctx,
+			clusterResp, err := framework.GetHCPCluster20240610(ctx,
 				tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 				*resourceGroup.Name,
 				customerClusterName)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to get HCP cluster %s", customerClusterName)
 
 			Expect(clusterResp.Properties).NotTo(BeNil(), "cluster response Properties was nil")
 			Expect(clusterResp.Properties.Autoscaling).NotTo(BeNil(), "Expected cluster to have default autoscaling configuration")
@@ -108,24 +115,25 @@ var _ = Describe("Customer", func() {
 			Expect(clusterResp.Properties.Autoscaling.MaxNodesTotal).To(BeNil(), "Expected MaxNodesTotal to be nil when not explicitly set")
 
 			By("getting admin credentials for the cluster")
-			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster(
+			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20240610(
 				ctx,
 				tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 				*resourceGroup.Name,
 				customerClusterName,
-				10*time.Minute,
+				framework.GetAdminRESTConfigTimeout,
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to get admin REST config for cluster %s", customerClusterName)
 
 			nodePoolsClient := tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient()
 			kubeClient, err := kubernetes.NewForConfig(adminRESTConfig)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create Kubernetes client from admin REST config")
 
 			if !hasAZ {
-				By("skipping AZ nodepool creation: region does not support availability zones")
+				By("skipping AZ nodepool creation: no usable availability zones for worker VM size " +
+					workerVMSize + " in " + tc.Location())
 			} else {
-				By("creating the AZ nodepool with 500 max replicas")
-				azNodePoolParams := framework.NewDefaultNodePoolParams()
+				By("creating the AZ nodepool with 500 max replicas in availability zone " + availabilityZone)
+				azNodePoolParams := framework.NewDefaultNodePoolParams20240610()
 				azNodePoolParams.ClusterName = customerClusterName
 				azNodePoolParams.NodePoolName = azNodePoolName
 				azNodePoolParams.AutoScaling = &framework.NodePoolAutoScalingParams{
@@ -134,33 +142,35 @@ var _ = Describe("Customer", func() {
 				}
 				azNodePoolParams.AvailabilityZone = availabilityZone
 
-				err = tc.CreateNodePoolFromParam(ctx,
+				err = tc.CreateNodePoolFromParam20240610(ctx,
+					GinkgoLogr,
 					*resourceGroup.Name,
+					managedResourceGroupName,
 					customerClusterName,
 					azNodePoolParams,
-					45*time.Minute,
+					framework.NodePoolCreationTimeout,
 				)
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to create AZ nodepool %s with autoscaling", azNodePoolName)
 
 				By("verifying the AZ nodepool has the correct autoscaling configuration")
-				azNodePoolResp, err := framework.GetNodePool(ctx,
+				azNodePoolResp, err := framework.GetNodePool20240610(ctx,
 					nodePoolsClient,
 					*resourceGroup.Name,
 					customerClusterName,
 					azNodePoolName)
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to get AZ nodepool %s", azNodePoolName)
 				Expect(azNodePoolResp.Properties).NotTo(BeNil(), "nodepool response Properties was nil")
 				Expect(azNodePoolResp.Properties.AutoScaling).NotTo(BeNil(), "Expected nodepool to have autoscaling configuration")
-				Expect(azNodePoolResp.Properties.AutoScaling.Min).To(Equal(to.Ptr(azAutoscalingMin)))
-				Expect(azNodePoolResp.Properties.AutoScaling.Max).To(Equal(to.Ptr(azAutoscalingMax)))
+				Expect(azNodePoolResp.Properties.AutoScaling.Min).To(Equal(to.Ptr(azAutoscalingMin)), "expected AZ nodepool autoscaling min to equal %d", azAutoscalingMin)
+				Expect(azNodePoolResp.Properties.AutoScaling.Max).To(Equal(to.Ptr(azAutoscalingMax)), "expected AZ nodepool autoscaling max to equal %d", azAutoscalingMax)
 
 				By("verifying node count after AZ nodepool creation")
 				nodes, err := kubeClient.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
-				Expect(err).NotTo(HaveOccurred())
-				Expect(len(nodes.Items)).To(BeNumerically(">=", int(azAutoscalingMin)))
+				Expect(err).NotTo(HaveOccurred(), "failed to list nodes after AZ nodepool creation")
+				Expect(len(nodes.Items)).To(BeNumerically(">=", int(azAutoscalingMin)), "expected at least %d nodes after AZ nodepool creation", azAutoscalingMin)
 
 				By("updating the AZ nodepool max replicas from 500 to 4 before creating the next nodepool")
-				_, err = framework.UpdateNodePoolAndWait(ctx,
+				_, err = framework.UpdateNodePoolAndWait20240610(ctx,
 					nodePoolsClient,
 					*resourceGroup.Name,
 					customerClusterName,
@@ -173,24 +183,24 @@ var _ = Describe("Customer", func() {
 							},
 						},
 					},
-					25*time.Minute,
+					framework.NodePoolScalingTimeout,
 				)
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to update AZ nodepool %s max replicas to 4", azNodePoolName)
 
 				By("verifying the AZ nodepool max replicas was updated to 4")
-				azNodePoolUpdatedResp, err := framework.GetNodePool(ctx,
+				azNodePoolUpdatedResp, err := framework.GetNodePool20240610(ctx,
 					nodePoolsClient,
 					*resourceGroup.Name,
 					customerClusterName,
 					azNodePoolName)
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to get updated AZ nodepool %s", azNodePoolName)
 				Expect(azNodePoolUpdatedResp.Properties).NotTo(BeNil(), "nodepool response Properties was nil")
 				Expect(azNodePoolUpdatedResp.Properties.AutoScaling).NotTo(BeNil(), "Expected nodepool to have autoscaling configuration")
 				Expect(azNodePoolUpdatedResp.Properties.AutoScaling.Max).To(Equal(to.Ptr(int32(4))), "Expected AZ nodepool max replicas to be updated to 4")
 			}
 
 			By("creating the no-AZ nodepool with 200 max replicas")
-			noAZNodePoolParams := framework.NewDefaultNodePoolParams()
+			noAZNodePoolParams := framework.NewDefaultNodePoolParams20240610()
 			noAZNodePoolParams.ClusterName = customerClusterName
 			noAZNodePoolParams.NodePoolName = noAZNodePoolName
 			noAZNodePoolParams.AutoScaling = &framework.NodePoolAutoScalingParams{
@@ -198,34 +208,36 @@ var _ = Describe("Customer", func() {
 				Max: noAZAutoscalingMax,
 			}
 
-			err = tc.CreateNodePoolFromParam(ctx,
+			err = tc.CreateNodePoolFromParam20240610(ctx,
+				GinkgoLogr,
 				*resourceGroup.Name,
+				managedResourceGroupName,
 				customerClusterName,
 				noAZNodePoolParams,
-				45*time.Minute,
+				framework.NodePoolCreationTimeout,
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create no-AZ nodepool %s with autoscaling", noAZNodePoolName)
 
 			By("verifying the no-AZ nodepool has the correct autoscaling configuration")
-			noAZNodePoolResp, err := framework.GetNodePool(ctx,
+			noAZNodePoolResp, err := framework.GetNodePool20240610(ctx,
 				nodePoolsClient,
 				*resourceGroup.Name,
 				customerClusterName,
 				noAZNodePoolName)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to get no-AZ nodepool %s", noAZNodePoolName)
 			Expect(noAZNodePoolResp.Properties).NotTo(BeNil(), "nodepool response Properties was nil")
 			Expect(noAZNodePoolResp.Properties.AutoScaling).NotTo(BeNil(), "Expected nodepool to have autoscaling configuration")
-			Expect(noAZNodePoolResp.Properties.AutoScaling.Min).To(Equal(to.Ptr(noAZAutoscalingMin)))
-			Expect(noAZNodePoolResp.Properties.AutoScaling.Max).To(Equal(to.Ptr(noAZAutoscalingMax)))
+			Expect(noAZNodePoolResp.Properties.AutoScaling.Min).To(Equal(to.Ptr(noAZAutoscalingMin)), "expected no-AZ nodepool autoscaling min to equal %d", noAZAutoscalingMin)
+			Expect(noAZNodePoolResp.Properties.AutoScaling.Max).To(Equal(to.Ptr(noAZAutoscalingMax)), "expected no-AZ nodepool autoscaling max to equal %d", noAZAutoscalingMax)
 
 			By("verifying node count after no-AZ nodepool creation")
 			nodes, err := kubeClient.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to list nodes after no-AZ nodepool creation")
 			minExpected := int(noAZAutoscalingMin)
 			if hasAZ {
 				minExpected += int(azAutoscalingMin)
 			}
-			Expect(len(nodes.Items)).To(BeNumerically(">=", minExpected))
+			Expect(len(nodes.Items)).To(BeNumerically(">=", minExpected), "expected at least %d nodes after no-AZ nodepool creation", minExpected)
 
 		})
 
@@ -242,41 +254,42 @@ var _ = Describe("Customer", func() {
 			tc := framework.NewTestContext()
 
 			if tc.UsePooledIdentities() {
-				err := tc.AssignIdentityContainers(ctx, 1, 60*time.Second)
-				Expect(err).NotTo(HaveOccurred())
+				err := tc.AssignIdentityContainers(ctx, 1, framework.IdentityContainerAssignmentRetryInterval)
+				Expect(err).NotTo(HaveOccurred(), "failed to assign pooled identity containers")
 			}
 
 			By("creating a resource group")
 			resourceGroup, err := tc.NewResourceGroup(ctx, "node-limit-test", tc.Location())
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create resource group for node-limit test")
 
 			By("creating cluster with MaxNodesTotal limit")
-			clusterParams := framework.NewDefaultClusterParams()
+			clusterParams := framework.NewDefaultClusterParams20240610()
 			clusterParams.ClusterName = customerClusterName
-			clusterParams.ManagedResourceGroupName = framework.SuffixName(*resourceGroup.Name, "-managed", 64)
+			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
+			clusterParams.ManagedResourceGroupName = managedResourceGroupName
 			clusterParams.Autoscaling = &hcpsdk20240610preview.ClusterAutoscalingProfile{
 				MaxNodesTotal: to.Ptr(int32(3)), // Set low limit
 			}
 
-			clusterParams, err = tc.CreateClusterCustomerResources(ctx,
+			clusterParams, err = tc.CreateClusterCustomerResources20240610(ctx,
 				resourceGroup,
 				clusterParams,
 				map[string]any{},
 				TestArtifactsFS,
 				framework.RBACScopeResourceGroup,
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create cluster customer resources for node-limit test")
 
-			err = tc.CreateHCPClusterFromParam(ctx,
+			err = tc.CreateHCPClusterFromParam20240610(ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
 				clusterParams,
-				45*time.Minute,
+				framework.ClusterCreationTimeout,
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster %s with MaxNodesTotal limit", customerClusterName)
 
 			By("attempting to create nodepool with Min > MaxNodesTotal")
-			nodePoolParams := framework.NewDefaultNodePoolParams()
+			nodePoolParams := framework.NewDefaultNodePoolParams20240610()
 			nodePoolParams.ClusterName = customerClusterName
 			nodePoolParams.NodePoolName = customerNodePoolName
 			nodePoolParams.AutoScaling = &framework.NodePoolAutoScalingParams{
@@ -285,8 +298,10 @@ var _ = Describe("Customer", func() {
 			}
 
 			// Should fail quickly during validation
-			err = tc.CreateNodePoolFromParam(ctx,
+			err = tc.CreateNodePoolFromParam20240610(ctx,
+				GinkgoLogr,
 				*resourceGroup.Name,
+				managedResourceGroupName,
 				customerClusterName,
 				nodePoolParams,
 				5*time.Minute,

@@ -23,9 +23,9 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/api"
-	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	dblisters "github.com/Azure/ARO-HCP/internal/database/listers"
+	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -33,8 +33,6 @@ import (
 // managementClusterPlacementSyncer resolves the management cluster an HCP runs on
 // and updates the ServiceProviderCluster document with the ManagementClusterResourceID.
 type managementClusterPlacementSyncer struct {
-	cooldownChecker controllerutil.CooldownChecker
-
 	serviceProviderClusterLister listers.ServiceProviderClusterLister
 	clusterLister                listers.ClusterLister
 	managementClusterLister      dblisters.ManagementClusterLister
@@ -49,15 +47,14 @@ var _ controllerutils.ClusterSyncer = (*managementClusterPlacementSyncer)(nil)
 func NewManagementClusterPlacementSyncController(
 	cosmosClient database.ResourcesDBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
-	activeOperationLister listers.ActiveOperationLister,
 	managementClusterLister dblisters.ManagementClusterLister,
 	informers informers.BackendInformers,
+	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 ) controllerutils.Controller {
 	_, clusterLister := informers.Clusters()
 	_, serviceProviderClusterLister := informers.ServiceProviderClusters()
 
 	syncer := &managementClusterPlacementSyncer{
-		cooldownChecker:              controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
 		serviceProviderClusterLister: serviceProviderClusterLister,
 		clusterLister:                clusterLister,
 		managementClusterLister:      managementClusterLister,
@@ -69,15 +66,12 @@ func NewManagementClusterPlacementSyncController(
 		"ManagementClusterPlacementSync",
 		cosmosClient,
 		informers,
+		kubeApplierInformers,
 		5*time.Minute, // Check every 5 minutes
 		syncer,
 	)
 
 	return controller
-}
-
-func (c *managementClusterPlacementSyncer) CooldownChecker() controllerutil.CooldownChecker {
-	return c.cooldownChecker
 }
 
 // needsWork checks if the ServiceProviderCluster still needs its ManagementClusterResourceID resolved.
@@ -157,9 +151,10 @@ func (c *managementClusterPlacementSyncer) SyncOnce(ctx context.Context, key con
 	}
 
 	// Set the ManagementClusterResourceID on the ServiceProviderCluster
-	existingSPC.Status.ManagementClusterResourceID = managementCluster.ResourceID
+	replacement := existingSPC.DeepCopy()
+	replacement.Status.ManagementClusterResourceID = managementCluster.ResourceID
 
-	if _, err := spcCRUD.Replace(ctx, existingSPC, nil); err != nil {
+	if _, err := spcCRUD.Replace(ctx, replacement, nil); err != nil {
 		return utils.TrackError(fmt.Errorf("failed to update ServiceProviderCluster: %w", err))
 	}
 

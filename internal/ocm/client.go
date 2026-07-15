@@ -36,8 +36,10 @@ const (
 	CSPropertyNoopDeprovision  = "provisioner_noop_deprovision"
 	CSPropertySingleReplica    = "hosted_cluster_single_replica"
 	CSPropertySizeOverride     = "hosted_cluster_size_override"
+	CSPropertyCPOImageOverride = "control_plane_operator_image"
 
-	CSPropertyEnabled = "true"
+	CSPropertyEnabled                    = "true"
+	CSPropertyE2EMinimalControlPlaneSize = "e2e_minimal"
 )
 
 type ClusterServiceClientSpec interface {
@@ -805,7 +807,7 @@ func NewOpenShiftVersionXYZ(v, cg string) string {
 		if len(parts) == 2 {
 			// Patch version is managed by Red Hat. This will be computed automatically to the latest
 			// as part of https://github.com/Azure/ARO-HCP/pull/4477
-			if patch, ok := map[string]string{"4.19": "30", "4.20": "20", "4.21": "14"}[v]; ok {
+			if patch, ok := map[string]string{"4.19": "34", "4.20": "25", "4.21": "20", "4.22": "1"}[v]; ok {
 				parts = append(parts, patch)
 			} else {
 				parts = append(parts, "0")

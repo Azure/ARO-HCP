@@ -1,0 +1,632 @@
+rule_files:
+- backend-async-operations-prometheusRule.yaml
+evaluation_interval: 1m
+tests:
+# ========================================
+# Cluster create: threshold 1200s (20 min)
+# ========================================
+# Test: fires when cluster create exceeds 20 minutes
+- interval: 1m
+  input_series:
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/1/cluster/a", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="provisioning", cluster="mgmt-1"}'
+    values: "0+0x25"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/a", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="provisioning", cluster="mgmt-1"}'
+    values: "1+0x25"
+  alert_rule_test:
+  # At 21m, time()=1260 > 1200 threshold
+  - eval_time: 21m
+    alertname: BackendAsyncOperationClusterCreateStuck
+    exp_alerts:
+    - exp_labels:
+        resource_id: "/sub/1/cluster/a"
+        subscription_id: "sub-1"
+        resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters"
+        operation_type: "create"
+        phase: "provisioning"
+        cluster: "mgmt-1"
+        severity: "3"
+      exp_annotations:
+        correlationId: 'BackendAsyncOperationStuck/mgmt-1//sub/1/cluster/a'
+        summary: 'Cluster create operation stuck'
+        description: 'Cluster create operation for /sub/1/cluster/a has been running for over 20 minutes and is currently in provisioning phase (e2e timeout: ClusterCreationTimeout).'
+        runbook_url: TBD
+# Test: does not fire when cluster create is under 20 minutes
+- interval: 1m
+  input_series:
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/1/cluster/b", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="provisioning", cluster="mgmt-1"}'
+    values: "0+0x20"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/b", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="provisioning", cluster="mgmt-1"}'
+    values: "1+0x20"
+  alert_rule_test:
+  # At 19m, time()=1140 < 1200 threshold
+  - eval_time: 19m
+    alertname: BackendAsyncOperationClusterCreateStuck
+    exp_alerts: []
+# Test: does not fire when cluster create has succeeded
+- interval: 1m
+  input_series:
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/1/cluster/c", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1"}'
+    values: "0+0x25"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/c", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1"}'
+    values: "1+0x25"
+  alert_rule_test:
+  - eval_time: 21m
+    alertname: BackendAsyncOperationClusterCreateStuck
+    exp_alerts: []
+# Test: deduplicates across prometheus replicas (only one alert instance)
+- interval: 1m
+  input_series:
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/1/cluster/d", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="provisioning", cluster="mgmt-1", prometheus_replica="prometheus-k8s-0"}'
+    values: "0+0x25"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/d", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="provisioning", cluster="mgmt-1", prometheus_replica="prometheus-k8s-0"}'
+    values: "1+0x25"
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/1/cluster/d", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="provisioning", cluster="mgmt-1", prometheus_replica="prometheus-k8s-1"}'
+    values: "0+0x25"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/1/cluster/d", subscription_id="sub-1", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="provisioning", cluster="mgmt-1", prometheus_replica="prometheus-k8s-1"}'
+    values: "1+0x25"
+  alert_rule_test:
+  - eval_time: 21m
+    alertname: BackendAsyncOperationClusterCreateStuck
+    exp_alerts:
+    - exp_labels:
+        resource_id: "/sub/1/cluster/d"
+        subscription_id: "sub-1"
+        resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters"
+        operation_type: "create"
+        phase: "provisioning"
+        cluster: "mgmt-1"
+        severity: "3"
+      exp_annotations:
+        correlationId: 'BackendAsyncOperationStuck/mgmt-1//sub/1/cluster/d'
+        summary: 'Cluster create operation stuck'
+        description: 'Cluster create operation for /sub/1/cluster/d has been running for over 20 minutes and is currently in provisioning phase (e2e timeout: ClusterCreationTimeout).'
+        runbook_url: TBD
+# ========================================
+# Cluster update: threshold 2700s (45 min)
+# ========================================
+# Test: fires when cluster update exceeds 45 minutes
+- interval: 1m
+  input_series:
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/2/cluster/a", subscription_id="sub-2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="updating", cluster="mgmt-1"}'
+    values: "0+0x50"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/2/cluster/a", subscription_id="sub-2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="updating", cluster="mgmt-1"}'
+    values: "1+0x50"
+  alert_rule_test:
+  # At 46m, time()=2760 > 2700 threshold
+  - eval_time: 46m
+    alertname: BackendAsyncOperationClusterUpdateStuck
+    exp_alerts:
+    - exp_labels:
+        resource_id: "/sub/2/cluster/a"
+        subscription_id: "sub-2"
+        resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters"
+        operation_type: "update"
+        phase: "updating"
+        cluster: "mgmt-1"
+        severity: "3"
+      exp_annotations:
+        correlationId: 'BackendAsyncOperationStuck/mgmt-1//sub/2/cluster/a'
+        summary: 'Cluster update operation stuck'
+        description: 'Cluster update operation for /sub/2/cluster/a has been running for over 45 minutes and is currently in updating phase (e2e timeout: HCPClusterVersionUpgradeTimeout).'
+        runbook_url: TBD
+# Test: does not fire when cluster update is under 45 minutes
+- interval: 1m
+  input_series:
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/2/cluster/b", subscription_id="sub-2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="updating", cluster="mgmt-1"}'
+    values: "0+0x45"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/2/cluster/b", subscription_id="sub-2", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="update", phase="updating", cluster="mgmt-1"}'
+    values: "1+0x45"
+  alert_rule_test:
+  # At 44m, time()=2640 < 2700 threshold
+  - eval_time: 44m
+    alertname: BackendAsyncOperationClusterUpdateStuck
+    exp_alerts: []
+# ========================================
+# Cluster delete: threshold 1500s (25 min)
+# ========================================
+# Test: fires when cluster delete exceeds 25 minutes
+- interval: 1m
+  input_series:
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/3/cluster/a", subscription_id="sub-3", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="delete", phase="deleting", cluster="mgmt-1"}'
+    values: "0+0x30"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/3/cluster/a", subscription_id="sub-3", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="delete", phase="deleting", cluster="mgmt-1"}'
+    values: "1+0x30"
+  alert_rule_test:
+  - eval_time: 26m
+    alertname: BackendAsyncOperationClusterDeleteStuck
+    exp_alerts:
+    - exp_labels:
+        resource_id: "/sub/3/cluster/a"
+        subscription_id: "sub-3"
+        resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters"
+        operation_type: "delete"
+        phase: "deleting"
+        cluster: "mgmt-1"
+        severity: "3"
+      exp_annotations:
+        correlationId: 'BackendAsyncOperationStuck/mgmt-1//sub/3/cluster/a'
+        summary: 'Cluster delete operation stuck'
+        description: 'Cluster delete operation for /sub/3/cluster/a has been running for over 25 minutes and is currently in deleting phase (e2e timeout: HCPClusterDeletionTimeout).'
+        runbook_url: TBD
+# Test: does not fire when cluster delete is under 25 minutes
+- interval: 1m
+  input_series:
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/3/cluster/b", subscription_id="sub-3", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="delete", phase="deleting", cluster="mgmt-1"}'
+    values: "0+0x25"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/3/cluster/b", subscription_id="sub-3", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="delete", phase="deleting", cluster="mgmt-1"}'
+    values: "1+0x25"
+  alert_rule_test:
+  - eval_time: 24m
+    alertname: BackendAsyncOperationClusterDeleteStuck
+    exp_alerts: []
+# ========================================
+# Credential request: threshold 600s (10 min)
+# ========================================
+# Test: fires when credential request exceeds 10 minutes
+- interval: 1m
+  input_series:
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/4/cluster/a", subscription_id="sub-4", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="requestcredential", phase="provisioning", cluster="mgmt-1"}'
+    values: "0+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/4/cluster/a", subscription_id="sub-4", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="requestcredential", phase="provisioning", cluster="mgmt-1"}'
+    values: "1+0x15"
+  alert_rule_test:
+  # At 11m, time()=660 > 600 threshold
+  - eval_time: 11m
+    alertname: BackendAsyncOperationCredentialRequestStuck
+    exp_alerts:
+    - exp_labels:
+        resource_id: "/sub/4/cluster/a"
+        subscription_id: "sub-4"
+        resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters"
+        operation_type: "requestcredential"
+        phase: "provisioning"
+        cluster: "mgmt-1"
+        severity: "3"
+      exp_annotations:
+        correlationId: 'BackendAsyncOperationStuck/mgmt-1//sub/4/cluster/a'
+        summary: 'Credential request operation stuck'
+        description: 'Credential request operation for /sub/4/cluster/a has been running for over 10 minutes and is currently in provisioning phase (e2e timeout: GetAdminRESTConfigTimeout).'
+        runbook_url: TBD
+# Test: does not fire when credential request is under 10 minutes
+- interval: 1m
+  input_series:
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/4/cluster/b", subscription_id="sub-4", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="requestcredential", phase="provisioning", cluster="mgmt-1"}'
+    values: "0+0x10"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/4/cluster/b", subscription_id="sub-4", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="requestcredential", phase="provisioning", cluster="mgmt-1"}'
+    values: "1+0x10"
+  alert_rule_test:
+  - eval_time: 9m
+    alertname: BackendAsyncOperationCredentialRequestStuck
+    exp_alerts: []
+# Test: deduplicates credential request across prometheus replicas
+- interval: 1m
+  input_series:
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/4/cluster/c", subscription_id="sub-4", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="requestcredential", phase="provisioning", cluster="mgmt-1", prometheus_replica="prometheus-k8s-0"}'
+    values: "0+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/4/cluster/c", subscription_id="sub-4", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="requestcredential", phase="provisioning", cluster="mgmt-1", prometheus_replica="prometheus-k8s-0"}'
+    values: "1+0x15"
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/4/cluster/c", subscription_id="sub-4", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="requestcredential", phase="provisioning", cluster="mgmt-1", prometheus_replica="prometheus-k8s-1"}'
+    values: "0+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/4/cluster/c", subscription_id="sub-4", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="requestcredential", phase="provisioning", cluster="mgmt-1", prometheus_replica="prometheus-k8s-1"}'
+    values: "1+0x15"
+  alert_rule_test:
+  - eval_time: 11m
+    alertname: BackendAsyncOperationCredentialRequestStuck
+    exp_alerts:
+    - exp_labels:
+        resource_id: "/sub/4/cluster/c"
+        subscription_id: "sub-4"
+        resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters"
+        operation_type: "requestcredential"
+        phase: "provisioning"
+        cluster: "mgmt-1"
+        severity: "3"
+      exp_annotations:
+        correlationId: 'BackendAsyncOperationStuck/mgmt-1//sub/4/cluster/c'
+        summary: 'Credential request operation stuck'
+        description: 'Credential request operation for /sub/4/cluster/c has been running for over 10 minutes and is currently in provisioning phase (e2e timeout: GetAdminRESTConfigTimeout).'
+        runbook_url: TBD
+# ========================================
+# Credential revoke: threshold 900s (15 min)
+# ========================================
+# Test: fires when credential revoke exceeds 15 minutes
+- interval: 1m
+  input_series:
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/5/cluster/a", subscription_id="sub-5", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="revokecredentials", phase="deleting", cluster="mgmt-1"}'
+    values: "0+0x20"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/5/cluster/a", subscription_id="sub-5", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="revokecredentials", phase="deleting", cluster="mgmt-1"}'
+    values: "1+0x20"
+  alert_rule_test:
+  # At 16m, time()=960 > 900 threshold
+  - eval_time: 16m
+    alertname: BackendAsyncOperationCredentialRevokeStuck
+    exp_alerts:
+    - exp_labels:
+        resource_id: "/sub/5/cluster/a"
+        subscription_id: "sub-5"
+        resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters"
+        operation_type: "revokecredentials"
+        phase: "deleting"
+        cluster: "mgmt-1"
+        severity: "3"
+      exp_annotations:
+        correlationId: 'BackendAsyncOperationStuck/mgmt-1//sub/5/cluster/a'
+        summary: 'Credential revoke operation stuck'
+        description: 'Credential revoke operation for /sub/5/cluster/a has been running for over 15 minutes and is currently in deleting phase.'
+        runbook_url: TBD
+# Test: does not fire when credential revoke is under 15 minutes
+- interval: 1m
+  input_series:
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/5/cluster/b", subscription_id="sub-5", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="revokecredentials", phase="deleting", cluster="mgmt-1"}'
+    values: "0+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/5/cluster/b", subscription_id="sub-5", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="revokecredentials", phase="deleting", cluster="mgmt-1"}'
+    values: "1+0x15"
+  alert_rule_test:
+  - eval_time: 14m
+    alertname: BackendAsyncOperationCredentialRevokeStuck
+    exp_alerts: []
+# ========================================
+# Node pool create: threshold 1200s (20 min)
+# ========================================
+# Test: fires when node pool create exceeds 20 minutes
+- interval: 1m
+  input_series:
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/6/np/a", subscription_id="sub-6", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="create", phase="provisioning", cluster="mgmt-1"}'
+    values: "0+0x25"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/6/np/a", subscription_id="sub-6", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="create", phase="provisioning", cluster="mgmt-1"}'
+    values: "1+0x25"
+  alert_rule_test:
+  - eval_time: 21m
+    alertname: BackendAsyncOperationNodePoolCreateStuck
+    exp_alerts:
+    - exp_labels:
+        resource_id: "/sub/6/np/a"
+        subscription_id: "sub-6"
+        resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"
+        operation_type: "create"
+        phase: "provisioning"
+        cluster: "mgmt-1"
+        severity: "3"
+      exp_annotations:
+        correlationId: 'BackendAsyncOperationStuck/mgmt-1//sub/6/np/a'
+        summary: 'Node pool create operation stuck'
+        description: 'Node pool create operation for /sub/6/np/a has been running for over 20 minutes and is currently in provisioning phase (e2e timeout: NodePoolCreationTimeout).'
+        runbook_url: TBD
+# Test: does not fire when node pool create is under 20 minutes
+- interval: 1m
+  input_series:
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/6/np/b", subscription_id="sub-6", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="create", phase="provisioning", cluster="mgmt-1"}'
+    values: "0+0x20"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/6/np/b", subscription_id="sub-6", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="create", phase="provisioning", cluster="mgmt-1"}'
+    values: "1+0x20"
+  alert_rule_test:
+  - eval_time: 19m
+    alertname: BackendAsyncOperationNodePoolCreateStuck
+    exp_alerts: []
+# Test: deduplicates node pool create across prometheus replicas
+- interval: 1m
+  input_series:
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/6/np/c", subscription_id="sub-6", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="create", phase="provisioning", cluster="mgmt-1", prometheus_replica="prometheus-k8s-0"}'
+    values: "0+0x25"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/6/np/c", subscription_id="sub-6", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="create", phase="provisioning", cluster="mgmt-1", prometheus_replica="prometheus-k8s-0"}'
+    values: "1+0x25"
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/6/np/c", subscription_id="sub-6", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="create", phase="provisioning", cluster="mgmt-1", prometheus_replica="prometheus-k8s-1"}'
+    values: "0+0x25"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/6/np/c", subscription_id="sub-6", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="create", phase="provisioning", cluster="mgmt-1", prometheus_replica="prometheus-k8s-1"}'
+    values: "1+0x25"
+  alert_rule_test:
+  - eval_time: 21m
+    alertname: BackendAsyncOperationNodePoolCreateStuck
+    exp_alerts:
+    - exp_labels:
+        resource_id: "/sub/6/np/c"
+        subscription_id: "sub-6"
+        resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"
+        operation_type: "create"
+        phase: "provisioning"
+        cluster: "mgmt-1"
+        severity: "3"
+      exp_annotations:
+        correlationId: 'BackendAsyncOperationStuck/mgmt-1//sub/6/np/c'
+        summary: 'Node pool create operation stuck'
+        description: 'Node pool create operation for /sub/6/np/c has been running for over 20 minutes and is currently in provisioning phase (e2e timeout: NodePoolCreationTimeout).'
+        runbook_url: TBD
+# ========================================
+# Node pool update: threshold 2700s (45 min)
+# ========================================
+# Test: fires when node pool update exceeds 45 minutes
+- interval: 1m
+  input_series:
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/7/np/a", subscription_id="sub-7", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", phase="updating", cluster="mgmt-1"}'
+    values: "0+0x50"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/7/np/a", subscription_id="sub-7", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", phase="updating", cluster="mgmt-1"}'
+    values: "1+0x50"
+  alert_rule_test:
+  - eval_time: 46m
+    alertname: BackendAsyncOperationNodePoolUpdateStuck
+    exp_alerts:
+    - exp_labels:
+        resource_id: "/sub/7/np/a"
+        subscription_id: "sub-7"
+        resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"
+        operation_type: "update"
+        phase: "updating"
+        cluster: "mgmt-1"
+        severity: "3"
+      exp_annotations:
+        correlationId: 'BackendAsyncOperationStuck/mgmt-1//sub/7/np/a'
+        summary: 'Node pool update operation stuck'
+        description: 'Node pool update operation for /sub/7/np/a has been running for over 45 minutes and is currently in updating phase (e2e timeout: NodePoolVersionUpgradeTimeout).'
+        runbook_url: TBD
+# Test: does not fire when node pool update is under 45 minutes
+- interval: 1m
+  input_series:
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/7/np/b", subscription_id="sub-7", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", phase="updating", cluster="mgmt-1"}'
+    values: "0+0x45"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/7/np/b", subscription_id="sub-7", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", phase="updating", cluster="mgmt-1"}'
+    values: "1+0x45"
+  alert_rule_test:
+  - eval_time: 44m
+    alertname: BackendAsyncOperationNodePoolUpdateStuck
+    exp_alerts: []
+# ========================================
+# Node pool delete: threshold 1500s (25 min)
+# ========================================
+# Test: fires when node pool delete exceeds 25 minutes
+- interval: 1m
+  input_series:
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/8/np/a", subscription_id="sub-8", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="delete", phase="deleting", cluster="mgmt-1"}'
+    values: "0+0x30"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/8/np/a", subscription_id="sub-8", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="delete", phase="deleting", cluster="mgmt-1"}'
+    values: "1+0x30"
+  alert_rule_test:
+  - eval_time: 26m
+    alertname: BackendAsyncOperationNodePoolDeleteStuck
+    exp_alerts:
+    - exp_labels:
+        resource_id: "/sub/8/np/a"
+        subscription_id: "sub-8"
+        resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"
+        operation_type: "delete"
+        phase: "deleting"
+        cluster: "mgmt-1"
+        severity: "3"
+      exp_annotations:
+        correlationId: 'BackendAsyncOperationStuck/mgmt-1//sub/8/np/a'
+        summary: 'Node pool delete operation stuck'
+        description: 'Node pool delete operation for /sub/8/np/a has been running for over 25 minutes and is currently in deleting phase (e2e timeout: NodePoolDeletionTimeout).'
+        runbook_url: TBD
+# Test: does not fire when node pool delete is under 25 minutes
+- interval: 1m
+  input_series:
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/8/np/b", subscription_id="sub-8", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="delete", phase="deleting", cluster="mgmt-1"}'
+    values: "0+0x25"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/8/np/b", subscription_id="sub-8", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="delete", phase="deleting", cluster="mgmt-1"}'
+    values: "1+0x25"
+  alert_rule_test:
+  - eval_time: 24m
+    alertname: BackendAsyncOperationNodePoolDeleteStuck
+    exp_alerts: []
+# ========================================
+# External auth create: threshold 900s (15 min)
+# ========================================
+# Test: fires when external auth create exceeds 15 minutes
+- interval: 1m
+  input_series:
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/9/ea/a", subscription_id="sub-9", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="create", phase="awaitingsecret", cluster="mgmt-1"}'
+    values: "0+0x20"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/9/ea/a", subscription_id="sub-9", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="create", phase="awaitingsecret", cluster="mgmt-1"}'
+    values: "1+0x20"
+  alert_rule_test:
+  # At 16m, time()=960 > 900 threshold
+  - eval_time: 16m
+    alertname: BackendAsyncOperationExternalAuthCreateStuck
+    exp_alerts:
+    - exp_labels:
+        resource_id: "/sub/9/ea/a"
+        subscription_id: "sub-9"
+        resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"
+        operation_type: "create"
+        phase: "awaitingsecret"
+        cluster: "mgmt-1"
+        severity: "3"
+      exp_annotations:
+        correlationId: 'BackendAsyncOperationStuck/mgmt-1//sub/9/ea/a'
+        summary: 'External auth create operation stuck'
+        description: 'External auth create operation for /sub/9/ea/a has been running for over 15 minutes and is currently in awaitingsecret phase (e2e timeout: ExternalAuthCreationTimeout).'
+        runbook_url: TBD
+# Test: does not fire when external auth create is under 15 minutes
+- interval: 1m
+  input_series:
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/9/ea/b", subscription_id="sub-9", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="create", phase="awaitingsecret", cluster="mgmt-1"}'
+    values: "0+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/9/ea/b", subscription_id="sub-9", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="create", phase="awaitingsecret", cluster="mgmt-1"}'
+    values: "1+0x15"
+  alert_rule_test:
+  - eval_time: 14m
+    alertname: BackendAsyncOperationExternalAuthCreateStuck
+    exp_alerts: []
+# Test: deduplicates external auth create across prometheus replicas
+- interval: 1m
+  input_series:
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/9/ea/c", subscription_id="sub-9", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="create", phase="awaitingsecret", cluster="mgmt-1", prometheus_replica="prometheus-k8s-0"}'
+    values: "0+0x20"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/9/ea/c", subscription_id="sub-9", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="create", phase="awaitingsecret", cluster="mgmt-1", prometheus_replica="prometheus-k8s-0"}'
+    values: "1+0x20"
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/9/ea/c", subscription_id="sub-9", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="create", phase="awaitingsecret", cluster="mgmt-1", prometheus_replica="prometheus-k8s-1"}'
+    values: "0+0x20"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/9/ea/c", subscription_id="sub-9", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="create", phase="awaitingsecret", cluster="mgmt-1", prometheus_replica="prometheus-k8s-1"}'
+    values: "1+0x20"
+  alert_rule_test:
+  - eval_time: 16m
+    alertname: BackendAsyncOperationExternalAuthCreateStuck
+    exp_alerts:
+    - exp_labels:
+        resource_id: "/sub/9/ea/c"
+        subscription_id: "sub-9"
+        resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"
+        operation_type: "create"
+        phase: "awaitingsecret"
+        cluster: "mgmt-1"
+        severity: "3"
+      exp_annotations:
+        correlationId: 'BackendAsyncOperationStuck/mgmt-1//sub/9/ea/c'
+        summary: 'External auth create operation stuck'
+        description: 'External auth create operation for /sub/9/ea/c has been running for over 15 minutes and is currently in awaitingsecret phase (e2e timeout: ExternalAuthCreationTimeout).'
+        runbook_url: TBD
+# ========================================
+# External auth update: threshold 600s (10 min)
+# ========================================
+# Test: fires when external auth update exceeds 10 minutes
+- interval: 1m
+  input_series:
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/10/ea/a", subscription_id="sub-10", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="update", phase="updating", cluster="mgmt-1"}'
+    values: "0+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/10/ea/a", subscription_id="sub-10", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="update", phase="updating", cluster="mgmt-1"}'
+    values: "1+0x15"
+  alert_rule_test:
+  # At 11m, time()=660 > 600 threshold
+  - eval_time: 11m
+    alertname: BackendAsyncOperationExternalAuthUpdateStuck
+    exp_alerts:
+    - exp_labels:
+        resource_id: "/sub/10/ea/a"
+        subscription_id: "sub-10"
+        resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"
+        operation_type: "update"
+        phase: "updating"
+        cluster: "mgmt-1"
+        severity: "3"
+      exp_annotations:
+        correlationId: 'BackendAsyncOperationStuck/mgmt-1//sub/10/ea/a'
+        summary: 'External auth update operation stuck'
+        description: 'External auth update operation for /sub/10/ea/a has been running for over 10 minutes and is currently in updating phase.'
+        runbook_url: TBD
+# Test: does not fire when external auth update is under 10 minutes
+- interval: 1m
+  input_series:
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/10/ea/b", subscription_id="sub-10", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="update", phase="updating", cluster="mgmt-1"}'
+    values: "0+0x10"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/10/ea/b", subscription_id="sub-10", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="update", phase="updating", cluster="mgmt-1"}'
+    values: "1+0x10"
+  alert_rule_test:
+  - eval_time: 9m
+    alertname: BackendAsyncOperationExternalAuthUpdateStuck
+    exp_alerts: []
+# ========================================
+# External auth delete: threshold 900s (15 min)
+# ========================================
+# Test: fires when external auth delete exceeds 15 minutes
+- interval: 1m
+  input_series:
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/11/ea/a", subscription_id="sub-11", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="delete", phase="deleting", cluster="mgmt-1"}'
+    values: "0+0x20"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/11/ea/a", subscription_id="sub-11", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="delete", phase="deleting", cluster="mgmt-1"}'
+    values: "1+0x20"
+  alert_rule_test:
+  # At 16m, time()=960 > 900 threshold
+  - eval_time: 16m
+    alertname: BackendAsyncOperationExternalAuthDeleteStuck
+    exp_alerts:
+    - exp_labels:
+        resource_id: "/sub/11/ea/a"
+        subscription_id: "sub-11"
+        resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"
+        operation_type: "delete"
+        phase: "deleting"
+        cluster: "mgmt-1"
+        severity: "3"
+      exp_annotations:
+        correlationId: 'BackendAsyncOperationStuck/mgmt-1//sub/11/ea/a'
+        summary: 'External auth delete operation stuck'
+        description: 'External auth delete operation for /sub/11/ea/a has been running for over 15 minutes and is currently in deleting phase (e2e timeout: ExternalAuthDeletionTimeout).'
+        runbook_url: TBD
+# Test: does not fire when external auth delete is under 15 minutes
+- interval: 1m
+  input_series:
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/11/ea/b", subscription_id="sub-11", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="delete", phase="deleting", cluster="mgmt-1"}'
+    values: "0+0x15"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/11/ea/b", subscription_id="sub-11", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/externalauths", operation_type="delete", phase="deleting", cluster="mgmt-1"}'
+    values: "1+0x15"
+  alert_rule_test:
+  - eval_time: 14m
+    alertname: BackendAsyncOperationExternalAuthDeleteStuck
+    exp_alerts: []
+# ========================================
+# Backstop: threshold 3600s (60 min)
+# ========================================
+# Test: fires for any operation type exceeding 60 minutes
+- interval: 1m
+  input_series:
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/12/cluster/a", subscription_id="sub-12", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="provisioning", cluster="mgmt-1"}'
+    values: "0+0x65"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/12/cluster/a", subscription_id="sub-12", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="provisioning", cluster="mgmt-1"}'
+    values: "1+0x65"
+  alert_rule_test:
+  # At 61m, time()=3660 > 3600 threshold. Both specific and backstop fire.
+  - eval_time: 61m
+    alertname: BackendAsyncOperationStuck
+    exp_alerts:
+    - exp_labels:
+        resource_id: "/sub/12/cluster/a"
+        subscription_id: "sub-12"
+        resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters"
+        operation_type: "create"
+        phase: "provisioning"
+        cluster: "mgmt-1"
+        severity: "3"
+      exp_annotations:
+        correlationId: 'BackendAsyncOperationStuck/mgmt-1//sub/12/cluster/a'
+        summary: 'Async operation stuck'
+        description: 'Async create operation for /sub/12/cluster/a (microsoft.redhatopenshift/hcpopenshiftclusters) has been running for over 60 minutes and is currently in provisioning phase.'
+        runbook_url: TBD
+# Test: backstop does not fire when operation is under 60 minutes
+- interval: 1m
+  input_series:
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/12/cluster/b", subscription_id="sub-12", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="provisioning", cluster="mgmt-1"}'
+    values: "0+0x60"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/12/cluster/b", subscription_id="sub-12", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="provisioning", cluster="mgmt-1"}'
+    values: "1+0x60"
+  alert_rule_test:
+  - eval_time: 59m
+    alertname: BackendAsyncOperationStuck
+    exp_alerts: []
+# Test: deduplicates backstop alert across prometheus replicas
+- interval: 1m
+  input_series:
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/12/cluster/d", subscription_id="sub-12", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="provisioning", cluster="mgmt-1", prometheus_replica="prometheus-k8s-0"}'
+    values: "0+0x65"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/12/cluster/d", subscription_id="sub-12", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="provisioning", cluster="mgmt-1", prometheus_replica="prometheus-k8s-0"}'
+    values: "1+0x65"
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/12/cluster/d", subscription_id="sub-12", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="provisioning", cluster="mgmt-1", prometheus_replica="prometheus-k8s-1"}'
+    values: "0+0x65"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/12/cluster/d", subscription_id="sub-12", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="provisioning", cluster="mgmt-1", prometheus_replica="prometheus-k8s-1"}'
+    values: "1+0x65"
+  alert_rule_test:
+  - eval_time: 61m
+    alertname: BackendAsyncOperationStuck
+    exp_alerts:
+    - exp_labels:
+        resource_id: "/sub/12/cluster/d"
+        subscription_id: "sub-12"
+        resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters"
+        operation_type: "create"
+        phase: "provisioning"
+        cluster: "mgmt-1"
+        severity: "3"
+      exp_annotations:
+        correlationId: 'BackendAsyncOperationStuck/mgmt-1//sub/12/cluster/d'
+        summary: 'Async operation stuck'
+        description: 'Async create operation for /sub/12/cluster/d (microsoft.redhatopenshift/hcpopenshiftclusters) has been running for over 60 minutes and is currently in provisioning phase.'
+        runbook_url: TBD
+# Test: backstop does not fire for terminal phase (succeeded)
+- interval: 1m
+  input_series:
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/12/cluster/c", subscription_id="sub-12", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1"}'
+    values: "0+0x65"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/12/cluster/c", subscription_id="sub-12", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="succeeded", cluster="mgmt-1"}'
+    values: "1+0x65"
+  alert_rule_test:
+  - eval_time: 61m
+    alertname: BackendAsyncOperationStuck
+    exp_alerts: []

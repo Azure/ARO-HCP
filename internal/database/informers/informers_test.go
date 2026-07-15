@@ -37,8 +37,17 @@ const (
 	testRG       = "rg"
 	testCluster  = "c"
 	testNodePool = "np"
-	testMgmtA    = "mgmt-a"
-	testMgmtB    = "mgmt-b"
+)
+
+// Management cluster identifiers. The *ID values are the resourceIDs the
+// fixtures stamp into Spec.ManagementCluster and are also what callers pass
+// to lister.ListForManagementCluster.
+var (
+	testMgmtAID = api.Must(azcorearm.ParseResourceID(
+		"/providers/microsoft.redhatopenshift/stamps/1/managementclusters/mgmt-a"))
+	testMgmtBID = api.Must(azcorearm.ParseResourceID(
+		"/providers/microsoft.redhatopenshift/stamps/2/managementclusters/mgmt-b"))
+	testMgmtA = strings.ToLower(testMgmtAID.String())
 )
 
 func mustParseID(t *testing.T, s string) *azcorearm.ResourceID {
@@ -50,13 +59,17 @@ func mustParseID(t *testing.T, s string) *azcorearm.ResourceID {
 	return id
 }
 
-func newApplyDesire(t *testing.T, idStr, mgmt string) *kubeapplier.ApplyDesire {
+func newApplyDesire(t *testing.T, idStr string, mgmt *azcorearm.ResourceID) *kubeapplier.ApplyDesire {
 	t.Helper()
 	return &kubeapplier.ApplyDesire{
-		CosmosMetadata: api.CosmosMetadata{ResourceID: mustParseID(t, idStr)},
+		CosmosMetadata: api.CosmosMetadata{
+			ResourceID:   mustParseID(t, idStr),
+			PartitionKey: strings.ToLower(mgmt.String()),
+		},
 		Spec: kubeapplier.ApplyDesireSpec{
 			ManagementCluster: mgmt,
-			KubeContent:       &runtime.RawExtension{Raw: []byte(`{"apiVersion":"v1","kind":"ConfigMap"}`)},
+			Type:              kubeapplier.ApplyDesireTypeServerSideApply,
+			ServerSideApply:   &kubeapplier.ServerSideApplyConfig{KubeContent: &runtime.RawExtension{Raw: []byte(`{"apiVersion":"v1","kind":"ConfigMap"}`)}},
 		},
 	}
 }
@@ -67,9 +80,8 @@ func startAndSync(t *testing.T, ctx context.Context, info informers.KubeApplierI
 	t.Helper()
 	go info.RunWithContext(ctx)
 	apply, _ := info.ApplyDesires()
-	delete, _ := info.DeleteDesires()
 	read, _ := info.ReadDesires()
-	if !cache.WaitForCacheSync(ctx.Done(), apply.HasSynced, delete.HasSynced, read.HasSynced) {
+	if !cache.WaitForCacheSync(ctx.Done(), apply.HasSynced, read.HasSynced) {
 		t.Fatal("informers did not sync")
 	}
 }
@@ -82,21 +94,21 @@ func TestKubeApplierInformers_ListByManagementCluster(t *testing.T) {
 		// mgmt-a: cluster-scoped + nodepool-scoped under cluster c
 		newApplyDesire(t,
 			kubeapplier.ToClusterScopedApplyDesireResourceIDString(testSub, testRG, testCluster, "a1"),
-			testMgmtA),
+			testMgmtAID),
 		newApplyDesire(t,
 			kubeapplier.ToNodePoolScopedApplyDesireResourceIDString(testSub, testRG, testCluster, testNodePool, "a2"),
-			testMgmtA),
+			testMgmtAID),
 		// mgmt-b: cluster-scoped under a different cluster
 		newApplyDesire(t,
 			kubeapplier.ToClusterScopedApplyDesireResourceIDString(testSub, testRG, "other-cluster", "b1"),
-			testMgmtB),
+			testMgmtBID),
 	})
 	if err != nil {
 		t.Fatalf("NewMockKubeApplierDBClientWithResources: %v", err)
 	}
 
 	relistDuration := 250 * time.Millisecond
-	info := informers.NewKubeApplierInformersWithRelistDuration(ctx, mock.GlobalListers(), &relistDuration)
+	info := informers.NewKubeApplierInformersWithRelistDuration(ctx, mock.Listers(), mock, &relistDuration)
 	startAndSync(t, ctx, info)
 
 	_, lister := info.ApplyDesires()
@@ -109,7 +121,7 @@ func TestKubeApplierInformers_ListByManagementCluster(t *testing.T) {
 		t.Errorf("ApplyDesireLister.List len = %d, want 3", len(all))
 	}
 
-	gotA, err := lister.ListForManagementCluster(ctx, testMgmtA)
+	gotA, err := lister.ListForManagementCluster(ctx, testMgmtAID)
 	if err != nil {
 		t.Fatalf("ListForManagementCluster mgmt-a: %v", err)
 	}
@@ -117,12 +129,13 @@ func TestKubeApplierInformers_ListByManagementCluster(t *testing.T) {
 		t.Errorf("ListForManagementCluster mgmt-a: len = %d, want 2", len(gotA))
 	}
 	for _, d := range gotA {
-		if !strings.EqualFold(d.GetManagementCluster(), testMgmtA) {
-			t.Errorf("ListForManagementCluster mgmt-a returned desire with mgmt=%q", d.GetManagementCluster())
+		mc := d.GetManagementCluster()
+		if mc == nil || !strings.EqualFold(mc.String(), testMgmtA) {
+			t.Errorf("ListForManagementCluster mgmt-a returned desire with mgmt=%v", mc)
 		}
 	}
 
-	gotB, err := lister.ListForManagementCluster(ctx, testMgmtB)
+	gotB, err := lister.ListForManagementCluster(ctx, testMgmtBID)
 	if err != nil {
 		t.Fatalf("ListForManagementCluster mgmt-b: %v", err)
 	}
@@ -138,21 +151,21 @@ func TestKubeApplierInformers_ListForCluster_UnionsClusterAndNodePool(t *testing
 	mock, err := databasetesting.NewMockKubeApplierDBClientWithResources(ctx, []any{
 		newApplyDesire(t,
 			kubeapplier.ToClusterScopedApplyDesireResourceIDString(testSub, testRG, testCluster, "a1"),
-			testMgmtA),
+			testMgmtAID),
 		newApplyDesire(t,
 			kubeapplier.ToNodePoolScopedApplyDesireResourceIDString(testSub, testRG, testCluster, testNodePool, "a2"),
-			testMgmtA),
+			testMgmtAID),
 		// Different cluster: should NOT show up under our cluster's index.
 		newApplyDesire(t,
 			kubeapplier.ToClusterScopedApplyDesireResourceIDString(testSub, testRG, "other-cluster", "b1"),
-			testMgmtB),
+			testMgmtBID),
 	})
 	if err != nil {
 		t.Fatalf("NewMockKubeApplierDBClientWithResources: %v", err)
 	}
 
 	relistDuration := 250 * time.Millisecond
-	info := informers.NewKubeApplierInformersWithRelistDuration(ctx, mock.GlobalListers(), &relistDuration)
+	info := informers.NewKubeApplierInformersWithRelistDuration(ctx, mock.Listers(), mock, &relistDuration)
 	startAndSync(t, ctx, info)
 
 	_, lister := info.ApplyDesires()
@@ -181,14 +194,14 @@ func TestKubeApplierInformers_GetByID(t *testing.T) {
 	mock, err := databasetesting.NewMockKubeApplierDBClientWithResources(ctx, []any{
 		newApplyDesire(t,
 			kubeapplier.ToClusterScopedApplyDesireResourceIDString(testSub, testRG, testCluster, "a1"),
-			testMgmtA),
+			testMgmtAID),
 	})
 	if err != nil {
 		t.Fatalf("NewMockKubeApplierDBClientWithResources: %v", err)
 	}
 
 	relistDuration := 250 * time.Millisecond
-	info := informers.NewKubeApplierInformersWithRelistDuration(ctx, mock.GlobalListers(), &relistDuration)
+	info := informers.NewKubeApplierInformersWithRelistDuration(ctx, mock.Listers(), mock, &relistDuration)
 	startAndSync(t, ctx, info)
 
 	_, lister := info.ApplyDesires()
@@ -200,15 +213,15 @@ func TestKubeApplierInformers_GetByID(t *testing.T) {
 	if got == nil {
 		t.Fatal("GetForCluster a1: nil result")
 	}
-	if got.GetManagementCluster() != testMgmtA {
-		t.Errorf("GetForCluster a1: management = %q, want %q", got.GetManagementCluster(), testMgmtA)
+	mc := got.GetManagementCluster()
+	if mc == nil || !strings.EqualFold(mc.String(), testMgmtA) {
+		t.Errorf("GetForCluster a1: management = %v, want %q", mc, testMgmtA)
 	}
 }
 
 // Compile-time assertion: the listers package's interface is satisfied by the
 // implementation returned by the informer factory.
 var (
-	_ listers.ApplyDesireLister  = (listers.ApplyDesireLister)(nil)
-	_ listers.DeleteDesireLister = (listers.DeleteDesireLister)(nil)
-	_ listers.ReadDesireLister   = (listers.ReadDesireLister)(nil)
+	_ listers.ApplyDesireLister = (listers.ApplyDesireLister)(nil)
+	_ listers.ReadDesireLister  = (listers.ReadDesireLister)(nil)
 )

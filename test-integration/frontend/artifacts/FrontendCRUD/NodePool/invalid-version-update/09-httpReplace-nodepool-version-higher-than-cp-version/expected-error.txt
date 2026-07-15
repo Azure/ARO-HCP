@@ -1,3 +1,0 @@
-    "code": "InvalidRequestContent",
-    "message": "Invalid value: \"4.22.5\": invalid node pool version 4.22.5: cannot exceed control plane version 4.22.0",
-    "target": "properties.version.id"

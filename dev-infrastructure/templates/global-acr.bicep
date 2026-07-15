@@ -64,25 +64,16 @@ module ocpCaching '../modules/acr/cache.bicep' = {
         passwordIdentifier: 'quay-password'
         loginServer: 'quay.io'
       }
-    ]
-    keyVaultName: globalKeyVaultName
-  }
-  dependsOn: [
-    ocpAcr
-  ]
-}
-
-module ocpPublicCaching '../modules/acr/public-cache.bicep' = {
-  name: '${ocpAcrName}-public-caching'
-  params: {
-    acrName: ocpAcrName
-    publicRepositoriesToCache: [
       {
         ruleName: 'redhat-user-workloads-crt-redhat-acm-tenant'
         sourceRepo: 'quay.io/redhat-user-workloads/crt-redhat-acm-tenant/*'
         targetRepo: 'quay-cache/redhat-user-workloads/crt-redhat-acm-tenant/*'
+        userIdentifier: 'quay-username'
+        passwordIdentifier: 'quay-password'
+        loginServer: 'quay.io'
       }
     ]
+    keyVaultName: globalKeyVaultName
   }
   dependsOn: [
     ocpAcr

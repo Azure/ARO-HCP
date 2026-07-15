@@ -71,9 +71,19 @@ func NewClient(
 	ctx context.Context,
 	maestroRESTAPIEndpoint string, maestroGRPCAPIEndpoint string, maestroConsumerName string, maestroSourceID string,
 ) (Client, error) {
-	restClient := newRESTClient(maestroRESTAPIEndpoint)
+	restClient, restHTTPClient := newRESTClient(maestroRESTAPIEndpoint)
+	// The REST client uses a cloned http.Transport, which owns its own
+	// connection pool. Callers tear the client down by cancelling ctx, so we
+	// drain the pool's idle connections on cancellation to avoid leaking TCP
+	// connections and file descriptors across repeated client creations.
+	stopDrainIdleConns := context.AfterFunc(ctx, restHTTPClient.CloseIdleConnections)
+
 	grpcClient, err := newGRPCSourceWorkClient(ctx, maestroGRPCAPIEndpoint, restClient, maestroSourceID)
 	if err != nil {
+		// Unregister the teardown callback so we don't retain references until
+		// ctx is cancelled when client creation fails here.
+		stopDrainIdleConns()
+		restHTTPClient.CloseIdleConnections()
 		return nil, utils.TrackError(fmt.Errorf("failed to create maestro grpc source work client: %w", err))
 	}
 
@@ -88,14 +98,35 @@ type MaestroClientBuilder interface {
 
 var _ MaestroClientBuilder = (*maestroClientBuilder)(nil)
 
-type maestroClientBuilder struct{}
-
-func (b *maestroClientBuilder) NewClient(ctx context.Context, maestroRESTAPIEndpoint string, maestroGRPCAPIEndpoint string, maestroConsumerName string, maestroSourceID string) (Client, error) {
-	return NewClient(ctx, maestroRESTAPIEndpoint, maestroGRPCAPIEndpoint, maestroConsumerName, maestroSourceID)
+type maestroClientBuilder struct {
+	metrics *MaestroMetrics
 }
 
-func NewMaestroClientBuilder() MaestroClientBuilder {
-	return &maestroClientBuilder{}
+func (b *maestroClientBuilder) NewClient(ctx context.Context, maestroRESTAPIEndpoint string, maestroGRPCAPIEndpoint string, maestroConsumerName string, maestroSourceID string) (Client, error) {
+	client, err := NewClient(ctx, maestroRESTAPIEndpoint, maestroGRPCAPIEndpoint, maestroConsumerName, maestroSourceID)
+	if err != nil {
+		return nil, err
+	}
+
+	if b.metrics != nil {
+		return NewInstrumentedMaestroClient(client, b.metrics), nil
+	}
+
+	return client, nil
+}
+
+// NewMaestroClientBuilder creates a new MaestroClientBuilder.
+//
+// The metrics parameter is optional and can be nil. If provided, all clients
+// created by this builder will be instrumented with Prometheus metrics.
+// If nil, clients will not be instrumented.
+//
+// Breaking change note: This constructor previously took no arguments.
+// The signature change is intentional to enable optional metrics instrumentation.
+func NewMaestroClientBuilder(metrics *MaestroMetrics) MaestroClientBuilder {
+	return &maestroClientBuilder{
+		metrics: metrics,
+	}
 }
 
 // GenerateMaestroSourceID generates a Maestro Source ID of the form "<envName>-<provisionShardID>".
@@ -115,8 +146,14 @@ func GenerateMaestroSourceID(envName string, provisionShardID string) string {
 
 // newRESTClient creates a REST client for the Maestro API. The Maestro REST client
 // allows to perform a subset (but not all) of actions against the Maestro API.
-func newRESTClient(endpoint string) *maestroopenapi.APIClient {
+// It also returns the underlying *http.Client so its connection pool can be
+// drained (CloseIdleConnections) when the client is no longer needed.
+func newRESTClient(endpoint string) (*maestroopenapi.APIClient, *http.Client) {
 	httpClientTransport := http.DefaultTransport.(*http.Transport).Clone()
+	httpClient := &http.Client{
+		Transport: httpClientTransport,
+		Timeout:   30 * time.Second,
+	}
 	maestroRESTClientConfig := &maestroopenapi.Configuration{
 		DefaultHeader: map[string]string{},
 		UserAgent:     "ARO-HCP-Backend",
@@ -125,14 +162,11 @@ func newRESTClient(endpoint string) *maestroopenapi.APIClient {
 			URL: endpoint,
 		}},
 		OperationServers: map[string]maestroopenapi.ServerConfigurations{},
-		HTTPClient: &http.Client{
-			Transport: httpClientTransport,
-			Timeout:   30 * time.Second,
-		},
+		HTTPClient:       httpClient,
 	}
 
 	restClient := maestroopenapi.NewAPIClient(maestroRESTClientConfig)
-	return restClient
+	return restClient, httpClient
 }
 
 // newGRPCSourceWorkClient creates a new GRPC Source Work client for the Maestro API.

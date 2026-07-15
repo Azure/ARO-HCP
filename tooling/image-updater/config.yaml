@@ -37,7 +37,7 @@ images:
     group: hypershift-stack
     source:
       image: quay.io/redhat-user-workloads/crt-redhat-acm-tenant/hypershift-shared-ingress-main
-      tagPattern: "^[a-f0-9]{40}$"
+      tag: "0903f6b78a608541892ecbe8005899a91bda9ad5"
       multiArch: true
     targets:
     - jsonPath: defaults.hypershift.sharedIngressImage.digest
@@ -55,32 +55,6 @@ images:
         secretName: "component-sync-pull-secret"
     targets:
     - jsonPath: defaults.clustersService.image.digest
-      filePath: ../../config/config.yaml
-  # Custom Exporter image
-  aro-hcp-exporter:
-    group: aro-hcp-exporter
-    source:
-      image: arohcpsvcdev.azurecr.io/arohcpmetrics
-      useAuth: true
-    targets:
-    - jsonPath: defaults.customExporter.image.digest
-      filePath: ../../config/config.yaml
-  # Frontend and Backend images
-  arohcpfrontend:
-    group: aro-rp
-    source:
-      image: arohcpsvcdev.azurecr.io/arohcpfrontend
-      useAuth: true
-    targets:
-    - jsonPath: defaults.frontend.image.digest
-      filePath: ../../config/config.yaml
-  arohcpbackend:
-    group: aro-rp
-    source:
-      image: arohcpsvcdev.azurecr.io/arohcpbackend
-      useAuth: true
-    targets:
-    - jsonPath: defaults.backend.image.digest
       filePath: ../../config/config.yaml
   # Kube Events image
   kubeEvents:
@@ -225,27 +199,11 @@ images:
       filePath: ../../config/config.yaml
     - jsonPath: defaults.mgmt.prometheus.kubeStateMetrics.image.digest
       filePath: ../../config/config.yaml
-  admin-api:
-    group: aro-rp
-    source:
-      image: arohcpsvcdev.azurecr.io/arohcpadminapi
-      useAuth: true
-    targets:
-    - jsonPath: defaults.adminApi.image.digest
-      filePath: ../../config/config.yaml
-  sessiongate:
-    group: aro-rp
-    source:
-      image: arohcpsvcdev.azurecr.io/arohcpsessiongate
-      useAuth: true
-    targets:
-    - jsonPath: defaults.sessiongate.image.digest
-      filePath: ../../config/config.yaml
   # Velero images
   velero-server:
     group: velero
     source:
-      image: registry.redhat.io/oadp/oadp-velero-rhel9
+      image: registry.stage.redhat.io/oadp/oadp-velero-rhel9
       tagPattern: "^\\d+\\.\\d+\\.\\d+$"
       multiArch: true
       useAuth: true
@@ -258,7 +216,7 @@ images:
   velero-azure-plugin:
     group: velero
     source:
-      image: registry.redhat.io/oadp/oadp-velero-plugin-for-microsoft-azure-rhel9
+      image: registry.stage.redhat.io/oadp/oadp-velero-plugin-for-microsoft-azure-rhel9
       tagPattern: "^\\d+\\.\\d+\\.\\d+$"
       multiArch: true
       useAuth: true
@@ -271,7 +229,7 @@ images:
   velero-hypershift-plugin:
     group: velero
     source:
-      image: registry.redhat.io/oadp/oadp-hypershift-velero-plugin-rhel9
+      image: registry.stage.redhat.io/oadp/oadp-hypershift-velero-plugin-rhel9
       tagPattern: "^\\d+\\.\\d+\\.\\d+$"
       multiArch: true
       useAuth: true

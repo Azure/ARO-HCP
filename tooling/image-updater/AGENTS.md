@@ -22,7 +22,7 @@ or excluded:
 
 - Single component: `bump-<component>` (e.g. `bump-hypershift`)
 - Multiple components: `bump-<component1>-<component2>` (e.g. `bump-maestro-hypershift`)
-- All except some: `bump-all-except-<excluded>` (e.g. `bump-all-except-arohcpfrontend`)
+- All except some: `bump-all-except-<excluded>` (e.g. `bump-all-except-maestro`)
 - All components: `bump-all`
 
 ```bash
@@ -51,7 +51,7 @@ Use `--exclude-components` to skip specific components:
 
 ```bash
 cd tooling/image-updater
-./image-updater update --config config.yaml --tags --exclude-components arohcpfrontend,arohcpbackend --output-format markdown
+./image-updater update --config config.yaml --tags --exclude-components maestro,hypershift --output-format markdown
 ```
 
 ### Bump by Group

@@ -31,6 +31,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/goleak"
 
+	utilsclock "k8s.io/utils/clock"
 	"k8s.io/utils/set"
 
 	adminApiServer "github.com/Azure/ARO-HCP/admin/server/server"
@@ -40,6 +41,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/api/v20240610preview"
 	"github.com/Azure/ARO-HCP/internal/api/v20251223preview"
+	"github.com/Azure/ARO-HCP/internal/api/v20260630preview"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -149,6 +151,7 @@ func NewIntegrationTestInfoFromEnv(ctx context.Context, t *testing.T, withMock b
 		adminMetricsListener,
 		storageIntegrationTestInfo.ResourcesDBClient(),
 		storageIntegrationTestInfo.BillingDBClient(),
+		storageIntegrationTestInfo.FleetDBClient(),
 		clusterServiceMockInfo.MockClusterServiceClient,
 		nil,
 		nil,
@@ -183,7 +186,7 @@ func MarkOperationsCompleteForName(ctx context.Context, resourcesDBClient databa
 		if operation.ExternalID.Name != resourceName {
 			continue
 		}
-		err := operationcontrollers.UpdateOperationStatus(ctx, resourcesDBClient, operation, arm.ProvisioningStateSucceeded, nil, nil)
+		err := operationcontrollers.UpdateOperationStatus(ctx, utilsclock.RealClock{}, resourcesDBClient, operation, arm.ProvisioningStateSucceeded, nil, nil)
 		if err != nil {
 			return err
 		}
@@ -209,6 +212,7 @@ func AllAPIVersions() []string {
 	registry := api.NewAPIRegistry()
 	api.Must[any](nil, v20240610preview.RegisterVersion(registry))
 	api.Must[any](nil, v20251223preview.RegisterVersion(registry))
+	api.Must[any](nil, v20260630preview.RegisterVersion(registry))
 
 	versions := registry.ListVersions().UnsortedList()
 	sort.Strings(versions)

@@ -28,9 +28,12 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+
 	"github.com/Azure/ARO-HCP/internal/version"
 	"github.com/Azure/ARO-HCP/tooling/tenant-quota/pkg/config"
 	"github.com/Azure/ARO-HCP/tooling/tenant-quota/pkg/credentials"
+	"github.com/Azure/ARO-HCP/tooling/tenant-quota/pkg/resourcegroups"
 	"github.com/Azure/ARO-HCP/tooling/tenant-quota/pkg/subscriptionquota"
 	"github.com/Azure/ARO-HCP/tooling/tenant-quota/pkg/tenantquota"
 )
@@ -87,6 +90,10 @@ func run(logger *slog.Logger) error {
 		subCollector := subscriptionquota.NewCollector(cfg, logger, credProvider, cfg.GetCacheTTL())
 		registry.MustRegister(subCollector)
 		go subCollector.Start(ctx)
+
+		e2eRGCollector := resourcegroups.NewCollector(resourcegroups.E2ECollectorConfig, cfg, logger, credProvider)
+		registry.MustRegister(e2eRGCollector)
+		go e2eRGCollector.Start(ctx)
 	}
 
 	mux := http.NewServeMux()
@@ -103,6 +110,7 @@ func run(logger *slog.Logger) error {
 
 	errChan := make(chan error, 1)
 	go func() {
+		defer utilruntime.HandleCrash()
 		logger.Info("Starting HTTP server", "port", port)
 		if err := server.ListenAndServe(); err != http.ErrServerClosed {
 			errChan <- err

@@ -23,13 +23,16 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
+	dblisters "github.com/Azure/ARO-HCP/internal/database/listers"
+	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/serverutils"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 type clusterRecursiveDataDump struct {
-	cooldownChecker   controllerutil.CooldownChecker
-	resourcesDBClient database.ResourcesDBClient
+	resourcesDBClient       database.ResourcesDBClient
+	kubeApplierDBClients    database.KubeApplierDBClients
+	managementClusterLister dblisters.ManagementClusterLister
 
 	// nextDataDumpChecker ensures we don't hotloop from any source.
 	nextDataDumpChecker controllerutil.CooldownChecker
@@ -38,19 +41,24 @@ type clusterRecursiveDataDump struct {
 // NewClusterRecursiveDataDumpController periodically lists all clusters and logs when the cluster was created and its state.
 func NewClusterRecursiveDataDumpController(
 	resourcesDBClient database.ResourcesDBClient,
+	kubeApplierDBClients database.KubeApplierDBClients,
+	managementClusterLister dblisters.ManagementClusterLister,
 	activeOperationLister listers.ActiveOperationLister,
 	backendInformers informers.BackendInformers,
+	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 ) controllerutils.Controller {
 	syncer := &clusterRecursiveDataDump{
-		cooldownChecker:     controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
-		resourcesDBClient:   resourcesDBClient,
-		nextDataDumpChecker: controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
+		resourcesDBClient:       resourcesDBClient,
+		kubeApplierDBClients:    kubeApplierDBClients,
+		managementClusterLister: managementClusterLister,
+		nextDataDumpChecker:     controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
 	}
 
 	controller := controllerutils.NewClusterWatchingController(
 		"DataDump",
 		resourcesDBClient,
 		backendInformers,
+		kubeApplierInformers,
 		1*time.Minute,
 		syncer,
 	)
@@ -65,14 +73,10 @@ func (c *clusterRecursiveDataDump) SyncOnce(ctx context.Context, key controlleru
 
 	logger := utils.LoggerFromContext(ctx)
 
-	if err := serverutils.DumpDataToLogger(ctx, c.resourcesDBClient, key.GetResourceID()); err != nil {
+	if err := serverutils.DumpDataToLogger(ctx, c.resourcesDBClient, c.kubeApplierDBClients, c.managementClusterLister, key.GetResourceID()); err != nil {
 		// never fail, this is best effort
 		logger.Error(err, "failed to dump data to logger")
 	}
 
 	return nil
-}
-
-func (c *clusterRecursiveDataDump) CooldownChecker() controllerutil.CooldownChecker {
-	return c.cooldownChecker
 }

@@ -1,0 +1,124 @@
+$schema: "pipeline.schema.v1"
+serviceGroup: Microsoft.Azure.ARO.HCP.DevCI.E2ESubscriptionRBAC
+rolloutName: Dev CI E2E Subscription RBAC Rollout
+resourceGroups:
+- name: grants
+  resourceGroup: '{{ .global.rg }}'
+  subscription: '{{ .global.subscription.key }}'
+  steps:
+  - name: customer-subscription-grants
+    action: ARM
+    template: ../../templates/e2e-subscription-rbac-assignments.bicep
+    parameters: ../../configurations/e2e-subscription-rbac-assignments.tmpl.bicepparam
+    deploymentLevel: Subscription
+- name: ci-bots
+  resourceGroup: '{{ .global.rg }}'
+  subscription: '{{ .global.subscription.key }}'
+  steps:
+  - name: global-identity
+    action: ARM
+    template: ../../templates/output-opstool-global-identity.bicep
+    parameters: ../../configurations/output-opstool-global-identity.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
+  - name: ci-bot-identity
+    action: ARM
+    template: ../../templates/ci-bot-identity.bicep
+    parameters: ../../configurations/ci-bot-identity.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+  - name: ci-bot-secret-int
+    action: Shell
+    command: ./ci-bot-ensure-secret.sh
+    workingDir: ../../scripts
+    shellIdentity:
+      input:
+        resourceGroup: ci-bots
+        step: global-identity
+        name: globalMSIId
+    variables:
+    - name: APP_NAME
+      configRef: ci.int.bot.applicationName
+    - name: ENV_NAME
+      value: int
+    - name: KEY_VAULT_NAME
+      configRef: opstool.keyVault.name
+    dependsOn:
+    - resourceGroup: ci-bots
+      step: ci-bot-identity
+  - name: ci-bot-secret-stg
+    action: Shell
+    command: ./ci-bot-ensure-secret.sh
+    workingDir: ../../scripts
+    shellIdentity:
+      input:
+        resourceGroup: ci-bots
+        step: global-identity
+        name: globalMSIId
+    variables:
+    - name: APP_NAME
+      configRef: ci.stg.bot.applicationName
+    - name: ENV_NAME
+      value: stg
+    - name: KEY_VAULT_NAME
+      configRef: opstool.keyVault.name
+    dependsOn:
+    - resourceGroup: ci-bots
+      step: ci-bot-identity
+  - name: ci-bot-secret-prod
+    action: Shell
+    command: ./ci-bot-ensure-secret.sh
+    workingDir: ../../scripts
+    shellIdentity:
+      input:
+        resourceGroup: ci-bots
+        step: global-identity
+        name: globalMSIId
+    variables:
+    - name: APP_NAME
+      configRef: ci.prod.bot.applicationName
+    - name: ENV_NAME
+      value: prod
+    - name: KEY_VAULT_NAME
+      configRef: opstool.keyVault.name
+    dependsOn:
+    - resourceGroup: ci-bots
+      step: ci-bot-identity
+  # The DEV Release Bot RBAC is still managed imperatively by the legacy
+  # grant-openshift-release-bot-dev.sh script, which created role assignments
+  # under random (non-deterministic) names. Enabling this step before those
+  # legacy assignments are removed fails with RoleAssignmentExists, because the
+  # deterministic guid()-named assignments this template creates collide with
+  # the pre-existing ones. Keep it commented until the DEV bot RBAC migration
+  # (delete legacy assignments, then enable this step) has been performed.
+  # - name: ci-bot-rbac-dev
+  #   action: ARM
+  #   template: ../../templates/ci-bot-rbac.bicep
+  #   parameters: ../../configurations/ci-bot-rbac-dev.tmpl.bicepparam
+  #   deploymentLevel: ResourceGroup
+  #   dependsOn:
+  #   - resourceGroup: ci-bots
+  #     step: ci-bot-identity
+  - name: ci-bot-rbac-int
+    action: ARM
+    template: ../../templates/ci-bot-rbac.bicep
+    parameters: ../../configurations/ci-bot-rbac-int.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    dependsOn:
+    - resourceGroup: ci-bots
+      step: ci-bot-identity
+  - name: ci-bot-rbac-stg
+    action: ARM
+    template: ../../templates/ci-bot-rbac.bicep
+    parameters: ../../configurations/ci-bot-rbac-stg.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    dependsOn:
+    - resourceGroup: ci-bots
+      step: ci-bot-identity
+  - name: ci-bot-rbac-prod
+    action: ARM
+    template: ../../templates/ci-bot-rbac.bicep
+    parameters: ../../configurations/ci-bot-rbac-prod.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    dependsOn:
+    - resourceGroup: ci-bots
+      step: ci-bot-identity

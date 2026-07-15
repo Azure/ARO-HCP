@@ -15,6 +15,7 @@
 package kubeapplier
 
 import (
+	"strconv"
 	"strings"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -36,6 +37,8 @@ func (o *ApplyDesire) GetObjectMeta() metav1.Object {
 	if o.GetResourceID() != nil {
 		om.Name = strings.ToLower(o.GetResourceID().String())
 	}
+	// shared_informer uses ResourceVersion to determine if an event is a sync
+	om.ResourceVersion = strconv.FormatInt(o.InstanceVersion, 10)
 	return om
 }
 
@@ -55,38 +58,6 @@ func (l *ApplyDesireList) GetObjectKind() schema.ObjectKind {
 }
 
 var (
-	_ runtime.Object            = &DeleteDesire{}
-	_ metav1.ObjectMetaAccessor = &DeleteDesire{}
-)
-
-func (o *DeleteDesire) GetObjectKind() schema.ObjectKind {
-	return schema.EmptyObjectKind
-}
-
-func (o *DeleteDesire) GetObjectMeta() metav1.Object {
-	om := &metav1.ObjectMeta{}
-	if o.GetResourceID() != nil {
-		om.Name = strings.ToLower(o.GetResourceID().String())
-	}
-	return om
-}
-
-// DeleteDesireList is a list of DeleteDesire resources compatible with runtime.Object
-// for use with Kubernetes informer machinery.
-// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-type DeleteDesireList struct {
-	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []DeleteDesire `json:"items"`
-}
-
-var _ runtime.Object = &DeleteDesireList{}
-
-func (l *DeleteDesireList) GetObjectKind() schema.ObjectKind {
-	return &l.TypeMeta
-}
-
-var (
 	_ runtime.Object            = &ReadDesire{}
 	_ metav1.ObjectMetaAccessor = &ReadDesire{}
 )
@@ -100,6 +71,8 @@ func (o *ReadDesire) GetObjectMeta() metav1.Object {
 	if o.GetResourceID() != nil {
 		om.Name = strings.ToLower(o.GetResourceID().String())
 	}
+	// shared_informer uses ResourceVersion to determine if an event is a sync
+	om.ResourceVersion = strconv.FormatInt(o.InstanceVersion, 10)
 	return om
 }
 

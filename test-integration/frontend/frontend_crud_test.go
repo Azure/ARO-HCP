@@ -42,7 +42,7 @@ func testFrontendCRUD(t *testing.T, withMock bool) {
 	for _, crudSuiteDirEntry := range crudSuiteDirs {
 		crudSuiteDir := api.Must(fs.Sub(allCRUDDirFS, crudSuiteDirEntry.Name()))
 		t.Run(crudSuiteDirEntry.Name(), func(t *testing.T) {
-			testCRUDSuite[any](
+			testUntypedCRUDSuite(
 				ctx,
 				t,
 				crudSuiteDir,

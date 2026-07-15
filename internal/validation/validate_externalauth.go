@@ -16,6 +16,7 @@ package validation
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 	"regexp"
 
@@ -54,6 +55,10 @@ func validateExternalAuth(ctx context.Context, op operation.Operation, newObj, o
 	//arm.ProxyResource
 	errs = append(errs, validateProxyResource(ctx, op, field.NewPath("trackedResource"), &newObj.ProxyResource, safe.Field(oldObj, toExternalAuthProxyResource))...)
 	errs = append(errs, RestrictedResourceIDWithResourceGroup(ctx, op, field.NewPath("id"), newObj.ID, nil, api.ExternalAuthResourceType.String())...)
+	if newObj.ID != nil {
+		errs = append(errs, MaxLen(ctx, op, field.NewPath("id"), &newObj.ID.Name, nil, 15)...)
+		errs = append(errs, MatchesRegex(ctx, op, field.NewPath("id"), &newObj.ID.Name, nil, externalAuthResourceNameRegex, externalAuthResourceNameErrorString)...)
+	}
 
 	//Properties HCPOpenShiftClusterExternalAuthProperties `json:"properties"`
 	errs = append(errs, validateExternalAuthProperties(ctx, op, field.NewPath("properties"), &newObj.Properties, safe.Field(oldObj, toExternalAuthProperties))...)
@@ -81,9 +86,6 @@ var (
 	toExternalAuthPropertiesProvisioningState = func(oldObj *api.HCPOpenShiftClusterExternalAuthProperties) *arm.ProvisioningState {
 		return &oldObj.ProvisioningState
 	}
-	toExternalAuthPropertiesCondition = func(oldObj *api.HCPOpenShiftClusterExternalAuthProperties) *api.ExternalAuthCondition {
-		return &oldObj.Condition
-	}
 	toExternalAuthPropertiesIssuer = func(oldObj *api.HCPOpenShiftClusterExternalAuthProperties) *api.TokenIssuerProfile {
 		return &oldObj.Issuer
 	}
@@ -100,9 +102,6 @@ func validateExternalAuthProperties(ctx context.Context, op operation.Operation,
 
 	//ProvisioningState arm.ProvisioningState       `json:"provisioningState"`
 	errs = append(errs, immutableByCompare(ctx, op, fldPath.Child("provisioningState"), &newObj.ProvisioningState, safe.Field(oldObj, toExternalAuthPropertiesProvisioningState))...)
-
-	//Condition         ExternalAuthCondition       `json:"condition,omitzero"`
-	errs = append(errs, validateExternalAuthCondition(ctx, op, fldPath.Child("condition"), &newObj.Condition, safe.Field(oldObj, toExternalAuthPropertiesCondition))...)
 
 	//Issuer            TokenIssuerProfile          `json:"issuer"`
 	errs = append(errs, validateTokenIssuerProfile(ctx, op, fldPath.Child("issuer"), &newObj.Issuer, safe.Field(oldObj, toExternalAuthPropertiesIssuer))...)
@@ -181,13 +180,13 @@ func validateTokenIssuerProfile(ctx context.Context, op operation.Operation, fld
 	errs = append(errs, validate.RequiredSlice(ctx, op, fldPath.Child("audiences"), newObj.Audiences, safe.Field(oldObj, toTokenIssuerProfileAudiences))...)
 	errs = append(errs, MinItems(ctx, op, fldPath.Child("audiences"), newObj.Audiences, safe.Field(oldObj, toTokenIssuerProfileAudiences), 1)...)
 	errs = append(errs, MaxItems(ctx, op, fldPath.Child("audiences"), newObj.Audiences, safe.Field(oldObj, toTokenIssuerProfileAudiences), 10)...)
+	errs = append(errs, validate.EachSliceVal(
+		ctx, op, fldPath.Child("audiences"),
+		newObj.Audiences, safe.Field(oldObj, toTokenIssuerProfileAudiences),
+		nil, nil,
+		validate.RequiredValue,
+	)...)
 	// TODO I bet these were forgotten
-	//errs = append(errs, validate.EachSliceVal(
-	//	ctx, op, fldPath.Child("audiences"),
-	//	newObj.Audiences, safe.Field(oldObj, toTokenIssuerProfileAudiences),
-	//	nil, nil,
-	//	validate.RequiredValue,
-	//)...)
 	//errs = append(errs, validate.EachSliceVal(
 	//	ctx, op, fldPath.Child("audiences"),
 	//	newObj.Audiences, safe.Field(oldObj, toTokenIssuerProfileAudiences),
@@ -205,9 +204,22 @@ var (
 	toExternalAuthClientProfileComponent = func(oldObj *api.ExternalAuthClientProfile) *api.ExternalAuthClientComponentProfile {
 		return &oldObj.Component
 	}
-	toExternalAuthClientProfileClientID = func(oldObj *api.ExternalAuthClientProfile) *string { return &oldObj.ClientID }
-	toExternalAuthClientProfileType     = func(oldObj *api.ExternalAuthClientProfile) *api.ExternalAuthClientType { return &oldObj.Type }
+	toExternalAuthClientProfileClientID    = func(oldObj *api.ExternalAuthClientProfile) *string { return &oldObj.ClientID }
+	toExternalAuthClientProfileType        = func(oldObj *api.ExternalAuthClientProfile) *api.ExternalAuthClientType { return &oldObj.Type }
+	toExternalAuthClientProfileExtraScopes = func(oldObj *api.ExternalAuthClientProfile) []string { return oldObj.ExtraScopes }
 )
+
+// confidentialExternalAuthClientComponentKey is the map key for validConfidentialExternalAuthClientComponents.
+type confidentialExternalAuthClientComponentKey struct {
+	name      string
+	namespace string
+}
+
+// validConfidentialExternalAuthClientComponents lists component name and namespace
+// pairs that may use the Confidential client type.
+var validConfidentialExternalAuthClientComponents = map[confidentialExternalAuthClientComponentKey]struct{}{
+	{name: api.ExternalAuthConsoleClientComponentName, namespace: api.ExternalAuthConsoleClientComponentNamespace}: {},
+}
 
 func validateExternalAuthClientProfile(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.ExternalAuthClientProfile) field.ErrorList {
 	errs := field.ErrorList{}
@@ -220,10 +232,46 @@ func validateExternalAuthClientProfile(ctx context.Context, op operation.Operati
 	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("clientId"), &newObj.ClientID, safe.Field(oldObj, toExternalAuthClientProfileClientID))...)
 
 	//ExtraScopes []string                           `json:"extraScopes"`
+	errs = append(errs, validate.EachSliceVal(
+		ctx, op, fldPath.Child("extraScopes"),
+		newObj.ExtraScopes, safe.Field(oldObj, toExternalAuthClientProfileExtraScopes),
+		nil, nil,
+		validate.RequiredValue,
+	)...)
 
 	//Type        ExternalAuthClientType             `json:"type"`
 	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("type"), &newObj.Type, safe.Field(oldObj, toExternalAuthClientProfileType))...)
 	errs = append(errs, validate.Enum(ctx, op, fldPath.Child("type"), &newObj.Type, safe.Field(oldObj, toExternalAuthClientProfileType), api.ValidExternalAuthClientTypes, nil)...)
+
+	// The OpenShift console component must use the Confidential client type.
+	if newObj.Component.Name == api.ExternalAuthConsoleClientComponentName &&
+		newObj.Component.AuthClientNamespace == api.ExternalAuthConsoleClientComponentNamespace &&
+		newObj.Type != api.ExternalAuthClientTypeConfidential {
+		errs = append(errs, field.Invalid(
+			fldPath.Child("type"),
+			newObj.Type,
+			fmt.Sprintf("must be %s when component name is %s and component namespace is %s",
+				api.ExternalAuthClientTypeConfidential,
+				api.ExternalAuthConsoleClientComponentName,
+				api.ExternalAuthConsoleClientComponentNamespace,
+			),
+		))
+	}
+
+	// Confidential clients are restricted to platform components listed in
+	// validConfidentialExternalAuthClientComponents. This is independent of the
+	// console-specific type requirement above.
+	_, isAllowedConfidentialComponent := validConfidentialExternalAuthClientComponents[confidentialExternalAuthClientComponentKey{
+		name:      newObj.Component.Name,
+		namespace: newObj.Component.AuthClientNamespace,
+	}]
+	if newObj.Type == api.ExternalAuthClientTypeConfidential && !isAllowedConfidentialComponent {
+		errs = append(errs, field.Invalid(
+			fldPath.Child("type"),
+			newObj.Type,
+			"confidential client type is not allowed for this component",
+		))
+	}
 
 	return errs
 }
@@ -300,6 +348,7 @@ func validateUsernameClaimProfile(ctx context.Context, op operation.Operation, f
 
 	//Claim        string                    `json:"claim"`
 	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("claim"), &newObj.Claim, safe.Field(oldObj, toUsernameClaimProfileClaim))...)
+	errs = append(errs, MaxLen(ctx, op, fldPath.Child("claim"), &newObj.Claim, safe.Field(oldObj, toUsernameClaimProfileClaim), 256)...)
 
 	//Prefix       string                    `json:"prefix"`
 
@@ -380,31 +429,6 @@ func validateTokenRequiredClaim(ctx context.Context, op operation.Operation, fld
 
 	//RequiredValue string `json:"requiredValue"`
 	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("requiredValue"), &newObj.RequiredValue, safe.Field(oldObj, toTokenRequiredClaimRequiredValue))...)
-
-	return errs
-}
-
-var (
-	toExternalAuthConditionType   = func(oldObj *api.ExternalAuthCondition) *api.ExternalAuthConditionType { return &oldObj.Type }
-	toExternalAuthConditionStatus = func(oldObj *api.ExternalAuthCondition) *api.ConditionStatusType { return &oldObj.Status }
-)
-
-func validateExternalAuthCondition(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.ExternalAuthCondition) field.ErrorList {
-	if newObj == nil || reflect.DeepEqual(*newObj, api.ExternalAuthCondition{}) {
-		return nil
-	}
-
-	errs := field.ErrorList{}
-
-	//Type               ExternalAuthConditionType `json:"type"`
-	errs = append(errs, validate.Enum(ctx, op, fldPath.Child("type"), &newObj.Type, safe.Field(oldObj, toExternalAuthConditionType), api.ValidExternalAuthConditionTypes, nil)...)
-
-	//Status             ConditionStatusType       `json:"status"`
-	errs = append(errs, validate.Enum(ctx, op, fldPath.Child("status"), &newObj.Status, safe.Field(oldObj, toExternalAuthConditionStatus), api.ValidConditionStatusTypes, nil)...)
-
-	//LastTransitionTime time.Time                 `json:"lastTransitionTime"`
-	//Reason             string                    `json:"reason"`
-	//Message            string                    `json:"message"`
 
 	return errs
 }

@@ -155,8 +155,12 @@ func TestDBActiveOperationLister(t *testing.T) {
 	op1.Status = arm.ProvisioningStateProvisioning
 	op2 := newTestOperation(testSubscriptionID, "op2", testSubscriptionID, testResourceGroupName, testClusterName)
 	op2.Status = arm.ProvisioningStateProvisioning
+	npOp1 := newTestNodePoolOperation(testSubscriptionID, "np-op1", testSubscriptionID, testResourceGroupName, testClusterName, testNodePoolName)
+	npOp1.Status = arm.ProvisioningStateProvisioning
+	eaOp1 := newTestExternalAuthOperation(testSubscriptionID, "ea-op1", testSubscriptionID, testResourceGroupName, testClusterName, testExternalAuthName)
+	eaOp1.Status = arm.ProvisioningStateProvisioning
 
-	mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, op1, op2})
+	mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, op1, op2, npOp1, eaOp1})
 	require.NoError(t, err)
 
 	lister := &DBActiveOperationLister{ResourcesDBClient: mockResourcesDBClient}
@@ -164,7 +168,7 @@ func TestDBActiveOperationLister(t *testing.T) {
 	t.Run("List returns all active operations", func(t *testing.T) {
 		result, err := lister.List(ctx)
 		require.NoError(t, err)
-		assert.Len(t, result, 2)
+		assert.Len(t, result, 4)
 	})
 
 	t.Run("Get returns matching operation", func(t *testing.T) {
@@ -179,10 +183,24 @@ func TestDBActiveOperationLister(t *testing.T) {
 		assert.True(t, database.IsNotFoundError(err))
 	})
 
-	t.Run("ListActiveOperationsForCluster returns operations for cluster", func(t *testing.T) {
+	t.Run("ListActiveOperationsForCluster returns operations for cluster including child resources", func(t *testing.T) {
 		result, err := lister.ListActiveOperationsForCluster(ctx, testSubscriptionID, testResourceGroupName, testClusterName)
 		require.NoError(t, err)
-		assert.Len(t, result, 2)
+		assert.Len(t, result, 4)
+	})
+
+	t.Run("ListActiveOperationsForNodePool returns operations for node pool", func(t *testing.T) {
+		result, err := lister.ListActiveOperationsForNodePool(ctx, testSubscriptionID, testResourceGroupName, testClusterName, testNodePoolName)
+		require.NoError(t, err)
+		assert.Len(t, result, 1)
+		assert.Equal(t, "np-op1", result[0].OperationID.Name)
+	})
+
+	t.Run("ListActiveOperationsForExternalAuth returns operations for external auth", func(t *testing.T) {
+		result, err := lister.ListActiveOperationsForExternalAuth(ctx, testSubscriptionID, testResourceGroupName, testClusterName, testExternalAuthName)
+		require.NoError(t, err)
+		assert.Len(t, result, 1)
+		assert.Equal(t, "ea-op1", result[0].OperationID.Name)
 	})
 }
 
@@ -791,6 +809,100 @@ func TestDBActiveOperationListerWithUpdates(t *testing.T) {
 	})
 }
 
+func TestDBActiveOperationListerWithUpdates_ListActiveOperationsForNodePool(t *testing.T) {
+	ctx := context.Background()
+	mockResourcesDBClient := databasetesting.NewMockResourcesDBClient()
+
+	cluster := newTestCluster(testSubscriptionID, testResourceGroupName, testClusterName)
+	clusterCRUD := mockResourcesDBClient.HCPClusters(testSubscriptionID, testResourceGroupName)
+	_, err := clusterCRUD.Create(ctx, cluster, nil)
+	require.NoError(t, err)
+
+	np := newTestNodePool(testSubscriptionID, testResourceGroupName, testClusterName, testNodePoolName)
+	nodePoolCRUD := clusterCRUD.NodePools(testClusterName)
+	_, err = nodePoolCRUD.Create(ctx, np, nil)
+	require.NoError(t, err)
+
+	op := newTestNodePoolOperation(testSubscriptionID, "np-op1", testSubscriptionID, testResourceGroupName, testClusterName, testNodePoolName)
+	op.Status = arm.ProvisioningStateProvisioning
+
+	opCRUD := mockResourcesDBClient.Operations(testSubscriptionID)
+	createdOp, err := opCRUD.Create(ctx, op, nil)
+	require.NoError(t, err)
+
+	lister := &DBActiveOperationLister{ResourcesDBClient: mockResourcesDBClient}
+
+	t.Run("ListActiveOperationsForNodePool returns operation with Provisioning status", func(t *testing.T) {
+		result, err := lister.ListActiveOperationsForNodePool(ctx, testSubscriptionID, testResourceGroupName, testClusterName, testNodePoolName)
+		require.NoError(t, err)
+		assert.Len(t, result, 1)
+		assert.Equal(t, arm.ProvisioningStateProvisioning, result[0].Status)
+	})
+
+	createdOp.Status = arm.ProvisioningStateSucceeded
+	_, err = opCRUD.Replace(ctx, createdOp, nil)
+	require.NoError(t, err)
+
+	t.Run("ListActiveOperationsForNodePool excludes operation after update to terminal state", func(t *testing.T) {
+		result, err := lister.ListActiveOperationsForNodePool(ctx, testSubscriptionID, testResourceGroupName, testClusterName, testNodePoolName)
+		require.NoError(t, err)
+		assert.Empty(t, result)
+	})
+
+	t.Run("Get still returns operation even in terminal state", func(t *testing.T) {
+		result, err := lister.Get(ctx, testSubscriptionID, "np-op1")
+		require.NoError(t, err)
+		assert.Equal(t, arm.ProvisioningStateSucceeded, result.Status)
+	})
+}
+
+func TestDBActiveOperationListerWithUpdates_ListActiveOperationsForExternalAuth(t *testing.T) {
+	ctx := context.Background()
+	mockResourcesDBClient := databasetesting.NewMockResourcesDBClient()
+
+	cluster := newTestCluster(testSubscriptionID, testResourceGroupName, testClusterName)
+	clusterCRUD := mockResourcesDBClient.HCPClusters(testSubscriptionID, testResourceGroupName)
+	_, err := clusterCRUD.Create(ctx, cluster, nil)
+	require.NoError(t, err)
+
+	ea := newTestExternalAuth(testSubscriptionID, testResourceGroupName, testClusterName, testExternalAuthName)
+	externalAuthCRUD := clusterCRUD.ExternalAuth(testClusterName)
+	_, err = externalAuthCRUD.Create(ctx, ea, nil)
+	require.NoError(t, err)
+
+	op := newTestExternalAuthOperation(testSubscriptionID, "ea-op1", testSubscriptionID, testResourceGroupName, testClusterName, testExternalAuthName)
+	op.Status = arm.ProvisioningStateProvisioning
+
+	opCRUD := mockResourcesDBClient.Operations(testSubscriptionID)
+	createdOp, err := opCRUD.Create(ctx, op, nil)
+	require.NoError(t, err)
+
+	lister := &DBActiveOperationLister{ResourcesDBClient: mockResourcesDBClient}
+
+	t.Run("ListActiveOperationsForExternalAuth returns operation with Provisioning status", func(t *testing.T) {
+		result, err := lister.ListActiveOperationsForExternalAuth(ctx, testSubscriptionID, testResourceGroupName, testClusterName, testExternalAuthName)
+		require.NoError(t, err)
+		assert.Len(t, result, 1)
+		assert.Equal(t, arm.ProvisioningStateProvisioning, result[0].Status)
+	})
+
+	createdOp.Status = arm.ProvisioningStateSucceeded
+	_, err = opCRUD.Replace(ctx, createdOp, nil)
+	require.NoError(t, err)
+
+	t.Run("ListActiveOperationsForExternalAuth excludes operation after update to terminal state", func(t *testing.T) {
+		result, err := lister.ListActiveOperationsForExternalAuth(ctx, testSubscriptionID, testResourceGroupName, testClusterName, testExternalAuthName)
+		require.NoError(t, err)
+		assert.Empty(t, result)
+	})
+
+	t.Run("Get still returns operation even in terminal state", func(t *testing.T) {
+		result, err := lister.Get(ctx, testSubscriptionID, "ea-op1")
+		require.NoError(t, err)
+		assert.Equal(t, arm.ProvisioningStateSucceeded, result.Status)
+	})
+}
+
 // Tests for NewmockResourcesDBClientWithResources initialization helper
 
 func TestNewMockResourcesDBClientWithResources_Clusters(t *testing.T) {
@@ -890,8 +1002,12 @@ func TestNewMockResourcesDBClientWithResources_Operations(t *testing.T) {
 	op1.Status = arm.ProvisioningStateProvisioning
 	op2 := newTestOperation(testSubscriptionID, "op2", testSubscriptionID, testResourceGroupName, testClusterName)
 	op2.Status = arm.ProvisioningStateProvisioning
+	npOp1 := newTestNodePoolOperation(testSubscriptionID, "np-op1", testSubscriptionID, testResourceGroupName, testClusterName, testNodePoolName)
+	npOp1.Status = arm.ProvisioningStateProvisioning
+	eaOp1 := newTestExternalAuthOperation(testSubscriptionID, "ea-op1", testSubscriptionID, testResourceGroupName, testClusterName, testExternalAuthName)
+	eaOp1.Status = arm.ProvisioningStateProvisioning
 
-	mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, op1, op2})
+	mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, op1, op2, npOp1, eaOp1})
 	require.NoError(t, err)
 
 	lister := &DBActiveOperationLister{ResourcesDBClient: mockResourcesDBClient}
@@ -899,7 +1015,7 @@ func TestNewMockResourcesDBClientWithResources_Operations(t *testing.T) {
 	t.Run("List returns all initialized operations", func(t *testing.T) {
 		result, err := lister.List(ctx)
 		require.NoError(t, err)
-		assert.Len(t, result, 2)
+		assert.Len(t, result, 4)
 	})
 
 	t.Run("Get returns initialized operation", func(t *testing.T) {
@@ -908,10 +1024,24 @@ func TestNewMockResourcesDBClientWithResources_Operations(t *testing.T) {
 		assert.Equal(t, "op1", result.OperationID.Name)
 	})
 
-	t.Run("ListActiveOperationsForCluster returns operations for cluster", func(t *testing.T) {
+	t.Run("ListActiveOperationsForCluster returns operations for cluster including child resources", func(t *testing.T) {
 		result, err := lister.ListActiveOperationsForCluster(ctx, testSubscriptionID, testResourceGroupName, testClusterName)
 		require.NoError(t, err)
-		assert.Len(t, result, 2)
+		assert.Len(t, result, 4)
+	})
+
+	t.Run("ListActiveOperationsForNodePool returns operations for node pool", func(t *testing.T) {
+		result, err := lister.ListActiveOperationsForNodePool(ctx, testSubscriptionID, testResourceGroupName, testClusterName, testNodePoolName)
+		require.NoError(t, err)
+		assert.Len(t, result, 1)
+		assert.Equal(t, "np-op1", result[0].OperationID.Name)
+	})
+
+	t.Run("ListActiveOperationsForExternalAuth returns operations for external auth", func(t *testing.T) {
+		result, err := lister.ListActiveOperationsForExternalAuth(ctx, testSubscriptionID, testResourceGroupName, testClusterName, testExternalAuthName)
+		require.NoError(t, err)
+		assert.Len(t, result, 1)
+		assert.Equal(t, "ea-op1", result[0].OperationID.Name)
 	})
 }
 

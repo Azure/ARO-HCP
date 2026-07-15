@@ -40,18 +40,37 @@ $(PROW_JOB_EXECUTOR): $(PROW_JOB_EXECUTOR_SOURCES) $(MAKEFILE_LIST) $(TEST_DIR)/
 build: $(PROW_JOB_EXECUTOR) $(ARO_HCP_TESTS)
 .PHONY: build
 
+# Apply the slot-managed identity pool ARM deployment stack for a given environment.
+# Depends on $(ARO_HCP_TESTS), whose own prerequisites regenerate the Bicep-derived
+# ARM artifacts (e.g. msi-pools.json) from the source-of-truth Bicep before the binary
+# is (re)built and embeds them. Always run through this target instead of `go run`/
+# `go build`, otherwise a stale, git-ignored artifact may be embedded and applied.
+#
+# Set the optional SUBSCRIPTION variable to limit provisioning to the named
+# subscription(s); this is required to provision unmanaged pools
+# (identity_provisioning: unmanaged), which are skipped otherwise. Example:
+#   make -C test apply-identity-pool ENVIRONMENT=dev SUBSCRIPTION="Hypershift Managed Azure"
+apply-identity-pool: $(ARO_HCP_TESTS)
+	$(ARO_HCP_TESTS) slot-manager apply-identity-pool \
+		--environment "$${ENVIRONMENT:?ENVIRONMENT must be set (e.g. dev, int, stg, prod)}" \
+		$(if $(SUBSCRIPTION),--subscription "$(SUBSCRIPTION)")
+.PHONY: apply-identity-pool
+
 int-e2e:
 	PROW_JOB_NAME="$$(yq .clouds.public.environments.int.defaults.e2e.regionTest.prowJobName < ../config/config.msft.clouds-overlay.yaml)" \
 	REGION="uksouth" \
+	ENVIRONMENT="int" \
 	$(MAKE) e2e
 
 stage-e2e:
 	PROW_JOB_NAME="$$(yq .clouds.public.environments.stg.defaults.e2e.regionTest.prowJobName < ../config/config.msft.clouds-overlay.yaml)" \
 	REGION="uksouth" \
+	ENVIRONMENT="stg" \
 	$(MAKE) e2e
 
 prod-e2e:
 	PROW_JOB_NAME="$$(yq .clouds.public.environments.prod.defaults.e2e.regionTest.prowJobName < ../config/config.msft.clouds-overlay.yaml)" \
+	ENVIRONMENT="prod" \
 	$(MAKE) e2e
 
 e2e: $(PROW_JOB_EXECUTOR)
@@ -63,6 +82,8 @@ e2e: $(PROW_JOB_EXECUTOR)
 	PROW_TOKEN_KEYVAULT="$$(yq .global.keyVault.name < ../config/rendered/dev/dev/westus3.yaml)" \
 	PROW_TOKEN_SECRET="$$(yq .e2e.prow.globalKeyVaultTokenSecret < ../config/rendered/dev/dev/westus3.yaml)" \
 	KEY_VAULT_DNSSUFFIX="vault.azure.net" \
+	CLOUD="$${CLOUD:-public}" \
+	ENVIRONMENT="$${ENVIRONMENT:?ENVIRONMENT must be set (e.g. int, stg, prod)}" \
 	BASE_SHA="$${BASE_SHA:-$$(git rev-parse HEAD)}" \
 	DRY_RUN="false" \
 	GATE_PROMOTION="true" \

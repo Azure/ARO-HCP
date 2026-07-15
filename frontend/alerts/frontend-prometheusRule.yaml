@@ -12,23 +12,13 @@ spec:
   groups:
   - name: frontend
     rules:
-    - alert: FrontendLatency
-      expr: |
-        histogram_quantile(0.95, rate(frontend_http_requests_duration_seconds_bucket[1h])) > 5
-      for: 15m
-      labels:
-        severity: info
-      annotations:
-        description: 'The 95th percentile of frontend request latency has exceeded 5 seconds over the past hour.'
-        runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/frontend-tsg.html'
-        summary: 'Frontend latency is high: 95th percentile exceeds 5 seconds'
     - alert: FrontendClusterServiceErrorRate
       expr: |
         (sum by (cluster) (max without(prometheus_replica) (rate(frontend_clusters_service_client_request_count{code=~"4..|5.."}[1h]))))
         /
         (sum by (cluster) (max without(prometheus_replica) (rate(frontend_clusters_service_client_request_count[1h]))))
         > 0.05
-      for: 5m
+      for: 15m
       labels:
         severity: info
       annotations:
@@ -42,7 +32,7 @@ spec:
           /
           sum by (cluster) (rate(otel_audit_log_records_total{job="aro-hcp-frontend-metrics"}[1h]))
         ) > 0.05
-      for: 5m
+      for: 15m
       labels:
         severity: info
       annotations:
@@ -52,10 +42,22 @@ spec:
     - alert: FrontendAuditLogConnectionDegraded
       expr: |
         otel_audit_log_connection_degraded{job="aro-hcp-frontend-metrics"} == 1
-      for: 5m
+      for: 15m
       labels:
         severity: info
       annotations:
         summary: "Frontend audit log connection is degraded."
         runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/frontend-tsg.html'
         description: "The frontend failed to connect to the audit server and is running with a no-op audit client. No audit logs are being sent."
+    - alert: FrontendHttpRequestPanics
+      expr: |
+        sum by (cluster) (
+          increase(frontend_http_request_panics_total[5m])
+        ) > 0
+      for: 1m
+      labels:
+        severity: warning
+      annotations:
+        description: 'Frontend HTTP request handler has panicked {{ printf "%.0f" $value }} time(s) in the last 5 minutes.'
+        runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/frontend-tsg.html'
+        summary: 'Frontend is panicking during HTTP request handling'

@@ -16,7 +16,6 @@ kube-applier/
       conditions/
       statuswriter/
       apply_desire/
-      delete_desire/
       read_desire_manager/
       read_desire_kubernetes/
   deploy/                 // helm chart (Doc 06.4)
@@ -45,7 +44,7 @@ Mirror `backend/cmd/root.go:286-415`. Required flags:
 | `--healthz-listen-address` | default `:8083` |
 | `--leader-election-namespace` | namespace for the leader-election lease |
 | `--leader-election-id` | typically `kube-applier` |
-| `--threads-apply` / `--threads-delete` | optional, default 4 |
+| `--threads-apply` | optional, default 4 |
 | `--field-manager` | default `kube-applier` |
 
 `--management-cluster` should default from an env var (e.g.
@@ -76,8 +75,7 @@ func (k *KubeApplier) Run(ctx context.Context) error {
     informers := informers.NewKubeApplierInformers(ctx, scoped)
 
     // 6. Controllers.
-    applyCtl := apply_desire.New(informers, dyn, rm, cosmos, k.options.ManagementCluster)
-    deleteCtl := delete_desire.New(informers, dyn, rm, cosmos, k.options.ManagementCluster)
+    applyCtl := apply_desire.New(informers, dyn, rm, cosmos, k.options.ManagementCluster) // handles both SSA and Delete via Type discriminator
     readMgr := read_desire_manager.New(informers, dyn, rm, cosmos, k.options.ManagementCluster)
 
     // 7. Health/metrics servers (Doc 6.3).
@@ -87,7 +85,6 @@ func (k *KubeApplier) Run(ctx context.Context) error {
     return runWithLeaderElection(ctx, cfg, k.options, func(leCtx context.Context) {
         go informers.RunWithContext(leCtx)
         go applyCtl.Run(leCtx, k.options.ThreadsApply)
-        go deleteCtl.Run(leCtx, k.options.ThreadsDelete)
         go readMgr.Run(leCtx, 1)
         <-leCtx.Done()
     })

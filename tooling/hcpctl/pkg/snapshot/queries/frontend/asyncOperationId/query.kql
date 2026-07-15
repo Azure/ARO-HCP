@@ -1,6 +1,10 @@
 cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}').table('frontendLogs')
-| where timestamp between ({{ kqlDatetime .StartTime }} .. {{ kqlDatetime .EndTime }})
-| where log.correlation_request_id == '{{ .CorrelationID }}'
+| where timestamp between ({{ kqlDatetime .FullStartTime }} .. {{ kqlDatetime .FullEndTime }})
+{{- if and .ServiceClusterName .ManagementClusterName }}
+| where cluster in ('{{ .ServiceClusterName }}', '{{ .ManagementClusterName }}')
+{{- end }}
+| where log.client_request_id == '{{ .ClientRequestID }}'
 | where log.msg == 'response complete'
 | project asyncOperationId = replace_regex(tolower(tostring(parse_url(tostring(log["Header---Azure-AsyncOperation"])).Path)), @"/locations/[^/]+", "")
-| limit 1
+| where tostring(asyncOperationId) != ''
+| distinct asyncOperationId

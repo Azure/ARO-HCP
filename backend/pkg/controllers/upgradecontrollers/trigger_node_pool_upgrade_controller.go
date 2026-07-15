@@ -25,17 +25,15 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
-	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/api"
-	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
+	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 // triggerNodePoolUpgradeSyncer is a NodePool syncer that triggers node pool upgrades
 type triggerNodePoolUpgradeSyncer struct {
-	cooldownChecker      controllerutil.CooldownChecker
 	resourcesDBClient    database.ResourcesDBClient
 	clusterServiceClient ocm.ClusterServiceClientSpec
 }
@@ -48,11 +46,10 @@ var _ controllerutils.NodePoolSyncer = (*triggerNodePoolUpgradeSyncer)(nil)
 func NewTriggerNodePoolUpgradeController(
 	resourcesDBClient database.ResourcesDBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
-	activeOperationLister listers.ActiveOperationLister,
 	informers informers.BackendInformers,
+	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 ) controllerutils.Controller {
 	syncer := &triggerNodePoolUpgradeSyncer{
-		cooldownChecker:      controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
 		resourcesDBClient:    resourcesDBClient,
 		clusterServiceClient: clusterServiceClient,
 	}
@@ -61,6 +58,7 @@ func NewTriggerNodePoolUpgradeController(
 		"TriggerNodePoolUpgrade",
 		resourcesDBClient,
 		informers,
+		kubeApplierInformers,
 		5*time.Minute,
 		syncer,
 	)
@@ -68,16 +66,13 @@ func NewTriggerNodePoolUpgradeController(
 	return controller
 }
 
-func (c *triggerNodePoolUpgradeSyncer) CooldownChecker() controllerutil.CooldownChecker {
-	return c.cooldownChecker
-}
-
 // SyncOnce performs a single reconciliation to trigger a node pool upgrade if needed.
 //
 // High-level flow:
 //  1. Fetch the node pool and service provider node pool state
-//  2. Check if desiredVersion differs from latest actual version
-//  3. If different, create a NodePoolUpgradePolicy to trigger upgrade
+//  2. Skips upgrade trigger if no active versions exist yet (during installation)
+//  3. Check if desiredVersion differs from latest actual version
+//  4. If different, create a NodePoolUpgradePolicy to trigger upgrade
 func (c *triggerNodePoolUpgradeSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPNodePoolKey) error {
 	existingNodePool, err := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).
 		NodePools(key.HCPClusterName).Get(ctx, key.HCPNodePoolName)
@@ -86,6 +81,9 @@ func (c *triggerNodePoolUpgradeSyncer) SyncOnce(ctx context.Context, key control
 	}
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to get NodePool: %w", err))
+	}
+	if existingNodePool.ServiceProviderProperties.DeletionTimestamp != nil {
+		return nil
 	}
 	// if we have no clusterservice nodepool, we have nothing to trigger.
 	if existingNodePool.ServiceProviderProperties.ClusterServiceID == nil || len(existingNodePool.ServiceProviderProperties.ClusterServiceID.String()) == 0 {
@@ -102,11 +100,13 @@ func (c *triggerNodePoolUpgradeSyncer) SyncOnce(ctx context.Context, key control
 		return nil // No desired version set
 	}
 
-	// Get latest actual version from active versions
-	var actualLatestVersion *semver.Version
-	if len(existingServiceProviderNodePool.Status.NodePoolVersion.ActiveVersions) > 0 {
-		actualLatestVersion = existingServiceProviderNodePool.Status.NodePoolVersion.ActiveVersions[0].Version
+	// No active version yet (installation ongoing); skip upgrade trigger.
+	if len(existingServiceProviderNodePool.Status.NodePoolVersion.ActiveVersions) == 0 {
+		return nil
 	}
+
+	// Get latest actual version from active versions
+	actualLatestVersion := existingServiceProviderNodePool.Status.NodePoolVersion.ActiveVersions[0].Version
 
 	// If desired version matches latest actual version, nothing to do
 	if actualLatestVersion != nil && desiredVersion.EQ(*actualLatestVersion) {

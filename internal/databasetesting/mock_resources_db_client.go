@@ -17,17 +17,19 @@ package databasetesting
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
-	"path"
 	"path/filepath"
 	"strings"
 	"sync"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
 	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
 )
 
@@ -41,6 +43,11 @@ type MockResourcesDBClient struct {
 
 	// globalListers is an optional custom global listers implementation for testing
 	globalListers database.ResourcesGlobalListers
+
+	// changeFeed records each successful StoreDocument call so the
+	// production change-feed consumer can be exercised against the
+	// in-memory mock the same way it is against real Cosmos.
+	changeFeed mockChangeFeed
 }
 
 // NewMockResourcesDBClient creates a new mock ResourcesDBClient with empty storage.
@@ -68,33 +75,25 @@ func (m *MockResourcesDBClient) UntypedCRUD(parentResourceID azcorearm.ResourceI
 
 // HCPClusters returns a CRUD interface for HCPCluster resources.
 func (m *MockResourcesDBClient) HCPClusters(subscriptionID, resourceGroupName string) database.HCPClusterCRUD {
-	parts := []string{
-		"/subscriptions",
-		strings.ToLower(subscriptionID),
-	}
+	var parentResourceID *azcorearm.ResourceID
 	if len(resourceGroupName) > 0 {
-		parts = append(parts,
-			"resourceGroups",
-			resourceGroupName)
+		parentResourceID = api.Must(api.ToResourceGroupResourceID(subscriptionID, resourceGroupName))
+	} else {
+		parentResourceID = api.Must(arm.ToSubscriptionResourceID(subscriptionID))
 	}
-	parentResourceID := api.Must(azcorearm.ParseResourceID(strings.ToLower(path.Join(parts...))))
 
 	return newMockHCPClusterCRUD(m, parentResourceID)
 }
 
 // Operations returns a CRUD interface for operation resources.
 func (m *MockResourcesDBClient) Operations(subscriptionID string) database.OperationCRUD {
-	parts := []string{
-		"/subscriptions",
-		strings.ToLower(subscriptionID),
-	}
-	parentResourceID := api.Must(azcorearm.ParseResourceID(path.Join(parts...)))
+	parentResourceID := api.Must(arm.ToSubscriptionResourceID(subscriptionID))
 
 	return newMockOperationCRUD(m, parentResourceID)
 }
 
 // Subscriptions returns a CRUD interface for subscription resources.
-func (m *MockResourcesDBClient) Subscriptions() database.SubscriptionCRUD {
+func (m *MockResourcesDBClient) Subscriptions() database.ResourceCRUD[arm.Subscription, *arm.Subscription] {
 	return newMockSubscriptionCRUD(m)
 }
 
@@ -109,15 +108,37 @@ func (m *MockResourcesDBClient) ResourcesGlobalListers() database.ResourcesGloba
 }
 
 // ServiceProviderClusters returns a CRUD interface for service provider cluster resources.
-func (m *MockResourcesDBClient) ServiceProviderClusters(subscriptionID, resourceGroupName, clusterName string) database.ServiceProviderClusterCRUD {
-	clusterResourceID := database.NewClusterResourceID(subscriptionID, resourceGroupName, clusterName)
+func (m *MockResourcesDBClient) ServiceProviderClusters(subscriptionID, resourceGroupName, clusterName string) database.ResourceCRUD[api.ServiceProviderCluster, *api.ServiceProviderCluster] {
+	clusterResourceID := api.Must(api.ToClusterResourceID(subscriptionID, resourceGroupName, clusterName))
 	return newMockServiceProviderClusterCRUD(m, clusterResourceID)
 }
 
 // ServiceProviderNodePools returns a CRUD interface for service provider node pool resources.
-func (m *MockResourcesDBClient) ServiceProviderNodePools(subscriptionID, resourceGroupName, clusterName, nodePoolName string) database.ServiceProviderNodePoolCRUD {
-	nodePoolResourceID := database.NewNodePoolResourceID(subscriptionID, resourceGroupName, clusterName, nodePoolName)
+func (m *MockResourcesDBClient) ServiceProviderNodePools(subscriptionID, resourceGroupName, clusterName, nodePoolName string) database.ResourceCRUD[api.ServiceProviderNodePool, *api.ServiceProviderNodePool] {
+	nodePoolResourceID := api.Must(api.ToNodePoolResourceID(subscriptionID, resourceGroupName, clusterName, nodePoolName))
 	return newMockServiceProviderNodePoolCRUD(m, nodePoolResourceID)
+}
+
+// GetChangeFeed reads the in-memory change-feed log. Each
+// successful StoreDocument call records a snapshot of the document;
+// reads return everything past the position encoded in
+// options.Continuation. Deletes are not recorded, which mirrors
+// "latest version" mode in real Cosmos DB.
+func (m *MockResourcesDBClient) GetChangeFeed(ctx context.Context, options *azcosmos.ChangeFeedOptions) (azcosmos.ChangeFeedResponse, error) {
+	var continuation string
+	if options != nil && options.Continuation != nil {
+		continuation = *options.Continuation
+	}
+	docs, nextToken, hasNew := m.changeFeed.read(continuation)
+	return buildMockChangeFeedResponse(docs, nextToken, hasNew), nil
+}
+
+// GetFeedRanges returns the single feed range the mock
+// advertises. Real Cosmos may report many ranges; one is enough for
+// the in-memory mock because there is no partition-level parallelism
+// to model.
+func (m *MockResourcesDBClient) GetFeedRanges(ctx context.Context) ([]azcosmos.FeedRange, error) {
+	return []azcosmos.FeedRange{mockChangeFeedFeedRange}, nil
 }
 
 // LoadFromDirectory loads cosmos-record context data from a directory.
@@ -198,11 +219,14 @@ func (m *MockResourcesDBClient) ListAllDocuments(ctx context.Context) ([]*databa
 	return results, nil
 }
 
-// StoreDocument stores a raw JSON document in the mock database.
+// StoreDocument stores a raw JSON document in the mock database and
+// appends it to the in-memory change-feed log so that consumers of
+// GetChangeFeed see the mutation.
 func (m *MockResourcesDBClient) StoreDocument(cosmosID string, data json.RawMessage) {
 	m.mu.Lock()
-	defer m.mu.Unlock()
 	m.documents[strings.ToLower(cosmosID)] = data
+	m.mu.Unlock()
+	m.changeFeed.record(data)
 }
 
 // GetDocument retrieves a raw JSON document from the mock database.
@@ -229,6 +253,12 @@ func (m *MockResourcesDBClient) ListDocuments(resourceType *azcorearm.ResourceTy
 	for _, data := range m.documents {
 		var typedDoc database.TypedDocument
 		if err := json.Unmarshal(data, &typedDoc); err != nil {
+			continue
+		}
+
+		// Mirror the production query, which requires IS_DEFINED(c.resourceID);
+		// documents without a resourceID are never returned by list.
+		if typedDoc.ResourceID == nil {
 			continue
 		}
 
@@ -321,9 +351,13 @@ func (t *mockTransaction) Execute(ctx context.Context, o *azcosmos.Transactional
 	}
 
 	// Execute all steps
-	for _, step := range t.steps {
-		cosmosID, data, err := step.execute()
+	for step, s := range t.steps {
+		cosmosID, data, err := s.execute()
 		if err != nil {
+			var responseErr *azcore.ResponseError
+			if errors.As(err, &responseErr) {
+				return nil, database.NewTransactionStepError(step+1, len(t.steps), responseErr.StatusCode)
+			}
 			return nil, err
 		}
 		if data != nil {
@@ -359,23 +393,23 @@ func (r *mockTransactionResult) GetItem(cosmosUID string) (any, error) {
 
 	switch strings.ToLower(typedDoc.ResourceType) {
 	case strings.ToLower(api.ClusterResourceType.String()):
-		var cosmosObj database.HCPCluster
+		var cosmosObj database.GenericDocument[api.HCPOpenShiftCluster]
 		if err := json.Unmarshal(data, &cosmosObj); err != nil {
 			return nil, err
 		}
-		return database.CosmosToInternalCluster(&cosmosObj)
+		return database.CosmosGenericToInternal(&cosmosObj)
 	case strings.ToLower(api.NodePoolResourceType.String()):
-		var cosmosObj database.NodePool
+		var cosmosObj database.GenericDocument[api.HCPOpenShiftClusterNodePool]
 		if err := json.Unmarshal(data, &cosmosObj); err != nil {
 			return nil, err
 		}
-		return database.CosmosToInternalNodePool(&cosmosObj)
+		return database.CosmosGenericToInternal(&cosmosObj)
 	case strings.ToLower(api.ExternalAuthResourceType.String()):
-		var cosmosObj database.ExternalAuth
+		var cosmosObj database.GenericDocument[api.HCPOpenShiftClusterExternalAuth]
 		if err := json.Unmarshal(data, &cosmosObj); err != nil {
 			return nil, err
 		}
-		return database.CosmosToInternalExternalAuth(&cosmosObj)
+		return database.CosmosGenericToInternal(&cosmosObj)
 	default:
 		return nil, fmt.Errorf("unknown resource type '%s'", typedDoc.ResourceType)
 	}

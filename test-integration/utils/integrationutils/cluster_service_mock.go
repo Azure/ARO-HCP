@@ -236,6 +236,18 @@ func (s *ClusterServiceMock) setupMockClusterService(t *testing.T) {
 		}
 		return ocm.NewSimpleNodePoolListIterator(allObjs, nil)
 	}).AnyTimes()
+	s.MockClusterServiceClient.EXPECT().DeleteNodePool(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, id ocm.InternalID) error {
+		_, exists := internalIDToNodePool[id.String()]
+		if !exists {
+			retErr, err := ocmerrors.NewError().Status(http.StatusNotFound).Build()
+			if err != nil {
+				return err
+			}
+			return retErr
+		}
+		delete(internalIDToNodePool, id.String())
+		return nil
+	}).AnyTimes()
 
 	s.MockClusterServiceClient.EXPECT().DeleteBreakGlassCredentials(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	s.MockClusterServiceClient.EXPECT().PostBreakGlassCredential(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, clusterID ocm.InternalID) (*cmv1.BreakGlassCredential, error) {
@@ -488,6 +500,25 @@ func (s *ClusterServiceMock) GetOrCreateMockData(dataName string) map[string][]a
 	newData := map[string][]any{}
 	s.mockData[dataName] = newData
 	return newData
+}
+
+// FindClusterHREF returns the Cluster Service HREF for a cluster created via PostCluster
+// in this test, matched by OCM cluster name.
+func (s *ClusterServiceMock) FindClusterHREF(testName, clusterName string) (string, bool) {
+	data := s.GetOrCreateMockData(testName + "_clusters")
+	for _, history := range data {
+		if len(history) == 0 {
+			continue
+		}
+		cluster, ok := history[len(history)-1].(*arohcpv1alpha1.Cluster)
+		if !ok {
+			continue
+		}
+		if strings.EqualFold(cluster.Name(), clusterName) {
+			return cluster.HREF(), true
+		}
+	}
+	return "", false
 }
 
 // GetMergedClusters returns all clusters stored in the mock, each merged from

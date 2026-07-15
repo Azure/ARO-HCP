@@ -15,7 +15,8 @@
 package api
 
 import (
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
@@ -24,29 +25,30 @@ import (
 // HCPOpenShiftCluster represents an ARO HCP OpenShift cluster resource.
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type HCPOpenShiftCluster struct {
+	// PartitionKey holds the lowercased subscriptionID.
+	CosmosMetadata `json:"cosmosMetadata"`
+
 	arm.TrackedResource
 
 	CustomerProperties        HCPOpenShiftClusterCustomerProperties        `json:"customerProperties,omitempty"`
 	ServiceProviderProperties HCPOpenShiftClusterServiceProviderProperties `json:"serviceProviderProperties,omitempty"`
 	Identity                  *arm.ManagedServiceIdentity                  `json:"identity,omitempty"`
-	// CosmosETag is an in-memory copy of the _etag field read from the Cosmos DB document (BaseDocument) and
-	// populated on DB read via the CosmosToInternalCluster() conversion function.
-	// We carry it across the API boundary between HCPCluster (the direct cosmos db type) and HCPOpenShiftCluster (this)
-	// so we can populate the CosmosETag in GetCosmosData() so that we can do conditional replaces in cosmos.
-	// This can be removed once we have inlined and serialized CosmosMetadata in
-	// HCPOpenShiftCluster.
-	CosmosETag azcore.ETag `json:"-"`
+	Status                    HCPOpenShiftClusterStatus                    `json:"status"`
+}
+
+// HCPOpenShiftClusterStatus contains the observed state of the cluster.
+type HCPOpenShiftClusterStatus struct {
+	// Conditions are the top-level HCPOpenShiftCluster status conditions.
+	// Each Condition Type represents a condition and it should be unique among all conditions.
+	// +optional
+	// +patchMergeKey=type
+	// +patchStrategy=merge
+	// +listType=map
+	// +listMapKey=type
+	Conditions []metav1.Condition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type"`
 }
 
 var _ arm.CosmosPersistable = &HCPOpenShiftCluster{}
-
-func (o *HCPOpenShiftCluster) GetCosmosData() *arm.CosmosMetadata {
-	return &arm.CosmosMetadata{
-		CosmosETag:        o.CosmosETag,
-		ResourceID:        o.ID,
-		ExistingCosmosUID: o.ServiceProviderProperties.ExistingCosmosUID,
-	}
-}
 
 // HCPOpenShiftClusterCustomerProperties represents the property bag of a HCPOpenShiftCluster resource.
 type HCPOpenShiftClusterCustomerProperties struct {
@@ -54,6 +56,7 @@ type HCPOpenShiftClusterCustomerProperties struct {
 	DNS                     CustomerDNSProfile          `json:"dns,omitempty"`
 	Network                 NetworkProfile              `json:"network,omitempty"`
 	API                     CustomerAPIProfile          `json:"api,omitempty"`
+	Ingress                 CustomerIngressProfile      `json:"ingress,omitempty"`
 	Platform                CustomerPlatformProfile     `json:"platform,omitempty"`
 	Autoscaling             ClusterAutoscalingProfile   `json:"autoscaling,omitempty"`
 	NodeDrainTimeoutMinutes int32                       `json:"nodeDrainTimeoutMinutes,omitempty"`
@@ -64,7 +67,6 @@ type HCPOpenShiftClusterCustomerProperties struct {
 
 // HCPOpenShiftClusterCustomerProperties represents the property bag of a HCPOpenShiftCluster resource.
 type HCPOpenShiftClusterServiceProviderProperties struct {
-	ExistingCosmosUID            string                         `json:"-"`
 	ProvisioningState            arm.ProvisioningState          `json:"provisioningState,omitempty"`
 	ClusterServiceID             *InternalID                    `json:"clusterServiceID,omitempty"`
 	ActiveOperationID            string                         `json:"activeOperationId,omitempty"`
@@ -91,6 +93,27 @@ type HCPOpenShiftClusterServiceProviderProperties struct {
 	// associated with this cluster. It is set when the billing document is created
 	// and used to avoid redundant creation attempts.
 	BillingDocumentCosmosID string `json:"billingDocumentCosmosID,omitempty"`
+	// DeletionTimestamp is the timestamp at which the Cluster deletion was requested.
+	// The timestamp is in UTC.
+	// A nil value indicates that the Cluster deletion has not been requested.
+	DeletionTimestamp *metav1.Time `json:"deletionTimestamp,omitempty"`
+	// ClusterServiceDeletionTimestamp is written when a dispatch of a Cluster
+	// Service Delete Cluster request against Cluster Service for this cluster
+	// has been handled. It is set after a successful DeleteCluster call to
+	// Cluster Service, but also when it's determined that no delete call is
+	// needed but we consider we should behave as if the delete call was
+	// successfully issued.
+	// A nil value indicates that the Cluster Service Deletion has not been requested.
+	// The timestamp is in UTC.
+	// TODO this attribute is not in use yet. Do not rely on it.
+	ClusterServiceDeletionTimestamp *metav1.Time `json:"clusterServiceDeletionTimestamp,omitempty"`
+
+	// TODO Temporary field to track whether the cluster operation is using the new deletion approach.
+	// We are migrating from the cluster CS deletion synchronous in frontend to the backend, to be fully asynchronous.
+	// This boolean is true for Cluster delete operations that are created with new deletion approach.
+	// This will be removed once all clusters whose deletion was triggered before the new approach is fully rolled out have been
+	// fully deleted in all ARO-HCP permanent environments, for all regions.
+	UsesNewClusterDeletionApproach bool `json:"usesNewClusterDeletionApproach"`
 }
 
 // VersionProfile represents the cluster control plane version.
@@ -133,6 +156,11 @@ type CustomerAPIProfile struct {
 
 type ServiceProviderAPIProfile struct {
 	URL string `json:"url,omitempty"`
+}
+
+// CustomerIngressProfile represents the cluster ingress configuration.
+type CustomerIngressProfile struct {
+	Type IngressType `json:"type,omitempty"`
 }
 
 // CustomerPlatformProfile represents the Azure platform configuration.
@@ -253,6 +281,9 @@ func NewDefaultHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, azureLocati
 			API: CustomerAPIProfile{
 				Visibility: VisibilityPublic,
 			},
+			Ingress: CustomerIngressProfile{
+				Type: IngressTypePublic,
+			},
 			Platform: CustomerPlatformProfile{
 				OutboundType: OutboundTypeLoadBalancer,
 			},
@@ -288,6 +319,9 @@ func (cluster *HCPOpenShiftCluster) EnsureDefaults() {
 	}
 	if len(cluster.CustomerProperties.API.Visibility) == 0 {
 		cluster.CustomerProperties.API.Visibility = VisibilityPublic
+	}
+	if len(cluster.CustomerProperties.Ingress.Type) == 0 {
+		cluster.CustomerProperties.Ingress.Type = IngressTypePublic
 	}
 	if len(cluster.CustomerProperties.Platform.OutboundType) == 0 {
 		cluster.CustomerProperties.Platform.OutboundType = OutboundTypeLoadBalancer

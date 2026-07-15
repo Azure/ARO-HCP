@@ -21,6 +21,7 @@ import (
 var ServicesTables = []string{
 	"containerLogs",
 	"clustersServiceLogs",
+	"fleetLogs",
 	"frontendLogs",
 	"backendLogs",
 }

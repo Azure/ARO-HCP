@@ -414,7 +414,7 @@
         "query": "prometheus",
         "queryValue": "",
         "refresh": 1,
-        "regex": "",
+        "regex": "^Managed_Prometheus_services-.*$",
         "skipUrlSync": false,
         "type": "datasource"
       }

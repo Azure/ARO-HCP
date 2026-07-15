@@ -86,6 +86,7 @@ func runArmStackStep(
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create deployment operations client: %w", err)
 	}
+	getOperationsClient := NewCachedOperationsClientGetter(executionTarget.GetSubscriptionID(), operationsClient, cred, nil)
 
 	if err := ensureResourceGroupExists(ctx, resourceGroupClient, executionTarget.GetRegion(), executionTarget.GetResourceGroup(), !options.NoPersist); err != nil {
 		return nil, nil, fmt.Errorf("failed to ensure resource group exists: %w", err)
@@ -103,7 +104,7 @@ func runArmStackStep(
 	)
 
 	state.RLock()
-	inputValues, err := getInputValues(id.ServiceGroup, step.Variables, options.Configuration, state.Outputs)
+	inputValues, err := getInputValues(id.ServiceGroup, step.Variables, options.Configuration, state.GetOutputs(id.Stamp))
 	state.RUnlock()
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to get input values: %w", err)
@@ -202,9 +203,9 @@ func runArmStackStep(
 		underlyingDeploymentName := (*output.Properties.DeploymentID)[strings.LastIndex(*output.Properties.DeploymentID, "/")+1:]
 		switch step.DeploymentLevel {
 		case "Subscription":
-			details = DetermineOperationsForSubscriptionDeployment(operationsClient, underlyingDeploymentName)
+			details = DetermineOperationsForSubscriptionDeployment(getOperationsClient, executionTarget.GetSubscriptionID(), underlyingDeploymentName)
 		case "ResourceGroup":
-			details = DetermineOperationsForResourceGroupDeployment(operationsClient, executionTarget.GetResourceGroup(), underlyingDeploymentName)
+			details = DetermineOperationsForResourceGroupDeployment(getOperationsClient, executionTarget.GetSubscriptionID(), executionTarget.GetResourceGroup(), underlyingDeploymentName)
 		}
 	}
 

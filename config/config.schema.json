@@ -3,6 +3,11 @@
   "title": "Generated schema for Root",
   "type": "object",
   "definitions": {
+    "csvPrincipalList": {
+      "type": "string",
+      "description": "CSV separated list of principals, each in the format '(tenantId/)principalId' where tenantId is optional. Both tenantId and principalId must be UUIDs.",
+      "pattern": "^$|^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/)?[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}(,([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/)?[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})*$"
+    },
     "namespaceName": {
       "type": "string",
       "minLength": 1,
@@ -29,12 +34,20 @@
         }
       ]
     },
+    "rfc5280CommonName": {
+      "type": "string",
+      "maxLength": 64,
+      "pattern": "^[a-zA-Z0-9][a-zA-Z0-9.\\-]*[a-zA-Z0-9]$"
+    },
     "entraApplication": {
       "type": "object",
       "properties": {
         "name": {
           "type": "string",
           "description": "The name of the application. Needs to be unique within the tenant. https://eng.ms/docs/microsoft-security/identity/auth/auth-sts-protocols/ests/ests-troubleshooting-guides/tsgs/3p-apps-build-out-automation/gotchas-and-known-issues"
+        },
+        "applicationId": {
+          "type": "string"
         },
         "useSNI": {
           "type": "boolean"
@@ -43,6 +56,7 @@
           "type": "boolean"
         }
       },
+      "additionalProperties": false,
       "required": [
         "name"
       ]
@@ -81,7 +95,8 @@
             }
           ]
         }
-      }
+      },
+      "additionalProperties": false
     },
     "k8sDeploymentStrategy": {
       "type": "object",
@@ -94,7 +109,8 @@
             }
           ]
         }
-      }
+      },
+      "additionalProperties": false
     },
     "k8sDeployment": {
       "type": "object",
@@ -125,6 +141,10 @@
     "icmConnection": {
       "type": "object",
       "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Whether this lane's IcM action group is wired to its alert rules. When false, the lane's rules still evaluate in Prometheus but do not generate IcM tickets. Only has effect when manageConnection is true and alertsEnabled is true. Defaults to true when omitted."
+        },
         "actionGroupName": {
           "type": "string",
           "description": "Name of the ICM Action Group"
@@ -231,6 +251,7 @@
           "type": "string"
         }
       },
+      "additionalProperties": false,
       "required": [
         "keyVault",
         "name"
@@ -256,7 +277,7 @@
         },
         "san": {
           "description": "Geneva logs account certificate SAN",
-          "type": "string"
+          "$ref": "#/definitions/rfc5280CommonName"
         },
         "configVersion": {
           "description": "Geneva logs account namespace configuration version",
@@ -304,7 +325,8 @@
                 ]
               }
             }
-          }
+          },
+          "additionalProperties": false
         }
       }
     },
@@ -367,7 +389,8 @@
           "required": [
             "enabled",
             "days"
-          ]
+          ],
+          "additionalProperties": false
         }
       },
       "additionalProperties": false,
@@ -478,6 +501,26 @@
         "zoneRedundantMode"
       ]
     },
+    "aksUpgradeSettings": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "maxSurge": {
+          "description": "Maximum number or percentage of nodes surged during upgrade. Must be a string (e.g. \"1\" or \"10%\") because it is rendered into a string bicep parameter and passed through the Ev2 placeholder resolver, which cannot represent non-string scalars in the generated bicepparam.",
+          "type": "string",
+          "pattern": "^[0-9]+%?$"
+        },
+        "maxUnavailable": {
+          "description": "Maximum number or percentage of nodes unavailable during upgrade. Must be a string (e.g. \"0\" or \"10%\") because it is rendered into a string bicep parameter and passed through the Ev2 placeholder resolver, which cannot represent non-string scalars in the generated bicepparam.",
+          "type": "string",
+          "pattern": "^[0-9]+%?$"
+        }
+      },
+      "required": [
+        "maxSurge",
+        "maxUnavailable"
+      ]
+    },
     "aksConfig": {
       "type": "object",
       "additionalProperties": false,
@@ -535,6 +578,9 @@
         },
         "enableSwiftV2Nodepools": {
           "type": "boolean"
+        },
+        "upgradeSettings": {
+          "$ref": "#/definitions/aksUpgradeSettings"
         }
       },
       "required": [
@@ -657,12 +703,25 @@
         }
       ]
     },
+    "certificateContentType": {
+      "type": "string",
+      "enum": [
+        "x-pkcs12"
+      ]
+    },
     "certificateIssuer": {
       "type": "string",
       "enum": [
         "Self",
         "OneCertV2-PublicCA",
         "OneCertV2-PrivateCA"
+      ]
+    },
+    "certificateManage": {
+      "type": "string",
+      "enum": [
+        "Enabled",
+        "Disabled"
       ]
     },
     "clusterScopedIdentitiesConfig": {
@@ -970,7 +1029,8 @@
         "storageAccountContainerName": {
           "type": "string"
         }
-      }
+      },
+      "additionalProperties": false
     }
   },
   "properties": {
@@ -1064,7 +1124,8 @@
           },
           "required": [
             "bundle"
-          ]
+          ],
+          "additionalProperties": false
         },
         "mce": {
           "type": "object",
@@ -1123,7 +1184,10 @@
         },
         "provisionShardStatus": {
           "type": "string",
-          "enum": ["active", "maintenance"],
+          "enum": [
+            "active",
+            "maintenance"
+          ],
           "description": "Status of the provision shard"
         },
         "k8s": {
@@ -1169,6 +1233,10 @@
           "required": [
             "tlsCertificatesIssuer"
           ]
+        },
+        "dataPlaneHAProxyImage": {
+          "type": "string",
+          "description": "A valid image reference used for overriding the HAProxy image of the worker node API server proxy. If set to an empty string, either the environment variable IMAGE_SHARED_INGRESS_HAPROXY or the default shared ingress image will be used."
         }
       },
       "additionalProperties": false,
@@ -1205,14 +1273,22 @@
         "issuer": {
           "$ref": "#/definitions/certificateIssuer"
         },
+        "san": {
+          "$ref": "#/definitions/rfc5280CommonName"
+        },
+        "contentType": {
+          "type": "string"
+        },
         "manage": {
-          "type": "boolean"
+          "$ref": "#/definitions/certificateManage"
         }
       },
       "additionalProperties": false,
       "required": [
         "name",
         "issuer",
+        "san",
+        "contentType",
         "manage"
       ]
     },
@@ -1275,6 +1351,11 @@
           "type": "boolean",
           "description": "If true, backend will exit the process if a panic occurs. As of now it only controls the setting of k8s.io/apimachinery/pkg/util/runtime.ReallyCrash"
         },
+        "logVerbosity": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Log verbosity level for the backend, specified as a go-logr/logr log level. 0 is the default (INFO). Must be >= 0, where higher values produce more verbose output."
+        },
         "clusterScopedIdentitiesConfig": {
           "$ref": "#/definitions/clusterScopedIdentitiesConfig"
         }
@@ -1288,6 +1369,7 @@
         "azureRuntimeConfig",
         "maestro",
         "exitOnPanic",
+        "logVerbosity",
         "clusterScopedIdentitiesConfig"
       ]
     },
@@ -1312,14 +1394,23 @@
               "maxLength": 127,
               "pattern": "^[a-zA-Z0-9-]+$"
             },
+            "san": {
+              "description": "SAN and CN for the sessiongate ingress certificate",
+              "$ref": "#/definitions/rfc5280CommonName"
+            },
             "issuer": {
               "$ref": "#/definitions/certificateIssuer"
+            },
+            "contentType": {
+              "$ref": "#/definitions/certificateContentType"
             }
           },
           "additionalProperties": false,
           "required": [
             "name",
-            "issuer"
+            "san",
+            "issuer",
+            "contentType"
           ]
         }
       },
@@ -1352,11 +1443,20 @@
       "properties": {
         "image": {
           "$ref": "#/definitions/containerImage"
+        },
+        "k8s": {
+          "$ref": "#/definitions/k8sDeployment"
+        },
+        "managedIdentityName": {
+          "type": "string",
+          "description": "The name of the MSI that will be used by the mgmt-agent to interact with Azure"
         }
       },
       "additionalProperties": false,
       "required": [
-        "image"
+        "image",
+        "k8s",
+        "managedIdentityName"
       ]
     },
     "kubeApplier": {
@@ -1364,11 +1464,76 @@
       "properties": {
         "image": {
           "$ref": "#/definitions/containerImage"
+        },
+        "cosmosContainerName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?$"
+        },
+        "cosmosContainerMaxScale": {
+          "type": "integer"
+        },
+        "managedIdentityName": {
+          "type": "string"
+        },
+        "k8s": {
+          "$ref": "#/definitions/k8sDeployment"
+        },
+        "partitionKey": {
+          "type": "string"
         }
       },
       "additionalProperties": false,
       "required": [
-        "image"
+        "image",
+        "cosmosContainerName",
+        "cosmosContainerMaxScale",
+        "managedIdentityName",
+        "k8s",
+        "partitionKey"
+      ]
+    },
+    "fleet": {
+      "type": "object",
+      "properties": {
+        "image": {
+          "$ref": "#/definitions/containerImage"
+        },
+        "managedIdentityName": {
+          "type": "string",
+          "description": "The name of the MSI used by fleet to access CosmosDB"
+        },
+        "k8s": {
+          "$ref": "#/definitions/k8sDeployment"
+        },
+        "registration": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "stampIdentifier": {
+              "type": "string",
+              "description": "The identifier of the stamp to register",
+              "minLength": 1,
+              "maxLength": 3,
+              "pattern": "^[0-9]+$"
+            },
+            "autoApproveStamps": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "stampIdentifier",
+            "autoApproveStamps"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "image",
+        "managedIdentityName",
+        "k8s",
+        "registration"
       ]
     },
     "adminApi": {
@@ -1395,14 +1560,23 @@
               "maxLength": 127,
               "pattern": "^[a-zA-Z0-9-]+$"
             },
+            "san": {
+              "description": "SAN and CN for the admin API ingress certificate",
+              "$ref": "#/definitions/rfc5280CommonName"
+            },
             "issuer": {
               "$ref": "#/definitions/certificateIssuer"
+            },
+            "contentType": {
+              "$ref": "#/definitions/certificateContentType"
             }
           },
           "additionalProperties": false,
           "required": [
             "name",
-            "issuer"
+            "san",
+            "issuer",
+            "contentType"
           ]
         }
       },
@@ -1437,9 +1611,6 @@
         "cosmosDB": {
           "type": "object",
           "properties": {
-            "deploy": {
-              "type": "boolean"
-            },
             "disableLocalAuth": {
               "type": "boolean"
             },
@@ -1467,7 +1638,6 @@
           },
           "additionalProperties": false,
           "required": [
-            "deploy",
             "disableLocalAuth",
             "name",
             "private"
@@ -1481,19 +1651,33 @@
               "maxLength": 127,
               "pattern": "^[a-zA-Z0-9-]+$"
             },
+            "san": {
+              "description": "SAN and CN for the frontend ingress certificate",
+              "$ref": "#/definitions/rfc5280CommonName"
+            },
             "issuer": {
               "$ref": "#/definitions/certificateIssuer"
+            },
+            "contentType": {
+              "$ref": "#/definitions/certificateContentType"
             }
           },
           "additionalProperties": false,
           "required": [
             "name",
-            "issuer"
+            "san",
+            "issuer",
+            "contentType"
           ]
         },
         "exitOnPanic": {
           "type": "boolean",
           "description": "If true, frontend will exit the process if a panic occurs. As of now it only controls the setting of k8s.io/apimachinery/pkg/util/runtime.ReallyCrash"
+        },
+        "logVerbosity": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Log verbosity level for the frontend, specified as a go-logr/logr log level. 0 is the default (INFO). Must be >= 0, where higher values produce more verbose output."
         }
       },
       "additionalProperties": false,
@@ -1504,7 +1688,8 @@
         "tracing",
         "k8s",
         "managedIdentityName",
-        "exitOnPanic"
+        "exitOnPanic",
+        "logVerbosity"
       ]
     },
     "billing": {
@@ -1526,18 +1711,23 @@
           "required": [
             "accountName",
             "cloudSuffix"
-          ]
+          ],
+          "additionalProperties": false
         },
         "pav2": {
           "type": "object",
           "properties": {
             "cloudName": {
               "type": "string"
+            },
+            "endpoint": {
+              "type": "string"
             }
           },
           "required": [
             "cloudName"
-          ]
+          ],
+          "additionalProperties": false
         },
         "kusto": {
           "type": "object",
@@ -1571,7 +1761,8 @@
             "clusterPrincipals",
             "dstsGroups",
             "vmUsageStaleThreshold"
-          ]
+          ],
+          "additionalProperties": false
         },
         "eventHub": {
           "type": "object",
@@ -1590,7 +1781,8 @@
             "namespace",
             "subscriptionId",
             "resourceGroupName"
-          ]
+          ],
+          "additionalProperties": false
         },
         "imageArtifact": {
           "$ref": "#/definitions/imageArtifact"
@@ -1687,6 +1879,16 @@
             "adminCertificateDomain": {
               "type": "string"
             },
+            "adminCertSan": {
+              "description": "SAN and CN for the Geneva Logs account certificate",
+              "$ref": "#/definitions/rfc5280CommonName"
+            },
+            "contentType": {
+              "type": "string"
+            },
+            "manage": {
+              "$ref": "#/definitions/certificateManage"
+            },
             "administrators": {
               "type": "object",
               "additionalProperties": false,
@@ -1702,9 +1904,6 @@
                 "alias",
                 "securityGroup"
               ]
-            },
-            "manageCertificates": {
-              "type": "boolean"
             },
             "certificateIssuer": {
               "$ref": "#/definitions/certificateIssuer"
@@ -1791,14 +1990,23 @@
                 "issuer": {
                   "$ref": "#/definitions/certificateIssuer"
                 },
+                "san": {
+                  "description": "SAN and CN for the Geneva Actions certificate",
+                  "$ref": "#/definitions/rfc5280CommonName"
+                },
+                "contentType": {
+                  "type": "string"
+                },
                 "manage": {
-                  "type": "boolean"
+                  "$ref": "#/definitions/certificateManage"
                 }
               },
               "additionalProperties": false,
               "required": [
                 "name",
                 "issuer",
+                "san",
+                "contentType",
                 "manage"
               ]
             },
@@ -1878,17 +2086,21 @@
         "hostedControlPlaneLogsDatabase": {
           "type": "string"
         },
+        "monitoringEventsDatabase": {
+          "type": "string",
+          "description": "Name of the Kusto database for monitoring events (e.g. alert events from Event Hub)"
+        },
         "adminGroups": {
-          "type": "string"
+          "$ref": "#/definitions/csvPrincipalList",
+          "description": "CSV separated list of AAD groups to grant AllDatabasesAdmin on the Kusto cluster."
         },
         "viewerGroups": {
-          "type": "string"
+          "$ref": "#/definitions/csvPrincipalList",
+          "description": "CSV separated list of AAD groups to grant AllDatabasesViewer on the Kusto cluster."
         },
-        "crossClusterServiceLogsScript": {
-          "type": "string"
-        },
-        "crossClusterHostedControlPlaneLogsScript": {
-          "type": "string"
+        "viewerIdentities": {
+          "$ref": "#/definitions/csvPrincipalList",
+          "description": "CSV separated list of app/managed identity principals to grant AllDatabasesViewer on the Kusto cluster."
         },
         "enableAutoScale": {
           "type": "boolean"
@@ -1934,6 +2146,7 @@
         "tier",
         "serviceLogsDatabase",
         "hostedControlPlaneLogsDatabase",
+        "monitoringEventsDatabase",
         "adminGroups",
         "viewerGroups",
         "kustoName",
@@ -1982,6 +2195,30 @@
         "rg"
       ]
     },
+    "alertEventsEventHub": {
+      "type": "object",
+      "description": "Configuration for the alert events Event Hub used to send alert firings to Kusto",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Name of the Event Hub entity for alert events"
+        },
+        "kustoConsumerGroupName": {
+          "type": "string",
+          "description": "Name of the consumer group for Kusto data connection"
+        },
+        "kustoDataConnectionName": {
+          "type": "string",
+          "description": "Name of the Kusto data connection for alert events"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "kustoConsumerGroupName",
+        "kustoDataConnectionName"
+      ]
+    },
     "mise": {
       "type": "object",
       "additionalProperties": false,
@@ -2024,7 +2261,8 @@
             "applicationId",
             "authorityFQDN",
             "audienceFQDN"
-          ]
+          ],
+          "additionalProperties": false
         },
         "genevaActions": {
           "type": "object",
@@ -2046,7 +2284,8 @@
             "policyLabel",
             "authorityFQDN",
             "audienceFQDN"
-          ]
+          ],
+          "additionalProperties": false
         },
         "sessiongate": {
           "type": "object",
@@ -2068,7 +2307,8 @@
             "policyLabel",
             "authorityFQDN",
             "audience"
-          ]
+          ],
+          "additionalProperties": false
         },
         "image": {
           "$ref": "#/definitions/containerImage"
@@ -2184,16 +2424,24 @@
           "type": "object",
           "additionalProperties": false,
           "properties": {
+            "subscriptionKey": {
+              "type": "string"
+            },
             "rg": {
               "$ref": "#/definitions/resourceGroupName"
             },
             "digest": {
               "type": "string"
+            },
+            "repository": {
+              "type": "string"
             }
           },
           "required": [
+            "subscriptionKey",
             "rg",
-            "digest"
+            "digest",
+            "repository"
           ]
         },
         "subscription": {
@@ -2399,7 +2647,8 @@
             "image"
           ]
         }
-      }
+      },
+      "additionalProperties": false
     },
     "customExporter": {
       "type": "object",
@@ -2443,6 +2692,26 @@
       "required": [
         "image",
         "enabled"
+      ]
+    },
+    "imageRegistryPolicy": {
+      "type": "object",
+      "properties": {
+        "extraAllowedRegistries": {
+          "description": "Comma-separated additional image registry prefixes to allow. Entries must not contain whitespace. Leave empty when no extra registries are needed.",
+          "type": "string",
+          "pattern": "^$|^[^,\\s]+(,[^,\\s]+)*$"
+        },
+        "validationActions": {
+          "description": "Comma-separated ValidatingAdmissionPolicyBinding validation actions. Allowed values are Deny, Audit, and Warn.",
+          "type": "string",
+          "pattern": "^(Deny|Audit|Warn)(,(Deny|Audit|Warn))*$"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "extraAllowedRegistries",
+        "validationActions"
       ]
     },
     "acrPull": {
@@ -2491,10 +2760,6 @@
     "maestro": {
       "type": "object",
       "properties": {
-        "certDomain": {
-          "type": "string",
-          "description": "Optional SAN base domain for Maestro Eventgrid certificates. If missing, defaults to maestro.${dns.regionalSubdomain}.${dns.svcParentZoneName}"
-        },
         "certIssuer": {
           "$ref": "#/definitions/certificateIssuer"
         },
@@ -2503,6 +2768,14 @@
           "properties": {
             "mqttClientName": {
               "type": "string"
+            },
+            "certSAN": {
+              "type": "string",
+              "description": "SAN for the Maestro server EventGrid certificate"
+            },
+            "certCN": {
+              "description": "CN for the Maestro server EventGrid certificate",
+              "$ref": "#/definitions/rfc5280CommonName"
             },
             "managedIdentityName": {
               "type": "string"
@@ -2520,6 +2793,8 @@
           "additionalProperties": false,
           "required": [
             "mqttClientName",
+            "certSAN",
+            "certCN",
             "managedIdentityName",
             "loglevel",
             "k8s"
@@ -2531,6 +2806,14 @@
             "consumerName": {
               "type": "string",
               "maxLength": 128
+            },
+            "certSAN": {
+              "type": "string",
+              "description": "SAN for the Maestro consumer EventGrid certificate"
+            },
+            "certCN": {
+              "description": "CN for the Maestro consumer EventGrid certificate",
+              "$ref": "#/definitions/rfc5280CommonName"
             },
             "loglevel": {
               "type": "integer"
@@ -2554,6 +2837,8 @@
           "additionalProperties": false,
           "required": [
             "consumerName",
+            "certSAN",
+            "certCN",
             "loglevel",
             "sidecar",
             "managedIdentityName",
@@ -2627,6 +2912,13 @@
         "applyKubeletFixes": {
           "type": "boolean"
         },
+        "stampIdentifier": {
+          "type": "string",
+          "description": "The identifier for the management cluster stamp",
+          "minLength": 1,
+          "maxLength": 3,
+          "pattern": "^[0-9]+$"
+        },
         "defaultStorageClassSkuName": {
           "type": "string"
         },
@@ -2638,6 +2930,21 @@
         },
         "rg": {
           "$ref": "#/definitions/resourceGroupName"
+        },
+        "stamps": {
+          "type": "object",
+          "description": "Management cluster stamp configuration",
+          "properties": {
+            "count": {
+              "type": "integer",
+              "description": "Number of management cluster stamps per region",
+              "minimum": 1
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "count"
+          ]
         },
         "subscription": {
           "$ref": "#/definitions/subscriptionMetadata"
@@ -2655,6 +2962,7 @@
         "aks",
         "applyKubeletFixes",
         "rg",
+        "stamps",
         "subscription",
         "prometheus"
       ]
@@ -2698,12 +3006,45 @@
           "pattern": "^[a-z0-9][a-z0-9-]*[a-z0-9]$",
           "description": "The workspace name should include 4-63 letters, digits or '-'. The '-' shouldn't be the first or the last symbol. We limit the name to 44 characters so we have a future option to use NSP: https://learn.microsoft.com/en-us/azure/private-link/network-security-perimeter-concepts"
         },
+        "amwScaling": {
+          "type": "object",
+          "properties": {
+            "pollInterval": {
+              "type": "string",
+              "description": "Interval at which the AMW ingestion limits scaling controller checks utilization. Go duration format (e.g. 30m, 1m)."
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "pollInterval"
+          ]
+        },
         "alertRuleOwningTeamTag": {
           "type": "string"
         },
         "alertsEnabled": {
           "type": "boolean",
           "description": "Whether ICM alerting is enabled for this region. When false, action groups will be disabled."
+        },
+        "alertSeverityCeiling": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4,
+          "description": "The minimum IcM severity level (highest priority) that alerts can fire at. Alerts with a severity more critical (lower number) than this ceiling will be degraded to this value. For example, setting this to 3 means SEV2 alerts will fire as SEV3. A value of 0 means no ceiling is applied."
+        },
+        "eventHubAlerting": {
+          "type": "object",
+          "description": "Configuration for sending alert events to an Event Hub for Kusto ingestion",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Whether to create the Event Hub action group for sending alerts to Kusto"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "enabled"
+          ]
         },
         "icm": {
           "type": "object",
@@ -2744,14 +3085,6 @@
             "sre",
             "sl"
           ]
-        },
-        "maxActiveTimeSeries": {
-          "type": "integer",
-          "description": "Maximum active time series limit for Azure Monitor Workspace (2M initial, bump when hitting 50% utilization)"
-        },
-        "maxEventsPerMinute": {
-          "type": "integer",
-          "description": "Maximum events per minute limit for Azure Monitor Workspace (2M initial, bump when hitting 50% utilization)"
         }
       },
       "additionalProperties": false,
@@ -2762,23 +3095,41 @@
         "grafanaZoneRedundantMode",
         "svcWorkspaceName",
         "hcpWorkspaceName",
+        "amwScaling",
         "alertRuleOwningTeamTag"
       ]
     },
-    "routeMonitorOperator": {
+    "quotaizer": {
       "type": "object",
       "properties": {
-        "operatorImage": {
-          "$ref": "#/definitions/containerImage"
+        "quotaGroup": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "displayName": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "displayName"
+          ]
         },
-        "blackboxExporterImage": {
+        "managedIdentityName": {
+          "type": "string"
+        },
+        "image": {
           "$ref": "#/definitions/containerImage"
         }
       },
       "additionalProperties": false,
       "required": [
-        "operatorImage",
-        "blackboxExporterImage"
+        "quotaGroup",
+        "managedIdentityName",
+        "image"
       ]
     },
     "velero": {
@@ -3013,7 +3364,12 @@
             "targetVersion": {
               "description": "The target istio version that will be updated to",
               "type": "string",
-              "enum": ["asm-1-26", "asm-1-27", "asm-1-28", "asm-1-29"]
+              "enum": [
+                "asm-1-26",
+                "asm-1-27",
+                "asm-1-28",
+                "asm-1-29"
+              ]
             },
             "ingressGatewayIPAddressName": {
               "type": "string"
@@ -3111,6 +3467,71 @@
         "ocp"
       ]
     },
+    "stgGlobalV2": {
+      "type": "object",
+      "description": "TRANSIENT: distinct globally-unique resource names for the parallel STG-global 'V2' pipelines that deploy into a dedicated STG-global subscription during coexistence with the shared subscription. Real values are set in the cloud overlay for stg; defaults are empty-sentinel. Removed once the migration is decommissioned.",
+      "properties": {
+        "acrSvcName": {
+          "type": "string"
+        },
+        "acrOcpName": {
+          "type": "string"
+        },
+        "globalKeyVaultName": {
+          "type": "string"
+        },
+        "genevaKeyVaultName": {
+          "type": "string"
+        },
+        "frontDoorName": {
+          "type": "string"
+        },
+        "frontDoorKeyVaultName": {
+          "type": "string"
+        },
+        "oidcStorageAccountName": {
+          "type": "string"
+        },
+        "svcParentZoneName": {
+          "type": "string"
+        },
+        "cxParentZoneName": {
+          "type": "string"
+        },
+        "kustoName": {
+          "type": "string"
+        },
+        "grafanaName": {
+          "type": "string"
+        },
+        "grafanaMajorVersion": {
+          "type": "string"
+        },
+        "billingKustoName": {
+          "type": "string"
+        },
+        "billingKustoSku": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "acrSvcName",
+        "acrOcpName",
+        "globalKeyVaultName",
+        "genevaKeyVaultName",
+        "frontDoorName",
+        "frontDoorKeyVaultName",
+        "oidcStorageAccountName",
+        "svcParentZoneName",
+        "cxParentZoneName",
+        "kustoName",
+        "grafanaName",
+        "grafanaMajorVersion",
+        "billingKustoName",
+        "billingKustoSku"
+      ]
+    },
     "releaseApprover": {
       "type": "object",
       "properties": {
@@ -3165,7 +3586,8 @@
               "type": "string",
               "description": "The name of the KeyVault secret in the global AKV that stores the token used to authenticate with Prow."
             }
-          }
+          },
+          "additionalProperties": false
         },
         "regionTest": {
           "type": "object",
@@ -3180,7 +3602,8 @@
           "required": [
             "prowJobName",
             "gatePromotion"
-          ]
+          ],
+          "additionalProperties": false
         }
       },
       "additionalProperties": false,
@@ -3212,11 +3635,13 @@
     "global",
     "hypershift",
     "imageSync",
+    "imageRegistryPolicy",
     "acrPull",
     "secretSyncController",
     "maestro",
     "mgmt",
     "mgmtAgent",
+    "fleet",
     "kubeApplier",
     "mgmtKeyVault",
     "monitoring",
@@ -3233,5 +3658,47 @@
     "acrDNSSuffix",
     "e2e",
     "entraAppOwnerIds"
+  ],
+  "x-cel-validations": [
+    {
+      "rule": "self.frontend.cert.san == 'rp.' + self.dns.regionalSubdomain + '.' + self.dns.svcParentZoneName",
+      "message": "frontend.cert.san must equal 'rp.' + dns.regionalSubdomain + '.' + dns.svcParentZoneName"
+    },
+    {
+      "rule": "self.adminApi.cert.san == 'admin.' + self.dns.regionalSubdomain + '.' + self.dns.svcParentZoneName",
+      "message": "adminApi.cert.san must equal 'admin.' + dns.regionalSubdomain + '.' + dns.svcParentZoneName"
+    },
+    {
+      "rule": "self.sessiongate.cert.san == 'sessiongate.' + self.dns.regionalSubdomain + '.' + self.dns.svcParentZoneName",
+      "message": "sessiongate.cert.san must equal 'sessiongate.' + dns.regionalSubdomain + '.' + dns.svcParentZoneName"
+    },
+    {
+      "rule": "self.maestro.server.certSAN == self.maestro.server.mqttClientName + '.maestro.' + self.dns.regionalSubdomain + '.' + self.dns.svcParentZoneName",
+      "message": "maestro.server.certSAN must equal mqttClientName + '.maestro.' + dns.regionalSubdomain + '.' + dns.svcParentZoneName"
+    },
+    {
+      "rule": "self.maestro.agent.certSAN == self.maestro.agent.consumerName + '.maestro.' + self.dns.regionalSubdomain + '.' + self.dns.svcParentZoneName",
+      "message": "maestro.agent.certSAN must equal consumerName + '.maestro.' + dns.regionalSubdomain + '.' + dns.svcParentZoneName"
+    },
+    {
+      "rule": "self.maestro.server.certCN == 'server.maestro.' + self.dns.regionalSubdomain + '.' + self.dns.svcParentZoneName",
+      "message": "maestro.server.certCN must equal 'server.maestro.' + dns.regionalSubdomain + '.' + dns.svcParentZoneName"
+    },
+    {
+      "rule": "self.maestro.agent.certCN == 'mgmt-' + self.mgmt.stampIdentifier + '.maestro.' + self.dns.regionalSubdomain + '.' + self.dns.svcParentZoneName",
+      "message": "maestro.agent.certCN must equal 'mgmt-' + mgmt.stampIdentifier + '.maestro.' + dns.regionalSubdomain + '.' + dns.svcParentZoneName"
+    },
+    {
+      "rule": "self.firstPartyAppCertificate.san == self.firstPartyAppCertificate.name + '.' + self.dns.svcParentZoneName",
+      "message": "firstPartyAppCertificate.san must equal firstPartyAppCertificate.name + '.' + dns.svcParentZoneName"
+    },
+    {
+      "rule": "self.geneva.actions.certificate.san == self.geneva.actions.certificate.name + '.' + self.dns.globalCertificatesDomain",
+      "message": "geneva.actions.certificate.san must equal geneva.actions.certificate.name + '.' + dns.globalCertificatesDomain"
+    },
+    {
+      "rule": "self.geneva.logs.adminCertSan == self.geneva.logs.adminCertName + '.' + self.geneva.logs.adminCertificateDomain",
+      "message": "geneva.logs.adminCertSan must equal geneva.logs.adminCertName + '.' + geneva.logs.adminCertificateDomain"
+    }
   ]
 }

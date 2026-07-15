@@ -16,7 +16,6 @@ package cmd
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"net"
@@ -30,6 +29,7 @@ import (
 	"go.opentelemetry.io/otel"
 	semconv "go.opentelemetry.io/otel/semconv/v1.27.0"
 
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/component-base/metrics/legacyregistry"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
@@ -67,7 +67,8 @@ type FrontendOpts struct {
 	cosmosName string
 	cosmosURL  string
 
-	exitOnPanic bool
+	exitOnPanic  bool
+	logVerbosity int
 }
 
 func NewRootCmd() *cobra.Command {
@@ -108,6 +109,9 @@ func NewRootCmd() *cobra.Command {
 	rootCmd.Flags().BoolVar(&opts.exitOnPanic, "exit-on-panic", opts.exitOnPanic,
 		"If set, frontend will exit the process if a panic occurs. As of now it only controls the setting of k8s.io/apimachinery/pkg/util/runtime.ReallyCrash",
 	)
+	rootCmd.Flags().IntVar(&opts.logVerbosity, "log-verbosity", opts.logVerbosity,
+		"Log verbosity, as a go-logr/logr log level. 0 is the default verbosity level (INFO). It must be a value >= 0, where a higher value means more verbose output.",
+	)
 	rootCmd.MarkFlagsRequiredTogether("cosmos-name", "cosmos-url")
 
 	return rootCmd
@@ -141,17 +145,35 @@ func CorrelationIDPolicy(req *policy.Request) (*http.Response, error) {
 	return req.Next()
 }
 
+func (opts *FrontendOpts) Validate() error {
+	if len(opts.location) == 0 {
+		return utils.TrackError(fmt.Errorf("--location is required"))
+	}
+
+	if opts.logVerbosity < 0 {
+		return utils.TrackError(fmt.Errorf("--log-verbosity must be a value >= 0"))
+	}
+
+	return nil
+}
+
 func (opts *FrontendOpts) Run() error {
+	err := opts.Validate()
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("flags validation failed: %w", err))
+	}
+
 	ctx := signal.SetupSignalContext()
 	ctx, cancel := context.WithCancelCause(ctx)
 	defer cancel(fmt.Errorf("function returned"))
 
-	logger := utils.DefaultLogger()
+	// Create a logr.Logger and add it to context for use throughout the application.
+	// We use slog.Level(opts.LogVerbosity * -1) to convert the verbosity level to a slog.Level.
+	// A value of 0 is equivalent to INFO. Higher values mean more verbose output.
+	handlerOptions := &slog.HandlerOptions{Level: slog.Level(opts.logVerbosity * -1), AddSource: true}
+	slogJSONHandler := slog.NewJSONHandler(os.Stderr, handlerOptions)
+	logger := logr.FromSlogHandler(slogJSONHandler)
 	ctx = utils.ContextWithLogger(ctx, logger)
-
-	if len(opts.location) == 0 {
-		return errors.New("location is required")
-	}
 
 	logger.Info(fmt.Sprintf(
 		"%s (%s) started in %s",
@@ -253,6 +275,7 @@ func (opts *FrontendOpts) Run() error {
 
 	runErrCh := make(chan error, 1)
 	go func() {
+		defer utilruntime.HandleCrash()
 		runErrCh <- f.Run(ctx)
 		cancel(fmt.Errorf("frontend exited"))
 	}()

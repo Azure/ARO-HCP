@@ -16,259 +16,282 @@ package upgradecontrollers
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"slices"
 	"time"
 
 	"github.com/blang/semver/v4"
 	"github.com/google/uuid"
 
+	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/api/operation"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	cvocincinnati "github.com/openshift/cluster-version-operator/pkg/cincinnati"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/backend/pkg/maestrohelpers"
 	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/cincinnati"
-	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
-	"github.com/Azure/ARO-HCP/internal/ocm"
+	dblisters "github.com/Azure/ARO-HCP/internal/database/listers"
+	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/internal/utils/apihelpers"
 	"github.com/Azure/ARO-HCP/internal/validation"
 )
 
-// nodePoolVersionSyncer is a nodePool syncer that synchronizes cluster information
-// from CS and internal and helps selecting a valid desiredVersion within the user's
-// desired
+// NodepoolVersionControllerName is the Cosmos controller document ID for this syncer.
+const NodepoolVersionControllerName = "NodePoolVersion"
+
+// nodePoolVersionSyncer validates the customer's desired NodePool version and
+// stores it on the ServiceProviderNodePool. Active-version tracking moved to
+// nodePoolActiveVersionSyncer (sourced from the ReadDesire NodePool mirror) and
+// is no longer this controller's responsibility.
 type nodePoolVersionSyncer struct {
-	cooldownChecker                       controllerutil.CooldownChecker
-	clusterManagementClusterContentLister listers.ManagementClusterContentLister
-	resourcesDBClient                     database.ResourcesDBClient
-	clusterServiceClient                  ocm.ClusterServiceClientSpec
+	nodePoolLister                listers.NodePoolLister
+	serviceProviderNodePoolLister listers.ServiceProviderNodePoolLister
+	serviceProviderClusterLister  listers.ServiceProviderClusterLister
+	subscriptionLister            listers.SubscriptionLister
+	readDesireLister              dblisters.ReadDesireLister
+	resourcesDBClient             database.ResourcesDBClient
 
 	cincinnatiClientCache cincinnati.ClientCache
 }
 
 var _ controllerutils.NodePoolSyncer = (*nodePoolVersionSyncer)(nil)
 
-// NewNodePoolVersionController creates a new syncer that reads node pool versions
-// from Cluster Service.
-// TODO: improve this description
+// NewNodePoolVersionController creates a new syncer that validates and persists
+// the customer's desired NodePool version on the ServiceProviderNodePool.
 func NewNodePoolVersionController(
 	resourcesDBClient database.ResourcesDBClient,
-	clusterServiceClient ocm.ClusterServiceClientSpec,
-	activeOperationLister listers.ActiveOperationLister,
+	subscriptionLister listers.SubscriptionLister,
 	informers informers.BackendInformers,
+	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
+	readDesireLister dblisters.ReadDesireLister,
 ) controllerutils.Controller {
-	_, clusterManagementClusterContentLister := informers.ManagementClusterContents()
+	_, nodePoolLister := informers.NodePools()
+	_, serviceProviderNodePoolLister := informers.ServiceProviderNodePools()
+	_, serviceProviderClusterLister := informers.ServiceProviderClusters()
 	syncer := &nodePoolVersionSyncer{
-		cooldownChecker:                       controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
-		clusterManagementClusterContentLister: clusterManagementClusterContentLister,
-		resourcesDBClient:                     resourcesDBClient,
-		clusterServiceClient:                  clusterServiceClient,
-		cincinnatiClientCache:                 cincinnati.NewClientCache(),
+		nodePoolLister:                nodePoolLister,
+		serviceProviderNodePoolLister: serviceProviderNodePoolLister,
+		serviceProviderClusterLister:  serviceProviderClusterLister,
+		subscriptionLister:            subscriptionLister,
+		readDesireLister:              readDesireLister,
+		resourcesDBClient:             resourcesDBClient,
+		cincinnatiClientCache:         cincinnati.NewClientCache(),
 	}
 
+	resyncDuration := 5 * time.Minute
 	controller := controllerutils.NewNodePoolWatchingController(
-		"NodePoolVersion",
+		NodepoolVersionControllerName,
 		resourcesDBClient,
 		informers,
-		5*time.Minute, // Check for upgrades every 5 minutes
+		kubeApplierInformers,
+		resyncDuration, // Check for upgrades every 5 minutes
 		syncer,
 	)
+
+	// we need to trigger on serviceProviderCluster changes because we rely on a version field there to make decisions
+	serviceProviderClusterInformer, _ := informers.ServiceProviderClusters()
+	err := controller.QueueForInformers(resyncDuration, serviceProviderClusterInformer)
+	if err != nil {
+		panic(err) // coding error
+	}
 
 	return controller
 }
 
-// SyncOnce synchronizes node pool version information between Cluster Service
-// and the ServiceProviderNodePool in Cosmos DB.
+// NeedsWork reports whether this controller has anything to do for the given
+// NodePool. The work this controller does is persist the customer's desired
+// version onto the ServiceProviderNodePool, which is needed when:
+//   - the NodePool's customer-visible Properties.Version.ID is set, and
+//   - the ServiceProviderNodePool's Spec.NodePoolVersion.DesiredVersion does
+//     not already equal that value (otherwise nothing would change).
 //
-// The method performs two main operations:
+// Both arguments must be non-nil; SyncOnce gates the cache miss before calling
+// NeedsWork.
+func (c *nodePoolVersionSyncer) NeedsWork(nodePool *api.HCPOpenShiftClusterNodePool, serviceProviderNodePool *api.ServiceProviderNodePool, serviceProviderCluster *api.ServiceProviderCluster) bool {
+	if len(nodePool.Properties.Version.ID) == 0 {
+		return false
+	}
+	if len(serviceProviderCluster.Status.ControlPlaneVersion.ActiveVersions) == 0 {
+		// we need this information to make validation decisions
+		return false
+	}
+	if serviceProviderNodePool.Spec.NodePoolVersion.DesiredVersion == nil {
+		return true
+	}
+	customerDesiredVersion, err := semver.ParseTolerant(nodePool.Properties.Version.ID)
+	if err != nil {
+		// Unparseable version; let SyncOnce surface the parse error path —
+		// we don't suppress work just because we can't parse it here.
+		return true
+	}
+	if customerDesiredVersion.NE(*serviceProviderNodePool.Spec.NodePoolVersion.DesiredVersion) {
+		return true
+	}
+
+	return false
+}
+
+// SyncOnce validates and persists the customer's desired node pool version on
+// the ServiceProviderNodePool in Cosmos DB.
 //
-// 1. Active Version Tracking:
-//   - Reads the current running version from Cluster Service (csNodePool.Version)
-//   - Stores it in ServiceProviderNodePool.Status.NodePoolVersion.ActiveVersions
-//   - Maintains up to 2 versions during upgrades (newest first, then previous)
+//   - Reads the customer's desired version from HCPNodePool.Properties.Version.ID.
+//   - Validates it against version change constraints (see validateDesiredNodePoolVersion):
+//   - Exists as a known version in Cincinnati.
+//   - Upgrade: at most +2 minor versions from current, and cannot exceed lowest control plane version.
+//   - Downgrade: at most -2 minor versions from the highest control plane version.
+//   - Cross-major changes (either direction) require AFEC FeatureExperimentalReleaseFeatures.
+//   - NP version must be in the allowed skew map when CP and NP are on different majors.
+//   - If valid, stores it in ServiceProviderNodePool.Spec.NodePoolVersion.DesiredVersion.
 //
-// 2. Desired Version Validation and Storage:
-//   - Reads the customer's desired version from HCPNodePool.Properties.Version.ID
-//   - Validates it against upgrade constraints (see below)
-//   - The desired version must satisfy:
-//   - Not less than the highest active version (no downgrades)
-//   - Not greater than the lowest control plane version (node pools cannot exceed CP)
-//   - Not skip minor versions (only z-stream or +1 minor allowed)
-//   - Have a valid upgrade path in Cincinnati from the current version
-//   - If valid, stores it in ServiceProviderNodePool.Spec.NodePoolVersion.DesiredVersion
-//
-// If the desired version is already among the active versions, validation is skipped
-// (the upgrade is already in progress or complete).
+// Active version tracking lives in nodePoolActiveVersionSyncer, which reads the
+// Hypershift NodePool from the per-node-pool ReadDesire kubeContent rather than
+// round-tripping through Cluster Service.
 func (c *nodePoolVersionSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPNodePoolKey) error {
 	logger := utils.LoggerFromContext(ctx)
 
-	// Get node pool from Cosmos to get CS internal ID
-	nodePool, err := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).
-		NodePools(key.HCPClusterName).Get(ctx, key.HCPNodePoolName)
-
+	// Do the super cheap cache check first.
+	cachedNodePool, err := c.nodePoolLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPNodePoolName)
 	if database.IsNotFoundError(err) {
-		return nil // nodepool doesn't exists
+		// we'll be re-fired if it is created again
+		return nil
 	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get node pool from cosmos: %w", err))
+		return utils.TrackError(fmt.Errorf("failed to get node pool from cache: %w", err))
 	}
-	if nodePool.ServiceProviderProperties.ClusterServiceID == nil || len(nodePool.ServiceProviderProperties.ClusterServiceID.String()) == 0 {
-		// if we have no clusterservice nodepool, we have nothing to sync.
+	// SPNP must be in cache. If a sibling controller hasn't created it yet,
+	// skip this sync; the informer will retrigger us when it lands.
+	cachedServiceProviderNodePool, err := c.serviceProviderNodePoolLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPNodePoolName)
+	if database.IsNotFoundError(err) {
+		return nil
+	}
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to get ServiceProviderNodePool from cache: %w", err))
+	}
+
+	// Pull the ServiceProviderCluster and Subscription from cache rather than
+	// re-fetching live: validation only reads them, and if either isn't yet
+	// observed by the informer we'll be retriggered when it lands.
+	cachedServiceProviderCluster, err := c.serviceProviderClusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
+	if database.IsNotFoundError(err) {
+		return nil
+	}
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to get ServiceProviderCluster from cache: %w", err))
+	}
+
+	if !c.NeedsWork(cachedNodePool, cachedServiceProviderNodePool, cachedServiceProviderCluster) {
+		// if the cache doesn't need work, then we'll be retriggered if those values change when the cache updates.
 		return nil
 	}
 
-	existingServiceProviderNodePool, err := database.GetOrCreateServiceProviderNodePool(ctx, c.resourcesDBClient, key.GetResourceID())
+	customerDesiredVersion, err := semver.Parse(cachedNodePool.Properties.Version.ID)
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get or create ServiceProviderNodePool: %w", err))
+		return utils.TrackError(err)
 	}
 
-	// Get the ServiceProviderCluster for control plane version validation
-	clusterResourceID := api.Must(api.ToClusterResourceID(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName))
-	existingServiceProviderCluster, err := database.GetOrCreateServiceProviderCluster(ctx, c.resourcesDBClient, clusterResourceID)
-	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get or create ServiceProviderCluster: %w", err))
-	}
-
-	// Get the cluster for Cincinnati client initialization
-	cluster, err := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Get(ctx, key.HCPClusterName)
+	subscription, err := c.subscriptionLister.Get(ctx, key.SubscriptionID)
 	if database.IsNotFoundError(err) {
-		return nil // cluster doesn't exist, no work to do
+		return nil
 	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get cluster from cosmos: %w", err))
-	}
-	if cluster.ServiceProviderProperties.ClusterServiceID == nil {
-		// TODO this appears to only be used to look up a clusterservice cluster to get a UUID.  Once the billing changes merge,
-		// we'll have UID to key by and won't need this.
-		return nil
+		return utils.TrackError(fmt.Errorf("failed to get Subscription from cache: %w", err))
 	}
 
 	// Resolve the cluster UUID from the cached HostedCluster so we can build the Cincinnati client.
-	clusterUUID, found, err := maestrohelpers.GetCachedHostedClusterUUIDForCluster(ctx, c.clusterManagementClusterContentLister, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
+	// Use it as best effort.  If we cannot find use, use an empty value to make progress without a specific value.
+	clusterUUID, found, err := maestrohelpers.GetCachedHostedClusterUUIDForCluster(ctx, c.readDesireLister, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if err != nil {
-		return err
+		logger.Info("error getting cluster UUID, continuing with empty", "err", err.Error())
 	}
 	if !found {
-		// will reappear once the informer relists; without the UUID we cannot build the Cincinnati client
-		return nil
+		logger.Info("missing cluster UUID, continuing with empty")
 	}
 
-	// Read node pool from Cluster Service
-	csNodePool, err := c.clusterServiceClient.GetNodePool(ctx, *nodePool.ServiceProviderProperties.ClusterServiceID)
-	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get NodePool from CS: %w", err))
-	}
-
-	// For now we get the CS desired version
-	// In the future it should be good to use the node pool Status information from the node pool CR
-	version, ok := csNodePool.GetVersion()
-	if !ok {
-		return utils.TrackError(fmt.Errorf("node pool version not found in Cluster Service response"))
-	}
-
-	actualVersion := semver.MustParse(version.RawID())
-
-	oldActiveVersions := existingServiceProviderNodePool.Status.NodePoolVersion.ActiveVersions
-	existingServiceProviderNodePool.Status.NodePoolVersion.ActiveVersions = prependActiveVersionIfChanged(oldActiveVersions, actualVersion)
-
-	serviceProviderCosmosNodePoolClient := c.resourcesDBClient.ServiceProviderNodePools(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPNodePoolName)
-	// check if actualVersion from node pool in clusterService is different that the active versions in serviceProviderNodePool
-	// if it is different update the ActualVersion in the serviceProviderNodePool
-	// TODO: This is a simple gathering of the node pool versions. We should implement this to get the correct information.
-	// Possible ways to get this information
-	//   - In CS
-	// 	 	- nodepool.version: latest version applied. When an upgrade policy completes correctly, this is set to that version.
-	//   	- upgradepolicy.targetVersion: if the policy has started this version is applying to the nodepool
-	//   - In Hypershift
-	//		- .Status.Version: shows the latest applied version https://github.com/openshift/hypershift/blob/main/api/hypershift/v1beta1/nodepool_types.go#L246-L251
-	if !slices.Equal(oldActiveVersions, existingServiceProviderNodePool.Status.NodePoolVersion.ActiveVersions) {
-		logger.Info("Active versions changed", "oldActiveVersions", oldActiveVersions, "newActiveVersions", existingServiceProviderNodePool.Status.NodePoolVersion.ActiveVersions)
-		existingServiceProviderNodePool, err = serviceProviderCosmosNodePoolClient.Replace(ctx, existingServiceProviderNodePool, nil)
-		if err != nil {
-			return utils.TrackError(fmt.Errorf("failed to replace ServiceProviderNodePool: %w", err))
-		}
-	}
-
-	// If there is no nodePool version do not validate and update the desired Version
-	if nodePool.Properties.Version.ID == "" {
-		return nil
-	}
-	customerDesiredVersion := semver.MustParse(nodePool.Properties.Version.ID)
-
-	// Short-circuit: skip validation if desired version hasn't changed
-	if existingServiceProviderNodePool.Spec.NodePoolVersion.DesiredVersion != nil &&
-		customerDesiredVersion.EQ(*existingServiceProviderNodePool.Spec.NodePoolVersion.DesiredVersion) {
-		return nil
-	}
-
-	subscription, err := c.resourcesDBClient.Subscriptions().Get(ctx, cluster.ID.SubscriptionID)
-	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get subscription: %w", err))
+	op := operation.Operation{
+		Options: validation.AFECsToValidationOptions(subscription.GetRegisteredFeatures()),
 	}
 
 	// Validate the customer's desired version before setting it
-	if err := c.validateDesiredNodePoolVersion(ctx, &customerDesiredVersion, existingServiceProviderNodePool, existingServiceProviderCluster, subscription, nodePool.Properties.Version.ChannelGroup, clusterUUID); err != nil {
-		return utils.TrackError(fmt.Errorf("invalid desired version: %w", err))
+	err = c.validateDesiredNodePoolVersion(ctx, &customerDesiredVersion, cachedServiceProviderNodePool, cachedServiceProviderCluster, cachedNodePool.Properties.Version.ChannelGroup, clusterUUID,
+		op.HasOption(api.FeatureExperimentalReleaseFeatures))
+	if err != nil {
+		// Persist IntentFailed on the controller document for Cincinnati VersionNotFound or any non-Cincinnati resolution error.
+		// Other Cincinnati errors are treated as transient graph or transport issues.
+		var cincinnatiErr *cvocincinnati.Error
+		persistIntentFailed := cincinnati.IsCincinnatiVersionNotFoundError(err) || !errors.As(err, &cincinnatiErr)
+		if persistIntentFailed {
+			logger.Error(err, "desired version resolution failed, persisting IntentFailed condition")
+			controllerCRUD := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).
+				NodePools(key.HCPClusterName).Controllers(key.HCPNodePoolName)
+			if writeErr := controllerutils.WriteController(ctx, controllerCRUD, NodepoolVersionControllerName, key.InitialController,
+				func(ctrl *api.Controller) {
+					apimeta.SetStatusCondition(&ctrl.Status.Conditions, metav1.Condition{
+						Type:    api.ControllerConditionTypeIntentFailed,
+						Status:  metav1.ConditionTrue,
+						Reason:  api.VersionUpgradeNotAcceptedReason,
+						Message: utils.ErrorMessageWithoutLineTracking(err),
+					})
+				}); writeErr != nil {
+				return utils.TrackError(writeErr)
+			}
+			return nil
+		}
+		return utils.TrackError(err)
 	}
 
 	// Update the serviceProviderNodePool DesiredVersion
-	existingServiceProviderNodePool.Spec.NodePoolVersion.DesiredVersion = &customerDesiredVersion
-	_, err = serviceProviderCosmosNodePoolClient.Replace(ctx, existingServiceProviderNodePool, nil)
+	replacement := cachedServiceProviderNodePool.DeepCopy()
+	replacement.Spec.NodePoolVersion.DesiredVersion = &customerDesiredVersion
+	_, err = c.resourcesDBClient.ServiceProviderNodePools(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPNodePoolName).Replace(ctx, replacement, nil)
+	if database.IsPreconditionFailedError(err) {
+		// the cache will update eventually since we're out of date and we'll enter this controller again. No need to fail.
+		return nil
+	}
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to replace ServiceProviderNodePool: %w", err))
 	}
-
 	logger.Info("Updated ServiceProviderNodePool with new desired version", "desiredVersion", customerDesiredVersion.String())
+
+	// Clear IntentFailed condition on successful validation
+	controllerCRUD := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).
+		NodePools(key.HCPClusterName).Controllers(key.HCPNodePoolName)
+	if err = controllerutils.WriteController(ctx, controllerCRUD, NodepoolVersionControllerName, key.InitialController,
+		func(ctrl *api.Controller) {
+			apimeta.SetStatusCondition(&ctrl.Status.Conditions, metav1.Condition{
+				Type:    api.ControllerConditionTypeIntentFailed,
+				Status:  metav1.ConditionFalse,
+				Reason:  api.ControllerConditionReasonAsExpected,
+				Message: "",
+			})
+		}); err != nil {
+		return utils.TrackError(err)
+	}
 
 	return nil
 }
 
-func (c *nodePoolVersionSyncer) CooldownChecker() controllerutil.CooldownChecker {
-	return c.cooldownChecker
-}
-
-// prependActiveVersionIfChanged takes a slice of active versions and returns an updated slice
-// with the new version prepended if it differs from the most recent version.
-// If the most recent version matches the new version, returns the original slice unchanged.
-// The returned slice is capped to the 2 most recent versions.
-func prependActiveVersionIfChanged(currentVersions []api.HCPNodePoolActiveVersion, newVersion semver.Version) []api.HCPNodePoolActiveVersion {
-	// Check if the tip (most recent version) is already the new version
-	if len(currentVersions) > 0 && currentVersions[0].Version != nil && currentVersions[0].Version.EQ(newVersion) {
-		return currentVersions
-	}
-
-	// Create new list with at most 2 versions: new version + most recent old version
-	newVersions := []api.HCPNodePoolActiveVersion{{Version: &newVersion}}
-	if len(currentVersions) > 0 {
-		newVersions = append(newVersions, currentVersions[0])
-	}
-	return newVersions
-}
-
-// validateDesiredNodePoolVersion checks that the desired node pool version is a valid upgrade path.
+// validateDesiredNodePoolVersion checks that the desired node pool version is a valid change.
 // It validates:
-//   - The desired version is not less than the highest active node pool version (no downgrades)
-//   - The desired version is not greater than the lowest control plane version
-//   - No major version changes (unless FeatureExperimentalReleaseFeatures is registered)
-//   - No minor versions are skipped
-//   - An upgrade path exists from the current version (all the activeVersions) to the desired version (via Cincinnati)
+//   - The desired version exists in Cincinnati
+//   - Upgrade: at most +2 minor versions from current, and cannot exceed lowest control plane version
+//   - Downgrade: at most -2 minor versions from the highest control plane version
+//   - Cross-major changes (either direction) require AFEC FeatureExperimentalReleaseFeatures
+//   - NP version must be in the allowed skew map when CP and NP are on different majors
+//
+// Cincinnati upgrade-edge validation is intentionally skipped — HCP nodepools use the Replace
+// strategy (destroy + recreate), so only version existence matters.
+// See https://hypershift.pages.dev/reference/nodepool-rollouts/#upgrade-types
 //
 // Returns nil if the desired version is valid, or an error describing why it's invalid.
-func (c *nodePoolVersionSyncer) validateDesiredNodePoolVersion(
-	ctx context.Context,
-	desiredVersion *semver.Version,
-	spNodePool *api.ServiceProviderNodePool,
-	spCluster *api.ServiceProviderCluster,
-	subscription *arm.Subscription,
-	channelGroup string,
-	clusterUUID uuid.UUID,
-) error {
+func (c *nodePoolVersionSyncer) validateDesiredNodePoolVersion(ctx context.Context, desiredVersion *semver.Version, spNodePool *api.ServiceProviderNodePool, spCluster *api.ServiceProviderCluster,
+	channelGroup string, clusterUUID uuid.UUID, allowExperimentalReleaseFeatures bool) error {
 	if desiredVersion == nil {
 		return fmt.Errorf("customerDesiredVersion is nil, cannot evaluate upgrade")
 	}
@@ -278,34 +301,25 @@ func (c *nodePoolVersionSyncer) validateDesiredNodePoolVersion(
 
 	// Get all active versions from ServiceProviderNodePool
 	nodePoolActiveVersions := spNodePool.Status.NodePoolVersion.ActiveVersions
-	lowestCPVersion, _ := apihelpers.FindLowestAndHighestClusterVersion(spCluster.Status.ControlPlaneVersion.ActiveVersions)
+	lowestCPVersion, highestCPVersion := apihelpers.FindLowestAndHighestClusterVersion(spCluster.Status.ControlPlaneVersion.ActiveVersions)
 
-	// This operation is added to normalize the use for the validations so they are shared
-	// between the frontend and the backend
-	op := operation.Operation{
-		Options: validation.AFECsToValidationOptions(subscription.GetRegisteredFeatures()),
-	}
-
-	if err := validation.ValidateNodePoolUpgrade(*desiredVersion, nodePoolActiveVersions, lowestCPVersion, op.HasOption(api.FeatureExperimentalReleaseFeatures)); err != nil {
+	if err := validation.ValidateNodePoolVersionChange(*desiredVersion, nodePoolActiveVersions, lowestCPVersion, highestCPVersion, allowExperimentalReleaseFeatures); err != nil {
 		return err
 	}
 
-	// Validate upgrade path exists in Cincinnati for ALL active node pool versions
-	for _, activeVersion := range nodePoolActiveVersions {
-		if activeVersion.Version != nil && !desiredVersion.EQ(*activeVersion.Version) {
-			if err := c.validateUpgradePathAvailable(ctx, activeVersion.Version, desiredVersion, channelGroup, clusterUUID); err != nil {
-				return fmt.Errorf("no valid upgrade path from active version %s: %w", activeVersion.Version.String(), err)
-			}
-		}
+	// Validate the desired version exists in Cincinnati (not that an edge exists from the current version).
+	if err := c.validateVersionExistsInCincinnati(ctx, desiredVersion, channelGroup, clusterUUID); err != nil {
+		return err
 	}
 
 	return nil
 }
 
-// validateUpgradePathAvailable checks that an upgrade path exists from current to desired version.
-func (c *nodePoolVersionSyncer) validateUpgradePathAvailable(
+// validateVersionExistsInCincinnati checks that the desired version exists as a node in the
+// Cincinnati update graph.
+func (c *nodePoolVersionSyncer) validateVersionExistsInCincinnati(
 	ctx context.Context,
-	currentVersion, desiredVersion *semver.Version,
+	version *semver.Version,
 	channelGroup string,
 	clusterUUID uuid.UUID,
 ) error {
@@ -314,23 +328,17 @@ func (c *nodePoolVersionSyncer) validateUpgradePathAvailable(
 		return fmt.Errorf("failed to get Cincinnati URI: %w", err)
 	}
 
-	targetMinorString := fmt.Sprintf("%d.%d", desiredVersion.Major, desiredVersion.Minor)
-	cincinnatiChannel := fmt.Sprintf("%s-%s", channelGroup, targetMinorString)
-
+	cincinnatiChannel := fmt.Sprintf("%s-%d.%d", channelGroup, version.Major, version.Minor)
 	cincinnatiClient := c.cincinnatiClientCache.GetOrCreateClient(clusterUUID)
-	// Get updates for the current version
-	// TODO: for nodePools we should use the arch of that nodePool
-	_, candidates, _, err := cincinnatiClient.GetUpdates(ctx, cincinnatiURI, "multi", "multi", cincinnatiChannel, *currentVersion)
+
+	// GetUpdates returns VersionNotFound if the version doesn't exist in the channel.
+	_, _, _, err = cincinnatiClient.GetUpdates(ctx, cincinnatiURI, "multi", "multi", cincinnatiChannel, *version)
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to query Cincinnati for upgrade path: %w", err))
-	}
-
-	for _, candidate := range candidates {
-		candidateVersion := semver.MustParse(candidate.Version)
-		if candidateVersion.EQ(*desiredVersion) {
-			return nil
+		if cincinnati.IsCincinnatiVersionNotFoundError(err) {
+			return utils.TrackError(fmt.Errorf("version %s not found in Cincinnati channel %s", version, cincinnatiChannel))
 		}
+		return utils.TrackError(fmt.Errorf("failed to query Cincinnati for version existence: %w", err))
 	}
 
-	return utils.TrackError(fmt.Errorf("no upgrade path available from %s to %s in channel %s", currentVersion, desiredVersion, cincinnatiChannel))
+	return nil
 }

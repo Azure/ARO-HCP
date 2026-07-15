@@ -1,0 +1,88 @@
+version: 1
+environments:
+  dev:
+    deploy_envs:
+    - ci00
+    - ci01
+    pools:
+    # Jobs choose the runtime region; `region` is only the default when no runtime override is provided.
+    # Identity containers are provisioned in westus3.
+    - subscription_name: "ARO HCP E2E Hosted Clusters (EA Subscription)"
+      region: westus3
+      region_mode: runtime-selected
+      resource_type: aro-hcp-dev-shard0-slot
+      slot_count: 6
+      identity_container_prefix: aro-hcp-msi-container-dev-shard0
+      identity_container_count: 50
+    - subscription_name: "ARO HCP E2E Hosted Clusters 2 (EA Subscription)"
+      region: westus3
+      region_mode: runtime-selected
+      resource_type: aro-hcp-dev-shard1-slot
+      slot_count: 6
+      identity_container_prefix: aro-hcp-msi-container-dev-shard1
+      identity_container_count: 50
+    - subscription_name: "ARO HCP E2E Hosted Clusters - Dev - 02"
+      region: westus3
+      region_mode: runtime-selected
+      resource_type: aro-hcp-dev-shard2-slot
+      slot_count: 6
+      identity_container_prefix: aro-hcp-msi-container-dev-shard2
+      identity_container_count: 50
+    - subscription_name: "ARO HCP E2E Hosted Clusters - Dev - 03"
+      region: westus3
+      region_mode: runtime-selected
+      resource_type: aro-hcp-dev-shard3-slot
+      slot_count: 6
+      identity_container_prefix: aro-hcp-msi-container-dev-shard3
+      identity_container_count: 50
+    - subscription_name: "Hypershift Managed Azure"
+      region: westus3
+      region_mode: runtime-selected
+      resource_type: aro-hcp-dev-hypershift-westus3-slot
+      slot_count: 1
+      identity_container_prefix: aro-hcp-msi-container-dev
+      identity_container_count: 20
+      identity_provisioning: unmanaged
+  int:
+    deploy_envs:
+    - int
+    pools:
+    - subscription_name: "ARO SRE Team - INT (EA Subscription 3)"
+      region: uksouth
+      region_mode: fixed
+      resource_type: aro-hcp-int-shard0-slot
+      slot_count: 1
+      identity_container_prefix: aro-hcp-msi-container-int-shard0
+      identity_container_count: 20
+  stg:
+    deploy_envs:
+    - stg
+    pools:
+    # shard0: Stage-00 subscription, fixed uksouth region.
+    # identity_container_count set to 25 to support running the full E2E suite in parallel.
+    - subscription_name: "ARO HCP E2E Hosted Clusters - Stage - 00"
+      region: uksouth
+      region_mode: fixed
+      resource_type: aro-hcp-stg-shard0-slot
+      slot_count: 1
+      identity_container_prefix: aro-hcp-msi-container-stg-shard0
+      # provisionShardClusterLimit is configured to 25 in STG
+      identity_container_count: 25
+  prod:
+    deploy_envs:
+    - prod
+    pools:
+    - subscription_name: "ARO HCP E2E Hosted Clusters - Prod - 00"
+      region: uksouth
+      region_mode: runtime-selected
+      resource_type: aro-hcp-prod-shard0-slot
+      slot_count: 12
+      identity_container_prefix: aro-hcp-msi-container-prod
+      identity_container_count: 25
+    - subscription_name: "ARO HCP E2E Hosted Clusters - Prod - 01"
+      region: uksouth
+      region_mode: runtime-selected
+      resource_type: aro-hcp-prod-shard1-slot
+      slot_count: 12
+      identity_container_prefix: aro-hcp-msi-container-prod
+      identity_container_count: 25

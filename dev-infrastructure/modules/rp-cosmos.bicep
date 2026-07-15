@@ -1,14 +1,6 @@
-// Constants
-// Maximum DB account name length is 44
-param name string
-param disableLocalAuth bool = true
-
-// Passed Params and Overrides
-param location string
-param zoneRedundant bool
+param cosmosDBAccountName string
 param userAssignedMIs array
 param readOnlyUserAssignedMIs array = []
-param private bool
 
 param resourceContainerMaxScale int
 param billingContainerMaxScale int
@@ -42,67 +34,17 @@ var containers = [
   }
 ]
 
-param roleDefinitionId string = '00000000-0000-0000-0000-000000000002'
-param readOnlyRoleDefinitionId string = '00000000-0000-0000-0000-000000000001'
+// https://learn.microsoft.com/en-us/azure/cosmos-db/reference-data-plane-security#cosmos-db-built-in-data-contributor
+param cosmosDataContributorRoleDefinitionId string = '00000000-0000-0000-0000-000000000002'
+param cosmosReadOnlyRoleDefinitionId string = '00000000-0000-0000-0000-000000000001'
 
-// Main
-resource cosmosDbAccount 'Microsoft.DocumentDB/databaseAccounts@2023-11-15' = {
-  kind: 'GlobalDocumentDB'
-  identity: {
-    type: 'UserAssigned'
-    userAssignedIdentities: toObject(userAssignedMIs, uami => uami.uamiID, val => {})
-  }
-  name: name
-  location: location
-  properties: {
-    backupPolicy: {
-      type: 'Continuous'
-      continuousModeProperties: {
-        tier: 'Continuous7Days'
-      }
-    }
-    consistencyPolicy: {
-      defaultConsistencyLevel: 'Session'
-      maxIntervalInSeconds: 5
-      maxStalenessPrefix: 100
-    }
-    databaseAccountOfferType: 'Standard'
-    disableLocalAuth: disableLocalAuth
-    locations: [
-      {
-        locationName: location
-        isZoneRedundant: zoneRedundant
-      }
-    ]
-    publicNetworkAccess: private ? 'Disabled' : 'Enabled'
-    enableAutomaticFailover: false
-    enableMultipleWriteLocations: false
-    isVirtualNetworkFilterEnabled: false
-    virtualNetworkRules: []
-    disableKeyBasedMetadataWriteAccess: false
-    enableFreeTier: false
-    enableAnalyticalStorage: false
-    analyticalStorageConfiguration: {
-      schemaType: 'WellDefined'
-    }
-    createMode: 'Default'
-    defaultIdentity: 'FirstPartyIdentity'
-    networkAclBypass: 'None'
-    enablePartitionMerge: false
-    enableBurstCapacity: false
-    minimalTlsVersion: 'Tls12'
-  }
+resource cosmosDbAccount 'Microsoft.DocumentDB/databaseAccounts@2023-11-15' existing = {
+  name: cosmosDBAccountName
 }
 
-resource cosmosDb 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases@2023-11-15' = {
-  name: name
+resource cosmosDb 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases@2023-11-15' existing = {
+  name: cosmosDBAccountName
   parent: cosmosDbAccount
-  properties: {
-    resource: {
-      id: name
-    }
-    options: {}
-  }
 }
 
 resource cosmosDbContainers 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2023-11-15' = [
@@ -152,10 +94,10 @@ resource cosmosDbContainers 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/
 
 resource sqlRoleAssignment 'Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments@2021-04-15' = [
   for uami in userAssignedMIs: {
-    name: guid(roleDefinitionId, uami.uamiPrincipalID, cosmosDbAccount.id)
+    name: guid(cosmosDataContributorRoleDefinitionId, uami.uamiPrincipalID, cosmosDbAccount.id)
     parent: cosmosDbAccount
     properties: {
-      roleDefinitionId: '/${subscription().id}/resourceGroups/${resourceGroup().name}/providers/Microsoft.DocumentDB/databaseAccounts/${cosmosDbAccount.name}/sqlRoleDefinitions/${roleDefinitionId}'
+      roleDefinitionId: '${cosmosDbAccount.id}/sqlRoleDefinitions/${cosmosDataContributorRoleDefinitionId}'
       principalId: uami.uamiPrincipalID
       scope: cosmosDbAccount.id
     }
@@ -164,15 +106,12 @@ resource sqlRoleAssignment 'Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignm
 
 resource sqlRoleAssignmentReadOnly 'Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments@2021-04-15' = [
   for uami in readOnlyUserAssignedMIs: {
-    name: guid(readOnlyRoleDefinitionId, uami.uamiPrincipalID, cosmosDbAccount.id)
+    name: guid(cosmosReadOnlyRoleDefinitionId, uami.uamiPrincipalID, cosmosDbAccount.id)
     parent: cosmosDbAccount
     properties: {
-      roleDefinitionId: '/${subscription().id}/resourceGroups/${resourceGroup().name}/providers/Microsoft.DocumentDB/databaseAccounts/${cosmosDbAccount.name}/sqlRoleDefinitions/${readOnlyRoleDefinitionId}'
+      roleDefinitionId: '${cosmosDbAccount.id}/sqlRoleDefinitions/${cosmosReadOnlyRoleDefinitionId}'
       principalId: uami.uamiPrincipalID
       scope: cosmosDbAccount.id
     }
   }
 ]
-
-output cosmosDBName string = name
-output cosmosDBAccountId string = cosmosDbAccount.id

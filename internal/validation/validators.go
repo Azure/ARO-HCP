@@ -74,6 +74,23 @@ func immutableByReflect[T any](_ context.Context, op operation.Operation, fldPat
 	return nil
 }
 
+// immutableByReflectOnceSet allows a nil→non-nil transition (first-time set)
+// but rejects any change or clearing once the field has been set.
+func immutableByReflectOnceSet[T any](_ context.Context, op operation.Operation, fldPath *field.Path, value, oldValue *T) field.ErrorList {
+	if op.Type != operation.Update {
+		return nil
+	}
+	if oldValue == nil {
+		return nil
+	}
+	if value == nil || !equality.Semantic.DeepEqual(value, oldValue) {
+		return field.ErrorList{
+			field.Forbidden(fldPath, "field is immutable once set"),
+		}
+	}
+	return nil
+}
+
 func NoExtraWhitespace(_ context.Context, _ operation.Operation, fldPath *field.Path, value, _ *string) field.ErrorList {
 	if value == nil {
 		return nil
@@ -319,13 +336,18 @@ var (
 	rfc1035LabelRegex          = regexp.MustCompile(dnsRegexStringRFC1035Label)
 	rfc1035ErrorString         = `(must be a valid DNS RFC 1035 label)`
 
-	clusterResourceName            = `^[a-zA-Z][-a-zA-Z0-9]{1,52}[a-zA-Z0-9]$`
+	clusterResourceName            = `^[a-zA-Z]([-a-zA-Z0-9]{0,52}[a-zA-Z0-9])?$`
 	clusterResourceNameRegex       = regexp.MustCompile(clusterResourceName)
 	clusterResourceNameErrorString = `(must be a valid DNS RFC 1035 label)`
 
-	nodePoolResourceName            = `^[a-zA-Z][-a-zA-Z0-9]{1,13}[a-zA-Z0-9]$`
+	nodePoolResourceName            = `^[a-zA-Z]([-a-zA-Z0-9]{0,13}[a-zA-Z0-9])?$`
 	nodePoolResourceNameRegex       = regexp.MustCompile(nodePoolResourceName)
 	nodePoolResourceNameErrorString = `(must be a valid DNS RFC 1035 label)`
+
+	externalAuthResourceName      = `^[a-zA-Z]([-a-zA-Z0-9]{0,13}[a-zA-Z0-9])?$`
+	externalAuthResourceNameRegex = regexp.MustCompile(externalAuthResourceName)
+
+	externalAuthResourceNameErrorString = `(must be a valid DNS RFC 1035 label)`
 
 	// resourceGroupName See https://learn.microsoft.com/en-gb/azure/azure-resource-manager/management/resource-name-rules#microsoftresources
 	resourceGroupName            = `^[\p{L}\p{N}_\-.()]{0,89}[\p{L}\p{N}_\-()]$`
@@ -342,6 +364,11 @@ var (
 
 	azureVMName      = `^[a-zA-Z0-9]([a-zA-Z0-9._-]{0,62}[a-zA-Z0-9_])?$`
 	azureVMNameRegex = regexp.MustCompile(azureVMName)
+
+	// diskEncryptionSetName See https://learn.microsoft.com/en-us/azure/azure-resource-manager/management/resource-name-rules#microsoftcompute
+	diskEncryptionSetName            = `^[a-zA-Z0-9_-]+$`
+	diskEncryptionSetNameRegex       = regexp.MustCompile(diskEncryptionSetName)
+	diskEncryptionSetNameErrorString = `(must contain only alphanumeric characters, underscores, and hyphens)`
 )
 
 func MatchesRegex(_ context.Context, _ operation.Operation, fldPath *field.Path, value, _ *string, regex *regexp.Regexp, errorString string) field.ErrorList {
@@ -440,6 +467,20 @@ func HostPort(_ context.Context, _ operation.Operation, fldPath *field.Path, val
 	}
 
 	return nil
+}
+
+func DNS1123Label(_ context.Context, _ operation.Operation, fldPath *field.Path, value, _ *string) field.ErrorList {
+	if value == nil {
+		return nil
+	}
+	if len(*value) == 0 {
+		return nil
+	}
+	errs := field.ErrorList{}
+	for _, msg := range k8svalidation.IsDNS1123Label(*value) {
+		errs = append(errs, field.Invalid(fldPath, *value, msg))
+	}
+	return errs
 }
 
 func URL(_ context.Context, _ operation.Operation, fldPath *field.Path, value, _ *string) field.ErrorList {
@@ -869,6 +910,24 @@ func MaximumIfNoAZ[T constraints.Integer](ctx context.Context, op operation.Oper
 	return Maximum(ctx, op, fldPath, value, oldValue, max)
 }
 
+// ValidateCrossMajorNodePoolSkew checks that a node pool at a different major version
+// than the control plane is within the supported version skew (e.g., NP 4.22 with CP 5.0).
+func ValidateCrossMajorNodePoolSkew(nodePoolVersion, controlPlaneVersion semver.Version) error {
+	npKey := fmt.Sprintf("%d.%d", nodePoolVersion.Major, nodePoolVersion.Minor)
+	cpKey := fmt.Sprintf("%d.%d", controlPlaneVersion.Major, controlPlaneVersion.Minor)
+
+	allowedCPs, exists := api.AllowControlPlaneNodePoolMajorVersionSkew[npKey]
+	if !exists {
+		return fmt.Errorf("node pool version %s is not allowed to coexist with a different-major control plane",
+			nodePoolVersion.String())
+	}
+	if !slices.Contains(allowedCPs, cpKey) {
+		return fmt.Errorf("node pool version %s cannot coexist with control plane version %s",
+			nodePoolVersion.String(), controlPlaneVersion.String())
+	}
+	return nil
+}
+
 // ValidateMajorUpgrade validates that a cross-major version upgrade follows the allowed upgrade paths.
 // Returns an error if the upgrade path is not allowed, nil otherwise.
 // Use the n-1 skew
@@ -890,50 +949,74 @@ func ValidateMajorUpgrade(fromVersion, toVersion semver.Version) error {
 	return nil
 }
 
-// ValidateNodePoolUpgrade performs common node pool version upgrade validation:
-// - No downgrades from highest active version
-// - Cannot exceed lowest control plane version
-// - No major version changes without AFEC (uses existing ValidateMajorUpgrade)
-// - No minor version skipping
-func ValidateNodePoolUpgrade(desiredVersion semver.Version, activeVersions []api.HCPNodePoolActiveVersion, lowestCPVersion *semver.Version, allowMajorUpgrade bool) error {
+// ValidateNodePoolVersionChange validates a node pool version change (upgrade or downgrade).
+// HCP nodepools use Replace strategy (nodes are destroyed and recreated), so downgrades
+// are operationally identical to upgrades. Constraints:
+//   - Upgrade: at most +2 minor versions from current, and cannot exceed lowest control plane version
+//   - Downgrade: at most -2 minor versions from the highest control plane version
+//   - Cross-major changes (either direction) require AFEC FeatureExperimentalReleaseFeatures
+//   - NP version must be in the allowed skew map when CP and NP are on different majors
+func ValidateNodePoolVersionChange(desiredVersion semver.Version, activeVersions []api.HCPNodePoolActiveVersion, lowestCPVersion, highestCPVersion *semver.Version, allowMajorUpgrade bool) error {
 	// Skip if already in active versions
 	if slices.ContainsFunc(activeVersions, func(av api.HCPNodePoolActiveVersion) bool {
 		return av.Version != nil && av.Version.EQ(desiredVersion)
 	}) {
 		return nil
 	}
+	if lowestCPVersion == nil {
+		return fmt.Errorf("cannot validate node pool version change because lowest control plane version is not known")
+	}
+	if highestCPVersion == nil {
+		return fmt.Errorf("cannot validate node pool version change because highest control plane version is not known")
+	}
 
 	lowest, highest := apihelpers.FindLowestAndHighestNodePoolVersion(activeVersions)
 
-	// No partial downgrades: desiredVersion >= highest active version
-	if highest != nil && desiredVersion.LT(*highest) {
-		return fmt.Errorf(
-			"invalid node pool version %s: cannot downgrade from current version %s",
-			desiredVersion.String(), highest.String(),
-		)
-	}
-
-	// Check if the desiredVersion <= control plane versions
-	// TODO: We may relax this constraint in the future
-	if lowestCPVersion != nil && desiredVersion.GT(*lowestCPVersion) {
+	if desiredVersion.GT(*lowestCPVersion) {
 		return fmt.Errorf(
 			"invalid node pool version %s: cannot exceed control plane version %s",
 			desiredVersion.String(), lowestCPVersion.String(),
 		)
 	}
 
-	// No major version change unless FeatureExperimentalReleaseFeatures is registered
-	if lowest != nil && desiredVersion.Major > lowest.Major {
+	// N-2 skew: NP must be within 2 minor versions of the highest CP version
+	if desiredVersion.Major == highestCPVersion.Major && highestCPVersion.Minor-desiredVersion.Minor > 2 {
+		return fmt.Errorf(
+			"invalid node pool version %s: must be within 2 minor versions of control plane version %s",
+			desiredVersion.String(), highestCPVersion.String(),
+		)
+	}
+
+	// When CP and NP are already on different majors (e.g., CP 5.0 with NP 4.x),
+	// validate that the desired NP version can coexist with the CP version.
+	// This applies to both upgrades (4.21→4.22) and downgrades (4.22→4.21) within
+	// the same major. NP changes that cross majors (e.g., 5.0→4.22) skip this and
+	// go through the AFEC gate below.
+	isSameMajorNPChange := highest == nil || desiredVersion.Major == highest.Major
+	if desiredVersion.Major != highestCPVersion.Major && isSameMajorNPChange {
 		if !allowMajorUpgrade {
 			return fmt.Errorf("major version changes are not supported")
 		}
-		return ValidateMajorUpgrade(*lowest, desiredVersion)
+		return ValidateCrossMajorNodePoolSkew(desiredVersion, *highestCPVersion)
 	}
 
-	// Minor skip validation
-	if lowest != nil && desiredVersion.Minor > lowest.Minor+1 {
+	// Cross-major change (upgrade or downgrade): gated behind FeatureExperimentalReleaseFeatures.
+	isCrossMajorUpgrade := lowest != nil && desiredVersion.Major > lowest.Major
+	isCrossMajorDowngrade := highest != nil && desiredVersion.Major < highest.Major
+	if isCrossMajorUpgrade || isCrossMajorDowngrade {
+		if !allowMajorUpgrade {
+			return fmt.Errorf("major version changes are not supported")
+		}
+		if isCrossMajorUpgrade {
+			return ValidateMajorUpgrade(*lowest, desiredVersion)
+		}
+		return ValidateCrossMajorNodePoolSkew(desiredVersion, *highestCPVersion)
+	}
+
+	// Minor skip validation (N-2 skew policy)
+	if lowest != nil && desiredVersion.Minor > lowest.Minor+2 {
 		return fmt.Errorf(
-			"invalid upgrade path from %s to %s: skipping minor versions is not allowed",
+			"invalid upgrade path from %s to %s: skipping more than 2 minor versions is not allowed",
 			lowest.String(), desiredVersion.String(),
 		)
 	}

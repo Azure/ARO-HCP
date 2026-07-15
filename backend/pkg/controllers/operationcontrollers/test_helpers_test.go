@@ -15,9 +15,17 @@
 package operationcontrollers
 
 import (
+	"fmt"
+	"strings"
 	"time"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/ptr"
+
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
+	configv1 "github.com/openshift/api/config/v1"
+	"github.com/openshift/hypershift/api/hypershift/v1beta1"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
@@ -43,7 +51,7 @@ const (
 	testNodePoolName              = "test-nodepool"
 	testExternalAuthName          = "test-external-auth"
 	testClusterServiceIDStr       = "/api/clusters_mgmt/v1/clusters/abc123"
-	testNodePoolIDStr             = "/api/clusters_mgmt/v1/clusters/abc123/node_pools/np123"
+	testNodePoolIDStr             = "/api/aro_hcp/v1alpha1/clusters/abc123/node_pools/test-nodepool"
 	testExternalAuthIDStr         = "/api/clusters_mgmt/v1/clusters/abc123/external_auth_config/external_auths/ea123"
 	testBreakGlassCredentialIDStr = "/api/clusters_mgmt/v1/clusters/abc123/break_glass_credentials/bgc123"
 	testOperationName             = "test-operation-id"
@@ -82,6 +90,10 @@ func newClusterTestFixture() *clusterTestFixture {
 
 func (f *clusterTestFixture) newCluster(createdAt *time.Time) *api.HCPOpenShiftCluster {
 	return &api.HCPOpenShiftCluster{
+		CosmosMetadata: arm.CosmosMetadata{
+			ResourceID:   f.clusterResourceID,
+			PartitionKey: strings.ToLower(f.clusterResourceID.SubscriptionID),
+		},
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
 				ID:   f.clusterResourceID,
@@ -103,7 +115,8 @@ func (f *clusterTestFixture) newCluster(createdAt *time.Time) *api.HCPOpenShiftC
 func (f *clusterTestFixture) newOperation(request database.OperationRequest) *api.Operation {
 	return &api.Operation{
 		CosmosMetadata: api.CosmosMetadata{
-			ResourceID: f.cosmosOperationResourceID,
+			ResourceID:   f.cosmosOperationResourceID,
+			PartitionKey: strings.ToLower(f.cosmosOperationResourceID.SubscriptionID),
 		},
 		TenantID:    testTenantID,
 		Status:      arm.ProvisioningStateAccepted,
@@ -162,6 +175,10 @@ func newNodePoolTestFixture() *nodePoolTestFixture {
 
 func (f *nodePoolTestFixture) newCluster() *api.HCPOpenShiftCluster {
 	return &api.HCPOpenShiftCluster{
+		CosmosMetadata: arm.CosmosMetadata{
+			ResourceID:   f.clusterResourceID,
+			PartitionKey: strings.ToLower(f.clusterResourceID.SubscriptionID),
+		},
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
 				ID:   f.clusterResourceID,
@@ -177,6 +194,7 @@ func (f *nodePoolTestFixture) newCluster() *api.HCPOpenShiftCluster {
 
 func (f *nodePoolTestFixture) newNodePool() *api.HCPOpenShiftClusterNodePool {
 	return &api.HCPOpenShiftClusterNodePool{
+		CosmosMetadata: arm.CosmosMetadata{ResourceID: f.nodePoolResourceID, PartitionKey: strings.ToLower(f.nodePoolResourceID.SubscriptionID)},
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
 				ID:   f.nodePoolResourceID,
@@ -194,10 +212,41 @@ func (f *nodePoolTestFixture) newNodePool() *api.HCPOpenShiftClusterNodePool {
 	}
 }
 
+func (f *nodePoolTestFixture) newServiceProviderNodePool() *api.ServiceProviderNodePool {
+	resourceID := api.Must(azcorearm.ParseResourceID(fmt.Sprintf("%s/%s/%s",
+		f.nodePoolResourceID.String(),
+		api.ServiceProviderNodePoolResourceTypeName,
+		api.ServiceProviderNodePoolResourceName,
+	)))
+	return &api.ServiceProviderNodePool{
+		CosmosMetadata: api.CosmosMetadata{
+			ResourceID:   resourceID,
+			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
+		},
+	}
+}
+
+func (f *nodePoolTestFixture) newNodePoolVersionController(conditions []metav1.Condition) *api.Controller {
+	resourceID := api.Must(azcorearm.ParseResourceID(
+		f.nodePoolResourceID.String() + "/hcpOpenShiftControllers/NodePoolVersion",
+	))
+	return &api.Controller{
+		CosmosMetadata: api.CosmosMetadata{
+			ResourceID:   resourceID,
+			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
+		},
+		ExternalID: f.nodePoolResourceID,
+		Status: api.ControllerStatus{
+			Conditions: conditions,
+		},
+	}
+}
+
 func (f *nodePoolTestFixture) newOperation(request database.OperationRequest) *api.Operation {
 	return &api.Operation{
 		CosmosMetadata: api.CosmosMetadata{
-			ResourceID: f.cosmosOperationResourceID,
+			ResourceID:   f.cosmosOperationResourceID,
+			PartitionKey: strings.ToLower(f.cosmosOperationResourceID.SubscriptionID),
 		},
 		TenantID:    testTenantID,
 		Status:      arm.ProvisioningStateAccepted,
@@ -256,6 +305,10 @@ func newExternalAuthTestFixture() *externalAuthTestFixture {
 
 func (f *externalAuthTestFixture) newCluster() *api.HCPOpenShiftCluster {
 	return &api.HCPOpenShiftCluster{
+		CosmosMetadata: arm.CosmosMetadata{
+			ResourceID:   f.clusterResourceID,
+			PartitionKey: strings.ToLower(f.clusterResourceID.SubscriptionID),
+		},
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
 				ID:   f.clusterResourceID,
@@ -271,6 +324,7 @@ func (f *externalAuthTestFixture) newCluster() *api.HCPOpenShiftCluster {
 
 func (f *externalAuthTestFixture) newExternalAuth() *api.HCPOpenShiftClusterExternalAuth {
 	return &api.HCPOpenShiftClusterExternalAuth{
+		CosmosMetadata: arm.CosmosMetadata{ResourceID: f.externalAuthResourceID, PartitionKey: strings.ToLower(f.externalAuthResourceID.SubscriptionID)},
 		ProxyResource: arm.ProxyResource{
 			Resource: arm.Resource{
 				ID:   f.externalAuthResourceID,
@@ -291,7 +345,8 @@ func (f *externalAuthTestFixture) newExternalAuth() *api.HCPOpenShiftClusterExte
 func (f *externalAuthTestFixture) newOperation(request database.OperationRequest) *api.Operation {
 	return &api.Operation{
 		CosmosMetadata: api.CosmosMetadata{
-			ResourceID: f.cosmosOperationResourceID,
+			ResourceID:   f.cosmosOperationResourceID,
+			PartitionKey: strings.ToLower(f.cosmosOperationResourceID.SubscriptionID),
 		},
 		TenantID:    testTenantID,
 		Status:      arm.ProvisioningStateAccepted,
@@ -307,5 +362,127 @@ func (f *externalAuthTestFixture) operationKey() controllerutils.OperationKey {
 		SubscriptionID:   testSubscriptionID,
 		OperationName:    testOperationName,
 		ParentResourceID: f.externalAuthResourceID.String(),
+	}
+}
+
+// testClusterUpdateMatchingHostedClusterSpec returns a HostedCluster spec that matches the
+// default cluster fixture for cluster update state calculation tests.
+func testClusterUpdateMatchingHostedClusterSpec() v1beta1.HostedClusterSpec {
+	return v1beta1.HostedClusterSpec{
+		Autoscaling: v1beta1.ClusterAutoscaling{
+			MaxNodesTotal:        ptr.To[int32](0),
+			MaxPodGracePeriod:    ptr.To[int32](0),
+			MaxNodeProvisionTime: "0m",
+			PodPriorityThreshold: ptr.To[int32](0),
+		},
+		ControllerAvailabilityPolicy:     v1beta1.HighlyAvailable,
+		InfrastructureAvailabilityPolicy: v1beta1.HighlyAvailable,
+	}
+}
+
+// newExternalAuthUpdateTestExternalAuth returns an external auth whose properties match
+// testExternalAuthUpdateMatchingOIDCProvider for external auth update state calculation tests.
+func newExternalAuthUpdateTestExternalAuth(mutate ...func(*api.HCPOpenShiftClusterExternalAuth)) *api.HCPOpenShiftClusterExternalAuth {
+	externalAuth := newExternalAuthTestFixture().newExternalAuth()
+	externalAuth.Properties = api.HCPOpenShiftClusterExternalAuthProperties{
+		ProvisioningState: arm.ProvisioningStateAccepted,
+		Issuer: api.TokenIssuerProfile{
+			URL:       "https://issuer.example.com",
+			Audiences: []string{"aud1", "aud2"},
+			CA:        "test-ca-cert",
+		},
+		Clients: []api.ExternalAuthClientProfile{
+			{
+				Component: api.ExternalAuthClientComponentProfile{
+					Name:                "console",
+					AuthClientNamespace: "openshift-console",
+				},
+				ClientID:    "client-id-1",
+				ExtraScopes: []string{"email", "profile"},
+				Type:        api.ExternalAuthClientTypePublic,
+			},
+		},
+		Claim: api.ExternalAuthClaimProfile{
+			Mappings: api.TokenClaimMappingsProfile{
+				Username: api.UsernameClaimProfile{
+					Claim:        "email",
+					PrefixPolicy: api.UsernameClaimPrefixPolicyNoPrefix,
+				},
+				Groups: &api.GroupClaimProfile{
+					Claim:  "groups",
+					Prefix: "oidc:",
+				},
+			},
+			ValidationRules: []api.TokenClaimValidationRule{
+				{
+					Type: api.TokenValidationRuleTypeRequiredClaim,
+					RequiredClaim: api.TokenRequiredClaim{
+						Claim:         "hd",
+						RequiredValue: "example.com",
+					},
+				},
+			},
+		},
+	}
+	for _, fn := range mutate {
+		if fn != nil {
+			fn(externalAuth)
+		}
+	}
+	return externalAuth
+}
+
+// testExternalAuthUpdateMatchingOIDCProvider returns an OIDCProvider that matches
+// newExternalAuthUpdateTestExternalAuth for external auth update state calculation tests.
+func testExternalAuthUpdateMatchingOIDCProvider() configv1.OIDCProvider {
+	return configv1.OIDCProvider{
+		Name: strings.ToLower(testExternalAuthName),
+		Issuer: configv1.TokenIssuer{
+			URL:       "https://issuer.example.com",
+			Audiences: []configv1.TokenAudience{"aud1", "aud2"},
+		},
+		OIDCClients: []configv1.OIDCClientConfig{
+			{
+				ComponentName:      "console",
+				ComponentNamespace: "openshift-console",
+				ClientID:           "client-id-1",
+				ExtraScopes:        []string{"email", "profile"},
+			},
+		},
+		ClaimMappings: configv1.TokenClaimMappings{
+			Username: configv1.UsernameClaimMapping{
+				Claim:        "email",
+				PrefixPolicy: configv1.NoPrefix,
+			},
+			Groups: configv1.PrefixedClaimMapping{
+				TokenClaimMapping: configv1.TokenClaimMapping{
+					Claim: "groups",
+				},
+				Prefix: "oidc:",
+			},
+		},
+		ClaimValidationRules: []configv1.TokenClaimValidationRule{
+			{
+				Type: configv1.TokenValidationRuleTypeRequiredClaim,
+				RequiredClaim: &configv1.TokenRequiredClaim{
+					Claim:         "hd",
+					RequiredValue: "example.com",
+				},
+			},
+		},
+	}
+}
+
+// testExternalAuthUpdateMatchingHostedClusterSpec returns a HostedCluster spec that matches
+// newExternalAuthUpdateTestExternalAuth for external auth update state calculation tests.
+func testExternalAuthUpdateMatchingHostedClusterSpec() v1beta1.HostedClusterSpec {
+	return v1beta1.HostedClusterSpec{
+		Configuration: &v1beta1.ClusterConfiguration{
+			Authentication: &configv1.AuthenticationSpec{
+				OIDCProviders: []configv1.OIDCProvider{
+					testExternalAuthUpdateMatchingOIDCProvider(),
+				},
+			},
+		},
 	}
 }

@@ -1,25 +1,29 @@
 {
 	"cosmosMetadata": {
+		"partitionKey": "00000000-0000-0000-0000-000000000001",
 		"resourceID": "/subscriptions/00000000-0000-0000-0000-000000000001/resourcegroups/rg/providers/microsoft.redhatopenshift/hcpopenshiftclusters/hcp-cluster/applydesires/hello"
 	},
 	"spec": {
-		"kubeContent": {
-			"apiVersion": "v1",
-			"data": {
-				"key": "value"
-			},
-			"kind": "ConfigMap",
-			"metadata": {
-				"name": "hello",
-				"namespace": "apply-creates-configmap"
+		"managementCluster": "/providers/microsoft.redhatopenshift/stamps/test/managementclusters/mgmt-1",
+		"serverSideApply": {
+			"kubeContent": {
+				"apiVersion": "v1",
+				"data": {
+					"key": "value"
+				},
+				"kind": "ConfigMap",
+				"metadata": {
+					"name": "hello",
+					"namespace": "apply-creates-configmap"
+				}
 			}
 		},
-		"managementCluster": "test-mgmt-1",
 		"targetItem": {
 			"name": "hello",
 			"namespace": "apply-creates-configmap",
 			"resource": "configmaps",
 			"version": "v1"
-		}
+		},
+		"type": "ServerSideApply"
 	}
 }

@@ -49,11 +49,11 @@ func managementClusterIndexFunc(obj any) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	mgmt := strings.ToLower(d.GetManagementCluster())
-	if len(mgmt) == 0 {
+	mgmt := d.GetManagementCluster()
+	if mgmt == nil {
 		return nil, nil
 	}
-	return []string{mgmt}, nil
+	return []string{strings.ToLower(mgmt.String())}, nil
 }
 
 // clusterResourceIDIndexFunc walks a *Desire's resource-ID parent chain to find

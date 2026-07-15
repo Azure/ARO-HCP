@@ -67,6 +67,30 @@ param manageConnection bool
 @description('Whether ICM alerting is enabled for this region')
 param alertsEnabled bool
 
+@description('The minimum IcM severity level (highest priority) that alerts can fire at. Alerts more critical than this ceiling will be degraded to this value. 0 means no ceiling.')
+param alertSeverityCeiling int = 0
+
+@description('Whether to create the Event Hub action group for sending alerts to Kusto')
+param eventHubAlertingEnabled bool = false
+
+@description('Event Hub namespace name for alert events')
+param alertEventsEventHubNamespaceName string = ''
+
+@description('Event Hub name for alert events')
+param alertEventsEventHubName string = ''
+
+@description('Whether the SRE IcM action group is wired to SRE alert rules. When false, SRE rules still evaluate in Prometheus but do not deliver to IcM.')
+param icmEnabledSRE bool = true
+
+@description('Whether the SL IcM action group is wired to SL alert rules. When false, SL rules still evaluate in Prometheus but do not deliver to IcM.')
+param icmEnabledSL bool = true
+
+@description('Whether the RP IcM action group is wired to RP alert rules. When false, RP rules still evaluate in Prometheus but do not deliver to IcM.')
+param icmEnabledRP bool = true
+
+@description('Whether the MSFT IcM action group is wired to MSFT alert rules. When false, MSFT rules still evaluate in Prometheus but do not deliver to IcM.')
+param icmEnabledMSFT bool = true
+
 module actionGroups '../modules/metrics/actiongroups.bicep' = if (manageConnection) {
   name: 'actionGroups'
   params: {
@@ -93,16 +117,47 @@ module actionGroups '../modules/metrics/actiongroups.bicep' = if (manageConnecti
   }
 }
 
-var slActionGroups = manageConnection ? [actionGroups.outputs.actionGroupsSL] : []
-var rpActionGroups = manageConnection ? [actionGroups.outputs.actionGroupsRP] : []
-var sreActionGroups = manageConnection ? [actionGroups.outputs.actionGroupsSRE] : []
-var msftActionGroups = manageConnection ? [actionGroups.outputs.actionGroupsMSFT] : []
+module eventHubActionGroup '../modules/metrics/eventhub-actiongroup.bicep' = if (eventHubAlertingEnabled) {
+  name: 'eventHubActionGroup'
+  params: {
+    alertingEnabled: alertsEnabled
+    alertEventsEventHubNamespaceName: alertEventsEventHubNamespaceName
+    alertEventsEventHubName: alertEventsEventHubName
+  }
+}
+
+var ehActionGroups = eventHubAlertingEnabled ? [eventHubActionGroup!.outputs.actionGroupId] : []
+
+// Action group arrays per IcM team, combined with the Event Hub action group.
+// Each lane's icmEnabled flag is a second guard so that lane's rules can evaluate without delivering IcM tickets.
+var slActionGroups = manageConnection && icmEnabledSL
+  ? concat([actionGroups!.outputs.actionGroupsSL], ehActionGroups)
+  : ehActionGroups
+var rpActionGroups = manageConnection && icmEnabledRP
+  ? concat([actionGroups!.outputs.actionGroupsRP], ehActionGroups)
+  : ehActionGroups
+var sreActionGroups = manageConnection && icmEnabledSRE
+  ? concat([actionGroups!.outputs.actionGroupsSRE], ehActionGroups)
+  : ehActionGroups
+var msftActionGroups = manageConnection && icmEnabledMSFT
+  ? concat([actionGroups!.outputs.actionGroupsMSFT], ehActionGroups)
+  : ehActionGroups
 
 module serviceAlerts '../modules/metrics/service-rules.bicep' = {
   name: 'serviceAlerts'
   params: {
     azureMonitoringWorkspaceId: azureMonitoringWorkspaceId
     actionGroups: slActionGroups
+    severityCeiling: alertSeverityCeiling
+  }
+}
+
+module kustoServiceAlerts '../modules/metrics/kusto-service-rules.bicep' = {
+  name: 'kustoServiceAlerts'
+  params: {
+    azureMonitoringWorkspaceId: azureMonitoringWorkspaceId
+    actionGroups: ehActionGroups
+    severityCeiling: alertSeverityCeiling
   }
 }
 
@@ -111,6 +166,34 @@ module hcpAlerts '../modules/metrics/hcp-rules.bicep' = {
   params: {
     azureMonitoringWorkspaceId: hcpAzureMonitoringWorkspaceId
     actionGroups: sreActionGroups
+    severityCeiling: alertSeverityCeiling
+  }
+}
+
+module slHcpAlerts '../modules/metrics/sl-hcp-rules.bicep' = {
+  name: 'slHcpAlerts'
+  params: {
+    azureMonitoringWorkspaceId: hcpAzureMonitoringWorkspaceId
+    actionGroups: slActionGroups
+    severityCeiling: alertSeverityCeiling
+  }
+}
+
+module kustoHcpAlerts '../modules/metrics/kusto-hcp-rules.bicep' = {
+  name: 'kustoHcpAlerts'
+  params: {
+    azureMonitoringWorkspaceId: hcpAzureMonitoringWorkspaceId
+    actionGroups: ehActionGroups
+    severityCeiling: alertSeverityCeiling
+  }
+}
+
+module sreServiceAlerts '../modules/metrics/sre-service-rules.bicep' = {
+  name: 'sreServiceAlerts'
+  params: {
+    azureMonitoringWorkspaceId: azureMonitoringWorkspaceId
+    actionGroups: sreActionGroups
+    severityCeiling: alertSeverityCeiling
   }
 }
 
@@ -119,6 +202,7 @@ module rpAlerts '../modules/metrics/rp-rules.bicep' = {
   params: {
     azureMonitoringWorkspaceId: azureMonitoringWorkspaceId
     actionGroups: rpActionGroups
+    severityCeiling: alertSeverityCeiling
   }
 }
 
@@ -127,25 +211,29 @@ module msftAlerts '../modules/metrics/msft-rules.bicep' = {
   params: {
     azureMonitoringWorkspaceId: azureMonitoringWorkspaceId
     actionGroups: msftActionGroups
+    severityCeiling: alertSeverityCeiling
   }
 }
 
-module svcIngestionAlerts '../modules/metrics/amw-ingestion-alerts.bicep' = {
-  name: 'svcIngestionAlerts'
+module ingestionAlerts '../modules/metrics/amw-ingestion-alerts.bicep' = {
+  name: 'ingestionAlerts'
   params: {
-    azureMonitorWorkspaceId: azureMonitoringWorkspaceId
-    workspaceLabel: 'svc'
-    actionGroups: sreActionGroups
+    actionGroups: slActionGroups
     enabled: alertsEnabled
+    workspaces: [
+      {
+        id: azureMonitoringWorkspaceId
+        label: 'svc'
+        lowEventIngestionThreshold: 1
+      }
+      {
+        id: hcpAzureMonitoringWorkspaceId
+        label: 'hcp'
+        lowEventIngestionThreshold: 5
+      }
+    ]
   }
 }
 
-module hcpIngestionAlerts '../modules/metrics/amw-ingestion-alerts.bicep' = {
-  name: 'hcpIngestionAlerts'
-  params: {
-    azureMonitorWorkspaceId: hcpAzureMonitoringWorkspaceId
-    workspaceLabel: 'hcp'
-    actionGroups: sreActionGroups
-    enabled: alertsEnabled
-  }
-}
+output actionGroupSL string = manageConnection ? actionGroups!.outputs.actionGroupsSL : ''
+output actionGroupAlertEH string = eventHubAlertingEnabled ? eventHubActionGroup!.outputs.actionGroupId : ''

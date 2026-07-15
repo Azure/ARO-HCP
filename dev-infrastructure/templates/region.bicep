@@ -27,6 +27,18 @@ param svcParentZoneResourceId string
 
 param regionalDNSSubdomain string
 
+@description('The name of the Cosmos DB for the RP')
+param rpCosmosDbName string
+
+@description('If true, make the Cosmos DB instance private')
+param rpCosmosDbPrivate bool
+
+@description('The zone redundant mode of the Cosmos DB instance')
+param rpCosmosZoneRedundantMode string
+
+@description('disableLocalAuth for the ARO HCP RP CosmosDB')
+param disableLocalAuth bool
+
 @description('MSI that will be used during pipeline runs')
 param globalMSIId string
 
@@ -39,12 +51,7 @@ param svcMonitorName string
 @description('Name of the Azure Monitor Workspace for hosted control planes')
 param hcpMonitorName string
 
-@description('Maximum active time series limit for Azure Monitor Workspaces (2M initial, bump when hitting 50% utilization)')
-param amwMaxActiveTimeSeries int = 2000000
-
-@description('Maximum events per minute limit for Azure Monitor Workspaces (2M initial, bump when hitting 50% utilization)')
-param amwMaxEventsPerMinute int = 2000000
-
+import { determineZoneRedundancyForRegion } from '../modules/common.bicep'
 import * as res from '../modules/resource.bicep'
 
 // Reader role
@@ -123,6 +130,21 @@ module maestroInfra '../modules/maestro/maestro-infra.bicep' = {
 }
 
 //
+//   C O S M O S D B
+//
+
+module rpCosmosAccount '../modules/rp-cosmos-account.bicep' = {
+  name: 'rp-cosmos-account'
+  params: {
+    name: rpCosmosDbName
+    location: location
+    zoneRedundant: determineZoneRedundancyForRegion(location, rpCosmosZoneRedundantMode)
+    disableLocalAuth: disableLocalAuth
+    private: rpCosmosDbPrivate
+  }
+}
+
+//
 //   M O N I T O R I N G
 //
 
@@ -144,26 +166,7 @@ module hcpMonitor '../modules/metrics/monitor.bicep' = {
   }
 }
 
-// Configure ingestion limits for Azure Monitor Workspaces
-// 2M initial limit - bump per environment when hitting 50% utilization
-module svcMonitorIngestionLimits '../modules/metrics/amw-ingestion-limits.bicep' = {
-  name: 'svc-monitor-ingestion-limits'
-  params: {
-    azureMonitorWorkspaceName: svcMonitorName
-    location: location
-    maxActiveTimeSeries: amwMaxActiveTimeSeries
-    maxEventsPerMinute: amwMaxEventsPerMinute
-  }
-  dependsOn: [svcMonitor]
-}
-
-module hcpMonitorIngestionLimits '../modules/metrics/amw-ingestion-limits.bicep' = {
-  name: 'hcp-monitor-ingestion-limits'
-  params: {
-    azureMonitorWorkspaceName: hcpMonitorName
-    location: location
-    maxActiveTimeSeries: amwMaxActiveTimeSeries
-    maxEventsPerMinute: amwMaxEventsPerMinute
-  }
-  dependsOn: [hcpMonitor]
-}
+// Ingestion limits for Azure Monitor Workspaces are managed dynamically by the
+// AMW scaling controller in the fleet component (fleet/pkg/controllers/amwscaling).
+// Do NOT set metricsContainers limits here — a region redeploy would overwrite
+// controller-driven increases back to static config values.

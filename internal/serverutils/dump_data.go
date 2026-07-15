@@ -16,9 +16,12 @@ package serverutils
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
+
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
@@ -26,7 +29,72 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
-func DumpDataToLogger(ctx context.Context, resourcesDBClient database.ResourcesDBClient, resourceID *azcorearm.ResourceID) error {
+const RedactStr = "REDACTED"
+
+// ObjectMetadata provides per-document identity for the cosmosResourceSnapshots
+// Kusto table. It is emitted as a structured log field alongside the document content.
+type ObjectMetadata struct {
+	CosmosContainer string `json:"cosmosContainer"`
+	SubscriptionID  string `json:"subscriptionID"`
+	ResourceGroup   string `json:"resourceGroup"`
+	ResourceType    string `json:"resourceType"`
+	ResourceName    string `json:"resourceName"`
+	ResourceID      string `json:"resourceID"`
+}
+
+func objectMetadataForTypedDocument(container string, doc *database.TypedDocument) ObjectMetadata {
+	if doc == nil || doc.ResourceID == nil {
+		return ObjectMetadata{CosmosContainer: container}
+	}
+	return ObjectMetadata{
+		CosmosContainer: container,
+		SubscriptionID:  doc.ResourceID.SubscriptionID,
+		ResourceGroup:   doc.ResourceID.ResourceGroupName,
+		ResourceType:    doc.ResourceType,
+		ResourceName:    doc.ResourceID.Name,
+		ResourceID:      doc.ResourceID.String(),
+	}
+}
+
+// ObjectMetadataForResourceID builds ObjectMetadata from an ARM resource ID.
+func ObjectMetadataForResourceID(container string, resourceID *azcorearm.ResourceID) ObjectMetadata {
+	if resourceID == nil {
+		return ObjectMetadata{CosmosContainer: container}
+	}
+	return ObjectMetadata{
+		CosmosContainer: container,
+		SubscriptionID:  resourceID.SubscriptionID,
+		ResourceGroup:   resourceID.ResourceGroupName,
+		ResourceType:    resourceID.ResourceType.String(),
+		ResourceName:    resourceID.Name,
+		ResourceID:      resourceID.String(),
+	}
+}
+
+// DumpDataToLogger writes a structured-log entry for every document related
+// to resourceID. It covers three storage layers:
+//
+//  1. The resources container: the resource at resourceID itself plus every
+//     descendant under it (cluster + nested children).
+//  2. The operations container: every operation in the subscription whose
+//     externalID is rooted at resourceID.
+//  3. Every per-management-cluster kube-applier container: when both
+//     kubeApplierDBClients and managementClusterLister are non-nil, the
+//     function iterates the lister, opens an untyped CRUD per MC, and dumps
+//     every document under resourceID's prefix. *Desire documents live
+//     here, scoped to the cluster or nodepool they target.
+//
+// Passing nil for kubeApplierDBClients or managementClusterLister skips
+// layer (3); callers that don't yet have those wired (e.g. frontend
+// request handlers) can leave them nil without losing the cosmos / ops
+// dumps.
+func DumpDataToLogger(
+	ctx context.Context,
+	resourcesDBClient database.ResourcesDBClient,
+	kubeApplierDBClients database.KubeApplierDBClients,
+	managementClusterLister database.ManagementClusterLister,
+	resourceID *azcorearm.ResourceID,
+) error {
 	logger := utils.LoggerFromContext(ctx)
 
 	// load the HCP from the cosmos DB
@@ -38,8 +106,14 @@ func DumpDataToLogger(ctx context.Context, resourcesDBClient database.ResourcesD
 	if err != nil {
 		return utils.TrackError(err)
 	}
+	err = redactTypedDocument(startingCosmosRecord)
+	if err != nil {
+		return utils.TrackError(err)
+	}
 	logger.Info(fmt.Sprintf("dumping resourceID %v", startingCosmosRecord.ResourceID),
-		"currentResourceID", startingCosmosRecord.ResourceID.String(),
+		"snapshotType", "cosmos",
+		"currentResourceID", resourceIDToString(startingCosmosRecord.ResourceID),
+		"objectMetadata", objectMetadataForTypedDocument("resources", startingCosmosRecord),
 		"content", startingCosmosRecord,
 	)
 
@@ -50,8 +124,14 @@ func DumpDataToLogger(ctx context.Context, resourcesDBClient database.ResourcesD
 
 	errs := []error{}
 	for _, typedDocument := range allCosmosRecords.Items(ctx) {
+		if err := redactTypedDocument(typedDocument); err != nil {
+			errs = append(errs, utils.TrackError(err))
+			continue
+		}
 		logger.Info(fmt.Sprintf("dumping resourceID %v", typedDocument.ResourceID),
-			"currentResourceID", typedDocument.ResourceID.String(),
+			"snapshotType", "cosmos",
+			"currentResourceID", resourceIDToString(typedDocument.ResourceID),
+			"objectMetadata", objectMetadataForTypedDocument("resources", typedDocument),
 			"content", typedDocument,
 		)
 	}
@@ -69,7 +149,9 @@ func DumpDataToLogger(ctx context.Context, resourcesDBClient database.ResourcesD
 		currOperationTarget := strings.ToLower(operation.ExternalID.String())
 		if strings.HasPrefix(currOperationTarget, resourceIDString) {
 			logger.Info(fmt.Sprintf("dumping resourceID %v", operation.ResourceID),
+				"snapshotType", "cosmos",
 				"currentResourceID", resourceIDToString(operation.ResourceID),
+				"objectMetadata", ObjectMetadataForResourceID("operations", operation.ResourceID),
 				"content", operation,
 			)
 		}
@@ -78,7 +160,78 @@ func DumpDataToLogger(ctx context.Context, resourcesDBClient database.ResourcesD
 		errs = append(errs, err)
 	}
 
+	if err := dumpKubeApplierData(ctx, kubeApplierDBClients, managementClusterLister, resourceID); err != nil {
+		errs = append(errs, err)
+	}
+
 	return utils.TrackError(errors.Join(errs...))
+}
+
+// dumpKubeApplierData walks every configured management cluster's kube-applier
+// container for documents nested under resourceID's prefix and emits a log
+// line per record. *Desire documents live here, scoped to the cluster or
+// nodepool they target.
+//
+// Either input may be nil — both are required to do any work, so a nil on
+// either side means "kube-applier data isn't wired here" and the function
+// silently no-ops.
+func dumpKubeApplierData(
+	ctx context.Context,
+	kubeApplierDBClients database.KubeApplierDBClients,
+	managementClusterLister database.ManagementClusterLister,
+	resourceID *azcorearm.ResourceID,
+) error {
+	if kubeApplierDBClients == nil || managementClusterLister == nil {
+		return nil
+	}
+	logger := utils.LoggerFromContext(ctx)
+
+	managementClusters, err := managementClusterLister.List(ctx)
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("listing management clusters for kube-applier dump: %w", err))
+	}
+
+	errs := []error{}
+	for _, mc := range managementClusters {
+		mcResourceID := mc.ResourceID
+		if mcResourceID == nil {
+			mcResourceID = mc.CosmosMetadata.ResourceID
+		}
+		if mcResourceID == nil {
+			continue
+		}
+		mcLogger := logger.WithValues("managementCluster", strings.ToLower(mcResourceID.String()))
+
+		client := kubeApplierDBClients.For(ctx, mcResourceID)
+		if client == nil {
+			mcLogger.Error(nil, "no kube-applier client configured for management cluster; skipping")
+			continue
+		}
+
+		desireCRUD, err := client.UntypedCRUD(*resourceID)
+		if err != nil {
+			errs = append(errs, utils.TrackError(err))
+			continue
+		}
+		desireIterator, err := desireCRUD.ListRecursive(ctx, nil)
+		if err != nil {
+			errs = append(errs, utils.TrackError(err))
+			continue
+		}
+		for _, doc := range desireIterator.Items(ctx) {
+			mcLogger.Info(fmt.Sprintf("dumping kube-applier resourceID %v", doc.ResourceID),
+				"snapshotType", "cosmos",
+				"currentResourceID", resourceIDToString(doc.ResourceID),
+				"objectMetadata", objectMetadataForTypedDocument("kubeApplier", doc),
+				"content", doc,
+			)
+		}
+		if err := desireIterator.GetError(); err != nil {
+			errs = append(errs, utils.TrackError(err))
+		}
+	}
+
+	return errors.Join(errs...)
 }
 
 func resourceIDToString(id *azcorearm.ResourceID) string {
@@ -115,9 +268,50 @@ func DumpBillingToLogger(ctx context.Context, resourcesDBClient database.Resourc
 	}
 
 	logger.Info(fmt.Sprintf("dumping billing document for resourceID %v", billingDoc.ResourceID),
+		"snapshotType", "cosmos",
 		"currentResourceID", billingDoc.ResourceID.String(),
+		"objectMetadata", ObjectMetadataForResourceID("billing", billingDoc.ResourceID),
 		"content", billingDoc,
 	)
 
+	return nil
+}
+
+func redactTypedDocument(d *database.TypedDocument) error {
+	if d == nil {
+		return fmt.Errorf("typed document is nil")
+	}
+
+	if len(d.Properties) == 0 {
+		return nil
+	}
+
+	var props unstructured.Unstructured
+	if err := json.Unmarshal(d.Properties, &props.Object); err != nil {
+		return fmt.Errorf("failed to unmarshal typed document properties for %s: %w", resourceIDToString(d.ResourceID), err)
+	}
+
+	if _, found, err := unstructured.NestedString(props.Object, "systemData", "createdBy"); err != nil {
+		return fmt.Errorf("failed to read systemData.createdBy for %s: %w", resourceIDToString(d.ResourceID), err)
+	} else if found {
+		if err := unstructured.SetNestedField(props.Object, RedactStr, "systemData", "createdBy"); err != nil {
+			return fmt.Errorf("failed to set systemData.createdBy for %s: %w", resourceIDToString(d.ResourceID), err)
+		}
+	}
+
+	if _, found, err := unstructured.NestedString(props.Object, "systemData", "lastModifiedBy"); err != nil {
+		return fmt.Errorf("failed to read systemData.lastModifiedBy for %s: %w", resourceIDToString(d.ResourceID), err)
+	} else if found {
+		if err := unstructured.SetNestedField(props.Object, RedactStr, "systemData", "lastModifiedBy"); err != nil {
+			return fmt.Errorf("failed to set systemData.lastModifiedBy for %s: %w", resourceIDToString(d.ResourceID), err)
+		}
+	}
+
+	redactedProps, err := json.Marshal(props.Object)
+	if err != nil {
+		return fmt.Errorf("failed to marshal redacted typed document properties for %s: %w", resourceIDToString(d.ResourceID), err)
+	}
+
+	d.Properties = redactedProps
 	return nil
 }

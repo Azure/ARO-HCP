@@ -21,33 +21,34 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
 )
 
-func NewCosmosCRUD[InternalAPIType any](t *testing.T, cosmosClient database.ResourcesDBClient, parentResourceID *azcorearm.ResourceID, resourceType azcorearm.ResourceType) database.ResourceCRUD[InternalAPIType] {
+func NewCosmosCRUD[InternalAPIType any, InternalAPITypePointer arm.CosmosMetadataAccessorPtr[InternalAPIType]](t *testing.T, cosmosClient database.ResourcesDBClient, parentResourceID *azcorearm.ResourceID, resourceType azcorearm.ResourceType) database.ResourceCRUD[InternalAPIType, InternalAPITypePointer] {
 	switch {
 	case strings.EqualFold(resourceType.String(), api.ClusterControllerResourceType.String()):
-		return any(cosmosClient.HCPClusters(parentResourceID.SubscriptionID, parentResourceID.ResourceGroupName).Controllers(parentResourceID.Name)).(database.ResourceCRUD[InternalAPIType])
+		return any(cosmosClient.HCPClusters(parentResourceID.SubscriptionID, parentResourceID.ResourceGroupName).Controllers(parentResourceID.Name)).(database.ResourceCRUD[InternalAPIType, InternalAPITypePointer])
 	case strings.EqualFold(resourceType.String(), api.ExternalAuthControllerResourceType.String()):
-		return any(cosmosClient.HCPClusters(parentResourceID.SubscriptionID, parentResourceID.ResourceGroupName).ExternalAuth(parentResourceID.Parent.Name).Controllers(parentResourceID.Name)).(database.ResourceCRUD[InternalAPIType])
+		return any(cosmosClient.HCPClusters(parentResourceID.SubscriptionID, parentResourceID.ResourceGroupName).ExternalAuth(parentResourceID.Parent.Name).Controllers(parentResourceID.Name)).(database.ResourceCRUD[InternalAPIType, InternalAPITypePointer])
 	case strings.EqualFold(resourceType.String(), api.NodePoolControllerResourceType.String()):
-		return any(cosmosClient.HCPClusters(parentResourceID.SubscriptionID, parentResourceID.ResourceGroupName).NodePools(parentResourceID.Parent.Name).Controllers(parentResourceID.Name)).(database.ResourceCRUD[InternalAPIType])
+		return any(cosmosClient.HCPClusters(parentResourceID.SubscriptionID, parentResourceID.ResourceGroupName).NodePools(parentResourceID.Parent.Name).Controllers(parentResourceID.Name)).(database.ResourceCRUD[InternalAPIType, InternalAPITypePointer])
 
 	case strings.EqualFold(resourceType.String(), api.ClusterResourceType.String()):
-		return any(cosmosClient.HCPClusters(parentResourceID.SubscriptionID, parentResourceID.ResourceGroupName)).(database.ResourceCRUD[InternalAPIType])
+		return any(cosmosClient.HCPClusters(parentResourceID.SubscriptionID, parentResourceID.ResourceGroupName)).(database.ResourceCRUD[InternalAPIType, InternalAPITypePointer])
 	case strings.EqualFold(resourceType.String(), api.ExternalAuthResourceType.String()):
-		return any(cosmosClient.HCPClusters(parentResourceID.SubscriptionID, parentResourceID.ResourceGroupName).ExternalAuth(parentResourceID.Name)).(database.ResourceCRUD[InternalAPIType])
+		return any(cosmosClient.HCPClusters(parentResourceID.SubscriptionID, parentResourceID.ResourceGroupName).ExternalAuth(parentResourceID.Name)).(database.ResourceCRUD[InternalAPIType, InternalAPITypePointer])
 	case strings.EqualFold(resourceType.String(), api.NodePoolResourceType.String()):
-		return any(cosmosClient.HCPClusters(parentResourceID.SubscriptionID, parentResourceID.ResourceGroupName).NodePools(parentResourceID.Name)).(database.ResourceCRUD[InternalAPIType])
+		return any(cosmosClient.HCPClusters(parentResourceID.SubscriptionID, parentResourceID.ResourceGroupName).NodePools(parentResourceID.Name)).(database.ResourceCRUD[InternalAPIType, InternalAPITypePointer])
 
 	case strings.EqualFold(resourceType.String(), api.OperationStatusResourceType.String()):
-		return any(cosmosClient.Operations(parentResourceID.SubscriptionID)).(database.ResourceCRUD[InternalAPIType])
+		return any(cosmosClient.Operations(parentResourceID.SubscriptionID)).(database.ResourceCRUD[InternalAPIType, InternalAPITypePointer])
 
 	case strings.EqualFold(resourceType.String(), api.ServiceProviderClusterResourceType.String()):
-		return any(cosmosClient.ServiceProviderClusters(parentResourceID.SubscriptionID, parentResourceID.ResourceGroupName, parentResourceID.Name)).(database.ResourceCRUD[InternalAPIType])
+		return any(cosmosClient.ServiceProviderClusters(parentResourceID.SubscriptionID, parentResourceID.ResourceGroupName, parentResourceID.Name)).(database.ResourceCRUD[InternalAPIType, InternalAPITypePointer])
 
 	case strings.EqualFold(resourceType.String(), api.ServiceProviderNodePoolResourceType.String()):
-		return any(cosmosClient.ServiceProviderNodePools(parentResourceID.SubscriptionID, parentResourceID.ResourceGroupName, parentResourceID.Parent.Name, parentResourceID.Name)).(database.ResourceCRUD[InternalAPIType])
+		return any(cosmosClient.ServiceProviderNodePools(parentResourceID.SubscriptionID, parentResourceID.ResourceGroupName, parentResourceID.Parent.Name, parentResourceID.Name)).(database.ResourceCRUD[InternalAPIType, InternalAPITypePointer])
 
 	default:
 		t.Fatalf("unsupported resource type and parent: %q under %v", resourceType, parentResourceID.ResourceType.String())

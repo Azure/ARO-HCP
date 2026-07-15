@@ -38,42 +38,42 @@ func (g *mockResourcesGlobalListers) Subscriptions() database.GlobalLister[arm.S
 }
 
 func (g *mockResourcesGlobalListers) Clusters() database.GlobalLister[api.HCPOpenShiftCluster] {
-	return &mockTypedGlobalLister[api.HCPOpenShiftCluster, database.HCPCluster]{
-		client:       g.client,
-		resourceType: api.ClusterResourceType,
+	return &mockGlobalLister[api.HCPOpenShiftCluster, database.GenericDocument[api.HCPOpenShiftCluster]]{
+		client:        g.client,
+		resourceTypes: []azcorearm.ResourceType{api.ClusterResourceType},
 	}
 }
 
 func (g *mockResourcesGlobalListers) NodePools() database.GlobalLister[api.HCPOpenShiftClusterNodePool] {
-	return &mockTypedGlobalLister[api.HCPOpenShiftClusterNodePool, database.NodePool]{
-		client:       g.client,
-		resourceType: api.NodePoolResourceType,
+	return &mockGlobalLister[api.HCPOpenShiftClusterNodePool, database.GenericDocument[api.HCPOpenShiftClusterNodePool]]{
+		client:        g.client,
+		resourceTypes: []azcorearm.ResourceType{api.NodePoolResourceType},
 	}
 }
 
 func (g *mockResourcesGlobalListers) ExternalAuths() database.GlobalLister[api.HCPOpenShiftClusterExternalAuth] {
-	return &mockTypedGlobalLister[api.HCPOpenShiftClusterExternalAuth, database.ExternalAuth]{
-		client:       g.client,
-		resourceType: api.ExternalAuthResourceType,
+	return &mockGlobalLister[api.HCPOpenShiftClusterExternalAuth, database.GenericDocument[api.HCPOpenShiftClusterExternalAuth]]{
+		client:        g.client,
+		resourceTypes: []azcorearm.ResourceType{api.ExternalAuthResourceType},
 	}
 }
 
 func (g *mockResourcesGlobalListers) ServiceProviderClusters() database.GlobalLister[api.ServiceProviderCluster] {
-	return &mockTypedGlobalLister[api.ServiceProviderCluster, database.GenericDocument[api.ServiceProviderCluster]]{
-		client:       g.client,
-		resourceType: api.ServiceProviderClusterResourceType,
+	return &mockGlobalLister[api.ServiceProviderCluster, database.GenericDocument[api.ServiceProviderCluster]]{
+		client:        g.client,
+		resourceTypes: []azcorearm.ResourceType{api.ServiceProviderClusterResourceType},
 	}
 }
 
 func (g *mockResourcesGlobalListers) ServiceProviderNodePools() database.GlobalLister[api.ServiceProviderNodePool] {
-	return &mockTypedGlobalLister[api.ServiceProviderNodePool, database.GenericDocument[api.ServiceProviderNodePool]]{
-		client:       g.client,
-		resourceType: api.ServiceProviderNodePoolResourceType,
+	return &mockGlobalLister[api.ServiceProviderNodePool, database.GenericDocument[api.ServiceProviderNodePool]]{
+		client:        g.client,
+		resourceTypes: []azcorearm.ResourceType{api.ServiceProviderNodePoolResourceType},
 	}
 }
 
 func (g *mockResourcesGlobalListers) Controllers() database.GlobalLister[api.Controller] {
-	return &mockControllerGlobalLister{
+	return &mockGlobalLister[api.Controller, database.GenericDocument[api.Controller]]{
 		client: g.client,
 		resourceTypes: []azcorearm.ResourceType{
 			api.ClusterControllerResourceType,
@@ -84,7 +84,7 @@ func (g *mockResourcesGlobalListers) Controllers() database.GlobalLister[api.Con
 }
 
 func (g *mockResourcesGlobalListers) ManagementClusterContents() database.GlobalLister[api.ManagementClusterContent] {
-	return &mockManagementClusterContentGlobalLister{
+	return &mockGlobalLister[api.ManagementClusterContent, database.GenericDocument[api.ManagementClusterContent]]{
 		client: g.client,
 		resourceTypes: []azcorearm.ResourceType{
 			api.ClusterScopedManagementClusterContentResourceType,
@@ -94,9 +94,9 @@ func (g *mockResourcesGlobalListers) ManagementClusterContents() database.Global
 }
 
 func (g *mockResourcesGlobalListers) Operations() database.GlobalLister[api.Operation] {
-	return &mockTypedGlobalLister[api.Operation, database.GenericDocument[api.Operation]]{
-		client:       g.client,
-		resourceType: api.OperationStatusResourceType,
+	return &mockGlobalLister[api.Operation, database.GenericDocument[api.Operation]]{
+		client:        g.client,
+		resourceTypes: []azcorearm.ResourceType{api.OperationStatusResourceType},
 	}
 }
 
@@ -133,42 +133,6 @@ func (l *mockSubscriptionGlobalLister) List(ctx context.Context, options *databa
 	return newMockIterator(ids, items), nil
 }
 
-// mockTypedGlobalLister is a generic mock global lister that lists all resources
-// of a given type across all partitions.
-type mockTypedGlobalLister[InternalAPIType, CosmosAPIType any] struct {
-	client       mockDocumentStore
-	resourceType azcorearm.ResourceType
-}
-
-func (l *mockTypedGlobalLister[InternalAPIType, CosmosAPIType]) List(ctx context.Context, options *database.DBClientListResourceDocsOptions) (database.DBClientIterator[InternalAPIType], error) {
-	documents := l.client.ListDocuments(&l.resourceType, "")
-
-	var ids []string
-	var items []*InternalAPIType
-
-	for _, data := range documents {
-		var cosmosObj CosmosAPIType
-		if err := json.Unmarshal(data, &cosmosObj); err != nil {
-			continue
-		}
-
-		internalObj, err := database.CosmosToInternal[InternalAPIType, CosmosAPIType](&cosmosObj)
-		if err != nil {
-			continue
-		}
-
-		var typedDoc database.TypedDocument
-		if err := json.Unmarshal(data, &typedDoc); err != nil {
-			continue
-		}
-
-		ids = append(ids, typedDoc.ID)
-		items = append(items, internalObj)
-	}
-
-	return newMockIterator(ids, items), nil
-}
-
 // mockActiveOperationsGlobalLister lists operations with non-terminal status
 // across all partitions.
 type mockActiveOperationsGlobalLister struct {
@@ -188,6 +152,12 @@ func (l *mockActiveOperationsGlobalLister) List(ctx context.Context, options *da
 		}
 
 		if !strings.EqualFold(typedDoc.ResourceType, api.OperationStatusResourceType.String()) {
+			continue
+		}
+
+		// Mirror the production query, which requires IS_DEFINED(c.resourceID);
+		// documents without a resourceID are never returned by list.
+		if typedDoc.ResourceID == nil {
 			continue
 		}
 
@@ -216,17 +186,20 @@ func (l *mockActiveOperationsGlobalLister) List(ctx context.Context, options *da
 	return newMockIterator(ids, items), nil
 }
 
-// mockControllerGlobalLister lists controllers across all partitions.
-type mockControllerGlobalLister struct {
-	client        *MockResourcesDBClient
+// mockGlobalLister mirrors the production cosmosGlobalLister: it walks the
+// document store and emits every document whose resourceType matches one of
+// resourceTypes. Documents without a resourceID are dropped to mirror the
+// production query's LENGTH(c.resourceID) > 0 filter.
+type mockGlobalLister[InternalAPIType, CosmosAPIType any] struct {
+	client        mockDocumentStore
 	resourceTypes []azcorearm.ResourceType
 }
 
-func (l *mockControllerGlobalLister) List(ctx context.Context, options *database.DBClientListResourceDocsOptions) (database.DBClientIterator[api.Controller], error) {
+func (l *mockGlobalLister[InternalAPIType, CosmosAPIType]) List(ctx context.Context, options *database.DBClientListResourceDocsOptions) (database.DBClientIterator[InternalAPIType], error) {
 	allDocs := l.client.GetAllDocuments()
 
 	var ids []string
-	var items []*api.Controller
+	var items []*InternalAPIType
 
 	for _, data := range allDocs {
 		var typedDoc database.TypedDocument
@@ -234,7 +207,6 @@ func (l *mockControllerGlobalLister) List(ctx context.Context, options *database
 			continue
 		}
 
-		// check if any of the resourceTypes match the one from the doc
 		resourceTypeMatches := false
 		for _, resourceType := range l.resourceTypes {
 			if strings.EqualFold(typedDoc.ResourceType, resourceType.String()) {
@@ -246,12 +218,16 @@ func (l *mockControllerGlobalLister) List(ctx context.Context, options *database
 			continue
 		}
 
-		var cosmosObj database.GenericDocument[api.Controller]
+		if typedDoc.ResourceID == nil {
+			continue
+		}
+
+		var cosmosObj CosmosAPIType
 		if err := json.Unmarshal(data, &cosmosObj); err != nil {
 			continue
 		}
 
-		internalObj, err := database.CosmosGenericToInternal(&cosmosObj)
+		internalObj, err := database.CosmosToInternal[InternalAPIType, CosmosAPIType](&cosmosObj)
 		if err != nil {
 			continue
 		}
@@ -278,52 +254,6 @@ func (l *mockBillingGlobalLister) List(ctx context.Context, options *database.DB
 	for id, doc := range l.store.docs {
 		ids = append(ids, id)
 		items = append(items, doc)
-	}
-
-	return newMockIterator(ids, items), nil
-}
-
-// mockManagementClusterContentGlobalLister lists management cluster content for cluster-scoped and node-pool-scoped documents.
-type mockManagementClusterContentGlobalLister struct {
-	client        *MockResourcesDBClient
-	resourceTypes []azcorearm.ResourceType
-}
-
-func (l *mockManagementClusterContentGlobalLister) List(ctx context.Context, options *database.DBClientListResourceDocsOptions) (database.DBClientIterator[api.ManagementClusterContent], error) {
-	allDocs := l.client.GetAllDocuments()
-
-	var ids []string
-	var items []*api.ManagementClusterContent
-
-	for _, data := range allDocs {
-		var typedDoc database.TypedDocument
-		if err := json.Unmarshal(data, &typedDoc); err != nil {
-			continue
-		}
-
-		resourceTypeMatches := false
-		for _, resourceType := range l.resourceTypes {
-			if strings.EqualFold(typedDoc.ResourceType, resourceType.String()) {
-				resourceTypeMatches = true
-				break
-			}
-		}
-		if !resourceTypeMatches {
-			continue
-		}
-
-		var cosmosObj database.GenericDocument[api.ManagementClusterContent]
-		if err := json.Unmarshal(data, &cosmosObj); err != nil {
-			continue
-		}
-
-		internalObj, err := database.CosmosGenericToInternal(&cosmosObj)
-		if err != nil {
-			continue
-		}
-
-		ids = append(ids, typedDoc.ID)
-		items = append(items, internalObj)
 	}
 
 	return newMockIterator(ids, items), nil

@@ -28,6 +28,8 @@ import (
 	"context"
 	"os"
 	"os/signal"
+
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 )
 
 var onlyOneSignalHandler = make(chan struct{})
@@ -42,6 +44,7 @@ func SetupSignalHandler(ctx context.Context) context.Context {
 	ctx, cancel := context.WithCancel(ctx)
 	signal.Notify(c, shutdownSignals...)
 	go func() {
+		defer utilruntime.HandleCrash()
 		<-c
 		cancel()
 		<-c

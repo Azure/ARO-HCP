@@ -58,3 +58,21 @@ func NewFleetDBClient(cosmosDatabaseClient *azcosmos.DatabaseClient) (database.F
 
 	return fleetClient, nil
 }
+
+// NewKubeApplierDBClients returns a thread-safe registry of per-management-cluster
+// KubeApplierDBClients. The backend holds one of these so it can talk to every
+// management cluster's kube-applier container; the kube-applier sidecar binary
+// opens its own single container directly.
+//
+// The registry resolves container names by walking the provided
+// ManagementClusterLister: each fleet.ManagementCluster carries its container
+// name in Status.KubeApplierCosmosContainerName, and its partition key in
+// Status.MaestroConsumerName. Adding or removing an MC from the lister (via
+// fleet sync) is picked up by For() / ManagementClusterResourceIDs() on the
+// next call without restarting the backend.
+func NewKubeApplierDBClients(
+	cosmosDatabaseClient *azcosmos.DatabaseClient,
+	mcLister database.ManagementClusterLister,
+) database.KubeApplierDBClients {
+	return database.NewKubeApplierDBClients(cosmosDatabaseClient, mcLister)
+}

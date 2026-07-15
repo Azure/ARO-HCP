@@ -23,7 +23,6 @@ import (
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/utils/ptr"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
@@ -55,36 +54,37 @@ import (
 // INVARIANTS:
 // - Canonical defaults (in EnsureDefaults) and CS->RP defaults (here) must match
 // - GET-then-PUT must preserve all explicit values (use Ptr, not PtrOrNil for bools)
-// - MigrateCosmosOrDie persists defaults via Get->Replace during FE deployment startup
+// - The backend cosmos migration controller persists defaults via Get->Replace
 //
 // See docs/api-version-defaults-and-storage.md for the full design rationale.
 
 const (
-	csCloudProvider    string = "azure"
+	CSCloudProvider    string = "azure"
 	csProductId        string = "aro"
 	csHypershifEnabled bool   = true
 	csCCSEnabled       bool   = true
 
 	// The OCM SDK does not provide these constants.
 
-	csCustomerManagedEncryptionTypeKms   string = "kms"
-	csEncryptionAtHostStateDisabled      string = "disabled"
-	csEncryptionAtHostStateEnabled       string = "enabled"
-	csImageRegistryStateDisabled         string = "disabled"
-	csImageRegistryStateEnabled          string = "enabled"
-	csKeyManagementModeCustomerManaged   string = "customer_managed"
-	csKeyManagementModePlatformManaged   string = "platform_managed"
-	csNodeDrainGracePeriodUnit           string = "minutes"
-	csOutboundType                       string = "load_balancer"
-	csUsernameClaimPrefixPolicyNoPrefix  string = "NoPrefix"
-	csUsernameClaimPrefixPolicyPrefix    string = "Prefix"
-	csCIDRBlockAllowAccessModeAllowAll   string = "allow_all"
-	csCIDRBlockAllowAccessModeAllowList  string = "allow_list"
-	csOsDiskPersistencePersistent        string = "persistent"
-	csOsDiskPersistenceEphemeral         string = "ephemeral"
-	csProvisioningShardStatusActive      string = "active"
-	csProvisioningShardStatusMaintenance string = "maintenance"
-	csProvisioningShardStatusOffline     string = "offline"
+	csCustomerManagedEncryptionTypeKms  string = "kms"
+	csEncryptionAtHostStateDisabled     string = "disabled"
+	csEncryptionAtHostStateEnabled      string = "enabled"
+	csImageRegistryStateDisabled        string = "disabled"
+	csImageRegistryStateEnabled         string = "enabled"
+	csKeyManagementModeCustomerManaged  string = "customer_managed"
+	csKeyManagementModePlatformManaged  string = "platform_managed"
+	csNodeDrainGracePeriodUnit          string = "minutes"
+	csOutboundType                      string = "load_balancer"
+	csUsernameClaimPrefixPolicyNoPrefix string = "NoPrefix"
+	csUsernameClaimPrefixPolicyPrefix   string = "Prefix"
+	CSCIDRBlockAllowAccessModeAllowAll  string = "allow_all"
+	CSCIDRBlockAllowAccessModeAllowList string = "allow_list"
+	csOsDiskPersistencePersistent       string = "persistent"
+	csOsDiskPersistenceEphemeral        string = "ephemeral"
+	CSProvisionShardStatusActive        string = "active"
+	CSProvisionShardStatusMaintenance   string = "maintenance"
+	CSProvisionShardStatusOffline       string = "offline"
+	CSProvisionShardTopologyShared      string = "shared"
 )
 
 // Sentinel error for use with errors.Is
@@ -102,6 +102,17 @@ func convertVisibilityToListening(visibility api.Visibility) (arohcpv1alpha1.Lis
 		return arohcpv1alpha1.ListeningMethodInternal, nil
 	default:
 		return "", conversionError[arohcpv1alpha1.ListeningMethod](visibility)
+	}
+}
+
+func convertIngressTypeToListening(ingressType api.IngressType) (arohcpv1alpha1.ListeningMethod, error) {
+	switch ingressType {
+	case api.IngressTypePublic:
+		return arohcpv1alpha1.ListeningMethodExternal, nil
+	case api.IngressTypePrivate:
+		return arohcpv1alpha1.ListeningMethodInternal, nil
+	default:
+		return "", conversionError[arohcpv1alpha1.ListeningMethod](ingressType)
 	}
 }
 
@@ -125,25 +136,6 @@ func convertOutboundTypeRPToCS(outboundTypeRP api.OutboundType) (string, error) 
 	}
 }
 
-// convertDiskStorageAccountTypeCSToRP maps Cluster Service DiskStorageAccountType
-// strings to RP enum values. An empty string from CS (pre-existing resources that
-// predate the field) is mapped to the default. Must match the canonical default in
-// HCPOpenShiftClusterNodePool.EnsureDefaults(). See docs/api-version-defaults-and-storage.md.
-func convertDiskStorageAccountTypeCSToRP(storageAccountTypeCS string) (api.DiskStorageAccountType, error) {
-	switch storageAccountTypeCS {
-	case string(api.DiskStorageAccountTypePremium_LRS):
-		return api.DiskStorageAccountTypePremium_LRS, nil
-	case string(api.DiskStorageAccountTypeStandardSSD_LRS):
-		return api.DiskStorageAccountTypeStandardSSD_LRS, nil
-	case string(api.DiskStorageAccountTypeStandard_LRS):
-		return api.DiskStorageAccountTypeStandard_LRS, nil
-	case "":
-		return api.DiskStorageAccountTypePremium_LRS, nil
-	default:
-		return "", conversionError[api.DiskStorageAccountType](storageAccountTypeCS)
-	}
-}
-
 func convertDiskStorageAccountTypeRPToCS(storageAccountTypeRP api.DiskStorageAccountType) (string, error) {
 	switch storageAccountTypeRP {
 	case api.DiskStorageAccountTypePremium_LRS:
@@ -158,21 +150,6 @@ func convertDiskStorageAccountTypeRPToCS(storageAccountTypeRP api.DiskStorageAcc
 		// values before this function is called on the write path.
 		// An empty value here indicates a bug in the defaults pipeline.
 		return "", conversionError[string](storageAccountTypeRP)
-	}
-}
-
-// convertDiskTypeCSToRP maps Cluster Service persistence strings to RP
-// OsDiskType enum values. An empty string from CS (pre-existing resources that
-// predate the field) is mapped to the default. Must match the storage default in
-// applyNodePoolStorageDefaults. See docs/api-version-defaults-and-storage.md.
-func convertDiskTypeCSToRP(persistence string) (api.OsDiskType, error) {
-	switch persistence {
-	case csOsDiskPersistencePersistent, "":
-		return api.OsDiskTypeManaged, nil
-	case csOsDiskPersistenceEphemeral:
-		return api.OsDiskTypeEphemeral, nil
-	default:
-		return "", conversionError[api.OsDiskType](persistence)
 	}
 }
 
@@ -208,6 +185,19 @@ func convertUsernameClaimPrefixPolicyRPToCS(prefixPolicyRP api.UsernameClaimPref
 		return "", nil
 	default:
 		return "", conversionError[string](prefixPolicyRP)
+	}
+}
+
+func convertUsernameClaimPrefixPolicyCSToRP(prefixPolicyCS string) (api.UsernameClaimPrefixPolicy, error) {
+	switch prefixPolicyCS {
+	case csUsernameClaimPrefixPolicyPrefix:
+		return api.UsernameClaimPrefixPolicyPrefix, nil
+	case csUsernameClaimPrefixPolicyNoPrefix:
+		return api.UsernameClaimPrefixPolicyNoPrefix, nil
+	case "":
+		return api.UsernameClaimPrefixPolicyNone, nil
+	default:
+		return "", conversionError[api.UsernameClaimPrefixPolicy](prefixPolicyCS)
 	}
 }
 
@@ -256,6 +246,28 @@ func convertExternalAuthClientTypeRPToCS(externalAuthClientTypeRP api.ExternalAu
 	}
 }
 
+func convertExternalAuthClientTypeCSToRP(externalAuthClientTypeCS arohcpv1alpha1.ExternalAuthClientType) (api.ExternalAuthClientType, error) {
+	switch externalAuthClientTypeCS {
+	case arohcpv1alpha1.ExternalAuthClientTypeConfidential:
+		return api.ExternalAuthClientTypeConfidential, nil
+	case arohcpv1alpha1.ExternalAuthClientTypePublic:
+		return api.ExternalAuthClientTypePublic, nil
+	default:
+		return "", conversionError[api.ExternalAuthClientType](externalAuthClientTypeCS)
+	}
+}
+
+func convertTokenClaimValidationRuleRPToCS(rule externalAuthUpdateDispatchConfigValidationRule) (*arohcpv1alpha1.TokenClaimValidationRuleBuilder, error) {
+	switch rule.Type {
+	case api.TokenValidationRuleTypeRequiredClaim:
+		return arohcpv1alpha1.NewTokenClaimValidationRule().
+			Claim(rule.RequiredClaim.Claim).
+			RequiredValue(rule.RequiredClaim.RequiredValue), nil
+	default:
+		return nil, conversionError[*arohcpv1alpha1.TokenClaimValidationRuleBuilder](rule.Type)
+	}
+}
+
 func convertEtcdRPToCS(in api.EtcdProfile) (*arohcpv1alpha1.AzureEtcdEncryptionBuilder, error) {
 	keyManagementMode, err := convertKeyManagementModeTypeRPToCS(in.DataEncryption.KeyManagementMode)
 	if err != nil {
@@ -299,9 +311,9 @@ func convertCIDRBlockAllowAccessRPToCS(in api.CustomerAPIProfile) (*arohcpv1alph
 	cidrBlockAllowAccess := arohcpv1alpha1.NewCIDRBlockAllowAccess()
 
 	if in.AuthorizedCIDRs == nil {
-		cidrBlockAllowAccess.Mode(csCIDRBlockAllowAccessModeAllowAll)
+		cidrBlockAllowAccess.Mode(CSCIDRBlockAllowAccessModeAllowAll)
 	} else if len(in.AuthorizedCIDRs) > 0 {
-		cidrBlockAllowAccess.Mode(csCIDRBlockAllowAccessModeAllowList)
+		cidrBlockAllowAccess.Mode(CSCIDRBlockAllowAccessModeAllowList)
 		cidrBlockAllowAccess.Values(in.AuthorizedCIDRs...)
 	} else {
 		// Unreachable: empty AuthorizedCIDRs list is disallowed by validation
@@ -387,7 +399,7 @@ func convertImageDigestMirrorsToCSBuilder(in []api.ImageDigestMirror) []*arohcpv
 // requiredProperties are caller-specified properties (e.g. provision shard, noop flags).
 // oldClusterServiceCluster, if non-nil, indicates an update and its existing properties
 // are preserved as a base layer.
-func BuildCSCluster(resourceID *azcorearm.ResourceID, tenantID string, hcpCluster *api.HCPOpenShiftCluster, requiredProperties map[string]string, oldClusterServiceCluster *arohcpv1alpha1.Cluster) (*arohcpv1alpha1.ClusterBuilder, *arohcpv1alpha1.ClusterAutoscalerBuilder, error) {
+func BuildCSCluster(resourceID *azcorearm.ResourceID, tenantID string, hcpCluster *api.HCPOpenShiftCluster, requiredProperties map[string]string, oldClusterServiceCluster *arohcpv1alpha1.Cluster, serviceProviderCluster *api.ServiceProviderCluster) (*arohcpv1alpha1.ClusterBuilder, *arohcpv1alpha1.ClusterAutoscalerBuilder, error) {
 	var err error
 
 	clusterBuilder := arohcpv1alpha1.NewCluster()
@@ -395,12 +407,14 @@ func BuildCSCluster(resourceID *azcorearm.ResourceID, tenantID string, hcpCluste
 
 	// These attributes cannot be updated after cluster creation.
 	if oldClusterServiceCluster == nil {
+		csVersionID := clusterCSVersionID(serviceProviderCluster, hcpCluster)
 		// Add attributes that cannot be updated after cluster creation.
 		clusterBuilder, err = withImmutableAttributes(clusterBuilder, hcpCluster,
 			resourceID.SubscriptionID,
 			resourceID.ResourceGroupName,
 			tenantID,
 			hcpCluster.ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL,
+			csVersionID,
 		)
 		if err != nil {
 			return nil, nil, err
@@ -410,30 +424,19 @@ func BuildCSCluster(resourceID *azcorearm.ResourceID, tenantID string, hcpCluste
 			return nil, nil, err
 		}
 		clusterAPIBuilder.Listening(apiListening)
+
+		ingressListening, err := convertIngressTypeToListening(hcpCluster.CustomerProperties.Ingress.Type)
+		if err != nil {
+			return nil, nil, err
+		}
+		clusterBuilder.Ingresses(arohcpv1alpha1.NewIngressList().Items(
+			arohcpv1alpha1.NewIngress().Default(true).Listening(ingressListening),
+		))
 	}
 
-	clusterBuilder.NodeDrainGracePeriod(arohcpv1alpha1.NewValue().
-		Unit(csNodeDrainGracePeriodUnit).
-		Value(float64(hcpCluster.CustomerProperties.NodeDrainTimeoutMinutes)))
-
-	cidrBlockAccess, err := convertCIDRBlockAllowAccessRPToCS(hcpCluster.CustomerProperties.API)
-	if err != nil {
-		return nil, nil, err
-	}
-	clusterBuilder.API(clusterAPIBuilder.CIDRBlockAccess(cidrBlockAccess))
-
-	clusterBuilder.RegistryConfig(arohcpv1alpha1.NewClusterRegistryConfig().
-		ImageDigestMirrors(convertImageDigestMirrorsToCSBuilder(hcpCluster.CustomerProperties.ImageDigestMirrors)...))
-
-	clusterAutoscalerBuilder, err := convertRpAutoscalarToCSBuilder(&hcpCluster.CustomerProperties.Autoscaling)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	// Property layering: preserve existing CS properties (on update), then
-	// overlay caller-specified properties, then experimental features.
-	// Experimental feature properties are added when enabled and deleted
-	// when disabled to ensure tag removal clears previously set values.
+	// Property layering for CS Properties(): preserve existing values (on update),
+	// overlay caller-specified properties, then clusterUpdateDispatchConfig.applyToCSBuilders overlays
+	// dispatch-managed experimental features.
 	properties := map[string]string{}
 	if oldClusterServiceCluster != nil {
 		for k, v := range oldClusterServiceCluster.Properties() {
@@ -443,23 +446,64 @@ func BuildCSCluster(resourceID *azcorearm.ResourceID, tenantID string, hcpCluste
 	for k, v := range requiredProperties {
 		properties[k] = v
 	}
-	experimentalFeatures := hcpCluster.ServiceProviderProperties.ExperimentalFeatures
-	if experimentalFeatures.ControlPlaneAvailability == api.SingleReplicaControlPlane {
-		properties[CSPropertySingleReplica] = CSPropertyEnabled
-	} else {
-		delete(properties, CSPropertySingleReplica)
+
+	clusterUpdateDispatchConfig := clusterUpdateDispatchConfigFromRP(hcpCluster, serviceProviderCluster)
+	err = clusterUpdateDispatchConfig.applyToCSBuilders(clusterBuilder, clusterAPIBuilder, properties)
+	if err != nil {
+		return nil, nil, err
 	}
-	if experimentalFeatures.ControlPlanePodSizing == api.MinimalControlPlanePodSizing {
-		properties[CSPropertySizeOverride] = CSPropertyEnabled
-	} else {
-		delete(properties, CSPropertySizeOverride)
+
+	clusterAutoscalerBuilder, err := clusterUpdateDispatchConfig.autoscalerBuilder()
+	if err != nil {
+		return nil, nil, err
 	}
-	clusterBuilder = clusterBuilder.Properties(properties)
 
 	return clusterBuilder, clusterAutoscalerBuilder, nil
 }
 
-func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, hcpCluster *api.HCPOpenShiftCluster, subscriptionID, resourceGroupName, tenantID, identityURL string) (*arohcpv1alpha1.ClusterBuilder, error) {
+// clusterCSVersionID returns the OpenShift version ID for a new Cluster Service cluster.
+// ServiceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion is authoritative when set.
+// When unset (e.g. frontend install before ControlPlaneDesiredVersion runs), the customer
+// version on the HCP cluster document is used.
+// Once cluster install is migrated to backend, we can expect the desiredVersion field to always
+// be set on the ServiceProviderCluster.
+func clusterCSVersionID(serviceProviderCluster *api.ServiceProviderCluster, hcpCluster *api.HCPOpenShiftCluster) string {
+	channelGroup := hcpCluster.CustomerProperties.Version.ChannelGroup
+	if serviceProviderCluster != nil && serviceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion != nil {
+		return NewOpenShiftVersionXYZ(serviceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion.String(), channelGroup)
+	}
+	// Remove this once cluster install is migrated to backend
+	return NewOpenShiftVersionXYZ(hcpCluster.CustomerProperties.Version.ID, channelGroup)
+}
+
+// ConvertHostedClusterSizeOverrideToCS returns the value the CSPropertySizeOverride
+// entry should have when receiving desiredClusterControlPlanePodSizing, which is the Cosmos
+// level ControlPlanePodSizing configuration, as well as the ServiceProviderCluster level one.
+// It also returns whether the property should be set at all on CS side.
+// This is the single source of truth for computing the override and is shared between the
+// cluster update dispatch controller (CS writer) and the desired-control-plane-size
+// status reconciler (SPC Status confirmation) so the two cannot disagree.
+//
+// Precedence:
+//  1. desiredServiceProviderClusterControlPlanePodSizing, when set to non nil wins. Returned lowercased because cluster-service's
+//     clustersizingconfiguration uses lowercase tier names.
+//  2. Otherwise, desiredClusterControlPlanePodSizing == MinimalControlPlanePodSizing returns
+//     CSPropertyE2EMinimalControlPlaneSize ("e2e_minimal"), the named
+//     internal-only tier cluster-service uses for the e2e minimal layout.
+//  3. Otherwise the property is determined to need to be absent
+func ConvertHostedClusterSizeOverrideToCS(desiredClusterControlPlanePodSizing api.ControlPlanePodSizing, desiredServiceProviderClusterControlPlanePodSizing *string) (string, bool) {
+	if desiredServiceProviderClusterControlPlanePodSizing != nil {
+		return strings.ToLower(*desiredServiceProviderClusterControlPlanePodSizing), true
+	}
+
+	if desiredClusterControlPlanePodSizing == api.MinimalControlPlanePodSizing {
+		return CSPropertyE2EMinimalControlPlaneSize, true
+	}
+
+	return "", false
+}
+
+func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, hcpCluster *api.HCPOpenShiftCluster, subscriptionID, resourceGroupName, tenantID, identityURL, csVersionID string) (*arohcpv1alpha1.ClusterBuilder, error) {
 	clusterImageRegistryState, err := convertClusterImageRegistryStateRPToCS(hcpCluster.CustomerProperties.ClusterImageRegistry)
 	if err != nil {
 		return nil, err
@@ -474,14 +518,14 @@ func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, hcpC
 		Region(arohcpv1alpha1.NewCloudRegion().
 			ID(hcpCluster.Location)).
 		CloudProvider(arohcpv1alpha1.NewCloudProvider().
-			ID(csCloudProvider)).
+			ID(CSCloudProvider)).
 		Product(arohcpv1alpha1.NewProduct().
 			ID(csProductId)).
 		Hypershift(arohcpv1alpha1.NewHypershift().
 			Enabled(csHypershifEnabled)).
 		CCS(arohcpv1alpha1.NewCCS().Enabled(csCCSEnabled)).
 		Version(arohcpv1alpha1.NewVersion().
-			ID(NewOpenShiftVersionXYZ(hcpCluster.CustomerProperties.Version.ID, hcpCluster.CustomerProperties.Version.ChannelGroup)).
+			ID(csVersionID).
 			ChannelGroup(hcpCluster.CustomerProperties.Version.ChannelGroup)).
 		Network(arohcpv1alpha1.NewNetwork().
 			Type(string(hcpCluster.CustomerProperties.Network.NetworkType)).
@@ -490,7 +534,8 @@ func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, hcpC
 			MachineCIDR(hcpCluster.CustomerProperties.Network.MachineCIDR).
 			HostPrefix(int(hcpCluster.CustomerProperties.Network.HostPrefix))).
 		ImageRegistry(arohcpv1alpha1.NewClusterImageRegistry().
-			State(clusterImageRegistryState))
+			State(clusterImageRegistryState)).
+		FIPS(hcpCluster.ServiceProviderProperties.ExperimentalFeatures.FIPSEnabled)
 	azureBuilder := arohcpv1alpha1.NewAzure().
 		TenantID(tenantID).
 		SubscriptionID(strings.ToLower(subscriptionID)).
@@ -552,89 +597,6 @@ func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, hcpC
 	return clusterBuilder, nil
 }
 
-// ConvertCStoNodePool converts a CS NodePool object into an HCPOpenShiftClusterNodePool object.
-func ConvertCStoNodePool(resourceID *azcorearm.ResourceID, azureLocation string, np *arohcpv1alpha1.NodePool) (*api.HCPOpenShiftClusterNodePool, error) {
-	var subnetID *azcorearm.ResourceID
-	if len(np.Subnet()) > 0 {
-		var err error
-		subnetID, err = azcorearm.ParseResourceID(np.Subnet())
-		if err != nil {
-			return nil, utils.TrackError(err)
-		}
-	}
-
-	diskStorageAccountType, err := convertDiskStorageAccountTypeCSToRP(np.AzureNodePool().OsDisk().StorageAccountType())
-	if err != nil {
-		return nil, utils.TrackError(err)
-	}
-
-	diskType, err := convertDiskTypeCSToRP(np.AzureNodePool().OsDisk().Persistence())
-	if err != nil {
-		return nil, utils.TrackError(err)
-	}
-
-	nodePool := &api.HCPOpenShiftClusterNodePool{
-		TrackedResource: arm.TrackedResource{
-			Resource: arm.Resource{
-				ID:   resourceID,
-				Name: resourceID.Name,
-				Type: resourceID.ResourceType.String(),
-			},
-			Location: azureLocation,
-		},
-		Properties: api.HCPOpenShiftClusterNodePoolProperties{
-			Version: api.NodePoolVersionProfile{
-				ID:           ConvertOpenShiftVersionNoPrefix(np.Version().ID()),
-				ChannelGroup: np.Version().ChannelGroup(),
-			},
-			Platform: api.NodePoolPlatformProfile{
-				SubnetID:               subnetID,
-				VMSize:                 np.AzureNodePool().VMSize(),
-				EnableEncryptionAtHost: np.AzureNodePool().EncryptionAtHost().State() == csEncryptionAtHostStateEnabled,
-				OSDisk: api.OSDiskProfile{
-					SizeGiB:                ptr.To(int32(np.AzureNodePool().OsDisk().SizeGibibytes())),
-					DiskStorageAccountType: diskStorageAccountType,
-					DiskType:               diskType,
-				},
-				AvailabilityZone: np.AvailabilityZone(),
-			},
-			AutoRepair: np.AutoRepair(),
-			Labels:     np.Labels(),
-		},
-	}
-
-	if replicas, ok := np.GetReplicas(); ok {
-		nodePool.Properties.Replicas = int32(replicas)
-	}
-
-	if autoscaling, ok := np.GetAutoscaling(); ok {
-		nodePool.Properties.AutoScaling = &api.NodePoolAutoScaling{
-			Min: int32(autoscaling.MinReplica()),
-			Max: int32(autoscaling.MaxReplica()),
-		}
-	}
-
-	if np.Taints() != nil {
-		taints := make([]api.Taint, 0, len(np.Taints()))
-		for _, t := range np.Taints() {
-			taints = append(taints, api.Taint{
-				Effect: api.Effect(t.Effect()),
-				Key:    t.Key(),
-				Value:  t.Value(),
-			})
-		}
-		nodePool.Properties.Taints = taints
-	}
-
-	if nodeDrainGracePeriod, ok := np.GetNodeDrainGracePeriod(); ok {
-		if unit, ok := nodeDrainGracePeriod.GetUnit(); ok && unit == csNodeDrainGracePeriodUnit {
-			nodePool.Properties.NodeDrainTimeoutMinutes = api.Ptr(int32(nodeDrainGracePeriod.Value()))
-		}
-	}
-
-	return nodePool, nil
-}
-
 // BuildCSNodePool creates a CS NodePoolBuilder object from an HCPOpenShiftClusterNodePool object.
 func BuildCSNodePool(ctx context.Context, nodePool *api.HCPOpenShiftClusterNodePool, updating bool) (*arohcpv1alpha1.NodePoolBuilder, error) {
 	nodePoolBuilder := arohcpv1alpha1.NewNodePool()
@@ -671,33 +633,7 @@ func BuildCSNodePool(ctx context.Context, nodePool *api.HCPOpenShiftClusterNodeP
 			AutoRepair(nodePool.Properties.AutoRepair)
 	}
 
-	nodePoolBuilder.Labels(nodePool.Properties.Labels)
-
-	if nodePool.Properties.AutoScaling != nil {
-		nodePoolBuilder.Autoscaling(arohcpv1alpha1.NewNodePoolAutoscaling().
-			MinReplica(int(nodePool.Properties.AutoScaling.Min)).
-			MaxReplica(int(nodePool.Properties.AutoScaling.Max)))
-	} else {
-		nodePoolBuilder.Replicas(int(nodePool.Properties.Replicas))
-	}
-
-	if nodePool.Properties.Taints != nil {
-		taintBuilders := []*arohcpv1alpha1.TaintBuilder{}
-		for _, t := range nodePool.Properties.Taints {
-			newTaintBuilder := arohcpv1alpha1.NewTaint().
-				Effect(string(t.Effect)).
-				Key(t.Key).
-				Value(t.Value)
-			taintBuilders = append(taintBuilders, newTaintBuilder)
-		}
-		nodePoolBuilder.Taints(taintBuilders...)
-	}
-
-	if nodePool.Properties.NodeDrainTimeoutMinutes != nil {
-		nodePoolBuilder.NodeDrainGracePeriod(arohcpv1alpha1.NewValue().
-			Unit(csNodeDrainGracePeriodUnit).
-			Value(float64(*nodePool.Properties.NodeDrainTimeoutMinutes)))
-	}
+	nodePoolUpdateDispatchConfigFromRP(nodePool).applyToCSBuilder(nodePoolBuilder)
 
 	return nodePoolBuilder, nil
 }
@@ -711,74 +647,16 @@ func BuildCSExternalAuth(ctx context.Context, externalAuth *api.HCPOpenShiftClus
 		externalAuthBuilder.ID(strings.ToLower(externalAuth.Name))
 	}
 
-	externalAuthBuilder.Issuer(arohcpv1alpha1.NewTokenIssuer().
-		URL(externalAuth.Properties.Issuer.URL).
-		CA(externalAuth.Properties.Issuer.CA).
-		Audiences(externalAuth.Properties.Issuer.Audiences...),
-	)
-
-	clientConfigs := []*arohcpv1alpha1.ExternalAuthClientConfigBuilder{}
-	for _, t := range externalAuth.Properties.Clients {
-		clientType, err := convertExternalAuthClientTypeRPToCS(t.Type)
-		if err != nil {
-			return nil, err
-		}
-
-		newClientConfig := arohcpv1alpha1.NewExternalAuthClientConfig().
-			ID(t.ClientID).
-			Component(arohcpv1alpha1.NewClientComponent().
-				Name(t.Component.Name).
-				Namespace(t.Component.AuthClientNamespace),
-			).
-			ExtraScopes(t.ExtraScopes...).
-			Type(clientType)
-		clientConfigs = append(clientConfigs, newClientConfig)
+	dispatchConfig, err := externalAuthUpdateDispatchConfigFromRP(externalAuth)
+	if err != nil {
+		return nil, err
 	}
-	externalAuthBuilder.Clients(clientConfigs...)
-
-	err := buildClaims(externalAuthBuilder, *externalAuth)
+	err = dispatchConfig.applyToCSBuilder(externalAuthBuilder)
 	if err != nil {
 		return nil, err
 	}
 
 	return externalAuthBuilder, nil
-}
-
-func buildClaims(externalAuthBuilder *arohcpv1alpha1.ExternalAuthBuilder, hcpExternalAuth api.HCPOpenShiftClusterExternalAuth) error {
-	usernameClaimPrefixPolicy, err := convertUsernameClaimPrefixPolicyRPToCS(hcpExternalAuth.Properties.Claim.Mappings.Username.PrefixPolicy)
-	if err != nil {
-		return err
-	}
-
-	tokenClaimMappingsBuilder := arohcpv1alpha1.NewTokenClaimMappings().
-		UserName(arohcpv1alpha1.NewUsernameClaim().
-			Claim(hcpExternalAuth.Properties.Claim.Mappings.Username.Claim).
-			Prefix(hcpExternalAuth.Properties.Claim.Mappings.Username.Prefix).
-			PrefixPolicy(usernameClaimPrefixPolicy),
-		)
-	if hcpExternalAuth.Properties.Claim.Mappings.Groups != nil {
-		tokenClaimMappingsBuilder = tokenClaimMappingsBuilder.Groups(
-			arohcpv1alpha1.NewGroupsClaim().
-				Claim(hcpExternalAuth.Properties.Claim.Mappings.Groups.Claim).
-				Prefix(hcpExternalAuth.Properties.Claim.Mappings.Groups.Prefix),
-		)
-	}
-
-	validationRules := []*arohcpv1alpha1.TokenClaimValidationRuleBuilder{}
-	for _, t := range hcpExternalAuth.Properties.Claim.ValidationRules {
-		newClientConfig := arohcpv1alpha1.NewTokenClaimValidationRule().
-			Claim(t.RequiredClaim.Claim).
-			RequiredValue(t.RequiredClaim.RequiredValue)
-		validationRules = append(validationRules, newClientConfig)
-	}
-
-	externalAuthBuilder.
-		Claim(arohcpv1alpha1.NewExternalAuthClaim().
-			Mappings(tokenClaimMappingsBuilder).
-			ValidationRules(validationRules...),
-		)
-
-	return nil
 }
 
 // ConvertCStoAdminCredential converts a CS BreakGlassCredential object into an HCPOpenShiftClusterAdminCredential object.
@@ -836,6 +714,12 @@ func CSErrorToCloudError(err error, resourceID *azcorearm.ResourceID) *arm.Cloud
 				arm.CloudErrorCodeInvalidRequestContent,
 				"", "%s", ocmError.Reason())
 		case http.StatusNotFound:
+			if strings.Contains(ocmError.Reason(), "Unable to find shard") {
+				return arm.NewCloudError(
+					http.StatusServiceUnavailable,
+					arm.CloudErrorCodeServiceUnavailable,
+					"", "Capacity is currently restricted, please try again later")
+			}
 			if resourceID != nil {
 				return arm.NewResourceNotFoundError(resourceID)
 			}
@@ -924,14 +808,14 @@ func ConvertCSManagementClusterToInternal(csShard *arohcpv1alpha1.ProvisionShard
 		LastTransitionTime: metav1.Now(),
 	}
 	switch csShard.Status() {
-	case csProvisioningShardStatusActive:
+	case CSProvisionShardStatusActive:
 		readyCondition.Status = metav1.ConditionTrue
 		readyCondition.Reason = string(fleet.ManagementClusterConditionReasonProvisionShardActive)
-	case csProvisioningShardStatusMaintenance:
+	case CSProvisionShardStatusMaintenance:
 		readyCondition.Status = metav1.ConditionFalse
 		readyCondition.Reason = string(fleet.ManagementClusterConditionReasonProvisionShardMaintenance)
 		readyCondition.Message = fmt.Sprintf("provision shard status is %q", csShard.Status())
-	case csProvisioningShardStatusOffline:
+	case CSProvisionShardStatusOffline:
 		readyCondition.Status = metav1.ConditionFalse
 		readyCondition.Reason = string(fleet.ManagementClusterConditionReasonProvisionShardOffline)
 		readyCondition.Message = fmt.Sprintf("provision shard status is %q", csShard.Status())
@@ -961,7 +845,8 @@ func ConvertCSManagementClusterToInternal(csShard *arohcpv1alpha1.ProvisionShard
 
 	mc := &fleet.ManagementCluster{
 		CosmosMetadata: api.CosmosMetadata{
-			ResourceID: resourceID,
+			ResourceID:   resourceID,
+			PartitionKey: strings.ToLower(stampIdentifier),
 		},
 		ResourceID: resourceID,
 		Spec: fleet.ManagementClusterSpec{
@@ -977,7 +862,12 @@ func ConvertCSManagementClusterToInternal(csShard *arohcpv1alpha1.ProvisionShard
 			MaestroRESTAPIURL:                                    restConfig.Url(),
 			MaestroGRPCTarget:                                    grpcConfig.Url(),
 			ClusterServiceProvisionShardID:                       &shardID,
-			Conditions:                                           []metav1.Condition{readyCondition},
+			// i hate this a lot but there is no representation of the cosmosdb container as of now
+			// in CS or the RP so we replicate the naming convention here.
+			// This will resolve once we don't migrate mgmt clusters from CS anymore but ingest them
+			// from the pipeline, where this information is available (a.k.a. phase 2)
+			KubeApplierCosmosContainerName: fmt.Sprintf("Manifests-MC-%s", stampIdentifier),
+			Conditions:                     []metav1.Condition{readyCondition},
 		},
 	}
 
@@ -987,7 +877,7 @@ func ConvertCSManagementClusterToInternal(csShard *arohcpv1alpha1.ProvisionShard
 // convertShardStatusToSchedulingPolicy maps a Cluster Service provision shard
 // status to a ManagementClusterSchedulingPolicy.
 func convertShardStatusToSchedulingPolicy(status string) fleet.ManagementClusterSchedulingPolicy {
-	if status == csProvisioningShardStatusActive {
+	if status == CSProvisionShardStatusActive {
 		return fleet.ManagementClusterSchedulingPolicySchedulable
 	}
 	return fleet.ManagementClusterSchedulingPolicyUnschedulable

@@ -17,6 +17,7 @@ package managementclustercontrollers
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -90,7 +91,8 @@ func newTestSPC(opts ...func(*api.ServiceProviderCluster)) *api.ServiceProviderC
 
 	spc := &api.ServiceProviderCluster{
 		CosmosMetadata: api.CosmosMetadata{
-			ResourceID: spcResourceID,
+			ResourceID:   spcResourceID,
+			PartitionKey: strings.ToLower(spcResourceID.SubscriptionID),
 		},
 	}
 	for _, opt := range opts {
@@ -103,7 +105,8 @@ func newTestManagementCluster() *fleet.ManagementCluster {
 	resourceID := testMgmtClusterResourceID()
 	return &fleet.ManagementCluster{
 		CosmosMetadata: api.CosmosMetadata{
-			ResourceID: resourceID,
+			ResourceID:   resourceID,
+			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
 		},
 		ResourceID: resourceID,
 		Status: fleet.ManagementClusterStatus{
@@ -112,11 +115,8 @@ func newTestManagementCluster() *fleet.ManagementCluster {
 	}
 }
 
-// alwaysSyncCooldownChecker always allows syncing
-type alwaysSyncCooldownChecker struct{}
-
-func (c *alwaysSyncCooldownChecker) CanSync(ctx context.Context, key any) bool {
-	return true
+func testProvisionShardHREF(shardID string) string {
+	return "/api/aro_hcp/v1alpha1/provision_shards/" + shardID
 }
 
 func TestManagementClusterPlacementSyncer_SyncOnce(t *testing.T) {
@@ -162,7 +162,7 @@ func TestManagementClusterPlacementSyncer_SyncOnce(t *testing.T) {
 			cachedSPC:   newTestSPC(),
 			existingSPC: newTestSPC(),
 			cachedCluster: newTestHCPCluster(func(c *api.HCPOpenShiftCluster) {
-				c.ServiceProviderProperties.ClusterServiceID = &api.InternalID{}
+				c.ServiceProviderProperties.ClusterServiceID = nil
 			}),
 			expectCSCall:                        false,
 			expectError:                         false,
@@ -295,7 +295,6 @@ func TestManagementClusterPlacementSyncer_SyncOnce(t *testing.T) {
 
 			// Create syncer
 			syncer := &managementClusterPlacementSyncer{
-				cooldownChecker:              &alwaysSyncCooldownChecker{},
 				serviceProviderClusterLister: spcLister,
 				clusterLister:                clusterLister,
 				managementClusterLister:      mgmtClusterLister,

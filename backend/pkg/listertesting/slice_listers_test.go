@@ -16,6 +16,7 @@ package listertesting
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -117,12 +118,17 @@ func TestSliceNodePoolLister(t *testing.T) {
 }
 
 func TestSliceActiveOperationLister(t *testing.T) {
-	op1 := newTestOperation(testSubscriptionID, "op1", testSubscriptionID, testResourceGroupName, testClusterName)
-	op2 := newTestOperation(testSubscriptionID, "op2", testSubscriptionID, testResourceGroupName, testClusterName)
-	op3 := newTestOperation(testSubscriptionID, "op3", testSubscriptionID, testResourceGroupName, testClusterName2)
+	clusterOp1 := newTestOperation(testSubscriptionID, "op1", testSubscriptionID, testResourceGroupName, testClusterName)
+	clusterOp2 := newTestOperation(testSubscriptionID, "op2", testSubscriptionID, testResourceGroupName, testClusterName)
+	clusterOp3 := newTestOperation(testSubscriptionID, "op3", testSubscriptionID, testResourceGroupName, testClusterName2)
+	npOp1 := newTestNodePoolOperation(testSubscriptionID, "np-op1", testSubscriptionID, testResourceGroupName, testClusterName, testNodePoolName)
+	npOp2 := newTestNodePoolOperation(testSubscriptionID, "np-op2", testSubscriptionID, testResourceGroupName, testClusterName, testNodePoolName)
+	npOp3 := newTestNodePoolOperation(testSubscriptionID, "np-op3", testSubscriptionID, testResourceGroupName, testClusterName, "nodepool-2")
+	eaOp1 := newTestExternalAuthOperation(testSubscriptionID, "ea-op1", testSubscriptionID, testResourceGroupName, testClusterName, testExternalAuthName)
+	eaOp2 := newTestExternalAuthOperation(testSubscriptionID, "ea-op2", testSubscriptionID, testResourceGroupName, testClusterName, "external-auth-2")
 
 	lister := &SliceActiveOperationLister{
-		Operations: []*api.Operation{op1, op2, op3},
+		Operations: []*api.Operation{clusterOp1, clusterOp2, clusterOp3, npOp1, npOp2, npOp3, eaOp1, eaOp2},
 	}
 
 	ctx := context.Background()
@@ -130,7 +136,7 @@ func TestSliceActiveOperationLister(t *testing.T) {
 	t.Run("List returns all operations", func(t *testing.T) {
 		result, err := lister.List(ctx)
 		require.NoError(t, err)
-		assert.Len(t, result, 3)
+		assert.Len(t, result, 8)
 	})
 
 	t.Run("Get returns matching operation", func(t *testing.T) {
@@ -145,10 +151,22 @@ func TestSliceActiveOperationLister(t *testing.T) {
 		assert.True(t, database.IsNotFoundError(err))
 	})
 
-	t.Run("ListActiveOperationsForCluster returns operations for cluster", func(t *testing.T) {
+	t.Run("ListActiveOperationsForCluster returns operations for cluster including child resources", func(t *testing.T) {
 		result, err := lister.ListActiveOperationsForCluster(ctx, testSubscriptionID, testResourceGroupName, testClusterName)
 		require.NoError(t, err)
+		assert.Len(t, result, 7)
+	})
+
+	t.Run("ListActiveOperationsForNodePool returns operations for node pool", func(t *testing.T) {
+		result, err := lister.ListActiveOperationsForNodePool(ctx, testSubscriptionID, testResourceGroupName, testClusterName, testNodePoolName)
+		require.NoError(t, err)
 		assert.Len(t, result, 2)
+	})
+
+	t.Run("ListActiveOperationsForExternalAuth returns operations for external auth", func(t *testing.T) {
+		result, err := lister.ListActiveOperationsForExternalAuth(ctx, testSubscriptionID, testResourceGroupName, testClusterName, testExternalAuthName)
+		require.NoError(t, err)
+		assert.Len(t, result, 1)
 	})
 }
 
@@ -323,6 +341,10 @@ func newTestCluster(subscriptionID, resourceGroupName, clusterName string) *api.
 			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + clusterName,
 	))
 	return &api.HCPOpenShiftCluster{
+		CosmosMetadata: arm.CosmosMetadata{
+			ResourceID:   resourceID,
+			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
+		},
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
 				ID:   resourceID,
@@ -344,6 +366,7 @@ func newTestNodePool(subscriptionID, resourceGroupName, clusterName, nodePoolNam
 			"/nodePools/" + nodePoolName,
 	))
 	return &api.HCPOpenShiftClusterNodePool{
+		CosmosMetadata: arm.CosmosMetadata{ResourceID: resourceID, PartitionKey: strings.ToLower(resourceID.SubscriptionID)},
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
 				ID:   resourceID,
@@ -366,7 +389,50 @@ func newTestOperation(subscriptionID, operationName, targetSubscription, targetR
 	))
 	return &api.Operation{
 		CosmosMetadata: arm.CosmosMetadata{
-			ResourceID: operationResourceID,
+			ResourceID:   operationResourceID,
+			PartitionKey: strings.ToLower(operationResourceID.SubscriptionID),
+		},
+		OperationID: operationResourceID,
+		ExternalID:  externalID,
+	}
+}
+
+func newTestNodePoolOperation(subscriptionID, operationName, targetSubscription, targetResourceGroup, targetCluster, nodePoolName string) *api.Operation {
+	operationResourceID := api.Must(azcorearm.ParseResourceID(
+		"/subscriptions/" + subscriptionID +
+			"/providers/Microsoft.RedHatOpenShift/hcpOperationStatuses/" + operationName,
+	))
+	externalID := api.Must(azcorearm.ParseResourceID(
+		"/subscriptions/" + targetSubscription +
+			"/resourceGroups/" + targetResourceGroup +
+			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + targetCluster +
+			"/nodePools/" + nodePoolName,
+	))
+	return &api.Operation{
+		CosmosMetadata: arm.CosmosMetadata{
+			ResourceID:   operationResourceID,
+			PartitionKey: strings.ToLower(operationResourceID.SubscriptionID),
+		},
+		OperationID: operationResourceID,
+		ExternalID:  externalID,
+	}
+}
+
+func newTestExternalAuthOperation(subscriptionID, operationName, targetSubscription, targetResourceGroup, targetCluster, externalAuthName string) *api.Operation {
+	operationResourceID := api.Must(azcorearm.ParseResourceID(
+		"/subscriptions/" + subscriptionID +
+			"/providers/Microsoft.RedHatOpenShift/hcpOperationStatuses/" + operationName,
+	))
+	externalID := api.Must(azcorearm.ParseResourceID(
+		"/subscriptions/" + targetSubscription +
+			"/resourceGroups/" + targetResourceGroup +
+			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + targetCluster +
+			"/externalAuths/" + externalAuthName,
+	))
+	return &api.Operation{
+		CosmosMetadata: arm.CosmosMetadata{
+			ResourceID:   operationResourceID,
+			PartitionKey: strings.ToLower(operationResourceID.SubscriptionID),
 		},
 		OperationID: operationResourceID,
 		ExternalID:  externalID,
@@ -381,7 +447,8 @@ func newTestExternalAuth(subscriptionID, resourceGroupName, clusterName, externa
 			"/externalAuths/" + externalAuthName,
 	))
 	return &api.HCPOpenShiftClusterExternalAuth{
-		ProxyResource: arm.NewProxyResource(resourceID),
+		CosmosMetadata: arm.CosmosMetadata{ResourceID: resourceID, PartitionKey: strings.ToLower(resourceID.SubscriptionID)},
+		ProxyResource:  arm.NewProxyResource(resourceID),
 	}
 }
 
@@ -394,7 +461,8 @@ func newTestServiceProviderCluster(subscriptionID, resourceGroupName, clusterNam
 	))
 	return &api.ServiceProviderCluster{
 		CosmosMetadata: arm.CosmosMetadata{
-			ResourceID: resourceID,
+			ResourceID:   resourceID,
+			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
 		},
 	}
 }
@@ -408,7 +476,8 @@ func newTestClusterController(subscriptionID, resourceGroupName, clusterName, co
 	))
 	return &api.Controller{
 		CosmosMetadata: arm.CosmosMetadata{
-			ResourceID: resourceID,
+			ResourceID:   resourceID,
+			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
 		},
 	}
 }
@@ -423,7 +492,8 @@ func newTestNodePoolController(subscriptionID, resourceGroupName, clusterName, n
 	))
 	return &api.Controller{
 		CosmosMetadata: arm.CosmosMetadata{
-			ResourceID: resourceID,
+			ResourceID:   resourceID,
+			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
 		},
 	}
 }
@@ -438,7 +508,8 @@ func newTestExternalAuthController(subscriptionID, resourceGroupName, clusterNam
 	))
 	return &api.Controller{
 		CosmosMetadata: arm.CosmosMetadata{
-			ResourceID: resourceID,
+			ResourceID:   resourceID,
+			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
 		},
 	}
 }
@@ -449,7 +520,8 @@ func newTestSubscription(subscriptionID string) *arm.Subscription {
 	))
 	return &arm.Subscription{
 		CosmosMetadata: arm.CosmosMetadata{
-			ResourceID: resourceID,
+			ResourceID:   resourceID,
+			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
 		},
 		ResourceID: resourceID,
 	}
@@ -463,7 +535,7 @@ func newTestClusterScopedManagementClusterContent(subscriptionID, resourceGroupN
 			"/managementClusterContents/" + mccName,
 	))
 	return &api.ManagementClusterContent{
-		CosmosMetadata: arm.CosmosMetadata{ResourceID: resourceID},
+		CosmosMetadata: arm.CosmosMetadata{ResourceID: resourceID, PartitionKey: strings.ToLower(resourceID.SubscriptionID)},
 	}
 }
 
@@ -476,6 +548,6 @@ func newTestNodePoolScopedManagementClusterContent(subscriptionID, resourceGroup
 			"/managementClusterContents/" + mccName,
 	))
 	return &api.ManagementClusterContent{
-		CosmosMetadata: arm.CosmosMetadata{ResourceID: resourceID},
+		CosmosMetadata: arm.CosmosMetadata{ResourceID: resourceID, PartitionKey: strings.ToLower(resourceID.SubscriptionID)},
 	}
 }

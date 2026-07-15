@@ -479,6 +479,37 @@ func TestLoadQueriesConfig(t *testing.T) {
 				}
 			},
 		},
+		{
+			name: "minPeakThreshold is parsed when provided",
+			yaml: `panels:
+  - title: "Panel"
+    queries:
+    - title: "Retry Ratio"
+      query: "rate(retries[5m])"
+      workspace: svc
+      minPeakThreshold: 0.5
+`,
+			check: func(t *testing.T, cfg *QueriesConfig) {
+				if cfg.Panels[0].Queries[0].MinPeakThreshold != 0.5 {
+					t.Errorf("MinPeakThreshold = %v, want %v", cfg.Panels[0].Queries[0].MinPeakThreshold, 0.5)
+				}
+			},
+		},
+		{
+			name: "minPeakThreshold defaults to zero when omitted",
+			yaml: `panels:
+  - title: "Panel"
+    queries:
+    - title: "CPU Usage"
+      query: "rate(cpu_seconds_total[5m])"
+      workspace: svc
+`,
+			check: func(t *testing.T, cfg *QueriesConfig) {
+				if cfg.Panels[0].Queries[0].MinPeakThreshold != 0 {
+					t.Errorf("MinPeakThreshold = %v, want %v", cfg.Panels[0].Queries[0].MinPeakThreshold, 0.0)
+				}
+			},
+		},
 	}
 
 	for _, tt := range tests {

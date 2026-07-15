@@ -4,11 +4,11 @@ param azureMonitorWorkspaceName string
 @description('Location of the Azure Monitor Workspace')
 param location string
 
-@description('Maximum active time series limit (2M initial, bump when hitting 50% utilization)')
-param maxActiveTimeSeries int = 2000000
+@description('Maximum active time series limit in millions (2M initial, bump when hitting 50% utilization)')
+param maxActiveTimeSeriesMillions int = 2
 
-@description('Maximum events per minute limit (2M initial, bump when hitting 50% utilization)')
-param maxEventsPerMinute int = 2000000
+@description('Maximum events per minute limit in millions (2M initial, bump when hitting 50% utilization)')
+param maxEventsPerMinuteMillions int = 2
 
 // Existing Azure Monitor Workspace (parent resource for metrics container)
 resource azureMonitorWorkspace 'Microsoft.Monitor/accounts@2023-04-03' existing = {
@@ -27,11 +27,8 @@ resource metricsContainer 'Microsoft.Monitor/accounts/metricsContainers@2025-10-
   location: location
   properties: {
     limits: {
-      maxActiveTimeSeries: maxActiveTimeSeries
-      maxEventsPerMinute: maxEventsPerMinute
+      maxActiveTimeSeries: maxActiveTimeSeriesMillions * 1000000
+      maxEventsPerMinute: maxEventsPerMinuteMillions * 1000000
     }
   }
 }
-
-output maxActiveTimeSeries int = maxActiveTimeSeries
-output maxEventsPerMinute int = maxEventsPerMinute

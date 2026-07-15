@@ -36,11 +36,38 @@ const (
 	ServiceProviderClusterResourceName = "default"
 )
 
+// HostedClusterControlPlaneSize enumerates the SRE-selectable control-plane
+// sizing tiers we expose for a HostedCluster. Stored as a *string on
+// ServiceProviderClusterSpec so unset is distinguishable from "explicitly chosen."
+type HostedClusterControlPlaneSize string
+
+const (
+	HostedClusterControlPlaneSizeSmall   HostedClusterControlPlaneSize = "Small"
+	HostedClusterControlPlaneSizeMedium  HostedClusterControlPlaneSize = "Medium"
+	HostedClusterControlPlaneSizeLarge   HostedClusterControlPlaneSize = "Large"
+	HostedClusterControlPlaneSizeXlarge  HostedClusterControlPlaneSize = "Xlarge"
+	HostedClusterControlPlaneSizeXXlarge HostedClusterControlPlaneSize = "XXlarge"
+)
+
+// IsValidHostedClusterControlPlaneSize reports whether s names a known tier.
+func IsValidHostedClusterControlPlaneSize(s string) bool {
+	switch HostedClusterControlPlaneSize(s) {
+	case HostedClusterControlPlaneSizeSmall,
+		HostedClusterControlPlaneSizeMedium,
+		HostedClusterControlPlaneSizeLarge,
+		HostedClusterControlPlaneSizeXlarge,
+		HostedClusterControlPlaneSizeXXlarge:
+		return true
+	}
+	return false
+}
+
 // ServiceProviderCluster is used internally by controllers to track and pass information between them.
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type ServiceProviderCluster struct {
 	// CosmosMetadata ResourceID is nested under the cluster so that association and cleanup work as expected
-	// it will be the ServiceProviderCluster type and the name default
+	// it will be the ServiceProviderCluster type and the name default.
+	// PartitionKey holds the lowercased subscriptionID.
 	CosmosMetadata `json:"cosmosMetadata"`
 
 	LoadBalancerResourceID *azcorearm.ResourceID `json:"loadBalancerResourceID,omitempty"`
@@ -67,6 +94,13 @@ type ServiceProviderClusterSpec struct {
 	// Once this contains the critical values, we will create it on management clusters.
 	// We may or may not choose to store the actual state in status.  We may choose to store the actual state independently.
 	DesiredHostedCluster *v1beta1.HostedCluster `json:"desiredHostedCluster,omitempty"`
+
+	// DesiredHostedClusterControlPlaneSize is the SRE-selected control plane
+	// sizing tier (one of "Small", "Medium", "Large", "Xlarge", "XXlarge") to
+	// apply to the HostedCluster. Stored as *string so unset is distinguishable
+	// from any explicit choice; nil means no tier has been requested. Valid
+	// values are the HostedClusterControlPlaneSize* constants above.
+	DesiredHostedClusterControlPlaneSize *string `json:"desiredHostedClusterControlPlaneSize,omitempty"`
 }
 
 // ServiceProviderClusterSpecVersion contains the desired version information.
@@ -129,6 +163,15 @@ type ServiceProviderClusterStatus struct {
 	// this HCP is placed on. Nil means placement has not been resolved yet.
 	// Once set, this field is immutable.
 	ManagementClusterResourceID *azcorearm.ResourceID `json:"managementClusterResourceID,omitempty"`
+
+	// DesiredHostedClusterControlPlaneSize mirrors the value of
+	// Spec.DesiredHostedClusterControlPlaneSize once cluster-service reflects
+	// the effective size override (as confirmed by the desired-control-plane-size
+	// status reconciler). It exists so NeedsWork can cheaply detect divergence,
+	// including the unset transition (Spec nil, Status non-nil), where there
+	// is no signal on Spec alone that dispatch still needs to clear the CS
+	// property.
+	DesiredHostedClusterControlPlaneSize *string `json:"desiredHostedClusterControlPlaneSize,omitempty"`
 }
 
 // ServiceProviderClusterStatusVersion contains the actual version information.
@@ -160,6 +203,27 @@ type MaestroBundleReference struct {
 	// but the Maestro Bundle has not been created yet.
 	// Maestro's REST API Go client abstraction uses Maestro Bundle IDs to identify the Maestro Bundle.
 	MaestroAPIMaestroBundleID string `json:"maestroAPIMaestroBundleID"`
+	// ResourceIdentifiers contains the identifiers for all resources within the Maestro Bundle.
+	// Each entry corresponds to a ResourceIdentifier in the ManifestWork's ManifestConfigs.
+	ResourceIdentifiers []MaestroBundleResourceIdentifier `json:"resourceIdentifiers,omitempty"`
+}
+
+// MaestroBundleResourceIdentifier identifies a single resource within a Maestro Bundle.
+// This corresponds to a ResourceIdentifier in the ManifestWork's ManifestConfigs.
+type MaestroBundleResourceIdentifier struct {
+	// APIVersion is the API version of the resource (e.g. "hypershift.openshift.io/v1beta1").
+	APIVersion string `json:"apiVersion"`
+	// Kind is the kind of the resource (e.g. "HostedCluster").
+	Kind string `json:"kind"`
+	// Resource is the resource type (e.g. "hostedclusters").
+	// This corresponds to the ResourceIdentifier.Resource in the ManifestWork's ManifestConfigs.
+	Resource string `json:"resource"`
+	// Name is the name of the resource.
+	// For example, for a HostedCluster bundle this is the HostedCluster name on the management cluster.
+	Name string `json:"name"`
+	// Namespace is the namespace of the resource.
+	// For example, for a HostedCluster bundle this is the HostedCluster namespace on the management cluster.
+	Namespace string `json:"namespace"`
 }
 
 // MaestroBundleReferenceList is a list of Maestro Bundle references.
@@ -205,6 +269,26 @@ func (l *MaestroBundleReferenceList) Set(maestroBundleReference *MaestroBundleRe
 		}
 	}
 
+	return nil
+}
+
+// Remove removes the Maestro Bundle reference for a given Maestro Bundle internal name.
+// If the Maestro Bundle reference identified by name does not exist, it is a no-op.
+// If multiple Maestro Bundle references are found for the same internal name, it returns an error.
+func (l *MaestroBundleReferenceList) Remove(name MaestroBundleInternalName) error {
+	filtered := make(MaestroBundleReferenceList, 0, len(*l))
+	matched := 0
+	for _, bundle := range *l {
+		if bundle.Name == name {
+			matched++
+		} else {
+			filtered = append(filtered, bundle)
+		}
+	}
+	if matched > 1 {
+		return utils.TrackError(fmt.Errorf("multiple Maestro Bundle references found for the same internal name: %s", name))
+	}
+	*l = filtered
 	return nil
 }
 

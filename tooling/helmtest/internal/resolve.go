@@ -42,6 +42,21 @@ func FindHelmTestFiles(pathToSearch string) ([]string, error) {
 	return allTests, nil
 }
 
+// FindHelmStepsByReleaseName returns only HelmSteps matching the given release name.
+func FindHelmStepsByReleaseName(topologyDir, configPath, releaseName string) ([]HelmStepWithPath, error) {
+	all, err := FindHelmSteps(topologyDir, configPath)
+	if err != nil {
+		return nil, err
+	}
+	var matched []HelmStepWithPath
+	for _, step := range all {
+		if step.HelmStep.ReleaseName == releaseName {
+			matched = append(matched, step)
+		}
+	}
+	return matched, nil
+}
+
 func FindHelmSteps(topologyDir, configPath string) ([]HelmStepWithPath, error) {
 	cfg, err := LoadConfig(configPath)
 	if err != nil {
@@ -65,9 +80,10 @@ func FindHelmSteps(topologyDir, configPath string) ([]HelmStepWithPath, error) {
 }
 
 func recursiveLoadPipelineReturnHelmSteps(topologyDir string, service topology.Service, cfg configtypes.Configuration) ([]HelmStepWithPath, error) {
-	pipeline, err := types.NewPipelineFromFile(filepath.Join(topologyDir, service.PipelinePath), cfg)
+	pipelinePath := filepath.Join(topologyDir, service.PipelinePath)
+	pipeline, err := types.NewPipelineFromFile(pipelinePath, cfg)
 	if err != nil {
-		return nil, fmt.Errorf("error loading pipeline: %v", err)
+		return nil, fmt.Errorf("failed to load pipeline %s: %w", pipelinePath, err)
 	}
 
 	// Collect all ImageMirrorSteps keyed by (resourceGroup, stepName)

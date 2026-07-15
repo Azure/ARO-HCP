@@ -79,12 +79,12 @@ func TestControllerNotifications(t *testing.T) {
 		}()
 
 		resourcesDBClient := testInfo.ResourcesDBClient()
-		backendInformers := informers.NewBackendInformersWithRelistDuration(ctx, resourcesDBClient.ResourcesGlobalListers(), testInfo.BillingDBClient().BillingGlobalListers(), ptr.To(100*time.Millisecond))
+		backendInformers := informers.NewBackendInformersWithRelistDuration(ctx, resourcesDBClient.ResourcesGlobalListers(), resourcesDBClient, testInfo.BillingDBClient().BillingGlobalListers(), ptr.To(100*time.Millisecond))
 
 		_, activeOperationLister := backendInformers.ActiveOperations()
 		testSyncer := newTestController(activeOperationLister)
 		testingController := controllerutils.NewClusterWatchingController(
-			"TestingController", resourcesDBClient, backendInformers, 1*time.Minute, testSyncer)
+			"TestingController", resourcesDBClient, backendInformers, nil, 1*time.Minute, testSyncer)
 
 		go func() {
 			backendStarted.Store(true)

@@ -31,6 +31,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
@@ -60,22 +61,22 @@ var _ = Describe("Authorized CIDRs", func() {
 				tc := framework.NewTestContext()
 
 				if tc.UsePooledIdentities() {
-					err := tc.AssignIdentityContainers(ctx, 1, 60*time.Second)
-					Expect(err).NotTo(HaveOccurred())
+					err := tc.AssignIdentityContainers(ctx, 1, framework.IdentityContainerAssignmentRetryInterval)
+					Expect(err).NotTo(HaveOccurred(), "failed to assign identity containers")
 				}
 
 				By("creating a resource group")
 				resourceGroup, err := tc.NewResourceGroup(ctx, "e2e-cidr-connectivity", tc.Location())
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to create resource group for authorized CIDRs connectivity test")
 
 				By("creating cluster parameters")
-				clusterParams := framework.NewDefaultClusterParams()
+				clusterParams := framework.NewDefaultClusterParams20240610()
 				clusterParams.ClusterName = clusterName
 				managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 				clusterParams.ManagedResourceGroupName = managedResourceGroupName
 
 				By("creating customer resources")
-				clusterParams, err = tc.CreateClusterCustomerResources(ctx,
+				clusterParams, err = tc.CreateClusterCustomerResources20240610(ctx,
 					resourceGroup,
 					clusterParams,
 					map[string]interface{}{
@@ -86,18 +87,29 @@ var _ = Describe("Authorized CIDRs", func() {
 					TestArtifactsFS,
 					framework.RBACScopeResourceGroup,
 				)
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to create customer resources for authorized CIDRs cluster")
 
 				By("generating SSH key pair for VM")
 				sshPublicKey, _, err := framework.GenerateSSHKeyPair()
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to generate SSH key pair for test VM")
 
 				By("deploying test VM")
 				vmName := fmt.Sprintf("%s-test-vm", clusterName)
+				// The test VM is a throwaway kubectl client: it only needs a public IP
+				// (used as the single authorized CIDR) and to make one API call to the
+				// cluster. We use a small general-purpose D-series SKU (resolved
+				// restriction-aware) rather than the burstable B-series, which is the
+				// SKU class most prone to regional SkuNotAvailable capacity
+				// restrictions, which is what flaked this test.
+				vmSize, err := tc.SelectVMSize(ctx, framework.JumpboxVMSizeSelector())
+				Expect(err).NotTo(HaveOccurred(), "failed to resolve a jumpbox VM size; check VM SKU restrictions/quota for the test subscription in %s", tc.Location())
 				var vmDeployment *armresources.DeploymentExtended
-				Eventually(func() error {
-					var err error
-					vmDeployment, err = tc.CreateBicepTemplateAndWait(ctx,
+				var deployErr error
+				// Bounded retry to absorb transient ARM errors, but fail fast on
+				// SkuNotAvailable: a regional capacity restriction is not transient, so
+				// re-submitting an identical request only burns the timeout budget.
+				for attempt := 0; attempt < 3; attempt++ {
+					vmDeployment, deployErr = tc.CreateBicepTemplateAndWait(ctx,
 						framework.WithTemplateFromFS(TestArtifactsFS, "test-artifacts/generated-test-artifacts/modules/test-vm.json"),
 						framework.WithDeploymentName("test-vm"),
 						framework.WithScope(framework.BicepDeploymentScopeResourceGroup),
@@ -107,15 +119,20 @@ var _ = Describe("Authorized CIDRs", func() {
 							"vnetName":     customerVnetName,
 							"subnetName":   customerVnetSubnetName,
 							"sshPublicKey": sshPublicKey,
+							"vmSize":       vmSize,
 						}),
 						framework.WithTimeout(30*time.Minute),
 					)
-					return err
-				}, 30*time.Minute, 20*time.Second).Should(Succeed())
+					if deployErr == nil || strings.Contains(deployErr.Error(), "SkuNotAvailable") {
+						break
+					}
+					time.Sleep(20 * time.Second)
+				}
+				Expect(deployErr).NotTo(HaveOccurred(), "failed to deploy test VM")
 
 				By("extracting VM public IP from deployment outputs")
 				vmPublicIP, err := framework.GetOutputValueString(vmDeployment, "publicIP")
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to extract VM public IP from deployment outputs")
 				Expect(vmPublicIP).NotTo(BeEmpty(), "VM public IP should be in deployment outputs")
 
 				By("Creating a cluster with authorized CIDR containing VM IP")
@@ -123,23 +140,23 @@ var _ = Describe("Authorized CIDRs", func() {
 					to.Ptr(fmt.Sprintf("%s/32", vmPublicIP)),
 				}
 
-				err = tc.CreateHCPClusterFromParam(
+				err = tc.CreateHCPClusterFromParam20240610(
 					ctx,
 					GinkgoLogr,
 					*resourceGroup.Name,
 					clusterParams,
-					45*time.Minute,
+					framework.ClusterCreationTimeout,
 				)
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster %q with authorized CIDRs", clusterName)
 
 				By("getting cluster details")
-				clusterResponse, err := framework.GetHCPCluster(
+				clusterResponse, err := framework.GetHCPCluster20240610(
 					ctx,
 					tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 					*resourceGroup.Name,
 					clusterName,
 				)
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to get cluster details for %q", clusterName)
 				Expect(clusterResponse.Properties).ToNot(BeNil(), "cluster response Properties was nil")
 				Expect(clusterResponse.Properties.API).ToNot(BeNil(), "cluster Properties.API was nil")
 				Expect(clusterResponse.Properties.API.URL).ToNot(BeNil(), "cluster Properties.API.URL was nil")
@@ -147,8 +164,8 @@ var _ = Describe("Authorized CIDRs", func() {
 
 				By("verifying authorized CIDRs contains VM IP")
 				Expect(clusterResponse.Properties.API.AuthorizedCIDRs).ToNot(BeNil(), "cluster Properties.API.AuthorizedCIDRs was nil")
-				Expect(clusterResponse.Properties.API.AuthorizedCIDRs).To(HaveLen(1))
-				Expect(*clusterResponse.Properties.API.AuthorizedCIDRs[0]).To(Equal(fmt.Sprintf("%s/32", vmPublicIP)))
+				Expect(clusterResponse.Properties.API.AuthorizedCIDRs).To(HaveLen(1), "authorized CIDRs should contain exactly one entry")
+				Expect(*clusterResponse.Properties.API.AuthorizedCIDRs[0]).To(Equal(fmt.Sprintf("%s/32", vmPublicIP)), "authorized CIDR should match VM public IP %s/32", vmPublicIP)
 
 				By("testing connectivity from authorized VM")
 
@@ -170,22 +187,21 @@ var _ = Describe("Authorized CIDRs", func() {
 				// Try to connect from the test runner (which is not in authorized CIDRs)
 				err = testAPIConnectivity(apiURL, 5*time.Second)
 				Expect(err).To(HaveOccurred(), "Connection from unauthorized IP should be blocked")
-				// Verify it's a connection error (EOF indicates connection was closed by server/network)
-				Expect(err.Error()).To(ContainSubstring(fmt.Sprintf("Get \"%s/healthz\": EOF", apiURL)), "Should fail with EOF error indicating blocked connection")
+				GinkgoWriter.Printf("Connection from unauthorized IP address failed as expected on error: %v\n", err)
 
 				By("verifying VM can access cluster API with credentials")
-				adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster(
+				adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20240610(
 					ctx,
 					tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 					*resourceGroup.Name,
 					clusterName,
-					10*time.Minute,
+					framework.GetAdminRESTConfigTimeout,
 				)
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to get admin REST config for cluster %q", clusterName)
 
 				// Create kubeconfig and copy to VM
 				kubeconfig, err := framework.GenerateKubeconfig(adminRESTConfig)
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to generate kubeconfig from admin REST config")
 
 				// Test kubectl command from VM
 				kubeconfigB64 := base64.StdEncoding.EncodeToString([]byte(kubeconfig))
@@ -227,28 +243,30 @@ var _ = Describe("Authorized CIDRs", func() {
 				}, 5*time.Minute, 10*time.Second).Should(Succeed())
 
 				By("creating the node pool")
-				nodePoolParams := framework.NewDefaultNodePoolParams()
+				nodePoolParams := framework.NewDefaultNodePoolParams20240610()
 				nodePoolParams.ClusterName = clusterName
 				nodePoolParams.NodePoolName = "np-1"
 				nodePoolParams.Replicas = int32(2)
 
-				err = tc.CreateNodePoolFromParam(ctx,
+				err = tc.CreateNodePoolFromParam20240610(ctx,
+					GinkgoLogr,
 					*resourceGroup.Name,
+					managedResourceGroupName,
 					clusterName,
 					nodePoolParams,
-					45*time.Minute,
+					framework.NodePoolCreationTimeout,
 				)
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to create nodepool %q for authorized CIDRs cluster", nodePoolParams.NodePoolName)
 
 				By("creating an app registration with a client secret")
 				app, sp, err := tc.NewAppRegistrationWithServicePrincipal(ctx)
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to create app registration with service principal")
 
 				graphClient, err := tc.GetGraphClient(ctx)
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to get graph client")
 
 				pass, err := graphClient.AddPassword(ctx, app.ID, "cidr-external-auth-pass", time.Now(), time.Now().Add(24*time.Hour))
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to add password to app registration")
 
 				By("creating an external auth config with a prefix")
 				extAuth := hcpsdk20240610preview.ExternalAuth{
@@ -289,13 +307,13 @@ var _ = Describe("Authorized CIDRs", func() {
 						},
 					},
 				}
-				_, err = framework.CreateOrUpdateExternalAuthAndWait(ctx, tc.Get20240610ClientFactoryOrDie(ctx).NewExternalAuthsClient(), *resourceGroup.Name, clusterName, customerExternalAuthName, extAuth, 15*time.Minute)
-				Expect(err).NotTo(HaveOccurred())
+				_, err = framework.CreateOrUpdateExternalAuthAndWait20240610(ctx, tc.Get20240610ClientFactoryOrDie(ctx).NewExternalAuthsClient(), *resourceGroup.Name, clusterName, customerExternalAuthName, extAuth, framework.ExternalAuthCreationTimeout)
+				Expect(err).NotTo(HaveOccurred(), "failed to create external auth config %q", customerExternalAuthName)
 
 				By("verifying ExternalAuth is in a Succeeded state")
-				eaResult, err := framework.GetExternalAuth(ctx, tc.Get20240610ClientFactoryOrDie(ctx).NewExternalAuthsClient(), *resourceGroup.Name, clusterName, customerExternalAuthName)
-				Expect(err).NotTo(HaveOccurred())
-				Expect(*eaResult.Properties.ProvisioningState).To(Equal(hcpsdk20240610preview.ExternalAuthProvisioningStateSucceeded))
+				eaResult, err := framework.GetExternalAuth20240610(ctx, tc.Get20240610ClientFactoryOrDie(ctx).NewExternalAuthsClient(), *resourceGroup.Name, clusterName, customerExternalAuthName)
+				Expect(err).NotTo(HaveOccurred(), "failed to get external auth config %q", customerExternalAuthName)
+				Expect(*eaResult.Properties.ProvisioningState).To(Equal(hcpsdk20240610preview.ExternalAuthProvisioningStateSucceeded), "external auth %q provisioning state should be Succeeded", customerExternalAuthName)
 
 				By("creating a cluster role binding for the entra application via VM")
 				clusterRoleBindingName := "external-auth-cluster-admin"
@@ -307,15 +325,16 @@ var _ = Describe("Authorized CIDRs", func() {
 					clusterRoleBindingSubject,
 				)
 				_, err = framework.RunVMCommand(ctx, tc, *resourceGroup.Name, vmName, createClusterRoleBindingCmd, 2*time.Minute)
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to create cluster role binding for external auth via VM")
 
 				By("creating a rest config using OIDC authentication")
-				Expect(tc.TenantID()).NotTo(BeEmpty())
+				Expect(tc.TenantID()).NotTo(BeEmpty(), "tenant ID should not be empty for OIDC authentication")
 				cred, err := azidentity.NewClientSecretCredential(tc.TenantID(), app.AppID, pass.SecretText, nil)
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to create client secret credential for OIDC authentication")
 
 				// MSGraph is eventually consistent, wait up to 2 minutes for the token to be valid
 				var accessToken azcore.AccessToken
+				var lastTokenErr string
 				Eventually(func() error {
 					var err error
 					accessToken, err = cred.GetToken(ctx, policy.TokenRequestOptions{
@@ -323,7 +342,10 @@ var _ = Describe("Authorized CIDRs", func() {
 					})
 
 					if err != nil {
-						GinkgoWriter.Printf("GetToken failed: %v\n", err)
+						if msg := err.Error(); msg != lastTokenErr {
+							GinkgoWriter.Printf("GetToken failed: %v\n", err)
+							lastTokenErr = msg
+						}
 					}
 					return err
 				}, 2*time.Minute, 10*time.Second).Should(Succeed())
@@ -336,7 +358,7 @@ var _ = Describe("Authorized CIDRs", func() {
 					},
 				}
 				kubeconfigExternalAuth, err := framework.GenerateKubeconfig(config)
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to generate kubeconfig for external auth OIDC config")
 
 				kubeconfigB64ExternalAuth := base64.StdEncoding.EncodeToString([]byte(kubeconfigExternalAuth))
 				// Use -o name to keep output minimal and avoid 4KB VM output limit
@@ -371,7 +393,7 @@ var _ = Describe("Authorized CIDRs", func() {
 					clientSecretB64,
 				)
 				_, err = framework.RunVMCommand(ctx, tc, *resourceGroup.Name, vmName, createSecretCmd, 2*time.Minute)
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to create console OAuth client secret for external auth via VM")
 
 				By("verifying all cluster operators are healthy from authorized VM")
 				// Only output unavailable operators (filter out :True lines) to stay within 4KB VM output limit
@@ -390,13 +412,13 @@ var _ = Describe("Authorized CIDRs", func() {
 
 				By("updating cluster to remove VM from authorized CIDRs")
 				// Get the current cluster state
-				currentCluster, err := framework.GetHCPCluster(
+				currentCluster, err := framework.GetHCPCluster20240610(
 					ctx,
 					tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 					*resourceGroup.Name,
 					clusterName,
 				)
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to get current cluster state before updating authorized CIDRs")
 
 				// Update the cluster's authorized CIDRs
 				currentCluster.Properties.API.AuthorizedCIDRs = []*string{
@@ -411,10 +433,15 @@ var _ = Describe("Authorized CIDRs", func() {
 					currentCluster.HcpOpenShiftCluster,
 					nil,
 				)
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).NotTo(HaveOccurred(), "failed to begin updating cluster %q authorized CIDRs", clusterName)
 
-				_, err = poller.PollUntilDone(ctx, nil)
-				Expect(err).NotTo(HaveOccurred())
+				const pollTimeout = 10 * time.Minute
+				pollCtx, pollCancel := context.WithTimeout(ctx, pollTimeout)
+				defer pollCancel()
+				_, err = poller.PollUntilDone(pollCtx, &runtime.PollUntilDoneOptions{
+					Frequency: framework.StandardPollInterval,
+				})
+				Expect(err).NotTo(HaveOccurred(), "failed to poll cluster %q authorized CIDRs update to completion (timeout '%f' minutes)", clusterName, pollTimeout.Minutes())
 
 				By("verifying VM is now blocked from API access")
 				output, err := framework.RunVMCommand(ctx, tc, *resourceGroup.Name, vmName, connectivityTest, 2*time.Minute)

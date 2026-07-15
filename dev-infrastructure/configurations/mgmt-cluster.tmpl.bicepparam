@@ -39,16 +39,32 @@ param aksNetworkDataplane = '{{ .mgmt.aks.networkDataplane }}'
 param aksNetworkPolicy = '{{ .mgmt.aks.networkDataplane }}'
 param aksEnableSwiftVnet = {{ .mgmt.aks.enableSwiftV2Vnet }}
 param aksEnableSwiftNodepools = {{ .mgmt.aks.enableSwiftV2Nodepools }}
+param aksUpgradeSettingsMaxSurge = '{{ .mgmt.aks.upgradeSettings.maxSurge }}'
+param aksUpgradeSettingsMaxUnavailable = '{{ .mgmt.aks.upgradeSettings.maxUnavailable }}'
 
 // Maestro
 param maestroConsumerMIName = '{{ .maestro.agent.managedIdentityName }}'
 param maestroConsumerNamespace = '{{ .maestro.agent.k8s.namespace }}'
 param maestroConsumerServiceAccountName = '{{ .maestro.agent.k8s.serviceAccountName }}'
+
+// Mgmt Agent
+param mgmtAgentMIName = '{{ .mgmtAgent.managedIdentityName }}'
+param mgmtAgentNamespace = '{{ .mgmtAgent.k8s.namespace }}'
+param mgmtAgentServiceAccountName = '{{ .mgmtAgent.k8s.serviceAccountName }}'
+
 param maestroConsumerName = '{{ .maestro.agent.consumerName }}'
-param maestroEventGridNamespaceId = '__maestroEventGridNamespaceId__'
-param maestroCertDomain = '{{ .maestro.certDomain }}'
+param maestroConsumerCertSAN = '{{ .maestro.agent.certSAN }}'
 param maestroCertIssuer = '{{ .maestro.certIssuer }}'
-param regionalSvcDNSZoneName = '{{ .dns.regionalSubdomain }}.{{ .dns.svcParentZoneName }}'
+param maestroEventGridNamespaceId = '__maestroEventGridNamespaceId__'
+
+// Kube Applier
+param kubeApplierMIName = '{{ .kubeApplier.managedIdentityName }}'
+param kubeApplierNamespace = '{{ .kubeApplier.k8s.namespace }}'
+param kubeApplierServiceAccountName = '{{ .kubeApplier.k8s.serviceAccountName }}'
+param kubeApplierContainerName = '{{ .kubeApplier.cosmosContainerName }}'
+param kubeApplierContainerMaxScale = {{ .kubeApplier.cosmosContainerMaxScale }}
+param rpCosmosDbAccountId = '__rpCosmosDbAccountId__'
+param rpCosmosDbPrivate = {{ .frontend.cosmosDB.private }}
 
 // ACR
 param ocpAcrResourceId = '__ocpAcrResourceId__'
@@ -76,11 +92,8 @@ param logsMSI = '{{ .logs.mdsd.msiName }}'
 param logsServiceAccount = '{{ .logs.mdsd.serviceAccountName }}'
 
 // Geneva logging settings
-param genevaCertificateDomain = '{{ .geneva.logs.certificateDomain }}'
-param genevaCertificateIssuer = '{{ .geneva.logs.certificateIssuer }}'
 param genevaRpLogsName = '{{ .geneva.logs.rp.secretName }}'
 param genevaClusterLogsName = '{{ .geneva.logs.cluster.secretName }}'
-param genevaManageCertificates = {{ .geneva.logs.manageCertificates }}
 
 // Alert rules tag value
 param owningTeamTagValue = '{{ .monitoring.alertRuleOwningTeamTag }}'

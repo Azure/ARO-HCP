@@ -56,8 +56,8 @@ var _ = Describe("Customer", func() {
 			tc := framework.NewTestContext()
 
 			if tc.UsePooledIdentities() {
-				err := tc.AssignIdentityContainers(ctx, 1, 60*time.Second)
-				Expect(err).NotTo(HaveOccurred())
+				err := tc.AssignIdentityContainers(ctx, 1, framework.IdentityContainerAssignmentRetryInterval)
+				Expect(err).NotTo(HaveOccurred(), "failed to assign pooled identity containers")
 			}
 
 			// Load CAs early to fail fast if there's an issue with the test setup, rather than waiting until after cluster creation
@@ -66,61 +66,75 @@ var _ = Describe("Customer", func() {
 
 			By("creating a resource group")
 			resourceGroup, err := tc.NewResourceGroup(ctx, "tls-endpoint-cluster", tc.Location())
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create resource group for TLS endpoint test")
 
 			// creating cluster parameters
-			clusterParams := framework.NewDefaultClusterParams()
+			clusterParams := framework.NewDefaultClusterParams20240610()
 			clusterParams.ClusterName = customerClusterName
 			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 			clusterParams.ManagedResourceGroupName = managedResourceGroupName
 
 			By("creating customer resources (infrastructure and managed identities) for cluster")
-			clusterParams, err = tc.CreateClusterCustomerResources(ctx,
+			clusterParams, err = tc.CreateClusterCustomerResources20240610(ctx,
 				resourceGroup,
 				clusterParams,
 				map[string]interface{}{},
 				TestArtifactsFS,
 				framework.RBACScopeResourceGroup,
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create customer resources for TLS endpoint cluster")
 
 			By("creating a standard hcp cluster")
-			err = tc.CreateHCPClusterFromParam(ctx,
+			err = tc.CreateHCPClusterFromParam20240610(ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
 				clusterParams,
-				45*time.Minute,
+				framework.ClusterCreationTimeout,
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster for TLS endpoint test")
 
 			By("ensuring the API TLS certificate is signed by a trusted Azure CA")
-			clusterResp, err := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient().Get(ctx, *resourceGroup.Name, customerClusterName, nil)
-			Expect(err).NotTo(HaveOccurred())
+			clusterClient := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
+			Eventually(func(ctx context.Context) error {
+				clusterResp, err := clusterClient.Get(ctx, *resourceGroup.Name, customerClusterName, nil)
+				if err != nil {
+					return fmt.Errorf("failed to get cluster: %w", err)
+				}
 
-			Expect(clusterResp.Properties).NotTo(BeNil(), "cluster response Properties was nil")
-			Expect(clusterResp.Properties.API).NotTo(BeNil(), "cluster Properties.API was nil")
-			Expect(clusterResp.Properties.API.URL).NotTo(BeNil(), "cluster Properties.API.URL was nil")
+				if clusterResp.Properties == nil || clusterResp.Properties.API == nil || clusterResp.Properties.API.URL == nil {
+					return fmt.Errorf("cluster API URL not yet available")
+				}
 
-			apiServerURL := clusterResp.Properties.API.URL
-			actualAPICerts, err := tlsCertsFromURL(ctx, *apiServerURL)
-			Expect(err).NotTo(HaveOccurred())
+				apiServerURL := clusterResp.Properties.API.URL
+				actualAPICerts, err := tlsCertsFromURL(ctx, *apiServerURL)
+				if err != nil {
+					return fmt.Errorf("failed to fetch TLS certificate from %s: %w", *apiServerURL, err)
+				}
 
-			fmt.Fprintf(GinkgoWriter, "Issuer: %v\n", actualAPICerts[0].Issuer)
-			err = verifyCertChain(actualAPICerts, trustedCAs)
-			Expect(err).NotTo(HaveOccurred(), "expect API certificate to be signed by a trusted Azure CA")
+				err = verifyCertChain(actualAPICerts, trustedCAs)
+				if err != nil {
+					return fmt.Errorf("certificate verification failed for %s (issuer: %v): %w",
+						*apiServerURL, actualAPICerts[0].Issuer, err)
+				}
+				GinkgoLogr.Info("API certificate issuer", "issuer", actualAPICerts[0].Issuer)
+				return nil
+			}).WithContext(ctx).WithTimeout(10*time.Minute).WithPolling(10*time.Second).Should(Succeed(),
+				"expect API certificate to be signed by a trusted Azure CA")
 
 			By("creating the node pool")
-			nodePoolParams := framework.NewDefaultNodePoolParams()
+			nodePoolParams := framework.NewDefaultNodePoolParams20240610()
 			nodePoolParams.ClusterName = customerClusterName
 			nodePoolParams.NodePoolName = customerNodePoolName
 
-			err = tc.CreateNodePoolFromParam(ctx,
+			err = tc.CreateNodePoolFromParam20240610(ctx,
+				GinkgoLogr,
 				*resourceGroup.Name,
+				managedResourceGroupName,
 				customerClusterName,
 				nodePoolParams,
-				45*time.Minute,
+				framework.NodePoolCreationTimeout,
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create node pool %s for TLS endpoint cluster", customerNodePoolName)
 
 			By("ensuring the ingress TLS certificate is signed by a trusted Azure CA")
 			hcpOpenShiftClustersClient := tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
@@ -134,7 +148,7 @@ var _ = Describe("Customer", func() {
 				}
 				Expect(resp.Properties.Console.URL).NotTo(BeNil(), "cluster Properties.Console.URL was nil")
 				consoleURL = *resp.Properties.Console.URL
-				fmt.Fprintln(GinkgoWriter, "Console URL found:", consoleURL)
+				GinkgoLogr.Info("Console URL found", "url", consoleURL)
 				return true
 			}).WithTimeout(15 * time.Minute).WithPolling(10 * time.Second).Should(BeTrue())
 
@@ -145,10 +159,10 @@ var _ = Describe("Customer", func() {
 			Eventually(func() error {
 				certs, err := tlsCertsFromURL(ctx, consoleUrlWithPort)
 				if err != nil {
-					fmt.Fprintf(GinkgoWriter, "error fetching cert: %v\n", err)
+					GinkgoLogr.Info("Ingress certificate check", "status", "failed", "error", err.Error())
 					return err
 				}
-				fmt.Fprintf(GinkgoWriter, "Issuer: %v\n", certs[0].Issuer)
+				GinkgoLogr.Info("Ingress certificate issuer", "issuer", certs[0].Issuer.String())
 				return verifyCertChain(certs, trustedCAs)
 			}).WithTimeout(10*time.Minute).WithPolling(10*time.Second).Should(Succeed(),
 				"expect ingress certificate to be signed by a trusted Azure CA")

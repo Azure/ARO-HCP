@@ -27,26 +27,22 @@ import (
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 // Comprehensive tests for ValidateNodePoolCreate
 func TestValidateNodePoolCreate(t *testing.T) {
 	ctx := context.Background()
 
-	type expectedError struct {
-		message   string // Expected error message (partial match)
-		fieldPath string // Expected field path for the error
-	}
-
 	tests := []struct {
 		name         string
 		nodePool     *api.HCPOpenShiftClusterNodePool
-		expectErrors []expectedError
+		expectErrors []utils.ExpectedError
 	}{
 		{
 			name:         "valid nodepool - create",
 			nodePool:     createValidNodePool(),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "valid nodepool with autoscaling - create",
@@ -59,7 +55,7 @@ func TestValidateNodePoolCreate(t *testing.T) {
 				np.Properties.Replicas = 0 // Should be 0 when autoscaling is enabled
 				return np
 			}(),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "valid nodepool with autoscaling min=0 - create",
@@ -72,7 +68,7 @@ func TestValidateNodePoolCreate(t *testing.T) {
 				np.Properties.Replicas = 0
 				return np
 			}(),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "valid nodepool with labels - create",
@@ -85,7 +81,7 @@ func TestValidateNodePoolCreate(t *testing.T) {
 				}
 				return np
 			}(),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "valid nodepool with taints - create",
@@ -105,7 +101,7 @@ func TestValidateNodePoolCreate(t *testing.T) {
 				}
 				return np
 			}(),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "valid nodepool with encryption set ID - create",
@@ -114,7 +110,7 @@ func TestValidateNodePoolCreate(t *testing.T) {
 				np.Properties.Platform.OSDisk.EncryptionSetID = api.Must(azcorearm.ParseResourceID("/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Compute/diskEncryptionSets/test-des"))
 				return np
 			}(),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "valid nodepool with custom OS disk size - create",
@@ -123,7 +119,7 @@ func TestValidateNodePoolCreate(t *testing.T) {
 				np.Properties.Platform.OSDisk.SizeGiB = ptr.To[int32](64)
 				return np
 			}(),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "valid nodepool with different storage account type - create",
@@ -132,7 +128,7 @@ func TestValidateNodePoolCreate(t *testing.T) {
 				np.Properties.Platform.OSDisk.DiskStorageAccountType = api.DiskStorageAccountTypeStandardSSD_LRS
 				return np
 			}(),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "valid nodepool with availability zone - create",
@@ -141,7 +137,7 @@ func TestValidateNodePoolCreate(t *testing.T) {
 				np.Properties.Platform.AvailabilityZone = "1"
 				return np
 			}(),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "valid nodepool with node drain timeout - create",
@@ -150,7 +146,47 @@ func TestValidateNodePoolCreate(t *testing.T) {
 				np.Properties.NodeDrainTimeoutMinutes = ptr.To[int32](60)
 				return np
 			}(),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name: "valid nodepool with node drain timeout zero - create",
+			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.NodeDrainTimeoutMinutes = ptr.To[int32](0)
+				return np
+			}(),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name: "valid nodepool with node drain timeout at maximum - create",
+			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.NodeDrainTimeoutMinutes = ptr.To[int32](10080)
+				return np
+			}(),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name: "negative node drain timeout - create",
+			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.NodeDrainTimeoutMinutes = ptr.To[int32](-1)
+				return np
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "must be greater than or equal to 0", FieldPath: "properties.nodeDrainTimeoutMinutes"},
+			},
+		},
+		{
+			name: "node drain timeout too large - create",
+			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.NodeDrainTimeoutMinutes = ptr.To[int32](10081)
+				return np
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "must be less than or equal to 10080", FieldPath: "properties.nodeDrainTimeoutMinutes"},
+			},
 		},
 		{
 			name: "valid nodepool with version ID - create",
@@ -160,7 +196,7 @@ func TestValidateNodePoolCreate(t *testing.T) {
 				np.Properties.Version.ChannelGroup = "fast"
 				return np
 			}(),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "invalid version ID - create",
@@ -169,8 +205,9 @@ func TestValidateNodePoolCreate(t *testing.T) {
 				np.Properties.Version.ID = "invalid-version"
 				return np
 			}(),
-			expectErrors: []expectedError{
-				{message: "No Major.Minor.Patch elements found", fieldPath: "properties.version.id"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "No Major.Minor.Patch elements found", FieldPath: "properties.version.id"},
+				{Message: "Short version cannot contain PreRelease/Build meta data", FieldPath: "properties.version.id"},
 			},
 		},
 		{
@@ -180,8 +217,8 @@ func TestValidateNodePoolCreate(t *testing.T) {
 				np.Properties.Version.ID = "4.20.0"
 				return np
 			}(),
-			expectErrors: []expectedError{
-				{message: "must be at least 4.20.8", fieldPath: "properties.version.id"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "must be at least 4.20.8", FieldPath: "properties.version.id"},
 			},
 		},
 		{
@@ -191,8 +228,44 @@ func TestValidateNodePoolCreate(t *testing.T) {
 				np.Properties.Version.ChannelGroup = ""
 				return np
 			}(),
-			expectErrors: []expectedError{
-				{message: "Required value", fieldPath: "properties.version.channelGroup"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "Required value", FieldPath: "properties.version.channelGroup"},
+				{Message: "Unsupported value", FieldPath: "properties.version.channelGroup"},
+			},
+		},
+		{
+			name: "invalid channel group - create",
+			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Version.ChannelGroup = "invalid-cg"
+				return np
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "Unsupported value", FieldPath: "properties.version.channelGroup"},
+			},
+		},
+		{
+			name: "candidate channel group rejected without feature flag - create",
+			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Version.ID = "4.21.0-rc.1"
+				np.Properties.Version.ChannelGroup = "candidate"
+				return np
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "Unsupported value", FieldPath: "properties.version.channelGroup"},
+			},
+		},
+		{
+			name: "nightly channel group rejected without feature flag - create",
+			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Version.ID = "4.21.0-0.nightly-2024-01-15-123456"
+				np.Properties.Version.ChannelGroup = "nightly"
+				return np
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "Unsupported value", FieldPath: "properties.version.channelGroup"},
 			},
 		},
 		{
@@ -203,8 +276,8 @@ func TestValidateNodePoolCreate(t *testing.T) {
 				np.Properties.Version.ChannelGroup = "fast"
 				return np
 			}(),
-			expectErrors: []expectedError{
-				{message: "Required value", fieldPath: "properties.version.id"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "Required value", FieldPath: "properties.version.id"},
 			},
 		},
 		{
@@ -215,8 +288,8 @@ func TestValidateNodePoolCreate(t *testing.T) {
 				np.Properties.Version.ChannelGroup = "stable"
 				return np
 			}(),
-			expectErrors: []expectedError{
-				{message: "Required value", fieldPath: "properties.version.id"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "Required value", FieldPath: "properties.version.id"},
 			},
 		},
 		{
@@ -227,7 +300,7 @@ func TestValidateNodePoolCreate(t *testing.T) {
 				np.Properties.Platform.SubnetID = nil
 				return np
 			}(),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "wrong subnet resource type - create",
@@ -236,8 +309,8 @@ func TestValidateNodePoolCreate(t *testing.T) {
 				np.Properties.Platform.SubnetID = api.Must(azcorearm.ParseResourceID("/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks/test-vnet"))
 				return np
 			}(),
-			expectErrors: []expectedError{
-				{message: "resource ID must reference an instance of type", fieldPath: "properties.platform.subnetId"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "resource ID must reference an instance of type", FieldPath: "properties.platform.subnetId"},
 			},
 		},
 		{
@@ -247,8 +320,20 @@ func TestValidateNodePoolCreate(t *testing.T) {
 				np.Properties.Platform.VMSize = ""
 				return np
 			}(),
-			expectErrors: []expectedError{
-				{message: "Required value", fieldPath: "properties.platform.vmSize"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "Required value", FieldPath: "properties.platform.vmSize"},
+				{Message: "Unsupported value", FieldPath: "properties.platform.vmSize"},
+			},
+		},
+		{
+			name: "invalid VM size - create",
+			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Platform.VMSize = "invalid_vm_size"
+				return np
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "Unsupported value", FieldPath: "properties.platform.vmSize"},
 			},
 		},
 		{
@@ -258,8 +343,8 @@ func TestValidateNodePoolCreate(t *testing.T) {
 				np.Properties.Platform.OSDisk.SizeGiB = ptr.To[int32](63)
 				return np
 			}(),
-			expectErrors: []expectedError{
-				{message: "must be greater than or equal to 64", fieldPath: "properties.platform.osDisk.sizeGiB"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "must be greater than or equal to 64", FieldPath: "properties.platform.osDisk.sizeGiB"},
 			},
 		},
 		{
@@ -269,8 +354,8 @@ func TestValidateNodePoolCreate(t *testing.T) {
 				np.Properties.Platform.OSDisk.DiskStorageAccountType = "InvalidType"
 				return np
 			}(),
-			expectErrors: []expectedError{
-				{message: "Unsupported value", fieldPath: "properties.platform.osDisk.diskStorageAccountType"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "Unsupported value", FieldPath: "properties.platform.osDisk.diskStorageAccountType"},
 			},
 		},
 		{
@@ -280,8 +365,8 @@ func TestValidateNodePoolCreate(t *testing.T) {
 				np.Properties.Platform.OSDisk.DiskType = "InvalidType"
 				return np
 			}(),
-			expectErrors: []expectedError{
-				{message: "Unsupported value", fieldPath: "properties.platform.osDisk.diskType"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "Unsupported value", FieldPath: "properties.platform.osDisk.diskType"},
 			},
 		},
 		{
@@ -292,8 +377,8 @@ func TestValidateNodePoolCreate(t *testing.T) {
 				np.Properties.AutoRepair = false
 				return np
 			}(),
-			expectErrors: []expectedError{
-				{message: "must be true when platform.osDisk.diskType is Ephemeral", fieldPath: "properties.autoRepair"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "must be true when platform.osDisk.diskType is Ephemeral", FieldPath: "properties.autoRepair"},
 			},
 		},
 		{
@@ -304,7 +389,7 @@ func TestValidateNodePoolCreate(t *testing.T) {
 				np.Properties.AutoRepair = true
 				return np
 			}(),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "wrong encryption set resource type - create",
@@ -313,8 +398,40 @@ func TestValidateNodePoolCreate(t *testing.T) {
 				np.Properties.Platform.OSDisk.EncryptionSetID = api.Must(azcorearm.ParseResourceID("/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks/test-vnet"))
 				return np
 			}(),
-			expectErrors: []expectedError{
-				{message: "resource ID must reference an instance of type", fieldPath: "properties.platform.osDisk.encryptionSetId"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "resource ID must reference an instance of type", FieldPath: "properties.platform.osDisk.encryptionSetId"},
+			},
+		},
+		{
+			name: "encryption set name at maximum length - create",
+			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Platform.OSDisk.EncryptionSetID = api.Must(azcorearm.ParseResourceID("/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Compute/diskEncryptionSets/" + strings.Repeat("a", MaxDiskEncryptionSetNameLen)))
+				return np
+			}(),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name: "encryption set name too long - create",
+			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Platform.OSDisk.EncryptionSetID = api.Must(azcorearm.ParseResourceID("/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Compute/diskEncryptionSets/" + strings.Repeat("a", MaxDiskEncryptionSetNameLen+1)))
+				return np
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "Too long", FieldPath: "properties.platform.osDisk.encryptionSetId"},
+			},
+		},
+		{
+			name: "encryption set name with invalid characters - create",
+			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Platform.OSDisk.EncryptionSetID = api.Must(azcorearm.ParseResourceID("/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Compute/diskEncryptionSets/test-des"))
+				np.Properties.Platform.OSDisk.EncryptionSetID.Name = "test.des"
+				return np
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "must contain only alphanumeric characters, underscores, and hyphens", FieldPath: "properties.platform.osDisk.encryptionSetId"},
 			},
 		},
 		{
@@ -324,7 +441,7 @@ func TestValidateNodePoolCreate(t *testing.T) {
 				np.Properties.Replicas = MaxNodePoolNodes
 				return np
 			}(),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "negative replicas - create",
@@ -333,8 +450,8 @@ func TestValidateNodePoolCreate(t *testing.T) {
 				np.Properties.Replicas = -1
 				return np
 			}(),
-			expectErrors: []expectedError{
-				{message: "must be greater than or equal to 0", fieldPath: "properties.replicas"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "must be greater than or equal to 0", FieldPath: "properties.replicas"},
 			},
 		},
 		{
@@ -344,8 +461,8 @@ func TestValidateNodePoolCreate(t *testing.T) {
 				np.Properties.Replicas = MaxNodePoolNodes + 1
 				return np
 			}(),
-			expectErrors: []expectedError{
-				{message: "must be less than or equal to 200", fieldPath: "properties.replicas"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "must be less than or equal to 200", FieldPath: "properties.replicas"},
 			},
 		},
 		{
@@ -359,8 +476,8 @@ func TestValidateNodePoolCreate(t *testing.T) {
 				}
 				return np
 			}(),
-			expectErrors: []expectedError{
-				{message: "cannot specify replicas when autoScaling is enabled", fieldPath: "properties.replicas"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "cannot specify replicas when autoScaling is enabled", FieldPath: "properties.replicas"},
 			},
 		},
 		{
@@ -374,7 +491,7 @@ func TestValidateNodePoolCreate(t *testing.T) {
 				}
 				return np
 			}(),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "autoscaling min too small - create",
@@ -387,8 +504,8 @@ func TestValidateNodePoolCreate(t *testing.T) {
 				}
 				return np
 			}(),
-			expectErrors: []expectedError{
-				{message: "must be greater than or equal to 0", fieldPath: "properties.autoScaling.min"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "must be greater than or equal to 0", FieldPath: "properties.autoScaling.min"},
 			},
 		},
 		{
@@ -403,8 +520,8 @@ func TestValidateNodePoolCreate(t *testing.T) {
 				}
 				return np
 			}(),
-			expectErrors: []expectedError{
-				{message: "must be less than or equal to 200", fieldPath: "properties.autoScaling.min"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "must be less than or equal to 200", FieldPath: "properties.autoScaling.min"},
 			},
 		},
 		{
@@ -419,8 +536,8 @@ func TestValidateNodePoolCreate(t *testing.T) {
 				}
 				return np
 			}(),
-			expectErrors: []expectedError{
-				{message: "must be greater than or equal to 0", fieldPath: "properties.autoScaling.min"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "must be greater than or equal to 0", FieldPath: "properties.autoScaling.min"},
 			},
 		},
 		{
@@ -434,8 +551,8 @@ func TestValidateNodePoolCreate(t *testing.T) {
 				}
 				return np
 			}(),
-			expectErrors: []expectedError{
-				{message: "must be greater than or equal to 5", fieldPath: "properties.autoScaling.max"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "must be greater than or equal to 5", FieldPath: "properties.autoScaling.max"},
 			},
 		},
 		{
@@ -451,9 +568,9 @@ func TestValidateNodePoolCreate(t *testing.T) {
 				}
 				return np
 			}(),
-			expectErrors: []expectedError{
-				{message: "must be less than or equal to 200", fieldPath: "properties.autoScaling.min"},
-				{message: "must be less than or equal to 200", fieldPath: "properties.autoScaling.max"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "must be less than or equal to 200", FieldPath: "properties.autoScaling.min"},
+				{Message: "must be less than or equal to 200", FieldPath: "properties.autoScaling.max"},
 			},
 		},
 		{
@@ -465,8 +582,8 @@ func TestValidateNodePoolCreate(t *testing.T) {
 				}
 				return np
 			}(),
-			expectErrors: []expectedError{
-				{message: "name part must consist of alphanumeric characters", fieldPath: "properties.labels"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "name part must consist of alphanumeric characters", FieldPath: "properties.labels"},
 			},
 		},
 		{
@@ -478,8 +595,8 @@ func TestValidateNodePoolCreate(t *testing.T) {
 				}
 				return np
 			}(),
-			expectErrors: []expectedError{
-				{message: "a valid label must be an empty string or consist of alphanumeric characters", fieldPath: "properties.labels[valid-key]"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "a valid label must be an empty string or consist of alphanumeric characters", FieldPath: "properties.labels[valid-key]"},
 			},
 		},
 		{
@@ -491,8 +608,9 @@ func TestValidateNodePoolCreate(t *testing.T) {
 				}
 				return np
 			}(),
-			expectErrors: []expectedError{
-				{message: "name part must be non-empty", fieldPath: "properties.labels"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "name part must be non-empty", FieldPath: "properties.labels"},
+				{Message: "name part must consist of alphanumeric characters", FieldPath: "properties.labels"},
 			},
 		},
 		{
@@ -507,8 +625,10 @@ func TestValidateNodePoolCreate(t *testing.T) {
 				}
 				return np
 			}(),
-			expectErrors: []expectedError{
-				{message: "Required value", fieldPath: "properties.taints[0].key"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "Required value", FieldPath: "properties.taints[0].key"},
+				{Message: "name part must be non-empty", FieldPath: "properties.taints[0].key"},
+				{Message: "name part must consist of alphanumeric characters", FieldPath: "properties.taints[0].key"},
 			},
 		},
 		{
@@ -524,8 +644,8 @@ func TestValidateNodePoolCreate(t *testing.T) {
 				}
 				return np
 			}(),
-			expectErrors: []expectedError{
-				{message: "name part must consist of alphanumeric characters", fieldPath: "properties.taints[0].key"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "name part must consist of alphanumeric characters", FieldPath: "properties.taints[0].key"},
 			},
 		},
 		{
@@ -541,8 +661,8 @@ func TestValidateNodePoolCreate(t *testing.T) {
 				}
 				return np
 			}(),
-			expectErrors: []expectedError{
-				{message: "a valid label must be an empty string or consist of alphanumeric characters", fieldPath: "properties.taints[0].value"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "a valid label must be an empty string or consist of alphanumeric characters", FieldPath: "properties.taints[0].value"},
 			},
 		},
 		{
@@ -558,8 +678,8 @@ func TestValidateNodePoolCreate(t *testing.T) {
 				}
 				return np
 			}(),
-			expectErrors: []expectedError{
-				{message: "Unsupported value", fieldPath: "properties.taints[0].effect"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "Unsupported value", FieldPath: "properties.taints[0].effect"},
 			},
 		},
 		{
@@ -572,11 +692,13 @@ func TestValidateNodePoolCreate(t *testing.T) {
 				np.Properties.Replicas = -1
 				return np
 			}(),
-			expectErrors: []expectedError{
-				{message: "No Major.Minor.Patch elements found", fieldPath: "properties.version.id"},
-				{message: "Required value", fieldPath: "properties.platform.vmSize"},
-				{message: "must be greater than or equal to 64", fieldPath: "properties.platform.osDisk.sizeGiB"},
-				{message: "must be greater than or equal to 0", fieldPath: "properties.replicas"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "No Major.Minor.Patch elements found", FieldPath: "properties.version.id"},
+				{Message: "Short version cannot contain PreRelease/Build meta data", FieldPath: "properties.version.id"},
+				{Message: "Required value", FieldPath: "properties.platform.vmSize"},
+				{Message: "Unsupported value", FieldPath: "properties.platform.vmSize"},
+				{Message: "must be greater than or equal to 64", FieldPath: "properties.platform.osDisk.sizeGiB"},
+				{Message: "must be greater than or equal to 0", FieldPath: "properties.replicas"},
 			},
 		},
 		{
@@ -596,11 +718,13 @@ func TestValidateNodePoolCreate(t *testing.T) {
 				}
 				return np
 			}(),
-			expectErrors: []expectedError{
-				{message: "Required value", fieldPath: "properties.taints[0].key"},
-				{message: "name part must consist of alphanumeric characters", fieldPath: "properties.taints[1].key"},
-				{message: "a valid label must be an empty string or consist of alphanumeric characters", fieldPath: "properties.taints[1].value"},
-				{message: "Unsupported value", fieldPath: "properties.taints[1].effect"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "Required value", FieldPath: "properties.taints[0].key"},
+				{Message: "name part must be non-empty", FieldPath: "properties.taints[0].key"},
+				{Message: "name part must consist of alphanumeric characters", FieldPath: "properties.taints[0].key"},
+				{Message: "name part must consist of alphanumeric characters", FieldPath: "properties.taints[1].key"},
+				{Message: "a valid label must be an empty string or consist of alphanumeric characters", FieldPath: "properties.taints[1].value"},
+				{Message: "Unsupported value", FieldPath: "properties.taints[1].effect"},
 			},
 		},
 		{
@@ -614,10 +738,11 @@ func TestValidateNodePoolCreate(t *testing.T) {
 				}
 				return np
 			}(),
-			expectErrors: []expectedError{
-				{message: "name part must be non-empty", fieldPath: "properties.labels"},
-				{message: "name part must consist of alphanumeric characters", fieldPath: "properties.labels"},
-				{message: "a valid label must be an empty string or consist of alphanumeric characters", fieldPath: "properties.labels[valid-key]"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "name part must be non-empty", FieldPath: "properties.labels"},
+				{Message: "name part must consist of alphanumeric characters", FieldPath: "properties.labels"},
+				{Message: "name part must consist of alphanumeric characters", FieldPath: "properties.labels"},
+				{Message: "a valid label must be an empty string or consist of alphanumeric characters", FieldPath: "properties.labels[valid-key]"},
 			},
 		},
 		{
@@ -632,7 +757,7 @@ func TestValidateNodePoolCreate(t *testing.T) {
 				np.Properties.NodeDrainTimeoutMinutes = nil
 				return np
 			}(),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "missing location - create",
@@ -641,8 +766,8 @@ func TestValidateNodePoolCreate(t *testing.T) {
 				np.Location = ""
 				return np
 			}(),
-			expectErrors: []expectedError{
-				{message: "Required value", fieldPath: "trackedResource.location"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "Required value", FieldPath: "trackedResource.location"},
 			},
 		},
 		{
@@ -653,7 +778,7 @@ func TestValidateNodePoolCreate(t *testing.T) {
 				np.Properties.Replicas = 250
 				return np
 			}(),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "autoscaling both min and max exceed 200 with availability zone set - valid - create",
@@ -667,7 +792,7 @@ func TestValidateNodePoolCreate(t *testing.T) {
 				}
 				return np
 			}(),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		// Node pool resource naming validation tests (covering middleware_validatestatic_test.go patterns)
 		{
@@ -677,8 +802,9 @@ func TestValidateNodePoolCreate(t *testing.T) {
 				np.ID.Name = "$"
 				return np
 			}(),
-			expectErrors: []expectedError{
-				{message: "must be a valid DNS RFC 1035 label", fieldPath: "id"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "must be equal to", FieldPath: "trackedResource.resource.name"},
+				{Message: "must be a valid DNS RFC 1035 label", FieldPath: "id"},
 			},
 		},
 		{
@@ -688,8 +814,9 @@ func TestValidateNodePoolCreate(t *testing.T) {
 				np.ID.Name = "-abcde"
 				return np
 			}(),
-			expectErrors: []expectedError{
-				{message: "must be a valid DNS RFC 1035 label", fieldPath: "id"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "must be equal to", FieldPath: "trackedResource.resource.name"},
+				{Message: "must be a valid DNS RFC 1035 label", FieldPath: "id"},
 			},
 		},
 		{
@@ -699,8 +826,9 @@ func TestValidateNodePoolCreate(t *testing.T) {
 				np.ID.Name = "1nodepool"
 				return np
 			}(),
-			expectErrors: []expectedError{
-				{message: "must be a valid DNS RFC 1035 label", fieldPath: "id"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "must be equal to", FieldPath: "trackedResource.resource.name"},
+				{Message: "must be a valid DNS RFC 1035 label", FieldPath: "id"},
 			},
 		},
 		{
@@ -710,8 +838,9 @@ func TestValidateNodePoolCreate(t *testing.T) {
 				np.ID.Name = "my-pool-"
 				return np
 			}(),
-			expectErrors: []expectedError{
-				{message: "must be a valid DNS RFC 1035 label", fieldPath: "id"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "must be equal to", FieldPath: "trackedResource.resource.name"},
+				{Message: "must be a valid DNS RFC 1035 label", FieldPath: "id"},
 			},
 		},
 		{
@@ -721,30 +850,34 @@ func TestValidateNodePoolCreate(t *testing.T) {
 				np.ID.Name = "07B4gc00vjA2C8KL3Ns4No9fi" // Too long for node pool name
 				return np
 			}(),
-			expectErrors: []expectedError{
-				{message: "must be a valid DNS RFC 1035 label", fieldPath: "id"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "must be equal to", FieldPath: "trackedResource.resource.name"},
+				{Message: "Too long", FieldPath: "id"},
+				{Message: "must be a valid DNS RFC 1035 label", FieldPath: "id"},
 			},
 		},
 		{
-			name: "invalid nodepool resource name - too short",
+			name: "invalid nodepool resource name - empty",
 			nodePool: func() *api.HCPOpenShiftClusterNodePool {
 				np := createValidNodePool()
-				np.ID.Name = "a"
+				np.ID.Name = ""
+				np.Name = ""
 				return np
 			}(),
-			expectErrors: []expectedError{
-				{message: "must be a valid DNS RFC 1035 label", fieldPath: "id"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "resource name is required", FieldPath: "trackedResource.resource.id"},
+				{Message: "resource name is required", FieldPath: "id"},
 			},
 		},
 		{
 			name: "valid nodepool resource name - minimum length",
 			nodePool: func() *api.HCPOpenShiftClusterNodePool {
 				np := createValidNodePool()
-				np.ID.Name = "abc"
-				np.Name = "abc"
+				np.ID.Name = "a"
+				np.Name = "a"
 				return np
 			}(),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "valid nodepool resource name - with hyphens",
@@ -754,7 +887,7 @@ func TestValidateNodePoolCreate(t *testing.T) {
 				np.Name = "my-pool-1"
 				return np
 			}(),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "valid nodepool resource name - maximum length",
@@ -764,7 +897,7 @@ func TestValidateNodePoolCreate(t *testing.T) {
 				np.Name = "myNodePool12345"
 				return np
 			}(),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 	}
 
@@ -773,28 +906,7 @@ func TestValidateNodePoolCreate(t *testing.T) {
 			op := operation.Operation{Type: operation.Create}
 			errs := ValidateNodePool(ctx, op, tt.nodePool, nil)
 
-			if len(tt.expectErrors) == 0 {
-				if len(errs) != 0 {
-					t.Errorf("expected no errors, got %d: %v", len(errs), errs)
-				}
-				return
-			}
-
-			// Check that each expected error message and field path is found
-			for _, expectedErr := range tt.expectErrors {
-				found := false
-				for _, err := range errs {
-					messageMatch := strings.Contains(err.Detail, expectedErr.message) || strings.Contains(err.Error(), expectedErr.message)
-					fieldMatch := strings.Contains(err.Field, expectedErr.fieldPath)
-					if messageMatch && fieldMatch {
-						found = true
-						break
-					}
-				}
-				if !found {
-					t.Errorf("expected error containing message '%s' at field '%s' but not found in: %v", expectedErr.message, expectedErr.fieldPath, errs)
-				}
-			}
+			utils.VerifyErrorsMatch(t, tt.expectErrors, errs)
 		})
 	}
 }
@@ -803,22 +915,17 @@ func TestValidateNodePoolCreate(t *testing.T) {
 func TestValidateNodePoolUpdate(t *testing.T) {
 	ctx := context.Background()
 
-	type expectedError struct {
-		message   string // Expected error message (partial match)
-		fieldPath string // Expected field path for the error
-	}
-
 	tests := []struct {
 		name         string
 		newNodePool  *api.HCPOpenShiftClusterNodePool
 		oldNodePool  *api.HCPOpenShiftClusterNodePool
-		expectErrors []expectedError
+		expectErrors []utils.ExpectedError
 	}{
 		{
 			name:         "valid nodepool update - no changes",
 			newNodePool:  createValidNodePool(),
 			oldNodePool:  createValidNodePool(),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "valid nodepool update - replicas change",
@@ -832,7 +939,7 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 				np.Properties.Replicas = 3
 				return np
 			}(),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "valid nodepool update - autoscaling change",
@@ -854,7 +961,7 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 				}
 				return np
 			}(),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "valid nodepool update - labels change",
@@ -873,7 +980,7 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 				}
 				return np
 			}(),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "valid nodepool update - taints change",
@@ -904,7 +1011,7 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 				}
 				return np
 			}(),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "valid nodepool update - node drain timeout change",
@@ -918,7 +1025,31 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 				np.Properties.NodeDrainTimeoutMinutes = ptr.To[int32](60)
 				return np
 			}(),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name: "negative node drain timeout - update",
+			newNodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.NodeDrainTimeoutMinutes = ptr.To[int32](-1)
+				return np
+			}(),
+			oldNodePool: createValidNodePool(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "must be greater than or equal to 0", FieldPath: "properties.nodeDrainTimeoutMinutes"},
+			},
+		},
+		{
+			name: "node drain timeout too large - update",
+			newNodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.NodeDrainTimeoutMinutes = ptr.To[int32](10081)
+				return np
+			}(),
+			oldNodePool: createValidNodePool(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "must be less than or equal to 10080", FieldPath: "properties.nodeDrainTimeoutMinutes"},
+			},
 		},
 		{
 			name: "valid nodepool update - version change",
@@ -932,7 +1063,7 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 				np.Properties.Version.ID = "4.20.8"
 				return np
 			}(),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "immutable provisioning state - update",
@@ -946,8 +1077,8 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 				np.Properties.ProvisioningState = arm.ProvisioningStateSucceeded
 				return np
 			}(),
-			expectErrors: []expectedError{
-				{message: "field is immutable", fieldPath: "properties.provisioningState"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "field is immutable", FieldPath: "properties.provisioningState"},
 			},
 		},
 		{
@@ -959,11 +1090,12 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 			}(),
 			oldNodePool: func() *api.HCPOpenShiftClusterNodePool {
 				np := createValidNodePool()
-				np.Properties.Platform.VMSize = "Standard_D2s_v3"
+				np.Properties.Platform.VMSize = "Standard_D8s_v3"
 				return np
 			}(),
-			expectErrors: []expectedError{
-				{message: "field is immutable", fieldPath: "properties.platform"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "field is immutable", FieldPath: "properties.platform"},
+				{Message: "field is immutable", FieldPath: "properties.platform.vmSize"},
 			},
 		},
 		{
@@ -978,8 +1110,9 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 				np.Properties.Platform.OSDisk.SizeGiB = ptr.To[int32](128)
 				return np
 			}(),
-			expectErrors: []expectedError{
-				{message: "field is immutable", fieldPath: "properties.platform"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "field is immutable", FieldPath: "properties.platform"},
+				{Message: "field is immutable", FieldPath: "properties.platform.osDisk"},
 			},
 		},
 		{
@@ -994,8 +1127,8 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 				np.Properties.AutoRepair = true
 				return np
 			}(),
-			expectErrors: []expectedError{
-				{message: "field is immutable", fieldPath: "properties.autoRepair"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "field is immutable", FieldPath: "properties.autoRepair"},
 			},
 		},
 		{
@@ -1010,8 +1143,8 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 				np.Location = "eastus"
 				return np
 			}(),
-			expectErrors: []expectedError{
-				{message: "field is immutable", fieldPath: "trackedResource.location"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "field is immutable", FieldPath: "trackedResource.location"},
 			},
 		},
 		{
@@ -1022,8 +1155,8 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 				return np
 			}(),
 			oldNodePool: createValidNodePool(),
-			expectErrors: []expectedError{
-				{message: "must be greater than or equal to 0", fieldPath: "properties.replicas"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "must be greater than or equal to 0", FieldPath: "properties.replicas"},
 			},
 		},
 		{
@@ -1037,7 +1170,7 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 				np := createValidNodePool()
 				return np
 			}(),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "replicas exceeds maximum limit - update",
@@ -1047,8 +1180,8 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 				return np
 			}(),
 			oldNodePool: createValidNodePool(),
-			expectErrors: []expectedError{
-				{message: "must be less than or equal to 200", fieldPath: "properties.replicas"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "must be less than or equal to 200", FieldPath: "properties.replicas"},
 			},
 		},
 		{
@@ -1066,7 +1199,7 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 				np := createValidNodePool()
 				return np
 			}(),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "non-zero replicas with autoscaling - update",
@@ -1080,8 +1213,8 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 				return np
 			}(),
 			oldNodePool: createValidNodePool(),
-			expectErrors: []expectedError{
-				{message: "cannot specify replicas when autoScaling is enabled", fieldPath: "properties.replicas"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "cannot specify replicas when autoScaling is enabled", FieldPath: "properties.replicas"},
 			},
 		},
 		{
@@ -1096,8 +1229,8 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 				return np
 			}(),
 			oldNodePool: createValidNodePool(),
-			expectErrors: []expectedError{
-				{message: "must be greater than or equal to 5", fieldPath: "properties.autoScaling.max"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "must be greater than or equal to 5", FieldPath: "properties.autoScaling.max"},
 			},
 		},
 		{
@@ -1112,9 +1245,9 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 				return np
 			}(),
 			oldNodePool: createValidNodePool(),
-			expectErrors: []expectedError{
-				{message: "must be less than or equal to 200", fieldPath: "properties.autoScaling.min"},
-				{message: "must be less than or equal to 200", fieldPath: "properties.autoScaling.max"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "must be less than or equal to 200", FieldPath: "properties.autoScaling.min"},
+				{Message: "must be less than or equal to 200", FieldPath: "properties.autoScaling.max"},
 			},
 		},
 		{
@@ -1127,8 +1260,8 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 				return np
 			}(),
 			oldNodePool: createValidNodePool(),
-			expectErrors: []expectedError{
-				{message: "name part must consist of alphanumeric characters", fieldPath: "properties.labels"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "name part must consist of alphanumeric characters", FieldPath: "properties.labels"},
 			},
 		},
 		{
@@ -1145,8 +1278,8 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 				return np
 			}(),
 			oldNodePool: createValidNodePool(),
-			expectErrors: []expectedError{
-				{message: "name part must consist of alphanumeric characters", fieldPath: "properties.taints[0].key"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "name part must consist of alphanumeric characters", FieldPath: "properties.taints[0].key"},
 			},
 		},
 		{
@@ -1157,8 +1290,9 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 				return np
 			}(),
 			oldNodePool: createValidNodePool(),
-			expectErrors: []expectedError{
-				{message: "No Major.Minor.Patch elements found", fieldPath: "properties.version.id"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "No Major.Minor.Patch elements found", FieldPath: "properties.version.id"},
+				{Message: "Short version cannot contain PreRelease/Build meta data", FieldPath: "properties.version.id"},
 			},
 		},
 		{
@@ -1169,8 +1303,8 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 				return np
 			}(),
 			oldNodePool: createValidNodePool(),
-			expectErrors: []expectedError{
-				{message: "must be at least 4.20.8", fieldPath: "properties.version.id"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "must be at least 4.20.8", FieldPath: "properties.version.id"},
 			},
 		},
 		{
@@ -1187,7 +1321,7 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 				np.Properties.Replicas = 3
 				return np
 			}(),
-			expectErrors: []expectedError{}, // No error because version validation is skipped
+			expectErrors: []utils.ExpectedError{}, // No error because version validation is skipped
 		},
 		// Version.id is required since 20251223preview, but legacy nodepools may not have it.
 		// On update with oldObj.ID empty: version.id is NOT required (legacy migration support).
@@ -1204,7 +1338,7 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 				np.Properties.Version.ID = ""
 				return np
 			}(),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "update: version.id cannot be cleared when old nodepool had version.id",
@@ -1214,8 +1348,8 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 				return np
 			}(),
 			oldNodePool: createValidNodePool(),
-			expectErrors: []expectedError{
-				{message: "Required value", fieldPath: "properties.version.id"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "Required value", FieldPath: "properties.version.id"},
 			},
 		},
 		{
@@ -1231,16 +1365,17 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 			oldNodePool: func() *api.HCPOpenShiftClusterNodePool {
 				np := createValidNodePool()
 				np.Properties.ProvisioningState = arm.ProvisioningStateSucceeded
-				np.Properties.Platform.VMSize = "Standard_D2s_v3"
+				np.Properties.Platform.VMSize = "Standard_D8s_v3"
 				np.Properties.AutoRepair = true
 				np.Location = "eastus"
 				return np
 			}(),
-			expectErrors: []expectedError{
-				{message: "field is immutable", fieldPath: "properties.provisioningState"},
-				{message: "field is immutable", fieldPath: "properties.platform"},
-				{message: "field is immutable", fieldPath: "properties.autoRepair"},
-				{message: "field is immutable", fieldPath: "trackedResource.location"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "field is immutable", FieldPath: "trackedResource.location"},
+				{Message: "field is immutable", FieldPath: "properties.provisioningState"},
+				{Message: "field is immutable", FieldPath: "properties.platform"},
+				{Message: "field is immutable", FieldPath: "properties.platform.vmSize"},
+				{Message: "field is immutable", FieldPath: "properties.autoRepair"},
 			},
 		},
 		{
@@ -1260,7 +1395,7 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 				np.Properties.AutoScaling = nil
 				return np
 			}(),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "disable autoscaling - update",
@@ -1279,7 +1414,7 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 				}
 				return np
 			}(),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "clear labels - update",
@@ -1296,7 +1431,7 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 				}
 				return np
 			}(),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "clear taints - update",
@@ -1316,7 +1451,7 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 				}
 				return np
 			}(),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "replicas exceeds 200 with availability zone set - valid - update",
@@ -1332,7 +1467,7 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 				np.Properties.Replicas = 3
 				return np
 			}(),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "autoscaling min exceeds 200 with availability zone set - valid - update",
@@ -1351,7 +1486,7 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 				np.Properties.Platform.AvailabilityZone = "2"
 				return np
 			}(),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "autoscaling both min and max exceed 200 with availability zone set - valid - update",
@@ -1370,7 +1505,7 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 				np.Properties.Platform.AvailabilityZone = "1"
 				return np
 			}(),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 	}
 
@@ -1379,28 +1514,7 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 			op := operation.Operation{Type: operation.Update}
 			errs := ValidateNodePool(ctx, op, tt.newNodePool, tt.oldNodePool)
 
-			if len(tt.expectErrors) == 0 {
-				if len(errs) != 0 {
-					t.Errorf("expected no errors, got %d: %v", len(errs), errs)
-				}
-				return
-			}
-
-			// Check that each expected error message and field path is found
-			for _, expectedErr := range tt.expectErrors {
-				found := false
-				for _, err := range errs {
-					messageMatch := strings.Contains(err.Detail, expectedErr.message) || strings.Contains(err.Error(), expectedErr.message)
-					fieldMatch := strings.Contains(err.Field, expectedErr.fieldPath)
-					if messageMatch && fieldMatch {
-						found = true
-						break
-					}
-				}
-				if !found {
-					t.Errorf("expected error containing message '%s' at field '%s' but not found in: %v", expectedErr.message, expectedErr.fieldPath, errs)
-				}
-			}
+			utils.VerifyErrorsMatch(t, tt.expectErrors, errs)
 		})
 	}
 }
@@ -1430,7 +1544,7 @@ func createValidNodePool() *api.HCPOpenShiftClusterNodePool {
 	nodePool.Properties.Version.ID = "4.20.8"
 	nodePool.Properties.Version.ChannelGroup = "stable"
 	nodePool.Properties.Platform.SubnetID = api.Must(azcorearm.ParseResourceID("/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks/test-vnet/subnets/test-subnet"))
-	nodePool.Properties.Platform.VMSize = "Standard_D2s_v3"
+	nodePool.Properties.Platform.VMSize = "Standard_D8s_v3"
 	nodePool.Properties.Replicas = 3
 
 	// Add required systemData fields
@@ -1448,22 +1562,17 @@ func createValidNodePool() *api.HCPOpenShiftClusterNodePool {
 func TestValidateNodePoolVersionWithFeatureFlags(t *testing.T) {
 	ctx := context.Background()
 
-	type expectedError struct {
-		message   string
-		fieldPath string
-	}
-
 	tests := []struct {
 		name         string
 		nodePool     *api.HCPOpenShiftClusterNodePool
 		opOptions    []string
-		expectErrors []expectedError
+		expectErrors []utils.ExpectedError
 	}{
 		{
 			name:         "valid node pool with X.Y.Z version - no feature flag",
 			nodePool:     createValidNodePool(),
 			opOptions:    nil,
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "X.Y format rejected for stable channel ",
@@ -1474,8 +1583,8 @@ func TestValidateNodePoolVersionWithFeatureFlags(t *testing.T) {
 				return np
 			}(),
 			opOptions: testNodePoolFeatureOptions(api.FeatureExperimentalReleaseFeatures),
-			expectErrors: []expectedError{
-				{message: "No Major.Minor.Patch elements found", fieldPath: "properties.version.id"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "No Major.Minor.Patch elements found", FieldPath: "properties.version.id"},
 			},
 		},
 		{
@@ -1487,8 +1596,8 @@ func TestValidateNodePoolVersionWithFeatureFlags(t *testing.T) {
 				return np
 			}(),
 			opOptions: testNodePoolFeatureOptions(api.FeatureExperimentalReleaseFeatures),
-			expectErrors: []expectedError{
-				{message: "Invalid character(s) found in patch number", fieldPath: "properties.version.id"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "Invalid character(s) found in patch number", FieldPath: "properties.version.id"},
 			},
 		},
 		{
@@ -1500,7 +1609,7 @@ func TestValidateNodePoolVersionWithFeatureFlags(t *testing.T) {
 				return np
 			}(),
 			opOptions:    testNodePoolFeatureOptions(api.FeatureExperimentalReleaseFeatures),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "nightly version allowed with experimental flag",
@@ -1511,7 +1620,19 @@ func TestValidateNodePoolVersionWithFeatureFlags(t *testing.T) {
 				return np
 			}(),
 			opOptions:    testNodePoolFeatureOptions(api.FeatureExperimentalReleaseFeatures),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name: "invalid channel group rejected even with experimental flag",
+			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Version.ChannelGroup = "invalid-cg"
+				return np
+			}(),
+			opOptions: testNodePoolFeatureOptions(api.FeatureExperimentalReleaseFeatures),
+			expectErrors: []utils.ExpectedError{
+				{Message: "Unsupported value", FieldPath: "properties.version.channelGroup"},
+			},
 		},
 		{
 			name: "malformed version rejected",
@@ -1521,8 +1642,9 @@ func TestValidateNodePoolVersionWithFeatureFlags(t *testing.T) {
 				return np
 			}(),
 			opOptions: nil,
-			expectErrors: []expectedError{
-				{message: "No Major.Minor.Patch elements found", fieldPath: "properties.version.id"},
+			expectErrors: []utils.ExpectedError{
+				{Message: "No Major.Minor.Patch elements found", FieldPath: "properties.version.id"},
+				{Message: "Short version cannot contain PreRelease/Build meta data", FieldPath: "properties.version.id"},
 			},
 		},
 		{
@@ -1533,7 +1655,7 @@ func TestValidateNodePoolVersionWithFeatureFlags(t *testing.T) {
 				return np
 			}(),
 			opOptions:    testNodePoolFeatureOptions(api.FeatureExperimentalReleaseFeatures),
-			expectErrors: []expectedError{},
+			expectErrors: []utils.ExpectedError{},
 		},
 	}
 
@@ -1542,27 +1664,7 @@ func TestValidateNodePoolVersionWithFeatureFlags(t *testing.T) {
 			op := operation.Operation{Type: operation.Create, Options: tt.opOptions}
 			errs := ValidateNodePool(ctx, op, tt.nodePool, nil)
 
-			if len(tt.expectErrors) == 0 {
-				if len(errs) != 0 {
-					t.Errorf("expected no errors, got %d: %v", len(errs), errs)
-				}
-				return
-			}
-
-			for _, expectedErr := range tt.expectErrors {
-				found := false
-				for _, err := range errs {
-					messageMatch := strings.Contains(err.Detail, expectedErr.message) || strings.Contains(err.Error(), expectedErr.message)
-					fieldMatch := strings.Contains(err.Field, expectedErr.fieldPath)
-					if messageMatch && fieldMatch {
-						found = true
-						break
-					}
-				}
-				if !found {
-					t.Errorf("expected error containing message '%s' at field '%s' but not found in: %v", expectedErr.message, expectedErr.fieldPath, errs)
-				}
-			}
+			utils.VerifyErrorsMatch(t, tt.expectErrors, errs)
 		})
 	}
 }

@@ -18,9 +18,9 @@ import (
 	"fmt"
 	"strings"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api/arm"
@@ -30,28 +30,29 @@ import (
 // OpenShift clusters.
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type HCPOpenShiftClusterNodePool struct {
+	// PartitionKey holds the lowercased subscriptionID.
+	CosmosMetadata `json:"cosmosMetadata"`
+
 	arm.TrackedResource
 	Properties                HCPOpenShiftClusterNodePoolProperties                `json:"properties,omitempty"`
 	ServiceProviderProperties HCPOpenShiftClusterNodePoolServiceProviderProperties `json:"serviceProviderProperties,omitempty"`
 	Identity                  *arm.ManagedServiceIdentity                          `json:"identity,omitempty"`
-	// CosmosETag is an in-memory copy of the _etag field read from the Cosmos DB document (BaseDocument) and
-	// populated on DB read via the CosmosToInternalNodePool() conversion function.
-	// We carry it across the API boundary between NodePool (the direct cosmos db type) and HCPOpenShiftClusterNodePool (this)
-	// so we can populate the CosmosETag in GetCosmosData() so that we can do conditional replaces in cosmos.
-	// This can be removed once we have inlined and serialized CosmosMetadata in
-	// HCPOpenShiftClusterNodePool.
-	CosmosETag azcore.ETag `json:"-"`
+	Status                    HCPOpenShiftClusterNodePoolStatus                    `json:"status"`
+}
+
+// HCPOpenShiftClusterNodePoolStatus contains the observed state of the node pool.
+type HCPOpenShiftClusterNodePoolStatus struct {
+	// Conditions are the top-level HCPOpenShiftClusterNodePool status conditions.
+	// Each Condition Type represents a condition and it should be unique among all conditions.
+	// +optional
+	// +patchMergeKey=type
+	// +patchStrategy=merge
+	// +listType=map
+	// +listMapKey=type
+	Conditions []metav1.Condition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type"`
 }
 
 var _ arm.CosmosPersistable = &HCPOpenShiftClusterNodePool{}
-
-func (o *HCPOpenShiftClusterNodePool) GetCosmosData() *arm.CosmosMetadata {
-	return &arm.CosmosMetadata{
-		CosmosETag:        o.CosmosETag,
-		ResourceID:        o.ID,
-		ExistingCosmosUID: o.ServiceProviderProperties.ExistingCosmosUID,
-	}
-}
 
 // HCPOpenShiftClusterNodePoolProperties represents the property bag of a
 // HCPOpenShiftClusterNodePool resource.
@@ -68,9 +69,31 @@ type HCPOpenShiftClusterNodePoolProperties struct {
 }
 
 type HCPOpenShiftClusterNodePoolServiceProviderProperties struct {
-	ExistingCosmosUID string      `json:"-"`
 	ClusterServiceID  *InternalID `json:"clusterServiceID,omitempty"`
 	ActiveOperationID string      `json:"activeOperationId,omitempty"`
+	// DeletionTimestamp is the timestamp at which the NodePool deletion was requested
+	// The timestamp is in UTC.
+	// A nil value indicates that the NodePool deletion has not been requested.
+	DeletionTimestamp *metav1.Time `json:"deletionTimestamp,omitempty"`
+	// ClusterServiceDeletionTimestamp is written when a dispatch of a Cluster
+	// Service Delete NodePool request against Cluster Service for this node
+	// pool has been handled. It is set after a successful DeleteNodePool call
+	// to Cluster Service, but also when it's determined that no delete call is
+	// needed but we consider we should behave as if the delete call was successfully
+	// issued (for example, if the parent cluster of the nodepool is already being
+	// uninstalled, because cluster-service will already take care of deleting the
+	// nodepool as part of the cluster teardown).
+	// A nil value indicates that the Cluster Service Deletion has not been requested.
+	// The timestamp is in UTC.
+	// TODO this attribute is not in use yet. Do not rely on it.
+	ClusterServiceDeletionTimestamp *metav1.Time `json:"clusterServiceDeletionTimestamp,omitempty"`
+
+	// TODO Temporary field to track whether the node pool operation is using the new deletion approach.
+	// We are migrating from the node pool cs deletion synchronous in frontend to the backend, to be fully asynchronous
+	// This boolean is true for NodePool delete operations that are created with new deletion approach.
+	// This will be removed once all nodepools whose deletion was triggered before the new approach is fully rolled out have been
+	// fully deleted in all ARO-HCP permanent environments, for all regions.
+	UsesNewNodePoolDeletionApproach bool `json:"usesNewNodePoolDeletionApproach"`
 }
 
 // NodePoolVersionProfile represents the worker node pool version.
@@ -164,23 +187,6 @@ func (np *HCPOpenShiftClusterNodePool) EnsureDefaults() {
 	}
 }
 
-func (nodePool *HCPOpenShiftClusterNodePool) validateVersion(cluster *HCPOpenShiftCluster) []arm.CloudErrorBody {
-	var errorDetails []arm.CloudErrorBody
-
-	if nodePool.Properties.Version.ChannelGroup != cluster.CustomerProperties.Version.ChannelGroup {
-		errorDetails = append(errorDetails, arm.CloudErrorBody{
-			Code: arm.CloudErrorCodeInvalidRequestContent,
-			Message: fmt.Sprintf(
-				"Node pool channel group '%s' must be the same as control plane channel group '%s'",
-				nodePool.Properties.Version.ChannelGroup,
-				cluster.CustomerProperties.Version.ChannelGroup),
-			Target: "properties.version.channelGroup",
-		})
-	}
-
-	return errorDetails
-}
-
 func (nodePool *HCPOpenShiftClusterNodePool) validateSubnetID(cluster *HCPOpenShiftCluster) []arm.CloudErrorBody {
 	var errorDetails []arm.CloudErrorBody
 
@@ -209,7 +215,6 @@ func (nodePool *HCPOpenShiftClusterNodePool) Validate(cluster *HCPOpenShiftClust
 	var errorDetails []arm.CloudErrorBody
 
 	if cluster != nil {
-		errorDetails = append(errorDetails, nodePool.validateVersion(cluster)...)
 		errorDetails = append(errorDetails, nodePool.validateSubnetID(cluster)...)
 	}
 

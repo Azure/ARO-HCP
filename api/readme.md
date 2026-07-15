@@ -51,12 +51,20 @@ go:
   remove-unreferenced-types: true
 ```
 
+### Tag v20260630preview
+
+These settings apply only when `--tag=v20260630preview` is specified on the command line.
+
+``` yaml $(tag) == 'v20260630preview'
+input-file: redhatopenshift/resource-manager/Microsoft.RedHatOpenShift/hcpopenshiftclusters/preview/2026-06-30-preview/openapi.json
+```
+
 ### Tag v20251223preview
 
 These settings apply only when `--tag=v20251223preview` is specified on the command line.
 
 ``` yaml $(tag) == 'v20251223preview'
-input-file: redhatopenshift/resource-manager/Microsoft.RedHatOpenShift/hcpclusters/preview/2025-12-23-preview/openapi.json
+input-file: redhatopenshift/resource-manager/Microsoft.RedHatOpenShift/hcpopenshiftclusters/preview/2025-12-23-preview/openapi.json
 ```
 
 ### Tag v20240610preview
@@ -64,5 +72,5 @@ input-file: redhatopenshift/resource-manager/Microsoft.RedHatOpenShift/hcpcluste
 These settings apply only when `--tag=v20240610preview` is specified on the command line.
 
 ``` yaml $(tag) == 'v20240610preview'
-input-file: redhatopenshift/resource-manager/Microsoft.RedHatOpenShift/hcpclusters/preview/2024-06-10-preview/openapi.json
+input-file: redhatopenshift/resource-manager/Microsoft.RedHatOpenShift/hcpopenshiftclusters/preview/2024-06-10-preview/openapi.json
 ```

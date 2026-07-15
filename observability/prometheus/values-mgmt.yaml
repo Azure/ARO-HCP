@@ -101,6 +101,8 @@ kube-prometheus-stack:
               namespace: [metadata, namespace]
               api_url: [spec, services, "[service=APIServer]", servicePublishingStrategy, route, hostname]
               _id: [spec, clusterID]
+              subscription_id: [spec, platform, azure, subscriptionID]
+              resource_id: [metadata, annotations, "azure.microsoft.com/hcp-cluster-azure-resource-id"]
             metrics:
             - name: "kubeapiserver_available"
               help: "KubeAPIServer availability condition"
@@ -135,6 +137,8 @@ prometheusSpec:
   version: "" # derived from the sha
   externalLabels:
     cluster: "{{ .mgmt.aks.name }}"
+    region: "{{ .region }}"
+    environment: "{{ .environmentName }}"
   remoteWriteUrl: "__dcrRemoteWriteUrl__"
   hcpRemoteWriteUrl: "__hcpDcrRemoteWriteUrl__"
   zoneCount: {{ .azureRegionAvailabilityZoneCount }}
@@ -144,12 +148,10 @@ prometheusSpec:
       cpu: {{ .mgmt.prometheus.prometheusSpec.resources.requests.cpu }}
       memory: {{ .mgmt.prometheus.prometheusSpec.resources.requests.memory }}
     limits:
-      cpu: {{ .mgmt.prometheus.prometheusSpec.resources.limits.cpu }}
       memory: {{ .mgmt.prometheus.prometheusSpec.resources.limits.memory }}
+  replicas: {{ .mgmt.prometheus.prometheusSpec.replicas }}
+  shards: {{ .mgmt.prometheus.prometheusSpec.shards }}
 prometheus:
-  prometheusSpec:
-    shards: {{ .mgmt.prometheus.prometheusSpec.shards }}
-    replicas: {{ .mgmt.prometheus.prometheusSpec.replicas }}
   serviceAccount:
     managedIdentity: "__prometheusUAMIClientId__"
 environment: "{{ .clustersService.environment }}"

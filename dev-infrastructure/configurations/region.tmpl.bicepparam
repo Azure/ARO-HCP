@@ -11,6 +11,12 @@ param maestroEventGridMaxClientSessionsPerAuthName = {{ .maestro.eventGrid.maxCl
 param maestroEventGridPrivate = {{ .maestro.eventGrid.private }}
 param maestroCertificateIssuer = '{{ .maestro.certIssuer }}'
 
+// CosmosDB
+param rpCosmosDbName = '{{ .frontend.cosmosDB.name }}'
+param rpCosmosDbPrivate = {{ .frontend.cosmosDB.private }}
+param rpCosmosZoneRedundantMode = '{{ .frontend.cosmosDB.zoneRedundantMode }}'
+param disableLocalAuth = {{ .frontend.cosmosDB.disableLocalAuth }}
+
 // MI for resource access during pipeline runs
 param globalMSIId = '__globalMSIId__'
 
@@ -18,5 +24,3 @@ param globalMSIId = '__globalMSIId__'
 param svcMonitorName = '{{ .monitoring.svcWorkspaceName }}'
 param hcpMonitorName = '{{ .monitoring.hcpWorkspaceName }}'
 param grafanaResourceId = '__grafanaResourceId__'
-param amwMaxActiveTimeSeries = {{ if eq (printf "%T" .monitoring.maxActiveTimeSeries) "float64" }}{{ printf "%.0f" .monitoring.maxActiveTimeSeries }}{{ else }}{{ .monitoring.maxActiveTimeSeries }}{{ end }}
-param amwMaxEventsPerMinute = {{ if eq (printf "%T" .monitoring.maxEventsPerMinute) "float64" }}{{ printf "%.0f" .monitoring.maxEventsPerMinute }}{{ else }}{{ .monitoring.maxEventsPerMinute }}{{ end }}

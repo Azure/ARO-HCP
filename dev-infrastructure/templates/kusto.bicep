@@ -16,11 +16,17 @@ param serviceLogsDatabase string
 @description('Name of the hosted control plane logs database.')
 param hostedControlPlaneLogsDatabase string
 
+@description('Name of the monitoring events database.')
+param monitoringEventsDatabase string
+
 @description('CSV separated list of groups to assign admin in the Kusto cluster')
 param adminGroups string
 
 @description('CSV separated list of groups to assign viewer in the Kusto cluster')
 param viewerGroups string
+
+@description('CSV separated list of identities (apps/managed identities) to assign viewer in the Kusto cluster')
+param viewerIdentities string = ''
 
 @description('Name of the Kusto cluster to create')
 param kustoName string
@@ -34,13 +40,6 @@ param autoScaleMax int
 @description('Toggle if autoscale should be enabled')
 param enableAutoScale bool
 
-@description('Optional cross-cluster ServiceLogs Kusto script content.')
-@secure()
-param crossClusterServiceLogsScript string = ''
-
-@description('Optional cross-cluster HostedControlPlaneLogs Kusto script content.')
-@secure()
-param crossClusterHostedControlPlaneLogsScript string = ''
 module kusto '../modules/logs/kusto/main.bicep' = if (manageInstance) {
   name: 'kusto-${location}'
   params: {
@@ -51,12 +50,12 @@ module kusto '../modules/logs/kusto/main.bicep' = if (manageInstance) {
     tier: tier
     serviceLogsDatabase: serviceLogsDatabase
     hostedControlPlaneLogsDatabase: hostedControlPlaneLogsDatabase
+    monitoringEventsDatabase: monitoringEventsDatabase
     adminGroups: adminGroups
     viewerGroups: viewerGroups
+    viewerIdentities: viewerIdentities
     autoScaleMin: autoScaleMin
     autoScaleMax: autoScaleMax
     enableAutoScale: enableAutoScale
-    crossClusterServiceLogsScript: crossClusterServiceLogsScript
-    crossClusterHostedControlPlaneLogsScript: crossClusterHostedControlPlaneLogsScript
   }
 }

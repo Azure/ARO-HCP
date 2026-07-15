@@ -16,6 +16,7 @@ package billingcontrollers
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -70,7 +71,8 @@ func newTestSubscription() *arm.Subscription {
 		"/subscriptions/" + testSubscriptionID))
 	return &arm.Subscription{
 		CosmosMetadata: api.CosmosMetadata{
-			ResourceID: subResourceID,
+			ResourceID:   subResourceID,
+			PartitionKey: strings.ToLower(subResourceID.SubscriptionID),
 		},
 		ResourceID: subResourceID,
 		State:      arm.SubscriptionStateRegistered,
@@ -82,10 +84,15 @@ func newTestSubscription() *arm.Subscription {
 
 func newTestCluster(t *testing.T, clusterUID string, provisioningState arm.ProvisioningState, createdAt *time.Time) *api.HCPOpenShiftCluster {
 	t.Helper()
+	clusterResourceID := newTestClusterResourceID(t)
 	return &api.HCPOpenShiftCluster{
+		CosmosMetadata: arm.CosmosMetadata{
+			ResourceID:   clusterResourceID,
+			PartitionKey: strings.ToLower(clusterResourceID.SubscriptionID),
+		},
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
-				ID:   newTestClusterResourceID(t),
+				ID:   clusterResourceID,
 				Name: testClusterName,
 				Type: "Microsoft.RedHatOpenShift/hcpOpenShiftClusters",
 				SystemData: &arm.SystemData{

@@ -115,10 +115,7 @@ func (t *cosmosDBTransaction) Execute(ctx context.Context, o *azcosmos.Transacti
 		if !response.Success {
 			for step, result := range response.OperationResults {
 				if result.StatusCode != http.StatusFailedDependency {
-					// FIXME Return an error type that allows checking the StatusCode.
-					//       I was tempted to use azcore.ResponseError but it formats
-					//       poorly in a log message without an http.Response.
-					return nil, fmt.Errorf("transaction step %d of %d failed with %d %s", step+1, len(response.OperationResults), result.StatusCode, http.StatusText(int(result.StatusCode)))
+					return nil, NewTransactionStepError(step+1, len(response.OperationResults), int(result.StatusCode))
 				}
 			}
 		}
@@ -206,11 +203,11 @@ func (r *cosmosDBTransactionResult) GetItem(cosmosUID string) (any, error) {
 
 	switch strings.ToLower(typedDoc.ResourceType) {
 	case strings.ToLower(api.ClusterResourceType.String()):
-		return getCastResult[api.HCPOpenShiftCluster, HCPCluster](r, cosmosUID)
+		return getCastResult[api.HCPOpenShiftCluster, GenericDocument[api.HCPOpenShiftCluster]](r, cosmosUID)
 	case strings.ToLower(api.NodePoolResourceType.String()):
-		return getCastResult[api.HCPOpenShiftClusterNodePool, NodePool](r, cosmosUID)
+		return getCastResult[api.HCPOpenShiftClusterNodePool, GenericDocument[api.HCPOpenShiftClusterNodePool]](r, cosmosUID)
 	case strings.ToLower(api.ExternalAuthResourceType.String()):
-		return getCastResult[api.HCPOpenShiftClusterExternalAuth, ExternalAuth](r, cosmosUID)
+		return getCastResult[api.HCPOpenShiftClusterExternalAuth, GenericDocument[api.HCPOpenShiftClusterExternalAuth]](r, cosmosUID)
 	default:
 		return nil, fmt.Errorf("unknown resource type '%s'", typedDoc.ResourceType)
 	}

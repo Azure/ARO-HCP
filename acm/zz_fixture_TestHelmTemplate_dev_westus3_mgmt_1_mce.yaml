@@ -3497,8 +3497,6 @@ spec:
           value: 'arohcpsvcdev.azurecr.io/acm-d-cache/azure-service-operator-rhel9@sha256:1234567890'
         - name: OPERAND_IMAGE_BACKPLANE_MUST_GATHER
           value: 'arohcpsvcdev.azurecr.io/acm-d-cache/must-gather-rhel9@sha256:1234567890'
-        - name: OPERAND_IMAGE_BACKPLANE_OPERATOR
-          value: 'arohcpsvcdev.azurecr.io/acm-d-cache/backplane-rhel9-operator@sha256:1234567890'
         - name: OPERAND_IMAGE_CLUSTER_API_PROVIDER_AGENT
           value: 'arohcpsvcdev.azurecr.io/acm-d-cache/cluster-api-provider-agent-rhel9@sha256:1234567890'
         - name: OPERAND_IMAGE_CLUSTER_API_PROVIDER_AWS_RHEL9
@@ -3571,8 +3569,10 @@ spec:
           value: 'arohcpsvcdev.azurecr.io/acm-d-cache/ose-baremetal-cluster-api-controllers-rhel9@sha256:1234567890'
         - name: OPERAND_IMAGE_POSTGRESQL_13
           value: 'arohcpsvcdev.azurecr.io/acm-d-cache/postgresql-13@sha256:1234567890'
+        - name: OPERAND_IMAGE_BACKPLANE_OPERATOR
+          value: 'arohcpsvcdev.azurecr.io/acm-d-cache/backplane-rhel9-operator@sha256:1234567890'
         - name: OPERATOR_VERSION
-          value: 2.11.2
+          value: 2.11.4-552
         - name: OPERATOR_PACKAGE
           value: multicluster-engine
         image: 'arohcpsvcdev.azurecr.io/acm-d-cache/backplane-rhel9-operator@sha256:1234567890'

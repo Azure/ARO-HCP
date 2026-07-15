@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"sort"
 	"strings"
-	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -43,22 +42,19 @@ import (
 var TestArtifactsFS embed.FS
 
 var _ = Describe("ARO-HCP", func() {
-	// Use channel group from environment variable, or default to stable
-	var channelGroup = framework.DefaultOpenshiftChannelGroup()
-	var nodePoolChannelGroup = framework.DefaultOpenshiftNodePoolChannelGroup()
 
 	DescribeTable("should be able to perform a control plane and node pool install with OCP "+framework.DefaultOpenshiftChannelGroup()+" channel",
 		func(ctx context.Context, version string) {
+			clusterParams := framework.NewDefaultClusterParams20251223()
 
-			customerNetworkSecurityGroupName := "customer-nsg-" + channelGroup + "-"
-			customerVnetName := "customer-vnet-" + channelGroup + "-"
-			customerVnetSubnetName := "customer-vnet-subnet-" + channelGroup + "-"
-			customerClusterNamePrefix := "cluster-" + channelGroup + "-"
+			customerNetworkSecurityGroupName := "customer-nsg-" + clusterParams.ChannelGroup + "-"
+			customerVnetName := "customer-vnet-" + clusterParams.ChannelGroup + "-"
+			customerVnetSubnetName := "customer-vnet-subnet-" + clusterParams.ChannelGroup + "-"
+			customerClusterNamePrefix := "cluster-" + clusterParams.ChannelGroup + "-"
 
 			versionLabel := strings.ReplaceAll(version, ".", "-") // e.g. "4.20" -> "4-20"
 			suffix := rand.String(6)
 			clusterName := customerClusterNamePrefix + versionLabel + "-" + suffix
-			clusterParams := framework.NewDefaultClusterParams()
 			clusterParams.ClusterName = clusterName
 			clusterParams.OpenshiftVersionId = version
 			openShiftControlPlaneVersion, err := framework.GetLatestInstallVersion(ctx, clusterParams.ChannelGroup, version)
@@ -73,19 +69,19 @@ var _ = Describe("ARO-HCP", func() {
 
 			tc := framework.NewTestContext()
 			if tc.UsePooledIdentities() {
-				err := tc.AssignIdentityContainers(ctx, 1, 60*time.Second)
-				Expect(err).NotTo(HaveOccurred())
+				err := tc.AssignIdentityContainers(ctx, 1, framework.IdentityContainerAssignmentRetryInterval)
+				Expect(err).NotTo(HaveOccurred(), "failed to assign pooled identity containers")
 			}
 
 			By("creating resource group")
-			resourceGroup, err := tc.NewResourceGroup(ctx, "rg-"+channelGroup+"-"+versionLabel, tc.Location())
-			Expect(err).NotTo(HaveOccurred())
+			resourceGroup, err := tc.NewResourceGroup(ctx, "rg-"+clusterParams.ChannelGroup+"-"+versionLabel, tc.Location())
+			Expect(err).NotTo(HaveOccurred(), "failed to create resource group for version %s", version)
 
-			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name+"-"+channelGroup+"-"+suffix, "-managed", 64)
+			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name+"-"+clusterParams.ChannelGroup+"-"+suffix, "-managed", 64)
 			clusterParams.ManagedResourceGroupName = managedResourceGroupName
 
 			By("creating customer resources")
-			clusterParams, err = tc.CreateClusterCustomerResources(ctx,
+			clusterParams, err = tc.CreateClusterCustomerResources20251223(ctx,
 				resourceGroup,
 				clusterParams,
 				map[string]interface{}{
@@ -96,39 +92,40 @@ var _ = Describe("ARO-HCP", func() {
 				TestArtifactsFS,
 				framework.RBACScopeResourceGroup,
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create customer resources for cluster %q", clusterName)
 
-			By(fmt.Sprintf("creating the HCP cluster with version '%s' on %s channel", clusterParams.OpenshiftVersionId, channelGroup))
-			err = tc.CreateHCPClusterFromParam(
+			By(fmt.Sprintf("creating the HCP cluster with version '%s' on %s channel", clusterParams.OpenshiftVersionId, clusterParams.ChannelGroup))
+			err = tc.CreateHCPClusterFromParam20251223(
 				ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
 				clusterParams,
-				45*time.Minute,
+				nil,
+				framework.ClusterCreationTimeout,
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "HCP cluster %s/%s should provision", *resourceGroup.Name, clusterName)
 
 			By("verifying the cluster is viable")
-			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster(
+			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20240610(
 				ctx,
 				tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 				*resourceGroup.Name,
 				clusterName,
-				10*time.Minute,
+				framework.GetAdminRESTConfigTimeout,
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to get admin REST config for cluster %q", clusterName)
 			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to verify HCP cluster %q is viable", clusterName)
 
 			nodePoolName := "np-" + suffix
-			nodePoolParams := framework.NewDefaultNodePoolParams()
+			nodePoolParams := framework.NewDefaultNodePoolParams20240610()
 			nodePoolParams.ClusterName = clusterName
 			nodePoolParams.NodePoolName = nodePoolName
 			// Calculate the node pool version
 			configClient, err := configv1client.NewForConfig(adminRESTConfig)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create OpenShift config client for cluster %q", clusterName)
 			clusterVersion, err := configClient.ClusterVersions().Get(ctx, "version", metav1.GetOptions{})
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to get ClusterVersion for cluster %q", clusterName)
 			var parseableVersions []string
 			for _, h := range clusterVersion.Status.History {
 				if _, err := semver.ParseTolerant(h.Version); err != nil {
@@ -145,32 +142,34 @@ var _ = Describe("ARO-HCP", func() {
 				return vi.LT(vj)
 			})
 			if len(parseableVersions) == 0 {
-				Skip(fmt.Sprintf("No node pool install version found for %s in %s channel", version, nodePoolChannelGroup))
+				Skip(fmt.Sprintf("No node pool install version found for %s in %s channel", version, nodePoolParams.ChannelGroup))
 			}
 			nodePoolParams.OpenshiftVersionId = parseableVersions[0]
 
-			By(fmt.Sprintf("creating node pool %q with version '%s' on %s channel", nodePoolName, nodePoolParams.OpenshiftVersionId, nodePoolChannelGroup))
-			err = tc.CreateNodePoolFromParam(
+			By(fmt.Sprintf("creating node pool %q with version '%s' on %s channel", nodePoolName, nodePoolParams.OpenshiftVersionId, nodePoolParams.ChannelGroup))
+			err = tc.CreateNodePoolFromParam20240610(
 				ctx,
+				GinkgoLogr,
 				*resourceGroup.Name,
+				managedResourceGroupName,
 				clusterName,
 				nodePoolParams,
-				45*time.Minute,
+				framework.NodePoolCreationTimeout,
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create node pool %q for cluster %q", nodePoolName, clusterName)
 
 			By("verifying nodepool DiskStorageAccountType matches framework default")
-			err = framework.ValidateNodePoolDiskStorageAccountType(ctx,
+			err = framework.ValidateNodePoolDiskStorageAccountType20240610(ctx,
 				tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient(),
 				*resourceGroup.Name,
 				clusterName,
 				nodePoolName,
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to validate DiskStorageAccountType for node pool %q in cluster %q", nodePoolName, clusterName)
 
 			By("verifying a simple web app can run")
 			err = verifiers.VerifySimpleWebApp().Verify(ctx, adminRESTConfig)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to verify simple web app runs on cluster %q", clusterName)
 		},
 		Entry("for 4.20", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, "4.20"),
 		Entry("for 4.21", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, "4.21"),

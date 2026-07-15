@@ -108,6 +108,9 @@ var (
 	toManagementClusterStatusMaestroGRPCTarget = func(oldObj *fleet.ManagementClusterStatus) *string {
 		return &oldObj.MaestroGRPCTarget
 	}
+	toManagementClusterStatusKubeApplierCosmosContainerName = func(oldObj *fleet.ManagementClusterStatus) *string {
+		return &oldObj.KubeApplierCosmosContainerName
+	}
 )
 
 func validateManagementClusterStatus(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *fleet.ManagementClusterStatus) field.ErrorList {
@@ -138,12 +141,12 @@ func validateManagementClusterStatus(ctx context.Context, op operation.Operation
 	errs = append(errs, ValidateUUID(ctx, op, fldPath.Child("hostedClustersSecretsKeyVaultManagedIdentityClientID"), &newObj.HostedClustersSecretsKeyVaultManagedIdentityClientID, safe.Field(oldObj, toManagementClusterStatusHostedClustersSecretsKeyVaultManagedIdentityClientID))...)
 	errs = append(errs, immutableByCompare(ctx, op, fldPath.Child("hostedClustersSecretsKeyVaultManagedIdentityClientID"), &newObj.HostedClustersSecretsKeyVaultManagedIdentityClientID, safe.Field(oldObj, toManagementClusterStatusHostedClustersSecretsKeyVaultManagedIdentityClientID))...)
 
-	// ClusterServiceProvisionShardID — required, immutable
-	errs = append(errs, validate.RequiredPointer(ctx, op, fldPath.Child("clusterServiceProvisionShardID"), newObj.ClusterServiceProvisionShardID, safe.Field(oldObj, toManagementClusterStatusClusterServiceProvisionShardID))...)
-	errs = append(errs, immutableByReflect(ctx, op, fldPath.Child("clusterServiceProvisionShardID"), newObj.ClusterServiceProvisionShardID, safe.Field(oldObj, toManagementClusterStatusClusterServiceProvisionShardID))...)
+	// ClusterServiceProvisionShardID — optional on create, immutable once set (owned by ClustersServiceRegistrationController)
+	errs = append(errs, immutableByReflectOnceSet(ctx, op, fldPath.Child("clusterServiceProvisionShardID"), newObj.ClusterServiceProvisionShardID, safe.Field(oldObj, toManagementClusterStatusClusterServiceProvisionShardID))...)
 
-	// MaestroConsumerName — required, immutable
+	// MaestroConsumerName — required, DNS-1123 label, immutable
 	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("maestroConsumerName"), &newObj.MaestroConsumerName, safe.Field(oldObj, toManagementClusterStatusMaestroConsumerName))...)
+	errs = append(errs, DNS1123Label(ctx, op, fldPath.Child("maestroConsumerName"), &newObj.MaestroConsumerName, safe.Field(oldObj, toManagementClusterStatusMaestroConsumerName))...)
 	errs = append(errs, immutableByCompare(ctx, op, fldPath.Child("maestroConsumerName"), &newObj.MaestroConsumerName, safe.Field(oldObj, toManagementClusterStatusMaestroConsumerName))...)
 
 	// MaestroRESTAPIURL — required, validated as URL, immutable
@@ -155,6 +158,16 @@ func validateManagementClusterStatus(ctx context.Context, op operation.Operation
 	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("maestroGRPCTarget"), &newObj.MaestroGRPCTarget, safe.Field(oldObj, toManagementClusterStatusMaestroGRPCTarget))...)
 	errs = append(errs, HostPort(ctx, op, fldPath.Child("maestroGRPCTarget"), &newObj.MaestroGRPCTarget, safe.Field(oldObj, toManagementClusterStatusMaestroGRPCTarget))...)
 	errs = append(errs, immutableByCompare(ctx, op, fldPath.Child("maestroGRPCTarget"), &newObj.MaestroGRPCTarget, safe.Field(oldObj, toManagementClusterStatusMaestroGRPCTarget))...)
+
+	// KubeApplierCosmosContainerName — required, immutable
+	// for new records, require this. Old records won't have it.
+	if op.Type == operation.Create {
+		errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("kubeApplierCosmosContainerName"), &newObj.KubeApplierCosmosContainerName, safe.Field(oldObj, toManagementClusterStatusKubeApplierCosmosContainerName))...)
+	}
+	// allow the value to go from empty to set, but never change once set.
+	if op.Type == operation.Update && len(oldObj.KubeApplierCosmosContainerName) != 0 {
+		errs = append(errs, immutableByCompare(ctx, op, fldPath.Child("kubeApplierCosmosContainerName"), &newObj.KubeApplierCosmosContainerName, safe.Field(oldObj, toManagementClusterStatusKubeApplierCosmosContainerName))...)
+	}
 
 	return errs
 }

@@ -118,7 +118,7 @@ To prevent repetitive declarations of such values, templating can be used within
   - The ARO-Tools repository provides a subset of the real EV2 central configuration as an [additional region agnostic configuration layer](https://github.com/Azure/ARO-Tools/blob/main/config/ev2config/config.yaml) which works also in RH DEV environment deployments.
   - Variable paths are prefixed with `ev2.` to avoid conflicts with other configuration variables, e.g. `ev2.availabilityZoneCount`
   - Refer to the ARO-Tools [configuration README](https://github.com/Azure/ARO-Tools/blob/main/pkg/config/ev2config/README.md) to learn more about supported EV2 variables and how to add additional ones.
-  - EV2 variables can be used for tooling scripts by looking them up with `tooling/templatize/templatize ev2lookup`.
+  - EV2 variables can be used for tooling scripts by looking them up with `tooling/templatize/templatize-$(uname -m) ev2lookup`.
 
 Using these variables, configuration files can remain mostly **region-agnostic**, avoiding almost all regional overrides.
 
@@ -158,7 +158,7 @@ steps:
       configRef: frontend.cosmosDB.name
 ```
 
-For more details on shell steps, refer to the **Shell Step Documentation**.
+For more details on shell steps, refer to the [Shell Step Documentation](pipeline-concept.md#shell-step).
 
 ### Bicep Templates
 
@@ -208,7 +208,7 @@ Check [Propagate Configuration Changes](#propagate-configuration-changes) for mo
 Propagation of configuration changes varies depending on the environment:
 
 - **[config.yaml](../config/config.yaml)**:
-  - Only the **cspr** environment is automatically reconciled with new changes for configuration, infrastructure, and service deployments via [Prow](prow.md).
+  - Only the **cspr** environment is automatically reconciled with new changes for configuration, infrastructure, and service deployments via [CI execution](ci/execution.md).
   - personal development environments (**pers**) are fully controlled by developers. If there are relevant changes, notify developers so they can apply updates manually.
 
 - **[ADO sdp-pipelines/hcp/config.msft.sensitive.clouds-overlay.yaml](https://dev.azure.com/msazure/AzureRedHatOpenShift/_git/sdp-pipelines?path=/hcp/config.msft.sensitive.clouds-overlay.yaml)**:

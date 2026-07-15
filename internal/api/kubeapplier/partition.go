@@ -14,13 +14,16 @@
 
 package kubeapplier
 
+import (
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+)
+
 // ManagementClusterAccessor is implemented by every *Desire so that the database
-// layer can read the partition-key value (the management cluster name) without
-// importing this package's concrete types.
+// layer can read the partition-key value (the management cluster resourceID)
+// without importing this package's concrete types.
 type ManagementClusterAccessor interface {
-	GetManagementCluster() string
+	GetManagementCluster() *azcorearm.ResourceID
 }
 
-func (d *ApplyDesire) GetManagementCluster() string  { return d.Spec.ManagementCluster }
-func (d *DeleteDesire) GetManagementCluster() string { return d.Spec.ManagementCluster }
-func (d *ReadDesire) GetManagementCluster() string   { return d.Spec.ManagementCluster }
+func (d *ApplyDesire) GetManagementCluster() *azcorearm.ResourceID { return d.Spec.ManagementCluster }
+func (d *ReadDesire) GetManagementCluster() *azcorearm.ResourceID  { return d.Spec.ManagementCluster }

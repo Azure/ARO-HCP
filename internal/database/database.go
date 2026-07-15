@@ -46,7 +46,11 @@ func isResponseError(err error, statusCode int) bool {
 		return false
 	}
 	var responseError *azcore.ResponseError
-	return errors.As(err, &responseError) && responseError.StatusCode == statusCode
+	if errors.As(err, &responseError) && responseError.StatusCode == statusCode {
+		return true
+	}
+	var stepError *transactionStepError
+	return errors.As(err, &stepError) && stepError.httpStatusCode == statusCode
 }
 
 // IsNotFoundError returns true if err represents an HTTP 404 Not Found response.
@@ -124,15 +128,25 @@ type ResourcesDBClient interface {
 	// to end users via ARM.  They must also survive the thing they are deleting, so they live under a subscription directly.
 	Operations(subscriptionID string) OperationCRUD
 
-	Subscriptions() SubscriptionCRUD
+	Subscriptions() ResourceCRUD[arm.Subscription, *arm.Subscription]
 
-	ServiceProviderClusters(subscriptionID, resourceGroupName, clusterName string) ServiceProviderClusterCRUD
+	ServiceProviderClusters(subscriptionID, resourceGroupName, clusterName string) ResourceCRUD[api.ServiceProviderCluster, *api.ServiceProviderCluster]
 
 	// ResourcesGlobalListers returns interfaces for listing ARM resource documents across all partitions
 	// (Resources container only), intended for feeding SharedInformers.
 	ResourcesGlobalListers() ResourcesGlobalListers
 
-	ServiceProviderNodePools(subscriptionID, resourceGroupName, clusterName, nodePoolName string) ServiceProviderNodePoolCRUD
+	ServiceProviderNodePools(subscriptionID, resourceGroupName, clusterName, nodePoolName string) ResourceCRUD[api.ServiceProviderNodePool, *api.ServiceProviderNodePool]
+
+	ChangeFeedClient
+}
+
+// ChangeFeedClient is the narrow interface consumed by ChangeFeedListWatcher.
+// Any Cosmos container that exposes its change feed satisfies it — both the
+// shared "Resources" container and per-management-cluster kube-applier containers.
+type ChangeFeedClient interface {
+	GetChangeFeed(ctx context.Context, options *azcosmos.ChangeFeedOptions) (azcosmos.ChangeFeedResponse, error)
+	GetFeedRanges(ctx context.Context) ([]azcosmos.FeedRange, error)
 }
 
 var _ ResourcesDBClient = &resourcesCosmosDBClient{}
@@ -169,20 +183,20 @@ func (d *resourcesCosmosDBClient) Operations(subscriptionID string) OperationCRU
 	return NewOperationCRUD(d.resources, subscriptionID)
 }
 
-func (d *resourcesCosmosDBClient) Subscriptions() SubscriptionCRUD {
-	return NewCosmosResourceCRUD[arm.Subscription, GenericDocument[arm.Subscription]](
+func (d *resourcesCosmosDBClient) Subscriptions() ResourceCRUD[arm.Subscription, *arm.Subscription] {
+	return NewCosmosResourceCRUD[arm.Subscription, *arm.Subscription, GenericDocument[arm.Subscription]](
 		d.resources, nil, azcorearm.SubscriptionResourceType)
 }
 
-func (d *resourcesCosmosDBClient) ServiceProviderClusters(subscriptionID, resourceGroupName, clusterName string) ServiceProviderClusterCRUD {
-	clusterResourceID := NewClusterResourceID(subscriptionID, resourceGroupName, clusterName)
-	return NewCosmosResourceCRUD[api.ServiceProviderCluster, GenericDocument[api.ServiceProviderCluster]](
+func (d *resourcesCosmosDBClient) ServiceProviderClusters(subscriptionID, resourceGroupName, clusterName string) ResourceCRUD[api.ServiceProviderCluster, *api.ServiceProviderCluster] {
+	clusterResourceID := api.Must(api.ToClusterResourceID(subscriptionID, resourceGroupName, clusterName))
+	return NewCosmosResourceCRUD[api.ServiceProviderCluster, *api.ServiceProviderCluster, GenericDocument[api.ServiceProviderCluster]](
 		d.resources, clusterResourceID, api.ServiceProviderClusterResourceType)
 }
 
-func (d *resourcesCosmosDBClient) ServiceProviderNodePools(subscriptionID, resourceGroupName, clusterName, nodePoolName string) ServiceProviderNodePoolCRUD {
-	nodePoolResourceID := NewNodePoolResourceID(subscriptionID, resourceGroupName, clusterName, nodePoolName)
-	return NewCosmosResourceCRUD[api.ServiceProviderNodePool, GenericDocument[api.ServiceProviderNodePool]](
+func (d *resourcesCosmosDBClient) ServiceProviderNodePools(subscriptionID, resourceGroupName, clusterName, nodePoolName string) ResourceCRUD[api.ServiceProviderNodePool, *api.ServiceProviderNodePool] {
+	nodePoolResourceID := api.Must(api.ToNodePoolResourceID(subscriptionID, resourceGroupName, clusterName, nodePoolName))
+	return NewCosmosResourceCRUD[api.ServiceProviderNodePool, *api.ServiceProviderNodePool, GenericDocument[api.ServiceProviderNodePool]](
 		d.resources, nodePoolResourceID, api.ServiceProviderNodePoolResourceType)
 }
 
@@ -192,6 +206,19 @@ func (d *resourcesCosmosDBClient) UntypedCRUD(parentResourceID azcorearm.Resourc
 
 func (d *resourcesCosmosDBClient) ResourcesGlobalListers() ResourcesGlobalListers {
 	return NewCosmosResourcesGlobalListers(d.resources)
+}
+
+func (d *resourcesCosmosDBClient) GetChangeFeed(ctx context.Context, options *azcosmos.ChangeFeedOptions) (azcosmos.ChangeFeedResponse, error) {
+	return d.resources.GetChangeFeed(ctx, options)
+}
+
+func (d *resourcesCosmosDBClient) GetFeedRanges(ctx context.Context) ([]azcosmos.FeedRange, error) {
+	resourcesFeedRanges, err := d.resources.GetFeedRanges(ctx)
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+
+	return resourcesFeedRanges, nil
 }
 
 // NewCosmosDatabaseClient instantiates a generic Cosmos database client.

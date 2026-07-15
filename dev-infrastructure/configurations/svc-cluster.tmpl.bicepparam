@@ -42,12 +42,12 @@ param userOsDiskSizeGB = {{ .svc.aks.userAgentPool.osDiskSizeGB }}
 param aksClusterOutboundIPAddressIPTags = '{{ .svc.aks.clusterOutboundIPAddressIPTags }}'
 param aksNetworkDataplane = '{{ .svc.aks.networkDataplane }}'
 param aksNetworkPolicy = '{{ .svc.aks.networkDataplane }}'
+param aksUpgradeSettingsMaxSurge = '{{ .svc.aks.upgradeSettings.maxSurge }}'
+param aksUpgradeSettingsMaxUnavailable = '{{ .svc.aks.upgradeSettings.maxUnavailable }}'
 
-param disableLocalAuth = {{ .frontend.cosmosDB.disableLocalAuth }}
-param deployFrontendCosmos = {{ .frontend.cosmosDB.deploy }}
 param rpCosmosDbName = '{{ .frontend.cosmosDB.name }}'
 param rpCosmosDbPrivate = {{ .frontend.cosmosDB.private }}
-param rpCosmosZoneRedundantMode = '{{ .frontend.cosmosDB.zoneRedundantMode }}'
+param rpCosmosDbAccountId = '__rpCosmosDbAccountId__'
 param frontendMIName = '{{ .frontend.managedIdentityName }}'
 param frontendNamespace = '{{ .frontend.k8s.namespace }}'
 param frontendServiceAccountName = '{{ .frontend.k8s.serviceAccountName }}'
@@ -59,14 +59,14 @@ param sessiongateMIName = '{{ .sessiongate.managedIdentityName }}'
 param sessiongateNamespace = '{{ .sessiongate.k8s.namespace }}'
 param sessiongateServiceAccountName = '{{ .sessiongate.k8s.serviceAccountName }}'
 param sessiongateIngressCertName = '{{ .sessiongate.cert.name }}'
-param sessiongateIngressCertIssuer = '{{ .sessiongate.cert.issuer }}'
+param sessiongateIngressCertSAN = '{{ .sessiongate.cert.san }}'
 
 param maestroMIName = '{{ .maestro.server.managedIdentityName }}'
 param maestroNamespace = '{{ .maestro.server.k8s.namespace }}'
 param maestroServiceAccountName = '{{ .maestro.server.k8s.serviceAccountName }}'
 param maestroEventGridNamespacesName = '{{ .maestro.eventGrid.name }}'
 param maestroServerMqttClientName = '{{ .maestro.server.mqttClientName }}'
-param maestroCertDomain = '{{ .maestro.certDomain }}'
+param maestroServerCertSAN = '{{ .maestro.server.certSAN }}'
 param maestroCertIssuer = '{{ .maestro.certIssuer }}'
 param maestroPostgresServerName = '{{ .maestro.postgres.name }}'
 param maestroPostgresServerMinTLSVersion = '{{ .maestro.postgres.minTLSVersion }}'
@@ -109,7 +109,11 @@ param adminApiMIName = '{{ .adminApi.managedIdentityName }}'
 param adminApiNamespace = '{{ .adminApi.k8s.namespace }}'
 param adminApiServiceAccountName = '{{ .adminApi.k8s.serviceAccountName }}'
 param adminApiIngressCertName = '{{ .adminApi.cert.name }}'
-param adminApiIngressCertIssuer = '{{ .adminApi.cert.issuer }}'
+param adminApiIngressCertSAN = '{{ .adminApi.cert.san }}'
+
+param fleetMIName = '{{ .fleet.managedIdentityName }}'
+param fleetNamespace = '{{ .fleet.k8s.namespace }}'
+param fleetServiceAccountName = '{{ .fleet.k8s.serviceAccountName }}'
 
 // ACR Resource IDs
 param ocpAcrResourceId = '__ocpAcrResourceId__'
@@ -138,13 +142,9 @@ param regionalSvcDNSZoneName = '{{ .dns.regionalSubdomain }}.{{ .dns.svcParentZo
 param regionalResourceGroup = '{{ .regionRG }}'
 
 param frontendIngressCertName = '{{ .frontend.cert.name }}'
-param frontendIngressCertIssuer = '{{ .frontend.cert.issuer }}'
+param frontendIngressCertSAN = '{{ .frontend.cert.san }}'
 param genevaActionsServiceTag = '{{ .geneva.actions.serviceTag }}'
 param sreServiceTag = '{{ .administration.sreServiceTag }}'
-
-param fpaCertificateName = '{{ .firstPartyAppCertificate.name }}'
-param fpaCertificateIssuer = '{{ .firstPartyAppCertificate.issuer }}'
-param manageFpaCertificate = {{ .firstPartyAppCertificate.manage }}
 
 // Azure Monitor Workspace
 param azureMonitoringWorkspaceId = '__azureMonitoringWorkspaceId__'
@@ -159,10 +159,7 @@ param svcNSPAccessMode = '{{ .svc.nsp.accessMode }}'
 param serviceKeyVaultAsignNSP = {{ .serviceKeyVault.assignNSP }}
 
 // Geneva logging settings
-param genevaCertificateDomain = '{{ .geneva.logs.certificateDomain }}'
-param genevaCertificateIssuer = '{{ .geneva.logs.certificateIssuer }}'
 param genevaRpLogsName = '{{ .geneva.logs.rp.secretName }}'
-param genevaManageCertificates = {{ .geneva.logs.manageCertificates }}
 
 // Alert rules tag value
 param owningTeamTagValue = '{{ .monitoring.alertRuleOwningTeamTag }}'

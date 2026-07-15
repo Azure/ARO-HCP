@@ -37,6 +37,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v5"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armsubscriptions"
 
 	"github.com/Azure/ARO-HCP/internal/azsdk"
@@ -63,6 +64,11 @@ type perBinaryInvocationTestContext struct {
 	azureCredentials  azcore.TokenCredential
 	identityPoolState *leasedIdentityPoolState
 	defaultTransport  *http.Transport
+	// virtualMachineResourceSKUsByLocation memoizes the slow Resource SKUs API
+	// for the duration of the whole e2e suite run. All specs in one invocation
+	// target the same location, so a suite-wide cache avoids repeatedly burning
+	// per-test timeout budget on the same ARM call.
+	virtualMachineResourceSKUsByLocation map[string][]*armcompute.ResourceSKU
 }
 
 type CleanupFunc func(ctx context.Context) error
@@ -93,21 +99,22 @@ var azureRetryOptions = policy.RetryOptions{
 func invocationContext() *perBinaryInvocationTestContext {
 	initializeOnce.Do(func() {
 		invocationContextInstance = &perBinaryInvocationTestContext{
-			artifactDir:              artifactDir(),
-			sharedDir:                SharedDir(),
-			subscriptionName:         subscriptionName(),
-			tenantID:                 tenantID(),
-			testUserClientID:         testUserClientID(),
-			location:                 location(),
-			pullSecretPath:           pullSecretPath(),
-			frontendAddress:          frontendAddress(),
-			adminAPIAddress:          adminAPIAddress(),
-			skipCertVerification:     skipCertVerification(),
-			isDevelopmentEnvironment: IsDevelopmentEnvironment(),
-			skipCleanup:              skipCleanup(),
-			pooledIdentities:         pooledIdentities(),
-			compressTimingMetadata:   compressTimingMetadata(),
-			defaultTransport:         defaultHTTPTransport(),
+			artifactDir:                          artifactDir(),
+			sharedDir:                            SharedDir(),
+			subscriptionName:                     subscriptionName(),
+			tenantID:                             tenantID(),
+			testUserClientID:                     testUserClientID(),
+			location:                             location(),
+			pullSecretPath:                       pullSecretPath(),
+			frontendAddress:                      frontendAddress(),
+			adminAPIAddress:                      adminAPIAddress(),
+			skipCertVerification:                 skipCertVerification(),
+			isDevelopmentEnvironment:             IsDevelopmentEnvironment(),
+			skipCleanup:                          skipCleanup(),
+			pooledIdentities:                     pooledIdentities(),
+			compressTimingMetadata:               compressTimingMetadata(),
+			defaultTransport:                     defaultHTTPTransport(),
+			virtualMachineResourceSKUsByLocation: make(map[string][]*armcompute.ResourceSKU),
 		}
 	})
 	return invocationContextInstance
@@ -129,6 +136,23 @@ func (tc *perBinaryInvocationTestContext) getAzureCredentials() (azcore.TokenCre
 	}
 
 	if tc.isDevelopmentEnvironment {
+		// The development environment flag controls endpoint routing and relaxed security
+		// (talking directly to the RP frontend rather than ARM); it is intentionally decoupled
+		// from credential acquisition. When service principal env vars are present (as they are
+		// in CI), prefer a pure-Go ClientSecretCredential. AzureCLICredential.GetToken() spawns
+		// an `az` subprocess on every Azure API call, which does not scale under high test
+		// parallelism (dozens of concurrent Python processes) and leads to OOM kills. The CLI
+		// credential is only needed for genuine local `az login`-only developer runs.
+		if clientID, clientSecret, tenantID := os.Getenv("AZURE_CLIENT_ID"), os.Getenv("AZURE_CLIENT_SECRET"), os.Getenv("AZURE_TENANT_ID"); clientID != "" && clientSecret != "" && tenantID != "" {
+			azureCredentials, err := azidentity.NewClientSecretCredential(tenantID, clientID, clientSecret, nil)
+			if err != nil {
+				return nil, fmt.Errorf("failed building development environment client secret credential: %w", err)
+			}
+			tc.azureCredentials = azureCredentials
+
+			return tc.azureCredentials, nil
+		}
+
 		azureCredentials, err := azidentity.NewAzureCLICredential(nil)
 		if err != nil {
 			return nil, fmt.Errorf("failed building development environment CLI credential: %w", err)
@@ -161,7 +185,7 @@ func (tc *perBinaryInvocationTestContext) getClientFactoryOptions() *azcorearm.C
 		clientOpts.Transport = &proxiedConnectionTransporter{
 			delegate: tc.defaultTransport,
 		}
-		clientOpts.PerCallPolicies = append([]policy.Policy{&correlationRequestIDPolicy{}}, clientOpts.PerCallPolicies...)
+		clientOpts.PerCallPolicies = append([]policy.Policy{&requestIDPolicy{}}, clientOpts.PerCallPolicies...)
 	}
 	return &azcorearm.ClientOptions{
 		ClientOptions: clientOpts,
@@ -190,9 +214,10 @@ func (tc *perBinaryInvocationTestContext) getHCPClientFactoryOptions() *azcorear
 		}
 		clientOpts.InsecureAllowCredentialWithHTTP = true
 		clientOpts.PerCallPolicies = []policy.Policy{
-			&correlationRequestIDPolicy{},
+			&requestIDPolicy{},
 			&armSystemDataPolicy{},
-			&armResourceGroupValidationPolicy{cred: tc.azureCredentials},
+			&armResourceGroupValidationPolicy{rgClient: &defaultResourceGroupClient{cred: tc.azureCredentials}},
+			NewRetryVersionNotFoundPolicy(),
 			&sanitizeAuthHeaderPolicy{},
 		}
 		return &azcorearm.ClientOptions{
@@ -202,6 +227,7 @@ func (tc *perBinaryInvocationTestContext) getHCPClientFactoryOptions() *azcorear
 	clientOpts := azsdk.NewClientOptions(azsdk.ComponentE2E)
 	clientOpts.Retry = azureRetryOptions
 	clientOpts.PerCallPolicies = []policy.Policy{
+		NewRetryVersionNotFoundPolicy(),
 		&sanitizeAuthHeaderPolicy{},
 	}
 	return &azcorearm.ClientOptions{

@@ -1,8 +1,11 @@
 {
+	"_etag": "\"0032d7e3-2233-42db-bad1-dda5401fafda\"",
 	"id": "836d8a24-2a0b-5200-bc85-e66f26b4914d",
 	"partitionKey": "a433a095-1277-44f1-8453-8d61a4d848c2",
 	"properties": {
 		"cosmosMetadata": {
+			"instanceVersion": 1,
+			"partitionKey": "a433a095-1277-44f1-8453-8d61a4d848c2",
 			"resourceID": "/subscriptions/a433a095-1277-44f1-8453-8d61a4d848c2/resourceGroups/unimportantpostponement/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/monstrousprecinct/hcpOpenShiftControllers/testcontroller"
 		},
 		"externalId": "/subscriptions/a433a095-1277-44f1-8453-8d61a4d848c2/resourceGroups/unimportantpostponement/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/monstrousprecinct",

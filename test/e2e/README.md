@@ -199,6 +199,125 @@ For instructions and best practices on creating ARO HCP E2E test cases, refer to
 
 Be sure to review these guidelines before creating or updating ARO HCP E2E test cases.
 
+## Selecting VM sizes (SKUs)
+
+E2E tests must **not** hardcode VM SKUs. Across the many subscriptions and
+regions the suite runs in, a fixed SKU may be quota-restricted (for example
+`NotAvailableForSubscription`), which breaks node pool creation in that environment.
+
+Instead, resolve VM sizes at runtime through the restriction-aware selector in
+[`test/util/framework/vm_sku_selection.go`](../util/framework/vm_sku_selection.go):
+
+- `tc.SelectVMSize(ctx, selector)` queries the Azure **Resource SKUs** API for the
+  test location, filters out SKUs that are restricted in the current
+  subscription/location, applies the selector's capability filters, and returns
+  a usable SKU. When the selector requires zones, only SKUs with at least one
+  non-restricted zone are considered usable. It prefers the selector's ordered
+  `Preferred` list first (so behaviour is unchanged whenever the historical SKU
+  is available), then falls back to a deterministic, sorted pick.
+- Use the named selectors for common shapes: `DefaultWorkerVMSizeSelector()`,
+  `SmallWorkerVMSizeSelector()`, `JumpboxVMSizeSelector()`,
+  `ARM64NodePoolVMSizeSelector()`, `GPUNodePoolVMSizeSelector()`.
+- The default node pool params (`NewDefaultNodePoolParams20240610` /
+  `...20251223` / `...20260630`) leave `VMSize` empty; `CreateNodePoolFromParam*`
+  resolves it via `DefaultWorkerVMSizeSelector()` automatically. The OS disk
+  storage account type comes from the shared `DefaultDiskStorageAccountType`
+  constant. Set `VMSize` explicitly only to pin a specific size (for example
+  negative tests that assert on a specific SKU).
+
+Only reported **restrictions** are honoured; quota *headroom* (vCPU Usages API)
+is out of scope.
+
+## Updating E2E Timeouts
+
+Shared timeout constants live in [`test/util/framework/constants.go`](../util/framework/constants.go).
+
+**When to add a constant:** Use a named constant when the same duration applies to **multiple test cases** (same ARM operation, framework helper, or verifier pattern). **When a literal is fine:** A timeout that is specific to one test and only used once (for example, polling for a CR inside a single `Eventually` block) can stay inline in that test.
+
+Set each shared constant to the **99th percentile** of observed operation duration across environments (int, stage, prod as applicable). When tuning, change only the constant in `constants.go`—do not copy the value into individual tests.
+
+Framework helpers include an API version suffix. See [`test/AGENTS.md`](../AGENTS.md) for naming conventions.
+
+| Category | Constant | Typical use |
+|----------|----------|-------------|
+| Provisioning | `ClusterCreationTimeout` | `CreateHCPClusterFromParam20240610`, `CreateHCPClusterAndWait20240610`; preview: `CreateHCPClusterFromParam20251223`, `CreateHCPClusterAndWait20251223` |
+| Provisioning | `NodePoolCreationTimeout` | `CreateNodePoolFromParam20240610`, `CreateNodePoolAndWait20240610`; preview: `CreateNodePoolFromParam20251223`, `CreateNodePoolAndWait20251223` |
+| Provisioning | `ExternalAuthCreationTimeout` | `CreateOrUpdateExternalAuthAndWait20240610` |
+| Access cluster | `GetAdminRESTConfigTimeout` | `GetAdminRESTConfigForHCPCluster20240610` |
+| Deletion | `HCPClusterDeletionTimeout` | `DeleteHCPCluster20240610`, `DeleteAllHCPClusters20240610`, inline delete pollers |
+| Deletion | `NodePoolDeletionTimeout` | `DeleteNodePool20240610`, inline node pool delete pollers |
+| Deletion | `ExternalAuthDeletionTimeout` | `DeleteExternalAuth20240610`, inline external auth delete pollers |
+| Update | `UpdateHCPClusterTimeout` | `UpdateHCPCluster20240610` (tags, IDMS, autoscaling PATCH); preview: `UpdateHCPCluster20251223` |
+| Update | `HCPClusterVersionUpgradeTimeout` | Control plane version upgrades (`UpdateHCPCluster20240610`, `Eventually` verifiers) |
+| Update | `NodePoolVersionUpgradeTimeout` | Node pool version upgrades (`UpdateNodePoolAndWait20240610`, `Eventually` verifiers) |
+| Update | `NodePoolScalingTimeout` | Replica scale up/down, taints/labels with scaling (`UpdateNodePoolAndWait20240610`) |
+
+### Provisioning durations (Kusto)
+
+For **create** timeouts, run the following query (grouped by `resource_type`). Adjust `resourceType` or `controller_name` filters to narrow to clusters vs. node pools, etc.:
+
+```kql
+database('ServiceLogs').table('backendLogs')
+| where timestamp between (ago(7d) .. now())
+| where container_name == 'aro-hcp-backend'
+| where log.msg has 'new status'
+| where log.newStatus == 'Provisioning' or log.newStatus == 'Succeeded'
+| where log.controller_name endswith 'create'
+| project timestamp, resource_id = tostring(log.resource_id), status = tostring(log.newStatus), resource_type = tostring(log.resourceType), log.controller_name
+| summarize
+    provisioning_time = minif(timestamp, status == 'Provisioning'),
+    succeeded_time    = minif(timestamp, status == 'Succeeded')
+    by resource_id, resource_type
+| where isnotempty(provisioning_time) and isnotempty(succeeded_time)
+| extend duration = succeeded_time - provisioning_time
+| summarize
+    count  = count(),
+    avg    = avg(duration),
+    p50    = percentile(duration, 50),
+    p90    = percentile(duration, 90),
+    p95    = percentile(duration, 95),
+    p99    = percentile(duration, 99),
+    p999   = percentile(duration, 99.9),
+    p9999  = percentile(duration, 99.99)
+    by resource_type
+```
+
+### Deletion durations (Kusto)
+
+For **delete** timeouts, run the following query. The key differences from the provisioning query are: `controller_name endswith 'delete'`, start is detected via `log.msg == 'checking operation'`, and end via `log.newStatus == 'Succeeded'`.
+
+```kql
+database('ServiceLogs').table('backendLogs')
+| where timestamp between (ago(7d) .. now())
+| where container_name == 'aro-hcp-backend'
+| where log.controller_name endswith 'delete'
+| where log.msg == 'checking operation'
+    or (log.msg has 'Updating operation status' and log.newStatus == 'Succeeded')
+| project timestamp, resource_id = tostring(log.resource_id), resource_type = tostring(log.resourceType),
+    is_start = log.msg == 'checking operation',
+    is_end   = log.newStatus == 'Succeeded'
+| summarize
+    start_time     = minif(timestamp, tobool(is_start)),
+    succeeded_time = minif(timestamp, tobool(is_end))
+    by resource_id, resource_type
+| where isnotempty(start_time) and isnotempty(succeeded_time)
+| extend duration = succeeded_time - start_time
+| summarize
+    count  = count(),
+    avg    = avg(duration),
+    p50    = percentile(duration, 50),
+    p90    = percentile(duration, 90),
+    p95    = percentile(duration, 95),
+    p99    = percentile(duration, 99),
+    p999   = percentile(duration, 99.9),
+    p9999  = percentile(duration, 99.99)
+    by resource_type
+```
+
+### Update durations
+
+For **update** shared constants, use the same percentile approach but filter backend logs for the relevant controller (for example, `controller_name endswith 'update'`).
+
 ## General guidance to write E2E test with ginkgo
 
 Keep description of specs and tests informational and comprehensive so that it can be read and understood as a complete sentence, e.g. "Get HCPOpenShiftCluster: it fails to get a nonexistent cluster with a Not Found error by preparing an HCP clusters client (and) by sending a GET request for the nonexistent cluster".

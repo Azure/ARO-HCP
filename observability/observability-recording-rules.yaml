@@ -1,4 +1,0 @@
-prometheusRules:
-  rulesFolders: []
-  untestedRules: []
-  outputBicep: ../dev-infrastructure/modules/metrics/rules/generatedRecordingRules.bicep

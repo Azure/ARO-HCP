@@ -24,9 +24,11 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/Azure/ARO-HCP/internal/api/arm"
 )
 
-type replaceStep[InternalAPIType any] struct {
+type replaceStep[InternalAPIType any, InternalAPITypePointer arm.CosmosMetadataAccessorPtr[InternalAPIType]] struct {
 	stepID StepID
 	key    CosmosItemKey
 
@@ -34,7 +36,7 @@ type replaceStep[InternalAPIType any] struct {
 	expectedError string
 }
 
-func newReplaceStep[InternalAPIType any](stepID StepID, stepDir fs.FS) (*replaceStep[InternalAPIType], error) {
+func newReplaceStep[InternalAPIType any, InternalAPITypePointer arm.CosmosMetadataAccessorPtr[InternalAPIType]](stepID StepID, stepDir fs.FS) (*replaceStep[InternalAPIType, InternalAPITypePointer], error) {
 	keyBytes, err := fs.ReadFile(stepDir, "00-key.json")
 	if err != nil {
 		return nil, fmt.Errorf("failed to read key.json: %w", err)
@@ -55,7 +57,7 @@ func newReplaceStep[InternalAPIType any](stepID StepID, stepDir fs.FS) (*replace
 		return nil, fmt.Errorf("failed to read resource in dir: %w", err)
 	}
 
-	return &replaceStep[InternalAPIType]{
+	return &replaceStep[InternalAPIType, InternalAPITypePointer]{
 		stepID:        stepID,
 		key:           key,
 		resources:     resources,
@@ -63,16 +65,37 @@ func newReplaceStep[InternalAPIType any](stepID StepID, stepDir fs.FS) (*replace
 	}, nil
 }
 
-var _ IntegrationTestStep = &replaceStep[any]{}
-
-func (l *replaceStep[InternalAPIType]) StepID() StepID {
+func (l *replaceStep[InternalAPIType, InternalAPITypePointer]) StepID() StepID {
 	return l.stepID
 }
 
-func (l *replaceStep[InternalAPIType]) RunTest(ctx context.Context, t *testing.T, stepInput StepInput) {
-	resourceCRUDClient := NewCosmosCRUD[InternalAPIType](t, stepInput.ResourcesDBClient, l.key.ResourceID.Parent, l.key.ResourceID.ResourceType)
+func (l *replaceStep[InternalAPIType, InternalAPITypePointer]) RunTest(ctx context.Context, t *testing.T, stepInput StepInput) {
+	resourceCRUDClient := NewCosmosCRUD[InternalAPIType, InternalAPITypePointer](t, stepInput.ResourcesDBClient, l.key.ResourceID.Parent, l.key.ResourceID.ResourceType)
+
+	// Fetch the live document once so we can carry forward fields that the
+	// storage layer requires every Replace caller to start from the existing
+	// record: CosmosETag (for the conditional write) and InstanceVersion (so
+	// PrepareForReplace can auto-increment it). Tests that exercise the
+	// negative path supply their own etag/instanceVersion in the fixture and
+	// we leave those values untouched.
+	currentResource, err := resourceCRUDClient.Get(ctx, l.key.ResourceID.Name)
+	if err != nil && !strings.Contains(err.Error(), "ERROR CODE: 404") {
+		require.NoError(t, err, "failed to read existing resource before replace")
+	}
+	currentMD := cosmosDataFor(currentResource)
 
 	for _, resource := range l.resources {
+		if currentMD != nil {
+			if md := cosmosDataFor(resource); md != nil {
+				if len(md.CosmosETag) == 0 {
+					md.CosmosETag = currentMD.CosmosETag
+				}
+				if md.InstanceVersion == 0 {
+					md.InstanceVersion = currentMD.InstanceVersion
+				}
+			}
+		}
+
 		_, err := resourceCRUDClient.Replace(ctx, resource, nil)
 		if len(l.expectedError) > 0 {
 			require.ErrorContains(t, err, l.expectedError, "expected error during replace")

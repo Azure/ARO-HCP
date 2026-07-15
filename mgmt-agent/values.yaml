@@ -1,0 +1,23 @@
+image:
+  registry: "{{ .acr.svc.name }}.{{ .acrDNSSuffix }}"
+  repository: "{{ .mgmtAgent.image.repository }}"
+  digest: "{{ .mgmtAgent.image.digest }}"
+ksmImage:
+  registry: "{{ .mgmt.prometheus.kubeStateMetrics.image.registry }}"
+  repository: "{{ .mgmt.prometheus.kubeStateMetrics.image.repository }}"
+  digest: "{{ .mgmt.prometheus.kubeStateMetrics.image.digest }}"
+deployment:
+  replicas: "{{ .mgmtAgent.k8s.replicas }}"
+  requests:
+    cpu: 50m
+    memory: 64Mi
+logVerbosity: 2
+health:
+  port: 8080
+nodeSelector: {}
+tolerations: []
+affinity: {}
+serviceAccount:
+  name: "{{ .mgmtAgent.k8s.serviceAccountName }}"
+  workloadIdentityClientId: "__msiClientId__"
+  workloadIdentityTenantId: "__tenantId__"

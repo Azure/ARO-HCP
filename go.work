@@ -4,9 +4,14 @@ use (
 	./admin/client
 	./admin/server
 	./backend
+	./dev-infrastructure/scripts/postgres-access
+	./fleet
 	./frontend
+	./hack/verify-gomega-assertions
+	./hack/verify-schema-additional-properties
 	./internal
 	./kube-applier
+	./mgmt-agent
 	./sessiongate
 	./test
 	./test-integration
@@ -16,11 +21,13 @@ use (
 	./tooling/hcpctl
 	./tooling/helmtest
 	./tooling/image-updater
+	./tooling/kustoctl
 	./tooling/olm-bundle-repkg
 	./tooling/pipeline-documentation
 	./tooling/prometheus-rules
 	./tooling/secret-sync
 	./tooling/templatize
 	./tooling/tenant-quota
+	./tooling/utilitytypes
 	./tooling/yamlwrap
 )

@@ -52,22 +52,22 @@ var _ = Describe("Customer", func() {
 			tc := framework.NewTestContext()
 
 			if tc.UsePooledIdentities() {
-				err := tc.AssignIdentityContainers(ctx, 1, 60*time.Second)
-				Expect(err).NotTo(HaveOccurred())
+				err := tc.AssignIdentityContainers(ctx, 1, framework.IdentityContainerAssignmentRetryInterval)
+				Expect(err).NotTo(HaveOccurred(), "failed to assign pooled identity containers")
 			}
 
 			By("creating a resource group")
 			resourceGroup, err := tc.NewResourceGroup(ctx, "rg-np-labels-taints", tc.Location())
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create resource group rg-np-labels-taints")
 
 			By("creating cluster parameters")
-			clusterParams := framework.NewDefaultClusterParams()
+			clusterParams := framework.NewDefaultClusterParams20240610()
 			clusterParams.ClusterName = customerClusterName
 			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 			clusterParams.ManagedResourceGroupName = managedResourceGroupName
 
 			By("creating customer resources")
-			clusterParams, err = tc.CreateClusterCustomerResources(ctx,
+			clusterParams, err = tc.CreateClusterCustomerResources20240610(ctx,
 				resourceGroup,
 				clusterParams,
 				map[string]any{
@@ -78,39 +78,41 @@ var _ = Describe("Customer", func() {
 				TestArtifactsFS,
 				framework.RBACScopeResource,
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create cluster customer resources")
 
 			By("creating the HCP cluster")
-			err = tc.CreateHCPClusterFromParam(
+			err = tc.CreateHCPClusterFromParam20240610(
 				ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
 				clusterParams,
-				45*time.Minute,
+				framework.ClusterCreationTimeout,
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster %s", customerClusterName)
 
 			By("getting credentials")
-			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster(
+			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20240610(
 				ctx,
 				tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 				*resourceGroup.Name,
 				customerClusterName,
-				10*time.Minute,
+				framework.GetAdminRESTConfigTimeout,
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to get admin REST config for cluster %s", customerClusterName)
 
 			By("creating the node pool with initial labels and taints")
-			nodePoolParams := framework.NewDefaultNodePoolParams()
+			nodePoolParams := framework.NewDefaultNodePoolParams20240610()
 			nodePoolParams.ClusterName = customerClusterName
 			nodePoolParams.NodePoolName = customerNodePoolName
 			nodePoolParams.Replicas = int32(2)
 			initialReplicas := nodePoolParams.Replicas
 
 			// using a smaller VM size for faster provisioning
-			nodePoolParams.VMSize = "Standard_D4s_v3"
+			smallVMSize, err := tc.SelectVMSize(ctx, framework.SmallWorkerVMSizeSelector())
+			Expect(err).NotTo(HaveOccurred(), "failed to resolve a small worker VM size; check VM SKU restrictions/quota for the test subscription in %s", tc.Location())
+			nodePoolParams.VMSize = smallVMSize
 
-			nodePool := framework.BuildNodePoolFromParams(nodePoolParams, tc.Location())
+			nodePool := framework.BuildNodePoolFromParams20240610(nodePoolParams, tc.Location())
 
 			nodePool.Properties.Labels = []*hcpsdk20240610preview.Label{
 				{
@@ -126,16 +128,16 @@ var _ = Describe("Customer", func() {
 				},
 			}
 
-			_, err = framework.CreateNodePoolAndWait(
+			_, err = framework.CreateNodePoolAndWait20240610(
 				ctx,
 				tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient(),
 				*resourceGroup.Name,
 				customerClusterName,
 				customerNodePoolName,
 				nodePool,
-				45*time.Minute,
+				framework.NodePoolCreationTimeout,
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create node pool %s with initial labels and taints", customerNodePoolName)
 
 			By("waiting for nodes to be ready")
 			Eventually(func(ctx context.Context) error {
@@ -144,12 +146,12 @@ var _ = Describe("Customer", func() {
 
 			By("verifying initial labels are present on nodes")
 			k8sClient, err := kubernetes.NewForConfig(adminRESTConfig)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create Kubernetes client from admin REST config")
 
 			nodes, err := k8sClient.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to list nodes in the cluster")
 			nodeList := nodes.Items
-			Expect(nodeList).NotTo(BeEmpty())
+			Expect(nodeList).NotTo(BeEmpty(), "expected cluster to have at least one node")
 			Expect(len(nodeList)).To(Equal(int(initialReplicas)), "expected exactly %d initial nodes but found %d", int(initialReplicas), len(nodeList))
 
 			Expect(framework.HasNodeLabel(nodeList, "key1", "value1", int(initialReplicas))).To(BeTrue(), "expected all nodes to have label 'key1=value1'")
@@ -172,15 +174,15 @@ var _ = Describe("Customer", func() {
 				},
 			}
 
-			_, err = framework.UpdateNodePoolAndWait(ctx,
+			_, err = framework.UpdateNodePoolAndWait20240610(ctx,
 				tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient(),
 				*resourceGroup.Name,
 				customerClusterName,
 				customerNodePoolName,
 				updateTaints,
-				20*time.Minute,
+				framework.NodePoolScalingTimeout,
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to update node pool %s with new taints and scale up", customerNodePoolName)
 
 			By("verifying nodes are scaled to the expected count")
 			Eventually(func(ctx context.Context) bool {
@@ -214,15 +216,15 @@ var _ = Describe("Customer", func() {
 				},
 			}
 
-			_, err = framework.UpdateNodePoolAndWait(ctx,
+			_, err = framework.UpdateNodePoolAndWait20240610(ctx,
 				tc.Get20240610ClientFactoryOrDie(ctx).NewNodePoolsClient(),
 				*resourceGroup.Name,
 				customerClusterName,
 				customerNodePoolName,
 				update,
-				45*time.Minute,
+				framework.NodePoolScalingTimeout,
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to update node pool %s with new label and scale up", customerNodePoolName)
 
 			By("verifying nodes are scaled to the expected count")
 			Eventually(func(ctx context.Context) bool {
@@ -244,7 +246,7 @@ var _ = Describe("Customer", func() {
 
 			By("logging state of all nodes")
 			finalNodes, err := k8sClient.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to list final node state")
 			finalNodeList := finalNodes.Items
 
 			GinkgoLogr.Info("Final node state", "totalNodes", len(finalNodeList), "expectedNodes", int(finalReplicas))

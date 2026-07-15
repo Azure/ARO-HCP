@@ -31,11 +31,3 @@ type TypedDocument struct {
 	ResourceType string                `json:"resourceType"`
 	Properties   json.RawMessage       `json:"properties"`
 }
-
-var (
-	_ TypedDocumentAccessor = &TypedDocument{}
-)
-
-func (td *TypedDocument) GetTypedDocument() *TypedDocument {
-	return td
-}

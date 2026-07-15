@@ -1,9 +1,14 @@
 # ARO-HCP
 
 # Description
-The RP for the ARO-HCP project.
+This repository contains the code, configuration, and deployment pipelines for Red Hat OpenShift on Azure (ARO) using the Hosted Control Planes (HCP) architecture. It includes the ARM Resource Provider (frontend/backend), Cluster Service integration, management cluster controllers, and all Azure infrastructure as code.
 
-The components for HCP are each encapsulated in a top-level directory and each directory contains it's own makefile.
+Each component is encapsulated in a top-level directory with its own Makefile. A root Makefile provides targets for building all components and managing deployments.
+
+For a full overview, see the [documentation index](./docs/README.md) and the [high-level architecture](./docs/high-level-architecture.md).
+
+> [!TIP] Make Options
+> [Make Options](./docs/make-options.md) describes how to customize the make build e.g. by defining the container engine to be used or limiting parallel jobs.
 
 ## Development setup
 

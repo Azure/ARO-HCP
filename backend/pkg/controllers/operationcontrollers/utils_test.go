@@ -187,7 +187,7 @@ func TestConvertClusterStatus(t *testing.T) {
 				Status:     tt.currentProvisioningState,
 			}
 
-			opState, opError, err := convertClusterStatus(ctx, nil, op, clusterStatus)
+			opState, opError, err := convertClusterStatus(ctx, nil, op, clusterStatus, tt.internalId)
 
 			assert.Equal(t, tt.updatedProvisioningState, opState)
 

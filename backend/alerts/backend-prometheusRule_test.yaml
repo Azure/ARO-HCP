@@ -2,51 +2,22 @@ rule_files:
 - backend-prometheusRule.yaml
 evaluation_interval: 1m
 tests:
-# Test: BackendControllerRetryHotLoop fires when retry ratio > 50%
-- interval: 1m
-  input_series:
-  - series: 'workqueue_retries_total{name="OperationClusterCreate", namespace="aro-hcp"}'
-    values: "0+80x25" # 80 retries per minute
-  - series: 'workqueue_adds_total{name="OperationClusterCreate", namespace="aro-hcp"}'
-    values: "0+100x25" # 100 adds per minute → retry ratio = 80%
-  alert_rule_test:
-  - eval_time: 20m
-    alertname: BackendControllerRetryHotLoop
-    exp_alerts:
-    - exp_labels:
-        name: OperationClusterCreate
-        severity: warning
-      exp_annotations:
-        description: 'Backend controller workqueue OperationClusterCreate has a retry ratio of > 50% sustained over 10 minutes, indicating most queue activity is failed retries rather than fresh work.'
-        runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/backend-tsg.html'
-        summary: 'Backend controller workqueue OperationClusterCreate retry hot loop'
-# Test: BackendControllerRetryHotLoop does not fire when retry ratio < 50%
-- interval: 1m
-  input_series:
-  - series: 'workqueue_retries_total{name="OperationClusterCreate", namespace="aro-hcp"}'
-    values: "0+20x25" # 20 retries per minute
-  - series: 'workqueue_adds_total{name="OperationClusterCreate", namespace="aro-hcp"}'
-    values: "0+100x25" # 100 adds per minute → retry ratio = 20%
-  alert_rule_test:
-  - eval_time: 20m
-    alertname: BackendControllerRetryHotLoop
-    exp_alerts: []
-# Test: BackendControllerQueueDepthHigh fires when depth > 10 for 5m
+# Test: BackendControllerQueueDepthHigh fires when depth > 10 for 15m
 - interval: 1m
   input_series:
   - series: 'workqueue_depth{name="OperationClusterCreate", namespace="aro-hcp"}'
-    values: "15x10" # depth stays at 15 for 10 minutes
+    values: "15x20" # depth stays at 15 for 20 minutes
   alert_rule_test:
-  - eval_time: 6m
+  - eval_time: 16m
     alertname: BackendControllerQueueDepthHigh
     exp_alerts:
     - exp_labels:
         name: OperationClusterCreate
         severity: warning
       exp_annotations:
-        description: 'Backend controller workqueue OperationClusterCreate has had a depth > 10 for more than 5 minutes, indicating work is accumulating faster than it can be processed.'
+        description: 'Backend controller workqueue OperationClusterCreate has had a depth > 10 for more than 15 minutes, indicating work is accumulating faster than it can be processed.'
         runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/backend-tsg.html'
-        summary: 'Backend controller workqueue OperationClusterCreate depth is high'
+        summary: 'Backend controller workqueue depth is high'
 # Test: BackendControllerQueueDepthHigh does not fire when depth <= 10
 - interval: 1m
   input_series:
@@ -71,7 +42,7 @@ tests:
       exp_annotations:
         description: 'Backend controller DoNothingExample has panicked 5 time(s) in the last 5 minutes.'
         runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/backend-tsg.html'
-        summary: 'Backend controller DoNothingExample is panicking'
+        summary: 'Backend controller is panicking'
 # Test: BackendControllerPanic does not fire when no panics
 - interval: 1m
   input_series:
@@ -80,4 +51,54 @@ tests:
   alert_rule_test:
   - eval_time: 6m
     alertname: BackendControllerPanic
+    exp_alerts: []
+# Test: OrphanedMRGDetected fires when orphaned MRGs are found
+- interval: 1m
+  input_series:
+  - series: 'aro_hcp_orphaned_managed_resource_groups_found_total{location="eastus"}'
+    values: "0+1x15" # 10 orphaned MRGs found over 10 minutes
+  alert_rule_test:
+  - eval_time: 15m
+    alertname: OrphanedMRGDetected
+    exp_alerts:
+    - exp_labels:
+        location: eastus
+        severity: warning
+      exp_annotations:
+        description: 'Found 10 orphaned cluster managed resource groups in location eastus over the last 10 minutes. Orphaned MRGs should not exist - investigate why cluster deletion left resources behind.'
+        runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/backend-tsg.html'
+        summary: 'Orphaned cluster managed resource groups detected'
+# Test: OrphanedMRGDetected does not fire when no orphaned MRGs found
+- interval: 1m
+  input_series:
+  - series: 'aro_hcp_orphaned_managed_resource_groups_found_total{location="eastus"}'
+    values: "0+0x15" # No orphaned MRGs found
+  alert_rule_test:
+  - eval_time: 15m
+    alertname: OrphanedMRGDetected
+    exp_alerts: []
+# Test: OrphanedMRGDeletionFailing fires when deletions fail
+- interval: 1m
+  input_series:
+  - series: 'aro_hcp_orphaned_managed_resource_groups_deletion_failed_total{location="eastus"}'
+    values: "0+1x15" # 1 failure per minute sustained for 15 minutes
+  alert_rule_test:
+  - eval_time: 15m
+    alertname: OrphanedMRGDeletionFailing
+    exp_alerts:
+    - exp_labels:
+        location: eastus
+        severity: warning
+      exp_annotations:
+        description: 'Orphaned cluster managed resource group deletion has failed 10 time(s) in location eastus over the last 10 minutes. Deletion should succeed - investigate Azure permissions or resource locks.'
+        runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/backend-tsg.html'
+        summary: 'Orphaned cluster managed resource group deletion is failing'
+# Test: OrphanedMRGDeletionFailing does not fire when no failures
+- interval: 1m
+  input_series:
+  - series: 'aro_hcp_orphaned_managed_resource_groups_deletion_failed_total{location="eastus"}'
+    values: "0+0x15" # No failures
+  alert_rule_test:
+  - eval_time: 15m
+    alertname: OrphanedMRGDeletionFailing
     exp_alerts: []

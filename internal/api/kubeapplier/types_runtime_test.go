@@ -27,6 +27,18 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api"
 )
 
+// fixtureMgmtClusterID is the parsed-once test management cluster resourceID
+// (stamp "1", management cluster "mgmt-1"). The fixtures below use it for
+// Spec.ManagementCluster.
+func fixtureMgmtClusterID(t *testing.T) *azcorearm.ResourceID {
+	t.Helper()
+	rid, err := azcorearm.ParseResourceID("/providers/microsoft.redhatopenshift/stamps/1/managementclusters/mgmt-1")
+	if err != nil {
+		t.Fatalf("parse mgmt cluster resource id: %v", err)
+	}
+	return rid
+}
+
 // fixtureApplyDesire builds a populated ApplyDesire whose JSON form exercises
 // every nontrivial field, so deep-copy and round-trip tests can compare bytes.
 func fixtureApplyDesire(t *testing.T) *ApplyDesire {
@@ -40,38 +52,17 @@ func fixtureApplyDesire(t *testing.T) *ApplyDesire {
 	return &ApplyDesire{
 		CosmosMetadata: api.CosmosMetadata{ResourceID: id},
 		Spec: ApplyDesireSpec{
-			ManagementCluster: "mgmt-1",
-			KubeContent: &runtime.RawExtension{
-				Raw: []byte(`{"apiVersion":"v1","kind":"ConfigMap","metadata":{"name":"x","namespace":"default"},"data":{"key":"value"}}`),
+			ManagementCluster: fixtureMgmtClusterID(t),
+			Type:              ApplyDesireTypeServerSideApply,
+			ServerSideApply: &ServerSideApplyConfig{
+				KubeContent: &runtime.RawExtension{
+					Raw: []byte(`{"apiVersion":"v1","kind":"ConfigMap","metadata":{"name":"x","namespace":"default"},"data":{"key":"value"}}`),
+				},
 			},
 		},
 		Status: ApplyDesireStatus{
 			Conditions: []metav1.Condition{
 				{Type: ConditionTypeSuccessful, Status: metav1.ConditionTrue, Reason: ConditionReasonNoErrors, Message: "ok"},
-			},
-		},
-	}
-}
-
-func fixtureDeleteDesire(t *testing.T) *DeleteDesire {
-	t.Helper()
-	id, err := azcorearm.ParseResourceID(ToClusterScopedDeleteDesireResourceIDString(
-		"00000000-0000-0000-0000-000000000001", "myRG", "myCluster", "myDesire",
-	))
-	if err != nil {
-		t.Fatalf("parse resource id: %v", err)
-	}
-	return &DeleteDesire{
-		CosmosMetadata: api.CosmosMetadata{ResourceID: id},
-		Spec: DeleteDesireSpec{
-			ManagementCluster: "mgmt-1",
-			TargetItem: ResourceReference{
-				Group: "apps", Resource: "deployments", Namespace: "ns", Name: "x",
-			},
-		},
-		Status: DeleteDesireStatus{
-			Conditions: []metav1.Condition{
-				{Type: ConditionTypeSuccessful, Status: metav1.ConditionFalse, Reason: ConditionReasonWaitingForDeletion, Message: "uid=abc"},
 			},
 		},
 	}
@@ -88,7 +79,7 @@ func fixtureReadDesire(t *testing.T) *ReadDesire {
 	return &ReadDesire{
 		CosmosMetadata: api.CosmosMetadata{ResourceID: id},
 		Spec: ReadDesireSpec{
-			ManagementCluster: "mgmt-1",
+			ManagementCluster: fixtureMgmtClusterID(t),
 			TargetItem: ResourceReference{
 				Group: "", Resource: "configmaps", Namespace: "default", Name: "x",
 			},
@@ -111,7 +102,6 @@ func TestRuntimeObjectAndJSONRoundTrip(t *testing.T) {
 	}
 	cases := []tc{
 		{name: "ApplyDesire", newObj: func(t *testing.T) runtime.Object { return fixtureApplyDesire(t) }},
-		{name: "DeleteDesire", newObj: func(t *testing.T) runtime.Object { return fixtureDeleteDesire(t) }},
 		{name: "ReadDesire", newObj: func(t *testing.T) runtime.Object { return fixtureReadDesire(t) }},
 	}
 	for _, c := range cases {
@@ -141,10 +131,8 @@ func TestRuntimeObjectAndJSONRoundTrip(t *testing.T) {
 			switch v := copy.(type) {
 			case *ApplyDesire:
 				v.Status.Conditions[0].Message = "mutated"
-				v.Spec.KubeContent.Raw = append([]byte(nil), v.Spec.KubeContent.Raw...)
-				v.Spec.KubeContent.Raw[0] = 'X'
-			case *DeleteDesire:
-				v.Status.Conditions[0].Message = "mutated"
+				v.Spec.ServerSideApply.KubeContent.Raw = append([]byte(nil), v.Spec.ServerSideApply.KubeContent.Raw...)
+				v.Spec.ServerSideApply.KubeContent.Raw[0] = 'X'
 			case *ReadDesire:
 				v.Status.Conditions[0].Message = "mutated"
 				v.Status.KubeContent.Raw = append([]byte(nil), v.Status.KubeContent.Raw...)
@@ -170,8 +158,6 @@ func TestRuntimeObjectAndJSONRoundTrip(t *testing.T) {
 			switch original.(type) {
 			case *ApplyDesire:
 				roundTripped = &ApplyDesire{}
-			case *DeleteDesire:
-				roundTripped = &DeleteDesire{}
 			case *ReadDesire:
 				roundTripped = &ReadDesire{}
 			}
@@ -191,9 +177,8 @@ func TestRuntimeObjectAndJSONRoundTrip(t *testing.T) {
 
 func TestObjectMetaAccessor(t *testing.T) {
 	apply := fixtureApplyDesire(t)
-	delete := fixtureDeleteDesire(t)
 	read := fixtureReadDesire(t)
-	for _, o := range []interface{ GetObjectMeta() metav1.Object }{apply, delete, read} {
+	for _, o := range []interface{ GetObjectMeta() metav1.Object }{apply, read} {
 		if name := o.GetObjectMeta().GetName(); name == "" {
 			t.Errorf("GetObjectMeta returned empty Name; should reflect lowercased ResourceID")
 		}

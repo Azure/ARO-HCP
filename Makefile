@@ -1,5 +1,6 @@
 include ./.bingo/Variables.mk
 include ./.bingo/Symlinks.mk
+include ./setup-env.mk
 include ./tooling/templatize/Makefile
 include ./tooling/yamlwrap/Makefile
 include ./test/Makefile
@@ -12,6 +13,7 @@ DEPLOY_ENV ?= pers
 CONFIG_FILE ?= config/config.yaml
 TOPOLOGY_FILE ?= topology.yaml
 export AZURE_TOKEN_CREDENTIALS ?= dev
+BUILD_SERVICES_OPTS ?= -j7
 
 .DEFAULT_GOAL := all
 
@@ -81,7 +83,7 @@ verify-deepcopy: deepcopy
 	./hack/verify.sh deepcopy
 .PHONY: verify-deepcopy
 
-json-format: $(	JQ)
+json-format: $(JQ)
 	hack/update-json-format.sh $(JQ)
 .PHONY: json-format
 
@@ -89,11 +91,23 @@ verify-json-format: $(JQ)
 	hack/verify-json-format.sh $(JQ)
 .PHONY: verify-json-format
 
+verify-kql:
+	hack/kql-verify.sh
+.PHONY: verify-kql
+
 update: deepcopy json-format
 .PHONY: update
 
-verify: verify-deepcopy verify-json-format verify-generate verify-yamlfmt verify-materialize
+verify: verify-deepcopy verify-json-format verify-generate verify-yamlfmt verify-materialize verify-gomega-assertions verify-schema
 .PHONY: verify
+
+verify-schema:
+	go run ./hack/verify-schema-additional-properties config/config.schema.json
+.PHONY: verify-schema
+
+verify-gomega-assertions:
+	go run ./hack/verify-gomega-assertions ./test/e2e/ ./test/util/
+.PHONY: verify-gomega-assertions
 
 verify-yamlfmt: yamlfmt
 	./hack/verify.sh yamlfmt
@@ -105,7 +119,6 @@ mocks: $(MOCKGEN) $(GOIMPORTS)
 .PHONY: mocks
 
 install-tools: $(BINGO) $(HELM_LINK) $(YQ_LINK) $(JQ) $(ORAS_LINK)
-	$(BINGO) get
 .PHONY: install-tools
 
 licenses: $(ADDLICENSE)
@@ -197,10 +210,8 @@ e2e-local/run-test:
 	$(MAKE) -C test -f E2ELocal.mk e2e-local/pf/run-test TEST_NAME="$$TEST_NAME"
 .PHONY: e2e-local/run-test
 
-CONTAINER_RUNTIME ?= docker
-
 mega-lint:
-	$(CONTAINER_RUNTIME) run --rm \
+	$(CONTAINER_ENGINE) run --rm \
 		-e FILTER_REGEX_EXCLUDE='hypershiftoperator/deploy/crds/|acm/deploy/helm/multicluster-engine-config/charts/policy/charts|dev-infrastructure/global-pipeline.yaml|tooling/templatize/testdata/pipeline.yaml|hypershiftoperator/deploy/templates/cluster.clustersizingconfiguration.yaml' \
 		-e REPORT_OUTPUT_FOLDER=/tmp/report \
 		-v $${PWD}:/tmp/lint:Z \
@@ -230,10 +241,6 @@ infra.svc.aks.kubeconfigfile:
 infra.mgmt:
 	@cd dev-infrastructure && DEPLOY_ENV=$(DEPLOY_ENV) make mgmt.init
 .PHONY: infra.mgmt
-
-infra.mgmt.solo:
-	@cd dev-infrastructure && DEPLOY_ENV=$(DEPLOY_ENV) make mgmt.solo.init
-.PHONY: infra.mgmt.solo
 
 infra.mgmt.aks.kubeconfig:
 	@cd dev-infrastructure && DEPLOY_ENV=$(DEPLOY_ENV) make -s mgmt.aks.kubeconfig
@@ -323,7 +330,7 @@ services_all = $(join services_svc,services_mgmt)
 # This sections is used to reference pipeline runs and should replace
 # the usage of `svc-deploy.sh` script in the future.
 services_svc_pipelines = backend frontend cluster-service maestro.server observability.tracing
-services_mgmt_pipelines = secret-sync-controller acm hypershiftoperator maestro.agent observability.tracing route-monitor-operator
+services_mgmt_pipelines = secret-sync-controller acm hypershiftoperator maestro.agent mgmt-agent observability.tracing
 %.deploy_pipeline: $(ORAS_LINK) $(YQ)
 	$(eval export dirname=$(subst .,/,$(basename $@)))
 	./templatize.sh $(DEPLOY_ENV) -p $(shell $(YQ) .serviceGroup ./$(dirname)/pipeline.yaml) -P run
@@ -343,9 +350,8 @@ rebase:
 	hack/rebase-n-materialize.sh
 .PHONY: rebase
 
-validate-config-pipelines: $(YQ)
-	$(MAKE) -C tooling/templatize templatize
-	tooling/templatize/templatize pipeline validate --topology-config-file topology.yaml --service-config-file "$(CONFIG_FILE)" --dev-mode --dev-region $(shell $(YQ) '.environments[] | select(.name == "dev") | .defaults.region' <tooling/templatize/settings.yaml) $(ONLY_CHANGED)
+validate-config-pipelines: $(YQ) $(TEMPLATIZE)
+	$(TEMPLATIZE) pipeline validate --topology-config-file topology.yaml --service-config-file "$(CONFIG_FILE)" --dev-mode --dev-region $(shell $(YQ) '.environments[] | select(.name == "dev") | .defaults.region' <tooling/templatize/settings.yaml) $(ONLY_CHANGED)
 
 validate-changed-config-pipelines:
 	$(MAKE) validate-config-pipelines DEV_MODE="--dev-mode --dev-region uksouth" ONLY_CHANGED="--only-changed"
@@ -385,7 +391,7 @@ generate-kiota:
 PERS_OVERRIDE_FILE ?= /tmp/personal-dev-override.yaml
 
 build-services:
-	$(MAKE) -j4 build-frontend build-backend build-admin build-sessiongate
+	$(MAKE) $(BUILD_SERVICES_OPTS) build-frontend build-backend build-admin build-sessiongate build-mgmt-agent build-kube-applier build-fleet
 .PHONY: build-services
 
 build-frontend:
@@ -404,24 +410,69 @@ build-sessiongate:
 	$(MAKE) -C sessiongate build-and-push
 .PHONY: build-sessiongate
 
+build-mgmt-agent:
+	$(MAKE) -C mgmt-agent build-and-push
+.PHONY: build-mgmt-agent
+
+build-kube-applier:
+	$(MAKE) -C kube-applier build-and-push
+.PHONY: build-kube-applier
+
+build-fleet:
+	$(MAKE) -C fleet build-and-push
+.PHONY: build-fleet
+
 record-services-override: $(YQ) $(ORAS)
 	$(MAKE) -C frontend record-override OVERRIDE_CONFIG_FILE=/tmp/_frontend-override.yaml
 	$(MAKE) -C backend record-override OVERRIDE_CONFIG_FILE=/tmp/_backend-override.yaml
 	$(MAKE) -C admin record-override OVERRIDE_CONFIG_FILE=/tmp/_admin-override.yaml
 	$(MAKE) -C sessiongate record-override OVERRIDE_CONFIG_FILE=/tmp/_sessiongate-override.yaml
+	$(MAKE) -C mgmt-agent record-override OVERRIDE_CONFIG_FILE=/tmp/_mgmt-agent-override.yaml
+	$(MAKE) -C kube-applier record-override OVERRIDE_CONFIG_FILE=/tmp/_kube-applier-override.yaml
+	$(MAKE) -C fleet record-override OVERRIDE_CONFIG_FILE=/tmp/_fleet-override.yaml
 	$(YQ) eval-all '. as $$item ireduce ({}; . * $$item)' \
 	  /tmp/_frontend-override.yaml \
 	  /tmp/_backend-override.yaml \
 	  /tmp/_admin-override.yaml \
 	  /tmp/_sessiongate-override.yaml \
+	  /tmp/_mgmt-agent-override.yaml \
+	  /tmp/_kube-applier-override.yaml \
+	  /tmp/_fleet-override.yaml \
 	  > $(PERS_OVERRIDE_FILE)
 .PHONY: record-services-override
+
+#
+# Query ACR for the latest image digest of each service (no build/push)
+#
+latest-services-override: $(YQ)
+	$(MAKE) -C frontend record-latest-override OVERRIDE_CONFIG_FILE=/tmp/_frontend-override.yaml &
+	$(MAKE) -C backend record-latest-override OVERRIDE_CONFIG_FILE=/tmp/_backend-override.yaml &
+	$(MAKE) -C admin record-latest-override OVERRIDE_CONFIG_FILE=/tmp/_admin-override.yaml &
+	$(MAKE) -C sessiongate record-latest-override OVERRIDE_CONFIG_FILE=/tmp/_sessiongate-override.yaml &
+	$(MAKE) -C mgmt-agent record-latest-override OVERRIDE_CONFIG_FILE=/tmp/_mgmt-agent-override.yaml &
+	$(MAKE) -C kube-applier record-latest-override OVERRIDE_CONFIG_FILE=/tmp/_kube-applier-override.yaml &
+	$(MAKE) -C fleet record-latest-override OVERRIDE_CONFIG_FILE=/tmp/_fleet-override.yaml &
+	wait
+	$(YQ) eval-all '. as $$item ireduce ({}; . * $$item)' \
+	  /tmp/_frontend-override.yaml \
+	  /tmp/_backend-override.yaml \
+	  /tmp/_admin-override.yaml \
+	  /tmp/_sessiongate-override.yaml \
+	  /tmp/_mgmt-agent-override.yaml \
+	  /tmp/_kube-applier-override.yaml \
+	  /tmp/_fleet-override.yaml \
+	  > $(PERS_OVERRIDE_FILE)
+.PHONY: latest-services-override
 
 #
 # One-Step Personal Dev Environment
 #
 ifeq ($(DEPLOY_ENV),$(filter $(DEPLOY_ENV),pers swft))
+ifdef USE_LATEST_IMAGES
+personal-dev-env: latest-services-override install-tools
+else
 personal-dev-env: build-services record-services-override install-tools
+endif
 	$(MAKE) entrypoint/Region OVERRIDE_CONFIG_FILE=$(PERS_OVERRIDE_FILE)
 	$(MAKE) infra.svc.aks.kubeconfig infra.mgmt.aks.kubeconfig infra.tracing infra.cosmos.access
 else
@@ -431,11 +482,15 @@ endif
 .PHONY: personal-dev-env
 
 #
-# Opstool topology local run
+# Dev CI topology local run
 #
-opstool-local-run:
-	$(MAKE) local-run DEPLOY_ENV=opstool CONFIG_FILE=config/config-opstool.yaml TOPOLOGY_FILE=topology-opstool.yaml WHAT="--entrypoint Microsoft.Azure.ARO.HCP.Opstool.Infra"
-.PHONY: opstool-local-run
+dev-ci-local-run:
+	$(MAKE) local-run DEPLOY_ENV=dev-ci CONFIG_FILE=config/config-dev-ci.yaml TOPOLOGY_FILE=topology-dev-ci.yaml WHAT="--entrypoint Microsoft.Azure.ARO.HCP.DevCI.Infra" STEP_CACHE_DIR=""
+.PHONY: dev-ci-local-run
+
+dev-ci-e2e-subscription-rbac-local-run:
+	$(MAKE) local-run DEPLOY_ENV=dev-ci CONFIG_FILE=config/config-dev-ci.yaml TOPOLOGY_FILE=topology-dev-ci.yaml WHAT="--service-group Microsoft.Azure.ARO.HCP.DevCI.E2ESubscriptionRBAC" STEP_CACHE_DIR=""
+.PHONY: dev-ci-e2e-subscription-rbac-local-run
 
 #
 # Local Cluster Service Development Environment
@@ -476,7 +531,7 @@ ifeq ($(wildcard $(YQ)),$(YQ))
 $(addprefix entrypoint/,$(entrypoints)):
 endif
 entrypoint/%:
-	$(MAKE) local-run WHAT="--entrypoint Microsoft.Azure.ARO.HCP.$(notdir $@)"
+	$(MAKE) local-run WHAT="--entrypoint Microsoft.Azure.ARO.HCP.$(notdir $@)" EXTRA_ARGS="--stamp-count-config-ref=mgmt.stamps.count $(EXTRA_ARGS)"
 
 ifeq ($(wildcard $(YQ)),$(YQ))
 $(addprefix pipeline/,$(pipelines)):
@@ -486,6 +541,7 @@ pipeline/%:
 
 LOG_LEVEL ?= 3
 PERSIST ?= "false"
+STEP_CACHE_DIR ?= .step-cache
 TIMING_OUTPUT ?= timing/steps.yaml
 ENTRYPOINT_JUNIT_OUTPUT ?= _artifacts/junit_entrypoint.xml
 CONFIG_OUTPUT ?= _artifacts/config.yaml
@@ -497,6 +553,7 @@ local-run: $(TEMPLATIZE)
 	                                 --dev-settings-file tooling/templatize/settings.yaml \
 	                                 --dev-environment $(DEPLOY_ENV) \
 	                                 $(WHAT) $(EXTRA_ARGS) \
+	                                 --step-cache-dir="$(STEP_CACHE_DIR)" \
 	                                 --persist-tag=$(PERSIST) \
 	                                 --verbosity=$(LOG_LEVEL) \
 	                                 --timing-output=$(TIMING_OUTPUT) \
@@ -534,7 +591,7 @@ ifeq ($(wildcard $(YQ)),$(YQ))
 $(addprefix cleanup-entrypoint/,$(entrypoints)):
 endif
 cleanup-entrypoint/%:
-	$(MAKE) cleanup WHAT="--entrypoint Microsoft.Azure.ARO.HCP.$(notdir $@)"
+	$(MAKE) cleanup WHAT="--entrypoint Microsoft.Azure.ARO.HCP.$(notdir $@)" EXTRA_ARGS="--stamp-count-config-ref=mgmt.stamps.count $(EXTRA_ARGS)"
 
 ifeq ($(wildcard $(YQ)),$(YQ))
 $(addprefix cleanup-pipeline/,$(pipelines)):
@@ -551,7 +608,7 @@ cleanup: $(TEMPLATIZE)
 								     --topology-config topology.yaml \
 								     --dev-settings-file tooling/templatize/settings.yaml \
 								     --dev-environment $(DEPLOY_ENV) \
-								     $(WHAT) \
+								     $(WHAT) $(EXTRA_ARGS) \
 								     --dry-run=$(CLEANUP_DRY_RUN) \
 								     --only-regional \
 								     --wait=$(CLEANUP_WAIT) \

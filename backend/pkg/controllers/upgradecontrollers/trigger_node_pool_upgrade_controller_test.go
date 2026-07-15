@@ -17,19 +17,140 @@ package upgradecontrollers
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/blang/semver/v4"
+	"github.com/go-logr/logr"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
+
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
+
+func TestTriggerNodePoolUpgradeSyncer_SyncOnce(t *testing.T) {
+	tests := []struct {
+		name   string
+		seedDB func(t *testing.T, ctx context.Context, mockDB *databasetesting.MockResourcesDBClient)
+	}{
+		{
+			name: "node pool not found in cosmos returns nil",
+			seedDB: func(t *testing.T, ctx context.Context, mockDB *databasetesting.MockResourcesDBClient) {
+				t.Helper()
+			},
+		},
+		{
+			name: "node pool with deletion timestamp returns nil",
+			seedDB: func(t *testing.T, ctx context.Context, mockDB *databasetesting.MockResourcesDBClient) {
+				t.Helper()
+				createTestNodePoolWithVersion(t, ctx, mockDB, "4.21.0")
+
+				nodePool, err := mockDB.HCPClusters(testSubscriptionID, testResourceGroupName).
+					NodePools(testClusterName).Get(ctx, testNodePoolName)
+				require.NoError(t, err)
+				nodePool.ServiceProviderProperties.DeletionTimestamp = ptr.To(metav1.Now())
+
+				_, err = mockDB.HCPClusters(testSubscriptionID, testResourceGroupName).
+					NodePools(testClusterName).Replace(ctx, nodePool, nil)
+				require.NoError(t, err)
+			},
+		},
+		{
+			name: "missing NodePool ClusterServiceID returns nil",
+			seedDB: func(t *testing.T, ctx context.Context, mockDB *databasetesting.MockResourcesDBClient) {
+				t.Helper()
+
+				nodePoolResourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/" + testSubscriptionID +
+					"/resourceGroups/" + testResourceGroupName +
+					"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName +
+					"/nodePools/" + testNodePoolName))
+				nodePool := &api.HCPOpenShiftClusterNodePool{
+					CosmosMetadata: arm.CosmosMetadata{
+						ResourceID:   nodePoolResourceID,
+						PartitionKey: strings.ToLower(nodePoolResourceID.SubscriptionID),
+					},
+					TrackedResource: arm.TrackedResource{
+						Resource: arm.Resource{
+							ID:   nodePoolResourceID,
+							Name: testNodePoolName,
+							Type: api.NodePoolResourceType.String(),
+						},
+						Location: "eastus",
+					},
+					ServiceProviderProperties: api.HCPOpenShiftClusterNodePoolServiceProviderProperties{},
+				}
+
+				_, err := mockDB.HCPClusters(testSubscriptionID, testResourceGroupName).
+					NodePools(testClusterName).Create(ctx, nodePool, nil)
+				require.NoError(t, err)
+			},
+		},
+		{
+			name: "no desired version on ServiceProviderNodePool returns nil",
+			seedDB: func(t *testing.T, ctx context.Context, mockDB *databasetesting.MockResourcesDBClient) {
+				t.Helper()
+				createTestNodePoolWithVersion(t, ctx, mockDB, "4.21.0")
+				createServiceProviderNodePoolWithVersion(t, ctx, mockDB, "4.21.0")
+			},
+		},
+		{
+			name: "no active versions during installation returns nil",
+			seedDB: func(t *testing.T, ctx context.Context, mockDB *databasetesting.MockResourcesDBClient) {
+				t.Helper()
+				createTestNodePoolWithVersion(t, ctx, mockDB, "4.21.0")
+				createServiceProviderNodePoolWithActiveAndDesiredVersion(
+					t, ctx, mockDB, ptr.To(semver.MustParse("4.21.0")),
+				)
+			},
+		},
+		{
+			name: "desired version matches latest actual version returns nil",
+			seedDB: func(t *testing.T, ctx context.Context, mockDB *databasetesting.MockResourcesDBClient) {
+				t.Helper()
+				createTestNodePoolWithVersion(t, ctx, mockDB, "4.21.0")
+				createServiceProviderNodePoolWithActiveAndDesiredVersion(
+					t, ctx, mockDB, ptr.To(semver.MustParse("4.21.0")),
+					"4.21.0", "4.20.15",
+				)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			runCtx := utils.ContextWithLogger(context.Background(), logr.Discard())
+			mockDB := databasetesting.NewMockResourcesDBClient()
+			tt.seedDB(t, runCtx, mockDB)
+
+			syncer := &triggerNodePoolUpgradeSyncer{
+				resourcesDBClient: mockDB,
+			}
+
+			err := syncer.SyncOnce(runCtx, controllerutils.HCPNodePoolKey{
+				SubscriptionID:    testSubscriptionID,
+				ResourceGroupName: testResourceGroupName,
+				HCPClusterName:    testClusterName,
+				HCPNodePoolName:   testNodePoolName,
+			})
+			assertSyncResult(t, err, false, "")
+		})
+	}
+}
 
 func TestTriggerNodePoolUpgradeSyncer_CreateUpgradePolicyIfNeeded(t *testing.T) {
 	testNodePoolServiceID, _ := api.NewInternalID("/api/aro_hcp/v1alpha1/clusters/test-cluster-id/node_pools/test-nodepool-id")
@@ -167,4 +288,48 @@ func TestTriggerNodePoolUpgradeSyncer_CreateUpgradePolicyIfNeeded(t *testing.T) 
 			}
 		})
 	}
+}
+
+// createServiceProviderNodePoolWithActiveAndDesiredVersion seeds a
+// ServiceProviderNodePool with the given desired version and zero or more
+// active versions (newest first).
+func createServiceProviderNodePoolWithActiveAndDesiredVersion(
+	t *testing.T,
+	ctx context.Context,
+	mockResourcesDBClient *databasetesting.MockResourcesDBClient,
+	desiredVersion *semver.Version,
+	activeVersions ...string,
+) {
+	t.Helper()
+
+	nodePoolResourceID := "/subscriptions/" + testSubscriptionID +
+		"/resourceGroups/" + testResourceGroupName +
+		"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + testClusterName +
+		"/nodePools/" + testNodePoolName
+	spNodePoolResourceID := nodePoolResourceID + "/" + api.ServiceProviderNodePoolResourceTypeName + "/" + api.ServiceProviderNodePoolResourceName
+
+	var activeVersionEntries []api.HCPNodePoolActiveVersion
+	for _, activeVersion := range activeVersions {
+		version := semver.MustParse(activeVersion)
+		activeVersionEntries = append(activeVersionEntries, api.HCPNodePoolActiveVersion{Version: &version})
+	}
+
+	spNodePool := &api.ServiceProviderNodePool{
+		CosmosMetadata: api.CosmosMetadata{
+			ResourceID:   api.Must(azcorearm.ParseResourceID(spNodePoolResourceID)),
+			PartitionKey: strings.ToLower(testSubscriptionID),
+		},
+		Spec: api.ServiceProviderNodePoolSpec{
+			NodePoolVersion: api.ServiceProviderNodePoolSpecVersion{
+				DesiredVersion: desiredVersion,
+			},
+		},
+		Status: api.ServiceProviderNodePoolStatus{
+			NodePoolVersion: api.ServiceProviderNodePoolStatusVersion{
+				ActiveVersions: activeVersionEntries,
+			},
+		},
+	}
+	_, err := mockResourcesDBClient.ServiceProviderNodePools(testSubscriptionID, testResourceGroupName, testClusterName, testNodePoolName).Create(ctx, spNodePool, nil)
+	require.NoError(t, err)
 }

@@ -142,18 +142,34 @@ func (l *SliceActiveOperationLister) Get(ctx context.Context, subscriptionID, na
 	return nil, database.NewNotFoundError()
 }
 
+// ListActiveOperationsForCluster returns active operations for the cluster and its
+// child resources (node pools, external auths), matching production lister semantics.
 func (l *SliceActiveOperationLister) ListActiveOperationsForCluster(ctx context.Context, subscriptionID, resourceGroupName, clusterName string) ([]*api.Operation, error) {
 	clusterKey := api.ToClusterResourceIDString(subscriptionID, resourceGroupName, clusterName)
+	return l.listByPrefix(clusterKey), nil
+}
+
+func (l *SliceActiveOperationLister) ListActiveOperationsForNodePool(ctx context.Context, subscriptionID, resourceGroupName, clusterName, nodePoolName string) ([]*api.Operation, error) {
+	nodePoolKey := api.ToNodePoolResourceIDString(subscriptionID, resourceGroupName, clusterName, nodePoolName)
+	return l.listByPrefix(nodePoolKey), nil
+}
+
+func (l *SliceActiveOperationLister) ListActiveOperationsForExternalAuth(ctx context.Context, subscriptionID, resourceGroupName, clusterName, externalAuthName string) ([]*api.Operation, error) {
+	externalAuthKey := api.ToExternalAuthResourceIDString(subscriptionID, resourceGroupName, clusterName, externalAuthName)
+	return l.listByPrefix(externalAuthKey), nil
+}
+
+func (l *SliceActiveOperationLister) listByPrefix(prefix string) []*api.Operation {
 	var result []*api.Operation
 	for _, op := range l.Operations {
 		if op.ExternalID == nil {
 			continue
 		}
-		if strings.HasPrefix(strings.ToLower(op.ExternalID.String()), strings.ToLower(clusterKey)) {
+		if strings.HasPrefix(strings.ToLower(op.ExternalID.String()), strings.ToLower(prefix)) {
 			result = append(result, op)
 		}
 	}
-	return result, nil
+	return result
 }
 
 // SliceExternalAuthLister implements listers.ExternalAuthLister backed by a slice.
@@ -248,6 +264,50 @@ func (l *SliceServiceProviderClusterLister) ListForCluster(ctx context.Context, 
 			strings.EqualFold(resourceID.ResourceGroupName, resourceGroupName) &&
 			serviceProviderClusterMatchesCluster(resourceID, clusterName) {
 			result = append(result, spc)
+		}
+	}
+	return result, nil
+}
+
+// SliceServiceProviderNodePoolLister implements listers.ServiceProviderNodePoolLister backed by a slice.
+type SliceServiceProviderNodePoolLister struct {
+	ServiceProviderNodePools []*api.ServiceProviderNodePool
+}
+
+var _ listers.ServiceProviderNodePoolLister = &SliceServiceProviderNodePoolLister{}
+
+func (l *SliceServiceProviderNodePoolLister) List(ctx context.Context) ([]*api.ServiceProviderNodePool, error) {
+	return l.ServiceProviderNodePools, nil
+}
+
+func (l *SliceServiceProviderNodePoolLister) Get(ctx context.Context, subscriptionID, resourceGroupName, clusterName, nodePoolName string) (*api.ServiceProviderNodePool, error) {
+	for _, spnp := range l.ServiceProviderNodePools {
+		resourceID := spnp.GetResourceID()
+		if resourceID == nil {
+			continue
+		}
+		if strings.EqualFold(resourceID.SubscriptionID, subscriptionID) &&
+			strings.EqualFold(resourceID.ResourceGroupName, resourceGroupName) &&
+			serviceProviderNodePoolMatchesCluster(resourceID, clusterName) &&
+			serviceProviderNodePoolMatchesNodePool(resourceID, nodePoolName) {
+			return spnp, nil
+		}
+	}
+	return nil, database.NewNotFoundError()
+}
+
+func (l *SliceServiceProviderNodePoolLister) ListForNodePool(ctx context.Context, subscriptionName, resourceGroupName, clusterName, nodePoolName string) ([]*api.ServiceProviderNodePool, error) {
+	var result []*api.ServiceProviderNodePool
+	for _, spnp := range l.ServiceProviderNodePools {
+		resourceID := spnp.GetResourceID()
+		if resourceID == nil {
+			continue
+		}
+		if strings.EqualFold(resourceID.SubscriptionID, subscriptionName) &&
+			strings.EqualFold(resourceID.ResourceGroupName, resourceGroupName) &&
+			serviceProviderNodePoolMatchesCluster(resourceID, clusterName) &&
+			serviceProviderNodePoolMatchesNodePool(resourceID, nodePoolName) {
+			result = append(result, spnp)
 		}
 	}
 	return result, nil
@@ -363,4 +423,74 @@ func (l *SliceBillingLister) ListForSubscription(ctx context.Context, subscripti
 		}
 	}
 	return result, nil
+}
+
+// SliceControllerLister implements listers.ControllerLister backed by a
+// slice. The List-for-parent methods filter to controllers whose resource
+// ID hangs DIRECTLY off the requested parent — i.e. they have exactly one
+// path segment beyond the parent's resource ID. That excludes
+// controllers nested further down (e.g. a node-pool controller is not
+// returned by ListForCluster for that node pool's parent cluster).
+type SliceControllerLister struct {
+	Controllers []*api.Controller
+}
+
+var _ listers.ControllerLister = &SliceControllerLister{}
+
+func (l *SliceControllerLister) List(_ context.Context) ([]*api.Controller, error) {
+	return l.Controllers, nil
+}
+
+func (l *SliceControllerLister) ListForResourceGroup(_ context.Context, subscriptionID, resourceGroupName string) ([]*api.Controller, error) {
+	out := []*api.Controller{}
+	for _, c := range l.Controllers {
+		if c.ResourceID == nil {
+			continue
+		}
+		if strings.EqualFold(c.ResourceID.SubscriptionID, subscriptionID) &&
+			strings.EqualFold(c.ResourceID.ResourceGroupName, resourceGroupName) {
+			out = append(out, c)
+		}
+	}
+	return out, nil
+}
+
+func (l *SliceControllerLister) ListForCluster(_ context.Context, subscriptionID, resourceGroupName, clusterName string) ([]*api.Controller, error) {
+	return listControllersUnderPrefix(l.Controllers,
+		api.ToClusterResourceIDString(subscriptionID, resourceGroupName, clusterName))
+}
+
+func (l *SliceControllerLister) ListForNodePool(_ context.Context, subscriptionID, resourceGroupName, clusterName, nodePoolName string) ([]*api.Controller, error) {
+	return listControllersUnderPrefix(l.Controllers,
+		api.ToNodePoolResourceIDString(subscriptionID, resourceGroupName, clusterName, nodePoolName))
+}
+
+func (l *SliceControllerLister) ListForExternalAuth(_ context.Context, subscriptionID, resourceGroupName, clusterName, externalAuthName string) ([]*api.Controller, error) {
+	return listControllersUnderPrefix(l.Controllers,
+		api.ToExternalAuthResourceIDString(subscriptionID, resourceGroupName, clusterName, externalAuthName))
+}
+
+// listControllersUnderPrefix returns the controllers whose ResourceID is a
+// direct child of parentResourceID — exactly one path segment-pair (type +
+// name) below the parent.
+func listControllersUnderPrefix(controllers []*api.Controller, parentResourceID string) ([]*api.Controller, error) {
+	prefix := strings.ToLower(parentResourceID) + "/"
+	out := []*api.Controller{}
+	for _, c := range controllers {
+		if c.ResourceID == nil {
+			continue
+		}
+		lowered := strings.ToLower(c.ResourceID.String())
+		if !strings.HasPrefix(lowered, prefix) {
+			continue
+		}
+		rest := strings.TrimPrefix(lowered, prefix)
+		// A direct child has exactly one "/" in the trailing segment:
+		// "<resourceType>/<name>".
+		if strings.Count(rest, "/") != 1 {
+			continue
+		}
+		out = append(out, c)
+	}
+	return out, nil
 }

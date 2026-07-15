@@ -21,14 +21,13 @@ import (
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
-	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/serverutils"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 type subscriptionNonClusterDataDump struct {
-	cooldownChecker   controllerutil.CooldownChecker
 	resourcesDBClient database.ResourcesDBClient
 
 	// nextDataDumpChecker ensures we don't hotloop from any source.
@@ -38,11 +37,9 @@ type subscriptionNonClusterDataDump struct {
 // NewSubscriptionNonClusterDataDumpController periodically dumps data for a subscription that is NOT related to a cluster.
 func NewSubscriptionNonClusterDataDumpController(
 	resourcesDBClient database.ResourcesDBClient,
-	activeOperationLister listers.ActiveOperationLister,
 	backendInformers informers.BackendInformers,
 ) controllerutils.Controller {
 	syncer := &subscriptionNonClusterDataDump{
-		cooldownChecker:     controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
 		resourcesDBClient:   resourcesDBClient,
 		nextDataDumpChecker: controllerutil.NewTimeBasedCooldownChecker(4 * time.Minute),
 	}
@@ -53,6 +50,10 @@ func NewSubscriptionNonClusterDataDumpController(
 		5*time.Minute,
 		syncer,
 	)
+}
+
+func (c *subscriptionNonClusterDataDump) CooldownChecker() controllerutil.CooldownChecker {
+	return c.nextDataDumpChecker
 }
 
 func (c *subscriptionNonClusterDataDump) SyncOnce(ctx context.Context, key controllerutils.SubscriptionKey) error {
@@ -75,13 +76,11 @@ func (c *subscriptionNonClusterDataDump) SyncOnce(ctx context.Context, key contr
 	}
 
 	logger.Info(fmt.Sprintf("dumping resourceID %v", key.GetResourceID()),
+		"snapshotType", "cosmos",
 		"currentResourceID", key.GetResourceID().String(),
+		"objectMetadata", serverutils.ObjectMetadataForResourceID("resources", key.GetResourceID()),
 		"content", subscription,
 	)
 
 	return nil
-}
-
-func (c *subscriptionNonClusterDataDump) CooldownChecker() controllerutil.CooldownChecker {
-	return c.cooldownChecker
 }

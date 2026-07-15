@@ -1,0 +1,7 @@
+prometheusRules:
+  rulesFolders:
+  - alerts/HCPkasRecord-prometheusRule-KSM.yaml
+  - alerts/HCPkasRecord-prometheusRule-apiserver-requests.yaml
+  - alerts/HCPkasRecord-prometheusRule-latency.yaml
+  untestedRules: []
+  outputBicep: ../dev-infrastructure/modules/metrics/rules/generatedHCPRecordingRules.bicep

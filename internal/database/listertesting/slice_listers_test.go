@@ -16,6 +16,7 @@ package listertesting
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -103,8 +104,16 @@ const (
 	testRG       = "rg"
 	testCluster  = "c"
 	testNodePool = "np"
-	testMgmtA    = "mgmt-a"
-	testMgmtB    = "mgmt-b"
+)
+
+// Management cluster identifiers. *ID values go into Spec.ManagementCluster
+// and are also what callers pass to ListForManagementCluster.
+var (
+	testMgmtAID = api.Must(azcorearm.ParseResourceID(
+		"/providers/microsoft.redhatopenshift/stamps/1/managementclusters/mgmt-a"))
+	testMgmtBID = api.Must(azcorearm.ParseResourceID(
+		"/providers/microsoft.redhatopenshift/stamps/2/managementclusters/mgmt-b"))
+	testMgmtA = strings.ToLower(testMgmtAID.String())
 )
 
 func mustParseID(t *testing.T, s string) *azcorearm.ResourceID {
@@ -116,7 +125,7 @@ func mustParseID(t *testing.T, s string) *azcorearm.ResourceID {
 	return id
 }
 
-func newApplyDesire(t *testing.T, idStr, mgmt string) *kubeapplier.ApplyDesire {
+func newApplyDesire(t *testing.T, idStr string, mgmt *azcorearm.ResourceID) *kubeapplier.ApplyDesire {
 	t.Helper()
 	return &kubeapplier.ApplyDesire{
 		CosmosMetadata: api.CosmosMetadata{ResourceID: mustParseID(t, idStr)},
@@ -134,16 +143,16 @@ func fixtureDesires(t *testing.T) []*kubeapplier.ApplyDesire {
 	return []*kubeapplier.ApplyDesire{
 		newApplyDesire(t,
 			kubeapplier.ToClusterScopedApplyDesireResourceIDString(testSub, testRG, testCluster, "a1"),
-			testMgmtA),
+			testMgmtAID),
 		newApplyDesire(t,
 			kubeapplier.ToNodePoolScopedApplyDesireResourceIDString(testSub, testRG, testCluster, testNodePool, "a2"),
-			testMgmtA),
+			testMgmtAID),
 		newApplyDesire(t,
 			kubeapplier.ToClusterScopedApplyDesireResourceIDString(testSub, testRG, "other-cluster", "b1"),
-			testMgmtB),
+			testMgmtBID),
 		newApplyDesire(t,
 			kubeapplier.ToClusterScopedApplyDesireResourceIDString(testSub, "other-rg", testCluster, "b2"),
-			testMgmtB),
+			testMgmtBID),
 	}
 }
 
@@ -168,8 +177,11 @@ func TestSliceApplyDesireLister_GetForCluster(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetForCluster a1: %v", err)
 	}
-	if got == nil || got.GetManagementCluster() != testMgmtA {
-		t.Errorf("GetForCluster a1: unexpected result %+v", got)
+	if got == nil {
+		t.Fatal("GetForCluster a1: nil result")
+	}
+	if mc := got.GetManagementCluster(); mc == nil || !strings.EqualFold(mc.String(), testMgmtA) {
+		t.Errorf("GetForCluster a1: management = %v, want %q", mc, testMgmtA)
 	}
 
 	// A name that exists only as a nodepool-scoped desire is NotFound at the cluster scope.
@@ -205,7 +217,7 @@ func TestSliceApplyDesireLister_ListForManagementCluster(t *testing.T) {
 	ctx := context.Background()
 	l := &SliceApplyDesireLister{Desires: fixtureDesires(t)}
 
-	gotA, err := l.ListForManagementCluster(ctx, testMgmtA)
+	gotA, err := l.ListForManagementCluster(ctx, testMgmtAID)
 	if err != nil {
 		t.Fatalf("ListForManagementCluster mgmt-a: %v", err)
 	}
@@ -213,7 +225,7 @@ func TestSliceApplyDesireLister_ListForManagementCluster(t *testing.T) {
 		t.Errorf("ListForManagementCluster mgmt-a: len = %d, want 2 (cluster + nodepool)", len(gotA))
 	}
 
-	gotB, err := l.ListForManagementCluster(ctx, testMgmtB)
+	gotB, err := l.ListForManagementCluster(ctx, testMgmtBID)
 	if err != nil {
 		t.Fatalf("ListForManagementCluster mgmt-b: %v", err)
 	}
@@ -221,13 +233,15 @@ func TestSliceApplyDesireLister_ListForManagementCluster(t *testing.T) {
 		t.Errorf("ListForManagementCluster mgmt-b: len = %d, want 2", len(gotB))
 	}
 
-	// Case-insensitive.
-	gotUpperA, err := l.ListForManagementCluster(ctx, "MGMT-A")
+	// Case-insensitive: a resourceID parsed from the same path but with mixed case
+	// still matches the fixtures (which stamped the lowercased form into Spec).
+	upperRID := mustParseID(t, strings.ToUpper(testMgmtAID.String()))
+	gotUpperA, err := l.ListForManagementCluster(ctx, upperRID)
 	if err != nil {
-		t.Fatalf("ListForManagementCluster MGMT-A: %v", err)
+		t.Fatalf("ListForManagementCluster uppercased mgmt-a: %v", err)
 	}
 	if len(gotUpperA) != 2 {
-		t.Errorf("ListForManagementCluster MGMT-A: len = %d, want 2 (case-insensitive)", len(gotUpperA))
+		t.Errorf("ListForManagementCluster uppercased mgmt-a: len = %d, want 2 (case-insensitive)", len(gotUpperA))
 	}
 }
 

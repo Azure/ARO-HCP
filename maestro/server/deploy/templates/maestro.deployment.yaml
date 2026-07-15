@@ -53,6 +53,33 @@ spec:
           volumeAttributes:
             secretProviderClass: "maestro"
       initContainers:
+      {{- if not .Values.database.azureDb }}
+      - name: wait-for-db
+        image: '{{ .Values.database.containerizedDbImage }}'
+        imagePullPolicy: IfNotPresent
+        command:
+        - /bin/sh
+        - -c
+        - |
+          set -eu
+          DB_HOST=$(cat /secrets/db/db.host)
+          DB_PORT=$(cat /secrets/db/db.port)
+          DB_USER=$(cat /secrets/db/db.user)
+          TIMEOUT=180
+          ELAPSED=0
+          until /usr/bin/pg_isready -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -q; do
+            if [ "$ELAPSED" -ge "$TIMEOUT" ]; then
+              echo "PostgreSQL not ready after ${TIMEOUT}s, giving up"
+              exit 1
+            fi
+            echo "waiting for postgres at $DB_HOST:$DB_PORT (${ELAPSED}s/${TIMEOUT}s)..."
+            sleep 5
+            ELAPSED=$((ELAPSED + 5))
+          done
+        volumeMounts:
+        - name: db
+          mountPath: /secrets/db
+      {{- end }}
       - name: maestro-server-migration
         image: "{{ .Values.image.registry }}/{{ .Values.image.repository }}@{{ .Values.image.digest }}"
         imagePullPolicy: IfNotPresent
@@ -135,9 +162,15 @@ spec:
           limits:
             memory: '{{ .Values.deployment.resources.limits.memory }}'
 {{- end }}
+        # NOTE: liveness uses /livez, a process-only endpoint that does NOT touch
+        # Postgres (openshift-online/maestro#543), so a transient DB slowdown no
+        # longer fails this probe. Readiness keeps using /healthcheck (which does a
+        # Postgres instance-row read), so a pod that can't reach the DB is pulled
+        # from Service endpoints instead of being restarted into a connection-pool
+        # reset storm (AROSLSRE-1170).
         livenessProbe:
           httpGet:
-            path: /healthcheck
+            path: /livez
             port: {{ .Values.maestro.healthCheckBindPort }}
             scheme: HTTP
           initialDelaySeconds: 25

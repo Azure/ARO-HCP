@@ -1,8 +1,11 @@
 {
+	"_etag": "\"585f3e5e-5eab-4f89-b01a-86e261071f3d\"",
 	"id": "d9dc2060-758a-540b-bb6e-bab0900ea591",
 	"partitionKey": "0465bc32-c654-41b8-8d87-9815d7abe8f6",
 	"properties": {
 		"cosmosMetadata": {
+			"instanceVersion": 1,
+			"partitionKey": "0465bc32-c654-41b8-8d87-9815d7abe8f6",
 			"resourceID": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-creating"
 		},
 		"customerProperties": {
@@ -11,32 +14,10 @@
 			}
 		},
 		"id": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-creating",
-		"intermediateResourceDoc": {
-			"identity": {
-				"principalId": "the-principal",
-				"tenantId": "the-tenant",
-				"type": ""
-			},
-			"internalId": "/api/aro_hcp/v1alpha1/clusters/cs-cluster-creating",
-			"provisioningState": "Provisioning",
-			"resourceId": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-creating",
-			"tags": {
-				"foo": "bar"
-			}
-		},
-		"internalState": {
-			"internalAPI": {
-				"customerProperties": {
-					"version": {
-						"channelGroup": "stable"
-					}
-				},
-				"id": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-creating"
-			}
-		},
 		"serviceProviderProperties": {
 			"clusterServiceID": "/api/aro_hcp/v1alpha1/clusters/cs-cluster-creating",
-			"provisioningState": "Provisioning"
+			"provisioningState": "Provisioning",
+			"usesNewClusterDeletionApproach": false
 		}
 	},
 	"resourceID": "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-creating",

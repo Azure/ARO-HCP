@@ -10,17 +10,23 @@ param auditLogsKustoConsumerGroupName string
 @description('Diagnostic settings authorization rule name')
 param auditLogsDiagnosticSettingsRuleName string
 
+@description('Event Hub name for alert events')
+param alertEventsEventHubName string
+
+@description('Consumer group name for alert events Kusto data connection')
+param alertEventsKustoConsumerGroupName string
+
 @description('Principal ID of the Kusto cluster managed identity')
 param kustoPrincipalId string
 
-@description('When true, deploy managed audit logs Event Hub resources')
-param manageInstance bool = true
+@description('Whether arobit Kusto is enabled in this region')
+param kustoEnabled bool = true
 
 @description('Whether the audit logs Event Hub is enabled in this region')
 param eventhubEnabled bool
 
 // Event Hub namespace for AKS audit logs
-resource eventHubNamespace 'Microsoft.EventHub/namespaces@2024-01-01' = if (manageInstance && eventhubEnabled) {
+resource eventHubNamespace 'Microsoft.EventHub/namespaces@2024-01-01' = if (kustoEnabled && eventhubEnabled) {
   name: auditLogsEventHubNamespaceName
   location: resourceGroup().location
   sku: {
@@ -66,10 +72,24 @@ resource eventHubNamespace 'Microsoft.EventHub/namespaces@2024-01-01' = if (mana
       name: auditLogsKustoConsumerGroupName
     }
   }
+
+  // Event Hub for alert events
+  resource alertEventsEventHub 'eventhubs@2024-01-01' = {
+    name: alertEventsEventHubName
+    properties: {
+      messageRetentionInDays: 7
+      partitionCount: 2
+    }
+
+    // Consumer group for alert events Kusto data connection
+    resource kustoConsumerGroup 'consumergroups@2024-01-01' = {
+      name: alertEventsKustoConsumerGroupName
+    }
+  }
 }
 
 var eventHubDataReceiverRole = 'a638d3c7-ab3a-418d-83e6-5f17a39d4fde'
-resource eventHubDataReceiverRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (manageInstance && eventhubEnabled && kustoPrincipalId != '') {
+resource eventHubDataReceiverRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (kustoEnabled && eventhubEnabled && kustoPrincipalId != '') {
   scope: eventHubNamespace::eventHub
   name: guid(eventHubNamespace::eventHub.id, kustoPrincipalId, eventHubDataReceiverRole)
   properties: {
@@ -79,7 +99,19 @@ resource eventHubDataReceiverRoleAssignment 'Microsoft.Authorization/roleAssignm
   }
 }
 
-output auditLogsEventHubId string = manageInstance && eventhubEnabled ? eventHubNamespace::eventHub.id : ''
-output auditLogsEventHubAuthRuleId string = manageInstance && eventhubEnabled
+resource alertEventsEventHubDataReceiverRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (kustoEnabled && eventhubEnabled && kustoPrincipalId != '') {
+  scope: eventHubNamespace::alertEventsEventHub
+  name: guid(eventHubNamespace::alertEventsEventHub.id, kustoPrincipalId, eventHubDataReceiverRole)
+  properties: {
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', eventHubDataReceiverRole)
+    principalId: kustoPrincipalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
+output auditLogsEventHubId string = kustoEnabled && eventhubEnabled ? eventHubNamespace::eventHub.id : ''
+output alertEventsEventHubId string = kustoEnabled && eventhubEnabled ? eventHubNamespace::alertEventsEventHub.id : ''
+output eventHubNamespaceName string = kustoEnabled && eventhubEnabled ? eventHubNamespace.name : ''
+output auditLogsEventHubAuthRuleId string = kustoEnabled && eventhubEnabled
   ? eventHubNamespace::diagnosticSettingsAuthRule.id
   : ''

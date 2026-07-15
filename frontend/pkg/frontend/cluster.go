@@ -17,7 +17,6 @@ package frontend
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"maps"
 	"net/http"
@@ -25,13 +24,12 @@ import (
 	"time"
 
 	"k8s.io/apimachinery/pkg/api/operation"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/utils/ptr"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
-
-	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
 	"github.com/Azure/ARO-HCP/internal/admission"
 	"github.com/Azure/ARO-HCP/internal/api"
@@ -39,7 +37,6 @@ import (
 	"github.com/Azure/ARO-HCP/internal/conversion"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
-	"github.com/Azure/ARO-HCP/internal/serverutils"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/internal/validation"
 )
@@ -232,6 +229,8 @@ func decodeDesiredClusterCreate(ctx context.Context, azureLocation string, reque
 	}
 	// TrackedResource info doesn't appear to come from the external resource information
 	conversion.CopyReadOnlyTrackedResourceValues(&newInternalCluster.TrackedResource, ptr.To(arm.NewTrackedResource(resourceID, azureLocation)))
+	newInternalCluster.SetResourceID(resourceID)
+	newInternalCluster.SetPartitionKey(resourceID.SubscriptionID)
 
 	// set fields that were not included during the conversion, because the user does not provide them or because the
 	// data is determined live on read.
@@ -242,6 +241,63 @@ func decodeDesiredClusterCreate(ctx context.Context, azureLocation string, reque
 	newInternalCluster.ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL = requestHeader.Get(arm.HeaderNameIdentityURL)
 
 	return newInternalCluster, nil
+}
+
+// newClusterAdmissionContext creates an admission context for cluster operations.
+// The subscription is always required. originalCluster is the inbound cluster as
+// the user submitted it — admission deepcopies it to use as a read-only source
+// for fields (like tags) that earlier mutations may overwrite on the live
+// cluster. For UPDATE operations the caller must also pass the cluster's
+// existing resource ID; the constructor then prefetches the
+// ServiceProviderCluster and the list of node pools (plus their service-provider
+// records) so admission can validate version skew without hitting the DB itself.
+// On CREATE pass a nil clusterResourceID — no prior state exists to prefetch.
+func (f *Frontend) newClusterAdmissionContext(ctx context.Context, op operation.Operation, subscription *arm.Subscription, originalCluster *api.HCPOpenShiftCluster, clusterResourceID *azcorearm.ResourceID) (*admission.ClusterAdmissionContext, error) {
+	if subscription == nil {
+		return nil, fmt.Errorf("subscription is required for admission context")
+	}
+	if originalCluster == nil {
+		return nil, fmt.Errorf("originalCluster is required for admission context")
+	}
+
+	admissionContext := &admission.ClusterAdmissionContext{
+		Subscription:    subscription,
+		OriginalCluster: originalCluster.DeepCopy(),
+	}
+
+	if op.Type != operation.Update {
+		return admissionContext, nil
+	}
+
+	if clusterResourceID == nil {
+		return nil, fmt.Errorf("clusterResourceID is required for UPDATE operations")
+	}
+
+	spCluster, err := database.GetOrCreateServiceProviderCluster(ctx, f.resourcesDBClient, clusterResourceID)
+	if err != nil {
+		return nil, err
+	}
+	admissionContext.ServiceProviderCluster = spCluster
+
+	nodePoolIterator, err := f.resourcesDBClient.HCPClusters(clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName).NodePools(clusterResourceID.Name).List(ctx, nil)
+	if err != nil {
+		return nil, fmt.Errorf("cannot list node pools for cluster admission: %w", err)
+	}
+	for _, nodePool := range nodePoolIterator.Items(ctx) {
+		spNodePool, err := database.GetOrCreateServiceProviderNodePool(ctx, f.resourcesDBClient, nodePool.ID)
+		if err != nil {
+			return nil, fmt.Errorf("cannot load service provider node pool %s: %w", nodePool.ID, err)
+		}
+		admissionContext.ClusterNodePools = append(admissionContext.ClusterNodePools, admission.ClusterAdmissionNodePool{
+			NodePool:                nodePool,
+			ServiceProviderNodePool: spNodePool,
+		})
+	}
+	if err := nodePoolIterator.GetError(); err != nil {
+		return nil, fmt.Errorf("cannot list node pools for cluster admission: %w", err)
+	}
+
+	return admissionContext, nil
 }
 
 func (f *Frontend) createHCPCluster(writer http.ResponseWriter, request *http.Request) error {
@@ -282,16 +338,19 @@ func (f *Frontend) createHCPCluster(writer http.ResponseWriter, request *http.Re
 		return utils.TrackError(err)
 	}
 
-	admission.MutateClusterCreate(newInternalCluster)
-	if mutationErrs := admission.MutateCluster(newInternalCluster, subscription); len(mutationErrs) > 0 {
-		return utils.TrackError(arm.CloudErrorFromFieldErrors(mutationErrs))
-	}
 	validationOp := operation.Operation{
 		Type:    operation.Create,
-		Options: validation.AFECsToValidationOptions(subscription.GetRegisteredFeatures()),
+		Options: validation.BuildValidationOptions(subscription.GetRegisteredFeatures(), api.APIVersion(versionedInterface.String())),
+	}
+	admissionContext, err := f.newClusterAdmissionContext(ctx, validationOp, subscription, newInternalCluster, nil)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+	if mutationErrs := admission.MutateCluster(ctx, admissionContext, validationOp, newInternalCluster, nil); len(mutationErrs) > 0 {
+		return utils.TrackError(arm.CloudErrorFromFieldErrors(mutationErrs))
 	}
 	validationErrs := validation.ValidateCluster(ctx, validationOp, newInternalCluster, nil, api.Must(versionedInterface.ValidationPathRewriter(&api.HCPOpenShiftCluster{})))
-	validationErrs = append(validationErrs, admission.AdmitClusterOnCreate(ctx, newInternalCluster, subscription)...)
+	validationErrs = append(validationErrs, admission.AdmitCluster(ctx, admissionContext, validationOp, newInternalCluster, nil)...)
 	if err := arm.CloudErrorFromFieldErrors(validationErrs); err != nil {
 		return utils.TrackError(err)
 	}
@@ -319,7 +378,7 @@ func (f *Frontend) createHCPCluster(writer http.ResponseWriter, request *http.Re
 	if f.clusterServiceNoopDeprovision {
 		initialClusterProperties[ocm.CSPropertyNoopDeprovision] = ocm.CSPropertyEnabled
 	}
-	newClusterServiceClusterBuilder, newClusterServiceAutoscalerBuilder, err := ocm.BuildCSCluster(newInternalCluster.ID, tenantID, newInternalCluster, initialClusterProperties, nil)
+	newClusterServiceClusterBuilder, newClusterServiceAutoscalerBuilder, err := ocm.BuildCSCluster(newInternalCluster.ID, tenantID, newInternalCluster, initialClusterProperties, nil, nil)
 	if err != nil {
 		return utils.TrackError(err)
 	}
@@ -567,16 +626,20 @@ func (f *Frontend) updateHCPClusterInCosmos(ctx context.Context, writer http.Res
 		return utils.TrackError(err)
 	}
 
-	if mutationErrs := admission.MutateCluster(newInternalCluster, subscription); len(mutationErrs) > 0 {
+	validationOp := operation.Operation{
+		Type:    operation.Update,
+		Options: validation.BuildValidationOptions(subscription.GetRegisteredFeatures(), api.APIVersion(versionedInterface.String())),
+	}
+	admissionContext, err := f.newClusterAdmissionContext(ctx, validationOp, subscription, newInternalCluster, oldInternalCluster.ID)
+	if err != nil {
+		return utils.TrackError(err)
+	}
+	if mutationErrs := admission.MutateCluster(ctx, admissionContext, validationOp, newInternalCluster, oldInternalCluster); len(mutationErrs) > 0 {
 		return utils.TrackError(arm.CloudErrorFromFieldErrors(mutationErrs))
 	}
 
-	validationOp := operation.Operation{
-		Type:    operation.Update,
-		Options: validation.AFECsToValidationOptions(subscription.GetRegisteredFeatures()),
-	}
 	validationErrs := validation.ValidateCluster(ctx, validationOp, newInternalCluster, oldInternalCluster, api.Must(versionedInterface.ValidationPathRewriter(&api.HCPOpenShiftCluster{})))
-	validationErrs = append(validationErrs, admission.AdmitClusterOnUpdate(ctx, validationOp, f.resourcesDBClient, oldInternalCluster, newInternalCluster)...)
+	validationErrs = append(validationErrs, admission.AdmitCluster(ctx, admissionContext, validationOp, newInternalCluster, oldInternalCluster)...)
 	if err := arm.CloudErrorFromFieldErrors(validationErrs); err != nil {
 		return utils.TrackError(err)
 	}
@@ -603,7 +666,7 @@ func (f *Frontend) updateHCPClusterInCosmos(ctx context.Context, writer http.Res
 		if err != nil {
 			return utils.TrackError(err)
 		}
-		newClusterServiceClusterBuilder, newClusterServiceAutoscalerBuilder, err := ocm.BuildCSCluster(oldInternalCluster.ID, tenantID, newInternalCluster, nil, oldClusterServiceCluster)
+		newClusterServiceClusterBuilder, newClusterServiceAutoscalerBuilder, err := ocm.BuildCSCluster(oldInternalCluster.ID, tenantID, newInternalCluster, nil, oldClusterServiceCluster, admissionContext.ServiceProviderCluster)
 		if err != nil {
 			return utils.TrackError(err)
 		}
@@ -684,12 +747,6 @@ func (f *Frontend) DeleteCluster(writer http.ResponseWriter, request *http.Reque
 		return utils.TrackError(err)
 	}
 
-	// when we get a delete call (this happens from CI quite a bit), dump the state of the cluster resources.
-	if err := serverutils.DumpDataToLogger(ctx, f.resourcesDBClient, resourceID); err != nil {
-		// never fail, this is best effort
-		logger.Error(err, "failed to dump data to logger")
-	}
-
 	cluster, err := f.resourcesDBClient.HCPClusters(resourceID.SubscriptionID, resourceID.ResourceGroupName).Get(ctx, resourceID.Name)
 	if database.IsNotFoundError(err) {
 		// For resource not found errors on deletion, ARM requires
@@ -703,6 +760,8 @@ func (f *Frontend) DeleteCluster(writer http.ResponseWriter, request *http.Reque
 	if err := checkForProvisioningStateConflict(ctx, f.resourcesDBClient, database.OperationRequestDelete, cluster.ID, cluster.ServiceProviderProperties.ProvisioningState); err != nil {
 		return utils.TrackError(err)
 	}
+
+	logger.Info(fmt.Sprintf("deleting resource %s", cluster.ID))
 
 	transaction := f.resourcesDBClient.NewTransaction(cluster.ID.SubscriptionID)
 	if err := f.addDeleteClusterToTransaction(ctx, writer, request, transaction, cluster); err != nil {
@@ -719,27 +778,9 @@ func (f *Frontend) DeleteCluster(writer http.ResponseWriter, request *http.Reque
 }
 
 func (f *Frontend) addDeleteClusterToTransaction(ctx context.Context, writer http.ResponseWriter, request *http.Request, transaction database.DBTransaction, cluster *api.HCPOpenShiftCluster) error {
-	logger := utils.LoggerFromContext(ctx)
-
 	correlationData, err := CorrelationDataFromContext(ctx)
 	if err != nil {
 		return utils.TrackError(err)
-	}
-
-	if cluster.ServiceProviderProperties.ClusterServiceID != nil {
-		err = f.clusterServiceClient.DeleteCluster(ctx, *cluster.ServiceProviderProperties.ClusterServiceID)
-		var ocmError *ocmerrors.Error
-		if errors.As(err, &ocmError) && ocmError.Status() == http.StatusNotFound {
-			// StatusNotFound means we have stale data in Cosmos DB.
-			// This can happen in test environments if a user bypasses
-			// the RP to delete a resource (e.g. "ocm delete"). It can
-			// also happen if an asynchronous deletion operation fails.
-			// we will fall through and cancel all operations and go through as normal a deletion flow as we can to avoid
-			// leaking data related to the resource, like controller status.
-			logger.Info("clusterService cluster missing, trying to clean up", "err", err)
-		} else if err != nil {
-			return utils.TrackError(err)
-		}
 	}
 
 	// Cluster Service will take care of canceling any ongoing operations
@@ -757,19 +798,18 @@ func (f *Frontend) addDeleteClusterToTransaction(ctx context.Context, writer htt
 		return utils.TrackError(err)
 	}
 
-	clusterServiceID := api.InternalID{}
-	if cluster.ServiceProviderProperties.ClusterServiceID != nil {
-		clusterServiceID = *cluster.ServiceProviderProperties.ClusterServiceID
-	}
 	operationDoc := database.NewOperation(
 		database.OperationRequestDelete,
 		cluster.ID,
-		clusterServiceID,
+		api.InternalID{},
 		f.azureLocation,
 		"",
 		"",
 		"",
 		correlationData)
+	// TODO remove this once migration of the new cluster deletion from frontend to backend approach is fully completed in all ARO-HCP
+	// permanent environments, for all regions.
+	operationDoc.UsesNewClusterDeletionApproach = true
 	if request != nil {
 		// these are optional because when this is triggered via the subscription deletion flow, there is no
 		// deletion request containing these headers so these operations cannot be directly tracked.
@@ -783,8 +823,14 @@ func (f *Frontend) addDeleteClusterToTransaction(ctx context.Context, writer htt
 		return utils.TrackError(err)
 	}
 
+	if cluster.ServiceProviderProperties.DeletionTimestamp == nil {
+		cluster.ServiceProviderProperties.DeletionTimestamp = &metav1.Time{Time: time.Now().UTC()}
+	}
 	cluster.ServiceProviderProperties.ActiveOperationID = operationDoc.ResourceID.Name
 	cluster.ServiceProviderProperties.ProvisioningState = operationDoc.Status
+	// TODO remove this once migration of the new cluster deletion from frontend to backend approach is fully completed in all ARO-HCP
+	// permanent environments, for all regions.
+	cluster.ServiceProviderProperties.UsesNewClusterDeletionApproach = true
 	_, err = f.resourcesDBClient.HCPClusters(cluster.ID.SubscriptionID, cluster.ID.ResourceGroupName).
 		AddReplaceToTransaction(ctx, transaction, cluster, nil)
 	if err != nil {
@@ -839,8 +885,11 @@ func (f *Frontend) getInternalClusterFromStorage(ctx context.Context, resourceID
 	// normalize or return a toupper or tolower form of the resource
 	// group or resource name. The resource group name and resource
 	// name must come from the URL and not the request body.
-	if !strings.EqualFold(internalCluster.ID.String(), resourceID.String()) {
-		return nil, fmt.Errorf("unexpected resourceID: %s", internalCluster.ID.String())
+	if internalCluster.ResourceID == nil {
+		return nil, fmt.Errorf("stored cluster document is missing cosmosMetadata.resourceID")
+	}
+	if !strings.EqualFold(internalCluster.ResourceID.String(), resourceID.String()) {
+		return nil, fmt.Errorf("unexpected resourceID: %s", internalCluster.ResourceID.String())
 	}
 	internalCluster.ID = resourceID
 

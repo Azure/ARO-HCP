@@ -54,7 +54,7 @@ resourceGroups:
 
 ### Step Types
 
-ARO HCP pipelines support multiple step types, each designed for a specific deployment scenario. The two most commonly used types are:
+ARO HCP pipelines support multiple step types, each designed for a specific deployment scenario. The most commonly used types are:
 
 #### ARM / Bicep Step
 
@@ -88,7 +88,7 @@ Execute shell commands or scripts within the pipeline environment. Shell steps a
   steps:
   - name: upgrade-istio
     action: Shell                                       (1)
-    script: make deploy                                 (2)
+    command: make deploy                                (2)
     workingDir: ./component                             (3)
     variables:                                          (4)
     - name: TARGET_VERSION                              (5)
@@ -98,9 +98,9 @@ Execute shell commands or scripts within the pipeline environment. Shell steps a
 ```
 
 1. `action: Shell` marks the step as a shell step.
-2. `script`: The shell command to be executed. This can be a single command or a script file.
+2. `command`: The shell command to be executed. This can be a single command or a script file.
 3. `workingDir`: The directory that the shell step will have access to at runtime, optional. Highly recommended. If left unset, the step will be able to access the entire repository, but will run in the working directory of the `pipeline.yaml` file. Such steps will always re-run in incremental mode.
-4. `variables`: A list of environment variables that are set before executing the script.
+4. `variables`: A list of environment variables that are set before executing the command.
 5. `variables.name`: The name of the environment variable.
 6. `variables.configRef`: The [configuration reference](configuration.md) to look up the value for the environment variable.
 7. `variables.value`: Alternatively static values can be provided for the environment variable.
@@ -108,7 +108,6 @@ Execute shell commands or scripts within the pipeline environment. Shell steps a
 Currently, the following list of tools can be used within shell scripts:
 
 - `az`
-- `helm`
 - `kubectl`
 - `jq`
 - `make`
@@ -119,7 +118,75 @@ See the [Shell extension](https://ev2docs.azure.net/features/service-artifacts/a
 >[!WARNING]
 > TODO: we need to align and document the tool versions between the EV2 execution context and the Red Hat pipeline runner.
 
-Shell steps are mostly used for service deployments leveraging [Helm charts](service-deployment-concept.md#helm-chart).
+#### Helm Step
+
+Used for deploying Kubernetes services onto AKS clusters using [Helm](https://helm.sh/) charts. Prefer this over Shell steps that invoke `helm` directly, since the shell execution environment may not include a Helm CLI. Helm steps manage the full lifecycle of a Helm release: the first deployment installs the chart, and subsequent deployments to the same release name upgrade it.
+
+```yaml
+  ...
+  steps:
+  - name: deploy-frontend
+    action: Helm                                        (1)
+    aksCluster: '{{ .svc.aks.name }}'                   (2)
+    subnetName: 'aks-subnet'                            (3)
+    releaseName: 'aro-hcp-frontend-dev'                 (4)
+    releaseNamespace: '{{ .frontend.k8s.namespace }}'   (5)
+    namespaceFiles:                                     (6)
+    - namespace.yaml
+    chartDir: ./deploy                                  (7)
+    valuesFile: ./values.yaml                           (8)
+    kustoDatabase: '{{ .kusto.serviceLogsDatabase }}'   (9)
+    kustoTable: 'frontendLogs'                          (10)
+    kustoEndpoint:                                      (11)
+      resourceGroup: kusto
+      step: kusto-lookup
+      name: kustoUri
+    inputVariables:                                     (12)
+      frontendMsiClientId:                              (13)
+        resourceGroup: service
+        step: output
+        name: frontendMsiClientId
+    identityFrom:                                       (14)
+      resourceGroup: global
+      step: output
+      name: globalMSIId
+    timeout: 10m                                        (15)
+    rollbackOnFailure: true                             (16)
+```
+
+1. `action: Helm` marks the step as a Helm step.
+2. `aksCluster`: The name of the AKS cluster to deploy to. Can be configured dynamically using [configuration lookups](configuration.md). A kubeconfig is provisioned automatically (see [AKS cluster context](#aks-cluster)).
+3. `subnetName`: Optional. For private AKS clusters, the name of the subnet the deployer connects to before accessing the cluster.
+4. `releaseName`: The Helm release name. First deployment installs the chart; subsequent deployments to the same name upgrade it.
+5. `releaseNamespace`: The Kubernetes namespace for the release, analogous to `helm --namespace`. Created automatically if it does not exist.
+6. `namespaceFiles`: Optional list of Kubernetes namespace manifest files to apply before the Helm release. The release namespace itself does not need to be listed here — it is always created. Use these when a namespace requires specific labels, annotations, or other configuration. These files are pre-processed as Go templates.
+7. `chartDir`: Path to the Helm chart directory, relative to the `pipeline.yaml` file.
+8. `valuesFile`: Path to the Helm values file, relative to the `pipeline.yaml` file. Pre-processed as a Go template before being passed to Helm.
+
+   > [!IMPORTANT]
+   > Avoid Go template expressions (`{{ }}`) in the chart’s own `Chart.yaml` / `values.yaml` under `chartDir`, since Helm loads those before templatize preprocessing. Put templated content in the Helm step’s `valuesFile` and `namespaceFiles` instead (these are pre-processed by templatize and passed to Helm from a temporary location) - and place them outside of the charts directory.
+
+9. `kustoDatabase`: Kusto database name for logging this deployment.
+10. `kustoTable`: Kusto table for log ingestion.
+11. `kustoEndpoint`: Input reference resolving to the Kusto cluster URI, used for deployment logging.
+12. `inputVariables`: Optional. A map from placeholder names to step output references. Resolved values must be strings (non-string outputs will fail) and are injected into `valuesFile` and `namespaceFiles` by replacing `__<name>__` tokens.
+    * Example:
+      ```
+      inputVariables:
+        someImportantThing:
+          resourceGroup: regional
+          step: output
+          name: outputVariableName
+      ```
+13. An `inputVariables` entry: the key (`frontendMsiClientId`) is the placeholder name; `resourceGroup`, `step`, and `name` identify which step output to read.
+14. `identityFrom`: The managed identity used when running this deployment in EV2.
+15. `timeout`: Optional. Maximum time to wait for the Helm release to reach ready state. Uses Go duration syntax (e.g., `30s`, `5m`, `1h`). Defaults to `5m`.
+16. `rollbackOnFailure`: Optional. If `true`, rolls back to the previous release on upgrade failure, or uninstalls on install failure. Defaults to `false`.
+
+The Helm step uses a **content-addressed cache** to skip execution when the chart directory, values file, namespace files, release name, release namespace, and target cluster are all unchanged since the last successful run, enabling efficient incremental deployments.
+
+> [!NOTE]
+> See also [service-deployment-concept.md#helm-chart](service-deployment-concept.md#helm-chart)
 
 ### Automated Retry
 
@@ -212,7 +279,7 @@ Within the Red Hat development tenant for ARO HCP, we have two primary use cases
 
 Developers and SREs deploy their personal development ARO HCP instances using Makefile targets, such as `make entrypoint/Global` or `make pipeline/ACM`. Use your shell's tab-completion to view the available options for these targets. Behind the scenes, this executes the steps in a pipeline or under an entrypoint using a custom pipeline runner that interprets the pipeline files and takes actions accordingly, adhering to the defined expectations described in the [Step execution context](#step-execution-context) section.
 
-In addition, some shared ARO HCP instances are continuously reconciled on each change in the ARO-HCP repository using [Prow](prow.md). These jobs leverage the same Makefile targets and the same pipeline executor as developers and SREs.
+In addition, some shared ARO HCP instances are continuously reconciled on each change in the ARO-HCP repository using [CI execution](ci/execution.md). These jobs leverage the same Makefile targets and the same pipeline executor as developers and SREs.
 
 The custom pipeline runner can be found in [tooling/templatize](tooling/templatize).
 

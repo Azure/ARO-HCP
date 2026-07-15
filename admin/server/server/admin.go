@@ -27,6 +27,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/utils/set"
 
 	"github.com/Azure/azure-kusto-go/kusto"
@@ -35,6 +36,7 @@ import (
 	"github.com/Azure/ARO-HCP/admin/server/handlers/cosmosdump"
 	"github.com/Azure/ARO-HCP/admin/server/handlers/hcp"
 	breakglasshandlers "github.com/Azure/ARO-HCP/admin/server/handlers/hcp/breakglass"
+	stamphandlers "github.com/Azure/ARO-HCP/admin/server/handlers/stamp"
 	"github.com/Azure/ARO-HCP/admin/server/middleware"
 	"github.com/Azure/ARO-HCP/internal/audit"
 	"github.com/Azure/ARO-HCP/internal/database"
@@ -49,6 +51,7 @@ import (
 type AdminAPI struct {
 	clustersServiceClient  ocm.ClusterServiceClientSpec
 	resourcesDBClient      database.ResourcesDBClient
+	fleetDBClient          database.FleetDBClient
 	kustoClient            *kusto.Client
 	fpaCredentialRetriever fpa.FirstPartyApplicationTokenCredentialRetriever
 
@@ -67,6 +70,7 @@ func NewAdminAPI(
 	metricsListener net.Listener,
 	resourcesDBClient database.ResourcesDBClient,
 	billingDBClient database.BillingDBClient,
+	fleetDBClient database.FleetDBClient,
 	clustersServiceClient ocm.ClusterServiceClientSpec,
 	kustoClient *kusto.Client,
 	fpaCredentialRetriever fpa.FirstPartyApplicationTokenCredentialRetriever,
@@ -118,9 +122,23 @@ func NewAdminAPI(
 		middleware.V1HCPResourcePattern("GET", "/serialconsole"),
 		hcpMiddleware.HandlerFunc(errorutils.ReportError(hcp.NewHCPSerialConsoleHandler(resourcesDBClient, fpaCredentialRetriever).ServeHTTP)),
 	)
+	middlewareMux.Handle(
+		middleware.V1HCPResourcePattern("POST", "/desiredcontrolplanesize"),
+		hcpMiddleware.HandlerFunc(errorutils.ReportError(hcp.NewHCPDesiredControlPlaneSizeHandler(resourcesDBClient).ServeHTTP)),
+	)
 
 	// Non-HCP admin routes
 	middlewareMux.Handle("GET /admin/helloworld", handlers.HelloWorldHandler())
+
+	// Stamp management routes
+	middlewareMux.Handle("GET /admin/v1/stamps",
+		errorutils.ReportError(stamphandlers.NewStampListHandler(fleetDBClient).ServeHTTP))
+	middlewareMux.Handle("GET /admin/v1/stamps/{stampIdentifier}",
+		errorutils.ReportError(stamphandlers.NewStampGetHandler(fleetDBClient).ServeHTTP))
+	middlewareMux.Handle("GET /admin/v1/stamps/{stampIdentifier}/managementclusters/{managementClusterName}",
+		errorutils.ReportError(stamphandlers.NewManagementClusterGetHandler(fleetDBClient).ServeHTTP))
+	middlewareMux.Handle("POST /admin/v1/stamps/{stampIdentifier}/approval",
+		errorutils.ReportError(stamphandlers.NewStampApprovalHandler(fleetDBClient).ServeHTTP))
 
 	// Top-level mux (healthz bypasses all middleware)
 	apiMux := http.NewServeMux()
@@ -154,6 +172,7 @@ func NewAdminAPI(
 			Handler: metricsMux,
 		},
 		resourcesDBClient:      resourcesDBClient,
+		fleetDBClient:          fleetDBClient,
 		clustersServiceClient:  clustersServiceClient,
 		kustoClient:            kustoClient,
 		fpaCredentialRetriever: fpaCredentialRetriever,
@@ -184,10 +203,12 @@ func (a *AdminAPI) Run(ctx context.Context) error {
 	wg := sync.WaitGroup{}
 	wg.Add(2)
 	go func() {
+		defer utilruntime.HandleCrash()
 		defer wg.Done()
 		errCh <- a.server.Serve(a.listener)
 	}()
 	go func() {
+		defer utilruntime.HandleCrash()
 		defer wg.Done()
 		errCh <- a.metricsServer.Serve(a.metricsListener)
 	}()

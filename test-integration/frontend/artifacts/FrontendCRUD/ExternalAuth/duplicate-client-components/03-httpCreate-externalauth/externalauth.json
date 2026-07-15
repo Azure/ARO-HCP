@@ -1,5 +1,5 @@
 {
-	"name": "duplicate-client-components-auth",
+	"name": "ea-dup-clnt",
 	"properties": {
 		"claim": {
 			"mappings": {
@@ -16,7 +16,7 @@
 					"authClientNamespace": "openshift-console",
 					"name": "duplicate-component"
 				},
-				"type": "Confidential"
+				"type": "Public"
 			},
 			{
 				"clientId": "client-2",

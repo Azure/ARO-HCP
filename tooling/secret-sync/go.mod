@@ -3,7 +3,7 @@ module github.com/Azure/ARO-HCP/tooling/secret-sync
 go 1.25.7
 
 require (
-	github.com/Azure/ARO-Tools/tools/secret-sync v0.0.0-20260506174442-621e0b33dfa1
+	github.com/Azure/ARO-Tools/tools/secret-sync v0.0.0-20260707132038-40c92763218a
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.21.1
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.13.1
 	github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azkeys v1.4.0
@@ -15,10 +15,10 @@ require (
 )
 
 require (
-	github.com/Azure/ARO-Tools/config v0.0.0-20260506174442-621e0b33dfa1 // indirect
-	github.com/Azure/ARO-Tools/testutil v0.0.0-20260506174442-621e0b33dfa1 // indirect
-	github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260506174442-621e0b33dfa1 // indirect
-	github.com/Azure/ARO-Tools/tools/yamlwrap v0.0.0-20260506174442-621e0b33dfa1 // indirect
+	github.com/Azure/ARO-Tools/config v0.0.0-20260707132038-40c92763218a // indirect
+	github.com/Azure/ARO-Tools/testutil v0.0.0-20260707132038-40c92763218a // indirect
+	github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260707132038-40c92763218a // indirect
+	github.com/Azure/ARO-Tools/tools/yamlwrap v0.0.0-20260707132038-40c92763218a // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity/cache v0.4.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/internal v1.12.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azsecrets v1.4.0 // indirect
@@ -30,10 +30,10 @@ require (
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
 	go.yaml.in/yaml/v2 v2.4.4 // indirect
-	golang.org/x/crypto v0.50.0 // indirect
-	golang.org/x/net v0.53.0 // indirect
-	golang.org/x/sync v0.20.0 // indirect
-	golang.org/x/sys v0.43.0 // indirect
-	golang.org/x/text v0.36.0 // indirect
+	golang.org/x/crypto v0.52.0 // indirect
+	golang.org/x/net v0.55.0 // indirect
+	golang.org/x/sync v0.22.0 // indirect
+	golang.org/x/sys v0.45.0 // indirect
+	golang.org/x/text v0.37.0 // indirect
 	k8s.io/apimachinery v0.35.3 // indirect
 )

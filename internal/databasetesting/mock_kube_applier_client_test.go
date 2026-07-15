@@ -34,8 +34,15 @@ const (
 	testRG         = "myrg"
 	testCluster    = "mycluster"
 	testNodePool   = "mynodepool"
-	testMgmt       = "mgmt-1"
 	testDesireName = "mydesire"
+)
+
+// testMgmtID is the resourceID stamped into Spec.ManagementCluster; testMgmt
+// is its lowercased-string form, used as the Cosmos partition key.
+var (
+	testMgmtID = api.Must(azcorearm.ParseResourceID(
+		"/providers/microsoft.redhatopenshift/stamps/1/managementclusters/mgmt-1"))
+	testMgmt = strings.ToLower(testMgmtID.String())
 )
 
 func mustParse(t *testing.T, s string) *azcorearm.ResourceID {
@@ -53,11 +60,15 @@ func newClusterApplyDesire(t *testing.T) *kubeapplier.ApplyDesire {
 		CosmosMetadata: api.CosmosMetadata{
 			ResourceID: mustParse(t,
 				kubeapplier.ToClusterScopedApplyDesireResourceIDString(testSub, testRG, testCluster, testDesireName)),
+			PartitionKey: strings.ToLower(testMgmtID.String()),
 		},
 		Spec: kubeapplier.ApplyDesireSpec{
-			ManagementCluster: testMgmt,
-			KubeContent: &runtime.RawExtension{
-				Raw: []byte(`{"apiVersion":"v1","kind":"ConfigMap","metadata":{"name":"x"}}`),
+			ManagementCluster: testMgmtID,
+			Type:              kubeapplier.ApplyDesireTypeServerSideApply,
+			ServerSideApply: &kubeapplier.ServerSideApplyConfig{
+				KubeContent: &runtime.RawExtension{
+					Raw: []byte(`{"apiVersion":"v1","kind":"ConfigMap","metadata":{"name":"x"}}`),
+				},
 			},
 		},
 	}
@@ -70,9 +81,10 @@ func newNodePoolReadDesire(t *testing.T) *kubeapplier.ReadDesire {
 			ResourceID: mustParse(t,
 				kubeapplier.ToNodePoolScopedReadDesireResourceIDString(
 					testSub, testRG, testCluster, testNodePool, testDesireName)),
+			PartitionKey: strings.ToLower(testMgmtID.String()),
 		},
 		Spec: kubeapplier.ReadDesireSpec{
-			ManagementCluster: testMgmt,
+			ManagementCluster: testMgmtID,
 			TargetItem: kubeapplier.ResourceReference{
 				Resource: "configmaps", Namespace: "default", Name: "x",
 			},
@@ -85,12 +97,9 @@ func TestMockKubeApplierCreateAndGet_ClusterScoped(t *testing.T) {
 	mock := NewMockKubeApplierDBClient()
 	desire := newClusterApplyDesire(t)
 
-	parent := database.ResourceParent{
-		SubscriptionID: testSub, ResourceGroupName: testRG, ClusterName: testCluster,
-	}
-	crud, err := mock.KubeApplier(testMgmt).ApplyDesires(parent)
+	crud, err := mock.ApplyDesiresForCluster(testSub, testRG, testCluster)
 	if err != nil {
-		t.Fatalf("ApplyDesires(parent): %v", err)
+		t.Fatalf("ApplyDesiresForCluster: %v", err)
 	}
 	if _, err := crud.Create(ctx, desire, nil); err != nil {
 		t.Fatalf("Create: %v", err)
@@ -99,11 +108,11 @@ func TestMockKubeApplierCreateAndGet_ClusterScoped(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Get: %v", err)
 	}
-	if got.Spec.ManagementCluster != testMgmt {
-		t.Errorf("ManagementCluster = %q want %q", got.Spec.ManagementCluster, testMgmt)
+	if mc := got.Spec.ManagementCluster; mc == nil || !strings.EqualFold(mc.String(), testMgmt) {
+		t.Errorf("ManagementCluster = %v want %q", mc, testMgmt)
 	}
-	if got.Spec.KubeContent == nil || !strings.Contains(string(got.Spec.KubeContent.Raw), "ConfigMap") {
-		t.Errorf("KubeContent did not round-trip: %v", got.Spec.KubeContent)
+	if got.Spec.ServerSideApply == nil || got.Spec.ServerSideApply.KubeContent == nil || !strings.Contains(string(got.Spec.ServerSideApply.KubeContent.Raw), "ConfigMap") {
+		t.Errorf("KubeContent did not round-trip: %v", got.Spec.ServerSideApply)
 	}
 }
 
@@ -112,12 +121,9 @@ func TestMockKubeApplierCreateAndGet_NodePoolScoped(t *testing.T) {
 	mock := NewMockKubeApplierDBClient()
 	desire := newNodePoolReadDesire(t)
 
-	parent := database.ResourceParent{
-		SubscriptionID: testSub, ResourceGroupName: testRG, ClusterName: testCluster, NodePoolName: testNodePool,
-	}
-	crud, err := mock.KubeApplier(testMgmt).ReadDesires(parent)
+	crud, err := mock.ReadDesiresForNodePool(testSub, testRG, testCluster, testNodePool)
 	if err != nil {
-		t.Fatalf("ReadDesires(parent): %v", err)
+		t.Fatalf("ReadDesiresForNodePool: %v", err)
 	}
 	if _, err := crud.Create(ctx, desire, nil); err != nil {
 		t.Fatalf("Create: %v", err)
@@ -138,12 +144,9 @@ func TestMockKubeApplier_PartitionKeyEnvelope(t *testing.T) {
 	mock := NewMockKubeApplierDBClient()
 	desire := newClusterApplyDesire(t)
 
-	parent := database.ResourceParent{
-		SubscriptionID: testSub, ResourceGroupName: testRG, ClusterName: testCluster,
-	}
-	crud, err := mock.KubeApplier(testMgmt).ApplyDesires(parent)
+	crud, err := mock.ApplyDesiresForCluster(testSub, testRG, testCluster)
 	if err != nil {
-		t.Fatalf("ApplyDesires(parent): %v", err)
+		t.Fatalf("ApplyDesiresForCluster: %v", err)
 	}
 	if _, err := crud.Create(ctx, desire, nil); err != nil {
 		t.Fatalf("Create: %v", err)
@@ -177,10 +180,12 @@ func TestMockKubeApplierGlobalLister_UnionsClusterAndNodePoolScopes(t *testing.T
 				ResourceID: mustParse(t,
 					kubeapplier.ToNodePoolScopedApplyDesireResourceIDString(
 						testSub, testRG, testCluster, testNodePool, "other")),
+				PartitionKey: strings.ToLower(testMgmtID.String()),
 			},
 			Spec: kubeapplier.ApplyDesireSpec{
-				ManagementCluster: testMgmt,
-				KubeContent:       &runtime.RawExtension{Raw: []byte(`{"apiVersion":"v1","kind":"Secret","metadata":{"name":"y"}}`)},
+				ManagementCluster: testMgmtID,
+				Type:              kubeapplier.ApplyDesireTypeServerSideApply,
+				ServerSideApply:   &kubeapplier.ServerSideApplyConfig{KubeContent: &runtime.RawExtension{Raw: []byte(`{"apiVersion":"v1","kind":"Secret","metadata":{"name":"y"}}`)}},
 			},
 		},
 	})
@@ -188,7 +193,7 @@ func TestMockKubeApplierGlobalLister_UnionsClusterAndNodePoolScopes(t *testing.T
 		t.Fatalf("NewMockKubeApplierDBClientWithResources: %v", err)
 	}
 
-	iter, err := mock.GlobalListers().ApplyDesires().List(ctx, nil)
+	iter, err := mock.Listers().ApplyDesires().List(ctx, nil)
 	if err != nil {
 		t.Fatalf("global ApplyDesires().List: %v", err)
 	}
@@ -214,12 +219,9 @@ func TestMockKubeApplier_IsolatedFromMockResourcesDBClient(t *testing.T) {
 	dbMock := NewMockResourcesDBClient()
 	desire := newClusterApplyDesire(t)
 
-	parent := database.ResourceParent{
-		SubscriptionID: testSub, ResourceGroupName: testRG, ClusterName: testCluster,
-	}
-	crud, err := kubeMock.KubeApplier(testMgmt).ApplyDesires(parent)
+	crud, err := kubeMock.ApplyDesiresForCluster(testSub, testRG, testCluster)
 	if err != nil {
-		t.Fatalf("ApplyDesires(parent): %v", err)
+		t.Fatalf("ApplyDesiresForCluster: %v", err)
 	}
 	if _, err := crud.Create(ctx, desire, nil); err != nil {
 		t.Fatalf("Create: %v", err)

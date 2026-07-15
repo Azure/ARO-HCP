@@ -25,7 +25,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/operation"
 	"k8s.io/apimachinery/pkg/api/safe"
 	"k8s.io/apimachinery/pkg/api/validate"
-	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -41,14 +40,26 @@ const (
 	ManagedIdentitiesDataPlaneIdentityURLOptionalOperationOption = "ManagedIdentitiesDataPlaneIdentityURLOptional"
 )
 
+// ToClusterTrackedResource returns a pointer to the TrackedResource field of
+// a cluster. Exported so admission can traverse the same field path.
+func ToClusterTrackedResource(oldObj *api.HCPOpenShiftCluster) *arm.TrackedResource {
+	return &oldObj.TrackedResource
+}
+
+// ToClusterCustomerProperties returns a pointer to the CustomerProperties
+// field of a cluster. Exported so admission can traverse the same field path.
+func ToClusterCustomerProperties(oldObj *api.HCPOpenShiftCluster) *api.HCPOpenShiftClusterCustomerProperties {
+	return &oldObj.CustomerProperties
+}
+
+// ToClusterServiceProviderProperties returns a pointer to the
+// ServiceProviderProperties field of a cluster. Exported so admission can
+// traverse the same field path.
+func ToClusterServiceProviderProperties(oldObj *api.HCPOpenShiftCluster) *api.HCPOpenShiftClusterServiceProviderProperties {
+	return &oldObj.ServiceProviderProperties
+}
+
 var (
-	toTrackedResource           = func(oldObj *api.HCPOpenShiftCluster) *arm.TrackedResource { return &oldObj.TrackedResource }
-	toClusterCustomerProperties = func(oldObj *api.HCPOpenShiftCluster) *api.HCPOpenShiftClusterCustomerProperties {
-		return &oldObj.CustomerProperties
-	}
-	toClusterServiceProviderProperties = func(oldObj *api.HCPOpenShiftCluster) *api.HCPOpenShiftClusterServiceProviderProperties {
-		return &oldObj.ServiceProviderProperties
-	}
 	toClusterIdentity = func(oldObj *api.HCPOpenShiftCluster) *arm.ManagedServiceIdentity { return oldObj.Identity }
 )
 
@@ -56,7 +67,7 @@ func ValidateCluster(ctx context.Context, op operation.Operation, newCluster, ol
 	errs := field.ErrorList{}
 
 	//arm.TrackedResource
-	errs = append(errs, validateTrackedResource(ctx, op, field.NewPath("trackedResource"), &newCluster.TrackedResource, safe.Field(oldCluster, toTrackedResource))...)
+	errs = append(errs, validateTrackedResource(ctx, op, field.NewPath("trackedResource"), &newCluster.TrackedResource, safe.Field(oldCluster, ToClusterTrackedResource))...)
 	errs = append(errs, RestrictedResourceIDWithResourceGroup(ctx, op, field.NewPath("id"), newCluster.ID, nil, api.ClusterResourceType.String())...)
 	if newCluster.ID != nil {
 		errs = append(errs, MaxLen(ctx, op, field.NewPath("id"), &newCluster.ID.Name, nil, 54)...)
@@ -64,10 +75,10 @@ func ValidateCluster(ctx context.Context, op operation.Operation, newCluster, ol
 	}
 
 	// Properties HCPOpenShiftClusterCustomerProperties `json:"properties,omitempty"`
-	errs = append(errs, validateClusterCustomerProperties(ctx, op, field.NewPath("customerProperties"), &newCluster.CustomerProperties, safe.Field(oldCluster, toClusterCustomerProperties))...)
+	errs = append(errs, validateClusterCustomerProperties(ctx, op, field.NewPath("customerProperties"), &newCluster.CustomerProperties, safe.Field(oldCluster, ToClusterCustomerProperties))...)
 
 	// Properties HCPOpenShiftClusterCustomerProperties `json:"properties,omitempty"`
-	errs = append(errs, validateClusterServiceProviderProperties(ctx, op, field.NewPath("serviceProviderProperties"), &newCluster.ServiceProviderProperties, safe.Field(oldCluster, toClusterServiceProviderProperties))...)
+	errs = append(errs, validateClusterServiceProviderProperties(ctx, op, field.NewPath("serviceProviderProperties"), &newCluster.ServiceProviderProperties, safe.Field(oldCluster, ToClusterServiceProviderProperties))...)
 
 	// Identity   *arm.ManagedServiceIdentity   `json:"identity,omitempty"`
 	errs = append(errs, validateManagedServiceIdentity(ctx, op, field.NewPath("identity"), newCluster.Identity, safe.Field(oldCluster, toClusterIdentity))...)
@@ -182,11 +193,20 @@ func validateResourceIDsAgainstClusterID(ctx context.Context, op operation.Opera
 	return errs
 }
 
+// ToClusterCustomerPropertiesVersion returns a pointer to the Version field
+// of cluster customer properties. Exported so admission can traverse the same
+// field path.
+func ToClusterCustomerPropertiesVersion(oldObj *api.HCPOpenShiftClusterCustomerProperties) *api.VersionProfile {
+	return &oldObj.Version
+}
+
 var (
-	toVersion          = func(oldObj *api.HCPOpenShiftClusterCustomerProperties) *api.VersionProfile { return &oldObj.Version }
-	toCustomerDNS      = func(oldObj *api.HCPOpenShiftClusterCustomerProperties) *api.CustomerDNSProfile { return &oldObj.DNS }
-	toNetwork          = func(oldObj *api.HCPOpenShiftClusterCustomerProperties) *api.NetworkProfile { return &oldObj.Network }
-	toCustomerAPI      = func(oldObj *api.HCPOpenShiftClusterCustomerProperties) *api.CustomerAPIProfile { return &oldObj.API }
+	toCustomerDNS     = func(oldObj *api.HCPOpenShiftClusterCustomerProperties) *api.CustomerDNSProfile { return &oldObj.DNS }
+	toNetwork         = func(oldObj *api.HCPOpenShiftClusterCustomerProperties) *api.NetworkProfile { return &oldObj.Network }
+	toCustomerAPI     = func(oldObj *api.HCPOpenShiftClusterCustomerProperties) *api.CustomerAPIProfile { return &oldObj.API }
+	toCustomerIngress = func(oldObj *api.HCPOpenShiftClusterCustomerProperties) *api.CustomerIngressProfile {
+		return &oldObj.Ingress
+	}
 	toCustomerPlatform = func(oldObj *api.HCPOpenShiftClusterCustomerProperties) *api.CustomerPlatformProfile {
 		return &oldObj.Platform
 	}
@@ -207,7 +227,7 @@ func validateClusterCustomerProperties(ctx context.Context, op operation.Operati
 	errs := field.ErrorList{}
 
 	// Version                 VersionProfile              `json:"version,omitempty"`
-	errs = append(errs, validateVersionProfile(ctx, op, fldPath.Child("version"), &newObj.Version, safe.Field(oldObj, toVersion))...)
+	errs = append(errs, validateVersionProfile(ctx, op, fldPath.Child("version"), &newObj.Version, safe.Field(oldObj, ToClusterCustomerPropertiesVersion))...)
 
 	// DNS                     CustomerDNSProfile                  `json:"dns,omitempty"`
 	errs = append(errs, validateCustomerDNSProfile(ctx, op, fldPath.Child("dns"), &newObj.DNS, safe.Field(oldObj, toCustomerDNS))...)
@@ -218,6 +238,9 @@ func validateClusterCustomerProperties(ctx context.Context, op operation.Operati
 
 	// API                     CustomerAPIProfile                  `json:"api,omitempty"`
 	errs = append(errs, validateCustomerAPIProfile(ctx, op, fldPath.Child("api"), &newObj.API, safe.Field(oldObj, toCustomerAPI))...)
+
+	// Ingress                 CustomerIngressProfile              `json:"ingress,omitempty"`
+	errs = append(errs, validateCustomerIngressProfile(ctx, op, fldPath.Child("ingress"), &newObj.Ingress, safe.Field(oldObj, toCustomerIngress))...)
 
 	// Platform                CustomerPlatformProfile             `json:"platform,omitempty"`
 	errs = append(errs, immutableByReflect(ctx, op, fldPath.Child("platform"), &newObj.Platform, safe.Field(oldObj, toCustomerPlatform))...)
@@ -272,10 +295,17 @@ var (
 	toServiceProviderManagedIdentitiesDataPlaneIdentityURL = func(oldObj *api.HCPOpenShiftClusterServiceProviderProperties) *string {
 		return &oldObj.ManagedIdentitiesDataPlaneIdentityURL
 	}
-	toServiceProviderClusterUID = func(oldObj *api.HCPOpenShiftClusterServiceProviderProperties) *string {
-		return &oldObj.ClusterUID
+	toExperimentalFeaturesFIPSEnabled = func(oldObj *api.HCPOpenShiftClusterServiceProviderProperties) *bool {
+		return &oldObj.ExperimentalFeatures.FIPSEnabled
 	}
 )
+
+// ToClusterServiceProviderPropertiesClusterUID returns a pointer to the
+// ClusterUID field of cluster service provider properties. Exported so
+// admission can traverse the same field path.
+func ToClusterServiceProviderPropertiesClusterUID(oldObj *api.HCPOpenShiftClusterServiceProviderProperties) *string {
+	return &oldObj.ClusterUID
+}
 
 func validateClusterServiceProviderProperties(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.HCPOpenShiftClusterServiceProviderProperties) field.ErrorList {
 	errs := field.ErrorList{}
@@ -313,12 +343,15 @@ func validateClusterServiceProviderProperties(ctx context.Context, op operation.
 	errs = append(errs, URL(ctx, op, fldPath.Child("managedIdentitiesDataPlaneIdentityURL"), &newObj.ManagedIdentitiesDataPlaneIdentityURL, nil)...)
 
 	// ClusterUID      string                         `json:"clusterUID,omitempty"`
-	// ClusterUID is always generated server-side by admission.MutateClusterCreate().
+	// ClusterUID is always generated server-side by admission.MutateCluster on CREATE.
 	// Both preflight and real cluster creation call admission before validation.
 	if op.Type == operation.Create {
 		errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("clusterUID"), &newObj.ClusterUID, nil)...)
 	}
-	errs = append(errs, immutableByCompare(ctx, op, fldPath.Child("clusterUID"), &newObj.ClusterUID, safe.Field(oldObj, toServiceProviderClusterUID))...)
+	errs = append(errs, immutableByCompare(ctx, op, fldPath.Child("clusterUID"), &newObj.ClusterUID, safe.Field(oldObj, ToClusterServiceProviderPropertiesClusterUID))...)
+
+	// ExperimentalFeatures.FIPSEnabled is immutable
+	errs = append(errs, immutableByCompare(ctx, op, fldPath.Child("tags").Key(api.TagClusterFIPSEnabled), &newObj.ExperimentalFeatures.FIPSEnabled, safe.Field(oldObj, toExperimentalFeaturesFIPSEnabled))...)
 
 	return errs
 }
@@ -367,10 +400,10 @@ func validateVersionProfile(ctx context.Context, op operation.Operation, fldPath
 
 	if !op.HasOption(api.FeatureExperimentalReleaseFeatures) {
 		// Without feature flag: "candidate" and "nightly" aren't allowed.
-		errs = append(errs, validate.Enum(ctx, op, fldPath.Child("channelGroup"), &newObj.ChannelGroup, nil, sets.New("stable", "fast"), nil)...)
+		errs = append(errs, validate.Enum(ctx, op, fldPath.Child("channelGroup"), &newObj.ChannelGroup, nil, api.AllowedChannelGroups, nil)...)
 	} else {
 		// TODO I think everyone should be able to do this, but we'll need to notify first
-		errs = append(errs, validate.Enum(ctx, op, fldPath.Child("channelGroup"), &newObj.ChannelGroup, nil, sets.New("stable", "fast", "candidate", "nightly"), nil)...)
+		errs = append(errs, validate.Enum(ctx, op, fldPath.Child("channelGroup"), &newObj.ChannelGroup, nil, api.AllowedChannelGroupsWithExperimentalFlag, nil)...)
 	}
 
 	return errs
@@ -520,6 +553,21 @@ func validateCustomerAPIProfile(ctx context.Context, op operation.Operation, fld
 			nil, nil,
 			NoExtraWhitespace,
 		)...)
+
+	return errs
+}
+
+var (
+	toIngressType = func(oldObj *api.CustomerIngressProfile) *api.IngressType { return &oldObj.Type }
+)
+
+func validateCustomerIngressProfile(ctx context.Context, op operation.Operation, fldPath *field.Path, newObj, oldObj *api.CustomerIngressProfile) field.ErrorList {
+	errs := field.ErrorList{}
+
+	// Type      IngressType `json:"type,omitempty"`
+	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("type"), &newObj.Type, nil)...)
+	errs = append(errs, immutableByCompare(ctx, op, fldPath.Child("type"), &newObj.Type, safe.Field(oldObj, toIngressType))...)
+	errs = append(errs, validate.Enum(ctx, op, fldPath.Child("type"), &newObj.Type, nil, api.ValidIngressTypes, nil)...)
 
 	return errs
 }

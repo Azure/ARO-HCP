@@ -16,6 +16,7 @@ package serverutils
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -43,6 +44,10 @@ func TestDumpBillingToLogger(t *testing.T) {
 
 	// Create HCP clusters
 	cluster1 := &api.HCPOpenShiftCluster{
+		CosmosMetadata: arm.CosmosMetadata{
+			ResourceID:   cluster1ResourceID,
+			PartitionKey: strings.ToLower(cluster1ResourceID.SubscriptionID),
+		},
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
 				ID:   cluster1ResourceID,
@@ -57,6 +62,10 @@ func TestDumpBillingToLogger(t *testing.T) {
 	}
 
 	cluster2 := &api.HCPOpenShiftCluster{
+		CosmosMetadata: arm.CosmosMetadata{
+			ResourceID:   cluster2ResourceID,
+			PartitionKey: strings.ToLower(cluster2ResourceID.SubscriptionID),
+		},
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
 				ID:   cluster2ResourceID,
@@ -120,6 +129,10 @@ func TestDumpBillingToLogger_PartitionScoping(t *testing.T) {
 
 	// Create HCP clusters with ClusterUIDs
 	cluster1 := &api.HCPOpenShiftCluster{
+		CosmosMetadata: arm.CosmosMetadata{
+			ResourceID:   cluster1ResourceID,
+			PartitionKey: strings.ToLower(cluster1ResourceID.SubscriptionID),
+		},
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
 				ID:   cluster1ResourceID,
@@ -134,6 +147,10 @@ func TestDumpBillingToLogger_PartitionScoping(t *testing.T) {
 	}
 
 	cluster2 := &api.HCPOpenShiftCluster{
+		CosmosMetadata: arm.CosmosMetadata{
+			ResourceID:   cluster2ResourceID,
+			PartitionKey: strings.ToLower(cluster2ResourceID.SubscriptionID),
+		},
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
 				ID:   cluster2ResourceID,
@@ -148,6 +165,10 @@ func TestDumpBillingToLogger_PartitionScoping(t *testing.T) {
 	}
 
 	cluster3 := &api.HCPOpenShiftCluster{
+		CosmosMetadata: arm.CosmosMetadata{
+			ResourceID:   cluster3ResourceID,
+			PartitionKey: strings.ToLower(cluster3ResourceID.SubscriptionID),
+		},
 		TrackedResource: arm.TrackedResource{
 			Resource: arm.Resource{
 				ID:   cluster3ResourceID,

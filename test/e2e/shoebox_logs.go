@@ -28,6 +28,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/eventhub/armeventhub"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/monitor/armmonitor"
@@ -105,6 +106,8 @@ func pollVerifier(ctx context.Context, name string, verifier shoeboxLogVerifier,
 }
 
 func createStorageAccount(ctx context.Context, subscriptionID string, creds azcore.TokenCredential, resourceGroupName, location string) (*storageAccountResult, error) {
+	const pollTimeout = 10 * time.Minute
+
 	storageAccountName := "shoebox" + rand.String(6)
 
 	storageClient, err := armstorage.NewAccountsClient(subscriptionID, creds, nil)
@@ -123,9 +126,13 @@ func createStorageAccount(ctx context.Context, subscriptionID string, creds azco
 		return nil, fmt.Errorf("failed to begin storage account creation: %w", err)
 	}
 
-	storageAccount, err := storagePoller.PollUntilDone(ctx, nil)
+	pollCtx, pollCancel := context.WithTimeout(ctx, pollTimeout)
+	defer pollCancel()
+	storageAccount, err := storagePoller.PollUntilDone(pollCtx, &runtime.PollUntilDoneOptions{
+		Frequency: 10 * time.Second,
+	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to create storage account: %w", err)
+		return nil, fmt.Errorf("failed to create storage account %s in resource group %s (timeout '%f' minutes): %w", storageAccountName, resourceGroupName, pollTimeout.Minutes(), err)
 	}
 
 	return &storageAccountResult{
@@ -145,6 +152,7 @@ func createEventHub(ctx context.Context, subscriptionID string, creds azcore.Tok
 		namespaceName = "shoebox-eh-ns"
 		hubName       = "shoebox-eh"
 		authRuleName  = "shoebox-eh-auth"
+		pollTimeout   = 10 * time.Minute
 	)
 
 	nsClient, err := armeventhub.NewNamespacesClient(subscriptionID, creds, nil)
@@ -163,9 +171,13 @@ func createEventHub(ctx context.Context, subscriptionID string, creds azcore.Tok
 		return nil, fmt.Errorf("failed to begin Event Hub namespace creation: %w", err)
 	}
 
-	_, err = nsPoller.PollUntilDone(ctx, nil)
+	pollCtx, pollCancel := context.WithTimeout(ctx, pollTimeout)
+	defer pollCancel()
+	_, err = nsPoller.PollUntilDone(pollCtx, &runtime.PollUntilDoneOptions{
+		Frequency: 10 * time.Second,
+	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to create Event Hub namespace: %w", err)
+		return nil, fmt.Errorf("failed to create Event Hub namespace %s in resource group %s (timeout '%f' minutes): %w", namespaceName, resourceGroupName, pollTimeout.Minutes(), err)
 	}
 
 	hubClient, err := armeventhub.NewEventHubsClient(subscriptionID, creds, nil)
@@ -225,21 +237,21 @@ var _ = Describe("Customer", func() {
 			tc := framework.NewTestContext()
 
 			if tc.UsePooledIdentities() {
-				err := tc.AssignIdentityContainers(ctx, 1, 60*time.Second)
-				Expect(err).NotTo(HaveOccurred())
+				err := tc.AssignIdentityContainers(ctx, 1, framework.IdentityContainerAssignmentRetryInterval)
+				Expect(err).NotTo(HaveOccurred(), "failed to assign pooled identity containers")
 			}
 
 			By("creating a resource group")
 			resourceGroup, err := tc.NewResourceGroup(ctx, "shoebox-cluster", tc.Location())
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create resource group for shoebox test")
 
 			By("creating cluster parameters")
-			clusterParams := framework.NewDefaultClusterParams()
+			clusterParams := framework.NewDefaultClusterParams20240610()
 			clusterParams.ClusterName = customerClusterName
 			clusterParams.ManagedResourceGroupName = framework.SuffixName(*resourceGroup.Name, "-managed", 64)
 
 			By("creating customer resources")
-			clusterParams, err = tc.CreateClusterCustomerResources(ctx,
+			clusterParams, err = tc.CreateClusterCustomerResources20240610(ctx,
 				resourceGroup,
 				clusterParams,
 				map[string]any{
@@ -250,17 +262,17 @@ var _ = Describe("Customer", func() {
 				TestArtifactsFS,
 				framework.RBACScopeResourceGroup,
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create cluster customer resources")
 
 			By("creating the HCP cluster")
-			err = tc.CreateHCPClusterFromParam(ctx, GinkgoLogr, *resourceGroup.Name, clusterParams, 45*time.Minute)
-			Expect(err).NotTo(HaveOccurred())
+			err = tc.CreateHCPClusterFromParam20240610(ctx, GinkgoLogr, *resourceGroup.Name, clusterParams, framework.ClusterCreationTimeout)
+			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster %s", customerClusterName)
 
 			subscriptionID, err := tc.SubscriptionID(ctx)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to get subscription ID")
 
 			creds, err := tc.AzureCredential()
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to get Azure credential")
 
 			// TODO: convert shoebox-specific steps below to hard-fail assertions once validated in all stage/prod regions.
 

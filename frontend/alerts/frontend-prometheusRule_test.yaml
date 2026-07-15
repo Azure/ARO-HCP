@@ -2,33 +2,15 @@ rule_files:
 - frontend-prometheusRule.yaml
 evaluation_interval: 1m
 tests:
-# Test: FrontendLatency 95th percentile does not exceed 5 seconds
-# Test: FrontendLatency Less than 5% of requests exceed 5 seconds
-- interval: 1m
-  input_series:
-  - series: 'frontend_http_requests_duration_seconds_bucket{le="0.1"}'
-    values: '0+60x10'
-  - series: 'frontend_http_requests_duration_seconds_bucket{le="0.5"}'
-    values: '0+60x20'
-  - series: 'frontend_http_requests_duration_seconds_bucket{le="1"}'
-    values: '0+60x30'
-  - series: 'frontend_http_requests_duration_seconds_bucket{le="5"}'
-    values: '0+60x190'
-  - series: 'frontend_http_requests_duration_seconds_bucket{le="+Inf"}'
-    values: '0+60x200'
-  alert_rule_test:
-  - eval_time: 60m
-    alertname: FrontendLatency
-    exp_alerts: []
 # Test: FrontendClusterServiceErrorRate above 5%
 - interval: 1m
   input_series:
   - series: 'frontend_clusters_service_client_request_count{code="500"}'
-    values: "0 6x10" # 6 per minute → 6 / 106 ≈ 5.66%
+    values: "0 6x20" # 6 per minute → 6 / 106 ≈ 5.66%
   - series: 'frontend_clusters_service_client_request_count{code="200"}'
-    values: "0 100x10" # 100 per minute from minute 1 to 10
+    values: "0 100x20" # 100 per minute from minute 1 to 20
   alert_rule_test:
-  - eval_time: 10m # At this point, the condition has held for 10 minutes
+  - eval_time: 20m
     alertname: FrontendClusterServiceErrorRate
     exp_alerts:
     - exp_labels:
@@ -41,11 +23,11 @@ tests:
 - interval: 1m
   input_series:
   - series: 'frontend_clusters_service_client_request_count{code="500"}'
-    values: "0 2x10" # 2 / 102 ≈ 1.96%
+    values: "0 2x20" # 2 / 102 ≈ 1.96%
   - series: 'frontend_clusters_service_client_request_count{code="200"}'
-    values: "0 100x10" # 100 per minute from minute 1 to 10
+    values: "0 100x20" # 100 per minute from minute 1 to 20
   alert_rule_test:
-  - eval_time: 10m # At this point, the condition has held for 10 minutes
+  - eval_time: 20m
     alertname: FrontendClusterServiceErrorRate
     exp_alerts: []
 # Test: FrontendHighAuditLogErrorRate above 5%
@@ -80,9 +62,9 @@ tests:
 - interval: 1m
   input_series:
   - series: 'otel_audit_log_connection_degraded{job="aro-hcp-frontend-metrics"}'
-    values: "1x10" # degraded for 10 minutes
+    values: "1x20" # degraded for 20 minutes
   alert_rule_test:
-  - eval_time: 10m
+  - eval_time: 20m
     alertname: FrontendAuditLogConnectionDegraded
     exp_alerts:
     - exp_labels:
@@ -96,8 +78,32 @@ tests:
 - interval: 1m
   input_series:
   - series: 'otel_audit_log_connection_degraded{job="aro-hcp-frontend-metrics"}'
-    values: "0x10" # healthy for 10 minutes
+    values: "0x20" # healthy for 20 minutes
   alert_rule_test:
-  - eval_time: 10m
+  - eval_time: 20m
     alertname: FrontendAuditLogConnectionDegraded
+    exp_alerts: []
+# Test: FrontendHttpRequestPanics fires when panics occur
+- interval: 1m
+  input_series:
+  - series: 'frontend_http_request_panics_total{path_pattern="/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/{hcpOpenShiftClusterName}", method="GET"}'
+    values: "0 1 2 3 4 5 6 7 8 9 10"
+  alert_rule_test:
+  - eval_time: 6m
+    alertname: FrontendHttpRequestPanics
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+      exp_annotations:
+        description: 'Frontend HTTP request handler has panicked 5 time(s) in the last 5 minutes.'
+        runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/frontend-tsg.html'
+        summary: 'Frontend is panicking during HTTP request handling'
+# Test: FrontendHttpRequestPanics does not fire when no panics
+- interval: 1m
+  input_series:
+  - series: 'frontend_http_request_panics_total{path_pattern="/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/{hcpOpenShiftClusterName}", method="GET"}'
+    values: "0+0x10"
+  alert_rule_test:
+  - eval_time: 6m
+    alertname: FrontendHttpRequestPanics
     exp_alerts: []

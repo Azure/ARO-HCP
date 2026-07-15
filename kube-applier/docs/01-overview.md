@@ -8,7 +8,7 @@ API access is not desirable (credentials, blast radius, network topology).
 
 Today, parts of this gap are closed by purpose-built controllers (e.g. the
 `Controller` resource pattern, Maestro's bundle controllers, etc.). The
-`kube-applier` generalises that bridge by introducing three minimal,
+`kube-applier` generalises that bridge by introducing two minimal,
 declarative "desire" resources stored in Cosmos. The backend writes them; the
 kube-applier reconciles them against the local kube-apiserver.
 
@@ -22,7 +22,8 @@ kube-applier reconciles them against the local kube-apiserver.
    +---------+   |   (cross-partition)|     |  partition = MgmtCluster    |
                  +--------------------+     |  docs:                      |
                                             |   - ApplyDesire             |
-                                            |   - DeleteDesire            |
+                                            |     (Type=ServerSideApply   |
+                                            |      | Delete)              |
                                             |   - ReadDesire              |
                                             +--------------+--------------+
                                                            |
@@ -32,7 +33,7 @@ kube-applier reconciles them against the local kube-apiserver.
    +-------------+   +-------------------------------------+--+
    | Mgmt        |   |  kube-applier binary (per mgmt cluster) |
    | Kube API    |<--|  - ApplyDesireController               |
-   |             |   |  - DeleteDesireController              |
+   |             |   |    (handles SSA + Delete via Type)     |
    |             |   |  - ReadDesireInformerManagingController|
    |             |   |     spawns/destroys                    |
    |             |   |       ReadDesireKubernetesController N |
@@ -60,8 +61,10 @@ subscription ID. Implications:
 
 ### One Cosmos document per `*Desire`; no list/select APIs at the kube layer
 
-Per the readme: each `*Desire` references exactly one Kubernetes object. We
-are intentionally not adding `ApplyManyDesire`, `ReadManyDesire`, label
+Per the readme: each `*Desire` references exactly one Kubernetes object.
+`ApplyDesire` uses a discriminated union on `Type` (`ServerSideApply` or
+`Delete`) so a single CRD covers both apply and delete semantics. We are
+intentionally not adding `ApplyManyDesire`, `ReadManyDesire`, label
 selectors, or list-all variants. This keeps every `.status` story
 unambiguous.
 
@@ -84,14 +87,15 @@ It runs continuously, leader-elected, alongside other ARO-HCP
 management-cluster services. It uses `rest.InClusterConfig()` like the
 `admin` server does.
 
-### Cross-partition access lives only in `GlobalListers`
+### Cross-management-cluster access lives in `KubeApplierDBClients` (plural)
 
-Following the existing split (`internal/database/global_lister.go`):
-
-- The kube-applier uses single-partition CRUD scoped to its
-  management-cluster partition.
-- The backend uses the new `GlobalListers().*Desires()` methods to list
-  across all management clusters.
+Each management cluster has its own Cosmos container. The kube-applier
+sidecar opens its own MC's container directly via `KubeApplierDBClient`.
+The backend holds a `KubeApplierDBClients` registry keyed by management
+cluster resourceID; `For(rid)` returns the per-MC `KubeApplierDBClient`,
+constructing it lazily on first access. Iterating
+`ManagementClusterResourceIDs()` lets the backend walk every container —
+this is how the orphan-cleanup controller spans all MCs.
 
 ## Out of scope (for the initial implementation)
 

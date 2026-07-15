@@ -1,0 +1,20 @@
+cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}').table('backendLogs')
+| where timestamp between ({{ kqlDatetime .FullStartTime }} .. {{ kqlDatetime .FullEndTime }})
+{{- if and .ServiceClusterName .ManagementClusterName }}
+| where cluster in ('{{ .ServiceClusterName }}', '{{ .ManagementClusterName }}')
+{{- end }}
+| where container_name == 'aro-hcp-backend'
+| where log.controller_name == 'datadump'
+| where log.resource_group == '{{ .ResourceGroup }}'
+| where log.resource_name == '{{ .ClusterResourceName }}'
+| where log.content.resourceType =~ 'microsoft.redhatopenshift/hcpopenshiftclusters/readdesires'
+| summarize content=take_any(log.content), observedTime=take_any(timestamp) by etag=tostring(log.content._etag)
+| sort by tolong(content._ts) asc
+| extend content = parse_json(content)
+| extend manifest = content.properties.status.kubeContent
+| where manifest.kind == 'HostedCluster'
+| mv-expand condition = manifest.status.conditions
+| project observedTime, type=tostring(condition.type), status=tostring(condition.status), reason=tostring(condition.reason), message=tostring(condition.message), lastTransitionTime=todatetime(condition.lastTransitionTime)
+| where lastTransitionTime between ({{ kqlDatetime .PhaseStartTime }} .. {{ kqlDatetime .PhaseEndTime }})
+| summarize observedTime=min(observedTime) by type, status, reason, message, lastTransitionTime
+| order by lastTransitionTime asc, observedTime asc

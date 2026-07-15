@@ -2,7 +2,7 @@
 
 A personal DEV environment is a fully-fledged ARO HCP service stack that provides all major infrastructure and service components required to create hosted control planes in a region. Each ARO HCP team member creates their own personal DEV environment for development purposes.
 
-These environments are hosted in the Red Hat Azure tenant, meaning that all [restrictions](environments.md#aro-hcp-azure-tenant-overview) of that tenant apply.
+These environments are hosted in the Red Hat Azure tenant, meaning that all [restrictions](environments.md#azure-tenants) of that tenant apply.
 
 This document will describe how to create and manage a personal DEV environment and how to access them for development purposes.
 
@@ -37,9 +37,16 @@ All other tools should be transparently installed by the `make` targets that req
 
 ## Full Personal DEV Environment Setup
 
-> [!IMPORTANT]
-> A word of caution upfront: dev infrastructure is automatically deleted after 48h. If you want to keep your infrastructure indefinitely, run all the following commands with an env variable `PERSIST=true`.
-> Please consider the implication on cost if you decide to keep your infrastructure indefinitely.
+> [!IMPORTANT] Environment Cleanup
+> A word of caution upfront: dev infrastructure is automatically deleted after 48h. Setting `PERSIST=true` extends retention to 15 days instead of permanent.
+> Please consider the implication on cost if you decide to persist your infrastructure.
+
+> [!CAUTION] Cleanup-sensitive naming patterns
+> The following resource group naming patterns trigger special cleanup rules. Avoid them for custom `DEPLOY_ENV` values or ad-hoc resource groups. See [`resourcegroups.policy.yaml`](../tooling/cleanup-sweeper/resourcegroups.policy.yaml) for details.
+>
+> **Prefixes:** `hcp-underlay-pers-`, `hcp-underlay-prow-`, `hcp-underlay-ci`, `hcp-underlay-cspr-`, `hcp-underlay-dev-`, `hcp-underlay-perf-`, `hcp-underlay-int-`, `hcp-underlay-stg-`, `hcp-underlay-prod-`
+>
+> **Suffixes:** `-shared-resources`
 
 The creation process can take up to 20 minutes.
 
@@ -49,9 +56,12 @@ The creation process can take up to 20 minutes.
 
 This command creates a personal DEV environment with a unique name that is derived from your username. It builds and pushes all in-repo service images (frontend, backend, admin, sessiongate) from your local checkout and deploys them along with all required infrastructure components.
 
-> [!TIP]
+> [!NOTE] Update Personal DEV Environment 
 > This command can be used to update your personal DEV environment as well. It will apply the latest changes to the infrastructure and services. Steps are cached, so it's quick and safe to re-run the entire environment setup.
 > If you only want to update individual aspects of the environment, follow the [partial setup](#partial-personal-dev-environment-setup) instructions.
+
+> [!TIP] Make Options
+> [Make Options](./make-options.md) describes how to customize the make build e.g. by defining the container engine to be used or limiting parallel jobs. This can be of help when experiencing problems with the build.
 
 ### Local Cluster Service Development Setup
 
@@ -116,14 +126,6 @@ To access the Maestro Azure Postgres DB run
   eval $(make -C dev-infrastructure maestro-miwi-pg-connect)
   psql -d maestro
   ```
-
-## Logging
-
-In order to enable Kusto logging, Ingest permissions need to be granted to your personal environment. This requires both mgmt and svc cluster to be created. Run following to grant permissions:
-
-```bash
-make -C dev-infrastructure kusto.grant.ingest
-```
 
 ## Observability
 

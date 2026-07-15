@@ -23,6 +23,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path"
+	"strings"
 	"testing"
 	"time"
 
@@ -33,6 +34,8 @@ import (
 	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"k8s.io/apimachinery/pkg/util/sets"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
@@ -61,13 +64,104 @@ func newTestSubscription(subscriptionID string, state arm.SubscriptionState, pro
 	resourceID := api.Must(arm.ToSubscriptionResourceID(subscriptionID))
 	return &arm.Subscription{
 		CosmosMetadata: arm.CosmosMetadata{
-			ResourceID: resourceID,
+			ResourceID:   resourceID,
+			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
 		},
 		ResourceID:       resourceID,
 		State:            state,
 		RegistrationDate: api.Ptr(time.Now().String()),
 		Properties:       props,
 	}
+}
+
+func TestOperationsList(t *testing.T) {
+	// Required operations for all resource providers.
+	// https://github.com/cloud-and-ai-microsoft/resource-provider-contract/blob/master/v1.0/proxy-api-reference.md#required-operations
+	requiredOperations := sets.New[string](
+		path.Join(api.ProviderNamespace, "register", arm.NamespaceOperationAction),
+	)
+
+	reg := prometheus.NewRegistry()
+	mockResourcesDBClient := databasetesting.NewMockResourcesDBClient()
+
+	f := NewFrontend(
+		testr.New(t),
+		nil,
+		nil,
+		reg,
+		reg,
+		mockResourcesDBClient,
+		nil,
+		nil,
+		newNoopAuditClient(t),
+		api.TestLocation,
+		"", false, false, true,
+	)
+
+	ctx := utils.ContextWithLogger(t.Context(), testr.New(t))
+	ts := newHTTPServer(ctx, f, nil, nil)
+
+	// Use a bogus API version. Frontend should disregard it.
+	resp, err := ts.Client().Get(ts.URL + "/providers/" + api.ProviderNamespace + "/operations?api-version=1999-12-31")
+	require.NoError(t, err)
+
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	var pagedResponse arm.PagedResponse
+	err = json.Unmarshal(body, &pagedResponse)
+	require.NoError(t, err)
+
+	assert.NotEmpty(t, pagedResponse.Value)
+	for _, rawMessage := range pagedResponse.Value {
+		var operation map[string]any
+
+		err = json.Unmarshal(rawMessage, &operation)
+		require.NoError(t, err)
+
+		// Verify required fields are present and not empty.
+		if assert.Contains(t, operation, "name") {
+			name := operation["name"].(string)
+			delete(requiredOperations, name)
+
+			// Validate operation name.
+			nameSegments := strings.Split(name, "/")
+			assert.NotEmpty(t, nameSegments)
+			assert.Equal(t, api.ProviderNamespace, nameSegments[0])
+			assert.Contains(t, arm.ValidNamespaceOperations, nameSegments[len(nameSegments)-1])
+		}
+		if assert.Contains(t, operation, "display") {
+			display := operation["display"].(map[string]any)
+			if assert.Contains(t, display, "provider") {
+				assert.Equal(t, ProviderDisplay, display["provider"].(string))
+			}
+			if assert.Contains(t, display, "resource") {
+				assert.NotEmpty(t, display["resource"].(string))
+			}
+			if assert.Contains(t, display, "operation") {
+				assert.NotEmpty(t, display["operation"].(string))
+			}
+			if assert.Contains(t, display, "description") {
+				assert.NotEmpty(t, display["description"].(string))
+			}
+		}
+		if assert.Contains(t, operation, "isDataAction") {
+			// All ARO-HCP operations are for ARM/control-plane.
+			assert.Equal(t, false, operation["isDataAction"].(bool))
+		}
+
+		// Origin field is optional; default is "user,system".
+		if origin, ok := operation["origin"]; ok {
+			originStr, ok := origin.(string)
+			require.True(t, ok)
+			assert.Contains(t, arm.ValidNamespaceOperationOrigins, arm.NamespaceOperationOrigin(originStr))
+		}
+	}
+
+	assert.Empty(t, requiredOperations)
 }
 
 func TestSubscriptionsGET(t *testing.T) {
@@ -425,7 +519,11 @@ func TestDeploymentPreflight(t *testing.T) {
 						"channelGroup": "stable",
 					},
 					"platform": map[string]any{
-						// 1 missing required field
+						"vmSize": "Standard_D8s_v3",
+						"osDisk": map[string]any{
+							// 1 invalid field
+							"sizeGiB": -1,
+						},
 					},
 					"autoScaling": map[string]any{
 						// 1 invalid field
@@ -442,7 +540,7 @@ func TestDeploymentPreflight(t *testing.T) {
 			},
 			expectStatus: arm.DeploymentPreflightStatusFailed,
 			expectErrors: []expectedPreflightError{
-				{message: "Required value", target: "properties.platform.vmSize"},
+				{message: "Invalid value: -1: must be greater than or equal to 64", target: "properties.platform.osDisk.sizeGiB"},
 				{message: "Invalid value: 1: must be greater than or equal to 3", target: "properties.autoScaling.max"},
 				{message: "Unsupported value: \"NoTouchy\": supported values: \"NoExecute\", \"NoSchedule\", \"PreferNoSchedule\"", target: "properties.taints[0].effect"},
 				{message: "Required value", target: "properties.taints[0].key"},
@@ -603,6 +701,10 @@ func TestRequestAdminCredential(t *testing.T) {
 			ctx := utils.ContextWithLogger(t.Context(), testr.New(t))
 
 			cluster := &api.HCPOpenShiftCluster{
+				CosmosMetadata: arm.CosmosMetadata{
+					ResourceID:   clusterResourceID,
+					PartitionKey: strings.ToLower(clusterResourceID.SubscriptionID),
+				},
 				TrackedResource: arm.TrackedResource{
 					Resource: arm.Resource{
 						ID: clusterResourceID,
@@ -623,7 +725,8 @@ func TestRequestAdminCredential(t *testing.T) {
 				resourceID := api.Must(azcorearm.ParseResourceID(api.TestSubscriptionResourceID + "/providers/" + api.ProviderNamespace + "/hcpOperationStatuses/" + uuid.New().String()))
 				revokeOp := &api.Operation{
 					CosmosMetadata: api.CosmosMetadata{
-						ResourceID: resourceID,
+						ResourceID:   resourceID,
+						PartitionKey: strings.ToLower(resourceID.SubscriptionID),
 					},
 					OperationID: operationID,
 					Request:     database.OperationRequestRevokeCredentials,
@@ -713,6 +816,10 @@ func TestRevokeCredentials(t *testing.T) {
 			ctx := utils.ContextWithLogger(t.Context(), testr.New(t))
 
 			cluster := &api.HCPOpenShiftCluster{
+				CosmosMetadata: arm.CosmosMetadata{
+					ResourceID:   clusterResourceID,
+					PartitionKey: strings.ToLower(clusterResourceID.SubscriptionID),
+				},
 				TrackedResource: arm.TrackedResource{
 					Resource: arm.Resource{
 						ID: clusterResourceID,
@@ -733,7 +840,8 @@ func TestRevokeCredentials(t *testing.T) {
 				resourceID := api.Must(azcorearm.ParseResourceID(api.TestSubscriptionResourceID + "/providers/" + api.ProviderNamespace + "/hcpOperationStatuses/" + uuid.New().String()))
 				revokeOp := &api.Operation{
 					CosmosMetadata: api.CosmosMetadata{
-						ResourceID: resourceID,
+						ResourceID:   resourceID,
+						PartitionKey: strings.ToLower(resourceID.SubscriptionID),
 					},
 					OperationID: operationID,
 					Request:     database.OperationRequestRevokeCredentials,
@@ -751,7 +859,8 @@ func TestRevokeCredentials(t *testing.T) {
 				resourceID := api.Must(azcorearm.ParseResourceID(api.TestSubscriptionResourceID + "/providers/" + api.ProviderNamespace + "/hcpOperationStatuses/" + uuid.New().String()))
 				requestOp := &api.Operation{
 					CosmosMetadata: api.CosmosMetadata{
-						ResourceID: resourceID,
+						ResourceID:   resourceID,
+						PartitionKey: strings.ToLower(resourceID.SubscriptionID),
 					},
 					OperationID: operationID,
 					Request:     database.OperationRequestRequestCredential,

@@ -139,11 +139,6 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 		return nil, fmt.Errorf("failed to get monitoring.hcpWorkspaceName from config: %w", err)
 	}
 
-	steps, err := timing.LoadSteps(ctx, o.TimingInputDir)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load steps: %w", err)
-	}
-
 	testTimingInfo, err := timing.LoadTestTimingInfo(ctx, o.TimingInputDir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load test timing info: %w", err)
@@ -158,7 +153,7 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 		startFallback = &t
 	}
 
-	tw, err := timing.ComputeTimeWindow(ctx, clock.RealClock{}, steps, testTimingInfo, startFallback)
+	tw, err := timing.ComputeTimeWindow(ctx, clock.RealClock{}, nil, testTimingInfo, startFallback)
 	if err != nil {
 		return nil, fmt.Errorf("failed to compute time window: %w", err)
 	}
@@ -237,6 +232,7 @@ func (o Options) Run(ctx context.Context) error {
 
 	logger.Info("classified alerts", "known", knownCount, "unknown", unknownCount)
 
+	filterKeys, filterOptions := collectFilterOptions(alerts)
 	output := alertsOutput{
 		Alerts: alerts,
 		Summary: alertsSummary{
@@ -249,6 +245,8 @@ func (o Options) Run(ctx context.Context) error {
 			Start: o.TimeWindow.Start.UTC().Format(time.RFC3339),
 			End:   o.TimeWindow.End.UTC().Format(time.RFC3339),
 		},
+		FilterKeys:    filterKeys,
+		FilterOptions: filterOptions,
 	}
 
 	// Write JSON artifact
@@ -284,6 +282,15 @@ func (o Options) Run(ctx context.Context) error {
 		}
 	}
 
+	// Fail the process when JUnit contains failures
+	var totalFailed uint
+	for _, s := range suites.Suites {
+		totalFailed += s.NumFailed
+	}
+	if totalFailed > 0 {
+		return fmt.Errorf("JUnit results contain %d failing test case(s)", totalFailed)
+	}
+
 	return nil
 }
 
@@ -317,7 +324,7 @@ func (o Options) runQueries(ctx context.Context, workspaces map[string]*workspac
 				results = resp.Data.Result
 			}
 
-			panelCharts = append(panelCharts, buildChartData(q.Title, q.Description, q.Query, q.Unit, queryErr, results, o.TimeWindow))
+			panelCharts = append(panelCharts, buildChartData(q.Title, q.Description, q.Query, q.Unit, queryErr, results, o.TimeWindow, q.MinPeakThreshold))
 		}
 
 		// filename must match the Spyglass HTML lens regex .*-summary.*\.html

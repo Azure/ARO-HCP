@@ -1,0 +1,66 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    app.kubernetes.io/name: kube-prometheus
+    app.kubernetes.io/part-of: kube-prometheus
+    prometheus: k8s
+    role: alert-rules
+  name: fleet-monitoring-rules
+  namespace: monitoring
+spec:
+  groups:
+  - name: fleet
+    rules:
+    - alert: FleetControllerRetryHotLoop
+      # A ratio of retries to total adds that is rate-independent:
+      # it stays high regardless of item count or backoff delay.
+      # A ratio > 0.5 sustained for 10 minutes means more than half
+      # of all queue activity is retries rather than fresh work.
+      expr: |
+        (
+          sum by (name, cluster) (
+            max without(prometheus_replica) (
+              rate(workqueue_retries_total{namespace="fleet"}[10m])
+            )
+          )
+          /
+          sum by (name, cluster) (
+            max without(prometheus_replica) (
+              rate(workqueue_adds_total{namespace="fleet"}[10m])
+            )
+          )
+        ) > 0.5
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        description: 'Fleet controller workqueue {{ $labels.name }} has a retry ratio of > 50% sustained over 10 minutes, indicating most queue activity is failed retries rather than fresh work.'
+        runbook_url: 'TBD'
+        summary: 'Fleet controller workqueue retry hot loop'
+    - alert: FleetControllerQueueDepthHigh
+      expr: |
+        max by (name, cluster) (
+          max without(prometheus_replica) (
+            workqueue_depth{namespace="fleet"}
+          )
+        ) > 10
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        description: 'Fleet controller workqueue {{ $labels.name }} has had a depth > 10 for more than 5 minutes, indicating work is accumulating faster than it can be processed.'
+        runbook_url: 'TBD'
+        summary: 'Fleet controller workqueue depth is high'
+    - alert: FleetControllerPanic
+      expr: |
+        sum by (controller, cluster) (
+          increase(panic_total{namespace="fleet"}[5m])
+        ) > 0
+      for: 1m
+      labels:
+        severity: warning
+      annotations:
+        description: 'Fleet controller {{ $labels.controller }} has panicked {{ printf "%.0f" $value }} time(s) in the last 5 minutes.'
+        runbook_url: 'TBD'
+        summary: 'Fleet controller is panicking'

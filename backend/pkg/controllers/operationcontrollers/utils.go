@@ -24,7 +24,7 @@ import (
 
 	"github.com/go-logr/logr"
 
-	"k8s.io/utils/clock"
+	utilsclock "k8s.io/utils/clock"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
@@ -41,8 +41,6 @@ import (
 const (
 	InflightChecksFailedProvisionErrorCode = "OCM4001"
 )
-
-var localClock clock.Clock = clock.RealClock{}
 
 type PostAsyncNotificationFunc func(ctx context.Context, operation *api.Operation) error
 
@@ -63,6 +61,16 @@ const (
 	NodePoolStateError            NodePoolStateValue = "error"
 )
 
+// Copied from uhc-clusters-service, because the
+// OCM SDK does not define this for some reason.
+type ExternalAuthStateValue string
+
+const (
+	ExternalAuthStateReady        ExternalAuthStateValue = "ready"
+	ExternalAuthStateUninstalling ExternalAuthStateValue = "uninstalling"
+	ExternalAuthStateError        ExternalAuthStateValue = "error"
+)
+
 // UpdateOperationStatus updates Cosmos DB to reflect an updated resource status.
 // If the operation has an associated resource, both documents are updated
 // atomically using a transactional batch to prevent a window where the
@@ -77,7 +85,7 @@ const (
 //
 // In all of these cases the operation document is still persisted and ARM is
 // notified, so the operation reaches its terminal state and does not get stuck.
-func UpdateOperationStatus(ctx context.Context, resourcesDBClient database.ResourcesDBClient, existingOperation *api.Operation, newOperationStatus arm.ProvisioningState, newOperationError *arm.CloudErrorBody, postAsyncNotificationFn PostAsyncNotificationFunc) error {
+func UpdateOperationStatus(ctx context.Context, clock utilsclock.PassiveClock, resourcesDBClient database.ResourcesDBClient, existingOperation *api.Operation, newOperationStatus arm.ProvisioningState, newOperationError *arm.CloudErrorBody, postAsyncNotificationFn PostAsyncNotificationFunc) error {
 	logger := utils.LoggerFromContext(ctx)
 	if existingOperation == nil {
 		return nil
@@ -88,7 +96,7 @@ func UpdateOperationStatus(ctx context.Context, resourcesDBClient database.Resou
 	}
 
 	updatedOperation := existingOperation.DeepCopy()
-	updatedOperation.LastTransitionTime = localClock.Now()
+	updatedOperation.LastTransitionTime = clock.Now()
 	updatedOperation.Status = newOperationStatus
 	if newOperationError != nil {
 		updatedOperation.Error = newOperationError
@@ -283,7 +291,7 @@ func needToPatchOperation(oldOperation *api.Operation, newOperationStatus arm.Pr
 }
 
 // patchOperation patches the status and error fields of an OperationDocument.
-func patchOperation(ctx context.Context, resourcesDBClient database.ResourcesDBClient, oldOperation *api.Operation, newOperationStatus arm.ProvisioningState, newOperationError *arm.CloudErrorBody, postAsyncNotificationFn PostAsyncNotificationFunc) error {
+func patchOperation(ctx context.Context, clock utilsclock.PassiveClock, resourcesDBClient database.ResourcesDBClient, oldOperation *api.Operation, newOperationStatus arm.ProvisioningState, newOperationError *arm.CloudErrorBody, postAsyncNotificationFn PostAsyncNotificationFunc) error {
 	logger := utils.LoggerFromContext(ctx)
 
 	if !needToPatchOperation(oldOperation, newOperationStatus, newOperationError) {
@@ -293,7 +301,7 @@ func patchOperation(ctx context.Context, resourcesDBClient database.ResourcesDBC
 	}
 
 	operationToWrite := oldOperation.DeepCopy()
-	operationToWrite.LastTransitionTime = localClock.Now()
+	operationToWrite.LastTransitionTime = clock.Now()
 	operationToWrite.Status = newOperationStatus
 	if newOperationError != nil {
 		operationToWrite.Error = newOperationError
@@ -375,8 +383,9 @@ func notifyOperationOwner(ctx context.Context, resourcesDBClient database.Resour
 			if err != nil {
 				logger.Error(err, "Failed to re-read operation to clear notification URI")
 			} else {
-				currentOperation.NotificationURI = ""
-				_, err = operationsCRUD.Replace(ctx, currentOperation, nil)
+				replacement := currentOperation.DeepCopy()
+				replacement.NotificationURI = ""
+				_, err = operationsCRUD.Replace(ctx, replacement, nil)
 				if err != nil {
 					logger.Error(err, "Failed to clear notification URI")
 				}
@@ -387,7 +396,6 @@ func notifyOperationOwner(ctx context.Context, resourcesDBClient database.Resour
 	}
 }
 
-// PostAsyncNotification submits an POST request with status payload to the given URL.
 func postAsyncNotificationFn(notificationClient *http.Client) PostAsyncNotificationFunc {
 	return func(ctx context.Context, operation *api.Operation) error {
 		return PostAsyncNotification(ctx, notificationClient, operation)
@@ -423,7 +431,7 @@ func PostAsyncNotification(ctx context.Context, notificationClient *http.Client,
 // convertClusterStatus attempts to translate a ClusterStatus object from
 // Cluster Service into an ARM provisioning state and, if necessary, a
 // structured OData error.
-func convertClusterStatus(ctx context.Context, clusterServiceClient ocm.ClusterServiceClientSpec, operation *api.Operation, clusterStatus *arohcpv1alpha1.ClusterStatus) (arm.ProvisioningState, *arm.CloudErrorBody, error) {
+func convertClusterStatus(ctx context.Context, clusterServiceClient ocm.ClusterServiceClientSpec, operation *api.Operation, clusterStatus *arohcpv1alpha1.ClusterStatus, clusterServiceID api.InternalID) (arm.ProvisioningState, *arm.CloudErrorBody, error) {
 	var newOperationStatus = operation.Status
 	var opError *arm.CloudErrorBody
 	var err error
@@ -444,7 +452,7 @@ func convertClusterStatus(ctx context.Context, clusterServiceClient ocm.ClusterS
 		// Construct the cloud error code depending on the provision error code.
 		switch code {
 		case InflightChecksFailedProvisionErrorCode:
-			opError, err = convertInflightChecks(ctx, clusterServiceClient, operation.InternalID)
+			opError, err = convertInflightChecks(ctx, clusterServiceClient, clusterServiceID)
 			if err != nil {
 				return newOperationStatus, opError, err
 			}
@@ -470,49 +478,13 @@ func convertClusterStatus(ctx context.Context, clusterServiceClient ocm.ClusterS
 		// no unique ProvisioningState values for them. They should
 		// only occur when ProvisioningState is Accepted.
 		if newOperationStatus != arm.ProvisioningStateAccepted {
-			err = fmt.Errorf("got ClusterState '%s' while ProvisioningState was '%s' instead of '%s'", state, newOperationStatus, arm.ProvisioningStateAccepted)
+			err = fmt.Errorf("got ClusterState '%s' (description: %q) while ProvisioningState was '%s' instead of '%s'", state, clusterStatus.Description(), newOperationStatus, arm.ProvisioningStateAccepted)
 		}
 	default:
-		err = fmt.Errorf("unhandled ClusterState '%s'", state)
+		err = fmt.Errorf("unhandled ClusterState '%s' (description: %q)", state, clusterStatus.Description())
 	}
 
 	return newOperationStatus, opError, err
-}
-
-// pollNodePoolStatus converts a node pool status from Cluster
-// Service to info for an Azure async operation status endpoint.
-func pollNodePoolStatus(
-	ctx context.Context,
-	resourcesDBClient database.ResourcesDBClient,
-	clusterServiceClient ocm.ClusterServiceClientSpec,
-	operation *api.Operation,
-	notificationClient *http.Client) error {
-	// XXX This is currently called by the operationNodePoolCreate and
-	//     operationNodePoolUpdate controllers because the logic flows
-	//     are identical. If the logic flows ever diverge, then this
-	//     function should be split up and the pieces moved back to
-	//     their respective controllers.
-
-	logger := utils.LoggerFromContext(ctx)
-
-	nodePoolStatus, err := clusterServiceClient.GetNodePoolStatus(ctx, operation.InternalID)
-	if err != nil {
-		return utils.TrackError(err)
-	}
-
-	newOperationStatus, newOperationError, err := convertNodePoolStatus(operation, nodePoolStatus)
-	if err != nil {
-		return utils.TrackError(err)
-	}
-	logger.Info("new status", "newStatus", newOperationStatus)
-
-	logger.Info("updating status")
-	err = UpdateOperationStatus(ctx, resourcesDBClient, operation, newOperationStatus, newOperationError, postAsyncNotificationFn(notificationClient))
-	if err != nil {
-		return utils.TrackError(err)
-	}
-
-	return nil
 }
 
 // convertNodePoolStatus attempts to translate a NodePoolStatus object
@@ -529,7 +501,8 @@ func convertNodePoolStatus(operation *api.Operation, nodePoolStatus *arohcpv1alp
 		// no unique ProvisioningState values for them. They should
 		// only occur when ProvisioningState is Accepted.
 		if operation.Status != arm.ProvisioningStateAccepted {
-			err = fmt.Errorf("got NodePoolStatusValue '%s' while ProvisioningState was '%s' instead of '%s'", state, operation.Status, arm.ProvisioningStateAccepted)
+			msg, _ := nodePoolStatus.GetMessage()
+			err = fmt.Errorf("got NodePoolStatusValue '%s' (message: %q) while ProvisioningState was '%s' instead of '%s'", state, msg, operation.Status, arm.ProvisioningStateAccepted)
 		}
 	case NodePoolStateInstalling:
 		newOperationStatus = arm.ProvisioningStateProvisioning
@@ -555,43 +528,38 @@ func convertNodePoolStatus(operation *api.Operation, nodePoolStatus *arohcpv1alp
 			opError.Message = msg
 		}
 	default:
-		err = fmt.Errorf("unhandled NodePoolState '%s'", state)
+		msg, _ := nodePoolStatus.GetMessage()
+		err = fmt.Errorf("unhandled NodePoolState '%s' (message: %q)", state, msg)
 	}
 
 	return newOperationStatus, opError, err
 }
 
-// pollExternalAuthStatus converts an external auth status from Cluster
-// Service to info for an Azure async operation status endpoint.
-func pollExternalAuthStatus(
-	ctx context.Context,
-	resourcesDBClient database.ResourcesDBClient,
-	clusterServiceClient ocm.ClusterServiceClientSpec,
-	operation *api.Operation,
-	notificationClient *http.Client) error {
-	// XXX This is currently called by the operationExternalAuthCreate and
-	//     operationExternalAuthUpdate controllers because the logic flows
-	//     are identical. If the logic flows ever diverge, then this
-	//     function should be split up and the pieces moved back to
-	//     their respective controllers.
+func convertExternalAuthStatus(operation *api.Operation, externalAuthStatus *arohcpv1alpha1.ExternalAuthStatus) (arm.ProvisioningState, *arm.CloudErrorBody, error) {
+	var newOperationStatus = operation.Status
+	var opError *arm.CloudErrorBody
+	var err error
 
-	logger := utils.LoggerFromContext(ctx)
-
-	_, err := clusterServiceClient.GetExternalAuth(ctx, operation.InternalID)
-	if err != nil {
-		return utils.TrackError(err)
+	switch state := ExternalAuthStateValue(externalAuthStatus.State().Value()); state {
+	case ExternalAuthStateReady:
+		if operation.Request != database.OperationRequestDelete {
+			newOperationStatus = arm.ProvisioningStateSucceeded
+		}
+	case ExternalAuthStateError:
+		// XXX OCM SDK offers no error code or message for failed externalauth
+		//     operations so "Internal Server Error" is all we can do for now.
+		newOperationStatus = arm.ProvisioningStateFailed
+		opError = arm.NewInternalServerError().CloudErrorBody
+		if msg, ok := externalAuthStatus.GetMessage(); ok {
+			opError.Message = msg
+		}
+	case ExternalAuthStateUninstalling:
+		newOperationStatus = arm.ProvisioningStateDeleting
+	default:
+		msg, _ := externalAuthStatus.GetMessage()
+		err = fmt.Errorf("unhandled ExternalAuthState '%s' (message: %q)", state, msg)
 	}
-
-	newOperationStatus := arm.ProvisioningStateSucceeded
-	logger.Info("new status", "newStatus", newOperationStatus)
-
-	logger.Info("updating status")
-	err = UpdateOperationStatus(ctx, resourcesDBClient, operation, newOperationStatus, nil, postAsyncNotificationFn(notificationClient))
-	if err != nil {
-		return utils.TrackError(err)
-	}
-
-	return nil
+	return newOperationStatus, opError, err
 }
 
 // convertInflightChecks gets a cluster internal ID, fetches inflight check errors from CS endpoint, and converts them
@@ -658,8 +626,8 @@ func convertInflightCheckDetails(inflightCheck *arohcpv1alpha1.InflightCheck) (s
 	return "", false
 }
 
-// setDeleteOperationAsCompleted updates Cosmos DB to reflect a completed resource deletion.
-func SetDeleteOperationAsCompleted(ctx context.Context, resourcesDBClient database.ResourcesDBClient, operation *api.Operation, postAsyncNotificationFn PostAsyncNotificationFunc) error {
+// SetDeleteOperationAsCompleted updates Cosmos DB to reflect a completed resource deletion.
+func SetDeleteOperationAsCompleted(ctx context.Context, clock utilsclock.PassiveClock, resourcesDBClient database.ResourcesDBClient, operation *api.Operation, postAsyncNotificationFn PostAsyncNotificationFunc) error {
 	// Delete the resource document first. If it fails the backend will retry
 	// by virtue of the operation document still having a non-terminal status.
 	untypedCRUD, err := resourcesDBClient.UntypedCRUD(*operation.ExternalID)
@@ -705,7 +673,7 @@ func SetDeleteOperationAsCompleted(ctx context.Context, resourcesDBClient databa
 	}
 
 	// Save a final "succeeded" operation status until TTL expires.
-	err = patchOperation(ctx, resourcesDBClient, operation, arm.ProvisioningStateSucceeded, nil, postAsyncNotificationFn)
+	err = patchOperation(ctx, clock, resourcesDBClient, operation, arm.ProvisioningStateSucceeded, nil, postAsyncNotificationFn)
 	if err != nil {
 		return utils.TrackError(err)
 	}

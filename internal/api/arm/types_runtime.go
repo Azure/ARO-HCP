@@ -15,6 +15,7 @@
 package arm
 
 import (
+	"strconv"
 	"strings"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -38,6 +39,8 @@ func (s *Subscription) GetObjectMeta() metav1.Object {
 	if s.ResourceID != nil {
 		om.Name = strings.ToLower(s.ResourceID.String())
 	}
+	// shared_informer uses ResourceVersion to determine if an event is a sync
+	om.ResourceVersion = strconv.FormatInt(s.InstanceVersion, 10)
 	return om
 }
 

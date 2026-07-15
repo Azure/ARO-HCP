@@ -24,14 +24,40 @@ import (
 	"github.com/Azure/azure-kusto-go/azkustodata/kql"
 )
 
+type OrderBy int
+
+const (
+	OrderByAsc OrderBy = iota
+	OrderByDesc
+)
+
+func (o OrderBy) String() string {
+	switch o {
+	case OrderByDesc:
+		return "desc"
+	default:
+		return "asc"
+	}
+}
+
 // QueryOptions contains the parameters needed to construct queries.
 type QueryOptions struct {
 	SubscriptionId    string
 	ResourceGroupName string
 	InfraClusterName  string
+	ClusterIds        []string
+	ClusterNames      []string
 	TimestampMin      time.Time
 	TimestampMax      time.Time
 	Limit             int
+	SplitByPod        bool
+	OrderBy           OrderBy
+}
+
+func NewQueryOptions() QueryOptions {
+	return QueryOptions{
+		OrderBy: OrderByAsc,
+	}
 }
 
 // Query represents a ready-to-execute KQL query with all its metadata.
@@ -76,12 +102,17 @@ func (q *templateQuery) String() string {
 	return q.query.String()
 }
 
+// kqlEscStr escapes a single string as a KQL string literal to avoid KQL injection
+func kqlEscStr(str string) string {
+	return strings.ReplaceAll(str, "'", "''")
+}
+
 // kqlEscStrList escapes each element of a string slice as a KQL string literal
 // and joins them with commas, suitable for use in has_any() or similar operators.
 func kqlEscStrList(items []string) string {
 	quoted := make([]string, len(items))
 	for i, item := range items {
-		quoted[i] = "'" + strings.ReplaceAll(item, "'", "''") + "'"
+		quoted[i] = "'" + kqlEscStr(item) + "'"
 	}
 	return strings.Join(quoted, ", ")
 }
@@ -105,7 +136,10 @@ type TemplateData struct {
 	ResourceGroupName  string
 	ClusterId          string
 	ClusterIds         string
+	FilterClusterName  string
 	HCPNamespacePrefix string
+	SplitByPod         bool
+	OrderBy            string
 }
 
 type TemplateDataOptions func(*TemplateData)
@@ -118,7 +152,7 @@ func WithTable(table string) TemplateDataOptions {
 
 func WithClusterId(clusterId string) TemplateDataOptions {
 	return func(d *TemplateData) {
-		d.ClusterId = clusterId
+		d.ClusterId = kqlEscStr(clusterId)
 	}
 }
 
@@ -128,15 +162,21 @@ func WithClusterIds(clusterIds []string) TemplateDataOptions {
 	}
 }
 
+func WithFilterClusterName(name string) TemplateDataOptions {
+	return func(d *TemplateData) {
+		d.FilterClusterName = kqlEscStr(name)
+	}
+}
+
 func WithHCPNamespacePrefix(hcpNamespacePrefix string) TemplateDataOptions {
 	return func(d *TemplateData) {
-		d.HCPNamespacePrefix = hcpNamespacePrefix
+		d.HCPNamespacePrefix = kqlEscStr(hcpNamespacePrefix)
 	}
 }
 
 func WithClusterName(clusterName string) TemplateDataOptions {
 	return func(d *TemplateData) {
-		d.ClusterName = clusterName
+		d.ClusterName = kqlEscStr(clusterName)
 	}
 }
 
@@ -162,8 +202,10 @@ func NewTemplateDataFromOptions(queryOptions QueryOptions, options ...TemplateDa
 	templateData := TemplateData{
 		NoTruncation:       queryOptions.Limit < 0,
 		Limit:              max(queryOptions.Limit, 0),
-		SubResourceGroupId: fmt.Sprintf("/subscriptions/%s/resourceGroups/%s", queryOptions.SubscriptionId, queryOptions.ResourceGroupName),
-		ResourceGroupName:  queryOptions.ResourceGroupName,
+		SubResourceGroupId: fmt.Sprintf("/subscriptions/%s/resourceGroups/%s", kqlEscStr(queryOptions.SubscriptionId), kqlEscStr(queryOptions.ResourceGroupName)),
+		ResourceGroupName:  kqlEscStr(queryOptions.ResourceGroupName),
+		SplitByPod:         queryOptions.SplitByPod,
+		OrderBy:            queryOptions.OrderBy.String(),
 	}
 	defaults := []TemplateDataOptions{
 		WithClusterName(queryOptions.InfraClusterName),

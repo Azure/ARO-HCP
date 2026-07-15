@@ -60,22 +60,22 @@ var _ = Describe("Customer", func() {
 			tc := framework.NewTestContext()
 
 			if tc.UsePooledIdentities() {
-				err := tc.AssignIdentityContainers(ctx, 1, 60*time.Second)
-				Expect(err).NotTo(HaveOccurred())
+				err := tc.AssignIdentityContainers(ctx, 1, framework.IdentityContainerAssignmentRetryInterval)
+				Expect(err).NotTo(HaveOccurred(), "failed to assign pooled identity containers")
 			}
 
 			By("creating a resource group")
 			resourceGroup, err := tc.NewResourceGroup(ctx, "idms", tc.Location())
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create resource group for IDMS test")
 
 			By("creating cluster parameters")
-			clusterParams := framework.NewDefaultClusterParams()
+			clusterParams := framework.NewDefaultClusterParams20251223()
 			clusterParams.ClusterName = customerClusterName
 			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name, "managed", 64)
 			clusterParams.ManagedResourceGroupName = managedResourceGroupName
 
 			By("creating customer resources")
-			clusterParams, err = tc.CreateClusterCustomerResources(ctx,
+			clusterParams, err = tc.CreateClusterCustomerResources20251223(ctx,
 				resourceGroup,
 				clusterParams,
 				map[string]interface{}{
@@ -86,7 +86,7 @@ var _ = Describe("Customer", func() {
 				TestArtifactsFS,
 				framework.RBACScopeResourceGroup,
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to create customer resources for IDMS cluster")
 
 			By("creating the HCP cluster with ImageDigestMirrors via v20251223preview")
 			imageDigestMirrors := []*hcpsdk20251223preview.ImageDigestMirror{
@@ -96,44 +96,44 @@ var _ = Describe("Customer", func() {
 				},
 			}
 
-			createErr := tc.CreateHCPCluster20251223FromParam(
+			createErr := tc.CreateHCPClusterFromParam20251223(
 				ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
 				clusterParams,
 				imageDigestMirrors,
-				45*time.Minute,
+				framework.ClusterCreationTimeout,
 			)
 
 			var respErr *azcore.ResponseError
 			if createErr != nil && errors.As(createErr, &respErr) && respErr.ErrorCode == "NoRegisteredProviderFound" {
 				Fail(fmt.Sprintf("v20251223preview should be available but cluster creation failed: %v", createErr))
 			}
-			Expect(createErr).NotTo(HaveOccurred())
+			Expect(createErr).NotTo(HaveOccurred(), "failed to create HCP cluster with ImageDigestMirrors")
 
 			By("verifying the cluster returns ImageDigestMirrors via GET")
 			hcpClient := tc.Get20251223ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
 			actualCluster, err := hcpClient.Get(ctx, *resourceGroup.Name, customerClusterName, nil)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(actualCluster.Properties).NotTo(BeNil())
-			Expect(actualCluster.Properties.ImageDigestMirrors).NotTo(BeEmpty())
-			Expect(ptr.Deref(actualCluster.Properties.ImageDigestMirrors[0].Source, "")).To(Equal(idmsSource))
-			Expect(actualCluster.Properties.ImageDigestMirrors[0].Mirrors).NotTo(BeEmpty())
-			Expect(ptr.Deref(actualCluster.Properties.ImageDigestMirrors[0].Mirrors[0], "")).To(Equal(idmsMirror))
+			Expect(err).NotTo(HaveOccurred(), "failed to GET cluster %s to verify ImageDigestMirrors", customerClusterName)
+			Expect(actualCluster.Properties).NotTo(BeNil(), "cluster %s Properties was nil", customerClusterName)
+			Expect(actualCluster.Properties.ImageDigestMirrors).NotTo(BeEmpty(), "cluster %s ImageDigestMirrors should not be empty", customerClusterName)
+			Expect(ptr.Deref(actualCluster.Properties.ImageDigestMirrors[0].Source, "")).To(Equal(idmsSource), "first ImageDigestMirror source should be %s", idmsSource)
+			Expect(actualCluster.Properties.ImageDigestMirrors[0].Mirrors).NotTo(BeEmpty(), "first ImageDigestMirror mirrors list should not be empty")
+			Expect(ptr.Deref(actualCluster.Properties.ImageDigestMirrors[0].Mirrors[0], "")).To(Equal(idmsMirror), "first ImageDigestMirror mirror should be %s", idmsMirror)
 
 			By("getting admin credentials")
-			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster(
+			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20240610(
 				ctx,
 				tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 				*resourceGroup.Name,
 				customerClusterName,
-				10*time.Minute,
+				framework.GetAdminRESTConfigTimeout,
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to get admin REST config for cluster %s", customerClusterName)
 
 			By("verifying basic cluster health")
 			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to verify basic cluster health for %s", customerClusterName)
 
 			By("verifying customer-specified mirrors are present in the cluster ImageDigestMirrorSet")
 			expectedMirrors := []verifiers.ImageDigestMirrorExpectation{
@@ -169,19 +169,19 @@ var _ = Describe("Customer", func() {
 			}
 
 			updateAddResp, err := framework.UpdateHCPCluster20251223(
-				ctx, hcpClient, *resourceGroup.Name, customerClusterName, updateAdd, 10*time.Minute,
+				ctx, hcpClient, *resourceGroup.Name, customerClusterName, updateAdd, framework.UpdateHCPClusterTimeout,
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to update cluster with second ImageDigestMirror set")
 
 			By("verifying the update response contains both ImageDigestMirror sets")
-			Expect(updateAddResp.Properties).NotTo(BeNil())
-			Expect(updateAddResp.Properties.ImageDigestMirrors).To(HaveLen(2))
+			Expect(updateAddResp.Properties).NotTo(BeNil(), "update response Properties was nil")
+			Expect(updateAddResp.Properties.ImageDigestMirrors).To(HaveLen(2), "update response should contain 2 ImageDigestMirror sets")
 
 			By("verifying both ImageDigestMirror sets are returned via GET")
 			getAfterAdd, err := hcpClient.Get(ctx, *resourceGroup.Name, customerClusterName, nil)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(getAfterAdd.Properties).NotTo(BeNil())
-			Expect(getAfterAdd.Properties.ImageDigestMirrors).To(HaveLen(2))
+			Expect(err).NotTo(HaveOccurred(), "failed to GET cluster after adding second ImageDigestMirror set")
+			Expect(getAfterAdd.Properties).NotTo(BeNil(), "GET after add Properties was nil")
+			Expect(getAfterAdd.Properties.ImageDigestMirrors).To(HaveLen(2), "GET after add should return 2 ImageDigestMirror sets")
 
 			By("verifying both mirror sets are present in the cluster ImageDigestMirrorSet")
 			expectedMirrorsAfterAdd := []verifiers.ImageDigestMirrorExpectation{
@@ -218,21 +218,21 @@ var _ = Describe("Customer", func() {
 			}
 
 			updateRemoveResp, err := framework.UpdateHCPCluster20251223(
-				ctx, hcpClient, *resourceGroup.Name, customerClusterName, updateRemove, 10*time.Minute,
+				ctx, hcpClient, *resourceGroup.Name, customerClusterName, updateRemove, framework.UpdateHCPClusterTimeout,
 			)
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred(), "failed to update cluster to remove second ImageDigestMirror set")
 
 			By("verifying the update response contains only the original ImageDigestMirror set")
-			Expect(updateRemoveResp.Properties).NotTo(BeNil())
-			Expect(updateRemoveResp.Properties.ImageDigestMirrors).To(HaveLen(1))
-			Expect(ptr.Deref(updateRemoveResp.Properties.ImageDigestMirrors[0].Source, "")).To(Equal(idmsSource))
+			Expect(updateRemoveResp.Properties).NotTo(BeNil(), "update-remove response Properties was nil")
+			Expect(updateRemoveResp.Properties.ImageDigestMirrors).To(HaveLen(1), "update-remove response should contain only 1 ImageDigestMirror set")
+			Expect(ptr.Deref(updateRemoveResp.Properties.ImageDigestMirrors[0].Source, "")).To(Equal(idmsSource), "remaining ImageDigestMirror source should be %s", idmsSource)
 
 			By("verifying only the original ImageDigestMirror set is returned via GET")
 			getAfterRemove, err := hcpClient.Get(ctx, *resourceGroup.Name, customerClusterName, nil)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(getAfterRemove.Properties).NotTo(BeNil())
-			Expect(getAfterRemove.Properties.ImageDigestMirrors).To(HaveLen(1))
-			Expect(ptr.Deref(getAfterRemove.Properties.ImageDigestMirrors[0].Source, "")).To(Equal(idmsSource))
+			Expect(err).NotTo(HaveOccurred(), "failed to GET cluster after removing second ImageDigestMirror set")
+			Expect(getAfterRemove.Properties).NotTo(BeNil(), "GET after remove Properties was nil")
+			Expect(getAfterRemove.Properties.ImageDigestMirrors).To(HaveLen(1), "GET after remove should return only 1 ImageDigestMirror set")
+			Expect(ptr.Deref(getAfterRemove.Properties.ImageDigestMirrors[0].Source, "")).To(Equal(idmsSource), "remaining ImageDigestMirror source should be %s after removal", idmsSource)
 
 			By("verifying only the original mirror set remains in the cluster ImageDigestMirrorSet")
 			expectedMirrorsAfterRemove := []verifiers.ImageDigestMirrorExpectation{

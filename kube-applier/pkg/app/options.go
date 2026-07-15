@@ -23,6 +23,8 @@ import (
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
 	"github.com/Azure/ARO-HCP/internal/database"
 )
 
@@ -37,7 +39,6 @@ const AppShortDescriptionName = "ARO HCP kube-applier"
 // own goroutines independent of this count.
 const (
 	threadsApply       = 4
-	threadsDelete      = 4
 	threadsReadManager = 1
 )
 
@@ -46,7 +47,7 @@ const (
 type Options struct {
 	// ManagementCluster is this pod's management cluster name. It is the
 	// Cosmos partition key for every *Desire the binary reads or writes.
-	ManagementCluster string
+	ManagementCluster *azcorearm.ResourceID
 
 	LeaderElectionLock  resourcelock.Interface
 	KubeApplierDBClient database.KubeApplierDBClient
