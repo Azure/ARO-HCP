@@ -268,7 +268,11 @@ func waitForTrustedRouteReachability(ctx context.Context, client *http.Client, u
 	err := wait.PollUntilContextTimeout(ctx, 10*time.Second, timeout, true, func(ctx context.Context) (bool, error) {
 		elapsed := time.Since(startTime).Round(time.Second)
 
-		resp, err := client.Get(url)
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+		if err != nil {
+			return false, fmt.Errorf("failed to build request: %w", err)
+		}
+		resp, err := client.Do(req)
 		if err != nil {
 			lastErr = err
 			// Surface which certificate is currently served whenever it changes,
@@ -534,9 +538,10 @@ func collectIngressCertDiagnostics(ctx context.Context, kubeClient kubernetes.In
 			if e.Type != corev1.EventTypeWarning {
 				continue
 			}
-			out.Printf("[strict-tls][diag]   event %s/%s reason=%s count=%d lastSeen=%s message=%q\n",
+			ts, age := eventTimestamp(e)
+			out.Printf("[strict-tls][diag]   event %s/%s reason=%s count=%d lastSeen=%s age=%s message=%q\n",
 				e.InvolvedObject.Kind, e.InvolvedObject.Name, e.Reason, e.Count,
-				e.LastTimestamp.Format(time.RFC3339), e.Message)
+				ts, age, e.Message)
 			printed++
 			if printed >= maxWarnings {
 				out.Printf("[strict-tls][diag]   (truncated additional warning events)\n")
@@ -547,6 +552,24 @@ func collectIngressCertDiagnostics(ctx context.Context, kubeClient kubernetes.In
 			out.Printf("[strict-tls][diag] events: no warning events in %s\n", ingressNamespace)
 		}
 	}
+}
+
+// eventTimestamp returns a formatted best-available timestamp for an event and
+// its age. LastTimestamp is frequently zero on modern clusters (events API), so
+// it falls back to EventTime then CreationTimestamp to keep the output
+// actionable instead of printing 0001-01-01.
+func eventTimestamp(e *corev1.Event) (string, string) {
+	t := e.LastTimestamp.Time
+	if t.IsZero() {
+		t = e.EventTime.Time
+	}
+	if t.IsZero() {
+		t = e.CreationTimestamp.Time
+	}
+	if t.IsZero() {
+		return "unknown", "unknown"
+	}
+	return t.Format(time.RFC3339), time.Since(t).Round(time.Second).String()
 }
 
 func gvr(group, version, resource string) schema.GroupVersionResource {
