@@ -34,16 +34,20 @@ type HCPOpenShiftClusterNodePool struct {
 	CosmosMetadata `json:"cosmosMetadata"`
 
 	arm.TrackedResource
-	Properties                HCPOpenShiftClusterNodePoolProperties                `json:"properties,omitempty"`
+	// Written by: Frontend PUT/PATCH NodePool, OperationNodePoolCreate, OperationNodePoolUpdate, OperationNodePoolDelete
+	Properties HCPOpenShiftClusterNodePoolProperties `json:"properties,omitempty"`
+	// Written by: Frontend PUT/PATCH/DELETE NodePool, OperationNodePool* controllers, NodePoolClusterServiceCreate, NodePoolDeletion* controllers
 	ServiceProviderProperties HCPOpenShiftClusterNodePoolServiceProviderProperties `json:"serviceProviderProperties,omitempty"`
 	Identity                  *arm.ManagedServiceIdentity                          `json:"identity,omitempty"`
-	Status                    HCPOpenShiftClusterNodePoolStatus                    `json:"status"`
+	// Written by: NodePoolDegradedAggregator
+	Status HCPOpenShiftClusterNodePoolStatus `json:"status"`
 }
 
 // HCPOpenShiftClusterNodePoolStatus contains the observed state of the node pool.
 type HCPOpenShiftClusterNodePoolStatus struct {
 	// Conditions are the top-level HCPOpenShiftClusterNodePool status conditions.
 	// Each Condition Type represents a condition and it should be unique among all conditions.
+	// Written by: NodePoolDegradedAggregator
 	// +optional
 	// +patchMergeKey=type
 	// +patchStrategy=merge
@@ -57,42 +61,43 @@ var _ arm.CosmosPersistable = &HCPOpenShiftClusterNodePool{}
 // HCPOpenShiftClusterNodePoolProperties represents the property bag of a
 // HCPOpenShiftClusterNodePool resource.
 type HCPOpenShiftClusterNodePoolProperties struct {
-	ProvisioningState       arm.ProvisioningState   `json:"provisioningState,omitempty"`
-	Version                 NodePoolVersionProfile  `json:"version,omitempty"`
-	Platform                NodePoolPlatformProfile `json:"platform,omitempty"`
-	Replicas                int32                   `json:"replicas,omitempty"`
-	AutoRepair              bool                    `json:"autoRepair,omitempty"`
-	AutoScaling             *NodePoolAutoScaling    `json:"autoScaling,omitempty"`
-	Labels                  map[string]string       `json:"labels,omitempty"`
-	Taints                  []Taint                 `json:"taints,omitempty"`
-	NodeDrainTimeoutMinutes *int32                  `json:"nodeDrainTimeoutMinutes,omitempty"`
+	// Written by: Frontend PUT/PATCH/DELETE NodePool, OperationNodePoolCreate, OperationNodePoolUpdate, OperationNodePoolDelete
+	ProvisioningState arm.ProvisioningState `json:"provisioningState,omitempty"`
+	// Written by: Frontend PUT/PATCH NodePool
+	Version NodePoolVersionProfile `json:"version,omitempty"`
+	// Written by: Frontend PUT/PATCH NodePool
+	Platform NodePoolPlatformProfile `json:"platform,omitempty"`
+	// Written by: Frontend PUT/PATCH NodePool
+	Replicas int32 `json:"replicas,omitempty"`
+	// Written by: Frontend PUT/PATCH NodePool
+	AutoRepair bool `json:"autoRepair,omitempty"`
+	// Written by: Frontend PUT/PATCH NodePool
+	AutoScaling *NodePoolAutoScaling `json:"autoScaling,omitempty"`
+	// Written by: Frontend PUT/PATCH NodePool
+	Labels map[string]string `json:"labels,omitempty"`
+	// Written by: Frontend PUT/PATCH NodePool
+	Taints []Taint `json:"taints,omitempty"`
+	// Written by: Frontend PUT/PATCH NodePool
+	NodeDrainTimeoutMinutes *int32 `json:"nodeDrainTimeoutMinutes,omitempty"`
 }
 
 type HCPOpenShiftClusterNodePoolServiceProviderProperties struct {
-	ClusterServiceID  *InternalID `json:"clusterServiceID,omitempty"`
-	ActiveOperationID string      `json:"activeOperationId,omitempty"`
-	// DeletionTimestamp is the timestamp at which the NodePool deletion was requested
+	// Written by: Frontend PUT NodePool (Create), NodePoolClusterServiceCreate, NodePoolDeletionClusterServiceIDClearer
+	ClusterServiceID *InternalID `json:"clusterServiceID,omitempty"`
+	// Written by: Frontend PUT/PATCH/DELETE NodePool, OperationNodePoolCreate, OperationNodePoolUpdate, OperationNodePoolDelete
+	ActiveOperationID string `json:"activeOperationId,omitempty"`
+	// DeletionTimestamp is the timestamp at which the NodePool deletion was requested.
 	// The timestamp is in UTC.
 	// A nil value indicates that the NodePool deletion has not been requested.
+	// Written by: Frontend DELETE NodePool
 	DeletionTimestamp *metav1.Time `json:"deletionTimestamp,omitempty"`
 	// ClusterServiceDeletionTimestamp is written when a dispatch of a Cluster
 	// Service Delete NodePool request against Cluster Service for this node
-	// pool has been handled. It is set after a successful DeleteNodePool call
-	// to Cluster Service, but also when it's determined that no delete call is
-	// needed but we consider we should behave as if the delete call was successfully
-	// issued (for example, if the parent cluster of the nodepool is already being
-	// uninstalled, because cluster-service will already take care of deleting the
-	// nodepool as part of the cluster teardown).
-	// A nil value indicates that the Cluster Service Deletion has not been requested.
-	// The timestamp is in UTC.
-	// TODO this attribute is not in use yet. Do not rely on it.
+	// pool has been handled.
+	// Written by: NodePoolClusterServiceDeleteDispatch
 	ClusterServiceDeletionTimestamp *metav1.Time `json:"clusterServiceDeletionTimestamp,omitempty"`
 
-	// TODO Temporary field to track whether the node pool operation is using the new deletion approach.
-	// We are migrating from the node pool cs deletion synchronous in frontend to the backend, to be fully asynchronous
-	// This boolean is true for NodePool delete operations that are created with new deletion approach.
-	// This will be removed once all nodepools whose deletion was triggered before the new approach is fully rolled out have been
-	// fully deleted in all ARO-HCP permanent environments, for all regions.
+	// Written by: Frontend DELETE NodePool
 	UsesNewNodePoolDeletionApproach bool `json:"usesNewNodePoolDeletionApproach"`
 }
 

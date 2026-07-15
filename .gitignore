@@ -35,3 +35,4 @@ _artifacts
 must-gather-*
 /hcpctl
 timing-metadata-*
+/.claude/

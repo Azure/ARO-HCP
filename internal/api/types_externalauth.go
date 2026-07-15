@@ -30,15 +30,19 @@ type HCPOpenShiftClusterExternalAuth struct {
 	CosmosMetadata `json:"cosmosMetadata"`
 
 	arm.ProxyResource
-	Properties                HCPOpenShiftClusterExternalAuthProperties                `json:"properties"`
+	// Written by: Frontend PUT/PATCH ExternalAuth, OperationExternalAuth* controllers
+	Properties HCPOpenShiftClusterExternalAuthProperties `json:"properties"`
+	// Written by: Frontend PUT/PATCH/DELETE ExternalAuth, OperationExternalAuth* controllers, ExternalAuthClusterServiceCreate, ExternalAuthDeletion* controllers
 	ServiceProviderProperties HCPOpenShiftClusterExternalAuthServiceProviderProperties `json:"serviceProviderProperties,omitempty"`
-	Status                    HCPOpenShiftClusterExternalAuthStatus                    `json:"status"`
+	// Written by: ExternalAuthDegradedAggregator
+	Status HCPOpenShiftClusterExternalAuthStatus `json:"status"`
 }
 
 // HCPOpenShiftClusterExternalAuthStatus contains the observed state of the external auth.
 type HCPOpenShiftClusterExternalAuthStatus struct {
 	// Conditions are the top-level HCPOpenShiftClusterExternalAuth status conditions.
 	// Each Condition Type represents a condition and it should be unique among all conditions.
+	// Written by: ExternalAuthDegradedAggregator
 	// +optional
 	// +patchMergeKey=type
 	// +patchStrategy=merge
@@ -66,38 +70,33 @@ var _ arm.CosmosPersistable = &HCPOpenShiftClusterExternalAuth{}
 // HCPOpenShiftClusterNodePoolProperties represents the property bag of a
 // HCPOpenShiftClusterNodePool resource.
 type HCPOpenShiftClusterExternalAuthProperties struct {
-	ProvisioningState arm.ProvisioningState       `json:"provisioningState"`
-	Issuer            TokenIssuerProfile          `json:"issuer"`
-	Clients           []ExternalAuthClientProfile `json:"clients"`
-	Claim             ExternalAuthClaimProfile    `json:"claim"`
+	// Written by: Frontend PUT/PATCH/DELETE ExternalAuth, OperationExternalAuthCreate, OperationExternalAuthUpdate, OperationExternalAuthDelete
+	ProvisioningState arm.ProvisioningState `json:"provisioningState"`
+	// Written by: Frontend PUT/PATCH ExternalAuth
+	Issuer TokenIssuerProfile `json:"issuer"`
+	// Written by: Frontend PUT/PATCH ExternalAuth
+	Clients []ExternalAuthClientProfile `json:"clients"`
+	// Written by: Frontend PUT/PATCH ExternalAuth
+	Claim ExternalAuthClaimProfile `json:"claim"`
 }
 
 type HCPOpenShiftClusterExternalAuthServiceProviderProperties struct {
-	ClusterServiceID  *InternalID `json:"clusterServiceID,omitempty"`
-	ActiveOperationID string      `json:"activeOperationId,omitempty"`
+	// Written by: Frontend PUT ExternalAuth (Create), ExternalAuthClusterServiceCreate, ExternalAuthDeletionClusterServiceIDClearer
+	ClusterServiceID *InternalID `json:"clusterServiceID,omitempty"`
+	// Written by: Frontend PUT/PATCH/DELETE ExternalAuth, OperationExternalAuthCreate, OperationExternalAuthUpdate, OperationExternalAuthDelete
+	ActiveOperationID string `json:"activeOperationId,omitempty"`
 	// DeletionTimestamp is the timestamp at which the ExternalAuth deletion was requested.
 	// The timestamp is in UTC.
 	// A nil value indicates that the ExternalAuth deletion has not been requested.
+	// Written by: Frontend DELETE ExternalAuth
 	DeletionTimestamp *metav1.Time `json:"deletionTimestamp,omitempty"`
 	// ClusterServiceDeletionTimestamp is written when a dispatch of a Cluster
 	// Service Delete ExternalAuth request against Cluster Service for this
-	// external auth has been handled. It is set after a successful
-	// DeleteExternalAuth call to Cluster Service, but also when it's
-	// determined that no delete call is needed but we consider we should
-	// behave as if the delete call was successfully issued (for example, if
-	// the parent cluster of the external auth is already being uninstalled,
-	// because cluster-service will already take care of deleting the
-	// external auth as part of the cluster teardown).
-	// A nil value indicates that the Cluster Service Deletion has not been requested.
-	// The timestamp is in UTC.
-	// TODO this attribute is not in use yet. Do not rely on it.
+	// external auth has been handled.
+	// Written by: ExternalAuthClusterServiceDeleteDispatch
 	ClusterServiceDeletionTimestamp *metav1.Time `json:"clusterServiceDeletionTimestamp,omitempty"`
 
-	// TODO Temporary field to track whether the external auth operation is using the new deletion approach.
-	// We are migrating from the external auth CS deletion synchronous in frontend to the backend, to be fully asynchronous.
-	// This boolean is true for ExternalAuth delete operations that are created with new deletion approach.
-	// This will be removed once all external auths whose deletion was triggered before the new approach is fully rolled out have been
-	// fully deleted in all ARO-HCP permanent environments, for all regions.
+	// Written by: Frontend DELETE ExternalAuth
 	UsesNewExternalAuthDeletionApproach bool `json:"usesNewExternalAuthDeletionApproach"`
 }
 
