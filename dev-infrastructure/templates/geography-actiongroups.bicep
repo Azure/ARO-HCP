@@ -7,10 +7,10 @@ param icmConnectionName string
 @description('ICM connection id')
 param icmConnectionId string
 
-@description('Name of the ICM Action Group')
+@description('ICM incident receiver name for SRE')
 param icmActionGroupNameSRE string
 
-@description('Name of the ICM Action Group')
+@description('Short display name for the SRE action group')
 param icmActionGroupShortNameSRE string
 
 @description('ICM routing ID')
@@ -19,10 +19,10 @@ param icmRoutingIdSRE string
 @description('ICM automitigation enabled ID')
 param icmAutomitigationEnabledSRE string
 
-@description('Name of the ICM Action Group')
+@description('ICM incident receiver name for SL')
 param icmActionGroupNameSL string
 
-@description('Name of the ICM Action Group')
+@description('Short display name for the SL action group')
 param icmActionGroupShortNameSL string
 
 @description('ICM routing ID')
@@ -31,10 +31,10 @@ param icmRoutingIdSL string
 @description('ICM automitigation enabled ID')
 param icmAutomitigationEnabledSL string
 
-@description('Name of the ICM Action Group')
+@description('ICM incident receiver name for RP')
 param icmActionGroupNameRP string
 
-@description('Name of the ICM Action Group')
+@description('Short display name for the RP action group')
 param icmActionGroupShortNameRP string
 
 @description('ICM routing ID')
@@ -43,10 +43,10 @@ param icmRoutingIdRP string
 @description('ICM automitigation enabled ID')
 param icmAutomitigationEnabledRP string
 
-@description('Name of the ICM Action Group')
+@description('ICM incident receiver name for MSFT')
 param icmActionGroupNameMSFT string
 
-@description('Name of the ICM Action Group')
+@description('Short display name for the MSFT action group')
 param icmActionGroupShortNameMSFT string
 
 @description('ICM routing ID')
