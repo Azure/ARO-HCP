@@ -2130,7 +2130,7 @@ This may indicate a memory leak or workload growth that requires right-sizing th
 This may indicate a memory leak or workload growth that requires right-sizing the request in config.yaml.
 '''
           owning_team: 'hcp-sl'
-          runbook_url: 'TBD'
+          runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/kube-applier-resources.md'
           summary: 'kube-applier memory exceeds 1.5x its request on cluster {{ $labels.cluster }}.'
           title: 'kube-applier memory exceeds 1.5x its request on cluster {{ $labels.cluster }}. pod:{{ $labels.pod }}'
         }
@@ -2165,7 +2165,7 @@ At the current rate over the past 6 hours, it will exceed 2x its memory request 
 Investigate for potential memory leaks or increased workload.
 '''
           owning_team: 'hcp-sl'
-          runbook_url: 'TBD'
+          runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/kube-applier-resources.md'
           summary: 'kube-applier memory trending toward 2x its request on cluster {{ $labels.cluster }}.'
           title: 'kube-applier memory trending toward 2x its request on cluster {{ $labels.cluster }}. pod:{{ $labels.pod }}'
         }

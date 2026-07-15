@@ -26,7 +26,7 @@ tests:
         description: |
           kube-applier pod kube-applier-0 on cluster test is using 164.1% of its memory request for more than 15 minutes.
           This may indicate a memory leak or workload growth that requires right-sizing the request in config.yaml.
-        runbook_url: TBD
+        runbook_url: https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/kube-applier-resources.md
         owning_team: hcp-sl
 # KubeApplierMemoryDrift - no alert when usage is below 1.5x
 - interval: 1m
@@ -65,7 +65,7 @@ tests:
           kube-applier pod kube-applier-0 on cluster test memory is growing steadily.
           At the current rate over the past 6 hours, it will exceed 2x its memory request within 4 hours.
           Investigate for potential memory leaks or increased workload.
-        runbook_url: TBD
+        runbook_url: https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/kube-applier-resources.md
         owning_team: hcp-sl
 # KubeApplierMemoryTrend - no alert when memory is stable
 - interval: 1m
