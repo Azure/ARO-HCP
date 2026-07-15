@@ -882,7 +882,9 @@ type OsDiskProfile struct {
 	// Details on how to create a Disk Encryption Set can be found here: https://learn.microsoft.com/en-us/azure/virtual-machines/disks-enable-customer-managed-keys-portal#set-up-your-disk-encryption-set
 	EncryptionSetID *string
 
-	// The OS disk size in GiB
+	// The OS disk size in GiB. Maximum is 4095 GiB for Managed disks. For Ephemeral disks, the maximum is 2040 GiB; Azure may
+	// enforce a lower effective limit based on the selected VM size's local cache,
+	// temp, or NVMe capacity.
 	SizeGiB *int32
 }
 

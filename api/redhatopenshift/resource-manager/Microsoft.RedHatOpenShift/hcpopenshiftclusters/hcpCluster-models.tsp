@@ -831,9 +831,13 @@ model NodePoolPlatformProfile {
 
 /** The settings and configuration options for OSDisk */
 model OsDiskProfile {
-  /** The OS disk size in GiB */
+  /** The OS disk size in GiB. Maximum is 4095 GiB for Managed disks. For Ephemeral disks,
+   * the maximum is 2040 GiB; Azure may enforce a lower effective limit based on the
+   * selected VM size's local cache, temp, or NVMe capacity.
+   */
   @visibility(Lifecycle.Read, Lifecycle.Create)
   @minValue(64)
+  @maxValue(4095)
   sizeGiB?: int32 = 64;
 
   /** The type of the disk storage account

@@ -38,6 +38,17 @@ const (
 	nodePoolK8sLabelKeyNodeRoleWorker = "node-role.kubernetes.io/worker"
 	nodePoolK8sLabelKeyMachineRole    = "machine.openshift.io/cluster-api-machine-role"
 	nodePoolK8sLabelKeyMachineType    = "machine.openshift.io/cluster-api-machine-type"
+
+	// MaxManagedOSDiskSizeGiB is the maximum allowed OS disk size (GiB) for Managed (persistent) OS disks.
+	// See https://learn.microsoft.com/en-us/azure/virtual-machines/managed-disks-overview#os-disk
+	MaxManagedOSDiskSizeGiB int32 = 4095
+	// MaxEphemeralOSDiskSizeGiB is the absolute maximum allowed OS disk size (GiB) for Ephemeral OS disks.
+	// Azure may enforce a lower effective limit per VM size based on local cache/temp/NVMe capacity.
+	// Values above this absolute cap are rejected here; values within this cap but above the selected
+	// VM size's local disk capacity are accepted by this validator and fail later during Azure
+	// provisioning.
+	// See https://learn.microsoft.com/en-us/azure/virtual-machines/ephemeral-os-disks
+	MaxEphemeralOSDiskSizeGiB int32 = 2040
 )
 
 // nodePoolForbiddenK8sLabelValuesByKey maps Kubernetes label keys to forbidden values.
@@ -331,6 +342,13 @@ func validateOSDiskProfile(ctx context.Context, op operation.Operation, fldPath 
 	//DiskType               OsDiskType             `json:"diskType"`
 	errs = append(errs, validate.RequiredValue(ctx, op, fldPath.Child("diskType"), &newObj.DiskType, safe.Field(oldObj, toOSDiskProfileDiskType))...)
 	errs = append(errs, validate.Enum(ctx, op, fldPath.Child("diskType"), &newObj.DiskType, safe.Field(oldObj, toOSDiskProfileDiskType), api.ValidOsDiskTypes, nil)...)
+
+	switch newObj.DiskType {
+	case api.OsDiskTypeManaged:
+		errs = append(errs, Maximum(ctx, op, fldPath.Child("sizeGiB"), newObj.SizeGiB, safe.Field(oldObj, toOSDiskProfileSizeGiB), MaxManagedOSDiskSizeGiB)...)
+	case api.OsDiskTypeEphemeral:
+		errs = append(errs, Maximum(ctx, op, fldPath.Child("sizeGiB"), newObj.SizeGiB, safe.Field(oldObj, toOSDiskProfileSizeGiB), MaxEphemeralOSDiskSizeGiB)...)
+	}
 
 	//EncryptionSetID        string                 `json:"encryptionSetId,omitempty"`
 	errs = append(errs, RestrictedResourceIDWithResourceGroup(ctx, op, fldPath.Child("encryptionSetId"), newObj.EncryptionSetID, safe.Field(oldObj, toOSDiskProfileEncryptionSetID), "Microsoft.Compute/diskEncryptionSets")...)
