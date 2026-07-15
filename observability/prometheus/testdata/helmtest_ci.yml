@@ -2,14 +2,14 @@ values: ../values-ci.yaml
 name: helmtest-ci
 namespace: prometheus
 testData:
-  ctx:
-    cluster: ci-test-cluster
-    region: eastus
+  region: eastus
   acr:
     svc:
       name: arohcpsvctest
   acrDNSSuffix: azurecr.io
   mgmt:
+    aks:
+      name: ci-test-cluster
     prometheus:
       prometheusOperator:
         image:
