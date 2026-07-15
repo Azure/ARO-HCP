@@ -219,6 +219,12 @@ Each environment has two databases:
   (mgmt-agent, HyperShift operator) is also in this database — filter by `cluster`.
 - **`HostedControlPlaneLogs`**: Per-cluster hosted control plane container logs
   (`containerLogs`) — kube-apiserver, etcd, control-plane-operator, etc.
+- **`MonitoringEvents`**: Alert events from Prometheus/metric alerting. The
+  `alertEvents` table contains fired/resolved alerts with columns: `alertId`,
+  `alertRule`, `severity`, `monitorCondition`, `firedDateTime`, `resolvedDateTime`,
+  `alertContext` (dynamic — contains `labels` and `annotations` with the full
+  Prometheus alert payload). When investigating alerts, always expand `alertContext`
+  for the full detail — `alertContext.labels`, `alertContext.annotations`, etc.
 
 Hosted cluster namespaces: `ocm-arohcp<env>-<cid>-<id>`. Use `distinct pod_name,
 container_name` within a namespace to discover available logs.

@@ -195,19 +195,20 @@ func (o *validatedFromProwJobOptions) run(ctx context.Context) error {
 		}
 
 		result, err := snapshotpkg.GatherForTest(ctx, snapshotpkg.GatherForTestOptions{
-			Gatherer:              gatherer,
-			Test:                  test,
-			ProwJobURL:            o.prowInfo.URL,
-			KustoEndpoint:         kustoEndpoint.String(),
-			ServiceDatabase:       jobConfig.ServiceDatabase,
-			HCPDatabase:           jobConfig.HCPDatabase,
-			ServiceClusterName:    jobConfig.ServiceClusterName,
-			ManagementClusterName: jobConfig.ManagementClusterName,
-			SiblingTests:          siblingTests,
-			OutputDir:             testOutputDir,
-			QueryTimeout:          o.queryTimeout,
-			Concurrency:           o.concurrency,
-			NodeConsoleLogs:       nodeConsoleLogs,
+			Gatherer:                 gatherer,
+			Test:                     test,
+			ProwJobURL:               o.prowInfo.URL,
+			KustoEndpoint:            kustoEndpoint.String(),
+			ServiceDatabase:          jobConfig.ServiceDatabase,
+			HCPDatabase:              jobConfig.HCPDatabase,
+			MonitoringEventsDatabase: jobConfig.MonitoringEventsDatabase,
+			ServiceClusterName:       jobConfig.ServiceClusterName,
+			ManagementClusterName:    jobConfig.ManagementClusterName,
+			SiblingTests:             siblingTests,
+			OutputDir:                testOutputDir,
+			QueryTimeout:             o.queryTimeout,
+			Concurrency:              o.concurrency,
+			NodeConsoleLogs:          nodeConsoleLogs,
 		})
 		if err != nil {
 			logger.Error(err, "Failed to gather snapshot for test", "test", test.Name)

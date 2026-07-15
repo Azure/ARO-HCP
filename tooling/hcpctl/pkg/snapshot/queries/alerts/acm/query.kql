@@ -1,0 +1,4 @@
+{{ template "alertEventsBase" . }}
+| where isnotnull(alertContext.labels.namespace) and
+    alertContext.labels.namespace == 'klusterlet-{{ .ClusterID }}'
+{{ template "alertEventsProject" . }}

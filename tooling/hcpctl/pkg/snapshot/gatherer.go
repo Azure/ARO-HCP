@@ -44,6 +44,8 @@ type GatherInput struct {
 	ServiceDatabase string
 	// HCPDatabase is the Kusto database containing hosted control plane logs.
 	HCPDatabase string
+	// MonitoringEventsDatabase is the Kusto database containing monitoring events (alerts).
+	MonitoringEventsDatabase string
 	// ResourceGroup is the Azure resource group to scope queries to.
 	ResourceGroup string
 	// TimeWindow is the full time range to query.
@@ -74,6 +76,18 @@ func (g GatherInput) concurrency() int {
 		return g.Concurrency
 	}
 	return 4 * runtime.NumCPU()
+}
+
+// databaseFor returns the Kusto database name for the given database key.
+func (g GatherInput) databaseFor(database string) string {
+	switch database {
+	case "hcp":
+		return g.HCPDatabase
+	case "monitoringEvents":
+		return g.MonitoringEventsDatabase
+	default:
+		return g.ServiceDatabase
+	}
 }
 
 // phaseSpec describes a single phase (test or cleanup) with its time boundaries.
@@ -215,14 +229,15 @@ func (g *Gatherer) Gather(ctx context.Context, input GatherInput, outputDir stri
 
 	// Build seed queryData for discovery (full time window).
 	seedData := queryData{
-		ClusterURI:            input.ClusterURI,
-		ServiceDatabase:       input.ServiceDatabase,
-		HCPDatabase:           input.HCPDatabase,
-		ResourceGroup:         input.ResourceGroup,
-		ServiceClusterName:    input.ServiceClusterName,
-		ManagementClusterName: input.ManagementClusterName,
-		FullStartTime:         input.TimeWindow.Start,
-		FullEndTime:           input.TimeWindow.End,
+		ClusterURI:               input.ClusterURI,
+		ServiceDatabase:          input.ServiceDatabase,
+		HCPDatabase:              input.HCPDatabase,
+		MonitoringEventsDatabase: input.MonitoringEventsDatabase,
+		ResourceGroup:            input.ResourceGroup,
+		ServiceClusterName:       input.ServiceClusterName,
+		ManagementClusterName:    input.ManagementClusterName,
+		FullStartTime:            input.TimeWindow.Start,
+		FullEndTime:              input.TimeWindow.End,
 		// Discovery queries use the full window for phase fields too.
 		PhaseStartTime: input.TimeWindow.Start,
 		PhaseEndTime:   input.TimeWindow.End,
@@ -882,10 +897,7 @@ func (g *Gatherer) executeQuery(ctx context.Context, q querySpec, data *queryDat
 		return nil, fmt.Errorf("query %s: %w", q.key(), err)
 	}
 
-	db := input.ServiceDatabase
-	if q.database == "hcp" {
-		db = input.HCPDatabase
-	}
+	db := input.databaseFor(q.database)
 
 	rows, err := g.executeKQL(ctx, rendered, db, input.QueryTimeout)
 	if err != nil {
@@ -925,10 +937,7 @@ func (g *Gatherer) executeQueryToDir(ctx context.Context, q querySpec, data *que
 		return nil, fmt.Errorf("query %s: %w", q.key(), err)
 	}
 
-	db := input.ServiceDatabase
-	if q.database == "hcp" {
-		db = input.HCPDatabase
-	}
+	db := input.databaseFor(q.database)
 
 	rows, err := g.executeKQL(ctx, rendered, db, input.QueryTimeout)
 	if err != nil {

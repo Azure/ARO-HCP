@@ -65,10 +65,11 @@ func (p *ProwJobInfo) IsPullRequest() bool {
 
 // ProwJobConfig holds the Kusto connection info extracted from a Prow job's config.yaml.
 type ProwJobConfig struct {
-	Region          string
-	KustoName       string
-	HCPDatabase     string
-	ServiceDatabase string
+	Region                   string
+	KustoName                string
+	HCPDatabase              string
+	ServiceDatabase          string
+	MonitoringEventsDatabase string
 
 	// ServiceClusterName and ManagementClusterName are the AKS cluster names
 	// used to filter Kusto queries to only relevant clusters. These are only
@@ -578,6 +579,7 @@ type sourceKusto struct {
 	Location                       string `json:"location"`
 	HostedControlPlaneLogsDatabase string `json:"hostedControlPlaneLogsDatabase"`
 	ServiceLogsDatabase            string `json:"serviceLogsDatabase"`
+	MonitoringEventsDatabase       string `json:"monitoringEventsDatabase"`
 }
 
 type sourceAKS struct {
@@ -595,12 +597,13 @@ func parseConfig(data []byte) (*ProwJobConfig, error) {
 	}
 
 	return &ProwJobConfig{
-		Region:                src.Kusto.Location,
-		KustoName:             src.Kusto.KustoName,
-		HCPDatabase:           src.Kusto.HostedControlPlaneLogsDatabase,
-		ServiceDatabase:       src.Kusto.ServiceLogsDatabase,
-		ServiceClusterName:    src.Svc.AKS.Name,
-		ManagementClusterName: src.Mgmt.AKS.Name,
+		Region:                   src.Kusto.Location,
+		KustoName:                src.Kusto.KustoName,
+		HCPDatabase:              src.Kusto.HostedControlPlaneLogsDatabase,
+		ServiceDatabase:          src.Kusto.ServiceLogsDatabase,
+		MonitoringEventsDatabase: src.Kusto.MonitoringEventsDatabase,
+		ServiceClusterName:       src.Svc.AKS.Name,
+		ManagementClusterName:    src.Mgmt.AKS.Name,
 	}, nil
 }
 
