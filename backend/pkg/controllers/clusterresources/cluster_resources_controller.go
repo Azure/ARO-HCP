@@ -21,12 +21,14 @@ import (
 	"strings"
 	"time"
 
-	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	utilsclock "k8s.io/utils/clock"
+
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
+	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
@@ -125,6 +127,7 @@ func (c *clusterResourcesController) SyncOnce(ctx context.Context, key controlle
 	// Poll the cluster resources from the Cluster Service
 	clusterServiceID := *cluster.ServiceProviderProperties.ClusterServiceID
 	logger = logger.WithValues("clusterServiceID", clusterServiceID)
+	ctx = utils.ContextWithLogger(ctx, logger)
 
 	err = c.fetchAndProcessClusterResources(ctx, key, clusterServiceID)
 	if err != nil {
