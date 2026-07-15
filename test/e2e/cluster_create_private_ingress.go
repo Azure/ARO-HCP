@@ -122,6 +122,9 @@ var _ = Describe("Customer", func() {
 
 			var deployErr error
 			for attempt := 0; attempt < 3; attempt++ {
+				if attempt > 0 {
+					time.Sleep(20 * time.Second)
+				}
 				_, deployErr = tc.CreateBicepTemplateAndWait(ctx,
 					framework.WithTemplateFromFS(TestArtifactsFS, "test-artifacts/generated-test-artifacts/modules/test-vm.json"),
 					framework.WithDeploymentName("test-vm"),
@@ -139,7 +142,6 @@ var _ = Describe("Customer", func() {
 				if deployErr == nil || strings.Contains(deployErr.Error(), "SkuNotAvailable") {
 					break
 				}
-				time.Sleep(20 * time.Second)
 			}
 			Expect(deployErr).NotTo(HaveOccurred(), "failed to deploy test VM for private ingress verification")
 
