@@ -85,11 +85,6 @@ var _ = Describe("Customer", func() {
 				acmeEmail            = "noreply@redhat.com"
 				acmeServer           = "https://acme-staging-v02.api.letsencrypt.org/directory"
 			)
-			By("checking the environment")
-			if !framework.IsDevelopmentEnvironment() && time.Now().Before(framework.Must(time.Parse(time.RFC3339, "2026-08-09T00:00:00Z"))) {
-				Skip("Skipping certificate issuance of managed subdomain test until deny assignment is updated")
-			}
-
 			tc := framework.NewTestContext()
 			if tc.UsePooledIdentities() {
 				err := tc.AssignIdentityContainers(ctx, 1, framework.IdentityContainerAssignmentRetryInterval)
@@ -242,7 +237,8 @@ var _ = Describe("Customer", func() {
 			// DNS Zone Contributor built-in role: befefa01-2a29-4197-83a8-272ff33ce314
 			const dnsZoneContributorRoleID = "befefa01-2a29-4197-83a8-272ff33ce314"
 			Eventually(func() error {
-				err := assignBuiltInRoleAtScope(ctx, newRoleAssignmentsClient(subscriptionID, cred), subscriptionID, dnsZoneResourceID, uamiPrincipalID, dnsZoneContributorRoleID)
+				// TODO: do we relax assigning role assignments over the managed resource group?
+				err := assignBuiltInRoleAtScope(ctx, newRoleAssignmentsClient(subscriptionID, cred), subscriptionID, fmt.Sprintf("/subscriptions/%s", subscriptionID), uamiPrincipalID, dnsZoneContributorRoleID)
 				if err != nil && !isPrincipalNotFoundError(err) {
 					return StopTrying(err.Error()).Wrap(err)
 				}
