@@ -43,6 +43,16 @@ import (
 	"github.com/Azure/ARO-HCP/test/util/labels"
 )
 
+// upgradeInPlaceParallelism is the default parallelism for the upgrade/in-place
+// suite. It must equal the number of It blocks carrying labels.UpgradeInPlace so
+// that every spec can provision its cluster concurrently before the UpgradeBarrier
+// synchronisation point.
+//
+// TestUpgradeInPlaceParallelismMatchesSpecCount enforces that this constant stays
+// in sync with the actual spec count — update both together whenever you add or
+// remove upgrade test specs.
+const upgradeInPlaceParallelism = 1
+
 func fastTestsOnly(query string) string {
 	return fmt.Sprintf("%s && !labels.exists(l, l==\"%s\")", query, labels.Slow[0])
 }
@@ -216,16 +226,25 @@ func setupCli() *cobra.Command {
 		TestTimeout: &rpApiCompatTestTimeout,
 	})
 
-	// upgrade/in-place runs the full end-to-end in-place region upgrade in a single spec:
-	// provision cluster+nodepool, capture baseline metrics, run make entrypoint/Region,
-	// then assert node pool stability (hash, haproxy image, MachineDeployment DataSecretName).
+	// upgrade/in-place runs UpgradeInPlace specs in parallel. Each spec provisions
+	// its own cluster+nodepool and captures a baseline, then all specs synchronise
+	// at an UpgradeBarrier: the first spec to check in runs "make entrypoint/Region"
+	// once for the whole suite; the others wait. After the upgrade every spec
+	// validates its own cluster independently (hash, haproxy image, DataSecretName).
+	//
+	// UPGRADE_SPEC_COUNT must be set before running this suite:
+	//   Full suite: UPGRADE_SPEC_COUNT=$(aro-hcp-tests list tests --suite upgrade/in-place --output names | grep -c .)
+	//   Single spec: UPGRADE_SPEC_COUNT=1
+	//
+	// Parallelism is set to match the number of UpgradeInPlace specs so each can
+	// provision concurrently. Adjust when adding or removing upgrade test specs.
 	upgradeInPlaceTimeout := 120 * time.Minute
 	ext.AddSuite(e.Suite{
 		Name: "upgrade/in-place",
 		Qualifiers: []string{
 			fmt.Sprintf(`labels.exists(l, l=="%s")`, labels.UpgradeInPlace[0]),
 		},
-		Parallelism: 1,
+		Parallelism: parallelism(upgradeInPlaceParallelism),
 		TestTimeout: &upgradeInPlaceTimeout,
 	})
 

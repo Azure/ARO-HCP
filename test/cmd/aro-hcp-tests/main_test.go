@@ -16,10 +16,53 @@ package main
 
 import (
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/Azure/ARO-HCP/test/util/testutil"
 )
+
+// TestUpgradeInPlaceParallelismMatchesSpecCount enforces that upgradeInPlaceParallelism
+// stays in sync with the actual number of It blocks in the upgrade/in-place suite.
+// If you add or remove an UpgradeInPlace spec, update the constant and this test will pass again.
+func TestUpgradeInPlaceParallelismMatchesSpecCount(t *testing.T) {
+	root := setupCli()
+	root.SetArgs([]string{"list", "tests", "--suite", "upgrade/in-place", "--output", "names"})
+
+	tmpFile, err := os.CreateTemp("", "upgrade-spec-count-*.txt")
+	if err != nil {
+		t.Fatalf("failed to create temp file: %v", err)
+	}
+	defer os.Remove(tmpFile.Name())
+
+	originalStdout := os.Stdout
+	os.Stdout = tmpFile
+	execErr := root.Execute()
+	os.Stdout = originalStdout
+	tmpFile.Close()
+
+	if execErr != nil {
+		t.Fatalf("list command failed: %v", execErr)
+	}
+
+	raw, err := os.ReadFile(tmpFile.Name())
+	if err != nil {
+		t.Fatalf("failed to read temp file: %v", err)
+	}
+
+	var specCount int
+	for _, line := range strings.Split(string(raw), "\n") {
+		if strings.TrimSpace(line) != "" {
+			specCount++
+		}
+	}
+
+	if specCount != upgradeInPlaceParallelism {
+		t.Errorf("upgradeInPlaceParallelism=%d but the upgrade/in-place suite has %d spec(s); "+
+			"update upgradeInPlaceParallelism in main.go to match the actual spec count",
+			upgradeInPlaceParallelism, specCount)
+	}
+}
 
 func TestMainListSuitesForEachSuite(t *testing.T) {
 	type testCase struct {

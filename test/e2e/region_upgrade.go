@@ -20,7 +20,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"os"
-	"path/filepath"
 	"sort"
 	"strings"
 	"time"
@@ -199,24 +198,6 @@ func machineDeploymentDataSecretName(ctx context.Context, mcClient dynamic.Inter
 	return secretName, nil
 }
 
-// repoRoot derives the repository root from the test binary path.
-// The binary is built at <repo-root>/test/aro-hcp-tests (see test/Makefile),
-// so the repo root is two directory levels above the executable.
-// Using the executable path rather than os.Getwd() makes make invocations
-// resilient when the test is launched from any working directory.
-func repoRoot() (string, error) {
-	exe, err := os.Executable()
-	if err != nil {
-		return "", fmt.Errorf("resolving executable path: %w", err)
-	}
-	real, err := filepath.EvalSymlinks(exe)
-	if err != nil {
-		return "", fmt.Errorf("evaluating symlinks for %q: %w", exe, err)
-	}
-	// real == <repo-root>/test/aro-hcp-tests → Dir→ test/ → Dir→ repo root
-	return filepath.Dir(filepath.Dir(real)), nil
-}
-
 var _ = Describe("Region in-place upgrade", func() {
 	It("validates node pool stability after full region upgrade",
 		labels.Critical,
@@ -243,6 +224,16 @@ var _ = Describe("Region in-place upgrade", func() {
 			nodePoolName := "nodepool-" + suffix
 
 			tc := framework.NewTestContext()
+
+			// Set up the upgrade barrier after NewTestContext so its DeferCleanups
+			// run before tc teardown in FILO order, unblocking other specs before
+			// Azure resource deletion begins.
+			// UPGRADE_SPEC_COUNT must be set before running; ARTIFACT_DIR is optional
+			// (falls back to os.TempDir() for local runs).
+			//   Full suite: UPGRADE_SPEC_COUNT=$(./aro-hcp-tests list tests --suite upgrade/in-place --output names | grep -c .)
+			//   Single spec: UPGRADE_SPEC_COUNT=1
+			barrier, err := framework.NewUpgradeBarrier()
+			Expect(err).NotTo(HaveOccurred(), "failed to create upgrade barrier")
 
 			if tc.UsePooledIdentities() {
 				err := tc.AssignIdentityContainers(ctx, 1, framework.IdentityContainerAssignmentRetryInterval)
@@ -335,24 +326,13 @@ var _ = Describe("Region in-place upgrade", func() {
 				"dataSecretName", baselineDataSecretName,
 			)
 
-			By("running make entrypoint/Region to upgrade all regional services")
-			// MakeRunner inherits all environment variables from the test process so that
-			// OVERRIDE_CONFIG_FILE, DEPLOY_ENV, and any pipeline flags (SKIP_CONFIRM,
-			// PERSIST) set by the openshift/release step script are passed through.
-			// stdout/stderr are forwarded to GinkgoWriter so they appear in the test log.
-			// Infrastructure (bicep) steps are idempotent when only image digests change,
-			// so re-running the full Region entrypoint is safe and upgrades all services
-			// on both the service and management clusters in one invocation.
-			root, err := repoRoot()
-			Expect(err).NotTo(HaveOccurred(), "failed to determine repo root for make invocation")
-			makeRunner := &framework.MakeRunner{
-				WorkDir:  root,
-				ExtraEnv: []string{"SKIP_CONFIRM=true"},
-				Logger:   GinkgoLogr,
-			}
-			err = makeRunner.RunWithOutput(ctx, "entrypoint/Region", GinkgoWriter, GinkgoWriter)
-			Expect(err).NotTo(HaveOccurred(), "make entrypoint/Region failed")
-			GinkgoLogr.Info("Region entrypoint deploy completed")
+			// CheckInAndUpgrade handles check-in, runner election, runner/waiter
+			// split, and the make entrypoint/Region invocation in one call.
+			// MakeRunner inherits all environment variables (OVERRIDE_CONFIG_FILE,
+			// DEPLOY_ENV, SKIP_CONFIRM, PERSIST) from the test process.
+			By("checking in to barrier and running upgrade")
+			err = barrier.CheckInAndUpgrade(ctx)
+			Expect(err).NotTo(HaveOccurred(), "upgrade phase failed")
 
 			By("confirming node pool hash remains stable after upgrade")
 			GinkgoLogr.Info("starting stability observation",
