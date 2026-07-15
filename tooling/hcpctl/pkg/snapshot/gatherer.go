@@ -1016,7 +1016,7 @@ func isRetryableError(err error) bool {
 	}
 	// Some wrapped errors lose the net.Error type; check the message as a fallback.
 	msg := err.Error()
-	for _, substr := range []string{"connection reset", "TLS handshake", "broken pipe"} {
+	for _, substr := range []string{"connection reset", "TLS handshake", "broken pipe", "QueryThrottledException"} {
 		if strings.Contains(msg, substr) {
 			return true
 		}
