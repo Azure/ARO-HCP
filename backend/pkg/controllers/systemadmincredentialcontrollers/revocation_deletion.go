@@ -109,7 +109,8 @@ func (c *revocationDeletion) SyncOnce(ctx context.Context, key controllerutils.S
 	}
 
 	suffix := revocation.Spec.RevokeOpSuffix
-	waitingFor, err := deleteDesires(ctx, kubeApplierClient, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName,
+	waitingFor, err := deleteDesires(ctx, kubeApplierClient, revocationDesireParent(key.RevocationName),
+		key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName,
 		func(desireName string) bool { return isRevocationDesire(desireName, suffix) })
 	if err != nil {
 		return err
