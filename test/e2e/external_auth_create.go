@@ -128,8 +128,7 @@ var _ = Describe("Customer", func() {
 			graphClient, err := tc.GetGraphClient(ctx)
 			Expect(err).NotTo(HaveOccurred(), "failed to get Microsoft Graph client")
 
-			pass, err := graphClient.AddPassword(ctx, app.ID, "external-auth-pass", time.Now(), time.Now().Add(24*time.Hour))
-			Expect(err).NotTo(HaveOccurred(), "failed to add password to app registration")
+			passSecret := framework.AddAppRegistrationPassword(ctx, graphClient, app.ID, "external-auth-pass")
 
 			By("creating an external auth config with a prefix")
 			extAuth := hcpsdk20240610preview.ExternalAuth{
@@ -184,7 +183,7 @@ var _ = Describe("Customer", func() {
 
 			By("creating a rest config using OIDC authentication")
 			Expect(tc.TenantID()).NotTo(BeEmpty(), "tenant ID must not be empty for OIDC authentication")
-			cred, err := azidentity.NewClientSecretCredential(tc.TenantID(), app.AppID, pass.SecretText, nil)
+			cred, err := azidentity.NewClientSecretCredential(tc.TenantID(), app.AppID, passSecret, nil)
 			Expect(err).NotTo(HaveOccurred(), "failed to create client secret credential for OIDC authentication")
 
 			// MSGraph is eventually consistent, wait up to 2 minutes for the token to be valid
@@ -237,7 +236,7 @@ var _ = Describe("Customer", func() {
 					Namespace: "openshift-config",
 				},
 				StringData: map[string]string{
-					"clientSecret": pass.SecretText,
+					"clientSecret": passSecret,
 				},
 			}
 			_, err = adminClient.CoreV1().Secrets("openshift-config").Create(ctx, consoleOAuthSecret, metav1.CreateOptions{})

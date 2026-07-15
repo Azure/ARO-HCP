@@ -265,8 +265,7 @@ var _ = Describe("Authorized CIDRs", func() {
 				graphClient, err := tc.GetGraphClient(ctx)
 				Expect(err).NotTo(HaveOccurred(), "failed to get graph client")
 
-				pass, err := graphClient.AddPassword(ctx, app.ID, "cidr-external-auth-pass", time.Now(), time.Now().Add(24*time.Hour))
-				Expect(err).NotTo(HaveOccurred(), "failed to add password to app registration")
+				passSecret := framework.AddAppRegistrationPassword(ctx, graphClient, app.ID, "cidr-external-auth-pass")
 
 				By("creating an external auth config with a prefix")
 				extAuth := hcpsdk20240610preview.ExternalAuth{
@@ -329,7 +328,7 @@ var _ = Describe("Authorized CIDRs", func() {
 
 				By("creating a rest config using OIDC authentication")
 				Expect(tc.TenantID()).NotTo(BeEmpty(), "tenant ID should not be empty for OIDC authentication")
-				cred, err := azidentity.NewClientSecretCredential(tc.TenantID(), app.AppID, pass.SecretText, nil)
+				cred, err := azidentity.NewClientSecretCredential(tc.TenantID(), app.AppID, passSecret, nil)
 				Expect(err).NotTo(HaveOccurred(), "failed to create client secret credential for OIDC authentication")
 
 				// MSGraph is eventually consistent, wait up to 2 minutes for the token to be valid
@@ -385,7 +384,7 @@ var _ = Describe("Authorized CIDRs", func() {
 
 				By("creating the console OAuth client secret for external auth via VM")
 				consoleOAuthSecretName := fmt.Sprintf("%s-console-openshift-console", customerExternalAuthName)
-				clientSecretB64 := base64.StdEncoding.EncodeToString([]byte(pass.SecretText))
+				clientSecretB64 := base64.StdEncoding.EncodeToString([]byte(passSecret))
 				createSecretCmd := fmt.Sprintf(
 					`echo '%s' | base64 -d > /tmp/kubeconfig && kubectl --kubeconfig=/tmp/kubeconfig create secret generic %s --namespace=openshift-config --from-literal=clientSecret="$(echo '%s' | base64 -d)"`,
 					kubeconfigB64,
