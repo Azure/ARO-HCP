@@ -25,3 +25,5 @@ param eventHubAlertingEnabled = {{ .monitoring.eventHubAlerting.enabled }}
 param alertEventsEventHubNamespaceName = '{{ .auditLogsEventHub.namespace }}'
 param alertEventsEventHubName = '{{ .alertEventsEventHub.name }}'
 param eventHubSubscriptionId = '__eventHubSubscriptionId__'
+param kustoRegion = '__kustoRegion__'
+param regionLocation = '{{ .region }}'
