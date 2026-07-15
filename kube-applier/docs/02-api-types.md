@@ -136,24 +136,28 @@ func ToNodePoolScopedApplyDesireResourceIDString(sub, rg, cluster, np, name stri
 These are the canonical way to build the `*Desire` resource IDs and to
 extract index keys (see Doc 04 for `ByCluster` / `ByNodePool` indexers).
 
-### 2.6 SystemAdminCredentialRequest-scoped desires
+### 2.6 Credential-scoped desires (SystemAdminCredentialRequest & SystemAdminCredentialRevocation)
 
-Desire resources can now have `SystemAdminCredentialRequest` as a parent
-resource, in addition to clusters and node pools. This enables proper nesting
-so that credential-related desires are scoped under the credential request
-they belong to.
+Desire resources can have `SystemAdminCredentialRequest` **and**
+`SystemAdminCredentialRevocation` as parent resources, in addition to clusters
+and node pools. This enables proper nesting so that credential-related desires
+are scoped under the credential request or revocation they belong to, and the
+resource hierarchy matches the resource that owns them.
 
 **Resource types** (in `registry.go`):
 
 ```go
 CredentialRequestScopedApplyDesireResourceType = nestedResourceType(ClusterResourceTypeName, SystemAdminCredentialRequestResourceTypeName, ApplyDesireResourceTypeName)
 CredentialRequestScopedReadDesireResourceType  = nestedResourceType(ClusterResourceTypeName, SystemAdminCredentialRequestResourceTypeName, ReadDesireResourceTypeName)
+
+RevocationScopedApplyDesireResourceType = nestedResourceType(ClusterResourceTypeName, SystemAdminCredentialRevocationResourceTypeName, ApplyDesireResourceTypeName)
+RevocationScopedReadDesireResourceType  = nestedResourceType(ClusterResourceTypeName, SystemAdminCredentialRevocationResourceTypeName, ReadDesireResourceTypeName)
 ```
 
 > There is no `DeleteDesire` resource type. Deletion is modeled as an
 > `ApplyDesire` whose `Spec.Type` is `Delete` (the `ApplyDesireSpec.Type`
 > discriminated union described under "Current state" above), so
-> credential-request teardown reuses the ApplyDesire type rather than a
+> credential teardown reuses the ApplyDesire type rather than a
 > distinct DeleteDesire.
 
 **Resource ID builders** (in `types_cosmosdata.go`):
@@ -161,6 +165,9 @@ CredentialRequestScopedReadDesireResourceType  = nestedResourceType(ClusterResou
 ```go
 func ToCredentialRequestScopedApplyDesireResourceIDString(sub, rg, cluster, credReq, name string) string
 func ToCredentialRequestScopedReadDesireResourceIDString(sub, rg, cluster, credReq, name string) string
+
+func ToRevocationScopedApplyDesireResourceIDString(sub, rg, cluster, revocation, name string) string
+func ToRevocationScopedReadDesireResourceIDString(sub, rg, cluster, revocation, name string) string
 ```
 
 These produce resource IDs of the form:
@@ -169,13 +176,40 @@ These produce resource IDs of the form:
 /subscriptions/{sub}/resourceGroups/{rg}/providers/Microsoft.RedHatOpenShift/
   hcpOpenShiftClusters/{cluster}/systemAdminCredentialRequests/{cred}/
   applyDesires/{name}
+
+/subscriptions/{sub}/resourceGroups/{rg}/providers/Microsoft.RedHatOpenShift/
+  hcpOpenShiftClusters/{cluster}/systemAdminCredentialRevocations/{revocation}/
+  applyDesires/{name}
 ```
 
-**Rationale**: Nesting desires under `SystemAdminCredentialRequest` makes
-cleanup automatic when the parent document is deleted, removes the need for
-an `OutstandingDesires` tracking field, lets controllers fire when desires
-change via informer watches, and makes it easy to find all desires for a
-specific credential request.
+**Cosmos CRUD** (in `internal/database/kube_applier_client.go`): the
+`KubeApplierDBClient` interface exposes per-parent CRUD accessors alongside the
+existing cluster/node-pool ones:
+
+```go
+ApplyDesiresForCredentialRequest(sub, rg, cluster, credReq string) (ResourceCRUD[...], error)
+ReadDesiresForCredentialRequest(sub, rg, cluster, credReq string) (ResourceCRUD[...], error)
+ApplyDesiresForRevocation(sub, rg, cluster, revocation string) (ResourceCRUD[...], error)
+ReadDesiresForRevocation(sub, rg, cluster, revocation string) (ResourceCRUD[...], error)
+```
+
+The per-management-cluster listers and change-feed informers list all four
+scopes (cluster, node pool, credential request, revocation) so nested desires
+are indexed and cleanup via `ListForCluster` still finds every desire under a
+cluster regardless of its parent.
+
+**Controllers**: the desires-creator nests a credential's CSR / CSRApproval /
+RBAC / ReadDesire under its `SystemAdminCredentialRequest`, and the
+revocation-desires controller nests the CRR / RBAC / ReadDesire under its
+`SystemAdminCredentialRevocation`. The teardown controllers delete each
+credential's or revocation's desires through the matching scoped CRUD.
+
+**Rationale**: Nesting desires under `SystemAdminCredentialRequest` /
+`SystemAdminCredentialRevocation` makes cleanup automatic when the parent
+document is deleted, removes the need for an `OutstandingDesires` tracking
+field, lets controllers fire when desires change via informer watches, and
+makes it easy to find all desires for a specific credential request or
+revocation.
 
 ## Acceptance for this layer
 

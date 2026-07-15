@@ -113,28 +113,39 @@ type SystemAdminCredentialRevocation struct {
 ### Desire Scoping
 
 Desire resources (ApplyDesire, ReadDesire) support being nested
-under `SystemAdminCredentialRequest` as a parent resource, in addition to
-cluster-scoped and node-pool-scoped nesting. This means resource IDs follow
-the pattern:
+under both `SystemAdminCredentialRequest` and `SystemAdminCredentialRevocation`
+as parent resources, in addition to cluster-scoped and node-pool-scoped
+nesting. This means resource IDs follow the patterns:
 
 ```
 /subscriptions/{sub}/resourceGroups/{rg}/providers/Microsoft.RedHatOpenShift/
   hcpOpenShiftClusters/{cluster}/systemAdminCredentialRequests/{cred}/
   applyDesires/{name}
+
+/subscriptions/{sub}/resourceGroups/{rg}/providers/Microsoft.RedHatOpenShift/
+  hcpOpenShiftClusters/{cluster}/systemAdminCredentialRevocations/{revocation}/
+  applyDesires/{name}
 ```
 
-**Why credential-request-scoped desires** (review feedback from deads2k):
-Nesting desires under the `SystemAdminCredentialRequest` parent:
+**Why credential-scoped desires** (review feedback from deads2k):
+Nesting desires under the `SystemAdminCredentialRequest` /
+`SystemAdminCredentialRevocation` parent:
 
 1. Makes cleanup automatic when the parent document is deleted
 2. Removes the need for an `OutstandingDesires` tracking field
 3. Lets controllers fire when desires change (informer watches on scoped desires)
-4. Makes it easy to find all desires for a specific credential request
+4. Makes it easy to find all desires for a specific credential request or revocation
 
 The kube-applier types (`registry.go`, `types_cosmosdata.go`) include
-`CredentialRequestScoped*ResourceType` constants and
-`ToCredentialRequestScoped*ResourceIDString` builder functions for all three
-desire types.
+`CredentialRequestScoped*ResourceType` / `RevocationScoped*ResourceType`
+constants and `ToCredentialRequestScoped*ResourceIDString` /
+`ToRevocationScoped*ResourceIDString` builder functions for the ApplyDesire and
+ReadDesire types. The Cosmos layer
+(`internal/database/kube_applier_client.go`) exposes
+`{Apply,Read}DesiresForCredentialRequest` and
+`{Apply,Read}DesiresForRevocation` CRUD accessors, and the desires-creator /
+revocation-desires / teardown controllers use them so every credential and
+revocation desire is written, listed, and deleted under its owning parent.
 
 ### Controller Pattern
 
@@ -277,14 +288,15 @@ exists but the signer lacks permission to act on it.
 
 ## Open Items
 
-1. ~~Kube-applier changes to support desire scoping under SystemAdminCredentialRequest~~ — **Done** (resource type constants and ID builders added)
+1. ~~Kube-applier changes to support desire scoping under SystemAdminCredentialRequest and SystemAdminCredentialRevocation~~ — **Done** (resource type constants and ID builders added for both parents)
 2. ~~SystemAdminCredentialRequest informer-based controller pattern~~ — **Done**
 3. ~~DeletionTimestamp-based cleanup replacing the explicit desire teardown~~ — **Done** (DeleteTimestamp field added, controller updated)
 4. ~~Revocation modeled as a nested SystemAdminCredentialRevocation type with dedicated controllers~~ — **Done** (dispatch → mark → desires → deletion; operation completes when the revocation document is gone)
 5. Migration path from Phase-based documents to Conditions-based documents
-6. Wire credential/revocation-scoped desire CRUD into controllers. The Cosmos
-   CRUD (`KubeApplierDBClient`) currently only exposes cluster- and node-pool-scoped
-   desire accessors, so both per-credential and per-revocation desires are stored
-   cluster-scoped and disambiguated by name (credential name / revocation suffix).
-   The revocation controllers own their desires' full lifecycle regardless, but a
-   dedicated CRUD scope would let them nest physically under the revocation.
+6. ~~Wire credential/revocation-scoped desire CRUD into controllers~~ — **Done**.
+   The Cosmos CRUD (`KubeApplierDBClient`) exposes
+   `{Apply,Read}DesiresForCredentialRequest` and `{Apply,Read}DesiresForRevocation`
+   accessors, the per-management-cluster listers and change-feed informers index
+   all four scopes, and the desires-creator / revocation-desires / teardown
+   controllers write, list, and delete each credential's and revocation's desires
+   physically nested under their owning parent.
