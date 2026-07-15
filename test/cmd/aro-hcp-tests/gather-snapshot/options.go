@@ -61,12 +61,13 @@ type ValidatedOptions struct {
 }
 
 type completedOptions struct {
-	OutputDir      string
-	KustoEndpoint  string
-	ServiceDB      string
-	HCPDB          string
-	TestTimingInfo map[string]timing.TimingInfo
-	kustoClient    *azkustodata.Client
+	OutputDir          string
+	KustoEndpoint      string
+	ServiceDB          string
+	HCPDB              string
+	MonitoringEventsDB string
+	TestTimingInfo     map[string]timing.TimingInfo
+	kustoClient        *azkustodata.Client
 }
 
 type Options struct {
@@ -144,6 +145,10 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to get hosted control plane logs database from config: %w", err)
 	}
+	monitoringEventsDB, err := testutil.ConfigGetString(cfg, "kusto.monitoringEventsDatabase")
+	if err != nil {
+		return nil, fmt.Errorf("failed to get monitoring events database from config: %w", err)
+	}
 
 	kustoRegion, err := resolveKustoRegion(kustoName)
 	if err != nil {
@@ -161,6 +166,7 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 		"endpoint", kustoEndpoint.String(),
 		"serviceDB", serviceDB,
 		"hcpDB", hcpDB,
+		"monitoringEventsDB", monitoringEventsDB,
 	)
 
 	testTimingInfo, err := timing.LoadTestTimingInfo(ctx, o.TimingInputDir)
@@ -184,12 +190,13 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*Options, error) {
 	}
 
 	return &Options{completedOptions: &completedOptions{
-		OutputDir:      o.OutputDir,
-		KustoEndpoint:  kustoEndpoint.String(),
-		ServiceDB:      serviceDB,
-		HCPDB:          hcpDB,
-		TestTimingInfo: testTimingInfo,
-		kustoClient:    kustoClient,
+		OutputDir:          o.OutputDir,
+		KustoEndpoint:      kustoEndpoint.String(),
+		ServiceDB:          serviceDB,
+		HCPDB:              hcpDB,
+		MonitoringEventsDB: monitoringEventsDB,
+		TestTimingInfo:     testTimingInfo,
+		kustoClient:        kustoClient,
 	}}, nil
 }
 
@@ -230,10 +237,11 @@ func (o Options) Run(ctx context.Context) error {
 			)
 
 			input := snapshot.GatherInput{
-				ClusterURI:      o.KustoEndpoint,
-				ServiceDatabase: o.ServiceDB,
-				HCPDatabase:     o.HCPDB,
-				ResourceGroup:   rg,
+				ClusterURI:               o.KustoEndpoint,
+				ServiceDatabase:          o.ServiceDB,
+				HCPDatabase:              o.HCPDB,
+				MonitoringEventsDatabase: o.MonitoringEventsDB,
+				ResourceGroup:            rg,
 				TimeWindow: snapshot.TimeWindow{
 					Start:           ti.StartTime,
 					End:             ti.EndTime,
