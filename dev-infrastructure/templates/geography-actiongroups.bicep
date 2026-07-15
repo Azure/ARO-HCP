@@ -73,7 +73,13 @@ param alertEventsEventHubName string = ''
 @description('Subscription ID where the Event Hub namespace resides')
 param eventHubSubscriptionId string = subscription().subscriptionId
 
-module eventHubActionGroup '../modules/metrics/eventhub-actiongroup.bicep' = if (eventHubAlertingEnabled) {
+@description('Region of the Kusto cluster (from kusto-lookup output)')
+param kustoRegion string = ''
+
+@description('Region of this deployment')
+param regionLocation string
+
+module eventHubActionGroup '../modules/metrics/eventhub-actiongroup.bicep' = if (eventHubAlertingEnabled && kustoRegion == regionLocation) {
   name: 'eventHubActionGroup'
   params: {
     alertingEnabled: alertsEnabled
@@ -113,4 +119,6 @@ output actionGroupSL string = manageConnection ? actionGroups!.outputs.actionGro
 output actionGroupSRE string = manageConnection ? actionGroups!.outputs.actionGroupsSRE : ''
 output actionGroupRP string = manageConnection ? actionGroups!.outputs.actionGroupsRP : ''
 output actionGroupMSFT string = manageConnection ? actionGroups!.outputs.actionGroupsMSFT : ''
-output actionGroupAlertEH string = eventHubAlertingEnabled ? eventHubActionGroup!.outputs.actionGroupId : ''
+output actionGroupAlertEH string = eventHubAlertingEnabled && kustoRegion == regionLocation
+  ? eventHubActionGroup!.outputs.actionGroupId
+  : ''

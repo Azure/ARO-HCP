@@ -100,6 +100,15 @@ resourceGroups:
       - "Internal server error"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
+  - name: kusto-lookup
+    action: ARM
+    template: templates/kusto-lookup.bicep
+    parameters: configurations/kusto-lookup.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
+    dependsOn:
+    - resourceGroup: kusto-infra
+      step: deploy
   - name: action-groups
     action: ARM
     template: templates/geography-actiongroups.bicep
@@ -111,20 +120,32 @@ resourceGroups:
         resourceGroup: svc
         step: subscription-lookup
         name: subscriptionId
+    - name: kustoRegion
+      input:
+        resourceGroup: kusto-infra
+        step: kusto-lookup
+        name: kustoRegion
     dependsOn:
     - resourceGroup: kusto-infra
-      step: deploy
+      step: kusto-lookup
     - resourceGroup: svc
       step: subscription-lookup
-  - name: kusto-lookup
-    action: ARM
-    template: templates/kusto-lookup.bicep
-    parameters: configurations/kusto-lookup.tmpl.bicepparam
-    deploymentLevel: ResourceGroup
-    outputOnly: true
+  - name: detach-legacy-monitoring-stack
+    action: Shell
+    command: ./scripts/detach-legacy-monitoring-stack.sh
+    variables:
+    - name: KUSTO_RESOURCE_GROUP
+      configRef: kusto.rg
+    shellIdentity:
+      input:
+        resourceGroup: global
+        step: output
+        name: globalMSIId
     dependsOn:
     - resourceGroup: kusto-infra
       step: deploy
+    - resourceGroup: global
+      step: output
   - name: kusto-monitoring
     action: ARMStack
     template: templates/kusto-monitoring.bicep
@@ -163,3 +184,5 @@ resourceGroups:
       step: kusto-lookup
     - resourceGroup: kusto-infra
       step: action-groups
+    - resourceGroup: kusto-infra
+      step: detach-legacy-monitoring-stack
