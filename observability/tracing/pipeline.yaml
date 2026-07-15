@@ -30,6 +30,7 @@ resourceGroups:
         step: output
         name: globalMSIId
 - name: management
+  stamped: true
   resourceGroup: '{{ .mgmt.rg }}'
   subscription: '{{ .mgmt.subscription.key }}'
   steps:

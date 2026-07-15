@@ -27,6 +27,28 @@ resourceGroups:                                  (3)
 5. `resourceGroups.subscription`: The Azure subscription ID associated with the resource group. Can be configured statically or dynamically using [configuration lookups](configuration.md) via Go template syntax.
 6. `resourceGroups.aksCluster`: Optional. Specifies the name of the AKS cluster that deployment steps should target. Can be configured statically or dynamically using [configuration lookups](configuration.md) via Go template syntax.
 
+### Stamped Resource Groups
+
+Resource groups can be marked as [stamp](terminology.md#ev2-stamp)-scoped by setting `stamped: true`. Stamped resource groups are executed once per stamp (e.g. management cluster) in a region, with each stamp receiving its own isolated configuration context (`ctx.stamp`). Unstamped resource groups run exactly once per region.
+
+```yaml
+resourceGroups:
+- name: region
+  resourceGroup: '{{ .region.rg }}'
+  subscription: '{{ .region.subscription.key }}'
+  steps: []
+- name: management
+  stamped: true
+  resourceGroup: '{{ .mgmt.rg }}'
+  subscription: '{{ .mgmt.subscription.key }}'
+  steps: []
+```
+
+In this example, `region` runs once per region while `management` runs once per stamp. See the [configuration documentation](configuration.md) for details on the `ctx.stamp` variable.
+
+> [!IMPORTANT]
+> Resource groups with the same `name` must be consistently stamped across all pipelines in the topology. If one pipeline marks a resource group as `stamped: true`, every other pipeline using that same resource group name must do the same. Inconsistent stamping will be rejected by validation.
+
 ## Pipeline Steps
 
 A subscription/resourcegroup/AKS execution context needs to define a sequence of deployment steps. These steps define what is to deployed, how, and in what order.
