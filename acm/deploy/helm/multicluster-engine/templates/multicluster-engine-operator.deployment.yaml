@@ -58,7 +58,7 @@ spec:
         - name: OPERAND_IMAGE_ADDON_MANAGER
           value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/addon-manager-rhel9@sha256:42cc4a389728acedd4cee893defd90c6a17b1a947de44eb0eeb4745d1d9b8bbb'
         - name: OPERAND_IMAGE_AZURE_SERVICE_OPERATOR_RHEL9
-          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/azure-service-operator-rhel9@sha256:ba45fc57f1380f7214a0e9bacb7160b31a85adaa44160877bd4067eab7e28a82'
+          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/azure-service-operator-rhel9@sha256:f09031f761c81a269b7cb1404a918f390e1c98bdc5b332ff3608c9a838c09b84'
         - name: OPERAND_IMAGE_BACKPLANE_MUST_GATHER
           value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/must-gather-rhel9@sha256:773a26dbdca203ac3706dca5d4d840699936b784e39f90d2ee7b7afd2f008f30'
         - name: OPERAND_IMAGE_CLUSTER_API_PROVIDER_AGENT
@@ -128,15 +128,15 @@ spec:
         - name: OPERAND_IMAGE_ASSISTED_SERVICE_9
           value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/assisted-service-9-rhel9@sha256:eb11d23849d00fc2ec07284054335921158f00f6dd7e4347c54fd606e80c8a2e'
         - name: OPERAND_IMAGE_OSE_CLUSTER_API_RHEL9
-          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/ose-cluster-api-rhel9@sha256:21be0867e8439fcbbee316faa3b297c1e4a327b55f82e0bb04a493c56c0d8f2c'
+          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/ose-cluster-api-rhel9@sha256:a3a3283ce9518e6604b201c81442af7ff0780e36f9c2df86547c55fb099d54d4'
         - name: OPERAND_IMAGE_OSE_BAREMETAL_CLUSTER_API_CONTROLLERS_RHEL9
-          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/ose-baremetal-cluster-api-controllers-rhel9@sha256:ee3b93a81dbf27855defef409816fc7b5c3345353065feca8cb0770e16d3e431'
+          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/ose-baremetal-cluster-api-controllers-rhel9@sha256:d6de3c78e0d3a1ef230b31ff9f83761f382e40bbe135e04893edc7e69d103d0e'
         - name: OPERAND_IMAGE_POSTGRESQL_13
           value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/postgresql-13@sha256:97b64c18a32944b86fd1a118aa0d1aa04ff1fad8068c3c20f6e94af24712ff36'
         - name: OPERAND_IMAGE_BACKPLANE_OPERATOR
           value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/backplane-rhel9-operator@sha256:0293193ed12e02beaf5c652b00589899ff1f48599234bc30b1031251e25bf04c'
         - name: OPERATOR_VERSION
-          value: 2.11.4-551
+          value: 2.11.4-552
         - name: OPERATOR_PACKAGE
           value: multicluster-engine
         image: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/backplane-rhel9-operator@sha256:0293193ed12e02beaf5c652b00589899ff1f48599234bc30b1031251e25bf04c'

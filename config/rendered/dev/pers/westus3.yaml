@@ -1,7 +1,7 @@
 acm:
   mce:
     bundle:
-      digest: sha256:bc847ae30b4c850af92a1dedb6b7018eb324d9262825cb27e77220f7ad0a3aa6
+      digest: sha256:92e149ba13e76b4cc7ad12d2ae1d939a5d32b0efbc43b7590ef68320c66e1bfb
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-211
   operator:
@@ -71,7 +71,7 @@ armHelperTenantId: 64dc69e4-d083-49fc-9569-ebece1dd1408
 arobit:
   forwarder:
     image:
-      digest: sha256:62e0876b91570e7ce559f0053b54e485db1147b0075d14c07ec0e5d38143bf6d
+      digest: sha256:1c08423483e1c4bd336c1102a6f7d2eb4cd436791956abb18b342acbfc680b52
       registry: mcr.microsoft.com
       repository: oss/v2/fluent/fluent-bit
     resources:
@@ -87,7 +87,7 @@ arobit:
   mdsd:
     enabled: false
     image:
-      digest: sha256:549d2578eaf7ff6aa7b4fda9cdb643a9620157706fe865c1d84a4eb6b694d91b
+      digest: sha256:4df69c41a89a04408ce398439c15f722111ccd308b90fe4fcbd2ea5671ddb8e6
       registry: mcr.microsoft.com
       repository: geneva/distroless/mdsd
 auditLogsEventHub:
@@ -447,7 +447,7 @@ hcpRecovery:
 hypershift:
   additionalInstallArg: --enable-cpo-overrides
   image:
-    digest: sha256:76e12c2386856d874c36149608075d3ff2a1666e1712338ca3b06ebca7e43cf3
+    digest: sha256:d6de48b0ad2d945f58c3f4102fa59a978b65b3bb10e0c0d3a647d13ae1ed2e04
     registry: quay.io
     repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
   limitClusterSizes: true
@@ -465,7 +465,7 @@ imageSync:
   ocMirror:
     enabled: true
     image:
-      digest: sha256:9efca5e32ebc95df2436cf9feeaa92632f82ca0d735656e2f353b0e86c240e9b
+      digest: sha256:e1a5aa13f63a8ea840e27ce5af9408ba60d5924046c255c86f42c9e009cf501d
       registry: arohcpsvcdev.azurecr.io
       repository: image-sync/oc-mirror
     jobNamePrefix: ""
