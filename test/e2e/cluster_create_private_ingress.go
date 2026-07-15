@@ -80,37 +80,6 @@ var _ = Describe("Customer", func() {
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to create customer resources for private ingress cluster")
 
-			By("deploying test VM in the same VNet for connectivity verification")
-			sshPublicKey, _, err := framework.GenerateSSHKeyPair()
-			Expect(err).NotTo(HaveOccurred(), "failed to generate SSH key pair for test VM")
-
-			vmName := fmt.Sprintf("%s-test-vm", customerClusterName)
-			vmSize, err := tc.SelectVMSize(ctx, framework.JumpboxVMSizeSelector())
-			Expect(err).NotTo(HaveOccurred(), "failed to resolve a jumpbox VM size for private ingress test")
-
-			var deployErr error
-			for attempt := 0; attempt < 3; attempt++ {
-				_, deployErr = tc.CreateBicepTemplateAndWait(ctx,
-					framework.WithTemplateFromFS(TestArtifactsFS, "test-artifacts/generated-test-artifacts/modules/test-vm.json"),
-					framework.WithDeploymentName("test-vm"),
-					framework.WithScope(framework.BicepDeploymentScopeResourceGroup),
-					framework.WithClusterResourceGroup(*resourceGroup.Name),
-					framework.WithParameters(map[string]any{
-						"vmName":       vmName,
-						"vnetName":     clusterParams.VnetName,
-						"subnetName":   clusterParams.SubnetName,
-						"sshPublicKey": sshPublicKey,
-						"vmSize":       vmSize,
-					}),
-					framework.WithTimeout(30*time.Minute),
-				)
-				if deployErr == nil || strings.Contains(deployErr.Error(), "SkuNotAvailable") {
-					break
-				}
-				time.Sleep(20 * time.Second)
-			}
-			Expect(deployErr).NotTo(HaveOccurred(), "failed to deploy test VM for private ingress verification")
-
 			By("creating the HCP cluster with private ingress via v20260630preview")
 			err = tc.CreateHCPClusterFromParam20260630(ctx,
 				GinkgoLogr,
@@ -142,6 +111,37 @@ var _ = Describe("Customer", func() {
 			Expect(*cluster.Properties.Ingress.Type).To(Equal(hcpsdk20260630preview.IngressTypePrivate),
 				"cluster %q ingress type should be Private", customerClusterName)
 			GinkgoLogr.Info("Cluster created with private ingress", "clusterName", customerClusterName)
+
+			By("deploying test VM in the same VNet for connectivity verification")
+			sshPublicKey, _, err := framework.GenerateSSHKeyPair()
+			Expect(err).NotTo(HaveOccurred(), "failed to generate SSH key pair for test VM")
+
+			vmName := fmt.Sprintf("%s-test-vm", customerClusterName)
+			vmSize, err := tc.SelectVMSize(ctx, framework.JumpboxVMSizeSelector())
+			Expect(err).NotTo(HaveOccurred(), "failed to resolve a jumpbox VM size for private ingress test")
+
+			var deployErr error
+			for attempt := 0; attempt < 3; attempt++ {
+				_, deployErr = tc.CreateBicepTemplateAndWait(ctx,
+					framework.WithTemplateFromFS(TestArtifactsFS, "test-artifacts/generated-test-artifacts/modules/test-vm.json"),
+					framework.WithDeploymentName("test-vm"),
+					framework.WithScope(framework.BicepDeploymentScopeResourceGroup),
+					framework.WithClusterResourceGroup(*resourceGroup.Name),
+					framework.WithParameters(map[string]any{
+						"vmName":       vmName,
+						"vnetName":     clusterParams.VnetName,
+						"subnetName":   clusterParams.SubnetName,
+						"sshPublicKey": sshPublicKey,
+						"vmSize":       vmSize,
+					}),
+					framework.WithTimeout(30*time.Minute),
+				)
+				if deployErr == nil || strings.Contains(deployErr.Error(), "SkuNotAvailable") {
+					break
+				}
+				time.Sleep(20 * time.Second)
+			}
+			Expect(deployErr).NotTo(HaveOccurred(), "failed to deploy test VM for private ingress verification")
 
 			By("creating the node pool")
 			nodePoolParams := framework.NewDefaultNodePoolParams20260630()
@@ -185,6 +185,8 @@ var _ = Describe("Customer", func() {
 			GinkgoLogr.Info("Sample app deployed", "url", appURL)
 
 			By("verifying ingress is reachable from VM inside the VNet")
+			// -k skips TLS validation: we're testing connectivity to the internal LB,
+			// not cert validity (which is covered by VerifySimpleWebApp).
 			curlCmd := fmt.Sprintf("curl -k -s -o /dev/null -w '%%{http_code}' --connect-timeout 10 %s", appURL)
 			var previousOutput string
 			Eventually(func(g Gomega) {
@@ -196,8 +198,8 @@ var _ = Describe("Customer", func() {
 					GinkgoLogr.Info("VM ingress connectivity check", "httpCode", httpCode)
 					previousOutput = httpCode
 				}
-				g.Expect(httpCode).NotTo(Equal("000"),
-					"should receive HTTP response from internal LB via VM, got curl error code 000")
+				g.Expect(httpCode).To(Equal("200"),
+					"expected HTTP 200 from sample app via internal LB, got %s", httpCode)
 			}, 10*time.Minute, 15*time.Second).Should(Succeed())
 
 			By("verifying ingress is NOT reachable from outside the VNet")
