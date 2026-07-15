@@ -26,6 +26,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilsclock "k8s.io/utils/clock"
+	clocktesting "k8s.io/utils/clock/testing"
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 
@@ -92,6 +93,7 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 
 	tests := []struct {
 		name              string
+		clock             utilsclock.PassiveClock
 		nodePool          func(fixture *nodePoolTestFixture) *api.HCPOpenShiftClusterNodePool
 		setupCSMock       func(t *testing.T, mock *ocm.MockClusterServiceClientSpec, fixture *nodePoolTestFixture)
 		existingOperation *api.Operation
@@ -223,6 +225,46 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 			},
 		},
 		{
+			name:  "deadline exceeded marks operation as failed",
+			clock: clocktesting.NewFakePassiveClock(mustParseTime("2025-01-15T12:00:00Z")),
+			nodePool: func(fixture *nodePoolTestFixture) *api.HCPOpenShiftClusterNodePool {
+				np := fixture.newNodePool()
+				deadline := metav1.NewTime(mustParseTime("2025-01-15T11:30:00Z"))
+				np.ServiceProviderProperties.CreateOperationCompletionDeadline = &deadline
+				return np
+			},
+			existingOperation: fixture.newOperation(database.OperationRequestCreate),
+			setupCSMock: func(t *testing.T, mock *ocm.MockClusterServiceClientSpec, fixture *nodePoolTestFixture) {
+				setupCSNodePoolStatus(t, mock, fixture, string(NodePoolStateInstalling), "")
+			},
+			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
+				require.NoError(t, err)
+				assert.Equal(t, arm.ProvisioningStateFailed, op.Status)
+				require.NotNil(t, op.Error)
+				assert.Equal(t, arm.CloudErrorCodeInternalServerError, op.Error.Code)
+			},
+		},
+		{
+			name:  "deadline not yet exceeded continues with provisioning",
+			clock: clocktesting.NewFakePassiveClock(mustParseTime("2025-01-15T11:00:00Z")),
+			nodePool: func(fixture *nodePoolTestFixture) *api.HCPOpenShiftClusterNodePool {
+				np := fixture.newNodePool()
+				deadline := metav1.NewTime(mustParseTime("2025-01-15T11:30:00Z"))
+				np.ServiceProviderProperties.CreateOperationCompletionDeadline = &deadline
+				return np
+			},
+			existingOperation: fixture.newOperation(database.OperationRequestCreate),
+			setupCSMock: func(t *testing.T, mock *ocm.MockClusterServiceClientSpec, fixture *nodePoolTestFixture) {
+				setupCSNodePoolStatus(t, mock, fixture, string(NodePoolStateInstalling), "")
+			},
+			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
+				require.NoError(t, err)
+				assert.Equal(t, arm.ProvisioningStateProvisioning, op.Status)
+			},
+		},
+		{
 			name:              "precondition failed on status update is ignored",
 			nodePool:          defaultNodePool,
 			existingOperation: preconditionExistingOperation,
@@ -264,8 +306,12 @@ func TestOperationNodePoolCreate_SynchronizeOperation(t *testing.T) {
 				tt.setupCSMock(t, mockCSClient, fixture)
 			}
 
+			testClock := tt.clock
+			if testClock == nil {
+				testClock = utilsclock.RealClock{}
+			}
 			controller := &operationNodePoolCreate{
-				clock:                  utilsclock.RealClock{},
+				clock:                  testClock,
 				resourcesDBClient:      mockResourcesDBClient,
 				activeOperationsLister: activeOperationsLister,
 				nodePoolLister:         &listertesting.DBNodePoolLister{ResourcesDBClient: mockResourcesDBClient},

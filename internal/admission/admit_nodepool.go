@@ -18,14 +18,19 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/blang/semver/v4"
 
 	"k8s.io/apimachinery/pkg/api/operation"
 	"k8s.io/apimachinery/pkg/api/safe"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/validation/field"
+	utilsclock "k8s.io/utils/clock"
 
 	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/utils/apihelpers"
 	"github.com/Azure/ARO-HCP/internal/validation"
 )
@@ -34,6 +39,14 @@ import (
 // beyond the node pool object itself. It includes the parent cluster and optionally
 // the service provider cluster and nodepool (for update-specific validations like version upgrades).
 type NodePoolAdmissionContext struct {
+	Clock        utilsclock.PassiveClock
+	Subscription *arm.Subscription
+	// OriginalNodePool is a deepcopy of the inbound node pool as the user submitted
+	// it, taken before any admission mutation runs. It is the read-only source
+	// of truth for fields (like tags) that are *consumed* during mutation but
+	// whose new-object value may already have been overwritten by the time the
+	// mutation actually runs.
+	OriginalNodePool        *api.HCPOpenShiftClusterNodePool
 	Cluster                 *api.HCPOpenShiftCluster
 	ServiceProviderNodePool *api.ServiceProviderNodePool
 	ServiceProviderCluster  *api.ServiceProviderCluster
@@ -47,6 +60,8 @@ func MutateNodePool(ctx context.Context, admissionContext *NodePoolAdmissionCont
 
 	//Properties HCPOpenShiftClusterNodePoolProperties `json:"properties"`
 	errs = append(errs, mutateNodePoolProperties(ctx, admissionContext, op, field.NewPath("properties"), &newObj.Properties, safe.Field(oldObj, validation.ToNodePoolProperties))...)
+
+	errs = append(errs, mutateNodePoolServiceProviderProperties(ctx, admissionContext, op, field.NewPath("serviceProviderProperties"), &newObj.ServiceProviderProperties)...)
 
 	return errs
 }
@@ -69,6 +84,78 @@ func mutateNodePoolPlatform(ctx context.Context, admissionContext *NodePoolAdmis
 	}
 
 	return errs
+}
+
+func mutateNodePoolServiceProviderProperties(ctx context.Context, admissionContext *NodePoolAdmissionContext, op operation.Operation, fldPath *field.Path, newObj *api.HCPOpenShiftClusterNodePoolServiceProviderProperties) field.ErrorList {
+	errs := field.ErrorList{}
+
+	errs = append(errs, mutateNodePoolExperimentalTags(ctx, admissionContext, op)...)
+	errs = append(errs, mutateNodePoolCreateOperationCompletionDeadline(ctx, admissionContext, op, fldPath.Child("createOperationCompletionDeadline"), &newObj.CreateOperationCompletionDeadline)...)
+
+	return errs
+}
+
+// mutateNodePoolExperimentalTags rejects unrecognized experimental node pool
+// tags when the ExperimentalReleaseFeatures AFEC is registered.
+func mutateNodePoolExperimentalTags(_ context.Context, admissionContext *NodePoolAdmissionContext, _ operation.Operation) field.ErrorList {
+	subscription := admissionContext.Subscription
+	if subscription == nil || !subscription.HasRegisteredFeature(api.FeatureExperimentalReleaseFeatures) {
+		return nil
+	}
+
+	var tags map[string]string
+	if admissionContext.OriginalNodePool != nil {
+		tags = admissionContext.OriginalNodePool.Tags
+	}
+	tagsPath := field.NewPath("tags")
+	var errs field.ErrorList
+
+	knownTags := sets.New(api.TagNodePoolMaxCreationDuration)
+	for k := range tags {
+		if strings.HasPrefix(strings.ToLower(k), api.ExperimentalNodePoolTagPrefix) && !knownTags.Has(strings.ToLower(k)) {
+			errs = append(errs, field.Invalid(tagsPath.Key(k), k, "unrecognized experimental tag"))
+			return errs
+		}
+	}
+
+	return errs
+}
+
+// mutateNodePoolCreateOperationCompletionDeadline sets the deadline by which a
+// node pool creation operation must complete. On CREATE it defaults to 60
+// minutes from now; when the subscription has the ExperimentalReleaseFeatures
+// AFEC registered, the caller may override the duration via the
+// TagNodePoolMaxCreationDuration ARM resource tag.
+func mutateNodePoolCreateOperationCompletionDeadline(_ context.Context, admissionContext *NodePoolAdmissionContext, op operation.Operation, _ *field.Path, newObj **metav1.Time) field.ErrorList {
+	if op.Type != operation.Create {
+		return nil
+	}
+
+	duration := defaultCreateOperationCompletionDeadlineDuration
+
+	subscription := admissionContext.Subscription
+	if subscription != nil && subscription.HasRegisteredFeature(api.FeatureExperimentalReleaseFeatures) {
+		var tags map[string]string
+		if admissionContext.OriginalNodePool != nil {
+			tags = admissionContext.OriginalNodePool.Tags
+		}
+		if tagValue := lookupTag(tags, api.TagNodePoolMaxCreationDuration); len(tagValue) > 0 {
+			parsed, err := time.ParseDuration(tagValue)
+			if err != nil {
+				tagsPath := field.NewPath("tags")
+				return field.ErrorList{field.Invalid(tagsPath.Key(api.TagNodePoolMaxCreationDuration), tagValue, "must be a valid Go duration string (e.g. \"19m\", \"30m\")")}
+			}
+			if parsed < minCreateOperationCompletionDeadlineDuration {
+				tagsPath := field.NewPath("tags")
+				return field.ErrorList{field.Invalid(tagsPath.Key(api.TagNodePoolMaxCreationDuration), tagValue, fmt.Sprintf("must be at least %s", minCreateOperationCompletionDeadlineDuration))}
+			}
+			duration = parsed
+		}
+	}
+
+	deadline := metav1.NewTime(admissionContext.Clock.Now().Add(duration))
+	*newObj = &deadline
+	return nil
 }
 
 // NodePoolDeleteAdmissionContext carries dependencies that node pool deletion admission needs.

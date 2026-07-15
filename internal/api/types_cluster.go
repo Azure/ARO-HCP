@@ -135,6 +135,15 @@ type HCPOpenShiftClusterServiceProviderProperties struct {
 	// TODO Temporary field to track whether the cluster operation is using the new deletion approach.
 	// Written by: Frontend DELETE Cluster
 	UsesNewClusterDeletionApproach bool `json:"usesNewClusterDeletionApproach"`
+
+	// CreateOperationCompletionDeadline is the time by which the cluster creation operation must complete.
+	// If it is not complete by this time, the operation will be marked as failed with the best message we can give at the time.
+	// The default value is 60 minutes after the creation request is received.
+	// When the subscription.HasRegisteredFeature(api.FeatureExperimentalReleaseFeatures), this value can be set
+	// using the ExperimentalClusterTagPrefix + "max-creation-duration" tag, specified as a time.Duration.
+	// The operation cluster create controller uses this value to decide about marking the install as failed.
+	// The e2e tests set this value to one minute less than the default timeout.
+	CreateOperationCompletionDeadline *metav1.Time `json:"createOperationCompletionDeadline,omitempty"`
 }
 
 // VersionProfile represents the cluster control plane version.

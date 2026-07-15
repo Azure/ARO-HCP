@@ -20,14 +20,17 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/blang/semver/v4"
 	"github.com/google/uuid"
 
 	"k8s.io/apimachinery/pkg/api/operation"
 	"k8s.io/apimachinery/pkg/api/safe"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/validation/field"
+	utilsclock "k8s.io/utils/clock"
 	"k8s.io/utils/ptr"
 
 	"github.com/Azure/ARO-HCP/internal/api"
@@ -42,6 +45,7 @@ import (
 // UPDATE-time admission checks that depend on existing server-side state
 // (e.g., version-skew validation).
 type ClusterAdmissionContext struct {
+	Clock        utilsclock.PassiveClock
 	Subscription *arm.Subscription
 	// OriginalCluster is a deepcopy of the inbound cluster as the user submitted
 	// it, taken before any admission mutation runs. It is the read-only source
@@ -83,6 +87,7 @@ func mutateClusterServiceProviderProperties(ctx context.Context, admissionContex
 
 	errs = append(errs, mutateClusterUID(ctx, admissionContext, op, fldPath.Child("clusterUID"), &newObj.ClusterUID, safe.Field(oldObj, validation.ToClusterServiceProviderPropertiesClusterUID))...)
 	errs = append(errs, mutateClusterExperimentalFeatures(ctx, admissionContext, op, fldPath.Child("experimentalFeatures"), &newObj.ExperimentalFeatures, safe.Field(oldObj, toSPExperimentalFeatures))...)
+	errs = append(errs, mutateCreateOperationCompletionDeadline(ctx, admissionContext, op, fldPath.Child("createOperationCompletionDeadline"), &newObj.CreateOperationCompletionDeadline)...)
 
 	return errs
 }
@@ -125,7 +130,7 @@ func mutateClusterExperimentalFeatures(_ context.Context, admissionContext *Clus
 	var errs field.ErrorList
 
 	// Reject unrecognized experimental tags.
-	knownTags := sets.New(api.TagClusterSingleReplica, api.TagClusterSizeOverride, api.TagClusterCPOImageOverride, api.TagClusterFIPSEnabled)
+	knownTags := sets.New(api.TagClusterSingleReplica, api.TagClusterSizeOverride, api.TagClusterCPOImageOverride, api.TagClusterFIPSEnabled, api.TagClusterMaxCreationDuration)
 	for k := range tags {
 		if strings.HasPrefix(strings.ToLower(k), api.ExperimentalClusterTagPrefix) && !knownTags.Has(strings.ToLower(k)) {
 			errs = append(errs, field.Invalid(tagsPath.Key(k), k, "unrecognized experimental tag"))
@@ -201,6 +206,46 @@ func lookupTag(tags map[string]string, key string) string {
 		}
 	}
 	return ""
+}
+
+const defaultCreateOperationCompletionDeadlineDuration = 60 * time.Minute
+const minCreateOperationCompletionDeadlineDuration = time.Minute
+
+// mutateCreateOperationCompletionDeadline sets the deadline by which a cluster
+// creation operation must complete. On CREATE it defaults to 60 minutes from
+// now; when the subscription has the ExperimentalReleaseFeatures AFEC
+// registered, the caller may override the duration via the
+// TagClusterMaxCreationDuration ARM resource tag.
+func mutateCreateOperationCompletionDeadline(_ context.Context, admissionContext *ClusterAdmissionContext, op operation.Operation, _ *field.Path, newObj **metav1.Time) field.ErrorList {
+	if op.Type != operation.Create {
+		return nil
+	}
+
+	duration := defaultCreateOperationCompletionDeadlineDuration
+
+	subscription := admissionContext.Subscription
+	if subscription != nil && subscription.HasRegisteredFeature(api.FeatureExperimentalReleaseFeatures) {
+		var tags map[string]string
+		if admissionContext.OriginalCluster != nil {
+			tags = admissionContext.OriginalCluster.Tags
+		}
+		if tagValue := lookupTag(tags, api.TagClusterMaxCreationDuration); len(tagValue) > 0 {
+			parsed, err := time.ParseDuration(tagValue)
+			if err != nil {
+				tagsPath := field.NewPath("tags")
+				return field.ErrorList{field.Invalid(tagsPath.Key(api.TagClusterMaxCreationDuration), tagValue, "must be a valid Go duration string (e.g. \"19m\", \"30m\")")}
+			}
+			if parsed < minCreateOperationCompletionDeadlineDuration {
+				tagsPath := field.NewPath("tags")
+				return field.ErrorList{field.Invalid(tagsPath.Key(api.TagClusterMaxCreationDuration), tagValue, fmt.Sprintf("must be at least %s", minCreateOperationCompletionDeadlineDuration))}
+			}
+			duration = parsed
+		}
+	}
+
+	deadline := metav1.NewTime(admissionContext.Clock.Now().Add(duration))
+	*newObj = &deadline
+	return nil
 }
 
 // AdmitCluster performs non-static checks of cluster. Checks that require more

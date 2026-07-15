@@ -99,6 +99,15 @@ type HCPOpenShiftClusterNodePoolServiceProviderProperties struct {
 
 	// Written by: Frontend DELETE NodePool
 	UsesNewNodePoolDeletionApproach bool `json:"usesNewNodePoolDeletionApproach"`
+
+	// CreateOperationCompletionDeadline is the time by which the node pool creation operation must complete.
+	// If it is not complete by this time, the operation will be marked as failed with the best message we can give at the time.
+	// The default value is 60 minutes after the creation request is received.
+	// When the subscription.HasRegisteredFeature(api.FeatureExperimentalReleaseFeatures), this value can be set
+	// using the ExperimentalNodePoolTagPrefix + "max-creation-duration" tag, specified as a time.Duration.
+	// The operation node pool create controller uses this value to decide about marking the install as failed.
+	// The e2e tests set this value to one minute less than the default timeout.
+	CreateOperationCompletionDeadline *metav1.Time `json:"createOperationCompletionDeadline,omitempty"`
 }
 
 // NodePoolVersionProfile represents the worker node pool version.

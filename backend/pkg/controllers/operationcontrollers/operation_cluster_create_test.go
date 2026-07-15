@@ -30,6 +30,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kruntime "k8s.io/apimachinery/pkg/runtime"
 	utilsclock "k8s.io/utils/clock"
+	clocktesting "k8s.io/utils/clock/testing"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
@@ -76,6 +77,7 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 
 	testCases := []struct {
 		name              string
+		clock             utilsclock.PassiveClock
 		existingCluster   *api.HCPOpenShiftCluster
 		existingOperation *api.Operation
 		setupCSMock       func(ctrl *gomock.Controller, fixture *clusterTestFixture) ocm.ClusterServiceClientSpec
@@ -183,6 +185,62 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 				assert.Equal(t, arm.ProvisioningStateAccepted, op.Status)
 			},
 		},
+		{
+			name:  "deadline exceeded marks operation as failed",
+			clock: clocktesting.NewFakePassiveClock(mustParseTime("2025-01-15T12:00:00Z")),
+			existingCluster: func() *api.HCPOpenShiftCluster {
+				cluster := newClusterWithAPIURL("https://api.example.com", nil)
+				deadline := metav1.NewTime(mustParseTime("2025-01-15T11:30:00Z"))
+				cluster.ServiceProviderProperties.CreateOperationCompletionDeadline = &deadline
+				return cluster
+			}(),
+			existingOperation: fixture.newOperation(database.OperationRequestCreate),
+			setupCSMock: func(ctrl *gomock.Controller, fixture *clusterTestFixture) ocm.ClusterServiceClientSpec {
+				mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)
+				clusterStatus, err := arohcpv1alpha1.NewClusterStatus().
+					State(arohcpv1alpha1.ClusterStateInstalling).
+					Build()
+				require.NoError(t, err)
+				mockCSClient.EXPECT().
+					GetClusterStatus(gomock.Any(), fixture.clusterInternalID).
+					Return(clusterStatus, nil)
+				return mockCSClient
+			},
+			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
+				require.NoError(t, err)
+				assert.Equal(t, arm.ProvisioningStateFailed, op.Status)
+				require.NotNil(t, op.Error)
+				assert.Equal(t, arm.CloudErrorCodeInternalServerError, op.Error.Code)
+			},
+		},
+		{
+			name:  "deadline not yet exceeded continues with provisioning",
+			clock: clocktesting.NewFakePassiveClock(mustParseTime("2025-01-15T11:00:00Z")),
+			existingCluster: func() *api.HCPOpenShiftCluster {
+				cluster := newClusterWithAPIURL("https://api.example.com", nil)
+				deadline := metav1.NewTime(mustParseTime("2025-01-15T11:30:00Z"))
+				cluster.ServiceProviderProperties.CreateOperationCompletionDeadline = &deadline
+				return cluster
+			}(),
+			existingOperation: fixture.newOperation(database.OperationRequestCreate),
+			setupCSMock: func(ctrl *gomock.Controller, fixture *clusterTestFixture) ocm.ClusterServiceClientSpec {
+				mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)
+				clusterStatus, err := arohcpv1alpha1.NewClusterStatus().
+					State(arohcpv1alpha1.ClusterStateInstalling).
+					Build()
+				require.NoError(t, err)
+				mockCSClient.EXPECT().
+					GetClusterStatus(gomock.Any(), fixture.clusterInternalID).
+					Return(clusterStatus, nil)
+				return mockCSClient
+			},
+			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
+				require.NoError(t, err)
+				assert.Equal(t, arm.ProvisioningStateProvisioning, op.Status)
+			},
+		},
 	}
 
 	for _, tc := range testCases {
@@ -200,8 +258,12 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 
 			mockCSClient := tc.setupCSMock(ctrl, fixture)
 
+			testClock := tc.clock
+			if testClock == nil {
+				testClock = utilsclock.RealClock{}
+			}
 			controller := &operationClusterCreate{
-				clock: utilsclock.RealClock{},
+				clock: testClock,
 				activeOperationLister: &listertesting.SliceActiveOperationLister{
 					Operations: []*api.Operation{listerOperation},
 				},

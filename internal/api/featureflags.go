@@ -59,4 +59,22 @@ const (
 	// for the ARO-HCP cluster during installation when the ExperimentalReleaseFeatures
 	// AFEC is registered on the subscription.
 	TagClusterFIPSEnabled = ExperimentalClusterTagPrefix + "fips-enabled"
+
+	// TagClusterMaxCreationDuration is the ARM resource tag that overrides
+	// the default cluster creation deadline (60 minutes) when the
+	// ExperimentalReleaseFeatures AFEC is registered on the subscription.
+	// The value must be a valid Go time.Duration string (e.g. "19m", "30m").
+	TagClusterMaxCreationDuration = ExperimentalClusterTagPrefix + "max-creation-duration"
+
+	// ExperimentalNodePoolTagPrefix is the prefix for all experimental node pool
+	// tags. Tags with this prefix are only honored when the
+	// ExperimentalReleaseFeatures AFEC is registered. Unrecognized tags
+	// with this prefix are rejected.
+	ExperimentalNodePoolTagPrefix = "aro-hcp.experimental.nodepool."
+
+	// TagNodePoolMaxCreationDuration is the ARM resource tag that overrides
+	// the default node pool creation deadline (60 minutes) when the
+	// ExperimentalReleaseFeatures AFEC is registered on the subscription.
+	// The value must be a valid Go time.Duration string (e.g. "19m", "30m").
+	TagNodePoolMaxCreationDuration = ExperimentalNodePoolTagPrefix + "max-creation-duration"
 )

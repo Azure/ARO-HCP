@@ -177,6 +177,23 @@ func (c *operationClusterCreate) SynchronizeOperation(ctx context.Context, key c
 		return fmt.Errorf("cosmos operation status is %q, but cluster-service operation status is %q: %s", cosmosNewOperationState.ProvisioningState, newOperationStatus, cosmosNewOperationState.Message)
 	}
 
+	if !newOperationStatus.IsTerminal() &&
+		cluster.ServiceProviderProperties.CreateOperationCompletionDeadline != nil &&
+		c.clock.Now().After(cluster.ServiceProviderProperties.CreateOperationCompletionDeadline.Time) {
+		message := "cluster creation did not complete before the deadline"
+		if len(cosmosNewOperationState.Message) > 0 {
+			message = cosmosNewOperationState.Message
+		}
+		logger.Info("create operation deadline exceeded, marking as failed",
+			"deadline", cluster.ServiceProviderProperties.CreateOperationCompletionDeadline.Time,
+			"message", message)
+		newOperationStatus = arm.ProvisioningStateFailed
+		opError = &arm.CloudErrorBody{
+			Code:    arm.CloudErrorCodeInternalServerError,
+			Message: message,
+		}
+	}
+
 	logger.Info("updating status")
 	err = UpdateOperationStatus(ctx, c.clock, c.resourcesDBClient, operation, newOperationStatus, opError, postAsyncNotificationFn(c.notificationClient))
 	if database.IsPreconditionFailedError(err) {

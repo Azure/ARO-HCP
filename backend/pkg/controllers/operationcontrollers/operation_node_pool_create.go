@@ -154,6 +154,23 @@ func (c *operationNodePoolCreate) SynchronizeOperation(ctx context.Context, key 
 		}
 	}
 
+	if !operationalState.ProvisioningState.IsTerminal() &&
+		nodePool.ServiceProviderProperties.CreateOperationCompletionDeadline != nil &&
+		c.clock.Now().After(nodePool.ServiceProviderProperties.CreateOperationCompletionDeadline.Time) {
+		message := "node pool creation did not complete before the deadline"
+		if len(operationalState.Message) > 0 {
+			message = operationalState.Message
+		}
+		logger.Info("create operation deadline exceeded, marking as failed",
+			"deadline", nodePool.ServiceProviderProperties.CreateOperationCompletionDeadline.Time,
+			"message", message)
+		operationalState.ProvisioningState = arm.ProvisioningStateFailed
+		persistErr = &arm.CloudErrorBody{
+			Code:    arm.CloudErrorCodeInternalServerError,
+			Message: message,
+		}
+	}
+
 	logger.Info("updating status")
 	err = UpdateOperationStatus(ctx, c.clock, c.resourcesDBClient, operation, operationalState.ProvisioningState, persistErr, postAsyncNotificationFn(c.notificationClient))
 	if database.IsPreconditionFailedError(err) {
