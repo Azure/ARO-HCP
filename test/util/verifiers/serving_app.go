@@ -527,7 +527,10 @@ func collectIngressCertDiagnostics(ctx context.Context, kubeClient kubernetes.In
 
 	// 4) Warning events in the ingress namespace (e.g. FailedMount of the
 	// managed secret).
-	events, err := kubeClient.CoreV1().Events(ingressNamespace).List(ctx, metav1.ListOptions{})
+	events, err := kubeClient.CoreV1().Events(ingressNamespace).List(ctx, metav1.ListOptions{
+		FieldSelector: "type=Warning",
+		Limit:         50,
+	})
 	if err != nil {
 		out.Printf("[strict-tls][diag] events: error listing: %v\n", err)
 	} else {
