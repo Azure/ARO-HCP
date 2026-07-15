@@ -1224,14 +1224,14 @@ resource kubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGroup
         }
         annotations: {
           correlationId: 'KubeNodeNotReady/{{ $labels.cluster }}/{{ $labels.node }}'
-          description: '{{ $labels.node }} has been unready for more than 15 minutes.'
-          info: '{{ $labels.node }} has been unready for more than 15 minutes.'
+          description: '{{ $labels.node }} has been unready for more than 30 minutes.'
+          info: '{{ $labels.node }} has been unready for more than 30 minutes.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubenodenotready'
           summary: 'Node is not ready.'
           title: 'Node is not ready. node:{{ $labels.node }}'
         }
         expression: 'kube_node_status_condition{condition="Ready",job="kube-state-metrics",status="true"} == 0'
-        for: 'PT15M'
+        for: 'PT30M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {

@@ -1,0 +1,57 @@
+--- upstream/kubernetesControlPlane-prometheusRule.yaml
++++ alerts/kubernetesControlPlane-prometheusRule.yaml
+@@ -52,7 +52,7 @@
+         severity: warning
+     - alert: KubeDeploymentReplicasMismatch
+       annotations:
+-        description: Deployment {{ $labels.namespace }}/{{ $labels.deployment }} has not matched the expected number of replicas for longer than 15 minutes.
++        description: Deployment {{ $labels.namespace }}/{{ $labels.deployment }} has not matched the expected number of replicas for longer than 30 minutes.
+         runbook_url: https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubedeploymentreplicasmismatch
+         summary: Deployment has not matched the expected number of replicas.
+       expr: |
+@@ -65,18 +65,18 @@
+             ==
+           0
+         )
+-      for: 15m
++      for: 30m
+       labels:
+         severity: warning
+     - alert: KubeDeploymentRolloutStuck
+       annotations:
+-        description: Rollout of deployment {{ $labels.namespace }}/{{ $labels.deployment }} is not progressing for longer than 15 minutes.
++        description: Rollout of deployment {{ $labels.namespace }}/{{ $labels.deployment }} is not progressing for longer than 30 minutes.
+         runbook_url: https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubedeploymentrolloutstuck
+         summary: Deployment rollout is not progressing.
+       expr: |
+         kube_deployment_status_condition{condition="Progressing", status="false",job="kube-state-metrics"}
+         != 0
+-      for: 15m
++      for: 30m
+       labels:
+         severity: warning
+     - alert: KubeStatefulSetReplicasMismatch
+@@ -463,7 +463,7 @@
+         summary: Different semantic versions of Kubernetes components running.
+       expr: |
+         count by (cluster) (count by (git_version, cluster) (label_replace(kubernetes_build_info{job!~"kube-dns|coredns"},"git_version","$1","git_version","(v[0-9]*.[0-9]*).*"))) > 1
+-      for: 15m
++      for: 90m
+       labels:
+         severity: warning
+     - alert: KubeClientErrors
+@@ -602,12 +602,12 @@
+     rules:
+     - alert: KubeNodeNotReady
+       annotations:
+-        description: '{{ $labels.node }} has been unready for more than 15 minutes.'
++        description: '{{ $labels.node }} has been unready for more than 30 minutes.'
+         runbook_url: https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubenodenotready
+         summary: Node is not ready.
+       expr: |
+         kube_node_status_condition{job="kube-state-metrics",condition="Ready",status="true"} == 0
+-      for: 15m
++      for: 30m
+       labels:
+         severity: warning
+     - alert: KubeNodeUnreachable
