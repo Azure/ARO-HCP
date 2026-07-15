@@ -17,6 +17,8 @@ package database
 import (
 	"fmt"
 
+	"k8s.io/component-base/metrics/legacyregistry"
+
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
@@ -78,13 +80,18 @@ func NewFleetDBClientFromContainer(container *azcosmos.ContainerClient) FleetDBC
 }
 
 func (c *cosmosFleetDBClient) Stamps() StampsCRUD {
-	inner := NewCosmosResourceCRUDWithStrategies[fleet.Stamp, *fleet.Stamp, GenericDocument[fleet.Stamp]](
+	inner := newCosmosResourceCRUDWithStrategies[fleet.Stamp, *fleet.Stamp, GenericDocument[fleet.Stamp]](
 		c.container, nil, fleet.StampResourceType,
 		FleetPartitionKeyDeriver{}, FleetResourceIDBuilder{})
 	return &cosmosStampsCRUD{
-		ValidatingResourceCRUD: NewValidatingCRUD(inner,
-			validation.ValidateStampCreate,
-			validation.ValidateStampUpdate,
+		// instrumented -> validating -> raw, so metrics capture validation errors too.
+		ValidatingResourceCRUD: NewInstrumentedValidatingCRUD[fleet.Stamp, *fleet.Stamp](
+			NewValidatingCRUD[fleet.Stamp, *fleet.Stamp](inner,
+				validation.ValidateStampCreate,
+				validation.ValidateStampUpdate,
+			),
+			fleet.StampResourceType,
+			legacyregistry.Registerer(),
 		),
 		containerClient: c.container,
 	}
@@ -104,13 +111,18 @@ func (s *cosmosStampsCRUD) ManagementClusters(stampIdentifier string) Management
 	if err != nil {
 		panic(fmt.Sprintf("invalid stamp identifier %q: %v", stampIdentifier, err))
 	}
-	inner := NewCosmosResourceCRUDWithStrategies[fleet.ManagementCluster, *fleet.ManagementCluster, GenericDocument[fleet.ManagementCluster]](
+	inner := newCosmosResourceCRUDWithStrategies[fleet.ManagementCluster, *fleet.ManagementCluster, GenericDocument[fleet.ManagementCluster]](
 		s.containerClient, stampResourceID, fleet.ManagementClusterResourceType,
 		FleetPartitionKeyDeriver{}, FleetResourceIDBuilder{})
 	return &cosmosManagementClustersCRUD{
-		ValidatingResourceCRUD: NewValidatingCRUD(inner,
-			validation.ValidateManagementClusterCreate,
-			validation.ValidateManagementClusterUpdate,
+		// instrumented -> validating -> raw, so metrics capture validation errors too.
+		ValidatingResourceCRUD: NewInstrumentedValidatingCRUD[fleet.ManagementCluster, *fleet.ManagementCluster](
+			NewValidatingCRUD[fleet.ManagementCluster, *fleet.ManagementCluster](inner,
+				validation.ValidateManagementClusterCreate,
+				validation.ValidateManagementClusterUpdate,
+			),
+			fleet.ManagementClusterResourceType,
+			legacyregistry.Registerer(),
 		),
 		containerClient: s.containerClient,
 		stampIdentifier: stampIdentifier,
@@ -130,7 +142,7 @@ func (m *cosmosManagementClustersCRUD) Controllers() ResourceCRUD[api.Controller
 	}
 	return NewCosmosResourceCRUDWithStrategies[api.Controller, *api.Controller, GenericDocument[api.Controller]](
 		m.containerClient, mcResourceID, fleet.ManagementClusterControllerResourceType,
-		FleetPartitionKeyDeriver{}, FleetResourceIDBuilder{})
+		FleetPartitionKeyDeriver{}, FleetResourceIDBuilder{}, legacyregistry.Registerer())
 }
 
 type cosmosFleetGlobalListers struct {

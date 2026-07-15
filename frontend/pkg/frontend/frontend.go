@@ -32,6 +32,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/api/operation"
 	k8sutilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/component-base/metrics/legacyregistry"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
@@ -368,6 +369,7 @@ func (f *Frontend) ArmResourceActionRequestAdminCredential(writer http.ResponseW
 	}
 
 	transaction := f.resourcesDBClient.NewTransaction(clusterResourceID.SubscriptionID)
+	transaction = database.InstrumentTransaction(transaction, "FrontendAdminCredentialRequest", legacyregistry.Registerer())
 
 	operationDoc := database.NewOperation(
 		operationRequest,
@@ -451,6 +453,7 @@ func (f *Frontend) ArmResourceActionRevokeCredentials(writer http.ResponseWriter
 	}
 
 	transaction := f.resourcesDBClient.NewTransaction(clusterResourceID.SubscriptionID)
+	transaction = database.InstrumentTransaction(transaction, "FrontendCredentialRevoke", legacyregistry.Registerer())
 
 	// Just as deleting an ARM resource cancels any other operations on the resource,
 	// revoking credentials cancels any credential requests in progress.

@@ -26,6 +26,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/operation"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/component-base/metrics/legacyregistry"
 	"k8s.io/utils/ptr"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -395,6 +396,7 @@ func (f *Frontend) createHCPCluster(writer http.ResponseWriter, request *http.Re
 	newInternalCluster.ServiceProviderProperties.ClusterServiceID = &csID
 
 	transaction := f.resourcesDBClient.NewTransaction(newInternalCluster.ID.SubscriptionID)
+	transaction = database.InstrumentTransaction(transaction, "FrontendClusterCreate", legacyregistry.Registerer())
 
 	// TODO extract to straight instance creation and then validation.
 	clusterCreateOperation := database.NewOperation(
@@ -683,6 +685,7 @@ func (f *Frontend) updateHCPClusterInCosmos(ctx context.Context, writer http.Res
 	}
 
 	transaction := f.resourcesDBClient.NewTransaction(oldInternalCluster.ID.SubscriptionID)
+	transaction = database.InstrumentTransaction(transaction, "FrontendClusterUpdate", legacyregistry.Registerer())
 	clusterUpdateOperation := database.NewOperation(
 		database.OperationRequestUpdate,
 		oldInternalCluster.ID,
@@ -764,6 +767,7 @@ func (f *Frontend) DeleteCluster(writer http.ResponseWriter, request *http.Reque
 	logger.Info(fmt.Sprintf("deleting resource %s", cluster.ID))
 
 	transaction := f.resourcesDBClient.NewTransaction(cluster.ID.SubscriptionID)
+	transaction = database.InstrumentTransaction(transaction, "FrontendClusterDelete", legacyregistry.Registerer())
 	if err := f.addDeleteClusterToTransaction(ctx, writer, request, transaction, cluster); err != nil {
 		return utils.TrackError(err)
 	}

@@ -21,6 +21,8 @@ import (
 	"net/http"
 	"strings"
 
+	"k8s.io/component-base/metrics/legacyregistry"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
@@ -176,28 +178,28 @@ func (d *resourcesCosmosDBClient) NewTransaction(pk string) DBTransaction {
 }
 
 func (d *resourcesCosmosDBClient) HCPClusters(subscriptionID, resourceGroupName string) HCPClusterCRUD {
-	return NewHCPClusterCRUD(d.resources, subscriptionID, resourceGroupName)
+	return NewHCPClusterCRUD(d.resources, subscriptionID, resourceGroupName, legacyregistry.Registerer())
 }
 
 func (d *resourcesCosmosDBClient) Operations(subscriptionID string) OperationCRUD {
-	return NewOperationCRUD(d.resources, subscriptionID)
+	return NewOperationCRUD(d.resources, subscriptionID, legacyregistry.Registerer())
 }
 
 func (d *resourcesCosmosDBClient) Subscriptions() ResourceCRUD[arm.Subscription, *arm.Subscription] {
 	return NewCosmosResourceCRUD[arm.Subscription, *arm.Subscription, GenericDocument[arm.Subscription]](
-		d.resources, nil, azcorearm.SubscriptionResourceType)
+		d.resources, nil, azcorearm.SubscriptionResourceType, legacyregistry.Registerer())
 }
 
 func (d *resourcesCosmosDBClient) ServiceProviderClusters(subscriptionID, resourceGroupName, clusterName string) ResourceCRUD[api.ServiceProviderCluster, *api.ServiceProviderCluster] {
 	clusterResourceID := api.Must(api.ToClusterResourceID(subscriptionID, resourceGroupName, clusterName))
 	return NewCosmosResourceCRUD[api.ServiceProviderCluster, *api.ServiceProviderCluster, GenericDocument[api.ServiceProviderCluster]](
-		d.resources, clusterResourceID, api.ServiceProviderClusterResourceType)
+		d.resources, clusterResourceID, api.ServiceProviderClusterResourceType, legacyregistry.Registerer())
 }
 
 func (d *resourcesCosmosDBClient) ServiceProviderNodePools(subscriptionID, resourceGroupName, clusterName, nodePoolName string) ResourceCRUD[api.ServiceProviderNodePool, *api.ServiceProviderNodePool] {
 	nodePoolResourceID := api.Must(api.ToNodePoolResourceID(subscriptionID, resourceGroupName, clusterName, nodePoolName))
 	return NewCosmosResourceCRUD[api.ServiceProviderNodePool, *api.ServiceProviderNodePool, GenericDocument[api.ServiceProviderNodePool]](
-		d.resources, nodePoolResourceID, api.ServiceProviderNodePoolResourceType)
+		d.resources, nodePoolResourceID, api.ServiceProviderNodePoolResourceType, legacyregistry.Registerer())
 }
 
 func (d *resourcesCosmosDBClient) UntypedCRUD(parentResourceID azcorearm.ResourceID) (UntypedResourceCRUD, error) {

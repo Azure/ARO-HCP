@@ -21,6 +21,7 @@ import (
 	"strings"
 
 	"k8s.io/apimachinery/pkg/util/validation/field"
+	"k8s.io/component-base/metrics/legacyregistry"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
@@ -135,6 +136,7 @@ func checkForProvisioningStateConflict(
 
 func (f *Frontend) DeleteAllResourcesInSubscription(ctx context.Context, subscriptionID string) error {
 	transaction := f.resourcesDBClient.NewTransaction(subscriptionID)
+	transaction = database.InstrumentTransaction(transaction, "FrontendSubscriptionBulkDelete", legacyregistry.Registerer())
 
 	clusterIterator, err := f.resourcesDBClient.HCPClusters(subscriptionID, "").List(ctx, nil)
 	if err != nil {
