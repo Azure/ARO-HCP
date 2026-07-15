@@ -51,7 +51,21 @@ const UpgradeSpecCountEnvvar = "UPGRADE_SPEC_COUNT"
 
 // defaultUpgradeBarrierPollInterval is how often each spec re-reads the state
 // file while waiting for the barrier to settle or for the upgrade to finish.
-const defaultUpgradeBarrierPollInterval = 5 * time.Second
+// Both wait phases are measured in tens of minutes, so 30s polling is more
+// than sufficient and avoids unnecessary file I/O.
+const defaultUpgradeBarrierPollInterval = 30 * time.Second
+
+// defaultSettleTimeout is the maximum time to wait for all specs to check in
+// or abort. It bounds the provisioning phase: if a spec hangs or crashes
+// without signalling abort, survivors unblock after this deadline rather than
+// burning the full spec timeout.
+const defaultSettleTimeout = 45 * time.Minute
+
+// defaultUpgradeTimeout is the maximum time a waiter will wait for the elected
+// runner to complete "make entrypoint/Region" and call markUpgradeDone. If the
+// runner crashes after check-in (OOM, hard kill) without signalling, waiters
+// fail with a clear timeout error rather than hanging until Prow kills the job.
+const defaultUpgradeTimeout = 70 * time.Minute
 
 // upgradeBarrierState is the on-disk representation of the barrier.
 type upgradeBarrierState struct {
@@ -107,10 +121,12 @@ func (s *upgradeBarrierState) settled() bool {
 //
 //	// ... per-spec validation ...
 type UpgradeBarrier struct {
-	statePath    string
-	lockFile     *os.File
-	total        int
-	pollInterval time.Duration
+	statePath      string
+	lockFile       *os.File
+	total          int
+	pollInterval   time.Duration
+	settleTimeout  time.Duration
+	upgradeTimeout time.Duration
 
 	// checkedIn is set by checkIn (Phase 2) and read by the abort DeferCleanup
 	// registered in registerGinkgoCleanup to decide whether to signal abort.
@@ -172,10 +188,12 @@ func NewUpgradeBarrier() (*UpgradeBarrier, error) {
 	statePath := filepath.Join(dir, "upgrade-barrier-state.yaml")
 
 	b := &UpgradeBarrier{
-		statePath:    statePath,
-		lockFile:     lf,
-		total:        total,
-		pollInterval: defaultUpgradeBarrierPollInterval,
+		statePath:      statePath,
+		lockFile:       lf,
+		total:          total,
+		pollInterval:   defaultUpgradeBarrierPollInterval,
+		settleTimeout:  defaultSettleTimeout,
+		upgradeTimeout: defaultUpgradeTimeout,
 	}
 
 	// Initialise the state file the first time (total may differ between
@@ -347,7 +365,14 @@ func (b *UpgradeBarrier) abort(ctx context.Context) error {
 
 // waitForUpgrade polls the state file until the runner has marked the upgrade
 // done. It returns the upgrade_error written by the runner, if any.
+//
+// An inner deadline of b.upgradeTimeout is applied on top of ctx so that
+// waiters fail with a clear error if the runner crashes after check-in without
+// calling markUpgradeDone, rather than hanging until Prow kills the job.
 func (b *UpgradeBarrier) waitForUpgrade(ctx context.Context) error {
+	ctx, cancel := context.WithTimeout(ctx, b.upgradeTimeout)
+	defer cancel()
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -390,7 +415,14 @@ func (b *UpgradeBarrier) markUpgradeDone(upgradeErr error) error {
 
 // waitSettled polls until checked_in+aborted_count >= total (all registered
 // specs have either checked in or aborted).
+//
+// An inner deadline of b.settleTimeout is applied on top of ctx so that a
+// spec that crashes during provisioning without signalling abort does not
+// block survivors for the full spec timeout.
 func (b *UpgradeBarrier) waitSettled(ctx context.Context) error {
+	ctx, cancel := context.WithTimeout(ctx, b.settleTimeout)
+	defer cancel()
+
 	for {
 		settled, err := b.readSettled()
 		if err != nil {

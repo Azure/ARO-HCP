@@ -42,10 +42,12 @@ func newTestBarrier(t *testing.T, total int) *UpgradeBarrier {
 	t.Cleanup(func() { lf.Close() })
 
 	b := &UpgradeBarrier{
-		statePath:    filepath.Join(dir, "upgrade-barrier-state.yaml"),
-		lockFile:     lf,
-		total:        total,
-		pollInterval: 10 * time.Millisecond,
+		statePath:      filepath.Join(dir, "upgrade-barrier-state.yaml"),
+		lockFile:       lf,
+		total:          total,
+		pollInterval:   10 * time.Millisecond,
+		settleTimeout:  5 * time.Second,
+		upgradeTimeout: 5 * time.Second,
 	}
 
 	// Initialise the state file so readState never sees an empty Total.
@@ -70,10 +72,12 @@ func newLinkedBarrier(t *testing.T, source *UpgradeBarrier) *UpgradeBarrier {
 	t.Cleanup(func() { lf.Close() })
 
 	return &UpgradeBarrier{
-		statePath:    source.statePath,
-		lockFile:     lf,
-		total:        source.total,
-		pollInterval: source.pollInterval,
+		statePath:      source.statePath,
+		lockFile:       lf,
+		total:          source.total,
+		pollInterval:   source.pollInterval,
+		settleTimeout:  source.settleTimeout,
+		upgradeTimeout: source.upgradeTimeout,
 	}
 }
 
@@ -99,12 +103,7 @@ func TestUpgradeBarrier_SingleSpec(t *testing.T) {
 	// WaitForUpgrade must return immediately since upgrade_done is already set.
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	b2 := &UpgradeBarrier{
-		statePath:    b.statePath,
-		lockFile:     b.lockFile,
-		total:        b.total,
-		pollInterval: 10 * time.Millisecond,
-	}
+	b2 := newLinkedBarrier(t, b)
 	require.NoError(t, b2.waitForUpgrade(ctx), "WaitForUpgrade should return immediately when upgrade is already done")
 }
 
