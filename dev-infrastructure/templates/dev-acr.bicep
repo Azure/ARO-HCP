@@ -93,11 +93,11 @@ resource purgeCached 'Microsoft.ContainerRegistry/registries/tasks@2019-04-01' =
           '''
 version: v1.1.0
 steps:
-  - cmd: acr purge --filter "{0}" --keep {1} --ago {2}
+  - cmd: acr purge {0} --keep {1} --ago {2}
     disableWorkingDirectoryOverride: true
     timeout: 3600
 ''',
-          purgeJob.purgeFilter,
+          join(map(purgeJob.purgeFilters, f => '--filter "${f}"'), ' '),
           purgeJob.imagesToKeep,
           purgeJob.purgeAfter
         ))
