@@ -117,7 +117,8 @@ func (c *postIssuanceCleanup) SyncOnce(ctx context.Context, key controllerutils.
 	}
 
 	credName := cred.ResourceID.Name
-	waitingFor, err := deleteDesires(ctx, kubeApplierClient, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName,
+	waitingFor, err := deleteDesires(ctx, kubeApplierClient, credentialRequestDesireParent(credName),
+		key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName,
 		func(desireName string) bool { return isCredentialDesire(desireName, credName) })
 	if err != nil {
 		return err

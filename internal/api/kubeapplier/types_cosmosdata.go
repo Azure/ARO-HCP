@@ -96,3 +96,29 @@ func ToCredentialRequestScopedReadDesireResourceIDString(subscriptionName, resou
 		ReadDesireResourceTypeName, readDesireName,
 	))
 }
+
+// ToRevocationScopedApplyDesireResourceIDString returns the resource ID string for an ApplyDesire
+// nested under a SystemAdminCredentialRevocation under a cluster.
+func ToRevocationScopedApplyDesireResourceIDString(subscriptionName, resourceGroupName, clusterName, revocationName, applyDesireName string,
+) string {
+	return strings.ToLower(path.Join(
+		"/subscriptions", subscriptionName,
+		"resourceGroups", resourceGroupName,
+		"providers", api.ClusterResourceType.String(), clusterName,
+		api.SystemAdminCredentialRevocationResourceTypeName, revocationName,
+		ApplyDesireResourceTypeName, applyDesireName,
+	))
+}
+
+// ToRevocationScopedReadDesireResourceIDString returns the resource ID string for a ReadDesire
+// nested under a SystemAdminCredentialRevocation under a cluster.
+func ToRevocationScopedReadDesireResourceIDString(subscriptionName, resourceGroupName, clusterName, revocationName, readDesireName string,
+) string {
+	return strings.ToLower(path.Join(
+		"/subscriptions", subscriptionName,
+		"resourceGroups", resourceGroupName,
+		"providers", api.ClusterResourceType.String(), clusterName,
+		api.SystemAdminCredentialRevocationResourceTypeName, revocationName,
+		ReadDesireResourceTypeName, readDesireName,
+	))
+}

@@ -37,14 +37,15 @@ import (
 func deleteDesires(
 	ctx context.Context,
 	kubeApplierClient database.KubeApplierDBClient,
+	parent desireParent,
 	subscriptionID, resourceGroupName, hcpClusterName string,
 	matches func(desireName string) bool,
 ) ([]string, error) {
-	applyCRUD, err := kubeApplierClient.ApplyDesiresForCluster(subscriptionID, resourceGroupName, hcpClusterName)
+	applyCRUD, err := parent.applyDesireCRUD(kubeApplierClient, subscriptionID, resourceGroupName, hcpClusterName)
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}
-	readCRUD, err := kubeApplierClient.ReadDesiresForCluster(subscriptionID, resourceGroupName, hcpClusterName)
+	readCRUD, err := parent.readDesireCRUD(kubeApplierClient, subscriptionID, resourceGroupName, hcpClusterName)
 	if err != nil {
 		return nil, utils.TrackError(err)
 	}

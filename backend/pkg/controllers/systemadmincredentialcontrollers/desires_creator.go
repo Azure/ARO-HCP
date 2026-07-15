@@ -176,11 +176,14 @@ func (c *desiresCreator) ensureDesires(
 	owner, mcResourceID *azcorearm.ResourceID,
 	kubeApplierClient database.KubeApplierDBClient,
 ) error {
-	applyCRUD, err := kubeApplierClient.ApplyDesiresForCluster(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
+	// Desires for a credential are nested under the SystemAdminCredentialRequest
+	// so the hierarchy mirrors the resource that owns them.
+	parent := credentialRequestDesireParent(credName)
+	applyCRUD, err := kubeApplierClient.ApplyDesiresForCredentialRequest(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, credName)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("get ApplyDesire CRUD: %w", err))
 	}
-	readCRUD, err := kubeApplierClient.ReadDesiresForCluster(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
+	readCRUD, err := kubeApplierClient.ReadDesiresForCredentialRequest(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, credName)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("get ReadDesire CRUD: %w", err))
 	}
@@ -213,7 +216,7 @@ func (c *desiresCreator) ensureDesires(
 			}
 			dName := rbacSpec.desireName + suffix
 			ref := targetRefForKubeObject(obj)
-			if err := ensureApplyDesire(ctx, applyCRUD, c.applyDesireLister,
+			if err := ensureApplyDesire(ctx, applyCRUD, c.applyDesireLister, parent,
 				key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName,
 				dName, mcResourceID, ref, obj); err != nil {
 				return err
@@ -227,7 +230,7 @@ func (c *desiresCreator) ensureDesires(
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to build CSR: %w", err))
 	}
-	if err := ensureApplyDesire(ctx, applyCRUD, c.applyDesireLister,
+	if err := ensureApplyDesire(ctx, applyCRUD, c.applyDesireLister, parent,
 		key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName,
 		csrDesireName, mcResourceID, csrTarget(csrObj), csrObj); err != nil {
 		return err
@@ -243,7 +246,7 @@ func (c *desiresCreator) ensureDesires(
 		Namespace: hcpNamespace,
 		Name:      csrApprovalObj.Name,
 	}
-	if err := ensureApplyDesire(ctx, applyCRUD, c.applyDesireLister,
+	if err := ensureApplyDesire(ctx, applyCRUD, c.applyDesireLister, parent,
 		key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName,
 		csrApprovalDesireName, mcResourceID, csrApprovalTarget, csrApprovalObj); err != nil {
 		return err
@@ -257,7 +260,7 @@ func (c *desiresCreator) ensureDesires(
 		Resource: "certificatesigningrequests",
 		Name:     fmt.Sprintf("system-admin-credential-%s", credName),
 	}
-	if err := ensureReadDesire(ctx, readCRUD, c.readDesireLister,
+	if err := ensureReadDesire(ctx, readCRUD, c.readDesireLister, parent,
 		key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName,
 		csrReadDesireName, mcResourceID, csrReadTarget); err != nil {
 		return err

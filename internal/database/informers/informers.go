@@ -58,6 +58,8 @@ func NewApplyDesireInformerWithRelistDuration(
 		[]azcorearm.ResourceType{
 			kubeapplier.ClusterScopedApplyDesireResourceType,
 			kubeapplier.NodePoolScopedApplyDesireResourceType,
+			kubeapplier.CredentialRequestScopedApplyDesireResourceType,
+			kubeapplier.RevocationScopedApplyDesireResourceType,
 		},
 		utilsclock.RealClock{},
 		lister,
@@ -90,6 +92,8 @@ func NewReadDesireInformerWithRelistDuration(
 		[]azcorearm.ResourceType{
 			kubeapplier.ClusterScopedReadDesireResourceType,
 			kubeapplier.NodePoolScopedReadDesireResourceType,
+			kubeapplier.CredentialRequestScopedReadDesireResourceType,
+			kubeapplier.RevocationScopedReadDesireResourceType,
 		},
 		utilsclock.RealClock{},
 		lister,

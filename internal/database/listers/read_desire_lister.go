@@ -30,6 +30,8 @@ type ReadDesireLister interface {
 	List(ctx context.Context) ([]*kubeapplier.ReadDesire, error)
 	GetForCluster(ctx context.Context, subscriptionID, resourceGroupName, clusterName, name string) (*kubeapplier.ReadDesire, error)
 	GetForNodePool(ctx context.Context, subscriptionID, resourceGroupName, clusterName, nodePoolName, name string) (*kubeapplier.ReadDesire, error)
+	GetForCredentialRequest(ctx context.Context, subscriptionID, resourceGroupName, clusterName, credentialRequestName, name string) (*kubeapplier.ReadDesire, error)
+	GetForRevocation(ctx context.Context, subscriptionID, resourceGroupName, clusterName, revocationName, name string) (*kubeapplier.ReadDesire, error)
 	ListForManagementCluster(ctx context.Context, managementClusterResourceID *azcorearm.ResourceID) ([]*kubeapplier.ReadDesire, error)
 	ListForCluster(ctx context.Context, subscriptionID, resourceGroupName, clusterName string) ([]*kubeapplier.ReadDesire, error)
 	ListForNodePool(ctx context.Context, subscriptionID, resourceGroupName, clusterName, nodePoolName string) ([]*kubeapplier.ReadDesire, error)
@@ -60,6 +62,24 @@ func (l *readDesireLister) GetForNodePool(
 ) (*kubeapplier.ReadDesire, error) {
 	key := kubeapplier.ToNodePoolScopedReadDesireResourceIDString(
 		subscriptionID, resourceGroupName, clusterName, nodePoolName, name,
+	)
+	return getByKey[kubeapplier.ReadDesire](l.indexer, key)
+}
+
+func (l *readDesireLister) GetForCredentialRequest(
+	ctx context.Context, subscriptionID, resourceGroupName, clusterName, credentialRequestName, name string,
+) (*kubeapplier.ReadDesire, error) {
+	key := kubeapplier.ToCredentialRequestScopedReadDesireResourceIDString(
+		subscriptionID, resourceGroupName, clusterName, credentialRequestName, name,
+	)
+	return getByKey[kubeapplier.ReadDesire](l.indexer, key)
+}
+
+func (l *readDesireLister) GetForRevocation(
+	ctx context.Context, subscriptionID, resourceGroupName, clusterName, revocationName, name string,
+) (*kubeapplier.ReadDesire, error) {
+	key := kubeapplier.ToRevocationScopedReadDesireResourceIDString(
+		subscriptionID, resourceGroupName, clusterName, revocationName, name,
 	)
 	return getByKey[kubeapplier.ReadDesire](l.indexer, key)
 }

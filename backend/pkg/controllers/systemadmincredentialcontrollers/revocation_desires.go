@@ -155,11 +155,14 @@ func (c *revocationDesires) ensureRevocationDesires(
 	owner, mcResourceID *azcorearm.ResourceID,
 	kubeApplierClient database.KubeApplierDBClient,
 ) error {
-	applyCRUD, err := kubeApplierClient.ApplyDesiresForCluster(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
+	// Revocation desires are nested under the SystemAdminCredentialRevocation so
+	// the hierarchy mirrors the resource that owns them.
+	parent := revocationDesireParent(key.RevocationName)
+	applyCRUD, err := kubeApplierClient.ApplyDesiresForRevocation(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.RevocationName)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("get ApplyDesire CRUD: %w", err))
 	}
-	readCRUD, err := kubeApplierClient.ReadDesiresForCluster(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
+	readCRUD, err := kubeApplierClient.ReadDesiresForRevocation(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.RevocationName)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("get ReadDesire CRUD: %w", err))
 	}
@@ -171,7 +174,7 @@ func (c *revocationDesires) ensureRevocationDesires(
 		if i > 0 {
 			dName = fmt.Sprintf("%s-%d", dName, i)
 		}
-		if err := ensureApplyDesire(ctx, applyCRUD, c.applyDesireLister,
+		if err := ensureApplyDesire(ctx, applyCRUD, c.applyDesireLister, parent,
 			key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName,
 			dName, mcResourceID, targetRefForKubeObject(obj), obj); err != nil {
 			return err
@@ -188,7 +191,7 @@ func (c *revocationDesires) ensureRevocationDesires(
 		Name:      crrObj.Name,
 	}
 	crrDesireName := fmt.Sprintf("systemAdminCredentialRevocation-%s", suffix)
-	if err := ensureApplyDesire(ctx, applyCRUD, c.applyDesireLister,
+	if err := ensureApplyDesire(ctx, applyCRUD, c.applyDesireLister, parent,
 		key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName,
 		crrDesireName, mcResourceID, crrTarget, crrObj); err != nil {
 		return err
@@ -196,7 +199,7 @@ func (c *revocationDesires) ensureRevocationDesires(
 
 	// 3. CRR ReadDesire so the CRR status is mirrored back for the completion controller.
 	crrReadDesireName := kubeapplierhelpers.ReadDesireNameForSystemAdminCredentialRequestRevocation(suffix)
-	if err := ensureReadDesire(ctx, readCRUD, c.readDesireLister,
+	if err := ensureReadDesire(ctx, readCRUD, c.readDesireLister, parent,
 		key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName,
 		crrReadDesireName, mcResourceID, crrTarget); err != nil {
 		return err
