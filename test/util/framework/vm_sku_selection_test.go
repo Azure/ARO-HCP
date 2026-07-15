@@ -514,6 +514,39 @@ func TestEphemeralSelectorSelectsDifferentFamily(t *testing.T) {
 	}
 }
 
+func TestVMSizeWithoutAvailabilityZones(t *testing.T) {
+	selector := DefaultWorkerVMSizeSelector()
+
+	skuWithZones := makeSKU("Standard_D8s_v3", testLocation,
+		withCapability(capabilityVCPUs, "8"),
+		withZones(testLocation, "1", "2", "3"),
+	)
+	if name, ok := vmSizeWithoutAvailabilityZones(skuWithZones, testLocation, selector); ok {
+		t.Fatalf("expected SKU with zones to be rejected, got %q", name)
+	}
+
+	withoutZones := makeSKU("Standard_D8s_v3", testLocation, withCapability(capabilityVCPUs, "8"))
+	if name, ok := vmSizeWithoutAvailabilityZones(withoutZones, testLocation, selector); !ok || name != "Standard_D8s_v3" {
+		t.Fatalf("expected Standard_D8s_v3 without zones to match, got name=%q ok=%v", name, ok)
+	}
+
+	// A zone-capable SKU with all zones subscription-restricted must not be
+	// treated as lacking zone support.
+	withZonesAllRestricted := makeSKU("Standard_D8s_v5", testLocation,
+		withCapability(capabilityVCPUs, "8"),
+		withZones(testLocation, "1", "2", "3"),
+		withZoneRestriction(testLocation, "1", "2", "3"),
+	)
+	if name, ok := vmSizeWithoutAvailabilityZones(withZonesAllRestricted, testLocation, selector); ok {
+		t.Fatalf("expected zone-capable SKU with all zones restricted to be rejected, got %q", name)
+	}
+
+	nonAllowlisted := makeSKU("Standard_D8ds_v5", testLocation, withCapability(capabilityVCPUs, "8"))
+	if name, ok := vmSizeWithoutAvailabilityZones(nonAllowlisted, testLocation, selector); ok {
+		t.Fatalf("expected non-allowlisted SKU to be rejected, got %q", name)
+	}
+}
+
 // TestWorkerSelectorPreferredEntriesAreAllowlisted closes the Preferred-list
 // gap in the allowlist-boundary guard. selectVMSize tries Preferred SKUs before
 // discovery and intentionally does NOT constrain them by NamePattern, so a

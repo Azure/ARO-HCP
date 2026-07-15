@@ -160,6 +160,10 @@ var _ = Describe("Customer", func() {
 					azNodePoolName)
 				Expect(err).NotTo(HaveOccurred(), "failed to get AZ nodepool %s", azNodePoolName)
 				Expect(azNodePoolResp.Properties).NotTo(BeNil(), "nodepool response Properties was nil")
+				Expect(azNodePoolResp.Properties.Platform).NotTo(BeNil(), "nodepool response Properties.Platform was nil")
+				Expect(azNodePoolResp.Properties.Platform.AvailabilityZone).NotTo(BeNil(), "nodepool response Properties.Platform.AvailabilityZone was nil")
+				Expect(*azNodePoolResp.Properties.Platform.AvailabilityZone).To(Equal(availabilityZone),
+					"expected nodepool availability zone to match requested zone %s", availabilityZone)
 				Expect(azNodePoolResp.Properties.AutoScaling).NotTo(BeNil(), "Expected nodepool to have autoscaling configuration")
 				Expect(azNodePoolResp.Properties.AutoScaling.Min).To(Equal(to.Ptr(azAutoscalingMin)), "expected AZ nodepool autoscaling min to equal %d", azAutoscalingMin)
 				Expect(azNodePoolResp.Properties.AutoScaling.Max).To(Equal(to.Ptr(azAutoscalingMax)), "expected AZ nodepool autoscaling max to equal %d", azAutoscalingMax)

@@ -129,6 +129,9 @@ func setupAzureLogging(logDirPath string) *os.File {
 	return azureLogFile
 }
 
+// E2ETestContext is the per-test context returned by NewTestContext.
+type E2ETestContext = perItOrDescribeTestContext
+
 func NewTestContext() *perItOrDescribeTestContext {
 	logDirPath := setupTestLogDir(artifactDir())
 	azureLogFile := setupAzureLogging(logDirPath)

@@ -122,5 +122,7 @@ var _ = Describe("Customer", func() {
 			Expect(created.Properties.Platform).ToNot(BeNil(), "nodepool Properties.Platform was nil")
 			Expect(created.Properties.Platform.OSDisk).ToNot(BeNil(), "nodepool Properties.Platform.OSDisk was nil")
 			Expect(*created.Properties.Platform.OSDisk.SizeGiB).To(Equal(customerNodeOsDiskSizeGiB), "nodepool OS disk size should be %d GiB", customerNodeOsDiskSizeGiB)
+			Expect(created.Properties.Platform.AvailabilityZone).To(BeNil(),
+				"expected availability zone to be unset when not specified on nodepool create")
 		})
 })
