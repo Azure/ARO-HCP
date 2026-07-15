@@ -60,14 +60,14 @@ resource msftKubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@202
         }
         annotations: {
           correlationId: 'KubePodNotReady/{{ $labels.cluster }}/{{ $labels.namespace }}/{{ $labels.pod }}'
-          description: 'Pod {{ $labels.namespace }}/{{ $labels.pod }} has been in a non-ready state for longer than 15 minutes.'
-          info: 'Pod {{ $labels.namespace }}/{{ $labels.pod }} has been in a non-ready state for longer than 15 minutes.'
+          description: 'Pod {{ $labels.namespace }}/{{ $labels.pod }} has been in a non-ready state for longer than 5 minutes.'
+          info: 'Pod {{ $labels.namespace }}/{{ $labels.pod }} has been in a non-ready state for longer than 5 minutes.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubepodnotready'
-          summary: 'Pod has been in a non-ready state for more than 15 minutes.'
-          title: 'Pod has been in a non-ready state for more than 15 minutes. namespace:{{ $labels.namespace }} pod:{{ $labels.pod }}'
+          summary: 'Pod has been in a non-ready state for more than 5 minutes.'
+          title: 'Pod has been in a non-ready state for more than 5 minutes. namespace:{{ $labels.namespace }} pod:{{ $labels.pod }}'
         }
-        expression: 'sum by (namespace, pod, cluster) (max by (namespace, pod, cluster) (kube_pod_status_phase{job="kube-state-metrics",namespace=~"billing|credential-refresher",phase=~"Pending|Unknown|Failed"}) * on (namespace, pod, cluster) group_left (owner_kind) topk by (namespace, pod, cluster) (1, max by (namespace, pod, owner_kind, cluster) (kube_pod_owner{namespace=~"billing|credential-refresher",owner_kind!="Job"}))) > 0'
-        for: 'PT15M'
+        expression: 'sum by (namespace, pod, cluster) (max by (namespace, pod, cluster) (kube_pod_status_phase{job="kube-state-metrics",namespace!~"klusterlet-.*",phase=~"Pending|Unknown|Failed"}) * on (namespace, pod, cluster) group_left (owner_kind) topk by (namespace, pod, cluster) (1, max by (namespace, pod, owner_kind, cluster) (kube_pod_owner{namespace=~"billing|credential-refresher",owner_kind!="Job"}))) > 0'
+        for: 'PT5M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
