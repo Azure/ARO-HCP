@@ -254,6 +254,16 @@ func (o Options) Run(ctx context.Context) error {
 			manifest, report, err := gatherer.Gather(ctx, input, testOutputDir)
 			if err != nil {
 				logger.Error(err, "Failed to gather snapshot", "test", testName, "resourceGroup", rg)
+				allReports = append(allReports, &snapshot.VerificationReport{
+					Cases: []snapshot.VerificationCase{{
+						Suite:        fmt.Sprintf("gather/%s", rg),
+						Query:        "gather",
+						Category:     "infrastructure",
+						ResourceType: "gather",
+						Status:       snapshot.VerificationFail,
+						Message:      fmt.Sprintf("failed to gather snapshot for test %q resource group %q: %v", testName, rg, err),
+					}},
+				})
 				if ctx.Err() != nil {
 					break
 				}
