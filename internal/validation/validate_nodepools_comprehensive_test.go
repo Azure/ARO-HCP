@@ -600,6 +600,95 @@ func TestValidateNodePoolCreate(t *testing.T) {
 			},
 		},
 		{
+			name: "restricted node role master label key - create",
+			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Labels = map[string]string{
+					nodePoolK8sLabelKeyNodeRoleMaster: "true",
+				}
+				return np
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "label key is not allowed on node pools", FieldPath: "properties.labels[node-role.kubernetes.io/master]"},
+			},
+		},
+		{
+			name: "restricted node role worker label key - create",
+			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Labels = map[string]string{
+					nodePoolK8sLabelKeyNodeRoleWorker: "true",
+				}
+				return np
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "label key is not allowed on node pools", FieldPath: "properties.labels[node-role.kubernetes.io/worker]"},
+			},
+		},
+		{
+			name: "restricted machine role label value master - create",
+			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Labels = map[string]string{
+					nodePoolK8sLabelKeyMachineRole: "master",
+				}
+				return np
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "label value is not allowed for this label key", FieldPath: "properties.labels[machine.openshift.io/cluster-api-machine-role]"},
+			},
+		},
+		{
+			name: "restricted machine role label value infra - create",
+			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Labels = map[string]string{
+					nodePoolK8sLabelKeyMachineRole: "infra",
+				}
+				return np
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "label value is not allowed for this label key", FieldPath: "properties.labels[machine.openshift.io/cluster-api-machine-role]"},
+			},
+		},
+		{
+			name: "restricted machine type label value master - create",
+			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Labels = map[string]string{
+					nodePoolK8sLabelKeyMachineType: "master",
+				}
+				return np
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "label value is not allowed for this label key", FieldPath: "properties.labels[machine.openshift.io/cluster-api-machine-type]"},
+			},
+		},
+		{
+			name: "restricted machine type label value infra - create",
+			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Labels = map[string]string{
+					nodePoolK8sLabelKeyMachineType: "infra",
+				}
+				return np
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "label value is not allowed for this label key", FieldPath: "properties.labels[machine.openshift.io/cluster-api-machine-type]"},
+			},
+		},
+		{
+			name: "valid machine role label value worker - create",
+			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Labels = map[string]string{
+					nodePoolK8sLabelKeyMachineRole: "worker",
+				}
+				return np
+			}(),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
 			name: "empty label key - create",
 			nodePool: func() *api.HCPOpenShiftClusterNodePool {
 				np := createValidNodePool()
@@ -1262,6 +1351,80 @@ func TestValidateNodePoolUpdate(t *testing.T) {
 			oldNodePool: createValidNodePool(),
 			expectErrors: []utils.ExpectedError{
 				{Message: "name part must consist of alphanumeric characters", FieldPath: "properties.labels"},
+			},
+		},
+		{
+			name: "restricted node role master label key on update - update",
+			newNodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Labels = map[string]string{
+					nodePoolK8sLabelKeyNodeRoleMaster: "true",
+				}
+				return np
+			}(),
+			oldNodePool: createValidNodePool(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "label key is not allowed on node pools", FieldPath: "properties.labels[node-role.kubernetes.io/master]"},
+			},
+		},
+		{
+			name: "restricted machine role label value on update - update",
+			newNodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Labels = map[string]string{
+					nodePoolK8sLabelKeyMachineRole: "master",
+				}
+				return np
+			}(),
+			oldNodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Labels = map[string]string{
+					nodePoolK8sLabelKeyMachineRole: "worker",
+				}
+				return np
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "label value is not allowed for this label key", FieldPath: "properties.labels[machine.openshift.io/cluster-api-machine-role]"},
+			},
+		},
+		{
+			name: "restricted label key unchanged on update - update",
+			newNodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Labels = map[string]string{
+					nodePoolK8sLabelKeyNodeRoleMaster: "true",
+				}
+				return np
+			}(),
+			oldNodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Labels = map[string]string{
+					nodePoolK8sLabelKeyNodeRoleMaster: "true",
+				}
+				return np
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "label key is not allowed on node pools", FieldPath: "properties.labels[node-role.kubernetes.io/master]"},
+			},
+		},
+		{
+			name: "restricted machine role label value unchanged on update - update",
+			newNodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Labels = map[string]string{
+					nodePoolK8sLabelKeyMachineRole: "master",
+				}
+				return np
+			}(),
+			oldNodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Labels = map[string]string{
+					nodePoolK8sLabelKeyMachineRole: "master",
+				}
+				return np
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "label value is not allowed for this label key", FieldPath: "properties.labels[machine.openshift.io/cluster-api-machine-role]"},
 			},
 		},
 		{

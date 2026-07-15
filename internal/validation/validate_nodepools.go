@@ -33,8 +33,27 @@ const (
 	MaxNodePoolNodes = 200
 
 	// See https://learn.microsoft.com/en-us/azure/azure-resource-manager/management/resource-name-rules#microsoftcompute
-	MaxDiskEncryptionSetNameLen = 80
+	MaxDiskEncryptionSetNameLen       = 80
+	nodePoolK8sLabelKeyNodeRoleMaster = "node-role.kubernetes.io/master"
+	nodePoolK8sLabelKeyNodeRoleWorker = "node-role.kubernetes.io/worker"
+	nodePoolK8sLabelKeyMachineRole    = "machine.openshift.io/cluster-api-machine-role"
+	nodePoolK8sLabelKeyMachineType    = "machine.openshift.io/cluster-api-machine-type"
 )
+
+// nodePoolForbiddenK8sLabelValuesByKey maps Kubernetes label keys to forbidden values.
+// A nil value set means the entire label key is forbidden regardless of value.
+var nodePoolForbiddenK8sLabelValuesByKey = map[string]map[string]struct{}{
+	nodePoolK8sLabelKeyNodeRoleMaster: nil,
+	nodePoolK8sLabelKeyNodeRoleWorker: nil,
+	nodePoolK8sLabelKeyMachineRole: {
+		"master": {},
+		"infra":  {},
+	},
+	nodePoolK8sLabelKeyMachineType: {
+		"master": {},
+		"infra":  {},
+	},
+}
 
 func ValidateNodePool(ctx context.Context, op operation.Operation, newObj, oldObj *api.HCPOpenShiftClusterNodePool) field.ErrorList {
 	return validateNodePool(ctx, op, newObj, oldObj)
@@ -167,6 +186,7 @@ func validateNodePoolProperties(ctx context.Context, op operation.Operation, fld
 		nil,
 		KubeLabelValue,
 	)...)
+	errs = append(errs, validateNodePoolForbiddenLabels(fldPath.Child("labels"), newObj.Labels)...)
 
 	//Taints                  []Taint                 `json:"taints,omitempty"`
 	errs = append(errs, validate.EachSliceVal(
@@ -179,6 +199,34 @@ func validateNodePoolProperties(ctx context.Context, op operation.Operation, fld
 	//NodeDrainTimeoutMinutes *int32                  `json:"nodeDrainTimeoutMinutes,omitempty"`
 	errs = append(errs, validate.Minimum(ctx, op, fldPath.Child("nodeDrainTimeoutMinutes"), newObj.NodeDrainTimeoutMinutes, safe.Field(oldObj, toNodePoolPropertiesNodeDrainTimeoutMinutes), 0)...)
 	errs = append(errs, Maximum(ctx, op, fldPath.Child("nodeDrainTimeoutMinutes"), newObj.NodeDrainTimeoutMinutes, safe.Field(oldObj, toNodePoolPropertiesNodeDrainTimeoutMinutes), 10080)...)
+
+	return errs
+}
+
+func validateNodePoolForbiddenLabels(fldPath *field.Path, newLabels map[string]string) field.ErrorList {
+	if len(newLabels) == 0 {
+		return nil
+	}
+
+	errs := field.ErrorList{}
+	for key, value := range newLabels {
+		keyPath := fldPath.Key(key)
+
+		forbiddenValues, restricted := nodePoolForbiddenK8sLabelValuesByKey[key]
+		if !restricted {
+			continue
+		}
+
+		if forbiddenValues == nil {
+			errs = append(errs, field.Invalid(keyPath, key, "label key is not allowed on node pools"))
+			continue
+		}
+
+		if _, forbidden := forbiddenValues[value]; !forbidden {
+			continue
+		}
+		errs = append(errs, field.Invalid(keyPath, value, "label value is not allowed for this label key"))
+	}
 
 	return errs
 }
