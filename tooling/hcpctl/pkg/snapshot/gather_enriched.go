@@ -46,6 +46,9 @@ type GatherForTestOptions struct {
 	// HCPDatabase is the Kusto database name for HCP-side data.
 	HCPDatabase string
 
+	// MonitoringEventsDatabase is the Kusto database name for monitoring events (alerts).
+	MonitoringEventsDatabase string
+
 	// ServiceClusterName and ManagementClusterName are AKS cluster names
 	// used to filter Kusto queries to only relevant clusters for PR jobs.
 	ServiceClusterName    string
@@ -130,12 +133,13 @@ func GatherForTest(ctx context.Context, opts GatherForTestOptions) (*GatherForTe
 	}
 
 	input := GatherInput{
-		ClusterURI:            opts.KustoEndpoint,
-		ServiceDatabase:       opts.ServiceDatabase,
-		HCPDatabase:           opts.HCPDatabase,
-		ResourceGroup:         test.ResourceGroup,
-		ServiceClusterName:    opts.ServiceClusterName,
-		ManagementClusterName: opts.ManagementClusterName,
+		ClusterURI:               opts.KustoEndpoint,
+		ServiceDatabase:          opts.ServiceDatabase,
+		HCPDatabase:              opts.HCPDatabase,
+		MonitoringEventsDatabase: opts.MonitoringEventsDatabase,
+		ResourceGroup:            test.ResourceGroup,
+		ServiceClusterName:       opts.ServiceClusterName,
+		ManagementClusterName:    opts.ManagementClusterName,
 		TimeWindow: TimeWindow{
 			Start:           startTime,
 			End:             endTime,

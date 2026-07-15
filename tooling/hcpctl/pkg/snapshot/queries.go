@@ -112,10 +112,11 @@ func (q querySpec) key() string {
 // queryData holds all context accumulated across the query chain.
 type queryData struct {
 	// Seed values — provided by the caller.
-	ClusterURI      string
-	ServiceDatabase string
-	HCPDatabase     string
-	ResourceGroup   string
+	ClusterURI               string
+	ServiceDatabase          string
+	HCPDatabase              string
+	MonitoringEventsDatabase string
+	ResourceGroup            string
 
 	// ServiceClusterName and ManagementClusterName are AKS cluster names
 	// used to filter queries for PR jobs. When both are non-empty, queries
@@ -718,6 +719,28 @@ var allQueries = []querySpec{
 		},
 		prerequisites: "HostedControlPlaneNamespace, ResourceType is cluster",
 	},
+	{
+		component:    "alerts",
+		queryName:    "cluster",
+		templatePath: "queries/alerts/cluster/query.kql",
+		database:     "monitoringEvents",
+		category:     categoryResourceEvents,
+		ready: func(d queryData) bool {
+			return d.HostedControlPlaneNamespace != "" && strings.EqualFold(d.ResourceType, "microsoft.redhatopenshift/hcpopenshiftclusters")
+		},
+		prerequisites: "HostedControlPlaneNamespace, ResourceType is cluster",
+	},
+	{
+		component:    "alerts",
+		queryName:    "acm",
+		templatePath: "queries/alerts/acm/query.kql",
+		database:     "monitoringEvents",
+		category:     categoryResourceEvents,
+		ready: func(d queryData) bool {
+			return d.ClusterID != "" && strings.EqualFold(d.ResourceType, "microsoft.redhatopenshift/hcpopenshiftclusters")
+		},
+		prerequisites: "ClusterID, ResourceType is cluster",
+	},
 }
 
 // contextQueries are broader queries not tied to a specific correlation ID.
@@ -729,6 +752,20 @@ var contextQueries = []querySpec{
 		queryName:    "frontendRequests",
 		templatePath: "queries/frontend/frontendRequests/query.kql",
 		database:     "service",
+		category:     categoryContext,
+	},
+	{
+		component:    "alerts",
+		queryName:    "uncategorized",
+		templatePath: "queries/alerts/uncategorized/query.kql",
+		database:     "monitoringEvents",
+		category:     categoryContext,
+	},
+	{
+		component:    "alerts",
+		queryName:    "service",
+		templatePath: "queries/alerts/service/query.kql",
+		database:     "monitoringEvents",
 		category:     categoryContext,
 	},
 }
