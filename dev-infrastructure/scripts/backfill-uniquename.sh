@@ -25,6 +25,7 @@ APPS=(
   "aro-hcp-int-fp"
   "aro-hcp-int-arm-helper"
   "aro-hcp-int-msi-mock"
+  "cs-pr-authentication"
 )
 
 DEV_POOL_SIZE="${DEV_POOL_SIZE:-20}"
