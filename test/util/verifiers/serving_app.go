@@ -22,6 +22,8 @@ import (
 	"net"
 	"net/http"
 	"net/http/httputil"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/onsi/ginkgo/v2"
@@ -180,12 +182,127 @@ func (v verifySimpleWebApp) Verify(ctx context.Context, adminRESTConfig *rest.Co
 		return nil
 	}
 	secureTransport := http.DefaultTransport.(*http.Transport).Clone()
-	if err := waitForRouteReachability(ctx, &http.Client{Transport: secureTransport}, url, 10*time.Minute); err != nil {
+	if err := waitForTrustedRouteReachability(ctx, &http.Client{Transport: secureTransport}, url, host, 10*time.Minute); err != nil {
 		printNegotiatedCertificate(ctx, host)
+		collectIngressCertDiagnostics(ctx, kubeClient, dynamicClient)
 		return err
 	}
 
 	return nil
+}
+
+// servedCertificate describes the leaf certificate currently served by the
+// router, and whether it is still the operator-generated self-signed default
+// ingress certificate rather than the managed OneCert-issued certificate.
+type servedCertificate struct {
+	desc       string
+	selfSigned bool
+	served     bool
+}
+
+// classifyServedCertificate dials host:443 (skipping verification) and reports
+// the leaf certificate currently served. The managed ingress certificate is
+// delivered asynchronously (OneCert -> Key Vault -> ACM -> IngressController),
+// so until it lands the router serves a self-signed default certificate
+// (subject CN=openshift-ingress, issuer CN=root-ca). Distinguishing the two
+// lets the strict TLS wait log the self-signed -> managed transition.
+func classifyServedCertificate(ctx context.Context, host string) servedCertificate {
+	dialCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
+	dialer := &tls.Dialer{
+		NetDialer: &net.Dialer{Timeout: 10 * time.Second},
+		Config:    &tls.Config{InsecureSkipVerify: true},
+	}
+	conn, err := dialer.DialContext(dialCtx, "tcp", host+":443")
+	if err != nil {
+		return servedCertificate{desc: fmt.Sprintf("dial failed: %v", err)}
+	}
+	defer conn.Close()
+
+	certs := conn.(*tls.Conn).ConnectionState().PeerCertificates
+	if len(certs) == 0 {
+		return servedCertificate{desc: "no certificate served", served: true}
+	}
+	leaf := certs[0]
+	selfSigned := strings.Contains(leaf.Issuer.CommonName, "root-ca") ||
+		strings.EqualFold(leaf.Subject.CommonName, "openshift-ingress")
+	return servedCertificate{
+		desc: fmt.Sprintf("subject=%q issuer=%q notBefore=%s notAfter=%s",
+			leaf.Subject, leaf.Issuer,
+			leaf.NotBefore.Format(time.RFC3339), leaf.NotAfter.Format(time.RFC3339)),
+		selfSigned: selfSigned,
+		served:     true,
+	}
+}
+
+// certKindLabel returns a human-readable label for a served certificate.
+func certKindLabel(c servedCertificate) string {
+	if c.selfSigned {
+		return "self-signed default"
+	}
+	return "managed (OneCert)"
+}
+
+// waitForTrustedRouteReachability polls url requiring strict TLS trust, logging
+// each observed certificate state so the progression self-signed default ->
+// waiting -> managed (OneCert) trusted certificate is visible in the test
+// output. Managed ingress-cert delivery occasionally stalls (the guest
+// cluster-ingress-cert secret is never created), and this makes such a stall
+// diagnosable inline rather than surfacing only as a generic x509 "unknown
+// authority" error.
+func waitForTrustedRouteReachability(ctx context.Context, client *http.Client, url, host string, timeout time.Duration) error {
+	var lastErr error
+	startTime := time.Now()
+	lastDesc := ""
+	lastStatusLog := time.Time{}
+
+	// Record the certificate served before strict verification begins so the
+	// starting point (typically the self-signed default) is captured.
+	if initial := classifyServedCertificate(ctx, host); initial.served {
+		lastDesc = initial.desc
+		ginkgo.GinkgoWriter.Printf("[strict-tls] initial certificate served by %s is the %s certificate: %s\n",
+			host, certKindLabel(initial), initial.desc)
+	}
+
+	err := wait.PollUntilContextTimeout(ctx, 10*time.Second, timeout, true, func(ctx context.Context) (bool, error) {
+		elapsed := time.Since(startTime).Round(time.Second)
+
+		resp, err := client.Get(url)
+		if err != nil {
+			lastErr = err
+			// Surface which certificate is currently served whenever it changes,
+			// or at least once a minute, while waiting for the managed cert.
+			c := classifyServedCertificate(ctx, host)
+			if c.served && (c.desc != lastDesc || time.Since(lastStatusLog) >= time.Minute) {
+				ginkgo.GinkgoWriter.Printf("[strict-tls] waiting for trusted managed certificate (elapsed=%v): route not yet trusted (%v); currently serving %s certificate: %s\n",
+					elapsed, err, certKindLabel(c), c.desc)
+				lastDesc = c.desc
+				lastStatusLog = time.Now()
+			}
+			return false, nil
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != 200 {
+			lastErr = fmt.Errorf("received non-success status code: %d %s", resp.StatusCode, resp.Status)
+			return false, nil
+		}
+
+		c := classifyServedCertificate(ctx, host)
+		ginkgo.GinkgoWriter.Printf("[strict-tls] route reachable with trusted %s certificate after %v: %s\n",
+			certKindLabel(c), elapsed, c.desc)
+		return true, nil
+	})
+
+	switch {
+	case err == nil:
+		return nil
+	case lastErr != nil:
+		return fmt.Errorf("route was never reachable with a trusted certificate: %w", lastErr)
+	default:
+		return fmt.Errorf("route was never reachable with a trusted certificate: %w", err)
+	}
 }
 
 // waitForRouteReachability polls the URL with the provided client until a
@@ -293,6 +410,143 @@ func printNegotiatedCertificate(ctx context.Context, host string) {
 		certs[0].NotBefore,
 		certs[0].NotAfter,
 	)
+}
+
+const (
+	ingressNamespace         = "openshift-ingress"
+	ingressOperatorNamespace = "openshift-ingress-operator"
+	managedIngressCertSecret = "cluster-ingress-cert"
+	defaultIngressCertSecret = "default-ingress-cert"
+)
+
+// collectIngressCertDiagnostics inspects the guest cluster's ingress serving
+// certificate delivery chain and logs its state. It runs when the strict TLS
+// wait fails so CI captures why the managed certificate never became trusted.
+//
+// The managed serving certificate (openshift-ingress/cluster-ingress-cert) is
+// delivered from the ACM hub by a ConfigurationPolicy; its absence leaves the
+// router serving the ingress operator's self-signed default certificate, which
+// fails strict verification with "x509: certificate signed by unknown
+// authority". Dumping the managed-vs-default secret presence, the
+// IngressController spec/status, the router pod states, and the ingress
+// namespace warning events distinguishes a stalled secret delivery (the
+// observed failure mode) from an IngressController that never reconciled or a
+// router that never rolled out.
+func collectIngressCertDiagnostics(ctx context.Context, kubeClient kubernetes.Interface, dynamicClient dynamic.Interface) {
+	out := ginkgo.GinkgoWriter
+	out.Printf("[strict-tls][diag] collecting guest ingress certificate delivery diagnostics\n")
+
+	// 1) Serving-cert secrets in the ingress namespace. The managed secret is
+	// expected once delivery succeeds; the self-signed default is what the
+	// router falls back to while the managed secret is missing.
+	for _, name := range []string{managedIngressCertSecret, defaultIngressCertSecret} {
+		secret, err := kubeClient.CoreV1().Secrets(ingressNamespace).Get(ctx, name, metav1.GetOptions{})
+		switch {
+		case apierrors.IsNotFound(err):
+			out.Printf("[strict-tls][diag] secret %s/%s: NOT FOUND\n", ingressNamespace, name)
+		case err != nil:
+			out.Printf("[strict-tls][diag] secret %s/%s: error getting: %v\n", ingressNamespace, name, err)
+		default:
+			keys := make([]string, 0, len(secret.Data))
+			for k := range secret.Data {
+				keys = append(keys, k)
+			}
+			sort.Strings(keys)
+			out.Printf("[strict-tls][diag] secret %s/%s: PRESENT type=%s dataKeys=%v created=%s\n",
+				ingressNamespace, name, secret.Type, keys, secret.CreationTimestamp.Format(time.RFC3339))
+		}
+	}
+
+	// 2) IngressController/default: the configured default certificate and any
+	// not-ready status conditions.
+	ic, err := dynamicClient.Resource(gvr("operator.openshift.io", "v1", "ingresscontrollers")).
+		Namespace(ingressOperatorNamespace).Get(ctx, "default", metav1.GetOptions{})
+	if err != nil {
+		out.Printf("[strict-tls][diag] ingresscontroller %s/default: error getting: %v\n", ingressOperatorNamespace, err)
+	} else {
+		defaultCert, _, _ := unstructured.NestedString(ic.Object, "spec", "defaultCertificate", "name")
+		if defaultCert == "" {
+			out.Printf("[strict-tls][diag] ingresscontroller default: spec.defaultCertificate.name is UNSET (operator self-signed default in use)\n")
+		} else {
+			out.Printf("[strict-tls][diag] ingresscontroller default: spec.defaultCertificate.name=%q\n", defaultCert)
+		}
+		conditions, _, _ := unstructured.NestedSlice(ic.Object, "status", "conditions")
+		for _, c := range conditions {
+			cm, ok := c.(map[string]any)
+			if !ok {
+				continue
+			}
+			ctype, _, _ := unstructured.NestedString(cm, "type")
+			cstatus, _, _ := unstructured.NestedString(cm, "status")
+			// Only surface conditions that indicate a not-ready/degraded state.
+			switch ctype {
+			case "Available":
+				if cstatus == "True" {
+					continue
+				}
+			case "Degraded", "Progressing":
+				if cstatus == "False" {
+					continue
+				}
+			default:
+				continue
+			}
+			creason, _, _ := unstructured.NestedString(cm, "reason")
+			cmsg, _, _ := unstructured.NestedString(cm, "message")
+			out.Printf("[strict-tls][diag] ingresscontroller default condition %s=%s reason=%q message=%q\n",
+				ctype, cstatus, creason, cmsg)
+		}
+	}
+
+	// 3) Router pods: a missing managed secret keeps the rolled-out router
+	// replicaset in ContainerCreating with FailedMount, so report any container
+	// stuck waiting.
+	pods, err := kubeClient.CoreV1().Pods(ingressNamespace).List(ctx, metav1.ListOptions{
+		LabelSelector: "ingresscontroller.operator.openshift.io/deployment-ingresscontroller=default",
+	})
+	if err != nil {
+		out.Printf("[strict-tls][diag] router pods: error listing: %v\n", err)
+	} else {
+		out.Printf("[strict-tls][diag] router pods: %d found\n", len(pods.Items))
+		for i := range pods.Items {
+			pod := &pods.Items[i]
+			out.Printf("[strict-tls][diag]   pod %s phase=%s created=%s\n",
+				pod.Name, pod.Status.Phase, pod.CreationTimestamp.Format(time.RFC3339))
+			for _, cs := range pod.Status.ContainerStatuses {
+				if cs.State.Waiting != nil {
+					out.Printf("[strict-tls][diag]     container %s waiting: reason=%s message=%q\n",
+						cs.Name, cs.State.Waiting.Reason, cs.State.Waiting.Message)
+				}
+			}
+		}
+	}
+
+	// 4) Warning events in the ingress namespace (e.g. FailedMount of the
+	// managed secret).
+	events, err := kubeClient.CoreV1().Events(ingressNamespace).List(ctx, metav1.ListOptions{})
+	if err != nil {
+		out.Printf("[strict-tls][diag] events: error listing: %v\n", err)
+	} else {
+		const maxWarnings = 20
+		printed := 0
+		for i := range events.Items {
+			e := &events.Items[i]
+			if e.Type != corev1.EventTypeWarning {
+				continue
+			}
+			out.Printf("[strict-tls][diag]   event %s/%s reason=%s count=%d lastSeen=%s message=%q\n",
+				e.InvolvedObject.Kind, e.InvolvedObject.Name, e.Reason, e.Count,
+				e.LastTimestamp.Format(time.RFC3339), e.Message)
+			printed++
+			if printed >= maxWarnings {
+				out.Printf("[strict-tls][diag]   (truncated additional warning events)\n")
+				break
+			}
+		}
+		if printed == 0 {
+			out.Printf("[strict-tls][diag] events: no warning events in %s\n", ingressNamespace)
+		}
+	}
 }
 
 func gvr(group, version, resource string) schema.GroupVersionResource {
