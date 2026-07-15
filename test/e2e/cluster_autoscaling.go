@@ -36,7 +36,7 @@ var _ = Describe("Customer", func() {
 		// do nothing.  per test initialization usually ages better than shared.
 	})
 
-	It("should provision an HCP cluster with autoscaling configuration, update autoscaling via PATCH, and remain operational",
+	It("should update cluster autoscaling via PATCH and keep the cluster operational",
 		labels.RequireNothing,
 		labels.High,
 		labels.Positive,
@@ -182,19 +182,19 @@ var _ = Describe("Customer", func() {
 			Expect(updateResp.Properties.Autoscaling.PodPriorityThreshold).To(Equal(to.Ptr(updatedPodPriorityThreshold)), "update response PodPriorityThreshold should be %d", updatedPodPriorityThreshold)
 
 			By("verifying the updated autoscaling configuration via GET")
-			gotAfterUpdate, err := framework.GetHCPCluster20240610(
+			clusterAfterAutoscalingUpdate, err := framework.GetHCPCluster20240610(
 				ctx,
 				hcpClient,
 				*resourceGroup.Name,
 				customerClusterName,
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to get cluster %q after autoscaling update", customerClusterName)
-			Expect(gotAfterUpdate.Properties).NotTo(BeNil(), "cluster response Properties was nil after autoscaling update")
-			Expect(gotAfterUpdate.Properties.Autoscaling).NotTo(BeNil(), "cluster Properties.Autoscaling was nil after autoscaling update")
-			Expect(gotAfterUpdate.Properties.Autoscaling.MaxNodesTotal).To(Equal(to.Ptr(updatedMaxNodesTotal)), "GET response MaxNodesTotal should be %d after update", updatedMaxNodesTotal)
-			Expect(gotAfterUpdate.Properties.Autoscaling.MaxNodeProvisionTimeSeconds).To(Equal(to.Ptr(updatedMaxNodeProvisionTimeSeconds)), "GET response MaxNodeProvisionTimeSeconds should be %d after update", updatedMaxNodeProvisionTimeSeconds)
-			Expect(gotAfterUpdate.Properties.Autoscaling.MaxPodGracePeriodSeconds).To(Equal(to.Ptr(updatedMaxPodGracePeriodSeconds)), "GET response MaxPodGracePeriodSeconds should be %d after update", updatedMaxPodGracePeriodSeconds)
-			Expect(gotAfterUpdate.Properties.Autoscaling.PodPriorityThreshold).To(Equal(to.Ptr(updatedPodPriorityThreshold)), "GET response PodPriorityThreshold should be %d after update", updatedPodPriorityThreshold)
+			Expect(clusterAfterAutoscalingUpdate.Properties).NotTo(BeNil(), "cluster response Properties was nil after autoscaling update")
+			Expect(clusterAfterAutoscalingUpdate.Properties.Autoscaling).NotTo(BeNil(), "cluster Properties.Autoscaling was nil after autoscaling update")
+			Expect(clusterAfterAutoscalingUpdate.Properties.Autoscaling.MaxNodesTotal).To(Equal(to.Ptr(updatedMaxNodesTotal)), "GET response MaxNodesTotal should be %d after update", updatedMaxNodesTotal)
+			Expect(clusterAfterAutoscalingUpdate.Properties.Autoscaling.MaxNodeProvisionTimeSeconds).To(Equal(to.Ptr(updatedMaxNodeProvisionTimeSeconds)), "GET response MaxNodeProvisionTimeSeconds should be %d after update", updatedMaxNodeProvisionTimeSeconds)
+			Expect(clusterAfterAutoscalingUpdate.Properties.Autoscaling.MaxPodGracePeriodSeconds).To(Equal(to.Ptr(updatedMaxPodGracePeriodSeconds)), "GET response MaxPodGracePeriodSeconds should be %d after update", updatedMaxPodGracePeriodSeconds)
+			Expect(clusterAfterAutoscalingUpdate.Properties.Autoscaling.PodPriorityThreshold).To(Equal(to.Ptr(updatedPodPriorityThreshold)), "GET response PodPriorityThreshold should be %d after update", updatedPodPriorityThreshold)
 
 			By("verifying cluster workloads and pods remain operational after autoscaling update")
 			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig, verifiers.VerifySimpleWebApp())
