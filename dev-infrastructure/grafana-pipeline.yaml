@@ -18,30 +18,40 @@ resourceGroups:
     parameters: configurations/output-grafana.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     outputOnly: true
-  - name: grafana-reconcile
-    action: GrafanaManage
-    grafanaName:
-      configRef: monitoring.grafanaName
-    location:
-      configRef: global.region
-    majorVersion:
-      configRef: monitoring.grafanaMajorVersion
-    zoneRedundancy:
-      configRef: monitoring.grafanaZoneRedundantMode
-    crossTenantSecurityGroup:
-      configRef: monitoring.crossTenantSecurityGroup
-    identityFrom:
-      resourceGroup: singleton
-      step: output
-      name: globalMSIId
+  # TEMPORARILY DISABLED: the SDP EV2 generator emits an unconditional `SKU` shell
+  # env var for the GrafanaManage action, but this step provides no `sku`, so EV2
+  # rejects the empty env var at artifact registration:
+  #   "Value or Reference must be provided for environment variable 'SKU'".
+  # SKU is optional in the pipeline schema and in templatize; the divergence is in the
+  # downstream sdp-pipelines EV2 generator, which emits `--sku` unconditionally.
+  # Re-enable once that tooling emits `--sku` only when set.
+  # Tracked by ARO-28445 (caused by ARO-28040 / ARO-28041).
+  # - name: grafana-reconcile
+  #   action: GrafanaManage
+  #   grafanaName:
+  #     configRef: monitoring.grafanaName
+  #   location:
+  #     configRef: global.region
+  #   majorVersion:
+  #     configRef: monitoring.grafanaMajorVersion
+  #   zoneRedundancy:
+  #     configRef: monitoring.grafanaZoneRedundantMode
+  #   crossTenantSecurityGroup:
+  #     configRef: monitoring.crossTenantSecurityGroup
+  #   identityFrom:
+  #     resourceGroup: singleton
+  #     step: output
+  #     name: globalMSIId
   - name: grafana-roles
     action: ARM
     template: templates/grafana-roles.bicep
     parameters: configurations/grafana-roles.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     dependsOn:
+    # was: grafana-reconcile (temporarily disabled) -> depend on output instead so the
+    # DAG stays valid; grafana-roles runs against the existing Grafana instance.
     - resourceGroup: singleton
-      step: grafana-reconcile
+      step: output
   - name: grafana-monitoring-reader
     action: ARM
     template: templates/grafana-monitoring-reader.bicep
