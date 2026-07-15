@@ -3091,6 +3091,7 @@
       "required": [
         "grafanaName",
         "grafanaRoles",
+        "grafanaMajorVersion",
         "crossTenantSecurityGroup",
         "grafanaZoneRedundantMode",
         "svcWorkspaceName",
