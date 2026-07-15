@@ -1,7 +1,7 @@
 acm:
   mce:
     bundle:
-      digest: sha256:2856ee22448e8a4b656ddcebcba9382c0cd45fb2ff9a080c4f3007068b689b7f
+      digest: sha256:dcc5a3f421bc109c349a256c96dabf8d7e28d00c99fef1168ec9ab0e3d75404b
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-211
   operator:
@@ -171,7 +171,7 @@ clustersService:
   deployDebugJobs: false
   environment: arohcppers
   image:
-    digest: sha256:f68365b7b3c18de1fde60add4cebef47925f6be03a5ba02f07eb079c947e38bb
+    digest: sha256:dd13faa8268616ac65811cc2c679f26005eb5c2bf9c875c11414376e8d8ced5e
     registry: quay.io
     repository: app-sre/aro-hcp-clusters-service
   k8s:
@@ -447,7 +447,7 @@ hcpRecovery:
 hypershift:
   additionalInstallArg: --enable-cpo-overrides
   image:
-    digest: sha256:b46ff90784202faf4234952ee29bf4ca97facf8f7158a47bcfff5ec6b01caf8e
+    digest: sha256:bba890354f7fbb54a054dd1307bcce7d36354853cffc839828c3d491111c4ab9
     registry: quay.io
     repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
   limitClusterSizes: true
@@ -465,7 +465,7 @@ imageSync:
   ocMirror:
     enabled: true
     image:
-      digest: sha256:16382714df95fa88cdedbf1dfab8d7e8bb5b5ca6b8ff719acef35001aff3a1a0
+      digest: sha256:a451095e731f4edea937a0c3a1c339e864e97c74e45747cffaaa9c488a9614f0
       registry: arohcpsvcdev.azurecr.io
       repository: image-sync/oc-mirror
     jobNamePrefix: ""
@@ -671,7 +671,7 @@ mgmt:
           sha: 01038e7de14b78d702d2849c3aad72fd25903c4765af63cf16aa3398f5d5f2dd
     kubeStateMetrics:
       image:
-        digest: sha256:982806a35f02d943426b3dea60265d3f6cdde112128d7a4a9f75ab3b05dddfda
+        digest: sha256:57fe6a6f0760133637b2329b67f753d368e1d0c8a38ae1b8ee14bde15127afc7
         registry: mcr.microsoft.com/oss/v2
         repository: kubernetes/kube-state-metrics
     namespace: prometheus
@@ -1021,7 +1021,7 @@ svc:
           sha: 01038e7de14b78d702d2849c3aad72fd25903c4765af63cf16aa3398f5d5f2dd
     kubeStateMetrics:
       image:
-        digest: sha256:982806a35f02d943426b3dea60265d3f6cdde112128d7a4a9f75ab3b05dddfda
+        digest: sha256:57fe6a6f0760133637b2329b67f753d368e1d0c8a38ae1b8ee14bde15127afc7
         registry: mcr.microsoft.com/oss/v2
         repository: kubernetes/kube-state-metrics
     namespace: prometheus
