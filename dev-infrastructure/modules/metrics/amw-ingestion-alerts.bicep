@@ -4,6 +4,9 @@ param actionGroups array
 @description('Whether alerts are enabled')
 param enabled bool
 
+@description('ARO HCP region name')
+param region string
+
 @description('Workspace configurations to monitor')
 param workspaces array
 
@@ -41,6 +44,7 @@ resource approachingActiveTimeSeries 'Microsoft.Insights/metricAlerts@2018-03-01
         for g in actionGroups: {
           actionGroupId: g
           webHookProperties: {
+            'IcM.Title': '${region}: AMW Approaching Active TimeSeries Limit - ${ws.label}'
             'IcM.CorrelationId': 'AMWActiveTimeSeriesLimit/${ws.label}/${last(split(ws.id, '/'))}'
           }
         }
@@ -80,6 +84,7 @@ resource highRiskActiveTimeSeries 'Microsoft.Insights/metricAlerts@2018-03-01' =
         for g in actionGroups: {
           actionGroupId: g
           webHookProperties: {
+            'IcM.Title': '${region}: AMW High Risk Active TimeSeries Limit - ${ws.label}'
             'IcM.CorrelationId': 'AMWActiveTimeSeriesLimit/${ws.label}/${last(split(ws.id, '/'))}'
           }
         }
@@ -119,6 +124,7 @@ resource approachingEventIngestion 'Microsoft.Insights/metricAlerts@2018-03-01' 
         for g in actionGroups: {
           actionGroupId: g
           webHookProperties: {
+            'IcM.Title': '${region}: AMW Approaching Event Ingestion Limit - ${ws.label}'
             'IcM.CorrelationId': 'AMWEventIngestionLimit/${ws.label}/${last(split(ws.id, '/'))}'
           }
         }
@@ -158,6 +164,7 @@ resource highRiskEventIngestion 'Microsoft.Insights/metricAlerts@2018-03-01' = [
         for g in actionGroups: {
           actionGroupId: g
           webHookProperties: {
+            'IcM.Title': '${region}: AMW High Risk Event Ingestion Limit - ${ws.label}'
             'IcM.CorrelationId': 'AMWEventIngestionLimit/${ws.label}/${last(split(ws.id, '/'))}'
           }
         }
@@ -197,6 +204,7 @@ resource lowEventIngestion 'Microsoft.Insights/metricAlerts@2018-03-01' = [
         for g in actionGroups: {
           actionGroupId: g
           webHookProperties: {
+            'IcM.Title': '${region}: AMW Low Event Ingestion Utilization - ${ws.label}'
             'IcM.CorrelationId': 'AMWEventIngestionLimit/${ws.label}/${last(split(ws.id, '/'))}'
           }
         }
