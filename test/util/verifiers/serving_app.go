@@ -222,7 +222,7 @@ func classifyServedCertificate(ctx context.Context, host string) servedCertifica
 
 	certs := conn.(*tls.Conn).ConnectionState().PeerCertificates
 	if len(certs) == 0 {
-		return servedCertificate{desc: "no certificate served", served: true}
+		return servedCertificate{desc: "no certificate served"}
 	}
 	leaf := certs[0]
 	selfSigned := strings.Contains(leaf.Issuer.CommonName, "root-ca") ||
@@ -294,8 +294,13 @@ func waitForTrustedRouteReachability(ctx context.Context, client *http.Client, u
 		}
 
 		c := classifyServedCertificate(ctx, host)
-		ginkgo.GinkgoWriter.Printf("[strict-tls] route reachable with trusted %s certificate after %v: %s\n",
-			certKindLabel(c), elapsed, c.desc)
+		if c.served {
+			ginkgo.GinkgoWriter.Printf("[strict-tls] route reachable with trusted %s certificate after %v: %s\n",
+				certKindLabel(c), elapsed, c.desc)
+		} else {
+			ginkgo.GinkgoWriter.Printf("[strict-tls] route reachable with a trusted certificate after %v, but re-classifying the served certificate failed: %s\n",
+				elapsed, c.desc)
+		}
 		return true, nil
 	})
 
@@ -439,6 +444,12 @@ const (
 func collectIngressCertDiagnostics(ctx context.Context, kubeClient kubernetes.Interface, dynamicClient dynamic.Interface) {
 	out := ginkgo.GinkgoWriter
 	out.Printf("[strict-tls][diag] collecting guest ingress certificate delivery diagnostics\n")
+
+	// Bound the best-effort diagnostics so a slow/unresponsive apiserver cannot
+	// delay returning the original strict-TLS failure. All API calls below reuse
+	// this short-lived context.
+	ctx, cancel := context.WithTimeout(ctx, 45*time.Second)
+	defer cancel()
 
 	// 1) Serving-cert secrets in the ingress namespace. The managed secret is
 	// expected once delivery succeeds; the self-signed default is what the
