@@ -3572,7 +3572,7 @@ spec:
         - name: OPERAND_IMAGE_BACKPLANE_OPERATOR
           value: 'arohcpsvcdev.azurecr.io/acm-d-cache/backplane-rhel9-operator@sha256:1234567890'
         - name: OPERATOR_VERSION
-          value: 2.11.4-552
+          value: 2.11.4-555
         - name: OPERATOR_PACKAGE
           value: multicluster-engine
         image: 'arohcpsvcdev.azurecr.io/acm-d-cache/backplane-rhel9-operator@sha256:1234567890'
