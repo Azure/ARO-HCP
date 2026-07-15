@@ -178,8 +178,8 @@
 
         slider.addEventListener('input', applyThreshold);
 
-        if (initialThreshold > 0 && initialThreshold <= yExtent[1]) {
-            slider.value = String(initialThreshold);
+        if (initialThreshold > 0) {
+            slider.value = String(Math.min(initialThreshold, yExtent[1]));
             applyThreshold();
         }
     }
