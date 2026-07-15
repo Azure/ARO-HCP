@@ -63,7 +63,13 @@ az container delete \
 read -r -d '' CONTAINER_SCRIPT <<EOF || true
 set -euo pipefail
 
-MAX_WAIT=300
+# Per-stage readiness budget for retry() below (DNS gate, az login, vnet check),
+# not a whole-container limit. Sized to absorb the one-off ACI network cold-start
+# (resolver / RBAC readiness), which can run several minutes on the first stage
+# but is warm thereafter. Total container runtime is bounded independently by the
+# outer container-group TIMEOUT, which terminates the ACI regardless of how the
+# per-stage budgets add up.
+MAX_WAIT=480
 POLL_INTERVAL=5
 
 # retry <description> <command...>: run the command, polling at a fixed POLL_INTERVAL until it
