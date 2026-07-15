@@ -113,6 +113,24 @@ func (l *DBApplyDesireLister) GetForNodePool(
 		})
 }
 
+func (l *DBApplyDesireLister) GetForCredentialRequest(
+	ctx context.Context, subscriptionID, resourceGroupName, clusterName, credentialRequestName, name string,
+) (*kubeapplier.ApplyDesire, error) {
+	return findClusterDesireInAnyClient(ctx, l.Clients, l.Lister, name,
+		func(c database.KubeApplierDBClient) (database.ResourceCRUD[kubeapplier.ApplyDesire, *kubeapplier.ApplyDesire], error) {
+			return c.ApplyDesiresForCredentialRequest(subscriptionID, resourceGroupName, clusterName, credentialRequestName)
+		})
+}
+
+func (l *DBApplyDesireLister) GetForRevocation(
+	ctx context.Context, subscriptionID, resourceGroupName, clusterName, revocationName, name string,
+) (*kubeapplier.ApplyDesire, error) {
+	return findClusterDesireInAnyClient(ctx, l.Clients, l.Lister, name,
+		func(c database.KubeApplierDBClient) (database.ResourceCRUD[kubeapplier.ApplyDesire, *kubeapplier.ApplyDesire], error) {
+			return c.ApplyDesiresForRevocation(subscriptionID, resourceGroupName, clusterName, revocationName)
+		})
+}
+
 func (l *DBApplyDesireLister) ListForManagementCluster(
 	ctx context.Context, managementClusterResourceID *azcorearm.ResourceID,
 ) ([]*kubeapplier.ApplyDesire, error) {
@@ -238,6 +256,24 @@ func (l *DBReadDesireLister) GetForNodePool(
 	return findClusterDesireInAnyClient(ctx, l.Clients, l.Lister, name,
 		func(c database.KubeApplierDBClient) (database.ResourceCRUD[kubeapplier.ReadDesire, *kubeapplier.ReadDesire], error) {
 			return c.ReadDesiresForNodePool(subscriptionID, resourceGroupName, clusterName, nodePoolName)
+		})
+}
+
+func (l *DBReadDesireLister) GetForCredentialRequest(
+	ctx context.Context, subscriptionID, resourceGroupName, clusterName, credentialRequestName, name string,
+) (*kubeapplier.ReadDesire, error) {
+	return findClusterDesireInAnyClient(ctx, l.Clients, l.Lister, name,
+		func(c database.KubeApplierDBClient) (database.ResourceCRUD[kubeapplier.ReadDesire, *kubeapplier.ReadDesire], error) {
+			return c.ReadDesiresForCredentialRequest(subscriptionID, resourceGroupName, clusterName, credentialRequestName)
+		})
+}
+
+func (l *DBReadDesireLister) GetForRevocation(
+	ctx context.Context, subscriptionID, resourceGroupName, clusterName, revocationName, name string,
+) (*kubeapplier.ReadDesire, error) {
+	return findClusterDesireInAnyClient(ctx, l.Clients, l.Lister, name,
+		func(c database.KubeApplierDBClient) (database.ResourceCRUD[kubeapplier.ReadDesire, *kubeapplier.ReadDesire], error) {
+			return c.ReadDesiresForRevocation(subscriptionID, resourceGroupName, clusterName, revocationName)
 		})
 }
 
