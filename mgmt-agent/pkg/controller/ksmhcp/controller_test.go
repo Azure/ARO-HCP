@@ -74,6 +74,17 @@ func TestIsKubeAPIServerAvailable(t *testing.T) {
 	}
 }
 
+func TestBuildConfigMap(t *testing.T) {
+	cm := buildConfigMap("ocm-arohcppers-abc123-xyz", metav1.OwnerReference{
+		APIVersion: "hypershift.openshift.io/v1beta1",
+		Kind:       "HostedControlPlane",
+		Name:       "test-hcp",
+		UID:        "uid-123",
+	})
+
+	testutil.CompareWithFixture(t, cm)
+}
+
 func TestBuildDeployment(t *testing.T) {
 	dep := buildDeployment(
 		"ocm-arohcppers-abc123-xyz",

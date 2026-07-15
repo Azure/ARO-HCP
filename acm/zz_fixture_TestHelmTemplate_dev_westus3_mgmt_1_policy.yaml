@@ -63,21 +63,6 @@ subjects:
   kind: Policy
   name: default-ingress-config
 ---
-# Source: AcmPolicies/templates/ingress-controller-check.policy.yaml
-apiVersion: policy.open-cluster-management.io/v1
-kind: PlacementBinding
-metadata:
-  name: ingress-controller-check
-  namespace: 'open-cluster-management-policies'
-placementRef:
-  apiGroup: cluster.open-cluster-management.io
-  kind: Placement
-  name: all-hosted-clusters
-subjects:
-- apiGroup: policy.open-cluster-management.io
-  kind: Policy
-  name: ingress-controller-check
----
 # Source: AcmPolicies/templates/namespace-resourceid-mapping.placementbinding.yaml
 apiVersion: policy.open-cluster-management.io/v1
 kind: PlacementBinding
@@ -106,12 +91,6 @@ metadata:
 spec:
   disabled: false
   remediationAction: enforce
-  dependencies:
-  - apiVersion: policy.open-cluster-management.io/v1
-    compliance: Compliant
-    kind: Policy
-    name: ingress-controller-check
-    namespace: 'open-cluster-management-policies'
   policy-templates:
   - objectDefinition:
       apiVersion: policy.open-cluster-management.io/v1
@@ -140,7 +119,7 @@ spec:
                 tls.crt: {{hub fromSecret $ns $certName "tls.crt" hub}}
                 tls.key: {{hub fromSecret $ns $certName "tls.key" hub}}
           {{hub- end hub}}
-        pruneObjectBehavior: DeleteIfCreated
+        pruneObjectBehavior: None
         remediationAction: enforce
         severity: low
   - objectDefinition:
@@ -176,41 +155,6 @@ spec:
                     scope: {{hub if eq $eps "internal" hub}}Internal{{hub else hub}}External{{hub end hub}}
         pruneObjectBehavior: None
         remediationAction: enforce
-        severity: low
----
-# Source: AcmPolicies/templates/ingress-controller-check.policy.yaml
-apiVersion: policy.open-cluster-management.io/v1
-kind: Policy
-metadata:
-  annotations:
-    policy.open-cluster-management.io/categories: CM Configuration Management
-    policy.open-cluster-management.io/controls: CM-2 Baseline Configuration
-    policy.open-cluster-management.io/standards: NIST SP 800-53
-  name: ingress-controller-check
-  namespace: 'open-cluster-management-policies'
-spec:
-  disabled: false
-  remediationAction: inform
-  policy-templates:
-  - objectDefinition:
-      apiVersion: policy.open-cluster-management.io/v1
-      kind: ConfigurationPolicy
-      metadata:
-        name: ingress-controller-check
-      spec:
-        evaluationInterval:
-          compliant: "10m"
-          noncompliant: "45s"
-        object-templates:
-        - complianceType: musthave
-          objectDefinition:
-            apiVersion: operator.openshift.io/v1
-            kind: IngressController
-            metadata:
-              name: default
-              namespace: openshift-ingress-operator
-        pruneObjectBehavior: None
-        remediationAction: inform
         severity: low
 ---
 # Source: AcmPolicies/templates/namespace-resourceid-mapping.policy.yaml

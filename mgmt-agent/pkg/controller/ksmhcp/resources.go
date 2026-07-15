@@ -29,6 +29,49 @@ import (
 	"k8s.io/utils/ptr"
 )
 
+const configMapName = resourceName + "-crs-config"
+
+// Alerts to create based on the ingresscontroller_info metric:
+//
+//	absent(ingresscontroller_info{name="default"}) for 10m => default ingress missing
+//	ingresscontroller_info{name="default",endpoint_publishing_strategy_type!="LoadBalancerService"} for 10m => unexpected endpointPublishingStrategy
+//	ingresscontroller_info{name="default",dns_management_policy!="Managed"} for 10m => unexpected dnsManagementPolicy
+const customResourceStateConfig = `spec:
+  resources:
+  - groupVersionKind:
+      group: operator.openshift.io
+      kind: IngressController
+      version: v1
+    metricNamePrefix: ingresscontroller
+    labelsFromPath:
+      name: [metadata, name]
+      namespace: [metadata, namespace]
+    metrics:
+    - name: "info"
+      help: "IngressController configuration"
+      each:
+        type: Info
+        info:
+          labelsFromPath:
+            default_certificate_name: [spec, defaultCertificate, name]
+            endpoint_publishing_strategy_type: [spec, endpointPublishingStrategy, type]
+            dns_management_policy: [spec, endpointPublishingStrategy, loadBalancer, dnsManagementPolicy]
+            load_balancer_scope: [spec, endpointPublishingStrategy, loadBalancer, scope]
+`
+
+func buildConfigMap(namespace string, ownerRef metav1.OwnerReference) *coreac.ConfigMapApplyConfiguration {
+	return coreac.ConfigMap(configMapName, namespace).
+		WithLabels(map[string]string{labelApp: resourceName}).
+		WithOwnerReferences(metaac.OwnerReference().
+			WithAPIVersion(ownerRef.APIVersion).
+			WithKind(ownerRef.Kind).
+			WithName(ownerRef.Name).
+			WithUID(ownerRef.UID)).
+		WithData(map[string]string{
+			"config.yaml": customResourceStateConfig,
+		})
+}
+
 func buildDeployment(namespace, ksmImage, kubeconfigSecretName, kubeconfigKey string, ownerRef metav1.OwnerReference) *appsac.DeploymentApplyConfiguration {
 	return appsac.Deployment(resourceName, namespace).
 		WithLabels(map[string]string{labelApp: resourceName}).
@@ -49,8 +92,10 @@ func buildDeployment(namespace, ksmImage, kubeconfigSecretName, kubeconfigKey st
 						WithImage(ksmImage).
 						WithArgs(
 							"--resources=nodes",
+							"--namespaces=openshift-ingress-operator",
 							"--kubeconfig=/opt/k8s/.kube/config",
-							"--metric-allowlist=kube_node_status_condition,kube_node_info",
+							"--metric-allowlist=kube_node_status_condition,kube_node_info,ingresscontroller_info",
+							"--custom-resource-state-config-file=/etc/customresourcestate/config.yaml",
 						).
 						WithPorts(
 							coreac.ContainerPort().
@@ -82,10 +127,16 @@ func buildDeployment(namespace, ksmImage, kubeconfigSecretName, kubeconfigKey st
 							WithLimits(corev1.ResourceList{
 								corev1.ResourceMemory: resource.MustParse("64Mi"),
 							})).
-						WithVolumeMounts(coreac.VolumeMount().
-							WithName("kubeconfig").
-							WithMountPath("/opt/k8s/.kube").
-							WithReadOnly(true)).
+						WithVolumeMounts(
+							coreac.VolumeMount().
+								WithName("kubeconfig").
+								WithMountPath("/opt/k8s/.kube").
+								WithReadOnly(true),
+							coreac.VolumeMount().
+								WithName("crs-config").
+								WithMountPath("/etc/customresourcestate").
+								WithReadOnly(true),
+						).
 						WithSecurityContext(coreac.SecurityContext().
 							WithRunAsNonRoot(true).
 							WithAllowPrivilegeEscalation(false).
@@ -95,13 +146,19 @@ func buildDeployment(namespace, ksmImage, kubeconfigSecretName, kubeconfigKey st
 							WithCapabilities(coreac.Capabilities().
 								WithDrop(corev1.Capability("ALL"))))).
 					WithAutomountServiceAccountToken(false).
-					WithVolumes(coreac.Volume().
-						WithName("kubeconfig").
-						WithSecret(coreac.SecretVolumeSource().
-							WithSecretName(kubeconfigSecretName).
-							WithItems(coreac.KeyToPath().
-								WithKey(kubeconfigKey).
-								WithPath("config")))).
+					WithVolumes(
+						coreac.Volume().
+							WithName("kubeconfig").
+							WithSecret(coreac.SecretVolumeSource().
+								WithSecretName(kubeconfigSecretName).
+								WithItems(coreac.KeyToPath().
+									WithKey(kubeconfigKey).
+									WithPath("config"))),
+						coreac.Volume().
+							WithName("crs-config").
+							WithConfigMap(coreac.ConfigMapVolumeSource().
+								WithName(configMapName)),
+					).
 					WithSecurityContext(coreac.PodSecurityContext().
 						WithRunAsNonRoot(true).
 						WithRunAsUser(65534).
