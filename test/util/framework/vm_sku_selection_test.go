@@ -315,3 +315,176 @@ func TestSelectVMSize(t *testing.T) {
 		})
 	}
 }
+
+// productionWorkerSelectors are the selectors whose fallback NamePattern is a
+// correctness boundary: their deterministic fallback must never select a SKU
+// outside the ARO-HCP RP instance-type allowlist (cluster-service
+// cloud-resource-constraints-config), or node pool creation fails with
+// InvalidRequestContent.
+func productionWorkerSelectors() []VMSizeSelector {
+	return []VMSizeSelector{
+		DefaultWorkerVMSizeSelector(),
+		SmallWorkerVMSizeSelector(),
+		EphemeralOSDiskWorkerVMSizeSelector(),
+	}
+}
+
+// TestWorkerSelectorPatternsRejectNonAllowlistedSKUs guards against future
+// widening of the fallback regexes. Every SKU below is advertised by Azure but
+// NOT in the RP allowlist; the fallback NamePattern must reject all of them.
+func TestWorkerSelectorPatternsRejectNonAllowlistedSKUs(t *testing.T) {
+	disallowed := []string{
+		// Local-disk variants (ds/lds/ads) are not allowlisted.
+		"Standard_D8ds_v5", "Standard_D4ds_v5",
+		"Standard_D8lds_v6", "Standard_D4lds_v6", "Standard_D2lds_v6",
+		"Standard_D8ads_v5", "Standard_D4ads_v5",
+		// AMD "as" is allowlisted only for v4/v5, not v3 or v6.
+		"Standard_D8as_v3", "Standard_D8as_v6",
+		"Standard_D4as_v3", "Standard_D4as_v6",
+		// Arm64 "p" variants are not allowlisted for these selectors.
+		"Standard_D8ps_v6", "Standard_D8plds_v6",
+	}
+	for _, sel := range productionWorkerSelectors() {
+		if sel.NamePattern == nil {
+			t.Fatalf("selector %q has no NamePattern; it is required as the allowlist boundary", sel.Name)
+		}
+		for _, name := range disallowed {
+			if sel.NamePattern.MatchString(name) {
+				t.Errorf("selector %q NamePattern must not match non-allowlisted SKU %q", sel.Name, name)
+			}
+		}
+	}
+
+	// These are RP-allowlisted but exceed the 8-vCPU cap enforced by the worker
+	// selectors; their fallback patterns must reject them regardless.
+	tooBig := []string{
+		"Standard_D16s_v3", "Standard_D32s_v3", "Standard_D64s_v3",
+		"Standard_D16as_v4", "Standard_E16s_v3", "Standard_E16as_v4",
+	}
+	for _, sel := range productionWorkerSelectors() {
+		for _, name := range tooBig {
+			if sel.NamePattern.MatchString(name) {
+				t.Errorf("selector %q NamePattern must not match >8-vCPU SKU %q (worker selectors cap at 8 vCPUs)", sel.Name, name)
+			}
+		}
+	}
+}
+
+// TestWorkerSelectorPatternsAcceptAllowlistedSKUs ensures the patterns still
+// admit the RP-allowlisted SKUs each selector is expected to fall back to.
+func TestWorkerSelectorPatternsAcceptAllowlistedSKUs(t *testing.T) {
+	cases := map[string][]string{
+		"default-worker":          {"Standard_D8s_v3", "Standard_D8s_v4", "Standard_D8s_v5", "Standard_D8s_v6", "Standard_D8as_v4", "Standard_D8as_v5"},
+		"small-worker":            {"Standard_D4s_v3", "Standard_D4s_v4", "Standard_D4s_v5", "Standard_D4s_v6", "Standard_D4as_v4", "Standard_D4as_v5"},
+		"ephemeral-osdisk-worker": {"Standard_D8s_v3", "Standard_D8as_v4", "Standard_E8s_v3", "Standard_E8as_v4"},
+	}
+	byName := map[string]VMSizeSelector{}
+	for _, sel := range productionWorkerSelectors() {
+		byName[sel.Name] = sel
+	}
+	for name, skus := range cases {
+		sel, ok := byName[name]
+		if !ok {
+			t.Fatalf("no production selector named %q", name)
+		}
+		for _, sku := range skus {
+			if !sel.NamePattern.MatchString(sku) {
+				t.Errorf("selector %q NamePattern must match allowlisted SKU %q", name, sku)
+			}
+		}
+	}
+}
+
+// TestSelectVMSizeNeverPicksNonAllowlistedFallback reproduces the prod uksouth
+// failure: the preferred SKUs are unusable and only a non-allowlisted SKU
+// (Standard_D8lds_v6) is otherwise available. Selection must return
+// ErrNoUsableVMSize rather than the non-allowlisted SKU, which the RP rejects
+// with InvalidRequestContent.
+func TestSelectVMSizeNeverPicksNonAllowlistedFallback(t *testing.T) {
+	skus := []*armcompute.ResourceSKU{
+		makeSKU("Standard_D8lds_v6", testLocation, withCapability(capabilityVCPUs, "8")),
+	}
+	_, _, err := selectVMSize(skus, testLocation, DefaultWorkerVMSizeSelector())
+	if !errors.Is(err, ErrNoUsableVMSize) {
+		t.Fatalf("expected ErrNoUsableVMSize when only a non-allowlisted SKU is available, got err=%v", err)
+	}
+}
+
+// TestSelectVMSizeFallbackPrefersAllowlisted verifies that when both a
+// non-allowlisted and an allowlisted (but non-preferred) SKU are available, the
+// deterministic fallback selects the allowlisted one.
+func TestSelectVMSizeFallbackPrefersAllowlisted(t *testing.T) {
+	skus := []*armcompute.ResourceSKU{
+		makeSKU("Standard_D8lds_v6", testLocation, withCapability(capabilityVCPUs, "8")), // non-allowlisted, usable
+		makeSKU("Standard_D8s_v4", testLocation, withCapability(capabilityVCPUs, "8")),   // allowlisted, not in Preferred
+	}
+	got, _, err := selectVMSize(skus, testLocation, DefaultWorkerVMSizeSelector())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got != "Standard_D8s_v4" {
+		t.Fatalf("expected allowlisted fallback Standard_D8s_v4, got %q", got)
+	}
+}
+
+// TestEphemeralSelectorCapsAtEightVCPUs verifies the ephemeral OS disk worker
+// selector never selects a SKU larger than 8 vCPUs, even when a larger
+// ephemeral-capable, allowlisted SKU is the only one available.
+func TestEphemeralSelectorCapsAtEightVCPUs(t *testing.T) {
+	skus := []*armcompute.ResourceSKU{
+		makeSKU("Standard_D16s_v3", testLocation,
+			withCapability(capabilityVCPUs, "16"),
+			withCapability(capabilityEphemeralOSDiskSupported, "True")),
+	}
+	_, _, err := selectVMSize(skus, testLocation, EphemeralOSDiskWorkerVMSizeSelector())
+	if !errors.Is(err, ErrNoUsableVMSize) {
+		t.Fatalf("expected ErrNoUsableVMSize (>8-vCPU SKU must be rejected), got err=%v", err)
+	}
+}
+
+// TestEphemeralSelectorSelectsDifferentFamily verifies that when the Intel
+// D-series preferred SKUs are unusable, the selector falls through to an
+// ephemeral-capable, allowlisted SKU from a different family rather than a
+// larger size of the same family.
+func TestEphemeralSelectorSelectsDifferentFamily(t *testing.T) {
+	skus := []*armcompute.ResourceSKU{
+		// Same-family larger sizes are available but must not be chosen.
+		makeSKU("Standard_D16s_v3", testLocation,
+			withCapability(capabilityVCPUs, "16"),
+			withCapability(capabilityEphemeralOSDiskSupported, "True")),
+		// A different-family 8-vCPU ephemeral SKU that should be selected.
+		makeSKU("Standard_E8as_v4", testLocation,
+			withCapability(capabilityVCPUs, "8"),
+			withCapability(capabilityEphemeralOSDiskSupported, "True")),
+	}
+	got, _, err := selectVMSize(skus, testLocation, EphemeralOSDiskWorkerVMSizeSelector())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got != "Standard_E8as_v4" {
+		t.Fatalf("expected different-family SKU Standard_E8as_v4, got %q", got)
+	}
+}
+
+// TestWorkerSelectorPreferredEntriesAreAllowlisted closes the Preferred-list
+// gap in the allowlist-boundary guard. selectVMSize tries Preferred SKUs before
+// discovery and intentionally does NOT constrain them by NamePattern, so a
+// non-allowlisted SKU added to Preferred would bypass the pattern boundary
+// entirely. Asserting that every Preferred entry also matches its own
+// NamePattern keeps the two lists in sync and prevents a non-allowlisted SKU
+// from being reintroduced via Preferred.
+func TestWorkerSelectorPreferredEntriesAreAllowlisted(t *testing.T) {
+	for _, sel := range productionWorkerSelectors() {
+		if sel.NamePattern == nil {
+			t.Fatalf("selector %q has no NamePattern; it is required as the allowlist boundary", sel.Name)
+		}
+		if len(sel.Preferred) == 0 {
+			t.Errorf("selector %q has no Preferred entries; expected an allowlisted default", sel.Name)
+		}
+		for _, name := range sel.Preferred {
+			if !sel.NamePattern.MatchString(name) {
+				t.Errorf("selector %q Preferred entry %q does not match its NamePattern %q; Preferred must stay within the RP allowlist", sel.Name, name, sel.NamePattern.String())
+			}
+		}
+	}
+}

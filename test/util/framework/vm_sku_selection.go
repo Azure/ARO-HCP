@@ -407,15 +407,25 @@ func skuCapabilityInt(sku *armcompute.ResourceSKU, name string) (int, bool) {
 // default node pool. Standard_D8s_v3 is preferred to preserve historical
 // behaviour; the fallback keeps the D-series general-purpose, >=8 vCPU shape.
 //
+// Candidates are restricted to SKU families that are enabled in the ARO-HCP RP
+// instance-type allowlist (see cluster-service
+// cloud-resource-constraints-config: only the plain "s" and AMD "as" D-series
+// variants are enabled; the "ds"/"lds"/"ads" local-disk variants are NOT). A
+// SKU that Azure advertises but the RP rejects would otherwise be selected as a
+// fallback and fail node pool creation with InvalidRequestContent.
+//
 // The fallback pattern is capped at D8 (8 vCPUs) to avoid selecting large SKUs
 // (D32, D64, D96) that are slow to provision and easily exhaust subscription
-// quota in test environments. The [^p] exclusion prevents matching Arm64 "p"
-// variants (e.g. Standard_D8ps_v6).
+// quota in test environments. The alternation matches only the RP-allowlisted
+// versions of each family: plain "s" is enabled for v3-v6, but AMD "as" is
+// enabled only for v4/v5 (as_v3 and as_v6 are NOT allowlisted). The pattern
+// also excludes the non-allowlisted local-disk ("ds", "lds", "ads") and Arm64
+// "p" (e.g. Standard_D8ps_v6) variants.
 func DefaultWorkerVMSizeSelector() VMSizeSelector {
 	return VMSizeSelector{
 		Name:        "default-worker",
-		Preferred:   []string{DefaultWorkerVMSize, "Standard_D8ds_v5", "Standard_D8as_v5", "Standard_D8lds_v6"},
-		NamePattern: regexp.MustCompile(`^Standard_D[4-8][^p]*s_v[3456]$`),
+		Preferred:   []string{DefaultWorkerVMSize, "Standard_D8s_v5", "Standard_D8as_v5", "Standard_D8s_v6"},
+		NamePattern: regexp.MustCompile(`^Standard_D[4-8](s_v[3456]|as_v[45])$`),
 		MinVCPUs:    8,
 	}
 }
@@ -423,13 +433,16 @@ func DefaultWorkerVMSizeSelector() VMSizeSelector {
 // SmallWorkerVMSizeSelector selects a smaller general-purpose worker SKU used by
 // tests that want faster provisioning.
 //
-// The fallback pattern is capped at D4 to keep provisioning fast and quota use
-// low. The [^p] exclusion prevents matching Arm64 variants.
+// Candidates are restricted to RP-allowlisted D-series families (plain "s" for
+// v3-v6 and AMD "as" for v4/v5 only); see DefaultWorkerVMSizeSelector for the
+// rationale. The fallback pattern is capped at D4 to keep provisioning fast and
+// quota use low. MinVCPUs=4 additionally excludes the 2-vCPU (D2) sizes the
+// [2-4] range would otherwise admit.
 func SmallWorkerVMSizeSelector() VMSizeSelector {
 	return VMSizeSelector{
 		Name:        "small-worker",
-		Preferred:   []string{SmallWorkerVMSize, "Standard_D4ds_v5", "Standard_D4as_v5", "Standard_D4lds_v6"},
-		NamePattern: regexp.MustCompile(`^Standard_D[2-4][^p]*s_v[3456]$`),
+		Preferred:   []string{SmallWorkerVMSize, "Standard_D4s_v5", "Standard_D4as_v5", "Standard_D4s_v6"},
+		NamePattern: regexp.MustCompile(`^Standard_D[2-4](s_v[3456]|as_v[45])$`),
 		MinVCPUs:    4,
 	}
 }
@@ -449,18 +462,28 @@ func JumpboxVMSizeSelector() VMSizeSelector {
 }
 
 // EphemeralOSDiskWorkerVMSizeSelector selects a general-purpose worker SKU that
-// supports ephemeral OS disks (requires local/cache storage). Standard_D8s_v3
-// is preferred because its cache disk supports ephemeral placement; the dd
-// variants (Ddsv5) and lds variants (Dldsv6, NVMe placement) are fallbacks.
+// supports ephemeral OS disks (requires local/cache storage) and is enabled in
+// the ARO-HCP RP instance-type allowlist.
 //
-// SKUs without local storage (e.g. Dsv5) are automatically excluded via the
-// RequireEphemeralOSDisk constraint. The [^p] exclusion prevents matching Arm64
-// variants.
+// Ephemeral OS disk support depends on the SKU generation, not just the family:
+// among the RP-allowlisted x86 families, only a subset of 8-vCPU SKUs advertise
+// EphemeralOSDiskSupported=True. The fallbacks are drawn from distinct families
+// (Intel/AMD, D/E series) rather than larger sizes of the same family, because
+// SKU restrictions typically apply to an entire family in a region, so a
+// larger size of an already-restricted family is no more likely to be usable.
+// All candidates are capped at 8 vCPUs to keep provisioning fast and quota use
+// low. SKUs without local storage are additionally excluded via the
+// RequireEphemeralOSDisk constraint.
 func EphemeralOSDiskWorkerVMSizeSelector() VMSizeSelector {
 	return VMSizeSelector{
-		Name:                   "ephemeral-osdisk-worker",
-		Preferred:              []string{DefaultWorkerVMSize, "Standard_D8ds_v5", "Standard_D8ads_v5", "Standard_D8lds_v6"},
-		NamePattern:            regexp.MustCompile(`^Standard_D[4-8][^p]*s_v[3456]$`),
+		Name: "ephemeral-osdisk-worker",
+		Preferred: []string{
+			DefaultWorkerVMSize, // Standard_D8s_v3 - Intel D-series v3
+			"Standard_D8as_v4",  // AMD D-series v4
+			"Standard_E8s_v3",   // Intel E-series v3
+			"Standard_E8as_v4",  // AMD E-series v4
+		},
+		NamePattern:            regexp.MustCompile(`^Standard_[DE]8(s_v3|as_v4)$`),
 		MinVCPUs:               8,
 		RequireEphemeralOSDisk: true,
 	}
