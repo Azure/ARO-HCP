@@ -30,6 +30,7 @@ import (
 	"k8s.io/klog/v2"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/app"
+	"github.com/Azure/ARO-HCP/backend/pkg/azure/cachedreader"
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
 	internalazure "github.com/Azure/ARO-HCP/internal/azure"
 	"github.com/Azure/ARO-HCP/internal/database"
@@ -340,6 +341,8 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 		return nil, utils.TrackError(fmt.Errorf("failed to create backend identity azure cached readers: %w", err))
 	}
 
+	fpaAzureCachedReaders := cachedreader.NewFirstPartyApplicationAzureCachedReaders(fpaClientBuilder)
+
 	var fpaMIDataplaneClientBuilder azureclient.FPAMIDataplaneClientBuilder
 	var checkAccessV2ClientBuilder azureclient.CheckAccessV2ClientBuilder
 	if !f.InsecureIgnoreUserAzureManagedIdentitiesThatNeedManagedIdentitiesDataplaneAvailableAndUseMock {
@@ -439,6 +442,7 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 		FPAClientBuilder:                   fpaClientBuilder,
 		BackendIdentityAzureClients:        backendIdentityAzureClients,
 		BackendIdentityAzureCachedReaders:  backendIdentityAzureCachedReaders,
+		FPAAzureCachedReaders:              fpaAzureCachedReaders,
 		ExitOnPanic:                        f.ExitOnPanic,
 		FPAMIDataplaneClientBuilder:        fpaMIDataplaneClientBuilder,
 		SMIClientBuilder:                   smiClientBuilder,
