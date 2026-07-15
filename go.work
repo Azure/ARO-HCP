@@ -16,12 +16,14 @@ use (
 	./test
 	./test-integration
 	./tooling/aro-hcp-exporter
+	./tooling/azutils
 	./tooling/cleanup-sweeper
 	./tooling/grafanactl
 	./tooling/hcpctl
 	./tooling/helmtest
 	./tooling/image-updater
 	./tooling/kustoctl
+	./tooling/metricscache
 	./tooling/olm-bundle-repkg
 	./tooling/pipeline-documentation
 	./tooling/prometheus-rules
