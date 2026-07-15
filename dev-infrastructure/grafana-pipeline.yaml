@@ -25,6 +25,9 @@ resourceGroups:
   # SKU is optional in the pipeline schema and in templatize; the divergence is in the
   # downstream sdp-pipelines EV2 generator, which emits `--sku` unconditionally.
   # Re-enable once that tooling emits `--sku` only when set.
+  # PREREQUISITE: with this disabled, no step here provisions/updates the Grafana
+  # workspace (the remaining ARM templates only read it as `existing`), so this is safe
+  # only where the workspace already exists (INT/STG/PROD), not on a greenfield sub.
   # Tracked by ARO-28445 (caused by ARO-28040 / ARO-28041).
   # - name: grafana-reconcile
   #   action: GrafanaManage
