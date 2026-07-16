@@ -68531,6 +68531,11 @@ spec:
       maxBackoff: 256s
     metadataConfig:
       send: false
+    # Both drop rules are needed: the namespace rule catches HCP metrics where
+    # namespace is still ocm-* (cluster-scoped like nodes, plus non-KSM HCP metrics),
+    # while the hostedcontrolplane rule catches per-HCP KSM metrics for namespaced
+    # resources where namespace has been promoted to the actual resource namespace
+    # (e.g. openshift-ingress-operator) and no longer matches ocm-*.
     writeRelabelConfigs:
       - sourceLabels: [namespace]
         regex: '^ocm-arohcpdev.*'
@@ -68552,6 +68557,10 @@ spec:
       maxBackoff: 256s
     metadataConfig:
       send: false
+    # Combined into a single rule because sequential keep rules are AND
+    # (a metric must match all rules to survive), but we need OR — keep if
+    # either namespace or hostedcontrolplane matches ocm-*.
+    # See https://github.com/prometheus/prometheus/issues/3996
     writeRelabelConfigs:
       - sourceLabels: [namespace, hostedcontrolplane]
         separator: ;
