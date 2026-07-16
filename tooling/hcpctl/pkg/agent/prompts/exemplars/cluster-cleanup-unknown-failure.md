@@ -121,15 +121,13 @@ return utils.TrackError(err)
 The backend deletion controllers posted normal status during the cleanup time for this cluster:
 
 ```kql
-cluster('https://hcp-int-uk.uksouth.kusto.windows.net').database('ServiceLogs').table('backendLogs')
+cluster('https://hcp-int-uk.uksouth.kusto.windows.net').database('ServiceLogs').table('cosmosResourceSnapshots')
 | where timestamp between (datetime(2026-05-19T22:18:20Z) .. datetime(2026-05-19T23:03:20Z))
-| where container_name == 'aro-hcp-backend'
-| where log.controller_name == 'datadump'
-| where log.resource_group == 'rg-np-version-upgrade-rs22qw-sssr8k'
-| where log.resource_name == 'np-version-upgrade-cluster-rs22qw'
-| where log.content.resourceType =~ 'microsoft.redhatopenshift/hcpopenshiftclusters/hcpopenshiftcontrollers'
-| where log.content.resourceID has 'np-version-upgrade-cluster-rs22qw'
-| summarize content=take_any(log.content), observedTime=take_any(timestamp) by etag=tostring(log.content._etag)
+| where subscriptionID == '64f0619f-ebc2-4156-9d91-c4c781de7e54'
+| where resourceGroup =~ 'rg-np-version-upgrade-rs22qw-sssr8k'
+| where resourceID startswith '/subscriptions/64f0619f-ebc2-4156-9d91-c4c781de7e54/resourcegroups/rg-np-version-upgrade-rs22qw-sssr8k/providers/microsoft.redhatopenshift/hcpopenshiftclusters/np-version-upgrade-cluster-rs22qw'
+| where resourceType =~ 'microsoft.redhatopenshift/hcpopenshiftclusters/hcpopenshiftcontrollers'
+| summarize content=take_any(content), observedTime=take_any(timestamp) by etag=tostring(content._etag)
 | sort by tolong(content._ts) asc
 | extend content = parse_json(content)
 | extend controller_name = extract("/hcpOpenShiftControllers/([^\\/]+)", 1, tostring(content.resourceID))
@@ -248,14 +246,13 @@ never finished deleting, so our root-cause investigation stops here.
 The `HostedCluster` condition timeline after the test's cleanup start-time shows nothing out of the ordinary:
 
 ```kql
-cluster('https://hcp-int-uk.uksouth.kusto.windows.net').database('ServiceLogs').table('backendLogs')
+cluster('https://hcp-int-uk.uksouth.kusto.windows.net').database('ServiceLogs').table('cosmosResourceSnapshots')
 | where timestamp between (datetime(2026-05-19T22:18:20Z) .. datetime(2026-05-19T23:03:20Z))
-| where container_name == 'aro-hcp-backend'
-| where log.controller_name == 'datadump'
-| where log.resource_group == 'rg-np-version-upgrade-rs22qw-sssr8k'
-| where log.resource_name == 'np-version-upgrade-cluster-rs22qw'
-| where log.content.resourceType =~ 'microsoft.redhatopenshift/hcpopenshiftclusters/readdesires'
-| summarize content=take_any(log.content), observedTime=take_any(timestamp) by etag=tostring(log.content._etag)
+| where subscriptionID == '64f0619f-ebc2-4156-9d91-c4c781de7e54'
+| where resourceGroup =~ 'rg-np-version-upgrade-rs22qw-sssr8k'
+| where resourceID startswith '/subscriptions/64f0619f-ebc2-4156-9d91-c4c781de7e54/resourcegroups/rg-np-version-upgrade-rs22qw-sssr8k/providers/microsoft.redhatopenshift/hcpopenshiftclusters/np-version-upgrade-cluster-rs22qw'
+| where resourceType =~ 'microsoft.redhatopenshift/hcpopenshiftclusters/readdesires'
+| summarize content=take_any(content), observedTime=take_any(timestamp) by etag=tostring(content._etag)
 | sort by tolong(content._ts) asc
 | extend content = parse_json(content)
 | extend manifest = content.properties.status.kubeContent
