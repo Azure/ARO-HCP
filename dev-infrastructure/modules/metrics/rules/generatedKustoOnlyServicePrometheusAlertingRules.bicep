@@ -39,7 +39,7 @@ resource svcKubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
           summary: 'Pod is crash looping.'
           title: 'Pod is crash looping. namespace:{{ $labels.namespace }} pod:{{ $labels.pod }} container:{{ $labels.container }}'
         }
-        expression: 'max_over_time(kube_pod_container_status_waiting_reason{job="kube-state-metrics",reason="CrashLoopBackOff"}[5m]) >= 1'
+        expression: 'max_over_time(kube_pod_container_status_waiting_reason{job="kube-state-metrics",namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|billing|clusters-service|credential-refresher|fleet|hcp-recovery|kube-applier|maestro|mgmt-agent|monitoring|msi-credential-refresher|prometheus|secret-sync-controller|sessiongate",reason="CrashLoopBackOff"}[5m]) >= 1'
         for: 'PT15M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -66,7 +66,7 @@ resource svcKubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
           summary: 'Pod has been in a non-ready state for more than 15 minutes.'
           title: 'Pod has been in a non-ready state for more than 15 minutes. namespace:{{ $labels.namespace }} pod:{{ $labels.pod }}'
         }
-        expression: 'sum by (namespace, pod, cluster) (max by (namespace, pod, cluster) (kube_pod_status_phase{job="kube-state-metrics",phase=~"Pending|Unknown|Failed"}) * on (namespace, pod, cluster) group_left (owner_kind) topk by (namespace, pod, cluster) (1, max by (namespace, pod, owner_kind, cluster) (kube_pod_owner{owner_kind!="Job"}))) > 0'
+        expression: 'sum by (namespace, pod, cluster) (max by (namespace, pod, cluster) (kube_pod_status_phase{job="kube-state-metrics",namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|billing|clusters-service|credential-refresher|fleet|hcp-recovery|kube-applier|maestro|mgmt-agent|monitoring|msi-credential-refresher|prometheus|secret-sync-controller|sessiongate",phase=~"Pending|Unknown|Failed"}) * on (namespace, pod, cluster) group_left (owner_kind) topk by (namespace, pod, cluster) (1, max by (namespace, pod, owner_kind, cluster) (kube_pod_owner{namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|billing|clusters-service|credential-refresher|fleet|hcp-recovery|kube-applier|maestro|mgmt-agent|monitoring|msi-credential-refresher|prometheus|secret-sync-controller|sessiongate",owner_kind!="Job"}))) > 0'
         for: 'PT15M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -93,7 +93,7 @@ resource svcKubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
           summary: 'Deployment generation mismatch due to possible roll-back'
           title: 'Deployment generation mismatch due to possible roll-back namespace:{{ $labels.namespace }} deployment:{{ $labels.deployment }}'
         }
-        expression: 'kube_deployment_status_observed_generation{job="kube-state-metrics"} != kube_deployment_metadata_generation{job="kube-state-metrics"}'
+        expression: 'kube_deployment_status_observed_generation{job="kube-state-metrics",namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|billing|clusters-service|credential-refresher|fleet|hcp-recovery|kube-applier|maestro|mgmt-agent|monitoring|msi-credential-refresher|prometheus|secret-sync-controller|sessiongate"} != kube_deployment_metadata_generation{job="kube-state-metrics",namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|billing|clusters-service|credential-refresher|fleet|hcp-recovery|kube-applier|maestro|mgmt-agent|monitoring|msi-credential-refresher|prometheus|secret-sync-controller|sessiongate"}'
         for: 'PT15M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -120,7 +120,7 @@ resource svcKubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
           summary: 'Deployment has not matched the expected number of replicas.'
           title: 'Deployment has not matched the expected number of replicas. namespace:{{ $labels.namespace }} deployment:{{ $labels.deployment }}'
         }
-        expression: '(kube_deployment_spec_replicas{job="kube-state-metrics"} > kube_deployment_status_replicas_available{job="kube-state-metrics"}) and (changes(kube_deployment_status_replicas_updated{job="kube-state-metrics"}[10m]) == 0)'
+        expression: '(kube_deployment_spec_replicas{job="kube-state-metrics",namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|billing|clusters-service|credential-refresher|fleet|hcp-recovery|kube-applier|maestro|mgmt-agent|monitoring|msi-credential-refresher|prometheus|secret-sync-controller|sessiongate"} > kube_deployment_status_replicas_available{job="kube-state-metrics",namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|billing|clusters-service|credential-refresher|fleet|hcp-recovery|kube-applier|maestro|mgmt-agent|monitoring|msi-credential-refresher|prometheus|secret-sync-controller|sessiongate"}) and (changes(kube_deployment_status_replicas_updated{job="kube-state-metrics",namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|billing|clusters-service|credential-refresher|fleet|hcp-recovery|kube-applier|maestro|mgmt-agent|monitoring|msi-credential-refresher|prometheus|secret-sync-controller|sessiongate"}[10m]) == 0)'
         for: 'PT30M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -147,7 +147,7 @@ resource svcKubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
           summary: 'Deployment rollout is not progressing.'
           title: 'Deployment rollout is not progressing. namespace:{{ $labels.namespace }} deployment:{{ $labels.deployment }}'
         }
-        expression: 'kube_deployment_status_condition{condition="Progressing",job="kube-state-metrics",status="false"} != 0'
+        expression: 'kube_deployment_status_condition{condition="Progressing",job="kube-state-metrics",namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|billing|clusters-service|credential-refresher|fleet|hcp-recovery|kube-applier|maestro|mgmt-agent|monitoring|msi-credential-refresher|prometheus|secret-sync-controller|sessiongate",status="false"} != 0'
         for: 'PT30M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -174,7 +174,7 @@ resource svcKubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
           summary: 'StatefulSet has not matched the expected number of replicas.'
           title: 'StatefulSet has not matched the expected number of replicas. namespace:{{ $labels.namespace }} statefulset:{{ $labels.statefulset }}'
         }
-        expression: '(kube_statefulset_status_replicas_ready{job="kube-state-metrics"} != kube_statefulset_status_replicas{job="kube-state-metrics"}) and (changes(kube_statefulset_status_replicas_updated{job="kube-state-metrics"}[10m]) == 0)'
+        expression: '(kube_statefulset_status_replicas_ready{job="kube-state-metrics",namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|billing|clusters-service|credential-refresher|fleet|hcp-recovery|kube-applier|maestro|mgmt-agent|monitoring|msi-credential-refresher|prometheus|secret-sync-controller|sessiongate"} != kube_statefulset_status_replicas{job="kube-state-metrics",namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|billing|clusters-service|credential-refresher|fleet|hcp-recovery|kube-applier|maestro|mgmt-agent|monitoring|msi-credential-refresher|prometheus|secret-sync-controller|sessiongate"}) and (changes(kube_statefulset_status_replicas_updated{job="kube-state-metrics",namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|billing|clusters-service|credential-refresher|fleet|hcp-recovery|kube-applier|maestro|mgmt-agent|monitoring|msi-credential-refresher|prometheus|secret-sync-controller|sessiongate"}[10m]) == 0)'
         for: 'PT15M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -201,7 +201,7 @@ resource svcKubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
           summary: 'StatefulSet generation mismatch due to possible roll-back'
           title: 'StatefulSet generation mismatch due to possible roll-back namespace:{{ $labels.namespace }} statefulset:{{ $labels.statefulset }}'
         }
-        expression: 'kube_statefulset_status_observed_generation{job="kube-state-metrics"} != kube_statefulset_metadata_generation{job="kube-state-metrics"}'
+        expression: 'kube_statefulset_status_observed_generation{job="kube-state-metrics",namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|billing|clusters-service|credential-refresher|fleet|hcp-recovery|kube-applier|maestro|mgmt-agent|monitoring|msi-credential-refresher|prometheus|secret-sync-controller|sessiongate"} != kube_statefulset_metadata_generation{job="kube-state-metrics",namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|billing|clusters-service|credential-refresher|fleet|hcp-recovery|kube-applier|maestro|mgmt-agent|monitoring|msi-credential-refresher|prometheus|secret-sync-controller|sessiongate"}'
         for: 'PT15M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -228,7 +228,7 @@ resource svcKubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
           summary: 'StatefulSet update has not been rolled out.'
           title: 'StatefulSet update has not been rolled out. namespace:{{ $labels.namespace }} statefulset:{{ $labels.statefulset }}'
         }
-        expression: '(max by (namespace, statefulset, job, cluster) (kube_statefulset_status_current_revision{job="kube-state-metrics"} unless kube_statefulset_status_update_revision{job="kube-state-metrics"}) * (kube_statefulset_replicas{job="kube-state-metrics"} != kube_statefulset_status_replicas_updated{job="kube-state-metrics"})) and (changes(kube_statefulset_status_replicas_updated{job="kube-state-metrics"}[5m]) == 0)'
+        expression: '(max by (namespace, statefulset, job, cluster) (kube_statefulset_status_current_revision{job="kube-state-metrics",namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|billing|clusters-service|credential-refresher|fleet|hcp-recovery|kube-applier|maestro|mgmt-agent|monitoring|msi-credential-refresher|prometheus|secret-sync-controller|sessiongate"} unless kube_statefulset_status_update_revision{job="kube-state-metrics",namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|billing|clusters-service|credential-refresher|fleet|hcp-recovery|kube-applier|maestro|mgmt-agent|monitoring|msi-credential-refresher|prometheus|secret-sync-controller|sessiongate"}) * (kube_statefulset_replicas{job="kube-state-metrics",namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|billing|clusters-service|credential-refresher|fleet|hcp-recovery|kube-applier|maestro|mgmt-agent|monitoring|msi-credential-refresher|prometheus|secret-sync-controller|sessiongate"} != kube_statefulset_status_replicas_updated{job="kube-state-metrics",namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|billing|clusters-service|credential-refresher|fleet|hcp-recovery|kube-applier|maestro|mgmt-agent|monitoring|msi-credential-refresher|prometheus|secret-sync-controller|sessiongate"})) and (changes(kube_statefulset_status_replicas_updated{job="kube-state-metrics",namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|billing|clusters-service|credential-refresher|fleet|hcp-recovery|kube-applier|maestro|mgmt-agent|monitoring|msi-credential-refresher|prometheus|secret-sync-controller|sessiongate"}[5m]) == 0)'
         for: 'PT15M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -255,7 +255,7 @@ resource svcKubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
           summary: 'DaemonSet rollout is stuck.'
           title: 'DaemonSet rollout is stuck. namespace:{{ $labels.namespace }} daemonset:{{ $labels.daemonset }}'
         }
-        expression: '((kube_daemonset_status_current_number_scheduled{job="kube-state-metrics"} != kube_daemonset_status_desired_number_scheduled{job="kube-state-metrics"}) or (kube_daemonset_status_number_misscheduled{job="kube-state-metrics"} != 0) or (kube_daemonset_status_updated_number_scheduled{job="kube-state-metrics"} != kube_daemonset_status_desired_number_scheduled{job="kube-state-metrics"}) or (kube_daemonset_status_number_available{job="kube-state-metrics"} != kube_daemonset_status_desired_number_scheduled{job="kube-state-metrics"})) and (changes(kube_daemonset_status_updated_number_scheduled{job="kube-state-metrics"}[5m]) == 0)'
+        expression: '((kube_daemonset_status_current_number_scheduled{job="kube-state-metrics",namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|billing|clusters-service|credential-refresher|fleet|hcp-recovery|kube-applier|maestro|mgmt-agent|monitoring|msi-credential-refresher|prometheus|secret-sync-controller|sessiongate"} != kube_daemonset_status_desired_number_scheduled{job="kube-state-metrics",namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|billing|clusters-service|credential-refresher|fleet|hcp-recovery|kube-applier|maestro|mgmt-agent|monitoring|msi-credential-refresher|prometheus|secret-sync-controller|sessiongate"}) or (kube_daemonset_status_number_misscheduled{job="kube-state-metrics",namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|billing|clusters-service|credential-refresher|fleet|hcp-recovery|kube-applier|maestro|mgmt-agent|monitoring|msi-credential-refresher|prometheus|secret-sync-controller|sessiongate"} != 0) or (kube_daemonset_status_updated_number_scheduled{job="kube-state-metrics",namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|billing|clusters-service|credential-refresher|fleet|hcp-recovery|kube-applier|maestro|mgmt-agent|monitoring|msi-credential-refresher|prometheus|secret-sync-controller|sessiongate"} != kube_daemonset_status_desired_number_scheduled{job="kube-state-metrics",namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|billing|clusters-service|credential-refresher|fleet|hcp-recovery|kube-applier|maestro|mgmt-agent|monitoring|msi-credential-refresher|prometheus|secret-sync-controller|sessiongate"}) or (kube_daemonset_status_number_available{job="kube-state-metrics",namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|billing|clusters-service|credential-refresher|fleet|hcp-recovery|kube-applier|maestro|mgmt-agent|monitoring|msi-credential-refresher|prometheus|secret-sync-controller|sessiongate"} != kube_daemonset_status_desired_number_scheduled{job="kube-state-metrics",namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|billing|clusters-service|credential-refresher|fleet|hcp-recovery|kube-applier|maestro|mgmt-agent|monitoring|msi-credential-refresher|prometheus|secret-sync-controller|sessiongate"})) and (changes(kube_daemonset_status_updated_number_scheduled{job="kube-state-metrics",namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|billing|clusters-service|credential-refresher|fleet|hcp-recovery|kube-applier|maestro|mgmt-agent|monitoring|msi-credential-refresher|prometheus|secret-sync-controller|sessiongate"}[5m]) == 0)'
         for: 'PT15M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -282,7 +282,7 @@ resource svcKubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
           summary: 'Pod container waiting longer than 1 hour'
           title: 'Pod container waiting longer than 1 hour pod:{{ $labels.pod }} namespace:{{ $labels.namespace }} container:{{ $labels.container }}'
         }
-        expression: 'sum by (namespace, pod, container, cluster) (kube_pod_container_status_waiting_reason{job="kube-state-metrics"}) > 0'
+        expression: 'sum by (namespace, pod, container, cluster) (kube_pod_container_status_waiting_reason{job="kube-state-metrics",namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|billing|clusters-service|credential-refresher|fleet|hcp-recovery|kube-applier|maestro|mgmt-agent|monitoring|msi-credential-refresher|prometheus|secret-sync-controller|sessiongate"}) > 0'
         for: 'PT1H'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -309,7 +309,7 @@ resource svcKubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
           summary: 'DaemonSet pods are not scheduled.'
           title: 'DaemonSet pods are not scheduled. namespace:{{ $labels.namespace }} daemonset:{{ $labels.daemonset }}'
         }
-        expression: 'kube_daemonset_status_desired_number_scheduled{job="kube-state-metrics"} - kube_daemonset_status_current_number_scheduled{job="kube-state-metrics"} > 0'
+        expression: 'kube_daemonset_status_desired_number_scheduled{job="kube-state-metrics",namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|billing|clusters-service|credential-refresher|fleet|hcp-recovery|kube-applier|maestro|mgmt-agent|monitoring|msi-credential-refresher|prometheus|secret-sync-controller|sessiongate"} - kube_daemonset_status_current_number_scheduled{job="kube-state-metrics",namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|billing|clusters-service|credential-refresher|fleet|hcp-recovery|kube-applier|maestro|mgmt-agent|monitoring|msi-credential-refresher|prometheus|secret-sync-controller|sessiongate"} > 0'
         for: 'PT10M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -336,7 +336,7 @@ resource svcKubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
           summary: 'DaemonSet pods are misscheduled.'
           title: 'DaemonSet pods are misscheduled. namespace:{{ $labels.namespace }} daemonset:{{ $labels.daemonset }}'
         }
-        expression: 'kube_daemonset_status_number_misscheduled{job="kube-state-metrics"} > 0'
+        expression: 'kube_daemonset_status_number_misscheduled{job="kube-state-metrics",namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|billing|clusters-service|credential-refresher|fleet|hcp-recovery|kube-applier|maestro|mgmt-agent|monitoring|msi-credential-refresher|prometheus|secret-sync-controller|sessiongate"} > 0'
         for: 'PT15M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -363,7 +363,7 @@ resource svcKubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
           summary: 'Job did not complete in time'
           title: 'Job did not complete in time namespace:{{ $labels.namespace }} job_name:{{ $labels.job_name }}'
         }
-        expression: 'time() - max by (namespace, job_name, cluster) (kube_job_status_start_time{job="kube-state-metrics"} and kube_job_status_active{job="kube-state-metrics"} > 0) > 43200'
+        expression: 'time() - max by (namespace, job_name, cluster) (kube_job_status_start_time{job="kube-state-metrics",namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|billing|clusters-service|credential-refresher|fleet|hcp-recovery|kube-applier|maestro|mgmt-agent|monitoring|msi-credential-refresher|prometheus|secret-sync-controller|sessiongate"} and kube_job_status_active{job="kube-state-metrics",namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|billing|clusters-service|credential-refresher|fleet|hcp-recovery|kube-applier|maestro|mgmt-agent|monitoring|msi-credential-refresher|prometheus|secret-sync-controller|sessiongate"} > 0) > 43200'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
@@ -389,7 +389,7 @@ resource svcKubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
           summary: 'Job failed to complete.'
           title: 'Job failed to complete. namespace:{{ $labels.namespace }} job_name:{{ $labels.job_name }}'
         }
-        expression: 'kube_job_failed{job="kube-state-metrics"} > 0'
+        expression: 'kube_job_failed{job="kube-state-metrics",namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|billing|clusters-service|credential-refresher|fleet|hcp-recovery|kube-applier|maestro|mgmt-agent|monitoring|msi-credential-refresher|prometheus|secret-sync-controller|sessiongate"} > 0'
         for: 'PT15M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -416,7 +416,7 @@ resource svcKubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
           summary: 'HPA has not matched desired number of replicas.'
           title: 'HPA has not matched desired number of replicas. namespace:{{ $labels.namespace }} horizontalpodautoscaler:{{ $labels.horizontalpodautoscaler }}'
         }
-        expression: '(kube_horizontalpodautoscaler_status_desired_replicas{job="kube-state-metrics"} != kube_horizontalpodautoscaler_status_current_replicas{job="kube-state-metrics"}) and (kube_horizontalpodautoscaler_status_current_replicas{job="kube-state-metrics"} > kube_horizontalpodautoscaler_spec_min_replicas{job="kube-state-metrics"}) and (kube_horizontalpodautoscaler_status_current_replicas{job="kube-state-metrics"} < kube_horizontalpodautoscaler_spec_max_replicas{job="kube-state-metrics"}) and changes(kube_horizontalpodautoscaler_status_current_replicas{job="kube-state-metrics"}[15m]) == 0'
+        expression: '(kube_horizontalpodautoscaler_status_desired_replicas{job="kube-state-metrics",namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|billing|clusters-service|credential-refresher|fleet|hcp-recovery|kube-applier|maestro|mgmt-agent|monitoring|msi-credential-refresher|prometheus|secret-sync-controller|sessiongate"} != kube_horizontalpodautoscaler_status_current_replicas{job="kube-state-metrics",namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|billing|clusters-service|credential-refresher|fleet|hcp-recovery|kube-applier|maestro|mgmt-agent|monitoring|msi-credential-refresher|prometheus|secret-sync-controller|sessiongate"}) and (kube_horizontalpodautoscaler_status_current_replicas{job="kube-state-metrics",namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|billing|clusters-service|credential-refresher|fleet|hcp-recovery|kube-applier|maestro|mgmt-agent|monitoring|msi-credential-refresher|prometheus|secret-sync-controller|sessiongate"} > kube_horizontalpodautoscaler_spec_min_replicas{job="kube-state-metrics",namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|billing|clusters-service|credential-refresher|fleet|hcp-recovery|kube-applier|maestro|mgmt-agent|monitoring|msi-credential-refresher|prometheus|secret-sync-controller|sessiongate"}) and (kube_horizontalpodautoscaler_status_current_replicas{job="kube-state-metrics",namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|billing|clusters-service|credential-refresher|fleet|hcp-recovery|kube-applier|maestro|mgmt-agent|monitoring|msi-credential-refresher|prometheus|secret-sync-controller|sessiongate"} < kube_horizontalpodautoscaler_spec_max_replicas{job="kube-state-metrics",namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|billing|clusters-service|credential-refresher|fleet|hcp-recovery|kube-applier|maestro|mgmt-agent|monitoring|msi-credential-refresher|prometheus|secret-sync-controller|sessiongate"}) and changes(kube_horizontalpodautoscaler_status_current_replicas{job="kube-state-metrics",namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|billing|clusters-service|credential-refresher|fleet|hcp-recovery|kube-applier|maestro|mgmt-agent|monitoring|msi-credential-refresher|prometheus|secret-sync-controller|sessiongate"}[15m]) == 0'
         for: 'PT15M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -443,7 +443,7 @@ resource svcKubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
           summary: 'HPA is running at max replicas'
           title: 'HPA is running at max replicas namespace:{{ $labels.namespace }} horizontalpodautoscaler:{{ $labels.horizontalpodautoscaler }}'
         }
-        expression: 'kube_horizontalpodautoscaler_status_current_replicas{job="kube-state-metrics"} == kube_horizontalpodautoscaler_spec_max_replicas{job="kube-state-metrics"}'
+        expression: 'kube_horizontalpodautoscaler_status_current_replicas{job="kube-state-metrics",namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|billing|clusters-service|credential-refresher|fleet|hcp-recovery|kube-applier|maestro|mgmt-agent|monitoring|msi-credential-refresher|prometheus|secret-sync-controller|sessiongate"} == kube_horizontalpodautoscaler_spec_max_replicas{job="kube-state-metrics",namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|billing|clusters-service|credential-refresher|fleet|hcp-recovery|kube-applier|maestro|mgmt-agent|monitoring|msi-credential-refresher|prometheus|secret-sync-controller|sessiongate"}'
         for: 'PT15M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -483,7 +483,7 @@ resource svcKubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroups
           summary: 'Cluster has overcommitted CPU resource requests.'
           title: 'Cluster has overcommitted CPU resource requests. cluster:{{ $labels.cluster }}'
         }
-        expression: 'sum by (cluster) (namespace_cpu:kube_pod_container_resource_requests:sum) - (sum by (cluster) (kube_node_status_allocatable{job="kube-state-metrics",resource="cpu"}) - max by (cluster) (kube_node_status_allocatable{job="kube-state-metrics",resource="cpu"})) > 0 and (sum by (cluster) (kube_node_status_allocatable{job="kube-state-metrics",resource="cpu"}) - max by (cluster) (kube_node_status_allocatable{job="kube-state-metrics",resource="cpu"})) > 0'
+        expression: 'sum by (cluster) (namespace_cpu:kube_pod_container_resource_requests:sum{namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|billing|clusters-service|credential-refresher|fleet|hcp-recovery|kube-applier|maestro|mgmt-agent|monitoring|msi-credential-refresher|prometheus|secret-sync-controller|sessiongate"}) - (sum by (cluster) (kube_node_status_allocatable{job="kube-state-metrics",namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|billing|clusters-service|credential-refresher|fleet|hcp-recovery|kube-applier|maestro|mgmt-agent|monitoring|msi-credential-refresher|prometheus|secret-sync-controller|sessiongate",resource="cpu"}) - max by (cluster) (kube_node_status_allocatable{job="kube-state-metrics",namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|billing|clusters-service|credential-refresher|fleet|hcp-recovery|kube-applier|maestro|mgmt-agent|monitoring|msi-credential-refresher|prometheus|secret-sync-controller|sessiongate",resource="cpu"})) > 0 and (sum by (cluster) (kube_node_status_allocatable{job="kube-state-metrics",namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|billing|clusters-service|credential-refresher|fleet|hcp-recovery|kube-applier|maestro|mgmt-agent|monitoring|msi-credential-refresher|prometheus|secret-sync-controller|sessiongate",resource="cpu"}) - max by (cluster) (kube_node_status_allocatable{job="kube-state-metrics",namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|billing|clusters-service|credential-refresher|fleet|hcp-recovery|kube-applier|maestro|mgmt-agent|monitoring|msi-credential-refresher|prometheus|secret-sync-controller|sessiongate",resource="cpu"})) > 0'
         for: 'PT10M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -510,7 +510,7 @@ resource svcKubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroups
           summary: 'Cluster has overcommitted memory resource requests.'
           title: 'Cluster has overcommitted memory resource requests. cluster:{{ $labels.cluster }}'
         }
-        expression: 'sum by (cluster) (namespace_memory:kube_pod_container_resource_requests:sum) - (sum by (cluster) (kube_node_status_allocatable{job="kube-state-metrics",resource="memory"}) - max by (cluster) (kube_node_status_allocatable{job="kube-state-metrics",resource="memory"})) > 0 and (sum by (cluster) (kube_node_status_allocatable{job="kube-state-metrics",resource="memory"}) - max by (cluster) (kube_node_status_allocatable{job="kube-state-metrics",resource="memory"})) > 0'
+        expression: 'sum by (cluster) (namespace_memory:kube_pod_container_resource_requests:sum{namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|billing|clusters-service|credential-refresher|fleet|hcp-recovery|kube-applier|maestro|mgmt-agent|monitoring|msi-credential-refresher|prometheus|secret-sync-controller|sessiongate"}) - (sum by (cluster) (kube_node_status_allocatable{job="kube-state-metrics",namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|billing|clusters-service|credential-refresher|fleet|hcp-recovery|kube-applier|maestro|mgmt-agent|monitoring|msi-credential-refresher|prometheus|secret-sync-controller|sessiongate",resource="memory"}) - max by (cluster) (kube_node_status_allocatable{job="kube-state-metrics",namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|billing|clusters-service|credential-refresher|fleet|hcp-recovery|kube-applier|maestro|mgmt-agent|monitoring|msi-credential-refresher|prometheus|secret-sync-controller|sessiongate",resource="memory"})) > 0 and (sum by (cluster) (kube_node_status_allocatable{job="kube-state-metrics",namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|billing|clusters-service|credential-refresher|fleet|hcp-recovery|kube-applier|maestro|mgmt-agent|monitoring|msi-credential-refresher|prometheus|secret-sync-controller|sessiongate",resource="memory"}) - max by (cluster) (kube_node_status_allocatable{job="kube-state-metrics",namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|billing|clusters-service|credential-refresher|fleet|hcp-recovery|kube-applier|maestro|mgmt-agent|monitoring|msi-credential-refresher|prometheus|secret-sync-controller|sessiongate",resource="memory"})) > 0'
         for: 'PT10M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -537,7 +537,7 @@ resource svcKubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroups
           summary: 'Cluster has overcommitted CPU resource requests.'
           title: 'Cluster has overcommitted CPU resource requests. cluster:{{ $labels.cluster }}'
         }
-        expression: 'sum by (cluster) (min without (resource) (kube_resourcequota{job="kube-state-metrics",resource=~"(cpu|requests.cpu)",type="hard"})) / sum by (cluster) (kube_node_status_allocatable{job="kube-state-metrics",resource="cpu"}) > 1.5'
+        expression: 'sum by (cluster) (min without (resource) (kube_resourcequota{job="kube-state-metrics",namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|billing|clusters-service|credential-refresher|fleet|hcp-recovery|kube-applier|maestro|mgmt-agent|monitoring|msi-credential-refresher|prometheus|secret-sync-controller|sessiongate",resource=~"(cpu|requests.cpu)",type="hard"})) / sum by (cluster) (kube_node_status_allocatable{job="kube-state-metrics",namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|billing|clusters-service|credential-refresher|fleet|hcp-recovery|kube-applier|maestro|mgmt-agent|monitoring|msi-credential-refresher|prometheus|secret-sync-controller|sessiongate",resource="cpu"}) > 1.5'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -564,7 +564,7 @@ resource svcKubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroups
           summary: 'Cluster has overcommitted memory resource requests.'
           title: 'Cluster has overcommitted memory resource requests. cluster:{{ $labels.cluster }}'
         }
-        expression: 'sum by (cluster) (min without (resource) (kube_resourcequota{job="kube-state-metrics",resource=~"(memory|requests.memory)",type="hard"})) / sum by (cluster) (kube_node_status_allocatable{job="kube-state-metrics",resource="memory"}) > 1.5'
+        expression: 'sum by (cluster) (min without (resource) (kube_resourcequota{job="kube-state-metrics",namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|billing|clusters-service|credential-refresher|fleet|hcp-recovery|kube-applier|maestro|mgmt-agent|monitoring|msi-credential-refresher|prometheus|secret-sync-controller|sessiongate",resource=~"(memory|requests.memory)",type="hard"})) / sum by (cluster) (kube_node_status_allocatable{job="kube-state-metrics",namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|billing|clusters-service|credential-refresher|fleet|hcp-recovery|kube-applier|maestro|mgmt-agent|monitoring|msi-credential-refresher|prometheus|secret-sync-controller|sessiongate",resource="memory"}) > 1.5'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -591,7 +591,7 @@ resource svcKubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroups
           summary: 'Namespace quota is going to be full.'
           title: 'Namespace quota is going to be full. namespace:{{ $labels.namespace }} resource:{{ $labels.resource }}'
         }
-        expression: 'kube_resourcequota{job="kube-state-metrics",type="used"} / ignoring (instance, job, type) (kube_resourcequota{job="kube-state-metrics",type="hard"} > 0) > 0.9 < 1'
+        expression: 'kube_resourcequota{job="kube-state-metrics",namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|billing|clusters-service|credential-refresher|fleet|hcp-recovery|kube-applier|maestro|mgmt-agent|monitoring|msi-credential-refresher|prometheus|secret-sync-controller|sessiongate",type="used"} / ignoring (instance, job, type) (kube_resourcequota{job="kube-state-metrics",namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|billing|clusters-service|credential-refresher|fleet|hcp-recovery|kube-applier|maestro|mgmt-agent|monitoring|msi-credential-refresher|prometheus|secret-sync-controller|sessiongate",type="hard"} > 0) > 0.9 < 1'
         for: 'PT15M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
@@ -618,7 +618,7 @@ resource svcKubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroups
           summary: 'Namespace quota is fully used.'
           title: 'Namespace quota is fully used. namespace:{{ $labels.namespace }} resource:{{ $labels.resource }}'
         }
-        expression: 'kube_resourcequota{job="kube-state-metrics",type="used"} / ignoring (instance, job, type) (kube_resourcequota{job="kube-state-metrics",type="hard"} > 0) == 1'
+        expression: 'kube_resourcequota{job="kube-state-metrics",namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|billing|clusters-service|credential-refresher|fleet|hcp-recovery|kube-applier|maestro|mgmt-agent|monitoring|msi-credential-refresher|prometheus|secret-sync-controller|sessiongate",type="used"} / ignoring (instance, job, type) (kube_resourcequota{job="kube-state-metrics",namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|billing|clusters-service|credential-refresher|fleet|hcp-recovery|kube-applier|maestro|mgmt-agent|monitoring|msi-credential-refresher|prometheus|secret-sync-controller|sessiongate",type="hard"} > 0) == 1'
         for: 'PT15M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
@@ -645,7 +645,7 @@ resource svcKubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroups
           summary: 'Namespace quota has exceeded the limits.'
           title: 'Namespace quota has exceeded the limits. namespace:{{ $labels.namespace }} resource:{{ $labels.resource }}'
         }
-        expression: 'kube_resourcequota{job="kube-state-metrics",type="used"} / ignoring (instance, job, type) (kube_resourcequota{job="kube-state-metrics",type="hard"} > 0) > 1'
+        expression: 'kube_resourcequota{job="kube-state-metrics",namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|billing|clusters-service|credential-refresher|fleet|hcp-recovery|kube-applier|maestro|mgmt-agent|monitoring|msi-credential-refresher|prometheus|secret-sync-controller|sessiongate",type="used"} / ignoring (instance, job, type) (kube_resourcequota{job="kube-state-metrics",namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|billing|clusters-service|credential-refresher|fleet|hcp-recovery|kube-applier|maestro|mgmt-agent|monitoring|msi-credential-refresher|prometheus|secret-sync-controller|sessiongate",type="hard"} > 0) > 1'
         for: 'PT15M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -672,7 +672,7 @@ resource svcKubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroups
           summary: 'Processes experience elevated CPU throttling.'
           title: 'Processes experience elevated CPU throttling. namespace:{{ $labels.namespace }} container:{{ $labels.container }} pod:{{ $labels.pod }}'
         }
-        expression: 'sum by (cluster, container, pod, namespace) (increase(container_cpu_cfs_throttled_periods_total{container!=""}[5m])) / sum by (cluster, container, pod, namespace) (increase(container_cpu_cfs_periods_total[5m])) > (25 / 100)'
+        expression: 'sum by (cluster, container, pod, namespace) (increase(container_cpu_cfs_throttled_periods_total{container!="",namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|billing|clusters-service|credential-refresher|fleet|hcp-recovery|kube-applier|maestro|mgmt-agent|monitoring|msi-credential-refresher|prometheus|secret-sync-controller|sessiongate"}[5m])) / sum by (cluster, container, pod, namespace) (increase(container_cpu_cfs_periods_total{namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|billing|clusters-service|credential-refresher|fleet|hcp-recovery|kube-applier|maestro|mgmt-agent|monitoring|msi-credential-refresher|prometheus|secret-sync-controller|sessiongate"}[5m])) > (25 / 100)'
         for: 'PT15M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
@@ -712,7 +712,7 @@ resource svcKubernetesStorage 'Microsoft.AlertsManagement/prometheusRuleGroups@2
           summary: 'PersistentVolume is filling up.'
           title: 'PersistentVolume is filling up. persistentvolumeclaim:{{ $labels.persistentvolumeclaim }} namespace:{{ $labels.namespace }} cluster:{{ $labels.cluster }}'
         }
-        expression: '(kubelet_volume_stats_available_bytes{job="kubelet",metrics_path="/metrics"} / kubelet_volume_stats_capacity_bytes{job="kubelet",metrics_path="/metrics"}) < 0.03 and kubelet_volume_stats_used_bytes{job="kubelet",metrics_path="/metrics"} > 0 unless on (cluster, namespace, persistentvolumeclaim) kube_persistentvolumeclaim_access_mode{access_mode="ReadOnlyMany"} == 1 unless on (cluster, namespace, persistentvolumeclaim) kube_persistentvolumeclaim_labels{label_excluded_from_alerts="true"} == 1'
+        expression: '(kubelet_volume_stats_available_bytes{job="kubelet",metrics_path="/metrics",namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|billing|clusters-service|credential-refresher|fleet|hcp-recovery|kube-applier|maestro|mgmt-agent|monitoring|msi-credential-refresher|prometheus|secret-sync-controller|sessiongate"} / kubelet_volume_stats_capacity_bytes{job="kubelet",metrics_path="/metrics",namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|billing|clusters-service|credential-refresher|fleet|hcp-recovery|kube-applier|maestro|mgmt-agent|monitoring|msi-credential-refresher|prometheus|secret-sync-controller|sessiongate"}) < 0.03 and kubelet_volume_stats_used_bytes{job="kubelet",metrics_path="/metrics",namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|billing|clusters-service|credential-refresher|fleet|hcp-recovery|kube-applier|maestro|mgmt-agent|monitoring|msi-credential-refresher|prometheus|secret-sync-controller|sessiongate"} > 0 unless on (cluster, namespace, persistentvolumeclaim) kube_persistentvolumeclaim_access_mode{access_mode="ReadOnlyMany",namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|billing|clusters-service|credential-refresher|fleet|hcp-recovery|kube-applier|maestro|mgmt-agent|monitoring|msi-credential-refresher|prometheus|secret-sync-controller|sessiongate"} == 1 unless on (cluster, namespace, persistentvolumeclaim) kube_persistentvolumeclaim_labels{label_excluded_from_alerts="true",namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|billing|clusters-service|credential-refresher|fleet|hcp-recovery|kube-applier|maestro|mgmt-agent|monitoring|msi-credential-refresher|prometheus|secret-sync-controller|sessiongate"} == 1'
         for: 'PT1M'
         severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
       }
@@ -739,7 +739,7 @@ resource svcKubernetesStorage 'Microsoft.AlertsManagement/prometheusRuleGroups@2
           summary: 'PersistentVolume is filling up.'
           title: 'PersistentVolume is filling up. persistentvolumeclaim:{{ $labels.persistentvolumeclaim }} namespace:{{ $labels.namespace }} cluster:{{ $labels.cluster }}'
         }
-        expression: '(kubelet_volume_stats_available_bytes{job="kubelet",metrics_path="/metrics"} / kubelet_volume_stats_capacity_bytes{job="kubelet",metrics_path="/metrics"}) < 0.15 and kubelet_volume_stats_used_bytes{job="kubelet",metrics_path="/metrics"} > 0 and predict_linear(kubelet_volume_stats_available_bytes{job="kubelet",metrics_path="/metrics"}[6h], 4 * 24 * 3600) < 0 unless on (cluster, namespace, persistentvolumeclaim) kube_persistentvolumeclaim_access_mode{access_mode="ReadOnlyMany"} == 1 unless on (cluster, namespace, persistentvolumeclaim) kube_persistentvolumeclaim_labels{label_excluded_from_alerts="true"} == 1'
+        expression: '(kubelet_volume_stats_available_bytes{job="kubelet",metrics_path="/metrics",namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|billing|clusters-service|credential-refresher|fleet|hcp-recovery|kube-applier|maestro|mgmt-agent|monitoring|msi-credential-refresher|prometheus|secret-sync-controller|sessiongate"} / kubelet_volume_stats_capacity_bytes{job="kubelet",metrics_path="/metrics",namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|billing|clusters-service|credential-refresher|fleet|hcp-recovery|kube-applier|maestro|mgmt-agent|monitoring|msi-credential-refresher|prometheus|secret-sync-controller|sessiongate"}) < 0.15 and kubelet_volume_stats_used_bytes{job="kubelet",metrics_path="/metrics",namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|billing|clusters-service|credential-refresher|fleet|hcp-recovery|kube-applier|maestro|mgmt-agent|monitoring|msi-credential-refresher|prometheus|secret-sync-controller|sessiongate"} > 0 and predict_linear(kubelet_volume_stats_available_bytes{job="kubelet",metrics_path="/metrics",namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|billing|clusters-service|credential-refresher|fleet|hcp-recovery|kube-applier|maestro|mgmt-agent|monitoring|msi-credential-refresher|prometheus|secret-sync-controller|sessiongate"}[6h], 4 * 24 * 3600) < 0 unless on (cluster, namespace, persistentvolumeclaim) kube_persistentvolumeclaim_access_mode{access_mode="ReadOnlyMany",namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|billing|clusters-service|credential-refresher|fleet|hcp-recovery|kube-applier|maestro|mgmt-agent|monitoring|msi-credential-refresher|prometheus|secret-sync-controller|sessiongate"} == 1 unless on (cluster, namespace, persistentvolumeclaim) kube_persistentvolumeclaim_labels{label_excluded_from_alerts="true",namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|billing|clusters-service|credential-refresher|fleet|hcp-recovery|kube-applier|maestro|mgmt-agent|monitoring|msi-credential-refresher|prometheus|secret-sync-controller|sessiongate"} == 1'
         for: 'PT1H'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -766,7 +766,7 @@ resource svcKubernetesStorage 'Microsoft.AlertsManagement/prometheusRuleGroups@2
           summary: 'PersistentVolumeInodes are filling up.'
           title: 'PersistentVolumeInodes are filling up. persistentvolumeclaim:{{ $labels.persistentvolumeclaim }} namespace:{{ $labels.namespace }} cluster:{{ $labels.cluster }}'
         }
-        expression: '(kubelet_volume_stats_inodes_free{job="kubelet",metrics_path="/metrics"} / kubelet_volume_stats_inodes{job="kubelet",metrics_path="/metrics"}) < 0.03 and kubelet_volume_stats_inodes_used{job="kubelet",metrics_path="/metrics"} > 0 unless on (cluster, namespace, persistentvolumeclaim) kube_persistentvolumeclaim_access_mode{access_mode="ReadOnlyMany"} == 1 unless on (cluster, namespace, persistentvolumeclaim) kube_persistentvolumeclaim_labels{label_excluded_from_alerts="true"} == 1'
+        expression: '(kubelet_volume_stats_inodes_free{job="kubelet",metrics_path="/metrics",namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|billing|clusters-service|credential-refresher|fleet|hcp-recovery|kube-applier|maestro|mgmt-agent|monitoring|msi-credential-refresher|prometheus|secret-sync-controller|sessiongate"} / kubelet_volume_stats_inodes{job="kubelet",metrics_path="/metrics",namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|billing|clusters-service|credential-refresher|fleet|hcp-recovery|kube-applier|maestro|mgmt-agent|monitoring|msi-credential-refresher|prometheus|secret-sync-controller|sessiongate"}) < 0.03 and kubelet_volume_stats_inodes_used{job="kubelet",metrics_path="/metrics",namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|billing|clusters-service|credential-refresher|fleet|hcp-recovery|kube-applier|maestro|mgmt-agent|monitoring|msi-credential-refresher|prometheus|secret-sync-controller|sessiongate"} > 0 unless on (cluster, namespace, persistentvolumeclaim) kube_persistentvolumeclaim_access_mode{access_mode="ReadOnlyMany",namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|billing|clusters-service|credential-refresher|fleet|hcp-recovery|kube-applier|maestro|mgmt-agent|monitoring|msi-credential-refresher|prometheus|secret-sync-controller|sessiongate"} == 1 unless on (cluster, namespace, persistentvolumeclaim) kube_persistentvolumeclaim_labels{label_excluded_from_alerts="true",namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|billing|clusters-service|credential-refresher|fleet|hcp-recovery|kube-applier|maestro|mgmt-agent|monitoring|msi-credential-refresher|prometheus|secret-sync-controller|sessiongate"} == 1'
         for: 'PT1M'
         severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
       }
@@ -793,7 +793,7 @@ resource svcKubernetesStorage 'Microsoft.AlertsManagement/prometheusRuleGroups@2
           summary: 'PersistentVolumeInodes are filling up.'
           title: 'PersistentVolumeInodes are filling up. persistentvolumeclaim:{{ $labels.persistentvolumeclaim }} namespace:{{ $labels.namespace }} cluster:{{ $labels.cluster }}'
         }
-        expression: '(kubelet_volume_stats_inodes_free{job="kubelet",metrics_path="/metrics"} / kubelet_volume_stats_inodes{job="kubelet",metrics_path="/metrics"}) < 0.15 and kubelet_volume_stats_inodes_used{job="kubelet",metrics_path="/metrics"} > 0 and predict_linear(kubelet_volume_stats_inodes_free{job="kubelet",metrics_path="/metrics"}[6h], 4 * 24 * 3600) < 0 unless on (cluster, namespace, persistentvolumeclaim) kube_persistentvolumeclaim_access_mode{access_mode="ReadOnlyMany"} == 1 unless on (cluster, namespace, persistentvolumeclaim) kube_persistentvolumeclaim_labels{label_excluded_from_alerts="true"} == 1'
+        expression: '(kubelet_volume_stats_inodes_free{job="kubelet",metrics_path="/metrics",namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|billing|clusters-service|credential-refresher|fleet|hcp-recovery|kube-applier|maestro|mgmt-agent|monitoring|msi-credential-refresher|prometheus|secret-sync-controller|sessiongate"} / kubelet_volume_stats_inodes{job="kubelet",metrics_path="/metrics",namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|billing|clusters-service|credential-refresher|fleet|hcp-recovery|kube-applier|maestro|mgmt-agent|monitoring|msi-credential-refresher|prometheus|secret-sync-controller|sessiongate"}) < 0.15 and kubelet_volume_stats_inodes_used{job="kubelet",metrics_path="/metrics",namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|billing|clusters-service|credential-refresher|fleet|hcp-recovery|kube-applier|maestro|mgmt-agent|monitoring|msi-credential-refresher|prometheus|secret-sync-controller|sessiongate"} > 0 and predict_linear(kubelet_volume_stats_inodes_free{job="kubelet",metrics_path="/metrics",namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|billing|clusters-service|credential-refresher|fleet|hcp-recovery|kube-applier|maestro|mgmt-agent|monitoring|msi-credential-refresher|prometheus|secret-sync-controller|sessiongate"}[6h], 4 * 24 * 3600) < 0 unless on (cluster, namespace, persistentvolumeclaim) kube_persistentvolumeclaim_access_mode{access_mode="ReadOnlyMany",namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|billing|clusters-service|credential-refresher|fleet|hcp-recovery|kube-applier|maestro|mgmt-agent|monitoring|msi-credential-refresher|prometheus|secret-sync-controller|sessiongate"} == 1 unless on (cluster, namespace, persistentvolumeclaim) kube_persistentvolumeclaim_labels{label_excluded_from_alerts="true",namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|billing|clusters-service|credential-refresher|fleet|hcp-recovery|kube-applier|maestro|mgmt-agent|monitoring|msi-credential-refresher|prometheus|secret-sync-controller|sessiongate"} == 1'
         for: 'PT1H'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
@@ -820,7 +820,7 @@ resource svcKubernetesStorage 'Microsoft.AlertsManagement/prometheusRuleGroups@2
           summary: 'PersistentVolume is having issues with provisioning.'
           title: 'PersistentVolume is having issues with provisioning. persistentvolume:{{ $labels.persistentvolume }} cluster:{{ $labels.cluster }} phase:{{ $labels.phase }}'
         }
-        expression: 'kube_persistentvolume_status_phase{job="kube-state-metrics",phase=~"Failed|Pending"} > 0'
+        expression: 'kube_persistentvolume_status_phase{job="kube-state-metrics",namespace=~"aro-hcp|aro-hcp-admin-api|aro-hcp-exporter|arobit|billing|clusters-service|credential-refresher|fleet|hcp-recovery|kube-applier|maestro|mgmt-agent|monitoring|msi-credential-refresher|prometheus|secret-sync-controller|sessiongate",phase=~"Failed|Pending"} > 0'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
       }

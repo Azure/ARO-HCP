@@ -4,6 +4,127 @@ prometheusRules:
   - alerts/kubernetesControlPlane-prometheusRule.yaml
   outputBicep: ../dev-infrastructure/modules/metrics/rules/generatedKustoOnlyServicePrometheusAlertingRules.bicep
   groupNamePrefix: "svc-"
+  includedAlertsByGroup:
+  - groupName: kubernetes-apps
+    namespaces:
+    - aro-hcp
+    - aro-hcp-admin-api
+    - aro-hcp-exporter
+    - arobit
+    - billing
+    - clusters-service
+    - credential-refresher
+    - fleet
+    - hcp-recovery
+    - kube-applier
+    - maestro
+    - mgmt-agent
+    - monitoring
+    - msi-credential-refresher
+    - prometheus
+    - secret-sync-controller
+    - sessiongate
+    alerts:
+    - KubePodCrashLooping
+    - KubePodNotReady
+    - KubeDeploymentGenerationMismatch
+    - KubeDeploymentReplicasMismatch
+    - KubeDeploymentRolloutStuck
+    - KubeStatefulSetReplicasMismatch
+    - KubeStatefulSetGenerationMismatch
+    - KubeStatefulSetUpdateNotRolledOut
+    - KubeDaemonSetRolloutStuck
+    - KubeContainerWaiting
+    - KubeDaemonSetNotScheduled
+    - KubeDaemonSetMisScheduled
+    - KubeJobNotCompleted
+    - KubeJobFailed
+    - KubeHpaReplicasMismatch
+    - KubeHpaMaxedOut
+  - groupName: kubernetes-resources
+    namespaces:
+    - aro-hcp
+    - aro-hcp-admin-api
+    - aro-hcp-exporter
+    - arobit
+    - billing
+    - clusters-service
+    - credential-refresher
+    - fleet
+    - hcp-recovery
+    - kube-applier
+    - maestro
+    - mgmt-agent
+    - monitoring
+    - msi-credential-refresher
+    - prometheus
+    - secret-sync-controller
+    - sessiongate
+    alerts:
+    - KubeCPUOvercommit
+    - KubeMemoryOvercommit
+    - KubeCPUQuotaOvercommit
+    - KubeMemoryQuotaOvercommit
+    - KubeQuotaAlmostFull
+    - KubeQuotaFullyUsed
+    - KubeQuotaExceeded
+    - CPUThrottlingHigh
+  - groupName: kubernetes-storage
+    namespaces:
+    - aro-hcp
+    - aro-hcp-admin-api
+    - aro-hcp-exporter
+    - arobit
+    - billing
+    - clusters-service
+    - credential-refresher
+    - fleet
+    - hcp-recovery
+    - kube-applier
+    - maestro
+    - mgmt-agent
+    - monitoring
+    - msi-credential-refresher
+    - prometheus
+    - secret-sync-controller
+    - sessiongate
+    alerts:
+    - KubePersistentVolumeFillingUp
+    - KubePersistentVolumeInodesFillingUp
+    - KubePersistentVolumeErrors
+  - groupName: kubernetes-system
+    alerts:
+    - KubeVersionMismatch
+    - KubeClientErrors
+  - groupName: kube-apiserver-slos
+    alerts:
+    - KubeAPIErrorBudgetBurn
+  - groupName: kubernetes-system-apiserver
+    alerts:
+    - KubeClientCertificateExpiration
+    - KubeAggregatedAPIErrors
+    - KubeAggregatedAPIDown
+    - KubeAPIDown
+    - KubeAPITerminatedRequests
+  - groupName: kubernetes-system-kubelet
+    alerts:
+    - KubeNodeNotReady
+    - KubeNodeUnreachable
+    - KubeletTooManyPods
+    - KubeNodeReadinessFlapping
+    - KubeletPlegDurationHigh
+    - KubeletPodStartUpLatencyHigh
+    - KubeletClientCertificateExpiration
+    - KubeletClientCertificateRenewalErrors
+    - KubeletServerCertificateExpiration
+    - KubeletServerCertificateRenewalErrors
+    - KubeletDown
+  - groupName: kubernetes-system-scheduler
+    alerts:
+    - KubeSchedulerDown
+  - groupName: kubernetes-system-controller-manager
+    alerts:
+    - KubeControllerManagerDown
   outputReplacements:
   - from: 'job="kube-scheduler"'
     to: 'job="controlplane-kube-scheduler"'
