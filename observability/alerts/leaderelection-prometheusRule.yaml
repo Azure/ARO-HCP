@@ -1,0 +1,42 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    app.kubernetes.io/name: kube-prometheus
+    app.kubernetes.io/part-of: kube-prometheus
+    prometheus: k8s
+    role: alert-rules
+  name: leaderelection-monitoring-rules
+  namespace: monitoring
+spec:
+  groups:
+  - name: leaderelection
+    rules:
+    - alert: LeaderElectionLeaseStale
+      # Fires when a leader election lease has not been renewed for >37m (12m expr threshold + 25m for:); excludes namespaces covered by LeaderElectionLeaseStaleCritical and standard k8s system namespaces (kube-node-lease has node heartbeat leases that are not leader election).
+      expr: |
+        time() - max without(prometheus_replica) (
+          kube_lease_renew_time{namespace!~"^(kube-system|kube-public|kube-node-lease|default|kube-applier|aro-hcp|mgmt-agent)$"}
+        ) > 720
+      for: 25m
+      labels:
+        severity: warning
+      annotations:
+        description: 'Leader election lease {{ $labels.lease }} in namespace {{ $labels.namespace }} on cluster {{ $labels.cluster }} has not been renewed for more than 37 minutes. The leadership election might be broken or the component stopped running.'
+        runbook_url: 'TBD'
+        summary: 'Leader election lease {{ $labels.lease }} in namespace {{ $labels.namespace }} on cluster {{ $labels.cluster }} stale for more than 37 minutes'
+        title: 'Leader election lease {{ $labels.lease }} in namespace {{ $labels.namespace }} on cluster {{ $labels.cluster }} stale for more than 37 minutes'
+    - alert: LeaderElectionLeaseStaleCritical
+      # Fires when a leader election lease has not been renewed for >6m (3m expr threshold + 3m for:). Requires explicit definition of the namespaces that should be covered. Use this for critical components.
+      expr: |
+        time() - max without(prometheus_replica) (
+          kube_lease_renew_time{namespace=~"^(kube-applier|aro-hcp|mgmt-agent)$"}
+        ) > 180
+      for: 3m
+      labels:
+        severity: critical
+      annotations:
+        description: 'Leader election lease {{ $labels.lease }} in namespace {{ $labels.namespace }} on cluster {{ $labels.cluster }} has not been renewed for more than 6 minutes. The leadership election might be broken or the component stopped running.'
+        runbook_url: 'TBD'
+        summary: 'Leader election lease {{ $labels.lease }} in namespace {{ $labels.namespace }} on cluster {{ $labels.cluster }} stale for more than 6 minutes'
+        title: 'Leader election lease {{ $labels.lease }} in namespace {{ $labels.namespace }} on cluster {{ $labels.cluster }} stale for more than 6 minutes'

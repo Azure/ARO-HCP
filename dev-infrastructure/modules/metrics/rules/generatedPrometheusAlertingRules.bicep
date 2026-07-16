@@ -2054,3 +2054,70 @@ resource kustoLogsAgeRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
     ]
   }
 }
+
+resource leaderelection 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'leaderelection'
+  location: location
+  properties: {
+    interval: 'PT1M'
+    rules: [
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'LeaderElectionLeaseStale'
+        enabled: true
+        labels: {
+          severity: 'warning'
+        }
+        annotations: {
+          correlationId: 'LeaderElectionLeaseStale/{{ $labels.cluster }}/{{ $labels.lease }}/{{ $labels.namespace }}'
+          description: 'Leader election lease {{ $labels.lease }} in namespace {{ $labels.namespace }} on cluster {{ $labels.cluster }} has not been renewed for more than 37 minutes. The leadership election might be broken or the component stopped running.'
+          info: 'Leader election lease {{ $labels.lease }} in namespace {{ $labels.namespace }} on cluster {{ $labels.cluster }} has not been renewed for more than 37 minutes. The leadership election might be broken or the component stopped running.'
+          runbook_url: 'TBD'
+          summary: 'Leader election lease {{ $labels.lease }} in namespace {{ $labels.namespace }} on cluster {{ $labels.cluster }} stale for more than 37 minutes'
+          title: 'Leader election lease {{ $labels.lease }} in namespace {{ $labels.namespace }} on cluster {{ $labels.cluster }} stale for more than 37 minutes'
+        }
+        expression: 'time() - max without (prometheus_replica) (kube_lease_renew_time{namespace!~"^(kube-system|kube-public|kube-node-lease|default|kube-applier|aro-hcp|mgmt-agent)$"}) > 720'
+        for: 'PT25M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'LeaderElectionLeaseStaleCritical'
+        enabled: true
+        labels: {
+          severity: 'critical'
+        }
+        annotations: {
+          correlationId: 'LeaderElectionLeaseStaleCritical/{{ $labels.cluster }}/{{ $labels.lease }}/{{ $labels.namespace }}'
+          description: 'Leader election lease {{ $labels.lease }} in namespace {{ $labels.namespace }} on cluster {{ $labels.cluster }} has not been renewed for more than 6 minutes. The leadership election might be broken or the component stopped running.'
+          info: 'Leader election lease {{ $labels.lease }} in namespace {{ $labels.namespace }} on cluster {{ $labels.cluster }} has not been renewed for more than 6 minutes. The leadership election might be broken or the component stopped running.'
+          runbook_url: 'TBD'
+          summary: 'Leader election lease {{ $labels.lease }} in namespace {{ $labels.namespace }} on cluster {{ $labels.cluster }} stale for more than 6 minutes'
+          title: 'Leader election lease {{ $labels.lease }} in namespace {{ $labels.namespace }} on cluster {{ $labels.cluster }} stale for more than 6 minutes'
+        }
+        expression: 'time() - max without (prometheus_replica) (kube_lease_renew_time{namespace=~"^(kube-applier|aro-hcp|mgmt-agent)$"}) > 180'
+        for: 'PT3M'
+        severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
+      }
+    ]
+    scopes: [
+      azureMonitoring
+    ]
+  }
+}

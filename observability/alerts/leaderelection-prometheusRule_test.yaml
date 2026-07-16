@@ -1,0 +1,95 @@
+rule_files:
+- leaderelection-prometheusRule.yaml
+evaluation_interval: 1m
+tests:
+# Test: LeaderElectionLeaseStale fires when lease has not been renewed for >37m (12m expr threshold + 25m for:)
+# Note: expr uses strict >, so condition first becomes true at t=13m (780s > 720s); with for:25m, alert fires at t=38m
+- interval: 1m
+  input_series:
+  - series: 'kube_lease_renew_time{namespace="test-namespace", lease="test-lease", cluster="test-cluster"}'
+    values: "0x39" # renewTime frozen
+  alert_rule_test:
+  - eval_time: 37m
+    alertname: LeaderElectionLeaseStale
+    exp_alerts: []
+  - eval_time: 38m
+    alertname: LeaderElectionLeaseStale
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+        cluster: test-cluster
+        lease: test-lease
+        namespace: test-namespace
+      exp_annotations:
+        description: 'Leader election lease test-lease in namespace test-namespace on cluster test-cluster has not been renewed for more than 37 minutes. The leadership election might be broken or the component stopped running.'
+        runbook_url: 'TBD'
+        summary: 'Leader election lease test-lease in namespace test-namespace on cluster test-cluster stale for more than 37 minutes'
+        title: 'Leader election lease test-lease in namespace test-namespace on cluster test-cluster stale for more than 37 minutes'
+# Test: LeaderElectionLeaseStale does not fire when lease is renewed every minute
+- interval: 1m
+  input_series:
+  - series: 'kube_lease_renew_time{namespace="test-namespace", lease="healthy-lease", cluster="test-cluster"}'
+    values: "0+60x39" # renewTime advances 60s/min — diff always 0
+  alert_rule_test:
+  - eval_time: 38m
+    alertname: LeaderElectionLeaseStale
+    exp_alerts: []
+# Test: LeaderElectionLeaseStale does not fire for excluded system namespaces
+- interval: 1m
+  input_series:
+  - series: 'kube_lease_renew_time{namespace="kube-system", lease="kube-controller-manager", cluster="test-cluster"}'
+    values: "0x39" # stale, but namespace excluded
+  alert_rule_test:
+  - eval_time: 38m
+    alertname: LeaderElectionLeaseStale
+    exp_alerts: []
+# Test: LeaderElectionLeaseStale does not fire for kube-applier namespace (covered by LeaderElectionLeaseStaleCritical)
+- interval: 1m
+  input_series:
+  - series: 'kube_lease_renew_time{namespace="kube-applier", lease="kube-applier", cluster="test-cluster"}'
+    values: "0x39" # stale, but namespace excluded
+  alert_rule_test:
+  - eval_time: 38m
+    alertname: LeaderElectionLeaseStale
+    exp_alerts: []
+# Test: LeaderElectionLeaseStaleCritical fires when lease has not been renewed for >6m (3m expr threshold + 3m for:) for a lease in an included namespace
+# Note: expr uses strict >, so condition first becomes true at t=4m (240s > 180s); with for:3m, alert fires at t=7m
+- interval: 1m
+  input_series:
+  - series: 'kube_lease_renew_time{namespace="kube-applier", lease="kube-applier", cluster="test-cluster"}'
+    values: "0x8"
+  alert_rule_test:
+  - eval_time: 6m
+    alertname: LeaderElectionLeaseStaleCritical
+    exp_alerts: []
+  - eval_time: 7m
+    alertname: LeaderElectionLeaseStaleCritical
+    exp_alerts:
+    - exp_labels:
+        severity: critical
+        cluster: test-cluster
+        lease: kube-applier
+        namespace: kube-applier
+      exp_annotations:
+        description: 'Leader election lease kube-applier in namespace kube-applier on cluster test-cluster has not been renewed for more than 6 minutes. The leadership election might be broken or the component stopped running.'
+        runbook_url: 'TBD'
+        summary: 'Leader election lease kube-applier in namespace kube-applier on cluster test-cluster stale for more than 6 minutes'
+        title: 'Leader election lease kube-applier in namespace kube-applier on cluster test-cluster stale for more than 6 minutes'
+# Test: LeaderElectionLeaseStaleCritical does not fire when lease is renewed every minute for a lease in an included namespace
+- interval: 1m
+  input_series:
+  - series: 'kube_lease_renew_time{namespace="kube-applier", lease="kube-applier", cluster="test-cluster"}'
+    values: "0+60x8" # renewTime advances 60s/min — diff always 0
+  alert_rule_test:
+  - eval_time: 7m
+    alertname: LeaderElectionLeaseStaleCritical
+    exp_alerts: []
+# Test: LeaderElectionLeaseStaleCritical does not fire for a lease in a namespace that is not explicitly included in the rule
+- interval: 1m
+  input_series:
+  - series: 'kube_lease_renew_time{namespace="kube-system", lease="kube-controller-manager", cluster="test-cluster"}'
+    values: "0x8" # stale, but namespace not included
+  alert_rule_test:
+  - eval_time: 7m
+    alertname: LeaderElectionLeaseStaleCritical
+    exp_alerts: []
