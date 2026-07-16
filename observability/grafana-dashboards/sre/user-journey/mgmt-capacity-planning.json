@@ -560,7 +560,7 @@
             "uid": "${datasource}"
           },
           "editorMode": "code",
-          "expr": "count(kube_node_info{cluster=~\"$cluster\"}) by (cluster) - count(kube_node_spec_unschedulable{cluster=~\"$cluster\"} == 1) by (cluster)",
+          "expr": "count(kube_node_info{cluster=~\"$cluster\"}) by (cluster) - (count(kube_node_spec_unschedulable{cluster=~\"$cluster\"} == 1) by (cluster) or (0 * count(kube_node_info{cluster=~\"$cluster\"}) by (cluster)))",          
           "instant": true,
           "range": false,
           "legendFormat": "{{cluster}} Schedulable",
