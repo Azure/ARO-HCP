@@ -2,18 +2,10 @@
 
 When you write an alert, you're usually not so sure about how it will behave with real production monitoring data.
 
-Standard approach:
-1. Come up with an alert
-2. Push to prod (days to weeks)
-3. Wait weeks to see how it performs
-4. Guess how to correct it
-5. Push to prod (days to weeks)
-6. Hopefully you don't need to repeat
-
-Luckily with [alert-tester][alert-tester-repo] we have a faster approach (in case the monitoring data is already present in PROD):
+With [alert-tester][alert-tester-repo] we have a fast approach to verify alerts with data from any environement, including PROD (in case the monitoring data is already there):
 
 1. Come up with an alert
-2. Analyze how it performs against historical prod data and tune it (day)
+2. Analyze how it performs against historical data and tune it (a day)
 3. Push to prod (days to weeks)
 4. Done
 
@@ -30,7 +22,7 @@ cd alert-tester
 make build
 ```
 
-You can now use `alert-tester`, e.g.
+You can now use `alert-tester`, e.g. for PROD (replace `grafana-url` and `datasource` as desired for [other stages](#available-grafana-instances-and-data-sources)):
 
 ```bash
 export ATEST_GRAFANA_BEARER_TOKEN=$(az account get-access-token \
@@ -62,7 +54,7 @@ analysis:
 - for 3m: 2 firings
 ```
 
-For more options and a detailed description, see [README.md][alert-tester-readme].
+For available Grafana URLs and datasources, see [Available Grafana Instances and Data Sources](#available-grafana-instances-and-data-sources). For more options and a detailed description, see [README.md][alert-tester-readme].
 
 ### AI-Generated Reports
 
@@ -96,7 +88,7 @@ The basic `atest` tool usage is already very helpful. But if you want to check m
 
 If you want to see your query results in PROD Grafana, you can use the Ad Hoc Explorer (on a machine from which you can log in to your b- account):
 
-* [Ad Hoc Explorer][grafana-adhoc-explorer]
+* [Ad Hoc Explorer][grafana-prod-adhoc-explorer]
 
 Once you've selected a datasource, you will be able to enter a PromQL query.
 
@@ -108,6 +100,18 @@ Once you've selected a datasource, you will be able to enter a PromQL query.
 2. Clone [grafana-datasource][grafana-datasource-repo]
 3. Run Copilot from within the `grafana-datasource` directory and ask it to set up Grafana
 
+## Available Grafana Instances and Data Sources
+
+To get an overview of available Grafana URLs and data sources, make sure the [aro-hcp-env-info](https://github.com/openshift-online/aro-ai-tools/blob/main/skills/aro-hcp-env-info) from [aro-ai-tools](https://github.com/openshift-online/aro-ai-tools) is installed - and ask Copilot/Claude something like
+
+```text
+List all Grafana URLs for our different stages - including a list of available datasources
+```
+
+> [!NOTE]
+>
+>  The resource ID for `az account get-access-token` is identical across all stages: `ce34e7e5-485f-4d76-964f-b3d2b16d1e4f` (Azure Managed Grafana first-party app).
+
 ## Links
 
 * [alert-tester repo][alert-tester-repo]
@@ -117,7 +121,7 @@ Once you've selected a datasource, you will be able to enter a PromQL query.
 * [Copilot setup guide][copilot-setup]
 * [Demo video][demo-video]
 * [Demo notes][demo-notes]
-* [Grafana Ad Hoc Explorer][grafana-adhoc-explorer]
+* [Grafana PROD Ad Hoc Explorer][grafana-prod-adhoc-explorer]
 * [grafana-datasource repo][grafana-datasource-repo]
 
 [alert-tester-repo]: https://github.com/mmazur/alert-tester
@@ -127,5 +131,5 @@ Once you've selected a datasource, you will be able to enter a PromQL query.
 [copilot-setup]: https://docs.google.com/document/d/1KUZSLknIkSd6usFPe_OcEYWJyW6mFeotc2lIsLgE3JA/edit?tab=t.ft6ndj5uukpn
 [demo-video]: https://drive.google.com/file/d/1jkyx4_w8yzaybqhtukHuHizh2jFCTJf7/view
 [demo-notes]: https://docs.google.com/document/d/1yvmf4MvOGpRf9VjA3Rnt30oNyfEFmE60oJeLxs0ek6w/edit?tab=t.0#heading=h.xr6j3y1ibl6b
-[grafana-adhoc-explorer]: https://arohcp-prod-g5d9a9akashnb5gd.suk.grafana.azure.com/d/adhoc-explorer/ad-hoc-explorer
+[grafana-prod-adhoc-explorer]: https://arohcp-prod-g5d9a9akashnb5gd.suk.grafana.azure.com/d/adhoc-explorer/ad-hoc-explorer
 [grafana-datasource-repo]: https://github.com/mmazur/grafana-datasource
