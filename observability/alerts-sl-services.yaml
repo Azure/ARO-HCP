@@ -9,7 +9,6 @@ prometheusRules:
   - ../maestro/alerts/maestro-prometheusRule.yaml
   - alerts/arobit-prometheusRule.yaml
   - alerts/service-tag-public-ip-usage.yaml
-  - alerts/HCPdeletionStuck-prometheusRule.yaml
   - alerts/hcp-test-clusters-prometheusRule.yaml
   - alerts/kubeContainerOOM-prometheusRule.yaml
   - alerts/kubeNode-prometheusRule.yaml
