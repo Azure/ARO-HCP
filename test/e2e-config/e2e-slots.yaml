@@ -72,17 +72,26 @@ environments:
     deploy_envs:
     - prod
     pools:
+    # slot_count is capped at 3 per subscription by the Azure deny-assignment
+    # limit, not by role-assignment quota. The Authorization RP allows at most
+    # 2000 deny assignments per subscription, and the RP currently creates
+    # sharded (per-cluster) deny assignments (~21 per HCP), which caps a
+    # subscription at ~92 concurrent HCPs. With identity_container_count: 25
+    # (max HCPs per suite run), that is floor(92 / 25) = 3 slots per sub.
+    # This constraint is PROD-only: deny assignments are only created in AME
+    # (STG and above). See the "Scaling Constraints" section in
+    # docs/ci/identity-leasing.md for the full explanation.
     - subscription_name: "ARO HCP E2E Hosted Clusters - Prod - 00"
       region: uksouth
       region_mode: runtime-selected
       resource_type: aro-hcp-prod-shard0-slot
-      slot_count: 12
+      slot_count: 3
       identity_container_prefix: aro-hcp-msi-container-prod
       identity_container_count: 25
     - subscription_name: "ARO HCP E2E Hosted Clusters - Prod - 01"
       region: uksouth
       region_mode: runtime-selected
       resource_type: aro-hcp-prod-shard1-slot
-      slot_count: 12
+      slot_count: 3
       identity_container_prefix: aro-hcp-msi-container-prod
       identity_container_count: 25
