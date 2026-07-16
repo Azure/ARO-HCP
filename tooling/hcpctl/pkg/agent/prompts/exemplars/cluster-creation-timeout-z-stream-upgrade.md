@@ -77,22 +77,20 @@ let hcNamespace = 'ocm-arohcpci01-2r4sj32f75bfmfa9m6rkupe7o982hqst';
 // manifest.json: hosted_control_plane_namespace (name suffix)
 let hcName = 'p2d8v9o7y9g8x5o';
 // manifest.json: kusto_cluster
-cluster('https://hcp-dev-us-2.eastus2.kusto.windows.net').database('ServiceLogs').table('containerLogs')
+cluster('https://hcp-dev-us-2.eastus2.kusto.windows.net').database('ServiceLogs').table('kubernetesResourceSnapshots')
 // manifest.json: time_window.start .. time_window.end
 | where timestamp between (datetime(2026-06-24T17:43:34Z) .. datetime(2026-06-24T18:49:43Z))
-| where container_name == 'mgmt-agent-controller'
-| where tostring(log.msg) == 'resource event'
-| where tostring(log.object.kind) == 'HostedCluster'
-| where tostring(log.namespace) == hcNamespace
-| where tostring(log.name) == hcName
-| extend desired = tostring(log.object.spec.release.image),
-         versionHistory = tostring(log.object.status.controlPlaneVersion.history),
-         forceUpgradeTo = tostring(log.object.metadata.annotations['hypershift.openshift.io/force-upgrade-to'])
+| where objectKind == 'HostedCluster'
+| where namespace == hcNamespace
+| where name == hcName
+| extend desired = tostring(object.spec.release.image),
+         versionHistory = tostring(object.status.controlPlaneVersion.history),
+         forceUpgradeTo = tostring(object.metadata.annotations['hypershift.openshift.io/force-upgrade-to'])
 | extend desired = replace_regex(desired, @'sha256:[a-f0-9]{64}', 'sha256:…'),
          forceUpgradeTo = replace_regex(forceUpgradeTo, @'sha256:[a-f0-9]{64}', 'sha256:…'),
          versionHistory = replace_regex(versionHistory, @'sha256:[a-f0-9]{64}', 'sha256:…')
 | summarize first_occurrence = min(timestamp), last_occurrence = max(timestamp),
-            event = arg_min(timestamp, tostring(log.event)),
+            event = arg_min(timestamp, event),
             desired = arg_min(timestamp, desired),
             forceUpgradeTo = max(forceUpgradeTo)
     by versionHistory
@@ -127,15 +125,13 @@ let hcNamespace = 'ocm-arohcpci01-2r4sj32f75bfmfa9m6rkupe7o982hqst';
 // manifest.json: hosted_control_plane_namespace (name suffix)
 let hcName = 'p2d8v9o7y9g8x5o';
 // manifest.json: kusto_cluster
-cluster('https://hcp-dev-us-2.eastus2.kusto.windows.net').database('ServiceLogs').table('containerLogs')
+cluster('https://hcp-dev-us-2.eastus2.kusto.windows.net').database('ServiceLogs').table('kubernetesResourceSnapshots')
 // manifest.json: time_window subset (CS ready .. test failure)
 | where timestamp between (csReadyAt .. probeEnd)
-| where container_name == 'mgmt-agent-controller'
-| where tostring(log.msg) == 'resource event'
-| where tostring(log.object.kind) == 'HostedCluster'
-| where tostring(log.namespace) == hcNamespace
-| where tostring(log.name) == hcName
-| extend conditions = log.object.status.conditions
+| where objectKind == 'HostedCluster'
+| where namespace == hcNamespace
+| where name == hcName
+| extend conditions = object.status.conditions
 | mv-expand condition = conditions
 | extend type = tostring(condition.type),
          status = tostring(condition.status),
@@ -169,18 +165,17 @@ kube-apiserver pods on the new ReplicaSet `54b7f655f6` cold-started while old RS
 // manifest.json: hosted_control_plane_namespace
 let hcpNamespace = 'ocm-arohcpci01-2r4sj32f75bfmfa9m6rkupe7o982hqst-p2d8v9o7y9g8x5o';
 // manifest.json: kusto_cluster
-cluster('https://hcp-dev-us-2.eastus2.kusto.windows.net').database('ServiceLogs').table('containerLogs')
+cluster('https://hcp-dev-us-2.eastus2.kusto.windows.net').database('ServiceLogs').table('kubernetesResourceSnapshots')
 // manifest.json: time_window subset (upgrade rollout window)
 | where timestamp between (datetime(2026-06-24T17:55:00Z) .. datetime(2026-06-24T18:05:00Z))
-| where container_name == 'mgmt-agent-controller'
-| where tostring(log.msg) == 'pod event'
-| where tostring(log.namespace) == hcpNamespace
-| where tostring(log.name) startswith 'kube-apiserver-'
-| extend containers = log.object.status.containerStatuses
+| where objectKind == 'Pod'
+| where namespace == hcpNamespace
+| where name startswith 'kube-apiserver-'
+| extend containers = object.status.containerStatuses
 | mv-expand container = containers
 | project timestamp,
-    event=tostring(log.event),
-    podName=tostring(log.name),
+    event,
+    podName=name,
     containerName=tostring(container.name),
     ready=tobool(container.ready),
     reason=coalesce(

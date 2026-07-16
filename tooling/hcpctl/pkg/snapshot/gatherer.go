@@ -359,6 +359,7 @@ func (g *Gatherer) runDiscovery(
 		reqData.CorrelationID = req.CorrelationID
 		reqData.ClientRequestID = req.ClientRequestID
 		reqData.ResponseStatusCode = req.Status
+		reqData.SubscriptionID = req.SubscriptionID
 		reqData.ResourceID = req.ResourceID
 		reqData.ResourceType = req.ResourceType
 		reqData.ResourceName = req.ResourceName
@@ -401,6 +402,63 @@ func (g *Gatherer) runDiscovery(
 		}
 	}
 
+	// =========================================================================
+	// Cosmos resource discovery: find all resource types under the cluster prefix
+	// =========================================================================
+
+	// Collect the first ClusterResourceID + SubscriptionID from tracked requests.
+	var cosmosDiscoveryData queryData
+	for i := range trackedReqs {
+		if trackedReqs[i].data.ClusterResourceID != "" && trackedReqs[i].data.SubscriptionID != "" {
+			cosmosDiscoveryData = seedData
+			cosmosDiscoveryData.ClusterResourceID = trackedReqs[i].data.ClusterResourceID
+			cosmosDiscoveryData.SubscriptionID = trackedReqs[i].data.SubscriptionID
+			break
+		}
+	}
+
+	// cosmosChildTypes maps lowercased parent resource ID → set of child resource types.
+	cosmosChildTypes := make(map[string]map[string]bool)
+	// cosmosResources maps lowercased resource ID → resource type for all discovered resources.
+	cosmosResources := make(map[string]string)
+
+	if cosmosDiscoveryData.ClusterResourceID != "" {
+		rendered, err := renderQuery("queries/backend/cosmosResourceDiscovery/query.kql", cosmosDiscoveryData)
+		if err == nil {
+			rows, queryErr := g.executeKQL(ctx, rendered, cosmosDiscoveryData.ServiceDatabase, 2*time.Minute)
+			if queryErr != nil {
+				logger.Error(queryErr, "Cosmos resource discovery query failed, continuing without discovery")
+			} else {
+				for _, row := range rows {
+					if len(row.values) < 2 {
+						continue
+					}
+					resID := row.values[0]
+					resType := row.values[1]
+					cosmosResources[resID] = resType
+
+					// Determine parent resource ID by parsing and checking for a parent.
+					parsed, parseErr := azcorearm.ParseResourceID(resID)
+					if parseErr != nil {
+						continue
+					}
+					if parsed.Parent != nil && parsed.Parent.ResourceType.Type != "" {
+						parentID := strings.ToLower(parsed.Parent.String())
+						if cosmosChildTypes[parentID] == nil {
+							cosmosChildTypes[parentID] = make(map[string]bool)
+						}
+						cosmosChildTypes[parentID][resType] = true
+					}
+				}
+				logger.V(1).Info("Cosmos resource discovery complete",
+					"totalDocTypes", len(cosmosResources),
+					"parentsWithChildren", len(cosmosChildTypes))
+			}
+		} else {
+			logger.Error(err, "Failed to render cosmos resource discovery query")
+		}
+	}
+
 	// Deduplicate resources.
 	resources := make(map[string]*resourceState)
 	var resourceOrder []string
@@ -418,6 +476,68 @@ func (g *Gatherer) runDiscovery(
 			resourceOrder = append(resourceOrder, key)
 		}
 		resources[key].requests = append(resources[key].requests, tr.trackedRequest)
+	}
+
+	// Add Cosmos-discovered resources not found via frontend requests, and
+	// populate ChildResourceTypes for all resources.
+	if cosmosDiscoveryData.ClusterResourceID != "" {
+		// Identify top-level resources from Cosmos (direct children of the cluster
+		// or the cluster itself) and add them if not already tracked.
+		clusterResourceIDLower := strings.ToLower(cosmosDiscoveryData.ClusterResourceID)
+		for resID, resType := range cosmosResources {
+			parsed, err := azcorearm.ParseResourceID(resID)
+			if err != nil {
+				continue
+			}
+			// A "top-level" resource is either the cluster itself or a direct child
+			// (its parent is the cluster resource ID).
+			isClusterItself := strings.EqualFold(resID, clusterResourceIDLower)
+			isDirectChild := parsed.Parent != nil && strings.EqualFold(parsed.Parent.String(), clusterResourceIDLower)
+			if !isClusterItself && !isDirectChild {
+				continue
+			}
+			// Skip child-only resource types (hcpopenshiftcontrollers, readdesires,
+			// serviceprovider*, applydesires) — these aren't top-level resources.
+			typeParts := strings.Split(strings.ToLower(parsed.ResourceType.Type), "/")
+			lastSegment := typeParts[len(typeParts)-1]
+			if strings.HasPrefix(lastSegment, "serviceprovider") ||
+				lastSegment == "hcpopenshiftcontrollers" ||
+				lastSegment == "readdesires" ||
+				lastSegment == "applydesires" {
+				continue
+			}
+
+			key := sanitizePath(resType) + "/" + sanitizePath(parsed.Name)
+			if _, ok := resources[key]; !ok {
+				resData := seedData
+				resData.SubscriptionID = cosmosDiscoveryData.SubscriptionID
+				resData.ResourceID = resID
+				resData.ResourceType = resType
+				resData.ResourceName = parsed.Name
+				resData.ClusterResourceID = cosmosDiscoveryData.ClusterResourceID
+				if parsed.Parent != nil && parsed.Parent.ResourceType.Type != "" {
+					resData.ClusterResourceName = parsed.Parent.Name
+				} else {
+					resData.ClusterResourceName = parsed.Name
+				}
+				resData.ServiceProviderResourceType = serviceProviderResourceType(resType)
+				resources[key] = &resourceState{data: resData, mu: &sync.Mutex{}}
+				resourceOrder = append(resourceOrder, key)
+				logger.V(1).Info("Cosmos-discovered resource", "key", key, "resourceID", resID)
+			}
+		}
+
+		// Populate ChildResourceTypes on all tracked resources.
+		for _, rs := range resources {
+			resIDLower := strings.ToLower(rs.data.ResourceID)
+			if children, ok := cosmosChildTypes[resIDLower]; ok {
+				rs.data.ChildResourceTypes = children
+			}
+			// Also derive ServiceProviderResourceType dynamically if not already set.
+			if rs.data.ServiceProviderResourceType == "" && rs.data.ChildResourceTypes != nil {
+				rs.data.ServiceProviderResourceType = rs.data.childServiceProviderType()
+			}
+		}
 	}
 
 	// Pool 2: Run resource discovery queries + write cached request discovery output.
@@ -752,6 +872,7 @@ type frontendRequest struct {
 	ClientRequestID             string
 	Method                      string
 	Path                        string
+	SubscriptionID              string
 	ResourceID                  string
 	ResourceType                string
 	ResourceName                string
@@ -808,6 +929,7 @@ func (g *Gatherer) discoverRequests(ctx context.Context, input GatherInput, data
 		if req.Path != "" {
 			if res, err := azcorearm.ParseResourceID(req.Path); err == nil {
 				req.ResourceID = req.Path
+				req.SubscriptionID = res.SubscriptionID
 				req.ResourceType = res.ResourceType.String()
 				req.ResourceName = res.Name
 				req.ServiceProviderResourceType = serviceProviderResourceType(req.ResourceType)

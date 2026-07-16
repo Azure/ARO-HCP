@@ -144,6 +144,7 @@ type queryData struct {
 	ResponseStatusCode int
 
 	// Discovered by queries.
+	SubscriptionID              string
 	ResourceID                  string
 	ResourceType                string
 	ResourceName                string
@@ -156,6 +157,37 @@ type queryData struct {
 	ClusterID                   string
 	HostedClusterNamespace      string
 	HostedControlPlaneNamespace string
+
+	// ChildResourceTypes maps lowercased resource type strings to true for
+	// all child resource types that exist under this resource in
+	// cosmosResourceSnapshots. Populated by the cosmosResourceDiscovery query.
+	ChildResourceTypes map[string]bool
+}
+
+// hasChildResourceType returns true if a child resource type with the given
+// suffix (case-insensitive) exists for this resource in cosmosResourceSnapshots.
+func (d queryData) hasChildResourceType(suffix string) bool {
+	suffix = strings.ToLower(suffix)
+	for rt := range d.ChildResourceTypes {
+		if strings.HasSuffix(rt, "/"+suffix) {
+			return true
+		}
+	}
+	return false
+}
+
+// childServiceProviderType returns the service provider child resource type if
+// one exists (e.g., ".../serviceproviderclusters" or ".../serviceprovidernodepools"),
+// or empty string if none exists.
+func (d queryData) childServiceProviderType() string {
+	for rt := range d.ChildResourceTypes {
+		parts := strings.Split(rt, "/")
+		last := parts[len(parts)-1]
+		if strings.HasPrefix(last, "serviceprovider") {
+			return rt
+		}
+	}
+	return ""
 }
 
 // serviceProviderResourceType maps an ARM resource type to its corresponding
@@ -307,9 +339,9 @@ var allQueries = []querySpec{
 		database:     "service",
 		category:     categoryResourceDiscovery,
 		ready: func(d queryData) bool {
-			return d.ResourceGroup != "" && d.ResourceType != "" && d.ResourceID != "" && d.ClusterResourceName != ""
+			return d.SubscriptionID != "" && d.ResourceGroup != "" && d.ResourceID != ""
 		},
-		prerequisites: "ResourceGroup, ResourceType, ResourceID",
+		prerequisites: "SubscriptionID, ResourceGroup, ResourceID",
 		requiredWhen:  isClusterOrNodePool,
 		storeResult: func(d *queryData, rows []resultRow) error {
 			if len(rows) > 1 {
@@ -358,9 +390,9 @@ var allQueries = []querySpec{
 		database:     "service",
 		category:     categoryResourceDiscovery,
 		ready: func(d queryData) bool {
-			return d.ResourceGroup != "" && d.ClusterResourceName != "" && d.ServiceProviderResourceType != "" && d.ResourceName != ""
+			return d.SubscriptionID != "" && d.ResourceGroup != "" && d.ClusterResourceID != "" && d.ServiceProviderResourceType != ""
 		},
-		prerequisites: "ResourceGroup, ClusterResourceName, ServiceProviderResourceType, ResourceName",
+		prerequisites: "SubscriptionID, ResourceGroup, ClusterResourceID, ServiceProviderResourceType",
 		// Maestro readonly bundles are being phased out in favor of ReadDesires,
 		// so empty results are acceptable. Query stays informational for older snapshots.
 	},
@@ -371,9 +403,9 @@ var allQueries = []querySpec{
 		database:     "service",
 		category:     categoryResourceDiscovery,
 		ready: func(d queryData) bool {
-			return d.ResourceGroup != "" && d.ClusterResourceName != ""
+			return d.SubscriptionID != "" && d.ResourceGroup != "" && d.ClusterResourceID != ""
 		},
-		prerequisites: "ResourceGroup, ClusterResourceName",
+		prerequisites: "SubscriptionID, ResourceGroup, ClusterResourceID",
 		requiredWhen:  func(d queryData) bool { return d.ClusterResourceName != "" },
 		storeResult: func(d *queryData, rows []resultRow) error {
 			if len(rows) > 1 {
@@ -393,9 +425,9 @@ var allQueries = []querySpec{
 		database:     "service",
 		category:     categoryState,
 		ready: func(d queryData) bool {
-			return d.ResourceID != ""
+			return d.SubscriptionID != "" && d.ResourceGroup != "" && d.ResourceID != ""
 		},
-		prerequisites: "ResourceID",
+		prerequisites: "SubscriptionID, ResourceGroup, ResourceID",
 		requiredWhen:  isClusterOrNodePool,
 	},
 	{
@@ -405,9 +437,9 @@ var allQueries = []querySpec{
 		database:     "service",
 		category:     categoryConditions,
 		ready: func(d queryData) bool {
-			return d.ResourceGroup != "" && d.ResourceType != "" && d.ResourceName != "" && d.ClusterResourceName != ""
+			return d.SubscriptionID != "" && d.ResourceGroup != "" && d.ClusterResourceID != "" && d.ResourceType != "" && d.hasChildResourceType("hcpopenshiftcontrollers")
 		},
-		prerequisites: "ResourceGroup, ResourceType, ResourceName, ClusterResourceName",
+		prerequisites: "SubscriptionID, ResourceGroup, ClusterResourceID, ResourceType, ChildResourceTypes includes hcpopenshiftcontrollers",
 		requiredWhen:  isClusterOrNodePool,
 	},
 	{
@@ -417,9 +449,9 @@ var allQueries = []querySpec{
 		database:     "service",
 		category:     categoryConditions,
 		ready: func(d queryData) bool {
-			return d.ResourceGroup != "" && d.ResourceType != "" && d.ResourceName != "" && d.ClusterResourceName != ""
+			return d.SubscriptionID != "" && d.ResourceGroup != "" && d.ClusterResourceID != "" && d.ResourceType != "" && d.hasChildResourceType("hcpopenshiftcontrollers")
 		},
-		prerequisites: "ResourceGroup, ResourceType, ResourceName, ClusterResourceName",
+		prerequisites: "SubscriptionID, ResourceGroup, ClusterResourceID, ResourceType, ChildResourceTypes includes hcpopenshiftcontrollers",
 		requiredWhen:  isClusterOrNodePool,
 	},
 	{
@@ -429,9 +461,9 @@ var allQueries = []querySpec{
 		database:     "service",
 		category:     categoryState,
 		ready: func(d queryData) bool {
-			return d.ResourceGroup != "" && d.ServiceProviderResourceType != "" && d.ResourceName != "" && d.ClusterResourceName != ""
+			return d.SubscriptionID != "" && d.ResourceGroup != "" && d.ClusterResourceID != "" && d.ServiceProviderResourceType != ""
 		},
-		prerequisites: "ResourceGroup, ServiceProviderResourceType, ResourceName, ClusterResourceName",
+		prerequisites: "SubscriptionID, ResourceGroup, ClusterResourceID, ServiceProviderResourceType",
 		requiredWhen:  func(d queryData) bool { return d.ServiceProviderResourceType != "" },
 	},
 	{
@@ -483,9 +515,9 @@ var allQueries = []querySpec{
 		database:     "service",
 		category:     categoryConditions,
 		ready: func(d queryData) bool {
-			return d.ResourceGroup != "" && d.ClusterResourceName != "" && strings.EqualFold(d.ResourceType, "microsoft.redhatopenshift/hcpopenshiftclusters")
+			return d.SubscriptionID != "" && d.ResourceGroup != "" && d.ClusterResourceID != "" && isClusterType(d)
 		},
-		prerequisites: "ResourceGroup, ResourceName, ResourceType is cluster",
+		prerequisites: "SubscriptionID, ResourceGroup, ClusterResourceID, ResourceType is cluster",
 		requiredWhen:  isClusterType,
 	},
 	{
@@ -495,9 +527,9 @@ var allQueries = []querySpec{
 		database:     "service",
 		category:     categoryConditions,
 		ready: func(d queryData) bool {
-			return d.ResourceGroup != "" && d.ClusterResourceName != "" && strings.EqualFold(d.ResourceType, "microsoft.redhatopenshift/hcpopenshiftclusters")
+			return d.SubscriptionID != "" && d.ResourceGroup != "" && d.ClusterResourceID != "" && isClusterType(d)
 		},
-		prerequisites: "ResourceGroup, ResourceName, ResourceType is cluster",
+		prerequisites: "SubscriptionID, ResourceGroup, ClusterResourceID, ResourceType is cluster",
 		requiredWhen:  isClusterType,
 	},
 	{
@@ -507,9 +539,9 @@ var allQueries = []querySpec{
 		database:     "service",
 		category:     categoryConditions,
 		ready: func(d queryData) bool {
-			return d.ResourceGroup != "" && d.ClusterResourceName != "" && d.ResourceName != "" && strings.EqualFold(d.ResourceType, "microsoft.redhatopenshift/hcpopenshiftclusters/nodepools")
+			return d.SubscriptionID != "" && d.ResourceGroup != "" && d.ResourceID != "" && isNodePoolType(d)
 		},
-		prerequisites: "ResourceGroup, ClusterResourceName, ResourceName, ResourceType is nodepool",
+		prerequisites: "SubscriptionID, ResourceGroup, ResourceID, ResourceType is nodepool",
 		requiredWhen:  isNodePoolType,
 	},
 	{
@@ -519,9 +551,9 @@ var allQueries = []querySpec{
 		database:     "service",
 		category:     categoryConditions,
 		ready: func(d queryData) bool {
-			return d.ResourceGroup != "" && d.ClusterResourceName != "" && d.ResourceName != "" && strings.EqualFold(d.ResourceType, "microsoft.redhatopenshift/hcpopenshiftclusters/nodepools")
+			return d.SubscriptionID != "" && d.ResourceGroup != "" && d.ResourceID != "" && isNodePoolType(d)
 		},
-		prerequisites: "ResourceGroup, ClusterResourceName, ResourceName, ResourceType is nodepool",
+		prerequisites: "SubscriptionID, ResourceGroup, ResourceID, ResourceType is nodepool",
 		requiredWhen:  isNodePoolType,
 	},
 	{
@@ -572,9 +604,9 @@ var allQueries = []querySpec{
 		database:     "service",
 		category:     categoryLogs,
 		ready: func(d queryData) bool {
-			return d.ClusterID != "" || (d.ResourceGroup != "" && d.ClusterResourceName != "" && d.ServiceProviderResourceType != "")
+			return d.ClusterID != "" || (d.SubscriptionID != "" && d.ResourceGroup != "" && d.ClusterResourceID != "" && d.ServiceProviderResourceType != "")
 		},
-		prerequisites: "ClusterID, or ResourceGroup + ClusterResourceName + ServiceProviderResourceType",
+		prerequisites: "ClusterID, or SubscriptionID + ResourceGroup + ClusterResourceID + ServiceProviderResourceType",
 		requiredWhen:  isClusterOrNodePool,
 	},
 	{
@@ -584,9 +616,9 @@ var allQueries = []querySpec{
 		database:     "service",
 		category:     categoryLogs,
 		ready: func(d queryData) bool {
-			return d.ClusterID != "" || (d.ResourceGroup != "" && d.ClusterResourceName != "" && d.ServiceProviderResourceType != "")
+			return d.ClusterID != "" || (d.SubscriptionID != "" && d.ResourceGroup != "" && d.ClusterResourceID != "" && d.ServiceProviderResourceType != "")
 		},
-		prerequisites: "ClusterID, or ResourceGroup + ClusterResourceName + ServiceProviderResourceType",
+		prerequisites: "ClusterID, or SubscriptionID + ResourceGroup + ClusterResourceID + ServiceProviderResourceType",
 		requiredWhen:  isClusterOrNodePool,
 	},
 	{
@@ -596,9 +628,9 @@ var allQueries = []querySpec{
 		database:     "service",
 		category:     categoryLogs,
 		ready: func(d queryData) bool {
-			return d.ClusterID != "" || (d.ResourceGroup != "" && d.ClusterResourceName != "" && d.ServiceProviderResourceType != "")
+			return d.ClusterID != "" || (d.SubscriptionID != "" && d.ResourceGroup != "" && d.ClusterResourceID != "" && d.ServiceProviderResourceType != "")
 		},
-		prerequisites: "ClusterID, or ResourceGroup + ClusterResourceName + ServiceProviderResourceType",
+		prerequisites: "ClusterID, or SubscriptionID + ResourceGroup + ClusterResourceID + ServiceProviderResourceType",
 	},
 	{
 		component:    "maestro",
@@ -607,9 +639,9 @@ var allQueries = []querySpec{
 		database:     "service",
 		category:     categoryState,
 		ready: func(d queryData) bool {
-			return d.ClusterID != "" || (d.ResourceGroup != "" && d.ClusterResourceName != "" && d.ServiceProviderResourceType != "")
+			return d.ClusterID != "" || (d.SubscriptionID != "" && d.ResourceGroup != "" && d.ClusterResourceID != "" && d.ServiceProviderResourceType != "")
 		},
-		prerequisites: "ClusterID, or ResourceGroup + ClusterResourceName + ServiceProviderResourceType",
+		prerequisites: "ClusterID, or SubscriptionID + ResourceGroup + ClusterResourceID + ServiceProviderResourceType",
 		requiredWhen:  isClusterOrNodePool,
 	},
 
