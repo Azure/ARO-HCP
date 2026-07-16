@@ -132,7 +132,8 @@ resourceGroups:
       step: subscription-lookup
   - name: detach-legacy-monitoring-stack
     action: Shell
-    command: ./scripts/detach-legacy-monitoring-stack.sh
+    command: ./detach-legacy-monitoring-stack.sh
+    workingDir: ./scripts
     variables:
     - name: KUSTO_RESOURCE_GROUP
       configRef: kusto.rg
