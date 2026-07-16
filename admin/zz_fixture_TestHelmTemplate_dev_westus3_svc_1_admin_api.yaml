@@ -357,6 +357,16 @@ spec:
     path: /metrics
     port: metrics
     scheme: http
+    metricRelabelings:
+    - action: drop
+      regex: go_(cgo_.*|cpu_classes_.*|godebug_.*|info|memory_classes_.*|sched_.*|sync_.*|threads)
+      sourceLabels: [__name__]
+    - action: drop
+      regex: go_gc_(gogc_percent|gomemlimit_bytes|cycles_.*|heap_.*|limiter_.*|pauses_seconds.*|scan_.*|stack_.*)
+      sourceLabels: [__name__]
+    - action: drop
+      regex: go_memstats_(buck_hash_sys_bytes|frees_total|gc_(cpu_fraction|sys_bytes)|heap_(idle_bytes|objects|released_bytes|sys_bytes)|last_gc_time_seconds|lookups_total|mcache_(inuse|sys)_bytes|mspan_(inuse|sys)_bytes|next_gc_bytes|other_sys_bytes|stack_sys_bytes|sys_bytes)
+      sourceLabels: [__name__]
   namespaceSelector:
     matchNames:
     - 'aro-hcp-admin-api'
