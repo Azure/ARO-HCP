@@ -24,10 +24,12 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
+	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/api"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 type NodePoolSyncer interface {
@@ -38,6 +40,7 @@ type nodePoolWatchingController struct {
 	name   string
 	syncer NodePoolSyncer
 
+	nodePoolLister    listers.NodePoolLister
 	resourcesDBClient database.ResourcesDBClient
 }
 
@@ -61,28 +64,27 @@ func NewNodePoolWatchingController(
 	resyncDuration time.Duration,
 	syncer NodePoolSyncer,
 ) Controller {
-	nodePoolSyncer := &nodePoolWatchingController{
+	controller := &nodePoolWatchingController{
 		name:              name,
 		resourcesDBClient: resourcesDBClient,
 		syncer:            syncer,
 	}
-	nodePoolController := newGenericWatchingController(name, api.NodePoolResourceType, nodePoolSyncer)
+	nodePoolController := newGenericWatchingController(name, api.NodePoolResourceType, controller)
 
-	// this happens when unit tests don't want triggering.  This isn't beautiful, but fails to do nothing which is pretty safe.
-	if informers != nil {
-		nodePoolInformer, _ := informers.NodePools()
-		serviceProviderNodePoolInformer, _ := informers.ServiceProviderNodePools()
-		err := nodePoolController.QueueForInformers(resyncDuration, nodePoolInformer, serviceProviderNodePoolInformer)
-		if err != nil {
-			panic(err) // coding error
-		}
+	nodePoolInformer, nodePoolLister := informers.NodePools()
+	serviceProviderNodePoolInformer, _ := informers.ServiceProviderNodePools()
+	controller.nodePoolLister = nodePoolLister
 
-		managementClusterContentInformer, _ := informers.ManagementClusterContents()
-		// Limit the max depth of ManagementClusterContent to 1 to only consider the nodepool-scoped ManagementClusterContents
-		err = nodePoolController.QueueForInformersWithMaxDepth(resyncDuration, 1, managementClusterContentInformer)
-		if err != nil {
-			panic(err) // coding error
-		}
+	err := nodePoolController.QueueForInformers(resyncDuration, nodePoolInformer, serviceProviderNodePoolInformer)
+	if err != nil {
+		panic(err) // coding error
+	}
+
+	managementClusterContentInformer, _ := informers.ManagementClusterContents()
+	// Limit the max depth of ManagementClusterContent to 1 to only consider the nodepool-scoped ManagementClusterContents
+	err = nodePoolController.QueueForInformersWithMaxDepth(resyncDuration, 1, managementClusterContentInformer)
+	if err != nil {
+		panic(err) // coding error
 	}
 
 	if kubeApplierInformers != nil {
@@ -101,11 +103,22 @@ func NewNodePoolWatchingController(
 }
 
 func (c *nodePoolWatchingController) SyncOnce(ctx context.Context, key HCPNodePoolKey) error {
+	logger := utils.LoggerFromContext(ctx)
+
 	defer utilruntime.HandleCrash(DegradedControllerPanicHandler(
 		ctx,
 		c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).NodePools(key.HCPClusterName).Controllers(key.HCPNodePoolName),
 		c.name,
 		key.InitialController))
+
+	_, err := c.nodePoolLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPNodePoolName)
+	switch {
+	case database.IsNotFoundError(err):
+		logger.Info("node pool not found, skipping sync")
+		return nil
+	case err != nil:
+		// do nothing, let the controller decide what it wants to do.
+	}
 
 	syncErr := c.syncer.SyncOnce(ctx, key) // we'll handle this is a moment.
 

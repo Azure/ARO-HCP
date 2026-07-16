@@ -21,7 +21,10 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
+	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
+	"github.com/Azure/ARO-HCP/internal/database"
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 type SubscriptionSyncer interface {
@@ -32,6 +35,8 @@ type SubscriptionSyncer interface {
 type subscriptionWatchingController struct {
 	name   string
 	syncer SubscriptionSyncer
+
+	subscriptionLister listers.SubscriptionLister
 }
 
 // NewSubscriptionWatchingController periodically looks up all subscriptions and queues them.
@@ -45,25 +50,35 @@ func NewSubscriptionWatchingController(
 	resyncDuration time.Duration,
 	syncer SubscriptionSyncer,
 ) Controller {
-	subscriptionSyncer := &subscriptionWatchingController{
+	controller := &subscriptionWatchingController{
 		name:   name,
 		syncer: syncer,
 	}
-	subscriptionController := newGenericWatchingController(name, azcorearm.SubscriptionResourceType, subscriptionSyncer)
+	subscriptionController := newGenericWatchingController(name, azcorearm.SubscriptionResourceType, controller)
 
-	// this happens when unit tests don't want triggering.  This isn't beautiful, but fails to do nothing which is pretty safe.
-	if informers != nil {
-		subscriptionInformer, _ := informers.Subscriptions()
-		err := subscriptionController.QueueForInformers(resyncDuration, subscriptionInformer)
-		if err != nil {
-			panic(err) // coding error
-		}
+	subscriptionInformer, subscriptionLister := informers.Subscriptions()
+	controller.subscriptionLister = subscriptionLister
+
+	err := subscriptionController.QueueForInformers(resyncDuration, subscriptionInformer)
+	if err != nil {
+		panic(err) // coding error
 	}
 
 	return subscriptionController
 }
 
 func (c *subscriptionWatchingController) SyncOnce(ctx context.Context, key SubscriptionKey) error {
+	logger := utils.LoggerFromContext(ctx)
+
+	_, err := c.subscriptionLister.Get(ctx, key.SubscriptionID)
+	switch {
+	case database.IsNotFoundError(err):
+		logger.Info("subscription not found, skipping sync")
+		return nil
+	case err != nil:
+		// do nothing, let the controller decide what it wants to do.
+	}
+
 	return c.syncer.SyncOnce(ctx, key)
 }
 

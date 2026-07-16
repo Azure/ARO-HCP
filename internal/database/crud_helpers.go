@@ -391,7 +391,9 @@ func softDeleteByCosmosID(ctx context.Context, containerClient *azcosmos.Contain
 		return nil
 	}
 
-	SetSoftDeleteFields(&doc, time.Now())
+	if err := SetSoftDeleteFields(&doc, time.Now()); err != nil {
+		return utils.TrackError(err)
+	}
 
 	modified, err := json.Marshal(doc)
 	if err != nil {
@@ -412,9 +414,9 @@ func softDeleteByCosmosID(ctx context.Context, containerClient *azcosmos.Contain
 // We use map[string]interface{} instead of unstructured.Unstructured because
 // Unstructured.UnmarshalJSON requires kind/apiVersion fields and fails with
 // "Object 'Kind' is missing in '<json>'" on Cosmos documents.
-func SetSoftDeleteFields(doc *GenericDocument[map[string]interface{}], now time.Time) {
+func SetSoftDeleteFields(doc *GenericDocument[map[string]interface{}], now time.Time) error {
 	if doc.DeletionTimestamp != nil {
-		return
+		return nil
 	}
 
 	ts := metav1.NewTime(now)
@@ -423,7 +425,7 @@ func SetSoftDeleteFields(doc *GenericDocument[map[string]interface{}], now time.
 
 	// allow deleting legacy content
 	if doc.Content == nil {
-		return
+		return nil
 	}
 
 	fv, found, err := unstructured.NestedFloat64(doc.Content, "cosmosMetadata", "instanceVersion")
@@ -434,5 +436,8 @@ func SetSoftDeleteFields(doc *GenericDocument[map[string]interface{}], now time.
 			current = 1
 		}
 	}
-	_ = unstructured.SetNestedField(doc.Content, current+1, "cosmosMetadata", "instanceVersion")
+	if err := unstructured.SetNestedField(doc.Content, current+1, "cosmosMetadata", "instanceVersion"); err != nil {
+		return utils.TrackError(fmt.Errorf("failed to set instanceVersion during soft delete: %w", err))
+	}
+	return nil
 }

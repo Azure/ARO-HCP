@@ -327,7 +327,9 @@ func mockSoftDelete(store mockDocumentStore, cosmosID string) error {
 		return nil
 	}
 
-	database.SetSoftDeleteFields(&doc, time.Now())
+	if err := database.SetSoftDeleteFields(&doc, time.Now()); err != nil {
+		return utils.TrackError(err)
+	}
 
 	modified, err := json.Marshal(doc)
 	if err != nil {
