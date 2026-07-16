@@ -21,7 +21,6 @@ import (
 	"net/http"
 	"path"
 	"strings"
-	"time"
 
 	"github.com/google/uuid"
 
@@ -174,10 +173,6 @@ func (m *mockResourceCRUD[InternalAPIType, InternalAPITypePointer, CosmosAPIType
 		return nil, database.NewNotFoundError()
 	}
 
-	if database.IsSoftDeleted(data) {
-		return nil, database.NewNotFoundError()
-	}
-
 	var cosmosObj CosmosAPIType
 	if err := json.Unmarshal(data, &cosmosObj); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal document: %w", err)
@@ -308,37 +303,7 @@ func (m *mockResourceCRUD[InternalAPIType, InternalAPITypePointer, CosmosAPIType
 	if err != nil {
 		return err
 	}
-
-	return mockSoftDelete(m.client, cosmosUID)
-}
-
-func mockSoftDelete(store mockDocumentStore, cosmosID string) error {
-	data, ok := store.GetDocument(cosmosID)
-	if !ok {
-		return nil
-	}
-
-	var doc database.GenericDocument[map[string]interface{}]
-	if err := json.Unmarshal(data, &doc); err != nil {
-		return fmt.Errorf("failed to unmarshal document for soft delete: %w", err)
-	}
-
-	if doc.DeletionTimestamp != nil {
-		return nil
-	}
-
-	database.SetSoftDeleteFields(&doc, time.Now())
-
-	modified, err := json.Marshal(doc)
-	if err != nil {
-		return fmt.Errorf("failed to marshal soft-deleted document: %w", err)
-	}
-
-	dataWithETag, _, err := injectETag(json.RawMessage(modified))
-	if err != nil {
-		return fmt.Errorf("failed to inject etag: %w", err)
-	}
-	store.StoreDocument(cosmosID, dataWithETag)
+	m.client.DeleteDocument(cosmosUID)
 	return nil
 }
 
@@ -572,11 +537,9 @@ func (m *mockOperationCRUD) ListActiveOperations(options *database.ResourcesDBCl
 			continue
 		}
 
+		// Mirror the production query, which requires IS_DEFINED(c.resourceID);
+		// documents without a resourceID are never returned by list.
 		if typedDoc.ResourceID == nil {
-			continue
-		}
-
-		if typedDoc.DeletionTimestamp != nil {
 			continue
 		}
 
@@ -726,9 +689,6 @@ func (m *mockUntypedCRUD) Get(ctx context.Context, resourceID *azcorearm.Resourc
 
 	data, ok := m.client.GetDocument(newCosmosID)
 	if ok {
-		if database.IsSoftDeleted(data) {
-			return nil, database.NewNotFoundError()
-		}
 		var typedDoc database.TypedDocument
 		if err := json.Unmarshal(data, &typedDoc); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal document: %w", err)
@@ -769,10 +729,6 @@ func (m *mockUntypedCRUD) listInternal(ctx context.Context, opts *database.DBCli
 			continue
 		}
 
-		if typedDoc.DeletionTimestamp != nil {
-			continue
-		}
-
 		// For non-recursive, check slash count
 		if nonRecursive {
 			slashCount := strings.Count(typedDoc.ResourceID.String(), "/")
@@ -798,11 +754,13 @@ func (m *mockUntypedCRUD) Delete(ctx context.Context, resourceID *azcorearm.Reso
 	if err != nil {
 		return err
 	}
-	return mockSoftDelete(m.client, cosmosUID)
+	m.client.DeleteDocument(cosmosUID)
+	return nil
 }
 
 func (m *mockUntypedCRUD) DeleteByCosmosID(ctx context.Context, partitionKey, cosmosID string) error {
-	return mockSoftDelete(m.client, cosmosID)
+	m.client.DeleteDocument(cosmosID)
+	return nil
 }
 
 func (m *mockUntypedCRUD) Child(resourceType azcorearm.ResourceType, resourceName string) (database.UntypedResourceCRUD, error) {
