@@ -352,7 +352,7 @@ defaults:
     image:
       registry: quay.io
       repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
-      digest: sha256:bba890354f7fbb54a054dd1307bcce7d36354853cffc839828c3d491111c4ab9 # 7eb0da08384481312cba9bac3598cb40013968fd (2026-07-15 09:38)
+      digest: sha256:9d60ae8649fc37ce4518a9a2e39fef028bddd0fe24732032857cbb187d77b788 # 4fa09b106e2f623f779c6c68203843efab97793d (2026-07-15 16:05)
     namespace: hypershift
     additionalInstallArg: '--enable-cpo-overrides'
     # By default we set it to empty as this tag is only required for msft environments. We override
@@ -557,7 +557,7 @@ defaults:
         image:
           registry: mcr.microsoft.com/oss/v2
           repository: prometheus/prometheus
-          sha: 41b4e97fabeecabc304e9554a0ec1498d9735fe6780b9391bc265f175fe5ebec # v3.12.0 (2026-07-14 00:45)
+          sha: 58e9ee63813d008bfe6ea415180d3e87898fb25fc357cdfcd6aa08cb689a4975 # v3.12.0 (2026-07-15 13:55)
         version: ""
         resources:
           requests:
@@ -691,7 +691,7 @@ defaults:
         image:
           registry: mcr.microsoft.com/oss/v2
           repository: prometheus/prometheus
-          sha: 41b4e97fabeecabc304e9554a0ec1498d9735fe6780b9391bc265f175fe5ebec # v3.12.0 (2026-07-14 00:45)
+          sha: 58e9ee63813d008bfe6ea415180d3e87898fb25fc357cdfcd6aa08cb689a4975 # v3.12.0 (2026-07-15 13:55)
         resources:
           requests:
             cpu: NONE
@@ -1000,7 +1000,7 @@ defaults:
       bundle:
         registry: quay.io
         repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-216
-        digest: sha256:37c481c80d3a95d3b92122e9eded580f4dcf49e0cb762f05cd0308a5df063246 # v2.16.3-515 (2026-07-15 05:06)
+        digest: sha256:f50315d3b2b5f6b817e7065939ee4058575f51028548072827e93c5231b25dcf # v2.16.3-517 (2026-07-16 05:08)
     mce:
       bundle:
         registry: quay.io
@@ -1011,7 +1011,7 @@ defaults:
     image:
       registry: quay.io
       repository: app-sre/aro-hcp-clusters-service
-      digest: sha256:dd13faa8268616ac65811cc2c679f26005eb5c2bf9c875c11414376e8d8ced5e # 4e0834ea4685b807c8862978864cb6ad607e611e (2026-07-15 10:30)
+      digest: sha256:70d9c5e7e1d1de654ecd3a03f61d642f9a6241bf457010c48ad11b7d597f2ac5 # 12a0651a0ee4276cd65b85ac9da236a234f0e223 (2026-07-16 04:27)
     # controls how many HCPs can be placed on an MC, sadly not configurable per MC
     provisionShardClusterLimit: 100
     provisionShardStatus: active
@@ -1073,7 +1073,7 @@ defaults:
       image:
         registry: arohcpsvcdev.azurecr.io
         repository: image-sync/oc-mirror
-        digest: sha256:a451095e731f4edea937a0c3a1c339e864e97c74e45747cffaaa9c488a9614f0 # fbc4b4a (2026-07-15 11:36)
+        digest: sha256:a3a321ad06719d01011e9716b3491e79110577a33414c82979f5ff2ad4cc40c0 # 5ca348d (2026-07-16 05:28)
       pullSecretName: ocmirror-pull-secret
       operatorVersionsToMirror: "4.18,4.19,4.20,4.21,4.22"
   # Automation Account
