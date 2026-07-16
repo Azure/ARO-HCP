@@ -276,7 +276,7 @@ func TestNodePoolVersionSyncer_SyncOnce(t *testing.T) {
 
 			ctx = utils.ContextWithLogger(ctx, logr.Discard())
 
-			err := syncer.SyncOnce(ctx, testKey)
+			_, err := syncer.SyncOnce(ctx, testKey)
 
 			assertSyncResult(t, err, tt.expectedError, tt.expectedErrorContains)
 		})
@@ -492,7 +492,7 @@ func TestNodePoolVersionSyncer_SyncOnce_IntentFailed(t *testing.T) {
 				cincinnatiClientCache:         mockClientCache,
 			}
 
-			err := syncer.SyncOnce(ctx, testKey)
+			_, err := syncer.SyncOnce(ctx, testKey)
 			if tt.wantSyncErr {
 				require.Error(t, err)
 				assert.ErrorContains(t, err, tt.wantErrContains)
@@ -1005,7 +1005,7 @@ func TestNodePoolVersionSyncer_SyncOnce_DesiredExceedsControlPlaneFails(t *testi
 	}
 
 	ctx = utils.ContextWithLogger(ctx, logr.Discard())
-	err := syncer.SyncOnce(ctx, testKey)
+	_, err := syncer.SyncOnce(ctx, testKey)
 
 	// Validation failure persists IntentFailed and SyncOnce returns nil.
 	require.NoError(t, err)
@@ -1063,7 +1063,7 @@ func TestNodePoolVersionSyncer_SyncOnce_SucceedsWithoutCincinnatiEdge(t *testing
 	}
 
 	ctx = utils.ContextWithLogger(ctx, logr.Discard())
-	err := syncer.SyncOnce(ctx, testKey)
+	_, err := syncer.SyncOnce(ctx, testKey)
 
 	require.NoError(t, err)
 
@@ -1124,7 +1124,7 @@ func TestNodePoolVersionSyncer_SyncOnce_VersionNotInCincinnatiFails(t *testing.T
 	}
 
 	ctx = utils.ContextWithLogger(ctx, logr.Discard())
-	err := syncer.SyncOnce(ctx, testKey)
+	_, err := syncer.SyncOnce(ctx, testKey)
 
 	// Cincinnati VersionNotFound persists IntentFailed; SyncOnce returns nil.
 	require.NoError(t, err)
@@ -1182,7 +1182,7 @@ func TestNodePoolVersionSyncer_SyncOnce_DowngradeVersionNotInCincinnatiFails(t *
 	}
 
 	ctx = utils.ContextWithLogger(ctx, logr.Discard())
-	err := syncer.SyncOnce(ctx, testKey)
+	_, err := syncer.SyncOnce(ctx, testKey)
 
 	// Cincinnati VersionNotFound persists IntentFailed; SyncOnce returns nil.
 	require.NoError(t, err)
@@ -1240,7 +1240,7 @@ func TestNodePoolVersionSyncer_SyncOnce_DowngradeWithinSkewSucceeds(t *testing.T
 	}
 
 	ctx = utils.ContextWithLogger(ctx, logr.Discard())
-	err := syncer.SyncOnce(ctx, testKey)
+	_, err := syncer.SyncOnce(ctx, testKey)
 
 	require.NoError(t, err)
 
@@ -1301,7 +1301,7 @@ func TestNodePoolVersionSyncer_SyncOnce_ValidUpgradeSucceeds(t *testing.T) {
 	}
 
 	ctx = utils.ContextWithLogger(ctx, logr.Discard())
-	err := syncer.SyncOnce(ctx, testKey)
+	_, err := syncer.SyncOnce(ctx, testKey)
 	require.NoError(t, err)
 
 	// Verify the ServiceProviderNodePool was updated correctly
@@ -1360,7 +1360,7 @@ func TestNodePoolVersionSyncer_SyncOnce_DesiredVersionUnchangedOnFailure_Changed
 	}
 
 	ctx = utils.ContextWithLogger(ctx, logr.Discard())
-	err := syncer.SyncOnce(ctx, testKey)
+	_, err := syncer.SyncOnce(ctx, testKey)
 	require.NoError(t, err)
 
 	// Verify the ServiceProviderNodePool was created with correct versions
@@ -1403,7 +1403,7 @@ func TestNodePoolVersionSyncer_SyncOnce_DesiredVersionUnchangedOnFailure_Changed
 	mockClientCache.EXPECT().GetOrCreateClient(gomock.Any()).Return(mockCincinnatiFailing).Times(1)
 
 	// SyncOnce should succeed but persist IntentFailed (VersionNotFound is a user error, not transient)
-	err = syncer.SyncOnce(ctx, testKey)
+	_, err = syncer.SyncOnce(ctx, testKey)
 	require.NoError(t, err, "SyncOnce should return nil after persisting IntentFailed for VersionNotFound")
 
 	// Verify that DesiredVersion was NOT changed (still 4.19.15)
@@ -1443,7 +1443,7 @@ func TestNodePoolVersionSyncer_SyncOnce_DesiredVersionUnchangedOnFailure_Changed
 	mockClientCache.EXPECT().GetOrCreateClient(gomock.Any()).Return(mockCincinnatiSucceeding).Times(1)
 
 	// SyncOnce should succeed now
-	err = syncer.SyncOnce(ctx, testKey)
+	_, err = syncer.SyncOnce(ctx, testKey)
 	require.NoError(t, err, "SyncOnce should succeed when version exists in Cincinnati")
 
 	// Verify that DesiredVersion HAS changed to 4.19.20

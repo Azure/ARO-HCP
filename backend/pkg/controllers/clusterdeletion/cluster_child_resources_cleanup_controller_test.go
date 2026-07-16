@@ -513,7 +513,7 @@ func TestClusterChildResourcesCleanupController_SyncOnce(t *testing.T) {
 				kubeApplierDBClients: mockKubeApplierDBClients,
 			}
 
-			err = syncer.SyncOnce(ctx, testKey)
+			_, err = syncer.SyncOnce(ctx, testKey)
 			if tc.wantErr {
 				require.Error(t, err)
 				return

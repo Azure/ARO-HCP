@@ -221,7 +221,7 @@ func TestExternalAuthDegradedAggregator_SyncOnce(t *testing.T) {
 				firstObservedBad:   newFirstObservedBadCache(clock),
 			}
 
-			err = syncer.SyncOnce(ctx, controllerutils.HCPExternalAuthKey{
+			_, err = syncer.SyncOnce(ctx, controllerutils.HCPExternalAuthKey{
 				SubscriptionID:      testSubscriptionID,
 				ResourceGroupName:   testResourceGroupName,
 				HCPClusterName:      testClusterName,

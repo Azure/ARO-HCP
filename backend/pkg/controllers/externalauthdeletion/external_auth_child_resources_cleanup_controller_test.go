@@ -262,7 +262,7 @@ func TestExternalAuthChildResourcesCleanupController_SyncOnce(t *testing.T) {
 				resourcesDBClient:  mockResourcesDBClient,
 			}
 
-			err = syncer.SyncOnce(ctx, testKey)
+			_, err = syncer.SyncOnce(ctx, testKey)
 			if tc.wantErr {
 				require.Error(t, err)
 				return

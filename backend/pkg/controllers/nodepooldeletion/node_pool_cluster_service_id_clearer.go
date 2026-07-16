@@ -27,6 +27,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/api"
+	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -91,30 +92,30 @@ func (c *nodePoolClusterServiceIDClearer) NeedsWork(nodePool *api.HCPOpenShiftCl
 // 404, the deletion has finished and we zero out ClusterServiceID. Any other
 // state means cluster-service is still draining the NodePool. We retry on the
 // next sync.
-func (c *nodePoolClusterServiceIDClearer) SyncOnce(ctx context.Context, key controllerutils.HCPNodePoolKey) error {
+func (c *nodePoolClusterServiceIDClearer) SyncOnce(ctx context.Context, key controllerutils.HCPNodePoolKey) (controllerutil.SyncResult, error) {
 	logger := utils.LoggerFromContext(ctx)
 
 	cachedNodePool, err := c.nodePoolLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPNodePoolName)
 	if database.IsNotFoundError(err) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get node pool from cache: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to get node pool from cache: %w", err))
 	}
 	if !c.NeedsWork(cachedNodePool) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
 	nodePoolCRUD := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).NodePools(key.HCPClusterName)
 	nodePool, err := nodePoolCRUD.Get(ctx, key.HCPNodePoolName)
 	if database.IsNotFoundError(err) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get node pool: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to get node pool: %w", err))
 	}
 	if !c.NeedsWork(nodePool) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
 	csID := nodePool.ServiceProviderProperties.ClusterServiceID
@@ -122,18 +123,18 @@ func (c *nodePoolClusterServiceIDClearer) SyncOnce(ctx context.Context, key cont
 	if err != nil {
 		var ocmError *ocmerrors.Error
 		if !errors.As(err, &ocmError) || ocmError.Status() != http.StatusNotFound {
-			return utils.TrackError(fmt.Errorf("failed to get cluster-service NodePool: %w", err))
+			return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to get cluster-service NodePool: %w", err))
 		}
 		// 404 - cluster-service has finished deleting the NodePool, clear the CS ID.
 		logger.Info("cluster-service NodePool gone. Clearing ClusterServiceID", "clusterServiceID", csID.String())
 		replacement := nodePool.DeepCopy()
 		replacement.ServiceProviderProperties.ClusterServiceID = nil
 		if _, err := nodePoolCRUD.Replace(ctx, replacement, nil); err != nil {
-			return utils.TrackError(fmt.Errorf("failed to clear ClusterServiceID: %w", err))
+			return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to clear ClusterServiceID: %w", err))
 		}
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
 	// NodePool still exists in cluster-service. Nothing to do yet.
-	return nil
+	return controllerutil.SyncResult{}, nil
 }

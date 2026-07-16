@@ -275,7 +275,7 @@ func TestClusterClusterServiceDeleteDispatchSyncer_SyncOnce(t *testing.T) {
 				firstSeenDeletionTimestampCache: firstSeenDeletionTimestampCache,
 			}
 
-			err = syncer.SyncOnce(ctx, testKey)
+			_, err = syncer.SyncOnce(ctx, testKey)
 			if tc.wantErr {
 				require.Error(t, err)
 				if len(tc.wantErrContain) > 0 {
@@ -320,7 +320,8 @@ func TestClusterClusterServiceDeleteDispatchSyncer_SyncOnce_cacheShortCircuit(t 
 		HCPClusterName:    testClusterName,
 	}
 
-	require.NoError(t, syncer.SyncOnce(ctx, testKey))
+	_, err := syncer.SyncOnce(ctx, testKey)
+	require.NoError(t, err)
 
 	stored, err := mockResourcesDBClient.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
 	require.NoError(t, err)
@@ -354,7 +355,8 @@ func TestClusterClusterServiceDeleteDispatchSyncer_SyncOnce_firstSeenDeletionCac
 		HCPClusterName:    testClusterName,
 	}
 
-	require.NoError(t, syncer.SyncOnce(ctx, testKey))
+	_, err := syncer.SyncOnce(ctx, testKey)
+	require.NoError(t, err)
 
 	cacheKey := strings.ToLower(cluster.ID.String())
 	firstSeenEntry, ok := firstSeenDeletionTimestampCache.Get(cacheKey)
@@ -396,7 +398,8 @@ func TestClusterClusterServiceDeleteDispatchSyncer_SyncOnce_firstSeenDeletionCac
 		HCPClusterName:    testClusterName,
 	}
 
-	require.NoError(t, syncer.SyncOnce(ctx, testKey))
+	_, err := syncer.SyncOnce(ctx, testKey)
+	require.NoError(t, err)
 
 	_, ok := firstSeenDeletionTimestampCache.Get(cacheKey)
 	assert.False(t, ok, "expected first seen deletion cache entry to be removed after terminal sync")

@@ -22,7 +22,6 @@ import (
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 // The RpRegistrationValidation struct validates the states of several
@@ -45,7 +44,7 @@ func (v *AzureResourceProvidersRegistrationValidation) Name() string {
 
 func (v *AzureResourceProvidersRegistrationValidation) Validate(
 	ctx context.Context, clusterSubscription *arm.Subscription, cluster *api.HCPOpenShiftCluster,
-) error {
+) ValidationResult {
 	resourceProvidersToCheck := []string{
 		"Microsoft.Authorization",
 		"Microsoft.Compute",
@@ -60,13 +59,33 @@ func (v *AzureResourceProvidersRegistrationValidation) Validate(
 		cluster.ID.SubscriptionID,
 	)
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get resource providers client: %w", err))
+		return ValidationResult{
+			Outcome: ValidationOutcome{
+				Type: OutcomeUnknown,
+				Unknown: &UnknownResult{
+					Reason:                 "InternalError",
+					ServiceProviderMessage: fmt.Sprintf("failed to get resource providers client: %v", err),
+					UserMessage:            "An internal error occurred while performing the validation.",
+					ReportingPolicy:        ReportingPolicyReportError,
+				},
+			},
+		}
 	}
 
 	for _, rp := range resourceProvidersToCheck {
 		providerResp, err := rpClient.Get(ctx, rp, nil)
 		if err != nil {
-			return err
+			return ValidationResult{
+				Outcome: ValidationOutcome{
+					Type: OutcomeUnknown,
+					Unknown: &UnknownResult{
+						Reason:                 "InternalError",
+						ServiceProviderMessage: fmt.Sprintf("failed to get resource provider %s: %v", rp, err),
+						UserMessage:            "An internal error occurred while performing the validation.",
+						ReportingPolicy:        ReportingPolicyReportError,
+					},
+				},
+			}
 		}
 		if providerResp.RegistrationState == nil ||
 			*providerResp.RegistrationState != "Registered" {
@@ -75,9 +94,22 @@ func (v *AzureResourceProvidersRegistrationValidation) Validate(
 	}
 
 	if len(missingResourcesProviders) > 0 {
-		return utils.TrackError(fmt.Errorf("%v of the resource providers are not registered, or their state is empty: %s",
-			len(missingResourcesProviders), strings.Join(missingResourcesProviders, ", ")))
+		return ValidationResult{
+			Outcome: ValidationOutcome{
+				Type: OutcomeFailed,
+				Failed: &FailedResult{
+					Reason:                 "ResourceProvidersNotRegistered",
+					ServiceProviderMessage: fmt.Sprintf("%v of the resource providers are not registered, or their state is empty: %s", len(missingResourcesProviders), strings.Join(missingResourcesProviders, ", ")),
+					UserMessage:            "One or more required Azure resource providers are not registered.",
+				},
+			},
+		}
 	}
 
-	return nil
+	return ValidationResult{
+		Outcome: ValidationOutcome{
+			Type:   OutcomePassed,
+			Passed: &PassedResult{},
+		},
+	}
 }

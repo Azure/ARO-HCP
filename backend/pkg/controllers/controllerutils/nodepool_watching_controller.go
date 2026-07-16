@@ -31,7 +31,7 @@ import (
 )
 
 type NodePoolSyncer interface {
-	SyncOnce(ctx context.Context, keyObj HCPNodePoolKey) error
+	SyncOnce(ctx context.Context, keyObj HCPNodePoolKey) (controllerutil.SyncResult, error)
 }
 
 type nodePoolWatchingController struct {
@@ -100,14 +100,14 @@ func NewNodePoolWatchingController(
 	return nodePoolController
 }
 
-func (c *nodePoolWatchingController) SyncOnce(ctx context.Context, key HCPNodePoolKey) error {
+func (c *nodePoolWatchingController) SyncOnce(ctx context.Context, key HCPNodePoolKey) (controllerutil.SyncResult, error) {
 	defer utilruntime.HandleCrash(DegradedControllerPanicHandler(
 		ctx,
 		c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).NodePools(key.HCPClusterName).Controllers(key.HCPNodePoolName),
 		c.name,
 		key.InitialController))
 
-	syncErr := c.syncer.SyncOnce(ctx, key) // we'll handle this is a moment.
+	syncResult, syncErr := c.syncer.SyncOnce(ctx, key) // we'll handle this is a moment.
 
 	controllerWriteErr := WriteController(
 		ctx,
@@ -117,7 +117,7 @@ func (c *nodePoolWatchingController) SyncOnce(ctx context.Context, key HCPNodePo
 		ReportSyncError(syncErr),
 	)
 
-	return errors.Join(syncErr, controllerWriteErr)
+	return syncResult, errors.Join(syncErr, controllerWriteErr)
 }
 
 func (c *nodePoolWatchingController) CooldownChecker() controllerutil.CooldownChecker {

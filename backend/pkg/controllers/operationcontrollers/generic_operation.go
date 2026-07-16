@@ -120,7 +120,7 @@ func (c *genericOperation) QueueForInformers(resyncDuration time.Duration, notif
 	panic("not implemented")
 }
 
-func (c *genericOperation) SyncOnce(ctx context.Context, keyObj any) error {
+func (c *genericOperation) SyncOnce(ctx context.Context, keyObj any) (controllerutil.SyncResult, error) {
 	key := keyObj.(controllerutils.OperationKey)
 	controllerCRUD := c.controllerCRUD(key)
 
@@ -140,7 +140,7 @@ func (c *genericOperation) SyncOnce(ctx context.Context, keyObj any) error {
 		controllerutils.ReportSyncError(syncErr),
 	)
 
-	return errors.Join(syncErr, controllerWriteErr)
+	return controllerutil.SyncResult{}, errors.Join(syncErr, controllerWriteErr)
 }
 
 // Run check do_nothing.go for basic doc details.
@@ -183,15 +183,12 @@ func (c *genericOperation) processNextWorkItem(ctx context.Context) bool {
 	ctx = utils.ContextWithLogger(ctx, logger)
 
 	controllerutils.ReconcileTotal.WithLabelValues(c.name).Inc()
-	err := c.SyncOnce(ctx, ref)
-	if err == nil {
-		c.queue.Forget(ref)
-		return true
+	result, err := c.SyncOnce(ctx, ref)
+	if err != nil {
+		utilruntime.HandleErrorWithContext(ctx, err, "Error syncing; requeuing for later retry", "objectReference", ref)
 	}
 
-	utilruntime.HandleErrorWithContext(ctx, err, "Error syncing; requeuing for later retry", "objectReference", ref)
-	c.queue.AddRateLimited(ref)
-
+	controllerutils.HandleSyncResult(c.queue, ref, result, err)
 	return true
 }
 

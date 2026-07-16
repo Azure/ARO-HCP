@@ -25,6 +25,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/api"
+	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -110,37 +111,37 @@ func ptrStringEqual(a, b *string) bool {
 	return *a == *b
 }
 
-func (c *desiredControlPlaneSizeSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
+func (c *desiredControlPlaneSizeSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) (controllerutil.SyncResult, error) {
 	logger := utils.LoggerFromContext(ctx)
 
 	cachedServiceProviderCluster, err := c.serviceProviderClusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if database.IsNotFoundError(err) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get ServiceProviderCluster from cache: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to get ServiceProviderCluster from cache: %w", err))
 	}
 	if !c.NeedsWork(cachedServiceProviderCluster) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
 	cachedCluster, err := c.clusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if database.IsNotFoundError(err) {
 		logger.V(1).Info("Cluster not found in cache, skipping")
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get cluster from cache: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to get cluster from cache: %w", err))
 	}
 	if cachedCluster.ServiceProviderProperties.ClusterServiceID == nil || len(cachedCluster.ServiceProviderProperties.ClusterServiceID.String()) == 0 {
 		logger.V(1).Info("Cluster has no ClusterServiceID, skipping")
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
 	clusterServiceID := *cachedCluster.ServiceProviderProperties.ClusterServiceID
 	clusterServiceCluster, err := c.clusterServiceClient.GetCluster(ctx, clusterServiceID)
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get cluster from Cluster Service: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to get cluster from Cluster Service: %w", err))
 	}
 
 	// Compute the effective CSPropertySizeOverride using the same logic the
@@ -151,7 +152,7 @@ func (c *desiredControlPlaneSizeSyncer) SyncOnce(ctx context.Context, key contro
 
 	if effectiveDesiredPresent != currentPresent || effectiveDesired != current {
 		logger.V(1).Info("effective cluster-service size override not yet applied, waiting for update dispatch", "effectiveDesired", effectiveDesired, "effectiveDesiredPresent", effectiveDesiredPresent, "current", current, "currentPresent", currentPresent)
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
 	// Cluster-service reflects the merged desired value. Mirror SPC Spec into
@@ -167,12 +168,12 @@ func (c *desiredControlPlaneSizeSyncer) SyncOnce(ctx context.Context, key contro
 	if database.IsPreconditionFailedError(err) {
 		// Another writer beat us to the SPC; the informer will deliver the
 		// updated document and re-enqueue us, so treat the conflict as a no-op.
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to update ServiceProviderCluster status: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to update ServiceProviderCluster status: %w", err))
 	}
 
 	logger.Info("recorded DesiredHostedClusterControlPlaneSize status after cluster-service confirmed", "size", effectiveDesired, "present", effectiveDesiredPresent)
-	return nil
+	return controllerutil.SyncResult{}, nil
 }

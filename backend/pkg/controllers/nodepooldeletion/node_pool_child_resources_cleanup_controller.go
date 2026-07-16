@@ -26,6 +26,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/api"
+	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -82,40 +83,40 @@ func (c *nodePoolChildResourcesCleanupController) NeedsWork(nodePool *api.HCPOpe
 		nodePool.ServiceProviderProperties.ClusterServiceID == nil
 }
 
-func (c *nodePoolChildResourcesCleanupController) SyncOnce(ctx context.Context, key controllerutils.HCPNodePoolKey) error {
+func (c *nodePoolChildResourcesCleanupController) SyncOnce(ctx context.Context, key controllerutils.HCPNodePoolKey) (controllerutil.SyncResult, error) {
 	logger := utils.LoggerFromContext(ctx)
 
 	cachedNodePool, err := c.nodePoolLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPNodePoolName)
 	if database.IsNotFoundError(err) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get node pool from cache: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to get node pool from cache: %w", err))
 	}
 	if !c.NeedsWork(cachedNodePool) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
 	nodePoolCRUD := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).NodePools(key.HCPClusterName)
 	nodePool, err := nodePoolCRUD.Get(ctx, key.HCPNodePoolName)
 	if database.IsNotFoundError(err) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get node pool: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to get node pool: %w", err))
 	}
 	if !c.NeedsWork(nodePool) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
 	nodePoolResourceID := key.GetResourceID()
 	if err := c.ensureNodePoolScopedKubeApplierResourcesDeleted(ctx, nodePoolResourceID); err != nil {
-		return utils.TrackError(fmt.Errorf("failed to delete nodepool-scoped kube-applier content: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to delete nodepool-scoped kube-applier content: %w", err))
 	}
 
 	untypedCRUD, err := c.resourcesDBClient.UntypedCRUD(*nodePoolResourceID)
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to create untyped CRUD for node pool children: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to create untyped CRUD for node pool children: %w", err))
 	}
 
 	// extraDeleteGates is a map of resource types to extra delete gates that are used to determine if a resource should be deleted.
@@ -132,18 +133,18 @@ func (c *nodePoolChildResourcesCleanupController) SyncOnce(ctx context.Context, 
 
 	childIterator, err := untypedCRUD.ListRecursive(ctx, nil)
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to list node pool child resources: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to list node pool child resources: %w", err))
 	}
 	for _, childResource := range childIterator.Items(ctx) {
 		if childResource.ResourceID == nil {
-			return utils.TrackError(fmt.Errorf("child resource at cosmosID %q has no resourceID; refusing to delete", childResource.ID))
+			return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("child resource at cosmosID %q has no resourceID; refusing to delete", childResource.ID))
 		}
 
 		extraDeleteGate, ok := extraDeleteGates[strings.ToLower(childResource.ResourceType)]
 		if ok {
 			shouldDelete, err := extraDeleteGate(ctx, childResource.ResourceID)
 			if err != nil {
-				return utils.TrackError(err)
+				return controllerutil.SyncResult{}, utils.TrackError(err)
 			}
 			if !shouldDelete {
 				continue
@@ -152,16 +153,16 @@ func (c *nodePoolChildResourcesCleanupController) SyncOnce(ctx context.Context, 
 
 		logger.Info("deleting child resource", "childResourceID", childResource.ResourceID)
 		if err := untypedCRUD.Delete(ctx, childResource.ResourceID); err != nil {
-			return utils.TrackError(err)
+			return controllerutil.SyncResult{}, utils.TrackError(err)
 		}
 	}
 	if err := childIterator.GetError(); err != nil {
-		return utils.TrackError(err)
+		return controllerutil.SyncResult{}, utils.TrackError(err)
 	}
 
 	logger.Info("all included nodepool child resources deleted")
 
-	return nil
+	return controllerutil.SyncResult{}, nil
 }
 
 // extraDeleteGateShouldDeleteServiceProviderNodePool returns false while the

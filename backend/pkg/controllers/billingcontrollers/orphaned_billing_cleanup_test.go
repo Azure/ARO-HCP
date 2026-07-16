@@ -208,7 +208,7 @@ func TestOrphanedBillingCleanup_SyncOnce(t *testing.T) {
 				billingDBClient: mockBillingDBClient,
 			}
 
-			err := controller.SyncOnce(ctx, "default")
+			_, err := controller.SyncOnce(ctx, "default")
 
 			if tt.expectError {
 				require.Error(t, err)

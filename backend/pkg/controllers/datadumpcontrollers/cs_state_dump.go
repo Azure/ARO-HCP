@@ -66,9 +66,9 @@ func NewCSStateDumpController(
 	)
 }
 
-func (c *csStateDump) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
+func (c *csStateDump) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) (controllerutil.SyncResult, error) {
 	if !c.nextDumpChecker.CanSync(ctx, key) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
 	logger := utils.LoggerFromContext(ctx)
@@ -77,16 +77,16 @@ func (c *csStateDump) SyncOnce(ctx context.Context, key controllerutils.HCPClust
 	cluster, err := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Get(ctx, key.HCPClusterName)
 	if database.IsNotFoundError(err) {
 		// Cluster doesn't exist in cosmos, nothing to dump
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 	if err != nil {
 		logger.Error(err, "failed to get cluster from cosmos for CS state dump")
-		return nil // best effort, don't fail
+		return controllerutil.SyncResult{}, nil // best effort, don't fail
 	}
 
 	if cluster.ServiceProviderProperties.ClusterServiceID == nil || len(cluster.ServiceProviderProperties.ClusterServiceID.String()) == 0 {
 		// No ClusterServiceID yet, cluster hasn't been registered with CS
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 	csID := cluster.ServiceProviderProperties.ClusterServiceID
 
@@ -116,7 +116,7 @@ func (c *csStateDump) SyncOnce(ctx context.Context, key controllerutils.HCPClust
 	if err != nil {
 		logger.Error(err, "failed to list node pools from cosmos for CS state dump")
 		// best effort, don't fail
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
 	for _, nodePool := range allNodePools.Items(ctx) {
@@ -156,7 +156,7 @@ func (c *csStateDump) SyncOnce(ctx context.Context, key controllerutils.HCPClust
 		logger.Error(err, "failed to iterate node pools from cosmos for CS state dump")
 	}
 
-	return nil
+	return controllerutil.SyncResult{}, nil
 }
 
 // csObjectToMap serializes a cluster-service object to JSON and then decodes it into a map[string]any

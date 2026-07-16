@@ -74,86 +74,86 @@ func (c *clusterClusterServiceCreateSyncer) needsWork(cluster *api.HCPOpenShiftC
 			len(cluster.ServiceProviderProperties.ClusterServiceID.String()) == 0)
 }
 
-func (c *clusterClusterServiceCreateSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
+func (c *clusterClusterServiceCreateSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) (controllerutil.SyncResult, error) {
 	logger := utils.LoggerFromContext(ctx)
 
 	// Quick cache lookup first to see if work is needed
 	cluster, err := c.clusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if database.IsNotFoundError(err) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 	if err != nil {
-		return utils.TrackError(err)
+		return controllerutil.SyncResult{}, utils.TrackError(err)
 	}
 
 	if !c.needsWork(cluster) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
 	// Confirm against the live document to make sure the cluster hasn't been deleted or modified since we last checked
 	cluster, err = c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Get(ctx, key.HCPClusterName)
 	if database.IsNotFoundError(err) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 	if err != nil {
-		return utils.TrackError(err)
+		return controllerutil.SyncResult{}, utils.TrackError(err)
 	}
 
 	if !c.needsWork(cluster) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
 	existingServiceProviderCluster, err := database.GetOrCreateServiceProviderCluster(ctx, c.resourcesDBClient, cluster.ID)
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get or create ServiceProviderCluster: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to get or create ServiceProviderCluster: %w", err))
 	}
 
 	ready, err := c.createPreconditionDesiredVersionResolved(ctx, existingServiceProviderCluster)
 	if err != nil {
-		return utils.TrackError(err)
+		return controllerutil.SyncResult{}, utils.TrackError(err)
 	}
 	if !ready {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
 	subscription, err := c.subscriptionLister.Get(ctx, key.SubscriptionID)
 	if err != nil {
-		return utils.TrackError(err)
+		return controllerutil.SyncResult{}, utils.TrackError(err)
 	}
 	if subscription.Properties == nil || subscription.Properties.TenantId == nil {
-		return utils.TrackError(fmt.Errorf("subscription %s has no tenantId", key.SubscriptionID))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("subscription %s has no tenantId", key.SubscriptionID))
 	}
 	tenantID := *subscription.Properties.TenantId
 	mrg := cluster.CustomerProperties.Platform.ManagedResourceGroup
 
 	csCluster, err := c.findAROHCPClusterByAzureInfo(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, tenantID, mrg)
 	if err != nil {
-		return utils.TrackError(err)
+		return controllerutil.SyncResult{}, utils.TrackError(err)
 	}
 
 	if csCluster == nil {
 		csCluster, err = c.createClusterServiceCluster(ctx, cluster, existingServiceProviderCluster, tenantID)
 		if err != nil {
-			return utils.TrackError(fmt.Errorf("failed to create cluster in CS: %w", err))
+			return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to create cluster in CS: %w", err))
 		}
 	}
 
 	csInternalID, err := api.NewInternalID(csCluster.HREF())
 	if err != nil {
-		return utils.TrackError(err)
+		return controllerutil.SyncResult{}, utils.TrackError(err)
 	}
 
 	logger.Info("Storing ClusterServiceID on cluster document", "clusterServiceID", csInternalID.String())
 	cluster.ServiceProviderProperties.ClusterServiceID = &csInternalID
 	_, err = c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Replace(ctx, cluster, nil)
 	if database.IsPreconditionFailedError(err) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to replace Cluster: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to replace Cluster: %w", err))
 	}
 
-	return nil
+	return controllerutil.SyncResult{}, nil
 }
 
 // createPreconditionDesiredVersionResolved reports whether the ControlPlaneDesiredVersion

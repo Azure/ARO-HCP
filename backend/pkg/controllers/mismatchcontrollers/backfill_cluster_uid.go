@@ -62,33 +62,33 @@ func (c *backfillClusterUID) NeedsWork(ctx context.Context, existingCluster *api
 	return true
 }
 
-func (c *backfillClusterUID) SyncOnce(ctx context.Context, keyObj controllerutils.HCPClusterKey) error {
+func (c *backfillClusterUID) SyncOnce(ctx context.Context, keyObj controllerutils.HCPClusterKey) (controllerutil.SyncResult, error) {
 	logger := utils.LoggerFromContext(ctx)
 
 	cachedCluster, err := c.clusterLister.Get(ctx, keyObj.SubscriptionID, keyObj.ResourceGroupName, keyObj.HCPClusterName)
 	if database.IsNotFoundError(err) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get cluster from cache: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to get cluster from cache: %w", err))
 	}
 	if !c.NeedsWork(ctx, cachedCluster) {
 		// if the cache doesn't need work, then we'll be retriggered if those values change when the cache updates.
 		// if the values don't change, then we still have no work to do.
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
 	clusterCRUD := c.resourcesDBClient.HCPClusters(keyObj.SubscriptionID, keyObj.ResourceGroupName)
 	existingCluster, err := clusterCRUD.Get(ctx, keyObj.HCPClusterName)
 	if database.IsNotFoundError(err) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get Cluster: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to get Cluster: %w", err))
 	}
 	// check if we need to do work again. Sometimes the live data is more fresh than the cache and obviates the need to any work
 	if !c.NeedsWork(ctx, existingCluster) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
 	logger.Info("backfilling ClusterUID for cluster",
@@ -97,7 +97,7 @@ func (c *backfillClusterUID) SyncOnce(ctx context.Context, keyObj controllerutil
 
 	billingDocs, err := c.billingDBClient.BillingDocs(existingCluster.ID.SubscriptionID).ListActiveForCluster(ctx, existingCluster.ID)
 	if err != nil {
-		return utils.TrackError(err)
+		return controllerutil.SyncResult{}, utils.TrackError(err)
 	}
 
 	var billingDoc *database.BillingDocument
@@ -127,7 +127,7 @@ func (c *backfillClusterUID) SyncOnce(ctx context.Context, keyObj controllerutil
 
 	_, err = c.resourcesDBClient.HCPClusters(existingCluster.ID.SubscriptionID, existingCluster.ID.ResourceGroupName).Replace(ctx, replacement, nil)
 	if err != nil {
-		return utils.TrackError(err)
+		return controllerutil.SyncResult{}, utils.TrackError(err)
 	}
 
 	logger.Info("successfully backfilled ClusterUID for cluster",
@@ -135,7 +135,7 @@ func (c *backfillClusterUID) SyncOnce(ctx context.Context, keyObj controllerutil
 		"clusterUID", replacement.ServiceProviderProperties.ClusterUID,
 	)
 
-	return nil
+	return controllerutil.SyncResult{}, nil
 }
 
 func (c *backfillClusterUID) CooldownChecker() controllerutil.CooldownChecker {

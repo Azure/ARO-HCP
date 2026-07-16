@@ -141,7 +141,7 @@ func TestTriggerNodePoolUpgradeSyncer_SyncOnce(t *testing.T) {
 				resourcesDBClient: mockDB,
 			}
 
-			err := syncer.SyncOnce(runCtx, controllerutils.HCPNodePoolKey{
+			_, err := syncer.SyncOnce(runCtx, controllerutils.HCPNodePoolKey{
 				SubscriptionID:    testSubscriptionID,
 				ResourceGroupName: testResourceGroupName,
 				HCPClusterName:    testClusterName,

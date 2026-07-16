@@ -311,7 +311,7 @@ func TestNodePoolActiveVersionSyncer_SyncOnce(t *testing.T) {
 				readDesireLister:              &internallistertesting.SliceReadDesireLister{Desires: desires},
 			}
 
-			err := syncer.SyncOnce(runCtx, testKey)
+			_, err := syncer.SyncOnce(runCtx, testKey)
 			assertSyncResult(t, err, tt.expectedError, tt.expectedErrorContains)
 
 			if tt.validateAfter != nil && !tt.expectedError {
@@ -344,12 +344,13 @@ func TestNodePoolActiveVersionSyncer_NoReplaceWhenVersionsUnchanged(t *testing.T
 		},
 	}
 
-	require.NoError(t, syncer.SyncOnce(runCtx, controllerutils.HCPNodePoolKey{
+	_, err = syncer.SyncOnce(runCtx, controllerutils.HCPNodePoolKey{
 		SubscriptionID:    testSubscriptionID,
 		ResourceGroupName: testResourceGroupName,
 		HCPClusterName:    testClusterName,
 		HCPNodePoolName:   testNodePoolName,
-	}))
+	})
+	require.NoError(t, err)
 
 	after, err := spnpCRUD.Get(runCtx, api.ServiceProviderNodePoolResourceName)
 	require.NoError(t, err)

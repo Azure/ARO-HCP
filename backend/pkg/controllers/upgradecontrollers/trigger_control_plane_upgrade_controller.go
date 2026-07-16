@@ -29,6 +29,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/api"
+	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -86,26 +87,26 @@ func NewTriggerControlPlaneUpgradeController(
 //  2. Check if desiredVersion differs from latest actual version
 //  3. If different, call version service API to trigger upgrade
 //  4. The version service API is idempotent and handles the actual upgrade orchestration
-func (c *triggerControlPlaneUpgradeSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
+func (c *triggerControlPlaneUpgradeSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) (controllerutil.SyncResult, error) {
 	logger := utils.LoggerFromContext(ctx)
 	existingCluster, err := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Get(ctx, key.HCPClusterName)
 	if database.IsNotFoundError(err) {
-		return nil // cluster doesn't exist, no work to do
+		return controllerutil.SyncResult{}, nil // cluster doesn't exist, no work to do
 	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get Cluster: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to get Cluster: %w", err))
 	}
 	if existingCluster.ServiceProviderProperties.DeletionTimestamp != nil {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 	if existingCluster.ServiceProviderProperties.ClusterServiceID == nil {
 		// if we have no clusterService cluster, we have nothing to trigger.
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
 	existingServiceProviderCluster, err := database.GetOrCreateServiceProviderCluster(ctx, c.resourcesDBClient, key.GetResourceID())
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get or create ServiceProviderCluster: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to get or create ServiceProviderCluster: %w", err))
 	}
 
 	// here we check to see if we should be triggering an upgrade. We do this by
@@ -116,17 +117,17 @@ func (c *triggerControlPlaneUpgradeSyncer) SyncOnce(ctx context.Context, key con
 		logger.Error(err, "error determining if control plane upgrade should be triggered")
 	} else if !shouldRun {
 		logger.Info("Skipping control plane upgrade trigger", "cluster", existingCluster.Name)
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
 	desiredVersion := existingServiceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion
 	if desiredVersion == nil {
-		return nil // No desired version set
+		return controllerutil.SyncResult{}, nil // No desired version set
 	}
 
 	// No active version yet (installation ongoing); skip upgrade trigger.
 	if len(existingServiceProviderCluster.Status.ControlPlaneVersion.ActiveVersions) == 0 {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
 	// Get latest actual version from active versions
@@ -134,10 +135,10 @@ func (c *triggerControlPlaneUpgradeSyncer) SyncOnce(ctx context.Context, key con
 
 	// If desired version matches latest actual version, nothing to do
 	if desiredVersion.EQ(*actualLatestVersion) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
-	return c.createUpgradePolicyIfNeeded(ctx, desiredVersion, *existingCluster.ServiceProviderProperties.ClusterServiceID)
+	return controllerutil.SyncResult{}, c.createUpgradePolicyIfNeeded(ctx, desiredVersion, *existingCluster.ServiceProviderProperties.ClusterServiceID)
 }
 
 // createUpgradePolicyIfNeeded ensures a control plane upgrade policy exists for the desired version.

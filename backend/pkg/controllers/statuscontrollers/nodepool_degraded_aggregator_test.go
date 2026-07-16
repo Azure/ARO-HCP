@@ -224,7 +224,7 @@ func TestNodePoolDegradedAggregator_SyncOnce(t *testing.T) {
 				firstObservedBad:  newFirstObservedBadCache(clock),
 			}
 
-			err = syncer.SyncOnce(ctx, controllerutils.HCPNodePoolKey{
+			_, err = syncer.SyncOnce(ctx, controllerutils.HCPNodePoolKey{
 				SubscriptionID:    testSubscriptionID,
 				ResourceGroupName: testResourceGroupName,
 				HCPClusterName:    testClusterName,

@@ -274,7 +274,7 @@ func TestDesiredControlPlaneSizeSyncer_SyncOnce(t *testing.T) {
 				ResourceGroupName: testResourceGroupName,
 				HCPClusterName:    testClusterName,
 			}
-			err := syncer.SyncOnce(ctx, key)
+			_, err := syncer.SyncOnce(ctx, key)
 
 			if tc.expectErrContains != "" {
 				require.Error(t, err)

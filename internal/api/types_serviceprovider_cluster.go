@@ -148,12 +148,18 @@ type ServiceProviderClusterStatus struct {
 	// }
 	ControlPlaneVersion ServiceProviderClusterStatusVersion `json:"control_plane_version,omitempty"`
 
-	// Validations is a list of conditions that tracks the status of each cluster validation.
-	// Each Condition Type represents a validation and it should be unique among all validations.
-	// A Condition Status of True means that the validation passed successfully, and a Condition Status of False means that the validation failed.
-	// The Condition Reason and Message are used to provide more details about the validation status.
-	// The Condition LastTransitionTime is used to track the last time the validation transitioned from one status to another.
-	Validations []metav1.Condition `json:"validations,omitempty"`
+	// Validations tracks the status of each cluster validation, keyed by Type.
+	// Each entry has two layers:
+	//   - condition: user-facing state (last definitive Passed or Failed result)
+	//   - internal: operator-facing details for the latest reconcile attempt
+	// When a reconcile attempt fails with an internal error, condition is not overwritten
+	// so transient service errors do not flap the API from True/False to Unknown.
+	// internal still reflects the latest attempt and may show outcome=Unknown while
+	// condition remains the last known Passed/Failed state.
+	// +optional
+	// +listType=map
+	// +listMapKey=type
+	Validations []ValidationStatus `json:"validations,omitempty"`
 	// MaestroReadonlyBundles contains a list of Maestro readonly bundles references.
 	// These bundles are used to retrieve particular K8s resources from the Management Cluster.
 	// The reference contains a mapping between the logical name we give to the Maestro bundle internally
@@ -172,6 +178,33 @@ type ServiceProviderClusterStatus struct {
 	// is no signal on Spec alone that dispatch still needs to clear the CS
 	// property.
 	DesiredHostedClusterControlPlaneSize *string `json:"desiredHostedClusterControlPlaneSize,omitempty"`
+}
+
+type ValidationStatus struct {
+	// Type is the validation name. It must match Condition.Type.
+	// +listMapKey
+	Type string `json:"type"`
+
+	// Condition is the user-facing validation state. Fields must be non-sensitive.
+	// It reflects the last definitive Passed or Failed result. When a reconcile attempt
+	// fails with an internal error, Condition is not overwritten and may remain True/False
+	// while Internal.Outcome is Unknown. See Internal for the latest attempt.
+	Condition metav1.Condition `json:"condition"`
+
+	// Internal holds operator-facing details for the latest reconcile attempt.
+	// Fields must be non-sensitive. Internal may diverge from Condition when a transient
+	// internal error prevents re-evaluation but the last known user-facing state is preserved.
+	Internal ValidationInternalStatus `json:"internal,omitempty"`
+}
+
+type ValidationInternalStatus struct {
+	// Outcome is the result of the latest reconcile attempt (Passed, Failed, or Unknown).
+	Outcome                string `json:"outcome,omitempty"`
+	ServiceProviderMessage string `json:"serviceProviderMessage,omitempty"`
+	ReportingPolicy        string `json:"reportingPolicy,omitempty"`
+
+	// EarliestRetryAfterSeconds is the minimum delay recommended before retrying this validation.
+	EarliestRetryAfterSeconds *int64 `json:"earliestRetryAfterSeconds,omitempty"`
 }
 
 // ServiceProviderClusterStatusVersion contains the actual version information.

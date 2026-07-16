@@ -168,9 +168,9 @@ func (c *cosmosNodePoolMatching) synchronizeAllNodes(ctx context.Context, keyObj
 	return nil
 }
 
-func (c *cosmosNodePoolMatching) SyncOnce(ctx context.Context, keyObj controllerutils.HCPClusterKey) error {
+func (c *cosmosNodePoolMatching) SyncOnce(ctx context.Context, keyObj controllerutils.HCPClusterKey) (controllerutil.SyncResult, error) {
 	syncErr := c.synchronizeAllNodes(ctx, keyObj)
-	return utils.TrackError(syncErr)
+	return controllerutil.SyncResult{}, utils.TrackError(syncErr)
 }
 
 func (c *cosmosNodePoolMatching) CooldownChecker() controllerutil.CooldownChecker {

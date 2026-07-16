@@ -25,6 +25,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/api"
+	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -76,48 +77,48 @@ func (c *clusterBaseDomainPrefixSyncer) needsWork(existingCluster *api.HCPOpenSh
 	return len(existingCluster.CustomerProperties.DNS.BaseDomainPrefix) == 0
 }
 
-func (c *clusterBaseDomainPrefixSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
+func (c *clusterBaseDomainPrefixSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) (controllerutil.SyncResult, error) {
 	logger := utils.LoggerFromContext(ctx)
 
 	cachedCluster, err := c.clusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if database.IsNotFoundError(err) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get cluster from cache: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to get cluster from cache: %w", err))
 	}
 	if !c.needsWork(cachedCluster) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
 	clusterCRUD := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName)
 	existingCluster, err := clusterCRUD.Get(ctx, key.HCPClusterName)
 	if database.IsNotFoundError(err) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get Cluster: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to get Cluster: %w", err))
 	}
 	if !c.needsWork(existingCluster) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
 	csCluster, err := c.clusterServiceClient.GetCluster(ctx, *existingCluster.ServiceProviderProperties.ClusterServiceID)
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get cluster from Cluster Service: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to get cluster from Cluster Service: %w", err))
 	}
 
 	replacement := existingCluster.DeepCopy()
 	replacement.CustomerProperties.DNS.BaseDomainPrefix = csCluster.DomainPrefix()
 
 	if equality.Semantic.DeepEqual(existingCluster, replacement) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
 	if _, err := clusterCRUD.Replace(ctx, replacement, nil); err != nil {
-		return utils.TrackError(fmt.Errorf("failed to replace Cluster: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to replace Cluster: %w", err))
 	}
 
 	logger.Info("synced cluster base domain prefix")
-	return nil
+	return controllerutil.SyncResult{}, nil
 }

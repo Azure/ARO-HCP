@@ -29,6 +29,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/api"
+	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -74,32 +75,32 @@ func (c *nodePoolClusterServiceCreateSyncer) needsWork(nodePool *api.HCPOpenShif
 		(nodePool.ServiceProviderProperties.ClusterServiceID == nil || len(nodePool.ServiceProviderProperties.ClusterServiceID.String()) == 0)
 }
 
-func (c *nodePoolClusterServiceCreateSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPNodePoolKey) error {
+func (c *nodePoolClusterServiceCreateSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPNodePoolKey) (controllerutil.SyncResult, error) {
 	logger := utils.LoggerFromContext(ctx)
 
 	nodePool, err := c.nodePoolLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPNodePoolName)
 	if database.IsNotFoundError(err) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 	if err != nil {
-		return utils.TrackError(err)
+		return controllerutil.SyncResult{}, utils.TrackError(err)
 	}
 
 	if !c.needsWork(nodePool) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
 	// For the NodePool, we retrieve from the actual database because we are about to use its data to interact with cluster-service.
 	nodePool, err = c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).NodePools(key.HCPClusterName).Get(ctx, key.HCPNodePoolName)
 	if database.IsNotFoundError(err) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 	if err != nil {
-		return utils.TrackError(err)
+		return controllerutil.SyncResult{}, utils.TrackError(err)
 	}
 
 	if !c.needsWork(nodePool) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
 	// For the Cluster, we retrieve from the cache because we are not about to use its data to interact with cluster-service. At
@@ -108,10 +109,10 @@ func (c *nodePoolClusterServiceCreateSyncer) SyncOnce(ctx context.Context, key c
 	// can change over time, we will need to retrieve from the database instead.
 	cluster, err := c.clusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if err != nil {
-		return utils.TrackError(err)
+		return controllerutil.SyncResult{}, utils.TrackError(err)
 	}
 	if cluster.ServiceProviderProperties.ClusterServiceID == nil || len(cluster.ServiceProviderProperties.ClusterServiceID.String()) == 0 {
-		return utils.TrackError(fmt.Errorf("cluster %s has no ClusterServiceID", key.HCPClusterName))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("cluster %s has no ClusterServiceID", key.HCPClusterName))
 	}
 	clusterCSInternalID := *cluster.ServiceProviderProperties.ClusterServiceID
 
@@ -120,18 +121,18 @@ func (c *nodePoolClusterServiceCreateSyncer) SyncOnce(ctx context.Context, key c
 	csNodePoolHREF := ocm.GenerateAROHCPNodePoolHREF(clusterCSInternalID.ID(), strings.ToLower(key.HCPNodePoolName))
 	nodePoolCSInternalID, err := api.NewInternalID(csNodePoolHREF)
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("build node pool internal ID for adoption lookup: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("build node pool internal ID for adoption lookup: %w", err))
 	}
 
 	existing, err := c.findCSNodePool(ctx, nodePoolCSInternalID)
 	if err != nil {
-		return utils.TrackError(err)
+		return controllerutil.SyncResult{}, utils.TrackError(err)
 	}
 
 	if existing == nil {
 		csNodePoolBuilder, err := ocm.BuildCSNodePool(ctx, nodePool, false)
 		if err != nil {
-			return utils.TrackError(err)
+			return controllerutil.SyncResult{}, utils.TrackError(err)
 		}
 		logger.Info("performing POST node pool to Cluster Service", "cs_node_pool_href", csNodePoolHREF, "node_pool_resource_id", nodePool.ID.String())
 		_, err = c.clustersServiceClient.PostNodePool(ctx, clusterCSInternalID, csNodePoolBuilder)
@@ -139,7 +140,7 @@ func (c *nodePoolClusterServiceCreateSyncer) SyncOnce(ctx context.Context, key c
 			logger.Error(err, "CS node pool POST returned OCM error with HTTP 400 status code", "cs_node_pool_href", csNodePoolHREF, "node_pool_resource_id", nodePool.ID.String())
 		}
 		if err != nil {
-			return utils.TrackError(err)
+			return controllerutil.SyncResult{}, utils.TrackError(err)
 		}
 	}
 
@@ -149,13 +150,13 @@ func (c *nodePoolClusterServiceCreateSyncer) SyncOnce(ctx context.Context, key c
 	_, err = c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).NodePools(key.HCPClusterName).Replace(ctx, replacement, nil)
 	if database.IsPreconditionFailedError(err) {
 		// if we have a conflict error, then we're guaranteed that our informer will eventually see an update and trigger us again.
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 	if err != nil {
-		return utils.TrackError(err)
+		return controllerutil.SyncResult{}, utils.TrackError(err)
 	}
 
-	return nil
+	return controllerutil.SyncResult{}, nil
 }
 
 // findCSNodePool performs GetNodePool for the given Cluster Service node pool InternalID.

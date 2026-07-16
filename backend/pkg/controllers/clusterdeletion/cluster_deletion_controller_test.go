@@ -200,7 +200,7 @@ func TestClusterDeletionController_SyncOnce(t *testing.T) {
 				passiveClock:                 clocktesting.NewFakePassiveClock(fixedClockTime),
 			}
 
-			err = syncer.SyncOnce(ctx, testKey)
+			_, err = syncer.SyncOnce(ctx, testKey)
 			if tc.wantErr {
 				require.Error(t, err)
 				return

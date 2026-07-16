@@ -134,7 +134,7 @@ func TestExternalAuthDeletionController_SyncOnce(t *testing.T) {
 				HCPExternalAuthName: testExternalAuthName,
 			}
 
-			err = syncer.SyncOnce(ctx, key)
+			_, err = syncer.SyncOnce(ctx, key)
 			if tc.wantErr {
 				require.Error(t, err)
 				return

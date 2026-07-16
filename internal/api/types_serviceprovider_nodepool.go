@@ -98,12 +98,18 @@ type ServiceProviderNodePoolStatus struct {
 	// }
 	NodePoolVersion ServiceProviderNodePoolStatusVersion `json:"nodePoolVersion,omitempty"`
 
-	// Validations is a list of conditions that tracks the status of each node pool validation.
-	// Each Condition Type represents a validation and it should be unique among all validations.
-	// A Condition Status of True means that the validation passed successfully, and a Condition Status of False means that the validation failed.
-	// The Condition Reason and Message are used to provide more details about the validation status.
-	// The Condition LastTransitionTime is used to track the last time the validation transitioned from one status to another.
-	Validations []metav1.Condition `json:"validations,omitempty"`
+	// Validations tracks the status of each node pool validation, keyed by Type.
+	// Each entry has two layers:
+	//   - condition: user-facing state (last definitive Passed or Failed result)
+	//   - internal: operator-facing details for the latest reconcile attempt
+	// When a reconcile attempt fails with an internal error, condition is not overwritten
+	// so transient service errors do not flap the API from True/False to Unknown.
+	// internal still reflects the latest attempt and may show outcome=Unknown while
+	// condition remains the last known Passed/Failed state.
+	// +optional
+	// +listType=map
+	// +listMapKey=type
+	Validations []ValidationStatus `json:"validations,omitempty"`
 
 	// MaestroReadonlyBundles contains a list of Maestro readonly bundles references.
 	// These bundles are used to retrieve particular K8s resources from the Management Cluster.

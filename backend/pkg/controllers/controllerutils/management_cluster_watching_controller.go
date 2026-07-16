@@ -64,7 +64,7 @@ func (k ManagementClusterKey) InitialController(controllerName string) *api.Cont
 }
 
 type ManagementClusterSyncer interface {
-	SyncOnce(ctx context.Context, key ManagementClusterKey) error
+	SyncOnce(ctx context.Context, key ManagementClusterKey) (controllerutil.SyncResult, error)
 	CooldownChecker() controllerutil.CooldownChecker
 }
 
@@ -101,7 +101,7 @@ func NewManagementClusterWatchingController(
 	return mcController
 }
 
-func (c *managementClusterWatchingController) SyncOnce(ctx context.Context, key ManagementClusterKey) error {
+func (c *managementClusterWatchingController) SyncOnce(ctx context.Context, key ManagementClusterKey) (controllerutil.SyncResult, error) {
 	controllerCRUD := c.fleetDBClient.Stamps().ManagementClusters(key.StampIdentifier).Controllers()
 
 	defer utilruntime.HandleCrash(DegradedControllerPanicHandler(
@@ -110,7 +110,7 @@ func (c *managementClusterWatchingController) SyncOnce(ctx context.Context, key 
 		c.name,
 		key.InitialController))
 
-	syncErr := c.syncer.SyncOnce(ctx, key)
+	syncResult, syncErr := c.syncer.SyncOnce(ctx, key)
 
 	controllerWriteErr := WriteController(
 		ctx,
@@ -120,7 +120,7 @@ func (c *managementClusterWatchingController) SyncOnce(ctx context.Context, key 
 		ReportSyncError(syncErr),
 	)
 
-	return errors.Join(syncErr, controllerWriteErr)
+	return syncResult, errors.Join(syncErr, controllerWriteErr)
 }
 
 func (c *managementClusterWatchingController) CooldownChecker() controllerutil.CooldownChecker {

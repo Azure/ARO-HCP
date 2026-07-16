@@ -213,7 +213,7 @@ func TestCreateBillingDoc_SyncOnce(t *testing.T) {
 				},
 			}
 
-			err = controller.SyncOnce(ctx, newTestClusterKey())
+			_, err = controller.SyncOnce(ctx, newTestClusterKey())
 
 			if tt.expectError {
 				require.Error(t, err)
@@ -261,14 +261,14 @@ func TestCreateBillingDoc_Idempotent(t *testing.T) {
 	key := newTestClusterKey()
 
 	// First sync creates the billing doc
-	err = controller.SyncOnce(ctx, key)
+	_, err = controller.SyncOnce(ctx, key)
 	require.NoError(t, err)
 
 	billingDocs := mockBillingDBClient.GetBillingDocuments()
 	require.Len(t, billingDocs, 1)
 
 	// Second sync should succeed without error (idempotent - conflict handled)
-	err = controller.SyncOnce(ctx, key)
+	_, err = controller.SyncOnce(ctx, key)
 	require.NoError(t, err)
 
 	billingDocs = mockBillingDBClient.GetBillingDocuments()
@@ -336,7 +336,7 @@ func TestCreateBillingDoc_ExistingBillingDocButMissingClusterRef(t *testing.T) {
 				},
 			}
 
-			err = controller.SyncOnce(ctx, newTestClusterKey())
+			_, err = controller.SyncOnce(ctx, newTestClusterKey())
 			require.NoError(t, err)
 
 			// Verify no new billing document was created.

@@ -19,7 +19,6 @@ import (
 	"fmt"
 	"time"
 
-	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
@@ -27,6 +26,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/api"
+	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -70,78 +70,73 @@ func NewNodePoolValidationController(
 	return controller
 }
 
-func (c *nodePoolValidationSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPNodePoolKey) error {
+func (c *nodePoolValidationSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPNodePoolKey) (controllerutil.SyncResult, error) {
 	existingCluster, err := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Get(ctx, key.HCPClusterName)
 	if database.IsNotFoundError(err) {
-		return nil // cluster doesn't exist, no work to do
+		return controllerutil.SyncResult{}, nil // cluster doesn't exist, no work to do
 	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get Cluster: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to get Cluster: %w", err))
 	}
 	if existingCluster.ServiceProviderProperties.DeletionTimestamp != nil {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
 	existingNodePool, err := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).NodePools(key.HCPClusterName).Get(ctx, key.HCPNodePoolName)
 	if database.IsNotFoundError(err) {
-		return nil // node pool doesn't exist, no work to do
+		return controllerutil.SyncResult{}, nil // node pool doesn't exist, no work to do
 	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get NodePool: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to get NodePool: %w", err))
 	}
 	if existingNodePool.ServiceProviderProperties.DeletionTimestamp != nil {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
 	existingServiceProviderNodePool, err := database.GetOrCreateServiceProviderNodePool(ctx, c.resourcesDBClient, key.GetResourceID())
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get or create ServiceProviderNodePool: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to get or create ServiceProviderNodePool: %w", err))
 	}
 
 	shouldProcess := c.shouldProcess(existingServiceProviderNodePool)
 	if !shouldProcess {
-		return nil // no work to do
+		return controllerutil.SyncResult{}, nil // no work to do
 	}
 	subscription, err := c.resourcesDBClient.Subscriptions().Get(ctx, existingNodePool.ID.SubscriptionID)
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get Subscription: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to get Subscription: %w", err))
 	}
 
 	// We store the validation error in a separate variable and we use that as the
 	// error to return to the caller. This allows us to perform other remaining
 	// tasks in the syncer even if the validation fails, and we ultimately
 	// drive the behavior of its controller through the outcome of the validation.
-	validationErr := c.validation.Validate(ctx, existingCluster, subscription, existingNodePool)
-
-	validationCondition := metav1.Condition{
-		Type: c.validation.Name(),
-	}
-	if validationErr != nil {
-		validationCondition.Status = metav1.ConditionFalse
-		validationCondition.Reason = "Failed"
-		validationCondition.Message = fmt.Sprintf("Validation failed: %s", validationErr.Error())
-	} else {
-		validationCondition.Status = metav1.ConditionTrue
-		validationCondition.Reason = "Succeeded"
-		validationCondition.Message = "Validation succeeded"
-	}
-	meta.SetStatusCondition(&existingServiceProviderNodePool.Status.Validations, validationCondition)
+	result := c.validation.Validate(ctx, existingCluster, subscription, existingNodePool)
+	updatedValidation := validationResultToStatus(c.validation.Name(), result, time.Now())
+	replacement := existingServiceProviderNodePool.DeepCopy()
+	replacement.Status.Validations = upsertValidationStatus(replacement.Status.Validations, updatedValidation)
 
 	serviceProviderNodePoolsCosmosClient := c.resourcesDBClient.ServiceProviderNodePools(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPNodePoolName)
-	_, err = serviceProviderNodePoolsCosmosClient.Replace(ctx, existingServiceProviderNodePool, nil)
+	_, err = serviceProviderNodePoolsCosmosClient.Replace(ctx, replacement, nil)
 	if database.IsPreconditionFailedError(err) {
 		// if we have a conflict error, then we're guaranteed that our informer will eventually see an update and trigger us again.
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to replace ServiceProviderNodePool: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to replace ServiceProviderNodePool: %w", err))
 	}
 
-	return validationErr
+	return validationResultToSyncResult(result), validationResultToError(result)
 }
 
 // shouldProcess returns true when the condition associated to the validation does not exist or when it exists but
 // it failed to run successfully in a previous attempt.
 func (c *nodePoolValidationSyncer) shouldProcess(serviceProviderNodePool *api.ServiceProviderNodePool) bool {
-	return !meta.IsStatusConditionTrue(serviceProviderNodePool.Status.Validations, c.validation.Name())
+	for _, v := range serviceProviderNodePool.Status.Validations {
+		if v.Type != c.validation.Name() {
+			continue
+		}
+		return v.Condition.Status != metav1.ConditionTrue
+	}
+	return true
 }

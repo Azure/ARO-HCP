@@ -31,7 +31,7 @@ import (
 )
 
 type ClusterSyncer interface {
-	SyncOnce(ctx context.Context, keyObj HCPClusterKey) error
+	SyncOnce(ctx context.Context, keyObj HCPClusterKey) (controllerutil.SyncResult, error)
 }
 
 type clusterWatchingController struct {
@@ -100,14 +100,14 @@ func NewClusterWatchingController(
 	return clusterController
 }
 
-func (c *clusterWatchingController) SyncOnce(ctx context.Context, key HCPClusterKey) error {
+func (c *clusterWatchingController) SyncOnce(ctx context.Context, key HCPClusterKey) (controllerutil.SyncResult, error) {
 	defer utilruntime.HandleCrash(DegradedControllerPanicHandler(
 		ctx,
 		c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Controllers(key.HCPClusterName),
 		c.name,
 		key.InitialController))
 
-	syncErr := c.syncer.SyncOnce(ctx, key) // we'll handle this is a moment.
+	syncResult, syncErr := c.syncer.SyncOnce(ctx, key) // we'll handle this is a moment.
 
 	controllerWriteErr := WriteController(
 		ctx,
@@ -117,7 +117,7 @@ func (c *clusterWatchingController) SyncOnce(ctx context.Context, key HCPCluster
 		ReportSyncError(syncErr),
 	)
 
-	return errors.Join(syncErr, controllerWriteErr)
+	return syncResult, errors.Join(syncErr, controllerWriteErr)
 }
 
 func (c *clusterWatchingController) CooldownChecker() controllerutil.CooldownChecker {

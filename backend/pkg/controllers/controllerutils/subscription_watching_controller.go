@@ -25,7 +25,7 @@ import (
 )
 
 type SubscriptionSyncer interface {
-	SyncOnce(ctx context.Context, keyObj SubscriptionKey) error
+	SyncOnce(ctx context.Context, keyObj SubscriptionKey) (controllerutil.SyncResult, error)
 	CooldownChecker() controllerutil.CooldownChecker
 }
 
@@ -63,7 +63,7 @@ func NewSubscriptionWatchingController(
 	return subscriptionController
 }
 
-func (c *subscriptionWatchingController) SyncOnce(ctx context.Context, key SubscriptionKey) error {
+func (c *subscriptionWatchingController) SyncOnce(ctx context.Context, key SubscriptionKey) (controllerutil.SyncResult, error) {
 	return c.syncer.SyncOnce(ctx, key)
 }
 

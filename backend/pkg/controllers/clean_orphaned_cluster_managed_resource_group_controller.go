@@ -271,7 +271,7 @@ func (c *cleanOrphanedClusterManagedResourceGroup) listClusterResourceIDsForSubs
 }
 
 // SyncOnce implements the main sync logic for the controller for a single subscription.
-func (c *cleanOrphanedClusterManagedResourceGroup) SyncOnce(ctx context.Context, key controllerutils.SubscriptionKey) error {
+func (c *cleanOrphanedClusterManagedResourceGroup) SyncOnce(ctx context.Context, key controllerutils.SubscriptionKey) (controllerutil.SyncResult, error) {
 	logger := utils.LoggerFromContext(ctx)
 
 	// maxConcurrentDeletions is the maximum number of resource group deletions to run concurrently
@@ -288,7 +288,7 @@ func (c *cleanOrphanedClusterManagedResourceGroup) SyncOnce(ctx context.Context,
 	if err != nil {
 		logger.Error(err, "Failed to get subscription from database",
 			"subscriptionID", key.SubscriptionID)
-		return utils.TrackError(err)
+		return controllerutil.SyncResult{}, utils.TrackError(err)
 	}
 
 	tenantID := *subscription.Properties.TenantId
@@ -297,21 +297,21 @@ func (c *cleanOrphanedClusterManagedResourceGroup) SyncOnce(ctx context.Context,
 	if err != nil {
 		logger.Error(err, "Failed to create resource groups client",
 			"subscriptionID", key.SubscriptionID)
-		return utils.TrackError(err)
+		return controllerutil.SyncResult{}, utils.TrackError(err)
 	}
 
 	managedResourceGroups, err := c.listManagedResourceGroupsForSubscription(ctx, rgClient)
 	if err != nil {
 		logger.Error(err, "Failed to list managed resource groups for subscription",
 			"subscriptionID", key.SubscriptionID)
-		return utils.TrackError(err)
+		return controllerutil.SyncResult{}, utils.TrackError(err)
 	}
 
 	clusterResourceIDs, err := c.listClusterResourceIDsForSubscription(ctx, key.SubscriptionID)
 	if err != nil {
 		logger.Error(err, "Failed to list cluster resource IDs for subscription",
 			"subscriptionID", key.SubscriptionID)
-		return utils.TrackError(err)
+		return controllerutil.SyncResult{}, utils.TrackError(err)
 	}
 
 	// Identify and clean up orphaned managed resource groups for this subscription
@@ -353,10 +353,10 @@ func (c *cleanOrphanedClusterManagedResourceGroup) SyncOnce(ctx context.Context,
 		"subscriptionID", key.SubscriptionID)
 
 	if len(errs) > 0 {
-		return utils.TrackError(errors.Join(errs...))
+		return controllerutil.SyncResult{}, utils.TrackError(errors.Join(errs...))
 	}
 
-	return nil
+	return controllerutil.SyncResult{}, nil
 }
 
 func (c *cleanOrphanedClusterManagedResourceGroup) CooldownChecker() controllerutil.CooldownChecker {

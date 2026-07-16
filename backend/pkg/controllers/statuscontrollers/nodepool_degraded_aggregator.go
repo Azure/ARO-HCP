@@ -27,6 +27,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
+	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -90,18 +91,18 @@ func NewNodePoolDegradedAggregatorController(
 	)
 }
 
-func (c *nodePoolDegradedAggregator) SyncOnce(ctx context.Context, key controllerutils.HCPNodePoolKey) error {
+func (c *nodePoolDegradedAggregator) SyncOnce(ctx context.Context, key controllerutils.HCPNodePoolKey) (controllerutil.SyncResult, error) {
 	existing, err := c.nodePoolLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPNodePoolName)
 	if database.IsNotFoundError(err) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get NodePool from cache: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to get NodePool from cache: %w", err))
 	}
 
 	controllers, err := c.controllerLister.ListForNodePool(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPNodePoolName)
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to list Controllers from cache: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to list Controllers from cache: %w", err))
 	}
 
 	aggregated := UnionCondition(
@@ -115,19 +116,19 @@ func (c *nodePoolDegradedAggregator) SyncOnce(ctx context.Context, key controlle
 	replacement := existing.DeepCopy()
 	apimeta.SetStatusCondition(&replacement.Status.Conditions, aggregated)
 	if equality.Semantic.DeepEqual(existing.Status.Conditions, replacement.Status.Conditions) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
 	nodePoolCRUD := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).NodePools(key.HCPClusterName)
 	_, err = nodePoolCRUD.Replace(ctx, replacement, nil)
 	if database.IsPreconditionFailedError(err) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 	if database.IsNotFoundError(err) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to replace NodePool: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to replace NodePool: %w", err))
 	}
-	return nil
+	return controllerutil.SyncResult{}, nil
 }

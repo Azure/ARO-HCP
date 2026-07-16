@@ -12,19 +12,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package validations
+package controllerutils
 
 import (
-	"context"
+	"k8s.io/client-go/util/workqueue"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 )
 
-// ClusterValidation represents a validation that can be performed on a cluster.
-type ClusterValidation interface {
-	// Name returns the name of the validation.
-	Name() string
-	// Validate validates the Cluster and returns a structured ValidationResult.
-	Validate(ctx context.Context, clusterSubscription *arm.Subscription, cluster *api.HCPOpenShiftCluster) ValidationResult
+// HandleSyncResult schedules the next reconcile for ref based on result and err.
+// RequeueAfter is honored only when err is nil, matching controller-runtime.
+func HandleSyncResult[T comparable](queue workqueue.TypedRateLimitingInterface[T], ref T, result controllerutil.SyncResult, err error) {
+	if err != nil {
+		queue.AddRateLimited(ref)
+	} else if result.RequeueAfter > 0 {
+		queue.AddAfter(ref, result.RequeueAfter)
+	}
+
+	queue.Forget(ref)
 }

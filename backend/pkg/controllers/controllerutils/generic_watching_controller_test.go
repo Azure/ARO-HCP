@@ -49,7 +49,9 @@ func (s *stringSyncer) MakeKey(rid *azcorearm.ResourceID) string {
 	return rid.String()
 }
 
-func (s *stringSyncer) SyncOnce(context.Context, string) error { return nil }
+func (s *stringSyncer) SyncOnce(context.Context, string) (controllerutil.SyncResult, error) {
+	return controllerutil.SyncResult{}, nil
+}
 
 func (s *stringSyncer) CooldownChecker() controllerutil.CooldownChecker {
 	if s.cooldown == nil {

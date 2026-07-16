@@ -29,15 +29,15 @@ import (
 )
 
 type mockClusterSyncer struct {
-	syncOnceFunc func(ctx context.Context, key HCPClusterKey) error
+	syncOnceFunc func(ctx context.Context, key HCPClusterKey) (controllerutil.SyncResult, error)
 	cooldown     controllerutil.CooldownChecker
 }
 
-func (m *mockClusterSyncer) SyncOnce(ctx context.Context, key HCPClusterKey) error {
+func (m *mockClusterSyncer) SyncOnce(ctx context.Context, key HCPClusterKey) (controllerutil.SyncResult, error) {
 	if m.syncOnceFunc != nil {
 		return m.syncOnceFunc(ctx, key)
 	}
-	return nil
+	return controllerutil.SyncResult{}, nil
 }
 
 func (m *mockClusterSyncer) CooldownChecker() controllerutil.CooldownChecker {
@@ -54,9 +54,9 @@ func TestClusterWatchingControllerSyncHasLoggerContextValues(t *testing.T) {
 
 	var capturedCtx context.Context
 	mockSyncer := &mockClusterSyncer{
-		syncOnceFunc: func(ctx context.Context, key HCPClusterKey) error {
+		syncOnceFunc: func(ctx context.Context, key HCPClusterKey) (controllerutil.SyncResult, error) {
 			capturedCtx = ctx
-			return nil
+			return controllerutil.SyncResult{}, nil
 		},
 	}
 

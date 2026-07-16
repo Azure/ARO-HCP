@@ -37,7 +37,7 @@ import (
 )
 
 type GenericSyncer[T comparable] interface {
-	SyncOnce(ctx context.Context, keyObj T) error
+	SyncOnce(ctx context.Context, keyObj T) (controllerutil.SyncResult, error)
 	CooldownChecker() controllerutil.CooldownChecker
 	MakeKey(resourceID *azcorearm.ResourceID) T
 }
@@ -77,10 +77,10 @@ func newGenericWatchingController[T comparable](name string, resourceType azcore
 	return c
 }
 
-func (c *genericWatchingController[T]) SyncOnce(ctx context.Context, keyObj any) error {
+func (c *genericWatchingController[T]) SyncOnce(ctx context.Context, keyObj any) (controllerutil.SyncResult, error) {
 	key, ok := keyObj.(T)
 	if !ok {
-		return fmt.Errorf("invalid key type %T", keyObj)
+		return controllerutil.SyncResult{}, fmt.Errorf("invalid key type %T", keyObj)
 	}
 
 	return c.syncer.SyncOnce(ctx, key)
@@ -132,15 +132,12 @@ func (c *genericWatchingController[T]) processNextWorkItem(ctx context.Context) 
 	ctx = utils.ContextWithLogger(ctx, logger)
 
 	ReconcileTotal.WithLabelValues(c.name).Inc()
-	err := c.SyncOnce(ctx, ref)
-	if err == nil {
-		c.queue.Forget(ref)
-		return true
+	result, err := c.SyncOnce(ctx, ref)
+	if err != nil {
+		utilruntime.HandleErrorWithContext(ctx, err, "Error syncing; requeuing for later retry", "objectReference", ref)
 	}
 
-	utilruntime.HandleErrorWithContext(ctx, err, "Error syncing; requeuing for later retry", "objectReference", ref)
-	c.queue.AddRateLimited(ref)
-
+	HandleSyncResult(c.queue, ref, result, err)
 	return true
 }
 

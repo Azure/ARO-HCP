@@ -27,6 +27,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
+	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
@@ -87,18 +88,18 @@ func NewExternalAuthDegradedAggregatorController(
 	)
 }
 
-func (c *externalAuthDegradedAggregator) SyncOnce(ctx context.Context, key controllerutils.HCPExternalAuthKey) error {
+func (c *externalAuthDegradedAggregator) SyncOnce(ctx context.Context, key controllerutils.HCPExternalAuthKey) (controllerutil.SyncResult, error) {
 	existing, err := c.externalAuthLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPExternalAuthName)
 	if database.IsNotFoundError(err) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get ExternalAuth from cache: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to get ExternalAuth from cache: %w", err))
 	}
 
 	controllers, err := c.controllerLister.ListForExternalAuth(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.HCPExternalAuthName)
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to list Controllers from cache: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to list Controllers from cache: %w", err))
 	}
 
 	aggregated := UnionCondition(
@@ -112,19 +113,19 @@ func (c *externalAuthDegradedAggregator) SyncOnce(ctx context.Context, key contr
 	replacement := existing.DeepCopy()
 	apimeta.SetStatusCondition(&replacement.Status.Conditions, aggregated)
 	if equality.Semantic.DeepEqual(existing.Status.Conditions, replacement.Status.Conditions) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 
 	externalAuthCRUD := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).ExternalAuth(key.HCPClusterName)
 	_, err = externalAuthCRUD.Replace(ctx, replacement, nil)
 	if database.IsPreconditionFailedError(err) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 	if database.IsNotFoundError(err) {
-		return nil
+		return controllerutil.SyncResult{}, nil
 	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to replace ExternalAuth: %w", err))
+		return controllerutil.SyncResult{}, utils.TrackError(fmt.Errorf("failed to replace ExternalAuth: %w", err))
 	}
-	return nil
+	return controllerutil.SyncResult{}, nil
 }

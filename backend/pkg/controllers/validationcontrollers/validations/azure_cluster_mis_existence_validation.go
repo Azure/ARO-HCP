@@ -24,7 +24,6 @@ import (
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 // AzureClusterManagedIdentitiesExistenceValidation validates the existence of all managed identities defined in the cluster.
@@ -45,7 +44,7 @@ func (v *AzureClusterManagedIdentitiesExistenceValidation) Name() string {
 	return "AzureClusterManagedIdentitiesExistenceValidation"
 }
 
-func (v *AzureClusterManagedIdentitiesExistenceValidation) Validate(ctx context.Context, clusterSubscription *arm.Subscription, cluster *api.HCPOpenShiftCluster) error {
+func (v *AzureClusterManagedIdentitiesExistenceValidation) Validate(ctx context.Context, clusterSubscription *arm.Subscription, cluster *api.HCPOpenShiftCluster) ValidationResult {
 	smiResourceID := cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity
 	clusterIdentityURL := cluster.ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL
 	// We check the existence of the Cluster's Service Managed Identity by
@@ -55,7 +54,17 @@ func (v *AzureClusterManagedIdentitiesExistenceValidation) Validate(ctx context.
 	// service managed identity does not exist the request will fail.
 	uaisClient, err := v.smiClientBuilder.UserAssignedIdentitiesClient(ctx, clusterIdentityURL, smiResourceID, cluster.ID.SubscriptionID)
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get user assigned identities client: %w", err))
+		return ValidationResult{
+			Outcome: ValidationOutcome{
+				Type: OutcomeUnknown,
+				Unknown: &UnknownResult{
+					Reason:                 "InternalError",
+					ServiceProviderMessage: fmt.Sprintf("failed to get user assigned identities client: %v", err),
+					UserMessage:            "An internal error occurred while performing the validation.",
+					ReportingPolicy:        ReportingPolicyReportError,
+				},
+			},
+		}
 	}
 
 	clusterUAIsProfile := &cluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities
@@ -69,15 +78,39 @@ func (v *AzureClusterManagedIdentitiesExistenceValidation) Validate(ctx context.
 		}
 		if err != nil {
 			// TODO is it ok to error when one of them fails to get when the error is not a resource not found error?
-			return utils.TrackError(fmt.Errorf("failed to get managed identity '%s': %w", resourceID, err))
+			return ValidationResult{
+				Outcome: ValidationOutcome{
+					Type: OutcomeUnknown,
+					Unknown: &UnknownResult{
+						Reason:                 "InternalError",
+						ServiceProviderMessage: fmt.Sprintf("failed to get managed identity '%s': %v", resourceID, err),
+						UserMessage:            "An internal error occurred while performing the validation.",
+						ReportingPolicy:        ReportingPolicyReportError,
+					},
+				},
+			}
 		}
 	}
 
 	if len(notFoundMIsStrs) > 0 {
-		return utils.TrackError(fmt.Errorf("managed identities not found: %s", strings.Join(notFoundMIsStrs, ", ")))
+		return ValidationResult{
+			Outcome: ValidationOutcome{
+				Type: OutcomeFailed,
+				Failed: &FailedResult{
+					Reason:                 "ManagedIdentitiesNotFound",
+					ServiceProviderMessage: fmt.Sprintf("managed identities not found: %s", strings.Join(notFoundMIsStrs, ", ")),
+					UserMessage:            fmt.Sprintf("The following managed identities are missing: %s", strings.Join(notFoundMIsStrs, ", ")),
+				},
+			},
+		}
 	}
 
-	return nil
+	return ValidationResult{
+		Outcome: ValidationOutcome{
+			Type:   OutcomePassed,
+			Passed: &PassedResult{},
+		},
+	}
 }
 
 // clusterOperatorsManagedIdentities returns a list of the control and data plane identities defined in the cluster.

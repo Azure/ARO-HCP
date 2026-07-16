@@ -1220,7 +1220,7 @@ func TestControlPlaneDesiredVersionSyncer_SyncOnce(t *testing.T) {
 				graphClient:           mockGraphClient(ctrl, tt.channelExistence),
 			}
 
-			err := syncer.SyncOnce(ctx, clusterKey)
+			_, err := syncer.SyncOnce(ctx, clusterKey)
 			if tt.wantSyncErr {
 				require.Error(t, err)
 				require.NotEmpty(t, tt.wantErrContains, "when wantSyncErr is true, wantErrContains must be set to a substring of the expected error")
@@ -1517,7 +1517,8 @@ func TestControlPlaneDesiredVersionSyncer_SyncOnceSkipsWhenGated(t *testing.T) {
 		cincinnatiClientCache: mockClientCache,
 	}
 
-	require.NoError(t, syncer.SyncOnce(ctx, clusterKey))
+	_, err = syncer.SyncOnce(ctx, clusterKey)
+	require.NoError(t, err)
 
 	// DesiredVersion is untouched.
 	spc, err := mockDB.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Get(ctx, api.ServiceProviderClusterResourceName)

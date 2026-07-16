@@ -49,7 +49,7 @@ func TestBillingDumpController_SyncOnce(t *testing.T) {
 	}
 
 	// SyncOnce should never return an error (best effort)
-	err = syncer.SyncOnce(ctx, key)
+	_, err = syncer.SyncOnce(ctx, key)
 	require.NoError(t, err)
 }
 
@@ -90,7 +90,7 @@ func TestBillingDumpController_SyncOnce_WithBillingDoc(t *testing.T) {
 	}
 
 	// SyncOnce should never return an error (best effort)
-	err = syncer.SyncOnce(ctx, key)
+	_, err = syncer.SyncOnce(ctx, key)
 	require.NoError(t, err)
 }
 
@@ -122,7 +122,7 @@ func TestBillingDumpController_CooldownRespected(t *testing.T) {
 	}
 
 	// Should succeed but not actually dump (cooldown prevents it)
-	err = syncer.SyncOnce(ctx, key)
+	_, err = syncer.SyncOnce(ctx, key)
 	require.NoError(t, err)
 }
 
