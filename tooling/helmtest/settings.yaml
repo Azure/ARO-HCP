@@ -31,6 +31,7 @@ ResourceRequestsAllowlist:
 - Job/finalize-mce/finalize
 - Job/finalize-mce-config/finalize
 - Job/install-hypershift/install
+- Job/install-hypershift-crds/install
 - Job/registration-*/python # registration job name varies by environment
 - Job/unannotate-default-sc/finalize
 - Job/velero-install/apply-manifest
@@ -85,6 +86,7 @@ ResourceMemoryLimitsAllowlist:
 - Job/finalize-mce/finalize
 - Job/finalize-mce-config/finalize
 - Job/install-hypershift/install
+- Job/install-hypershift-crds/install
 - Job/registration-*/python # registration job name varies by environment
 - Job/unannotate-default-sc/finalize
 - Job/velero-install/apply-manifest
