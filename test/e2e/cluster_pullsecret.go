@@ -259,6 +259,14 @@ var _ = Describe("Customer", func() {
 				_ = kubeClient.CoreV1().Namespaces().Delete(ctx, pullTestNamespace, metav1.DeleteOptions{})
 			})
 
+			By("creating a service account for the image pull verification pod")
+			sa, err := kubeClient.CoreV1().ServiceAccounts(pullTestNamespace).Create(ctx, &corev1.ServiceAccount{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "pull-secret-test",
+				},
+			}, metav1.CreateOptions{})
+			Expect(err).NotTo(HaveOccurred(), "failed to create service account in %s", pullTestNamespace)
+
 			By("creating a pod for image pull verification")
 			pod := &corev1.Pod{
 				ObjectMeta: metav1.ObjectMeta{
@@ -266,6 +274,8 @@ var _ = Describe("Customer", func() {
 					Namespace: pullTestNamespace,
 				},
 				Spec: corev1.PodSpec{
+					ServiceAccountName:           sa.Name,
+					AutomountServiceAccountToken: to.Ptr(false),
 					Containers: []corev1.Container{
 						{
 							Name:            "pull-test",
