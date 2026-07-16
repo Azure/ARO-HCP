@@ -6,7 +6,7 @@ With [alert-tester][alert-tester-repo] we have a fast approach to verify alerts 
 
 1. Come up with an alert
 2. Analyze how it performs against historical data and tune it (a day)
-3. Push to prod (days to weeks)
+3. Push to PROD (days to weeks)
 4. Done
 
 > [!IMPORTANT]
@@ -22,7 +22,7 @@ cd alert-tester
 make build
 ```
 
-You can now use `alert-tester`, e.g. for PROD (replace `grafana-url` and `datasource` as desired for [other stages](#available-grafana-instances-and-data-sources)):
+You can now use `./atest`, e.g. for PROD (replace `grafana-url` and `datasource` as desired for [other stages](#available-grafana-instances-and-data-sources)):
 
 ```bash
 export ATEST_GRAFANA_BEARER_TOKEN=$(az account get-access-token \
