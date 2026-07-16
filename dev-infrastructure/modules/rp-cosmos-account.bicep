@@ -10,10 +10,22 @@ resource cosmosDbAccount 'Microsoft.DocumentDB/databaseAccounts@2024-11-15' = {
   name: name
   location: location
   properties: {
+    // UPGRADE-PATH REGRESSION TEST (not for merge): the Cosmos DB backup
+    // policy type is immutable once an account exists. Azure allows a
+    // one-way Periodic -> Continuous migration but rejects switching a
+    // Continuous account back to Periodic with a BadRequest. A fresh RP
+    // deploy creates the account directly as Periodic and succeeds, so
+    // e2e-parallel stays green; an upgrade over a baseline provisioned
+    // from main (which uses Continuous) hits the disallowed
+    // Continuous -> Periodic transition and fails the
+    // aro-hcp-upgrade-environment step. This validates that the
+    // upgrade-e2e-parallel job catches upgrade-only infra regressions.
     backupPolicy: {
-      type: 'Continuous'
-      continuousModeProperties: {
-        tier: 'Continuous7Days'
+      type: 'Periodic'
+      periodicModeProperties: {
+        backupIntervalInMinutes: 240
+        backupRetentionIntervalInHours: 8
+        backupStorageRedundancy: 'Local'
       }
     }
     consistencyPolicy: {
