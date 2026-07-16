@@ -123,9 +123,24 @@ func (r *MakeRunner) run(ctx context.Context, target string, stdout, stderr inte
 
 	select {
 	case err := <-waitCh:
-		return err
+		if err != nil {
+			return fmt.Errorf("make %s: %w", target, err)
+		}
+		return nil
 
 	case <-ctx.Done():
+		// Make may have finished in the same scheduler cycle as the context
+		// cancellation. Drain waitCh first so we return the real result
+		// rather than a spurious interruption error.
+		select {
+		case err := <-waitCh:
+			if err != nil {
+				return fmt.Errorf("make %s: %w", target, err)
+			}
+			return nil
+		default:
+		}
+
 		// SIGTERM first, SIGKILL after grace period.
 		pid := cmd.Process.Pid
 		pgid, pgidErr := syscall.Getpgid(pid)
@@ -134,9 +149,9 @@ func (r *MakeRunner) run(ctx context.Context, target string, stdout, stderr inte
 				"target", target, "pgid", pgid)
 			_ = syscall.Kill(-pgid, syscall.SIGTERM)
 		} else {
-			r.Logger.Info("context cancelled — sending SIGTERM to make pid (pgid lookup failed)",
+			r.Logger.Info("context cancelled — sending SIGTERM to make process group (pgid lookup failed; using pid as pgid)",
 				"target", target, "pid", pid, "error", pgidErr)
-			_ = syscall.Kill(pid, syscall.SIGTERM)
+			_ = syscall.Kill(-pid, syscall.SIGTERM)
 		}
 
 		select {
@@ -148,9 +163,9 @@ func (r *MakeRunner) run(ctx context.Context, target string, stdout, stderr inte
 					"target", target, "pgid", pgid)
 				_ = syscall.Kill(-pgid, syscall.SIGKILL)
 			} else {
-				r.Logger.Info("grace period elapsed — sending SIGKILL to make pid (pgid lookup failed)",
+				r.Logger.Info("grace period elapsed — sending SIGKILL to make process group (pgid lookup failed; using pid as pgid)",
 					"target", target, "pid", pid, "error", pgidErr)
-				_ = syscall.Kill(pid, syscall.SIGKILL)
+				_ = syscall.Kill(-pid, syscall.SIGKILL)
 			}
 			<-waitCh
 		}

@@ -196,14 +196,23 @@ func NewUpgradeBarrier() (*UpgradeBarrier, error) {
 		upgradeTimeout: defaultUpgradeTimeout,
 	}
 
-	// Initialise the state file the first time (total may differ between
-	// restarts so we only write it when the file is empty).
+	// Write a clean initial state unless a sibling process already did so for
+	// this run (Total matches and upgrade not yet done). Stale files from a
+	// prior run are detected by UpgradeDone=true or a Total mismatch and reset.
 	if err := b.withLock(func(state *upgradeBarrierState) (bool, error) {
-		if state.Total == 0 {
-			state.Total = total
-			return true, nil
+		needsReset := state.Total == 0 || state.UpgradeDone || state.Total != total
+		if !needsReset {
+			return false, nil
 		}
-		return false, nil
+		if state.Total != 0 {
+			ginkgo.GinkgoLogr.Info("upgrade barrier: resetting stale state file",
+				"previous_total", state.Total,
+				"previous_upgrade_done", state.UpgradeDone,
+				"previous_checked_in", state.CheckedIn,
+				"previous_runner_pid", state.RunnerPID)
+		}
+		*state = upgradeBarrierState{Total: total}
+		return true, nil
 	}); err != nil {
 		lf.Close()
 		return nil, fmt.Errorf("initialising upgrade barrier state: %w", err)
@@ -292,15 +301,24 @@ func repoRoot() (string, error) {
 	return filepath.Dir(filepath.Dir(real)), nil
 }
 
-// registerGinkgoCleanup registers an abort DeferCleanup on the current Ginkgo
-// node. It fires if the spec fails before reaching CheckInAndUpgrade (i.e.
-// during provisioning or baseline capture), so surviving specs are not blocked
-// waiting for a participant that will never arrive.
+// registerGinkgoCleanup registers DeferCleanup handlers on the current Ginkgo
+// node for all barrier-owned resources:
+//
+//   - abort: fires if the spec fails before CheckInAndUpgrade so surviving
+//     specs are not blocked waiting for a participant that will never arrive.
+//   - lock file close: releases the OS file descriptor held since construction.
 //
 // The markUpgradeDone DeferCleanup is registered separately inside
 // CheckInAndUpgrade, only for the elected runner, immediately before the
 // upgrade runs.
 func (b *UpgradeBarrier) registerGinkgoCleanup() {
+	// The lock file must outlive the abort and markUpgradeDone cleanups,
+	// both of which acquire the flock.
+	ginkgo.DeferCleanup(func() {
+		_ = b.lockFile.Close()
+	}, AnnotatedLocation("upgrade barrier: close lock file"))
+
+	// Registered second → runs before the lock file is closed.
 	ginkgo.DeferCleanup(func(ctx context.Context) {
 		if b.checkedIn {
 			return
@@ -331,12 +349,15 @@ func (b *UpgradeBarrier) checkIn(ctx context.Context) (isRunner bool, err error)
 		return false, fmt.Errorf("check-in: %w", err)
 	}
 
+	// Set immediately after Phase 1: if Phase 2 fails, the abort DeferCleanup
+	// must not also increment aborted_count — checked_in is already written.
+	b.checkedIn = true
+
 	// Phase 2: poll until all specs have either checked in or aborted.
 	if err := b.waitSettled(ctx); err != nil {
 		return false, err
 	}
 
-	b.checkedIn = true
 	return isRunner, nil
 }
 
@@ -472,8 +493,7 @@ func (b *UpgradeBarrier) withLock(fn func(state *upgradeBarrierState) (dirty boo
 	}
 	defer func() {
 		if err := filelock.Unlock(b.lockFile.Fd()); err != nil {
-			// Non-fatal: log and continue.
-			_ = err
+			ginkgo.GinkgoLogr.Error(err, "failed to release upgrade barrier lock; other specs may hang waiting for flock")
 		}
 	}()
 

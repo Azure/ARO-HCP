@@ -83,7 +83,7 @@ func newLinkedBarrier(t *testing.T, source *UpgradeBarrier) *UpgradeBarrier {
 
 // TestUpgradeBarrier_SingleSpec verifies that with total=1 the single spec is
 // immediately elected runner and the barrier settles without any waiting.
-// This is the common case for local development runs (UPGRADE_SPEC_COUNT unset).
+// This is the common case for local development runs (UPGRADE_SPEC_COUNT=1).
 func TestUpgradeBarrier_SingleSpec(t *testing.T) {
 	t.Parallel()
 
