@@ -324,15 +324,6 @@ func NewDefaultHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, azureLocati
 				MaxNodeProvisionTimeSeconds: DefaultClusterMaxNodeProvisionTimeSeconds,
 				PodPriorityThreshold:        DefaultClusterPodPriorityThreshold,
 			},
-			// PlatformManaged is still the default for absent values (EnsureDefaults / Cosmos
-			// documents), but it is rejected by ValidEtcdDataEncryptionKeyManagementModeType
-			// until platform-managed etcd encryption is supported. CustomerManaged must be set
-			// for a create request to succeed.
-			Etcd: EtcdProfile{
-				DataEncryption: EtcdDataEncryptionProfile{
-					KeyManagementMode: EtcdDataEncryptionKeyManagementModeTypePlatformManaged,
-				},
-			},
 			ClusterImageRegistry: ClusterImageRegistryProfile{
 				State: ClusterImageRegistryStateEnabled,
 			},
@@ -364,9 +355,6 @@ func (cluster *HCPOpenShiftCluster) EnsureDefaults() {
 	}
 	if len(cluster.CustomerProperties.ClusterImageRegistry.State) == 0 {
 		cluster.CustomerProperties.ClusterImageRegistry.State = ClusterImageRegistryStateEnabled
-	}
-	if len(cluster.CustomerProperties.Etcd.DataEncryption.KeyManagementMode) == 0 {
-		cluster.CustomerProperties.Etcd.DataEncryption.KeyManagementMode = EtcdDataEncryptionKeyManagementModeTypePlatformManaged
 	}
 	if len(cluster.CustomerProperties.CryptoRestrictions) == 0 {
 		cluster.CustomerProperties.CryptoRestrictions = CryptoRestrictionsNone

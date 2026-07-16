@@ -105,16 +105,11 @@ func SetDefaultValuesCluster(obj *HcpOpenShiftCluster) {
 	if obj.Properties.Autoscaling.PodPriorityThreshold == nil {
 		obj.Properties.Autoscaling.PodPriorityThreshold = ptr.To(api.DefaultClusterPodPriorityThreshold)
 	}
-	//Even though PlatformManaged Mode is currently not supported by CS . This is the default value .
-	// TODO cannot change the default value for this version, but why keep it in our new version?
 	if obj.Properties.Etcd == nil {
 		obj.Properties.Etcd = &generated.EtcdProfile{}
 	}
 	if obj.Properties.Etcd.DataEncryption == nil {
 		obj.Properties.Etcd.DataEncryption = &generated.EtcdDataEncryptionProfile{}
-	}
-	if obj.Properties.Etcd.DataEncryption.KeyManagementMode == nil {
-		obj.Properties.Etcd.DataEncryption.KeyManagementMode = ptr.To(generated.EtcdDataEncryptionKeyManagementModeTypePlatformManaged)
 	}
 	if obj.Properties.ClusterImageRegistry == nil {
 		obj.Properties.ClusterImageRegistry = &generated.ClusterImageRegistryProfile{}

@@ -50,6 +50,9 @@ const (
 	TestVirtualNetworkName        = "testVirtualNetwork"
 	TestSubnetName                = "testSubnet"
 	TestVnetIntegrationSubnetName = "testVnetIntegrationSubnet"
+	TestKMSKeyName                = "testKMSKeyName"
+	TestKMSKeyVaultName           = "testKMSKeyVaultName"
+	TestKMSKeyVersion             = "testKMSKeyVersion"
 )
 
 var (
@@ -78,6 +81,18 @@ func MinimumValidClusterTestCase() *HCPOpenShiftCluster {
 	resource := NewDefaultHCPOpenShiftCluster(Must(azcorearm.ParseResourceID(TestClusterResourceID)), TestLocation)
 	resource.CustomerProperties.Version.ID = "4.20"
 	resource.CustomerProperties.DNS.BaseDomainPrefix = "testcluster"
+	resource.CustomerProperties.Etcd.DataEncryption.KeyManagementMode = EtcdDataEncryptionKeyManagementModeTypeCustomerManaged
+	resource.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &CustomerManagedEncryptionProfile{
+		EncryptionType: CustomerManagedEncryptionTypeKMS,
+		Kms: &KmsEncryptionProfile{
+			Visibility: KeyVaultVisibilityPublic,
+			ActiveKey: KmsKey{
+				Name:      TestKMSKeyName,
+				VaultName: TestKMSKeyVaultName,
+				Version:   TestKMSKeyVersion,
+			},
+		},
+	}
 	resource.CustomerProperties.Platform.ManagedResourceGroup = TestManagedResourceGroupName
 	resource.CustomerProperties.Platform.SubnetID = Must(azcorearm.ParseResourceID(TestSubnetResourceID))
 	resource.CustomerProperties.Platform.VnetIntegrationSubnetID = Must(azcorearm.ParseResourceID(TestVnetIntegrationSubnetResourceID))
