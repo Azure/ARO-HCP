@@ -1774,34 +1774,31 @@
         ]
       }
     },
+    "EtcdDataEncryptionKeyManagementModeType": {
+      "type": "string",
+      "description": "The encryption key management mode types supported for ETCD data encryption.",
+      "enum": [
+        "CustomerManaged"
+      ],
+      "x-ms-enum": {
+        "name": "EtcdDataEncryptionKeyManagementModeType",
+        "modelAsString": true,
+        "values": [
+          {
+            "name": "CustomerManaged",
+            "value": "CustomerManaged",
+            "description": "Customer managed encryption key management mode type."
+          }
+        ]
+      }
+    },
     "EtcdDataEncryptionProfile": {
       "type": "object",
       "description": "The ETCD data encryption settings.",
       "properties": {
         "keyManagementMode": {
-          "type": "string",
-          "description": "Specify the key management strategy used for the encryption key that encrypts the ETCD data.\nBy default, \"PlatformManaged\" is used.",
-          "default": "PlatformManaged",
-          "enum": [
-            "CustomerManaged",
-            "PlatformManaged"
-          ],
-          "x-ms-enum": {
-            "name": "EtcdDataEncryptionKeyManagementModeType",
-            "modelAsString": true,
-            "values": [
-              {
-                "name": "CustomerManaged",
-                "value": "CustomerManaged",
-                "description": "Customer managed encryption key management mode type."
-              },
-              {
-                "name": "PlatformManaged",
-                "value": "PlatformManaged",
-                "description": "Platform managed encryption key management mode type."
-              }
-            ]
-          },
+          "$ref": "#/definitions/EtcdDataEncryptionKeyManagementModeType",
+          "description": "Specify the key management strategy used for the encryption key that encrypts the ETCD data.",
           "x-ms-mutability": [
             "read",
             "create"
@@ -1816,7 +1813,10 @@
             "create"
           ]
         }
-      }
+      },
+      "required": [
+        "keyManagementMode"
+      ]
     },
     "EtcdDataEncryptionProfileUpdate": {
       "type": "object",

@@ -214,6 +214,10 @@ func TestClusterRequired(t *testing.T) {
 				},
 				{
 					Message:   "Required value",
+					FieldPath: "customerProperties.etcd.dataEncryption.keyManagementMode",
+				},
+				{
+					Message:   "Required value",
 					FieldPath: "serviceProviderProperties.managedIdentitiesDataPlaneIdentityURL",
 				},
 				{
@@ -639,10 +643,9 @@ func TestClusterValidate(t *testing.T) {
 		{
 			name: "Customer managed ETCD key management mode requires CustomerManaged fields",
 			resource: func() *api.HCPOpenShiftCluster {
-				c := api.MinimumValidClusterTestCase()
-				c.CustomerProperties.Etcd.DataEncryption.KeyManagementMode = api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged
-				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged = nil
-				return c
+				r := api.MinimumValidClusterTestCase()
+				r.CustomerProperties.Etcd.DataEncryption.CustomerManaged = nil
+				return r
 			}(),
 			expectErrors: []utils.ExpectedError{
 				{
@@ -652,37 +655,11 @@ func TestClusterValidate(t *testing.T) {
 			},
 		},
 		{
-			name: "Platform managed ETCD key management mode is not supported",
-			resource: func() *api.HCPOpenShiftCluster {
-				c := api.MinimumValidClusterTestCase()
-				c.CustomerProperties.Etcd.DataEncryption.KeyManagementMode = api.EtcdDataEncryptionKeyManagementModeTypePlatformManaged
-				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &api.CustomerManagedEncryptionProfile{}
-				return c
-			}(),
-			expectErrors: []utils.ExpectedError{
-				{
-					Message:   "Unsupported value",
-					FieldPath: "customerProperties.etcd.dataEncryption.keyManagementMode",
-				},
-				{
-					Message:   "may only be specified when `keyManagementMode` is \"CustomerManaged\"",
-					FieldPath: "customerProperties.etcd.dataEncryption.customerManaged",
-				},
-				{
-					Message:   "supported values: \"KMS\"",
-					FieldPath: "customerProperties.etcd.dataEncryption.customerManaged.encryptionType",
-				},
-			},
-		},
-		{
 			name: "Customer managed Key Management Service (KMS) requires Kms fields",
 			resource: func() *api.HCPOpenShiftCluster {
-				c := api.MinimumValidClusterTestCase()
-				c.CustomerProperties.Etcd.DataEncryption.KeyManagementMode = api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged
-				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &api.CustomerManagedEncryptionProfile{
-					EncryptionType: api.CustomerManagedEncryptionTypeKMS,
-				}
-				return c
+				r := api.MinimumValidClusterTestCase()
+				r.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms = nil
+				return r
 			}(),
 			expectErrors: []utils.ExpectedError{
 				{
@@ -695,13 +672,10 @@ func TestClusterValidate(t *testing.T) {
 			// FIXME Use a valid alternate EncryptionType once we have one.
 			name: "Alternate customer managed ETCD encyption type excludes Kms fields",
 			resource: func() *api.HCPOpenShiftCluster {
-				c := api.MinimumValidClusterTestCase()
-				c.CustomerProperties.Etcd.DataEncryption.KeyManagementMode = api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged
-				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &api.CustomerManagedEncryptionProfile{
-					EncryptionType: "Alternate",
-					Kms:            &api.KmsEncryptionProfile{},
-				}
-				return c
+				r := api.MinimumValidClusterTestCase()
+				r.CustomerProperties.Etcd.DataEncryption.CustomerManaged.EncryptionType = "Alternate"
+				r.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms = &api.KmsEncryptionProfile{}
+				return r
 			}(),
 			expectErrors: []utils.ExpectedError{
 				{

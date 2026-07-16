@@ -610,8 +610,15 @@ model EtcdDataEncryptionProfile {
   /** Specify the key management strategy used for the encryption key that encrypts the ETCD data.
    * By default, "PlatformManaged" is used.
    */
+  @removed(Versions.v2026_06_30_preview)
+  @renamedFrom(Versions.v2026_06_30_preview, "keyManagementMode")
   @visibility(Lifecycle.Read, Lifecycle.Create)
-  keyManagementMode?: EtcdDataEncryptionKeyManagementModeType = EtcdDataEncryptionKeyManagementModeType.PlatformManaged;
+  optionalKeyManagementMode?: EtcdDataEncryptionKeyManagementModeType = EtcdDataEncryptionKeyManagementModeType.PlatformManaged;
+
+  /** Specify the key management strategy used for the encryption key that encrypts the ETCD data. */
+  @added(Versions.v2026_06_30_preview)
+  @visibility(Lifecycle.Read, Lifecycle.Create)
+  keyManagementMode: EtcdDataEncryptionKeyManagementModeType;
 
   /** Specify customer managed encryption key details.
    * Required when keyManagementMode is "CustomerManaged".
@@ -700,6 +707,7 @@ union EtcdDataEncryptionKeyManagementModeType {
   CustomerManaged: "CustomerManaged",
 
   /** Platform managed encryption key management mode type. */
+  @removed(Versions.v2026_06_30_preview)
   PlatformManaged: "PlatformManaged",
 }
 
