@@ -70,6 +70,36 @@ type GatherInput struct {
 	ManagementClusterName string
 }
 
+// validate checks that all required fields are set.
+func (g GatherInput) validate() error {
+	var missing []string
+	if g.ClusterURI == "" {
+		missing = append(missing, "ClusterURI")
+	}
+	if g.ServiceDatabase == "" {
+		missing = append(missing, "ServiceDatabase")
+	}
+	if g.HCPDatabase == "" {
+		missing = append(missing, "HCPDatabase")
+	}
+	if g.MonitoringEventsDatabase == "" {
+		missing = append(missing, "MonitoringEventsDatabase")
+	}
+	if g.ResourceGroup == "" {
+		missing = append(missing, "ResourceGroup")
+	}
+	if g.TimeWindow.Start.IsZero() {
+		missing = append(missing, "TimeWindow.Start")
+	}
+	if g.TimeWindow.End.IsZero() {
+		missing = append(missing, "TimeWindow.End")
+	}
+	if len(missing) > 0 {
+		return fmt.Errorf("missing required fields: %s", strings.Join(missing, ", "))
+	}
+	return nil
+}
+
 // concurrency returns the effective concurrency limit.
 func (g GatherInput) concurrency() int {
 	if g.Concurrency > 0 {
@@ -220,6 +250,10 @@ type resourceState struct {
 // and writes structured output to outputDir. It runs discovery queries once,
 // then per-phase (test and cleanup) queries with appropriate time boundaries.
 func (g *Gatherer) Gather(ctx context.Context, input GatherInput, outputDir string) (*Manifest, *VerificationReport, error) {
+	if err := input.validate(); err != nil {
+		return nil, nil, fmt.Errorf("invalid GatherInput: %w", err)
+	}
+
 	logger := logr.FromContextOrDiscard(ctx)
 	report := &VerificationReport{}
 

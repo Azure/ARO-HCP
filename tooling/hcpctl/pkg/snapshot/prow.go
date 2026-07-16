@@ -264,7 +264,7 @@ func fetchPRJobConfig(ctx context.Context, info *ProwJobInfo, logger logr.Logger
 		return nil, fmt.Errorf("failed to download config.yaml from provision-environment: %w", err)
 	}
 
-	jobConfig, err := parseConfig(configData)
+	jobConfig, err := ParseConfig(configData)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse config.yaml: %w", err)
 	}
@@ -325,7 +325,7 @@ func fetchNonPRJobConfig(ctx context.Context, info *ProwJobInfo, sdpPipelinesDir
 		return nil, fmt.Errorf("failed to run git show in %s: %w", sdpPipelinesDir, err)
 	}
 
-	jobConfig, err := parseConfig(configData)
+	jobConfig, err := ParseConfig(configData)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse rendered config from sdp-pipelines: %w", err)
 	}
@@ -590,7 +590,12 @@ type sourceAKSName struct {
 	Name string `json:"name"`
 }
 
-func parseConfig(data []byte) (*ProwJobConfig, error) {
+// ParseConfig parses a rendered environment config YAML and extracts the
+// Kusto connection info and AKS cluster names into a ProwJobConfig. This is
+// the single source of truth for mapping config keys to ProwJobConfig fields;
+// all callers that need these values should use this function to avoid
+// independent config-key reads drifting out of sync.
+func ParseConfig(data []byte) (*ProwJobConfig, error) {
 	var src sourceConfig
 	if err := yaml.Unmarshal(data, &src); err != nil {
 		return nil, fmt.Errorf("failed to parse YAML: %w", err)
