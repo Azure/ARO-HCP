@@ -407,7 +407,10 @@ func BuildCSCluster(resourceID *azcorearm.ResourceID, tenantID string, hcpCluste
 
 	// These attributes cannot be updated after cluster creation.
 	if oldClusterServiceCluster == nil {
-		csVersionID := clusterCSVersionID(serviceProviderCluster, hcpCluster)
+		csVersionID, err := clusterCSVersionID(serviceProviderCluster, hcpCluster)
+		if err != nil {
+			return nil, nil, err
+		}
 		// Add attributes that cannot be updated after cluster creation.
 		clusterBuilder, err = withImmutableAttributes(clusterBuilder, hcpCluster,
 			resourceID.SubscriptionID,
@@ -461,19 +464,14 @@ func BuildCSCluster(resourceID *azcorearm.ResourceID, tenantID string, hcpCluste
 	return clusterBuilder, clusterAutoscalerBuilder, nil
 }
 
-// clusterCSVersionID returns the OpenShift version ID for a new Cluster Service cluster.
-// ServiceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion is authoritative when set.
-// When unset (e.g. frontend install before ControlPlaneDesiredVersion runs), the customer
-// version on the HCP cluster document is used.
-// Once cluster install is migrated to backend, we can expect the desiredVersion field to always
-// be set on the ServiceProviderCluster.
-func clusterCSVersionID(serviceProviderCluster *api.ServiceProviderCluster, hcpCluster *api.HCPOpenShiftCluster) string {
-	channelGroup := hcpCluster.CustomerProperties.Version.ChannelGroup
-	if serviceProviderCluster != nil && serviceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion != nil {
-		return NewOpenShiftVersionXYZ(serviceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion.String(), channelGroup)
+// clusterCSVersionID returns the OpenShift version ID for a new Cluster Service cluster
+// from ServiceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion.
+func clusterCSVersionID(serviceProviderCluster *api.ServiceProviderCluster, hcpCluster *api.HCPOpenShiftCluster) (string, error) {
+	if serviceProviderCluster == nil || serviceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion == nil {
+		return "", fmt.Errorf("control plane desired version is not set on the ServiceProviderCluster")
 	}
-	// Remove this once cluster install is migrated to backend
-	return NewOpenShiftVersionXYZ(hcpCluster.CustomerProperties.Version.ID, channelGroup)
+	channelGroup := hcpCluster.CustomerProperties.Version.ChannelGroup
+	return NewOpenShiftVersionXYZ(serviceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion.String(), channelGroup), nil
 }
 
 // ConvertHostedClusterSizeOverrideToCS returns the value the CSPropertySizeOverride
