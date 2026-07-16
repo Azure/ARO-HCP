@@ -41,6 +41,9 @@ clouds:
           kubernetesVersion: "1.35"
           networkDataplane: "cilium"
           networkPolicy: "cilium"
+          upgradeSettings:
+            maxSurge: "10%"
+            maxUnavailable: "0"
           clusterOutboundIPAddressIPTags: ""
           etcd:
             name: "opstool-etcd-{{ .ctx.regionShort }}"

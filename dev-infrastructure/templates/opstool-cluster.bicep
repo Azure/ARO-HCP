@@ -97,6 +97,12 @@ param aksNetworkDataplane string = 'cilium'
 @description('Network policy plugin for the AKS cluster')
 param aksNetworkPolicy string = 'cilium'
 
+@description('Maximum surge for AKS node pool upgrades')
+param aksUpgradeSettingsMaxSurge string
+
+@description('Maximum unavailable for AKS node pool upgrades')
+param aksUpgradeSettingsMaxUnavailable string
+
 @description('IPTags to be set on the cluster outbound IP address')
 param aksClusterOutboundIPAddressIPTags string = ''
 
@@ -265,6 +271,8 @@ module opstoolCluster '../modules/aks-cluster-base.bicep' = {
     systemZoneRedundantMode: systemZoneRedundantMode
     networkDataplane: aksNetworkDataplane
     networkPolicy: aksNetworkPolicy
+    upgradeSettingsMaxSurge: aksUpgradeSettingsMaxSurge
+    upgradeSettingsMaxUnavailable: aksUpgradeSettingsMaxUnavailable
     workloadIdentities: workloadIdentities
     aksKeyVaultName: aksKeyVaultName
     aksKeyVaultTagName: aksKeyVaultTagName
