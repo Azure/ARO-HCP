@@ -81,5 +81,5 @@ record-latest-override: $(YQ)
 .PHONY: record-latest-override
 
 deploy: build-and-push record-override
-	make -C .. pipeline/Microsoft.Azure.ARO.HCP.MgmtAgent OVERRIDE_CONFIG_FILE=$(OVERRIDE_CONFIG_FILE)
+	make -C .. pipeline/MgmtAgent OVERRIDE_CONFIG_FILE=$(OVERRIDE_CONFIG_FILE)
 .PHONY: deploy
