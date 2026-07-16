@@ -356,6 +356,60 @@ func createClusterAndComplete(
 
 	parsedID := api.Must(azcorearm.ParseResourceID(resourceID))
 	require.NoError(t, integrationutils.MarkOperationsCompleteForName(ctx, testInfo.ResourcesDBClient(), subscriptionID, parsedID.Name))
+
+	createServiceProviderClusterForTesting(t, ctx, testInfo, clusterName, "4.20.8")
+}
+
+// createServiceProviderClusterForTesting inserts a serviceProviderCluster document
+// to simulate the backend controller populating active_versions.
+// Document id must be arm.ResourceIDStringToCosmosID(resourceID)
+func createServiceProviderClusterForTesting(
+	t *testing.T,
+	ctx context.Context,
+	testInfo *integrationutils.IntegrationTestInfo,
+	clusterName string,
+	controlPlaneVersion string,
+) {
+	t.Helper()
+
+	parsedID := api.Must(azcorearm.ParseResourceID(clusterResourceID(clusterName)))
+	subscriptionID := parsedID.SubscriptionID
+	resourceGroupName := parsedID.ResourceGroupName
+
+	spcResourceID := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/%s/serviceProviderClusters/default",
+		subscriptionID, resourceGroupName, clusterName)
+
+	cosmosID, err := arm.ResourceIDStringToCosmosID(spcResourceID)
+	require.NoError(t, err)
+
+	spcDoc := map[string]interface{}{
+		"id":           cosmosID,
+		"partitionKey": subscriptionID,
+		"resourceID":   spcResourceID,
+		"resourceType": "microsoft.redhatopenshift/hcpopenshiftclusters/serviceproviderclusters",
+		"properties": map[string]interface{}{
+			"resourceId": spcResourceID,
+			"spec": map[string]interface{}{
+				"control_plane_version": map[string]interface{}{
+					"desired_version": controlPlaneVersion,
+				},
+			},
+			"status": map[string]interface{}{
+				"control_plane_version": map[string]interface{}{
+					"active_versions": []interface{}{
+						map[string]interface{}{
+							"version": controlPlaneVersion,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	spcBytes, err := json.Marshal(spcDoc)
+	require.NoError(t, err)
+
+	require.NoError(t, testInfo.LoadContent(ctx, spcBytes))
 }
 
 // testCrossVersionClusterPUT verifies that a v2024 GET-then-PUT preserves
