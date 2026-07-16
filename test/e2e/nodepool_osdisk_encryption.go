@@ -22,6 +22,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v5"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/msi/armmsi"
 
@@ -71,8 +72,11 @@ var _ = Describe("Nodepool OS Disk Encryption", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create cluster customer resources")
 
 			By("resolving service managed identity principal ID")
-			identityPool, _, err := tc.ResolveIdentitiesForTemplate(*resourceGroup.Name)
-			Expect(err).NotTo(HaveOccurred(), "failed to resolve identities")
+			Expect(clusterParams.UserAssignedIdentitiesProfile).NotTo(BeNil(), "cluster params missing UserAssignedIdentitiesProfile")
+			Expect(clusterParams.UserAssignedIdentitiesProfile.ServiceManagedIdentity).NotTo(BeNil(), "cluster params missing ServiceManagedIdentity resource ID")
+
+			serviceMIResourceID, err := azcorearm.ParseResourceID(*clusterParams.UserAssignedIdentitiesProfile.ServiceManagedIdentity)
+			Expect(err).NotTo(HaveOccurred(), "failed to parse service managed identity resource ID")
 
 			subscriptionID, err := tc.SubscriptionID(ctx)
 			Expect(err).NotTo(HaveOccurred(), "failed to get subscription ID")
@@ -83,7 +87,7 @@ var _ = Describe("Nodepool OS Disk Encryption", func() {
 			msiClientFactory, err := armmsi.NewClientFactory(subscriptionID, creds, nil)
 			Expect(err).NotTo(HaveOccurred(), "failed to create MSI client factory")
 
-			serviceMI, err := msiClientFactory.NewUserAssignedIdentitiesClient().Get(ctx, identityPool.ResourceGroupName, identityPool.Identities.ServiceManagedIdentityName, nil)
+			serviceMI, err := msiClientFactory.NewUserAssignedIdentitiesClient().Get(ctx, serviceMIResourceID.ResourceGroupName, serviceMIResourceID.Name, nil)
 			Expect(err).NotTo(HaveOccurred(), "failed to get service managed identity")
 			Expect(serviceMI.Properties.PrincipalID).NotTo(BeNil(), "service managed identity has no principal ID")
 
@@ -94,8 +98,8 @@ var _ = Describe("Nodepool OS Disk Encryption", func() {
 				framework.WithScope(framework.BicepDeploymentScopeResourceGroup),
 				framework.WithClusterResourceGroup(*resourceGroup.Name),
 				framework.WithParameters(map[string]interface{}{
-					"keyVaultName":        clusterParams.KeyVaultName,
-					"clusterName":         customerClusterName,
+					"keyVaultName":         clusterParams.KeyVaultName,
+					"clusterName":          customerClusterName,
 					"serviceMiPrincipalId": *serviceMI.Properties.PrincipalID,
 				}),
 			)
