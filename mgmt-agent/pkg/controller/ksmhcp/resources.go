@@ -213,9 +213,15 @@ func buildServiceMonitor(namespace string, ownerRef metav1.OwnerReference) (*uns
 					Interval: "30s",
 					MetricRelabelConfigs: []monitoringv1.RelabelConfig{
 						{
-							TargetLabel: "namespace",
+							TargetLabel: "hostedcontrolplane",
 							Replacement: ptr.To(namespace),
 							Action:      "replace",
+						},
+						{
+							SourceLabels: []monitoringv1.LabelName{"exported_namespace"},
+							TargetLabel:  "namespace",
+							Regex:        "(.+)",
+							Action:       "replace",
 						},
 					},
 				},
