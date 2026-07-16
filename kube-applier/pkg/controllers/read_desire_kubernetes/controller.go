@@ -123,7 +123,7 @@ func NewReadDesireKubernetesController(
 			workqueue.TypedRateLimitingQueueConfig[keys.ReadDesireKey]{
 				// Underscores rather than slashes: this name surfaces as a
 				// Prometheus label and slashes complicate downstream tooling.
-				Name: fmt.Sprintf("%s_%s_%s_%s", ReadDesireKubernetesControllerName, key.ClusterName, key.NodePoolName, key.Name),
+				Name: fmt.Sprintf("%s_%s_%s_%s", ReadDesireKubernetesControllerName, key.ClusterName, key.SubResourceName, key.Name),
 			},
 		),
 		writer: desirestatuswriter.New[kubeapplier.ReadDesire, keys.ReadDesireKey, *kubeapplier.ReadDesire](

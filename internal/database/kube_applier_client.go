@@ -118,12 +118,16 @@ type KubeApplierListers interface {
 type KubeApplierApplyDesireCRUD interface {
 	ApplyDesiresForCluster(subscriptionID, resourceGroupName, clusterName string) (ResourceCRUD[kubeapplier.ApplyDesire, *kubeapplier.ApplyDesire], error)
 	ApplyDesiresForNodePool(subscriptionID, resourceGroupName, clusterName, nodePoolName string) (ResourceCRUD[kubeapplier.ApplyDesire, *kubeapplier.ApplyDesire], error)
+	ApplyDesiresForCredentialRequest(subscriptionID, resourceGroupName, clusterName, credentialRequestName string) (ResourceCRUD[kubeapplier.ApplyDesire, *kubeapplier.ApplyDesire], error)
+	ApplyDesiresForRevocation(subscriptionID, resourceGroupName, clusterName, revocationName string) (ResourceCRUD[kubeapplier.ApplyDesire, *kubeapplier.ApplyDesire], error)
 }
 
 // KubeApplierReadDesireCRUD is the ReadDesire peer of KubeApplierApplyDesireCRUD.
 type KubeApplierReadDesireCRUD interface {
 	ReadDesiresForCluster(subscriptionID, resourceGroupName, clusterName string) (ResourceCRUD[kubeapplier.ReadDesire, *kubeapplier.ReadDesire], error)
 	ReadDesiresForNodePool(subscriptionID, resourceGroupName, clusterName, nodePoolName string) (ResourceCRUD[kubeapplier.ReadDesire, *kubeapplier.ReadDesire], error)
+	ReadDesiresForCredentialRequest(subscriptionID, resourceGroupName, clusterName, credentialRequestName string) (ResourceCRUD[kubeapplier.ReadDesire, *kubeapplier.ReadDesire], error)
+	ReadDesiresForRevocation(subscriptionID, resourceGroupName, clusterName, revocationName string) (ResourceCRUD[kubeapplier.ReadDesire, *kubeapplier.ReadDesire], error)
 }
 
 // kubeApplierCosmosDBClient implements KubeApplierDBClient against a Cosmos
