@@ -206,7 +206,7 @@ max-concurrent-runs = floor(pool-size / per-job-lease-count)
 
 **Bottleneck 2: parallelism within a single run.** The per-job identity-container set still caps how many HCP clusters a single suite execution can run simultaneously. When the suite has more specs requiring HCPs than available leased containers, specs run in waves — the first wave runs, and the remaining specs block inside `AssignIdentityContainers()` until containers are released. This means adding more test specs increases total suite runtime even if the specs themselves are fast.
 
-**Bottleneck 3: deny assignments per subscription (PROD only).** The Azure Authorization RP allows at most **2000 deny assignments per subscription**. The RP currently creates *sharded* (per-cluster) deny assignments — roughly 21 per HCP — which caps a single subscription at about **92 concurrent HCP clusters**, regardless of role-assignment quota or identity-pool size:
+**Bottleneck 3: deny assignments per subscription (AME only — STG and PROD).** The Azure Authorization RP allows at most **2000 deny assignments per subscription**. The RP currently creates *sharded* (per-cluster) deny assignments — roughly 21 per HCP — which caps a single subscription at about **92 concurrent HCP clusters**, regardless of role-assignment quota or identity-pool size:
 
 ```text
 DENY_ASSIGNMENTS_PER_SUB   = 2000  (Authorization RP hard limit)
@@ -215,7 +215,7 @@ DENY_ASSIGNMENTS_PER_HCP   = 21    (current sharded, per-cluster count)
 max-hcps-per-sub = floor(DENY_ASSIGNMENTS_PER_SUB / DENY_ASSIGNMENTS_PER_HCP) ≈ 92
 ```
 
-This is **PROD-only**: the RP only creates deny assignments in AME (STG and above), and in practice this is the binding constraint for PROD slot sizing. It translates into slot count as:
+This applies to **AME environments only (STG and PROD)**: the RP only creates deny assignments in AME. In practice it is the binding constraint for PROD slot sizing — STG runs a single slot per subscription, well under the ceiling. It translates into slot count as:
 
 ```text
 max-slots-per-sub = floor(max-hcps-per-sub / identity-container-count-per-slot)
