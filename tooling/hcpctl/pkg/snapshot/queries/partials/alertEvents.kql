@@ -5,11 +5,13 @@ cluster('{{ .ClusterURI }}').database('{{ .MonitoringEventsDatabase }}').table('
         isnull(resolvedDateTime) or
         (isnotnull(resolvedDateTime) and resolvedDateTime < {{ kqlDatetime .FullEndTime }})
     )
+| extend cluster = tostring(alertContext.labels.cluster)
+| where isnotnull(cluster)
 {{- if and .ServiceClusterName .ManagementClusterName }}
-| where alertContext.labels.cluster in ('{{ .ServiceClusterName }}', '{{ .ManagementClusterName }}')
+| where cluster in ('{{ .ServiceClusterName }}', '{{ .ManagementClusterName }}')
 {{- end }}
 {{- end -}}
 
 {{- define "alertEventsProject" -}}
-| project alert=alertContext.labels.alertname, firedDateTime, resolvedDateTime, description=alertContext.annotations.description
+| project cluster, alert=alertContext.labels.alertname, firedDateTime, resolvedDateTime, description=alertContext.annotations.description
 {{- end -}}
