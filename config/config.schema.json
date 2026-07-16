@@ -2976,6 +2976,10 @@
         "grafanaName": {
           "type": "string"
         },
+        "grafanaSku": {
+          "type": "string",
+          "description": "The SKU of the Azure Managed Grafana instance (e.g. Standard, Essential)."
+        },
         "grafanaMajorVersion": {
           "type": "string"
         },
@@ -3090,6 +3094,7 @@
       "additionalProperties": false,
       "required": [
         "grafanaName",
+        "grafanaSku",
         "grafanaRoles",
         "grafanaMajorVersion",
         "crossTenantSecurityGroup",
