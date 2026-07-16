@@ -260,7 +260,7 @@ func (tc *perItOrDescribeTestContext) AssignIdentityContainers(ctx context.Conte
 	startTime := time.Now()
 	defer func() {
 		finishTime := time.Now()
-		tc.RecordTestStep(fmt.Sprintf("Assign %d identity containers", count), startTime, finishTime)
+		tc.RecordTestStep(StepIDAssignIdentityContainers, fmt.Sprintf("Assign %d identity containers", count), startTime, finishTime)
 	}()
 
 	ginkgo.GinkgoLogr.Info("Starting identity container acquisition", "count", count, "specID", specID())
@@ -304,7 +304,7 @@ func (tc *perItOrDescribeTestContext) getLeasedIdentities() (LeasedIdentityPool,
 	startTime := time.Now()
 	defer func() {
 		finishTime := time.Now()
-		tc.RecordTestStep("Lease identity container", startTime, finishTime)
+		tc.RecordTestStep(StepIDLeaseIdentityContainer, "Lease identity container", startTime, finishTime)
 	}()
 
 	state, err := tc.perBinaryInvocationTestContext.getLeasedIdentityPoolState()
@@ -355,7 +355,7 @@ func (tc *perItOrDescribeTestContext) releaseLeasedIdentities(ctx context.Contex
 	startTime := time.Now()
 	defer func() {
 		finishTime := time.Now()
-		tc.RecordTestStep("Release leased identities", startTime, finishTime)
+		tc.RecordTestStep(StepIDReleaseIdentities, "Release leased identities", startTime, finishTime)
 	}()
 
 	if !tc.UsePooledIdentities() {
@@ -1182,7 +1182,7 @@ func (tc *perItOrDescribeTestContext) EnsureIdentityRoleAssignments(
 	startTime := time.Now()
 	defer func() {
 		finishTime := time.Now()
-		tc.RecordTestStep(fmt.Sprintf("Validate role bindings for %s identity %s", identityType, identityName), startTime, finishTime)
+		tc.RecordTestStep(StepIDValidateIdentityRBACBindings, fmt.Sprintf("Validate role bindings for %s identity %s", identityType, identityName), startTime, finishTime)
 	}()
 
 	// Get expected role configuration for this identity

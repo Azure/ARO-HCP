@@ -193,10 +193,11 @@ func (tc *perItOrDescribeTestContext) BeforeEach(ctx context.Context) {
 	// In addition, AfterEach will not be called if a test never gets here.
 	// We are doing this because there's a serious bug.  I haven't got an ETA on a fix, but if we fail to correct it, we definitely need to know.
 	// If we haven't fixed the deletion timeout after Labor Day, this intentional time bomb will explode and start failing again.
+	// Registered first so it runs last (FILO): re-write timing data to disk
+	// after deletion completes, capturing deletion timing nodes.
+	ginkgo.DeferCleanup(tc.recommitTimingMetadata, AnnotatedLocation("update timing info after deletion"))
+
 	cleanupTimeout := 45 * time.Minute
-	if time.Now().Before(Must(time.Parse(time.RFC3339, "2025-09-02T15:04:05Z"))) {
-		cleanupTimeout = 90 * time.Minute
-	}
 	ginkgo.DeferCleanup(tc.deleteCreatedResources, AnnotatedLocation("tear down test context"), ginkgo.NodeTimeout(cleanupTimeout))
 
 	// Registered later and thus runs before deleting namespaces.
@@ -234,7 +235,7 @@ func (tc *perItOrDescribeTestContext) deleteCreatedResources(ctx context.Context
 	startTime := time.Now()
 	defer func() {
 		finishTime := time.Now()
-		tc.RecordTestStep("Delete created resources", startTime, finishTime)
+		tc.RecordTestStep(StepIDDeleteCreatedResources, "Delete created resources", startTime, finishTime)
 	}()
 
 	if tc.perBinaryInvocationTestContext.skipCleanup {
@@ -266,14 +267,18 @@ func (tc *perItOrDescribeTestContext) deleteCreatedResources(ctx context.Context
 		}
 	}
 
+	cleanupAppRegistrationsStart := time.Now()
 	err = CleanupAppRegistrations(ctx, graphClient, appRegistrations)
+	tc.RecordTestStep(StepIDCleanupAppRegistrations, "Clean up app registrations", cleanupAppRegistrationsStart, time.Now())
 	if err != nil {
 		ginkgo.GinkgoLogr.Error(err, "at least one app registration failed to delete")
 	}
 
+	releaseLeasedIdentitiesStart := time.Now()
 	if err := tc.releaseLeasedIdentities(ctx); err != nil {
 		ginkgo.GinkgoLogr.Error(err, "failed to release leased identities")
 	}
+	tc.RecordTestStep(StepIDReleaseIdentities, "Release leased identities", releaseLeasedIdentitiesStart, time.Now())
 
 	ginkgo.GinkgoLogr.Info("finished deleting created resources")
 	// Register error to ginkgo reporter to ensure the test fails if any errors occur except for not found resource group or resource.
@@ -514,7 +519,7 @@ func (tc *perItOrDescribeTestContext) cleanupResourceGroup(ctx context.Context, 
 	startTime := time.Now()
 	defer func() {
 		finishTime := time.Now()
-		tc.RecordTestStep(fmt.Sprintf("Clean up resource group %s", resourceGroupName), startTime, finishTime)
+		tc.RecordTestStep(StepIDCleanupResourceGroup, fmt.Sprintf("Clean up resource group %s", resourceGroupName), startTime, finishTime)
 	}()
 
 	resourceClientFactory, err := tc.GetARMResourcesClientFactory(ctx)
@@ -534,7 +539,9 @@ func (tc *perItOrDescribeTestContext) cleanupResourceGroup(ctx context.Context, 
 
 	var nonConformantErr error
 	ginkgo.GinkgoLogr.Info("deleting all hcp clusters in resource group", "resourceGroup", resourceGroupName)
+	deleteClustersStart := time.Now()
 	if err := DeleteAllHCPClusters20240610(ctx, hcpClientFactory.NewHcpOpenShiftClustersClient(), resourceGroupName, timeout); err != nil {
+		tc.RecordTestStep(StepIDDeleteHCPClusters, fmt.Sprintf("Delete HCP clusters in %s", resourceGroupName), deleteClustersStart, time.Now())
 		if errors.Is(err, &NonConformingClustersError{}) {
 			nonConformantErr = err
 		} else if isResourceGroupNotFoundError(err) {
@@ -543,6 +550,8 @@ func (tc *perItOrDescribeTestContext) cleanupResourceGroup(ctx context.Context, 
 		} else {
 			return fmt.Errorf("failed to cleanup resource group: %w", err)
 		}
+	} else {
+		tc.RecordTestStep(StepIDDeleteHCPClusters, fmt.Sprintf("Delete HCP clusters in %s", resourceGroupName), deleteClustersStart, time.Now())
 	}
 
 	managedResourceGroups, err := tc.findManagedResourceGroups(ctx, resourceGroupName)
@@ -553,7 +562,9 @@ func (tc *perItOrDescribeTestContext) cleanupResourceGroup(ctx context.Context, 
 	if len(managedResourceGroups) > 0 {
 		ginkgo.GinkgoLogr.Info("managed resource groups still present, waiting for deletion",
 			"resourceGroup", resourceGroupName, "managedResourceGroups", managedResourceGroups)
+		waitManagedRGStart := time.Now()
 		managedResourceGroups, err = tc.waitForManagedResourceGroupsDeletion(ctx, resourceGroupName, 10*time.Minute)
+		tc.RecordTestStep(StepIDWaitManagedResourceGroupDeletion, fmt.Sprintf("Wait for managed resource group deletion in %s", resourceGroupName), waitManagedRGStart, time.Now())
 		if err != nil {
 			if len(managedResourceGroups) > 0 {
 				return fmt.Errorf("found %d managed resource groups left behind HCP clusters in %s: %v: %w", len(managedResourceGroups), resourceGroupName, managedResourceGroups, err)
@@ -565,9 +576,12 @@ func (tc *perItOrDescribeTestContext) cleanupResourceGroup(ctx context.Context, 
 	}
 
 	ginkgo.GinkgoLogr.Info("deleting resource group", "resourceGroup", resourceGroupName)
+	deleteRGStart := time.Now()
 	if err := DeleteResourceGroup(ctx, resourceClientFactory.NewResourceGroupsClient(), networkClientFactory, resourceGroupName, false, timeout); err != nil {
+		tc.RecordTestStep(StepIDDeleteResourceGroup, fmt.Sprintf("Delete resource group %s", resourceGroupName), deleteRGStart, time.Now())
 		return fmt.Errorf("failed to cleanup resource group: %w", err)
 	}
+	tc.RecordTestStep(StepIDDeleteResourceGroup, fmt.Sprintf("Delete resource group %s", resourceGroupName), deleteRGStart, time.Now())
 
 	// we want non-conformant clusters to be visible at the end, without impeding our ability to clean up the resource group
 	return nonConformantErr
@@ -583,7 +597,7 @@ func (tc *perItOrDescribeTestContext) cleanupResourceGroupNoRP(ctx context.Conte
 	startTime := time.Now()
 	defer func() {
 		finishTime := time.Now()
-		tc.recordTestStepUnlocked(fmt.Sprintf("Clean up resource group %s (no RP)", resourceGroupName), startTime, finishTime)
+		tc.recordTestStepUnlocked(StepIDCleanupResourceGroupNoRP, fmt.Sprintf("Clean up resource group %s (no RP)", resourceGroupName), startTime, finishTime)
 	}()
 
 	managedResourceGroups, err := tc.findManagedResourceGroups(ctx, resourceGroupName)
@@ -637,7 +651,7 @@ func (tc *perItOrDescribeTestContext) collectDebugInfoForResourceGroup(ctx conte
 	startTime := time.Now()
 	defer func() {
 		finishTime := time.Now()
-		tc.RecordTestStep(fmt.Sprintf("Collect debug info for resource group %s", resourceGroupName), startTime, finishTime)
+		tc.RecordTestStep(StepIDCollectDebugInfo, fmt.Sprintf("Collect debug info for resource group %s", resourceGroupName), startTime, finishTime)
 	}()
 
 	errs := []error{}
@@ -736,7 +750,7 @@ func (tc *perItOrDescribeTestContext) runOCAdmInspect(ctx context.Context, clust
 
 	startTime := time.Now()
 	defer func() {
-		tc.RecordTestStep(fmt.Sprintf("oc adm inspect %s", clusterKey), startTime, time.Now())
+		tc.RecordTestStep(StepIDOCAdmInspect, fmt.Sprintf("oc adm inspect %s", clusterKey), startTime, time.Now())
 	}()
 
 	kubeconfigContent, err := GenerateKubeconfig(restConfig)
@@ -1203,15 +1217,16 @@ func (tc *perItOrDescribeTestContext) RecordKnownDeployment(resourceGroup, deplo
 	})
 }
 
-func (tc *perItOrDescribeTestContext) RecordTestStep(name string, startTime, finishTime time.Time) {
+func (tc *perItOrDescribeTestContext) RecordTestStep(id, name string, startTime, finishTime time.Time) {
 	tc.contextLock.Lock()
 	defer tc.contextLock.Unlock()
 
-	tc.recordTestStepUnlocked(name, startTime, finishTime)
+	tc.recordTestStepUnlocked(id, name, startTime, finishTime)
 }
 
-func (tc *perItOrDescribeTestContext) recordTestStepUnlocked(name string, startTime, finishTime time.Time) {
+func (tc *perItOrDescribeTestContext) recordTestStepUnlocked(id, name string, startTime, finishTime time.Time) {
 	tc.timingMetadata.Steps = append(tc.timingMetadata.Steps, timing.StepTimingMetadata{
+		ID:         id,
 		Name:       name,
 		StartedAt:  startTime.Format(time.RFC3339),
 		FinishedAt: finishTime.Format(time.RFC3339),
@@ -1253,7 +1268,12 @@ func (tc *perItOrDescribeTestContext) commitTimingMetadata(ctx context.Context) 
 		}
 		tc.recordDeploymentOperationsUnlocked(resourceGroupName, deploymentName, operations)
 	}
+	tc.writeTimingMetadataToDiskUnlocked()
+}
 
+// writeTimingMetadataToDiskUnlocked serializes and writes the current timing metadata to disk.
+// The caller must hold tc.contextLock.
+func (tc *perItOrDescribeTestContext) writeTimingMetadataToDiskUnlocked() {
 	tc.timingMetadata.FinishedAt = time.Now().Format(time.RFC3339)
 	encoded, err := yaml.Marshal(tc.timingMetadata)
 	if err != nil {
@@ -1298,6 +1318,7 @@ func (tc *perItOrDescribeTestContext) commitTimingMetadata(ctx context.Context) 
 			ginkgo.GinkgoLogr.Error(err, "Failed to create directory for timing metadata")
 			continue
 		}
+
 		if err := os.WriteFile(output, outputData, 0644); err != nil {
 			ginkgo.GinkgoLogr.Error(err, "Failed to write timing metadata")
 			continue
@@ -1305,4 +1326,15 @@ func (tc *perItOrDescribeTestContext) commitTimingMetadata(ctx context.Context) 
 
 		ginkgo.GinkgoLogr.Info("Wrote timing metadata", "path", output)
 	}
+}
+
+// recommitTimingMetadata re-writes timing metadata to disk after deletion completes,
+// capturing any timing nodes recorded during the deletion phase.
+func (tc *perItOrDescribeTestContext) recommitTimingMetadata() {
+	ginkgo.GinkgoLogr.Info("Re-committing timing metadata after deletion.")
+
+	tc.contextLock.Lock()
+	defer tc.contextLock.Unlock()
+
+	tc.writeTimingMetadataToDiskUnlocked()
 }
