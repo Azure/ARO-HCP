@@ -15,6 +15,23 @@ panels:
     minPeakThreshold: 2.5
 - title: "Backend Metrics"
   queries:
+  - title: "Hosted Control Planes by Management Cluster and Phase"
+    description: "Hosted control planes per management cluster, stacked by provisioning phase. Each sub-chart shows one management cluster. Unassigned clusters shown separately."
+    query: |
+      count by (management_cluster_resource_id, phase) (
+        max without(prometheus_replica) (
+          backend_cluster_provision_state{namespace="aro-hcp"}
+        )
+        * on(resource_id) group_left(management_cluster_resource_id)
+        max without(prometheus_replica) (
+          backend_cluster_info{namespace="aro-hcp"}
+        )
+      )
+    unit: clusters
+    workspace: svc
+    step: "60s"
+    chartType: faceted-stacked-area
+    facetBy: management_cluster_resource_id
   - title: "Controller Workqueue Retry Ratio"
     description: "Ratio of items re-queued for retry vs items initially added, per controller workqueue. High ratios indicate controllers are repeatedly failing to reconcile. Each backend operation type (ClusterCreate, ClusterDelete, NodePoolCreate, etc.) has its own workqueue."
     query: |

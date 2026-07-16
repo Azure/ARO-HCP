@@ -324,7 +324,7 @@ func (o Options) runQueries(ctx context.Context, workspaces map[string]*workspac
 				results = resp.Data.Result
 			}
 
-			panelCharts = append(panelCharts, buildChartData(q.Title, q.Description, q.Query, q.Unit, queryErr, results, o.TimeWindow, q.MinPeakThreshold))
+			panelCharts = append(panelCharts, buildChartData(q.Title, q.Description, q.Query, q.Unit, queryErr, results, o.TimeWindow, q.MinPeakThreshold, q.ChartType, q.FacetBy))
 		}
 
 		// filename must match the Spyglass HTML lens regex .*-summary.*\.html
