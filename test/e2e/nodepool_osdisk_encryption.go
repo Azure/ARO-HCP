@@ -23,6 +23,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v5"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/msi/armmsi"
 
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
@@ -69,6 +70,23 @@ var _ = Describe("Nodepool OS Disk Encryption", func() {
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to create cluster customer resources")
 
+			By("resolving service managed identity principal ID")
+			identityPool, _, err := tc.ResolveIdentitiesForTemplate(*resourceGroup.Name)
+			Expect(err).NotTo(HaveOccurred(), "failed to resolve identities")
+
+			subscriptionID, err := tc.SubscriptionID(ctx)
+			Expect(err).NotTo(HaveOccurred(), "failed to get subscription ID")
+
+			creds, err := tc.AzureCredential()
+			Expect(err).NotTo(HaveOccurred(), "failed to get Azure credentials")
+
+			msiClientFactory, err := armmsi.NewClientFactory(subscriptionID, creds, nil)
+			Expect(err).NotTo(HaveOccurred(), "failed to create MSI client factory")
+
+			serviceMI, err := msiClientFactory.NewUserAssignedIdentitiesClient().Get(ctx, identityPool.ResourceGroupName, identityPool.Identities.ServiceManagedIdentityName, nil)
+			Expect(err).NotTo(HaveOccurred(), "failed to get service managed identity")
+			Expect(serviceMI.Properties.PrincipalID).NotTo(BeNil(), "service managed identity has no principal ID")
+
 			By("creating disk encryption set backed by KeyVault")
 			desDeployment, err := tc.CreateBicepTemplateAndWait(ctx,
 				framework.WithTemplateFromFS(TestArtifactsFS, "test-artifacts/generated-test-artifacts/modules/disk-encryption-set.json"),
@@ -76,8 +94,9 @@ var _ = Describe("Nodepool OS Disk Encryption", func() {
 				framework.WithScope(framework.BicepDeploymentScopeResourceGroup),
 				framework.WithClusterResourceGroup(*resourceGroup.Name),
 				framework.WithParameters(map[string]interface{}{
-					"keyVaultName": clusterParams.KeyVaultName,
-					"clusterName":  customerClusterName,
+					"keyVaultName":        clusterParams.KeyVaultName,
+					"clusterName":         customerClusterName,
+					"serviceMiPrincipalId": *serviceMI.Properties.PrincipalID,
 				}),
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to create disk encryption set")

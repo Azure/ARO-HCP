@@ -7,6 +7,9 @@ param etcdEncryptionKeyName string = 'etcd-data-kms-encryption-key'
 @description('Cluster name used to ensure unique resource names within the resource group')
 param clusterName string = ''
 
+@description('Principal ID of the service managed identity to grant Reader on the DES. If empty, no role assignment is created.')
+param serviceMiPrincipalId string = ''
+
 var randomSuffix = toLower(uniqueString(resourceGroup().id, clusterName))
 
 resource keyVault 'Microsoft.KeyVault/vaults@2024-12-01-preview' existing = {
@@ -49,6 +52,23 @@ resource desKeyVaultRoleAssignment 'Microsoft.Authorization/roleAssignments@2022
     principalId: diskEncryptionSet.identity.principalId
     principalType: 'ServicePrincipal'
     roleDefinitionId: kvCryptoServiceEncryptionUserRoleId
+  }
+}
+
+// Reader: allows the service managed identity to read the DES for validation
+// https://www.azadvertizer.net/azrolesadvertizer/acdd72a7-3385-48ef-bd42-f606fba81ae7.html
+var readerRoleId = subscriptionResourceId(
+  'Microsoft.Authorization/roleDefinitions',
+  'acdd72a7-3385-48ef-bd42-f606fba81ae7'
+)
+
+resource serviceMiReaderRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (serviceMiPrincipalId != '') {
+  name: guid(resourceGroup().id, diskEncryptionSet.id, readerRoleId, serviceMiPrincipalId)
+  scope: diskEncryptionSet
+  properties: {
+    principalId: serviceMiPrincipalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: readerRoleId
   }
 }
 
