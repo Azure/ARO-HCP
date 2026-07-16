@@ -2,7 +2,7 @@
 
 When you write an alert, you're usually not so sure about how it will behave with real production monitoring data.
 
-With [alert-tester][alert-tester-repo] we have a fast approach to verify alerts with data from any environement, including PROD (in case the monitoring data is already there):
+With [alert-tester][alert-tester-repo] we have a fast approach to verify alerts with data from any environment, including PROD (in case the monitoring data is already there):
 
 1. Come up with an alert
 2. Analyze how it performs against historical data and tune it (a day)
