@@ -150,6 +150,7 @@ func (l *cosmosActiveOperationsGlobalLister) List(ctx context.Context, options *
 	query := fmt.Sprintf(
 		"SELECT * FROM c WHERE STRINGEQUALS(c.resourceType, %q, true) "+
 			"AND LENGTH(c.resourceID) > 0 "+
+			"AND (NOT IS_DEFINED(c.deletionTimestamp)) "+
 			"AND NOT ARRAYCONTAINS([%q, %q, %q], c.properties.status)",
 		api.OperationStatusResourceType.String(),
 		arm.ProvisioningStateSucceeded,
@@ -192,7 +193,7 @@ func (l *cosmosGlobalLister[InternalAPIType, CosmosAPIType]) List(ctx context.Co
 		resourceTypeConditions = append(resourceTypeConditions, fmt.Sprintf("STRINGEQUALS(c.resourceType, %q, true)", resourceType.String()))
 	}
 	whereClause := strings.Join(resourceTypeConditions, " OR ")
-	query := fmt.Sprintf("SELECT * FROM c WHERE LENGTH(c.resourceID) > 0 AND (%s)", whereClause)
+	query := fmt.Sprintf("SELECT * FROM c WHERE LENGTH(c.resourceID) > 0 AND (NOT IS_DEFINED(c.deletionTimestamp)) AND (%s)", whereClause)
 
 	queryOptions := azcosmos.QueryOptions{
 		PageSizeHint: -1,

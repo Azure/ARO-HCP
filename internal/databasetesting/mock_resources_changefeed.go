@@ -27,9 +27,10 @@ import (
 // mockChangeFeed is an in-memory log of mutations to the Resources
 // container. Every successful StoreDocument call (Create or Replace)
 // appends a snapshot of the stored document; reads return everything
-// past the consumer's continuation position. Deletes are intentionally
-// NOT recorded — that mirrors "latest version" change feed mode in
-// production Cosmos DB, which does not surface deletions.
+// past the consumer's continuation position. Hard deletes are
+// intentionally NOT recorded — that mirrors "latest version" change
+// feed mode in production Cosmos DB. Soft deletes (which are modeled
+// as Replace operations) ARE recorded via StoreDocument.
 type mockChangeFeed struct {
 	mu     sync.Mutex
 	events []json.RawMessage

@@ -407,10 +407,16 @@ func (c *ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPITyp
 	}
 
 	objDeleted := false
-	if c.shouldDeliverItemFn != nil && !c.shouldDeliverItemFn(internalObj) {
+	if objAsTypedDocument.DeletionTimestamp != nil {
 		if objPreviouslySeen {
 			objDeleted = true
-			// we need to deliver a delete, so fall through
+		} else {
+			logger.Info("skipping soft-deleted document not previously seen", "content", cosmosObj)
+			return nil
+		}
+	} else if c.shouldDeliverItemFn != nil && !c.shouldDeliverItemFn(internalObj) {
+		if objPreviouslySeen {
+			objDeleted = true
 		} else {
 			logger.Info("should not deliver document", "content", cosmosObj)
 			return nil
