@@ -80,11 +80,11 @@
               },
               {
                 "color": "yellow",
-                "value": 40
+                "value": 36
               },
               {
                 "color": "red",
-                "value": 50
+                "value": 51
               }
             ]
           },
@@ -125,7 +125,7 @@
             "uid": "${hcp_datasource}"
           },
           "editorMode": "code",
-          "expr": "count(count by (cluster, namespace) (kube_pod_info{cluster=~\"$cluster\", namespace=~\"ocm-.*\"})) by (cluster)",
+          "expr": "count(count by (cluster, namespace) (kube_pod_info{cluster=~\"$cluster\", namespace=~\"^ocm-[^-]+-[^-]+$\"})) by (cluster)",
           "instant": true,
           "range": false,
           "legendFormat": "{{cluster}}",
@@ -157,11 +157,11 @@
               },
               {
                 "color": "yellow",
-                "value": 67
+                "value": 60
               },
               {
                 "color": "red",
-                "value": 83
+                "value": 85
               }
             ]
           },
@@ -200,7 +200,7 @@
             "uid": "${hcp_datasource}"
           },
           "editorMode": "code",
-          "expr": "(count(count by (cluster, namespace) (kube_pod_info{cluster=~\"$cluster\", namespace=~\"ocm-.*\"})) by (cluster) / 60) * 100",
+          "expr": "(count(count by (cluster, namespace) (kube_pod_info{cluster=~\"$cluster\", namespace=~\"^ocm-[^-]+-[^-]+$\"})) by (cluster) / 60) * 100",
           "instant": true,
           "range": false,
           "legendFormat": "{{cluster}}",
@@ -263,11 +263,11 @@
               },
               {
                 "color": "yellow",
-                "value": 40
+                "value": 36
               },
               {
                 "color": "red",
-                "value": 50
+                "value": 51
               }
             ]
           },
@@ -307,7 +307,7 @@
             "uid": "${hcp_datasource}"
           },
           "editorMode": "code",
-          "expr": "count(count by (cluster, namespace) (kube_pod_info{cluster=~\"$cluster\", namespace=~\"ocm-.*\"})) by (cluster)",
+          "expr": "count(count by (cluster, namespace) (kube_pod_info{cluster=~\"$cluster\", namespace=~\"^ocm-[^-]+-[^-]+$\"})) by (cluster)",
           "range": true,
           "legendFormat": "{{cluster}}",
           "refId": "A"
