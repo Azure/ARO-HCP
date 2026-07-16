@@ -50,6 +50,8 @@ resourceGroups:
       configRef: stgGlobalV2.grafanaName
     location:
       configRef: global.region
+    sku:
+      configRef: monitoring.grafanaSku
     majorVersion:
       configRef: monitoring.grafanaMajorVersion
     zoneRedundancy:

@@ -24,6 +24,8 @@ resourceGroups:
       configRef: monitoring.grafanaName
     location:
       configRef: global.region
+    sku:
+      configRef: monitoring.grafanaSku
     majorVersion:
       configRef: monitoring.grafanaMajorVersion
     zoneRedundancy:
