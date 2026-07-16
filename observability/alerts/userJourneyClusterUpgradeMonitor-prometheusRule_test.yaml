@@ -45,7 +45,7 @@ tests:
         subscription_id: "sub-2"
         version: "4.19.21"
         state: "desired"
-        severity: info
+        severity: "4"
         slo: cluster-upgrade-reach-partial
       exp_annotations:
         summary: "[HCPUpgradeStuckInDesired] /sub/2/rg/c2"
@@ -53,7 +53,7 @@ tests:
           Cluster upgrade target version 4.19.21 has been in desired for over 20 minutes without reaching partial. Partial is when the target version becomes active (recognized as active) on the HCP cluster; the upgrade is in progress but not yet complete. Investigate backend_cluster_version_info on the affected cluster.
           Service Cluster: svc-1
         runbook_url: "https://aka.ms/arohcp-runbook-cluster-upgrade"
-        correlationId: "userJourneyClusterUpgradeStuckInDesired//sub/2/rg/c2/4.19.21"
+        correlationId: "userJourneyClusterUpgradeStuckInDesired/svc-1/sub/2/rg/c2/4.19.21"
 # ========================================
 # Reach partial: install only — not upgrade eligible, no alert
 # ========================================
@@ -106,7 +106,7 @@ tests:
         subscription_id: "sub-2"
         version: "4.19.21"
         state: "partial"
-        severity: info
+        severity: "4"
         slo: cluster-upgrade-complete
       exp_annotations:
         summary: "[HCPUpgradeStuckInProgress] /sub/2/rg/c2"
@@ -114,7 +114,7 @@ tests:
           Cluster upgrade target version 4.19.21 has been in progress for over 30 minutes without reaching completed. Completed is when the target version upgrade has finished and is reported as complete on the HCP cluster. Investigate backend_cluster_version_info on the affected cluster.
           Service Cluster: svc-1
         runbook_url: "https://aka.ms/arohcp-runbook-cluster-upgrade"
-        correlationId: "userJourneyClusterUpgradeStuckInProgress//sub/2/rg/c2/4.19.21"
+        correlationId: "userJourneyClusterUpgradeStuckInProgress/svc-1/sub/2/rg/c2/4.19.21"
 # ========================================
 # Upgrade complete: install only — not upgrade eligible, no alert
 # ========================================

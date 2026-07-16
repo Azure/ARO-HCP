@@ -253,11 +253,11 @@ resource rpUserJourneyClusterUpgradeMonitorRules 'Microsoft.AlertsManagement/pro
         alert: 'userJourneyClusterUpgradeStuckInDesired'
         enabled: true
         labels: {
-          severity: 'info'
+          severity: '4'
           slo: 'cluster-upgrade-reach-partial'
         }
         annotations: {
-          correlationId: 'userJourneyClusterUpgradeStuckInDesired/{{ $labels.resource_id }}/{{ $labels.version }}'
+          correlationId: 'userJourneyClusterUpgradeStuckInDesired/{{ $labels.cluster }}{{ $labels.resource_id }}/{{ $labels.version }}'
           description: '''Cluster upgrade target version {{ $labels.version }} has been in desired for over 20 minutes without reaching partial. Partial is when the target version becomes active (recognized as active) on the HCP cluster; the upgrade is in progress but not yet complete. Investigate backend_cluster_version_info on the affected cluster.
 Service Cluster: {{ $labels.cluster }}
 '''
@@ -285,11 +285,11 @@ Service Cluster: {{ $labels.cluster }}
         alert: 'userJourneyClusterUpgradeStuckInProgress'
         enabled: true
         labels: {
-          severity: 'info'
+          severity: '4'
           slo: 'cluster-upgrade-complete'
         }
         annotations: {
-          correlationId: 'userJourneyClusterUpgradeStuckInProgress/{{ $labels.resource_id }}/{{ $labels.version }}'
+          correlationId: 'userJourneyClusterUpgradeStuckInProgress/{{ $labels.cluster }}{{ $labels.resource_id }}/{{ $labels.version }}'
           description: '''Cluster upgrade target version {{ $labels.version }} has been in progress for over 30 minutes without reaching completed. Completed is when the target version upgrade has finished and is reported as complete on the HCP cluster. Investigate backend_cluster_version_info on the affected cluster.
 Service Cluster: {{ $labels.cluster }}
 '''
