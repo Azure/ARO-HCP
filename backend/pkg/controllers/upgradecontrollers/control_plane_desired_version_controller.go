@@ -460,6 +460,12 @@ func FindAllUpgradeTargetVersionsInMinor(
 // This method implements the core version selection logic for all upgrade scenarios (both Y-stream and Z-stream).
 // It prioritizes versions that have an upgrade path to the next minor version (gateway versions).
 //
+// When preferLatestOverGateway is true (y-stream upgrades), the latest candidate is returned even if
+// no gateway to the next minor exists. When false (z-stream upgrades), nil is returned only when an
+// active version already has a next-minor path that would be lost by moving to a non-gateway
+// candidate; if neither candidates nor active versions can reach the next minor, the latest
+// candidate is returned instead — there is no existing next-minor path to preserve.
+//
 // Version selection algorithm:
 //  1. Query Cincinnati for all available updates from EACH active version in the target minor channel
 //  2. Filter candidates: only include versions within the target minor
@@ -472,16 +478,21 @@ func FindAllUpgradeTargetVersionsInMinor(
 //     - If yes: return this version (latest gateway found)
 //     - If no: continue checking older versions
 //  8. If no gateway found and preferLatestOverGateway (y-stream): return the latest candidate
-//  9. If no gateway found and !preferLatestOverGateway (z-stream): return nil
+//  9. If no gateway found and !preferLatestOverGateway (z-stream):
+//     - If any active version is already a gateway to the next minor: return nil
+//     (preserve the existing next-minor path)
+//     - Otherwise return the latest candidate (there is no next-minor path to preserve)
 //
 // Examples:
-//   - Z-stream (4.19.15 → 4.19.z): Find latest 4.19.z with path to 4.20, or nil if none
+//   - Z-stream (4.19.15 → 4.19.z): Find latest 4.19.z with path to 4.20; if none, keep current
+//     path when an active version is already a gateway, else take the latest 4.19.z
 //   - Y-stream (4.19.x → 4.20.z): Find latest 4.20.z with path to 4.21, or latest 4.20.z
 //
 // When multiple active versions are provided, this method ensures that the selected version
 // is reachable from ALL active versions by intersecting the upgrade paths.
 //
-// Returns nil if no suitable version is found.
+// Returns nil when no candidates exist, or when a z-stream selection would break an existing
+// next-minor gateway on an active version.
 func FindBestVersionInMinor(
 	ctx context.Context,
 	cincinnatiClient cincinnati.Client,
@@ -496,7 +507,7 @@ func FindBestVersionInMinor(
 		return nil, utils.TrackError(err)
 	}
 
-	return selectBestVersionFromCandidates(ctx, cincinnatiClient, graphClient, channelGroup, targetMinorVersion, commonCandidates, preferLatestOverGateway)
+	return selectBestVersionFromCandidates(ctx, cincinnatiClient, graphClient, channelGroup, targetMinorVersion, commonCandidates, activeVersions, preferLatestOverGateway)
 }
 
 // selectBestVersionFromCandidates finds the best version to upgrade to from a list of candidate versions.
@@ -504,8 +515,10 @@ func FindBestVersionInMinor(
 // that are gateways to the next minor version.
 //
 // When preferLatestOverGateway is true (y-stream upgrades), the latest candidate is returned even if
-// no gateway to the next minor exists. When false (z-stream upgrades), nil is returned if no gateway
-// exists, preserving upgradeability to the next minor.
+// no gateway to the next minor exists. When false (z-stream upgrades), nil is returned only when an
+// active version already has a next-minor path that would be lost by moving to a non-gateway
+// candidate; if neither candidates nor active versions can reach the next minor, the latest
+// candidate is returned instead.
 //
 // Algorithm:
 //  1. Sort candidates by version (descending - latest first)
@@ -513,7 +526,9 @@ func FindBestVersionInMinor(
 //  3. If next minor doesn't exist: return the latest candidate
 //  4. If next minor exists: iterate through candidates to find a gateway version to the next minor
 //  5. If no gateway found and preferLatestOverGateway: return the latest candidate
-//  6. If no gateway found and !preferLatestOverGateway: return nil
+//  6. If no gateway found and !preferLatestOverGateway:
+//     - If any active version is a gateway to the next minor: return nil
+//     - Otherwise return the latest candidate
 func selectBestVersionFromCandidates(
 	ctx context.Context,
 	cincinnatiClient cincinnati.Client,
@@ -521,6 +536,7 @@ func selectBestVersionFromCandidates(
 	channelGroup string,
 	targetMinorVersion semver.Version,
 	candidates []semver.Version,
+	activeVersions []semver.Version,
 	preferLatestOverGateway bool,
 ) (*semver.Version, error) {
 	if len(candidates) == 0 {
@@ -561,10 +577,20 @@ func selectBestVersionFromCandidates(
 		return &candidates[0], nil
 	}
 
-	// TODO: If the next minor exists but none of the candidates have a gateway to it,
-	// and none of the active versions have a gateway to it either, prefer the latest
-	// candidate instead of returning nil — there is no existing next-minor path to preserve.
-	return nil, nil
+	// Z-stream: only withhold an upgrade when an active version already has a
+	// next-minor path we would break. If nobody can reach the next minor today,
+	// prefer the latest candidate — there is no existing path to preserve.
+	for _, active := range activeVersions {
+		isGateway, err := isGatewayToNextMinor(ctx, active, cincinnatiClient, channelGroup, nextMinor)
+		if err != nil {
+			return nil, utils.TrackError(err)
+		}
+		if isGateway {
+			return nil, nil
+		}
+	}
+
+	return &candidates[0], nil
 }
 
 // shouldDetermineDesiredVersion decides whether the syncer should compute a

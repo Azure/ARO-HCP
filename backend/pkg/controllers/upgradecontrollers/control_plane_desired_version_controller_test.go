@@ -135,6 +135,14 @@ func TestDesiredControlPlaneZVersion_ZStreamManagedUpgrade(t *testing.T) {
 					[]configv1.ConditionalUpdate{},
 					nil,
 				)
+
+				// Active 4.19.15 itself is still a gateway — withhold the upgrade to preserve that path
+				mc.EXPECT().GetUpdates(gomock.AssignableToTypeOf(context.Background()), api.Must(cincinnati.GetCincinnatiURI("stable")), "multi", "multi", "stable-4.20", semver.MustParse("4.19.15")).Return(
+					configv1.Release{Version: "4.19.15"},
+					[]configv1.Release{{Version: "4.20.1"}},
+					[]configv1.ConditionalUpdate{},
+					nil,
+				)
 			},
 			expectedVersion: nil, // Z-stream: preserve upgradeability, don't select version without gateway
 			expectedError:   false,
@@ -180,7 +188,7 @@ func TestDesiredControlPlaneZVersion_ZStreamManagedUpgrade(t *testing.T) {
 			activeVersions:       []api.HCPClusterActiveVersion{{Version: ptr.To(semver.MustParse("4.19.10")), State: configv1.CompletedUpdate}},
 			customerDesiredMinor: "4.19",
 			channelGroup:         "stable",
-			channelExistence:     channelExistence{"stable": {"4.20": false}},
+			channelExistence:     channelExistence{"stable": {"4.20": true}},
 			mockSetup: func(mc *cincinnati.MockClient) {
 				// Query for 4.19 versions from 4.19.10
 				mc.EXPECT().GetUpdates(gomock.AssignableToTypeOf(context.Background()), api.Must(cincinnati.GetCincinnatiURI("stable")), "multi", "multi", "stable-4.19", semver.MustParse("4.19.10")).Return(
@@ -189,8 +197,39 @@ func TestDesiredControlPlaneZVersion_ZStreamManagedUpgrade(t *testing.T) {
 					[]configv1.ConditionalUpdate{},
 					nil,
 				)
+
+				mc.EXPECT().GetUpdates(gomock.AssignableToTypeOf(context.Background()), api.Must(cincinnati.GetCincinnatiURI("stable")), "multi", "multi", "stable-4.20", semver.MustParse("4.19.18")).Return(
+					configv1.Release{Version: "4.19.18"},
+					[]configv1.Release{}, // Candidate is not a gateway
+					[]configv1.ConditionalUpdate{},
+					nil,
+				)
+
+				mc.EXPECT().GetUpdates(gomock.AssignableToTypeOf(context.Background()), api.Must(cincinnati.GetCincinnatiURI("stable")), "multi", "multi", "stable-4.20", semver.MustParse("4.19.10")).Return(
+					configv1.Release{Version: "4.19.10"},
+					[]configv1.Release{}, // Active is not a gateway either — nothing to preserve
+					[]configv1.ConditionalUpdate{},
+					nil,
+				)
 			},
 			expectedVersion: ptr.To(semver.MustParse("4.19.18")), // Safe to upgrade - no existing path to break
+			expectedError:   false,
+		},
+		{
+			name:                 "Z-stream upgrade - next minor channel does not exist",
+			activeVersions:       []api.HCPClusterActiveVersion{{Version: ptr.To(semver.MustParse("4.19.10")), State: configv1.CompletedUpdate}},
+			customerDesiredMinor: "4.19",
+			channelGroup:         "stable",
+			channelExistence:     channelExistence{"stable": {"4.20": false}},
+			mockSetup: func(mc *cincinnati.MockClient) {
+				mc.EXPECT().GetUpdates(gomock.AssignableToTypeOf(context.Background()), api.Must(cincinnati.GetCincinnatiURI("stable")), "multi", "multi", "stable-4.19", semver.MustParse("4.19.10")).Return(
+					configv1.Release{Version: "4.19.10"},
+					[]configv1.Release{{Version: "4.19.18"}},
+					[]configv1.ConditionalUpdate{},
+					nil,
+				)
+			},
+			expectedVersion: ptr.To(semver.MustParse("4.19.18")),
 			expectedError:   false,
 		},
 		{
