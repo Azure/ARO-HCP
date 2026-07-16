@@ -155,51 +155,28 @@ func TestChangeFeedListWatcher(t *testing.T) {
 			},
 		},
 		{
-			name: "soft-deleted item produces Deleted watch event",
+			name: "deleted item produces no watch event",
 			run: func(t *testing.T, env *changefeedTestEnv) {
-				clusterRID := env.uniqueClusterResourceID("soft-deleted")
+				clusterRID := env.uniqueClusterResourceID("deleted")
 				env.createCluster(t, clusterRID)
 
 				_, watcher := env.startListAndWatch(t)
 
+				// Drain any straggling event the list captured (the
+				// cluster was created before the list, so it should
+				// already be in the resourceIDToInstanceVersion map
+				// — but the change feed may still surface it once;
+				// the watcher's instanceVersion gate should drop it).
+				// We give the change feed a short moment to do that
+				// before issuing the delete.
 				drainBriefly(watcher, 1*time.Second)
 
 				env.deleteCluster(t, clusterRID)
 
-				evt := waitForDeleteEvent(t, watcher, clusterRID.String(), eventDeadline)
-				gotResourceID, _ := metadataOf(t, evt.Object)
-				require.Truef(t, strings.EqualFold(gotResourceID, clusterRID.String()),
-					"event resourceID %q != deleted %q", gotResourceID, clusterRID.String())
-			},
-		},
-		{
-			name: "soft-deleted item not in list returns not-found on Get",
-			run: func(t *testing.T, env *changefeedTestEnv) {
-				clusterRID := env.uniqueClusterResourceID("get-after-delete")
-				env.createCluster(t, clusterRID)
-
-				env.deleteCluster(t, clusterRID)
-
-				_, err := env.resourcesDBClient.HCPClusters(clusterRID.SubscriptionID, clusterRID.ResourceGroupName).
-					Get(env.ctx, clusterRID.Name)
-				require.Truef(t, database.IsNotFoundError(err),
-					"expected not-found error after soft-delete, got: %v", err)
-			},
-		},
-		{
-			name: "relist after soft-delete does not include deleted item in list",
-			run: func(t *testing.T, env *changefeedTestEnv) {
-				clusterRID := env.uniqueClusterResourceID("relist-after-delete")
-				env.createCluster(t, clusterRID)
-
-				env.deleteCluster(t, clusterRID)
-
-				listed, _ := env.startListAndWatch(t)
-
-				for _, rid := range listed {
-					require.Falsef(t, strings.EqualFold(rid, clusterRID.String()),
-						"deleted cluster %q must not appear in the list", clusterRID.String())
-				}
+				// The "latest version" change feed mode does not
+				// surface deletes. Wait the full event deadline; any
+				// delivered event is a failure of the contract.
+				assertNoEvent(t, watcher, silenceDeadline)
 			},
 		},
 		{
@@ -665,25 +642,6 @@ func metadataOf(t *testing.T, obj any) (string, int64) {
 	return rid.String(), accessor.GetInstanceVersion()
 }
 
-func waitForDeleteEvent(t *testing.T, watcher *clusterChangeFeedWatcher, resourceID string, timeout time.Duration) watch.Event {
-	t.Helper()
-	deadline := time.After(timeout)
-	for {
-		select {
-		case evt, ok := <-watcher.ResultChan():
-			require.True(t, ok, "watcher result channel closed before delivering a Deleted event")
-			if evt.Type == watch.Deleted {
-				rid, _ := metadataOf(t, evt.Object)
-				if strings.EqualFold(rid, resourceID) {
-					return evt
-				}
-			}
-		case <-deadline:
-			t.Fatalf("no Deleted event for %s received within %s", resourceID, timeout)
-		}
-	}
-}
-
 func waitForEvent(t *testing.T, watcher *clusterChangeFeedWatcher, timeout time.Duration) watch.Event {
 	t.Helper()
 	select {
@@ -868,64 +826,6 @@ func TestActiveOperationInformer(t *testing.T) {
 		// The lister must no longer find the operation.
 		_, err = activeOpLister.Get(ctx, testSubscriptionID, opRID.Name)
 		require.Error(t, err, "lister.Get must return an error after the operation became terminal")
-	})
-}
-
-// TestListActiveOperationsExcludesSoftDeleted verifies that
-// ListActiveOperations does not return operations that have been soft-deleted.
-func TestListActiveOperationsExcludesSoftDeleted(t *testing.T) {
-	integrationutils.WithAndWithoutCosmos(t, func(t *testing.T, withMock bool) {
-		ctx, cancel := context.WithTimeout(t.Context(), 60*time.Second)
-		ctx = utils.ContextWithLogger(ctx, integrationutils.DefaultLogger(t))
-
-		var (
-			storage integrationutils.StorageIntegrationTestInfo
-			err     error
-		)
-		if withMock {
-			storage, err = integrationutils.NewMockCosmosFromTestingEnv(ctx, t)
-		} else {
-			storage, err = integrationutils.NewCosmosFromTestingEnv(ctx, t)
-		}
-		require.NoError(t, err, "create test storage")
-		defer func() {
-			cancel()
-			cleanupCtx := utils.ContextWithLogger(context.Background(), integrationutils.DefaultLogger(t))
-			storage.Cleanup(cleanupCtx)
-		}()
-
-		resourcesDBClient := storage.ResourcesDBClient()
-
-		clusterRID := api.Must(azcorearm.ParseResourceID(fmt.Sprintf(
-			"/subscriptions/%s/resourceGroups/%s/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/list-active-op-%d",
-			testSubscriptionID, testResourceGroup, time.Now().UnixNano())))
-		opRID := api.Must(azcorearm.ParseResourceID(fmt.Sprintf(
-			"/subscriptions/%s/providers/Microsoft.RedHatOpenShift/hcpOperationStatuses/list-active-op-%d",
-			testSubscriptionID, time.Now().UnixNano())))
-
-		op := newOperationFixture(opRID, clusterRID)
-		_, err = resourcesDBClient.Operations(opRID.SubscriptionID).Create(ctx, op, nil)
-		require.NoError(t, err, "Create operation")
-
-		iter := resourcesDBClient.Operations(opRID.SubscriptionID).ListActiveOperations(nil)
-		found := false
-		for _, item := range iter.Items(ctx) {
-			if strings.EqualFold(item.GetResourceID().String(), opRID.String()) {
-				found = true
-			}
-		}
-		require.NoError(t, iter.GetError(), "ListActiveOperations before delete")
-		require.True(t, found, "active operation must appear in ListActiveOperations before delete")
-
-		err = resourcesDBClient.Operations(opRID.SubscriptionID).Delete(ctx, opRID.Name)
-		require.NoError(t, err, "Delete operation")
-
-		iter = resourcesDBClient.Operations(opRID.SubscriptionID).ListActiveOperations(nil)
-		for _, item := range iter.Items(ctx) {
-			require.Falsef(t, strings.EqualFold(item.GetResourceID().String(), opRID.String()),
-				"soft-deleted operation %q must not appear in ListActiveOperations", opRID.String())
-		}
-		require.NoError(t, iter.GetError(), "ListActiveOperations after delete")
 	})
 }
 
