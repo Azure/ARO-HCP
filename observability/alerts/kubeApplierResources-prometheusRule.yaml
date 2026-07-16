@@ -1,0 +1,55 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: kube-applier-resources-rules
+  namespace: monitoring
+spec:
+  groups:
+  - name: kube-applier-resources-rules
+    rules:
+    # Owner: Service Lifecycle team (hcp-sl)
+    # AROSLSRE-1071: Alert when kube-applier memory usage drifts significantly above its request
+    - alert: KubeApplierMemoryDrift
+      expr: |
+        (
+          container_memory_working_set_bytes{container="kube-applier", namespace="kube-applier"}
+          / on(namespace, pod, container, cluster) group_left()
+          max by(namespace, pod, container, cluster) (
+            kube_pod_container_resource_requests{container="kube-applier", namespace="kube-applier", resource="memory", job="kube-state-metrics"}
+          )
+        ) > 1.5
+      for: 15m
+      labels:
+        severity: warning
+        team: hcp-sl
+      annotations:
+        summary: kube-applier memory exceeds 1.5x its request on cluster {{ $labels.cluster }}.
+        description: |
+          kube-applier pod {{ $labels.pod }} on cluster {{ $labels.cluster }} is using {{ $value | humanizePercentage }} of its memory request for more than 15 minutes.
+          This may indicate a memory leak or workload growth that requires right-sizing the request in config.yaml.
+        runbook_url: https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/kube-applier-resources.md
+        owning_team: hcp-sl
+    # AROSLSRE-1072: Alert when kube-applier memory shows a sustained upward trend toward 2x request
+    - alert: KubeApplierMemoryTrend
+      expr: |
+        (
+          predict_linear(
+            container_memory_working_set_bytes{container="kube-applier", namespace="kube-applier"}[6h], 4 * 3600
+          )
+          / on(namespace, pod, container, cluster) group_left()
+          max by(namespace, pod, container, cluster) (
+            kube_pod_container_resource_requests{container="kube-applier", namespace="kube-applier", resource="memory", job="kube-state-metrics"}
+          )
+        ) > 2.0
+      for: 30m
+      labels:
+        severity: info
+        team: hcp-sl
+      annotations:
+        summary: kube-applier memory trending toward 2x its request on cluster {{ $labels.cluster }}.
+        description: |
+          kube-applier pod {{ $labels.pod }} on cluster {{ $labels.cluster }} memory is growing steadily.
+          At the current rate over the past 6 hours, it will exceed 2x its memory request within 4 hours.
+          Investigate for potential memory leaks or increased workload.
+        runbook_url: https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/kube-applier-resources.md
+        owning_team: hcp-sl

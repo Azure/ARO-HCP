@@ -2098,3 +2098,84 @@ resource kustoLogsAgeRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
     ]
   }
 }
+
+resource kubeApplierResourcesRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'kube-applier-resources-rules'
+  location: location
+  properties: {
+    interval: 'PT1M'
+    rules: [
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'KubeApplierMemoryDrift'
+        enabled: true
+        labels: {
+          severity: 'warning'
+          team: 'hcp-sl'
+        }
+        annotations: {
+          correlationId: 'KubeApplierMemoryDrift/{{ $labels.cluster }}/{{ $labels.pod }}'
+          description: '''kube-applier pod {{ $labels.pod }} on cluster {{ $labels.cluster }} is using {{ $value | humanizePercentage }} of its memory request for more than 15 minutes.
+This may indicate a memory leak or workload growth that requires right-sizing the request in config.yaml.
+'''
+          info: '''kube-applier pod {{ $labels.pod }} on cluster {{ $labels.cluster }} is using {{ $value | humanizePercentage }} of its memory request for more than 15 minutes.
+This may indicate a memory leak or workload growth that requires right-sizing the request in config.yaml.
+'''
+          owning_team: 'hcp-sl'
+          runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/kube-applier-resources.md'
+          summary: 'kube-applier memory exceeds 1.5x its request on cluster {{ $labels.cluster }}.'
+          title: 'kube-applier memory exceeds 1.5x its request on cluster {{ $labels.cluster }}. pod:{{ $labels.pod }}'
+        }
+        expression: '(container_memory_working_set_bytes{container="kube-applier",namespace="kube-applier"} / on (namespace, pod, container, cluster) group_left () max by (namespace, pod, container, cluster) (kube_pod_container_resource_requests{container="kube-applier",job="kube-state-metrics",namespace="kube-applier",resource="memory"})) > 1.5'
+        for: 'PT15M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'KubeApplierMemoryTrend'
+        enabled: true
+        labels: {
+          severity: 'info'
+          team: 'hcp-sl'
+        }
+        annotations: {
+          correlationId: 'KubeApplierMemoryTrend/{{ $labels.cluster }}/{{ $labels.pod }}'
+          description: '''kube-applier pod {{ $labels.pod }} on cluster {{ $labels.cluster }} memory is growing steadily.
+At the current rate over the past 6 hours, it will exceed 2x its memory request within 4 hours.
+Investigate for potential memory leaks or increased workload.
+'''
+          info: '''kube-applier pod {{ $labels.pod }} on cluster {{ $labels.cluster }} memory is growing steadily.
+At the current rate over the past 6 hours, it will exceed 2x its memory request within 4 hours.
+Investigate for potential memory leaks or increased workload.
+'''
+          owning_team: 'hcp-sl'
+          runbook_url: 'https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/kube-applier-resources.md'
+          summary: 'kube-applier memory trending toward 2x its request on cluster {{ $labels.cluster }}.'
+          title: 'kube-applier memory trending toward 2x its request on cluster {{ $labels.cluster }}. pod:{{ $labels.pod }}'
+        }
+        expression: '(predict_linear(container_memory_working_set_bytes{container="kube-applier",namespace="kube-applier"}[6h], 4 * 3600) / on (namespace, pod, container, cluster) group_left () max by (namespace, pod, container, cluster) (kube_pod_container_resource_requests{container="kube-applier",job="kube-state-metrics",namespace="kube-applier",resource="memory"})) > 2'
+        for: 'PT30M'
+        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
+      }
+    ]
+    scopes: [
+      azureMonitoring
+    ]
+  }
+}
