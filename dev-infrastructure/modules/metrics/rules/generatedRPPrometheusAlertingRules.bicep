@@ -30,7 +30,7 @@ resource arohcpAccessClusterSloErrorAlerts 'Microsoft.AlertsManagement/prometheu
         enabled: true
         labels: {
           long_window: '1h'
-          severity: 'info'
+          severity: '3'
           short_window: '5m'
           slo: 'access-cluster-errors'
         }
@@ -44,7 +44,7 @@ resource arohcpAccessClusterSloErrorAlerts 'Microsoft.AlertsManagement/prometheu
         }
         expression: 'errors:backend_credential_operation:error_rate > 0.72'
         for: 'PT5M'
-        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
         actions: [
@@ -60,7 +60,7 @@ resource arohcpAccessClusterSloErrorAlerts 'Microsoft.AlertsManagement/prometheu
         enabled: true
         labels: {
           long_window: '6h'
-          severity: 'info'
+          severity: '3'
           short_window: '30m'
           slo: 'access-cluster-errors'
         }
@@ -74,7 +74,7 @@ resource arohcpAccessClusterSloErrorAlerts 'Microsoft.AlertsManagement/prometheu
         }
         expression: 'errors:backend_credential_operation:error_rate > 0.3'
         for: 'PT30M'
-        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
         actions: [
@@ -90,7 +90,7 @@ resource arohcpAccessClusterSloErrorAlerts 'Microsoft.AlertsManagement/prometheu
         enabled: true
         labels: {
           long_window: '3d'
-          severity: 'info'
+          severity: '4'
           slo: 'access-cluster-errors'
         }
         annotations: {
@@ -118,7 +118,7 @@ resource arohcpAccessClusterSloErrorAlerts 'Microsoft.AlertsManagement/prometheu
         alert: 'userJourneyAccessClusterErrorsDegradation'
         enabled: true
         labels: {
-          severity: 'info'
+          severity: '4'
           slo: 'access-cluster-errors'
         }
         annotations: {
@@ -146,7 +146,7 @@ resource arohcpAccessClusterSloErrorAlerts 'Microsoft.AlertsManagement/prometheu
         alert: 'userJourneyAccessClusterStuckOperation'
         enabled: true
         labels: {
-          severity: 'info'
+          severity: '4'
         }
         annotations: {
           correlationId: 'userJourneyAccessClusterStuckOperation/{{ $labels.cluster }}/{{ $labels.resource_id }}/{{ $labels.phase }}'
@@ -186,7 +186,7 @@ resource arohcpAccessClusterSaturationAlerts 'Microsoft.AlertsManagement/prometh
         alert: 'userJourneyAccessClusterSaturationQueueDepth'
         enabled: true
         labels: {
-          severity: 'info'
+          severity: '4'
         }
         annotations: {
           correlationId: 'userJourneyAccessClusterSaturationQueueDepth/{{ $labels.cluster }}/{{ $labels.name }}'
@@ -213,7 +213,7 @@ resource arohcpAccessClusterSaturationAlerts 'Microsoft.AlertsManagement/prometh
         alert: 'userJourneyAccessClusterSaturationRetryHotLoop'
         enabled: true
         labels: {
-          severity: 'info'
+          severity: '4'
         }
         annotations: {
           correlationId: 'userJourneyAccessClusterSaturationRetryHotLoop/{{ $labels.cluster }}/{{ $labels.name }}'
