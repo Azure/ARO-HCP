@@ -26,7 +26,7 @@
       "id": 1,
       "options": {
         "code": { "language": "plaintext", "showLineNumbers": false, "showMiniMap": false },
-        "content": "### Cluster Upgrade SLOs\n\nPer-upgrade observability from `backend_cluster_version_info` via `hosted_control_plane_upgrade:*` recording rules.\n\n| SLO | Target | Alert |\n|-----|--------|-------|\n| **Reach partial** | `partial` within 20m | `userJourneyClusterUpgradeStuckInDesired` (>20m in `desired`) |\n| **Upgrade complete** | `completed` within 30m | `userJourneyClusterUpgradeStuckInProgress` (>30m in progress) |\n\n**Runbook:** [https://aka.ms/arohcp-runbook-cluster-upgrade](https://aka.ms/arohcp-runbook-cluster-upgrade)",
+        "content": "### Cluster Upgrade SLOs\n\nPer-upgrade observability from `backend_cluster_version_info` via `hosted_control_plane_upgrade:*` recording rules.\n\n| SLO | Target | Alert |\n|-----|--------|-------|\n| **Reach partial** | `partial` within 20m | `userJourneyClusterUpgradeStuckInDesired` (>20m in `desired`, `for: 5m` → pages after ~25m) |\n| **Upgrade complete** | `completed` within 30m | `userJourneyClusterUpgradeStuckInProgress` (>30m in progress, `for: 5m` → pages after ~35m) |\n\nStuck panels below use the SLO duration thresholds (20m / 30m). Alerts add a 5-minute pending window before paging.\n\n**Runbook:** [https://aka.ms/arohcp-runbook-cluster-upgrade](https://aka.ms/arohcp-runbook-cluster-upgrade)",
         "mode": "markdown"
       },
       "pluginVersion": "11.6.9",
@@ -114,7 +114,7 @@
     },
     {
       "datasource": { "type": "datasource", "uid": "-- Mixed --" },
-      "description": "Upgrades stuck in desired for over 20 minutes without reaching partial. Matches userJourneyClusterUpgradeStuckInDesired.",
+      "description": "Upgrades stuck in desired for over 20 minutes without reaching partial (SLO threshold). Alert userJourneyClusterUpgradeStuckInDesired adds for: 5m and pages after ~25m.",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },
@@ -152,7 +152,7 @@
     },
     {
       "datasource": { "type": "datasource", "uid": "-- Mixed --" },
-      "description": "Upgrades stuck in desired or partial for over 30 minutes without reaching completed. Matches userJourneyClusterUpgradeStuckInProgress.",
+      "description": "Upgrades stuck in desired or partial for over 30 minutes without reaching completed (SLO threshold). Alert userJourneyClusterUpgradeStuckInProgress adds for: 5m and pages after ~35m.",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },
