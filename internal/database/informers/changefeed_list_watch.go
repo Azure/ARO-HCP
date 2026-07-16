@@ -227,8 +227,9 @@ type ChangeFeedWatcher[InternalAPIType any, InternalAPITypePointer arm.CosmosMet
 	beginDelivery               chan struct{}
 	resourceIDToInstanceVersion *sync.Map
 
-	result chan watch.Event
-	done   chan struct{}
+	result   chan watch.Event
+	done     chan struct{}
+	stopOnce sync.Once
 	// finished closes after Run and all of its child goroutines have fully
 	// returned (including their deferred logging). Callers that need to be
 	// sure no further work — especially logging through a test-bound logger
@@ -454,11 +455,9 @@ func (c *ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPITyp
 }
 
 func (c *ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPIType]) Stop() {
-	select {
-	case <-c.done:
-	default:
+	c.stopOnce.Do(func() {
 		close(c.done)
-	}
+	})
 }
 
 func (c *ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPIType]) ResultChan() <-chan watch.Event {
