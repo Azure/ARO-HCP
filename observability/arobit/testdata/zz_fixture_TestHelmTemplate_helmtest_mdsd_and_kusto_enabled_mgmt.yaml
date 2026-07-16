@@ -267,7 +267,8 @@ data:
         Name            rewrite_tag
         Alias           filter.shoebox_router
         Match           ocm.logs
-        Rule            $kubernetes['container_name'] ^(audit-logs|kube-apiserver|kube-controller-manager|kube-scheduler|cloud-controller-manager|csi-driver|snapshot-controller)$ shoeboxlogs true
+        Rule            $kubernetes['container_name'] ^(audit-logs|kube-apiserver|kube-controller-manager|kube-scheduler|cloud-controller-manager|csi-driver|snapshot-controller|cluster-autoscaler)$ shoeboxlogs true
+        Rule            $kubernetes['pod_name'] ^capi-provider.* shoeboxlogs true
         Emitter_Name    re_emitted_shoebox
         Emitter_Mem_Buf_Limit  20M
         Emitter_Storage.type   filesystem
@@ -292,7 +293,7 @@ data:
 
   transform-shoebox.lua: |
     -- Lua script for transforming Kubernetes control plane logs to Shoebox format.
-    -- Supports all 9 log categories defined in the Shoebox manifest.
+    -- Supports all 11 log categories defined in the Shoebox manifest.
 
     -- Cache for resourceId lookups (namespace -> resourceId)
     -- ResourceIds are immutable per cluster, so we cache forever
@@ -305,7 +306,8 @@ data:
         ["kube-controller-manager"] = "kube-controller-manager",
         ["kube-scheduler"] = "kube-scheduler",
         ["cloud-controller-manager"] = "cloud-controller-manager",
-        ["snapshot-controller"] = "csi-snapshot-controller"
+        ["snapshot-controller"] = "csi-snapshot-controller",
+        ["cluster-autoscaler"] = "cluster-autoscaler"
     }
 
     -- Get resourceId for a namespace by reading the corresponding file
@@ -337,6 +339,12 @@ data:
                 return "kube-audit-admin"
             else
                 return "kube-audit"
+            end
+        end
+
+        if container_name == "manager" then
+            if pod_name and pod_name:match("^capi%-provider") then
+                return "capi-provider"
             end
         end
 
@@ -808,7 +816,7 @@ spec:
         app: arobit-forwarder
         azure.workload.identity/use: "true"
       annotations:
-        checksum/configmap: 11ab5ef382c815cd496dd5ac1ea47145094ed1a3d3519bf4e62bf5a331800a56
+        checksum/configmap: 133a0e0fd47a7579ffef2d31dc95ed2ebd5310a55af3c0a8675ddf76f949f4d2
     spec:
       priorityClassName: service-lifecycle-critical
       serviceAccountName: 'arobit-forwarder'
