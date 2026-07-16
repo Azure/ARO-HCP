@@ -221,7 +221,7 @@ This applies to **AME environments only (STG and PROD)**: the RP only creates de
 max-slots-per-sub = floor(max-hcps-per-sub / identity-container-count-per-slot)
 ```
 
-With PROD's `identity_container_count: 25` (the max HCPs a single suite run provisions concurrently), that is `floor(92 / 25) = 3` slots per subscription. PROD pools in `test/e2e-config/e2e-slots.yaml` are therefore capped at `slot_count: 3` per subscription.
+where `identity-container-count-per-slot` is the pool's `identity_container_count` (the max HCPs a single suite run provisions concurrently). The PROD `slot_count` in `test/e2e-config/e2e-slots.yaml` is sized to stay within this cap; that catalog is the source of truth for the current per-subscription values.
 
 The RP is expected to consolidate the per-cluster deny assignments into a single deny assignment with all managed identities excluded once Azure raises the excluded-principals limit from 10 to 25. When that lands, this per-subscription HCP ceiling is lifted and the PROD `slot_count` can be raised accordingly.
 
