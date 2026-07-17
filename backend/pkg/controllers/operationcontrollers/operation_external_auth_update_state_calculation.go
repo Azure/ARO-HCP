@@ -24,7 +24,7 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/hypershift/api/hypershift/v1beta1"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/maestrohelpers"
+	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -36,7 +36,7 @@ import (
 // hypershiftHostedClusterExternalAuthOperationState contains the external auth update operation state calculation
 // comparing desired state against Hypershift's HostedCluster in the management cluster.
 func (c *operationExternalAuthUpdate) hypershiftHostedClusterExternalAuthOperationState(ctx context.Context, externalAuth *api.HCPOpenShiftClusterExternalAuth) (*operationState, error) {
-	hostedCluster, err := maestrohelpers.GetCachedHostedClusterForCluster(
+	hostedCluster, err := kubeapplierhelpers.GetCachedHostedClusterForCluster(
 		ctx,
 		c.readDesireLister,
 		externalAuth.ID.SubscriptionID,

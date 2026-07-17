@@ -36,7 +36,7 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/hypershift/api/hypershift/v1beta1"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/maestrohelpers"
+	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
@@ -75,7 +75,7 @@ func newTestHostedClusterReadDesireLister(t *testing.T, clusterUUID string) dbli
 
 	readDesireResourceID := api.Must(azcorearm.ParseResourceID(
 		kubeapplier.ToClusterScopedReadDesireResourceIDString(
-			"sub-1", "rg", "cluster-1", maestrohelpers.ReadDesireNameReadonlyHostedCluster,
+			"sub-1", "rg", "cluster-1", kubeapplierhelpers.ReadDesireNameReadonlyHostedCluster,
 		),
 	))
 

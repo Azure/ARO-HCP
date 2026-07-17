@@ -38,8 +38,8 @@ import (
 	"github.com/openshift/hypershift/api/hypershift/v1beta1"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
+	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listertesting"
-	"github.com/Azure/ARO-HCP/backend/pkg/maestrohelpers"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
@@ -155,12 +155,12 @@ func hostedClusterReadDesireResourceID(t *testing.T) *azcorearm.ResourceID {
 	t.Helper()
 	return api.Must(azcorearm.ParseResourceID(
 		kubeapplier.ToClusterScopedReadDesireResourceIDString(
-			testSubscriptionID, testResourceGroupName, testClusterName, maestrohelpers.ReadDesireNameReadonlyHostedCluster)))
+			testSubscriptionID, testResourceGroupName, testClusterName, kubeapplierhelpers.ReadDesireNameReadonlyHostedCluster)))
 }
 
 // newHostedClusterReadDesire builds a ReadDesire whose Status.KubeContent.Raw is
 // the serialized HostedCluster carrying the given Spec.ClusterID. The
-// consumer maestrohelpers.GetCachedHostedClusterForCluster unmarshals it as
+// consumer kubeapplierhelpers.GetCachedHostedClusterForCluster unmarshals it as
 // the raw HostedCluster directly.
 func newHostedClusterReadDesire(t *testing.T, clusterID string) *kubeapplier.ReadDesire {
 	t.Helper()

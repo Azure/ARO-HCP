@@ -29,7 +29,7 @@ import (
 
 	hsv1beta1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/maestrohelpers"
+	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/api/fleet"
@@ -138,7 +138,7 @@ func newTestHostedClusterReadDesire(t *testing.T, opts ...func(*hsv1beta1.Hosted
 		testSubscriptionID,
 		testResourceGroupName,
 		testClusterName,
-		maestrohelpers.ReadDesireNameReadonlyHostedCluster,
+		kubeapplierhelpers.ReadDesireNameReadonlyHostedCluster,
 	)
 	resourceID := api.Must(azcorearm.ParseResourceID(resourceIDString))
 
