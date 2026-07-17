@@ -81,20 +81,20 @@ func WaitForDNSResolution(ctx context.Context, hostname string, timeout time.Dur
 			errStr := formatDNSError(lookupErr)
 			if errStr != lastErrStr {
 				klog.InfoS("DNS resolution pending",
-						"hostname", hostname,
-						"error", errStr,
-						"elapsed", time.Since(startTime).Truncate(time.Second),
-					)
+					"hostname", hostname,
+					"error", errStr,
+					"elapsed", time.Since(startTime).Truncate(time.Second),
+				)
 				lastErrStr = errStr
 			}
 			return false, nil
 		}
 
 		klog.InfoS("DNS resolved",
-				"hostname", hostname,
-				"addresses", addrs,
-				"elapsed", time.Since(startTime).Truncate(time.Second),
-			)
+			"hostname", hostname,
+			"addresses", addrs,
+			"elapsed", time.Since(startTime).Truncate(time.Second),
+		)
 		return true, nil
 	})
 
