@@ -33,6 +33,7 @@ import (
 	fleetcontrollers "github.com/Azure/ARO-HCP/fleet/pkg/controllers/base"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/fleet"
+	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 )
@@ -398,38 +399,37 @@ func TestSyncOnce(t *testing.T) {
 	storedID := api.Must(api.NewInternalID(storedHREF))
 
 	tests := []struct {
-		name                   string
-		stamp                  *fleet.Stamp
-		managementCluster      *fleet.ManagementCluster
-		excludeStampFromLister bool
-		setupCS                func(ctrl *gomock.Controller) ProvisionShardClient
-		wantErr                bool
-		wantCondition          string
-		wantCondStatus         metav1.ConditionStatus
-		wantCondReason         string
+		name              string
+		stamp             *fleet.Stamp
+		stampMissingFromLister bool
+		managementCluster *fleet.ManagementCluster
+		setupCS           func(ctrl *gomock.Controller) ProvisionShardClient
+		wantErr           bool
+		wantCondition     string
+		wantCondStatus    metav1.ConditionStatus
+		wantCondReason    string
 	}{
 		{
 			name:              "MC not found in DB: no-op",
 			stamp:             testStamp(stampID, true),
-			managementCluster: nil,
+						managementCluster: nil,
 			setupCS: func(ctrl *gomock.Controller) ProvisionShardClient {
 				return ocm.NewMockClusterServiceClientSpec(ctrl)
 			},
 		},
 		{
-			name:                   "stamp lister error: returns error",
-			stamp:                  testStamp(stampID, true),
-			managementCluster:      testManagementCluster(stampID),
-			excludeStampFromLister: true,
+			name:              "stamp not found in lister: no-op",
+			stamp:             testStamp(stampID, true),
+			stampMissingFromLister: true,
+			managementCluster: testManagementCluster(stampID),
 			setupCS: func(ctrl *gomock.Controller) ProvisionShardClient {
 				return ocm.NewMockClusterServiceClientSpec(ctrl)
 			},
-			wantErr: true,
 		},
 		{
 			name:              "stamp not approved: sets condition false",
 			stamp:             testStamp(stampID, false),
-			managementCluster: testManagementCluster(stampID),
+						managementCluster: testManagementCluster(stampID),
 			setupCS: func(ctrl *gomock.Controller) ProvisionShardClient {
 				return ocm.NewMockClusterServiceClientSpec(ctrl)
 			},
@@ -440,7 +440,7 @@ func TestSyncOnce(t *testing.T) {
 		{
 			name:              "first reconcile error: sets failure condition",
 			stamp:             testStamp(stampID, true),
-			managementCluster: testManagementCluster(stampID),
+						managementCluster: testManagementCluster(stampID),
 			setupCS: func(ctrl *gomock.Controller) ProvisionShardClient {
 				mock := ocm.NewMockClusterServiceClientSpec(ctrl)
 				mock.EXPECT().GetProvisionShard(gomock.Any(), storedID).Return(nil, fmt.Errorf("cs unavailable"))
@@ -476,7 +476,7 @@ func TestSyncOnce(t *testing.T) {
 		{
 			name:              "shard exists, status updated: sets Registered condition",
 			stamp:             testStamp(stampID, true),
-			managementCluster: testManagementCluster(stampID),
+						managementCluster: testManagementCluster(stampID),
 			setupCS: func(ctrl *gomock.Controller) ProvisionShardClient {
 				mock := ocm.NewMockClusterServiceClientSpec(ctrl)
 				mock.EXPECT().GetProvisionShard(gomock.Any(), storedID).Return(testShard(t, storedHREF, testAKSResourceID, testConsumerName), nil)
@@ -490,7 +490,7 @@ func TestSyncOnce(t *testing.T) {
 		{
 			name:              "stored shard disappeared (404): hard error, sets failure condition",
 			stamp:             testStamp(stampID, true),
-			managementCluster: testManagementCluster(stampID),
+						managementCluster: testManagementCluster(stampID),
 			setupCS: func(ctrl *gomock.Controller) ProvisionShardClient {
 				notFound := api.Must(ocmerrors.NewError().Status(404).Build())
 				mock := ocm.NewMockClusterServiceClientSpec(ctrl)
@@ -537,7 +537,7 @@ func TestSyncOnce(t *testing.T) {
 			}
 
 			stamps := map[string]*fleet.Stamp{}
-			if !tt.excludeStampFromLister {
+			if !tt.stampMissingFromLister {
 				stamps[tt.stamp.GetStampIdentifier()] = tt.stamp
 			}
 			stampLister := &fakeStampLister{stamps: stamps}
@@ -598,7 +598,7 @@ func (f *fakeStampLister) List(ctx context.Context) ([]*fleet.Stamp, error) {
 func (f *fakeStampLister) Get(ctx context.Context, stampIdentifier string) (*fleet.Stamp, error) {
 	s, ok := f.stamps[stampIdentifier]
 	if !ok {
-		return nil, fmt.Errorf("stamp %q not found", stampIdentifier)
+		return nil, database.NewNotFoundError()
 	}
 	return s, nil
 }
