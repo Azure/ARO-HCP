@@ -664,7 +664,7 @@ func TestValidateClusterCreate(t *testing.T) {
 			},
 		},
 		{
-			name: "identity reused by multiple operators - create",
+			name: "identity used multiple times - create",
 			cluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
 				identityID := "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/shared-identity"
