@@ -94,7 +94,7 @@ param genevaRpLogsName = '{{ .geneva.logs.rp.secretName }}'
 param genevaClusterLogsName = '{{ .geneva.logs.cluster.secretName }}'
 
 // Alert rules tag value
-param owningTeamTagValue = '{{ .monitoring.alertRuleOwningTeamTag }}'
+param aksClusterTags = '{{ .mgmt.aks.tags }},owningTeam={{ .monitoring.alertRuleOwningTeamTag }}'
 
 // HCP Backups Storage Account
 param hcpBackupsStorageAccountName = '{{ .mgmt.hcpBackups.storageAccount.name }}'

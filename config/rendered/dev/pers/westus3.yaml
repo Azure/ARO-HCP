@@ -212,6 +212,7 @@ clustersService:
     address: http://ingest.observability:4318
     exporter: otlp
 customExporter:
+  clusterTypes: svc-cluster,mgmt-cluster
   enabledCollectors: service-tag-usage,kusto-logs-current
   image:
     digest: sha256:335a5217890f8137c8bce97c212762dcf584ffb8d5c193499880dcbb4acd4673
@@ -633,6 +634,7 @@ mgmt:
       vmSize: Standard_D4s_v3
       zoneRedundantMode: Auto
       zones: ""
+    tags: clusterType=mgmt-cluster,persist=true
     upgradeSettings:
       maxSurge: 10%
       maxUnavailable: "0"
@@ -990,6 +992,7 @@ svc:
       vmSize: Standard_D2s_v3
       zoneRedundantMode: Auto
       zones: ""
+    tags: clusterType=svc-cluster,persist=true
     upgradeSettings:
       maxSurge: 10%
       maxUnavailable: "0"

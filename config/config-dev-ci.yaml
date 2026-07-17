@@ -37,6 +37,7 @@ clouds:
       opstool:
         aks:
           name: "opstool-{{ .ctx.regionShort }}"
+          tags: "clusterType=opstool-cluster,persist=true"
           vnetAddressPrefix: "10.0.0.0/16"
           subnetPrefix: "10.0.1.0/24"
           podSubnetPrefix: "10.0.2.0/24"
