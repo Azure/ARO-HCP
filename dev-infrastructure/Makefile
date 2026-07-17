@@ -82,6 +82,15 @@ feature-registration: # hardcoded to eastus as this is a subscription deployment
 		$(PROMPT_TO_CONFIRM)
 .PHONY: feature-registration
 
+deploy-mock-identity-apps: configurations/mock-identity-apps.bicepparam
+	az deployment group create \
+		--name "mock-identity-apps" \
+		--resource-group $(GLOBAL_RESOURCEGROUP) \
+		--template-file templates/mock-identity-apps.bicep $(PROMPT_TO_CONFIRM) \
+		--parameters configurations/mock-identity-apps.bicepparam
+
+.PHONY: deploy-mock-identity-apps
+
 populate-msi-mock-pool:
 	cd openshift-ci && \
 	MSI_MOCK_POOL_SIZE=$(MSI_MOCK_POOL_SIZE) \

@@ -16,6 +16,8 @@ else
   DRY_RUN_MODE=false
 fi
 
+az account show -o none 2>/dev/null || { echo "ERROR: not logged in to Azure"; exit 1; }
+
 APPS=(
   # DEV shared identities
   "aro-dev-first-party2"
@@ -45,15 +47,18 @@ DENIED=0
 for APP_NAME in "${APPS[@]}"; do
   UNIQUE_NAME=$(to_unique_name "${APP_NAME}")
 
-  OBJECT_ID=$(az rest --method GET \
+  RESPONSE=$(az rest --method GET \
     --url "https://graph.microsoft.com/beta/applications?\$filter=displayName eq '${APP_NAME}'&\$select=id,uniqueName" \
-    --query 'value[0].id' -o tsv 2>/dev/null || true)
+    --query 'value[0].{id:id,uniqueName:uniqueName}' -o json 2>/dev/null) || {
+    echo "FAIL   ${APP_NAME} (Graph API error)"
+    ERRORS=$((ERRORS + 1))
+    continue
+  }
 
-  EXISTING=$(az rest --method GET \
-    --url "https://graph.microsoft.com/beta/applications?\$filter=displayName eq '${APP_NAME}'&\$select=uniqueName" \
-    --query 'value[0].uniqueName' -o tsv 2>/dev/null || true)
+  OBJECT_ID=$(echo "${RESPONSE}" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['id'] or '')" 2>/dev/null || true)
+  EXISTING=$(echo "${RESPONSE}" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['uniqueName'] or '')" 2>/dev/null || true)
 
-  if [[ -z "${OBJECT_ID}" || "${OBJECT_ID}" == "None" ]]; then
+  if [[ -z "${OBJECT_ID}" ]]; then
     echo "SKIP   ${APP_NAME} (not found)"
     continue
   fi
