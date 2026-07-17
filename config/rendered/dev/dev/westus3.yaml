@@ -1,12 +1,12 @@
 acm:
   mce:
     bundle:
-      digest: sha256:dcc5a3f421bc109c349a256c96dabf8d7e28d00c99fef1168ec9ab0e3d75404b
+      digest: sha256:47beac975e52f1833397c3999491e196a4eabe4c49138127797727086053575b
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-211
   operator:
     bundle:
-      digest: sha256:f50315d3b2b5f6b817e7065939ee4058575f51028548072827e93c5231b25dcf
+      digest: sha256:f0b769de75d2bc933553b0c4676f3b2fc48ce85c30f486555e2eb66b4f00e88c
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-216
 acr:
@@ -171,7 +171,7 @@ clustersService:
   deployDebugJobs: false
   environment: arohcpdev
   image:
-    digest: sha256:70d9c5e7e1d1de654ecd3a03f61d642f9a6241bf457010c48ad11b7d597f2ac5
+    digest: sha256:f22e16dbdac005abb1787e524a2dfa1571720240f33d00bfc57bd0bcdb04c59f
     registry: quay.io
     repository: app-sre/aro-hcp-clusters-service
   k8s:
@@ -447,7 +447,7 @@ hcpRecovery:
 hypershift:
   additionalInstallArg: --enable-cpo-overrides
   image:
-    digest: sha256:9d60ae8649fc37ce4518a9a2e39fef028bddd0fe24732032857cbb187d77b788
+    digest: sha256:d86fee2d08417c85259c6d0340fcf3c848e13d66009a6d659f1200af8ea1c4e9
     registry: quay.io
     repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
   limitClusterSizes: true
@@ -465,7 +465,7 @@ imageSync:
   ocMirror:
     enabled: true
     image:
-      digest: sha256:a3a321ad06719d01011e9716b3491e79110577a33414c82979f5ff2ad4cc40c0
+      digest: sha256:2d647c97b47599b00b711b10696cd0b4e6a19da9ba2973cb771f24d6b7301728
       registry: arohcpsvcdev.azurecr.io
       repository: image-sync/oc-mirror
     jobNamePrefix: ""
@@ -702,7 +702,7 @@ mgmt:
       image:
         registry: arohcpsvcdev.azurecr.io
         repository: thanos/thanos
-        sha: cc1975aaeb64a744dc11319892345f4822f72860f0efcff030111fe08328bfa4
+        sha: 6249f7aaadd3695df637fb2eb4cb9a9955611eee691c3970892fe9c0dc3f2db6
         tag: v0.41.0
   rg: hcp-underlay-dev-westus3-mgmt-1
   stampIdentifier: "1"
@@ -998,7 +998,7 @@ svc:
   istio:
     ingressGatewayIPAddressIPTags: ""
     ingressGatewayIPAddressName: aro-hcp-istio-ingress
-    istioctlVersion: 1.30.2
+    istioctlVersion: 1.30.3
     tag: prod-stable
     targetVersion: asm-1-28
     versions: asm-1-28
@@ -1052,7 +1052,7 @@ svc:
       image:
         registry: arohcpsvcdev.azurecr.io
         repository: thanos/thanos
-        sha: cc1975aaeb64a744dc11319892345f4822f72860f0efcff030111fe08328bfa4
+        sha: 6249f7aaadd3695df637fb2eb4cb9a9955611eee691c3970892fe9c0dc3f2db6
         tag: v0.41.0
   rg: hcp-underlay-dev-westus3-svc
   subscription:
