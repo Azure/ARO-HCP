@@ -17,12 +17,18 @@ package graphquery
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/go-viper/mapstructure/v2"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resourcegraph/armresourcegraph"
 )
+
+// Querier abstracts the Azure Resource Graph query API for testability.
+type Querier interface {
+	ExecuteConvertRequest(ctx context.Context, request ResourceGraphRequest) error
+}
 
 // ResourceGraphClient is a client for the Azure Resource Graph API
 type ResourceGraphClient struct {
@@ -38,7 +44,7 @@ type ResourceGraphRequest struct {
 	Output any
 }
 
-func NewResourceGraphClient(credential azcore.TokenCredential, subscriptionIDs []*string) (*ResourceGraphClient, error) {
+func NewResourceGraphClient(credential azcore.TokenCredential, subscriptionIDs []*string) (Querier, error) {
 	client, err := armresourcegraph.NewClient(credential, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Resource Graph client: %w", err)
@@ -64,4 +70,9 @@ func (c *ResourceGraphClient) ExecuteConvertRequest(ctx context.Context, request
 		return fmt.Errorf("failed to decode Resource Graph result: %w", err)
 	}
 	return nil
+}
+
+// EscapeKQL escapes single quotes in a string for safe embedding in KQL literals.
+func EscapeKQL(s string) string {
+	return strings.ReplaceAll(s, "'", "''")
 }

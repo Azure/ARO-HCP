@@ -28,7 +28,6 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 
 	"github.com/Azure/ARO-HCP/tooling/aro-hcp-exporter/pkg/graphquery"
-	"github.com/Azure/ARO-HCP/tooling/azutils/subscriptions"
 	"github.com/Azure/ARO-HCP/tooling/metricscache"
 )
 
@@ -48,27 +47,21 @@ var (
 
 // ServiceTagUsageCollector is a Prometheus collector that gathers public IP metrics from Azure
 type ServiceTagUsageCollector struct {
-	client       *graphquery.ResourceGraphClient
+	client       graphquery.Querier
 	cache        *metricscache.Cache
+	region       string
 	errorCounter prometheus.Counter
 }
 
 var _ CachingCollector = &ServiceTagUsageCollector{}
 
 // NewServiceTagUsageCollector creates a new ServiceTagUsageCollector
-func NewServiceTagUsageCollector(ctx context.Context, subscriptionNames []string, credential azcore.TokenCredential, cacheTTL time.Duration, errorCounter prometheus.Counter) (*ServiceTagUsageCollector, error) {
-	var resourceGraphClient *graphquery.ResourceGraphClient
-	var err error
-
-	resolved, err := subscriptions.ResolveByName(ctx, credential, subscriptionNames)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get subscription IDs: %w", err)
+func NewServiceTagUsageCollector(subscriptionIDs []string, region string, credential azcore.TokenCredential, cacheTTL time.Duration, errorCounter prometheus.Counter) (*ServiceTagUsageCollector, error) {
+	subscriptionIDsPtrs := make([]*string, 0, len(subscriptionIDs))
+	for _, id := range subscriptionIDs {
+		subscriptionIDsPtrs = append(subscriptionIDsPtrs, to.Ptr(id))
 	}
-	subscriptionIDsPtrs := make([]*string, 0, len(resolved))
-	for _, name := range subscriptionNames {
-		subscriptionIDsPtrs = append(subscriptionIDsPtrs, to.Ptr(resolved[name]))
-	}
-	resourceGraphClient, err = graphquery.NewResourceGraphClient(credential, subscriptionIDsPtrs)
+	resourceGraphClient, err := graphquery.NewResourceGraphClient(credential, subscriptionIDsPtrs)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Resource Graph client: %w", err)
 	}
@@ -76,6 +69,7 @@ func NewServiceTagUsageCollector(ctx context.Context, subscriptionNames []string
 	return &ServiceTagUsageCollector{
 		client:       resourceGraphClient,
 		cache:        metricscache.NewCache(cacheTTL),
+		region:       region,
 		errorCounter: errorCounter,
 	}, nil
 }
@@ -106,12 +100,15 @@ type PublicIPAddress struct {
 	Count          float64
 }
 
-var query = `
+func buildIPQuery(region string) string {
+	return fmt.Sprintf(`
 resources
-| where type == 'microsoft.network/publicipaddresses'
+| where type =~ 'microsoft.network/publicipaddresses'
+| where location =~ '%s'
 | extend ipTagsString = tostring(properties['ipTags'])
-| summarize Count=count()  by  subscriptionId, location, ipTagsString
-`
+| summarize Count=count() by subscriptionId, location, ipTagsString
+`, graphquery.EscapeKQL(region))
+}
 
 func parseIPTags(ipTagsAsString string) ([]IPTag, error) {
 	ipTags := []IPTag{}
@@ -132,8 +129,9 @@ func (c *ServiceTagUsageCollector) CollectMetricValues(ctx context.Context) {
 	var publicIPs []PublicIPAddress
 	var err error
 
+	q := buildIPQuery(c.region)
 	err = c.client.ExecuteConvertRequest(ctx, graphquery.ResourceGraphRequest{
-		Query:  &query,
+		Query:  &q,
 		Output: &publicIPs,
 	})
 	if err != nil {

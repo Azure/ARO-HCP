@@ -28,13 +28,13 @@ spec:
         imagePullPolicy: IfNotPresent
         args:
         - serve
-        - --subscription-names={{ join "," .Values.subscriptionNames | quote }}
+        - --cluster-types={{ .Values.clusterTypes }}
+        - --region={{ .Values.region }}
         - --listen-address={{ .Values.listenAddress }}
         - --cache-ttl={{ .Values.cacheTTL }}
         - --collection-interval={{ .Values.collectionInterval }}
         - --enabled-collectors={{ .Values.enabledCollectors }}
 {{- if contains "kusto-logs-current" .Values.enabledCollectors }}
-        - --cluster-names={{ .Values.clusterNames }}
         - --kusto-cluster={{ .Values.kustoCluster }}
         - --kusto-region={{ .Values.kustoRegion | replace " " "" | lower }}
 {{- end }}

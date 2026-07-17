@@ -225,8 +225,8 @@ param genevaClusterLogsName string
 @description('The name of the Azure Storage account to create for HCP Backups')
 param hcpBackupsStorageAccountName string
 
-@description('The cluster tag value for the owning team')
-param owningTeamTagValue string
+@description('CSV of key=value tag pairs for the AKS cluster resource')
+param aksClusterTags string
 
 @description('Event Hub name for AKS audit logs')
 param auditLogsEventHubName string
@@ -365,7 +365,7 @@ module mgmtCluster '../modules/aks-cluster-base.bicep' = {
     vnetName: vnetName
     nodeSubnetId: nodeSubnetCreation.outputs.subnetId
     podSubnetPrefix: podSubnetPrefix
-    clusterType: 'mgmt-cluster'
+    aksClusterTags: aksClusterTags
     workloadIdentities: workloadIdentities
     aksKeyVaultName: aksKeyVaultName
     aksKeyVaultTagName: aksKeyVaultTagName
@@ -407,7 +407,6 @@ module mgmtCluster '../modules/aks-cluster-base.bicep' = {
     enableSwiftV2Nodepools: true
     upgradeSettingsMaxSurge: aksUpgradeSettingsMaxSurge
     upgradeSettingsMaxUnavailable: aksUpgradeSettingsMaxUnavailable
-    owningTeamTagValue: owningTeamTagValue
     aksClusterUserDefinedManagedIdentityName: aksClusterUserDefinedManagedIdentity.name
   }
   dependsOn: [

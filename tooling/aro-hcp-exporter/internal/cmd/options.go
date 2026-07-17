@@ -21,13 +21,16 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-logr/logr"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/cobra"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 
+	"github.com/Azure/ARO-HCP/tooling/aro-hcp-exporter/internal/cluster"
 	"github.com/Azure/ARO-HCP/tooling/aro-hcp-exporter/internal/metrics"
+	"github.com/Azure/ARO-HCP/tooling/aro-hcp-exporter/pkg/graphquery"
 )
 
 const (
@@ -38,7 +41,7 @@ const (
 
 type RawOptions struct {
 	ListenAddress       string
-	SubscriptionNames   []string
+	ClusterTypes        []string
 	Region              string
 	CacheTTL            time.Duration
 	CollectionInterval  time.Duration
@@ -46,14 +49,13 @@ type RawOptions struct {
 	KustoCluster        string
 	KustoRegion         string
 	KustoQueryInterval  time.Duration
-	ClusterNames        []string
 	supportedCollectors []string
 }
 
 func DefaultOptions() *RawOptions {
 	return &RawOptions{
 		ListenAddress:       DefaultListenAddress,
-		SubscriptionNames:   []string{},
+		ClusterTypes:        []string{},
 		Region:              "",
 		CacheTTL:            DefaultCacheTTL,
 		CollectionInterval:  DefaultCollectionInterval,
@@ -62,13 +64,12 @@ func DefaultOptions() *RawOptions {
 		KustoCluster:        "",
 		KustoRegion:         "",
 		KustoQueryInterval:  metrics.KustoQueryInterval,
-		ClusterNames:        []string{},
 	}
 }
 
 type ValidatedOptions struct {
 	ListenAddress      string
-	SubscriptionNames  []string
+	ClusterTypes       []string
 	Region             string
 	CacheTTL           time.Duration
 	CollectionInterval time.Duration
@@ -76,12 +77,10 @@ type ValidatedOptions struct {
 	KustoCluster       string
 	KustoRegion        string
 	KustoQueryInterval time.Duration
-	ClusterNames       []string
 }
 
 type CompletedOptions struct {
 	ListenAddress      string
-	SubscriptionNames  []string
 	Region             string
 	CacheTTL           time.Duration
 	Registry           *prometheus.Registry
@@ -90,8 +89,12 @@ type CompletedOptions struct {
 }
 
 func (o *RawOptions) Validate(ctx context.Context) (*ValidatedOptions, error) {
-	if len(o.SubscriptionNames) == 0 {
-		return nil, fmt.Errorf("subscription IDs are required")
+	if len(o.ClusterTypes) == 0 {
+		return nil, fmt.Errorf("cluster-types is required")
+	}
+
+	if o.Region == "" {
+		return nil, fmt.Errorf("region is required")
 	}
 
 	if o.CacheTTL == 0 {
@@ -110,7 +113,7 @@ func (o *RawOptions) Validate(ctx context.Context) (*ValidatedOptions, error) {
 
 	return &ValidatedOptions{
 		ListenAddress:      o.ListenAddress,
-		SubscriptionNames:  o.SubscriptionNames,
+		ClusterTypes:       o.ClusterTypes,
 		Region:             o.Region,
 		CacheTTL:           o.CacheTTL,
 		CollectionInterval: o.CollectionInterval,
@@ -118,7 +121,6 @@ func (o *RawOptions) Validate(ctx context.Context) (*ValidatedOptions, error) {
 		KustoCluster:       o.KustoCluster,
 		KustoRegion:        o.KustoRegion,
 		KustoQueryInterval: o.KustoQueryInterval,
-		ClusterNames:       o.ClusterNames,
 	}, nil
 }
 
@@ -127,20 +129,36 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*CompletedOptions, err
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Azure credential: %w", err)
 	}
-	collectors, err := o.CreateEnabledCollectors(ctx, cred)
+
+	rgClient, err := graphquery.NewResourceGraphClient(cred, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create Resource Graph client: %w", err)
+	}
+
+	discovered, err := cluster.Discover(ctx, rgClient, o.Region, o.ClusterTypes)
+	if err != nil {
+		return nil, fmt.Errorf("failed to discover clusters: %w", err)
+	}
+
+	logger := logr.FromContextOrDiscard(ctx)
+	logger.Info("discovered AKS clusters",
+		"clusterNames", discovered.ClusterNames,
+		"subscriptionIDs", discovered.SubscriptionIDs,
+	)
+
+	collectors, err := o.CreateEnabledCollectors(ctx, cred, discovered.SubscriptionIDs, discovered.ClusterNames)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create collectors: %w", err)
 	}
 	registry := prometheus.NewRegistry()
 	for _, collector := range collectors {
-		if registry.Register(collector) != nil {
-			return nil, fmt.Errorf("failed to register collector: %s, error: %w", collector.Name(), err)
+		if regErr := registry.Register(collector); regErr != nil {
+			return nil, fmt.Errorf("failed to register collector: %s, error: %w", collector.Name(), regErr)
 		}
 	}
 
 	return &CompletedOptions{
 		ListenAddress:      o.ListenAddress,
-		SubscriptionNames:  o.SubscriptionNames,
 		Region:             o.Region,
 		CacheTTL:           o.CacheTTL,
 		Registry:           registry,
@@ -151,18 +169,22 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*CompletedOptions, err
 
 func BindOptions(opts *RawOptions, cmd *cobra.Command) error {
 	cmd.Flags().StringVar(&opts.ListenAddress, "listen-address", opts.ListenAddress, fmt.Sprintf("Address to listen on for metrics (default: %s)", DefaultListenAddress))
-	cmd.Flags().StringSliceVar(&opts.SubscriptionNames, "subscription-names", opts.SubscriptionNames, "Azure subscription names")
+	cmd.Flags().StringSliceVar(&opts.ClusterTypes, "cluster-types", opts.ClusterTypes, "AKS cluster type tag values for Resource Graph discovery")
+	cmd.Flags().StringVar(&opts.Region, "region", opts.Region, "Azure region this exporter is deployed in")
 	cmd.Flags().DurationVar(&opts.CacheTTL, "cache-ttl", opts.CacheTTL, fmt.Sprintf("Cache TTL (default: %s)", DefaultCacheTTL.String()))
 	cmd.Flags().DurationVar(&opts.CollectionInterval, "collection-interval", opts.CollectionInterval, fmt.Sprintf("Collection interval (default: %s)", DefaultCollectionInterval.String()))
 	cmd.Flags().StringSliceVar(&opts.EnabledCollectors, "enabled-collectors", opts.EnabledCollectors, fmt.Sprintf("Enabled collectors (default: %s)", strings.Join(opts.supportedCollectors, ", ")))
 	cmd.Flags().StringVar(&opts.KustoCluster, "kusto-cluster", opts.KustoCluster, "Azure Data Explorer (Kusto) cluster name")
 	cmd.Flags().StringVar(&opts.KustoRegion, "kusto-region", opts.KustoRegion, "Azure Data Explorer (Kusto) region")
 	cmd.Flags().DurationVar(&opts.KustoQueryInterval, "kusto-query-interval", opts.KustoQueryInterval, fmt.Sprintf("Kusto query interval (default: %s)", metrics.KustoQueryInterval.String()))
-	cmd.Flags().StringSliceVar(&opts.ClusterNames, "cluster-names", opts.ClusterNames, "Cluster names")
 
-	err := cmd.MarkFlagRequired("subscription-names")
+	err := cmd.MarkFlagRequired("cluster-types")
 	if err != nil {
-		return fmt.Errorf("failed to mark flag %q as required: %w", "subscription-names", err)
+		return fmt.Errorf("failed to mark flag %q as required: %w", "cluster-types", err)
+	}
+	err = cmd.MarkFlagRequired("region")
+	if err != nil {
+		return fmt.Errorf("failed to mark flag %q as required: %w", "region", err)
 	}
 	return nil
 }
@@ -181,23 +203,20 @@ func (o *RawOptions) Run(ctx context.Context) error {
 	return completed.Run(ctx)
 }
 
-// CreateEnabledCollectors creates a list of enabled collectors
-// It iterates over the enabled collectors and creates the corresponding collector
-func (o *ValidatedOptions) CreateEnabledCollectors(ctx context.Context, creds azcore.TokenCredential) ([]metrics.CachingCollector, error) {
+func (o *ValidatedOptions) CreateEnabledCollectors(ctx context.Context, creds azcore.TokenCredential, subscriptionIDs, clusterNames []string) ([]metrics.CachingCollector, error) {
 	var collectors []metrics.CachingCollector
 	for _, collector := range o.EnabledCollectors {
 		switch collector {
 		case metrics.ServiceTagUsageCollectorName:
 			errorCounter := collectorErrorsTotal.WithLabelValues(metrics.ServiceTagUsageCollectorName)
-			publicIPCollector, err := metrics.NewServiceTagUsageCollector(ctx, o.SubscriptionNames, creds, o.CacheTTL, errorCounter)
-
+			publicIPCollector, err := metrics.NewServiceTagUsageCollector(subscriptionIDs, o.Region, creds, o.CacheTTL, errorCounter)
 			if err != nil {
 				return nil, fmt.Errorf("failed to create public IP collector: %w", err)
 			}
 			collectors = append(collectors, publicIPCollector)
 		case metrics.KustoLogsCurrentCollectorName:
 			errorCounter := collectorErrorsTotal.WithLabelValues(metrics.KustoLogsCurrentCollectorName)
-			kustoCollector, err := metrics.NewKustoLogsCurrentCollector(o.KustoCluster, o.KustoRegion, o.ClusterNames, o.CacheTTL, errorCounter)
+			kustoCollector, err := metrics.NewKustoLogsCurrentCollector(o.KustoCluster, o.KustoRegion, clusterNames, o.CacheTTL, errorCounter)
 			if err != nil {
 				return nil, fmt.Errorf("failed to create Kusto logs collector: %w", err)
 			}

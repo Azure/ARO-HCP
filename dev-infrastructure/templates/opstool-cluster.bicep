@@ -115,8 +115,14 @@ param amwMaxActiveTimeSeriesMillions int = 2
 @description('Maximum events per minute limit for Azure Monitor Workspace in millions (2M initial, bump when hitting 50% utilization)')
 param amwMaxEventsPerMinuteMillions int = 2
 
+// owningTeamTagValue is used independently by the azureMonitorWorkspace resource
+// below, so it cannot be removed even though aksClusterTags also carries an
+// owningTeam entry for the AKS cluster resource.
 @description('Owning team tag value')
 param owningTeamTagValue string = 'ARO-HCP-SRE'
+
+@description('CSV of key=value tag pairs for the AKS cluster resource')
+param aksClusterTags string
 
 @description('AKS Key Vault name for etcd encryption')
 @maxLength(24)
@@ -242,7 +248,7 @@ module opstoolCluster '../modules/aks-cluster-base.bicep' = {
     vnetName: vnetName
     nodeSubnetId: nodeSubnetCreation.outputs.subnetId
     podSubnetPrefix: podSubnetPrefix
-    clusterType: 'opstool-cluster'
+    aksClusterTags: aksClusterTags
     userOsDiskSizeGB: userOsDiskSizeGB
     userAgentMinCount: userAgentMinCount
     userAgentMaxCount: userAgentMaxCount
@@ -282,7 +288,6 @@ module opstoolCluster '../modules/aks-cluster-base.bicep' = {
       : [resourceId(svcAcrResourceGroupName, 'Microsoft.ContainerRegistry/registries', svcAcrName)]
     deploymentMsiId: opstoolMI.id
     enableSwiftV2Nodepools: false
-    owningTeamTagValue: owningTeamTagValue
     aksClusterUserDefinedManagedIdentityName: aksClusterUserDefinedManagedIdentity.name
   }
 }
