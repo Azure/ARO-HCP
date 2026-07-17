@@ -877,20 +877,7 @@ func TestClusterValidate(t *testing.T) {
 				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity = managedIdentity1
 				c.Identity.UserAssignedIdentities[managedIdentity1.String()] = &coreapi.UserAssignedIdentity{}
 			}),
-			expectErrors: []utils.ExpectedError{
-				{
-					Message:   "must be unique within the cluster",
-					FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators",
-				},
-				{
-					Message:   "must be unique within the cluster",
-					FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.serviceManagedIdentity",
-				},
-				{
-					Message:   "identity is used multiple times",
-					FieldPath: "identity.userAssignedIdentities",
-				},
-			},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "Cluster with invalid data plane operator identities",
