@@ -38,10 +38,22 @@ func HostnameFromURL(rawURL string) (string, error) {
 	}
 
 	hostname := parsed.Hostname()
-	if hostname == "" {
-		return "", fmt.Errorf("no hostname found in %q", rawURL)
+	if hostname != "" {
+		return hostname, nil
 	}
-	return hostname, nil
+
+	// url.Parse treats scheme-less inputs like "example.com" as a relative
+	// path and "example.com:443" as scheme:opaque, leaving Host empty in
+	// both cases. Only fall back to raw splitting when no scheme was parsed.
+	if parsed.Scheme == "" || parsed.Opaque != "" {
+		if h, _, err := net.SplitHostPort(rawURL); err == nil && h != "" {
+			return h, nil
+		}
+		if parsed.Path != "" {
+			return parsed.Path, nil
+		}
+	}
+	return "", fmt.Errorf("no hostname found in %q", rawURL)
 }
 
 // WaitForDNSResolution polls DNS for the given hostname until at least one
@@ -59,7 +71,7 @@ func WaitForDNSResolution(ctx context.Context, hostname string, timeout time.Dur
 
 		addrs, lookupErr := resolver.LookupHost(lookupCtx, hostname)
 		if lookupErr != nil {
-			errStr := formatDNSError(lookupErr, hostname)
+			errStr := formatDNSError(lookupErr)
 			if errStr != lastErrStr {
 				klog.Infof("DNS resolution pending for %s: %s (elapsed %s)", hostname, errStr, time.Since(startTime).Truncate(time.Second))
 				lastErrStr = errStr
@@ -77,7 +89,7 @@ func WaitForDNSResolution(ctx context.Context, hostname string, timeout time.Dur
 	return nil
 }
 
-func formatDNSError(err error, hostname string) string {
+func formatDNSError(err error) string {
 	var dnsErr *net.DNSError
 	if errors.As(err, &dnsErr) {
 		return fmt.Sprintf("server=%s isNotFound=%v isTemporary=%v err=%s",

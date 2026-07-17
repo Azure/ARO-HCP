@@ -65,8 +65,8 @@ func (v verifySimpleWebApp) Verify(ctx context.Context, adminRESTConfig *rest.Co
 
 	url := "https://" + app.RouteHost
 
-	if err := framework.WaitForDNSResolution(ctx, host, framework.DNSResolutionTimeout); err != nil {
-		return fmt.Errorf("DNS for route host %s did not resolve: %w", host, err)
+	if err := framework.WaitForDNSResolution(ctx, app.RouteHost, framework.DNSResolutionTimeout); err != nil {
+		return fmt.Errorf("DNS for route host %s did not resolve: %w", app.RouteHost, err)
 	}
 
 	// First wait for app reachability using InsecureSkipVerify.
