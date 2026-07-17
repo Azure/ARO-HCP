@@ -19,6 +19,8 @@ import (
 	"fmt"
 	"strings"
 
+	"k8s.io/apimachinery/pkg/util/rand"
+
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/internal/api"
@@ -27,60 +29,67 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
-// DeriveClusterServiceID returns the Cluster Service internal ID to persist for the
-// given ARM resource, matching backend controller conventions.
-func DeriveClusterServiceID(
+// GenerateRandomClusterClusterServiceHREF returns a Cluster Service cluster HREF
+// with a random 10-character ID, matching the cluster-service mock PostCluster behavior.
+func GenerateRandomClusterClusterServiceHREF() string {
+	return ocm.GenerateOCMCommercialClusterHREF(rand.String(10))
+}
+
+// CalculateClusterServiceIDFromNodePoolResourceID returns the Cluster Service internal ID
+// for a node pool, derived from the parent cluster's stored ClusterServiceID.
+func CalculateClusterServiceIDFromNodePoolResourceID(
 	ctx context.Context,
 	resourcesDBClient database.ResourcesDBClient,
-	clusterServiceMock *ClusterServiceMock,
-	testName string,
 	resourceIDString string,
 ) (string, error) {
 	resourceID, err := azcorearm.ParseResourceID(resourceIDString)
 	if err != nil {
 		return "", utils.TrackError(err)
 	}
-
-	switch {
-	case strings.EqualFold(resourceID.ResourceType.String(), api.ClusterResourceType.String()):
-		if clusterServiceMock == nil {
-			return "", utils.TrackError(fmt.Errorf(
-				"cluster %s: cannot derive clusterServiceID without cluster service mock; use cluster-service-id.json",
-				resourceIDString,
-			))
-		}
-		if href, ok := clusterServiceMock.FindClusterHREF(testName, resourceID.Name); ok {
-			return href, nil
-		}
-		return "", utils.TrackError(fmt.Errorf(
-			"cluster %s: no PostCluster HREF in mock for cluster name %q; call PostCluster first or use cluster-service-id.json",
-			resourceIDString,
-			resourceID.Name,
-		))
-
-	case strings.EqualFold(resourceID.ResourceType.String(), api.NodePoolResourceType.String()):
-		if resourceID.Parent == nil {
-			return "", utils.TrackError(fmt.Errorf("node pool %s has no parent cluster", resourceIDString))
-		}
-		clusterCSID, err := clusterClusterServiceID(ctx, resourcesDBClient, resourceID)
-		if err != nil {
-			return "", err
-		}
-		return ocm.GenerateAROHCPNodePoolHREF(clusterCSID.ID(), strings.ToLower(resourceID.Name)), nil
-
-	case strings.EqualFold(resourceID.ResourceType.String(), api.ExternalAuthResourceType.String()):
-		if resourceID.Parent == nil {
-			return "", utils.TrackError(fmt.Errorf("external auth %s has no parent cluster", resourceIDString))
-		}
-		clusterCSID, err := clusterClusterServiceID(ctx, resourcesDBClient, resourceID)
-		if err != nil {
-			return "", err
-		}
-		return ocm.GenerateAROHCPExternalAuthHREF(clusterCSID.ID(), resourceID.Name), nil
-
-	default:
-		return "", utils.TrackError(fmt.Errorf("resource %s: setClusterServiceID supports clusters, node pools, and external auths only", resourceIDString))
+	if !strings.EqualFold(resourceID.ResourceType.String(), api.NodePoolResourceType.String()) {
+		return "", utils.TrackError(fmt.Errorf("resource %s is not a node pool", resourceIDString))
 	}
+	if resourceID.Parent == nil {
+		return "", utils.TrackError(fmt.Errorf("node pool %s has no parent cluster", resourceIDString))
+	}
+	clusterCSID, err := clusterClusterServiceID(ctx, resourcesDBClient, resourceID)
+	if err != nil {
+		return "", err
+	}
+	return ocm.GenerateAROHCPNodePoolHREF(clusterCSID.ID(), strings.ToLower(resourceID.Name)), nil
+}
+
+// CalculateClusterServiceIDFromExternalAuthResourceID returns the Cluster Service internal ID
+// for an external auth, derived from the parent cluster's stored ClusterServiceID.
+func CalculateClusterServiceIDFromExternalAuthResourceID(
+	ctx context.Context,
+	resourcesDBClient database.ResourcesDBClient,
+	resourceIDString string,
+) (string, error) {
+	resourceID, err := azcorearm.ParseResourceID(resourceIDString)
+	if err != nil {
+		return "", utils.TrackError(err)
+	}
+	if !strings.EqualFold(resourceID.ResourceType.String(), api.ExternalAuthResourceType.String()) {
+		return "", utils.TrackError(fmt.Errorf("resource %s is not an external auth", resourceIDString))
+	}
+	if resourceID.Parent == nil {
+		return "", utils.TrackError(fmt.Errorf("external auth %s has no parent cluster", resourceIDString))
+	}
+	clusterCSID, err := clusterClusterServiceID(ctx, resourcesDBClient, resourceID)
+	if err != nil {
+		return "", err
+	}
+	return ocm.GenerateAROHCPExternalAuthHREF(clusterCSID.ID(), resourceID.Name), nil
+}
+
+// StampRandomClusterServiceID assigns a random Cluster Service cluster HREF to the cluster document.
+func StampRandomClusterServiceID(
+	ctx context.Context,
+	resourcesDBClient database.ResourcesDBClient,
+	clusterResourceIDString string,
+) error {
+	return SetClusterServiceID(ctx, resourcesDBClient, clusterResourceIDString, GenerateRandomClusterClusterServiceHREF())
 }
 
 func clusterClusterServiceID(ctx context.Context, resourcesDBClient database.ResourcesDBClient, childResourceID *azcorearm.ResourceID) (api.InternalID, error) {

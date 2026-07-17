@@ -19,7 +19,17 @@
 		},
 		"etcd": {
 			"dataEncryption": {
-				"keyManagementMode": "PlatformManaged"
+				"customerManaged": {
+					"encryptionType": "KMS",
+					"kms": {
+						"activeKey": {
+							"name": "vc-encryption-key",
+							"vaultName": "vc-key-vault",
+							"version": "2024-12-01-preview"
+						}
+					}
+				},
+				"keyManagementMode": "CustomerManaged"
 			}
 		},
 		"network": {

@@ -62,6 +62,38 @@ pAqEAuV4DNoxQKKWmhVv+J0ptMWD25Pnpxeq5sXzghfJnslJlQND
 
 var dummyAudiences = []string{"audience1", "audience2"}
 
+func spcWithDesiredVersion(version string) *api.ServiceProviderCluster {
+	return &api.ServiceProviderCluster{
+		Spec: api.ServiceProviderClusterSpec{
+			ControlPlaneVersion: api.ServiceProviderClusterSpecVersion{
+				DesiredVersion: ptr.To(semver.MustParse(normalizeDesiredVersionForSemver(version))),
+			},
+		},
+	}
+}
+
+func normalizeDesiredVersionForSemver(version string) string {
+	if strings.Contains(version, "-") {
+		return version
+	}
+	parts := strings.Split(version, ".")
+	if len(parts) >= 3 {
+		return version
+	}
+	if patch, ok := map[string]string{"4.19": "34", "4.20": "25", "4.21": "20", "4.22": "1"}[version]; ok {
+		return version + "." + patch
+	}
+	return version + ".0"
+}
+
+func spcWithDesiredVersionFromHCPCluster(hcpCluster *api.HCPOpenShiftCluster) *api.ServiceProviderCluster {
+	versionID := hcpCluster.CustomerProperties.Version.ID
+	if versionID == "" {
+		versionID = "4.20"
+	}
+	return spcWithDesiredVersion(versionID)
+}
+
 func TestWithImmutableAttributes(t *testing.T) {
 	testCases := []struct {
 		name       string
@@ -168,6 +200,8 @@ func TestWithImmutableAttributes(t *testing.T) {
 			require.NoError(t, arohcpv1alpha1.MarshalCluster(tc.want, &buf))
 			want := buf.String()
 			hcpCluster := api.ClusterTestCase(t, tc.hcpCluster)
+			csVersionID, err := clusterCSVersionID(spcWithDesiredVersionFromHCPCluster(hcpCluster), hcpCluster)
+			require.NoError(t, err)
 			builder, err := withImmutableAttributes(
 				ocmClusterDefaults(api.TestLocation),
 				hcpCluster,
@@ -175,7 +209,7 @@ func TestWithImmutableAttributes(t *testing.T) {
 				api.TestResourceGroupName,
 				api.TestTenantID,
 				api.TestManagedIdentitiesDataPlaneIdentityURL,
-				clusterCSVersionID(nil, hcpCluster),
+				csVersionID,
 			)
 			require.NoError(t, err)
 			result, err := builder.Build()
@@ -225,7 +259,18 @@ func ocmClusterDefaults(azureLocation string) *arohcpv1alpha1.ClusterBuilder {
 		Azure(arohcpv1alpha1.NewAzure().
 			EtcdEncryption(arohcpv1alpha1.NewAzureEtcdEncryption().
 				DataEncryption(arohcpv1alpha1.NewAzureEtcdDataEncryption().
-					KeyManagementMode(csKeyManagementModePlatformManaged))).
+					KeyManagementMode(csKeyManagementModeCustomerManaged).
+					CustomerManaged(arohcpv1alpha1.NewAzureEtcdDataEncryptionCustomerManaged().
+						EncryptionType("kms").
+						Kms(arohcpv1alpha1.NewAzureKmsEncryption().
+							Visibility(arohcpv1alpha1.AzureKmsEncryptionVisibilityPublic).
+							ActiveKey(arohcpv1alpha1.NewAzureKmsKey().
+								KeyName("test-key").
+								KeyVaultName("test-vault").
+								KeyVersion("test-version"),
+							),
+						),
+					))).
 			ManagedResourceGroupName(api.TestManagedResourceGroupName).
 			NetworkSecurityGroupResourceID(api.TestNetworkSecurityGroupResourceID).
 			NodesOutboundConnectivity(arohcpv1alpha1.NewAzureNodesOutboundConnectivity().
@@ -1168,8 +1213,13 @@ func TestBuildCSCluster(t *testing.T) {
 			resourceID, err := azcorearm.ParseResourceID(api.TestClusterResourceID)
 			require.NoError(t, err)
 
+			var serviceProviderCluster *api.ServiceProviderCluster
+			if tc.oldClusterServiceCluster == nil {
+				serviceProviderCluster = spcWithDesiredVersion("4.20.25")
+			}
+
 			// Build actual CS cluster
-			actualClusterBuilder, actualAutoscalerBuilder, err := BuildCSCluster(resourceID, api.TestTenantID, hcpCluster, tc.requiredProperties, tc.oldClusterServiceCluster, nil)
+			actualClusterBuilder, actualAutoscalerBuilder, err := BuildCSCluster(resourceID, api.TestTenantID, hcpCluster, tc.requiredProperties, tc.oldClusterServiceCluster, serviceProviderCluster)
 
 			if tc.expectedError != "" {
 				require.Error(t, err)
@@ -1214,21 +1264,22 @@ func TestClusterCSVersionID(t *testing.T) {
 		spc        *api.ServiceProviderCluster
 		hcpCluster *api.HCPOpenShiftCluster
 		want       string
+		wantError  string
 	}{
 		{
-			name:       "customer version when SPC is nil",
+			name:       "error when SPC is nil",
 			spc:        nil,
 			hcpCluster: hcpCluster("4.20"),
-			want:       "openshift-v4.20.25",
+			wantError:  "control plane desired version is not set on the ServiceProviderCluster",
 		},
 		{
-			name:       "customer version when SPC has no DesiredVersion",
+			name:       "error when SPC has no DesiredVersion",
 			spc:        &api.ServiceProviderCluster{},
 			hcpCluster: hcpCluster("4.20"),
-			want:       "openshift-v4.20.25",
+			wantError:  "control plane desired version is not set on the ServiceProviderCluster",
 		},
 		{
-			name:       "SPC DesiredVersion wins over customer minor",
+			name:       "uses SPC DesiredVersion",
 			spc:        spcWithDesired("4.20.8"),
 			hcpCluster: hcpCluster("4.20"),
 			want:       "openshift-v4.20.8",
@@ -1237,7 +1288,14 @@ func TestClusterCSVersionID(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			assert.Equal(t, tc.want, clusterCSVersionID(tc.spc, tc.hcpCluster))
+			got, err := clusterCSVersionID(tc.spc, tc.hcpCluster)
+			if tc.wantError != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tc.wantError)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, got)
 		})
 	}
 }

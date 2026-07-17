@@ -322,7 +322,10 @@ func NewDefaultHCPOpenShiftCluster(resourceID *azcorearm.ResourceID, azureLocati
 				MaxNodeProvisionTimeSeconds: DefaultClusterMaxNodeProvisionTimeSeconds,
 				PodPriorityThreshold:        DefaultClusterPodPriorityThreshold,
 			},
-			//Even though PlatformManaged Mode is currently not supported by CS . This is the default value .
+			// PlatformManaged is still the default for absent values (EnsureDefaults / Cosmos
+			// documents), but it is rejected by ValidEtcdDataEncryptionKeyManagementModeType
+			// until platform-managed etcd encryption is supported. CustomerManaged must be set
+			// for a create request to succeed.
 			Etcd: EtcdProfile{
 				DataEncryption: EtcdDataEncryptionProfile{
 					KeyManagementMode: EtcdDataEncryptionKeyManagementModeTypePlatformManaged,

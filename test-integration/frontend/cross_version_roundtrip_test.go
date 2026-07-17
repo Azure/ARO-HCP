@@ -198,7 +198,17 @@ func clusterCreatePayload(clusterName, apiVersion string) []byte {
     },
     "etcd": {
       "dataEncryption": {
-        "keyManagementMode": "PlatformManaged"
+        "customerManaged": {
+          "encryptionType": "KMS",
+          "kms": {
+            "activeKey": {
+              "name": "vc-encryption-key",
+              "vaultName": "vc-key-vault",
+              "version": "2024-12-01-preview"
+            }
+          }
+        },
+        "keyManagementMode": "CustomerManaged"
       }
     },
     "network": {
@@ -248,7 +258,18 @@ func clusterCreatePayload(clusterName, apiVersion string) []byte {
     },
     "etcd": {
       "dataEncryption": {
-        "keyManagementMode": "PlatformManaged"
+        "customerManaged": {
+          "encryptionType": "KMS",
+          "kms": {
+            "activeKey": {
+              "name": "vc-encryption-key",
+              "version": "2024-12-01-preview"
+            },
+            "vaultName": "vc-key-vault",
+            "visibility": "Public"
+          }
+        },
+        "keyManagementMode": "CustomerManaged"
       }
     },
     "nodeDrainTimeoutMinutes": 15,
@@ -300,7 +321,18 @@ func clusterCreatePayload(clusterName, apiVersion string) []byte {
     },
     "etcd": {
       "dataEncryption": {
-        "keyManagementMode": "PlatformManaged"
+        "customerManaged": {
+          "encryptionType": "KMS",
+          "kms": {
+            "activeKey": {
+              "name": "vc-encryption-key",
+              "version": "2024-12-01-preview"
+            },
+            "vaultName": "vc-key-vault",
+            "visibility": "Public"
+          }
+        },
+        "keyManagementMode": "CustomerManaged"
       }
     },
     "ingress": {
@@ -358,6 +390,13 @@ func createClusterAndComplete(
 	require.NoError(t, integrationutils.MarkOperationsCompleteForName(ctx, testInfo.ResourcesDBClient(), subscriptionID, parsedID.Name))
 
 	createServiceProviderClusterForTesting(t, ctx, testInfo, clusterName, "4.20.8")
+
+	// Deliberately not stamping a ClusterServiceID on the cluster here (unlike
+	// createNodePoolAndComplete): cluster updates still synchronously call out to
+	// Cluster Service (GetCluster/UpdateCluster) when ServiceProviderProperties.ClusterServiceID
+	// is set, and most callers of this helper immediately PUT/PATCH the cluster afterward via
+	// a different API version. Child resource helpers stamp the parent cluster's CS ID explicitly
+	// before creating node pools or external auths.
 }
 
 // createServiceProviderClusterForTesting inserts a serviceProviderCluster document
@@ -619,6 +658,11 @@ func createNodePoolAndComplete(
 	t.Helper()
 
 	resourceID := nodePoolResourceID(clusterName, nodePoolName)
+	require.NoError(t, integrationutils.StampRandomClusterServiceID(
+		ctx,
+		testInfo.ResourcesDBClient(),
+		clusterResourceID(clusterName),
+	))
 	accessor := databasemutationhelpers.NewVersionedHTTPTestAccessor(testInfo.FrontendURL, apiVersion)
 	require.NoError(t, accessor.CreateOrUpdate(ctx, resourceID, nodePoolCreatePayload(nodePoolName, apiVersion)))
 
@@ -626,13 +670,7 @@ func createNodePoolAndComplete(
 	require.NoError(t, integrationutils.MarkOperationsCompleteForName(ctx, testInfo.ResourcesDBClient(), subscriptionID, parsedID.Name))
 
 	// Setting the Cluster Service ID for the node pool is needed until we move all cs interactions to the backend.
-	csID, err := integrationutils.DeriveClusterServiceID(
-		ctx,
-		testInfo.ResourcesDBClient(),
-		testInfo.ClusterServiceMock,
-		t.Name(),
-		resourceID,
-	)
+	csID, err := integrationutils.CalculateClusterServiceIDFromNodePoolResourceID(ctx, testInfo.ResourcesDBClient(), resourceID)
 	require.NoError(t, err)
 	require.NoError(t, integrationutils.SetClusterServiceID(ctx, testInfo.ResourcesDBClient(), resourceID, csID))
 }
@@ -691,11 +729,21 @@ func createExternalAuthAndComplete(
 	t.Helper()
 
 	resourceID := externalAuthResourceID(clusterName, authName)
+	require.NoError(t, integrationutils.StampRandomClusterServiceID(
+		ctx,
+		testInfo.ResourcesDBClient(),
+		clusterResourceID(clusterName),
+	))
 	accessor := databasemutationhelpers.NewVersionedHTTPTestAccessor(testInfo.FrontendURL, apiVersion)
 	require.NoError(t, accessor.CreateOrUpdate(ctx, resourceID, externalAuthCreatePayload(apiVersion)))
 
 	parsedID := api.Must(azcorearm.ParseResourceID(resourceID))
 	require.NoError(t, integrationutils.MarkOperationsCompleteForName(ctx, testInfo.ResourcesDBClient(), subscriptionID, parsedID.Name))
+
+	// Setting the Cluster Service ID for the external auth is needed until we move all cs interactions to the backend.
+	csID, err := integrationutils.CalculateClusterServiceIDFromExternalAuthResourceID(ctx, testInfo.ResourcesDBClient(), resourceID)
+	require.NoError(t, err)
+	require.NoError(t, integrationutils.SetClusterServiceID(ctx, testInfo.ResourcesDBClient(), resourceID, csID))
 }
 
 // getResourceResponse returns the resource GET response as raw JSON bytes and

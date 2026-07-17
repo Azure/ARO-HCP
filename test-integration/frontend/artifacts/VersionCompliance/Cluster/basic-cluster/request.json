@@ -8,6 +8,21 @@
 		"api": {
 			"visibility": "Public"
 		},
+		"etcd": {
+			"dataEncryption": {
+				"customerManaged": {
+					"encryptionType": "KMS",
+					"kms": {
+						"activeKey": {
+							"name": "vc-encryption-key",
+							"vaultName": "vc-key-vault",
+							"version": "2024-12-01-preview"
+						}
+					}
+				},
+				"keyManagementMode": "CustomerManaged"
+			}
+		},
 		"network": {
 			"hostPrefix": 23,
 			"machineCidr": "10.0.0.0/16",

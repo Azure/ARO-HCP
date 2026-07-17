@@ -17,7 +17,9 @@ package validation
 import (
 	"context"
 	"fmt"
+	"maps"
 	"net"
+	"slices"
 	"strings"
 
 	"github.com/blang/semver/v4"
@@ -173,8 +175,12 @@ func validateResourceIDsAgainstClusterID(ctx context.Context, op operation.Opera
 
 	// Validate that managed resource group is different from cluster resource group
 	errs = append(errs, DifferentResourceGroupName(ctx, op, field.NewPath("customerProperties", "platform", "managedResourceGroup"), &newCluster.CustomerProperties.Platform.ManagedResourceGroup, nil, newCluster.ID.ResourceGroupName)...)
+	// NOTE: Our admission logic expects that the subnet and network security group are in the same subscription as the cluster.
+	// If these validations are removed, the admission logic should also be updated.
 	errs = append(errs, SameSubscription(ctx, op, field.NewPath("customerProperties", "platform", "subnetId"), newCluster.CustomerProperties.Platform.SubnetID, nil, newCluster.ID.SubscriptionID)...)
 	errs = append(errs, DifferentResourceGroupNameFromResourceID(ctx, op, field.NewPath("customerProperties", "platform", "subnetId"), newCluster.CustomerProperties.Platform.SubnetID, nil, newCluster.CustomerProperties.Platform.ManagedResourceGroup)...)
+	errs = append(errs, SameSubscription(ctx, op, field.NewPath("customerProperties", "platform", "networkSecurityGroupId"), newCluster.CustomerProperties.Platform.NetworkSecurityGroupID, nil, newCluster.ID.SubscriptionID)...)
+	errs = append(errs, DifferentResourceGroupNameFromResourceID(ctx, op, field.NewPath("customerProperties", "platform", "networkSecurityGroupId"), newCluster.CustomerProperties.Platform.NetworkSecurityGroupID, nil, newCluster.CustomerProperties.Platform.ManagedResourceGroup)...)
 	errs = append(errs, SameSubscription(ctx, op, field.NewPath("customerProperties", "platform", "vnetIntegrationSubnetId"), newCluster.CustomerProperties.Platform.VnetIntegrationSubnetID, nil, newCluster.ID.SubscriptionID)...)
 
 	for operatorName, operatorIdentity := range newCluster.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators {
@@ -622,6 +628,7 @@ func validateCustomerPlatformProfile(ctx context.Context, op operation.Operation
 		errs = append(errs, RestrictedResourceIDWithResourceGroup(ctx, op, fldPath.Child("vnetIntegrationSubnetId"), newObj.VnetIntegrationSubnetID, safe.Field(oldObj, toPlatformVnetIntegrationSubnetID), "Microsoft.Network/virtualNetworks/subnets")...)
 		errs = append(errs, DifferentResourceGroupNameFromResourceID(ctx, op, fldPath.Child("vnetIntegrationSubnetId"), newObj.VnetIntegrationSubnetID, nil, newObj.ManagedResourceGroup)...)
 		// SameSubscription is validated in validateResourceIDsAgainstClusterID against cluster subscription
+		errs = append(errs, SameVirtualNetwork(ctx, op, fldPath.Child("vnetIntegrationSubnetId"), newObj.VnetIntegrationSubnetID, nil, newObj.SubnetID)...)
 	}
 
 	//OutboundType            OutboundType                   `json:"outboundType,omitempty"`
@@ -633,6 +640,9 @@ func validateCustomerPlatformProfile(ctx context.Context, op operation.Operation
 	errs = append(errs, validate.RequiredPointer(ctx, op, fldPath.Child("networkSecurityGroupId"), newObj.NetworkSecurityGroupID, safe.Field(oldObj, toPlatformNetworkSecurityGroupID))...)
 	errs = append(errs, immutableByReflect(ctx, op, fldPath.Child("networkSecurityGroupId"), newObj.NetworkSecurityGroupID, safe.Field(oldObj, toPlatformNetworkSecurityGroupID))...)
 	errs = append(errs, RestrictedResourceIDWithResourceGroup(ctx, op, fldPath.Child("networkSecurityGroupId"), newObj.NetworkSecurityGroupID, safe.Field(oldObj, toPlatformNetworkSecurityGroupID), "Microsoft.Network/networkSecurityGroups")...)
+	// Note: SameSubscription and DifferentResourceGroupNameFromResourceID for
+	// networkSecurityGroupId are performed at the cluster peer-field level in
+	// validateResourceIDsAgainstClusterID.
 
 	//OperatorsAuthentication OperatorsAuthenticationProfile `json:"operatorsAuthentication,omitempty"`
 	errs = append(errs, immutableByReflect(ctx, op, fldPath.Child("operatorsAuthentication"), &newObj.OperatorsAuthentication, safe.Field(oldObj, toPlatformOperatorsAuthentication))...)
@@ -725,6 +735,45 @@ func validateUserAssignedIdentitiesProfile(ctx context.Context, op operation.Ope
 	//ServiceManagedIdentity string            `json:"serviceManagedIdentity,omitempty"`
 	errs = append(errs, immutableByReflect(ctx, op, fldPath.Child("serviceManagedIdentity"), newObj.ServiceManagedIdentity, safe.Field(oldObj, toUserAssignedIdentitiesServiceManagedIdentity))...)
 	errs = append(errs, RestrictedResourceIDWithResourceGroup(ctx, op, fldPath.Child("serviceManagedIdentity"), newObj.ServiceManagedIdentity, safe.Field(oldObj, toUserAssignedIdentitiesServiceManagedIdentity), "Microsoft.ManagedIdentity/userAssignedIdentities")...)
+
+	// Managed identity resource IDs must be unique across control-plane operators,
+	// data-plane operators, and the service managed identity within a cluster
+	errs = append(errs, validateManagedIdentitiesUniqueWithinCluster(fldPath, newObj)...)
+
+	return errs
+}
+
+// validateManagedIdentitiesUniqueWithinCluster ensures that each managed identity
+// resource ID used by control-plane operators, data-plane operators, or the
+// service managed identity appears at most once within the cluster.
+// This restriction may be relaxed in the future following investigation and decisions in ARO-21615.
+func validateManagedIdentitiesUniqueWithinCluster(fldPath *field.Path, newObj *api.UserAssignedIdentitiesProfile) field.ErrorList {
+	observed := map[string]*field.Path{}
+	var errs field.ErrorList
+
+	record := func(identity *azcorearm.ResourceID, identityPath *field.Path) {
+		if identity == nil {
+			return
+		}
+		key := strings.ToLower(identity.String())
+		if _, ok := observed[key]; ok {
+			errs = append(errs, field.Invalid(
+				identityPath,
+				identity.String(),
+				fmt.Sprintf("managed identity with resource id '%s' must be unique within the cluster", identity.String()),
+			))
+			return
+		}
+		observed[key] = identityPath
+	}
+
+	for _, operatorName := range slices.Sorted(maps.Keys(newObj.ControlPlaneOperators)) {
+		record(newObj.ControlPlaneOperators[operatorName], fldPath.Child("controlPlaneOperators").Key(operatorName))
+	}
+	for _, operatorName := range slices.Sorted(maps.Keys(newObj.DataPlaneOperators)) {
+		record(newObj.DataPlaneOperators[operatorName], fldPath.Child("dataPlaneOperators").Key(operatorName))
+	}
+	record(newObj.ServiceManagedIdentity, fldPath.Child("serviceManagedIdentity"))
 
 	return errs
 }

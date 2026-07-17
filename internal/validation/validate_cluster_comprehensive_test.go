@@ -369,7 +369,7 @@ func TestValidateClusterCreate(t *testing.T) {
 			name: "wrong NSG resource type - create",
 			cluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.CustomerProperties.Platform.NetworkSecurityGroupID = api.Must(azcorearm.ParseResourceID("/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks/test-vnet"))
+				c.CustomerProperties.Platform.NetworkSecurityGroupID = api.Must(azcorearm.ParseResourceID("/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks/test-vnet"))
 				return c
 			}(),
 			expectErrors: []utils.ExpectedError{
@@ -392,6 +392,19 @@ func TestValidateClusterCreate(t *testing.T) {
 			cluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
 				c.CustomerProperties.Etcd.DataEncryption.KeyManagementMode = "InvalidMode"
+				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged = nil
+				return c
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "Unsupported value", FieldPath: "customerProperties.etcd.dataEncryption.keyManagementMode"},
+			},
+		},
+		{
+			name: "platform managed etcd encryption is not supported - create",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Etcd.DataEncryption.KeyManagementMode = api.EtcdDataEncryptionKeyManagementModeTypePlatformManaged
+				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged = nil
 				return c
 			}(),
 			expectErrors: []utils.ExpectedError{
@@ -670,6 +683,46 @@ func TestValidateClusterCreate(t *testing.T) {
 				return c
 			}(),
 			expectErrors: []utils.ExpectedError{
+				{Message: "must be unique within the cluster", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators"},
+				{Message: "identity is used multiple times", FieldPath: "identity.userAssignedIdentities[/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/shared-identity]"},
+			},
+		},
+		{
+			name: "duplicate managed identity across data plane operators - create",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				sharedIdentityID := "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/shared-dataplane-identity"
+				sharedIdentity := api.Must(azcorearm.ParseResourceID(sharedIdentityID))
+				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators = map[string]*azcorearm.ResourceID{
+					"dataplane-operator-1": sharedIdentity,
+					"dataplane-operator-2": sharedIdentity,
+				}
+				return c
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "must be unique within the cluster", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.dataPlaneOperators"},
+			},
+		},
+		{
+			name: "duplicate managed identity between control plane and service managed identity - create",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				identityID := "/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/shared-identity"
+				identityResourceID := api.Must(azcorearm.ParseResourceID(identityID))
+				c.Identity = &arm.ManagedServiceIdentity{
+					Type: arm.ManagedServiceIdentityTypeUserAssigned,
+					UserAssignedIdentities: map[string]*arm.UserAssignedIdentity{
+						identityID: {},
+					},
+				}
+				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators = map[string]*azcorearm.ResourceID{
+					"test-operator": identityResourceID,
+				}
+				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity = identityResourceID
+				return c
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "must be unique within the cluster", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.serviceManagedIdentity"},
 				{Message: "identity is used multiple times", FieldPath: "identity.userAssignedIdentities[/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/shared-identity]"},
 			},
 		},
@@ -744,6 +797,7 @@ func TestValidateClusterCreate(t *testing.T) {
 			}(),
 			expectErrors: []utils.ExpectedError{
 				{Message: "must not be the same resource group name", FieldPath: "customerProperties.platform.subnetId"},
+				{Message: "must not be the same resource group name", FieldPath: "customerProperties.platform.networkSecurityGroupId"},
 				{Message: "must not be the same resource group name", FieldPath: "customerProperties.platform.vnetIntegrationSubnetId"},
 				{Message: "must not be the same resource group name", FieldPath: "customerProperties.platform.managedResourceGroup"},
 				{Message: "must not be the same resource group name", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators[test-operator]"},
@@ -758,7 +812,30 @@ func TestValidateClusterCreate(t *testing.T) {
 				return c
 			}(),
 			expectErrors: []utils.ExpectedError{
+				{Message: "must belong to the same VNet as subnetId", FieldPath: "customerProperties.platform.vnetIntegrationSubnetId"},
 				{Message: "must be in the same Azure subscription", FieldPath: "customerProperties.platform.subnetId"},
+			},
+		},
+		{
+			name: "network security group in different subscription - create",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Platform.NetworkSecurityGroupID = api.Must(azcorearm.ParseResourceID("/subscriptions/different-sub/resourceGroups/test-rg/providers/Microsoft.Network/networkSecurityGroups/test-nsg"))
+				return c
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "must be in the same Azure subscription", FieldPath: "customerProperties.platform.networkSecurityGroupId"},
+			},
+		},
+		{
+			name: "network security group in managed resource group - create",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Platform.NetworkSecurityGroupID = api.Must(azcorearm.ParseResourceID("/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/managed-rg/providers/Microsoft.Network/networkSecurityGroups/test-nsg"))
+				return c
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "must not be the same resource group name", FieldPath: "customerProperties.platform.networkSecurityGroupId"},
 			},
 		},
 		{
@@ -788,6 +865,7 @@ func TestValidateClusterCreate(t *testing.T) {
 				return c
 			}(),
 			expectErrors: []utils.ExpectedError{
+				{Message: "must belong to the same VNet as subnetId", FieldPath: "customerProperties.platform.vnetIntegrationSubnetId"},
 				{Message: "must be in the same Azure subscription", FieldPath: "customerProperties.platform.vnetIntegrationSubnetId"},
 			},
 		},
@@ -801,6 +879,18 @@ func TestValidateClusterCreate(t *testing.T) {
 			}(),
 			expectErrors: []utils.ExpectedError{
 				{Message: "must not be the same resource group name", FieldPath: "customerProperties.platform.vnetIntegrationSubnetId"},
+				{Message: "must belong to the same VNet as subnetId", FieldPath: "customerProperties.platform.vnetIntegrationSubnetId"},
+			},
+		},
+		{
+			name: "vnet integration subnet in different VNet - create",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Platform.VnetIntegrationSubnetID = api.Must(azcorearm.ParseResourceID("/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.Network/virtualNetworks/other-vnet/subnets/test-vnet-integration-subnet"))
+				return c
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "must belong to the same VNet as subnetId", FieldPath: "customerProperties.platform.vnetIntegrationSubnetId"},
 			},
 		},
 		{
@@ -1595,6 +1685,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 			expectErrors: []utils.ExpectedError{
 				{Message: "field is immutable", FieldPath: "customerProperties.platform"},
 				{Message: "field is immutable", FieldPath: "customerProperties.platform.vnetIntegrationSubnetId"},
+				{Message: "must belong to the same VNet as subnetId", FieldPath: "customerProperties.platform.vnetIntegrationSubnetId"},
 				{Message: "must be in the same Azure subscription", FieldPath: "customerProperties.platform.vnetIntegrationSubnetId"},
 			},
 		},
@@ -1607,7 +1698,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 			}(),
 			oldCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.CustomerProperties.Platform.VnetIntegrationSubnetID = api.Must(azcorearm.ParseResourceID("/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks/test-vnet/subnets/old-vnet-integration-subnet"))
+				c.CustomerProperties.Platform.VnetIntegrationSubnetID = api.Must(azcorearm.ParseResourceID("/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.Network/virtualNetworks/test-vnet/subnets/old-vnet-integration-subnet"))
 				return c
 			}(),
 			expectErrors: []utils.ExpectedError{
@@ -1619,12 +1710,12 @@ func TestValidateClusterUpdate(t *testing.T) {
 			name: "valid vnet integration subnet unchanged - update",
 			newCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.CustomerProperties.Platform.VnetIntegrationSubnetID = api.Must(azcorearm.ParseResourceID("/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks/test-vnet/subnets/vnet-integration-subnet"))
+				c.CustomerProperties.Platform.VnetIntegrationSubnetID = api.Must(azcorearm.ParseResourceID("/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.Network/virtualNetworks/test-vnet/subnets/vnet-integration-subnet"))
 				return c
 			}(),
 			oldCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.CustomerProperties.Platform.VnetIntegrationSubnetID = api.Must(azcorearm.ParseResourceID("/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks/test-vnet/subnets/vnet-integration-subnet"))
+				c.CustomerProperties.Platform.VnetIntegrationSubnetID = api.Must(azcorearm.ParseResourceID("/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.Network/virtualNetworks/test-vnet/subnets/vnet-integration-subnet"))
 				return c
 			}(),
 		},
@@ -1645,7 +1736,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 			name: "cannot add vnet integration subnet on update - update",
 			newCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.CustomerProperties.Platform.VnetIntegrationSubnetID = api.Must(azcorearm.ParseResourceID("/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks/test-vnet/subnets/new-vnet-integration-subnet"))
+				c.CustomerProperties.Platform.VnetIntegrationSubnetID = api.Must(azcorearm.ParseResourceID("/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.Network/virtualNetworks/test-vnet/subnets/new-vnet-integration-subnet"))
 				return c
 			}(),
 			oldCluster: func() *api.HCPOpenShiftCluster {
@@ -1663,17 +1754,17 @@ func TestValidateClusterUpdate(t *testing.T) {
 			newCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
 				c.CustomerProperties.Etcd.DataEncryption.KeyManagementMode = api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged
+				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged = nil
 				return c
 			}(),
 			oldCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.CustomerProperties.Etcd.DataEncryption.KeyManagementMode = api.EtcdDataEncryptionKeyManagementModeTypePlatformManaged
 				return c
 			}(),
 			expectErrors: []utils.ExpectedError{
 				{Message: "field is immutable", FieldPath: "customerProperties.etcd"},
 				{Message: "field is immutable", FieldPath: "customerProperties.etcd.dataEncryption"},
-				{Message: "field is immutable", FieldPath: "customerProperties.etcd.dataEncryption.keyManagementMode"},
+				{Message: "field is immutable", FieldPath: "customerProperties.etcd.dataEncryption.customerManaged"},
 				{Message: "must be specified when `keyManagementMode` is \"CustomerManaged\"", FieldPath: "customerProperties.etcd.dataEncryption.customerManaged"},
 			},
 		},
@@ -2453,6 +2544,20 @@ func createValidCluster() *api.HCPOpenShiftCluster {
 	}
 
 	cluster.ServiceProviderProperties.ManagedIdentitiesDataPlaneIdentityURL = api.TestManagedIdentitiesDataPlaneIdentityURL
+
+	// PlatformManaged etcd encryption is not currently supported; require CustomerManaged for a valid cluster.
+	cluster.CustomerProperties.Etcd.DataEncryption.KeyManagementMode = api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged
+	cluster.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &api.CustomerManagedEncryptionProfile{
+		EncryptionType: api.CustomerManagedEncryptionTypeKMS,
+		Kms: &api.KmsEncryptionProfile{
+			Visibility: api.KeyVaultVisibilityPublic,
+			ActiveKey: api.KmsKey{
+				Name:      "test-key",
+				VaultName: "test-vault",
+				Version:   "test-version",
+			},
+		},
+	}
 
 	return cluster
 }

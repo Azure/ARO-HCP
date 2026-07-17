@@ -92,10 +92,9 @@ func TestOperationsList(t *testing.T) {
 		reg,
 		mockResourcesDBClient,
 		nil,
-		nil,
 		newNoopAuditClient(t),
 		api.TestLocation,
-		"", false, false, true,
+		true,
 	)
 
 	ctx := utils.ContextWithLogger(t.Context(), testr.New(t))
@@ -195,11 +194,10 @@ func TestSubscriptionsGET(t *testing.T) {
 				reg,
 				reg,
 				mockResourcesDBClient,
-				databasetesting.NewMockLocksDBClient(),
 				nil,
 				newNoopAuditClient(t),
 				api.TestLocation,
-				"", false, false, true,
+				true,
 			)
 
 			// Pre-populate subscription in the mock database
@@ -345,11 +343,10 @@ func TestSubscriptionsPUT(t *testing.T) {
 				reg,
 				reg,
 				mockResourcesDBClient,
-				databasetesting.NewMockLocksDBClient(),
 				nil,
 				newNoopAuditClient(t),
 				api.TestLocation,
-				"", false, false, true,
+				true,
 			)
 
 			body, err := json.Marshal(&test.subscription)
@@ -436,6 +433,22 @@ func TestDeploymentPreflight(t *testing.T) {
 						"subnetId":               api.TestSubnetResourceID,
 						"networkSecurityGroupId": api.TestNetworkSecurityGroupResourceID,
 					},
+					"etcd": map[string]any{
+						"dataEncryption": map[string]any{
+							"keyManagementMode": "CustomerManaged",
+							"customerManaged": map[string]any{
+								"encryptionType": "KMS",
+								"kms": map[string]any{
+									"visibility": "Public",
+									"activeKey": map[string]any{
+										"name":      "test-key",
+										"vaultName": "test-vault",
+										"version":   "test-version",
+									},
+								},
+							},
+						},
+					},
 				},
 			},
 			expectStatus: arm.DeploymentPreflightStatusSucceeded,
@@ -474,6 +487,9 @@ func TestDeploymentPreflight(t *testing.T) {
 				{message: "Required value", target: "properties.version.id"},
 				{message: "Invalid value: \"invalidCidr\": invalid CIDR address: invalidCidr", target: "properties.network.podCidr"},
 				{message: "Unsupported value: \"invisible\": supported values: \"Private\", \"Public\"", target: "properties.api.visibility"},
+				{message: "Required value", target: "properties.platform.subnetId"},
+				{message: "Required value", target: "properties.platform.networkSecurityGroupId"},
+				{message: "Unsupported value: \"PlatformManaged\": supported values: \"CustomerManaged\"", target: "properties.etcd.dataEncryption.keyManagementMode"},
 				{message: "Required value", target: "properties.platform.subnetId"},
 				{message: "Required value", target: "properties.platform.networkSecurityGroupId"},
 			},
@@ -565,11 +581,10 @@ func TestDeploymentPreflight(t *testing.T) {
 				reg,
 				reg,
 				mockResourcesDBClient,
-				databasetesting.NewMockLocksDBClient(),
 				nil,
 				newNoopAuditClient(t),
 				api.TestLocation,
-				"", false, false, true,
+				true,
 			)
 
 			subs := map[string]*arm.Subscription{
@@ -691,11 +706,10 @@ func TestRequestAdminCredential(t *testing.T) {
 				reg,
 				reg,
 				mockResourcesDBClient,
-				databasetesting.NewMockLocksDBClient(),
 				nil,
 				newNoopAuditClient(t),
 				api.TestLocation,
-				"", false, false, true,
+				true,
 			)
 
 			// Pre-populate the mock database with cluster and subscription
@@ -806,11 +820,10 @@ func TestRevokeCredentials(t *testing.T) {
 				reg,
 				reg,
 				mockResourcesDBClient,
-				databasetesting.NewMockLocksDBClient(),
 				nil,
 				newNoopAuditClient(t),
 				api.TestLocation,
-				"", false, false, true,
+				true,
 			)
 
 			// Pre-populate the mock database with cluster

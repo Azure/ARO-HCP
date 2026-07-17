@@ -400,7 +400,6 @@ func (f *Frontend) routes(r prometheus.Registerer) http.Handler {
 		MiddlewareResourceID,
 		MiddlewareLoggingPostMux,
 		newMiddlewareValidatedAPIVersion(f.apiRegistry).handleRequest,
-		newMiddlewareLockSubscription(f.locksDBClient).handleRequest,
 		newMiddlewareValidateSubscriptionState(f.resourcesDBClient).handleRequest)
 	middlewareMux.Handle(
 		MuxPattern(http.MethodPut, PatternSubscriptions, PatternResourceGroups, PatternProviders, PatternClusters),
@@ -472,8 +471,7 @@ func (f *Frontend) routes(r prometheus.Registerer) http.Handler {
 		postMuxMiddleware.HandlerFunc(errorutils.ReportError(f.ArmSubscriptionGet)))
 	postMuxMiddleware = NewMiddleware(
 		MiddlewareResourceID,
-		MiddlewareLoggingPostMux,
-		newMiddlewareLockSubscription(f.locksDBClient).handleRequest)
+		MiddlewareLoggingPostMux)
 	middlewareMux.Handle(
 		MuxPattern(http.MethodPut, PatternSubscriptions),
 		postMuxMiddleware.HandlerFunc(errorutils.ReportError(f.ArmSubscriptionPut)))
