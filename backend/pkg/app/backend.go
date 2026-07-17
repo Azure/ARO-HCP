@@ -535,8 +535,6 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		activeOperationInformer,
 	)
 	clusterServiceMatchingClusterController := mismatchcontrollers.NewClusterServiceClusterMatchingController(b.options.ResourcesDBClient, subscriptionLister, b.options.ClustersServiceClient)
-	cosmosMatchingNodePoolController := mismatchcontrollers.NewCosmosNodePoolMatchingController(b.options.ResourcesDBClient, b.options.ClustersServiceClient, backendInformers, unionKubeApplierInformers)
-	cosmosMatchingExternalAuthController := mismatchcontrollers.NewCosmosExternalAuthMatchingController(b.options.ResourcesDBClient, b.options.ClustersServiceClient, backendInformers, unionKubeApplierInformers)
 	alwaysSuccessClusterValidationController := validationcontrollers.NewClusterValidationController(
 		validations.NewAlwaysSuccessValidation(),
 		b.options.ResourcesDBClient,
@@ -853,8 +851,6 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go operationRequestCredentialController.Run(ctx, 20)
 				go operationRevokeCredentialsController.Run(ctx, 20)
 				go clusterServiceMatchingClusterController.Run(ctx, 20)
-				go cosmosMatchingNodePoolController.Run(ctx, 20)
-				go cosmosMatchingExternalAuthController.Run(ctx, 20)
 				go alwaysSuccessClusterValidationController.Run(ctx, 20)
 				go deleteOrphanedCosmosResourcesController.Run(ctx, 20)
 				go backfillClusterUIDController.Run(ctx, 20)
