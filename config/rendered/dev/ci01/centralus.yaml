@@ -1,12 +1,12 @@
 acm:
   mce:
     bundle:
-      digest: sha256:47beac975e52f1833397c3999491e196a4eabe4c49138127797727086053575b
+      digest: sha256:0f798390e9682718afe3b90b80e0702b01902592f99a9d43ae669684b9faf15d
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-211
   operator:
     bundle:
-      digest: sha256:f0b769de75d2bc933553b0c4676f3b2fc48ce85c30f486555e2eb66b4f00e88c
+      digest: sha256:58ba3608e3423f63b89793b5e64a7227bf71c161ce9a3b29ba8bc59527d10555
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-216
 acr:
@@ -447,7 +447,7 @@ hcpRecovery:
 hypershift:
   additionalInstallArg: --enable-cpo-overrides
   image:
-    digest: sha256:d86fee2d08417c85259c6d0340fcf3c848e13d66009a6d659f1200af8ea1c4e9
+    digest: sha256:52af60dc5524695f8ceff43e7efba9755dd631d0f9f7a1b36f8432c4d7c2fbea
     registry: quay.io
     repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
   limitClusterSizes: true
@@ -465,7 +465,7 @@ imageSync:
   ocMirror:
     enabled: true
     image:
-      digest: sha256:2d647c97b47599b00b711b10696cd0b4e6a19da9ba2973cb771f24d6b7301728
+      digest: sha256:f2fd6ce747fd92270b4c5efa78e8f5a5cd409113f306e027b9cae4e8cbb04a2f
       registry: arohcpsvcdev.azurecr.io
       repository: image-sync/oc-mirror
     jobNamePrefix: ""
@@ -1096,14 +1096,14 @@ svc:
 tenantId: 64dc69e4-d083-49fc-9569-ebece1dd1408
 velero:
   azurePlugin:
-    digest: sha256:7ab4ce36f7781ffb85cbe377dd7f99aff0cf58bd8233db28d6b4d87a0bb48218
+    digest: sha256:a14dff80dadf5608e4a340204e1af8d8100874b8a4f7398190239fcb245501c6
     registry: registry.stage.redhat.io
     repository: oadp/oadp-velero-plugin-for-microsoft-azure-rhel9
   hypershiftPlugin:
-    digest: sha256:327b3ef02f3580dd28ab5ecf5f30c509708275733cf5eeb609be7dc8a523ffce
+    digest: sha256:1131a2419d8ba9ba1c4a916b7be62281452c62f13394adf9892ad82a682184de
     registry: registry.stage.redhat.io
     repository: oadp/oadp-hypershift-velero-plugin-rhel9
   server:
-    digest: sha256:47123c8d7d2b251ed06f6a6842474a96107ef40f6098b75c34cc50ed3ddebfbe
+    digest: sha256:438b40f9cb4c76e5d4aed644d78a10aa8c70ea4f161b94eacbed12dc9212b6e9
     registry: registry.stage.redhat.io
     repository: oadp/oadp-velero-rhel9
