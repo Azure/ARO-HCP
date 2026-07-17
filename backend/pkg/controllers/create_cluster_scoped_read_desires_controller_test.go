@@ -28,8 +28,8 @@ import (
 	hsv1beta1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
+	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listertesting"
-	"github.com/Azure/ARO-HCP/backend/pkg/maestrohelpers"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
@@ -138,7 +138,7 @@ func TestCreateClusterScopedReadDesires_SyncOnce(t *testing.T) {
 				require.NoError(t, err)
 				assert.Equal(t, hostedClusterTarget(readDesireTestEnvIdentifier, "abc123", readDesireTestDomainPrefix), hostedClusterRD.Spec.TargetItem)
 
-				autoscalerRD, err := crud.Get(ctx, maestrohelpers.ReadDesireNameReadonlyHypershiftControlPlaneComponentClusterAutoscaler)
+				autoscalerRD, err := crud.Get(ctx, kubeapplierhelpers.ReadDesireNameReadonlyHypershiftControlPlaneComponentClusterAutoscaler)
 				require.NoError(t, err)
 				assert.Equal(t, clusterAutoscalerTarget(readDesireTestEnvIdentifier, "abc123", readDesireTestDomainPrefix), autoscalerRD.Spec.TargetItem)
 				assert.Equal(t, "controlplanecomponents", autoscalerRD.Spec.TargetItem.Resource)
@@ -164,7 +164,7 @@ func TestCreateClusterScopedReadDesires_SyncOnce(t *testing.T) {
 				_, err = crud.Get(ctx, readDesireNameReadonlyHostedCluster)
 				require.NoError(t, err)
 
-				autoscalerRD, err := crud.Get(ctx, maestrohelpers.ReadDesireNameReadonlyHypershiftControlPlaneComponentClusterAutoscaler)
+				autoscalerRD, err := crud.Get(ctx, kubeapplierhelpers.ReadDesireNameReadonlyHypershiftControlPlaneComponentClusterAutoscaler)
 				require.NoError(t, err)
 				assert.Equal(t, clusterAutoscalerTarget(readDesireTestEnvIdentifier, "abc123", readDesireTestDomainPrefix), autoscalerRD.Spec.TargetItem)
 			},
@@ -207,7 +207,7 @@ func TestCreateClusterScopedReadDesires_SyncOnce(t *testing.T) {
 			kubeApplierDesires: []any{
 				buildReadDesire(
 					kubeapplier.ToClusterScopedReadDesireResourceIDString(
-						readDesireTestSubscriptionID, readDesireTestResourceGroupName, readDesireTestClusterName, maestrohelpers.ReadDesireNameReadonlyHypershiftControlPlaneComponentClusterAutoscaler),
+						readDesireTestSubscriptionID, readDesireTestResourceGroupName, readDesireTestClusterName, kubeapplierhelpers.ReadDesireNameReadonlyHypershiftControlPlaneComponentClusterAutoscaler),
 					readDesireTestManagementClusterResourceID,
 					clusterAutoscalerTarget(readDesireTestEnvIdentifier, "abc123", "old-prefix"),
 				),
@@ -216,7 +216,7 @@ func TestCreateClusterScopedReadDesires_SyncOnce(t *testing.T) {
 				t.Helper()
 				crud, err := kaClient.ReadDesiresForCluster(readDesireTestSubscriptionID, readDesireTestResourceGroupName, readDesireTestClusterName)
 				require.NoError(t, err)
-				autoscalerRD, err := crud.Get(ctx, maestrohelpers.ReadDesireNameReadonlyHypershiftControlPlaneComponentClusterAutoscaler)
+				autoscalerRD, err := crud.Get(ctx, kubeapplierhelpers.ReadDesireNameReadonlyHypershiftControlPlaneComponentClusterAutoscaler)
 				require.NoError(t, err)
 				assert.Equal(t, hostedControlPlaneNamespace(readDesireTestEnvIdentifier, "abc123", readDesireTestDomainPrefix), autoscalerRD.Spec.TargetItem.Namespace)
 			},
