@@ -510,6 +510,106 @@ func TestLoadQueriesConfig(t *testing.T) {
 				}
 			},
 		},
+		{
+			name: "chartType defaults to line when omitted",
+			yaml: `panels:
+  - title: "Panel"
+    queries:
+    - title: "CPU Usage"
+      query: "rate(cpu_seconds_total[5m])"
+      workspace: svc
+`,
+			check: func(t *testing.T, cfg *QueriesConfig) {
+				if cfg.Panels[0].Queries[0].ChartType != "line" {
+					t.Errorf("ChartType = %q, want %q", cfg.Panels[0].Queries[0].ChartType, "line")
+				}
+			},
+		},
+		{
+			name: "chartType line is preserved",
+			yaml: `panels:
+  - title: "Panel"
+    queries:
+    - title: "CPU Usage"
+      query: "rate(cpu_seconds_total[5m])"
+      workspace: svc
+      chartType: line
+`,
+			check: func(t *testing.T, cfg *QueriesConfig) {
+				if cfg.Panels[0].Queries[0].ChartType != "line" {
+					t.Errorf("ChartType = %q, want %q", cfg.Panels[0].Queries[0].ChartType, "line")
+				}
+			},
+		},
+		{
+			name: "chartType faceted-stacked-area with facetBy is valid",
+			yaml: `panels:
+  - title: "Panel"
+    queries:
+    - title: "HCPs"
+      query: "count by (mc, phase) (metric)"
+      workspace: svc
+      chartType: faceted-stacked-area
+      facetBy: mc
+`,
+			check: func(t *testing.T, cfg *QueriesConfig) {
+				if cfg.Panels[0].Queries[0].ChartType != "faceted-stacked-area" {
+					t.Errorf("ChartType = %q, want %q", cfg.Panels[0].Queries[0].ChartType, "faceted-stacked-area")
+				}
+				if cfg.Panels[0].Queries[0].FacetBy != "mc" {
+					t.Errorf("FacetBy = %q, want %q", cfg.Panels[0].Queries[0].FacetBy, "mc")
+				}
+			},
+		},
+		{
+			name: "invalid chartType returns error",
+			yaml: `panels:
+  - title: "Panel"
+    queries:
+    - title: "CPU Usage"
+      query: "rate(cpu_seconds_total[5m])"
+      workspace: svc
+      chartType: bar
+`,
+			wantErr: `chartType must be "line" or "faceted-stacked-area"`,
+		},
+		{
+			name: "faceted-stacked-area without facetBy returns error",
+			yaml: `panels:
+  - title: "Panel"
+    queries:
+    - title: "HCPs"
+      query: "count by (mc, phase) (metric)"
+      workspace: svc
+      chartType: faceted-stacked-area
+`,
+			wantErr: "facetBy is required when chartType is",
+		},
+		{
+			name: "facetBy without faceted-stacked-area returns error",
+			yaml: `panels:
+  - title: "Panel"
+    queries:
+    - title: "CPU Usage"
+      query: "rate(cpu_seconds_total[5m])"
+      workspace: svc
+      facetBy: cluster
+`,
+			wantErr: "facetBy is only valid with chartType",
+		},
+		{
+			name: "facetBy with explicit line chartType returns error",
+			yaml: `panels:
+  - title: "Panel"
+    queries:
+    - title: "CPU Usage"
+      query: "rate(cpu_seconds_total[5m])"
+      workspace: svc
+      chartType: line
+      facetBy: cluster
+`,
+			wantErr: "facetBy is only valid with chartType",
+		},
 	}
 
 	for _, tt := range tests {
