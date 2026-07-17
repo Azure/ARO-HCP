@@ -32,6 +32,15 @@ resourceGroups:
     template: templates/kusto.bicep
     parameters: configurations/kusto-stg.tmpl.bicepparam
     deploymentLevel: ResourceGroup
+    variables:
+    - name: globalMSIId
+      input:
+        resourceGroup: global
+        step: output
+        name: globalMSIId
+    dependsOn:
+    - resourceGroup: global
+      step: output
     automatedRetry:
       errorContainsAny:
       - "InternalServerError"
