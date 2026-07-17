@@ -28,9 +28,8 @@ import (
 
 	"sigs.k8s.io/yaml"
 
-	entrypointrun "github.com/Azure/ARO-HCP/tooling/templatize/cmd/entrypoint/run"
-
 	"github.com/Azure/ARO-HCP/test/pkg/filelock"
+	entrypointrun "github.com/Azure/ARO-HCP/tooling/templatize/cmd/entrypoint/run"
 )
 
 // upgradeInPlaceSpecCount is set once at suite-setup time (before any specs run)
@@ -66,9 +65,6 @@ const defaultUpgradeTimeout = 70 * time.Minute
 
 // upgradeBarrierState is the on-disk representation of the barrier.
 type upgradeBarrierState struct {
-	// Total is the expected number of participating specs, passed to
-	// NewUpgradeBarrier by the caller (typically e2e.UpgradeInPlaceSpecCount).
-	Total int `yaml:"total"`
 	// CheckedIn counts specs that successfully provisioned their cluster and
 	// baseline and are ready for the upgrade.
 	CheckedIn int `yaml:"checked_in"`
@@ -77,13 +73,13 @@ type upgradeBarrierState struct {
 	// participating; survivors proceed once the barrier settles.
 	AbortedCount int `yaml:"aborted_count"`
 	// RunnerPID holds the OS PID of the spec elected to run
-	// "make entrypoint/Region". It is set atomically by the first spec to call
-	// checkIn. A value of 0 means no runner has been elected yet.
+	// the Region entrypoint pipeline. It is set atomically by the first spec
+	// to call checkIn. A value of 0 means no runner has been elected yet.
 	RunnerPID int `yaml:"runner_pid"`
-	// RunID holds the OS PID of the test process that owns this barrier state.
-	// All specs in the same run share one PID; a fresh invocation gets a new PID.
-	// Any mismatch means the state file is stale (left by a previous, possibly
-	// interrupted run) and must be reset before coordination begins.
+	// RunID holds the parent PID (os.Getppid()) of the worker processes in this
+	// suite invocation. All parallel workers spawned by the same runner share the
+	// same parent PID; a new suite invocation gets a different parent PID.
+	// Any mismatch means the state file is stale and must be reset.
 	RunID int `yaml:"run_id"`
 	// UpgradeDone is set to true by markUpgradeDone once the runner has
 	// finished (successfully or not).
@@ -95,8 +91,8 @@ type upgradeBarrierState struct {
 
 // settled reports whether every participating spec has either checked in or
 // aborted, meaning the barrier can make a routing decision.
-func (s *upgradeBarrierState) settled() bool {
-	return s.CheckedIn+s.AbortedCount >= s.Total
+func (s *upgradeBarrierState) settled(total int) bool {
+	return s.CheckedIn+s.AbortedCount >= total
 }
 
 // UpgradeBarrier coordinates a set of parallel UpgradeInPlace specs so that
@@ -126,7 +122,7 @@ type UpgradeBarrier struct {
 	statePath      string
 	lockFile       *os.File
 	total          int
-	runID          int // os.Getpid() of this invocation; used to detect stale state files
+	runID          int // os.Getppid() of this invocation; all workers in the same suite run share the same parent PID, so only a truly new invocation (different parent) resets the state file
 	pollInterval   time.Duration
 	settleTimeout  time.Duration
 	upgradeTimeout time.Duration
@@ -176,29 +172,29 @@ func NewUpgradeBarrier() (*UpgradeBarrier, error) {
 		statePath:      statePath,
 		lockFile:       lf,
 		total:          total,
-		runID:          os.Getpid(),
+		runID:          os.Getppid(),
 		pollInterval:   defaultUpgradeBarrierPollInterval,
 		settleTimeout:  defaultSettleTimeout,
 		upgradeTimeout: defaultUpgradeTimeout,
 	}
 
-	// Write a clean initial state unless a sibling spec in the same run already
-	// did so (RunID matches). Any mismatch — zero RunID (uninitialized file),
-	// different PID (new process), or UpgradeDone=true (completed run) — means
-	// the file is stale and must be reset before coordination begins.
+	// Write a clean initial state unless a sibling spec in the same suite
+	// invocation already did so (RunID matches). Any mismatch — zero RunID
+	// (uninitialized file), different parent PID (new suite invocation), or
+	// UpgradeDone=true (completed run) — means the file is stale and must be
+	// reset before coordination begins.
 	if err := b.withLock(func(state *upgradeBarrierState) (bool, error) {
 		if state.RunID == b.runID {
 			return false, nil // same run, sibling already initialised — leave it
 		}
-		if state.Total != 0 {
+		if state.RunID != 0 {
 			ginkgo.GinkgoLogr.Info("upgrade barrier: resetting stale state file",
 				"previous_run_id", state.RunID,
-				"previous_total", state.Total,
 				"previous_upgrade_done", state.UpgradeDone,
 				"previous_checked_in", state.CheckedIn,
 				"previous_runner_pid", state.RunnerPID)
 		}
-		*state = upgradeBarrierState{RunID: b.runID, Total: total}
+		*state = upgradeBarrierState{RunID: b.runID}
 		return true, nil
 	}); err != nil {
 		lf.Close()
@@ -409,7 +405,7 @@ func (b *UpgradeBarrier) abort(ctx context.Context) error {
 		// fire. It protects against a bug or future misuse that could deadlock
 		// survivors by overcounting and permanently satisfying settled() with
 		// wrong counts.
-		if state.CheckedIn+state.AbortedCount >= state.Total {
+		if state.CheckedIn+state.AbortedCount >= b.total {
 			return false, nil
 		}
 		state.AbortedCount++
@@ -501,7 +497,7 @@ func (b *UpgradeBarrier) readSettled() (settled bool, err error) {
 	if err != nil {
 		return false, err
 	}
-	return state.settled(), nil
+	return state.settled(b.total), nil
 }
 
 // readUpgradeDone reads the state file and reports upgrade_done and

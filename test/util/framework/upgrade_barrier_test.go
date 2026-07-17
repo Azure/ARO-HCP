@@ -50,9 +50,9 @@ func newTestBarrier(t *testing.T, total int) *UpgradeBarrier {
 		upgradeTimeout: 5 * time.Second,
 	}
 
-	// Initialise the state file so readState never sees an empty Total.
+	// Initialise the state file so all workers agree on RunID from the start.
 	require.NoError(t, b.withLock(func(state *upgradeBarrierState) (bool, error) {
-		state.Total = total
+		state.RunID = os.Getppid()
 		return true, nil
 	}), "initialising test barrier state")
 
@@ -286,13 +286,13 @@ func TestUpgradeBarrier_AbortIncrements(t *testing.T) {
 	state, err := b.readState()
 	require.NoError(t, err)
 	assert.Equal(t, 1, state.AbortedCount, "aborted_count should be 1 after one Abort")
-	assert.False(t, state.settled(), "barrier should not be settled with only 1 of 2 resolved")
+	assert.False(t, state.settled(b.total), "barrier should not be settled with only 1 of 2 resolved")
 
 	require.NoError(t, b.abort(ctx))
 	state, err = b.readState()
 	require.NoError(t, err)
 	assert.Equal(t, 2, state.AbortedCount, "aborted_count should be 2 after two Aborts")
-	assert.True(t, state.settled(), "barrier should be settled once all specs resolved")
+	assert.True(t, state.settled(b.total), "barrier should be settled once all specs resolved")
 }
 
 // TestUpgradeBarrier_AbortSafetyNet verifies that extra Abort calls beyond total

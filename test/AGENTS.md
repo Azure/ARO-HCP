@@ -359,7 +359,7 @@ Spec C  ──► FAIL ──────── DeferCleanup abort (barrier coun
 
 ### CI setup
 
-`ARTIFACT_DIR` is optional; when absent the barrier state file falls back to `os.TempDir()` so local runs work without CI scaffolding. The state file carries the test-process PID (`run_id`); any new invocation (different PID) resets the file, so interrupted local runs cannot poison a subsequent run even when the path stays the same.
+`ARTIFACT_DIR` is optional; when absent the barrier state file falls back to `os.TempDir()` so local runs work without CI scaffolding. The state file carries the parent PID of the suite runner (`run_id`); all parallel workers in the same invocation share the same parent PID, so sibling workers correctly recognise an existing state file as their own. A new suite invocation gets a different parent PID and resets any stale file left by a prior interrupted run.
 
 The total number of `UpgradeInPlace` specs is computed dynamically in `main.go`'s `setupCli()` — after `BuildExtensionTestSpecsFromOpenShiftGinkgoSuite()` builds the spec list, the code counts specs with `labels.UpgradeInPlace` and calls `framework.SetUpgradeInPlaceSpecCount(n)`. The same count drives both the suite `Parallelism` and `NewUpgradeBarrier()`. **No constant to maintain** — adding a new `UpgradeInPlace` spec automatically updates both.
 
