@@ -121,8 +121,13 @@ func waitForRouteReachability(ctx context.Context, client *http.Client, url stri
 			if lastErr == nil || err.Error() != lastErr.Error() {
 				var dnsErr *net.DNSError
 				if errors.As(err, &dnsErr) {
-					klog.Infof("DNS error for route %s: server=%s isNotFound=%v isTemporary=%v err=%s",
-						url, dnsErr.Server, dnsErr.IsNotFound, dnsErr.IsTemporary, dnsErr.Err)
+					klog.InfoS("DNS error for route",
+						"url", url,
+						"server", dnsErr.Server,
+						"isNotFound", dnsErr.IsNotFound,
+						"isTemporary", dnsErr.IsTemporary,
+						"error", dnsErr.Err,
+					)
 				} else {
 					klog.InfoS("failed to get response from route",
 						"url", url,
@@ -147,8 +152,9 @@ func waitForRouteReachability(ctx context.Context, client *http.Client, url stri
 		responseByte, err := httputil.DumpResponse(resp, true)
 		if err != nil {
 			if lastErr == nil || err.Error() != lastErr.Error() {
-				klog.Info(err, "failed to read response from route",
+				klog.InfoS("failed to read response from route",
 					"url", url,
+					"error", err,
 				)
 			}
 			lastErr = err
