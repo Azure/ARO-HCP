@@ -701,7 +701,7 @@ metadata:
   annotations:
     "helm.sh/hook": post-install,post-upgrade
     "helm.sh/hook-weight": "0"
-    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded,hook-failed
 ---
 # Source: aro-hcp-hypershift-operator/templates/installer.clusterrolebinding.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -712,7 +712,7 @@ metadata:
   annotations:
     "helm.sh/hook": post-install,post-upgrade
     "helm.sh/hook-weight": "0"
-    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded,hook-failed
 roleRef:
   kind: ClusterRole
   name: cluster-admin
