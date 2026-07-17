@@ -741,13 +741,7 @@ func createExternalAuthAndComplete(
 	require.NoError(t, integrationutils.MarkOperationsCompleteForName(ctx, testInfo.ResourcesDBClient(), subscriptionID, parsedID.Name))
 
 	// Setting the Cluster Service ID for the external auth is needed until we move all cs interactions to the backend.
-	csID, err := integrationutils.DeriveClusterServiceID(
-		ctx,
-		testInfo.ResourcesDBClient(),
-		testInfo.ClusterServiceMock,
-		t.Name(),
-		resourceID,
-	)
+	csID, err := integrationutils.CalculateClusterServiceIDFromExternalAuthResourceID(ctx, testInfo.ResourcesDBClient(), resourceID)
 	require.NoError(t, err)
 	require.NoError(t, integrationutils.SetClusterServiceID(ctx, testInfo.ResourcesDBClient(), resourceID, csID))
 }

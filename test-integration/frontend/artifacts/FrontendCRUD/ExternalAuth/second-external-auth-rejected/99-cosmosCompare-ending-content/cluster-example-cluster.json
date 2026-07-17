@@ -3,7 +3,7 @@
 	"partitionKey": "6b690bec-0c16-4ecb-8f67-781caf40bba7",
 	"properties": {
 		"cosmosMetadata": {
-			"instanceVersion": 2,
+			"instanceVersion": 3,
 			"partitionKey": "6b690bec-0c16-4ecb-8f67-781caf40bba7",
 			"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/example-cluster"
 		},
@@ -73,7 +73,8 @@
 			"managedIdentitiesDataPlaneIdentityURL": "https://dummyhost.identity.azure.net/otherinformation?aqueryarg=somevalue",
 			"platform": {},
 			"provisioningState": "Succeeded",
-			"usesNewClusterDeletionApproach": false
+			"usesNewClusterDeletionApproach": false,
+			"clusterServiceID": "/api/clusters_mgmt/v1/clusters/placeholder"
 		},
 		"status": {},
 		"systemData": {
