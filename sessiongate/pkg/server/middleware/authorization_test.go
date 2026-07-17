@@ -111,7 +111,14 @@ func TestWithSessionProxyClaimHeaderAuthorization(t *testing.T) {
 			handler.ServeHTTP(rec, req)
 
 			if rec.Code != tt.wantStatus {
-				t.Errorf("got status %d, want %d", rec.Code, tt.wantStatus)
+				t.Fatalf("got status %d, want %d", rec.Code, tt.wantStatus)
+			}
+
+			if tt.name == "azure user missing header" || tt.name == "azure user empty header" {
+				const wantBody = "unauthorized: missing claim header\n"
+				if gotBody := rec.Body.String(); gotBody != wantBody {
+					t.Fatalf("got body %q, want %q", gotBody, wantBody)
+				}
 			}
 		})
 	}
