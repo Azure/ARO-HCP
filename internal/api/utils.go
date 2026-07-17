@@ -16,6 +16,7 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"iter"
 	"net/http"
 	"reflect"
@@ -23,6 +24,7 @@ import (
 	"strings"
 
 	"dario.cat/mergo"
+	"github.com/blang/semver/v4"
 	jsonpatch "github.com/evanphx/json-patch"
 
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -63,6 +65,19 @@ var AllowedChannelGroups = sets.New("stable", "fast")
 
 // AllowedChannelGroupsWithExperimentalFlag is the set the service allows to use when using the Experimental Feature AFEC flag
 var AllowedChannelGroupsWithExperimentalFlag = sets.New("stable", "fast", "candidate", "nightly")
+
+// NextMinorReleaseLine returns the next OpenShift minor release line after v as
+// major.minor.0 (patch and pre-release metadata cleared).
+//
+// Within a major, that is major.(minor+1).0. At major boundaries that do not
+// continue as major.(minor+1), a bridged next-major line is returned instead
+// (for example 4.23.x → 5.1.0).
+func NextMinorReleaseLine(v semver.Version) semver.Version {
+	if targetReleaseLine, ok := AllowMajorUpgradePaths[fmt.Sprintf("%d.%d", v.Major, v.Minor)]; ok {
+		return Must(semver.ParseTolerant(targetReleaseLine))
+	}
+	return semver.Version{Major: v.Major, Minor: v.Minor + 1}
+}
 
 // Ptr returns a pointer to p.
 func Ptr[T any](p T) *T {
