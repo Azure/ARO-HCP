@@ -92,7 +92,6 @@ func TestOperationsList(t *testing.T) {
 		reg,
 		mockResourcesDBClient,
 		nil,
-		nil,
 		newNoopAuditClient(t),
 		api.TestLocation,
 		true,
