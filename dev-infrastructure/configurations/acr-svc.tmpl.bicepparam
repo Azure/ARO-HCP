@@ -23,8 +23,8 @@ param purgeJobs = [
   {
     name: 'sandbox-images-purge'
     purgeFilters: [
-      'quay.io/app-sre/ocm-clusters-service-sandbox:.*'
-      'quay.io/app-sre/aro-hcp-clusters-service-sandbox:.*'
+      'app-sre/ocm-clusters-service-sandbox:.*'
+      'app-sre/aro-hcp-clusters-service-sandbox:.*'
     ]
     purgeAfter: '2d'
     imagesToKeep: 1
@@ -32,12 +32,12 @@ param purgeJobs = [
   {
     name: 'service-images-purge'
     purgeFilters: [
-      'arohcp*:.*'
+      'arohcp.*:.*'
       'fleet:.*'
       'kube-applier:.*'
       'mgmt-agent:.*'
-      'test-*:.*'
-      'ci-op-*/*:.*'
+      'test-.*:.*'
+      'ci-op-.*/.*:.*'
     ]
     purgeAfter: '7d'
     imagesToKeep: 3
