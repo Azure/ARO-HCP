@@ -209,7 +209,7 @@ func (opts *Options) ValidateServiceConfig(ctx context.Context) error {
 				continue
 			}
 
-			env, err := settings.Resolve(ctx, environment)
+			env, err := settings.Resolve(environment)
 			if err != nil {
 				return fmt.Errorf("failed to resolve region context: %w", err)
 			}
