@@ -12,6 +12,9 @@ data:
       - action:       "drop"
         regex:        "etcd_(disk_backend_(defrag|snapshot)|disk_wal_write|mvcc_hash|mvcc_hash_rev|server_apply|snap_db_fsync|snap_db_save_total|snap_fsync)_duration_seconds_(bucket|count|sum)"
         sourceLabels: ["__name__"]
+      - action:       "keep"
+        regex:        "grpc_server_handling_seconds_(count|sum)"
+        sourceLabels: ["__name__"]
       - action:       "drop"
         regex:        "grpc_(client|server)_(handled|started|msg_received|msg_sent)_total"
         sourceLabels: ["__name__"]

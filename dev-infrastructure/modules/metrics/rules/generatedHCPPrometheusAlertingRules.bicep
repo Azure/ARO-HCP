@@ -109,3 +109,117 @@ resource mgmtCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
     ]
   }
 }
+
+resource hcpEtcdGrpcLatencyAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'hcp-etcd-grpc-latency-alerts'
+  location: location
+  properties: {
+    interval: 'PT1M'
+    rules: [
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'EtcdGrpcLatencyHigh'
+        enabled: true
+        labels: {
+          component: 'etcd'
+          severity: 'warning'
+        }
+        annotations: {
+          correlationId: 'EtcdGrpcLatencyHigh/{{ $labels.cluster }}/{{ $labels.namespace }}'
+          description: '''etcd in namespace {{ $labels.namespace }} (cluster {{ $labels.cluster }}) has average gRPC latency of {{ $value | humanizeDuration }}, exceeding 200ms threshold.
+
+Check etcd disk fsync latency, CPU/memory utilization, and request rate.
+'''
+          info: '''etcd in namespace {{ $labels.namespace }} (cluster {{ $labels.cluster }}) has average gRPC latency of {{ $value | humanizeDuration }}, exceeding 200ms threshold.
+
+Check etcd disk fsync latency, CPU/memory utilization, and request rate.
+'''
+          summary: 'etcd gRPC latency high in {{ $labels.namespace }}'
+          title: 'etcd gRPC latency high in {{ $labels.namespace }} cluster:{{ $labels.cluster }}'
+        }
+        expression: 'etcd:grpc_server_handling:avg_latency_seconds:rate5m > 0.2'
+        for: 'PT5M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'EtcdGrpcLatencyCritical'
+        enabled: true
+        labels: {
+          component: 'etcd'
+          severity: 'critical'
+        }
+        annotations: {
+          correlationId: 'EtcdGrpcLatencyCritical/{{ $labels.cluster }}/{{ $labels.namespace }}'
+          description: '''etcd in namespace {{ $labels.namespace }} (cluster {{ $labels.cluster }}) has average gRPC latency of {{ $value | humanizeDuration }}, exceeding 500ms threshold. Immediate action required.
+
+This indicates severe etcd performance degradation. Customer-facing cluster operations will be significantly delayed.
+Check disk I/O, etcd resource utilization, and recent load changes.
+'''
+          info: '''etcd in namespace {{ $labels.namespace }} (cluster {{ $labels.cluster }}) has average gRPC latency of {{ $value | humanizeDuration }}, exceeding 500ms threshold. Immediate action required.
+
+This indicates severe etcd performance degradation. Customer-facing cluster operations will be significantly delayed.
+Check disk I/O, etcd resource utilization, and recent load changes.
+'''
+          summary: 'etcd gRPC latency critical in {{ $labels.namespace }}'
+          title: 'etcd gRPC latency critical in {{ $labels.namespace }} cluster:{{ $labels.cluster }}'
+        }
+        expression: 'etcd:grpc_server_handling:avg_latency_seconds:rate5m > 0.5'
+        for: 'PT2M'
+        severity: severityCeiling > 0 ? max(2, severityCeiling) : 2
+      }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'EtcdGrpcErrorRateHigh'
+        enabled: true
+        labels: {
+          component: 'etcd'
+          severity: 'warning'
+        }
+        annotations: {
+          correlationId: 'EtcdGrpcErrorRateHigh/{{ $labels.cluster }}/{{ $labels.namespace }}'
+          description: '''etcd in namespace {{ $labels.namespace }} (cluster {{ $labels.cluster }}) has a gRPC error rate above 5%.
+
+This may indicate etcd cluster instability, resource exhaustion, or network issues between etcd members.
+'''
+          info: '''etcd in namespace {{ $labels.namespace }} (cluster {{ $labels.cluster }}) has a gRPC error rate above 5%.
+
+This may indicate etcd cluster instability, resource exhaustion, or network issues between etcd members.
+'''
+          summary: 'etcd gRPC error rate high in {{ $labels.namespace }}'
+          title: 'etcd gRPC error rate high in {{ $labels.namespace }} cluster:{{ $labels.cluster }}'
+        }
+        expression: '(etcd:grpc_server_handling:error_rate:rate5m / etcd:grpc_server_handling:request_rate:rate5m) > 0.05'
+        for: 'PT5M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
+    ]
+    scopes: [
+      azureMonitoring
+    ]
+  }
+}

@@ -1,0 +1,130 @@
+rule_files:
+- HCPetcd-grpc-latency-prometheusRule.yaml
+
+evaluation_interval: 1m
+
+tests:
+# Recording rule tests
+
+- interval: 1m
+  input_series:
+  - series: 'grpc_server_handling_seconds_sum{namespace="ocm-aro-dev-01",cluster="westus3-mgmt-1",grpc_service="etcdserverpb.KV",grpc_method="/etcdserverpb.KV/Range",grpc_code="OK"}'
+    values: '0+5x10'
+  - series: 'grpc_server_handling_seconds_count{namespace="ocm-aro-dev-01",cluster="westus3-mgmt-1",grpc_service="etcdserverpb.KV",grpc_method="/etcdserverpb.KV/Range",grpc_code="OK"}'
+    values: '0+100x10'
+
+  promql_expr_test:
+  - eval_time: 5m
+    expr: etcd:grpc_server_handling:avg_latency_seconds:rate5m
+    exp_samples:
+    - labels: 'etcd:grpc_server_handling:avg_latency_seconds:rate5m{namespace="ocm-aro-dev-01",cluster="westus3-mgmt-1"}'
+      value: 4.9999999999999996e-02
+
+  - eval_time: 5m
+    expr: etcd:grpc_server_handling:request_rate:rate5m
+    exp_samples:
+    - labels: 'etcd:grpc_server_handling:request_rate:rate5m{namespace="ocm-aro-dev-01",cluster="westus3-mgmt-1"}'
+      value: 1.6666666666666667
+
+- interval: 1m
+  input_series:
+  - series: 'grpc_server_handling_seconds_count{namespace="ocm-aro-dev-01",cluster="westus3-mgmt-1",grpc_service="etcdserverpb.KV",grpc_method="/etcdserverpb.KV/Range",grpc_code="Unavailable"}'
+    values: '0+10x10'
+
+  promql_expr_test:
+  - eval_time: 5m
+    expr: etcd:grpc_server_handling:error_rate:rate5m
+    exp_samples:
+    - labels: 'etcd:grpc_server_handling:error_rate:rate5m{namespace="ocm-aro-dev-01",cluster="westus3-mgmt-1"}'
+      value: 1.6666666666666666e-01
+
+# Alert rule tests
+
+# Healthy etcd - no alerts
+- interval: 1m
+  input_series:
+  - series: 'etcd:grpc_server_handling:avg_latency_seconds:rate5m{namespace="ocm-aro-dev-01",cluster="westus3-mgmt-1"}'
+    values: '0.05x10'
+
+  alert_rule_test:
+  - eval_time: 6m
+    alertname: EtcdGrpcLatencyHigh
+    exp_alerts: []
+  - eval_time: 6m
+    alertname: EtcdGrpcLatencyCritical
+    exp_alerts: []
+
+# Warning: latency > 200ms sustained for 5m
+- interval: 1m
+  input_series:
+  - series: 'etcd:grpc_server_handling:avg_latency_seconds:rate5m{namespace="ocm-aro-dev-01",cluster="westus3-mgmt-1"}'
+    values: '0.25x10'
+
+  alert_rule_test:
+  - eval_time: 4m
+    alertname: EtcdGrpcLatencyHigh
+    exp_alerts: []
+  - eval_time: 6m
+    alertname: EtcdGrpcLatencyHigh
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+        component: etcd
+        namespace: "ocm-aro-dev-01"
+        cluster: "westus3-mgmt-1"
+      exp_annotations:
+        summary: "etcd gRPC latency high in ocm-aro-dev-01"
+        description: |
+          etcd in namespace ocm-aro-dev-01 (cluster westus3-mgmt-1) has average gRPC latency of 250ms, exceeding 200ms threshold.
+
+          Check etcd disk fsync latency, CPU/memory utilization, and request rate.
+
+# Critical: latency > 500ms sustained for 2m
+- interval: 1m
+  input_series:
+  - series: 'etcd:grpc_server_handling:avg_latency_seconds:rate5m{namespace="ocm-aro-dev-01",cluster="westus3-mgmt-1"}'
+    values: '0.6x10'
+
+  alert_rule_test:
+  - eval_time: 1m
+    alertname: EtcdGrpcLatencyCritical
+    exp_alerts: []
+  - eval_time: 3m
+    alertname: EtcdGrpcLatencyCritical
+    exp_alerts:
+    - exp_labels:
+        severity: critical
+        component: etcd
+        namespace: "ocm-aro-dev-01"
+        cluster: "westus3-mgmt-1"
+      exp_annotations:
+        summary: "etcd gRPC latency critical in ocm-aro-dev-01"
+        description: |
+          etcd in namespace ocm-aro-dev-01 (cluster westus3-mgmt-1) has average gRPC latency of 600ms, exceeding 500ms threshold. Immediate action required.
+
+          This indicates severe etcd performance degradation. Customer-facing cluster operations will be significantly delayed.
+          Check disk I/O, etcd resource utilization, and recent load changes.
+
+# Error rate > 5%
+- interval: 1m
+  input_series:
+  - series: 'etcd:grpc_server_handling:error_rate:rate5m{namespace="ocm-aro-dev-01",cluster="westus3-mgmt-1"}'
+    values: '1.0x10'
+  - series: 'etcd:grpc_server_handling:request_rate:rate5m{namespace="ocm-aro-dev-01",cluster="westus3-mgmt-1"}'
+    values: '10.0x10'
+
+  alert_rule_test:
+  - eval_time: 6m
+    alertname: EtcdGrpcErrorRateHigh
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+        component: etcd
+        namespace: "ocm-aro-dev-01"
+        cluster: "westus3-mgmt-1"
+      exp_annotations:
+        summary: "etcd gRPC error rate high in ocm-aro-dev-01"
+        description: |
+          etcd in namespace ocm-aro-dev-01 (cluster westus3-mgmt-1) has a gRPC error rate above 5%.
+
+          This may indicate etcd cluster instability, resource exhaustion, or network issues between etcd members.

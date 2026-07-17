@@ -195,3 +195,29 @@ resource hcpKasLatencyRecordingRules 'Microsoft.AlertsManagement/prometheusRuleG
     ]
   }
 }
+
+resource hcpEtcdGrpcLatencyRecording 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'hcp-etcd-grpc-latency-recording'
+  location: location
+  properties: {
+    scopes: [
+      azureMonitoring
+    ]
+    enabled: true
+    interval: 'PT1M'
+    rules: [
+      {
+        record: 'etcd:grpc_server_handling:avg_latency_seconds:rate5m'
+        expression: 'sum by (namespace, cluster) (rate(grpc_server_handling_seconds_sum{grpc_service=~"etcdserverpb.*",namespace=~"ocm-.*"}[5m])) / sum by (namespace, cluster) (rate(grpc_server_handling_seconds_count{grpc_service=~"etcdserverpb.*",namespace=~"ocm-.*"}[5m]))'
+      }
+      {
+        record: 'etcd:grpc_server_handling:request_rate:rate5m'
+        expression: 'sum by (namespace, cluster) (rate(grpc_server_handling_seconds_count{grpc_service=~"etcdserverpb.*",namespace=~"ocm-.*"}[5m]))'
+      }
+      {
+        record: 'etcd:grpc_server_handling:error_rate:rate5m'
+        expression: 'sum by (namespace, cluster) (rate(grpc_server_handling_seconds_count{grpc_code!="OK",grpc_service=~"etcdserverpb.*",namespace=~"ocm-.*"}[5m]))'
+      }
+    ]
+  }
+}
