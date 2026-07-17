@@ -56,6 +56,16 @@ func TestHostnameFromURL(t *testing.T) {
 			want:  "console-openshift-console.apps.example.com",
 		},
 		{
+			name:  "bare hostname with path",
+			input: "console-openshift-console.apps.example.com/some/path",
+			want:  "console-openshift-console.apps.example.com",
+		},
+		{
+			name:  "HTTPS URL with path and port",
+			input: "https://console-openshift-console.apps.example.com:8080/api/v1",
+			want:  "console-openshift-console.apps.example.com",
+		},
+		{
 			name:      "empty string",
 			input:     "",
 			expectErr: true,

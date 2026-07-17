@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"net"
 	"net/url"
+	"strings"
 	"time"
 
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -50,6 +51,11 @@ func HostnameFromURL(rawURL string) (string, error) {
 			return h, nil
 		}
 		if parsed.Path != "" {
+			// Strip any path component — "example.com/path" should
+			// return "example.com", not "example.com/path".
+			if idx := strings.IndexByte(parsed.Path, '/'); idx > 0 {
+				return parsed.Path[:idx], nil
+			}
 			return parsed.Path, nil
 		}
 	}
