@@ -50,6 +50,8 @@ const (
 	legendEntryPadding = 40
 	// defaultChartWidth is the default chart width in pixels.
 	defaultChartWidth = 1200
+	// unassignedFacetLabel is the label for series with an empty facet value.
+	unassignedFacetLabel = "Unassigned"
 )
 
 // parsedSeries is a timeseries with parsed data points ready for charting.
@@ -91,6 +93,7 @@ type chartData struct {
 	Error            string
 	ChartHTML        template.HTML // raw HTML from go-echarts, not escaped
 	MinPeakThreshold float64
+	NoSlider         bool
 }
 
 // renderPanel assembles multiple charts into a single HTML page.
@@ -133,7 +136,18 @@ func estimateLegendHeight(series []parsedSeries, chartWidth int) int {
 // buildChartData builds the chart HTML for a single PromQL query result.
 // Each PrometheusResult becomes a separate series, labeled by its metric
 // labels.
-func buildChartData(title, description, query, unit, queryErr string, results []PrometheusResult, tw timing.TimeWindow, minPeakThreshold float64) chartData {
+func buildChartData(title, description, query, unit, queryErr string, results []PrometheusResult, tw timing.TimeWindow, minPeakThreshold float64, chartType, facetBy string) chartData {
+	switch chartType {
+	case chartTypeFacetedStackedArea:
+		return buildFacetedStackedAreaChartData(title, description, query, unit, queryErr, results, tw, facetBy)
+	case chartTypeLine:
+		return buildLineChartData(title, description, query, unit, queryErr, results, tw, minPeakThreshold)
+	default:
+		return chartData{Title: title, Description: description, Query: query, Error: fmt.Sprintf("unknown chartType: %q", chartType)}
+	}
+}
+
+func buildLineChartData(title, description, query, unit, queryErr string, results []PrometheusResult, tw timing.TimeWindow, minPeakThreshold float64) chartData {
 	var series []parsedSeries
 	for _, result := range results {
 		if len(result.Values) == 0 {
@@ -259,6 +273,265 @@ func extractChartBody(rendered []byte) []byte {
 		return rendered[start+len("<body>") : end]
 	}
 	return rendered
+}
+
+func buildFacetedStackedAreaChartData(title, description, query, unit, queryErr string, results []PrometheusResult, tw timing.TimeWindow, facetBy string) chartData {
+	series := parseResultsToSeries(results)
+	if len(series) == 0 {
+		return chartData{Title: title, Description: description, Query: query, Error: queryErr}
+	}
+
+	facets := groupSeriesByFacet(series, facetBy)
+	facetNames := make([]string, 0, len(facets))
+	for name := range facets {
+		facetNames = append(facetNames, name)
+	}
+	slices.SortFunc(facetNames, func(a, b string) int {
+		aUnassigned := a == unassignedFacetLabel
+		bUnassigned := b == unassignedFacetLabel
+		if aUnassigned != bUnassigned {
+			if aUnassigned {
+				return -1
+			}
+			return 1
+		}
+		return cmp.Compare(a, b)
+	})
+
+	allPhases := collectUniqueLabels(series, facetBy)
+	slices.Sort(allPhases)
+
+	legendHeight := estimateLegendHeight(
+		func() []parsedSeries {
+			var ps []parsedSeries
+			for _, p := range allPhases {
+				ps = append(ps, parsedSeries{label: p})
+			}
+			return ps
+		}(),
+		defaultChartWidth,
+	)
+
+	numFacets := len(facetNames)
+	titleAreaHeight := 80
+	facetSpacing := 60
+	facetHeight := 250
+	totalHeight := titleAreaHeight + numFacets*(facetHeight+facetSpacing) + legendHeight + legendBottomPadding
+
+	subtitle := fmt.Sprintf("Window: %s — %s", tw.Start.UTC().Format(time.RFC3339), tw.End.UTC().Format(time.RFC3339))
+
+	var grids []opts.Grid
+	for i := range facetNames {
+		top := titleAreaHeight + i*(facetHeight+facetSpacing)
+		grids = append(grids, opts.Grid{
+			Top:          fmt.Sprintf("%dpx", top),
+			Height:       fmt.Sprintf("%dpx", facetHeight),
+			Left:         "80",
+			Right:        "40",
+			ContainLabel: ptr.To(false),
+		})
+	}
+
+	line := charts.NewLine()
+	line.SetGlobalOptions(
+		charts.WithInitializationOpts(opts.Initialization{
+			PageTitle:       title,
+			Renderer:        "svg",
+			Height:          fmt.Sprintf("%dpx", totalHeight),
+			Width:           fmt.Sprintf("%dpx", defaultChartWidth),
+			Theme:           "dark",
+			BackgroundColor: "#000",
+		}),
+		charts.WithTitleOpts(opts.Title{
+			Title:      title,
+			Subtitle:   subtitle,
+			TitleStyle: &opts.TextStyle{Align: "left", Color: "#4E9AF1", FontSize: 18},
+			TextAlign:  "left",
+			Left:       "center",
+		}),
+		charts.WithTooltipOpts(opts.Tooltip{
+			Trigger: "axis",
+		}),
+		charts.WithAxisPointerOpts(func() *opts.AxisPointer {
+			xAxisIndices := make([]int, numFacets)
+			for i := range xAxisIndices {
+				xAxisIndices[i] = i
+			}
+			return &opts.AxisPointer{
+				Link: []opts.AxisPointerLink{{XAxisIndex: xAxisIndices}},
+				Show: ptr.To(true),
+			}
+		}()),
+		charts.WithLegendOpts(opts.Legend{
+			Show:   ptr.To(true),
+			Bottom: "0",
+		}),
+		charts.WithXAxisOpts(opts.XAxis{
+			Type:      "time",
+			Min:       tw.Start.UnixMilli(),
+			Max:       tw.End.UnixMilli(),
+			GridIndex: 0,
+		}),
+		charts.WithYAxisOpts(opts.YAxis{
+			Type:         "value",
+			Name:         unit,
+			NameLocation: "middle",
+			NameGap:      50,
+			GridIndex:    0,
+		}),
+		charts.WithGridOpts(grids...),
+	)
+
+	for i := 1; i < numFacets; i++ {
+		line.ExtendXAxis(opts.XAxis{
+			Type:      "time",
+			Min:       tw.Start.UnixMilli(),
+			Max:       tw.End.UnixMilli(),
+			GridIndex: i,
+		})
+		line.ExtendYAxis(opts.YAxis{
+			Type:         "value",
+			Name:         unit,
+			NameLocation: "middle",
+			NameGap:      50,
+			GridIndex:    i,
+		})
+	}
+
+	for facetIdx, facetName := range facetNames {
+		facetSeries := facets[facetName]
+		for _, s := range facetSeries {
+			line.AddSeries(s.label, s.data,
+				charts.WithLineChartOpts(opts.LineChart{
+					ShowSymbol:   ptr.To(false),
+					ConnectNulls: ptr.To(false),
+					Stack:        fmt.Sprintf("facet-%d", facetIdx),
+					XAxisIndex:   facetIdx,
+					YAxisIndex:   facetIdx,
+				}),
+				charts.WithAreaStyleOpts(opts.AreaStyle{
+					Opacity: opts.Float(0.7),
+				}),
+			)
+		}
+	}
+
+	rendered := line.RenderContent()
+	html := extractChartBody(rendered)
+	html = injectFacetTitles(html, facetNames, titleAreaHeight, facetHeight, facetSpacing)
+
+	return chartData{
+		Title:       title,
+		Description: description,
+		Query:       query,
+		HasData:     true,
+		ChartHTML:   template.HTML(html), //nolint:gosec // trusted go-echarts output
+		NoSlider:    true,
+	}
+}
+
+func parseResultsToSeries(results []PrometheusResult) []parsedSeries {
+	var series []parsedSeries
+	for _, result := range results {
+		if len(result.Values) == 0 {
+			continue
+		}
+		var data []opts.LineData
+		for _, v := range result.Values {
+			if len(v) < 2 {
+				continue
+			}
+			ts, val, ok := parsePrometheusValue(v)
+			if !ok || ts == 0 {
+				continue
+			}
+			data = append(data, opts.LineData{
+				Value: []any{ts * 1000, val},
+			})
+		}
+		if len(data) == 0 {
+			continue
+		}
+		data = insertGapMarkers(data)
+		series = append(series, parsedSeries{
+			metric: result.Metric,
+			data:   data,
+		})
+	}
+	return series
+}
+
+func groupSeriesByFacet(series []parsedSeries, facetBy string) map[string][]parsedSeries {
+	facets := make(map[string][]parsedSeries)
+	for _, s := range series {
+		facetValue := s.metric[facetBy]
+		if len(facetValue) == 0 {
+			facetValue = unassignedFacetLabel
+		}
+		s.label = buildFacetSeriesLabel(s.metric, facetBy)
+		facets[facetValue] = append(facets[facetValue], s)
+	}
+	return facets
+}
+
+func buildFacetSeriesLabel(metric map[string]string, facetBy string) string {
+	var parts []string
+	var keys []string
+	for k := range metric {
+		if k != facetBy && k != "cluster" {
+			keys = append(keys, k)
+		}
+	}
+	slices.Sort(keys)
+	for _, k := range keys {
+		parts = append(parts, metric[k])
+	}
+	if len(parts) == 0 {
+		return "value"
+	}
+	if len(parts) == 1 {
+		return parts[0]
+	}
+	return strings.Join(parts, ", ")
+}
+
+func collectUniqueLabels(series []parsedSeries, excludeKey string) []string {
+	seen := make(map[string]bool)
+	for _, s := range series {
+		for k, v := range s.metric {
+			if k != excludeKey && k != "cluster" {
+				seen[v] = true
+			}
+		}
+	}
+	var result []string
+	for v := range seen {
+		result = append(result, v)
+	}
+	return result
+}
+
+func injectFacetTitles(html []byte, facetNames []string, titleAreaHeight, facetHeight, facetSpacing int) []byte {
+	var titles []string
+	for i, name := range facetNames {
+		top := titleAreaHeight + i*(facetHeight+facetSpacing) - 18
+		label := name
+		titles = append(titles, fmt.Sprintf(
+			`{"type":"text","left":"center","top":%d,"style":{"text":"%s","fill":"#ccc","fontSize":14,"fontWeight":"bold"}}`,
+			top, label,
+		))
+	}
+	graphicJSON := fmt.Sprintf(`"graphic":[%s],`, strings.Join(titles, ","))
+	// Insert graphic after the opening brace of the echarts option object
+	idx := bytes.Index(html, []byte(`"title":`))
+	if idx > 0 {
+		var result []byte
+		result = append(result, html[:idx]...)
+		result = append(result, []byte(graphicJSON)...)
+		result = append(result, html[idx:]...)
+		return result
+	}
+	return html
 }
 
 // findCommonLabels returns label keys whose values are identical across all series.
