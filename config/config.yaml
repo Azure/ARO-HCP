@@ -889,6 +889,8 @@ defaults:
   # Mise
   mise:
     deploy: true
+    audit:
+      connectSocket: false
     applicationName: "arohcp-mise-{{ .ctx.environment }}"
     arm:
       policyLabel: "ARM Policy"

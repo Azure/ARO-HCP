@@ -19,6 +19,7 @@ mise:
   audit:
     adInstance: "https://{{ .mise.arm.authorityFQDN }}/"
     tenantId: "{{ .mise.arm.tenantId }}"
+    connectSocket: {{ .mise.audit.connectSocket }}
   miseAppId: "__miseAppId__"
   tracing:
     address: "{{ .mise.tracing.address }}"
