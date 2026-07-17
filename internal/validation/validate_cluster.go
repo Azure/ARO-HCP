@@ -17,9 +17,7 @@ package validation
 import (
 	"context"
 	"fmt"
-	"maps"
 	"net"
-	"slices"
 	"strings"
 
 	"github.com/blang/semver/v4"
@@ -137,15 +135,8 @@ func validateOperatorAuthenticationAgainstIdentities(ctx context.Context, op ope
 		for identity := range newCluster.Identity.UserAssignedIdentities {
 			fldPath := field.NewPath("identity", "userAssignedIdentities").Key(identity)
 			key := strings.ToLower(identity)
-			if tally, ok := userAssignedIdentities[key]; ok {
-				switch tally {
-				case 0:
-					errs = append(errs, field.Invalid(fldPath, identity, "identity is assigned to this resource but not used"))
-				case 1:
-					// Valid: Identity is referenced once.
-				default:
-					errs = append(errs, field.Invalid(fldPath, identity, "identity is used multiple times"))
-				}
+			if tally, ok := userAssignedIdentities[key]; ok && tally == 0 {
+				errs = append(errs, field.Invalid(fldPath, identity, "identity is assigned to this resource but not used"))
 			}
 		}
 	}
@@ -734,45 +725,6 @@ func validateUserAssignedIdentitiesProfile(ctx context.Context, op operation.Ope
 	//ServiceManagedIdentity string            `json:"serviceManagedIdentity,omitempty"`
 	errs = append(errs, immutableByReflect(ctx, op, fldPath.Child("serviceManagedIdentity"), newObj.ServiceManagedIdentity, safe.Field(oldObj, toUserAssignedIdentitiesServiceManagedIdentity))...)
 	errs = append(errs, RestrictedResourceIDWithResourceGroup(ctx, op, fldPath.Child("serviceManagedIdentity"), newObj.ServiceManagedIdentity, safe.Field(oldObj, toUserAssignedIdentitiesServiceManagedIdentity), "Microsoft.ManagedIdentity/userAssignedIdentities")...)
-
-	// Managed identity resource IDs must be unique across control-plane operators,
-	// data-plane operators, and the service managed identity within a cluster
-	errs = append(errs, validateManagedIdentitiesUniqueWithinCluster(fldPath, newObj)...)
-
-	return errs
-}
-
-// validateManagedIdentitiesUniqueWithinCluster ensures that each managed identity
-// resource ID used by control-plane operators, data-plane operators, or the
-// service managed identity appears at most once within the cluster.
-// This restriction may be relaxed in the future following investigation and decisions in ARO-21615.
-func validateManagedIdentitiesUniqueWithinCluster(fldPath *field.Path, newObj *api.UserAssignedIdentitiesProfile) field.ErrorList {
-	observed := map[string]*field.Path{}
-	var errs field.ErrorList
-
-	record := func(identity *azcorearm.ResourceID, identityPath *field.Path) {
-		if identity == nil {
-			return
-		}
-		key := strings.ToLower(identity.String())
-		if _, ok := observed[key]; ok {
-			errs = append(errs, field.Invalid(
-				identityPath,
-				identity.String(),
-				fmt.Sprintf("managed identity with resource id '%s' must be unique within the cluster", identity.String()),
-			))
-			return
-		}
-		observed[key] = identityPath
-	}
-
-	for _, operatorName := range slices.Sorted(maps.Keys(newObj.ControlPlaneOperators)) {
-		record(newObj.ControlPlaneOperators[operatorName], fldPath.Child("controlPlaneOperators").Key(operatorName))
-	}
-	for _, operatorName := range slices.Sorted(maps.Keys(newObj.DataPlaneOperators)) {
-		record(newObj.DataPlaneOperators[operatorName], fldPath.Child("dataPlaneOperators").Key(operatorName))
-	}
-	record(newObj.ServiceManagedIdentity, fldPath.Child("serviceManagedIdentity"))
 
 	return errs
 }

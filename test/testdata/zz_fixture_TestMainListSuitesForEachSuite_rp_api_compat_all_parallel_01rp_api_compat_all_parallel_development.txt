@@ -1,15 +1,3 @@
-Customer should be able to create several HCP clusters in their customer resource group, but not in the same managed resource group
-Customer should not be able to reuse subnets and NSGs between clusters
-Customer should be able to list available HCP OpenShift versions and validate response content
-SRE should be able to log into a cluster via a breakglass session
-SRE should be able to retrieve serial console logs for a VM
-SRE should return 409 when boot diagnostics is disabled on a VM
-Customer should be able to test admin credentials before cluster ready, then full admin credential lifecycle
-Customer should be able to create node pools with ARM64-based VMs
-Authorized CIDRs Connectivity should allow API access only from authorized VM IP
-Customer should be able to create an HCP cluster with custom autoscaling
-Customer should be able to create a HCP cluster and use cilium CNI plugin
-Customer should be able to create a no-CNI private cluster with a private key vault, a nodepool and install cilium CNI successfully
 Customer should be able to create a cluster with reused managed identities
 Customer should be able to create an HCP cluster and custom node pool osDisk size
 Customer should create a cluster with private ingress using v20260630preview and verify the ingress is internal
