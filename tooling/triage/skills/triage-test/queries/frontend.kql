@@ -1,0 +1,4 @@
+cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}').table('frontendLogs')
+| where timestamp between({{ kqlDatetime .StartTime }} .. {{ kqlDatetime .EndTime }})
+| where resource_group == '{{ .ResourceGroup }}'
+| project timestamp, log

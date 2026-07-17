@@ -1,0 +1,5 @@
+cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}').table('frontendLogs')
+| where timestamp between({{ kqlDatetime .StartTime }} .. {{ kqlDatetime .EndTime }})
+| where resource_group == '{{ .ResourceGroup }}'
+| where msg == 'request received' or msg == 'response complete'
+| project timestamp, msg, log.error, request_method, request_path, request_query, response_status_code

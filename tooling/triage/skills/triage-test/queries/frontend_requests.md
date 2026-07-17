@@ -1,0 +1,3 @@
+# ARO HCP Frontend Request Logs
+
+This query grabs request logs for the RP frontend. Start any search of frontend logs with this query to find requests that were handled. This component serves customer requests as proxied from ARM, we should see requests come in and be dispatched to the user without errors. Anomalous requests or errors in this log are a bug in the frontend, if there are no anomalies here, check the backend logs for why our RP failed to correctly provision a cluster.

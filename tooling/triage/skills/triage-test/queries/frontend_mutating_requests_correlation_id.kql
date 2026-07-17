@@ -1,0 +1,5 @@
+database('{{ .ServiceDatabase }}').table('frontendLogs')
+| where timestamp between ({{ kqlDatetime .StartTime }} .. {{ kqlDatetime .EndTime }})
+| where log.msg == 'response complete'
+| where log.method == 'put' or log.method == 'post'
+| project log.method, log.correlation_request_id, log.resource_id

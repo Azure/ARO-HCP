@@ -1,0 +1,6 @@
+cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}').table('containerLogs')
+| where timestamp between({{ kqlDatetime .StartTime }} .. {{ kqlDatetime .EndTime }})
+| where namespace_name == '{{ .Extra.Namespace }}'
+| where pod_name == '{{ .Extra.Pod }}'
+| where container_name == '{{ .Extra.Container }}'
+| project timestamp, log
