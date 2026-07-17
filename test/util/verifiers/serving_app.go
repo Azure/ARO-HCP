@@ -124,8 +124,9 @@ func waitForRouteReachability(ctx context.Context, client *http.Client, url stri
 					klog.Infof("DNS error for route %s: server=%s isNotFound=%v isTemporary=%v err=%s",
 						url, dnsErr.Server, dnsErr.IsNotFound, dnsErr.IsTemporary, dnsErr.Err)
 				} else {
-					klog.Info(err, "failed to get response from route",
+					klog.InfoS("failed to get response from route",
 						"url", url,
+						"error", err,
 					)
 				}
 			}

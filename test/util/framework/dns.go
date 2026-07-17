@@ -43,9 +43,10 @@ func HostnameFromURL(rawURL string) (string, error) {
 		return hostname, nil
 	}
 
-	// url.Parse treats scheme-less inputs like "example.com" as a relative
-	// path and "example.com:443" as scheme:opaque, leaving Host empty in
-	// both cases. Only fall back to raw splitting when no scheme was parsed.
+	// url.Parse treats scheme-less inputs in two ways that leave Host empty:
+	// - "example.com" becomes a relative path (Scheme="", Path="example.com")
+	// - "example.com:443" becomes scheme:opaque (Scheme="example.com", Opaque="443")
+	// Fall back to raw splitting for both cases.
 	if parsed.Scheme == "" || parsed.Opaque != "" {
 		if h, _, err := net.SplitHostPort(rawURL); err == nil && h != "" {
 			return h, nil
