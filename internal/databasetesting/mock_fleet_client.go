@@ -22,6 +22,7 @@ import (
 	"sync"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
@@ -35,8 +36,9 @@ import (
 // production has the fleet container live in a different Cosmos container
 // (and behind different credentials), and the mock mirrors that boundary.
 type MockFleetDBClient struct {
-	mu        sync.RWMutex
-	documents map[string]json.RawMessage
+	mu         sync.RWMutex
+	documents  map[string]json.RawMessage
+	changeFeed mockChangeFeed
 }
 
 var _ database.FleetDBClient = &MockFleetDBClient{}
@@ -107,6 +109,20 @@ func (m *MockFleetDBClient) StoreDocument(cosmosID string, data json.RawMessage)
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.documents[strings.ToLower(cosmosID)] = data
+	m.changeFeed.record(data)
+}
+
+func (m *MockFleetDBClient) GetChangeFeed(ctx context.Context, options *azcosmos.ChangeFeedOptions) (azcosmos.ChangeFeedResponse, error) {
+	var continuation string
+	if options != nil && options.Continuation != nil {
+		continuation = *options.Continuation
+	}
+	docs, nextToken, hasNew := m.changeFeed.read(continuation)
+	return buildMockChangeFeedResponse(docs, nextToken, hasNew), nil
+}
+
+func (m *MockFleetDBClient) GetFeedRanges(ctx context.Context) ([]azcosmos.FeedRange, error) {
+	return []azcosmos.FeedRange{mockChangeFeedFeedRange}, nil
 }
 
 func (m *MockFleetDBClient) DeleteDocument(cosmosID string) {

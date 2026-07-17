@@ -162,8 +162,7 @@ func (m *Manager) runControllersUnderLeaderElection(
 ) error {
 	logger := utils.LoggerFromContext(ctx)
 
-	relistDuration := 10 * time.Second
-	fleetInformers := informers.NewFleetInformersWithRelistDuration(ctx, m.FleetDBClient.GlobalListers(), &relistDuration)
+	fleetInformers := informers.NewFleetInformers(ctx, m.FleetDBClient.GlobalListers(), m.FleetDBClient)
 
 	stampInformer, stampLister := fleetInformers.Stamps()
 	managementClusterInformer, managementClusterLister := fleetInformers.ManagementClusters()

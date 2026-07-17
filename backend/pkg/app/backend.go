@@ -387,7 +387,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	operationPhaseMetricsController := metricscontrollers.NewController(
 		"OperationPhaseMetrics", backendInformers.AllOperations(), operationPhaseHandler)
 
-	fleetInformers := dbinformers.NewFleetInformers(ctx, b.options.FleetDBClient.GlobalListers())
+	fleetInformers := dbinformers.NewFleetInformers(ctx, b.options.FleetDBClient.GlobalListers(), b.options.FleetDBClient)
 	managementClusterInformer, managementClusterLister := fleetInformers.ManagementClusters()
 
 	// Union kube-applier informers: one aggregator surface that fans out
