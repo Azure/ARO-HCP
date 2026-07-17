@@ -217,7 +217,7 @@ Every test MUST include appropriate labels from these categories:
 ### Test Environment Labels (MANDATORY - exactly one):
 - `labels.RequireNothing`: Per-test cluster tests (creates own cluster) — **preferred approach**
 - `labels.RequireHappyPathInfra`: Per-run cluster tests (uses pre-created cluster)
-- `labels.UpgradeInPlace`: End-to-end in-place upgrade tests — exclusively selected by the `upgrade/in-place` suite and automatically excluded from all other suites. Use for tests that invoke `make` pipeline targets (e.g. `entrypoint/Region`) against pre-provisioned regional infrastructure and must only run in dev environments. See [Upgrade Barrier](#upgrade-barrier) for the parallel coordination pattern.
+- `labels.UpgradeInPlace`: End-to-end in-place upgrade tests — exclusively selected by the `upgrade/in-place` suite and automatically excluded from all other suites. Use for tests that invoke the Region entrypoint pipeline against pre-provisioned regional infrastructure and must only run in dev environments. See [Upgrade Barrier](#upgrade-barrier) for the parallel coordination pattern.
 
 ### Importance Labels (MANDATORY - exactly one):
 - `labels.Critical`: Blockers for rollout
@@ -342,39 +342,26 @@ The following patterns should be rejected in code review:
 `framework.UpgradeBarrier` coordinates parallel `UpgradeInPlace` specs so that:
 
 1. Every spec provisions its own cluster and captures a baseline independently (full parallelism).
-2. All specs synchronise at a single point — the first spec to successfully check in is elected **runner** and invokes `make entrypoint/Region`; the others wait.
+2. All specs synchronise at a single point — the first spec to successfully check in is elected **runner** and invokes the Region entrypoint pipeline (via `run.RunPipeline`); the others wait.
 3. After the upgrade completes (or fails), every spec independently validates its own cluster.
 
 ### How it works
 
 ```
-Spec A  ──► provision ──► CheckInAndUpgrade() ──runner──► make entrypoint/Region ──► validate
+Spec A  ──► provision ──► CheckInAndUpgrade() ──runner──► run.RunPipeline (Region) ──► validate
 Spec B  ──► provision ──► CheckInAndUpgrade() ──waiter──► waits for runner       ──► validate
 Spec C  ──► FAIL ──────── DeferCleanup abort (barrier count satisfied; survivors proceed)
 ```
 
-- `CheckInAndUpgrade(ctx)` encapsulates check-in, runner election, runner/waiter split, and the `make entrypoint/Region` invocation in one call. The elected runner runs the upgrade; all others wait. There is no runner/waiter bookkeeping in the test body, and the upgrade command is not configurable per-spec.
+- `CheckInAndUpgrade(ctx)` encapsulates check-in, runner election, runner/waiter split, and the Region entrypoint pipeline invocation (via `run.RunPipeline`) in one call. The elected runner runs the upgrade; all others wait. There is no runner/waiter bookkeeping in the test body, and the upgrade command is not configurable per-spec.
 - Internally, the barrier increments `checked_in` (or `aborted_count` for specs that fail before `CheckInAndUpgrade`). Survivors settle once `checked_in + aborted_count >= total`.
 - `abort`, `checkIn`, `waitForUpgrade`, and `markUpgradeDone` are all unexported — they are only invoked by `CheckInAndUpgrade` and the `DeferCleanup` handlers. `NewUpgradeBarrier` registers one cleanup (abort safety net for early-failing specs); `CheckInAndUpgrade` registers a second one for the elected runner only (panic/early-exit safety net). This prevents accidental misuse that could corrupt coordination state.
 
 ### CI setup
 
-CI must export `UPGRADE_SPEC_COUNT` before running the suite so the barrier knows how many participants to expect:
+`ARTIFACT_DIR` is optional; when absent the barrier state file falls back to `os.TempDir()` so local runs work without CI scaffolding. The state file carries the test-process PID (`run_id`); any new invocation (different PID) resets the file, so interrupted local runs cannot poison a subsequent run even when the path stays the same.
 
-```bash
-UPGRADE_SPEC_COUNT=$(aro-hcp-tests list tests --suite upgrade/in-place --output names | grep -c .)
-export UPGRADE_SPEC_COUNT
-```
-
-When running a single spec locally, set it to `1` so the barrier does not wait for participants that will never arrive:
-
-```bash
-UPGRADE_SPEC_COUNT=1
-```
-
-`UPGRADE_SPEC_COUNT` must be set explicitly — omitting it causes `NewUpgradeBarrier` to fail with an actionable error rather than silently degrading coordination. `ARTIFACT_DIR` is optional; when absent the barrier state file falls back to `os.TempDir()` so local runs work without CI scaffolding.
-
-The `upgradeInPlaceParallelism` constant in `test/cmd/aro-hcp-tests/main.go` must equal the number of `UpgradeInPlace`-labelled `It` blocks. Update both when adding or removing upgrade specs.
+The total number of `UpgradeInPlace` specs is computed dynamically in `main.go`'s `setupCli()` — after `BuildExtensionTestSpecsFromOpenShiftGinkgoSuite()` builds the spec list, the code counts specs with `labels.UpgradeInPlace` and calls `framework.SetUpgradeInPlaceSpecCount(n)`. The same count drives both the suite `Parallelism` and `NewUpgradeBarrier()`. **No constant to maintain** — adding a new `UpgradeInPlace` spec automatically updates both.
 
 ### Typical It-block skeleton
 
@@ -383,13 +370,14 @@ tc := framework.NewTestContext()
 
 // NewUpgradeBarrier must be called after NewTestContext so its abort DeferCleanup
 // runs before tc teardown in FILO order, unblocking other specs before resource cleanup.
+// The total spec count was set by main.go's setupCli() via SetUpgradeInPlaceSpecCount.
 barrier, err := framework.NewUpgradeBarrier()
 Expect(err).NotTo(HaveOccurred(), "failed to create upgrade barrier")
 
 // ... provision cluster, capture baseline ...
 
 // CheckInAndUpgrade handles check-in, runner election, runner/waiter split,
-// and runs "make entrypoint/Region" on the elected runner. All other specs wait.
+// and runs the Region entrypoint pipeline on the elected runner. All others wait.
 err = barrier.CheckInAndUpgrade(ctx)
 Expect(err).NotTo(HaveOccurred(), "upgrade phase failed")
 

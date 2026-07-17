@@ -43,16 +43,6 @@ import (
 	"github.com/Azure/ARO-HCP/test/util/labels"
 )
 
-// upgradeInPlaceParallelism is the default parallelism for the upgrade/in-place
-// suite. It must equal the number of It blocks carrying labels.UpgradeInPlace so
-// that every spec can provision its cluster concurrently before the UpgradeBarrier
-// synchronisation point.
-//
-// TestUpgradeInPlaceParallelismMatchesSpecCount enforces that this constant stays
-// in sync with the actual spec count — update both together whenever you add or
-// remove upgrade test specs.
-const upgradeInPlaceParallelism = 1
-
 func fastTestsOnly(query string) string {
 	return fmt.Sprintf("%s && !labels.exists(l, l==\"%s\")", query, labels.Slow[0])
 }
@@ -105,6 +95,25 @@ func setupCli() *cobra.Command {
 
 	// You can declare multiple extensions, but most people will probably only need to create one.
 	ext := e.NewExtension("aro-hcp", "payload", "cuj-e2e-tests")
+
+	// Build extension specs once, upfront. This reads the Ginkgo spec tree that was
+	// populated at import time, so it is safe to call before adding suites.
+	// We use the full spec list to count UpgradeInPlace specs dynamically so that
+	// the suite Parallelism and the barrier total are always in sync with the real
+	// spec count — no constant or env var needs updating when specs are added.
+	specs, err := g.BuildExtensionTestSpecsFromOpenShiftGinkgoSuite()
+	if err != nil {
+		panic(fmt.Sprintf("couldn't build extension test specs from ginkgo: %+v", err.Error()))
+	}
+
+	upgradeInPlaceCount := 0
+	for _, spec := range specs {
+		if spec.Labels.Has(labels.UpgradeInPlace[0]) {
+			upgradeInPlaceCount++
+		}
+	}
+	// Store the count so NewUpgradeBarrier can read it at spec-run time.
+	framework.SetUpgradeInPlaceSpecCount(upgradeInPlaceCount)
 
 	// Remember that the label constants are (currently) slices, not items.
 
@@ -232,31 +241,23 @@ func setupCli() *cobra.Command {
 	// once for the whole suite; the others wait. After the upgrade every spec
 	// validates its own cluster independently (hash, haproxy image, DataSecretName).
 	//
-	// UPGRADE_SPEC_COUNT must be set before running this suite:
-	//   Full suite: UPGRADE_SPEC_COUNT=$(aro-hcp-tests list tests --suite upgrade/in-place --output names | grep -c .)
-	//   Single spec: UPGRADE_SPEC_COUNT=1
-	//
-	// Parallelism is set to match the number of UpgradeInPlace specs so each can
-	// provision concurrently. Adjust when adding or removing upgrade test specs.
+	// Parallelism equals the number of UpgradeInPlace specs counted above so every
+	// spec can provision concurrently. If parallelism < spec count, specs block
+	// forever at the barrier waiting for a queued spec that can never start —
+	// a guaranteed deadlock. upgradeInPlaceCount is computed dynamically so
+	// adding a new UpgradeInPlace spec automatically updates both the parallelism
+	// and the barrier total without any manual constant to maintain.
 	upgradeInPlaceTimeout := 120 * time.Minute
 	ext.AddSuite(e.Suite{
 		Name: "upgrade/in-place",
 		Qualifiers: []string{
 			fmt.Sprintf(`labels.exists(l, l=="%s")`, labels.UpgradeInPlace[0]),
 		},
-		Parallelism: parallelism(upgradeInPlaceParallelism),
+		Parallelism: parallelism(upgradeInPlaceCount),
 		TestTimeout: &upgradeInPlaceTimeout,
 	})
 
-	// If using Ginkgo, build test specs automatically
-	specs, err := g.BuildExtensionTestSpecsFromOpenShiftGinkgoSuite()
-	if err != nil {
-		panic(fmt.Sprintf("couldn't build extension test specs from ginkgo: %+v", err.Error()))
-	}
-
-	// You can add hooks to run before/after tests. There are BeforeEach, BeforeAll, AfterEach,
-	// and AfterAll. "Each" functions must be thread safe.
-	//
+	// If using Ginkgo, specs were already built above. Hooks can be added here.
 	// specs.AddBeforeAll(func() {
 	// })
 	//

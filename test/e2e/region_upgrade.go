@@ -227,11 +227,8 @@ var _ = Describe("Region in-place upgrade", func() {
 
 			// Set up the upgrade barrier after NewTestContext so its DeferCleanups
 			// run before tc teardown in FILO order, unblocking other specs before
-			// Azure resource deletion begins.
-			// UPGRADE_SPEC_COUNT must be set before running; ARTIFACT_DIR is optional
-			// (falls back to os.TempDir() for local runs).
-			//   Full suite: UPGRADE_SPEC_COUNT=$(./aro-hcp-tests list tests --suite upgrade/in-place --output names | grep -c .)
-			//   Single spec: UPGRADE_SPEC_COUNT=1
+			// Azure resource deletion begins. ARTIFACT_DIR is optional (falls back
+			// to os.TempDir() for local runs).
 			barrier, err := framework.NewUpgradeBarrier()
 			Expect(err).NotTo(HaveOccurred(), "failed to create upgrade barrier")
 
@@ -327,9 +324,8 @@ var _ = Describe("Region in-place upgrade", func() {
 			)
 
 			// CheckInAndUpgrade handles check-in, runner election, runner/waiter
-			// split, and the make entrypoint/Region invocation in one call.
-			// MakeRunner inherits all environment variables (OVERRIDE_CONFIG_FILE,
-			// DEPLOY_ENV, SKIP_CONFIRM, PERSIST) from the test process.
+			// split, and the Region entrypoint pipeline invocation in one call.
+			// OVERRIDE_CONFIG_FILE and DEPLOY_ENV are read from the environment.
 			By("checking in to barrier and running upgrade")
 			err = barrier.CheckInAndUpgrade(ctx)
 			Expect(err).NotTo(HaveOccurred(), "upgrade phase failed")

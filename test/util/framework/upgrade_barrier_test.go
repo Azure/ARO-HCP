@@ -83,7 +83,7 @@ func newLinkedBarrier(t *testing.T, source *UpgradeBarrier) *UpgradeBarrier {
 
 // TestUpgradeBarrier_SingleSpec verifies that with total=1 the single spec is
 // immediately elected runner and the barrier settles without any waiting.
-// This is the common case for local development runs (UPGRADE_SPEC_COUNT=1).
+// This is the common case for local development runs with a single spec.
 func TestUpgradeBarrier_SingleSpec(t *testing.T) {
 	t.Parallel()
 
@@ -347,37 +347,4 @@ func TestUpgradeBarrier_MarkUpgradeDoneIdempotent(t *testing.T) {
 	state, err := b0.readState()
 	require.NoError(t, err)
 	assert.Equal(t, firstErr.Error(), state.UpgradeError, "original error must be preserved")
-}
-
-// TestNewUpgradeBarrier_InvalidEnvVar verifies that an invalid UPGRADE_SPEC_COUNT
-// returns a descriptive error rather than silently defaulting.
-// Not parallel: uses t.Setenv which mutates global env state.
-func TestNewUpgradeBarrier_InvalidEnvVar(t *testing.T) {
-	t.Setenv("ARTIFACT_DIR", t.TempDir())
-	t.Setenv(UpgradeSpecCountEnvvar, "not-a-number")
-	_, err := NewUpgradeBarrier()
-	require.Error(t, err, "NewUpgradeBarrier should fail on non-numeric env var")
-	assert.Contains(t, err.Error(), UpgradeSpecCountEnvvar)
-}
-
-// TestNewUpgradeBarrier_MissingEnvVar verifies that an absent or empty
-// UPGRADE_SPEC_COUNT returns a descriptive error — no silent default.
-// Not parallel: uses t.Setenv which mutates global env state.
-func TestNewUpgradeBarrier_MissingEnvVar(t *testing.T) {
-	t.Setenv("ARTIFACT_DIR", t.TempDir())
-	t.Setenv(UpgradeSpecCountEnvvar, "")
-	_, err := NewUpgradeBarrier()
-	require.Error(t, err, "NewUpgradeBarrier should fail when UPGRADE_SPEC_COUNT is unset")
-	assert.Contains(t, err.Error(), UpgradeSpecCountEnvvar, "error should name the missing variable")
-	assert.Contains(t, err.Error(), "--output names", "error should include the command to compute the value")
-}
-
-// TestNewUpgradeBarrier_ZeroEnvVar verifies that UPGRADE_SPEC_COUNT=0 is rejected.
-// Not parallel: uses t.Setenv which mutates global env state.
-func TestNewUpgradeBarrier_ZeroEnvVar(t *testing.T) {
-	t.Setenv("ARTIFACT_DIR", t.TempDir())
-	t.Setenv(UpgradeSpecCountEnvvar, "0")
-	_, err := NewUpgradeBarrier()
-	require.Error(t, err, "NewUpgradeBarrier should fail when UPGRADE_SPEC_COUNT is zero")
-	assert.Contains(t, err.Error(), "positive integer")
 }

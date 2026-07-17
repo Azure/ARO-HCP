@@ -21,33 +21,30 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"strconv"
-	"strings"
 	"time"
 
+	"github.com/go-logr/logr"
 	"github.com/onsi/ginkgo/v2"
 
 	"sigs.k8s.io/yaml"
 
+	entrypointrun "github.com/Azure/ARO-HCP/tooling/templatize/cmd/entrypoint/run"
+
 	"github.com/Azure/ARO-HCP/test/pkg/filelock"
 )
 
-// UpgradeSpecCountEnvvar is the environment variable that must be set to the
-// number of UpgradeInPlace specs that will run in this suite invocation.
-//
-// Full suite:
-//
-//	UPGRADE_SPEC_COUNT=$(aro-hcp-tests list tests --suite upgrade/in-place --output names | grep -c .)
-//	export UPGRADE_SPEC_COUNT
-//
-// Single spec (e.g. with run-test for local development):
-//
-//	UPGRADE_SPEC_COUNT=1
-//
-// NewUpgradeBarrier returns an error if this variable is absent, empty, or
-// non-positive so that a forgotten CI setup step fails loudly instead of
-// silently degrading barrier coordination.
-const UpgradeSpecCountEnvvar = "UPGRADE_SPEC_COUNT"
+// upgradeInPlaceSpecCount is set once at suite-setup time (before any specs run)
+// by the main package via SetUpgradeInPlaceSpecCount. NewUpgradeBarrier reads it
+// so each spec knows the total number of participants without an env var or a
+// hard-coded constant that drifts from the real spec count.
+var upgradeInPlaceSpecCount int
+
+// SetUpgradeInPlaceSpecCount stores the number of UpgradeInPlace specs that will
+// run in this suite invocation. It must be called from main's setupCli(), after
+// BuildExtensionTestSpecsFromOpenShiftGinkgoSuite(), and before any specs start.
+func SetUpgradeInPlaceSpecCount(n int) {
+	upgradeInPlaceSpecCount = n
+}
 
 // defaultUpgradeBarrierPollInterval is how often each spec re-reads the state
 // file while waiting for the barrier to settle or for the upgrade to finish.
@@ -69,8 +66,8 @@ const defaultUpgradeTimeout = 70 * time.Minute
 
 // upgradeBarrierState is the on-disk representation of the barrier.
 type upgradeBarrierState struct {
-	// Total is the expected number of participating specs, read from
-	// UPGRADE_SPEC_COUNT by NewUpgradeBarrier.
+	// Total is the expected number of participating specs, passed to
+	// NewUpgradeBarrier by the caller (typically e2e.UpgradeInPlaceSpecCount).
 	Total int `yaml:"total"`
 	// CheckedIn counts specs that successfully provisioned their cluster and
 	// baseline and are ready for the upgrade.
@@ -83,6 +80,11 @@ type upgradeBarrierState struct {
 	// "make entrypoint/Region". It is set atomically by the first spec to call
 	// checkIn. A value of 0 means no runner has been elected yet.
 	RunnerPID int `yaml:"runner_pid"`
+	// RunID holds the OS PID of the test process that owns this barrier state.
+	// All specs in the same run share one PID; a fresh invocation gets a new PID.
+	// Any mismatch means the state file is stale (left by a previous, possibly
+	// interrupted run) and must be reset before coordination begins.
+	RunID int `yaml:"run_id"`
 	// UpgradeDone is set to true by markUpgradeDone once the runner has
 	// finished (successfully or not).
 	UpgradeDone bool `yaml:"upgrade_done"`
@@ -124,6 +126,7 @@ type UpgradeBarrier struct {
 	statePath      string
 	lockFile       *os.File
 	total          int
+	runID          int // os.Getpid() of this invocation; used to detect stale state files
 	pollInterval   time.Duration
 	settleTimeout  time.Duration
 	upgradeTimeout time.Duration
@@ -142,41 +145,23 @@ type UpgradeBarrier struct {
 // $ARTIFACT_DIR/upgrade-barrier-state.yaml and a lock file at
 // os.TempDir()/upgrade-barrier.lock.
 //
-// UPGRADE_SPEC_COUNT must be set before calling this function (see
-// UpgradeSpecCountEnvvar). ARTIFACT_DIR is optional; when absent the state
-// file falls back to os.TempDir() so local runs work without CI scaffolding.
+// The total number of participating specs is read from the package-level
+// upgradeInPlaceSpecCount variable, which must be set by calling
+// SetUpgradeInPlaceSpecCount from main's setupCli() before any specs run.
+// NewUpgradeBarrier returns an error if that count is still zero.
 //
-//   - UPGRADE_SPEC_COUNT — number of It blocks carrying labels.UpgradeInPlace
-//     (see UpgradeSpecCountEnvvar). Compute it before running the full suite:
-//
-//     UPGRADE_SPEC_COUNT=$(./aro-hcp-tests list tests --suite upgrade/in-place --output names | grep -c .)
-//     export UPGRADE_SPEC_COUNT
-//
-//     When running a single spec locally, set it to 1 so the barrier
-//     does not wait for participants that will never arrive:
-//
-//     export UPGRADE_SPEC_COUNT=1
-//
-// Both variables are validated on construction; missing or invalid values
-// cause an actionable error rather than silent degradation.
+// ARTIFACT_DIR is optional; when absent the state file falls back to
+// os.TempDir() so local single-spec runs work without CI scaffolding.
 func NewUpgradeBarrier() (*UpgradeBarrier, error) {
+	total := upgradeInPlaceSpecCount
+	if total <= 0 {
+		return nil, fmt.Errorf("NewUpgradeBarrier: spec count not set; " +
+			"call framework.SetUpgradeInPlaceSpecCount from main before running tests")
+	}
+
 	dir := artifactDir()
 	if dir == "" {
 		dir = os.TempDir()
-	}
-
-	raw := strings.TrimSpace(os.Getenv(UpgradeSpecCountEnvvar))
-	if raw == "" {
-		return nil, fmt.Errorf("%s must be set before running the upgrade/in-place suite "+
-			"(compute it with: %s=$(./aro-hcp-tests list tests --suite upgrade/in-place --output names | grep -c .))",
-			UpgradeSpecCountEnvvar, UpgradeSpecCountEnvvar)
-	}
-	total, err := strconv.Atoi(raw)
-	if err != nil {
-		return nil, fmt.Errorf("parsing %s=%q: %w", UpgradeSpecCountEnvvar, raw, err)
-	}
-	if total <= 0 {
-		return nil, fmt.Errorf("%s must be a positive integer, got %q", UpgradeSpecCountEnvvar, raw)
 	}
 
 	lockPath := filepath.Join(os.TempDir(), "upgrade-barrier.lock")
@@ -191,27 +176,29 @@ func NewUpgradeBarrier() (*UpgradeBarrier, error) {
 		statePath:      statePath,
 		lockFile:       lf,
 		total:          total,
+		runID:          os.Getpid(),
 		pollInterval:   defaultUpgradeBarrierPollInterval,
 		settleTimeout:  defaultSettleTimeout,
 		upgradeTimeout: defaultUpgradeTimeout,
 	}
 
-	// Write a clean initial state unless a sibling process already did so for
-	// this run (Total matches and upgrade not yet done). Stale files from a
-	// prior run are detected by UpgradeDone=true or a Total mismatch and reset.
+	// Write a clean initial state unless a sibling spec in the same run already
+	// did so (RunID matches). Any mismatch — zero RunID (uninitialized file),
+	// different PID (new process), or UpgradeDone=true (completed run) — means
+	// the file is stale and must be reset before coordination begins.
 	if err := b.withLock(func(state *upgradeBarrierState) (bool, error) {
-		needsReset := state.Total == 0 || state.UpgradeDone || state.Total != total
-		if !needsReset {
-			return false, nil
+		if state.RunID == b.runID {
+			return false, nil // same run, sibling already initialised — leave it
 		}
 		if state.Total != 0 {
 			ginkgo.GinkgoLogr.Info("upgrade barrier: resetting stale state file",
+				"previous_run_id", state.RunID,
 				"previous_total", state.Total,
 				"previous_upgrade_done", state.UpgradeDone,
 				"previous_checked_in", state.CheckedIn,
 				"previous_runner_pid", state.RunnerPID)
 		}
-		*state = upgradeBarrierState{Total: total}
+		*state = upgradeBarrierState{RunID: b.runID, Total: total}
 		return true, nil
 	}); err != nil {
 		lf.Close()
@@ -234,13 +221,14 @@ func NewUpgradeBarrier() (*UpgradeBarrier, error) {
 // phase in a single call, hiding the runner/waiter split from the test body.
 //
 // After all specs have provisioned their clusters (barrier settled), the
-// elected runner runs "make entrypoint/Region" from the repository root. On
-// completion (success or failure) it signals all waiting specs immediately so
-// they can start their validation in parallel with the runner.
+// elected runner invokes the Region entrypoint pipeline via templatize's
+// run.RunPipeline. On completion (success or failure) it signals all waiting
+// specs immediately so they can start their validation in parallel with the
+// runner.
 //
 // CheckInAndUpgrade returns an error if check-in fails (all specs aborted), if
-// the make invocation fails (runner only), or if the runner reported a failure
-// (non-runner specs). Per-spec validation runs after this call returns.
+// the pipeline invocation fails (runner only), or if the runner reported a
+// failure (non-runner specs). Per-spec validation runs after this call returns.
 func (b *UpgradeBarrier) CheckInAndUpgrade(ctx context.Context) error {
 	isRunner, err := b.checkIn(ctx)
 	if err != nil {
@@ -250,9 +238,10 @@ func (b *UpgradeBarrier) CheckInAndUpgrade(ctx context.Context) error {
 		return b.waitForUpgrade(ctx)
 	}
 
-	// Safety net: if make panics, or an Expect fires inside a helper we call
-	// before we reach the eager markUpgradeDone below, the DeferCleanup ensures
-	// waiting specs are unblocked rather than hanging until suite timeout.
+	// Safety net: if RunPipeline panics, or an Expect fires inside a helper
+	// we call before we reach the eager markUpgradeDone below, the
+	// DeferCleanup ensures waiting specs are unblocked rather than hanging
+	// until suite timeout.
 	ginkgo.DeferCleanup(func(ctx context.Context) {
 		if b.upgradeDoneSignaled {
 			return
@@ -262,25 +251,56 @@ func (b *UpgradeBarrier) CheckInAndUpgrade(ctx context.Context) error {
 		}
 	}, AnnotatedLocation("upgrade barrier: mark upgrade done (runner safety net)"))
 
-	root, err := repoRoot()
-	if err != nil {
-		return fmt.Errorf("determining repo root for make invocation: %w", err)
-	}
-	makeRunner := &MakeRunner{
-		WorkDir:  root,
-		ExtraEnv: []string{"SKIP_CONFIRM=true"},
-		Logger:   ginkgo.GinkgoLogr,
-	}
-	makeErr := makeRunner.RunWithOutput(ctx, "entrypoint/Region", ginkgo.GinkgoWriter, ginkgo.GinkgoWriter)
+	upgradeErr := b.runRegionEntrypoint(ctx)
 
-	// Signal immediately after make completes — success or failure — so all
-	// waiting specs can start their validation window in parallel with the
-	// runner rather than being held until the runner's cleanup phase.
+	// Signal immediately after the pipeline completes — success or failure —
+	// so all waiting specs can start their validation window in parallel with
+	// the runner rather than being held until the runner's cleanup phase.
 	b.upgradeDoneSignaled = true
-	if markErr := b.markUpgradeDone(makeErr); markErr != nil {
+	if markErr := b.markUpgradeDone(upgradeErr); markErr != nil {
 		ginkgo.GinkgoLogr.Error(markErr, "failed to mark upgrade done in barrier")
 	}
-	return makeErr
+	return upgradeErr
+}
+
+// runRegionEntrypoint invokes the Region entrypoint pipeline in-process via
+// templatize's run.RunPipeline.
+//
+// Configuration is driven by the same environment variables that the CI step
+// registry shell script (aro-hcp-test-local-upgrade-commands.sh) exports:
+//
+//   - DEPLOY_ENV          → dev environment name (e.g. "cspr")
+//   - OVERRIDE_CONFIG_FILE → config overlay with PR image overrides
+//
+// Paths are resolved as absolutes from the repository root so the call works
+// regardless of the test binary's working directory.
+func (b *UpgradeBarrier) runRegionEntrypoint(ctx context.Context) error {
+	root, err := repoRoot()
+	if err != nil {
+		return fmt.Errorf("determining repo root for entrypoint invocation: %w", err)
+	}
+
+	opts := entrypointrun.DefaultOptions()
+	opts.BaseOptions.ConfigFile = filepath.Join(root, "config", "config.yaml")
+	if override := overrideConfigFile(); override != "" {
+		opts.BaseOptions.ConfigFileOverride = override
+	}
+	opts.TopologyFiles = []string{filepath.Join(root, "topology.yaml")}
+	opts.Entrypoint = "Microsoft.Azure.ARO.HCP.Region"
+	opts.DevSettingsFile = filepath.Join(root, "tooling", "templatize", "settings.yaml")
+	opts.DevEnvironment = deployEnv()
+	opts.Region = location()
+	opts.StepCacheDir = filepath.Join(root, ".step-cache")
+	opts.Persist = true
+
+	if dir := artifactDir(); dir != "" {
+		opts.JUnitOutputFile = filepath.Join(dir, "junit_entrypoint.xml")
+		opts.ConfigOutputFile = filepath.Join(dir, "config.yaml")
+	}
+	opts.TimingOutputFile = filepath.Join(root, "timing", "steps.yaml")
+
+	ctx = logr.NewContext(ctx, ginkgo.GinkgoLogr)
+	return entrypointrun.RunPipeline(ctx, opts)
 }
 
 // repoRoot derives the repository root from the test binary path.
@@ -299,6 +319,19 @@ func repoRoot() (string, error) {
 	}
 	// real == <repo-root>/test/aro-hcp-tests → Dir → test/ → Dir → repo root
 	return filepath.Dir(filepath.Dir(real)), nil
+}
+
+// deployEnv returns the DEPLOY_ENV environment variable, which selects the
+// templatize dev-environment (e.g. "cspr", "pers").
+func deployEnv() string {
+	return os.Getenv("DEPLOY_ENV")
+}
+
+// overrideConfigFile returns the OVERRIDE_CONFIG_FILE environment variable.
+// In CI the local-upgrade step sets this to a rendered config overlay that
+// substitutes PR-built image tags on top of the base config.yaml.
+func overrideConfigFile() string {
+	return os.Getenv("OVERRIDE_CONFIG_FILE")
 }
 
 // registerGinkgoCleanup registers DeferCleanup handlers on the current Ginkgo
