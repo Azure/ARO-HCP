@@ -63,7 +63,9 @@ var _ = Describe("Customer", func() {
 
 			By("reusing the same managed identity for two control plane operators")
 			cpOps := clusterParams.UserAssignedIdentitiesProfile.ControlPlaneOperators
+			originalIngressMI := *cpOps["ingress"]
 			cpOps["ingress"] = cpOps["cluster-api-azure"]
+			delete(clusterParams.Identity.UserAssignedIdentities, originalIngressMI)
 
 			By("creating a cluster with reused managed identity")
 			err = tc.CreateHCPClusterFromParam20240610(

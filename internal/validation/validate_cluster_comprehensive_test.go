@@ -692,21 +692,17 @@ func TestValidateClusterCreate(t *testing.T) {
 			},
 		},
 		{
-			name: "identity used multiple times - create",
+			name: "identity reused by multiple operators - create",
 			cluster: func() *coreapi.Cluster {
 				c := createValidCluster()
 				identityID := testOperatorIdentityPrefix + "shared-identity"
 				c.Identity.UserAssignedIdentities[identityID] = &coreapi.UserAssignedIdentity{}
-				// Use the same identity in multiple places
 				identityResourceID := metadataapi.Must(azcorearm.ParseResourceID(identityID))
 				repointControlPlaneOperator(c, "ingress", identityResourceID)
 				repointControlPlaneOperator(c, "control-plane", identityResourceID)
 				return c
 			}(),
-			expectErrors: []utils.ExpectedError{
-				{Message: "must be unique within the cluster", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators"},
-				{Message: "identity is used multiple times", FieldPath: "identity.userAssignedIdentities[" + testOperatorIdentityPrefix + "shared-identity]"},
-			},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "duplicate managed identity across data plane operators - create",
@@ -717,9 +713,7 @@ func TestValidateClusterCreate(t *testing.T) {
 				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.DataPlaneOperators["file-csi-driver"] = sharedIdentity
 				return c
 			}(),
-			expectErrors: []utils.ExpectedError{
-				{Message: "must be unique within the cluster", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.dataPlaneOperators"},
-			},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "duplicate managed identity between control plane and service managed identity - create",
@@ -732,10 +726,7 @@ func TestValidateClusterCreate(t *testing.T) {
 				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity = identityResourceID
 				return c
 			}(),
-			expectErrors: []utils.ExpectedError{
-				{Message: "must be unique within the cluster", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.serviceManagedIdentity"},
-				{Message: "identity is used multiple times", FieldPath: "identity.userAssignedIdentities[" + testOperatorIdentityPrefix + "shared-identity]"},
-			},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "data plane operator uses assigned identity - create",

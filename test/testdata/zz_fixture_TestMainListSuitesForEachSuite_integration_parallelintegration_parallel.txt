@@ -1,4 +1,5 @@
-Customer should be able to list available HCP OpenShift versions and validate response content
+Customer should be able to create several HCP clusters in their customer resource group, but not in the same managed resource group
+Customer should not be able to reuse subnets and NSGs between clusters
 Customer should be able to test admin credentials before cluster ready, then full admin credential lifecycle
 Customer should be able to create node pools with ARM64-based VMs
 Authorized CIDRs Connectivity should allow API access only from authorized VM IP
@@ -13,13 +14,11 @@ Customer should create a cluster using v20260901preview API and verify cluster h
 ARO HCP Service should successfully provision cluster when MI role assignments are added after cluster creation
 Customer should be able to create an HCP cluster then delete it by deleting the customer resource group
 FIPS Mode Support with v2026-06-30 API should create an HCP cluster with FIPS mode enabled via cryptoRestrictions property
-Customer should not be able to reuse subnets and NSGs between clusters
 Customer should be able to create an HCP cluster and manage pull secrets
 Customer should create an HCP cluster and validate TLS certificates
 Update HCPOpenShiftCluster Negative creates a cluster and fails to update its name with a PATCH request
 Update HCPOpenShiftCluster Positive creates a cluster and updates tags with a PATCH request
-Customer should be able to create an HCP cluster with back-level version 4.20
-Customer should be able to create several HCP clusters in their customer resource group, but not in the same managed resource group
+Customer should be able to create an HCP cluster with back-level version 4.19
 ARO-HCP should be able to perform a control plane and node pool install with OCP candidate channel for 4.20
 ARO-HCP should be able to perform a control plane and node pool install with OCP candidate channel for 4.21
 ARO-HCP should be able to perform a control plane and node pool install with OCP candidate channel for 4.22
@@ -37,23 +36,11 @@ ARO-HCP should be able to perform a control plane and node pool install with OCP
 ARO-HCP should be able to perform a control plane and node pool install with OCP candidate channel for 5.10
 ARO-HCP should be able to perform a control plane and node pool install with OCP candidate channel for 5.11
 ARO-HCP should be able to perform a control plane and node pool install with OCP candidate channel for 5.12
+Service Provider should upgrade the control plane z-stream automatically on behalf of the customer for 4.19
 Service Provider should upgrade the control plane z-stream automatically on behalf of the customer for 4.20
 Service Provider should upgrade the control plane z-stream automatically on behalf of the customer for 4.21
 Service Provider should upgrade the control plane z-stream automatically on behalf of the customer for 4.22
 Service Provider should upgrade the control plane z-stream automatically on behalf of the customer for 4.23
-Service Provider should upgrade the control plane z-stream automatically on behalf of the customer for 5.0
-Service Provider should upgrade the control plane z-stream automatically on behalf of the customer for 5.1
-Service Provider should upgrade the control plane z-stream automatically on behalf of the customer for 5.2
-Service Provider should upgrade the control plane z-stream automatically on behalf of the customer for 5.3
-Service Provider should upgrade the control plane z-stream automatically on behalf of the customer for 5.4
-Service Provider should upgrade the control plane z-stream automatically on behalf of the customer for 5.5
-Service Provider should upgrade the control plane z-stream automatically on behalf of the customer for 5.6
-Service Provider should upgrade the control plane z-stream automatically on behalf of the customer for 5.7
-Service Provider should upgrade the control plane z-stream automatically on behalf of the customer for 5.8
-Service Provider should upgrade the control plane z-stream automatically on behalf of the customer for 5.9
-Service Provider should upgrade the control plane z-stream automatically on behalf of the customer for 5.10
-Service Provider should upgrade the control plane z-stream automatically on behalf of the customer for 5.11
-Service Provider should upgrade the control plane z-stream automatically on behalf of the customer for 5.12
 Customer should be able to successfully upgrade control plane minor version from 4.20 minor to 4.21 minor
 Customer should be able to successfully upgrade control plane minor version from 4.21 minor to 4.22 minor
 Customer should be able to successfully upgrade control plane minor version from 4.22 minor to 4.23 minor
@@ -85,6 +72,8 @@ Customer should upgrade and update a nodepool from 4.20.z to 4.20.zLatest
 Customer should upgrade a nodepool to a version without Cincinnati upgrade edge z-stream upgrade without Cincinnati edge in 4.20
 Customer should upgrade a nodepool skipping one minor version (+2) from 4.20.z to 4.22.zLatest
 Customer should downgrade a nodepool version z-stream downgrade from 4.21.zLatest to 4.21.zPrevious
-Customer should downgrade a nodepool to a lower minor version from 4.22.zLatest to 4.20.zLatest
+Customer should downgrade a nodepool to a lower minor version from 4.21.zLatest to 4.19.zLatest
 Customer should be able to use workload identity via the cluster OIDC issuer URL
 Customer should not be able to perform various invalid operations on cluster resources
+Customer should be able to list available HCP OpenShift versions and validate response content
+Customer should be able to create a cluster with reused managed identities
