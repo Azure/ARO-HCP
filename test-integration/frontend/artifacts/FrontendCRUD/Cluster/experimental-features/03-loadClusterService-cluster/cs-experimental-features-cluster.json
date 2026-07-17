@@ -74,6 +74,10 @@
 		"id": "aro",
 		"kind": "Product"
 	},
+	"properties": {
+		"hosted_cluster_single_replica": "true",
+		"hosted_cluster_size_override": "e2e_minimal"
+	},
 	"region": {
 		"id": "fake-location",
 		"kind": "CloudRegion"
