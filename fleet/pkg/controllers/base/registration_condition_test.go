@@ -66,18 +66,34 @@ func TestSetRegistrationCondition(t *testing.T) {
 			expectedMessage: "connection refused",
 		},
 		{
-			name: "error after previous False stays False/RegistrationFailed",
+			name: "error after previous False/RegistrationFailed preserves existing message",
 			existingConditions: []metav1.Condition{
 				{
-					Type:   conditionType,
-					Status: metav1.ConditionFalse,
-					Reason: string(fleetapi.ManagementClusterConditionReasonRegistrationFailed),
+					Type:    conditionType,
+					Status:  metav1.ConditionFalse,
+					Reason:  string(fleetapi.ManagementClusterConditionReasonRegistrationFailed),
+					Message: "first error",
 				},
 			},
-			syncErr:         errors.New("still broken"),
+			syncErr:         errors.New("second error with different operation ID"),
 			expectedStatus:  metav1.ConditionFalse,
 			expectedReason:  string(fleetapi.ManagementClusterConditionReasonRegistrationFailed),
-			expectedMessage: "still broken",
+			expectedMessage: "first error",
+		},
+		{
+			name: "error after previous True/CheckFailed preserves existing message",
+			existingConditions: []metav1.Condition{
+				{
+					Type:    conditionType,
+					Status:  metav1.ConditionTrue,
+					Reason:  string(fleetapi.ManagementClusterConditionReasonRegistrationCheckFailed),
+					Message: "first check failure",
+				},
+			},
+			syncErr:         errors.New("second check failure with different timestamp"),
+			expectedStatus:  metav1.ConditionTrue,
+			expectedReason:  string(fleetapi.ManagementClusterConditionReasonRegistrationCheckFailed),
+			expectedMessage: "first check failure",
 		},
 		{
 			name: "no error after previous False transitions to True",
