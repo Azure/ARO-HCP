@@ -233,7 +233,7 @@ data:
         Name            rewrite_tag
         Alias           filter.resource_snapshot_router
         Match           mgmt-agent.logs
-        Rule            $snapshotType ^kubernetes$ resource-snapshots.logs true
+        Rule            $snapshotType ^kubernetes$ resource-snapshots.logs false
         Emitter_Name    re_emitted_resource_snapshot_router
         Emitter_Mem_Buf_Limit  20M
         Emitter_Storage.type   filesystem
@@ -244,7 +244,7 @@ data:
         Name            rewrite_tag
         Alias           filter.cosmos_snapshot_router
         Match           aro-hcp-backend.logs
-        Rule            $snapshotType ^cosmos$ cosmos-snapshots.logs true
+        Rule            $snapshotType ^cosmos$ cosmos-snapshots.logs false
         Emitter_Name    re_emitted_cosmos_snapshot_router
         Emitter_Mem_Buf_Limit  20M
         Emitter_Storage.type   filesystem
@@ -255,7 +255,7 @@ data:
         Name            rewrite_tag
         Alias           filter.cosmos_snapshot_router_frontend
         Match           aro-hcp-frontend.logs
-        Rule            $snapshotType ^cosmos$ cosmos-snapshots.logs true
+        Rule            $snapshotType ^cosmos$ cosmos-snapshots.logs false
         Emitter_Name    re_emitted_cosmos_snapshot_router_frontend
         Emitter_Mem_Buf_Limit  20M
         Emitter_Storage.type   filesystem
@@ -505,7 +505,7 @@ spec:
         app: arobit-forwarder
         azure.workload.identity/use: "true"
       annotations:
-        checksum/configmap: 4c70eb054d1139eef9f2cf17f73fbcb6141a31e82243ec5c251b3d40a1278897
+        checksum/configmap: 003f824129f7e41d8b77a9c0abb9a1340211ffa0b2f0cf3e588c95614a38d0b3
     spec:
       priorityClassName: service-lifecycle-critical
       serviceAccountName: 'arobit-forwarder'

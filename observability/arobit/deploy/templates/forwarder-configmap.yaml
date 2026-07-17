@@ -239,7 +239,7 @@ data:
         Name            rewrite_tag
         Alias           filter.resource_snapshot_router
         Match           mgmt-agent.logs
-        Rule            $snapshotType ^kubernetes$ resource-snapshots.logs true
+        Rule            $snapshotType ^kubernetes$ resource-snapshots.logs false
         Emitter_Name    re_emitted_resource_snapshot_router
         Emitter_Mem_Buf_Limit  20M
         Emitter_Storage.type   filesystem
@@ -250,7 +250,7 @@ data:
         Name            rewrite_tag
         Alias           filter.cosmos_snapshot_router
         Match           aro-hcp-backend.logs
-        Rule            $snapshotType ^cosmos$ cosmos-snapshots.logs true
+        Rule            $snapshotType ^cosmos$ cosmos-snapshots.logs false
         Emitter_Name    re_emitted_cosmos_snapshot_router
         Emitter_Mem_Buf_Limit  20M
         Emitter_Storage.type   filesystem
@@ -261,7 +261,7 @@ data:
         Name            rewrite_tag
         Alias           filter.cosmos_snapshot_router_frontend
         Match           aro-hcp-frontend.logs
-        Rule            $snapshotType ^cosmos$ cosmos-snapshots.logs true
+        Rule            $snapshotType ^cosmos$ cosmos-snapshots.logs false
         Emitter_Name    re_emitted_cosmos_snapshot_router_frontend
         Emitter_Mem_Buf_Limit  20M
         Emitter_Storage.type   filesystem
