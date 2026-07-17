@@ -192,7 +192,7 @@ For the current live capacity model:
 
 ### Scaling Constraints
 
-Two bottlenecks still matter:
+Three bottlenecks matter:
 
 **Bottleneck 1: maximum concurrent E2E runs.**
 
@@ -205,6 +205,25 @@ max-concurrent-runs = floor(pool-size / per-job-lease-count)
 - In the slot-managed DEV model, concurrency is instead bounded by the number of available slots across the shard pools that the job is allowed to consume.
 
 **Bottleneck 2: parallelism within a single run.** The per-job identity-container set still caps how many HCP clusters a single suite execution can run simultaneously. When the suite has more specs requiring HCPs than available leased containers, specs run in waves — the first wave runs, and the remaining specs block inside `AssignIdentityContainers()` until containers are released. This means adding more test specs increases total suite runtime even if the specs themselves are fast.
+
+**Bottleneck 3: deny assignments per subscription (AME only — STG and PROD).** The Azure Authorization RP allows at most **2000 deny assignments per subscription**. The RP currently creates *sharded* (per-cluster) deny assignments — roughly 21 per HCP — which caps a single subscription at about **92 concurrent HCP clusters**, regardless of role-assignment quota or identity-pool size:
+
+```text
+DENY_ASSIGNMENTS_PER_SUB   = 2000  (Authorization RP hard limit)
+DENY_ASSIGNMENTS_PER_HCP   = 21    (current sharded, per-cluster count)
+
+max-hcps-per-sub = floor(DENY_ASSIGNMENTS_PER_SUB / DENY_ASSIGNMENTS_PER_HCP) ≈ 92
+```
+
+This applies to **AME environments only (STG and PROD)**: the RP only creates deny assignments in AME. In practice it is the binding constraint for PROD slot sizing — STG runs a single slot per subscription, well under the ceiling. It translates into slot count as:
+
+```text
+max-slots-per-sub = floor(max-hcps-per-sub / identity-container-count-per-slot)
+```
+
+where `identity-container-count-per-slot` is the pool's `identity_container_count` (the max HCPs a single suite run provisions concurrently). The PROD `slot_count` in `test/e2e-config/e2e-slots.yaml` is sized to stay within this cap; that catalog is the source of truth for the current per-subscription values.
+
+The RP is expected to consolidate the per-cluster deny assignments into a single deny assignment with all managed identities excluded once Azure raises the excluded-principals limit from 10 to 25. When that lands, this per-subscription HCP ceiling is lifted and the PROD `slot_count` can be raised accordingly.
 
 The path to higher throughput is still adding subscription capacity, because each additional customer subscription brings its own role-assignment budget and its own managed identity container fleet. In DEV, slot-manager is what lets CI consume that extra capacity through one job family rather than through separate workflows.
 
