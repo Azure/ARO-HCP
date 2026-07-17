@@ -172,6 +172,25 @@ type ServiceProviderClusterStatus struct {
 	// is no signal on Spec alone that dispatch still needs to clear the CS
 	// property.
 	DesiredHostedClusterControlPlaneSize *string `json:"desiredHostedClusterControlPlaneSize,omitempty"`
+
+	// HostedClusterNamespace is the namespace of the actual HostedCluster.  It contains things like
+	//  - HostedCluster CR — the primary user-facing API object
+	//  - NodePool CRs — user creates these here
+	//  - User-provided secrets — pull secret, SSH key, cloud credentials, encryption secrets, etcd encryption key, audit webhook config, additional trust bundles, service account signing key
+	//  - Generated kubeconfig secrets — admin-kubeconfig (copied back from HCP namespace), kubeadmin-password
+	//  - EtcdBackup CRs (if used)
+	// Written by: ServiceProviderClusterPropertiesSync
+	HostedClusterNamespace string `json:"hostedClusterNamespace,omitempty"`
+
+	// ControlPlaneNamespace is the namespace containing the pods that manage and run the HostedCluster.  It contains things like
+	//  - etcd
+	//  - kube-apiserver
+	//  - control-plane-operator
+	//  - control-plane-pki-operator
+	// it is derived as <hostedClusterNamespace>-<hostedClusterName> with dots replaced by dashes.
+	// Hypershift uses the HostedControlPlaneNamespace function.
+	// Written by: ServiceProviderClusterPropertiesSync
+	ControlPlaneNamespace string `json:"controlPlaneNamespace,omitempty"`
 }
 
 // ServiceProviderClusterStatusVersion contains the actual version information.
