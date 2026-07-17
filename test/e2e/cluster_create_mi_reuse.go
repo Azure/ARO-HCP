@@ -16,8 +16,6 @@ package e2e
 
 import (
 	"context"
-	"strings"
-	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -27,14 +25,14 @@ import (
 )
 
 var _ = Describe("Customer", func() {
-	It("should not be able to reuse managed identities within the same cluster",
+	It("should be able to create a cluster with reused managed identities",
 		labels.RequireNothing,
 		labels.Medium,
-		labels.Negative,
+		labels.Positive,
 		labels.AroRpApiCompatible,
 		labels.CreateCluster,
 		func(ctx context.Context) {
-			const clusterName = "mi-reuse-cluster"
+			const clusterName = "cluster-mi-reuse"
 
 			tc := framework.NewTestContext()
 
@@ -66,19 +64,14 @@ var _ = Describe("Customer", func() {
 			cpOps := clusterParams.UserAssignedIdentitiesProfile.ControlPlaneOperators
 			cpOps["ingress"] = cpOps["cluster-api-azure"]
 
-			By("attempting to create the cluster with reused managed identity")
+			By("creating a cluster with reused managed identity")
 			err = tc.CreateHCPClusterFromParam20240610(
 				ctx,
 				GinkgoLogr,
 				*resourceGroup.Name,
 				clusterParams,
-				5*time.Minute,
+				framework.ClusterCreationTimeout,
 			)
-
-			Expect(err).To(HaveOccurred(), "expected error when creating cluster with reused managed identity")
-			Expect(strings.ToLower(err.Error())).To(
-				ContainSubstring("must be unique within the cluster"),
-				"error should indicate managed identity must be unique within the cluster",
-			)
+			Expect(err).NotTo(HaveOccurred(), "failed to create cluster with reused managed identity")
 		})
 })
