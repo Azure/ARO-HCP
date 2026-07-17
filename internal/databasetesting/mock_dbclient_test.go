@@ -309,6 +309,135 @@ func TestMockResourcesDBClient_CRUD_Operation(t *testing.T) {
 	}
 }
 
+func TestMockResourcesDBClient_ListByExternalID(t *testing.T) {
+	mock := NewMockResourcesDBClient()
+	ctx := context.Background()
+
+	subscriptionID := "6b690bec-0c16-4ecb-8f67-781caf40bba7"
+
+	cluster1ID := api.Must(azcorearm.ParseResourceID(
+		"/subscriptions/" + subscriptionID +
+			"/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1"))
+
+	cluster2ID := api.Must(azcorearm.ParseResourceID(
+		"/subscriptions/" + subscriptionID +
+			"/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-2"))
+
+	nodePoolExternalID := api.Must(azcorearm.ParseResourceID(
+		"/subscriptions/" + subscriptionID +
+			"/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1/nodePools/np-1"))
+
+	now := time.Now().UTC()
+
+	makeOp := func(name string, externalID *azcorearm.ResourceID, status arm.ProvisioningState) *api.Operation {
+		resourceID := api.Must(azcorearm.ParseResourceID(
+			"/subscriptions/" + subscriptionID +
+				"/providers/Microsoft.RedHatOpenShift/hcpOperationStatuses/" + name))
+		return &api.Operation{
+			CosmosMetadata: api.CosmosMetadata{
+				ResourceID:   resourceID,
+				PartitionKey: strings.ToLower(subscriptionID),
+			},
+			OperationID:        resourceID,
+			ExternalID:         externalID,
+			Request:            api.OperationRequestDelete,
+			Status:             status,
+			StartTime:          now,
+			LastTransitionTime: now,
+		}
+	}
+
+	operationCRUD := mock.Operations(subscriptionID)
+
+	// cluster-1: one active, one terminal
+	_, err := operationCRUD.Create(ctx, makeOp("op-c1-active", cluster1ID, arm.ProvisioningStateAccepted), nil)
+	if err != nil {
+		t.Fatalf("Failed to create operation: %v", err)
+	}
+	_, err = operationCRUD.Create(ctx, makeOp("op-c1-done", cluster1ID, arm.ProvisioningStateSucceeded), nil)
+	if err != nil {
+		t.Fatalf("Failed to create operation: %v", err)
+	}
+
+	// nodepool under cluster-1
+	_, err = operationCRUD.Create(ctx, makeOp("op-np1", nodePoolExternalID, arm.ProvisioningStateAccepted), nil)
+	if err != nil {
+		t.Fatalf("Failed to create operation: %v", err)
+	}
+
+	// cluster-2
+	_, err = operationCRUD.Create(ctx, makeOp("op-c2", cluster2ID, arm.ProvisioningStateAccepted), nil)
+	if err != nil {
+		t.Fatalf("Failed to create operation: %v", err)
+	}
+
+	collectOps := func(iter database.DBClientIterator[api.Operation]) []*api.Operation {
+		t.Helper()
+		var ops []*api.Operation
+		for _, item := range iter.Items(ctx) {
+			if item != nil {
+				ops = append(ops, item)
+			}
+		}
+		if iter.GetError() != nil {
+			t.Fatalf("Iterator error: %v", iter.GetError())
+		}
+		return ops
+	}
+
+	t.Run("exact match only", func(t *testing.T) {
+		ops := collectOps(operationCRUD.ListByExternalID(cluster1ID, false))
+		if len(ops) != 2 {
+			t.Fatalf("Expected 2 operations (active + terminal) for cluster-1 exact, got %d", len(ops))
+		}
+		for _, op := range ops {
+			if !strings.EqualFold(op.ExternalID.String(), cluster1ID.String()) {
+				t.Errorf("Expected externalID %s, got %s", cluster1ID.String(), op.ExternalID.String())
+			}
+		}
+	})
+
+	t.Run("includes nested resources", func(t *testing.T) {
+		ops := collectOps(operationCRUD.ListByExternalID(cluster1ID, true))
+		if len(ops) != 3 {
+			t.Fatalf("Expected 3 operations (2 cluster + 1 nodepool) for cluster-1 nested, got %d", len(ops))
+		}
+	})
+
+	t.Run("different cluster returns only its ops", func(t *testing.T) {
+		ops := collectOps(operationCRUD.ListByExternalID(cluster2ID, true))
+		if len(ops) != 1 {
+			t.Fatalf("Expected 1 operation for cluster-2, got %d", len(ops))
+		}
+		if !strings.EqualFold(ops[0].ExternalID.String(), cluster2ID.String()) {
+			t.Errorf("Expected externalID %s, got %s", cluster2ID.String(), ops[0].ExternalID.String())
+		}
+	})
+
+	t.Run("includes terminal operations", func(t *testing.T) {
+		ops := collectOps(operationCRUD.ListByExternalID(cluster1ID, false))
+		hasTerminal := false
+		for _, op := range ops {
+			if op.Status == arm.ProvisioningStateSucceeded {
+				hasTerminal = true
+			}
+		}
+		if !hasTerminal {
+			t.Error("Expected ListByExternalID to include terminal operations")
+		}
+	})
+
+	t.Run("nonexistent cluster returns empty", func(t *testing.T) {
+		noClusterID := api.Must(azcorearm.ParseResourceID(
+			"/subscriptions/" + subscriptionID +
+				"/resourceGroups/test-rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/no-such-cluster"))
+		ops := collectOps(operationCRUD.ListByExternalID(noClusterID, true))
+		if len(ops) != 0 {
+			t.Errorf("Expected 0 operations for nonexistent cluster, got %d", len(ops))
+		}
+	})
+}
+
 func TestMockResourcesDBClient_CRUD_Subscription(t *testing.T) {
 	mock := NewMockResourcesDBClient()
 	ctx := context.Background()
