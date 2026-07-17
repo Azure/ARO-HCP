@@ -104,6 +104,7 @@ services:
   purpose: Deploy global shared infrastructure (STG V2).
 # Cleanup pipelines
 - serviceGroup: Microsoft.Azure.ARO.HCP.Management.Delete
+  stamped: true
   pipelinePath: dev-infrastructure/cleanup/delete.mgmt.pipeline.yaml
   purpose: Delete the management resources and management resource group
 - serviceGroup: Microsoft.Azure.ARO.HCP.Service.Delete
@@ -117,6 +118,7 @@ services:
   pipelinePath: dev-infrastructure/grafana-pipeline.yaml
   purpose: Test pipeline for Grafana reconciliation.
 - serviceGroup: Microsoft.Azure.ARO.HCP.Observability
+  stamped: true
   pipelinePath: observability/tracing/pipeline.yaml
   purpose: Deploy the development tracing stack.
 # Kusto Infra pipeline
@@ -127,5 +129,6 @@ services:
   pipelinePath: dev-infrastructure/svc-kubeconfig.yaml
   purpose: Grant access to AKS SVC AKS Clusters, mainly intended for E2E test setup.
 - serviceGroup: Microsoft.Azure.ARO.HCP.Management.Kubeconfig
+  stamped: true
   pipelinePath: dev-infrastructure/mgmt-kubeconfig.yaml
-  purpose: Grant access to AKS SVC AKS Clusters, mainly intended for E2E test setup.
+  purpose: Grant access to AKS Management Clusters, mainly intended for E2E test setup.
