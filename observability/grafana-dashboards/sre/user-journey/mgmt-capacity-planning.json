@@ -17,7 +17,7 @@
   },
   "editable": true,
   "fiscalYearStartMonth": 0,
-  "graphTooltip": 0,
+  "graphTooltip": 1,
   "id": null,
   "links": [],
   "panels": [
@@ -40,7 +40,7 @@
           "showLineNumbers": false,
           "showMiniMap": false
         },
-        "content": "### Management Cluster Capacity Planning\n\nWeekly capacity review dashboard for management clusters. Shows HCP density, resource commitment ratios, actual utilization, and cross-cluster comparison for all MGMT clusters in a region.\n\n**Sections:**\n- **HCP Density** — current HCP count, % of 60-HCP ceiling, 7-day trend\n- **Node Resource Commitment** — CPU/memory request ratios vs allocatable, node counts\n- **Resource Utilization** — actual CPU/memory usage vs allocatable, top nodes\n- **Cross-Cluster Comparison** — side-by-side table of all MGMT clusters\n\n**Datasources:**\n- **SVC AMW** (`Managed_Prometheus_services-*`) — node metrics, resource requests, allocatable capacity.\n- **HCP AMW** (`Managed_Prometheus_hcps-*`) — HCP density panels (ocm-* namespace metrics are routed here).\n\n**Notes:**\n- The 60-HCP-per-MGMT-cluster ceiling comes from ClusterSizingConfiguration.\n- HCP count = count of distinct `ocm-*` namespaces (via `kube_pod_info`).\n- Select \"All\" in the Cluster dropdown to compare all MGMT clusters in the region.",
+        "content": "### Management Cluster Capacity Planning\n\nWeekly capacity review dashboard for management clusters. Shows HCP density, resource commitment ratios, and actual utilization for all MGMT clusters in a region.\n\n**Sections:**\n- **HCP Density** — current HCP count, % of 60-HCP ceiling, 7-day trend\n- **Node Resource Commitment** — CPU/memory commitment ratios (SVC + HCP combined), node counts\n- **Resource Utilization** — actual CPU/memory usage vs allocatable, top nodes\n\n**Datasources:**\n- **SVC AMW** (`Managed_Prometheus_services-*`) — node metrics, resource requests, allocatable capacity.\n- **HCP AMW** (`Managed_Prometheus_hcps-*`) — HCP density panels and HCP resource requests (ocm-* namespace metrics are routed here).\n\n**Notes:**\n- The 60-HCP-per-MGMT-cluster ceiling comes from ClusterSizingConfiguration.\n- HCP count = count of distinct `ocm-*` namespaces (via `kube_pod_info`).\n- Commitment ratios combine requests from both SVC and HCP workloads via SSE expressions.\n- Select \"All\" in the Cluster dropdown to compare all MGMT clusters in the region.",
         "mode": "markdown"
       },
       "pluginVersion": "11.6.9",
@@ -125,7 +125,7 @@
             "uid": "${hcp_datasource}"
           },
           "editorMode": "code",
-          "expr": "count(count by (cluster, namespace) (kube_pod_info{cluster=~\"$cluster\", namespace=~\"^ocm-[^-]+-[^-]+$\"})) by (cluster)",
+          "expr": "count(count by (cluster, namespace) (kube_pod_info{cluster=~\"$cluster\", namespace=~\"ocm-.*\"})) by (cluster)",
           "instant": true,
           "range": false,
           "legendFormat": "{{cluster}}",
@@ -200,7 +200,7 @@
             "uid": "${hcp_datasource}"
           },
           "editorMode": "code",
-          "expr": "(count(count by (cluster, namespace) (kube_pod_info{cluster=~\"$cluster\", namespace=~\"^ocm-[^-]+-[^-]+$\"})) by (cluster) / 60) * 100",
+          "expr": "(count(count by (cluster, namespace) (kube_pod_info{cluster=~\"$cluster\", namespace=~\"ocm-.*\"})) by (cluster) / 60) * 100",
           "instant": true,
           "range": false,
           "legendFormat": "{{cluster}}",
@@ -307,7 +307,7 @@
             "uid": "${hcp_datasource}"
           },
           "editorMode": "code",
-          "expr": "count(count by (cluster, namespace) (kube_pod_info{cluster=~\"$cluster\", namespace=~\"^ocm-[^-]+-[^-]+$\"})) by (cluster)",
+          "expr": "count(count by (cluster, namespace) (kube_pod_info{cluster=~\"$cluster\", namespace=~\"ocm-.*\"})) by (cluster)",
           "range": true,
           "legendFormat": "{{cluster}}",
           "refId": "A"
@@ -331,10 +331,10 @@
     },
     {
       "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
+        "type": "datasource",
+        "uid": "-- Mixed --"
       },
-      "description": "CPU commitment ratio: sum of CPU requests / sum of CPU allocatable per cluster",
+      "description": "CPU commitment ratio: sum of ALL CPU requests (SVC + HCP workloads) / sum of CPU allocatable per cluster",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -394,11 +394,47 @@
             "uid": "${datasource}"
           },
           "editorMode": "code",
-          "expr": "(sum(kube_pod_container_resource_requests{resource=\"cpu\", cluster=~\"$cluster\"}) by (cluster) / sum(kube_node_status_allocatable{resource=\"cpu\", cluster=~\"$cluster\"}) by (cluster)) * 100",
+          "expr": "sum(kube_pod_container_resource_requests{resource=\"cpu\", cluster=~\"$cluster\"}) by (cluster)",
           "instant": true,
           "range": false,
           "legendFormat": "{{cluster}}",
-          "refId": "A"
+          "refId": "svc_cpu_req",
+          "hide": true
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${hcp_datasource}"
+          },
+          "editorMode": "code",
+          "expr": "sum(kube_pod_container_resource_requests{resource=\"cpu\", cluster=~\"$cluster\"}) by (cluster)",
+          "instant": true,
+          "range": false,
+          "legendFormat": "{{cluster}}",
+          "refId": "hcp_cpu_req",
+          "hide": true
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "sum(kube_node_status_allocatable{resource=\"cpu\", cluster=~\"$cluster\"}) by (cluster)",
+          "instant": true,
+          "range": false,
+          "legendFormat": "{{cluster}}",
+          "refId": "cpu_alloc",
+          "hide": true
+        },
+        {
+          "datasource": {
+            "type": "__expr__",
+            "uid": "__expr__"
+          },
+          "expression": "($svc_cpu_req + $hcp_cpu_req) / $cpu_alloc * 100",
+          "type": "math",
+          "refId": "D"
         }
       ],
       "title": "CPU Commitment Ratio",
@@ -406,10 +442,10 @@
     },
     {
       "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
+        "type": "datasource",
+        "uid": "-- Mixed --"
       },
-      "description": "Memory commitment ratio: sum of memory requests / sum of memory allocatable per cluster",
+      "description": "Memory commitment ratio: sum of ALL memory requests (SVC + HCP workloads) / sum of memory allocatable per cluster",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -469,11 +505,47 @@
             "uid": "${datasource}"
           },
           "editorMode": "code",
-          "expr": "(sum(kube_pod_container_resource_requests{resource=\"memory\", cluster=~\"$cluster\"}) by (cluster) / sum(kube_node_status_allocatable{resource=\"memory\", cluster=~\"$cluster\"}) by (cluster)) * 100",
+          "expr": "sum(kube_pod_container_resource_requests{resource=\"memory\", cluster=~\"$cluster\"}) by (cluster)",
           "instant": true,
           "range": false,
           "legendFormat": "{{cluster}}",
-          "refId": "A"
+          "refId": "svc_mem_req",
+          "hide": true
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${hcp_datasource}"
+          },
+          "editorMode": "code",
+          "expr": "sum(kube_pod_container_resource_requests{resource=\"memory\", cluster=~\"$cluster\"}) by (cluster)",
+          "instant": true,
+          "range": false,
+          "legendFormat": "{{cluster}}",
+          "refId": "hcp_mem_req",
+          "hide": true
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "expr": "sum(kube_node_status_allocatable{resource=\"memory\", cluster=~\"$cluster\"}) by (cluster)",
+          "instant": true,
+          "range": false,
+          "legendFormat": "{{cluster}}",
+          "refId": "mem_alloc",
+          "hide": true
+        },
+        {
+          "datasource": {
+            "type": "__expr__",
+            "uid": "__expr__"
+          },
+          "expression": "($svc_mem_req + $hcp_mem_req) / $mem_alloc * 100",
+          "type": "math",
+          "refId": "D"
         }
       ],
       "title": "Memory Commitment Ratio",
@@ -909,11 +981,6 @@
           "options": {
             "excludeByName": {
               "Time": true
-            },
-            "renameByName": {
-              "Value": "CPU %",
-              "cluster": "Cluster",
-              "instance": "Node"
             }
           }
         }
@@ -1033,248 +1100,6 @@
           "options": {
             "excludeByName": {
               "Time": true
-            },
-            "renameByName": {
-              "Value": "Memory %",
-              "cluster": "Cluster",
-              "instance": "Node"
-            }
-          }
-        }
-      ]
-    },
-    {
-      "collapsed": false,
-      "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
-        "y": 39
-      },
-      "id": 15,
-      "panels": [],
-      "title": "Cross-Cluster Comparison",
-      "type": "row"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "description": "Side-by-side comparison of all management clusters in the region. Cells are color-coded: CPU/Memory commitment >80% = red, >60% = yellow. HCP count is shown in the HCP Density section above.",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "custom": {
-            "align": "auto",
-            "cellOptions": {
-              "type": "color-text"
-            },
-            "inspect": false
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green"
-              }
-            ]
-          },
-          "decimals": 1
-        },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "cluster"
-            },
-            "properties": [
-              {
-                "id": "custom.width",
-                "value": 250
-              },
-              {
-                "id": "custom.cellOptions",
-                "value": {
-                  "type": "auto"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Value #CPU_COMMIT"
-            },
-            "properties": [
-              {
-                "id": "thresholds",
-                "value": {
-                  "mode": "absolute",
-                  "steps": [
-                    {
-                      "color": "green"
-                    },
-                    {
-                      "color": "yellow",
-                      "value": 60
-                    },
-                    {
-                      "color": "red",
-                      "value": 80
-                    }
-                  ]
-                }
-              },
-              {
-                "id": "unit",
-                "value": "percent"
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Value #MEM_COMMIT"
-            },
-            "properties": [
-              {
-                "id": "thresholds",
-                "value": {
-                  "mode": "absolute",
-                  "steps": [
-                    {
-                      "color": "green"
-                    },
-                    {
-                      "color": "yellow",
-                      "value": 60
-                    },
-                    {
-                      "color": "red",
-                      "value": 80
-                    }
-                  ]
-                }
-              },
-              {
-                "id": "unit",
-                "value": "percent"
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Value #NODE_COUNT"
-            },
-            "properties": [
-              {
-                "id": "decimals",
-                "value": 0
-              }
-            ]
-          }
-        ]
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 24,
-        "x": 0,
-        "y": 40
-      },
-      "id": 16,
-      "options": {
-        "cellHeight": "sm",
-        "footer": {
-          "countRows": false,
-          "fields": "",
-          "reducer": [
-            "sum"
-          ],
-          "show": false
-        },
-        "showHeader": true,
-        "sortBy": [
-          {
-            "desc": true,
-            "displayName": "CPU Commitment %"
-          }
-        ]
-      },
-      "pluginVersion": "11.6.9",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "editorMode": "code",
-          "expr": "(sum(kube_pod_container_resource_requests{resource=\"cpu\", cluster=~\"$cluster\"}) by (cluster) / sum(kube_node_status_allocatable{resource=\"cpu\", cluster=~\"$cluster\"}) by (cluster)) * 100",
-          "instant": true,
-          "range": false,
-          "format": "table",
-          "legendFormat": "__auto",
-          "refId": "CPU_COMMIT"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "editorMode": "code",
-          "expr": "(sum(kube_pod_container_resource_requests{resource=\"memory\", cluster=~\"$cluster\"}) by (cluster) / sum(kube_node_status_allocatable{resource=\"memory\", cluster=~\"$cluster\"}) by (cluster)) * 100",
-          "instant": true,
-          "range": false,
-          "format": "table",
-          "legendFormat": "__auto",
-          "refId": "MEM_COMMIT"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "editorMode": "code",
-          "expr": "count(kube_node_info{cluster=~\"$cluster\"}) by (cluster)",
-          "instant": true,
-          "range": false,
-          "format": "table",
-          "legendFormat": "__auto",
-          "refId": "NODE_COUNT"
-        }
-      ],
-      "title": "Cluster Comparison",
-      "type": "table",
-      "transformations": [
-        {
-          "id": "merge",
-          "options": {}
-        },
-        {
-          "id": "organize",
-          "options": {
-            "excludeByName": {
-              "Time": true,
-              "Time 1": true,
-              "Time 2": true,
-              "Time 3": true,
-              "Time 4": true
-            },
-            "indexByName": {
-              "cluster": 0,
-              "Value #CPU_COMMIT": 1,
-              "Value #MEM_COMMIT": 2,
-              "Value #NODE_COUNT": 3
-            },
-            "renameByName": {
-              "cluster": "Cluster",
-              "Value #CPU_COMMIT": "CPU Commitment %",
-              "Value #MEM_COMMIT": "Memory Commitment %",
-              "Value #NODE_COUNT": "Node Count"
             }
           }
         }
@@ -1347,6 +1172,7 @@
     "from": "now-7d",
     "to": "now"
   },
+  "refresh": "30s",
   "timepicker": {},
   "timezone": "utc",
   "title": "Management Cluster Capacity Planning",
