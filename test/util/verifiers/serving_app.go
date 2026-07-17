@@ -18,6 +18,7 @@ import (
 	"context"
 	"crypto/tls"
 	"embed"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -63,6 +64,10 @@ func (v verifySimpleWebApp) Verify(ctx context.Context, adminRESTConfig *rest.Co
 	v.namespaceName = app.Namespace
 
 	url := "https://" + app.RouteHost
+
+	if err := framework.WaitForDNSResolution(ctx, host, framework.DNSResolutionTimeout); err != nil {
+		return fmt.Errorf("DNS for route host %s did not resolve: %w", host, err)
+	}
 
 	// First wait for app reachability using InsecureSkipVerify.
 	// Cert provisioning (OneCert -> Key Vault -> ACM -> IngressController) has
@@ -114,9 +119,15 @@ func waitForRouteReachability(ctx context.Context, client *http.Client, url stri
 		resp, err := client.Get(url)
 		if err != nil {
 			if lastErr == nil || err.Error() != lastErr.Error() {
-				klog.Info(err, "failed to get response from route",
-					"url", url,
-				)
+				var dnsErr *net.DNSError
+				if errors.As(err, &dnsErr) {
+					klog.Infof("DNS error for route %s: server=%s isNotFound=%v isTemporary=%v err=%s",
+						url, dnsErr.Server, dnsErr.IsNotFound, dnsErr.IsTemporary, dnsErr.Err)
+				} else {
+					klog.Info(err, "failed to get response from route",
+						"url", url,
+					)
+				}
 			}
 			lastErr = err
 			return false, nil
