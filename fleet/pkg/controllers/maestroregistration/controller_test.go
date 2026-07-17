@@ -30,6 +30,7 @@ import (
 	fleetcontrollers "github.com/Azure/ARO-HCP/fleet/pkg/controllers/base"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/fleet"
+	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
 )
 
@@ -111,7 +112,7 @@ func (f *fakeStampLister) List(ctx context.Context) ([]*fleet.Stamp, error) {
 func (f *fakeStampLister) Get(ctx context.Context, stampIdentifier string) (*fleet.Stamp, error) {
 	stamp, ok := f.stamps[stampIdentifier]
 	if !ok {
-		return nil, fmt.Errorf("stamp %q not found", stampIdentifier)
+		return nil, database.NewNotFoundError()
 	}
 	return stamp, nil
 }
@@ -209,19 +210,29 @@ func TestSyncOnce(t *testing.T) {
 	const stampID = "s1"
 
 	tests := []struct {
-		name              string
-		stamp             *fleet.Stamp
-		managementCluster *fleet.ManagementCluster
-		setupClient       func() MaestroConsumerClient
-		wantErr           bool
-		wantCondition     string
-		wantCondStatus    metav1.ConditionStatus
-		wantCondReason    string
+		name                   string
+		stamp                  *fleet.Stamp
+		stampMissingFromLister bool
+		managementCluster      *fleet.ManagementCluster
+		setupClient            func() MaestroConsumerClient
+		wantErr                bool
+		wantCondition          string
+		wantCondStatus         metav1.ConditionStatus
+		wantCondReason         string
 	}{
 		{
 			name:              "MC not found in DB: no-op",
 			stamp:             testStamp(stampID, true),
 			managementCluster: nil,
+			setupClient: func() MaestroConsumerClient {
+				return &fakeMaestroConsumerClient{}
+			},
+		},
+		{
+			name:                   "stamp not found in lister: no-op",
+			stamp:                  testStamp(stampID, true),
+			stampMissingFromLister: true,
+			managementCluster:      testManagementCluster(stampID),
 			setupClient: func() MaestroConsumerClient {
 				return &fakeMaestroConsumerClient{}
 			},
@@ -329,9 +340,11 @@ func TestSyncOnce(t *testing.T) {
 				t.Fatalf("failed to create mock DB: %v", err)
 			}
 
-			stampLister := &fakeStampLister{stamps: map[string]*fleet.Stamp{
-				tt.stamp.GetStampIdentifier(): tt.stamp,
-			}}
+			stamps := map[string]*fleet.Stamp{}
+			if !tt.stampMissingFromLister {
+				stamps[tt.stamp.GetStampIdentifier()] = tt.stamp
+			}
+			stampLister := &fakeStampLister{stamps: stamps}
 
 			syncer := &maestroRegistrationSyncer{
 				fleetDBClient:                mockDB,

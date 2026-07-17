@@ -76,6 +76,10 @@ func (s *maestroRegistrationSyncer) SyncOnce(ctx context.Context, key fleetcontr
 
 	stamp, err := s.stampLister.Get(ctx, key.StampIdentifier)
 	if err != nil {
+		if database.IsNotFoundError(err) {
+			utils.LoggerFromContext(ctx).Info("stamp not found in lister, skipping")
+			return nil
+		}
 		return utils.TrackError(err)
 	}
 
