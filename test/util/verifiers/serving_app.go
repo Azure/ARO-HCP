@@ -25,15 +25,10 @@ import (
 	"time"
 
 	"github.com/onsi/ginkgo/v2"
-	"go.yaml.in/yaml/v2"
 
-	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/klog/v2"
@@ -61,107 +56,13 @@ func (v verifySimpleWebApp) Verify(ctx context.Context, adminRESTConfig *rest.Co
 		}
 	}()
 
-	kubeClient, err := kubernetes.NewForConfig(adminRESTConfig)
+	app, err := framework.DeploySampleApp(ctx, adminRESTConfig, v.nodeSelector)
 	if err != nil {
-		return fmt.Errorf("failed to create kubernetes client: %w", err)
+		return err
 	}
+	v.namespaceName = app.Namespace
 
-	namespace, err := kubeClient.CoreV1().Namespaces().Create(
-		ctx,
-		&corev1.Namespace{
-			ObjectMeta: metav1.ObjectMeta{
-				GenerateName: "e2e-serving-app-",
-			},
-		},
-		metav1.CreateOptions{})
-	if err != nil {
-		return fmt.Errorf("failed to create namespace: %w", err)
-	}
-
-	dynamicClient, err := dynamic.NewForConfig(adminRESTConfig)
-	if err != nil {
-		return fmt.Errorf("failed to create dynamic client: %w", err)
-	}
-
-	deploymentYAML := must(staticFiles.ReadFile("artifacts/serving_app/deployment.yaml"))
-
-	if v.nodeSelector != nil {
-
-		var deploymentMap map[string]any
-		if err := yaml.Unmarshal(deploymentYAML, &deploymentMap); err != nil {
-			return fmt.Errorf("failed to unmarshal deployment YAML: %w", err)
-		}
-
-		if spec, ok := deploymentMap["spec"].(map[string]any); ok {
-			if template, ok := spec["template"].(map[string]any); ok {
-				if templateSpec, ok := template["spec"].(map[string]any); ok {
-					templateSpec["nodeSelector"] = v.nodeSelector
-				}
-			}
-		}
-
-		deploymentYAML, err = yaml.Marshal(deploymentMap)
-		if err != nil {
-			return fmt.Errorf("failed to marshal modified deployment: %w", err)
-		}
-	}
-
-	deployment, err := createArbitraryResource(ctx, dynamicClient, namespace.Name, deploymentYAML)
-	if err != nil {
-		return fmt.Errorf("failed to create deployment: %w", err)
-	}
-	service, err := createArbitraryResource(ctx, dynamicClient, namespace.Name, must(staticFiles.ReadFile("artifacts/serving_app/service.yaml")))
-	if err != nil {
-		return fmt.Errorf("failed to create service: %w", err)
-	}
-	route, err := createArbitraryResource(ctx, dynamicClient, namespace.Name, must(staticFiles.ReadFile("artifacts/serving_app/route.yaml")))
-	if err != nil {
-		return fmt.Errorf("failed to create route: %w", err)
-	}
-	klog.InfoS("created resources",
-		"namespace", namespace.GetName(),
-		"deployment", deployment.GetName(),
-		"service", service.GetName(),
-		"route", route.GetName(),
-	)
-
-	// check for route to have hostname for us
-	host := ""
-	var lastErr error
-	err = wait.PollUntilContextTimeout(ctx, 10*time.Second, 25*time.Minute, true, func(ctx context.Context) (done bool, err error) {
-		currRoute, err := dynamicClient.Resource(gvr("route.openshift.io", "v1", "routes")).
-			Namespace(namespace.GetName()).Get(ctx, route.GetName(), metav1.GetOptions{})
-		if err != nil {
-			if lastErr == nil || err.Error() != lastErr.Error() {
-				klog.Info(err, "failed to get route",
-					"namespace", namespace.GetName(),
-					"route", route.GetName(),
-				)
-			}
-			lastErr = err
-			return false, nil
-		}
-		host, _, _ = unstructured.NestedString(currRoute.Object, "spec", "host")
-		if len(host) > 0 {
-			return true, nil
-		}
-
-		return true, err
-	})
-	switch {
-	case err == nil:
-		// continue
-	case lastErr != nil:
-		klog.ErrorS(lastErr, "failed to get route",
-			"namespace", namespace.GetName(),
-			"route", route.GetName(),
-		)
-		return fmt.Errorf("route host was never found: %w", lastErr)
-	case err != nil:
-		return fmt.Errorf("route host was never found: %w", err)
-	}
-
-	url := "https://" + host
+	url := "https://" + app.RouteHost
 
 	// First wait for app reachability using InsecureSkipVerify.
 	// Cert provisioning (OneCert -> Key Vault -> ACM -> IngressController) has
@@ -181,7 +82,7 @@ func (v verifySimpleWebApp) Verify(ctx context.Context, adminRESTConfig *rest.Co
 	}
 	secureTransport := http.DefaultTransport.(*http.Transport).Clone()
 	if err := waitForRouteReachability(ctx, &http.Client{Transport: secureTransport}, url, 10*time.Minute); err != nil {
-		printNegotiatedCertificate(ctx, host)
+		printNegotiatedCertificate(ctx, app.RouteHost)
 		return err
 	}
 
@@ -295,14 +196,6 @@ func printNegotiatedCertificate(ctx context.Context, host string) {
 	)
 }
 
-func gvr(group, version, resource string) schema.GroupVersionResource {
-	return schema.GroupVersionResource{
-		Group:    group,
-		Version:  version,
-		Resource: resource,
-	}
-}
-
 func (v verifySimpleWebApp) cleanup(ctx context.Context, adminRESTConfig *rest.Config) error {
 	if len(v.namespaceName) == 0 {
 		return nil
@@ -344,11 +237,4 @@ func VerifySimpleWebApp(nodeSelector ...map[string]string) HostedClusterVerifier
 		ns = nodeSelector[0]
 	}
 	return verifySimpleWebApp{nodeSelector: ns}
-}
-
-func must[T any](v T, err error) T {
-	if err != nil {
-		panic("error: " + err.Error())
-	}
-	return v
 }

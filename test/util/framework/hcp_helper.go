@@ -1531,6 +1531,9 @@ func BuildHCPClusterFromParams20260630(
 				Visibility:      to.Ptr(hcpsdk20260630preview.Visibility(parameters.APIVisibility)),
 				AuthorizedCIDRs: parameters.AuthorizedCIDRs,
 			},
+			Ingress: &hcpsdk20260630preview.IngressProfile{
+				Type: to.Ptr(hcpsdk20260630preview.IngressType(parameters.IngressType)),
+			},
 			ClusterImageRegistry: &hcpsdk20260630preview.ClusterImageRegistryProfile{
 				State: to.Ptr(hcpsdk20260630preview.ClusterImageRegistryState(parameters.ImageRegistryState)),
 			},

@@ -127,6 +127,7 @@ type ClusterParams20260630 struct {
 	EncryptionType                string
 	VnetIntegrationSubnetID       string
 	KeyVaultVisibility            string
+	IngressType                   string
 	Network                       NetworkConfig
 	APIVisibility                 string
 	ImageRegistryState            string
@@ -307,6 +308,7 @@ func NewDefaultClusterParams20260630() ClusterParams20260630 {
 		EncryptionKeyManagementMode: "CustomerManaged",
 		EncryptionType:              "KMS",
 		KeyVaultVisibility:          "Public",
+		IngressType:                 "Public",
 		APIVisibility:               "Public",
 		ImageRegistryState:          "Enabled",
 		ChannelGroup:                DefaultOpenshiftChannelGroup(),
