@@ -473,7 +473,6 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		b.options.KubeApplierDBClients,
 		backendInformers,
 		unionKubeApplierInformers,
-		b.options.MaestroSourceEnvironmentIdentifier,
 	)
 	adminCredentialsPostIssuanceCleanupController := systemadmincredentialcontrollers.NewPostIssuanceCleanupController(
 		activeOperationLister,
@@ -508,7 +507,6 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		backendInformers,
 		unionApplyDesireLister,
 		unionReadDesireLister,
-		b.options.MaestroSourceEnvironmentIdentifier,
 	)
 	adminCredentialsRevocationCompletionController := systemadmincredentialcontrollers.NewRevocationCompletionController(
 		b.clock,

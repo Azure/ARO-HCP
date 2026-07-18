@@ -45,8 +45,6 @@ type desiresCreator struct {
 	serviceProviderClusterLister listers.ServiceProviderClusterLister
 	applyDesireLister            dblisters.ApplyDesireLister
 	readDesireLister             dblisters.ReadDesireLister
-
-	hostedClusterNamespaceEnvIdentifier string
 }
 
 var _ controllerutils.CredentialRequestSyncer = (*desiresCreator)(nil)
@@ -65,20 +63,18 @@ func NewDesiresCreatorController(
 	kubeApplierDBClients database.KubeApplierDBClients,
 	backendInformers informers.BackendInformers,
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
-	hostedClusterNamespaceEnvIdentifier string,
 ) controllerutils.Controller {
 	_, serviceProviderClusterLister := backendInformers.ServiceProviderClusters()
 	_, applyDesireLister := kubeApplierInformers.ApplyDesires()
 	_, readDesireLister := kubeApplierInformers.ReadDesires()
 
 	syncer := &desiresCreator{
-		cooldownChecker:                     controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
-		resourcesDBClient:                   resourcesDBClient,
-		kubeApplierDBClients:                kubeApplierDBClients,
-		serviceProviderClusterLister:        serviceProviderClusterLister,
-		applyDesireLister:                   applyDesireLister,
-		readDesireLister:                    readDesireLister,
-		hostedClusterNamespaceEnvIdentifier: hostedClusterNamespaceEnvIdentifier,
+		cooldownChecker:              controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
+		resourcesDBClient:            resourcesDBClient,
+		kubeApplierDBClients:         kubeApplierDBClients,
+		serviceProviderClusterLister: serviceProviderClusterLister,
+		applyDesireLister:            applyDesireLister,
+		readDesireLister:             readDesireLister,
 	}
 
 	return controllerutils.NewCredentialRequestWatchingController(
@@ -149,18 +145,21 @@ func (c *desiresCreator) SyncOnce(ctx context.Context, key controllerutils.Syste
 		return nil
 	}
 
+	controlPlaneNamespace := serviceProviderCluster.Status.ControlPlaneNamespace
+	if len(controlPlaneNamespace) == 0 {
+		logger.Info("waiting for ServiceProviderCluster.Status.ControlPlaneNamespace before creating desires")
+		return nil
+	}
+
 	kubeApplierClient := c.kubeApplierDBClients.For(ctx, mcResourceID)
 	if kubeApplierClient == nil {
 		return nil
 	}
 
-	csClusterID := existingCluster.ServiceProviderProperties.ClusterServiceID.ID()
-	hcpNamespace := fmt.Sprintf("ocm-%s-%s", c.hostedClusterNamespaceEnvIdentifier, csClusterID)
-
 	// Owner for annotations is the cluster's ARM resource ID.
 	clusterResourceID := key.GetClusterResourceID()
 
-	if err := c.ensureDesires(ctx, key, cred, key.CredentialName, hcpNamespace, clusterResourceID, mcResourceID, kubeApplierClient); err != nil {
+	if err := c.ensureDesires(ctx, key, cred, key.CredentialName, controlPlaneNamespace, clusterResourceID, mcResourceID, kubeApplierClient); err != nil {
 		return err
 	}
 
@@ -172,7 +171,7 @@ func (c *desiresCreator) ensureDesires(
 	ctx context.Context,
 	key controllerutils.SystemAdminCredentialRequestKey,
 	cred *api.SystemAdminCredentialRequest,
-	credName, hcpNamespace string,
+	credName, controlPlaneNamespace string,
 	owner, mcResourceID *azcorearm.ResourceID,
 	kubeApplierClient database.KubeApplierDBClient,
 ) error {
@@ -202,7 +201,7 @@ func (c *desiresCreator) ensureDesires(
 		{
 			desireName: fmt.Sprintf("systemAdminCredentialRBACCSRApproval-%s", credName),
 			builder: func() []systemadmincredential.KubeObject {
-				return systemadmincredential.BuildRBACCSRApproval(owner, credName, hcpNamespace)
+				return systemadmincredential.BuildRBACCSRApproval(owner, credName, controlPlaneNamespace)
 			},
 		},
 	}
@@ -226,7 +225,7 @@ func (c *desiresCreator) ensureDesires(
 
 	// 3. CSR ApplyDesire
 	csrDesireName := fmt.Sprintf("systemAdminCredentialCSR-%s", credName)
-	csrObj, err := systemadmincredential.BuildCSR(owner, credName, cred.Spec.Username, hcpNamespace, []byte(cred.Spec.PrivateKeyPEM))
+	csrObj, err := systemadmincredential.BuildCSR(owner, credName, cred.Spec.Username, controlPlaneNamespace, []byte(cred.Spec.PrivateKeyPEM))
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to build CSR: %w", err))
 	}
@@ -238,12 +237,12 @@ func (c *desiresCreator) ensureDesires(
 
 	// 4. CSRApproval ApplyDesire
 	csrApprovalDesireName := fmt.Sprintf("systemAdminCredentialCSRApproval-%s", credName)
-	csrApprovalObj := systemadmincredential.BuildCSRApproval(owner, credName, hcpNamespace)
+	csrApprovalObj := systemadmincredential.BuildCSRApproval(owner, credName, controlPlaneNamespace)
 	csrApprovalTarget := kubeapplier.ResourceReference{
 		Group:     "certificates.hypershift.openshift.io",
 		Version:   "v1alpha1",
 		Resource:  "certificatesigningrequestapprovals",
-		Namespace: hcpNamespace,
+		Namespace: controlPlaneNamespace,
 		Name:      csrApprovalObj.Name,
 	}
 	if err := ensureApplyDesire(ctx, applyCRUD, c.applyDesireLister, parent,

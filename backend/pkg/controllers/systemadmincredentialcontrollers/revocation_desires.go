@@ -40,8 +40,6 @@ type revocationDesires struct {
 	serviceProviderClusterLister listers.ServiceProviderClusterLister
 	applyDesireLister            dblisters.ApplyDesireLister
 	readDesireLister             dblisters.ReadDesireLister
-
-	hostedClusterNamespaceEnvIdentifier string
 }
 
 var _ controllerutils.RevocationSyncer = (*revocationDesires)(nil)
@@ -59,18 +57,16 @@ func NewRevocationDesiresController(
 	backendInformers informers.BackendInformers,
 	applyDesireLister dblisters.ApplyDesireLister,
 	readDesireLister dblisters.ReadDesireLister,
-	hostedClusterNamespaceEnvIdentifier string,
 ) controllerutils.Controller {
 	_, serviceProviderClusterLister := backendInformers.ServiceProviderClusters()
 
 	syncer := &revocationDesires{
-		cooldownChecker:                     controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
-		resourcesDBClient:                   resourcesDBClient,
-		kubeApplierDBClients:                kubeApplierDBClients,
-		serviceProviderClusterLister:        serviceProviderClusterLister,
-		applyDesireLister:                   applyDesireLister,
-		readDesireLister:                    readDesireLister,
-		hostedClusterNamespaceEnvIdentifier: hostedClusterNamespaceEnvIdentifier,
+		cooldownChecker:              controllerutils.DefaultActiveOperationPrioritizingCooldown(activeOperationLister),
+		resourcesDBClient:            resourcesDBClient,
+		kubeApplierDBClients:         kubeApplierDBClients,
+		serviceProviderClusterLister: serviceProviderClusterLister,
+		applyDesireLister:            applyDesireLister,
+		readDesireLister:             readDesireLister,
 	}
 
 	return controllerutils.NewRevocationWatchingController(
@@ -127,6 +123,12 @@ func (c *revocationDesires) SyncOnce(ctx context.Context, key controllerutils.Sy
 		return nil
 	}
 
+	controlPlaneNamespace := serviceProviderCluster.Status.ControlPlaneNamespace
+	if len(controlPlaneNamespace) == 0 {
+		logger.Info("waiting for ServiceProviderCluster.Status.ControlPlaneNamespace before creating revocation desires")
+		return nil
+	}
+
 	kubeApplierClient := c.kubeApplierDBClients.For(ctx, mcResourceID)
 	if kubeApplierClient == nil {
 		logger.Info("waiting for kube-applier client for management cluster", "managementCluster", mcResourceID.String())
@@ -134,11 +136,9 @@ func (c *revocationDesires) SyncOnce(ctx context.Context, key controllerutils.Sy
 	}
 
 	suffix := revocation.Spec.RevokeOpSuffix
-	csClusterID := cluster.ServiceProviderProperties.ClusterServiceID.ID()
-	hcpNamespace := fmt.Sprintf("ocm-%s-%s", c.hostedClusterNamespaceEnvIdentifier, csClusterID)
 	clusterResourceID := key.GetClusterResourceID()
 
-	if err := c.ensureRevocationDesires(ctx, key, suffix, hcpNamespace, clusterResourceID, mcResourceID, kubeApplierClient); err != nil {
+	if err := c.ensureRevocationDesires(ctx, key, suffix, controlPlaneNamespace, clusterResourceID, mcResourceID, kubeApplierClient); err != nil {
 		return err
 	}
 
@@ -151,7 +151,7 @@ func (c *revocationDesires) SyncOnce(ctx context.Context, key controllerutils.Sy
 func (c *revocationDesires) ensureRevocationDesires(
 	ctx context.Context,
 	key controllerutils.SystemAdminCredentialRevocationKey,
-	suffix, hcpNamespace string,
+	suffix, controlPlaneNamespace string,
 	owner, mcResourceID *azcorearm.ResourceID,
 	kubeApplierClient database.KubeApplierDBClient,
 ) error {
@@ -168,7 +168,7 @@ func (c *revocationDesires) ensureRevocationDesires(
 	}
 
 	// 1. RBAC granting the klusterlet permission to manage CRRs.
-	rbacObjects := systemadmincredential.BuildRBACRevocation(owner, suffix, hcpNamespace)
+	rbacObjects := systemadmincredential.BuildRBACRevocation(owner, suffix, controlPlaneNamespace)
 	for i, obj := range rbacObjects {
 		dName := fmt.Sprintf("systemAdminCredentialRevocationRBAC-%s", suffix)
 		if i > 0 {
@@ -182,12 +182,12 @@ func (c *revocationDesires) ensureRevocationDesires(
 	}
 
 	// 2. CRR ApplyDesire.
-	crrObj := systemadmincredential.BuildRevocationRequest(owner, suffix, hcpNamespace)
+	crrObj := systemadmincredential.BuildRevocationRequest(owner, suffix, controlPlaneNamespace)
 	crrTarget := kubeapplier.ResourceReference{
 		Group:     "certificates.hypershift.openshift.io",
 		Version:   "v1alpha1",
 		Resource:  "certificaterevocationrequests",
-		Namespace: hcpNamespace,
+		Namespace: controlPlaneNamespace,
 		Name:      crrObj.Name,
 	}
 	crrDesireName := fmt.Sprintf("systemAdminCredentialRevocation-%s", suffix)
