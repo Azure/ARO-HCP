@@ -399,7 +399,7 @@ func buildFacetedStackedAreaChartData(title, description, query, unit, queryErr 
 	}
 
 	for facetIdx, facetName := range facetNames {
-		facetSeries := facets[facetName]
+		facetSeries := alignSeriesToCommonTimestamps(facets[facetName])
 		for _, s := range facetSeries {
 			line.AddSeries(s.label, s.data,
 				charts.WithLineChartOpts(opts.LineChart{
@@ -509,6 +509,54 @@ func collectUniqueLabels(series []parsedSeries, excludeKey string) []string {
 		result = append(result, v)
 	}
 	return result
+}
+
+// alignSeriesToCommonTimestamps ensures all series share the same set of
+// timestamps by filling 0 where a series has no data point. This prevents
+// stacked area charts from collapsing when some series are absent at certain
+// timestamps.
+func alignSeriesToCommonTimestamps(series []parsedSeries) []parsedSeries {
+	if len(series) <= 1 {
+		return series
+	}
+
+	tsSet := make(map[int64]struct{})
+	for _, s := range series {
+		for _, d := range s.data {
+			ts := dataPointTimestamp(d)
+			if ts != 0 {
+				tsSet[ts] = struct{}{}
+			}
+		}
+	}
+
+	timestamps := make([]int64, 0, len(tsSet))
+	for ts := range tsSet {
+		timestamps = append(timestamps, ts)
+	}
+	slices.Sort(timestamps)
+
+	for i, s := range series {
+		existing := make(map[int64]opts.LineData, len(s.data))
+		for _, d := range s.data {
+			ts := dataPointTimestamp(d)
+			if ts != 0 {
+				existing[ts] = d
+			}
+		}
+
+		aligned := make([]opts.LineData, 0, len(timestamps))
+		for _, ts := range timestamps {
+			if d, ok := existing[ts]; ok {
+				aligned = append(aligned, d)
+			} else {
+				aligned = append(aligned, opts.LineData{Value: []any{ts, 0}})
+			}
+		}
+		series[i].data = aligned
+	}
+
+	return series
 }
 
 func injectFacetTitles(html []byte, facetNames []string, titleAreaHeight, facetHeight, facetSpacing int) []byte {
