@@ -122,6 +122,13 @@ func CosmosGenericToInternal[InternalAPIType any](cosmosObj *GenericDocument[Int
 	if ret.GetResourceID() == nil {
 		if cosmosObj.ResourceID != nil {
 			ret.SetResourceID(cosmosObj.ResourceID)
+		} else if resourceIDFromOldCosmosID, err := oldCosmosIDToResourceID(cosmosObj.ID); err == nil {
+			// Recover the ResourceID for old data that predates the field, the
+			// same way CosmosToInternal does for the bare TypedDocument. Without
+			// this, a legacy nil-resourceID document poisons the change feed
+			// (processDocument errors, the continuation token never advances) and
+			// stalls every informer built on it. See AROSLSRE-1521.
+			ret.SetResourceID(resourceIDFromOldCosmosID)
 		} else {
 			return nil, fmt.Errorf("internalObj is missing a resourceID: %T: %q", cosmosObj, cosmosObj.ID)
 		}
