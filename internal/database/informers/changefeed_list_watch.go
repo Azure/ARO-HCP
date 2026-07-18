@@ -383,7 +383,9 @@ func (c *ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPITyp
 	}
 
 	if objAsTypedDocument.ResourceID == nil {
-		return utils.TrackError(fmt.Errorf("missing resourceID"))
+		// intentionally skipping malformed object
+		utilruntime.HandleError(fmt.Errorf("missing resourceID for document ID: %q", objAsTypedDocument.ID))
+		return nil
 	}
 
 	var cosmosObj CosmosAPIType
