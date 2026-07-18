@@ -258,7 +258,7 @@ func subscriptionInformerTestCase() informerTestCase {
 			require.NoError(t, err)
 		},
 		createInformer: func(mockResourcesDBClient *databasetesting.MockResourcesDBClient) cache.SharedIndexInformer {
-			return NewSubscriptionInformerWithRelistDuration(mockResourcesDBClient.ResourcesGlobalListers().Subscriptions(), mockResourcesDBClient, 1*time.Second)
+			return NewSubscriptionInformerWithRelistDuration(mockResourcesDBClient.ResourcesGlobalListers().Subscriptions(), 1*time.Second)
 		},
 		expectedInitialAdds: 2,
 		mutateDB: func(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient) {
@@ -377,7 +377,7 @@ func clusterInformerTestCase() informerTestCase {
 			require.NoError(t, err)
 		},
 		createInformer: func(mockResourcesDBClient *databasetesting.MockResourcesDBClient) cache.SharedIndexInformer {
-			return NewClusterInformerWithRelistDuration(mockResourcesDBClient.ResourcesGlobalListers().Clusters(), mockResourcesDBClient, 1*time.Second)
+			return NewClusterInformerWithRelistDuration(mockResourcesDBClient.ResourcesGlobalListers().Clusters(), 1*time.Second)
 		},
 		expectedInitialAdds: 2,
 		mutateDB: func(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient) {
@@ -519,7 +519,7 @@ func nodePoolInformerTestCase() informerTestCase {
 			require.NoError(t, err)
 		},
 		createInformer: func(mockResourcesDBClient *databasetesting.MockResourcesDBClient) cache.SharedIndexInformer {
-			return NewNodePoolInformerWithRelistDuration(mockResourcesDBClient.ResourcesGlobalListers().NodePools(), mockResourcesDBClient, 1*time.Second)
+			return NewNodePoolInformerWithRelistDuration(mockResourcesDBClient.ResourcesGlobalListers().NodePools(), 1*time.Second)
 		},
 		expectedInitialAdds: 2,
 		mutateDB: func(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient) {
@@ -627,7 +627,7 @@ func activeOperationInformerTestCase() informerTestCase {
 			require.NoError(t, err)
 		},
 		createInformer: func(mockResourcesDBClient *databasetesting.MockResourcesDBClient) cache.SharedIndexInformer {
-			return NewActiveOperationInformerWithRelistDuration(mockResourcesDBClient.ResourcesGlobalListers().ActiveOperations(), mockResourcesDBClient, 1*time.Second)
+			return NewActiveOperationInformerWithRelistDuration(mockResourcesDBClient.ResourcesGlobalListers().ActiveOperations(), 1*time.Second)
 		},
 		expectedInitialAdds: 2,
 		mutateDB: func(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient) {
@@ -811,7 +811,7 @@ func controllerInformerTestCase() informerTestCase {
 			require.NoError(t, err)
 		},
 		createInformer: func(mockResourcesDBClient *databasetesting.MockResourcesDBClient) cache.SharedIndexInformer {
-			return NewControllerInformerWithRelistDuration(mockResourcesDBClient.ResourcesGlobalListers().Controllers(), mockResourcesDBClient, 1*time.Second)
+			return NewControllerInformerWithRelistDuration(mockResourcesDBClient.ResourcesGlobalListers().Controllers(), 1*time.Second)
 		},
 		expectedInitialAdds: 4,
 		mutateDB: func(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient) {

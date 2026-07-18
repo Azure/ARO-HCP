@@ -79,7 +79,7 @@ func TestControllerNotifications(t *testing.T) {
 		}()
 
 		resourcesDBClient := testInfo.ResourcesDBClient()
-		backendInformers := informers.NewBackendInformersWithRelistDuration(ctx, resourcesDBClient.ResourcesGlobalListers(), resourcesDBClient, testInfo.BillingDBClient().BillingGlobalListers(), ptr.To(100*time.Millisecond))
+		backendInformers := informers.NewBackendInformersWithRelistDuration(ctx, resourcesDBClient.ResourcesGlobalListers(), testInfo.BillingDBClient().BillingGlobalListers(), ptr.To(100*time.Millisecond))
 
 		_, activeOperationLister := backendInformers.ActiveOperations()
 		testSyncer := newTestController(activeOperationLister)

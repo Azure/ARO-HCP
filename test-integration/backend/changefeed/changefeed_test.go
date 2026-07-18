@@ -19,7 +19,6 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -28,13 +27,10 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/watch"
-	"k8s.io/client-go/tools/cache"
 	utilsclock "k8s.io/utils/clock"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	backendinformers "github.com/Azure/ARO-HCP/backend/pkg/informers"
-	backendlisters "github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
@@ -715,130 +711,3 @@ func drainEvents(watcher *clusterChangeFeedWatcher, within time.Duration) []watc
 		}
 	}
 }
-
-// TestActiveOperationInformer verifies that the active-operation informer
-// (which uses WithShouldDeliverItemFn to filter out terminal operations):
-//  1. Delivers an Added event and the lister finds the operation.
-//  2. Delivers a Deleted event when the operation transitions to terminal.
-//  3. The lister returns not-found after the operation becomes terminal.
-func TestActiveOperationInformer(t *testing.T) {
-	integrationutils.WithAndWithoutCosmos(t, func(t *testing.T, withMock bool) {
-		ctx, cancel := context.WithTimeout(t.Context(), 90*time.Second)
-		ctx = utils.ContextWithLogger(ctx, integrationutils.DefaultLogger(t))
-
-		var (
-			storage integrationutils.StorageIntegrationTestInfo
-			err     error
-		)
-		if withMock {
-			storage, err = integrationutils.NewMockCosmosFromTestingEnv(ctx, t)
-		} else {
-			storage, err = integrationutils.NewCosmosFromTestingEnv(ctx, t)
-		}
-		require.NoError(t, err, "create test storage")
-
-		resourcesDBClient := storage.ResourcesDBClient()
-
-		// Build the active operation informer using the same constructor
-		// the backend uses — it wires WithShouldDeliverItemFn to filter
-		// out terminal operations.
-		activeOpInformer := backendinformers.NewActiveOperationInformerWithRelistDuration(
-			resourcesDBClient.ResourcesGlobalListers().ActiveOperations(),
-			resourcesDBClient,
-			30*time.Minute,
-		)
-		activeOpLister := backendlisters.NewActiveOperationLister(activeOpInformer.GetIndexer())
-
-		// Track events delivered by the informer.
-		events := make(chan watch.Event, 10)
-		_, err = activeOpInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-			AddFunc: func(obj interface{}) {
-				events <- watch.Event{Type: watch.Added, Object: obj.(*api.Operation)}
-			},
-			UpdateFunc: func(_, obj interface{}) {
-				events <- watch.Event{Type: watch.Modified, Object: obj.(*api.Operation)}
-			},
-			DeleteFunc: func(obj interface{}) {
-				events <- watch.Event{Type: watch.Deleted, Object: obj.(*api.Operation)}
-			},
-		})
-		require.NoError(t, err, "AddEventHandler")
-
-		// Start the informer and wait for the initial list to sync.
-		informerDone := make(chan struct{})
-		go func() {
-			defer close(informerDone)
-			activeOpInformer.RunWithContext(ctx)
-		}()
-		defer func() {
-			cancel()
-			<-informerDone
-			cleanupCtx := utils.ContextWithLogger(context.Background(), integrationutils.DefaultLogger(t))
-			storage.Cleanup(cleanupCtx)
-		}()
-		require.True(t, cache.WaitForCacheSync(ctx.Done(), activeOpInformer.HasSynced),
-			"informer cache did not sync")
-
-		// Create an active (non-terminal) operation.
-		clusterRID := api.Must(azcorearm.ParseResourceID(fmt.Sprintf(
-			"/subscriptions/%s/resourceGroups/%s/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/active-op-test-%d",
-			testSubscriptionID, testResourceGroup, time.Now().UnixNano())))
-		opRID := api.Must(azcorearm.ParseResourceID(fmt.Sprintf(
-			"/subscriptions/%s/providers/Microsoft.RedHatOpenShift/hcpOperationStatuses/active-op-%d",
-			testSubscriptionID, time.Now().UnixNano())))
-		op := newOperationFixture(opRID, clusterRID)
-		created, err := resourcesDBClient.Operations(opRID.SubscriptionID).Create(ctx, op, nil)
-		require.NoError(t, err, "Create operation")
-
-		// Wait for the Added event from the informer.
-		evt := waitForChannelEvent(t, events, eventDeadline)
-		require.Equal(t, watch.Added, evt.Type, "expected Added for new active operation")
-		addedOp := evt.Object.(*api.Operation)
-		require.Truef(t, strings.EqualFold(addedOp.GetResourceID().String(), opRID.String()),
-			"Added event resourceID %q != created %q", addedOp.GetResourceID().String(), opRID.String())
-		require.Equal(t, arm.ProvisioningStateAccepted, addedOp.Status,
-			"Added event must carry the non-terminal status")
-
-		// The lister must find the active operation.
-		listedOp, err := activeOpLister.Get(ctx, testSubscriptionID, opRID.Name)
-		require.NoError(t, err, "lister.Get must find the active operation")
-		require.Truef(t, strings.EqualFold(listedOp.GetResourceID().String(), opRID.String()),
-			"lister returned wrong operation: %q", listedOp.GetResourceID().String())
-
-		// Transition the operation to terminal (Succeeded).
-		updated := newOperationFixture(opRID, clusterRID)
-		updated.CosmosETag = created.CosmosETag
-		updated.InstanceVersion = created.GetInstanceVersion()
-		updated.Status = arm.ProvisioningStateSucceeded
-		_, err = resourcesDBClient.Operations(opRID.SubscriptionID).Replace(ctx, updated, nil)
-		require.NoError(t, err, "Replace operation to terminal")
-
-		// The informer should deliver a Deleted event because
-		// shouldDeliverItemFn returns false for terminal operations.
-		evt = waitForChannelEvent(t, events, eventDeadline)
-		require.Equal(t, watch.Deleted, evt.Type, "expected Deleted when operation becomes terminal")
-		deletedOp := evt.Object.(*api.Operation)
-		require.Truef(t, strings.EqualFold(deletedOp.GetResourceID().String(), opRID.String()),
-			"Deleted event resourceID %q != operation %q", deletedOp.GetResourceID().String(), opRID.String())
-		require.Equal(t, arm.ProvisioningStateSucceeded, deletedOp.Status,
-			"Deleted event must carry the terminal status that caused removal")
-
-		// The lister must no longer find the operation.
-		_, err = activeOpLister.Get(ctx, testSubscriptionID, opRID.Name)
-		require.Error(t, err, "lister.Get must return an error after the operation became terminal")
-	})
-}
-
-func waitForChannelEvent(t *testing.T, ch <-chan watch.Event, timeout time.Duration) watch.Event {
-	t.Helper()
-	select {
-	case evt := <-ch:
-		return evt
-	case <-time.After(timeout):
-		t.Fatalf("no event received within %s", timeout)
-	}
-	return watch.Event{}
-}
-
-// keep imports honest if the file ever stops using sync/atomic etc.
-var _ = sync.Once{}
