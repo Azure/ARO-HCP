@@ -540,9 +540,13 @@ func alignSeriesToCommonTimestamps(series []parsedSeries) []parsedSeries {
 		existing := make(map[int64]opts.LineData, len(s.data))
 		for _, d := range s.data {
 			ts := dataPointTimestamp(d)
-			if ts != 0 {
-				existing[ts] = d
+			if ts == 0 {
+				continue
 			}
+			if arr, ok := d.Value.([]any); ok && len(arr) >= 2 && arr[1] == nil {
+				continue
+			}
+			existing[ts] = d
 		}
 
 		aligned := make([]opts.LineData, 0, len(timestamps))
