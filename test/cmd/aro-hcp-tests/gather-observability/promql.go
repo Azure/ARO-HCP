@@ -56,15 +56,17 @@ const (
 
 // QuerySpec describes a single PromQL query to execute and chart.
 type QuerySpec struct {
-	Title            string  `json:"title" yaml:"title"`
-	Description      string  `json:"description,omitempty" yaml:"description,omitempty"`
-	Query            string  `json:"query" yaml:"query"`
-	Unit             string  `json:"unit,omitempty" yaml:"unit,omitempty"`
-	Workspace        string  `json:"workspace" yaml:"workspace"` // "svc" or "hcp"
-	Step             string  `json:"step,omitempty" yaml:"step,omitempty"`
-	MinPeakThreshold float64 `json:"minPeakThreshold,omitempty" yaml:"minPeakThreshold,omitempty"`
-	ChartType        string  `json:"chartType,omitempty" yaml:"chartType,omitempty"`
-	FacetBy          string  `json:"facetBy,omitempty" yaml:"facetBy,omitempty"`
+	Title            string            `json:"title" yaml:"title"`
+	Description      string            `json:"description,omitempty" yaml:"description,omitempty"`
+	Query            string            `json:"query" yaml:"query"`
+	Unit             string            `json:"unit,omitempty" yaml:"unit,omitempty"`
+	Workspace        string            `json:"workspace" yaml:"workspace"` // "svc" or "hcp"
+	Step             string            `json:"step,omitempty" yaml:"step,omitempty"`
+	MinPeakThreshold float64           `json:"minPeakThreshold,omitempty" yaml:"minPeakThreshold,omitempty"`
+	ChartType        string            `json:"chartType,omitempty" yaml:"chartType,omitempty"`
+	FacetBy          string            `json:"facetBy,omitempty" yaml:"facetBy,omitempty"`
+	StackBy          string            `json:"stackBy,omitempty" yaml:"stackBy,omitempty"`
+	Colors           map[string]string `json:"colors,omitempty" yaml:"colors,omitempty"`
 }
 
 // PrometheusResponse is the top-level Prometheus HTTP API response.

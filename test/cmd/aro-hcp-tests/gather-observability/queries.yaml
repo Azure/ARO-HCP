@@ -45,14 +45,8 @@ panels:
             backend_cluster_provision_state{namespace="aro-hcp"}
           )
           * on(resource_id) group_left(management_cluster_resource_id)
-          (
-            max by(resource_id, management_cluster_resource_id) (
-              backend_cluster_info{namespace="aro-hcp", management_cluster_resource_id!=""}
-            )
-            or ignoring(management_cluster_resource_id)
-            max by(resource_id) (
-              backend_cluster_info{namespace="aro-hcp"}
-            )
+          max by(resource_id, management_cluster_resource_id) (
+            backend_cluster_info{namespace="aro-hcp", management_cluster_resource_id!=""}
           )
         ),
         "management_cluster_resource_id", "mgmt-$1",
@@ -63,6 +57,15 @@ panels:
     step: "60s"
     chartType: faceted-stacked-area
     facetBy: management_cluster_resource_id
+    stackBy: phase
+    colors:
+      succeeded: "#4CAF50"
+      provisioning: "#2196F3"
+      accepted: "#81D4FA"
+      updating: "#FF9800"
+      deleting: "#F44336"
+      failed: "#AB47BC"
+      canceled: "#9E9E9E"
   - title: "Controller Workqueue Depth"
     description: "Number of items waiting to be processed in each controller workqueue. Sustained depth indicates the controller cannot keep up with incoming work items."
     query: |

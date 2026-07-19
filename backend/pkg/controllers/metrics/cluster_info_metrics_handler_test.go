@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package metricscontrollers
+package metrics
 
 import (
 	"context"
@@ -26,25 +26,25 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
-	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
+	"github.com/Azure/ARO-HCP/internal/api/metadataapi"
 )
 
 func TestClusterInfoMetricsHandler(t *testing.T) {
-	clusterResourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1"))
-	spcResourceID := api.Must(azcorearm.ParseResourceID(clusterResourceID.String() + "/serviceProviderClusters/default"))
-	mcResourceID := api.Must(azcorearm.ParseResourceID("/providers/microsoft.redhatopenshift/stamps/1/managementclusters/default"))
+	clusterResourceID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1"))
+	spcResourceID := metadataapi.Must(azcorearm.ParseResourceID(clusterResourceID.String() + "/serviceProviderClusters/default"))
+	mcResourceID := metadataapi.Must(azcorearm.ParseResourceID("/providers/microsoft.redhatopenshift/stamps/1/managementclusters/default"))
 
 	tests := []struct {
 		name            string
-		spc             *api.ServiceProviderCluster
+		spc             *coreapi.ServiceProviderCluster
 		expectedMetrics string
 	}{
 		{
 			name: "emits cluster info with management cluster resource ID",
-			spc: &api.ServiceProviderCluster{
-				CosmosMetadata: arm.CosmosMetadata{ResourceID: spcResourceID},
-				Status: api.ServiceProviderClusterStatus{
+			spc: &coreapi.ServiceProviderCluster{
+				CosmosMetadata: coreapi.CosmosMetadata{ResourceID: spcResourceID},
+				Status: coreapi.ServiceProviderClusterStatus{
 					ManagementClusterResourceID: mcResourceID,
 				},
 			},
@@ -55,9 +55,9 @@ backend_cluster_info{management_cluster_resource_id="%s",resource_id="%s",subscr
 		},
 		{
 			name: "emits empty management cluster resource ID when not placed",
-			spc: &api.ServiceProviderCluster{
-				CosmosMetadata: arm.CosmosMetadata{ResourceID: spcResourceID},
-				Status:         api.ServiceProviderClusterStatus{},
+			spc: &coreapi.ServiceProviderCluster{
+				CosmosMetadata: coreapi.CosmosMetadata{ResourceID: spcResourceID},
+				Status:         coreapi.ServiceProviderClusterStatus{},
 			},
 			expectedMetrics: fmt.Sprintf(`# HELP backend_cluster_info Info metric for clusters. Value is always 1.
 # TYPE backend_cluster_info gauge
@@ -77,14 +77,14 @@ backend_cluster_info{management_cluster_resource_id="",resource_id="%s",subscrip
 }
 
 func TestClusterInfoMetricsHandler_DeleteCleansUp(t *testing.T) {
-	spcResourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1/serviceProviderClusters/default"))
-	mcResourceID := api.Must(azcorearm.ParseResourceID("/providers/microsoft.redhatopenshift/stamps/1/managementclusters/default"))
+	spcResourceID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1/serviceProviderClusters/default"))
+	mcResourceID := metadataapi.Must(azcorearm.ParseResourceID("/providers/microsoft.redhatopenshift/stamps/1/managementclusters/default"))
 
 	reg := prometheus.NewRegistry()
 	handler := NewClusterInfoMetricsHandler(reg)
-	handler.Sync(context.Background(), &api.ServiceProviderCluster{
-		CosmosMetadata: arm.CosmosMetadata{ResourceID: spcResourceID},
-		Status: api.ServiceProviderClusterStatus{
+	handler.Sync(context.Background(), &coreapi.ServiceProviderCluster{
+		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: spcResourceID},
+		Status: coreapi.ServiceProviderClusterStatus{
 			ManagementClusterResourceID: mcResourceID,
 		},
 	})
@@ -93,21 +93,21 @@ func TestClusterInfoMetricsHandler_DeleteCleansUp(t *testing.T) {
 }
 
 func TestClusterInfoMetricsHandler_UpdatesOnPlacementChange(t *testing.T) {
-	spcResourceID := api.Must(azcorearm.ParseResourceID("/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1/serviceProviderClusters/default"))
+	spcResourceID := metadataapi.Must(azcorearm.ParseResourceID("/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster-1/serviceProviderClusters/default"))
 	clusterResourceID := spcResourceID.Parent
-	mc1 := api.Must(azcorearm.ParseResourceID("/providers/microsoft.redhatopenshift/stamps/1/managementclusters/default"))
-	mc2 := api.Must(azcorearm.ParseResourceID("/providers/microsoft.redhatopenshift/stamps/2/managementclusters/default"))
+	mc1 := metadataapi.Must(azcorearm.ParseResourceID("/providers/microsoft.redhatopenshift/stamps/1/managementclusters/default"))
+	mc2 := metadataapi.Must(azcorearm.ParseResourceID("/providers/microsoft.redhatopenshift/stamps/2/managementclusters/default"))
 
 	reg := prometheus.NewRegistry()
 	handler := NewClusterInfoMetricsHandler(reg)
 
-	handler.Sync(context.Background(), &api.ServiceProviderCluster{
-		CosmosMetadata: arm.CosmosMetadata{ResourceID: spcResourceID},
-		Status:         api.ServiceProviderClusterStatus{ManagementClusterResourceID: mc1},
+	handler.Sync(context.Background(), &coreapi.ServiceProviderCluster{
+		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: spcResourceID},
+		Status:         coreapi.ServiceProviderClusterStatus{ManagementClusterResourceID: mc1},
 	})
-	handler.Sync(context.Background(), &api.ServiceProviderCluster{
-		CosmosMetadata: arm.CosmosMetadata{ResourceID: spcResourceID},
-		Status:         api.ServiceProviderClusterStatus{ManagementClusterResourceID: mc2},
+	handler.Sync(context.Background(), &coreapi.ServiceProviderCluster{
+		CosmosMetadata: coreapi.CosmosMetadata{ResourceID: spcResourceID},
+		Status:         coreapi.ServiceProviderClusterStatus{ManagementClusterResourceID: mc2},
 	})
 
 	expected := fmt.Sprintf(`# HELP backend_cluster_info Info metric for clusters. Value is always 1.

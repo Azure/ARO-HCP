@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package metricscontrollers
+package metrics
 
 import (
 	"context"
@@ -22,7 +22,7 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/coreapi"
 )
 
 type clusterInfoMetricsHandler struct {
@@ -32,7 +32,7 @@ type clusterInfoMetricsHandler struct {
 // NewClusterInfoMetricsHandler creates a metrics handler that emits a
 // backend_cluster_info gauge for each cluster, labeled with its management
 // cluster placement. Use PromQL joins to combine with other per-cluster metrics.
-func NewClusterInfoMetricsHandler(registerer prometheus.Registerer) Handler[*api.ServiceProviderCluster] {
+func NewClusterInfoMetricsHandler(registerer prometheus.Registerer) Handler[*coreapi.ServiceProviderCluster] {
 	handler := &clusterInfoMetricsHandler{
 		clusterInfo: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "backend_cluster_info",
@@ -43,7 +43,7 @@ func NewClusterInfoMetricsHandler(registerer prometheus.Registerer) Handler[*api
 	return handler
 }
 
-func (h *clusterInfoMetricsHandler) Sync(_ context.Context, serviceProviderCluster *api.ServiceProviderCluster) {
+func (h *clusterInfoMetricsHandler) Sync(_ context.Context, serviceProviderCluster *coreapi.ServiceProviderCluster) {
 	clusterResourceID := clusterResourceIDFromServiceProviderCluster(serviceProviderCluster)
 	if clusterResourceID == nil {
 		return
@@ -64,10 +64,14 @@ func (h *clusterInfoMetricsHandler) Delete(key string) {
 	if len(key) == 0 {
 		return
 	}
-	h.clusterInfo.DeletePartialMatch(prometheus.Labels{"resource_id": clusterResourceIDFromSPCKey(key)})
+	resourceID := clusterResourceIDFromSPCKey(key)
+	if len(resourceID) == 0 {
+		return
+	}
+	h.clusterInfo.DeletePartialMatch(prometheus.Labels{"resource_id": resourceID})
 }
 
-func clusterResourceIDFromServiceProviderCluster(serviceProviderCluster *api.ServiceProviderCluster) *azcorearm.ResourceID {
+func clusterResourceIDFromServiceProviderCluster(serviceProviderCluster *coreapi.ServiceProviderCluster) *azcorearm.ResourceID {
 	if serviceProviderCluster == nil || serviceProviderCluster.ResourceID == nil {
 		return nil
 	}

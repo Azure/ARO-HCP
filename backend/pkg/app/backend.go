@@ -426,8 +426,8 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	clusterVersionMetricsController := metrics.NewController(
 		"ClusterVersionMetrics", serviceProviderClusterInformer, clusterVersionMetricsHandler)
 
-	clusterInfoHandler := metricscontrollers.NewClusterInfoMetricsHandler(b.options.MetricsRegisterer)
-	clusterInfoMetricsController := metricscontrollers.NewController(
+	clusterInfoHandler := metrics.NewClusterInfoMetricsHandler(b.options.MetricsRegisterer)
+	clusterInfoMetricsController := metrics.NewController(
 		"ClusterInfoMetrics", serviceProviderClusterInformer, clusterInfoHandler)
 
 	_, billingLister := backendInformers.BillingDocs()
