@@ -8,14 +8,14 @@ import "time"
 
 // APIProfile - Information about the API of a cluster.
 type APIProfile struct {
-	// The internet visibility of the OpenShift API server
-	Visibility *Visibility
-
 	// READ-ONLY; URL endpoint for the API server
 	URL *string
 
 	// The list of authorized IPv4 CIDR blocks allowed to access the API server. Maximum 500 entries.
 	AuthorizedCIDRs []*string
+
+	// The internet visibility of the OpenShift API server
+	Visibility *Visibility
 }
 
 // AzureResourceManagerCommonTypesManagedServiceIdentityUpdate - Managed service identity (system assigned and/or user assigned
@@ -365,6 +365,10 @@ type HcpOpenShiftClusterProperties struct {
 	// given NodePool
 	NodeDrainTimeoutMinutes *int32
 
+	// The SSH public key used for secure access to cluster nodes. When set, this key is distributed to all nodes, enabling SSH
+	// access for debugging and maintenance purposes.
+	NodeSSHPublicKey *string
+
 	// READ-ONLY; Shows the cluster web console information
 	Console *ConsoleProfile
 
@@ -393,6 +397,10 @@ type HcpOpenShiftClusterPropertiesUpdate struct {
 	// This is the value is used a default for all NodePools. It can be overridden by specifying nodeDrainTimeoutMinutes for a
 	// given NodePool
 	NodeDrainTimeoutMinutes *int32
+
+	// The SSH public key used for secure access to cluster nodes. When set, this key is distributed to all nodes, enabling SSH
+	// access for debugging and maintenance purposes.
+	NodeSSHPublicKey *string
 
 	// Azure platform configuration
 	Platform *PlatformProfileUpdate
