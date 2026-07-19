@@ -65,6 +65,7 @@ type QuerySpec struct {
 	MinPeakThreshold float64 `json:"minPeakThreshold,omitempty" yaml:"minPeakThreshold,omitempty"`
 	ChartType        string  `json:"chartType,omitempty" yaml:"chartType,omitempty"`
 	FacetBy          string  `json:"facetBy,omitempty" yaml:"facetBy,omitempty"`
+	StackBy          string  `json:"stackBy,omitempty" yaml:"stackBy,omitempty"`
 }
 
 // PrometheusResponse is the top-level Prometheus HTTP API response.

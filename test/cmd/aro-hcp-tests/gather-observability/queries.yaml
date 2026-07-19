@@ -62,6 +62,7 @@ panels:
     step: "60s"
     chartType: faceted-stacked-area
     facetBy: management_cluster_resource_id
+    stackBy: phase
   - title: "Controller Workqueue Depth"
     description: "Number of items waiting to be processed in each controller workqueue. Sustained depth indicates the controller cannot keep up with incoming work items."
     query: |
