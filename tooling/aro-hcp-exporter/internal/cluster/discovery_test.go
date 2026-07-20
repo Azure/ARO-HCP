@@ -139,8 +139,8 @@ func TestBuildKQLQuery(t *testing.T) {
 			},
 		},
 		{
-			name:         "region is lowercased",
-			region:       "EastUS",
+			name:         "region is passed through as-is",
+			region:       "eastus",
 			clusterTypes: []string{"svc-cluster"},
 			wantContains: []string{
 				"| where location =~ 'eastus'",
