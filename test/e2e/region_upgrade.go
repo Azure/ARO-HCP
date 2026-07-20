@@ -19,7 +19,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
-	"os"
 	"sort"
 	"strings"
 	"time"
@@ -205,19 +204,11 @@ var _ = Describe("Region in-place upgrade", func() {
 		labels.UpgradeInPlace,
 		func(ctx context.Context) {
 			const (
-				// Time to observe for unexpected node pool hash changes after the
-				// pipeline deploy completes.
+				// rolloutObservationWindow is the time to observe for unexpected
+				// node pool hash changes after the upgrade pipeline completes.
 				rolloutObservationWindow = 20 * time.Minute
 				rolloutPollInterval      = 30 * time.Second
 			)
-
-			// Validate required env vars before provisioning any resources.
-			overrideConfigFile := os.Getenv("OVERRIDE_CONFIG_FILE")
-			Expect(overrideConfigFile).NotTo(BeEmpty(),
-				"OVERRIDE_CONFIG_FILE must be set to the region override config path")
-
-			deployEnv := os.Getenv("DEPLOY_ENV")
-			Expect(deployEnv).NotTo(BeEmpty(), "DEPLOY_ENV must be set for make entrypoint/Region")
 
 			suffix := rand.String(6)
 			clusterName := framework.SuffixName("e2e-upgrade", suffix, 64)
@@ -323,15 +314,60 @@ var _ = Describe("Region in-place upgrade", func() {
 				"dataSecretName", baselineDataSecretName,
 			)
 
-			// CheckInAndUpgrade handles check-in, runner election, runner/waiter
-			// split, and the Region entrypoint pipeline invocation in one call.
-			// OVERRIDE_CONFIG_FILE and DEPLOY_ENV are read from the environment.
-			By("checking in to barrier and running upgrade")
-			err = barrier.CheckInAndUpgrade(ctx)
+			// CheckIn increments checked_in and returns immediately with upgradeDoneCtx.
+			// The UpgradeCoordinator running in the parent process independently waits
+			// for all specs to check in, then runs the Region entrypoint pipeline and
+			// cancels upgradeDoneCtx when it finishes. All specs behave identically —
+			// there is no runner election.
+			By("checking in to barrier and waiting for coordinator to start upgrade")
+			upgradeDoneCtx, err := barrier.CheckIn(ctx)
+			Expect(err).NotTo(HaveOccurred(), "barrier check-in failed")
+
+			By("observing node pool stability during upgrade")
+			GinkgoLogr.Info("observing stability during upgrade — will stop when upgrade finishes",
+				"nodepool", nodePoolName,
+				"baselineHash", baselineHash,
+				"baselineHAProxyImage", baselineHAProxyImage,
+				"baselineDataSecretName", baselineDataSecretName,
+			)
+			duringStart := time.Now()
+			Consistently(func(g Gomega) {
+				elapsed := time.Since(duringStart).Round(time.Second)
+
+				currentHash, hashErr := nodePoolHash(ctx, kubeClient, nodePoolName)
+				g.Expect(hashErr).NotTo(HaveOccurred(), "failed to compute node pool hash during upgrade for %q", nodePoolName)
+				g.Expect(currentHash).To(Equal(baselineHash),
+					"node pool %q hash changed after %s during upgrade (cluster %q): was %s, now %s",
+					nodePoolName, elapsed, clusterName, baselineHash, currentHash,
+				)
+
+				currentHAProxyImage, haproxyErr := haProxyImage(ctx, kubeClient)
+				g.Expect(haproxyErr).NotTo(HaveOccurred(), "failed to retrieve haproxy image during upgrade for cluster %q", clusterName)
+				g.Expect(currentHAProxyImage).To(Equal(baselineHAProxyImage),
+					"haproxy image changed after %s during upgrade (cluster %q): registry-override substitution fired — was %s, now %s",
+					elapsed, clusterName, baselineHAProxyImage, currentHAProxyImage,
+				)
+
+				currentDataSecretName, dsErr := machineDeploymentDataSecretName(ctx, mcClient, mdRef)
+				g.Expect(dsErr).NotTo(HaveOccurred(), "failed to retrieve MC DataSecretName during upgrade for nodepool %q", nodePoolName)
+				g.Expect(currentDataSecretName).To(Equal(baselineDataSecretName),
+					"MC DataSecretName changed after %s during upgrade (nodepool %q, cluster %q): mcoRawConfig hash rotated — was %s, now %s",
+					elapsed, nodePoolName, clusterName, baselineDataSecretName, currentDataSecretName,
+				)
+			}, upgradeDoneCtx, rolloutPollInterval).Should(Succeed(),
+				"unexpected change detected during upgrade (cluster %q, nodepool %q)",
+				clusterName, nodePoolName,
+			)
+
+			// WaitForUpgrade is fast here: upgradeDoneCtx was already cancelled when
+			// the upgrade finished, so the state file already holds the result and
+			// WaitForUpgrade returns on its first read.
+			By("collecting upgrade result")
+			err = barrier.WaitForUpgrade(ctx)
 			Expect(err).NotTo(HaveOccurred(), "upgrade phase failed")
 
 			By("confirming node pool hash remains stable after upgrade")
-			GinkgoLogr.Info("starting stability observation",
+			GinkgoLogr.Info("starting post-upgrade stability observation",
 				"nodepool", nodePoolName,
 				"baselineHash", baselineHash,
 				"window", rolloutObservationWindow,

@@ -15,7 +15,9 @@
 package main
 
 import (
+	"context"
 	"fmt"
+	"log"
 	"os"
 	"sort"
 	"strconv"
@@ -24,6 +26,7 @@ import (
 	// If using ginkgo, import your tests here
 	_ "github.com/Azure/ARO-HCP/test/e2e"
 
+	"github.com/go-logr/stdr"
 	"github.com/onsi/gomega/format"
 	"github.com/spf13/cobra"
 
@@ -74,6 +77,31 @@ func miDemandPriority(spec *et.ExtensionTestSpec) int {
 		return 1
 	}
 	return 0
+}
+
+// isRunSuiteProcess returns true when this is the long-lived parent run-suite
+// process (os.Args[1] == "run-suite"), not a per-spec run-test worker subprocess.
+// The openshift-tests-extension framework spawns each spec as a separate
+// "run-test" OS process; only the parent process may start the UpgradeCoordinator.
+func isRunSuiteProcess() bool {
+	return len(os.Args) > 1 && os.Args[1] == "run-suite"
+}
+
+// isUpgradeInPlaceSuiteInvocation returns true when the current invocation is
+// specifically for the upgrade/in-place suite. It scans the command-line
+// arguments because the suite name is passed as a positional argument:
+//
+//	./aro-hcp-tests run-suite upgrade/in-place [flags...]
+func isUpgradeInPlaceSuiteInvocation() bool {
+	if !isRunSuiteProcess() {
+		return false
+	}
+	for _, arg := range os.Args {
+		if arg == "upgrade/in-place" {
+			return true
+		}
+	}
+	return false
 }
 
 func setupCli() *cobra.Command {
@@ -258,6 +286,40 @@ func setupCli() *cobra.Command {
 	})
 
 	// If using Ginkgo, specs were already built above. Hooks can be added here.
+
+	// For the upgrade/in-place suite, register a BeforeAll that starts the
+	// UpgradeCoordinator in the long-lived parent run-suite process. The
+	// coordinator polls the barrier state file, waits for all specs to check in,
+	// runs the Region entrypoint pipeline, then signals UpgradeDone so specs can
+	// unblock.
+	//
+	// The hook is guarded by isUpgradeInPlaceSuiteInvocation() so it is a no-op
+	// when any other suite runs. AddBeforeAll re-executes in every worker
+	// subprocess spawned by openshift-tests-extension (an unintended upstream
+	// behaviour), but the guard prevents duplicate coordinator goroutines.
+	specs.AddBeforeAll(func() {
+		if !isUpgradeInPlaceSuiteInvocation() {
+			return
+		}
+		// Set a stderr-backed logger for the coordinator before constructing it.
+		framework.SetUpgradeCoordinatorLogger(
+			stdr.New(log.New(os.Stderr, "[upgrade-coordinator] ", log.LstdFlags)),
+		)
+		coord, err := framework.NewUpgradeCoordinator()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "WARNING: failed to create upgrade coordinator: %v\n", err)
+			return
+		}
+		go func() {
+			if err := coord.Run(context.Background()); err != nil {
+				fmt.Fprintf(os.Stderr, "upgrade coordinator: %v\n", err)
+			}
+		}()
+	})
+
+	// You can add hooks to run before/after tests. There are BeforeEach, BeforeAll, AfterEach,
+	// and AfterAll. "Each" functions must be thread safe.
+	//
 	// specs.AddBeforeAll(func() {
 	// })
 	//

@@ -337,29 +337,67 @@ The following patterns should be rejected in code review:
 ❌ **Missing `By()` steps**: Complex tests without documented steps
 ❌ **Abandoned resources**: Creating resources outside TestContext without explicit cleanup
 
-## Upgrade Barrier
+## Upgrade Barrier and Coordinator
 
-`framework.UpgradeBarrier` coordinates parallel `UpgradeInPlace` specs so that:
+`framework.UpgradeBarrier` and `framework.UpgradeCoordinator` work together to coordinate parallel `UpgradeInPlace` specs so that:
 
 1. Every spec provisions its own cluster and captures a baseline independently (full parallelism).
-2. All specs synchronise at a single point — the first spec to successfully check in is elected **runner** and invokes the Region entrypoint pipeline (via `run.RunPipeline`); the others wait.
-3. After the upgrade completes (or fails), every spec independently validates its own cluster.
+2. All specs check in to the barrier. The **UpgradeCoordinator** — running in the long-lived parent `run-suite` process — waits for all specs to check in, then invokes the Region entrypoint pipeline via `run.RunPipeline`.
+3. While the upgrade runs, every spec can independently validate its own cluster (during-upgrade validation).
+4. After the upgrade completes (or fails), every spec independently validates its own cluster (post-upgrade validation).
+
+### Architecture
+
+```
+Parent process (run-suite)
+  └─ BeforeAll ──► NewUpgradeCoordinator() ──► go coord.Run(ctx)
+                                                   │
+                                                   ├─ waitSettled (polls state file)
+                                                   ├─ run.RunPipeline (Region entrypoint)
+                                                   └─ markUpgradeDone → state file
+
+Worker process per spec (run-test)
+  └─ Spec A ──► provision ──► CheckIn() ──► Consistently(validate, upgradeDoneCtx) ──► WaitForUpgrade() ──► post-upgrade validate
+  └─ Spec B ──► provision ──► CheckIn() ──► Consistently(validate, upgradeDoneCtx) ──► WaitForUpgrade() ──► post-upgrade validate
+  └─ Spec C ──► FAIL ──────── DeferCleanup abort (increments aborted_count; coordinator unblocks)
+```
+
+There is **no runner election** — all specs are identical. The upgrade runs in the parent process and is completely independent of individual spec success or failure.
 
 ### How it works
 
-```
-Spec A  ──► provision ──► CheckInAndUpgrade() ──runner──► run.RunPipeline (Region) ──► validate
-Spec B  ──► provision ──► CheckInAndUpgrade() ──waiter──► waits for runner       ──► validate
-Spec C  ──► FAIL ──────── DeferCleanup abort (barrier count satisfied; survivors proceed)
-```
+**UpgradeCoordinator** (parent process):
+- Created synchronously in `BeforeAll` (guarded to the parent `run-suite` process only) via `NewUpgradeCoordinator()`, which writes the initial state file before any worker is dispatched.
+- `Run(ctx)` is launched in a goroutine. It polls until `checked_in + aborted_count >= total` (settlement), then calls `runRegionEntrypoint`, then writes `UpgradeDone` + any error to the state file.
+- If all specs aborted before checking in, `Run` returns early without running the pipeline.
+- Logs go to `os.Stderr` via a `logr/stdr` logger (set via `SetUpgradeCoordinatorLogger` in `main.go`) — never to Ginkgo's captured output.
 
-- `CheckInAndUpgrade(ctx)` encapsulates check-in, runner election, runner/waiter split, and the Region entrypoint pipeline invocation (via `run.RunPipeline`) in one call. The elected runner runs the upgrade; all others wait. There is no runner/waiter bookkeeping in the test body, and the upgrade command is not configurable per-spec.
-- Internally, the barrier increments `checked_in` (or `aborted_count` for specs that fail before `CheckInAndUpgrade`). Survivors settle once `checked_in + aborted_count >= total`.
-- `abort`, `checkIn`, `waitForUpgrade`, and `markUpgradeDone` are all unexported — they are only invoked by `CheckInAndUpgrade` and the `DeferCleanup` handlers. `NewUpgradeBarrier` registers one cleanup (abort safety net for early-failing specs); `CheckInAndUpgrade` registers a second one for the elected runner only (panic/early-exit safety net). This prevents accidental misuse that could corrupt coordination state.
+**UpgradeBarrier** (worker processes):
+- Created per-spec via `NewUpgradeBarrier()`. All instances share the same lock file (`os.TempDir()/upgrade-barrier.lock`) and state file (under `ARTIFACT_DIR` or `os.TempDir()`).
+- `CheckIn(ctx)` atomically increments `checked_in` and **returns immediately** — it does not wait for settlement. It also starts a background goroutine that polls for `UpgradeDone` and cancels the returned `upgradeDoneCtx` when the coordinator signals completion.
+- `WaitForUpgrade(ctx)` blocks until `UpgradeDone=true` and returns the coordinator's upgrade error (if any).
+- `CheckinAndWait(ctx)` is a convenience wrapper combining `CheckIn` + `WaitForUpgrade` for specs that do not need during-upgrade validation.
+- If a spec fails before `CheckIn`, a `DeferCleanup` registered by `NewUpgradeBarrier` increments `aborted_count` so the coordinator is not left waiting for a participant that will never arrive.
+
+### Timing
+
+| Timeout | Value | Meaning |
+|---|---|---|
+| `defaultSettleTimeout` | 45 min | How long the coordinator waits for all specs to check in or abort |
+| `defaultUpgradeRunTimeout` | 50 min | Budget for the Region entrypoint pipeline itself |
+| `defaultUpgradeTimeout` | 60 min | How long specs wait in `WaitForUpgrade` for the coordinator's signal (10 min buffer over run timeout) |
+
+### Stale state detection
+
+The state file carries the parent PID of the suite runner as `run_id`. All parallel workers in the same invocation share the same parent PID, so they recognise the existing state file as their own. A new suite invocation gets a different PID:
+- The **coordinator** resets any stale file with a different `run_id` in `initState()`.
+- A **worker** (barrier) errors loudly if it finds a mismatched `run_id` — this signals that the coordinator did not initialise the state before the worker was dispatched, which should never happen in a correct setup.
+
+In Prow each job runs in a fresh pod, so there is no leakage between runs. For local runs `os.TempDir()` is a fixed path, but local runs are always single-spec (no parallelism), which further narrows the risk.
 
 ### CI setup
 
-`ARTIFACT_DIR` is optional; when absent the barrier state file falls back to `os.TempDir()` so local runs work without CI scaffolding. The state file carries the parent PID of the suite runner (`run_id`); all parallel workers in the same invocation share the same parent PID, so sibling workers correctly recognise an existing state file as their own. A new suite invocation gets a different parent PID and resets any stale file left by a prior interrupted run.
+`ARTIFACT_DIR` is optional. When set, the state file is written there and collected as a CI artifact. When absent (local runs), it falls back to `os.TempDir()`.
 
 The total number of `UpgradeInPlace` specs is computed dynamically in `main.go`'s `setupCli()` — after `BuildExtensionTestSpecsFromOpenShiftGinkgoSuite()` builds the spec list, the code counts specs with `labels.UpgradeInPlace` and calls `framework.SetUpgradeInPlaceSpecCount(n)`. The same count drives both the suite `Parallelism` and `NewUpgradeBarrier()`. **No constant to maintain** — adding a new `UpgradeInPlace` spec automatically updates both.
 
@@ -376,12 +414,20 @@ Expect(err).NotTo(HaveOccurred(), "failed to create upgrade barrier")
 
 // ... provision cluster, capture baseline ...
 
-// CheckInAndUpgrade handles check-in, runner election, runner/waiter split,
-// and runs the Region entrypoint pipeline on the elected runner. All others wait.
-err = barrier.CheckInAndUpgrade(ctx)
+// Option A: no during-upgrade validation — one call handles check-in and waiting.
+err = barrier.CheckinAndWait(ctx)
 Expect(err).NotTo(HaveOccurred(), "upgrade phase failed")
 
-// ... validate (Consistently) ...
+// Option B: during-upgrade validation — use CheckIn + WaitForUpgrade separately.
+upgradeDoneCtx, err := barrier.CheckIn(ctx)
+Expect(err).NotTo(HaveOccurred(), "failed to check in to upgrade barrier")
+Consistently(func(g Gomega) {
+    // validate cluster is stable while upgrade runs
+}, upgradeDoneCtx, rolloutPollInterval).Should(Succeed(), "cluster unstable during upgrade")
+err = barrier.WaitForUpgrade(ctx)
+Expect(err).NotTo(HaveOccurred(), "upgrade phase failed")
+
+// ... post-upgrade validation ...
 ```
 
 ## Code Review Checklist

@@ -23,13 +23,11 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/go-logr/logr"
 	"github.com/onsi/ginkgo/v2"
 
 	"sigs.k8s.io/yaml"
 
 	"github.com/Azure/ARO-HCP/test/pkg/filelock"
-	entrypointrun "github.com/Azure/ARO-HCP/tooling/templatize/cmd/entrypoint/run"
 )
 
 // upgradeInPlaceSpecCount is set once at suite-setup time (before any specs run)
@@ -51,17 +49,14 @@ func SetUpgradeInPlaceSpecCount(n int) {
 // than sufficient and avoids unnecessary file I/O.
 const defaultUpgradeBarrierPollInterval = 30 * time.Second
 
-// defaultSettleTimeout is the maximum time to wait for all specs to check in
-// or abort. It bounds the provisioning phase: if a spec hangs or crashes
-// without signalling abort, survivors unblock after this deadline rather than
-// burning the full spec timeout.
-const defaultSettleTimeout = 45 * time.Minute
-
-// defaultUpgradeTimeout is the maximum time a waiter will wait for the elected
-// runner to complete "make entrypoint/Region" and call markUpgradeDone. If the
-// runner crashes after check-in (OOM, hard kill) without signalling, waiters
-// fail with a clear timeout error rather than hanging until Prow kills the job.
-const defaultUpgradeTimeout = 70 * time.Minute
+// defaultUpgradeTimeout is the maximum time specs will wait in WaitForUpgrade
+// for the UpgradeCoordinator to write UpgradeDone to the state file. This is a
+// safety net for the case where the coordinator crashes hard after the barrier
+// settles without ever signalling completion. Set slightly longer than
+// defaultUpgradeRunTimeout so that if the coordinator times out it still has a
+// window to write its error before specs also time out — surfacing the real
+// cause rather than a generic "coordinator never signalled" message.
+const defaultUpgradeTimeout = 60 * time.Minute
 
 // upgradeBarrierState is the on-disk representation of the barrier.
 type upgradeBarrierState struct {
@@ -72,33 +67,30 @@ type upgradeBarrierState struct {
 	// provision or capture their baseline. These specs are no longer
 	// participating; survivors proceed once the barrier settles.
 	AbortedCount int `yaml:"aborted_count"`
-	// RunnerPID holds the OS PID of the spec elected to run
-	// the Region entrypoint pipeline. It is set atomically by the first spec
-	// to call checkIn. A value of 0 means no runner has been elected yet.
-	RunnerPID int `yaml:"runner_pid"`
-	// RunID holds the parent PID (os.Getppid()) of the worker processes in this
-	// suite invocation. All parallel workers spawned by the same runner share the
-	// same parent PID; a new suite invocation gets a different parent PID.
-	// Any mismatch means the state file is stale and must be reset.
+	// RunID holds the PID of the parent run-suite process (os.Getpid() in the
+	// UpgradeCoordinator, os.Getppid() in worker specs). Both values resolve to
+	// the same PID — the parent's own PID — so all participants in a single
+	// suite invocation agree on the same RunID. A new invocation spawns a new
+	// parent process with a different PID, which triggers a stale-state reset.
 	RunID int `yaml:"run_id"`
-	// UpgradeDone is set to true by markUpgradeDone once the runner has
-	// finished (successfully or not).
+	// UpgradeDone is set to true by the UpgradeCoordinator once the Region
+	// entrypoint pipeline has finished (successfully or not).
 	UpgradeDone bool `yaml:"upgrade_done"`
-	// UpgradeError is the error message written by markUpgradeDone when the
-	// upgrade failed. Empty string means success.
+	// UpgradeError is the error message written by the UpgradeCoordinator when
+	// the upgrade failed. Empty string means success.
 	UpgradeError string `yaml:"upgrade_error,omitempty"`
 }
 
 // settled reports whether every participating spec has either checked in or
-// aborted, meaning the barrier can make a routing decision.
+// aborted, meaning the UpgradeCoordinator can start the upgrade.
 func (s *upgradeBarrierState) settled(total int) bool {
 	return s.CheckedIn+s.AbortedCount >= total
 }
 
 // UpgradeBarrier coordinates a set of parallel UpgradeInPlace specs so that
-// all specs finish provisioning their clusters before a single elected spec
-// runs "make entrypoint/Region", after which every spec validates its own
-// cluster independently.
+// all specs finish provisioning their clusters before the UpgradeCoordinator
+// (running in the parent run-suite process) executes "make entrypoint/Region",
+// after which every spec validates its own cluster independently.
 //
 // Cross-process synchronisation uses a YAML state file protected by an
 // exclusive flock (the same pattern as the identity-pool lease), so it works
@@ -114,27 +106,30 @@ func (s *upgradeBarrierState) settled(total int) bool {
 //
 //	// ... provisioning and baseline capture ...
 //
-//	err = barrier.CheckInAndUpgrade(ctx)
+//	// CheckIn settles the barrier and returns a context cancelled when the
+//	// UpgradeCoordinator marks the upgrade done.
+//	upgradeDoneCtx, err := barrier.CheckIn(ctx)
+//	Expect(err).NotTo(HaveOccurred(), "barrier check-in failed")
+//
+//	// Consistently exits naturally when upgradeDoneCtx is cancelled.
+//	Consistently(validateFn, upgradeDoneCtx, pollInterval).Should(Succeed())
+//
+//	// Collect the upgrade result; fast because upgrade already finished.
+//	err = barrier.WaitForUpgrade(ctx)
 //	Expect(err).NotTo(HaveOccurred(), "upgrade phase failed")
 //
-//	// ... per-spec validation ...
+//	// ... post-upgrade per-spec validation ...
 type UpgradeBarrier struct {
 	statePath      string
 	lockFile       *os.File
 	total          int
-	runID          int // os.Getppid() of this invocation; all workers in the same suite run share the same parent PID, so only a truly new invocation (different parent) resets the state file
+	runID          int // os.Getppid() of this worker; equals os.Getpid() of the parent run-suite process
 	pollInterval   time.Duration
-	settleTimeout  time.Duration
 	upgradeTimeout time.Duration
 
-	// checkedIn is set by checkIn (Phase 2) and read by the abort DeferCleanup
+	// checkedIn is set by checkIn (Phase 1) and read by the abort DeferCleanup
 	// registered in registerGinkgoCleanup to decide whether to signal abort.
 	checkedIn bool
-
-	// upgradeDoneSignaled is set to true once markUpgradeDone has been called
-	// successfully. The DeferCleanup safety net checks this to avoid a double
-	// signal if CheckInAndUpgrade already called markUpgradeDone eagerly.
-	upgradeDoneSignaled bool
 }
 
 // NewUpgradeBarrier creates an UpgradeBarrier backed by a YAML state file at
@@ -155,18 +150,13 @@ func NewUpgradeBarrier() (*UpgradeBarrier, error) {
 			"call framework.SetUpgradeInPlaceSpecCount from main before running tests")
 	}
 
-	dir := artifactDir()
-	if dir == "" {
-		dir = os.TempDir()
-	}
-
-	lockPath := filepath.Join(os.TempDir(), "upgrade-barrier.lock")
+	lockPath := upgradeLockPath()
 	lf, err := os.OpenFile(lockPath, os.O_RDWR|os.O_CREATE, 0666)
 	if err != nil {
 		return nil, fmt.Errorf("opening upgrade barrier lock file %s: %w", lockPath, err)
 	}
 
-	statePath := filepath.Join(dir, "upgrade-barrier-state.yaml")
+	statePath := upgradeStatePath()
 
 	b := &UpgradeBarrier{
 		statePath:      statePath,
@@ -174,28 +164,23 @@ func NewUpgradeBarrier() (*UpgradeBarrier, error) {
 		total:          total,
 		runID:          os.Getppid(),
 		pollInterval:   defaultUpgradeBarrierPollInterval,
-		settleTimeout:  defaultSettleTimeout,
 		upgradeTimeout: defaultUpgradeTimeout,
 	}
 
-	// Write a clean initial state unless a sibling spec in the same suite
-	// invocation already did so (RunID matches). Any mismatch — zero RunID
-	// (uninitialized file), different parent PID (new suite invocation), or
-	// UpgradeDone=true (completed run) — means the file is stale and must be
-	// reset before coordination begins.
+	// The state file must already be initialised by the UpgradeCoordinator
+	// (NewUpgradeCoordinator calls initState synchronously in BeforeAll, before
+	// any worker is dispatched). A matching RunID confirms we are part of the
+	// same suite invocation; if the IDs differ the coordinator is out of sync
+	// with this worker and coordination will fail, so we return an error rather
+	// than silently resetting state that belongs to a running coordinator.
 	if err := b.withLock(func(state *upgradeBarrierState) (bool, error) {
 		if state.RunID == b.runID {
-			return false, nil // same run, sibling already initialised — leave it
+			return false, nil // coordinator or sibling already initialised — leave it
 		}
-		if state.RunID != 0 {
-			ginkgo.GinkgoLogr.Info("upgrade barrier: resetting stale state file",
-				"previous_run_id", state.RunID,
-				"previous_upgrade_done", state.UpgradeDone,
-				"previous_checked_in", state.CheckedIn,
-				"previous_runner_pid", state.RunnerPID)
-		}
-		*state = upgradeBarrierState{RunID: b.runID}
-		return true, nil
+		return false, fmt.Errorf(
+			"upgrade barrier: RunID mismatch (state=%d, expected=%d); "+
+				"the UpgradeCoordinator must initialise the state file before workers start",
+			state.RunID, b.runID)
 	}); err != nil {
 		lf.Close()
 		return nil, fmt.Errorf("initialising upgrade barrier state: %w", err)
@@ -213,90 +198,69 @@ func NewUpgradeBarrier() (*UpgradeBarrier, error) {
 	return b, nil
 }
 
-// CheckInAndUpgrade encapsulates the full barrier synchronisation and upgrade
-// phase in a single call, hiding the runner/waiter split from the test body.
+// CheckIn atomically increments checked_in and returns immediately — it does
+// not wait for the barrier to settle. The UpgradeCoordinator running in the
+// parent process independently polls for settlement and begins the upgrade once
+// all specs have checked in or aborted.
 //
-// After all specs have provisioned their clusters (barrier settled), the
-// elected runner invokes the Region entrypoint pipeline via templatize's
-// run.RunPipeline. On completion (success or failure) it signals all waiting
-// specs immediately so they can start their validation in parallel with the
-// runner.
+// CheckIn starts a lightweight background goroutine that polls the state file
+// and cancels the returned upgradeDoneCtx when the UpgradeCoordinator marks the
+// upgrade done. All specs behave identically — there is no runner election.
 //
-// CheckInAndUpgrade returns an error if check-in fails (all specs aborted), if
-// the pipeline invocation fails (runner only), or if the runner reported a
-// failure (non-runner specs). Per-spec validation runs after this call returns.
-func (b *UpgradeBarrier) CheckInAndUpgrade(ctx context.Context) error {
-	isRunner, err := b.checkIn(ctx)
-	if err != nil {
-		return err
-	}
-	if !isRunner {
-		return b.waitForUpgrade(ctx)
+// Callers should pass upgradeDoneCtx to a Consistently block for during-upgrade
+// validation. The validation window spans from check-in until upgrade completion
+// (covering any remaining provisioning time of peer specs plus the full upgrade)
+// which is intentionally broader than "strictly during upgrade". Then call
+// WaitForUpgrade to retrieve the upgrade result.
+func (b *UpgradeBarrier) CheckIn(ctx context.Context) (upgradeDoneCtx context.Context, err error) {
+	if err := b.checkIn(ctx); err != nil {
+		return ctx, err
 	}
 
-	// Safety net: if RunPipeline panics, or an Expect fires inside a helper
-	// we call before we reach the eager markUpgradeDone below, the
-	// DeferCleanup ensures waiting specs are unblocked rather than hanging
-	// until suite timeout.
-	ginkgo.DeferCleanup(func(ctx context.Context) {
-		if b.upgradeDoneSignaled {
-			return
+	upgradeDoneCtx, upgradeDoneCancel := context.WithCancel(ctx)
+
+	// Poll the state file and cancel upgradeDoneCtx when the coordinator marks
+	// the upgrade done. The goroutine stops when ctx is cancelled (spec ends)
+	// so it does not outlive the spec.
+	go func() {
+		defer upgradeDoneCancel()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(b.pollInterval):
+			}
+			done, _, pollErr := b.readUpgradeDone()
+			if pollErr != nil {
+				ginkgo.GinkgoLogr.Error(pollErr, "upgrade barrier: failed to poll upgrade done state")
+				continue
+			}
+			if done {
+				return
+			}
 		}
-		if markErr := b.markUpgradeDone(errors.New("runner did not signal upgrade done (panicked or exited early)")); markErr != nil {
-			ginkgo.GinkgoLogr.Error(markErr, "failed to mark upgrade done in barrier safety net")
-		}
-	}, AnnotatedLocation("upgrade barrier: mark upgrade done (runner safety net)"))
+	}()
 
-	upgradeErr := b.runRegionEntrypoint(ctx)
-
-	// Signal immediately after the pipeline completes — success or failure —
-	// so all waiting specs can start their validation window in parallel with
-	// the runner rather than being held until the runner's cleanup phase.
-	b.upgradeDoneSignaled = true
-	if markErr := b.markUpgradeDone(upgradeErr); markErr != nil {
-		ginkgo.GinkgoLogr.Error(markErr, "failed to mark upgrade done in barrier")
-	}
-	return upgradeErr
+	return upgradeDoneCtx, nil
 }
 
-// runRegionEntrypoint invokes the Region entrypoint pipeline in-process via
-// templatize's run.RunPipeline.
+// WaitForUpgrade polls the state file until the UpgradeCoordinator has marked
+// the upgrade done, then returns the coordinator's error (if any).
 //
-// Configuration is driven by the same environment variables that the CI step
-// registry shell script (aro-hcp-test-local-upgrade-commands.sh) exports:
-//
-//   - DEPLOY_ENV          → dev environment name (e.g. "cspr")
-//   - OVERRIDE_CONFIG_FILE → config overlay with PR image overrides
-//
-// Paths are resolved as absolutes from the repository root so the call works
-// regardless of the test binary's working directory.
-func (b *UpgradeBarrier) runRegionEntrypoint(ctx context.Context) error {
-	root, err := repoRoot()
-	if err != nil {
-		return fmt.Errorf("determining repo root for entrypoint invocation: %w", err)
-	}
+// When called after upgradeDoneCtx has been cancelled (normal flow), the state
+// file already shows UpgradeDone=true so this returns on the first read.
+func (b *UpgradeBarrier) WaitForUpgrade(ctx context.Context) error {
+	return b.waitForUpgrade(ctx)
+}
 
-	opts := entrypointrun.DefaultOptions()
-	opts.BaseOptions.ConfigFile = filepath.Join(root, "config", "config.yaml")
-	if override := overrideConfigFile(); override != "" {
-		opts.BaseOptions.ConfigFileOverride = override
+// CheckinAndWait is a convenience wrapper that calls CheckIn then WaitForUpgrade
+// back-to-back, skipping any during-upgrade validation. Use CheckIn + WaitForUpgrade
+// separately when per-spec validation during the upgrade is needed.
+func (b *UpgradeBarrier) CheckinAndWait(ctx context.Context) error {
+	if _, err := b.CheckIn(ctx); err != nil {
+		return err
 	}
-	opts.TopologyFiles = []string{filepath.Join(root, "topology.yaml")}
-	opts.Entrypoint = "Microsoft.Azure.ARO.HCP.Region"
-	opts.DevSettingsFile = filepath.Join(root, "tooling", "templatize", "settings.yaml")
-	opts.DevEnvironment = deployEnv()
-	opts.Region = location()
-	opts.StepCacheDir = filepath.Join(root, ".step-cache")
-	opts.Persist = true
-
-	if dir := artifactDir(); dir != "" {
-		opts.JUnitOutputFile = filepath.Join(dir, "junit_entrypoint.xml")
-		opts.ConfigOutputFile = filepath.Join(dir, "config.yaml")
-	}
-	opts.TimingOutputFile = filepath.Join(root, "timing", "steps.yaml")
-
-	ctx = logr.NewContext(ctx, ginkgo.GinkgoLogr)
-	return entrypointrun.RunPipeline(ctx, opts)
+	return b.WaitForUpgrade(ctx)
 }
 
 // repoRoot derives the repository root from the test binary path.
@@ -317,32 +281,14 @@ func repoRoot() (string, error) {
 	return filepath.Dir(filepath.Dir(real)), nil
 }
 
-// deployEnv returns the DEPLOY_ENV environment variable, which selects the
-// templatize dev-environment (e.g. "cspr", "pers").
-func deployEnv() string {
-	return os.Getenv("DEPLOY_ENV")
-}
-
-// overrideConfigFile returns the OVERRIDE_CONFIG_FILE environment variable.
-// In CI the local-upgrade step sets this to a rendered config overlay that
-// substitutes PR-built image tags on top of the base config.yaml.
-func overrideConfigFile() string {
-	return os.Getenv("OVERRIDE_CONFIG_FILE")
-}
-
 // registerGinkgoCleanup registers DeferCleanup handlers on the current Ginkgo
 // node for all barrier-owned resources:
 //
-//   - abort: fires if the spec fails before CheckInAndUpgrade so surviving
-//     specs are not blocked waiting for a participant that will never arrive.
+//   - abort: fires if the spec fails before CheckIn so surviving specs are not
+//     blocked waiting for a participant that will never arrive.
 //   - lock file close: releases the OS file descriptor held since construction.
-//
-// The markUpgradeDone DeferCleanup is registered separately inside
-// CheckInAndUpgrade, only for the elected runner, immediately before the
-// upgrade runs.
 func (b *UpgradeBarrier) registerGinkgoCleanup() {
-	// The lock file must outlive the abort and markUpgradeDone cleanups,
-	// both of which acquire the flock.
+	// The lock file must outlive the abort cleanup which acquires the flock.
 	ginkgo.DeferCleanup(func() {
 		_ = b.lockFile.Close()
 	}, AnnotatedLocation("upgrade barrier: close lock file"))
@@ -356,44 +302,29 @@ func (b *UpgradeBarrier) registerGinkgoCleanup() {
 	}, AnnotatedLocation("upgrade barrier: abort if not checked in"))
 }
 
-// checkIn atomically increments checked_in and, if runner_pid is not yet set,
-// claims the runner role for the calling process. It then polls until the
-// barrier settles (checked_in+aborted_count >= total), ensuring no spec
-// proceeds to the upgrade phase while others are still provisioning.
-//
-// Note: because Phase 1 always increments checked_in before Phase 2 polls the
-// state file, the barrier can never appear fully-aborted (checked_in==0) from
-// within this function — the caller has already contributed at least one
-// checked_in count.
-func (b *UpgradeBarrier) checkIn(ctx context.Context) (isRunner bool, err error) {
-	// Phase 1: atomically increment checked_in and optionally claim runner.
+// checkIn atomically increments checked_in. The UpgradeCoordinator (running in
+// the parent run-suite process) independently polls for settlement and starts
+// the upgrade once all specs have checked in or aborted — there is no need for
+// each spec to also wait here.
+func (b *UpgradeBarrier) checkIn(ctx context.Context) error {
 	if err := b.withLock(func(state *upgradeBarrierState) (bool, error) {
 		state.CheckedIn++
-		if state.RunnerPID == 0 {
-			state.RunnerPID = os.Getpid()
-			isRunner = true
-		}
 		return true, nil
 	}); err != nil {
-		return false, fmt.Errorf("check-in: %w", err)
+		return fmt.Errorf("check-in: %w", err)
 	}
 
-	// Set immediately after Phase 1: if Phase 2 fails, the abort DeferCleanup
-	// must not also increment aborted_count — checked_in is already written.
+	// Set immediately after the write: if the lock call above succeeded but a
+	// later step fails, the abort DeferCleanup must not also increment
+	// aborted_count — checked_in is already written.
 	b.checkedIn = true
-
-	// Phase 2: poll until all specs have either checked in or aborted.
-	if err := b.waitSettled(ctx); err != nil {
-		return false, err
-	}
-
-	return isRunner, nil
+	return nil
 }
 
 // abort signals that this spec is no longer participating because it failed to
 // provision its cluster or capture its baseline. It increments aborted_count
-// so that other specs waiting for the barrier to settle can proceed without
-// this spec.
+// so the UpgradeCoordinator's settlement check can account for this spec and
+// proceed without it.
 //
 // abort carries "I'm out" semantics: survivors are unaffected and continue to
 // the upgrade as long as at least one spec checked in.
@@ -413,91 +344,39 @@ func (b *UpgradeBarrier) abort(ctx context.Context) error {
 	})
 }
 
-// waitForUpgrade polls the state file until the runner has marked the upgrade
-// done. It returns the upgrade_error written by the runner, if any.
+// waitForUpgrade polls the state file until the UpgradeCoordinator has marked
+// the upgrade done. It returns the upgrade_error written by the coordinator,
+// if any.
+//
+// The state is read before waiting so that when called after upgradeDoneCtx has
+// been cancelled (normal flow), the function returns on the first iteration
+// without waiting a full pollInterval.
 //
 // An inner deadline of b.upgradeTimeout is applied on top of ctx so that
-// waiters fail with a clear error if the runner crashes after check-in without
-// calling markUpgradeDone, rather than hanging until Prow kills the job.
+// waiters fail with a clear error if the coordinator crashes after check-in
+// without calling markUpgradeDone, rather than hanging until Prow kills the job.
 func (b *UpgradeBarrier) waitForUpgrade(ctx context.Context) error {
 	ctx, cancel := context.WithTimeout(ctx, b.upgradeTimeout)
 	defer cancel()
 
 	for {
-		select {
-		case <-ctx.Done():
-			return fmt.Errorf("waiting for upgrade to complete: %w", ctx.Err())
-		case <-time.After(b.pollInterval):
-		}
-
 		done, upgradeErr, err := b.readUpgradeDone()
 		if err != nil {
 			return fmt.Errorf("reading upgrade barrier state: %w", err)
 		}
 		if done {
 			if upgradeErr != "" {
-				return fmt.Errorf("upgrade runner reported failure: %s", upgradeErr)
+				return fmt.Errorf("upgrade coordinator reported failure: %s", upgradeErr)
 			}
-			return nil
-		}
-	}
-}
-
-// markUpgradeDone is called by the runner after the upgrade has finished (or
-// failed). It writes upgrade_done=true and, when upgradeErr is non-nil, the
-// error message so that waitForUpgrade can surface it to non-runner specs.
-//
-// markUpgradeDone is idempotent: subsequent calls when upgrade_done is already
-// true are no-ops, making it safe to call from both the happy path and a
-// DeferCleanup handler.
-func (b *UpgradeBarrier) markUpgradeDone(upgradeErr error) error {
-	return b.withLock(func(state *upgradeBarrierState) (bool, error) {
-		if state.UpgradeDone {
-			return false, nil // already marked; no-op
-		}
-		state.UpgradeDone = true
-		if upgradeErr != nil {
-			state.UpgradeError = upgradeErr.Error()
-		}
-		return true, nil
-	})
-}
-
-// waitSettled polls until checked_in+aborted_count >= total (all registered
-// specs have either checked in or aborted).
-//
-// An inner deadline of b.settleTimeout is applied on top of ctx so that a
-// spec that crashes during provisioning without signalling abort does not
-// block survivors for the full spec timeout.
-func (b *UpgradeBarrier) waitSettled(ctx context.Context) error {
-	ctx, cancel := context.WithTimeout(ctx, b.settleTimeout)
-	defer cancel()
-
-	for {
-		settled, err := b.readSettled()
-		if err != nil {
-			return fmt.Errorf("reading upgrade barrier state: %w", err)
-		}
-		if settled {
 			return nil
 		}
 
 		select {
 		case <-ctx.Done():
-			return fmt.Errorf("waiting for all specs to check in or abort: %w", ctx.Err())
+			return fmt.Errorf("waiting for upgrade to complete: %w", ctx.Err())
 		case <-time.After(b.pollInterval):
 		}
 	}
-}
-
-// readSettled reads the state file without holding the lock (eventually
-// consistent) and reports whether the barrier has settled.
-func (b *UpgradeBarrier) readSettled() (settled bool, err error) {
-	state, err := b.readState()
-	if err != nil {
-		return false, err
-	}
-	return state.settled(b.total), nil
 }
 
 // readUpgradeDone reads the state file and reports upgrade_done and
