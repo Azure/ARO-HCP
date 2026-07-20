@@ -17,6 +17,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"slices"
 	"strings"
 	"time"
@@ -37,6 +38,11 @@ const (
 	DefaultListenAddress      = ":8080"
 	DefaultCacheTTL           = 1 * time.Minute
 	DefaultCollectionInterval = 1 * time.Minute
+)
+
+var (
+	validAzureRegion = regexp.MustCompile(`^[a-z][a-z0-9]+$`)
+	validClusterType = regexp.MustCompile(`^[A-Za-z0-9_.-]+$`)
 )
 
 type RawOptions struct {
@@ -93,8 +99,25 @@ func (o *RawOptions) Validate(ctx context.Context) (*ValidatedOptions, error) {
 		return nil, fmt.Errorf("cluster-types is required")
 	}
 
+	clusterTypes := make([]string, 0, len(o.ClusterTypes))
+	for _, ct := range o.ClusterTypes {
+		ct = strings.TrimSpace(ct)
+		if ct == "" {
+			return nil, fmt.Errorf("cluster-types must not contain empty values")
+		}
+		if !validClusterType.MatchString(ct) {
+			return nil, fmt.Errorf("invalid cluster-type %q: must match %s", ct, validClusterType.String())
+		}
+		clusterTypes = append(clusterTypes, ct)
+	}
+
 	if o.Region == "" {
 		return nil, fmt.Errorf("region is required")
+	}
+
+	region := strings.ToLower(o.Region)
+	if !validAzureRegion.MatchString(region) {
+		return nil, fmt.Errorf("invalid region %q: must be a lowercase Azure region name (e.g. eastus, westus3)", o.Region)
 	}
 
 	if o.CacheTTL == 0 {
@@ -113,8 +136,8 @@ func (o *RawOptions) Validate(ctx context.Context) (*ValidatedOptions, error) {
 
 	return &ValidatedOptions{
 		ListenAddress:      o.ListenAddress,
-		ClusterTypes:       o.ClusterTypes,
-		Region:             o.Region,
+		ClusterTypes:       clusterTypes,
+		Region:             region,
 		CacheTTL:           o.CacheTTL,
 		CollectionInterval: o.CollectionInterval,
 		EnabledCollectors:  o.EnabledCollectors,

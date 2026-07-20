@@ -77,7 +77,7 @@ func Discover(ctx context.Context, client graphquery.Querier, region string, clu
 func buildKQLQuery(region string, clusterTypes []string) string {
 	quoted := make([]string, len(clusterTypes))
 	for i, ct := range clusterTypes {
-		quoted[i] = fmt.Sprintf("'%s'", graphquery.EscapeKQL(strings.TrimSpace(ct)))
+		quoted[i] = fmt.Sprintf("'%s'", graphquery.EscapeKQL(ct))
 	}
 
 	return fmt.Sprintf(
@@ -86,7 +86,7 @@ func buildKQLQuery(region string, clusterTypes []string) string {
 			"| where location =~ '%s'\n"+
 			"| where tags['clusterType'] in~ (%s)\n"+
 			"| project name, subscriptionId",
-		graphquery.EscapeKQL(strings.ToLower(region)),
+		graphquery.EscapeKQL(region),
 		strings.Join(quoted, ", "),
 	)
 }
