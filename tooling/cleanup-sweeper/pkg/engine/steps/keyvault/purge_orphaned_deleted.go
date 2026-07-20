@@ -155,6 +155,14 @@ func (s *purgeOrphanedDeletedStep) Discover(ctx context.Context) ([]runner.Targe
 				continue
 			}
 			resourceGroupName := parsed.ResourceGroupName
+			if resourceGroupName == "" {
+				// A parsed ID without a resource group is not an RG-scoped ARM ID,
+				// so we cannot prove the vault is orphaned. Skip it rather than
+				// probing an empty resource group name (which would fail and cache
+				// unrelated malformed IDs under one empty-string key).
+				skipReporter.Record(logger, "vault_id_missing_resource_group", "vault", *vault.Name)
+				continue
+			}
 
 			rgKey := strings.ToLower(resourceGroupName)
 			if !checkedRGs.Has(rgKey) {
