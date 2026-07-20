@@ -300,3 +300,4 @@ exists but the signer lacks permission to act on it.
    all four scopes, and the desires-creator / revocation-desires / teardown
    controllers write, list, and delete each credential's and revocation's desires
    physically nested under their owning parent.
+
