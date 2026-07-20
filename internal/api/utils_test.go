@@ -200,6 +200,101 @@ func TestMergeStringPtrMapIntoResourceIDMap(t *testing.T) {
 	}
 }
 
+func TestIsEmptyValue(t *testing.T) {
+	tests := []struct {
+		name   string
+		value  any
+		expect bool
+	}{
+		// string
+		{name: "empty string", value: "", expect: true},
+		{name: "non-empty string", value: "hello", expect: false},
+		// int32
+		{name: "zero int32", value: int32(0), expect: true},
+		{name: "non-zero int32", value: int32(1), expect: false},
+		// bool
+		{name: "false bool", value: false, expect: true},
+		{name: "true bool", value: true, expect: false},
+		// pointer
+		{name: "nil pointer", value: (*string)(nil), expect: true},
+		{name: "non-nil pointer", value: Ptr("x"), expect: false},
+		// slice
+		{name: "nil slice", value: ([]string)(nil), expect: true},
+		{name: "empty slice", value: []string{}, expect: true},
+		{name: "non-empty slice", value: []string{"a"}, expect: false},
+		// map
+		{name: "nil map", value: (map[string]string)(nil), expect: true},
+		{name: "empty map", value: map[string]string{}, expect: true},
+		{name: "non-empty map", value: map[string]string{"k": "v"}, expect: false},
+		// struct
+		{name: "zero struct", value: struct{ X int }{}, expect: true},
+		{name: "non-zero struct", value: struct{ X int }{X: 1}, expect: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := isEmptyValue(reflect.ValueOf(tt.value))
+			assert.Equal(t, tt.expect, got)
+		})
+	}
+}
+
+func TestPtrOrNil(t *testing.T) {
+	tests := []struct {
+		name      string
+		run       func() bool // returns true if result is nil
+		expectNil bool
+	}{
+		{name: "empty string → nil", run: func() bool { return PtrOrNil("") == nil }, expectNil: true},
+		{name: "non-empty string → ptr", run: func() bool { return PtrOrNil("x") == nil }, expectNil: false},
+		{name: "zero int32 → nil", run: func() bool { return PtrOrNil(int32(0)) == nil }, expectNil: true},
+		{name: "non-zero int32 → ptr", run: func() bool { return PtrOrNil(int32(42)) == nil }, expectNil: false},
+		{name: "false bool → nil", run: func() bool { return PtrOrNil(false) == nil }, expectNil: true},
+		{name: "true bool → ptr", run: func() bool { return PtrOrNil(true) == nil }, expectNil: false},
+		{name: "nil *string → nil", run: func() bool { return PtrOrNil((*string)(nil)) == nil }, expectNil: true},
+		{name: "non-nil *string → ptr", run: func() bool { return PtrOrNil(Ptr("y")) == nil }, expectNil: false},
+		{name: "nil []string → nil", run: func() bool { return PtrOrNil(([]string)(nil)) == nil }, expectNil: true},
+		{name: "empty []string → nil", run: func() bool { return PtrOrNil([]string{}) == nil }, expectNil: true},
+		{name: "non-empty []string → ptr", run: func() bool { return PtrOrNil([]string{"a"}) == nil }, expectNil: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expectNil, tt.run())
+		})
+	}
+}
+
+// TestPtrOrNil_Value verifies PtrOrNil returns a pointer to the original value when non-empty.
+func TestPtrOrNil_Value(t *testing.T) {
+	s := PtrOrNil("hello")
+	require.NotNil(t, s)
+	assert.Equal(t, "hello", *s)
+
+	n := PtrOrNil(int32(7))
+	require.NotNil(t, n)
+	assert.Equal(t, int32(7), *n)
+}
+
+func TestDeref(t *testing.T) {
+	t.Run("non-nil string pointer", func(t *testing.T) {
+		assert.Equal(t, "hello", Deref(Ptr("hello")))
+	})
+	t.Run("nil string pointer returns zero value", func(t *testing.T) {
+		assert.Equal(t, "", Deref((*string)(nil)))
+	})
+	t.Run("non-nil int32 pointer", func(t *testing.T) {
+		assert.Equal(t, int32(42), Deref(Ptr(int32(42))))
+	})
+	t.Run("nil int32 pointer returns zero value", func(t *testing.T) {
+		assert.Equal(t, int32(0), Deref((*int32)(nil)))
+	})
+	t.Run("non-nil bool pointer", func(t *testing.T) {
+		assert.Equal(t, true, Deref(Ptr(true)))
+	})
+	t.Run("nil bool pointer returns false", func(t *testing.T) {
+		assert.Equal(t, false, Deref((*bool)(nil)))
+	})
+}
+
 func TestNonNilSliceValues(t *testing.T) {
 	a, b, c := Ptr("A"), Ptr("B"), Ptr("C")
 	testCases := []struct {
