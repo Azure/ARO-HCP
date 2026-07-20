@@ -50,7 +50,6 @@ type purgeDeletedStep struct {
 	retries         int
 	continueOnError bool
 	verify          runner.VerifyFn
-	targetLocations map[string]string
 }
 
 var _ runner.Step = (*purgeDeletedStep)(nil)
@@ -75,7 +74,6 @@ func NewPurgeDeletedStep(cfg PurgeDeletedStepConfig) (runner.Step, error) {
 		retries:         cfg.Retries,
 		continueOnError: cfg.ContinueOnError,
 		verify:          cfg.Verify,
-		targetLocations: map[string]string{},
 	}, nil
 }
 
@@ -118,8 +116,6 @@ func (s *purgeDeletedStep) Discover(ctx context.Context) ([]runner.Target, error
 	skipReporter := common.NewDiscoverySkipReporter(s.Name())
 	defer skipReporter.Flush(logger)
 
-	s.targetLocations = map[string]string{}
-
 	pager := s.cfg.VaultsClient.NewListDeletedPager(nil)
 	targets := []runner.Target{}
 	for pager.More() {
@@ -141,22 +137,21 @@ func (s *purgeDeletedStep) Discover(ctx context.Context) ([]runner.Target, error
 				continue
 			}
 			targets = append(targets, runner.Target{
-				ID:   vaultID,
-				Name: *vault.Name,
-				Type: DeletedVaultsResourceType,
+				ID:       vaultID,
+				Name:     *vault.Name,
+				Type:     DeletedVaultsResourceType,
+				Location: *vault.Properties.Location,
 			})
-			s.targetLocations[*vault.Name] = *vault.Properties.Location
 		}
 	}
 	return targets, nil
 }
 
 func (s *purgeDeletedStep) Delete(ctx context.Context, target runner.Target, wait bool) error {
-	location, ok := s.targetLocations[target.Name]
-	if !ok {
-		return fmt.Errorf("missing purge metadata for vault %s", target.Name)
+	if target.Location == "" {
+		return fmt.Errorf("missing location for vault %s", target.Name)
 	}
-	return purgeDeletedVault(ctx, s.cfg.VaultsClient, target.Name, location, wait)
+	return purgeDeletedVault(ctx, s.cfg.VaultsClient, target.Name, target.Location, wait)
 }
 
 // purgeDeletedVault purges a single soft-deleted Key Vault. A 404 is treated as

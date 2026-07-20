@@ -24,6 +24,8 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/keyvault/armkeyvault"
 
+	"k8s.io/apimachinery/pkg/util/sets"
+
 	"github.com/Azure/ARO-HCP/tooling/cleanup-sweeper/pkg/engine/runner"
 	"github.com/Azure/ARO-HCP/tooling/cleanup-sweeper/pkg/engine/steps/common"
 )
@@ -60,7 +62,6 @@ type purgeOrphanedDeletedStep struct {
 	retries         int
 	continueOnError bool
 	verify          runner.VerifyFn
-	targetLocations map[string]string
 }
 
 var _ runner.Step = (*purgeOrphanedDeletedStep)(nil)
@@ -85,7 +86,6 @@ func NewPurgeOrphanedDeletedStep(cfg PurgeOrphanedDeletedStepConfig) (runner.Ste
 		retries:         cfg.Retries,
 		continueOnError: cfg.ContinueOnError,
 		verify:          cfg.Verify,
-		targetLocations: map[string]string{},
 	}, nil
 }
 
@@ -128,11 +128,10 @@ func (s *purgeOrphanedDeletedStep) Discover(ctx context.Context) ([]runner.Targe
 	skipReporter := common.NewDiscoverySkipReporter(s.Name())
 	defer skipReporter.Flush(logger)
 
-	s.targetLocations = map[string]string{}
-
 	// Cache resource-group existence lookups so subscriptions with many
 	// soft-deleted vaults sharing a resource group only pay one API call each.
-	rgExists := map[string]bool{}
+	checkedRGs := sets.New[string]()
+	existingRGs := sets.New[string]()
 
 	pager := s.cfg.VaultsClient.NewListDeletedPager(nil)
 	targets := []runner.Target{}
@@ -158,41 +157,42 @@ func (s *purgeOrphanedDeletedStep) Discover(ctx context.Context) ([]runner.Targe
 			resourceGroupName := parsed.ResourceGroupName
 
 			rgKey := strings.ToLower(resourceGroupName)
-			exists, cached := rgExists[rgKey]
-			if !cached {
-				exists, err = s.cfg.ResourceGroupExists(ctx, resourceGroupName)
+			if !checkedRGs.Has(rgKey) {
+				checkedRGs.Insert(rgKey)
+				exists, err := s.cfg.ResourceGroupExists(ctx, resourceGroupName)
 				if err != nil {
-					// Be conservative on lookup failure: cache the resource group
+					// Be conservative on lookup failure: treat the resource group
 					// as existing so we skip this and any sibling vaults without
 					// re-running CheckExistence (avoids amplifying API load / log
 					// noise under transient ARM throttling). A later sweep retries.
-					rgExists[rgKey] = true
+					existingRGs.Insert(rgKey)
 					skipReporter.Record(logger, "resource_group_existence_check_failed", "vault", *vault.Name, "resourceGroup", resourceGroupName)
 					continue
 				}
-				rgExists[rgKey] = exists
+				if exists {
+					existingRGs.Insert(rgKey)
+				}
 			}
-			if exists {
+			if existingRGs.Has(rgKey) {
 				// Resource group still exists; the rg-ordered workflow owns
 				// purging vaults in live resource groups.
 				continue
 			}
 
 			targets = append(targets, runner.Target{
-				ID:   vaultID,
-				Name: *vault.Name,
-				Type: DeletedVaultsResourceType,
+				ID:       vaultID,
+				Name:     *vault.Name,
+				Type:     DeletedVaultsResourceType,
+				Location: *vault.Properties.Location,
 			})
-			s.targetLocations[*vault.Name] = *vault.Properties.Location
 		}
 	}
 	return targets, nil
 }
 
 func (s *purgeOrphanedDeletedStep) Delete(ctx context.Context, target runner.Target, wait bool) error {
-	location, ok := s.targetLocations[target.Name]
-	if !ok {
-		return fmt.Errorf("missing purge metadata for vault %s", target.Name)
+	if target.Location == "" {
+		return fmt.Errorf("missing location for vault %s", target.Name)
 	}
-	return purgeDeletedVault(ctx, s.cfg.VaultsClient, target.Name, location, wait)
+	return purgeDeletedVault(ctx, s.cfg.VaultsClient, target.Name, target.Location, wait)
 }
