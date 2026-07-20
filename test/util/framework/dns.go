@@ -68,7 +68,7 @@ func HostnameFromURL(rawURL string) (string, error) {
 // uses a fresh net.Resolver with PreferGo: true to bypass negative DNS
 // caching from prior NXDOMAIN responses.
 func WaitForDNSResolution(ctx context.Context, hostname string, timeout time.Duration) error {
-	var lastErrStr string
+	var lastErr error
 	startTime := time.Now()
 
 	err := wait.PollUntilContextTimeout(ctx, 10*time.Second, timeout, true, func(ctx context.Context) (done bool, err error) {
@@ -78,37 +78,49 @@ func WaitForDNSResolution(ctx context.Context, hostname string, timeout time.Dur
 
 		addrs, lookupErr := resolver.LookupHost(lookupCtx, hostname)
 		if lookupErr != nil {
-			errStr := formatDNSError(lookupErr)
-			if errStr != lastErrStr {
-				klog.InfoS("DNS resolution pending",
-					"hostname", hostname,
-					"error", errStr,
-					"elapsed", time.Since(startTime).Truncate(time.Second),
-				)
-				lastErrStr = errStr
+			if lastErr == nil || lookupErr.Error() != lastErr.Error() {
+				logDNSError(hostname, lookupErr, time.Since(startTime).Truncate(time.Second))
+				lastErr = lookupErr
 			}
 			return false, nil
 		}
 
-		klog.InfoS("DNS resolved",
-			"hostname", hostname,
-			"addresses", addrs,
-			"elapsed", time.Since(startTime).Truncate(time.Second),
-		)
+		if lastErr != nil {
+			klog.InfoS("DNS resolved",
+				"hostname", hostname,
+				"addresses", addrs,
+				"elapsed", time.Since(startTime).Truncate(time.Second),
+			)
+		}
 		return true, nil
 	})
 
 	if err != nil {
+		lastErrStr := ""
+		if lastErr != nil {
+			lastErrStr = lastErr.Error()
+		}
 		return fmt.Errorf("DNS for %s did not resolve within %s (last error: %s): %w", hostname, timeout, lastErrStr, err)
 	}
 	return nil
 }
 
-func formatDNSError(err error) string {
+func logDNSError(hostname string, err error, elapsed time.Duration) {
 	var dnsErr *net.DNSError
 	if errors.As(err, &dnsErr) {
-		return fmt.Sprintf("server=%s isNotFound=%v isTemporary=%v err=%s",
-			dnsErr.Server, dnsErr.IsNotFound, dnsErr.IsTemporary, dnsErr.Err)
+		klog.InfoS("DNS resolution pending",
+			"hostname", hostname,
+			"server", dnsErr.Server,
+			"isNotFound", dnsErr.IsNotFound,
+			"isTemporary", dnsErr.IsTemporary,
+			"error", dnsErr.Err,
+			"elapsed", elapsed,
+		)
+		return
 	}
-	return err.Error()
+	klog.InfoS("DNS resolution pending",
+		"hostname", hostname,
+		"error", err,
+		"elapsed", elapsed,
+	)
 }
