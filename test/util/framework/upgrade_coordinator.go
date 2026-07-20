@@ -29,11 +29,10 @@ import (
 	entrypointrun "github.com/Azure/ARO-HCP/tooling/templatize/cmd/entrypoint/run"
 )
 
-// upgradeCoordinatorLogger is a package-level fallback used by the coordinator
-// when no logger is injected. It writes to stderr via the logr/stdr adapter.
-// Using a package-level default avoids a hard dependency on any particular logging
-// library while still giving operators a way to see coordinator progress in the
-// Prow job log.
+// upgradeCoordinatorLogger is the package-level logger used by the coordinator.
+// By default it discards output; call SetUpgradeCoordinatorLogger from main to
+// route coordinator logs to a real sink (e.g. stderr via logr/stdr) so that
+// pipeline progress and failures are visible in the Prow build log.
 var upgradeCoordinatorLogger = logr.Discard()
 
 // defaultSettleTimeout is the maximum time to wait for all specs to check in
@@ -133,8 +132,11 @@ func NewUpgradeCoordinator() (*UpgradeCoordinator, error) {
 //
 // Run is intended to be called in a goroutine (go coord.Run(ctx)) from BeforeAll.
 // It returns nil on success, or the first non-nil error encountered.
-func (c *UpgradeCoordinator) Run(ctx context.Context) error {
+func (c *UpgradeCoordinator) Run(ctx context.Context) (runErr error) {
 	defer func() { _ = c.lockFile.Close() }()
+	// Always signal specs on exit — success or failure — so no checked-in waiter
+	// ever hangs until its own upgradeTimeout waiting for a signal that never comes.
+	defer func() { _ = c.markUpgradeDone(runErr) }()
 
 	// Validate required env vars before blocking on settlement so failures are
 	// surfaced immediately rather than after all specs have provisioned clusters.
@@ -158,6 +160,7 @@ func (c *UpgradeCoordinator) Run(ctx context.Context) error {
 
 	upgradeCtx, upgradeCancel := context.WithTimeout(ctx, c.upgradeRunTimeout)
 	defer upgradeCancel()
+	upgradeCtx = logr.NewContext(upgradeCtx, c.logger)
 
 	if overrideConfigFile() == "" {
 		// OVERRIDE_CONFIG_FILE is unset — the pipeline runs against base config.yaml
@@ -165,12 +168,7 @@ func (c *UpgradeCoordinator) Run(ctx context.Context) error {
 		c.logger.Info("upgrade coordinator: OVERRIDE_CONFIG_FILE is not set; running without config override")
 	}
 
-	upgradeErr := runRegionEntrypoint(upgradeCtx)
-
-	if markErr := c.markUpgradeDone(upgradeErr); markErr != nil {
-		return fmt.Errorf("upgrade coordinator: marking upgrade done: %w", markErr)
-	}
-	return upgradeErr
+	return runRegionEntrypoint(upgradeCtx)
 }
 
 // initState writes a clean initial state (RunID = parent PID). If a state file
@@ -198,6 +196,9 @@ func (c *UpgradeCoordinator) waitSettled(ctx context.Context) error {
 	ctx, cancel := context.WithTimeout(ctx, c.settleTimeout)
 	defer cancel()
 
+	ticker := time.NewTicker(c.pollInterval)
+	defer ticker.Stop()
+
 	for {
 		state, err := c.readState()
 		if err != nil {
@@ -210,7 +211,7 @@ func (c *UpgradeCoordinator) waitSettled(ctx context.Context) error {
 		select {
 		case <-ctx.Done():
 			return fmt.Errorf("waiting for all specs to check in or abort: %w", ctx.Err())
-		case <-time.After(c.pollInterval):
+		case <-ticker.C:
 		}
 	}
 }

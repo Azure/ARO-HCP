@@ -376,7 +376,7 @@ There is **no runner election** — all specs are identical. The upgrade runs in
 - Created per-spec via `NewUpgradeBarrier()`. All instances share the same lock file (`os.TempDir()/upgrade-barrier.lock`) and state file (under `ARTIFACT_DIR` or `os.TempDir()`).
 - `CheckIn(ctx)` atomically increments `checked_in` and **returns immediately** — it does not wait for settlement. It also starts a background goroutine that polls for `UpgradeDone` and cancels the returned `upgradeDoneCtx` when the coordinator signals completion.
 - `WaitForUpgrade(ctx)` blocks until `UpgradeDone=true` and returns the coordinator's upgrade error (if any).
-- `CheckinAndWait(ctx)` is a convenience wrapper combining `CheckIn` + `WaitForUpgrade` for specs that do not need during-upgrade validation.
+- `CheckInAndWait(ctx)` is a convenience wrapper combining `CheckIn` + `WaitForUpgrade` for specs that do not need during-upgrade validation.
 - If a spec fails before `CheckIn`, a `DeferCleanup` registered by `NewUpgradeBarrier` increments `aborted_count` so the coordinator is not left waiting for a participant that will never arrive.
 
 ### Timing
@@ -415,7 +415,7 @@ Expect(err).NotTo(HaveOccurred(), "failed to create upgrade barrier")
 // ... provision cluster, capture baseline ...
 
 // Option A: no during-upgrade validation — one call handles check-in and waiting.
-err = barrier.CheckinAndWait(ctx)
+err = barrier.CheckInAndWait(ctx)
 Expect(err).NotTo(HaveOccurred(), "upgrade phase failed")
 
 // Option B: during-upgrade validation — use CheckIn + WaitForUpgrade separately.

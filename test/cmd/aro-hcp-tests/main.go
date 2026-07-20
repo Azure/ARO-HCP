@@ -265,9 +265,9 @@ func setupCli() *cobra.Command {
 
 	// upgrade/in-place runs UpgradeInPlace specs in parallel. Each spec provisions
 	// its own cluster+nodepool and captures a baseline, then all specs synchronise
-	// at an UpgradeBarrier: the first spec to check in runs "make entrypoint/Region"
-	// once for the whole suite; the others wait. After the upgrade every spec
-	// validates its own cluster independently (hash, haproxy image, DataSecretName).
+	// at an UpgradeBarrier while the UpgradeCoordinator (parent run-suite process)
+	// runs the Region entrypoint pipeline once for the suite. After the upgrade every
+	// spec validates its own cluster independently (hash, haproxy image, DataSecretName).
 	//
 	// Parallelism equals the number of UpgradeInPlace specs counted above so every
 	// spec can provision concurrently. If parallelism < spec count, specs block

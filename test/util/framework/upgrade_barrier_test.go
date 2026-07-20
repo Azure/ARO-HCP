@@ -486,10 +486,13 @@ func TestUpgradeCoordinator_SkipsUpgradeWhenAllAborted(t *testing.T) {
 	require.Error(t, err, "coordinator should return an error when all specs aborted")
 	assert.Contains(t, err.Error(), "all specs aborted", "error should describe the situation")
 
-	// UpgradeDone should NOT be written since there are no waiters.
+	// UpgradeDone is written by the deferred markUpgradeDone even on the
+	// all-aborted path. This is harmless — no spec is polling — and it
+	// ensures any late-arriving spec gets an immediate error rather than hanging.
 	state, readErr := b0.readState()
 	require.NoError(t, readErr)
-	assert.False(t, state.UpgradeDone, "UpgradeDone should not be set when all specs aborted")
+	assert.True(t, state.UpgradeDone, "UpgradeDone should be written even when all specs aborted")
+	assert.Contains(t, state.UpgradeError, "all specs aborted", "UpgradeError should describe the situation")
 }
 
 // writes UpgradeDone=true to the state file after the upgrade completes,

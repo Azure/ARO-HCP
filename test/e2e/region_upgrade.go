@@ -314,12 +314,11 @@ var _ = Describe("Region in-place upgrade", func() {
 				"dataSecretName", baselineDataSecretName,
 			)
 
-			// CheckIn increments checked_in and returns immediately with upgradeDoneCtx.
-			// The UpgradeCoordinator running in the parent process independently waits
-			// for all specs to check in, then runs the Region entrypoint pipeline and
-			// cancels upgradeDoneCtx when it finishes. All specs behave identically —
-			// there is no runner election.
-			By("checking in to barrier and waiting for coordinator to start upgrade")
+			// CheckIn atomically increments checked_in and returns immediately with
+			// upgradeDoneCtx. The UpgradeCoordinator in the parent process independently
+			// waits for all specs to check in, then runs the Region entrypoint pipeline
+			// and cancels upgradeDoneCtx when it finishes.
+			By("checking in to upgrade barrier")
 			upgradeDoneCtx, err := barrier.CheckIn(ctx)
 			Expect(err).NotTo(HaveOccurred(), "barrier check-in failed")
 
@@ -354,7 +353,7 @@ var _ = Describe("Region in-place upgrade", func() {
 					"MC DataSecretName changed after %s during upgrade (nodepool %q, cluster %q): mcoRawConfig hash rotated — was %s, now %s",
 					elapsed, nodePoolName, clusterName, baselineDataSecretName, currentDataSecretName,
 				)
-			}, upgradeDoneCtx, rolloutPollInterval).Should(Succeed(),
+			}).WithContext(upgradeDoneCtx).WithPolling(rolloutPollInterval).Should(Succeed(),
 				"unexpected change detected during upgrade (cluster %q, nodepool %q)",
 				clusterName, nodePoolName,
 			)

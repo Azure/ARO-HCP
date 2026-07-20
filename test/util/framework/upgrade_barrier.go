@@ -224,11 +224,13 @@ func (b *UpgradeBarrier) CheckIn(ctx context.Context) (upgradeDoneCtx context.Co
 	// so it does not outlive the spec.
 	go func() {
 		defer upgradeDoneCancel()
+		ticker := time.NewTicker(b.pollInterval)
+		defer ticker.Stop()
 		for {
 			select {
 			case <-ctx.Done():
 				return
-			case <-time.After(b.pollInterval):
+			case <-ticker.C:
 			}
 			done, _, pollErr := b.readUpgradeDone()
 			if pollErr != nil {
@@ -253,10 +255,10 @@ func (b *UpgradeBarrier) WaitForUpgrade(ctx context.Context) error {
 	return b.waitForUpgrade(ctx)
 }
 
-// CheckinAndWait is a convenience wrapper that calls CheckIn then WaitForUpgrade
+// CheckInAndWait is a convenience wrapper that calls CheckIn then WaitForUpgrade
 // back-to-back, skipping any during-upgrade validation. Use CheckIn + WaitForUpgrade
 // separately when per-spec validation during the upgrade is needed.
-func (b *UpgradeBarrier) CheckinAndWait(ctx context.Context) error {
+func (b *UpgradeBarrier) CheckInAndWait(ctx context.Context) error {
 	if _, err := b.CheckIn(ctx); err != nil {
 		return err
 	}
@@ -359,6 +361,9 @@ func (b *UpgradeBarrier) waitForUpgrade(ctx context.Context) error {
 	ctx, cancel := context.WithTimeout(ctx, b.upgradeTimeout)
 	defer cancel()
 
+	ticker := time.NewTicker(b.pollInterval)
+	defer ticker.Stop()
+
 	for {
 		done, upgradeErr, err := b.readUpgradeDone()
 		if err != nil {
@@ -374,7 +379,7 @@ func (b *UpgradeBarrier) waitForUpgrade(ctx context.Context) error {
 		select {
 		case <-ctx.Done():
 			return fmt.Errorf("waiting for upgrade to complete: %w", ctx.Err())
-		case <-time.After(b.pollInterval):
+		case <-ticker.C:
 		}
 	}
 }
