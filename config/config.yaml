@@ -161,7 +161,7 @@ defaults:
       image:
         registry: mcr.microsoft.com
         repository: geneva/distroless/mdsd
-        digest: sha256:70396486115428e2f2497c37de37883009f66485990a159194382b20239d4da8 # 1.42.0-20260714-3 (2026-07-14 16:51)
+        digest: sha256:43c9a75702fb50e57cfa9a72c6ce8fe57248877dd409dbe6e9eaf7724a2a66ad # 1.43.0-20260720-1 (2026-07-20 18:25)
   # Kube Events
   kubeEvents:
     enabled: true
@@ -352,7 +352,7 @@ defaults:
     image:
       registry: quay.io
       repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
-      digest: sha256:eaf8e2a12b74b021dbfb7e25ec7c24775d1db2cbfe7b668c1c9a572b0d41907a # 64f8102a2dec17e1821048297abd998d76381b81 (2026-07-20 13:48)
+      digest: sha256:1fe8460b5c62fb0f64500825012e7e99c5c8222d4f60653e284c3a5434141c2e # 661b61a0c81be8f0a630303e4bc95b0dce7b74ce (2026-07-20 19:03)
     namespace: hypershift
     additionalInstallArg: '--enable-cpo-overrides'
     # By default we set it to empty as this tag is only required for msft environments. We override
@@ -445,15 +445,15 @@ defaults:
     server:
       registry: registry.stage.redhat.io
       repository: oadp/oadp-velero-rhel9
-      digest: sha256:438b40f9cb4c76e5d4aed644d78a10aa8c70ea4f161b94eacbed12dc9212b6e9 # 1.6.1 (2026-07-17 18:28)
+      digest: sha256:c0ef1dbafc7e9665f54c77655bc784a3d6618f00a7c74d910b2eeaf4ab7de4e4 # 1.6.1 (2026-07-20 20:10)
     azurePlugin:
       registry: registry.stage.redhat.io
       repository: oadp/oadp-velero-plugin-for-microsoft-azure-rhel9
-      digest: sha256:a14dff80dadf5608e4a340204e1af8d8100874b8a4f7398190239fcb245501c6 # 1.6.1 (2026-07-17 18:27)
+      digest: sha256:9499d06f37c1d91ba3822d8f5535e9f6e045d380f233e4b932d9dc4a9a995eee # 1.6.1 (2026-07-20 20:06)
     hypershiftPlugin:
       registry: registry.stage.redhat.io
       repository: oadp/oadp-hypershift-velero-plugin-rhel9
-      digest: sha256:1131a2419d8ba9ba1c4a916b7be62281452c62f13394adf9892ad82a682184de # 1.6.1 (2026-07-17 18:23)
+      digest: sha256:50cd073729080bac9ae37d475a790124903a5ce7b05599091c6dc839ff5c0c34 # 1.6.1 (2026-07-20 20:07)
   # SVC cluster specifics
   svc:
     subscription:
@@ -1003,12 +1003,12 @@ defaults:
       bundle:
         registry: quay.io
         repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-216
-        digest: sha256:eb903419cc9b4cb65a504c2d66963f64cfdf62af1d0d919000f6aafdc27c16c4 # v2.16.3-526 (2026-07-20 05:19)
+        digest: sha256:c2005b99842bf18f51fc6d34387e9b64e7e464c85f556551e975df7a1030a3d1 # v2.16.3-527 (2026-07-20 16:34)
     mce:
       bundle:
         registry: quay.io
         repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-211
-        digest: sha256:ac84804ad2b4b6337af11f7b33c50829d9e2351034886bc2dd75af70ee5047fb # v2.11.4-562 (2026-07-20 05:15)
+        digest: sha256:6d75b3c694a892af1b45816ec24216428f5ae9007683d6bea85d0754410e22f2 # v2.11.4-563 (2026-07-20 16:34)
   # Cluster Service
   clustersService:
     image:
@@ -1076,7 +1076,7 @@ defaults:
       image:
         registry: arohcpsvcdev.azurecr.io
         repository: image-sync/oc-mirror
-        digest: sha256:fd622f01d72d2eb5536fabf4cf71209a4d2c2e9c11e919190c8cefd6cfdea809 # 795b407 (2026-07-20 14:15)
+        digest: sha256:c93376ca82402626a876901dc72232908aa4efb41c8b6b4d5269bdf239ad4672 # 7c5f680 (2026-07-20 20:30)
       pullSecretName: ocmirror-pull-secret
       operatorVersionsToMirror: "4.18,4.19,4.20,4.21,4.22"
   # Automation Account
