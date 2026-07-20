@@ -59,6 +59,19 @@ func (c *ActiveOperationBasedChecker) CanSync(ctx context.Context, key any) bool
 		activeOperations, err = c.activeOperationLister.ListActiveOperationsForNodePool(ctx, castKey.SubscriptionID, castKey.ResourceGroupName, castKey.HCPClusterName, castKey.HCPNodePoolName)
 	case HCPExternalAuthKey:
 		activeOperations, err = c.activeOperationLister.ListActiveOperationsForExternalAuth(ctx, castKey.SubscriptionID, castKey.ResourceGroupName, castKey.HCPClusterName, castKey.HCPExternalAuthName)
+	case SystemAdminCredentialRequestKey:
+		// A credential request is driven by a cluster-scoped RequestCredential
+		// operation, so the cluster's active operations are what make this key
+		// "active". Without this case the key falls through to the zero-value
+		// (no active operations) branch below and is always throttled by the
+		// slow inactive-operation cooldown — which stalls issuance (CSR, RBAC,
+		// approval desires and the issuance observer) while the user's
+		// RequestCredential operation is still in flight.
+		activeOperations, err = c.activeOperationLister.ListActiveOperationsForCluster(ctx, castKey.SubscriptionID, castKey.ResourceGroupName, castKey.HCPClusterName)
+	case SystemAdminCredentialRevocationKey:
+		// A revocation is driven by a cluster-scoped RevokeCredentials
+		// operation; same reasoning as SystemAdminCredentialRequestKey.
+		activeOperations, err = c.activeOperationLister.ListActiveOperationsForCluster(ctx, castKey.SubscriptionID, castKey.ResourceGroupName, castKey.HCPClusterName)
 	case OperationKey:
 		ret := c.activeOperationTimer.CanSync(ctx, key)
 		return ret
