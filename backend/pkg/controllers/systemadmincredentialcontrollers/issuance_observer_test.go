@@ -191,8 +191,8 @@ func makeReadDesireListerWithCSR(t *testing.T, credName string, csr *certificate
 	require.NoError(t, err)
 
 	desireName := maestrohelpers.ReadDesireNameForSystemAdminCredentialRequestCSR(credName)
-	resourceIDStr := kubeapplier.ToClusterScopedReadDesireResourceIDString(
-		testSubscriptionID, testResourceGroupName, testClusterName, desireName,
+	resourceIDStr := kubeapplier.ToCredentialRequestScopedReadDesireResourceIDString(
+		testSubscriptionID, testResourceGroupName, testClusterName, credName, desireName,
 	)
 	resourceID := api.Must(azcorearm.ParseResourceID(resourceIDStr))
 

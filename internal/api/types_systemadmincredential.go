@@ -90,7 +90,7 @@ const (
 // the cluster-deletion finalizer can advance.
 func SystemAdminCredentialContentDeletedCondition() metav1.Condition {
 	return metav1.Condition{
-		Type:               "SystemAdminCredentialContentDeleted",
+		Type:               SystemAdminCredentialRequestConditionContentDeleted,
 		Status:             metav1.ConditionTrue,
 		LastTransitionTime: metav1.Now(),
 		Reason:             "ContentDeleted",

@@ -99,9 +99,9 @@ func (c *revocationCompletion) SyncOnce(ctx context.Context, key controllerutils
 
 	// Observe the mirrored CRR to confirm the certificates have been revoked.
 	if !revocation.Status.IsCertificatesRevoked() {
-		cachedCRR, err := maestrohelpers.GetCachedCertificateRevocationRequestForCluster(
+		cachedCRR, err := maestrohelpers.GetCachedCertificateRevocationRequestForRevocation(
 			ctx, c.readDesireLister,
-			key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, revocation.Spec.RevokeOpSuffix)
+			key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.RevocationName, revocation.Spec.RevokeOpSuffix)
 		if err != nil {
 			return utils.TrackError(err)
 		}
