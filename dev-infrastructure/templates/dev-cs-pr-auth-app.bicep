@@ -26,7 +26,7 @@ var contributorRoleDefinitionId = subscriptionResourceId(
 )
 
 resource aksContributor 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(aksCluster.id, 'cs-pr-authentication', contributorRoleDefinitionId)
+  name: guid(aksCluster.id, csAuthApp.outputs.principalId, contributorRoleDefinitionId)
   scope: aksCluster
   properties: {
     principalId: csAuthApp.outputs.principalId
