@@ -67,7 +67,7 @@ func NewController[T arm.CosmosPersistable](
 
 	_, err := informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    c.enqueue,
-		UpdateFunc: func(_, newObj interface{}) { c.enqueue(newObj) },
+		UpdateFunc: func(_, newObj interface{}) { c.enqueueForResync(newObj) },
 		DeleteFunc: c.enqueue,
 	})
 	if err != nil {
@@ -83,6 +83,21 @@ func (c *Controller[T]) enqueue(obj interface{}) {
 		logger := utils.DefaultLogger()
 		logger = logger.WithValues(utils.LogValues{}.AddControllerName(c.name)...)
 		logger.Error(err, "failed to compute key")
+		return
+	}
+	c.queue.Add(key)
+}
+
+// enqueueForResync is used for UpdateFunc, which fires on every informer resync regardless of whether the object changed; it skips a key that's already backing off after a sync error.
+func (c *Controller[T]) enqueueForResync(obj interface{}) {
+	key, err := resourceIDStoreKeyForObject(obj)
+	if err != nil {
+		logger := utils.DefaultLogger()
+		logger = logger.WithValues(utils.LogValues{}.AddControllerName(c.name)...)
+		logger.Error(err, "failed to compute key")
+		return
+	}
+	if c.queue.NumRequeues(key) > 0 {
 		return
 	}
 	c.queue.Add(key)
