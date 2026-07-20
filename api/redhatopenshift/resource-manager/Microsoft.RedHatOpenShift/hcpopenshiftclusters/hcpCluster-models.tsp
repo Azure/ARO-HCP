@@ -139,7 +139,7 @@ model HcpOpenShiftClusterProperties {
   @maxLength(8192)
   @pattern(
     "^(?<type>[A-Za-z0-9._@-]+)[ \t]+(?<key>[A-Za-z0-9+/]+=*)(?:[ \t]+(?<comment>.*))?$",
-    "must be a valid ssh public key (^(?<type>[A-Za-z0-9._@-]+)[ \t]+(?<key>[A-Za-z0-9+/]+=*)(?:[ \t]+(?<comment>.*))?$)"
+    "does not conform the required pattern, must be a valid ssh key"
   )
   nodeSshPublicKey?: string;
 
