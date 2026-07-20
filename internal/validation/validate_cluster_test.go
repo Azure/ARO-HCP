@@ -889,3 +889,59 @@ func TestURL(t *testing.T) {
 		})
 	}
 }
+
+func TestMatchesRegex_NodeSshPublicKey(t *testing.T) {
+	ctx := context.Background()
+	op := operation.Operation{Type: operation.Create}
+	fldPath := field.NewPath("properties").Child("nodeSshPublicKey")
+
+	tests := []struct {
+		name         string
+		value        *string
+		expectErrors []utils.ExpectedError
+	}{
+		{
+			name:         "nil - valid",
+			value:        nil,
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name:         "ed25519 with comment - valid",
+			value:        ptr.To("ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAITestKey test@example.com"),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name:         "rsa without comment - valid",
+			value:        ptr.To("ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQC7VERYLONG"),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name:  "type only without key data - invalid",
+			value: ptr.To("ssh-ed25519"),
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.nodeSshPublicKey", Message: "must be a valid SSH public key"},
+			},
+		},
+		{
+			name:  "raw base64 without type - invalid",
+			value: ptr.To("AAAAC3NzaC1lZDI1NTE5AAAAITestKey"),
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.nodeSshPublicKey", Message: "must be a valid SSH public key"},
+			},
+		},
+		{
+			name:  "arbitrary string - invalid",
+			value: ptr.To("not-an-ssh-key"),
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "properties.nodeSshPublicKey", Message: "must be a valid SSH public key"},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			errs := MatchesRegex(ctx, op, fldPath, tt.value, nil, nodeSshPublicKeyRegex, nodeSshPublicKeyErrorString)
+			utils.VerifyErrorsMatch(t, tt.expectErrors, errs)
+		})
+	}
+}
