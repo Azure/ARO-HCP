@@ -157,16 +157,20 @@ func (s *purgeOrphanedDeletedStep) Discover(ctx context.Context) ([]runner.Targe
 			}
 			resourceGroupName := parsed.ResourceGroupName
 
-			exists, cached := rgExists[strings.ToLower(resourceGroupName)]
+			rgKey := strings.ToLower(resourceGroupName)
+			exists, cached := rgExists[rgKey]
 			if !cached {
 				exists, err = s.cfg.ResourceGroupExists(ctx, resourceGroupName)
 				if err != nil {
-					// Be conservative on lookup failure: skip so we never purge a
-					// vault whose resource group might still exist.
+					// Be conservative on lookup failure: cache the resource group
+					// as existing so we skip this and any sibling vaults without
+					// re-running CheckExistence (avoids amplifying API load / log
+					// noise under transient ARM throttling). A later sweep retries.
+					rgExists[rgKey] = true
 					skipReporter.Record(logger, "resource_group_existence_check_failed", "vault", *vault.Name, "resourceGroup", resourceGroupName)
 					continue
 				}
-				rgExists[strings.ToLower(resourceGroupName)] = exists
+				rgExists[rgKey] = exists
 			}
 			if exists {
 				// Resource group still exists; the rg-ordered workflow owns
