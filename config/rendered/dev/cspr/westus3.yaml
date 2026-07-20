@@ -447,7 +447,7 @@ hcpRecovery:
 hypershift:
   additionalInstallArg: --enable-cpo-overrides
   image:
-    digest: sha256:16ab4ea361099dfae1d185b5b3ab08b7dca8e52fcfe58e46114db16850c06aaa
+    digest: sha256:eaf8e2a12b74b021dbfb7e25ec7c24775d1db2cbfe7b668c1c9a572b0d41907a
     registry: quay.io
     repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
   limitClusterSizes: true
@@ -465,7 +465,7 @@ imageSync:
   ocMirror:
     enabled: true
     image:
-      digest: sha256:927d1259fcc1d6071d3a219cbfca8cabacaf988f8c0d1fa22407fe111530df1c
+      digest: sha256:fd622f01d72d2eb5536fabf4cf71209a4d2c2e9c11e919190c8cefd6cfdea809
       registry: arohcpsvcdev.azurecr.io
       repository: image-sync/oc-mirror
     jobNamePrefix: ""
@@ -560,7 +560,7 @@ maestro:
     name: arohcp-cspr-maestro-usw3
     private: false
   image:
-    digest: sha256:b7f0c3062306cc4f956342b4d2ac4a6eba4113d4f615dabe584fa666bf5d71d5
+    digest: sha256:31b203da421cc2ee2125a86be5168f096e236a3a9125404cb326a718a0d34727
     registry: quay.io
     repository: redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro
   postgres:
