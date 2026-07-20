@@ -81,6 +81,11 @@ var (
 const (
 	StandardPollInterval            = 10 * time.Second
 	StandardResourceGroupExpiration = 4 * time.Hour
+	// keyVaultPurgeTimeout bounds the best-effort soft-deleted Key Vault purge
+	// on resource-group teardown so a stalled purge (or Azure control-plane
+	// stall) can never hang the cleanup goroutine and flake the overall E2E
+	// teardown.
+	keyVaultPurgeTimeout = 5 * time.Minute
 )
 
 // azureRetryOptions configures the Azure SDK retry policy for e2e tests.

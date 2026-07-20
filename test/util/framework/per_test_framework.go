@@ -658,6 +658,11 @@ func (tc *perItOrDescribeTestContext) cleanupResourceGroupNoRP(ctx context.Conte
 // Microsoft.KeyVault/locations/deletedVaults/purge/action permission) are
 // logged but never fail cleanup.
 func (tc *perItOrDescribeTestContext) purgeDeletedKeyVaultsInResourceGroup(ctx context.Context, resourceGroupName string) {
+	// Bound the whole best-effort purge so a stuck vault purge or Azure
+	// control-plane stall cannot hang teardown indefinitely.
+	ctx, cancel := context.WithTimeout(ctx, keyVaultPurgeTimeout)
+	defer cancel()
+
 	creds, err := tc.AzureCredential()
 	if err != nil {
 		ginkgo.GinkgoLogr.Error(err, "unable to purge soft-deleted key vaults: failed to get azure credentials", "resourceGroup", resourceGroupName)
