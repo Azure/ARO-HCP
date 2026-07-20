@@ -151,7 +151,7 @@ func (s *purgeOrphanedDeletedStep) Discover(ctx context.Context) ([]runner.Targe
 				// If we cannot determine the owning resource group we cannot
 				// prove the vault is orphaned, so skip it rather than risk
 				// purging a vault whose resource group still exists.
-				skipReporter.Record(logger, "unparseable_vault_id", "vault", *vault.Name)
+				skipReporter.Record(logger, "unparseable_vault_id", "vault", *vault.Name, "vaultID", vaultID, "error", err)
 				continue
 			}
 			resourceGroupName := parsed.ResourceGroupName
@@ -174,7 +174,7 @@ func (s *purgeOrphanedDeletedStep) Discover(ctx context.Context) ([]runner.Targe
 					// re-running CheckExistence (avoids amplifying API load / log
 					// noise under transient ARM throttling). A later sweep retries.
 					existingRGs.Insert(rgKey)
-					skipReporter.Record(logger, "resource_group_existence_check_failed", "vault", *vault.Name, "resourceGroup", resourceGroupName)
+					skipReporter.Record(logger, "resource_group_existence_check_failed", "vault", *vault.Name, "resourceGroup", resourceGroupName, "error", err)
 					continue
 				}
 				if exists {
