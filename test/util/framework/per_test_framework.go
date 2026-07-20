@@ -430,7 +430,11 @@ func (tc *perItOrDescribeTestContext) NewResourceGroup(ctx context.Context, reso
 	// soft-delete holds a not-yet-purged name for up to 90 days, a repeated
 	// resource-group suffix within that window causes a VaultAlreadyExists
 	// collision on the next run. A 12-character suffix makes such a repeat
-	// effectively impossible even across the full soft-delete retention window.
+	// highly unlikely as defense in depth; the teardown purge below is the
+	// actual guarantee. (Note SuffixName only preserves the full suffix while
+	// prefix+suffix stays within maxLen; if it ever truncates, the effective
+	// entropy drops to the 32-bit hash. The short prefixes used here never
+	// trigger that path.)
 	suffix := rand.String(12)
 	resourceGroupName := SuffixName(resourceGroupPrefix, suffix, 64)
 	func() {
