@@ -18,7 +18,7 @@ These cannot be migrated to Bicep because they operate cross-tenant and require 
 | Tenant | Tenant ID | KV Secret Name |
 |--------|-----------|----------------|
 | RedHat0 | `64dc69e4-d083-49fc-9569-ebece1dd1408` | `custom-metrics-collector-redhat0-client-secret` |
-| TestTestARO | `93b21e64-4824-439a-b893-46c9b2a51082` | `custom-metrics-collector-testtestaro-client-secret` |
+| TestTestARO | `93b21e64-4824-439a-b893-46c9b2a51082` | `custom-metrics-collector-test-test-azure-arohcp-client-secret` |
 
 ## Prerequisites
 
@@ -44,10 +44,12 @@ az login --tenant <target-tenant-id>
 
 # Step 2: Upload secret to Key Vault in dev tenant
 az login --tenant 64dc69e4-d083-49fc-9569-ebece1dd1408
-./manage-service-principals.sh --tenant redhat --keyvault-only --secret-file /tmp/sp-secret.json
+./manage-service-principals.sh --tenant redhat --keyvault-only --secret-name <kv-secret-name> --secret-file /tmp/sp-secret.txt
 ```
 
-After setup, update [`config/config-dev-ci.yaml`](../../config/config-dev-ci.yaml) under `opstool.tenantQuota.tenants` with the new SP's client ID and KV secret name, then redeploy the collector.
+After setup, update both:
+- [`config/config-dev-ci.yaml`](../../config/config-dev-ci.yaml) under `opstool.tenantQuota.tenants` with the new SP's client ID and KV secret name
+- The `TENANTS` array in [`renew-sp-secret.sh`](../../tooling/tenant-quota/scripts/renew-sp-secret.sh) with the new tenant entry, so future rotations work
 
 ## Procedure: Secret Rotation
 
