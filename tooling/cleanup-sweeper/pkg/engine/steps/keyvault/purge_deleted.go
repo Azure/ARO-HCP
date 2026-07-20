@@ -133,7 +133,10 @@ func (s *purgeDeletedStep) Discover(ctx context.Context) ([]runner.Target, error
 				continue
 			}
 			vaultID := *vault.Properties.VaultID
-			if !strings.Contains(vaultID, fmt.Sprintf("/resourceGroups/%s/", s.cfg.ResourceGroupName)) {
+			// ARM resource group names are case-insensitive, so match casing-insensitively
+			// to avoid skipping vaults whose ID segment casing differs from the configured name.
+			rgSegment := fmt.Sprintf("/resourceGroups/%s/", s.cfg.ResourceGroupName)
+			if !strings.Contains(strings.ToLower(vaultID), strings.ToLower(rgSegment)) {
 				continue
 			}
 			targets = append(targets, runner.Target{
