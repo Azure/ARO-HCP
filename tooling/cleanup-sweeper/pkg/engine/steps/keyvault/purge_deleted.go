@@ -156,7 +156,14 @@ func (s *purgeDeletedStep) Delete(ctx context.Context, target runner.Target, wai
 	if !ok {
 		return fmt.Errorf("missing purge metadata for vault %s", target.Name)
 	}
-	poller, err := s.cfg.VaultsClient.BeginPurgeDeleted(ctx, target.Name, location, nil)
+	return purgeDeletedVault(ctx, s.cfg.VaultsClient, target.Name, location, wait)
+}
+
+// purgeDeletedVault purges a single soft-deleted Key Vault. A 404 is treated as
+// success because it means the vault is already gone (concurrently purged or
+// expired out of soft-delete retention).
+func purgeDeletedVault(ctx context.Context, client *armkeyvault.VaultsClient, name, location string, wait bool) error {
+	poller, err := client.BeginPurgeDeleted(ctx, name, location, nil)
 	if err != nil {
 		var respErr *azcore.ResponseError
 		if errors.As(err, &respErr) && respErr.StatusCode == http.StatusNotFound {
