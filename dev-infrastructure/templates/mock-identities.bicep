@@ -189,6 +189,7 @@ resource msiCustomRole 'Microsoft.Authorization/roleDefinitions@2022-04-01' = {
           'Microsoft.Network/virtualNetworks/subnets/join/action' // create private load balancer and join to subnet
           'Microsoft.Network/virtualNetworks/subnets/read' // validate CIDR & existance
           'Microsoft.Network/virtualNetworks/subnets/write' // attach the NSG to subnet
+          'Microsoft.Compute/diskEncryptionSets/read' // validate DES if provided
         ]
         notActions: []
       }

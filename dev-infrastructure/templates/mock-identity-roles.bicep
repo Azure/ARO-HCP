@@ -77,6 +77,7 @@ resource msiCustomRole 'Microsoft.Authorization/roleDefinitions@2022-04-01' = {
           'Microsoft.Network/virtualNetworks/subnets/join/action'
           'Microsoft.Network/virtualNetworks/subnets/read'
           'Microsoft.Network/virtualNetworks/subnets/write'
+          'Microsoft.Compute/diskEncryptionSets/read'
         ]
         notActions: []
       }
