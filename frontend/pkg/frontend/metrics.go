@@ -73,17 +73,11 @@ func NewMetricsMiddleware(r prometheus.Registerer, ssg SubscriptionStateGetter) 
 			prometheus.HistogramOpts{
 				Name: requestDurationName,
 				Help: "Histogram of latencies for HTTP requests by method, code and route.",
-				// The bucket values are chosen to match the general
-				// recommendation in terms of latency for resource providers
-				// (e.g. latency less than or equal to 1 second).
-				Buckets: []float64{.25, .5, 1, 2.5, 5, 10},
-				// Enable native histogram (sparse buckets). The settings have
-				// been chosen to offer a balance between accuracy and memory
-				// usage.
-				// Note that it requires support from the scraper (e.g. Prometheus).
-				NativeHistogramBucketFactor:     1.1,
-				NativeHistogramMaxBucketNumber:  100,
-				NativeHistogramMinResetDuration: 1 * time.Hour,
+				// Buckets are modeled after k8s.io/apiserver request latency
+				// histograms, with dense resolution around the 1s mark to
+				// enable accurate P99 calculation for the S360 Control Plane
+				// Latency KPI (synchronous responses within 1 second).
+				Buckets: []float64{0.005, 0.025, 0.05, 0.1, 0.2, 0.4, 0.6, 0.8, 1.0, 1.25, 1.5, 2, 3, 4, 5, 6, 8, 10, 15},
 			},
 			[]string{"api_version", "method", "code", "route"},
 		),
