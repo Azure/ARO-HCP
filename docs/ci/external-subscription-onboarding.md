@@ -36,8 +36,6 @@ Resource groups left behind by failed or timed-out tests are garbage-collected b
 
 ## How It Differs From Internal Onboarding
 
-In a standard DEV subscription onboarding, a member of the ARO-HCP OWNERS group has Owner access and applies the RBAC, custom role assignments, and identity containers on demand (via the privileged `Microsoft.Azure.ARO.HCP.DevCI.E2ESubscriptionRBACGrants` service group). The unattended `dev-ci` postsubmit itself holds no standing Owner identity.
-
 For an **external** subscription:
 
 - The subscription is **not listed** in `config/config-dev-ci.yaml` — the ARO-HCP pipeline does not interact with it at all

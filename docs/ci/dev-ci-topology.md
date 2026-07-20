@@ -39,9 +39,9 @@ In other words, `dev-ci` owns the persistent CI support layer, not the full runt
 
 - `Microsoft.Azure.ARO.HCP.DevCI.E2ESubscriptionRBACGrants`
   - Manages the explicit DEV E2E customer-subscription RBAC (custom role definitions + shared-principal role assignments) and the CI bot subscription-scoped RBAC (`ci-bot-rbac-int/stg/prod`).
-  - Every step creates subscription-scoped custom role definitions and/or role assignments, which require **Owner** (or User Access Administrator) on the target subscriptions.
+  - Every step creates subscription-scoped custom role definitions and/or role assignments. This requires **Owner** (or an *unconstrained* User Access Administrator) on the target subscriptions — specifically the rights to write custom role definitions and to assign the privileged `Role Based Access Control Administrator` role to the mock arm-helper principal.
 
-Because the unattended `dev-ci` postsubmit runs the `DevCI.Infra` entrypoint and holds **no standing Owner identity**, this group is excluded from that graph. It is run manually by a member of the OWNERS group whenever a change touches these grants:
+The identity that runs the unattended `dev-ci` postsubmit (the `OpenShift Release Bot` service principal, app `38335e22-716a-4a21-bf20-15ab141823f0`) is deliberately **not** an Owner. It holds `Contributor` plus a *condition-constrained* `Role Based Access Control Administrator` / `User Access Administrator` whose Azure ABAC condition forbids assigning the `Owner`, `User Access Administrator`, and `Role Based Access Control Administrator` roles. That is exactly one of the assignments this group makes, and on some target subscriptions the bot also lacks `Microsoft.Authorization/roleDefinitions/write` — so the grants would fail if the postsubmit tried to apply them. This group is therefore excluded from the `DevCI.Infra` entrypoint graph and is run manually by a member of the OWNERS group (who has real Owner) whenever a change touches these grants:
 
 ```bash
 make dev-ci-e2e-rbac-grants-local-run
