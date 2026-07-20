@@ -91,11 +91,10 @@ Useful local entry points for the current topology:
 
 ```bash
 make dev-ci-local-run
-make dev-ci-e2e-subscription-rbac-local-run
 make dev-ci-e2e-rbac-grants-local-run
 ```
 
-Use the first command for the full standalone `dev-ci` entrypoint. Use the second when only the non-privileged CI bot identity/secret rollout needs to be reconciled. Use the third — **an Owner-only, on-demand run performed by an OWNERS-group member** — when the subscription-scoped custom roles and role assignments need to be applied.
+Use the first command for the full standalone `dev-ci` entrypoint, which includes the non-privileged CI bot identity/secret rollout. Use the second — **an Owner-only, on-demand run performed by an OWNERS-group member** — when the subscription-scoped custom roles and role assignments need to be applied.
 
 ## Where To Look
 
