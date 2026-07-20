@@ -16,6 +16,8 @@ $schema: config-dev-ci.schema.json
 clouds:
   dev:
     defaults:
+      environmentName: "{{ .ctx.environment }}"
+      region: "{{ .ctx.region }}"
       svc:
         rg: "opstool-{{ .ctx.region }}"
         subscription:
