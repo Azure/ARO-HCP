@@ -160,6 +160,3 @@ module ingestionAlerts '../modules/metrics/amw-ingestion-alerts.bicep' = {
     ]
   }
 }
-
-output actionGroupSL string = actionGroupSL
-output actionGroupAlertEH string = eventHubAlertingEnabled ? eventHubActionGroup!.outputs.actionGroupId : ''
