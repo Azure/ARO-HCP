@@ -114,16 +114,23 @@ type KubeApplierListers interface {
 
 // KubeApplierApplyDesireCRUD is the narrow per-type peer interface that the
 // apply_desire controller takes as its database dependency. KubeApplierDBClient
-// satisfies it; tests can also provide a one-method fake.
+// satisfies it; tests can also provide a fake. It exposes one accessor per
+// desire parent scope (cluster, node pool, credential request, revocation) so
+// that ApplyDesireKey.CRUD can route a desire to the CRUD for its parent
+// regardless of which resource type owns it.
 type KubeApplierApplyDesireCRUD interface {
 	ApplyDesiresForCluster(subscriptionID, resourceGroupName, clusterName string) (ResourceCRUD[kubeapplier.ApplyDesire, *kubeapplier.ApplyDesire], error)
 	ApplyDesiresForNodePool(subscriptionID, resourceGroupName, clusterName, nodePoolName string) (ResourceCRUD[kubeapplier.ApplyDesire, *kubeapplier.ApplyDesire], error)
+	ApplyDesiresForCredentialRequest(subscriptionID, resourceGroupName, clusterName, credentialRequestName string) (ResourceCRUD[kubeapplier.ApplyDesire, *kubeapplier.ApplyDesire], error)
+	ApplyDesiresForRevocation(subscriptionID, resourceGroupName, clusterName, revocationName string) (ResourceCRUD[kubeapplier.ApplyDesire, *kubeapplier.ApplyDesire], error)
 }
 
 // KubeApplierReadDesireCRUD is the ReadDesire peer of KubeApplierApplyDesireCRUD.
 type KubeApplierReadDesireCRUD interface {
 	ReadDesiresForCluster(subscriptionID, resourceGroupName, clusterName string) (ResourceCRUD[kubeapplier.ReadDesire, *kubeapplier.ReadDesire], error)
 	ReadDesiresForNodePool(subscriptionID, resourceGroupName, clusterName, nodePoolName string) (ResourceCRUD[kubeapplier.ReadDesire, *kubeapplier.ReadDesire], error)
+	ReadDesiresForCredentialRequest(subscriptionID, resourceGroupName, clusterName, credentialRequestName string) (ResourceCRUD[kubeapplier.ReadDesire, *kubeapplier.ReadDesire], error)
+	ReadDesiresForRevocation(subscriptionID, resourceGroupName, clusterName, revocationName string) (ResourceCRUD[kubeapplier.ReadDesire, *kubeapplier.ReadDesire], error)
 }
 
 // kubeApplierCosmosDBClient implements KubeApplierDBClient against a Cosmos
