@@ -495,6 +495,14 @@ dev-ci-e2e-subscription-rbac-local-run:
 	$(MAKE) local-run DEPLOY_ENV=dev-ci CONFIG_FILE=config/config-dev-ci.yaml TOPOLOGY_FILE=topology-dev-ci.yaml WHAT="--service-group Microsoft.Azure.ARO.HCP.DevCI.E2ESubscriptionRBAC" STEP_CACHE_DIR="" EXTRA_ARGS="--skip-bicepparam-validation"
 .PHONY: dev-ci-e2e-subscription-rbac-local-run
 
+# PRIVILEGED, on-demand only. Applies the subscription-scoped custom role
+# definitions and role assignments (requires Owner / User Access Administrator
+# on the target subscriptions). Not part of the dev-ci postsubmit; run by an
+# OWNERS-group member. See docs/ci/dev-ci-topology.md.
+dev-ci-e2e-rbac-grants-local-run:
+	$(MAKE) local-run DEPLOY_ENV=dev-ci CONFIG_FILE=config/config-dev-ci.yaml TOPOLOGY_FILE=topology-dev-ci.yaml WHAT="--service-group Microsoft.Azure.ARO.HCP.DevCI.E2ESubscriptionRBACGrants" STEP_CACHE_DIR=""
+.PHONY: dev-ci-e2e-rbac-grants-local-run
+
 #
 # Local Cluster Service Development Environment
 #

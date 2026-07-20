@@ -1,0 +1,55 @@
+$schema: "pipeline.schema.v1"
+serviceGroup: Microsoft.Azure.ARO.HCP.DevCI.E2ESubscriptionRBACGrants
+rolloutName: Dev CI E2E Subscription RBAC Grants Rollout
+# PRIVILEGED pipeline: every step here creates subscription-scoped custom role
+# definitions and/or role assignments, which require Owner (or User Access
+# Administrator) on the target subscriptions. It is deliberately kept out of the
+# Microsoft.Azure.ARO.HCP.DevCI.Infra entrypoint so the unattended dev-ci
+# postsubmit (which has no standing Owner identity) never runs it. Run it on
+# demand as a standalone service group with `make dev-ci-e2e-rbac-grants-local-run`
+# by a member of the OWNERS group when a change touches these grants.
+#
+# Prerequisite: the non-privileged Microsoft.Azure.ARO.HCP.DevCI.E2ESubscriptionRBAC
+# pipeline must have run at least once so the CI bot service principals exist —
+# ci-bot-rbac.bicep looks them up via `existing` (by uniqueName).
+resourceGroups:
+- name: grants
+  resourceGroup: '{{ .global.rg }}'
+  subscription: '{{ .global.subscription.key }}'
+  steps:
+  - name: customer-subscription-grants
+    action: ARM
+    template: ../../templates/e2e-subscription-rbac-assignments.bicep
+    parameters: ../../configurations/e2e-subscription-rbac-assignments.tmpl.bicepparam
+    deploymentLevel: Subscription
+- name: ci-bots
+  resourceGroup: '{{ .global.rg }}'
+  subscription: '{{ .global.subscription.key }}'
+  steps:
+  # The DEV Release Bot RBAC is still managed imperatively by the legacy
+  # grant-openshift-release-bot-dev.sh script, which created role assignments
+  # under random (non-deterministic) names. Enabling this step before those
+  # legacy assignments are removed fails with RoleAssignmentExists, because the
+  # deterministic guid()-named assignments this template creates collide with
+  # the pre-existing ones. Keep it commented until the DEV bot RBAC migration
+  # (delete legacy assignments, then enable this step) has been performed.
+  # - name: ci-bot-rbac-dev
+  #   action: ARM
+  #   template: ../../templates/ci-bot-rbac.bicep
+  #   parameters: ../../configurations/ci-bot-rbac-dev.tmpl.bicepparam
+  #   deploymentLevel: ResourceGroup
+  - name: ci-bot-rbac-int
+    action: ARM
+    template: ../../templates/ci-bot-rbac.bicep
+    parameters: ../../configurations/ci-bot-rbac-int.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+  - name: ci-bot-rbac-stg
+    action: ARM
+    template: ../../templates/ci-bot-rbac.bicep
+    parameters: ../../configurations/ci-bot-rbac-stg.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+  - name: ci-bot-rbac-prod
+    action: ARM
+    template: ../../templates/ci-bot-rbac.bicep
+    parameters: ../../configurations/ci-bot-rbac-prod.tmpl.bicepparam
+    deploymentLevel: ResourceGroup

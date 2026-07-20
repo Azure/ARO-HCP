@@ -23,7 +23,7 @@ Today `topology-dev-ci.yaml` contains one entrypoint, `Microsoft.Azure.ARO.HCP.D
 - `Microsoft.Azure.ARO.HCP.DevCI.TenantQuota`
   - Deploys the `tenant-quota-collector` workload that monitors Azure quotas relevant to CI capacity.
 - `Microsoft.Azure.ARO.HCP.DevCI.E2ESubscriptionRBAC`
-  - Manages explicit DEV E2E customer-subscription RBAC and the shared custom-role assignable scopes used by those subscriptions.
+  - Reconciles the non-privileged CI bot Entra identities (Graph `Application.ReadWrite.OwnedBy` axis) and rotates their Key Vault secrets. Requires no subscription Owner, so it runs unattended as part of the `DevCI.Infra` entrypoint.
 - `Microsoft.Azure.ARO.HCP.DevCI.Gateway`
   - Deploys the shared Istio gateway and DNS wiring for `opstool`.
 - `Microsoft.Azure.ARO.HCP.DevCI.CertManager`
@@ -32,6 +32,24 @@ Today `topology-dev-ci.yaml` contains one entrypoint, `Microsoft.Azure.ARO.HCP.D
   - Deploys the CIHealth runtime at `cihealth.tools.hcpsvc.osadev.cloud`.
 
 In other words, `dev-ci` owns the persistent CI support layer, not the full runtime behavior of every CI job.
+
+## The Privileged Grants Service Group
+
+`topology-dev-ci.yaml` also declares one **standalone, on-demand** service group that is deliberately **not** a child of the `DevCI.Infra` entrypoint and has **no entrypoint of its own**:
+
+- `Microsoft.Azure.ARO.HCP.DevCI.E2ESubscriptionRBACGrants`
+  - Manages the explicit DEV E2E customer-subscription RBAC (custom role definitions + shared-principal role assignments) and the CI bot subscription-scoped RBAC (`ci-bot-rbac-int/stg/prod`).
+  - Every step creates subscription-scoped custom role definitions and/or role assignments, which require **Owner** (or User Access Administrator) on the target subscriptions.
+
+Because the unattended `dev-ci` postsubmit runs the `DevCI.Infra` entrypoint and holds **no standing Owner identity**, this group is excluded from that graph. It is run manually by a member of the OWNERS group whenever a change touches these grants:
+
+```bash
+make dev-ci-e2e-rbac-grants-local-run
+```
+
+Its pipeline (`dev-infrastructure/dev-ci/e2e-subscription-rbac-grants/pipeline.yaml`) looks up the CI bot service principals via `existing`, so the non-privileged `DevCI.E2ESubscriptionRBAC` pipeline must have run at least once first (it creates those identities).
+
+This split keeps the blast radius of the standing CI automation small: the postsubmit reconciles everything that does not need Owner, and the rare Owner-only changes are applied on demand.
 
 ## What It Does Not Manage
 
@@ -48,7 +66,7 @@ For the runtime lease model itself, see [CI Identity Leasing](identity-leasing.m
 
 The sharpest mixed-management boundary today is the DEV MSI mock service-principal pool used by local E2E jobs.
 
-- `Microsoft.Azure.ARO.HCP.DevCI.E2ESubscriptionRBAC` owns the customer-subscription RBAC side for the pooled principals, using principal IDs from `config/config-dev-ci.yaml`.
+- `Microsoft.Azure.ARO.HCP.DevCI.E2ESubscriptionRBACGrants` owns the customer-subscription RBAC side for the pooled principals, using principal IDs from `config/config-dev-ci.yaml`. Because those grants require subscription Owner, they are applied on demand rather than by the postsubmit (see [The Privileged Grants Service Group](#the-privileged-grants-service-group)).
 - `make create-msi-mock-pool` is still a hybrid operator path:
   - `dev-infrastructure/templates/mock-identity-pool.bicep` ensures the Key Vault certificate footprint.
   - `dev-infrastructure/scripts/create-sp-for-rbac.sh` and `dev-infrastructure/Makefile` still create or update the Entra app and service principal objects and apply the home-subscription grants.
@@ -74,9 +92,10 @@ Useful local entry points for the current topology:
 ```bash
 make dev-ci-local-run
 make dev-ci-e2e-subscription-rbac-local-run
+make dev-ci-e2e-rbac-grants-local-run
 ```
 
-Use the first command for the full standalone `dev-ci` entrypoint and the second when only the customer-subscription RBAC rollout needs to be reconciled.
+Use the first command for the full standalone `dev-ci` entrypoint. Use the second when only the non-privileged CI bot identity/secret rollout needs to be reconciled. Use the third — **an Owner-only, on-demand run performed by an OWNERS-group member** — when the subscription-scoped custom roles and role assignments need to be applied.
 
 ## Where To Look
 
@@ -86,6 +105,7 @@ When you need to change or debug the standalone `dev-ci` topology, start here:
 - `topology-dev-ci.yaml`
 - `dev-infrastructure/dev-ci/cluster/opstool-aks-pipeline.yaml`
 - `dev-infrastructure/dev-ci/e2e-subscription-rbac/pipeline.yaml`
+- `dev-infrastructure/dev-ci/e2e-subscription-rbac-grants/pipeline.yaml`
 - `dev-infrastructure/configurations/e2e-subscription-rbac-assignments.tmpl.bicepparam`
 - `dev-infrastructure/Makefile`
 - `dev-infrastructure/openshift-ci/populate-msi-mock-pool.sh`

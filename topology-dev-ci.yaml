@@ -12,7 +12,7 @@ services:
     purpose: Deploy the tenant-quota-collector.
   - serviceGroup: Microsoft.Azure.ARO.HCP.DevCI.E2ESubscriptionRBAC
     pipelinePath: dev-infrastructure/dev-ci/e2e-subscription-rbac/pipeline.yaml
-    purpose: Manage explicit dev E2E customer-subscription RBAC and shared custom-role assignable scopes.
+    purpose: Reconcile the non-privileged CI bot Entra identities and rotate their Key Vault secrets. Requires no subscription Owner, so it runs unattended in the dev-ci postsubmit.
   - serviceGroup: Microsoft.Azure.ARO.HCP.DevCI.Gateway
     pipelinePath: dev-infrastructure/dev-ci/gateway/pipeline.yaml
     purpose: Deploy the shared Istio gateway and DNS wiring for opstool.
@@ -22,3 +22,13 @@ services:
   - serviceGroup: Microsoft.Azure.ARO.HCP.DevCI.CIHealth
     pipelinePath: dev-infrastructure/dev-ci/cihealth/pipeline.yaml
     purpose: Deploy the CIHealth runtime on cihealth.tools.hcpsvc.osadev.cloud.
+# PRIVILEGED, on-demand only. This service group creates subscription-scoped
+# custom role definitions and role assignments, which require Owner (or User
+# Access Administrator) on the target subscriptions. It is intentionally NOT a
+# child of the DevCI.Infra entrypoint and has no entrypoint of its own, so the
+# unattended dev-ci postsubmit never runs it. An OWNERS-group member runs it
+# manually with `make dev-ci-e2e-rbac-grants-local-run` when a change touches
+# these grants. See docs/ci/dev-ci-topology.md.
+- serviceGroup: Microsoft.Azure.ARO.HCP.DevCI.E2ESubscriptionRBACGrants
+  pipelinePath: dev-infrastructure/dev-ci/e2e-subscription-rbac-grants/pipeline.yaml
+  purpose: Manage explicit dev E2E customer-subscription RBAC and shared custom-role assignable scopes, plus the CI bot subscription-scoped RBAC. Owner-only; run on demand by an OWNERS-group member.

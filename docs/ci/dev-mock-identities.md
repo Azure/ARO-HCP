@@ -121,9 +121,11 @@ because they bundle a bespoke set of actions with no single built-in equivalent.
 
 ## How The Roles Are Assigned
 
-Role definitions and assignments are reconciled by the `dev-ci` rollout's
-`Microsoft.Azure.ARO.HCP.DevCI.E2ESubscriptionRBAC` service group
-(`dev-infrastructure/dev-ci/e2e-subscription-rbac/pipeline.yaml`):
+Role definitions and assignments are reconciled by the `dev-ci` topology's
+**Owner-only, on-demand** `Microsoft.Azure.ARO.HCP.DevCI.E2ESubscriptionRBACGrants`
+service group (`dev-infrastructure/dev-ci/e2e-subscription-rbac-grants/pipeline.yaml`),
+run by an OWNERS-group member with `make dev-ci-e2e-rbac-grants-local-run` (it is
+excluded from the unattended `dev-ci` postsubmit because it needs subscription Owner):
 
 - `templates/e2e-subscription-rbac-assignments.bicep` fans out over the onboarded
   E2E customer subscriptions (the DEV home subscription is intentionally excluded —
@@ -157,7 +159,7 @@ Principal IDs and the subscription list are supplied by
   — inline custom role definitions + all assignments
 - `dev-infrastructure/templates/mock-identity-roles.bicep` — home-subscription role
   definitions (legacy; deployed by the `dev-infrastructure/Makefile`, not this pipeline)
-- `dev-infrastructure/dev-ci/e2e-subscription-rbac/pipeline.yaml`
+- `dev-infrastructure/dev-ci/e2e-subscription-rbac-grants/pipeline.yaml`
 - `backend/pkg/azure/client/hardcoded_identity_mi_dataplane_client.go` — the mock MSI
 - `internal/azure/cluster_scoped_identities_config.go` — product operator-role mapping
 - `cluster-service/helm-charts/cluster-service/templates/deployment.yaml` — how CS
