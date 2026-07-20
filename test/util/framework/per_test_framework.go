@@ -429,12 +429,14 @@ func (tc *perItOrDescribeTestContext) NewResourceGroup(ctx context.Context, reso
 	// cust-kv-${uniqueString(resourceGroup().id, ...)}). Because Azure Key Vault
 	// soft-delete holds a not-yet-purged name for up to 90 days, a repeated
 	// resource-group suffix within that window causes a VaultAlreadyExists
-	// collision on the next run. A 12-character suffix makes such a repeat
-	// highly unlikely as defense in depth; the teardown purge below is the
-	// actual guarantee. (Note SuffixName only preserves the full suffix while
-	// prefix+suffix stays within maxLen; if it ever truncates, the effective
-	// entropy drops to the 32-bit hash. The short prefixes used here never
-	// trigger that path.)
+	// collision on the next run. The 12-character suffix is the always-on
+	// primary defense (a repeat is highly unlikely across the retention
+	// window); the best-effort teardown purge below additionally frees the
+	// name immediately whenever the identity is permitted to purge. Both are
+	// best-effort layers rather than hard guarantees. (SuffixName only
+	// preserves the full suffix while prefix+suffix stays within maxLen; if it
+	// ever truncates, effective entropy drops to a 32-bit hash — the short
+	// prefixes used here never trigger that path.)
 	suffix := rand.String(12)
 	resourceGroupName := SuffixName(resourceGroupPrefix, suffix, 64)
 	func() {
@@ -706,16 +708,33 @@ func (tc *perItOrDescribeTestContext) purgeDeletedKeyVaultsInResourceGroup(ctx c
 				"keyVault", *deleted.Name, "location", *deleted.Properties.Location, "resourceGroup", resourceGroupName)
 			poller, err := vaultsClient.BeginPurgeDeleted(ctx, *deleted.Name, *deleted.Properties.Location, nil)
 			if err != nil {
+				// A 404 means the vault was already purged or its soft-delete
+				// window expired between the list and the purge; that is the
+				// desired end state, so treat it as a no-op rather than noise.
+				if isKeyVaultNotFound(err) {
+					continue
+				}
 				ginkgo.GinkgoLogr.Error(err, "failed to start purge of soft-deleted key vault; a colliding name may block a later run until it is purged or expires",
 					"keyVault", *deleted.Name, "resourceGroup", resourceGroupName)
 				continue
 			}
 			if _, err := poller.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{Frequency: StandardPollInterval}); err != nil {
+				if isKeyVaultNotFound(err) {
+					continue
+				}
 				ginkgo.GinkgoLogr.Error(err, "failed to purge soft-deleted key vault; a colliding name may block a later run until it is purged or expires",
 					"keyVault", *deleted.Name, "resourceGroup", resourceGroupName)
 			}
 		}
 	}
+}
+
+// isKeyVaultNotFound reports whether err is an Azure 404 response, which for a
+// purge means the vault is already gone (already purged or soft-delete window
+// expired) and can be treated as a successful no-op.
+func isKeyVaultNotFound(err error) bool {
+	var respErr *azcore.ResponseError
+	return errors.As(err, &respErr) && respErr.StatusCode == http.StatusNotFound
 }
 
 func (tc *perItOrDescribeTestContext) collectDebugInfoForResourceGroup(ctx context.Context, resourceGroupName string) error {
