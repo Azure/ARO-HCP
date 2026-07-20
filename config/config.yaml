@@ -352,7 +352,7 @@ defaults:
     image:
       registry: quay.io
       repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
-      digest: sha256:16ab4ea361099dfae1d185b5b3ab08b7dca8e52fcfe58e46114db16850c06aaa # 6142e463a546266c45e90315d99ddcc57d89a5cd (2026-07-18 00:05)
+      digest: sha256:eaf8e2a12b74b021dbfb7e25ec7c24775d1db2cbfe7b668c1c9a572b0d41907a # 64f8102a2dec17e1821048297abd998d76381b81 (2026-07-20 13:48)
     namespace: hypershift
     additionalInstallArg: '--enable-cpo-overrides'
     # By default we set it to empty as this tag is only required for msft environments. We override
@@ -996,7 +996,7 @@ defaults:
     image:
       registry: quay.io
       repository: redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro
-      digest: sha256:b7f0c3062306cc4f956342b4d2ac4a6eba4113d4f615dabe584fa666bf5d71d5 # cb6f04e6518950f3486dc086148aafb0d82958c5 (2026-07-16 09:57)
+      digest: sha256:31b203da421cc2ee2125a86be5168f096e236a3a9125404cb326a718a0d34727 # 6593d85435939d8d50bf976712784e4870cd0227 (2026-07-20 13:58)
   # ACM
   acm:
     operator:
@@ -1076,7 +1076,7 @@ defaults:
       image:
         registry: arohcpsvcdev.azurecr.io
         repository: image-sync/oc-mirror
-        digest: sha256:927d1259fcc1d6071d3a219cbfca8cabacaf988f8c0d1fa22407fe111530df1c # 23882e1 (2026-07-18 19:14)
+        digest: sha256:fd622f01d72d2eb5536fabf4cf71209a4d2c2e9c11e919190c8cefd6cfdea809 # 795b407 (2026-07-20 14:15)
       pullSecretName: ocmirror-pull-secret
       operatorVersionsToMirror: "4.18,4.19,4.20,4.21,4.22"
   # Automation Account
