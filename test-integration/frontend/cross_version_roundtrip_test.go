@@ -1069,5 +1069,3 @@ func testCrossVersionClusterPATCHv2026v2025(t *testing.T, testInfo *integrationu
 		t.Errorf("cross-version PATCH data loss: v2025 PATCH lost v2026 fields:\n%s", diff)
 	}
 }
-
-

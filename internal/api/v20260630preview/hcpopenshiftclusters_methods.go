@@ -378,6 +378,7 @@ func (v version) NewHCPOpenShiftCluster(from *api.HCPOpenShiftCluster) api.Versi
 				Autoscaling:       api.PtrOrNil(newClusterAutoscalingProfile(&from.CustomerProperties.Autoscaling)),
 				// Use Ptr (not PtrOrNil) to ensure int32 zero value is preserved in JSON response.
 				NodeDrainTimeoutMinutes: api.Ptr(from.CustomerProperties.NodeDrainTimeoutMinutes),
+				NodeSSHPublicKey:        api.PtrOrNil(from.CustomerProperties.NodeSshPublicKey),
 				ClusterImageRegistry:    api.PtrOrNil(newClusterImageRegistryProfile(&from.CustomerProperties.ClusterImageRegistry)),
 				Etcd:                    api.PtrOrNil(newEtcdProfile(&from.CustomerProperties.Etcd)),
 				ImageDigestMirrors:      newImageDigestMirrors(from.CustomerProperties.ImageDigestMirrors),
@@ -502,6 +503,7 @@ func (c *HcpOpenShiftCluster) ConvertToInternal(existing *api.HCPOpenShiftCluste
 			normalizeAutoscaling(c.Properties.Autoscaling, &out.CustomerProperties.Autoscaling)
 		}
 		out.CustomerProperties.NodeDrainTimeoutMinutes = api.Deref(c.Properties.NodeDrainTimeoutMinutes)
+		out.CustomerProperties.NodeSshPublicKey = api.Deref(c.Properties.NodeSSHPublicKey)
 		if c.Properties.ClusterImageRegistry != nil {
 			normalizeClusterImageRegistry(c.Properties.ClusterImageRegistry, &out.CustomerProperties.ClusterImageRegistry)
 		}
