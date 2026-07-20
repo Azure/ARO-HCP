@@ -1,17 +1,16 @@
 $schema: "pipeline.schema.v1"
 serviceGroup: Microsoft.Azure.ARO.HCP.DevCI.E2ESubscriptionRBAC
 rolloutName: Dev CI E2E Subscription RBAC Rollout
-# NON-PRIVILEGED pipeline: only reconciles the CI bot Entra identities (Graph
-# Application.ReadWrite.OwnedBy axis, not Azure RBAC) and rotates their Key Vault
-# secrets (data-plane). None of these steps require Owner/User Access
-# Administrator on any subscription, so this pipeline runs unattended as part of
-# the Microsoft.Azure.ARO.HCP.DevCI.Unprivileged entrypoint (dev-ci postsubmit).
-#
-# The privileged subscription-scoped role definitions and role assignments are
-# instead applied by the separate Microsoft.Azure.ARO.HCP.DevCI.Privileged
-# entrypoint, which is run on demand by an OWNERS-group member
-# (`make dev-ci-privileged-local-run`).
 resourceGroups:
+- name: grants
+  resourceGroup: '{{ .global.rg }}'
+  subscription: '{{ .global.subscription.key }}'
+  steps:
+  - name: customer-subscription-grants
+    action: ARM
+    template: ../../templates/e2e-subscription-rbac-assignments.bicep
+    parameters: ../../configurations/e2e-subscription-rbac-assignments.tmpl.bicepparam
+    deploymentLevel: Subscription
 - name: ci-bots
   resourceGroup: '{{ .global.rg }}'
   subscription: '{{ .global.subscription.key }}'
@@ -81,6 +80,38 @@ resourceGroups:
       value: prod
     - name: KEY_VAULT_NAME
       configRef: opstool.keyVault.name
+    dependsOn:
+    - resourceGroup: ci-bots
+      step: ci-bot-identity
+  - name: ci-bot-rbac-dev
+    action: ARM
+    template: ../../templates/ci-bot-rbac.bicep
+    parameters: ../../configurations/ci-bot-rbac-dev.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    dependsOn:
+    - resourceGroup: ci-bots
+      step: ci-bot-identity
+  - name: ci-bot-rbac-int
+    action: ARM
+    template: ../../templates/ci-bot-rbac.bicep
+    parameters: ../../configurations/ci-bot-rbac-int.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    dependsOn:
+    - resourceGroup: ci-bots
+      step: ci-bot-identity
+  - name: ci-bot-rbac-stg
+    action: ARM
+    template: ../../templates/ci-bot-rbac.bicep
+    parameters: ../../configurations/ci-bot-rbac-stg.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    dependsOn:
+    - resourceGroup: ci-bots
+      step: ci-bot-identity
+  - name: ci-bot-rbac-prod
+    action: ARM
+    template: ../../templates/ci-bot-rbac.bicep
+    parameters: ../../configurations/ci-bot-rbac-prod.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
     dependsOn:
     - resourceGroup: ci-bots
       step: ci-bot-identity
