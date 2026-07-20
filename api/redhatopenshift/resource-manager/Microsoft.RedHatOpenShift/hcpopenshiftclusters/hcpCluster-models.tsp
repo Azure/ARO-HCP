@@ -698,7 +698,7 @@ model NodePoolProperties {
 
   /** Kubernetes labels to propagate to the NodePool Nodes
    * Note that when the labels are updated this is only applied to newly
-   * create nodes in the Nodepool, existing node labels remain unchanged.
+   * created nodes in the Nodepool, existing node labels remain unchanged.
    */
   @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   @identifiers(#["key", "value"])
