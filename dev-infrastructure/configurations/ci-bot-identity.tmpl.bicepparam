@@ -4,6 +4,7 @@ param bots = [
   {
     envName: 'dev'
     applicationName: '{{ .ci.dev.bot.applicationName }}'
+    grantDirectoryRead: true
   }
   {
     envName: 'int'

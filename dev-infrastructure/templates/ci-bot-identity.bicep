@@ -13,6 +13,24 @@ var userReadScopeId = 'e1fe6dd8-ba31-4d61-89e7-88639da4683d'
 // Directory.Read.All (Role / application permission)
 var directoryReadAllRoleId = '7ab1d382-f21e-4acd-a863-ba3e13f7da61'
 
+var baseGraphAccess = [
+  {
+    id: applicationReadWriteOwnedByRoleId
+    type: 'Role'
+  }
+  {
+    id: userReadScopeId
+    type: 'Scope'
+  }
+]
+
+var directoryReadAccess = [
+  {
+    id: directoryReadAllRoleId
+    type: 'Role'
+  }
+]
+
 module botApp '../modules/entra/app.bicep' = [
   for bot in bots: {
     name: 'ci-bot-${bot.envName}'
@@ -24,20 +42,7 @@ module botApp '../modules/entra/app.bicep' = [
       requiredResourceAccess: [
         {
           resourceAppId: msGraphAppId
-          resourceAccess: [
-            {
-              id: applicationReadWriteOwnedByRoleId
-              type: 'Role'
-            }
-            {
-              id: userReadScopeId
-              type: 'Scope'
-            }
-            {
-              id: directoryReadAllRoleId
-              type: 'Role'
-            }
-          ]
+          resourceAccess: concat(baseGraphAccess, bot.?grantDirectoryRead == true ? directoryReadAccess : [])
         }
       ]
     }

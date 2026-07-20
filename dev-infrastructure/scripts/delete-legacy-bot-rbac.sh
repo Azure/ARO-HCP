@@ -7,22 +7,23 @@ set -euo pipefail
 #
 # Requires Owner or User Access Administrator on each subscription.
 
-if [ -n "${DRY_RUN:-}" ]; then
-  echo "DRY_RUN mode enabled - will only show what would be deleted"
-  DRY_RUN_MODE=true
-else
+if [ -n "${APPLY:-}" ]; then
   DRY_RUN_MODE=false
+else
+  echo "DRY_RUN mode (default) - will only show what would be deleted. Set APPLY=1 to delete."
+  DRY_RUN_MODE=true
 fi
 
 az account show -o none 2>/dev/null || { echo "ERROR: not logged in to Azure"; exit 1; }
 
-BOT_APP_ID=$(az ad sp list --display-name "OpenShift Release Bot" --query '[0].appId' -o tsv 2>/dev/null)
-if [[ -z "${BOT_APP_ID}" ]]; then
-  echo "ERROR: could not find OpenShift Release Bot SP"
+SP_COUNT=$(az ad sp list --display-name "OpenShift Release Bot" --query 'length(@)' -o tsv 2>/dev/null)
+if [[ "${SP_COUNT}" -ne 1 ]]; then
+  echo "ERROR: expected 1 'OpenShift Release Bot' SP, found ${SP_COUNT}"
   exit 1
 fi
 
-echo "Bot appId: ${BOT_APP_ID}"
+BOT_SP_ID=$(az ad sp list --display-name "OpenShift Release Bot" --query '[0].id' -o tsv 2>/dev/null)
+echo "Bot SP objectId: ${BOT_SP_ID}"
 
 SUBSCRIPTIONS=(
   "1d3378d3-5a3f-4712-85a1-2485495dfc4b"
@@ -37,7 +38,7 @@ DELETED=0
 ERRORS=0
 for SUB_ID in "${SUBSCRIPTIONS[@]}"; do
   ASSIGNMENTS=$(az role assignment list \
-    --assignee "${BOT_APP_ID}" \
+    --assignee "${BOT_SP_ID}" \
     --subscription "${SUB_ID}" \
     --query '[].id' -o tsv 2>/dev/null) || {
     echo "SKIP   ${SUB_ID} (no access)"
