@@ -402,7 +402,7 @@
     },
     "MockIdentities": {
       "type": "object",
-      "description": "DEV-only mock identity Entra app definitions; principalIds are resolved at deployment time via Graph lookup",
+      "description": "Mock identity Entra app definitions for non-production environments; principalIds are resolved at deployment time via Graph lookup",
       "properties": {
         "firstParty": {
           "$ref": "#/$defs/MockIdentityApp"

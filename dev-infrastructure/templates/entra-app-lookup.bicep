@@ -10,7 +10,7 @@ resource entraApp 'Microsoft.Graph/applications@beta' existing = if (manage) {
   uniqueName: applicationName
 }
 
-resource entraSp 'Microsoft.Graph/servicePrincipals@beta' existing = if (lookupSp) {
+resource entraSp 'Microsoft.Graph/servicePrincipals@beta' existing = if (manage && lookupSp) {
   #disable-next-line BCP318
   appId: entraApp.appId
 }
@@ -20,4 +20,4 @@ output appId string = manage ? entraApp.appId : ''
 output tenantId string = tenant().tenantId
 
 #disable-next-line BCP318
-output principalId string = lookupSp ? entraSp.id : ''
+output principalId string = manage && lookupSp ? entraSp.id : ''
