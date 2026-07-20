@@ -270,13 +270,13 @@ Personal development environments continue using the existing single `miMockClie
 
 ### Infrastructure Setup
 
-The pool currently uses a mixed-management setup. `MSI_MOCK_POOL_SIZE` in `dev-infrastructure/Makefile` still controls the local helper defaults, but customer-subscription RBAC is now reconciled from `config/config-dev-ci.yaml` through the standalone, **Owner-only** `Microsoft.Azure.ARO.HCP.DevCI.E2ESubscriptionRBACGrants` rollout (run on demand by an OWNERS-group member; it is not part of the `dev-ci` postsubmit).
+The pool currently uses a mixed-management setup. `MSI_MOCK_POOL_SIZE` in `dev-infrastructure/Makefile` still controls the local helper defaults, but customer-subscription RBAC is now reconciled from `config/config-dev-ci.yaml` through the standalone, **Owner-only** `Microsoft.Azure.ARO.HCP.DevCI.Privileged` entrypoint (run on demand by an OWNERS-group member with `make dev-ci-privileged-local-run`; it is not part of the `dev-ci` postsubmit).
 
 Typical maintainer flow:
 
 1. From `dev-infrastructure/`, run `make create-msi-mock-pool`.
 2. If any pooled principal object IDs changed, update `config/config-dev-ci.yaml` under `ci.dev.devMockIdentities.msiMockPool.principals`.
-3. From the repository root, ask an OWNERS-group member to run `make dev-ci-e2e-rbac-grants-local-run` (requires subscription Owner).
+3. From the repository root, ask an OWNERS-group member to run `make dev-ci-privileged-local-run` (requires subscription Owner).
 4. From `dev-infrastructure/`, run `make populate-msi-mock-pool`.
 5. If the pool size or Boskos key set changed, update the release-side Boskos inventory and step-registry lease wiring as well.
 
@@ -285,7 +285,7 @@ In the current model:
 - `make create-msi-mock-pool` is itself hybrid:
   - `dev-infrastructure/templates/mock-identity-pool.bicep` ensures the Key Vault certificate set.
   - `dev-infrastructure/scripts/create-sp-for-rbac.sh` and the surrounding `dev-infrastructure/Makefile` loop still create or update the `aro-dev-msi-mock-pool-<i>` Entra app and service principal objects and apply the home-subscription grants.
-- `make dev-ci-e2e-rbac-grants-local-run` reconciles pooled-principal access on the DEV E2E customer subscriptions from the principal IDs recorded in `config/config-dev-ci.yaml`.
+- `make dev-ci-privileged-local-run` reconciles pooled-principal access on the DEV E2E customer subscriptions from the principal IDs recorded in `config/config-dev-ci.yaml`.
 - `dev-infrastructure/configurations/e2e-subscription-rbac-assignments.tmpl.bicepparam` still preserves legacy assignment IDs for the first DEV E2E subscription so the rollout can adopt existing grants without recreating them.
 - `make populate-msi-mock-pool` performs live Entra lookups and rewrites `dev-infrastructure/openshift-ci/msi-mock-pool.yaml`, which remains the static catalog consumed by release-side jobs.
 

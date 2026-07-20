@@ -63,7 +63,7 @@ resourceGroups:
     - resourceGroup: opstool
       step: build-dependencies
     externalDependsOn:
-    - serviceGroup: Microsoft.Azure.ARO.HCP.DevCI.Infra
+    - serviceGroup: Microsoft.Azure.ARO.HCP.DevCI.Unprivileged
       resourceGroup: opstool
       step: network
     identityFrom:

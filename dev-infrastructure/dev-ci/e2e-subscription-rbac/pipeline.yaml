@@ -5,12 +5,12 @@ rolloutName: Dev CI E2E Subscription RBAC Rollout
 # Application.ReadWrite.OwnedBy axis, not Azure RBAC) and rotates their Key Vault
 # secrets (data-plane). None of these steps require Owner/User Access
 # Administrator on any subscription, so this pipeline runs unattended as part of
-# the Microsoft.Azure.ARO.HCP.DevCI.Infra entrypoint (dev-ci postsubmit).
+# the Microsoft.Azure.ARO.HCP.DevCI.Unprivileged entrypoint (dev-ci postsubmit).
 #
-# The privileged subscription-scoped role definitions and role assignments live
-# in the separate Microsoft.Azure.ARO.HCP.DevCI.E2ESubscriptionRBACGrants
-# service group (dev-infrastructure/dev-ci/e2e-subscription-rbac-grants/), which
-# is run on demand by an OWNERS-group member.
+# The privileged subscription-scoped role definitions and role assignments are
+# instead applied by the separate Microsoft.Azure.ARO.HCP.DevCI.Privileged
+# entrypoint, which is run on demand by an OWNERS-group member
+# (`make dev-ci-privileged-local-run`).
 resourceGroups:
 - name: ci-bots
   resourceGroup: '{{ .global.rg }}'

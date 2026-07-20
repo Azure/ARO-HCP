@@ -122,9 +122,8 @@ because they bundle a bespoke set of actions with no single built-in equivalent.
 ## How The Roles Are Assigned
 
 Role definitions and assignments are reconciled by the `dev-ci` topology's
-**Owner-only, on-demand** `Microsoft.Azure.ARO.HCP.DevCI.E2ESubscriptionRBACGrants`
-service group (`dev-infrastructure/dev-ci/e2e-subscription-rbac-grants/pipeline.yaml`),
-run by an OWNERS-group member with `make dev-ci-e2e-rbac-grants-local-run` (it is
+**Owner-only, on-demand** `Microsoft.Azure.ARO.HCP.DevCI.Privileged` entrypoint,
+run by an OWNERS-group member with `make dev-ci-privileged-local-run` (it is
 excluded from the unattended `dev-ci` postsubmit because it needs subscription Owner):
 
 - `templates/e2e-subscription-rbac-assignments.bicep` fans out over the onboarded

@@ -7,7 +7,7 @@ $schema: config-dev-ci.schema.json
 #     --topology-file="${PROJECT_ROOT_DIR}/topology-dev-ci.yaml" \
 #     --dev-settings-file="${PROJECT_ROOT_DIR}/tooling/templatize/settings.yaml" \
 #     --dev-environment dev-ci \
-#     --service-group Microsoft.Azure.ARO.HCP.DevCI.Infra
+#     --service-group Microsoft.Azure.ARO.HCP.DevCI.Unprivileged
 #
 # Prerequisites for manual deployment:
 #   - Build templatize: make templatize

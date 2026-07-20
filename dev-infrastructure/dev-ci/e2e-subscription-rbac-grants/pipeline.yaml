@@ -3,20 +3,21 @@ serviceGroup: Microsoft.Azure.ARO.HCP.DevCI.E2ESubscriptionRBACGrants
 rolloutName: Dev CI E2E Subscription RBAC Grants Rollout
 # PRIVILEGED pipeline: every step here creates subscription-scoped custom role
 # definitions and/or role assignments, which require Owner (or an unconstrained
-# User Access Administrator) on the target subscriptions. It is deliberately
-# kept out of the Microsoft.Azure.ARO.HCP.DevCI.Infra entrypoint so the
-# unattended dev-ci postsubmit never runs it. That postsubmit runs as the
+# User Access Administrator) on the target subscriptions. It is the child of the
+# Microsoft.Azure.ARO.HCP.DevCI.Privileged entrypoint and is deliberately kept
+# out of the unattended Microsoft.Azure.ARO.HCP.DevCI.Unprivileged entrypoint
+# so the dev-ci postsubmit never runs it. That postsubmit runs as the
 # `OpenShift Release Bot` SP, which is intentionally not an Owner: it holds
 # Contributor plus a condition-constrained RBAC/User Access Administrator whose
 # ABAC condition forbids assigning the Owner, User Access Administrator, and
 # Role Based Access Control Administrator roles (one of which this pipeline
 # assigns), and on some subscriptions lacks roleDefinitions/write — so it cannot
-# apply these grants. Run it on demand as a standalone service group with
-# `make dev-ci-e2e-rbac-grants-local-run` by a member of the OWNERS group (who
-# has real Owner) when a change touches these grants.
+# apply these grants. Run the Microsoft.Azure.ARO.HCP.DevCI.Privileged
+# entrypoint on demand with `make dev-ci-privileged-local-run` as a member
+# of the OWNERS group (who has real Owner) when a change touches these grants.
 #
-# Prerequisite: the non-privileged Microsoft.Azure.ARO.HCP.DevCI.E2ESubscriptionRBAC
-# pipeline must have run at least once so the CI bot service principals exist —
+# Prerequisite: the Microsoft.Azure.ARO.HCP.DevCI.Unprivileged entrypoint must
+# have run at least once so the CI bot service principals exist —
 # ci-bot-rbac.bicep looks them up via `existing` (by uniqueName).
 resourceGroups:
 - name: grants
