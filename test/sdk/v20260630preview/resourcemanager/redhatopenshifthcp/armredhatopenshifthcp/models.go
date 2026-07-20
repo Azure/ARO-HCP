@@ -87,6 +87,25 @@ type ClusterImageRegistryProfile struct {
 	State *ClusterImageRegistryState
 }
 
+// Condition represents an observation of a resource's state.
+type Condition struct {
+	// READ-ONLY; The last time the condition transitioned from one status to another.
+	LastTransitionTime *time.Time
+
+	// READ-ONLY; A human readable message indicating details about the transition. This may be an empty string.
+	Message *string
+
+	// READ-ONLY; A programmatic identifier indicating the reason for the condition's last transition. This value should be a
+	// CamelCase string.
+	Reason *string
+
+	// READ-ONLY; The status of the condition.
+	Status *StatusType
+
+	// READ-ONLY; Type of the condition. This is a PascalCase identifier representing the type of the condition.
+	Type *ConditionType
+}
+
 // ConsoleProfile - Configuration of the cluster web console
 type ConsoleProfile struct {
 	// READ-ONLY; The cluster web console URL endpoint
@@ -252,6 +271,9 @@ type ExternalAuthProperties struct {
 
 	// READ-ONLY; Provisioning state
 	ProvisioningState *ExternalAuthProvisioningState
+
+	// READ-ONLY; Status of the external auth resource
+	Status *ResourceStatus
 }
 
 // ExternalAuthPropertiesUpdate - External Auth profile
@@ -396,11 +418,18 @@ type HcpOpenShiftClusterProperties struct {
 	// given NodePool
 	NodeDrainTimeoutMinutes *int32
 
+	// The SSH public key used for secure access to cluster nodes. When set, this key is distributed to all nodes, enabling SSH
+	// access for debugging and maintenance purposes.
+	NodeSSHPublicKey *string
+
 	// READ-ONLY; Shows the cluster web console information
 	Console *ConsoleProfile
 
 	// READ-ONLY; The status of the last operation.
 	ProvisioningState *ProvisioningState
+
+	// READ-ONLY; Status of the cluster resource
+	Status *ResourceStatus
 }
 
 // HcpOpenShiftClusterPropertiesUpdate - HCP cluster properties
@@ -421,6 +450,10 @@ type HcpOpenShiftClusterPropertiesUpdate struct {
 	// This is the value is used a default for all NodePools. It can be overridden by specifying nodeDrainTimeoutMinutes for a
 	// given NodePool
 	NodeDrainTimeoutMinutes *int32
+
+	// The SSH public key used for secure access to cluster nodes. When set, this key is distributed to all nodes, enabling SSH
+	// access for debugging and maintenance purposes.
+	NodeSSHPublicKey *string
 
 	// Azure platform configuration
 	Platform *PlatformProfileUpdate
@@ -748,6 +781,9 @@ type NodePoolProperties struct {
 
 	// READ-ONLY; Provisioning state
 	ProvisioningState *ProvisioningState
+
+	// READ-ONLY; Status of the node pool resource
+	Status *ResourceStatus
 }
 
 // NodePoolPropertiesUpdate - Represents the node pool properties
@@ -993,6 +1029,12 @@ type Resource struct {
 
 	// READ-ONLY; The type of the resource. E.g. "Microsoft.Compute/virtualMachines" or "Microsoft.Storage/storageAccounts"
 	Type *string
+}
+
+// ResourceStatus represents the observed status of the resource.
+type ResourceStatus struct {
+	// READ-ONLY; The conditions on the resource
+	Conditions []*Condition
 }
 
 // RoleDefinition - A single role definition required by a given operator

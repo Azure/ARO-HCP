@@ -135,6 +135,7 @@ type ClusterParams20260630 struct {
 	AuthorizedCIDRs               []*string
 	Autoscaling                   *hcpsdk20260630preview.ClusterAutoscalingProfile
 	Tags                          map[string]*string
+	NodeSSHPublicKey              *string
 }
 
 type NetworkConfig struct {
