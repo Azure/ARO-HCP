@@ -80,6 +80,7 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 		clock             utilsclock.PassiveClock
 		existingCluster   *api.HCPOpenShiftCluster
 		existingOperation *api.Operation
+		readDesireLister  dblisters.ReadDesireLister
 		setupCSMock       func(ctrl *gomock.Controller, fixture *clusterTestFixture) ocm.ClusterServiceClientSpec
 		wantErr           bool
 		verifyDB          func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient)
@@ -215,6 +216,36 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 			},
 		},
 		{
+			name:  "deadline exceeded with CS succeeded but cosmos provisioning marks as failed",
+			clock: clocktesting.NewFakePassiveClock(mustParseTime("2025-01-15T12:00:00Z")),
+			existingCluster: func() *api.HCPOpenShiftCluster {
+				cluster := newClusterWithAPIURL("https://api.example.com", &createdAt)
+				deadline := metav1.NewTime(mustParseTime("2025-01-15T11:30:00Z"))
+				cluster.ServiceProviderProperties.CreateOperationCompletionDeadline = &deadline
+				return cluster
+			}(),
+			existingOperation: fixture.newOperation(database.OperationRequestCreate),
+			readDesireLister:  &internallistertesting.SliceReadDesireLister{},
+			setupCSMock: func(ctrl *gomock.Controller, fixture *clusterTestFixture) ocm.ClusterServiceClientSpec {
+				mockCSClient := ocm.NewMockClusterServiceClientSpec(ctrl)
+				clusterStatus, err := arohcpv1alpha1.NewClusterStatus().
+					State(arohcpv1alpha1.ClusterStateReady).
+					Build()
+				require.NoError(t, err)
+				mockCSClient.EXPECT().
+					GetClusterStatus(gomock.Any(), fixture.clusterInternalID).
+					Return(clusterStatus, nil)
+				return mockCSClient
+			},
+			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
+				require.NoError(t, err)
+				assert.Equal(t, arm.ProvisioningStateFailed, op.Status)
+				require.NotNil(t, op.Error)
+				assert.Equal(t, arm.CloudErrorCodeInternalServerError, op.Error.Code)
+			},
+		},
+		{
 			name:  "deadline not yet exceeded continues with provisioning",
 			clock: clocktesting.NewFakePassiveClock(mustParseTime("2025-01-15T11:00:00Z")),
 			existingCluster: func() *api.HCPOpenShiftCluster {
@@ -273,9 +304,14 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 				clusterLister: &listertesting.SliceClusterLister{
 					Clusters: []*api.HCPOpenShiftCluster{tc.existingCluster},
 				},
-				readDesireLister: &internallistertesting.SliceReadDesireLister{
-					Desires: []*kubeapplier.ReadDesire{succeededDesire(t)},
-				},
+				readDesireLister: func() dblisters.ReadDesireLister {
+					if tc.readDesireLister != nil {
+						return tc.readDesireLister
+					}
+					return &internallistertesting.SliceReadDesireLister{
+						Desires: []*kubeapplier.ReadDesire{succeededDesire(t)},
+					}
+				}(),
 			}
 
 			err = controller.SynchronizeOperation(ctx, fixture.operationKey())
