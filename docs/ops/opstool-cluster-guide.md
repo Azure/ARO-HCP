@@ -13,7 +13,7 @@ It uses the same `templatize` + `pipeline.yaml` rollout system as the rest of th
 | Current region | `westus3` |
 | Standalone config | `config/config-dev-ci.yaml` |
 | Standalone topology | `topology-dev-ci.yaml` |
-| Infra service group | `Microsoft.Azure.ARO.HCP.DevCI.Infra` |
+| Infra entrypoint | `Microsoft.Azure.ARO.HCP.DevCI.Unprivileged` |
 | Canonical workload example | `tooling/tenant-quota` |
 
 ## How Opstool Differs From The Main Environments
@@ -25,15 +25,15 @@ The `dev-ci` topology does not plug into that graph automatically.
 - It has its own config file: `config/config-dev-ci.yaml`.
 - It has its own topology: `topology-dev-ci.yaml`.
 - Its infra rollout lives in `dev-infrastructure/dev-ci/cluster/opstool-aks-pipeline.yaml`.
-- Workloads are added as child service groups under the `DevCI.Infra` entrypoint.
+- Workloads are added as child service groups under the `DevCI.Unprivileged` entrypoint.
 
 This means `opstool` gets all the benefits of the shared tooling, but none of the implicit shared-environment wiring. If it needs a shared resource, that dependency must be wired explicitly in the standalone config or pipeline.
 
 ## Topology And Rollout Model
 
-`topology-dev-ci.yaml` defines a single entrypoint:
+`topology-dev-ci.yaml` defines the unattended infrastructure entrypoint:
 
-- `Microsoft.Azure.ARO.HCP.DevCI.Infra`
+- `Microsoft.Azure.ARO.HCP.DevCI.Unprivileged`
 
 That infra service group owns the cluster and shared cluster-level dependencies. Workloads are added beneath it as children. Today, `tenant-quota` is the concrete example of this pattern.
 

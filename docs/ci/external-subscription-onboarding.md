@@ -36,8 +36,6 @@ Resource groups left behind by failed or timed-out tests are garbage-collected b
 
 ## How It Differs From Internal Onboarding
 
-In a standard DEV subscription onboarding, the ARO-HCP pipeline identity (`aro-hcp-owners` group) has Owner access and can deploy RBAC, custom role assignments, and identity containers directly.
-
 For an **external** subscription:
 
 - The subscription is **not listed** in `config/config-dev-ci.yaml` — the ARO-HCP pipeline does not interact with it at all

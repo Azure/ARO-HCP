@@ -1,0 +1,16 @@
+$schema: "pipeline.schema.v1"
+serviceGroup: Microsoft.Azure.ARO.HCP.DevCI.Privileged
+rolloutName: Dev CI Privileged Grouping Rollout
+# GROUPING-ONLY, no-op pipeline. This service group exists solely to be the root
+# of the `Microsoft.Azure.ARO.HCP.DevCI.Privileged` entrypoint so the privileged,
+# Owner-only grants can be rolled out on demand separately from the unattended
+# `Microsoft.Azure.ARO.HCP.DevCI.Unprivileged` entrypoint. The topology
+# framework requires every service group to reference a pipeline, so this one
+# declares an empty step list and does no work itself — all privileged actions
+# live in the child `Microsoft.Azure.ARO.HCP.DevCI.E2ESubscriptionRBACGrants`
+# service group. See docs/ci/dev-ci-topology.md.
+resourceGroups:
+- name: noop
+  resourceGroup: '{{ .global.rg }}'
+  subscription: '{{ .global.subscription.key }}'
+  steps: []

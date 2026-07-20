@@ -86,7 +86,7 @@ In short, a Key Vault secret update can be picked up without restarting the pod,
 
 ## Alerts
 
-Alert rules are defined in `alerting.bicep` and deployed into the `opstool` Azure Monitor Workspace. Notifications use the shared `opstool-email-alerts` Action Group provided by the `DevCI.Infra` rollout.
+Alert rules are defined in `alerting.bicep` and deployed into the `opstool` Azure Monitor Workspace. Notifications use the shared `opstool-email-alerts` Action Group provided by the `DevCI.Unprivileged` rollout.
 
 ## Local Development
 
@@ -127,7 +127,7 @@ This script is the supported path for creating and reconciling the service princ
 After adding or changing a tenant:
 
 1. Update `config/config-dev-ci.yaml`.
-2. Redeploy `Microsoft.Azure.ARO.HCP.DevCI.TenantQuota` or just run the whole topology via `make dev-ci-local-run`
+2. Redeploy the `Microsoft.Azure.ARO.HCP.DevCI.Unprivileged` entrypoint via `make dev-ci-local-run` (for a targeted redeploy, run just the `Microsoft.Azure.ARO.HCP.DevCI.TenantQuota` service group).
 
 ### Renew a client secret
 
