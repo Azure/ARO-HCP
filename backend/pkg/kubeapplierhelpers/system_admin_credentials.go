@@ -42,9 +42,10 @@ func ReadDesireNameForSystemAdminCredentialRequestRevocation(revokeOpSuffix stri
 }
 
 // GetCachedCSRForSystemAdminCredentialRequest reads the CSR mirror from the
-// per-credential ReadDesire. The ReadDesire's Status.KubeContent.Raw carries
-// the observed CertificateSigningRequest JSON; we decode it directly and return
-// the typed object.
+// credential-request-scoped ReadDesire (nested under the
+// SystemAdminCredentialRequest named by credName). The ReadDesire's
+// Status.KubeContent.Raw carries the observed CertificateSigningRequest JSON; we
+// decode it directly and return the typed object.
 //
 // Returns (nil, nil) when:
 //   - the ReadDesire has not been created yet (NotFound),
@@ -59,7 +60,7 @@ func GetCachedCSRForSystemAdminCredentialRequest(
 	subscriptionName, resourceGroupName, clusterName, credName string,
 ) (*certificatesv1.CertificateSigningRequest, error) {
 	desireName := ReadDesireNameForSystemAdminCredentialRequestCSR(credName)
-	readDesire, err := readDesireLister.GetForCluster(ctx, subscriptionName, resourceGroupName, clusterName, desireName)
+	readDesire, err := readDesireLister.GetForCredentialRequest(ctx, subscriptionName, resourceGroupName, clusterName, credName, desireName)
 	if database.IsNotFoundError(err) {
 		return nil, nil
 	}
@@ -76,10 +77,11 @@ func GetCachedCSRForSystemAdminCredentialRequest(
 	return csr, nil
 }
 
-// GetCachedCertificateRevocationRequestForCluster reads the CRR mirror from
-// the cluster-scoped ReadDesire. The ReadDesire's Status.KubeContent.Raw
-// carries the observed CertificateRevocationRequest JSON; we decode it
-// directly and return the typed object.
+// GetCachedCertificateRevocationRequestForRevocation reads the CRR mirror from
+// the revocation-scoped ReadDesire (nested under the
+// SystemAdminCredentialRevocation named by revocationName). The ReadDesire's
+// Status.KubeContent.Raw carries the observed CertificateRevocationRequest JSON;
+// we decode it directly and return the typed object.
 //
 // Returns (nil, nil) when:
 //   - the ReadDesire has not been created yet (NotFound),
@@ -88,13 +90,13 @@ func GetCachedCSRForSystemAdminCredentialRequest(
 //
 // Returns a non-nil error only for hard failures: a non-NotFound lister
 // error, or unmarshal failure.
-func GetCachedCertificateRevocationRequestForCluster(
+func GetCachedCertificateRevocationRequestForRevocation(
 	ctx context.Context,
 	readDesireLister dblisters.ReadDesireLister,
-	subscriptionName, resourceGroupName, clusterName, revokeOpSuffix string,
+	subscriptionName, resourceGroupName, clusterName, revocationName, revokeOpSuffix string,
 ) (*certificatesv1alpha1.CertificateRevocationRequest, error) {
 	desireName := ReadDesireNameForSystemAdminCredentialRequestRevocation(revokeOpSuffix)
-	readDesire, err := readDesireLister.GetForCluster(ctx, subscriptionName, resourceGroupName, clusterName, desireName)
+	readDesire, err := readDesireLister.GetForRevocation(ctx, subscriptionName, resourceGroupName, clusterName, revocationName, desireName)
 	if database.IsNotFoundError(err) {
 		return nil, nil
 	}
