@@ -3522,6 +3522,9 @@
         "grafanaName": {
           "type": "string"
         },
+        "grafanaRoles": {
+          "type": "string"
+        },
         "grafanaMajorVersion": {
           "type": "string"
         },
@@ -3545,6 +3548,7 @@
         "cxParentZoneName",
         "kustoName",
         "grafanaName",
+        "grafanaRoles",
         "grafanaMajorVersion",
         "billingKustoName",
         "billingKustoSku"

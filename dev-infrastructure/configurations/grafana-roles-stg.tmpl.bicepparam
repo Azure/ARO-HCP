@@ -5,5 +5,5 @@ using '../templates/grafana-roles.bicep'
 
 param grafanaName = '{{ .stgGlobalV2.grafanaName }}'
 param globalMSIName = '{{ .global.globalMSIName }}'
-param grafanaRoles = '{{ .monitoring.grafanaRoles }}'
+param grafanaRoles = '{{ .stgGlobalV2.grafanaRoles }}'
 param azureFrontDoorProfileName = '{{ .stgGlobalV2.frontDoorName }}'
