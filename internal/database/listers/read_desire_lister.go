@@ -41,13 +41,13 @@ type readDesireLister struct {
 	indexer cache.Indexer
 }
 
+func (l *readDesireLister) List(ctx context.Context) ([]*kubeapplier.ReadDesire, error) {
+	return listAll[kubeapplier.ReadDesire](l.indexer)
+}
+
 // NewReadDesireLister creates a ReadDesireLister from a SharedIndexInformer's indexer.
 func NewReadDesireLister(indexer cache.Indexer) ReadDesireLister {
 	return &readDesireLister{indexer: indexer}
-}
-
-func (l *readDesireLister) List(ctx context.Context) ([]*kubeapplier.ReadDesire, error) {
-	return listAll[kubeapplier.ReadDesire](l.indexer)
 }
 
 func (l *readDesireLister) GetForCluster(

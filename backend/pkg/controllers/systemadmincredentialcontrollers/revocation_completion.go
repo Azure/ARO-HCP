@@ -99,9 +99,9 @@ func (c *revocationCompletion) SyncOnce(ctx context.Context, key controllerutils
 
 	// Observe the mirrored CRR to confirm the certificates have been revoked.
 	if !meta.IsStatusConditionTrue(revocation.Status.Conditions, api.SystemAdminCredentialRevocationConditionCertificatesRevoked) {
-		cachedCRR, err := kubeapplierhelpers.GetCachedCertificateRevocationRequestForCluster(
+		cachedCRR, err := kubeapplierhelpers.GetCachedCertificateRevocationRequestForRevocation(
 			ctx, c.readDesireLister,
-			key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, revocation.Spec.RevokeOpSuffix)
+			key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, key.RevocationName, revocation.Spec.RevokeOpSuffix)
 		if err != nil {
 			return utils.TrackError(err)
 		}
