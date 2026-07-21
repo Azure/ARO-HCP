@@ -96,7 +96,7 @@ func NewCredentialRequestWatchingController(
 func (c *credentialRequestWatchingController) SyncOnce(ctx context.Context, key SystemAdminCredentialRequestKey) error {
 	defer utilruntime.HandleCrash(DegradedControllerPanicHandler(
 		ctx,
-		c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Controllers(key.HCPClusterName),
+		c.resourcesDBClient.SystemAdminCredentialRequests(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName).Controllers(key.CredentialName),
 		c.name,
 		key.InitialController))
 
@@ -104,7 +104,7 @@ func (c *credentialRequestWatchingController) SyncOnce(ctx context.Context, key 
 
 	controllerWriteErr := WriteController(
 		ctx,
-		c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Controllers(key.HCPClusterName),
+		c.resourcesDBClient.SystemAdminCredentialRequests(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName).Controllers(key.CredentialName),
 		c.name,
 		key.InitialController,
 		ReportSyncError(syncErr),

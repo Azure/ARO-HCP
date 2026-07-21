@@ -79,7 +79,7 @@ func NewRevocationWatchingController(
 func (c *revocationWatchingController) SyncOnce(ctx context.Context, key SystemAdminCredentialRevocationKey) error {
 	defer utilruntime.HandleCrash(DegradedControllerPanicHandler(
 		ctx,
-		c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Controllers(key.HCPClusterName),
+		c.resourcesDBClient.SystemAdminCredentialRevocations(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName).Controllers(key.RevocationName),
 		c.name,
 		key.InitialController))
 
@@ -87,7 +87,7 @@ func (c *revocationWatchingController) SyncOnce(ctx context.Context, key SystemA
 
 	controllerWriteErr := WriteController(
 		ctx,
-		c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Controllers(key.HCPClusterName),
+		c.resourcesDBClient.SystemAdminCredentialRevocations(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName).Controllers(key.RevocationName),
 		c.name,
 		key.InitialController,
 		ReportSyncError(syncErr),

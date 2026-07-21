@@ -241,17 +241,14 @@ func (k SystemAdminCredentialRevocationKey) AddLoggerValues(logger logr.Logger) 
 			AddLogValuesForResourceID(k.GetResourceID())...)
 }
 
-// InitialController returns a cluster-scoped controller document. The revocation
-// controllers write their status through the cluster's Controllers CRUD, so the
-// document's resource ID must be cluster-scoped for reads and writes to agree.
 func (k SystemAdminCredentialRevocationKey) InitialController(controllerName string) *api.Controller {
-	resourceID := api.Must(azcorearm.ParseResourceID(k.GetClusterResourceID().String() + "/" + api.ControllerResourceTypeName + "/" + controllerName))
+	resourceID := api.Must(azcorearm.ParseResourceID(k.GetResourceID().String() + "/" + api.ControllerResourceTypeName + "/" + controllerName))
 	return &api.Controller{
 		CosmosMetadata: api.CosmosMetadata{
 			ResourceID:   resourceID,
 			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
 		},
-		ExternalID: k.GetClusterResourceID(),
+		ExternalID: k.GetResourceID(),
 		Status: api.ControllerStatus{
 			Conditions: []metav1.Condition{},
 		},

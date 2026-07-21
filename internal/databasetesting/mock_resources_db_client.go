@@ -164,15 +164,19 @@ func (m *MockResourcesDBClient) GetFeedRanges(ctx context.Context) ([]azcosmos.F
 }
 
 // SystemAdminCredentialRequests returns a CRUD interface for SystemAdminCredentialRequest resources.
-func (m *MockResourcesDBClient) SystemAdminCredentialRequests(subscriptionID, resourceGroupName, clusterName string) database.ResourceCRUD[api.SystemAdminCredentialRequest, *api.SystemAdminCredentialRequest] {
+func (m *MockResourcesDBClient) SystemAdminCredentialRequests(subscriptionID, resourceGroupName, clusterName string) database.SystemAdminCredentialRequestsCRUD {
 	clusterResourceID := api.Must(api.ToClusterResourceID(subscriptionID, resourceGroupName, clusterName))
-	return newMockResourceCRUD[api.SystemAdminCredentialRequest, *api.SystemAdminCredentialRequest, database.GenericDocument[api.SystemAdminCredentialRequest]](m, clusterResourceID, api.SystemAdminCredentialRequestResourceType)
+	return &mockSystemAdminCredentialRequestsCRUD{
+		mockResourceCRUD: newMockResourceCRUD[api.SystemAdminCredentialRequest, *api.SystemAdminCredentialRequest, database.GenericDocument[api.SystemAdminCredentialRequest]](m, clusterResourceID, api.SystemAdminCredentialRequestResourceType),
+	}
 }
 
 // SystemAdminCredentialRevocations returns a CRUD interface for SystemAdminCredentialRevocation resources.
-func (m *MockResourcesDBClient) SystemAdminCredentialRevocations(subscriptionID, resourceGroupName, clusterName string) database.ResourceCRUD[api.SystemAdminCredentialRevocation, *api.SystemAdminCredentialRevocation] {
+func (m *MockResourcesDBClient) SystemAdminCredentialRevocations(subscriptionID, resourceGroupName, clusterName string) database.SystemAdminCredentialRevocationsCRUD {
 	clusterResourceID := api.Must(api.ToClusterResourceID(subscriptionID, resourceGroupName, clusterName))
-	return newMockResourceCRUD[api.SystemAdminCredentialRevocation, *api.SystemAdminCredentialRevocation, database.GenericDocument[api.SystemAdminCredentialRevocation]](m, clusterResourceID, api.SystemAdminCredentialRevocationResourceType)
+	return &mockSystemAdminCredentialRevocationsCRUD{
+		mockResourceCRUD: newMockResourceCRUD[api.SystemAdminCredentialRevocation, *api.SystemAdminCredentialRevocation, database.GenericDocument[api.SystemAdminCredentialRevocation]](m, clusterResourceID, api.SystemAdminCredentialRevocationResourceType),
+	}
 }
 
 // LoadFromDirectory loads cosmos-record context data from a directory.
