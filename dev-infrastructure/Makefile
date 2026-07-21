@@ -197,7 +197,7 @@ create-mock-identities: configurations/mock-identities.bicepparam
 		--only-show-errors
 
 	@for i in $$(seq 0 $$(($(MSI_MOCK_POOL_SIZE) - 1))); do \
-		echo "Creating/updating MSI mock pool SP $$i ..."; \
+		echo "Creating/updating MSI mock pool cert+SP $$i ..."; \
 		VAULT_NAME=$(SVC_KV_NAME) \
 		CERT_NAME=msiMockPoolCert-$$i \
 		SUBJECT=CN=$$i.msimockpool.hcp.osadev.cloud \
