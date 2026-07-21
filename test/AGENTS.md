@@ -399,6 +399,17 @@ In Prow each job runs in a fresh pod, so there is no leakage between runs. For l
 
 `ARTIFACT_DIR` is optional. When set, the state file is written there and collected as a CI artifact. When absent (local runs), it falls back to `os.TempDir()`.
 
+**Required environment variables for local runs** (in addition to the usual `AROHCP_ENV`, `LOCATION`, `DEPLOY_ENV`, `KUBECONFIG`):
+
+```bash
+export GITHUB_ACTIONS=true   # makes templatize's cmdutils.GetAzureTokenCredentials use az CLI credentials
+                             # instead of workload-identity tokens (which are only available in CI)
+```
+
+`AROHCP_ENV=development` controls the *test framework's* own Azure credential (subscription/resource-group
+lookups done by the test helpers). `GITHUB_ACTIONS` controls the credential used by the *templatize pipeline*
+when it performs its own subscription lookup. Both must be set for a fully local run of `upgrade/in-place`.
+
 The total number of `UpgradeInPlace` specs is computed dynamically in `main.go`'s `setupCli()` — after `BuildExtensionTestSpecsFromOpenShiftGinkgoSuite()` builds the spec list, the code counts specs with `labels.UpgradeInPlace` and calls `framework.SetUpgradeInPlaceSpecCount(n)`. The same count drives both the suite `Parallelism` and `NewUpgradeBarrier()`. **No constant to maintain** — adding a new `UpgradeInPlace` spec automatically updates both.
 
 ### Typical It-block skeleton

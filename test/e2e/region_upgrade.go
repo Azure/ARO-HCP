@@ -26,6 +26,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -90,17 +91,36 @@ func haProxyImage(ctx context.Context, kubeClient kubernetes.Interface) (string,
 		return "", fmt.Errorf("list kube-apiserver-proxy pods in kube-system: %w", err)
 	}
 
+	// containerImage returns the image for the named container, or the sole
+	// container if the pod has exactly one. Returns "" if the name is not found
+	// in a multi-container pod so the caller can report ambiguity.
+	containerImage := func(pod corev1.Pod, name string) (string, error) {
+		if len(pod.Spec.Containers) == 1 {
+			return pod.Spec.Containers[0].Image, nil
+		}
+		for _, c := range pod.Spec.Containers {
+			if c.Name == name {
+				return c.Image, nil
+			}
+		}
+		names := make([]string, 0, len(pod.Spec.Containers))
+		for _, c := range pod.Spec.Containers {
+			names = append(names, c.Name)
+		}
+		return "", fmt.Errorf("pod %q has multiple containers %v but none named %q", pod.Name, names, name)
+	}
+
+	const containerName = "kube-apiserver-proxy"
 	var image string
 	for _, pod := range pods.Items {
-		for _, c := range pod.Spec.Containers {
-			if c.Image == "" {
-				continue
-			}
-			if image == "" {
-				image = c.Image
-			} else if image != c.Image {
-				return "", fmt.Errorf("inconsistent haproxy container images across pods: %q vs %q", image, c.Image)
-			}
+		img, err := containerImage(pod, containerName)
+		if err != nil {
+			return "", err
+		}
+		if image == "" {
+			image = img
+		} else if image != img {
+			return "", fmt.Errorf("inconsistent haproxy container images across pods: %q vs %q", image, img)
 		}
 	}
 	if image == "" {
