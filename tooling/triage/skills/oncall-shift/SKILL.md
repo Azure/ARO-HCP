@@ -27,6 +27,56 @@ Manage the full lifecycle of an oncall shift:
 5. **Generate handover notes** — produce structured handover notes for the next
    shift in a consistent format.
 
+## Coverage Model
+
+The team follows a **24x5 Follow-the-Sun (FTS)** model.
+
+- **Coverage window**: Sunday 21:00 UTC to Friday 21:00 UTC
+- **Weekend policy**: No weekend SLAs. Pager rotations and active monitoring
+  pause on Saturdays and Sundays.
+- **Shift handover**: Each region (APAC → EMEA → NASA) hands over IC
+  responsibilities at the end of their local business day.
+
+### Shift Schedule
+
+| GEO | Start (UTC) | End (UTC) |
+|-----|-------------|----------|
+| APAC East | 22:00 | 04:00 |
+| APAC West | 04:00 | 10:00 |
+| EMEA | 10:00 | 16:00 |
+| NASA | 16:00 | 22:00 |
+
+Scheduling is managed quarterly via IcM. Check your schedule at
+[IcM / MyOnCall](https://portal.microsofticm.com/).
+
+## Roles
+
+Each shift has a **Primary** and **Secondary** responder.
+
+### Primary Responder (Releases & Alerts)
+
+The Primary is the Interrupt Collector (IC). Responsibilities:
+
+1. **Release management** — execute all releases across INT, Stage, and Prod
+   per the continuous, serialized rollout model.
+2. **Quality Service Review (QSR)** — attend the QSR meeting to provide
+   release updates.
+3. **Proactive revert policy** — if a component breaks a rollout or fails a
+   gate, perform an immediate revert. Before reverting, verify the failure is
+   not infrastructure or pipeline related. Once reverted, notify the
+   responsible team to provide a fix for re-submission in a later batch.
+4. **IcM alert management** — see IcM Alert Triage section below.
+5. **Dev merge queue health** — see Dev Merge Queue Monitoring section below.
+
+### Secondary Responder (Communication & Triage)
+
+*Not currently enforced — team-based best effort.*
+
+- **Slack monitoring**: First point of contact for all IC pings in designated
+  Slack channels.
+- **Tag response**: Respond to all team @-mentions and tags related to service
+  lifecycle issues.
+
 ## When to Use Me
 
 - User starts an oncall shift and pastes or describes handover notes
@@ -56,6 +106,9 @@ Manage the full lifecycle of an oncall shift:
    3. Dev merge queue health (unblock Tide batches)
    4. Check alerts (proactive problem detection)
    5. Routine monitoring (IcM, Prow, dashboards, quality call)
+
+5. **IcM alerts have a hard SLA.** All Sev 2 and below critical alerts must
+   be acknowledged within 30 minutes. This is not optional.
 
 ## Parameters
 
@@ -274,6 +327,76 @@ If items are still active:
 - Keep in **In Progress** and note in the handover that the next shift
   should continue tracking on the same ticket (or create a new one).
 
+### Mandatory Handover Process
+
+The out-going IC is **fully accountable** for ensuring a successful transfer.
+The shift is not considered complete until all open issues are documented
+and the handover has been proactively sought and confirmed.
+
+#### 15 Minutes Before Shift End
+
+1. **Proactively contact the in-coming IC** via the automatically-created
+   Slack handover thread. Tag the incoming IC and confirm they are alert
+   and ready.
+2. **Complete the handover message** in the Slack thread using the handover
+   template above.
+3. For every unresolved issue, provide:
+   - **JIRA link** with status and next steps clearly updated
+   - **PR links** (if applicable)
+   - **Slack thread links** to relevant conversations
+   - **Current status and next steps** — a clear statement of what the
+     incoming IC needs to do
+
+#### Handover Meeting (If Needed)
+
+If the Slack message is insufficient for the complexity of open issues:
+
+1. Initiate and lead the handover meeting using the scheduled meeting link.
+2. Ensure the incoming IC attends.
+3. Document key decisions and action items in the relevant JIRA tickets.
+
+#### Accountability
+
+Failure to perform a complete and proactive handover does not guarantee a
+follow-up from the incoming GEO zone. The out-going IC owns the handover.
+
+## IcM Alert Triage
+
+IcM is the primary tool for engaging SREs to resolve service interruptions.
+Access the portal at https://portal.microsofticm.com/ (requires a properly
+set up VM or SAW device).
+
+### Acknowledgement SLA
+
+**All Sev 2 and below critical alerts must be acknowledged within 30 minutes.**
+This is the escalation policy window — missing it triggers automatic
+escalation.
+
+### Triage Process
+
+For every IcM alert:
+
+1. **Acknowledge** the alert within the 30-minute window.
+2. **Initiate investigation** — review the alert details, check related
+   dashboards and logs.
+3. **Create a JIRA ticket** with the `oncall` label documenting the issue,
+   current status, and next steps.
+4. **Route the issue**:
+   - **Component issue** → assign to the component owner's team.
+   - **Infrastructure issue** → work on resolution directly.
+5. **Document resolution** — update the JIRA ticket with the outcome.
+   If the issue is not resolved by end of shift, include it in handover
+   notes with full context.
+
+### During Routine Monitoring
+
+Even without active alerts, sweep the IcM portal once per shift to check
+for:
+
+- New alerts that may not have paged
+- Alerts assigned to the team that need attention
+- Stale alerts that should be resolved or re-assigned
+
 ## Dev Merge Queue Monitoring
 
 Monitoring the Dev e2e-parallel merge queue is a core oncall responsibility.
@@ -309,6 +432,41 @@ All monitoring should be done via the CI Health Dashboard:
   deeper analysis from Kusto logs using `hcpctl snapshot analyze` (in
   `tooling/hcpctl`) against the run's snapshot.
 
+## Escalation
+
+When the IC cannot resolve an issue, or the issue belongs to a component
+outside Service Lifecycle's responsibility:
+
+1. **Identify the owning team** using the
+   [Service Component Escalation Paths](https://docs.google.com/document/d/1fqH__2cv0GU4oiUYAnhl08x61b7CuDbVi3OkC-J58LA/edit?tab=t.0)
+   (maintained externally).
+2. **Follow the prescribed channel** — open the appropriate tickets and/or
+   engage via the documented Slack channels for that component.
+3. **Document the escalation** in the shift JIRA with: who was contacted,
+   when, via what channel, and the current status.
+
+## Swarm
+
+A Swarm should be initiated when the IC is overwhelmed by a high volume of
+complex interruptions (rollouts, critical alerts, major incidents) that make
+completing the shift unsustainable.
+
+### How to Initiate
+
+1. Use the `/Swarm` command in `#hcm-aro-team-service-lifecycle`.
+2. Select the service **"ARO SLC Swarm"**.
+3. Specify:
+   - The **region (GEO)** from which assistance is required.
+   - The **number of associates** needed.
+
+### Expectations
+
+Team members summoned by a Swarm are expected to:
+
+- Respond promptly
+- Assess the required assistance
+- Assume a portion of the on-call workload from the IC
+
 ## Chat Excerpt Rules
 
 These rules are absolute. Oncall decisions often trace back to Slack
@@ -335,6 +493,21 @@ Every JIRA ticket created or updated during an oncall shift via this skill
 When updating an existing ticket that doesn't have the `oncall` label, add
 it via `mcp_jira_editJiraIssue` with
 `fields: {"labels": [<existing_labels>, "oncall"]}`.
+
+## Associate Obligations
+
+By participating in the oncall rotation, associates agree to:
+
+- **Acknowledgement SLA**: Always acknowledge alerts within the escalation
+  policy window (typically 10–15 minutes for pages, 30 minutes for IcM).
+- **Fitness for duty**: Associates must not be impaired by alcohol or
+  medication that affects their ability to perform technical tasks.
+- **Replacement responsibility**: If unable to fulfill duties, source a
+  replacement and put in an override into IcM. If unable to find a
+  replacement (or in an emergency/illness), inform your manager and get
+  confirmation.
+- **Comp day**: Working a Recharge Day or Company-Funded Day entitles the
+  associate to one Comp Day, which must be taken within two weeks.
 
 ## Reference: MCP Tools Used
 
