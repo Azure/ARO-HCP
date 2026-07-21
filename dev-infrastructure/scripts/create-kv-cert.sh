@@ -55,33 +55,40 @@ if [[ "${FORCE}" != "true" ]] && \
   exit 0
 fi
 
-# Build the subjectAlternativeNames.dnsNames JSON array from the comma-separated
-# list, trimming surrounding whitespace and dropping empty entries.
-dns_json="$(printf '%s' "${DNS_NAMES}" | tr ',' '\n' | \
-  awk '{ gsub(/^[[:space:]]+|[[:space:]]+$/, ""); if ($0 != "") a[++n] = $0 }
-       END { for (i = 1; i <= n; i++) printf "%s\"%s\"", (i > 1 ? "," : ""), a[i] }')"
-if [[ -z "${dns_json}" ]]; then
+# Build the subjectAlternativeNames.dnsNames list from the comma-separated
+# input, trimming surrounding whitespace and dropping empty entries.
+dns_names=()
+while IFS= read -r entry || [[ -n "${entry}" ]]; do
+  entry="${entry#"${entry%%[![:space:]]*}"}"
+  entry="${entry%"${entry##*[![:space:]]}"}"
+  [[ -n "${entry}" ]] && dns_names+=("${entry}")
+done < <(printf '%s' "${DNS_NAMES}" | tr ',' '\n')
+if [[ ${#dns_names[@]} -eq 0 ]]; then
   echo "ERROR: DNS_NAMES contained no valid entries after parsing: '${DNS_NAMES}'" >&2
   exit 1
 fi
 
-policy="$(cat <<JSON
-{
-  "issuerParameters": { "name": "Self" },
-  "keyProperties": { "exportable": true, "keyType": "RSA", "keySize": 2048, "reuseKey": false },
-  "secretProperties": { "contentType": "application/x-pkcs12" },
-  "x509CertificateProperties": {
-    "subject": "${SUBJECT}",
-    "subjectAlternativeNames": { "dnsNames": [${dns_json}] },
-    "keyUsage": ["digitalSignature", "keyEncipherment"],
-    "validityInMonths": ${VALIDITY_IN_MONTHS}
-  },
-  "lifetimeActions": [
-    { "trigger": { "lifetimePercentage": ${RENEW_PERCENTAGE_LIFETIME} }, "action": { "actionType": "AutoRenew" } }
-  ]
-}
-JSON
-)"
+# Construct the policy with jq so SUBJECT and the DNS names are JSON-escaped,
+# avoiding invalid JSON (or injection) when they contain special characters.
+policy="$(jq -n \
+  --arg subject "${SUBJECT}" \
+  --argjson validityInMonths "${VALIDITY_IN_MONTHS}" \
+  --argjson renewPercentage "${RENEW_PERCENTAGE_LIFETIME}" \
+  --args '
+  {
+    issuerParameters: { name: "Self" },
+    keyProperties: { exportable: true, keyType: "RSA", keySize: 2048, reuseKey: false },
+    secretProperties: { contentType: "application/x-pkcs12" },
+    x509CertificateProperties: {
+      subject: $subject,
+      subjectAlternativeNames: { dnsNames: $ARGS.positional },
+      keyUsage: ["digitalSignature", "keyEncipherment"],
+      validityInMonths: $validityInMonths
+    },
+    lifetimeActions: [
+      { trigger: { lifetimePercentage: $renewPercentage }, action: { actionType: "AutoRenew" } }
+    ]
+  }' "${dns_names[@]}")"
 
 echo "Creating self-signed certificate '${CERT_NAME}' in '${VAULT_NAME}' (subject ${SUBJECT})..."
 az keyvault certificate create \
