@@ -3522,6 +3522,11 @@
         "grafanaName": {
           "type": "string"
         },
+        "grafanaRoles": {
+          "type": "string",
+          "description": "A space-separated list of Service Principals IDs, Types and their desired grafana roles The format is: <principalId>/<principalType>/<role>, e.g. 12345678-1234-1234-1234-123456789012/Group/Admin",
+          "pattern": "^$|^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\\/(Group|ServicePrincipal|User)\\/(Contributor|Admin|Viewer)\\s*)+$"
+        },
         "grafanaMajorVersion": {
           "type": "string"
         },
@@ -3545,6 +3550,7 @@
         "cxParentZoneName",
         "kustoName",
         "grafanaName",
+        "grafanaRoles",
         "grafanaMajorVersion",
         "billingKustoName",
         "billingKustoSku"

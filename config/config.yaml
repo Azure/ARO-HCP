@@ -120,6 +120,12 @@ defaults:
     cxParentZoneName: "empty-sentinel"
     kustoName: "empty-sentinel"
     grafanaName: "empty-sentinel"
+    # Space-separated "principalId/principalType/role" list scoped to the
+    # transient arohcp-stg2 Grafana. Defaults to empty (no assignments); the
+    # real value is set in the cloud overlay for stg. Kept separate from
+    # monitoring.grafanaRoles so assigning a role on arohcp-stg2 never touches
+    # the shared arohcp-stg (which already holds the grant manually).
+    grafanaRoles: ""
     grafanaMajorVersion: "empty-sentinel"
     billingKustoName: "empty-sentinel"
     billingKustoSku: "empty-sentinel"

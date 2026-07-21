@@ -948,6 +948,7 @@ stgGlobalV2:
   globalKeyVaultName: empty-sentinel
   grafanaMajorVersion: empty-sentinel
   grafanaName: empty-sentinel
+  grafanaRoles: ""
   kustoName: empty-sentinel
   oidcStorageAccountName: empty-sentinel
   svcParentZoneName: empty-sentinel
