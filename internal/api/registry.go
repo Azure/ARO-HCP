@@ -63,19 +63,20 @@ func init() {
 }
 
 const (
-	ProviderNamespace                        = "Microsoft.RedHatOpenShift"
-	ClusterResourceTypeName                  = "hcpOpenShiftClusters"
-	ServiceProviderClusterResourceTypeName   = "serviceProviderClusters"
-	ServiceProviderNodePoolResourceTypeName  = "serviceProviderNodePools"
-	VersionResourceTypeName                  = "hcpOpenShiftVersions"
-	NodePoolResourceTypeName                 = "nodePools"
-	ExternalAuthResourceTypeName             = "externalAuths"
-	OperationResultResourceTypeName          = "hcpOperationResults"
-	OperationStatusResourceTypeName          = "hcpOperationStatuses"
-	ControllerResourceTypeName               = "hcpOpenShiftControllers"
-	RequestAdminCredentialActionTypeName     = "requestadmincredential"
-	RevokeAdminCredentialsActionTypeName     = "revokecredentials"
-	ManagementClusterContentResourceTypeName = "managementClusterContents"
+	ProviderNamespace                            = "Microsoft.RedHatOpenShift"
+	ClusterResourceTypeName                      = "hcpOpenShiftClusters"
+	ServiceProviderClusterResourceTypeName       = "serviceProviderClusters"
+	ServiceProviderNodePoolResourceTypeName      = "serviceProviderNodePools"
+	VersionResourceTypeName                      = "hcpOpenShiftVersions"
+	NodePoolResourceTypeName                     = "nodePools"
+	ExternalAuthResourceTypeName                 = "externalAuths"
+	OperationResultResourceTypeName              = "hcpOperationResults"
+	OperationStatusResourceTypeName              = "hcpOperationStatuses"
+	ControllerResourceTypeName                   = "hcpOpenShiftControllers"
+	RequestAdminCredentialActionTypeName         = "requestadmincredential"
+	RevokeAdminCredentialsActionTypeName         = "revokecredentials"
+	ManagementClusterContentResourceTypeName     = "managementClusterContents"
+	SystemAdminCredentialRequestResourceTypeName = "systemAdminCredentialRequests"
 )
 
 var (
@@ -96,6 +97,8 @@ var (
 	ClusterScopedManagementClusterContentResourceType = azcorearm.NewResourceType(ProviderNamespace, filepath.Join(ClusterResourceTypeName, ManagementClusterContentResourceTypeName))
 	// NodePoolScopedManagementClusterContentResourceType is managementClusterContents nested under a Node Pool
 	NodePoolScopedManagementClusterContentResourceType = azcorearm.NewResourceType(ProviderNamespace, filepath.Join(ClusterResourceTypeName, NodePoolResourceTypeName, ManagementClusterContentResourceTypeName))
+	// SystemAdminCredentialRequestResourceType is systemAdminCredentialRequests nested directly under a Cluster
+	SystemAdminCredentialRequestResourceType = azcorearm.NewResourceType(ProviderNamespace, ClusterResourceTypeName+"/"+SystemAdminCredentialRequestResourceTypeName)
 )
 
 type VersionedResource interface {

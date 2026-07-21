@@ -31,6 +31,10 @@ const (
 	breakGlassCredentialKey  = "break_glass_credentials"
 	clusterProvisionShardKey = "provision_shard"
 	provisionShardKey        = "provision_shards"
+
+	// SystemAdminCredentialRequestKind is the Kind value for InternalIDs that point at
+	// a SystemAdminCredentialRequest ARM resource ID rather than a cluster-service HREF.
+	SystemAdminCredentialRequestKind = "SystemAdminCredentialRequest"
 )
 
 var (
@@ -39,6 +43,11 @@ var (
 	v1NodePoolPattern             = path.Join(v1ClusterPattern, nodePoolKey, "*")
 	v1ExternalAuthPattern         = path.Join(v1ClusterPattern, externalAuthKey, "*")
 	v1BreakGlassCredentialPattern = path.Join(v1ClusterPattern, breakGlassCredentialKey, "*")
+
+	armSystemAdminCredentialRequestPattern = "/subscriptions/*/resourcegroups/*/providers/" +
+		strings.ToLower(ProviderNamespace) + "/" +
+		strings.ToLower(ClusterResourceTypeName) + "/*/" +
+		strings.ToLower(SystemAdminCredentialRequestResourceTypeName) + "/*"
 
 	aroHcpV1Alpha1Pattern                      = "/api/aro_hcp/v1alpha1"
 	aroHcpV1Alpha1ClusterPattern               = path.Join(aroHcpV1Alpha1Pattern, clusterKey, "*")
@@ -105,6 +114,11 @@ func (id *InternalID) validate() error {
 
 	if match, _ = path.Match(aroHcpV1Alpha1ProvisionShardPattern, id.path); match {
 		id.kind = arohcpv1alpha1.ProvisionShardKind
+		return nil
+	}
+
+	if match, _ = path.Match(armSystemAdminCredentialRequestPattern, id.path); match {
+		id.kind = SystemAdminCredentialRequestKind
 		return nil
 	}
 

@@ -838,3 +838,16 @@ func (m *mockUntypedCRUD) Child(resourceType azcorearm.ResourceType, resourceNam
 }
 
 var _ database.UntypedResourceCRUD = &mockUntypedCRUD{}
+
+type mockSystemAdminCredentialRequestsCRUD struct {
+	*mockResourceCRUD[api.SystemAdminCredentialRequest, *api.SystemAdminCredentialRequest, database.GenericDocument[api.SystemAdminCredentialRequest]]
+}
+
+func newMockSystemAdminCredentialRequestsCRUD(client *MockResourcesDBClient, parentResourceID *azcorearm.ResourceID) *mockSystemAdminCredentialRequestsCRUD {
+	return &mockSystemAdminCredentialRequestsCRUD{
+		mockResourceCRUD: newMockResourceCRUD[api.SystemAdminCredentialRequest, *api.SystemAdminCredentialRequest, database.GenericDocument[api.SystemAdminCredentialRequest]](
+			client, parentResourceID, api.SystemAdminCredentialRequestResourceType),
+	}
+}
+
+var _ database.SystemAdminCredentialRequestsCRUD = &mockSystemAdminCredentialRequestsCRUD{}

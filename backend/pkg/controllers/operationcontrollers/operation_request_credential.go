@@ -18,10 +18,15 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
+	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/cache"
 	utilsclock "k8s.io/utils/clock"
+
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
 
@@ -128,6 +133,15 @@ func (opsync *operationRequestCredential) SynchronizeOperation(ctx context.Conte
 			Message: "Failed to provision cluster credential",
 		}
 	case cmv1.BreakGlassCredentialStatusIssued:
+		credResourceID, err := opsync.createSystemAdminCredentialRequest(ctx, key, oldOperation, breakGlassCredential)
+		if err != nil {
+			return utils.TrackError(err)
+		}
+		credInternalID, err := api.NewInternalID(credResourceID.String())
+		if err != nil {
+			return utils.TrackError(fmt.Errorf("failed to create InternalID for credential: %w", err))
+		}
+		oldOperation.InternalID = credInternalID
 		newOperationStatus = arm.ProvisioningStateSucceeded
 	default:
 		return fmt.Errorf("unhandled BreakGlassCredentialStatus '%s'", status)
@@ -143,4 +157,61 @@ func (opsync *operationRequestCredential) SynchronizeOperation(ctx context.Conte
 	}
 
 	return nil
+}
+
+func (opsync *operationRequestCredential) createSystemAdminCredentialRequest(
+	ctx context.Context,
+	key controllerutils.OperationKey,
+	operation *api.Operation,
+	breakGlassCredential *cmv1.BreakGlassCredential,
+) (*azcorearm.ResourceID, error) {
+	now := metav1.Now()
+	credName := strings.ToLower(key.OperationName)
+
+	credResourceID, err := api.ToSystemAdminCredentialRequestResourceID(
+		operation.ExternalID.SubscriptionID,
+		operation.ExternalID.ResourceGroupName,
+		operation.ExternalID.Name,
+		credName,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build credential request resource ID: %w", err)
+	}
+
+	cred := &api.SystemAdminCredentialRequest{
+		CosmosMetadata: api.CosmosMetadata{
+			ResourceID:   credResourceID,
+			PartitionKey: strings.ToLower(operation.ExternalID.SubscriptionID),
+		},
+		Spec: api.SystemAdminCredentialRequestSpec{
+			OperationID:         key.OperationName,
+			CreationTimestamp:   now,
+			ExpirationTimestamp: metav1.NewTime(breakGlassCredential.ExpirationTimestamp()),
+		},
+		Status: api.SystemAdminCredentialRequestStatus{
+			Kubeconfig: breakGlassCredential.Kubeconfig(),
+		},
+	}
+	meta.SetStatusCondition(&cred.Status.Conditions, metav1.Condition{
+		Type:               api.SystemAdminCredentialRequestConditionIssued,
+		Status:             metav1.ConditionTrue,
+		LastTransitionTime: now,
+		Reason:             "BreakGlassCredentialIssued",
+		Message:            "Credential issued by cluster service.",
+	})
+
+	credCRUD := opsync.resourcesDBClient.SystemAdminCredentialRequests(
+		operation.ExternalID.SubscriptionID,
+		operation.ExternalID.ResourceGroupName,
+		operation.ExternalID.Name,
+	)
+	_, err = credCRUD.Create(ctx, cred, nil)
+	if err != nil {
+		if database.IsConflictError(err) {
+			return credResourceID, nil
+		}
+		return nil, fmt.Errorf("failed to create SystemAdminCredentialRequest: %w", err)
+	}
+
+	return credResourceID, nil
 }

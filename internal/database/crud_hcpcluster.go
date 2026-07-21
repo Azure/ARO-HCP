@@ -254,6 +254,16 @@ func (h *nodePoolsCRUD) ManagementClusterContents(nodePoolName string) ResourceC
 	)
 }
 
+type SystemAdminCredentialRequestsCRUD interface {
+	ResourceCRUD[api.SystemAdminCredentialRequest, *api.SystemAdminCredentialRequest]
+}
+
+type systemAdminCredentialRequestsCRUD struct {
+	*nestedCosmosResourceCRUD[api.SystemAdminCredentialRequest, *api.SystemAdminCredentialRequest, GenericDocument[api.SystemAdminCredentialRequest]]
+}
+
+var _ SystemAdminCredentialRequestsCRUD = &systemAdminCredentialRequestsCRUD{}
+
 func NewControllerCRUD(
 	containerClient *azcosmos.ContainerClient, parentResourceID *azcorearm.ResourceID, resourceType azcorearm.ResourceType) ResourceCRUD[api.Controller, *api.Controller] {
 

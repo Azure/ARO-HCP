@@ -30,6 +30,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/api/operation"
 	k8sutilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	utilsclock "k8s.io/utils/clock"
@@ -37,7 +38,6 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
-	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
 
 	"github.com/Azure/ARO-HCP/frontend/pkg/metrics"
 	"github.com/Azure/ARO-HCP/internal/admission"
@@ -49,6 +49,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/audit"
 	"github.com/Azure/ARO-HCP/internal/database"
 	"github.com/Azure/ARO-HCP/internal/ocm"
+	"github.com/Azure/ARO-HCP/internal/systemadmincredential"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/internal/utils/armhelpers"
 	"github.com/Azure/ARO-HCP/internal/validation"
@@ -1021,13 +1022,12 @@ func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Req
 	var responseBody []byte
 
 	switch {
-	case operation.InternalID.Kind() == cmv1.BreakGlassCredentialKind:
-		csBreakGlassCredential, err := f.clusterServiceClient.GetBreakGlassCredential(ctx, operation.InternalID)
+	case operation.InternalID.Kind() == api.SystemAdminCredentialRequestKind:
+		adminCred, err := f.assembleAdminCredentialFromCosmos(ctx, operation)
 		if err != nil {
 			return utils.TrackError(err)
 		}
-
-		responseBody, err = versionedInterface.MarshalHCPOpenShiftClusterAdminCredential(ocm.ConvertCStoAdminCredential(csBreakGlassCredential))
+		responseBody, err = versionedInterface.MarshalHCPOpenShiftClusterAdminCredential(adminCred)
 		if err != nil {
 			return utils.TrackError(err)
 		}
@@ -1071,6 +1071,57 @@ func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Req
 		return utils.TrackError(err)
 	}
 	return nil
+}
+
+// assembleAdminCredentialFromCosmos looks up the SystemAdminCredentialRequest Cosmos
+// document pointed to by Operation.InternalID and assembles a kubeconfig from
+// its signed certificate and private key.
+//
+// The kubeconfig deliberately omits the cluster's CA bundle: the CA data is left
+// nil and clients must rely on their system trust bundle.
+func (f *Frontend) assembleAdminCredentialFromCosmos(ctx context.Context, op *api.Operation) (*api.HCPOpenShiftClusterAdminCredential, error) {
+	credResourceID, err := azcorearm.ParseResourceID(op.InternalID.String())
+	if err != nil {
+		return nil, fmt.Errorf("operation InternalID does not parse as a resource ID: %w", err)
+	}
+
+	credCRUD := f.resourcesDBClient.SystemAdminCredentialRequests(
+		op.ExternalID.SubscriptionID,
+		op.ExternalID.ResourceGroupName,
+		op.ExternalID.Name,
+	)
+	cred, err := credCRUD.Get(ctx, credResourceID.Name)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get SystemAdminCredentialRequest: %w", err)
+	}
+
+	if !meta.IsStatusConditionTrue(cred.Status.Conditions, api.SystemAdminCredentialRequestConditionIssued) {
+		return nil, fmt.Errorf("credential request is not in Issued state")
+	}
+
+	var kubeconfig string
+	if len(cred.Status.Kubeconfig) > 0 {
+		kubeconfig = cred.Status.Kubeconfig
+	} else {
+		cluster, err := f.resourcesDBClient.HCPClusters(op.ExternalID.SubscriptionID, op.ExternalID.ResourceGroupName).Get(ctx, op.ExternalID.Name)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get cluster: %w", err)
+		}
+		kubeconfigBytes, err := systemadmincredential.BuildKubeconfig(
+			cred.Status.SignedCertificate,
+			cred.Spec.PrivateKeyPEM,
+			cluster.ServiceProviderProperties.API.URL,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to build kubeconfig: %w", err)
+		}
+		kubeconfig = string(kubeconfigBytes)
+	}
+
+	return &api.HCPOpenShiftClusterAdminCredential{
+		ExpirationTimestamp: cred.Spec.ExpirationTimestamp.Time,
+		Kubeconfig:          kubeconfig,
+	}, nil
 }
 
 func featuresMap(features *[]arm.Feature) map[string]string {

@@ -546,6 +546,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	)
 	deleteOrphanedCosmosResourcesController := mismatchcontrollers.NewDeleteOrphanedCosmosResourcesController(b.options.ResourcesDBClient, b.options.KubeApplierDBClients, subscriptionLister, managementClusterLister)
 	missingResourceIDController := mismatchcontrollers.NewMissingResourceIDController(b.options.ResourcesDBClient)
+	credentialGCController := mismatchcontrollers.NewCredentialGCController(b.clock, b.options.ResourcesDBClient, subscriptionLister)
 	backfillClusterUIDController := controllerutils.NewClusterWatchingController(
 		"BackfillClusterUID", b.options.ResourcesDBClient, backendInformers, unionKubeApplierInformers, 60*time.Minute,
 		mismatchcontrollers.NewBackfillClusterUIDController(b.clock, b.options.ResourcesDBClient, b.options.BillingDBClient, clusterLister))
@@ -880,6 +881,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go alwaysSuccessClusterValidationController.Run(ctx, 20)
 				go deleteOrphanedCosmosResourcesController.Run(ctx, 20)
 				go missingResourceIDController.Run(ctx, 20)
+				go credentialGCController.Run(ctx, 20)
 				go backfillClusterUIDController.Run(ctx, 20)
 				go orphanedBillingCleanupController.Run(ctx, 20)
 				go createBillingDocController.Run(ctx, 20)

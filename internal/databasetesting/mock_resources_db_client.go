@@ -118,6 +118,12 @@ func (m *MockResourcesDBClient) ListMissingResourceID(ctx context.Context, optio
 	return newMockIterator(ids, items), nil
 }
 
+// SystemAdminCredentialRequests returns a CRUD interface for SystemAdminCredentialRequest resources.
+func (m *MockResourcesDBClient) SystemAdminCredentialRequests(subscriptionID, resourceGroupName, clusterName string) database.SystemAdminCredentialRequestsCRUD {
+	clusterResourceID := api.Must(api.ToClusterResourceID(subscriptionID, resourceGroupName, clusterName))
+	return newMockSystemAdminCredentialRequestsCRUD(m, clusterResourceID)
+}
+
 // ResourcesGlobalListers returns interfaces for listing all resources of a particular
 // type across all partitions. If a custom ResourcesGlobalListers was set via SetResourcesGlobalListers,
 // that is returned instead.

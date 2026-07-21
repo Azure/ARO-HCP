@@ -73,6 +73,17 @@ func ToExternalAuthResourceIDString(subscriptionName, resourceGroupName, cluster
 	))
 }
 
+func ToSystemAdminCredentialRequestResourceID(subscriptionName, resourceGroupName, clusterName, credentialName string) (*azcorearm.ResourceID, error) {
+	return azcorearm.ParseResourceID(ToSystemAdminCredentialRequestResourceIDString(subscriptionName, resourceGroupName, clusterName, credentialName))
+}
+
+func ToSystemAdminCredentialRequestResourceIDString(subscriptionName, resourceGroupName, clusterName, credentialName string) string {
+	return strings.ToLower(path.Join(
+		ToClusterResourceIDString(subscriptionName, resourceGroupName, clusterName),
+		SystemAdminCredentialRequestResourceTypeName, credentialName,
+	))
+}
+
 func ToServiceProviderClusterResourceIDString(subscriptionName, resourceGroupName, clusterName string) string {
 	return strings.ToLower(path.Join(
 		ToClusterResourceIDString(subscriptionName, resourceGroupName, clusterName),
