@@ -96,6 +96,24 @@ curl -sG http://localhost:8002/api/maestro/v1/resource-bundles | jq '.items[] | 
 - **For configuration changes**: Services consuming the data may need to be restarted
 - **For endpoint changes**: Update any hardcoded references or trigger reconciliation in dependent services
 
+## Related Scenarios and Gotchas
+
+### Soft-Deleted ResourceBundles and the `deleted_at` Field
+
+When investigating Maestro resource bundles, be aware that the `deleted_at` field is at the **root level** of the JSON object, NOT inside `.metadata`. Queries like `.metadata.deleted_at` will always return `null`, making bundles appear active when they are actually soft-deleted. Always check:
+
+```bash
+# CORRECT — check root-level deleted_at:
+curl -s 'http://localhost:8002/api/maestro/v1/resource-bundles' | \
+  jq '[.items[] | {id, name, deleted_at}]'
+```
+
+Use port-forward (`kubectl port-forward -n maestro svc/maestro 8002:8000`) instead of `oc exec` for more reliable API inspection — `oc exec` can truncate responses or drop fields.
+
+### Related Runbook: Stuck Cluster Deletion
+
+If soft-deleted ResourceBundles are causing the Maestro Agent to keep recreating ManifestWorks on the management cluster (agent ignores `deleted_at`), see [Cleanup Stuck Cluster Deletion — Scenario 7](cleanup-stuck-cluster-deletion.md#scenario-7-maestro-agent-ignores-soft-deleted-resourcebundles-cloudevents-desync) for the full resolution procedure (scale down the agent, clean ManifestWorks, scale back up).
+
 ## Related Components
 
 - **Maestro**: Resource bundle management system that observes and reports resource state
