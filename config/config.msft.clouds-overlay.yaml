@@ -16,22 +16,30 @@ clouds:
           mise:
             audit:
               connectSocket: true
-          # Prometheus mgmt-cluster survival tuning (AROSLSRE-1553/1554).
-          # INT mgmt has only 2x ~11.8Gi infra nodes and a single prom-agent
-          # OOM-crashloop blacked out the cluster for ~37h. shards=4 halves the
-          # per-shard series/WAL so a remote-write stall replay stays bounded;
-          # the 4Gi limit caps a runaway pod so it OOMs itself instead of taking
-          # the node down; the 1.5Gi request keeps all 8 pods (4 shards x 2
-          # replicas) schedulable on the 2 nodes (4 x 1.5Gi = 6Gi/node).
+          # Prometheus mgmt-cluster survival tuning (AROSLSRE-1553/1554/1555).
+          # A single prom-agent OOM-crashloop blacked out int-uksouth-mgmt-1 for
+          # ~37h. Mitigations, all scoped to the INT mgmt clusters:
+          #  - infraAgentPool.minCount 1 -> 2: raise the guaranteed infra floor
+          #    from 2 to 4 nodes (poolCount 2 x minCount 2) so the 8 prom pods
+          #    (4 shards x 2 replicas) sit ~2/node with room to breathe; the
+          #    autoscaler ceiling (maxCount 3/pool) is unchanged.
+          #  - shards 2 -> 4: halves per-shard series/WAL so a remote-write stall
+          #    replay after a restart stays bounded.
+          #  - limits.memory 5Gi: caps a runaway pod so it OOM-kills itself
+          #    instead of taking the ~11.8Gi node down.
+          #  - requests.memory 2Gi: keeps all 8 pods schedulable across 4 nodes
+          #    (2 x 2Gi + ~2Gi infra baseline = ~6Gi/node of ~11.8Gi).
           mgmt:
+            infraAgentPool:
+              minCount: 2
             prometheus:
               prometheusSpec:
                 shards: 4
                 resources:
                   requests:
-                    memory: 1.5Gi
+                    memory: 2Gi
                   limits:
-                    memory: 4Gi
+                    memory: 5Gi
       stg:
         # this is the MSFT STAGE environment
         defaults:
