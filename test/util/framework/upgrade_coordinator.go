@@ -17,11 +17,13 @@ package framework
 import (
 	"context"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"time"
 
 	"github.com/go-logr/logr"
+	"github.com/go-logr/stdr"
 
 	"sigs.k8s.io/yaml"
 
@@ -30,10 +32,10 @@ import (
 )
 
 // upgradeCoordinatorLogger is the package-level logger used by the coordinator.
-// By default it discards output; call SetUpgradeCoordinatorLogger from main to
-// route coordinator logs to a real sink (e.g. stderr via logr/stdr) so that
-// pipeline progress and failures are visible in the Prow build log.
-var upgradeCoordinatorLogger = logr.Discard()
+// By default it writes to stderr so pipeline progress is always visible even if
+// SetUpgradeCoordinatorLogger is never called. Call SetUpgradeCoordinatorLogger
+// from main to customise the sink (e.g. add a prefix or redirect output).
+var upgradeCoordinatorLogger = stdr.New(log.New(os.Stderr, "[upgrade-coordinator] ", log.LstdFlags))
 
 // defaultSettleTimeout is the maximum time to wait for all specs to check in
 // or abort. It bounds the provisioning phase: if a spec hangs or crashes
@@ -325,10 +327,10 @@ func runRegionEntrypoint(ctx context.Context) error {
 	}
 	opts.TimingOutputFile = filepath.Join(root, "timing", "steps.yaml")
 
-	// The coordinator runs outside a Ginkgo spec so we use a no-op logr sink
-	// unless the caller injected one via context.
+	// The caller (UpgradeCoordinator.Run) must inject a logger via logr.NewContext
+	// so pipeline output is visible.
 	if _, err := logr.FromContext(ctx); err != nil {
-		ctx = logr.NewContext(ctx, logr.Discard())
+		return fmt.Errorf("runRegionEntrypoint: logger must be injected into context via logr.NewContext")
 	}
 	return entrypointrun.RunPipeline(ctx, opts)
 }

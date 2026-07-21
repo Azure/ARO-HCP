@@ -39,184 +39,6 @@ import (
 	"github.com/Azure/ARO-HCP/test/util/labels"
 )
 
-// nodePoolHash computes a deterministic SHA-256 over the Kubernetes node objects
-// belonging to nodePoolName. The hash covers node Name, UID, KubeletVersion, and
-// OSImage so that both identity (name) and version (kubelet/OS) changes are detected.
-// UID inclusion catches VM replacements that preserve the node name.
-func nodePoolHash(ctx context.Context, kubeClient kubernetes.Interface, nodePoolName string) (string, error) {
-	nodeList, err := kubeClient.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
-	if err != nil {
-		return "", fmt.Errorf("list nodes: %w", err)
-	}
-
-	poolNodes, err := framework.SelectNodesBelongingToNodePool(nodeList.Items, nodePoolName)
-	if err != nil {
-		return "", fmt.Errorf("select nodes for pool %q: %w", nodePoolName, err)
-	}
-
-	if len(poolNodes) == 0 {
-		return "", fmt.Errorf("no nodes found for pool %q", nodePoolName)
-	}
-
-	sort.Slice(poolNodes, func(i, j int) bool {
-		return poolNodes[i].Name < poolNodes[j].Name
-	})
-
-	h := sha256.New()
-	for _, node := range poolNodes {
-		// UID changes whenever the node object is recreated (e.g. VMSS instance replaced),
-		// catching redeployments that preserve the node name, version, and OS image.
-		fmt.Fprintf(h, "%s/%s/%s/%s\n",
-			node.Name,
-			node.UID,
-			node.Status.NodeInfo.KubeletVersion,
-			node.Status.NodeInfo.OSImage,
-		)
-	}
-	return hex.EncodeToString(h.Sum(nil)), nil
-}
-
-// haProxyImage returns the container image used by the kube-apiserver-proxy
-// static pod(s) running in kube-system on the hosted cluster nodes. Hypershift
-// embeds this pod (named "kube-apiserver-proxy") in a MachineConfig; kubelet
-// appends the node name so each instance appears as
-// "kube-apiserver-proxy-<nodeName>" in the API. All pods originating from the
-// same MachineConfig carry the same image; the function errors if inconsistent
-// images are found across pods.
-func haProxyImage(ctx context.Context, kubeClient kubernetes.Interface) (string, error) {
-	pods, err := kubeClient.CoreV1().Pods("kube-system").List(ctx, metav1.ListOptions{
-		LabelSelector: "k8s-app=kube-apiserver-proxy",
-	})
-	if err != nil {
-		return "", fmt.Errorf("list kube-apiserver-proxy pods in kube-system: %w", err)
-	}
-
-	// containerImage returns the image for the named container, or the sole
-	// container if the pod has exactly one. Returns "" if the name is not found
-	// in a multi-container pod so the caller can report ambiguity.
-	containerImage := func(pod corev1.Pod, name string) (string, error) {
-		if len(pod.Spec.Containers) == 1 {
-			return pod.Spec.Containers[0].Image, nil
-		}
-		for _, c := range pod.Spec.Containers {
-			if c.Name == name {
-				return c.Image, nil
-			}
-		}
-		names := make([]string, 0, len(pod.Spec.Containers))
-		for _, c := range pod.Spec.Containers {
-			names = append(names, c.Name)
-		}
-		return "", fmt.Errorf("pod %q has multiple containers %v but none named %q", pod.Name, names, name)
-	}
-
-	const containerName = "kube-apiserver-proxy"
-	var image string
-	for _, pod := range pods.Items {
-		img, err := containerImage(pod, containerName)
-		if err != nil {
-			return "", err
-		}
-		if image == "" {
-			image = img
-		} else if image != img {
-			return "", fmt.Errorf("inconsistent haproxy container images across pods: %q vs %q", image, img)
-		}
-	}
-	if image == "" {
-		return "", fmt.Errorf("no kube-apiserver-proxy pod found in kube-system (label k8s-app=kube-apiserver-proxy)")
-	}
-	return image, nil
-}
-
-// machineDeploymentGVR is the GroupVersionResource for CAPI MachineDeployments.
-var machineDeploymentGVR = schema.GroupVersionResource{
-	Group:    "cluster.x-k8s.io",
-	Version:  "v1beta2",
-	Resource: "machinedeployments",
-}
-
-// machineDeploymentRef identifies a MachineDeployment by its namespace and name.
-type machineDeploymentRef struct {
-	Namespace string
-	Name      string
-}
-
-func (r machineDeploymentRef) String() string {
-	return r.Namespace + "/" + r.Name
-}
-
-// resolveMachineDeploymentRef returns the namespace and name of the
-// MachineDeployment that Hypershift manages for nodePoolName on the management
-// cluster. It is intended to be called once before the observation loop; the
-// ref is stable for the lifetime of the NodePool.
-//
-// Hypershift does not label MachineDeployments with the NodePool name; instead
-// it sets the annotation hypershift.openshift.io/nodePool=<namespace>/<crName>
-// where <crName> is <clusterID>-<nodepoolName> on ARO-HCP management clusters.
-// The function lists all MachineDeployments, strips the namespace prefix from
-// the annotation value, and matches on the CR name ending with -<nodepoolName>.
-func resolveMachineDeploymentRef(ctx context.Context, mcClient dynamic.Interface, nodePoolName string) (machineDeploymentRef, error) {
-	list, err := mcClient.Resource(machineDeploymentGVR).Namespace(metav1.NamespaceAll).List(ctx, metav1.ListOptions{})
-	if err != nil {
-		return machineDeploymentRef{}, fmt.Errorf("list MachineDeployments: %w", err)
-	}
-
-	const nodepoolAnnotation = "hypershift.openshift.io/nodePool"
-	var matches []machineDeploymentRef
-	// Collect all annotation values for diagnostics when no match is found.
-	annotationValues := make([]string, 0, len(list.Items))
-	for _, md := range list.Items {
-		v := md.GetAnnotations()[nodepoolAnnotation]
-		annotationValues = append(annotationValues, fmt.Sprintf("%s=%q", md.GetName(), v))
-		// Annotation format: "<namespace>/<crName>" where <crName> is
-		// "<clusterID>-<nodepoolName>" on ARO-HCP management clusters.
-		// Match the nodepool name as an exact suffix of the CR name component.
-		crName := v
-		if i := strings.LastIndex(v, "/"); i >= 0 {
-			crName = v[i+1:]
-		}
-		if crName == nodePoolName || strings.HasSuffix(crName, "-"+nodePoolName) {
-			matches = append(matches, machineDeploymentRef{Namespace: md.GetNamespace(), Name: md.GetName()})
-		}
-	}
-	if len(matches) == 0 {
-		return machineDeploymentRef{}, fmt.Errorf("no MachineDeployment found for nodepool %q; found %d MachineDeployments with annotations: %v",
-			nodePoolName, len(list.Items), annotationValues)
-	}
-	if len(matches) > 1 {
-		return machineDeploymentRef{}, fmt.Errorf("expected 1 MachineDeployment for nodepool %q, found %d: %v", nodePoolName, len(matches), matches)
-	}
-	return matches[0], nil
-}
-
-// machineDeploymentDataSecretName returns the bootstrap DataSecretName from the
-// MachineDeployment identified by ref. It performs a single GET rather than a
-// list, making it cheap to call on every poll cycle.
-//
-// If the MachineDeployment no longer exists (e.g. because the upgrade caused it
-// to be deleted and recreated under a new name), the GET returns a not-found
-// error which surfaces as a Consistently failure — the correct outcome since
-// MachineDeployment recreation itself triggers a node rollout.
-func machineDeploymentDataSecretName(ctx context.Context, mcClient dynamic.Interface, ref machineDeploymentRef) (string, error) {
-	md, err := mcClient.Resource(machineDeploymentGVR).Namespace(ref.Namespace).Get(ctx, ref.Name, metav1.GetOptions{})
-	if err != nil {
-		return "", fmt.Errorf("get MachineDeployment %s: %w", ref, err)
-	}
-
-	secretName, found, err := unstructured.NestedString(
-		md.Object,
-		"spec", "template", "spec", "bootstrap", "dataSecretName",
-	)
-	if err != nil {
-		return "", fmt.Errorf("reading dataSecretName from MachineDeployment %s: %w", ref, err)
-	}
-	if !found || secretName == "" {
-		return "", fmt.Errorf("dataSecretName not set in MachineDeployment %s", ref)
-	}
-	return secretName, nil
-}
-
 var _ = Describe("Region in-place upgrade", func() {
 	It("validates node pool stability after full region upgrade",
 		labels.Critical,
@@ -421,3 +243,181 @@ var _ = Describe("Region in-place upgrade", func() {
 			)
 		})
 })
+
+// nodePoolHash computes a deterministic SHA-256 over the Kubernetes node objects
+// belonging to nodePoolName. The hash covers node Name, UID, KubeletVersion, and
+// OSImage so that both identity (name) and version (kubelet/OS) changes are detected.
+// UID inclusion catches VM replacements that preserve the node name.
+func nodePoolHash(ctx context.Context, kubeClient kubernetes.Interface, nodePoolName string) (string, error) {
+	nodeList, err := kubeClient.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return "", fmt.Errorf("list nodes: %w", err)
+	}
+
+	poolNodes, err := framework.SelectNodesBelongingToNodePool(nodeList.Items, nodePoolName)
+	if err != nil {
+		return "", fmt.Errorf("select nodes for pool %q: %w", nodePoolName, err)
+	}
+
+	if len(poolNodes) == 0 {
+		return "", fmt.Errorf("no nodes found for pool %q", nodePoolName)
+	}
+
+	sort.Slice(poolNodes, func(i, j int) bool {
+		return poolNodes[i].Name < poolNodes[j].Name
+	})
+
+	h := sha256.New()
+	for _, node := range poolNodes {
+		// UID changes whenever the node object is recreated (e.g. VMSS instance replaced),
+		// catching redeployments that preserve the node name, version, and OS image.
+		fmt.Fprintf(h, "%s/%s/%s/%s\n",
+			node.Name,
+			node.UID,
+			node.Status.NodeInfo.KubeletVersion,
+			node.Status.NodeInfo.OSImage,
+		)
+	}
+	return hex.EncodeToString(h.Sum(nil)), nil
+}
+
+// haProxyImage returns the container image used by the kube-apiserver-proxy
+// static pod(s) running in kube-system on the hosted cluster nodes. Hypershift
+// embeds this pod (named "kube-apiserver-proxy") in a MachineConfig; kubelet
+// appends the node name so each instance appears as
+// "kube-apiserver-proxy-<nodeName>" in the API. All pods originating from the
+// same MachineConfig carry the same image; the function errors if inconsistent
+// images are found across pods.
+func haProxyImage(ctx context.Context, kubeClient kubernetes.Interface) (string, error) {
+	pods, err := kubeClient.CoreV1().Pods("kube-system").List(ctx, metav1.ListOptions{
+		LabelSelector: "k8s-app=kube-apiserver-proxy",
+	})
+	if err != nil {
+		return "", fmt.Errorf("list kube-apiserver-proxy pods in kube-system: %w", err)
+	}
+
+	// containerImage returns the image for the named container, or the sole
+	// container if the pod has exactly one. Returns "" if the name is not found
+	// in a multi-container pod so the caller can report ambiguity.
+	containerImage := func(pod corev1.Pod, name string) (string, error) {
+		if len(pod.Spec.Containers) == 1 {
+			return pod.Spec.Containers[0].Image, nil
+		}
+		for _, c := range pod.Spec.Containers {
+			if c.Name == name {
+				return c.Image, nil
+			}
+		}
+		names := make([]string, 0, len(pod.Spec.Containers))
+		for _, c := range pod.Spec.Containers {
+			names = append(names, c.Name)
+		}
+		return "", fmt.Errorf("pod %q has multiple containers %v but none named %q", pod.Name, names, name)
+	}
+
+	const containerName = "kube-apiserver-proxy"
+	var image string
+	for _, pod := range pods.Items {
+		img, err := containerImage(pod, containerName)
+		if err != nil {
+			return "", err
+		}
+		if image == "" {
+			image = img
+		} else if image != img {
+			return "", fmt.Errorf("inconsistent haproxy container images across pods: %q vs %q", image, img)
+		}
+	}
+	if image == "" {
+		return "", fmt.Errorf("no kube-apiserver-proxy pod found in kube-system (label k8s-app=kube-apiserver-proxy)")
+	}
+	return image, nil
+}
+
+// machineDeploymentGVR is the GroupVersionResource for CAPI MachineDeployments.
+var machineDeploymentGVR = schema.GroupVersionResource{
+	Group:    "cluster.x-k8s.io",
+	Version:  "v1beta2",
+	Resource: "machinedeployments",
+}
+
+// machineDeploymentRef identifies a MachineDeployment by its namespace and name.
+type machineDeploymentRef struct {
+	Namespace string
+	Name      string
+}
+
+func (r machineDeploymentRef) String() string {
+	return r.Namespace + "/" + r.Name
+}
+
+// resolveMachineDeploymentRef returns the namespace and name of the
+// MachineDeployment that Hypershift manages for nodePoolName on the management
+// cluster. It is intended to be called once before the observation loop; the
+// ref is stable for the lifetime of the NodePool.
+//
+// Hypershift does not label MachineDeployments with the NodePool name; instead
+// it sets the annotation hypershift.openshift.io/nodePool=<namespace>/<crName>
+// where <crName> is <clusterID>-<nodepoolName> on ARO-HCP management clusters.
+// The function lists all MachineDeployments, strips the namespace prefix from
+// the annotation value, and matches on the CR name ending with -<nodepoolName>.
+func resolveMachineDeploymentRef(ctx context.Context, mcClient dynamic.Interface, nodePoolName string) (machineDeploymentRef, error) {
+	list, err := mcClient.Resource(machineDeploymentGVR).Namespace(metav1.NamespaceAll).List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return machineDeploymentRef{}, fmt.Errorf("list MachineDeployments: %w", err)
+	}
+
+	const nodepoolAnnotation = "hypershift.openshift.io/nodePool"
+	var matches []machineDeploymentRef
+	// Collect all annotation values for diagnostics when no match is found.
+	annotationValues := make([]string, 0, len(list.Items))
+	for _, md := range list.Items {
+		v := md.GetAnnotations()[nodepoolAnnotation]
+		annotationValues = append(annotationValues, fmt.Sprintf("%s=%q", md.GetName(), v))
+		// Annotation format: "<namespace>/<crName>" where <crName> is
+		// "<clusterID>-<nodepoolName>" on ARO-HCP management clusters.
+		// Match the nodepool name as an exact suffix of the CR name component.
+		crName := v
+		if i := strings.LastIndex(v, "/"); i >= 0 {
+			crName = v[i+1:]
+		}
+		if crName == nodePoolName || strings.HasSuffix(crName, "-"+nodePoolName) {
+			matches = append(matches, machineDeploymentRef{Namespace: md.GetNamespace(), Name: md.GetName()})
+		}
+	}
+	if len(matches) == 0 {
+		return machineDeploymentRef{}, fmt.Errorf("no MachineDeployment found for nodepool %q; found %d MachineDeployments with annotations: %v",
+			nodePoolName, len(list.Items), annotationValues)
+	}
+	if len(matches) > 1 {
+		return machineDeploymentRef{}, fmt.Errorf("expected 1 MachineDeployment for nodepool %q, found %d: %v", nodePoolName, len(matches), matches)
+	}
+	return matches[0], nil
+}
+
+// machineDeploymentDataSecretName returns the bootstrap DataSecretName from the
+// MachineDeployment identified by ref. It performs a single GET rather than a
+// list, making it cheap to call on every poll cycle.
+//
+// If the MachineDeployment no longer exists (e.g. because the upgrade caused it
+// to be deleted and recreated under a new name), the GET returns a not-found
+// error which surfaces as a Consistently failure — the correct outcome since
+// MachineDeployment recreation itself triggers a node rollout.
+func machineDeploymentDataSecretName(ctx context.Context, mcClient dynamic.Interface, ref machineDeploymentRef) (string, error) {
+	md, err := mcClient.Resource(machineDeploymentGVR).Namespace(ref.Namespace).Get(ctx, ref.Name, metav1.GetOptions{})
+	if err != nil {
+		return "", fmt.Errorf("get MachineDeployment %s: %w", ref, err)
+	}
+
+	secretName, found, err := unstructured.NestedString(
+		md.Object,
+		"spec", "template", "spec", "bootstrap", "dataSecretName",
+	)
+	if err != nil {
+		return "", fmt.Errorf("reading dataSecretName from MachineDeployment %s: %w", ref, err)
+	}
+	if !found || secretName == "" {
+		return "", fmt.Errorf("dataSecretName not set in MachineDeployment %s", ref)
+	}
+	return secretName, nil
+}
