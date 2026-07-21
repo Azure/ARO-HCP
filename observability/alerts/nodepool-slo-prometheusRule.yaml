@@ -92,7 +92,7 @@ spec:
     # ----------------------------------------
     # 14.4x burn rate → >72% failure rate sustained for 5 minutes
     # Would exhaust 7-day error budget in ~12 hours
-    - alert: UJNodePoolErrors1h5m
+    - alert: userJourneyNodePoolErrors1h5m
       expr: |
         errors:backend_nodepool_operation:error_rate > 0.72
       for: 5m
@@ -102,7 +102,7 @@ spec:
         long_window: 1h
         short_window: 5m
       annotations:
-        summary: "{{ $labels.cluster }}: Node Pool operation error rate critically high (>72%)"
+        summary: "Node Pool operation error rate critically high (>72%)"
         description: "More than 72% of node pool operations are in failed state, indicating a fast error budget burn (14.4x) that would exhaust the 95% SLO budget in ~12 hours."
         runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
     # ----------------------------------------
@@ -110,7 +110,7 @@ spec:
     # ----------------------------------------
     # 6x burn rate → >30% failure rate sustained for 30 minutes
     # Would exhaust 7-day error budget in ~28 hours
-    - alert: UJNodePoolErrors6h30m
+    - alert: userJourneyNodePoolErrors6h30m
       expr: |
         errors:backend_nodepool_operation:error_rate > 0.30
       for: 30m
@@ -120,7 +120,7 @@ spec:
         long_window: 6h
         short_window: 30m
       annotations:
-        summary: "{{ $labels.cluster }}: Node Pool operation error rate elevated (>30%) for 30+ minutes"
+        summary: "Node Pool operation error rate elevated (>30%) for 30+ minutes"
         description: "More than 30% of node pool operations are in failed state sustained over 30 minutes, indicating a medium error budget burn (6x) that would exhaust the 95% SLO budget in ~28 hours."
         runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
     # ----------------------------------------
@@ -129,7 +129,7 @@ spec:
     # Per ADR: slow burn alerts generate Jira ticket, not a page.
     # 1x burn rate → >5% failure rate sustained for 6 hours
     # Would exhaust 7-day error budget in ~7 days
-    - alert: UJNodePoolErrors3d
+    - alert: userJourneyNodePoolErrors3d
       expr: |
         errors:backend_nodepool_operation:error_rate > 0.05
       for: 6h
@@ -138,7 +138,7 @@ spec:
         slo: nodepool-errors
         long_window: 3d
       annotations:
-        summary: "{{ $labels.cluster }}: Node Pool operation error rate exceeds SLO target (>5%) for 6+ hours"
+        summary: "Node Pool operation error rate exceeds SLO target (>5%) for 6+ hours"
         description: "More than 5% of node pool operations are in failed state sustained over 6 hours, indicating persistent degradation at the 95% SLO boundary that would exhaust the error budget in ~7 days."
         runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
     # ----------------------------------------
@@ -147,7 +147,7 @@ spec:
     # With a 95% SLO, the fast-burn threshold only fires at ~72% failure rate.
     # This provides early warning at 15% failure rate before burn-rate alerts fire.
     # Precursor signal → Sev 4 per ADR.
-    - alert: UJNodePoolErrorsDegradation
+    - alert: userJourneyNodePoolErrorsDegradation
       expr: |
         errors:backend_nodepool_operation:error_rate > 0.15
       for: 30m
@@ -155,7 +155,7 @@ spec:
         severity: info
         slo: nodepool-errors
       annotations:
-        summary: "{{ $labels.cluster }}: Node Pool operation failure rate exceeds 15% for 30 minutes"
+        summary: "Node Pool operation failure rate exceeds 15% for 30 minutes"
         description: "The node pool operation failure rate has been above 15% for 30 minutes. This provides early warning of degradation before SLO-based burn rate alerts fire."
         runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
     # ----------------------------------------
@@ -175,7 +175,7 @@ spec:
     # PromQL.) Holding the condition firing over a 6h look-back collapses a
     # continuously-stuck resource into a single long-lived incident; genuinely
     # distinct stuck episodes more than 6h apart still get their own incident.
-    - alert: UJNodePoolStuckOperation
+    - alert: userJourneyNodePoolStuckOperation
       expr: |
         max_over_time(
           (
@@ -190,7 +190,7 @@ spec:
       labels:
         severity: info
       annotations:
-        summary: "{{ $labels.cluster }}: Node Pool operation stuck in {{ $labels.phase }} for over 2 hours"
+        summary: "Node Pool operation stuck in {{ $labels.phase }} for over 2 hours"
         description: "Node pool operation for {{ $labels.resource_id }} has been in {{ $labels.phase }} phase for over 2 hours. Stuck operations are invisible to success/failure SLIs and require investigation."
         runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
   # ========================================
@@ -201,7 +201,7 @@ spec:
   - name: arohcp_nodepool_saturation_alerts
     rules:
     # Queue depth: node pool controller workqueue accumulating work
-    - alert: UJNodePoolSaturationQueueDepth
+    - alert: userJourneyNodePoolSaturationQueueDepth
       expr: |
         max by (name, cluster) (
           max without(prometheus_replica) (
@@ -212,11 +212,11 @@ spec:
       labels:
         severity: info
       annotations:
-        summary: "{{ $labels.cluster }}: Node Pool controller workqueue {{ $labels.name }} depth is high"
+        summary: "Node Pool controller workqueue {{ $labels.name }} depth is high"
         description: "Node pool controller workqueue {{ $labels.name }} has had a depth > 10 for more than 5 minutes, indicating work is accumulating faster than it can be processed."
         runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
     # Retry hot loop: high retry ratio on node pool workqueue
-    - alert: UJNodePoolSaturationRetryHotLoop
+    - alert: userJourneyNodePoolSaturationRetryHotLoop
       expr: |
         (
           sum by (name, cluster) (
@@ -235,6 +235,6 @@ spec:
       labels:
         severity: info
       annotations:
-        summary: "{{ $labels.cluster }}: Node Pool controller workqueue {{ $labels.name }} retry hot loop"
+        summary: "Node Pool controller workqueue {{ $labels.name }} retry hot loop"
         description: "Node pool controller workqueue {{ $labels.name }} has a retry ratio > 50% sustained over 10 minutes, indicating most queue activity is failed retries rather than fresh work."
         runbook_url: "https://aka.ms/arohcp-runbook-nodepool"

@@ -42,9 +42,9 @@ spec:
         long_window: 1h
         short_window: 5m
       annotations:
-        summary: "{{ $labels.cluster }}: Credential operation error rate critically high (>72%)"
+        summary: "Credential operation error rate critically high (>72%)"
         description: "More than 72% of credential operations (requestcredential/revokecredentials) are in failed state, indicating a fast error budget burn (14.4x) that would exhaust the 95% SLO budget in ~12 hours."
-        runbook_url: "aka.ms/arohcp-runbook-access-cluster"
+        runbook_url: "https://aka.ms/arohcp-runbook-access-cluster"
     # ----------------------------------------
     # Medium Burn Alert (IcM Sev 3)
     # ----------------------------------------
@@ -60,9 +60,9 @@ spec:
         long_window: 6h
         short_window: 30m
       annotations:
-        summary: "{{ $labels.cluster }}: Credential operation error rate elevated (>30%) for 30+ minutes"
+        summary: "Credential operation error rate elevated (>30%) for 30+ minutes"
         description: "More than 30% of credential operations are in failed state sustained over 30 minutes, indicating a medium error budget burn (6x) that would exhaust the 95% SLO budget in ~28 hours."
-        runbook_url: "aka.ms/arohcp-runbook-access-cluster"
+        runbook_url: "https://aka.ms/arohcp-runbook-access-cluster"
     # ----------------------------------------
     # Slow Burn Alert (IcM Sev 4 — ticket)
     # ----------------------------------------
@@ -78,9 +78,9 @@ spec:
         slo: access-cluster-errors
         long_window: 3d
       annotations:
-        summary: "{{ $labels.cluster }}: Credential operation error rate exceeds SLO target (>5%) for 6+ hours"
+        summary: "Credential operation error rate exceeds SLO target (>5%) for 6+ hours"
         description: "More than 5% of credential operations are in failed state sustained over 6 hours, indicating persistent degradation at the 95% SLO boundary that would exhaust the error budget in ~7 days."
-        runbook_url: "aka.ms/arohcp-runbook-access-cluster"
+        runbook_url: "https://aka.ms/arohcp-runbook-access-cluster"
     # ----------------------------------------
     # Degradation Alert (IcM Sev 4 — ticket)
     # ----------------------------------------
@@ -95,9 +95,9 @@ spec:
         severity: "4"
         slo: access-cluster-errors
       annotations:
-        summary: "{{ $labels.cluster }}: Credential operation failure rate exceeds 15% for 30 minutes"
+        summary: "Credential operation failure rate exceeds 15% for 30 minutes"
         description: "The credential operation failure rate has been above 15% for 30 minutes. This provides early warning of degradation before SLO-based burn rate alerts fire."
-        runbook_url: "aka.ms/arohcp-runbook-access-cluster"
+        runbook_url: "https://aka.ms/arohcp-runbook-access-cluster"
     # ----------------------------------------
     # Stuck Operations Alert
     # ----------------------------------------
@@ -124,9 +124,9 @@ spec:
       labels:
         severity: "4"
       annotations:
-        summary: "{{ $labels.cluster }}: Credential operation stuck in {{ $labels.phase }} for over 1 hour"
+        summary: "Credential operation stuck in {{ $labels.phase }} for over 1 hour"
         description: "Credential operation for {{ $labels.resource_id }} has been in {{ $labels.phase }} phase for over 1 hour. Stuck operations are invisible to success/failure SLIs and require investigation."
-        runbook_url: "aka.ms/arohcp-runbook-access-cluster"
+        runbook_url: "https://aka.ms/arohcp-runbook-access-cluster"
   # ========================================
   # Access the Cluster Alerts — Saturation
   # ========================================
@@ -146,9 +146,9 @@ spec:
       labels:
         severity: "4"
       annotations:
-        summary: "{{ $labels.cluster }}: Credential controller workqueue {{ $labels.name }} depth is high"
+        summary: "Credential controller workqueue {{ $labels.name }} depth is high"
         description: "Credential controller workqueue {{ $labels.name }} has had a depth > 10 for more than 5 minutes, indicating work is accumulating faster than it can be processed."
-        runbook_url: "aka.ms/arohcp-runbook-access-cluster"
+        runbook_url: "https://aka.ms/arohcp-runbook-access-cluster"
     # Retry hot loop: high retry ratio on credential workqueue
     - alert: userJourneyAccessClusterSaturationRetryHotLoop
       expr: |
@@ -169,6 +169,6 @@ spec:
       labels:
         severity: "4"
       annotations:
-        summary: "{{ $labels.cluster }}: Credential controller workqueue {{ $labels.name }} retry hot loop"
+        summary: "Credential controller workqueue {{ $labels.name }} retry hot loop"
         description: "Credential controller workqueue {{ $labels.name }} has a retry ratio > 50% sustained over 10 minutes, indicating most queue activity is failed retries rather than fresh work."
-        runbook_url: "aka.ms/arohcp-runbook-access-cluster"
+        runbook_url: "https://aka.ms/arohcp-runbook-access-cluster"
