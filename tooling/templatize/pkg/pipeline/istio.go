@@ -40,12 +40,17 @@ func configString(val any) string {
 func runIstioUpgradeStep(id graph.Identifier, step *types.IstioUpgradeStep, ctx context.Context, options *StepRunOptions, executionTarget ExecutionTarget) error {
 	logger := logr.FromContextOrDiscard(ctx).WithValues("stepID", id)
 
-	kubeconfigFile, err := KubeConfig(ctx, executionTarget.GetSubscriptionID(), executionTarget.GetResourceGroup(), step.AKSCluster)
+	clusterName, err := resolveValue(step.AKSCluster, options.Configuration, nil, "")
+	if err != nil {
+		return fmt.Errorf("failed to resolve aksCluster: %w", err)
+	}
+
+	kubeconfigFile, err := KubeConfig(ctx, executionTarget.GetSubscriptionID(), executionTarget.GetResourceGroup(), clusterName)
 	if err != nil {
 		return fmt.Errorf("failed to prepare kubeconfig: %w", err)
 	}
 	if kubeconfigFile == "" {
-		return fmt.Errorf("kubeconfig resolved to empty path for cluster %s", step.AKSCluster)
+		return fmt.Errorf("kubeconfig resolved to empty path for cluster %s", clusterName)
 	}
 	defer func() {
 		if err := os.Remove(kubeconfigFile); err != nil {
@@ -83,13 +88,12 @@ func runIstioUpgradeStep(id graph.Identifier, step *types.IstioUpgradeStep, ctx 
 
 	opts := istio.DefaultUpgradeOptions()
 	opts.ResourceGroup = executionTarget.GetResourceGroup()
-	opts.ClusterName = step.AKSCluster
+	opts.ClusterName = clusterName
 	opts.KubeconfigPath = kubeconfigFile
 	opts.Versions = configString(versions)
 	opts.Tag = configString(tag)
 	opts.IngressIPName = configString(ipName)
 	opts.RegionRG = configString(regionRG)
-	opts.DryRun = step.DryRun
 
 	return istio.RunUpgrade(ctx, opts, aksClient, kubeClient)
 }
