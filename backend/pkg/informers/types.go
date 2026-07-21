@@ -309,13 +309,19 @@ func (b *backendInformers) RunWithContext(ctx context.Context) {
 	go func() {
 		defer utilruntime.HandleCrash()
 		defer wg.Done()
-		b.systemAdminCredentialRequestInformer.RunWithContext(ctx)
+		localLogger := logger.WithValues("type", reflect.TypeOf(&api.SystemAdminCredentialRequest{}).String())
+		localCtx := utils.ContextWithLogger(ctx, localLogger)
+
+		b.systemAdminCredentialRequestInformer.RunWithContext(localCtx)
 	}()
 	wg.Add(1)
 	go func() {
 		defer utilruntime.HandleCrash()
 		defer wg.Done()
-		b.systemAdminCredentialRevocationInformer.RunWithContext(ctx)
+		localLogger := logger.WithValues("type", reflect.TypeOf(&api.SystemAdminCredentialRevocation{}).String())
+		localCtx := utils.ContextWithLogger(ctx, localLogger)
+
+		b.systemAdminCredentialRevocationInformer.RunWithContext(localCtx)
 	}()
 	wg.Add(1)
 	go func() {

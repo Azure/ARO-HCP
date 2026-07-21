@@ -128,7 +128,7 @@ func removeApplyDesireForDeletion(
 
 	// The desire is a Delete — remove the document once the delete has succeeded.
 	for _, cond := range applyDesire.Status.Conditions {
-		if cond.Type == "Successful" && cond.Status == "True" {
+		if cond.Type == kubeapplier.ConditionTypeSuccessful && cond.Status == "True" {
 			if err := applyCRUD.Delete(ctx, strings.ToLower(desireName)); err != nil && !database.IsNotFoundError(err) {
 				return false, utils.TrackError(fmt.Errorf("delete ApplyDesire %s: %w", desireName, err))
 			}

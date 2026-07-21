@@ -25,7 +25,6 @@ import (
 )
 
 func TestBuildKubeconfig(t *testing.T) {
-	// Use dummy values for the test
 	fakeCert := base64.StdEncoding.EncodeToString([]byte("fake-cert-data"))
 	fakeKey := "-----BEGIN PRIVATE KEY-----\nfake-key-data\n-----END PRIVATE KEY-----"
 	fakeURL := "https://api.cluster.example.com:6443"
@@ -33,7 +32,6 @@ func TestBuildKubeconfig(t *testing.T) {
 	kubeconfigBytes, err := BuildKubeconfig(fakeCert, fakeKey, fakeURL)
 	require.NoError(t, err, "BuildKubeconfig should succeed")
 
-	// Parse the kubeconfig to verify its structure
 	config, err := clientcmd.Load(kubeconfigBytes)
 	require.NoError(t, err, "kubeconfig should be parseable")
 
