@@ -669,11 +669,11 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		unionKubeApplierInformers,
 	)
 	nodePoolVersionController := upgradecontrollers.NewNodePoolVersionController(
+		b.clock,
 		b.options.ResourcesDBClient,
 		subscriptionLister,
 		backendInformers,
 		unionKubeApplierInformers,
-		unionReadDesireLister,
 	)
 	nodePoolActiveVersionController := upgradecontrollers.NewNodePoolActiveVersionController(
 		b.options.ResourcesDBClient,
