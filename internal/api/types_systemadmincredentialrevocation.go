@@ -15,7 +15,6 @@
 package api
 
 import (
-	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -77,20 +76,4 @@ const (
 	SystemAdminCredentialRevocationConditionComplete                     = "Complete"
 )
 
-// IsCredentialsMarkedForDeletion returns true when every credential request has
-// been marked with a DeleteTimestamp.
-func (s *SystemAdminCredentialRevocationStatus) IsCredentialsMarkedForDeletion() bool {
-	return meta.IsStatusConditionTrue(s.Conditions, SystemAdminCredentialRevocationConditionCredentialsMarkedForDeletion)
-}
 
-// IsCertificatesRevoked returns true when the hosted cluster has confirmed the
-// previously-issued certificates are revoked.
-func (s *SystemAdminCredentialRevocationStatus) IsCertificatesRevoked() bool {
-	return meta.IsStatusConditionTrue(s.Conditions, SystemAdminCredentialRevocationConditionCertificatesRevoked)
-}
-
-// IsComplete returns true when the revocation flow has finished and the document
-// may be deleted.
-func (s *SystemAdminCredentialRevocationStatus) IsComplete() bool {
-	return meta.IsStatusConditionTrue(s.Conditions, SystemAdminCredentialRevocationConditionComplete)
-}

@@ -102,7 +102,7 @@ func (c *desiresCreator) needsWork(cluster *api.HCPOpenShiftCluster, cred *api.S
 	if cluster.ServiceProviderProperties.ClusterServiceID == nil {
 		return false
 	}
-	return cred.Status.IsPending()
+	return isCredentialRequestPending(cred)
 }
 
 func (c *desiresCreator) SyncOnce(ctx context.Context, key controllerutils.SystemAdminCredentialRequestKey) error {

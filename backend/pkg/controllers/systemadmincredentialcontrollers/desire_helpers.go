@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"strings"
 
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -33,6 +34,13 @@ import (
 	"github.com/Azure/ARO-HCP/internal/systemadmincredential"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
+
+func isCredentialRequestPending(cred *api.SystemAdminCredentialRequest) bool {
+	return !meta.IsStatusConditionTrue(cred.Status.Conditions, api.SystemAdminCredentialRequestConditionIssued) &&
+		!meta.IsStatusConditionTrue(cred.Status.Conditions, api.SystemAdminCredentialRequestConditionFailed) &&
+		!meta.IsStatusConditionTrue(cred.Status.Conditions, api.SystemAdminCredentialRequestConditionAwaitingRevocation) &&
+		!meta.IsStatusConditionTrue(cred.Status.Conditions, api.SystemAdminCredentialRequestConditionRevoked)
+}
 
 // desireParent identifies the resource a *Desire is nested under. Exactly one of
 // credentialRequestName / revocationName is set to nest the desire under a

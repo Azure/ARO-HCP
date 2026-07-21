@@ -118,22 +118,21 @@ func (c *operationRequestCredentialPoll) SynchronizeOperation(ctx context.Contex
 	var newOperationError *arm.CloudErrorBody
 
 	switch {
-	case cred.Status.IsPending():
+	case isCredentialRequestPending(cred):
 		newOperationStatus = arm.ProvisioningStateProvisioning
-	case cred.Status.IsIssued():
+	case meta.IsStatusConditionTrue(cred.Status.Conditions, api.SystemAdminCredentialRequestConditionIssued):
 		newOperationStatus = arm.ProvisioningStateSucceeded
-	case cred.Status.IsFailed():
+	case meta.IsStatusConditionTrue(cred.Status.Conditions, api.SystemAdminCredentialRequestConditionFailed):
 		newOperationStatus = arm.ProvisioningStateFailed
 		newOperationError = &arm.CloudErrorBody{
 			Code:    arm.CloudErrorCodeInternalServerError,
 			Message: "Failed to provision cluster credential",
 		}
-		// If there's a condition with more detail, use it.
 		if c := meta.FindStatusCondition(cred.Status.Conditions, api.SystemAdminCredentialRequestConditionFailed); c != nil {
 			newOperationError.Message = c.Message
 		}
-	case cred.Status.IsAwaitingRevocation(), cred.Status.IsRevoked():
-		// Credential was revoked before issuance completed. Cancel the operation.
+	case meta.IsStatusConditionTrue(cred.Status.Conditions, api.SystemAdminCredentialRequestConditionAwaitingRevocation),
+		meta.IsStatusConditionTrue(cred.Status.Conditions, api.SystemAdminCredentialRequestConditionRevoked):
 		newOperationStatus = arm.ProvisioningStateCanceled
 	}
 

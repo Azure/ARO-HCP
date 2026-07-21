@@ -15,7 +15,6 @@
 package api
 
 import (
-	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -85,51 +84,4 @@ const (
 	SystemAdminCredentialRequestConditionContentDeleted     = "ContentDeleted"
 )
 
-// SystemAdminCredentialContentDeletedCondition returns a metav1.Condition
-// that signals all credential-related MC content has been removed and
-// the cluster-deletion finalizer can advance.
-func SystemAdminCredentialContentDeletedCondition() metav1.Condition {
-	return metav1.Condition{
-		Type:               "SystemAdminCredentialContentDeleted",
-		Status:             metav1.ConditionTrue,
-		LastTransitionTime: metav1.Now(),
-		Reason:             "ContentDeleted",
-		Message:            "All SystemAdminCredentialRequest content has been deleted",
-	}
-}
 
-// Condition helper functions for SystemAdminCredentialRequest. These wrap the
-// standard k8s.io/apimachinery/pkg/api/meta helpers so callers can reason about
-// each lifecycle concern by name.
-
-// IsIssued returns true if the Issued condition is True.
-func (s *SystemAdminCredentialRequestStatus) IsIssued() bool {
-	return meta.IsStatusConditionTrue(s.Conditions, SystemAdminCredentialRequestConditionIssued)
-}
-
-// IsFailed returns true if the Failed condition is True.
-func (s *SystemAdminCredentialRequestStatus) IsFailed() bool {
-	return meta.IsStatusConditionTrue(s.Conditions, SystemAdminCredentialRequestConditionFailed)
-}
-
-// IsAwaitingRevocation returns true if the AwaitingRevocation condition is True.
-func (s *SystemAdminCredentialRequestStatus) IsAwaitingRevocation() bool {
-	return meta.IsStatusConditionTrue(s.Conditions, SystemAdminCredentialRequestConditionAwaitingRevocation)
-}
-
-// IsRevoked returns true if the Revoked condition is True.
-func (s *SystemAdminCredentialRequestStatus) IsRevoked() bool {
-	return meta.IsStatusConditionTrue(s.Conditions, SystemAdminCredentialRequestConditionRevoked)
-}
-
-// IsTerminal returns true if the credential request has reached a terminal state
-// (either Failed or Revoked).
-func (s *SystemAdminCredentialRequestStatus) IsTerminal() bool {
-	return s.IsFailed() || s.IsRevoked()
-}
-
-// IsPending returns true if the credential request has been created but has not
-// yet been issued, failed, or entered revocation.
-func (s *SystemAdminCredentialRequestStatus) IsPending() bool {
-	return !s.IsIssued() && !s.IsFailed() && !s.IsAwaitingRevocation() && !s.IsRevoked()
-}

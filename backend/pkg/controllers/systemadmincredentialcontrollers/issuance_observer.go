@@ -90,7 +90,7 @@ func (c *issuanceObserver) SyncOnce(ctx context.Context, key controllerutils.Sys
 	}
 
 	// Only process credentials that are pending.
-	if !cred.Status.IsPending() {
+	if !isCredentialRequestPending(cred) {
 		return nil
 	}
 

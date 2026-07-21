@@ -84,7 +84,7 @@ func (c *revocationMarkRequests) SyncOnce(ctx context.Context, key controlleruti
 	}
 
 	// Once the revocation is complete/being deleted there is nothing to mark.
-	if revocation.Status.DeleteTimestamp != nil || revocation.Status.IsCredentialsMarkedForDeletion() {
+	if revocation.Status.DeleteTimestamp != nil || meta.IsStatusConditionTrue(revocation.Status.Conditions, api.SystemAdminCredentialRevocationConditionCredentialsMarkedForDeletion) {
 		return nil
 	}
 

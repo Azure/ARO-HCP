@@ -98,7 +98,7 @@ func (c *revocationCompletion) SyncOnce(ctx context.Context, key controllerutils
 	}
 
 	// Observe the mirrored CRR to confirm the certificates have been revoked.
-	if !revocation.Status.IsCertificatesRevoked() {
+	if !meta.IsStatusConditionTrue(revocation.Status.Conditions, api.SystemAdminCredentialRevocationConditionCertificatesRevoked) {
 		cachedCRR, err := kubeapplierhelpers.GetCachedCertificateRevocationRequestForCluster(
 			ctx, c.readDesireLister,
 			key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, revocation.Spec.RevokeOpSuffix)
@@ -139,7 +139,8 @@ func (c *revocationCompletion) SyncOnce(ctx context.Context, key controllerutils
 	// The revocation is complete once the certificates are revoked and every
 	// credential request has been marked for deletion. Stamp the DeleteTimestamp
 	// so the deletion controller can tear the desires down and remove the doc.
-	if revocation.Status.IsCertificatesRevoked() && revocation.Status.IsCredentialsMarkedForDeletion() {
+	if meta.IsStatusConditionTrue(revocation.Status.Conditions, api.SystemAdminCredentialRevocationConditionCertificatesRevoked) &&
+		meta.IsStatusConditionTrue(revocation.Status.Conditions, api.SystemAdminCredentialRevocationConditionCredentialsMarkedForDeletion) {
 		replacement := revocation.DeepCopy()
 		meta.SetStatusCondition(&replacement.Status.Conditions, metav1.Condition{
 			Type:    api.SystemAdminCredentialRevocationConditionComplete,

@@ -30,6 +30,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/api/operation"
 	k8sutilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	utilsclock "k8s.io/utils/clock"
@@ -1094,7 +1095,7 @@ func (f *Frontend) assembleAdminCredentialFromCosmos(ctx context.Context, op *ap
 		return nil, fmt.Errorf("failed to get SystemAdminCredentialRequest: %w", err)
 	}
 
-	if !cred.Status.IsIssued() {
+	if !meta.IsStatusConditionTrue(cred.Status.Conditions, api.SystemAdminCredentialRequestConditionIssued) {
 		return nil, fmt.Errorf("credential request is not in Issued state")
 	}
 

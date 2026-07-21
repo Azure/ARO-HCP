@@ -25,6 +25,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	certificatesv1 "k8s.io/api/certificates/v1"
+	"k8s.io/apimachinery/pkg/api/meta"
 	kruntime "k8s.io/apimachinery/pkg/runtime"
 	clocktesting "k8s.io/utils/clock/testing"
 
@@ -75,7 +76,7 @@ func TestIssuanceObserver_SyncOnce(t *testing.T) {
 				credCRUD := db.SystemAdminCredentialRequests(testSubscriptionID, testResourceGroupName, testClusterName)
 				cred, err := credCRUD.Get(ctx, testCredentialName)
 				require.NoError(t, err)
-				assert.True(t, cred.Status.IsIssued(), "credential should be in Issued state")
+				assert.True(t, meta.IsStatusConditionTrue(cred.Status.Conditions, api.SystemAdminCredentialRequestConditionIssued), "credential should be in Issued state")
 				assert.NotEmpty(t, cred.Status.SignedCertificate, "SignedCertificate should be set")
 			},
 		},
@@ -104,7 +105,7 @@ func TestIssuanceObserver_SyncOnce(t *testing.T) {
 				credCRUD := db.SystemAdminCredentialRequests(testSubscriptionID, testResourceGroupName, testClusterName)
 				cred, err := credCRUD.Get(ctx, testCredentialName)
 				require.NoError(t, err)
-				assert.True(t, cred.Status.IsFailed(), "credential should be in Failed state")
+				assert.True(t, meta.IsStatusConditionTrue(cred.Status.Conditions, api.SystemAdminCredentialRequestConditionFailed), "credential should be in Failed state")
 			},
 		},
 		{
@@ -123,7 +124,7 @@ func TestIssuanceObserver_SyncOnce(t *testing.T) {
 				credCRUD := db.SystemAdminCredentialRequests(testSubscriptionID, testResourceGroupName, testClusterName)
 				cred, err := credCRUD.Get(ctx, testCredentialName)
 				require.NoError(t, err)
-				assert.True(t, cred.Status.IsPending(), "credential should remain in Pending state")
+				assert.True(t, isCredentialRequestPending(cred), "credential should remain in Pending state")
 			},
 		},
 		{
@@ -138,7 +139,7 @@ func TestIssuanceObserver_SyncOnce(t *testing.T) {
 				credCRUD := db.SystemAdminCredentialRequests(testSubscriptionID, testResourceGroupName, testClusterName)
 				cred, err := credCRUD.Get(ctx, testCredentialName)
 				require.NoError(t, err)
-				assert.True(t, cred.Status.IsIssued(), "credential should remain in Issued state")
+				assert.True(t, meta.IsStatusConditionTrue(cred.Status.Conditions, api.SystemAdminCredentialRequestConditionIssued), "credential should remain in Issued state")
 			},
 		},
 		{
@@ -152,7 +153,7 @@ func TestIssuanceObserver_SyncOnce(t *testing.T) {
 				credCRUD := db.SystemAdminCredentialRequests(testSubscriptionID, testResourceGroupName, testClusterName)
 				cred, err := credCRUD.Get(ctx, testCredentialName)
 				require.NoError(t, err)
-				assert.True(t, cred.Status.IsPending(), "credential should remain in Pending state")
+				assert.True(t, isCredentialRequestPending(cred), "credential should remain in Pending state")
 			},
 		},
 	}

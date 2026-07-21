@@ -20,6 +20,8 @@ import (
 	"strings"
 	"time"
 
+	"k8s.io/apimachinery/pkg/api/meta"
+
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
@@ -77,7 +79,8 @@ func (c *postIssuanceCleanup) CooldownChecker() controllerutil.CooldownChecker {
 // cleanup: its desires may be torn down only once issuance has reached a terminal
 // outcome (Issued or Failed).
 func (c *postIssuanceCleanup) needsWork(cred *api.SystemAdminCredentialRequest) bool {
-	return cred.Status.IsIssued() || cred.Status.IsFailed()
+	return meta.IsStatusConditionTrue(cred.Status.Conditions, api.SystemAdminCredentialRequestConditionIssued) ||
+		meta.IsStatusConditionTrue(cred.Status.Conditions, api.SystemAdminCredentialRequestConditionFailed)
 }
 
 func (c *postIssuanceCleanup) SyncOnce(ctx context.Context, key controllerutils.SystemAdminCredentialRequestKey) error {
