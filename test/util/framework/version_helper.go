@@ -122,15 +122,17 @@ func GetInstallVersionForZStreamUpgrade(ctx context.Context, channelGroup string
 	// upgrade targets, not y-stream (next-minor) ones.
 	maxVersion := candidates[0].String()
 
-	// Start from candidates[1] (second-latest) because candidates[0] is already the
-	// latest in the minor and cannot z-stream upgrade further.
-	for i := 1; i < len(candidates); i++ {
+	// When candidates[i] has z-stream upgrade targets, install candidates[i+1] (the
+	// version just before it). This ensures the upgrade target is candidates[i] — a
+	// well-established version — rather than candidates[0] which may be too freshly
+	// released for HyperShift to pick up.
+	for i := 0; i < len(candidates)-1; i++ {
 		upgradeTargets, err := GetUpgradeCandidatesInMaxMinorFromCincinnati(ctx, channelGroup, maxVersion, candidates[i].String())
 		if err != nil {
 			return "", false, err
 		}
 		if len(upgradeTargets) > 0 {
-			return candidates[i].String(), true, nil
+			return candidates[i+1].String(), true, nil
 		}
 	}
 	return candidates[0].String(), false, nil
