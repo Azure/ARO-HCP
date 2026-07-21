@@ -30,8 +30,9 @@ clouds:
           #  - requests.memory 2Gi: keeps all 8 pods schedulable across 4 nodes
           #    (2 x 2Gi + ~2Gi infra baseline = ~6Gi/node of ~11.8Gi).
           mgmt:
-            infraAgentPool:
-              minCount: 2
+            aks:
+              infraAgentPool:
+                minCount: 2
             prometheus:
               prometheusSpec:
                 shards: 4
