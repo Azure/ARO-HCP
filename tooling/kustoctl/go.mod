@@ -11,7 +11,7 @@ require (
 )
 
 require (
-	github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260227032723-11f678744bf9 // indirect
+	github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260715002326-2555e1130350 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.21.1 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.13.1 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity/cache v0.4.0 // indirect

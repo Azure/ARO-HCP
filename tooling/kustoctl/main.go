@@ -25,8 +25,9 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
 
-	"github.com/Azure/ARO-HCP/tooling/kustoctl/cmd/validate"
 	"github.com/Azure/ARO-Tools/tools/kustoctl/cmd/entitygroups"
+
+	"github.com/Azure/ARO-HCP/tooling/kustoctl/cmd/validate"
 )
 
 func main() {

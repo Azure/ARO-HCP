@@ -15,6 +15,17 @@ $schema: pipeline.schema.v1
 rolloutName: Geography Rollout (STG V2)
 serviceGroup: Microsoft.Azure.ARO.HCP.Geography.StgGlobal
 resourceGroups:
+- name: global
+  resourceGroup: '{{ .global.rg }}'
+  # Hardcoded on purpose — see global-pipeline-stg.yaml. Removed at decommission.
+  subscription: 'hcp-stg-global'
+  steps:
+  - name: output
+    action: ARM
+    template: templates/output-global.bicep
+    parameters: configurations/output-global-stg.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
 - name: kusto-infra
   resourceGroup: '{{ .kusto.rg }}'
   # Hardcoded on purpose — see global-pipeline-stg.yaml. Removed at decommission.
