@@ -239,6 +239,14 @@ func (tc *perItOrDescribeTestContext) deleteCreatedResources(ctx context.Context
 		tc.RecordTestStep("Delete created resources", startTime, finishTime)
 	}()
 
+	// Always release identity containers — they are shared pool resources,
+	// not test-created resources subject to skipCleanup.
+	defer func() {
+		if err := tc.releaseLeasedIdentities(ctx); err != nil {
+			ginkgo.GinkgoLogr.Error(err, "failed to release leased identities")
+		}
+	}()
+
 	if tc.perBinaryInvocationTestContext.skipCleanup {
 		ginkgo.GinkgoLogr.Info("skipping resource cleanup")
 		return
@@ -271,10 +279,6 @@ func (tc *perItOrDescribeTestContext) deleteCreatedResources(ctx context.Context
 	err = CleanupAppRegistrations(ctx, graphClient, appRegistrations)
 	if err != nil {
 		ginkgo.GinkgoLogr.Error(err, "at least one app registration failed to delete")
-	}
-
-	if err := tc.releaseLeasedIdentities(ctx); err != nil {
-		ginkgo.GinkgoLogr.Error(err, "failed to release leased identities")
 	}
 
 	ginkgo.GinkgoLogr.Info("finished deleting created resources")

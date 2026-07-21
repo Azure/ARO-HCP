@@ -33,6 +33,7 @@ import (
 
 var _ = Describe("Service Provider", func() {
 	DescribeTable("should upgrade the control plane z-stream automatically on behalf of the customer",
+		labels.MIContainers(1),
 		func(ctx context.Context, minorVersion string, baseInstallVersion string) {
 			const (
 				customerNetworkSecurityGroupName = "customer-nsg-zstream-"

@@ -47,6 +47,7 @@ var _ = Describe("Customer", func() {
 		labels.Positive,
 		labels.AroRpApiCompatible,
 		labels.CreateCluster,
+		labels.MIContainers(1),
 		func(ctx context.Context) {
 			const (
 				customerClusterName  = "private-ingress"

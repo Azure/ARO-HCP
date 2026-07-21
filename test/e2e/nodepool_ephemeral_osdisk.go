@@ -68,6 +68,7 @@ var _ = Describe("Nodepool Ephemeral OS Disk", func() {
 		labels.Critical,
 		labels.Positive,
 		labels.AroRpApiCompatible,
+		labels.MIContainers(1),
 		func(ctx context.Context) {
 			const (
 				customerClusterName  = "ephemeral-disk"

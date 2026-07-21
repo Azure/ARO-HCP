@@ -32,7 +32,7 @@ var _ = Describe("Customer", func() {
 		labels.Medium,
 		labels.Negative,
 		labels.AroRpApiCompatible,
-		labels.MIDemandMedium,
+		labels.MIContainers(2),
 		func(ctx context.Context) {
 			const (
 				customerNetworkSecurityGroupName = "customer-nsg-name"
