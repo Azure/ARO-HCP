@@ -603,8 +603,6 @@ maestro:
 mgmt:
   aks:
     clusterOutboundIPAddressIPTags: ""
-    enableSwiftV2Nodepools: true
-    enableSwiftV2Vnet: true
     etcd:
       name: ah-pers-me-usw3test-1
       private: true
