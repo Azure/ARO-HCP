@@ -44,9 +44,15 @@ if [[ "${FORCE}" != "true" ]] && \
   exit 0
 fi
 
-# Build the subjectAlternativeNames.dnsNames JSON array from the comma-separated list.
-dns_json="$(printf '%s' "${DNS_NAMES}" | tr ',' '\n' | sed '/^$/d' | \
-  awk 'BEGIN{ORS=""} {printf "%s\"%s\"", (NR>1?",":""), $0}')"
+# Build the subjectAlternativeNames.dnsNames JSON array from the comma-separated
+# list, trimming surrounding whitespace and dropping empty entries.
+dns_json="$(printf '%s' "${DNS_NAMES}" | tr ',' '\n' | \
+  awk '{ gsub(/^[[:space:]]+|[[:space:]]+$/, ""); if ($0 != "") a[++n] = $0 }
+       END { for (i = 1; i <= n; i++) printf "%s\"%s\"", (i > 1 ? "," : ""), a[i] }')"
+if [[ -z "${dns_json}" ]]; then
+  echo "ERROR: DNS_NAMES contained no valid entries after parsing: '${DNS_NAMES}'" >&2
+  exit 1
+fi
 
 policy="$(cat <<JSON
 {

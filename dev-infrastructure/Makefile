@@ -126,7 +126,7 @@ create-int-mock-identities: configurations/mock-identities.bicepparam
 		--role "Contributor" \
 		--assignee "$(shell az ad app list --display-name aro-hcp-int-arm-helper --query '[*]'.appId -o tsv)" \
 		--scope "/subscriptions/$(shell az account show --query id --output tsv)" \
-		--only-show-errors
+		--only-show-errors && \
 	APPLICATION_NAME=aro-hcp-int-msi-mock \
 	KEY_VAULT_NAME=aro-hcp-int-kv \
 	CERTIFICATE_NAME=$${MSI_MOCK_CERT_NAME} \
