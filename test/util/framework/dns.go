@@ -1,0 +1,126 @@
+// Copyright 2026 Microsoft Corporation
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package framework
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"net"
+	"net/url"
+	"strings"
+	"time"
+
+	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/klog/v2"
+)
+
+// DNSResolutionTimeout is the default timeout for waiting for DNS to resolve.
+const DNSResolutionTimeout = 10 * time.Minute
+
+// HostnameFromURL extracts the hostname (without port or scheme) from a URL
+// string. If the input has no scheme, it is treated as a bare host or host:port.
+func HostnameFromURL(rawURL string) (string, error) {
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse URL %q: %w", rawURL, err)
+	}
+
+	hostname := parsed.Hostname()
+	if hostname != "" {
+		return hostname, nil
+	}
+
+	// url.Parse treats scheme-less inputs in two ways that leave Host empty:
+	// - "example.com" becomes a relative path (Scheme="", Path="example.com")
+	// - "example.com:443" becomes scheme:opaque (Scheme="example.com", Opaque="443")
+	// Fall back to raw splitting for both cases.
+	if parsed.Scheme == "" || parsed.Opaque != "" {
+		if h, _, err := net.SplitHostPort(rawURL); err == nil && h != "" {
+			return h, nil
+		}
+		if parsed.Path != "" {
+			// Strip any path component — "example.com/path" should
+			// return "example.com", not "example.com/path".
+			if idx := strings.IndexByte(parsed.Path, '/'); idx > 0 {
+				return parsed.Path[:idx], nil
+			}
+			return parsed.Path, nil
+		}
+	}
+	return "", fmt.Errorf("no hostname found in %q", rawURL)
+}
+
+// WaitForDNSResolution polls DNS for the given hostname until at least one
+// address record is returned, or the timeout is reached. Each poll attempt
+// uses a fresh net.Resolver with PreferGo: true to bypass negative DNS
+// caching from prior NXDOMAIN responses.
+func WaitForDNSResolution(ctx context.Context, hostname string, timeout time.Duration) error {
+	var lastErr error
+	startTime := time.Now()
+
+	err := wait.PollUntilContextTimeout(ctx, 10*time.Second, timeout, true, func(ctx context.Context) (done bool, err error) {
+		resolver := &net.Resolver{PreferGo: true}
+		lookupCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		defer cancel()
+
+		addrs, lookupErr := resolver.LookupHost(lookupCtx, hostname)
+		if lookupErr != nil {
+			if lastErr == nil || lookupErr.Error() != lastErr.Error() {
+				logDNSError(hostname, lookupErr, time.Since(startTime).Truncate(time.Second))
+				lastErr = lookupErr
+			}
+			return false, nil
+		}
+
+		if lastErr != nil {
+			klog.InfoS("DNS resolved",
+				"hostname", hostname,
+				"addresses", addrs,
+				"elapsed", time.Since(startTime).Truncate(time.Second),
+			)
+		}
+		return true, nil
+	})
+
+	if err != nil {
+		lastErrStr := ""
+		if lastErr != nil {
+			lastErrStr = lastErr.Error()
+		}
+		return fmt.Errorf("DNS for %s did not resolve within %s (last error: %s): %w", hostname, timeout, lastErrStr, err)
+	}
+	return nil
+}
+
+func logDNSError(hostname string, err error, elapsed time.Duration) {
+	var dnsErr *net.DNSError
+	if errors.As(err, &dnsErr) {
+		klog.InfoS("DNS resolution pending",
+			"hostname", hostname,
+			"server", dnsErr.Server,
+			"isNotFound", dnsErr.IsNotFound,
+			"isTemporary", dnsErr.IsTemporary,
+			"error", dnsErr.Err,
+			"elapsed", elapsed,
+		)
+		return
+	}
+	klog.InfoS("DNS resolution pending",
+		"hostname", hostname,
+		"error", err,
+		"elapsed", elapsed,
+	)
+}
