@@ -101,14 +101,14 @@ func isRetryableVersionError(err error) bool {
 	return true
 }
 
+var getAllVersionsInMinor = GetAllVersionsInMinorStartingWith
+var getUpgradeCandidates = GetUpgradeCandidatesInMaxMinorFromCincinnati
+
 // GetInstallVersionForZStreamUpgrade returns the version to install the cluster with when testing
 // a z-stream upgrade, and whether that version has an available z-stream upgrade path. It uses
 // configuredVersionID and queries Cincinnati for the given channelGroup (e.g. "candidate", "stable").
 // When no version with an upgrade path is found, it still returns the configured version so the
 // caller can install and optionally skip upgrade assertions.
-var getAllVersionsInMinor = GetAllVersionsInMinorStartingWith
-var getUpgradeCandidates = GetUpgradeCandidatesInMaxMinorFromCincinnati
-
 func GetInstallVersionForZStreamUpgrade(ctx context.Context, channelGroup string, configuredVersionID string) (installVersion string, hasUpgradePath bool, err error) {
 	candidates, err := getAllVersionsInMinor(ctx, channelGroup, configuredVersionID)
 	if err != nil {
