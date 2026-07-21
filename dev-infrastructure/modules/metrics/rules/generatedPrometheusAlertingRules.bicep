@@ -1371,6 +1371,33 @@ resource maestro 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = 
         for: 'PT10M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'MaestroEventStuckUnreconciled'
+        enabled: true
+        labels: {
+          severity: 'warning'
+        }
+        annotations: {
+          correlationId: 'MaestroEventStuckUnreconciled/{{ $labels.cluster }}'
+          description: 'A Maestro event has been unreconciled for {{ $value | humanizeDuration }}. This likely indicates a lost Postgres NOTIFY message. The event will not be processed until the periodic sync runs (default 10 hours).'
+          info: 'A Maestro event has been unreconciled for {{ $value | humanizeDuration }}. This likely indicates a lost Postgres NOTIFY message. The event will not be processed until the periodic sync runs (default 10 hours).'
+          runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/maestro/index.html'
+          summary: 'Maestro unreconciled event age is too high — possible lost NOTIFY'
+          title: 'Maestro unreconciled event age is too high — possible lost NOTIFY'
+        }
+        expression: 'max(spec_controller_event_oldest_unreconciled_age_seconds{namespace="maestro"}) > 300'
+        for: 'PT1M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
     ]
     scopes: [
       azureMonitoring
