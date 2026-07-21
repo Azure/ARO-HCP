@@ -53,8 +53,9 @@ Manage the full lifecycle of an oncall shift:
 4. **Prioritization order is fixed:**
    1. Rollouts (active, failed, blocked)
    2. Time-sensitive / important items (CCOA exceptions, approvals, deadlines)
-   3. Check alerts (proactive problem detection)
-   4. Routine monitoring (IcM, Prow, dashboards, quality call)
+   3. Dev merge queue health (unblock Tide batches)
+   4. Check alerts (proactive problem detection)
+   5. Routine monitoring (IcM, Prow, dashboards, quality call)
 
 ## Parameters
 
@@ -99,28 +100,46 @@ If the Slack link is not provided, record without it but flag:
 
 #### Step 2: Prioritize
 
-Apply the fixed priority order:
+The five categories below are standing responsibilities every shift. All
+five must appear in every action plan regardless of what the handover notes
+contain. Handover items, action items, PRs to babysit, and awareness items
+are slotted into whichever category they belong to — they do not form a
+separate list.
 
 1. **🔴 Rollouts** — Active rollouts, failed rollouts needing cancellation,
-   blocked rollouts.
+   blocked rollouts. Slot handover rollout items here.
 2. **🟠 Important / Time-Sensitive** — CCOA exceptions, approval chains,
-   PRs with deadlines, pipeline recoveries.
-3. **🟡 Alerts** — Check monitoring alerts that might catch problems early.
-4. **🟢 Awareness / Routine** — Prow status, IcM portal, quality call,
-   handover dashboard, standard monitoring.
+   PRs with deadlines, pipeline recoveries. Slot handover action items, PRs
+   to babysit, and time-sensitive requests here.
+3. **🟡 Dev Merge Queue** — Check Tide batch health and unblock if needed
+   (see Dev Merge Queue Monitoring section below). Always present even if
+   handover does not mention it.
+4. **🟡 Alerts** — Check monitoring alerts for proactive problem detection.
+   Always present even if handover does not mention it.
+5. **🟢 Routine Monitoring** — IcM portal sweep, oncall dashboard ticket
+   triage, Prow status, quality call, handover dashboard. Slot handover
+   awareness items and incidents here. Always present even if handover does
+   not mention it.
 
-Present as a numbered action sequence (not just categories):
+If the handover notes contain items that already match a standing category
+(e.g. an IcM incident is routine monitoring, a PR deadline is
+important/time-sensitive), place them in that category rather than creating
+duplicates.
+
+Present as a numbered action sequence (not just categories). Every category
+must have at least one concrete action, even if it is the standing default:
 
 ```
 ### Suggested Sequence
 
-1. <Most urgent rollout action>
+1. <Most urgent rollout action or "No active rollouts — verify none pending">
 2. <Next rollout action>
-3. <Time-sensitive item>
-4. <Check alerts>
-5. <Verify pipeline/automation>
-6. <Babysit PR>
-7. Routine monitoring (Prow, IcM, dashboard)
+3. <Time-sensitive item or "No time-sensitive items">
+4. Check Dev merge queue health (CI Health Dashboard)
+5. Check monitoring alerts
+6. <Verify pipeline/automation>
+7. <Babysit PR>
+8. Routine monitoring: IcM portal sweep, oncall dashboard triage, Prow status
 ```
 
 #### Step 3: Create Tracking JIRA
@@ -254,6 +273,41 @@ If the shift is fully complete (all items resolved or handed over):
 If items are still active:
 - Keep in **In Progress** and note in the handover that the next shift
   should continue tracking on the same ticket (or create a new one).
+
+## Dev Merge Queue Monitoring
+
+Monitoring the Dev e2e-parallel merge queue is a core oncall responsibility.
+The goal is to keep the merge queue moving by unblocking failing Tide
+batches.
+
+**CI Health Dashboard**: https://cihealth.tools.hcpsvc.osadev.cloud/
+
+All monitoring should be done via the CI Health Dashboard:
+
+### Day-to-day workflow
+
+- **Report page** (`/report`, DEV env) — watch the E2E success card (after
+  the last push of a merged PR). This is the key metric. A dropping value
+  is your alarm.
+- **Run Log** (`/run-log?date=<YYYY-MM-DD>&env=dev`) — type `batch` in the
+  search box (or use `&q=batch`) to filter for Tide batch runs. A cluster
+  of failing batches means the queue is blocked. Each row links to the Prow
+  job and shows the matched failure.
+- **Failure Patterns** (`/failure-patterns`) — this is a triage tool, not a
+  monitoring tool. Use it to rank the most impactful issues by run-impact %.
+  Category signals (Regression vs. Flake, provision & e2e only) help
+  separate a new PR-induced break from a long-standing flake.
+
+### Triage guidance
+
+- **Flake vs. regression**: Tide merges PRs in batches; every PR in a batch
+  has already passed e2e on its own. A failing Tide batch is either a flake
+  or a bad interaction between batched PRs. Don't chase every red run.
+- **Timeout patterns**: Patterns like `CreateHCPClusterAndWait`,
+  `context deadline exceeded`, etc. are generic timeouts hiding distinct
+  root causes. Occurrence count alone is meaningless. Timeouts require
+  deeper analysis from Kusto logs using `hcpctl snapshot analyze` (in
+  `tooling/hcpctl`) against the run's snapshot.
 
 ## Chat Excerpt Rules
 
