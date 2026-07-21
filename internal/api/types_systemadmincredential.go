@@ -83,5 +83,3 @@ const (
 	SystemAdminCredentialRequestConditionRevoked            = "Revoked"
 	SystemAdminCredentialRequestConditionContentDeleted     = "ContentDeleted"
 )
-
-

@@ -75,5 +75,3 @@ const (
 	SystemAdminCredentialRevocationConditionCertificatesRevoked          = "CertificatesRevoked"
 	SystemAdminCredentialRevocationConditionComplete                     = "Complete"
 )
-
-
