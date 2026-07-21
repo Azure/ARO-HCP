@@ -99,15 +99,17 @@ create-int-mock-identities: configurations/mock-identities.bicepparam
 		--resource-group $(GLOBAL_RESOURCEGROUP) \
 		--template-file templates/mock-identities.bicep \
 		--parameters configurations/mock-identities.bicepparam \
-		keyVaultName=aro-hcp-int-kv \
 		msiMockRoleName=$${MSI_MOCK_ROLE_NAME} \
-		firstPartyRoleName=$${FIRST_PARTY_ROLE_NAME} \
-		firstPartyCertName=$${FIRST_PARTY_CERT_NAME} \
-		firstPartyCertDns=$${FIRST_PARTY_CERT_DNS} \
-		msiMockCertName=$${MSI_MOCK_CERT_NAME} \
-		msiMockCertDns=$${MSI_MOCK_CERT_DNS} \
-		armHelperCertName=$${ARM_HELPER_CERT_NAME} \
-		armHelperCertDns=$${ARM_HELPER_CERT_DNS} && \
+		firstPartyRoleName=$${FIRST_PARTY_ROLE_NAME} && \
+	VAULT_NAME=aro-hcp-int-kv CERT_NAME=$${FIRST_PARTY_CERT_NAME} \
+		SUBJECT=CN=$${FIRST_PARTY_CERT_DNS} DNS_NAMES=$${FIRST_PARTY_CERT_DNS} \
+		./scripts/create-kv-cert.sh && \
+	VAULT_NAME=aro-hcp-int-kv CERT_NAME=$${MSI_MOCK_CERT_NAME} \
+		SUBJECT=CN=$${MSI_MOCK_CERT_DNS} DNS_NAMES=$${MSI_MOCK_CERT_DNS} \
+		./scripts/create-kv-cert.sh && \
+	VAULT_NAME=aro-hcp-int-kv CERT_NAME=$${ARM_HELPER_CERT_NAME} \
+		SUBJECT=CN=$${ARM_HELPER_CERT_DNS} DNS_NAMES=$${ARM_HELPER_CERT_DNS} \
+		./scripts/create-kv-cert.sh && \
 	APPLICATION_NAME=aro-hcp-int-fp \
 	KEY_VAULT_NAME=aro-hcp-int-kv \
 	CERTIFICATE_NAME=$${FIRST_PARTY_CERT_NAME} \
@@ -149,6 +151,18 @@ create-mock-identities: configurations/mock-identities.bicepparam
 		--parameters configurations/mock-identities.bicepparam \
 		--parameters e2eTestSubscription=974ebd46-8ad3-41e3-afef-7ef25fd5c371
 
+	VAULT_NAME=aro-hcp-dev-svc-kv CERT_NAME=firstPartyCert2 \
+		SUBJECT=CN=firstparty.hcp.osadev.cloud DNS_NAMES=firstparty.hcp.osadev.cloud \
+		./scripts/create-kv-cert.sh
+
+	VAULT_NAME=aro-hcp-dev-svc-kv CERT_NAME=armHelperCert2 \
+		SUBJECT=CN=armhelper.hcp.osadev.cloud DNS_NAMES=armhelper.hcp.osadev.cloud \
+		./scripts/create-kv-cert.sh
+
+	VAULT_NAME=aro-hcp-dev-svc-kv CERT_NAME=msiMockCert2 \
+		SUBJECT=CN=msimock.hcp.osadev.cloud DNS_NAMES=msimock.hcp.osadev.cloud \
+		./scripts/create-kv-cert.sh
+
 	APPLICATION_NAME=aro-dev-first-party2 \
 	KEY_VAULT_NAME=aro-hcp-dev-svc-kv \
 	CERTIFICATE_NAME=firstPartyCert2 \
@@ -184,6 +198,11 @@ create-mock-identities: configurations/mock-identities.bicepparam
 
 	@for i in $$(seq 0 $$(($(MSI_MOCK_POOL_SIZE) - 1))); do \
 		echo "Creating/updating MSI mock pool SP $$i ..."; \
+		VAULT_NAME=aro-hcp-dev-svc-kv \
+		CERT_NAME=msiMockPoolCert-$$i \
+		SUBJECT=CN=$$i.msimockpool.hcp.osadev.cloud \
+		DNS_NAMES=$$i.msimockpool.hcp.osadev.cloud \
+		./scripts/create-kv-cert.sh; \
 		APPLICATION_NAME=aro-dev-msi-mock-pool-$$i \
 		KEY_VAULT_NAME=aro-hcp-dev-svc-kv \
 		CERTIFICATE_NAME=msiMockPoolCert-$$i \
@@ -199,16 +218,14 @@ create-mock-identities: configurations/mock-identities.bicepparam
 
 .PHONY: create-mock-identities
 
-create-msi-mock-pool: configurations/mock-identity-pool.bicepparam
-	az deployment group create \
-		--name "aro-hcp-dev-msi-mock-pool" \
-		--resource-group $(GLOBAL_RESOURCEGROUP) \
-		--template-file templates/mock-identity-pool.bicep $(PROMPT_TO_CONFIRM) \
-		--parameters configurations/mock-identity-pool.bicepparam \
-		--parameters msiMockPoolSize=$(MSI_MOCK_POOL_SIZE)
-
+create-msi-mock-pool:
 	@for i in $$(seq 0 $$(($(MSI_MOCK_POOL_SIZE) - 1))); do \
-		echo "Creating/updating MSI mock pool SP $$i ..."; \
+		echo "Creating/updating MSI mock pool cert+SP $$i ..."; \
+		VAULT_NAME=aro-hcp-dev-svc-kv \
+		CERT_NAME=msiMockPoolCert-$$i \
+		SUBJECT=CN=$$i.msimockpool.hcp.osadev.cloud \
+		DNS_NAMES=$$i.msimockpool.hcp.osadev.cloud \
+		./scripts/create-kv-cert.sh; \
 		APPLICATION_NAME=aro-dev-msi-mock-pool-$$i \
 		KEY_VAULT_NAME=aro-hcp-dev-svc-kv \
 		CERTIFICATE_NAME=msiMockPoolCert-$$i \

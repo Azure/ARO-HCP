@@ -283,7 +283,7 @@ Typical maintainer flow:
 In the current model:
 
 - `make create-msi-mock-pool` is itself hybrid:
-  - `dev-infrastructure/templates/mock-identity-pool.bicep` ensures the Key Vault certificate set.
+  - `dev-infrastructure/scripts/create-kv-cert.sh` (invoked from `dev-infrastructure/Makefile`) ensures the Key Vault certificate set via `az keyvault certificate create`.
   - `dev-infrastructure/scripts/create-sp-for-rbac.sh` and the surrounding `dev-infrastructure/Makefile` loop still create or update the `aro-dev-msi-mock-pool-<i>` Entra app and service principal objects and apply the home-subscription grants.
 - `make dev-ci-privileged-local-run` reconciles pooled-principal access on the DEV E2E customer subscriptions from the principal IDs recorded in `config/config-dev-ci.yaml`.
 - `dev-infrastructure/configurations/e2e-subscription-rbac-assignments.tmpl.bicepparam` still preserves legacy assignment IDs for the first DEV E2E subscription so the rollout can adopt existing grants without recreating them.

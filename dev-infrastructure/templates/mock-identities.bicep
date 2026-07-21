@@ -1,72 +1,26 @@
-@description('Azure Region Location')
-param location string = resourceGroup().location
-
-@description('The name of the MSI used for Key Vault operations')
-param globalMSIName string
-
-@description('The name of the key vault')
-param keyVaultName string
-
 @description('Global resource group name')
 param globalResourceGroupName string = 'global'
 
 @description('The name of the first party identity role')
 param firstPartyRoleName string = 'dev-first-party-mock'
 
-@description('The name of the first party certificate')
-param firstPartyCertName string = 'firstPartyCert2'
-
-@description('The DNS of the first party certificate, used for subject and DNS names.')
-param firstPartyCertDns string = 'firstparty.hcp.osadev.cloud'
-
 @description('The name of the msi mock identity role')
 param msiMockRoleName string = 'dev-msi-mock'
-
-@description('The name of the msi mock certificate')
-param msiMockCertName string = 'msiMockCert2'
-
-@description('The DNS of the msi mock certificate, used for subject and DNS names.')
-param msiMockCertDns string = 'msimock.hcp.osadev.cloud'
-
-@description('Number of additional MSI mock identities to create for throttle distribution')
-param msiMockPoolSize int = 0
-
-@description('Base name for pooled MSI mock certificates')
-param msiMockPoolCertBaseName string = 'msiMockPoolCert'
-
-@description('Base DNS for pooled MSI mock certificates')
-param msiMockPoolCertBaseDns string = 'msimockpool.hcp.osadev.cloud'
-
-@description('The name of the arm helper mock certificate')
-param armHelperCertName string = 'armHelperCert2'
-
-@description('The DNS of the arm helper mock certificate, used for subject and DNS names.')
-param armHelperCertDns string = 'armhelper.hcp.osadev.cloud'
 
 @description('E2E Test subscription ID, that needs to use this role as well')
 param e2eTestSubscription string
 
-resource globalMSI 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
-  name: globalMSIName
-}
+// NOTE: The mock identity certificates are no longer created here. Bicep cannot
+// create Key Vault certificates, which previously required a
+// Microsoft.Resources/deploymentScripts resource (key-vault-cert.bicep). That
+// deploymentScript has been removed (ARO-28515); the self-signed mock
+// certificates are now provisioned by scripts/create-kv-cert.sh, invoked from
+// the dev-infrastructure Makefile targets before the service principals are
+// created from them.
 
 //
 // F I R S T   P A R T Y   I D E N T I T Y
 //
-
-module firstPartyIdentity '../modules/keyvault/key-vault-cert.bicep' = {
-  name: 'first-party-identity'
-  params: {
-    location: location
-    keyVaultManagedIdentityId: globalMSI.id
-    keyVaultName: keyVaultName
-    certName: firstPartyCertName
-    subjectName: 'CN=${firstPartyCertDns}'
-    issuerName: 'Self'
-    dnsNames: [firstPartyCertDns]
-    validityInMonths: 120
-  }
-}
 
 resource customRole 'Microsoft.Authorization/roleDefinitions@2022-04-01' = {
   name: guid(subscription().id, firstPartyRoleName)
@@ -97,64 +51,8 @@ resource customRole 'Microsoft.Authorization/roleDefinitions@2022-04-01' = {
 }
 
 //
-// A R M   H E L P E R   I D E N T I T Y
+// M S I   R P   M O C K   I D E N T I T Y
 //
-
-module armHelperIdentity '../modules/keyvault/key-vault-cert.bicep' = {
-  name: 'arm-helper-identity'
-  params: {
-    location: location
-    keyVaultManagedIdentityId: globalMSI.id
-    keyVaultName: keyVaultName
-    certName: armHelperCertName
-    subjectName: 'CN=${armHelperCertDns}'
-    dnsNames: [armHelperCertDns]
-    issuerName: 'Self'
-    validityInMonths: 120
-  }
-}
-
-//
-// M S I   R P   M O CK   I D E N T I T Y
-//
-
-module msiRPMockIdentity '../modules/keyvault/key-vault-cert.bicep' = {
-  name: 'msi-mock-identity'
-  params: {
-    location: location
-    keyVaultManagedIdentityId: globalMSI.id
-    keyVaultName: keyVaultName
-    certName: msiMockCertName
-    subjectName: 'CN=${msiMockCertDns}'
-    dnsNames: [msiMockCertDns]
-    issuerName: 'Self'
-    validityInMonths: 120
-  }
-}
-
-//
-// M S I   R P   M O C K   I D E N T I T Y   P O O L
-//
-// Additional MSI mock identities to distribute ARM read load across multiple
-// service principals, avoiding per-principal subscription-level throttling
-// during concurrent E2E test runs.
-
-module msiRPMockIdentityPool '../modules/keyvault/key-vault-cert.bicep' = [
-  for i in range(0, msiMockPoolSize): {
-    name: 'msi-mock-identity-pool-${i}'
-    dependsOn: [msiRPMockIdentity]
-    params: {
-      location: location
-      keyVaultManagedIdentityId: globalMSI.id
-      keyVaultName: keyVaultName
-      certName: '${msiMockPoolCertBaseName}-${i}'
-      subjectName: 'CN=${i}.${msiMockPoolCertBaseDns}'
-      dnsNames: ['${i}.${msiMockPoolCertBaseDns}']
-      issuerName: 'Self'
-      validityInMonths: 120
-    }
-  }
-]
 
 resource msiCustomRole 'Microsoft.Authorization/roleDefinitions@2022-04-01' = {
   name: guid(subscription().id, msiMockRoleName)
