@@ -124,7 +124,7 @@ create-int-mock-identities: configurations/mock-identities.bicepparam
 	./scripts/create-sp-for-rbac.sh && \
 	az role assignment create \
 		--role "Contributor" \
-		--assignee "$(shell az ad app list --display-name aro-hcp-int-arm-helper --query '[*]'.appId -o tsv)" \
+		--assignee "$$(az ad app list --display-name aro-hcp-int-arm-helper --query '[*]'.appId -o tsv)" \
 		--scope "/subscriptions/$(shell az account show --query id --output tsv)" \
 		--only-show-errors && \
 	APPLICATION_NAME=aro-hcp-int-msi-mock \
@@ -135,7 +135,7 @@ create-int-mock-identities: configurations/mock-identities.bicepparam
 	./scripts/create-sp-for-rbac.sh && \
 	az role assignment create \
 		--role "Key Vault Crypto User" \
-		--assignee "$(shell az ad app list --display-name aro-hcp-int-msi-mock --query '[*]'.appId -o tsv)" \
+		--assignee "$$(az ad app list --display-name aro-hcp-int-msi-mock --query '[*]'.appId -o tsv)" \
 		--scope "/subscriptions/$(shell az account show --query id --output tsv)" \
 		--only-show-errors
 
