@@ -170,6 +170,7 @@ func (c *dispatchRequestCredential) SynchronizeOperation(ctx context.Context, ke
 	if username == "" {
 		username = "system-admin"
 	}
+	username = fmt.Sprintf("system:customer-break-glass:%s", username)
 
 	// Build the credential resource ID.
 	credResourceID, err := api.ToSystemAdminCredentialRequestResourceID(

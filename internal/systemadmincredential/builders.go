@@ -90,7 +90,8 @@ func BuildCSR(owner *azcorearm.ResourceID, credName, username, hcpNamespace stri
 
 	csrTemplate := &x509.CertificateRequest{
 		Subject: pkix.Name{
-			CommonName: username,
+			CommonName:   username,
+			Organization: []string{"system:masters"},
 		},
 	}
 
