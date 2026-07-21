@@ -20,7 +20,6 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
-	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
 	"errors"
@@ -830,36 +829,6 @@ func CreateClusterRoleBinding(ctx context.Context, subject string, adminRESTConf
 	}
 
 	return nil
-}
-
-// CreateTestDockerConfigSecret creates a Docker config secret for testing pull secret functionality
-func CreateTestDockerConfigSecret(host, username, password, email, secretName, namespace string) (*corev1.Secret, error) {
-	auth := base64.StdEncoding.EncodeToString([]byte(username + ":" + password))
-
-	dockerConfig := DockerConfigJSON{
-		Auths: map[string]RegistryAuth{
-			host: {
-				Email: email,
-				Auth:  auth,
-			},
-		},
-	}
-
-	dockerConfigJSON, err := json.Marshal(dockerConfig)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal docker config: %w", err)
-	}
-
-	return &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      secretName,
-			Namespace: namespace,
-		},
-		Type: corev1.SecretTypeDockerConfigJson,
-		Data: map[string][]byte{
-			corev1.DockerConfigJsonKey: dockerConfigJSON,
-		},
-	}, nil
 }
 
 func BeginCreateHCPCluster20240610(

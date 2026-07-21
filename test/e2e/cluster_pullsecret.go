@@ -16,7 +16,6 @@ package e2e
 
 import (
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -45,7 +44,7 @@ var _ = Describe("Customer", func() {
 
 	// Tests the HyperShift HCCO global pull secret reconciliation flow:
 	// additional-pull-secret in kube-system -> HCCO merges into global-pull-secret -> DaemonSet syncs to nodes
-	// Upstream documentation: https://hypershift.pages.dev/how-to/aws/global-pull-secret/
+	// See https://hypershift.pages.dev/how-to/aws/global-pull-secret/
 	It("should be able to create an HCP cluster and manage pull secrets",
 		labels.RequireNothing,
 		labels.Critical,
@@ -145,12 +144,9 @@ var _ = Describe("Customer", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create kubernetes client")
 
 			By("creating test pull secret")
-			username := "test-user"
-			auth := base64.StdEncoding.EncodeToString([]byte(username + ":" + testPullSecretPassword))
-
-			testPullSecret, err := framework.CreateTestDockerConfigSecret(
+			testPullSecret, testRegistryAuth, err := framework.CreateTestDockerConfigSecret(
 				testPullSecretHost,
-				username,
+				"test-user",
 				testPullSecretPassword,
 				testPullSecretEmail,
 				pullSecretName,
@@ -179,8 +175,8 @@ var _ = Describe("Customer", func() {
 				"global-pull-secret",
 				pullSecretNamespace,
 				testPullSecretHost,
-				auth,
-				testPullSecretEmail,
+				testRegistryAuth.Auth,
+				testRegistryAuth.Email,
 			).Verify(ctx, adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred(), "failed to verify pull secret auth data for host.example.com in global-pull-secret")
 
@@ -197,31 +193,13 @@ var _ = Describe("Customer", func() {
 			redhatRegistryAuth, ok := pullSecretConfig.Auths[redhatRegistryHost]
 			Expect(ok).To(BeTrue(), "registry.redhat.io credentials not found in pull-secret file")
 
-			redhatRegistryAuthString := redhatRegistryAuth.Auth
-			redhatRegistryEmail := redhatRegistryAuth.Email
-
 			By("updating additional-pull-secret to add registry.redhat.io credentials")
-			// Get the current additional-pull-secret
 			currentSecret, err := kubeClient.CoreV1().Secrets(pullSecretNamespace).Get(ctx, pullSecretName, metav1.GetOptions{})
 			Expect(err).NotTo(HaveOccurred(), "failed to get existing additional-pull-secret")
 
-			// Parse the current dockerconfigjson
-			var currentConfig framework.DockerConfigJSON
-			err = json.Unmarshal(currentSecret.Data[corev1.DockerConfigJsonKey], &currentConfig)
-			Expect(err).NotTo(HaveOccurred(), "failed to parse current pull secret")
+			err = framework.AddRegistryAuthToSecret(currentSecret, redhatRegistryHost, redhatRegistryAuth)
+			Expect(err).NotTo(HaveOccurred(), "failed to add registry.redhat.io credentials to additional-pull-secret")
 
-			// Add registry.redhat.io credentials to the existing auths
-			currentConfig.Auths[redhatRegistryHost] = framework.RegistryAuth{
-				Auth:  redhatRegistryAuthString,
-				Email: redhatRegistryEmail,
-			}
-
-			// Marshal back to JSON
-			updatedDockerConfigJSON, err := json.Marshal(currentConfig)
-			Expect(err).NotTo(HaveOccurred(), "failed to marshal updated docker config JSON with registry.redhat.io credentials")
-
-			// Update the secret
-			currentSecret.Data[corev1.DockerConfigJsonKey] = updatedDockerConfigJSON
 			_, err = kubeClient.CoreV1().Secrets(pullSecretNamespace).Update(ctx, currentSecret, metav1.UpdateOptions{})
 			Expect(err).NotTo(HaveOccurred(), "failed to update additional-pull-secret with registry.redhat.io credentials")
 
@@ -243,8 +221,8 @@ var _ = Describe("Customer", func() {
 				"global-pull-secret",
 				pullSecretNamespace,
 				redhatRegistryHost,
-				redhatRegistryAuthString,
-				redhatRegistryEmail,
+				redhatRegistryAuth.Auth,
+				redhatRegistryAuth.Email,
 			).Verify(ctx, adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred(), "failed to verify registry.redhat.io auth data in global-pull-secret")
 
