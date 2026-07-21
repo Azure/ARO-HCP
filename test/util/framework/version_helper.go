@@ -106,8 +106,11 @@ func isRetryableVersionError(err error) bool {
 // configuredVersionID and queries Cincinnati for the given channelGroup (e.g. "candidate", "stable").
 // When no version with an upgrade path is found, it still returns the configured version so the
 // caller can install and optionally skip upgrade assertions.
+var getAllVersionsInMinor = GetAllVersionsInMinorStartingWith
+var getUpgradeCandidates = GetUpgradeCandidatesInMaxMinorFromCincinnati
+
 func GetInstallVersionForZStreamUpgrade(ctx context.Context, channelGroup string, configuredVersionID string) (installVersion string, hasUpgradePath bool, err error) {
-	candidates, err := GetAllVersionsInMinorStartingWith(ctx, channelGroup, configuredVersionID)
+	candidates, err := getAllVersionsInMinor(ctx, channelGroup, configuredVersionID)
 	if err != nil {
 		return "", false, err
 	}
@@ -127,7 +130,7 @@ func GetInstallVersionForZStreamUpgrade(ctx context.Context, channelGroup string
 	// This biases the next upgrade away from candidates[0] (which may be too freshly released for HyperShift to pick up)
 	// and toward a more established target version in the same minor.
 	for i := 1; i < len(candidates)-1; i++ {
-		upgradeTargets, err := GetUpgradeCandidatesInMaxMinorFromCincinnati(ctx, channelGroup, maxVersion, candidates[i].String())
+		upgradeTargets, err := getUpgradeCandidates(ctx, channelGroup, maxVersion, candidates[i].String())
 		if err != nil {
 			return "", false, err
 		}
