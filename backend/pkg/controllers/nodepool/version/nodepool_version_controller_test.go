@@ -204,7 +204,6 @@ func TestNodePoolVersionSyncer_SyncOnce(t *testing.T) {
 	tests := []struct {
 		name                  string
 		seedDB                func(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient)
-		readDesireLister      func(t *testing.T) dblisters.ReadDesireLister
 		expectedError         bool
 		expectedErrorContains string
 	}{
@@ -254,24 +253,16 @@ func TestNodePoolVersionSyncer_SyncOnce(t *testing.T) {
 			ctrl := gomock.NewController(t)
 
 			mockResourcesDBClient := databasetesting.NewMockResourcesDBClient()
-			mockClientCache := cincinnati.NewMockClientCache(ctrl)
-			mockClientCache.EXPECT().GetOrCreateClient(gomock.Any()).Return(cincinnati.NewMockClient(ctrl)).AnyTimes()
 
 			tt.seedDB(t, ctx, mockResourcesDBClient)
-
-			contentLister := newValidHostedClusterReadDesireLister(t)
-			if tt.readDesireLister != nil {
-				contentLister = tt.readDesireLister(t)
-			}
 
 			syncer := &nodePoolVersionSyncer{
 				nodePoolLister:                &listertesting.DBNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
 				serviceProviderNodePoolLister: &listertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
 				serviceProviderClusterLister:  &listertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
 				subscriptionLister:            &listertesting.DBSubscriptionLister{ResourcesDBClient: mockResourcesDBClient},
-				readDesireLister:              contentLister,
 				resourcesDBClient:             mockResourcesDBClient,
-				cincinnatiClientCache:         mockClientCache,
+				cincinnatiClient:              cincinnati.NewMockClient(ctrl),
 			}
 
 			ctx = utils.ContextWithLogger(ctx, logr.Discard())
@@ -479,17 +470,13 @@ func TestNodePoolVersionSyncer_SyncOnce_IntentFailed(t *testing.T) {
 			mockCincinnati := cincinnati.NewMockClient(ctrl)
 			tt.setupCincinnati(mockCincinnati)
 
-			mockClientCache := cincinnati.NewMockClientCache(ctrl)
-			mockClientCache.EXPECT().GetOrCreateClient(gomock.Any()).Return(mockCincinnati).AnyTimes()
-
 			syncer := &nodePoolVersionSyncer{
 				nodePoolLister:                &listertesting.DBNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
 				serviceProviderNodePoolLister: &listertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
 				serviceProviderClusterLister:  &listertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
 				subscriptionLister:            subscriptionLister,
-				readDesireLister:              newValidHostedClusterReadDesireLister(t),
 				resourcesDBClient:             mockResourcesDBClient,
-				cincinnatiClientCache:         mockClientCache,
+				cincinnatiClient:              mockCincinnati,
 			}
 
 			err := syncer.SyncOnce(ctx, testKey)
@@ -943,11 +930,8 @@ func TestNodePoolVersionSyncer_ValidateDesiredNodePoolVersion(t *testing.T) {
 				Return(configv1.Release{}, []configv1.Release{{Version: tt.desiredVersion}}, nil, nil).
 				AnyTimes()
 
-			mockClientCache := cincinnati.NewMockClientCache(ctrl)
-			mockClientCache.EXPECT().GetOrCreateClient(gomock.Any()).Return(mockCincinnatiClient).AnyTimes()
-
 			syncer := &nodePoolVersionSyncer{
-				cincinnatiClientCache: mockClientCache,
+				cincinnatiClient: mockCincinnatiClient,
 			}
 
 			err := syncer.validateDesiredNodePoolVersion(
@@ -956,7 +940,6 @@ func TestNodePoolVersionSyncer_ValidateDesiredNodePoolVersion(t *testing.T) {
 				spNodePool,
 				spCluster,
 				"stable",
-				[16]byte{}, // dummy UUID
 				tt.allowMajorUpgrades,
 			)
 
@@ -975,8 +958,6 @@ func TestNodePoolVersionSyncer_SyncOnce_DesiredExceedsControlPlaneFails(t *testi
 	ctrl := gomock.NewController(t)
 
 	mockResourcesDBClient := databasetesting.NewMockResourcesDBClient()
-	mockClientCache := cincinnati.NewMockClientCache(ctrl)
-	mockClientCache.EXPECT().GetOrCreateClient(gomock.Any()).Return(cincinnati.NewMockClient(ctrl)).AnyTimes()
 
 	// Create node pool with desired version 4.19.15 (exceeds control plane 4.19.10)
 	createTestNodePoolWithVersion(t, ctx, mockResourcesDBClient, "4.19.15")
@@ -992,9 +973,8 @@ func TestNodePoolVersionSyncer_SyncOnce_DesiredExceedsControlPlaneFails(t *testi
 		serviceProviderNodePoolLister: &listertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
 		serviceProviderClusterLister:  &listertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
 		subscriptionLister:            &listertesting.DBSubscriptionLister{ResourcesDBClient: mockResourcesDBClient},
-		readDesireLister:              newValidHostedClusterReadDesireLister(t),
 		resourcesDBClient:             mockResourcesDBClient,
-		cincinnatiClientCache:         mockClientCache,
+		cincinnatiClient:              cincinnati.NewMockClient(ctrl),
 	}
 
 	testKey := controllerutils.HCPNodePoolKey{
@@ -1042,17 +1022,13 @@ func TestNodePoolVersionSyncer_SyncOnce_SucceedsWithoutCincinnatiEdge(t *testing
 		).
 		Times(1)
 
-	mockClientCache := cincinnati.NewMockClientCache(ctrl)
-	mockClientCache.EXPECT().GetOrCreateClient(gomock.Any()).Return(mockCincinnati).AnyTimes()
-
 	syncer := &nodePoolVersionSyncer{
 		nodePoolLister:                &listertesting.DBNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
 		serviceProviderNodePoolLister: &listertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
 		serviceProviderClusterLister:  &listertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
 		subscriptionLister:            &listertesting.DBSubscriptionLister{ResourcesDBClient: mockResourcesDBClient},
-		readDesireLister:              newValidHostedClusterReadDesireLister(t),
 		resourcesDBClient:             mockResourcesDBClient,
-		cincinnatiClientCache:         mockClientCache,
+		cincinnatiClient:              mockCincinnati,
 	}
 
 	testKey := controllerutils.HCPNodePoolKey{
@@ -1103,17 +1079,13 @@ func TestNodePoolVersionSyncer_SyncOnce_VersionNotInCincinnatiFails(t *testing.T
 		).
 		Times(1)
 
-	mockClientCache := cincinnati.NewMockClientCache(ctrl)
-	mockClientCache.EXPECT().GetOrCreateClient(gomock.Any()).Return(mockCincinnati).AnyTimes()
-
 	syncer := &nodePoolVersionSyncer{
 		nodePoolLister:                &listertesting.DBNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
 		serviceProviderNodePoolLister: &listertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
 		serviceProviderClusterLister:  &listertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
 		subscriptionLister:            &listertesting.DBSubscriptionLister{ResourcesDBClient: mockResourcesDBClient},
-		readDesireLister:              newValidHostedClusterReadDesireLister(t),
 		resourcesDBClient:             mockResourcesDBClient,
-		cincinnatiClientCache:         mockClientCache,
+		cincinnatiClient:              mockCincinnati,
 	}
 
 	testKey := controllerutils.HCPNodePoolKey{
@@ -1161,17 +1133,13 @@ func TestNodePoolVersionSyncer_SyncOnce_DowngradeVersionNotInCincinnatiFails(t *
 		).
 		Times(1)
 
-	mockClientCache := cincinnati.NewMockClientCache(ctrl)
-	mockClientCache.EXPECT().GetOrCreateClient(gomock.Any()).Return(mockCincinnati).AnyTimes()
-
 	syncer := &nodePoolVersionSyncer{
 		nodePoolLister:                &listertesting.DBNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
 		serviceProviderNodePoolLister: &listertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
 		serviceProviderClusterLister:  &listertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
 		subscriptionLister:            &listertesting.DBSubscriptionLister{ResourcesDBClient: mockResourcesDBClient},
-		readDesireLister:              newValidHostedClusterReadDesireLister(t),
 		resourcesDBClient:             mockResourcesDBClient,
-		cincinnatiClientCache:         mockClientCache,
+		cincinnatiClient:              mockCincinnati,
 	}
 
 	testKey := controllerutils.HCPNodePoolKey{
@@ -1219,17 +1187,13 @@ func TestNodePoolVersionSyncer_SyncOnce_DowngradeWithinSkewSucceeds(t *testing.T
 		).
 		Times(1)
 
-	mockClientCache := cincinnati.NewMockClientCache(ctrl)
-	mockClientCache.EXPECT().GetOrCreateClient(gomock.Any()).Return(mockCincinnati).AnyTimes()
-
 	syncer := &nodePoolVersionSyncer{
 		nodePoolLister:                &listertesting.DBNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
 		serviceProviderNodePoolLister: &listertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
 		serviceProviderClusterLister:  &listertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
 		subscriptionLister:            &listertesting.DBSubscriptionLister{ResourcesDBClient: mockResourcesDBClient},
-		readDesireLister:              newValidHostedClusterReadDesireLister(t),
 		resourcesDBClient:             mockResourcesDBClient,
-		cincinnatiClientCache:         mockClientCache,
+		cincinnatiClient:              mockCincinnati,
 	}
 
 	testKey := controllerutils.HCPNodePoolKey{
@@ -1280,17 +1244,13 @@ func TestNodePoolVersionSyncer_SyncOnce_ValidUpgradeSucceeds(t *testing.T) {
 		).
 		Times(1)
 
-	mockClientCache := cincinnati.NewMockClientCache(ctrl)
-	mockClientCache.EXPECT().GetOrCreateClient(gomock.Any()).Return(mockCincinnati).AnyTimes()
-
 	syncer := &nodePoolVersionSyncer{
 		nodePoolLister:                &listertesting.DBNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
 		serviceProviderNodePoolLister: &listertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
 		serviceProviderClusterLister:  &listertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
 		subscriptionLister:            &listertesting.DBSubscriptionLister{ResourcesDBClient: mockResourcesDBClient},
-		readDesireLister:              newValidHostedClusterReadDesireLister(t),
 		resourcesDBClient:             mockResourcesDBClient,
-		cincinnatiClientCache:         mockClientCache,
+		cincinnatiClient:              mockCincinnati,
 	}
 
 	testKey := controllerutils.HCPNodePoolKey{
@@ -1339,17 +1299,13 @@ func TestNodePoolVersionSyncer_SyncOnce_DesiredVersionUnchangedOnFailure_Changed
 		).
 		AnyTimes()
 
-	mockClientCache := cincinnati.NewMockClientCache(ctrl)
-	mockClientCache.EXPECT().GetOrCreateClient(gomock.Any()).Return(mockCincinnati).Times(1)
-
 	syncer := &nodePoolVersionSyncer{
 		nodePoolLister:                &listertesting.DBNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
 		serviceProviderNodePoolLister: &listertesting.DBServiceProviderNodePoolLister{ResourcesDBClient: mockResourcesDBClient},
 		serviceProviderClusterLister:  &listertesting.DBServiceProviderClusterLister{ResourcesDBClient: mockResourcesDBClient},
 		subscriptionLister:            &listertesting.DBSubscriptionLister{ResourcesDBClient: mockResourcesDBClient},
-		readDesireLister:              newValidHostedClusterReadDesireLister(t),
 		resourcesDBClient:             mockResourcesDBClient,
-		cincinnatiClientCache:         mockClientCache,
+		cincinnatiClient:              mockCincinnati,
 	}
 
 	testKey := controllerutils.HCPNodePoolKey{
@@ -1400,7 +1356,7 @@ func TestNodePoolVersionSyncer_SyncOnce_DesiredVersionUnchangedOnFailure_Changed
 			&cvocincinnati.Error{Reason: "VersionNotFound", Message: "version 4.19.99 not found"},
 		).
 		AnyTimes()
-	mockClientCache.EXPECT().GetOrCreateClient(gomock.Any()).Return(mockCincinnatiFailing).Times(1)
+	syncer.cincinnatiClient = mockCincinnatiFailing
 
 	// SyncOnce should succeed but persist IntentFailed (VersionNotFound is a user error, not transient)
 	err = syncer.SyncOnce(ctx, testKey)
@@ -1440,7 +1396,7 @@ func TestNodePoolVersionSyncer_SyncOnce_DesiredVersionUnchangedOnFailure_Changed
 			nil,
 		).
 		AnyTimes()
-	mockClientCache.EXPECT().GetOrCreateClient(gomock.Any()).Return(mockCincinnatiSucceeding).Times(1)
+	syncer.cincinnatiClient = mockCincinnatiSucceeding
 
 	// SyncOnce should succeed now
 	err = syncer.SyncOnce(ctx, testKey)
