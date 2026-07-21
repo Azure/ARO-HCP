@@ -109,10 +109,11 @@ func Resolve(environment Environment) (EnvironmentParameters, error) {
 	return out, nil
 }
 
-// expandBashSubstring expands a string containing bash-style parameter
-// expressions. It supports plain variable expansion ($VAR, ${VAR}) and
+// expandBashSubstring expands a limited subset of bash-style parameter
+// expansions. It supports plain variable expansion ($VAR, ${VAR}) and
 // substring extraction (${VAR:offset}, ${VAR:offset:length}).
-// Negative offsets count from the end of the value (${VAR: -3}).
+// Note: negative offsets require a space after the colon (${VAR: -3});
+// ${VAR:-3} is bash default-value syntax and is not supported here.
 func expandBashSubstring(s string) (string, error) {
 	var expandErr error
 	result := os.Expand(s, func(key string) string {
