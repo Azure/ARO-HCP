@@ -96,6 +96,8 @@ Azure does not set that tag by default. Subscriptions where `rg-ordered` should 
 
 For the DEV e2e/customer subscriptions (`.ci.dev.e2eSubscriptions`), this policy is assigned declaratively by the dev-ci pipeline: `dev-infrastructure/templates/createdat-rg-tag-policy.bicep` fans the subscription-scoped definition + assignment out to each e2e subscription, wired as the `createdat-rg-tag-policy` step in `dev-infrastructure/dev-ci/e2e-subscription-rbac-grants/pipeline.yaml`. That step lives in the privileged dev-ci tree because writing policy definitions/assignments needs `Microsoft.Authorization/policy*/write`, which the unattended Contributor bot lacks; run it with `make dev-ci-privileged-local-run` as an OWNERS member. For one-off or non-dev subscriptions, `tooling/cleanup-sweeper/scripts/create-createdat-policy-assignment.sh` creates or updates the same definition and assignment imperatively.
 
+> **Keep the rule body in sync.** The policy rule is expressed in two places: `tooling/cleanup-sweeper/scripts/rg-createdat-policy-rule.json` (used by the imperative script) and, mirrored inline, in `dev-infrastructure/templates/createdat-rg-tag-policy-subscription.bicep` (used by the declarative dev-ci path). Both use the same definition/assignment resource names so they converge on one policy, but the rule body itself is duplicated: any change to the `if`/`then`/`[utcNow()]` logic must be applied to both files.
+
 This path is intentionally best-effort. If one run leaves something behind, the next run can pick it up.
 
 ## Why They Behave Differently
