@@ -164,22 +164,20 @@ func (c *operationClusterCreate) SynchronizeOperation(ctx context.Context, key c
 	}
 	logger.Info("new status via cosmos", "newStatus", cosmosNewOperationState.ProvisioningState, "newOperationMessage", cosmosNewOperationState.Message)
 
-	newOperationStatus, opError, err := convertClusterStatus(ctx, c.clusterServiceClient, operation, clusterStatus, clusterServiceID)
+	clusterServiceNewOperationStatus, opError, err := convertClusterStatus(ctx, c.clusterServiceClient, operation, clusterStatus, clusterServiceID)
 	if err != nil {
 		return utils.TrackError(err)
 	}
-	logger.Info("new status via cluster-service", "newStatus", newOperationStatus, "newOperationError", opError)
+	logger.Info("new status via cluster-service", "newStatus", clusterServiceNewOperationStatus, "newOperationError", opError)
 
-	if newOperationStatus == arm.ProvisioningStateSucceeded && cosmosNewOperationState.ProvisioningState != arm.ProvisioningStateSucceeded {
-		// we want to require that the cosmos view of cluster creation is also complete before we mark it.  This ensures (among other things)
-		// that our ability to read maestro is successful.
-		// Once we have confidence in our ability to determine that cluster is functional, we'll stop checking cluster-service at all.
-		return fmt.Errorf("cosmos operation status is %q, but cluster-service operation status is %q: %s", cosmosNewOperationState.ProvisioningState, newOperationStatus, cosmosNewOperationState.Message)
-	}
+	operationIsSuccessful := clusterServiceNewOperationStatus == arm.ProvisioningStateSucceeded && cosmosNewOperationState.ProvisioningState == arm.ProvisioningStateSucceeded
+	operationIsFailed := clusterServiceNewOperationStatus == arm.ProvisioningStateFailed && cosmosNewOperationState.ProvisioningState == arm.ProvisioningStateFailed
+	operationIsTerminal := operationIsSuccessful || operationIsFailed
 
-	if !newOperationStatus.IsTerminal() &&
+	if !operationIsTerminal &&
 		cluster.ServiceProviderProperties.CreateOperationCompletionDeadline != nil &&
 		c.clock.Now().After(cluster.ServiceProviderProperties.CreateOperationCompletionDeadline.Time) {
+
 		message := "cluster creation did not complete before the deadline"
 		if len(cosmosNewOperationState.Message) > 0 {
 			message = cosmosNewOperationState.Message
@@ -187,15 +185,22 @@ func (c *operationClusterCreate) SynchronizeOperation(ctx context.Context, key c
 		logger.Info("create operation deadline exceeded, marking as failed",
 			"deadline", cluster.ServiceProviderProperties.CreateOperationCompletionDeadline.Time,
 			"message", message)
-		newOperationStatus = arm.ProvisioningStateFailed
+		clusterServiceNewOperationStatus = arm.ProvisioningStateFailed
 		opError = &arm.CloudErrorBody{
 			Code:    arm.CloudErrorCodeInternalServerError,
 			Message: message,
 		}
 	}
 
+	if clusterServiceNewOperationStatus == arm.ProvisioningStateSucceeded && cosmosNewOperationState.ProvisioningState != arm.ProvisioningStateSucceeded {
+		// we want to require that the cosmos view of cluster creation is also complete before we mark it.  This ensures (among other things)
+		// that our ability to read maestro is successful.
+		// Once we have confidence in our ability to determine that cluster is functional, we'll stop checking cluster-service at all.
+		return fmt.Errorf("cosmos operation status is %q, but cluster-service operation status is %q: %s", cosmosNewOperationState.ProvisioningState, clusterServiceNewOperationStatus, cosmosNewOperationState.Message)
+	}
+
 	logger.Info("updating status")
-	err = UpdateOperationStatus(ctx, c.clock, c.resourcesDBClient, operation, newOperationStatus, opError, postAsyncNotificationFn(c.notificationClient))
+	err = UpdateOperationStatus(ctx, c.clock, c.resourcesDBClient, operation, clusterServiceNewOperationStatus, opError, postAsyncNotificationFn(c.notificationClient))
 	if database.IsPreconditionFailedError(err) {
 		return nil
 	}
