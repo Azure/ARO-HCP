@@ -16,6 +16,22 @@ clouds:
           mise:
             audit:
               connectSocket: true
+          # Prometheus mgmt-cluster survival tuning (AROSLSRE-1553/1554).
+          # INT mgmt has only 2x ~11.8Gi infra nodes and a single prom-agent
+          # OOM-crashloop blacked out the cluster for ~37h. shards=4 halves the
+          # per-shard series/WAL so a remote-write stall replay stays bounded;
+          # the 4Gi limit caps a runaway pod so it OOMs itself instead of taking
+          # the node down; the 1.5Gi request keeps all 8 pods (4 shards x 2
+          # replicas) schedulable on the 2 nodes (4 x 1.5Gi = 6Gi/node).
+          mgmt:
+            prometheus:
+              prometheusSpec:
+                shards: 4
+                resources:
+                  requests:
+                    memory: 1.5Gi
+                  limits:
+                    memory: 4Gi
       stg:
         # this is the MSFT STAGE environment
         defaults:
