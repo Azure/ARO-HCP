@@ -30,11 +30,11 @@ import (
 
 	"k8s.io/apimachinery/pkg/util/rand"
 	"k8s.io/client-go/kubernetes"
+	utilsclock "k8s.io/utils/clock"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 
 	cvocincinnati "github.com/openshift/cluster-version-operator/pkg/cincinnati"
-	utilsclock "k8s.io/utils/clock"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/hcpversionselection"
 	"github.com/Azure/ARO-HCP/internal/api"
