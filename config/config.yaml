@@ -1002,7 +1002,7 @@ defaults:
     image:
       registry: quay.io
       repository: redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro
-      digest: sha256:31b203da421cc2ee2125a86be5168f096e236a3a9125404cb326a718a0d34727 # 6593d85435939d8d50bf976712784e4870cd0227 (2026-07-20 13:58)
+      digest: sha256:52294527040a60b07748175c19184eb110da6b0152208eff0271ea4010880904 # 3717fc674f6532617743a46b165280d235dee2be (2026-07-21 21:24)
   # ACM
   acm:
     operator:
