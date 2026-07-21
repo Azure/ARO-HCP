@@ -151,27 +151,27 @@ create-mock-identities: configurations/mock-identities.bicepparam
 		--parameters configurations/mock-identities.bicepparam \
 		--parameters e2eTestSubscription=974ebd46-8ad3-41e3-afef-7ef25fd5c371
 
-	VAULT_NAME=aro-hcp-dev-svc-kv CERT_NAME=firstPartyCert2 \
+	VAULT_NAME=$(SVC_KV_NAME) CERT_NAME=firstPartyCert2 \
 		SUBJECT=CN=firstparty.hcp.osadev.cloud DNS_NAMES=firstparty.hcp.osadev.cloud \
 		./scripts/create-kv-cert.sh
 
-	VAULT_NAME=aro-hcp-dev-svc-kv CERT_NAME=armHelperCert2 \
+	VAULT_NAME=$(SVC_KV_NAME) CERT_NAME=armHelperCert2 \
 		SUBJECT=CN=armhelper.hcp.osadev.cloud DNS_NAMES=armhelper.hcp.osadev.cloud \
 		./scripts/create-kv-cert.sh
 
-	VAULT_NAME=aro-hcp-dev-svc-kv CERT_NAME=msiMockCert2 \
+	VAULT_NAME=$(SVC_KV_NAME) CERT_NAME=msiMockCert2 \
 		SUBJECT=CN=msimock.hcp.osadev.cloud DNS_NAMES=msimock.hcp.osadev.cloud \
 		./scripts/create-kv-cert.sh
 
 	APPLICATION_NAME=aro-dev-first-party2 \
-	KEY_VAULT_NAME=aro-hcp-dev-svc-kv \
+	KEY_VAULT_NAME=$(SVC_KV_NAME) \
 	CERTIFICATE_NAME=firstPartyCert2 \
 	ROLE_DEFINITION_NAME=dev-first-party-mock \
 	SUBSCRIPTION_ID=$(shell az account show --query id --output tsv) \
 	./scripts/create-sp-for-rbac.sh
 
 	APPLICATION_NAME=aro-dev-arm-helper2 \
-	KEY_VAULT_NAME=aro-hcp-dev-svc-kv \
+	KEY_VAULT_NAME=$(SVC_KV_NAME) \
 	CERTIFICATE_NAME=armHelperCert2 \
 	ROLE_DEFINITION_NAME='Role Based Access Control Administrator' \
 	SUBSCRIPTION_ID=$(shell az account show --query id --output tsv) \
@@ -184,7 +184,7 @@ create-mock-identities: configurations/mock-identities.bicepparam
 		--only-show-errors
 
 	APPLICATION_NAME=aro-dev-msi-mock2 \
-	KEY_VAULT_NAME=aro-hcp-dev-svc-kv \
+	KEY_VAULT_NAME=$(SVC_KV_NAME) \
 	CERTIFICATE_NAME=msiMockCert2 \
 	ROLE_DEFINITION_NAME=dev-msi-mock \
 	SUBSCRIPTION_ID=$(shell az account show --query id --output tsv) \
@@ -198,13 +198,13 @@ create-mock-identities: configurations/mock-identities.bicepparam
 
 	@for i in $$(seq 0 $$(($(MSI_MOCK_POOL_SIZE) - 1))); do \
 		echo "Creating/updating MSI mock pool SP $$i ..."; \
-		VAULT_NAME=aro-hcp-dev-svc-kv \
+		VAULT_NAME=$(SVC_KV_NAME) \
 		CERT_NAME=msiMockPoolCert-$$i \
 		SUBJECT=CN=$$i.msimockpool.hcp.osadev.cloud \
 		DNS_NAMES=$$i.msimockpool.hcp.osadev.cloud \
 		./scripts/create-kv-cert.sh; \
 		APPLICATION_NAME=aro-dev-msi-mock-pool-$$i \
-		KEY_VAULT_NAME=aro-hcp-dev-svc-kv \
+		KEY_VAULT_NAME=$(SVC_KV_NAME) \
 		CERTIFICATE_NAME=msiMockPoolCert-$$i \
 		ROLE_DEFINITION_NAME=dev-msi-mock \
 		SUBSCRIPTION_ID=$(shell az account show --query id --output tsv) \
@@ -221,13 +221,13 @@ create-mock-identities: configurations/mock-identities.bicepparam
 create-msi-mock-pool:
 	@for i in $$(seq 0 $$(($(MSI_MOCK_POOL_SIZE) - 1))); do \
 		echo "Creating/updating MSI mock pool cert+SP $$i ..."; \
-		VAULT_NAME=aro-hcp-dev-svc-kv \
+		VAULT_NAME=$(SVC_KV_NAME) \
 		CERT_NAME=msiMockPoolCert-$$i \
 		SUBJECT=CN=$$i.msimockpool.hcp.osadev.cloud \
 		DNS_NAMES=$$i.msimockpool.hcp.osadev.cloud \
 		./scripts/create-kv-cert.sh; \
 		APPLICATION_NAME=aro-dev-msi-mock-pool-$$i \
-		KEY_VAULT_NAME=aro-hcp-dev-svc-kv \
+		KEY_VAULT_NAME=$(SVC_KV_NAME) \
 		CERTIFICATE_NAME=msiMockPoolCert-$$i \
 		ROLE_DEFINITION_NAME=dev-msi-mock \
 		SUBSCRIPTION_ID=$(shell az account show --query id --output tsv) \

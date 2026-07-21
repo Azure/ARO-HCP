@@ -31,6 +31,17 @@ VALIDITY_IN_MONTHS="${VALIDITY_IN_MONTHS:-120}"
 RENEW_PERCENTAGE_LIFETIME="${RENEW_PERCENTAGE_LIFETIME:-24}"
 FORCE="${FORCE:-false}"
 
+# Validate the numeric policy inputs up front so a bad value fails clearly here
+# instead of producing invalid policy JSON that az rejects with an opaque error.
+if [[ ! "${VALIDITY_IN_MONTHS}" =~ ^[1-9][0-9]*$ ]]; then
+  echo "ERROR: VALIDITY_IN_MONTHS must be a positive integer, got '${VALIDITY_IN_MONTHS}'." >&2
+  exit 1
+fi
+if [[ ! "${RENEW_PERCENTAGE_LIFETIME}" =~ ^[1-9][0-9]*$ ]] || (( RENEW_PERCENTAGE_LIFETIME > 99 )); then
+  echo "ERROR: RENEW_PERCENTAGE_LIFETIME must be an integer between 1 and 99, got '${RENEW_PERCENTAGE_LIFETIME}'." >&2
+  exit 1
+fi
+
 # RFC 5280 requires the common name be <= 64 characters.
 cn="${SUBJECT#CN=}"
 if [[ "${SUBJECT}" == CN=* && ${#cn} -gt 64 ]]; then
