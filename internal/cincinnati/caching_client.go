@@ -23,8 +23,9 @@ import (
 
 	"github.com/blang/semver/v4"
 
-	configv1 "github.com/openshift/api/config/v1"
 	utilsclock "k8s.io/utils/clock"
+
+	configv1 "github.com/openshift/api/config/v1"
 )
 
 var _ Client = (*CachingClient)(nil)

@@ -43,7 +43,6 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listertesting"
-
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
@@ -1034,9 +1033,9 @@ func TestControlPlaneDesiredVersionSyncer_SyncOnce(t *testing.T) {
 			},
 			wantDesiredVersion: nil,
 			wantIntentFailed: &metav1.Condition{
-				Type:   api.ControllerConditionTypeIntentFailed,
-				Status: metav1.ConditionTrue,
-				Reason: api.VersionUpgradeNotAcceptedReason,
+				Type:    api.ControllerConditionTypeIntentFailed,
+				Status:  metav1.ConditionTrue,
+				Reason:  api.VersionUpgradeNotAcceptedReason,
 				Message: `querying Cincinnati for upgrades from 4.19.15 in stable-4.19: VersionNotFound: currently reconciling cluster version 4.19.15 not found in the "stable-4.19" channel`,
 			},
 		},

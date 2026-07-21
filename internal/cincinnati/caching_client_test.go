@@ -27,8 +27,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	configv1 "github.com/openshift/api/config/v1"
 	clocktesting "k8s.io/utils/clock/testing"
+
+	configv1 "github.com/openshift/api/config/v1"
 )
 
 type countingClient struct {
@@ -174,4 +175,3 @@ func TestCachingGetUpdates_ConcurrentAccess(t *testing.T) {
 	assert.LessOrEqual(t, inner.calls.Load(), int64(50))
 	assert.GreaterOrEqual(t, inner.calls.Load(), int64(1))
 }
-

@@ -30,11 +30,11 @@ import (
 
 	"k8s.io/apimachinery/pkg/util/rand"
 	"k8s.io/client-go/kubernetes"
+	utilsclock "k8s.io/utils/clock"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 
 	cvocincinnati "github.com/openshift/cluster-version-operator/pkg/cincinnati"
-	utilsclock "k8s.io/utils/clock"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/hcpversionselection"
 	"github.com/Azure/ARO-HCP/internal/api"
@@ -50,10 +50,6 @@ var _ = Describe("Customer", func() {
 		func(ctx context.Context, targetMinor string) {
 			channelGroup := framework.DefaultOpenshiftChannelGroup()
 			targetVer := api.Must(semver.ParseTolerant(targetMinor))
-			targetPlusOneVer := semver.Version{Major: targetVer.Major, Minor: targetVer.Minor + 1}
-			if targetMinor == "4.22" {
-				targetPlusOneVer = semver.Version{Major: 5, Minor: 0}
-			}
 
 			var previousMinor semver.Version
 			if targetMinor == "5.0" {
