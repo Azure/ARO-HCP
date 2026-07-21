@@ -16,6 +16,7 @@ package e2e
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -33,8 +34,9 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 
 	cvocincinnati "github.com/openshift/cluster-version-operator/pkg/cincinnati"
+	utilsclock "k8s.io/utils/clock"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/controllers/upgradecontrollers"
+	"github.com/Azure/ARO-HCP/backend/pkg/hcpversionselection"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/cincinnati"
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
@@ -67,44 +69,24 @@ var _ = Describe("Customer", func() {
 			previousMinorLine := fmt.Sprintf("%d.%d", previousMinor.Major, previousMinor.Minor)
 			targetMinorLine := fmt.Sprintf("%d.%d", targetVer.Major, targetVer.Minor)
 
-			var installVersion *semver.Version
 			cincinnatiClient := cvocincinnati.NewClient(uuid.NameSpaceDNS, &http.Transport{}, "ARO-HCP", cincinnati.NewAlwaysConditionRegistry())
+			cachingClient := cincinnati.NewCachingClient(cincinnatiClient, utilsclock.RealClock{}, 1*time.Hour)
+			cincinnatiURI, err := cincinnati.GetCincinnatiURI(channelGroup)
+			Expect(err).NotTo(HaveOccurred(), "failed to get Cincinnati URI for channel %s", channelGroup)
 
-			possibleInstallVersions, err := framework.GetAllVersionsInMinorStartingWith(ctx, channelGroup, previousMinorLine)
+			installVersion, err := hcpversionselection.SelectControlPlaneVersion(ctx, channelGroup, previousMinor, cincinnatiURI, cachingClient, nil)
 			if cincinnati.IsCincinnatiVersionNotFoundError(err) {
 				Skip(fmt.Sprintf("Cincinnati returned version not found for previous minor %s on channel %s: %v",
-					previousMinor.String(),
-					channelGroup, err))
+					previousMinor.String(), channelGroup, err))
 			}
-			Expect(err).NotTo(HaveOccurred(), "failed to get versions in previous minor %s on channel %s", previousMinor.String(), channelGroup)
-
-			for _, possibleInstallVersion := range possibleInstallVersions {
-				possibleUpgradeVersions, err := upgradecontrollers.FindAllUpgradeTargetVersionsInMinor(ctx, cincinnatiClient, channelGroup, targetVer, []semver.Version{possibleInstallVersion})
-				if cincinnati.IsCincinnatiVersionNotFoundError(err) {
-					Skip(fmt.Sprintf("Cincinnati returned version not found for target minor %s on channel %s: %v",
-						targetVer.String(),
-						channelGroup, err))
-				}
-				Expect(err).NotTo(HaveOccurred(), "failed to find upgrade targets in minor %s for install version %s", targetVer.String(), possibleInstallVersion.String())
-
-				for _, possibleUpgradeVersion := range possibleUpgradeVersions {
-					possibleNextUpgradeVersions, err := upgradecontrollers.FindAllUpgradeTargetVersionsInMinor(ctx, cincinnatiClient, channelGroup, targetPlusOneVer, []semver.Version{possibleUpgradeVersion})
-					if cincinnati.IsCincinnatiVersionNotFoundError(err) {
-						// in this case we allow it because without a 4.y+2, we allow any 4.y+1
-						installVersion = &possibleInstallVersion
-						break
-					}
-					Expect(err).NotTo(HaveOccurred(), "failed to find upgrade targets in minor %s for upgrade version %s", targetPlusOneVer.String(), possibleUpgradeVersion.String())
-					if len(possibleNextUpgradeVersions) > 0 {
-						// in this case we allow it because the possibleInstallVersion has a possibleUpgradeVersion that can upgrade to 4.y+2
-						installVersion = &possibleInstallVersion
-						break
-					}
-				}
-				if installVersion != nil {
-					break
+			if err != nil {
+				var noGateway *hcpversionselection.NoGatewayError
+				if errors.As(err, &noGateway) {
+					Skip(fmt.Sprintf("no install version in %s found with upgrade path to %s: %v",
+						previousMinor.String(), targetVer.String(), err))
 				}
 			}
+			Expect(err).NotTo(HaveOccurred(), "failed to select install version in %s", previousMinor.String())
 
 			if installVersion == nil {
 				Skip(fmt.Sprintf("no install version in %s found with upgrade path to %s",
