@@ -412,6 +412,10 @@ when it performs its own subscription lookup. Both must be set for a fully local
 
 The total number of `UpgradeInPlace` specs is computed dynamically in `main.go`'s `setupCli()` — after `BuildExtensionTestSpecsFromOpenShiftGinkgoSuite()` builds the spec list, the code counts specs with `labels.UpgradeInPlace` and calls `framework.SetUpgradeInPlaceSpecCount(n)`. The same count drives both the suite `Parallelism` and `NewUpgradeBarrier()`. **No constant to maintain** — adding a new `UpgradeInPlace` spec automatically updates both.
 
+### Invocation
+
+**`run-test` is not supported for upgrade specs.** The `UpgradeCoordinator` only starts in the long-lived `run-suite` process; a direct `run-test` invocation will fail immediately with a RunID mismatch error. Always use `run-suite` or CI to execute upgrade specs.
+
 ### Typical It-block skeleton
 
 ```go

@@ -179,7 +179,9 @@ func NewUpgradeBarrier() (*UpgradeBarrier, error) {
 		}
 		return false, fmt.Errorf(
 			"upgrade barrier: RunID mismatch (state=%d, expected=%d); "+
-				"the UpgradeCoordinator must initialise the state file before workers start",
+				"the UpgradeCoordinator must initialise the state file before workers start. "+
+				"If invoking via 'run-test', note that upgrade/in-place specs are not supported "+
+				"with 'run-test' — use 'run-suite upgrade/in-place' or CI instead",
 			state.RunID, b.runID)
 	}); err != nil {
 		lf.Close()
@@ -292,7 +294,9 @@ func repoRoot() (string, error) {
 func (b *UpgradeBarrier) registerGinkgoCleanup() {
 	// The lock file must outlive the abort cleanup which acquires the flock.
 	ginkgo.DeferCleanup(func() {
-		_ = b.lockFile.Close()
+		if err := b.lockFile.Close(); err != nil {
+			ginkgo.GinkgoLogr.Error(err, "upgrade barrier: failed to close lock file")
+		}
 	}, AnnotatedLocation("upgrade barrier: close lock file"))
 
 	// Registered second → runs before the lock file is closed.
@@ -300,7 +304,9 @@ func (b *UpgradeBarrier) registerGinkgoCleanup() {
 		if b.checkedIn {
 			return
 		}
-		_ = b.abort(ctx)
+		if err := b.abort(ctx); err != nil {
+			ginkgo.GinkgoLogr.Error(err, "upgrade barrier: abort failed; other specs may hang until settleTimeout")
+		}
 	}, AnnotatedLocation("upgrade barrier: abort if not checked in"))
 }
 
