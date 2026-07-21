@@ -16,3 +16,12 @@ spec:
       for: 5m
       labels:
         severity: warning
+    - alert: NodeConntrackTableSaturation
+      annotations:
+        summary: "Node conntrack table approaching capacity"
+        description: "Node {{ $labels.instance }} on cluster {{ $labels.cluster }} has its netfilter conntrack table {{ $value | humanizePercentage }} full (nf_conntrack_max). Sustained saturation leads to 'nf_conntrack: table full, dropping packet' (ConntrackFull), which times out kubelet/DNS/IMDS traffic and degrades node health. Consider a larger SKU (nf_conntrack_max = 32768 x vCPU) or scaling the pool out."
+      expr: |
+        node_nf_conntrack_entries / node_nf_conntrack_entries_limit > 0.80
+      for: 10m
+      labels:
+        severity: warning
