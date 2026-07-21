@@ -62,8 +62,8 @@ const (
 	AllOperationsRelistDuration                   = 30 * time.Minute
 	ActiveOperationsRelistDuration                = 30 * time.Minute
 	ManagementClusterContentRelistDuration        = 30 * time.Second
-	SystemAdminCredentialRequestRelistDuration    = 30 * time.Second
-	SystemAdminCredentialRevocationRelistDuration = 30 * time.Second
+	SystemAdminCredentialRequestRelistDuration    = 30 * time.Minute
+	SystemAdminCredentialRevocationRelistDuration = 30 * time.Minute
 	BillingRelistDuration                         = 30 * time.Second
 )
 
@@ -348,96 +348,60 @@ func NewServiceProviderNodePoolInformerWithRelistDuration(lister database.Global
 
 // NewSystemAdminCredentialRequestInformer creates an unstarted SharedIndexInformer for
 // SystemAdminCredentialRequests with a cluster index using the default relist duration.
-func NewSystemAdminCredentialRequestInformer(lister database.GlobalLister[api.SystemAdminCredentialRequest]) cache.SharedIndexInformer {
-	return NewSystemAdminCredentialRequestInformerWithRelistDuration(lister, SystemAdminCredentialRequestRelistDuration)
+func NewSystemAdminCredentialRequestInformer(lister database.GlobalLister[api.SystemAdminCredentialRequest], cosmosClient database.ChangeFeedClient) cache.SharedIndexInformer {
+	return NewSystemAdminCredentialRequestInformerWithRelistDuration(lister, cosmosClient, SystemAdminCredentialRequestRelistDuration)
 }
 
 // NewSystemAdminCredentialRequestInformerWithRelistDuration creates an unstarted SharedIndexInformer
 // for SystemAdminCredentialRequests with a cluster index and a configurable relist duration.
-func NewSystemAdminCredentialRequestInformerWithRelistDuration(lister database.GlobalLister[api.SystemAdminCredentialRequest], relistDuration time.Duration) cache.SharedIndexInformer {
-	lw := &cache.ListWatch{
-		ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
-			logger := utils.LoggerFromContext(ctx)
-			logger.Info("listing system admin credential requests")
-			defer logger.Info("finished listing system admin credential requests")
-
-			iter, err := lister.List(ctx, nil)
-			if err != nil {
-				return nil, err
-			}
-
-			list := &api.SystemAdminCredentialRequestList{}
-			list.ResourceVersion = "0"
-			for _, sacr := range iter.Items(ctx) {
-				list.Items = append(list.Items, *sacr)
-			}
-			if err := iter.GetError(); err != nil {
-				return nil, err
-			}
-
-			return list, nil
-		},
-		WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
-			return NewExpiringWatcher(ctx, relistDuration), nil
-		},
-	}
+func NewSystemAdminCredentialRequestInformerWithRelistDuration(lister database.GlobalLister[api.SystemAdminCredentialRequest], cosmosClient database.ChangeFeedClient, relistDuration time.Duration) cache.SharedIndexInformer {
+	lw := dbinformers.NewChangeFeedListWatcher[api.SystemAdminCredentialRequest, *api.SystemAdminCredentialRequest, database.GenericDocument[api.SystemAdminCredentialRequest]](
+		[]azcorearm.ResourceType{api.SystemAdminCredentialRequestResourceType},
+		utilsclock.RealClock{},
+		lister,
+		cosmosClient,
+		relistDuration,
+	)
 
 	return cache.NewSharedIndexInformerWithOptions(
-		&listWatchWithoutWatchListSemantics{lw},
+		&listWatchWithoutWatchListSemantics{lw.ToListWatch()},
 		&api.SystemAdminCredentialRequest{},
 		cache.SharedIndexInformerOptions{
 			ResyncPeriod: 1 * time.Hour, // this is only a default.  Shorter resyncs can be added when registering handlers.
 			Indexers: cache.Indexers{
 				listers.ByCluster: clusterResourceIDIndexFunc,
 			},
+			ObjectDescription: "SystemAdminCredentialRequest",
 		},
 	)
 }
 
 // NewSystemAdminCredentialRevocationInformer creates an unstarted SharedIndexInformer for
 // SystemAdminCredentialRevocations with a cluster index using the default relist duration.
-func NewSystemAdminCredentialRevocationInformer(lister database.GlobalLister[api.SystemAdminCredentialRevocation]) cache.SharedIndexInformer {
-	return NewSystemAdminCredentialRevocationInformerWithRelistDuration(lister, SystemAdminCredentialRevocationRelistDuration)
+func NewSystemAdminCredentialRevocationInformer(lister database.GlobalLister[api.SystemAdminCredentialRevocation], cosmosClient database.ChangeFeedClient) cache.SharedIndexInformer {
+	return NewSystemAdminCredentialRevocationInformerWithRelistDuration(lister, cosmosClient, SystemAdminCredentialRevocationRelistDuration)
 }
 
 // NewSystemAdminCredentialRevocationInformerWithRelistDuration creates an unstarted SharedIndexInformer
 // for SystemAdminCredentialRevocations with a cluster index and a configurable relist duration.
-func NewSystemAdminCredentialRevocationInformerWithRelistDuration(lister database.GlobalLister[api.SystemAdminCredentialRevocation], relistDuration time.Duration) cache.SharedIndexInformer {
-	lw := &cache.ListWatch{
-		ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
-			logger := utils.LoggerFromContext(ctx)
-			logger.Info("listing system admin credential revocations")
-			defer logger.Info("finished listing system admin credential revocations")
-
-			iter, err := lister.List(ctx, nil)
-			if err != nil {
-				return nil, err
-			}
-
-			list := &api.SystemAdminCredentialRevocationList{}
-			list.ResourceVersion = "0"
-			for _, revocation := range iter.Items(ctx) {
-				list.Items = append(list.Items, *revocation)
-			}
-			if err := iter.GetError(); err != nil {
-				return nil, err
-			}
-
-			return list, nil
-		},
-		WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
-			return NewExpiringWatcher(ctx, relistDuration), nil
-		},
-	}
+func NewSystemAdminCredentialRevocationInformerWithRelistDuration(lister database.GlobalLister[api.SystemAdminCredentialRevocation], cosmosClient database.ChangeFeedClient, relistDuration time.Duration) cache.SharedIndexInformer {
+	lw := dbinformers.NewChangeFeedListWatcher[api.SystemAdminCredentialRevocation, *api.SystemAdminCredentialRevocation, database.GenericDocument[api.SystemAdminCredentialRevocation]](
+		[]azcorearm.ResourceType{api.SystemAdminCredentialRevocationResourceType},
+		utilsclock.RealClock{},
+		lister,
+		cosmosClient,
+		relistDuration,
+	)
 
 	return cache.NewSharedIndexInformerWithOptions(
-		&listWatchWithoutWatchListSemantics{lw},
+		&listWatchWithoutWatchListSemantics{lw.ToListWatch()},
 		&api.SystemAdminCredentialRevocation{},
 		cache.SharedIndexInformerOptions{
 			ResyncPeriod: 1 * time.Hour, // this is only a default.  Shorter resyncs can be added when registering handlers.
 			Indexers: cache.Indexers{
 				listers.ByCluster: clusterResourceIDIndexFunc,
 			},
+			ObjectDescription: "SystemAdminCredentialRevocation",
 		},
 	)
 }
@@ -458,6 +422,8 @@ func NewControllerInformerWithRelistDuration(lister database.GlobalLister[api.Co
 			api.ClusterControllerResourceType,
 			api.NodePoolControllerResourceType,
 			api.ExternalAuthControllerResourceType,
+			api.SystemAdminCredentialRequestControllerResourceType,
+			api.SystemAdminCredentialRevocationControllerResourceType,
 		},
 		utilsclock.RealClock{},
 		lister,

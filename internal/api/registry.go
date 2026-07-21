@@ -104,6 +104,8 @@ var (
 	SystemAdminCredentialRequestControllerResourceType = azcorearm.NewResourceType(ProviderNamespace, filepath.Join(ClusterResourceTypeName, SystemAdminCredentialRequestResourceTypeName, ControllerResourceTypeName))
 	// SystemAdminCredentialRevocationResourceType is systemAdminCredentialRevocations nested directly under a Cluster
 	SystemAdminCredentialRevocationResourceType = azcorearm.NewResourceType(ProviderNamespace, ClusterResourceTypeName+"/"+SystemAdminCredentialRevocationResourceTypeName)
+	// SystemAdminCredentialRevocationControllerResourceType is controllers nested under systemAdminCredentialRevocations
+	SystemAdminCredentialRevocationControllerResourceType = azcorearm.NewResourceType(ProviderNamespace, filepath.Join(ClusterResourceTypeName, SystemAdminCredentialRevocationResourceTypeName, ControllerResourceTypeName))
 )
 
 type VersionedResource interface {
