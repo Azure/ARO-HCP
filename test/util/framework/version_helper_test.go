@@ -102,14 +102,23 @@ func TestGetInstallVersionForZStreamUpgrade_UsesSameMinorMaxVersion(t *testing.T
 	overrideGetAllVersionsInMinor(t, func(_ context.Context, _ string, _ string) ([]semver.Version, error) {
 		return []semver.Version{v("4.21.10"), v("4.21.9"), v("4.21.8")}, nil
 	})
+
+	called := false
 	overrideGetUpgradeCandidates(t, func(_ context.Context, _ string, maxVersion string, _ string) ([]semver.Version, error) {
+		called = true
 		if maxVersion != "4.21.10" {
 			t.Errorf("maxVersion must be same-minor latest (4.21.10), got %s", maxVersion)
 		}
 		return nil, nil
 	})
 
-	GetInstallVersionForZStreamUpgrade(context.Background(), "candidate", "4.21")
+	_, _, err := GetInstallVersionForZStreamUpgrade(context.Background(), "candidate", "4.21")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !called {
+		t.Fatal("expected upgrade candidates lookup to be invoked")
+	}
 }
 
 func TestGetInstallVersionForZStreamUpgrade_NoUpgradePath(t *testing.T) {
