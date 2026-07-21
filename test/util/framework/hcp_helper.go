@@ -123,11 +123,13 @@ func (tc *perItOrDescribeTestContext) GetAdminRESTConfigForHCPCluster20240610(
 			if m.Kubeconfig == nil {
 				return nil, fmt.Errorf("kubeconfig content is nil")
 			}
+			ginkgo.GinkgoLogr.Info("kubeconfig for cluster", "kubeconfig", *m.Kubeconfig)
 			return clientcmd.Load([]byte(*m.Kubeconfig))
 		})
 		if err != nil {
 			return nil, err
 		}
+		ginkgo.GinkgoLogr.Info("restconfig for cluster", "restconfig", restConfig)
 
 		tc.contextLock.Lock()
 		tc.hcpAdminConfigs[resourceGroupName+"/"+hcpClusterName] = restConfig
