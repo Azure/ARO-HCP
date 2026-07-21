@@ -18,6 +18,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"time"
 
 	"github.com/blang/semver/v4"
@@ -26,17 +27,16 @@ import (
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/api/operation"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	utilsclock "k8s.io/utils/clock"
 
 	cvocincinnati "github.com/openshift/cluster-version-operator/pkg/cincinnati"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
-	"github.com/Azure/ARO-HCP/backend/pkg/maestrohelpers"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/cincinnati"
 	"github.com/Azure/ARO-HCP/internal/database"
-	dblisters "github.com/Azure/ARO-HCP/internal/database/listers"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/utils"
 	"github.com/Azure/ARO-HCP/internal/utils/apihelpers"
@@ -55,10 +55,9 @@ type nodePoolVersionSyncer struct {
 	serviceProviderNodePoolLister listers.ServiceProviderNodePoolLister
 	serviceProviderClusterLister  listers.ServiceProviderClusterLister
 	subscriptionLister            listers.SubscriptionLister
-	readDesireLister              dblisters.ReadDesireLister
 	resourcesDBClient             database.ResourcesDBClient
 
-	cincinnatiClientCache cincinnati.ClientCache
+	cincinnatiClient cincinnati.Client
 }
 
 var _ controllerutils.NodePoolSyncer = (*nodePoolVersionSyncer)(nil)
@@ -66,11 +65,11 @@ var _ controllerutils.NodePoolSyncer = (*nodePoolVersionSyncer)(nil)
 // NewNodePoolVersionController creates a new syncer that validates and persists
 // the customer's desired NodePool version on the ServiceProviderNodePool.
 func NewNodePoolVersionController(
+	clock utilsclock.PassiveClock,
 	resourcesDBClient database.ResourcesDBClient,
 	subscriptionLister listers.SubscriptionLister,
 	informers informers.BackendInformers,
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
-	readDesireLister dblisters.ReadDesireLister,
 ) controllerutils.Controller {
 	_, nodePoolLister := informers.NodePools()
 	_, serviceProviderNodePoolLister := informers.ServiceProviderNodePools()
@@ -80,9 +79,11 @@ func NewNodePoolVersionController(
 		serviceProviderNodePoolLister: serviceProviderNodePoolLister,
 		serviceProviderClusterLister:  serviceProviderClusterLister,
 		subscriptionLister:            subscriptionLister,
-		readDesireLister:              readDesireLister,
 		resourcesDBClient:             resourcesDBClient,
-		cincinnatiClientCache:         cincinnati.NewClientCache(),
+		cincinnatiClient: cincinnati.NewCachingClient(
+			cvocincinnati.NewClient(uuid.Nil, http.DefaultTransport.(*http.Transport).Clone(), "ARO-HCP", cincinnati.NewAlwaysConditionRegistry()),
+			clock, 1*time.Hour,
+		),
 	}
 
 	resyncDuration := 5 * time.Minute
@@ -204,22 +205,12 @@ func (c *nodePoolVersionSyncer) SyncOnce(ctx context.Context, key controllerutil
 		return utils.TrackError(fmt.Errorf("failed to get Subscription from cache: %w", err))
 	}
 
-	// Resolve the cluster UUID from the cached HostedCluster so we can build the Cincinnati client.
-	// Use it as best effort.  If we cannot find use, use an empty value to make progress without a specific value.
-	clusterUUID, found, err := maestrohelpers.GetCachedHostedClusterUUIDForCluster(ctx, c.readDesireLister, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
-	if err != nil {
-		logger.Info("error getting cluster UUID, continuing with empty", "err", err.Error())
-	}
-	if !found {
-		logger.Info("missing cluster UUID, continuing with empty")
-	}
-
 	op := operation.Operation{
 		Options: validation.AFECsToValidationOptions(subscription.GetRegisteredFeatures()),
 	}
 
 	// Validate the customer's desired version before setting it
-	err = c.validateDesiredNodePoolVersion(ctx, &customerDesiredVersion, cachedServiceProviderNodePool, cachedServiceProviderCluster, cachedNodePool.Properties.Version.ChannelGroup, clusterUUID,
+	err = c.validateDesiredNodePoolVersion(ctx, &customerDesiredVersion, cachedServiceProviderNodePool, cachedServiceProviderCluster, cachedNodePool.Properties.Version.ChannelGroup,
 		op.HasOption(api.FeatureExperimentalReleaseFeatures))
 	if err != nil {
 		// Persist IntentFailed on the controller document for Cincinnati VersionNotFound or any non-Cincinnati resolution error.
@@ -291,7 +282,7 @@ func (c *nodePoolVersionSyncer) SyncOnce(ctx context.Context, key controllerutil
 //
 // Returns nil if the desired version is valid, or an error describing why it's invalid.
 func (c *nodePoolVersionSyncer) validateDesiredNodePoolVersion(ctx context.Context, desiredVersion *semver.Version, spNodePool *api.ServiceProviderNodePool, spCluster *api.ServiceProviderCluster,
-	channelGroup string, clusterUUID uuid.UUID, allowExperimentalReleaseFeatures bool) error {
+	channelGroup string, allowExperimentalReleaseFeatures bool) error {
 	if desiredVersion == nil {
 		return fmt.Errorf("customerDesiredVersion is nil, cannot evaluate upgrade")
 	}
@@ -308,7 +299,7 @@ func (c *nodePoolVersionSyncer) validateDesiredNodePoolVersion(ctx context.Conte
 	}
 
 	// Validate the desired version exists in Cincinnati (not that an edge exists from the current version).
-	if err := c.validateVersionExistsInCincinnati(ctx, desiredVersion, channelGroup, clusterUUID); err != nil {
+	if err := c.validateVersionExistsInCincinnati(ctx, desiredVersion, channelGroup); err != nil {
 		return err
 	}
 
@@ -321,7 +312,6 @@ func (c *nodePoolVersionSyncer) validateVersionExistsInCincinnati(
 	ctx context.Context,
 	version *semver.Version,
 	channelGroup string,
-	clusterUUID uuid.UUID,
 ) error {
 	cincinnatiURI, err := cincinnati.GetCincinnatiURI(channelGroup)
 	if err != nil {
@@ -329,10 +319,8 @@ func (c *nodePoolVersionSyncer) validateVersionExistsInCincinnati(
 	}
 
 	cincinnatiChannel := fmt.Sprintf("%s-%d.%d", channelGroup, version.Major, version.Minor)
-	cincinnatiClient := c.cincinnatiClientCache.GetOrCreateClient(clusterUUID)
 
-	// GetUpdates returns VersionNotFound if the version doesn't exist in the channel.
-	_, _, _, err = cincinnatiClient.GetUpdates(ctx, cincinnatiURI, "multi", "multi", cincinnatiChannel, *version)
+	_, _, _, err = c.cincinnatiClient.GetUpdates(ctx, cincinnatiURI, "multi", "multi", cincinnatiChannel, *version)
 	if err != nil {
 		if cincinnati.IsCincinnatiVersionNotFoundError(err) {
 			return utils.TrackError(fmt.Errorf("version %s not found in Cincinnati channel %s", version, cincinnatiChannel))
