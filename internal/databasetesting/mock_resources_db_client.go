@@ -97,6 +97,27 @@ func (m *MockResourcesDBClient) Subscriptions() database.ResourceCRUD[arm.Subscr
 	return newMockSubscriptionCRUD(m)
 }
 
+// ListMissingResourceID returns documents that lack a resourceID field.
+func (m *MockResourcesDBClient) ListMissingResourceID(ctx context.Context, options *database.DBClientListResourceDocsOptions) (database.DBClientIterator[database.TypedDocument], error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	var ids []string
+	var items []*database.TypedDocument
+	for _, data := range m.documents {
+		var typedDoc database.TypedDocument
+		if err := json.Unmarshal(data, &typedDoc); err != nil {
+			continue
+		}
+		if typedDoc.ResourceID != nil {
+			continue
+		}
+		ids = append(ids, typedDoc.ID)
+		items = append(items, &typedDoc)
+	}
+	return newMockIterator(ids, items), nil
+}
+
 // ResourcesGlobalListers returns interfaces for listing all resources of a particular
 // type across all partitions. If a custom ResourcesGlobalListers was set via SetResourcesGlobalListers,
 // that is returned instead.

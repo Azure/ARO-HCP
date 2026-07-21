@@ -21,6 +21,8 @@ import (
 	"net/http"
 	"strings"
 
+	"k8s.io/utils/ptr"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
@@ -132,6 +134,11 @@ type ResourcesDBClient interface {
 
 	ServiceProviderClusters(subscriptionID, resourceGroupName, clusterName string) ResourceCRUD[api.ServiceProviderCluster, *api.ServiceProviderCluster]
 
+	// ListMissingResourceID returns documents in the Resources container that lack a resourceID field.
+	// These are typically old records created before the resourceID field was introduced.
+	// The returned iterator yields raw TypedDocuments without CosmosToInternal conversion.
+	ListMissingResourceID(ctx context.Context, options *DBClientListResourceDocsOptions) (DBClientIterator[TypedDocument], error)
+
 	// ResourcesGlobalListers returns interfaces for listing ARM resource documents across all partitions
 	// (Resources container only), intended for feeding SharedInformers.
 	ResourcesGlobalListers() ResourcesGlobalListers
@@ -202,6 +209,28 @@ func (d *resourcesCosmosDBClient) ServiceProviderNodePools(subscriptionID, resou
 
 func (d *resourcesCosmosDBClient) UntypedCRUD(parentResourceID azcorearm.ResourceID) (UntypedResourceCRUD, error) {
 	return NewUntypedCRUD(d.resources, parentResourceID), nil
+}
+
+func (d *resourcesCosmosDBClient) ListMissingResourceID(ctx context.Context, options *DBClientListResourceDocsOptions) (DBClientIterator[TypedDocument], error) {
+	query := "SELECT * FROM c WHERE (NOT IS_DEFINED(c.resourceID) OR IS_NULL(c.resourceID))"
+
+	queryOptions := azcosmos.QueryOptions{
+		PageSizeHint: -1,
+	}
+	if options != nil {
+		if options.PageSizeHint != nil {
+			queryOptions.PageSizeHint = max(*options.PageSizeHint, -1)
+		}
+		queryOptions.ContinuationToken = options.ContinuationToken
+	}
+
+	partitionKey := azcosmos.NewPartitionKey()
+	pager := d.resources.NewQueryItemsPager(query, partitionKey, &queryOptions)
+
+	if options != nil && ptr.Deref(options.PageSizeHint, -1) > 0 {
+		return newQueryTypedDocumentSinglePageIterator(pager), nil
+	}
+	return newQueryTypedDocumentIterator(pager), nil
 }
 
 func (d *resourcesCosmosDBClient) ResourcesGlobalListers() ResourcesGlobalListers {
