@@ -66,7 +66,7 @@ The sharpest mixed-management boundary today is the DEV MSI mock service-princip
 
 - The `Microsoft.Azure.ARO.HCP.DevCI.Privileged` entrypoint owns the customer-subscription RBAC side for the pooled principals, using principal IDs from `config/config-dev-ci.yaml`. Because those grants require subscription Owner, they are applied on demand rather than by the postsubmit (see [The Privileged Entrypoint](#the-privileged-entrypoint)).
 - `make create-msi-mock-pool` is still a hybrid operator path:
-  - `dev-infrastructure/templates/mock-identity-pool.bicep` ensures the Key Vault certificate footprint.
+  - `dev-infrastructure/scripts/create-kv-cert.sh` (invoked from `dev-infrastructure/Makefile`) ensures the Key Vault certificate footprint via `az keyvault certificate create`.
   - `dev-infrastructure/scripts/create-sp-for-rbac.sh` and `dev-infrastructure/Makefile` still create or update the Entra app and service principal objects and apply the home-subscription grants.
 - `make populate-msi-mock-pool` still performs live Entra lookups and writes the static `dev-infrastructure/openshift-ci/msi-mock-pool.yaml` catalog that release-side jobs consume.
 - `openshift/release` still owns the Boskos inventory and lease contract for the `aro-hcp-msi-mock-cs-sp-dev` resource type.
