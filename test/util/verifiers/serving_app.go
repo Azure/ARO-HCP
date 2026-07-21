@@ -94,16 +94,20 @@ func (v verifySimpleWebApp) Verify(ctx context.Context, adminRESTConfig *rest.Co
 	return nil
 }
 
+var routeReachabilityPollInterval = 10 * time.Second
+
 // waitForRouteReachability polls the URL with the provided client until a
 // successful HTTP 200 response is observed or timeout is reached.
 func waitForRouteReachability(ctx context.Context, client *http.Client, url string, timeout time.Duration) error {
 	var lastErr error
+	var dnsFailureCount int
+	var firstDNSFailureTime time.Time
 	startTime := time.Now()
 	logged5Min := false
 	logged10Min := false
 	logged15Min := false
 
-	err := wait.PollUntilContextTimeout(ctx, 10*time.Second, timeout, true, func(ctx context.Context) (done bool, err error) {
+	err := wait.PollUntilContextTimeout(ctx, routeReachabilityPollInterval, timeout, true, func(ctx context.Context) (done bool, err error) {
 		elapsed := time.Since(startTime)
 
 		if elapsed >= 15*time.Minute && !logged15Min {
@@ -118,25 +122,61 @@ func waitForRouteReachability(ctx context.Context, client *http.Client, url stri
 		}
 		resp, err := client.Get(url)
 		if err != nil {
-			if lastErr == nil || err.Error() != lastErr.Error() {
-				var dnsErr *net.DNSError
-				if errors.As(err, &dnsErr) {
-					klog.InfoS("DNS error for route",
+			var dnsErr *net.DNSError
+			if errors.As(err, &dnsErr) {
+				dnsFailureCount++
+				if firstDNSFailureTime.IsZero() {
+					firstDNSFailureTime = time.Now()
+				}
+				dnsDuration := time.Since(firstDNSFailureTime)
+
+				if dnsDuration > 5*time.Minute && dnsFailureCount%30 == 0 {
+					ginkgo.GinkgoWriter.Printf("WARNING: DNS resolution failing for over 5 minutes (TTL period): url=%s host=%s duration=%v failures=%d\n",
+						url, dnsErr.Name, dnsDuration, dnsFailureCount)
+				}
+
+				if lastErr == nil || err.Error() != lastErr.Error() {
+					klog.InfoS("DNS resolution failed (may indicate DNS propagation delay)",
 						"url", url,
-						"server", dnsErr.Server,
-						"isNotFound", dnsErr.IsNotFound,
+						"host", dnsErr.Name,
+						"dnsError", dnsErr.Err,
+						"isTimeout", dnsErr.IsTimeout,
 						"isTemporary", dnsErr.IsTemporary,
-						"error", dnsErr.Err,
-					)
-				} else {
-					klog.InfoS("failed to get response from route",
-						"url", url,
-						"error", err,
+						"isNotFound", dnsErr.IsNotFound,
+						"consecutiveDNSFailures", dnsFailureCount,
+						"dnsDuration", dnsDuration,
 					)
 				}
+				lastErr = err
+				return false, nil
+			}
+
+			if dnsFailureCount > 0 {
+				klog.InfoS("DNS resolution succeeded, but connection failed with different error",
+					"previousDNSFailures", dnsFailureCount,
+					"dnsDuration", time.Since(firstDNSFailureTime),
+				)
+				dnsFailureCount = 0
+				firstDNSFailureTime = time.Time{}
+			}
+
+			if lastErr == nil || err.Error() != lastErr.Error() {
+				klog.InfoS("failed to get response from route",
+					"url", url,
+					"error", err,
+				)
 			}
 			lastErr = err
 			return false, nil
+		}
+
+		if dnsFailureCount > 0 {
+			klog.InfoS("DNS resolution and connection succeeded after previous DNS failures",
+				"totalDNSFailures", dnsFailureCount,
+				"dnsDuration", time.Since(firstDNSFailureTime),
+			)
+			dnsFailureCount = 0
+			firstDNSFailureTime = time.Time{}
 		}
 		defer resp.Body.Close()
 
