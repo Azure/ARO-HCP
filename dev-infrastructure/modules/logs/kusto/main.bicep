@@ -40,6 +40,9 @@ param autoScaleMax int
 @description('Toggle if autoscale should be enabled')
 param enableAutoScale bool
 
+@description('Resource ID of the global MSI for entity group management (Database Admin role)')
+param globalMSIId string
+
 var db = {
   serviceLogs: serviceLogsDatabase
   hostedControlPlaneLogs: hostedControlPlaneLogsDatabase
@@ -209,6 +212,35 @@ module removePermission 'script.bicep' = [
     ]
   }
 ]
+
+// Database Admin role for the global MSI on each database (required for kustoctl entity-groups sync)
+var globalMSIPrincipalId = reference(globalMSIId, '2023-01-31').principalId
+
+resource serviceLogsAdmin 'Microsoft.Kusto/clusters/databases/principalAssignments@2024-04-13' = {
+  name: '${kustoName}/${db.serviceLogs}/globalMSI-admin'
+  properties: {
+    principalId: globalMSIPrincipalId
+    principalType: 'App'
+    role: 'Admin'
+    tenantId: tenant().tenantId
+  }
+  dependsOn: [
+    serviceLogs
+  ]
+}
+
+resource hostedControlPlaneLogsAdmin 'Microsoft.Kusto/clusters/databases/principalAssignments@2024-04-13' = {
+  name: '${kustoName}/${db.hostedControlPlaneLogs}/globalMSI-admin'
+  properties: {
+    principalId: globalMSIPrincipalId
+    principalType: 'App'
+    role: 'Admin'
+    tenantId: tenant().tenantId
+  }
+  dependsOn: [
+    hostedControlPlaneLogs
+  ]
+}
 
 // Outputs mirror original contract
 output id string = cluster.outputs.id
