@@ -29,6 +29,15 @@ resourceGroups:
     template: ../../templates/e2e-subscription-rbac-assignments.bicep
     parameters: ../../configurations/e2e-subscription-rbac-assignments.tmpl.bicepparam
     deploymentLevel: Subscription
+  # Assigns the createdAt resource-group tag Azure Policy to the e2e/customer
+  # subscriptions. Writing policy definitions/assignments needs
+  # Microsoft.Authorization/policy*/write, which the unattended Contributor bot
+  # lacks, so this belongs in the privileged tree alongside the RBAC grants.
+  - name: createdat-rg-tag-policy
+    action: ARM
+    template: ../../templates/createdat-rg-tag-policy.bicep
+    parameters: ../../configurations/createdat-rg-tag-policy.tmpl.bicepparam
+    deploymentLevel: Subscription
 - name: ci-bots
   resourceGroup: '{{ .global.rg }}'
   subscription: '{{ .global.subscription.key }}'
