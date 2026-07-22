@@ -133,7 +133,10 @@ var _ = Describe("Customer", func() {
 			By("getting admin credentials for the cluster")
 			// Admin credentials are fetched via ARM (not direct KAS), so this
 			// works regardless of KAS visibility. The returned kubeconfig
-			// contains the private KAS URL, usable only from inside the VNet.
+			// contains the public KAS URL, which resolves via public DNS to
+			// the shared ingress — not to the private internal LB. We must
+			// override the server URL with the internal LB IP so that kubectl
+			// from the VM connects to the private KAS endpoint.
 			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20240610(
 				ctx,
 				tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
@@ -142,6 +145,14 @@ var _ = Describe("Customer", func() {
 				framework.GetAdminRESTConfigTimeout,
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to get admin REST config for private KAS cluster %q", customerClusterName)
+
+			By("looking up the private KAS internal load balancer IP")
+			internalIP, err := framework.GetPrivateKASInternalIP(ctx, tc, clusterParams.ManagedResourceGroupName)
+			Expect(err).NotTo(HaveOccurred(), "failed to find private KAS internal LB IP in managed resource group %q", clusterParams.ManagedResourceGroupName)
+			GinkgoLogr.Info("Found private KAS internal LB", "ip", internalIP, "managedRG", clusterParams.ManagedResourceGroupName)
+
+			// Override the server URL with the internal LB IP
+			adminRESTConfig.Host = fmt.Sprintf("https://%s:443", internalIP)
 
 			kubeconfig, err := framework.GenerateKubeconfig(adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred(), "failed to generate kubeconfig from admin REST config")
