@@ -500,6 +500,8 @@ defaults:
     istio:
       istioctlVersion: 1.30.3 # 1.30.3 (2026-07-16 16:50)
       tag: "prod-stable"
+      targetVersion: "asm-1-28"
+      versions: "asm-1-28"
       ingressGatewayIPAddressName: "aro-hcp-istio-ingress"
       ingressGatewayIPAddressIPTags: ""
     opsIngress:
@@ -1302,9 +1304,6 @@ clouds:
           - '*.hcpsvc.osadev.cloud'
         nsp:
           accessMode: 'Learning'
-        istio:
-          targetVersion: "asm-1-28"
-          versions: "asm-1-28"
         aks:
           etcd:
             softDelete: false
