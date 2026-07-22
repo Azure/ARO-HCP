@@ -10,6 +10,8 @@ resourceGroups:
     action: ARM
     template: templates/output-global.bicep
     parameters: configurations/output-global.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
 - name: svc
   resourceGroup: '{{ .regionRG }}'
   subscription: '{{ .svc.subscription.key }}'
