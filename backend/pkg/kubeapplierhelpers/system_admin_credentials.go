@@ -20,6 +20,7 @@ import (
 	"strings"
 
 	certificatesv1 "k8s.io/api/certificates/v1"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/json"
 
 	certificatesv1alpha1 "github.com/openshift/hypershift/api/certificates/v1alpha1"
@@ -28,6 +29,12 @@ import (
 	dblisters "github.com/Azure/ARO-HCP/internal/database/listers"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
+
+// ReadDesireNameForSystemAdminCredentialRequestServingCA returns the ReadDesire
+// name for the per-cluster serving CA mirror.
+func ReadDesireNameForSystemAdminCredentialRequestServingCA() string {
+	return "systemadmincredential-serving-ca"
+}
 
 // ReadDesireNameForSystemAdminCredentialRequestCSR returns the ReadDesire name for a
 // per-credential CSR mirror, keyed by the credential's short name.
@@ -109,4 +116,34 @@ func GetCachedCertificateRevocationRequestForRevocation(
 		return nil, utils.TrackError(fmt.Errorf("failed to unmarshal CertificateRevocationRequest from ReadDesire kubeContent: %w", err))
 	}
 	return crr, nil
+}
+
+// GetCachedServingCAConfigMapForCluster reads the serving CA ConfigMap mirror
+// from the per-cluster ReadDesire.
+//
+// Returns (nil, nil) when:
+//   - the ReadDesire has not been created yet (NotFound),
+//   - the ReadDesire exists but the kube-applier has not yet observed
+//     the target (Status.KubeContent is nil or empty).
+func GetCachedServingCAConfigMapForCluster(
+	ctx context.Context,
+	readDesireLister dblisters.ReadDesireLister,
+	subscriptionName, resourceGroupName, clusterName string,
+) (*corev1.ConfigMap, error) {
+	desireName := ReadDesireNameForSystemAdminCredentialRequestServingCA()
+	readDesire, err := readDesireLister.GetForCluster(ctx, subscriptionName, resourceGroupName, clusterName, desireName)
+	if database.IsNotFoundError(err) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, utils.TrackError(fmt.Errorf("failed to get ReadDesire for serving CA: %w", err))
+	}
+	if readDesire.Status.KubeContent == nil || len(readDesire.Status.KubeContent.Raw) == 0 {
+		return nil, nil
+	}
+	configMap := &corev1.ConfigMap{}
+	if err := json.Unmarshal(readDesire.Status.KubeContent.Raw, configMap); err != nil {
+		return nil, utils.TrackError(fmt.Errorf("failed to unmarshal ConfigMap from ReadDesire kubeContent: %w", err))
+	}
+	return configMap, nil
 }

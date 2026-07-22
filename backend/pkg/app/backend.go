@@ -521,6 +521,20 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		b.options.KubeApplierDBClients,
 		backendInformers,
 	)
+	adminCredentialsServingCAReadDesireCreatorController := systemadmincredentialcontrollers.NewServingCAReadDesireCreatorController(
+		activeOperationLister,
+		b.options.ResourcesDBClient,
+		b.options.KubeApplierDBClients,
+		backendInformers,
+		unionKubeApplierInformers,
+	)
+	adminCredentialsCABundleSyncController := systemadmincredentialcontrollers.NewCABundleSyncController(
+		activeOperationLister,
+		b.options.ResourcesDBClient,
+		backendInformers,
+		unionKubeApplierInformers,
+		unionReadDesireLister,
+	)
 	operationClusterCreateController := operationcontrollers.NewOperationClusterCreateController(
 		b.clock,
 		b.options.ResourcesDBClient,
@@ -938,6 +952,8 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go adminCredentialsRevocationDesiresController.Run(ctx, 20)
 				go adminCredentialsRevocationCompletionController.Run(ctx, 20)
 				go adminCredentialsRevocationDeletionController.Run(ctx, 20)
+				go adminCredentialsServingCAReadDesireCreatorController.Run(ctx, 20)
+				go adminCredentialsCABundleSyncController.Run(ctx, 20)
 				go clusterClusterServiceCreateController.Run(ctx, 20)
 				go nodePoolClusterServiceCreateController.Run(ctx, 20)
 				go externalAuthClusterServiceCreateController.Run(ctx, 20)
