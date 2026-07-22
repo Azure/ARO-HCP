@@ -237,12 +237,16 @@ Run loop (per readme):
 - On each sync:
     1. Read the live object from the kube lister (may be nil if absent).
     2. Read the ReadDesire from the readDesireLister.
-    3. Marshal the live object to RawExtension. If absent, leave a sentinel
-       (e.g. RawExtension{Raw: nil}).
-    4. If new RawExtension differs from ReadDesire.Status.KubeContent
+    3. If the target is a core/v1 Secret, deep-copy and redact the object:
+       strip all data keys except known-safe ones (currently "tls.crt")
+       and remove stringData. This prevents private keys, passwords, and
+       tokens from being persisted to Cosmos.
+    4. Marshal the (possibly redacted) live object to RawExtension.
+       If absent, leave a sentinel (e.g. RawExtension{Raw: nil}).
+    5. If new RawExtension differs from ReadDesire.Status.KubeContent
        (byte-equal compare), write the new status and SetSuccessful(true).
        Otherwise no-op.
-    5. On any kube error en route, SetSuccessful(false, "KubeAPIError"/"PreCheckFailed").
+    6. On any kube error en route, SetSuccessful(false, "KubeAPIError"/"PreCheckFailed").
 ```
 
 Stop behaviour: when the parent manager calls `cancel()`, the workqueue is
