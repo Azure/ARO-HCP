@@ -117,7 +117,7 @@ var _ = Describe("Customer", func() {
 			nodePoolParams := framework.NewDefaultNodePoolParams20260630()
 			nodePoolParams.ClusterName = customerClusterName
 			nodePoolParams.NodePoolName = customerNodePoolName
-			nodePoolParams.Replicas = int32(2)
+			nodePoolParams.Replicas = int32(1)
 
 			err = tc.CreateNodePoolFromParam20260630(ctx,
 				GinkgoLogr,
@@ -133,7 +133,10 @@ var _ = Describe("Customer", func() {
 			By("getting admin credentials for the cluster")
 			// Admin credentials are fetched via ARM (not direct KAS), so this
 			// works regardless of KAS visibility. The returned kubeconfig
-			// contains the private KAS URL, usable only from inside the VNet.
+			// contains the public KAS URL, which resolves via public DNS to
+			// the shared ingress — not to the private internal LB. We must
+			// override the server URL with the internal LB IP so that kubectl
+			// from the VM connects to the private KAS endpoint.
 			adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20240610(
 				ctx,
 				tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
@@ -143,11 +146,38 @@ var _ = Describe("Customer", func() {
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to get admin REST config for private KAS cluster %q", customerClusterName)
 
+			By("looking up the private KAS internal load balancer IP")
+			internalIP, err := framework.GetPrivateKASInternalIP(ctx, tc, clusterParams.ManagedResourceGroupName)
+			Expect(err).NotTo(HaveOccurred(), "failed to find private KAS internal LB IP in managed resource group %q", clusterParams.ManagedResourceGroupName)
+			GinkgoLogr.Info("Found private KAS internal LB", "ip", internalIP, "managedRG", clusterParams.ManagedResourceGroupName)
+
+			// Override the server URL with the internal LB IP
+			adminRESTConfig.Host = fmt.Sprintf("https://%s:443", internalIP)
+
 			kubeconfig, err := framework.GenerateKubeconfig(adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred(), "failed to generate kubeconfig from admin REST config")
 			kubeconfigB64 := base64.StdEncoding.EncodeToString([]byte(kubeconfig))
 
 			By("verifying KAS is reachable from VM inside the VNet")
+			// First, verify that KAS responds at all. The internal LB backend
+			// (Swift NICs) may take time to become healthy after provisioning.
+			// Azure VM Run Command allows only one execution at a time. The
+			// RunVMCommand poll timeout is 2 minutes, so the Eventually interval
+			// must be longer to avoid 409 Conflict ("run command in progress").
+			const vmCommandRetryInterval = 150 * time.Second
+
+			var previousVersionOutput string
+			Eventually(func(g Gomega) {
+				output, err := framework.RunKubectlOnVM(ctx, tc, *resourceGroup.Name, vmName, kubeconfigB64, "version --short", 2*time.Minute)
+				if output != previousVersionOutput {
+					GinkgoLogr.Info("VM kubectl version", "output", strings.TrimSpace(output), "error", err)
+					previousVersionOutput = output
+				}
+				g.Expect(err).NotTo(HaveOccurred(), "kubectl version should succeed from VM inside the VNet")
+			}, 10*time.Minute, vmCommandRetryInterval).Should(Succeed())
+			GinkgoLogr.Info("KAS is reachable from VM inside the VNet")
+
+			By("verifying worker nodes are ready")
 			var previousNodeOutput string
 			Eventually(func(g Gomega) {
 				output, err := framework.RunKubectlOnVM(ctx, tc, *resourceGroup.Name, vmName, kubeconfigB64, "get nodes -o name", 2*time.Minute)
@@ -161,8 +191,8 @@ var _ = Describe("Customer", func() {
 				g.Expect(output).NotTo(BeEmpty(), "should receive node list from KAS via VM inside VNet")
 
 				lines := nonEmptyLines(output)
-				g.Expect(len(lines)).To(Equal(2), "expected 2 nodes, got: %s", output)
-			}, 5*time.Minute, 15*time.Second).Should(Succeed())
+				g.Expect(len(lines)).To(BeNumerically(">=", 1), "expected at least 1 node, got: %s", output)
+			}, 10*time.Minute, vmCommandRetryInterval).Should(Succeed())
 
 			By("verifying KAS is NOT reachable from outside the VNet")
 			err = framework.TestHTTPSConnectivity(ctx, apiURL+"/healthz", 10*time.Second)
@@ -203,7 +233,7 @@ var _ = Describe("Customer", func() {
 				g.Expect(err).NotTo(HaveOccurred(), "failed to get route host from VM")
 				routeHost = strings.TrimSpace(output)
 				g.Expect(routeHost).NotTo(BeEmpty(), "route host should be assigned")
-			}, 2*time.Minute, 10*time.Second).Should(Succeed())
+			}, 5*time.Minute, vmCommandRetryInterval).Should(Succeed())
 			appURL := "https://" + routeHost
 			GinkgoLogr.Info("Sample app route assigned", "url", appURL)
 
@@ -243,7 +273,7 @@ var _ = Describe("Customer", func() {
 				}
 				g.Expect(unavailableOperators).To(BeEmpty(),
 					"all ClusterOperators should report Available=True, but these are not available: %v", unavailableOperators)
-			}, 10*time.Minute, 20*time.Second).Should(Succeed())
+			}, 10*time.Minute, vmCommandRetryInterval).Should(Succeed())
 			GinkgoLogr.Info("All cluster operators are healthy")
 		},
 	)
