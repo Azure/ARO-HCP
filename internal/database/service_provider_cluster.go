@@ -18,6 +18,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
@@ -45,6 +46,7 @@ func newInitialServiceProviderCluster(clusterResourceID *azcorearm.ResourceID) *
 // If it doesn't exist, it creates a new one.
 func GetOrCreateServiceProviderCluster(
 	ctx context.Context, dbClient ResourcesDBClient, clusterResourceID *azcorearm.ResourceID,
+	secondAttempt ...bool,
 ) (*api.ServiceProviderCluster, error) {
 	if !armhelpers.ResourceTypeEqual(clusterResourceID.ResourceType, api.ClusterResourceType) {
 		return nil, utils.TrackError(fmt.Errorf("expected resource type %s, got %s", api.ClusterResourceType, clusterResourceID.ResourceType))
@@ -57,32 +59,44 @@ func GetOrCreateServiceProviderCluster(
 	)
 
 	existingServiceProviderCluster, err := serviceProviderClustersDBClient.Get(ctx, api.ServiceProviderClusterResourceName)
-	if err == nil {
+	switch {
+	case err == nil:
 		return existingServiceProviderCluster, nil
-	}
-
-	if !IsNotFoundError(err) {
-		return nil, utils.TrackError(fmt.Errorf("failed to get ServiceProviderCluster: %w", err))
+	case IsNotFoundError(err):
+		// fall through
+	default:
+		return nil, utils.TrackError(err)
 	}
 
 	initialServiceProviderCluster := newInitialServiceProviderCluster(clusterResourceID)
 	existingServiceProviderCluster, err = serviceProviderClustersDBClient.Create(ctx, initialServiceProviderCluster, nil)
-	if err == nil {
+	switch {
+	case err == nil:
 		return existingServiceProviderCluster, nil
-	}
-
-	// We optimize here and if creation failed because it already exists, we try
-	// to get again one last time.
-	// According to the Cosmos DB API documentation, a HTTP 409 Conflict error
-	// is returned when the item already exists: https://learn.microsoft.com/en-us/rest/api/cosmos-db/create-a-document#status-codes
-	if !IsConflictError(err) {
-		return nil, utils.TrackError(fmt.Errorf("failed to create ServiceProviderCluster: %w", err))
+	case IsConflictError(err):
+		// fall through
+	default:
+		return nil, utils.TrackError(err)
 	}
 
 	existingServiceProviderCluster, err = serviceProviderClustersDBClient.Get(ctx, api.ServiceProviderClusterResourceName)
-	if err != nil {
-		return nil, utils.TrackError(fmt.Errorf("failed to get ServiceProviderCluster: %w", err))
+	switch {
+	case err == nil:
+		return existingServiceProviderCluster, nil
+	case IsNotFoundError(err):
+		if len(secondAttempt) >= 1 && secondAttempt[0] {
+			return nil, utils.TrackError(fmt.Errorf("second NotFound, Conflict, NotFound error: %w", err))
+		}
+		select {
+		case <-ctx.Done():
+			return nil, utils.TrackError(ctx.Err())
+		case <-time.After((SoftDeleteTTLSeconds + 1) * time.Second):
+			// This can happen when the soft-delete marks an item, the GET will return 404, the create will 409, the second get will 404.
+			// By waiting longer than the cosmos TTL, we can re-enter the loop and try again later.  This is a rare case and will
+			// only happen when the parent item exists and the controller was deleted.
+			return GetOrCreateServiceProviderCluster(ctx, dbClient, clusterResourceID, true)
+		}
+	default:
+		return nil, utils.TrackError(err)
 	}
-
-	return existingServiceProviderCluster, nil
 }

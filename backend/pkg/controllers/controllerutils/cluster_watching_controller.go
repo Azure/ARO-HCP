@@ -24,10 +24,12 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
+	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/api"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/database"
 	unionkubeapplierinformers "github.com/Azure/ARO-HCP/internal/database/unioninformers/kubeapplier"
+	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 type ClusterSyncer interface {
@@ -38,6 +40,7 @@ type clusterWatchingController struct {
 	name   string
 	syncer ClusterSyncer
 
+	clusterLister     listers.ClusterLister
 	resourcesDBClient database.ResourcesDBClient
 }
 
@@ -62,27 +65,26 @@ func NewClusterWatchingController(
 	syncer ClusterSyncer,
 ) Controller {
 
-	clusterSyncer := &clusterWatchingController{
+	controller := &clusterWatchingController{
 		name:              name,
 		resourcesDBClient: resourcesDBClient,
 		syncer:            syncer,
 	}
-	clusterController := newGenericWatchingController(name, api.ClusterResourceType, clusterSyncer)
+	clusterController := newGenericWatchingController(name, api.ClusterResourceType, controller)
 
-	// this happens when unit tests don't want triggering.  This isn't beautiful, but fails to do nothing which is pretty safe.
-	if informers != nil {
-		clusterInformer, _ := informers.Clusters()
-		serviceProviderInformer, _ := informers.ServiceProviderClusters()
-		err := clusterController.QueueForInformers(resyncDuration, clusterInformer, serviceProviderInformer)
-		if err != nil {
-			panic(err) // coding error
-		}
-		managementClusterContentInformer, _ := informers.ManagementClusterContents()
-		// Limit the max depth of ManagementClusterContent to 1 to only consider the cluster-scoped ManagementClusterContents
-		err = clusterController.QueueForInformersWithMaxDepth(resyncDuration, 1, managementClusterContentInformer)
-		if err != nil {
-			panic(err) // coding error
-		}
+	clusterInformer, clusterLister := informers.Clusters()
+	serviceProviderInformer, _ := informers.ServiceProviderClusters()
+	controller.clusterLister = clusterLister
+
+	err := clusterController.QueueForInformers(resyncDuration, clusterInformer, serviceProviderInformer)
+	if err != nil {
+		panic(err) // coding error
+	}
+	managementClusterContentInformer, _ := informers.ManagementClusterContents()
+	// Limit the max depth of ManagementClusterContent to 1 to only consider the cluster-scoped ManagementClusterContents
+	err = clusterController.QueueForInformersWithMaxDepth(resyncDuration, 1, managementClusterContentInformer)
+	if err != nil {
+		panic(err) // coding error
 	}
 
 	if kubeApplierInformers != nil {
@@ -101,11 +103,22 @@ func NewClusterWatchingController(
 }
 
 func (c *clusterWatchingController) SyncOnce(ctx context.Context, key HCPClusterKey) error {
+	logger := utils.LoggerFromContext(ctx)
+
 	defer utilruntime.HandleCrash(DegradedControllerPanicHandler(
 		ctx,
 		c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Controllers(key.HCPClusterName),
 		c.name,
 		key.InitialController))
+
+	_, err := c.clusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
+	switch {
+	case database.IsNotFoundError(err):
+		logger.Info("cluster not found, skipping sync")
+		return nil
+	case err != nil:
+		// do nothing, let the controller decide what it wants to do.
+	}
 
 	syncErr := c.syncer.SyncOnce(ctx, key) // we'll handle this is a moment.
 

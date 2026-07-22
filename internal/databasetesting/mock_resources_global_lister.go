@@ -155,9 +155,11 @@ func (l *mockActiveOperationsGlobalLister) List(ctx context.Context, options *da
 			continue
 		}
 
-		// Mirror the production query, which requires IS_DEFINED(c.resourceID);
-		// documents without a resourceID are never returned by list.
 		if typedDoc.ResourceID == nil {
+			continue
+		}
+
+		if typedDoc.DeletionTimestamp != nil {
 			continue
 		}
 
@@ -219,6 +221,10 @@ func (l *mockGlobalLister[InternalAPIType, CosmosAPIType]) List(ctx context.Cont
 		}
 
 		if typedDoc.ResourceID == nil {
+			continue
+		}
+
+		if typedDoc.DeletionTimestamp != nil {
 			continue
 		}
 
