@@ -883,10 +883,15 @@ oidc:
     public: true
     zoneRedundantMode: Auto
 quotaizer:
+  dryRun: false
   image:
     digest: ""
     registry: empty-sentinel
     repository: empty-sentinel
+  imageArtifact:
+    adoProject: empty-sentinel
+    artifactName: empty-sentinel
+    buildId: 0
   managedIdentityName: aro-quotaizer
   quotaGroup:
     displayName: HCP - ci00 centralus
