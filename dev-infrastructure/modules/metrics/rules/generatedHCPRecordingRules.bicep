@@ -173,6 +173,10 @@ resource hcpKasLatencyRecordingRules 'Microsoft.AlertsManagement/prometheusRuleG
         expression: 'sum by (namespace, cluster) (rate(apiserver_request_sli_duration_seconds_bucket{le="1.0",namespace=~"ocm-.*",scope=~"resource|namespace|cluster",subresource!~"proxy|attach|log|exec|portforward",verb=~"POST|PUT|PATCH|DELETE"}[5m]) or rate(apiserver_request_sli_duration_seconds_bucket{le="1.0",namespace=~"ocm-.*",scope="resource",subresource!~"proxy|attach|log|exec|portforward",verb=~"GET|LIST"}[5m]) or rate(apiserver_request_sli_duration_seconds_bucket{le="5.0",namespace=~"ocm-.*",scope="namespace",subresource!~"proxy|attach|log|exec|portforward",verb=~"GET|LIST"}[5m]) or rate(apiserver_request_sli_duration_seconds_bucket{le="30.0",namespace=~"ocm-.*",scope="cluster",subresource!~"proxy|attach|log|exec|portforward",verb=~"GET|LIST"}[5m])) / sum by (namespace, cluster) (rate(apiserver_request_sli_duration_seconds_count{namespace=~"ocm-.*",scope=~"resource|namespace|cluster",subresource!~"proxy|attach|log|exec|portforward",verb=~"POST|PUT|PATCH|DELETE|GET|LIST"}[5m]))'
       }
       {
+        record: 'kas:apiserver_request_latency:sli_ratio:rate_avg_5m'
+        expression: 'avg_over_time(kas:apiserver_request_latency:sli_ratio:rate5m[5m])'
+      }
+      {
         record: 'kas:apiserver_request_latency:sli_ratio:rate_avg_30m'
         expression: 'avg_over_time(kas:apiserver_request_latency:sli_ratio:rate5m[30m])'
       }
@@ -191,6 +195,30 @@ resource hcpKasLatencyRecordingRules 'Microsoft.AlertsManagement/prometheusRuleG
       {
         record: 'kas:apiserver_request_latency:sli_ratio:rate_avg_30d'
         expression: 'avg_over_time(kas:apiserver_request_latency:sli_ratio:rate5m[30d:5m])'
+      }
+      {
+        record: 'kas:apiserver_request_terminations:rate5m'
+        expression: 'sum by (namespace, cluster) (rate(apiserver_request_terminations_total{namespace=~"ocm-.*"}[5m]))'
+      }
+      {
+        record: 'kas:apiserver_inflight_requests:avg_5m'
+        expression: 'avg_over_time(sum by (namespace, cluster, requestKind) (apiserver_current_inflight_requests{namespace=~"ocm-.*"})[5m:1m])'
+      }
+      {
+        record: 'kas:apiserver_request_latency:sli_ratio_mutating:rate5m'
+        expression: 'sum by (namespace, cluster) (rate(apiserver_request_sli_duration_seconds_bucket{le="1.0",namespace=~"ocm-.*",scope=~"resource|namespace|cluster",subresource!~"proxy|attach|log|exec|portforward",verb=~"POST|PUT|PATCH|DELETE"}[5m])) / sum by (namespace, cluster) (rate(apiserver_request_sli_duration_seconds_count{namespace=~"ocm-.*",scope=~"resource|namespace|cluster",subresource!~"proxy|attach|log|exec|portforward",verb=~"POST|PUT|PATCH|DELETE"}[5m]))'
+      }
+      {
+        record: 'kas:apiserver_request_latency:sli_ratio_reads_resource:rate5m'
+        expression: 'sum by (namespace, cluster) (rate(apiserver_request_sli_duration_seconds_bucket{le="1.0",namespace=~"ocm-.*",scope="resource",subresource!~"proxy|attach|log|exec|portforward",verb=~"GET|LIST"}[5m])) / sum by (namespace, cluster) (rate(apiserver_request_sli_duration_seconds_count{namespace=~"ocm-.*",scope="resource",subresource!~"proxy|attach|log|exec|portforward",verb=~"GET|LIST"}[5m]))'
+      }
+      {
+        record: 'kas:apiserver_request_latency:sli_ratio_reads_namespace:rate5m'
+        expression: 'sum by (namespace, cluster) (rate(apiserver_request_sli_duration_seconds_bucket{le="5.0",namespace=~"ocm-.*",scope="namespace",subresource!~"proxy|attach|log|exec|portforward",verb=~"GET|LIST"}[5m])) / sum by (namespace, cluster) (rate(apiserver_request_sli_duration_seconds_count{namespace=~"ocm-.*",scope="namespace",subresource!~"proxy|attach|log|exec|portforward",verb=~"GET|LIST"}[5m]))'
+      }
+      {
+        record: 'kas:apiserver_request_latency:sli_ratio_reads_cluster:rate5m'
+        expression: 'sum by (namespace, cluster) (rate(apiserver_request_sli_duration_seconds_bucket{le="30.0",namespace=~"ocm-.*",scope="cluster",subresource!~"proxy|attach|log|exec|portforward",verb=~"GET|LIST"}[5m])) / sum by (namespace, cluster) (rate(apiserver_request_sli_duration_seconds_count{namespace=~"ocm-.*",scope="cluster",subresource!~"proxy|attach|log|exec|portforward",verb=~"GET|LIST"}[5m]))'
       }
     ]
   }
