@@ -1762,9 +1762,6 @@ func TestValidateClusterUpdate(t *testing.T) {
 				return c
 			}(),
 			expectErrors: []utils.ExpectedError{
-				{Message: "field is immutable", FieldPath: "customerProperties.etcd"},
-				{Message: "field is immutable", FieldPath: "customerProperties.etcd.dataEncryption"},
-				{Message: "field is immutable", FieldPath: "customerProperties.etcd.dataEncryption.customerManaged"},
 				{Message: "must be specified when `keyManagementMode` is \"CustomerManaged\"", FieldPath: "customerProperties.etcd.dataEncryption.customerManaged"},
 			},
 		},
@@ -1803,11 +1800,83 @@ func TestValidateClusterUpdate(t *testing.T) {
 				return c
 			}(),
 			expectErrors: []utils.ExpectedError{
-				{Message: "field is immutable", FieldPath: "customerProperties.etcd"},
-				{Message: "field is immutable", FieldPath: "customerProperties.etcd.dataEncryption"},
-				{Message: "field is immutable", FieldPath: "customerProperties.etcd.dataEncryption.customerManaged"},
-				{Message: "field is immutable", FieldPath: "customerProperties.etcd.dataEncryption.customerManaged.kms"},
 				{Message: "field is immutable", FieldPath: "customerProperties.etcd.dataEncryption.customerManaged.kms.visibility"},
+			},
+		},
+		{
+			name: "mutable kms key version with v20260630preview - update",
+			newCluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Etcd.DataEncryption.KeyManagementMode = api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged
+				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &api.CustomerManagedEncryptionProfile{
+					EncryptionType: api.CustomerManagedEncryptionTypeKMS,
+					Kms: &api.KmsEncryptionProfile{
+						Visibility: api.KeyVaultVisibilityPublic,
+						ActiveKey: api.KmsKey{
+							Name:      "test-key",
+							VaultName: "test-vault",
+							Version:   "new-version",
+						},
+					},
+				}
+				return c
+			}(),
+			oldCluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Etcd.DataEncryption.KeyManagementMode = api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged
+				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &api.CustomerManagedEncryptionProfile{
+					EncryptionType: api.CustomerManagedEncryptionTypeKMS,
+					Kms: &api.KmsEncryptionProfile{
+						Visibility: api.KeyVaultVisibilityPublic,
+						ActiveKey: api.KmsKey{
+							Name:      "test-key",
+							VaultName: "test-vault",
+							Version:   "old-version",
+						},
+					},
+				}
+				return c
+			}(),
+			opOptions:    []string{api.APIVersionOption(api.APIVersionV20260630Preview)},
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name: "immutable kms key version without v20260630preview - update",
+			newCluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Etcd.DataEncryption.KeyManagementMode = api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged
+				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &api.CustomerManagedEncryptionProfile{
+					EncryptionType: api.CustomerManagedEncryptionTypeKMS,
+					Kms: &api.KmsEncryptionProfile{
+						Visibility: api.KeyVaultVisibilityPublic,
+						ActiveKey: api.KmsKey{
+							Name:      "test-key",
+							VaultName: "test-vault",
+							Version:   "new-version",
+						},
+					},
+				}
+				return c
+			}(),
+			oldCluster: func() *api.HCPOpenShiftCluster {
+				c := createValidCluster()
+				c.CustomerProperties.Etcd.DataEncryption.KeyManagementMode = api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged
+				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &api.CustomerManagedEncryptionProfile{
+					EncryptionType: api.CustomerManagedEncryptionTypeKMS,
+					Kms: &api.KmsEncryptionProfile{
+						Visibility: api.KeyVaultVisibilityPublic,
+						ActiveKey: api.KmsKey{
+							Name:      "test-key",
+							VaultName: "test-vault",
+							Version:   "old-version",
+						},
+					},
+				}
+				return c
+			}(),
+			opOptions: []string{api.APIVersionOption(api.APIVersionV20251223Preview)},
+			expectErrors: []utils.ExpectedError{
+				{Message: "field is immutable", FieldPath: "customerProperties.etcd.dataEncryption.customerManaged.kms.activeKey.version"},
 			},
 		},
 		{

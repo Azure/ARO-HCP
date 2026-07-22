@@ -415,6 +415,110 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 			},
 		},
 		{
+			name: "cs cluster ready with customerManaged KMS etcd key version match transitions operation to succeeded",
+			existingCluster: newClusterWithCustomerVersion("4.19", func(cluster *api.HCPOpenShiftCluster) {
+				cluster.CustomerProperties.Etcd = api.EtcdProfile{
+					DataEncryption: api.EtcdDataEncryptionProfile{
+						KeyManagementMode: api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged,
+						CustomerManaged: &api.CustomerManagedEncryptionProfile{
+							EncryptionType: api.CustomerManagedEncryptionTypeKMS,
+							Kms: &api.KmsEncryptionProfile{
+								Visibility: api.KeyVaultVisibilityPublic,
+								ActiveKey: api.KmsKey{
+									Name:      "test-key",
+									VaultName: "test-vault",
+									Version:   "v1",
+								},
+							},
+						},
+					},
+				}
+			}),
+			existingOperation:              newOperationAccepted(),
+			existingServiceProviderCluster: newServiceProviderClusterWithSpecControlPlaneVersion("4.19"),
+			cachedHostedClusterReadDesire: newHostedClusterReadDesire(t, &v1beta1.HostedCluster{
+				Spec: func() v1beta1.HostedClusterSpec {
+					spec := testClusterUpdateMatchingHostedClusterSpec()
+					spec.SecretEncryption = &v1beta1.SecretEncryptionSpec{
+						Type: v1beta1.KMS,
+						KMS: &v1beta1.KMSSpec{
+							Azure: &v1beta1.AzureKMSSpec{
+								ActiveKey: v1beta1.AzureKMSKey{
+									KeyVersion: "v1",
+								},
+							},
+						},
+					}
+					return spec
+				}(),
+			}),
+			setupMockCSClient: func(mock *ocm.MockClusterServiceClientSpec) {
+				mock.EXPECT().
+					GetCluster(gomock.Any(), fixture.clusterInternalID).
+					Return(newCSClusterWithState(arohcpv1alpha1.ClusterStateReady), nil)
+			},
+			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
+				require.NoError(t, err)
+				assert.Equal(t, arm.ProvisioningStateSucceeded, op.Status)
+			},
+		},
+		{
+			name: "cs cluster ready with CMK KMS etcd key version mismatch keeps operation updating",
+			existingCluster: newClusterWithCustomerVersion("4.19", func(cluster *api.HCPOpenShiftCluster) {
+				cluster.CustomerProperties.Etcd = api.EtcdProfile{
+					DataEncryption: api.EtcdDataEncryptionProfile{
+						KeyManagementMode: api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged,
+						CustomerManaged: &api.CustomerManagedEncryptionProfile{
+							EncryptionType: api.CustomerManagedEncryptionTypeKMS,
+							Kms: &api.KmsEncryptionProfile{
+								Visibility: api.KeyVaultVisibilityPublic,
+								ActiveKey: api.KmsKey{
+									Name:      "test-key",
+									VaultName: "test-vault",
+									Version:   "v2",
+								},
+							},
+						},
+					},
+				}
+			}),
+			existingOperation:              newOperationAccepted(),
+			existingServiceProviderCluster: newServiceProviderClusterWithSpecControlPlaneVersion("4.19"),
+			cachedHostedClusterReadDesire: newHostedClusterReadDesire(t, &v1beta1.HostedCluster{
+				Spec: func() v1beta1.HostedClusterSpec {
+					spec := testClusterUpdateMatchingHostedClusterSpec()
+					spec.SecretEncryption = &v1beta1.SecretEncryptionSpec{
+						Type: v1beta1.KMS,
+						KMS: &v1beta1.KMSSpec{
+							Azure: &v1beta1.AzureKMSSpec{
+								ActiveKey: v1beta1.AzureKMSKey{
+									KeyVersion: "v1",
+								},
+							},
+						},
+					}
+					return spec
+				}(),
+			}),
+			setupMockCSClient: func(mock *ocm.MockClusterServiceClientSpec) {
+				mock.EXPECT().
+					GetCluster(gomock.Any(), fixture.clusterInternalID).
+					Return(newCSClusterWithState(arohcpv1alpha1.ClusterStateReady), nil)
+			},
+			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
+				require.NoError(t, err)
+				assert.Equal(t, arm.ProvisioningStateUpdating, op.Status)
+				assert.Nil(t, op.Error)
+
+				cluster, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
+				require.NoError(t, err)
+				assert.Equal(t, arm.ProvisioningStateUpdating, cluster.ServiceProviderProperties.ProvisioningState)
+				assert.Equal(t, testOperationName, cluster.ServiceProviderProperties.ActiveOperationID)
+			},
+		},
+		{
 			name: "cs cluster ready with hypershift autoscaling spec mismatch keeps operation updating",
 			existingCluster: newClusterWithCustomerVersion("4.19", func(cluster *api.HCPOpenShiftCluster) {
 				cluster.CustomerProperties.Autoscaling.MaxNodesTotal = 10
