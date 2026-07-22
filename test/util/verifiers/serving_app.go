@@ -103,8 +103,6 @@ var routeReachabilityPollInterval = 10 * time.Second
 // string is included in all log messages to distinguish check stages.
 func waitForRouteReachability(ctx context.Context, client *http.Client, url string, timeout time.Duration, phase string) error {
 	var lastErr error
-	var dnsFailureCount int
-	var firstDNSFailureTime time.Time
 	startTime := time.Now()
 	logged5Min := false
 	logged10Min := false
@@ -125,65 +123,27 @@ func waitForRouteReachability(ctx context.Context, client *http.Client, url stri
 		}
 		resp, err := client.Get(url)
 		if err != nil {
-			var dnsErr *net.DNSError
-			if errors.As(err, &dnsErr) {
-				dnsFailureCount++
-				if firstDNSFailureTime.IsZero() {
-					firstDNSFailureTime = time.Now()
-				}
-				dnsDuration := time.Since(firstDNSFailureTime)
-
-				if dnsDuration > 5*time.Minute && dnsFailureCount%30 == 0 {
-					ginkgo.GinkgoWriter.Printf("[%s] WARNING: DNS resolution failing for over 5 minutes (TTL period): url=%s host=%s duration=%v failures=%d\n",
-						phase, url, dnsErr.Name, dnsDuration, dnsFailureCount)
-				}
-
-				if lastErr == nil || err.Error() != lastErr.Error() {
-					klog.InfoS("DNS resolution failed (may indicate DNS propagation delay)",
+			if lastErr == nil || err.Error() != lastErr.Error() {
+				var dnsErr *net.DNSError
+				if errors.As(err, &dnsErr) {
+					klog.InfoS("DNS error for route",
 						"phase", phase,
 						"url", url,
 						"host", dnsErr.Name,
-						"dnsError", dnsErr.Err,
-						"isTimeout", dnsErr.IsTimeout,
-						"isTemporary", dnsErr.IsTemporary,
 						"isNotFound", dnsErr.IsNotFound,
-						"consecutiveDNSFailures", dnsFailureCount,
-						"dnsDuration", dnsDuration,
+						"isTemporary", dnsErr.IsTemporary,
+						"error", dnsErr.Err,
+					)
+				} else {
+					klog.InfoS("failed to get response from route",
+						"phase", phase,
+						"url", url,
+						"error", err,
 					)
 				}
-				lastErr = err
-				return false, nil
-			}
-
-			if dnsFailureCount > 0 {
-				klog.InfoS("DNS resolution succeeded, but connection failed with different error",
-					"phase", phase,
-					"previousDNSFailures", dnsFailureCount,
-					"dnsDuration", time.Since(firstDNSFailureTime),
-				)
-				dnsFailureCount = 0
-				firstDNSFailureTime = time.Time{}
-			}
-
-			if lastErr == nil || err.Error() != lastErr.Error() {
-				klog.InfoS("failed to get response from route",
-					"phase", phase,
-					"url", url,
-					"error", err,
-				)
 			}
 			lastErr = err
 			return false, nil
-		}
-
-		if dnsFailureCount > 0 {
-			klog.InfoS("DNS resolution and connection succeeded after previous DNS failures",
-				"phase", phase,
-				"totalDNSFailures", dnsFailureCount,
-				"dnsDuration", time.Since(firstDNSFailureTime),
-			)
-			dnsFailureCount = 0
-			firstDNSFailureTime = time.Time{}
 		}
 		defer resp.Body.Close()
 
