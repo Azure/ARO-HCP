@@ -37,10 +37,11 @@ import (
 
 // triggerControlPlaneUpgradeSyncer is a Cluster syncer that triggers control plane upgrades
 type triggerControlPlaneUpgradeSyncer struct {
-	clock                 utilsclock.PassiveClock
-	resourcesDBClient     database.ResourcesDBClient
-	clusterServiceClient  ocm.ClusterServiceClientSpec
-	activeOperationLister listers.ActiveOperationLister
+	clock                        utilsclock.PassiveClock
+	resourcesDBClient            database.ResourcesDBClient
+	clusterServiceClient         ocm.ClusterServiceClientSpec
+	activeOperationLister        listers.ActiveOperationLister
+	serviceProviderClusterLister listers.ServiceProviderClusterLister
 }
 
 var _ controllerutils.ClusterSyncer = (*triggerControlPlaneUpgradeSyncer)(nil)
@@ -57,14 +58,16 @@ func NewTriggerControlPlaneUpgradeController(
 	resourcesDBClient database.ResourcesDBClient,
 	clusterServiceClient ocm.ClusterServiceClientSpec,
 	activeOperationLister listers.ActiveOperationLister,
+	serviceProviderClusterLister listers.ServiceProviderClusterLister,
 	informers informers.BackendInformers,
 	kubeApplierInformers *unionkubeapplierinformers.UnionKubeApplierInformers,
 ) controllerutils.Controller {
 	syncer := &triggerControlPlaneUpgradeSyncer{
-		clock:                 clock,
-		resourcesDBClient:     resourcesDBClient,
-		clusterServiceClient:  clusterServiceClient,
-		activeOperationLister: activeOperationLister,
+		clock:                        clock,
+		resourcesDBClient:            resourcesDBClient,
+		clusterServiceClient:         clusterServiceClient,
+		activeOperationLister:        activeOperationLister,
+		serviceProviderClusterLister: serviceProviderClusterLister,
 	}
 
 	controller := controllerutils.NewClusterWatchingController(
@@ -72,7 +75,7 @@ func NewTriggerControlPlaneUpgradeController(
 		resourcesDBClient,
 		informers,
 		kubeApplierInformers,
-		5*time.Minute,
+		1*time.Minute,
 		syncer,
 	)
 
@@ -103,9 +106,13 @@ func (c *triggerControlPlaneUpgradeSyncer) SyncOnce(ctx context.Context, key con
 		return nil
 	}
 
-	existingServiceProviderCluster, err := database.GetOrCreateServiceProviderCluster(ctx, c.resourcesDBClient, key.GetResourceID())
+	existingServiceProviderCluster, err := c.serviceProviderClusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
+	if database.IsNotFoundError(err) {
+		// CreateServiceProviderCluster will populate it; we'll be re-enqueued via the ServiceProviderCluster informer.
+		return nil
+	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get or create ServiceProviderCluster: %w", err))
+		return utils.TrackError(fmt.Errorf("failed to get ServiceProviderCluster: %w", err))
 	}
 
 	// here we check to see if we should be triggering an upgrade. We do this by

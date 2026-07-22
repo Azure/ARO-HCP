@@ -41,8 +41,9 @@ import (
 type createNodePoolScopedReadDesiresSyncer struct {
 	activeOperationLister listers.ActiveOperationLister
 
-	resourcesDBClient    database.ResourcesDBClient
-	kubeApplierDBClients database.KubeApplierDBClients
+	resourcesDBClient            database.ResourcesDBClient
+	kubeApplierDBClients         database.KubeApplierDBClients
+	serviceProviderClusterLister listers.ServiceProviderClusterLister
 
 	hostedClusterNamespaceEnvIdentifier string
 }
@@ -53,6 +54,7 @@ func NewCreateNodePoolScopedReadDesiresController(
 	activeOperationLister listers.ActiveOperationLister,
 	resourcesDBClient database.ResourcesDBClient,
 	kubeApplierDBClients database.KubeApplierDBClients,
+	serviceProviderClusterLister listers.ServiceProviderClusterLister,
 	informers informers.BackendInformers,
 	hostedClusterNamespaceEnvIdentifier string,
 ) controllerutils.Controller {
@@ -60,6 +62,7 @@ func NewCreateNodePoolScopedReadDesiresController(
 		activeOperationLister:               activeOperationLister,
 		resourcesDBClient:                   resourcesDBClient,
 		kubeApplierDBClients:                kubeApplierDBClients,
+		serviceProviderClusterLister:        serviceProviderClusterLister,
 		hostedClusterNamespaceEnvIdentifier: hostedClusterNamespaceEnvIdentifier,
 	}
 
@@ -92,16 +95,19 @@ func (c *createNodePoolScopedReadDesiresSyncer) SyncOnce(ctx context.Context, ke
 	// Resolve the management cluster via the parent cluster's
 	// ServiceProviderCluster. Skip if the placement-sync controller hasn't
 	// populated it yet.
-	clusterKey := controllerutils.HCPClusterKey{
-		SubscriptionID:    key.SubscriptionID,
-		ResourceGroupName: key.ResourceGroupName,
-		HCPClusterName:    key.HCPClusterName,
+	serviceProviderCluster, err := c.serviceProviderClusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
+	if database.IsNotFoundError(err) {
+		// CreateServiceProviderCluster will populate it. NodePoolWatchingController
+		// does not watch the ServiceProviderCluster informer (an SPC arrival
+		// can't be walked down to a specific node pool), so the next attempt
+		// happens on the controller's periodic resync or the next NodePool /
+		// ServiceProviderNodePool event for this node pool.
+		return nil
 	}
-	spc, err := database.GetOrCreateServiceProviderCluster(ctx, c.resourcesDBClient, clusterKey.GetResourceID())
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get or create ServiceProviderCluster: %w", err))
+		return utils.TrackError(fmt.Errorf("failed to get ServiceProviderCluster: %w", err))
 	}
-	mcResourceID := spc.Status.ManagementClusterResourceID
+	mcResourceID := serviceProviderCluster.Status.ManagementClusterResourceID
 	if mcResourceID == nil {
 		return nil
 	}
