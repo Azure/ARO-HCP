@@ -82,8 +82,9 @@ func newLinkedBarrier(t *testing.T, source *UpgradeBarrier) *UpgradeBarrier {
 
 // newTestCoordinator creates an UpgradeCoordinator backed by the same state
 // file and lock as the given barrier, with fast poll intervals.
-// The coordinator's runID is set to match the source barrier's runID (simulating
-// the runtime relationship where workers use os.Getppid() == parent's os.Getpid()).
+// The coordinator's runID is set to match the source barrier's runID, simulating
+// subprocess mode where the coordinator's os.Getpid() equals workers' os.Getppid().
+// (In-process mode — where both share os.Getpid() — is an edge case not exercised here.)
 // It also calls initState() synchronously, mirroring NewUpgradeCoordinator which
 // must write the state before any worker calls NewUpgradeBarrier.
 func newTestCoordinator(t *testing.T, source *UpgradeBarrier) *UpgradeCoordinator {
@@ -97,7 +98,7 @@ func newTestCoordinator(t *testing.T, source *UpgradeBarrier) *UpgradeCoordinato
 		statePath:         source.statePath,
 		lockFile:          lf,
 		total:             source.total,
-		runID:             source.runID, // must match: at runtime os.Getpid()==parent==os.Getppid() of workers
+		runID:             source.runID, // subprocess mode: coordinator.os.Getpid() == workers' os.Getppid()
 		pollInterval:      10 * time.Millisecond,
 		settleTimeout:     5 * time.Second,
 		upgradeRunTimeout: 5 * time.Second,
@@ -523,4 +524,72 @@ func TestUpgradeCoordinator_WritesUpgradeDone(t *testing.T) {
 	state, err = b0.readState()
 	require.NoError(t, err)
 	assert.Equal(t, upgradeErr.Error(), state.UpgradeError, "original error must be preserved on second call")
+}
+
+// TestNewUpgradeBarrier_SubprocessMode verifies that NewUpgradeBarrier succeeds when the
+// state file RunID matches os.Getppid() — the normal case where each spec runs as a
+// subprocess spawned by run-suite and the coordinator lives in the parent process.
+func TestNewUpgradeBarrier_SubprocessMode(t *testing.T) {
+	// Serial: NewUpgradeBarrier uses a global lock file path (os.TempDir()).
+	tmpDir := t.TempDir()
+	t.Setenv("ARTIFACT_DIR", tmpDir)
+	SetUpgradeInPlaceSpecCount(2)
+	t.Cleanup(func() { upgradeInPlaceSpecCount = 0 })
+
+	seedUpgradeState(t, &upgradeBarrierState{RunID: os.Getppid()})
+
+	b, err := NewUpgradeBarrier()
+	require.NoError(t, err, "NewUpgradeBarrier should succeed in subprocess mode")
+	if b != nil {
+		_ = b.lockFile.Close()
+	}
+	assert.Equal(t, os.Getppid(), b.runID, "runID should be os.Getppid() in subprocess mode")
+}
+
+// TestNewUpgradeBarrier_InProcessMode verifies that NewUpgradeBarrier succeeds when the
+// state file RunID matches os.Getpid() — the case where run-suite has a single spec and
+// runs it in-process alongside the coordinator goroutine.
+func TestNewUpgradeBarrier_InProcessMode(t *testing.T) {
+	// Serial: NewUpgradeBarrier uses a global lock file path (os.TempDir()).
+	tmpDir := t.TempDir()
+	t.Setenv("ARTIFACT_DIR", tmpDir)
+	SetUpgradeInPlaceSpecCount(1)
+	t.Cleanup(func() { upgradeInPlaceSpecCount = 0 })
+
+	seedUpgradeState(t, &upgradeBarrierState{RunID: os.Getpid()})
+
+	b, err := NewUpgradeBarrier()
+	require.NoError(t, err, "NewUpgradeBarrier should succeed in in-process mode")
+	if b != nil {
+		_ = b.lockFile.Close()
+	}
+	assert.Equal(t, os.Getpid(), b.runID, "runID should be os.Getpid() in in-process mode")
+}
+
+// TestNewUpgradeBarrier_RunIDMismatch verifies that NewUpgradeBarrier returns an error
+// when the state file contains a RunID that matches neither os.Getpid() nor os.Getppid(),
+// indicating a stale file from a prior run or a direct run-test invocation without a coordinator.
+func TestNewUpgradeBarrier_RunIDMismatch(t *testing.T) {
+	// Serial: NewUpgradeBarrier uses a global lock file path (os.TempDir()).
+	tmpDir := t.TempDir()
+	t.Setenv("ARTIFACT_DIR", tmpDir)
+	SetUpgradeInPlaceSpecCount(1)
+	t.Cleanup(func() { upgradeInPlaceSpecCount = 0 })
+
+	// Derive a RunID guaranteed to match neither os.Getpid() nor os.Getppid().
+	staleRunID := os.Getpid() + os.Getppid() + 1
+	seedUpgradeState(t, &upgradeBarrierState{RunID: staleRunID})
+
+	_, err := NewUpgradeBarrier()
+	require.Error(t, err, "NewUpgradeBarrier should fail on RunID mismatch")
+	assert.Contains(t, err.Error(), "RunID mismatch", "error should name the mismatch")
+}
+
+// seedUpgradeState writes state to upgradeStatePath() — the path NewUpgradeBarrier reads —
+// so tests can control what RunID the barrier finds on startup. Requires ARTIFACT_DIR to be
+// set via t.Setenv before calling so each test gets an isolated state file.
+func seedUpgradeState(t *testing.T, state *upgradeBarrierState) {
+	t.Helper()
+	b := &UpgradeBarrier{statePath: upgradeStatePath()}
+	require.NoError(t, b.writeState(state), "seeding upgrade state file")
 }

@@ -106,7 +106,7 @@ func NewUpgradeCoordinator() (*UpgradeCoordinator, error) {
 		statePath:         upgradeStatePath(),
 		lockFile:          lf,
 		total:             total,
-		runID:             os.Getpid(), // parent PID; workers use os.Getppid() which equals this
+		runID:             os.Getpid(), // parent PID; subprocess workers match via os.Getppid(), in-process workers via os.Getpid()
 		pollInterval:      defaultUpgradeBarrierPollInterval,
 		settleTimeout:     defaultSettleTimeout,
 		upgradeRunTimeout: defaultUpgradeRunTimeout,

@@ -68,10 +68,10 @@ type upgradeBarrierState struct {
 	// participating; survivors proceed once the barrier settles.
 	AbortedCount int `yaml:"aborted_count"`
 	// RunID holds the PID of the parent run-suite process (os.Getpid() in the
-	// UpgradeCoordinator, os.Getppid() in worker specs). Both values resolve to
-	// the same PID — the parent's own PID — so all participants in a single
-	// suite invocation agree on the same RunID. A new invocation spawns a new
-	// parent process with a different PID, which triggers a stale-state reset.
+	// UpgradeCoordinator). In subprocess mode (normal parallel run) worker specs
+	// match this via os.Getppid(); in in-process mode (single spec, same process)
+	// they match via os.Getpid(). A new invocation spawns a new parent process
+	// with a different PID, which triggers a stale-state reset.
 	RunID int `yaml:"run_id"`
 	// UpgradeDone is set to true by the UpgradeCoordinator once the Region
 	// entrypoint pipeline has finished (successfully or not).
@@ -123,7 +123,7 @@ type UpgradeBarrier struct {
 	statePath      string
 	lockFile       *os.File
 	total          int
-	runID          int // os.Getppid() of this worker; equals os.Getpid() of the parent run-suite process
+	runID          int // PID that identifies this suite run; set to os.Getppid() in subprocess mode or os.Getpid() in in-process mode
 	pollInterval   time.Duration
 	upgradeTimeout time.Duration
 
@@ -162,7 +162,6 @@ func NewUpgradeBarrier() (*UpgradeBarrier, error) {
 		statePath:      statePath,
 		lockFile:       lf,
 		total:          total,
-		runID:          os.Getppid(),
 		pollInterval:   defaultUpgradeBarrierPollInterval,
 		upgradeTimeout: defaultUpgradeTimeout,
 	}
@@ -173,16 +172,27 @@ func NewUpgradeBarrier() (*UpgradeBarrier, error) {
 	// same suite invocation; if the IDs differ the coordinator is out of sync
 	// with this worker and coordination will fail, so we return an error rather
 	// than silently resetting state that belongs to a running coordinator.
+	//
+	// Two execution modes are supported:
+	//  - Subprocess mode (normal parallel run): each spec runs in a separate OS
+	//    process spawned by run-suite. The coordinator's PID == os.Getppid() here.
+	//  - In-process mode (single spec): run-suite runs the spec in the same
+	//    process as the coordinator. The coordinator's PID == os.Getpid() here.
 	if err := b.withLock(func(state *upgradeBarrierState) (bool, error) {
-		if state.RunID == b.runID {
-			return false, nil // coordinator or sibling already initialised — leave it
+		switch state.RunID {
+		case os.Getppid():
+			b.runID = os.Getppid() // subprocess: parent is the coordinator
+		case os.Getpid():
+			b.runID = os.Getpid() // in-process: we share the process with the coordinator
+		default:
+			return false, fmt.Errorf(
+				"upgrade barrier: RunID mismatch (state=%d, own=%d, parent=%d); "+
+					"the UpgradeCoordinator must initialise the state file before workers start. "+
+					"If invoking via 'run-test', note that upgrade/in-place specs are not supported "+
+					"with 'run-test' — use 'run-suite upgrade/in-place' or CI instead",
+				state.RunID, os.Getpid(), os.Getppid())
 		}
-		return false, fmt.Errorf(
-			"upgrade barrier: RunID mismatch (state=%d, expected=%d); "+
-				"the UpgradeCoordinator must initialise the state file before workers start. "+
-				"If invoking via 'run-test', note that upgrade/in-place specs are not supported "+
-				"with 'run-test' — use 'run-suite upgrade/in-place' or CI instead",
-			state.RunID, b.runID)
+		return false, nil
 	}); err != nil {
 		lf.Close()
 		return nil, fmt.Errorf("initialising upgrade barrier state: %w", err)
