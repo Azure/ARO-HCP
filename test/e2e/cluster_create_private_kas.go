@@ -75,38 +75,9 @@ var _ = Describe("Customer", func() {
 			)
 			Expect(err).NotTo(HaveOccurred(), "failed to create customer resources for private KAS cluster")
 
-			By("generating SSH key pair and deploying test VM in customer VNet")
-			sshPublicKey, _, err := framework.GenerateSSHKeyPair()
-			Expect(err).NotTo(HaveOccurred(), "failed to generate SSH key pair for test VM")
-
-			vmName := fmt.Sprintf("%s-test-vm", customerClusterName)
-			vmSize, err := tc.SelectVMSize(ctx, framework.JumpboxVMSizeSelector())
-			Expect(err).NotTo(HaveOccurred(), "failed to resolve a jumpbox VM size for private KAS test")
-
-			var deployErr error
-			for attempt := 0; attempt < 3; attempt++ {
-				if attempt > 0 {
-					time.Sleep(20 * time.Second)
-				}
-				_, deployErr = tc.CreateBicepTemplateAndWait(ctx,
-					framework.WithTemplateFromFS(TestArtifactsFS, "test-artifacts/generated-test-artifacts/modules/test-vm.json"),
-					framework.WithDeploymentName("test-vm"),
-					framework.WithScope(framework.BicepDeploymentScopeResourceGroup),
-					framework.WithClusterResourceGroup(*resourceGroup.Name),
-					framework.WithParameters(map[string]any{
-						"vmName":       vmName,
-						"vnetName":     clusterParams.VnetName,
-						"subnetName":   clusterParams.SubnetName,
-						"sshPublicKey": sshPublicKey,
-						"vmSize":       vmSize,
-					}),
-					framework.WithTimeout(30*time.Minute),
-				)
-				if deployErr == nil || strings.Contains(deployErr.Error(), "SkuNotAvailable") {
-					break
-				}
-			}
-			Expect(deployErr).NotTo(HaveOccurred(), "failed to deploy test VM for private KAS verification")
+			By("deploying test VM in customer VNet")
+			vmName, _, err := tc.DeployTestVM(ctx, TestArtifactsFS, *resourceGroup.Name, customerClusterName, clusterParams.VnetName, clusterParams.SubnetName)
+			Expect(err).NotTo(HaveOccurred(), "failed to deploy test VM for private KAS verification")
 
 			By("creating the HCP cluster with private KAS via v20260630preview")
 			err = tc.CreateHCPClusterFromParam20260630(ctx,
@@ -177,13 +148,9 @@ var _ = Describe("Customer", func() {
 			kubeconfigB64 := base64.StdEncoding.EncodeToString([]byte(kubeconfig))
 
 			By("verifying KAS is reachable from VM inside the VNet")
-			kubectlGetNodes := fmt.Sprintf(
-				"echo '%s' | base64 -d > /tmp/kubeconfig && kubectl --kubeconfig=/tmp/kubeconfig get nodes -o name",
-				kubeconfigB64,
-			)
 			var previousNodeOutput string
 			Eventually(func(g Gomega) {
-				output, err := framework.RunVMCommand(ctx, tc, *resourceGroup.Name, vmName, kubectlGetNodes, 2*time.Minute)
+				output, err := framework.RunKubectlOnVM(ctx, tc, *resourceGroup.Name, vmName, kubeconfigB64, "get nodes -o name", 2*time.Minute)
 				g.Expect(err).NotTo(HaveOccurred(), "kubectl get nodes should succeed from VM inside the VNet")
 
 				output = strings.TrimSpace(output)
@@ -198,7 +165,7 @@ var _ = Describe("Customer", func() {
 			}, 5*time.Minute, 15*time.Second).Should(Succeed())
 
 			By("verifying KAS is NOT reachable from outside the VNet")
-			err = testAPIConnectivity(apiURL, 10*time.Second)
+			err = framework.TestHTTPSConnectivity(ctx, apiURL+"/healthz", 10*time.Second)
 			Expect(err).To(HaveOccurred(),
 				"private KAS should not be reachable from outside the VNet, but connection to %s succeeded", apiURL)
 			GinkgoLogr.Info("Confirmed KAS is not reachable from outside the VNet", "error", err)
@@ -209,43 +176,30 @@ var _ = Describe("Customer", func() {
 			// app manifests used by framework.DeploySampleApp but via kubectl
 			// on the VM.
 			sampleAppNS := "e2e-private-kas-app"
-			createNSCmd := fmt.Sprintf(
-				"echo '%s' | base64 -d > /tmp/kubeconfig && "+
-					"kubectl --kubeconfig=/tmp/kubeconfig create namespace %s",
-				kubeconfigB64, sampleAppNS,
-			)
-			_, err = framework.RunVMCommand(ctx, tc, *resourceGroup.Name, vmName, createNSCmd, 2*time.Minute)
+			_, err = framework.RunKubectlOnVM(ctx, tc, *resourceGroup.Name, vmName, kubeconfigB64,
+				fmt.Sprintf("create namespace %s", sampleAppNS), 2*time.Minute)
 			Expect(err).NotTo(HaveOccurred(), "failed to create namespace %q via VM", sampleAppNS)
 
 			sampleAppManifests, err := framework.SampleAppManifests(sampleAppNS)
 			Expect(err).NotTo(HaveOccurred(), "failed to generate sample app manifests")
 			manifestsB64 := base64.StdEncoding.EncodeToString([]byte(sampleAppManifests))
 			applyCmd := fmt.Sprintf(
-				"echo '%s' | base64 -d > /tmp/kubeconfig && "+
-					"echo '%s' | base64 -d | kubectl --kubeconfig=/tmp/kubeconfig apply -f -",
+				"echo '%s' | base64 -d > /tmp/kubeconfig && echo '%s' | base64 -d | kubectl --kubeconfig=/tmp/kubeconfig apply -f -",
 				kubeconfigB64, manifestsB64,
 			)
 			_, err = framework.RunVMCommand(ctx, tc, *resourceGroup.Name, vmName, applyCmd, 2*time.Minute)
 			Expect(err).NotTo(HaveOccurred(), "failed to deploy sample app via VM for public ingress verification")
 
 			By("waiting for the sample app deployment to become ready via VM")
-			waitDeploymentCmd := fmt.Sprintf(
-				"echo '%s' | base64 -d > /tmp/kubeconfig && "+
-					"kubectl --kubeconfig=/tmp/kubeconfig -n %s rollout status deployment/agnhost-server --timeout=5m",
-				kubeconfigB64, sampleAppNS,
-			)
-			_, err = framework.RunVMCommand(ctx, tc, *resourceGroup.Name, vmName, waitDeploymentCmd, 6*time.Minute)
+			_, err = framework.RunKubectlOnVM(ctx, tc, *resourceGroup.Name, vmName, kubeconfigB64,
+				fmt.Sprintf("-n %s rollout status deployment/agnhost-server --timeout=5m", sampleAppNS), 6*time.Minute)
 			Expect(err).NotTo(HaveOccurred(), "sample app deployment did not become ready")
 
 			By("getting the route host from the cluster via VM")
-			getRouteHostCmd := fmt.Sprintf(
-				"echo '%s' | base64 -d > /tmp/kubeconfig && "+
-					"kubectl --kubeconfig=/tmp/kubeconfig -n %s get routes.route.openshift.io agnhost -o jsonpath='{.spec.host}'",
-				kubeconfigB64, sampleAppNS,
-			)
 			var routeHost string
 			Eventually(func(g Gomega) {
-				output, err := framework.RunVMCommand(ctx, tc, *resourceGroup.Name, vmName, getRouteHostCmd, 2*time.Minute)
+				output, err := framework.RunKubectlOnVM(ctx, tc, *resourceGroup.Name, vmName, kubeconfigB64,
+					fmt.Sprintf("-n %s get routes.route.openshift.io agnhost -o jsonpath='{.spec.host}'", sampleAppNS), 2*time.Minute)
 				g.Expect(err).NotTo(HaveOccurred(), "failed to get route host from VM")
 				routeHost = strings.TrimSpace(output)
 				g.Expect(routeHost).NotTo(BeEmpty(), "route host should be assigned")
@@ -255,11 +209,11 @@ var _ = Describe("Customer", func() {
 
 			By("verifying ingress is reachable from outside the VNet (public ingress independence)")
 			// The default ingress should be public even though KAS is private.
-			// testIngressConnectivity skips TLS validation: we're testing
+			// TestHTTPSConnectivity skips TLS validation: we're testing
 			// connectivity to the public LB, not cert validity.
 			var previousIngressOutput string
 			Eventually(func(g Gomega) {
-				err := testIngressConnectivity(ctx, appURL, 10*time.Second)
+				err := framework.TestHTTPSConnectivity(ctx, appURL, 10*time.Second)
 				result := "unreachable"
 				if err == nil {
 					result = "reachable"
@@ -275,13 +229,10 @@ var _ = Describe("Customer", func() {
 
 			By("verifying all cluster operators are healthy from VM")
 			// Only output unavailable operators (filter out :True lines) to stay within 4KB VM output limit
-			clusterOperatorsCmd := fmt.Sprintf(
-				`echo '%s' | base64 -d > /tmp/kubeconfig && kubectl --kubeconfig=/tmp/kubeconfig get clusteroperators -o jsonpath='{range .items[*]}{.metadata.name}:{.status.conditions[?(@.type=="Available")].status}{"\n"}{end}' | grep -v ':True$'`,
-				kubeconfigB64,
-			)
 			var previousCOOutput string
 			Eventually(func(g Gomega) {
-				output, err := framework.RunVMCommand(ctx, tc, *resourceGroup.Name, vmName, clusterOperatorsCmd, 2*time.Minute)
+				output, err := framework.RunKubectlOnVM(ctx, tc, *resourceGroup.Name, vmName, kubeconfigB64,
+					`get clusteroperators -o jsonpath='{range .items[*]}{.metadata.name}:{.status.conditions[?(@.type=="Available")].status}{"\n"}{end}' | grep -v ':True$'`, 2*time.Minute)
 				g.Expect(err).NotTo(HaveOccurred(), "kubectl get clusteroperators should succeed from VM")
 
 				unavailableOperators := parseUnavailableResources(output)

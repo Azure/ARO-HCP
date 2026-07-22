@@ -16,6 +16,8 @@ package framework
 
 import (
 	"context"
+	"crypto/tls"
+	"embed"
 	"errors"
 	"fmt"
 	"io"
@@ -32,7 +34,108 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v5"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 )
+
+// DeployTestVM deploys a test VM in the given VNet/subnet with a retry loop
+// that absorbs transient ARM errors but fails fast on SkuNotAvailable.
+// Returns the VM name and the deployment (which can be used to extract outputs
+// like the public IP via GetOutputValueString).
+func (tc *perItOrDescribeTestContext) DeployTestVM(
+	ctx context.Context,
+	testArtifactsFS embed.FS,
+	resourceGroupName string,
+	clusterName string,
+	vnetName string,
+	subnetName string,
+) (string, *armresources.DeploymentExtended, error) {
+	sshPublicKey, _, err := GenerateSSHKeyPair()
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to generate SSH key pair: %w", err)
+	}
+
+	vmName := fmt.Sprintf("%s-test-vm", clusterName)
+	vmSize, err := tc.SelectVMSize(ctx, JumpboxVMSizeSelector())
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to resolve jumpbox VM size: %w", err)
+	}
+
+	var deployment *armresources.DeploymentExtended
+	var deployErr error
+	for attempt := 0; attempt < 3; attempt++ {
+		if attempt > 0 {
+			time.Sleep(20 * time.Second)
+		}
+		deployment, deployErr = tc.CreateBicepTemplateAndWait(ctx,
+			WithTemplateFromFS(testArtifactsFS, "test-artifacts/generated-test-artifacts/modules/test-vm.json"),
+			WithDeploymentName("test-vm"),
+			WithScope(BicepDeploymentScopeResourceGroup),
+			WithClusterResourceGroup(resourceGroupName),
+			WithParameters(map[string]any{
+				"vmName":       vmName,
+				"vnetName":     vnetName,
+				"subnetName":   subnetName,
+				"sshPublicKey": sshPublicKey,
+				"vmSize":       vmSize,
+			}),
+			WithTimeout(30*time.Minute),
+		)
+		if deployErr == nil || strings.Contains(deployErr.Error(), "SkuNotAvailable") {
+			break
+		}
+	}
+	if deployErr != nil {
+		return "", nil, fmt.Errorf("failed to deploy test VM: %w", deployErr)
+	}
+
+	return vmName, deployment, nil
+}
+
+// RunKubectlOnVM writes the given base64-encoded kubeconfig to the VM and runs
+// a kubectl command. This is the standard pattern for interacting with a cluster
+// whose KAS is only reachable from within the VNet.
+func RunKubectlOnVM(ctx context.Context, tc interface {
+	SubscriptionID(ctx context.Context) (string, error)
+	AzureCredential() (azcore.TokenCredential, error)
+}, resourceGroup, vmName, kubeconfigB64, kubectlArgs string, pollTimeout time.Duration) (string, error) {
+	cmd := fmt.Sprintf(
+		"echo '%s' | base64 -d > /tmp/kubeconfig && kubectl --kubeconfig=/tmp/kubeconfig %s",
+		kubeconfigB64, kubectlArgs,
+	)
+	return RunVMCommand(ctx, tc, resourceGroup, vmName, cmd, pollTimeout)
+}
+
+// TestHTTPSConnectivity attempts an HTTPS connection to the given URL.
+// Returns nil if the connection succeeds, or an error if it fails (DNS, timeout,
+// connection refused, etc.). TLS validation is skipped — this tests network
+// reachability, not certificate validity. Redirects are not followed.
+func TestHTTPSConnectivity(ctx context.Context, url string, timeout time.Duration) error {
+	timeoutCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(timeoutCtx, "GET", url, nil)
+	if err != nil {
+		return err
+	}
+
+	client := &http.Client{
+		Timeout: timeout,
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		},
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	return nil
+}
 
 // Helper to run command on VM
 func RunVMCommand(ctx context.Context, tc interface {

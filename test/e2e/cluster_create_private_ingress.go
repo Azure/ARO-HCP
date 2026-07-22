@@ -16,9 +16,7 @@ package e2e
 
 import (
 	"context"
-	"crypto/tls"
 	"fmt"
-	"net/http"
 	"strings"
 	"time"
 
@@ -113,37 +111,8 @@ var _ = Describe("Customer", func() {
 			GinkgoLogr.Info("Cluster created with private ingress", "clusterName", customerClusterName)
 
 			By("deploying test VM in the same VNet for connectivity verification")
-			sshPublicKey, _, err := framework.GenerateSSHKeyPair()
-			Expect(err).NotTo(HaveOccurred(), "failed to generate SSH key pair for test VM")
-
-			vmName := fmt.Sprintf("%s-test-vm", customerClusterName)
-			vmSize, err := tc.SelectVMSize(ctx, framework.JumpboxVMSizeSelector())
-			Expect(err).NotTo(HaveOccurred(), "failed to resolve a jumpbox VM size for private ingress test")
-
-			var deployErr error
-			for attempt := 0; attempt < 3; attempt++ {
-				if attempt > 0 {
-					time.Sleep(20 * time.Second)
-				}
-				_, deployErr = tc.CreateBicepTemplateAndWait(ctx,
-					framework.WithTemplateFromFS(TestArtifactsFS, "test-artifacts/generated-test-artifacts/modules/test-vm.json"),
-					framework.WithDeploymentName("test-vm"),
-					framework.WithScope(framework.BicepDeploymentScopeResourceGroup),
-					framework.WithClusterResourceGroup(*resourceGroup.Name),
-					framework.WithParameters(map[string]any{
-						"vmName":       vmName,
-						"vnetName":     clusterParams.VnetName,
-						"subnetName":   clusterParams.SubnetName,
-						"sshPublicKey": sshPublicKey,
-						"vmSize":       vmSize,
-					}),
-					framework.WithTimeout(30*time.Minute),
-				)
-				if deployErr == nil || strings.Contains(deployErr.Error(), "SkuNotAvailable") {
-					break
-				}
-			}
-			Expect(deployErr).NotTo(HaveOccurred(), "failed to deploy test VM for private ingress verification")
+			vmName, _, err := tc.DeployTestVM(ctx, TestArtifactsFS, *resourceGroup.Name, customerClusterName, clusterParams.VnetName, clusterParams.SubnetName)
+			Expect(err).NotTo(HaveOccurred(), "failed to deploy test VM for private ingress verification")
 
 			By("creating the node pool")
 			nodePoolParams := framework.NewDefaultNodePoolParams20260630()
@@ -205,41 +174,10 @@ var _ = Describe("Customer", func() {
 			}, 10*time.Minute, 15*time.Second).Should(Succeed())
 
 			By("verifying ingress is NOT reachable from outside the VNet")
-			err = testIngressConnectivity(ctx, appURL, 10*time.Second)
+			err = framework.TestHTTPSConnectivity(ctx, appURL, 10*time.Second)
 			Expect(err).To(HaveOccurred(),
 				"private ingress should not be reachable from outside the VNet, but connection succeeded")
 			GinkgoLogr.Info("Confirmed ingress is not reachable from outside the VNet")
 		},
 	)
 })
-
-// testIngressConnectivity attempts an HTTPS connection to the given URL.
-// Returns nil if the connection succeeds, or an error if it fails.
-// Redirects are disabled to avoid false positives from OAuth redirects.
-func testIngressConnectivity(ctx context.Context, url string, timeout time.Duration) error {
-	timeoutCtx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
-
-	req, err := http.NewRequestWithContext(timeoutCtx, "GET", url, nil)
-	if err != nil {
-		return err
-	}
-
-	client := &http.Client{
-		Timeout: timeout,
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-		},
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			return http.ErrUseLastResponse
-		},
-	}
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	return nil
-}
