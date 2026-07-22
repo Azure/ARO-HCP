@@ -1,12 +1,12 @@
 acm:
   mce:
     bundle:
-      digest: sha256:7e3c5197d4344eed05fb072d0383da1749338d367832e617933ffbf84cd810a1
+      digest: sha256:fda60c92a828d5554fc63403ddfe77148b7d26f496504a25960599dff33b0574
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-211
   operator:
     bundle:
-      digest: sha256:856d0a5ec3b92949154681ae556b0cdd1488ea87e287e30d9b59595b9387cfc6
+      digest: sha256:8901d9b7b7fbbe80f61c77c46b9b723ef29331f7cc8511f28d84a3de618a0db7
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-216
 acr:
@@ -25,7 +25,7 @@ acr:
 acrDNSSuffix: azurecr.io
 acrPull:
   image:
-    digest: sha256:17dda36c3ba6059411e813b03a6ee9fc11f1a4f737cf42e1239bd6fef558b9c5
+    digest: sha256:b0cbba7044d5142f8545758e5a69b7b35e7f8c6af596bc972e164d2b345978a7
     registry: mcr.microsoft.com
     repository: aks/msi-acrpull
 adminApi:
@@ -87,7 +87,7 @@ arobit:
   mdsd:
     enabled: false
     image:
-      digest: sha256:43c9a75702fb50e57cfa9a72c6ce8fe57248877dd409dbe6e9eaf7724a2a66ad
+      digest: sha256:373e79b4d3a3ed4e1e2eeb7d10b77775c068b478315873d03daf766d793d6521
       registry: mcr.microsoft.com
       repository: geneva/distroless/mdsd
 auditLogsEventHub:
@@ -447,7 +447,7 @@ hcpRecovery:
 hypershift:
   additionalInstallArg: --enable-cpo-overrides
   image:
-    digest: sha256:2fc031b10b600b58206fef63be77ce8a944b729bc768409d9acf50df8b8954e9
+    digest: sha256:6d4d6385209209852dd75031d730c457f1a6c0c9ad1bbe60b2bde12debe2c8d3
     registry: quay.io
     repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
   limitClusterSizes: true
@@ -465,7 +465,7 @@ imageSync:
   ocMirror:
     enabled: true
     image:
-      digest: sha256:247fa365e7d1ca001abeb01288b69a1329da8f642e7cea9d40381f36f932ae48
+      digest: sha256:b898097ff28650bf1b857feee4830a54d3ddef58f5c96d6331c17a9c9a1cc3b9
       registry: arohcpsvcdev.azurecr.io
       repository: image-sync/oc-mirror
     jobNamePrefix: ""
@@ -1097,14 +1097,14 @@ svc:
 tenantId: 64dc69e4-d083-49fc-9569-ebece1dd1408
 velero:
   azurePlugin:
-    digest: sha256:9499d06f37c1d91ba3822d8f5535e9f6e045d380f233e4b932d9dc4a9a995eee
+    digest: sha256:7ca0a032b70126090b818d1102d1037e3b902778b7a000c63053d9f818bc7de1
     registry: registry.stage.redhat.io
     repository: oadp/oadp-velero-plugin-for-microsoft-azure-rhel9
   hypershiftPlugin:
-    digest: sha256:50cd073729080bac9ae37d475a790124903a5ce7b05599091c6dc839ff5c0c34
+    digest: sha256:171f08e7bd0167611e7778d5129b34b886c8b39e8bafacc5c5d5cfb57be60b25
     registry: registry.stage.redhat.io
     repository: oadp/oadp-hypershift-velero-plugin-rhel9
   server:
-    digest: sha256:c0ef1dbafc7e9665f54c77655bc784a3d6618f00a7c74d910b2eeaf4ab7de4e4
+    digest: sha256:b0cd59aee7b494d5bec69003d243e78182d1f369f0eb93a9ce7a125457012b89
     registry: registry.stage.redhat.io
     repository: oadp/oadp-velero-rhel9
