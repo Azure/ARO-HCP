@@ -64,3 +64,16 @@ resourceGroups:
       - "Internal server error"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
+  - name: entity-groups
+    action: KustoEntityGroups
+    entityGroups:
+    - "AllServiceLogs:ServiceLogs"
+    - "AllHostedControlPlaneLogs:HostedControlPlaneLogs"
+    timeout: "10m"
+    identityFrom:
+      resourceGroup: global
+      step: output
+      name: globalMSIId
+    dependsOn:
+    - resourceGroup: kusto-infra
+      step: deploy

@@ -964,6 +964,11 @@ func RunStep(id graph.Identifier, s types.Step, ctx context.Context, executionTa
 			return nil, nil, fmt.Errorf("error running Grafana Manage Step: %w", err)
 		}
 		return nil, nil, nil
+	case *types.KustoEntityGroupsStep:
+		if err := runKustoEntityGroupsStep(id, step, ctx); err != nil {
+			return nil, nil, fmt.Errorf("error running Kusto Entity Groups Step: %w", err)
+		}
+		return nil, nil, nil
 	case *types.ARMStep:
 		a, err := newArmClient(executionTarget.GetSubscriptionID(), executionTarget.GetRegion(), options.BicepClient)
 		if err != nil {

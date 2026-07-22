@@ -79,6 +79,8 @@ github.com/Azure/ARO-Tools/tools/grafanactl v0.0.0-20260715002326-2555e1130350 h
 github.com/Azure/ARO-Tools/tools/grafanactl v0.0.0-20260715002326-2555e1130350/go.mod h1:YrrfIHROa3fg+mMyE6OhqM3pjcUXXAmcbcdHLwMb6ac=
 github.com/Azure/ARO-Tools/tools/helm v0.0.0-20260715002326-2555e1130350 h1:oHYub03vXUpyw8PYZY8FBPHnJju62IQtu3FmV4EsdtY=
 github.com/Azure/ARO-Tools/tools/helm v0.0.0-20260715002326-2555e1130350/go.mod h1:p0FcYeq5sRcsNrgLSpxCZfoh7B/O819/4RKaW+OKq80=
+github.com/Azure/ARO-Tools/tools/kustoctl v0.0.0-20260720175808-ca2cea2cb707 h1:9PebQsjEluc2PlP70Joug0e9KJ7POK28/IB/V72fgB0=
+github.com/Azure/ARO-Tools/tools/kustoctl v0.0.0-20260720175808-ca2cea2cb707/go.mod h1:6eOFGWnLVSTCxOPAzY0/21bf/WppxEVhemxiz3m7gdw=
 github.com/Azure/ARO-Tools/tools/prow-job-executor v0.0.0-20260715002326-2555e1130350 h1:dawO6JBHHedo7nJJzv/xxczTIANwZyYghrE3/wf/YyE=
 github.com/Azure/ARO-Tools/tools/prow-job-executor v0.0.0-20260715002326-2555e1130350/go.mod h1:3ZXlLAZpVEjasfu4MtpxD+c1BrVwnin3IaWynCooTbs=
 github.com/Azure/ARO-Tools/tools/registration v0.0.0-20260715002326-2555e1130350 h1:nIXBFOJJBQBF5s8EUCwHmjpo8LsSzpLj2x3J5bnG8AM=
