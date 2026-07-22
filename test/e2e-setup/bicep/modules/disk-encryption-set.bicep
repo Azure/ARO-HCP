@@ -1,9 +1,3 @@
-@description('Name of the existing KeyVault containing the encryption key')
-param keyVaultName string
-
-@description('Name of the existing encryption key in the KeyVault')
-param etcdEncryptionKeyName string = 'etcd-data-kms-encryption-key'
-
 @description('Cluster name used to ensure unique resource names within the resource group')
 param clusterName string = ''
 
@@ -11,14 +5,30 @@ param clusterName string = ''
 param serviceMiPrincipalId string = ''
 
 var randomSuffix = toLower(uniqueString(resourceGroup().id, clusterName))
+var desKeyVaultName = 'des-kv-${randomSuffix}'
 
-resource keyVault 'Microsoft.KeyVault/vaults@2024-12-01-preview' existing = {
-  name: keyVaultName
+resource desKeyVault 'Microsoft.KeyVault/vaults@2024-12-01-preview' = {
+  name: desKeyVaultName
+  location: resourceGroup().location
+  properties: {
+    enableRbacAuthorization: true
+    enableSoftDelete: true
+    enablePurgeProtection: true
+    tenantId: subscription().tenantId
+    sku: {
+      family: 'A'
+      name: 'standard'
+    }
+  }
 }
 
-resource etcdEncryptionKey 'Microsoft.KeyVault/vaults/keys@2024-12-01-preview' existing = {
-  parent: keyVault
-  name: etcdEncryptionKeyName
+resource desEncryptionKey 'Microsoft.KeyVault/vaults/keys@2024-12-01-preview' = {
+  parent: desKeyVault
+  name: 'des-encryption-key'
+  properties: {
+    kty: 'RSA'
+    keySize: 2048
+  }
 }
 
 resource diskEncryptionSet 'Microsoft.Compute/diskEncryptionSets@2023-10-02' = {
@@ -30,9 +40,9 @@ resource diskEncryptionSet 'Microsoft.Compute/diskEncryptionSets@2023-10-02' = {
   properties: {
     activeKey: {
       sourceVault: {
-        id: keyVault.id
+        id: desKeyVault.id
       }
-      keyUrl: etcdEncryptionKey.properties.keyUriWithVersion
+      keyUrl: desEncryptionKey.properties.keyUriWithVersion
     }
     encryptionType: 'EncryptionAtRestWithCustomerKey'
   }
@@ -46,8 +56,8 @@ var kvCryptoServiceEncryptionUserRoleId = subscriptionResourceId(
 )
 
 resource desKeyVaultRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(resourceGroup().id, diskEncryptionSet.id, kvCryptoServiceEncryptionUserRoleId, keyVault.id)
-  scope: keyVault
+  name: guid(resourceGroup().id, diskEncryptionSet.id, kvCryptoServiceEncryptionUserRoleId, desKeyVault.id)
+  scope: desKeyVault
   properties: {
     principalId: diskEncryptionSet.identity.principalId
     principalType: 'ServicePrincipal'

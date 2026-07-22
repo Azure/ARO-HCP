@@ -98,7 +98,6 @@ var _ = Describe("Nodepool OS Disk Encryption", func() {
 				framework.WithScope(framework.BicepDeploymentScopeResourceGroup),
 				framework.WithClusterResourceGroup(*resourceGroup.Name),
 				framework.WithParameters(map[string]interface{}{
-					"keyVaultName":         clusterParams.KeyVaultName,
 					"clusterName":          customerClusterName,
 					"serviceMiPrincipalId": *serviceMI.Properties.PrincipalID,
 				}),
