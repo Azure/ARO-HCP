@@ -11,6 +11,10 @@ At a high level:
 2. `ReadDesire` indicates a kube item in .spec.targetItem to issue a list/watch+informer for.
    The actual list/watch result to be written to `.status.kubeContent`.
    Success/failure to be written to the `.status.conditions["Successful"]` condition.
+   When the target is a core/v1 Secret, `.status.kubeContent` is redacted before storage:
+   only metadata and known-safe data keys (currently `tls.crt`) are preserved. All other
+   data keys and `stringData` are stripped to prevent private keys, passwords, and tokens
+   from leaking into Cosmos.
 
 ## Scale
 The scale of the kube-applier is tiny: it covers a single management cluster.
