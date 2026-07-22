@@ -1,9 +1,5 @@
 prometheusRules:
-  rulesFolders:
-  - alerts/etcd-availability-prometheusRule.yaml
-  untestedRules: []
-  testDependencies:
-  - recording-rules-hcps.yaml
+  groupNamePrefix: "rp-hcps-"
   outputBicep: ../dev-infrastructure/modules/metrics/rules/generatedRPHCPPrometheusAlertingRules.bicep
   outputReplacements:
   - from: 'job="kube-scheduler"'
@@ -16,3 +12,8 @@ prometheusRules:
     to: 'job="controlplane-cluster-autoscaler"'
   - from: 'job="kube-controller-manager"'
     to: 'job="controlplane-kube-controller-manager"'
+  rulesFolders:
+  - alerts/etcd-availability-prometheusRule.yaml
+  testDependencies:
+  - recording-rules-hcps.yaml
+  untestedRules: []

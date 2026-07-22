@@ -10,8 +10,8 @@ param severityCeiling int = 0
 #disable-next-line no-unused-params
 param location string = resourceGroup().location
 
-resource etcdAvailability 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
-  name: 'etcd-availability'
+resource rpHcpsEtcdAvailability 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'rp-hcps-etcd-availability'
   location: location
   properties: {
     interval: 'PT1M'
