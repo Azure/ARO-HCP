@@ -56,6 +56,7 @@ const (
 	ClusterRelistDuration                  = 30 * time.Minute
 	NodePoolRelistDuration                 = 30 * time.Minute
 	ExternalAuthRelistDuration             = 30 * time.Minute
+	AdminCredentialRelistDuration          = 30 * time.Minute
 	ServiceProviderClusterRelistDuration   = 30 * time.Minute
 	ServiceProviderNodePoolRelistDuration  = 30 * time.Minute
 	ControllerRelistDuration               = 30 * time.Minute
@@ -230,6 +231,37 @@ func NewExternalAuthInformerWithRelistDuration(lister database.GlobalLister[api.
 				listers.ByCluster:       clusterResourceIDIndexFunc,
 			},
 			ObjectDescription: "HCPOpenShiftClusterExternalAuth",
+		},
+	)
+}
+
+// NewAdminCredentialInformer creates an unstarted SharedIndexInformer for cluster admin credentials
+// with resource group and cluster indexes using the default relist duration.
+func NewAdminCredentialInformer(lister database.GlobalLister[api.ClusterAdminCredential], cosmosClient database.ChangeFeedClient) cache.SharedIndexInformer {
+	return NewAdminCredentialInformerWithRelistDuration(lister, cosmosClient, AdminCredentialRelistDuration)
+}
+
+// NewAdminCredentialInformerWithRelistDuration creates an unstarted SharedIndexInformer for cluster admin credentials
+// with resource group and cluster indexes and a configurable relist duration.
+func NewAdminCredentialInformerWithRelistDuration(lister database.GlobalLister[api.ClusterAdminCredential], cosmosClient database.ChangeFeedClient, relistDuration time.Duration) cache.SharedIndexInformer {
+	lw := dbinformers.NewChangeFeedListWatcher[api.ClusterAdminCredential, *api.ClusterAdminCredential, database.GenericDocument[api.ClusterAdminCredential]](
+		[]azcorearm.ResourceType{api.AdminCredentialResourceType},
+		utilsclock.RealClock{},
+		lister,
+		cosmosClient,
+		relistDuration,
+	)
+
+	return cache.NewSharedIndexInformerWithOptions(
+		&listWatchWithoutWatchListSemantics{lw.ToListWatch()},
+		&api.ClusterAdminCredential{},
+		cache.SharedIndexInformerOptions{
+			ResyncPeriod: 1 * time.Hour, // this is only a default.  Shorter resyncs can be added when registering handlers.
+			Indexers: cache.Indexers{
+				listers.ByResourceGroup: resourceGroupIndexFunc,
+				listers.ByCluster:       clusterResourceIDIndexFunc,
+			},
+			ObjectDescription: "ClusterAdminCredential",
 		},
 	)
 }

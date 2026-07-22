@@ -30,6 +30,7 @@ type BackendListers struct {
 	HCPOpenShiftClusterLister             ClusterLister
 	HCPOpenShiftClusterNodePoolLister     NodePoolLister
 	HCPOpenShiftClusterExternalAuthLister ExternalAuthLister
+	AdminCredentialLister                 AdminCredentialLister
 	ServiceProviderClusterLister          ServiceProviderClusterLister
 	ServiceProviderNodePoolLister         ServiceProviderNodePoolLister
 	ControllerLister                      ControllerLister

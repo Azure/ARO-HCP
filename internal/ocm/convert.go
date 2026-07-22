@@ -657,11 +657,24 @@ func BuildCSExternalAuth(ctx context.Context, externalAuth *api.HCPOpenShiftClus
 	return externalAuthBuilder, nil
 }
 
-// ConvertCStoAdminCredential converts a CS BreakGlassCredential object into an HCPOpenShiftClusterAdminCredential object.
-func ConvertCStoAdminCredential(breakGlassCredential *cmv1.BreakGlassCredential) *api.HCPOpenShiftClusterAdminCredential {
-	return &api.HCPOpenShiftClusterAdminCredential{
-		ExpirationTimestamp: breakGlassCredential.ExpirationTimestamp(),
-		Kubeconfig:          breakGlassCredential.Kubeconfig(),
+// ConvertCStoClusterAdminCredentialStatus maps a Clusters Service break-glass
+// credential status onto the RP-owned ClusterAdminCredentialStatus.
+func ConvertCStoClusterAdminCredentialStatus(status cmv1.BreakGlassCredentialStatus) (api.ClusterAdminCredentialStatus, error) {
+	switch status {
+	case cmv1.BreakGlassCredentialStatusCreated:
+		return api.ClusterAdminCredentialStatusCreated, nil
+	case cmv1.BreakGlassCredentialStatusIssued:
+		return api.ClusterAdminCredentialStatusIssued, nil
+	case cmv1.BreakGlassCredentialStatusFailed:
+		return api.ClusterAdminCredentialStatusFailed, nil
+	case cmv1.BreakGlassCredentialStatusExpired:
+		return api.ClusterAdminCredentialStatusExpired, nil
+	case cmv1.BreakGlassCredentialStatusAwaitingRevocation:
+		return api.ClusterAdminCredentialStatusAwaitingRevocation, nil
+	case cmv1.BreakGlassCredentialStatusRevoked:
+		return api.ClusterAdminCredentialStatusRevoked, nil
+	default:
+		return "", conversionError[api.ClusterAdminCredentialStatus](status)
 	}
 }
 

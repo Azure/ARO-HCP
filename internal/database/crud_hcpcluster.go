@@ -111,6 +111,7 @@ type HCPClusterCRUD interface {
 	ResourceCRUD[api.HCPOpenShiftCluster, *api.HCPOpenShiftCluster]
 	ControllerContainer
 	ManagementClusterContentContainer
+	AdminCredentialContainer
 
 	ExternalAuth(hcpClusterID string) ExternalAuthsCRUD
 	NodePools(hcpClusterID string) NodePoolsCRUD
@@ -206,6 +207,22 @@ func (h *hcpClusterCRUD) ManagementClusterContents(hcpClusterName string) Resour
 		h.containerClient,
 		parentResourceID,
 		api.ClusterScopedManagementClusterContentResourceType,
+	)
+}
+
+func (h *hcpClusterCRUD) AdminCredentials(hcpClusterName string) ResourceCRUD[api.ClusterAdminCredential, *api.ClusterAdminCredential] {
+	parentResourceID := api.Must(azcorearm.ParseResourceID(
+		path.Join(
+			h.parentResourceID.String(),
+			"providers",
+			h.resourceType.Namespace,
+			h.resourceType.Type,
+			hcpClusterName)))
+
+	return NewCosmosResourceCRUD[api.ClusterAdminCredential, *api.ClusterAdminCredential, GenericDocument[api.ClusterAdminCredential]](
+		h.containerClient,
+		parentResourceID,
+		api.AdminCredentialResourceType,
 	)
 }
 

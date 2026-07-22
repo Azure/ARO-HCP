@@ -179,6 +179,44 @@ func TestRedactTypedDocument_ReturnsNestedFieldTypeError(t *testing.T) {
 	}
 }
 
+func TestRedactTypedDocument_RedactsAdminCredentialKubeconfig(t *testing.T) {
+	resourceIDString := api.ToAdminCredentialResourceIDString(
+		api.TestSubscriptionID,
+		api.TestResourceGroupName,
+		api.TestClusterName,
+		"bgc123",
+	)
+	resourceID := mustParseResourceID(t, resourceIDString)
+	obj := &api.ClusterAdminCredential{
+		CosmosMetadata: api.CosmosMetadata{
+			ResourceID:   resourceID,
+			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
+		},
+		OperationID: "op-1",
+		Status:      api.ClusterAdminCredentialStatusIssued,
+		Kubeconfig:  "apiVersion: v1\nkind: Config\nclusters: []\n",
+	}
+	doc := newTypedDocument(t, resourceID, api.AdminCredentialResourceType.String(), obj)
+
+	if err := redactTypedDocument(doc); err != nil {
+		t.Fatalf("redactTypedDocument() error = %v", err)
+	}
+
+	var redacted api.ClusterAdminCredential
+	if err := json.Unmarshal(doc.Properties, &redacted); err != nil {
+		t.Fatalf("unmarshal redacted properties: %v", err)
+	}
+	if redacted.Kubeconfig != RedactStr {
+		t.Fatalf("Kubeconfig = %q, want %q", redacted.Kubeconfig, RedactStr)
+	}
+	if redacted.Status != api.ClusterAdminCredentialStatusIssued {
+		t.Fatalf("Status = %q, want %q", redacted.Status, api.ClusterAdminCredentialStatusIssued)
+	}
+	if redacted.OperationID != "op-1" {
+		t.Fatalf("OperationID = %q, want %q", redacted.OperationID, "op-1")
+	}
+}
+
 func newTypedDocument(t *testing.T, resourceID *azcorearm.ResourceID, resourceType string, properties any) *database.TypedDocument {
 	t.Helper()
 

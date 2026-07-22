@@ -1022,16 +1022,20 @@ func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Req
 
 	switch {
 	case operation.InternalID.Kind() == cmv1.BreakGlassCredentialKind:
-		csBreakGlassCredential, err := f.clusterServiceClient.GetBreakGlassCredential(ctx, operation.InternalID)
+		adminCredential, err := f.resourcesDBClient.HCPClusters(operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName).AdminCredentials(operation.ExternalID.Name).Get(ctx, operation.InternalID.ID())
 		if err != nil {
 			return utils.TrackError(err)
 		}
 
-		responseBody, err = versionedInterface.MarshalHCPOpenShiftClusterAdminCredential(ocm.ConvertCStoAdminCredential(csBreakGlassCredential))
+		responseBody, err = versionedInterface.MarshalHCPOpenShiftClusterAdminCredential(
+			&api.HCPOpenShiftClusterAdminCredential{
+				ExpirationTimestamp: adminCredential.ExpirationTimestamp,
+				Kubeconfig:          adminCredential.Kubeconfig,
+			},
+		)
 		if err != nil {
 			return utils.TrackError(err)
 		}
-
 	case armhelpers.ResourceTypeEqual(operation.ExternalID.ResourceType, api.ClusterResourceType):
 		resultingInternalCluster, err := f.getInternalClusterFromStorage(ctx, operation.ExternalID)
 		if err != nil {
