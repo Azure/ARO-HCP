@@ -30,14 +30,26 @@ import (
 )
 
 const (
-	veleroScheduleGroup    = "velero.io"
-	veleroScheduleVersion  = "v1"
+	veleroGroup     = "velero.io"
+	veleroVersion   = "v1"
+	veleroNamespace = "velero"
+
 	veleroScheduleResource = "schedules"
-	veleroNamespace        = "velero"
+	veleroBackupResource   = "backups"
+
+	keyRotationBackupNameSeparator = "-keyrotation-"
 )
 
 func backupApplyDesireName(scheduleName string) string {
 	return backup.BackupScheduleDesireNamePrefix + scheduleName
+}
+
+func keyRotationBackupName(clusterServiceID, keyVersion string) string {
+	return fmt.Sprintf("%s"+keyRotationBackupNameSeparator+"%s", clusterServiceID, keyVersion)
+}
+
+func keyRotationDesireName(backupName string) string {
+	return backup.OndemandBackupDesireNamePrefix + backupName
 }
 
 func buildApplyDesiresFromSchedules(
@@ -67,8 +79,8 @@ func buildApplyDesiresFromSchedules(
 				ManagementCluster: mcResourceID,
 				Type:              kubeapplier.ApplyDesireTypeServerSideApply,
 				TargetItem: kubeapplier.ResourceReference{
-					Group:     veleroScheduleGroup,
-					Version:   veleroScheduleVersion,
+					Group:     veleroGroup,
+					Version:   veleroVersion,
 					Resource:  veleroScheduleResource,
 					Namespace: veleroNamespace,
 					Name:      schedule.Name,
@@ -97,6 +109,72 @@ func buildDeleteApplyDesireFromApplyDesire(
 	return adDesire
 }
 
+// buildOnDemandBackupDesires returns a paired AD+RD. Unlike schedules, on-demand
+// backups are single-shot — splitting would allow callers to create one without
+// the other, producing an unobservable backup.
+func buildOnDemandBackupDesires(
+	subscriptionID, resourceGroupName, clusterName, desireName string,
+	mcResourceID *azcorearm.ResourceID,
+	veleroBackup *velerov1.Backup,
+) (*kubeapplier.ApplyDesire, *kubeapplier.ReadDesire, error) {
+	adResourceIDStr := kubeapplier.ToClusterScopedApplyDesireResourceIDString(
+		subscriptionID, resourceGroupName, clusterName, desireName,
+	)
+	adResourceID, err := azcorearm.ParseResourceID(adResourceIDStr)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to parse ApplyDesire resource ID: %w", err)
+	}
+
+	raw, err := json.Marshal(veleroBackup)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to marshal backup: %w", err)
+	}
+
+	partitionKey := strings.ToLower(mcResourceID.String())
+
+	ad := &kubeapplier.ApplyDesire{
+		CosmosMetadata: api.CosmosMetadata{ResourceID: adResourceID, PartitionKey: partitionKey},
+		Spec: kubeapplier.ApplyDesireSpec{
+			ManagementCluster: mcResourceID,
+			Type:              kubeapplier.ApplyDesireTypeServerSideApply,
+			TargetItem: kubeapplier.ResourceReference{
+				Group:     veleroGroup,
+				Version:   veleroVersion,
+				Resource:  veleroBackupResource,
+				Namespace: veleroNamespace,
+				Name:      veleroBackup.Name,
+			},
+			ServerSideApply: &kubeapplier.ServerSideApplyConfig{
+				KubeContent: &runtime.RawExtension{Raw: raw},
+			},
+		},
+	}
+
+	rdResourceIDStr := kubeapplier.ToClusterScopedReadDesireResourceIDString(
+		subscriptionID, resourceGroupName, clusterName, desireName,
+	)
+	rdResourceID, err := azcorearm.ParseResourceID(rdResourceIDStr)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to parse ReadDesire resource ID: %w", err)
+	}
+
+	rd := &kubeapplier.ReadDesire{
+		CosmosMetadata: api.CosmosMetadata{ResourceID: rdResourceID, PartitionKey: partitionKey},
+		Spec: kubeapplier.ReadDesireSpec{
+			ManagementCluster: mcResourceID,
+			TargetItem: kubeapplier.ResourceReference{
+				Group:     veleroGroup,
+				Version:   veleroVersion,
+				Resource:  veleroBackupResource,
+				Namespace: veleroNamespace,
+				Name:      veleroBackup.Name,
+			},
+		},
+	}
+
+	return ad, rd, nil
+}
+
 func buildReadDesiresFromSchedules(
 	subscriptionID, resourceGroupName, clusterName string,
 	mcResourceID *azcorearm.ResourceID,
@@ -118,8 +196,8 @@ func buildReadDesiresFromSchedules(
 			Spec: kubeapplier.ReadDesireSpec{
 				ManagementCluster: mcResourceID,
 				TargetItem: kubeapplier.ResourceReference{
-					Group:     veleroScheduleGroup,
-					Version:   veleroScheduleVersion,
+					Group:     veleroGroup,
+					Version:   veleroVersion,
 					Resource:  veleroScheduleResource,
 					Namespace: veleroNamespace,
 					Name:      schedule.Name,

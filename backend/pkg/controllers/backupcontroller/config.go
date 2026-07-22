@@ -50,3 +50,12 @@ type BackupScheduleConfig struct {
 	Schedule string
 	TTL      time.Duration
 }
+
+func (c *BackupConfig) KeyRotationBackupTTL() time.Duration {
+	switch c.Cadence {
+	case BackupCadenceTesting:
+		return 1 * time.Hour
+	default:
+		return 7 * 24 * time.Hour
+	}
+}

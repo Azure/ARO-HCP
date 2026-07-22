@@ -618,6 +618,15 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		backendInformers,
 		unionKubeApplierInformers,
 	)
+	keyRotationBackupController := backupcontroller.NewKeyRotationBackupController(
+		b.options.ResourcesDBClient,
+		b.options.KubeApplierDBClients,
+		backendInformers,
+		unionKubeApplierInformers,
+		b.options.MaestroSourceEnvironmentIdentifier,
+		b.options.BackupConfig,
+		unionReadDesireLister,
+	)
 	// Each aggregator hardcodes its own inertia inside the statuscontrollers
 	// package so subsystem-specific tuning lives next to the controller that
 	// uses it. The constructors here just supply listers / DB / clock.
@@ -919,6 +928,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go cosmosMigrationController.Run(ctx, 5)
 				go backupScheduleController.Run(ctx, 20)
 				go onDemandBackupCleanupController.Run(ctx, 20)
+				go keyRotationBackupController.Run(ctx, 20)
 			},
 			OnStoppedLeading: func() {
 				// This needs to be defined even though it does nothing.
