@@ -12,23 +12,6 @@ resourceGroups:
     parameters: ../../configurations/output-opstool-cluster.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     outputOnly: true
-  # The opstool-cert-manager chart carries the upstream cert-manager chart as a
-  # dependency (see deploy/Chart.yaml). The dependency tarball under deploy/charts/
-  # is git-ignored (**/charts/*.tgz), so it must be fetched before the Helm deploy
-  # step packages the chart. Without this, the Helm loader silently renders an empty
-  # release and cert-manager is never installed.
-  - name: build-dependencies
-    action: Shell
-    command: helm dependency build
-    workingDir: deploy
-    shellIdentity:
-      input:
-        resourceGroup: opstool
-        step: output
-        name: opstoolUAMIId
-    dependsOn:
-    - resourceGroup: opstool
-      step: output
   - name: deploy
     aksCluster: '{{ .opstool.aks.name }}'
     action: Helm
@@ -60,8 +43,6 @@ resourceGroups:
     dependsOn:
     - resourceGroup: opstool
       step: output
-    - resourceGroup: opstool
-      step: build-dependencies
     externalDependsOn:
     - serviceGroup: Microsoft.Azure.ARO.HCP.DevCI.Unprivileged
       resourceGroup: opstool
