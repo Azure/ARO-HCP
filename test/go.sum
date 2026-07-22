@@ -69,8 +69,8 @@ github.com/Azure/ARO-HCP/backend v0.0.0-20260513195720-7c0637c01c58 h1:GS9DvICq1
 github.com/Azure/ARO-HCP/backend v0.0.0-20260513195720-7c0637c01c58/go.mod h1:/0GqqOcoDf58ozMxUvx2BN8i9KUN28EzhNdpTMSejW8=
 github.com/Azure/ARO-Tools/config v0.0.0-20260715002326-2555e1130350 h1:HcxeG/aUrC+dEQHQuUAFuWeUjrInvtoLg4VZoB27WpI=
 github.com/Azure/ARO-Tools/config v0.0.0-20260715002326-2555e1130350/go.mod h1:lHUKixOUw8Wn/x3JC7VVLwlGDC4hD4wTUfYbT249yKM=
-github.com/Azure/ARO-Tools/pipelines v0.0.0-20260715002326-2555e1130350 h1:WkyGoNXxBikToHAKiKwmPyfCmuyQR/D/0w4e2ko+63Y=
-github.com/Azure/ARO-Tools/pipelines v0.0.0-20260715002326-2555e1130350/go.mod h1:WPsexqTqWP0/yJTOXhvVMfTrK73SXofVUE0XMudAnt8=
+github.com/Azure/ARO-Tools/pipelines v0.0.0-20260720175808-ca2cea2cb707 h1:0WvIjAhHuy9fwjUbHcQX3MoyiQgGgh9dr95N7SfkY40=
+github.com/Azure/ARO-Tools/pipelines v0.0.0-20260720175808-ca2cea2cb707/go.mod h1:WPsexqTqWP0/yJTOXhvVMfTrK73SXofVUE0XMudAnt8=
 github.com/Azure/ARO-Tools/testutil v0.0.0-20260715002326-2555e1130350 h1:BT7jXSF8pldP/zgiMAHXajS9d1crVlZYqyT3kyK/YBA=
 github.com/Azure/ARO-Tools/testutil v0.0.0-20260715002326-2555e1130350/go.mod h1:vKa6bvu+tFVip4oWO9PNI2NbtmN1KUezvdX7rZCQtQU=
 github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260715002326-2555e1130350 h1:OKEEHnv7jJhynBgOkRTTNvKt2Nq5KyiCAeu9kx+RM24=
