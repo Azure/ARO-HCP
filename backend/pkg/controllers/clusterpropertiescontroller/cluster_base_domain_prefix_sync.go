@@ -114,7 +114,12 @@ func (c *clusterBaseDomainPrefixSyncer) SyncOnce(ctx context.Context, key contro
 		return nil
 	}
 
-	if _, err := clusterCRUD.Replace(ctx, replacement, nil); err != nil {
+	_, err = clusterCRUD.Replace(ctx, replacement, nil)
+	if database.IsPreconditionFailedError(err) {
+		// if we have a conflict error, then we're guaranteed that our informer will eventually see an update and trigger us again.
+		return nil
+	}
+	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to replace Cluster: %w", err))
 	}
 
