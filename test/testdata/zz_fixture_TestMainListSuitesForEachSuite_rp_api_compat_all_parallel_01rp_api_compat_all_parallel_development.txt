@@ -16,6 +16,7 @@ Create HCPOpenShiftCluster with Private KeyVault should create a cluster with pr
 ARO HCP Service should successfully provision cluster when MI role assignments are added after cluster creation
 FIPS Mode Support with ExperimentalReleaseFeatures AFEC registered should create an HCP cluster with FIPS mode enabled via experimental tag
 FIPS Mode Support with ExperimentalReleaseFeatures AFEC registered should reject an HCP cluster creation with invalid FIPS tag value
+Customer should be able to source the default ingress serving certificate from an Azure Key Vault and have rotations propagate automatically
 Customer should be able to create an HCP cluster and manage pull secrets
 Update HCPOpenShiftCluster Positive creates a cluster and updates tags with a PATCH request
 Customer should be able to create an HCP cluster with back-level version 4.19
