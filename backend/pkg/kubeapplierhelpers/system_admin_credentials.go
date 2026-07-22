@@ -118,18 +118,18 @@ func GetCachedCertificateRevocationRequestForRevocation(
 	return crr, nil
 }
 
-// GetCachedServingCAConfigMapForCluster reads the serving CA ConfigMap mirror
+// GetCachedServingCASecretForCluster reads the serving CA Secret mirror
 // from the per-cluster ReadDesire.
 //
 // Returns (nil, nil) when:
 //   - the ReadDesire has not been created yet (NotFound),
 //   - the ReadDesire exists but the kube-applier has not yet observed
 //     the target (Status.KubeContent is nil or empty).
-func GetCachedServingCAConfigMapForCluster(
+func GetCachedServingCASecretForCluster(
 	ctx context.Context,
 	readDesireLister dblisters.ReadDesireLister,
 	subscriptionName, resourceGroupName, clusterName string,
-) (*corev1.ConfigMap, error) {
+) (*corev1.Secret, error) {
 	desireName := ReadDesireNameForSystemAdminCredentialRequestServingCA()
 	readDesire, err := readDesireLister.GetForCluster(ctx, subscriptionName, resourceGroupName, clusterName, desireName)
 	if database.IsNotFoundError(err) {
@@ -141,9 +141,9 @@ func GetCachedServingCAConfigMapForCluster(
 	if readDesire.Status.KubeContent == nil || len(readDesire.Status.KubeContent.Raw) == 0 {
 		return nil, nil
 	}
-	configMap := &corev1.ConfigMap{}
-	if err := json.Unmarshal(readDesire.Status.KubeContent.Raw, configMap); err != nil {
-		return nil, utils.TrackError(fmt.Errorf("failed to unmarshal ConfigMap from ReadDesire kubeContent: %w", err))
+	secret := &corev1.Secret{}
+	if err := json.Unmarshal(readDesire.Status.KubeContent.Raw, secret); err != nil {
+		return nil, utils.TrackError(fmt.Errorf("failed to unmarshal Secret from ReadDesire kubeContent: %w", err))
 	}
-	return configMap, nil
+	return secret, nil
 }

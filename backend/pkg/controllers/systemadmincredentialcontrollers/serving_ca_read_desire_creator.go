@@ -37,7 +37,7 @@ import (
 
 const (
 	readDesireNameServingCA         = "systemadmincredential-serving-ca"
-	servingCAConfigMapName          = "root-ca"
+	servingCATLSSecretName          = "kube-apiserver-tls-cert"
 	minServingCAConfigMapOCPVersion = "4.20"
 )
 
@@ -117,18 +117,17 @@ func (c *servingCAReadDesireCreator) SyncOnce(ctx context.Context, key controlle
 		return nil
 	}
 
-	clusterName := existingCluster.CustomerProperties.DNS.BaseDomainPrefix
-	if len(clusterName) == 0 {
+	controlPlaneNamespace := serviceProviderCluster.Status.ControlPlaneNamespace
+	if len(controlPlaneNamespace) == 0 {
 		return nil
 	}
-	hcpNamespace := hostedControlPlaneNamespace(clusterName)
 
 	target := kubeapplier.ResourceReference{
 		Group:     "",
 		Version:   "v1",
-		Resource:  "configmaps",
-		Namespace: hcpNamespace,
-		Name:      servingCAConfigMapName,
+		Resource:  "secrets",
+		Namespace: controlPlaneNamespace,
+		Name:      servingCATLSSecretName,
 	}
 
 	desired, err := buildServingCAReadDesire(
@@ -193,10 +192,6 @@ func buildServingCAReadDesire(resourceIDString string, managementCluster *azcore
 			TargetItem:        target,
 		},
 	}, nil
-}
-
-func hostedControlPlaneNamespace(clusterName string) string {
-	return fmt.Sprintf("clusters-%s", clusterName)
 }
 
 func clusterVersionAtLeast(versionID, minVersion string) (bool, error) {

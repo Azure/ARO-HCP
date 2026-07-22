@@ -29,26 +29,31 @@ const (
 )
 
 // BuildKubeconfig assembles a kubeconfig from the signed certificate, the private
-// key (PEM), and the API URL. This is a pure function — no I/O.
+// key (PEM), the API URL, and an optional CA bundle. This is a pure function — no I/O.
 //
 // signedCertificateBase64 is the base64 encoding of the CSR's Status.Certificate,
 // which the Kubernetes API guarantees to be PEM-encoded. client-go's clientcmd
 // expects ClientCertificateData in PEM, so the decoded bytes are used directly
 // (no DER→PEM wrapping is required).
 //
-// The resulting kubeconfig deliberately carries no CertificateAuthorityData, so
-// callers must fall back to their system trust bundle to verify the API server.
-func BuildKubeconfig(signedCertificateBase64, privateKeyPEM, apiURL string) ([]byte, error) {
+// caBundlePEM is the PEM-encoded serving CA certificate for the API server. When
+// non-empty it is set as CertificateAuthorityData so kubectl can verify the TLS
+// connection. When empty, callers fall back to their system trust bundle.
+func BuildKubeconfig(signedCertificateBase64, privateKeyPEM, apiURL, caBundlePEM string) ([]byte, error) {
 	certPEM, err := base64.StdEncoding.DecodeString(signedCertificateBase64)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode signed certificate: %w", err)
 	}
 
+	var caData []byte
+	if len(caBundlePEM) > 0 {
+		caData = []byte(caBundlePEM)
+	}
+
 	config := clientcmdapi.NewConfig()
 	config.Clusters[kubeconfigClusterName] = &clientcmdapi.Cluster{
-		Server: apiURL,
-		// CA bundle is intentionally nil — callers must use system trust bundles.
-		CertificateAuthorityData: nil,
+		Server:                   apiURL,
+		CertificateAuthorityData: caData,
 	}
 	config.AuthInfos[kubeconfigUserName] = &clientcmdapi.AuthInfo{
 		ClientCertificateData: certPEM,

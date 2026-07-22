@@ -30,7 +30,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
-const servingCABundleDataKey = "ca-bundle.crt"
+const servingCATLSCertKey = "tls.crt"
 
 type caBundleSync struct {
 	cooldownChecker              controllerutil.CooldownChecker
@@ -74,20 +74,20 @@ func (c *caBundleSync) CooldownChecker() controllerutil.CooldownChecker {
 func (c *caBundleSync) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
 	logger := utils.LoggerFromContext(ctx)
 
-	cachedConfigMap, err := kubeapplierhelpers.GetCachedServingCAConfigMapForCluster(
+	cachedSecret, err := kubeapplierhelpers.GetCachedServingCASecretForCluster(
 		ctx, c.readDesireLister,
 		key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName,
 	)
 	if err != nil {
 		return utils.TrackError(err)
 	}
-	if cachedConfigMap == nil {
+	if cachedSecret == nil {
 		return nil
 	}
 
-	caBundlePEM, ok := cachedConfigMap.Data[servingCABundleDataKey]
-	if !ok || len(caBundlePEM) == 0 {
-		logger.Info("serving CA ConfigMap does not contain expected key", "key", servingCABundleDataKey)
+	caBundlePEM := string(cachedSecret.Data[servingCATLSCertKey])
+	if len(caBundlePEM) == 0 {
+		logger.Info("serving CA Secret does not contain expected key", "key", servingCATLSCertKey)
 		return nil
 	}
 

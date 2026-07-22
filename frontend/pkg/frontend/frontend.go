@@ -1075,10 +1075,8 @@ func (f *Frontend) OperationResult(writer http.ResponseWriter, request *http.Req
 
 // assembleAdminCredentialFromCosmos looks up the SystemAdminCredentialRequest Cosmos
 // document pointed to by Operation.InternalID and assembles a kubeconfig from
-// its signed certificate and private key.
-//
-// The kubeconfig deliberately omits the cluster's CA bundle: the CA data is left
-// nil and clients must rely on their system trust bundle.
+// its signed certificate, private key, and the serving CA bundle from the
+// ServiceProviderCluster.
 func (f *Frontend) assembleAdminCredentialFromCosmos(ctx context.Context, op *api.Operation) (*api.HCPOpenShiftClusterAdminCredential, error) {
 	credResourceID, err := azcorearm.ParseResourceID(op.InternalID.String())
 	if err != nil {
@@ -1099,19 +1097,23 @@ func (f *Frontend) assembleAdminCredentialFromCosmos(ctx context.Context, op *ap
 		return nil, fmt.Errorf("credential request is not in Issued state")
 	}
 
-	// Get the cluster's API URL.
 	cluster, err := f.resourcesDBClient.HCPClusters(op.ExternalID.SubscriptionID, op.ExternalID.ResourceGroupName).Get(ctx, op.ExternalID.Name)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get cluster: %w", err)
 	}
 	apiURL := cluster.ServiceProviderProperties.API.URL
 
-	// The kubeconfig's CA bundle is intentionally left nil; clients fall back to
-	// their system trust bundle to verify the API server.
+	serviceProviderCluster, err := f.resourcesDBClient.ServiceProviderClusters(
+		op.ExternalID.SubscriptionID, op.ExternalID.ResourceGroupName, op.ExternalID.Name).Get(ctx, api.ServiceProviderClusterResourceName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get ServiceProviderCluster: %w", err)
+	}
+
 	kubeconfigBytes, err := systemadmincredential.BuildKubeconfig(
 		cred.Status.SignedCertificate,
 		cred.Spec.PrivateKeyPEM,
 		apiURL,
+		serviceProviderCluster.Status.ServingCABundle,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build kubeconfig: %w", err)

@@ -29,26 +29,41 @@ func TestBuildKubeconfig(t *testing.T) {
 	fakeKey := "-----BEGIN PRIVATE KEY-----\nfake-key-data\n-----END PRIVATE KEY-----"
 	fakeURL := "https://api.cluster.example.com:6443"
 
-	kubeconfigBytes, err := BuildKubeconfig(fakeCert, fakeKey, fakeURL)
-	require.NoError(t, err, "BuildKubeconfig should succeed")
+	t.Run("without CA bundle", func(t *testing.T) {
+		kubeconfigBytes, err := BuildKubeconfig(fakeCert, fakeKey, fakeURL, "")
+		require.NoError(t, err, "BuildKubeconfig should succeed")
 
-	config, err := clientcmd.Load(kubeconfigBytes)
-	require.NoError(t, err, "kubeconfig should be parseable")
+		config, err := clientcmd.Load(kubeconfigBytes)
+		require.NoError(t, err, "kubeconfig should be parseable")
 
-	assert.Equal(t, kubeconfigContextName, config.CurrentContext, "current context should be set")
+		assert.Equal(t, kubeconfigContextName, config.CurrentContext, "current context should be set")
 
-	cluster, ok := config.Clusters[kubeconfigClusterName]
-	require.True(t, ok, "cluster should exist in kubeconfig")
-	assert.Equal(t, fakeURL, cluster.Server, "cluster server should match API URL")
-	assert.Empty(t, cluster.CertificateAuthorityData, "cluster CA must be nil so callers fall back to system trust bundles")
+		cluster, ok := config.Clusters[kubeconfigClusterName]
+		require.True(t, ok, "cluster should exist in kubeconfig")
+		assert.Equal(t, fakeURL, cluster.Server, "cluster server should match API URL")
+		assert.Empty(t, cluster.CertificateAuthorityData, "cluster CA should be empty when no CA bundle is provided")
 
-	authInfo, ok := config.AuthInfos[kubeconfigUserName]
-	require.True(t, ok, "user should exist in kubeconfig")
-	assert.Equal(t, []byte(fakeKey), authInfo.ClientKeyData, "client key should match")
-	assert.Equal(t, []byte("fake-cert-data"), authInfo.ClientCertificateData, "client cert should match decoded cert")
+		authInfo, ok := config.AuthInfos[kubeconfigUserName]
+		require.True(t, ok, "user should exist in kubeconfig")
+		assert.Equal(t, []byte(fakeKey), authInfo.ClientKeyData, "client key should match")
+		assert.Equal(t, []byte("fake-cert-data"), authInfo.ClientCertificateData, "client cert should match decoded cert")
 
-	ctx, ok := config.Contexts[kubeconfigContextName]
-	require.True(t, ok, "context should exist in kubeconfig")
-	assert.Equal(t, kubeconfigClusterName, ctx.Cluster, "context cluster should match")
-	assert.Equal(t, kubeconfigUserName, ctx.AuthInfo, "context user should match")
+		ctx, ok := config.Contexts[kubeconfigContextName]
+		require.True(t, ok, "context should exist in kubeconfig")
+		assert.Equal(t, kubeconfigClusterName, ctx.Cluster, "context cluster should match")
+		assert.Equal(t, kubeconfigUserName, ctx.AuthInfo, "context user should match")
+	})
+
+	t.Run("with CA bundle", func(t *testing.T) {
+		fakeCA := "-----BEGIN CERTIFICATE-----\nfake-ca-data\n-----END CERTIFICATE-----"
+		kubeconfigBytes, err := BuildKubeconfig(fakeCert, fakeKey, fakeURL, fakeCA)
+		require.NoError(t, err, "BuildKubeconfig should succeed")
+
+		config, err := clientcmd.Load(kubeconfigBytes)
+		require.NoError(t, err, "kubeconfig should be parseable")
+
+		cluster, ok := config.Clusters[kubeconfigClusterName]
+		require.True(t, ok, "cluster should exist in kubeconfig")
+		assert.Equal(t, []byte(fakeCA), cluster.CertificateAuthorityData, "cluster CA should match provided CA bundle")
+	})
 }
