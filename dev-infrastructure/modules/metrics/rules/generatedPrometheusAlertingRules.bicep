@@ -1171,12 +1171,12 @@ resource backend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = 
           severity: 'warning'
         }
         annotations: {
-          correlationId: 'BackendControllerQueueDepthHigh/{{ $labels.cluster }}'
+          correlationId: 'BackendControllerQueueDepthHigh/{{ $labels.cluster }}/{{ $labels.name }}'
           description: 'Backend controller workqueue {{ $labels.name }} has had a depth > 10 for more than 15 minutes, indicating work is accumulating faster than it can be processed.'
           info: 'Backend controller workqueue {{ $labels.name }} has had a depth > 10 for more than 15 minutes, indicating work is accumulating faster than it can be processed.'
           runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/backend-tsg.html'
           summary: 'Backend controller workqueue depth is high'
-          title: 'Backend controller workqueue depth is high'
+          title: 'Backend controller workqueue depth is high name:{{ $labels.name }}'
         }
         expression: 'max by (name, cluster) (max without (prometheus_replica) (workqueue_depth{namespace="aro-hcp"})) > 10'
         for: 'PT15M'
@@ -1198,12 +1198,12 @@ resource backend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = 
           severity: 'warning'
         }
         annotations: {
-          correlationId: 'BackendControllerPanic/{{ $labels.cluster }}'
+          correlationId: 'BackendControllerPanic/{{ $labels.cluster }}/{{ $labels.controller }}'
           description: 'Backend controller {{ $labels.controller }} has panicked {{ printf "%.0f" $value }} time(s) in the last 5 minutes.'
           info: 'Backend controller {{ $labels.controller }} has panicked {{ printf "%.0f" $value }} time(s) in the last 5 minutes.'
           runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/backend-tsg.html'
           summary: 'Backend controller is panicking'
-          title: 'Backend controller is panicking'
+          title: 'Backend controller is panicking controller:{{ $labels.controller }}'
         }
         expression: 'sum by (controller, cluster) (increase(panic_total{namespace="aro-hcp"}[5m])) > 0'
         for: 'PT1M'
@@ -1225,12 +1225,12 @@ resource backend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = 
           severity: 'warning'
         }
         annotations: {
-          correlationId: 'OrphanedMRGDetected/{{ $labels.cluster }}'
+          correlationId: 'OrphanedMRGDetected/{{ $labels.cluster }}/{{ $labels.location }}'
           description: 'Found {{ printf "%.0f" $value }} orphaned cluster managed resource groups in location {{ $labels.location }} over the last 10 minutes. Orphaned MRGs should not exist - investigate why cluster deletion left resources behind.'
           info: 'Found {{ printf "%.0f" $value }} orphaned cluster managed resource groups in location {{ $labels.location }} over the last 10 minutes. Orphaned MRGs should not exist - investigate why cluster deletion left resources behind.'
           runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/backend-tsg.html'
           summary: 'Orphaned cluster managed resource groups detected'
-          title: 'Orphaned cluster managed resource groups detected'
+          title: 'Orphaned cluster managed resource groups detected location:{{ $labels.location }}'
         }
         expression: 'sum by (location, cluster) (max without (prometheus_replica) (increase(aro_hcp_orphaned_managed_resource_groups_found_total[10m]))) > 0'
         for: 'PT5M'
@@ -1252,12 +1252,12 @@ resource backend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = 
           severity: 'warning'
         }
         annotations: {
-          correlationId: 'OrphanedMRGDeletionFailing/{{ $labels.cluster }}'
+          correlationId: 'OrphanedMRGDeletionFailing/{{ $labels.cluster }}/{{ $labels.location }}'
           description: 'Orphaned cluster managed resource group deletion has failed {{ printf "%.0f" $value }} time(s) in location {{ $labels.location }} over the last 10 minutes. Deletion should succeed - investigate Azure permissions or resource locks.'
           info: 'Orphaned cluster managed resource group deletion has failed {{ printf "%.0f" $value }} time(s) in location {{ $labels.location }} over the last 10 minutes. Deletion should succeed - investigate Azure permissions or resource locks.'
           runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/backend-tsg.html'
           summary: 'Orphaned cluster managed resource group deletion is failing'
-          title: 'Orphaned cluster managed resource group deletion is failing'
+          title: 'Orphaned cluster managed resource group deletion is failing location:{{ $labels.location }}'
         }
         expression: 'sum by (location, cluster) (max without (prometheus_replica) (increase(aro_hcp_orphaned_managed_resource_groups_deletion_failed_total[10m]))) > 0'
         for: 'PT10M'
@@ -1478,12 +1478,12 @@ resource fleet 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
           severity: 'warning'
         }
         annotations: {
-          correlationId: 'FleetControllerRetryHotLoop/{{ $labels.cluster }}'
+          correlationId: 'FleetControllerRetryHotLoop/{{ $labels.cluster }}/{{ $labels.name }}'
           description: 'Fleet controller workqueue {{ $labels.name }} has a retry ratio of > 50% sustained over 10 minutes, indicating most queue activity is failed retries rather than fresh work.'
           info: 'Fleet controller workqueue {{ $labels.name }} has a retry ratio of > 50% sustained over 10 minutes, indicating most queue activity is failed retries rather than fresh work.'
           runbook_url: 'TBD'
           summary: 'Fleet controller workqueue retry hot loop'
-          title: 'Fleet controller workqueue retry hot loop'
+          title: 'Fleet controller workqueue retry hot loop name:{{ $labels.name }}'
         }
         expression: '(sum by (name, cluster) (max without (prometheus_replica) (rate(workqueue_retries_total{namespace="fleet"}[10m]))) / sum by (name, cluster) (max without (prometheus_replica) (rate(workqueue_adds_total{namespace="fleet"}[10m])))) > 0.5'
         for: 'PT10M'
@@ -1505,12 +1505,12 @@ resource fleet 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
           severity: 'warning'
         }
         annotations: {
-          correlationId: 'FleetControllerQueueDepthHigh/{{ $labels.cluster }}'
+          correlationId: 'FleetControllerQueueDepthHigh/{{ $labels.cluster }}/{{ $labels.name }}'
           description: 'Fleet controller workqueue {{ $labels.name }} has had a depth > 10 for more than 5 minutes, indicating work is accumulating faster than it can be processed.'
           info: 'Fleet controller workqueue {{ $labels.name }} has had a depth > 10 for more than 5 minutes, indicating work is accumulating faster than it can be processed.'
           runbook_url: 'TBD'
           summary: 'Fleet controller workqueue depth is high'
-          title: 'Fleet controller workqueue depth is high'
+          title: 'Fleet controller workqueue depth is high name:{{ $labels.name }}'
         }
         expression: 'max by (name, cluster) (max without (prometheus_replica) (workqueue_depth{namespace="fleet"})) > 10'
         for: 'PT5M'
@@ -1532,12 +1532,12 @@ resource fleet 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
           severity: 'warning'
         }
         annotations: {
-          correlationId: 'FleetControllerPanic/{{ $labels.cluster }}'
+          correlationId: 'FleetControllerPanic/{{ $labels.cluster }}/{{ $labels.controller }}'
           description: 'Fleet controller {{ $labels.controller }} has panicked {{ printf "%.0f" $value }} time(s) in the last 5 minutes.'
           info: 'Fleet controller {{ $labels.controller }} has panicked {{ printf "%.0f" $value }} time(s) in the last 5 minutes.'
           runbook_url: 'TBD'
           summary: 'Fleet controller is panicking'
-          title: 'Fleet controller is panicking'
+          title: 'Fleet controller is panicking controller:{{ $labels.controller }}'
         }
         expression: 'sum by (controller, cluster) (increase(panic_total{namespace="fleet"}[5m])) > 0'
         for: 'PT1M'
@@ -1927,50 +1927,6 @@ resource maestro 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = 
   }
 }
 
-resource hcpDeletionRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
-  name: 'hcp-deletion-rules'
-  location: location
-  properties: {
-    interval: 'PT1M'
-    rules: [
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'HCPClusterStuckDeleting'
-        enabled: true
-        labels: {
-          severity: 'warning'
-        }
-        annotations: {
-          correlationId: 'HCPClusterStuckDeleting/{{ $labels.cluster }}'
-          description: '''Cluster {{ $labels.exported_namespace }} has been in a deleting state for more than 2 hours. 
-This may indicate that finalizers are stuck or resources are failing to cleanup.
-'''
-          info: '''Cluster {{ $labels.exported_namespace }} has been in a deleting state for more than 2 hours. 
-This may indicate that finalizers are stuck or resources are failing to cleanup.
-'''
-          runbook_url: 'TBD'
-          summary: 'Cluster stuck deleting'
-          title: 'Cluster stuck deleting'
-        }
-        expression: 'sum by (cluster, exported_namespace, name) (hypershift_cluster_deleting_duration_seconds) > 7200'
-        for: 'PT5M'
-        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
-      }
-    ]
-    scopes: [
-      azureMonitoring
-    ]
-  }
-}
-
 resource arobitRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
   name: 'arobit-rules'
   location: location
@@ -2141,8 +2097,8 @@ Investigate the Fluent Bit logs for the specific error details and check the Kus
   }
 }
 
-resource imageRegistryPolicy 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
-  name: 'image-registry-policy'
+resource serviceTagCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
+  name: 'service-tag-capacity-rules'
   location: location
   properties: {
     interval: 'PT1M'
@@ -2508,33 +2464,6 @@ resource hcpTestClustersRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'ImageRegistryPolicyAuditViolation'
-        enabled: true
-        labels: {
-          severity: 'info'
-        }
-        annotations: {
-          correlationId: 'ImageRegistryPolicyAuditViolation/{{ $labels.cluster }}'
-          description: 'The image-registry-allowlist-policy on cluster {{ $labels.cluster }} has logged {{ $value }} audit violation(s) in the last 15 minutes. Pods with images from non-approved registries are running but not blocked. Review kubernetesEvents in Kusto for details.'
-          info: 'The image-registry-allowlist-policy on cluster {{ $labels.cluster }} has logged {{ $value }} audit violation(s) in the last 15 minutes. Pods with images from non-approved registries are running but not blocked. Review kubernetesEvents in Kusto for details.'
-          runbook_url: 'TBD'
-          summary: 'Image registry policy audit violation detected'
-          title: 'Image registry policy audit violation detected'
-        }
-        expression: 'sum by (cluster, policy, policy_binding) (increase(apiserver_validating_admission_policy_check_total{enforcement_action="audit",policy="image-registry-allowlist-policy",validation_result="denied"}[15m])) > 0'
-        for: 'PT5M'
-        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
-      }
     ]
     scopes: [
       azureMonitoring
@@ -2612,73 +2541,6 @@ resource kubeNodeRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-
         expression: 'kube_node_status_condition{condition="MemoryPressure",status="true"} == 1'
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
-      }
-    ]
-    scopes: [
-      azureMonitoring
-    ]
-  }
-}
-
-resource imageRegistryPolicy 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
-  name: 'image-registry-policy'
-  location: location
-  properties: {
-    interval: 'PT1M'
-    rules: [
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'ImageRegistryPolicyDenied'
-        enabled: true
-        labels: {
-          severity: 'warning'
-        }
-        annotations: {
-          correlationId: 'ImageRegistryPolicyDenied/{{ $labels.cluster }}'
-          description: 'The image-registry-allowlist-policy on cluster {{ $labels.cluster }} has denied {{ $value }} pod admission(s) in the last 15 minutes. This means pods with images from non-approved registries were blocked from running.'
-          info: 'The image-registry-allowlist-policy on cluster {{ $labels.cluster }} has denied {{ $value }} pod admission(s) in the last 15 minutes. This means pods with images from non-approved registries were blocked from running.'
-          runbook_url: 'TBD'
-          summary: 'Image registry policy denied pod admission'
-          title: 'Image registry policy denied pod admission cluster:{{ $labels.cluster }}'
-        }
-        expression: 'sum by (cluster, policy, policy_binding) (increase(apiserver_validating_admission_policy_check_total{enforcement_action="deny",policy="image-registry-allowlist-policy",validation_result="denied"}[15m])) > 0'
-        for: 'PT1M'
-        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
-      }
-      {
-        actions: [
-          for g in actionGroups: {
-            actionGroupId: g
-            actionProperties: {
-              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
-              'IcM.CorrelationId': '#$.annotations.correlationId#'
-            }
-          }
-        ]
-        alert: 'ImageRegistryPolicyAuditViolation'
-        enabled: true
-        labels: {
-          severity: 'info'
-        }
-        annotations: {
-          correlationId: 'ImageRegistryPolicyAuditViolation/{{ $labels.cluster }}'
-          description: 'The image-registry-allowlist-policy on cluster {{ $labels.cluster }} has logged {{ $value }} audit violation(s) in the last 15 minutes. Pods with images from non-approved registries are running but not blocked. Review kubernetesEvents in Kusto for details.'
-          info: 'The image-registry-allowlist-policy on cluster {{ $labels.cluster }} has logged {{ $value }} audit violation(s) in the last 15 minutes. Pods with images from non-approved registries are running but not blocked. Review kubernetesEvents in Kusto for details.'
-          runbook_url: 'TBD'
-          summary: 'Image registry policy audit violation detected'
-          title: 'Image registry policy audit violation detected cluster:{{ $labels.cluster }}'
-        }
-        expression: 'sum by (cluster, policy, policy_binding) (increase(apiserver_validating_admission_policy_check_total{enforcement_action="audit",policy="image-registry-allowlist-policy",validation_result="denied"}[15m])) > 0'
-        for: 'PT5M'
-        severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
     ]
     scopes: [

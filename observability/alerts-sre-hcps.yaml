@@ -1,6 +1,5 @@
 prometheusRules:
   rulesFolders:
-  - alerts/etcd-availability-prometheusRule.yaml
   - alerts/mgmt-capacity-prometheusRule.yaml
   - alerts/HCPkasRecord-prometheusRule-KSM.yaml
   untestedRules: []
