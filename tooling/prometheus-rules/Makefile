@@ -47,6 +47,10 @@ run-sre-services:
 	go run ./...  --config-file ../../observability/alerts-sre-services.yaml $(EXTRA_FLAGS)
 .PHONY: run-sre-services
 
+run-rp-hcps:
+	go run ./...  --config-file ../../observability/alerts-rp-hcps.yaml $(EXTRA_FLAGS)
+.PHONY: run-rp-hcps
+
 run-rp-services:
 	go run ./...  --config-file ../../observability/alerts-rp-services.yaml $(EXTRA_FLAGS)
 .PHONY: run-rp-services
