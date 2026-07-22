@@ -17,6 +17,7 @@ package verifiers
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"embed"
 	"errors"
 	"fmt"
@@ -76,7 +77,7 @@ func (v verifySimpleWebApp) Verify(ctx context.Context, adminRESTConfig *rest.Co
 	insecureTransport.TLSClientConfig = &tls.Config{
 		InsecureSkipVerify: true,
 	}
-	if err := waitForRouteReachability(ctx, &http.Client{Transport: insecureTransport}, url, 25*time.Minute); err != nil {
+	if err := waitForRouteReachability(ctx, &http.Client{Transport: insecureTransport}, url, 25*time.Minute, "insecure reachability"); err != nil {
 		return err
 	}
 
@@ -86,8 +87,9 @@ func (v verifySimpleWebApp) Verify(ctx context.Context, adminRESTConfig *rest.Co
 		return nil
 	}
 	secureTransport := http.DefaultTransport.(*http.Transport).Clone()
-	if err := waitForRouteReachability(ctx, &http.Client{Transport: secureTransport}, url, 10*time.Minute); err != nil {
-		printNegotiatedCertificate(ctx, app.RouteHost)
+	if err := waitForRouteReachability(ctx, &http.Client{Transport: secureTransport}, url, 10*time.Minute, "strict TLS verification"); err != nil {
+		printTLSErrorDetails("strict TLS verification", err)
+		printNegotiatedCertificate(ctx, "strict TLS verification", app.RouteHost)
 		return err
 	}
 
@@ -97,8 +99,9 @@ func (v verifySimpleWebApp) Verify(ctx context.Context, adminRESTConfig *rest.Co
 var routeReachabilityPollInterval = 10 * time.Second
 
 // waitForRouteReachability polls the URL with the provided client until a
-// successful HTTP 200 response is observed or timeout is reached.
-func waitForRouteReachability(ctx context.Context, client *http.Client, url string, timeout time.Duration) error {
+// successful HTTP 200 response is observed or timeout is reached. The phase
+// string is included in all log messages to distinguish check stages.
+func waitForRouteReachability(ctx context.Context, client *http.Client, url string, timeout time.Duration, phase string) error {
 	var lastErr error
 	var dnsFailureCount int
 	var firstDNSFailureTime time.Time
@@ -111,13 +114,13 @@ func waitForRouteReachability(ctx context.Context, client *http.Client, url stri
 		elapsed := time.Since(startTime)
 
 		if elapsed >= 15*time.Minute && !logged15Min {
-			ginkgo.GinkgoWriter.Printf("Route availability check is taking over 15 minutes: url=%s elapsed=%v\n", url, elapsed)
+			ginkgo.GinkgoWriter.Printf("[%s] Route check is taking over 15 minutes: url=%s elapsed=%v\n", phase, url, elapsed)
 			logged15Min = true
 		} else if elapsed >= 10*time.Minute && !logged10Min {
-			ginkgo.GinkgoWriter.Printf("Route availability check is taking between 10-15 minutes: url=%s elapsed=%v\n", url, elapsed)
+			ginkgo.GinkgoWriter.Printf("[%s] Route check is taking between 10-15 minutes: url=%s elapsed=%v\n", phase, url, elapsed)
 			logged10Min = true
 		} else if elapsed >= 5*time.Minute && !logged5Min {
-			ginkgo.GinkgoWriter.Printf("Route availability check is taking between 5-10 minutes: url=%s elapsed=%v\n", url, elapsed)
+			ginkgo.GinkgoWriter.Printf("[%s] Route check is taking between 5-10 minutes: url=%s elapsed=%v\n", phase, url, elapsed)
 			logged5Min = true
 		}
 		resp, err := client.Get(url)
@@ -131,12 +134,13 @@ func waitForRouteReachability(ctx context.Context, client *http.Client, url stri
 				dnsDuration := time.Since(firstDNSFailureTime)
 
 				if dnsDuration > 5*time.Minute && dnsFailureCount%30 == 0 {
-					ginkgo.GinkgoWriter.Printf("WARNING: DNS resolution failing for over 5 minutes (TTL period): url=%s host=%s duration=%v failures=%d\n",
-						url, dnsErr.Name, dnsDuration, dnsFailureCount)
+					ginkgo.GinkgoWriter.Printf("[%s] WARNING: DNS resolution failing for over 5 minutes (TTL period): url=%s host=%s duration=%v failures=%d\n",
+						phase, url, dnsErr.Name, dnsDuration, dnsFailureCount)
 				}
 
 				if lastErr == nil || err.Error() != lastErr.Error() {
 					klog.InfoS("DNS resolution failed (may indicate DNS propagation delay)",
+						"phase", phase,
 						"url", url,
 						"host", dnsErr.Name,
 						"dnsError", dnsErr.Err,
@@ -153,6 +157,7 @@ func waitForRouteReachability(ctx context.Context, client *http.Client, url stri
 
 			if dnsFailureCount > 0 {
 				klog.InfoS("DNS resolution succeeded, but connection failed with different error",
+					"phase", phase,
 					"previousDNSFailures", dnsFailureCount,
 					"dnsDuration", time.Since(firstDNSFailureTime),
 				)
@@ -162,6 +167,7 @@ func waitForRouteReachability(ctx context.Context, client *http.Client, url stri
 
 			if lastErr == nil || err.Error() != lastErr.Error() {
 				klog.InfoS("failed to get response from route",
+					"phase", phase,
 					"url", url,
 					"error", err,
 				)
@@ -172,6 +178,7 @@ func waitForRouteReachability(ctx context.Context, client *http.Client, url stri
 
 		if dnsFailureCount > 0 {
 			klog.InfoS("DNS resolution and connection succeeded after previous DNS failures",
+				"phase", phase,
 				"totalDNSFailures", dnsFailureCount,
 				"dnsDuration", time.Since(firstDNSFailureTime),
 			)
@@ -183,7 +190,7 @@ func waitForRouteReachability(ctx context.Context, client *http.Client, url stri
 		if resp.StatusCode != 200 {
 			statusErr := fmt.Errorf("received non-success status code: %d %s", resp.StatusCode, resp.Status)
 			if lastErr == nil || statusErr.Error() != lastErr.Error() {
-				ginkgo.GinkgoWriter.Printf("%s: route returned non-success status code", statusErr)
+				ginkgo.GinkgoWriter.Printf("[%s] route returned non-success status code: %s\n", phase, statusErr)
 			}
 			lastErr = statusErr
 			return false, nil
@@ -193,6 +200,7 @@ func waitForRouteReachability(ctx context.Context, client *http.Client, url stri
 		if err != nil {
 			if lastErr == nil || err.Error() != lastErr.Error() {
 				klog.InfoS("failed to read response from route",
+					"phase", phase,
 					"url", url,
 					"error", err,
 				)
@@ -203,9 +211,9 @@ func waitForRouteReachability(ctx context.Context, client *http.Client, url stri
 
 		elapsed = time.Since(startTime)
 		if elapsed < 5*time.Minute {
-			ginkgo.GinkgoWriter.Printf("Route became available in less than 5 minutes: url=%s elapsed=%v\n", url, elapsed)
+			ginkgo.GinkgoWriter.Printf("[%s] Route became available in less than 5 minutes: url=%s elapsed=%v\n", phase, url, elapsed)
 		}
-		ginkgo.GinkgoWriter.Printf("got successful response from route: response=%s\n", string(responseByte))
+		ginkgo.GinkgoWriter.Printf("[%s] got successful response from route: response=%s\n", phase, string(responseByte))
 		return true, nil
 	})
 
@@ -213,18 +221,58 @@ func waitForRouteReachability(ctx context.Context, client *http.Client, url stri
 	case err == nil:
 		return nil
 	case lastErr != nil:
-		klog.ErrorS(lastErr, "failed to get or read response from route",
+		klog.ErrorS(lastErr, "route check failed",
+			"phase", phase,
 			"url", url,
 		)
-		return fmt.Errorf("route was never reachable: %w", lastErr)
+		return fmt.Errorf("[%s] route was never reachable: %w", phase, lastErr)
 	default:
-		return fmt.Errorf("route was never reachable: %w", err)
+		return fmt.Errorf("[%s] route was never reachable: %w", phase, err)
 	}
 }
 
-// printNegotiatedCertificate logs the leaf certificate currently negotiated for
-// host to aid strict TLS reachability diagnostics.
-func printNegotiatedCertificate(ctx context.Context, host string) {
+// printTLSErrorDetails unwraps TLS certificate verification errors and logs
+// the specific x509 error type and details to aid debugging.
+func printTLSErrorDetails(phase string, err error) {
+	var unknownAuthErr x509.UnknownAuthorityError
+	if errors.As(err, &unknownAuthErr) {
+		if cert := unknownAuthErr.Cert; cert != nil {
+			ginkgo.GinkgoWriter.Printf("[%s] x509.UnknownAuthorityError: untrusted cert subject=%v issuer=%v isCA=%v\n",
+				phase, cert.Subject, cert.Issuer, cert.IsCA,
+			)
+		} else {
+			ginkgo.GinkgoWriter.Printf("[%s] x509.UnknownAuthorityError: cert=nil\n", phase)
+		}
+		return
+	}
+	var certInvalidErr x509.CertificateInvalidError
+	if errors.As(err, &certInvalidErr) {
+		if cert := certInvalidErr.Cert; cert != nil {
+			ginkgo.GinkgoWriter.Printf("[%s] x509.CertificateInvalidError: reason=%d cert subject=%v issuer=%v\n",
+				phase, certInvalidErr.Reason, cert.Subject, cert.Issuer,
+			)
+		} else {
+			ginkgo.GinkgoWriter.Printf("[%s] x509.CertificateInvalidError: reason=%d cert=nil\n", phase, certInvalidErr.Reason)
+		}
+		return
+	}
+	var hostnameErr x509.HostnameError
+	if errors.As(err, &hostnameErr) {
+		if cert := hostnameErr.Certificate; cert != nil {
+			ginkgo.GinkgoWriter.Printf("[%s] x509.HostnameError: host=%s cert subject=%v dnsNames=%v\n",
+				phase, hostnameErr.Host, cert.Subject, cert.DNSNames,
+			)
+		} else {
+			ginkgo.GinkgoWriter.Printf("[%s] x509.HostnameError: host=%s cert=nil\n", phase, hostnameErr.Host)
+		}
+		return
+	}
+	ginkgo.GinkgoWriter.Printf("[%s] TLS error (no x509 details extracted): %v\n", phase, err)
+}
+
+// printNegotiatedCertificate logs the full peer certificate chain currently
+// negotiated for host to aid strict TLS reachability diagnostics.
+func printNegotiatedCertificate(ctx context.Context, phase string, host string) {
 	dialCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
@@ -234,24 +282,28 @@ func printNegotiatedCertificate(ctx context.Context, host string) {
 	}
 	conn, err := dialer.DialContext(dialCtx, "tcp", host+":443")
 	if err != nil {
-		ginkgo.GinkgoWriter.Printf("failed to dial host to print negotiated certificate: host=%s err=%v\n", host, err)
+		ginkgo.GinkgoWriter.Printf("[%s] failed to dial host to print negotiated certificate: host=%s err=%v\n", phase, host, err)
 		return
 	}
 	defer conn.Close()
 
 	certs := conn.(*tls.Conn).ConnectionState().PeerCertificates
 	if len(certs) == 0 {
-		ginkgo.GinkgoWriter.Printf("no certificates served by %s\n", host)
+		ginkgo.GinkgoWriter.Printf("[%s] no certificates served by %s\n", phase, host)
 		return
 	}
-	ginkgo.GinkgoWriter.Printf("Negotiated certificate: host=%s subject=%v issuer=%v dnsNames=%v notBefore=%v notAfter=%v\n",
-		host,
-		certs[0].Subject,
-		certs[0].Issuer,
-		certs[0].DNSNames,
-		certs[0].NotBefore,
-		certs[0].NotAfter,
-	)
+	ginkgo.GinkgoWriter.Printf("[%s] Peer certificate chain for %s (%d certificate(s)):\n", phase, host, len(certs))
+	for i, cert := range certs {
+		ginkgo.GinkgoWriter.Printf("  [%d] subject=%v issuer=%v dnsNames=%v notBefore=%v notAfter=%v isCA=%v\n",
+			i,
+			cert.Subject,
+			cert.Issuer,
+			cert.DNSNames,
+			cert.NotBefore,
+			cert.NotAfter,
+			cert.IsCA,
+		)
+	}
 }
 
 func (v verifySimpleWebApp) cleanup(ctx context.Context, adminRESTConfig *rest.Config) error {

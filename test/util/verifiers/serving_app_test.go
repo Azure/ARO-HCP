@@ -71,7 +71,7 @@ func TestWaitForRouteReachability_ImmediateSuccess(t *testing.T) {
 		}),
 	}
 
-	err := waitForRouteReachability(context.Background(), client, "https://example.com", 5*time.Second)
+	err := waitForRouteReachability(context.Background(), client, "https://example.com", 5*time.Second, "test")
 	if err != nil {
 		t.Fatalf("expected success, got: %v", err)
 	}
@@ -99,7 +99,7 @@ func TestWaitForRouteReachability_SuccessAfterNon200(t *testing.T) {
 		}),
 	}
 
-	err := waitForRouteReachability(context.Background(), client, "https://example.com", 5*time.Second)
+	err := waitForRouteReachability(context.Background(), client, "https://example.com", 5*time.Second, "test")
 	if err != nil {
 		t.Fatalf("expected success after retries, got: %v", err)
 	}
@@ -121,7 +121,7 @@ func TestWaitForRouteReachability_DNSErrorClassification(t *testing.T) {
 		}),
 	}
 
-	err := waitForRouteReachability(context.Background(), client, "https://test.example.com", 5*time.Second)
+	err := waitForRouteReachability(context.Background(), client, "https://test.example.com", 5*time.Second, "test")
 	if err != nil {
 		t.Fatalf("expected success after DNS retries, got: %v", err)
 	}
@@ -147,7 +147,7 @@ func TestWaitForRouteReachability_DNSErrorThenNonDNSError(t *testing.T) {
 		}),
 	}
 
-	err := waitForRouteReachability(context.Background(), client, "https://test.example.com", 5*time.Second)
+	err := waitForRouteReachability(context.Background(), client, "https://test.example.com", 5*time.Second, "test")
 	if err != nil {
 		t.Fatalf("expected success, got: %v", err)
 	}
@@ -173,7 +173,7 @@ func TestWaitForRouteReachability_TimeoutReturnsLastError(t *testing.T) {
 		}),
 	}
 
-	err := waitForRouteReachability(context.Background(), client, "https://example.com", 100*time.Millisecond)
+	err := waitForRouteReachability(context.Background(), client, "https://example.com", 100*time.Millisecond, "test")
 	if err == nil {
 		t.Fatal("expected timeout error, got nil")
 	}
@@ -193,7 +193,7 @@ func TestWaitForRouteReachability_DNSTimeoutReturnsLastError(t *testing.T) {
 		}),
 	}
 
-	err := waitForRouteReachability(context.Background(), client, "https://test.example.com", 100*time.Millisecond)
+	err := waitForRouteReachability(context.Background(), client, "https://test.example.com", 100*time.Millisecond, "test")
 	if err == nil {
 		t.Fatal("expected timeout error, got nil")
 	}
