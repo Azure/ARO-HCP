@@ -7,6 +7,7 @@ use (
 	./dev-infrastructure/scripts/postgres-access
 	./fleet
 	./frontend
+	./hack/verify-cosmos-ids
 	./hack/verify-gomega-assertions
 	./hack/verify-schema-additional-properties
 	./internal
