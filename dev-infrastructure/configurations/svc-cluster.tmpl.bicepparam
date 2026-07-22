@@ -1,7 +1,5 @@
 using '../templates/svc-cluster.bicep'
 
-param istioVersions = '{{ .svc.istio.versions }}'
-
 // AKS
 param kubernetesVersion = '{{ .svc.aks.kubernetesVersion }}'
 param vnetAddressPrefix = '{{ .svc.aks.vnetAddressPrefix }}'

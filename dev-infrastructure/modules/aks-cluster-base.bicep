@@ -421,7 +421,7 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2026-04-02-previ
                 }
               ]
             }
-            revisions: istioVersions
+            revisions: empty(istioVersions) ? null : istioVersions
           }
         }
       : null
