@@ -17,6 +17,7 @@ package verifiers
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"embed"
 	"errors"
 	"fmt"
@@ -87,6 +88,7 @@ func (v verifySimpleWebApp) Verify(ctx context.Context, adminRESTConfig *rest.Co
 	}
 	secureTransport := http.DefaultTransport.(*http.Transport).Clone()
 	if err := waitForRouteReachability(ctx, &http.Client{Transport: secureTransport}, url, 10*time.Minute); err != nil {
+		printTLSErrorDetails(err)
 		printNegotiatedCertificate(ctx, app.RouteHost)
 		return err
 	}
@@ -222,8 +224,47 @@ func waitForRouteReachability(ctx context.Context, client *http.Client, url stri
 	}
 }
 
-// printNegotiatedCertificate logs the leaf certificate currently negotiated for
-// host to aid strict TLS reachability diagnostics.
+// printTLSErrorDetails unwraps TLS certificate verification errors and logs
+// the specific x509 error type and details to aid debugging.
+func printTLSErrorDetails(err error) {
+	var unknownAuthErr x509.UnknownAuthorityError
+	if errors.As(err, &unknownAuthErr) {
+		if cert := unknownAuthErr.Cert; cert != nil {
+			ginkgo.GinkgoWriter.Printf("x509.UnknownAuthorityError: untrusted cert subject=%v issuer=%v isCA=%v\n",
+				cert.Subject, cert.Issuer, cert.IsCA,
+			)
+		} else {
+			ginkgo.GinkgoWriter.Printf("x509.UnknownAuthorityError: cert=nil\n")
+		}
+		return
+	}
+	var certInvalidErr x509.CertificateInvalidError
+	if errors.As(err, &certInvalidErr) {
+		if cert := certInvalidErr.Cert; cert != nil {
+			ginkgo.GinkgoWriter.Printf("x509.CertificateInvalidError: reason=%d cert subject=%v issuer=%v\n",
+				certInvalidErr.Reason, cert.Subject, cert.Issuer,
+			)
+		} else {
+			ginkgo.GinkgoWriter.Printf("x509.CertificateInvalidError: reason=%d cert=nil\n", certInvalidErr.Reason)
+		}
+		return
+	}
+	var hostnameErr x509.HostnameError
+	if errors.As(err, &hostnameErr) {
+		if cert := hostnameErr.Certificate; cert != nil {
+			ginkgo.GinkgoWriter.Printf("x509.HostnameError: host=%s cert subject=%v dnsNames=%v\n",
+				hostnameErr.Host, cert.Subject, cert.DNSNames,
+			)
+		} else {
+			ginkgo.GinkgoWriter.Printf("x509.HostnameError: host=%s cert=nil\n", hostnameErr.Host)
+		}
+		return
+	}
+	ginkgo.GinkgoWriter.Printf("strict TLS error (no x509 details extracted): %v\n", err)
+}
+
+// printNegotiatedCertificate logs the full peer certificate chain currently
+// negotiated for host to aid strict TLS reachability diagnostics.
 func printNegotiatedCertificate(ctx context.Context, host string) {
 	dialCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
@@ -244,14 +285,18 @@ func printNegotiatedCertificate(ctx context.Context, host string) {
 		ginkgo.GinkgoWriter.Printf("no certificates served by %s\n", host)
 		return
 	}
-	ginkgo.GinkgoWriter.Printf("Negotiated certificate: host=%s subject=%v issuer=%v dnsNames=%v notBefore=%v notAfter=%v\n",
-		host,
-		certs[0].Subject,
-		certs[0].Issuer,
-		certs[0].DNSNames,
-		certs[0].NotBefore,
-		certs[0].NotAfter,
-	)
+	ginkgo.GinkgoWriter.Printf("Peer certificate chain for %s (%d certificate(s)):\n", host, len(certs))
+	for i, cert := range certs {
+		ginkgo.GinkgoWriter.Printf("  [%d] subject=%v issuer=%v dnsNames=%v notBefore=%v notAfter=%v isCA=%v\n",
+			i,
+			cert.Subject,
+			cert.Issuer,
+			cert.DNSNames,
+			cert.NotBefore,
+			cert.NotAfter,
+			cert.IsCA,
+		)
+	}
 }
 
 func (v verifySimpleWebApp) cleanup(ctx context.Context, adminRESTConfig *rest.Config) error {
