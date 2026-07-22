@@ -1,4 +1,5 @@
 prometheusRules:
+  groupNamePrefix: "rp-svc-"
   rulesFolders:
   - alerts/access-cluster-slo-prometheusRule.yaml
   - alerts/cluster-provision-slo-prometheusRule.yaml
