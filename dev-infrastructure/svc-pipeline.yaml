@@ -708,7 +708,7 @@ resourceGroups:
     kustoTable: 'containerLogs'
     dependsOn:
     - resourceGroup: service
-      step: prometheus
+      step: istio-upgrade
     identityFrom:
       resourceGroup: global
       step: output
@@ -733,31 +733,24 @@ resourceGroups:
       maximumRetryCount: 3
       durationBetweenRetries: 1m
   - name: istio-upgrade
-    # - updates workload to use istio on version svc.istio.targetVersion
-    # - configures istio IP tag usage
-    aksCluster: '{{ .svc.aks.name }}'
-    action: Shell
-    command: ./istio.sh
-    workingDir: ./scripts
-    variables:
-    - name: TARGET_VERSION
-      configRef: svc.istio.targetVersion
-    - name: ISTIOCTL_VERSION
-      configRef: svc.istio.istioctlVersion
-    - name: ISTIO_INGRESS_GATEWAY_IP_ADDRESS_NAME
-      configRef: svc.istio.ingressGatewayIPAddressName
-    - name: TAG
-      configRef: svc.istio.tag
-    - name: REGION_RESOURCEGROUP
-      configRef: regionRG
+    aksCluster:
+      configRef: svc.aks.name
+    action: IstioUpgrade
+    timeout: 30m
     dependsOn:
     - resourceGroup: service
-      step: istio-config
-    shellIdentity:
-      input:
-        resourceGroup: global
-        step: output
-        name: globalMSIId
+      step: prometheus
+    identityFrom:
+      resourceGroup: global
+      step: output
+      name: globalMSIId
+    automatedRetry:
+      errorContainsAny:
+      - "control plane unhealthy"
+      - "retiring revision would orphan workloads"
+      # TODO: add "ingress gateway unhealthy" — sentinel exists in ARO-Tools (ErrIngressUnhealthy), wire after INT validation
+      maximumRetryCount: 3
+      durationBetweenRetries: 2m
   - name: acrpull
     aksCluster: '{{ .svc.aks.name }}'
     action: Helm
