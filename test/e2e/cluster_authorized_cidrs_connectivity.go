@@ -15,11 +15,9 @@ package e2e
 
 import (
 	"context"
-	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"net/http"
 	"strings"
 	"time"
 
@@ -34,7 +32,6 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 
 	hcpsdk20240610preview "github.com/Azure/ARO-HCP/test/sdk/resourcemanager/redhatopenshifthcp/armredhatopenshifthcp"
 	"github.com/Azure/ARO-HCP/test/util/framework"
@@ -89,46 +86,9 @@ var _ = Describe("Authorized CIDRs", func() {
 				)
 				Expect(err).NotTo(HaveOccurred(), "failed to create customer resources for authorized CIDRs cluster")
 
-				By("generating SSH key pair for VM")
-				sshPublicKey, _, err := framework.GenerateSSHKeyPair()
-				Expect(err).NotTo(HaveOccurred(), "failed to generate SSH key pair for test VM")
-
 				By("deploying test VM")
-				vmName := fmt.Sprintf("%s-test-vm", clusterName)
-				// The test VM is a throwaway kubectl client: it only needs a public IP
-				// (used as the single authorized CIDR) and to make one API call to the
-				// cluster. We use a small general-purpose D-series SKU (resolved
-				// restriction-aware) rather than the burstable B-series, which is the
-				// SKU class most prone to regional SkuNotAvailable capacity
-				// restrictions, which is what flaked this test.
-				vmSize, err := tc.SelectVMSize(ctx, framework.JumpboxVMSizeSelector())
-				Expect(err).NotTo(HaveOccurred(), "failed to resolve a jumpbox VM size; check VM SKU restrictions/quota for the test subscription in %s", tc.Location())
-				var vmDeployment *armresources.DeploymentExtended
-				var deployErr error
-				// Bounded retry to absorb transient ARM errors, but fail fast on
-				// SkuNotAvailable: a regional capacity restriction is not transient, so
-				// re-submitting an identical request only burns the timeout budget.
-				for attempt := 0; attempt < 3; attempt++ {
-					vmDeployment, deployErr = tc.CreateBicepTemplateAndWait(ctx,
-						framework.WithTemplateFromFS(TestArtifactsFS, "test-artifacts/generated-test-artifacts/modules/test-vm.json"),
-						framework.WithDeploymentName("test-vm"),
-						framework.WithScope(framework.BicepDeploymentScopeResourceGroup),
-						framework.WithClusterResourceGroup(*resourceGroup.Name),
-						framework.WithParameters(map[string]any{
-							"vmName":       vmName,
-							"vnetName":     customerVnetName,
-							"subnetName":   customerVnetSubnetName,
-							"sshPublicKey": sshPublicKey,
-							"vmSize":       vmSize,
-						}),
-						framework.WithTimeout(30*time.Minute),
-					)
-					if deployErr == nil || strings.Contains(deployErr.Error(), "SkuNotAvailable") {
-						break
-					}
-					time.Sleep(20 * time.Second)
-				}
-				Expect(deployErr).NotTo(HaveOccurred(), "failed to deploy test VM")
+				vmName, vmDeployment, err := tc.DeployTestVM(ctx, TestArtifactsFS, *resourceGroup.Name, clusterName, customerVnetName, customerVnetSubnetName)
+				Expect(err).NotTo(HaveOccurred(), "failed to deploy test VM")
 
 				By("extracting VM public IP from deployment outputs")
 				vmPublicIP, err := framework.GetOutputValueString(vmDeployment, "publicIP")
@@ -185,7 +145,7 @@ var _ = Describe("Authorized CIDRs", func() {
 
 				By("testing connectivity from current machine (should be blocked)")
 				// Try to connect from the test runner (which is not in authorized CIDRs)
-				err = testAPIConnectivity(apiURL, 5*time.Second)
+				err = framework.TestHTTPSConnectivity(ctx, apiURL+"/healthz", 5*time.Second)
 				Expect(err).To(HaveOccurred(), "Connection from unauthorized IP should be blocked")
 				GinkgoWriter.Printf("Connection from unauthorized IP address failed as expected on error: %v\n", err)
 
@@ -455,33 +415,6 @@ var _ = Describe("Authorized CIDRs", func() {
 		)
 	})
 })
-
-// Helper to test API connectivity with timeout
-func testAPIConnectivity(apiURL string, timeout time.Duration) error {
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-
-	// Simple HTTP GET to test connectivity
-	req, err := http.NewRequestWithContext(ctx, "GET", apiURL+"/healthz", nil)
-	if err != nil {
-		return err
-	}
-
-	client := &http.Client{
-		Timeout: timeout,
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-		},
-	}
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	return nil
-}
 
 func parseUnavailableResources(output string, skip ...string) []string {
 	skipSet := make(map[string]bool)
