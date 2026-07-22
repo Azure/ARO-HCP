@@ -683,8 +683,6 @@ defaults:
         zones: ""
         zoneRedundantMode: "Auto"
       clusterOutboundIPAddressIPTags: ""
-      enableSwiftV2Vnet: true
-      enableSwiftV2Nodepools: true
     prometheus:
       namespace: prometheus
       namespaceNetworkPolicyGroup: monitoring
@@ -1339,8 +1337,6 @@ clouds:
             vmSize: 'Standard_D2s_v3'
           etcd:
             softDelete: false
-          enableSwiftV2Vnet: false
-          enableSwiftV2Nodepools: false
         nsp:
           accessMode: 'Learning'
         prometheus:
@@ -1466,8 +1462,6 @@ clouds:
                 vmSize: 'Standard_D16s_v3'
                 secondaryNicCount: 7
                 osDiskSizeGB: 128
-              enableSwiftV2Vnet: true
-              enableSwiftV2Nodepools: true
           # Geneva
           geneva:
             logs:
@@ -1604,8 +1598,6 @@ clouds:
               infraAgentPool:
                 osDiskSizeGB: 64
                 vmSize: 'Standard_D4s_v3'
-              enableSwiftV2Vnet: true
-              enableSwiftV2Nodepools: true
             jaeger:
               deploy: false
             applyKubeletFixes: false
@@ -1728,8 +1720,6 @@ clouds:
               infraAgentPool:
                 vmSize: Standard_D8ds_v6
                 osDiskSizeGB: 64
-              enableSwiftV2Nodepools: true
-              enableSwiftV2Vnet: true
             jaeger:
               deploy: false
             applyKubeletFixes: false
@@ -1829,8 +1819,6 @@ clouds:
               infraAgentPool:
                 vmSize: Standard_D8ds_v6
                 osDiskSizeGB: 64
-              enableSwiftV2Nodepools: true
-              enableSwiftV2Vnet: true
             jaeger:
               deploy: false
             applyKubeletFixes: false
