@@ -491,3 +491,17 @@ tests:
   # 6h after the last stuck sample (150m + 360m = 510m) the hold expires → resolved.
   - eval_time: 520m
     alertname: UJNodePoolStuckOperation
+# ========================================
+# Test 15: Stuck operation does not fire for e2e subscription
+# ========================================
+# Same pattern as Test 4 but with an e2e subscription_id that should be excluded.
+- interval: 1m
+  input_series:
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/e2e/np/stuck", subscription_id="974ebd46-8ad3-41e3-afef-7ef25fd5c371", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", phase="updating", cluster="mgmt-1"}'
+    values: "0+0x155"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/e2e/np/stuck", subscription_id="974ebd46-8ad3-41e3-afef-7ef25fd5c371", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters/nodepools", operation_type="update", phase="updating", cluster="mgmt-1"}'
+    values: "1+0x155"
+  alert_rule_test:
+  - eval_time: 150m
+    alertname: UJNodePoolStuckOperation
+    exp_alerts: []
