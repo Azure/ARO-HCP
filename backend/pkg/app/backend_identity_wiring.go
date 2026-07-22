@@ -19,8 +19,6 @@ import (
 	"fmt"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v2"
-	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/azure/cachedreader"
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
@@ -28,10 +26,10 @@ import (
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
-// NewBackendIdentityAzureClients creates a new BackendIdentityAzureClients instance that
-// contains the Azure clients that are used to interact with the Azure platform as the
+// NewBackendIdentityClientBuilder creates a new BackendIdentityClientBuilder that
+// builds Azure clients that interact with the Azure platform as the
 // backend identity. The backend identity is used to interact with Red Hat side Azure infrastructure.
-func NewBackendIdentityAzureClients(ctx context.Context, azureConfig *azureconfig.AzureConfig) (*azureclient.BackendIdentityAzureClients, error) {
+func NewBackendIdentityClientBuilder(ctx context.Context, azureConfig *azureconfig.AzureConfig) (azureclient.BackendIdentityClientBuilder, error) {
 	// Backend's identity uses the DefaultAzureCredential.
 	// See https://learn.microsoft.com/en-us/azure/developer/go/sdk/authentication/credential-chains#defaultazurecredential-overview
 	// for more details on it.
@@ -45,33 +43,22 @@ func NewBackendIdentityAzureClients(ctx context.Context, azureConfig *azureconfi
 		return nil, utils.TrackError(fmt.Errorf("failed to create backend identity Azure credential: %w", err))
 	}
 
-	blobStorageClient, err := azblob.NewClient(
-		azureConfig.AzureRuntimeConfig.DataPlaneIdentitiesOIDCConfiguration.StorageAccountBlobServiceURL,
+	return azureclient.NewBackendIdentityClientBuilder(
 		defaultAzureCredential,
-		&azblob.ClientOptions{
-			ClientOptions: *azureConfig.CloudEnvironment.AZCoreClientOptions(),
-		},
-	)
-	if err != nil {
-		return nil, utils.TrackError(fmt.Errorf("failed to create dataplane identities OIDC configuration blob storage client: %w", err))
-	}
+		azureConfig.CloudEnvironment.AZCoreClientOptions(),
+		azureConfig.CloudEnvironment.ARMClientOptions(),
+		azureConfig.AzureRuntimeConfig.DataPlaneIdentitiesOIDCConfiguration.StorageAccountBlobServiceURL,
+	), nil
+}
 
-	roleDefinitionsClient, err := armauthorization.NewRoleDefinitionsClient(defaultAzureCredential, azureConfig.CloudEnvironment.ARMClientOptions())
+func NewBackendIdentityAzureCachedReaders(ctx context.Context, backendIdentityClientBuilder azureclient.BackendIdentityClientBuilder) (*cachedreader.BackendIdentityAzureCachedReaders, error) {
+	roleDefinitionsClient, err := backendIdentityClientBuilder.RoleDefinitionsClient()
 	if err != nil {
 		return nil, utils.TrackError(fmt.Errorf("failed to create role definitions client: %w", err))
 	}
 
-	clients := &azureclient.BackendIdentityAzureClients{
-		DataplaneIdentitiesOIDCConfigurationBlobStorageClient: blobStorageClient,
-		RoleDefinitionsClient: roleDefinitionsClient,
-	}
-
-	return clients, nil
-}
-
-func NewBackendIdentityAzureCachedReaders(ctx context.Context, backendIdentityClients *azureclient.BackendIdentityAzureClients) (*cachedreader.BackendIdentityAzureCachedReaders, error) {
 	roleDefinitionsCachedReader := cachedreader.NewRoleDefinitionsCachedReader(
-		backendIdentityClients.RoleDefinitionsClient,
+		roleDefinitionsClient,
 	)
 
 	cachedReaders := &cachedreader.BackendIdentityAzureCachedReaders{

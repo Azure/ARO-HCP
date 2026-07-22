@@ -91,7 +91,7 @@ type BackendOptions struct {
 	TracerProviderShutdownFunc         func(context.Context) error
 	MaestroSourceEnvironmentIdentifier string
 	FPAClientBuilder                   azureclient.FirstPartyApplicationClientBuilder
-	BackendIdentityAzureClients        *azureclient.BackendIdentityAzureClients
+	BackendIdentityClientBuilder       azureclient.BackendIdentityClientBuilder
 	BackendIdentityAzureCachedReaders  *cachedreader.BackendIdentityAzureCachedReaders
 	ExitOnPanic                        bool
 	FPAMIDataplaneClientBuilder        azureclient.FPAMIDataplaneClientBuilder

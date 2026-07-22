@@ -330,12 +330,12 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 		return nil, utils.TrackError(fmt.Errorf("failed to create FPA client builder: %w", err))
 	}
 
-	backendIdentityAzureClients, err := app.NewBackendIdentityAzureClients(ctx, azureConfig)
+	backendIdentityClientBuilder, err := app.NewBackendIdentityClientBuilder(ctx, azureConfig)
 	if err != nil {
-		return nil, utils.TrackError(fmt.Errorf("failed to create backend identity azure clients: %w", err))
+		return nil, utils.TrackError(fmt.Errorf("failed to create backend identity client builder: %w", err))
 	}
 
-	backendIdentityAzureCachedReaders, err := app.NewBackendIdentityAzureCachedReaders(ctx, backendIdentityAzureClients)
+	backendIdentityAzureCachedReaders, err := app.NewBackendIdentityAzureCachedReaders(ctx, backendIdentityClientBuilder)
 	if err != nil {
 		return nil, utils.TrackError(fmt.Errorf("failed to create backend identity azure cached readers: %w", err))
 	}
@@ -437,7 +437,7 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 		TracerProviderShutdownFunc:         otelShutdown,
 		MaestroSourceEnvironmentIdentifier: f.MaestroSourceEnvironmentIdentifier,
 		FPAClientBuilder:                   fpaClientBuilder,
-		BackendIdentityAzureClients:        backendIdentityAzureClients,
+		BackendIdentityClientBuilder:       backendIdentityClientBuilder,
 		BackendIdentityAzureCachedReaders:  backendIdentityAzureCachedReaders,
 		ExitOnPanic:                        f.ExitOnPanic,
 		FPAMIDataplaneClientBuilder:        fpaMIDataplaneClientBuilder,
