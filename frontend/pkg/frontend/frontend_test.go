@@ -92,8 +92,10 @@ func TestOperationsList(t *testing.T) {
 		reg,
 		mockResourcesDBClient,
 		nil,
+		nil,
 		newNoopAuditClient(t),
 		api.TestLocation,
+		nil,
 		true,
 	)
 
@@ -195,8 +197,10 @@ func TestSubscriptionsGET(t *testing.T) {
 				reg,
 				mockResourcesDBClient,
 				nil,
+				nil,
 				newNoopAuditClient(t),
 				api.TestLocation,
+				nil,
 				true,
 			)
 
@@ -344,8 +348,10 @@ func TestSubscriptionsPUT(t *testing.T) {
 				reg,
 				mockResourcesDBClient,
 				nil,
+				nil,
 				newNoopAuditClient(t),
 				api.TestLocation,
+				nil,
 				true,
 			)
 
@@ -582,8 +588,10 @@ func TestDeploymentPreflight(t *testing.T) {
 				reg,
 				mockResourcesDBClient,
 				nil,
+				nil,
 				newNoopAuditClient(t),
 				api.TestLocation,
+				nil,
 				true,
 			)
 
@@ -707,8 +715,10 @@ func TestRequestAdminCredential(t *testing.T) {
 				reg,
 				mockResourcesDBClient,
 				nil,
+				nil,
 				newNoopAuditClient(t),
 				api.TestLocation,
+				nil,
 				true,
 			)
 
@@ -821,8 +831,10 @@ func TestRevokeCredentials(t *testing.T) {
 				reg,
 				mockResourcesDBClient,
 				nil,
+				nil,
 				newNoopAuditClient(t),
 				api.TestLocation,
+				nil,
 				true,
 			)
 

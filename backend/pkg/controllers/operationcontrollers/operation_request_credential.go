@@ -16,6 +16,7 @@ package operationcontrollers
 
 import (
 	"context"
+	"crypto/sha256"
 	"fmt"
 	"net/http"
 	"strings"
@@ -27,22 +28,27 @@ import (
 	utilsclock "k8s.io/utils/clock"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azsecrets"
 
 	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
 
+	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/database"
+	dblisters "github.com/Azure/ARO-HCP/internal/database/listers"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 type operationRequestCredential struct {
-	clock                 utilsclock.PassiveClock
-	resourcesDBClient     database.ResourcesDBClient
-	clustersServiceClient ocm.ClusterServiceClientSpec
-	notificationClient    *http.Client
+	clock                       utilsclock.PassiveClock
+	resourcesDBClient           database.ResourcesDBClient
+	clustersServiceClient       ocm.ClusterServiceClientSpec
+	notificationClient          *http.Client
+	managementClusterLister     dblisters.ManagementClusterLister
+	keyVaultSecretClientFactory azureclient.KeyVaultSecretClientFactory
 }
 
 // NewOperationRequestCredentialController returns a new Controller instance that
@@ -66,12 +72,16 @@ func NewOperationRequestCredentialController(
 	clustersServiceClient ocm.ClusterServiceClientSpec,
 	notificationClient *http.Client,
 	activeOperationInformer cache.SharedIndexInformer,
+	managementClusterLister dblisters.ManagementClusterLister,
+	keyVaultSecretClientFactory azureclient.KeyVaultSecretClientFactory,
 ) controllerutils.Controller {
 	syncer := &operationRequestCredential{
-		clock:                 clock,
-		resourcesDBClient:     resourcesDBClient,
-		clustersServiceClient: clustersServiceClient,
-		notificationClient:    notificationClient,
+		clock:                       clock,
+		resourcesDBClient:           resourcesDBClient,
+		clustersServiceClient:       clustersServiceClient,
+		notificationClient:          notificationClient,
+		managementClusterLister:     managementClusterLister,
+		keyVaultSecretClientFactory: keyVaultSecretClientFactory,
 	}
 
 	controller := NewGenericOperationController(
@@ -175,8 +185,30 @@ func (opsync *operationRequestCredential) createSystemAdminCredentialRequest(
 		credName,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to build credential request resource ID: %w", err)
+		return nil, utils.TrackError(fmt.Errorf("failed to build credential request resource ID: %w", err))
 	}
+
+	serviceProviderCluster, err := opsync.resourcesDBClient.ServiceProviderClusters(
+		operation.ExternalID.SubscriptionID,
+		operation.ExternalID.ResourceGroupName,
+		operation.ExternalID.Name,
+	).Get(ctx, api.ServiceProviderClusterResourceName)
+	if err != nil {
+		return nil, utils.TrackError(fmt.Errorf("failed to get ServiceProviderCluster: %w", err))
+	}
+
+	managementClusterResourceID := serviceProviderCluster.Status.ManagementClusterResourceID
+	if managementClusterResourceID == nil || managementClusterResourceID.Parent == nil {
+		return nil, utils.TrackError(fmt.Errorf("ServiceProviderCluster has no ManagementClusterResourceID"))
+	}
+
+	stampIdentifier := managementClusterResourceID.Parent.Name
+	managementCluster, err := opsync.managementClusterLister.Get(ctx, stampIdentifier)
+	if err != nil {
+		return nil, utils.TrackError(fmt.Errorf("failed to get ManagementCluster for stamp %q: %w", stampIdentifier, err))
+	}
+
+	keyVaultSecretName := keyVaultSecretNameForCredential(credResourceID)
 
 	cred := &api.SystemAdminCredentialRequest{
 		CosmosMetadata: api.CosmosMetadata{
@@ -189,7 +221,8 @@ func (opsync *operationRequestCredential) createSystemAdminCredentialRequest(
 			ExpirationTimestamp: metav1.NewTime(breakGlassCredential.ExpirationTimestamp()),
 		},
 		Status: api.SystemAdminCredentialRequestStatus{
-			Kubeconfig: breakGlassCredential.Kubeconfig(),
+			Kubeconfig:         breakGlassCredential.Kubeconfig(),
+			KeyVaultSecretName: keyVaultSecretName,
 		},
 	}
 	meta.SetStatusCondition(&cred.Status.Conditions, metav1.Condition{
@@ -210,8 +243,34 @@ func (opsync *operationRequestCredential) createSystemAdminCredentialRequest(
 		if database.IsConflictError(err) {
 			return credResourceID, nil
 		}
-		return nil, fmt.Errorf("failed to create SystemAdminCredentialRequest: %w", err)
+		return nil, utils.TrackError(fmt.Errorf("failed to create SystemAdminCredentialRequest: %w", err))
+	}
+
+	keyVaultSecretClient, err := opsync.keyVaultSecretClientFactory.KeyVaultSecretClient(
+		managementCluster.Status.HostedClustersSecretsKeyVaultManagedIdentityClientID,
+		managementCluster.Status.HostedClustersSecretsKeyVaultURL,
+	)
+	if err != nil {
+		return nil, utils.TrackError(fmt.Errorf("failed to create Key Vault secret client: %w", err))
+	}
+
+	_, err = keyVaultSecretClient.SetSecret(ctx, keyVaultSecretName, azsecrets.SetSecretParameters{
+		Value: &cred.Status.Kubeconfig,
+		Tags: azureclient.KeyVaultSecretTags(
+			azureclient.KeyVaultBinarySourceBackend,
+			operation.ExternalID.SubscriptionID,
+			operation.ExternalID.ResourceGroupName,
+			operation.ExternalID.Name,
+		),
+	}, nil)
+	if err != nil {
+		return nil, utils.TrackError(fmt.Errorf("failed to store kubeconfig in Key Vault: %w", err))
 	}
 
 	return credResourceID, nil
+}
+
+func keyVaultSecretNameForCredential(credResourceID *azcorearm.ResourceID) string {
+	hash := sha256.Sum256([]byte(strings.ToLower(credResourceID.String())))
+	return fmt.Sprintf("%x", hash[:32])
 }

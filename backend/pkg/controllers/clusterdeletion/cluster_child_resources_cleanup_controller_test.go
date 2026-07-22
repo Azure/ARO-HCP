@@ -26,17 +26,56 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azsecrets"
+
+	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/listertesting"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/fleet"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/database"
+	dblistertesting "github.com/Azure/ARO-HCP/internal/database/listertesting"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
+
+type emptyKeyVaultSecretClient struct{}
+
+func (e *emptyKeyVaultSecretClient) GetSecret(_ context.Context, _ string, _ string, _ *azsecrets.GetSecretOptions) (azsecrets.GetSecretResponse, error) {
+	return azsecrets.GetSecretResponse{}, nil
+}
+
+func (e *emptyKeyVaultSecretClient) SetSecret(_ context.Context, _ string, _ azsecrets.SetSecretParameters, _ *azsecrets.SetSecretOptions) (azsecrets.SetSecretResponse, error) {
+	return azsecrets.SetSecretResponse{}, nil
+}
+
+func (e *emptyKeyVaultSecretClient) DeleteSecret(_ context.Context, _ string, _ *azsecrets.DeleteSecretOptions) (azsecrets.DeleteSecretResponse, error) {
+	return azsecrets.DeleteSecretResponse{}, nil
+}
+
+func (e *emptyKeyVaultSecretClient) NewListSecretPropertiesPager(_ *azsecrets.ListSecretPropertiesOptions) *runtime.Pager[azsecrets.ListSecretPropertiesResponse] {
+	return runtime.NewPager(runtime.PagingHandler[azsecrets.ListSecretPropertiesResponse]{
+		More: func(azsecrets.ListSecretPropertiesResponse) bool { return false },
+		Fetcher: func(_ context.Context, _ *azsecrets.ListSecretPropertiesResponse) (azsecrets.ListSecretPropertiesResponse, error) {
+			return azsecrets.ListSecretPropertiesResponse{}, nil
+		},
+	})
+}
+
+var _ azureclient.KeyVaultSecretClient = (*emptyKeyVaultSecretClient)(nil)
+
+type emptyKeyVaultSecretClientFactory struct{}
+
+func (e *emptyKeyVaultSecretClientFactory) KeyVaultSecretClient(_ string, _ string) (azureclient.KeyVaultSecretClient, error) {
+	return &emptyKeyVaultSecretClient{}, nil
+}
+
+var _ azureclient.KeyVaultSecretClientFactory = (*emptyKeyVaultSecretClientFactory)(nil)
 
 func TestClusterChildResourcesCleanupController_SyncOnce(t *testing.T) {
 	managementClusterResourceID := api.Must(azcorearm.ParseResourceID(
@@ -507,10 +546,21 @@ func TestClusterChildResourcesCleanupController_SyncOnce(t *testing.T) {
 			require.NoError(t, err)
 			mockKubeApplierDBClients.Register(managementClusterResourceID, mockKubeApplierClient)
 
+			testMC := &fleet.ManagementCluster{
+				CosmosMetadata: api.CosmosMetadata{
+					ResourceID:   managementClusterResourceID,
+					PartitionKey: "1",
+				},
+				ResourceID: managementClusterResourceID,
+			}
 			syncer := &clusterChildResourcesCleanupController{
 				clusterLister:        &listertesting.SliceClusterLister{Clusters: clustersForLister},
 				resourcesDBClient:    mockResourcesDBClient,
 				kubeApplierDBClients: mockKubeApplierDBClients,
+				managementClusterLister: &dblistertesting.SliceManagementClusterLister{
+					ManagementClusters: []*fleet.ManagementCluster{testMC},
+				},
+				keyVaultSecretClientFactory: &emptyKeyVaultSecretClientFactory{},
 			}
 
 			err = syncer.SyncOnce(ctx, testKey)

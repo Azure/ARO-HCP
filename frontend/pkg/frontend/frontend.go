@@ -43,6 +43,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/admission"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
+	"github.com/Azure/ARO-HCP/internal/api/fleet"
 	"github.com/Azure/ARO-HCP/internal/api/v20240610preview"
 	"github.com/Azure/ARO-HCP/internal/api/v20251223preview"
 	"github.com/Azure/ARO-HCP/internal/api/v20260630preview"
@@ -63,6 +64,7 @@ type Frontend struct {
 	server               http.Server
 	metricsServer        http.Server
 	resourcesDBClient    database.ResourcesDBClient
+	fleetDBClient        database.FleetDBClient
 	auditClient          audit.Client
 	collector            *metrics.SubscriptionCollector
 	healthGauge          prometheus.Gauge
@@ -70,6 +72,8 @@ type Frontend struct {
 	azureLocation string
 
 	apiRegistry api.APIRegistry
+
+	keyVaultSecretClientFactory KeyVaultSecretClientFactory
 
 	exitOnPanic bool
 }
@@ -81,9 +85,11 @@ func NewFrontend(
 	registerer prometheus.Registerer,
 	gatherer prometheus.Gatherer,
 	resourcesDBClient database.ResourcesDBClient,
+	fleetDBClient database.FleetDBClient,
 	csClient ocm.ClusterServiceClientSpec,
 	auditClient audit.Client,
 	azureLocation string,
+	keyVaultSecretClientFactory KeyVaultSecretClientFactory,
 	exitOnPanic bool,
 ) *Frontend {
 	// zero side-effect registration path
@@ -109,8 +115,10 @@ func NewFrontend(
 				return utils.ContextWithLogger(context.Background(), logger)
 			},
 		},
-		auditClient:       auditClient,
-		resourcesDBClient: resourcesDBClient,
+		auditClient:                 auditClient,
+		resourcesDBClient:           resourcesDBClient,
+		fleetDBClient:               fleetDBClient,
+		keyVaultSecretClientFactory: keyVaultSecretClientFactory,
 		collector:         metrics.NewSubscriptionCollector(registerer, resourcesDBClient, azureLocation),
 		healthGauge: promauto.With(registerer).NewGauge(
 			prometheus.GaugeOpts{
@@ -1100,7 +1108,13 @@ func (f *Frontend) assembleAdminCredentialFromCosmos(ctx context.Context, op *ap
 	}
 
 	var kubeconfig string
-	if len(cred.Status.Kubeconfig) > 0 {
+	if len(cred.Status.KeyVaultSecretName) > 0 {
+		kubeconfigFromVault, err := f.readKubeconfigFromKeyVault(ctx, op, cred.Status.KeyVaultSecretName)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read kubeconfig from Key Vault: %w", err)
+		}
+		kubeconfig = kubeconfigFromVault
+	} else if len(cred.Status.Kubeconfig) > 0 {
 		kubeconfig = cred.Status.Kubeconfig
 	} else {
 		cluster, err := f.resourcesDBClient.HCPClusters(op.ExternalID.SubscriptionID, op.ExternalID.ResourceGroupName).Get(ctx, op.ExternalID.Name)
@@ -1122,6 +1136,47 @@ func (f *Frontend) assembleAdminCredentialFromCosmos(ctx context.Context, op *ap
 		ExpirationTimestamp: cred.Spec.ExpirationTimestamp.Time,
 		Kubeconfig:          kubeconfig,
 	}, nil
+}
+
+func (f *Frontend) readKubeconfigFromKeyVault(ctx context.Context, op *api.Operation, secretName string) (string, error) {
+	serviceProviderCluster, err := f.resourcesDBClient.ServiceProviderClusters(
+		op.ExternalID.SubscriptionID,
+		op.ExternalID.ResourceGroupName,
+		op.ExternalID.Name,
+	).Get(ctx, api.ServiceProviderClusterResourceName)
+	if err != nil {
+		return "", utils.TrackError(fmt.Errorf("failed to get ServiceProviderCluster: %w", err))
+	}
+
+	managementClusterResourceID := serviceProviderCluster.Status.ManagementClusterResourceID
+	if managementClusterResourceID == nil || managementClusterResourceID.Parent == nil {
+		return "", utils.TrackError(fmt.Errorf("ServiceProviderCluster has no ManagementClusterResourceID"))
+	}
+
+	stampIdentifier := managementClusterResourceID.Parent.Name
+	managementCluster, err := f.fleetDBClient.Stamps().ManagementClusters(stampIdentifier).Get(ctx, fleet.ManagementClusterResourceName)
+	if err != nil {
+		return "", utils.TrackError(fmt.Errorf("failed to get ManagementCluster for stamp %q: %w", stampIdentifier, err))
+	}
+
+	keyVaultSecretClient, err := f.keyVaultSecretClientFactory.KeyVaultSecretClient(
+		managementCluster.Status.HostedClustersSecretsKeyVaultManagedIdentityClientID,
+		managementCluster.Status.HostedClustersSecretsKeyVaultURL,
+	)
+	if err != nil {
+		return "", utils.TrackError(fmt.Errorf("failed to create Key Vault secret client: %w", err))
+	}
+
+	resp, err := keyVaultSecretClient.GetSecret(ctx, secretName, "", nil)
+	if err != nil {
+		return "", utils.TrackError(fmt.Errorf("failed to get secret %q from Key Vault: %w", secretName, err))
+	}
+
+	if resp.Value == nil {
+		return "", utils.TrackError(fmt.Errorf("Key Vault secret %q has nil value", secretName))
+	}
+
+	return *resp.Value, nil
 }
 
 func featuresMap(features *[]arm.Feature) map[string]string {

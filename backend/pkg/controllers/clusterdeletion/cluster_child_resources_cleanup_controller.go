@@ -22,11 +22,13 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
+	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/database"
+	dblisters "github.com/Azure/ARO-HCP/internal/database/listers"
 	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
@@ -38,9 +40,11 @@ import (
 // deletion pipelines. The orphan scraper handles controller status after the
 // Cluster document itself is removed.
 type clusterChildResourcesCleanupController struct {
-	clusterLister        listers.ClusterLister
-	resourcesDBClient    database.ResourcesDBClient
-	kubeApplierDBClients database.KubeApplierDBClients
+	clusterLister               listers.ClusterLister
+	resourcesDBClient           database.ResourcesDBClient
+	kubeApplierDBClients        database.KubeApplierDBClients
+	managementClusterLister     dblisters.ManagementClusterLister
+	keyVaultSecretClientFactory azureclient.KeyVaultSecretClientFactory
 }
 
 var _ controllerutils.ClusterSyncer = (*clusterChildResourcesCleanupController)(nil)
@@ -49,12 +53,16 @@ func NewClusterChildResourcesCleanupController(
 	resourcesDBClient database.ResourcesDBClient,
 	kubeApplierDBClients database.KubeApplierDBClients,
 	informers informers.BackendInformers,
+	managementClusterLister dblisters.ManagementClusterLister,
+	keyVaultSecretClientFactory azureclient.KeyVaultSecretClientFactory,
 ) controllerutils.Controller {
 	_, clusterLister := informers.Clusters()
 	syncer := &clusterChildResourcesCleanupController{
-		clusterLister:        clusterLister,
-		resourcesDBClient:    resourcesDBClient,
-		kubeApplierDBClients: kubeApplierDBClients,
+		clusterLister:               clusterLister,
+		resourcesDBClient:           resourcesDBClient,
+		kubeApplierDBClients:        kubeApplierDBClients,
+		managementClusterLister:     managementClusterLister,
+		keyVaultSecretClientFactory: keyVaultSecretClientFactory,
 	}
 
 	return controllerutils.NewClusterWatchingController(
@@ -150,6 +158,10 @@ func (c *clusterChildResourcesCleanupController) SyncOnce(ctx context.Context, k
 		// We never delete cluster controllers here, as there might be controllers still running
 		// for the Cluster until the very end of the deletion process
 		strings.ToLower(api.ClusterControllerResourceType.String()): func(ctx context.Context, resourceID *azcorearm.ResourceID) (bool, error) { return false, nil },
+	}
+
+	if err := c.ensureKeyVaultSecretsDeleted(ctx, clusterResourceID); err != nil {
+		return utils.TrackError(fmt.Errorf("failed to delete Key Vault secrets: %w", err))
 	}
 
 	if err := c.ensureClusterScopedKubeApplierResourcesDeleted(ctx, clusterResourceID); err != nil {
@@ -280,6 +292,17 @@ func (c *clusterChildResourcesCleanupController) extraDeleteGateShouldDeleteServ
 		return true, nil
 	}
 
+	remaining, err := c.countKeyVaultSecretsForCluster(ctx, spc, serviceProviderClusterResourceID)
+	if err != nil {
+		return false, utils.TrackError(fmt.Errorf("failed to check Key Vault secrets: %w", err))
+	}
+	if remaining > 0 {
+		logger.Info("waiting for Key Vault secrets to be deleted before removing ServiceProviderCluster",
+			"serviceProviderClusterResourceID", spc.ResourceID.String(),
+			"remainingSecrets", remaining)
+		return false, nil
+	}
+
 	return true, nil
 }
 
@@ -361,6 +384,115 @@ func (c *clusterChildResourcesCleanupController) ensureClusterScopedKubeApplierR
 	logger.Info("all included cluster-scoped kube-applier child resources deleted")
 
 	return nil
+}
+
+func (c *clusterChildResourcesCleanupController) getKeyVaultSecretClient(ctx context.Context, spc *api.ServiceProviderCluster) (azureclient.KeyVaultSecretClient, error) {
+	mcResourceID := spc.Status.ManagementClusterResourceID
+	if mcResourceID == nil || mcResourceID.Parent == nil {
+		return nil, nil
+	}
+
+	stampIdentifier := mcResourceID.Parent.Name
+	managementCluster, err := c.managementClusterLister.Get(ctx, stampIdentifier)
+	if err != nil {
+		return nil, utils.TrackError(fmt.Errorf("failed to get ManagementCluster for stamp %q: %w", stampIdentifier, err))
+	}
+
+	if managementCluster.Status.HostedClustersSecretsKeyVaultURL == "" || managementCluster.Status.HostedClustersSecretsKeyVaultManagedIdentityClientID == "" {
+		return nil, nil
+	}
+
+	kvClient, err := c.keyVaultSecretClientFactory.KeyVaultSecretClient(
+		managementCluster.Status.HostedClustersSecretsKeyVaultManagedIdentityClientID,
+		managementCluster.Status.HostedClustersSecretsKeyVaultURL,
+	)
+	if err != nil {
+		return nil, utils.TrackError(fmt.Errorf("failed to create Key Vault secret client: %w", err))
+	}
+	return kvClient, nil
+}
+
+func (c *clusterChildResourcesCleanupController) ensureKeyVaultSecretsDeleted(ctx context.Context, clusterResourceID *azcorearm.ResourceID) error {
+	logger := utils.LoggerFromContext(ctx)
+
+	spc, err := c.resourcesDBClient.ServiceProviderClusters(clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName, clusterResourceID.Name).Get(ctx, api.ServiceProviderClusterResourceName)
+	if database.IsNotFoundError(err) {
+		return nil
+	}
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to get ServiceProviderCluster: %w", err))
+	}
+
+	kvClient, err := c.getKeyVaultSecretClient(ctx, spc)
+	if err != nil {
+		return err
+	}
+	if kvClient == nil {
+		return nil
+	}
+
+	pager := kvClient.NewListSecretPropertiesPager(nil)
+	for pager.More() {
+		page, err := pager.NextPage(ctx)
+		if err != nil {
+			return utils.TrackError(fmt.Errorf("failed to list Key Vault secrets: %w", err))
+		}
+		for _, secret := range page.Value {
+			if secret.Tags == nil {
+				continue
+			}
+			if !azureclient.KeyVaultSecretTagsMatch(secret.Tags,
+				azureclient.KeyVaultBinarySourceBackend,
+				clusterResourceID.SubscriptionID,
+				clusterResourceID.ResourceGroupName,
+				clusterResourceID.Name,
+			) {
+				continue
+			}
+			secretName := secret.ID.Name()
+			logger.Info("deleting Key Vault secret for cluster", "secretName", secretName)
+			if _, err := kvClient.DeleteSecret(ctx, secretName, nil); err != nil {
+				return utils.TrackError(fmt.Errorf("failed to delete Key Vault secret %q: %w", secretName, err))
+			}
+		}
+	}
+
+	return nil
+}
+
+func (c *clusterChildResourcesCleanupController) countKeyVaultSecretsForCluster(ctx context.Context, spc *api.ServiceProviderCluster, serviceProviderClusterResourceID *azcorearm.ResourceID) (int, error) {
+	kvClient, err := c.getKeyVaultSecretClient(ctx, spc)
+	if err != nil {
+		return 0, err
+	}
+	if kvClient == nil {
+		return 0, nil
+	}
+
+	clusterResourceID := serviceProviderClusterResourceID.Parent
+	count := 0
+	pager := kvClient.NewListSecretPropertiesPager(nil)
+	for pager.More() {
+		page, err := pager.NextPage(ctx)
+		if err != nil {
+			return 0, utils.TrackError(fmt.Errorf("failed to list Key Vault secrets: %w", err))
+		}
+		for _, secret := range page.Value {
+			if secret.Tags == nil {
+				continue
+			}
+			if azureclient.KeyVaultSecretTagsMatch(secret.Tags,
+				azureclient.KeyVaultBinarySourceBackend,
+				clusterResourceID.SubscriptionID,
+				clusterResourceID.ResourceGroupName,
+				clusterResourceID.Name,
+			) {
+				count++
+			}
+		}
+	}
+
+	return count, nil
 }
 
 func deletePreconditionAllNodePoolsDeleted(ctx context.Context, dbClient database.ResourcesDBClient, key controllerutils.HCPClusterKey) (bool, error) {

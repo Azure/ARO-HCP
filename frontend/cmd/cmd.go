@@ -255,10 +255,17 @@ func (opts *FrontendOpts) Run() error {
 		utils.TracerName,
 	)
 
+	fleetDBClient, err := database.NewFleetDBClient(cosmosDatabaseClient)
+	if err != nil {
+		return fmt.Errorf("failed to create the fleet database client: %w", err)
+	}
+
+	keyVaultSecretClientFactory := frontend.NewManagedIdentityKeyVaultSecretClientFactory(clientOpts)
+
 	f := frontend.NewFrontend(
 		logger, listener, metricsListener,
 		legacyregistry.Registerer(), legacyregistry.DefaultGatherer,
-		resourcesDBClient, csClient, auditClient, opts.location, opts.exitOnPanic,
+		resourcesDBClient, fleetDBClient, csClient, auditClient, opts.location, keyVaultSecretClientFactory, opts.exitOnPanic,
 	)
 
 	runErrCh := make(chan error, 1)

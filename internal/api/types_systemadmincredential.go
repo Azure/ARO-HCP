@@ -63,6 +63,9 @@ type SystemAdminCredentialRequestStatus struct {
 	// native CSR flow. When non-empty, the frontend returns it directly
 	// instead of calling BuildKubeconfig.
 	Kubeconfig string `json:"kubeconfig,omitempty"`
+	// KeyVaultSecretName is the name of the Key Vault secret that stores
+	// the kubeconfig for this credential request.
+	KeyVaultSecretName string `json:"keyVaultSecretName,omitempty"`
 	// Conditions tracks lifecycle state using standard metav1.Conditions.
 	// Known condition types:
 	//   - "Issued": True when the CSR has been signed and the cert is available.

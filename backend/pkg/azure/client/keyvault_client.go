@@ -17,6 +17,7 @@ package client
 import (
 	"context"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azsecrets"
 )
 
@@ -26,6 +27,12 @@ type KeyVaultSecretClient interface {
 	SetSecret(ctx context.Context, name string, parameters azsecrets.SetSecretParameters, options *azsecrets.SetSecretOptions) (azsecrets.SetSecretResponse, error)
 
 	DeleteSecret(ctx context.Context, name string, options *azsecrets.DeleteSecretOptions) (azsecrets.DeleteSecretResponse, error)
+
+	NewListSecretPropertiesPager(options *azsecrets.ListSecretPropertiesOptions) *runtime.Pager[azsecrets.ListSecretPropertiesResponse]
 }
 
 var _ KeyVaultSecretClient = (*azsecrets.Client)(nil)
+
+type KeyVaultSecretClientFactory interface {
+	KeyVaultSecretClient(managedIdentityClientID string, vaultURL string) (KeyVaultSecretClient, error)
+}

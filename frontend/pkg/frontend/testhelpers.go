@@ -46,8 +46,10 @@ func NewTestFrontend(t *testing.T) *Frontend {
 		reg,
 		mockResourcesDBClient,
 		nil,
+		nil,
 		newNoopAuditClient(t),
 		api.TestLocation,
+		nil,
 		true,
 	)
 	return f

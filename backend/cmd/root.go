@@ -444,6 +444,7 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 		SMIClientBuilder:                   smiClientBuilder,
 		CheckAccessV2ClientBuilder:         checkAccessV2ClientBuilder,
 		ClusterScopedIdentitiesConfig:      clusterScopedIdentitiesConfig,
+		KeyVaultSecretClientFactory:        azureclient.NewManagedIdentityKeyVaultSecretClientFactory(azCoreClientOptions),
 		MetricsRegisterer:                  legacyregistry.Registerer(),
 		MetricsGatherer:                    legacyregistry.DefaultGatherer,
 	}

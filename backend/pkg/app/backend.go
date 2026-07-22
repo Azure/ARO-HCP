@@ -98,6 +98,7 @@ type BackendOptions struct {
 	SMIClientBuilder                   azureclient.ServiceManagedIdentityClientBuilder
 	CheckAccessV2ClientBuilder         azureclient.CheckAccessV2ClientBuilder
 	ClusterScopedIdentitiesConfig      *internalazure.ClusterScopedIdentitiesConfig
+	KeyVaultSecretClientFactory        azureclient.KeyVaultSecretClientFactory
 }
 
 const backendShutdownTimeout = 31 * time.Second
@@ -528,6 +529,8 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		b.options.ClustersServiceClient,
 		http.DefaultClient,
 		activeOperationInformer,
+		managementClusterLister,
+		b.options.KeyVaultSecretClientFactory,
 	)
 	operationRevokeCredentialsController := operationcontrollers.NewOperationRevokeCredentialsController(
 		b.clock,
@@ -809,6 +812,8 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		b.options.ResourcesDBClient,
 		b.options.KubeApplierDBClients,
 		backendInformers,
+		managementClusterLister,
+		b.options.KeyVaultSecretClientFactory,
 	)
 
 	clusterDeletionController := clusterdeletion.NewClusterDeletionController(
