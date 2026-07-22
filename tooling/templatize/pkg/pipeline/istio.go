@@ -37,12 +37,19 @@ func configString(val any) string {
 	return fmt.Sprintf("%v", val)
 }
 
-func runIstioUpgradeStep(id graph.Identifier, step *types.IstioUpgradeStep, ctx context.Context, options *StepRunOptions, executionTarget ExecutionTarget) error {
+func runIstioUpgradeStep(id graph.Identifier, step *types.IstioUpgradeStep, ctx context.Context, options *StepRunOptions, executionTarget ExecutionTarget, state *ExecutionState) error {
 	logger := logr.FromContextOrDiscard(ctx).WithValues("stepID", id)
 
-	clusterName, err := resolveValue(step.AKSCluster, options.Configuration, nil, "")
+	state.RLock()
+	outputs := state.GetOutputs(id.Stamp)
+	state.RUnlock()
+
+	clusterName, err := resolveValue(step.AKSCluster, options.Configuration, outputs, id.ServiceGroup)
 	if err != nil {
 		return fmt.Errorf("failed to resolve aksCluster: %w", err)
+	}
+	if clusterName == "" {
+		return fmt.Errorf("aksCluster resolved to an empty value")
 	}
 
 	kubeconfigFile, err := KubeConfig(ctx, executionTarget.GetSubscriptionID(), executionTarget.GetResourceGroup(), clusterName)
