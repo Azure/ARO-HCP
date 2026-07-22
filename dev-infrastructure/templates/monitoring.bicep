@@ -200,8 +200,17 @@ module sreServiceAlerts '../modules/metrics/sre-service-rules.bicep' = {
   }
 }
 
-module rpAlerts '../modules/metrics/rp-rules.bicep' = {
-  name: 'rpAlerts'
+module rpServiceAlerts '../modules/metrics/rp-service-rules.bicep' = {
+  name: 'rpServiceAlerts'
+  params: {
+    azureMonitoringWorkspaceId: azureMonitoringWorkspaceId
+    actionGroups: rpActionGroups
+    severityCeiling: alertSeverityCeiling
+  }
+}
+
+module rpHcpAlerts '../modules/metrics/rp-hcp-rules.bicep' = {
+  name: 'rpHcpAlerts'
   params: {
     azureMonitoringWorkspaceId: azureMonitoringWorkspaceId
     actionGroups: rpActionGroups

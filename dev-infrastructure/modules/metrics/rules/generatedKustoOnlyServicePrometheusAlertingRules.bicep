@@ -114,14 +114,14 @@ resource svcKubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
         }
         annotations: {
           correlationId: 'KubeDeploymentReplicasMismatch/{{ $labels.cluster }}/{{ $labels.namespace }}/{{ $labels.deployment }}'
-          description: 'Deployment {{ $labels.namespace }}/{{ $labels.deployment }} has not matched the expected number of replicas for longer than 30 minutes.'
-          info: 'Deployment {{ $labels.namespace }}/{{ $labels.deployment }} has not matched the expected number of replicas for longer than 30 minutes.'
+          description: 'Deployment {{ $labels.namespace }}/{{ $labels.deployment }} has not matched the expected number of replicas for longer than 15 minutes.'
+          info: 'Deployment {{ $labels.namespace }}/{{ $labels.deployment }} has not matched the expected number of replicas for longer than 15 minutes.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubedeploymentreplicasmismatch'
           summary: 'Deployment has not matched the expected number of replicas.'
           title: 'Deployment has not matched the expected number of replicas. namespace:{{ $labels.namespace }} deployment:{{ $labels.deployment }}'
         }
         expression: '(kube_deployment_spec_replicas{job="kube-state-metrics"} > kube_deployment_status_replicas_available{job="kube-state-metrics"}) and (changes(kube_deployment_status_replicas_updated{job="kube-state-metrics"}[10m]) == 0)'
-        for: 'PT30M'
+        for: 'PT15M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
@@ -141,14 +141,14 @@ resource svcKubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
         }
         annotations: {
           correlationId: 'KubeDeploymentRolloutStuck/{{ $labels.cluster }}/{{ $labels.namespace }}/{{ $labels.deployment }}'
-          description: 'Rollout of deployment {{ $labels.namespace }}/{{ $labels.deployment }} is not progressing for longer than 30 minutes.'
-          info: 'Rollout of deployment {{ $labels.namespace }}/{{ $labels.deployment }} is not progressing for longer than 30 minutes.'
+          description: 'Rollout of deployment {{ $labels.namespace }}/{{ $labels.deployment }} is not progressing for longer than 15 minutes.'
+          info: 'Rollout of deployment {{ $labels.namespace }}/{{ $labels.deployment }} is not progressing for longer than 15 minutes.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubedeploymentrolloutstuck'
           summary: 'Deployment rollout is not progressing.'
           title: 'Deployment rollout is not progressing. namespace:{{ $labels.namespace }} deployment:{{ $labels.deployment }}'
         }
         expression: 'kube_deployment_status_condition{condition="Progressing",job="kube-state-metrics",status="false"} != 0'
-        for: 'PT30M'
+        for: 'PT15M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
@@ -861,7 +861,7 @@ resource svcKubernetesSystem 'Microsoft.AlertsManagement/prometheusRuleGroups@20
           title: 'Different semantic versions of Kubernetes components running.'
         }
         expression: 'count by (cluster) (count by (git_version, cluster) (label_replace(kubernetes_build_info{job!~"kube-dns|coredns"}, "git_version", "$1", "git_version", "(v[0-9]*.[0-9]*).*"))) > 1'
-        for: 'PT1H30M'
+        for: 'PT15M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {

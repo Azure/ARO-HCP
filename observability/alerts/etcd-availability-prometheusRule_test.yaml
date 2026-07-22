@@ -1,0 +1,570 @@
+rule_files:
+- etcd-availability-prometheusRule.yaml
+evaluation_interval: 1m
+tests:
+
+# ========================================
+# userJourneyEtcdBackendCommitDurationHigh
+# Threshold: p99 > 25ms
+# Data: all le buckets incrementing at constant rates -> p99 always at 0.064s
+# MWMBR: fast/medium tiers require both short AND long window confirmation
+# Fast  (1h5m):  fires after 5m  -> check at 11m
+# Medium (6h30m): fires after 30m -> check at 61m
+# Slow  (3d):    fires after 6h  -> check at 365m
+# ========================================
+
+# Scenario 1: High commit duration — all three tiers fire
+- interval: 1m
+  input_series:
+  - series: 'etcd_disk_backend_commit_duration_seconds_bucket{instance="etcd-0",le="0.001"}'
+    values: "0+10x370"
+  - series: 'etcd_disk_backend_commit_duration_seconds_bucket{instance="etcd-0",le="0.002"}'
+    values: "0+20x370"
+  - series: 'etcd_disk_backend_commit_duration_seconds_bucket{instance="etcd-0",le="0.004"}'
+    values: "0+30x370"
+  - series: 'etcd_disk_backend_commit_duration_seconds_bucket{instance="etcd-0",le="0.008"}'
+    values: "0+40x370"
+  - series: 'etcd_disk_backend_commit_duration_seconds_bucket{instance="etcd-0",le="0.016"}'
+    values: "0+60x370"
+  - series: 'etcd_disk_backend_commit_duration_seconds_bucket{instance="etcd-0",le="0.032"}'
+    values: "0+80x370"
+  - series: 'etcd_disk_backend_commit_duration_seconds_bucket{instance="etcd-0",le="0.064"}'
+    values: "0+90x370"
+  - series: 'etcd_disk_backend_commit_duration_seconds_bucket{instance="etcd-0",le="+Inf"}'
+    values: "0+100x370"
+  alert_rule_test:
+  # Fast fires at 11m; medium and slow have not yet fired
+  - eval_time: 11m
+    alertname: userJourneyEtcdBackendCommitDurationHigh1h5m
+    exp_alerts:
+    - exp_labels:
+        alertname: userJourneyEtcdBackendCommitDurationHigh1h5m
+        severity: "3"
+        long_window: 1h
+        short_window: 5m
+        instance: etcd-0
+      exp_annotations:
+        description: "etcd instance etcd-0 has 99th percentile backend commit duration of 0.064s (threshold: 25ms). Slow disk performance may impact write performance. Fast burn (1h/5m)."
+        summary: "etcd backend commit duration is high"
+        runbook_url: TBD
+  - eval_time: 11m
+    alertname: userJourneyEtcdBackendCommitDurationHigh6h30m
+    exp_alerts: []
+  - eval_time: 11m
+    alertname: userJourneyEtcdBackendCommitDurationHigh3d
+    exp_alerts: []
+  # Medium fires at 61m
+  - eval_time: 61m
+    alertname: userJourneyEtcdBackendCommitDurationHigh6h30m
+    exp_alerts:
+    - exp_labels:
+        alertname: userJourneyEtcdBackendCommitDurationHigh6h30m
+        severity: "3"
+        long_window: 6h
+        short_window: 30m
+        instance: etcd-0
+      exp_annotations:
+        description: "etcd instance etcd-0 has 99th percentile backend commit duration of 0.064s (threshold: 25ms). Slow disk performance may impact write performance. Medium burn (6h/30m)."
+        summary: "etcd backend commit duration is high"
+        runbook_url: TBD
+  - eval_time: 61m
+    alertname: userJourneyEtcdBackendCommitDurationHigh3d
+    exp_alerts: []
+  # Slow fires at 365m
+  - eval_time: 365m
+    alertname: userJourneyEtcdBackendCommitDurationHigh3d
+    exp_alerts:
+    - exp_labels:
+        alertname: userJourneyEtcdBackendCommitDurationHigh3d
+        severity: "4"
+        long_window: 3d
+        short_window: 6h
+        instance: etcd-0
+      exp_annotations:
+        description: "etcd instance etcd-0 has 99th percentile backend commit duration of 0.064s (threshold: 25ms). Slow disk performance may impact write performance. Slow burn (3d)."
+        summary: "etcd backend commit duration is chronically high"
+        runbook_url: TBD
+
+# Scenario 2: Normal commit duration — no tiers fire
+- interval: 1m
+  input_series:
+  - series: 'etcd_disk_backend_commit_duration_seconds_bucket{instance="etcd-1",le="0.001"}'
+    values: "0+20x15"
+  - series: 'etcd_disk_backend_commit_duration_seconds_bucket{instance="etcd-1",le="0.002"}'
+    values: "0+50x15"
+  - series: 'etcd_disk_backend_commit_duration_seconds_bucket{instance="etcd-1",le="0.004"}'
+    values: "0+80x15"
+  - series: 'etcd_disk_backend_commit_duration_seconds_bucket{instance="etcd-1",le="0.008"}'
+    values: "0+95x15"
+  - series: 'etcd_disk_backend_commit_duration_seconds_bucket{instance="etcd-1",le="+Inf"}'
+    values: "0+100x15"
+  alert_rule_test:
+  - eval_time: 11m
+    alertname: userJourneyEtcdBackendCommitDurationHigh1h5m
+    exp_alerts: []
+  - eval_time: 11m
+    alertname: userJourneyEtcdBackendCommitDurationHigh6h30m
+    exp_alerts: []
+
+# ========================================
+# userJourneyEtcdDatabaseHighFragmentation
+# Threshold: in-use ratio < 50% (high fragmentation)
+# Gauge metric: value is 37.5% = 0.375 throughout all tiers
+# Fast  (1h5m):  fires after 5m  -> check at 11m
+# Medium (6h30m): fires after 30m -> check at 61m
+# Slow  (3d):    fires after 6h  -> check at 365m
+# ========================================
+
+# Scenario 1: Database high fragmentation (low in-use ratio) — all three tiers fire
+- interval: 1m
+  input_series:
+  - series: 'etcd_mvcc_db_total_size_in_bytes{instance="etcd-0"}'
+    values: "8000000000+0x370"
+  - series: 'etcd_mvcc_db_total_size_in_use_in_bytes{instance="etcd-0"}'
+    values: "3000000000+0x370"
+  alert_rule_test:
+  - eval_time: 11m
+    alertname: userJourneyEtcdDatabaseHighFragmentation1h5m
+    exp_alerts:
+    - exp_labels:
+        alertname: userJourneyEtcdDatabaseHighFragmentation1h5m
+        severity: "3"
+        long_window: 1h
+        short_window: 5m
+        instance: etcd-0
+      exp_annotations:
+        description: "etcd instance etcd-0 database in-use ratio is 37.5% (threshold: 50%). Database defragmentation may be needed to reclaim space. Fast burn (1h/5m)."
+        summary: "etcd database fragmentation is high"
+        runbook_url: TBD
+  - eval_time: 11m
+    alertname: userJourneyEtcdDatabaseHighFragmentation6h30m
+    exp_alerts: []
+  - eval_time: 11m
+    alertname: userJourneyEtcdDatabaseHighFragmentation3d
+    exp_alerts: []
+  - eval_time: 61m
+    alertname: userJourneyEtcdDatabaseHighFragmentation6h30m
+    exp_alerts:
+    - exp_labels:
+        alertname: userJourneyEtcdDatabaseHighFragmentation6h30m
+        severity: "3"
+        long_window: 6h
+        short_window: 30m
+        instance: etcd-0
+      exp_annotations:
+        description: "etcd instance etcd-0 database in-use ratio is 37.5% (threshold: 50%). Database defragmentation may be needed to reclaim space. Medium burn (6h/30m)."
+        summary: "etcd database fragmentation is high"
+        runbook_url: TBD
+  - eval_time: 61m
+    alertname: userJourneyEtcdDatabaseHighFragmentation3d
+    exp_alerts: []
+  - eval_time: 365m
+    alertname: userJourneyEtcdDatabaseHighFragmentation3d
+    exp_alerts:
+    - exp_labels:
+        alertname: userJourneyEtcdDatabaseHighFragmentation3d
+        severity: "4"
+        long_window: 3d
+        short_window: 6h
+        instance: etcd-0
+      exp_annotations:
+        description: "etcd instance etcd-0 database in-use ratio is 37.5% (threshold: 50%). Database defragmentation may be needed to reclaim space. Slow burn (3d)."
+        summary: "etcd database fragmentation is chronically high"
+        runbook_url: TBD
+
+# Scenario 2: Database in-use ratio healthy (no fragmentation) — no tiers fire
+- interval: 1m
+  input_series:
+  - series: 'etcd_mvcc_db_total_size_in_bytes{instance="etcd-1"}'
+    values: "8000000000+0x15"
+  - series: 'etcd_mvcc_db_total_size_in_use_in_bytes{instance="etcd-1"}'
+    values: "6000000000+0x15"
+  alert_rule_test:
+  - eval_time: 11m
+    alertname: userJourneyEtcdDatabaseHighFragmentation1h5m
+    exp_alerts: []
+
+# Scenario 3: Ratio temporarily low then recovers — fast may fire briefly, medium does not
+- interval: 1m
+  input_series:
+  - series: 'etcd_mvcc_db_total_size_in_bytes{instance="etcd-2"}'
+    values: "8000000000+0x15"
+  - series: 'etcd_mvcc_db_total_size_in_use_in_bytes{instance="etcd-2"}'
+    values: "3000000000 3000000000 6000000000+0x13"
+  alert_rule_test:
+  - eval_time: 61m
+    alertname: userJourneyEtcdDatabaseHighFragmentation6h30m
+    exp_alerts: []
+
+# ========================================
+# userJourneyEtcdDatabaseSizeExceeded
+# Threshold: size > 8GB (8589934592 bytes)
+# Gauge metric: 9GB throughout
+# Fast  (1h5m):  fires after 5m  -> check at 11m
+# Medium (6h30m): fires after 30m -> check at 61m
+# Slow  (3d):    fires after 6h  -> check at 365m
+# ========================================
+
+# Scenario 1: Database size exceeds 8GB — all three tiers fire
+- interval: 1m
+  input_series:
+  - series: 'etcd_mvcc_db_total_size_in_bytes{instance="etcd-0"}'
+    values: "9000000000+0x370"
+  alert_rule_test:
+  - eval_time: 11m
+    alertname: userJourneyEtcdDatabaseSizeExceeded1h5m
+    exp_alerts:
+    - exp_labels:
+        alertname: userJourneyEtcdDatabaseSizeExceeded1h5m
+        severity: "3"
+        long_window: 1h
+        short_window: 5m
+        instance: etcd-0
+      exp_annotations:
+        description: "etcd instance etcd-0 database size is 9GB (threshold: 8GB). Database may need compaction or quota increase. Fast burn (1h/5m)."
+        summary: "etcd database size is too large"
+        runbook_url: TBD
+  - eval_time: 11m
+    alertname: userJourneyEtcdDatabaseSizeExceeded6h30m
+    exp_alerts: []
+  - eval_time: 11m
+    alertname: userJourneyEtcdDatabaseSizeExceeded3d
+    exp_alerts: []
+  - eval_time: 61m
+    alertname: userJourneyEtcdDatabaseSizeExceeded6h30m
+    exp_alerts:
+    - exp_labels:
+        alertname: userJourneyEtcdDatabaseSizeExceeded6h30m
+        severity: "3"
+        long_window: 6h
+        short_window: 30m
+        instance: etcd-0
+      exp_annotations:
+        description: "etcd instance etcd-0 database size is 9GB (threshold: 8GB). Database may need compaction or quota increase. Medium burn (6h/30m)."
+        summary: "etcd database size is too large"
+        runbook_url: TBD
+  - eval_time: 61m
+    alertname: userJourneyEtcdDatabaseSizeExceeded3d
+    exp_alerts: []
+  - eval_time: 365m
+    alertname: userJourneyEtcdDatabaseSizeExceeded3d
+    exp_alerts:
+    - exp_labels:
+        alertname: userJourneyEtcdDatabaseSizeExceeded3d
+        severity: "4"
+        long_window: 3d
+        short_window: 6h
+        instance: etcd-0
+      exp_annotations:
+        description: "etcd instance etcd-0 database size is 9GB (threshold: 8GB). Database may need compaction or quota increase. Slow burn (3d)."
+        summary: "etcd database size is chronically too large"
+        runbook_url: TBD
+
+# Scenario 2: Database size below threshold — no tiers fire
+- interval: 1m
+  input_series:
+  - series: 'etcd_mvcc_db_total_size_in_bytes{instance="etcd-1"}'
+    values: "7000000000+0x15"
+  alert_rule_test:
+  - eval_time: 11m
+    alertname: userJourneyEtcdDatabaseSizeExceeded1h5m
+    exp_alerts: []
+
+# Scenario 3: Brief spike then drops — medium and slow do not fire
+- interval: 1m
+  input_series:
+  - series: 'etcd_mvcc_db_total_size_in_bytes{instance="etcd-2"}'
+    values: "7000000000 9000000000 9000000000 7000000000+0x12"
+  alert_rule_test:
+  - eval_time: 61m
+    alertname: userJourneyEtcdDatabaseSizeExceeded6h30m
+    exp_alerts: []
+
+# ========================================
+# userJourneyEtcdFrequentLeaderChanges
+# Threshold: increase([15m]) > 3
+# Series: counter increments by 1/min -> at steady state increase([15m]) = 15
+# Fast  (1h5m):  for:5m  — condition true from ~t=4m, fires at ~t=9m  -> check at 15m
+# Medium (6h30m): for:30m — fires at ~t=34m                            -> check at 61m
+# Slow  (3d):    for:6h  — fires at ~t=364m                           -> check at 365m
+# ========================================
+
+# Scenario 1: Frequent leader changes — all three tiers fire
+- interval: 1m
+  input_series:
+  - series: 'etcd_server_leader_changes_seen_total{instance="etcd-0"}'
+    values: "0+1x370"
+  alert_rule_test:
+  - eval_time: 15m
+    alertname: userJourneyEtcdFrequentLeaderChanges1h5m
+    exp_alerts:
+    - exp_labels:
+        alertname: userJourneyEtcdFrequentLeaderChanges1h5m
+        severity: "3"
+        long_window: 1h
+        short_window: 5m
+        instance: etcd-0
+      exp_annotations:
+        description: "etcd instance etcd-0 has seen 15 leader changes in the last 15 minutes (threshold: 3). This may indicate network issues or cluster instability. Fast burn (1h/5m)."
+        summary: "etcd cluster experiencing frequent leader changes"
+        runbook_url: TBD
+  - eval_time: 15m
+    alertname: userJourneyEtcdFrequentLeaderChanges6h30m
+    exp_alerts: []
+  - eval_time: 15m
+    alertname: userJourneyEtcdFrequentLeaderChanges3d
+    exp_alerts: []
+  - eval_time: 61m
+    alertname: userJourneyEtcdFrequentLeaderChanges6h30m
+    exp_alerts:
+    - exp_labels:
+        alertname: userJourneyEtcdFrequentLeaderChanges6h30m
+        severity: "3"
+        long_window: 6h
+        short_window: 30m
+        instance: etcd-0
+      exp_annotations:
+        description: "etcd instance etcd-0 has seen 15 leader changes in the last 15 minutes (threshold: 3). This may indicate network issues or cluster instability. Medium burn (6h/30m)."
+        summary: "etcd cluster experiencing frequent leader changes"
+        runbook_url: TBD
+  - eval_time: 61m
+    alertname: userJourneyEtcdFrequentLeaderChanges3d
+    exp_alerts: []
+  - eval_time: 365m
+    alertname: userJourneyEtcdFrequentLeaderChanges3d
+    exp_alerts:
+    - exp_labels:
+        alertname: userJourneyEtcdFrequentLeaderChanges3d
+        severity: "4"
+        long_window: 3d
+        short_window: 6h
+        instance: etcd-0
+      exp_annotations:
+        description: "etcd instance etcd-0 has seen 15 leader changes in the last 15 minutes (threshold: 3). This may indicate network issues or cluster instability. Slow burn (3d)."
+        summary: "etcd cluster experiencing chronic frequent leader changes"
+        runbook_url: TBD
+
+# Scenario 2: Stable leader — no tiers fire
+- interval: 1m
+  input_series:
+  - series: 'etcd_server_leader_changes_seen_total{instance="etcd-1"}'
+    values: "0 0 0 1 1 1 1 1 1 1 1 1 1 1 1 2"
+  alert_rule_test:
+  - eval_time: 15m
+    alertname: userJourneyEtcdFrequentLeaderChanges1h5m
+    exp_alerts: []
+  - eval_time: 15m
+    alertname: userJourneyEtcdFrequentLeaderChanges6h30m
+    exp_alerts: []
+
+# Scenario 3: Leader changes exactly at threshold — no tiers fire
+- interval: 1m
+  input_series:
+  - series: 'etcd_server_leader_changes_seen_total{instance="etcd-2"}'
+    values: "0 0 0 0 0 1 1 1 1 1 2 2 2 2 2 3"
+  alert_rule_test:
+  - eval_time: 15m
+    alertname: userJourneyEtcdFrequentLeaderChanges1h5m
+    exp_alerts: []
+
+# ========================================
+# userJourneyEtcdPeerRoundTripTimeHigh
+# Threshold: p99 > 100ms
+# Data: many le buckets, p99 at 0.2048s across all rate windows
+# MWMBR: fast/medium tiers require both short AND long window confirmation
+# Fast  (1h5m):  fires after 5m  -> check at 11m
+# Medium (6h30m): fires after 30m -> check at 61m
+# Slow  (3d):    fires after 6h  -> check at 365m
+# ========================================
+
+# Scenario 1: High peer RTT — all three tiers fire
+- interval: 1m
+  input_series:
+  - series: 'etcd_network_peer_round_trip_time_seconds_bucket{instance="etcd-0",le="0.0001"}'
+    values: "0+5x370"
+  - series: 'etcd_network_peer_round_trip_time_seconds_bucket{instance="etcd-0",le="0.0002"}'
+    values: "0+10x370"
+  - series: 'etcd_network_peer_round_trip_time_seconds_bucket{instance="etcd-0",le="0.0004"}'
+    values: "0+15x370"
+  - series: 'etcd_network_peer_round_trip_time_seconds_bucket{instance="etcd-0",le="0.0008"}'
+    values: "0+20x370"
+  - series: 'etcd_network_peer_round_trip_time_seconds_bucket{instance="etcd-0",le="0.0016"}'
+    values: "0+25x370"
+  - series: 'etcd_network_peer_round_trip_time_seconds_bucket{instance="etcd-0",le="0.0032"}'
+    values: "0+30x370"
+  - series: 'etcd_network_peer_round_trip_time_seconds_bucket{instance="etcd-0",le="0.0064"}'
+    values: "0+35x370"
+  - series: 'etcd_network_peer_round_trip_time_seconds_bucket{instance="etcd-0",le="0.0128"}'
+    values: "0+40x370"
+  - series: 'etcd_network_peer_round_trip_time_seconds_bucket{instance="etcd-0",le="0.0256"}'
+    values: "0+50x370"
+  - series: 'etcd_network_peer_round_trip_time_seconds_bucket{instance="etcd-0",le="0.0512"}'
+    values: "0+70x370"
+  - series: 'etcd_network_peer_round_trip_time_seconds_bucket{instance="etcd-0",le="0.1024"}'
+    values: "0+90x370"
+  - series: 'etcd_network_peer_round_trip_time_seconds_bucket{instance="etcd-0",le="0.2048"}'
+    values: "0+95x370"
+  - series: 'etcd_network_peer_round_trip_time_seconds_bucket{instance="etcd-0",le="+Inf"}'
+    values: "0+100x370"
+  alert_rule_test:
+  # Fast fires at 11m; medium and slow have not yet fired
+  - eval_time: 11m
+    alertname: userJourneyEtcdPeerRoundTripTimeHigh1h5m
+    exp_alerts:
+    - exp_labels:
+        alertname: userJourneyEtcdPeerRoundTripTimeHigh1h5m
+        severity: "3"
+        long_window: 1h
+        short_window: 5m
+        instance: etcd-0
+      exp_annotations:
+        description: "etcd instance etcd-0 has 99th percentile peer round-trip time of 0.2048s (threshold: 100ms). Network latency between peers may be affecting cluster performance. Fast burn (1h/5m)."
+        summary: "etcd peer round-trip time is high"
+        runbook_url: TBD
+  - eval_time: 11m
+    alertname: userJourneyEtcdPeerRoundTripTimeHigh6h30m
+    exp_alerts: []
+  - eval_time: 11m
+    alertname: userJourneyEtcdPeerRoundTripTimeHigh3d
+    exp_alerts: []
+  # Medium fires at 61m
+  - eval_time: 61m
+    alertname: userJourneyEtcdPeerRoundTripTimeHigh6h30m
+    exp_alerts:
+    - exp_labels:
+        alertname: userJourneyEtcdPeerRoundTripTimeHigh6h30m
+        severity: "3"
+        long_window: 6h
+        short_window: 30m
+        instance: etcd-0
+      exp_annotations:
+        description: "etcd instance etcd-0 has 99th percentile peer round-trip time of 0.2048s (threshold: 100ms). Network latency between peers may be affecting cluster performance. Medium burn (6h/30m)."
+        summary: "etcd peer round-trip time is high"
+        runbook_url: TBD
+  - eval_time: 61m
+    alertname: userJourneyEtcdPeerRoundTripTimeHigh3d
+    exp_alerts: []
+  - eval_time: 365m
+    alertname: userJourneyEtcdPeerRoundTripTimeHigh3d
+    exp_alerts:
+    - exp_labels:
+        alertname: userJourneyEtcdPeerRoundTripTimeHigh3d
+        severity: "4"
+        long_window: 3d
+        short_window: 6h
+        instance: etcd-0
+      exp_annotations:
+        description: "etcd instance etcd-0 has 99th percentile peer round-trip time of 0.2048s (threshold: 100ms). Network latency between peers may be affecting cluster performance. Slow burn (3d)."
+        summary: "etcd peer round-trip time is chronically high"
+        runbook_url: TBD
+
+# Scenario 2: Normal peer RTT — no tiers fire
+- interval: 1m
+  input_series:
+  - series: 'etcd_network_peer_round_trip_time_seconds_bucket{instance="etcd-1",le="0.0001"}'
+    values: "0+50x15"
+  - series: 'etcd_network_peer_round_trip_time_seconds_bucket{instance="etcd-1",le="0.0002"}'
+    values: "0+90x15"
+  - series: 'etcd_network_peer_round_trip_time_seconds_bucket{instance="etcd-1",le="0.0004"}'
+    values: "0+95x15"
+  - series: 'etcd_network_peer_round_trip_time_seconds_bucket{instance="etcd-1",le="+Inf"}'
+    values: "0+100x15"
+  alert_rule_test:
+  - eval_time: 11m
+    alertname: userJourneyEtcdPeerRoundTripTimeHigh1h5m
+    exp_alerts: []
+
+# ========================================
+# userJourneyEtcdWALFsyncDurationHigh
+# Threshold: p99 > 10ms
+# Data: le buckets with p99 at 0.032s across all rate windows
+# MWMBR: fast/medium tiers require both short AND long window confirmation
+# Fast  (1h5m):  fires after 5m  -> check at 11m
+# Medium (6h30m): fires after 30m -> check at 61m
+# Slow  (3d):    fires after 6h  -> check at 365m
+# ========================================
+
+# Scenario 1: High WAL fsync duration — all three tiers fire
+- interval: 1m
+  input_series:
+  - series: 'etcd_disk_wal_fsync_duration_seconds_bucket{instance="etcd-0",le="0.001"}'
+    values: "0+10x370"
+  - series: 'etcd_disk_wal_fsync_duration_seconds_bucket{instance="etcd-0",le="0.002"}'
+    values: "0+20x370"
+  - series: 'etcd_disk_wal_fsync_duration_seconds_bucket{instance="etcd-0",le="0.004"}'
+    values: "0+40x370"
+  - series: 'etcd_disk_wal_fsync_duration_seconds_bucket{instance="etcd-0",le="0.008"}'
+    values: "0+80x370"
+  - series: 'etcd_disk_wal_fsync_duration_seconds_bucket{instance="etcd-0",le="0.016"}'
+    values: "0+150x370"
+  - series: 'etcd_disk_wal_fsync_duration_seconds_bucket{instance="etcd-0",le="0.032"}'
+    values: "0+180x370"
+  - series: 'etcd_disk_wal_fsync_duration_seconds_bucket{instance="etcd-0",le="+Inf"}'
+    values: "0+200x370"
+  alert_rule_test:
+  # Fast fires at 11m; medium and slow have not yet fired
+  - eval_time: 11m
+    alertname: userJourneyEtcdWALFsyncDurationHigh1h5m
+    exp_alerts:
+    - exp_labels:
+        alertname: userJourneyEtcdWALFsyncDurationHigh1h5m
+        severity: "3"
+        long_window: 1h
+        short_window: 5m
+        instance: etcd-0
+      exp_annotations:
+        description: "etcd instance etcd-0 has 99th percentile WAL fsync duration of 0.032s (threshold: 10ms). Slow disk performance may impact cluster stability. Fast burn (1h/5m)."
+        summary: "etcd WAL fsync duration is high"
+        runbook_url: TBD
+  - eval_time: 11m
+    alertname: userJourneyEtcdWALFsyncDurationHigh6h30m
+    exp_alerts: []
+  - eval_time: 11m
+    alertname: userJourneyEtcdWALFsyncDurationHigh3d
+    exp_alerts: []
+  # Medium fires at 61m
+  - eval_time: 61m
+    alertname: userJourneyEtcdWALFsyncDurationHigh6h30m
+    exp_alerts:
+    - exp_labels:
+        alertname: userJourneyEtcdWALFsyncDurationHigh6h30m
+        severity: "3"
+        long_window: 6h
+        short_window: 30m
+        instance: etcd-0
+      exp_annotations:
+        description: "etcd instance etcd-0 has 99th percentile WAL fsync duration of 0.032s (threshold: 10ms). Slow disk performance may impact cluster stability. Medium burn (6h/30m)."
+        summary: "etcd WAL fsync duration is high"
+        runbook_url: TBD
+  - eval_time: 61m
+    alertname: userJourneyEtcdWALFsyncDurationHigh3d
+    exp_alerts: []
+  - eval_time: 365m
+    alertname: userJourneyEtcdWALFsyncDurationHigh3d
+    exp_alerts:
+    - exp_labels:
+        alertname: userJourneyEtcdWALFsyncDurationHigh3d
+        severity: "4"
+        long_window: 3d
+        short_window: 6h
+        instance: etcd-0
+      exp_annotations:
+        description: "etcd instance etcd-0 has 99th percentile WAL fsync duration of 0.032s (threshold: 10ms). Slow disk performance may impact cluster stability. Slow burn (3d)."
+        summary: "etcd WAL fsync duration is chronically high"
+        runbook_url: TBD
+
+# Scenario 2: Normal WAL fsync duration — no tiers fire
+- interval: 1m
+  input_series:
+  - series: 'etcd_disk_wal_fsync_duration_seconds_bucket{instance="etcd-1",le="0.001"}'
+    values: "0+100x15"
+  - series: 'etcd_disk_wal_fsync_duration_seconds_bucket{instance="etcd-1",le="0.002"}'
+    values: "0+180x15"
+  - series: 'etcd_disk_wal_fsync_duration_seconds_bucket{instance="etcd-1",le="0.004"}'
+    values: "0+195x15"
+  - series: 'etcd_disk_wal_fsync_duration_seconds_bucket{instance="etcd-1",le="+Inf"}'
+    values: "0+200x15"
+  alert_rule_test:
+  - eval_time: 11m
+    alertname: userJourneyEtcdWALFsyncDurationHigh1h5m
+    exp_alerts: []
