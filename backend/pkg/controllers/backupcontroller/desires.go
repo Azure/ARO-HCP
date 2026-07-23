@@ -14,6 +14,7 @@
 package backupcontroller
 
 import (
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -50,6 +51,48 @@ func keyRotationBackupName(clusterServiceID, keyVersion string) string {
 
 func keyRotationDesireName(backupName string) string {
 	return backup.OndemandBackupDesireNamePrefix + backupName
+}
+
+// azureKMSKeyFingerprint mirrors hypershift's FingerprintAzureKMSKey.
+func azureKMSKeyFingerprint(keyVaultName, keyName, keyVersion string) string {
+	h := sha256.Sum256([]byte(keyVaultName + "/" + keyName + "/" + keyVersion))
+	return fmt.Sprintf("%x", h)
+}
+
+func extractKeyVersionFromDesireName(desireName string) (string, bool) {
+	_, after, found := strings.Cut(desireName, keyRotationBackupNameSeparator)
+	return after, found
+}
+
+func buildDeleteApplyDesireForBackup(
+	subscriptionID, resourceGroupName, clusterName, desireName string,
+	mcResourceID *azcorearm.ResourceID,
+	backupName string,
+) (*kubeapplier.ApplyDesire, error) {
+	resourceIDStr := kubeapplier.ToClusterScopedApplyDesireResourceIDString(
+		subscriptionID, resourceGroupName, clusterName, desireName,
+	)
+	resourceID, err := azcorearm.ParseResourceID(resourceIDStr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse ApplyDesire resource ID: %w", err)
+	}
+	return &kubeapplier.ApplyDesire{
+		CosmosMetadata: api.CosmosMetadata{
+			ResourceID:   resourceID,
+			PartitionKey: strings.ToLower(mcResourceID.String()),
+		},
+		Spec: kubeapplier.ApplyDesireSpec{
+			ManagementCluster: mcResourceID,
+			Type:              kubeapplier.ApplyDesireTypeDelete,
+			TargetItem: kubeapplier.ResourceReference{
+				Group:     veleroGroup,
+				Version:   veleroVersion,
+				Resource:  veleroBackupResource,
+				Namespace: veleroNamespace,
+				Name:      backupName,
+			},
+		},
+	}, nil
 }
 
 func buildApplyDesiresFromSchedules(

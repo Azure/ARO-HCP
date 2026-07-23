@@ -59,11 +59,14 @@ var backupIncludedResources = []string{
 }
 
 func NewBackup(backupName, clusterID, keyVersion string, ttl time.Duration, namespaces ...string) *velerov1api.Backup {
-	backup := builder.ForBackup("velero", backupName).
+	labels := map[string]string{
+		"api.openshift.com/id": clusterID,
+		KmsKeyVersionLabel:     keyVersion,
+	}
+	b := builder.ForBackup("velero", backupName).
 		StorageLocation("default").
 		ObjectMeta(func(object metav1.Object) {
-			object.SetLabels(map[string]string{"api.openshift.com/id": clusterID,
-				KmsKeyVersionLabel: keyVersion})
+			object.SetLabels(labels)
 		}).
 		IncludedNamespaces(namespaces...).
 		IncludedResources(backupIncludedResources...).
@@ -74,5 +77,8 @@ func NewBackup(backupName, clusterID, keyVersion string, ttl time.Duration, name
 		SnapshotMoveData(true). // Set to false if using HcpEtcdBackup
 		CSISnapshotTimeout(10 * time.Minute).
 		ItemOperationTimeout(30 * time.Minute)
-	return backup.Result()
+	result := b.Result()
+	// Set labels in Spec.Metadata so they propagate to backups spawned by Velero Schedules.
+	result.Spec.Labels = labels
+	return result
 }

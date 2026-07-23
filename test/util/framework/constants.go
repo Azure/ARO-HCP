@@ -48,7 +48,7 @@ const (
 
 // Backup timeouts
 const (
-	BackupTimeout      = 10 * time.Minute
+	BackupTimeout      = 30 * time.Minute
 	BackupWaitTimeout  = 6 * time.Minute
 	BackupWaitInterval = 30 * time.Second
 )

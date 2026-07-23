@@ -196,5 +196,120 @@ var _ = Describe("Backups", func() {
 				"newKeyVersion", getResp.Backup.KeyVersion,
 				"oldKeyVersion", oldKeyVersion,
 				"phase", getResp.Backup.Phase)
+
+			// Track all key versions to verify stale backup cleanup after the loop.
+			allKeyVersions := []string{newKeyVersion}
+
+			// TODO: repeating for a second key rotation to ensure the controller cleans up old desires and creates a new backup
+			// this is for draft, the final PR will have a single rotation.
+			for i := 0; i < 5; i++ {
+				createKeyResp, err = keyClient.CreateKey(ctx, clusterParams.EtcdEncryptionKeyName, azkeys.CreateKeyParameters{
+					Kty:     to.Ptr(azkeys.KeyTypeRSA),
+					KeySize: to.Ptr(int32(2048)),
+				}, nil)
+				Expect(err).NotTo(HaveOccurred(), "failed to create new key version")
+				Expect(createKeyResp.Key).NotTo(BeNil(), "created key response was nil")
+				Expect(createKeyResp.Key.KID).NotTo(BeNil(), "created key ID was nil")
+
+				newKeyVersion = createKeyResp.Key.KID.Version()
+				Expect(newKeyVersion).NotTo(BeEmpty(), "created key ID version was empty")
+				allKeyVersions = append(allKeyVersions, newKeyVersion)
+
+				GinkgoLogr.Info("rotated KMS key", "newKeyVersion", newKeyVersion)
+
+				By("updating the cluster with the new KMS key version")
+				hcpClient = tc.Get20260630ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient()
+				updateResult, err = framework.UpdateHCPCluster20260630(
+					ctx,
+					hcpClient,
+					*resourceGroup.Name,
+					clusterName,
+					hcpsdk20260630preview.HcpOpenShiftClusterUpdate{
+						Properties: &hcpsdk20260630preview.HcpOpenShiftClusterPropertiesUpdate{
+							Etcd: &hcpsdk20260630preview.EtcdProfileUpdate{
+								DataEncryption: &hcpsdk20260630preview.EtcdDataEncryptionProfileUpdate{
+									CustomerManaged: &hcpsdk20260630preview.CustomerManagedEncryptionProfileUpdate{
+										Kms: &hcpsdk20260630preview.KmsEncryptionProfileUpdate{
+											ActiveKey: &hcpsdk20260630preview.KmsKeyUpdate{
+												Version: to.Ptr(newKeyVersion),
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					framework.HCPClusterReencryptionUpgradeTimeout,
+				)
+				Expect(err).NotTo(HaveOccurred(), "failed to update cluster with new KMS key")
+				Expect(updateResult.Properties).NotTo(BeNil(), "update result Properties was nil")
+
+				GinkgoLogr.Info("cluster update completed, re-encryption finished",
+					"provisioningState", *updateResult.Properties.ProvisioningState,
+					"newKeyVersion", newKeyVersion)
+
+				By("waiting for the key rotation backup to be created by the controller")
+				expectedBackupName = fmt.Sprintf("%s-keyrotation-%s", clusterServiceID, newKeyVersion)
+				GinkgoLogr.Info("polling for key rotation backup", "expectedBackupName", expectedBackupName)
+
+				lastPhase = ""
+				Eventually(func() (string, error) {
+					resp, err := getBackupViaAdminAPI(ctx, httpClient, adminAPIAddress, hcpResourceID, expectedBackupName)
+					if err != nil {
+						return "", err
+					}
+					if resp.Backup.Phase != lastPhase {
+						GinkgoLogr.Info("key rotation backup phase", "backup", expectedBackupName, "phase", resp.Backup.Phase)
+						lastPhase = resp.Backup.Phase
+					}
+					if resp.Backup.Phase == "PartiallyFailed" || resp.Backup.Phase == "Failed" {
+						return "", fmt.Errorf("key rotation backup %s reached terminal failure state: %s", expectedBackupName, resp.Backup.Phase)
+					}
+					return resp.Backup.Phase, nil
+				}, framework.BackupTimeout, framework.BackupWaitInterval).Should(Equal("Completed"),
+					"key rotation backup should be created by the controller and reach Completed phase")
+
+				By("verifying the key rotation backup has the correct key version")
+				getResp, err = getBackupViaAdminAPI(ctx, httpClient, adminAPIAddress, hcpResourceID, expectedBackupName)
+				Expect(err).NotTo(HaveOccurred(), "failed to get key rotation backup details")
+				Expect(getResp.Backup.Name).To(Equal(expectedBackupName), "backup name should match expected key rotation backup name")
+				Expect(getResp.Backup.KeyVersion).To(Equal(newKeyVersion), "backup key version should match the rotated key version")
+				Expect(getResp.Backup.KeyVersion).NotTo(Equal(oldKeyVersion), "key rotation backup key version should differ from pre-rotation version")
+				Expect(getResp.Backup.Phase).To(Equal("Completed"), "backup phase should be Completed")
+
+				GinkgoLogr.Info("key rotation backup verified",
+					"backupName", getResp.Backup.Name,
+					"newKeyVersion", getResp.Backup.KeyVersion,
+					"oldKeyVersion", oldKeyVersion,
+					"phase", getResp.Backup.Phase)
+			}
+
+			// TODO: write a proper test for the cleanup of stale key rotation backups.
+			// For now, we just verify that the N-2 and older backups are deleted, while the N-1 backup remains,
+			// and the manual backup is unaffected.
+
+			By("verifying stale key rotation backups are deleted")
+			staleVersions := allKeyVersions[:len(allKeyVersions)-2]
+			for _, staleVersion := range staleVersions {
+				staleBackupName := fmt.Sprintf("%s-keyrotation-%s", clusterServiceID, staleVersion)
+				Eventually(func() error {
+					_, err := getBackupViaAdminAPI(ctx, httpClient, adminAPIAddress, hcpResourceID, staleBackupName)
+					return err
+				}, framework.BackupTimeout, framework.BackupWaitInterval).Should(HaveOccurred(),
+					fmt.Sprintf("stale backup %s should be deleted after key rotation", staleBackupName))
+				GinkgoLogr.Info("confirmed stale backup deleted", "backupName", staleBackupName)
+			}
+
+			By("verifying N-1 backup still exists")
+			nMinus1Version := allKeyVersions[len(allKeyVersions)-2]
+			nMinus1BackupName := fmt.Sprintf("%s-keyrotation-%s", clusterServiceID, nMinus1Version)
+			nMinus1Resp, err := getBackupViaAdminAPI(ctx, httpClient, adminAPIAddress, hcpResourceID, nMinus1BackupName)
+			Expect(err).NotTo(HaveOccurred(), "N-1 backup should still exist")
+			Expect(nMinus1Resp.Backup.Name).To(Equal(nMinus1BackupName), "N-1 backup name should match")
+
+			By("verifying manual backup is not affected by key rotation cleanup")
+			manualResp, err := getBackupViaAdminAPI(ctx, httpClient, adminAPIAddress, hcpResourceID, manualBackup.Name)
+			Expect(err).NotTo(HaveOccurred(), "manual backup should not be deleted by key rotation cleanup")
+			Expect(manualResp.Backup.Name).To(Equal(manualBackup.Name), "manual backup name should match")
 		})
 })

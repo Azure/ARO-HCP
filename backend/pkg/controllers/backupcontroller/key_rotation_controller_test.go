@@ -24,6 +24,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -518,4 +519,216 @@ func TestKeyRotationDesireName(t *testing.T) {
 	name := keyRotationDesireName("cluster123-keyrotation-v2")
 	assert.True(t, strings.HasPrefix(name, backup.OndemandBackupDesireNamePrefix), "desire name should start with on-demand prefix")
 	assert.Equal(t, backup.OndemandBackupDesireNamePrefix+"cluster123-keyrotation-v2", name, "desire name should be on-demand prefix + backup name")
+}
+
+func TestAzureKMSKeyFingerprint(t *testing.T) {
+	fp := azureKMSKeyFingerprint("myvault", "mykey", "v1")
+	assert.Len(t, fp, 64, "fingerprint should be 64 hex chars (SHA-256)")
+
+	fp2 := azureKMSKeyFingerprint("myvault", "mykey", "v2")
+	assert.NotEqual(t, fp, fp2, "different key versions should produce different fingerprints")
+
+	fpAgain := azureKMSKeyFingerprint("myvault", "mykey", "v1")
+	assert.Equal(t, fp, fpAgain, "same inputs should produce same fingerprint")
+}
+
+func TestExtractKeyVersionFromDesireName(t *testing.T) {
+	v, ok := extractKeyVersionFromDesireName("ondemandbackup-cluster123-keyrotation-abc456")
+	assert.True(t, ok)
+	assert.Equal(t, "abc456", v)
+
+	_, ok = extractKeyVersionFromDesireName("ondemandbackup-something-else")
+	assert.False(t, ok)
+}
+
+func TestDeleteStaleKeyRotationDesires(t *testing.T) {
+	const (
+		testClusterID = "11111111111111111111111111111111"
+		testEnvID     = "test-env"
+		testStampID   = "mc1"
+		kvName        = "test-vault"
+		kName         = "test-key"
+	)
+
+	testKey := controllerutils.HCPClusterKey{
+		SubscriptionID:    "test-sub",
+		ResourceGroupName: "test-rg",
+		HCPClusterName:    "test-cluster",
+	}
+	mcResourceID := api.Must(fleet.ToManagementClusterResourceID(testStampID))
+
+	makeRD := func(t *testing.T, desireName string) *kubeapplier.ReadDesire {
+		t.Helper()
+		resourceIDStr := kubeapplier.ToClusterScopedReadDesireResourceIDString(
+			testKey.SubscriptionID, testKey.ResourceGroupName, testKey.HCPClusterName, desireName)
+		resourceID := api.Must(azcorearm.ParseResourceID(resourceIDStr))
+		return &kubeapplier.ReadDesire{
+			CosmosMetadata: api.CosmosMetadata{ResourceID: resourceID, PartitionKey: strings.ToLower(mcResourceID.String())},
+			Spec:           kubeapplier.ReadDesireSpec{ManagementCluster: mcResourceID},
+		}
+	}
+
+	makeAD := func(t *testing.T, desireName, backupName string) *kubeapplier.ApplyDesire {
+		t.Helper()
+		resourceIDStr := kubeapplier.ToClusterScopedApplyDesireResourceIDString(
+			testKey.SubscriptionID, testKey.ResourceGroupName, testKey.HCPClusterName, desireName)
+		resourceID := api.Must(azcorearm.ParseResourceID(resourceIDStr))
+		return &kubeapplier.ApplyDesire{
+			CosmosMetadata: api.CosmosMetadata{ResourceID: resourceID, PartitionKey: strings.ToLower(mcResourceID.String())},
+			Spec: kubeapplier.ApplyDesireSpec{
+				ManagementCluster: mcResourceID,
+				Type:              kubeapplier.ApplyDesireTypeServerSideApply,
+				TargetItem: kubeapplier.ResourceReference{
+					Group: veleroGroup, Version: veleroVersion,
+					Resource: veleroBackupResource, Namespace: veleroNamespace, Name: backupName,
+				},
+			},
+		}
+	}
+
+	v1Fingerprint := azureKMSKeyFingerprint(kvName, kName, "v1")
+	v2Fingerprint := azureKMSKeyFingerprint(kvName, kName, "v2")
+
+	hostedClusterWithHistory := func(activeVersion string, fromFingerprint string) *v1beta1.HostedCluster {
+		return &v1beta1.HostedCluster{
+			Status: v1beta1.HostedClusterStatus{
+				SecretEncryption: v1beta1.SecretEncryptionStatus{
+					ActiveKey: v1beta1.SecretEncryptionKeyStatus{
+						Azure: v1beta1.AzureKMSKey{KeyVaultName: kvName, KeyName: kName, KeyVersion: activeVersion},
+					},
+					History: []v1beta1.EncryptionMigrationHistory{
+						{
+							State: v1beta1.EncryptionMigrationStateCompleted,
+							From:  v1beta1.EncryptionKeyReference{Fingerprint: fromFingerprint},
+						},
+					},
+				},
+			},
+		}
+	}
+
+	v1BackupName := keyRotationBackupName(testClusterID, "v1")
+	v1DesireName := keyRotationDesireName(v1BackupName)
+	v2BackupName := keyRotationBackupName(testClusterID, "v2")
+	v2DesireName := keyRotationDesireName(v2BackupName)
+	v3BackupName := keyRotationBackupName(testClusterID, "v3")
+	v3DesireName := keyRotationDesireName(v3BackupName)
+
+	tests := []struct {
+		name    string
+		hc      *v1beta1.HostedCluster
+		current string
+		seedKA  func(t *testing.T, adCrud database.ResourceCRUD[kubeapplier.ApplyDesire, *kubeapplier.ApplyDesire], rdCrud database.ResourceCRUD[kubeapplier.ReadDesire, *kubeapplier.ReadDesire])
+		verify  func(t *testing.T, adCrud database.ResourceCRUD[kubeapplier.ApplyDesire, *kubeapplier.ApplyDesire], rdCrud database.ResourceCRUD[kubeapplier.ReadDesire, *kubeapplier.ReadDesire])
+	}{
+		{
+			name:    "deletes backup older than N-1",
+			hc:      hostedClusterWithHistory("v3", v2Fingerprint),
+			current: v3DesireName,
+			seedKA: func(t *testing.T, adCrud database.ResourceCRUD[kubeapplier.ApplyDesire, *kubeapplier.ApplyDesire], rdCrud database.ResourceCRUD[kubeapplier.ReadDesire, *kubeapplier.ReadDesire]) {
+				_, _ = rdCrud.Create(context.Background(), makeRD(t, v1DesireName), nil)
+				_, _ = rdCrud.Create(context.Background(), makeRD(t, v2DesireName), nil)
+				_, _ = rdCrud.Create(context.Background(), makeRD(t, v3DesireName), nil)
+			},
+			verify: func(t *testing.T, adCrud database.ResourceCRUD[kubeapplier.ApplyDesire, *kubeapplier.ApplyDesire], rdCrud database.ResourceCRUD[kubeapplier.ReadDesire, *kubeapplier.ReadDesire]) {
+				ad, err := adCrud.Get(context.Background(), v1DesireName)
+				require.NoError(t, err, "Delete-type AD should be created for v1")
+				assert.Equal(t, kubeapplier.ApplyDesireTypeDelete, ad.Spec.Type, "v1 AD should be Delete type")
+				assert.Equal(t, v1BackupName, ad.Spec.TargetItem.Name, "Delete AD should target the v1 backup")
+
+				_, err = rdCrud.Get(context.Background(), v2DesireName)
+				assert.NoError(t, err, "v2 (N-1) RD should be kept")
+
+				_, err = rdCrud.Get(context.Background(), v3DesireName)
+				assert.NoError(t, err, "v3 (current) RD should be kept")
+			},
+		},
+		{
+			name:    "keeps N-1 backup",
+			hc:      hostedClusterWithHistory("v3", v2Fingerprint),
+			current: v3DesireName,
+			seedKA: func(t *testing.T, adCrud database.ResourceCRUD[kubeapplier.ApplyDesire, *kubeapplier.ApplyDesire], rdCrud database.ResourceCRUD[kubeapplier.ReadDesire, *kubeapplier.ReadDesire]) {
+				_, _ = rdCrud.Create(context.Background(), makeRD(t, v2DesireName), nil)
+				_, _ = rdCrud.Create(context.Background(), makeRD(t, v3DesireName), nil)
+			},
+			verify: func(t *testing.T, adCrud database.ResourceCRUD[kubeapplier.ApplyDesire, *kubeapplier.ApplyDesire], rdCrud database.ResourceCRUD[kubeapplier.ReadDesire, *kubeapplier.ReadDesire]) {
+				_, err := rdCrud.Get(context.Background(), v2DesireName)
+				assert.NoError(t, err, "v2 (N-1) RD should still exist")
+				_, err = adCrud.Get(context.Background(), v2DesireName)
+				assert.True(t, database.IsNotFoundError(err), "no Delete AD should be created for v2 (N-1)")
+			},
+		},
+		{
+			name:    "creates Delete-type AD when original AD is gone",
+			hc:      hostedClusterWithHistory("v2", v1Fingerprint),
+			current: v2DesireName,
+			seedKA: func(t *testing.T, adCrud database.ResourceCRUD[kubeapplier.ApplyDesire, *kubeapplier.ApplyDesire], rdCrud database.ResourceCRUD[kubeapplier.ReadDesire, *kubeapplier.ReadDesire]) {
+				_, _ = rdCrud.Create(context.Background(), makeRD(t, keyRotationDesireName(keyRotationBackupName(testClusterID, "v0"))), nil)
+			},
+			verify: func(t *testing.T, adCrud database.ResourceCRUD[kubeapplier.ApplyDesire, *kubeapplier.ApplyDesire], rdCrud database.ResourceCRUD[kubeapplier.ReadDesire, *kubeapplier.ReadDesire]) {
+				v0DesireName := keyRotationDesireName(keyRotationBackupName(testClusterID, "v0"))
+				ad, err := adCrud.Get(context.Background(), v0DesireName)
+				require.NoError(t, err, "Delete-type AD should be created for v0")
+				assert.Equal(t, kubeapplier.ApplyDesireTypeDelete, ad.Spec.Type)
+			},
+		},
+		{
+			name:    "cleans up successful Delete-type AD and RD",
+			hc:      hostedClusterWithHistory("v2", v1Fingerprint),
+			current: v2DesireName,
+			seedKA: func(t *testing.T, adCrud database.ResourceCRUD[kubeapplier.ApplyDesire, *kubeapplier.ApplyDesire], rdCrud database.ResourceCRUD[kubeapplier.ReadDesire, *kubeapplier.ReadDesire]) {
+				v0DesireName := keyRotationDesireName(keyRotationBackupName(testClusterID, "v0"))
+				v0BackupName := keyRotationBackupName(testClusterID, "v0")
+				ad := makeAD(t, v0DesireName, v0BackupName)
+				ad.Spec.Type = kubeapplier.ApplyDesireTypeDelete
+				ad.Status.Conditions = []metav1.Condition{
+					{Type: kubeapplier.ConditionTypeSuccessful, Status: metav1.ConditionTrue},
+				}
+				_, _ = adCrud.Create(context.Background(), ad, nil)
+				_, _ = rdCrud.Create(context.Background(), makeRD(t, v0DesireName), nil)
+			},
+			verify: func(t *testing.T, adCrud database.ResourceCRUD[kubeapplier.ApplyDesire, *kubeapplier.ApplyDesire], rdCrud database.ResourceCRUD[kubeapplier.ReadDesire, *kubeapplier.ReadDesire]) {
+				v0DesireName := keyRotationDesireName(keyRotationBackupName(testClusterID, "v0"))
+				_, err := adCrud.Get(context.Background(), v0DesireName)
+				assert.True(t, database.IsNotFoundError(err), "successful Delete AD should be removed")
+				_, err = rdCrud.Get(context.Background(), v0DesireName)
+				assert.True(t, database.IsNotFoundError(err), "RD should be removed after successful delete")
+			},
+		},
+		{
+			name:    "no-op when history is empty",
+			hc:      &v1beta1.HostedCluster{Status: v1beta1.HostedClusterStatus{}},
+			current: v2DesireName,
+			seedKA: func(t *testing.T, adCrud database.ResourceCRUD[kubeapplier.ApplyDesire, *kubeapplier.ApplyDesire], rdCrud database.ResourceCRUD[kubeapplier.ReadDesire, *kubeapplier.ReadDesire]) {
+				_, _ = rdCrud.Create(context.Background(), makeRD(t, v1DesireName), nil)
+			},
+			verify: func(t *testing.T, adCrud database.ResourceCRUD[kubeapplier.ApplyDesire, *kubeapplier.ApplyDesire], rdCrud database.ResourceCRUD[kubeapplier.ReadDesire, *kubeapplier.ReadDesire]) {
+				_, err := rdCrud.Get(context.Background(), v1DesireName)
+				assert.NoError(t, err, "RD should not be touched when history is empty")
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.Background()
+			mockKA := databasetesting.NewMockKubeApplierDBClient()
+			adCrud, err := mockKA.ApplyDesiresForCluster(testKey.SubscriptionID, testKey.ResourceGroupName, testKey.HCPClusterName)
+			require.NoError(t, err)
+			rdCrud, err := mockKA.ReadDesiresForCluster(testKey.SubscriptionID, testKey.ResourceGroupName, testKey.HCPClusterName)
+			require.NoError(t, err)
+
+			if tt.seedKA != nil {
+				tt.seedKA(t, adCrud, rdCrud)
+			}
+
+			syncer := &keyRotationBackupSyncer{}
+			_, err = syncer.deleteStaleKeyRotationDesires(ctx, adCrud, rdCrud, mcResourceID, testKey, tt.current, tt.hc)
+			require.NoError(t, err)
+
+			if tt.verify != nil {
+				tt.verify(t, adCrud, rdCrud)
+			}
+		})
+	}
 }

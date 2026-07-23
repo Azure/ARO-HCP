@@ -37,7 +37,6 @@ func NewScheduledBackup(clusterID, clusterName, hcNamespace, hcpNamespace, backu
 				"velero.io/storage-location":                       "default",
 				"hypershift.openshift.io/hosted-cluster":           clusterName,
 				"hypershift.openshift.io/hosted-cluster-namespace": hcNamespace,
-				backup.KmsKeyVersionLabel:                          keyVersion,
 				"api.openshift.com/id":                             clusterID,
 			})
 		})

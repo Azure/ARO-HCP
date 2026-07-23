@@ -20,6 +20,8 @@ import (
 	"strings"
 	"time"
 
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
 	"github.com/openshift/hypershift/api/hypershift/v1beta1"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers"
@@ -91,10 +93,6 @@ func (c *keyRotationBackupSyncer) SyncOnce(ctx context.Context, key controllerut
 		return nil
 	}
 
-	if hostedCluster.Status.SecretEncryption.ActiveKey == hostedCluster.Status.SecretEncryption.TargetKey {
-		return nil
-	}
-	// exit early for clusters pre-4.22
 	kmsKeyVersion := hostedCluster.Status.SecretEncryption.ActiveKey.Azure.KeyVersion
 	if kmsKeyVersion == "" {
 		return nil
@@ -166,7 +164,7 @@ func (c *keyRotationBackupSyncer) SyncOnce(ctx context.Context, key controllerut
 		return err
 	}
 
-	if done, err := c.deleteStaleKeyRotationDesires(ctx, rdCrud, desireName); done || err != nil {
+	if done, err := c.deleteStaleKeyRotationDesires(ctx, adCrud, rdCrud, mcResourceID, key, desireName, hostedCluster); done || err != nil {
 		return err
 	}
 
@@ -211,24 +209,96 @@ func (c *keyRotationBackupSyncer) ensureDesireCreated(
 	return true, nil
 }
 
-// deleteStaleKeyRotationDesires removes ReadDesires for old key versions.
-// Unlike schedule_controller's deleteStaleDesires (which converts ADs to Delete
-// type), this does a Cosmos-only delete — the Velero Backup on the management
-// cluster is left for Velero to manage via its built-in TTL.
-// Stale ApplyDesires for old key rotations are cleaned up by
-// OnDemandBackupCleanupController, which handles all on-demand backup AD lifecycle.
+// deleteStaleKeyRotationDesires deletes on-demand Velero Backups from the
+// management cluster for key versions older than N-1. Scheduled backups with
+// stale key versions are not handled here — the schedule controller updates
+// the template with the new key version so no new stale backups are created,
+// and old ones expire via Velero TTL. Active deletion of scheduled backups
+// requires label-selector-based ReadDesires in kube-applier (not yet available).
+//
+// The lifecycle follows the schedule controller's deleteStaleDesires pattern:
+// AD-driven iteration → convert to Delete type → wait for success → purge AD+RD.
+// Orphaned RDs (where the ondemand cleanup controller already deleted the AD)
+// are cleaned up in a second pass.
 func (c *keyRotationBackupSyncer) deleteStaleKeyRotationDesires(
 	ctx context.Context,
+	adCrud database.ResourceCRUD[kubeapplier.ApplyDesire, *kubeapplier.ApplyDesire],
 	rdCrud database.ResourceCRUD[kubeapplier.ReadDesire, *kubeapplier.ReadDesire],
+	mcResourceID *azcorearm.ResourceID,
+	key controllerutils.HCPClusterKey,
 	currentDesireName string,
+	hostedCluster *v1beta1.HostedCluster,
 ) (bool, error) {
 	logger := utils.LoggerFromContext(ctx)
+	status := hostedCluster.Status.SecretEncryption
 
-	iterator, err := rdCrud.List(ctx, nil)
+	if len(status.History) < 1 || status.History[0].State != v1beta1.EncryptionMigrationStateCompleted {
+		return false, nil
+	}
+	nMinus1Fingerprint := status.History[0].From.Fingerprint
+	keyVaultName := status.ActiveKey.Azure.KeyVaultName
+	keyName := status.ActiveKey.Azure.KeyName
+	if keyVaultName == "" || keyName == "" {
+		return false, nil
+	}
+
+	// Pass 1: iterate ADs (like schedule controller's deleteStaleDesires).
+	adIterator, err := adCrud.List(ctx, nil)
+	if err != nil {
+		return false, utils.TrackError(fmt.Errorf("failed to list ApplyDesires: %w", err))
+	}
+	for _, ad := range adIterator.Items(ctx) {
+		name := ad.ResourceID.Name
+		if !strings.HasPrefix(name, backup.OndemandBackupDesireNamePrefix) {
+			continue
+		}
+		if !strings.Contains(name, keyRotationBackupNameSeparator) {
+			continue
+		}
+		if name == currentDesireName {
+			continue
+		}
+		keyVersion, ok := extractKeyVersionFromDesireName(name)
+		if !ok {
+			continue
+		}
+		if azureKMSKeyFingerprint(keyVaultName, keyName, keyVersion) == nMinus1Fingerprint {
+			continue
+		}
+
+		if ad.Spec.Type == kubeapplier.ApplyDesireTypeDelete {
+			if !isDesireSuccessful(ad.Status.Conditions) {
+				continue
+			}
+			if err := rdCrud.Delete(ctx, name); err != nil && !database.IsNotFoundError(err) {
+				return false, utils.TrackError(fmt.Errorf("failed to delete stale ReadDesire %s: %w", name, err))
+			}
+			if err := adCrud.Delete(ctx, name); err != nil && !database.IsNotFoundError(err) {
+				return false, utils.TrackError(fmt.Errorf("failed to delete successful Delete-type ApplyDesire %s: %w", name, err))
+			}
+			logger.Info("cleaned up stale key rotation backup desires", "desireName", name, "keyVersion", keyVersion)
+			return true, nil
+		}
+
+		deleteAD := buildDeleteApplyDesireFromApplyDesire(ad, mcResourceID)
+		if _, err := adCrud.Replace(ctx, deleteAD, nil); err != nil {
+			return false, utils.TrackError(fmt.Errorf("failed to convert ApplyDesire %s to Delete type: %w", name, err))
+		}
+		logger.Info("converted stale key rotation ApplyDesire to Delete type", "desireName", name, "keyVersion", keyVersion)
+		return true, nil
+	}
+	if err := adIterator.GetError(); err != nil {
+		return false, utils.TrackError(fmt.Errorf("failed iterating ApplyDesires: %w", err))
+	}
+
+	// Pass 2: clean up orphaned RDs whose AD was already deleted (e.g., by
+	// the ondemand cleanup controller) but whose backup still needs deletion
+	// from the management cluster.
+	rdIterator, err := rdCrud.List(ctx, nil)
 	if err != nil {
 		return false, utils.TrackError(fmt.Errorf("failed to list ReadDesires: %w", err))
 	}
-	for _, rd := range iterator.Items(ctx) {
+	for _, rd := range rdIterator.Items(ctx) {
 		name := rd.ResourceID.Name
 		if !strings.HasPrefix(name, backup.OndemandBackupDesireNamePrefix) {
 			continue
@@ -239,13 +309,29 @@ func (c *keyRotationBackupSyncer) deleteStaleKeyRotationDesires(
 		if name == currentDesireName {
 			continue
 		}
-		if err := rdCrud.Delete(ctx, name); err != nil && !database.IsNotFoundError(err) {
-			return false, utils.TrackError(fmt.Errorf("failed to delete stale key rotation ReadDesire %s: %w", name, err))
+		keyVersion, ok := extractKeyVersionFromDesireName(name)
+		if !ok {
+			continue
 		}
-		logger.Info("deleted stale key rotation ReadDesire", "desireName", name)
+		if azureKMSKeyFingerprint(keyVaultName, keyName, keyVersion) == nMinus1Fingerprint {
+			continue
+		}
+		if _, err := adCrud.Get(ctx, name); err == nil {
+			continue
+		}
+
+		backupName := strings.TrimPrefix(name, backup.OndemandBackupDesireNamePrefix)
+		deleteAD, err := buildDeleteApplyDesireForBackup(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, name, mcResourceID, backupName)
+		if err != nil {
+			return false, utils.TrackError(fmt.Errorf("failed to build Delete ApplyDesire for %s: %w", name, err))
+		}
+		if _, err := adCrud.Create(ctx, deleteAD, nil); err != nil {
+			return false, utils.TrackError(fmt.Errorf("failed to create Delete ApplyDesire %s: %w", name, err))
+		}
+		logger.Info("created Delete-type ApplyDesire for orphaned key rotation backup", "desireName", name, "keyVersion", keyVersion)
 		return true, nil
 	}
-	if err := iterator.GetError(); err != nil {
+	if err := rdIterator.GetError(); err != nil {
 		return false, utils.TrackError(fmt.Errorf("failed iterating ReadDesires: %w", err))
 	}
 	return false, nil

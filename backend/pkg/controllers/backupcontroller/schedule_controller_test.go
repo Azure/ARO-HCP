@@ -588,7 +588,7 @@ func TestBackupScheduleSyncer_SyncOnce(t *testing.T) {
 			},
 		},
 		{
-			name: "propagates keyVersion from HostedCluster into Schedule labels",
+			name: "propagates keyVersion into backup template metadata",
 			seedDB: func(t *testing.T, ctx context.Context, mockDB *databasetesting.MockResourcesDBClient) {
 				t.Helper()
 				_, err := mockDB.HCPClusters(testKey.SubscriptionID, testKey.ResourceGroupName).Create(ctx, newTestCluster(), nil)
@@ -611,8 +611,8 @@ func TestBackupScheduleSyncer_SyncOnce(t *testing.T) {
 					var schedule velerov1api.Schedule
 					err = json.Unmarshal(ad.Spec.ServerSideApply.KubeContent.Raw, &schedule)
 					require.NoError(t, err, "failed to unmarshal Schedule from ApplyDesire %s", desireName)
-					assert.Equal(t, "test-key-v1", schedule.Labels[backup.KmsKeyVersionLabel],
-						"Schedule %s should have keyVersion label", desireName)
+					assert.Equal(t, "test-key-v1", schedule.Spec.Template.Labels[backup.KmsKeyVersionLabel],
+						"Schedule %s backup template should carry the keyVersion label to spawned backups", desireName)
 				}
 			},
 		},
