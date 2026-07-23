@@ -55,7 +55,6 @@ require (
 	cloud.google.com/go/monitoring v1.24.3 // indirect
 	cloud.google.com/go/storage v1.62.1 // indirect
 	dario.cat/mergo v1.0.1 // indirect
-	github.com/Azure/ARO-Tools/tools/istio-upgrade v0.0.0-20260721114952-575c7d54a2c9 // indirect
 	github.com/Azure/ARO-Tools/tools/yamlwrap v0.0.0-20260715002326-2555e1130350 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/internal v1.12.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/dashboard/armdashboard/v2 v2.0.0 // indirect
@@ -322,4 +321,4 @@ require (
 
 replace github.com/go-echarts/go-echarts/v2 => github.com/stevekuznetsov/go-echarts/v2 v2.0.0-20251106144453-30c025b42a65
 
-replace github.com/Azure/ARO-Tools/tools/istio-upgrade => github.com/trevorwilliams2025/ARO-Tools/tools/istio-upgrade v0.0.0-20260721114952-575c7d54a2c9
+replace github.com/Azure/ARO-Tools/tools/istio-upgrade => github.com/trevorwilliams2025/ARO-Tools/tools/istio-upgrade v0.0.0-20260723024249-400f97750fc4
