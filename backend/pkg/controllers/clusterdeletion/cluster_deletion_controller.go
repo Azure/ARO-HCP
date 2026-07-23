@@ -43,6 +43,7 @@ type clusterDeletionController struct {
 	serviceProviderClusterLister listers.ServiceProviderClusterLister
 	resourcesDBClient            database.ResourcesDBClient
 	billingDBClient              database.BillingDBClient
+	kubeApplierDBClients         database.KubeApplierDBClients
 	passiveClock                 utilsclock.PassiveClock
 }
 
@@ -52,6 +53,8 @@ func NewClusterDeletionController(
 	clock utilsclock.PassiveClock,
 	resourcesDBClient database.ResourcesDBClient,
 	billingDBClient database.BillingDBClient,
+	kubeApplierDBClients database.KubeApplierDBClients,
+	activeOperationLister listers.ActiveOperationLister,
 	informers informers.BackendInformers,
 ) controllerutils.Controller {
 	_, clusterLister := informers.Clusters()
@@ -61,6 +64,7 @@ func NewClusterDeletionController(
 		serviceProviderClusterLister: serviceProviderClusterLister,
 		resourcesDBClient:            resourcesDBClient,
 		billingDBClient:              billingDBClient,
+		kubeApplierDBClients:         kubeApplierDBClients,
 		passiveClock:                 clock,
 	}
 
@@ -130,6 +134,11 @@ func (c *clusterDeletionController) SyncOnce(ctx context.Context, key controller
 	}
 	if !c.NeedsWork(cluster) {
 		return nil
+	}
+
+	// Delete cluster-scoped ApplyDesire documents before proceeding with other preconditions
+	if err := c.ensureClusterScopedApplyDesiresDeleted(ctx, key, cachedSPC); err != nil {
+		return utils.TrackError(fmt.Errorf("failed to delete cluster-scoped ApplyDesire documents: %w", err))
 	}
 
 	// Precondition: all cluster-scoped Maestro readonly bundles must be cleared
@@ -256,4 +265,47 @@ func (c *clusterDeletionController) deletePreconditionCosmosChildResourcesDelete
 	}
 
 	return true, nil
+}
+
+// ensureClusterScopedApplyDesiresDeleted deletes all cluster-scoped ApplyDesire documents
+// from the kube-applier database before proceeding with cluster deletion.
+func (c *clusterDeletionController) ensureClusterScopedApplyDesiresDeleted(ctx context.Context, key controllerutils.HCPClusterKey, spc *api.ServiceProviderCluster) error {
+	logger := utils.LoggerFromContext(ctx)
+
+	// If no management cluster is available, skip this step (best effort)
+	if spc == nil || spc.Status.ManagementClusterResourceID == nil {
+		logger.Info("no management cluster resource ID available; skipping ApplyDesire cleanup")
+		return nil
+	}
+
+	managementClusterID := spc.Status.ManagementClusterResourceID
+	kubeApplierDBClient := c.kubeApplierDBClients.For(ctx, managementClusterID)
+	if kubeApplierDBClient == nil {
+		logger.Info("no kube-applier database client available; skipping ApplyDesire cleanup",
+			"managementClusterID", managementClusterID.String())
+		return nil
+	}
+
+	kubeApplierCRUD, err := kubeApplierDBClient.ApplyDesiresForCluster(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
+	if err != nil {
+		return fmt.Errorf("failed to get kube-applier CRUD for ApplyDesires: %w", err)
+	}
+
+	applyDesireIterator, err := kubeApplierCRUD.List(ctx, &database.DBClientListResourceDocsOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to list ApplyDesire documents for cluster: %w", err)
+	}
+
+	for _, desire := range applyDesireIterator.Items(ctx) {
+		if desire.ResourceID == nil {
+			continue
+		}
+
+		logger.Info("deleting cluster-scoped ApplyDesire document", "resourceID", desire.ResourceID.String())
+		if err := kubeApplierCRUD.Delete(ctx, desire.ResourceID.Name); err != nil {
+			return fmt.Errorf("failed to delete ApplyDesire document %s: %w", desire.ResourceID.String(), err)
+		}
+	}
+
+	return nil
 }
