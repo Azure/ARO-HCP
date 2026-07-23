@@ -16,8 +16,11 @@ needs exactly the roles it is granted, and how those roles are assigned today.
 
 ## The Identities At A Glance
 
-The DEV bootstrap layer manages four logical identities (principal IDs come from
-`config/config-dev-ci.yaml` under `.ci.dev.devMockIdentities`):
+The DEV bootstrap layer manages four logical identities. Their Entra **application
+definitions** (display name + certificate DNS) come from `config/config-dev-ci.yaml`
+under `.ci.dev.mockIdentities`; the service principal **object IDs are no longer
+stored in config** — they are resolved at deployment time via Microsoft Graph
+lookup (see [How The Roles Are Assigned](#how-the-roles-are-assigned)):
 
 | Identity | Mocks | Roles it receives |
 |---|---|---|
@@ -121,44 +124,70 @@ because they bundle a bespoke set of actions with no single built-in equivalent.
 
 ## How The Roles Are Assigned
 
-Role definitions and assignments are reconciled by the `dev-ci` topology's
-**Owner-only, on-demand** `Microsoft.Azure.ARO.HCP.DevCI.Privileged` entrypoint,
-run by an OWNERS-group member with `make dev-ci-privileged-local-run` (it is
-excluded from the unattended `dev-ci` postsubmit because it needs subscription Owner):
+The mock identities are created and granted their roles by two Bicep templates,
+both deployed by the `dev-ci` topology's **Owner-only, on-demand**
+`Microsoft.Azure.ARO.HCP.DevCI.Privileged` entrypoint, run by an OWNERS-group
+member with `make dev-ci-privileged-local-run` (it is excluded from the
+unattended `dev-ci` postsubmit because it needs subscription Owner):
 
-- `templates/e2e-subscription-rbac-assignments.bicep` fans out over the onboarded
-  E2E customer subscriptions (the DEV home subscription is intentionally excluded —
-  its mock roles are still managed by the legacy Makefile targets) and deploys
-  `e2e-subscription-rbac-assignment-subscription.bicep` into each.
-- `templates/e2e-subscription-rbac-assignment-subscription.bicep` is **self-contained
-  per subscription**: it defines the custom roles (`dev-first-party-mock`,
-  `dev-msi-mock`) inline in the target subscription and creates all the role
-  assignments. Defining the roles locally avoids any cross-subscription
-  `assignableScopes` dependency, so the pipeline can onboard subscriptions it does
-  not own. Because each subscription gets its own copy and Azure enforces custom-role
-  display-name uniqueness **per tenant**, the display name is suffixed with the
-  subscription id (e.g. `dev-msi-mock-<subscriptionId>`) to avoid
-  `RoleDefinitionWithSameNameExists`.
+- `templates/mock-identity-apps.bicep` creates the Entra applications and their
+  service principals via `modules/entra/app.bicep` and configures them for
+  Subject Name and Issuer (SNI) certificate authentication. It does **not**
+  create the Key Vault certificates themselves — those are a manual prerequisite
+  (see [Certificates](#certificates)).
+- `templates/mock-identity-rbac.bicep` looks up each service principal's object
+  ID via Microsoft Graph (by `uniqueName`, the normalized application name), then
+  fans out over the target subscriptions and deploys
+  `e2e-subscription-rbac-assignment-subscription.bicep` into each. That per-
+  subscription module is **self-contained**: it defines the custom roles
+  (`dev-first-party-mock`, `dev-msi-mock`) inline in the target subscription and
+  creates all the role assignments. Defining the roles locally avoids any cross-
+  subscription `assignableScopes` dependency, so the pipeline can onboard
+  subscriptions it does not own. Because each subscription gets its own copy and
+  Azure enforces custom-role display-name uniqueness **per tenant**, the display
+  name is suffixed with the subscription id (e.g. `dev-msi-mock-<subscriptionId>`)
+  to avoid `RoleDefinitionWithSameNameExists`.
 
-Principal IDs and the subscription list are supplied by
-`configurations/e2e-subscription-rbac-assignments.tmpl.bicepparam` from
-`config/config-dev-ci.yaml`.
+The set of subscriptions that receive grants is controlled by two parameters:
 
-> The separate `templates/mock-identity-roles.bicep` provisions the custom role
-> *definitions* in the DEV home subscription only, and is **not** deployed by this
-> pipeline — the home-subscription mock roles are still managed by the legacy
-> `dev-infrastructure/Makefile` targets (`create-mock-identities`). The E2E customer
-> subscriptions do not use it — they define their roles inline as described above.
+- `e2eSubscriptionIds` — the onboarded E2E customer subscriptions, from
+  `.ci.dev.e2eSubscriptions` (DEV) / `.ci.int.e2eSubscriptions` (INT).
+- `grantHomeSubscription` — whether to also grant the mock identities on the
+  **deployment** ("home") subscription. DEV deploys into its own home (global)
+  subscription, so it sets this `true`. INT leaves it `false` (the default),
+  because INT's apps are deployed from the DEV global subscription while INT's
+  real home subscription is already listed in `.ci.int.e2eSubscriptions` —
+  setting it true would wrongly grant INT roles on the DEV global sub.
+
+Application definitions, role names, and the subscription lists are supplied by
+`configurations/mock-identity-apps*.tmpl.bicepparam` and
+`configurations/mock-identity-rbac*.tmpl.bicepparam` from `config/config-dev-ci.yaml`.
+
+### Certificates
+
+`mock-identity-apps.bicep` only declares which certificate subject name each app
+trusts (SNI); it does not create or rotate the certificates. The matching
+certificates must already exist in the environment Key Vault (`aro-hcp-dev-svc-kv`
+for DEV, `aro-hcp-int-kv` for INT). Because SNI validates the certificate's
+subject name and issuer rather than pinning a public key, rotation works without
+redeploying as long as the subject (certDns) is unchanged. For a fresh bootstrap
+or a subject-name change, create the Key Vault certificate first, then deploy the
+template.
 
 ## Where To Look
 
-- `config/config-dev-ci.yaml` — `.ci.dev.devMockIdentities` principal IDs and pool
-- `dev-infrastructure/templates/e2e-subscription-rbac-assignments.bicep`
+- `config/config-dev-ci.yaml` — `.ci.dev.mockIdentities` / `.ci.int.mockIdentities`
+  application definitions and pool settings
+- `dev-infrastructure/templates/mock-identity-apps.bicep` — creates the Entra
+  apps + service principals with SNI auth
+- `dev-infrastructure/templates/mock-identity-rbac.bicep` — Graph lookup of
+  principal IDs + fan-out RBAC across home and E2E subscriptions
 - `dev-infrastructure/templates/e2e-subscription-rbac-assignment-subscription.bicep`
-  — inline custom role definitions + all assignments
-- `dev-infrastructure/templates/mock-identity-roles.bicep` — home-subscription role
-  definitions (legacy; deployed by the `dev-infrastructure/Makefile`, not this pipeline)
-- `dev-infrastructure/dev-ci/e2e-subscription-rbac-grants/pipeline.yaml`
+  — inline custom role definitions + all assignments (per subscription)
+- `dev-infrastructure/dev-ci/e2e-subscription-rbac-grants/pipeline.yaml` — the
+  privileged pipeline that deploys the two templates above
+- `dev-infrastructure/scripts/delete-legacy-mock-identity-rbac.sh` — one-time
+  pre-merge cleanup of the legacy random-named role assignments
 - `backend/pkg/azure/client/hardcoded_identity_mi_dataplane_client.go` — the mock MSI
 - `internal/azure/cluster_scoped_identities_config.go` — product operator-role mapping
 - `cluster-service/helm-charts/cluster-service/templates/deployment.yaml` — how CS

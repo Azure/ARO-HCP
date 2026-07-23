@@ -270,23 +270,19 @@ Personal development environments continue using the existing single `miMockClie
 
 ### Infrastructure Setup
 
-The pool currently uses a mixed-management setup. `MSI_MOCK_POOL_SIZE` in `dev-infrastructure/Makefile` still controls the local helper defaults, but customer-subscription RBAC is now reconciled from `config/config-dev-ci.yaml` through the standalone, **Owner-only** `Microsoft.Azure.ARO.HCP.DevCI.Privileged` entrypoint (run on demand by an OWNERS-group member with `make dev-ci-privileged-local-run`; it is not part of the `dev-ci` postsubmit).
+The pooled `aro-dev-msi-mock-pool-<i>` identities are now fully declarative. Their Entra apps and service principals are created by `dev-infrastructure/templates/mock-identity-apps.bicep` (which loops `poolSize` times) and their subscription RBAC is reconciled by `dev-infrastructure/templates/mock-identity-rbac.bicep` (which resolves each principal's object ID via Microsoft Graph — the IDs are no longer stored in config). Both are deployed by the standalone, **Owner-only** `Microsoft.Azure.ARO.HCP.DevCI.Privileged` entrypoint (run on demand by an OWNERS-group member with `make dev-ci-privileged-local-run`; it is not part of the `dev-ci` postsubmit). The pool size lives in `config/config-dev-ci.yaml` under `.ci.dev.mockIdentities.pool.size`. `MSI_MOCK_POOL_SIZE` in `dev-infrastructure/Makefile` only feeds the local `populate-msi-mock-pool` helper.
 
 Typical maintainer flow:
 
-1. From `dev-infrastructure/`, run `make create-msi-mock-pool`.
-2. If any pooled principal object IDs changed, update `config/config-dev-ci.yaml` under `ci.dev.devMockIdentities.msiMockPool.principals`.
-3. From the repository root, ask an OWNERS-group member to run `make dev-ci-privileged-local-run` (requires subscription Owner).
-4. From `dev-infrastructure/`, run `make populate-msi-mock-pool`.
+1. If the pool size is changing, update `.ci.dev.mockIdentities.pool.size` in `config/config-dev-ci.yaml` (and re-materialize).
+2. Ensure the Key Vault certificates for any new pool members exist in `aro-hcp-dev-svc-kv` — `mock-identity-apps.bicep` configures SNI trust but does not create certificates (see [DEV Mock Identities → Certificates](dev-mock-identities.md#certificates)).
+3. Ask an OWNERS-group member to run `make dev-ci-privileged-local-run` (requires subscription Owner). This creates/updates the pool apps + service principals and applies their home- and E2E-subscription grants.
+4. From `dev-infrastructure/`, run `make populate-msi-mock-pool` to regenerate the static Boskos catalog.
 5. If the pool size or Boskos key set changed, update the release-side Boskos inventory and step-registry lease wiring as well.
 
 In the current model:
 
-- `make create-msi-mock-pool` is itself hybrid:
-  - `dev-infrastructure/templates/mock-identity-pool.bicep` ensures the Key Vault certificate set.
-  - `dev-infrastructure/scripts/create-sp-for-rbac.sh` and the surrounding `dev-infrastructure/Makefile` loop still create or update the `aro-dev-msi-mock-pool-<i>` Entra app and service principal objects and apply the home-subscription grants.
-- `make dev-ci-privileged-local-run` reconciles pooled-principal access on the DEV E2E customer subscriptions from the principal IDs recorded in `config/config-dev-ci.yaml`.
-- `dev-infrastructure/configurations/e2e-subscription-rbac-assignments.tmpl.bicepparam` still preserves legacy assignment IDs for the first DEV E2E subscription so the rollout can adopt existing grants without recreating them.
+- `make dev-ci-privileged-local-run` both creates the pooled Entra objects (`mock-identity-apps.bicep`) and reconciles their access on the DEV home and E2E customer subscriptions (`mock-identity-rbac.bicep`), using principal IDs resolved via Graph lookup rather than recorded in config.
 - `make populate-msi-mock-pool` performs live Entra lookups and rewrites `dev-infrastructure/openshift-ci/msi-mock-pool.yaml`, which remains the static catalog consumed by release-side jobs.
 
 ### Naming Bridge
@@ -337,7 +333,8 @@ When you need to change or debug identity leasing, start here:
   - `config/config-dev-ci.yaml`
   - `dev-infrastructure/Makefile`
   - `dev-infrastructure/dev-ci/e2e-subscription-rbac-grants/pipeline.yaml`
-  - `dev-infrastructure/configurations/e2e-subscription-rbac-assignments.tmpl.bicepparam`
+  - `dev-infrastructure/configurations/mock-identity-apps.tmpl.bicepparam`
+  - `dev-infrastructure/configurations/mock-identity-rbac.tmpl.bicepparam`
   - `dev-infrastructure/openshift-ci/populate-msi-mock-pool.sh`
 
 ## See Also
