@@ -105,23 +105,27 @@ func TestAzureNodePoolVMQuotaValidation_Validate(t *testing.T) {
 		nodePool                   *api.HCPOpenShiftClusterNodePool
 		setupMockVMSKUCachedReader func(skuReader *cachedreader.MockVirtualMachineResourceSKUsCachedReader)
 		setupMockFPAUsageClient    func(ctrl *gomock.Controller, fpaBuilder *azureclient.MockFirstPartyApplicationClientBuilder)
-		wantErrs                   []string
+		wantOutcome                OutcomeType
+		wantInternalMessages       []string
 	}{
 		{
-			name:     "zero replicas succeeds without quota checks",
-			nodePool: newQuotaTestNodePool(t, 0, nil),
+			name:        "zero replicas skips without quota checks",
+			nodePool:    newQuotaTestNodePool(t, 0, nil),
+			wantOutcome: OutcomeTypeSkipped,
 		},
 		{
 			name: "fails when subscription is missing tenant ID",
 			subscription: &arm.Subscription{
 				Properties: &arm.SubscriptionProperties{},
 			},
-			nodePool: newQuotaTestNodePool(t, 2, nil),
-			wantErrs: []string{"subscription is missing tenant ID"},
+			nodePool:             newQuotaTestNodePool(t, 2, nil),
+			wantOutcome:          OutcomeTypeUnknown,
+			wantInternalMessages: []string{"subscription is missing tenant ID"},
 		},
 		{
-			name:     "fixed replicas succeeds when family and regional quota are sufficient",
-			nodePool: newQuotaTestNodePool(t, 3, nil),
+			name:        "fixed replicas succeeds when family and regional quota are sufficient",
+			nodePool:    newQuotaTestNodePool(t, 3, nil),
+			wantOutcome: OutcomeTypePassed,
 			setupMockVMSKUCachedReader: func(skuReader *cachedreader.MockVirtualMachineResourceSKUsCachedReader) {
 				skuReader.EXPECT().
 					GetVirtualMachineSKU(gomock.Any(), testTenantID, testSubscriptionID, testLocation, testVMSize).
@@ -164,7 +168,8 @@ func TestAzureNodePoolVMQuotaValidation_Validate(t *testing.T) {
 					UsageClient(testTenantID, testSubscriptionID).
 					Return(usageClient, nil)
 			},
-			wantErrs: []string{
+			wantOutcome: OutcomeTypeFailed,
+			wantInternalMessages: []string{
 				`insufficient quota for VM size "Standard_D8ds_v5" family "standardDASv4Family": need 20 vCPUs, have 15 remaining for "Standard DASv4 Family vCPUs" (current 85, limit 100)`,
 			},
 		},
@@ -188,7 +193,8 @@ func TestAzureNodePoolVMQuotaValidation_Validate(t *testing.T) {
 					UsageClient(testTenantID, testSubscriptionID).
 					Return(usageClient, nil)
 			},
-			wantErrs: []string{
+			wantOutcome: OutcomeTypeFailed,
+			wantInternalMessages: []string{
 				`insufficient quota for VM size "Standard_D8ds_v5" family "standardDASv4Family": need 16 vCPUs, have 10 remaining for "Standard DASv4 Family vCPUs" (current 90, limit 100)`,
 			},
 		},
@@ -212,7 +218,8 @@ func TestAzureNodePoolVMQuotaValidation_Validate(t *testing.T) {
 					UsageClient(testTenantID, testSubscriptionID).
 					Return(usageClient, nil)
 			},
-			wantErrs: []string{
+			wantOutcome: OutcomeTypeFailed,
+			wantInternalMessages: []string{
 				`insufficient total regional vCPU quota for VM size "Standard_D8ds_v5": need 16 vCPUs, have 5 remaining for "Total Regional vCPUs" (current 195, limit 200)`,
 			},
 		},
@@ -236,7 +243,8 @@ func TestAzureNodePoolVMQuotaValidation_Validate(t *testing.T) {
 					UsageClient(testTenantID, testSubscriptionID).
 					Return(usageClient, nil)
 			},
-			wantErrs: []string{
+			wantOutcome: OutcomeTypeFailed,
+			wantInternalMessages: []string{
 				`insufficient quota for VM size "Standard_D8ds_v5" family "standardDASv4Family": need 16 vCPUs, have 10 remaining for "Standard DASv4 Family vCPUs" (current 90, limit 100)`,
 				`insufficient total regional vCPU quota for VM size "Standard_D8ds_v5": need 16 vCPUs, have 5 remaining for "Total Regional vCPUs" (current 195, limit 200)`,
 			},
@@ -249,7 +257,8 @@ func TestAzureNodePoolVMQuotaValidation_Validate(t *testing.T) {
 					GetVirtualMachineSKU(gomock.Any(), testTenantID, testSubscriptionID, testLocation, testVMSize).
 					Return(nil, errors.New("VM size not found"))
 			},
-			wantErrs: []string{
+			wantOutcome: OutcomeTypeUnknown,
+			wantInternalMessages: []string{
 				`failed to get resource SKU for VM size "Standard_D8ds_v5": VM size not found`,
 			},
 		},
@@ -264,7 +273,8 @@ func TestAzureNodePoolVMQuotaValidation_Validate(t *testing.T) {
 						Family: ptr.To(testVMFamily),
 					}, nil)
 			},
-			wantErrs: []string{
+			wantOutcome: OutcomeTypeUnknown,
+			wantInternalMessages: []string{
 				`resource SKU for VM size "Standard_D8ds_v5" is missing vCPUs capability`,
 			},
 		},
@@ -276,7 +286,8 @@ func TestAzureNodePoolVMQuotaValidation_Validate(t *testing.T) {
 					GetVirtualMachineSKU(gomock.Any(), testTenantID, testSubscriptionID, testLocation, testVMSize).
 					Return(makeTestQuotaSKU("0"), nil)
 			},
-			wantErrs: []string{
+			wantOutcome: OutcomeTypeUnknown,
+			wantInternalMessages: []string{
 				`resource SKU for VM size "Standard_D8ds_v5" has unexpected vCPUs capability value 0`,
 			},
 		},
@@ -299,7 +310,8 @@ func TestAzureNodePoolVMQuotaValidation_Validate(t *testing.T) {
 					UsageClient(testTenantID, testSubscriptionID).
 					Return(usageClient, nil)
 			},
-			wantErrs: []string{
+			wantOutcome: OutcomeTypeUnknown,
+			wantInternalMessages: []string{
 				`compute usage for VM family "standardDASv4Family" was not found in location "eastus"`,
 			},
 		},
@@ -320,7 +332,8 @@ func TestAzureNodePoolVMQuotaValidation_Validate(t *testing.T) {
 					UsageClient(testTenantID, testSubscriptionID).
 					Return(usageClient, nil)
 			},
-			wantErrs: []string{
+			wantOutcome: OutcomeTypeUnknown,
+			wantInternalMessages: []string{
 				`failed to list compute usages for location "eastus": service unavailable`,
 			},
 		},
@@ -343,15 +356,11 @@ func TestAzureNodePoolVMQuotaValidation_Validate(t *testing.T) {
 				sub = subscription
 			}
 			validation := NewAzureNodePoolVMQuotaValidation(skuReader, fpaBuilder)
-			err := validation.Validate(ctx, cluster, sub, tt.nodePool)
-
-			if len(tt.wantErrs) == 0 {
-				require.NoError(t, err)
-			} else {
-				require.Error(t, err)
-				for _, wantErr := range tt.wantErrs {
-					assert.ErrorContains(t, err, wantErr)
-				}
+			result := validation.Validate(ctx, cluster, sub, tt.nodePool)
+			require.NoError(t, result.Validate())
+			assert.Equal(t, tt.wantOutcome, result.Outcome.Type)
+			for _, wantInternalMessage := range tt.wantInternalMessages {
+				assert.Contains(t, result.InternalMessage(), wantInternalMessage)
 			}
 		})
 	}

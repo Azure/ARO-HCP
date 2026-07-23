@@ -106,15 +106,18 @@ func TestAzureVMSizeSupportsEphemeralOSDiskValidation_Validate(t *testing.T) {
 		subscription               *arm.Subscription
 		nodePool                   *api.HCPOpenShiftClusterNodePool
 		setupMockVMSKUCachedReader func(skuReader *cachedreader.MockVirtualMachineResourceSKUsCachedReader)
-		wantErr                    string
+		wantOutcome                OutcomeType
+		wantInternalMessage        string
 	}{
 		{
-			name:     "managed OS disk succeeds",
-			nodePool: newTestNodePool(t, api.OsDiskTypeManaged, testVMSize),
+			name:        "managed OS disk succeeds",
+			nodePool:    newTestNodePool(t, api.OsDiskTypeManaged, testVMSize),
+			wantOutcome: OutcomeTypeSkipped,
 		},
 		{
-			name:     "ephemeral OS disk succeeds when capability is True",
-			nodePool: newTestNodePool(t, api.OsDiskTypeEphemeral, testVMSize),
+			name:        "ephemeral OS disk succeeds when capability is True",
+			nodePool:    newTestNodePool(t, api.OsDiskTypeEphemeral, testVMSize),
+			wantOutcome: OutcomeTypePassed,
 			setupMockVMSKUCachedReader: func(skuReader *cachedreader.MockVirtualMachineResourceSKUsCachedReader) {
 				skuReader.EXPECT().
 					GetVirtualMachineSKU(gomock.Any(), testTenantID, testSubscriptionID, "eastus", testVMSize).
@@ -125,8 +128,9 @@ func TestAzureVMSizeSupportsEphemeralOSDiskValidation_Validate(t *testing.T) {
 			},
 		},
 		{
-			name:     "ephemeral OS disk succeeds when capability is true (case-insensitive)",
-			nodePool: newTestNodePool(t, api.OsDiskTypeEphemeral, testVMSize),
+			name:        "ephemeral OS disk succeeds when capability is true (case-insensitive)",
+			nodePool:    newTestNodePool(t, api.OsDiskTypeEphemeral, testVMSize),
+			wantOutcome: OutcomeTypePassed,
 			setupMockVMSKUCachedReader: func(skuReader *cachedreader.MockVirtualMachineResourceSKUsCachedReader) {
 				skuReader.EXPECT().
 					GetVirtualMachineSKU(gomock.Any(), testTenantID, testSubscriptionID, "eastus", testVMSize).
@@ -147,7 +151,8 @@ func TestAzureVMSizeSupportsEphemeralOSDiskValidation_Validate(t *testing.T) {
 						Value: ptr.To("False"),
 					}), nil)
 			},
-			wantErr: `vm size "Standard_D8ds_v5" does not support ephemeral OS disks`,
+			wantOutcome:         OutcomeTypeFailed,
+			wantInternalMessage: `vm size "Standard_D8ds_v5" does not support ephemeral OS disks`,
 		},
 		{
 			name:     "ephemeral OS disk fails when capability is missing",
@@ -157,7 +162,8 @@ func TestAzureVMSizeSupportsEphemeralOSDiskValidation_Validate(t *testing.T) {
 					GetVirtualMachineSKU(gomock.Any(), testTenantID, testSubscriptionID, "eastus", testVMSize).
 					Return(makeTestVMResourceSKU(testVMSize), nil)
 			},
-			wantErr: `resource SKU for VM size "Standard_D8ds_v5" is missing EphemeralOSDiskSupported capability`,
+			wantOutcome:         OutcomeTypeUnknown,
+			wantInternalMessage: `resource SKU for VM size "Standard_D8ds_v5" is missing EphemeralOSDiskSupported capability`,
 		},
 		{
 			name:     "ephemeral OS disk fails when SKU lookup fails",
@@ -167,15 +173,17 @@ func TestAzureVMSizeSupportsEphemeralOSDiskValidation_Validate(t *testing.T) {
 					GetVirtualMachineSKU(gomock.Any(), testTenantID, testSubscriptionID, "eastus", testVMSize).
 					Return(nil, errors.New("VM size not found"))
 			},
-			wantErr: `failed to get resource SKU for VM size "Standard_D8ds_v5": VM size not found`,
+			wantOutcome:         OutcomeTypeUnknown,
+			wantInternalMessage: `failed to get resource SKU for VM size "Standard_D8ds_v5": VM size not found`,
 		},
 		{
 			name: "ephemeral OS disk fails when subscription is missing tenant ID",
 			subscription: &arm.Subscription{
 				Properties: &arm.SubscriptionProperties{},
 			},
-			nodePool: newTestNodePool(t, api.OsDiskTypeEphemeral, testVMSize),
-			wantErr:  "subscription is missing tenant ID",
+			nodePool:            newTestNodePool(t, api.OsDiskTypeEphemeral, testVMSize),
+			wantOutcome:         OutcomeTypeUnknown,
+			wantInternalMessage: "subscription is missing tenant ID",
 		},
 	}
 
@@ -192,13 +200,11 @@ func TestAzureVMSizeSupportsEphemeralOSDiskValidation_Validate(t *testing.T) {
 				sub = subscription
 			}
 			validation := NewAzureVMSizeSupportsEphemeralOSDiskValidation(skuReader)
-			err := validation.Validate(ctx, cluster, sub, tt.nodePool)
-
-			if tt.wantErr == "" {
-				require.NoError(t, err)
-			} else {
-				require.Error(t, err)
-				assert.ErrorContains(t, err, tt.wantErr)
+			result := validation.Validate(ctx, cluster, sub, tt.nodePool)
+			require.NoError(t, result.Validate())
+			assert.Equal(t, tt.wantOutcome, result.Outcome.Type)
+			if tt.wantInternalMessage != "" {
+				assert.Contains(t, result.InternalMessage(), tt.wantInternalMessage)
 			}
 		})
 	}
