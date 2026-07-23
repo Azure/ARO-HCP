@@ -43,6 +43,15 @@ tests:
   - eval_time: 38m
     alertname: LeaderElectionLeaseStale
     exp_alerts: []
+# Test: LeaderElectionLeaseStale does not fire for the OCM managed-cluster-lease heartbeat (excluded by lease name)
+- interval: 1m
+  input_series:
+  - series: 'kube_lease_renew_time{namespace="2qvkr3r0qqaeqmblu92io1n4tmnfn6u3", lease="managed-cluster-lease", cluster="prod-mgmt-1"}'
+    values: "0x39" # stale, but lease excluded
+  alert_rule_test:
+  - eval_time: 38m
+    alertname: LeaderElectionLeaseStale
+    exp_alerts: []
 # Test: LeaderElectionLeaseStale does not fire for kube-applier namespace (covered by LeaderElectionLeaseStaleCritical)
 - interval: 1m
   input_series:
