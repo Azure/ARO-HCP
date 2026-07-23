@@ -15,10 +15,25 @@
 package v20260630preview
 
 import (
+	"encoding/json"
+
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/api/v20260630preview/generated"
 )
+
+func (v version) UnmarshalHCPOpenShiftClusterAdminCredentialRequest(body []byte) (*api.HCPOpenShiftClusterAdminCredentialRequest, error) {
+	if len(body) == 0 {
+		return nil, nil
+	}
+	var req generated.HcpOpenShiftClusterAdminCredentialRequest
+	if err := json.Unmarshal(body, &req); err != nil {
+		return nil, err
+	}
+	return &api.HCPOpenShiftClusterAdminCredentialRequest{
+		CertificateRequest: api.Deref(req.CertificateRequest),
+	}, nil
+}
 
 func newHCPOpenShiftClusterAdminCredential(from *api.HCPOpenShiftClusterAdminCredential) *generated.HcpOpenShiftClusterAdminCredential {
 	return &generated.HcpOpenShiftClusterAdminCredential{

@@ -758,8 +758,9 @@ func TestRequestAdminCredential(t *testing.T) {
 			}
 			ts := newHTTPServer(ctx, f, mockResourcesDBClient, subs)
 
-			url := ts.URL + requestPath + "?api-version=" + api.TestAPIVersion
-			resp, err := ts.Client().Post(url, "", nil)
+			url := ts.URL + requestPath + "?api-version=" + string(api.APIVersionV20260630Preview)
+			reqBody := strings.NewReader(`{"certificateRequest":"dGVzdA=="}`)
+			resp, err := ts.Client().Post(url, "application/json", reqBody)
 			require.NoError(t, err)
 
 			if !assert.Equal(t, test.statusCode, resp.StatusCode) {
