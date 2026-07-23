@@ -289,3 +289,71 @@ var _ runtime.Object = &ManagementClusterContentList{}
 func (l *ManagementClusterContentList) GetObjectKind() schema.ObjectKind {
 	return &l.TypeMeta
 }
+
+var (
+	_ runtime.Object            = &SystemAdminCredentialRequest{}
+	_ metav1.ObjectMetaAccessor = &SystemAdminCredentialRequest{}
+)
+
+func (o *SystemAdminCredentialRequest) GetObjectKind() schema.ObjectKind {
+	return schema.EmptyObjectKind
+}
+
+func (o *SystemAdminCredentialRequest) GetObjectMeta() metav1.Object {
+	om := &metav1.ObjectMeta{}
+	if o.GetResourceID() != nil {
+		om.Name = strings.ToLower(o.GetResourceID().String())
+	}
+	// shared_informer uses ResourceVersion to determine if an event is a sync
+	om.ResourceVersion = strconv.FormatInt(o.InstanceVersion, 10)
+	return om
+}
+
+// SystemAdminCredentialRequestList is a list of SystemAdminCredentialRequest resources
+// compatible with runtime.Object for use with Kubernetes informer machinery.
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+type SystemAdminCredentialRequestList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+	Items           []SystemAdminCredentialRequest `json:"items"`
+}
+
+var _ runtime.Object = &SystemAdminCredentialRequestList{}
+
+func (l *SystemAdminCredentialRequestList) GetObjectKind() schema.ObjectKind {
+	return &l.TypeMeta
+}
+
+var (
+	_ runtime.Object            = &SystemAdminCredentialRevocation{}
+	_ metav1.ObjectMetaAccessor = &SystemAdminCredentialRevocation{}
+)
+
+func (o *SystemAdminCredentialRevocation) GetObjectKind() schema.ObjectKind {
+	return schema.EmptyObjectKind
+}
+
+func (o *SystemAdminCredentialRevocation) GetObjectMeta() metav1.Object {
+	om := &metav1.ObjectMeta{}
+	if o.GetResourceID() != nil {
+		om.Name = strings.ToLower(o.GetResourceID().String())
+	}
+	// shared_informer uses ResourceVersion to determine if an event is a sync
+	om.ResourceVersion = strconv.FormatInt(o.InstanceVersion, 10)
+	return om
+}
+
+// SystemAdminCredentialRevocationList is a list of SystemAdminCredentialRevocation
+// resources compatible with runtime.Object for use with Kubernetes informer machinery.
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+type SystemAdminCredentialRevocationList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+	Items           []SystemAdminCredentialRevocation `json:"items"`
+}
+
+var _ runtime.Object = &SystemAdminCredentialRevocationList{}
+
+func (l *SystemAdminCredentialRevocationList) GetObjectKind() schema.ObjectKind {
+	return &l.TypeMeta
+}

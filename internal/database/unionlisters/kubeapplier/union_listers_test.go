@@ -440,6 +440,12 @@ func (e *erroringApplyLister) GetForCluster(ctx context.Context, _, _, _, _ stri
 func (e *erroringApplyLister) GetForNodePool(ctx context.Context, _, _, _, _, _ string) (*kubeapplier.ApplyDesire, error) {
 	return nil, e.err
 }
+func (e *erroringApplyLister) GetForCredentialRequest(ctx context.Context, _, _, _, _, _ string) (*kubeapplier.ApplyDesire, error) {
+	return nil, e.err
+}
+func (e *erroringApplyLister) GetForRevocation(ctx context.Context, _, _, _, _, _ string) (*kubeapplier.ApplyDesire, error) {
+	return nil, e.err
+}
 func (e *erroringApplyLister) ListForManagementCluster(ctx context.Context, _ *azcorearm.ResourceID) ([]*kubeapplier.ApplyDesire, error) {
 	return nil, e.err
 }

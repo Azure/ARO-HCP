@@ -126,6 +126,36 @@ func (l *SliceApplyDesireLister) GetForNodePool(
 	return nil, database.NewNotFoundError()
 }
 
+func (l *SliceApplyDesireLister) GetForCredentialRequest(
+	ctx context.Context, subscriptionID, resourceGroupName, clusterName, credentialRequestName, name string,
+) (*kubeapplier.ApplyDesire, error) {
+	want := kubeapplier.ToCredentialRequestScopedApplyDesireResourceIDString(
+		subscriptionID, resourceGroupName, clusterName, credentialRequestName, name,
+	)
+	for _, d := range l.Desires {
+		id := resourceIDOf(d)
+		if id != nil && strings.EqualFold(id.String(), want) {
+			return d, nil
+		}
+	}
+	return nil, database.NewNotFoundError()
+}
+
+func (l *SliceApplyDesireLister) GetForRevocation(
+	ctx context.Context, subscriptionID, resourceGroupName, clusterName, revocationName, name string,
+) (*kubeapplier.ApplyDesire, error) {
+	want := kubeapplier.ToRevocationScopedApplyDesireResourceIDString(
+		subscriptionID, resourceGroupName, clusterName, revocationName, name,
+	)
+	for _, d := range l.Desires {
+		id := resourceIDOf(d)
+		if id != nil && strings.EqualFold(id.String(), want) {
+			return d, nil
+		}
+	}
+	return nil, database.NewNotFoundError()
+}
+
 func (l *SliceApplyDesireLister) ListForManagementCluster(
 	ctx context.Context, managementClusterResourceID *azcorearm.ResourceID,
 ) ([]*kubeapplier.ApplyDesire, error) {
@@ -195,6 +225,36 @@ func (l *SliceReadDesireLister) GetForNodePool(
 ) (*kubeapplier.ReadDesire, error) {
 	want := kubeapplier.ToNodePoolScopedReadDesireResourceIDString(
 		subscriptionID, resourceGroupName, clusterName, nodePoolName, name,
+	)
+	for _, d := range l.Desires {
+		id := resourceIDOf(d)
+		if id != nil && strings.EqualFold(id.String(), want) {
+			return d, nil
+		}
+	}
+	return nil, database.NewNotFoundError()
+}
+
+func (l *SliceReadDesireLister) GetForCredentialRequest(
+	ctx context.Context, subscriptionID, resourceGroupName, clusterName, credentialRequestName, name string,
+) (*kubeapplier.ReadDesire, error) {
+	want := kubeapplier.ToCredentialRequestScopedReadDesireResourceIDString(
+		subscriptionID, resourceGroupName, clusterName, credentialRequestName, name,
+	)
+	for _, d := range l.Desires {
+		id := resourceIDOf(d)
+		if id != nil && strings.EqualFold(id.String(), want) {
+			return d, nil
+		}
+	}
+	return nil, database.NewNotFoundError()
+}
+
+func (l *SliceReadDesireLister) GetForRevocation(
+	ctx context.Context, subscriptionID, resourceGroupName, clusterName, revocationName, name string,
+) (*kubeapplier.ReadDesire, error) {
+	want := kubeapplier.ToRevocationScopedReadDesireResourceIDString(
+		subscriptionID, resourceGroupName, clusterName, revocationName, name,
 	)
 	for _, d := range l.Desires {
 		id := resourceIDOf(d)
