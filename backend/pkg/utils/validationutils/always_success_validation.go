@@ -29,8 +29,8 @@ func (v *AlwaysSuccessValidation) Name() string {
 	return "AlwaysSuccessValidation"
 }
 
-func (v *AlwaysSuccessValidation) Validate(ctx context.Context, clusterSubscription *coreapi.Subscription, cluster *coreapi.HCPOpenShiftCluster) error {
-	return nil
+func (v *AlwaysSuccessValidation) Validate(ctx context.Context, clusterSubscription *coreapi.Subscription, cluster *coreapi.HCPOpenShiftCluster) ValidationResult {
+	return PassedValidation(coreapi.ControllerConditionReasonAsExpected, "As expected", "AlwaysSuccessValidation is always successful.")
 }
 
 func NewAlwaysSuccessValidation() ClusterValidation {

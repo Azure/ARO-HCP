@@ -21,7 +21,6 @@ import (
 
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
 	"github.com/Azure/ARO-HCP/internal/api/coreapi"
-	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 // The RpRegistrationValidation struct validates the states of several
@@ -44,7 +43,7 @@ func (v *AzureResourceProvidersRegistrationValidation) Name() string {
 
 func (v *AzureResourceProvidersRegistrationValidation) Validate(
 	ctx context.Context, clusterSubscription *coreapi.Subscription, cluster *coreapi.HCPOpenShiftCluster,
-) error {
+) ValidationResult {
 	resourceProvidersToCheck := []string{
 		"Microsoft.Authorization",
 		"Microsoft.Compute",
@@ -59,13 +58,23 @@ func (v *AzureResourceProvidersRegistrationValidation) Validate(
 		cluster.ID.SubscriptionID,
 	)
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get resource providers client: %w", err))
+		return UnknownValidation(
+			"InternalError",
+			"Unable to verify resource provider registration.",
+			fmt.Sprintf("failed to get resource providers client: %s", err),
+			ControllerReportingPolicyTypeError,
+		)
 	}
 
 	for _, rp := range resourceProvidersToCheck {
 		providerResp, err := rpClient.Get(ctx, rp, nil)
 		if err != nil {
-			return err
+			return UnknownValidation(
+				"InternalError",
+				"Unable to verify resource provider registration.",
+				fmt.Sprintf("failed to get resource provider %s: %s", rp, err),
+				ControllerReportingPolicyTypeError,
+			)
 		}
 		if providerResp.RegistrationState == nil ||
 			*providerResp.RegistrationState != "Registered" {
@@ -74,9 +83,11 @@ func (v *AzureResourceProvidersRegistrationValidation) Validate(
 	}
 
 	if len(missingResourcesProviders) > 0 {
-		return utils.TrackError(fmt.Errorf("%v of the resource providers are not registered, or their state is empty: %s",
-			len(missingResourcesProviders), strings.Join(missingResourcesProviders, ", ")))
+		internalAndUserMsg := fmt.Sprintf("%d of the resource providers are not registered, or their state is empty: %s",
+			len(missingResourcesProviders), strings.Join(missingResourcesProviders, ", "))
+		return FailedValidation("ResourceProvidersNotRegistered", internalAndUserMsg, internalAndUserMsg)
 	}
 
-	return nil
+	internalMsg := fmt.Sprintf("All resource providers are registered: %s", strings.Join(resourceProvidersToCheck, ", "))
+	return PassedValidation(coreapi.ControllerConditionReasonAsExpected, "All resource providers are registered.", internalMsg)
 }
