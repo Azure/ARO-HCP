@@ -300,4 +300,8 @@ const (
 	// MaestroBundleInternalNameReadonlyHypershiftHostedCluster is the internal name of the Maestro Bundle that represents
 	// the Cluster's Hypershift's HostedCluster K8s resource.
 	MaestroBundleInternalNameReadonlyHypershiftHostedCluster MaestroBundleInternalName = "readonlyHypershiftHostedCluster"
+
+	// ReadonlyHypershiftControlPlaneComponentClusterAutoscaler is the internal name of the ReadDesire that mirrors
+	// the cluster-autoscaler ControlPlaneComponent on the management cluster control plane namespace.
+	ReadonlyHypershiftControlPlaneComponentClusterAutoscaler MaestroBundleInternalName = "readonlyHypershiftControlPlaneComponentClusterAutoscaler"
 )

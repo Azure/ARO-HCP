@@ -220,6 +220,11 @@ func (c *operationClusterUpdate) determineOperationState(ctx context.Context, op
 	} else {
 		operationStates = append(operationStates, operationState.withSource("hypershiftHostedCluster"))
 	}
+	if operationState, autoscalerErr := c.hypershiftControlPlaneClusterAutoscalerState(ctx, existingCluster, existingServiceProviderCluster); autoscalerErr != nil {
+		errs = append(errs, utils.TrackError(autoscalerErr))
+	} else {
+		operationStates = append(operationStates, operationState.withSource("hypershiftControlPlaneClusterAutoscaler"))
+	}
 
 	if err := errors.Join(errs...); err != nil {
 		return nil, err
@@ -240,8 +245,8 @@ func (c *operationClusterUpdate) determineOperationState(ctx context.Context, op
 	return picked, nil
 }
 
-func (c *operationClusterUpdate) desiredVersionResolutionOperationState(ctx context.Context, operation *api.Operation, existingCluster *api.HCPOpenShiftCluster, existingServiceProviderCluster *api.ServiceProviderCluster) (*operationState, error) {
-	resultingDesiredVersion := existingServiceProviderCluster.Spec.ControlPlaneVersion.DesiredVersion
+func (c *operationClusterUpdate) desiredVersionResolutionOperationState(ctx context.Context, operation *api.Operation, existingCluster *api.HCPOpenShiftCluster, spc *api.ServiceProviderCluster) (*operationState, error) {
+	resultingDesiredVersion := spc.Spec.ControlPlaneVersion.DesiredVersion
 	if resultingDesiredVersion == nil {
 		return nil, utils.TrackError(fmt.Errorf("service provider cluster has no desired version"))
 	}
