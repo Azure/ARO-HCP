@@ -12,6 +12,7 @@ acm:
 acr:
   ocp:
     name: arohcpocpdev
+    regionEndpointDisabledRegions: eastus2euap
     untaggedImagesRetention:
       days: 90
       enabled: true

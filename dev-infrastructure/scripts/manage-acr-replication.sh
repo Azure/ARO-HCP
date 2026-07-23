@@ -60,17 +60,47 @@ else
     ENDPOINT_ROUTING_FLAG="--region-endpoint-enabled"
 fi
 
+# Determine the desired regional data-endpoint state for this replica. Regions
+# listed (space-separated) in ENDPOINT_DISABLED_REGIONS must keep their regional
+# endpoint disabled so a co-located canary replica (e.g. eastus2euap) never
+# serves ACR global routing for a neighbouring prod region. Defaults to enabled.
+DESIRED_ENDPOINT_ENABLED=true
+for disabled_region in ${ENDPOINT_DISABLED_REGIONS:-}; do
+    if [ "$disabled_region" = "$REPLICATION_REGION" ]; then
+        DESIRED_ENDPOINT_ENABLED=false
+        break
+    fi
+done
+echo "Desired regional endpoint for $REPLICATION_REGION: enabled=$DESIRED_ENDPOINT_ENABLED"
+
 # Function to create a new replication
 create_replication() {
-    echo "Creating replication $REPLICATION_REGION for ACR $ACR_NAME in region $REPLICATION_REGION..."
+    echo "Creating replication $REPLICATION_REGION for ACR $ACR_NAME in region $REPLICATION_REGION (endpoint enabled=$DESIRED_ENDPOINT_ENABLED)..."
     execute az acr replication create \
         --registry "$ACR_NAME" \
         --resource-group "$RESOURCE_GROUP" \
         --location "$REPLICATION_REGION" \
         --name "$REPLICATION_REGION" \
-        "$ENDPOINT_ROUTING_FLAG" true
+        "$ENDPOINT_ROUTING_FLAG" "$DESIRED_ENDPOINT_ENABLED"
 
     echo "Successfully created replication $REPLICATION_REGION for ACR $ACR_NAME in region $REPLICATION_REGION"
+}
+
+# Function to reconcile an existing replica's regional endpoint to the desired state
+reconcile_replication_endpoint() {
+    local replica_name="$1"
+    local current_enabled="$2"
+    if [ "$current_enabled" = "$DESIRED_ENDPOINT_ENABLED" ]; then
+        echo "Replica $replica_name regional endpoint already at desired state (enabled=$DESIRED_ENDPOINT_ENABLED)"
+        return 0
+    fi
+    echo "Reconciling replica $replica_name regional endpoint: $current_enabled -> $DESIRED_ENDPOINT_ENABLED"
+    execute az acr replication update \
+        --registry "$ACR_NAME" \
+        --resource-group "$RESOURCE_GROUP" \
+        --name "$replica_name" \
+        "$ENDPOINT_ROUTING_FLAG" "$DESIRED_ENDPOINT_ENABLED"
+    echo "Successfully reconciled replica $replica_name regional endpoint to enabled=$DESIRED_ENDPOINT_ENABLED"
 }
 
 echo "Managing ACR replication for $ACR_NAME in region $REPLICATION_REGION..."
@@ -99,13 +129,19 @@ REPLICATION_INFO=$(az resource list \
     --output json
 )
 
-if [ -n "$REPLICATION_INFO" ]; then
+if [ -n "$REPLICATION_INFO" ] && [ "$REPLICATION_INFO" != "null" ]; then
     REPLICATION_RESOURCE_ID=$(echo "$REPLICATION_INFO" | jq -r '.id')
     REPLICATION_NAME=$(echo "$REPLICATION_INFO" | jq -r '.name' | cut -f 2 -d "/")
     # we need to query the replication state from the replica resource id and not from the list operation or the ACR
     # there are bugs flying around that report the wrong replication state on the list operation
-    REPLICATION_STATE=$(az resource show --ids "$REPLICATION_RESOURCE_ID" --query "properties.provisioningState" -o tsv)
-    echo "Found existing replication $REPLICATION_NAME ($REPLICATION_RESOURCE_ID) in state $REPLICATION_STATE"
+    REPLICATION_DETAILS=$(az resource show \
+        --ids "$REPLICATION_RESOURCE_ID" \
+        --query "{provisioningState:properties.provisioningState, regionEndpointEnabled:properties.regionEndpointEnabled}" \
+        --output json
+    )
+    REPLICATION_STATE=$(echo "$REPLICATION_DETAILS" | jq -r '.provisioningState')
+    REPLICATION_ENDPOINT_ENABLED=$(echo "$REPLICATION_DETAILS" | jq -r '.regionEndpointEnabled')
+    echo "Found existing replication $REPLICATION_NAME ($REPLICATION_RESOURCE_ID) in state $REPLICATION_STATE with endpoint enabled=$REPLICATION_ENDPOINT_ENABLED"
 
     # Only check for failed replications if one exists
     if [ "$REPLICATION_STATE" = "Failed" ]; then
@@ -118,8 +154,16 @@ if [ -n "$REPLICATION_INFO" ]; then
 
         # After deleting failed replication, create a new one
         create_replication
-    else
+    elif [ "$REPLICATION_STATE" = "Succeeded" ]; then
         echo "Replication already exists and is in good state: $REPLICATION_NAME (state: $REPLICATION_STATE)"
+        if [ "$DESIRED_ENDPOINT_ENABLED" = "false" ]; then
+            reconcile_replication_endpoint "$REPLICATION_NAME" "$REPLICATION_ENDPOINT_ENABLED"
+        else
+            echo "Endpoint reconciliation not requested for $REPLICATION_NAME; leaving existing enabled=$REPLICATION_ENDPOINT_ENABLED state unchanged"
+        fi
+        exit 0
+    else
+        echo "Replication already exists but is not ready for endpoint reconciliation: $REPLICATION_NAME (state: $REPLICATION_STATE)"
         exit 0
     fi
 else
