@@ -38,6 +38,14 @@ type ApplyDesireLister interface {
 	// containing NodePool identity and the desire's name.
 	GetForNodePool(ctx context.Context, subscriptionID, resourceGroupName, clusterName, nodePoolName, name string) (*kubeapplier.ApplyDesire, error)
 
+	// GetForCredentialRequest fetches a single ApplyDesire nested under a
+	// SystemAdminCredentialRequest by the request's identity and the desire's name.
+	GetForCredentialRequest(ctx context.Context, subscriptionID, resourceGroupName, clusterName, credentialRequestName, name string) (*kubeapplier.ApplyDesire, error)
+
+	// GetForRevocation fetches a single ApplyDesire nested under a
+	// SystemAdminCredentialRevocation by the revocation's identity and the desire's name.
+	GetForRevocation(ctx context.Context, subscriptionID, resourceGroupName, clusterName, revocationName, name string) (*kubeapplier.ApplyDesire, error)
+
 	// ListForManagementCluster returns every ApplyDesire whose
 	// spec.managementCluster matches (case-insensitively). A nil
 	// managementClusterResourceID returns no results.
@@ -77,6 +85,24 @@ func (l *applyDesireLister) GetForNodePool(
 ) (*kubeapplier.ApplyDesire, error) {
 	key := kubeapplier.ToNodePoolScopedApplyDesireResourceIDString(
 		subscriptionID, resourceGroupName, clusterName, nodePoolName, name,
+	)
+	return getByKey[kubeapplier.ApplyDesire](l.indexer, key)
+}
+
+func (l *applyDesireLister) GetForCredentialRequest(
+	ctx context.Context, subscriptionID, resourceGroupName, clusterName, credentialRequestName, name string,
+) (*kubeapplier.ApplyDesire, error) {
+	key := kubeapplier.ToCredentialRequestScopedApplyDesireResourceIDString(
+		subscriptionID, resourceGroupName, clusterName, credentialRequestName, name,
+	)
+	return getByKey[kubeapplier.ApplyDesire](l.indexer, key)
+}
+
+func (l *applyDesireLister) GetForRevocation(
+	ctx context.Context, subscriptionID, resourceGroupName, clusterName, revocationName, name string,
+) (*kubeapplier.ApplyDesire, error) {
+	key := kubeapplier.ToRevocationScopedApplyDesireResourceIDString(
+		subscriptionID, resourceGroupName, clusterName, revocationName, name,
 	)
 	return getByKey[kubeapplier.ApplyDesire](l.indexer, key)
 }

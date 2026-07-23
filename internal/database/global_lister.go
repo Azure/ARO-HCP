@@ -47,6 +47,8 @@ type ResourcesGlobalListers interface {
 	// partitions for every Cosmos resource type where managementClusterContents
 	// is nested as a direct child resource. Those types are registered on the lister implementation.
 	ManagementClusterContents() GlobalLister[api.ManagementClusterContent]
+	SystemAdminCredentialRequests() GlobalLister[api.SystemAdminCredentialRequest]
+	SystemAdminCredentialRevocations() GlobalLister[api.SystemAdminCredentialRevocation]
 	Operations() GlobalLister[api.Operation]
 	ActiveOperations() GlobalLister[api.Operation]
 }
@@ -106,6 +108,20 @@ func (g *cosmosResourcesGlobalListers) ServiceProviderNodePools() GlobalLister[a
 	}
 }
 
+func (g *cosmosResourcesGlobalListers) SystemAdminCredentialRequests() GlobalLister[api.SystemAdminCredentialRequest] {
+	return &cosmosGlobalLister[api.SystemAdminCredentialRequest, GenericDocument[api.SystemAdminCredentialRequest]]{
+		containerClient: g.resources,
+		resourceTypes:   []azcorearm.ResourceType{api.SystemAdminCredentialRequestResourceType},
+	}
+}
+
+func (g *cosmosResourcesGlobalListers) SystemAdminCredentialRevocations() GlobalLister[api.SystemAdminCredentialRevocation] {
+	return &cosmosGlobalLister[api.SystemAdminCredentialRevocation, GenericDocument[api.SystemAdminCredentialRevocation]]{
+		containerClient: g.resources,
+		resourceTypes:   []azcorearm.ResourceType{api.SystemAdminCredentialRevocationResourceType},
+	}
+}
+
 func (g *cosmosResourcesGlobalListers) Controllers() GlobalLister[api.Controller] {
 	return &cosmosGlobalLister[api.Controller, GenericDocument[api.Controller]]{
 		containerClient: g.resources,
@@ -113,6 +129,7 @@ func (g *cosmosResourcesGlobalListers) Controllers() GlobalLister[api.Controller
 			api.ClusterControllerResourceType,
 			api.NodePoolControllerResourceType,
 			api.ExternalAuthControllerResourceType,
+			api.SystemAdminCredentialRequestControllerResourceType,
 		},
 	}
 }
