@@ -129,7 +129,7 @@ REPLICATION_INFO=$(az resource list \
     --output json
 )
 
-if [ -n "$REPLICATION_INFO" ]; then
+if [ -n "$REPLICATION_INFO" ] && [ "$REPLICATION_INFO" != "null" ]; then
     REPLICATION_RESOURCE_ID=$(echo "$REPLICATION_INFO" | jq -r '.id')
     REPLICATION_NAME=$(echo "$REPLICATION_INFO" | jq -r '.name' | cut -f 2 -d "/")
     # we need to query the replication state from the replica resource id and not from the list operation or the ACR
@@ -154,9 +154,12 @@ if [ -n "$REPLICATION_INFO" ]; then
 
         # After deleting failed replication, create a new one
         create_replication
-    else
+    elif [ "$REPLICATION_STATE" = "Succeeded" ]; then
         echo "Replication already exists and is in good state: $REPLICATION_NAME (state: $REPLICATION_STATE)"
         reconcile_replication_endpoint "$REPLICATION_NAME" "$REPLICATION_ENDPOINT_ENABLED"
+        exit 0
+    else
+        echo "Replication already exists but is not ready for endpoint reconciliation: $REPLICATION_NAME (state: $REPLICATION_STATE)"
         exit 0
     fi
 else

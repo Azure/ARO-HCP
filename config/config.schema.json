@@ -394,7 +394,7 @@
         },
         "regionEndpointDisabledRegions": {
           "type": "string",
-          "description": "Space-separated list of replication regions whose regional data endpoint must be kept disabled (--region-endpoint-enabled false), e.g. the eastus2euap canary replica. Optional; defaults to none."
+          "description": "Space-separated list of replication regions whose regional data endpoint must be kept disabled by disabling global endpoint routing, e.g. the eastus2euap canary replica. Optional; defaults to none."
         }
       },
       "additionalProperties": false,

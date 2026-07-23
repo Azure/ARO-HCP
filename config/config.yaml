@@ -102,7 +102,7 @@ defaults:
         enabled: true
         days: 90
       # Space-separated list of replication regions whose regional data endpoint
-      # must stay disabled (--region-endpoint-enabled false). The eastus2euap
+      # must stay disabled (disable global endpoint routing). The eastus2euap
       # (canary/EUAP) replica participates in ACR global routing and can serve
       # co-located prod eastus2 pulls; a degraded euap replica endpoint caused a
       # ~100% HCP install outage (AROSLSRE-1592). Keeping its regional endpoint
