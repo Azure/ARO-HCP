@@ -2535,6 +2535,21 @@
         },
         "sharedIngressImage": {
           "$ref": "#/definitions/containerImage"
+        },
+        "metricsSet": {
+          "type": "object",
+          "properties": {
+            "extraHCPMetrics": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "performance"
+                ]
+              }
+            }
+          },
+          "additionalProperties": false
         }
       },
       "additionalProperties": false,
