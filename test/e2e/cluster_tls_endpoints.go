@@ -61,7 +61,7 @@ var _ = Describe("Customer", func() {
 			}
 
 			// Load CAs early to fail fast if there's an issue with the test setup, rather than waiting until after cluster creation
-			trustedCAs, err := loadAzureCAs("azure-cas")
+			trustedCAs, err := loadEmbeddedCAs(azureCAs, "azure-cas")
 			Expect(err).NotTo(HaveOccurred(), "loading trusted Azure CAs from embedded directory")
 
 			By("creating a resource group")
@@ -257,14 +257,14 @@ func tlsCertsFromURL(ctx context.Context, u string) ([]*x509.Certificate, error)
 	return state.PeerCertificates, nil
 }
 
-func loadAzureCAs(directory string) (*x509.CertPool, error) {
+func loadEmbeddedCAs(fsys embed.FS, directory string) (*x509.CertPool, error) {
 	pool := x509.NewCertPool()
-	entries, err := azureCAs.ReadDir(directory)
+	entries, err := fsys.ReadDir(directory)
 	if err != nil {
 		return nil, fmt.Errorf("reading embedded %s directory: %w", directory, err)
 	}
 	for _, entry := range entries {
-		data, err := azureCAs.ReadFile(directory + "/" + entry.Name())
+		data, err := fsys.ReadFile(directory + "/" + entry.Name())
 		if err != nil {
 			return nil, fmt.Errorf("reading embedded CA %s: %w", entry.Name(), err)
 		}
