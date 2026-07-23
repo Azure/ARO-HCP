@@ -210,6 +210,16 @@ resource. Review the manifest's `directory_layout` for the full structure. Key l
   `ignitionNotReached`, or `OSProvisioningTimedOut`, **always check these first** —
   they show the node's view of boot (ignition TLS errors, kubelet failures, CNI
   issues) that the orchestrator-side Kusto queries cannot reveal.
+- `azure_sdk_log/azure.log` — the client's own record of every Azure SDK call the
+  test makes, across all resource providers (ARO-HCP RP, Managed Identity, Key
+  Vault, Network, etc.): each request, response, error, retry, and LRO poll, with
+  correlation IDs and timing. Present when `manifest.azure_log` is set. It is the
+  only client-side view of these calls, so consult it for any failure that turns on
+  how the client issued or handled an Azure request — for example (not limited to):
+  retries behind a conflict/`DeploymentActive`/already-exists error; transient
+  5xx/429 with backoff; LRO polling problems such as a 404 while a create
+  propagates or a poll that times out; and client-side timeouts, cancellations, or
+  transport/auth errors.
 - `discovery/` — resource IDs, cluster associations, request mappings
 - `<phase>/resources/<type>/<name>/` — state, conditions, logs, events per resource
 - `<phase>/events/` — service-level Kubernetes events

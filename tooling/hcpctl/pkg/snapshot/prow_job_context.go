@@ -116,14 +116,21 @@ func (p *ProwJobContext) Close() error {
 }
 
 // GatherOptionsForTest returns a GatherForTestOptions pre-populated with all
-// per-job fields derived from this context, including node console logs fetched
-// from GCS. The caller must set OutputDir (and optionally QueryTimeout and
-// Concurrency) on the returned value before passing it to GatherForTest.
+// per-job fields derived from this context, including node console logs and the
+// client-side azure.log fetched from GCS. The caller must set OutputDir (and
+// optionally QueryTimeout and Concurrency) on the returned value before passing
+// it to GatherForTest.
 func (p *ProwJobContext) GatherOptionsForTest(ctx context.Context, test *TestResult) GatherForTestOptions {
 	nodeConsoleLogs, err := FetchNodeConsoleLogs(ctx, p.ProwInfo, test.Name)
 	if err != nil {
 		slog.Warn("Failed to fetch node console logs, continuing without them", "error", err, "test", test.Name)
 		nodeConsoleLogs = nil
+	}
+
+	azureLog, err := FetchAzureLog(ctx, p.ProwInfo, test.Name)
+	if err != nil {
+		slog.Warn("Failed to fetch azure.log, continuing without it", "error", err, "test", test.Name)
+		azureLog = nil
 	}
 
 	return GatherForTestOptions{
@@ -138,5 +145,6 @@ func (p *ProwJobContext) GatherOptionsForTest(ctx context.Context, test *TestRes
 		ManagementClusterName:    p.JobConfig.ManagementClusterName,
 		SiblingTests:             p.SiblingTests,
 		NodeConsoleLogs:          nodeConsoleLogs,
+		AzureLog:                 azureLog,
 	}
 }
