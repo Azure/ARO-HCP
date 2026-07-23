@@ -25,6 +25,31 @@ Customer → ARM → Frontend → Backend (async) → Clusters Service → Maest
 7. **HyperShift** reconciles HostedCluster and NodePool custom resources on the management cluster,
    creating the actual control plane pods in a hosted-control-plane namespace.
 
+## Deletion Flow
+
+A customer deletion operation follows the same component chain, but cleanup on the management
+cluster involves a sequential **destruct chain** managed by Clusters Service:
+
+```
+Customer → ARM → Frontend → Backend (async) → Clusters Service → Management Cluster cleanup
+```
+
+1. **ARM** delivers the DELETE request to the **Frontend**, which creates an async operation.
+2. The **Backend** translates it into a Clusters Service API call.
+3. **Clusters Service** sets the cluster state to `'uninstalling'` and runs the destruct chain:
+   - `hypershift-managed-cluster-destructor`: waits for the **ManagedCluster** (ACM/MCE) to
+     finish `Detaching`. Detaching triggers cleanup of **ManagedClusterAddon** resources whose
+     pre-delete hook pods must complete and remove their finalizers before the ManagedCluster
+     can be deleted.
+   - `hypershift-manifest-work-destructor`: deletes Maestro resource bundles, which removes
+     ManifestWork objects, cascading to HostedCluster / NodePool / control plane deletion.
+4. **HyperShift** reconciles the HostedCluster deletion, cleaning up the control plane namespace
+   and cloud resources.
+
+The destruct chain is **sequential**: if one destructor cannot complete (e.g. ManagedCluster stuck
+in `Detaching`), all subsequent destructors are skipped. CS logs `Not continuing to the next
+destructor for cluster` on each iteration until the blocking destructor resolves.
+
 ## Topology
 
 - **Management clusters**: Run HyperShift, Maestro agent, kube-applier, and hosted control planes for many customers.

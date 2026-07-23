@@ -1,0 +1,17 @@
+cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}').table('containerLogs')
+| where timestamp between ({{ kqlDatetime .PhaseStartTime }} .. {{ kqlDatetime .PhaseEndTime }})
+{{- if and .ServiceClusterName .ManagementClusterName }}
+| where cluster in ('{{ .ServiceClusterName }}', '{{ .ManagementClusterName }}')
+{{- end }}
+| where namespace_name == 'mgmt-agent' and log.msg == 'pod event'
+| where log.namespace == 'klusterlet-{{ .ClusterID }}'
+| where tostring(log.object.status.reason) == 'Evicted'
+| project
+    timestamp,
+    pod_name = tostring(log.name),
+    event = tostring(log.event),
+    reason = tostring(log.object.status.reason),
+    message = tostring(log.object.status.message),
+    phase = tostring(log.object.status.phase),
+    node = tostring(log.object.spec.nodeName)
+| order by timestamp asc

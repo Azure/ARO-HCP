@@ -645,6 +645,30 @@ var allQueries = []querySpec{
 		requiredWhen:  isClusterOrNodePool,
 	},
 
+	// --- mgmt-agent: pod lifecycle events from PodWatcher ---
+	{
+		component:    "mgmtAgent",
+		queryName:    "podEvents",
+		templatePath: "queries/mgmtAgent/podEvents/query.kql",
+		database:     "service",
+		category:     categoryResourceEvents,
+		ready: func(d queryData) bool {
+			return d.ClusterID != "" && strings.EqualFold(d.ResourceType, "microsoft.redhatopenshift/hcpopenshiftclusters")
+		},
+		prerequisites: "ClusterID, ResourceType is cluster",
+	},
+	{
+		component:    "mgmtAgent",
+		queryName:    "podEvictions",
+		templatePath: "queries/mgmtAgent/podEvictions/query.kql",
+		database:     "service",
+		category:     categoryResourceEvents,
+		ready: func(d queryData) bool {
+			return d.ClusterID != "" && strings.EqualFold(d.ResourceType, "microsoft.redhatopenshift/hcpopenshiftclusters")
+		},
+		prerequisites: "ClusterID, ResourceType is cluster",
+	},
+
 	// --- Events: time-windowed, component-scoped ---
 	{
 		component:    "frontend",
