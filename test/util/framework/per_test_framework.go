@@ -523,9 +523,10 @@ func (tc *perItOrDescribeTestContext) waitForManagedResourceGroupsDeletion(ctx c
 }
 
 // cleanupResourceGroup is the standard resourcegroup cleanup.  It attempts to
-// 1. delete all HCP clusters via the RP and wait for success
-// 2. wait for any managed resource groups to be deleted
-// 3. delete the resource group
+//  1. delete all HCP clusters via the RP and wait for success
+//  2. wait for any managed resource groups to be deleted, force deleting any that
+//     remain orphaned after the HCP clusters are already gone
+//  3. delete the resource group
 func (tc *perItOrDescribeTestContext) cleanupResourceGroup(ctx context.Context, resourceGroupName string, timeout time.Duration) error {
 	startTime := time.Now()
 	defer func() {
@@ -571,10 +572,27 @@ func (tc *perItOrDescribeTestContext) cleanupResourceGroup(ctx context.Context, 
 			"resourceGroup", resourceGroupName, "managedResourceGroups", managedResourceGroups)
 		managedResourceGroups, err = tc.waitForManagedResourceGroupsDeletion(ctx, resourceGroupName, 10*time.Minute)
 		if err != nil {
-			if len(managedResourceGroups) > 0 {
-				return fmt.Errorf("found %d managed resource groups left behind HCP clusters in %s: %v: %w", len(managedResourceGroups), resourceGroupName, managedResourceGroups, err)
+			if len(managedResourceGroups) == 0 {
+				return fmt.Errorf("failed waiting for managed resource group deletion in %s: %w", resourceGroupName, err)
 			}
-			return fmt.Errorf("failed waiting for managed resource group deletion in %s: %w", resourceGroupName, err)
+			// The HCP clusters in this resource group were already deleted above, yet
+			// one or more managed resource groups still reference a now non-existent
+			// cluster via ManagedBy and were never cleaned up by the RP. These are
+			// orphaned: nothing else will ever delete them, so continuing to wait
+			// would leak both the managed and the parent resource group forever.
+			// Force delete them directly (mirroring the no-RP workflow) so the parent
+			// resource group can be reclaimed.
+			ginkgo.GinkgoLogr.Info("managed resource groups still present after wait, force deleting orphaned managed resource groups",
+				"resourceGroup", resourceGroupName, "managedResourceGroups", managedResourceGroups)
+			for _, managedRG := range managedResourceGroups {
+				if err := DeleteResourceGroup(ctx, resourceClientFactory.NewResourceGroupsClient(), networkClientFactory, managedRG, true, timeout); err != nil {
+					if isIgnorableResourceGroupCleanupError(err) {
+						ginkgo.GinkgoLogr.Info("ignoring not found managed resource group", "resourceGroup", managedRG)
+					} else {
+						return fmt.Errorf("failed to cleanup orphaned managed resource group %q for %q: %w", managedRG, resourceGroupName, err)
+					}
+				}
+			}
 		}
 	} else {
 		ginkgo.GinkgoLogr.Info("no left behind managed resource groups found", "resourceGroup", resourceGroupName)
