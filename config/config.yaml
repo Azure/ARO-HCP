@@ -102,12 +102,11 @@ defaults:
         enabled: true
         days: 90
       # Space-separated list of replication regions whose regional data endpoint
-      # must stay disabled (disable global endpoint routing). The eastus2euap
-      # (canary/EUAP) replica participates in ACR global routing and can serve
-      # co-located prod eastus2 pulls; a degraded euap replica endpoint caused a
-      # ~100% HCP install outage (AROSLSRE-1592). Keeping its regional endpoint
-      # disabled prevents the canary replica from serving global traffic and
-      # ensures the manual mitigation persists across rollouts.
+      # must stay disabled. A canary/EUAP replica (e.g. eastus2euap) can otherwise
+      # serve co-located prod pulls; a degraded such replica caused a ~100% HCP
+      # install outage (AROSLSRE-1592). Keeping its regional endpoint disabled
+      # stops the replica from serving neighbouring-region traffic and ensures the
+      # manual mitigation persists across rollouts.
       regionEndpointDisabledRegions: 'eastus2euap'
   # TRANSIENT — STG-global "V2" migration scaffolding. Every pipeline (including
   # the stg-only V2 copies) is preprocessed by helmtest against the dev render
