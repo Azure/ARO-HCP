@@ -16,7 +16,7 @@ package validationcontrollers
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"strings"
 	"testing"
 
@@ -116,16 +116,16 @@ func newTestSubscription() *arm.Subscription {
 
 // mockNodePoolValidation implements validations.NodePoolValidation for tests.
 type mockNodePoolValidation struct {
-	name        string
-	validateErr error
+	name           string
+	validateResult *validations.ValidationResult
 }
 
 var _ validations.NodePoolValidation = (*mockNodePoolValidation)(nil)
 
 func (m *mockNodePoolValidation) Name() string { return m.name }
 
-func (m *mockNodePoolValidation) Validate(_ context.Context, _ *api.HCPOpenShiftCluster, _ *arm.Subscription, _ *api.HCPOpenShiftClusterNodePool) error {
-	return m.validateErr
+func (m *mockNodePoolValidation) Validate(_ context.Context, _ *api.HCPOpenShiftCluster, _ *arm.Subscription, _ *api.HCPOpenShiftClusterNodePool) *validations.ValidationResult {
+	return m.validateResult
 }
 
 func TestNodePoolValidationSyncer_SyncOnce(t *testing.T) {
@@ -151,6 +151,8 @@ func TestNodePoolValidationSyncer_SyncOnce(t *testing.T) {
 		validation          *mockNodePoolValidation
 		wantErr             bool
 		wantConditionStatus *metav1.ConditionStatus
+		wantConditionReason string
+		wantConditionMsg    string
 	}{
 		{
 			name: "cluster not found -- no-op",
@@ -175,22 +177,76 @@ func TestNodePoolValidationSyncer_SyncOnce(t *testing.T) {
 			validation: &mockNodePoolValidation{name: testValidationName},
 		},
 		{
-			name:    "validation succeeds -- condition set to True",
+			name:    "validation passes -- condition set to True",
 			setupDB: defaultSetupDB,
 			validation: &mockNodePoolValidation{
 				name: testValidationName,
+				validateResult: &validations.ValidationResult{
+					Outcome: validations.OutcomeTypePassed,
+				},
 			},
 			wantConditionStatus: api.Ptr(metav1.ConditionTrue),
+			wantConditionReason: "AsExpected",
+			wantConditionMsg:    "As expected.",
 		},
 		{
 			name:    "validation fails -- condition set to False and error returned",
 			setupDB: defaultSetupDB,
 			validation: &mockNodePoolValidation{
-				name:        testValidationName,
-				validateErr: fmt.Errorf("quota exceeded"),
+				name: testValidationName,
+				validateResult: &validations.ValidationResult{
+					Outcome: validations.OutcomeTypeFailed,
+					Failed: &validations.FailedResult{
+						Reason:                 "QuotaExceeded",
+						ServiceProviderMessage: "quota exceeded",
+						UserMessage:            "Quota exceeded for this subscription.",
+					},
+				},
 			},
 			wantErr:             true,
 			wantConditionStatus: api.Ptr(metav1.ConditionFalse),
+			wantConditionReason: "QuotaExceeded",
+			wantConditionMsg:    "Quota exceeded for this subscription.",
+		},
+		{
+			name:    "validation unknown with ReportError -- condition set to Unknown and error returned",
+			setupDB: defaultSetupDB,
+			validation: &mockNodePoolValidation{
+				name: testValidationName,
+				validateResult: &validations.ValidationResult{
+					Outcome: validations.OutcomeTypeUnknown,
+					Unknown: &validations.UnknownResult{
+						Reason:                 "InfrastructureError",
+						ServiceProviderMessage: "failed to reach Azure",
+						UserMessage:            "Unable to verify.",
+						ReportingPolicy:        validations.ReportingPolicyTypeError,
+					},
+				},
+			},
+			wantErr:             true,
+			wantConditionStatus: api.Ptr(metav1.ConditionUnknown),
+			wantConditionReason: "InfrastructureError",
+			wantConditionMsg:    "Unable to verify.",
+		},
+		{
+			name:    "validation unknown with LogOnly -- condition set to Unknown, no error returned",
+			setupDB: defaultSetupDB,
+			validation: &mockNodePoolValidation{
+				name: testValidationName,
+				validateResult: &validations.ValidationResult{
+					Outcome: validations.OutcomeTypeUnknown,
+					Unknown: &validations.UnknownResult{
+						Reason:                 "TransientIssue",
+						ServiceProviderMessage: "temporary network blip",
+						UserMessage:            "Temporarily unable to verify.",
+						ReportingPolicy:        validations.ReportingPolicyTypeLogOnly,
+					},
+				},
+			},
+			wantErr:             false,
+			wantConditionStatus: api.Ptr(metav1.ConditionUnknown),
+			wantConditionReason: "TransientIssue",
+			wantConditionMsg:    "Temporarily unable to verify.",
 		},
 		{
 			name: "already-succeeded validation -- skipped",
@@ -204,15 +260,21 @@ func TestNodePoolValidationSyncer_SyncOnce(t *testing.T) {
 					{
 						Type:   testValidationName,
 						Status: metav1.ConditionTrue,
-						Reason: "Succeeded",
+						Reason: "AsExpected",
 					},
 				}
 				_, err = spnpCRUD.Replace(ctx, spnp, nil)
 				require.NoError(t, err)
 			},
 			validation: &mockNodePoolValidation{
-				name:        testValidationName,
-				validateErr: fmt.Errorf("should not be called"),
+				name: testValidationName,
+				validateResult: &validations.ValidationResult{
+					Outcome: validations.OutcomeTypeFailed,
+					Failed: &validations.FailedResult{
+						Reason:      "ShouldNotBeCalled",
+						UserMessage: "should not be called",
+					},
+				},
 			},
 		},
 	}
@@ -235,8 +297,18 @@ func TestNodePoolValidationSyncer_SyncOnce(t *testing.T) {
 			err := syncer.SyncOnce(ctx, newTestNodePoolKey())
 			if tc.wantErr {
 				require.Error(t, err)
+				var requeueAfter *controllerutils.RequeueAfterError
+				if errors.As(err, &requeueAfter) {
+					require.Error(t, requeueAfter.Err, "expected RequeueAfterError to carry a real error")
+				}
 			} else {
-				require.NoError(t, err)
+				// A RequeueAfterError with nil Err is a silent requeue, not a real error.
+				var requeueAfter *controllerutils.RequeueAfterError
+				if errors.As(err, &requeueAfter) {
+					require.NoError(t, requeueAfter.Err, "expected RequeueAfterError to carry no real error")
+				} else {
+					require.NoError(t, err)
+				}
 			}
 
 			if tc.wantConditionStatus != nil {
@@ -248,13 +320,8 @@ func TestNodePoolValidationSyncer_SyncOnce(t *testing.T) {
 				cond := meta.FindStatusCondition(spnp.Status.Validations, testValidationName)
 				require.NotNil(t, cond, "expected validation condition to be set")
 				assert.Equal(t, *tc.wantConditionStatus, cond.Status)
-
-				if tc.validation.validateErr != nil {
-					assert.Equal(t, "Failed", cond.Reason)
-					assert.Contains(t, cond.Message, tc.validation.validateErr.Error())
-				} else {
-					assert.Equal(t, "Succeeded", cond.Reason)
-				}
+				assert.Equal(t, tc.wantConditionReason, cond.Reason)
+				assert.Equal(t, tc.wantConditionMsg, cond.Message)
 			}
 		})
 	}

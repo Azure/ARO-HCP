@@ -138,6 +138,16 @@ func (c *genericWatchingController[T]) processNextWorkItem(ctx context.Context) 
 		return true
 	}
 
+	var requeueAfter *RequeueAfterError
+	if errors.As(err, &requeueAfter) {
+		c.queue.Forget(ref)
+		c.queue.AddAfter(ref, requeueAfter.After)
+		if requeueAfter.Err != nil {
+			utilruntime.HandleErrorWithContext(ctx, requeueAfter.Err, "Error syncing; requeuing after delay", "objectReference", ref, "after", requeueAfter.After)
+		}
+		return true
+	}
+
 	utilruntime.HandleErrorWithContext(ctx, err, "Error syncing; requeuing for later retry", "objectReference", ref)
 	c.queue.AddRateLimited(ref)
 
