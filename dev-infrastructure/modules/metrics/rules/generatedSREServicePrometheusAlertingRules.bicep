@@ -32,15 +32,15 @@ resource frontendLatency 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
           severity: 'info'
         }
         annotations: {
-          correlationId: 'FrontendLatency/{{ $labels.cluster }}'
-          description: 'The 95th percentile of frontend request latency has exceeded 5 seconds over the past hour.'
-          info: 'The 95th percentile of frontend request latency has exceeded 5 seconds over the past hour.'
+          correlationId: 'FrontendLatency/{{ $labels.cluster }}/{{ $labels.method }}/{{ $labels.route }}'
+          description: 'The 99th percentile of frontend request latency for {{ $labels.method }} {{ $labels.route }} has exceeded 1 second over the past hour.'
+          info: 'The 99th percentile of frontend request latency for {{ $labels.method }} {{ $labels.route }} has exceeded 1 second over the past hour.'
           runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/frontend-tsg.html'
-          summary: 'Frontend latency is high: 95th percentile exceeds 5 seconds'
-          title: 'Frontend latency is high: 95th percentile exceeds 5 seconds'
+          summary: 'Frontend latency is high: 99th percentile exceeds 1 second for {{ $labels.method }} {{ $labels.route }}'
+          title: 'Frontend latency is high: 99th percentile exceeds 1 second for {{ $labels.method }} {{ $labels.route }}'
         }
-        expression: 'histogram_quantile(0.95, rate(frontend_http_requests_duration_seconds_bucket[1h])) > 5'
-        for: 'PT15M'
+        expression: 'histogram_quantile(0.99, sum by (le, route, method) (rate(frontend_http_requests_duration_seconds_bucket[1h]))) > 1'
+        for: 'PT1M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
     ]

@@ -1,5 +1,6 @@
 prometheusRules:
-  rulesFolders: []
+  rulesFolders:
+  - ../frontend/alerts/frontend-path-latency-prometheusRule.yaml
   untestedRules:
   - alerts/kubernetesControlPlane-prometheusRule.yaml
   outputBicep: ../dev-infrastructure/modules/metrics/rules/generatedKustoOnlyServicePrometheusAlertingRules.bicep

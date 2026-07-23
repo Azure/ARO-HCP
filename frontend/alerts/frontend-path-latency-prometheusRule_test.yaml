@@ -1,21 +1,21 @@
 rule_files:
-- frontend-latency-prometheusRule.yaml
+- frontend-path-latency-prometheusRule.yaml
 evaluation_interval: 1m
 tests:
-# Test: FrontendLatency does not fire when 99th percentile is below 1 second
+# Test: FrontendPathLatency does not fire when 99th percentile is below 1 second
 - interval: 1m
   input_series:
   - series: 'frontend_http_requests_duration_seconds_bucket{le="0.1", route="/api/clusters", method="GET"}'
-    values: '0+60x70'
+    values: '0+60x35'
   - series: 'frontend_http_requests_duration_seconds_bucket{le="0.5", route="/api/clusters", method="GET"}'
-    values: '0+60x90'
+    values: '0+60x45'
   - series: 'frontend_http_requests_duration_seconds_bucket{le="1", route="/api/clusters", method="GET"}'
-    values: '0+60x100'
+    values: '0+60x50'
   - series: 'frontend_http_requests_duration_seconds_bucket{le="5", route="/api/clusters", method="GET"}'
-    values: '0+60x100'
+    values: '0+60x50'
   - series: 'frontend_http_requests_duration_seconds_bucket{le="+Inf", route="/api/clusters", method="GET"}'
-    values: '0+60x100'
+    values: '0+60x50'
   alert_rule_test:
-  - eval_time: 62m
-    alertname: FrontendLatency
+  - eval_time: 32m
+    alertname: FrontendPathLatency
     exp_alerts: []
