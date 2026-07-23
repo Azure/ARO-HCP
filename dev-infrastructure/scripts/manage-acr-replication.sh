@@ -156,7 +156,11 @@ if [ -n "$REPLICATION_INFO" ] && [ "$REPLICATION_INFO" != "null" ]; then
         create_replication
     elif [ "$REPLICATION_STATE" = "Succeeded" ]; then
         echo "Replication already exists and is in good state: $REPLICATION_NAME (state: $REPLICATION_STATE)"
-        reconcile_replication_endpoint "$REPLICATION_NAME" "$REPLICATION_ENDPOINT_ENABLED"
+        if [ "$DESIRED_ENDPOINT_ENABLED" = "false" ]; then
+            reconcile_replication_endpoint "$REPLICATION_NAME" "$REPLICATION_ENDPOINT_ENABLED"
+        else
+            echo "Endpoint reconciliation not requested for $REPLICATION_NAME; leaving existing enabled=$REPLICATION_ENDPOINT_ENABLED state unchanged"
+        fi
         exit 0
     else
         echo "Replication already exists but is not ready for endpoint reconciliation: $REPLICATION_NAME (state: $REPLICATION_STATE)"
