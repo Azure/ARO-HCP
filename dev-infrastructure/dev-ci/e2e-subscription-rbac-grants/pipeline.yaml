@@ -15,12 +15,6 @@ rolloutName: Dev CI E2E Subscription RBAC Grants Rollout
 # apply these grants. Run the Microsoft.Azure.ARO.HCP.DevCI.Privileged
 # entrypoint on demand with `make dev-ci-privileged-local-run` as a member
 # of the OWNERS group (who has real Owner) when a change touches these grants.
-#
-# Prerequisite: the CI bot service principals must already exist —
-# ci-bot-rbac.bicep looks them up via `existing` (by uniqueName). This service
-# group is nested under Microsoft.Azure.ARO.HCP.DevCI.E2ESubscriptionRBAC in the
-# topology, which creates those identities, so within a single privileged
-# rollout the identities are guaranteed to exist before these grants run.
 resourceGroups:
 - name: grants
   resourceGroup: '{{ .global.rg }}'

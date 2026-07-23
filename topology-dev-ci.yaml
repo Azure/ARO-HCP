@@ -2,13 +2,13 @@ entrypoints:
 - identifier: 'Microsoft.Azure.ARO.HCP.DevCI.Unprivileged'
   metadata:
     name: Dev CI Infrastructure
-# PRIVILEGED, on-demand only. Rolls out the CI bot Entra identity lifecycle
-# (Entra application + service principal directory-object writes) and the
-# subscription-scoped custom role definitions and role assignments that require
-# Owner (or User Access Administrator) on the target subscriptions. Kept as a
-# separate entrypoint so the unattended dev-ci postsubmit (which runs the
-# Unprivileged entrypoint) never touches it. Run manually by an OWNERS-group
-# member.
+# PRIVILEGED, on-demand only. Running this entrypoint requires BOTH Entra
+# directory privileges (to create and manage the CI bot Entra applications and
+# service principals) AND subscription Owner or User Access Administrator (to
+# write the custom role definitions and role assignments) — Azure RBAC alone is
+# not sufficient. Kept as a separate entrypoint so the unattended dev-ci
+# postsubmit (which runs the Unprivileged entrypoint) never touches it. Run
+# manually by an OWNERS-group member.
 - identifier: 'Microsoft.Azure.ARO.HCP.DevCI.Privileged'
   metadata:
     name: Dev CI Privileged Identities and Grants
@@ -29,14 +29,6 @@ services:
   - serviceGroup: Microsoft.Azure.ARO.HCP.DevCI.CIHealth
     pipelinePath: dev-infrastructure/dev-ci/cihealth/pipeline.yaml
     purpose: Deploy the CIHealth runtime on cihealth.tools.hcpsvc.osadev.cloud.
-# PRIVILEGED, on-demand only. The `Privileged` root is a no-op grouping
-# pipeline. Its E2ESubscriptionRBAC child creates/reconciles the CI bot Entra
-# identities (directory-object writes) and rotates their Key Vault secrets, and
-# that child's own E2ESubscriptionRBACGrants child applies the Owner-only
-# subscription-scoped grants. Nesting grants under the identity service group
-# guarantees the identities exist (they are looked up via `existing`) before the
-# grants run, within a single privileged rollout. An OWNERS-group member runs it
-# manually with `make dev-ci-privileged-local-run`. See docs/ci/dev-ci-topology.md.
 - serviceGroup: Microsoft.Azure.ARO.HCP.DevCI.Privileged
   pipelinePath: dev-infrastructure/dev-ci/privileged/pipeline.yaml
   purpose: No-op grouping root for the on-demand privileged entrypoint. Owner-only; run manually by an OWNERS-group member.

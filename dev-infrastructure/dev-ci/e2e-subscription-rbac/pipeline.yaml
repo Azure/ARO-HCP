@@ -1,22 +1,10 @@
 $schema: "pipeline.schema.v1"
 serviceGroup: Microsoft.Azure.ARO.HCP.DevCI.E2ESubscriptionRBAC
 rolloutName: Dev CI E2E Subscription RBAC Rollout
-# PRIVILEGED pipeline: reconciles the CI bot Entra identities. The
-# ci-bot-identity ARM step creates/updates the bot Entra applications and their
-# service principals, and the ci-bot-secret-* steps mint client secrets into
-# those applications (via Microsoft Graph addPassword) — both are Entra
-# directory-object writes, not Azure RBAC. An unattended CI identity is not
-# meant to hold app/SP-management or credential-minting rights on directory
-# objects, so this pipeline is deliberately kept OUT of the unattended
-# Microsoft.Azure.ARO.HCP.DevCI.Unprivileged entrypoint (dev-ci postsubmit).
-#
-# It is instead a child of the Microsoft.Azure.ARO.HCP.DevCI.Privileged
-# entrypoint and is run on demand by an OWNERS-group member
-# (`make dev-ci-privileged-local-run`), who holds the directory privileges to
-# manage these identities. Bot identity changes are infrequent, so running this
-# on demand adds negligible operational burden. The subscription-scoped role
-# definitions and role assignments live in the E2ESubscriptionRBACGrants child
-# service group, which is nested under this one so it runs afterwards.
+# Reconciles the CI bot Entra identities: the ci-bot-identity step creates the
+# bot Entra applications and service principals, and the ci-bot-secret-* steps
+# mint their client secrets. These are Entra directory-object writes, so this is
+# a privileged pipeline that the unattended dev-ci postsubmit never runs.
 resourceGroups:
 - name: ci-bots
   resourceGroup: '{{ .global.rg }}'
