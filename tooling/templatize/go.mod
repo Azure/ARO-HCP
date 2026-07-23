@@ -70,7 +70,7 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azsecrets v1.4.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/internal v1.2.0 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20250102033503-faa5f7b0171c // indirect
-	github.com/AzureAD/microsoft-authentication-library-for-go v1.7.0 // indirect
+	github.com/AzureAD/microsoft-authentication-library-for-go v1.7.2 // indirect
 	github.com/BurntSushi/toml v1.6.0 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp v1.31.0 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric v0.55.0 // indirect
@@ -320,3 +320,5 @@ require (
 )
 
 replace github.com/go-echarts/go-echarts/v2 => github.com/stevekuznetsov/go-echarts/v2 v2.0.0-20251106144453-30c025b42a65
+
+replace github.com/Azure/ARO-Tools/tools/istio-upgrade => github.com/trevorwilliams2025/ARO-Tools/tools/istio-upgrade v0.0.0-20260723024249-400f97750fc4
