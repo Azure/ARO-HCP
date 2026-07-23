@@ -199,6 +199,7 @@ tests:
         summary: "mgmt-1: Credential operation stuck in accepted for over 1 hour"
         description: "Credential operation for /sub/3/cluster/stuck has been in accepted phase for over 1 hour. Stuck operations are invisible to success/failure SLIs and require investigation."
         runbook_url: "aka.ms/arohcp-runbook-access-cluster"
+        correlationId: "userJourneyAccessClusterStuckOperation/mgmt-1/sub-3"
 # ========================================
 # Test 5: No stuck operation — requestcredential in "provisioning" for < 1 hour
 # ========================================
@@ -392,6 +393,7 @@ tests:
         summary: "mgmt-1: Credential operation stuck in deleting for over 1 hour"
         description: "Credential operation for /sub/7/cluster/stuck-revoke has been in deleting phase for over 1 hour. Stuck operations are invisible to success/failure SLIs and require investigation."
         runbook_url: "aka.ms/arohcp-runbook-access-cluster"
+        correlationId: "userJourneyAccessClusterStuckOperation/mgmt-1/sub-7"
 # ========================================
 # Test 13: Stuck operation does not fire for e2e subscription
 # ========================================

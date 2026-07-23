@@ -197,6 +197,7 @@ tests:
         summary: "mgmt-1: Node Pool operation stuck in updating for over 2 hours"
         description: "Node pool operation for /sub/3/np/stuck has been in updating phase for over 2 hours. Stuck operations are invisible to success/failure SLIs and require investigation."
         runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
+        correlationId: "UJNodePoolStuckOperation/mgmt-1/sub-3"
 # ========================================
 # Test 5: No stuck operation — operation in "updating" for < 2 hours
 # ========================================
@@ -389,6 +390,7 @@ tests:
         summary: "mgmt-1: Node Pool operation stuck in deleting for over 2 hours"
         description: "Node pool operation for /sub/7/np/stuck-del has been in deleting phase for over 2 hours. Stuck operations are invisible to success/failure SLIs and require investigation."
         runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
+        correlationId: "UJNodePoolStuckOperation/mgmt-1/sub-7"
 # ========================================
 # Test 13: Stuck delete that flaps (backend retry resets start_time)
 # ========================================
@@ -425,6 +427,7 @@ tests:
         summary: "mgmt-1: Node Pool operation stuck in deleting for over 2 hours"
         description: "Node pool operation for /sub/8/np/flap-del has been in deleting phase for over 2 hours. Stuck operations are invisible to success/failure SLIs and require investigation."
         runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
+        correlationId: "UJNodePoolStuckOperation/mgmt-1/sub-8"
   # Raw condition FALSE here (start_time reset → age < 7200s) but the resource is
   # still wedged. The 6h hold keeps the same alert firing → no resolve, no duplicate.
   - eval_time: 300m
@@ -442,6 +445,7 @@ tests:
         summary: "mgmt-1: Node Pool operation stuck in deleting for over 2 hours"
         description: "Node pool operation for /sub/8/np/flap-del has been in deleting phase for over 2 hours. Stuck operations are invisible to success/failure SLIs and require investigation."
         runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
+        correlationId: "UJNodePoolStuckOperation/mgmt-1/sub-8"
   # Raw condition true again after re-crossing 7200s — still one continuous alert.
   - eval_time: 470m
     alertname: UJNodePoolStuckOperation
@@ -458,6 +462,7 @@ tests:
         summary: "mgmt-1: Node Pool operation stuck in deleting for over 2 hours"
         description: "Node pool operation for /sub/8/np/flap-del has been in deleting phase for over 2 hours. Stuck operations are invisible to success/failure SLIs and require investigation."
         runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
+        correlationId: "UJNodePoolStuckOperation/mgmt-1/sub-8"
 # ========================================
 # Test 14: Stuck delete completes — alert clears after the 6h hold
 # ========================================
@@ -488,6 +493,7 @@ tests:
         summary: "mgmt-1: Node Pool operation stuck in deleting for over 2 hours"
         description: "Node pool operation for /sub/9/np/done-del has been in deleting phase for over 2 hours. Stuck operations are invisible to success/failure SLIs and require investigation."
         runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
+        correlationId: "UJNodePoolStuckOperation/mgmt-1/sub-9"
   # 6h after the last stuck sample (150m + 360m = 510m) the hold expires → resolved.
   - eval_time: 520m
     alertname: UJNodePoolStuckOperation

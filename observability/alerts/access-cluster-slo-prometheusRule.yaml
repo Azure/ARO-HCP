@@ -127,6 +127,7 @@ spec:
         summary: "{{ $labels.cluster }}: Credential operation stuck in {{ $labels.phase }} for over 1 hour"
         description: "Credential operation for {{ $labels.resource_id }} has been in {{ $labels.phase }} phase for over 1 hour. Stuck operations are invisible to success/failure SLIs and require investigation."
         runbook_url: "aka.ms/arohcp-runbook-access-cluster"
+        correlationId: "userJourneyAccessClusterStuckOperation/{{ $labels.cluster }}/{{ $labels.subscription_id }}"
   # ========================================
   # Access the Cluster Alerts — Saturation
   # ========================================
