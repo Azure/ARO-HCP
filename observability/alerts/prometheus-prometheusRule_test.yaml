@@ -5,7 +5,7 @@ tests:
 # prometheus-slo-rules group tests
 - interval: 1m
   input_series:
-  - series: 'up{job="kubelet",cluster="test"}'
+  - series: 'underlay_clusters{cluster="test",source="bicep"}'
     values: "1+0x15"
   - series: 'up{job="prometheus/prometheus",namespace="prometheus",cluster="test"}'
     values: "0+0x15"
@@ -199,7 +199,7 @@ tests:
 # Additional test scenarios with multiple instances
 - interval: 1m
   input_series:
-  - series: 'up{job="kubelet",cluster="test"}'
+  - series: 'underlay_clusters{cluster="test",source="bicep"}'
     values: "1+0x15"
   - series: 'up{job="prometheus/prometheus",namespace="prometheus",instance="prometheus-0",cluster="test"}'
     values: "0+0x15"
@@ -222,7 +222,7 @@ tests:
 # Test no alert scenario for PrometheusJobUp
 - interval: 1m
   input_series:
-  - series: 'up{job="kubelet",cluster="test"}'
+  - series: 'underlay_clusters{cluster="test",source="bicep"}'
     values: "1+0x15"
   - series: 'up{job="prometheus/prometheus",namespace="prometheus",cluster="test"}'
     values: "1+0x15"
@@ -430,7 +430,7 @@ tests:
 # Test PrometheusJobUp with sustained outage
 - interval: 1m
   input_series:
-  - series: 'up{job="kubelet",cluster="test"}'
+  - series: 'underlay_clusters{cluster="test",source="bicep"}'
     values: "1+0x15"
   - series: 'up{job="prometheus/prometheus",namespace="prometheus",cluster="test"}'
     values: "0+0x15" # Continuously down
@@ -676,7 +676,7 @@ tests:
 # Test that alert does not fire before for: 10m is reached
 - interval: 1m
   input_series:
-  - series: 'up{job="kubelet",cluster="test"}'
+  - series: 'underlay_clusters{cluster="test",source="bicep"}'
     values: "1+0x10"
   - series: 'up{job="prometheus/prometheus",namespace="prometheus",cluster="test"}'
     values: "0+0x10"
@@ -687,7 +687,7 @@ tests:
 # Test that alert fires once for: 10m is reached
 - interval: 1m
   input_series:
-  - series: 'up{job="kubelet",cluster="test"}'
+  - series: 'underlay_clusters{cluster="test",source="bicep"}'
     values: "1+0x15"
   - series: 'up{job="prometheus/prometheus",namespace="prometheus",cluster="test"}'
     values: "0+0x15"
@@ -778,7 +778,7 @@ tests:
 # Test recovery after alert condition
 - interval: 1m
   input_series:
-  - series: 'up{job="kubelet",cluster="test"}'
+  - series: 'underlay_clusters{cluster="test",source="bicep"}'
     values: "1+0x25"
   - series: 'up{job="prometheus/prometheus",namespace="prometheus",cluster="test"}'
     values: "0+0x12 1+0x13" # Down for 12 minutes, then up
@@ -858,10 +858,12 @@ tests:
     alertname: PrometheusUptimeSampleCount
     exp_alerts: []
 # Test PrometheusMetricsAbsentPerCluster - cluster went dead
-# 20 samples at 1m interval (t=0 to t=19m), then nothing.
-# At eval_time=40m: [7d] window has 20 samples, [10m] window (t=30m-40m) has 0 → fires.
+# The underlay inventory declares the cluster, and Prometheus reports for 20m before going absent.
+# At eval_time=40m, the [10m] window (t=30m-40m) has 0 samples → fires.
 - interval: 1m
   input_series:
+  - series: 'underlay_clusters{cluster="dead-cluster",source="bicep"}'
+    values: "1+0x50"
   - series: 'up{job="prometheus/prometheus",namespace="prometheus",cluster="dead-cluster"}'
     values: "1+0x20"
   alert_rule_test:
@@ -874,13 +876,15 @@ tests:
       exp_annotations:
         summary: Prometheus metrics absent for cluster dead-cluster.
         description: |
-          Prometheus on cluster dead-cluster has not reported any up metrics in the last 10 minutes, but was reporting within the last 7 days.
+          Prometheus on cluster dead-cluster has not reported any up metrics in the last 10 minutes, but is declared in the underlay cluster inventory.
           This indicates the Prometheus agent on this specific cluster is dead or its remote write pipeline is broken.
           Check the PrometheusAgent pod status and remote write configuration on the affected cluster.
         runbook_url: https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/Prometheus.md
 # Test PrometheusMetricsAbsentPerCluster - healthy cluster (continuous data)
 - interval: 1m
   input_series:
+  - series: 'underlay_clusters{cluster="healthy-cluster",source="bicep"}'
+    values: "1+0x50"
   - series: 'up{job="prometheus/prometheus",namespace="prometheus",cluster="healthy-cluster"}'
     values: "1+0x50"
   alert_rule_test:
@@ -891,6 +895,10 @@ tests:
 # Only the dead cluster should fire.
 - interval: 1m
   input_series:
+  - series: 'underlay_clusters{cluster="alive",source="bicep"}'
+    values: "1+0x50"
+  - series: 'underlay_clusters{cluster="dead",source="bicep"}'
+    values: "1+0x50"
   - series: 'up{job="prometheus/prometheus",namespace="prometheus",cluster="alive"}'
     values: "1+0x50"
   - series: 'up{job="prometheus/prometheus",namespace="prometheus",cluster="dead"}'
@@ -905,14 +913,91 @@ tests:
       exp_annotations:
         summary: Prometheus metrics absent for cluster dead.
         description: |
-          Prometheus on cluster dead has not reported any up metrics in the last 10 minutes, but was reporting within the last 7 days.
+          Prometheus on cluster dead has not reported any up metrics in the last 10 minutes, but is declared in the underlay cluster inventory.
           This indicates the Prometheus agent on this specific cluster is dead or its remote write pipeline is broken.
           Check the PrometheusAgent pod status and remote write configuration on the affected cluster.
         runbook_url: https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/Prometheus.md
+# Test UnderlayClusterInventoryEntryMissing - inventory entry disappeared
+- interval: 1m
+  input_series:
+  - series: 'underlay_clusters{cluster="missing-cluster",source="bicep"}'
+    values: "1+0x20"
+  alert_rule_test:
+  - eval_time: 40m
+    alertname: UnderlayClusterInventoryEntryMissing
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+        cluster: missing-cluster
+      exp_annotations:
+        summary: Underlay cluster inventory entry disappeared for missing-cluster.
+        description: |
+          Underlay cluster missing-cluster was present in the underlay cluster inventory within the last 7 days, but is no longer present.
+          The underlay cluster inventory is static deployment-time data and entries should not disappear while their service or management clusters still exist.
+          Investigate the underlay_clusters recording rule and the cluster's deployment state.
+        runbook_url: https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/underlay_clusters.md
+# Test UnderlayClusterInventoryEntryMissing - inventory entry still present
+- interval: 1m
+  input_series:
+  - series: 'underlay_clusters{cluster="present-cluster",source="bicep"}'
+    values: "1+0x50"
+  alert_rule_test:
+  - eval_time: 40m
+    alertname: UnderlayClusterInventoryEntryMissing
+    exp_alerts: []
+# Test UnderlayClusterInventoryTooSmall - fewer than expected cluster labels
+- interval: 1m
+  input_series:
+  - series: 'underlay_clusters{cluster="svc-1",source="bicep"}'
+    values: "1+0x15"
+  - series: 'underlay_clusters{cluster="mgmt-1",source="bicep"}'
+    values: "1+0x15"
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: UnderlayClusterInventoryTooSmall
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+      exp_annotations:
+        summary: Underlay cluster inventory has too few entries.
+        description: |
+          The underlay cluster inventory has two or fewer cluster labels, or the underlay_clusters metric is completely absent.
+          The inventory should include all service and management clusters and should never be this small.
+          Investigate the underlay_clusters recording rules before dependent alerts lose their source of truth.
+        runbook_url: https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/underlay_clusters.md
+# Test UnderlayClusterInventoryTooSmall - metric is absent
+- interval: 1m
+  input_series: []
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: UnderlayClusterInventoryTooSmall
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+      exp_annotations:
+        summary: Underlay cluster inventory has too few entries.
+        description: |
+          The underlay cluster inventory has two or fewer cluster labels, or the underlay_clusters metric is completely absent.
+          The inventory should include all service and management clusters and should never be this small.
+          Investigate the underlay_clusters recording rules before dependent alerts lose their source of truth.
+        runbook_url: https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/underlay_clusters.md
+# Test UnderlayClusterInventoryTooSmall - inventory has enough cluster labels
+- interval: 1m
+  input_series:
+  - series: 'underlay_clusters{cluster="svc-1",source="bicep"}'
+    values: "1+0x15"
+  - series: 'underlay_clusters{cluster="mgmt-1",source="bicep"}'
+    values: "1+0x15"
+  - series: 'underlay_clusters{cluster="mgmt-2",source="bicep"}'
+    values: "1+0x15"
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: UnderlayClusterInventoryTooSmall
+    exp_alerts: []
 # Test multiple namespaces and jobs
 - interval: 1m
   input_series:
-  - series: 'up{job="kubelet",cluster="test"}'
+  - series: 'underlay_clusters{cluster="test",source="bicep"}'
     values: "1+0x15"
   - series: 'up{job="prometheus/prometheus",namespace="monitoring",cluster="test"}'
     values: "0+0x15"

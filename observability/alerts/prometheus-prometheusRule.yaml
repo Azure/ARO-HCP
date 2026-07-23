@@ -13,9 +13,7 @@ spec:
   - name: prometheus-wip-rules
     rules:
     - alert: PrometheusJobUp
-      # TODO: once PR #5732 (underlay_clusters source-of-truth metric) is merged and confirmed
-      # working in production, replace up{job="kubelet"} with underlay_clusters.
-      expr: group by (cluster) (up{job="kubelet"}) unless on(cluster) group by (cluster) (up{job="prometheus/prometheus",namespace="prometheus"} == 1)
+      expr: group by (cluster) (underlay_clusters) unless on(cluster) group by (cluster) (up{job="prometheus/prometheus",namespace="prometheus"} == 1)
       for: 10m
       labels:
         severity: critical
@@ -68,17 +66,41 @@ spec:
         runbook_url: https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/Prometheus.md
         summary: Prometheus sample count below 95% SLO threshold for 24 hours.
     - alert: PrometheusMetricsAbsentPerCluster
-      expr: count by (cluster) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[7d])) unless count by (cluster) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[10m]))
+      expr: group by (cluster) (underlay_clusters) unless on(cluster) count by (cluster) (count_over_time(up{job="prometheus/prometheus",namespace="prometheus"}[10m]))
       for: 10m
       labels:
         severity: critical
       annotations:
         description: |
-          Prometheus on cluster {{ $labels.cluster }} has not reported any up metrics in the last 10 minutes, but was reporting within the last 7 days.
+          Prometheus on cluster {{ $labels.cluster }} has not reported any up metrics in the last 10 minutes, but is declared in the underlay cluster inventory.
           This indicates the Prometheus agent on this specific cluster is dead or its remote write pipeline is broken.
           Check the PrometheusAgent pod status and remote write configuration on the affected cluster.
         runbook_url: https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/Prometheus.md
         summary: Prometheus metrics absent for cluster {{ $labels.cluster }}.
+    - alert: UnderlayClusterInventoryEntryMissing
+      expr: group by (cluster) (count_over_time(underlay_clusters[7d])) unless on(cluster) group by (cluster) (underlay_clusters)
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        description: |
+          Underlay cluster {{ $labels.cluster }} was present in the underlay cluster inventory within the last 7 days, but is no longer present.
+          The underlay cluster inventory is static deployment-time data and entries should not disappear while their service or management clusters still exist.
+          Investigate the underlay_clusters recording rule and the cluster's deployment state.
+        runbook_url: https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/underlay_clusters.md
+        summary: Underlay cluster inventory entry disappeared for {{ $labels.cluster }}.
+    - alert: UnderlayClusterInventoryTooSmall
+      expr: count(count by (cluster) (underlay_clusters)) <= 2 or absent(underlay_clusters)
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        description: |
+          The underlay cluster inventory has two or fewer cluster labels, or the underlay_clusters metric is completely absent.
+          The inventory should include all service and management clusters and should never be this small.
+          Investigate the underlay_clusters recording rules before dependent alerts lose their source of truth.
+        runbook_url: https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/underlay_clusters.md
+        summary: Underlay cluster inventory has too few entries.
     - alert: PrometheusPendingRate
       expr: |
         (
