@@ -449,6 +449,11 @@ defaults:
       registry: "empty-sentinel"
       repository: "empty-sentinel"
       digest: ""
+    dryRun: false
+    imageArtifact:
+      adoProject: "empty-sentinel"
+      artifactName: "empty-sentinel"
+      buildId: 0
   velero:
     server:
       registry: registry.stage.redhat.io

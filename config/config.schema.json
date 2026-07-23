@@ -3150,13 +3150,21 @@
         },
         "image": {
           "$ref": "#/definitions/containerImage"
+        },
+        "imageArtifact": {
+          "$ref": "#/definitions/imageArtifact"
+        },
+        "dryRun": {
+          "type": "boolean"
         }
       },
       "additionalProperties": false,
       "required": [
         "quotaGroup",
         "managedIdentityName",
-        "image"
+        "image",
+        "imageArtifact",
+        "dryRun"
       ]
     },
     "velero": {
