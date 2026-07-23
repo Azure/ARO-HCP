@@ -1,12 +1,12 @@
 acm:
   mce:
     bundle:
-      digest: sha256:eb46b3822867e695d32d33ebbeb09d5f6c91e411f0af2b2ebd7343a701c212e3
+      digest: sha256:01f6bf8246b5cf3f3c0da99401a6d82cdd840fc01fc332010f8ebc8d899bba9a
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-211
   operator:
     bundle:
-      digest: sha256:4ff4c070746c9f2c907348ccdbeef184c668fa58a9a2a5d76f2c22675b755ed4
+      digest: sha256:079dec97bfe065158c458d2b39fac0a1c3410e0500619c0e9bc86c84d83d696f
       registry: quay.io
       repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-216
 acr:
@@ -87,7 +87,7 @@ arobit:
   mdsd:
     enabled: false
     image:
-      digest: sha256:ed65f2fc550d8db6c88f12e49ceb8ac3901ebc225b7e8a6d2b67b914524290c5
+      digest: sha256:c71574be76cdf6c70d36314797849851db48b93bc1aea43a0c09e79c8887bbe5
       registry: mcr.microsoft.com
       repository: geneva/distroless/mdsd
 auditLogsEventHub:
@@ -447,7 +447,7 @@ hcpRecovery:
 hypershift:
   additionalInstallArg: --enable-cpo-overrides
   image:
-    digest: sha256:da21b77d218afb22db0268995dfaa05be80e01acda56f89e4ffc64b0b0164e60
+    digest: sha256:81118b9631666f0b137e91c979ae9fe02e55ed094350cda71e569162a21401bd
     registry: quay.io
     repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
   limitClusterSizes: true
@@ -467,7 +467,7 @@ imageSync:
   ocMirror:
     enabled: true
     image:
-      digest: sha256:3e5c6d677a5af92e908da1f6b973dc610e248f8a63979043a8a89926929335b8
+      digest: sha256:c815742f89d88726367c0c6058044b6a833cfa8bc6c524209704acf8cec01fc2
       registry: arohcpsvcdev.azurecr.io
       repository: image-sync/oc-mirror
     jobNamePrefix: ""
@@ -553,7 +553,7 @@ maestro:
     managedIdentityName: maestro-consumer
     sidecar:
       image:
-        digest: sha256:70afc56e557debb6671f999af0afb01cd93c93d47121ca879b6f0894de5c17fe
+        digest: sha256:3352a36cbcab4708883a3e77b64f64159e11e1aab358c010e1c4e465dbfb4f57
         registry: mcr.microsoft.com
         repository: azurelinux/base/nginx
   certIssuer: Self
