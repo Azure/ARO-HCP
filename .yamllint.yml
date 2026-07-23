@@ -53,10 +53,6 @@ ignore:
 - 'kube-applier/deploy/templates/deployment.yaml'
 - 'image-registry-policy/deploy/templates/validatingadmissionpolicybinding.yaml'
 - 'image-registry-policy/values.yaml'
-- 'hypershiftoperator/deploy/templates/sre-metrics-set.configmap.yaml'
-- 'hypershiftoperator/values.yaml'
-- 'observability/arobit/values-mgmt.yaml'
-- 'observability/arobit/values-svc.yaml'
 rules:
   brackets: enable
   colons: enable
