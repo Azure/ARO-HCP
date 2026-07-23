@@ -265,39 +265,6 @@ tests:
   - eval_time: 7m
     alertname: UJNodePoolSaturationQueueDepth
 # ========================================
-# Test 9: Retry hot loop — retry ratio > 50%
-# ========================================
-- interval: 1m
-  input_series:
-  - series: 'workqueue_retries_total{namespace="aro-hcp", name="OperationNodePoolUpdate", cluster="mgmt-1"}'
-    values: "0+80x25"
-  - series: 'workqueue_adds_total{namespace="aro-hcp", name="OperationNodePoolUpdate", cluster="mgmt-1"}'
-    values: "0+100x25"
-  alert_rule_test:
-  - eval_time: 22m
-    alertname: UJNodePoolSaturationRetryHotLoop
-    exp_alerts:
-    - exp_labels:
-        name: "OperationNodePoolUpdate"
-        cluster: "mgmt-1"
-        severity: info
-      exp_annotations:
-        summary: "mgmt-1: Node Pool controller workqueue OperationNodePoolUpdate retry hot loop"
-        description: "Node pool controller workqueue OperationNodePoolUpdate has a retry ratio > 50% sustained over 10 minutes, indicating most queue activity is failed retries rather than fresh work."
-        runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
-# ========================================
-# Test 10: Retry hot loop — low retry ratio, no alert
-# ========================================
-- interval: 1m
-  input_series:
-  - series: 'workqueue_retries_total{namespace="aro-hcp", name="OperationNodePoolUpdate", cluster="mgmt-1"}'
-    values: "0+10x25"
-  - series: 'workqueue_adds_total{namespace="aro-hcp", name="OperationNodePoolUpdate", cluster="mgmt-1"}'
-    values: "0+100x25"
-  alert_rule_test:
-  - eval_time: 22m
-    alertname: UJNodePoolSaturationRetryHotLoop
-# ========================================
 # Test 11: Mixed operation types — update and delete both tracked
 # ========================================
 # Verifies both update and delete operations are captured by the regex filter.
