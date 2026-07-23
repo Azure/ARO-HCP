@@ -411,19 +411,24 @@ func (c *ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPITyp
 		if objPreviouslySeen {
 			objDeleted = true
 		} else {
-			logger.Info("skipping soft-deleted document not previously seen", "content", cosmosObj)
+			logger.Info("skipping soft-deleted document not previously seen",
+				"snapshotType", "cosmos",
+				"content", cosmosObj)
 			return nil
 		}
 	} else if c.shouldDeliverItemFn != nil && !c.shouldDeliverItemFn(internalObj) {
 		if objPreviouslySeen {
 			objDeleted = true
 		} else {
-			logger.Info("should not deliver document", "content", cosmosObj)
+			logger.Info("should not deliver document",
+				"snapshotType", "cosmos",
+				"content", cosmosObj)
 			return nil
 		}
 	}
 
 	logger.Info("delivering change feed item",
+		"snapshotType", "cosmos",
 		"content", cosmosObj,
 		"internalObj", internalObj,
 	)
