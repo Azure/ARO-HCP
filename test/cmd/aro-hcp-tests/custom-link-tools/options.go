@@ -525,5 +525,17 @@ func getServiceLogLinks(tw timing.TimeWindow, svcClusterName, mgmtClusterName st
 		allLinks = append(allLinks, createLink(mt.displayName, q, kustoInfo))
 	}
 
+	// HyperShift Operator image on the management cluster
+	hoImageDef, err := factory.GetCustomQueryDefinition("hypershiftOperatorImage")
+	if err != nil {
+		return nil, fmt.Errorf("failed to get hypershift operator image query definition: %w", err)
+	}
+	hoImageData := kusto.NewTemplateDataFromOptions(mgmtOpts)
+	hoImageQuery, err := factory.BuildMerged(*hoImageDef, hoImageData)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build hypershift operator image query: %w", err)
+	}
+	allLinks = append(allLinks, createLink("HyperShift Operator Image", hoImageQuery, kustoInfo))
+
 	return allLinks, nil
 }
