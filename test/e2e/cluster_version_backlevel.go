@@ -147,9 +147,9 @@ var _ = Describe("Customer", func() {
 				)
 				Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster version %s", version.controlPlaneVersion)
 
-				adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20240610(
-					ctx,
-					tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
+				adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20260630(
+				ctx,
+				tc.Get20260630ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 					*resourceGroup.Name,
 					clusterName,
 					framework.GetAdminRESTConfigTimeout,

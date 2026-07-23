@@ -109,9 +109,9 @@ var _ = Describe("FIPS Mode Support", func() {
 				Expect(*fipsTag).To(Equal("true"), "FIPS tag should be set to 'true'")
 
 				By("getting credentials")
-				adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20240610(
-					ctx,
-					tc.Get20240610ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
+				adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20260630(
+				ctx,
+				tc.Get20260630ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 					*resourceGroup.Name,
 					customerClusterName,
 					framework.GetAdminRESTConfigTimeout,
