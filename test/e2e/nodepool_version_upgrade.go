@@ -59,7 +59,7 @@ var _ = Describe("Customer", func() {
 			if nodePoolMinorVersion.EQ(targetMinorVersion) {
 				// z-stream: same y.z line — older patch on node pool, cluster on latest patch.
 				nodePoolInitialVersion = targetMinor
-				hasUpgradePath, err := framework.HasZStreamUpgradePath(ctx, "candidate", targetMinor)
+				hasUpgradePath, err = framework.HasZStreamUpgradePath(ctx, channelGroup, targetMinor)
 				if err != nil {
 					if cincinnati.IsCincinnatiVersionNotFoundError(err) {
 						Skip(fmt.Sprintf("Cincinnati returned version not found for target minor %s on channel %s", targetMinor, channelGroup))

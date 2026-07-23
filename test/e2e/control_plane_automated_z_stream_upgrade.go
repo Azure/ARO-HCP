@@ -96,7 +96,7 @@ var _ = Describe("Service Provider", func() {
 			// 4.22 control plane provisioning has been consistently slower and frequently hits the default timeout.
 			// Bump the create+wait budget to reduce flaky timeouts for this minor.
 			if minorVersion == "4.22" {
-				clusterCreationTimeout += 15
+				clusterCreationTimeout += 15 * time.Minute
 			}
 
 			// ACT
