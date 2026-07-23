@@ -1,0 +1,106 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    app.kubernetes.io/name: kube-prometheus
+    app.kubernetes.io/part-of: kube-prometheus
+    prometheus: k8s
+    role: alert-rules
+  name: cluster-provision-slo-rules
+  namespace: monitoring
+spec:
+  groups:
+  # ========================================
+  # Cluster Provisioning SLO Alerts — Errors
+  # ========================================
+  # Recording rules feeding these alerts (errors:backend_cluster_provision:*)
+  # live in recording-rules/cluster-provision-slo-recordingRule.yaml.
+  # Multi-window burn-rate-style alerting adapted for gauge metrics.
+  # Naming convention: {Scope}{Subject}{Metric}{BurnRateTier} per ADR-001.
+  #
+  # Burn rate thresholds calculated from 95% SLO (5% error budget):
+  #   Fast (14.4x): 14.4 * 0.05 = 0.72 → 72% error rate
+  #   Medium (6x):  6 * 0.05 = 0.30 → 30% error rate
+  #   Slow (1x):    1 * 0.05 = 0.05 → 5% error rate
+  #
+  # The 'for' duration enforces sustained observation, approximating the
+  # short window of multi-window burn rate alerting. For gauge metrics
+  # (point-in-time state rather than event rates), this provides equivalent
+  # protection against transient spikes.
+  #
+  # Severity: cluster provisioning is the primary customer-facing RP-lane user
+  # journey, so fast/medium burn page at IcM Sev 3 and slow/degradation raise a
+  # Sev 4 ticket, mirroring the access-cluster SLO severity model.
+  - name: arohcp_cluster_provision_slo_error_alerts
+    rules:
+    # ----------------------------------------
+    # Fast Burn Alert (IcM Sev 3 — RP lane / customer-facing UJ)
+    # ----------------------------------------
+    # 14.4x burn rate → >72% failure rate sustained for 5 minutes
+    # Would exhaust 7-day error budget in ~12 hours
+    - alert: UJClusterProvisionErrors1h5m
+      expr: |
+        errors:backend_cluster_provision:error_rate > 0.72
+      for: 5m
+      labels:
+        severity: "3"
+        slo: cluster-provision-errors
+        long_window: 1h
+        short_window: 5m
+      annotations:
+        summary: "{{ $labels.cluster }}: Cluster provisioning error rate critically high (>72%)"
+        description: "More than 72% of cluster create (install) operations are in failed state, indicating a fast error budget burn (14.4x) that would exhaust the 95% SLO budget in ~12 hours. A regional install failure of this magnitude typically points at a shared dependency (e.g. registry, DNS, or ARM) rather than individual clusters."
+        runbook_url: "https://aka.ms/arohcp-runbook-cluster-provision"
+    # ----------------------------------------
+    # Medium Burn Alert (IcM Sev 3)
+    # ----------------------------------------
+    # 6x burn rate → >30% failure rate sustained for 30 minutes
+    # Would exhaust 7-day error budget in ~28 hours
+    - alert: UJClusterProvisionErrors6h30m
+      expr: |
+        errors:backend_cluster_provision:error_rate > 0.30
+      for: 30m
+      labels:
+        severity: "3"
+        slo: cluster-provision-errors
+        long_window: 6h
+        short_window: 30m
+      annotations:
+        summary: "{{ $labels.cluster }}: Cluster provisioning error rate elevated (>30%) for 30+ minutes"
+        description: "More than 30% of cluster create (install) operations are in failed state sustained over 30 minutes, indicating a medium error budget burn (6x) that would exhaust the 95% SLO budget in ~28 hours."
+        runbook_url: "https://aka.ms/arohcp-runbook-cluster-provision"
+    # ----------------------------------------
+    # Slow Burn Alert (IcM Sev 4 — ticket)
+    # ----------------------------------------
+    # Per ADR: slow burn alerts generate a ticket, not a page.
+    # 1x burn rate → >5% failure rate sustained for 6 hours
+    # Would exhaust 7-day error budget in ~7 days
+    - alert: UJClusterProvisionErrors3d
+      expr: |
+        errors:backend_cluster_provision:error_rate > 0.05
+      for: 6h
+      labels:
+        severity: "4"
+        slo: cluster-provision-errors
+        long_window: 3d
+      annotations:
+        summary: "{{ $labels.cluster }}: Cluster provisioning error rate exceeds SLO target (>5%) for 6+ hours"
+        description: "More than 5% of cluster create (install) operations are in failed state sustained over 6 hours, indicating persistent degradation at the 95% SLO boundary that would exhaust the error budget in ~7 days."
+        runbook_url: "https://aka.ms/arohcp-runbook-cluster-provision"
+    # ----------------------------------------
+    # Degradation Alert (IcM Sev 4 — ticket)
+    # ----------------------------------------
+    # With a 95% SLO, the fast-burn threshold only fires at ~72% failure rate.
+    # This provides early warning at 15% failure rate before burn-rate alerts fire.
+    # Precursor signal → Sev 4 per ADR.
+    - alert: UJClusterProvisionErrorsDegradation
+      expr: |
+        errors:backend_cluster_provision:error_rate > 0.15
+      for: 30m
+      labels:
+        severity: "4"
+        slo: cluster-provision-errors
+      annotations:
+        summary: "{{ $labels.cluster }}: Cluster provisioning failure rate exceeds 15% for 30 minutes"
+        description: "The cluster create (install) failure rate has been above 15% for 30 minutes. This provides early warning of degradation before SLO-based burn rate alerts fire."
+        runbook_url: "https://aka.ms/arohcp-runbook-cluster-provision"
