@@ -110,8 +110,8 @@ var _ = Describe("FIPS Mode Support", func() {
 
 				By("getting credentials")
 				adminRESTConfig, err := tc.GetAdminRESTConfigForHCPCluster20260630(
-				ctx,
-				tc.Get20260630ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
+					ctx,
+					tc.Get20260630ClientFactoryOrDie(ctx).NewHcpOpenShiftClustersClient(),
 					*resourceGroup.Name,
 					customerClusterName,
 					framework.GetAdminRESTConfigTimeout,
