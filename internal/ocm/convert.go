@@ -27,7 +27,6 @@ import (
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
-	cmv1 "github.com/openshift-online/ocm-sdk-go/clustersmgmt/v1"
 	ocmerrors "github.com/openshift-online/ocm-sdk-go/errors"
 
 	"github.com/Azure/ARO-HCP/internal/api"
@@ -652,14 +651,6 @@ func BuildCSExternalAuth(ctx context.Context, externalAuth *api.HCPOpenShiftClus
 	}
 
 	return externalAuthBuilder, nil
-}
-
-// ConvertCStoAdminCredential converts a CS BreakGlassCredential object into an HCPOpenShiftClusterAdminCredential object.
-func ConvertCStoAdminCredential(breakGlassCredential *cmv1.BreakGlassCredential) *api.HCPOpenShiftClusterAdminCredential {
-	return &api.HCPOpenShiftClusterAdminCredential{
-		ExpirationTimestamp: breakGlassCredential.ExpirationTimestamp(),
-		Kubeconfig:          breakGlassCredential.Kubeconfig(),
-	}
 }
 
 // ConvertCStoHCPOpenShiftVersion converts a CS Version object into an HCPOpenShiftVersion object.
