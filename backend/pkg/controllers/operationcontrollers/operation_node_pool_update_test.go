@@ -40,9 +40,9 @@ import (
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	"github.com/openshift/hypershift/api/hypershift/v1beta1"
 
+	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listertesting"
-	"github.com/Azure/ARO-HCP/backend/pkg/maestrohelpers"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
@@ -521,7 +521,7 @@ func newNodePoolReadDesire(t *testing.T, nodePool *api.HCPOpenShiftClusterNodePo
 	resourceID := api.Must(azcorearm.ParseResourceID(
 		kubeapplier.ToNodePoolScopedReadDesireResourceIDString(
 			testSubscriptionID, testResourceGroupName, testClusterName, testNodePoolName,
-			maestrohelpers.ReadDesireNameReadonlyNodePool)))
+			kubeapplierhelpers.ReadDesireNameReadonlyNodePool)))
 
 	return &kubeapplier.ReadDesire{
 		CosmosMetadata: api.CosmosMetadata{

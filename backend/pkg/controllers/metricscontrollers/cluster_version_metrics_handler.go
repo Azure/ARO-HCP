@@ -22,7 +22,7 @@ import (
 
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
-	"github.com/Azure/ARO-HCP/backend/pkg/maestrohelpers"
+	"github.com/Azure/ARO-HCP/backend/pkg/kubeapplierhelpers"
 	"github.com/Azure/ARO-HCP/internal/api"
 	dblisters "github.com/Azure/ARO-HCP/internal/database/listers"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -85,7 +85,7 @@ func (metricsHandler *clusterVersionMetricsHandler) clusterUUIDMetricLabel(
 	ctx context.Context,
 	clusterResourceID *azcorearm.ResourceID,
 ) string {
-	clusterUUID, found, err := maestrohelpers.GetCachedHostedClusterUUIDForCluster(
+	clusterUUID, found, err := kubeapplierhelpers.GetCachedHostedClusterUUIDForCluster(
 		ctx,
 		metricsHandler.readDesireLister,
 		clusterResourceID.SubscriptionID,
