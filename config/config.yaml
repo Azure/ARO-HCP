@@ -373,7 +373,7 @@ defaults:
       digest: sha256:5e22710fe440869655329ecc0ef57b4ae15f4ef96e74a8904b1e6fafc0d87678 # pinned, see AROSLSRE-978
     limitClusterSizes: false
     metricsSet:
-      extraHCPMetrics: []
+      performanceMetrics: false
   # Log settings
   logs:
     mdsd:
@@ -1628,8 +1628,7 @@ clouds:
             assignNSP: false
           hypershift:
             metricsSet:
-              extraHCPMetrics:
-              - performance
+              performanceMetrics: true
           dns:
             regionalSubdomain: '{{ .ctx.regionShort }}'
           maestro:

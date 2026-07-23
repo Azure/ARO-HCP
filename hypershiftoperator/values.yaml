@@ -12,11 +12,4 @@ operatorEnvVars:
   sharedIngressImage: "{{ .acr.ocp.name }}.{{ .acrDNSSuffix }}/{{ .hypershift.sharedIngressImage.repository }}@{{ .hypershift.sharedIngressImage.digest }}"
 limitClusterSizes: {{ .hypershift.limitClusterSizes }}
 metricsSet:
-{{- if .hypershift.metricsSet.extraHCPMetrics }}
-  extraHCPMetrics:
-{{- range .hypershift.metricsSet.extraHCPMetrics }}
-  - {{ . }}
-{{- end }}
-{{- else }}
-  extraHCPMetrics: []
-{{- end }}
+  performanceMetrics: {{ .hypershift.metricsSet.performanceMetrics }}

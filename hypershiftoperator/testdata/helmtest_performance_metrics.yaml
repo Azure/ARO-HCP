@@ -4,5 +4,4 @@ namespace: hypershift
 testData:
   hypershift:
     metricsSet:
-      extraHCPMetrics:
-      - performance
+      performanceMetrics: true

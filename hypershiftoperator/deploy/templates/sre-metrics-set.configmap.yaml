@@ -6,7 +6,7 @@ metadata:
 data:
   config: |
     etcd:
-{{- if not (has "performance" .Values.metricsSet.extraHCPMetrics) }}
+{{- if not .Values.metricsSet.performanceMetrics }}
       - action:       "drop"
         regex:        "etcd_debugging_.*"
         sourceLabels: ["__name__"]
@@ -21,7 +21,7 @@ data:
         regex:        "etcd_debugging_.*|etcd_disk_(backend_(commit|defrag|snapshot)|wal_(fsync|write))_duration_seconds_(bucket|count|sum)|etcd_mvcc_(db_total_size_in_(bytes|use_in_bytes)|(delete|put)_total|(hash|hash_rev)_duration_seconds_(bucket|count|sum))|etcd_network_(client_grpc_(received|sent)_bytes_total|peer_(received_bytes_total|round_trip_time_seconds_(bucket|count|sum)|sent_bytes_total))|etcd_server_(apply_duration_seconds_(bucket|count|sum)|has_leader|health_failures|heartbeat_send_failures_total|leader_changes_seen_total|proposals_(applied_total|committed_total|failed_total|pending)|quota_backend_bytes|slow_(apply_total|read_indexes_total))|etcd_snap_(db_(fsync|save_total)|fsync)_duration_seconds_(bucket|count|sum)|go_gc_duration_seconds(_sum|_count)?|go_goroutines|go_memstats_(alloc_bytes(_total)?|heap_(alloc|inuse)_bytes|mallocs_total|stack_inuse_bytes)|grpc_(client|server)_(handled|started|msg_received|msg_sent)_total|process_(cpu_seconds_total|resident_memory_bytes)"
         sourceLabels: ["__name__"]
     kubeAPIServer:
-{{- if not (has "performance" .Values.metricsSet.extraHCPMetrics) }}
+{{- if not .Values.metricsSet.performanceMetrics }}
       - action:       "drop"
         regex:        "apiserver_request_duration_seconds_.*|apiserver_request_slo_duration_seconds_.*|apiserver_response_sizes_.*|apiserver_request_body_size_bytes_.*|apiserver_admission_(controller|step)_admission_duration_seconds_.*"
         sourceLabels: ["__name__"]
@@ -37,7 +37,7 @@ data:
         regex:        "apiserver_client_certificate_expiration_seconds_(bucket|count|sum)|go_gc_duration_seconds(_sum|_count)?|go_goroutines|go_memstats_(alloc_bytes(_total)?|heap_(alloc|inuse)_bytes|mallocs_total|stack_inuse_bytes)|kubernetes_build_info|node_collector_zone_size|process_(cpu_seconds_total|resident_memory_bytes)|rest_client_(request_duration_seconds_(bucket|count|sum)|requests_total)|workqueue_(adds_total|depth|queue_duration_seconds_(bucket|count|sum)|retries_total|work_duration_seconds_(bucket|count|sum))"
         sourceLabels: ["__name__"]
     openshiftAPIServer:
-{{- if not (has "performance" .Values.metricsSet.extraHCPMetrics) }}
+{{- if not .Values.metricsSet.performanceMetrics }}
       - action:       "drop"
         regex:        "apiserver_request_duration_seconds_.*|apiserver_request_slo_duration_seconds_.*|apiserver_response_sizes_.*|apiserver_request_body_size_bytes_.*|apiserver_admission_(controller|step)_admission_duration_seconds_.*"
         sourceLabels: ["__name__"]

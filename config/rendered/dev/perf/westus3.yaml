@@ -452,8 +452,7 @@ hypershift:
     repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
   limitClusterSizes: true
   metricsSet:
-    extraHCPMetrics:
-    - performance
+    performanceMetrics: true
   namespace: hypershift
   sharedIngressIPTag: ""
   sharedIngressImage:
