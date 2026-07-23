@@ -2020,6 +2020,32 @@ resource kubeNodeRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-
         for: 'PT5M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
+      {
+        actions: [
+          for g in actionGroups: {
+            actionGroupId: g
+            actionProperties: {
+              'IcM.Title': '#$.labels.cluster#: #$.annotations.title#'
+              'IcM.CorrelationId': '#$.annotations.correlationId#'
+            }
+          }
+        ]
+        alert: 'NodeConntrackTableSaturation'
+        enabled: true
+        labels: {
+          severity: 'warning'
+        }
+        annotations: {
+          correlationId: 'NodeConntrackTableSaturation/{{ $labels.cluster }}/{{ $labels.instance }}'
+          description: 'Node {{ $labels.instance }} on cluster {{ $labels.cluster }} has its netfilter conntrack table {{ $value | humanizePercentage }} full (nf_conntrack_max). Sustained saturation leads to \'nf_conntrack: table full, dropping packet\' (ConntrackFull), which times out kubelet/DNS/IMDS traffic and degrades node health. Consider a larger SKU (nf_conntrack_max = 32768 x vCPU) or scaling the pool out.'
+          info: 'Node {{ $labels.instance }} on cluster {{ $labels.cluster }} has its netfilter conntrack table {{ $value | humanizePercentage }} full (nf_conntrack_max). Sustained saturation leads to \'nf_conntrack: table full, dropping packet\' (ConntrackFull), which times out kubelet/DNS/IMDS traffic and degrades node health. Consider a larger SKU (nf_conntrack_max = 32768 x vCPU) or scaling the pool out.'
+          summary: 'Node conntrack table approaching capacity'
+          title: 'Node conntrack table approaching capacity instance:{{ $labels.instance }} cluster:{{ $labels.cluster }}'
+        }
+        expression: 'node_nf_conntrack_entries / node_nf_conntrack_entries_limit > 0.8'
+        for: 'PT10M'
+        severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
+      }
     ]
     scopes: [
       azureMonitoring
