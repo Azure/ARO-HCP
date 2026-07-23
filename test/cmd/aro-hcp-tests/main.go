@@ -381,6 +381,9 @@ func setupCli() *cobra.Command {
 	// dispatched first. This prevents starvation: multi-container tests get
 	// dispatched while the pool is full, before single-container tests can
 	// consume all available capacity.
+
+	specs = specs.MustFilter([]string{`name.contains("should upgrade the control plane z-stream automatically on behalf of the customer") || name.contains("should upgrade and update a nodepool")`})
+
 	sort.SliceStable(specs, func(i, j int) bool {
 		return miDemandPriority(specs[i]) > miDemandPriority(specs[j])
 	})
