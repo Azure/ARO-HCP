@@ -6,23 +6,23 @@ metadata:
     app.kubernetes.io/part-of: kube-prometheus
     prometheus: k8s
     role: alert-rules
-  name: frontend-latency-monitoring-rules
+  name: frontend-path-latency-monitoring-rules
   namespace: monitoring
 spec:
   groups:
-  - name: frontend-latency
+  - name: frontend-path-latency
     rules:
-    - alert: FrontendLatency
+    - alert: FrontendPathLatency
       expr: |
         histogram_quantile(0.99,
           sum by (le, route, method) (
-            rate(frontend_http_requests_duration_seconds_bucket{route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[1h])
+            rate(frontend_http_requests_duration_seconds_bucket{route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[30m])
           )
         ) > 1
       for: 1m
       labels:
         severity: info
       annotations:
-        description: 'The 99th percentile of frontend request latency for {{ $labels.method }} {{ $labels.route }} has exceeded 1 second over the past hour.'
+        description: 'The 99th percentile of frontend request latency for {{ $labels.method }} {{ $labels.route }} has exceeded 1 second over the past 30 minutes.'
         runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/frontend-tsg.html'
         summary: 'Frontend latency is high: 99th percentile exceeds 1 second for {{ $labels.method }} {{ $labels.route }}'
