@@ -249,17 +249,6 @@ func (s *ClusterServiceMock) setupMockClusterService(t *testing.T) {
 		return nil
 	}).AnyTimes()
 
-	s.MockClusterServiceClient.EXPECT().DeleteBreakGlassCredentials(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
-	s.MockClusterServiceClient.EXPECT().PostBreakGlassCredential(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, clusterID ocm.InternalID) (*cmv1.BreakGlassCredential, error) {
-		justID := rand.String(10)
-		credentialInternalID := clusterID.String() + "/break_glass_credentials/" + justID
-		ret, err := cmv1.NewBreakGlassCredential().ID(justID).HREF(credentialInternalID).Build()
-		if err != nil {
-			return nil, err
-		}
-		return ret, nil
-	}).AnyTimes()
-
 	s.MockClusterServiceClient.EXPECT().GetClusterProvisionShard(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, id ocm.InternalID) (*csarhcpv1alpha1.ProvisionShard, error) {
 		ret, err := mergeClusterServiceInstance[csarhcpv1alpha1.ProvisionShard](internalIDToProvisionShard[id.String()])
 		if err != nil {
