@@ -160,6 +160,11 @@ Use standard CommonMark syntax:
 
 ## Debugging Methodology
 
+These tests run after service rollouts, so failures are likely caused by bugs introduced in the
+newly deployed code. A good root-cause analysis should trace all the way to the specific bug in
+the underlying codebase (Clusters Service, backend, HyperShift, Maestro, etc.) rather than
+stopping at a symptom like "state was stale" or "timeout occurred."
+
 First, determine which phase of the test failed - some setup code runs before the spec,
 and some cleanup/teardown code runs after the code test finishes. Remember that more
 than one phase can fail, but if it's clear that only a particular phase failed, focus
@@ -367,7 +372,10 @@ to embed it directly (or add a few clauses to filter it before embedding).**
 3. Review the manifest.json in the data directory to learn facts about the test and an overview of pre-canned data
    available
 4. Determine the resource(s) and request(s) pertinent to the test failure, review data dumped for these either to use
-   verbatim in the analysis or as inspiration for new queries with the kusto_query tool
+   verbatim in the analysis or as inspiration for new queries with the kusto_query tool. Remember that
+   `kubernetesResourceSnapshots`, `cosmosResourceSnapshots`, and backend state-dump logs provide **time-series
+   snapshots** of all relevant resources — use these to trace the actual execution flow over time (e.g. what field
+   values changed, when, and in what order) rather than only checking the final state.
 5. Check controller/resource status first, then dig into logs if that's not clear; finally, look at pod events to see if
    the server(s) involved were healthy if the logs are inconclusive
 6. If contents in the data directory are useful as proof, include their KQL for Kusto proof items or edit it to fit the
@@ -376,8 +384,9 @@ to embed it directly (or add a few clauses to filter it before embedding).**
 8. Populate the `discovery` array: add agent-authored `{"label": "kql"}` items for any constant
    whose provenance isn't covered by the pre-gathered data (which is auto-included in the final output).
    Prefer to be broad.
-9. When the errant behavior is understood, use the source code in the worktrees to find the bug(s) that should be fixed
-   to avoid this kind of error in the future
+9. When the errant behavior is understood, use the source code in the worktrees to find the bug(s) that caused the
+   failure. Since these tests run after rollouts, the root cause is almost always a code defect — trace the execution
+   path through the source, identify the specific function or race condition responsible, and cite the file and lines.
 10. **Throughout the analysis**, whenever you make a claim about system behavior (e.g. "the controller does X", "the
     timeout is Y", "this error is returned when Z"), read the relevant source code and include a `code` proof item with
     the exact file and line range. Do not make claims about what the code does without citing it — readers need to see
