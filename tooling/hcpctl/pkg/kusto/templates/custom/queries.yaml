@@ -38,6 +38,14 @@
   database: ServiceLogs
   queryType: custom-logs
   templatePath: templates/custom/debug_mgmt_pod_images.kql.gotmpl
+- name: cosmosResourceSnapshotsInfra
+  database: ServiceLogs
+  queryType: custom-logs
+  templatePath: templates/custom/cosmos_resource_snapshots_cluster.kql.gotmpl
+- name: cosmosResourceSnapshots
+  database: ServiceLogs
+  queryType: custom-logs
+  templatePath: templates/custom/cosmos_resource_snapshots.kql.gotmpl
 - name: hostedControlPlaneLogs
   database: HostedControlPlaneLogs
   queryType: custom-logs
