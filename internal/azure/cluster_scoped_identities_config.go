@@ -491,6 +491,16 @@ func newClusterScopedOperatorsIdentitySpecs() map[ClusterOperatorIdentifier]*clu
 								ResourceID:      api.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/88366f10-ed47-4cc0-9fab-c8a06148393e")),
 							},
 						},
+						{
+							Dev: &ClusterScopedIdentityRoleDefinition{
+								DescriptiveName: "Security Reader",
+								ResourceID:      api.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/39bc4728-0917-49c7-9d2c-d95423bc2eb4")),
+							},
+							Public: &ClusterScopedIdentityRoleDefinition{
+								DescriptiveName: "Security Reader",
+								ResourceID:      api.Must(azcorearm.ParseResourceID("/providers/Microsoft.Authorization/roleDefinitions/39bc4728-0917-49c7-9d2c-d95423bc2eb4")),
+							},
+						},
 					},
 				},
 			},

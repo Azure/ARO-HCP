@@ -231,6 +231,8 @@ azureOperatorsMI:
       roleDefinitions:
       - id: 88366f10-ed47-4cc0-9fab-c8a06148393e
         name: Azure Red Hat OpenShift Hosted Control Planes Cluster API Provider
+      - id: 39bc4728-0917-49c7-9d2c-d95423bc2eb4
+        name: Security Reader
     controlPlane:
       roleDefinitions:
       - id: fc0c873f-45e9-4d0d-a7d1-585aab30c6ed
@@ -272,6 +274,8 @@ azureOperatorsMI:
       roleDefinitions:
       - id: 88366f10-ed47-4cc0-9fab-c8a06148393e
         name: Azure Red Hat OpenShift Hosted Control Planes Cluster API Provider
+      - id: 39bc4728-0917-49c7-9d2c-d95423bc2eb4
+        name: Security Reader
     controlPlane:
       roleDefinitions:
       - id: fc0c873f-45e9-4d0d-a7d1-585aab30c6ed
