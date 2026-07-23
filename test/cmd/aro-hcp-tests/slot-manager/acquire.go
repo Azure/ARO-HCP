@@ -39,6 +39,7 @@ func DefaultAcquireOptions() *RawAcquireOptions {
 	allowedSubscriptions, allowedLocations, selectedLocation := defaultAcquireSelectors()
 	return &RawAcquireOptions{
 		ClusterProfileDir:    strings.TrimSpace(os.Getenv("CLUSTER_PROFILE_DIR")),
+		ClusterProfileDirs:   splitSelectorValues(os.Getenv("CLUSTER_PROFILE_DIRS")),
 		DeployEnv:            strings.TrimSpace(os.Getenv("ARO_HCP_DEPLOY_ENV")),
 		AllowedSubscriptions: allowedSubscriptions,
 		AllowedLocations:     allowedLocations,
@@ -66,6 +67,12 @@ func splitSelectorValues(raw string) []string {
 	parts := strings.FieldsFunc(raw, func(r rune) bool {
 		return r == ',' || r == '\n'
 	})
+	return normalizeValues(parts)
+}
+
+// normalizeValues trims whitespace, drops empty entries, and de-duplicates
+// while preserving first-seen order.
+func normalizeValues(parts []string) []string {
 	values := make([]string, 0, len(parts))
 	seen := map[string]struct{}{}
 	for _, part := range parts {
@@ -84,6 +91,7 @@ func splitSelectorValues(raw string) []string {
 
 func BindAcquireOptions(opts *RawAcquireOptions, cmd *cobra.Command) error {
 	cmd.Flags().StringVar(&opts.ClusterProfileDir, "cluster-profile-dir", opts.ClusterProfileDir, "Path to CLUSTER_PROFILE_DIR")
+	cmd.Flags().StringSliceVar(&opts.ClusterProfileDirs, "cluster-profile-dirs", opts.ClusterProfileDirs, "Optional list of cluster profile dirs to resolve the leased subscription's owning tenant/credentials across. Falls back to --cluster-profile-dir when unset.")
 	cmd.Flags().StringVar(&opts.DeployEnv, "deploy-env", opts.DeployEnv, "Deploy environment name (ci00, ci01, int, stg, prod)")
 	cmd.Flags().StringSliceVar(&opts.AllowedSubscriptions, "allowed-subscriptions", opts.AllowedSubscriptions, "Optional catalog subscription_name values allowed for candidate pool selection.")
 	cmd.Flags().StringSliceVar(&opts.AllowedLocations, "allowed-locations", opts.AllowedLocations, "Optional Azure regions allowed for fixed-mode candidate pool selection.")
@@ -98,6 +106,7 @@ func BindAcquireOptions(opts *RawAcquireOptions, cmd *cobra.Command) error {
 
 type RawAcquireOptions struct {
 	ClusterProfileDir    string
+	ClusterProfileDirs   []string
 	DeployEnv            string
 	AllowedSubscriptions []string
 	AllowedLocations     []string
@@ -120,13 +129,13 @@ type ValidatedAcquireOptions struct {
 }
 
 type completedAcquireOptions struct {
-	ClusterProfileDir string
-	DeployEnvironment string
-	SharedDir         string
-	LeaseProxyURL     string
-	LeaseProxyTimeout time.Duration
-	MaxWaitForLease   time.Duration
-	LeaseWaitInterval time.Duration
+	ClusterProfileDirs []string
+	DeployEnvironment  string
+	SharedDir          string
+	LeaseProxyURL      string
+	LeaseProxyTimeout  time.Duration
+	MaxWaitForLease    time.Duration
+	LeaseWaitInterval  time.Duration
 	// RuntimeLocationOverride carries the concrete runtime region when pool
 	// identity is decoupled from region selection.
 	RuntimeLocationOverride string
@@ -171,8 +180,8 @@ func Acquire(ctx context.Context, opts *RawAcquireOptions) error {
 
 func (o *RawAcquireOptions) Validate() (*ValidatedAcquireOptions, error) {
 	switch {
-	case o.ClusterProfileDir == "":
-		return nil, fmt.Errorf("--cluster-profile-dir must not be empty")
+	case len(o.effectiveClusterProfileDirs()) == 0:
+		return nil, fmt.Errorf("--cluster-profile-dir or --cluster-profile-dirs must not be empty")
 	case o.DeployEnv == "":
 		return nil, fmt.Errorf("--deploy-env must not be empty")
 	case o.SharedDir == "":
@@ -190,6 +199,23 @@ func (o *RawAcquireOptions) Validate() (*ValidatedAcquireOptions, error) {
 	return &ValidatedAcquireOptions{
 		validatedAcquireOptions: &validatedAcquireOptions{RawAcquireOptions: o},
 	}, nil
+}
+
+// effectiveClusterProfileDirs returns the cluster profile dirs to resolve the
+// leased subscription's owning credentials across. --cluster-profile-dirs
+// (CLUSTER_PROFILE_DIRS) takes precedence; otherwise it falls back to the
+// single --cluster-profile-dir (CLUSTER_PROFILE_DIR) for backward
+// compatibility. Values are trimmed, de-duplicated, and empty entries dropped
+// so callers get a clean list regardless of how they were supplied (flag or
+// env, e.g. trailing commas or stray whitespace).
+func (o *RawAcquireOptions) effectiveClusterProfileDirs() []string {
+	if dirs := normalizeValues(o.ClusterProfileDirs); len(dirs) > 0 {
+		return dirs
+	}
+	if dir := strings.TrimSpace(o.ClusterProfileDir); dir != "" {
+		return []string{dir}
+	}
+	return nil
 }
 
 func (o *ValidatedAcquireOptions) Complete(_ context.Context) (*AcquireOptions, error) {
@@ -210,7 +236,7 @@ func (o *ValidatedAcquireOptions) Complete(_ context.Context) (*AcquireOptions, 
 
 	return &AcquireOptions{
 		completedAcquireOptions: &completedAcquireOptions{
-			ClusterProfileDir:       o.ClusterProfileDir,
+			ClusterProfileDirs:      o.effectiveClusterProfileDirs(),
 			DeployEnvironment:       o.DeployEnv,
 			SharedDir:               o.SharedDir,
 			LeaseProxyURL:           o.LeaseProxyServerURL,
@@ -381,7 +407,7 @@ func (o *AcquireOptions) finalizeAcquiredLease(ctx context.Context, logger logr.
 		return err
 	}
 
-	customerSubscription, err := slots.VerifyCustomerSubscriptionName(o.ClusterProfileDir, pool.SubscriptionName)
+	customerSubscription, selectedClusterProfileDir, err := slots.VerifyCustomerSubscriptionName(o.ClusterProfileDirs, pool.SubscriptionName)
 	if err != nil {
 		return err
 	}
@@ -404,7 +430,7 @@ func (o *AcquireOptions) finalizeAcquiredLease(ctx context.Context, logger logr.
 	// The release step can now clean up this lease from the persisted state
 	// file, so subsequent failures should not try to release it again here.
 	rollbackLease = false
-	if err := slots.WriteEnvFile(o.SharedDir, state, customerSubscription); err != nil {
+	if err := slots.WriteEnvFile(o.SharedDir, state, customerSubscription, selectedClusterProfileDir); err != nil {
 		return err
 	}
 

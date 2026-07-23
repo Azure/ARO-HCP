@@ -95,3 +95,17 @@ environments:
       slot_count: 3
       identity_container_prefix: aro-hcp-msi-container-prod
       identity_container_count: 25
+    # Test-Test tenant (MSFT) prod sub "ARO HCP E2E" (403d9de9). Cross-tenant, so
+    # identities are provisioned externally (identity_provisioning: unmanaged).
+    # Kept in the pool so the single prod gating job can lease it for the canary
+    # region (eastus2euap), which only this sub is EUAP-onboarded for. The test
+    # step resolves this sub's owning tenant/service principal from the
+    # /var/run/aro-hcp-prod cluster profile via SELECTED_CLUSTER_PROFILE_DIR.
+    - subscription_name: "ARO HCP E2E"
+      region: uksouth
+      region_mode: runtime-selected
+      resource_type: aro-hcp-prod-testtenant-slot
+      slot_count: 4
+      identity_container_prefix: aro-hcp-msi-container-prod-testtenant
+      identity_container_count: 25
+      identity_provisioning: unmanaged
