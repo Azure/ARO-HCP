@@ -20,67 +20,43 @@ fmt-devinfra:
 	$(MAKE) -C ../../dev-infrastructure fmt
 .PHONY: fmt-devinfra
 
-run: alerts recording-rules
-.PHONY: run
+ALERT_CONFIGS = alerts-sl-services alerts-sl-hcps alerts-sre-hcps alerts-sre-services alerts-rp-services alerts-msft-services alerts-kusto-services alerts-kusto-hcps
+RECORDING_CONFIGS = recording-rules-services recording-rules-hcps
+CONFIGS = $(ALERT_CONFIGS) $(RECORDING_CONFIGS)
 
-alerts: run-sl-services run-sl-hcps run-sre-hcps run-sre-services run-rp-services run-msft-services run-kusto-services run-kusto-hcps
+alerts: $(BINARY)
+	@set -e; for cfg in $(ALERT_CONFIGS); do \
+		./$(BINARY) --skip-tests --config-file ../../observability/$${cfg}.yaml $(EXTRA_FLAGS); \
+	done
 	$(MAKE) fmt-devinfra
 .PHONY: alerts
 
-recording-rules: run-recording-rules-services run-recording-rules-hcps
+alerts-and-test: $(BINARY)
+	@set -e; for cfg in $(CONFIGS); do \
+		./$(BINARY) --config-file ../../observability/$${cfg}.yaml $(EXTRA_FLAGS); \
+	done
+	$(MAKE) fmt-devinfra
+.PHONY: alerts-and-test
+
+run: alerts
+.PHONY: run
+
+RUN_TARGETS = $(addprefix run-,$(CONFIGS))
+
+$(RUN_TARGETS): run-%: $(BINARY)
+	./$(BINARY) --config-file ../../observability/$*.yaml $(EXTRA_FLAGS)
+
+.PHONY: $(RUN_TARGETS)
+
+recording-rules: $(BINARY)
+	@set -e; for cfg in $(RECORDING_CONFIGS); do \
+		./$(BINARY) --skip-tests --config-file ../../observability/$${cfg}.yaml $(EXTRA_FLAGS); \
+	done
 	$(MAKE) fmt-devinfra
 .PHONY: recording-rules
 
-run-sl-services:
-	go run ./...  --config-file ../../observability/alerts-sl-services.yaml $(EXTRA_FLAGS)
-.PHONY: run-sl-services
+CORRELATION_MAP_FILES = $(addprefix ../../observability/,$(addsuffix .yaml,$(ALERT_CONFIGS)))
 
-run-sl-hcps:
-	go run ./...  --config-file ../../observability/alerts-sl-hcps.yaml $(EXTRA_FLAGS)
-.PHONY: run-sl-hcps
-
-run-sre-hcps:
-	go run ./...  --config-file ../../observability/alerts-sre-hcps.yaml $(EXTRA_FLAGS)
-.PHONY: run-sre-hcps
-
-run-sre-services:
-	go run ./...  --config-file ../../observability/alerts-sre-services.yaml $(EXTRA_FLAGS)
-.PHONY: run-sre-services
-
-run-rp-services:
-	go run ./...  --config-file ../../observability/alerts-rp-services.yaml $(EXTRA_FLAGS)
-.PHONY: run-rp-services
-
-run-msft-services:
-	go run ./...  --config-file ../../observability/alerts-msft-services.yaml $(EXTRA_FLAGS)
-.PHONY: run-msft-services
-
-run-kusto-services:
-	go run ./...  --config-file ../../observability/alerts-kusto-services.yaml $(EXTRA_FLAGS)
-.PHONY: run-kusto-services
-
-run-kusto-hcps:
-	go run ./...  --config-file ../../observability/alerts-kusto-hcps.yaml $(EXTRA_FLAGS)
-.PHONY: run-kusto-hcps
-
-run-recording-rules-services:
-	go run ./...  --config-file ../../observability/recording-rules-services.yaml $(EXTRA_FLAGS)
-.PHONY: run-recording-rules-services
-
-run-recording-rules-hcps:
-	go run ./...  --config-file ../../observability/recording-rules-hcps.yaml $(EXTRA_FLAGS)
-.PHONY: run-recording-rules-hcps
-
-ALERT_CONFIGS = \
-	../../observability/alerts-sl-services.yaml \
-	../../observability/alerts-sl-hcps.yaml \
-	../../observability/alerts-sre-hcps.yaml \
-	../../observability/alerts-sre-services.yaml \
-	../../observability/alerts-rp-services.yaml \
-	../../observability/alerts-msft-services.yaml \
-	../../observability/alerts-kusto-services.yaml \
-	../../observability/alerts-kusto-hcps.yaml
-
-correlation-map:
-	go run ./... --correlation-map $(ALERT_CONFIGS) > $(OUTPUT)
+correlation-map: $(BINARY)
+	./$(BINARY) --correlation-map $(CORRELATION_MAP_FILES) > $(OUTPUT)
 .PHONY: correlation-map
