@@ -49,7 +49,6 @@ require (
 )
 
 replace (
-	github.com/Azure/ARO-HCP/tooling/azutils => ../azutils
 	github.com/Azure/ARO-HCP/tooling/hcpctl => ../hcpctl
 	github.com/Azure/ARO-HCP/tooling/metricscache => ../metricscache
 )
