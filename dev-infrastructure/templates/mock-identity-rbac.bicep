@@ -17,6 +17,15 @@ param poolSize int = 0
 @description('Subscription IDs that should receive mock identity role assignments')
 param e2eSubscriptionIds array = []
 
+@description('''Whether to grant the mock identities on the deployment ("home")
+subscription in addition to e2eSubscriptionIds. Set true only when the pipeline
+deploys into the subscription that should receive the grants: DEV deploys into
+its own home (global) subscription, so it opts in. INT deploys into the DEV
+global subscription while its real home subscription is already covered via
+e2eSubscriptionIds, so it must leave this false to avoid granting INT roles on
+the DEV global subscription.''')
+param grantHomeSubscription bool = false
+
 @description('Custom role name for the first-party mock principal')
 param firstPartyRoleName string = 'dev-first-party-mock'
 
@@ -61,7 +70,7 @@ module poolLookups './entra-app-lookup.bicep' = [
   }
 ]
 
-module homeSubscriptionRbac './e2e-subscription-rbac-assignment-subscription.bicep' = {
+module homeSubscriptionRbac './e2e-subscription-rbac-assignment-subscription.bicep' = if (grantHomeSubscription) {
   name: 'mock-rbac-home'
   scope: subscription()
   params: {
