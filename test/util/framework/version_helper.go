@@ -108,7 +108,14 @@ func HasZStreamUpgradePath(ctx context.Context, channelGroup string, version str
 		return false, err
 	}
 
-	switch len(candidates) {
+	var numVersions int
+	for _, c := range candidates {
+		if len(c.Pre) == 0 { // skip pre-release versions
+			numVersions++
+		}
+	}
+
+	switch numVersions {
 	case 0:
 		return false, &cvocincinnati.Error{Reason: "VersionNotFound", Message: fmt.Sprintf("no versions found for %s", version)}
 	case 1: // only the current version was returned
