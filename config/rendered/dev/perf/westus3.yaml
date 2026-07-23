@@ -451,6 +451,8 @@ hypershift:
     registry: quay.io
     repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
   limitClusterSizes: true
+  metricsSet:
+    performanceMetrics: true
   namespace: hypershift
   sharedIngressIPTag: ""
   sharedIngressImage:

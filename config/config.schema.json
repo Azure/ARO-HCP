@@ -2535,6 +2535,15 @@
         },
         "sharedIngressImage": {
           "$ref": "#/definitions/containerImage"
+        },
+        "metricsSet": {
+          "type": "object",
+          "properties": {
+            "performanceMetrics": {
+              "type": "boolean"
+            }
+          },
+          "additionalProperties": false
         }
       },
       "additionalProperties": false,
