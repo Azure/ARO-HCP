@@ -16,7 +16,7 @@ spec:
       expr: |
         histogram_quantile(0.99,
           sum by (le, route, method) (
-            rate(frontend_http_requests_duration_seconds_bucket[1h])
+            rate(frontend_http_requests_duration_seconds_bucket{route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[1h])
           )
         ) > 1
       for: 1m

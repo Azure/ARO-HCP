@@ -39,7 +39,7 @@ resource frontendLatency 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
           summary: 'Frontend latency is high: 99th percentile exceeds 1 second for {{ $labels.method }} {{ $labels.route }}'
           title: 'Frontend latency is high: 99th percentile exceeds 1 second for {{ $labels.method }} {{ $labels.route }}'
         }
-        expression: 'histogram_quantile(0.99, sum by (le, route, method) (rate(frontend_http_requests_duration_seconds_bucket[1h]))) > 1'
+        expression: 'histogram_quantile(0.99, sum by (le, route, method) (rate(frontend_http_requests_duration_seconds_bucket{route!="/subscriptions/{subscriptionid}/providers/microsoft.redhatopenshift/locations/{location}/hcpoperationresults/{operationid}"}[1h]))) > 1'
         for: 'PT1M'
         severity: severityCeiling > 0 ? max(4, severityCeiling) : 4
       }
