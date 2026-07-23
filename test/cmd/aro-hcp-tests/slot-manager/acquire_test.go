@@ -266,6 +266,47 @@ func TestDefaultAcquireOptionsSelectorDefaults(t *testing.T) {
 	}
 }
 
+func TestEffectiveClusterProfileDirs(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name string
+		dirs []string
+		dir  string
+		want []string
+	}{
+		{
+			name: "dirs normalized: trimmed, deduped, empties dropped",
+			dirs: []string{" /var/run/a ", "", "/var/run/b", "/var/run/a", "  "},
+			dir:  "/var/run/fallback",
+			want: []string{"/var/run/a", "/var/run/b"},
+		},
+		{
+			name: "dirs that normalize to empty fall back to single dir",
+			dirs: []string{"", "  "},
+			dir:  " /var/run/fallback ",
+			want: []string{"/var/run/fallback"},
+		},
+		{
+			name: "single dir fallback is trimmed",
+			dir:  "  /var/run/only  ",
+			want: []string{"/var/run/only"},
+		},
+		{
+			name: "nothing supplied yields nil",
+			want: nil,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			opts := &RawAcquireOptions{ClusterProfileDirs: tc.dirs, ClusterProfileDir: tc.dir}
+			if got := opts.effectiveClusterProfileDirs(); !equalStrings(got, tc.want) {
+				t.Fatalf("unexpected effective cluster profile dirs: got %v want %v", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestDefaultAcquireOptionsDoesNotUseLegacyLocationForSelection(t *testing.T) {
 	t.Setenv("LOCATION", "westus3")
 
