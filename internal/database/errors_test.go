@@ -46,14 +46,20 @@ func TestIsResponseError(t *testing.T) {
 		wantHTTPStatus int // 0 means the error should not match any checker
 	}{
 		{
-			name:           "transaction step error",
-			err:            NewTransactionStepError(1, 2, http.StatusPreconditionFailed),
-			wantMessage:    "transaction step 1 of 2 failed with 412 Precondition Failed",
+			name: "transaction step error",
+			err: NewTransactionStepError(1, 2, http.StatusPreconditionFailed, CosmosDBTransactionStepDetails{
+				ActionType: "Replace",
+				CosmosID:   "cosmos-uid-1",
+				ResourceID: "/subscriptions/sub1/resourceGroups/rg1/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster1",
+				GoType:     "HCPOpenShiftCluster",
+				Etag:       azcore.ETag("etag-1"),
+			}),
+			wantMessage:    `transaction step 1 of 2 (Replace HCPOpenShiftCluster on /subscriptions/sub1/resourceGroups/rg1/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/cluster1, etag "etag-1") failed with 412 Precondition Failed`,
 			wantHTTPStatus: http.StatusPreconditionFailed,
 		},
 		{
 			name:           "transaction step error through TrackError",
-			err:            utils.TrackError(NewTransactionStepError(1, 1, http.StatusPreconditionFailed)),
+			err:            utils.TrackError(NewTransactionStepError(1, 1, http.StatusPreconditionFailed, CosmosDBTransactionStepDetails{})),
 			wantHTTPStatus: http.StatusPreconditionFailed,
 		},
 		{

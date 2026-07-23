@@ -115,7 +115,14 @@ func (t *cosmosDBTransaction) Execute(ctx context.Context, o *azcosmos.Transacti
 		if !response.Success {
 			for step, result := range response.OperationResults {
 				if result.StatusCode != http.StatusFailedDependency {
-					return nil, NewTransactionStepError(step+1, len(response.OperationResults), int(result.StatusCode))
+					logger.Error(nil, "transaction step failed",
+						"step", step+1,
+						"totalSteps", len(response.OperationResults),
+						"statusCode", result.StatusCode,
+						"resourceBody", string(result.ResourceBody),
+						"transaction", t.ToJSONStructRendering(),
+					)
+					return nil, NewTransactionStepError(step+1, len(response.OperationResults), int(result.StatusCode), t.stepsDetails[step])
 				}
 			}
 		}
