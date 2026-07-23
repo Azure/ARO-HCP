@@ -52,17 +52,19 @@ func (listWatchWithoutWatchListSemantics) IsWatchListSemanticsUnSupported() bool
 const (
 	// These durations indicate the maximum time it will take for us to notice a new instance of a particular type.
 	// Remember that these will not fire in order, so it's entirely possible to get an operation for subscription we have no observed.
-	SubscriptionRelistDuration             = 30 * time.Minute
-	ClusterRelistDuration                  = 30 * time.Minute
-	NodePoolRelistDuration                 = 30 * time.Minute
-	ExternalAuthRelistDuration             = 30 * time.Minute
-	ServiceProviderClusterRelistDuration   = 30 * time.Minute
-	ServiceProviderNodePoolRelistDuration  = 30 * time.Minute
-	ControllerRelistDuration               = 30 * time.Minute
-	AllOperationsRelistDuration            = 30 * time.Minute
-	ActiveOperationsRelistDuration         = 30 * time.Minute
-	ManagementClusterContentRelistDuration = 30 * time.Second
-	BillingRelistDuration                  = 30 * time.Second
+	SubscriptionRelistDuration                    = 30 * time.Minute
+	ClusterRelistDuration                         = 30 * time.Minute
+	NodePoolRelistDuration                        = 30 * time.Minute
+	ExternalAuthRelistDuration                    = 30 * time.Minute
+	ServiceProviderClusterRelistDuration          = 30 * time.Minute
+	ServiceProviderNodePoolRelistDuration         = 30 * time.Minute
+	ControllerRelistDuration                      = 30 * time.Minute
+	AllOperationsRelistDuration                   = 30 * time.Minute
+	ActiveOperationsRelistDuration                = 30 * time.Minute
+	ManagementClusterContentRelistDuration        = 30 * time.Second
+	SystemAdminCredentialRequestRelistDuration    = 30 * time.Minute
+	SystemAdminCredentialRevocationRelistDuration = 30 * time.Minute
+	BillingRelistDuration                         = 30 * time.Second
 )
 
 // NewSubscriptionInformer creates an unstarted SharedIndexInformer for subscriptions
@@ -344,6 +346,66 @@ func NewServiceProviderNodePoolInformerWithRelistDuration(lister database.Global
 	)
 }
 
+// NewSystemAdminCredentialRequestInformer creates an unstarted SharedIndexInformer for
+// SystemAdminCredentialRequests with a cluster index using the default relist duration.
+func NewSystemAdminCredentialRequestInformer(lister database.GlobalLister[api.SystemAdminCredentialRequest], cosmosClient database.ChangeFeedClient) cache.SharedIndexInformer {
+	return NewSystemAdminCredentialRequestInformerWithRelistDuration(lister, cosmosClient, SystemAdminCredentialRequestRelistDuration)
+}
+
+// NewSystemAdminCredentialRequestInformerWithRelistDuration creates an unstarted SharedIndexInformer
+// for SystemAdminCredentialRequests with a cluster index and a configurable relist duration.
+func NewSystemAdminCredentialRequestInformerWithRelistDuration(lister database.GlobalLister[api.SystemAdminCredentialRequest], cosmosClient database.ChangeFeedClient, relistDuration time.Duration) cache.SharedIndexInformer {
+	lw := dbinformers.NewChangeFeedListWatcher[api.SystemAdminCredentialRequest, *api.SystemAdminCredentialRequest, database.GenericDocument[api.SystemAdminCredentialRequest]](
+		[]azcorearm.ResourceType{api.SystemAdminCredentialRequestResourceType},
+		utilsclock.RealClock{},
+		lister,
+		cosmosClient,
+		relistDuration,
+	)
+
+	return cache.NewSharedIndexInformerWithOptions(
+		&listWatchWithoutWatchListSemantics{lw.ToListWatch()},
+		&api.SystemAdminCredentialRequest{},
+		cache.SharedIndexInformerOptions{
+			ResyncPeriod: 1 * time.Hour, // this is only a default.  Shorter resyncs can be added when registering handlers.
+			Indexers: cache.Indexers{
+				listers.ByCluster: clusterResourceIDIndexFunc,
+			},
+			ObjectDescription: "SystemAdminCredentialRequest",
+		},
+	)
+}
+
+// NewSystemAdminCredentialRevocationInformer creates an unstarted SharedIndexInformer for
+// SystemAdminCredentialRevocations with a cluster index using the default relist duration.
+func NewSystemAdminCredentialRevocationInformer(lister database.GlobalLister[api.SystemAdminCredentialRevocation], cosmosClient database.ChangeFeedClient) cache.SharedIndexInformer {
+	return NewSystemAdminCredentialRevocationInformerWithRelistDuration(lister, cosmosClient, SystemAdminCredentialRevocationRelistDuration)
+}
+
+// NewSystemAdminCredentialRevocationInformerWithRelistDuration creates an unstarted SharedIndexInformer
+// for SystemAdminCredentialRevocations with a cluster index and a configurable relist duration.
+func NewSystemAdminCredentialRevocationInformerWithRelistDuration(lister database.GlobalLister[api.SystemAdminCredentialRevocation], cosmosClient database.ChangeFeedClient, relistDuration time.Duration) cache.SharedIndexInformer {
+	lw := dbinformers.NewChangeFeedListWatcher[api.SystemAdminCredentialRevocation, *api.SystemAdminCredentialRevocation, database.GenericDocument[api.SystemAdminCredentialRevocation]](
+		[]azcorearm.ResourceType{api.SystemAdminCredentialRevocationResourceType},
+		utilsclock.RealClock{},
+		lister,
+		cosmosClient,
+		relistDuration,
+	)
+
+	return cache.NewSharedIndexInformerWithOptions(
+		&listWatchWithoutWatchListSemantics{lw.ToListWatch()},
+		&api.SystemAdminCredentialRevocation{},
+		cache.SharedIndexInformerOptions{
+			ResyncPeriod: 1 * time.Hour, // this is only a default.  Shorter resyncs can be added when registering handlers.
+			Indexers: cache.Indexers{
+				listers.ByCluster: clusterResourceIDIndexFunc,
+			},
+			ObjectDescription: "SystemAdminCredentialRevocation",
+		},
+	)
+}
+
 // NewControllerInformer creates an unstarted SharedIndexInformer for controllers
 // using the default relist duration.
 func NewControllerInformer(lister database.GlobalLister[api.Controller], cosmosClient database.ChangeFeedClient) cache.SharedIndexInformer {
@@ -360,6 +422,8 @@ func NewControllerInformerWithRelistDuration(lister database.GlobalLister[api.Co
 			api.ClusterControllerResourceType,
 			api.NodePoolControllerResourceType,
 			api.ExternalAuthControllerResourceType,
+			api.SystemAdminCredentialRequestControllerResourceType,
+			api.SystemAdminCredentialRevocationControllerResourceType,
 		},
 		utilsclock.RealClock{},
 		lister,
