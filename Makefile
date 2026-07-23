@@ -473,11 +473,18 @@ latest-services-override: $(YQ)
 ifeq ($(DEPLOY_ENV),$(filter $(DEPLOY_ENV),pers swft))
 ifdef USE_LATEST_IMAGES
 personal-dev-env: latest-services-override install-tools
-else
-personal-dev-env: build-services record-services-override install-tools
-endif
 	$(MAKE) entrypoint/Region OVERRIDE_CONFIG_FILE=$(PERS_OVERRIDE_FILE)
 	$(MAKE) infra.svc.aks.kubeconfig infra.mgmt.aks.kubeconfig infra.tracing infra.cosmos.access
+else
+personal-dev-env: install-tools
+	$(eval IMAGE_TAG := $(shell DETECT_DIRTY_GIT_WORKTREE=${DETECT_DIRTY_GIT_WORKTREE} DEPLOY_ENV=${DEPLOY_ENV} ./generate-tag.sh))
+	$(eval ARO_HCP_REVISION := $(shell git rev-parse HEAD))
+	$(eval export IMAGE_TAG ARO_HCP_REVISION)
+	$(MAKE) build-services
+	$(MAKE) record-services-override
+	$(MAKE) entrypoint/Region OVERRIDE_CONFIG_FILE=$(PERS_OVERRIDE_FILE)
+	$(MAKE) infra.svc.aks.kubeconfig infra.mgmt.aks.kubeconfig infra.tracing infra.cosmos.access
+endif
 else
 personal-dev-env:
 	$(error personal-dev-env: DEPLOY_ENV must be set to "pers" or "swft", not "$(DEPLOY_ENV)")
