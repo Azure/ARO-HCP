@@ -134,8 +134,14 @@ if [ -n "$REPLICATION_INFO" ]; then
     REPLICATION_NAME=$(echo "$REPLICATION_INFO" | jq -r '.name' | cut -f 2 -d "/")
     # we need to query the replication state from the replica resource id and not from the list operation or the ACR
     # there are bugs flying around that report the wrong replication state on the list operation
-    REPLICATION_STATE=$(az resource show --ids "$REPLICATION_RESOURCE_ID" --query "properties.provisioningState" -o tsv)
-    echo "Found existing replication $REPLICATION_NAME ($REPLICATION_RESOURCE_ID) in state $REPLICATION_STATE"
+    REPLICATION_DETAILS=$(az resource show \
+        --ids "$REPLICATION_RESOURCE_ID" \
+        --query "{provisioningState:properties.provisioningState, regionEndpointEnabled:properties.regionEndpointEnabled}" \
+        --output json
+    )
+    REPLICATION_STATE=$(echo "$REPLICATION_DETAILS" | jq -r '.provisioningState')
+    REPLICATION_ENDPOINT_ENABLED=$(echo "$REPLICATION_DETAILS" | jq -r '.regionEndpointEnabled')
+    echo "Found existing replication $REPLICATION_NAME ($REPLICATION_RESOURCE_ID) in state $REPLICATION_STATE with endpoint enabled=$REPLICATION_ENDPOINT_ENABLED"
 
     # Only check for failed replications if one exists
     if [ "$REPLICATION_STATE" = "Failed" ]; then
@@ -150,6 +156,7 @@ if [ -n "$REPLICATION_INFO" ]; then
         create_replication
     else
         echo "Replication already exists and is in good state: $REPLICATION_NAME (state: $REPLICATION_STATE)"
+        reconcile_replication_endpoint "$REPLICATION_NAME" "$REPLICATION_ENDPOINT_ENABLED"
         exit 0
     fi
 else
