@@ -357,6 +357,12 @@ func (l *errorReadDesireLister) GetForCluster(_ context.Context, _, _, _, _ stri
 func (l *errorReadDesireLister) GetForNodePool(_ context.Context, _, _, _, _, _ string) (*kubeapplier.ReadDesire, error) {
 	return nil, l.err
 }
+func (l *errorReadDesireLister) GetForCredentialRequest(_ context.Context, _, _, _, _, _ string) (*kubeapplier.ReadDesire, error) {
+	return nil, l.err
+}
+func (l *errorReadDesireLister) GetForRevocation(_ context.Context, _, _, _, _, _ string) (*kubeapplier.ReadDesire, error) {
+	return nil, l.err
+}
 func (l *errorReadDesireLister) ListForManagementCluster(_ context.Context, _ *azcorearm.ResourceID) ([]*kubeapplier.ReadDesire, error) {
 	return nil, l.err
 }
