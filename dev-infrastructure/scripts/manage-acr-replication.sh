@@ -60,17 +60,47 @@ else
     ENDPOINT_ROUTING_FLAG="--region-endpoint-enabled"
 fi
 
+# Determine the desired regional data-endpoint state for this replica. Regions
+# listed (space-separated) in ENDPOINT_DISABLED_REGIONS must keep their regional
+# endpoint disabled so a co-located canary replica (e.g. eastus2euap) never
+# serves ACR global routing for a neighbouring prod region. Defaults to enabled.
+DESIRED_ENDPOINT_ENABLED=true
+for disabled_region in ${ENDPOINT_DISABLED_REGIONS:-}; do
+    if [ "$disabled_region" = "$REPLICATION_REGION" ]; then
+        DESIRED_ENDPOINT_ENABLED=false
+        break
+    fi
+done
+echo "Desired regional endpoint for $REPLICATION_REGION: enabled=$DESIRED_ENDPOINT_ENABLED"
+
 # Function to create a new replication
 create_replication() {
-    echo "Creating replication $REPLICATION_REGION for ACR $ACR_NAME in region $REPLICATION_REGION..."
+    echo "Creating replication $REPLICATION_REGION for ACR $ACR_NAME in region $REPLICATION_REGION (endpoint enabled=$DESIRED_ENDPOINT_ENABLED)..."
     execute az acr replication create \
         --registry "$ACR_NAME" \
         --resource-group "$RESOURCE_GROUP" \
         --location "$REPLICATION_REGION" \
         --name "$REPLICATION_REGION" \
-        "$ENDPOINT_ROUTING_FLAG" true
+        "$ENDPOINT_ROUTING_FLAG" "$DESIRED_ENDPOINT_ENABLED"
 
     echo "Successfully created replication $REPLICATION_REGION for ACR $ACR_NAME in region $REPLICATION_REGION"
+}
+
+# Function to reconcile an existing replica's regional endpoint to the desired state
+reconcile_replication_endpoint() {
+    local replica_name="$1"
+    local current_enabled="$2"
+    if [ "$current_enabled" = "$DESIRED_ENDPOINT_ENABLED" ]; then
+        echo "Replica $replica_name regional endpoint already at desired state (enabled=$DESIRED_ENDPOINT_ENABLED)"
+        return 0
+    fi
+    echo "Reconciling replica $replica_name regional endpoint: $current_enabled -> $DESIRED_ENDPOINT_ENABLED"
+    execute az acr replication update \
+        --registry "$ACR_NAME" \
+        --resource-group "$RESOURCE_GROUP" \
+        --name "$replica_name" \
+        "$ENDPOINT_ROUTING_FLAG" "$DESIRED_ENDPOINT_ENABLED"
+    echo "Successfully reconciled replica $replica_name regional endpoint to enabled=$DESIRED_ENDPOINT_ENABLED"
 }
 
 echo "Managing ACR replication for $ACR_NAME in region $REPLICATION_REGION..."
