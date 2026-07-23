@@ -1,8 +1,6 @@
 ARG PLATFORM
 
 FROM --platform=${PLATFORM} mcr.microsoft.com/oss/go/microsoft/golang:1.25-azurelinux3.0 AS builder
-COPY tooling/azutils/go.mod tooling/azutils/go.sum tooling/azutils/
-COPY tooling/utilitytypes/go.mod tooling/utilitytypes/
 COPY tooling/hcpctl/go.mod tooling/hcpctl/go.sum tooling/hcpctl/
 COPY tooling/metricscache/go.mod tooling/metricscache/go.sum tooling/metricscache/
 COPY tooling/aro-hcp-exporter/go.mod tooling/aro-hcp-exporter/go.sum tooling/aro-hcp-exporter/

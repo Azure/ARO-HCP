@@ -41,11 +41,8 @@ clean:
 	rm -f coverage.out coverage.html
 .PHONY: clean
 
-EXPORTER_DIR := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
-REPO_ROOT := $(abspath $(EXPORTER_DIR)/../..)
-
 image: Dockerfile Makefile
-	$(CONTAINER_ENGINE) build $(REPO_ROOT) --file Dockerfile \
+	$(CONTAINER_ENGINE) build ../../ --file Dockerfile \
 		--build-arg PLATFORM=linux/amd64 \
 		--tag ${ARO_HCP_EXPORTER_TAGGED_IMAGE}
 .PHONY: image
