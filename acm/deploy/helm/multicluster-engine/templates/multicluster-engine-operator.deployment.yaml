@@ -64,13 +64,13 @@ spec:
         - name: OPERAND_IMAGE_CLUSTER_API_PROVIDER_AGENT
           value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/cluster-api-provider-agent-rhel9@sha256:f5c386ad70a8fc295852207078e16dbb6a43a162a9097e1886d95136de76ebf3'
         - name: OPERAND_IMAGE_CLUSTER_API_PROVIDER_AWS_RHEL9
-          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/cluster-api-provider-aws-rhel9@sha256:a0a740cf36b246a39727a3c368c1e6f4f473b2cecf555d9c0c86616b0bb4cad2'
+          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/cluster-api-provider-aws-rhel9@sha256:eb917455c03264da728905fa56848dd7bfa84460908ab12f05a30133c0fa0de2'
         - name: OPERAND_IMAGE_CLUSTER_API_PROVIDER_AZURE_RHEL9
           value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/cluster-api-provider-azure-rhel9@sha256:eaf9b68dc4f61e35e0d49ab6d12de84388c47a23536f1cbcc286f8f529d06cec'
         - name: OPERAND_IMAGE_CLUSTER_API_PROVIDER_KUBEVIRT
           value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/cluster-api-provider-kubevirt-rhel9@sha256:6d03af92c20ec06b05cb57916675b24b7103a4773769a1210feaa0cce90a7722'
         - name: OPERAND_IMAGE_CLUSTER_API_PROVIDER_OPENSHIFT_ASSISTED_BOOTSTRAP
-          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/capoa-bootstrap-rhel9@sha256:87e8dba54e37ad353801231dbb0ed989293e9c7df7dd584f8519e12f13458ec0'
+          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/capoa-bootstrap-rhel9@sha256:48448d424d95753d6259f272272a30364b81299cdbdf4393f99f40a563fe984c'
         - name: OPERAND_IMAGE_CLUSTER_API_PROVIDER_OPENSHIFT_ASSISTED_CONTROL_PLANE
           value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/capoa-control-plane-rhel9@sha256:34192c49be6c73d7a89aaa9105506eb1e639df84118251db7c8fb028ba21752e'
         - name: OPERAND_IMAGE_MCE_CAPI_WEBHOOK_CONFIG_RHEL9
@@ -86,7 +86,7 @@ spec:
         - name: OPERAND_IMAGE_CLUSTER_PROXY
           value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/cluster-proxy-rhel9@sha256:8ca468a63a7a6cf0870a276c7e6db128323e2243b2f071b83d731298bfa684bd'
         - name: OPERAND_IMAGE_CONSOLE_MCE
-          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/console-mce-rhel9@sha256:8953020ae5f0560778faf1f47fa099de9dce829c56397061b0a3d8c6889b9aeb'
+          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/console-mce-rhel9@sha256:d8b4b43859acbc64d40d8ba30febb549f0e9d60779d569dd7e37e66fe4236d5e'
         - name: OPERAND_IMAGE_DISCOVERY_OPERATOR
           value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/discovery-rhel9@sha256:2138b8f7825484a652f8136c9182431f1166c630580d8e2f30b83574f5b5c3cb'
         - name: OPERAND_IMAGE_OPENSHIFT_HIVE
@@ -134,12 +134,12 @@ spec:
         - name: OPERAND_IMAGE_POSTGRESQL_13
           value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/postgresql-13@sha256:97b64c18a32944b86fd1a118aa0d1aa04ff1fad8068c3c20f6e94af24712ff36'
         - name: OPERAND_IMAGE_BACKPLANE_OPERATOR
-          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/backplane-rhel9-operator@sha256:825221897a688ab7a873108ceb9de8d48cb13a509cb0cb7c6a71c9431f54011e'
+          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/backplane-rhel9-operator@sha256:84c02f90791a51c13a27e5a892d420c77582759b8990d0e74c7cf536ba6d555e'
         - name: OPERATOR_VERSION
-          value: 2.11.4-569
+          value: 2.11.4-571
         - name: OPERATOR_PACKAGE
           value: multicluster-engine
-        image: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/backplane-rhel9-operator@sha256:825221897a688ab7a873108ceb9de8d48cb13a509cb0cb7c6a71c9431f54011e'
+        image: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/backplane-rhel9-operator@sha256:84c02f90791a51c13a27e5a892d420c77582759b8990d0e74c7cf536ba6d555e'
         livenessProbe:
           httpGet:
             path: /healthz
