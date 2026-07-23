@@ -33,7 +33,7 @@ import (
 
 var _ = Describe("Service Provider", func() {
 	DescribeTable("should upgrade the control plane z-stream automatically on behalf of the customer",
-		func(ctx context.Context, minorVersion string, baseInstallVersion string) {
+		func(ctx context.Context, minorVersion string, installVersion string) {
 			const (
 				customerNetworkSecurityGroupName = "customer-nsg-zstream-"
 				customerVnetName                 = "customer-vnet-zstream-"
@@ -41,18 +41,24 @@ var _ = Describe("Service Provider", func() {
 				customerClusterNamePrefix        = "cluster-zstream-"
 			)
 
+			// ARRANGE
+
 			tc := framework.NewTestContext()
 
-			if len(baseInstallVersion) == 0 {
-				baseInstallVersion = minorVersion // set it to minor so that we defaul to .0 as the patch version
-			}
-			installVersion, hasUpgradePath, err := framework.GetInstallVersionForZStreamUpgrade(ctx, "candidate", baseInstallVersion)
+			By("checking if z-stream upgrade path exists")
+			hasUpgradePath, err := framework.HasZStreamUpgradePath(ctx, "candidate", installVersion)
 			if err != nil {
 				if cincinnati.IsCincinnatiVersionNotFoundError(err) {
-					Skip(fmt.Sprintf("Cincinnati returned version not found for configured id %s (minor %s)", baseInstallVersion, minorVersion))
+					Skip(fmt.Sprintf("Cincinnati returned version not found for configured id %s (minor %s)", installVersion, minorVersion))
 				}
 				Expect(err).NotTo(HaveOccurred(), "failed to get install version for z-stream upgrade of %s", minorVersion)
 			}
+
+			if !hasUpgradePath {
+				Skip(fmt.Sprintf("the z-stream version %s is latest and has no z-stream upgrade path available on the candidate channel", installVersion))
+			}
+
+			By("creating resource group")
 			if tc.UsePooledIdentities() {
 				err := tc.AssignIdentityContainers(ctx, 1, framework.IdentityContainerAssignmentRetryInterval)
 				Expect(err).NotTo(HaveOccurred(), "failed to assign pooled identity containers")
@@ -61,24 +67,19 @@ var _ = Describe("Service Provider", func() {
 			versionLabel := strings.ReplaceAll(minorVersion, ".", "-") // e.g. "4.20" -> "4-20"
 			suffix := rand.String(6)
 			clusterName := customerClusterNamePrefix + versionLabel + "-" + suffix
-			clusterParams := framework.NewDefaultClusterParams20240610()
-			clusterParams.ClusterName = clusterName
-			clusterParams.OpenshiftVersionId = installVersion
 
-			// We use the candidate channel to potentially catch early z-stream upgrades.
-			// issues before they reach stable.
-			By("using the candidate channel")
-			clusterParams.ChannelGroup = "candidate"
-
-			By("creating resource group")
 			resourceGroup, err := tc.NewResourceGroup(ctx, "rg-zstream-upgrade-"+versionLabel, tc.Location())
 			Expect(err).NotTo(HaveOccurred(), "failed to create resource group for z-stream upgrade of %s", minorVersion)
 
-			managedResourceGroupName := framework.SuffixName(*resourceGroup.Name+"-zstream-"+suffix, "-managed", 64)
-			clusterParams.ManagedResourceGroupName = managedResourceGroupName
-
 			By("creating customer resources")
-			clusterParams, err = tc.CreateClusterCustomerResources20240610(ctx,
+			clusterParams := framework.NewDefaultClusterParams20240610()
+			clusterParams.ManagedResourceGroupName = framework.SuffixName(*resourceGroup.Name+"-zstream-"+suffix, "-managed", 64)
+			clusterParams.ClusterName = clusterName
+			clusterParams.OpenshiftVersionId = installVersion
+			clusterParams.ChannelGroup = "candidate" // use the candidate channel to potentially catch early z-stream upgrades issues before they reach stable.
+
+			clusterParams, err = tc.CreateClusterCustomerResources20240610(
+				ctx,
 				resourceGroup,
 				clusterParams,
 				map[string]interface{}{
@@ -95,8 +96,10 @@ var _ = Describe("Service Provider", func() {
 			// 4.22 control plane provisioning has been consistently slower and frequently hits the default timeout.
 			// Bump the create+wait budget to reduce flaky timeouts for this minor.
 			if minorVersion == "4.22" {
-				clusterCreationTimeout = 35 * time.Minute
+				clusterCreationTimeout += 15
 			}
+
+			// ACT
 
 			By(fmt.Sprintf("creating the HCP cluster with version '%s' on candidate channel", installVersion))
 			err = tc.CreateHCPClusterFromParam20240610(
@@ -106,6 +109,9 @@ var _ = Describe("Service Provider", func() {
 				clusterParams,
 				clusterCreationTimeout,
 			)
+
+			// ASSERT
+
 			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster %q with version %s on candidate channel", clusterName, installVersion)
 
 			By("verifying the cluster is viable")
@@ -120,11 +126,6 @@ var _ = Describe("Service Provider", func() {
 			err = verifiers.VerifyHCPCluster(ctx, adminRESTConfig)
 			Expect(err).NotTo(HaveOccurred(), "failed to verify HCP cluster %q is viable", clusterName)
 
-			if !hasUpgradePath {
-				By("skipping z-stream upgrade verification: no upgrade path (cluster installed at latest)")
-				return
-			}
-
 			By("verifying that only a z-stream upgrade was performed")
 			Eventually(func() error {
 				return verifiers.VerifyHCPCluster(ctx, adminRESTConfig, verifiers.VerifyHostedControlPlaneZStreamUpgradeOnly(installVersion))
@@ -132,13 +133,11 @@ var _ = Describe("Service Provider", func() {
 			GinkgoLogr.Info("z-stream upgrade verification passed", "installVersion", installVersion)
 		},
 
-		// for 4.19, if we start with 4.19.0, the version that has an upgrade path to 4.19.latest is
-		// 4.19.3 but cluster install on this version fails with KMS authentication problem.
-		// For all the other minor versions, we can start with 4.y.0 and install the latest version in the candidate channel.
-		Entry("for 4.19", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, "4.19", "4.19.25"),
-		Entry("for 4.20", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, "4.20", ""),
-		Entry("for 4.21", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, "4.21", ""),
-		Entry("for 4.22", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, "4.22", ""),
-		Entry("for 4.23", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, "4.23", ""),
+		// upgrading from 4.19.0 to 4.19.3 fails with a KMS authentication problem, so it needs to be skipped.
+		Entry("for 4.19", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, "4.19", "4.19.4"),
+		Entry("for 4.20", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, "4.20", "4.20.0"),
+		Entry("for 4.21", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, "4.21", "4.21.0"),
+		Entry("for 4.22", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, "4.22", "4.22.0"),
+		Entry("for 4.23", labels.RequireNothing, labels.Critical, labels.Positive, labels.AroRpApiCompatible, "4.23", "4.23.0"),
 	)
 })
