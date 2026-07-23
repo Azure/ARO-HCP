@@ -101,43 +101,28 @@ func isRetryableVersionError(err error) bool {
 	return true
 }
 
-// GetInstallVersionForZStreamUpgrade returns the version to install the cluster with when testing
-// a z-stream upgrade, and whether that version has an available z-stream upgrade path. It uses
-// configuredVersionID and queries Cincinnati for the given channelGroup (e.g. "candidate", "stable").
-// When no version with an upgrade path is found, it still returns the configured version so the
-// caller can install and optionally skip upgrade assertions.
-func GetInstallVersionForZStreamUpgrade(ctx context.Context, channelGroup string, configuredVersionID string) (installVersion string, hasUpgradePath bool, err error) {
-	candidates, err := GetAllVersionsInMinorStartingWith(ctx, channelGroup, configuredVersionID)
+// HasZStreamUpgradePath checks if a newer z-stream version is available
+func HasZStreamUpgradePath(ctx context.Context, channelGroup string, version string) (hasUpgradePath bool, err error) {
+	candidates, err := GetAllVersionsInMinorStartingWith(ctx, channelGroup, version)
 	if err != nil {
-		return "", false, err
-	}
-	if len(candidates) == 0 {
-		return "", false, &cvocincinnati.Error{Reason: "VersionNotFound", Message: fmt.Sprintf("no versions found for %s", configuredVersionID)}
-	}
-	if len(candidates) == 1 {
-		return candidates[0].String(), false, nil
+		return false, err
 	}
 
-	nextMinorStr := fmt.Sprintf("%d.%d", candidates[0].Major, candidates[0].Minor+1)
-	maxVersion, err := GetLatestVersionInMinor(ctx, channelGroup, nextMinorStr)
-	if err != nil {
-		if !cincinnati.IsCincinnatiVersionNotFoundError(err) {
-			return "", false, err
+	var numVersions int
+	for _, c := range candidates {
+		if len(c.Pre) == 0 { // skip pre-release versions
+			numVersions++
 		}
-		// we don't have the next minor, use the max version in the current minor
-		maxVersion = candidates[0].String()
 	}
 
-	for i := 0; i < len(candidates)-1; i++ {
-		upgradeTargets, err := GetUpgradeCandidatesInMaxMinorFromCincinnati(ctx, channelGroup, maxVersion, candidates[i].String())
-		if err != nil {
-			return "", false, err
-		}
-		if len(upgradeTargets) > 0 {
-			return candidates[i+1].String(), true, nil
-		}
+	switch numVersions {
+	case 0:
+		return false, &cvocincinnati.Error{Reason: "VersionNotFound", Message: fmt.Sprintf("no versions found for %s", version)}
+	case 1: // only the current version was returned
+		return false, nil
+	default:
+		return true, nil
 	}
-	return candidates[0].String(), false, nil
 }
 
 // GetAllVersionsInMinorStartingWith returns all OpenShift versions in the same major.minor as the given version,
