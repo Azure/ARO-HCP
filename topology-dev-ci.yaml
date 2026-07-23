@@ -2,14 +2,16 @@ entrypoints:
 - identifier: 'Microsoft.Azure.ARO.HCP.DevCI.Unprivileged'
   metadata:
     name: Dev CI Infrastructure
-# PRIVILEGED, on-demand only. Rolls out the subscription-scoped custom role
-# definitions and role assignments that require Owner (or User Access
-# Administrator) on the target subscriptions. Kept as a separate entrypoint so
-# the unattended dev-ci postsubmit (which runs the Unprivileged entrypoint)
-# never touches it. Run manually by an OWNERS-group member.
+# PRIVILEGED, on-demand only. Rolls out the CI bot Entra identity lifecycle
+# (Entra application + service principal directory-object writes) and the
+# subscription-scoped custom role definitions and role assignments that require
+# Owner (or User Access Administrator) on the target subscriptions. Kept as a
+# separate entrypoint so the unattended dev-ci postsubmit (which runs the
+# Unprivileged entrypoint) never touches it. Run manually by an OWNERS-group
+# member.
 - identifier: 'Microsoft.Azure.ARO.HCP.DevCI.Privileged'
   metadata:
-    name: Dev CI Privileged Grants
+    name: Dev CI Privileged Identities and Grants
 services:
 - serviceGroup: Microsoft.Azure.ARO.HCP.DevCI.Unprivileged
   pipelinePath: dev-infrastructure/dev-ci/cluster/opstool-aks-pipeline.yaml
@@ -18,9 +20,6 @@ services:
   - serviceGroup: Microsoft.Azure.ARO.HCP.DevCI.TenantQuota
     pipelinePath: tooling/tenant-quota/pipeline.yaml
     purpose: Deploy the tenant-quota-collector.
-  - serviceGroup: Microsoft.Azure.ARO.HCP.DevCI.E2ESubscriptionRBAC
-    pipelinePath: dev-infrastructure/dev-ci/e2e-subscription-rbac/pipeline.yaml
-    purpose: Reconcile the non-privileged CI bot Entra identities and rotate their Key Vault secrets. Requires no subscription Owner, so it runs unattended in the dev-ci postsubmit.
   - serviceGroup: Microsoft.Azure.ARO.HCP.DevCI.Gateway
     pipelinePath: dev-infrastructure/dev-ci/gateway/pipeline.yaml
     purpose: Deploy the shared Istio gateway and DNS wiring for opstool.
@@ -31,13 +30,21 @@ services:
     pipelinePath: dev-infrastructure/dev-ci/cihealth/pipeline.yaml
     purpose: Deploy the CIHealth runtime on cihealth.tools.hcpsvc.osadev.cloud.
 # PRIVILEGED, on-demand only. The `Privileged` root is a no-op grouping
-# pipeline; the actual grants live in its E2ESubscriptionRBACGrants child. An
-# OWNERS-group member runs it manually with `make dev-ci-privileged-local-run`
-# when a change touches these grants. See docs/ci/dev-ci-topology.md.
+# pipeline. Its E2ESubscriptionRBAC child creates/reconciles the CI bot Entra
+# identities (directory-object writes) and rotates their Key Vault secrets, and
+# that child's own E2ESubscriptionRBACGrants child applies the Owner-only
+# subscription-scoped grants. Nesting grants under the identity service group
+# guarantees the identities exist (they are looked up via `existing`) before the
+# grants run, within a single privileged rollout. An OWNERS-group member runs it
+# manually with `make dev-ci-privileged-local-run`. See docs/ci/dev-ci-topology.md.
 - serviceGroup: Microsoft.Azure.ARO.HCP.DevCI.Privileged
   pipelinePath: dev-infrastructure/dev-ci/privileged/pipeline.yaml
-  purpose: No-op grouping root for the on-demand privileged grants entrypoint. Owner-only; run manually by an OWNERS-group member.
+  purpose: No-op grouping root for the on-demand privileged entrypoint. Owner-only; run manually by an OWNERS-group member.
   children:
-  - serviceGroup: Microsoft.Azure.ARO.HCP.DevCI.E2ESubscriptionRBACGrants
-    pipelinePath: dev-infrastructure/dev-ci/e2e-subscription-rbac-grants/pipeline.yaml
-    purpose: Manage explicit dev E2E customer-subscription RBAC and shared custom-role assignable scopes, plus the CI bot subscription-scoped RBAC. Owner-only; run on demand by an OWNERS-group member.
+  - serviceGroup: Microsoft.Azure.ARO.HCP.DevCI.E2ESubscriptionRBAC
+    pipelinePath: dev-infrastructure/dev-ci/e2e-subscription-rbac/pipeline.yaml
+    purpose: Create/reconcile the CI bot Entra applications + service principals and rotate their Key Vault secrets. Involves Entra directory-object writes, so it runs on demand under an OWNERS-group member, not the unattended postsubmit.
+    children:
+    - serviceGroup: Microsoft.Azure.ARO.HCP.DevCI.E2ESubscriptionRBACGrants
+      pipelinePath: dev-infrastructure/dev-ci/e2e-subscription-rbac-grants/pipeline.yaml
+      purpose: Manage explicit dev E2E customer-subscription RBAC and shared custom-role assignable scopes, plus the CI bot subscription-scoped RBAC. Runs after the CI bot identities exist. Owner-only; run on demand by an OWNERS-group member.
