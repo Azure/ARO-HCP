@@ -14,9 +14,10 @@ spec:
     rules:
     - alert: LeaderElectionLeaseStale
       # Fires when a leader election lease has not been renewed for >37m (12m expr threshold + 25m for:); excludes namespaces covered by LeaderElectionLeaseStaleCritical and standard k8s system namespaces (kube-node-lease has node heartbeat leases that are not leader election).
+      # Excludes managed-cluster-lease: this is the OCM/ACM cluster-availability heartbeat lease (renewed by the registration-agent, lease_holder == lease name), not a leader-election lock. It lives per-HCP in hashed managedcluster namespaces on management clusters and routinely goes stale when an HCP is deprovisioned, producing false positives.
       expr: |
         time() - max without(prometheus_replica) (
-          kube_lease_renew_time{namespace!~"^(kube-system|kube-public|kube-node-lease|default|kube-applier|aro-hcp|mgmt-agent)$"}
+          kube_lease_renew_time{namespace!~"^(kube-system|kube-public|kube-node-lease|default|kube-applier|aro-hcp|mgmt-agent)$", lease!="managed-cluster-lease"}
         ) > 720
       for: 25m
       labels:
