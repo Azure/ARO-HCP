@@ -1,5 +1,6 @@
 prometheusRules:
   rulesFolders:
   - recording-rules/access-cluster-slo-recordingRule.yaml
+  - recording-rules/userJourneyClusterUpgrade-recordingRule.yaml
   untestedRules: []
   outputBicep: ../dev-infrastructure/modules/metrics/rules/generatedRecordingRules.bicep

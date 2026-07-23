@@ -1,6 +1,7 @@
 prometheusRules:
   rulesFolders:
   - alerts/access-cluster-slo-prometheusRule.yaml
+  - alerts/userJourneyClusterUpgradeMonitor-prometheusRule.yaml
   - alerts/nodepool-slo-prometheusRule.yaml
   untestedRules: []
   testDependencies:

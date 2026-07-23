@@ -1,0 +1,51 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    app.kubernetes.io/name: kube-prometheus
+    app.kubernetes.io/part-of: kube-prometheus
+    prometheus: k8s
+    role: alert-rules
+  name: user-journey-cluster-upgrade-alerts
+  namespace: monitoring
+spec:
+  groups:
+  # Per-upgrade stuck alerts for cluster upgrade SLOs. Sev 4.
+  # At current upgrade volumes, alert directly on duration instead of fleet burn-rate.
+  #
+  # In absence of https://issues.redhat.com/browse/ARO-22686 (reporting of control plane
+  # version history for versions lower than 4.22), cluster upgrade completeness is directly
+  # impacted by data plane state — e.g. no worker nodes means the upgrade will not reach
+  # completed; missing console component in external auth prevents CVO from marking the
+  # upgrade complete. The complete alert may therefore fire due to missing data plane
+  # configuration rather than control plane failure. The runbook accommodates this.
+  - name: rp-user-journey-cluster-upgrade-monitor-rules
+    rules:
+    - alert: userJourneyClusterUpgradeStuckInDesired
+      expr: |
+        hosted_control_plane_upgrade:duration_in_desired:seconds > 1200
+      for: 5m
+      labels:
+        severity: "4"
+        slo: cluster-upgrade-reach-partial
+      annotations:
+        summary: "[HCPUpgradeStuckInDesired] {{ $labels.resource_id }}"
+        description: |
+          Cluster upgrade target version {{ $labels.version }} has been in desired for over 20 minutes without reaching partial. With the alert pending for 5 minutes, paging starts after ~25 minutes. Partial is when the target version becomes active (recognized as active) on the HCP cluster; the upgrade is in progress but not yet complete. Investigate backend_cluster_version_info on the affected cluster.
+          Service Cluster: {{ $labels.cluster }}
+        runbook_url: https://aka.ms/arohcp-runbook-cluster-upgrade
+        correlationId: "userJourneyClusterUpgradeStuckInDesired/{{ $labels.cluster }}{{ $labels.resource_id }}/{{ $labels.version }}"
+    - alert: userJourneyClusterUpgradeStuckInProgress
+      expr: |
+        hosted_control_plane_upgrade:duration_in_progress:seconds > 1800
+      for: 5m
+      labels:
+        severity: "4"
+        slo: cluster-upgrade-complete
+      annotations:
+        summary: "[HCPUpgradeStuckInProgress] {{ $labels.resource_id }}"
+        description: |
+          Cluster upgrade target version {{ $labels.version }} has been in progress for over 30 minutes without reaching completed. With the alert pending for 5 minutes, paging starts after ~35 minutes. Completed is when the target version upgrade has finished and is reported as complete on the HCP cluster. Investigate backend_cluster_version_info on the affected cluster.
+          Service Cluster: {{ $labels.cluster }}
+        runbook_url: https://aka.ms/arohcp-runbook-cluster-upgrade
+        correlationId: "userJourneyClusterUpgradeStuckInProgress/{{ $labels.cluster }}{{ $labels.resource_id }}/{{ $labels.version }}"

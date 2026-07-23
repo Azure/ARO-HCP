@@ -1,0 +1,126 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    app.kubernetes.io/name: kube-prometheus
+    app.kubernetes.io/part-of: kube-prometheus
+    prometheus: k8s
+    role: recording-rules
+  name: user-journey-cluster-upgrade-recording-rules
+  namespace: monitoring
+spec:
+  groups:
+  # ========================================
+  # Cluster Upgrade recording rules
+  # ========================================
+  # Eligibility, first-seen timestamps, in-progress fleet counts, and per-upgrade
+  # duration metrics used by stuck alerts and the cluster-upgrade SLO dashboard.
+  #
+  # upgrade_eligible:info must be evaluated before version_state_first_seen (same cycle).
+  # Eligibility: per resource_id, at least two distinct version labels and at least one completed.
+  # Excludes initial install. Cluster create bounds when install ends (operation_cluster_create.go):
+  # https://github.com/Azure/ARO-HCP/blob/main/backend/pkg/controllers/operationcontrollers/operation_cluster_create.go#L316-L320
+  #
+  # Naming: level:metric:operations per https://prometheus.io/docs/practices/rules/#naming
+  - name: arohcp_user_journey_cluster_upgrade_recording_rules
+    interval: 1m
+    rules:
+    - record: hosted_control_plane_upgrade:upgrade_eligible:info
+      expr: |
+        (
+          (
+            count by (cluster, resource_id, subscription_id, cluster_uuid) (
+              count by (cluster, resource_id, subscription_id, cluster_uuid, version) (
+                backend_cluster_version_info == 1
+              )
+            ) >= 2
+          )
+          and on (cluster, resource_id) (
+            count by (cluster, resource_id) (
+              backend_cluster_version_info{state="completed"} == 1
+            ) >= 1
+          )
+        ) * 0 + 1
+    # When each upgrade target version first entered desired or partial (start time for SLO durations).
+    # Stop recording once the version reaches completed so latched timestamps do not persist forever.
+    - record: hosted_control_plane_upgrade:version_state_first_seen:timestamp
+      expr: |
+        min without(prometheus_replica) (
+          min by (cluster, resource_id, subscription_id, cluster_uuid, version, state) (
+            (
+              hosted_control_plane_upgrade:version_state_first_seen:timestamp
+              or
+              (
+                timestamp(backend_cluster_version_info{state=~"desired|partial"} == 1)
+                and on (cluster, resource_id) (
+                  hosted_control_plane_upgrade:upgrade_eligible:info == 1
+                )
+              )
+            )
+            unless on(cluster, resource_id, subscription_id, cluster_uuid, version) (
+              backend_cluster_version_info{state="completed"} == 1
+            )
+          )
+        )
+    # Count of clusters with an upgrade currently in progress (desired or partial on a target version, without being completed).
+    - record: hosted_control_plane_upgrade:in_progress:count
+      expr: |
+        count by (cluster) (
+          count by (cluster, resource_id) (
+            (
+              backend_cluster_version_info{state=~"desired|partial"} == 1
+              unless on(cluster, resource_id, subscription_id, cluster_uuid, version)
+                backend_cluster_version_info{state="completed"} == 1
+            )
+          ) >= 1
+          and on (cluster, resource_id) (
+            hosted_control_plane_upgrade:upgrade_eligible:info == 1
+          )
+        )
+        or
+        0 * count by (cluster) (backend_cluster_version_info)
+    # Seconds the target version has been in desired without reaching partial or completed.
+    - record: hosted_control_plane_upgrade:duration_in_desired:seconds
+      expr: |
+        (
+          time() - hosted_control_plane_upgrade:version_state_first_seen:timestamp{state="desired"}
+        )
+        and on(cluster, resource_id, subscription_id, cluster_uuid, version) (
+          (
+            backend_cluster_version_info{state="desired"} == 1
+            unless on(cluster, resource_id, subscription_id, cluster_uuid, version) (
+              backend_cluster_version_info{state="partial"} == 1
+              or
+              backend_cluster_version_info{state="completed"} == 1
+            )
+          )
+        )
+        and on (cluster, resource_id) (
+          hosted_control_plane_upgrade:upgrade_eligible:info == 1
+        )
+    # Seconds since the target version was selected until it completes (desired or partial on a target version, without being completed).
+    - record: hosted_control_plane_upgrade:duration_in_progress:seconds
+      expr: |
+        (
+          sum without(state) (
+            (
+              time() - hosted_control_plane_upgrade:version_state_first_seen:timestamp{state="desired"}
+            )
+            and on (cluster, resource_id) (
+              hosted_control_plane_upgrade:upgrade_eligible:info == 1
+            )
+          )
+          unless on(cluster, resource_id, subscription_id, cluster_uuid, version) (
+            backend_cluster_version_info{state="completed"} == 1
+          )
+        )
+        * on(cluster, resource_id, subscription_id, cluster_uuid, version) group_left(state)
+          (
+            backend_cluster_version_info{state="partial"} == 1
+            or
+            (
+              backend_cluster_version_info{state="desired"} == 1
+              unless on(cluster, resource_id, subscription_id, cluster_uuid, version)
+                backend_cluster_version_info{state="partial"} == 1
+            )
+          )

@@ -1,0 +1,128 @@
+rule_files:
+- userJourneyClusterUpgrade-recordingRule.yaml
+- userJourneyClusterUpgradeMonitor-prometheusRule.yaml
+evaluation_interval: 1m
+tests:
+# ========================================
+# Reach partial: successful — no alert
+# ========================================
+- interval: 1m
+  input_series:
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1", version="4.19.19", state="completed"}'
+    values: "1+0x40"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1", version="4.19.20", state="desired"}'
+    values: "1x10 0x25"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1", version="4.19.20", state="partial"}'
+    values: "0x10 1x25"
+  alert_rule_test:
+  - eval_time: 25m
+    alertname: userJourneyClusterUpgradeStuckInDesired
+    exp_alerts: []
+  - eval_time: 40m
+    alertname: userJourneyClusterUpgradeStuckInDesired
+    exp_alerts: []
+# ========================================
+# Reach partial: stuck in desired >20m — alert pending for 5m, fires after ~25m
+# ========================================
+- interval: 1m
+  input_series:
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/2/rg/c2", subscription_id="sub-2", cluster_uuid="uuid-2", version="4.19.20", state="completed"}'
+    values: "1+0x50"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/2/rg/c2", subscription_id="sub-2", cluster_uuid="uuid-2", version="4.19.21", state="desired"}'
+    values: "1+0x50"
+  alert_rule_test:
+  - eval_time: 20m
+    alertname: userJourneyClusterUpgradeStuckInDesired
+    exp_alerts: []
+  - eval_time: 30m
+    alertname: userJourneyClusterUpgradeStuckInDesired
+    exp_alerts:
+    - exp_labels:
+        alertname: userJourneyClusterUpgradeStuckInDesired
+        cluster: "svc-1"
+        cluster_uuid: "uuid-2"
+        resource_id: "/sub/2/rg/c2"
+        subscription_id: "sub-2"
+        version: "4.19.21"
+        state: "desired"
+        severity: "4"
+        slo: cluster-upgrade-reach-partial
+      exp_annotations:
+        summary: "[HCPUpgradeStuckInDesired] /sub/2/rg/c2"
+        description: |
+          Cluster upgrade target version 4.19.21 has been in desired for over 20 minutes without reaching partial. With the alert pending for 5 minutes, paging starts after ~25 minutes. Partial is when the target version becomes active (recognized as active) on the HCP cluster; the upgrade is in progress but not yet complete. Investigate backend_cluster_version_info on the affected cluster.
+          Service Cluster: svc-1
+        runbook_url: "https://aka.ms/arohcp-runbook-cluster-upgrade"
+        correlationId: "userJourneyClusterUpgradeStuckInDesired/svc-1/sub/2/rg/c2/4.19.21"
+# ========================================
+# Reach partial: install only — not upgrade eligible, no alert
+# ========================================
+- interval: 1m
+  input_series:
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/3/rg/c4", subscription_id="sub-3", cluster_uuid="uuid-4", version="4.19.20", state="desired"}'
+    values: "1+0x50"
+  alert_rule_test:
+  - eval_time: 50m
+    alertname: userJourneyClusterUpgradeStuckInDesired
+    exp_alerts: []
+# ========================================
+# Upgrade complete: successful — no alert
+# ========================================
+- interval: 1m
+  input_series:
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1", version="4.19.19", state="completed"}'
+    values: "1+0x40"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1", version="4.19.20", state="desired"}'
+    values: "1x10 0x25"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/1/rg/c1", subscription_id="sub-1", cluster_uuid="uuid-1", version="4.19.20", state="completed"}'
+    values: "0x10 1x25"
+  alert_rule_test:
+  - eval_time: 40m
+    alertname: userJourneyClusterUpgradeStuckInProgress
+    exp_alerts: []
+# ========================================
+# Upgrade complete: stuck in progress >30m — alert pending for 5m, fires after ~35m
+# ========================================
+- interval: 1m
+  input_series:
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/2/rg/c2", subscription_id="sub-2", cluster_uuid="uuid-2", version="4.19.20", state="completed"}'
+    values: "1+0x50"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/2/rg/c2", subscription_id="sub-2", cluster_uuid="uuid-2", version="4.19.21", state="desired"}'
+    values: "1x10 0x50"
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/2/rg/c2", subscription_id="sub-2", cluster_uuid="uuid-2", version="4.19.21", state="partial"}'
+    values: "0x10 1x50"
+  alert_rule_test:
+  - eval_time: 30m
+    alertname: userJourneyClusterUpgradeStuckInProgress
+    exp_alerts: []
+  - eval_time: 40m
+    alertname: userJourneyClusterUpgradeStuckInProgress
+    exp_alerts:
+    - exp_labels:
+        alertname: userJourneyClusterUpgradeStuckInProgress
+        cluster: "svc-1"
+        cluster_uuid: "uuid-2"
+        resource_id: "/sub/2/rg/c2"
+        subscription_id: "sub-2"
+        version: "4.19.21"
+        state: "partial"
+        severity: "4"
+        slo: cluster-upgrade-complete
+      exp_annotations:
+        summary: "[HCPUpgradeStuckInProgress] /sub/2/rg/c2"
+        description: |
+          Cluster upgrade target version 4.19.21 has been in progress for over 30 minutes without reaching completed. With the alert pending for 5 minutes, paging starts after ~35 minutes. Completed is when the target version upgrade has finished and is reported as complete on the HCP cluster. Investigate backend_cluster_version_info on the affected cluster.
+          Service Cluster: svc-1
+        runbook_url: "https://aka.ms/arohcp-runbook-cluster-upgrade"
+        correlationId: "userJourneyClusterUpgradeStuckInProgress/svc-1/sub/2/rg/c2/4.19.21"
+# ========================================
+# Upgrade complete: install only — not upgrade eligible, no alert
+# ========================================
+- interval: 1m
+  input_series:
+  - series: 'backend_cluster_version_info{cluster="svc-1", resource_id="/sub/3/rg/c4", subscription_id="sub-3", cluster_uuid="uuid-4", version="4.19.20", state="desired"}'
+    values: "1+0x50"
+  alert_rule_test:
+  - eval_time: 50m
+    alertname: userJourneyClusterUpgradeStuckInProgress
+    exp_alerts: []
