@@ -7,67 +7,19 @@ param hcpAzureMonitoringWorkspaceId string
 @description('ARO HCP region name')
 param region string
 
-@description('The ICM environment')
-param icmEnvironment string
+@description('Resource ID of the SL ICM action group (empty string if not managed)')
+param actionGroupSL string
 
-@description('ICM connection Name')
-param icmConnectionName string
+@description('Resource ID of the SRE ICM action group (empty string if not managed)')
+param actionGroupSRE string
 
-@description('ICM connection id')
-param icmConnectionId string
+@description('Resource ID of the RP ICM action group (empty string if not managed)')
+param actionGroupRP string
 
-@description('Name of the ICM Action Group')
-param icmActionGroupNameSRE string
+@description('Resource ID of the MSFT ICM action group (empty string if not managed)')
+param actionGroupMSFT string
 
-@description('Name of the ICM Action Group')
-param icmActionGroupShortNameSRE string
-
-@description('ICM routing ID')
-param icmRoutingIdSRE string
-
-@description('ICM automitigation enabled ID')
-param icmAutomitigationEnabledSRE string
-
-@description('Name of the ICM Action Group')
-param icmActionGroupNameSL string
-
-@description('Name of the ICM Action Group')
-param icmActionGroupShortNameSL string
-
-@description('ICM routing ID')
-param icmRoutingIdSL string
-
-@description('ICM automitigation enabled ID')
-param icmAutomitigationEnabledSL string
-
-@description('Name of the ICM Action Group')
-param icmActionGroupNameRP string
-
-@description('Name of the ICM Action Group')
-param icmActionGroupShortNameRP string
-
-@description('ICM routing ID')
-param icmRoutingIdRP string
-
-@description('ICM automitigation enabled ID')
-param icmAutomitigationEnabledRP string
-
-@description('Name of the ICM Action Group')
-param icmActionGroupNameMSFT string
-
-@description('Name of the ICM Action Group')
-param icmActionGroupShortNameMSFT string
-
-@description('ICM routing ID')
-param icmRoutingIdMSFT string
-
-@description('ICM automitigation enabled ID')
-param icmAutomitigationEnabledMSFT string
-
-@description('Enable creating ICM action groups')
-param manageConnection bool
-
-@description('Whether ICM alerting is enabled for this region')
+@description('Whether alerting is enabled for this region')
 param alertsEnabled bool
 
 @description('The minimum IcM severity level (highest priority) that alerts can fire at. Alerts more critical than this ceiling will be degraded to this value. 0 means no ceiling.')
@@ -94,32 +46,6 @@ param icmEnabledRP bool = true
 @description('Whether the MSFT IcM action group is wired to MSFT alert rules. When false, MSFT rules still evaluate in Prometheus but do not deliver to IcM.')
 param icmEnabledMSFT bool = true
 
-module actionGroups '../modules/metrics/actiongroups.bicep' = if (manageConnection) {
-  name: 'actionGroups'
-  params: {
-    icmEnvironment: icmEnvironment
-    icmConnectionName: icmConnectionName
-    icmConnectionId: icmConnectionId
-    icmActionGroupNameSRE: icmActionGroupNameSRE
-    icmActionGroupShortNameSRE: icmActionGroupShortNameSRE
-    icmRoutingIdSRE: icmRoutingIdSRE
-    icmAutomitigationEnabledSRE: icmAutomitigationEnabledSRE
-    icmActionGroupNameSL: icmActionGroupNameSL
-    icmActionGroupShortNameSL: icmActionGroupShortNameSL
-    icmRoutingIdSL: icmRoutingIdSL
-    icmAutomitigationEnabledSL: icmAutomitigationEnabledSL
-    icmActionGroupNameRP: icmActionGroupNameRP
-    icmActionGroupShortNameRP: icmActionGroupShortNameRP
-    icmRoutingIdRP: icmRoutingIdRP
-    icmAutomitigationEnabledRP: icmAutomitigationEnabledRP
-    icmActionGroupNameMSFT: icmActionGroupNameMSFT
-    icmActionGroupShortNameMSFT: icmActionGroupShortNameMSFT
-    icmRoutingIdMSFT: icmRoutingIdMSFT
-    icmAutomitigationEnabledMSFT: icmAutomitigationEnabledMSFT
-    alertingEnabled: alertsEnabled
-  }
-}
-
 module eventHubActionGroup '../modules/metrics/eventhub-actiongroup.bicep' = if (eventHubAlertingEnabled) {
   name: 'eventHubActionGroup'
   params: {
@@ -132,18 +58,14 @@ module eventHubActionGroup '../modules/metrics/eventhub-actiongroup.bicep' = if 
 var ehActionGroups = eventHubAlertingEnabled ? [eventHubActionGroup!.outputs.actionGroupId] : []
 
 // Action group arrays per IcM team, combined with the Event Hub action group.
+// ICM action groups are created at geography level and looked up via pipeline variables.
 // Each lane's icmEnabled flag is a second guard so that lane's rules can evaluate without delivering IcM tickets.
-var slActionGroups = manageConnection && icmEnabledSL
-  ? concat([actionGroups!.outputs.actionGroupsSL], ehActionGroups)
-  : ehActionGroups
-var rpActionGroups = manageConnection && icmEnabledRP
-  ? concat([actionGroups!.outputs.actionGroupsRP], ehActionGroups)
-  : ehActionGroups
-var sreActionGroups = manageConnection && icmEnabledSRE
-  ? concat([actionGroups!.outputs.actionGroupsSRE], ehActionGroups)
-  : ehActionGroups
-var msftActionGroups = manageConnection && icmEnabledMSFT
-  ? concat([actionGroups!.outputs.actionGroupsMSFT], ehActionGroups)
+// The Event Hub action group is created here (region-specific).
+var slActionGroups = actionGroupSL != '' && icmEnabledSL ? concat([actionGroupSL], ehActionGroups) : ehActionGroups
+var rpActionGroups = actionGroupRP != '' && icmEnabledRP ? concat([actionGroupRP], ehActionGroups) : ehActionGroups
+var sreActionGroups = actionGroupSRE != '' && icmEnabledSRE ? concat([actionGroupSRE], ehActionGroups) : ehActionGroups
+var msftActionGroups = actionGroupMSFT != '' && icmEnabledMSFT
+  ? concat([actionGroupMSFT], ehActionGroups)
   : ehActionGroups
 
 module serviceAlerts '../modules/metrics/service-rules.bicep' = {
@@ -238,6 +160,3 @@ module ingestionAlerts '../modules/metrics/amw-ingestion-alerts.bicep' = {
     ]
   }
 }
-
-output actionGroupSL string = manageConnection ? actionGroups!.outputs.actionGroupsSL : ''
-output actionGroupAlertEH string = eventHubAlertingEnabled ? eventHubActionGroup!.outputs.actionGroupId : ''

@@ -26,6 +26,23 @@ resourceGroups:
     parameters: configurations/output-global-stg.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     outputOnly: true
+- name: svc
+  resourceGroup: '{{ .regionRG }}'
+  subscription: '{{ .svc.subscription.key }}'
+  executionConstraints:
+  - clouds:
+    - public
+    environments:
+    - stg
+    regions:
+    - uksouth
+  steps:
+  - name: subscription-lookup
+    action: ARM
+    template: templates/subscription-lookup.bicep
+    parameters: configurations/subscription-lookup.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
 - name: kusto-infra
   resourceGroup: '{{ .kusto.rg }}'
   # Hardcoded on purpose — see global-pipeline-stg.yaml. Removed at decommission.
@@ -58,3 +75,90 @@ resourceGroups:
       - "Internal server error"
       maximumRetryCount: 3
       durationBetweenRetries: 1m
+  - name: kusto-lookup
+    action: ARM
+    template: templates/kusto-lookup.bicep
+    parameters: configurations/kusto-lookup.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
+    dependsOn:
+    - resourceGroup: kusto-infra
+      step: deploy
+  - name: action-groups
+    action: ARM
+    template: templates/geography-actiongroups.bicep
+    parameters: configurations/geography-actiongroups.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    variables:
+    - name: eventHubSubscriptionId
+      input:
+        resourceGroup: svc
+        step: subscription-lookup
+        name: subscriptionId
+    - name: kustoRegion
+      input:
+        resourceGroup: kusto-infra
+        step: kusto-lookup
+        name: kustoRegion
+    dependsOn:
+    - resourceGroup: kusto-infra
+      step: kusto-lookup
+    - resourceGroup: svc
+      step: subscription-lookup
+  - name: detach-legacy-monitoring-stack
+    action: Shell
+    command: ./detach-legacy-monitoring-stack.sh
+    workingDir: ./scripts
+    variables:
+    - name: KUSTO_RESOURCE_GROUP
+      configRef: kusto.rg
+    shellIdentity:
+      input:
+        resourceGroup: global
+        step: output
+        name: globalMSIId
+    dependsOn:
+    - resourceGroup: kusto-infra
+      step: deploy
+    - resourceGroup: global
+      step: output
+  - name: kusto-monitoring
+    action: ARMStack
+    template: templates/kusto-monitoring.bicep
+    parameters: configurations/kusto-monitoring.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    actionOnUnmanage: delete
+    bypassStackOutOfSyncError: false
+    automatedRetry:
+      errorContainsAny:
+      - "DeploymentStackInNonTerminalState"
+      maximumRetryCount: 3
+      durationBetweenRetries: 2m
+    variables:
+    - name: kustoClusterId
+      input:
+        resourceGroup: kusto-infra
+        step: kusto-lookup
+        name: kustoResourceId
+    - name: kustoRegion
+      input:
+        resourceGroup: kusto-infra
+        step: kusto-lookup
+        name: kustoRegion
+    - name: actionGroupSL
+      input:
+        resourceGroup: kusto-infra
+        step: action-groups
+        name: actionGroupSL
+    - name: actionGroupAlertEH
+      input:
+        resourceGroup: kusto-infra
+        step: action-groups
+        name: actionGroupAlertEH
+    dependsOn:
+    - resourceGroup: kusto-infra
+      step: kusto-lookup
+    - resourceGroup: kusto-infra
+      step: action-groups
+    - resourceGroup: kusto-infra
+      step: detach-legacy-monitoring-stack
