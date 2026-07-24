@@ -25,6 +25,6 @@ import (
 type NodePoolValidation interface {
 	// Name returns the name of the validation.
 	Name() string
-	// Validate validates the NodePool. It returns nil if the validation succeeds and an error otherwise.
-	Validate(ctx context.Context, cluster *api.HCPOpenShiftCluster, nodePoolSubscription *arm.Subscription, nodePool *api.HCPOpenShiftClusterNodePool) error
+	// Validate validates the NodePool and returns a ValidationResult describing the outcome.
+	Validate(ctx context.Context, cluster *api.HCPOpenShiftCluster, nodePoolSubscription *arm.Subscription, nodePool *api.HCPOpenShiftClusterNodePool) *ValidationResult
 }

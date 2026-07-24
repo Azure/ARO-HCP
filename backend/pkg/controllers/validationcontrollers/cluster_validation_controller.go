@@ -17,10 +17,10 @@ package validationcontrollers
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	"k8s.io/apimachinery/pkg/api/meta"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/validationcontrollers/validations"
@@ -40,6 +40,12 @@ type clusterValidationSyncer struct {
 
 	// validation is the validation to perform on the cluster.
 	validation validations.ClusterValidation
+
+	// earliestRetryTimes tracks per-key deadlines before which retries are
+	// suppressed. Informer events may re-enqueue a key before the
+	// EarliestRetryAfter delay has elapsed; this map lets SyncOnce skip
+	// those early runs.
+	earliestRetryTimes sync.Map
 }
 
 var _ controllerutils.ClusterSyncer = (*clusterValidationSyncer)(nil)
@@ -73,6 +79,15 @@ func NewClusterValidationController(
 }
 
 func (c *clusterValidationSyncer) SyncOnce(ctx context.Context, key controllerutils.HCPClusterKey) error {
+	logger := utils.LoggerFromContext(ctx)
+
+	if deadline, ok := c.earliestRetryTimes.Load(key); ok {
+		if time.Now().Before(deadline.(time.Time)) {
+			return nil
+		}
+		c.earliestRetryTimes.Delete(key)
+	}
+
 	existingCluster, err := c.resourcesDBClient.HCPClusters(key.SubscriptionID, key.ResourceGroupName).Get(ctx, key.HCPClusterName)
 	if database.IsNotFoundError(err) {
 		return nil // cluster doesn't exist, no work to do
@@ -103,24 +118,10 @@ func (c *clusterValidationSyncer) SyncOnce(ctx context.Context, key controllerut
 		return utils.TrackError(fmt.Errorf("failed to get Subscription: %w", err))
 	}
 
-	// We store the validation error in a separate variable and we use that as the
-	// error to return to the caller. This allows us to perform other remaining
-	// tasks in the syncer even if the validation fails, and we ultimately
-	// drive the behavior of its controller through the outcome of the validation.
-	validationErr := c.validation.Validate(ctx, subscription, existingCluster)
+	result := validations.DefaultResult(c.validation.Validate(ctx, subscription, existingCluster))
 
-	validationCondition := metav1.Condition{
-		Type: c.validation.Name(),
-	}
-	if validationErr != nil {
-		validationCondition.Status = metav1.ConditionFalse
-		validationCondition.Reason = "Failed"
-		validationCondition.Message = fmt.Sprintf("Validation failed: %s", validationErr.Error())
-	} else {
-		validationCondition.Status = metav1.ConditionTrue
-		validationCondition.Reason = "Succeeded"
-		validationCondition.Message = "Validation succeeded"
-	}
+	validationCondition := result.ToCondition(c.validation.Name())
+
 	replacement := existingServiceProviderCluster.DeepCopy()
 	meta.SetStatusCondition(&replacement.Status.Validations, validationCondition)
 
@@ -134,11 +135,15 @@ func (c *clusterValidationSyncer) SyncOnce(ctx context.Context, key controllerut
 		return utils.TrackError(fmt.Errorf("failed to replace ServiceProviderCluster: %w", err))
 	}
 
-	return validationErr
+	if result.EarliestRetryAfter != nil {
+		c.earliestRetryTimes.Store(key, time.Now().Add(*result.EarliestRetryAfter))
+	}
+
+	return result.ToSyncError(logger, c.validation.Name())
 }
 
 // shouldProcess returns true when the condition associated to the validation does not exist or when it exists but
-// it failed to run successfully in a previous attempt.
+// it is not in a successful state (i.e. Failed or Unknown).
 func (c *clusterValidationSyncer) shouldProcess(serviceProviderCluster *api.ServiceProviderCluster) bool {
 	return !meta.IsStatusConditionTrue(serviceProviderCluster.Status.Validations, c.validation.Name())
 }

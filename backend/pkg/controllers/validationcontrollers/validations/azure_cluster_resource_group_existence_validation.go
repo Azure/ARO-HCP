@@ -21,7 +21,6 @@ import (
 	azureclient "github.com/Azure/ARO-HCP/backend/pkg/azure/client"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
-	"github.com/Azure/ARO-HCP/internal/utils"
 )
 
 // AzureClusterResourceGroupExistenceValidation validates that the Azure Resource
@@ -44,22 +43,48 @@ func (a *AzureClusterResourceGroupExistenceValidation) Name() string {
 
 func (a *AzureClusterResourceGroupExistenceValidation) Validate(
 	ctx context.Context, clusterSubscription *arm.Subscription, cluster *api.HCPOpenShiftCluster,
-) error {
+) *ValidationResult {
 	rgClient, err := a.azureFPAClientBuilder.ResourceGroupsClient(
 		*clusterSubscription.Properties.TenantId,
 		cluster.ID.SubscriptionID,
 	)
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get resource groups client: %w", err))
+		msg := fmt.Sprintf("failed to get resource groups client: %s", err)
+		return &ValidationResult{
+			Outcome: OutcomeTypeUnknown,
+			Unknown: &UnknownResult{
+				Reason:                 "InfrastructureError",
+				ServiceProviderMessage: msg,
+				UserMessage:            "Unable to verify resource group existence.",
+				ReportingPolicy:        ReportingPolicyTypeError,
+			},
+		}
 	}
 
 	_, err = rgClient.Get(ctx, cluster.ID.ResourceGroupName, nil)
 	if azureclient.IsResourceGroupNotFoundErr(err) {
-		return utils.TrackError(fmt.Errorf("resource group does not exist: %w", err))
+		userMsg := fmt.Sprintf("Resource group %q does not exist.", cluster.ID.ResourceGroupName)
+		return &ValidationResult{
+			Outcome: OutcomeTypeFailed,
+			Failed: &FailedResult{
+				Reason:                 "ResourceGroupNotFound",
+				ServiceProviderMessage: fmt.Sprintf("resource group does not exist: %s", err),
+				UserMessage:            userMsg,
+			},
+		}
 	}
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get resource group: %w", err))
+		msg := fmt.Sprintf("failed to get resource group: %s", err)
+		return &ValidationResult{
+			Outcome: OutcomeTypeUnknown,
+			Unknown: &UnknownResult{
+				Reason:                 "InfrastructureError",
+				ServiceProviderMessage: msg,
+				UserMessage:            "Unable to verify resource group existence.",
+				ReportingPolicy:        ReportingPolicyTypeError,
+			},
+		}
 	}
 
-	return nil
+	return &ValidationResult{Outcome: OutcomeTypePassed}
 }
