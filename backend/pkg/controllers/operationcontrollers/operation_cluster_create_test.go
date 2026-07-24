@@ -303,6 +303,21 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 				clusterLister: &listertesting.SliceClusterLister{
 					Clusters: []*api.HCPOpenShiftCluster{tc.existingCluster},
 				},
+				serviceProviderClusterLister: &listertesting.SliceServiceProviderClusterLister{
+					ServiceProviderClusters: []*api.ServiceProviderCluster{
+						{
+							CosmosMetadata: api.CosmosMetadata{
+								ResourceID: api.Must(azcorearm.ParseResourceID(
+									fixture.clusterResourceID.String() + "/" +
+										api.ServiceProviderClusterResourceTypeName + "/" +
+										api.ServiceProviderClusterResourceName)),
+							},
+							Status: api.ServiceProviderClusterStatus{
+								ServingCABundle: "fake-ca-data",
+							},
+						},
+					},
+				},
 				readDesireLister: func() dblisters.ReadDesireLister {
 					if tc.readDesireLister != nil {
 						return tc.readDesireLister
@@ -749,6 +764,21 @@ func TestDetermineOperationState(t *testing.T) {
 				clusterLister:        tt.clusterLister,
 				readDesireLister:     tt.readDesireLister,
 				clusterServiceClient: setupCSMock(ctrl),
+				serviceProviderClusterLister: &listertesting.SliceServiceProviderClusterLister{
+					ServiceProviderClusters: []*api.ServiceProviderCluster{
+						{
+							CosmosMetadata: api.CosmosMetadata{
+								ResourceID: api.Must(azcorearm.ParseResourceID(
+									fixture.clusterResourceID.String() + "/" +
+										api.ServiceProviderClusterResourceTypeName + "/" +
+										api.ServiceProviderClusterResourceName)),
+							},
+							Status: api.ServiceProviderClusterStatus{
+								ServingCABundle: "fake-ca-data",
+							},
+						},
+					},
+				},
 			}
 
 			result, err := controller.determineOperationState(ctx, operation, cluster)
@@ -766,6 +796,89 @@ func TestDetermineOperationState(t *testing.T) {
 			assert.Equal(t, tt.expectedState, result.ProvisioningState)
 			if tt.wantMessageSubstr != "" {
 				assert.Contains(t, result.Message, tt.wantMessageSubstr)
+			}
+		})
+	}
+}
+
+func TestServingCABundleOperationStatus(t *testing.T) {
+	fixture := newClusterTestFixture()
+	operation := fixture.newOperation(database.OperationRequestCreate)
+
+	spcLister := func(bundle string) listers.ServiceProviderClusterLister {
+		return &listertesting.SliceServiceProviderClusterLister{
+			ServiceProviderClusters: []*api.ServiceProviderCluster{
+				{
+					CosmosMetadata: api.CosmosMetadata{
+						ResourceID: api.Must(azcorearm.ParseResourceID(
+							fixture.clusterResourceID.String() + "/" +
+								api.ServiceProviderClusterResourceTypeName + "/" +
+								api.ServiceProviderClusterResourceName)),
+					},
+					Status: api.ServiceProviderClusterStatus{
+						ServingCABundle: bundle,
+					},
+				},
+			},
+		}
+	}
+
+	clusterWithVersion := func(version string) *api.HCPOpenShiftCluster {
+		cluster := newClusterWithAPIURL("https://api.example.com", nil)
+		cluster.CustomerProperties.Version.ID = version
+		return cluster
+	}
+
+	tests := []struct {
+		name          string
+		cluster       *api.HCPOpenShiftCluster
+		spcLister     listers.ServiceProviderClusterLister
+		expectedState arm.ProvisioningState
+		wantMsgSubstr string
+	}{
+		{
+			// A cluster below the minimum serving-CA version never gets a
+			// serving CA ReadDesire created, so ServingCABundle stays empty
+			// forever. The check must be skipped rather than block the create.
+			name:          "version below minimum skips serving CA check → Succeeded",
+			cluster:       clusterWithVersion("4.19.0"),
+			spcLister:     spcLister(""),
+			expectedState: arm.ProvisioningStateSucceeded,
+		},
+		{
+			name:          "unknown (empty) version skips serving CA check → Succeeded",
+			cluster:       clusterWithVersion(""),
+			spcLister:     spcLister(""),
+			expectedState: arm.ProvisioningStateSucceeded,
+		},
+		{
+			name:          "version at minimum with populated bundle → Succeeded",
+			cluster:       clusterWithVersion("4.20.0"),
+			spcLister:     spcLister("fake-ca-data"),
+			expectedState: arm.ProvisioningStateSucceeded,
+		},
+		{
+			name:          "version at minimum with empty bundle → Provisioning",
+			cluster:       clusterWithVersion("4.20.0"),
+			spcLister:     spcLister(""),
+			expectedState: arm.ProvisioningStateProvisioning,
+			wantMsgSubstr: "ServingCABundle not yet populated",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+			controller := &operationClusterCreate{
+				serviceProviderClusterLister: tt.spcLister,
+			}
+
+			result, err := controller.servingCABundleOperationStatus(ctx, operation, tt.cluster)
+			require.NoError(t, err)
+			require.NotNil(t, result)
+			assert.Equal(t, tt.expectedState, result.ProvisioningState)
+			if tt.wantMsgSubstr != "" {
+				assert.Contains(t, result.Message, tt.wantMsgSubstr)
 			}
 		})
 	}

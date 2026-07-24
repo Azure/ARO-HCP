@@ -104,6 +104,14 @@ func (c *serviceProviderClusterPropertiesSyncer) SyncOnce(ctx context.Context, k
 	replacement.Status.HostedClusterNamespace = hostedClusterNamespace
 	replacement.Status.ControlPlaneNamespace = controlPlaneNamespace
 
+	servingCABundle, err := c.resolveServingCABundle(ctx, key)
+	if err != nil {
+		return err
+	}
+	if len(servingCABundle) > 0 {
+		replacement.Status.ServingCABundle = servingCABundle
+	}
+
 	if equality.Semantic.DeepEqual(existing, replacement) {
 		return nil
 	}
@@ -114,9 +122,25 @@ func (c *serviceProviderClusterPropertiesSyncer) SyncOnce(ctx context.Context, k
 		return utils.TrackError(fmt.Errorf("failed to replace ServiceProviderCluster: %w", err))
 	}
 
-	logger.Info("synced service provider cluster namespace properties",
+	logger.Info("synced service provider cluster properties",
 		"hostedClusterNamespace", hostedClusterNamespace,
 		"controlPlaneNamespace", controlPlaneNamespace,
 	)
 	return nil
+}
+
+const servingCATLSCertKey = "tls.crt"
+
+func (c *serviceProviderClusterPropertiesSyncer) resolveServingCABundle(ctx context.Context, key controllerutils.HCPClusterKey) (string, error) {
+	cachedSecret, err := kubeapplierhelpers.GetCachedServingCASecretForCluster(
+		ctx, c.readDesireLister,
+		key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName,
+	)
+	if err != nil {
+		return "", utils.TrackError(err)
+	}
+	if cachedSecret == nil {
+		return "", nil
+	}
+	return string(cachedSecret.Data[servingCATLSCertKey]), nil
 }

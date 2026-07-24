@@ -51,6 +51,7 @@ type operationClusterCreate struct {
 	clock                                 utilsclock.PassiveClock
 	activeOperationLister                 listers.ActiveOperationLister
 	clusterLister                         listers.ClusterLister
+	serviceProviderClusterLister          listers.ServiceProviderClusterLister
 	clusterManagementClusterContentLister listers.ManagementClusterContentLister
 	readDesireLister                      dblisters.ReadDesireLister
 	resourcesDBClient                     database.ResourcesDBClient
@@ -83,11 +84,13 @@ func NewOperationClusterCreateController(
 ) controllerutils.Controller {
 	_, activeOperationLister := informers.ActiveOperations()
 	_, clusterLister := informers.Clusters()
+	_, serviceProviderClusterLister := informers.ServiceProviderClusters()
 	_, clusterManagementClusterContentLister := informers.ManagementClusterContents()
 	syncer := &operationClusterCreate{
 		clock:                                 clock,
 		activeOperationLister:                 activeOperationLister,
 		clusterLister:                         clusterLister,
+		serviceProviderClusterLister:          serviceProviderClusterLister,
 		clusterManagementClusterContentLister: clusterManagementClusterContentLister,
 		readDesireLister:                      readDesireLister,
 		resourcesDBClient:                     resourcesDBClient,
@@ -217,6 +220,11 @@ func (c *operationClusterCreate) determineOperationState(ctx context.Context, op
 		errs = append(errs, utils.TrackError(err))
 	} else {
 		operationStates = append(operationStates, currState.withSource("clusterServiceClusterStatus"))
+	}
+	if currState, err := c.servingCABundleOperationStatus(ctx, operation, cluster); err != nil {
+		errs = append(errs, utils.TrackError(err))
+	} else {
+		operationStates = append(operationStates, currState.withSource("servingCABundle"))
 	}
 
 	if err := errors.Join(errs...); err != nil {
@@ -369,6 +377,44 @@ func (c *operationClusterCreate) hostedClusterOperationStatus(ctx context.Contex
 	// 1. the hosted cluster is available via condition
 	// 2. the hosted cluster has successfully installed at least one version
 	// 3. the hosted cluster has a control plane endpoint host and port
+	return newOperationState(arm.ProvisioningStateSucceeded, ""), nil
+}
+
+func (c *operationClusterCreate) servingCABundleOperationStatus(ctx context.Context, operation *api.Operation, cluster *api.HCPOpenShiftCluster) (*operationState, error) {
+	// The control-plane serving CA is only mirrored into the service cluster
+	// (and thus ServiceProviderCluster.Status.ServingCABundle is only
+	// populated) for clusters at or above the minimum serving-CA version. The
+	// serving CA ReadDesire is gated on the same version in
+	// createClusterScopedReadDesiresSyncer.SyncOnce, so for clusters below that
+	// version the bundle is never populated. Treat the serving CA as satisfied
+	// for those clusters, otherwise their create operation would block forever.
+	//
+	// ClusterVersionAtLeast returns (false, nil) for an unknown/empty version,
+	// so those clusters fall through to the !atLeastMinVersion branch below and
+	// report Succeeded (fail open). This intentionally mirrors the ReadDesire
+	// creation side (create_cluster_scoped_read_desires_controller.go), which
+	// runs the same check and does NOT create the serving CA ReadDesire when the
+	// version is unknown — so ServingCABundle can never be populated. Blocking
+	// here for unknown versions would therefore leave those clusters stuck
+	// forever; both sides must agree: unknown version → skip.
+	atLeastMinVersion, err := controllerutils.ClusterVersionAtLeast(cluster.CustomerProperties.Version.ID, controllerutils.MinServingCAOCPVersion)
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+	if !atLeastMinVersion {
+		return newOperationState(arm.ProvisioningStateSucceeded, ""), nil
+	}
+
+	serviceProviderCluster, err := c.serviceProviderClusterLister.Get(ctx, operation.ExternalID.SubscriptionID, operation.ExternalID.ResourceGroupName, operation.ExternalID.Name)
+	if database.IsNotFoundError(err) {
+		return newOperationState(arm.ProvisioningStateProvisioning, "ServiceProviderCluster not cached yet"), nil
+	}
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+	if len(serviceProviderCluster.Status.ServingCABundle) == 0 {
+		return newOperationState(arm.ProvisioningStateProvisioning, "ServingCABundle not yet populated"), nil
+	}
 	return newOperationState(arm.ProvisioningStateSucceeded, ""), nil
 }
 

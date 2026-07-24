@@ -36,3 +36,9 @@ must-gather-*
 /hcpctl
 timing-metadata-*
 /.claude/
+
+# Allow Secret resource fixtures in the kube-applier read-desire testdata.
+# The `secrets` rule above otherwise excludes the manifestclient directory
+# layout (namespaces/<ns>/core/secrets/), which these test fixtures require.
+!kube-applier/pkg/controllers/read_desire_kubernetes/testdata/**/secrets/
+!kube-applier/pkg/controllers/read_desire_kubernetes/testdata/**/secrets/**
