@@ -88,7 +88,7 @@ spec:
         - name: OPERAND_IMAGE_CONSOLE_MCE
           value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/console-mce-rhel9@sha256:d8b4b43859acbc64d40d8ba30febb549f0e9d60779d569dd7e37e66fe4236d5e'
         - name: OPERAND_IMAGE_DISCOVERY_OPERATOR
-          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/discovery-rhel9@sha256:2138b8f7825484a652f8136c9182431f1166c630580d8e2f30b83574f5b5c3cb'
+          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/discovery-rhel9@sha256:c8f269488d3f278b216eb72ba5206a20d76419f6cc56ac5174bec9b28a5ddcff'
         - name: OPERAND_IMAGE_OPENSHIFT_HIVE
           value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/hive-rhel9@sha256:38975b3060aa9e1a8516e68c9d8946633923e3de43365b6341ccc6e23b9c78da'
         - name: OPERAND_IMAGE_HYPERSHIFT_ADDON_OPERATOR
@@ -112,7 +112,7 @@ spec:
         - name: OPERAND_IMAGE_PLACEMENT
           value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/placement-rhel9@sha256:ebb99f77e31825d665c98564d6925554feaa5095bdb5f5dcd16db992c25f2adc'
         - name: OPERAND_IMAGE_REGISTRATION
-          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/registration-rhel9@sha256:5ea2499103213d38c961c00139e1cc3f2b93125f8788af4be4088fa4c57126a6'
+          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/registration-rhel9@sha256:1375e7a35a29ae8a249c78f614d3c660e0cbd40eb56e1a53cc3a8cdb898b758c'
         - name: OPERAND_IMAGE_REGISTRATION_OPERATOR
           value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/registration-operator-rhel9@sha256:87892d2614200830c7eefc84547ce90d9183535fc3db858c034e6fbfc47cc0f4'
         - name: OPERAND_IMAGE_WORK
@@ -134,12 +134,12 @@ spec:
         - name: OPERAND_IMAGE_POSTGRESQL_13
           value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/postgresql-13@sha256:97b64c18a32944b86fd1a118aa0d1aa04ff1fad8068c3c20f6e94af24712ff36'
         - name: OPERAND_IMAGE_BACKPLANE_OPERATOR
-          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/backplane-rhel9-operator@sha256:84c02f90791a51c13a27e5a892d420c77582759b8990d0e74c7cf536ba6d555e'
+          value: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/backplane-rhel9-operator@sha256:9424d08b8056c20df721b2485e9e071670559f9e0284c225b15aeab8e6c727a0'
         - name: OPERATOR_VERSION
-          value: 2.11.4-571
+          value: 2.11.4-574
         - name: OPERATOR_PACKAGE
           value: multicluster-engine
-        image: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/backplane-rhel9-operator@sha256:84c02f90791a51c13a27e5a892d420c77582759b8990d0e74c7cf536ba6d555e'
+        image: '{{ .Values.imageRegistry }}/{{ .Values.imageRootRepository }}/backplane-rhel9-operator@sha256:9424d08b8056c20df721b2485e9e071670559f9e0284c225b15aeab8e6c727a0'
         livenessProbe:
           httpGet:
             path: /healthz
