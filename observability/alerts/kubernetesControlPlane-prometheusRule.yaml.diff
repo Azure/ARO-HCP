@@ -63,6 +63,15 @@
        labels:
          severity: warning
      - alert: KubeClientErrors
+@@ -584,7 +584,7 @@
+         runbook_url: https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubeapidown
+         summary: Target disappeared from Prometheus target discovery.
+       expr: |
+-        absent(up{job="apiserver"} == 1)
++        count by (cluster) (up{job="apiserver"} == 1) == 0
+       for: 15m
+       labels:
+         severity: critical
 @@ -602,12 +602,12 @@
      rules:
      - alert: KubeNodeNotReady
@@ -78,3 +87,30 @@
        labels:
          severity: warning
      - alert: KubeNodeUnreachable
+@@ -728,7 +728,7 @@
+         runbook_url: https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubeletdown
+         summary: Target disappeared from Prometheus target discovery.
+       expr: |
+-        absent(up{job="kubelet", metrics_path="/metrics"} == 1)
++        count by (cluster) (up{job="kubelet", metrics_path="/metrics"} == 1) == 0
+       for: 15m
+       labels:
+         severity: critical
+@@ -740,7 +740,7 @@
+         runbook_url: https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubeschedulerdown
+         summary: Target disappeared from Prometheus target discovery.
+       expr: |
+-        absent(up{job="kube-scheduler"} == 1)
++        count by (cluster) (up{job="kube-scheduler"} == 1) == 0
+       for: 15m
+       labels:
+         severity: critical
+@@ -752,7 +752,7 @@
+         runbook_url: https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubecontrollermanagerdown
+         summary: Target disappeared from Prometheus target discovery.
+       expr: |
+-        absent(up{job="kube-controller-manager"} == 1)
++        count by (cluster) (up{job="kube-controller-manager"} == 1) == 0
+       for: 15m
+       labels:
+         severity: critical
