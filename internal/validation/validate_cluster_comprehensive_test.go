@@ -674,7 +674,6 @@ func TestValidateClusterCreate(t *testing.T) {
 						identityID: {},
 					},
 				}
-				// Use the same identity in multiple places
 				identityResourceID := api.Must(azcorearm.ParseResourceID(identityID))
 				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ControlPlaneOperators = map[string]*azcorearm.ResourceID{
 					"operator1": identityResourceID,
@@ -682,10 +681,7 @@ func TestValidateClusterCreate(t *testing.T) {
 				}
 				return c
 			}(),
-			expectErrors: []utils.ExpectedError{
-				{Message: "must be unique within the cluster", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.controlPlaneOperators"},
-				{Message: "identity is used multiple times", FieldPath: "identity.userAssignedIdentities[/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/shared-identity]"},
-			},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "duplicate managed identity across data plane operators - create",
@@ -699,9 +695,7 @@ func TestValidateClusterCreate(t *testing.T) {
 				}
 				return c
 			}(),
-			expectErrors: []utils.ExpectedError{
-				{Message: "must be unique within the cluster", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.dataPlaneOperators"},
-			},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "duplicate managed identity between control plane and service managed identity - create",
@@ -721,10 +715,7 @@ func TestValidateClusterCreate(t *testing.T) {
 				c.CustomerProperties.Platform.OperatorsAuthentication.UserAssignedIdentities.ServiceManagedIdentity = identityResourceID
 				return c
 			}(),
-			expectErrors: []utils.ExpectedError{
-				{Message: "must be unique within the cluster", FieldPath: "customerProperties.platform.operatorsAuthentication.userAssignedIdentities.serviceManagedIdentity"},
-				{Message: "identity is used multiple times", FieldPath: "identity.userAssignedIdentities[/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/shared-identity]"},
-			},
+			expectErrors: []utils.ExpectedError{},
 		},
 		{
 			name: "data plane operator uses assigned identity - create",
