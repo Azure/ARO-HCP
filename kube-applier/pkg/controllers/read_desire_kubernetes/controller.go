@@ -308,6 +308,10 @@ func (c *ReadDesireKubernetesController) SyncOnce(ctx context.Context) error {
 					fmt.Errorf("informer cached unexpected type %T", rawObj)))
 			})
 		}
+		if isSecret(c.target) {
+			obj = obj.DeepCopy()
+			redactSecret(obj)
+		}
 		newRaw, err = json.Marshal(obj)
 		if err != nil {
 			return c.writer.UpdateStatus(ctx, c.key, func(d *kubeapplier.ReadDesire) {
