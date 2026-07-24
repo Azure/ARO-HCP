@@ -31,28 +31,28 @@ func (s staticSubscriptionState) GetSubscriptionState(string) string {
 	return string(s)
 }
 
-func TestMetricsMiddlewareClientClass(t *testing.T) {
+func TestMetricsMiddlewareUserAgent(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
 		name      string
 		userAgent string
-		wantClass string
+		wantLabel string
 	}{
 		{
 			name:      "other when unset",
 			userAgent: "",
-			wantClass: clientClassOther,
+			wantLabel: userAgentOther,
 		},
 		{
-			name:      "aso+capz from observed UA",
+			name:      "aso+capz keeps full UA",
 			userAgent: "aso-controller/v2.13.0-hcpclusters.9 cluster-api-provider-azure/v1.22.1-mce-217",
-			wantClass: clientClassASOCAPZ,
+			wantLabel: "aso-controller/v2.13.0-hcpclusters.9 cluster-api-provider-azure/v1.22.1-mce-217",
 		},
 		{
-			name:      "capz only",
+			name:      "capz only keeps full UA",
 			userAgent: "cluster-api-provider-azure/v1.22.1-mce-217",
-			wantClass: clientClassCAPZ,
+			wantLabel: "cluster-api-provider-azure/v1.22.1-mce-217",
 		},
 	}
 
@@ -83,10 +83,10 @@ func TestMetricsMiddlewareClientClass(t *testing.T) {
 				switch mf.GetName() {
 				case requestCounterName:
 					sawCounter = true
-					assert.Equal(t, tt.wantClass, labelValue(t, mf.GetMetric()[0], "client_class"))
+					assert.Equal(t, tt.wantLabel, labelValue(t, mf.GetMetric()[0], "user_agent"))
 				case requestDurationName:
 					sawDuration = true
-					assert.Equal(t, tt.wantClass, labelValue(t, mf.GetMetric()[0], "client_class"))
+					assert.Equal(t, tt.wantLabel, labelValue(t, mf.GetMetric()[0], "user_agent"))
 				}
 			}
 			assert.True(t, sawCounter, "expected %s", requestCounterName)

@@ -16,7 +16,7 @@ package frontend
 
 import "testing"
 
-func TestClientClassFromUserAgent(t *testing.T) {
+func TestUserAgentMetricLabel(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -27,45 +27,45 @@ func TestClientClassFromUserAgent(t *testing.T) {
 		{
 			name: "empty",
 			ua:   "",
-			want: clientClassOther,
+			want: userAgentOther,
 		},
 		{
 			name: "portal / generic",
 			ua:   "Mozilla/5.0 (compatible; MSIE 9.0; Windows NT 6.1; Trident/5.0)",
-			want: clientClassOther,
+			want: userAgentOther,
 		},
 		{
-			name: "aso only",
+			name: "aso only keeps full UA",
 			ua:   "aso-controller/v2.13.0-hcpclusters.9",
-			want: clientClassASO,
+			want: "aso-controller/v2.13.0-hcpclusters.9",
 		},
 		{
-			name: "capz only",
+			name: "capz only keeps full UA",
 			ua:   "cluster-api-provider-azure/v1.22.1-mce-217",
-			want: clientClassCAPZ,
+			want: "cluster-api-provider-azure/v1.22.1-mce-217",
 		},
 		{
-			name: "aso+capz combined (observed ARM UA)",
+			name: "aso+capz combined keeps full UA",
 			ua:   "aso-controller/v2.13.0-hcpclusters.9 cluster-api-provider-azure/v1.22.1-mce-217",
-			want: clientClassASOCAPZ,
+			want: "aso-controller/v2.13.0-hcpclusters.9 cluster-api-provider-azure/v1.22.1-mce-217",
 		},
 		{
-			name: "aso+capz with extra tokens",
-			ua:   "Go-http-client/2.0 aso-controller/v2.12.0 cluster-api-provider-azure/v1.19.0 azsdk-go-...",
-			want: clientClassASOCAPZ,
+			name: "whitespace normalized for known UA",
+			ua:   "  aso-controller/v2.12.0   cluster-api-provider-azure/v1.19.0  ",
+			want: "aso-controller/v2.12.0 cluster-api-provider-azure/v1.19.0",
 		},
 		{
 			name: "does not match substring without slash",
 			ua:   "not-aso-controller-or-cluster-api-provider-azure",
-			want: clientClassOther,
+			want: userAgentOther,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			if got := clientClassFromUserAgent(tt.ua); got != tt.want {
-				t.Fatalf("clientClassFromUserAgent(%q) = %q, want %q", tt.ua, got, tt.want)
+			if got := userAgentMetricLabel(tt.ua); got != tt.want {
+				t.Fatalf("userAgentMetricLabel(%q) = %q, want %q", tt.ua, got, tt.want)
 			}
 		})
 	}

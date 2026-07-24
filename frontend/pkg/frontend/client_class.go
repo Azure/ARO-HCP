@@ -25,20 +25,16 @@ const (
 	userAgentTokenCAPZ = "cluster-api-provider-azure/"
 )
 
-// clientClassFromUserAgent maps a request User-Agent to a low-cardinality
-// client_class label value for Prometheus metrics.
-func clientClassFromUserAgent(ua string) string {
-	hasASO := strings.Contains(ua, userAgentTokenASO)
-	hasCAPZ := strings.Contains(ua, userAgentTokenCAPZ)
-
-	switch {
-	case hasASO && hasCAPZ:
-		return clientClassASOCAPZ
-	case hasASO:
-		return clientClassASO
-	case hasCAPZ:
-		return clientClassCAPZ
-	default:
-		return clientClassOther
+// userAgentMetricLabel returns a Prometheus label value for the request User-Agent.
+// Known CapZ/ASO agents keep the (trimmed) User-Agent so versions remain visible;
+// everything else collapses to "other" to bound cardinality.
+func userAgentMetricLabel(ua string) string {
+	ua = strings.Join(strings.Fields(ua), " ")
+	if ua == "" {
+		return userAgentOther
 	}
+	if strings.Contains(ua, userAgentTokenASO) || strings.Contains(ua, userAgentTokenCAPZ) {
+		return ua
+	}
+	return userAgentOther
 }
