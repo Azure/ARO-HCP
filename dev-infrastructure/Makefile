@@ -96,7 +96,9 @@ deploy-mock-identity-apps: configurations/mock-identity-apps.bicepparam
 # does not create certs (Bicep cannot create Key Vault certificates). Idempotent:
 # create-kv-cert.sh leaves an existing cert untouched unless FORCE=true, so this
 # is safe to re-run during bootstrap. Run once before the mock identities are
-# used. Cert names/DNS mirror config/config-dev-ci.yaml .ci.dev.mockIdentities.
+# used. The cert subject DNS names mirror config/config-dev-ci.yaml
+# .ci.dev.mockIdentities.*.certDns; the cert (object) names are the Key Vault
+# certificate names the services load and are fixed here (not in config).
 create-mock-identity-certs:
 	VAULT_NAME=$(SVC_KV_NAME) CERT_NAME=firstPartyCert2 \
 		SUBJECT=CN=firstparty.hcp.osadev.cloud DNS_NAMES=firstparty.hcp.osadev.cloud \

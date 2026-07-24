@@ -51,7 +51,7 @@ The MSIT INT environment is unique because the first-party, MSI mock, and ARM he
     firstPartyAppCertificate:
       name: intFirstPartyCert
       manage: false # we have the cert from RH for int
-    # Mock Managed Identities Service Princiapl - from RH Tenant
+    # Mock Managed Identities Service Principal - from RH Tenant
     miMockClientId: e8723db7-9b9e-46a4-9f7d-64d75c3534f0
     miMockPrincipalId: d6b62dfa-87f5-49b3-bbcb-4a687c4faa96
     miMockCertName: intMsiMockCert

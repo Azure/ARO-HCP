@@ -425,7 +425,7 @@
       "properties": {
         "applicationName": {
           "type": "string",
-          "description": "Entra application display name (also used as uniqueName)"
+          "description": "Entra application display name; the Graph uniqueName is derived from it (lowercased, spaces replaced with dashes)"
         },
         "certDns": {
           "type": "string",
