@@ -72,8 +72,8 @@ func decodeQueryFromLinkURL(t *testing.T, linkURL string) string {
 func assertAllServiceLinkQueriesContainTimeWindow(t *testing.T, links []LinkDetails, expectedStart, expectedEnd string) {
 	t.Helper()
 
-	if len(links) != 8 {
-		t.Fatalf("expected 8 service links, got %d", len(links))
+	if len(links) != 9 {
+		t.Fatalf("expected 9 service links, got %d", len(links))
 	}
 
 	startDateTime := "datetime(" + expectedStart + ")"

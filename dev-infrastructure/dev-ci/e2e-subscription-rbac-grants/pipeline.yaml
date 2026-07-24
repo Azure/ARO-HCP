@@ -20,13 +20,29 @@ rolloutName: Dev CI E2E Subscription RBAC Grants Rollout
 # have run at least once so the CI bot service principals exist —
 # ci-bot-rbac.bicep looks them up via `existing` (by uniqueName).
 resourceGroups:
+# Assigns the createdAt resource-group tag Azure Policy to the e2e/customer
+# subscriptions. Writing policy definitions/assignments needs
+# Microsoft.Authorization/policy*/write, which the unattended Contributor bot
+# lacks, so this belongs in the privileged tree alongside the RBAC grants.
+- name: grants
+  resourceGroup: '{{ .global.rg }}'
+  subscription: '{{ .global.subscription.key }}'
+  steps:
+  - name: createdat-rg-tag-policy
+    action: ARM
+    template: ../../templates/createdat-rg-tag-policy.bicep
+    parameters: ../../configurations/createdat-rg-tag-policy.tmpl.bicepparam
+    deploymentLevel: Subscription
 # Mock identity Entra apps/SPs plus their subscription-scoped RBAC. The rbac
 # steps create custom role definitions and role assignments (including the
 # privileged `Role Based Access Control Administrator` grant to the arm-helper
 # mock), which require Owner/User Access Administrator — hence the whole group
 # lives under the on-demand privileged entrypoint. The app-creation steps are
 # co-located because the rbac steps look the service principals up by uniqueName
-# and declare a dependsOn on them, and dependsOn cannot cross pipelines.
+# and declare a dependsOn on them, and dependsOn cannot cross pipelines. The
+# mock-identity-rbac steps replace the removed customer-subscription-grants step
+# (e2e-subscription-rbac-assignments.bicep): they now own the e2e-subscription
+# mock RBAC via Graph lookup instead of hardcoded principalIds.
 - name: mock-identities
   resourceGroup: '{{ .global.rg }}'
   subscription: '{{ .global.subscription.key }}'

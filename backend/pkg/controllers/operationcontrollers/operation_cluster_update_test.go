@@ -43,7 +43,6 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
 	"github.com/Azure/ARO-HCP/internal/database"
-	dblisters "github.com/Azure/ARO-HCP/internal/database/listers"
 	internallistertesting "github.com/Azure/ARO-HCP/internal/database/listertesting"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/ocm"
@@ -104,6 +103,7 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 		)))
 		parsedVersion, err := semver.ParseTolerant(version)
 		require.NoError(t, err)
+		activeVersions := []api.HCPClusterActiveVersion{{Version: ptr.To(parsedVersion)}}
 		return &api.ServiceProviderCluster{
 			CosmosMetadata: api.CosmosMetadata{ResourceID: resourceID, PartitionKey: strings.ToLower(resourceID.SubscriptionID)},
 			Spec: api.ServiceProviderClusterSpec{
@@ -111,7 +111,11 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 					DesiredVersion: ptr.To(parsedVersion),
 				},
 			},
-			Status: api.ServiceProviderClusterStatus{},
+			Status: api.ServiceProviderClusterStatus{
+				ControlPlaneVersion: api.ServiceProviderClusterStatusVersion{
+					ActiveVersions: activeVersions,
+				},
+			},
 		}
 	}
 	newDefaultControlPlaneDesiredVersionController := func() *api.Controller {
@@ -148,18 +152,20 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 		serviceProviderClusterLister                 listers.ServiceProviderClusterLister
 		existingControlPlaneDesiredVersionController *api.Controller
 		// When set, wires a ReadDesireLister containing this cached HostedCluster mirror.
-		cachedHostedClusterReadDesire *kubeapplier.ReadDesire
-		seedMismatchFirstSeenAt       time.Time
-		setupMockCSClient             func(*ocm.MockClusterServiceClientSpec)
-		wantErr                       bool
-		verifyDB                      func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient)
+		cachedHostedClusterReadDesire                 *kubeapplier.ReadDesire
+		cachedControlPlaneClusterAutoscalerReadDesire *kubeapplier.ReadDesire
+		seedMismatchFirstSeenAt                       time.Time
+		setupMockCSClient                             func(*ocm.MockClusterServiceClientSpec)
+		wantErr                                       bool
+		verifyDB                                      func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient)
 	}{
 		{
 			name:                           "cs cluster ready transitions operation to succeeded",
 			existingCluster:                newClusterWithCustomerVersion("4.19"),
 			existingOperation:              newOperationAccepted(),
 			existingServiceProviderCluster: newServiceProviderClusterWithSpecControlPlaneVersion("4.19"),
-			cachedHostedClusterReadDesire:  newPassingCachedHostedClusterReadDesire(),
+
+			cachedHostedClusterReadDesire: newPassingCachedHostedClusterReadDesire(),
 			setupMockCSClient: func(mock *ocm.MockClusterServiceClientSpec) {
 				mock.EXPECT().
 					GetCluster(gomock.Any(), fixture.clusterInternalID).
@@ -295,12 +301,12 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 			},
 		},
 		{
-			name:                           "customer minor mismatch without ControlPlaneDesiredVersion IntentFailed leaves operation accepted when first seen within 29s",
+			name:                           "customer minor mismatch without ControlPlaneDesiredVersion IntentFailed leaves operation accepted when first seen within 129s",
 			existingCluster:                newClusterWithCustomerVersion("4.20"),
 			existingOperation:              newOperationAccepted(),
 			existingServiceProviderCluster: newServiceProviderClusterWithSpecControlPlaneVersion("4.19"),
 			cachedHostedClusterReadDesire:  newPassingCachedHostedClusterReadDesire(),
-			seedMismatchFirstSeenAt:        testClockNow.Add(-20 * time.Second),
+			seedMismatchFirstSeenAt:        testClockNow.Add(-120 * time.Second),
 			setupMockCSClient: func(mock *ocm.MockClusterServiceClientSpec) {
 				mock.EXPECT().
 					GetCluster(gomock.Any(), fixture.clusterInternalID).
@@ -319,12 +325,12 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 			},
 		},
 		{
-			name:                           "customer minor mismatch without IntentFailed fails when mismatch first seen exceeds 29s",
+			name:                           "customer minor mismatch without IntentFailed fails when mismatch first seen exceeds 129s",
 			existingCluster:                newClusterWithCustomerVersion("4.20"),
 			existingOperation:              newOperationAccepted(),
 			existingServiceProviderCluster: newServiceProviderClusterWithSpecControlPlaneVersion("4.19"),
 			cachedHostedClusterReadDesire:  newPassingCachedHostedClusterReadDesire(),
-			seedMismatchFirstSeenAt:        testClockNow.Add(-30 * time.Second),
+			seedMismatchFirstSeenAt:        testClockNow.Add(-130 * time.Second),
 			setupMockCSClient: func(mock *ocm.MockClusterServiceClientSpec) {
 				mock.EXPECT().
 					GetCluster(gomock.Any(), fixture.clusterInternalID).
@@ -340,7 +346,7 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 				cluster, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
 				require.NoError(t, err)
 				wantMessageSubstr := fmt.Sprintf(
-					"timed out after 29s waiting for resolution of desired version from '%s' cluster version",
+					"timed out after 129s waiting for resolution of desired version from '%s' cluster version",
 					cluster.CustomerProperties.Version.ID,
 				)
 				assert.Contains(t, op.Error.Message, wantMessageSubstr)
@@ -415,6 +421,110 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 			},
 		},
 		{
+			name: "cs cluster ready with customerManaged KMS etcd key version match transitions operation to succeeded",
+			existingCluster: newClusterWithCustomerVersion("4.19", func(cluster *api.HCPOpenShiftCluster) {
+				cluster.CustomerProperties.Etcd = api.EtcdProfile{
+					DataEncryption: api.EtcdDataEncryptionProfile{
+						KeyManagementMode: api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged,
+						CustomerManaged: &api.CustomerManagedEncryptionProfile{
+							EncryptionType: api.CustomerManagedEncryptionTypeKMS,
+							Kms: &api.KmsEncryptionProfile{
+								Visibility: api.KeyVaultVisibilityPublic,
+								ActiveKey: api.KmsKey{
+									Name:      "test-key",
+									VaultName: "test-vault",
+									Version:   "v1",
+								},
+							},
+						},
+					},
+				}
+			}),
+			existingOperation:              newOperationAccepted(),
+			existingServiceProviderCluster: newServiceProviderClusterWithSpecControlPlaneVersion("4.19"),
+			cachedHostedClusterReadDesire: newHostedClusterReadDesire(t, &v1beta1.HostedCluster{
+				Spec: func() v1beta1.HostedClusterSpec {
+					spec := testClusterUpdateMatchingHostedClusterSpec()
+					spec.SecretEncryption = &v1beta1.SecretEncryptionSpec{
+						Type: v1beta1.KMS,
+						KMS: &v1beta1.KMSSpec{
+							Azure: &v1beta1.AzureKMSSpec{
+								ActiveKey: v1beta1.AzureKMSKey{
+									KeyVersion: "v1",
+								},
+							},
+						},
+					}
+					return spec
+				}(),
+			}),
+			setupMockCSClient: func(mock *ocm.MockClusterServiceClientSpec) {
+				mock.EXPECT().
+					GetCluster(gomock.Any(), fixture.clusterInternalID).
+					Return(newCSClusterWithState(arohcpv1alpha1.ClusterStateReady), nil)
+			},
+			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
+				require.NoError(t, err)
+				assert.Equal(t, arm.ProvisioningStateSucceeded, op.Status)
+			},
+		},
+		{
+			name: "cs cluster ready with CMK KMS etcd key version mismatch keeps operation updating",
+			existingCluster: newClusterWithCustomerVersion("4.19", func(cluster *api.HCPOpenShiftCluster) {
+				cluster.CustomerProperties.Etcd = api.EtcdProfile{
+					DataEncryption: api.EtcdDataEncryptionProfile{
+						KeyManagementMode: api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged,
+						CustomerManaged: &api.CustomerManagedEncryptionProfile{
+							EncryptionType: api.CustomerManagedEncryptionTypeKMS,
+							Kms: &api.KmsEncryptionProfile{
+								Visibility: api.KeyVaultVisibilityPublic,
+								ActiveKey: api.KmsKey{
+									Name:      "test-key",
+									VaultName: "test-vault",
+									Version:   "v2",
+								},
+							},
+						},
+					},
+				}
+			}),
+			existingOperation:              newOperationAccepted(),
+			existingServiceProviderCluster: newServiceProviderClusterWithSpecControlPlaneVersion("4.19"),
+			cachedHostedClusterReadDesire: newHostedClusterReadDesire(t, &v1beta1.HostedCluster{
+				Spec: func() v1beta1.HostedClusterSpec {
+					spec := testClusterUpdateMatchingHostedClusterSpec()
+					spec.SecretEncryption = &v1beta1.SecretEncryptionSpec{
+						Type: v1beta1.KMS,
+						KMS: &v1beta1.KMSSpec{
+							Azure: &v1beta1.AzureKMSSpec{
+								ActiveKey: v1beta1.AzureKMSKey{
+									KeyVersion: "v1",
+								},
+							},
+						},
+					}
+					return spec
+				}(),
+			}),
+			setupMockCSClient: func(mock *ocm.MockClusterServiceClientSpec) {
+				mock.EXPECT().
+					GetCluster(gomock.Any(), fixture.clusterInternalID).
+					Return(newCSClusterWithState(arohcpv1alpha1.ClusterStateReady), nil)
+			},
+			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
+				require.NoError(t, err)
+				assert.Equal(t, arm.ProvisioningStateUpdating, op.Status)
+				assert.Nil(t, op.Error)
+
+				cluster, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
+				require.NoError(t, err)
+				assert.Equal(t, arm.ProvisioningStateUpdating, cluster.ServiceProviderProperties.ProvisioningState)
+				assert.Equal(t, testOperationName, cluster.ServiceProviderProperties.ActiveOperationID)
+			},
+		},
+		{
 			name: "cs cluster ready with hypershift autoscaling spec mismatch keeps operation updating",
 			existingCluster: newClusterWithCustomerVersion("4.19", func(cluster *api.HCPOpenShiftCluster) {
 				cluster.CustomerProperties.Autoscaling.MaxNodesTotal = 10
@@ -445,6 +555,52 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 				assert.Equal(t, testOperationName, cluster.ServiceProviderProperties.ActiveOperationID)
 			},
 		},
+		{
+			name:                           "autoscaler all checks pass but autoscaler ReadDesire not cached yet keeps operation updating",
+			existingCluster:                newClusterWithCustomerVersion("4.20"),
+			existingOperation:              newOperationAccepted(),
+			existingServiceProviderCluster: newServiceProviderClusterWithSpecControlPlaneVersion("4.20"),
+			cachedHostedClusterReadDesire:  newPassingCachedHostedClusterReadDesire(),
+			setupMockCSClient: func(mock *ocm.MockClusterServiceClientSpec) {
+				mock.EXPECT().
+					GetCluster(gomock.Any(), fixture.clusterInternalID).
+					Return(newCSClusterWithState(arohcpv1alpha1.ClusterStateReady), nil)
+			},
+			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
+				require.NoError(t, err)
+				assert.Equal(t, arm.ProvisioningStateUpdating, op.Status)
+				assert.Nil(t, op.Error)
+
+				cluster, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
+				require.NoError(t, err)
+				assert.Equal(t, arm.ProvisioningStateUpdating, cluster.ServiceProviderProperties.ProvisioningState)
+				assert.Equal(t, testOperationName, cluster.ServiceProviderProperties.ActiveOperationID)
+			},
+		},
+		{
+			name:                           "autoscaler all checks pass, operation transitions to succeeded",
+			existingCluster:                newClusterWithCustomerVersion("4.20"),
+			existingOperation:              newOperationAccepted(),
+			existingServiceProviderCluster: newServiceProviderClusterWithSpecControlPlaneVersion("4.20"),
+			cachedHostedClusterReadDesire:  newPassingCachedHostedClusterReadDesire(),
+			cachedControlPlaneClusterAutoscalerReadDesire: newControlPlaneClusterAutoscalerReadDesire(t, readyControlPlaneClusterAutoscaler()),
+			setupMockCSClient: func(mock *ocm.MockClusterServiceClientSpec) {
+				mock.EXPECT().
+					GetCluster(gomock.Any(), fixture.clusterInternalID).
+					Return(newCSClusterWithState(arohcpv1alpha1.ClusterStateReady), nil)
+			},
+			verifyDB: func(t *testing.T, ctx context.Context, db *databasetesting.MockResourcesDBClient) {
+				op, err := db.Operations(testSubscriptionID).Get(ctx, testOperationName)
+				require.NoError(t, err)
+				assert.Equal(t, arm.ProvisioningStateSucceeded, op.Status)
+
+				cluster, err := db.HCPClusters(testSubscriptionID, testResourceGroupName).Get(ctx, testClusterName)
+				require.NoError(t, err)
+				assert.Equal(t, arm.ProvisioningStateSucceeded, cluster.ServiceProviderProperties.ProvisioningState)
+				assert.Empty(t, cluster.ServiceProviderProperties.ActiveOperationID)
+			},
+		},
 	}
 
 	for _, tc := range testCases {
@@ -469,11 +625,12 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 			mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, resources)
 			require.NoError(t, err)
 
-			var readDesireLister dblisters.ReadDesireLister
+			var readDesires []*kubeapplier.ReadDesire
 			if tc.cachedHostedClusterReadDesire != nil {
-				readDesireLister = &internallistertesting.SliceReadDesireLister{
-					Desires: []*kubeapplier.ReadDesire{tc.cachedHostedClusterReadDesire},
-				}
+				readDesires = append(readDesires, tc.cachedHostedClusterReadDesire)
+			}
+			if tc.cachedControlPlaneClusterAutoscalerReadDesire != nil {
+				readDesires = append(readDesires, tc.cachedControlPlaneClusterAutoscalerReadDesire)
 			}
 
 			clusterLister := tc.clusterLister
@@ -495,13 +652,14 @@ func TestOperationClusterUpdate_SynchronizeOperation(t *testing.T) {
 			}
 
 			fakeClock := clocktesting.NewFakeClock(testClockNow)
+
 			controller := &operationClusterUpdate{
 				resourcesDBClient:               mockResourcesDBClient,
 				clusterServiceClient:            mockCSClient,
 				clusterLister:                   clusterLister,
 				activeOperationsLister:          activeOperationsLister,
 				serviceProviderClusterLister:    serviceProviderClusterLister,
-				readDesireLister:                readDesireLister,
+				readDesireLister:                &internallistertesting.SliceReadDesireLister{Desires: readDesires},
 				notificationClient:              nil,
 				clock:                           fakeClock,
 				desiredVersionMismatchFirstSeen: lru.New(100000),

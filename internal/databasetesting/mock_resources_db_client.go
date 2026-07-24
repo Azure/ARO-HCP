@@ -97,6 +97,27 @@ func (m *MockResourcesDBClient) Subscriptions() database.ResourceCRUD[arm.Subscr
 	return newMockSubscriptionCRUD(m)
 }
 
+// ListMissingResourceID returns documents that lack a resourceID field.
+func (m *MockResourcesDBClient) ListMissingResourceID(ctx context.Context, options *database.DBClientListResourceDocsOptions) (database.DBClientIterator[database.TypedDocument], error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	var ids []string
+	var items []*database.TypedDocument
+	for _, data := range m.documents {
+		var typedDoc database.TypedDocument
+		if err := json.Unmarshal(data, &typedDoc); err != nil {
+			continue
+		}
+		if typedDoc.ResourceID != nil {
+			continue
+		}
+		ids = append(ids, typedDoc.ID)
+		items = append(items, &typedDoc)
+	}
+	return newMockIterator(ids, items), nil
+}
+
 // ResourcesGlobalListers returns interfaces for listing all resources of a particular
 // type across all partitions. If a custom ResourcesGlobalListers was set via SetResourcesGlobalListers,
 // that is returned instead.
@@ -122,8 +143,9 @@ func (m *MockResourcesDBClient) ServiceProviderNodePools(subscriptionID, resourc
 // GetChangeFeed reads the in-memory change-feed log. Each
 // successful StoreDocument call records a snapshot of the document;
 // reads return everything past the position encoded in
-// options.Continuation. Deletes are not recorded, which mirrors
-// "latest version" mode in real Cosmos DB.
+// options.Continuation. Hard deletes are not recorded, which mirrors
+// "latest version" mode in real Cosmos DB. Soft deletes go through
+// StoreDocument and are therefore recorded.
 func (m *MockResourcesDBClient) GetChangeFeed(ctx context.Context, options *azcosmos.ChangeFeedOptions) (azcosmos.ChangeFeedResponse, error) {
 	var continuation string
 	if options != nil && options.Continuation != nil {
@@ -245,6 +267,7 @@ func (m *MockResourcesDBClient) DeleteDocument(cosmosID string) {
 }
 
 // ListDocuments returns all documents matching the given resource type and prefix.
+// Soft-deleted documents (those with a DeletionTimestamp set) are excluded.
 func (m *MockResourcesDBClient) ListDocuments(resourceType *azcorearm.ResourceType, prefix string) []json.RawMessage {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -259,6 +282,10 @@ func (m *MockResourcesDBClient) ListDocuments(resourceType *azcorearm.ResourceTy
 		// Mirror the production query, which requires IS_DEFINED(c.resourceID);
 		// documents without a resourceID are never returned by list.
 		if typedDoc.ResourceID == nil {
+			continue
+		}
+
+		if typedDoc.DeletionTimestamp != nil {
 			continue
 		}
 

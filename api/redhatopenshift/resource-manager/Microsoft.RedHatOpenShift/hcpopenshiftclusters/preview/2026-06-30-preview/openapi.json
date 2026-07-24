@@ -1690,6 +1690,22 @@
           "description": "The Key Management Service (KMS) encryption key details.\n\nRequired when encryptionType is \"KMS\".",
           "x-ms-mutability": [
             "read",
+            "update",
+            "create"
+          ]
+        }
+      }
+    },
+    "CustomerManagedEncryptionProfileUpdate": {
+      "type": "object",
+      "description": "Customer managed encryption key profile.",
+      "properties": {
+        "kms": {
+          "$ref": "#/definitions/KmsEncryptionProfileUpdate",
+          "description": "The Key Management Service (KMS) encryption key details.\n\nRequired when encryptionType is \"KMS\".",
+          "x-ms-mutability": [
+            "read",
+            "update",
             "create"
           ]
         }
@@ -1796,6 +1812,22 @@
           "description": "Specify customer managed encryption key details.\nRequired when keyManagementMode is \"CustomerManaged\".",
           "x-ms-mutability": [
             "read",
+            "update",
+            "create"
+          ]
+        }
+      }
+    },
+    "EtcdDataEncryptionProfileUpdate": {
+      "type": "object",
+      "description": "The ETCD data encryption settings.",
+      "properties": {
+        "customerManaged": {
+          "$ref": "#/definitions/CustomerManagedEncryptionProfileUpdate",
+          "description": "Specify customer managed encryption key details.\nRequired when keyManagementMode is \"CustomerManaged\".",
+          "x-ms-mutability": [
+            "read",
+            "update",
             "create"
           ]
         }
@@ -1810,6 +1842,22 @@
           "description": "ETCD Data Encryption settings.\nIf not specified platform managed keys are used.",
           "x-ms-mutability": [
             "read",
+            "update",
+            "create"
+          ]
+        }
+      }
+    },
+    "EtcdProfileUpdate": {
+      "type": "object",
+      "description": "The ETCD settings and configuration options.",
+      "properties": {
+        "dataEncryption": {
+          "$ref": "#/definitions/EtcdDataEncryptionProfileUpdate",
+          "description": "ETCD Data Encryption settings.\nIf not specified platform managed keys are used.",
+          "x-ms-mutability": [
+            "read",
+            "update",
             "create"
           ]
         }
@@ -2293,6 +2341,7 @@
           "description": "Configure ETCD.",
           "x-ms-mutability": [
             "read",
+            "update",
             "create"
           ]
         },
@@ -2368,6 +2417,15 @@
         "autoscaling": {
           "$ref": "#/definitions/ClusterAutoscalingProfile",
           "description": "Configure ClusterAutoscaling .",
+          "x-ms-mutability": [
+            "read",
+            "update",
+            "create"
+          ]
+        },
+        "etcd": {
+          "$ref": "#/definitions/EtcdProfileUpdate",
+          "description": "Configure ETCD.",
           "x-ms-mutability": [
             "read",
             "update",
@@ -2669,6 +2727,7 @@
           "description": "The details of the active key.",
           "x-ms-mutability": [
             "read",
+            "update",
             "create"
           ]
         }
@@ -2679,6 +2738,21 @@
         "activeKey"
       ]
     },
+    "KmsEncryptionProfileUpdate": {
+      "type": "object",
+      "description": "Configure etcd encryption Key Management Service (KMS) key.\nYour Microsoft Entra application used to create the cluster must be authorized to access this keyvault,\ne.g using the AzureCLI: `az keyvault set-policy -n $KEYVAULT_NAME --key-permissions decrypt encrypt --spn (YOUR APPLICATION CLIENT ID)`",
+      "properties": {
+        "activeKey": {
+          "$ref": "#/definitions/KmsKeyUpdate",
+          "description": "The details of the active key.",
+          "x-ms-mutability": [
+            "read",
+            "update",
+            "create"
+          ]
+        }
+      }
+    },
     "KmsKey": {
       "type": "object",
       "description": "A representation of a KeyVault Secret.",
@@ -2687,19 +2761,45 @@
           "type": "string",
           "description": "name is the name of the keyvault key used for encryption/decryption.",
           "minLength": 1,
-          "maxLength": 255
+          "maxLength": 255,
+          "x-ms-mutability": [
+            "read",
+            "create"
+          ]
         },
         "version": {
           "type": "string",
           "description": "version contains the version of the key to use.",
           "minLength": 1,
-          "maxLength": 255
+          "maxLength": 255,
+          "x-ms-mutability": [
+            "read",
+            "update",
+            "create"
+          ]
         }
       },
       "required": [
         "name",
         "version"
       ]
+    },
+    "KmsKeyUpdate": {
+      "type": "object",
+      "description": "A representation of a KeyVault Secret.",
+      "properties": {
+        "version": {
+          "type": "string",
+          "description": "version contains the version of the key to use.",
+          "minLength": 1,
+          "maxLength": 255,
+          "x-ms-mutability": [
+            "read",
+            "update",
+            "create"
+          ]
+        }
+      }
     },
     "Label": {
       "type": "object",

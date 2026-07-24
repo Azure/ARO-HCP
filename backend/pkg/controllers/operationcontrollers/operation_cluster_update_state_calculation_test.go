@@ -16,18 +16,26 @@ package operationcontrollers
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
+	"strings"
 	"testing"
 
+	"github.com/blang/semver/v4"
 	"github.com/go-logr/logr/testr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	kruntime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/utils/ptr"
+
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	"github.com/openshift/hypershift/api/hypershift/v1beta1"
 
+	"github.com/Azure/ARO-HCP/backend/pkg/maestrohelpers"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
@@ -90,7 +98,7 @@ func TestHypershiftHostedClusterOperationState(t *testing.T) {
 				}),
 			},
 			wantState:         arm.ProvisioningStateUpdating,
-			wantMessageSubstr: `maxNodesTotal is 5, want 10`,
+			wantMessageSubstr: "hypershift HostedCluster autoscaling maxNodesTotal is 5, want 10",
 		},
 		{
 			name: "autoscaling matches returns Succeeded",
@@ -136,7 +144,7 @@ func TestHypershiftHostedClusterOperationState(t *testing.T) {
 				}),
 			},
 			wantState:         arm.ProvisioningStateUpdating,
-			wantMessageSubstr: `maxNodeProvisionTime is "10m", want "15m"`,
+			wantMessageSubstr: `hypershift HostedCluster autoscaling maxNodeProvisionTime is "10m", want "15m"`,
 		},
 		{
 			name: "maxNodeProvisionTime matches when converted",
@@ -616,6 +624,161 @@ func TestHypershiftHostedClusterOperationState(t *testing.T) {
 			},
 			wantState:         arm.ProvisioningStateUpdating,
 			wantMessageSubstr: `is "quay.io/openshift/cpo:test", want unset`,
+		},
+		{
+			name: "kms cluster key version mismatch returns Updating",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := fixture.newCluster(nil)
+				c.CustomerProperties.Etcd = api.EtcdProfile{
+					DataEncryption: api.EtcdDataEncryptionProfile{
+						KeyManagementMode: api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged,
+						CustomerManaged: &api.CustomerManagedEncryptionProfile{
+							EncryptionType: api.CustomerManagedEncryptionTypeKMS,
+							Kms: &api.KmsEncryptionProfile{
+								Visibility: api.KeyVaultVisibilityPublic,
+								ActiveKey: api.KmsKey{
+									Name:      "test-key",
+									VaultName: "test-vault",
+									Version:   "v2",
+								},
+							},
+						},
+					},
+				}
+				return c
+			}(),
+			serviceProviderCluster: emptySPC,
+			readDesires: []*kubeapplier.ReadDesire{
+				newHostedClusterReadDesire(t, &v1beta1.HostedCluster{
+					Spec: func() v1beta1.HostedClusterSpec {
+						spec := testClusterUpdateMatchingHostedClusterSpec()
+						spec.SecretEncryption = &v1beta1.SecretEncryptionSpec{
+							Type: v1beta1.KMS,
+							KMS: &v1beta1.KMSSpec{
+								Azure: &v1beta1.AzureKMSSpec{
+									ActiveKey: v1beta1.AzureKMSKey{
+										KeyVersion: "v1",
+									},
+								},
+							},
+						}
+						return spec
+					}(),
+				}),
+			},
+			wantState:         arm.ProvisioningStateUpdating,
+			wantMessageSubstr: `active key version is: "v1", want: "v2"`,
+		},
+		{
+			name: "kms cluster with nil SecretEncryption returns Updating",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := fixture.newCluster(nil)
+				c.CustomerProperties.Etcd = api.EtcdProfile{
+					DataEncryption: api.EtcdDataEncryptionProfile{
+						KeyManagementMode: api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged,
+						CustomerManaged: &api.CustomerManagedEncryptionProfile{
+							EncryptionType: api.CustomerManagedEncryptionTypeKMS,
+							Kms: &api.KmsEncryptionProfile{
+								Visibility: api.KeyVaultVisibilityPublic,
+								ActiveKey: api.KmsKey{
+									Name:      "test-key",
+									VaultName: "test-vault",
+									Version:   "v1",
+								},
+							},
+						},
+					},
+				}
+				return c
+			}(),
+			serviceProviderCluster: emptySPC,
+			readDesires: []*kubeapplier.ReadDesire{
+				newHostedClusterReadDesire(t, &v1beta1.HostedCluster{
+					Spec: func() v1beta1.HostedClusterSpec {
+						spec := testClusterUpdateMatchingHostedClusterSpec()
+						spec.SecretEncryption = nil
+						return spec
+					}(),
+				}),
+			},
+			wantState:         arm.ProvisioningStateUpdating,
+			wantMessageSubstr: "secret encryption is not set",
+		},
+		{
+			name: "kms cluster key version matching returns Succeeded",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := fixture.newCluster(nil)
+				c.CustomerProperties.Etcd = api.EtcdProfile{
+					DataEncryption: api.EtcdDataEncryptionProfile{
+						KeyManagementMode: api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged,
+						CustomerManaged: &api.CustomerManagedEncryptionProfile{
+							EncryptionType: api.CustomerManagedEncryptionTypeKMS,
+							Kms: &api.KmsEncryptionProfile{
+								Visibility: api.KeyVaultVisibilityPublic,
+								ActiveKey: api.KmsKey{
+									Name:      "test-key",
+									VaultName: "test-vault",
+									Version:   "v1",
+								},
+							},
+						},
+					},
+				}
+				return c
+			}(),
+			serviceProviderCluster: emptySPC,
+			readDesires: []*kubeapplier.ReadDesire{
+				newHostedClusterReadDesire(t, &v1beta1.HostedCluster{
+					Spec: func() v1beta1.HostedClusterSpec {
+						spec := testClusterUpdateMatchingHostedClusterSpec()
+						spec.SecretEncryption = &v1beta1.SecretEncryptionSpec{
+							Type: v1beta1.KMS,
+							KMS: &v1beta1.KMSSpec{
+								Azure: &v1beta1.AzureKMSSpec{
+									ActiveKey: v1beta1.AzureKMSKey{
+										KeyVersion: "v1",
+									},
+								},
+							},
+						}
+						return spec
+					}(),
+				}),
+			},
+			wantState: arm.ProvisioningStateSucceeded,
+		},
+		{
+			name: "Platform Managed data encryption returns Updating",
+			cluster: func() *api.HCPOpenShiftCluster {
+				c := fixture.newCluster(nil)
+				c.CustomerProperties.Etcd = api.EtcdProfile{
+					DataEncryption: api.EtcdDataEncryptionProfile{
+						KeyManagementMode: api.EtcdDataEncryptionKeyManagementModeTypePlatformManaged,
+					},
+				}
+				return c
+			}(),
+			serviceProviderCluster: emptySPC,
+			readDesires: []*kubeapplier.ReadDesire{
+				newHostedClusterReadDesire(t, &v1beta1.HostedCluster{
+					Spec: func() v1beta1.HostedClusterSpec {
+						spec := testClusterUpdateMatchingHostedClusterSpec()
+						spec.SecretEncryption = &v1beta1.SecretEncryptionSpec{
+							Type: v1beta1.KMS,
+							KMS: &v1beta1.KMSSpec{
+								Azure: &v1beta1.AzureKMSSpec{
+									ActiveKey: v1beta1.AzureKMSKey{
+										KeyVersion: "v1",
+									},
+								},
+							},
+						}
+						return spec
+					}(),
+				}),
+			},
+			wantState:         arm.ProvisioningStateUpdating,
+			wantMessageSubstr: "support for desired key management mode",
 		},
 	}
 
@@ -1259,6 +1422,131 @@ func TestHypershiftHostedClusterImageContentSourcesSpecMatchesDesired(t *testing
 	}
 }
 
+func TestHypershiftHostedClusterEtcdSecretEncryptionSpecMatchesDesired(t *testing.T) {
+	t.Parallel()
+
+	controller := &operationClusterUpdate{}
+
+	etcdDesired := api.EtcdDataEncryptionProfile{
+		KeyManagementMode: api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged,
+		CustomerManaged: &api.CustomerManagedEncryptionProfile{
+			EncryptionType: api.CustomerManagedEncryptionTypeKMS,
+			Kms: &api.KmsEncryptionProfile{
+				Visibility: api.KeyVaultVisibilityPublic,
+				ActiveKey: api.KmsKey{
+					Name:      "test-key",
+					VaultName: "test-vault",
+					Version:   "v1",
+				},
+			},
+		},
+	}
+
+	tests := []struct {
+		name       string
+		desired    api.EtcdDataEncryptionProfile
+		observed   *v1beta1.SecretEncryptionSpec
+		wantMatch  bool
+		wantSubstr string
+	}{
+		{
+			name:       "customer managed KMS with nil observed returns mismatch",
+			desired:    etcdDesired,
+			observed:   nil,
+			wantMatch:  false,
+			wantSubstr: "secret encryption is not set",
+		},
+		{
+			name:    "customer managed KMS with observed type not KMS returns mismatch",
+			desired: etcdDesired,
+			observed: &v1beta1.SecretEncryptionSpec{
+				Type: v1beta1.AESCBC,
+			},
+			wantMatch:  false,
+			wantSubstr: `secret encryption is: "aescbc"`,
+		},
+		{
+			name:    "customer managed KMS with nil KMS field returns mismatch",
+			desired: etcdDesired,
+			observed: &v1beta1.SecretEncryptionSpec{
+				Type: v1beta1.KMS,
+			},
+			wantMatch:  false,
+			wantSubstr: "kms secret encryption configuration unset",
+		},
+		{
+			name:    "customer managed KMS with nil Azure field returns mismatch",
+			desired: etcdDesired,
+			observed: &v1beta1.SecretEncryptionSpec{
+				Type: v1beta1.KMS,
+				KMS:  &v1beta1.KMSSpec{},
+			},
+			wantMatch:  false,
+			wantSubstr: "azure configuration unset",
+		},
+		{
+			name:    "customer managed KMS key version mismatch",
+			desired: etcdDesired,
+			observed: &v1beta1.SecretEncryptionSpec{
+				Type: v1beta1.KMS,
+				KMS: &v1beta1.KMSSpec{
+					Azure: &v1beta1.AzureKMSSpec{
+						ActiveKey: v1beta1.AzureKMSKey{
+							KeyVersion: "v2",
+						},
+					},
+				},
+			},
+			wantMatch:  false,
+			wantSubstr: `active key version is: "v2", want: "v1"`,
+		},
+		{
+			name:    "customer managed KMS key version match",
+			desired: etcdDesired,
+			observed: &v1beta1.SecretEncryptionSpec{
+				Type: v1beta1.KMS,
+				KMS: &v1beta1.KMSSpec{
+					Azure: &v1beta1.AzureKMSSpec{
+						ActiveKey: v1beta1.AzureKMSKey{
+							KeyVersion: "v1",
+						},
+					},
+				},
+			},
+			wantMatch: true,
+		},
+		{
+			name: "platform managed",
+			desired: api.EtcdDataEncryptionProfile{
+				KeyManagementMode: api.EtcdDataEncryptionKeyManagementModeTypePlatformManaged,
+			},
+			observed: &v1beta1.SecretEncryptionSpec{
+				Type: v1beta1.KMS,
+				KMS: &v1beta1.KMSSpec{
+					Azure: &v1beta1.AzureKMSSpec{
+						ActiveKey: v1beta1.AzureKMSKey{
+							KeyVersion: "v1",
+						},
+					},
+				},
+			},
+			wantMatch:  false,
+			wantSubstr: `support for desired key management mode "PlatformManaged" for updates is not implemented`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			matches, msg := controller.hypershiftHostedClusterEtcdSecretEncryptionSpecMatchesDesired(tt.desired, tt.observed)
+			assert.Equal(t, tt.wantMatch, matches)
+			if tt.wantSubstr != "" {
+				assert.Contains(t, msg, tt.wantSubstr)
+			}
+		})
+	}
+}
+
 func TestClusterServiceClusterSpecOperationState(t *testing.T) {
 	t.Parallel()
 
@@ -1434,6 +1722,326 @@ func TestClusterServiceClusterSpecOperationState(t *testing.T) {
 			if tt.wantMessageSubstr != "" {
 				assert.Contains(t, state.Message, tt.wantMessageSubstr)
 			}
+		})
+	}
+}
+
+func readyControlPlaneClusterAutoscaler() *v1beta1.ControlPlaneComponent {
+	return &v1beta1.ControlPlaneComponent{
+		Status: v1beta1.ControlPlaneComponentStatus{
+			Conditions: []metav1.Condition{
+				{Type: string(v1beta1.ControlPlaneComponentAvailable), Status: metav1.ConditionTrue},
+				{Type: string(v1beta1.ControlPlaneComponentRolloutComplete), Status: metav1.ConditionTrue},
+			},
+		},
+	}
+}
+
+func newControlPlaneClusterAutoscalerReadDesire(t *testing.T, controlPlaneComponent *v1beta1.ControlPlaneComponent, conditions ...metav1.Condition) *kubeapplier.ReadDesire {
+	t.Helper()
+	raw, err := json.Marshal(controlPlaneComponent)
+	require.NoError(t, err)
+	if conditions == nil {
+		conditions = []metav1.Condition{
+			{Type: kubeapplier.ConditionTypeSuccessful, Status: metav1.ConditionTrue, Reason: kubeapplier.ConditionReasonNoErrors},
+		}
+	}
+
+	resourceID := api.Must(azcorearm.ParseResourceID(
+		kubeapplier.ToClusterScopedReadDesireResourceIDString(
+			testSubscriptionID, testResourceGroupName, testClusterName, maestrohelpers.ReadDesireNameReadonlyHypershiftControlPlaneComponentClusterAutoscaler)))
+
+	return &kubeapplier.ReadDesire{
+		CosmosMetadata: api.CosmosMetadata{
+			ResourceID:   resourceID,
+			PartitionKey: strings.ToLower(resourceID.SubscriptionID),
+		},
+		Status: kubeapplier.ReadDesireStatus{
+			Conditions:  conditions,
+			KubeContent: &kruntime.RawExtension{Raw: raw},
+		},
+	}
+}
+
+func TestIsControlPlaneClusterAutoscalerReady(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name                  string
+		controlPlaneComponent *v1beta1.ControlPlaneComponent
+		want                  bool
+	}{
+		{
+			name:                  "both Available and RolloutComplete true is ready",
+			controlPlaneComponent: readyControlPlaneClusterAutoscaler(),
+			want:                  true,
+		},
+		{
+			name: "Available false is not ready",
+			controlPlaneComponent: &v1beta1.ControlPlaneComponent{
+				Status: v1beta1.ControlPlaneComponentStatus{
+					Conditions: []metav1.Condition{
+						{Type: string(v1beta1.ControlPlaneComponentAvailable), Status: metav1.ConditionFalse},
+						{Type: string(v1beta1.ControlPlaneComponentRolloutComplete), Status: metav1.ConditionTrue},
+					},
+				},
+			},
+			want: false,
+		},
+		{
+			name: "RolloutComplete is false",
+			controlPlaneComponent: &v1beta1.ControlPlaneComponent{
+				Status: v1beta1.ControlPlaneComponentStatus{
+					Conditions: []metav1.Condition{
+						{Type: string(v1beta1.ControlPlaneComponentAvailable), Status: metav1.ConditionTrue},
+						{Type: string(v1beta1.ControlPlaneComponentRolloutComplete), Status: metav1.ConditionFalse},
+					},
+				},
+			},
+			want: false,
+		},
+		{
+			name: "Available condition missing is not ready",
+			controlPlaneComponent: &v1beta1.ControlPlaneComponent{
+				Status: v1beta1.ControlPlaneComponentStatus{
+					Conditions: []metav1.Condition{
+						{Type: string(v1beta1.ControlPlaneComponentRolloutComplete), Status: metav1.ConditionTrue},
+					},
+				},
+			},
+			want: false,
+		},
+		{
+			name: "RolloutComplete condition missing is not ready",
+			controlPlaneComponent: &v1beta1.ControlPlaneComponent{
+				Status: v1beta1.ControlPlaneComponentStatus{
+					Conditions: []metav1.Condition{
+						{Type: string(v1beta1.ControlPlaneComponentAvailable), Status: metav1.ConditionTrue},
+					},
+				},
+			},
+			want: false,
+		},
+		{
+			name: "Available condition unknown is not ready",
+			controlPlaneComponent: &v1beta1.ControlPlaneComponent{
+				Status: v1beta1.ControlPlaneComponentStatus{
+					Conditions: []metav1.Condition{
+						{Type: string(v1beta1.ControlPlaneComponentAvailable), Status: metav1.ConditionUnknown},
+						{Type: string(v1beta1.ControlPlaneComponentRolloutComplete), Status: metav1.ConditionTrue},
+					},
+				},
+			},
+			want: false,
+		},
+		{
+			name: "RolloutComplete condition unknown is not ready",
+			controlPlaneComponent: &v1beta1.ControlPlaneComponent{
+				Status: v1beta1.ControlPlaneComponentStatus{
+					Conditions: []metav1.Condition{
+						{Type: string(v1beta1.ControlPlaneComponentAvailable), Status: metav1.ConditionTrue},
+						{Type: string(v1beta1.ControlPlaneComponentRolloutComplete), Status: metav1.ConditionUnknown},
+					},
+				},
+			},
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tt.want, (&operationClusterUpdate{}).isControlPlaneClusterAutoscalerReady(tt.controlPlaneComponent))
+		})
+	}
+}
+
+func TestControlPlaneClusterAutoscalerNotReadyMessage(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name                  string
+		controlPlaneComponent *v1beta1.ControlPlaneComponent
+		wantExact             string
+		wantContains          []string
+	}{
+		{
+			name: "Available false with reason and message includes both",
+			controlPlaneComponent: &v1beta1.ControlPlaneComponent{
+				Status: v1beta1.ControlPlaneComponentStatus{
+					Conditions: []metav1.Condition{
+						{Type: string(v1beta1.ControlPlaneComponentAvailable), Status: metav1.ConditionFalse, Reason: "PodsNotReady", Message: "waiting for pods"},
+					},
+				},
+			},
+			wantContains: []string{clusterAutoscalerNotAvailableMsg, "PodsNotReady", "waiting for pods"},
+		},
+		{
+			name: "Available false without message returns base message only",
+			controlPlaneComponent: &v1beta1.ControlPlaneComponent{
+				Status: v1beta1.ControlPlaneComponentStatus{
+					Conditions: []metav1.Condition{
+						{Type: string(v1beta1.ControlPlaneComponentAvailable), Status: metav1.ConditionFalse, Reason: "PodsNotReady"},
+					},
+				},
+			},
+			wantExact: clusterAutoscalerNotAvailableMsg,
+		},
+		{
+			name: "Available condition missing returns base not available message",
+			controlPlaneComponent: &v1beta1.ControlPlaneComponent{
+				Status: v1beta1.ControlPlaneComponentStatus{
+					Conditions: []metav1.Condition{
+						{Type: string(v1beta1.ControlPlaneComponentRolloutComplete), Status: metav1.ConditionTrue},
+					},
+				},
+			},
+			wantExact: clusterAutoscalerNotAvailableMsg,
+		},
+		{
+			name: "Available true and Rollout false with reason and message includes both",
+			controlPlaneComponent: &v1beta1.ControlPlaneComponent{
+				Status: v1beta1.ControlPlaneComponentStatus{
+					Conditions: []metav1.Condition{
+						{Type: string(v1beta1.ControlPlaneComponentAvailable), Status: metav1.ConditionTrue},
+						{Type: string(v1beta1.ControlPlaneComponentRolloutComplete), Status: metav1.ConditionFalse, Reason: "RolloutInProgress", Message: "waiting for rollout"},
+					},
+				},
+			},
+			wantContains: []string{clusterAutoscalerRolloutNotCompleteMsg, "RolloutInProgress", "waiting for rollout"},
+		},
+		{
+			name: "Available true and Rollout false without message returns base message only",
+			controlPlaneComponent: &v1beta1.ControlPlaneComponent{
+				Status: v1beta1.ControlPlaneComponentStatus{
+					Conditions: []metav1.Condition{
+						{Type: string(v1beta1.ControlPlaneComponentAvailable), Status: metav1.ConditionTrue},
+						{Type: string(v1beta1.ControlPlaneComponentRolloutComplete), Status: metav1.ConditionFalse, Reason: "RolloutInProgress"},
+					},
+				},
+			},
+			wantExact: clusterAutoscalerRolloutNotCompleteMsg,
+		},
+		{
+			name: "Rollout condition missing returns base rollout not complete message",
+			controlPlaneComponent: &v1beta1.ControlPlaneComponent{
+				Status: v1beta1.ControlPlaneComponentStatus{
+					Conditions: []metav1.Condition{
+						{Type: string(v1beta1.ControlPlaneComponentAvailable), Status: metav1.ConditionTrue},
+					},
+				},
+			},
+			wantExact: clusterAutoscalerRolloutNotCompleteMsg,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			msg := (&operationClusterUpdate{}).controlPlaneClusterAutoscalerNotReadyMessage(tt.controlPlaneComponent)
+			if tt.wantExact != "" {
+				assert.Equal(t, tt.wantExact, msg)
+			}
+			for _, want := range tt.wantContains {
+				assert.Contains(t, msg, want)
+			}
+		})
+	}
+}
+
+func TestHypershiftControlPlaneClusterAutoscalerState(t *testing.T) {
+	t.Parallel()
+
+	ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+	fixture := newClusterTestFixture()
+
+	tests := []struct {
+		name                                          string
+		activeVersions                                []api.HCPClusterActiveVersion
+		cachedControlPlaneClusterAutoscalerReadDesire *kubeapplier.ReadDesire
+		wantState                                     arm.ProvisioningState
+		wantMessage                                   string
+	}{
+		{
+			name:           "skips autoscaler gate when lowest active version is below 4.20",
+			activeVersions: []api.HCPClusterActiveVersion{{Version: ptr.To(semver.MustParse("4.19.0"))}},
+			wantState:      arm.ProvisioningStateSucceeded,
+			wantMessage:    `lowest active control plane version "4.19.0" does not support ControlPlaneComponent cluster-autoscaler (requires 4.20+)`,
+		},
+		{
+			name:        "waits when active versions are not yet reported",
+			wantState:   arm.ProvisioningStateUpdating,
+			wantMessage: "control plane active versions not yet reported",
+		},
+		{
+			name:           "waits when autoscaler ReadDesire is absent on 4.20+",
+			activeVersions: []api.HCPClusterActiveVersion{{Version: ptr.To(semver.MustParse("4.20.0"))}},
+			wantState:      arm.ProvisioningStateUpdating,
+			wantMessage:    "cluster autoscaler state not cached yet",
+		},
+		{
+			name: "nightly pre-release control plane version satisfies the 4.20+ autoscaler gate",
+			activeVersions: []api.HCPClusterActiveVersion{{
+				Version: ptr.To(semver.MustParse("4.20.0-0.nightly-2026-01-01-000000")),
+			}},
+			cachedControlPlaneClusterAutoscalerReadDesire: newControlPlaneClusterAutoscalerReadDesire(t, readyControlPlaneClusterAutoscaler()),
+			wantState:   arm.ProvisioningStateSucceeded,
+			wantMessage: "",
+		},
+		{
+			name:           "succeeds when autoscaler ControlPlaneComponent is ready",
+			activeVersions: []api.HCPClusterActiveVersion{{Version: ptr.To(semver.MustParse("4.20.0"))}},
+			cachedControlPlaneClusterAutoscalerReadDesire: newControlPlaneClusterAutoscalerReadDesire(t, readyControlPlaneClusterAutoscaler()),
+			wantState:   arm.ProvisioningStateSucceeded,
+			wantMessage: "",
+		},
+		{
+			name:           "updates when autoscaler ControlPlaneComponent is not ready",
+			activeVersions: []api.HCPClusterActiveVersion{{Version: ptr.To(semver.MustParse("4.20.0"))}},
+			cachedControlPlaneClusterAutoscalerReadDesire: newControlPlaneClusterAutoscalerReadDesire(t, &v1beta1.ControlPlaneComponent{
+				Status: v1beta1.ControlPlaneComponentStatus{
+					Conditions: []metav1.Condition{
+						{Type: string(v1beta1.ControlPlaneComponentAvailable), Status: metav1.ConditionFalse, Reason: "PodsNotReady", Message: "waiting for pods"},
+					},
+				},
+			}),
+			wantState:   arm.ProvisioningStateUpdating,
+			wantMessage: "cluster autoscaler not available: PodsNotReady: waiting for pods",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			cluster := fixture.newCluster(nil)
+
+			spcResourceID := api.Must(azcorearm.ParseResourceID(fmt.Sprintf("%s/%s/%s",
+				fixture.clusterResourceID.String(),
+				api.ServiceProviderClusterResourceTypeName,
+				api.ServiceProviderClusterResourceName,
+			)))
+			spc := &api.ServiceProviderCluster{
+				CosmosMetadata: api.CosmosMetadata{ResourceID: spcResourceID, PartitionKey: strings.ToLower(spcResourceID.SubscriptionID)},
+				Status: api.ServiceProviderClusterStatus{
+					ControlPlaneVersion: api.ServiceProviderClusterStatusVersion{
+						ActiveVersions: tt.activeVersions,
+					},
+				},
+			}
+
+			var readDesires []*kubeapplier.ReadDesire
+			if tt.cachedControlPlaneClusterAutoscalerReadDesire != nil {
+				readDesires = append(readDesires, tt.cachedControlPlaneClusterAutoscalerReadDesire)
+			}
+
+			controller := &operationClusterUpdate{
+				readDesireLister: &internallistertesting.SliceReadDesireLister{Desires: readDesires},
+			}
+
+			got, err := controller.hypershiftControlPlaneClusterAutoscalerState(ctx, cluster, spc)
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantState, got.ProvisioningState)
+			assert.Equal(t, tt.wantMessage, got.Message)
 		})
 	}
 }

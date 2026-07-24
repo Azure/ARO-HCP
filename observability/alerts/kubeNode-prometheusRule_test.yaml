@@ -39,3 +39,45 @@ tests:
   - eval_time: 6m
     alertname: KubeMemoryPressure
     exp_alerts: []
+# Scenario 7: conntrack table sustained above 80% for >10m - alert should fire
+- interval: 1m
+  input_series:
+  - series: 'node_nf_conntrack_entries{cluster="mgmt-1",instance="10.0.0.4:9100",job="node"}'
+    values: "90000+0x15"
+  - series: 'node_nf_conntrack_entries_limit{cluster="mgmt-1",instance="10.0.0.4:9100",job="node"}'
+    values: "100000+0x15"
+  alert_rule_test:
+  - eval_time: 11m
+    alertname: NodeConntrackTableSaturation
+    exp_alerts:
+    - exp_labels:
+        alertname: NodeConntrackTableSaturation
+        severity: warning
+        cluster: mgmt-1
+        instance: 10.0.0.4:9100
+        job: node
+      exp_annotations:
+        summary: "Node conntrack table approaching capacity"
+        description: "Node 10.0.0.4:9100 on cluster mgmt-1 has its netfilter conntrack table 90% full (nf_conntrack_max). Sustained saturation leads to 'nf_conntrack: table full, dropping packet' (ConntrackFull), which times out kubelet/DNS/IMDS traffic and degrades node health. Consider a larger SKU (nf_conntrack_max = 32768 x vCPU) or scaling the pool out."
+# Scenario 8: conntrack table well below threshold - no alert
+- interval: 1m
+  input_series:
+  - series: 'node_nf_conntrack_entries{cluster="mgmt-1",instance="10.0.0.5:9100",job="node"}'
+    values: "8000+0x15"
+  - series: 'node_nf_conntrack_entries_limit{cluster="mgmt-1",instance="10.0.0.5:9100",job="node"}'
+    values: "524288+0x15"
+  alert_rule_test:
+  - eval_time: 11m
+    alertname: NodeConntrackTableSaturation
+    exp_alerts: []
+# Scenario 9: conntrack spike above 80% but clears before 10m - no alert
+- interval: 1m
+  input_series:
+  - series: 'node_nf_conntrack_entries{cluster="mgmt-1",instance="10.0.0.6:9100",job="node"}'
+    values: "90000 90000 90000 90000 8000 8000 8000 8000 8000 8000 8000 8000"
+  - series: 'node_nf_conntrack_entries_limit{cluster="mgmt-1",instance="10.0.0.6:9100",job="node"}'
+    values: "100000+0x11"
+  alert_rule_test:
+  - eval_time: 11m
+    alertname: NodeConntrackTableSaturation
+    exp_alerts: []

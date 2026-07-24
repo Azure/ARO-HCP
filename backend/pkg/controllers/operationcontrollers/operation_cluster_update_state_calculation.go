@@ -20,6 +20,11 @@ import (
 	"slices"
 	"time"
 
+	"github.com/blang/semver/v4"
+
+	apimeta "k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	arohcpv1alpha1 "github.com/openshift-online/ocm-sdk-go/arohcp/v1alpha1"
 	"github.com/openshift/hypershift/api/hypershift/v1beta1"
 
@@ -28,6 +33,7 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/arm"
 	"github.com/Azure/ARO-HCP/internal/ocm"
 	"github.com/Azure/ARO-HCP/internal/utils"
+	"github.com/Azure/ARO-HCP/internal/utils/apihelpers"
 )
 
 // Cluster update operation state calculation for the cluster update operation controller.
@@ -78,6 +84,9 @@ func (c *operationClusterUpdate) hypershiftHostedClusterSpecMatchesDesired(clust
 		return false, message
 	}
 	if matches, message := c.hypershiftHostedClusterImageContentSourcesSpecMatchesDesired(cluster.CustomerProperties.ImageDigestMirrors, hostedCluster.Spec.ImageContentSources); !matches {
+		return false, message
+	}
+	if matches, message := c.hypershiftHostedClusterEtcdSecretEncryptionSpecMatchesDesired(cluster.CustomerProperties.Etcd.DataEncryption, hostedCluster.Spec.SecretEncryption); !matches {
 		return false, message
 	}
 	return true, ""
@@ -334,6 +343,46 @@ func (c *operationClusterUpdate) hypershiftHostedClusterImageContentSourcesSpecM
 	return true, ""
 }
 
+func (c *operationClusterUpdate) hypershiftHostedClusterEtcdSecretEncryptionSpecMatchesDesired(desired api.EtcdDataEncryptionProfile, observed *v1beta1.SecretEncryptionSpec) (bool, string) {
+
+	if observed == nil {
+		return false, "unexpected hypershift HostedCluster secret encryption is not set"
+	}
+
+	if matches, message := c.hypershiftHostedClusterCustomerManagedSecretEncryptionSpecMatchesDesired(desired, observed); !matches {
+		return matches, message
+	}
+
+	return true, ""
+}
+
+func (c *operationClusterUpdate) hypershiftHostedClusterCustomerManagedSecretEncryptionSpecMatchesDesired(desired api.EtcdDataEncryptionProfile, observed *v1beta1.SecretEncryptionSpec) (bool, string) {
+	if desired.KeyManagementMode != api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged {
+		return false, fmt.Sprintf("support for desired key management mode %q for updates is not implemented", desired.KeyManagementMode)
+	}
+
+	if desired.CustomerManaged.EncryptionType != api.CustomerManagedEncryptionTypeKMS {
+		return false, fmt.Sprintf("support for desired customer managed key encryption type %s for updates is not implemented", desired.CustomerManaged.EncryptionType)
+	}
+
+	if observed.Type != v1beta1.KMS {
+		return false, fmt.Sprintf("hypershift HostedCluster secret encryption is: %q, want :%q", observed.Type, desired.CustomerManaged.EncryptionType)
+	}
+
+	if observed.KMS == nil {
+		return false, "unexpected hypershift HostedCluster kms secret encryption configuration unset"
+	}
+
+	if observed.KMS.Azure == nil {
+		return false, "unexpected hypershift HostedCluster kms secret encryption azure configuration unset"
+	}
+
+	if observed.KMS.Azure.ActiveKey.KeyVersion != desired.CustomerManaged.Kms.ActiveKey.Version {
+		return false, fmt.Sprintf("hypershift HostedCluster kms secret encryption active key version is: %q, want: %q", observed.KMS.Azure.ActiveKey.KeyVersion, desired.CustomerManaged.Kms.ActiveKey.Version)
+	}
+	return true, ""
+}
+
 // clusterServiceClusterSpecOperationState reports whether Cluster Service cluster spec fields
 // match desired state intent for the cluster update operation. Only checks outside CS .status.
 // Checks that can only be performed against Cluster Service instead of the management cluster
@@ -433,4 +482,73 @@ func (c *operationClusterUpdate) clusterServiceClusterNodeDrainTimeoutSpecMatche
 		return false, fmt.Sprintf("Cluster Service nodeDrainGracePeriod is %d minutes, want %d", got, desired)
 	}
 	return true, ""
+}
+
+// hypershiftControlPlaneClusterAutoscalerState gates on the
+// cluster-autoscaler ControlPlaneComponent status (Available + RolloutComplete)
+// when the active control plane is 4.20+. HostedCluster autoscaling Spec matching
+// is owned by hypershiftHostedClusterOperationState.
+func (c *operationClusterUpdate) hypershiftControlPlaneClusterAutoscalerState(ctx context.Context, existingCluster *api.HCPOpenShiftCluster, spc *api.ServiceProviderCluster) (*operationState, error) {
+	logger := utils.LoggerFromContext(ctx)
+
+	lowest, _ := apihelpers.FindLowestAndHighestClusterVersion(spc.Status.ControlPlaneVersion.ActiveVersions)
+	if lowest == nil {
+		return newOperationState(arm.ProvisioningStateUpdating, "control plane active versions not yet reported"), nil
+	}
+	// Compare major.minor only so pre-release builds (e.g. nightlies like
+	// 4.20.0-0.nightly-...) still satisfy the 4.20+ autoscaler gate.
+	lowestMajorMinor := semver.Version{Major: lowest.Major, Minor: lowest.Minor}
+	if !lowestMajorMinor.GTE(semver.Version{Major: 4, Minor: 20}) {
+		msg := fmt.Sprintf(
+			`lowest active control plane version %q does not support ControlPlaneComponent cluster-autoscaler (requires 4.20+)`,
+			lowest.String(),
+		)
+		return newOperationState(arm.ProvisioningStateSucceeded, msg), nil
+	}
+
+	controlPlaneComponent, err := maestrohelpers.GetCachedControlPlaneClusterAutoscalerForCluster(
+		ctx, c.readDesireLister,
+		existingCluster.ID.SubscriptionID, existingCluster.ID.ResourceGroupName, existingCluster.ID.Name,
+	)
+	if err != nil {
+		return nil, utils.TrackError(err)
+	}
+	if controlPlaneComponent == nil {
+		return newOperationState(arm.ProvisioningStateUpdating, "cluster autoscaler state not cached yet"), nil
+	}
+	if !c.isControlPlaneClusterAutoscalerReady(controlPlaneComponent) {
+		message := c.controlPlaneClusterAutoscalerNotReadyMessage(controlPlaneComponent)
+		logger.Info("cluster autoscaler ControlPlaneComponent is not ready", "message", message)
+		return newOperationState(arm.ProvisioningStateUpdating, message), nil
+	}
+	return newOperationState(arm.ProvisioningStateSucceeded, ""), nil
+}
+
+func (c *operationClusterUpdate) isControlPlaneClusterAutoscalerReady(controlPlaneComponent *v1beta1.ControlPlaneComponent) bool {
+	return apimeta.IsStatusConditionTrue(controlPlaneComponent.Status.Conditions, string(v1beta1.ControlPlaneComponentAvailable)) &&
+		apimeta.IsStatusConditionTrue(controlPlaneComponent.Status.Conditions, string(v1beta1.ControlPlaneComponentRolloutComplete))
+}
+
+const (
+	clusterAutoscalerNotAvailableMsg       = "cluster autoscaler not available"
+	clusterAutoscalerRolloutNotCompleteMsg = "cluster autoscaler rollout not complete"
+	clusterAutoscalerNotReadyMsg           = "cluster autoscaler not ready"
+)
+
+func (c *operationClusterUpdate) controlPlaneClusterAutoscalerNotReadyMessage(controlPlaneComponent *v1beta1.ControlPlaneComponent) string {
+	available := apimeta.FindStatusCondition(controlPlaneComponent.Status.Conditions, string(v1beta1.ControlPlaneComponentAvailable))
+	rollout := apimeta.FindStatusCondition(controlPlaneComponent.Status.Conditions, string(v1beta1.ControlPlaneComponentRolloutComplete))
+	if available == nil || available.Status != metav1.ConditionTrue {
+		if available != nil && len(available.Message) > 0 {
+			return fmt.Sprintf("%s: %s: %s", clusterAutoscalerNotAvailableMsg, available.Reason, available.Message)
+		}
+		return clusterAutoscalerNotAvailableMsg
+	}
+	if rollout == nil || rollout.Status != metav1.ConditionTrue {
+		if rollout != nil && len(rollout.Message) > 0 {
+			return fmt.Sprintf("%s: %s: %s", clusterAutoscalerRolloutNotCompleteMsg, rollout.Reason, rollout.Message)
+		}
+		return clusterAutoscalerRolloutNotCompleteMsg
+	}
+	return clusterAutoscalerNotReadyMsg
 }

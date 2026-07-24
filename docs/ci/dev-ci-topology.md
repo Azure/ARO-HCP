@@ -56,7 +56,7 @@ The current `dev-ci` topology intentionally does not own several adjacent pieces
 - Prow jobs, ci-operator configuration, step-registry workflows, and Boskos inventory remain in `openshift/release`.
 - The on-demand DEV RP footprint created during local E2E jobs is still provisioned by the release-side workflow, not by `topology-dev-ci.yaml`.
 - Static consumer artifacts such as `dev-infrastructure/openshift-ci/msi-mock-pool.yaml` are still generated separately.
-- The Key Vault **certificates** backing the mock identities are a manual prerequisite (the Entra apps trust them via SNI but do not create them).
+- The Key Vault **certificates** backing the mock identities are created by a separate `make create-mock-identity-certs` step, not by the Bicep templates (the Entra apps trust them via SNI but cannot create them — Bicep cannot create Key Vault certificates).
 
 For the runtime lease model itself, see [CI Identity Leasing](identity-leasing.md).
 
@@ -68,18 +68,18 @@ The DEV MSI mock service-principal pool used by local E2E jobs is now managed de
   - `dev-infrastructure/templates/mock-identity-apps.bicep` creates/updates the pooled Entra apps and service principals (looping `.ci.dev.mockIdentities.pool.size` times) with SNI certificate auth.
   - `dev-infrastructure/templates/mock-identity-rbac.bicep` resolves each principal's object ID via Microsoft Graph and applies the home- and E2E-subscription grants. Principal IDs are no longer stored in `config/config-dev-ci.yaml`. Because those grants require subscription Owner, they are applied on demand rather than by the postsubmit (see [The Privileged Entrypoint](#the-privileged-entrypoint)).
 - What remains outside the rollout:
-  - The Key Vault **certificates** the apps trust are created manually (SNI trust is declared, the certs are not — see [DEV Mock Identities → Certificates](dev-mock-identities.md#certificates)).
+  - The Key Vault **certificates** the apps trust are created by `make create-mock-identity-certs`, which calls `dev-infrastructure/scripts/create-kv-cert.sh` (`az keyvault certificate create`). Bicep cannot create Key Vault certificates, so this is a separate idempotent step rather than part of the template — SNI trust is declared in `mock-identity-apps.bicep`, the certs are created here (see [DEV Mock Identities → Certificates](dev-mock-identities.md#certificates)).
   - `make populate-msi-mock-pool` performs live Entra lookups and writes the static `dev-infrastructure/openshift-ci/msi-mock-pool.yaml` catalog that release-side jobs consume.
   - `openshift/release` still owns the Boskos inventory and lease contract for the `aro-hcp-msi-mock-cs-sp-dev` resource type.
 
-So the Entra objects and their RBAC are single-sourced in the topology; the remaining spread is limited to the certificate prerequisite and the release-side Boskos/catalog wiring.
+So the Entra objects and their RBAC are single-sourced in the topology; the remaining spread is limited to the certificate step and the release-side Boskos/catalog wiring.
 
 ## Long-Term Direction
 
 The Entra-object and RBAC half of the intended end state is now in place — a single declarative producer (`mock-identity-apps.bicep` + `mock-identity-rbac.bicep`) owns the pool lifecycle on the Azure side, driven by one source of truth in `config/config-dev-ci.yaml`. The remaining work to close the loop:
 
 - generate downstream consumer artifacts (the static pool catalog and the release-side Boskos inventory) from that same source instead of updating them separately
-- fold certificate provisioning into the declarative flow (or a documented, automated bootstrap) instead of the current manual prerequisite
+- fold certificate provisioning into the rollout itself, so operators don't run a separate `make create-mock-identity-certs` step (Bicep can't create Key Vault certificates today, so cert creation lives in that idempotent script)
 
 Until those are designed and validated, the certificate and release-side hand-offs above remain the supported operating model.
 

@@ -268,7 +268,7 @@ func convertTokenClaimValidationRuleRPToCS(rule externalAuthUpdateDispatchConfig
 	}
 }
 
-func convertEtcdRPToCS(in api.EtcdProfile) (*arohcpv1alpha1.AzureEtcdEncryptionBuilder, error) {
+func convertEtcdRPToCS(in api.EtcdProfile, activeKeyBuilder *arohcpv1alpha1.AzureKmsKeyBuilder) (*arohcpv1alpha1.AzureEtcdEncryptionBuilder, error) {
 	keyManagementMode, err := convertKeyManagementModeTypeRPToCS(in.DataEncryption.KeyManagementMode)
 	if err != nil {
 		return nil, err
@@ -285,13 +285,11 @@ func convertEtcdRPToCS(in api.EtcdProfile) (*arohcpv1alpha1.AzureEtcdEncryptionB
 			EncryptionType(encryptionType)
 
 		if in.DataEncryption.CustomerManaged.Kms != nil {
-			azureKmsKeyBuilder := arohcpv1alpha1.NewAzureKmsKey().
+			activeKeyBuilder.
 				KeyName(in.DataEncryption.CustomerManaged.Kms.ActiveKey.Name).
-				KeyVaultName(in.DataEncryption.CustomerManaged.Kms.ActiveKey.VaultName).
-				KeyVersion(in.DataEncryption.CustomerManaged.Kms.ActiveKey.Version)
-			azureKmsEncryptionBuilder := arohcpv1alpha1.NewAzureKmsEncryption().ActiveKey(azureKmsKeyBuilder)
+				KeyVaultName(in.DataEncryption.CustomerManaged.Kms.ActiveKey.VaultName)
+			azureKmsEncryptionBuilder := arohcpv1alpha1.NewAzureKmsEncryption().ActiveKey(activeKeyBuilder)
 
-			// Add KeyVault visibility if specified
 			if len(in.DataEncryption.CustomerManaged.Kms.Visibility) != 0 {
 				visibility, err := convertKeyVaultVisibilityRPToCS(in.DataEncryption.CustomerManaged.Kms.Visibility)
 				if err != nil {
@@ -404,6 +402,9 @@ func BuildCSCluster(resourceID *azcorearm.ResourceID, tenantID string, hcpCluste
 
 	clusterBuilder := arohcpv1alpha1.NewCluster()
 	clusterAPIBuilder := arohcpv1alpha1.NewClusterAPI()
+	clusterKMSActiveKeyBuilder := arohcpv1alpha1.NewAzureKmsKey()
+
+	var azureBuilder *arohcpv1alpha1.AzureBuilder
 
 	// These attributes cannot be updated after cluster creation.
 	if oldClusterServiceCluster == nil {
@@ -411,8 +412,7 @@ func BuildCSCluster(resourceID *azcorearm.ResourceID, tenantID string, hcpCluste
 		if err != nil {
 			return nil, nil, err
 		}
-		// Add attributes that cannot be updated after cluster creation.
-		clusterBuilder, err = withImmutableAttributes(clusterBuilder, hcpCluster,
+		clusterBuilder, azureBuilder, err = withImmutableAttributes(clusterBuilder, hcpCluster,
 			resourceID.SubscriptionID,
 			resourceID.ResourceGroupName,
 			tenantID,
@@ -435,6 +435,14 @@ func BuildCSCluster(resourceID *azcorearm.ResourceID, tenantID string, hcpCluste
 		clusterBuilder.Ingresses(arohcpv1alpha1.NewIngressList().Items(
 			arohcpv1alpha1.NewIngress().Default(true).Listening(ingressListening),
 		))
+
+		etcdEncryption, err := convertEtcdRPToCS(hcpCluster.CustomerProperties.Etcd, clusterKMSActiveKeyBuilder)
+		if err != nil {
+			return nil, nil, err
+		}
+		azureBuilder.EtcdEncryption(etcdEncryption)
+		clusterBuilder.Azure(azureBuilder)
+
 	}
 
 	// Property layering for CS Properties(): preserve existing values (on update),
@@ -451,7 +459,7 @@ func BuildCSCluster(resourceID *azcorearm.ResourceID, tenantID string, hcpCluste
 	}
 
 	clusterUpdateDispatchConfig := clusterUpdateDispatchConfigFromRP(hcpCluster, serviceProviderCluster)
-	err = clusterUpdateDispatchConfig.applyToCSBuilders(clusterBuilder, clusterAPIBuilder, properties)
+	err = clusterUpdateDispatchConfig.applyToCSBuilders(clusterBuilder, clusterAPIBuilder, azureBuilder, clusterKMSActiveKeyBuilder, properties)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -501,14 +509,14 @@ func ConvertHostedClusterSizeOverrideToCS(desiredClusterControlPlanePodSizing ap
 	return "", false
 }
 
-func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, hcpCluster *api.HCPOpenShiftCluster, subscriptionID, resourceGroupName, tenantID, identityURL, csVersionID string) (*arohcpv1alpha1.ClusterBuilder, error) {
+func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, hcpCluster *api.HCPOpenShiftCluster, subscriptionID, resourceGroupName, tenantID, identityURL, csVersionID string) (*arohcpv1alpha1.ClusterBuilder, *arohcpv1alpha1.AzureBuilder, error) {
 	clusterImageRegistryState, err := convertClusterImageRegistryStateRPToCS(hcpCluster.CustomerProperties.ClusterImageRegistry)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	outboundType, err := convertOutboundTypeRPToCS(hcpCluster.CustomerProperties.Platform.OutboundType)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	clusterBuilder.
@@ -544,15 +552,6 @@ func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, hcpC
 		NodesOutboundConnectivity(arohcpv1alpha1.NewAzureNodesOutboundConnectivity().
 			OutboundType(outboundType))
 
-	// Only add etcd encryption if it's actually configured
-	if hcpCluster.CustomerProperties.Etcd.DataEncryption.KeyManagementMode != "" || hcpCluster.CustomerProperties.Etcd.DataEncryption.CustomerManaged != nil {
-		etcdEncryption, err := convertEtcdRPToCS(hcpCluster.CustomerProperties.Etcd)
-		if err != nil {
-			return nil, err
-		}
-		azureBuilder.EtcdEncryption(etcdEncryption)
-	}
-
 	// Cluster Service rejects an empty NetworkSecurityGroupResourceID string.
 	if hcpCluster.CustomerProperties.Platform.NetworkSecurityGroupID != nil {
 		azureBuilder.NetworkSecurityGroupResourceID(hcpCluster.CustomerProperties.Platform.NetworkSecurityGroupID.String())
@@ -585,14 +584,12 @@ func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, hcpC
 
 	azureBuilder.OperatorsAuthentication(arohcpv1alpha1.NewAzureOperatorsAuthentication().ManagedIdentities(managedIdentitiesBuilder))
 
-	clusterBuilder.Azure(azureBuilder)
-
 	// Cluster Service rejects an empty DomainPrefix string.
 	if hcpCluster.CustomerProperties.DNS.BaseDomainPrefix != "" {
 		clusterBuilder.DomainPrefix(hcpCluster.CustomerProperties.DNS.BaseDomainPrefix)
 	}
 
-	return clusterBuilder, nil
+	return clusterBuilder, azureBuilder, nil
 }
 
 // BuildCSNodePool creates a CS NodePoolBuilder object from an HCPOpenShiftClusterNodePool object.

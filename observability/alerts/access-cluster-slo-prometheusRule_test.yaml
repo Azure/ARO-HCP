@@ -392,3 +392,17 @@ tests:
         summary: "mgmt-1: Credential operation stuck in deleting for over 1 hour"
         description: "Credential operation for /sub/7/cluster/stuck-revoke has been in deleting phase for over 1 hour. Stuck operations are invisible to success/failure SLIs and require investigation."
         runbook_url: "aka.ms/arohcp-runbook-access-cluster"
+# ========================================
+# Test 13: Stuck operation does not fire for e2e subscription
+# ========================================
+# Same pattern as Test 4 but with an e2e subscription_id that should be excluded.
+- interval: 1m
+  input_series:
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/e2e/cluster/stuck", subscription_id="974ebd46-8ad3-41e3-afef-7ef25fd5c371", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="requestcredential", phase="accepted", cluster="mgmt-1"}'
+    values: "0+0x95"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/e2e/cluster/stuck", subscription_id="974ebd46-8ad3-41e3-afef-7ef25fd5c371", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="requestcredential", phase="accepted", cluster="mgmt-1"}'
+    values: "1+0x95"
+  alert_rule_test:
+  - eval_time: 90m
+    alertname: userJourneyAccessClusterStuckOperation
+    exp_alerts: []

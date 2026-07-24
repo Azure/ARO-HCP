@@ -23,6 +23,13 @@ import (
 	"github.com/go-logr/logr/funcr"
 	"github.com/stretchr/testify/require"
 
+	"k8s.io/client-go/tools/cache"
+
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+
+	"github.com/Azure/ARO-HCP/backend/pkg/listers"
+	"github.com/Azure/ARO-HCP/internal/api"
+	"github.com/Azure/ARO-HCP/internal/api/arm"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
 	"github.com/Azure/ARO-HCP/internal/databasetesting"
 	"github.com/Azure/ARO-HCP/internal/utils"
@@ -31,6 +38,27 @@ import (
 type mockClusterSyncer struct {
 	syncOnceFunc func(ctx context.Context, key HCPClusterKey) error
 	cooldown     controllerutil.CooldownChecker
+}
+
+func newFakeClusterLister(subscriptionID, resourceGroup, clusterName string) listers.ClusterLister {
+	resourceID := api.Must(azcorearm.ParseResourceID(
+		"/subscriptions/" + subscriptionID +
+			"/resourceGroups/" + resourceGroup +
+			"/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/" + clusterName,
+	))
+	indexer := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{})
+	err := indexer.Add(&api.HCPOpenShiftCluster{
+		CosmosMetadata: api.CosmosMetadata{
+			ResourceID: resourceID,
+		},
+		TrackedResource: arm.TrackedResource{
+			Resource: arm.NewResource(resourceID),
+		},
+	})
+	if err != nil {
+		panic(err)
+	}
+	return listers.NewClusterLister(indexer)
 }
 
 func (m *mockClusterSyncer) SyncOnce(ctx context.Context, key HCPClusterKey) error {
@@ -61,16 +89,14 @@ func TestClusterWatchingControllerSyncHasLoggerContextValues(t *testing.T) {
 	}
 
 	mockResourcesDBClient := databasetesting.NewMockResourcesDBClient()
-	controller := NewClusterWatchingController(
-		"test-controller",
-		mockResourcesDBClient,
-		nil, // nil informers for unit testing
-		nil, // nil kube-applier informers for unit testing
-		time.Minute,
-		mockSyncer,
-	)
 
-	gwc := controller.(*genericWatchingController[HCPClusterKey])
+	inner := &clusterWatchingController{
+		name:              "test-controller",
+		resourcesDBClient: mockResourcesDBClient,
+		syncer:            mockSyncer,
+		clusterLister:     newFakeClusterLister(subscriptionID, resourceGroup, clusterName),
+	}
+	gwc := newGenericWatchingController("test-controller", api.ClusterResourceType, inner)
 	gwc.queue.Add(HCPClusterKey{
 		SubscriptionID:    subscriptionID,
 		ResourceGroupName: resourceGroup,

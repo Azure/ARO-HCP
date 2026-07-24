@@ -1470,7 +1470,11 @@ func assertSyncResult(t *testing.T, err error, expectedError bool, expectedError
 	}
 }
 
-// createServiceProviderClusterWithVersion creates a ServiceProviderCluster with the given control plane version.
+// createServiceProviderClusterWithVersion ensures a ServiceProviderCluster
+// exists with the given control plane version. If a sibling helper
+// (e.g. createTestHCPCluster) has already seeded an empty SPC via
+// GetOrCreateServiceProviderCluster, this updates that document in place via
+// Replace; otherwise it creates a new one.
 func createServiceProviderClusterWithVersion(t *testing.T, ctx context.Context, mockResourcesDBClient *databasetesting.MockResourcesDBClient, controlPlaneVersion string) {
 	t.Helper()
 
@@ -1481,6 +1485,20 @@ func createServiceProviderClusterWithVersion(t *testing.T, ctx context.Context, 
 	spClusterResourceID := clusterResourceID + "/" + api.ServiceProviderClusterResourceTypeName + "/" + api.ServiceProviderClusterResourceName
 
 	cpVersion := semver.MustParse(controlPlaneVersion)
+	spcCRUD := mockResourcesDBClient.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName)
+
+	existing, getErr := spcCRUD.Get(ctx, api.ServiceProviderClusterResourceName)
+	if getErr == nil {
+		replacement := existing.DeepCopy()
+		replacement.Status.ControlPlaneVersion.ActiveVersions = []api.HCPClusterActiveVersion{
+			{Version: &cpVersion, State: configv1.CompletedUpdate},
+		}
+		_, err := spcCRUD.Replace(ctx, replacement, nil)
+		require.NoError(t, err)
+		return
+	}
+	require.True(t, database.IsNotFoundError(getErr), "unexpected error reading SPC before seeding: %v", getErr)
+
 	spCluster := &api.ServiceProviderCluster{
 		CosmosMetadata: api.CosmosMetadata{
 			ResourceID:   api.Must(azcorearm.ParseResourceID(spClusterResourceID)),
@@ -1494,7 +1512,7 @@ func createServiceProviderClusterWithVersion(t *testing.T, ctx context.Context, 
 			},
 		},
 	}
-	_, err := mockResourcesDBClient.ServiceProviderClusters(testSubscriptionID, testResourceGroupName, testClusterName).Create(ctx, spCluster, nil)
+	_, err := spcCRUD.Create(ctx, spCluster, nil)
 	require.NoError(t, err)
 }
 

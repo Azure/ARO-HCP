@@ -91,6 +91,46 @@ deploy-mock-identity-apps: configurations/mock-identity-apps.bicepparam
 
 .PHONY: deploy-mock-identity-apps
 
+# Create the self-signed Key Vault certificates the mock identity apps trust via
+# SNI. mock-identity-apps.bicep only declares the trusted subject name/issuer; it
+# does not create certs (Bicep cannot create Key Vault certificates). Idempotent:
+# create-kv-cert.sh leaves an existing cert untouched unless FORCE=true, so this
+# is safe to re-run during bootstrap. Run once before the mock identities are
+# used. Cert names/DNS mirror config/config-dev-ci.yaml .ci.dev.mockIdentities.
+create-mock-identity-certs:
+	VAULT_NAME=$(SVC_KV_NAME) CERT_NAME=firstPartyCert2 \
+		SUBJECT=CN=firstparty.hcp.osadev.cloud DNS_NAMES=firstparty.hcp.osadev.cloud \
+		./scripts/create-kv-cert.sh
+	VAULT_NAME=$(SVC_KV_NAME) CERT_NAME=armHelperCert2 \
+		SUBJECT=CN=armhelper.hcp.osadev.cloud DNS_NAMES=armhelper.hcp.osadev.cloud \
+		./scripts/create-kv-cert.sh
+	VAULT_NAME=$(SVC_KV_NAME) CERT_NAME=msiMockCert2 \
+		SUBJECT=CN=msimock.hcp.osadev.cloud DNS_NAMES=msimock.hcp.osadev.cloud \
+		./scripts/create-kv-cert.sh
+	@for i in $$(seq 0 $$(($(MSI_MOCK_POOL_SIZE) - 1))); do \
+		echo "Creating/updating MSI mock pool cert $$i ..."; \
+		VAULT_NAME=$(SVC_KV_NAME) \
+		CERT_NAME=msiMockPoolCert-$$i \
+		SUBJECT=CN=$$i.msimockpool.hcp.osadev.cloud \
+		DNS_NAMES=$$i.msimockpool.hcp.osadev.cloud \
+		./scripts/create-kv-cert.sh; \
+	done
+.PHONY: create-mock-identity-certs
+
+# INT variant: certificates live in the INT global Key Vault. See
+# docs/sops/msit-int-credential-setup.md for the surrounding manual lift/shift.
+create-int-mock-identity-certs:
+	VAULT_NAME=aro-hcp-int-kv CERT_NAME=intFirstPartyCert \
+		SUBJECT=CN=intfirstparty.hcp.osadev.cloud DNS_NAMES=intfirstparty.hcp.osadev.cloud \
+		./scripts/create-kv-cert.sh
+	VAULT_NAME=aro-hcp-int-kv CERT_NAME=intArmHelperCert \
+		SUBJECT=CN=intarmhelper.hcp.osadev.cloud DNS_NAMES=intarmhelper.hcp.osadev.cloud \
+		./scripts/create-kv-cert.sh
+	VAULT_NAME=aro-hcp-int-kv CERT_NAME=intMsiMockCert \
+		SUBJECT=CN=intmsimock.hcp.osadev.cloud DNS_NAMES=intmsimock.hcp.osadev.cloud \
+		./scripts/create-kv-cert.sh
+.PHONY: create-int-mock-identity-certs
+
 populate-msi-mock-pool:
 	cd openshift-ci && \
 	MSI_MOCK_POOL_SIZE=$(MSI_MOCK_POOL_SIZE) \

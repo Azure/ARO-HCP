@@ -21,12 +21,18 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v3"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/keyvault/armkeyvault"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 
 	"github.com/Azure/ARO-HCP/tooling/cleanup-sweeper/pkg/engine/runner"
+	kvsteps "github.com/Azure/ARO-HCP/tooling/cleanup-sweeper/pkg/engine/steps/keyvault"
 	roleassignmentsteps "github.com/Azure/ARO-HCP/tooling/cleanup-sweeper/pkg/engine/steps/roleassignments"
 )
 
-const orphanedRoleAssignmentStepRetries = 3
+const (
+	orphanedRoleAssignmentStepRetries = 3
+	orphanedVaultStepRetries          = 3
+)
 
 // RoleAssignmentsSweeperWorkflow builds the shared-leftovers cleanup workflow.
 func RoleAssignmentsSweeperWorkflow(
@@ -49,6 +55,22 @@ func RoleAssignmentsSweeperWorkflow(
 		return nil, fmt.Errorf("failed to create role assignments client: %w", err)
 	}
 
+	vaultsClient, err := armkeyvault.NewVaultsClient(subscriptionID, credential, clientOptions)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create vaults client: %w", err)
+	}
+	rgClient, err := armresources.NewResourceGroupsClient(subscriptionID, credential, clientOptions)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create resource groups client: %w", err)
+	}
+	resourceGroupExists := func(ctx context.Context, resourceGroupName string) (bool, error) {
+		resp, err := rgClient.CheckExistence(ctx, resourceGroupName, nil)
+		if err != nil {
+			return false, err
+		}
+		return resp.Success, nil
+	}
+
 	return &runner.Engine{
 		Parallelism: opts.Parallelism,
 		DryRun:      opts.DryRun,
@@ -61,6 +83,13 @@ func RoleAssignmentsSweeperWorkflow(
 				Name:                        "Delete orphaned role assignments",
 				Retries:                     orphanedRoleAssignmentStepRetries,
 				ContinueOnTargetDeleteError: true,
+			}),
+			kvsteps.MustNewPurgeOrphanedDeletedStep(kvsteps.PurgeOrphanedDeletedStepConfig{
+				VaultsClient:        vaultsClient,
+				ResourceGroupExists: resourceGroupExists,
+				Name:                "Purge orphaned soft-deleted Key Vaults",
+				Retries:             orphanedVaultStepRetries,
+				ContinueOnError:     true,
 			}),
 		},
 	}, nil

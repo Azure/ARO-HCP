@@ -11,3 +11,5 @@ operatorEnvVars:
   sharedIngressIPTag: "{{ .hypershift.sharedIngressIPTag }}"
   sharedIngressImage: "{{ .acr.ocp.name }}.{{ .acrDNSSuffix }}/{{ .hypershift.sharedIngressImage.repository }}@{{ .hypershift.sharedIngressImage.digest }}"
 limitClusterSizes: {{ .hypershift.limitClusterSizes }}
+metricsSet:
+  performanceMetrics: {{ .hypershift.metricsSet.performanceMetrics }}

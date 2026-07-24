@@ -39,6 +39,11 @@ type Target struct {
 	ID   string
 	Name string
 	Type string
+	// Location is optional metadata some steps need to delete the target
+	// (e.g. purging a soft-deleted Key Vault requires its Azure location).
+	// It is carried on the Target so a step need not stash side state between
+	// Discover and Delete.
+	Location string
 }
 
 // Step defines one ordered cleanup stage in the engine execution model.

@@ -18,17 +18,11 @@ set -euo pipefail
 # inside it.
 #
 # Inputs via environment variables:
-#   ENABLE_SWIFT          - Whether Swift VNet creation/tagging should run ("true"/"false")
 #   VNET_NAME             - Name of the Swift VNet to create/tag
 #   VNET_ADDRESS_PREFIX   - Address space used when the VNet must be created
 #   RESOURCE_GROUP        - Resource group that holds the VNet and the container group
 #   SUBSCRIPTION_ID       - Subscription that holds the resource group
 #   DEPLOYMENT_MSI_ID     - Resource ID of the Swift-registered managed identity (globalMSI)
-
-if [ "${ENABLE_SWIFT:-false}" != "true" ]; then
-  echo "Swift VNet is disabled; skipping."
-  exit 0
-fi
 
 CONTAINER_IMAGE="mcr.microsoft.com/azure-cli:2.53.1"
 CONTAINER_GROUP_NAME="swift-vnet-${VNET_NAME}"

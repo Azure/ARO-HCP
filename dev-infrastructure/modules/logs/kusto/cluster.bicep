@@ -66,6 +66,9 @@ resource kusto 'Microsoft.Kusto/clusters@2024-04-13' = {
     name: sku
     tier: tier
   }
+  tags: {
+    aroHCPPurpose: 'logs'
+  }
   identity: {
     type: 'SystemAssigned'
   }

@@ -34,6 +34,10 @@
     templatePath: templates/custom/detailed_cluster_mgmt_logs.kql.gotmpl
   - name: detailedInfraOrchestrationLogs
     templatePath: templates/custom/detailed_infra_orchestration_logs.kql.gotmpl
+- name: hypershiftOperatorImage
+  database: ServiceLogs
+  queryType: custom-logs
+  templatePath: templates/custom/debug_mgmt_pod_images.kql.gotmpl
 - name: hostedControlPlaneLogs
   database: HostedControlPlaneLogs
   queryType: custom-logs

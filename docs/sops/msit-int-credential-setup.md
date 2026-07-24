@@ -30,20 +30,19 @@ The MSIT INT environment is unique because the first-party, MSI mock, and ARM he
    run with `make dev-ci-privileged-local-run`). That template configures the apps
    for SNI certificate authentication but does **not** create the certificates.
 
-   Create the three certificates in the `aro-hcp-int-kv` Key Vault (in the global
-   resource group) manually — one per identity, with the subject/DNS names from
-   `.ci.int.mockIdentities.*.certDns` in `config/config-dev-ci.yaml`
-   (`intfirstparty.hcp.osadev.cloud`, `intarmhelper.hcp.osadev.cloud`,
-   `intmsimock.hcp.osadev.cloud`). For example:
+   Create the three certificates in the `aro-hcp-int-kv` Key Vault with the
+   dedicated target (idempotent — existing certs are left untouched):
 
    ```bash
-   az keyvault certificate create --vault-name aro-hcp-int-kv --name intFirstPartyCert \
-     --policy "$(az keyvault certificate get-default-policy | jq '.x509CertificateProperties.subject="CN=intfirstparty.hcp.osadev.cloud" | .x509CertificateProperties.subjectAlternativeNames.dnsNames=["intfirstparty.hcp.osadev.cloud"]')"
-   # repeat for intArmHelperCert (intarmhelper.hcp.osadev.cloud) and intMsiMockCert (intmsimock.hcp.osadev.cloud)
+   cd dev-infrastructure/
+   make create-int-mock-identity-certs
    ```
 
-   Because the apps use SNI, the certificates can be rotated later without
-   redeploying the Bicep, as long as the subject name is unchanged.
+   This runs `scripts/create-kv-cert.sh` for `intFirstPartyCert`,
+   `intArmHelperCert`, and `intMsiMockCert`, with the subject/DNS names that match
+   `.ci.int.mockIdentities.*.certDns` in `config/config-dev-ci.yaml`. Because the
+   apps use SNI, the certificates can be rotated later without redeploying the
+   Bicep, as long as the subject name is unchanged.
 
 1. **Update configuration**
    If new AAD apps were created, update the configuration, see [configuration](../configuration.md) for details about that process.  You can read the created client IDs with `az ad app list --display-name <applicationName> --query '[0].appId'` for each `.ci.int.mockIdentities.*.applicationName`.

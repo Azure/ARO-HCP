@@ -245,8 +245,18 @@ func DefaultOpenshiftNodePoolChannelGroup() string {
 	return channelGroup
 }
 
+// applyCPOImageOverride sets the CPO image override tag when the
+// CPO_IMAGE_OVERRIDE environment variable is present. This is set by
+// the aro-hcp-hypershift-images-push CI step to override the control
+// plane operator image with one built from a HyperShift PR.
+func applyCPOImageOverride(tags map[string]*string) {
+	if cpoImage := os.Getenv("CPO_IMAGE_OVERRIDE"); cpoImage != "" {
+		tags[api.TagClusterCPOImageOverride] = to.Ptr(cpoImage)
+	}
+}
+
 func NewDefaultClusterParams20240610() ClusterParams20240610 {
-	return ClusterParams20240610{
+	params := ClusterParams20240610{
 		OpenshiftVersionId: DefaultOpenshiftControlPlaneVersionId(),
 		Network: NetworkConfig{
 			NetworkType: "OVNKubernetes",
@@ -268,10 +278,12 @@ func NewDefaultClusterParams20240610() ClusterParams20240610 {
 			api.TagClusterMaxCreationDuration: to.Ptr((ClusterCreationTimeout - time.Minute).String()),
 		},
 	}
+	applyCPOImageOverride(params.Tags)
+	return params
 }
 
 func NewDefaultClusterParams20251223() ClusterParams20251223 {
-	return ClusterParams20251223{
+	params := ClusterParams20251223{
 		OpenshiftVersionId: DefaultOpenshiftControlPlaneVersionId(),
 		Network: NetworkConfig{
 			NetworkType: "OVNKubernetes",
@@ -293,10 +305,12 @@ func NewDefaultClusterParams20251223() ClusterParams20251223 {
 			api.TagClusterMaxCreationDuration: to.Ptr((ClusterCreationTimeout - time.Minute).String()),
 		},
 	}
+	applyCPOImageOverride(params.Tags)
+	return params
 }
 
 func NewDefaultClusterParams20260630() ClusterParams20260630 {
-	return ClusterParams20260630{
+	params := ClusterParams20260630{
 		OpenshiftVersionId: DefaultOpenshiftControlPlaneVersionId(),
 		Network: NetworkConfig{
 			NetworkType: "OVNKubernetes",
@@ -319,6 +333,8 @@ func NewDefaultClusterParams20260630() ClusterParams20260630 {
 			api.TagClusterMaxCreationDuration: to.Ptr((ClusterCreationTimeout - time.Minute).String()),
 		},
 	}
+	applyCPOImageOverride(params.Tags)
+	return params
 }
 
 type NodePoolParams20240610 struct {

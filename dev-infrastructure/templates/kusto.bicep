@@ -40,6 +40,9 @@ param autoScaleMax int
 @description('Toggle if autoscale should be enabled')
 param enableAutoScale bool
 
+@description('Resource ID of the global MSI for entity group management (Database Admin role)')
+param globalMSIId string
+
 module kusto '../modules/logs/kusto/main.bicep' = if (manageInstance) {
   name: 'kusto-${location}'
   params: {
@@ -57,5 +60,6 @@ module kusto '../modules/logs/kusto/main.bicep' = if (manageInstance) {
     autoScaleMin: autoScaleMin
     autoScaleMax: autoScaleMax
     enableAutoScale: enableAutoScale
+    globalMSIId: globalMSIId
   }
 }

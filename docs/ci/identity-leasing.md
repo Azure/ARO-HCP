@@ -275,13 +275,14 @@ The pooled `aro-dev-msi-mock-pool-<i>` identities are now fully declarative. The
 Typical maintainer flow:
 
 1. If the pool size is changing, update `.ci.dev.mockIdentities.pool.size` in `config/config-dev-ci.yaml` (and re-materialize).
-2. Ensure the Key Vault certificates for any new pool members exist in `aro-hcp-dev-svc-kv` — `mock-identity-apps.bicep` configures SNI trust but does not create certificates (see [DEV Mock Identities → Certificates](dev-mock-identities.md#certificates)).
+2. From `dev-infrastructure/`, run `make create-mock-identity-certs` to create any new pool members' Key Vault certificates in `aro-hcp-dev-svc-kv` (idempotent; `mock-identity-apps.bicep` configures SNI trust but does not create certificates — see [DEV Mock Identities → Certificates](dev-mock-identities.md#certificates)).
 3. Ask an OWNERS-group member to run `make dev-ci-privileged-local-run` (requires subscription Owner). This creates/updates the pool apps + service principals and applies their home- and E2E-subscription grants.
 4. From `dev-infrastructure/`, run `make populate-msi-mock-pool` to regenerate the static Boskos catalog.
 5. If the pool size or Boskos key set changed, update the release-side Boskos inventory and step-registry lease wiring as well.
 
 In the current model:
 
+- `make create-mock-identity-certs` creates the pooled members' Key Vault certificates via `dev-infrastructure/scripts/create-kv-cert.sh` (`az keyvault certificate create`); it is idempotent and separate from the templates because Bicep cannot create Key Vault certificates.
 - `make dev-ci-privileged-local-run` both creates the pooled Entra objects (`mock-identity-apps.bicep`) and reconciles their access on the DEV home and E2E customer subscriptions (`mock-identity-rbac.bicep`), using principal IDs resolved via Graph lookup rather than recorded in config.
 - `make populate-msi-mock-pool` performs live Entra lookups and rewrites `dev-infrastructure/openshift-ci/msi-mock-pool.yaml`, which remains the static catalog consumed by release-side jobs.
 

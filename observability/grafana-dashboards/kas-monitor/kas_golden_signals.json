@@ -1811,66 +1811,6 @@
             },
             "showPoints": "never"
           },
-          "unit": "s"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 129
-      },
-      "id": 14,
-      "options": {
-        "legend": {
-          "calcs": [
-            "lastNotNull",
-            "max"
-          ],
-          "displayMode": "table",
-          "placement": "bottom"
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "title": "etcd Request Latency (p99)",
-      "type": "timeseries",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "expr": "histogram_quantile(0.99,\n  sum by (namespace, operation, le) (\n    rate(etcd_request_duration_seconds_bucket{cluster=~\"$cluster\", namespace=~\"$namespace\"}[$__rate_interval])\n  )\n)",
-          "legendFormat": "{{ namespace }} - {{ operation }}",
-          "refId": "A"
-        }
-      ]
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisLabel": "",
-            "fillOpacity": 10,
-            "lineWidth": 1,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "never"
-          },
           "unit": "ops"
         },
         "overrides": []

@@ -630,3 +630,25 @@ tests:
   - eval_time: 61m
     alertname: BackendAsyncOperationStuck
     exp_alerts: []
+# Test: does not fire for e2e subscription (excluded by subscription_id filter)
+- interval: 1m
+  input_series:
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/e2e/cluster/a", subscription_id="974ebd46-8ad3-41e3-afef-7ef25fd5c371", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="provisioning", cluster="mgmt-1"}'
+    values: "0+0x25"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/e2e/cluster/a", subscription_id="974ebd46-8ad3-41e3-afef-7ef25fd5c371", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="provisioning", cluster="mgmt-1"}'
+    values: "1+0x25"
+  alert_rule_test:
+  - eval_time: 21m
+    alertname: BackendAsyncOperationClusterCreateStuck
+    exp_alerts: []
+# Test: backstop does not fire for e2e subscription
+- interval: 1m
+  input_series:
+  - series: 'backend_resource_operation_start_time_seconds{resource_id="/sub/e2e/cluster/b", subscription_id="8d696692-794f-4cdb-ba25-9250c9e9ec4c", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="provisioning", cluster="mgmt-1"}'
+    values: "0+0x65"
+  - series: 'backend_resource_operation_phase_info{resource_id="/sub/e2e/cluster/b", subscription_id="8d696692-794f-4cdb-ba25-9250c9e9ec4c", resource_type="microsoft.redhatopenshift/hcpopenshiftclusters", operation_type="create", phase="provisioning", cluster="mgmt-1"}'
+    values: "1+0x65"
+  alert_rule_test:
+  - eval_time: 61m
+    alertname: BackendAsyncOperationStuck
+    exp_alerts: []

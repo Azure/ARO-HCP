@@ -16,6 +16,7 @@ package controllers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -27,6 +28,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/informers"
 	"github.com/Azure/ARO-HCP/backend/pkg/listers"
+	"github.com/Azure/ARO-HCP/backend/pkg/maestrohelpers"
 	"github.com/Azure/ARO-HCP/internal/api"
 	"github.com/Azure/ARO-HCP/internal/api/kubeapplier"
 	controllerutil "github.com/Azure/ARO-HCP/internal/controllerutils"
@@ -46,8 +48,9 @@ import (
 type createClusterScopedReadDesiresSyncer struct {
 	activeOperationLister listers.ActiveOperationLister
 
-	resourcesDBClient    database.ResourcesDBClient
-	kubeApplierDBClients database.KubeApplierDBClients
+	resourcesDBClient            database.ResourcesDBClient
+	kubeApplierDBClients         database.KubeApplierDBClients
+	serviceProviderClusterLister listers.ServiceProviderClusterLister
 
 	// hostedClusterNamespaceEnvIdentifier is the "envName" segment of the
 	// CDNamespace (ocm-<envName>-<csClusterID>). Historically the maestro
@@ -66,6 +69,7 @@ func NewCreateClusterScopedReadDesiresController(
 	activeOperationLister listers.ActiveOperationLister,
 	resourcesDBClient database.ResourcesDBClient,
 	kubeApplierDBClients database.KubeApplierDBClients,
+	serviceProviderClusterLister listers.ServiceProviderClusterLister,
 	informers informers.BackendInformers,
 	hostedClusterNamespaceEnvIdentifier string,
 ) controllerutils.Controller {
@@ -73,6 +77,7 @@ func NewCreateClusterScopedReadDesiresController(
 		activeOperationLister:               activeOperationLister,
 		resourcesDBClient:                   resourcesDBClient,
 		kubeApplierDBClients:                kubeApplierDBClients,
+		serviceProviderClusterLister:        serviceProviderClusterLister,
 		hostedClusterNamespaceEnvIdentifier: hostedClusterNamespaceEnvIdentifier,
 	}
 
@@ -117,11 +122,15 @@ func (c *createClusterScopedReadDesiresSyncer) SyncOnce(ctx context.Context, key
 	// ServiceProviderCluster.Status.ManagementClusterResourceID; until that
 	// lands we have nowhere to write the ReadDesire, so skip and wait for
 	// the next reconcile cycle.
-	spc, err := database.GetOrCreateServiceProviderCluster(ctx, c.resourcesDBClient, key.GetResourceID())
-	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to get or create ServiceProviderCluster: %w", err))
+	serviceProviderCluster, err := c.serviceProviderClusterLister.Get(ctx, key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
+	if database.IsNotFoundError(err) {
+		// CreateServiceProviderCluster will populate it; we'll be re-enqueued via the ServiceProviderCluster informer.
+		return nil
 	}
-	mcResourceID := spc.Status.ManagementClusterResourceID
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to get ServiceProviderCluster: %w", err))
+	}
+	mcResourceID := serviceProviderCluster.Status.ManagementClusterResourceID
 	if mcResourceID == nil {
 		return nil
 	}
@@ -136,13 +145,6 @@ func (c *createClusterScopedReadDesiresSyncer) SyncOnce(ctx context.Context, key
 	}
 	csClusterID := existingCluster.ServiceProviderProperties.ClusterServiceID.ID()
 
-	target := hostedClusterTarget(c.hostedClusterNamespaceEnvIdentifier, csClusterID, csClusterDomainPrefix)
-	desired := buildReadDesire(
-		kubeapplier.ToClusterScopedReadDesireResourceIDString(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, readDesireNameReadonlyHostedCluster),
-		mcResourceID,
-		target,
-	)
-
 	kaClient := c.kubeApplierDBClients.For(ctx, mcResourceID)
 	if kaClient == nil {
 		// Registry doesn't have an entry yet for this MC (e.g. the fleet
@@ -153,27 +155,29 @@ func (c *createClusterScopedReadDesiresSyncer) SyncOnce(ctx context.Context, key
 	}
 	crud, err := kaClient.ReadDesiresForCluster(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName)
 	if err != nil {
-		return utils.TrackError(fmt.Errorf("get ReadDesire CRUD: %w", err))
+		return utils.TrackError(fmt.Errorf("failed to get ReadDesire CRUD: %w", err))
 	}
-	existing, err := getExistingReadDesire(ctx, crud, readDesireNameReadonlyHostedCluster)
-	if err != nil {
-		return err
+
+	desiredReadDesires := []*kubeapplier.ReadDesire{
+		buildReadDesire(
+			kubeapplier.ToClusterScopedReadDesireResourceIDString(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, readDesireNameReadonlyHostedCluster),
+			mcResourceID,
+			hostedClusterTarget(c.hostedClusterNamespaceEnvIdentifier, csClusterID, csClusterDomainPrefix),
+		),
+		buildReadDesire(
+			kubeapplier.ToClusterScopedReadDesireResourceIDString(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, maestrohelpers.ReadDesireNameReadonlyHypershiftControlPlaneComponentClusterAutoscaler),
+			mcResourceID,
+			clusterAutoscalerTarget(c.hostedClusterNamespaceEnvIdentifier, csClusterID, csClusterDomainPrefix),
+		),
 	}
-	if !readDesireNeedsWork(existing, desired) {
-		return nil
-	}
-	if existing == nil {
-		if _, err := crud.Create(ctx, desired, nil); err != nil {
-			return utils.TrackError(fmt.Errorf("create ReadDesire: %w", err))
+
+	var errs []error
+	for _, desired := range desiredReadDesires {
+		if err := c.ensureReadDesire(ctx, crud, desired); err != nil {
+			errs = append(errs, err)
 		}
-		return nil
 	}
-	replacement := existing.DeepCopy()
-	replacement.Spec = *desired.Spec.DeepCopy()
-	if _, err := crud.Replace(ctx, replacement, nil); err != nil {
-		return utils.TrackError(fmt.Errorf("replace ReadDesire: %w", err))
-	}
-	return nil
+	return errors.Join(errs...)
 }
 
 // readDesireNameReadonlyHostedCluster is the well-known ReadDesire name
@@ -195,6 +199,18 @@ func hostedClusterTarget(envIdentifier, csClusterID, csClusterDomainPrefix strin
 		Resource:  "hostedclusters",
 		Namespace: hostedClusterNamespace(envIdentifier, csClusterID),
 		Name:      csClusterDomainPrefix,
+	}
+}
+
+// clusterAutoscalerTarget builds the ResourceReference for the cluster-autoscaler
+// ControlPlaneComponent in the HCP control plane namespace.
+func clusterAutoscalerTarget(envIdentifier, csClusterID, csClusterDomainPrefix string) kubeapplier.ResourceReference {
+	return kubeapplier.ResourceReference{
+		Group:     hsv1beta1.SchemeGroupVersion.Group,
+		Version:   hsv1beta1.SchemeGroupVersion.Version,
+		Resource:  "controlplanecomponents",
+		Namespace: hostedControlPlaneNamespace(envIdentifier, csClusterID, csClusterDomainPrefix),
+		Name:      "cluster-autoscaler",
 	}
 }
 
@@ -224,7 +240,7 @@ func getExistingReadDesire(
 		return nil, nil
 	}
 	if err != nil {
-		return nil, utils.TrackError(fmt.Errorf("get ReadDesire: %w", err))
+		return nil, utils.TrackError(fmt.Errorf("failed to get ReadDesire: %w", err))
 	}
 	return existing, nil
 }
@@ -240,4 +256,36 @@ func readDesireNeedsWork(existing, desired *kubeapplier.ReadDesire) bool {
 		return true
 	}
 	return existing.Spec.TargetItem != desired.Spec.TargetItem
+}
+
+// ensureReadDesire creates or updates a ReadDesire when the desired spec differs from cosmos.
+func (c *createClusterScopedReadDesiresSyncer) ensureReadDesire(ctx context.Context, crud database.ResourceCRUD[kubeapplier.ReadDesire, *kubeapplier.ReadDesire], desired *kubeapplier.ReadDesire) error {
+	existing, err := getExistingReadDesire(ctx, crud, desired.ResourceID.Name)
+	if err != nil {
+		return err
+	}
+	if !readDesireNeedsWork(existing, desired) {
+		return nil
+	}
+	name := desired.ResourceID.Name
+	if existing == nil {
+		_, err := crud.Create(ctx, desired, nil)
+		if database.IsConflictError(err) {
+			return nil
+		}
+		if err != nil {
+			return utils.TrackError(fmt.Errorf("failed to create ReadDesire %q: %w", name, err))
+		}
+		return nil
+	}
+	replacement := existing.DeepCopy()
+	replacement.Spec = *desired.Spec.DeepCopy()
+	_, err = crud.Replace(ctx, replacement, nil)
+	if database.IsPreconditionFailedError(err) {
+		return nil
+	}
+	if err != nil {
+		return utils.TrackError(fmt.Errorf("failed to replace ReadDesire %q: %w", name, err))
+	}
+	return nil
 }

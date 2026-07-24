@@ -25,6 +25,8 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/spf13/cobra"
 
+	"github.com/Azure/ARO-Tools/tools/kustoctl/cmd/entitygroups"
+
 	"github.com/Azure/ARO-HCP/tooling/kustoctl/cmd/validate"
 )
 
@@ -63,6 +65,13 @@ Kusto-related operational tasks.`,
 		os.Exit(1)
 	}
 	cmd.AddCommand(validateCmd)
+
+	entityGroupsCmd, err := entitygroups.NewEntityGroupsCommand()
+	if err != nil {
+		logger.Error(err, "failed to create entity-groups command")
+		os.Exit(1)
+	}
+	cmd.AddCommand(entityGroupsCmd)
 
 	cmd.SetHelpCommand(&cobra.Command{Hidden: true})
 

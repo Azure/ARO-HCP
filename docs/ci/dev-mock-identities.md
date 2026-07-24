@@ -133,8 +133,8 @@ unattended `dev-ci` postsubmit because it needs subscription Owner):
 - `templates/mock-identity-apps.bicep` creates the Entra applications and their
   service principals via `modules/entra/app.bicep` and configures them for
   Subject Name and Issuer (SNI) certificate authentication. It does **not**
-  create the Key Vault certificates themselves — those are a manual prerequisite
-  (see [Certificates](#certificates)).
+  create the Key Vault certificates themselves — those are created by a separate
+  `make create-mock-identity-certs` step (see [Certificates](#certificates)).
 - `templates/mock-identity-rbac.bicep` looks up each service principal's object
   ID via Microsoft Graph (by `uniqueName`, the normalized application name), then
   fans out over the target subscriptions and deploys
@@ -166,13 +166,15 @@ Application definitions, role names, and the subscription lists are supplied by
 ### Certificates
 
 `mock-identity-apps.bicep` only declares which certificate subject name each app
-trusts (SNI); it does not create or rotate the certificates. The matching
-certificates must already exist in the environment Key Vault (`aro-hcp-dev-svc-kv`
-for DEV, `aro-hcp-int-kv` for INT). Because SNI validates the certificate's
-subject name and issuer rather than pinning a public key, rotation works without
-redeploying as long as the subject (certDns) is unchanged. For a fresh bootstrap
-or a subject-name change, create the Key Vault certificate first, then deploy the
-template.
+trusts (SNI); Bicep cannot create Key Vault certificates, so they are created by a
+separate idempotent step: **`make create-mock-identity-certs`** (DEV) and **`make
+create-int-mock-identity-certs`** (INT), which call `scripts/create-kv-cert.sh`
+(`az keyvault certificate create`) into the environment Key Vault
+(`aro-hcp-dev-svc-kv` for DEV, `aro-hcp-int-kv` for INT). Because SNI validates the
+certificate's subject name and issuer rather than pinning a public key, rotation
+works without redeploying the template as long as the subject (certDns) is
+unchanged. For a fresh bootstrap or a subject-name change, run the cert target
+first, then deploy `mock-identity-apps.bicep`.
 
 ## Where To Look
 

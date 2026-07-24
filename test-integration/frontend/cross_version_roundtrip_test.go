@@ -196,7 +196,7 @@ func clusterCreatePayload(clusterName, apiVersion string) []byte {
     "clusterImageRegistry": {
       "state": "Disabled"
     },
-    "etcd": {
+   "etcd": {
       "dataEncryption": {
         "customerManaged": {
           "encryptionType": "KMS",

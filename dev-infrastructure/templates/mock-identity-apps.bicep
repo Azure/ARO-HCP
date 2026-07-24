@@ -2,21 +2,19 @@
 // configures them for Subject Name and Issuer (SNI) certificate authentication
 // via ../modules/entra/app.bicep (trustedSubjectNameAndIssuers).
 //
-// CERTIFICATE PREREQUISITE (manual / out of band):
+// CERTIFICATE CREATION (separate step, not this template):
 // This template does NOT create or rotate the certificates themselves — it only
-// declares which subject name (certDns) each app trusts. The matching
-// certificates must already exist in the environment Key Vault
-// (aro-hcp-dev-svc-kv for DEV, aro-hcp-int-kv for INT) and be issued to the
-// services that authenticate as these identities. SNI validates the presented
-// certificate's subject name and issuer rather than pinning a specific public
-// key, so certificate rotation works without redeploying this template as long
-// as the new certificate keeps the same subject (certDns).
-// For a fresh bootstrap or a subject-name change, create the Key Vault
-// certificate first (see docs/ci/dev-mock-identities.md), then deploy this
-// template. Certificate provisioning used to be handled by the retired
-// imperative mock-identity flow; it was intentionally dropped in favour of the
-// declarative Entra-app model, so cert provisioning is now a documented manual
-// prerequisite.
+// declares which subject name (certDns) each app trusts. Bicep cannot create Key
+// Vault certificates, so they are created out of band by `make
+// create-mock-identity-certs` (DEV) / `make create-int-mock-identity-certs`
+// (INT), which call scripts/create-kv-cert.sh (idempotent az keyvault
+// certificate create) into the environment Key Vault (aro-hcp-dev-svc-kv for
+// DEV, aro-hcp-int-kv for INT). SNI validates the presented certificate's
+// subject name and issuer rather than pinning a specific public key, so
+// certificate rotation works without redeploying this template as long as the
+// new certificate keeps the same subject (certDns).
+// For a fresh bootstrap or a subject-name change, run the cert target first (see
+// docs/ci/dev-mock-identities.md), then deploy this template.
 @description('Shared mock identity definitions: array of {applicationName, certDns}')
 param identities array
 
