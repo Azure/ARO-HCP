@@ -76,4 +76,3 @@ Customer should downgrade a nodepool to a lower minor version from 4.21.zLatest 
 Customer should be able to use workload identity via the cluster OIDC issuer URL
 Customer should not be able to perform various invalid operations on cluster resources
 Customer should be able to list available HCP OpenShift versions and validate response content
-Customer should be able to create a cluster with reused managed identities
