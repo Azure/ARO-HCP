@@ -25,10 +25,11 @@ clouds:
           #    autoscaler ceiling (maxCount 3/pool) is unchanged.
           #  - shards 2 -> 4: halves per-shard series/WAL so a remote-write stall
           #    replay after a restart stays bounded.
-          #  - limits.memory 5Gi: caps a runaway pod so it OOM-kills itself
-          #    instead of taking the ~11.8Gi node down.
           #  - requests.memory 2Gi: keeps all 8 pods schedulable across 4 nodes
           #    (2 x 2Gi + ~2Gi infra baseline = ~6Gi/node of ~11.8Gi).
+          # The memory limit is intentionally not set here: sdp-pipelines pins
+          # the mgmt prometheus limit to 6Gi (hcp/config.msft.sensitive.clouds-overlay.yaml)
+          # and that override wins, so any value set here is dead config.
           mgmt:
             aks:
               infraAgentPool:
@@ -39,8 +40,6 @@ clouds:
                 resources:
                   requests:
                     memory: 2Gi
-                  limits:
-                    memory: 5Gi
       stg:
         # this is the MSFT STAGE environment
         defaults:
