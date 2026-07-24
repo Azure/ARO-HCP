@@ -967,6 +967,12 @@
         "airsRegisteredUserPrincipalId": {
           "type": "string"
         },
+        "dataMapAgentPrincipalId": {
+          "type": "string"
+        },
+        "dataMapAgentBlueShiftPrincipalId": {
+          "type": "string"
+        },
         "certificateDomains": {
           "type": "array",
           "items": {
