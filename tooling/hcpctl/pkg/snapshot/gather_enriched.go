@@ -71,6 +71,9 @@ type GatherForTestOptions struct {
 	// NodeConsoleLogs contains VM serial console log files downloaded from
 	// the Prow job's GCS artifacts. These are optional — not every test creates VMs.
 	NodeConsoleLogs []NodeConsoleLogFile
+
+	// AzureLog is the client-side azure.log from GCS, or nil if not present.
+	AzureLog *AzureLogFile
 }
 
 // GatherForTestResult contains metadata about what was gathered.
@@ -123,6 +126,11 @@ func GatherForTest(ctx context.Context, opts GatherForTestOptions) (*GatherForTe
 		return nil, fmt.Errorf("failed to write node console logs: %w", err)
 	}
 
+	// Write the client-side azure.log (if present).
+	if err := WriteAzureLog(opts.OutputDir, opts.AzureLog); err != nil {
+		return nil, fmt.Errorf("failed to write azure.log: %w", err)
+	}
+
 	// Build the gather input with 5-minute padding.
 	startTime := test.StartTime.Add(-5 * time.Minute)
 	endTime := test.EndTime.Add(5 * time.Minute)
@@ -166,6 +174,12 @@ func GatherForTest(ctx context.Context, opts GatherForTestOptions) (*GatherForTe
 			File:        fmt.Sprintf("node_boot_logs/%s", cl.FileName),
 			ArtifactURL: cl.ArtifactURL,
 		})
+	}
+	if opts.AzureLog != nil && len(opts.AzureLog.Content) > 0 {
+		manifest.AzureLog = &AzureLog{
+			File:        "azure_sdk_log/azure.log",
+			ArtifactURL: opts.AzureLog.ArtifactURL,
+		}
 	}
 	if err := WriteManifest(opts.OutputDir, manifest); err != nil {
 		return nil, fmt.Errorf("failed to write manifest: %w", err)

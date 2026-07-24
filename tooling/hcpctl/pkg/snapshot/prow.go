@@ -700,6 +700,16 @@ type NodeConsoleLogFile struct {
 	ArtifactURL string
 }
 
+// AzureLogFile holds the downloaded per-test azure.log from GCS: the client-side
+// azcore request/response/retry log (correlation IDs, retries, LRO).
+type AzureLogFile struct {
+	// Content is the raw azure.log content (JSON-lines slog output), uncleaned.
+	Content []byte
+
+	// ArtifactURL is the gcsweb URL for downloading the original artifact.
+	ArtifactURL string
+}
+
 // sanitizeTestNameForGCS replicates the test framework's sanitization logic
 // from test/util/framework/per_test_framework.go:sanitizeTestName. This is
 // different from SanitizeTestName (which is stricter) — the test framework
@@ -787,6 +797,54 @@ func FetchNodeConsoleLogs(ctx context.Context, info *ProwJobInfo, testName strin
 	}
 
 	return consoleLogs, nil
+}
+
+// FetchAzureLog downloads a test's client-side azure.log from the Prow job's
+// GCS artifacts (same per-test prefix as node console logs). It returns
+// (nil, nil) when the test produced no azure.log, so absence is non-fatal.
+func FetchAzureLog(ctx context.Context, info *ProwJobInfo, testName string) (*AzureLogFile, error) {
+	logger := logr.FromContextOrDiscard(ctx)
+
+	gcsClient, err := storage.NewClient(ctx, option.WithoutAuthentication())
+	if err != nil {
+		return nil, fmt.Errorf("failed to create GCS client: %w", err)
+	}
+	defer gcsClient.Close()
+
+	artifactDir, err := findArtifactDir(ctx, gcsClient, info.JobName, info.GCSPrefix)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find artifact directory: %w", err)
+	}
+
+	testStep := testStepPersistent
+	if info.IsPullRequest() {
+		testStep = testStepLocal
+	}
+
+	sanitizedName := sanitizeTestNameForGCS(testName)
+	objPath := fmt.Sprintf("%s/artifacts/%s/%s/artifacts/%s/azure.log", info.GCSPrefix, artifactDir, testStep, sanitizedName)
+
+	logger.V(1).Info("Fetching azure.log", "path", objPath)
+	data, err := downloadObject(ctx, gcsClient, objPath)
+	if err != nil {
+		if errors.Is(err, storage.ErrObjectNotExist) {
+			logger.V(1).Info("No azure.log found for test", "path", objPath)
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to download azure.log: %w", err)
+	}
+
+	artifactURL := (&url.URL{
+		Scheme: "https",
+		Host:   "gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com",
+		Path:   "/gcs/" + gcsBucket + "/" + objPath,
+	}).String()
+
+	logger.Info("Found azure.log", "size", len(data))
+	return &AzureLogFile{
+		Content:     data,
+		ArtifactURL: artifactURL,
+	}, nil
 }
 
 // SanitizeTestName replaces characters that are not alphanumeric, dashes, or
