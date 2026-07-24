@@ -7,6 +7,7 @@
 #
 # Managed Resources:
 # * Grafana dashboards (synced from observability/grafana-dashboards/)
+# * Azure Monitor Workspace datasource integrations
 #
 $schema: "pipeline.schema.v1"
 serviceGroup: Microsoft.Azure.ARO.HCP.GrafanaConfig
@@ -42,6 +43,17 @@ resourceGroups:
     parameters: configurations/output-grafana.tmpl.bicepparam
     deploymentLevel: ResourceGroup
     outputOnly: true
+  - name: grafana-datasources
+    action: GrafanaDatasources
+    grafanaName: "{{ .monitoring.grafanaName }}"
+    timeout: "15m"
+    identityFrom:
+      resourceGroup: singleton
+      step: output
+      name: globalMSIId
+    dependsOn:
+    - resourceGroup: singleton
+      step: output
   - name: grafana-dashboards
     action: GrafanaDashboards
     grafanaName: "{{ .monitoring.grafanaName }}"
@@ -53,4 +65,4 @@ resourceGroups:
       name: globalMSIId
     dependsOn:
     - resourceGroup: singleton
-      step: output
+      step: grafana-datasources
