@@ -32,9 +32,10 @@ import (
 const desireCollectInterval = 30 * time.Second
 
 type desireCollector struct {
-	applyStore cache.Store
-	readStore  cache.Store
-	total      *prometheus.GaugeVec
+	applyStore        cache.Store
+	readStore         cache.Store
+	total             *prometheus.GaugeVec
+	operationMetrics  *desireOperationMetrics
 }
 
 func newDesireCollector(
@@ -51,6 +52,7 @@ func newDesireCollector(
 			},
 			[]string{"type", "condition"},
 		),
+		operationMetrics: newDesireOperationMetrics(registerer),
 	}
 }
 
@@ -67,11 +69,15 @@ func (c *desireCollector) collect() {
 	for _, obj := range c.applyStore.List() {
 		if d, ok := obj.(*kubeapplier.ApplyDesire); ok {
 			countTrueConditions(counts["apply"], d.Status.Conditions)
+			// Record operation-level metrics for ApplyDesires
+			c.operationMetrics.recordApplyDesireOperation(d)
 		}
 	}
 	for _, obj := range c.readStore.List() {
 		if d, ok := obj.(*kubeapplier.ReadDesire); ok {
 			countTrueConditions(counts["read"], d.Status.Conditions)
+			// Record operation-level metrics for ReadDesires
+			c.operationMetrics.recordReadDesireOperation(d)
 		}
 	}
 
