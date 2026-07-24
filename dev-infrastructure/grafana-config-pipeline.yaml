@@ -1,0 +1,56 @@
+#
+# Purpose: Fast-track pipeline for Grafana config deployment
+# Deploys Grafana dashboards and datasources independently of the full global rollout.
+# Allows SRE to push dashboard changes without coordinating a full RP release.
+#
+# Prerequisite: The Grafana instance must already exist (deployed via global-pipeline.yaml).
+#
+# Managed Resources:
+# * Grafana dashboards (synced from observability/grafana-dashboards/)
+#
+$schema: "pipeline.schema.v1"
+serviceGroup: Microsoft.Azure.ARO.HCP.GrafanaConfig
+rolloutName: Grafana Config Rollout
+resourceGroups:
+- name: singleton
+  resourceGroup: '{{ .global.rg }}'
+  subscription: '{{ .global.subscription.key }}'
+  executionConstraints:
+  - clouds:
+    - public
+    environments:
+    - int
+    regions:
+    - uksouth
+  - clouds:
+    - public
+    environments:
+    - stg
+    regions:
+    - uksouth
+  - clouds:
+    - public
+    environments:
+    - prod
+    regions:
+    - eastus2euap
+    - uksouth
+  steps:
+  - name: output
+    action: ARM
+    template: templates/output-grafana.bicep
+    parameters: configurations/output-grafana.tmpl.bicepparam
+    deploymentLevel: ResourceGroup
+    outputOnly: true
+  - name: grafana-dashboards
+    action: GrafanaDashboards
+    grafanaName: "{{ .monitoring.grafanaName }}"
+    observabilityConfig: ./../observability/observability.yaml
+    timeout: "15m"
+    identityFrom:
+      resourceGroup: singleton
+      step: output
+      name: globalMSIId
+    dependsOn:
+    - resourceGroup: singleton
+      step: output
