@@ -21,18 +21,22 @@ import (
 )
 
 const (
-	testIDPrefix         = "/subscriptions/00000000-0000-0000-0000-000000000001/resourcegroups/myrg"
-	testClusterIDPrefix  = testIDPrefix + "/providers/microsoft.redhatopenshift/hcpopenshiftclusters/mycluster"
-	testNodePoolIDPrefix = testClusterIDPrefix + "/nodepools/mynodepool"
+	testIDPrefix                  = "/subscriptions/00000000-0000-0000-0000-000000000001/resourcegroups/myrg"
+	testClusterIDPrefix           = testIDPrefix + "/providers/microsoft.redhatopenshift/hcpopenshiftclusters/mycluster"
+	testNodePoolIDPrefix          = testClusterIDPrefix + "/nodepools/mynodepool"
+	testCredentialRequestIDPrefix = testClusterIDPrefix + "/systemadmincredentialrequests/mycred"
+	testRevocationIDPrefix        = testClusterIDPrefix + "/systemadmincredentialrevocations/myrevocation"
 )
 
 func TestResourceIDStrings(t *testing.T) {
 	const (
-		sub     = "00000000-0000-0000-0000-000000000001"
-		rg      = "myRG"
-		cluster = "myCluster"
-		np      = "myNodePool"
-		name    = "myDesire"
+		sub        = "00000000-0000-0000-0000-000000000001"
+		rg         = "myRG"
+		cluster    = "myCluster"
+		np         = "myNodePool"
+		cred       = "myCred"
+		revocation = "myRevocation"
+		name       = "myDesire"
 	)
 	tests := []struct {
 		name string
@@ -59,6 +63,26 @@ func TestResourceIDStrings(t *testing.T) {
 			got:  ToNodePoolScopedReadDesireResourceIDString(sub, rg, cluster, np, name),
 			want: testNodePoolIDPrefix + "/readdesires/mydesire",
 		},
+		{
+			name: "ApplyDesire under credential request",
+			got:  ToCredentialRequestScopedApplyDesireResourceIDString(sub, rg, cluster, cred, name),
+			want: testCredentialRequestIDPrefix + "/applydesires/mydesire",
+		},
+		{
+			name: "ReadDesire under credential request",
+			got:  ToCredentialRequestScopedReadDesireResourceIDString(sub, rg, cluster, cred, name),
+			want: testCredentialRequestIDPrefix + "/readdesires/mydesire",
+		},
+		{
+			name: "ApplyDesire under revocation",
+			got:  ToRevocationScopedApplyDesireResourceIDString(sub, rg, cluster, revocation, name),
+			want: testRevocationIDPrefix + "/applydesires/mydesire",
+		},
+		{
+			name: "ReadDesire under revocation",
+			got:  ToRevocationScopedReadDesireResourceIDString(sub, rg, cluster, revocation, name),
+			want: testRevocationIDPrefix + "/readdesires/mydesire",
+		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -74,11 +98,13 @@ func TestResourceIDStrings(t *testing.T) {
 
 func TestResourceIDsParseToExpectedTypes(t *testing.T) {
 	const (
-		sub     = "00000000-0000-0000-0000-000000000001"
-		rg      = "myRG"
-		cluster = "myCluster"
-		np      = "myNodePool"
-		name    = "myDesire"
+		sub        = "00000000-0000-0000-0000-000000000001"
+		rg         = "myRG"
+		cluster    = "myCluster"
+		np         = "myNodePool"
+		cred       = "myCred"
+		revocation = "myRevocation"
+		name       = "myDesire"
 	)
 	cases := []struct {
 		name     string
@@ -104,6 +130,26 @@ func TestResourceIDsParseToExpectedTypes(t *testing.T) {
 			name:     "nodepool-scoped ReadDesire",
 			idStr:    ToNodePoolScopedReadDesireResourceIDString(sub, rg, cluster, np, name),
 			wantType: NodePoolScopedReadDesireResourceType.String(),
+		},
+		{
+			name:     "credential-request-scoped ApplyDesire",
+			idStr:    ToCredentialRequestScopedApplyDesireResourceIDString(sub, rg, cluster, cred, name),
+			wantType: CredentialRequestScopedApplyDesireResourceType.String(),
+		},
+		{
+			name:     "credential-request-scoped ReadDesire",
+			idStr:    ToCredentialRequestScopedReadDesireResourceIDString(sub, rg, cluster, cred, name),
+			wantType: CredentialRequestScopedReadDesireResourceType.String(),
+		},
+		{
+			name:     "revocation-scoped ApplyDesire",
+			idStr:    ToRevocationScopedApplyDesireResourceIDString(sub, rg, cluster, revocation, name),
+			wantType: RevocationScopedApplyDesireResourceType.String(),
+		},
+		{
+			name:     "revocation-scoped ReadDesire",
+			idStr:    ToRevocationScopedReadDesireResourceIDString(sub, rg, cluster, revocation, name),
+			wantType: RevocationScopedReadDesireResourceType.String(),
 		},
 	}
 	for _, tc := range cases {
