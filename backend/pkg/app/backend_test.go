@@ -20,6 +20,9 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	apisconfigv1 "github.com/Azure/ARO-HCP/backend/pkg/apis/config/v1"
+	azureconfig "github.com/Azure/ARO-HCP/backend/pkg/azure/config"
 )
 
 func TestNewBackend_NilOptionsReturnsError(t *testing.T) {
@@ -31,6 +34,8 @@ func TestNewBackend_NilOptionsReturnsError(t *testing.T) {
 
 func TestNewBackend_MetricsRegistryPairing(t *testing.T) {
 	registry := prometheus.NewRegistry()
+	cloudEnvironment, err := azureconfig.NewAzureCloudEnvironment(apisconfigv1.AzurePublicCloud, nil)
+	require.NoError(t, err)
 
 	for _, tc := range []struct {
 		name       string
@@ -47,6 +52,7 @@ func TestNewBackend_MetricsRegistryPairing(t *testing.T) {
 			b, err := (&BackendOptions{
 				MetricsRegisterer: tc.registerer,
 				MetricsGatherer:   tc.gatherer,
+				CloudEnvironment:  cloudEnvironment,
 			}).NewBackend()
 			if tc.wantErr {
 				require.Error(t, err)
