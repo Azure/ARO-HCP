@@ -228,12 +228,12 @@ module ingestionAlerts '../modules/metrics/amw-ingestion-alerts.bicep' = {
       {
         id: azureMonitoringWorkspaceId
         label: 'svc'
-        lowEventIngestionThreshold: 1
+        lowEventIngestionThreshold: 100
       }
       {
         id: hcpAzureMonitoringWorkspaceId
         label: 'hcp'
-        lowEventIngestionThreshold: 5
+        lowEventIngestionThreshold: 100
       }
     ]
   }
