@@ -1021,12 +1021,12 @@ defaults:
       bundle:
         registry: quay.io
         repository: redhat-user-workloads/crt-redhat-acm-tenant/acm-operator-bundle-acm-216
-        digest: sha256:f70b3abb483f54ed41c9772ba5ffdf3aaacbe8ed76fc179de88104f21eec620b # v2.16.3-536 (2026-07-24 10:44)
+        digest: sha256:50d5d89651045c50b9976b5c028816af730f50bf87826255037db327dca48c86 # v2.16.3-537 (2026-07-24 17:33)
     mce:
       bundle:
         registry: quay.io
         repository: redhat-user-workloads/crt-redhat-acm-tenant/mce-operator-bundle-mce-211
-        digest: sha256:894b5222c243ec09562094bf7a6e2ebfd6dbef05e4abdae5f1c7137418750361 # v2.11.4-574 (2026-07-24 05:05)
+        digest: sha256:226116ad39becb24d7d5460415de56564a2ac32fa10b27a401cdb002c08b41e5 # v2.11.4-575 (2026-07-24 16:47)
   # Cluster Service
   clustersService:
     image:
@@ -1094,7 +1094,7 @@ defaults:
       image:
         registry: arohcpsvcdev.azurecr.io
         repository: image-sync/oc-mirror
-        digest: sha256:f3b518e79fb8e767d9c45ae93fa319d1a11a86b8aece4852d173dace0d2f81b9 # a8cb594 (2026-07-24 11:43)
+        digest: sha256:c3d2145fbdd7d851b908df5a885eee61f162db2356d6f69d2675a298c005dd28 # a1e9f12 (2026-07-24 22:14)
       pullSecretName: ocmirror-pull-secret
       operatorVersionsToMirror: "4.18,4.19,4.20,4.21,4.22"
   # Automation Account
