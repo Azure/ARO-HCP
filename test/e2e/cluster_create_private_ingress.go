@@ -38,9 +38,6 @@ import (
 // v2026-06-30-preview API version smoke test — verifying cluster creation,
 // credentials, and cluster health — to avoid creating multiple clusters in CI.
 var _ = Describe("Customer", func() {
-	// Deadline for v20260630preview API deployment in non-dev environments
-	timeBombDeadline := framework.Must(time.Parse(time.RFC3339, "2026-07-31T00:00:00Z"))
-
 	It("should create a cluster with private ingress using v20260630preview and verify the ingress is internal",
 		labels.RequireNothing,
 		labels.Critical,
@@ -89,10 +86,10 @@ var _ = Describe("Customer", func() {
 				framework.ClusterCreationTimeout,
 			)
 			if isAPINotDeployedError(err) {
-				if time.Now().Before(timeBombDeadline) {
-					Skip(fmt.Sprintf("v20260630preview API not yet deployed; skipping until %s", timeBombDeadline.Format(time.RFC3339)))
+				if time.Now().Before(framework.V20260630PreviewDeploymentDeadline) {
+					Skip(fmt.Sprintf("v20260630preview API not yet deployed; skipping until %s", framework.V20260630PreviewDeploymentDeadline.Format(time.RFC3339)))
 				}
-				Fail(fmt.Sprintf("v20260630preview API still not deployed as of %s deadline", timeBombDeadline.Format(time.RFC3339)))
+				Fail(fmt.Sprintf("v20260630preview API still not deployed as of %s deadline", framework.V20260630PreviewDeploymentDeadline.Format(time.RFC3339)))
 			}
 			Expect(err).NotTo(HaveOccurred(), "failed to create HCP cluster %q with private ingress", customerClusterName)
 
