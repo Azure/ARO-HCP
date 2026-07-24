@@ -33,7 +33,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
-	"k8s.io/klog/v2"
 
 	"github.com/Azure/ARO-HCP/test/util/framework"
 )
@@ -51,10 +50,10 @@ func (v verifySimpleWebApp) Name() string {
 }
 
 func (v verifySimpleWebApp) Verify(ctx context.Context, adminRESTConfig *rest.Config) error {
-	klog.SetOutput(ginkgo.GinkgoWriter)
+	logger := ginkgo.GinkgoLogr
 	defer func() {
 		if err := v.cleanup(ctx, adminRESTConfig); err != nil {
-			klog.ErrorS(err, "Error cleaning up resources")
+			logger.Error(err, "Error cleaning up resources")
 		}
 	}()
 
@@ -126,7 +125,7 @@ func waitForRouteReachability(ctx context.Context, client *http.Client, url stri
 			if lastErr == nil || err.Error() != lastErr.Error() {
 				var dnsErr *net.DNSError
 				if errors.As(err, &dnsErr) {
-					klog.InfoS("DNS error for route",
+					ginkgo.GinkgoLogr.Info("DNS error for route",
 						"phase", phase,
 						"url", url,
 						"host", dnsErr.Name,
@@ -136,7 +135,7 @@ func waitForRouteReachability(ctx context.Context, client *http.Client, url stri
 						"error", err,
 					)
 				} else {
-					klog.InfoS("failed to get response from route",
+					ginkgo.GinkgoLogr.Info("failed to get response from route",
 						"phase", phase,
 						"url", url,
 						"error", err,
@@ -160,7 +159,7 @@ func waitForRouteReachability(ctx context.Context, client *http.Client, url stri
 		responseByte, err := httputil.DumpResponse(resp, true)
 		if err != nil {
 			if lastErr == nil || err.Error() != lastErr.Error() {
-				klog.InfoS("failed to read response from route",
+				ginkgo.GinkgoLogr.Info("failed to read response from route",
 					"phase", phase,
 					"url", url,
 					"error", err,
@@ -182,7 +181,7 @@ func waitForRouteReachability(ctx context.Context, client *http.Client, url stri
 	case err == nil:
 		return nil
 	case lastErr != nil:
-		klog.ErrorS(lastErr, "route check failed",
+		ginkgo.GinkgoLogr.Error(lastErr, "route check failed",
 			"phase", phase,
 			"url", url,
 		)
@@ -291,7 +290,7 @@ func (v verifySimpleWebApp) cleanup(ctx context.Context, adminRESTConfig *rest.C
 				return true, nil
 			}
 			if err != nil {
-				klog.ErrorS(err, "failed to get namespace", "namespace", v.namespaceName)
+				ginkgo.GinkgoLogr.Error(err, "failed to get namespace", "namespace", v.namespaceName)
 			}
 			return false, nil
 		})
