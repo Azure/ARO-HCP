@@ -289,3 +289,32 @@ var _ runtime.Object = &ManagementClusterContentList{}
 func (l *ManagementClusterContentList) GetObjectKind() schema.ObjectKind {
 	return &l.TypeMeta
 }
+
+var _ runtime.Object = &ClusterAdminCredential{}
+
+func (o *ClusterAdminCredential) GetObjectKind() schema.ObjectKind {
+	return schema.EmptyObjectKind
+}
+
+func (o *ClusterAdminCredential) GetObjectMeta() metav1.Object {
+	om := &metav1.ObjectMeta{}
+	if o.GetResourceID() != nil {
+		om.Name = strings.ToLower(o.GetResourceID().String())
+	}
+	om.ResourceVersion = strconv.FormatInt(o.InstanceVersion, 10)
+	return om
+}
+
+// ClusterAdminCredentialList is a list of ClusterAdminCredential resources.
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+type ClusterAdminCredentialList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+	Items           []ClusterAdminCredential `json:"items"`
+}
+
+var _ runtime.Object = &ClusterAdminCredentialList{}
+
+func (l *ClusterAdminCredentialList) GetObjectKind() schema.ObjectKind {
+	return &l.TypeMeta
+}

@@ -216,6 +216,49 @@ func (l *DBExternalAuthLister) ListForCluster(ctx context.Context, subscriptionI
 	return collectFromIterator(ctx, iter)
 }
 
+// DBAdminCredentialLister implements listers.AdminCredentialLister backed by a database.ResourcesDBClient.
+type DBAdminCredentialLister struct {
+	ResourcesDBClient database.ResourcesDBClient
+}
+
+var _ listers.AdminCredentialLister = &DBAdminCredentialLister{}
+
+func (l *DBAdminCredentialLister) List(ctx context.Context) ([]*api.ClusterAdminCredential, error) {
+	iter, err := l.ResourcesDBClient.ResourcesGlobalListers().AdminCredentials().List(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	return collectFromIterator(ctx, iter)
+}
+
+func (l *DBAdminCredentialLister) Get(ctx context.Context, subscriptionID, resourceGroupName, clusterName, adminCredentialName string) (*api.ClusterAdminCredential, error) {
+	return l.ResourcesDBClient.HCPClusters(subscriptionID, resourceGroupName).AdminCredentials(clusterName).Get(ctx, adminCredentialName)
+}
+
+func (l *DBAdminCredentialLister) ListForResourceGroup(ctx context.Context, subscriptionID, resourceGroupName string) ([]*api.ClusterAdminCredential, error) {
+	all, err := l.List(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var result []*api.ClusterAdminCredential
+	for _, cred := range all {
+		if cred.ResourceID != nil &&
+			strings.EqualFold(cred.ResourceID.SubscriptionID, subscriptionID) &&
+			strings.EqualFold(cred.ResourceID.ResourceGroupName, resourceGroupName) {
+			result = append(result, cred)
+		}
+	}
+	return result, nil
+}
+
+func (l *DBAdminCredentialLister) ListForCluster(ctx context.Context, subscriptionID, resourceGroupName, clusterName string) ([]*api.ClusterAdminCredential, error) {
+	iter, err := l.ResourcesDBClient.HCPClusters(subscriptionID, resourceGroupName).AdminCredentials(clusterName).List(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	return collectFromIterator(ctx, iter)
+}
+
 // DBServiceProviderClusterLister implements listers.ServiceProviderClusterLister backed by a database.ResourcesDBClient.
 type DBServiceProviderClusterLister struct {
 	ResourcesDBClient database.ResourcesDBClient

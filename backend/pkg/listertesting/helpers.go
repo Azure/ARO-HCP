@@ -38,6 +38,15 @@ func externalAuthMatchesCluster(resourceID *azcorearm.ResourceID, clusterName st
 	return strings.EqualFold(resourceID.Parent.Name, clusterName)
 }
 
+// adminCredentialMatchesCluster checks if an admin credential's resource ID belongs to the given cluster.
+// Admin credentials are child resources of clusters, so we check the parent resource name.
+func adminCredentialMatchesCluster(resourceID *azcorearm.ResourceID, clusterName string) bool {
+	if resourceID == nil || resourceID.Parent == nil {
+		return false
+	}
+	return strings.EqualFold(resourceID.Parent.Name, clusterName)
+}
+
 // serviceProviderClusterMatchesCluster checks if a service provider cluster's resource ID belongs to the given cluster.
 // Service provider clusters are child resources of clusters, so we check the parent resource name.
 func serviceProviderClusterMatchesCluster(resourceID *azcorearm.ResourceID, clusterName string) bool {

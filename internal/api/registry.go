@@ -76,6 +76,7 @@ const (
 	RequestAdminCredentialActionTypeName     = "requestadmincredential"
 	RevokeAdminCredentialsActionTypeName     = "revokecredentials"
 	ManagementClusterContentResourceTypeName = "managementClusterContents"
+	AdminCredentialResourceTypeName          = "adminCredentials"
 )
 
 var (
@@ -96,6 +97,8 @@ var (
 	ClusterScopedManagementClusterContentResourceType = azcorearm.NewResourceType(ProviderNamespace, filepath.Join(ClusterResourceTypeName, ManagementClusterContentResourceTypeName))
 	// NodePoolScopedManagementClusterContentResourceType is managementClusterContents nested under a Node Pool
 	NodePoolScopedManagementClusterContentResourceType = azcorearm.NewResourceType(ProviderNamespace, filepath.Join(ClusterResourceTypeName, NodePoolResourceTypeName, ManagementClusterContentResourceTypeName))
+	// AdminCredentialResourceType is adminCredentials nested directly under a Cluster
+	AdminCredentialResourceType = azcorearm.NewResourceType(ProviderNamespace, filepath.Join(ClusterResourceTypeName, AdminCredentialResourceTypeName))
 )
 
 type VersionedResource interface {

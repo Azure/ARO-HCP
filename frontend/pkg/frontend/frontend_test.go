@@ -979,6 +979,130 @@ func assertHTTPMetrics(t *testing.T, r prometheus.Gatherer, subscription *arm.Su
 // newHTTPServer returns a test HTTP server. The mock DB client will be
 // bootstrapped with the provided subscription documents for the
 // subscription collector.
+func TestOperationResultRequestAdminCredential(t *testing.T) {
+	expiration := time.Now().UTC().Add(24 * time.Hour).Truncate(time.Second)
+	kubeconfig := "apiVersion: v1\nkind: Config\nclusters: []\n"
+	breakGlassID := api.Must(api.NewInternalID("/api/clusters_mgmt/v1/clusters/abc123/break_glass_credentials/bgc123"))
+
+	tests := []struct {
+		name           string
+		status         arm.ProvisioningState
+		includeCred    bool
+		expectedStatus int
+		verifyBody     bool
+	}{
+		{
+			name:           "succeeded operation returns kubeconfig from cosmos",
+			status:         arm.ProvisioningStateSucceeded,
+			includeCred:    true,
+			expectedStatus: http.StatusOK,
+			verifyBody:     true,
+		},
+		{
+			name:           "in-progress operation returns accepted",
+			status:         arm.ProvisioningStateProvisioning,
+			includeCred:    true,
+			expectedStatus: http.StatusAccepted,
+		},
+		{
+			name:           "succeeded operation with missing cosmos credential returns not found",
+			status:         arm.ProvisioningStateSucceeded,
+			includeCred:    false,
+			expectedStatus: http.StatusNotFound,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			clusterResourceID := newClusterResourceID(t)
+			operationName := uuid.New().String()
+			operationID := api.Must(azcorearm.ParseResourceID(
+				api.TestSubscriptionResourceID + "/providers/" + api.ProviderNamespace +
+					"/locations/" + api.TestLocation + "/" + api.OperationStatusResourceTypeName + "/" + operationName,
+			))
+			cosmosOperationResourceID := api.Must(azcorearm.ParseResourceID(
+				api.TestSubscriptionResourceID + "/providers/" + api.ProviderNamespace +
+					"/hcpOperationStatuses/" + operationName,
+			))
+
+			reg := prometheus.NewRegistry()
+			mockResourcesDBClient := databasetesting.NewMockResourcesDBClient()
+			f := NewFrontend(
+				testr.New(t),
+				nil,
+				nil,
+				reg,
+				reg,
+				mockResourcesDBClient,
+				nil,
+				newNoopAuditClient(t),
+				api.TestLocation,
+				true,
+			)
+
+			ctx := utils.ContextWithLogger(t.Context(), testr.New(t))
+
+			operation := &api.Operation{
+				CosmosMetadata: api.CosmosMetadata{
+					ResourceID:   cosmosOperationResourceID,
+					PartitionKey: strings.ToLower(cosmosOperationResourceID.SubscriptionID),
+				},
+				OperationID: operationID,
+				Request:     database.OperationRequestRequestCredential,
+				ExternalID:  clusterResourceID,
+				InternalID:  breakGlassID,
+				Status:      tt.status,
+			}
+			_, err := mockResourcesDBClient.Operations(clusterResourceID.SubscriptionID).Create(ctx, operation, nil)
+			require.NoError(t, err)
+
+			if tt.includeCred {
+				cred, err := database.NewClusterAdminCredential(clusterResourceID, breakGlassID, operationName)
+				require.NoError(t, err)
+				cred.Status = api.ClusterAdminCredentialStatusIssued
+				cred.Kubeconfig = kubeconfig
+				cred.ExpirationTimestamp = expiration
+				_, err = mockResourcesDBClient.HCPClusters(clusterResourceID.SubscriptionID, clusterResourceID.ResourceGroupName).
+					AdminCredentials(clusterResourceID.Name).Create(ctx, cred, nil)
+				require.NoError(t, err)
+			}
+
+			subs := map[string]*arm.Subscription{
+				api.TestSubscriptionID: newTestSubscription(api.TestSubscriptionID, arm.SubscriptionStateRegistered, nil),
+			}
+			ts := newHTTPServer(ctx, f, mockResourcesDBClient, subs)
+
+			requestPath := path.Join(
+				"/subscriptions", api.TestSubscriptionID,
+				"providers", api.ProviderNamespace,
+				"locations", api.TestLocation,
+				api.OperationResultResourceTypeName, operationName,
+			)
+			url := ts.URL + requestPath + "?api-version=" + api.TestAPIVersion
+			resp, err := ts.Client().Get(url)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+
+			body, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+			if !assert.Equal(t, tt.expectedStatus, resp.StatusCode) {
+				t.Logf("response body: %s", string(body))
+			}
+
+			if tt.verifyBody {
+				var result map[string]any
+				require.NoError(t, json.Unmarshal(body, &result))
+				assert.Equal(t, kubeconfig, result["kubeconfig"])
+				gotExpiration, ok := result["expirationTimestamp"].(string)
+				require.True(t, ok, "expirationTimestamp missing: %#v", result)
+				parsed, err := time.Parse(time.RFC3339, gotExpiration)
+				require.NoError(t, err)
+				assert.True(t, parsed.Equal(expiration), "expiration: got %v want %v", parsed, expiration)
+			}
+		})
+	}
+}
+
 func newHTTPServer(ctx context.Context, f *Frontend, mockResourcesDBClient *databasetesting.MockResourcesDBClient, subs map[string]*arm.Subscription) *httptest.Server {
 	ts := httptest.NewUnstartedServer(f.server.Handler)
 	ts.Config.BaseContext = f.server.BaseContext

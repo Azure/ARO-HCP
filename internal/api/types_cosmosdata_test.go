@@ -39,6 +39,7 @@ func TestToResourceIDStringsAreCanonical(t *testing.T) {
 		ea      = "myextauth"
 		opName  = "myop"
 		mcc     = "mymcc"
+		ac      = "myadmincred"
 	)
 
 	tests := []struct {
@@ -53,6 +54,7 @@ func TestToResourceIDStringsAreCanonical(t *testing.T) {
 		{"Operation", ToOperationResourceIDString(sub, opName)},
 		{"ManagementClusterContent", ToManagementClusterContentResourceIDString(sub, rg, cluster, mcc)},
 		{"ServiceProviderNodePool", ToServiceProviderNodePoolResourceIDString(sub, rg, cluster, np)},
+		{"AdminCredential", ToAdminCredentialResourceIDString(sub, rg, cluster, ac)},
 	}
 
 	for _, tc := range tests {
