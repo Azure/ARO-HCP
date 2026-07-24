@@ -35,6 +35,33 @@ panels:
     workspace: svc
     step: "60s"
     minPeakThreshold: 0.5
+  - title: "Hosted Control Planes by Management Cluster and Phase"
+    description: "Hosted control planes per management cluster, stacked by provisioning phase. Each sub-chart shows one management cluster. Unassigned clusters shown separately."
+    query: |
+      label_replace(
+        count by (management_cluster_resource_id, phase) (
+          max by(resource_id, subscription_id, phase) (
+            backend_cluster_provision_state{namespace="aro-hcp"}
+          )
+          * on(resource_id) group_left(management_cluster_resource_id)
+          (
+            max by(resource_id, management_cluster_resource_id) (
+              backend_cluster_info{namespace="aro-hcp", management_cluster_resource_id!=""}
+            )
+            or ignoring(management_cluster_resource_id)
+            max by(resource_id) (
+              backend_cluster_info{namespace="aro-hcp"}
+            )
+          )
+        ),
+        "management_cluster_resource_id", "mgmt-$1",
+        "management_cluster_resource_id", ".*/stamps/([^/]+)/.*"
+      )
+    unit: clusters
+    workspace: svc
+    step: "60s"
+    chartType: faceted-stacked-area
+    facetBy: management_cluster_resource_id
   - title: "Controller Workqueue Depth"
     description: "Number of items waiting to be processed in each controller workqueue. Sustained depth indicates the controller cannot keep up with incoming work items."
     query: |

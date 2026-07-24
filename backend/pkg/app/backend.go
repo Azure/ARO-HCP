@@ -413,6 +413,10 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 	clusterVersionMetricsController := metricscontrollers.NewController(
 		"ClusterVersionMetrics", serviceProviderClusterInformer, clusterVersionMetricsHandler)
 
+	clusterInfoHandler := metricscontrollers.NewClusterInfoMetricsHandler(b.options.MetricsRegisterer)
+	clusterInfoMetricsController := metricscontrollers.NewController(
+		"ClusterInfoMetrics", serviceProviderClusterInformer, clusterInfoHandler)
+
 	_, billingLister := backendInformers.BillingDocs()
 
 	nodePoolInformer, nodePoolLister := backendInformers.NodePools()
@@ -931,6 +935,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go clusterVersionMetricsController.Run(ctx, 1)
 				go nodePoolMetricsController.Run(ctx, 1)
 				go externalAuthMetricsController.Run(ctx, 1)
+				go clusterInfoMetricsController.Run(ctx, 1)
 				go placementSyncController.Run(ctx, 20)
 				go cosmosMigrationController.Run(ctx, 5)
 			},
