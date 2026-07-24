@@ -448,9 +448,9 @@ hcpRecovery:
 hypershift:
   additionalInstallArg: --enable-cpo-overrides
   image:
-    digest: sha256:1191d3fd440e73e2ca7ea243c7c0adb97e4ed1b6e2cd4fb3e5388a2d7caf4cd4
+    digest: sha256:22e0532aaa7d0b79220e2bc3bebedc05664f13ff3154ba1e812009db40fd74f3
     registry: quay.io
-    repository: redhat-services-prod/crt-redhat-acm-tenant/hypershift/hypershift-operator
+    repository: msimonma/hypershift
   limitClusterSizes: true
   metricsSet:
     performanceMetrics: true
