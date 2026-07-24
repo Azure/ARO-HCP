@@ -69,5 +69,13 @@ type ReadDesireStatus struct {
 	// nil means the target either has not been observed yet or is absent
 	// from the cluster — distinguish those two via the "Successful"
 	// condition (Unknown vs. True).
+	//
+	// When TargetItem is a core/v1 Secret, KubeContent is redacted before
+	// storage: structural fields (apiVersion, kind, type) and metadata are
+	// preserved, but annotations that can embed the full Secret (e.g.
+	// kubectl.kubernetes.io/last-applied-configuration) are stripped. In the
+	// data map only known-safe keys (currently "tls.crt") survive; all other
+	// data keys, along with all of binaryData and stringData, are removed to
+	// prevent private keys, passwords, and tokens from leaking into Cosmos.
 	KubeContent *runtime.RawExtension `json:"kubeContent,omitempty"`
 }
