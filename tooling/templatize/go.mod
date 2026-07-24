@@ -10,6 +10,7 @@ require (
 	github.com/Azure/ARO-Tools/tools/cmdutils v0.0.0-20260715002326-2555e1130350
 	github.com/Azure/ARO-Tools/tools/grafanactl v0.0.0-20260715002326-2555e1130350
 	github.com/Azure/ARO-Tools/tools/helm v0.0.0-20260715002326-2555e1130350
+	github.com/Azure/ARO-Tools/tools/istio-upgrade v0.0.0-20260724005912-ac436627c9cc
 	github.com/Azure/ARO-Tools/tools/prow-job-executor v0.0.0-20260715002326-2555e1130350
 	github.com/Azure/ARO-Tools/tools/registration v0.0.0-20260715002326-2555e1130350
 	github.com/Azure/ARO-Tools/tools/secret-sync v0.0.0-20260715002326-2555e1130350
@@ -41,11 +42,6 @@ require (
 )
 
 require (
-	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v6 v6.6.0
-	k8s.io/api v0.35.3
-)
-
-require (
 	cel.dev/expr v0.25.1 // indirect
 	cloud.google.com/go v0.123.0 // indirect
 	cloud.google.com/go/auth v0.20.0 // indirect
@@ -57,6 +53,7 @@ require (
 	dario.cat/mergo v1.0.1 // indirect
 	github.com/Azure/ARO-Tools/tools/yamlwrap v0.0.0-20260715002326-2555e1130350 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/internal v1.12.0 // indirect
+	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v6 v6.6.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/dashboard/armdashboard/v2 v2.0.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/dns/armdns v1.2.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/keyvault/armkeyvault v1.5.0 // indirect
@@ -301,6 +298,7 @@ require (
 	gopkg.in/robfig/cron.v2 v2.0.0-20150107220207-be2e0b0deed5 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	helm.sh/helm/v4 v4.1.4 // indirect
+	k8s.io/api v0.35.3 // indirect
 	k8s.io/apiextensions-apiserver v0.35.3 // indirect
 	k8s.io/apiserver v0.35.3 // indirect
 	k8s.io/cli-runtime v0.35.3 // indirect

@@ -33,3 +33,5 @@ use (
 	./tooling/utilitytypes
 	./tooling/yamlwrap
 )
+
+replace github.com/Azure/ARO-Tools/tools/istio-upgrade => github.com/trevorwilliams2025/ARO-Tools/tools/istio-upgrade v0.0.0-20260724005912-ac436627c9cc
