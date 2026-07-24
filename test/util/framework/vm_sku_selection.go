@@ -114,6 +114,77 @@ func (tc *perItOrDescribeTestContext) SelectVMSize(ctx context.Context, selector
 	return selected, nil
 }
 
+// FindVMSizeWithoutAvailabilityZones returns the first RP-allowlisted worker-class
+// VM size in the test location that is unrestricted for the subscription but advertises
+// no availability zones in the Azure Resource SKUs API. An empty string means no such
+// SKU was found (callers typically Skip the test).
+func (tc *perItOrDescribeTestContext) FindVMSizeWithoutAvailabilityZones(ctx context.Context) (string, error) {
+	location := tc.Location()
+	selector := DefaultWorkerVMSizeSelector()
+
+	skus, err := tc.listVirtualMachineResourceSKUs(ctx, location)
+	if err != nil {
+		return "", err
+	}
+
+	skuByName := make(map[string]*armcompute.ResourceSKU, len(skus))
+	for _, sku := range skus {
+		if sku == nil || sku.Name == nil {
+			continue
+		}
+		skuByName[*sku.Name] = sku
+	}
+
+	for _, name := range selector.Preferred {
+		if vmSize, ok := vmSizeWithoutAvailabilityZones(skuByName[name], location, selector); ok {
+			return vmSize, nil
+		}
+	}
+
+	var candidates []string
+	for _, sku := range skus {
+		if vmSize, ok := vmSizeWithoutAvailabilityZones(sku, location, selector); ok {
+			candidates = append(candidates, vmSize)
+		}
+	}
+	sort.Strings(candidates)
+	if len(candidates) == 0 {
+		return "", nil
+	}
+	return candidates[0], nil
+}
+
+func vmSizeWithoutAvailabilityZones(sku *armcompute.ResourceSKU, location string, selector VMSizeSelector) (string, bool) {
+	if sku == nil || sku.Name == nil {
+		return "", false
+	}
+	if selector.NamePattern != nil && !selector.NamePattern.MatchString(*sku.Name) {
+		return "", false
+	}
+	if !skuUsable(sku, location, selector) {
+		return "", false
+	}
+	if skuAdvertisesAvailabilityZones(sku, location) {
+		return "", false
+	}
+	return *sku.Name, true
+}
+
+// skuAdvertisesAvailabilityZones reports whether the SKU advertises any
+// availability zones for the location in the Azure Resource SKUs API, regardless
+// of subscription-specific zone restrictions.
+func skuAdvertisesAvailabilityZones(sku *armcompute.ResourceSKU, location string) bool {
+	for _, info := range sku.LocationInfo {
+		if info == nil || info.Location == nil || !strings.EqualFold(*info.Location, location) {
+			continue
+		}
+		if len(info.Zones) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
 // vmSizeSelectionTrace records how SelectVMSize reached its decision so it can
 // be logged. It makes it obvious in CI output when a preferred candidate was
 // unavailable and selection fell through to the next entry (or the fallback).
