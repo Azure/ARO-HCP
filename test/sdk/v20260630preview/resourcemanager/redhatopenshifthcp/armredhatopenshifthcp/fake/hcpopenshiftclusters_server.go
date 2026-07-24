@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"reflect"
 	"regexp"
 
 	azfake "github.com/Azure/azure-sdk-for-go/sdk/azcore/fake"
@@ -349,6 +350,10 @@ func (h *HcpOpenShiftClustersServerTransport) dispatchBeginRequestAdminCredentia
 		if len(matches) < 4 {
 			return nil, fmt.Errorf("failed to parse path %s", req.URL.Path)
 		}
+		body, err := server.UnmarshalRequestAsJSON[armredhatopenshifthcp.HcpOpenShiftClusterAdminCredentialRequest](req)
+		if err != nil {
+			return nil, err
+		}
 		resourceGroupNameParam, err := url.PathUnescape(matches[regex.SubexpIndex("resourceGroupName")])
 		if err != nil {
 			return nil, err
@@ -357,7 +362,13 @@ func (h *HcpOpenShiftClustersServerTransport) dispatchBeginRequestAdminCredentia
 		if err != nil {
 			return nil, err
 		}
-		respr, errRespr := h.srv.BeginRequestAdminCredential(req.Context(), resourceGroupNameParam, hcpOpenShiftClusterNameParam, nil)
+		var options *armredhatopenshifthcp.HcpOpenShiftClustersClientBeginRequestAdminCredentialOptions
+		if !reflect.ValueOf(body).IsZero() {
+			options = &armredhatopenshifthcp.HcpOpenShiftClustersClientBeginRequestAdminCredentialOptions{
+				Body: &body,
+			}
+		}
+		respr, errRespr := h.srv.BeginRequestAdminCredential(req.Context(), resourceGroupNameParam, hcpOpenShiftClusterNameParam, options)
 		if respErr := server.GetError(errRespr, req); respErr != nil {
 			return nil, respErr
 		}

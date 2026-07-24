@@ -191,6 +191,12 @@ type ServiceProviderClusterStatus struct {
 	// Hypershift uses the HostedControlPlaneNamespace function.
 	// Written by: ServiceProviderClusterPropertiesSync
 	ControlPlaneNamespace string `json:"controlPlaneNamespace,omitempty"`
+
+	// ServingCABundle is the PEM-encoded serving CA bundle for the cluster's
+	// kube-apiserver. Populated by the SystemAdminCredentialRequestCABundleSync
+	// controller from a ReadDesire mirror of the management cluster's serving
+	// CA Secret. Used by the frontend to assemble admin credential kubeconfigs.
+	ServingCABundle string `json:"servingCABundle,omitempty"`
 }
 
 // ServiceProviderClusterStatusVersion contains the actual version information.

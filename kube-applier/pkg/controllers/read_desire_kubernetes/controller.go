@@ -123,7 +123,7 @@ func NewReadDesireKubernetesController(
 			workqueue.TypedRateLimitingQueueConfig[keys.ReadDesireKey]{
 				// Underscores rather than slashes: this name surfaces as a
 				// Prometheus label and slashes complicate downstream tooling.
-				Name: fmt.Sprintf("%s_%s_%s_%s", ReadDesireKubernetesControllerName, key.ClusterName, key.NodePoolName, key.Name),
+				Name: fmt.Sprintf("%s_%s_%s_%s_%s", ReadDesireKubernetesControllerName, key.ClusterName, key.SubResourceType, key.SubResourceName, key.Name),
 			},
 		),
 		writer: desirestatuswriter.New[kubeapplier.ReadDesire, keys.ReadDesireKey, *kubeapplier.ReadDesire](
@@ -307,6 +307,10 @@ func (c *ReadDesireKubernetesController) SyncOnce(ctx context.Context) error {
 				conditions.SetSuccessful(&d.Status.Conditions, conditions.NewPreCheckError(
 					fmt.Errorf("informer cached unexpected type %T", rawObj)))
 			})
+		}
+		if isSecret(c.target) {
+			obj = obj.DeepCopy()
+			redactSecret(obj)
 		}
 		newRaw, err = json.Marshal(obj)
 		if err != nil {

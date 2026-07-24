@@ -93,6 +93,20 @@ func (g *mockResourcesGlobalListers) ManagementClusterContents() database.Global
 	}
 }
 
+func (g *mockResourcesGlobalListers) SystemAdminCredentialRequests() database.GlobalLister[api.SystemAdminCredentialRequest] {
+	return &mockGlobalLister[api.SystemAdminCredentialRequest, database.GenericDocument[api.SystemAdminCredentialRequest]]{
+		client:        g.client,
+		resourceTypes: []azcorearm.ResourceType{api.SystemAdminCredentialRequestResourceType},
+	}
+}
+
+func (g *mockResourcesGlobalListers) SystemAdminCredentialRevocations() database.GlobalLister[api.SystemAdminCredentialRevocation] {
+	return &mockGlobalLister[api.SystemAdminCredentialRevocation, database.GenericDocument[api.SystemAdminCredentialRevocation]]{
+		client:        g.client,
+		resourceTypes: []azcorearm.ResourceType{api.SystemAdminCredentialRevocationResourceType},
+	}
+}
+
 func (g *mockResourcesGlobalListers) Operations() database.GlobalLister[api.Operation] {
 	return &mockGlobalLister[api.Operation, database.GenericDocument[api.Operation]]{
 		client:        g.client,

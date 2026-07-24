@@ -20,6 +20,10 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api/v20240610preview/generated"
 )
 
+func (v version) UnmarshalHCPOpenShiftClusterAdminCredentialRequest(body []byte) (*api.HCPOpenShiftClusterAdminCredentialRequest, error) {
+	return nil, nil
+}
+
 func newHCPOpenShiftClusterAdminCredential(from *api.HCPOpenShiftClusterAdminCredential) *generated.HcpOpenShiftClusterAdminCredential {
 	return &generated.HcpOpenShiftClusterAdminCredential{
 		ExpirationTimestamp: api.PtrOrNil(from.ExpirationTimestamp),

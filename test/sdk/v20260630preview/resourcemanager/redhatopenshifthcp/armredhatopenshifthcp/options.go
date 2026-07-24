@@ -51,6 +51,9 @@ type HcpOpenShiftClustersClientBeginDeleteOptions struct {
 // HcpOpenShiftClustersClientBeginRequestAdminCredentialOptions contains the optional parameters for the HcpOpenShiftClustersClient.BeginRequestAdminCredential
 // method.
 type HcpOpenShiftClustersClientBeginRequestAdminCredentialOptions struct {
+	// The content of the action request
+	Body *HcpOpenShiftClusterAdminCredentialRequest
+
 	// Resumes the long-running operation from the provided token.
 	ResumeToken string
 }

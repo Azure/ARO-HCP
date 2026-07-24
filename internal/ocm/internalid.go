@@ -66,14 +66,6 @@ func GenerateAROHCPExternalAuthHREF(clusterPath string, externalAuthName string)
 	return path.Join(aroHcpV1Alpha1Pattern, clusterKey, clusterPath, externalAuthKey, externalAuthName)
 }
 
-func GenerateOCMCommercialBreakGlassCredentialHREF(clusterPath string, credentialName string) string {
-	return path.Join(clusterPath, "break_glass_credentials", credentialName)
-}
-
-func GenerateAROHCPBreakGlassCredentialHREF(clusterPath string, credentialName string) string {
-	return path.Join(aroHcpV1Alpha1Pattern, clusterKey, clusterPath, "break_glass_credentials", credentialName)
-}
-
 type InternalID = api.InternalID
 
 // getClusterClient returns a v1 ClusterClient from the InternalID.
@@ -171,14 +163,4 @@ func GetExternalAuthClient(id InternalID, transport http.RoundTripper) (*arohcpv
 		return nil, false
 	}
 	return arohcpv1alpha1.NewExternalAuthClient(transport, id.Path()), true
-}
-
-// GetBreakGlassCredentialClient returns a v1 BreakGlassCredentialClient
-// from the InternalID. The transport is most likely to be a Connection
-// object from the SDK.
-func GetBreakGlassCredentialClient(id InternalID, transport http.RoundTripper) (*cmv1.BreakGlassCredentialClient, bool) {
-	if id.Kind() != cmv1.BreakGlassCredentialKind {
-		return nil, false
-	}
-	return cmv1.NewBreakGlassCredentialClient(transport, id.Path()), true
 }

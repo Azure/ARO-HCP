@@ -8,14 +8,14 @@ import "time"
 
 // APIProfile - Information about the API of a cluster.
 type APIProfile struct {
+	// The internet visibility of the OpenShift API server
+	Visibility *Visibility
+
 	// READ-ONLY; URL endpoint for the API server
 	URL *string
 
 	// The list of authorized IPv4 CIDR blocks allowed to access the API server. Maximum 500 entries.
 	AuthorizedCIDRs []*string
-
-	// The internet visibility of the OpenShift API server
-	Visibility *Visibility
 }
 
 // AzureResourceManagerCommonTypesManagedServiceIdentityUpdate - Managed service identity (system assigned and/or user assigned
@@ -85,6 +85,25 @@ type ClusterImageRegistryProfile struct {
 	// ImageStream-backed image registry will be run as pods on worker nodes in the cluster. Disabled means the ImageStream-backed
 	// image registry will not be present in the cluster. The default is Enabled.
 	State *ClusterImageRegistryState
+}
+
+// Condition represents an observation of a resource's state.
+type Condition struct {
+	// READ-ONLY; The last time the condition transitioned from one status to another.
+	LastTransitionTime *time.Time
+
+	// READ-ONLY; A human readable message indicating details about the transition. This may be an empty string.
+	Message *string
+
+	// READ-ONLY; A programmatic identifier indicating the reason for the condition's last transition. This value should be a
+	// CamelCase string.
+	Reason *string
+
+	// READ-ONLY; The status of the condition.
+	Status *StatusType
+
+	// READ-ONLY; Type of the condition. This is a PascalCase identifier representing the type of the condition.
+	Type *ConditionType
 }
 
 // ConsoleProfile - Configuration of the cluster web console
@@ -271,6 +290,9 @@ type ExternalAuthProperties struct {
 
 	// READ-ONLY; Provisioning state
 	ProvisioningState *ExternalAuthProvisioningState
+
+	// READ-ONLY; Status of the external auth resource
+	Status *ResourceStatus
 }
 
 // ExternalAuthPropertiesUpdate - External Auth profile
@@ -363,6 +385,12 @@ type HcpOpenShiftClusterAdminCredential struct {
 	Kubeconfig *string
 }
 
+// HcpOpenShiftClusterAdminCredentialRequest - HCP cluster admin credential request body
+type HcpOpenShiftClusterAdminCredentialRequest struct {
+	// PEM encoded certificate request
+	CertificateRequest *string
+}
+
 // HcpOpenShiftClusterListResult - The response of a HcpOpenShiftCluster list operation.
 type HcpOpenShiftClusterListResult struct {
 	// REQUIRED; The HcpOpenShiftCluster items on this page
@@ -420,6 +448,9 @@ type HcpOpenShiftClusterProperties struct {
 
 	// READ-ONLY; The status of the last operation.
 	ProvisioningState *ProvisioningState
+
+	// READ-ONLY; Status of the cluster resource
+	Status *ResourceStatus
 }
 
 // HcpOpenShiftClusterPropertiesUpdate - HCP cluster properties
@@ -784,6 +815,9 @@ type NodePoolProperties struct {
 
 	// READ-ONLY; Provisioning state
 	ProvisioningState *ProvisioningState
+
+	// READ-ONLY; Status of the node pool resource
+	Status *ResourceStatus
 }
 
 // NodePoolPropertiesUpdate - Represents the node pool properties
@@ -1029,6 +1063,12 @@ type Resource struct {
 
 	// READ-ONLY; The type of the resource. E.g. "Microsoft.Compute/virtualMachines" or "Microsoft.Storage/storageAccounts"
 	Type *string
+}
+
+// ResourceStatus represents the observed status of the resource.
+type ResourceStatus struct {
+	// READ-ONLY; The conditions on the resource
+	Conditions []*Condition
 }
 
 // RoleDefinition - A single role definition required by a given operator

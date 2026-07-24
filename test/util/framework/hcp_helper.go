@@ -20,6 +20,7 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
@@ -81,14 +82,14 @@ func checkOperationResult(expectModel, resultModel any) error {
 	return nil
 }
 
-func (tc *perItOrDescribeTestContext) GetAdminRESTConfigForHCPCluster20240610(
+func (tc *perItOrDescribeTestContext) GetAdminRESTConfigForHCPCluster20260630(
 	ctx context.Context,
-	hcpClient *hcpsdk20240610preview.HcpOpenShiftClustersClient,
+	hcpClient *hcpsdk20260630preview.HcpOpenShiftClustersClient,
 	resourceGroupName string,
 	hcpClusterName string,
-	timeout time.Duration, // this is a POST request, so keep the timeout as it's async
+	timeout time.Duration,
 ) (*rest.Config, error) {
-	ctx, cancel := context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded during GetAdminRESTConfigForHCPCluster for cluster %s in resource group %s", timeout.Minutes(), hcpClusterName, resourceGroupName))
+	ctx, cancel := context.WithTimeoutCause(ctx, timeout, fmt.Errorf("timeout '%f' minutes exceeded during GetAdminRESTConfigForHCPCluster20260630 for cluster %s in resource group %s", timeout.Minutes(), hcpClusterName, resourceGroupName))
 	defer cancel()
 
 	startTime := time.Now()
@@ -97,11 +98,31 @@ func (tc *perItOrDescribeTestContext) GetAdminRESTConfigForHCPCluster20240610(
 		tc.RecordTestStep("Collect admin credentials for cluster", startTime, finishTime)
 	}()
 
+	privKey, err := rsa.GenerateKey(rand.Reader, 4096)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate RSA key: %w", err)
+	}
+
+	csrDER, err := x509.CreateCertificateRequest(rand.Reader, &x509.CertificateRequest{
+		Subject: pkix.Name{
+			CommonName:   "system:customer-break-glass:system-admin",
+			Organization: []string{"system:masters"},
+		},
+	}, privKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create CSR: %w", err)
+	}
+	csrPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csrDER})
+
 	adminCredentialRequestPoller, err := hcpClient.BeginRequestAdminCredential(
 		ctx,
 		resourceGroupName,
 		hcpClusterName,
-		nil,
+		&hcpsdk20260630preview.HcpOpenShiftClustersClientBeginRequestAdminCredentialOptions{
+			Body: &hcpsdk20260630preview.HcpOpenShiftClusterAdminCredentialRequest{
+				CertificateRequest: to.Ptr(string(csrPEM)),
+			},
+		},
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to start credential request: %w", err)
@@ -117,26 +138,33 @@ func (tc *perItOrDescribeTestContext) GetAdminRESTConfigForHCPCluster20240610(
 		return nil, fmt.Errorf("failed waiting for hcpCluster=%q in resourcegroup=%q to finish getting creds: %w", hcpClusterName, resourceGroupName, err)
 	}
 
-	switch m := any(operationResult).(type) {
-	case hcpsdk20240610preview.HcpOpenShiftClustersClientRequestAdminCredentialResponse:
-		restConfig, err := clientcmd.BuildConfigFromKubeconfigGetter("", func() (*clientcmdapi.Config, error) {
-			if m.Kubeconfig == nil {
-				return nil, fmt.Errorf("kubeconfig content is nil")
-			}
-			return clientcmd.Load([]byte(*m.Kubeconfig))
-		})
-		if err != nil {
-			return nil, err
-		}
-
-		tc.contextLock.Lock()
-		tc.hcpAdminConfigs[resourceGroupName+"/"+hcpClusterName] = restConfig
-		tc.contextLock.Unlock()
-
-		return restConfig, nil
-	default:
-		return nil, fmt.Errorf("unknown type %T", m)
+	if operationResult.Kubeconfig == nil {
+		return nil, fmt.Errorf("kubeconfig content is nil")
 	}
+
+	privKeyPEM := pem.EncodeToMemory(&pem.Block{
+		Type:  "RSA PRIVATE KEY",
+		Bytes: x509.MarshalPKCS1PrivateKey(privKey),
+	})
+
+	kubeconfigData, err := clientcmd.Load([]byte(*operationResult.Kubeconfig))
+	if err != nil {
+		return nil, fmt.Errorf("failed to load kubeconfig: %w", err)
+	}
+	for _, authInfo := range kubeconfigData.AuthInfos {
+		authInfo.ClientKeyData = privKeyPEM
+	}
+
+	restConfig, err := clientcmd.NewDefaultClientConfig(*kubeconfigData, &clientcmd.ConfigOverrides{}).ClientConfig()
+	if err != nil {
+		return nil, err
+	}
+
+	tc.contextLock.Lock()
+	tc.hcpAdminConfigs[resourceGroupName+"/"+hcpClusterName] = restConfig
+	tc.contextLock.Unlock()
+
+	return restConfig, nil
 }
 
 func (tc *perItOrDescribeTestContext) RevokeCredentialsAndWait20240610(
