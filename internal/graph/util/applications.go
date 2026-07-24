@@ -97,6 +97,8 @@ func (c *Client) AddPassword(ctx context.Context, appID, displayName string, sta
 	// Add password to application with retry for eventual consistency
 	var result models.PasswordCredentialable
 	var lastErr error
+	var lastStatusCode int
+	var lastErrorCode, lastErrorMessage string
 	attempts := 0
 	pollErr := wait.PollUntilContextTimeout(ctx, 5*time.Second, 2*time.Minute, true, func(ctx context.Context) (bool, error) {
 		attempts++
@@ -104,14 +106,43 @@ func (c *Client) AddPassword(ctx context.Context, appID, displayName string, sta
 		result, err = c.graphClient.Applications().ByApplicationId(appID).AddPassword().Post(ctx, reqBody, nil)
 		if err != nil {
 			lastErr = err
-			// Retry on known transient errors (404, 429, 5xx). For unknown
-			// error shapes returned by the Graph SDK, also retry to tolerate
-			// eventual-consistency propagation delays.
+			// Retry all errors for the first 3 attempts to handle transient issues
+			// and eventual-consistency propagation delays. After 3 attempts, only
+			// retry known transient errors (404, 429, 5xx).
 			var odataErr *odataerrors.ODataError
 			if errors.As(err, &odataErr) {
 				code := odataErr.ResponseStatusCode
+				lastStatusCode = code
+				// Reset diagnostic strings before re-reading to avoid stale values
+				lastErrorCode, lastErrorMessage = "", ""
+				odataError := odataErr.GetErrorEscaped()
+				if odataError != nil {
+					if errCode := odataError.GetCode(); errCode != nil {
+						lastErrorCode = *errCode
+					}
+					if errMsg := odataError.GetMessage(); errMsg != nil {
+						lastErrorMessage = *errMsg
+					}
+				}
+
+				// Retry all errors for first 3 attempts to handle transient issues
+				if attempts <= 3 {
+					return false, nil
+				}
+
+				// After 3 attempts, only retry known transient codes
 				if code != http.StatusNotFound && code != http.StatusTooManyRequests && code < http.StatusInternalServerError {
 					// Non-transient typed OData error, stop retrying.
+					return false, err
+				}
+			} else {
+				// Not an OData error - reset diagnostic variables to avoid stale data
+				lastStatusCode = 0
+				lastErrorCode = ""
+				lastErrorMessage = ""
+
+				// After 3 attempts, stop retrying non-OData errors
+				if attempts > 3 {
 					return false, err
 				}
 			}
@@ -121,6 +152,17 @@ func (c *Client) AddPassword(ctx context.Context, appID, displayName string, sta
 	})
 	if pollErr != nil {
 		if lastErr != nil {
+			// Include diagnostic details in error message for self-diagnosing failures
+			if lastStatusCode != 0 {
+				diagDetails := fmt.Sprintf("HTTP %d", lastStatusCode)
+				if lastErrorCode != "" {
+					diagDetails += fmt.Sprintf(", %s", lastErrorCode)
+				}
+				if lastErrorMessage != "" {
+					diagDetails += fmt.Sprintf(": %s", lastErrorMessage)
+				}
+				return nil, fmt.Errorf("add password after %d attempts; last attempt error (%s): %w; polling error: %w", attempts, diagDetails, lastErr, pollErr)
+			}
 			return nil, fmt.Errorf("add password after %d attempts; last attempt error: %w; polling error: %w", attempts, lastErr, pollErr)
 		}
 		return nil, fmt.Errorf("add password after %d attempts: %w", attempts, pollErr)
