@@ -940,9 +940,10 @@ func assertHTTPMetrics(t *testing.T, r prometheus.Gatherer, subscription *arm.Su
 
 		for _, m := range mf.GetMetric() {
 			var (
-				route      string
-				apiVersion string
-				state      string
+				route       string
+				apiVersion  string
+				state       string
+				clientClass string
 			)
 			for _, l := range m.GetLabel() {
 				switch l.GetName() {
@@ -952,6 +953,8 @@ func assertHTTPMetrics(t *testing.T, r prometheus.Gatherer, subscription *arm.Su
 					apiVersion = l.GetValue()
 				case "state":
 					state = l.GetValue()
+				case "client_class":
+					clientClass = l.GetValue()
 				}
 			}
 
@@ -960,6 +963,7 @@ func assertHTTPMetrics(t *testing.T, r prometheus.Gatherer, subscription *arm.Su
 			assert.NotEqual(t, route, noMatchRouteLabel)
 			assert.NotEmpty(t, apiVersion)
 			assert.NotEqual(t, apiVersion, unknownVersionLabel)
+			assert.Equal(t, clientClassOther, clientClass)
 
 			if mf.GetName() == requestCounterName {
 				assert.NotEmpty(t, state)

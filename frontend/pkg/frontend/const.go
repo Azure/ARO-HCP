@@ -38,4 +38,11 @@ const (
 
 	noMatchRouteLabel   = "<no match>"
 	unknownVersionLabel = "<unknown>"
+
+	// client_class label values for frontend_http_requests_* metrics.
+	// Keep this set small — never use the raw User-Agent string as a label.
+	clientClassASO     = "aso"
+	clientClassCAPZ    = "capz"
+	clientClassASOCAPZ = "aso+capz"
+	clientClassOther   = "other"
 )

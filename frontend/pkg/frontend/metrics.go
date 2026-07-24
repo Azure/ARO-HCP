@@ -65,21 +65,21 @@ func NewMetricsMiddleware(r prometheus.Registerer, ssg SubscriptionStateGetter) 
 		requestCounter: promauto.With(r).NewCounterVec(
 			prometheus.CounterOpts{
 				Name: requestCounterName,
-				Help: "Counter for HTTP requests by method, code and route.",
+				Help: "Counter for HTTP requests by method, code, route and client class.",
 			},
-			[]string{"api_version", "method", "code", "route", "state"},
+			[]string{"api_version", "method", "code", "route", "state", "client_class"},
 		),
 		requestDuration: promauto.With(r).NewHistogramVec(
 			prometheus.HistogramOpts{
 				Name: requestDurationName,
-				Help: "Histogram of latencies for HTTP requests by method, code and route.",
+				Help: "Histogram of latencies for HTTP requests by method, code, route and client class.",
 				// Buckets are modeled after k8s.io/apiserver request latency
 				// histograms, with dense resolution around the 1s mark to
 				// enable accurate P99 calculation for the S360 Control Plane
 				// Latency KPI (synchronous responses within 1 second).
 				Buckets: []float64{0.005, 0.025, 0.05, 0.1, 0.2, 0.4, 0.6, 0.8, 1.0, 1.25, 1.5, 2, 3, 4, 5, 6, 8, 10, 15},
 			},
-			[]string{"api_version", "method", "code", "route"},
+			[]string{"api_version", "method", "code", "route", "client_class"},
 		),
 	}
 
@@ -119,19 +119,23 @@ func (mm MetricsMiddleware) Metrics() MiddlewareFunc {
 			subscriptionID = resource.SubscriptionID
 		}
 
+		clientClass := clientClassFromUserAgent(r.UserAgent())
+
 		mm.requestCounter.With(prometheus.Labels{
-			"method":      r.Method,
-			"api_version": apiVersion,
-			"code":        strconv.Itoa(lrw.statusCode),
-			"route":       route,
-			"state":       mm.ssg.GetSubscriptionState(subscriptionID),
+			"method":       r.Method,
+			"api_version":  apiVersion,
+			"code":         strconv.Itoa(lrw.statusCode),
+			"route":        route,
+			"state":        mm.ssg.GetSubscriptionState(subscriptionID),
+			"client_class": clientClass,
 		}).Inc()
 
 		mm.requestDuration.With(prometheus.Labels{
-			"method":      r.Method,
-			"api_version": apiVersion,
-			"code":        strconv.Itoa(lrw.statusCode),
-			"route":       route,
+			"method":       r.Method,
+			"api_version":  apiVersion,
+			"code":         strconv.Itoa(lrw.statusCode),
+			"route":        route,
+			"client_class": clientClass,
 		}).Observe(time.Since(startTime).Seconds())
 	}
 }
