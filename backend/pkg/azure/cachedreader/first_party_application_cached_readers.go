@@ -29,10 +29,13 @@ type FirstPartyApplicationAzureCachedReaders struct {
 
 // NewFirstPartyApplicationAzureCachedReaders constructs FPA-scoped cached readers from the
 // FPA client builder so the identity used for Azure calls is explicit in the type system.
+// location is the Azure location (region) this backend is deployed in, used to scope
+// Resource SKUs lookups to that region.
 func NewFirstPartyApplicationAzureCachedReaders(
 	fpaClientBuilder azureclient.FirstPartyApplicationClientBuilder,
+	location string,
 ) *FirstPartyApplicationAzureCachedReaders {
 	return &FirstPartyApplicationAzureCachedReaders{
-		ResourceSKUsCachedReader: NewResourceSKUsCachedReader(fpaClientBuilder),
+		ResourceSKUsCachedReader: NewResourceSKUsCachedReader(fpaClientBuilder, location),
 	}
 }

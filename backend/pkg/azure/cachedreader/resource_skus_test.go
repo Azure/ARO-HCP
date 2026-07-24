@@ -41,7 +41,16 @@ const (
 	testSubscriptionID = "22222222-2222-2222-2222-222222222222"
 	testVMSize         = "Standard_D4as_v4"
 	testVMFamily       = "standardDASv4Family"
+	testLocation       = "eastus"
 )
+
+// testListOptions is the ResourceSKUsClientListOptions every list call is expected to use,
+// filtered to testLocation.
+func testListOptions() *armcompute.ResourceSKUsClientListOptions {
+	return &armcompute.ResourceSKUsClientListOptions{
+		Filter: ptr.To(resourceSKUsListFilterForLocation(testLocation)),
+	}
+}
 
 type fakeResourceSKUsClientBuilder struct {
 	clients map[string]azureclient.ResourceSKUsClient
@@ -117,7 +126,7 @@ func TestResourceSKUsCachedReader_ListVirtualMachineSKUs(t *testing.T) {
 			name: "caches successful list and filters to virtualMachines",
 			setup: func(ctrl *gomock.Controller) (*fakeResourceSKUsClientBuilder, utilsclock.PassiveClock) {
 				mockClient := azureclient.NewMockResourceSKUsClient(ctrl)
-				mockClient.EXPECT().NewListPager(nil).Return(skuListPager([]*armcompute.ResourceSKU{vmSKU, diskSKU}, nil)).Times(1)
+				mockClient.EXPECT().NewListPager(testListOptions()).Return(skuListPager([]*armcompute.ResourceSKU{vmSKU, diskSKU}, nil)).Times(1)
 				return &fakeResourceSKUsClientBuilder{
 					clients: map[string]azureclient.ResourceSKUsClient{testSubscriptionID: mockClient},
 				}, utilsclock.RealClock{}
@@ -144,7 +153,7 @@ func TestResourceSKUsCachedReader_ListVirtualMachineSKUs(t *testing.T) {
 			name: "normalizes subscription ID case for cache key",
 			setup: func(ctrl *gomock.Controller) (*fakeResourceSKUsClientBuilder, utilsclock.PassiveClock) {
 				mockClient := azureclient.NewMockResourceSKUsClient(ctrl)
-				mockClient.EXPECT().NewListPager(nil).Return(skuListPager([]*armcompute.ResourceSKU{vmSKU}, nil)).Times(1)
+				mockClient.EXPECT().NewListPager(testListOptions()).Return(skuListPager([]*armcompute.ResourceSKU{vmSKU}, nil)).Times(1)
 				return &fakeResourceSKUsClientBuilder{
 					clients: map[string]azureclient.ResourceSKUsClient{
 						"ABCDEF12-3456-7890-ABCD-EF1234567890": mockClient,
@@ -173,7 +182,7 @@ func TestResourceSKUsCachedReader_ListVirtualMachineSKUs(t *testing.T) {
 			name: "caches error within error freshness TTL",
 			setup: func(ctrl *gomock.Controller) (*fakeResourceSKUsClientBuilder, utilsclock.PassiveClock) {
 				mockClient := azureclient.NewMockResourceSKUsClient(ctrl)
-				mockClient.EXPECT().NewListPager(nil).Return(skuListPager(nil, errors.New("service unavailable"))).Times(1)
+				mockClient.EXPECT().NewListPager(testListOptions()).Return(skuListPager(nil, errors.New("service unavailable"))).Times(1)
 				return &fakeResourceSKUsClientBuilder{
 					clients: map[string]azureclient.ResourceSKUsClient{testSubscriptionID: mockClient},
 				}, clocktesting.NewFakePassiveClock(time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC))
@@ -210,8 +219,8 @@ func TestResourceSKUsCachedReader_ListVirtualMachineSKUs(t *testing.T) {
 			setup: func(ctrl *gomock.Controller) (*fakeResourceSKUsClientBuilder, utilsclock.PassiveClock) {
 				mockClient := azureclient.NewMockResourceSKUsClient(ctrl)
 				gomock.InOrder(
-					mockClient.EXPECT().NewListPager(nil).Return(skuListPager(nil, errors.New("temporary"))),
-					mockClient.EXPECT().NewListPager(nil).Return(skuListPager([]*armcompute.ResourceSKU{vmSKU}, nil)),
+					mockClient.EXPECT().NewListPager(testListOptions()).Return(skuListPager(nil, errors.New("temporary"))),
+					mockClient.EXPECT().NewListPager(testListOptions()).Return(skuListPager([]*armcompute.ResourceSKU{vmSKU}, nil)),
 				)
 				return &fakeResourceSKUsClientBuilder{
 					clients: map[string]azureclient.ResourceSKUsClient{testSubscriptionID: mockClient},
@@ -247,8 +256,8 @@ func TestResourceSKUsCachedReader_ListVirtualMachineSKUs(t *testing.T) {
 			setup: func(ctrl *gomock.Controller) (*fakeResourceSKUsClientBuilder, utilsclock.PassiveClock) {
 				mockClient := azureclient.NewMockResourceSKUsClient(ctrl)
 				gomock.InOrder(
-					mockClient.EXPECT().NewListPager(nil).Return(skuListPager([]*armcompute.ResourceSKU{vmSKU}, nil)),
-					mockClient.EXPECT().NewListPager(nil).Return(skuListPager([]*armcompute.ResourceSKU{refreshedSKU}, nil)),
+					mockClient.EXPECT().NewListPager(testListOptions()).Return(skuListPager([]*armcompute.ResourceSKU{vmSKU}, nil)),
+					mockClient.EXPECT().NewListPager(testListOptions()).Return(skuListPager([]*armcompute.ResourceSKU{refreshedSKU}, nil)),
 				)
 				return &fakeResourceSKUsClientBuilder{
 					clients: map[string]azureclient.ResourceSKUsClient{testSubscriptionID: mockClient},
@@ -284,7 +293,7 @@ func TestResourceSKUsCachedReader_ListVirtualMachineSKUs(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			builder, clock := tt.setup(ctrl)
-			reader := newResourceSKUsCachedReader(builder, defaultResourceSKUsCacheMaxEntries, clock)
+			reader := newResourceSKUsCachedReader(builder, defaultResourceSKUsCacheMaxEntries, clock, testLocation)
 
 			for _, call := range tt.calls {
 				if call.advanceClockBy > 0 {
@@ -326,13 +335,13 @@ func TestResourceSKUsCachedReader_LRUEviction(t *testing.T) {
 	client3 := azureclient.NewMockResourceSKUsClient(ctrl)
 
 	// sub1 is listed twice: once initially, once after eviction by sub3.
-	client1.EXPECT().NewListPager(nil).Return(skuListPager([]*armcompute.ResourceSKU{
+	client1.EXPECT().NewListPager(testListOptions()).Return(skuListPager([]*armcompute.ResourceSKU{
 		makeVMResourceSKU("Standard_D2s_v3", "standardDSv3Family"),
 	}, nil)).Times(2)
-	client2.EXPECT().NewListPager(nil).Return(skuListPager([]*armcompute.ResourceSKU{
+	client2.EXPECT().NewListPager(testListOptions()).Return(skuListPager([]*armcompute.ResourceSKU{
 		makeVMResourceSKU("Standard_D4s_v3", "standardDSv3Family"),
 	}, nil)).Times(1)
-	client3.EXPECT().NewListPager(nil).Return(skuListPager([]*armcompute.ResourceSKU{
+	client3.EXPECT().NewListPager(testListOptions()).Return(skuListPager([]*armcompute.ResourceSKU{
 		makeVMResourceSKU("Standard_D8s_v3", "standardDSv3Family"),
 	}, nil)).Times(1)
 
@@ -343,7 +352,7 @@ func TestResourceSKUsCachedReader_LRUEviction(t *testing.T) {
 			sub3: client3,
 		},
 	}
-	reader := newResourceSKUsCachedReader(builder, 2, utilsclock.RealClock{})
+	reader := newResourceSKUsCachedReader(builder, 2, utilsclock.RealClock{}, testLocation)
 
 	_, err := reader.ListVirtualMachineSKUs(ctx, testTenantID, sub1)
 	require.NoError(t, err)
@@ -369,7 +378,7 @@ func TestResourceSKUsCachedReader_Singleflight(t *testing.T) {
 	releaseList.Add(1)
 
 	mockClient := azureclient.NewMockResourceSKUsClient(ctrl)
-	mockClient.EXPECT().NewListPager(nil).DoAndReturn(func(options *armcompute.ResourceSKUsClientListOptions) *runtime.Pager[armcompute.ResourceSKUsClientListResponse] {
+	mockClient.EXPECT().NewListPager(testListOptions()).DoAndReturn(func(options *armcompute.ResourceSKUsClientListOptions) *runtime.Pager[armcompute.ResourceSKUsClientListResponse] {
 		listStarted.Done()
 		releaseList.Wait()
 		return skuListPager([]*armcompute.ResourceSKU{makeVMResourceSKU(testVMSize, testVMFamily)}, nil)
@@ -378,7 +387,7 @@ func TestResourceSKUsCachedReader_Singleflight(t *testing.T) {
 	builder := &fakeResourceSKUsClientBuilder{
 		clients: map[string]azureclient.ResourceSKUsClient{testSubscriptionID: mockClient},
 	}
-	reader := NewResourceSKUsCachedReader(builder)
+	reader := NewResourceSKUsCachedReader(builder, testLocation)
 
 	const goroutines = 8
 	var wg sync.WaitGroup
@@ -408,11 +417,11 @@ func TestResourceSKUsCachedReader_ReturnedSliceIsDeepCopy(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	vmSKU := makeVMResourceSKU(testVMSize, testVMFamily)
 	mockClient := azureclient.NewMockResourceSKUsClient(ctrl)
-	mockClient.EXPECT().NewListPager(nil).Return(skuListPager([]*armcompute.ResourceSKU{vmSKU}, nil)).Times(1)
+	mockClient.EXPECT().NewListPager(testListOptions()).Return(skuListPager([]*armcompute.ResourceSKU{vmSKU}, nil)).Times(1)
 	builder := &fakeResourceSKUsClientBuilder{
 		clients: map[string]azureclient.ResourceSKUsClient{testSubscriptionID: mockClient},
 	}
-	reader := NewResourceSKUsCachedReader(builder)
+	reader := NewResourceSKUsCachedReader(builder, testLocation)
 
 	first, err := reader.ListVirtualMachineSKUs(ctx, testTenantID, testSubscriptionID)
 	require.NoError(t, err)

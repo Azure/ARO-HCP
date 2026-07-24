@@ -21,10 +21,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hashicorp/golang-lru/v2/expirable"
 	"golang.org/x/sync/singleflight"
 
+	lrucache "k8s.io/apimachinery/pkg/util/cache"
 	utilsclock "k8s.io/utils/clock"
+	"k8s.io/utils/ptr"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
 
@@ -34,15 +35,18 @@ import (
 
 const (
 	// resourceSKUsCacheSuccessFreshnessTTL is how long a successful cached SKU list may be
-	// returned without refreshing from Azure when a new request arrives.
+	// returned without refreshing from Azure when a new request arrives. Also used as the
+	// LRUExpireCache per-entry TTL for successful entries.
 	resourceSKUsCacheSuccessFreshnessTTL = 20 * time.Minute
 	// resourceSKUsCacheErrorFreshnessTTL is how long a cached list error may be returned
-	// without retrying Azure when a new request arrives.
+	// without retrying Azure when a new request arrives. Also used as the LRUExpireCache
+	// per-entry TTL for error entries.
 	resourceSKUsCacheErrorFreshnessTTL = 5 * time.Minute
-	// resourceSKUsCacheEntryExpiryTTL is how long the expirable LRU keeps an entry before
-	// automatically removing it, independent of freshness checks on read.
-	resourceSKUsCacheEntryExpiryTTL = 20 * time.Minute
 	// defaultResourceSKUsCacheMaxEntries is the LRU capacity for per-subscription SKU cache entries.
+	// Testing with one Resource SKUs cache entry per subscription, filtered by the region, results in
+	// an approximate size of 4 MB per entry. With defaultResourceSKUsCacheMaxEntries = 30, the cache
+	// could reach approximately 120 MB in the worst case. This value can be adjusted after measuring
+	// the actual memory footprint with real filtered lists.
 	defaultResourceSKUsCacheMaxEntries = 30
 
 	virtualMachinesResourceType = "virtualMachines"
@@ -53,7 +57,8 @@ type resourceSKUsClientBuilder interface {
 	ResourceSKUsClient(tenantID string, subscriptionID string) (azureclient.ResourceSKUsClient, error)
 }
 
-// ResourceSKUsCachedReader exposes cached reads of Microsoft.Compute Resource SKUs for virtualMachines.
+// ResourceSKUsCachedReader exposes cached reads of Microsoft.Compute Resource SKUs for virtualMachines,
+// scoped to the single Azure location (region) this backend is deployed in.
 type ResourceSKUsCachedReader interface {
 	// ListVirtualMachineSKUs returns the cached VM Resource SKU list for the subscription.
 	ListVirtualMachineSKUs(ctx context.Context, tenantID, subscriptionID string) ([]*armcompute.ResourceSKU, error)
@@ -65,31 +70,33 @@ type cachedResourceSKUsEntry struct {
 	skus []*armcompute.ResourceSKU
 	// err contains the error returned by the Resource SKUs list call. nil if the list succeeded.
 	err error
-	// lastUpdate is the wall-clock instant (UTC) when this cache entry was written.
-	lastUpdate time.Time
 }
 
 // resourceSKUsCachedReader wraps a Resource SKUs client builder. List results are cached in memory
-// per subscription ID with a TTL, LRU eviction, and singleflight deduplication.
+// per subscription ID with a TTL, LRU eviction, and singleflight deduplication. All lookups are
+// scoped to a single, fixed Azure location set at construction time.
 type resourceSKUsCachedReader struct {
 	clientBuilder resourceSKUsClientBuilder
-	clock         utilsclock.PassiveClock
-	cache         *expirable.LRU[string, *cachedResourceSKUsEntry]
-	sfGroup       singleflight.Group
+	// location is the Azure location (region) this backend is deployed in. Every Resource SKUs
+	// list call is filtered to this location, since we only care about SKUs available where the
+	// service itself runs.
+	location string
+	cache    *lrucache.LRUExpireCache
+	sfGroup  singleflight.Group
 }
 
 // NewResourceSKUsCachedReader returns a ResourceSKUsCachedReader that caches VM Resource SKUs
-// lists from clients created by clientBuilder. Cache keys are lowercased subscription IDs.
-func NewResourceSKUsCachedReader(clientBuilder resourceSKUsClientBuilder) ResourceSKUsCachedReader {
-	return newResourceSKUsCachedReader(clientBuilder, defaultResourceSKUsCacheMaxEntries, utilsclock.RealClock{})
+// lists from clients created by clientBuilder, filtered to location. Cache keys are lowercased
+// subscription IDs.
+func NewResourceSKUsCachedReader(clientBuilder resourceSKUsClientBuilder, location string) ResourceSKUsCachedReader {
+	return newResourceSKUsCachedReader(clientBuilder, defaultResourceSKUsCacheMaxEntries, utilsclock.RealClock{}, location)
 }
 
-func newResourceSKUsCachedReader(clientBuilder resourceSKUsClientBuilder, maxEntries int, clock utilsclock.PassiveClock) *resourceSKUsCachedReader {
-	var noEvictionCallback expirable.EvictCallback[string, *cachedResourceSKUsEntry]
+func newResourceSKUsCachedReader(clientBuilder resourceSKUsClientBuilder, maxEntries int, clock utilsclock.PassiveClock, location string) *resourceSKUsCachedReader {
 	return &resourceSKUsCachedReader{
 		clientBuilder: clientBuilder,
-		clock:         clock,
-		cache:         expirable.NewLRU(maxEntries, noEvictionCallback, resourceSKUsCacheEntryExpiryTTL),
+		location:      location,
+		cache:         lrucache.NewLRUExpireCacheWithClock(maxEntries, clock),
 	}
 }
 
@@ -116,13 +123,13 @@ func (c *resourceSKUsCachedReader) GetVirtualMachineSKU(ctx context.Context, ten
 			return sku, nil
 		}
 	}
-	return nil, utils.TrackError(fmt.Errorf("VM size %q not found in Resource SKUs for subscription %q", vmSize, subscriptionID))
+	return nil, utils.TrackError(fmt.Errorf("VM size %q not found in Resource SKUs for subscription %q in location %q", vmSize, subscriptionID, c.location))
 }
 
 func (c *resourceSKUsCachedReader) ensureCached(ctx context.Context, tenantID, subscriptionID string) (*cachedResourceSKUsEntry, error) {
 	cacheKey := strings.ToLower(subscriptionID)
-	if entry, ok := c.getFreshEntry(cacheKey); ok {
-		return entry, nil
+	if value, ok := c.cache.Get(cacheKey); ok {
+		return value.(*cachedResourceSKUsEntry), nil
 	}
 
 	// Detach cancel/deadline from the caller so the singleflight winner cannot
@@ -131,42 +138,29 @@ func (c *resourceSKUsCachedReader) ensureCached(ctx context.Context, tenantID, s
 
 	v, _, _ := c.sfGroup.Do(cacheKey, func() (interface{}, error) {
 		// Re-check after winning singleflight in case another caller filled the cache.
-		if entry, ok := c.getFreshEntry(cacheKey); ok {
-			return entry, nil
+		if value, ok := c.cache.Get(cacheKey); ok {
+			return value, nil
 		}
 
 		skus, listErr := c.listVirtualMachineSKUsFromAzure(azureCtx, tenantID, subscriptionID)
 		entry := &cachedResourceSKUsEntry{
-			skus:       skus,
-			err:        listErr,
-			lastUpdate: c.clock.Now().UTC(),
+			skus: skus,
+			err:  listErr,
 		}
-		c.cache.Add(cacheKey, entry)
+		ttl := resourceSKUsCacheSuccessFreshnessTTL
+		if listErr != nil {
+			ttl = resourceSKUsCacheErrorFreshnessTTL
+		}
+		c.cache.Add(cacheKey, entry, ttl)
 		return entry, nil
 	})
 	return v.(*cachedResourceSKUsEntry), nil
 }
 
-func (c *resourceSKUsCachedReader) getFreshEntry(cacheKey string) (*cachedResourceSKUsEntry, bool) {
-	entry, ok := c.cache.Get(cacheKey)
-	if !ok {
-		return nil, false
-	}
-	if c.isStale(entry) {
-		return nil, false
-	}
-	return entry, true
-}
-
-// isStale applies success/error freshness TTLs using the injectable clock so failed
-// list results are refreshed sooner than successes. This is independent of
-// resourceSKUsCacheEntryExpiryTTL used by the expirable LRU for auto-eviction.
-func (c *resourceSKUsCachedReader) isStale(entry *cachedResourceSKUsEntry) bool {
-	ttl := resourceSKUsCacheSuccessFreshnessTTL
-	if entry.err != nil {
-		ttl = resourceSKUsCacheErrorFreshnessTTL
-	}
-	return c.clock.Since(entry.lastUpdate) > ttl
+// resourceSKUsListFilterForLocation builds the OData filter that scopes a Resource SKUs list
+// call to a single Azure location, e.g. "location eq 'eastus'".
+func resourceSKUsListFilterForLocation(location string) string {
+	return fmt.Sprintf("location eq '%s'", location)
 }
 
 func (c *resourceSKUsCachedReader) listVirtualMachineSKUsFromAzure(ctx context.Context, tenantID, subscriptionID string) ([]*armcompute.ResourceSKU, error) {
@@ -175,12 +169,14 @@ func (c *resourceSKUsCachedReader) listVirtualMachineSKUsFromAzure(ctx context.C
 		return nil, utils.TrackError(fmt.Errorf("failed to create Resource SKUs client: %w", err))
 	}
 
-	pager := client.NewListPager(nil)
+	pager := client.NewListPager(&armcompute.ResourceSKUsClientListOptions{
+		Filter: ptr.To(resourceSKUsListFilterForLocation(c.location)),
+	})
 	var skus []*armcompute.ResourceSKU
 	for pager.More() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
-			return nil, utils.TrackError(fmt.Errorf("failed to list Resource SKUs for subscription %q: %w", subscriptionID, err))
+			return nil, utils.TrackError(fmt.Errorf("failed to list Resource SKUs for subscription %q in location %q: %w", subscriptionID, c.location, err))
 		}
 		for _, sku := range page.Value {
 			if sku == nil || sku.ResourceType == nil || *sku.ResourceType != virtualMachinesResourceType {
