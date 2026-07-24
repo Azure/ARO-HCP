@@ -348,6 +348,53 @@ func TestValidateNodePoolCreate(t *testing.T) {
 			},
 		},
 		{
+			name: "managed OS disk size at maximum - valid - create",
+			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Platform.OSDisk.DiskType = api.OsDiskTypeManaged
+				np.Properties.Platform.OSDisk.SizeGiB = ptr.To[int32](MaxManagedOSDiskSizeGiB)
+				return np
+			}(),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name: "managed OS disk size over maximum - create",
+			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Platform.OSDisk.DiskType = api.OsDiskTypeManaged
+				np.Properties.Platform.OSDisk.DiskStorageAccountType = api.DiskStorageAccountTypeStandardSSD_LRS
+				np.Properties.Platform.OSDisk.SizeGiB = ptr.To[int32](MaxManagedOSDiskSizeGiB + 1)
+				return np
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "must be less than or equal to 4095", FieldPath: "properties.platform.osDisk.sizeGiB"},
+			},
+		},
+		{
+			name: "ephemeral OS disk size at maximum - valid - create",
+			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Platform.OSDisk.DiskType = api.OsDiskTypeEphemeral
+				np.Properties.AutoRepair = true
+				np.Properties.Platform.OSDisk.SizeGiB = ptr.To[int32](MaxEphemeralOSDiskSizeGiB)
+				return np
+			}(),
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name: "ephemeral OS disk size over maximum - create",
+			nodePool: func() *api.HCPOpenShiftClusterNodePool {
+				np := createValidNodePool()
+				np.Properties.Platform.OSDisk.DiskType = api.OsDiskTypeEphemeral
+				np.Properties.AutoRepair = true
+				np.Properties.Platform.OSDisk.SizeGiB = ptr.To[int32](MaxEphemeralOSDiskSizeGiB + 1)
+				return np
+			}(),
+			expectErrors: []utils.ExpectedError{
+				{Message: "must be less than or equal to 2040", FieldPath: "properties.platform.osDisk.sizeGiB"},
+			},
+		},
+		{
 			name: "invalid disk storage account type - create",
 			nodePool: func() *api.HCPOpenShiftClusterNodePool {
 				np := createValidNodePool()

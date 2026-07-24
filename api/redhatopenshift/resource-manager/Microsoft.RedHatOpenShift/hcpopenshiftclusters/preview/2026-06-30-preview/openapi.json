@@ -3352,9 +3352,10 @@
         "sizeGiB": {
           "type": "integer",
           "format": "int32",
-          "description": "The OS disk size in GiB",
+          "description": "The OS disk size in GiB. Maximum is 4095 GiB for Managed disks. For Ephemeral disks,\nthe maximum is 2040 GiB; Azure may enforce a lower effective limit based on the\nselected VM size's local cache, temp, or NVMe capacity.",
           "default": 64,
           "minimum": 64,
+          "maximum": 4095,
           "x-ms-mutability": [
             "read",
             "create"
