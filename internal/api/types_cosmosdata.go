@@ -101,6 +101,17 @@ func ToServiceProviderNodePoolResourceIDString(subscriptionName, resourceGroupNa
 	))
 }
 
+func ToDenyAssignmentResourceID(subscriptionID, resourceGroupName, denyAssignmentName string) (*azcorearm.ResourceID, error) {
+	return azcorearm.ParseResourceID(ToDenyAssignmentResourceIDString(subscriptionID, resourceGroupName, denyAssignmentName))
+}
+
+func ToDenyAssignmentResourceIDString(subscriptionID, resourceGroupName, denyAssignmentName string) string {
+	return strings.ToLower(path.Join(
+		ToResourceGroupResourceIDString(subscriptionID, resourceGroupName),
+		"providers", "Microsoft.Authorization", "denyAssignments", denyAssignmentName,
+	))
+}
+
 // leafTypeName returns the trailing segment of an ARM ResourceType (the
 // part after the last slash). Using it in the per-level helpers prevents
 // callers from accidentally embedding the full `namespace/type/...` form

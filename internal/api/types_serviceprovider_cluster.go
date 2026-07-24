@@ -191,6 +191,27 @@ type ServiceProviderClusterStatus struct {
 	// Hypershift uses the HostedControlPlaneNamespace function.
 	// Written by: ServiceProviderClusterPropertiesSync
 	ControlPlaneNamespace string `json:"controlPlaneNamespace,omitempty"`
+
+	// PendingDenyAssignments lists deny assignments that the controller
+	// plans to create but has not yet successfully created in Azure.
+	// Written by: ClusterDenyAssignment
+	PendingDenyAssignments []DenyAssignmentReference `json:"pendingDenyAssignments,omitempty"`
+
+	// DenyAssignments lists deny assignments that were successfully
+	// created in Azure. Used during cluster deletion to know what to clean up.
+	// Written by: ClusterDenyAssignment
+	DenyAssignments []DenyAssignmentReference `json:"denyAssignments,omitempty"`
+}
+
+// DenyAssignmentReference identifies a single Azure deny assignment.
+// +k8s:deepcopy-gen=true
+type DenyAssignmentReference struct {
+	// DenyAssignmentType identifies the category of deny assignment (e.g. "resources-deny-assignment").
+	// Used as a suffix when generating the deterministic deny assignment UUID.
+	DenyAssignmentType string `json:"denyAssignmentType"`
+	// DenyAssignmentResourceID is the full Azure resource ID of the deny assignment,
+	// e.g. "/subscriptions/{sub}/resourceGroups/{rg}/providers/Microsoft.Authorization/denyAssignments/{uuid}".
+	DenyAssignmentResourceID *azcorearm.ResourceID `json:"denyAssignmentResourceID"`
 }
 
 // ServiceProviderClusterStatusVersion contains the actual version information.
