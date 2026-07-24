@@ -23,18 +23,29 @@ import "strings"
 const (
 	userAgentTokenASO  = "aso-controller/"
 	userAgentTokenCAPZ = "cluster-api-provider-azure/"
+
+	// Bound label size so a spoofed header cannot create huge series keys.
+	maxUserAgentLabelLen = 256
 )
 
 // userAgentMetricLabel returns a Prometheus label value for the request User-Agent.
-// Known CapZ/ASO agents keep the (trimmed) User-Agent so versions remain visible;
-// everything else collapses to "other" to bound cardinality.
+// Only known CapZ/ASO product tokens (including versions) are kept so client
+// versions remain visible without accepting arbitrary header values.
+// Everything else collapses to "other".
 func userAgentMetricLabel(ua string) string {
-	ua = strings.Join(strings.Fields(ua), " ")
-	if ua == "" {
+	var parts []string
+	for _, tok := range strings.Fields(ua) {
+		if strings.HasPrefix(tok, userAgentTokenASO) || strings.HasPrefix(tok, userAgentTokenCAPZ) {
+			parts = append(parts, tok)
+		}
+	}
+	if len(parts) == 0 {
 		return userAgentOther
 	}
-	if strings.Contains(ua, userAgentTokenASO) || strings.Contains(ua, userAgentTokenCAPZ) {
-		return ua
+
+	label := strings.Join(parts, " ")
+	if len(label) > maxUserAgentLabelLen {
+		return userAgentOther
 	}
-	return userAgentOther
+	return label
 }

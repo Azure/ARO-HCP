@@ -45,12 +45,12 @@ func TestMetricsMiddlewareUserAgent(t *testing.T) {
 			wantLabel: userAgentOther,
 		},
 		{
-			name:      "aso+capz keeps full UA",
-			userAgent: "aso-controller/v2.13.0-hcpclusters.9 cluster-api-provider-azure/v1.22.1-mce-217",
+			name:      "aso+capz keeps product tokens with versions",
+			userAgent: "azsdk-go-generic/v2.13.0-hcpclusters.9 (go1.24.13; linux) aso-controller/v2.13.0-hcpclusters.9 cluster-api-provider-azure/v1.22.1-mce-217",
 			wantLabel: "aso-controller/v2.13.0-hcpclusters.9 cluster-api-provider-azure/v1.22.1-mce-217",
 		},
 		{
-			name:      "capz only keeps full UA",
+			name:      "capz only keeps product token",
 			userAgent: "cluster-api-provider-azure/v1.22.1-mce-217",
 			wantLabel: "cluster-api-provider-azure/v1.22.1-mce-217",
 		},

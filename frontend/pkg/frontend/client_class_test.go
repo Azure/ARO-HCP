@@ -14,7 +14,10 @@
 
 package frontend
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestUserAgentMetricLabel(t *testing.T) {
 	t.Parallel()
@@ -35,28 +38,33 @@ func TestUserAgentMetricLabel(t *testing.T) {
 			want: userAgentOther,
 		},
 		{
-			name: "aso only keeps full UA",
+			name: "aso only keeps product token",
 			ua:   "aso-controller/v2.13.0-hcpclusters.9",
 			want: "aso-controller/v2.13.0-hcpclusters.9",
 		},
 		{
-			name: "capz only keeps full UA",
+			name: "capz only keeps product token",
 			ua:   "cluster-api-provider-azure/v1.22.1-mce-217",
 			want: "cluster-api-provider-azure/v1.22.1-mce-217",
 		},
 		{
-			name: "aso+capz combined keeps full UA",
-			ua:   "aso-controller/v2.13.0-hcpclusters.9 cluster-api-provider-azure/v1.22.1-mce-217",
+			name: "strips azsdk wrapper, keeps CapZ/ASO tokens with versions",
+			ua:   "azsdk-go-generic/v2.13.0-hcpclusters.9 (go1.24.13; linux) aso-controller/v2.13.0-hcpclusters.9 cluster-api-provider-azure/v1.22.1-mce-217",
 			want: "aso-controller/v2.13.0-hcpclusters.9 cluster-api-provider-azure/v1.22.1-mce-217",
-		},
-		{
-			name: "whitespace normalized for known UA",
-			ua:   "  aso-controller/v2.12.0   cluster-api-provider-azure/v1.19.0  ",
-			want: "aso-controller/v2.12.0 cluster-api-provider-azure/v1.19.0",
 		},
 		{
 			name: "does not match substring without slash",
 			ua:   "not-aso-controller-or-cluster-api-provider-azure",
+			want: userAgentOther,
+		},
+		{
+			name: "embedded token in unrelated product is ignored",
+			ua:   "evil-aso-controller/v9 not-cluster-api-provider-azure/v9",
+			want: userAgentOther,
+		},
+		{
+			name: "overlong extracted label falls back to other",
+			ua:   "aso-controller/" + strings.Repeat("x", maxUserAgentLabelLen),
 			want: userAgentOther,
 		},
 	}

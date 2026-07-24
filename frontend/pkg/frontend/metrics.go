@@ -65,14 +65,14 @@ func NewMetricsMiddleware(r prometheus.Registerer, ssg SubscriptionStateGetter) 
 		requestCounter: promauto.With(r).NewCounterVec(
 			prometheus.CounterOpts{
 				Name: requestCounterName,
-				Help: "Counter for HTTP requests by method, code, route and user agent.",
+				Help: "Counter for HTTP requests by api_version, method, code, route, state, and user_agent.",
 			},
 			[]string{"api_version", "method", "code", "route", "state", "user_agent"},
 		),
 		requestDuration: promauto.With(r).NewHistogramVec(
 			prometheus.HistogramOpts{
 				Name: requestDurationName,
-				Help: "Histogram of latencies for HTTP requests by method, code, route and user agent.",
+				Help: "Histogram of latencies for HTTP requests by api_version, method, code, route, and user_agent.",
 				// Buckets are modeled after k8s.io/apiserver request latency
 				// histograms, with dense resolution around the 1s mark to
 				// enable accurate P99 calculation for the S360 Control Plane
