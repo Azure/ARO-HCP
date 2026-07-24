@@ -303,6 +303,21 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 				clusterLister: &listertesting.SliceClusterLister{
 					Clusters: []*api.HCPOpenShiftCluster{tc.existingCluster},
 				},
+				serviceProviderClusterLister: &listertesting.SliceServiceProviderClusterLister{
+					ServiceProviderClusters: []*api.ServiceProviderCluster{
+						{
+							CosmosMetadata: api.CosmosMetadata{
+								ResourceID: api.Must(azcorearm.ParseResourceID(
+									fixture.clusterResourceID.String() + "/" +
+										api.ServiceProviderClusterResourceTypeName + "/" +
+										api.ServiceProviderClusterResourceName)),
+							},
+							Status: api.ServiceProviderClusterStatus{
+								ServingCABundle: "fake-ca-data",
+							},
+						},
+					},
+				},
 				readDesireLister: func() dblisters.ReadDesireLister {
 					if tc.readDesireLister != nil {
 						return tc.readDesireLister
@@ -749,6 +764,21 @@ func TestDetermineOperationState(t *testing.T) {
 				clusterLister:        tt.clusterLister,
 				readDesireLister:     tt.readDesireLister,
 				clusterServiceClient: setupCSMock(ctrl),
+				serviceProviderClusterLister: &listertesting.SliceServiceProviderClusterLister{
+					ServiceProviderClusters: []*api.ServiceProviderCluster{
+						{
+							CosmosMetadata: api.CosmosMetadata{
+								ResourceID: api.Must(azcorearm.ParseResourceID(
+									fixture.clusterResourceID.String() + "/" +
+										api.ServiceProviderClusterResourceTypeName + "/" +
+										api.ServiceProviderClusterResourceName)),
+							},
+							Status: api.ServiceProviderClusterStatus{
+								ServingCABundle: "fake-ca-data",
+							},
+						},
+					},
+				},
 			}
 
 			result, err := controller.determineOperationState(ctx, operation, cluster)
