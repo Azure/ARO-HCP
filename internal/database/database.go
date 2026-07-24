@@ -51,8 +51,8 @@ func isResponseError(err error, statusCode int) bool {
 	if errors.As(err, &responseError) && responseError.StatusCode == statusCode {
 		return true
 	}
-	var stepError *transactionStepError
-	return errors.As(err, &stepError) && stepError.httpStatusCode == statusCode
+	var stepError *TransactionStepError
+	return errors.As(err, &stepError) && stepError.HTTPStatusCode == statusCode
 }
 
 // IsNotFoundError returns true if err represents an HTTP 404 Not Found response.

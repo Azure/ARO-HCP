@@ -383,7 +383,7 @@ func (t *mockTransaction) Execute(ctx context.Context, o *azcosmos.Transactional
 		if err != nil {
 			var responseErr *azcore.ResponseError
 			if errors.As(err, &responseErr) {
-				return nil, database.NewTransactionStepError(step+1, len(t.steps), responseErr.StatusCode)
+				return nil, database.NewTransactionStepError(step+1, len(t.steps), responseErr.StatusCode, s.details)
 			}
 			return nil, err
 		}

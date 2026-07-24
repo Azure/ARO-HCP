@@ -21,32 +21,37 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 )
 
-// transactionStepError is returned when a Cosmos DB transactional batch step fails
+// TransactionStepError is returned when a Cosmos DB transactional batch step fails
 // with a non-424 status code. It carries the HTTP status so helpers like
 // IsPreconditionFailedError can recognize it via errors.As.
-type transactionStepError struct {
-	// step is the 1-based index of the failed operation within the batch.
-	step int
-	// totalSteps is the number of operations in the batch.
-	totalSteps int
-	// httpStatusCode is the HTTP status returned for the failed step (e.g. 412).
-	httpStatusCode int
+type TransactionStepError struct {
+	// Step is the 1-based index of the failed operation within the batch.
+	Step int
+	// TotalSteps is the number of operations in the batch.
+	TotalSteps int
+	// HTTPStatusCode is the HTTP status returned for the failed step (e.g. 412).
+	HTTPStatusCode int
+	// StepDetails describes the failed operation (action type, resource ID, etag, etc.).
+	StepDetails CosmosDBTransactionStepDetails
 }
 
 // NewTransactionStepError returns an error that indicates that a step in a Cosmos
 // DB transaction failed with the given HTTP status code.
-func NewTransactionStepError(step, totalSteps, httpStatusCode int) error {
-	return &transactionStepError{
-		step:           step,
-		totalSteps:     totalSteps,
-		httpStatusCode: httpStatusCode,
+func NewTransactionStepError(step, totalSteps, httpStatusCode int, details CosmosDBTransactionStepDetails) error {
+	return &TransactionStepError{
+		Step:           step,
+		TotalSteps:     totalSteps,
+		HTTPStatusCode: httpStatusCode,
+		StepDetails:    details,
 	}
 }
 
-func (e *transactionStepError) Error() string {
+func (e *TransactionStepError) Error() string {
 	return fmt.Sprintf(
-		"transaction step %d of %d failed with %d %s",
-		e.step, e.totalSteps, e.httpStatusCode, http.StatusText(e.httpStatusCode),
+		"transaction step %d of %d (%s %s on %s, etag %q) failed with %d %s",
+		e.Step, e.TotalSteps,
+		e.StepDetails.ActionType, e.StepDetails.GoType, e.StepDetails.ResourceID, string(e.StepDetails.Etag),
+		e.HTTPStatusCode, http.StatusText(e.HTTPStatusCode),
 	)
 }
 
