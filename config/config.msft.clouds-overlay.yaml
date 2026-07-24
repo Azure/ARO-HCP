@@ -40,6 +40,8 @@ clouds:
                 resources:
                   requests:
                     memory: 2Gi
+          backend:
+            backupPaused: false
       stg:
         # this is the MSFT STAGE environment
         defaults:
@@ -97,6 +99,8 @@ clouds:
           mise:
             audit:
               connectSocket: true
+          backend:
+            backupPaused: false
       prod:
         # this is the MSFT PRODUCTION environment
         defaults:

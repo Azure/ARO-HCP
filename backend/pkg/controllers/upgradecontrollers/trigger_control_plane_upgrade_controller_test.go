@@ -256,7 +256,7 @@ func TestTriggerControlPlaneUpgradeSyncer_ShouldTriggerUpgrade(t *testing.T) {
 				return &boomActiveOperationLister{err: listerBoom}
 			},
 			wantShouldRun:  true,
-			wantErrContain: "failed to get operations",
+			wantErrContain: "failed to get operation",
 		},
 	}
 

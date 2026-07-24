@@ -16,6 +16,7 @@ package controllerutils
 
 import (
 	"bytes"
+	"encoding/json"
 
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/conversion"
@@ -83,7 +84,27 @@ var needsUpdateEqualities = func() conversion.Equalities {
 			if err != nil {
 				return false
 			}
-			return bytes.Equal(aBytes, bBytes)
+			if bytes.Equal(aBytes, bBytes) {
+				return true
+			}
+			// Normalize both to canonical JSON (sorted keys) so that
+			// key-ordering differences don't produce false positives.
+			var aObj, bObj any
+			if err := json.Unmarshal(aBytes, &aObj); err != nil {
+				return false
+			}
+			if err := json.Unmarshal(bBytes, &bObj); err != nil {
+				return false
+			}
+			aNorm, err := json.Marshal(aObj)
+			if err != nil {
+				return false
+			}
+			bNorm, err := json.Marshal(bObj)
+			if err != nil {
+				return false
+			}
+			return bytes.Equal(aNorm, bNorm)
 		},
 	); err != nil {
 		panic(err)

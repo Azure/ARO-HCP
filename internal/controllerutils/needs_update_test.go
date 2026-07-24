@@ -210,6 +210,12 @@ func TestNeedsUpdate_NestedInternalIDPointer(t *testing.T) {
 	}
 }
 
+func TestNeedsUpdate_RawExtension_KeyOrderInsensitive(t *testing.T) {
+	a := runtime.RawExtension{Raw: []byte(`{"kind":"HostedCluster","apiVersion":"v1"}`)}
+	b := runtime.RawExtension{Raw: []byte(`{"apiVersion":"v1","kind":"HostedCluster"}`)}
+	assert.False(t, NeedsUpdate(a, b), "semantically equal JSON with different key order must not trigger an update")
+}
+
 func TestNeedsUpdate_RawExtension_NormalizesRawAndObject(t *testing.T) {
 	hc := map[string]any{
 		"apiVersion": "hypershift.openshift.io/v1beta1",
