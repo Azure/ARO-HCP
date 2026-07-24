@@ -52,6 +52,14 @@ var shoeboxLogCategories = []string{
 	"csi-snapshot-controller",
 }
 
+// newShoeboxLogCategories are the log categories added in
+// https://github.com/Azure/ARO-HCP/pull/5161. Their presence is only logged,
+// not asserted, until the categories are validated in all stage/prod regions.
+var newShoeboxLogCategories = []string{
+	"cluster-autoscaler",
+	"capi-provider",
+}
+
 type shoeboxLogVerifier interface {
 	Verify(context.Context) error
 }
@@ -61,9 +69,9 @@ type storageAccountResult struct {
 	AccountName string
 }
 
-func shoeboxDiagnosticLogSettings() []*armmonitor.LogSettings {
-	logSettings := make([]*armmonitor.LogSettings, 0, len(shoeboxLogCategories))
-	for _, category := range shoeboxLogCategories {
+func shoeboxDiagnosticLogSettings(categories []string) []*armmonitor.LogSettings {
+	logSettings := make([]*armmonitor.LogSettings, 0, len(categories))
+	for _, category := range categories {
 		logSettings = append(logSettings, &armmonitor.LogSettings{
 			Category: to.Ptr(category),
 			Enabled:  to.Ptr(true),
@@ -304,7 +312,8 @@ var _ = Describe("Customer", func() {
 
 			By("enabling diagnostic settings on the HCP cluster")
 			resourceID := clusterResourceID(subscriptionID, *resourceGroup.Name, customerClusterName)
-			logSettings := shoeboxDiagnosticLogSettings()
+			allCategories := append(append([]string{}, shoeboxLogCategories...), newShoeboxLogCategories...)
+			logSettings := shoeboxDiagnosticLogSettings(allCategories)
 
 			diagnosticsClient, err := armmonitor.NewDiagnosticSettingsClient(creds, &azcorearm.ClientOptions{
 				ClientOptions: azsdk.NewClientOptions(azsdk.ComponentE2E),
@@ -348,6 +357,7 @@ var _ = Describe("Customer", func() {
 
 			storageVerifier := verifiers.VerifyShoeboxLogs(blobContainersClient, *resourceGroup.Name, storage.AccountName)
 			eventHubVerifier := verifiers.VerifyShoeboxEventHub(eventHub.ConnectionString, eventHub.EventHubName)
+			newCategoriesVerifier := verifiers.VerifyShoeboxLogCategories(blobContainersClient, *resourceGroup.Name, storage.AccountName, newShoeboxLogCategories)
 
 			g, gCtx = errgroup.WithContext(ctx)
 			g.Go(func() error {
@@ -359,6 +369,19 @@ var _ = Describe("Customer", func() {
 			g.Go(func() error {
 				if !pollVerifier(gCtx, "shoebox Event Hub logs", eventHubVerifier, 45*time.Minute) {
 					return fmt.Errorf("event hub log verification failed")
+				}
+				return nil
+			})
+			g.Go(func() error {
+				// Log-only check for the newly added categories: report
+				// whether they show up, but never fail the test on it.
+				if pollVerifier(gCtx, "new shoebox log categories", newCategoriesVerifier, 45*time.Minute) {
+					GinkgoLogr.Info("new shoebox log categories observed in storage account", "categories", newShoeboxLogCategories)
+				} else if err := newCategoriesVerifier.Verify(ctx); err != nil {
+					// One final check to report exactly which categories are missing.
+					GinkgoLogr.Info("new shoebox log categories NOT observed in storage account; not failing the test", "detail", err.Error())
+				} else {
+					GinkgoLogr.Info("new shoebox log categories observed in storage account (after poll timeout)", "categories", newShoeboxLogCategories)
 				}
 				return nil
 			})
