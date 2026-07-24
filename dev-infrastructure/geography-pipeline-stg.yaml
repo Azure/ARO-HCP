@@ -15,17 +15,6 @@ $schema: pipeline.schema.v1
 rolloutName: Geography Rollout (STG V2)
 serviceGroup: Microsoft.Azure.ARO.HCP.Geography.StgGlobal
 resourceGroups:
-- name: global
-  resourceGroup: '{{ .global.rg }}'
-  # Hardcoded on purpose — see global-pipeline-stg.yaml. Removed at decommission.
-  subscription: 'hcp-stg-global'
-  steps:
-  - name: output
-    action: ARM
-    template: templates/output-global.bicep
-    parameters: configurations/output-global-stg.tmpl.bicepparam
-    deploymentLevel: ResourceGroup
-    outputOnly: true
 - name: kusto-infra
   resourceGroup: '{{ .kusto.rg }}'
   # Hardcoded on purpose — see global-pipeline-stg.yaml. Removed at decommission.
@@ -43,15 +32,6 @@ resourceGroups:
     template: templates/kusto.bicep
     parameters: configurations/kusto-stg.tmpl.bicepparam
     deploymentLevel: ResourceGroup
-    variables:
-    - name: globalMSIId
-      input:
-        resourceGroup: global
-        step: output
-        name: globalMSIId
-    dependsOn:
-    - resourceGroup: global
-      step: output
     automatedRetry:
       errorContainsAny:
       - "InternalServerError"

@@ -30,5 +30,3 @@ param autoScaleMin = {{ .kusto.autoScaleMin }}
 param autoScaleMax = {{ .kusto.autoScaleMax }}
 
 param enableAutoScale = {{ .kusto.enableAutoScale }}
-
-param globalMSIId = '__globalMSIId__'
