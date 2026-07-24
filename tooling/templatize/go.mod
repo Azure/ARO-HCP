@@ -13,10 +13,12 @@ require (
 	github.com/Azure/ARO-Tools/tools/prow-job-executor v0.0.0-20260729121920-58ceb447fbb3
 	github.com/Azure/ARO-Tools/tools/registration v0.0.0-20260729121920-58ceb447fbb3
 	github.com/Azure/ARO-Tools/tools/secret-sync v0.0.0-20260729121920-58ceb447fbb3
+	github.com/Azure/ARO-Tools/tools/istio-upgrade v0.0.0-20260724005912-ac436627c9cc
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.21.1
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.13.1
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v3 v3.0.0-beta.2
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice v1.0.0
+	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v6 v6.6.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armdeploymentstacks v1.0.1
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources v1.2.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armsubscriptions v1.3.0
@@ -34,15 +36,11 @@ require (
 	go.lsp.dev/jsonrpc2 v0.10.0
 	go.lsp.dev/protocol v0.12.0
 	golang.org/x/sync v0.22.0
+	k8s.io/api v0.35.3
 	k8s.io/apimachinery v0.35.3
 	k8s.io/client-go v0.35.3
 	k8s.io/utils v0.0.0-20260319190234-28399d86e0b5
 	sigs.k8s.io/yaml v1.6.0
-)
-
-require (
-	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v6 v6.6.0
-	k8s.io/api v0.35.3
 )
 
 require (
@@ -55,7 +53,6 @@ require (
 	cloud.google.com/go/monitoring v1.24.3 // indirect
 	cloud.google.com/go/storage v1.62.1 // indirect
 	dario.cat/mergo v1.0.1 // indirect
-	github.com/Azure/ARO-Tools/tools/istio-upgrade v0.0.0-20260721114952-575c7d54a2c9 // indirect
 	github.com/Azure/ARO-Tools/tools/yamlwrap v0.0.0-20260729121920-58ceb447fbb3 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/internal v1.12.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/dashboard/armdashboard/v2 v2.0.0 // indirect

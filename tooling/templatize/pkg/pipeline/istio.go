@@ -24,7 +24,7 @@ import (
 	"github.com/Azure/ARO-Tools/pipelines/graph"
 	"github.com/Azure/ARO-Tools/pipelines/types"
 
-	"github.com/Azure/ARO-HCP/tooling/templatize/pkg/istio"
+	"github.com/Azure/ARO-Tools/tools/istio-upgrade/pkg/istio"
 )
 
 func configString(val any) string {
@@ -96,7 +96,6 @@ func runIstioUpgradeStep(id graph.Identifier, step *types.IstioUpgradeStep, ctx 
 	opts := istio.DefaultUpgradeOptions()
 	opts.ResourceGroup = executionTarget.GetResourceGroup()
 	opts.ClusterName = clusterName
-	opts.KubeconfigPath = kubeconfigFile
 	opts.Versions = configString(versions)
 	opts.Tag = configString(tag)
 	opts.IngressIPName = configString(ipName)
