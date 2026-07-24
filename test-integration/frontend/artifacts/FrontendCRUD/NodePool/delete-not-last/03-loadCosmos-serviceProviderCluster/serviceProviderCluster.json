@@ -5,14 +5,14 @@
 		"resourceId": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/delete-not-last/serviceProviderClusters/default",
 		"spec": {
 			"control_plane_version": {
-				"desired_version": "4.20.8"
+				"desired_version": "4.21.0"
 			}
 		},
 		"status": {
 			"control_plane_version": {
 				"active_versions": [
 					{
-						"version": "4.20.8"
+						"version": "4.21.0"
 					}
 				]
 			}

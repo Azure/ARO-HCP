@@ -1,0 +1,18 @@
+{
+  "error": {
+    "code": "MultipleErrorsOccurred",
+    "message": "2 errors occurred",
+    "details": [
+      {
+        "code": "InvalidRequestContent",
+        "message": "Invalid value: \"4.19.7\": must be at least 4.20.8",
+        "target": "properties.version.id"
+      },
+      {
+        "code": "InvalidRequestContent",
+        "message": "Invalid value: \"4.19.7\": invalid node pool version 4.19.7: must be within 2 minor versions of control plane version 4.22.0",
+        "target": "properties.version.id"
+      }
+    ]
+  }
+}
