@@ -39,6 +39,7 @@ var _ = Describe("Customer", func() {
 
 	It("should be able to rotate KMS key for a cluster with version >= 4.22",
 		labels.RequireNothing, labels.High, labels.Positive, labels.AroRpApiCompatible, labels.Slow,
+		labels.MIContainers(1),
 		func(ctx context.Context) {
 			const clusterName = "kms-key-rotate-422"
 
