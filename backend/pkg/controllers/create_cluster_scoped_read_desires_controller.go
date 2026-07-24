@@ -21,8 +21,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/blang/semver/v4"
-
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	hsv1beta1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
@@ -175,7 +173,7 @@ func (c *createClusterScopedReadDesiresSyncer) SyncOnce(ctx context.Context, key
 
 	controlPlaneNamespace := serviceProviderCluster.Status.ControlPlaneNamespace
 	if len(controlPlaneNamespace) > 0 {
-		atLeast420, err := clusterVersionAtLeast(existingCluster.CustomerProperties.Version.ID, minServingCAOCPVersion)
+		atLeast420, err := controllerutils.ClusterVersionAtLeast(existingCluster.CustomerProperties.Version.ID, controllerutils.MinServingCAOCPVersion)
 		if err != nil {
 			return utils.TrackError(fmt.Errorf("failed to evaluate cluster version for serving CA ReadDesire: %w", err))
 		}
@@ -231,10 +229,7 @@ func clusterAutoscalerTarget(envIdentifier, csClusterID, csClusterDomainPrefix s
 	}
 }
 
-const (
-	servingCATLSSecretName = "kube-apiserver-tls-cert"
-	minServingCAOCPVersion = "4.20"
-)
+const servingCATLSSecretName = "kube-apiserver-tls-cert"
 
 func servingCATarget(controlPlaneNamespace string) kubeapplier.ResourceReference {
 	return kubeapplier.ResourceReference{
@@ -244,21 +239,6 @@ func servingCATarget(controlPlaneNamespace string) kubeapplier.ResourceReference
 		Namespace: controlPlaneNamespace,
 		Name:      servingCATLSSecretName,
 	}
-}
-
-func clusterVersionAtLeast(versionID, minVersion string) (bool, error) {
-	if len(versionID) == 0 {
-		return false, nil
-	}
-	current, err := semver.ParseTolerant(versionID)
-	if err != nil {
-		return false, fmt.Errorf("failed to parse cluster version %q: %w", versionID, err)
-	}
-	minimum, err := semver.ParseTolerant(minVersion)
-	if err != nil {
-		return false, fmt.Errorf("failed to parse minimum version %q: %w", minVersion, err)
-	}
-	return current.GE(minimum), nil
 }
 
 // buildReadDesire produces the desired-state ReadDesire for writeReadDesire.

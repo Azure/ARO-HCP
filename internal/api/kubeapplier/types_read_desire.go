@@ -75,7 +75,7 @@ type ReadDesireStatus struct {
 	// preserved, but annotations that can embed the full Secret (e.g.
 	// kubectl.kubernetes.io/last-applied-configuration) are stripped. In the
 	// data map only known-safe keys (currently "tls.crt") survive; all other
-	// data keys and stringData are removed to prevent private keys,
-	// passwords, and tokens from leaking into Cosmos.
+	// data keys, along with all of binaryData and stringData, are removed to
+	// prevent private keys, passwords, and tokens from leaking into Cosmos.
 	KubeContent *runtime.RawExtension `json:"kubeContent,omitempty"`
 }

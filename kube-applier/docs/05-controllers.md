@@ -238,9 +238,10 @@ Run loop (per readme):
     1. Read the live object from the kube lister (may be nil if absent).
     2. Read the ReadDesire from the readDesireLister.
     3. If the target is a core/v1 Secret, deep-copy and redact the object:
-       strip all data keys except known-safe ones (currently "tls.crt")
-       and remove stringData. This prevents private keys, passwords, and
-       tokens from being persisted to Cosmos.
+       strip all data keys except known-safe ones (currently "tls.crt"),
+       remove all of binaryData and stringData, and strip unsafe annotations
+       (e.g. kubectl.kubernetes.io/last-applied-configuration). This prevents
+       private keys, passwords, and tokens from being persisted to Cosmos.
     4. Marshal the (possibly redacted) live object to RawExtension.
        If absent, leave a sentinel (e.g. RawExtension{Raw: nil}).
     5. If new RawExtension differs from ReadDesire.Status.KubeContent

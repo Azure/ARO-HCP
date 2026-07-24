@@ -216,6 +216,64 @@ func TestRedactSecret_StripsUnsafeAnnotations(t *testing.T) {
 	}
 }
 
+func TestRedactSecret_RemovesBinaryData(t *testing.T) {
+	obj := &unstructured.Unstructured{Object: map[string]any{
+		"apiVersion": "v1",
+		"kind":       "Secret",
+		"metadata":   map[string]any{"name": "s", "namespace": "ns"},
+		"data":       map[string]any{"tls.crt": "Y2VydA=="},
+		// binaryData can carry the same sensitive payloads as data and must be
+		// removed entirely, even though data[tls.crt] is preserved.
+		"binaryData": map[string]any{
+			"tls.key":              "cHJpdmF0ZQ==",
+			"bootstrap.kubeconfig": "a3ViZWNvbmZpZw==",
+		},
+	}}
+
+	redactSecret(obj)
+
+	if _, found, _ := unstructured.NestedMap(obj.Object, "binaryData"); found {
+		t.Error("binaryData should have been removed entirely")
+	}
+
+	data, found, err := unstructured.NestedMap(obj.Object, "data")
+	if err != nil || !found {
+		t.Fatalf("expected data to be preserved, found=%v err=%v", found, err)
+	}
+	if _, ok := data["tls.crt"]; !ok {
+		t.Error("data[tls.crt] should be preserved")
+	}
+}
+
+func TestRedactSecret_FailsClosedOnUnparseableAnnotations(t *testing.T) {
+	obj := &unstructured.Unstructured{Object: map[string]any{
+		"apiVersion": "v1",
+		"kind":       "Secret",
+		"metadata": map[string]any{
+			"name":      "s",
+			"namespace": "ns",
+			"annotations": map[string]any{
+				// A non-string annotation value makes this not a strict
+				// map[string]string, so NestedStringMap errors. Redaction must
+				// fail closed and drop annotations entirely rather than leave
+				// the unsafe last-applied-configuration in place.
+				"kubectl.kubernetes.io/last-applied-configuration": `{"data":{"tls.key":"PRIVATE"}}`,
+				"malformed": map[string]any{"unexpected": "object"},
+			},
+		},
+	}}
+
+	redactSecret(obj)
+
+	md, ok := obj.Object["metadata"].(map[string]any)
+	if !ok {
+		t.Fatal("metadata should be preserved as a map")
+	}
+	if got, present := md["annotations"]; present {
+		t.Errorf("annotations should have been removed entirely (fail closed), got %v", got)
+	}
+}
+
 func secretTarget(name string) kubeapplier.ResourceReference {
 	return kubeapplier.ResourceReference{
 		Group: "", Version: "v1", Resource: "secrets", Namespace: testTargetNs, Name: name,

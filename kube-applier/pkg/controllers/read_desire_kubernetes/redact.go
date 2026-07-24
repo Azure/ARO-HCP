@@ -46,9 +46,11 @@ var unsafeAnnotations = map[string]struct{}{
 // annotations that can embed the full Secret (e.g.
 // kubectl.kubernetes.io/last-applied-configuration). In the data map, only
 // keys listed in safeSecretDataKeys survive; on any error reading data the
-// field is removed entirely (fail closed). The object is modified in place;
-// callers must pass a deep copy if the original must be preserved (e.g.
-// informer cache objects).
+// field is removed entirely (fail closed). The write-only stringData and the
+// binaryData fields are always removed, since they can carry the same
+// sensitive payloads as data but hold no key we mirror. The object is
+// modified in place; callers must pass a deep copy if the original must be
+// preserved (e.g. informer cache objects).
 func redactSecret(obj *unstructured.Unstructured) {
 	data, found, err := unstructured.NestedMap(obj.Object, "data")
 	if err != nil {
@@ -70,6 +72,11 @@ func redactSecret(obj *unstructured.Unstructured) {
 	// returns it, but strip it defensively.
 	unstructured.RemoveNestedField(obj.Object, "stringData")
 
+	// binaryData can carry the same sensitive payloads as data (base64-encoded
+	// binary values). We never mirror any key out of it, so remove it entirely
+	// (fail closed) rather than risk leaking private keys or tokens.
+	unstructured.RemoveNestedField(obj.Object, "binaryData")
+
 	stripUnsafeAnnotations(obj)
 }
 
@@ -78,7 +85,16 @@ func redactSecret(obj *unstructured.Unstructured) {
 // the serialized object stays clean.
 func stripUnsafeAnnotations(obj *unstructured.Unstructured) {
 	annotations, found, err := unstructured.NestedStringMap(obj.Object, "metadata", "annotations")
-	if !found || err != nil {
+	if err != nil {
+		// annotations are present but not a strict map[string]string, so we
+		// cannot safely inspect them. Remove the whole annotations field
+		// rather than risk leaving an unsafe annotation (e.g.
+		// kubectl.kubernetes.io/last-applied-configuration, which can embed
+		// the full Secret) in place. Fail closed.
+		unstructured.RemoveNestedField(obj.Object, "metadata", "annotations")
+		return
+	}
+	if !found {
 		return
 	}
 	for key := range unsafeAnnotations {
