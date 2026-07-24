@@ -298,6 +298,10 @@ func (o Options) Run(ctx context.Context) error {
 					queryName:       "debugQueries",
 					linkDisplayName: "Debug Queries",
 				},
+				{
+					queryName:       "cosmosResourceSnapshots",
+					linkDisplayName: "Cosmos Resource Snapshots",
+				},
 			}
 
 			for _, query := range customLinkQueries {
@@ -490,6 +494,7 @@ func getServiceLogLinks(tw timing.TimeWindow, svcClusterName, mgmtClusterName st
 	}{
 		{"backendControllerConditions", "Backend Controller Conditions"},
 		{"clustersServicePhases", "Clusters Service Phases"},
+		{"cosmosResourceSnapshotsInfra", "Cosmos Resource Snapshots"},
 	}
 	for _, cq := range clusterScopedCustomQueries {
 		def, err := factory.GetCustomQueryDefinition(cq.queryName)
