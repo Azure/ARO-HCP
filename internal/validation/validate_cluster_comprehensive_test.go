@@ -400,18 +400,6 @@ func TestValidateClusterCreate(t *testing.T) {
 			},
 		},
 		{
-			name: "platform managed etcd encryption is not supported - create",
-			cluster: func() *api.HCPOpenShiftCluster {
-				c := createValidCluster()
-				c.CustomerProperties.Etcd.DataEncryption.KeyManagementMode = api.EtcdDataEncryptionKeyManagementModeTypePlatformManaged
-				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged = nil
-				return c
-			}(),
-			expectErrors: []utils.ExpectedError{
-				{Message: "Unsupported value", FieldPath: "customerProperties.etcd.dataEncryption.keyManagementMode"},
-			},
-		},
-		{
 			name: "customer managed without customer managed profile - create",
 			cluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
@@ -1753,8 +1741,7 @@ func TestValidateClusterUpdate(t *testing.T) {
 			name: "immutable etcd profile - update",
 			newCluster: func() *api.HCPOpenShiftCluster {
 				c := createValidCluster()
-				c.CustomerProperties.Etcd.DataEncryption.KeyManagementMode = api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged
-				c.CustomerProperties.Etcd.DataEncryption.CustomerManaged = nil
+				c.CustomerProperties.Etcd.DataEncryption.KeyManagementMode = "Invalid"
 				return c
 			}(),
 			oldCluster: func() *api.HCPOpenShiftCluster {
@@ -1762,7 +1749,9 @@ func TestValidateClusterUpdate(t *testing.T) {
 				return c
 			}(),
 			expectErrors: []utils.ExpectedError{
-				{Message: "must be specified when `keyManagementMode` is \"CustomerManaged\"", FieldPath: "customerProperties.etcd.dataEncryption.customerManaged"},
+				{Message: "field is immutable", FieldPath: "customerProperties.etcd.dataEncryption.keyManagementMode"},
+				{Message: "\"Invalid\": supported values: \"CustomerManaged\"", FieldPath: "customerProperties.etcd.dataEncryption.keyManagementMode"},
+				{Message: "may only be specified when `keyManagementMode` is \"CustomerManaged\"", FieldPath: "customerProperties.etcd.dataEncryption.customerManaged"},
 			},
 		},
 		{
@@ -2581,6 +2570,18 @@ func createValidCluster() *api.HCPOpenShiftCluster {
 	cluster.Location = "eastus"                    // Required for TrackedResource validation
 	cluster.CustomerProperties.Version.ID = "4.20" // Use MAJOR.MINOR format, must be at least 4.20
 	cluster.CustomerProperties.DNS.BaseDomainPrefix = "testcluster"
+	cluster.CustomerProperties.Etcd.DataEncryption.KeyManagementMode = api.EtcdDataEncryptionKeyManagementModeTypeCustomerManaged
+	cluster.CustomerProperties.Etcd.DataEncryption.CustomerManaged = &api.CustomerManagedEncryptionProfile{
+		EncryptionType: api.CustomerManagedEncryptionTypeKMS,
+		Kms: &api.KmsEncryptionProfile{
+			Visibility: api.KeyVaultVisibilityPublic,
+			ActiveKey: api.KmsKey{
+				Name:      api.TestKMSKeyName,
+				VaultName: api.TestKMSKeyVaultName,
+				Version:   api.TestKMSKeyVersion,
+			},
+		},
+	}
 	// Use different resource group for subnet to ensure same subscription validation
 	cluster.CustomerProperties.Platform.SubnetID = api.Must(azcorearm.ParseResourceID("/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.Network/virtualNetworks/test-vnet/subnets/test-subnet"))
 	cluster.CustomerProperties.Platform.VnetIntegrationSubnetID = api.Must(azcorearm.ParseResourceID("/subscriptions/0465bc32-c654-41b8-8d87-9815d7abe8f6/resourceGroups/some-resource-group/providers/Microsoft.Network/virtualNetworks/test-vnet/subnets/test-vnet-integration-subnet"))

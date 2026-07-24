@@ -138,22 +138,18 @@ func PossibleEffectValues() []Effect {
 	}
 }
 
-// EtcdDataEncryptionKeyManagementModeType - Specify the key management strategy used for the encryption key that encrypts
-// the ETCD data. By default, "PlatformManaged" is used.
+// EtcdDataEncryptionKeyManagementModeType - The encryption key management mode types supported for ETCD data encryption.
 type EtcdDataEncryptionKeyManagementModeType string
 
 const (
 	// EtcdDataEncryptionKeyManagementModeTypeCustomerManaged - Customer managed encryption key management mode type.
 	EtcdDataEncryptionKeyManagementModeTypeCustomerManaged EtcdDataEncryptionKeyManagementModeType = "CustomerManaged"
-	// EtcdDataEncryptionKeyManagementModeTypePlatformManaged - Platform managed encryption key management mode type.
-	EtcdDataEncryptionKeyManagementModeTypePlatformManaged EtcdDataEncryptionKeyManagementModeType = "PlatformManaged"
 )
 
 // PossibleEtcdDataEncryptionKeyManagementModeTypeValues returns the possible values for the EtcdDataEncryptionKeyManagementModeType const type.
 func PossibleEtcdDataEncryptionKeyManagementModeTypeValues() []EtcdDataEncryptionKeyManagementModeType {
 	return []EtcdDataEncryptionKeyManagementModeType{
 		EtcdDataEncryptionKeyManagementModeTypeCustomerManaged,
-		EtcdDataEncryptionKeyManagementModeTypePlatformManaged,
 	}
 }
 
