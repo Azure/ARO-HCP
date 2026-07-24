@@ -67712,6 +67712,21 @@ data:
             type: StateSet
           help: Cluster progressing condition
           name: progressing
+        - each:
+            stateSet:
+              labelName: status
+              list:
+              - "True"
+              - "False"
+              - Unknown
+              path:
+              - status
+              - conditions
+              - '[type=ValidAzureKMSConfig]'
+              - status
+            type: StateSet
+          help: Azure KMS configuration validity condition
+          name: valid_azure_kms_config
 ---
 # Source: hcp-prometheus/templates/ama-metrics-settings-configmap.yaml
 kind: ConfigMap
