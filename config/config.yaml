@@ -1721,16 +1721,18 @@ clouds:
               exporter: "otlp"
           # MC
           mgmt:
+            stamps:
+              count: 2
             rg: "hcp-underlay-{{ .ctx.environment }}-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}"
             aks:
               name: "{{ .ctx.environment }}-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}"
               systemAgentPool:
                 maxCount: 4
                 osDiskSizeGB: 32
-                vmSize: Standard_D16ds_v6
+                vmSize: Standard_D8ds_v6
               userAgentPool:
                 maxCount: 14
-                minCount: 7
+                minCount: 4
                 osDiskSizeGB: 100
                 vmSize: Standard_E16ds_v6
                 secondaryNicCount: 7
@@ -1818,6 +1820,8 @@ clouds:
               exporter: "otlp"
           # MC
           mgmt:
+            stamps:
+              count: 2
             subscription:
               key: ARO HCP E2E Infrastructure (EA Subscription)
             rg: "hcp-underlay-{{ .ctx.environment }}-{{ .ctx.regionShort }}-mgmt-{{ .ctx.stamp }}"
@@ -1826,10 +1830,10 @@ clouds:
               systemAgentPool:
                 maxCount: 4
                 osDiskSizeGB: 32
-                vmSize: Standard_D16ds_v6
+                vmSize: Standard_D8ds_v6
               userAgentPool:
                 maxCount: 14
-                minCount: 7
+                minCount: 4
                 osDiskSizeGB: 100
                 vmSize: Standard_E16ds_v6
                 secondaryNicCount: 7

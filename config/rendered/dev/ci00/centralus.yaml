@@ -633,7 +633,7 @@ mgmt:
       name: system
       osDiskSizeGB: 32
       poolCount: 1
-      vmSize: Standard_D16ds_v6
+      vmSize: Standard_D8ds_v6
       zoneRedundantMode: Auto
       zones: ""
     upgradeSettings:
@@ -641,7 +641,7 @@ mgmt:
       maxUnavailable: "0"
     userAgentPool:
       maxCount: 14
-      minCount: 7
+      minCount: 4
       name: userswft
       osDiskSizeGB: 100
       poolCount: 3
@@ -710,7 +710,7 @@ mgmt:
   rg: hcp-underlay-ci00-j7654321-mgmt-1
   stampIdentifier: "1"
   stamps:
-    count: 1
+    count: 2
   subscription:
     certificateDomains:
     - '*.hcp.osadev.cloud'
