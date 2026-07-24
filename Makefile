@@ -125,7 +125,11 @@ licenses: $(ADDLICENSE)
 	$(shell find . -type f -name '*.go' | xargs -I {} $(ADDLICENSE) -c 'Microsoft Corporation' -l apache {})
 
 lint: $(GOLANGCI_LINT)
+	@echo "Running standard golangci-lint..."
 	$(GOLANGCI_LINT) run -v --build-tags=$(LINT_GOTAGS) $(MODULES)
+	@echo "Running custom golangci-lint with custom linters..."
+	@$(MAKE) -C tooling/customlinters build
+	tooling/customlinters/bin/custom-golangci-lint run -v --build-tags=$(LINT_GOTAGS) --config=tooling/customlinters/.golangci-custom.yml $(MODULES)
 .PHONY: lint
 
 lint-fix: $(GOLANGCI_LINT)
