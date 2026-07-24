@@ -905,10 +905,12 @@ func (tc *perItOrDescribeTestContext) NewAppRegistrationWithServicePrincipal(ctx
 		return nil, nil, fmt.Errorf("failed to get graph client: %w", err)
 	}
 
-	app, err := graphClient.CreateApplication(ctx, appName, []string{})
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to create app registration: %w", err)
-	}
+	var app *graphutil.Application
+	gomega.Eventually(func() error {
+		var err error
+		app, err = graphClient.CreateApplication(ctx, appName, []string{})
+		return err
+	}, 2*time.Minute, 5*time.Second).Should(gomega.Succeed(), "failed to create app registration")
 
 	func() {
 		tc.contextLock.Lock()
@@ -917,12 +919,28 @@ func (tc *perItOrDescribeTestContext) NewAppRegistrationWithServicePrincipal(ctx
 		tc.knownAppRegistrationIDs = append(tc.knownAppRegistrationIDs, app.ID)
 	}()
 
-	sp, err := graphClient.CreateServicePrincipal(ctx, app.AppID)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to create service principal: %w", err)
-	}
+	var sp *graphutil.ServicePrincipal
+	gomega.Eventually(func() error {
+		var err error
+		sp, err = graphClient.CreateServicePrincipal(ctx, app.AppID)
+		return err
+	}, 2*time.Minute, 5*time.Second).Should(gomega.Succeed(), "failed to create service principal")
 
 	return app, sp, nil
+}
+
+func AddAppRegistrationPassword(ctx context.Context, graphClient *graphutil.Client, appID, displayName string) string {
+	var passSecret string
+	gomega.Eventually(func() error {
+		pass, err := graphClient.AddPassword(ctx, appID, displayName, time.Now(), time.Now().Add(24*time.Hour))
+		if err != nil {
+			return err
+		}
+		passSecret = pass.SecretText
+		return nil
+	}, 2*time.Minute, 5*time.Second).Should(gomega.Succeed(), "failed to add password to app registration")
+
+	return passSecret
 }
 
 func CleanupAppRegistrations(ctx context.Context, graphClient *graphutil.Client, appRegistrationIDs []string) error {
