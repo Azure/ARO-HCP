@@ -6,6 +6,8 @@ metadata:
 spec:
   groups:
   - name: hcp-cluster-operators-rules
+    labels:
+      component: kubernetes-infrastructure
     rules:
     # Fires when one or more cluster operators (EXCLUDING the version and console
     # operators) report Available=false on a hosted cluster that has worker nodes.

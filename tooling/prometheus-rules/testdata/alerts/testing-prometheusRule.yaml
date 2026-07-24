@@ -11,6 +11,8 @@ metadata:
 spec:
   groups:
   - name: InstancesDownV1
+    labels:
+      component: testing
     rules:
     - alert: InstancesDownV1
       expr: sum(up{job="app"}) == 0

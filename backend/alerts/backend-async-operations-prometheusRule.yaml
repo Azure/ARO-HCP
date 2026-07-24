@@ -31,6 +31,8 @@ spec:
   # duplicate alerting — e2e test failures are already surfaced by
   # dedicated e2e alerts.
   - name: backend-async-operations
+    labels:
+      component: backend
     rules:
     # ----------------------------------------
     # Cluster operations

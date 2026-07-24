@@ -6,6 +6,8 @@ metadata:
 spec:
   groups:
   - name: arobit-rules
+    labels:
+      component: monitoring-infrastructure
     rules:
     - alert: ArobitForwarderJobUp
       expr: group by (cluster) (up{job="kube-state-metrics"}) unless on(cluster) group by (cluster) (up{job="arobit-forwarder",namespace="arobit"} == 1)

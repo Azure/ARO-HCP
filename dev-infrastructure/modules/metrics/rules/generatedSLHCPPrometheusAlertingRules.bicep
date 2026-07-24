@@ -29,6 +29,7 @@ resource hcpClusterOperatorsRules 'Microsoft.AlertsManagement/prometheusRuleGrou
         alert: 'HCPClusterOperatorUnavailable'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -58,6 +59,7 @@ resource hcpClusterOperatorsRules 'Microsoft.AlertsManagement/prometheusRuleGrou
         alert: 'HCPClusterOperatorDegraded'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'info'
         }
         annotations: {
@@ -87,6 +89,7 @@ resource hcpClusterOperatorsRules 'Microsoft.AlertsManagement/prometheusRuleGrou
         alert: 'HCPClusterVersionFailing'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -129,6 +132,7 @@ resource kubeApplier 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01
         alert: 'KubeApplierDesiresMetricNotPresent'
         enabled: true
         labels: {
+          component: 'kube-applier'
           severity: 'warning'
         }
         annotations: {

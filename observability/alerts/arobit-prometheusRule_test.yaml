@@ -15,8 +15,9 @@ tests:
     exp_alerts:
     - exp_labels:
         alertname: ArobitForwarderJobUp
-        severity: warning
         cluster: test
+        component: monitoring-infrastructure
+        severity: warning
       exp_annotations:
         description: |
           The Arobit forwarder metrics endpoint on cluster test has been unreachable for 15 minutes.
@@ -33,9 +34,10 @@ tests:
     exp_alerts:
     - exp_labels:
         alertname: FluentBitIngestionPaused
-        severity: warning
         cluster: test
+        component: monitoring-infrastructure
         pod: arobit-paused
+        severity: warning
       exp_annotations:
         runbook_url: https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/arobit.html
         description: |
@@ -63,9 +65,10 @@ tests:
     exp_alerts:
     - exp_labels:
         alertname: FluentBitHighOutputRetries
-        severity: warning
         cluster: test
+        component: monitoring-infrastructure
         pod: arobit-retrying
+        severity: warning
       exp_annotations:
         runbook_url: https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/arobit.html
         description: |
@@ -102,9 +105,10 @@ tests:
     exp_alerts:
     - exp_labels:
         alertname: FluentBitOutputErrors
-        severity: warning
         cluster: test
+        component: monitoring-infrastructure
         pod: arobit-errors
+        severity: warning
       exp_annotations:
         runbook_url: https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/arobit.html
         description: |
@@ -140,9 +144,10 @@ tests:
     exp_alerts:
     - exp_labels:
         alertname: FluentBitOutputRetriesExhausted
-        severity: warning
         cluster: test
+        component: monitoring-infrastructure
         pod: arobit-exhausted
+        severity: warning
       exp_annotations:
         runbook_url: https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/arobit.html
         description: |

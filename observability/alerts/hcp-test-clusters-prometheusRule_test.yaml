@@ -13,10 +13,11 @@ tests:
     exp_alerts:
     - exp_labels:
         alertname: HCPClusterOlderThan3Hours
-        severity: "3"
         cluster: int-uksouth-svc-1
+        component: test-clusters
         environment: int
         resource_id: /subscriptions/00000000-0000-0000-0000-000000000000/resourcegroups/test-rg/providers/microsoft.redhatopenshift/hcpopenshiftclusters/test-cluster
+        severity: "3"
       exp_annotations:
         correlationId: 'IntStgClusterOlderThan3Hours/subscriptions/00000000-0000-0000-0000-000000000000/resourcegroups/test-rg/providers/microsoft.redhatopenshift/hcpopenshiftclusters/test-cluster'
         description: |
@@ -34,10 +35,11 @@ tests:
     exp_alerts:
     - exp_labels:
         alertname: HCPClusterOlderThan3Hours
-        severity: "3"
         cluster: stg-uksouth-svc-1
+        component: test-clusters
         environment: stg
         resource_id: /subscriptions/00000000-0000-0000-0000-000000000000/resourcegroups/test-rg/providers/microsoft.redhatopenshift/hcpopenshiftclusters/test-cluster
+        severity: "3"
       exp_annotations:
         correlationId: 'IntStgClusterOlderThan3Hours/subscriptions/00000000-0000-0000-0000-000000000000/resourcegroups/test-rg/providers/microsoft.redhatopenshift/hcpopenshiftclusters/test-cluster'
         description: |
@@ -73,11 +75,12 @@ tests:
     exp_alerts:
     - exp_labels:
         alertname: ProdE2EHCPClusterOlderThan3Hours
-        severity: "3"
         cluster: prod-uksouth-svc-1
+        component: test-clusters
         environment: prod
-        subscription_id: 403d9de9-132b-4974-94a5-5b78bdfa191e
         resource_id: /subscriptions/403d9de9-132b-4974-94a5-5b78bdfa191e/resourcegroups/test-rg/providers/microsoft.redhatopenshift/hcpopenshiftclusters/test-cluster
+        severity: "3"
+        subscription_id: 403d9de9-132b-4974-94a5-5b78bdfa191e
       exp_annotations:
         correlationId: 'ProdE2EClusterOlderThan3Hours/subscriptions/403d9de9-132b-4974-94a5-5b78bdfa191e/resourcegroups/test-rg/providers/microsoft.redhatopenshift/hcpopenshiftclusters/test-cluster'
         description: |
@@ -97,11 +100,12 @@ tests:
     exp_alerts:
     - exp_labels:
         alertname: ProdE2EHCPClusterOlderThan3Hours
-        severity: "3"
         cluster: prod-uksouth-svc-1
+        component: test-clusters
         environment: prod
-        subscription_id: 8d696692-794f-4cdb-ba25-9250c9e9ec4c
         resource_id: /subscriptions/8d696692-794f-4cdb-ba25-9250c9e9ec4c/resourcegroups/test-rg/providers/microsoft.redhatopenshift/hcpopenshiftclusters/test-cluster
+        severity: "3"
+        subscription_id: 8d696692-794f-4cdb-ba25-9250c9e9ec4c
       exp_annotations:
         correlationId: 'ProdE2EClusterOlderThan3Hours/subscriptions/8d696692-794f-4cdb-ba25-9250c9e9ec4c/resourcegroups/test-rg/providers/microsoft.redhatopenshift/hcpopenshiftclusters/test-cluster'
         description: |
@@ -110,11 +114,12 @@ tests:
         summary: Prod e2e HCP is older than 3h
     - exp_labels:
         alertname: ProdE2EHCPClusterOlderThan3Hours
-        severity: "3"
         cluster: prod-uksouth-svc-1
+        component: test-clusters
         environment: prod
-        subscription_id: ec435068-e722-475f-8504-c91b72a5dc51
         resource_id: /subscriptions/ec435068-e722-475f-8504-c91b72a5dc51/resourcegroups/test-rg/providers/microsoft.redhatopenshift/hcpopenshiftclusters/test-cluster
+        severity: "3"
+        subscription_id: ec435068-e722-475f-8504-c91b72a5dc51
       exp_annotations:
         correlationId: 'ProdE2EClusterOlderThan3Hours/subscriptions/ec435068-e722-475f-8504-c91b72a5dc51/resourcegroups/test-rg/providers/microsoft.redhatopenshift/hcpopenshiftclusters/test-cluster'
         description: |

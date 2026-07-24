@@ -94,10 +94,11 @@ tests:
     exp_alerts:
     - exp_labels:
         cluster: "mgmt-1"
-        severity: "3"
-        slo: cluster-provision-errors
+        component: slo
         long_window: 1h
+        severity: "3"
         short_window: 5m
+        slo: cluster-provision-errors
       exp_annotations:
         summary: "mgmt-1: Cluster provisioning error rate critically high (>72%)"
         description: "More than 72% of cluster create (install) operations are in failed state, indicating a fast error budget burn (14.4x) that would exhaust the 95% SLO budget in ~12 hours. A regional install failure of this magnitude typically points at a shared dependency (e.g. registry, DNS, or ARM) rather than individual clusters."
@@ -108,6 +109,7 @@ tests:
     exp_alerts:
     - exp_labels:
         cluster: "mgmt-1"
+        component: slo
         severity: "4"
         slo: cluster-provision-errors
       exp_annotations:
@@ -153,6 +155,7 @@ tests:
     exp_alerts:
     - exp_labels:
         cluster: "mgmt-1"
+        component: slo
         severity: "4"
         slo: cluster-provision-errors
       exp_annotations:
@@ -203,10 +206,11 @@ tests:
     exp_alerts:
     - exp_labels:
         cluster: "mgmt-1"
-        severity: "3"
-        slo: cluster-provision-errors
+        component: slo
         long_window: 6h
+        severity: "3"
         short_window: 30m
+        slo: cluster-provision-errors
       exp_annotations:
         summary: "mgmt-1: Cluster provisioning error rate elevated (>30%) for 30+ minutes"
         description: "More than 30% of cluster create (install) operations are in failed state sustained over 30 minutes, indicating a medium error budget burn (6x) that would exhaust the 95% SLO budget in ~28 hours."

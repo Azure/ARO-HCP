@@ -555,7 +555,8 @@ func TestOptionsGenerate(t *testing.T) {
 											Expr:  intstr.FromString("up == 0"),
 											For:   (*monitoringv1.Duration)(ptr.To("5m")),
 											Labels: map[string]string{
-												"severity": "critical",
+												"severity":  "critical",
+												"component": "test",
 											},
 											Annotations: map[string]string{
 												"summary": "Test alert",
@@ -607,14 +608,16 @@ func TestOptionsGenerate(t *testing.T) {
 											Alert: "AllowedAlert",
 											Expr:  intstr.FromString("up == 0"),
 											Labels: map[string]string{
-												"severity": "critical",
+												"severity":  "critical",
+												"component": "test",
 											},
 										},
 										{
 											Alert: "BlockedAlert",
 											Expr:  intstr.FromString("down == 1"),
 											Labels: map[string]string{
-												"severity": "warning",
+												"severity":  "warning",
+												"component": "test",
 											},
 										},
 									},
@@ -655,7 +658,8 @@ func TestOptionsGenerate(t *testing.T) {
 											Alert: "hostedcluster-KubeAPIServer-ErrorBudgetBurn",
 											Expr:  intstr.FromString("up == 0"),
 											Labels: map[string]string{
-												"severity": "info",
+												"severity":  "info",
+												"component": "test",
 											},
 											Annotations: map[string]string{
 												"summary":       "High KubeAPIServer error budget burn for HostedCluster {{ $labels.name }}",
@@ -701,7 +705,8 @@ func TestOptionsGenerate(t *testing.T) {
 											Alert: "EnrichedAlert",
 											Expr:  intstr.FromString("up == 0"),
 											Labels: map[string]string{
-												"severity": "warning",
+												"severity":  "warning",
+												"component": "test",
 											},
 											Annotations: map[string]string{
 												"summary":     "Pod in namespace {{ $labels.namespace }} is unhealthy",
@@ -750,7 +755,8 @@ func TestOptionsGenerate(t *testing.T) {
 											Alert: "OrderingAlert",
 											Expr:  intstr.FromString("up == 0"),
 											Labels: map[string]string{
-												"severity": "warning",
+												"severity":  "warning",
+												"component": "test",
 											},
 											Annotations: map[string]string{
 												"summary":     "Something is wrong",
@@ -796,7 +802,8 @@ func TestOptionsGenerate(t *testing.T) {
 											Alert: "NoSummaryAlert",
 											Expr:  intstr.FromString("up == 0"),
 											Labels: map[string]string{
-												"severity": "warning",
+												"severity":  "warning",
+												"component": "test",
 											},
 											Annotations: map[string]string{
 												"description": "Pod {{ $labels.namespace }}/{{ $labels.pod }} has issues",
@@ -841,7 +848,8 @@ func TestOptionsGenerate(t *testing.T) {
 											Alert: "AutoExtractAlert",
 											Expr:  intstr.FromString("up == 0"),
 											Labels: map[string]string{
-												"severity": "warning",
+												"severity":  "warning",
+												"component": "test",
 											},
 											Annotations: map[string]string{
 												"summary":     "Pod {{ $labels.pod }} in namespace {{ $labels.namespace }} is down",
@@ -889,7 +897,8 @@ func TestOptionsGenerate(t *testing.T) {
 											Alert: "AutoTitleAlert",
 											Expr:  intstr.FromString("up == 0"),
 											Labels: map[string]string{
-												"severity": "warning",
+												"severity":  "warning",
+												"component": "test",
 											},
 											Annotations: map[string]string{
 												"summary":     "Instance is down",
@@ -936,7 +945,8 @@ func TestOptionsGenerate(t *testing.T) {
 											Alert: "RealAlert",
 											Expr:  intstr.FromString("up == 0"),
 											Labels: map[string]string{
-												"severity": "critical",
+												"severity":  "critical",
+												"component": "test",
 											},
 										},
 									},
@@ -958,7 +968,8 @@ func TestOptionsGenerate(t *testing.T) {
 											Alert: "DependencyAlert",
 											Expr:  intstr.FromString("sum(up)"),
 											Labels: map[string]string{
-												"severity": "warning",
+												"severity":  "warning",
+												"component": "test",
 											},
 										},
 									},
@@ -1005,7 +1016,8 @@ func TestOptionsGenerate(t *testing.T) {
 											Alert: "QuotaAlert",
 											Expr:  intstr.FromString(`kube_resourcequota{job="kube-state-metrics", type="used"} > 0.9`),
 											Labels: map[string]string{
-												"severity": "warning",
+												"severity":  "warning",
+												"component": "test",
 											},
 											Annotations: map[string]string{
 												"summary": "Quota almost full",
@@ -1055,7 +1067,8 @@ func TestOptionsGenerate(t *testing.T) {
 											Alert: "ScopedAlert",
 											Expr:  intstr.FromString(`up{namespace="already-scoped"}`),
 											Labels: map[string]string{
-												"severity": "warning",
+												"severity":  "warning",
+												"component": "test",
 											},
 											Annotations: map[string]string{
 												"summary": "Already scoped alert",

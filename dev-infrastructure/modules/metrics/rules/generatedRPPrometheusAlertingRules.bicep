@@ -29,6 +29,7 @@ resource arohcpAccessClusterSloErrorAlerts 'Microsoft.AlertsManagement/prometheu
         alert: 'userJourneyAccessClusterErrors1h5m'
         enabled: true
         labels: {
+          component: 'slo'
           long_window: '1h'
           severity: '3'
           short_window: '5m'
@@ -59,6 +60,7 @@ resource arohcpAccessClusterSloErrorAlerts 'Microsoft.AlertsManagement/prometheu
         alert: 'userJourneyAccessClusterErrors6h30m'
         enabled: true
         labels: {
+          component: 'slo'
           long_window: '6h'
           severity: '3'
           short_window: '30m'
@@ -89,6 +91,7 @@ resource arohcpAccessClusterSloErrorAlerts 'Microsoft.AlertsManagement/prometheu
         alert: 'userJourneyAccessClusterErrors3d'
         enabled: true
         labels: {
+          component: 'slo'
           long_window: '3d'
           severity: '4'
           slo: 'access-cluster-errors'
@@ -118,6 +121,7 @@ resource arohcpAccessClusterSloErrorAlerts 'Microsoft.AlertsManagement/prometheu
         alert: 'userJourneyAccessClusterErrorsDegradation'
         enabled: true
         labels: {
+          component: 'slo'
           severity: '4'
           slo: 'access-cluster-errors'
         }
@@ -146,6 +150,7 @@ resource arohcpAccessClusterSloErrorAlerts 'Microsoft.AlertsManagement/prometheu
         alert: 'userJourneyAccessClusterStuckOperation'
         enabled: true
         labels: {
+          component: 'slo'
           severity: '4'
         }
         annotations: {
@@ -186,6 +191,7 @@ resource arohcpAccessClusterSaturationAlerts 'Microsoft.AlertsManagement/prometh
         alert: 'userJourneyAccessClusterSaturationQueueDepth'
         enabled: true
         labels: {
+          component: 'slo'
           severity: '4'
         }
         annotations: {
@@ -213,6 +219,7 @@ resource arohcpAccessClusterSaturationAlerts 'Microsoft.AlertsManagement/prometh
         alert: 'userJourneyAccessClusterSaturationRetryHotLoop'
         enabled: true
         labels: {
+          component: 'slo'
           severity: '4'
         }
         annotations: {
@@ -253,6 +260,7 @@ resource arohcpClusterProvisionSloErrorAlerts 'Microsoft.AlertsManagement/promet
         alert: 'UJClusterProvisionErrors1h5m'
         enabled: true
         labels: {
+          component: 'slo'
           long_window: '1h'
           severity: '3'
           short_window: '5m'
@@ -283,6 +291,7 @@ resource arohcpClusterProvisionSloErrorAlerts 'Microsoft.AlertsManagement/promet
         alert: 'UJClusterProvisionErrors6h30m'
         enabled: true
         labels: {
+          component: 'slo'
           long_window: '6h'
           severity: '3'
           short_window: '30m'
@@ -313,6 +322,7 @@ resource arohcpClusterProvisionSloErrorAlerts 'Microsoft.AlertsManagement/promet
         alert: 'UJClusterProvisionErrors3d'
         enabled: true
         labels: {
+          component: 'slo'
           long_window: '3d'
           severity: '4'
           slo: 'cluster-provision-errors'
@@ -342,6 +352,7 @@ resource arohcpClusterProvisionSloErrorAlerts 'Microsoft.AlertsManagement/promet
         alert: 'UJClusterProvisionErrorsDegradation'
         enabled: true
         labels: {
+          component: 'slo'
           severity: '4'
           slo: 'cluster-provision-errors'
         }
@@ -383,6 +394,7 @@ resource arohcpNodepoolSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRule
         alert: 'UJNodePoolErrors1h5m'
         enabled: true
         labels: {
+          component: 'slo'
           long_window: '1h'
           severity: 'info'
           short_window: '5m'
@@ -413,6 +425,7 @@ resource arohcpNodepoolSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRule
         alert: 'UJNodePoolErrors6h30m'
         enabled: true
         labels: {
+          component: 'slo'
           long_window: '6h'
           severity: 'info'
           short_window: '30m'
@@ -443,6 +456,7 @@ resource arohcpNodepoolSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRule
         alert: 'UJNodePoolErrors3d'
         enabled: true
         labels: {
+          component: 'slo'
           long_window: '3d'
           severity: 'info'
           slo: 'nodepool-errors'
@@ -472,6 +486,7 @@ resource arohcpNodepoolSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRule
         alert: 'UJNodePoolErrorsDegradation'
         enabled: true
         labels: {
+          component: 'slo'
           severity: 'info'
           slo: 'nodepool-errors'
         }
@@ -500,6 +515,7 @@ resource arohcpNodepoolSloErrorAlerts 'Microsoft.AlertsManagement/prometheusRule
         alert: 'UJNodePoolStuckOperation'
         enabled: true
         labels: {
+          component: 'slo'
           severity: 'info'
         }
         annotations: {
@@ -540,6 +556,7 @@ resource arohcpNodepoolSaturationAlerts 'Microsoft.AlertsManagement/prometheusRu
         alert: 'UJNodePoolSaturationQueueDepth'
         enabled: true
         labels: {
+          component: 'slo'
           severity: 'info'
         }
         annotations: {
@@ -567,6 +584,7 @@ resource arohcpNodepoolSaturationAlerts 'Microsoft.AlertsManagement/prometheusRu
         alert: 'UJNodePoolSaturationRetryHotLoop'
         enabled: true
         labels: {
+          component: 'slo'
           severity: 'info'
         }
         annotations: {

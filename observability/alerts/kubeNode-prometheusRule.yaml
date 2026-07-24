@@ -6,6 +6,8 @@ metadata:
 spec:
   groups:
   - name: kube-node-rules
+    labels:
+      component: kubernetes-infrastructure
     rules:
     - alert: KubeMemoryPressure
       annotations:

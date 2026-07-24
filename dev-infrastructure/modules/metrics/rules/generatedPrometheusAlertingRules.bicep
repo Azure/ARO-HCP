@@ -29,6 +29,7 @@ resource prometheusWipRules 'Microsoft.AlertsManagement/prometheusRuleGroups@202
         alert: 'PrometheusJobUp'
         enabled: true
         labels: {
+          component: 'monitoring-infrastructure'
           severity: 'critical'
         }
         annotations: {
@@ -62,6 +63,7 @@ Check the status of the Prometheus pods, service endpoints, and network connecti
         alert: 'PrometheusUptime'
         enabled: true
         labels: {
+          component: 'monitoring-infrastructure'
           severity: 'critical'
         }
         annotations: {
@@ -97,6 +99,7 @@ Please check the status of the Prometheus pods, service endpoints, and network c
         alert: 'PrometheusUptimeSampleCount'
         enabled: true
         labels: {
+          component: 'monitoring-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -132,6 +135,7 @@ Check the PrometheusAgent pod status, remote write pipeline, and PodMonitor conf
         alert: 'PrometheusMetricsAbsentPerCluster'
         enabled: true
         labels: {
+          component: 'monitoring-infrastructure'
           severity: 'critical'
         }
         annotations: {
@@ -165,6 +169,7 @@ Check the PrometheusAgent pod status and remote write configuration on the affec
         alert: 'PrometheusPendingRate'
         enabled: true
         labels: {
+          component: 'monitoring-infrastructure'
           severity: 'critical'
         }
         annotations: {
@@ -202,6 +207,7 @@ Investigate the health and performance of the remote storage endpoint, network l
         alert: 'PrometheusFailedRate'
         enabled: true
         labels: {
+          component: 'monitoring-infrastructure'
           severity: 'critical'
         }
         annotations: {
@@ -252,6 +258,7 @@ resource prometheusRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
         alert: 'PrometheusRemoteStorageFailures'
         enabled: true
         labels: {
+          component: 'monitoring-infrastructure'
           severity: 'critical'
         }
         annotations: {
@@ -279,6 +286,7 @@ resource prometheusRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
         alert: 'PrometheusNotIngestingSamples'
         enabled: true
         labels: {
+          component: 'monitoring-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -306,6 +314,7 @@ resource prometheusRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
         alert: 'PrometheusBadConfig'
         enabled: true
         labels: {
+          component: 'monitoring-infrastructure'
           severity: 'critical'
         }
         annotations: {
@@ -333,6 +342,7 @@ resource prometheusRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
         alert: 'PrometheusScrapeSampleLimitHit'
         enabled: true
         labels: {
+          component: 'monitoring-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -373,6 +383,7 @@ resource prometheusOperatorRules 'Microsoft.AlertsManagement/prometheusRuleGroup
         alert: 'PrometheusOperatorNotReady'
         enabled: true
         labels: {
+          component: 'monitoring-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -400,6 +411,7 @@ resource prometheusOperatorRules 'Microsoft.AlertsManagement/prometheusRuleGroup
         alert: 'PrometheusOperatorRejectedResources'
         enabled: true
         labels: {
+          component: 'monitoring-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -440,6 +452,7 @@ resource frontend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' =
         alert: 'FrontendClusterServiceErrorRate'
         enabled: true
         labels: {
+          component: 'frontend'
           severity: 'info'
         }
         annotations: {
@@ -467,6 +480,7 @@ resource frontend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' =
         alert: 'FrontendHighAuditLogErrorRate'
         enabled: true
         labels: {
+          component: 'frontend'
           severity: 'info'
         }
         annotations: {
@@ -494,6 +508,7 @@ resource frontend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' =
         alert: 'FrontendAuditLogConnectionDegraded'
         enabled: true
         labels: {
+          component: 'frontend'
           severity: 'info'
         }
         annotations: {
@@ -521,6 +536,7 @@ resource frontend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' =
         alert: 'FrontendHttpRequestPanics'
         enabled: true
         labels: {
+          component: 'frontend'
           severity: 'warning'
         }
         annotations: {
@@ -561,6 +577,7 @@ resource backend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = 
         alert: 'BackendControllerQueueDepthHigh'
         enabled: true
         labels: {
+          component: 'backend'
           severity: 'warning'
         }
         annotations: {
@@ -588,6 +605,7 @@ resource backend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = 
         alert: 'BackendControllerPanic'
         enabled: true
         labels: {
+          component: 'backend'
           severity: 'warning'
         }
         annotations: {
@@ -615,6 +633,7 @@ resource backend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = 
         alert: 'OrphanedMRGDetected'
         enabled: true
         labels: {
+          component: 'backend'
           severity: 'warning'
         }
         annotations: {
@@ -642,6 +661,7 @@ resource backend 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = 
         alert: 'OrphanedMRGDeletionFailing'
         enabled: true
         labels: {
+          component: 'backend'
           severity: 'warning'
         }
         annotations: {
@@ -682,6 +702,7 @@ resource backendAsyncOperations 'Microsoft.AlertsManagement/prometheusRuleGroups
         alert: 'BackendAsyncOperationClusterCreateStuck'
         enabled: true
         labels: {
+          component: 'backend'
           severity: '3'
         }
         annotations: {
@@ -708,6 +729,7 @@ resource backendAsyncOperations 'Microsoft.AlertsManagement/prometheusRuleGroups
         alert: 'BackendAsyncOperationClusterUpdateStuck'
         enabled: true
         labels: {
+          component: 'backend'
           severity: '3'
         }
         annotations: {
@@ -734,6 +756,7 @@ resource backendAsyncOperations 'Microsoft.AlertsManagement/prometheusRuleGroups
         alert: 'BackendAsyncOperationClusterDeleteStuck'
         enabled: true
         labels: {
+          component: 'backend'
           severity: '3'
         }
         annotations: {
@@ -760,6 +783,7 @@ resource backendAsyncOperations 'Microsoft.AlertsManagement/prometheusRuleGroups
         alert: 'BackendAsyncOperationCredentialRequestStuck'
         enabled: true
         labels: {
+          component: 'backend'
           severity: '3'
         }
         annotations: {
@@ -786,6 +810,7 @@ resource backendAsyncOperations 'Microsoft.AlertsManagement/prometheusRuleGroups
         alert: 'BackendAsyncOperationCredentialRevokeStuck'
         enabled: true
         labels: {
+          component: 'backend'
           severity: '3'
         }
         annotations: {
@@ -812,6 +837,7 @@ resource backendAsyncOperations 'Microsoft.AlertsManagement/prometheusRuleGroups
         alert: 'BackendAsyncOperationNodePoolCreateStuck'
         enabled: true
         labels: {
+          component: 'backend'
           severity: '3'
         }
         annotations: {
@@ -838,6 +864,7 @@ resource backendAsyncOperations 'Microsoft.AlertsManagement/prometheusRuleGroups
         alert: 'BackendAsyncOperationNodePoolUpdateStuck'
         enabled: true
         labels: {
+          component: 'backend'
           severity: '3'
         }
         annotations: {
@@ -864,6 +891,7 @@ resource backendAsyncOperations 'Microsoft.AlertsManagement/prometheusRuleGroups
         alert: 'BackendAsyncOperationNodePoolDeleteStuck'
         enabled: true
         labels: {
+          component: 'backend'
           severity: '3'
         }
         annotations: {
@@ -890,6 +918,7 @@ resource backendAsyncOperations 'Microsoft.AlertsManagement/prometheusRuleGroups
         alert: 'BackendAsyncOperationExternalAuthCreateStuck'
         enabled: true
         labels: {
+          component: 'backend'
           severity: '3'
         }
         annotations: {
@@ -916,6 +945,7 @@ resource backendAsyncOperations 'Microsoft.AlertsManagement/prometheusRuleGroups
         alert: 'BackendAsyncOperationExternalAuthUpdateStuck'
         enabled: true
         labels: {
+          component: 'backend'
           severity: '3'
         }
         annotations: {
@@ -942,6 +972,7 @@ resource backendAsyncOperations 'Microsoft.AlertsManagement/prometheusRuleGroups
         alert: 'BackendAsyncOperationExternalAuthDeleteStuck'
         enabled: true
         labels: {
+          component: 'backend'
           severity: '3'
         }
         annotations: {
@@ -968,6 +999,7 @@ resource backendAsyncOperations 'Microsoft.AlertsManagement/prometheusRuleGroups
         alert: 'BackendAsyncOperationStuck'
         enabled: true
         labels: {
+          component: 'backend'
           severity: '3'
         }
         annotations: {
@@ -1007,6 +1039,7 @@ resource fleet 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
         alert: 'FleetControllerRetryHotLoop'
         enabled: true
         labels: {
+          component: 'fleet'
           severity: 'warning'
         }
         annotations: {
@@ -1034,6 +1067,7 @@ resource fleet 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
         alert: 'FleetControllerQueueDepthHigh'
         enabled: true
         labels: {
+          component: 'fleet'
           severity: 'warning'
         }
         annotations: {
@@ -1061,6 +1095,7 @@ resource fleet 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
         alert: 'FleetControllerPanic'
         enabled: true
         labels: {
+          component: 'fleet'
           severity: 'warning'
         }
         annotations: {
@@ -1101,6 +1136,7 @@ resource adminApi 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' =
         alert: 'AdminHighAuditLogErrorRate'
         enabled: true
         labels: {
+          component: 'admin'
           severity: 'info'
         }
         annotations: {
@@ -1128,6 +1164,7 @@ resource adminApi 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' =
         alert: 'AdminAuditLogConnectionDegraded'
         enabled: true
         labels: {
+          component: 'admin'
           severity: 'info'
         }
         annotations: {
@@ -1168,6 +1205,7 @@ resource maestro 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = 
         alert: 'MaestroGRPCSourceClientExcessConnections'
         enabled: true
         labels: {
+          component: 'maestro'
           severity: 'warning'
         }
         annotations: {
@@ -1195,6 +1233,7 @@ resource maestro 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = 
         alert: 'MaestroRESTAPIErrorRate'
         enabled: true
         labels: {
+          component: 'maestro'
           severity: 'warning'
         }
         annotations: {
@@ -1222,6 +1261,7 @@ resource maestro 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = 
         alert: 'MaestroGRPCServerErrorRate'
         enabled: true
         labels: {
+          component: 'maestro'
           severity: 'warning'
         }
         annotations: {
@@ -1249,6 +1289,7 @@ resource maestro 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = 
         alert: 'MaestroSpecControllerReconcileErrors'
         enabled: true
         labels: {
+          component: 'maestro'
           severity: 'warning'
         }
         annotations: {
@@ -1276,6 +1317,7 @@ resource maestro 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = 
         alert: 'MaestroServerNoReadyReplicas'
         enabled: true
         labels: {
+          component: 'maestro'
           severity: 'critical'
         }
         annotations: {
@@ -1303,6 +1345,7 @@ resource maestro 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = 
         alert: 'MaestroServerReplicaNotReady'
         enabled: true
         labels: {
+          component: 'maestro'
           severity: 'warning'
         }
         annotations: {
@@ -1330,6 +1373,7 @@ resource maestro 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = 
         alert: 'MaestroPostgresNotificationQueueUsageHigh'
         enabled: true
         labels: {
+          component: 'maestro'
           severity: 'warning'
         }
         annotations: {
@@ -1357,6 +1401,7 @@ resource maestro 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = 
         alert: 'MaestroWorkqueueDepthHigh'
         enabled: true
         labels: {
+          component: 'maestro'
           severity: 'warning'
         }
         annotations: {
@@ -1384,6 +1429,7 @@ resource maestro 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = 
         alert: 'MaestroEventStuckUnreconciled'
         enabled: true
         labels: {
+          component: 'maestro'
           severity: 'warning'
         }
         annotations: {
@@ -1424,6 +1470,7 @@ resource arobitRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01
         alert: 'ArobitForwarderJobUp'
         enabled: true
         labels: {
+          component: 'monitoring-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -1453,6 +1500,7 @@ resource arobitRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01
         alert: 'FluentBitIngestionPaused'
         enabled: true
         labels: {
+          component: 'monitoring-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -1486,6 +1534,7 @@ Investigate the Fluent Bit logs for the specific error details and check the Kus
         alert: 'FluentBitHighOutputRetries'
         enabled: true
         labels: {
+          component: 'monitoring-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -1519,6 +1568,7 @@ Investigate the Fluent Bit logs for the specific error details and check the Kus
         alert: 'FluentBitOutputErrors'
         enabled: true
         labels: {
+          component: 'monitoring-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -1550,6 +1600,7 @@ Investigate the Fluent Bit logs for the specific error details and check the Kus
         alert: 'FluentBitOutputRetriesExhausted'
         enabled: true
         labels: {
+          component: 'monitoring-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -1594,6 +1645,7 @@ resource serviceTagCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroup
         alert: 'AroHcpNonprodInboundCustomerapiCapacity'
         enabled: true
         labels: {
+          component: 'network-capacity'
           severity: 'info'
           team: 'hcp-sl'
         }
@@ -1623,6 +1675,7 @@ resource serviceTagCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroup
         alert: 'AroHcpNonprodInboundSvcCapacity'
         enabled: true
         labels: {
+          component: 'network-capacity'
           severity: 'info'
           team: 'hcp-sl'
         }
@@ -1652,6 +1705,7 @@ resource serviceTagCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroup
         alert: 'AroHcpNonprodOutboundCxCapacity'
         enabled: true
         labels: {
+          component: 'network-capacity'
           severity: 'info'
           team: 'hcp-sl'
         }
@@ -1681,6 +1735,7 @@ resource serviceTagCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroup
         alert: 'AroHcpNonprodOutboundSvcCapacity'
         enabled: true
         labels: {
+          component: 'network-capacity'
           severity: 'info'
           team: 'hcp-sl'
         }
@@ -1710,6 +1765,7 @@ resource serviceTagCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroup
         alert: 'AroHcpProdInboundCustomerapiCapacity'
         enabled: true
         labels: {
+          component: 'network-capacity'
           severity: 'info'
           team: 'hcp-sl'
         }
@@ -1739,6 +1795,7 @@ resource serviceTagCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroup
         alert: 'AroHcpProdInboundCustomerapiUswest2Capacity'
         enabled: true
         labels: {
+          component: 'network-capacity'
           severity: 'info'
           team: 'hcp-sl'
         }
@@ -1768,6 +1825,7 @@ resource serviceTagCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroup
         alert: 'AroHcpProdInboundCxCapacity'
         enabled: true
         labels: {
+          component: 'network-capacity'
           severity: 'info'
           team: 'hcp-sl'
         }
@@ -1797,6 +1855,7 @@ resource serviceTagCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroup
         alert: 'AroHcpProdInboundSvcCapacity'
         enabled: true
         labels: {
+          component: 'network-capacity'
           severity: 'info'
           team: 'hcp-sl'
         }
@@ -1826,6 +1885,7 @@ resource serviceTagCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroup
         alert: 'AroHcpProdOutboundCxCapacity'
         enabled: true
         labels: {
+          component: 'network-capacity'
           severity: 'info'
           team: 'hcp-sl'
         }
@@ -1855,6 +1915,7 @@ resource serviceTagCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroup
         alert: 'AroHcpProdOutboundSvcCapacity'
         enabled: true
         labels: {
+          component: 'network-capacity'
           severity: 'info'
           team: 'hcp-sl'
         }
@@ -1897,6 +1958,7 @@ resource hcpTestClustersRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2
         alert: 'HCPClusterOlderThan3Hours'
         enabled: true
         labels: {
+          component: 'test-clusters'
           severity: '3'
         }
         annotations: {
@@ -1926,6 +1988,7 @@ resource hcpTestClustersRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2
         alert: 'ProdE2EHCPClusterOlderThan3Hours'
         enabled: true
         labels: {
+          component: 'test-clusters'
           severity: '3'
         }
         annotations: {
@@ -1968,6 +2031,7 @@ resource kubeContainerOomRules 'Microsoft.AlertsManagement/prometheusRuleGroups@
         alert: 'KubeContainerOOMKilled'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -2007,6 +2071,7 @@ resource kubeNodeRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-
         alert: 'KubeMemoryPressure'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -2033,6 +2098,7 @@ resource kubeNodeRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-
         alert: 'NodeConntrackTableSaturation'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -2072,6 +2138,7 @@ resource imageRegistryPolicy 'Microsoft.AlertsManagement/prometheusRuleGroups@20
         alert: 'ImageRegistryPolicyDenied'
         enabled: true
         labels: {
+          component: 'image-registry-policy'
           severity: 'warning'
         }
         annotations: {
@@ -2099,6 +2166,7 @@ resource imageRegistryPolicy 'Microsoft.AlertsManagement/prometheusRuleGroups@20
         alert: 'ImageRegistryPolicyAuditViolation'
         enabled: true
         labels: {
+          component: 'image-registry-policy'
           severity: 'info'
         }
         annotations: {
@@ -2139,6 +2207,7 @@ resource kustoLogsAgeRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
         alert: 'KustoLogsDataStale'
         enabled: true
         labels: {
+          component: 'kusto'
           severity: 'warning'
         }
         annotations: {
@@ -2181,6 +2250,7 @@ resource leaderelection 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03
         alert: 'LeaderElectionLeaseStale'
         enabled: true
         labels: {
+          component: 'leader-election'
           severity: 'warning'
         }
         annotations: {
@@ -2208,6 +2278,7 @@ resource leaderelection 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03
         alert: 'LeaderElectionLeaseStaleCritical'
         enabled: true
         labels: {
+          component: 'leader-election'
           severity: 'critical'
         }
         annotations: {

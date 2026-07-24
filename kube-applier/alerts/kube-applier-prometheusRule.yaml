@@ -11,6 +11,8 @@ metadata:
 spec:
   groups:
   - name: kube-applier
+    labels:
+      component: kube-applier
     rules:
     - alert: KubeApplierDesiresMetricNotPresent
       # Fires when at least one instance of kube-applier is running but the kube_applier_desires metric is not present for 5 minutes.

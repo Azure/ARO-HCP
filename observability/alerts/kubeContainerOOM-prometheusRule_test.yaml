@@ -13,13 +13,14 @@ tests:
     exp_alerts:
     - exp_labels:
         alertname: KubeContainerOOMKilled
-        severity: warning
         cluster: svc-1
+        component: kubernetes-infrastructure
+        container: frontend
+        job: kube-state-metrics
         namespace: aro-hcp
         pod: frontend-abc-12345
-        container: frontend
         reason: OOMKilled
-        job: kube-state-metrics
+        severity: warning
       exp_annotations:
         summary: "Container frontend was OOMKilled"
         description: "Container frontend in pod aro-hcp/frontend-abc-12345 on cluster svc-1 has been OOMKilled. This indicates the container exceeded its memory limit and was terminated by the kernel."

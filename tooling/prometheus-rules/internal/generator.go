@@ -549,6 +549,9 @@ param location string = resourceGroup().location
 					if err != nil {
 						return fmt.Errorf("alert %q: %w", rule.Alert, err)
 					}
+					if err := requireLabel(labels, "component", rule.Alert, group.Name); err != nil {
+						return err
+					}
 					armGroup.Properties.Rules = append(armGroup.Properties.Rules, &armprometheusrulegroups.PrometheusRule{
 						Alert:       ptr.To(rule.Alert),
 						Enabled:     ptr.To(true),
@@ -759,6 +762,14 @@ func parseToAzureDurationString(d *monitoringv1.Duration) *string {
 
 	// TODO: this is likely not precisely correct, but /shrug
 	return ptr.To("PT" + strings.ToUpper(parsedDuration.String()))
+}
+
+func requireLabel(labels map[string]*string, name, alert, group string) error {
+	v, ok := labels[name]
+	if !ok || v == nil || *v == "" {
+		return fmt.Errorf("alert %q in group %q: missing required %q label (set at group or rule level)", alert, group, name)
+	}
+	return nil
 }
 
 func severityFor(labels map[string]*string) (*int32, error) {

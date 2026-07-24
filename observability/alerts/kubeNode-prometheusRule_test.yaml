@@ -13,10 +13,11 @@ tests:
     exp_alerts:
     - exp_labels:
         alertname: KubeMemoryPressure
-        severity: warning
         cluster: svc-1
-        node: node-1
+        component: kubernetes-infrastructure
         condition: MemoryPressure
+        node: node-1
+        severity: warning
         status: "true"
       exp_annotations:
         summary: "Node under memory pressure"
@@ -52,10 +53,11 @@ tests:
     exp_alerts:
     - exp_labels:
         alertname: NodeConntrackTableSaturation
-        severity: warning
         cluster: mgmt-1
+        component: kubernetes-infrastructure
         instance: 10.0.0.4:9100
         job: node
+        severity: warning
       exp_annotations:
         summary: "Node conntrack table approaching capacity"
         description: "Node 10.0.0.4:9100 on cluster mgmt-1 has its netfilter conntrack table 90% full (nf_conntrack_max). Sustained saturation leads to 'nf_conntrack: table full, dropping packet' (ConntrackFull), which times out kubelet/DNS/IMDS traffic and degrades node health. Consider a larger SKU (nf_conntrack_max = 32768 x vCPU) or scaling the pool out."
