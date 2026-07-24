@@ -21,6 +21,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/blang/semver/v4"
+
 	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	hsv1beta1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
@@ -171,6 +173,21 @@ func (c *createClusterScopedReadDesiresSyncer) SyncOnce(ctx context.Context, key
 		),
 	}
 
+	controlPlaneNamespace := serviceProviderCluster.Status.ControlPlaneNamespace
+	if len(controlPlaneNamespace) > 0 {
+		atLeast420, err := clusterVersionAtLeast(existingCluster.CustomerProperties.Version.ID, minServingCAOCPVersion)
+		if err != nil {
+			return utils.TrackError(fmt.Errorf("failed to evaluate cluster version for serving CA ReadDesire: %w", err))
+		}
+		if atLeast420 {
+			desiredReadDesires = append(desiredReadDesires, buildReadDesire(
+				kubeapplier.ToClusterScopedReadDesireResourceIDString(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, kubeapplierhelpers.ReadDesireNameServingCA),
+				mcResourceID,
+				servingCATarget(controlPlaneNamespace),
+			))
+		}
+	}
+
 	var errs []error
 	for _, desired := range desiredReadDesires {
 		if err := c.ensureReadDesire(ctx, crud, desired); err != nil {
@@ -212,6 +229,36 @@ func clusterAutoscalerTarget(envIdentifier, csClusterID, csClusterDomainPrefix s
 		Namespace: hostedControlPlaneNamespace(envIdentifier, csClusterID, csClusterDomainPrefix),
 		Name:      "cluster-autoscaler",
 	}
+}
+
+const (
+	servingCATLSSecretName = "kube-apiserver-tls-cert"
+	minServingCAOCPVersion = "4.20"
+)
+
+func servingCATarget(controlPlaneNamespace string) kubeapplier.ResourceReference {
+	return kubeapplier.ResourceReference{
+		Group:     "",
+		Version:   "v1",
+		Resource:  "secrets",
+		Namespace: controlPlaneNamespace,
+		Name:      servingCATLSSecretName,
+	}
+}
+
+func clusterVersionAtLeast(versionID, minVersion string) (bool, error) {
+	if len(versionID) == 0 {
+		return false, nil
+	}
+	current, err := semver.ParseTolerant(versionID)
+	if err != nil {
+		return false, fmt.Errorf("failed to parse cluster version %q: %w", versionID, err)
+	}
+	minimum, err := semver.ParseTolerant(minVersion)
+	if err != nil {
+		return false, fmt.Errorf("failed to parse minimum version %q: %w", minVersion, err)
+	}
+	return current.GE(minimum), nil
 }
 
 // buildReadDesire produces the desired-state ReadDesire for writeReadDesire.
