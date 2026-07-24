@@ -27,6 +27,10 @@ import (
 )
 
 var _ = Describe("Customer", func() {
+	// This test currently works around an upstream bug in Cilium: https://github.com/cilium/cilium/issues/45792
+	// The hard-coded NodePort collides with dynamically-allocated ports on the kube-apiserver's NodePort range (30000-32767), most commonly with the OpenShift ingress operator's router-default healthCheckNodePort. Around 1/2768 cluster installs are impacted. When port collision occurs, the test fails with "provided port is already allocated". This fix eliminates the collision; the affected probes now test connectivity via ClusterIP rather than NodePort.
+	// Note that the upstream bug in Cilium still exists. If we update the probe manifests in the future (currently located at test/util/verifiers/artifacts/cilium-connectivity-check-1.19.2), this patch will have to be applied again until the bug in Cilium is remediated.
+	// See this PR for an example of how to modify the probe manifests: https://github.com/Azure/ARO-HCP/pull/5934
 	It("should be able to create a HCP cluster and use cilium CNI plugin",
 		labels.RequireNothing,
 		labels.Critical,
