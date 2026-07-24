@@ -154,30 +154,9 @@ func TestCreateClusterScopedReadDesires_SyncOnce(t *testing.T) {
 			},
 		},
 		{
-			name: "creates cluster-autoscaler ReadDesire even when cluster version is below 4.20",
+			name: "creates serving CA ReadDesire when ControlPlaneNamespace is set",
 			resources: []any{
-				newTestCluster(func(c *api.HCPOpenShiftCluster) {
-					c.CustomerProperties.Version.ID = "4.19.0"
-				}),
-			},
-			cachedServiceProviderCluster: newTestSPC(readDesireTestManagementClusterResourceID),
-			verifyDB: func(t *testing.T, ctx context.Context, kaClient *databasetesting.MockKubeApplierDBClient) {
-				t.Helper()
-				crud, err := kaClient.ReadDesiresForCluster(readDesireTestSubscriptionID, readDesireTestResourceGroupName, readDesireTestClusterName)
-				require.NoError(t, err)
-
-				_, err = crud.Get(ctx, readDesireNameReadonlyHostedCluster)
-				require.NoError(t, err)
-
-				autoscalerRD, err := crud.Get(ctx, kubeapplierhelpers.ReadDesireNameReadonlyHypershiftControlPlaneComponentClusterAutoscaler)
-				require.NoError(t, err)
-				assert.Equal(t, clusterAutoscalerTarget(readDesireTestEnvIdentifier, "abc123", readDesireTestDomainPrefix), autoscalerRD.Spec.TargetItem)
-			},
-		},
-		{
-			name: "creates serving CA ReadDesire when version >= 4.20 and ControlPlaneNamespace is set",
-			resources: []any{
-				newTestCluster(), // defaults to version 4.20.0
+				newTestCluster(),
 			},
 			cachedServiceProviderCluster: newTestSPC(readDesireTestManagementClusterResourceID, func(spc *api.ServiceProviderCluster) {
 				spc.Status.ControlPlaneNamespace = readDesireTestControlPlaneNS
@@ -195,7 +174,11 @@ func TestCreateClusterScopedReadDesires_SyncOnce(t *testing.T) {
 			},
 		},
 		{
-			name: "does not create serving CA ReadDesire when version < 4.20 even if ControlPlaneNamespace is set",
+			// Regression: the serving CA ReadDesire used to be gated on a
+			// minimum OpenShift version. That gate has been removed, so the
+			// serving CA (and the HostedCluster and cluster-autoscaler
+			// ReadDesires) must be created regardless of the cluster version.
+			name: "creates serving CA ReadDesire regardless of cluster version when ControlPlaneNamespace is set",
 			resources: []any{
 				newTestCluster(func(c *api.HCPOpenShiftCluster) {
 					c.CustomerProperties.Version.ID = "4.19.0"
@@ -209,19 +192,22 @@ func TestCreateClusterScopedReadDesires_SyncOnce(t *testing.T) {
 				crud, err := kaClient.ReadDesiresForCluster(readDesireTestSubscriptionID, readDesireTestResourceGroupName, readDesireTestClusterName)
 				require.NoError(t, err)
 
-				// The serving CA ReadDesire must not be created below 4.20.
-				_, err = crud.Get(ctx, kubeapplierhelpers.ReadDesireNameServingCA)
-				require.Error(t, err)
+				servingCARD, err := crud.Get(ctx, kubeapplierhelpers.ReadDesireNameServingCA)
+				require.NoError(t, err)
+				assert.Equal(t, servingCATarget(readDesireTestControlPlaneNS), servingCARD.Spec.TargetItem)
 
-				// The HostedCluster ReadDesire is still created regardless of version.
 				_, err = crud.Get(ctx, readDesireNameReadonlyHostedCluster)
 				require.NoError(t, err)
+
+				autoscalerRD, err := crud.Get(ctx, kubeapplierhelpers.ReadDesireNameReadonlyHypershiftControlPlaneComponentClusterAutoscaler)
+				require.NoError(t, err)
+				assert.Equal(t, clusterAutoscalerTarget(readDesireTestEnvIdentifier, "abc123", readDesireTestDomainPrefix), autoscalerRD.Spec.TargetItem)
 			},
 		},
 		{
 			name: "does not create serving CA ReadDesire when ControlPlaneNamespace is not set",
 			resources: []any{
-				newTestCluster(), // version 4.20.0 but no ControlPlaneNamespace on SPC
+				newTestCluster(), // no ControlPlaneNamespace on SPC
 			},
 			cachedServiceProviderCluster: newTestSPC(readDesireTestManagementClusterResourceID),
 			verifyDB: func(t *testing.T, ctx context.Context, kaClient *databasetesting.MockKubeApplierDBClient) {

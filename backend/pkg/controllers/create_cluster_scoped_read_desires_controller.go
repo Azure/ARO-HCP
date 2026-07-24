@@ -173,17 +173,11 @@ func (c *createClusterScopedReadDesiresSyncer) SyncOnce(ctx context.Context, key
 
 	controlPlaneNamespace := serviceProviderCluster.Status.ControlPlaneNamespace
 	if len(controlPlaneNamespace) > 0 {
-		atLeast420, err := controllerutils.ClusterVersionAtLeast(existingCluster.CustomerProperties.Version.ID, controllerutils.MinServingCAOCPVersion)
-		if err != nil {
-			return utils.TrackError(fmt.Errorf("failed to evaluate cluster version for serving CA ReadDesire: %w", err))
-		}
-		if atLeast420 {
-			desiredReadDesires = append(desiredReadDesires, buildReadDesire(
-				kubeapplier.ToClusterScopedReadDesireResourceIDString(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, kubeapplierhelpers.ReadDesireNameServingCA),
-				mcResourceID,
-				servingCATarget(controlPlaneNamespace),
-			))
-		}
+		desiredReadDesires = append(desiredReadDesires, buildReadDesire(
+			kubeapplier.ToClusterScopedReadDesireResourceIDString(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, kubeapplierhelpers.ReadDesireNameServingCA),
+			mcResourceID,
+			servingCATarget(controlPlaneNamespace),
+		))
 	}
 
 	var errs []error
