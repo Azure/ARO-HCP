@@ -162,7 +162,7 @@ param serviceKeyVaultAsignNSP = {{ .serviceKeyVault.assignNSP }}
 param genevaRpLogsName = '{{ .geneva.logs.rp.secretName }}'
 
 // Alert rules tag value
-param owningTeamTagValue = '{{ .monitoring.alertRuleOwningTeamTag }}'
+param aksClusterTags = '{{ .svc.aks.tags }},owningTeam={{ .monitoring.alertRuleOwningTeamTag }}'
 
 
 param resourceContainerMaxScale = {{ .frontend.cosmosDB.resourceContainerMaxScale }}

@@ -411,8 +411,8 @@ param fleetNamespace string
 @description('The service account name of the Fleet managed identity')
 param fleetServiceAccountName string
 
-@description('The cluster tag value for the owning team')
-param owningTeamTagValue string
+@description('CSV of key=value tag pairs for the AKS cluster resource')
+param aksClusterTags string
 
 @description('CoscmosDB autoscaling parameters')
 param resourceContainerMaxScale int
@@ -652,7 +652,7 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
     vnetName: vnetName
     nodeSubnetId: nodeSubnetCreation.outputs.subnetId
     podSubnetPrefix: podSubnetPrefix
-    clusterType: 'svc-cluster'
+    aksClusterTags: aksClusterTags
     userOsDiskSizeGB: userOsDiskSizeGB
     userAgentPoolName: userAgentPoolName
     userAgentMinCount: userAgentMinCount
@@ -693,7 +693,6 @@ module svcCluster '../modules/aks-cluster-base.bicep' = {
     enableSwiftV2Nodepools: false
     upgradeSettingsMaxSurge: aksUpgradeSettingsMaxSurge
     upgradeSettingsMaxUnavailable: aksUpgradeSettingsMaxUnavailable
-    owningTeamTagValue: owningTeamTagValue
     aksClusterUserDefinedManagedIdentityName: aksClusterUserDefinedManagedIdentity.name
   }
   dependsOn: [
