@@ -16,6 +16,10 @@ package api
 
 import "time"
 
+type HCPOpenShiftClusterAdminCredentialRequest struct {
+	CertificateRequest string `json:"certificateRequest,omitempty"`
+}
+
 // HCPOpenShiftClusterAdminCredential represents a temporary admin
 // credential for an ARO HCP OpenShift cluster.
 type HCPOpenShiftClusterAdminCredential struct {

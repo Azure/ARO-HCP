@@ -92,6 +92,9 @@ type Operation struct {
 	// This will be removed once all clusters whose deletion was triggered before the new approach is fully rolled out have been
 	// fully deleted in all ARO-HCP permanent environments, for all regions.
 	UsesNewClusterDeletionApproach bool `json:"usesNewClusterDeletionApproach"`
+
+	// Written by: Frontend POST requestAdminCredential
+	CertificateRequest string `json:"certificateRequest,omitempty"`
 }
 
 func (o *Operation) ComputeLogicalResourceID() *azcorearm.ResourceID {
