@@ -31,7 +31,7 @@ az keyvault secret download \
   --encoding base64
 
 echo "Creating cert"
-openssl pkcs12 -in $PFX -out $CRT -nodes
+openssl pkcs12 -passin pass: -in $PFX -out $CRT -nodes
 
 AZURE_TENANT_ID="64dc69e4-d083-49fc-9569-ebece1dd1408"
 AZURE_SUBSCRIPTION_ID="1d358ef8d-8973-4378-9ba4-3f9027df171b"
