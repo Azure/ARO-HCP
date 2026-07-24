@@ -201,7 +201,7 @@ func (tc *perItOrDescribeTestContext) CreateBicepTemplateAndWait(
 	startTime := time.Now()
 	defer func() {
 		finishTime := time.Now()
-		tc.RecordTestStep(fmt.Sprintf("Deploy ARM template %s/%s", cfg.resourceGroup, cfg.deploymentName), startTime, finishTime)
+		tc.RecordTestStep(StepIDDeployARMTemplate, fmt.Sprintf("Deploy ARM template %s/%s", cfg.resourceGroup, cfg.deploymentName), startTime, finishTime)
 	}()
 	tc.RecordKnownDeployment(cfg.resourceGroup, cfg.deploymentName)
 
@@ -346,7 +346,7 @@ func (tc *perItOrDescribeTestContext) CreateHCPClusterFromParam20240610(
 	startTime := time.Now()
 	defer func() {
 		finishTime := time.Now()
-		tc.RecordTestStep(fmt.Sprintf("Deploy HCP cluster %s/%s", resourceGroupName, clusterName), startTime, finishTime)
+		tc.RecordTestStep(StepIDDeployHCPCluster, fmt.Sprintf("Deploy HCP cluster %s/%s", resourceGroupName, clusterName), startTime, finishTime)
 	}()
 
 	cluster := BuildHCPClusterFromParams20240610(parameters, tc.Location())
@@ -386,7 +386,7 @@ func (tc *perItOrDescribeTestContext) CreateHCPClusterFromParam20251223(
 	startTime := time.Now()
 	defer func() {
 		finishTime := time.Now()
-		tc.RecordTestStep(fmt.Sprintf("Deploy HCP cluster %s/%s (v20251223preview)", resourceGroupName, clusterName), startTime, finishTime)
+		tc.RecordTestStep(StepIDDeployHCPCluster, fmt.Sprintf("Deploy HCP cluster %s/%s (v20251223preview)", resourceGroupName, clusterName), startTime, finishTime)
 	}()
 
 	cluster, err := BuildHCPClusterFromParams20251223(parameters, tc.Location(), imageDigestMirrors)
@@ -426,7 +426,7 @@ func (tc *perItOrDescribeTestContext) CreateNodePoolFromParam20240610(
 	startTime := time.Now()
 	defer func() {
 		finishTime := time.Now()
-		tc.RecordTestStep(fmt.Sprintf("Deploy node pool %s", parameters.NodePoolName), startTime, finishTime)
+		tc.RecordTestStep(StepIDDeployNodePool, fmt.Sprintf("Deploy node pool %s", parameters.NodePoolName), startTime, finishTime)
 	}()
 
 	nodePoolName := parameters.NodePoolName
@@ -500,7 +500,7 @@ func (tc *perItOrDescribeTestContext) CreateNodePoolFromParam20251223(
 	startTime := time.Now()
 	defer func() {
 		finishTime := time.Now()
-		tc.RecordTestStep(fmt.Sprintf("Deploy node pool %s", parameters.NodePoolName), startTime, finishTime)
+		tc.RecordTestStep(StepIDDeployNodePool, fmt.Sprintf("Deploy node pool %s", parameters.NodePoolName), startTime, finishTime)
 	}()
 
 	nodePoolName := parameters.NodePoolName
@@ -577,7 +577,7 @@ func (tc *perItOrDescribeTestContext) CreateHCPClusterFromParam20260630(
 	startTime := time.Now()
 	defer func() {
 		finishTime := time.Now()
-		tc.RecordTestStep(fmt.Sprintf("Deploy HCP cluster %s/%s (v20260630preview)", resourceGroupName, clusterName), startTime, finishTime)
+		tc.RecordTestStep(StepIDDeployHCPCluster, fmt.Sprintf("Deploy HCP cluster %s/%s (v20260630preview)", resourceGroupName, clusterName), startTime, finishTime)
 	}()
 
 	cluster, err := BuildHCPClusterFromParams20260630(parameters, tc.Location(), imageDigestMirrors)
@@ -617,7 +617,7 @@ func (tc *perItOrDescribeTestContext) CreateNodePoolFromParam20260630(
 	startTime := time.Now()
 	defer func() {
 		finishTime := time.Now()
-		tc.RecordTestStep(fmt.Sprintf("Deploy node pool %s", parameters.NodePoolName), startTime, finishTime)
+		tc.RecordTestStep(StepIDDeployNodePool, fmt.Sprintf("Deploy node pool %s", parameters.NodePoolName), startTime, finishTime)
 	}()
 
 	nodePoolName := parameters.NodePoolName

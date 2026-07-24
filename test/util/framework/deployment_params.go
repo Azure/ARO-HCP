@@ -826,7 +826,7 @@ func (tc *perItOrDescribeTestContext) CreateClusterCustomerResources20240610(ctx
 	startTime := time.Now()
 	defer func() {
 		finishTime := time.Now()
-		tc.RecordTestStep(fmt.Sprintf("Deploy customer resources in resource group %s", *resourceGroup.Name), startTime, finishTime)
+		tc.RecordTestStep(StepIDDeployCustomerResources, fmt.Sprintf("Deploy customer resources in resource group %s", *resourceGroup.Name), startTime, finishTime)
 	}()
 
 	// Generate unique deployment names by combining cluster name with random suffix
@@ -887,7 +887,7 @@ func (tc *perItOrDescribeTestContext) CreateClusterCustomerResources20251223(ctx
 	startTime := time.Now()
 	defer func() {
 		finishTime := time.Now()
-		tc.RecordTestStep(fmt.Sprintf("Deploy customer resources in resource group %s", *resourceGroup.Name), startTime, finishTime)
+		tc.RecordTestStep(StepIDDeployCustomerResources, fmt.Sprintf("Deploy customer resources in resource group %s", *resourceGroup.Name), startTime, finishTime)
 	}()
 
 	// Generate unique deployment names by combining cluster name with random suffix
@@ -948,7 +948,7 @@ func (tc *perItOrDescribeTestContext) CreateClusterCustomerResources20260630(ctx
 	startTime := time.Now()
 	defer func() {
 		finishTime := time.Now()
-		tc.RecordTestStep(fmt.Sprintf("Deploy customer resources in resource group %s", *resourceGroup.Name), startTime, finishTime)
+		tc.RecordTestStep(StepIDDeployCustomerResources, fmt.Sprintf("Deploy customer resources in resource group %s", *resourceGroup.Name), startTime, finishTime)
 	}()
 
 	// Generate unique deployment names by combining cluster name with random suffix
