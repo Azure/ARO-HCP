@@ -93,6 +93,10 @@ func NewSwiftNICController(
 		UpdateFunc: func(old, new interface{}) {
 			key, err := cache.MetaNamespaceKeyFunc(new)
 			if err == nil {
+				// UpdateFunc fires on every resync regardless of change; skip a key that's already backing off after a sync error.
+				if c.workqueue.NumRequeues(key) > 0 {
+					return
+				}
 				c.workqueue.Add(key)
 			}
 		},

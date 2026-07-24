@@ -147,8 +147,14 @@ func NewReadDesireKubernetesController(
 	// has it before its reflector pumps the first List response. Adding it
 	// in Run() races with the initial sync.
 	if _, err := c.informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc:    func(obj any) { c.queue.Add(c.key) },
-		UpdateFunc: func(_, _ any) { c.queue.Add(c.key) },
+		AddFunc: func(obj any) { c.queue.Add(c.key) },
+		UpdateFunc: func(_, _ any) {
+			// Skip: key may already be backing off after a sync error; don't let a routine informer resync preempt AddRateLimited's scheduled retry.
+			if c.queue.NumRequeues(c.key) > 0 {
+				return
+			}
+			c.queue.Add(c.key)
+		},
 		DeleteFunc: func(obj any) { c.queue.Add(c.key) },
 	}); err != nil {
 		return nil, fmt.Errorf("register informer handler: %w", err)
@@ -196,6 +202,10 @@ func (c *ReadDesireKubernetesController) Run(ctx context.Context) {
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
+				// Skip the periodic resync tick while the key is already backing off, so this doesn't preempt AddRateLimited's scheduled retry.
+				if c.queue.NumRequeues(c.key) > 0 {
+					continue
+				}
 				c.queue.Add(c.key)
 			}
 		}

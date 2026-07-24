@@ -170,6 +170,10 @@ func (c *UnionKubeApplierInformersController) Run(ctx context.Context, threadine
 		},
 		UpdateFunc: func(_, newObj any) {
 			if k, ok := managementClusterKeyFromEvent(newObj); ok {
+				// Skip: key may already be backing off after a sync error; don't let a routine informer resync preempt AddRateLimited's scheduled retry.
+				if c.queue.NumRequeues(k) > 0 {
+					return
+				}
 				c.queue.Add(k)
 			}
 		},

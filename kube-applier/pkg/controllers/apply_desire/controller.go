@@ -275,6 +275,10 @@ func (c *ApplyDesireController) enqueueWithCooldown(d *kubeapplier.ApplyDesire, 
 	if !cd.CanSync(context.TODO(), key) {
 		return
 	}
+	// Skip: key is already backing off after a sync error, so a routine notification (informer resync/relist replay) must not preempt AddRateLimited's scheduled retry.
+	if c.queue.NumRequeues(key) > 0 {
+		return
+	}
 	c.queue.Add(key)
 }
 

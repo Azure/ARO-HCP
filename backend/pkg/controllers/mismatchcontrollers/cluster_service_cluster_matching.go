@@ -192,7 +192,13 @@ func (c *clusterServiceClusterMatching) Run(ctx context.Context, threadiness int
 	}
 
 	// TODO before switching to a regular informer, build a basic LRU "don't fire unless your cooldown is over"
-	go wait.JitterUntilWithContext(ctx, func(ctx context.Context) { c.queue.Add("default") }, 60*time.Minute, 0.1, true)
+	go wait.JitterUntilWithContext(ctx, func(ctx context.Context) {
+		// Skip the periodic tick while "default" is already backing off, so this doesn't preempt AddRateLimited's scheduled retry.
+		if c.queue.NumRequeues("default") > 0 {
+			return
+		}
+		c.queue.Add("default")
+	}, 60*time.Minute, 0.1, true)
 
 	logger.Info("Started workers")
 
