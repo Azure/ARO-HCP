@@ -1291,7 +1291,7 @@ func TestValidate(t *testing.T) {
 					}, nil)
 			},
 			wantOutcome:         OutcomeTypeFailed,
-			wantInternalMessage: `control plane operators missing required permissions: [{"resource":"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.Network/networkSecurityGroups/test-nsg","identity":"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-operator-identity","decisions":[{"actionId":"placeholder","isDataAction":false,"accessDecision":"NotAllowed"}]}]`,
+			wantInternalMessage: `Control plane operators missing required permissions: [{"resource":"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.Network/networkSecurityGroups/test-nsg","identity":"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-operator-identity","decisions":[{"actionId":"placeholder","isDataAction":false,"accessDecision":"NotAllowed"}]}]`,
 		},
 	}
 

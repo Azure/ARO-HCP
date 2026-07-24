@@ -75,7 +75,7 @@ func (v *ControlPlaneIdentitiesPermissionsClusterValidation) Validate(ctx contex
 	if err != nil {
 		return UnknownValidation(
 			"InternalError",
-			"Failed to build CheckAccessV2 client.",
+			"Unable to verify control plane identities permissions.",
 			fmt.Sprintf("failed to build check access client: %v", err),
 			ControllerReportingPolicyTypeError,
 		)
@@ -86,7 +86,7 @@ func (v *ControlPlaneIdentitiesPermissionsClusterValidation) Validate(ctx contex
 	if err != nil {
 		return UnknownValidation(
 			"InternalError",
-			"Failed to get subnets client.",
+			"Unable to verify control plane identities permissions.",
 			fmt.Sprintf("failed to get subnets client: %v", err),
 			ControllerReportingPolicyTypeError,
 		)
@@ -98,7 +98,7 @@ func (v *ControlPlaneIdentitiesPermissionsClusterValidation) Validate(ctx contex
 	if err != nil {
 		return UnknownValidation(
 			"InternalError",
-			"Failed to get subnet.",
+			"Unable to verify control plane identities permissions.",
 			fmt.Sprintf("failed to get subnet: %v", err),
 			ControllerReportingPolicyTypeError,
 		)
@@ -110,7 +110,7 @@ func (v *ControlPlaneIdentitiesPermissionsClusterValidation) Validate(ctx contex
 		if err != nil {
 			return UnknownValidation(
 				"InternalError",
-				"Failed to find missing actions for identity.",
+				"Unable to verify control plane identities permissions.",
 				fmt.Sprintf("failed to find missing actions for identity %q: %v", operatorName, err),
 				ControllerReportingPolicyTypeError,
 			)
@@ -123,15 +123,16 @@ func (v *ControlPlaneIdentitiesPermissionsClusterValidation) Validate(ctx contex
 		if err != nil {
 			return UnknownValidation(
 				"InternalError",
-				"Failed to marshal missing permissions.",
+				"Unable to verify control plane identities permissions.",
 				fmt.Sprintf("failed to marshal missing permissions: %v", err),
 				ControllerReportingPolicyTypeError,
 			)
 		}
+		internalAndUserMsg := fmt.Sprintf("Control plane operators missing required permissions: %s", string(jsonBytes))
 		return FailedValidation(
-			"InternalError",
-			"Control plane operators missing required permissions.",
-			fmt.Sprintf("control plane operators missing required permissions: %s", string(jsonBytes)),
+			"MissingRequiredPermissions",
+			internalAndUserMsg,
+			internalAndUserMsg,
 		)
 	}
 
