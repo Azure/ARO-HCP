@@ -31,6 +31,8 @@ import (
 	"github.com/Azure/ARO-Tools/pipelines/types"
 	"github.com/Azure/ARO-Tools/tools/cmdutils"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
@@ -57,19 +59,26 @@ func newArmClient(subscriptionID, region string, bicepClient *bicep.LSPClient) (
 	if err != nil {
 		return nil, fmt.Errorf("failed to get credentials: %w", err)
 	}
-	deploymentClient, err := armresources.NewDeploymentsClient(subscriptionID, cred, nil)
+	opts := &azcorearm.ClientOptions{
+		ClientOptions: azcore.ClientOptions{
+			PerCallPolicies: []policy.Policy{
+				newDeploymentNotFoundRetryPolicy(),
+			},
+		},
+	}
+	deploymentClient, err := armresources.NewDeploymentsClient(subscriptionID, cred, opts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create deployment client: %w", err)
 	}
-	operationsClient, err := armresources.NewDeploymentOperationsClient(subscriptionID, cred, nil)
+	operationsClient, err := armresources.NewDeploymentOperationsClient(subscriptionID, cred, opts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create deployment operations client: %w", err)
 	}
-	resourceGroupClient, err := armresources.NewResourceGroupsClient(subscriptionID, cred, nil)
+	resourceGroupClient, err := armresources.NewResourceGroupsClient(subscriptionID, cred, opts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create resource group client: %w", err)
 	}
-	getOperationsClient := NewCachedOperationsClientGetter(subscriptionID, operationsClient, cred, nil)
+	getOperationsClient := NewCachedOperationsClientGetter(subscriptionID, operationsClient, cred, opts)
 	return &armClient{
 		bicepClient:             bicepClient,
 		subscriptionID:          subscriptionID,
