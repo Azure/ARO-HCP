@@ -359,7 +359,6 @@ func GetClusterServiceUserAssignedIdentities(clusterServiceCluster *arohcpv1alph
 }
 
 func convertRpAutoscalarToCSBuilder(in *api.ClusterAutoscalingProfile) (*arohcpv1alpha1.ClusterAutoscalerBuilder, error) {
-
 	// MaxNodeProvisionTime (string) - minutes e.g - “15m”
 	// https://gitlab.cee.redhat.com/service/uhc-clusters-service/-/blob/master/pkg/api/autoscaler.go?ref_type=heads#L30-42
 	maxNodeProvisionDuration, err := time.ParseDuration(fmt.Sprint(in.MaxNodeProvisionTimeSeconds, "s"))
@@ -397,7 +396,7 @@ func convertImageDigestMirrorsToCSBuilder(in []api.ImageDigestMirror) []*arohcpv
 // requiredProperties are caller-specified properties (e.g. provision shard, noop flags).
 // oldClusterServiceCluster, if non-nil, indicates an update and its existing properties
 // are preserved as a base layer.
-func BuildCSCluster(resourceID *azcorearm.ResourceID, tenantID string, hcpCluster *api.HCPOpenShiftCluster, requiredProperties map[string]string, oldClusterServiceCluster *arohcpv1alpha1.Cluster, serviceProviderCluster *api.ServiceProviderCluster) (*arohcpv1alpha1.ClusterBuilder, *arohcpv1alpha1.ClusterAutoscalerBuilder, error) {
+func BuildCSCluster(resourceID *azcorearm.ResourceID, tenantID string, hcpCluster *api.HCPOpenShiftCluster, requiredProperties map[string]string, oldClusterServiceCluster *arohcpv1alpha1.Cluster, serviceProviderCluster *api.ServiceProviderCluster) (*arohcpv1alpha1.ClusterBuilder, error) {
 	var err error
 
 	clusterBuilder := arohcpv1alpha1.NewCluster()
@@ -410,7 +409,7 @@ func BuildCSCluster(resourceID *azcorearm.ResourceID, tenantID string, hcpCluste
 	if oldClusterServiceCluster == nil {
 		csVersionID, err := clusterCSVersionID(serviceProviderCluster, hcpCluster)
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 		clusterBuilder, azureBuilder, err = withImmutableAttributes(clusterBuilder, hcpCluster,
 			resourceID.SubscriptionID,
@@ -420,17 +419,17 @@ func BuildCSCluster(resourceID *azcorearm.ResourceID, tenantID string, hcpCluste
 			csVersionID,
 		)
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 		apiListening, err := convertVisibilityToListening(hcpCluster.CustomerProperties.API.Visibility)
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 		clusterAPIBuilder.Listening(apiListening)
 
 		ingressListening, err := convertIngressTypeToListening(hcpCluster.CustomerProperties.Ingress.Type)
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 		clusterBuilder.Ingresses(arohcpv1alpha1.NewIngressList().Items(
 			arohcpv1alpha1.NewIngress().Default(true).Listening(ingressListening),
@@ -438,7 +437,7 @@ func BuildCSCluster(resourceID *azcorearm.ResourceID, tenantID string, hcpCluste
 
 		etcdEncryption, err := convertEtcdRPToCS(hcpCluster.CustomerProperties.Etcd, clusterKMSActiveKeyBuilder)
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 		azureBuilder.EtcdEncryption(etcdEncryption)
 		clusterBuilder.Azure(azureBuilder)
@@ -461,15 +460,10 @@ func BuildCSCluster(resourceID *azcorearm.ResourceID, tenantID string, hcpCluste
 	clusterUpdateDispatchConfig := clusterUpdateDispatchConfigFromRP(hcpCluster, serviceProviderCluster)
 	err = clusterUpdateDispatchConfig.applyToCSBuilders(clusterBuilder, clusterAPIBuilder, azureBuilder, clusterKMSActiveKeyBuilder, properties)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
-	clusterAutoscalerBuilder, err := clusterUpdateDispatchConfig.autoscalerBuilder()
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return clusterBuilder, clusterAutoscalerBuilder, nil
+	return clusterBuilder, nil
 }
 
 // clusterCSVersionID returns the OpenShift version ID for a new Cluster Service cluster

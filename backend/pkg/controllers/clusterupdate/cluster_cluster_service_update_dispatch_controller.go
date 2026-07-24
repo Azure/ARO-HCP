@@ -44,7 +44,7 @@ import (
 //
 // On each reconcile, the Cluster's state and the live Cluster Service cluster state
 // are projected into ocm.clusterUpdateDispatchConfig. When the projections from both sides
-// differ, it PATCHes Cluster Service (autoscaler first, then cluster).
+// differ, it PATCHes Cluster Service
 //
 // Dispatch is paired with operation state calculation in operationcontrollers
 // (operation_cluster_update_state_calculation.go): dispatch sends updates, operation state
@@ -212,47 +212,10 @@ func (c *clusterClusterServiceUpdateDispatchSyncer) SyncOnce(ctx context.Context
 		"configDiff", configDiff,
 	)
 
-	csClusterBuilder, csAutoscalerBuilder, err := ocm.BuildCSCluster(cluster.ID, *subscription.Properties.TenantId, cluster, nil, clusterServiceCluster, serviceProviderCluster)
+	csClusterBuilder, err := ocm.BuildCSCluster(cluster.ID, *subscription.Properties.TenantId, cluster, nil, clusterServiceCluster, serviceProviderCluster)
 	if err != nil {
 		return utils.TrackError(fmt.Errorf("failed to build CS cluster: %w", err))
 	}
-
-	// We marshal the autoscaler CS builder config we are going to submit for cs cluster autoscaler update for logging purposes
-	clusterAutoscalerPayload, err := c.marshalClusterServiceClusterAutoscalerUpdatePayload(csAutoscalerBuilder)
-	if err != nil {
-		return utils.TrackError(fmt.Errorf("failed to marshal Cluster Service autoscaler update payload: %w", err))
-	}
-
-	logger.Info("dispatching cluster autoscaler update to Cluster Service",
-		"clusterServiceID", clusterCSID.String(),
-		"clusterServiceClusterAutoscalerPayload", clusterAutoscalerPayload,
-	)
-
-	_, err = c.clusterServiceClient.UpdateClusterAutoscaler(ctx, *clusterCSID, csAutoscalerBuilder)
-	if err != nil {
-		var ocmError *ocmerrors.Error
-		// XXX Matching an error message is brittle, but Clusters Service
-		//     returns 400 Bad Request for a wide range of errors and there
-		//     is no other information in the response to distinguish them.
-		//
-		//     If the error is indicating that a the cluster autoscaler is not in
-		//     an updatable state, we return without error and retry again on the
-		//     next sync. This can happen for example when the CS cluster is still in
-		//     the initial creation process.
-		if errors.As(err, &ocmError) && ocmError.Status() == http.StatusBadRequest &&
-			strings.Contains(ocmError.Reason(), "Cluster") &&
-			strings.Contains(ocmError.Reason(), "is in state") &&
-			strings.Contains(ocmError.Reason(), "can't update") {
-			logger.Info("Cluster Service rejected cluster autoscaler update because the cluster is not updatable. Retrying on next sync.",
-				"clusterServiceID", clusterCSID.String(),
-				"error", err.Error(),
-			)
-			return nil
-		}
-		return utils.TrackError(fmt.Errorf("failed to update cluster-service ClusterAutoscaler: %w", err))
-	}
-
-	logger.Info("dispatched cluster autoscaler update to Cluster Service", "clusterServiceID", clusterCSID.String())
 
 	// We marshal the cluster CS builder config we are going to submit for cs cluster update for logging purposes
 	clusterPayload, err := c.marshalClusterServiceClusterUpdatePayload(csClusterBuilder)
@@ -272,7 +235,7 @@ func (c *clusterClusterServiceUpdateDispatchSyncer) SyncOnce(ctx context.Context
 		//     returns 400 Bad Request for a wide range of errors and there
 		//     is no other information in the response to distinguish them.
 		//
-		//     If the error is indicating that a the cluster autoscaler is not in
+		//     If the error is indicating that the cluster is not in
 		//     an updatable state, we return without error and retry again on the
 		//     next sync. This can happen for example when the CS cluster is still in
 		//     the initial creation process.
@@ -306,19 +269,4 @@ func (c *clusterClusterServiceUpdateDispatchSyncer) marshalClusterServiceCluster
 	}
 
 	return clusterBuffer.String(), nil
-}
-
-// marshalClusterServiceClusterAutoscalerUpdatePayload serializes the autoscaler PATCH body for logging.
-func (c *clusterClusterServiceUpdateDispatchSyncer) marshalClusterServiceClusterAutoscalerUpdatePayload(autoscalerBuilder *arohcpv1alpha1.ClusterAutoscalerBuilder) (string, error) {
-	autoscaler, err := autoscalerBuilder.Build()
-	if err != nil {
-		return "", err
-	}
-
-	var autoscalerBuffer bytes.Buffer
-	if err := arohcpv1alpha1.MarshalClusterAutoscaler(autoscaler, &autoscalerBuffer); err != nil {
-		return "", err
-	}
-
-	return autoscalerBuffer.String(), nil
 }
