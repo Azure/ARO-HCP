@@ -24,6 +24,11 @@ import (
 	"github.com/Azure/ARO-HCP/internal/api"
 )
 
+// containerRegistryPullMIClearingSignal is a sentinel used by BuildCSCluster to tell
+// applyToCSBuilders to send an empty-string ResourceID to CS, which CS interprets as
+// "unset the container registry". Distinct from "" (field not configured).
+const containerRegistryPullMIClearingSignal = "\x00clear"
+
 // clusterUpdateDispatchConfig is a dispatch-specific canonical model of the Cluster's
 // Cluster Service fields that are considered by the cluster's cluster service update dispatch controller. Its shape
 // intentionally does not mirror RP resources or the Cluster Service API. Conversion functions
@@ -110,13 +115,14 @@ import (
 //     and persistence onto HCPOpenShiftCluster or ServiceProviderCluster. Internal-only
 //     fields still need whatever backend path writes the value Cosmos holds.
 type clusterUpdateDispatchConfig struct {
-	NodeDrainTimeoutMinutes        int32                                                     `json:"nodeDrainTimeoutMinutes,omitempty"`
-	K8sAPIServerAuthorizedCIDRs    []string                                                  `json:"k8sAPIServerAuthorizedCIDRs,omitempty"`
-	ImageDigestMirrors             []clusterUpdateDispatchConfigImageDigestMirror            `json:"imageDigestMirrors,omitempty"`
-	Autoscaling                    clusterUpdateDispatchConfigAutoscaling                    `json:"autoscaling,omitempty"`
-	ExperimentalFeatures           clusterUpdateDispatchConfigExperimentalFeatures           `json:"experimentalFeatures,omitempty"`
-	ServiceProviderClusterDispatch clusterUpdateDispatchConfigServiceProviderClusterDispatch `json:"serviceProviderClusterDispatch,omitempty"`
-	Etcd                           clusterUpdateDispatchConfigEtcd                           `json:"etcd,omitempty"`
+	NodeDrainTimeoutMinutes                        int32                                                     `json:"nodeDrainTimeoutMinutes,omitempty"`
+	K8sAPIServerAuthorizedCIDRs                    []string                                                  `json:"k8sAPIServerAuthorizedCIDRs,omitempty"`
+	ImageDigestMirrors                             []clusterUpdateDispatchConfigImageDigestMirror            `json:"imageDigestMirrors,omitempty"`
+	Autoscaling                                    clusterUpdateDispatchConfigAutoscaling                    `json:"autoscaling,omitempty"`
+	ExperimentalFeatures                           clusterUpdateDispatchConfigExperimentalFeatures           `json:"experimentalFeatures,omitempty"`
+	ServiceProviderClusterDispatch                 clusterUpdateDispatchConfigServiceProviderClusterDispatch `json:"serviceProviderClusterDispatch,omitempty"`
+	Etcd                                           clusterUpdateDispatchConfigEtcd                           `json:"etcd,omitempty"`
+	ContainerRegistryPullManagedIdentityResourceID string                                                    `json:"containerRegistryPullManagedIdentityResourceID,omitempty"`
 }
 
 // clusterUpdateDispatchConfigImageDigestMirror is the curated image mirror subset used for
@@ -195,6 +201,11 @@ func ClusterUpdateDispatchConfigJSONFromCS(csCluster *arohcpv1alpha1.Cluster) (s
 
 // clusterUpdateDispatchConfigFromRP projects RP desired state into the dispatch canonical form.
 func clusterUpdateDispatchConfigFromRP(cluster *api.HCPOpenShiftCluster, serviceProviderCluster *api.ServiceProviderCluster) *clusterUpdateDispatchConfig {
+	var containerRegistryPullMIResourceID string
+	if cluster.CustomerProperties.Platform.ContainerRegistryPullManagedIdentity != nil {
+		containerRegistryPullMIResourceID = cluster.CustomerProperties.Platform.ContainerRegistryPullManagedIdentity.String()
+	}
+
 	res := &clusterUpdateDispatchConfig{
 		NodeDrainTimeoutMinutes:     cluster.CustomerProperties.NodeDrainTimeoutMinutes,
 		K8sAPIServerAuthorizedCIDRs: cluster.CustomerProperties.API.AuthorizedCIDRs,
@@ -207,6 +218,7 @@ func clusterUpdateDispatchConfigFromRP(cluster *api.HCPOpenShiftCluster, service
 		},
 		ServiceProviderClusterDispatch: clusterUpdateDispatchConfigServiceProviderClusterDispatch{},
 		Etcd:                           clusterUpdateDispatchEtcdFromRP(cluster.CustomerProperties.Etcd),
+		ContainerRegistryPullManagedIdentityResourceID: containerRegistryPullMIResourceID,
 	}
 
 	if serviceProviderCluster != nil {
@@ -276,6 +288,7 @@ func clusterUpdateDispatchConfigFromCS(csCluster *arohcpv1alpha1.Cluster) (*clus
 	config.Etcd = clusterUpdateDispatchConfigEtcdFromCS(csCluster.Azure())
 	config.ExperimentalFeatures = clusterUpdateDispatchConfigExperimentalFeaturesFromCS(csCluster)
 	config.ServiceProviderClusterDispatch.DesiredHostedClusterControlPlaneSize = clusterUpdateDispatchConfigServiceProviderClusterDispatchDesiredHostedClusterControlPlaneSizeFromCS(csCluster)
+	config.ContainerRegistryPullManagedIdentityResourceID = ClusterUpdateDispatchConfigContainerRegistryPullMIFromCS(csCluster.Azure())
 	autoscaling, err := clusterUpdateDispatchConfigAutoscalingFromCS(csCluster.Autoscaler())
 	if err != nil {
 		return nil, err
@@ -485,6 +498,28 @@ func clusterUpdateDispatchConfigEtcdFromCS(in *arohcpv1alpha1.Azure) clusterUpda
 	}
 }
 
+// ClusterUpdateDispatchConfigContainerRegistryPullMIFromCS extracts the container registry
+// pull managed identity resource ID from a Cluster Service cluster's Azure config.
+// Returns empty string when unset.
+func ClusterUpdateDispatchConfigContainerRegistryPullMIFromCS(in *arohcpv1alpha1.Azure) string {
+	if in == nil {
+		return ""
+	}
+	cr := in.ContainerRegistry()
+	if cr == nil {
+		return ""
+	}
+	creds := cr.Credentials()
+	if creds == nil {
+		return ""
+	}
+	mi := creds.ManagedIdentity()
+	if mi == nil {
+		return ""
+	}
+	return mi.ResourceID()
+}
+
 // clusterUpdateDispatchConfigHash returns a SHA-256 hex digest of the dispatch config
 // projected from RP desired state. The digest is computed from canonical JSON (sorted object
 // keys at every level), not from a raw json.Marshal of the struct.
@@ -572,6 +607,21 @@ func (c *clusterUpdateDispatchConfig) applyToCSBuilders(clusterBuilder *arohcpv1
 				CustomerManaged(arohcpv1alpha1.NewAzureEtcdDataEncryptionCustomerManaged().
 					Kms(arohcpv1alpha1.NewAzureKmsEncryption().
 						ActiveKey(etcdDataEncryptionCustomerManagedActiveKeyBuilder)))))
+	}
+	// Container registry can be set/updated/cleared independently of other azure fields.
+	if c.ContainerRegistryPullManagedIdentityResourceID != "" {
+		if azureBuilder == nil {
+			azureBuilder = arohcpv1alpha1.NewAzure()
+		}
+		resourceID := c.ContainerRegistryPullManagedIdentityResourceID
+		if resourceID == containerRegistryPullMIClearingSignal {
+			resourceID = ""
+		}
+		azureBuilder.ContainerRegistry(arohcpv1alpha1.NewAzureContainerRegistry().
+			Credentials(arohcpv1alpha1.NewAzureContainerRegistryCredentials().
+				Type(arohcpv1alpha1.AzureContainerRegistryCredentialTypeManagedIdentity).
+				ManagedIdentity(arohcpv1alpha1.NewAzureUserAssignedManagedIdentity().
+					ResourceID(resourceID))))
 	}
 	if azureBuilder != nil {
 		clusterBuilder.Azure(azureBuilder)

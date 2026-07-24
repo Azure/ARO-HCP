@@ -305,6 +305,41 @@ func convertEtcdRPToCS(in api.EtcdProfile, activeKeyBuilder *arohcpv1alpha1.Azur
 	return arohcpv1alpha1.NewAzureEtcdEncryption().DataEncryption(azureEtcdDataEncryptionBuilder), nil
 }
 
+func convertContainerRegistryPullCredentialsToCS(resourceID *azcorearm.ResourceID) *arohcpv1alpha1.AzureContainerRegistryBuilder {
+	if resourceID == nil {
+		return nil
+	}
+	return arohcpv1alpha1.NewAzureContainerRegistry().
+		Credentials(arohcpv1alpha1.NewAzureContainerRegistryCredentials().
+			Type(arohcpv1alpha1.AzureContainerRegistryCredentialTypeManagedIdentity).
+			ManagedIdentity(arohcpv1alpha1.NewAzureUserAssignedManagedIdentity().
+				ResourceID(resourceID.String())))
+}
+
+// ConvertCSContainerRegistryPullCredentialsToRP converts a CS Azure container registry to a flat *azcorearm.ResourceID.
+func ConvertCSContainerRegistryPullCredentialsToRP(csAzure *arohcpv1alpha1.Azure) (*azcorearm.ResourceID, error) {
+	if csAzure == nil {
+		return nil, nil
+	}
+	cr := csAzure.ContainerRegistry()
+	if cr == nil {
+		return nil, nil
+	}
+	creds := cr.Credentials()
+	if creds == nil {
+		return nil, nil
+	}
+	mi := creds.ManagedIdentity()
+	if mi == nil || mi.ResourceID() == "" {
+		return nil, nil
+	}
+	parsed, err := azcorearm.ParseResourceID(mi.ResourceID())
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse container registry pull managed identity resource ID %q: %w", mi.ResourceID(), err)
+	}
+	return parsed, nil
+}
+
 func convertCIDRBlockAllowAccessRPToCS(in api.CustomerAPIProfile) (*arohcpv1alpha1.CIDRBlockAccessBuilder, error) {
 	cidrBlockAllowAccess := arohcpv1alpha1.NewCIDRBlockAllowAccess()
 
@@ -458,6 +493,16 @@ func BuildCSCluster(resourceID *azcorearm.ResourceID, tenantID string, hcpCluste
 	}
 
 	clusterUpdateDispatchConfig := clusterUpdateDispatchConfigFromRP(hcpCluster, serviceProviderCluster)
+
+	// Detect clearing: RP desired is nil but CS previously had container registry set.
+	// Signal applyToCSBuilders to send the empty-string clearing value to CS.
+	if oldClusterServiceCluster != nil &&
+		clusterUpdateDispatchConfig.ContainerRegistryPullManagedIdentityResourceID == "" &&
+		oldClusterServiceCluster.Azure() != nil &&
+		oldClusterServiceCluster.Azure().ContainerRegistry() != nil {
+		clusterUpdateDispatchConfig.ContainerRegistryPullManagedIdentityResourceID = containerRegistryPullMIClearingSignal
+	}
+
 	err = clusterUpdateDispatchConfig.applyToCSBuilders(clusterBuilder, clusterAPIBuilder, azureBuilder, clusterKMSActiveKeyBuilder, properties)
 	if err != nil {
 		return nil, err
@@ -577,6 +622,10 @@ func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, hcpC
 	}
 
 	azureBuilder.OperatorsAuthentication(arohcpv1alpha1.NewAzureOperatorsAuthentication().ManagedIdentities(managedIdentitiesBuilder))
+
+	if containerRegistryBuilder := convertContainerRegistryPullCredentialsToCS(hcpCluster.CustomerProperties.Platform.ContainerRegistryPullManagedIdentity); containerRegistryBuilder != nil {
+		azureBuilder.ContainerRegistry(containerRegistryBuilder)
+	}
 
 	// Cluster Service rejects an empty DomainPrefix string.
 	if hcpCluster.CustomerProperties.DNS.BaseDomainPrefix != "" {

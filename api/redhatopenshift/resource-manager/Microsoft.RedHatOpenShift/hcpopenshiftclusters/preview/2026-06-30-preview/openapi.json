@@ -1658,6 +1658,21 @@
         "url"
       ]
     },
+    "ContainerRegistryProfile": {
+      "type": "object",
+      "description": "Azure Container Registry configuration for a cluster.\nConfigures how worker nodes authenticate container image pulls\nfrom Azure Container Registry (ACR).",
+      "properties": {
+        "managedIdentity": {
+          "$ref": "#/definitions/UserAssignedIdentityResourceId",
+          "description": "The user-assigned managed identity used for container registry image pulls.",
+          "x-ms-mutability": [
+            "read",
+            "update",
+            "create"
+          ]
+        }
+      }
+    },
     "CustomerManagedEncryptionProfile": {
       "type": "object",
       "description": "Customer managed encryption key profile.",
@@ -3502,6 +3517,15 @@
             "create"
           ]
         },
+        "containerRegistry": {
+          "$ref": "#/definitions/ContainerRegistryProfile",
+          "description": "Azure Container Registry configuration for authenticating image pulls\non the cluster's worker nodes.",
+          "x-ms-mutability": [
+            "read",
+            "update",
+            "create"
+          ]
+        },
         "issuerUrl": {
           "type": "string",
           "format": "uri",
@@ -3524,6 +3548,15 @@
         "operatorsAuthentication": {
           "$ref": "#/definitions/OperatorsAuthenticationProfileUpdate",
           "description": "The configuration that the operators of the cluster have to authenticate to Azure",
+          "x-ms-mutability": [
+            "read",
+            "update",
+            "create"
+          ]
+        },
+        "containerRegistry": {
+          "$ref": "#/definitions/ContainerRegistryProfile",
+          "description": "Azure Container Registry configuration for authenticating image pulls\non the cluster's worker nodes.",
           "x-ms-mutability": [
             "read",
             "update",

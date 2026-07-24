@@ -889,3 +889,55 @@ func TestURL(t *testing.T) {
 		})
 	}
 }
+
+func TestValidateContainerRegistryPullCredentials(t *testing.T) {
+	ctx := context.Background()
+	op := operation.Operation{Type: operation.Create}
+	fldPath := field.NewPath("platform", "containerRegistry", "managedIdentity")
+
+	validResourceID := api.Must(azcorearm.ParseResourceID(
+		"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/myRg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/acrPullMI",
+	))
+
+	tests := []struct {
+		name         string
+		newObj       *azcorearm.ResourceID
+		expectErrors []utils.ExpectedError
+	}{
+		{
+			name:         "nil resource ID - valid",
+			newObj:       nil,
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name:         "valid MI resource ID - valid",
+			newObj:       validResourceID,
+			expectErrors: []utils.ExpectedError{},
+		},
+		{
+			name: "wrong resource type - invalid",
+			newObj: api.Must(azcorearm.ParseResourceID(
+				"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/myRg/providers/Microsoft.Storage/storageAccounts/wrongType",
+			)),
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "platform.containerRegistry.managedIdentity", Message: "Microsoft.ManagedIdentity/userAssignedIdentities"},
+			},
+		},
+		{
+			name: "MI in managed resource group - invalid",
+			newObj: api.Must(azcorearm.ParseResourceID(
+				"/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/managedRg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/acrPullMI",
+			)),
+			expectErrors: []utils.ExpectedError{
+				{FieldPath: "platform.containerRegistry.managedIdentity", Message: "must not be the same resource group name"},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			errs := validateContainerRegistryPullCredentials(ctx, op, fldPath, tt.newObj, nil, "managedRg")
+			utils.VerifyErrorsMatch(t, tt.expectErrors, errs)
+		})
+	}
+}

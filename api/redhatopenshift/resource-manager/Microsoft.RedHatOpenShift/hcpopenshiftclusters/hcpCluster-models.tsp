@@ -360,6 +360,12 @@ model PlatformProfile {
   @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
   operatorsAuthentication: OperatorsAuthenticationProfile;
 
+  /** Azure Container Registry configuration for authenticating image pulls
+   * on the cluster's worker nodes. */
+  @added(Versions.v2026_06_30_preview)
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
+  containerRegistry?: ContainerRegistryProfile;
+
   /** URL for the OIDC provider to be used for authentication
    * to authenticate against user Azure cloud account
    */
@@ -508,6 +514,16 @@ union OutboundType {
 
   /** The load balancer configuration */
   LoadBalancer: "LoadBalancer",
+}
+
+/** Azure Container Registry configuration for a cluster.
+ * Configures how worker nodes authenticate container image pulls
+ * from Azure Container Registry (ACR). */
+@added(Versions.v2026_06_30_preview)
+model ContainerRegistryProfile {
+  /** The user-assigned managed identity used for container registry image pulls. */
+  @visibility(Lifecycle.Read, Lifecycle.Create, Lifecycle.Update)
+  managedIdentity?: UserAssignedIdentityResourceId;
 }
 
 /** The configuration that the operators of the cluster have to authenticate to Azure. */

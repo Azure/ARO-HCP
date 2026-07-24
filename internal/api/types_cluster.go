@@ -202,6 +202,8 @@ type CustomerPlatformProfile struct {
 	OutboundType            OutboundType                   `json:"outboundType,omitempty"`
 	NetworkSecurityGroupID  *azcorearm.ResourceID          `json:"networkSecurityGroupId,omitempty"`
 	OperatorsAuthentication OperatorsAuthenticationProfile `json:"operatorsAuthentication,omitempty"`
+	// Written by: Frontend PUT/PATCH Cluster
+	ContainerRegistryPullManagedIdentity *azcorearm.ResourceID `json:"containerRegistryPullManagedIdentity,omitempty"`
 }
 
 type ServiceProviderPlatformProfile struct {

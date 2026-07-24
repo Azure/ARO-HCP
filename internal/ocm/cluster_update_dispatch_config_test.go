@@ -174,6 +174,19 @@ func TestClusterUpdateDispatchConfigHash(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "container registry pull managed identity",
+			cluster: &api.HCPOpenShiftCluster{
+				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+					NodeDrainTimeoutMinutes: baseCustomerProperties.NodeDrainTimeoutMinutes,
+					API:                     baseCustomerProperties.API,
+					Autoscaling:             baseCustomerProperties.Autoscaling,
+					Platform: api.CustomerPlatformProfile{
+						ContainerRegistryPullManagedIdentity: api.NewTestUserAssignedIdentity("cr-pull-mi"),
+					},
+				},
+			},
+		},
 	}
 
 	// Each row changes one dispatch-managed field from the baseline above. Comparing against
@@ -1501,6 +1514,157 @@ func TestClusterUpdateDispatchConfigFromCSEtcdExtraction(t *testing.T) {
 			got, err := clusterUpdateDispatchConfigFromCS(tt.csCluster(t))
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantEtcd, got.Etcd)
+		})
+	}
+}
+
+func TestClusterUpdateDispatchConfigContainerRegistryPullMIFromCS(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		csAzure  *arohcpv1alpha1.Azure
+		wantMIID string
+	}{
+		{
+			name:     "nil azure returns empty",
+			csAzure:  nil,
+			wantMIID: "",
+		},
+		{
+			name: "azure without container registry returns empty",
+			csAzure: func() *arohcpv1alpha1.Azure {
+				a, err := arohcpv1alpha1.NewAzure().TenantID("t").Build()
+				require.NoError(t, err)
+				return a
+			}(),
+			wantMIID: "",
+		},
+		{
+			name: "extracts managed identity resource ID",
+			csAzure: func() *arohcpv1alpha1.Azure {
+				a, err := arohcpv1alpha1.NewAzure().
+					ContainerRegistry(arohcpv1alpha1.NewAzureContainerRegistry().
+						Credentials(arohcpv1alpha1.NewAzureContainerRegistryCredentials().
+							Type(arohcpv1alpha1.AzureContainerRegistryCredentialTypeManagedIdentity).
+							ManagedIdentity(arohcpv1alpha1.NewAzureUserAssignedManagedIdentity().
+								ResourceID(api.NewTestUserAssignedIdentity("cr-pull-mi").String())))).
+					Build()
+				require.NoError(t, err)
+				return a
+			}(),
+			wantMIID: api.NewTestUserAssignedIdentity("cr-pull-mi").String(),
+		},
+		{
+			name: "empty resource ID returns empty (clearing signal)",
+			csAzure: func() *arohcpv1alpha1.Azure {
+				a, err := arohcpv1alpha1.NewAzure().
+					ContainerRegistry(arohcpv1alpha1.NewAzureContainerRegistry().
+						Credentials(arohcpv1alpha1.NewAzureContainerRegistryCredentials().
+							Type(arohcpv1alpha1.AzureContainerRegistryCredentialTypeManagedIdentity).
+							ManagedIdentity(arohcpv1alpha1.NewAzureUserAssignedManagedIdentity().
+								ResourceID("")))).
+					Build()
+				require.NoError(t, err)
+				return a
+			}(),
+			wantMIID: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := ClusterUpdateDispatchConfigContainerRegistryPullMIFromCS(tt.csAzure)
+			assert.Equal(t, tt.wantMIID, got)
+		})
+	}
+}
+
+func TestClusterUpdateDispatchConfigFromCSContainerRegistryRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	miID := api.NewTestUserAssignedIdentity("cr-pull-mi")
+
+	rpCluster := &api.HCPOpenShiftCluster{
+		CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+			Platform: api.CustomerPlatformProfile{
+				ContainerRegistryPullManagedIdentity: miID,
+			},
+		},
+	}
+
+	rpConfig := clusterUpdateDispatchConfigFromRP(rpCluster, nil)
+	assert.Equal(t, miID.String(), rpConfig.ContainerRegistryPullManagedIdentityResourceID)
+
+	csCluster, err := arohcpv1alpha1.NewCluster().
+		Azure(arohcpv1alpha1.NewAzure().
+			ContainerRegistry(arohcpv1alpha1.NewAzureContainerRegistry().
+				Credentials(arohcpv1alpha1.NewAzureContainerRegistryCredentials().
+					Type(arohcpv1alpha1.AzureContainerRegistryCredentialTypeManagedIdentity).
+					ManagedIdentity(arohcpv1alpha1.NewAzureUserAssignedManagedIdentity().
+						ResourceID(miID.String()))))).
+		Build()
+	require.NoError(t, err)
+
+	csConfig, err := clusterUpdateDispatchConfigFromCS(csCluster)
+	require.NoError(t, err)
+	assert.Equal(t, rpConfig.ContainerRegistryPullManagedIdentityResourceID, csConfig.ContainerRegistryPullManagedIdentityResourceID)
+}
+
+func TestClusterUpdateDispatchConfigApplyToCSBuildersContainerRegistry(t *testing.T) {
+	t.Parallel()
+
+	miID := api.NewTestUserAssignedIdentity("cr-pull-mi")
+
+	tests := []struct {
+		name      string
+		config    clusterUpdateDispatchConfig
+		wantMISet bool
+		wantMIRID string
+	}{
+		{
+			name: "sets container registry pull MI on azure builder",
+			config: clusterUpdateDispatchConfig{
+				ContainerRegistryPullManagedIdentityResourceID: miID.String(),
+			},
+			wantMISet: true,
+			wantMIRID: miID.String(),
+		},
+		{
+			name:      "empty container registry does not set azure builder",
+			config:    clusterUpdateDispatchConfig{},
+			wantMISet: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			clusterBuilder := arohcpv1alpha1.NewCluster()
+			clusterAPIBuilder := arohcpv1alpha1.NewClusterAPI()
+			properties := map[string]string{}
+
+			err := tt.config.applyToCSBuilders(clusterBuilder, clusterAPIBuilder, nil, nil, properties)
+			require.NoError(t, err)
+
+			cluster, err := clusterBuilder.Build()
+			require.NoError(t, err)
+
+			if tt.wantMISet {
+				require.NotNil(t, cluster.Azure(), "azure should be set")
+				cr := cluster.Azure().ContainerRegistry()
+				require.NotNil(t, cr, "container registry should be set")
+				creds := cr.Credentials()
+				require.NotNil(t, creds, "credentials should be set")
+				mi := creds.ManagedIdentity()
+				require.NotNil(t, mi, "managed identity should be set")
+				assert.Equal(t, tt.wantMIRID, mi.ResourceID())
+			} else {
+				if cluster.Azure() != nil {
+					assert.Nil(t, cluster.Azure().ContainerRegistry(), "container registry should not be set")
+				}
+			}
 		})
 	}
 }
