@@ -48,7 +48,9 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	armauthorization "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v3"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v5"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/dns/armdns"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/keyvault/armkeyvault"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/monitor/armmonitor"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v6"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armsubscriptions"
@@ -81,6 +83,9 @@ type perItOrDescribeTestContext struct {
 	armResourcesClientFactory     *armresources.ClientFactory
 	armSubscriptionsClientFactory *armsubscriptions.ClientFactory
 	armNetworkClientFactory       *armnetwork.ClientFactory
+	armAuthorizationClientFactory *armauthorization.ClientFactory
+	armMonitorClientFactory       *armmonitor.ClientFactory
+	armDNSClientFactory           *armdns.ClientFactory
 	graphClient                   *graphutil.Client
 
 	LogDirPath       string
@@ -1269,6 +1274,120 @@ func (tc *perItOrDescribeTestContext) getARMNetworkClientFactoryUnlocked(ctx con
 	}
 	tc.armNetworkClientFactory = clientFactory
 	return tc.armNetworkClientFactory, nil
+}
+
+func (tc *perItOrDescribeTestContext) GetARMAuthorizationClientFactory(ctx context.Context) (*armauthorization.ClientFactory, error) {
+	tc.contextLock.RLock()
+	if tc.armAuthorizationClientFactory != nil {
+		defer tc.contextLock.RUnlock()
+		return tc.armAuthorizationClientFactory, nil
+	}
+	tc.contextLock.RUnlock()
+
+	tc.contextLock.Lock()
+	defer tc.contextLock.Unlock()
+
+	return tc.getARMAuthorizationClientFactoryUnlocked(ctx)
+}
+
+func (tc *perItOrDescribeTestContext) getARMAuthorizationClientFactoryUnlocked(ctx context.Context) (*armauthorization.ClientFactory, error) {
+	if tc.armAuthorizationClientFactory != nil {
+		return tc.armAuthorizationClientFactory, nil
+	}
+
+	creds, err := tc.perBinaryInvocationTestContext.getAzureCredentials()
+	if err != nil {
+		return nil, err
+	}
+
+	// We already hold the lock, so we call the unlocked version
+	subscriptionID, err := tc.getSubscriptionIDUnlocked(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	clientFactory, err := armauthorization.NewClientFactory(subscriptionID, creds, tc.perBinaryInvocationTestContext.getClientFactoryOptions())
+	if err != nil {
+		return nil, err
+	}
+	tc.armAuthorizationClientFactory = clientFactory
+	return tc.armAuthorizationClientFactory, nil
+}
+
+func (tc *perItOrDescribeTestContext) GetARMMonitorClientFactory(ctx context.Context) (*armmonitor.ClientFactory, error) {
+	tc.contextLock.RLock()
+	if tc.armMonitorClientFactory != nil {
+		defer tc.contextLock.RUnlock()
+		return tc.armMonitorClientFactory, nil
+	}
+	tc.contextLock.RUnlock()
+
+	tc.contextLock.Lock()
+	defer tc.contextLock.Unlock()
+
+	return tc.getARMMonitorClientFactoryUnlocked(ctx)
+}
+
+func (tc *perItOrDescribeTestContext) getARMMonitorClientFactoryUnlocked(ctx context.Context) (*armmonitor.ClientFactory, error) {
+	if tc.armMonitorClientFactory != nil {
+		return tc.armMonitorClientFactory, nil
+	}
+
+	creds, err := tc.perBinaryInvocationTestContext.getAzureCredentials()
+	if err != nil {
+		return nil, err
+	}
+
+	// We already hold the lock, so we call the unlocked version
+	subscriptionID, err := tc.getSubscriptionIDUnlocked(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	clientFactory, err := armmonitor.NewClientFactory(subscriptionID, creds, tc.perBinaryInvocationTestContext.getClientFactoryOptions())
+	if err != nil {
+		return nil, err
+	}
+	tc.armMonitorClientFactory = clientFactory
+	return tc.armMonitorClientFactory, nil
+}
+
+func (tc *perItOrDescribeTestContext) GetARMDNSClientFactory(ctx context.Context) (*armdns.ClientFactory, error) {
+	tc.contextLock.RLock()
+	if tc.armDNSClientFactory != nil {
+		defer tc.contextLock.RUnlock()
+		return tc.armDNSClientFactory, nil
+	}
+	tc.contextLock.RUnlock()
+
+	tc.contextLock.Lock()
+	defer tc.contextLock.Unlock()
+
+	return tc.getARMDNSClientFactoryUnlocked(ctx)
+}
+
+func (tc *perItOrDescribeTestContext) getARMDNSClientFactoryUnlocked(ctx context.Context) (*armdns.ClientFactory, error) {
+	if tc.armDNSClientFactory != nil {
+		return tc.armDNSClientFactory, nil
+	}
+
+	creds, err := tc.perBinaryInvocationTestContext.getAzureCredentials()
+	if err != nil {
+		return nil, err
+	}
+
+	// We already hold the lock, so we call the unlocked version
+	subscriptionID, err := tc.getSubscriptionIDUnlocked(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	clientFactory, err := armdns.NewClientFactory(subscriptionID, creds, tc.perBinaryInvocationTestContext.getClientFactoryOptions())
+	if err != nil {
+		return nil, err
+	}
+	tc.armDNSClientFactory = clientFactory
+	return tc.armDNSClientFactory, nil
 }
 
 func (tc *perItOrDescribeTestContext) GetARMResourcesClientFactory(ctx context.Context) (*armresources.ClientFactory, error) {
