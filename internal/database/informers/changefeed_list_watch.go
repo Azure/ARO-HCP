@@ -382,12 +382,6 @@ func (c *ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPITyp
 		return nil
 	}
 
-	if objAsTypedDocument.ResourceID == nil {
-		// intentionally skipping malformed object
-		utilruntime.HandleError(fmt.Errorf("missing resourceID for document ID: %q", objAsTypedDocument.ID))
-		return nil
-	}
-
 	var cosmosObj CosmosAPIType
 	if err := json.Unmarshal(document, &cosmosObj); err != nil {
 		return utils.TrackError(err)
@@ -396,7 +390,16 @@ func (c *ChangeFeedWatcher[InternalAPIType, InternalAPITypePointer, CosmosAPITyp
 	var err error
 	internalObj, err = database.CosmosToInternal[InternalAPIType, CosmosAPIType](&cosmosObj)
 	if err != nil {
-		return utils.TrackError(err)
+		// A single unprocessable document must never halt the feed. Returning an
+		// error here leaves the continuation token unadvanced, so the change feed
+		// re-reads the same document forever and every informer built on it
+		// stalls (AROSLSRE-1521). CosmosToInternal already recovers a missing
+		// resourceID from the legacy pipe-delimited cosmos ID; if a document is
+		// still unconvertible, log it and skip so the feed keeps making progress.
+		logger.Error(utils.TrackError(err), "skipping unprocessable change feed document",
+			"resourceType", objAsTypedDocument.ResourceType,
+			"id", objAsTypedDocument.ID)
+		return nil
 	}
 
 	canonicalResourceID := strings.ToLower(internalObj.GetResourceID().String())
