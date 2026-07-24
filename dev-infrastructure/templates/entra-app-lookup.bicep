@@ -1,3 +1,4 @@
+@description('Graph uniqueName of the Entra application to look up (the normalized name — lowercase, spaces replaced with dashes — NOT the display name).')
 param applicationName string
 param manage bool
 

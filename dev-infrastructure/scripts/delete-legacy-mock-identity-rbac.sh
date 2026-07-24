@@ -64,7 +64,11 @@ cleanup_principal() {
   local APP_NAME="$2"
 
   local SP_COUNT
-  SP_COUNT=$(az ad sp list --display-name "${APP_NAME}" --query 'length(@)' -o tsv 2>/dev/null || echo 0)
+  if ! SP_COUNT=$(az ad sp list --display-name "${APP_NAME}" --query 'length(@)' -o tsv 2>/dev/null); then
+    echo "ERROR  ${SUB_ID} ${APP_NAME} (az ad sp list failed — check login/permissions)"
+    ERRORS=$((ERRORS + 1))
+    return
+  fi
   if [[ "${SP_COUNT}" -eq 0 ]]; then
     echo "SKIP   ${SUB_ID} ${APP_NAME} (SP not found)"
     return
