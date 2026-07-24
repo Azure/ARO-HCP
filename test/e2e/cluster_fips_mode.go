@@ -69,8 +69,8 @@ var _ = Describe("FIPS Mode Support", func() {
 						}
 					}
 					if !available {
-						if time.Now().After(framework.Must(time.Parse(time.RFC3339, "2026-08-07T00:00:00Z"))) {
-							Fail(fmt.Sprintf("API version %s should be available for Microsoft.RedHatOpenShift/hcpOpenShiftClusters by 2026-08-07 00:00 UTC", apiVersion))
+						if time.Now().After(framework.V20260630PreviewDeploymentDeadline) {
+							Fail(fmt.Sprintf("API version %s should be available for Microsoft.RedHatOpenShift/hcpOpenShiftClusters by %s", apiVersion, framework.V20260630PreviewDeploymentDeadline.Format(time.RFC3339)))
 						}
 						Skip(fmt.Sprintf("API version %s is not available for Microsoft.RedHatOpenShift/hcpOpenShiftClusters in this environment", apiVersion))
 					}
