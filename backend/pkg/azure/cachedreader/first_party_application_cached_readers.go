@@ -29,10 +29,12 @@ type FirstPartyApplicationAzureCachedReaders struct {
 
 // NewFirstPartyApplicationAzureCachedReaders constructs FPA-scoped cached readers from the
 // FPA client builder so the identity used for Azure calls is explicit in the type system.
-func NewFirstPartyApplicationAzureCachedReaders(
-	fpaClientBuilder azureclient.FirstPartyApplicationClientBuilder,
-) *FirstPartyApplicationAzureCachedReaders {
+// location is the Azure location (region) this backend is deployed in, used to scope
+// Resource SKUs lookups to that region. A refreshed client (and thus a new token) is created
+// from fpaClientBuilder on every underlying Azure call; no client or credential is ever cached
+// or reused across calls, only the resulting SKU list data is cached.
+func NewFirstPartyApplicationAzureCachedReaders(fpaClientBuilder azureclient.FirstPartyApplicationClientBuilder, location string) *FirstPartyApplicationAzureCachedReaders {
 	return &FirstPartyApplicationAzureCachedReaders{
-		ResourceSKUsCachedReader: NewResourceSKUsCachedReader(fpaClientBuilder),
+		ResourceSKUsCachedReader: NewResourceSKUsCachedReader(fpaClientBuilder, location),
 	}
 }

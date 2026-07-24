@@ -341,7 +341,7 @@ func (f *BackendRootCmdFlags) ToBackendOptions(ctx context.Context, cmd *cobra.C
 		return nil, utils.TrackError(fmt.Errorf("failed to create backend identity azure cached readers: %w", err))
 	}
 
-	fpaAzureCachedReaders := cachedreader.NewFirstPartyApplicationAzureCachedReaders(fpaClientBuilder)
+	fpaAzureCachedReaders := cachedreader.NewFirstPartyApplicationAzureCachedReaders(fpaClientBuilder, f.AzureLocation)
 
 	var fpaMIDataplaneClientBuilder azureclient.FPAMIDataplaneClientBuilder
 	var checkAccessV2ClientBuilder azureclient.CheckAccessV2ClientBuilder
