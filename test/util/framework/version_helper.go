@@ -101,13 +101,16 @@ func isRetryableVersionError(err error) bool {
 	return true
 }
 
+var getAllVersionsInMinor = GetAllVersionsInMinorStartingWith
+var getUpgradeCandidates = GetUpgradeCandidatesInMaxMinorFromCincinnati
+
 // GetInstallVersionForZStreamUpgrade returns the version to install the cluster with when testing
 // a z-stream upgrade, and whether that version has an available z-stream upgrade path. It uses
 // configuredVersionID and queries Cincinnati for the given channelGroup (e.g. "candidate", "stable").
 // When no version with an upgrade path is found, it still returns the configured version so the
 // caller can install and optionally skip upgrade assertions.
 func GetInstallVersionForZStreamUpgrade(ctx context.Context, channelGroup string, configuredVersionID string) (installVersion string, hasUpgradePath bool, err error) {
-	candidates, err := GetAllVersionsInMinorStartingWith(ctx, channelGroup, configuredVersionID)
+	candidates, err := getAllVersionsInMinor(ctx, channelGroup, configuredVersionID)
 	if err != nil {
 		return "", false, err
 	}
@@ -118,18 +121,16 @@ func GetInstallVersionForZStreamUpgrade(ctx context.Context, channelGroup string
 		return candidates[0].String(), false, nil
 	}
 
-	nextMinorStr := fmt.Sprintf("%d.%d", candidates[0].Major, candidates[0].Minor+1)
-	maxVersion, err := GetLatestVersionInMinor(ctx, channelGroup, nextMinorStr)
-	if err != nil {
-		if !cincinnati.IsCincinnatiVersionNotFoundError(err) {
-			return "", false, err
-		}
-		// we don't have the next minor, use the max version in the current minor
-		maxVersion = candidates[0].String()
-	}
+	// Use the current minor's latest as maxVersion so we find z-stream (same-minor)
+	// upgrade targets, not y-stream (next-minor) ones.
+	maxVersion := candidates[0].String()
 
-	for i := 0; i < len(candidates)-1; i++ {
-		upgradeTargets, err := GetUpgradeCandidatesInMaxMinorFromCincinnati(ctx, channelGroup, maxVersion, candidates[i].String())
+	// Skip candidates[0] (the latest) — it has no same-minor upgrade targets since maxVersion equals it.
+	// For each candidates[i] that has any same-minor upgrade targets, install candidates[i+1] (one patch older).
+	// This biases the next upgrade away from candidates[0] (which may be too freshly released for HyperShift to pick up)
+	// and toward a more established target version in the same minor.
+	for i := 1; i < len(candidates)-1; i++ {
+		upgradeTargets, err := getUpgradeCandidates(ctx, channelGroup, maxVersion, candidates[i].String())
 		if err != nil {
 			return "", false, err
 		}
