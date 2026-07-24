@@ -1,0 +1,129 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: hcp-etcd-grpc-latency-rules
+  namespace: prometheus
+spec:
+  groups:
+  - name: hcp-etcd-grpc-latency-recording
+    interval: 1m
+    rules:
+    # Average gRPC latency across all etcdserverpb methods per HCP, computed
+    # as rate(sum) / rate(count) over a 5-minute window.
+    #
+    # Only _count and _sum are collected (no histogram _bucket) to keep
+    # cardinality low: ~86 series per HCP (43 method/code combos × 2) vs
+    # ~516 extra _bucket series. This is sufficient for average latency;
+    # histogram buckets can be added later for percentile calculations.
+    #
+    # Requires ETCD_METRICS=extensive on the etcd container — without it,
+    # etcd only exposes basic gRPC counters (grpc_server_handled_total) and
+    # does not emit the grpc_server_handling_seconds histogram at all.
+    #
+    # namespace=~"ocm-.*" restricts to HCP etcd only
+    # 
+    #
+    # Division by zero: when count rate is zero (no traffic), PromQL binary
+    # `/` drops the sample rather than producing +Inf.
+    - record: etcd:grpc_server_handling:avg_latency_seconds:rate5m
+      expr: |
+        sum by (namespace, cluster) (
+          rate(grpc_server_handling_seconds_sum{
+            namespace=~"ocm-.*",
+            grpc_service=~"etcdserverpb.*"
+          }[5m])
+        )
+        /
+        sum by (namespace, cluster) (
+          rate(grpc_server_handling_seconds_count{
+            namespace=~"ocm-.*",
+            grpc_service=~"etcdserverpb.*"
+          }[5m])
+        )
+
+    # Total gRPC request rate per HCP. Used for load correlation and as the
+    # denominator in the EtcdGrpcErrorRateHigh alert expression.
+    - record: etcd:grpc_server_handling:request_rate:rate5m
+      expr: |
+        sum by (namespace, cluster) (
+          rate(grpc_server_handling_seconds_count{
+            namespace=~"ocm-.*",
+            grpc_service=~"etcdserverpb.*"
+          }[5m])
+        )
+
+    # Rate of gRPC requests returning non-OK status codes (Unavailable,
+    # DeadlineExceeded, etc.). Used as the numerator in the error rate alert.
+    - record: etcd:grpc_server_handling:error_rate:rate5m
+      expr: |
+        sum by (namespace, cluster) (
+          rate(grpc_server_handling_seconds_count{
+            namespace=~"ocm-.*",
+            grpc_service=~"etcdserverpb.*",
+            grpc_code!="OK"
+          }[5m])
+        )
+
+  - name: hcp-etcd-grpc-latency-alerts
+    rules:
+    # Warning: average gRPC latency exceeds 200ms for 5 consecutive minutes.
+    # etcd documentation recommends P99 < 100ms for healthy operation; 200ms
+    # average indicates meaningful degradation but is not yet service-impacting.
+    # Common causes: disk I/O saturation, CPU throttling, network latency.
+    - alert: EtcdGrpcLatencyHigh
+      annotations:
+        summary: "etcd gRPC latency high in {{ $labels.namespace }}"
+        description: |
+          etcd in namespace {{ $labels.namespace }} (cluster {{ $labels.cluster }}) has average gRPC latency of {{ $value | humanizeDuration }}, exceeding 200ms threshold.
+
+          Check etcd disk fsync latency, CPU/memory utilization, and request rate.
+      expr: |
+        etcd:grpc_server_handling:avg_latency_seconds:rate5m > 0.2
+      for: 5m
+      labels:
+        severity: warning
+        component: etcd
+
+    # Critical: average gRPC latency exceeds 500ms for 2 consecutive minutes.
+    # At this level etcd performance is severely degraded — kube-apiserver
+    # operations will be visibly slow and cluster stability is at risk.
+    # Shorter `for` duration (2m vs 5m) reflects urgency.
+    - alert: EtcdGrpcLatencyCritical
+      annotations:
+        summary: "etcd gRPC latency critical in {{ $labels.namespace }}"
+        description: |
+          etcd in namespace {{ $labels.namespace }} (cluster {{ $labels.cluster }}) has average gRPC latency of {{ $value | humanizeDuration }}, exceeding 500ms threshold. Immediate action required.
+
+          This indicates severe etcd performance degradation. Customer-facing cluster operations will be significantly delayed.
+          Check disk I/O, etcd resource utilization, and recent load changes.
+      expr: |
+        etcd:grpc_server_handling:avg_latency_seconds:rate5m > 0.5
+      for: 2m
+      labels:
+        severity: critical
+        component: etcd
+
+    # Warning: more than 5% of gRPC requests return non-OK status codes,
+    # sustained for 5 minutes. Catches etcd failures (Unavailable,
+    # DeadlineExceeded, ResourceExhausted) that may not be reflected in
+    # latency metrics — a fast error is still an error.
+    #
+    # Division by zero: if request_rate is zero, PromQL drops the sample
+    # (no traffic = no error rate to evaluate).
+    - alert: EtcdGrpcErrorRateHigh
+      annotations:
+        summary: "etcd gRPC error rate high in {{ $labels.namespace }}"
+        description: |
+          etcd in namespace {{ $labels.namespace }} (cluster {{ $labels.cluster }}) has a gRPC error rate above 5%.
+
+          This may indicate etcd cluster instability, resource exhaustion, or network issues between etcd members.
+      expr: |
+        (
+          etcd:grpc_server_handling:error_rate:rate5m
+          /
+          etcd:grpc_server_handling:request_rate:rate5m
+        ) > 0.05
+      for: 5m
+      labels:
+        severity: warning
+        component: etcd
