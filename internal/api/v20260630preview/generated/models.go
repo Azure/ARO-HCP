@@ -384,6 +384,10 @@ type HcpOpenShiftClusterProperties struct {
 	// given NodePool
 	NodeDrainTimeoutMinutes *int32
 
+	// The SSH public key used for secure access to cluster nodes. When set, this key is distributed to all nodes, enabling SSH
+	// access for debugging and maintenance purposes.
+	NodeSSHPublicKey *string
+
 	// READ-ONLY; Shows the cluster web console information
 	Console *ConsoleProfile
 
@@ -415,6 +419,10 @@ type HcpOpenShiftClusterPropertiesUpdate struct {
 	// This is the value is used a default for all NodePools. It can be overridden by specifying nodeDrainTimeoutMinutes for a
 	// given NodePool
 	NodeDrainTimeoutMinutes *int32
+
+	// The SSH public key used for secure access to cluster nodes. When set, this key is distributed to all nodes, enabling SSH
+	// access for debugging and maintenance purposes.
+	NodeSSHPublicKey *string
 
 	// Azure platform configuration
 	Platform *PlatformProfileUpdate

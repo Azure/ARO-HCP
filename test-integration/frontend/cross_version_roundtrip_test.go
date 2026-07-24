@@ -339,6 +339,7 @@ func clusterCreatePayload(clusterName, apiVersion string) []byte {
       "type": "Private"
     },
     "nodeDrainTimeoutMinutes": 15,
+    "nodeSshPublicKey": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAITestKeyForIntegrationTesting test@example.com",
     "network": {
       "hostPrefix": 23,
       "machineCidr": "10.0.0.0/16",
@@ -984,7 +985,7 @@ func testCrossVersionClusterPUTv2026v2024(t *testing.T, testInfo *integrationuti
 	// Step 2: GET via v2026 → snapshot of all fields ("before")
 	_, beforeMap := getResourceResponse(t, ctx, testInfo, v2026, resourceID)
 
-	// Step 3: GET via v2024 → this drops v2026-only fields (ingress) from the response
+	// Step 3: GET via v2024 → this drops v2026-only fields (ingress, nodeSshPublicKey) from the response
 	v2024Body, _ := getResourceResponse(t, ctx, testInfo, v2024, resourceID)
 
 	// Step 4: PUT via v2024 using the v2024 GET response body
@@ -997,7 +998,7 @@ func testCrossVersionClusterPUTv2026v2024(t *testing.T, testInfo *integrationuti
 	// Step 5: GET via v2026 → snapshot after the v2024 round-trip ("after")
 	_, afterMap := getResourceResponse(t, ctx, testInfo, v2026, resourceID)
 
-	// Step 6: Compare — all v2026 fields (including ingress) should be preserved
+	// Step 6: Compare — all v2026 fields (including ingress, nodeSshPublicKey) should be preserved
 	diff, equals := databasemutationhelpers.ResourceInstanceEquals(t, beforeMap, afterMap)
 	if !equals {
 		t.Logf("before (v2026 GET before v2024 PUT):\n%s", prettyJSON(t, beforeMap))
@@ -1057,7 +1058,7 @@ func testCrossVersionClusterPUTv2026v2025(t *testing.T, testInfo *integrationuti
 	// Step 2: GET via v2026 → snapshot of all fields ("before")
 	_, beforeMap := getResourceResponse(t, ctx, testInfo, v2026, resourceID)
 
-	// Step 3: GET via v2025 → this drops v2026-only fields (ingress) from the response
+	// Step 3: GET via v2025 → this drops v2026-only fields (ingress, nodeSshPublicKey) from the response
 	v2025Body, _ := getResourceResponse(t, ctx, testInfo, v2025, resourceID)
 
 	// Step 4: PUT via v2025 using the v2025 GET response body
@@ -1070,7 +1071,7 @@ func testCrossVersionClusterPUTv2026v2025(t *testing.T, testInfo *integrationuti
 	// Step 5: GET via v2026 → snapshot after the v2025 round-trip ("after")
 	_, afterMap := getResourceResponse(t, ctx, testInfo, v2026, resourceID)
 
-	// Step 6: Compare — all v2026 fields (including ingress) should be preserved
+	// Step 6: Compare — all v2026 fields (including ingress, nodeSshPublicKey) should be preserved
 	diff, equals := databasemutationhelpers.ResourceInstanceEquals(t, beforeMap, afterMap)
 	if !equals {
 		t.Logf("before (v2026 GET before v2025 PUT):\n%s", prettyJSON(t, beforeMap))

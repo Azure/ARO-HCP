@@ -16,8 +16,14 @@ package validation
 
 import (
 	"context"
+	"encoding/json"
+	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 
 	"k8s.io/apimachinery/pkg/api/operation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
@@ -116,4 +122,39 @@ func TestHostPort(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestNodeSshPublicKeyPatternMatchesOpenAPI verifies that nodeSshPublicKeyPattern
+// matches the @pattern defined in the TypeSpec model (surfaced via openapi.json).
+// This catches drift between the Go constant and the TypeSpec source of truth.
+func TestNodeSshPublicKeyPatternMatchesOpenAPI(t *testing.T) {
+	_, thisFile, _, _ := runtime.Caller(0)
+	openapiPath := filepath.Join(
+		filepath.Dir(thisFile),
+		"../../api/redhatopenshift/resource-manager/Microsoft.RedHatOpenShift/hcpopenshiftclusters/preview/2026-06-30-preview/openapi.json",
+	)
+
+	data, err := os.ReadFile(openapiPath)
+	require.NoError(t, err, "openapi.json must be readable")
+
+	var spec map[string]any
+	require.NoError(t, json.Unmarshal(data, &spec), "openapi.json must be valid JSON")
+
+	defs, ok := spec["definitions"].(map[string]any)
+	require.True(t, ok, "openapi.json must have definitions")
+
+	clusterProps, ok := defs["HcpOpenShiftClusterProperties"].(map[string]any)
+	require.True(t, ok, "definitions must contain HcpOpenShiftClusterProperties")
+
+	props, ok := clusterProps["properties"].(map[string]any)
+	require.True(t, ok, "HcpOpenShiftClusterProperties must have properties")
+
+	nodeSshProp, ok := props["nodeSshPublicKey"].(map[string]any)
+	require.True(t, ok, "properties must contain nodeSshPublicKey")
+
+	openapiPattern, ok := nodeSshProp["pattern"].(string)
+	require.True(t, ok, "nodeSshPublicKey must have a pattern")
+
+	require.Equal(t, openapiPattern, nodeSshPublicKeyPattern,
+		"nodeSshPublicKeyPattern in validators.go must match @pattern in openapi.json (derived from TypeSpec hcpCluster-models.tsp)")
 }

@@ -440,6 +440,8 @@ func preserveUnknownClusterFields(from, to *api.HCPOpenShiftCluster) {
 	to.CustomerProperties.Platform.VnetIntegrationSubnetID = from.CustomerProperties.Platform.VnetIntegrationSubnetID
 	// Ingress was added in v2026_06_30_preview.
 	to.CustomerProperties.Ingress = from.CustomerProperties.Ingress
+	// NodeSshPublicKey was added in v2026_06_30_preview.
+	to.CustomerProperties.NodeSshPublicKey = from.CustomerProperties.NodeSshPublicKey
 	// Visibility was added in v2025_12_23_preview.
 	if from.CustomerProperties.Etcd.DataEncryption.CustomerManaged != nil && from.CustomerProperties.Etcd.DataEncryption.CustomerManaged.Kms != nil {
 		if to.CustomerProperties.Etcd.DataEncryption.CustomerManaged == nil {

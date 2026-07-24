@@ -220,6 +220,7 @@ var (
 		return &oldObj.Autoscaling
 	}
 	toNodeDrainTimeoutMinutes = func(oldObj *api.HCPOpenShiftClusterCustomerProperties) *int32 { return &oldObj.NodeDrainTimeoutMinutes }
+	toNodeSshPublicKey        = func(oldObj *api.HCPOpenShiftClusterCustomerProperties) *string { return &oldObj.NodeSshPublicKey }
 	toEtcd                    = func(oldObj *api.HCPOpenShiftClusterCustomerProperties) *api.EtcdProfile { return &oldObj.Etcd }
 	toClusterImageRegistry    = func(oldObj *api.HCPOpenShiftClusterCustomerProperties) *api.ClusterImageRegistryProfile {
 		return &oldObj.ClusterImageRegistry
@@ -258,6 +259,9 @@ func validateClusterCustomerProperties(ctx context.Context, op operation.Operati
 	//NodeDrainTimeoutMinutes int32                       `json:"nodeDrainTimeoutMinutes,omitempty"`
 	errs = append(errs, validate.Minimum(ctx, op, fldPath.Child("nodeDrainTimeoutMinutes"), &newObj.NodeDrainTimeoutMinutes, safe.Field(oldObj, toNodeDrainTimeoutMinutes), 0)...)
 	errs = append(errs, Maximum(ctx, op, fldPath.Child("nodeDrainTimeoutMinutes"), &newObj.NodeDrainTimeoutMinutes, safe.Field(oldObj, toNodeDrainTimeoutMinutes), 10080)...)
+
+	//NodeSshPublicKey        string                      `json:"nodeSshPublicKey,omitempty"`
+	errs = append(errs, MatchesRegex(ctx, op, fldPath.Child("nodeSshPublicKey"), &newObj.NodeSshPublicKey, safe.Field(oldObj, toNodeSshPublicKey), nodeSshPublicKeyRegex, nodeSshPublicKeyErrorString)...)
 
 	//Etcd                    EtcdProfile                 `json:"etcd,omitempty"`
 	errs = append(errs, validateEtcdProfile(ctx, op, fldPath.Child("etcd"), &newObj.Etcd, safe.Field(oldObj, toEtcd))...)

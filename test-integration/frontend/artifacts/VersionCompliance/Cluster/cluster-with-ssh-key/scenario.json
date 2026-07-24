@@ -1,0 +1,7 @@
+{
+	"createVersion": "2026-06-30-preview",
+	"description": "Cluster with nodeSshPublicKey created on v3, verify all versions produce valid response",
+	"id": "de278622-7d27-5f77-ba14-afb3f4a3e8b5",
+	"resourceID": "/subscriptions/6b690bec-0c16-4ecb-8f67-781caf40bba7/resourceGroups/resourceGroupName/providers/Microsoft.RedHatOpenShift/hcpOpenShiftClusters/vc-cluster-ssh-key",
+	"resourceType": "cluster"
+}

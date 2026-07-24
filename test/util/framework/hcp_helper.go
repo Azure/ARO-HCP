@@ -1554,6 +1554,7 @@ func BuildHCPClusterFromParams20260630(
 				},
 			},
 			ImageDigestMirrors: imageDigestMirrors,
+			NodeSSHPublicKey:   parameters.NodeSSHPublicKey,
 		},
 	}, nil
 }
