@@ -93,6 +93,7 @@ type BackendOptions struct {
 	FPAClientBuilder                   azureclient.FirstPartyApplicationClientBuilder
 	BackendIdentityAzureClients        *azureclient.BackendIdentityAzureClients
 	BackendIdentityAzureCachedReaders  *cachedreader.BackendIdentityAzureCachedReaders
+	FPAAzureCachedReaders              *cachedreader.FirstPartyApplicationAzureCachedReaders
 	ExitOnPanic                        bool
 	FPAMIDataplaneClientBuilder        azureclient.FPAMIDataplaneClientBuilder
 	SMIClientBuilder                   azureclient.ServiceManagedIdentityClientBuilder
