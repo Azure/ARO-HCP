@@ -27,6 +27,7 @@ resource InstancesDownV1 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
         alert: 'InstancesDownV1'
         enabled: true
         labels: {
+          component: 'testing'
           severity: 'critical'
         }
         annotations: {
@@ -50,6 +51,7 @@ resource InstancesDownV1 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-0
         alert: 'KubePodNotReady'
         enabled: true
         labels: {
+          component: 'testing'
           severity: 'warning'
         }
         annotations: {

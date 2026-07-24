@@ -12,11 +12,12 @@ tests:
     alertname: MgmtClusterNodeSwiftNICCapacityZero
     exp_alerts:
     - exp_labels:
-        severity: critical
-        team: hcp-sl
         cluster: mgmt-nic-zero
+        component: capacity
         node: user-pool-node-1
         resource: aro_openshift_io_swift_nic
+        severity: critical
+        team: hcp-sl
       exp_annotations:
         summary: Management cluster node has zero SWIFT NIC capacity.
         description: Node user-pool-node-1 on management cluster mgmt-nic-zero has zero SWIFT NIC capacity. No HCPs can be scheduled on this node until NIC capacity is restored.
@@ -122,9 +123,10 @@ tests:
     alertname: MgmtClusterHCPCapacityWarning
     exp_alerts:
     - exp_labels:
+        cluster: mgmt-test
+        component: capacity
         severity: info
         team: hcp-sl
-        cluster: mgmt-test
       exp_annotations:
         summary: Management cluster HCP capacity is approaching limit (60% threshold).
         description: Management cluster mgmt-test is at 61.67% of its HCP capacity (60 HCP limit). Current count exceeds warning threshold of 60%.
@@ -242,9 +244,10 @@ tests:
     alertname: MgmtClusterHCPCapacityCritical
     exp_alerts:
     - exp_labels:
+        cluster: mgmt-critical
+        component: capacity
         severity: info
         team: hcp-sl
-        cluster: mgmt-critical
       exp_annotations:
         summary: Management cluster HCP capacity is critically high (85% threshold).
         description: Management cluster mgmt-critical is at 86.67% of its HCP capacity (60 HCP limit). Current count exceeds critical threshold of 85%. Immediate action required to provision additional management cluster capacity.

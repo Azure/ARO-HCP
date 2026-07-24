@@ -6,6 +6,8 @@ metadata:
 spec:
   groups:
   - name: hcp-test-clusters-rules
+    labels:
+      component: test-clusters
     rules:
     - alert: HCPClusterOlderThan3Hours
       expr: |

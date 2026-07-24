@@ -11,6 +11,8 @@ metadata:
 spec:
   groups:
   - name: fleet
+    labels:
+      component: fleet
     rules:
     - alert: FleetControllerRetryHotLoop
       # A ratio of retries to total adds that is rate-independent:

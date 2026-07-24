@@ -11,6 +11,8 @@ metadata:
 spec:
   groups:
   - name: backend-retryhotloop
+    labels:
+      component: backend
     rules:
     - alert: BackendControllerRetryHotLoop
       # A ratio of retries to total adds that is rate-independent:

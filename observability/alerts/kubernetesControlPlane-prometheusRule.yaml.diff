@@ -1,6 +1,38 @@
 --- upstream/kubernetesControlPlane-prometheusRule.yaml
 +++ alerts/kubernetesControlPlane-prometheusRule.yaml
-@@ -52,7 +52,7 @@
+@@ -11,6 +11,8 @@
+ spec:
+   groups:
+   - name: kubernetes-apps
++    labels:
++      component: kubernetes-infrastructure
+     rules:
+     - alert: KubePodCrashLooping
+       annotations:
+@@ -24,18 +26,18 @@
+         severity: warning
+     - alert: KubePodNotReady
+       annotations:
+-        description: Pod {{ $labels.namespace }}/{{ $labels.pod }} has been in a non-ready state for longer than 15 minutes.
++        description: Pod {{ $labels.namespace }}/{{ $labels.pod }} has been in a non-ready state for longer than 5 minutes.
+         runbook_url: https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubepodnotready
+-        summary: Pod has been in a non-ready state for more than 15 minutes.
++        summary: Pod has been in a non-ready state for more than 5 minutes.
+       expr: |
+         sum by (namespace, pod, cluster) (
+           max by(namespace, pod, cluster) (
+-            kube_pod_status_phase{job="kube-state-metrics", phase=~"Pending|Unknown|Failed"}
++            kube_pod_status_phase{job="kube-state-metrics", phase=~"Pending|Unknown|Failed", namespace!~"klusterlet-.*"}
+           ) * on(namespace, pod, cluster) group_left(owner_kind) topk by(namespace, pod, cluster) (
+             1, max by(namespace, pod, owner_kind, cluster) (kube_pod_owner{owner_kind!="Job"})
+           )
+         ) > 0
+-      for: 15m
++      for: 5m
+       labels:
+         severity: warning
+     - alert: KubeDeploymentGenerationMismatch
+@@ -52,7 +54,7 @@
          severity: warning
      - alert: KubeDeploymentReplicasMismatch
        annotations:
@@ -9,7 +41,7 @@
          runbook_url: https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubedeploymentreplicasmismatch
          summary: Deployment has not matched the expected number of replicas.
        expr: |
-@@ -65,18 +65,18 @@
+@@ -65,18 +67,18 @@
              ==
            0
          )
@@ -31,7 +63,34 @@
        labels:
          severity: warning
      - alert: KubeStatefulSetReplicasMismatch
-@@ -463,7 +463,7 @@
+@@ -255,6 +257,8 @@
+       labels:
+         severity: warning
+   - name: kubernetes-resources
++    labels:
++      component: kubernetes-infrastructure
+     rules:
+     - alert: KubeCPUOvercommit
+       annotations:
+@@ -359,6 +363,8 @@
+       labels:
+         severity: info
+   - name: kubernetes-storage
++    labels:
++      component: kubernetes-infrastructure
+     rules:
+     - alert: KubePersistentVolumeFillingUp
+       annotations:
+@@ -455,6 +461,8 @@
+       labels:
+         severity: critical
+   - name: kubernetes-system
++    labels:
++      component: kubernetes-infrastructure
+     rules:
+     - alert: KubeVersionMismatch
+       annotations:
+@@ -463,7 +471,7 @@
          summary: Different semantic versions of Kubernetes components running.
        expr: |
          count by (cluster) (count by (git_version, cluster) (label_replace(kubernetes_build_info{job!~"kube-dns|coredns"},"git_version","$1","git_version","(v[0-9]*.[0-9]*).*"))) > 1
@@ -40,7 +99,39 @@
        labels:
          severity: warning
      - alert: KubeClientErrors
-@@ -602,12 +602,12 @@
+@@ -480,6 +488,8 @@
+       labels:
+         severity: warning
+   - name: kube-apiserver-slos
++    labels:
++      component: kubernetes-infrastructure
+     rules:
+     - alert: KubeAPIErrorBudgetBurn
+       annotations:
+@@ -538,6 +548,8 @@
+         severity: warning
+         short: 6h
+   - name: kubernetes-system-apiserver
++    labels:
++      component: kubernetes-infrastructure
+     rules:
+     - alert: KubeClientCertificateExpiration
+       annotations:
+@@ -584,7 +596,7 @@
+         runbook_url: https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubeapidown
+         summary: Target disappeared from Prometheus target discovery.
+       expr: |
+-        absent(up{job="apiserver"} == 1)
++        count by (cluster) (up{job="apiserver"} == 1) == 0
+       for: 15m
+       labels:
+         severity: critical
+@@ -599,15 +611,17 @@
+       labels:
+         severity: warning
+   - name: kubernetes-system-kubelet
++    labels:
++      component: kubernetes-infrastructure
      rules:
      - alert: KubeNodeNotReady
        annotations:
@@ -55,3 +146,42 @@
        labels:
          severity: warning
      - alert: KubeNodeUnreachable
+@@ -728,11 +742,13 @@
+         runbook_url: https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubeletdown
+         summary: Target disappeared from Prometheus target discovery.
+       expr: |
+-        absent(up{job="kubelet", metrics_path="/metrics"} == 1)
++        count by (cluster) (up{job="kubelet", metrics_path="/metrics"} == 1) == 0
+       for: 15m
+       labels:
+         severity: critical
+   - name: kubernetes-system-scheduler
++    labels:
++      component: kubernetes-infrastructure
+     rules:
+     - alert: KubeSchedulerDown
+       annotations:
+@@ -740,11 +756,13 @@
+         runbook_url: https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubeschedulerdown
+         summary: Target disappeared from Prometheus target discovery.
+       expr: |
+-        absent(up{job="kube-scheduler"} == 1)
++        count by (cluster) (up{job="kube-scheduler"} == 1) == 0
+       for: 15m
+       labels:
+         severity: critical
+   - name: kubernetes-system-controller-manager
++    labels:
++      component: kubernetes-infrastructure
+     rules:
+     - alert: KubeControllerManagerDown
+       annotations:
+@@ -752,7 +770,7 @@
+         runbook_url: https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubecontrollermanagerdown
+         summary: Target disappeared from Prometheus target discovery.
+       expr: |
+-        absent(up{job="kube-controller-manager"} == 1)
++        count by (cluster) (up{job="kube-controller-manager"} == 1) == 0
+       for: 15m
+       labels:
+         severity: critical

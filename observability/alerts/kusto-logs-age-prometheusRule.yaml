@@ -6,6 +6,8 @@ metadata:
 spec:
   groups:
   - name: kusto-logs-age-rules
+    labels:
+      component: kusto
     rules:
     - alert: KustoLogsDataStale
       expr: kusto_logs_age_in_seconds{table!="systemdlogs"} > 3600 or kusto_logs_age_in_seconds{table="systemdlogs",cluster!~".*-svc-.*"} > 3600 or kusto_logs_age_in_seconds{table="systemdlogs",cluster=~".*-svc-.*"} > 7200

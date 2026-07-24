@@ -29,6 +29,7 @@ resource svcKubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
         alert: 'KubePodCrashLooping'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -56,18 +57,19 @@ resource svcKubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
         alert: 'KubePodNotReady'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'warning'
         }
         annotations: {
           correlationId: 'KubePodNotReady/{{ $labels.cluster }}/{{ $labels.namespace }}/{{ $labels.pod }}'
-          description: 'Pod {{ $labels.namespace }}/{{ $labels.pod }} has been in a non-ready state for longer than 15 minutes.'
-          info: 'Pod {{ $labels.namespace }}/{{ $labels.pod }} has been in a non-ready state for longer than 15 minutes.'
+          description: 'Pod {{ $labels.namespace }}/{{ $labels.pod }} has been in a non-ready state for longer than 5 minutes.'
+          info: 'Pod {{ $labels.namespace }}/{{ $labels.pod }} has been in a non-ready state for longer than 5 minutes.'
           runbook_url: 'https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubepodnotready'
-          summary: 'Pod has been in a non-ready state for more than 15 minutes.'
-          title: 'Pod has been in a non-ready state for more than 15 minutes. namespace:{{ $labels.namespace }} pod:{{ $labels.pod }}'
+          summary: 'Pod has been in a non-ready state for more than 5 minutes.'
+          title: 'Pod has been in a non-ready state for more than 5 minutes. namespace:{{ $labels.namespace }} pod:{{ $labels.pod }}'
         }
-        expression: 'sum by (namespace, pod, cluster) (max by (namespace, pod, cluster) (kube_pod_status_phase{job="kube-state-metrics",phase=~"Pending|Unknown|Failed"}) * on (namespace, pod, cluster) group_left (owner_kind) topk by (namespace, pod, cluster) (1, max by (namespace, pod, owner_kind, cluster) (kube_pod_owner{owner_kind!="Job"}))) > 0'
-        for: 'PT15M'
+        expression: 'sum by (namespace, pod, cluster) (max by (namespace, pod, cluster) (kube_pod_status_phase{job="kube-state-metrics",namespace!~"klusterlet-.*",phase=~"Pending|Unknown|Failed"}) * on (namespace, pod, cluster) group_left (owner_kind) topk by (namespace, pod, cluster) (1, max by (namespace, pod, owner_kind, cluster) (kube_pod_owner{owner_kind!="Job"}))) > 0'
+        for: 'PT5M'
         severity: severityCeiling > 0 ? max(3, severityCeiling) : 3
       }
       {
@@ -83,6 +85,7 @@ resource svcKubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
         alert: 'KubeDeploymentGenerationMismatch'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -110,6 +113,7 @@ resource svcKubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
         alert: 'KubeDeploymentReplicasMismatch'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -137,6 +141,7 @@ resource svcKubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
         alert: 'KubeDeploymentRolloutStuck'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -164,6 +169,7 @@ resource svcKubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
         alert: 'KubeStatefulSetReplicasMismatch'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -191,6 +197,7 @@ resource svcKubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
         alert: 'KubeStatefulSetGenerationMismatch'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -218,6 +225,7 @@ resource svcKubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
         alert: 'KubeStatefulSetUpdateNotRolledOut'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -245,6 +253,7 @@ resource svcKubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
         alert: 'KubeDaemonSetRolloutStuck'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -272,6 +281,7 @@ resource svcKubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
         alert: 'KubeContainerWaiting'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -299,6 +309,7 @@ resource svcKubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
         alert: 'KubeDaemonSetNotScheduled'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -326,6 +337,7 @@ resource svcKubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
         alert: 'KubeDaemonSetMisScheduled'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -353,6 +365,7 @@ resource svcKubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
         alert: 'KubeJobNotCompleted'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -379,6 +392,7 @@ resource svcKubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
         alert: 'KubeJobFailed'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -406,6 +420,7 @@ resource svcKubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
         alert: 'KubeHpaReplicasMismatch'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -433,6 +448,7 @@ resource svcKubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
         alert: 'KubeHpaMaxedOut'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -473,6 +489,7 @@ resource svcKubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroups
         alert: 'KubeCPUOvercommit'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -500,6 +517,7 @@ resource svcKubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroups
         alert: 'KubeMemoryOvercommit'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -527,6 +545,7 @@ resource svcKubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroups
         alert: 'KubeCPUQuotaOvercommit'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -554,6 +573,7 @@ resource svcKubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroups
         alert: 'KubeMemoryQuotaOvercommit'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -581,6 +601,7 @@ resource svcKubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroups
         alert: 'KubeQuotaAlmostFull'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'info'
         }
         annotations: {
@@ -608,6 +629,7 @@ resource svcKubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroups
         alert: 'KubeQuotaFullyUsed'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'info'
         }
         annotations: {
@@ -635,6 +657,7 @@ resource svcKubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroups
         alert: 'KubeQuotaExceeded'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -662,6 +685,7 @@ resource svcKubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroups
         alert: 'CPUThrottlingHigh'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'info'
         }
         annotations: {
@@ -702,6 +726,7 @@ resource svcKubernetesStorage 'Microsoft.AlertsManagement/prometheusRuleGroups@2
         alert: 'KubePersistentVolumeFillingUp'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'critical'
         }
         annotations: {
@@ -729,6 +754,7 @@ resource svcKubernetesStorage 'Microsoft.AlertsManagement/prometheusRuleGroups@2
         alert: 'KubePersistentVolumeFillingUp'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -756,6 +782,7 @@ resource svcKubernetesStorage 'Microsoft.AlertsManagement/prometheusRuleGroups@2
         alert: 'KubePersistentVolumeInodesFillingUp'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'critical'
         }
         annotations: {
@@ -783,6 +810,7 @@ resource svcKubernetesStorage 'Microsoft.AlertsManagement/prometheusRuleGroups@2
         alert: 'KubePersistentVolumeInodesFillingUp'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -810,6 +838,7 @@ resource svcKubernetesStorage 'Microsoft.AlertsManagement/prometheusRuleGroups@2
         alert: 'KubePersistentVolumeErrors'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'critical'
         }
         annotations: {
@@ -850,6 +879,7 @@ resource svcKubernetesSystem 'Microsoft.AlertsManagement/prometheusRuleGroups@20
         alert: 'KubeVersionMismatch'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -877,6 +907,7 @@ resource svcKubernetesSystem 'Microsoft.AlertsManagement/prometheusRuleGroups@20
         alert: 'KubeClientErrors'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -917,6 +948,7 @@ resource svcKubeApiserverSlos 'Microsoft.AlertsManagement/prometheusRuleGroups@2
         alert: 'KubeAPIErrorBudgetBurn'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           long: '1h'
           severity: 'critical'
           short: '5m'
@@ -946,6 +978,7 @@ resource svcKubeApiserverSlos 'Microsoft.AlertsManagement/prometheusRuleGroups@2
         alert: 'KubeAPIErrorBudgetBurn'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           long: '6h'
           severity: 'critical'
           short: '30m'
@@ -975,6 +1008,7 @@ resource svcKubeApiserverSlos 'Microsoft.AlertsManagement/prometheusRuleGroups@2
         alert: 'KubeAPIErrorBudgetBurn'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           long: '1d'
           severity: 'warning'
           short: '2h'
@@ -1004,6 +1038,7 @@ resource svcKubeApiserverSlos 'Microsoft.AlertsManagement/prometheusRuleGroups@2
         alert: 'KubeAPIErrorBudgetBurn'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           long: '3d'
           severity: 'warning'
           short: '6h'
@@ -1046,6 +1081,7 @@ resource svcKubernetesSystemApiserver 'Microsoft.AlertsManagement/prometheusRule
         alert: 'KubeClientCertificateExpiration'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -1073,6 +1109,7 @@ resource svcKubernetesSystemApiserver 'Microsoft.AlertsManagement/prometheusRule
         alert: 'KubeClientCertificateExpiration'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'critical'
         }
         annotations: {
@@ -1100,6 +1137,7 @@ resource svcKubernetesSystemApiserver 'Microsoft.AlertsManagement/prometheusRule
         alert: 'KubeAggregatedAPIErrors'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -1126,6 +1164,7 @@ resource svcKubernetesSystemApiserver 'Microsoft.AlertsManagement/prometheusRule
         alert: 'KubeAggregatedAPIDown'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -1153,6 +1192,7 @@ resource svcKubernetesSystemApiserver 'Microsoft.AlertsManagement/prometheusRule
         alert: 'KubeAPIDown'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'critical'
         }
         annotations: {
@@ -1180,6 +1220,7 @@ resource svcKubernetesSystemApiserver 'Microsoft.AlertsManagement/prometheusRule
         alert: 'KubeAPITerminatedRequests'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -1220,6 +1261,7 @@ resource svcKubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGr
         alert: 'KubeNodeNotReady'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -1247,6 +1289,7 @@ resource svcKubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGr
         alert: 'KubeNodeUnreachable'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -1274,6 +1317,7 @@ resource svcKubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGr
         alert: 'KubeletTooManyPods'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'info'
         }
         annotations: {
@@ -1301,6 +1345,7 @@ resource svcKubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGr
         alert: 'KubeNodeReadinessFlapping'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -1328,6 +1373,7 @@ resource svcKubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGr
         alert: 'KubeletPlegDurationHigh'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -1355,6 +1401,7 @@ resource svcKubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGr
         alert: 'KubeletPodStartUpLatencyHigh'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -1382,6 +1429,7 @@ resource svcKubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGr
         alert: 'KubeletClientCertificateExpiration'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -1408,6 +1456,7 @@ resource svcKubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGr
         alert: 'KubeletClientCertificateExpiration'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'critical'
         }
         annotations: {
@@ -1434,6 +1483,7 @@ resource svcKubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGr
         alert: 'KubeletServerCertificateExpiration'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -1460,6 +1510,7 @@ resource svcKubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGr
         alert: 'KubeletServerCertificateExpiration'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'critical'
         }
         annotations: {
@@ -1486,6 +1537,7 @@ resource svcKubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGr
         alert: 'KubeletClientCertificateRenewalErrors'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -1513,6 +1565,7 @@ resource svcKubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGr
         alert: 'KubeletServerCertificateRenewalErrors'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -1540,6 +1593,7 @@ resource svcKubernetesSystemKubelet 'Microsoft.AlertsManagement/prometheusRuleGr
         alert: 'KubeletDown'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'critical'
         }
         annotations: {
@@ -1580,6 +1634,7 @@ resource svcKubernetesSystemScheduler 'Microsoft.AlertsManagement/prometheusRule
         alert: 'KubeSchedulerDown'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'critical'
         }
         annotations: {
@@ -1620,6 +1675,7 @@ resource svcKubernetesSystemControllerManager 'Microsoft.AlertsManagement/promet
         alert: 'KubeControllerManagerDown'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'critical'
         }
         annotations: {
@@ -1660,6 +1716,7 @@ resource svcFrontendPathLatency 'Microsoft.AlertsManagement/prometheusRuleGroups
         alert: 'FrontendPathLatency'
         enabled: true
         labels: {
+          component: 'frontend'
           severity: 'info'
         }
         annotations: {

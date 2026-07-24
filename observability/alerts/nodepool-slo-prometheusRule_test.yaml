@@ -97,10 +97,11 @@ tests:
     exp_alerts:
     - exp_labels:
         cluster: "mgmt-1"
-        severity: info
-        slo: nodepool-errors
+        component: slo
         long_window: 1h
+        severity: info
         short_window: 5m
+        slo: nodepool-errors
       exp_annotations:
         summary: "mgmt-1: Node Pool operation error rate critically high (>72%)"
         description: "More than 72% of node pool operations are in failed state, indicating a fast error budget burn (14.4x) that would exhaust the 95% SLO budget in ~12 hours."
@@ -111,6 +112,7 @@ tests:
     exp_alerts:
     - exp_labels:
         cluster: "mgmt-1"
+        component: slo
         severity: info
         slo: nodepool-errors
       exp_annotations:
@@ -162,6 +164,7 @@ tests:
     exp_alerts:
     - exp_labels:
         cluster: "mgmt-1"
+        component: slo
         severity: info
         slo: nodepool-errors
       exp_annotations:
@@ -186,13 +189,14 @@ tests:
     alertname: UJNodePoolStuckOperation
     exp_alerts:
     - exp_labels:
-        resource_id: "/sub/3/np/stuck"
-        subscription_id: "sub-3"
-        resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"
+        cluster: "mgmt-1"
+        component: slo
         operation_type: "update"
         phase: "updating"
-        cluster: "mgmt-1"
+        resource_id: "/sub/3/np/stuck"
+        resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"
         severity: info
+        subscription_id: "sub-3"
       exp_annotations:
         summary: "mgmt-1: Node Pool operation stuck in updating for over 2 hours"
         description: "Node pool operation for /sub/3/np/stuck has been in updating phase for over 2 hours. Stuck operations are invisible to success/failure SLIs and require investigation."
@@ -247,8 +251,9 @@ tests:
     alertname: UJNodePoolSaturationQueueDepth
     exp_alerts:
     - exp_labels:
-        name: "OperationNodePoolUpdate"
         cluster: "mgmt-1"
+        component: slo
+        name: "OperationNodePoolUpdate"
         severity: info
       exp_annotations:
         summary: "mgmt-1: Node Pool controller workqueue OperationNodePoolUpdate depth is high"
@@ -278,8 +283,9 @@ tests:
     alertname: UJNodePoolSaturationRetryHotLoop
     exp_alerts:
     - exp_labels:
-        name: "OperationNodePoolUpdate"
         cluster: "mgmt-1"
+        component: slo
+        name: "OperationNodePoolUpdate"
         severity: info
       exp_annotations:
         summary: "mgmt-1: Node Pool controller workqueue OperationNodePoolUpdate retry hot loop"
@@ -352,10 +358,11 @@ tests:
     exp_alerts:
     - exp_labels:
         cluster: "mgmt-1"
-        severity: info
-        slo: nodepool-errors
+        component: slo
         long_window: 6h
+        severity: info
         short_window: 30m
+        slo: nodepool-errors
       exp_annotations:
         summary: "mgmt-1: Node Pool operation error rate elevated (>30%) for 30+ minutes"
         description: "More than 30% of node pool operations are in failed state sustained over 30 minutes, indicating a medium error budget burn (6x) that would exhaust the 95% SLO budget in ~28 hours."
@@ -378,13 +385,14 @@ tests:
     alertname: UJNodePoolStuckOperation
     exp_alerts:
     - exp_labels:
-        resource_id: "/sub/7/np/stuck-del"
-        subscription_id: "sub-7"
-        resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"
+        cluster: "mgmt-1"
+        component: slo
         operation_type: "delete"
         phase: "deleting"
-        cluster: "mgmt-1"
+        resource_id: "/sub/7/np/stuck-del"
+        resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"
         severity: info
+        subscription_id: "sub-7"
       exp_annotations:
         summary: "mgmt-1: Node Pool operation stuck in deleting for over 2 hours"
         description: "Node pool operation for /sub/7/np/stuck-del has been in deleting phase for over 2 hours. Stuck operations are invisible to success/failure SLIs and require investigation."
@@ -414,13 +422,14 @@ tests:
     alertname: UJNodePoolStuckOperation
     exp_alerts:
     - exp_labels:
-        resource_id: "/sub/8/np/flap-del"
-        subscription_id: "sub-8"
-        resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"
+        cluster: "mgmt-1"
+        component: slo
         operation_type: "delete"
         phase: "deleting"
-        cluster: "mgmt-1"
+        resource_id: "/sub/8/np/flap-del"
+        resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"
         severity: info
+        subscription_id: "sub-8"
       exp_annotations:
         summary: "mgmt-1: Node Pool operation stuck in deleting for over 2 hours"
         description: "Node pool operation for /sub/8/np/flap-del has been in deleting phase for over 2 hours. Stuck operations are invisible to success/failure SLIs and require investigation."
@@ -431,13 +440,14 @@ tests:
     alertname: UJNodePoolStuckOperation
     exp_alerts:
     - exp_labels:
-        resource_id: "/sub/8/np/flap-del"
-        subscription_id: "sub-8"
-        resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"
+        cluster: "mgmt-1"
+        component: slo
         operation_type: "delete"
         phase: "deleting"
-        cluster: "mgmt-1"
+        resource_id: "/sub/8/np/flap-del"
+        resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"
         severity: info
+        subscription_id: "sub-8"
       exp_annotations:
         summary: "mgmt-1: Node Pool operation stuck in deleting for over 2 hours"
         description: "Node pool operation for /sub/8/np/flap-del has been in deleting phase for over 2 hours. Stuck operations are invisible to success/failure SLIs and require investigation."
@@ -447,13 +457,14 @@ tests:
     alertname: UJNodePoolStuckOperation
     exp_alerts:
     - exp_labels:
-        resource_id: "/sub/8/np/flap-del"
-        subscription_id: "sub-8"
-        resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"
+        cluster: "mgmt-1"
+        component: slo
         operation_type: "delete"
         phase: "deleting"
-        cluster: "mgmt-1"
+        resource_id: "/sub/8/np/flap-del"
+        resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"
         severity: info
+        subscription_id: "sub-8"
       exp_annotations:
         summary: "mgmt-1: Node Pool operation stuck in deleting for over 2 hours"
         description: "Node pool operation for /sub/8/np/flap-del has been in deleting phase for over 2 hours. Stuck operations are invisible to success/failure SLIs and require investigation."
@@ -477,13 +488,14 @@ tests:
     alertname: UJNodePoolStuckOperation
     exp_alerts:
     - exp_labels:
-        resource_id: "/sub/9/np/done-del"
-        subscription_id: "sub-9"
-        resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"
+        cluster: "mgmt-1"
+        component: slo
         operation_type: "delete"
         phase: "deleting"
-        cluster: "mgmt-1"
+        resource_id: "/sub/9/np/done-del"
+        resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"
         severity: info
+        subscription_id: "sub-9"
       exp_annotations:
         summary: "mgmt-1: Node Pool operation stuck in deleting for over 2 hours"
         description: "Node pool operation for /sub/9/np/done-del has been in deleting phase for over 2 hours. Stuck operations are invisible to success/failure SLIs and require investigation."
