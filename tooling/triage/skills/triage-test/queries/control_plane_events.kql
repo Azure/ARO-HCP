@@ -1,0 +1,12 @@
+let _cs_cluster_id = toscalar(
+    cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}').table('clustersServiceLogs')
+    | where timestamp between({{ kqlDatetime .StartTime }} .. {{ kqlDatetime .EndTime }})
+    | where resource_id has '{{.ResourceGroup}}'
+    | where isnotempty(cid)
+    | distinct tostring(cid)
+    | limit 1
+);
+cluster('{{ .ClusterURI }}').database('{{ .ServiceDatabase }}').table('kubernetesEvents')
+| where timestamp between({{ kqlDatetime .StartTime }} .. {{ kqlDatetime .EndTime }})
+| where eventNamespace has _cs_cluster_id
+| project timestamp, objectKind, objectName, reason, message, firstSeen, lastSeen
