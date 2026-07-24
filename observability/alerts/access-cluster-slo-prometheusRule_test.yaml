@@ -300,6 +300,21 @@ tests:
   - eval_time: 22m
     alertname: userJourneyAccessClusterSaturationRetryHotLoop
 # ========================================
+# Test 10b: Retry hot loop — high ratio but below traffic floor, no alert
+# ========================================
+# Incrementing counters at 0.08 retries/min and 0.12 adds/min.
+# ratio = 0.08/0.12 = 67% (above 50% threshold),
+# but rate(adds) = ~0.002/s which is below the 0.008/s floor.
+- interval: 1m
+  input_series:
+  - series: 'workqueue_retries_total{namespace="aro-hcp", name="OperationRequestCredential", cluster="mgmt-1"}'
+    values: "0+0.08x25"
+  - series: 'workqueue_adds_total{namespace="aro-hcp", name="OperationRequestCredential", cluster="mgmt-1"}'
+    values: "0+0.12x25"
+  alert_rule_test:
+  - eval_time: 22m
+    alertname: userJourneyAccessClusterSaturationRetryHotLoop
+# ========================================
 # Test 11: Mixed operation types — requestcredential and revokecredentials both tracked
 # ========================================
 # Verifies both operation types are captured by the regex filter.

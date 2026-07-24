@@ -196,7 +196,7 @@ spec:
   # ========================================
   # Node Pool User Journey Alerts — Saturation
   # ========================================
-  # Queue depth and retry rates impact node pool operations directly,
+  # Queue depth impacts node pool operations directly,
   # making these user journey signals per ADR. Sev 4 (precursor).
   - name: arohcp_nodepool_saturation_alerts
     rules:
@@ -215,26 +215,7 @@ spec:
         summary: "{{ $labels.cluster }}: Node Pool controller workqueue {{ $labels.name }} depth is high"
         description: "Node pool controller workqueue {{ $labels.name }} has had a depth > 10 for more than 5 minutes, indicating work is accumulating faster than it can be processed."
         runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
-    # Retry hot loop: high retry ratio on node pool workqueue
-    - alert: UJNodePoolSaturationRetryHotLoop
-      expr: |
-        (
-          sum by (name, cluster) (
-            max without(prometheus_replica) (
-              rate(workqueue_retries_total{namespace="aro-hcp", name=~".*NodePool.*"}[10m])
-            )
-          )
-          /
-          sum by (name, cluster) (
-            max without(prometheus_replica) (
-              rate(workqueue_adds_total{namespace="aro-hcp", name=~".*NodePool.*"}[10m])
-            )
-          )
-        ) > 0.5
-      for: 10m
-      labels:
-        severity: info
-      annotations:
-        summary: "{{ $labels.cluster }}: Node Pool controller workqueue {{ $labels.name }} retry hot loop"
-        description: "Node pool controller workqueue {{ $labels.name }} has a retry ratio > 50% sustained over 10 minutes, indicating most queue activity is failed retries rather than fresh work."
-        runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
+    # Retry hot loop alert removed (ARO-28637): the workqueue retry ratio
+    # encodes backend implementation detail (polling requeues count as retries),
+    # fires without customer impact, and is not actionable. The stuck operation
+    # alert covers the customer-visible outcome.

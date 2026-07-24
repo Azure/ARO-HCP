@@ -165,6 +165,12 @@ spec:
             )
           )
         ) > 0.5
+        and
+        sum by (name, cluster) (
+          max without(prometheus_replica) (
+            rate(workqueue_adds_total{namespace="aro-hcp", name=~".*(RequestCredential|RevokeCredentials).*"}[10m])
+          )
+        ) > 0.008
       for: 10m
       labels:
         severity: "4"
