@@ -33,7 +33,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
-	"k8s.io/klog/v2"
 
 	"github.com/Azure/ARO-HCP/test/util/framework"
 )
@@ -51,10 +50,10 @@ func (v verifySimpleWebApp) Name() string {
 }
 
 func (v verifySimpleWebApp) Verify(ctx context.Context, adminRESTConfig *rest.Config) error {
-	klog.SetOutput(ginkgo.GinkgoWriter)
+	logger := ginkgo.GinkgoLogr
 	defer func() {
 		if err := v.cleanup(ctx, adminRESTConfig); err != nil {
-			klog.ErrorS(err, "Error cleaning up resources")
+			logger.Error(err, "Error cleaning up resources")
 		}
 	}()
 
@@ -103,8 +102,6 @@ var routeReachabilityPollInterval = 10 * time.Second
 // string is included in all log messages to distinguish check stages.
 func waitForRouteReachability(ctx context.Context, client *http.Client, url string, timeout time.Duration, phase string) error {
 	var lastErr error
-	var dnsFailureCount int
-	var firstDNSFailureTime time.Time
 	startTime := time.Now()
 	logged5Min := false
 	logged10Min := false
@@ -125,65 +122,28 @@ func waitForRouteReachability(ctx context.Context, client *http.Client, url stri
 		}
 		resp, err := client.Get(url)
 		if err != nil {
-			var dnsErr *net.DNSError
-			if errors.As(err, &dnsErr) {
-				dnsFailureCount++
-				if firstDNSFailureTime.IsZero() {
-					firstDNSFailureTime = time.Now()
-				}
-				dnsDuration := time.Since(firstDNSFailureTime)
-
-				if dnsDuration > 5*time.Minute && dnsFailureCount%30 == 0 {
-					ginkgo.GinkgoWriter.Printf("[%s] WARNING: DNS resolution failing for over 5 minutes (TTL period): url=%s host=%s duration=%v failures=%d\n",
-						phase, url, dnsErr.Name, dnsDuration, dnsFailureCount)
-				}
-
-				if lastErr == nil || err.Error() != lastErr.Error() {
-					klog.InfoS("DNS resolution failed (may indicate DNS propagation delay)",
+			if lastErr == nil || err.Error() != lastErr.Error() {
+				var dnsErr *net.DNSError
+				if errors.As(err, &dnsErr) {
+					ginkgo.GinkgoLogr.Info("DNS error for route",
 						"phase", phase,
 						"url", url,
 						"host", dnsErr.Name,
-						"dnsError", dnsErr.Err,
-						"isTimeout", dnsErr.IsTimeout,
-						"isTemporary", dnsErr.IsTemporary,
 						"isNotFound", dnsErr.IsNotFound,
-						"consecutiveDNSFailures", dnsFailureCount,
-						"dnsDuration", dnsDuration,
+						"isTemporary", dnsErr.IsTemporary,
+						"dnsError", dnsErr.Err,
+						"error", err,
+					)
+				} else {
+					ginkgo.GinkgoLogr.Info("failed to get response from route",
+						"phase", phase,
+						"url", url,
+						"error", err,
 					)
 				}
-				lastErr = err
-				return false, nil
-			}
-
-			if dnsFailureCount > 0 {
-				klog.InfoS("DNS resolution succeeded, but connection failed with different error",
-					"phase", phase,
-					"previousDNSFailures", dnsFailureCount,
-					"dnsDuration", time.Since(firstDNSFailureTime),
-				)
-				dnsFailureCount = 0
-				firstDNSFailureTime = time.Time{}
-			}
-
-			if lastErr == nil || err.Error() != lastErr.Error() {
-				klog.InfoS("failed to get response from route",
-					"phase", phase,
-					"url", url,
-					"error", err,
-				)
 			}
 			lastErr = err
 			return false, nil
-		}
-
-		if dnsFailureCount > 0 {
-			klog.InfoS("DNS resolution and connection succeeded after previous DNS failures",
-				"phase", phase,
-				"totalDNSFailures", dnsFailureCount,
-				"dnsDuration", time.Since(firstDNSFailureTime),
-			)
-			dnsFailureCount = 0
-			firstDNSFailureTime = time.Time{}
 		}
 		defer resp.Body.Close()
 
@@ -199,7 +159,7 @@ func waitForRouteReachability(ctx context.Context, client *http.Client, url stri
 		responseByte, err := httputil.DumpResponse(resp, true)
 		if err != nil {
 			if lastErr == nil || err.Error() != lastErr.Error() {
-				klog.InfoS("failed to read response from route",
+				ginkgo.GinkgoLogr.Info("failed to read response from route",
 					"phase", phase,
 					"url", url,
 					"error", err,
@@ -221,7 +181,7 @@ func waitForRouteReachability(ctx context.Context, client *http.Client, url stri
 	case err == nil:
 		return nil
 	case lastErr != nil:
-		klog.ErrorS(lastErr, "route check failed",
+		ginkgo.GinkgoLogr.Error(lastErr, "route check failed",
 			"phase", phase,
 			"url", url,
 		)
@@ -330,7 +290,7 @@ func (v verifySimpleWebApp) cleanup(ctx context.Context, adminRESTConfig *rest.C
 				return true, nil
 			}
 			if err != nil {
-				klog.ErrorS(err, "failed to get namespace", "namespace", v.namespaceName)
+				ginkgo.GinkgoLogr.Error(err, "failed to get namespace", "namespace", v.namespaceName)
 			}
 			return false, nil
 		})
