@@ -40,7 +40,7 @@ spec:
         summary: 'Backend controller is panicking'
     - alert: OrphanedMRGDetected
       expr: |
-        sum by (location, cluster) (
+        max by (location, subscription_id, resource_group, cluster) (
           max without(prometheus_replica) (
             increase(aro_hcp_orphaned_managed_resource_groups_found_total[10m])
           )
@@ -49,12 +49,12 @@ spec:
       labels:
         severity: warning
       annotations:
-        description: 'Found {{ printf "%.0f" $value }} orphaned cluster managed resource groups in location {{ $labels.location }} over the last 10 minutes. Orphaned MRGs should not exist - investigate why cluster deletion left resources behind.'
+        description: 'Found orphaned cluster managed resource group {{ $labels.resource_group }} in subscription {{ $labels.subscription_id }}, location {{ $labels.location }}. Orphaned MRGs should not exist - investigate why cluster deletion left resources behind.'
         runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/backend-tsg.html'
-        summary: 'Orphaned cluster managed resource groups detected'
+        summary: 'Orphaned cluster managed resource group detected'
     - alert: OrphanedMRGDeletionFailing
       expr: |
-        sum by (location, cluster) (
+        max by (location, subscription_id, resource_group, cluster) (
           max without(prometheus_replica) (
             increase(aro_hcp_orphaned_managed_resource_groups_deletion_failed_total[10m])
           )
@@ -63,6 +63,6 @@ spec:
       labels:
         severity: warning
       annotations:
-        description: 'Orphaned cluster managed resource group deletion has failed {{ printf "%.0f" $value }} time(s) in location {{ $labels.location }} over the last 10 minutes. Deletion should succeed - investigate Azure permissions or resource locks.'
+        description: 'Deletion of orphaned cluster managed resource group {{ $labels.resource_group }} in subscription {{ $labels.subscription_id }}, location {{ $labels.location }} has failed. Deletion should succeed - investigate Azure permissions or resource locks.'
         runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/troubleshooting/backend-tsg.html'
         summary: 'Orphaned cluster managed resource group deletion is failing'
