@@ -18,6 +18,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/blang/semver/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -224,6 +225,45 @@ func TestNonNilSliceValues(t *testing.T) {
 			if !reflect.DeepEqual(got, tc.want) {
 				t.Errorf("NonNilSliceValues() = %v, want %v", got, tc.want)
 			}
+		})
+	}
+}
+
+func TestNextMinorReleaseLine(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{
+			name: "same-major increments minor",
+			in:   "4.19.15",
+			want: "4.20.0",
+		},
+		{
+			name: "bridged cross-major jump 4.23 to 5.1",
+			in:   "4.23.0",
+			want: "5.1.0",
+		},
+		{
+			name: "same-major on 5.1 increments minor",
+			in:   "5.1.0",
+			want: "5.2.0",
+		},
+		{
+			name: "nightly version increments minor and clears prerelease",
+			in:   "4.19.0-0.nightly-multi-2026-01-10-204154",
+			want: "4.20.0",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := NextMinorReleaseLine(Must(semver.ParseTolerant(tt.in)))
+			assert.Equal(t, Must(semver.ParseTolerant(tt.want)), got)
 		})
 	}
 }

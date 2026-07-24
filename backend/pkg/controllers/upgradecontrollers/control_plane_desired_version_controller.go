@@ -561,7 +561,8 @@ func selectBestVersionFromCandidates(
 
 	// Check if next minor channel exists before checking for gateways.
 	// Query the public graph API directly (not GetUpdates from a candidate version).
-	nextMinor := fmt.Sprintf("%d.%d", targetMinorVersion.Major, targetMinorVersion.Minor+1)
+	nextMinorVersion := api.NextMinorReleaseLine(targetMinorVersion)
+	nextMinor := fmt.Sprintf("%d.%d", nextMinorVersion.Major, nextMinorVersion.Minor)
 	nextMinorExists, err := graphClient.ChannelExists(ctx, channelGroup, nextMinor)
 	if err != nil {
 		return nil, utils.TrackError(fmt.Errorf("failed to check if channel %s-%s exists: %w", channelGroup, nextMinor, err))
