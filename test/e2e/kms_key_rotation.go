@@ -35,7 +35,7 @@ const HCPClusterReencryptionUpgradeTimeout = 18 * time.Minute
 
 var _ = Describe("Customer", func() {
 	// Deadline for v20260630preview API deployment in non-dev environments
-	timeBombDeadline := framework.Must(time.Parse(time.RFC3339, "2026-07-31T00:00:00Z"))
+	timeBombDeadline := framework.Must(time.Parse(time.RFC3339, "2026-08-07T00:00:00Z"))
 
 	It("should be able to rotate KMS key for a cluster with version >= 4.22",
 		labels.RequireNothing, labels.High, labels.Positive, labels.AroRpApiCompatible, labels.Slow,

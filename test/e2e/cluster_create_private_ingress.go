@@ -39,7 +39,7 @@ import (
 // credentials, and cluster health — to avoid creating multiple clusters in CI.
 var _ = Describe("Customer", func() {
 	// Deadline for v20260630preview API deployment in non-dev environments
-	timeBombDeadline := framework.Must(time.Parse(time.RFC3339, "2026-07-31T00:00:00Z"))
+	timeBombDeadline := framework.Must(time.Parse(time.RFC3339, "2026-08-07T00:00:00Z"))
 
 	It("should create a cluster with private ingress using v20260630preview and verify the ingress is internal",
 		labels.RequireNothing,
