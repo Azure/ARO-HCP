@@ -39,6 +39,7 @@ var _ = Describe("ARO HCP Service", func() {
 		labels.High,
 		labels.Positive,
 		labels.AroRpApiCompatible,
+		labels.MIContainers(1),
 		func(ctx context.Context) {
 			const (
 				customerNsgName        = "customer-nsg-name"

@@ -43,6 +43,7 @@ var _ = Describe("Fleet", func() {
 		labels.CoreInfraService,
 		labels.DevelopmentOnly,
 		labels.AroRpApiCompatible,
+		labels.MIContainers(0),
 		func(ctx context.Context) {
 			tc := framework.NewTestContext()
 

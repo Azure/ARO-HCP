@@ -45,6 +45,7 @@ import (
 
 var _ = Describe("Customer", func() {
 	DescribeTable("should be able to successfully upgrade control plane minor version",
+		labels.MIContainers(1),
 		func(ctx context.Context, targetMinor string) {
 			channelGroup := framework.DefaultOpenshiftChannelGroup()
 			targetVer := api.Must(semver.ParseTolerant(targetMinor))

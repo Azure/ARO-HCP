@@ -21,6 +21,7 @@ import (
 	"os"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	// If using ginkgo, import your tests here
@@ -69,14 +70,62 @@ func parseSuiteParallelismOverride() *int {
 	return &n
 }
 
+// DefaultMIContainerCount is the assumed MI container pool size when
+// the LEASED_MSI_CONTAINERS envvar is not set. It matches the typical
+// personal-dev environment slot count so local runs work out of the box.
+const DefaultMIContainerCount = 15
+
+func parseMIContainersLabel(spec *et.ExtensionTestSpec) (int, bool) {
+	var seen []string
+	var parsed int
+	var found bool
+
+	for label := range spec.Labels {
+		if v, ok := strings.CutPrefix(label, "MIContainers:"); ok {
+			seen = append(seen, label)
+			n, err := strconv.Atoi(v)
+			if err == nil {
+				if n < 0 {
+					fmt.Fprintf(os.Stderr, "FATAL: test %q has MIContainers:%d but N must be >= 0\n", spec.Name, n)
+					os.Exit(1)
+				}
+				parsed = n
+				found = true
+			}
+		}
+	}
+
+	if len(seen) > 1 {
+		sort.Strings(seen)
+		fmt.Fprintf(os.Stderr, "FATAL: test %q has multiple MIContainers labels (%s); exactly one is required\n",
+			spec.Name, strings.Join(seen, ", "))
+		os.Exit(1)
+	}
+	if found {
+		return parsed, true
+	}
+	return 0, false
+}
+
+// parseMIContainerCount returns the MI container pool size and a
+// human-readable source string. The pool size is the number of
+// space-delimited entries in LEASED_MSI_CONTAINERS, or
+// DefaultMIContainerCount when the envvar is unset or empty.
+func parseMIContainerCount() (int, string) {
+	v := os.Getenv(framework.LeasedMSIContainersEnvvar)
+	if v == "" {
+		return DefaultMIContainerCount, fmt.Sprintf("default (%s not set)", framework.LeasedMSIContainersEnvvar)
+	}
+	count := len(strings.Fields(v))
+	if count == 0 {
+		return DefaultMIContainerCount, fmt.Sprintf("default (%s empty)", framework.LeasedMSIContainersEnvvar)
+	}
+	return count, framework.LeasedMSIContainersEnvvar
+}
+
 func miDemandPriority(spec *et.ExtensionTestSpec) int {
-	if spec.Labels.Has(labels.MIDemandHigh[0]) {
-		return 2
-	}
-	if spec.Labels.Has(labels.MIDemandMedium[0]) {
-		return 1
-	}
-	return 0
+	demand, _ := parseMIContainersLabel(spec)
+	return demand
 }
 
 // isRunSuiteProcess returns true when this is the long-lived parent run-suite
@@ -118,6 +167,13 @@ func setupCli() *cobra.Command {
 		return defaultValue
 	}
 
+	containerCount, containerCountSource := parseMIContainerCount()
+	pooledIdentitiesEnabled, _ := strconv.ParseBool(strings.TrimSpace(os.Getenv(framework.UsePooledIdentitiesEnvvar)))
+	var miPools map[string]int
+	if pooledIdentitiesEnabled {
+		miPools = map[string]int{"mi-containers": containerCount}
+	}
+
 	// Extension registry
 	registry := e.NewRegistry()
 
@@ -154,11 +210,11 @@ func setupCli() *cobra.Command {
 		Qualifiers: []string{
 			fastTestsOnly(integrationQuery),
 		},
-		// Spec parallelism is limited by the leased identity containers. We set suite parallelism slightly above the number of
-		// leased identity containers to avoid multi-HCP tests blocking single-HCP tests from obtaining a lease.
-		// Override at runtime via ARO_HCP_SUITE_PARALLELISM.
-		Parallelism: parallelism(24),
-		TestTimeout: &integrationTestTimeout,
+		// The resource-aware scheduler caps concurrent MI container usage via ResourcePools.
+		// Override parallelism at runtime via ARO_HCP_SUITE_PARALLELISM.
+		Parallelism:   parallelism(24),
+		TestTimeout:   &integrationTestTimeout,
+		ResourcePools: miPools,
 	})
 
 	ext.AddSuite(e.Suite{
@@ -166,11 +222,11 @@ func setupCli() *cobra.Command {
 		Qualifiers: []string{
 			slowTestsOnly(integrationQuery),
 		},
-		// Spec parallelism is limited by the leased identity containers. We set suite parallelism slightly above the number of
-		// leased identity containers to avoid multi-HCP tests blocking single-HCP tests from obtaining a lease.
-		// Override at runtime via ARO_HCP_SUITE_PARALLELISM.
-		Parallelism: parallelism(24),
-		TestTimeout: &integrationTestTimeout,
+		// The resource-aware scheduler caps concurrent MI container usage via ResourcePools.
+		// Override parallelism at runtime via ARO_HCP_SUITE_PARALLELISM.
+		Parallelism:   parallelism(24),
+		TestTimeout:   &integrationTestTimeout,
+		ResourcePools: miPools,
 	})
 
 	stageQuery := fmt.Sprintf(`labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s")`, labels.RequireNothing[0], labels.IntegrationOnly[0], labels.DevelopmentOnly[0])
@@ -180,22 +236,22 @@ func setupCli() *cobra.Command {
 		Qualifiers: []string{
 			fastTestsOnly(stageQuery),
 		},
-		// Spec parallelism is limited by the leased identity containers. We set suite parallelism slightly above the number of
-		// leased identity containers to avoid multi-HCP tests blocking single-HCP tests from obtaining a lease.
-		// Override at runtime via ARO_HCP_SUITE_PARALLELISM.
-		Parallelism: parallelism(34),
-		TestTimeout: &stageTestTimeout,
+		// The resource-aware scheduler caps concurrent MI container usage via ResourcePools.
+		// Override parallelism at runtime via ARO_HCP_SUITE_PARALLELISM.
+		Parallelism:   parallelism(34),
+		TestTimeout:   &stageTestTimeout,
+		ResourcePools: miPools,
 	})
 	ext.AddSuite(e.Suite{
 		Name: "stage/parallel/slow",
 		Qualifiers: []string{
 			slowTestsOnly(stageQuery),
 		},
-		// Spec parallelism is limited by the leased identity containers. We set suite parallelism slightly above the number of
-		// leased identity containers to avoid multi-HCP tests blocking single-HCP tests from obtaining a lease.
-		// Override at runtime via ARO_HCP_SUITE_PARALLELISM.
-		Parallelism: parallelism(34),
-		TestTimeout: &stageTestTimeout,
+		// The resource-aware scheduler caps concurrent MI container usage via ResourcePools.
+		// Override parallelism at runtime via ARO_HCP_SUITE_PARALLELISM.
+		Parallelism:   parallelism(34),
+		TestTimeout:   &stageTestTimeout,
+		ResourcePools: miPools,
 	})
 
 	prodQuery := fmt.Sprintf(`labels.exists(l, l=="%s") && !labels.exists(l, l=="%s") && !labels.exists(l, l=="%s")`, labels.RequireNothing[0], labels.IntegrationOnly[0], labels.DevelopmentOnly[0])
@@ -205,22 +261,22 @@ func setupCli() *cobra.Command {
 		Qualifiers: []string{
 			fastTestsOnly(prodQuery),
 		},
-		// Spec parallelism is limited by the leased identity containers. We set suite parallelism slightly above the number of
-		// leased identity containers to avoid multi-HCP tests blocking single-HCP tests from obtaining a lease.
-		// Override at runtime via ARO_HCP_SUITE_PARALLELISM.
-		Parallelism: parallelism(19),
-		TestTimeout: &prodTestTimeout,
+		// The resource-aware scheduler caps concurrent MI container usage via ResourcePools.
+		// Override parallelism at runtime via ARO_HCP_SUITE_PARALLELISM.
+		Parallelism:   parallelism(19),
+		TestTimeout:   &prodTestTimeout,
+		ResourcePools: miPools,
 	})
 	ext.AddSuite(e.Suite{
 		Name: "prod/parallel/slow",
 		Qualifiers: []string{
 			slowTestsOnly(prodQuery),
 		},
-		// Spec parallelism is limited by the leased identity containers. We set suite parallelism slightly above the number of
-		// leased identity containers to avoid multi-HCP tests blocking single-HCP tests from obtaining a lease.
-		// Override at runtime via ARO_HCP_SUITE_PARALLELISM.
-		Parallelism: parallelism(19),
-		TestTimeout: &prodTestTimeout,
+		// The resource-aware scheduler caps concurrent MI container usage via ResourcePools.
+		// Override parallelism at runtime via ARO_HCP_SUITE_PARALLELISM.
+		Parallelism:   parallelism(19),
+		TestTimeout:   &prodTestTimeout,
+		ResourcePools: miPools,
 	})
 
 	ext.AddSuite(e.Suite{
@@ -232,7 +288,8 @@ func setupCli() *cobra.Command {
 			fmt.Sprintf(`labels.exists(l, l=="%s" ) && labels.exists(l, l=="%s")`, labels.AroRpApiCompatible[0], labels.Positive[0]),
 		},
 		// Override at runtime via ARO_HCP_SUITE_PARALLELISM.
-		Parallelism: parallelism(20),
+		Parallelism:   parallelism(20),
+		ResourcePools: miPools,
 	})
 
 	rpApiCompatBaseQualifier := fmt.Sprintf(`labels.exists(l, l=="%s")`, labels.AroRpApiCompatible[0])
@@ -247,20 +304,20 @@ func setupCli() *cobra.Command {
 	ext.AddSuite(e.Suite{
 		Name:       "rp-api-compat-all/parallel",
 		Qualifiers: []string{fastTestsOnly(rpApiCompatBaseQualifier)},
-		// Spec parallelism is limited by the leased identity containers. We set suite parallelism slightly above the number of
-		// leased identity containers to avoid multi-HCP tests blocking single-HCP tests from obtaining a lease.
-		// Override at runtime via ARO_HCP_SUITE_PARALLELISM.
-		Parallelism: parallelism(24),
-		TestTimeout: &rpApiCompatTestTimeout,
+		// The resource-aware scheduler caps concurrent MI container usage via ResourcePools.
+		// Override parallelism at runtime via ARO_HCP_SUITE_PARALLELISM.
+		Parallelism:   parallelism(24),
+		TestTimeout:   &rpApiCompatTestTimeout,
+		ResourcePools: miPools,
 	})
 	ext.AddSuite(e.Suite{
 		Name:       "rp-api-compat-all/parallel/slow",
 		Qualifiers: []string{slowTestsOnly(rpApiCompatBaseQualifier)},
-		// Spec parallelism is limited by the leased identity containers. We set suite parallelism slightly above the number of
-		// leased identity containers to avoid multi-HCP tests blocking single-HCP tests from obtaining a lease.
-		// Override at runtime via ARO_HCP_SUITE_PARALLELISM.
-		Parallelism: parallelism(24),
-		TestTimeout: &rpApiCompatTestTimeout,
+		// The resource-aware scheduler caps concurrent MI container usage via ResourcePools.
+		// Override parallelism at runtime via ARO_HCP_SUITE_PARALLELISM.
+		Parallelism:   parallelism(24),
+		TestTimeout:   &rpApiCompatTestTimeout,
+		ResourcePools: miPools,
 	})
 
 	// upgrade/in-place runs UpgradeInPlace specs in parallel. Each spec provisions
@@ -377,13 +434,57 @@ func setupCli() *cobra.Command {
 	//	}
 	// })
 
-	// Sort specs so tests with higher managed identity container demand are
-	// dispatched first. This prevents starvation: multi-container tests get
-	// dispatched while the pool is full, before single-container tests can
-	// consume all available capacity.
-	sort.SliceStable(specs, func(i, j int) bool {
-		return miDemandPriority(specs[i]) > miDemandPriority(specs[j])
+	// Walk specs to wire up per-test MI container demands for the
+	// openshift-tests-extension resource-aware scheduler. Each spec's
+	// MIContainers(N) label declares how many pooled identity containers
+	// it will lease. When pooled identities are enabled, we set
+	// spec.Resources.ResourcePools["mi-containers"] = N so the scheduler
+	// won't start the test until N slots are free in the pool.
+	// demand0/demand1/demandN bucket counts are for the log summary only.
+	var missingLabel []string
+	var demand0, demand1, demandN int
+	specs.Walk(func(spec *et.ExtensionTestSpec) {
+		demand, ok := parseMIContainersLabel(spec)
+		if !ok {
+			missingLabel = append(missingLabel, spec.Name)
+			return
+		}
+		switch demand {
+		case 0:
+			demand0++
+		case 1:
+			demand1++
+		default:
+			demandN++
+		}
+		if pooledIdentitiesEnabled && demand > 0 {
+			if spec.Resources.ResourcePools == nil {
+				spec.Resources.ResourcePools = make(map[string]int)
+			}
+			spec.Resources.ResourcePools["mi-containers"] = demand
+		}
 	})
+	if len(missingLabel) > 0 {
+		fmt.Fprintf(os.Stderr, "FATAL: %d tests missing MIContainers label:\n", len(missingLabel))
+		for _, name := range missingLabel {
+			fmt.Fprintf(os.Stderr, "  - %s\n", name)
+		}
+		os.Exit(1)
+	}
+	total := demand0 + demand1 + demandN
+	if pooledIdentitiesEnabled {
+		fmt.Fprintf(os.Stderr, "[scheduler] pool mi-containers=%d (source: %s), %d specs (%d×0, %d×1, %d×2+)\n",
+			containerCount, containerCountSource, total, demand0, demand1, demandN)
+	} else {
+		fmt.Fprintf(os.Stderr, "[scheduler] pooled identities disabled (%s!=true), skipping mi-containers pool demands; %d specs (%d×0, %d×1, %d×2+)\n",
+			framework.UsePooledIdentitiesEnvvar, total, demand0, demand1, demandN)
+	}
+
+	if os.Getenv("ARO_HCP_DISABLE_MI_SORT") != "true" {
+		sort.SliceStable(specs, func(i, j int) bool {
+			return miDemandPriority(specs[i]) > miDemandPriority(specs[j])
+		})
+	}
 
 	ext.AddSpecs(specs)
 	registry.Register(ext)

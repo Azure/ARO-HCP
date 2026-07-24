@@ -1,6 +1,5 @@
 Customer should be able to create several HCP clusters in their customer resource group, but not in the same managed resource group
 Customer should not be able to reuse subnets and NSGs between clusters
-Customer should be able to list available HCP OpenShift versions and validate response content
 SRE should be able to log into a cluster via a breakglass session
 SRE should be able to retrieve serial console logs for a VM
 SRE should return 409 when boot diagnostics is disabled on a VM
@@ -58,11 +57,8 @@ Customer should be able to successfully upgrade control plane minor version from
 Customer should be able to successfully upgrade control plane minor version from 5.11 minor to 5.12 minor
 Customer should be able to create a cluster with an external auth config and get the external auth config
 Customer should be able to lifecycle and confirm external auth on a cluster
-Fleet should have registered stamps with ready management clusters
 Customer should be able to create an HCP cluster and manage ImageDigestMirrors
 Customer should be able to create an HCP cluster with Image Registry not present
-Image Registry Policy should deny pods with images from disallowed registries
-Image Registry Policy should allow pods with images from allowed registries and have a valid allowlist
 Customer should be able to rotate KMS key for a cluster with version >= 4.22
 Engineering should be able to retrieve kusto logs for a cluster and services
 Customer should be able to create a cluster with default autoscaling and a nodepool with autoscaling enabled up to replica limits
@@ -79,3 +75,7 @@ Customer should downgrade a nodepool version z-stream downgrade from 4.21.zLates
 Customer should downgrade a nodepool to a lower minor version from 4.21.zLatest to 4.19.zLatest
 Customer should be able to use workload identity via the cluster OIDC issuer URL
 Customer should not be able to perform various invalid operations on cluster resources
+Customer should be able to list available HCP OpenShift versions and validate response content
+Fleet should have registered stamps with ready management clusters
+Image Registry Policy should deny pods with images from disallowed registries
+Image Registry Policy should allow pods with images from allowed registries and have a valid allowlist

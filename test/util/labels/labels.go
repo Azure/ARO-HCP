@@ -15,6 +15,9 @@
 package labels
 
 import (
+	"fmt"
+	"os"
+
 	"github.com/onsi/ginkgo/v2"
 )
 
@@ -58,12 +61,16 @@ var (
 	AroRpApiCompatible = ginkgo.Label("ARO-HCP-RP-API-Compatible")
 )
 
-// Managed identity container demand for resource-aware scheduling.
-// Tests without these labels default to needing 1 container.
-var (
-	MIDemandHigh   = ginkgo.Label("MIDemand:High")
-	MIDemandMedium = ginkgo.Label("MIDemand:Medium")
-)
+// MIContainers declares how many managed identity containers a test needs.
+// Every It() and DescribeTable() must include this label. The verify-mi-containers
+// CI check and the runtime scheduler enforce this — unlabeled tests are rejected.
+func MIContainers(n int) ginkgo.Labels {
+	if n < 0 {
+		fmt.Fprintf(os.Stderr, "FATAL: MIContainers: n must be >= 0, got %d\n", n)
+		os.Exit(1)
+	}
+	return ginkgo.Label(fmt.Sprintf("MIContainers:%d", n))
+}
 
 // Environments this test can be used in.
 var (

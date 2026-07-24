@@ -45,6 +45,7 @@ var TestArtifactsFS embed.FS
 var _ = Describe("ARO-HCP", func() {
 
 	DescribeTable("should be able to perform a control plane and node pool install with OCP "+framework.DefaultOpenshiftChannelGroup()+" channel",
+		labels.MIContainers(1),
 		func(ctx context.Context, version string) {
 			clusterParams := framework.NewDefaultClusterParams20251223()
 

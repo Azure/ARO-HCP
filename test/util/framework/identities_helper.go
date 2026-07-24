@@ -797,14 +797,23 @@ func (e *leasedIdentityPoolEntry) use(me string) error {
 	return nil
 }
 
+// release transitions the entry back to free. Cleanup functions are only
+// executed when the entry was busy; assigned-only entries have not created
+// resources (FICs, role assignments) that need cleanup.
 func (e *leasedIdentityPoolEntry) release(cleanups ...func() error) error {
 	if e.Current.State == leaseStateFree {
 		return nil
 	}
+	assignedOnly := e.Current.State == leaseStateAssigned
+
 	e.History = append(e.History, e.Current)
 	e.Current.State = leaseStateFree
 	e.Current.LeasedBy = ""
 	e.Current.TransitionedAt = time.Now().UTC().Format(time.RFC3339)
+
+	if assignedOnly {
+		return nil
+	}
 
 	errs := []error{}
 	for _, cleanup := range cleanups {

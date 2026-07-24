@@ -241,9 +241,8 @@ Every test MUST include appropriate labels from these categories:
 - `labels.IntegrationOnly`
 - `labels.StageAndProdOnly`
 
-### Resource Demand Labels (when applicable):
-- `labels.MIDemandHigh`: Needs multiple managed identity containers
-- `labels.MIDemandMedium`: Needs more than one container
+### Resource Demand Labels (required on every spec):
+- `labels.MIContainers(N)`: Declares how many managed identity containers the test needs (0 for tests that don't use MI containers). Enforced by `verify-mi-containers` CI check and runtime scheduler.
 
 ### Speed Labels (when applicable):
 - `labels.Slow`: For tests that take significantly longer than average
@@ -255,6 +254,7 @@ It("should create cluster successfully",
     labels.Critical, 
     labels.Positive, 
     labels.CreateCluster,
+    labels.MIContainers(1),
     func(ctx context.Context) {
         // test code
     })
