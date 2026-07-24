@@ -748,7 +748,7 @@ resourceGroups:
       errorContainsAny:
       - "control plane unhealthy"
       - "retiring revision would orphan workloads"
-      # TODO: add "ingress gateway unhealthy" — sentinel exists in ARO-Tools (ErrIngressUnhealthy), wire after INT validation
+      - "ingress gateway unhealthy"
       maximumRetryCount: 3
       durationBetweenRetries: 2m
   - name: acrpull
