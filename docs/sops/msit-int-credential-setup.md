@@ -45,7 +45,7 @@ The MSIT INT environment is unique because the first-party, MSI mock, and ARM he
    Bicep, as long as the subject name is unchanged.
 
 1. **Update configuration**
-   If new AAD apps were created, update the configuration, see [configuration](../configuration.md) for details about that process.  You can read the created client IDs with `az ad app list --display-name <applicationName> --query '[0].appId'` for each `.ci.int.mockIdentities.*.applicationName`.
+   If new Entra apps were created, update the configuration, see [configuration](../configuration.md) for details about that process.  You can read the created client IDs with `az ad app list --display-name <applicationName> --query '[0].appId'` for each `.ci.int.mockIdentities.*.applicationName`.
    ```
     firstPartyAppClientId: b3cb2fab-15cb-4583-ad06-f91da9bfe2d1
     firstPartyAppCertificate:
