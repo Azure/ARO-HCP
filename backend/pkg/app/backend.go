@@ -44,6 +44,7 @@ import (
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/clusterupdate"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/controllerutils"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/datadumpcontrollers"
+	"github.com/Azure/ARO-HCP/backend/pkg/controllers/denyassignments"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/externalauthcreationcontrollers"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/externalauthdeletion"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/externalauthupdate"
@@ -797,6 +798,12 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 		backendInformers,
 	)
 
+	clusterDenyAssignmentController := denyassignments.NewClusterDenyAssignmentController(
+		b.options.ResourcesDBClient,
+		b.options.FPAClientBuilder,
+		backendInformers,
+	)
+
 	clusterDeletionClusterServiceDeleteDispatchController := clusterdeletion.NewClusterClusterServiceDeleteDispatchController(
 		utilsclock.RealClock{},
 		b.options.ResourcesDBClient,
@@ -869,6 +876,7 @@ func (b *Backend) runBackendControllersUnderLeaderElection(ctx context.Context, 
 				go dispatchRequestCredentialController.Run(ctx, 20)
 				go dispatchRevokeCredentialsController.Run(ctx, 20)
 				go clusterClusterServiceCreateController.Run(ctx, 20)
+				go clusterDenyAssignmentController.Run(ctx, 20)
 				go nodePoolClusterServiceCreateController.Run(ctx, 20)
 				go externalAuthClusterServiceCreateController.Run(ctx, 20)
 				go operationClusterCreateController.Run(ctx, 20)

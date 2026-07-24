@@ -247,6 +247,21 @@ func (c *clusterChildResourcesCleanupController) extraDeleteGateShouldDeleteServ
 		return false, nil
 	}
 
+	// Check if there are any deny assignments or pending deny assignments remaining.
+	if len(spc.Status.DenyAssignments) > 0 || len(spc.Status.PendingDenyAssignments) > 0 {
+		remainingTypes := make([]string, 0, len(spc.Status.DenyAssignments)+len(spc.Status.PendingDenyAssignments))
+		for _, denyAssignmentReference := range spc.Status.DenyAssignments {
+			remainingTypes = append(remainingTypes, denyAssignmentReference.DenyAssignmentType)
+		}
+		for _, denyAssignmentReference := range spc.Status.PendingDenyAssignments {
+			remainingTypes = append(remainingTypes, denyAssignmentReference.DenyAssignmentType)
+		}
+		logger.Info("waiting for deny assignments to be deleted before removing ServiceProviderCluster",
+			"serviceProviderClusterResourceID", spc.ResourceID.String(),
+			"remainingDenyAssignmentTypes", remainingTypes)
+		return false, nil
+	}
+
 	// Check if there are any cluster-scoped kube-applier *Desire documents remaining.
 	if spc.Status.ManagementClusterResourceID != nil {
 		kaClient := c.kubeApplierDBClients.For(ctx, spc.Status.ManagementClusterResourceID)

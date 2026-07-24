@@ -135,6 +135,7 @@ func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 			dbCluster:   newTestCluster(),
 			existingServiceProviderCluster: newTestSPC(func(spc *api.ServiceProviderCluster) {
 				spc.Spec.ControlPlaneVersion.DesiredVersion = desiredVersion
+				spc.Status.DenyAssignments = []api.DenyAssignmentReference{{DenyAssignmentType: "resources-deny-assignment", DenyAssignmentResourceID: api.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/testManagedResourceGroup/providers/Microsoft.Authorization/denyAssignments/00000000-0000-0000-0000-000000000001"))}}
 			}),
 			setupMockCS: func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec {
 				mockCS := ocm.NewMockClusterServiceClientSpec(ctrl)
@@ -197,6 +198,7 @@ func TestClusterClusterServiceCreate_SyncOnce(t *testing.T) {
 			dbCluster:   newTestCluster(),
 			existingServiceProviderCluster: newTestSPC(func(spc *api.ServiceProviderCluster) {
 				spc.Spec.ControlPlaneVersion.DesiredVersion = desiredVersion
+				spc.Status.DenyAssignments = []api.DenyAssignmentReference{{DenyAssignmentType: "resources-deny-assignment", DenyAssignmentResourceID: api.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/testManagedResourceGroup/providers/Microsoft.Authorization/denyAssignments/00000000-0000-0000-0000-000000000001"))}}
 			}),
 			setupMockCS: func(ctrl *gomock.Controller) ocm.ClusterServiceClientSpec {
 				mockCS := ocm.NewMockClusterServiceClientSpec(ctrl)
