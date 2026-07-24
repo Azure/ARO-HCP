@@ -171,23 +171,19 @@ func TestWithImmutableAttributes(t *testing.T) {
 				arohcpv1alpha1.NewVersion().ID("openshift-v4.21.20").ChannelGroup("stable"))),
 		},
 		{
-			name: "with FIPS enabled",
+			name: "with CryptoRestrictions set to FIPS",
 			hcpCluster: &api.HCPOpenShiftCluster{
-				ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
-					ExperimentalFeatures: api.ExperimentalFeatures{
-						FIPSEnabled: true,
-					},
+				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+					CryptoRestrictions: api.CryptoRestrictionsFIPS,
 				},
 			},
 			want: ocmCluster(t, ocmClusterDefaults(api.TestLocation).FIPS(true)),
 		},
 		{
-			name: "with FIPS disabled",
+			name: "with CryptoRestrictions set to None",
 			hcpCluster: &api.HCPOpenShiftCluster{
-				ServiceProviderProperties: api.HCPOpenShiftClusterServiceProviderProperties{
-					ExperimentalFeatures: api.ExperimentalFeatures{
-						FIPSEnabled: false,
-					},
+				CustomerProperties: api.HCPOpenShiftClusterCustomerProperties{
+					CryptoRestrictions: api.CryptoRestrictionsNone,
 				},
 			},
 			want: ocmCluster(t, ocmClusterDefaults(api.TestLocation).FIPS(false)),

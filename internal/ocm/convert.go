@@ -136,6 +136,17 @@ func convertOutboundTypeRPToCS(outboundTypeRP api.OutboundType) (string, error) 
 	}
 }
 
+func convertCryptoRestrictionsToCS(cryptoRestrictions api.CryptoRestrictions) (bool, error) {
+	switch cryptoRestrictions {
+	case api.CryptoRestrictionsFIPS:
+		return true, nil
+	case api.CryptoRestrictionsNone:
+		return false, nil
+	default:
+		return false, conversionError[bool](cryptoRestrictions)
+	}
+}
+
 func convertDiskStorageAccountTypeRPToCS(storageAccountTypeRP api.DiskStorageAccountType) (string, error) {
 	switch storageAccountTypeRP {
 	case api.DiskStorageAccountTypePremium_LRS:
@@ -512,6 +523,10 @@ func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, hcpC
 	if err != nil {
 		return nil, nil, err
 	}
+	fips, err := convertCryptoRestrictionsToCS(hcpCluster.CustomerProperties.CryptoRestrictions)
+	if err != nil {
+		return nil, nil, err
+	}
 
 	clusterBuilder.
 		Name(strings.ToLower(hcpCluster.Name)).
@@ -535,7 +550,7 @@ func withImmutableAttributes(clusterBuilder *arohcpv1alpha1.ClusterBuilder, hcpC
 			HostPrefix(int(hcpCluster.CustomerProperties.Network.HostPrefix))).
 		ImageRegistry(arohcpv1alpha1.NewClusterImageRegistry().
 			State(clusterImageRegistryState)).
-		FIPS(hcpCluster.ServiceProviderProperties.ExperimentalFeatures.FIPSEnabled)
+		FIPS(fips)
 	azureBuilder := arohcpv1alpha1.NewAzure().
 		TenantID(tenantID).
 		SubscriptionID(strings.ToLower(subscriptionID)).

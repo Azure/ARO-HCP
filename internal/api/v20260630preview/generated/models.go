@@ -358,6 +358,9 @@ type HcpOpenShiftClusterProperties struct {
 	// OpenShift internal image registry
 	ClusterImageRegistry *ClusterImageRegistryProfile
 
+	// Cryptographic restrictions for kernel and userspace libraries
+	CryptoRestrictions *CryptoRestrictions
+
 	// Cluster DNS configuration
 	DNS *DNSProfile
 

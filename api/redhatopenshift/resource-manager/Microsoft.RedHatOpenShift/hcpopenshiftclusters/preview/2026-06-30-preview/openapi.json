@@ -2385,6 +2385,35 @@
           "$ref": "#/definitions/ResourceStatus",
           "description": "Status of the cluster resource",
           "readOnly": true
+        },
+        "cryptoRestrictions": {
+          "type": "string",
+          "description": "Cryptographic restrictions for kernel and userspace libraries",
+          "default": "None",
+          "enum": [
+            "None",
+            "FIPS"
+          ],
+          "x-ms-enum": {
+            "name": "CryptoRestrictions",
+            "modelAsString": true,
+            "values": [
+              {
+                "name": "None",
+                "value": "None",
+                "description": "No restrictions"
+              },
+              {
+                "name": "FIPS",
+                "value": "FIPS",
+                "description": "Use only FIPS-validated algorithms and implementations"
+              }
+            ]
+          },
+          "x-ms-mutability": [
+            "read",
+            "create"
+          ]
         }
       },
       "required": [
