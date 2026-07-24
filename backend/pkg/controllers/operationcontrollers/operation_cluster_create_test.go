@@ -303,6 +303,21 @@ func TestOperationClusterCreate_SynchronizeOperation(t *testing.T) {
 				clusterLister: &listertesting.SliceClusterLister{
 					Clusters: []*api.HCPOpenShiftCluster{tc.existingCluster},
 				},
+				serviceProviderClusterLister: &listertesting.SliceServiceProviderClusterLister{
+					ServiceProviderClusters: []*api.ServiceProviderCluster{
+						{
+							CosmosMetadata: api.CosmosMetadata{
+								ResourceID: api.Must(azcorearm.ParseResourceID(
+									fixture.clusterResourceID.String() + "/" +
+										api.ServiceProviderClusterResourceTypeName + "/" +
+										api.ServiceProviderClusterResourceName)),
+							},
+							Status: api.ServiceProviderClusterStatus{
+								ServingCABundle: "fake-ca-data",
+							},
+						},
+					},
+				},
 				readDesireLister: func() dblisters.ReadDesireLister {
 					if tc.readDesireLister != nil {
 						return tc.readDesireLister
@@ -749,6 +764,21 @@ func TestDetermineOperationState(t *testing.T) {
 				clusterLister:        tt.clusterLister,
 				readDesireLister:     tt.readDesireLister,
 				clusterServiceClient: setupCSMock(ctrl),
+				serviceProviderClusterLister: &listertesting.SliceServiceProviderClusterLister{
+					ServiceProviderClusters: []*api.ServiceProviderCluster{
+						{
+							CosmosMetadata: api.CosmosMetadata{
+								ResourceID: api.Must(azcorearm.ParseResourceID(
+									fixture.clusterResourceID.String() + "/" +
+										api.ServiceProviderClusterResourceTypeName + "/" +
+										api.ServiceProviderClusterResourceName)),
+							},
+							Status: api.ServiceProviderClusterStatus{
+								ServingCABundle: "fake-ca-data",
+							},
+						},
+					},
+				},
 			}
 
 			result, err := controller.determineOperationState(ctx, operation, cluster)
@@ -766,6 +796,67 @@ func TestDetermineOperationState(t *testing.T) {
 			assert.Equal(t, tt.expectedState, result.ProvisioningState)
 			if tt.wantMessageSubstr != "" {
 				assert.Contains(t, result.Message, tt.wantMessageSubstr)
+			}
+		})
+	}
+}
+
+func TestServingCABundleOperationStatus(t *testing.T) {
+	fixture := newClusterTestFixture()
+	operation := fixture.newOperation(database.OperationRequestCreate)
+
+	spcLister := func(bundle string) listers.ServiceProviderClusterLister {
+		return &listertesting.SliceServiceProviderClusterLister{
+			ServiceProviderClusters: []*api.ServiceProviderCluster{
+				{
+					CosmosMetadata: api.CosmosMetadata{
+						ResourceID: api.Must(azcorearm.ParseResourceID(
+							fixture.clusterResourceID.String() + "/" +
+								api.ServiceProviderClusterResourceTypeName + "/" +
+								api.ServiceProviderClusterResourceName)),
+					},
+					Status: api.ServiceProviderClusterStatus{
+						ServingCABundle: bundle,
+					},
+				},
+			},
+		}
+	}
+
+	tests := []struct {
+		name          string
+		spcLister     listers.ServiceProviderClusterLister
+		expectedState arm.ProvisioningState
+		wantMsgSubstr string
+	}{
+		{
+			// The serving CA check is no longer gated on the cluster version:
+			// once the bundle is populated the check succeeds.
+			name:          "populated bundle → Succeeded",
+			spcLister:     spcLister("fake-ca-data"),
+			expectedState: arm.ProvisioningStateSucceeded,
+		},
+		{
+			name:          "empty bundle → Provisioning",
+			spcLister:     spcLister(""),
+			expectedState: arm.ProvisioningStateProvisioning,
+			wantMsgSubstr: "ServingCABundle not yet populated",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := utils.ContextWithLogger(context.Background(), testr.New(t))
+			controller := &operationClusterCreate{
+				serviceProviderClusterLister: tt.spcLister,
+			}
+
+			result, err := controller.servingCABundleOperationStatus(ctx, operation)
+			require.NoError(t, err)
+			require.NotNil(t, result)
+			assert.Equal(t, tt.expectedState, result.ProvisioningState)
+			if tt.wantMsgSubstr != "" {
+				assert.Contains(t, result.Message, tt.wantMsgSubstr)
 			}
 		})
 	}

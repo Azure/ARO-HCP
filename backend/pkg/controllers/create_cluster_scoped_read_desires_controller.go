@@ -171,6 +171,15 @@ func (c *createClusterScopedReadDesiresSyncer) SyncOnce(ctx context.Context, key
 		),
 	}
 
+	controlPlaneNamespace := serviceProviderCluster.Status.ControlPlaneNamespace
+	if len(controlPlaneNamespace) > 0 {
+		desiredReadDesires = append(desiredReadDesires, buildReadDesire(
+			kubeapplier.ToClusterScopedReadDesireResourceIDString(key.SubscriptionID, key.ResourceGroupName, key.HCPClusterName, kubeapplierhelpers.ReadDesireNameServingCA),
+			mcResourceID,
+			servingCATarget(controlPlaneNamespace),
+		))
+	}
+
 	var errs []error
 	for _, desired := range desiredReadDesires {
 		if err := c.ensureReadDesire(ctx, crud, desired); err != nil {
@@ -211,6 +220,18 @@ func clusterAutoscalerTarget(envIdentifier, csClusterID, csClusterDomainPrefix s
 		Resource:  "controlplanecomponents",
 		Namespace: hostedControlPlaneNamespace(envIdentifier, csClusterID, csClusterDomainPrefix),
 		Name:      "cluster-autoscaler",
+	}
+}
+
+const servingCATLSSecretName = "kube-apiserver-tls-cert"
+
+func servingCATarget(controlPlaneNamespace string) kubeapplier.ResourceReference {
+	return kubeapplier.ResourceReference{
+		Group:     "",
+		Version:   "v1",
+		Resource:  "secrets",
+		Namespace: controlPlaneNamespace,
+		Name:      servingCATLSSecretName,
 	}
 }
 
