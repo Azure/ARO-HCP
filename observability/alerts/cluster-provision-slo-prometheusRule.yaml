@@ -32,6 +32,8 @@ spec:
   # journey, so fast/medium burn page at IcM Sev 3 and slow/degradation raise a
   # Sev 4 ticket, mirroring the access-cluster SLO severity model.
   - name: arohcp_cluster_provision_slo_error_alerts
+    labels:
+      component: slo
     rules:
     # ----------------------------------------
     # Fast Burn Alert (IcM Sev 3 — RP lane / customer-facing UJ)

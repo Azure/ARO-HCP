@@ -12,10 +12,11 @@ tests:
     alertname: ImageRegistryPolicyDenied
     exp_alerts:
     - exp_labels:
-        severity: warning
         cluster: svc-1
+        component: image-registry-policy
         policy: image-registry-allowlist-policy
         policy_binding: image-registry-allowlist-policy-binding
+        severity: warning
       exp_annotations:
         summary: "Image registry policy denied pod admission"
         description: "The image-registry-allowlist-policy on cluster svc-1 has denied 45 pod admission(s) in the last 15 minutes. This means pods with images from non-approved registries were blocked from running."
@@ -40,10 +41,11 @@ tests:
     alertname: ImageRegistryPolicyAuditViolation
     exp_alerts:
     - exp_labels:
-        severity: info
         cluster: mgmt-1
+        component: image-registry-policy
         policy: image-registry-allowlist-policy
         policy_binding: image-registry-allowlist-policy-binding
+        severity: info
       exp_annotations:
         summary: "Image registry policy audit violation detected"
         description: "The image-registry-allowlist-policy on cluster mgmt-1 has logged 30 audit violation(s) in the last 15 minutes. Pods with images from non-approved registries are running but not blocked. Review kubernetesEvents in Kusto for details."

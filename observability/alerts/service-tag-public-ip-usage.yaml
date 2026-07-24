@@ -6,6 +6,8 @@ metadata:
 spec:
   groups:
   - name: service-tag-capacity-rules
+    labels:
+      component: network-capacity
     rules:
     - alert: AroHcpNonprodInboundCustomerapiCapacity
       annotations:

@@ -11,6 +11,8 @@ metadata:
 spec:
   groups:
   - name: kubernetes-apps
+    labels:
+      component: kubernetes-infrastructure
     rules:
     - alert: KubePodCrashLooping
       annotations:
@@ -255,6 +257,8 @@ spec:
       labels:
         severity: warning
   - name: kubernetes-resources
+    labels:
+      component: kubernetes-infrastructure
     rules:
     - alert: KubeCPUOvercommit
       annotations:
@@ -359,6 +363,8 @@ spec:
       labels:
         severity: info
   - name: kubernetes-storage
+    labels:
+      component: kubernetes-infrastructure
     rules:
     - alert: KubePersistentVolumeFillingUp
       annotations:
@@ -455,6 +461,8 @@ spec:
       labels:
         severity: critical
   - name: kubernetes-system
+    labels:
+      component: kubernetes-infrastructure
     rules:
     - alert: KubeVersionMismatch
       annotations:
@@ -480,6 +488,8 @@ spec:
       labels:
         severity: warning
   - name: kube-apiserver-slos
+    labels:
+      component: kubernetes-infrastructure
     rules:
     - alert: KubeAPIErrorBudgetBurn
       annotations:
@@ -538,6 +548,8 @@ spec:
         severity: warning
         short: 6h
   - name: kubernetes-system-apiserver
+    labels:
+      component: kubernetes-infrastructure
     rules:
     - alert: KubeClientCertificateExpiration
       annotations:
@@ -599,6 +611,8 @@ spec:
       labels:
         severity: warning
   - name: kubernetes-system-kubelet
+    labels:
+      component: kubernetes-infrastructure
     rules:
     - alert: KubeNodeNotReady
       annotations:
@@ -733,6 +747,8 @@ spec:
       labels:
         severity: critical
   - name: kubernetes-system-scheduler
+    labels:
+      component: kubernetes-infrastructure
     rules:
     - alert: KubeSchedulerDown
       annotations:
@@ -745,6 +761,8 @@ spec:
       labels:
         severity: critical
   - name: kubernetes-system-controller-manager
+    labels:
+      component: kubernetes-infrastructure
     rules:
     - alert: KubeControllerManagerDown
       annotations:

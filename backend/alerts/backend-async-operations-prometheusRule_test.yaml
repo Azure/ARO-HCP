@@ -18,13 +18,14 @@ tests:
     alertname: BackendAsyncOperationClusterCreateStuck
     exp_alerts:
     - exp_labels:
-        resource_id: "/sub/1/cluster/a"
-        subscription_id: "sub-1"
-        resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters"
+        cluster: "mgmt-1"
+        component: backend
         operation_type: "create"
         phase: "provisioning"
-        cluster: "mgmt-1"
+        resource_id: "/sub/1/cluster/a"
+        resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters"
         severity: "3"
+        subscription_id: "sub-1"
       exp_annotations:
         correlationId: 'BackendAsyncOperationStuck/mgmt-1//sub/1/cluster/a'
         summary: 'Cluster create operation stuck'
@@ -69,13 +70,14 @@ tests:
     alertname: BackendAsyncOperationClusterCreateStuck
     exp_alerts:
     - exp_labels:
-        resource_id: "/sub/1/cluster/d"
-        subscription_id: "sub-1"
-        resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters"
+        cluster: "mgmt-1"
+        component: backend
         operation_type: "create"
         phase: "provisioning"
-        cluster: "mgmt-1"
+        resource_id: "/sub/1/cluster/d"
+        resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters"
         severity: "3"
+        subscription_id: "sub-1"
       exp_annotations:
         correlationId: 'BackendAsyncOperationStuck/mgmt-1//sub/1/cluster/d'
         summary: 'Cluster create operation stuck'
@@ -97,13 +99,14 @@ tests:
     alertname: BackendAsyncOperationClusterUpdateStuck
     exp_alerts:
     - exp_labels:
-        resource_id: "/sub/2/cluster/a"
-        subscription_id: "sub-2"
-        resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters"
+        cluster: "mgmt-1"
+        component: backend
         operation_type: "update"
         phase: "updating"
-        cluster: "mgmt-1"
+        resource_id: "/sub/2/cluster/a"
+        resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters"
         severity: "3"
+        subscription_id: "sub-2"
       exp_annotations:
         correlationId: 'BackendAsyncOperationStuck/mgmt-1//sub/2/cluster/a'
         summary: 'Cluster update operation stuck'
@@ -136,13 +139,14 @@ tests:
     alertname: BackendAsyncOperationClusterDeleteStuck
     exp_alerts:
     - exp_labels:
-        resource_id: "/sub/3/cluster/a"
-        subscription_id: "sub-3"
-        resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters"
+        cluster: "mgmt-1"
+        component: backend
         operation_type: "delete"
         phase: "deleting"
-        cluster: "mgmt-1"
+        resource_id: "/sub/3/cluster/a"
+        resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters"
         severity: "3"
+        subscription_id: "sub-3"
       exp_annotations:
         correlationId: 'BackendAsyncOperationStuck/mgmt-1//sub/3/cluster/a'
         summary: 'Cluster delete operation stuck'
@@ -175,13 +179,14 @@ tests:
     alertname: BackendAsyncOperationCredentialRequestStuck
     exp_alerts:
     - exp_labels:
-        resource_id: "/sub/4/cluster/a"
-        subscription_id: "sub-4"
-        resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters"
+        cluster: "mgmt-1"
+        component: backend
         operation_type: "requestcredential"
         phase: "provisioning"
-        cluster: "mgmt-1"
+        resource_id: "/sub/4/cluster/a"
+        resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters"
         severity: "3"
+        subscription_id: "sub-4"
       exp_annotations:
         correlationId: 'BackendAsyncOperationStuck/mgmt-1//sub/4/cluster/a'
         summary: 'Credential request operation stuck'
@@ -214,13 +219,14 @@ tests:
     alertname: BackendAsyncOperationCredentialRequestStuck
     exp_alerts:
     - exp_labels:
-        resource_id: "/sub/4/cluster/c"
-        subscription_id: "sub-4"
-        resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters"
+        cluster: "mgmt-1"
+        component: backend
         operation_type: "requestcredential"
         phase: "provisioning"
-        cluster: "mgmt-1"
+        resource_id: "/sub/4/cluster/c"
+        resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters"
         severity: "3"
+        subscription_id: "sub-4"
       exp_annotations:
         correlationId: 'BackendAsyncOperationStuck/mgmt-1//sub/4/cluster/c'
         summary: 'Credential request operation stuck'
@@ -242,13 +248,14 @@ tests:
     alertname: BackendAsyncOperationCredentialRevokeStuck
     exp_alerts:
     - exp_labels:
-        resource_id: "/sub/5/cluster/a"
-        subscription_id: "sub-5"
-        resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters"
+        cluster: "mgmt-1"
+        component: backend
         operation_type: "revokecredentials"
         phase: "deleting"
-        cluster: "mgmt-1"
+        resource_id: "/sub/5/cluster/a"
+        resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters"
         severity: "3"
+        subscription_id: "sub-5"
       exp_annotations:
         correlationId: 'BackendAsyncOperationStuck/mgmt-1//sub/5/cluster/a'
         summary: 'Credential revoke operation stuck'
@@ -280,13 +287,14 @@ tests:
     alertname: BackendAsyncOperationNodePoolCreateStuck
     exp_alerts:
     - exp_labels:
-        resource_id: "/sub/6/np/a"
-        subscription_id: "sub-6"
-        resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"
+        cluster: "mgmt-1"
+        component: backend
         operation_type: "create"
         phase: "provisioning"
-        cluster: "mgmt-1"
+        resource_id: "/sub/6/np/a"
+        resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"
         severity: "3"
+        subscription_id: "sub-6"
       exp_annotations:
         correlationId: 'BackendAsyncOperationStuck/mgmt-1//sub/6/np/a'
         summary: 'Node pool create operation stuck'
@@ -319,13 +327,14 @@ tests:
     alertname: BackendAsyncOperationNodePoolCreateStuck
     exp_alerts:
     - exp_labels:
-        resource_id: "/sub/6/np/c"
-        subscription_id: "sub-6"
-        resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"
+        cluster: "mgmt-1"
+        component: backend
         operation_type: "create"
         phase: "provisioning"
-        cluster: "mgmt-1"
+        resource_id: "/sub/6/np/c"
+        resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"
         severity: "3"
+        subscription_id: "sub-6"
       exp_annotations:
         correlationId: 'BackendAsyncOperationStuck/mgmt-1//sub/6/np/c'
         summary: 'Node pool create operation stuck'
@@ -346,13 +355,14 @@ tests:
     alertname: BackendAsyncOperationNodePoolUpdateStuck
     exp_alerts:
     - exp_labels:
-        resource_id: "/sub/7/np/a"
-        subscription_id: "sub-7"
-        resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"
+        cluster: "mgmt-1"
+        component: backend
         operation_type: "update"
         phase: "updating"
-        cluster: "mgmt-1"
+        resource_id: "/sub/7/np/a"
+        resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"
         severity: "3"
+        subscription_id: "sub-7"
       exp_annotations:
         correlationId: 'BackendAsyncOperationStuck/mgmt-1//sub/7/np/a'
         summary: 'Node pool update operation stuck'
@@ -384,13 +394,14 @@ tests:
     alertname: BackendAsyncOperationNodePoolDeleteStuck
     exp_alerts:
     - exp_labels:
-        resource_id: "/sub/8/np/a"
-        subscription_id: "sub-8"
-        resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"
+        cluster: "mgmt-1"
+        component: backend
         operation_type: "delete"
         phase: "deleting"
-        cluster: "mgmt-1"
+        resource_id: "/sub/8/np/a"
+        resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters/nodepools"
         severity: "3"
+        subscription_id: "sub-8"
       exp_annotations:
         correlationId: 'BackendAsyncOperationStuck/mgmt-1//sub/8/np/a'
         summary: 'Node pool delete operation stuck'
@@ -423,13 +434,14 @@ tests:
     alertname: BackendAsyncOperationExternalAuthCreateStuck
     exp_alerts:
     - exp_labels:
-        resource_id: "/sub/9/ea/a"
-        subscription_id: "sub-9"
-        resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"
+        cluster: "mgmt-1"
+        component: backend
         operation_type: "create"
         phase: "awaitingsecret"
-        cluster: "mgmt-1"
+        resource_id: "/sub/9/ea/a"
+        resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"
         severity: "3"
+        subscription_id: "sub-9"
       exp_annotations:
         correlationId: 'BackendAsyncOperationStuck/mgmt-1//sub/9/ea/a'
         summary: 'External auth create operation stuck'
@@ -462,13 +474,14 @@ tests:
     alertname: BackendAsyncOperationExternalAuthCreateStuck
     exp_alerts:
     - exp_labels:
-        resource_id: "/sub/9/ea/c"
-        subscription_id: "sub-9"
-        resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"
+        cluster: "mgmt-1"
+        component: backend
         operation_type: "create"
         phase: "awaitingsecret"
-        cluster: "mgmt-1"
+        resource_id: "/sub/9/ea/c"
+        resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"
         severity: "3"
+        subscription_id: "sub-9"
       exp_annotations:
         correlationId: 'BackendAsyncOperationStuck/mgmt-1//sub/9/ea/c'
         summary: 'External auth create operation stuck'
@@ -490,13 +503,14 @@ tests:
     alertname: BackendAsyncOperationExternalAuthUpdateStuck
     exp_alerts:
     - exp_labels:
-        resource_id: "/sub/10/ea/a"
-        subscription_id: "sub-10"
-        resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"
+        cluster: "mgmt-1"
+        component: backend
         operation_type: "update"
         phase: "updating"
-        cluster: "mgmt-1"
+        resource_id: "/sub/10/ea/a"
+        resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"
         severity: "3"
+        subscription_id: "sub-10"
       exp_annotations:
         correlationId: 'BackendAsyncOperationStuck/mgmt-1//sub/10/ea/a'
         summary: 'External auth update operation stuck'
@@ -529,13 +543,14 @@ tests:
     alertname: BackendAsyncOperationExternalAuthDeleteStuck
     exp_alerts:
     - exp_labels:
-        resource_id: "/sub/11/ea/a"
-        subscription_id: "sub-11"
-        resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"
+        cluster: "mgmt-1"
+        component: backend
         operation_type: "delete"
         phase: "deleting"
-        cluster: "mgmt-1"
+        resource_id: "/sub/11/ea/a"
+        resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters/externalauths"
         severity: "3"
+        subscription_id: "sub-11"
       exp_annotations:
         correlationId: 'BackendAsyncOperationStuck/mgmt-1//sub/11/ea/a'
         summary: 'External auth delete operation stuck'
@@ -568,13 +583,14 @@ tests:
     alertname: BackendAsyncOperationStuck
     exp_alerts:
     - exp_labels:
-        resource_id: "/sub/12/cluster/a"
-        subscription_id: "sub-12"
-        resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters"
+        cluster: "mgmt-1"
+        component: backend
         operation_type: "create"
         phase: "provisioning"
-        cluster: "mgmt-1"
+        resource_id: "/sub/12/cluster/a"
+        resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters"
         severity: "3"
+        subscription_id: "sub-12"
       exp_annotations:
         correlationId: 'BackendAsyncOperationStuck/mgmt-1//sub/12/cluster/a'
         summary: 'Async operation stuck'
@@ -607,13 +623,14 @@ tests:
     alertname: BackendAsyncOperationStuck
     exp_alerts:
     - exp_labels:
-        resource_id: "/sub/12/cluster/d"
-        subscription_id: "sub-12"
-        resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters"
+        cluster: "mgmt-1"
+        component: backend
         operation_type: "create"
         phase: "provisioning"
-        cluster: "mgmt-1"
+        resource_id: "/sub/12/cluster/d"
+        resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters"
         severity: "3"
+        subscription_id: "sub-12"
       exp_annotations:
         correlationId: 'BackendAsyncOperationStuck/mgmt-1//sub/12/cluster/d'
         summary: 'Async operation stuck'

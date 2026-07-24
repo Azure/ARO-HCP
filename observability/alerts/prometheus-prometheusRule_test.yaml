@@ -14,8 +14,9 @@ tests:
     alertname: PrometheusJobUp
     exp_alerts:
     - exp_labels:
-        severity: critical
         cluster: test
+        component: monitoring-infrastructure
+        severity: critical
       exp_annotations:
         summary: Prometheus is unreachable for 10 minutes.
         description: |
@@ -32,9 +33,10 @@ tests:
     alertname: PrometheusUptime
     exp_alerts:
     - exp_labels:
-        severity: critical
+        component: monitoring-infrastructure
         job: prometheus/prometheus
         namespace: prometheus
+        severity: critical
       exp_annotations:
         summary: Prometheus uptime below 95% over 24 hours.
         description: |
@@ -74,11 +76,12 @@ tests:
     alertname: PrometheusFailedRate
     exp_alerts:
     - exp_labels:
-        severity: critical
         cluster: test
+        component: monitoring-infrastructure
         job: prometheus/prometheus
         namespace: prometheus
         remote_name: rw1
+        severity: critical
         url: http://rw1
       exp_annotations:
         summary: Prometheus failed sample rate to remote storage is above 10%.
@@ -101,10 +104,11 @@ tests:
     alertname: PrometheusRemoteStorageFailures
     exp_alerts:
     - exp_labels:
-        severity: critical
+        component: monitoring-infrastructure
         job: prometheus/prometheus
         namespace: prometheus
         remote_name: test
+        severity: critical
         url: http://test
       exp_annotations:
         summary: Prometheus fails to send samples to remote storage.
@@ -121,9 +125,10 @@ tests:
     alertname: PrometheusNotIngestingSamples
     exp_alerts:
     - exp_labels:
-        severity: warning
+        component: monitoring-infrastructure
         job: prometheus/prometheus
         namespace: prometheus
+        severity: warning
       exp_annotations:
         summary: Prometheus is not ingesting samples.
         description: Prometheus prometheus/ is not ingesting samples.
@@ -137,9 +142,10 @@ tests:
     alertname: PrometheusBadConfig
     exp_alerts:
     - exp_labels:
-        severity: critical
+        component: monitoring-infrastructure
         job: prometheus/prometheus
         namespace: prometheus
+        severity: critical
       exp_annotations:
         summary: Failed Prometheus configuration reload.
         description: Prometheus prometheus/ has failed to reload its configuration.
@@ -153,9 +159,10 @@ tests:
     alertname: PrometheusScrapeSampleLimitHit
     exp_alerts:
     - exp_labels:
-        severity: warning
+        component: monitoring-infrastructure
         job: prometheus/prometheus
         namespace: prometheus
+        severity: warning
       exp_annotations:
         summary: Prometheus has failed scrapes that have exceeded the configured sample limit.
         description: Prometheus prometheus/ has failed 10 scrapes in the last 5m because some targets exceeded the configured sample_limit.
@@ -170,9 +177,10 @@ tests:
     alertname: PrometheusOperatorNotReady
     exp_alerts:
     - exp_labels:
-        severity: warning
+        component: monitoring-infrastructure
         controller: prometheus
         namespace: prometheus
+        severity: warning
       exp_annotations:
         summary: Prometheus operator not ready
         description: Prometheus operator in prometheus namespace isn't ready to reconcile prometheus resources.
@@ -186,12 +194,13 @@ tests:
     alertname: PrometheusOperatorRejectedResources
     exp_alerts:
     - exp_labels:
-        severity: warning
+        component: monitoring-infrastructure
+        controller: prometheus
         job: prometheus-operator
         namespace: prometheus
-        state: rejected
-        controller: prometheus
         resource: prometheusrule
+        severity: warning
+        state: rejected
       exp_annotations:
         summary: Resources rejected by Prometheus operator
         description: Prometheus operator in prometheus namespace rejected 5 prometheus/prometheusrule resources.
@@ -210,8 +219,9 @@ tests:
     alertname: PrometheusJobUp
     exp_alerts:
     - exp_labels:
-        severity: critical
         cluster: test
+        component: monitoring-infrastructure
+        severity: critical
       exp_annotations:
         summary: Prometheus is unreachable for 10 minutes.
         description: |
@@ -262,8 +272,9 @@ tests:
     alertname: PrometheusPendingRate
     exp_alerts:
     - exp_labels:
-        severity: critical
         cluster: test-high
+        component: monitoring-infrastructure
+        severity: critical
       exp_annotations:
         summary: Prometheus pending sample rate is above 40%.
         description: |
@@ -289,10 +300,11 @@ tests:
     alertname: PrometheusRemoteStorageFailures
     exp_alerts:
     - exp_labels:
-        severity: critical
+        component: monitoring-infrastructure
         job: prometheus/prometheus
         namespace: prometheus
         remote_name: storage1
+        severity: critical
         url: http://storage1
       exp_annotations:
         summary: Prometheus fails to send samples to remote storage.
@@ -310,9 +322,10 @@ tests:
     alertname: PrometheusNotIngestingSamples
     exp_alerts:
     - exp_labels:
-        severity: warning
+        component: monitoring-infrastructure
         job: prometheus/prometheus
         namespace: prometheus
+        severity: warning
       exp_annotations:
         summary: Prometheus is not ingesting samples.
         description: Prometheus prometheus/ is not ingesting samples.
@@ -338,9 +351,10 @@ tests:
     alertname: PrometheusOperatorNotReady
     exp_alerts:
     - exp_labels:
-        severity: warning
+        component: monitoring-infrastructure
         controller: prometheus
         namespace: prometheus
+        severity: warning
       exp_annotations:
         summary: Prometheus operator not ready
         description: Prometheus operator in prometheus namespace isn't ready to reconcile prometheus resources.
@@ -357,23 +371,25 @@ tests:
     alertname: PrometheusOperatorRejectedResources
     exp_alerts:
     - exp_labels:
-        severity: warning
+        component: monitoring-infrastructure
+        controller: prometheus
         job: prometheus-operator
         namespace: prometheus
-        state: rejected
-        controller: prometheus
         resource: servicemonitor
+        severity: warning
+        state: rejected
       exp_annotations:
         summary: Resources rejected by Prometheus operator
         description: Prometheus operator in prometheus namespace rejected 3 prometheus/servicemonitor resources.
         runbook_url: https://runbooks.prometheus-operator.dev/runbooks/prometheus-operator/prometheusoperatorrejectedresources
     - exp_labels:
-        severity: warning
+        component: monitoring-infrastructure
+        controller: prometheus
         job: prometheus-operator
         namespace: prometheus
-        state: rejected
-        controller: prometheus
         resource: podmonitor
+        severity: warning
+        state: rejected
       exp_annotations:
         summary: Resources rejected by Prometheus operator
         description: Prometheus operator in prometheus namespace rejected 2 prometheus/podmonitor resources.
@@ -439,8 +455,9 @@ tests:
     alertname: PrometheusJobUp
     exp_alerts:
     - exp_labels:
-        severity: critical
         cluster: test
+        component: monitoring-infrastructure
+        severity: critical
       exp_annotations:
         summary: Prometheus is unreachable for 10 minutes.
         description: |
@@ -458,9 +475,10 @@ tests:
     alertname: PrometheusUptime
     exp_alerts:
     - exp_labels:
-        severity: critical
+        component: monitoring-infrastructure
         job: prometheus/prometheus
         namespace: prometheus
+        severity: critical
       exp_annotations:
         summary: Prometheus uptime below 95% over 24 hours.
         description: |
@@ -503,11 +521,12 @@ tests:
     alertname: PrometheusFailedRate
     exp_alerts:
     - exp_labels:
-        severity: critical
         cluster: threshold-plus
+        component: monitoring-infrastructure
         job: prometheus/prometheus
         namespace: prometheus
         remote_name: rw1
+        severity: critical
         url: http://rw1
       exp_annotations:
         summary: Prometheus failed sample rate to remote storage is above 10%.
@@ -567,10 +586,11 @@ tests:
     alertname: PrometheusRemoteStorageFailures
     exp_alerts:
     - exp_labels:
-        severity: critical
+        component: monitoring-infrastructure
         job: prometheus/prometheus
         namespace: prometheus
         remote_name: legacy
+        severity: critical
         url: http://legacy
       exp_annotations:
         summary: Prometheus fails to send samples to remote storage.
@@ -597,9 +617,10 @@ tests:
     alertname: PrometheusBadConfig
     exp_alerts:
     - exp_labels:
-        severity: critical
+        component: monitoring-infrastructure
         job: prometheus/prometheus
         namespace: prometheus
+        severity: critical
       exp_annotations:
         summary: Failed Prometheus configuration reload.
         description: Prometheus prometheus/ has failed to reload its configuration.
@@ -616,19 +637,21 @@ tests:
     alertname: PrometheusScrapeSampleLimitHit
     exp_alerts:
     - exp_labels:
-        severity: warning
+        component: monitoring-infrastructure
+        instance: prometheus-0
         job: prometheus/prometheus
         namespace: prometheus
-        instance: prometheus-0
+        severity: warning
       exp_annotations:
         summary: Prometheus has failed scrapes that have exceeded the configured sample limit.
         description: Prometheus prometheus/ has failed 5 scrapes in the last 5m because some targets exceeded the configured sample_limit.
         runbook_url: https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/Prometheus.md
     - exp_labels:
-        severity: warning
+        component: monitoring-infrastructure
+        instance: prometheus-1
         job: prometheus/prometheus
         namespace: prometheus
-        instance: prometheus-1
+        severity: warning
       exp_annotations:
         summary: Prometheus has failed scrapes that have exceeded the configured sample limit.
         description: Prometheus prometheus/ has failed 10 scrapes in the last 5m because some targets exceeded the configured sample_limit.
@@ -663,12 +686,13 @@ tests:
     alertname: PrometheusOperatorRejectedResources
     exp_alerts:
     - exp_labels:
-        severity: warning
+        component: monitoring-infrastructure
+        controller: prometheus
         job: prometheus-operator
         namespace: prometheus
-        state: rejected
-        controller: prometheus
         resource: prometheusrule
+        severity: warning
+        state: rejected
       exp_annotations:
         summary: Resources rejected by Prometheus operator
         description: Prometheus operator in prometheus namespace rejected 2 prometheus/prometheusrule resources.
@@ -696,8 +720,9 @@ tests:
     alertname: PrometheusJobUp
     exp_alerts:
     - exp_labels:
-        severity: critical
         cluster: test
+        component: monitoring-infrastructure
+        severity: critical
       exp_annotations:
         summary: Prometheus is unreachable for 10 minutes.
         description: |
@@ -717,11 +742,12 @@ tests:
     alertname: PrometheusFailedRate
     exp_alerts:
     - exp_labels:
-        severity: critical
         cluster: high-failure
+        component: monitoring-infrastructure
         job: prometheus/prometheus
         namespace: prometheus
         remote_name: rw1
+        severity: critical
         url: http://rw1
       exp_annotations:
         summary: Prometheus failed sample rate to remote storage is above 10%.
@@ -766,10 +792,11 @@ tests:
     alertname: PrometheusRemoteStorageFailures
     exp_alerts:
     - exp_labels:
-        severity: critical
+        component: monitoring-infrastructure
         job: prometheus/prometheus
         namespace: prometheus
         remote_name: minimal
+        severity: critical
         url: http://minimal
       exp_annotations:
         summary: Prometheus fails to send samples to remote storage.
@@ -787,8 +814,9 @@ tests:
     alertname: PrometheusJobUp
     exp_alerts:
     - exp_labels:
-        severity: critical
         cluster: test
+        component: monitoring-infrastructure
+        severity: critical
       exp_annotations:
         summary: Prometheus is unreachable for 10 minutes.
         description: |
@@ -822,10 +850,11 @@ tests:
     alertname: PrometheusUptimeSampleCount
     exp_alerts:
     - exp_labels:
-        severity: warning
+        cluster: gap-cluster
+        component: monitoring-infrastructure
         job: prometheus/prometheus
         namespace: prometheus
-        cluster: gap-cluster
+        severity: warning
       exp_annotations:
         summary: Prometheus sample count below 95% SLO threshold for 24 hours.
         description: |
@@ -869,8 +898,9 @@ tests:
     alertname: PrometheusMetricsAbsentPerCluster
     exp_alerts:
     - exp_labels:
-        severity: critical
         cluster: dead-cluster
+        component: monitoring-infrastructure
+        severity: critical
       exp_annotations:
         summary: Prometheus metrics absent for cluster dead-cluster.
         description: |
@@ -900,8 +930,9 @@ tests:
     alertname: PrometheusMetricsAbsentPerCluster
     exp_alerts:
     - exp_labels:
-        severity: critical
         cluster: dead
+        component: monitoring-infrastructure
+        severity: critical
       exp_annotations:
         summary: Prometheus metrics absent for cluster dead.
         description: |
@@ -942,10 +973,11 @@ tests:
     alertname: PrometheusRemoteStorageFailures
     exp_alerts:
     - exp_labels:
-        severity: critical
+        component: monitoring-infrastructure
         job: prometheus/prometheus
         namespace: prometheus
         remote_name: storage1
+        severity: critical
         url: http://storage1
       exp_annotations:
         summary: Prometheus fails to send samples to remote storage.
@@ -965,10 +997,11 @@ tests:
     alertname: PrometheusNotIngestingSamples
     exp_alerts:
     - exp_labels:
-        severity: warning
+        component: monitoring-infrastructure
         job: prometheus/prometheus
         namespace: prometheus
         pod: prometheus-server-0
+        severity: warning
       exp_annotations:
         summary: Prometheus is not ingesting samples.
         description: Prometheus prometheus/prometheus-server-0 is not ingesting samples.
@@ -989,8 +1022,9 @@ tests:
     alertname: PrometheusPendingRate
     exp_alerts:
     - exp_labels:
-        severity: critical
         cluster: prod-east
+        component: monitoring-infrastructure
+        severity: critical
       exp_annotations:
         summary: Prometheus pending sample rate is above 40%.
         description: |
@@ -1014,17 +1048,19 @@ tests:
     alertname: PrometheusOperatorNotReady
     exp_alerts:
     - exp_labels:
-        severity: warning
+        component: monitoring-infrastructure
         controller: prometheus
         namespace: prometheus
+        severity: warning
       exp_annotations:
         summary: Prometheus operator not ready
         description: Prometheus operator in prometheus namespace isn't ready to reconcile prometheus resources.
         runbook_url: https://runbooks.prometheus-operator.dev/runbooks/prometheus-operator/prometheusoperatornotready
     - exp_labels:
-        severity: warning
+        component: monitoring-infrastructure
         controller: alertmanager
         namespace: prometheus
+        severity: warning
       exp_annotations:
         summary: Prometheus operator not ready
         description: Prometheus operator in prometheus namespace isn't ready to reconcile alertmanager resources.
@@ -1041,10 +1077,11 @@ tests:
     alertname: PrometheusBadConfig
     exp_alerts:
     - exp_labels:
-        severity: critical
+        component: monitoring-infrastructure
+        instance: 192.168.1.100:9090
         job: prometheus/prometheus
         namespace: prometheus
-        instance: 192.168.1.100:9090
+        severity: critical
       exp_annotations:
         summary: Failed Prometheus configuration reload.
         description: Prometheus prometheus/ has failed to reload its configuration.
@@ -1061,10 +1098,11 @@ tests:
     alertname: PrometheusRemoteStorageFailures
     exp_alerts:
     - exp_labels:
-        severity: critical
+        component: monitoring-infrastructure
         job: prometheus/prometheus
         namespace: prometheus
         remote_name: storage1
+        severity: critical
         url: https://storage1.company.com/api/v1/write
       exp_annotations:
         summary: Prometheus fails to send samples to remote storage.

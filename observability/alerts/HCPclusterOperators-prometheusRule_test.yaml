@@ -62,18 +62,20 @@ tests:
     alertname: HCPClusterOperatorUnavailable
     exp_alerts:
     - exp_labels:
-        severity: warning
         cluster: mgmt-1
+        component: kubernetes-infrastructure
         namespace: hcp-ingress-down
+        severity: warning
       exp_annotations:
         summary: "HCP cluster operator unavailable on hcp-ingress-down"
         description: "1 cluster operator(s) on hosted cluster hcp-ingress-down (management cluster mgmt-1) have been reporting Available=false for more than 30 minutes. The version and console operators are excluded from this alert; the affected cluster has worker nodes present. An unavailable operator means the component it manages is down, not merely degraded.\n"
         correlationId: 'HCPClusterOperatorUnavailable/mgmt-1/hcp-ingress-down'
         runbook_url: https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/hcp-cluster-operators.md
     - exp_labels:
-        severity: warning
         cluster: mgmt-1
+        component: kubernetes-infrastructure
         namespace: hcp-version-and-ingress
+        severity: warning
       exp_annotations:
         summary: "HCP cluster operator unavailable on hcp-version-and-ingress"
         description: "1 cluster operator(s) on hosted cluster hcp-version-and-ingress (management cluster mgmt-1) have been reporting Available=false for more than 30 minutes. The version and console operators are excluded from this alert; the affected cluster has worker nodes present. An unavailable operator means the component it manages is down, not merely degraded.\n"
@@ -88,9 +90,10 @@ tests:
     alertname: HCPClusterVersionFailing
     exp_alerts:
     - exp_labels:
-        severity: warning
         cluster: mgmt-1
+        component: kubernetes-infrastructure
         namespace: hcp-version-only
+        severity: warning
       exp_annotations:
         summary: "HCP version operator failing on hcp-version-only"
         description: "The version operator (ClusterVersion) on hosted cluster hcp-version-only (management cluster mgmt-1) has been Failing for more than 1 hour while NO other cluster operator is unavailable or degraded. This points at a version-operator-specific failure -- payload image retrieval, release signature verification, an upgrade precondition, or a cluster-scoped manifest apply -- rather than a problem any individual component operator reports.\n"
@@ -105,9 +108,10 @@ tests:
     alertname: HCPClusterOperatorDegraded
     exp_alerts:
     - exp_labels:
-        severity: info
         cluster: mgmt-1
+        component: kubernetes-infrastructure
         namespace: hcp-storage-degraded
+        severity: info
       exp_annotations:
         summary: "HCP cluster operator degraded on hcp-storage-degraded"
         description: "1 cluster operator(s) on hosted cluster hcp-storage-degraded (management cluster mgmt-1) have been reporting Degraded=true for more than 2 hours. The version and console operators are excluded from this alert; the affected cluster has worker nodes present. A degraded operator is reporting reduced quality of service.\n"

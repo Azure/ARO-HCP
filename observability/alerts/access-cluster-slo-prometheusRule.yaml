@@ -26,6 +26,8 @@ spec:
   # (point-in-time state rather than event rates), this provides equivalent
   # protection against transient spikes.
   - name: arohcp_access_cluster_slo_error_alerts
+    labels:
+      component: slo
     rules:
     # ----------------------------------------
     # Fast Burn Alert (IcM Sev 3 — RP lane / customer-facing UJ)
@@ -133,6 +135,8 @@ spec:
   # Queue depth and retry rates for credential controllers.
   # IcM Sev 4 (precursor).
   - name: arohcp_access_cluster_saturation_alerts
+    labels:
+      component: slo
     rules:
     # Queue depth: credential controller workqueue accumulating work
     - alert: userJourneyAccessClusterSaturationQueueDepth

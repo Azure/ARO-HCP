@@ -16,4 +16,3 @@ prometheusRules:
     to: 'job="controlplane-cluster-autoscaler"'
   - from: 'job="kube-controller-manager"'
     to: 'job="controlplane-kube-controller-manager"'
-

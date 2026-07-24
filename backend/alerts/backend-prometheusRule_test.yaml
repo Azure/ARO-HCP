@@ -12,6 +12,7 @@ tests:
     alertname: BackendControllerQueueDepthHigh
     exp_alerts:
     - exp_labels:
+        component: backend
         name: OperationClusterCreate
         severity: warning
       exp_annotations:
@@ -37,6 +38,7 @@ tests:
     alertname: BackendControllerPanic
     exp_alerts:
     - exp_labels:
+        component: backend
         controller: DoNothingExample
         severity: warning
       exp_annotations:
@@ -62,6 +64,7 @@ tests:
     alertname: OrphanedMRGDetected
     exp_alerts:
     - exp_labels:
+        component: backend
         location: eastus
         severity: warning
       exp_annotations:
@@ -87,6 +90,7 @@ tests:
     alertname: OrphanedMRGDeletionFailing
     exp_alerts:
     - exp_labels:
+        component: backend
         location: eastus
         severity: warning
       exp_annotations:

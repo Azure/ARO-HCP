@@ -11,6 +11,8 @@ metadata:
 spec:
   groups:
   - name: maestro
+    labels:
+      component: maestro
     rules:
     - alert: MaestroGRPCSourceClientExcessConnections
       # Fires when the number of registered gRPC source clients is

@@ -13,9 +13,10 @@ tests:
     exp_alerts:
     - exp_labels:
         alertname: KustoLogsDataStale
-        severity: warning
-        kusto_cluster: testcluster
         cluster: sc-test
+        component: kusto
+        kusto_cluster: testcluster
+        severity: warning
         table: ContainerLog
       exp_annotations:
         description: |
@@ -51,9 +52,10 @@ tests:
     exp_alerts:
     - exp_labels:
         alertname: KustoLogsDataStale
-        severity: warning
-        kusto_cluster: testcluster
         cluster: aro-hcp-region-svc-1
+        component: kusto
+        kusto_cluster: testcluster
+        severity: warning
         table: systemdlogs
       exp_annotations:
         description: |
@@ -71,9 +73,10 @@ tests:
     exp_alerts:
     - exp_labels:
         alertname: KustoLogsDataStale
-        severity: warning
-        kusto_cluster: testcluster
         cluster: aro-hcp-region-mgmt-1
+        component: kusto
+        kusto_cluster: testcluster
+        severity: warning
         table: systemdlogs
       exp_annotations:
         description: |
@@ -91,9 +94,10 @@ tests:
     exp_alerts:
     - exp_labels:
         alertname: KustoLogsDataStale
-        severity: warning
-        kusto_cluster: testcluster
         cluster: aro-hcp-region-svc-1
+        component: kusto
+        kusto_cluster: testcluster
+        severity: warning
         table: ContainerLog
       exp_annotations:
         description: |

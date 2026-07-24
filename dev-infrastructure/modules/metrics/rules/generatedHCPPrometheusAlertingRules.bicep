@@ -29,6 +29,7 @@ resource mgmtCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
         alert: 'MgmtClusterHCPCapacityWarning'
         enabled: true
         labels: {
+          component: 'capacity'
           severity: 'info'
           team: 'hcp-sl'
         }
@@ -58,6 +59,7 @@ resource mgmtCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
         alert: 'MgmtClusterNodeSwiftNICCapacityZero'
         enabled: true
         labels: {
+          component: 'capacity'
           severity: 'critical'
           team: 'hcp-sl'
         }
@@ -87,6 +89,7 @@ resource mgmtCapacityRules 'Microsoft.AlertsManagement/prometheusRuleGroups@2023
         alert: 'MgmtClusterHCPCapacityCritical'
         enabled: true
         labels: {
+          component: 'capacity'
           severity: 'info'
           team: 'hcp-sl'
         }

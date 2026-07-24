@@ -6,6 +6,8 @@ metadata:
 spec:
   groups:
   - name: image-registry-policy
+    labels:
+      component: image-registry-policy
     interval: 1m
     rules:
     - alert: ImageRegistryPolicyDenied

@@ -99,10 +99,11 @@ tests:
     exp_alerts:
     - exp_labels:
         cluster: "mgmt-1"
-        severity: "3"
-        slo: access-cluster-errors
+        component: slo
         long_window: 1h
+        severity: "3"
         short_window: 5m
+        slo: access-cluster-errors
       exp_annotations:
         summary: "mgmt-1: Credential operation error rate critically high (>72%)"
         description: "More than 72% of credential operations (requestcredential/revokecredentials) are in failed state, indicating a fast error budget burn (14.4x) that would exhaust the 95% SLO budget in ~12 hours."
@@ -113,6 +114,7 @@ tests:
     exp_alerts:
     - exp_labels:
         cluster: "mgmt-1"
+        component: slo
         severity: "4"
         slo: access-cluster-errors
       exp_annotations:
@@ -164,6 +166,7 @@ tests:
     exp_alerts:
     - exp_labels:
         cluster: "mgmt-1"
+        component: slo
         severity: "4"
         slo: access-cluster-errors
       exp_annotations:
@@ -188,13 +191,14 @@ tests:
     alertname: userJourneyAccessClusterStuckOperation
     exp_alerts:
     - exp_labels:
-        resource_id: "/sub/3/cluster/stuck"
-        subscription_id: "sub-3"
-        resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters"
+        cluster: "mgmt-1"
+        component: slo
         operation_type: "requestcredential"
         phase: "accepted"
-        cluster: "mgmt-1"
+        resource_id: "/sub/3/cluster/stuck"
+        resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters"
         severity: "4"
+        subscription_id: "sub-3"
       exp_annotations:
         summary: "mgmt-1: Credential operation stuck in accepted for over 1 hour"
         description: "Credential operation for /sub/3/cluster/stuck has been in accepted phase for over 1 hour. Stuck operations are invisible to success/failure SLIs and require investigation."
@@ -249,8 +253,9 @@ tests:
     alertname: userJourneyAccessClusterSaturationQueueDepth
     exp_alerts:
     - exp_labels:
-        name: "OperationRequestCredential"
         cluster: "mgmt-1"
+        component: slo
+        name: "OperationRequestCredential"
         severity: "4"
       exp_annotations:
         summary: "mgmt-1: Credential controller workqueue OperationRequestCredential depth is high"
@@ -280,8 +285,9 @@ tests:
     alertname: userJourneyAccessClusterSaturationRetryHotLoop
     exp_alerts:
     - exp_labels:
-        name: "OperationRequestCredential"
         cluster: "mgmt-1"
+        component: slo
+        name: "OperationRequestCredential"
         severity: "4"
       exp_annotations:
         summary: "mgmt-1: Credential controller workqueue OperationRequestCredential retry hot loop"
@@ -355,10 +361,11 @@ tests:
     exp_alerts:
     - exp_labels:
         cluster: "mgmt-1"
-        severity: "3"
-        slo: access-cluster-errors
+        component: slo
         long_window: 6h
+        severity: "3"
         short_window: 30m
+        slo: access-cluster-errors
       exp_annotations:
         summary: "mgmt-1: Credential operation error rate elevated (>30%) for 30+ minutes"
         description: "More than 30% of credential operations are in failed state sustained over 30 minutes, indicating a medium error budget burn (6x) that would exhaust the 95% SLO budget in ~28 hours."
@@ -381,13 +388,14 @@ tests:
     alertname: userJourneyAccessClusterStuckOperation
     exp_alerts:
     - exp_labels:
-        resource_id: "/sub/7/cluster/stuck-revoke"
-        subscription_id: "sub-7"
-        resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters"
+        cluster: "mgmt-1"
+        component: slo
         operation_type: "revokecredentials"
         phase: "deleting"
-        cluster: "mgmt-1"
+        resource_id: "/sub/7/cluster/stuck-revoke"
+        resource_type: "microsoft.redhatopenshift/hcpopenshiftclusters"
         severity: "4"
+        subscription_id: "sub-7"
       exp_annotations:
         summary: "mgmt-1: Credential operation stuck in deleting for over 1 hour"
         description: "Credential operation for /sub/7/cluster/stuck-revoke has been in deleting phase for over 1 hour. Stuck operations are invisible to success/failure SLIs and require investigation."

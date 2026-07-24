@@ -29,6 +29,7 @@ resource msftKubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@202
         alert: 'KubePodCrashLooping'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -56,6 +57,7 @@ resource msftKubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@202
         alert: 'KubePodNotReady'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -83,6 +85,7 @@ resource msftKubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@202
         alert: 'KubeDeploymentGenerationMismatch'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -110,6 +113,7 @@ resource msftKubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@202
         alert: 'KubeDeploymentReplicasMismatch'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -137,6 +141,7 @@ resource msftKubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@202
         alert: 'KubeDeploymentRolloutStuck'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -164,6 +169,7 @@ resource msftKubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@202
         alert: 'KubeStatefulSetReplicasMismatch'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -191,6 +197,7 @@ resource msftKubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@202
         alert: 'KubeStatefulSetGenerationMismatch'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -218,6 +225,7 @@ resource msftKubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@202
         alert: 'KubeStatefulSetUpdateNotRolledOut'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -245,6 +253,7 @@ resource msftKubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@202
         alert: 'KubeDaemonSetRolloutStuck'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -272,6 +281,7 @@ resource msftKubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@202
         alert: 'KubeContainerWaiting'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -299,6 +309,7 @@ resource msftKubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@202
         alert: 'KubeDaemonSetNotScheduled'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -326,6 +337,7 @@ resource msftKubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@202
         alert: 'KubeDaemonSetMisScheduled'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -353,6 +365,7 @@ resource msftKubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@202
         alert: 'KubeJobNotCompleted'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -379,6 +392,7 @@ resource msftKubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@202
         alert: 'KubeJobFailed'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -406,6 +420,7 @@ resource msftKubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@202
         alert: 'KubeHpaReplicasMismatch'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -433,6 +448,7 @@ resource msftKubernetesApps 'Microsoft.AlertsManagement/prometheusRuleGroups@202
         alert: 'KubeHpaMaxedOut'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -473,6 +489,7 @@ resource msftKubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroup
         alert: 'KubeQuotaAlmostFull'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'info'
         }
         annotations: {
@@ -500,6 +517,7 @@ resource msftKubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroup
         alert: 'KubeQuotaFullyUsed'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'info'
         }
         annotations: {
@@ -527,6 +545,7 @@ resource msftKubernetesResources 'Microsoft.AlertsManagement/prometheusRuleGroup
         alert: 'KubeQuotaExceeded'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -567,6 +586,7 @@ resource msftKubernetesStorage 'Microsoft.AlertsManagement/prometheusRuleGroups@
         alert: 'KubePersistentVolumeFillingUp'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'critical'
         }
         annotations: {
@@ -594,6 +614,7 @@ resource msftKubernetesStorage 'Microsoft.AlertsManagement/prometheusRuleGroups@
         alert: 'KubePersistentVolumeFillingUp'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -621,6 +642,7 @@ resource msftKubernetesStorage 'Microsoft.AlertsManagement/prometheusRuleGroups@
         alert: 'KubePersistentVolumeInodesFillingUp'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'critical'
         }
         annotations: {
@@ -648,6 +670,7 @@ resource msftKubernetesStorage 'Microsoft.AlertsManagement/prometheusRuleGroups@
         alert: 'KubePersistentVolumeInodesFillingUp'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'warning'
         }
         annotations: {
@@ -675,6 +698,7 @@ resource msftKubernetesStorage 'Microsoft.AlertsManagement/prometheusRuleGroups@
         alert: 'KubePersistentVolumeErrors'
         enabled: true
         labels: {
+          component: 'kubernetes-infrastructure'
           severity: 'critical'
         }
         annotations: {
@@ -715,6 +739,7 @@ resource msftPrometheusWipRules 'Microsoft.AlertsManagement/prometheusRuleGroups
         alert: 'PrometheusMetricsAbsentPerCluster'
         enabled: true
         labels: {
+          component: 'monitoring-infrastructure'
           severity: 'critical'
         }
         annotations: {
@@ -761,6 +786,7 @@ resource msftMise 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' =
         alert: 'MiseEnvoyScrapeDown'
         enabled: true
         labels: {
+          component: 'frontend'
           severity: 'info'
         }
         annotations: {
@@ -801,6 +827,7 @@ resource msftMsiCredentialRefresher 'Microsoft.AlertsManagement/prometheusRuleGr
         alert: 'ClusterCredentialExpiringSoon'
         enabled: true
         labels: {
+          component: 'credential-refresher'
           severity: 'warning'
         }
         annotations: {
@@ -828,6 +855,7 @@ resource msftMsiCredentialRefresher 'Microsoft.AlertsManagement/prometheusRuleGr
         alert: 'ClusterCredentialExpired'
         enabled: true
         labels: {
+          component: 'credential-refresher'
           severity: 'warning'
         }
         annotations: {
@@ -855,6 +883,7 @@ resource msftMsiCredentialRefresher 'Microsoft.AlertsManagement/prometheusRuleGr
         alert: 'ClusterCredentialNotRenewable'
         enabled: true
         labels: {
+          component: 'credential-refresher'
           severity: 'warning'
         }
         annotations: {

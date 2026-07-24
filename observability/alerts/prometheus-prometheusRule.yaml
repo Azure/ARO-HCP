@@ -11,6 +11,8 @@ metadata:
 spec:
   groups:
   - name: prometheus-wip-rules
+    labels:
+      component: monitoring-infrastructure
     rules:
     - alert: PrometheusJobUp
       # TODO: once PR #5732 (underlay_clusters source-of-truth metric) is merged and confirmed
@@ -121,6 +123,8 @@ spec:
         runbook_url: https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/Prometheus.md
         summary: Prometheus failed sample rate to remote storage is above 10%.
   - name: prometheus-rules
+    labels:
+      component: monitoring-infrastructure
     rules:
     - alert: PrometheusRemoteStorageFailures
       expr: ((rate(prometheus_remote_storage_failed_samples_total{job="prometheus/prometheus",namespace="prometheus"}[5m]) or rate(prometheus_remote_storage_samples_failed_total{job="prometheus/prometheus",namespace="prometheus"}[5m])) / ((rate(prometheus_remote_storage_failed_samples_total{job="prometheus/prometheus",namespace="prometheus"}[5m]) or rate(prometheus_remote_storage_samples_failed_total{job="prometheus/prometheus",namespace="prometheus"}[5m])) + (rate(prometheus_remote_storage_succeeded_samples_total{job="prometheus/prometheus",namespace="prometheus"}[5m]) or rate(prometheus_remote_storage_samples_total{job="prometheus/prometheus",namespace="prometheus"}[5m])))) * 100 > 1
@@ -159,6 +163,8 @@ spec:
         runbook_url: https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/Prometheus.md
         summary: Prometheus has failed scrapes that have exceeded the configured sample limit.
   - name: prometheus-operator-rules
+    labels:
+      component: monitoring-infrastructure
     rules:
     - alert: PrometheusOperatorNotReady
       expr: min by (cluster, controller, namespace) (max_over_time(prometheus_operator_ready{job="prometheus-operator",namespace="prometheus"}[5m])) == 0
