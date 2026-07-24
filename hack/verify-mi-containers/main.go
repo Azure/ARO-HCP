@@ -122,7 +122,7 @@ func checkFile(path string) ([]string, error) {
 		label := fmt.Sprintf("%s:%d: %s(%q)", pos.Filename, pos.Line, specKind, specName)
 
 		declared, hasMILabel := findMIContainersLabel(call)
-		assignCount, hasAssign := findAssignIdentityContainersCount(call)
+		assignCount, hasAssignCall, hasAssignLiteralCount := findAssignIdentityContainersInfo(call)
 
 		if !hasMILabel {
 			violations = append(violations, label+" is missing labels.MIContainers(N) decorator")
@@ -134,11 +134,11 @@ func checkFile(path string) ([]string, error) {
 			return true
 		}
 
-		if declared == 0 && hasAssign {
+		if declared == 0 && hasAssignCall {
 			violations = append(violations, fmt.Sprintf("%s has MIContainers(0) but calls AssignIdentityContainers", label))
-		} else if declared > 0 && hasAssign && declared != assignCount {
+		} else if declared > 0 && hasAssignLiteralCount && declared != assignCount {
 			violations = append(violations, fmt.Sprintf("%s has MIContainers(%d) but calls AssignIdentityContainers with count=%d", label, declared, assignCount))
-		} else if declared > 0 && !hasAssign {
+		} else if declared > 0 && !hasAssignCall {
 			violations = append(violations, fmt.Sprintf("%s has MIContainers(%d) but does not call AssignIdentityContainers", label, declared))
 		}
 
@@ -222,9 +222,7 @@ func parseIntArg(expr ast.Expr) (int, bool) {
 	return 0, false
 }
 
-func findAssignIdentityContainersCount(specCall *ast.CallExpr) (int, bool) {
-	var count int
-	var found bool
+func findAssignIdentityContainersInfo(specCall *ast.CallExpr) (count int, hasCall bool, hasLiteralCount bool) {
 	for _, arg := range specCall.Args {
 		funcLit, ok := arg.(*ast.FuncLit)
 		if !ok {
@@ -236,15 +234,16 @@ func findAssignIdentityContainersCount(specCall *ast.CallExpr) (int, bool) {
 				return true
 			}
 			if isAssignIdentityContainersCall(call) {
+				hasCall = true
 				if c, ok := extractSecondIntArg(call); ok {
 					count = c
-					found = true
+					hasLiteralCount = true
 				}
 			}
 			return true
 		})
 	}
-	return count, found
+	return count, hasCall, hasLiteralCount
 }
 
 func isAssignIdentityContainersCall(call *ast.CallExpr) bool {

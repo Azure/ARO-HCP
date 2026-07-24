@@ -70,24 +70,47 @@ func parseSuiteParallelismOverride() *int {
 	return &n
 }
 
+// DefaultMIContainerCount is the assumed MI container pool size when
+// the LEASED_MSI_CONTAINERS envvar is not set. It matches the typical
+// personal-dev environment slot count so local runs work out of the box.
 const DefaultMIContainerCount = 15
 
 func parseMIContainersLabel(spec *et.ExtensionTestSpec) (int, bool) {
+	var seen []string
+	var parsed int
+	var found bool
+
 	for label := range spec.Labels {
 		if v, ok := strings.CutPrefix(label, "MIContainers:"); ok {
+			seen = append(seen, label)
 			n, err := strconv.Atoi(v)
 			if err == nil {
 				if n < 0 {
 					fmt.Fprintf(os.Stderr, "FATAL: test %q has MIContainers:%d but N must be >= 0\n", spec.Name, n)
 					os.Exit(1)
 				}
-				return n, true
+				parsed = n
+				found = true
 			}
 		}
+	}
+
+	if len(seen) > 1 {
+		sort.Strings(seen)
+		fmt.Fprintf(os.Stderr, "FATAL: test %q has multiple MIContainers labels (%s); exactly one is required\n",
+			spec.Name, strings.Join(seen, ", "))
+		os.Exit(1)
+	}
+	if found {
+		return parsed, true
 	}
 	return 0, false
 }
 
+// parseMIContainerCount returns the MI container pool size and a
+// human-readable source string. The pool size is the number of
+// space-delimited entries in LEASED_MSI_CONTAINERS, or
+// DefaultMIContainerCount when the envvar is unset or empty.
 func parseMIContainerCount() (int, string) {
 	v := os.Getenv(framework.LeasedMSIContainersEnvvar)
 	if v == "" {
@@ -145,7 +168,11 @@ func setupCli() *cobra.Command {
 	}
 
 	containerCount, containerCountSource := parseMIContainerCount()
-	miPools := map[string]int{"mi-containers": containerCount}
+	pooledIdentitiesEnabled, _ := strconv.ParseBool(strings.TrimSpace(os.Getenv(framework.UsePooledIdentitiesEnvvar)))
+	var miPools map[string]int
+	if pooledIdentitiesEnabled {
+		miPools = map[string]int{"mi-containers": containerCount}
+	}
 
 	// Extension registry
 	registry := e.NewRegistry()
@@ -407,6 +434,13 @@ func setupCli() *cobra.Command {
 	//	}
 	// })
 
+	// Walk specs to wire up per-test MI container demands for the
+	// openshift-tests-extension resource-aware scheduler. Each spec's
+	// MIContainers(N) label declares how many pooled identity containers
+	// it will lease. When pooled identities are enabled, we set
+	// spec.Resources.ResourcePools["mi-containers"] = N so the scheduler
+	// won't start the test until N slots are free in the pool.
+	// demand0/demand1/demandN bucket counts are for the log summary only.
 	var missingLabel []string
 	var demand0, demand1, demandN int
 	specs.Walk(func(spec *et.ExtensionTestSpec) {
@@ -423,7 +457,7 @@ func setupCli() *cobra.Command {
 		default:
 			demandN++
 		}
-		if demand > 0 {
+		if pooledIdentitiesEnabled && demand > 0 {
 			if spec.Resources.ResourcePools == nil {
 				spec.Resources.ResourcePools = make(map[string]int)
 			}
@@ -438,8 +472,13 @@ func setupCli() *cobra.Command {
 		os.Exit(1)
 	}
 	total := demand0 + demand1 + demandN
-	fmt.Fprintf(os.Stderr, "[scheduler] pool mi-containers=%d (source: %s), %d specs (%d×0, %d×1, %d×2+)\n",
-		containerCount, containerCountSource, total, demand0, demand1, demandN)
+	if pooledIdentitiesEnabled {
+		fmt.Fprintf(os.Stderr, "[scheduler] pool mi-containers=%d (source: %s), %d specs (%d×0, %d×1, %d×2+)\n",
+			containerCount, containerCountSource, total, demand0, demand1, demandN)
+	} else {
+		fmt.Fprintf(os.Stderr, "[scheduler] pooled identities disabled (%s!=true), skipping mi-containers pool demands; %d specs (%d×0, %d×1, %d×2+)\n",
+			framework.UsePooledIdentitiesEnvvar, total, demand0, demand1, demandN)
+	}
 
 	if os.Getenv("ARO_HCP_DISABLE_MI_SORT") != "true" {
 		sort.SliceStable(specs, func(i, j int) bool {
