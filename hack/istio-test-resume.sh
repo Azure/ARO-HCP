@@ -57,6 +57,10 @@ if [[ -d "${RESULTS_DIR}" ]]; then
 fi
 mkdir -p "${RESULTS_DIR}"
 
+# Capture script output (summary, action detection, pass/fail) alongside pipeline logs.
+# Pipeline output goes to per-round log files; this captures everything the script prints.
+exec > >(tee "${RESULTS_DIR}/script-output.log") 2>&1
+
 # Safety: ensure we're targeting a personal-dev environment
 DEPLOY_ENV="${DEPLOY_ENV:-pers}"
 if [[ "$DEPLOY_ENV" != "pers" && "$DEPLOY_ENV" != "swft" ]]; then
@@ -69,6 +73,7 @@ export DEPLOY_ENV
 DEFAULT_STEPS="canary,tag,migrate,orphan"
 SKIP_BUILD=false
 SKIP_CACHE=false
+RESUME_DELAY=5
 
 # Parse arguments
 STEPS="${DEFAULT_STEPS}"
@@ -184,19 +189,22 @@ kill_pipeline() {
 #   skip:     "Skipping: ..." / "Downgrade detected, skipping" / "...upgrades, skipping"
 detect_action() {
   local logfile="$1"
-  local stripped
-  stripped=$(LC_ALL=C sed 's/\x1b\[[0-9;]*m//g' "$logfile" 2>/dev/null)
-  if echo "$stripped" | grep -qi '"action".*"resume"\|Mid-upgrade detected'; then
+  # Strip ANSI codes and search for action markers. Uses grep -ci (count,
+  # case-insensitive) instead of -qi to avoid SIGPIPE: with set -o pipefail,
+  # grep -q exits on first match → closes pipe → sed gets SIGPIPE (exit 141)
+  # → pipefail reports 141 even though grep matched. grep -ci reads all input
+  # (no SIGPIPE) and returns 0 when count > 0.
+  if LC_ALL=C sed 's/\x1b\[[0-9;]*m//g' "$logfile" 2>/dev/null | grep -ci '"action".*"resume"\|Mid-upgrade detected' >/dev/null 2>&1; then
     echo "resume"
-  elif echo "$stripped" | grep -qi '"action".*"install"\|Enabling mesh'; then
+  elif LC_ALL=C sed 's/\x1b\[[0-9;]*m//g' "$logfile" 2>/dev/null | grep -ci '"action".*"install"\|Enabling mesh' >/dev/null 2>&1; then
     echo "install"
-  elif echo "$stripped" | grep -qi '"action".*"cleanup-and-upgrade"\|Stale canary detected'; then
+  elif LC_ALL=C sed 's/\x1b\[[0-9;]*m//g' "$logfile" 2>/dev/null | grep -ci '"action".*"cleanup-and-upgrade"\|Stale canary detected' >/dev/null 2>&1; then
     echo "cleanup-and-upgrade"
-  elif echo "$stripped" | grep -qi '"action".*"upgrade"\|Starting canary'; then
+  elif LC_ALL=C sed 's/\x1b\[[0-9;]*m//g' "$logfile" 2>/dev/null | grep -ci '"action".*"upgrade"\|Starting canary' >/dev/null 2>&1; then
     echo "upgrade"
-  elif echo "$stripped" | grep -qi '"action".*"reconcile"\|reconciling expected'; then
+  elif LC_ALL=C sed 's/\x1b\[[0-9;]*m//g' "$logfile" 2>/dev/null | grep -ci '"action".*"reconcile"\|reconciling expected' >/dev/null 2>&1; then
     echo "reconcile"
-  elif echo "$stripped" | grep -qi '"action".*"skip"\|Skipping:\|, skipping'; then
+  elif LC_ALL=C sed 's/\x1b\[[0-9;]*m//g' "$logfile" 2>/dev/null | grep -ci '"action".*"skip"\|Istio upgrade.*skip' >/dev/null 2>&1; then
     echo "skip"
   else
     echo "unknown"
@@ -255,6 +263,9 @@ echo "Results directory:   ${RESULTS_DIR}"
 echo ""
 echo "=============================================="
 
+# Total rounds: 1 (initial) + remaining kill points + 1 (final completion)
+TOTAL_ROUNDS=$(( ${#KILL_POINTS[@]} + 1 ))
+
 # --- Round 1: Initial run to detect install vs upgrade ---
 ROUND=1
 LOGFILE="${RESULTS_DIR}/round-1-initial.log"
@@ -263,10 +274,12 @@ FIRST_LABEL=$(label_for_step "${KILL_POINTS[0]}")
 
 echo ""
 echo "----------------------------------------------"
-echo "  Round 1: Initial pipeline run"
-echo "  Watching for: ${FIRST_LABEL}"
+echo "  Round 1/${TOTAL_ROUNDS}: Initial pipeline run"
+echo "  Will kill after: ${FIRST_LABEL}"
 echo "  Log: ${LOGFILE}"
 echo "----------------------------------------------"
+echo ""
+echo ">>> Starting make personal-dev-env and waiting for the istio-upgrade step..."
 
 run_and_monitor "$FIRST_PATTERN" "$LOGFILE" "true"
 INITIAL_EXIT=$?
@@ -302,6 +315,8 @@ case "$ACTION" in
 
   upgrade|resume|cleanup-and-upgrade)
     echo ">>> Upgrade/canary flow detected (${ACTION}) — running kill/resume cycle."
+    echo ">>> Will test ${#KILL_POINTS[@]} kill points: ${KILL_POINTS[*]}"
+    echo ">>> Each round: kill pipeline → verify cluster state → restart → confirm resume"
 
     # Check if upgrade completed instead of being killed
     UPGRADE_DONE=false
@@ -316,6 +331,7 @@ case "$ACTION" in
       : # skip to summary
     elif [[ "$INITIAL_EXIT" -eq 0 ]]; then
       echo ">>> KILLED after: ${FIRST_LABEL}"
+      echo ">>> Pipeline will restart automatically to test resume from this point."
       PASSED=$((PASSED + 1))
     else
       echo ">>> Pipeline exited (code ${INITIAL_EXIT}) before kill point."
@@ -326,12 +342,17 @@ case "$ACTION" in
     if [[ "$UPGRADE_DONE" != "true" ]]; then
     # Run verify after first kill
     if [[ -x "${SCRIPT_DIR}/istio-verify-state.sh" ]]; then
+      echo ">>> Running istio-verify-state.sh (log: ${RESULTS_DIR}/round-1-verify.log)..."
       "${SCRIPT_DIR}/istio-verify-state.sh" > "${RESULTS_DIR}/round-1-verify.log" 2>&1 || true
+      echo ">>> Verify complete."
     fi
 
     echo ""
-    echo ">>> Waiting 5s before next round..."
-    sleep 5
+    for s in $(seq "$RESUME_DELAY" -1 1); do
+      printf "\r>>> Resuming in %ds...  " "$s"
+      sleep 1
+    done
+    printf "\r>>> Resuming now.        \n"
 
     # Remaining kill points (skip the first, already done)
     for i in $(seq 1 $((${#KILL_POINTS[@]} - 1))); do
@@ -343,15 +364,18 @@ case "$ACTION" in
 
       echo ""
       echo "----------------------------------------------"
-      echo "  Round ${ROUND}: Kill after ${LABEL}"
+      echo "  Round ${ROUND}/${TOTAL_ROUNDS}: Resume after previous kill, then kill after ${LABEL}"
+      echo "  Expecting: ActionResume (cluster should detect mid-canary state)"
       echo "  Log: ${LOGFILE}"
       echo "----------------------------------------------"
+      echo ""
+      echo ">>> Starting make personal-dev-env — pipeline should resume the interrupted upgrade..."
 
       run_and_monitor "$PATTERN" "$LOGFILE" "true"
       EXIT_CODE=$?
       RESUME_ACTION=$(detect_action "$LOGFILE")
       echo ""
-      echo ">>> Action on re-run: ${RESUME_ACTION}"
+      echo ">>> Detected action: ${RESUME_ACTION} (expected: resume)"
 
       # Check if the upgrade completed instead of being killed
       if LC_ALL=C sed 's/\x1b\[[0-9;]*m//g' "$LOGFILE" 2>/dev/null | grep -q "Istio upgrade complete and verified"; then
@@ -363,7 +387,7 @@ case "$ACTION" in
       fi
 
       if [[ "$RESUME_ACTION" == "skip" || "$RESUME_ACTION" == "reconcile" ]]; then
-        echo ">>> ${RESUME_ACTION} — upgrade already completed. Stopping test."
+        echo ">>> ${RESUME_ACTION} — upgrade already completed (the previous kill landed after the point of no return)."
         PASSED=$((PASSED + 1))
         UPGRADE_DONE=true
         break
@@ -371,9 +395,12 @@ case "$ACTION" in
 
       if [[ "$EXIT_CODE" -eq 0 ]]; then
         echo ">>> KILLED after: ${LABEL}"
+        echo ">>> Pipeline will restart automatically to test resume from this point."
 
         if [[ -x "${SCRIPT_DIR}/istio-verify-state.sh" ]]; then
+          echo ">>> Running istio-verify-state.sh (log: ${RESULTS_DIR}/round-${ROUND}-verify-${kp}.log)..."
           "${SCRIPT_DIR}/istio-verify-state.sh" > "${RESULTS_DIR}/round-${ROUND}-verify-${kp}.log" 2>&1 || true
+          echo ">>> Verify complete."
         fi
 
         PASSED=$((PASSED + 1))
@@ -384,8 +411,12 @@ case "$ACTION" in
       fi
 
       echo ""
-      echo ">>> Waiting 5s before next round..."
-      sleep 5
+      echo ">>> Progress: ${PASSED} passed, ${FAILED} failed out of ${ROUND} rounds so far."
+      for s in $(seq "$RESUME_DELAY" -1 1); do
+        printf "\r>>> Resuming in %ds...  " "$s"
+        sleep 1
+      done
+      printf "\r>>> Resuming now.        \n"
     done
 
     # Final run — let it complete
@@ -394,15 +425,18 @@ case "$ACTION" in
 
     echo ""
     echo "----------------------------------------------"
-    echo "  Round ${ROUND}: Final run (complete upgrade)"
+    echo "  Round ${ROUND}/${TOTAL_ROUNDS}: Final run — let the upgrade complete end-to-end"
+    echo "  No kill this round — pipeline runs to completion."
     echo "  Log: ${LOGFILE}"
     echo "----------------------------------------------"
+    echo ""
+    echo ">>> Starting make personal-dev-env — upgrade should resume and complete..."
 
     if run_and_monitor "" "$LOGFILE" "false"; then
       FINAL_ACTION=$(detect_action "$LOGFILE")
       echo ""
-      echo ">>> Action on final run: ${FINAL_ACTION}"
-      echo ">>> PASS — upgrade completed successfully"
+      echo ">>> Detected action: ${FINAL_ACTION}"
+      echo ">>> PASS — upgrade completed successfully after surviving all kill points"
       PASSED=$((PASSED + 1))
     else
       EXIT_CODE=$?
