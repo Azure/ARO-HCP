@@ -35,9 +35,9 @@ func TestMetricsMiddlewareClientClass(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name        string
-		userAgent   string
-		wantClass   string
+		name      string
+		userAgent string
+		wantClass string
 	}{
 		{
 			name:      "other when unset",
