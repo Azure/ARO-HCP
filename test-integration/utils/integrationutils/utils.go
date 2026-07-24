@@ -34,6 +34,8 @@ import (
 	utilsclock "k8s.io/utils/clock"
 	"k8s.io/utils/set"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
+
 	adminApiServer "github.com/Azure/ARO-HCP/admin/server/server"
 	"github.com/Azure/ARO-HCP/backend/pkg/controllers/operationcontrollers"
 	"github.com/Azure/ARO-HCP/frontend/pkg/frontend"
@@ -144,11 +146,17 @@ func NewIntegrationTestInfoFromEnv(ctx context.Context, t *testing.T, withMock b
 	if err != nil {
 		return nil, err
 	}
+	var cosmosDatabaseClient *azcosmos.DatabaseClient
+	if cosmosInfo, ok := storageIntegrationTestInfo.(*CosmosIntegrationTestInfo); ok {
+		cosmosDatabaseClient = cosmosInfo.CosmosDatabaseClient
+	}
+
 	adminAPI := adminApiServer.NewAdminAPI(
 		logger,
 		"fake-location",
 		adminListener,
 		adminMetricsListener,
+		cosmosDatabaseClient,
 		storageIntegrationTestInfo.ResourcesDBClient(),
 		storageIntegrationTestInfo.BillingDBClient(),
 		storageIntegrationTestInfo.FleetDBClient(),

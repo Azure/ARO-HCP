@@ -496,6 +496,89 @@ func (tc *perItOrDescribeTestContext) GetManagementCluster(ctx context.Context, 
 	return &result, nil
 }
 
+type CosmosQueryRequest struct {
+	ContainerName string `json:"containerName"`
+	Query         string `json:"query"`
+	PartitionKey  string `json:"partitionKey,omitempty"`
+	MaxItems      int32  `json:"maxItems,omitempty"`
+}
+
+type CosmosQueryResponse struct {
+	Results []json.RawMessage `json:"results"`
+	Count   int               `json:"count"`
+}
+
+func (tc *perItOrDescribeTestContext) CosmosQuery(ctx context.Context, req CosmosQueryRequest, identityDetails *AzureIdentityDetails) (*CosmosQueryResponse, int, error) {
+	httpClient := createAdminAPIHTTPClient(identityDetails)
+
+	endpoint := fmt.Sprintf("%s/admin/v1/cosmos/query", tc.perBinaryInvocationTestContext.adminAPIAddress)
+
+	By(fmt.Sprintf("querying CosmosDB container %q via admin API", req.ContainerName))
+
+	requestBody, err := json.Marshal(req)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to marshal request body: %w", err)
+	}
+
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(requestBody))
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to create request: %w", err)
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+
+	resp, err := httpClient.Do(httpReq)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to send request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 10*1024*1024))
+	if err != nil {
+		return nil, resp.StatusCode, fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, resp.StatusCode, fmt.Errorf("expected status 200 OK, got %d: %s", resp.StatusCode, string(body))
+	}
+
+	var queryResp CosmosQueryResponse
+	if err := json.Unmarshal(body, &queryResp); err != nil {
+		return nil, resp.StatusCode, fmt.Errorf("failed to unmarshal response: %w", err)
+	}
+
+	return &queryResp, resp.StatusCode, nil
+}
+
+func (tc *perItOrDescribeTestContext) CosmosQueryRaw(ctx context.Context, req CosmosQueryRequest, identityDetails *AzureIdentityDetails) ([]byte, int, error) {
+	httpClient := createAdminAPIHTTPClient(identityDetails)
+
+	endpoint := fmt.Sprintf("%s/admin/v1/cosmos/query", tc.perBinaryInvocationTestContext.adminAPIAddress)
+
+	requestBody, err := json.Marshal(req)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to marshal request body: %w", err)
+	}
+
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(requestBody))
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to create request: %w", err)
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+
+	resp, err := httpClient.Do(httpReq)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to send request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 10*1024*1024))
+	if err != nil {
+		return nil, resp.StatusCode, fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	return body, resp.StatusCode, nil
+}
+
 func adminAPIGet(ctx context.Context, httpClient *http.Client, endpoint string) ([]byte, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
