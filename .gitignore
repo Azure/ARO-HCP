@@ -42,3 +42,5 @@ timing-metadata-*
 # layout (namespaces/<ns>/core/secrets/), which these test fixtures require.
 !kube-applier/pkg/controllers/read_desire_kubernetes/testdata/**/secrets/
 !kube-applier/pkg/controllers/read_desire_kubernetes/testdata/**/secrets/**
+
+# CI experiment - safe to close
