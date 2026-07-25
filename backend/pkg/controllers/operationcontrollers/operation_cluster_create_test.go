@@ -823,43 +823,21 @@ func TestServingCABundleOperationStatus(t *testing.T) {
 		}
 	}
 
-	clusterWithVersion := func(version string) *api.HCPOpenShiftCluster {
-		cluster := newClusterWithAPIURL("https://api.example.com", nil)
-		cluster.CustomerProperties.Version.ID = version
-		return cluster
-	}
-
 	tests := []struct {
 		name          string
-		cluster       *api.HCPOpenShiftCluster
 		spcLister     listers.ServiceProviderClusterLister
 		expectedState arm.ProvisioningState
 		wantMsgSubstr string
 	}{
 		{
-			// A cluster below the minimum serving-CA version never gets a
-			// serving CA ReadDesire created, so ServingCABundle stays empty
-			// forever. The check must be skipped rather than block the create.
-			name:          "version below minimum skips serving CA check → Succeeded",
-			cluster:       clusterWithVersion("4.19.0"),
-			spcLister:     spcLister(""),
-			expectedState: arm.ProvisioningStateSucceeded,
-		},
-		{
-			name:          "unknown (empty) version skips serving CA check → Succeeded",
-			cluster:       clusterWithVersion(""),
-			spcLister:     spcLister(""),
-			expectedState: arm.ProvisioningStateSucceeded,
-		},
-		{
-			name:          "version at minimum with populated bundle → Succeeded",
-			cluster:       clusterWithVersion("4.20.0"),
+			// The serving CA check is no longer gated on the cluster version:
+			// once the bundle is populated the check succeeds.
+			name:          "populated bundle → Succeeded",
 			spcLister:     spcLister("fake-ca-data"),
 			expectedState: arm.ProvisioningStateSucceeded,
 		},
 		{
-			name:          "version at minimum with empty bundle → Provisioning",
-			cluster:       clusterWithVersion("4.20.0"),
+			name:          "empty bundle → Provisioning",
 			spcLister:     spcLister(""),
 			expectedState: arm.ProvisioningStateProvisioning,
 			wantMsgSubstr: "ServingCABundle not yet populated",
@@ -873,7 +851,7 @@ func TestServingCABundleOperationStatus(t *testing.T) {
 				serviceProviderClusterLister: tt.spcLister,
 			}
 
-			result, err := controller.servingCABundleOperationStatus(ctx, operation, tt.cluster)
+			result, err := controller.servingCABundleOperationStatus(ctx, operation)
 			require.NoError(t, err)
 			require.NotNil(t, result)
 			assert.Equal(t, tt.expectedState, result.ProvisioningState)
