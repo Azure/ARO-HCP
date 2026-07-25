@@ -686,7 +686,7 @@ func TestOptionsGenerate(t *testing.T) {
 		assert.NotContains(t, generated, "correlationId: 'hostedcluster-KubeAPIServer-ErrorBudgetBurn/{{ $labels.cluster }}'")
 	})
 
-	t.Run("enriches default correlationId and summary title using labelsToExtract", func(t *testing.T) {
+	t.Run("enriches default correlationId using labelsToExtract", func(t *testing.T) {
 		tmpDir := t.TempDir()
 		outputFile := filepath.Join(tmpDir, "generatedAlertingRules.bicep")
 
@@ -709,7 +709,7 @@ func TestOptionsGenerate(t *testing.T) {
 												"component": "test",
 											},
 											Annotations: map[string]string{
-												"summary":     "Pod in namespace {{ $labels.namespace }} is unhealthy",
+												"summary":     "Pod {{ $labels.namespace }}/{{ $labels.pod }} is unhealthy",
 												"description": "Pod {{ $labels.namespace }}/{{ $labels.pod }} has issues",
 											},
 										},
@@ -731,8 +731,7 @@ func TestOptionsGenerate(t *testing.T) {
 
 		assert.Contains(t, generated, "correlationId: 'EnrichedAlert/{{ $labels.cluster }}/{{ $labels.namespace }}/{{ $labels.pod }}'")
 		assert.NotContains(t, generated, "{{ $labels.cluster }}/{{ $labels.cluster }}")
-		assert.Contains(t, generated, "title: 'Pod in namespace {{ $labels.namespace }} is unhealthy pod:{{ $labels.pod }}'")
-		assert.NotContains(t, generated, "namespace: {{ $labels.namespace }}")
+		assert.Contains(t, generated, "title: 'Pod {{ $labels.namespace }}/{{ $labels.pod }} is unhealthy'")
 	})
 
 	t.Run("labelsToExtract orders labels but auto-extraction still captures unlisted ones", func(t *testing.T) {
@@ -759,7 +758,7 @@ func TestOptionsGenerate(t *testing.T) {
 												"component": "test",
 											},
 											Annotations: map[string]string{
-												"summary":     "Something is wrong",
+												"summary":     "Issue on {{ $labels.namespace }}/{{ $labels.pod }} node {{ $labels.node }}",
 												"description": "Issue on {{ $labels.namespace }}/{{ $labels.pod }} node {{ $labels.node }}",
 											},
 										},
@@ -852,7 +851,7 @@ func TestOptionsGenerate(t *testing.T) {
 												"component": "test",
 											},
 											Annotations: map[string]string{
-												"summary":     "Pod {{ $labels.pod }} in namespace {{ $labels.namespace }} is down",
+												"summary":     "Pod {{ $labels.pod }} in {{ $labels.namespace }} on node {{ $labels.node }} is down",
 												"description": "Pod {{ $labels.namespace }}/{{ $labels.pod }} on node {{ $labels.node }} has issues",
 											},
 										},
@@ -878,7 +877,7 @@ func TestOptionsGenerate(t *testing.T) {
 		assert.NotContains(t, generated, "{{ $labels.cluster }}/{{ $labels.cluster }}")
 	})
 
-	t.Run("auto-extracts labels into title when labelsToExtract is not configured", func(t *testing.T) {
+	t.Run("rejects summary missing correlation labels", func(t *testing.T) {
 		tmpDir := t.TempDir()
 		outputFile := filepath.Join(tmpDir, "generatedAlertingRules.bicep")
 
@@ -915,16 +914,10 @@ func TestOptionsGenerate(t *testing.T) {
 		}
 
 		err := opts.Generate()
-		assert.NoError(t, err)
-
-		content, err := os.ReadFile(outputFile)
-		assert.NoError(t, err)
-		generated := string(content)
-
-		// Should append extracted labels to the title
-		assert.Contains(t, generated, "title: 'Instance is down instance:{{ $labels.instance }} job:{{ $labels.job }}'")
-		// Should also include them in correlationId
-		assert.Contains(t, generated, "correlationId: 'AutoTitleAlert/{{ $labels.cluster }}/{{ $labels.instance }}/{{ $labels.job }}'")
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "summary is missing correlation label(s)")
+		assert.Contains(t, err.Error(), "instance")
+		assert.Contains(t, err.Error(), "job")
 	})
 
 	t.Run("deps excluded from output", func(t *testing.T) {

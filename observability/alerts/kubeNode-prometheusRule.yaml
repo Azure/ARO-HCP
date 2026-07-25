@@ -11,7 +11,7 @@ spec:
     rules:
     - alert: KubeMemoryPressure
       annotations:
-        summary: "Node under memory pressure"
+        summary: "Node {{ $labels.node }} under memory pressure"
         description: "Node {{ $labels.node }} is reporting MemoryPressure condition"
       expr: |
         kube_node_status_condition{condition="MemoryPressure",status="true"} == 1
@@ -20,7 +20,7 @@ spec:
         severity: warning
     - alert: NodeConntrackTableSaturation
       annotations:
-        summary: "Node conntrack table approaching capacity"
+        summary: "Node {{ $labels.instance }} on {{ $labels.cluster }} conntrack table approaching capacity"
         description: "Node {{ $labels.instance }} on cluster {{ $labels.cluster }} has its netfilter conntrack table {{ $value | humanizePercentage }} full (nf_conntrack_max). Sustained saturation leads to 'nf_conntrack: table full, dropping packet' (ConntrackFull), which times out kubelet/DNS/IMDS traffic and degrades node health. Consider a larger SKU (nf_conntrack_max = 32768 x vCPU) or scaling the pool out."
       expr: |
         node_nf_conntrack_entries / node_nf_conntrack_entries_limit > 0.80

@@ -27,7 +27,7 @@ spec:
         # this commit to restore critical/SEV 2.
         severity: warning
       annotations:
-        summary: "HCP cluster operator unavailable on {{ $labels.namespace }}"
+        summary: "HCP cluster operator unavailable on {{ $labels.namespace }} ({{ $labels.cluster }})"
         description: "{{ $value }} cluster operator(s) on hosted cluster {{ $labels.namespace }} (management cluster {{ $labels.cluster }}) have been reporting Available=false for more than 30 minutes. The version and console operators are excluded from this alert; the affected cluster has worker nodes present. An unavailable operator means the component it manages is down, not merely degraded.\n"
         correlationId: 'HCPClusterOperatorUnavailable/{{ $labels.cluster }}/{{ $labels.namespace }}'
         runbook_url: https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/hcp-cluster-operators.md
@@ -46,7 +46,7 @@ spec:
       labels:
         severity: info
       annotations:
-        summary: "HCP cluster operator degraded on {{ $labels.namespace }}"
+        summary: "HCP cluster operator degraded on {{ $labels.namespace }} ({{ $labels.cluster }})"
         description: "{{ $value }} cluster operator(s) on hosted cluster {{ $labels.namespace }} (management cluster {{ $labels.cluster }}) have been reporting Degraded=true for more than 2 hours. The version and console operators are excluded from this alert; the affected cluster has worker nodes present. A degraded operator is reporting reduced quality of service.\n"
         correlationId: 'HCPClusterOperatorDegraded/{{ $labels.cluster }}/{{ $labels.namespace }}'
         runbook_url: https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/hcp-cluster-operators.md
@@ -72,7 +72,7 @@ spec:
       labels:
         severity: warning
       annotations:
-        summary: "HCP version operator failing on {{ $labels.namespace }}"
+        summary: "HCP version operator failing on {{ $labels.namespace }} ({{ $labels.cluster }})"
         description: "The version operator (ClusterVersion) on hosted cluster {{ $labels.namespace }} (management cluster {{ $labels.cluster }}) has been Failing for more than 1 hour while NO other cluster operator is unavailable or degraded. This points at a version-operator-specific failure -- payload image retrieval, release signature verification, an upgrade precondition, or a cluster-scoped manifest apply -- rather than a problem any individual component operator reports.\n"
         correlationId: 'HCPClusterVersionFailing/{{ $labels.cluster }}/{{ $labels.namespace }}'
         runbook_url: https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/hcp-cluster-operators.md

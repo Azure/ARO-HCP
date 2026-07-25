@@ -16,6 +16,7 @@ package internal
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -418,6 +419,7 @@ param location string = resourceGroup().location
 		}
 	}
 
+	var titleErrors []error
 	for _, irf := range o.ruleFiles {
 		if irf.testDependency {
 			continue
@@ -497,17 +499,21 @@ param location string = resourceGroup().location
 				extractedLabels := o.labelsFromTextInConfiguredOrder(descriptionText)
 
 				// If the summary annotation is present, use it as the title.
-				// Append scoped labels based on `labelsToExtract`
 				// Otherwise, use the alert name as the title.
+				// All labels that are part of the correlation ID must be present
+				// in the title so that IcM incidents are distinguishable.
 				if summary, exists := annotations["summary"]; exists {
 					title := ptr.Deref(summary, "")
-					for _, label := range extractedLabels {
-						if strings.Contains(title, labelTemplateToken(label)) {
-							continue
-						}
-						title = title + " " + label + ":" + labelTemplateToken(label)
-					}
 					annotations["title"] = ptr.To(title)
+					var missing []string
+					for _, label := range extractedLabels {
+						if !strings.Contains(title, labelTemplateToken(label)) {
+							missing = append(missing, label)
+						}
+					}
+					if len(missing) > 0 {
+						titleErrors = append(titleErrors, fmt.Errorf("alert %q in group %q: summary is missing correlation label(s) %v; edit the summary annotation to include them concisely", rule.Alert, group.Name, missing))
+					}
 				} else {
 					annotations["title"] = ptr.To(rule.Alert)
 				}
@@ -604,6 +610,9 @@ param location string = resourceGroup().location
 				}
 			}
 		}
+	}
+	if len(titleErrors) > 0 {
+		return errors.Join(titleErrors...)
 	}
 	return nil
 }

@@ -134,7 +134,7 @@ spec:
       annotations:
         description: Prometheus {{$labels.namespace}}/{{$labels.pod}} failed to send {{ printf "%.1f" $value }}% of the samples to {{ $labels.remote_name}}:{{ $labels.url }}
         runbook_url: https://runbooks.prometheus-operator.dev/runbooks/prometheus/prometheusremotestoragefailures
-        summary: Prometheus fails to send samples to remote storage.
+        summary: Prometheus {{ $labels.namespace }}/{{ $labels.pod }} failing to send to {{ $labels.remote_name }}:{{ $labels.url }}
     - alert: PrometheusNotIngestingSamples
       expr: (sum without (type) (rate(prometheus_tsdb_head_samples_appended_total{job="prometheus/prometheus",namespace="prometheus"}[5m])) <= 0 and sum without (scrape_job) (prometheus_target_metadata_cache_entries{job="prometheus/prometheus",namespace="prometheus"}) > 0)
       for: 10m
@@ -143,7 +143,7 @@ spec:
       annotations:
         description: Prometheus {{$labels.namespace}}/{{$labels.pod}} is not ingesting samples.
         runbook_url: https://runbooks.prometheus-operator.dev/runbooks/prometheus/prometheusnotingestingsamples
-        summary: Prometheus is not ingesting samples.
+        summary: Prometheus {{ $labels.namespace }}/{{ $labels.pod }} is not ingesting samples
     - alert: PrometheusBadConfig
       expr: max_over_time(prometheus_config_last_reload_successful{job="prometheus/prometheus",namespace="prometheus"}[5m]) == 0
       for: 10m
@@ -152,7 +152,7 @@ spec:
       annotations:
         description: Prometheus {{$labels.namespace}}/{{$labels.pod}} has failed to reload its configuration.
         runbook_url: https://runbooks.prometheus-operator.dev/runbooks/prometheus/prometheusbadconfig
-        summary: Failed Prometheus configuration reload.
+        summary: Prometheus {{ $labels.namespace }}/{{ $labels.pod }} configuration reload failed
     - alert: PrometheusScrapeSampleLimitHit
       expr: increase(prometheus_target_scrapes_exceeded_sample_limit_total{job="prometheus/prometheus",namespace="prometheus"}[5m]) > 0
       for: 15m
@@ -161,7 +161,7 @@ spec:
       annotations:
         description: Prometheus {{$labels.namespace}}/{{$labels.pod}} has failed {{ printf "%.0f" $value }} scrapes in the last 5m because some targets exceeded the configured sample_limit.
         runbook_url: https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/Prometheus.md
-        summary: Prometheus has failed scrapes that have exceeded the configured sample limit.
+        summary: Prometheus {{ $labels.namespace }}/{{ $labels.pod }} scrapes exceeding sample limit
   - name: prometheus-operator-rules
     labels:
       component: monitoring-infrastructure
@@ -174,7 +174,7 @@ spec:
       annotations:
         description: Prometheus operator in {{ $labels.namespace }} namespace isn't ready to reconcile {{ $labels.controller }} resources.
         runbook_url: https://runbooks.prometheus-operator.dev/runbooks/prometheus-operator/prometheusoperatornotready
-        summary: Prometheus operator not ready
+        summary: Prometheus operator {{ $labels.namespace }}/{{ $labels.controller }} not ready
     - alert: PrometheusOperatorRejectedResources
       expr: min_over_time(prometheus_operator_managed_resources{job="prometheus-operator",namespace="prometheus",state="rejected"}[5m]) > 0
       for: 20m
@@ -183,4 +183,4 @@ spec:
       annotations:
         description: Prometheus operator in {{ $labels.namespace }} namespace rejected {{ printf "%0.0f" $value }} {{ $labels.controller }}/{{ $labels.resource }} resources.
         runbook_url: https://runbooks.prometheus-operator.dev/runbooks/prometheus-operator/prometheusoperatorrejectedresources
-        summary: Resources rejected by Prometheus operator
+        summary: Prometheus operator {{ $labels.namespace }}/{{ $labels.controller }} rejecting {{ $labels.resource }} resources

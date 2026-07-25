@@ -25,7 +25,7 @@ spec:
       annotations:
         description: Pod {{ $labels.namespace }}/{{ $labels.pod}} has been in a non-ready state for longer than 15 minutes.
         runbook_url: https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubepodnotready
-        summary: Pod has been in a non-ready state for more than 15 minutes.
+        summary: Pod {{ $labels.namespace }}/{{ $labels.pod }} has been in a non-ready state for more than 5 minutes.
       expr: |
         sum by (namespace, pod, cluster) (
           max by(namespace, pod, cluster) (

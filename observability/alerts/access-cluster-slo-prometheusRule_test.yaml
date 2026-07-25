@@ -200,7 +200,7 @@ tests:
         severity: "4"
         subscription_id: "sub-3"
       exp_annotations:
-        summary: "mgmt-1: Credential operation stuck in accepted for over 1 hour"
+        summary: "mgmt-1: Credential operation for /sub/3/cluster/stuck stuck in accepted for over 1 hour"
         description: "Credential operation for /sub/3/cluster/stuck has been in accepted phase for over 1 hour. Stuck operations are invisible to success/failure SLIs and require investigation."
         runbook_url: "aka.ms/arohcp-runbook-access-cluster"
 # ========================================
@@ -397,7 +397,7 @@ tests:
         severity: "4"
         subscription_id: "sub-7"
       exp_annotations:
-        summary: "mgmt-1: Credential operation stuck in deleting for over 1 hour"
+        summary: "mgmt-1: Credential operation for /sub/7/cluster/stuck-revoke stuck in deleting for over 1 hour"
         description: "Credential operation for /sub/7/cluster/stuck-revoke has been in deleting phase for over 1 hour. Stuck operations are invisible to success/failure SLIs and require investigation."
         runbook_url: "aka.ms/arohcp-runbook-access-cluster"
 # ========================================
