@@ -39,7 +39,7 @@ spec:
       annotations:
         description: 'Fleet controller workqueue {{ $labels.name }} has a retry ratio of > 50% sustained over 10 minutes, indicating most queue activity is failed retries rather than fresh work.'
         runbook_url: 'TBD'
-        summary: 'Fleet controller workqueue retry hot loop'
+        summary: 'Fleet controller workqueue {{ $labels.name }} retry hot loop'
     - alert: FleetControllerQueueDepthHigh
       expr: |
         max by (name, cluster) (
@@ -53,7 +53,7 @@ spec:
       annotations:
         description: 'Fleet controller workqueue {{ $labels.name }} has had a depth > 10 for more than 5 minutes, indicating work is accumulating faster than it can be processed.'
         runbook_url: 'TBD'
-        summary: 'Fleet controller workqueue depth is high'
+        summary: 'Fleet controller workqueue {{ $labels.name }} depth is high'
     - alert: FleetControllerPanic
       expr: |
         sum by (controller, cluster) (
@@ -65,4 +65,4 @@ spec:
       annotations:
         description: 'Fleet controller {{ $labels.controller }} has panicked {{ printf "%.0f" $value }} time(s) in the last 5 minutes.'
         runbook_url: 'TBD'
-        summary: 'Fleet controller is panicking'
+        summary: 'Fleet controller {{ $labels.controller }} is panicking'

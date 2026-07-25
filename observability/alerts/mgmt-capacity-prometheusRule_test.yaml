@@ -19,7 +19,7 @@ tests:
         severity: critical
         team: hcp-sl
       exp_annotations:
-        summary: Management cluster node has zero SWIFT NIC capacity.
+        summary: Node user-pool-node-1 on management cluster mgmt-nic-zero has zero SWIFT NIC capacity
         description: Node user-pool-node-1 on management cluster mgmt-nic-zero has zero SWIFT NIC capacity. No HCPs can be scheduled on this node until NIC capacity is restored.
         runbook_url: https://portal.microsofticm.com/imp/v5/incidents/details/802529667
         owning_team: hcp-sl
@@ -128,7 +128,7 @@ tests:
         severity: info
         team: hcp-sl
       exp_annotations:
-        summary: Management cluster HCP capacity is approaching limit (60% threshold).
+        summary: Management cluster mgmt-test HCP capacity approaching limit (60% threshold)
         description: Management cluster mgmt-test is at 61.67% of its HCP capacity (60 HCP limit). Current count exceeds warning threshold of 60%.
         runbook_url: https://aka.ms/arohcp-runbook/mgmt-cluster-capacity
         owning_team: hcp-sl
@@ -249,7 +249,7 @@ tests:
         severity: info
         team: hcp-sl
       exp_annotations:
-        summary: Management cluster HCP capacity is critically high (85% threshold).
+        summary: Management cluster mgmt-critical HCP capacity critically high (85% threshold)
         description: Management cluster mgmt-critical is at 86.67% of its HCP capacity (60 HCP limit). Current count exceeds critical threshold of 85%. Immediate action required to provision additional management cluster capacity.
         runbook_url: https://aka.ms/arohcp-runbook/mgmt-cluster-capacity
         owning_team: hcp-sl

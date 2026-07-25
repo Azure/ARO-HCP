@@ -41,7 +41,7 @@ tests:
       exp_annotations:
         description: Service Tag IP Usage test is at 81.25% of its capacity. Current count exceeds warning threshold of 80%.
         runbook_url: https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/serviceiptagusage
-        summary: Service Tag IP Usage is reaching 80%
+        summary: Service tag IP usage on test reaching 80%
         owning_team: hcp-sl
   - eval_time: 15m
     alertname: AroHcpNonprodInboundSvcCapacity
@@ -58,7 +58,7 @@ tests:
       exp_annotations:
         description: Service Tag IP Usage test is at 83.33% of its capacity. Current count exceeds warning threshold of 80%.
         runbook_url: https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/serviceiptagusage
-        summary: Service Tag IP Usage is reaching 80%
+        summary: Service tag IP usage on test reaching 80%
         owning_team: hcp-sl
   - eval_time: 15m
     alertname: AroHcpNonprodOutboundCxCapacity
@@ -75,7 +75,7 @@ tests:
       exp_annotations:
         description: Service Tag IP Usage test is at 87.5% of its capacity. Current count exceeds warning threshold of 80%.
         runbook_url: https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/serviceiptagusage
-        summary: Service Tag IP Usage is reaching 80%
+        summary: Service tag IP usage on test reaching 80%
         owning_team: hcp-sl
   - eval_time: 15m
     alertname: AroHcpNonprodOutboundSvcCapacity
@@ -92,7 +92,7 @@ tests:
       exp_annotations:
         description: Service Tag IP Usage test is at 83.33% of its capacity. Current count exceeds warning threshold of 80%.
         runbook_url: https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/serviceiptagusage
-        summary: Service Tag IP Usage is reaching 80%
+        summary: Service tag IP usage on test reaching 80%
         owning_team: hcp-sl
   - eval_time: 15m
     alertname: AroHcpProdInboundCustomerapiCapacity
@@ -109,7 +109,7 @@ tests:
       exp_annotations:
         description: Service Tag IP Usage test is at 81.25% of its capacity. Current count exceeds warning threshold of 80%.
         runbook_url: https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/serviceiptagusage
-        summary: Service Tag IP Usage is reaching 80%
+        summary: Service tag IP usage on test reaching 80%
         owning_team: hcp-sl
   - eval_time: 15m
     alertname: AroHcpProdInboundCustomerapiUswest2Capacity
@@ -126,7 +126,7 @@ tests:
       exp_annotations:
         description: Service Tag IP Usage test is at 80.47% of its capacity. Current count exceeds warning threshold of 80%.
         runbook_url: https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/serviceiptagusage
-        summary: Service Tag IP Usage is reaching 80%
+        summary: Service tag IP usage on test reaching 80%
         owning_team: hcp-sl
   - eval_time: 15m
     alertname: AroHcpProdInboundCxCapacity
@@ -143,7 +143,7 @@ tests:
       exp_annotations:
         description: Service Tag IP Usage test is at 81.25% of its capacity. Current count exceeds warning threshold of 80%.
         runbook_url: https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/serviceiptagusage
-        summary: Service Tag IP Usage is reaching 80%
+        summary: Service tag IP usage on test reaching 80%
         owning_team: hcp-sl
   - eval_time: 15m
     alertname: AroHcpProdInboundSvcCapacity
@@ -160,7 +160,7 @@ tests:
       exp_annotations:
         description: Service Tag IP Usage test is at 81.25% of its capacity. Current count exceeds warning threshold of 80%.
         runbook_url: https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/serviceiptagusage
-        summary: Service Tag IP Usage is reaching 80%
+        summary: Service tag IP usage on test reaching 80%
         owning_team: hcp-sl
   - eval_time: 15m
     alertname: AroHcpProdOutboundCxCapacity
@@ -177,7 +177,7 @@ tests:
       exp_annotations:
         description: Service Tag IP Usage test is at 81.25% of its capacity. Current count exceeds warning threshold of 80%.
         runbook_url: https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/serviceiptagusage
-        summary: Service Tag IP Usage is reaching 80%
+        summary: Service tag IP usage on test reaching 80%
         owning_team: hcp-sl
   - eval_time: 15m
     alertname: AroHcpProdOutboundSvcCapacity
@@ -194,7 +194,7 @@ tests:
       exp_annotations:
         description: Service Tag IP Usage test is at 81.25% of its capacity. Current count exceeds warning threshold of 80%.
         runbook_url: https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/serviceiptagusage
-        summary: Service Tag IP Usage is reaching 80%
+        summary: Service tag IP usage on test reaching 80%
         owning_team: hcp-sl
 # Test no alerts fire when below 80% threshold
 - interval: 1m

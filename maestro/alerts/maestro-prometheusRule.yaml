@@ -149,7 +149,7 @@ spec:
       annotations:
         description: 'Maestro workqueue {{ $labels.queue_name }} depth is {{ $value }}, sustained above 100 for 10 minutes. Events are not being processed fast enough.'
         runbook_url: 'https://eng.ms/docs/cloud-ai-platform/azure-core/azure-cloud-native-and-management-platform/control-plane-bburns/azure-red-hat-openshift/azure-redhat-openshift-team-doc/hcp/runbooks/maestro/index.html'
-        summary: 'Maestro workqueue depth is high'
+        summary: 'Maestro workqueue {{ $labels.queue_name }} depth is high'
     - alert: MaestroEventStuckUnreconciled
       # Fires when a spec event has been in the database unreconciled
       # for more than 5 minutes. Potential causes for old unreconciled events

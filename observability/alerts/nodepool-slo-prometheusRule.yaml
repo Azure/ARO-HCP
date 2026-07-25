@@ -192,7 +192,7 @@ spec:
       labels:
         severity: info
       annotations:
-        summary: "{{ $labels.cluster }}: Node Pool operation stuck in {{ $labels.phase }} for over 2 hours"
+        summary: "{{ $labels.cluster }}: Node Pool operation for {{ $labels.resource_id }} stuck in {{ $labels.phase }} for over 2 hours"
         description: "Node pool operation for {{ $labels.resource_id }} has been in {{ $labels.phase }} phase for over 2 hours. Stuck operations are invisible to success/failure SLIs and require investigation."
         runbook_url: "https://aka.ms/arohcp-runbook-nodepool"
   # ========================================

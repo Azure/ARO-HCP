@@ -111,7 +111,7 @@ tests:
         severity: critical
         url: http://test
       exp_annotations:
-        summary: Prometheus fails to send samples to remote storage.
+        summary: Prometheus prometheus/ failing to send to test:http://test
         description: Prometheus prometheus/ failed to send 2.0% of the samples to test:http://test
         runbook_url: https://runbooks.prometheus-operator.dev/runbooks/prometheus/prometheusremotestoragefailures
 - interval: 1m
@@ -130,7 +130,7 @@ tests:
         namespace: prometheus
         severity: warning
       exp_annotations:
-        summary: Prometheus is not ingesting samples.
+        summary: Prometheus prometheus/ is not ingesting samples
         description: Prometheus prometheus/ is not ingesting samples.
         runbook_url: https://runbooks.prometheus-operator.dev/runbooks/prometheus/prometheusnotingestingsamples
 - interval: 1m
@@ -147,7 +147,7 @@ tests:
         namespace: prometheus
         severity: critical
       exp_annotations:
-        summary: Failed Prometheus configuration reload.
+        summary: Prometheus prometheus/ configuration reload failed
         description: Prometheus prometheus/ has failed to reload its configuration.
         runbook_url: https://runbooks.prometheus-operator.dev/runbooks/prometheus/prometheusbadconfig
 - interval: 1m
@@ -164,7 +164,7 @@ tests:
         namespace: prometheus
         severity: warning
       exp_annotations:
-        summary: Prometheus has failed scrapes that have exceeded the configured sample limit.
+        summary: Prometheus prometheus/ scrapes exceeding sample limit
         description: Prometheus prometheus/ has failed 10 scrapes in the last 5m because some targets exceeded the configured sample_limit.
         runbook_url: https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/Prometheus.md
 # prometheus-operator-rules group tests
@@ -182,7 +182,7 @@ tests:
         namespace: prometheus
         severity: warning
       exp_annotations:
-        summary: Prometheus operator not ready
+        summary: Prometheus operator prometheus/prometheus not ready
         description: Prometheus operator in prometheus namespace isn't ready to reconcile prometheus resources.
         runbook_url: https://runbooks.prometheus-operator.dev/runbooks/prometheus-operator/prometheusoperatornotready
 - interval: 1m
@@ -202,7 +202,7 @@ tests:
         severity: warning
         state: rejected
       exp_annotations:
-        summary: Resources rejected by Prometheus operator
+        summary: Prometheus operator prometheus/prometheus rejecting prometheusrule resources
         description: Prometheus operator in prometheus namespace rejected 5 prometheus/prometheusrule resources.
         runbook_url: https://runbooks.prometheus-operator.dev/runbooks/prometheus-operator/prometheusoperatorrejectedresources
 # Additional test scenarios with multiple instances
@@ -307,7 +307,7 @@ tests:
         severity: critical
         url: http://storage1
       exp_annotations:
-        summary: Prometheus fails to send samples to remote storage.
+        summary: Prometheus prometheus/ failing to send to storage1:http://storage1
         description: Prometheus prometheus/ failed to send 2.9% of the samples to storage1:http://storage1
         runbook_url: https://runbooks.prometheus-operator.dev/runbooks/prometheus/prometheusremotestoragefailures
 # Test PrometheusNotIngestingSamples with scrape targets present
@@ -327,7 +327,7 @@ tests:
         namespace: prometheus
         severity: warning
       exp_annotations:
-        summary: Prometheus is not ingesting samples.
+        summary: Prometheus prometheus/ is not ingesting samples
         description: Prometheus prometheus/ is not ingesting samples.
         runbook_url: https://runbooks.prometheus-operator.dev/runbooks/prometheus/prometheusnotingestingsamples
 # Test successful config reload scenario
@@ -356,7 +356,7 @@ tests:
         namespace: prometheus
         severity: warning
       exp_annotations:
-        summary: Prometheus operator not ready
+        summary: Prometheus operator prometheus/prometheus not ready
         description: Prometheus operator in prometheus namespace isn't ready to reconcile prometheus resources.
         runbook_url: https://runbooks.prometheus-operator.dev/runbooks/prometheus-operator/prometheusoperatornotready
 # Test PrometheusOperatorRejectedResources with different resource types
@@ -379,7 +379,7 @@ tests:
         severity: warning
         state: rejected
       exp_annotations:
-        summary: Resources rejected by Prometheus operator
+        summary: Prometheus operator prometheus/prometheus rejecting servicemonitor resources
         description: Prometheus operator in prometheus namespace rejected 3 prometheus/servicemonitor resources.
         runbook_url: https://runbooks.prometheus-operator.dev/runbooks/prometheus-operator/prometheusoperatorrejectedresources
     - exp_labels:
@@ -391,7 +391,7 @@ tests:
         severity: warning
         state: rejected
       exp_annotations:
-        summary: Resources rejected by Prometheus operator
+        summary: Prometheus operator prometheus/prometheus rejecting podmonitor resources
         description: Prometheus operator in prometheus namespace rejected 2 prometheus/podmonitor resources.
         runbook_url: https://runbooks.prometheus-operator.dev/runbooks/prometheus-operator/prometheusoperatorrejectedresources
 # Test TSDB disk space scenarios
@@ -593,7 +593,7 @@ tests:
         severity: critical
         url: http://legacy
       exp_annotations:
-        summary: Prometheus fails to send samples to remote storage.
+        summary: Prometheus prometheus/ failing to send to legacy:http://legacy
         description: Prometheus prometheus/ failed to send 2.9% of the samples to legacy:http://legacy
         runbook_url: https://runbooks.prometheus-operator.dev/runbooks/prometheus/prometheusremotestoragefailures
 # Test PrometheusNotIngestingSamples with no targets
@@ -622,7 +622,7 @@ tests:
         namespace: prometheus
         severity: critical
       exp_annotations:
-        summary: Failed Prometheus configuration reload.
+        summary: Prometheus prometheus/ configuration reload failed
         description: Prometheus prometheus/ has failed to reload its configuration.
         runbook_url: https://runbooks.prometheus-operator.dev/runbooks/prometheus/prometheusbadconfig
 # Test PrometheusScrapeSampleLimitHit with multiple instances
@@ -643,7 +643,7 @@ tests:
         namespace: prometheus
         severity: warning
       exp_annotations:
-        summary: Prometheus has failed scrapes that have exceeded the configured sample limit.
+        summary: Prometheus prometheus/ scrapes exceeding sample limit
         description: Prometheus prometheus/ has failed 5 scrapes in the last 5m because some targets exceeded the configured sample_limit.
         runbook_url: https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/Prometheus.md
     - exp_labels:
@@ -653,7 +653,7 @@ tests:
         namespace: prometheus
         severity: warning
       exp_annotations:
-        summary: Prometheus has failed scrapes that have exceeded the configured sample limit.
+        summary: Prometheus prometheus/ scrapes exceeding sample limit
         description: Prometheus prometheus/ has failed 10 scrapes in the last 5m because some targets exceeded the configured sample_limit.
         runbook_url: https://github.com/Azure/ARO-HCP/blob/main/docs/alerts/Prometheus.md
 # Test PrometheusOperatorNotReady recovery scenario
@@ -694,7 +694,7 @@ tests:
         severity: warning
         state: rejected
       exp_annotations:
-        summary: Resources rejected by Prometheus operator
+        summary: Prometheus operator prometheus/prometheus rejecting prometheusrule resources
         description: Prometheus operator in prometheus namespace rejected 2 prometheus/prometheusrule resources.
         runbook_url: https://runbooks.prometheus-operator.dev/runbooks/prometheus-operator/prometheusoperatorrejectedresources
 # Test that alert does not fire before for: 10m is reached
@@ -799,7 +799,7 @@ tests:
         severity: critical
         url: http://minimal
       exp_annotations:
-        summary: Prometheus fails to send samples to remote storage.
+        summary: Prometheus prometheus/ failing to send to minimal:http://minimal
         description: Prometheus prometheus/ failed to send 1.1% of the samples to minimal:http://minimal
         runbook_url: https://runbooks.prometheus-operator.dev/runbooks/prometheus/prometheusremotestoragefailures
 # Test recovery after alert condition
@@ -980,7 +980,7 @@ tests:
         severity: critical
         url: http://storage1
       exp_annotations:
-        summary: Prometheus fails to send samples to remote storage.
+        summary: Prometheus prometheus/ failing to send to storage1:http://storage1
         description: Prometheus prometheus/ failed to send 4.8% of the samples to storage1:http://storage1
         runbook_url: https://runbooks.prometheus-operator.dev/runbooks/prometheus/prometheusremotestoragefailures
 # Test with different pod labels
@@ -1003,7 +1003,7 @@ tests:
         pod: prometheus-server-0
         severity: warning
       exp_annotations:
-        summary: Prometheus is not ingesting samples.
+        summary: Prometheus prometheus/prometheus-server-0 is not ingesting samples
         description: Prometheus prometheus/prometheus-server-0 is not ingesting samples.
         runbook_url: https://runbooks.prometheus-operator.dev/runbooks/prometheus/prometheusnotingestingsamples
 # Test with different cluster labels
@@ -1053,7 +1053,7 @@ tests:
         namespace: prometheus
         severity: warning
       exp_annotations:
-        summary: Prometheus operator not ready
+        summary: Prometheus operator prometheus/prometheus not ready
         description: Prometheus operator in prometheus namespace isn't ready to reconcile prometheus resources.
         runbook_url: https://runbooks.prometheus-operator.dev/runbooks/prometheus-operator/prometheusoperatornotready
     - exp_labels:
@@ -1062,7 +1062,7 @@ tests:
         namespace: prometheus
         severity: warning
       exp_annotations:
-        summary: Prometheus operator not ready
+        summary: Prometheus operator prometheus/alertmanager not ready
         description: Prometheus operator in prometheus namespace isn't ready to reconcile alertmanager resources.
         runbook_url: https://runbooks.prometheus-operator.dev/runbooks/prometheus-operator/prometheusoperatornotready
 # Test with different instance labels
@@ -1083,7 +1083,7 @@ tests:
         namespace: prometheus
         severity: critical
       exp_annotations:
-        summary: Failed Prometheus configuration reload.
+        summary: Prometheus prometheus/ configuration reload failed
         description: Prometheus prometheus/ has failed to reload its configuration.
         runbook_url: https://runbooks.prometheus-operator.dev/runbooks/prometheus/prometheusbadconfig
 # Test with URL variations in remote storage
@@ -1105,6 +1105,6 @@ tests:
         severity: critical
         url: https://storage1.company.com/api/v1/write
       exp_annotations:
-        summary: Prometheus fails to send samples to remote storage.
+        summary: Prometheus prometheus/ failing to send to storage1:https://storage1.company.com/api/v1/write
         description: Prometheus prometheus/ failed to send 2.9% of the samples to storage1:https://storage1.company.com/api/v1/write
         runbook_url: https://runbooks.prometheus-operator.dev/runbooks/prometheus/prometheusremotestoragefailures
