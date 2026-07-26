@@ -35,10 +35,16 @@ const (
 )
 
 // RoleAssignmentsSweeperWorkflow builds the shared-leftovers cleanup workflow.
+//
+// credential backs the ARM clients (role assignments, key vaults, resource
+// groups). graphCredential is used exclusively for the Microsoft Graph
+// directory reads performed by the orphaned role-assignment step; when nil it
+// defaults to credential, preserving single-identity behavior.
 func RoleAssignmentsSweeperWorkflow(
 	_ context.Context,
 	subscriptionID string,
 	credential azcore.TokenCredential,
+	graphCredential azcore.TokenCredential,
 	opts WorkflowOptions,
 ) (*runner.Engine, error) {
 	if strings.TrimSpace(subscriptionID) == "" {
@@ -46,6 +52,9 @@ func RoleAssignmentsSweeperWorkflow(
 	}
 	if credential == nil {
 		return nil, fmt.Errorf("azure credential is required")
+	}
+	if graphCredential == nil {
+		graphCredential = credential
 	}
 
 	clientOptions := normalizeARMClientOptions(opts.ClientOptions)
@@ -78,7 +87,7 @@ func RoleAssignmentsSweeperWorkflow(
 		Steps: []runner.Step{
 			roleassignmentsteps.MustNewDeleteOrphanedStep(roleassignmentsteps.DeleteOrphanedStepConfig{
 				RoleAssignmentsClient:       roleAssignmentsClient,
-				AzureCredential:             credential,
+				GraphCredential:             graphCredential,
 				SubscriptionID:              subscriptionID,
 				Name:                        "Delete orphaned role assignments",
 				Retries:                     orphanedRoleAssignmentStepRetries,

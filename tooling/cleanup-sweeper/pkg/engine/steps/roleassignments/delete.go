@@ -49,8 +49,12 @@ const (
 // DeleteOrphanedStepConfig configures orphaned role-assignment cleanup.
 type DeleteOrphanedStepConfig struct {
 	RoleAssignmentsClient *armauthorization.RoleAssignmentsClient
-	AzureCredential       azcore.TokenCredential
-	SubscriptionID        string
+	// GraphCredential is used exclusively for Microsoft Graph directory reads
+	// (the orphaned-principal preflight and getByIds resolution). It may differ
+	// from the credential backing RoleAssignmentsClient so that directory read
+	// permissions (Directory.Read.All) can be supplied by a separate identity.
+	GraphCredential azcore.TokenCredential
+	SubscriptionID  string
 
 	Name                        string
 	Retries                     int
@@ -73,8 +77,8 @@ func NewDeleteOrphanedStep(cfg DeleteOrphanedStepConfig) (runner.Step, error) {
 	if cfg.RoleAssignmentsClient == nil {
 		return nil, fmt.Errorf("role assignments client is required")
 	}
-	if cfg.AzureCredential == nil {
-		return nil, fmt.Errorf("azure credential is required")
+	if cfg.GraphCredential == nil {
+		return nil, fmt.Errorf("graph credential is required")
 	}
 	if strings.TrimSpace(cfg.SubscriptionID) == "" {
 		return nil, fmt.Errorf("subscription ID is required")
@@ -129,7 +133,7 @@ func (s *deleteOrphanedStep) Discover(ctx context.Context) ([]runner.Target, err
 	return discoverOrphanedRoleAssignments(
 		ctx,
 		s.cfg.RoleAssignmentsClient,
-		s.cfg.AzureCredential,
+		s.cfg.GraphCredential,
 		s.cfg.SubscriptionID,
 	)
 }
@@ -153,7 +157,7 @@ func (s *deleteOrphanedStep) Delete(ctx context.Context, target runner.Target, _
 func discoverOrphanedRoleAssignments(
 	ctx context.Context,
 	roleAssignmentsClient *armauthorization.RoleAssignmentsClient,
-	azureCredential azcore.TokenCredential,
+	graphCredential azcore.TokenCredential,
 	subscriptionID string,
 ) ([]runner.Target, error) {
 	logger, err := logr.FromContext(ctx)
@@ -166,15 +170,15 @@ func discoverOrphanedRoleAssignments(
 	if roleAssignmentsClient == nil {
 		return nil, fmt.Errorf("role assignments client is required")
 	}
-	if azureCredential == nil {
-		return nil, fmt.Errorf("azure credential is required")
+	if graphCredential == nil {
+		return nil, fmt.Errorf("graph credential is required")
 	}
 	subscriptionID = strings.TrimSpace(subscriptionID)
 	if subscriptionID == "" {
 		return nil, fmt.Errorf("subscription ID is required")
 	}
 
-	graphClient, err := newGraphClient(azureCredential)
+	graphClient, err := newGraphClient(graphCredential)
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", preflightFailureMessage, err)
 	}

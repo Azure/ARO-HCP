@@ -78,7 +78,7 @@ func TestMustNewDeleteOrphanedStep_PanicsWhenInvalid(t *testing.T) {
 	t.Parallel()
 
 	cfg := validDeleteOrphanedStepConfig()
-	cfg.AzureCredential = nil
+	cfg.GraphCredential = nil
 
 	defer func() {
 		if recover() == nil {
@@ -200,7 +200,7 @@ func strPtr(value string) *string { return &value }
 func validDeleteOrphanedStepConfig() DeleteOrphanedStepConfig {
 	return DeleteOrphanedStepConfig{
 		RoleAssignmentsClient: &armauthorization.RoleAssignmentsClient{},
-		AzureCredential:       roleAssignmentsTestCredential{},
+		GraphCredential:       roleAssignmentsTestCredential{},
 		SubscriptionID:        "00000000-0000-0000-0000-000000000000",
 	}
 }
