@@ -33,12 +33,15 @@ const (
 	CheckAccessV2RealFPARateLimiterBurst = 500
 
 	// CheckAccessV2InsecureARMPermissionsManagerRateLimiterQPS is the sustained request rate, in queries per second, allowed against the CheckAccessV2 API when calling it as the (insecure,
-	// non-production) ARMPermissionsManager identity, which has a documented limit of 25 requests per 5 seconds (25/5 = 5 QPS).
-	CheckAccessV2InsecureARMPermissionsManagerRateLimiterQPS = 5
+	// non-production) ARMPermissionsManager identity, which has a documented limit of 25 requests per 5 seconds (25/5 = 5 QPS). A token bucket's worst-case admission over any 5-second span is
+	// CheckAccessV2InsecureARMPermissionsManagerRateLimiterBurst + QPS*5, so QPS is deliberately set below the nominal 5 (rather than exactly at it) to leave headroom under the 25-request limit:
+	// 1 (burst) + 4.5*5 = 23.5, a 1.5-request safety net below 25, instead of the 5-request overshoot (1 + 5*5 = 26) that using the nominal 5 QPS would allow.
+	CheckAccessV2InsecureARMPermissionsManagerRateLimiterQPS = 4.5
 
 	// CheckAccessV2InsecureARMPermissionsManagerRateLimiterBurst is the maximum number of CheckAccessV2 requests allowed to run back-to-back, under the ARMPermissionsManager identity's rate limit,
-	// before throttling starts, matching its 25-request burst window.
-	CheckAccessV2InsecureARMPermissionsManagerRateLimiterBurst = 25
+	// before throttling starts. Kept at 1 (rather than the full 25-request window) so the token bucket's worst-case admission over any 5-second span stays within the documented 25-request limit;
+	// see CheckAccessV2InsecureARMPermissionsManagerRateLimiterQPS for the full calculation.
+	CheckAccessV2InsecureARMPermissionsManagerRateLimiterBurst = 1
 
 	// checkAccessV2RateLimiterCacheSize bounds how many distinct tenants' rate limiters rateLimitedCheckAccessV2ClientBuilder caches at once. 10000 is comfortably enough to cache every distinct
 	// Azure tenant expected to have HCP clusters validated by a single backend replica, while still capping worst-case memory growth instead of letting the cache grow for the lifetime of the
