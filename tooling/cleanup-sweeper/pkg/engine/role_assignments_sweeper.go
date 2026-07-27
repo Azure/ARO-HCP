@@ -59,6 +59,11 @@ func RoleAssignmentsSweeperWorkflow(
 
 	clientOptions := normalizeARMClientOptions(opts.ClientOptions)
 
+	graphClient, err := roleassignmentsteps.NewGraphClient(graphCredential)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create graph client: %w", err)
+	}
+
 	roleAssignmentsClient, err := armauthorization.NewRoleAssignmentsClient(subscriptionID, credential, clientOptions)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create role assignments client: %w", err)
@@ -87,7 +92,7 @@ func RoleAssignmentsSweeperWorkflow(
 		Steps: []runner.Step{
 			roleassignmentsteps.MustNewDeleteOrphanedStep(roleassignmentsteps.DeleteOrphanedStepConfig{
 				RoleAssignmentsClient:       roleAssignmentsClient,
-				GraphCredential:             graphCredential,
+				GraphClient:                 graphClient,
 				SubscriptionID:              subscriptionID,
 				Name:                        "Delete orphaned role assignments",
 				Retries:                     orphanedRoleAssignmentStepRetries,
