@@ -267,7 +267,7 @@ func (o *Options) Run(ctx context.Context) error {
 func newGraphCredential(fallback azcore.TokenCredential) (azcore.TokenCredential, error) {
 	tenantID := strings.TrimSpace(os.Getenv("GRAPH_AZURE_TENANT_ID"))
 	clientID := strings.TrimSpace(os.Getenv("GRAPH_AZURE_CLIENT_ID"))
-	clientSecret := os.Getenv("GRAPH_AZURE_CLIENT_SECRET")
+	clientSecret := strings.TrimSpace(os.Getenv("GRAPH_AZURE_CLIENT_SECRET"))
 
 	if tenantID == "" && clientID == "" && clientSecret == "" {
 		return fallback, nil
