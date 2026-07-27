@@ -180,9 +180,16 @@ func (o *ValidatedOptions) Complete(_ context.Context) (*Options, error) {
 		return nil, fmt.Errorf("failed to create Azure credential: %w", err)
 	}
 
-	graphCred, err := newGraphCredential(cred)
-	if err != nil {
-		return nil, err
+	// Only the shared-leftovers workflow performs Microsoft Graph directory
+	// reads, so resolve the (optionally dedicated) Graph credential only then.
+	// This keeps a partial GRAPH_AZURE_* configuration from failing workflows
+	// that never touch Graph (for example, rg-ordered).
+	var graphCred azcore.TokenCredential = cred
+	if o.workflow == WorkflowSharedLeftovers {
+		graphCred, err = newGraphCredential(cred)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return &Options{

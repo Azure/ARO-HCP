@@ -69,6 +69,35 @@ func TestWorkflowBuilders(t *testing.T) {
 			},
 		},
 		{
+			name: "role assignments workflow defaults graph credential to arm credential when nil",
+			execute: func(_ *testing.T) (interface{}, error) {
+				return RoleAssignmentsSweeperWorkflow(
+					context.Background(),
+					"00000000-0000-0000-0000-000000000000",
+					workflowsTestCredential{},
+					nil,
+					WorkflowOptions{
+						DryRun:      true,
+						Wait:        true,
+						Parallelism: 7,
+					},
+				)
+			},
+			assertions: func(t *testing.T, workflow interface{}, err error) {
+				t.Helper()
+				if err != nil {
+					t.Fatalf("expected no error while building workflow with nil graph credential, got %v", err)
+				}
+				builtWorkflow, ok := workflow.(*runner.Engine)
+				if !ok || builtWorkflow == nil {
+					t.Fatalf("expected *runner.Engine workflow")
+				}
+				if len(builtWorkflow.Steps) != 2 {
+					t.Fatalf("expected two steps, got %d", len(builtWorkflow.Steps))
+				}
+			},
+		},
+		{
 			name: "resource group ordered workflow propagates canceled context",
 			execute: func(_ *testing.T) (interface{}, error) {
 				baseCtx := logr.NewContext(context.Background(), logr.Discard())
