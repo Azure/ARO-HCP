@@ -46,8 +46,10 @@ func NewExpiringWatcher(ctx context.Context, expiry time.Duration) watch.Interfa
 	go func() {
 		defer utilruntime.HandleCrash()
 		logger := utils.LoggerFromContext(ctx)
+		timer := time.NewTimer(expiry)
+		defer timer.Stop()
 		select {
-		case <-time.After(expiry):
+		case <-timer.C:
 			select {
 			case w.result <- watch.Event{
 				Type: watch.Error,
