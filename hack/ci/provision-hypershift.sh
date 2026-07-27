@@ -11,25 +11,13 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
-: "${CLUSTER_PROFILE_DIR:?CLUSTER_PROFILE_DIR must be set}"
-: "${ARO_HCP_DEPLOY_ENV:?ARO_HCP_DEPLOY_ENV must be set}"
-
 # --- Resolve ARO-HCP service images from dev ACR by main commit SHA ---
 # The images-push-postsubmit job publishes service images on every merge
 # to ARO-HCP main, tagged with the 7-char commit SHA. We resolve images
 # by SHA to guarantee version coherence across all services.
 
-export AZURE_CLIENT_ID; AZURE_CLIENT_ID=$(cat "${CLUSTER_PROFILE_DIR}/client-id")
-export AZURE_TENANT_ID; AZURE_TENANT_ID=$(cat "${CLUSTER_PROFILE_DIR}/tenant")
-export AZURE_CLIENT_SECRET; AZURE_CLIENT_SECRET=$(cat "${CLUSTER_PROFILE_DIR}/client-secret")
-
-set +o xtrace
-az login --service-principal \
-  -u "${AZURE_CLIENT_ID}" \
-  -p "${AZURE_CLIENT_SECRET}" \
-  --tenant "${AZURE_TENANT_ID}" \
-  --output none
-set -o xtrace
+# shellcheck source=hack/ci/az-login.sh
+source "$(dirname "$0")/az-login.sh"
 
 export ACR_CONFIG_FILE="${SHARED_DIR}/config.yaml"
 
