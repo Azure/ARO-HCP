@@ -26,121 +26,27 @@ import (
 
 	"sigs.k8s.io/randfill"
 
-	azcorearm "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-
 	"github.com/Azure/ARO-HCP/internal/api"
+	apitesting "github.com/Azure/ARO-HCP/internal/api/testing"
 )
 
 func TestRoundTripInternalExternalInternal(t *testing.T) {
 	seed := rand.Int63()
 	t.Logf("seed: %d", seed)
 
-	fuzzer := fuzzerFor([]interface{}{
-		func(j *azcorearm.ResourceID, c randfill.Continue) {
-			*j = *api.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/myRg"))
-		},
-		func(j *api.CosmosMetadata, c randfill.Continue) {
-			c.FillNoCustom(j)
-			// ConvertToInternal lowercases the ID, so use the lowercased canonical form
-			// here so the round-trip comparison succeeds.
-			j.ResourceID = api.Must(azcorearm.ParseResourceID("/subscriptions/00000000-0000-0000-0000-000000000000/resourcegroups/myrg"))
-			j.ExistingCosmosUID = ""
-			j.CosmosETag = ""
-			// InstanceVersion and PartitionKey are purely storage-layer state;
-			// they do not round-trip through the external API.
-			j.InstanceVersion = 0
-			j.PartitionKey = ""
-		},
-		func(j *api.ImageDigestMirror, c randfill.Continue) {
-			c.FillNoCustom(j)
-			// MirrorSourcePolicy does not roundtrip through the external type because it is purely an internal detail
-			j.MirrorSourcePolicy = api.MirrorSourcePolicyAllowContactingSource
-		},
+	fuzzer := apitesting.FuzzerFor(append(apitesting.CommonRoundTripFuzzFuncs(),
+		// Ingress and CryptoRestrictions were added in v20260630preview and do not exist in v20251223preview.
 		func(j *api.HCPOpenShiftClusterCustomerProperties, c randfill.Continue) {
 			c.FillNoCustom(j)
-			// Ingress was added in v2026_06_30_preview and does not exist in v20251223preview.
-			// Cross-version preservation is handled by preserveUnknownClusterFields.
 			j.Ingress = api.CustomerIngressProfile{}
-			// CryptoRestrictions was added in v2026_06_30_preview and does not exist in v20251223preview.
-			// Cross-version preservation is handled by preserveUnknownClusterFields.
 			j.CryptoRestrictions = api.CryptoRestrictionsNone
 		},
-		func(j *api.HCPOpenShiftClusterStatus, c randfill.Continue) {
-			// Status does not roundtrip through the external type because it is purely an internal detail
-			*j = api.HCPOpenShiftClusterStatus{}
-		},
-		func(j *api.HCPOpenShiftClusterNodePoolStatus, c randfill.Continue) {
-			// Status does not roundtrip through the external type because it is purely an internal detail
-			*j = api.HCPOpenShiftClusterNodePoolStatus{}
-		},
-		func(j *api.HCPOpenShiftClusterExternalAuthStatus, c randfill.Continue) {
-			// Status does not roundtrip through the external type because it is purely an internal detail
-			*j = api.HCPOpenShiftClusterExternalAuthStatus{}
-		},
-		func(j *api.HCPOpenShiftClusterServiceProviderProperties, c randfill.Continue) {
-			c.FillNoCustom(j)
-			// ActiveOperationID does not roundtrip through the external type because it is purely an internal detail
-			j.ActiveOperationID = ""
-			// RevokeCredentialsOperationID does not roundtrip through the external type because it is purely an internal detail
-			j.RevokeCredentialsOperationID = ""
-			// ClusterServiceID does not roundtrip through the external type because it is purely an internal detail
-			j.ClusterServiceID = nil
-			// ExperimentalFeatures does not roundtrip through the external type because it is purely an internal detail
-			j.ExperimentalFeatures = api.ExperimentalFeatures{}
-			// ManagedIdentitiesDataPlaneIdentityURL does not roundtrip through the external type because
-			// the information is not provided in the request body. That information is provided via
-			// the http header 'X-Ms-Identity-Url' and we set it after the call to conversion to internal.
-			j.ManagedIdentitiesDataPlaneIdentityURL = ""
-			// ClusterUID does not roundtrip through the external type because it is purely an internal detail
-			j.ClusterUID = ""
-			// BillingDocumentCosmosID does not roundtrip through the external type because it is purely an internal detail
-			j.BillingDocumentCosmosID = ""
-			// UsesNewClusterDeletionApproach does not roundtrip through the external type because it is purely an internal detail
-			j.UsesNewClusterDeletionApproach = false
-		},
-		func(j *api.HCPOpenShiftClusterNodePoolServiceProviderProperties, c randfill.Continue) {
-			c.FillNoCustom(j)
-			// ActiveOperationID does not roundtrip through the external type because it is purely an internal detail
-			j.ActiveOperationID = ""
-			// ClusterServiceID does not roundtrip through the external type because it is purely an internal detail
-			j.ClusterServiceID = nil
-			// UsesNewNodePoolDeletionApproach does not roundtrip through the external type because it is purely an internal detail
-			j.UsesNewNodePoolDeletionApproach = false
-		},
-		func(j *api.HCPOpenShiftClusterExternalAuthServiceProviderProperties, c randfill.Continue) {
-			c.FillNoCustom(j)
-			// ActiveOperationID does not roundtrip through the external type because it is purely an internal detail
-			j.ActiveOperationID = ""
-			// ClusterServiceID does not roundtrip through the external type because it is purely an internal detail
-			j.ClusterServiceID = nil
-			// UsesNewExternalAuthDeletionApproach does not roundtrip through the external type because it is purely an internal detail
-			j.UsesNewExternalAuthDeletionApproach = false
-		},
-		func(j *api.CustomerManagedEncryptionProfile, c randfill.Continue) {
-			c.FillNoCustom(j)
-			// Kms cannot roundtrip if ActiveKey has neither Name nor Version,
-			// because normalizeCustomerManaged correctly skips creating a Kms
-			// entry when there is no key identifier.
-			if j.Kms != nil && j.Kms.ActiveKey.Name == "" && j.Kms.ActiveKey.Version == "" {
-				j.Kms = nil
-			}
-			// Visibility is required in v20251223preview when Kms is present.
-			// Ensure it has a valid value for roundtrip testing.
-			if j.Kms != nil && j.Kms.Visibility == "" {
-				j.Kms.Visibility = api.KeyVaultVisibilityPublic
-			}
-		},
-	}, rand.NewSource(seed))
+	), rand.NewSource(seed))
 
-	// Try a few times, since runTest uses random values.
 	for i := 0; i < 200; i++ {
 		original := &api.HCPOpenShiftCluster{}
 		fuzzer.Fill(original)
-		// InstanceVersion / PartitionKey do not roundtrip through the external
-		// type because they are purely database concerns. The CosmosMetadata
-		// fuzz override also zeroes these, but randfill does not always
-		// dispatch the custom func when filling an embedded struct in-place,
-		// so zero it here too.
+		original.ResourceID = original.ID
 		original.InstanceVersion = 0
 		original.PartitionKey = ""
 		roundTripHCPCluster(t, original)
@@ -149,8 +55,7 @@ func TestRoundTripInternalExternalInternal(t *testing.T) {
 	for i := 0; i < 200; i++ {
 		original := &api.HCPOpenShiftClusterNodePool{}
 		fuzzer.Fill(original)
-		// CosmosETag, InstanceVersion, and PartitionKey do not roundtrip
-		// through the external type because they are purely database concerns.
+		original.ResourceID = original.ID
 		original.CosmosETag = ""
 		original.InstanceVersion = 0
 		original.PartitionKey = ""
@@ -160,23 +65,12 @@ func TestRoundTripInternalExternalInternal(t *testing.T) {
 	for i := 0; i < 200; i++ {
 		original := &api.HCPOpenShiftClusterExternalAuth{}
 		fuzzer.Fill(original)
-		// CosmosETag, InstanceVersion, and PartitionKey do not roundtrip
-		// through the external type because they are purely database concerns.
+		original.ResourceID = original.ID
 		original.CosmosETag = ""
 		original.InstanceVersion = 0
 		original.PartitionKey = ""
 		roundTripExternalAuth(t, original)
 	}
-}
-
-// fuzzerFor can randomly populate api objects that are destined for version.
-func fuzzerFor(funcs []interface{}, src rand.Source) *randfill.Filler {
-	f := randfill.New().NilChance(.5).NumElements(0, 1)
-	if src != nil {
-		f.RandSource(src)
-	}
-	f.Funcs(funcs...)
-	return f
 }
 
 func roundTripHCPCluster(t *testing.T, original *api.HCPOpenShiftCluster) {
@@ -186,9 +80,7 @@ func roundTripHCPCluster(t *testing.T, original *api.HCPOpenShiftCluster) {
 	roundTrippedObj, err := externalObj.ConvertToInternal(original)
 	require.NoError(t, err)
 
-	// we compare the JSON here because many of these types have private fields that cannot be introspected
 	if !equality.Semantic.DeepEqual(original, roundTrippedObj) {
-		// useful for debugging
 		originalJSON, _ := json.MarshalIndent(original, "", "    ")
 		intermediateJSON, _ := json.MarshalIndent(externalObj, "", "    ")
 		resultJSON, _ := json.MarshalIndent(roundTrippedObj, "", "    ")
@@ -204,9 +96,7 @@ func roundTripNodePool(t *testing.T, original *api.HCPOpenShiftClusterNodePool) 
 	roundTrippedObj, err := externalObj.ConvertToInternal(nil)
 	require.NoError(t, err)
 
-	// we compare the JSON here because many of these types have private fields that cannot be introspected
 	if !equality.Semantic.DeepEqual(original, roundTrippedObj) {
-		// useful for debugging
 		originalJSON, _ := json.MarshalIndent(original, "", "    ")
 		intermediateJSON, _ := json.MarshalIndent(externalObj, "", "    ")
 		resultJSON, _ := json.MarshalIndent(roundTrippedObj, "", "    ")
@@ -222,9 +112,7 @@ func roundTripExternalAuth(t *testing.T, original *api.HCPOpenShiftClusterExtern
 	roundTrippedObj, err := externalObj.ConvertToInternal(nil)
 	require.NoError(t, err)
 
-	// we compare the JSON here because many of these types have private fields that cannot be introspected
 	if !equality.Semantic.DeepEqual(original, roundTrippedObj) {
-		// useful for debugging
 		originalJSON, _ := json.MarshalIndent(original, "", "    ")
 		intermediateJSON, _ := json.MarshalIndent(externalObj, "", "    ")
 		resultJSON, _ := json.MarshalIndent(roundTrippedObj, "", "    ")
