@@ -204,18 +204,18 @@ func ValidateDraftLoop(
 			continue
 		}
 
-		feedback := ValidateDraft(ctx, kustoClient, draftChain, vc)
-		if feedback == "" {
+		result := ValidateDraft(ctx, kustoClient, draftChain, vc)
+		if result.Feedback == "" {
 			break // all validation passed
 		}
 
 		if attempt >= maxRounds {
-			logger.Info("Validation still has failures after max correction rounds; proceeding with best-effort.", "attempts", attempt)
+			logger.Info("Validation still has failures after max correction rounds; proceeding with best-effort.", "attempts", attempt, "problemCount", len(result.Problems), "problems", result.Problems)
 			break
 		}
 
-		logger.Info("Validation found errors; sending corrections to agent.", "attempt", attempt+1)
-		output, err = session.SendAndWait(ctx, feedback)
+		logger.Info("Validation found errors; sending corrections to agent.", "attempt", attempt+1, "problemCount", len(result.Problems), "problems", result.Problems)
+		output, err = session.SendAndWait(ctx, result.Feedback)
 		if err != nil {
 			return nil, output, fmt.Errorf("agent correction failed at attempt %d: %w", attempt+1, err)
 		}
