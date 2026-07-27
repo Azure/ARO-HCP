@@ -38,6 +38,9 @@ param infraZoneRedundantMode = '{{ .svc.aks.infraAgentPool.zoneRedundantMode }}'
 param infraOsDiskSizeGB = {{ .svc.aks.infraAgentPool.osDiskSizeGB }}
 param userOsDiskSizeGB = {{ .svc.aks.userAgentPool.osDiskSizeGB }}
 param aksClusterOutboundIPAddressIPTags = '{{ .svc.aks.clusterOutboundIPAddressIPTags }}'
+// istioVersions intentionally not passed — mesh revisions are managed by the
+// IstioUpgrade pipeline step, not baked into the ARM template.
+// istioctlVersion and targetVersion will be removed in a future cleanup.
 param aksNetworkDataplane = '{{ .svc.aks.networkDataplane }}'
 param aksNetworkPolicy = '{{ .svc.aks.networkDataplane }}'
 param aksUpgradeSettingsMaxSurge = '{{ .svc.aks.upgradeSettings.maxSurge }}'

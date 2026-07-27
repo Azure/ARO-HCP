@@ -635,6 +635,9 @@ module nodeSubnetCreation '../modules/network/aks-node-subnet.bicep' = {
   ]
 }
 
+// istioVersions intentionally omitted — mesh revisions are managed by the
+// IstioUpgrade pipeline step, not baked into the ARM template. Passing them
+// here would roll the mesh profile back on every deployment.
 module svcCluster '../modules/aks-cluster-base.bicep' = {
   name: 'cluster-${uniqueString(resourceGroup().name)}'
   scope: resourceGroup()

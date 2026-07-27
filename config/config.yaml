@@ -523,6 +523,9 @@ defaults:
     rg: "hcp-underlay-{{ .ctx.environment }}-{{ .ctx.region }}-svc"
     nsp:
       name: nsp-{{ .ctx.regionShort }}-svc
+    # Consumed by the IstioUpgrade pipeline step (svc-pipeline.yaml, action:
+    # IstioUpgrade) via config path svc.istio.versions — not read by bicep.
+    # istioctlVersion and targetVersion will be removed in a future cleanup.
     istio:
       istioctlVersion: 1.30.3 # 1.30.3 (2026-07-16 16:50)
       tag: "prod-stable"

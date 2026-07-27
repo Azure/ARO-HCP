@@ -3429,10 +3429,11 @@
           "deploy": "boolean"
         },
         "istio": {
+          "description": "Consumed by the IstioUpgrade pipeline step, not by bicep. istioctlVersion, targetVersion, and their CEL validations will be removed in a future cleanup.",
           "type": "object",
           "properties": {
             "istioctlVersion": {
-              "description": "Latest version of istioctl. This is used to download the istioctl",
+              "description": "Latest version of istioctl. This is used to download the istioctl. Will be removed in a future cleanup.",
               "type": "string"
             },
             "tag": {
@@ -3445,7 +3446,7 @@
               "pattern": "^[a-zA-Z0-9-]+(,[a-zA-Z0-9-]+)*$"
             },
             "targetVersion": {
-              "description": "The target istio version that will be updated to",
+              "description": "Must match the versions value. The versions field drives the upgrade; this field is required by schema today but will be removed in a future cleanup.",
               "type": "string",
               "enum": [
                 "asm-1-26",
