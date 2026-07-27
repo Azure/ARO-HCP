@@ -92,6 +92,9 @@ func AddRegistryAuthToSecret(secret *corev1.Secret, host string, registryAuth Re
 		return fmt.Errorf("failed to unmarshal pull secret: %w", err)
 	}
 
+	if config.Auths == nil {
+		config.Auths = make(map[string]RegistryAuth)
+	}
 	config.Auths[host] = registryAuth
 
 	updated, err := json.Marshal(config)

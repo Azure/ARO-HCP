@@ -109,3 +109,26 @@ func TestAddRegistryAuthToSecret_OverwritesExisting(t *testing.T) {
 	assert.Len(t, config.Auths, 1)
 	assert.Equal(t, updatedAuth, config.Auths["registry.example.com"])
 }
+
+func TestAddRegistryAuthToSecret_NilAuth(t *testing.T) {
+	t.Parallel()
+
+	secret := &corev1.Secret{
+		Data: map[string][]byte{
+			corev1.DockerConfigJsonKey: []byte(`{}`),
+		},
+	}
+
+	newAuth := RegistryAuth{
+		Auth:  base64.StdEncoding.EncodeToString([]byte("user:pass")),
+		Email: "user@example.com",
+	}
+	err := AddRegistryAuthToSecret(secret, "registry.example.com", newAuth)
+	require.NoError(t, err)
+
+	var config DockerConfigJSON
+	require.NoError(t, json.Unmarshal(secret.Data[corev1.DockerConfigJsonKey], &config))
+
+	assert.Len(t, config.Auths, 1)
+	assert.Equal(t, newAuth, config.Auths["registry.example.com"])
+}
