@@ -27,6 +27,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 
+	"github.com/Azure/ARO-HCP/tooling/aro-hcp-exporter/internal/cluster"
 	"github.com/Azure/ARO-HCP/tooling/aro-hcp-exporter/pkg/graphquery"
 	"github.com/Azure/ARO-HCP/tooling/metricscache"
 )
@@ -56,9 +57,10 @@ type ServiceTagUsageCollector struct {
 var _ CachingCollector = &ServiceTagUsageCollector{}
 
 // NewServiceTagUsageCollector creates a new ServiceTagUsageCollector
-func NewServiceTagUsageCollector(subscriptionIDs []string, region string, credential azcore.TokenCredential, cacheTTL time.Duration, errorCounter prometheus.Counter) (*ServiceTagUsageCollector, error) {
-	subscriptionIDsPtrs := make([]*string, 0, len(subscriptionIDs))
-	for _, id := range subscriptionIDs {
+func NewServiceTagUsageCollector(clusterClient *cluster.ClusterDiscoveryPoller, region string, credential azcore.TokenCredential, cacheTTL time.Duration, errorCounter prometheus.Counter) (*ServiceTagUsageCollector, error) {
+	subscriptionIDs := clusterClient.GetDiscoverResult()
+	subscriptionIDsPtrs := make([]*string, 0, len(subscriptionIDs.SubscriptionIDs))
+	for _, id := range subscriptionIDs.SubscriptionIDs {
 		subscriptionIDsPtrs = append(subscriptionIDsPtrs, to.Ptr(id))
 	}
 	resourceGraphClient, err := graphquery.NewResourceGraphClient(credential, subscriptionIDsPtrs)

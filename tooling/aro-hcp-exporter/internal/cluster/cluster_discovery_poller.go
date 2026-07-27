@@ -18,6 +18,10 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
+	"time"
+
+	"github.com/go-logr/logr"
 
 	"k8s.io/apimachinery/pkg/util/sets"
 
@@ -37,21 +41,47 @@ type clusterRow struct {
 	SubscriptionId string `mapstructure:"subscriptionId"`
 }
 
-// Discover queries Azure Resource Graph for AKS managed clusters in the
-// given region whose "clusterType" tag matches one of the provided
-// clusterTypes. It returns the discovered cluster names and the
-// deduplicated set of subscription IDs that contain them.
-func Discover(ctx context.Context, client graphquery.Querier, region string, clusterTypes []string) (DiscoverResult, error) {
-	query := buildKQLQuery(region, clusterTypes)
+type ClusterDiscoveryPoller struct {
+	client      graphquery.Querier
+	query       string
+	resultMutex sync.Mutex
+	rows        []clusterRow
+	sleepTime   time.Duration
+}
 
-	var rows []clusterRow
-	err := client.ExecuteConvertRequest(ctx, graphquery.ResourceGraphRequest{
-		Query:  &query,
-		Output: &rows,
-	})
-	if err != nil {
-		return DiscoverResult{}, fmt.Errorf("failed to execute Resource Graph query: %w", err)
+func NewClusterDiscoveryPoller(client graphquery.Querier, region string, clusterTypes []string, sleepTime time.Duration) *ClusterDiscoveryPoller {
+	return &ClusterDiscoveryPoller{
+		client:    client,
+		query:     BuildClusterQuery(region, clusterTypes),
+		sleepTime: sleepTime,
 	}
+}
+
+func (c *ClusterDiscoveryPoller) Poll(ctx context.Context) {
+	select {
+	case <-ctx.Done():
+		return
+	case <-time.After(c.sleepTime):
+		logger := logr.FromContextOrDiscard(ctx)
+		var newRows []clusterRow
+		err := c.client.ExecuteConvertRequest(ctx, graphquery.ResourceGraphRequest{
+			Query:  &c.query,
+			Output: &newRows,
+		})
+		if err != nil {
+			logger.Error(err, "failed to execute Resource Graph query")
+			return
+		}
+		c.resultMutex.Lock()
+		c.rows = newRows
+		c.resultMutex.Unlock()
+	}
+}
+
+func (c *ClusterDiscoveryPoller) GetDiscoverResult() DiscoverResult {
+	c.resultMutex.Lock()
+	rows := c.rows
+	c.resultMutex.Unlock()
 
 	var result DiscoverResult
 	seenSubs := sets.New[string]()
@@ -60,26 +90,18 @@ func Discover(ctx context.Context, client graphquery.Querier, region string, clu
 		seenClusterNames.Insert(row.Name)
 		seenSubs.Insert(row.SubscriptionId)
 	}
-
-	if seenClusterNames.Len() == 0 {
-		return DiscoverResult{}, fmt.Errorf("no clusters found in region %q matching clusterTypes %v", region, clusterTypes)
-	}
-
 	result.ClusterNames = seenClusterNames.UnsortedList()
 	result.SubscriptionIDs = seenSubs.UnsortedList()
-
-	return result, nil
+	return result
 }
 
-// buildKQLQuery constructs a KQL query that finds AKS managed clusters
-// in the specified region with a clusterType tag matching any of the
-// given types.
-func buildKQLQuery(region string, clusterTypes []string) string {
-	quoted := make([]string, len(clusterTypes))
-	for i, ct := range clusterTypes {
-		quoted[i] = fmt.Sprintf("'%s'", graphquery.EscapeKQL(ct))
+// BuildClusterQuery constructs a KQL query that finds AKS managed clusters
+// in the specified region with a clusterType tag matching the given type.
+func BuildClusterQuery(region string, clusterTypes []string) string {
+	quoted := make([]string, 0, len(clusterTypes))
+	for _, clusterType := range clusterTypes {
+		quoted = append(quoted, fmt.Sprintf("'%s'", graphquery.EscapeKQL(clusterType)))
 	}
-
 	return fmt.Sprintf(
 		"resources\n"+
 			"| where type =~ 'Microsoft.ContainerService/managedClusters'\n"+

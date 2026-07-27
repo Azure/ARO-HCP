@@ -22,7 +22,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/go-logr/logr"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/cobra"
 
@@ -92,6 +91,7 @@ type CompletedOptions struct {
 	Registry           *prometheus.Registry
 	Collectors         []metrics.CachingCollector
 	CollectionInterval time.Duration
+	ClusterPoller      *cluster.ClusterDiscoveryPoller
 }
 
 func (o *RawOptions) Validate(ctx context.Context) (*ValidatedOptions, error) {
@@ -158,18 +158,9 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*CompletedOptions, err
 		return nil, fmt.Errorf("failed to create Resource Graph client: %w", err)
 	}
 
-	discovered, err := cluster.Discover(ctx, rgClient, o.Region, o.ClusterTypes)
-	if err != nil {
-		return nil, fmt.Errorf("failed to discover clusters: %w", err)
-	}
+	clusterPoller := cluster.NewClusterDiscoveryPoller(rgClient, o.Region, o.ClusterTypes, o.CollectionInterval)
 
-	logger := logr.FromContextOrDiscard(ctx)
-	logger.Info("discovered AKS clusters",
-		"clusterNames", discovered.ClusterNames,
-		"subscriptionIDs", discovered.SubscriptionIDs,
-	)
-
-	collectors, err := o.CreateEnabledCollectors(ctx, cred, discovered.SubscriptionIDs, discovered.ClusterNames)
+	collectors, err := o.CreateEnabledCollectors(ctx, cred, clusterPoller)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create collectors: %w", err)
 	}
@@ -181,12 +172,13 @@ func (o *ValidatedOptions) Complete(ctx context.Context) (*CompletedOptions, err
 	}
 
 	return &CompletedOptions{
-		ListenAddress:      o.ListenAddress,
-		Region:             o.Region,
-		CacheTTL:           o.CacheTTL,
-		Registry:           registry,
-		Collectors:         collectors,
-		CollectionInterval: o.CollectionInterval,
+		ListenAddress:       o.ListenAddress,
+		Region:              o.Region,
+		CacheTTL:            o.CacheTTL,
+		Registry:            registry,
+		Collectors:          collectors,
+		CollectionInterval:  o.CollectionInterval,
+		ClusterPoller:      clusterPoller,
 	}, nil
 }
 
@@ -226,20 +218,20 @@ func (o *RawOptions) Run(ctx context.Context) error {
 	return completed.Run(ctx)
 }
 
-func (o *ValidatedOptions) CreateEnabledCollectors(ctx context.Context, creds azcore.TokenCredential, subscriptionIDs, clusterNames []string) ([]metrics.CachingCollector, error) {
+func (o *ValidatedOptions) CreateEnabledCollectors(ctx context.Context, creds azcore.TokenCredential, clusterPoller *cluster.ClusterDiscoveryPoller) ([]metrics.CachingCollector, error) {
 	var collectors []metrics.CachingCollector
 	for _, collector := range o.EnabledCollectors {
 		switch collector {
 		case metrics.ServiceTagUsageCollectorName:
 			errorCounter := collectorErrorsTotal.WithLabelValues(metrics.ServiceTagUsageCollectorName)
-			publicIPCollector, err := metrics.NewServiceTagUsageCollector(subscriptionIDs, o.Region, creds, o.CacheTTL, errorCounter)
+			publicIPCollector, err := metrics.NewServiceTagUsageCollector(clusterPoller, o.Region, creds, o.CacheTTL, errorCounter)
 			if err != nil {
 				return nil, fmt.Errorf("failed to create public IP collector: %w", err)
 			}
 			collectors = append(collectors, publicIPCollector)
 		case metrics.KustoLogsCurrentCollectorName:
 			errorCounter := collectorErrorsTotal.WithLabelValues(metrics.KustoLogsCurrentCollectorName)
-			kustoCollector, err := metrics.NewKustoLogsCurrentCollector(o.KustoCluster, o.KustoRegion, clusterNames, o.CacheTTL, errorCounter)
+			kustoCollector, err := metrics.NewKustoLogsCurrentCollector(o.KustoCluster, o.KustoRegion, clusterPoller, o.CacheTTL, errorCounter)
 			if err != nil {
 				return nil, fmt.Errorf("failed to create Kusto logs collector: %w", err)
 			}
