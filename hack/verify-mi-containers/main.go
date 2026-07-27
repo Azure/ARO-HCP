@@ -121,11 +121,16 @@ func checkFile(path string) ([]string, error) {
 		pos := fset.Position(call.Pos())
 		label := fmt.Sprintf("%s:%d: %s(%q)", pos.Filename, pos.Line, specKind, specName)
 
-		declared, hasMILabel := findMIContainersLabel(call)
+		declared, hasMILabel, labelCount := findMIContainersLabel(call)
 		assignCount, hasAssignCall, hasAssignLiteralCount := findAssignIdentityContainersInfo(call)
 
 		if !hasMILabel {
 			violations = append(violations, label+" is missing labels.MIContainers(N) decorator")
+			return true
+		}
+
+		if labelCount > 1 {
+			violations = append(violations, fmt.Sprintf("%s has %d MIContainers labels; exactly one is required", label, labelCount))
 			return true
 		}
 
@@ -178,7 +183,7 @@ func extractSpecName(call *ast.CallExpr) string {
 	return s
 }
 
-func findMIContainersLabel(call *ast.CallExpr) (int, bool) {
+func findMIContainersLabel(call *ast.CallExpr) (declared int, found bool, labelCount int) {
 	for _, arg := range call.Args {
 		argCall, ok := arg.(*ast.CallExpr)
 		if !ok {
@@ -196,10 +201,14 @@ func findMIContainersLabel(call *ast.CallExpr) (int, bool) {
 			continue
 		}
 		if n, ok := parseIntArg(argCall.Args[0]); ok {
-			return n, true
+			labelCount++
+			if !found {
+				declared = n
+				found = true
+			}
 		}
 	}
-	return 0, false
+	return declared, found, labelCount
 }
 
 func parseIntArg(expr ast.Expr) (int, bool) {

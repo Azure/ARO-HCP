@@ -63,6 +63,12 @@ func TestCheckFile(t *testing.T) {
 			wantViolations: 1,
 			wantSubstring:  "MIContainers(2) but does not call AssignIdentityContainers",
 		},
+		{
+			name:           "duplicate MIContainers labels are flagged",
+			file:           "testdata/duplicate_label.go",
+			wantViolations: 1,
+			wantSubstring:  "MIContainers labels; exactly one is required",
+		},
 	}
 
 	for _, tc := range tests {
@@ -101,10 +107,10 @@ func TestCheckDir(t *testing.T) {
 	if err != nil {
 		t.Fatalf("checkDir(testdata) returned error: %v", err)
 	}
-	// testdata has 5 files with violations (missing, negative, mismatch, zero_but_calls, nonzero_no_call)
+	// testdata has 6 files with violations (missing, negative, mismatch, zero_but_calls, nonzero_no_call, duplicate_label)
 	// and 1 valid file
-	if len(violations) != 5 {
-		t.Errorf("checkDir(testdata) returned %d violations, want 5:\n%s",
+	if len(violations) != 6 {
+		t.Errorf("checkDir(testdata) returned %d violations, want 6:\n%s",
 			len(violations), strings.Join(violations, "\n"))
 	}
 }

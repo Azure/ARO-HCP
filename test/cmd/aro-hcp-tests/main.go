@@ -168,7 +168,11 @@ func setupCli() *cobra.Command {
 	}
 
 	containerCount, containerCountSource := parseMIContainerCount()
-	pooledIdentitiesEnabled, _ := strconv.ParseBool(strings.TrimSpace(os.Getenv(framework.UsePooledIdentitiesEnvvar)))
+	pooledIdentitiesRaw := strings.TrimSpace(os.Getenv(framework.UsePooledIdentitiesEnvvar))
+	pooledIdentitiesEnabled, err := strconv.ParseBool(pooledIdentitiesRaw)
+	if err != nil && pooledIdentitiesRaw != "" {
+		fmt.Fprintf(os.Stderr, "WARNING: %s=%q is not a valid boolean, treating as false\n", framework.UsePooledIdentitiesEnvvar, pooledIdentitiesRaw)
+	}
 	var miPools map[string]int
 	if pooledIdentitiesEnabled {
 		miPools = map[string]int{"mi-containers": containerCount}
