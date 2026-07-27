@@ -113,6 +113,24 @@ func (l *DBApplyDesireLister) GetForNodePool(
 		})
 }
 
+func (l *DBApplyDesireLister) GetForSystemAdminCredentialRequest(
+	ctx context.Context, subscriptionID, resourceGroupName, clusterName, credentialRequestName, name string,
+) (*kubeapplier.ApplyDesire, error) {
+	return findClusterDesireInAnyClient(ctx, l.Clients, l.Lister, name,
+		func(c database.KubeApplierDBClient) (database.ResourceCRUD[kubeapplier.ApplyDesire, *kubeapplier.ApplyDesire], error) {
+			return c.ApplyDesiresForSystemAdminCredentialRequest(subscriptionID, resourceGroupName, clusterName, credentialRequestName)
+		})
+}
+
+func (l *DBApplyDesireLister) GetForSystemAdminCredentialRevocation(
+	ctx context.Context, subscriptionID, resourceGroupName, clusterName, revocationName, name string,
+) (*kubeapplier.ApplyDesire, error) {
+	return findClusterDesireInAnyClient(ctx, l.Clients, l.Lister, name,
+		func(c database.KubeApplierDBClient) (database.ResourceCRUD[kubeapplier.ApplyDesire, *kubeapplier.ApplyDesire], error) {
+			return c.ApplyDesiresForSystemAdminCredentialRevocation(subscriptionID, resourceGroupName, clusterName, revocationName)
+		})
+}
+
 func (l *DBApplyDesireLister) ListForManagementCluster(
 	ctx context.Context, managementClusterResourceID *azcorearm.ResourceID,
 ) ([]*kubeapplier.ApplyDesire, error) {
@@ -238,6 +256,24 @@ func (l *DBReadDesireLister) GetForNodePool(
 	return findClusterDesireInAnyClient(ctx, l.Clients, l.Lister, name,
 		func(c database.KubeApplierDBClient) (database.ResourceCRUD[kubeapplier.ReadDesire, *kubeapplier.ReadDesire], error) {
 			return c.ReadDesiresForNodePool(subscriptionID, resourceGroupName, clusterName, nodePoolName)
+		})
+}
+
+func (l *DBReadDesireLister) GetForSystemAdminCredentialRequest(
+	ctx context.Context, subscriptionID, resourceGroupName, clusterName, credentialRequestName, name string,
+) (*kubeapplier.ReadDesire, error) {
+	return findClusterDesireInAnyClient(ctx, l.Clients, l.Lister, name,
+		func(c database.KubeApplierDBClient) (database.ResourceCRUD[kubeapplier.ReadDesire, *kubeapplier.ReadDesire], error) {
+			return c.ReadDesiresForSystemAdminCredentialRequest(subscriptionID, resourceGroupName, clusterName, credentialRequestName)
+		})
+}
+
+func (l *DBReadDesireLister) GetForSystemAdminCredentialRevocation(
+	ctx context.Context, subscriptionID, resourceGroupName, clusterName, revocationName, name string,
+) (*kubeapplier.ReadDesire, error) {
+	return findClusterDesireInAnyClient(ctx, l.Clients, l.Lister, name,
+		func(c database.KubeApplierDBClient) (database.ResourceCRUD[kubeapplier.ReadDesire, *kubeapplier.ReadDesire], error) {
+			return c.ReadDesiresForSystemAdminCredentialRevocation(subscriptionID, resourceGroupName, clusterName, revocationName)
 		})
 }
 

@@ -84,7 +84,7 @@ func (opsync *operationRequestCredential) ShouldProcess(ctx context.Context, ope
 	if operation.Status.IsTerminal() {
 		return false
 	}
-	if operation.Request != database.OperationRequestRequestCredential {
+	if operation.Request != database.OperationRequestSystemAdminCredentialRequest {
 		return false
 	}
 	if len(operation.InternalID.String()) == 0 {

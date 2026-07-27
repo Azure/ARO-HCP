@@ -77,7 +77,7 @@ func (c *dispatchRevokeCredentials) ShouldProcess(ctx context.Context, operation
 	if operation.Status.IsTerminal() {
 		return false
 	}
-	if operation.Request != database.OperationRequestRevokeCredentials {
+	if operation.Request != database.OperationRequestSystemAdminCredentialRevocation {
 		return false
 	}
 	// For this operation type, because there is no guarantee of break-

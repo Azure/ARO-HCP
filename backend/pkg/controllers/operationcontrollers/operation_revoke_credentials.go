@@ -83,7 +83,7 @@ func (opsync *operationRevokeCredentials) ShouldProcess(ctx context.Context, ope
 	if operation.Status.IsTerminal() {
 		return false
 	}
-	if operation.Request != database.OperationRequestRevokeCredentials {
+	if operation.Request != database.OperationRequestSystemAdminCredentialRevocation {
 		return false
 	}
 	// For this operation type, because there is no guarantee of break-

@@ -68,13 +68,13 @@ func TestCheckForProvisioningStateConflict(t *testing.T) {
 		{
 			name:             "Request cluster credential",
 			resourceID:       api.TestClusterResourceID,
-			operationRequest: database.OperationRequestRequestCredential,
+			operationRequest: database.OperationRequestSystemAdminCredentialRequest,
 			directConflict:   func(s arm.ProvisioningState) bool { return !s.IsTerminal() },
 		},
 		{
 			name:             "Revoke cluster credentials",
 			resourceID:       api.TestClusterResourceID,
-			operationRequest: database.OperationRequestRevokeCredentials,
+			operationRequest: database.OperationRequestSystemAdminCredentialRevocation,
 			directConflict:   func(s arm.ProvisioningState) bool { return !s.IsTerminal() },
 		},
 		{

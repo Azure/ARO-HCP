@@ -114,6 +114,8 @@ type HCPClusterCRUD interface {
 
 	ExternalAuth(hcpClusterID string) ExternalAuthsCRUD
 	NodePools(hcpClusterID string) NodePoolsCRUD
+	SystemAdminCredentialRequests(hcpClusterName string) SystemAdminCredentialRequestsCRUD
+	SystemAdminCredentialRevocations(hcpClusterName string) SystemAdminCredentialRevocationsCRUD
 }
 
 func NewHCPClusterCRUD(containerClient *azcosmos.ContainerClient, subscriptionID, resourceGroupName string) HCPClusterCRUD {
@@ -178,6 +180,40 @@ func (h *hcpClusterCRUD) NodePools(hcpClusterName string) NodePoolsCRUD {
 			h.containerClient,
 			parentResourceID,
 			api.NodePoolResourceType),
+	}
+}
+
+func (h *hcpClusterCRUD) SystemAdminCredentialRequests(hcpClusterName string) SystemAdminCredentialRequestsCRUD {
+	clusterResourceID := api.Must(azcorearm.ParseResourceID(
+		path.Join(
+			h.parentResourceID.String(),
+			"providers",
+			h.resourceType.Namespace,
+			h.resourceType.Type,
+			hcpClusterName)))
+
+	return &systemAdminCredentialRequestsCRUD{
+		nestedCosmosResourceCRUD: NewCosmosResourceCRUD[api.SystemAdminCredentialRequest, *api.SystemAdminCredentialRequest, GenericDocument[api.SystemAdminCredentialRequest]](
+			h.containerClient,
+			clusterResourceID,
+			api.SystemAdminCredentialRequestResourceType),
+	}
+}
+
+func (h *hcpClusterCRUD) SystemAdminCredentialRevocations(hcpClusterName string) SystemAdminCredentialRevocationsCRUD {
+	clusterResourceID := api.Must(azcorearm.ParseResourceID(
+		path.Join(
+			h.parentResourceID.String(),
+			"providers",
+			h.resourceType.Namespace,
+			h.resourceType.Type,
+			hcpClusterName)))
+
+	return &systemAdminCredentialRevocationsCRUD{
+		nestedCosmosResourceCRUD: NewCosmosResourceCRUD[api.SystemAdminCredentialRevocation, *api.SystemAdminCredentialRevocation, GenericDocument[api.SystemAdminCredentialRevocation]](
+			h.containerClient,
+			clusterResourceID,
+			api.SystemAdminCredentialRevocationResourceType),
 	}
 }
 
@@ -253,6 +289,50 @@ func (h *nodePoolsCRUD) ManagementClusterContents(nodePoolName string) ResourceC
 		api.NodePoolScopedManagementClusterContentResourceType,
 	)
 }
+
+type SystemAdminCredentialRequestsCRUD interface {
+	ResourceCRUD[api.SystemAdminCredentialRequest, *api.SystemAdminCredentialRequest]
+	ControllerContainer
+}
+
+type systemAdminCredentialRequestsCRUD struct {
+	*nestedCosmosResourceCRUD[api.SystemAdminCredentialRequest, *api.SystemAdminCredentialRequest, GenericDocument[api.SystemAdminCredentialRequest]]
+}
+
+func (h *systemAdminCredentialRequestsCRUD) Controllers(credentialRequestName string) ResourceCRUD[api.Controller, *api.Controller] {
+	parentResourceID := api.Must(azcorearm.ParseResourceID(
+		path.Join(
+			h.parentResourceID.String(),
+			h.resourceType.Types[len(h.resourceType.Types)-1],
+			credentialRequestName,
+		)))
+
+	return NewControllerCRUD(h.containerClient, parentResourceID, api.SystemAdminCredentialRequestControllerResourceType)
+}
+
+var _ SystemAdminCredentialRequestsCRUD = &systemAdminCredentialRequestsCRUD{}
+
+type SystemAdminCredentialRevocationsCRUD interface {
+	ResourceCRUD[api.SystemAdminCredentialRevocation, *api.SystemAdminCredentialRevocation]
+	ControllerContainer
+}
+
+type systemAdminCredentialRevocationsCRUD struct {
+	*nestedCosmosResourceCRUD[api.SystemAdminCredentialRevocation, *api.SystemAdminCredentialRevocation, GenericDocument[api.SystemAdminCredentialRevocation]]
+}
+
+func (h *systemAdminCredentialRevocationsCRUD) Controllers(revocationName string) ResourceCRUD[api.Controller, *api.Controller] {
+	parentResourceID := api.Must(azcorearm.ParseResourceID(
+		path.Join(
+			h.parentResourceID.String(),
+			h.resourceType.Types[len(h.resourceType.Types)-1],
+			revocationName,
+		)))
+
+	return NewControllerCRUD(h.containerClient, parentResourceID, api.SystemAdminCredentialRevocationControllerResourceType)
+}
+
+var _ SystemAdminCredentialRevocationsCRUD = &systemAdminCredentialRevocationsCRUD{}
 
 func NewControllerCRUD(
 	containerClient *azcosmos.ContainerClient, parentResourceID *azcorearm.ResourceID, resourceType azcorearm.ResourceType) ResourceCRUD[api.Controller, *api.Controller] {

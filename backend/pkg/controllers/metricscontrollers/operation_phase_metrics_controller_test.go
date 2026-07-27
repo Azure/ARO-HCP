@@ -124,8 +124,8 @@ func TestOperationTypeMetricLabel(t *testing.T) {
 		{api.OperationRequestCreate, "create"},
 		{api.OperationRequestUpdate, "update"},
 		{api.OperationRequestDelete, "delete"},
-		{api.OperationRequestRequestCredential, "requestcredential"},
-		{api.OperationRequestRevokeCredentials, "revokecredentials"},
+		{api.OperationRequestSystemAdminCredentialRequest, "requestcredential"},
+		{api.OperationRequestSystemAdminCredentialRevocation, "revokecredentials"},
 	}
 
 	for _, tt := range tests {

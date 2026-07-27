@@ -73,7 +73,7 @@ func TestDispatchRequestCredential_SyncrhonizeOperation(t *testing.T) {
 			fixture := newClusterTestFixture()
 			cluster := fixture.newCluster(nil)
 			cluster.ServiceProviderProperties.RevokeCredentialsOperationID = tt.revokeCredentialsOperationID
-			operation := fixture.newOperation(database.OperationRequestRequestCredential)
+			operation := fixture.newOperation(database.OperationRequestSystemAdminCredentialRequest)
 			operation.InternalID = api.InternalID{}
 
 			mockResourcesDBClient, err := databasetesting.NewMockResourcesDBClientWithResources(ctx, []any{cluster, operation})

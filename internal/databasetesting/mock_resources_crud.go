@@ -497,6 +497,34 @@ func (m *mockHCPClusterCRUD) ManagementClusterContents(hcpClusterName string) da
 	return newMockManagementClusterContentCRUD(m.client, parentResourceID, api.ClusterScopedManagementClusterContentResourceType)
 }
 
+func (m *mockHCPClusterCRUD) SystemAdminCredentialRequests(hcpClusterName string) database.SystemAdminCredentialRequestsCRUD {
+	clusterResourceID := api.Must(azcorearm.ParseResourceID(
+		path.Join(
+			m.parentResourceID.String(),
+			"providers",
+			api.ClusterResourceType.Namespace,
+			api.ClusterResourceType.Type,
+			hcpClusterName)))
+
+	return &mockSystemAdminCredentialRequestsCRUD{
+		mockResourceCRUD: newMockResourceCRUD[api.SystemAdminCredentialRequest, *api.SystemAdminCredentialRequest, database.GenericDocument[api.SystemAdminCredentialRequest]](m.client, clusterResourceID, api.SystemAdminCredentialRequestResourceType),
+	}
+}
+
+func (m *mockHCPClusterCRUD) SystemAdminCredentialRevocations(hcpClusterName string) database.SystemAdminCredentialRevocationsCRUD {
+	clusterResourceID := api.Must(azcorearm.ParseResourceID(
+		path.Join(
+			m.parentResourceID.String(),
+			"providers",
+			api.ClusterResourceType.Namespace,
+			api.ClusterResourceType.Type,
+			hcpClusterName)))
+
+	return &mockSystemAdminCredentialRevocationsCRUD{
+		mockResourceCRUD: newMockResourceCRUD[api.SystemAdminCredentialRevocation, *api.SystemAdminCredentialRevocation, database.GenericDocument[api.SystemAdminCredentialRevocation]](m.client, clusterResourceID, api.SystemAdminCredentialRevocationResourceType),
+	}
+}
+
 var _ database.HCPClusterCRUD = &mockHCPClusterCRUD{}
 
 // mockNodePoolsCRUD implements database.NodePoolsCRUD.
@@ -545,6 +573,40 @@ func (m *mockExternalAuthCRUD) Controllers(externalAuthName string) database.Res
 }
 
 var _ database.ExternalAuthsCRUD = &mockExternalAuthCRUD{}
+
+type mockSystemAdminCredentialRequestsCRUD struct {
+	*mockResourceCRUD[api.SystemAdminCredentialRequest, *api.SystemAdminCredentialRequest, database.GenericDocument[api.SystemAdminCredentialRequest]]
+}
+
+func (m *mockSystemAdminCredentialRequestsCRUD) Controllers(credentialRequestName string) database.ResourceCRUD[api.Controller, *api.Controller] {
+	parentResourceID := api.Must(azcorearm.ParseResourceID(
+		path.Join(
+			m.parentResourceID.String(),
+			m.resourceType.Types[len(m.resourceType.Types)-1],
+			credentialRequestName,
+		)))
+
+	return newMockResourceCRUD[api.Controller, *api.Controller, database.GenericDocument[api.Controller]](m.client, parentResourceID, api.SystemAdminCredentialRequestControllerResourceType)
+}
+
+var _ database.SystemAdminCredentialRequestsCRUD = &mockSystemAdminCredentialRequestsCRUD{}
+
+type mockSystemAdminCredentialRevocationsCRUD struct {
+	*mockResourceCRUD[api.SystemAdminCredentialRevocation, *api.SystemAdminCredentialRevocation, database.GenericDocument[api.SystemAdminCredentialRevocation]]
+}
+
+func (m *mockSystemAdminCredentialRevocationsCRUD) Controllers(revocationName string) database.ResourceCRUD[api.Controller, *api.Controller] {
+	parentResourceID := api.Must(azcorearm.ParseResourceID(
+		path.Join(
+			m.parentResourceID.String(),
+			m.resourceType.Types[len(m.resourceType.Types)-1],
+			revocationName,
+		)))
+
+	return newMockResourceCRUD[api.Controller, *api.Controller, database.GenericDocument[api.Controller]](m.client, parentResourceID, api.SystemAdminCredentialRevocationControllerResourceType)
+}
+
+var _ database.SystemAdminCredentialRevocationsCRUD = &mockSystemAdminCredentialRevocationsCRUD{}
 
 // mockOperationCRUD implements database.OperationCRUD.
 type mockOperationCRUD struct {

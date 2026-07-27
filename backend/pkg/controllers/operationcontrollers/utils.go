@@ -339,9 +339,9 @@ func notifyOperationOwner(ctx context.Context, resourcesDBClient database.Resour
 			message = "Resource update succeeded"
 		case database.OperationRequestDelete:
 			message = "Resource deletion succeeded"
-		case database.OperationRequestRequestCredential:
+		case database.OperationRequestSystemAdminCredentialRequest:
 			message = "Credential request succeeded"
-		case database.OperationRequestRevokeCredentials:
+		case database.OperationRequestSystemAdminCredentialRevocation:
 			message = "Credential revocation succeeded"
 		}
 	case arm.ProvisioningStateFailed:
@@ -352,9 +352,9 @@ func notifyOperationOwner(ctx context.Context, resourcesDBClient database.Resour
 			message = "Resource update failed"
 		case database.OperationRequestDelete:
 			message = "Resource deletion failed"
-		case database.OperationRequestRequestCredential:
+		case database.OperationRequestSystemAdminCredentialRequest:
 			message = "Credential request failed"
-		case database.OperationRequestRevokeCredentials:
+		case database.OperationRequestSystemAdminCredentialRevocation:
 			message = "Credential revocation failed"
 		}
 	}
